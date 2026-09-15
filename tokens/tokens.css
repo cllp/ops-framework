@@ -46,6 +46,17 @@
   --color-state-error-bg: rgba(163, 58, 48, 0.10);
   --color-state-info-bg: rgba(58, 106, 138, 0.10);
 
+  /* ─── Rytm. Avstånd kommer HÄRIFRÅN, aldrig ur fria pixlar. ─── */
+  /* Layout som spretar spretar nästan alltid i avstånd, inte i färg.       */
+  /* Skalan är medvetet grov: sex steg. Behöver du något mittemellan är     */
+  /* frågan först om ett av stegen var fel val.                            */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
   /* ─── Form. Radier är en skala, inte fria värden. ─── */
   --radius-sm: 4px;
   --radius-md: 8px;

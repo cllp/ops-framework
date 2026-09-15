@@ -1,28 +1,49 @@
 # ops-framework
 
-Gemensamt lager för Staigers ops-plattformar (`bolag-ops`, `tam`).
+Kunskapen om hur vi bygger webb och applikationer. Arbetsregler, skills,
+tokenkontrakt, stilskikt och vakter.
 
-Hantverk, inte domän: arbetsregler, tokenkontrakt, komponentkontrakt och vakter.
-**Inget datalager och ingen auktorisationsmodell**, eftersom plattformarna
-divergerar där med flit: `bolag-ops` går mot Firebase, `tam` är ett korpus där
-repot är datan.
+Gemensamt för Staigers ops-plattformar (`bolag-ops`, `tam`), och avsett att på
+sikt även bära nya ytor i SessionStudio.
 
-| Fil | Vad |
+**Hantverk, inte domän.** Inget datalager och ingen auktorisationsmodell:
+plattformarna divergerar där med flit. `bolag-ops` går mot Firebase, `tam` är
+ett korpus där repot är datan.
+
+## Struktur
+
+| | |
 |---|---|
-| `CLAUDE.md` | arbetsreglerna. Varje regel bär händelsen som skapade den |
-| `tokens/tokens.css` | tokenkontraktet. Struktur kanon, värden per app |
-| `tokens/check-tokens.mjs` | vakten. Fyra regler, alla bevisade röda |
-| `docs/TOKENS.md` | kontraktets regler och skälen |
-| `docs/COMPONENTS.md` | listor, kort, piller, vyer. Beslut plus spridningen de svalde |
+| `CLAUDE.md` | arbetsreglerna. Läses alltid. Varje regel bär händelsen som skapade den |
+| `skills/<namn>/SKILL.md` | laddas vid behov. 40 till 70 rader, varje påstående förankrat |
+| `tokens/tokens.css` | 116 tokens, tolv grupper, tre lägen för mörkt tema |
+| `css/ops.css` | stilskiktet. Namngivna klasser, ren CSS, inget byggberoende |
+| `tokens/check-tokens.mjs` | fyra regler, alla bevisade röda |
+| `css/check-closed-api.mjs` | tre regler plus golv, bevisade i båda riktningarna |
 
-## Kör vakten
+## Varför skills och inte ett dokument
+
+Ett dokument på 2000 rader läses inte. En skill på 150 laddas när den behövs.
+Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
+
+## Vakterna först
+
+Det som gör utseendet enhetligt är inte dokumentationen, det är vakterna.
+`design-patterns.md` i SessionStudio är 2003 rader, men det som faktiskt håller
+ihop UI:t är fältvakten och knappvakten. Dokumentet beskriver, vakten
+upprätthåller.
 
 ```
 node tokens/check-tokens.mjs tokens/tokens.css
+node css/check-closed-api.mjs src
 ```
 
 ## Status
 
-Frö, inte färdigt. Byggt 2026-09-15. Kvar: de portabla vakterna ur
-SessionStudio (ungefär femton av 49), primitiverna som komponentkontraktet
-förutsätter, och den genererade regelkopian med driftvakt för konsumentrepon.
+| Klart | Kvar |
+|---|---|
+| arbetsreglerna | primitiverna som React-komponenter |
+| tokenkontraktet och dess vakt | de portabla vakterna ur SessionStudio (cirka 15 av 49) |
+| stilskiktet, sex primitivklasser | skills: web-app, testing, firebase-data, auth-google-idp, observability, ci-and-guards, architecture-decisions |
+| css-and-components som skill | genererad regelkopia med driftvakt för konsumentrepon |
+| vakten för stängt API | adoptionsräknare med tak som bara får sjunka |
