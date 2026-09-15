@@ -15,6 +15,7 @@ inte ska göra, och vad du ska fråga om i stället för att gissa.
 | Fil | Varför |
 |---|---|
 | `README.md` | vad ramverket är, vad det innehåller, hur det används |
+| `SETUP.md` | uppsättning från tomt till inloggad app: Google-projekt, roller, regler |
 | `CLAUDE.md` | arbetsreglerna. Varje regel bär händelsen som skapade den |
 | `skills/css-and-components/SKILL.md` | hur utseende byggs |
 | `skills/web-app/SKILL.md` | hur en app är strukturerad |
@@ -29,9 +30,19 @@ gäller.
 ## 2. Skapa appen
 
 ```bash
-node create-ops-app/bin/create-ops-app.mjs <namn> --framework "github:cllp/ops-framework#v0.1.0"
+node create-ops-app/bin/create-ops-app.mjs <namn> --framework "github:cllp/ops-framework#<sha>"
 cd <namn> && npm install && npm run dev
 ```
+
+⛔ **Pinna till en commit-SHA eller en tagg, aldrig till `main`.** Pekar du på
+`main` ändras appens utseende den dag någon annan pushar, och du får reda på det
+av en användare. En SHA är ett lika stabilt pin som en tagg.
+
+⛔ **Det finns ingen tagg på remoten än.** Tagg-push gav HTTP 403 i sessionen som
+byggde ramverket, mätt två gånger, medan branch-push fungerade. Det är sessionens
+policy och inte repot. Tills CP skapar en release på GitHub är SHA:n det som
+gäller, och den ska inte gissas: hämta den med `git ls-remote
+https://github.com/cllp/ops-framework main`.
 
 Öppna `/primitiver`. Där finns hela utseendet i en vy, i båda temalägena. Titta
 på den innan du skriver en enda rad egen markup, annars kommer du att uppfinna
@@ -92,8 +103,20 @@ Läs `adoption/bolag-ops.md`. Tre principer gäller oavsett vilken plattform det
 
 ## 7. Vad som medvetet inte finns i ramverket
 
-Toast, tooltip, skelettladdning, diagram, appskal med toppnavigering, i18n, samt
-datalager och auth. Skälen står i README under **Vad som INTE finns, med flit**.
+⛔ Den här listan sade tidigare att toast, tooltip, appskal, datalager och auth
+saknades. **Det stämmer inte längre, allt det finns.** Låt det vara en påminnelse
+om att en lista över vad som saknas åldras fortare än nästan allt annat i en
+överlämning: läs README:s egen tabell, den är den som underhålls.
+
+I dag saknas, med flit:
+
+| Saknas | Varför |
+|---|---|
+| Firestore-regler och SQL-behörigheter | ramverket kan inte veta vem som får se vad. Det är ett produktbeslut, och det är där det riktiga skyddet ligger |
+| Beroenden på `firebase` och `pg` | adaptrarna finns, men SDK:n skickas in av appen |
+| Skelettladdning | `OpsEmpty busy` med snurra täcker det grova fallet |
+| Diagram | datavisualisering är ett eget hantverk |
+| i18n | ramverkets få egna strängar är svenska och går att skicka in som props |
 
 Behöver din plattform något av det: **säg det, bygg det inte lokalt.** Det är
 precis så två plattformar slutar se likadana ut.

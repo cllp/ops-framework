@@ -352,6 +352,15 @@ npm run dev
 Öppna `/primitiver`. Där ligger hela utseendet i en enda vy, och växlaren uppe
 till höger visar båda temalägena.
 
+Det ger dig en app som kör mot minnet. **Ska den ha riktig inloggning och riktig
+data: följ [`SETUP.md`](SETUP.md)**, som tar dig hela vägen genom Google-projekt,
+roller och säkerhetsregler, och som säger rakt ut vilka steg som går att scripta
+och vilka fyra som bara går att klicka.
+
+⛔ Pinna ramverket till en commit-SHA eller en tagg i appens `package.json`,
+aldrig till `main`. Pekar du på `main` ändras appens utseende den dag någon annan
+pushar, och du får reda på det av en användare.
+
 ### De fyra filer som är dina
 
 | | |
