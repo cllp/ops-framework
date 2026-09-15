@@ -32,7 +32,7 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
   const f = useFaltKoppling();
 
   return (
-    <Select.Root value={value} onValueChange={onChange} disabled={disabled}>
+    <Select.Root value={value} onValueChange={onChange} disabled={disabled} required={f.kravs || undefined}>
       <Select.Trigger
         id={f.id}
         className={cx(

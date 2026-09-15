@@ -9,15 +9,34 @@
  * `skills/css-and-components/`.
  */
 
+// ── Åtgärder och ytor ──────────────────────────────────────────────────────
 export { OpsButton } from "./components/OpsButton.jsx";
 export { OpsCard } from "./components/OpsCard.jsx";
-export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
-export { OpsSelect } from "./components/OpsSelect.jsx";
-export { OpsPill } from "./components/OpsPill.jsx";
-export { OpsList, OpsListRow } from "./components/OpsList.jsx";
 export { OpsView, OpsViewHeader } from "./components/OpsView.jsx";
 export { OpsModal } from "./components/OpsModal.jsx";
-export { OpsIdentity } from "./components/OpsIdentity.jsx";
 
+// ── Formulär ───────────────────────────────────────────────────────────────
+export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
+export { OpsSelect } from "./components/OpsSelect.jsx";
+export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
+
+// ── Data ───────────────────────────────────────────────────────────────────
+export { OpsList, OpsListRow } from "./components/OpsList.jsx";
+export { OpsTable } from "./components/OpsTable.jsx";
+export { OpsStat } from "./components/OpsStat.jsx";
+export { OpsEmpty } from "./components/OpsEmpty.jsx";
+
+// ── Märkning ───────────────────────────────────────────────────────────────
+export { OpsPill } from "./components/OpsPill.jsx";
+export { OpsTag } from "./components/OpsTag.jsx";
+export { OpsIdentity } from "./components/OpsIdentity.jsx";
+export { OpsProvenance } from "./components/OpsProvenance.jsx";
+
+// ── Navigering och meddelanden ─────────────────────────────────────────────
+export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
+export { OpsBanner } from "./components/OpsBanner.jsx";
+
+// ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, ANTAL_IDENTITETSTONER } from "./lib/identity.js";
+export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, TALMELLANSLAG, SAKNAS } from "./lib/format.js";

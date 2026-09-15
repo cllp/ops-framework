@@ -101,6 +101,24 @@
   --color-identity-5: #6b4a63;
   --color-identity-6: #5a5f4a;
 
+  /* ─── Proveniens ─────────────────────────────────────────────────────────
+   * Vem producerade det här: en människa, en agent, eller automatik.
+   *
+   * Begreppet är inte påhittat här. bolag-ops hade redan `--human`, `--agent`
+   * och `--auto` innan ramverket fanns, och TAM kommer att behöva exakt samma
+   * skillnad. När två plattformar oberoende av varandra uppfinner samma sak är
+   * det ett tecken på att det hör hemma i kontraktet.
+   *
+   * ⛔ Färgen får aldrig vara enda bäraren. `OpsProvenance` skriver alltid ut
+   * ordet också, av samma skäl som piller gör det.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-human: #8a6d18;
+  --color-human-bg: rgba(138, 109, 24, 0.12);
+  --color-agent: #3a6a8a;
+  --color-agent-bg: rgba(58, 106, 138, 0.12);
+  --color-auto: #4a6b5d;
+  --color-auto-bg: rgba(74, 107, 93, 0.12);
+
   /* ─── Rytm ───────────────────────────────────────────────────────────────
    * Tailwind räknar avstånd som `--spacing × n`. Med 4px ger `p-2` 8px och
    * `p-6` 24px, alltså exakt den skala vi ändå skulle skrivit för hand.
@@ -188,6 +206,13 @@
   --dark-info: #6fa3c4;
   --dark-info-bg: rgba(111, 163, 196, 0.14);
 
+  --dark-human: #e0b35c;
+  --dark-human-bg: rgba(224, 179, 92, 0.16);
+  --dark-agent: #7aa2c8;
+  --dark-agent-bg: rgba(122, 162, 200, 0.16);
+  --dark-auto: #7d9b7a;
+  --dark-auto-bg: rgba(125, 155, 122, 0.16);
+
   --dark-identity-1: #7aa892;
   --dark-identity-2: #c9a961;
   --dark-identity-3: #d66f63;
@@ -267,6 +292,13 @@
     --color-info: var(--dark-info);
     --color-info-bg: var(--dark-info-bg);
 
+    --color-human: var(--dark-human);
+    --color-human-bg: var(--dark-human-bg);
+    --color-agent: var(--dark-agent);
+    --color-agent-bg: var(--dark-agent-bg);
+    --color-auto: var(--dark-auto);
+    --color-auto-bg: var(--dark-auto-bg);
+
     --color-identity-1: var(--dark-identity-1);
     --color-identity-2: var(--dark-identity-2);
     --color-identity-3: var(--dark-identity-3);
@@ -313,6 +345,13 @@
   --color-danger-bg: var(--dark-danger-bg);
   --color-info: var(--dark-info);
   --color-info-bg: var(--dark-info-bg);
+
+  --color-human: var(--dark-human);
+  --color-human-bg: var(--dark-human-bg);
+  --color-agent: var(--dark-agent);
+  --color-agent-bg: var(--dark-agent-bg);
+  --color-auto: var(--dark-auto);
+  --color-auto-bg: var(--dark-auto-bg);
 
   --color-identity-1: var(--dark-identity-1);
   --color-identity-2: var(--dark-identity-2);

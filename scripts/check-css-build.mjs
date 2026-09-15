@@ -77,6 +77,13 @@ const css = resultat.css;
 const brott = [];
 
 // ── 1 + 3: våra utilities finns, alltså hittades dist ────────────────────────
+// ⛔ Listan vaxer med varje ny primitiv. Skalet: en primitiv vars klasser inte
+// genereras ser ratt ut i kallkoden och blir helt ostylad i bygget, utan ett
+// enda felmeddelande. Utan en rad har upptacks det av en anvandare.
+//
+// Opacitetsmodifierarna (`/12`, `/30`) star med FOR ATT de bygger pa color-mix
+// mot en CSS-variabel. Det ar den enda konstruktionen i hela ramverket dar jag
+// inte kunde slå upp mig till svaret, sa den matas i stallet.
 const MASTE_FINNAS = [
   ".bg-accent",
   ".text-ink",
@@ -84,6 +91,13 @@ const MASTE_FINNAS = [
   ".bg-danger",
   ".text-xs",
   ".rounded-full",
+  ".tabular-nums",
+  ".overflow-x-auto",
+  ".bg-human-bg",
+  ".text-agent",
+  ".bg-identity-1\\/12",
+  ".border-info\\/30",
+  ".peer-checked\\:bg-accent",
 ];
 for (const v of MASTE_FINNAS) {
   if (!css.includes(v)) {

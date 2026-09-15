@@ -75,13 +75,12 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
             </Dialog.Close>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto px-6">{children}</div>
+          {/* Bottenutrymmet kommer ur kroppens padding nar det inte finns
+              nagon fot. En tom distans-div i DOM:en ar en ful losning som en
+              skarmlasare dessutom stannar pa. */}
+          <div className={cx("min-h-0 flex-1 overflow-auto px-6", footer ? "" : "pb-6")}>{children}</div>
 
-          {footer ? (
-            <div className="flex flex-wrap items-center justify-end gap-2 p-6 pt-4">{footer}</div>
-          ) : (
-            <div className="h-6" />
-          )}
+          {footer ? <div className="flex flex-wrap items-center justify-end gap-2 p-6 pt-4">{footer}</div> : null}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

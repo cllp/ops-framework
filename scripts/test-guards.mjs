@@ -220,6 +220,28 @@ kravRott(
 
 kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "finns-inte.css")], "hittar inte");
 
+// ── Exportvakten ───────────────────────────────────────────────────────────
+//
+// ⛔ Den tysta ytadriften: ett namn döps om i en modul men inte i index.js, och
+// importen ger undefined i stället för att kasta. Ingenting loggar, och felet
+// dyker upp långt från sin orsak. Exakt det hände under passet som skrev vakten.
+{
+  const namn = "exports: omdopt export som index.js inte foljde med pa";
+  const kopia = path.join(arbetsmapp, "index-trasig.js");
+  const riktig = path.join(rot, "src", "index.js");
+  const original = fs.readFileSync(riktig, "utf8");
+  fs.writeFileSync(kopia, original);
+  fs.writeFileSync(riktig, original.replace("OpsButton }", "OpsButton, OpsFinnsInte }"));
+  const k = spawnSync(process.execPath, ["scripts/check-exports.mjs"], { cwd: rot, encoding: "utf8" });
+  fs.writeFileSync(riktig, original);
+  const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
+  resultat.push(
+    k.status !== 0 && utdata.includes("finns inte i den byggda bundlen")
+      ? { namn, vantat: "rott", utfall: "ok" }
+      : { namn, vantat: "rott", utfall: `vakten fangade inte en utlovad export som saknas i bundlen. Utdata: ${utdata.trim().split("\n").slice(0, 2).join(" | ")}` },
+  );
+}
+
 // ── Byggvakten ─────────────────────────────────────────────────────────────
 // Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
 // `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är
