@@ -13,8 +13,16 @@ import { cx } from "../lib/cx.js";
  * själv, och som ingen upptäcker förrän någon använder skärmläsare.
  */
 
-/** @type {import("react").Context<{ id: string, beskrivsAv?: string, ogiltigt: boolean, kravs: boolean } | null>} */
-const FaltContext = createContext(null);
+/**
+ * @typedef {object} Faltkoppling
+ * @property {string} id
+ * @property {string} [beskrivsAv]
+ * @property {boolean} ogiltigt
+ * @property {boolean} kravs
+ */
+
+/** @type {import("react").Context<Faltkoppling | null>} */
+const FaltContext = createContext(/** @type {Faltkoppling | null} */ (null));
 
 /**
  * @param {object} props

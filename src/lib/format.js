@@ -117,6 +117,11 @@ export function formatDate(varde, val = {}) {
   if (!d) return SAKNAS;
   const { style = "short", locale = SPRAK } = val;
   const renDatumstrang = typeof varde === "string" && /^\d{4}-\d{2}-\d{2}$/.test(varde);
+
+  // ⛔ Annoteringen är inte kosmetik. Utan den vidgas "numeric" till `string`,
+  // och då slutar typkontrollen märka om någon skriver "numerisk" eller
+  // "2digit". Felet syns först som fel datumformat på skärmen.
+  /** @type {Intl.DateTimeFormatOptions} */
   const options =
     style === "long"
       ? { year: "numeric", month: "long", day: "numeric" }

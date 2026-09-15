@@ -275,6 +275,25 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   );
 }
 
+// ── Typvakten ──────────────────────────────────────────────────────────────
+//
+// ⛔ JSDoc-typer som inte kontrolleras ar kommentarer, och kommentarer glider
+// fran koden. Vakten ar `tsc --checkJs`. Mutationen planterar ett fel av precis
+// den sort som annars ger en tyst bugg: ett vardet utanfor den slutna mangden.
+{
+  const namn = "typer: varde utanfor den slutna mangden";
+  const fil = path.join(rot, "src", "__typprov.js");
+  fs.writeFileSync(fil, 'import { OpsButton } from "./index.js";\n/** @type {Parameters<typeof OpsButton>[0]["variant"]} */\nexport const v = "fancy";\n');
+  const k = spawnSync("npx", ["tsc", "-p", "tsconfig.json"], { cwd: rot, encoding: "utf8", shell: true });
+  fs.rmSync(fil, { force: true });
+  const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
+  resultat.push(
+    k.status !== 0 && utdata.includes("__typprov")
+      ? { namn, vantat: "rott", utfall: "ok" }
+      : { namn, vantat: "rott", utfall: `tsc fangade inte ett varde utanfor den slutna mangden. Status ${k.status}: ${utdata.trim().split("\n").slice(0, 2).join(" | ")}` },
+  );
+}
+
 // ── Byggvakten ─────────────────────────────────────────────────────────────
 // Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
 // `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är

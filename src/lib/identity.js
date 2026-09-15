@@ -12,8 +12,13 @@
 export const ANTAL_IDENTITETSTONER = 6;
 
 /**
+ * ⛔ Returtypen är en union och inte `number`. Det gör att uppslaget i
+ * primitivernas tonkarta typkontrolleras exakt: lägger någon till en sjunde ton
+ * utan att utöka kartan blir det ett fel i editorn, i stället för ett element
+ * som tyst renderas utan bakgrundsfärg.
+ *
  * @param {string} seed Stabilt id, till exempel ett dokument-id. Inte ett namn.
- * @returns {number} 1 till och med ANTAL_IDENTITETSTONER
+ * @returns {1|2|3|4|5|6}
  */
 export function identityTone(seed) {
   const text = String(seed ?? "");
@@ -21,7 +26,7 @@ export function identityTone(seed) {
   for (let i = 0; i < text.length; i += 1) {
     hash = (hash * 31 + text.charCodeAt(i)) % 100000007;
   }
-  return (hash % ANTAL_IDENTITETSTONER) + 1;
+  return /** @type {1|2|3|4|5|6} */ ((hash % ANTAL_IDENTITETSTONER) + 1);
 }
 
 /**

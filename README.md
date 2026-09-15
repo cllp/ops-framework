@@ -93,6 +93,21 @@ Femton komponenter, alla med stängt API. Ingen tar emot `className` eller
 | `OpsTabs`, `OpsTabPanel` | flikar med piltangenter och korrekt koppling |
 | `OpsBanner` | `info` och `success` avbryter inte, `warning` och `danger` gör det |
 
+### Typer
+
+Ramverket är JavaScript med JSDoc, inte TypeScript, men typerna **kontrolleras**
+med `tsc --checkJs` och skickas med som `.d.ts`.
+
+Följden för den som bygger en app: `variant="primary"` autocompletar, och
+`variant="fancy"` blir rött **i editorn**, innan någon vakt hinner säga något.
+Det stängda API:et blir alltså synligt där koden skrivs.
+
+⛔ Otypkontrollerade JSDoc-typer är kommentarer, och kommentarer glider från
+koden. När kontrollen slogs på hittade den fem fel på en gång, varav två var
+riktiga latenta buggar: ett uppslag som kunde ge `undefined` och tyst rendera ett
+element utan bakgrundsfärg, och ett formateringsval som inte längre
+typkontrollerades.
+
 ### Hjälpare
 
 | | |
@@ -106,6 +121,7 @@ Femton komponenter, alla med stängt API. Ingen tar emot `className` eller
 
 | Vakt | Vad den bevisar |
 |---|---|
+| `check-types` (`tsc --checkJs`) | JSDoc-typerna kontrolleras, och `.d.ts` följer med paketet |
 | `check-tokens` | sju regler i tokenkontraktet, plus golv mot fel fil |
 | `check-exports` | den publika ytan stämmer med modulerna, inget internt läcker |
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
@@ -274,7 +290,7 @@ Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
 |---|---|
 | tokenkontraktet som Tailwind-tema, 193 tokens | auth, Firestore-regler och regeltester |
 | femton primitiver med stängt API, 43 beteendetester | observability: logger, larm till issue |
-| sju vakter plus mutationsharnesset, 24 regler bevisade röda | toast, tooltip, appskal |
+| åtta vakter plus mutationsharnesset, 25 regler bevisade röda | toast, tooltip, appskal |
 | `create-ops-app`, bevisad genom en riktig installation | appskal och navigering in i ramverket |
 | adoptionsplan för bolag-ops, mätt mot repot | själva adoptionen, som väntar på profilbeslutet |
 | skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |

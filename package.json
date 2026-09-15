@@ -6,7 +6,10 @@
   "license": "UNLICENSED",
   "private": false,
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./tokens.css": "./tokens/tokens.css",
     "./package.json": "./package.json"
   },
@@ -22,18 +25,19 @@
     "*.css"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "prepare": "node scripts/build.mjs",
+    "build": "node scripts/build.mjs && npx tsc -p tsconfig.build.json",
+    "prepare": "node scripts/build.mjs && npx tsc -p tsconfig.build.json",
     "check:tokens": "node tokens/check-tokens.mjs tokens/tokens.css",
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
-    "check": "npm run build && npm run check:tokens && npm run check:exports && npm run check:closed-api && npm run check:css-build && npm run check:guards && npm test",
+    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:closed-api && npm run check:css-build && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
     "check:all": "npm run check && npm run check:scaffold",
     "check:exports": "node scripts/check-exports.mjs",
-    "check:adoption": "node scripts/check-adoption.mjs"
+    "check:adoption": "node scripts/check-adoption.mjs",
+    "check:types": "npx tsc -p tsconfig.json"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -50,6 +54,8 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.3.4",
     "esbuild": "^0.28.2",
     "jsdom": "^25.0.1",
@@ -57,6 +63,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
     "vitest": "^2.1.8"
-  }
+  },
+  "types": "./dist/types/index.d.ts"
 }
