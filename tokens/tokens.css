@@ -1,0 +1,174 @@
+/**
+ * Tokenkontraktet. Strukturen är kanon, värdena är plats för din profil.
+ *
+ * ⛔ LÄS `docs/TOKENS.md` INNAN DU LÄGGER TILL EN TOKEN. Reglerna där är korta
+ * och två av dem är dyrköpta.
+ *
+ * Varje app definierar om värdena. Ingen app hittar på en ny grupp utan att
+ * lägga den här först, annars är kontraktet bara en rekommendation.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ─── Ytor. bg-primary är sidans botten, surface det som ligger på den. ─── */
+  --color-bg-primary: #ffffff;
+  --color-bg-surface: #f7f7f6;
+  --color-bg-raised: #ffffff;
+  --color-bg-sunken: #efeeec;
+  --color-bg-overlay: rgba(20, 20, 19, 0.45);
+
+  /* ─── Text. Fyra nivåer räcker. En femte blir alltid "ungefär som muted". ─── */
+  --color-text-primary: #1a1a19;
+  --color-text-secondary: #55534e;
+  --color-text-muted: #86837c;
+  --color-text-inverse: #ffffff;
+
+  /* ─── Kanter och avdelare ─── */
+  --color-border: #dedcd7;
+  --color-border-strong: #c3c0b9;
+  --color-divider: #e8e6e1;
+
+  /* ─── Accent. EN accent plus varianter. Två accenter blir aldrig två, de blir fem. ─── */
+  --color-accent: #4a6b5d;
+  --color-accent-hover: #3d594d;
+  --color-accent-contrast: #ffffff;
+  --color-accent-subtle: rgba(74, 107, 93, 0.12);
+  --color-accent-faint: rgba(74, 107, 93, 0.06);
+
+  /* ─── Tillstånd. Namnges efter BETYDELSE, aldrig efter färg. ─── */
+  --color-state-success: #3f7a55;
+  --color-state-warning: #9a7b20;
+  --color-state-error: #a33a30;
+  --color-state-info: #3a6a8a;
+  --color-state-success-bg: rgba(63, 122, 85, 0.10);
+  --color-state-warning-bg: rgba(154, 123, 32, 0.10);
+  --color-state-error-bg: rgba(163, 58, 48, 0.10);
+  --color-state-info-bg: rgba(58, 106, 138, 0.10);
+
+  /* ─── Form. Radier är en skala, inte fria värden. ─── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+  --radius-card: var(--radius-lg);
+
+  /* ─── Djup. Skuggor är en skala av tre. Fler blir brus. ─── */
+  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.06);
+  --shadow-md: 0 2px 8px rgba(20, 20, 19, 0.10);
+  --shadow-lg: 0 8px 24px rgba(20, 20, 19, 0.14);
+
+  /* ─── Typografi ─── */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --line-tight: 1.25;
+  --line-normal: 1.5;
+  --line-loose: 1.7;
+  --letter-tight: -0.01em;
+  --letter-normal: 0;
+
+  /* ─── Rörelse. En varaktighet per avsikt, inte per komponent. ─── */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+  --transition-slow: 300ms ease;
+
+  /* ─── Lager. ⛔ Aldrig en fallback i var(): se TOKENS.md regel 4. ─── */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  /* ─── Säkra ytor (telefon och surfplatta) ─── */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/**
+ * Mörkt läge i tre lägen, och ordningen spelar roll.
+ *
+ * Systemets val gäller när användaren inte valt något, och ett explicit val
+ * vinner i BÅDA riktningarna. Definiera aldrig en färg enbart inuti ett
+ * media- eller attributblock: då saknar den sitt grundvärde.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-bg-primary: #16171a;
+    --color-bg-surface: #1e2024;
+    --color-bg-raised: #24272c;
+    --color-bg-sunken: #121316;
+    --color-bg-overlay: rgba(0, 0, 0, 0.6);
+
+    --color-text-primary: #f2f1ee;
+    --color-text-secondary: #b6b3ac;
+    --color-text-muted: #82807a;
+    --color-text-inverse: #16171a;
+
+    --color-border: #32353b;
+    --color-border-strong: #474b52;
+    --color-divider: #282b30;
+
+    --color-accent: #7aa892;
+    --color-accent-hover: #8dbaa4;
+    --color-accent-contrast: #16171a;
+    --color-accent-subtle: rgba(122, 168, 146, 0.16);
+    --color-accent-faint: rgba(122, 168, 146, 0.08);
+
+    --color-state-success: #6fae85;
+    --color-state-warning: #c9a961;
+    --color-state-error: #d66f63;
+    --color-state-info: #6fa3c4;
+    --color-state-success-bg: rgba(111, 174, 133, 0.14);
+    --color-state-warning-bg: rgba(201, 169, 97, 0.14);
+    --color-state-error-bg: rgba(214, 111, 99, 0.14);
+    --color-state-info-bg: rgba(111, 163, 196, 0.14);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg-primary: #16171a;
+  --color-bg-surface: #1e2024;
+  --color-bg-raised: #24272c;
+  --color-bg-sunken: #121316;
+  --color-bg-overlay: rgba(0, 0, 0, 0.6);
+
+  --color-text-primary: #f2f1ee;
+  --color-text-secondary: #b6b3ac;
+  --color-text-muted: #82807a;
+  --color-text-inverse: #16171a;
+
+  --color-border: #32353b;
+  --color-border-strong: #474b52;
+  --color-divider: #282b30;
+
+  --color-accent: #7aa892;
+  --color-accent-hover: #8dbaa4;
+  --color-accent-contrast: #16171a;
+  --color-accent-subtle: rgba(122, 168, 146, 0.16);
+  --color-accent-faint: rgba(122, 168, 146, 0.08);
+
+  --color-state-success: #6fae85;
+  --color-state-warning: #c9a961;
+  --color-state-error: #d66f63;
+  --color-state-info: #6fa3c4;
+  --color-state-success-bg: rgba(111, 174, 133, 0.14);
+  --color-state-warning-bg: rgba(201, 169, 97, 0.14);
+  --color-state-error-bg: rgba(214, 111, 99, 0.14);
+  --color-state-info-bg: rgba(111, 163, 196, 0.14);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
