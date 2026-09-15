@@ -316,6 +316,38 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   );
 }
 
+// ── Datalagervakten ────────────────────────────────────────────────────────
+//
+// ⛔ Regeln som avgor om datalagret ar vart nagot. Alla bygger ett datalager,
+// och nastan alla far det forstort pa samma satt: en enda vy anropar nagot
+// kallspecifikt "bara den har gangen".
+{
+  const datavakt = "scripts/check-data-layer.mjs";
+  kravRott(
+    "data 1: SDK importerad i en vy",
+    [datavakt, kallkopia("d1", 'import { getFirestore } from "firebase/firestore";\nexport const Vy = () => getFirestore();\n')],
+    "utanför en adapter",
+  );
+  kravRott(
+    "data 2: fetch i en vy",
+    [datavakt, kallkopia("d2", 'export const Vy = () => fetch("/api/kostnader");\n')],
+    "fetch utanfor en adapter".replace("utanfor", "utanför"),
+  );
+  kravRott("data golv: tom katalog", [datavakt, path.join(arbetsmapp, "finns-inte-heller")], "noll filer lästa");
+
+  // Kontroll av kontrollen: en adapter FAR importera sin SDK, annars vore
+  // vakten omojlig att uppfylla och skulle stangas av.
+  const mapp = path.join(arbetsmapp, "d3", "adaptrar");
+  fs.mkdirSync(mapp, { recursive: true });
+  fs.writeFileSync(path.join(mapp, "Prov.jsx"), 'import { getFirestore } from "firebase/firestore";\nexport const db = getFirestore();\n');
+  const k = spawnSync(process.execPath, [datavakt, path.join(arbetsmapp, "d3")], { cwd: rot, encoding: "utf8" });
+  resultat.push(
+    k.status === 0
+      ? { namn: "data: adaptern far importera sin SDK", vantat: "gront", utfall: "ok" }
+      : { namn: "data: adaptern far importera sin SDK", vantat: "gront", utfall: `vakten blev rod i adaptern, alltsa omojlig att uppfylla: ${(k.stderr ?? "").trim().split("\n").slice(0, 2).join(" | ")}` },
+  );
+}
+
 // ── Byggvakten ─────────────────────────────────────────────────────────────
 // Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
 // `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är

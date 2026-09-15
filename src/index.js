@@ -9,6 +9,9 @@
  * `skills/css-and-components/`.
  */
 
+// ── Skal ───────────────────────────────────────────────────────────────────
+export { OpsAppShell } from "./components/OpsAppShell.jsx";
+
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────
 export { OpsButton } from "./components/OpsButton.jsx";
 export { OpsCard } from "./components/OpsCard.jsx";
@@ -18,6 +21,7 @@ export { OpsModal } from "./components/OpsModal.jsx";
 // ── Formulär ───────────────────────────────────────────────────────────────
 export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
 export { OpsSelect } from "./components/OpsSelect.jsx";
+export { OpsDatePicker } from "./components/OpsDatePicker.jsx";
 export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
 
 // ── Data ───────────────────────────────────────────────────────────────────
@@ -35,6 +39,13 @@ export { OpsProvenance } from "./components/OpsProvenance.jsx";
 // ── Navigering och meddelanden ─────────────────────────────────────────────
 export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
 export { OpsBanner } from "./components/OpsBanner.jsx";
+export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
+export { OpsTooltip } from "./components/OpsTooltip.jsx";
+
+// ── Datalager ──────────────────────────────────────────────────────────────
+export { skapaDatakalla, tillampaFraga, OPERATIONER } from "./data/kontrakt.js";
+export { skapaMinneskalla, skapaJsonKalla } from "./data/adaptrar.js";
+export { OpsDataProvider, useDatakalla, useSamling, useDokument } from "./data/useData.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";

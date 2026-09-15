@@ -16,7 +16,7 @@ den enda vägen att lägga till det i ramverket, och då får alla plattformar d
 samtidigt.**
 
 **Att reglerna faktiskt följs är inte en fråga om disciplin utan om mekanik:
-tjugosex vaktregler blir röda före push, och var och en av dem är bevisad genom att
+tjugonio vaktregler blir röda före push, och var och en av dem är bevisad genom att
 den gått att göra röd med flit.**
 
 ---
@@ -148,7 +148,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**23 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**28 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -170,6 +170,7 @@ något godtyckligt.
 | `OpsInput` | `value`, `onChange`, `type` text \| email \| search \| tel \| url \| password \| number, `placeholder`, `name`, `autoComplete`, `disabled`, `readOnly`, `maxLength`, `ariaLabel` |
 | `OpsTextarea` | `value`, `onChange`, `placeholder`, `name`, `rows`, `disabled`, `maxLength`, `ariaLabel` |
 | `OpsSelect` | `options` [{value, label, disabled}], `value`, `onChange`, `placeholder`, `disabled`, `ariaLabel` |
+| `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel` |
 | `OpsCheckbox` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 | `OpsSwitch` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 
@@ -196,9 +197,13 @@ något godtyckligt.
 
 | Komponent | Props |
 |---|---|
+| `OpsAppShell` | `brand`, `nav` [{href, label}], `activeHref`, `onNavigate`, `actions`, `menuLabel`, `navLabel`, `children` |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsTabPanel` | `id`, `children` |
 | `OpsBanner` | `tone` info \| success \| warning \| danger, `title`, `action`, `onDismiss`, `dismissLabel`, `children` |
+| `OpsToastProvider` | `children`, `closeLabel`. Läggs en gång, högst upp |
+| `useOpsToast` | `visa({ title, description, tone })` |
+| `OpsTooltip` | `content`, `side`, `children` |
 
 #### Vad var och en gör som du annars fått bygga själv
 
@@ -217,6 +222,41 @@ något godtyckligt.
 | `OpsIdentity` | initialer som inte klipper mitt i ett tecken |
 | `OpsBanner` | `role="alert"` bara för det som ska avbryta |
 | `OpsTabs` | piltangenter, Home, End och koppling flik till panel |
+
+### Datalager
+
+Ett CRUD-kontrakt med utbytbara adaptrar. **Vyerna vet aldrig var datan kommer
+ifrån**, så källan är ett byte av en rad vid uppstarten: JSON i repot i dag,
+Firestore i morgon, SQL bakom ett API sedan.
+
+| | |
+|---|---|
+| `skapaDatakalla(adapter)` | tar en adapter, vägrar en som saknar en operation |
+| `skapaMinneskalla(start)` | allt i minnet. Tester, utveckling, och innan källan bestämts |
+| `skapaJsonKalla({ bas })` | läser JSON-filer över HTTP. Läsbar, inte skrivbar |
+| `tillampaFraga(rader, fraga)` | filtrering, sortering och gräns för adaptrar som håller allt i minnet |
+| `OPERATIONER` | `las`, `lista`, `skapa`, `uppdatera`, `taBort` |
+| `OpsDataProvider` | ger appen sin källa |
+| `useDatakalla`, `useSamling`, `useDokument` | React-sidan, med `laddar`, `fel` och `data` åtskilda |
+
+Fyra regler gör kontraktet värt något:
+
+1. **Allt är asynkront**, även minnesadaptern. Kontraktet får inte avslöja hur
+   snabb källan råkar vara, för då skrivs anropsställen som går sönder vid byte.
+2. **Fel kastas, de returneras aldrig som tomhet.** `fetch` kastar inte på 500,
+   så utan den regeln visar appen "inga träffar" när den inte kunde fråga.
+3. **`las` ger `null` för "finns inte", vilket inte är ett fel.** Skillnaden mot
+   "kunde inte fråga" måste gå att hantera olika.
+4. **Varje post har ett `id`.** Utan en gemensam nyckel kan delad kod inte veta
+   vad som identifierar en rad.
+
+⛔ **Ingen cache och ingen realtid, med avsikt.** Ett arbetsverktyg behöver färsk
+data när man tittar på det, inte data som strömmar in medan man läser.
+
+⛔ Den regel som avgör om datalagret är värt något är inte kontraktet utan
+`check-data-layer`: **en databas-SDK får bara importeras i en adapter.** Alla
+bygger ett datalager, och nästan alla får det förstört på samma sätt, nämligen
+att en enda vy anropar något källspecifikt "bara den här gången".
 
 ### Typer
 
@@ -256,6 +296,7 @@ typkontrollerades.
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
 | `check-scaffold` | en app skapas, installeras och kör sin egen grind |
+| `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
 | `check-adoption` | en pågående upprensning går framåt, aldrig bakåt |
 | `test-guards` | **bryter varje regel ovan och kräver rött** |
 
@@ -357,11 +398,10 @@ ut varianterna i en uppslagstabell.
 
 | Saknas | Varför |
 |---|---|
-| Datalager, auth, behörighetsmodell | ser olika ut per plattform. Att gissa modellen i förväg är hur man får en behörighetsmodell ingen litar på |
-| Toast och notiser | `--z-toast` finns i skalan, men ingen primitiv använder den än. Läggs till när första appen behöver spara något |
-| Tooltip, skelettladdning | inte efterfrågade av någon riktig vy än |
+| Auth och behörighetsmodell | Google Auth är bestämt, men vem som får logga in och vem som får se vad är produktbeslut, inte ramverkets |
+| Färdiga adaptrar för Firestore eller SQL | kontraktet finns, adaptern är tjugo rader i appen och hör hemma där SDK:n bor |
+| Skelettladdning | `OpsEmpty busy` täcker det grova fallet. Skelett är polish |
 | Diagram | datavisualisering är ett eget hantverk och hör inte hemma i en komponentlåda |
-| Appskal och toppnavigering | ligger i mallen i dag. Bör flytta hit, men det hänger på ett beslut om `create-ops-app` |
 | i18n | ramverkets få egna strängar är svenska och går att skicka in som props. Blir det fler språk är det en riktig fråga, inte en parameter |
 
 Listan är lika viktig som innehållsförteckningen. **Ett ramverk som låtsas täcka
@@ -418,7 +458,7 @@ Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
 |---|---|
 | tokenkontraktet som Tailwind-tema, 193 tokens | auth, Firestore-regler och regeltester |
 | femton primitiver med stängt API, 43 beteendetester | observability: logger, larm till issue |
-| nio vakter plus mutationsharnesset, 26 regler bevisade röda | toast, tooltip, appskal |
+| tio vakter plus mutationsharnesset, 29 regler bevisade röda | toast, tooltip, appskal |
 | `create-ops-app`, bevisad genom en riktig installation | appskal och navigering in i ramverket |
 | adoptionsplan för bolag-ops, mätt mot repot | själva adoptionen, som väntar på profilbeslutet |
 | skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |

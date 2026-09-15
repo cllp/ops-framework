@@ -1,4 +1,5 @@
-import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { OpsAppShell, OpsDataProvider, OpsToastProvider, skapaMinneskalla } from "@staiger/ops-framework";
 import { DashboardView } from "./views/DashboardView.jsx";
 import { PrimitivesView } from "./views/PrimitivesView.jsx";
 import { NotFoundView } from "./views/NotFoundView.jsx";
@@ -6,50 +7,59 @@ import { Felgrans } from "../lib/Felgrans.jsx";
 import { Temavaxlare } from "../lib/Temavaxlare.jsx";
 
 const SIDOR = [
-  { till: "/", etikett: "Översikt" },
-  { till: "/primitiver", etikett: "Primitiver" },
+  { href: "/", label: "Översikt" },
+  { href: "/primitiver", label: "Primitiver" },
 ];
 
-function Toppnav() {
+/**
+ * ⛔ Byt ut minneskällan mot appens riktiga adapter. Den ligger här för att
+ * appen ska gå att köra innan någon bestämt var datan bor, inte för att den är
+ * ett rimligt slutläge: allt försvinner vid omladdning.
+ */
+const kalla = skapaMinneskalla();
+
+function Skal({ children }) {
   const { pathname } = useLocation();
+  const navigera = useNavigate();
+
   return (
-    // `sticky top-0` plus safe-area: utan den senare hamnar raden under
-    // statusfältet på en telefon, och det syns bara på riktig hårdvara.
-    <nav className="sticky top-(--safe-top) z-(--z-sticky) border-b border-line bg-surface">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-4 py-2">
-        {SIDOR.map((s) => (
-          <Link
-            key={s.till}
-            to={s.till}
-            aria-current={pathname === s.till ? "page" : undefined}
-            className="rounded-md px-3 py-2 text-base font-semibold text-ink-secondary hover:bg-accent-faint hover:text-ink aria-[current=page]:bg-accent-subtle aria-[current=page]:text-ink"
-          >
-            {s.etikett}
-          </Link>
-        ))}
-        <div className="ml-auto">
-          <Temavaxlare />
-        </div>
-      </div>
-    </nav>
+    <OpsAppShell
+      brand="__APP_NAME__"
+      nav={SIDOR}
+      activeHref={pathname}
+      // Riktiga länkar i markup, routern tar över klicket. Då fungerar
+      // högerklick, ny flik och delning av länk ändå.
+      onNavigate={(href, e) => {
+        e.preventDefault();
+        navigera(href);
+      }}
+      actions={<Temavaxlare />}
+    >
+      {children}
+    </OpsAppShell>
   );
 }
 
 export function App() {
   return (
-    <BrowserRouter>
-      <Toppnav />
-      {/* ⛔ Felgränsen ligger INNANFÖR routern, inte utanför. Ligger den utanför
-          slås hela appen ut av ett fel i en enda vy, och användaren har ingen
-          väg tillbaka utom att ladda om. */}
-      <Felgrans>
-        <Routes>
-          <Route path="/" element={<DashboardView />} />
-          <Route path="/primitiver" element={<PrimitivesView />} />
-          <Route path="/hem" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<NotFoundView />} />
-        </Routes>
-      </Felgrans>
-    </BrowserRouter>
+    <OpsDataProvider kalla={kalla}>
+      <OpsToastProvider>
+        <BrowserRouter>
+          <Skal>
+            {/* ⛔ Felgränsen ligger INNANFÖR routern. Utanför slår ett fel i en
+                enda vy ut hela appen, och användaren har ingen väg tillbaka
+                utom att ladda om. */}
+            <Felgrans>
+              <Routes>
+                <Route path="/" element={<DashboardView />} />
+                <Route path="/primitiver" element={<PrimitivesView />} />
+                <Route path="/hem" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<NotFoundView />} />
+              </Routes>
+            </Felgrans>
+          </Skal>
+        </BrowserRouter>
+      </OpsToastProvider>
+    </OpsDataProvider>
   );
 }

@@ -31,6 +31,10 @@ await build({
   // Minifiering är AV med flit. Bundlen läses av människor när något ser fel
   // ut, och en minifierad primitiv är omöjlig att felsöka i en konsumentapp.
   minify: false,
-  external: ["react", "react-dom", "react/jsx-runtime", "@radix-ui/*"],
+  // ⛔ Allt som konsumenten installerar sjalv ar EXTERNT. Buntas de in far
+  // appen tva kopior av samma bibliotek, bundlen vaxer med hundratals kilobyte,
+  // och for React blir det dessutom "invalid hook call". Matt: att glomma
+  // react-day-picker har tog bundlen fran 34 till 219 kB.
+  external: ["react", "react-dom", "react/jsx-runtime", "@radix-ui/*", "react-day-picker", "react-day-picker/*", "date-fns", "date-fns/*", "@date-fns/*"],
   logLevel: "info",
 });
