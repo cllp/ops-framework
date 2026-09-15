@@ -148,7 +148,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**28 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**30 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -236,6 +236,8 @@ Firestore i morgon, SQL bakom ett API sedan.
 | `skapaJsonKalla({ bas })` | läser JSON-filer över HTTP. Läsbar, inte skrivbar |
 | `tillampaFraga(rader, fraga)` | filtrering, sortering och gräns för adaptrar som håller allt i minnet |
 | `OPERATIONER` | `las`, `lista`, `skapa`, `uppdatera`, `taBort` |
+| `skapaFirestoreKalla({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
+| `skapaPostgresKalla({ fraga })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
 | `OpsDataProvider` | ger appen sin källa |
 | `useDatakalla`, `useSamling`, `useDokument` | React-sidan, med `laddar`, `fel` och `data` åtskilda |
 
@@ -257,6 +259,32 @@ data när man tittar på det, inte data som strömmar in medan man läser.
 `check-data-layer`: **en databas-SDK får bara importeras i en adapter.** Alla
 bygger ett datalager, och nästan alla får det förstört på samma sätt, nämligen
 att en enda vy anropar något källspecifikt "bara den här gången".
+
+### Inloggning och roller
+
+Google Auth via Firebase, med samma mönster som datalagret: **ramverket
+importerar ingen auth-SDK**, appen skickar in den.
+
+| | |
+|---|---|
+| `skapaGoogleAuth({ auth, sdk, hamtaProfil })` | Google-inloggning. `hamtaProfil` läser appens egen användarlista och ger `roll` |
+| `skapaAutentisering(adapter)` | för en egen inloggning |
+| `OpsAuthProvider`, `useOpsAuth` | inloggat konto, `laddar`, `fel`, `loggaIn`, `loggaUt` |
+| `OpsAuthGate` | visar sitt innehåll för den som är inloggad och har rätt roll |
+
+Rollen kommer **aldrig** från Google. Google svarar på vem någon är, inte på vad
+hen får göra. Rollen läses ur appens egen användarlista, alltså ett dokument per
+användare via datalagret.
+
+⛔ **`OpsAuthGate` är inte säkerhet.** Den bestämmer vad som RENDERAS, ingenting
+om vad som går att läsa eller skriva. Vem som helst kan öppna utvecklarverktygen
+och fråga databasen direkt. Skyddet måste ligga där datan bor: i
+Firestore-reglerna eller i API:et framför Postgres. Att tro något annat är exakt
+så läckor uppstår.
+
+⛔ Misslyckas profiluppslagningen loggas användaren in **utan** roll, inte in med
+en gissad. Ett fel i en uppslagning får aldrig ge mer behörighet än en som
+lyckades.
 
 ### Typer
 
@@ -398,8 +426,8 @@ ut varianterna i en uppslagstabell.
 
 | Saknas | Varför |
 |---|---|
-| Auth och behörighetsmodell | Google Auth är bestämt, men vem som får logga in och vem som får se vad är produktbeslut, inte ramverkets |
-| Färdiga adaptrar för Firestore eller SQL | kontraktet finns, adaptern är tjugo rader i appen och hör hemma där SDK:n bor |
+| Firestore-regler och SQL-behörigheter | ramverket kan inte veta vem som får se vad. Det är ett produktbeslut, och det är där det riktiga skyddet ligger |
+| Beroenden på `firebase` och `pg` | adaptrarna finns, men SDK:n skickas in av appen. Ett ramverk som drar in en databasdrivrutin tvingar på den varje plattform |
 | Skelettladdning | `OpsEmpty busy` täcker det grova fallet. Skelett är polish |
 | Diagram | datavisualisering är ett eget hantverk och hör inte hemma i en komponentlåda |
 | i18n | ramverkets få egna strängar är svenska och går att skicka in som props. Blir det fler språk är det en riktig fråga, inte en parameter |
@@ -458,7 +486,7 @@ Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
 |---|---|
 | tokenkontraktet som Tailwind-tema, 193 tokens | auth, Firestore-regler och regeltester |
 | femton primitiver med stängt API, 43 beteendetester | observability: logger, larm till issue |
-| tio vakter plus mutationsharnesset, 29 regler bevisade röda | toast, tooltip, appskal |
+| tio vakter plus mutationsharnesset, 29 regler bevisade röda, 72 tester | toast, tooltip, appskal |
 | `create-ops-app`, bevisad genom en riktig installation | appskal och navigering in i ramverket |
 | adoptionsplan för bolag-ops, mätt mot repot | själva adoptionen, som väntar på profilbeslutet |
 | skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |

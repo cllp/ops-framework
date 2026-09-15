@@ -46,6 +46,11 @@ export { OpsTooltip } from "./components/OpsTooltip.jsx";
 export { skapaDatakalla, tillampaFraga, OPERATIONER } from "./data/kontrakt.js";
 export { skapaMinneskalla, skapaJsonKalla } from "./data/adaptrar.js";
 export { OpsDataProvider, useDatakalla, useSamling, useDokument } from "./data/useData.jsx";
+export { skapaFirestoreKalla } from "./data/firestore.js";
+export { skapaPostgresKalla } from "./data/postgres.js";
+
+// ── Inloggning ─────────────────────────────────────────────────────────────
+export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
