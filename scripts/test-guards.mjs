@@ -28,7 +28,7 @@ const tokenfil = path.join(rot, "tokens", "tokens.css");
 const original = fs.readFileSync(tokenfil, "utf8");
 
 const arbetsmapp = fs.mkdtempSync(path.join(rot, "node_modules", ".ops-guards-"));
-/** @type {{ namn: string, utfall: "ok" | string }[]} */
+/** @type {{ namn: string, vantat: "rott" | "gront", utfall: "ok" | string }[]} */
 const resultat = [];
 
 /**
@@ -40,17 +40,18 @@ function kravRott(namn, kommando, forvantat) {
   const k = spawnSync(process.execPath, kommando, { cwd: rot, encoding: "utf8" });
   const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
   if (k.status === 0) {
-    resultat.push({ namn, utfall: "vakten var GRÖN trots ett inplanterat brott" });
+    resultat.push({ namn, vantat: "rott", utfall: "vakten var GRÖN trots ett inplanterat brott" });
     return;
   }
   if (!utdata.includes(forvantat)) {
     resultat.push({
       namn,
+      vantat: "rott",
       utfall: `vakten blev röd, men av fel anledning. Väntade text som innehåller "${forvantat}".\n      Fick: ${utdata.trim().split("\n").slice(0, 3).join(" | ")}`,
     });
     return;
   }
-  resultat.push({ namn, utfall: "ok" });
+  resultat.push({ namn, vantat: "rott", utfall: "ok" });
 }
 
 /** @param {string} namn @param {(s: string) => string} mutera @returns {string} */
@@ -159,6 +160,66 @@ kravRott(
 
 kravRott("api golv: tom katalog", [apivakt, path.join(arbetsmapp, "finns-inte")], "noll filer lästa");
 
+// ── Vakten för en konsumentapps stilrot ────────────────────────────────────
+//
+// ⛔ Regel 1 är den viktigaste i hela uppsättningen, och den ser minst ut som
+// en regel: saknas `@source`-raden hittar Tailwind inga klassnamn i ramverkets
+// primitiver, och appen blir HELT OSTYLAD utan ett enda felmeddelande.
+const overridevakt = "scripts/check-token-overrides.mjs";
+
+/** @param {string} namn @param {string} innehall @returns {string} */
+function appkopia(namn, innehall) {
+  const fil = path.join(arbetsmapp, `${namn}.css`);
+  fs.writeFileSync(fil, innehall);
+  return fil;
+}
+
+const GILTIG_APPCSS = `@import "tailwindcss";
+@import "@staiger/ops-framework/tokens.css";
+@source "../node_modules/@staiger/ops-framework/dist";
+@theme static { --color-accent: #2f5d8a; }
+:root { --dark-accent: #7fb0d9; }
+`;
+
+// Kontroll av kontrollen: underlaget måste vara GRÖNT, annars bevisar
+// mutationerna nedan ingenting (allt hade varit rött ändå).
+{
+  const fil = appkopia("app-ok", GILTIG_APPCSS);
+  const k = spawnSync(process.execPath, [overridevakt, fil], { cwd: rot, encoding: "utf8" });
+  const namn = "overrides: giltigt underlag är grönt";
+  resultat.push(
+    k.status === 0
+      ? { namn, vantat: "gront", utfall: "ok" }
+      : { namn, vantat: "gront", utfall: `underlaget var RÖTT, så mutationerna nedan bevisar ingenting: ${(k.stderr ?? "").trim().split("\n").slice(0, 2).join(" | ")}` },
+  );
+}
+
+kravRott(
+  "overrides 1: @source-raden saknas",
+  [overridevakt, appkopia("ao1", GILTIG_APPCSS.replace(/@source[^\n]*\n/, ""))],
+  "helt ostylad",
+);
+
+kravRott(
+  "overrides 2: tokens importeras före tailwindcss",
+  [overridevakt, appkopia("ao2", '@import "@staiger/ops-framework/tokens.css";\n@import "tailwindcss";\n@source "../node_modules/@staiger/ops-framework/dist";\n')],
+  "FÖRE tailwindcss",
+);
+
+kravRott(
+  "overrides 3: appen hittar på ett eget token",
+  [overridevakt, appkopia("ao3", `${GILTIG_APPCSS}@theme static { --color-brandad-yta: #123456; }\n`)],
+  "inte finns i tokenkontraktet",
+);
+
+kravRott(
+  "overrides 4: eget mörkerblock i appen",
+  [overridevakt, appkopia("ao4", `${GILTIG_APPCSS}:root[data-theme="dark"] { --color-accent: #7fb0d9; }\n`)],
+  "eget mörkerblock",
+);
+
+kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "finns-inte.css")], "hittar inte");
+
 // ── Byggvakten ─────────────────────────────────────────────────────────────
 // Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
 // `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är
@@ -173,13 +234,15 @@ fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
 for (const r of resultat) {
-  console.log(`  ${r.utfall === "ok" ? "röd som väntat" : "MISSLYCKADES  "}  ${r.namn}`);
+  const etikett = r.utfall !== "ok" ? "MISSLYCKADES " : r.vantat === "rott" ? "röd som väntat" : "grön som väntat";
+  console.log(`  ${etikett.padEnd(14)}  ${r.namn}`);
   if (r.utfall !== "ok") console.log(`      ${r.utfall}`);
 }
 
 if (fel.length > 0) {
-  console.error(`\ntest-guards: ${fel.length} av ${resultat.length} vaktregler bevisades INTE. En regel som inte går att göra röd skyddar ingenting.`);
+  console.error(`\ntest-guards: ${fel.length} av ${resultat.length} kontroller bevisades INTE. En regel som inte går att göra röd skyddar ingenting.`);
   process.exit(1);
 }
 
-console.log(`\ntest-guards: ${resultat.length} vaktregler gick att bryta och blev röda av rätt anledning`);
+const roda = resultat.filter((r) => r.vantat === "rott").length;
+console.log(`\ntest-guards: ${roda} vaktregler gick att bryta och blev röda av rätt anledning, ${resultat.length - roda} kontroll av att giltigt underlag är grönt`);

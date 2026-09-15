@@ -1,0 +1,32 @@
+/**
+ * Appens stilrot. Fyra rader, och ordningen mellan dem spelar roll.
+ *
+ * ⛔ `@source`-raden är den dyraste fällan i hela uppsättningen. Tailwind läser
+ * inte `node_modules` av sig själv. Utan den hittas inga klassnamn i ramverkets
+ * primitiver, och appen blir HELT OSTYLAD utan ett enda felmeddelande. Felet ser
+ * ut som ett trasigt bygge och är en saknad rad.
+ */
+
+@import "tailwindcss";
+@import "@staiger/ops-framework/tokens.css";
+
+@source "../node_modules/@staiger/ops-framework/dist";
+
+/**
+ * Appens egen profil. Här skriver du om VÄRDEN, aldrig struktur.
+ *
+ * Behöver appen ett token som inte finns är svaret att lägga till det i
+ * ramverket, inte att hitta på ett lokalt. Ett lokalt token är början på två
+ * plattformar som ser olika ut.
+ *
+ * ⛔ Mörka värden sätts som `--dark-*`, aldrig i ett eget mörkerblock. Blocken i
+ * ramverket pekar redan hit, och ett eget block blir det andra originalet som
+ * glider isär. Se tokenkontraktet regel 3.
+ */
+@theme static {
+  /* --color-accent: #2f5d8a; */
+}
+
+:root {
+  /* --dark-accent: #7fb0d9; */
+}

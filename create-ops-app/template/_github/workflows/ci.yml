@@ -1,0 +1,42 @@
+# CI för __APP_NAME__.
+#
+# Kör på pull request, inte på varje push till varje gren. Skälet är mätt, inte
+# principiellt: i SessionStudio låg 87 procent av runner-minuterna i PR-triggad
+# CI, och 46 procent av dem var ompushar av samma gren. Den lokala grinden
+# (npm run gate) är golvet; den här är beviset inför en merge.
+#
+# ⛔ Lägg aldrig till ett jobb utan att mäta vad det kostar per månad. Privat
+# repo, Linux 2-core: cirka 0,008 USD per minut, alltså cirka 100 USD i månaden
+# vid 400 minuter per dygn.
+
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Tokenkontraktet
+        run: node node_modules/@staiger/ops-framework/scripts/check-token-overrides.mjs src/index.css
+      - name: Stängt API
+        run: node node_modules/@staiger/ops-framework/scripts/check-closed-api.mjs src
+      - name: Tester
+        run: npm run test
+      - name: Bygge
+        run: npm run build

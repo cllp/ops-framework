@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>__APP_NAME__</title>
+    <!--
+      Temat sätts INNAN React monterar. Görs det i en useEffect hinner sidan
+      rendera ljust i en bildruta först, och den blinkningen syns tydligt på en
+      telefon i mörkt rum. Skriptet är avsiktligt litet nog att läsas i sin
+      helhet av den som undrar varför det står här.
+    -->
+    <script>
+      try {
+        var val = localStorage.getItem("ops-theme");
+        if (val === "light" || val === "dark") document.documentElement.setAttribute("data-theme", val);
+      } catch (e) {
+        /* Privat fönster eller blockerad lagring. Systemvalet gäller då. */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

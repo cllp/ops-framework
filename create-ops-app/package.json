@@ -1,0 +1,9 @@
+{
+  "name": "@staiger/create-ops-app",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Startplats för en ny ops-plattform. Kopierar skalet, konsumerar ramverket.",
+  "license": "UNLICENSED",
+  "bin": { "create-ops-app": "./bin/create-ops-app.mjs" },
+  "files": ["bin", "template"]
+}

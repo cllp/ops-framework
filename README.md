@@ -35,7 +35,10 @@ dependency. Grovjobbet kopieras, utseendet och reglerna kan inte glida.
 | `tokens/check-tokens.mjs` | sju regler plus golv |
 | `scripts/check-closed-api.mjs` | tre regler plus golv |
 | `scripts/check-css-build.mjs` | bygger CSS på riktigt och kontrollerar utdata |
+| `scripts/check-token-overrides.mjs` | vakt för en konsumentapps stilrot |
 | `scripts/test-guards.mjs` | bryter varje vaktregel och kräver rött |
+| `scripts/check-scaffold.mjs` | skapar, installerar och kör en app på riktigt |
+| `create-ops-app/` | startplatsen. Mallen som kopieras en gång |
 
 ## Varför skills och inte ett dokument
 
@@ -55,7 +58,19 @@ andra villkoret fångar en vakt som blir röd av fel anledning.
 
 ```
 npm run check      # bygg, alla vakter, mutationsprov och tester
+npm run check:all  # samma, plus en app som skapas och installeras på riktigt
 ```
+
+## Skapa en ny plattform
+
+```
+node create-ops-app/bin/create-ops-app.mjs min-app --framework file:../ops-framework
+cd min-app && npm install && npm run dev
+```
+
+Appen kommer med vyskal, routing, tema i tre lägen, felgräns, ESLint-regler som
+speglar doktrinen, lokal grind, CI, och en `/primitiver`-vy där hela utseendet
+går att se i båda temalägena.
 
 ## Vad Tailwind faktiskt gör åt spretet, och vad den inte gör
 
@@ -70,8 +85,9 @@ Mätt i `scripts/check-css-build.mjs`, inte antaget:
 
 | Klart | Kvar |
 |---|---|
-| arbetsreglerna | `create-ops-app` med appskal, konfig och CI |
-| tokenkontraktet som Tailwind-tema, sju vaktregler | auth, Firestore-regler och regeltester (väntar på vilken app som går först) |
-| nio primitiver med stängt API, 18 beteendetester | de portabla vakterna ur SessionStudio (cirka 15 av 49) |
-| tre vakter plus mutationsharnesset, 15 regler bevisade röda | skills: web-app, testing, firebase-data, auth-google-idp, observability, ci-and-guards, architecture-decisions |
+| arbetsreglerna | auth, Firestore-regler och regeltester (väntar på vilken app som går först) |
+| tokenkontraktet som Tailwind-tema, sju vaktregler | observability: logger, larm till issue, statusvy |
+| nio primitiver med stängt API, 18 beteendetester | i18n med täckningsvakt |
+| fyra vakter plus mutationsharnesset, 20 regler bevisade röda | resten av de portabla vakterna ur SessionStudio |
+| `create-ops-app`, bevisad genom en riktig installation | skills: web-app, testing, firebase-data, auth-google-idp, observability, ci-and-guards, architecture-decisions |
 | `css-and-components` som skill | adoptionsräknare med tak som bara får sjunka |

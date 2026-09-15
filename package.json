@@ -14,6 +14,7 @@
     "dist",
     "src",
     "tokens",
+    "scripts",
     "skills",
     "CLAUDE.md"
   ],
@@ -28,7 +29,9 @@
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
     "check": "npm run build && npm run check:tokens && npm run check:closed-api && npm run check:css-build && npm run check:guards && npm test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:scaffold": "node scripts/check-scaffold.mjs",
+    "check:all": "npm run check && npm run check:scaffold"
   },
   "peerDependencies": {
     "react": ">=18",
