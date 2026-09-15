@@ -242,6 +242,39 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   );
 }
 
+// ── Adoptionsraknaren ──────────────────────────────────────────────────────
+//
+// ⛔ Tva riktningar maste provas, och den andra glommer man alltid: att vakten
+// blir ROD nar den laser noll filer. En upprensning dar katalogen bara flyttats
+// ser da ut som att allt ar klart, vilket ar den dyraste falska gronheten av
+// alla eftersom den firas.
+{
+  const adoptvakt = "scripts/check-adoption.mjs";
+  const mapp = path.join(arbetsmapp, "adoption");
+  fs.mkdirSync(path.join(mapp, "web"), { recursive: true });
+  for (const n of ["a", "b", "c"]) fs.writeFileSync(path.join(mapp, "web", `${n}.html`), "<p>x</p>\n");
+
+  const skriv = (tak) => {
+    const f = path.join(mapp, `adoption-${tak}.json`);
+    fs.writeFileSync(f, JSON.stringify({ matningar: [{ namn: "sidor", katalog: "web", andelser: [".html"], tak }] }));
+    return f;
+  };
+
+  kravRott("adoption: fler filer an taket tillater", [adoptvakt, skriv(2)], "gått BAKÅT");
+  kravRott("adoption: noll filer lasta men taket ar hogt", [adoptvakt, path.join(mapp, "tomt.json")], "hittar inte");
+
+  fs.writeFileSync(path.join(mapp, "fel-katalog.json"), JSON.stringify({ matningar: [{ namn: "sidor", katalog: "finns-inte", andelser: [".html"], tak: 14 }] }));
+  kravRott("adoption: fel sokvag firas inte som klart", [adoptvakt, path.join(mapp, "fel-katalog.json")], "läste NOLL filer");
+
+  const k = spawnSync(process.execPath, [adoptvakt, skriv(5)], { cwd: rot, encoding: "utf8" });
+  const namn = "adoption: under taket ar gront och foreslar en sankning";
+  resultat.push(
+    k.status === 0 && `${k.stdout}`.includes("tak 5 -> 3")
+      ? { namn, vantat: "gront", utfall: "ok" }
+      : { namn, vantat: "gront", utfall: `vantade gront med forslag om sankt tak. Fick status ${k.status}: ${`${k.stdout}${k.stderr}`.trim().split("\n").slice(0, 2).join(" | ")}` },
+  );
+}
+
 // ── Byggvakten ─────────────────────────────────────────────────────────────
 // Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
 // `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är

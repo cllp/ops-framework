@@ -32,7 +32,8 @@
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
     "check:all": "npm run check && npm run check:scaffold",
-    "check:exports": "node scripts/check-exports.mjs"
+    "check:exports": "node scripts/check-exports.mjs",
+    "check:adoption": "node scripts/check-adoption.mjs"
   },
   "peerDependencies": {
     "react": ">=18",

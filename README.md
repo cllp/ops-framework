@@ -112,6 +112,7 @@ Femton komponenter, alla med stängt API. Ingen tar emot `className` eller
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
 | `check-scaffold` | en app skapas, installeras och kör sin egen grind |
+| `check-adoption` | en pågående upprensning går framåt, aldrig bakåt |
 | `test-guards` | **bryter varje regel ovan och kräver rött** |
 
 ⛔ Den sista är inte en extra finess. **En vakt ingen sett faila är en
@@ -258,6 +259,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 | `src/lib/` | tema, identitet, formatering |
 | `scripts/` | vakterna |
 | `create-ops-app/` | mallen som kopieras en gång |
+| `adoption/` | planer för att flytta en befintlig plattform hit |
 
 ### Varför skills och inte ett dokument
 
@@ -272,6 +274,7 @@ Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
 |---|---|
 | tokenkontraktet som Tailwind-tema, 193 tokens | auth, Firestore-regler och regeltester |
 | femton primitiver med stängt API, 43 beteendetester | observability: logger, larm till issue |
-| sex vakter plus mutationsharnesset, 21 regler bevisade röda | adoptionsräknare med tak som bara får sjunka |
+| sju vakter plus mutationsharnesset, 24 regler bevisade röda | toast, tooltip, appskal |
 | `create-ops-app`, bevisad genom en riktig installation | appskal och navigering in i ramverket |
+| adoptionsplan för bolag-ops, mätt mot repot | själva adoptionen, som väntar på profilbeslutet |
 | skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |
