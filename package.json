@@ -1,0 +1,56 @@
+{
+  "name": "@staiger/ops-framework",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
+  "license": "UNLICENSED",
+  "private": false,
+  "exports": {
+    ".": "./dist/index.js",
+    "./tokens.css": "./tokens/tokens.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "tokens",
+    "skills",
+    "CLAUDE.md"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepare": "node scripts/build.mjs",
+    "check:tokens": "node tokens/check-tokens.mjs tokens/tokens.css",
+    "check:closed-api": "node scripts/check-closed-api.mjs src",
+    "check:css-build": "node scripts/check-css-build.mjs",
+    "check:guards": "node scripts/test-guards.mjs",
+    "check": "npm run build && npm run check:tokens && npm run check:closed-api && npm run check:css-build && npm run check:guards && npm test",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "tailwindcss": ">=4.1"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-select": "^2.2.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.28.2",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.5.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.3.3",
+    "vitest": "^2.1.8"
+  }
+}

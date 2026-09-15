@@ -1,0 +1,185 @@
+#!/usr/bin/env node
+/**
+ * Provar vakterna genom att bryta mot varje regel och kräva rött.
+ *
+ * ⛔ EN VAKT INGEN SETT FAILA ÄR EN FÖRHOPPNING, INTE EN VAKT.
+ *
+ * Det är inte en formulering, det är erfarenhet. Vi har haft vakter som var
+ * gröna i månader därför att de läste fel fil, jämförde en lista mot en kopia
+ * av sig själv, eller blev gröna av tom indata. Alla tre såg ut precis som en
+ * fungerande vakt, och alla tre gav falsk trygghet som var värre än ingen vakt
+ * alls, eftersom de flyttade uppmärksamheten bort från risken.
+ *
+ * Harnesset muterar en kopia, kör vakten mot kopian och kräver både att
+ * utgångskoden är skild från noll OCH att felmeddelandet nämner rätt sak. Det
+ * andra villkoret är det som fångar en vakt som blir röd av fel anledning.
+ *
+ * Kör: node scripts/test-guards.mjs
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const tokenfil = path.join(rot, "tokens", "tokens.css");
+const original = fs.readFileSync(tokenfil, "utf8");
+
+const arbetsmapp = fs.mkdtempSync(path.join(rot, "node_modules", ".ops-guards-"));
+/** @type {{ namn: string, utfall: "ok" | string }[]} */
+const resultat = [];
+
+/**
+ * @param {string} namn
+ * @param {string[]} kommando
+ * @param {string} forvantat Text som MÅSTE finnas i felutskriften.
+ */
+function kravRott(namn, kommando, forvantat) {
+  const k = spawnSync(process.execPath, kommando, { cwd: rot, encoding: "utf8" });
+  const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
+  if (k.status === 0) {
+    resultat.push({ namn, utfall: "vakten var GRÖN trots ett inplanterat brott" });
+    return;
+  }
+  if (!utdata.includes(forvantat)) {
+    resultat.push({
+      namn,
+      utfall: `vakten blev röd, men av fel anledning. Väntade text som innehåller "${forvantat}".\n      Fick: ${utdata.trim().split("\n").slice(0, 3).join(" | ")}`,
+    });
+    return;
+  }
+  resultat.push({ namn, utfall: "ok" });
+}
+
+/** @param {string} namn @param {(s: string) => string} mutera @returns {string} */
+function tokenkopia(namn, mutera) {
+  const muterat = mutera(original);
+  if (muterat === original) {
+    throw new Error(`test-guards: mutationen "${namn}" ändrade ingenting. Då provar den inget, den bara ser ut att göra det.`);
+  }
+  const fil = path.join(arbetsmapp, `${namn}.css`);
+  fs.writeFileSync(fil, muterat);
+  return fil;
+}
+
+/** @param {string} namn @param {string} innehall @returns {string} */
+function kallkopia(namn, innehall) {
+  const mapp = path.join(arbetsmapp, namn);
+  fs.mkdirSync(mapp, { recursive: true });
+  const fil = path.join(mapp, "Prov.jsx");
+  fs.writeFileSync(fil, innehall);
+  return mapp;
+}
+
+// ── Tokenvakten, regel för regel ────────────────────────────────────────────
+const tokenvakt = "tokens/check-tokens.mjs";
+
+kravRott(
+  "tokens 1: färgord i namn",
+  [tokenvakt, tokenkopia("r1", (s) => s.replace("--color-accent:", "--color-teal:"))],
+  "färgordet",
+);
+
+kravRott(
+  "tokens 2: fallback i var()",
+  [tokenvakt, tokenkopia("r2", (s) => s.replace("var(--dark-ink)", "var(--dark-ink, #fff)"))],
+  "har en fallback",
+);
+
+kravRott(
+  "tokens 3a: mörkerblocken glider isär",
+  [tokenvakt, tokenkopia("r3a", (s) => s.replace("    --color-ink: var(--dark-ink);", "    --color-ink: var(--dark-ink-muted);"))],
+  "skiljer sig mellan blocken",
+);
+
+kravRott(
+  "tokens 3b: råvärde i aliasblock",
+  [tokenvakt, tokenkopia("r3b", (s) => s.replace("    --color-canvas: var(--dark-canvas);", "    --color-canvas: #101010;"))],
+  "Mörkerpaletten deklareras EN gång",
+);
+
+kravRott(
+  "tokens 4: golv mot trasig fil",
+  [tokenvakt, tokenkopia("r4", (s) => s.slice(0, 400))],
+  "golv",
+);
+
+kravRott(
+  "tokens 5: @theme inline",
+  [tokenvakt, tokenkopia("r5", (s) => s.replace("@theme static {", "@theme inline {"))],
+  "@theme inline",
+);
+
+kravRott(
+  "tokens 6: föräldralös --dark-token",
+  [tokenvakt, tokenkopia("r6", (s) => s.replace("  --dark-info-bg: rgba(111, 163, 196, 0.14);\n", ""))],
+  "föräldralös",
+);
+
+kravRott(
+  "tokens 7: mörkret skriver över något som inte finns i temat",
+  [tokenvakt, tokenkopia("r7", (s) => s.replace("  --color-info-bg: var(--dark-info-bg);", "  --color-hittepa: var(--dark-info-bg);\n  --color-info-bg: var(--dark-info-bg);"))],
+  "skriver över tomhet",
+);
+
+// ── Vakten för det stängda API:et ───────────────────────────────────────────
+const apivakt = "scripts/check-closed-api.mjs";
+
+kravRott(
+  "api 1a: primitiv tar className",
+  [apivakt, kallkopia("a1a", 'export function OpsProv({ variant, className }) {\n  return <div className={className}>{variant}</div>;\n}\n')],
+  "stängt API",
+);
+
+kravRott(
+  "api 1b: primitiv tar ...rest",
+  [apivakt, kallkopia("a1b", 'export function OpsProv({ variant, ...rest }) {\n  return <div {...rest}>{variant}</div>;\n}\n')],
+  "...rest",
+);
+
+kravRott(
+  "api 2: konsument lappar på anropsstället",
+  [apivakt, kallkopia("a2", 'export const Vy = () => <OpsButton className="mt-4">Spara</OpsButton>;\n')],
+  "ingen lappning",
+);
+
+kravRott(
+  "api 3a: godtycklig hex i klass",
+  [apivakt, kallkopia("a3a", 'export const Vy = () => <div className="bg-[#ff0000]" />;\n')],
+  "ad-hoc-färg",
+);
+
+kravRott(
+  "api 3b: färg via inline style",
+  [apivakt, kallkopia("a3b", 'export const Vy = () => <div style={{ backgroundColor: "#f00" }} />;\n')],
+  "ad-hoc-färg",
+);
+
+kravRott("api golv: tom katalog", [apivakt, path.join(arbetsmapp, "finns-inte")], "noll filer lästa");
+
+// ── Byggvakten ─────────────────────────────────────────────────────────────
+// Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
+// `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är
+// påståendet "ad-hoc-färger finns inte" obevisat.
+kravRott(
+  "css-build: paletten nollas inte längre",
+  ["scripts/check-css-build.mjs", tokenkopia("cb", (s) => s.replace("  --color-*: initial;\n", ""))],
+  "genererades trots att tokenkontraktet nollar",
+);
+
+fs.rmSync(arbetsmapp, { recursive: true, force: true });
+
+const fel = resultat.filter((r) => r.utfall !== "ok");
+for (const r of resultat) {
+  console.log(`  ${r.utfall === "ok" ? "röd som väntat" : "MISSLYCKADES  "}  ${r.namn}`);
+  if (r.utfall !== "ok") console.log(`      ${r.utfall}`);
+}
+
+if (fel.length > 0) {
+  console.error(`\ntest-guards: ${fel.length} av ${resultat.length} vaktregler bevisades INTE. En regel som inte går att göra röd skyddar ingenting.`);
+  process.exit(1);
+}
+
+console.log(`\ntest-guards: ${resultat.length} vaktregler gick att bryta och blev röda av rätt anledning`);

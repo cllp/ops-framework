@@ -1,90 +1,208 @@
 /**
- * Tokenkontraktet. Strukturen är kanon, värdena är plats för din profil.
+ * Tokenkontraktet. Detta ÄR Tailwind-temat, inte en parallell sanning bredvid.
  *
- * ⛔ LÄS `docs/TOKENS.md` INNAN DU LÄGGER TILL EN TOKEN. Reglerna där är korta
- * och två av dem är dyrköpta.
+ * ⛔ LÄS DETTA INNAN DU LÄGGER TILL EN TOKEN. Tre av reglerna är dyrköpta.
  *
- * Varje app definierar om värdena. Ingen app hittar på en ny grupp utan att
- * lägga den här först, annars är kontraktet bara en rekommendation.
+ * Tailwind 4 konfigureras i CSS. Det betyder att tokenfilen och temat är samma
+ * fil, och det är hela skälet till att vi valde Tailwind: i Tailwind 3 hade
+ * `tailwind.config.js` och `tokens.css` varit två original som glider isär, och
+ * "en sanning per faktum" hade varit en ambition i stället för en mekanism.
+ *
+ * ⛔ ALDRIG `@theme inline`. Den varianten bakar in värdena i utilities i
+ * stället för att låta dem gå via variabeln, och då slutar mörkt läge fungera
+ * utan att något blir rött. Vaktad av `tokens/check-tokens.mjs` regel 5.
+ *
+ * `static` betyder att alla variabler skrivs ut även om ingen utility råkar
+ * använda dem. Det behövs, eftersom mörkerblocken längre ner skriver över dem
+ * via namn och en namnreferens inte räknas som användning.
  */
 
-:root {
-  color-scheme: light;
+@theme static {
+  /* ─────────────────────────────────────────────────────────────────────────
+   * Vi nollar Tailwinds egna paletter innan våra egna sätts.
+   *
+   * Det här är den enskilt viktigaste raden i filen. `--color-*: initial` gör
+   * att `bg-red-500` inte längre finns. Inte "avråds från", inte "fångas av en
+   * vakt i CI", utan slutar existera vid bygget. En regel som byggkedjan
+   * upprätthåller kan ingen deadline förhandla bort.
+   * ───────────────────────────────────────────────────────────────────────── */
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --ease-*: initial;
 
-  /* ─── Ytor. bg-primary är sidans botten, surface det som ligger på den. ─── */
-  --color-bg-primary: #ffffff;
-  --color-bg-surface: #f7f7f6;
-  --color-bg-raised: #ffffff;
-  --color-bg-sunken: #efeeec;
-  --color-bg-overlay: rgba(20, 20, 19, 0.45);
+  /* ─── Ytor ───────────────────────────────────────────────────────────────
+   * canvas är sidans botten, surface ligger på den, raised är det som sticker
+   * upp (kort, meny, modal), sunken det som trycks in (fält, tomt tillstånd).
+   * Namnen är valda för hur de läses i JSX: `bg-canvas`, `bg-raised`. Ett
+   * token som hetat `--color-bg-primary` hade gett `bg-bg-primary`, och en
+   * liten skavank som skrivs tusen gånger är inte längre liten.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-canvas: #ffffff;
+  --color-surface: #f7f7f6;
+  --color-raised: #ffffff;
+  --color-sunken: #efeeec;
+  --color-scrim: rgba(20, 20, 19, 0.45);
 
-  /* ─── Text. Fyra nivåer räcker. En femte blir alltid "ungefär som muted". ─── */
-  --color-text-primary: #1a1a19;
-  --color-text-secondary: #55534e;
-  --color-text-muted: #86837c;
-  --color-text-inverse: #ffffff;
+  /* ─── Text ───────────────────────────────────────────────────────────────
+   * Fyra nivåer räcker. En femte blir alltid "ungefär som muted", och sedan
+   * kan ingen förklara vilken som gäller när.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-ink: #1a1a19;
+  --color-ink-secondary: #55534e;
+  --color-ink-muted: #86837c;
+  --color-ink-inverse: #ffffff;
 
-  /* ─── Kanter och avdelare ─── */
-  --color-border: #dedcd7;
-  --color-border-strong: #c3c0b9;
+  /* ─── Kanter och avdelare ─────────────────────────────────────────────── */
+  --color-line: #dedcd7;
+  --color-line-strong: #c3c0b9;
   --color-divider: #e8e6e1;
 
-  /* ─── Accent. EN accent plus varianter. Två accenter blir aldrig två, de blir fem. ─── */
+  /* ─── Accent ─────────────────────────────────────────────────────────────
+   * EN accent plus varianter. Två accenter blir aldrig två, de blir fem, och
+   * då betyder accent ingenting längre.
+   * ──────────────────────────────────────────────────────────────────────── */
   --color-accent: #4a6b5d;
   --color-accent-hover: #3d594d;
   --color-accent-contrast: #ffffff;
   --color-accent-subtle: rgba(74, 107, 93, 0.12);
   --color-accent-faint: rgba(74, 107, 93, 0.06);
 
-  /* ─── Tillstånd. Namnges efter BETYDELSE, aldrig efter färg. ─── */
-  --color-state-success: #3f7a55;
-  --color-state-warning: #9a7b20;
-  --color-state-error: #a33a30;
-  --color-state-info: #3a6a8a;
-  --color-state-success-bg: rgba(63, 122, 85, 0.10);
-  --color-state-warning-bg: rgba(154, 123, 32, 0.10);
-  --color-state-error-bg: rgba(163, 58, 48, 0.10);
-  --color-state-info-bg: rgba(58, 106, 138, 0.10);
+  /* ─── Tillstånd ──────────────────────────────────────────────────────────
+   * Namngivna efter BETYDELSE, aldrig efter färg. `danger` täcker både en
+   * destruktiv knapp och ett felmeddelande, eftersom det är samma betydelse
+   * sedd från två håll. Två tokens för det hade blivit två färger.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-success: #3f7a55;
+  --color-success-bg: rgba(63, 122, 85, 0.1);
+  --color-warning: #8a6d18;
+  --color-warning-bg: rgba(138, 109, 24, 0.1);
+  --color-danger: #a33a30;
+  --color-danger-hover: #8c3128;
+  --color-danger-bg: rgba(163, 58, 48, 0.1);
+  --color-info: #3a6a8a;
+  --color-info-bg: rgba(58, 106, 138, 0.1);
 
-  /* ─── Rytm. Avstånd kommer HÄRIFRÅN, aldrig ur fria pixlar. ─── */
-  /* Layout som spretar spretar nästan alltid i avstånd, inte i färg.       */
-  /* Skalan är medvetet grov: sex steg. Behöver du något mittemellan är     */
-  /* frågan först om ett av stegen var fel val.                            */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
+  /* ─── Identitet ──────────────────────────────────────────────────────────
+   * Sex toner, numrerade och inte färgnamngivna, som väljs deterministiskt ur
+   * ett id. De bär grupp- och personidentitet i listor.
+   *
+   * ⛔ Identitet får aldrig bäras av en färgad prick ensam. En prick är oläsbar
+   * för den som inte redan vet vad den betyder och går inte att läsa upp för en
+   * skärmläsare. Tonen är bakgrund till initialer, ikon eller bild, aldrig
+   * budbäraren själv. Se `OpsIdentity`.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-identity-1: #4a6b5d;
+  --color-identity-2: #8a6d18;
+  --color-identity-3: #a33a30;
+  --color-identity-4: #3a6a8a;
+  --color-identity-5: #6b4a63;
+  --color-identity-6: #5a5f4a;
 
-  /* ─── Form. Radier är en skala, inte fria värden. ─── */
+  /* ─── Rytm ───────────────────────────────────────────────────────────────
+   * Tailwind räknar avstånd som `--spacing × n`. Med 4px ger `p-2` 8px och
+   * `p-6` 24px, alltså exakt den skala vi ändå skulle skrivit för hand.
+   *
+   * Vi låser INTE skalan till sex steg. Ett förbud mot `p-5` hade krävt en
+   * vakt över varje utility, och det priset betalar vi hellre för färger, där
+   * spridningen faktiskt syns.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --spacing: 4px;
+
+  /* ─── Form ───────────────────────────────────────────────────────────── */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
-  --radius-pill: 999px;
-  --radius-card: var(--radius-lg);
+  --radius-full: 999px;
 
-  /* ─── Djup. Skuggor är en skala av tre. Fler blir brus. ─── */
+  /* ─── Djup. Tre skuggor. Fler blir brus. ─────────────────────────────── */
   --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.06);
-  --shadow-md: 0 2px 8px rgba(20, 20, 19, 0.10);
+  --shadow-md: 0 2px 8px rgba(20, 20, 19, 0.1);
   --shadow-lg: 0 8px 24px rgba(20, 20, 19, 0.14);
 
-  /* ─── Typografi ─── */
+  /* ─── Typografi ──────────────────────────────────────────────────────── */
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --line-tight: 1.25;
-  --line-normal: 1.5;
-  --line-loose: 1.7;
-  --letter-tight: -0.01em;
-  --letter-normal: 0;
 
-  /* ─── Rörelse. En varaktighet per avsikt, inte per komponent. ─── */
-  --transition-fast: 120ms ease;
-  --transition-base: 180ms ease;
-  --transition-slow: 300ms ease;
+  /* Sex storlekar, och `text-base` är 14px, inte 16.
+   *
+   * Det är ett medvetet val för täta arbetsverktyg: en tidrapport eller en
+   * ärendelista läses i svep, inte som brödtext. Skalan är avsiktligt kort, för
+   * det är i mellanstegen spretet uppstår. Behöver du en sjunde storlek är
+   * frågan först om en av de sex var fel. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
 
-  /* ─── Lager. ⛔ Aldrig en fallback i var(): se TOKENS.md regel 4. ─── */
+  /* ─── Rörelse. En kurva per avsikt, inte en per komponent. ───────────── */
+  --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/**
+ * Mörkerpaletten deklareras EN gång, här.
+ *
+ * ⛔ Skälet är ett fel författaren gjorde i den här filen inom en timme från
+ * att den skapades: de två mörkerblocken fick olika värde på samma token. Två
+ * handskrivna original glider isär, alltid. Nu finns bara ett original, och
+ * blocken nedanför är rena omdirigeringar. Drift är inte längre något en vakt
+ * upptäcker, det är något som inte kan hända.
+ *
+ * Aliasblocken får därför inte innehålla ett enda råvärde. Vaktad av regel 3.
+ */
+:root {
+  --dark-canvas: #16171a;
+  --dark-surface: #1e2024;
+  --dark-raised: #24272c;
+  --dark-sunken: #121316;
+  --dark-scrim: rgba(0, 0, 0, 0.6);
+
+  --dark-ink: #f2f1ee;
+  --dark-ink-secondary: #b6b3ac;
+  --dark-ink-muted: #82807a;
+  --dark-ink-inverse: #16171a;
+
+  --dark-line: #32353b;
+  --dark-line-strong: #474b52;
+  --dark-divider: #282b30;
+
+  --dark-accent: #7aa892;
+  --dark-accent-hover: #8dbaa4;
+  --dark-accent-contrast: #16171a;
+  --dark-accent-subtle: rgba(122, 168, 146, 0.16);
+  --dark-accent-faint: rgba(122, 168, 146, 0.08);
+
+  --dark-success: #6fae85;
+  --dark-success-bg: rgba(111, 174, 133, 0.14);
+  --dark-warning: #c9a961;
+  --dark-warning-bg: rgba(201, 169, 97, 0.14);
+  --dark-danger: #d66f63;
+  --dark-danger-hover: #e08479;
+  --dark-danger-bg: rgba(214, 111, 99, 0.14);
+  --dark-info: #6fa3c4;
+  --dark-info-bg: rgba(111, 163, 196, 0.14);
+
+  --dark-identity-1: #7aa892;
+  --dark-identity-2: #c9a961;
+  --dark-identity-3: #d66f63;
+  --dark-identity-4: #6fa3c4;
+  --dark-identity-5: #b08fa6;
+  --dark-identity-6: #9aa08a;
+
+  --dark-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --dark-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --dark-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  /* ─── Lager. Tailwind har ingen z-namnrymd, så dessa är vanliga variabler
+   * och används som `z-(--z-modal)`. ⛔ Aldrig en fallback i var(): två
+   * gissningar i olika komponenter blir en modal bakom en dropdown.
+   * ──────────────────────────────────────────────────────────────────────── */
   --z-base: 0;
   --z-sticky: 100;
   --z-dropdown: 200;
@@ -92,94 +210,146 @@
   --z-modal: 400;
   --z-toast: 500;
 
-  /* ─── Säkra ytor (telefon och surfplatta) ─── */
+  /* ─── Varaktighet. Används som `duration-(--duration-fast)`. ─────────── */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 300ms;
+
+  /* ─── Säkra ytor (telefon och surfplatta) ───────────────────────────── */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+
+  color-scheme: light;
 }
 
 /**
- * Mörkt läge i tre lägen, och ordningen spelar roll.
+ * Mörkt läge har tre tillstånd, och ordningen spelar roll.
  *
- * Systemets val gäller när användaren inte valt något, och ett explicit val
- * vinner i BÅDA riktningarna. Definiera aldrig en färg enbart inuti ett
- * media- eller attributblock: då saknar den sitt grundvärde.
+ * Systemets val gäller när användaren inte valt något. Ett uttryckligt val
+ * vinner i BÅDA riktningarna, därför `:not([data-theme="light"])` här och ett
+ * eget attributblock nedanför. Definiera aldrig en färg enbart inuti ett av
+ * blocken: då saknar den sitt grundvärde.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --color-bg-primary: #16171a;
-    --color-bg-surface: #1e2024;
-    --color-bg-raised: #24272c;
-    --color-bg-sunken: #121316;
-    --color-bg-overlay: rgba(0, 0, 0, 0.6);
+    --color-canvas: var(--dark-canvas);
+    --color-surface: var(--dark-surface);
+    --color-raised: var(--dark-raised);
+    --color-sunken: var(--dark-sunken);
+    --color-scrim: var(--dark-scrim);
 
-    --color-text-primary: #f2f1ee;
-    --color-text-secondary: #b6b3ac;
-    --color-text-muted: #82807a;
-    --color-text-inverse: #16171a;
+    --color-ink: var(--dark-ink);
+    --color-ink-secondary: var(--dark-ink-secondary);
+    --color-ink-muted: var(--dark-ink-muted);
+    --color-ink-inverse: var(--dark-ink-inverse);
 
-    --color-border: #32353b;
-    --color-border-strong: #474b52;
-    --color-divider: #282b30;
+    --color-line: var(--dark-line);
+    --color-line-strong: var(--dark-line-strong);
+    --color-divider: var(--dark-divider);
 
-    --color-accent: #7aa892;
-    --color-accent-hover: #8dbaa4;
-    --color-accent-contrast: #16171a;
-    --color-accent-subtle: rgba(122, 168, 146, 0.16);
-    --color-accent-faint: rgba(122, 168, 146, 0.08);
+    --color-accent: var(--dark-accent);
+    --color-accent-hover: var(--dark-accent-hover);
+    --color-accent-contrast: var(--dark-accent-contrast);
+    --color-accent-subtle: var(--dark-accent-subtle);
+    --color-accent-faint: var(--dark-accent-faint);
 
-    --color-state-success: #6fae85;
-    --color-state-warning: #c9a961;
-    --color-state-error: #d66f63;
-    --color-state-info: #6fa3c4;
-    --color-state-success-bg: rgba(111, 174, 133, 0.14);
-    --color-state-warning-bg: rgba(201, 169, 97, 0.14);
-    --color-state-error-bg: rgba(214, 111, 99, 0.14);
-    --color-state-info-bg: rgba(111, 163, 196, 0.14);
+    --color-success: var(--dark-success);
+    --color-success-bg: var(--dark-success-bg);
+    --color-warning: var(--dark-warning);
+    --color-warning-bg: var(--dark-warning-bg);
+    --color-danger: var(--dark-danger);
+    --color-danger-hover: var(--dark-danger-hover);
+    --color-danger-bg: var(--dark-danger-bg);
+    --color-info: var(--dark-info);
+    --color-info-bg: var(--dark-info-bg);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+    --color-identity-1: var(--dark-identity-1);
+    --color-identity-2: var(--dark-identity-2);
+    --color-identity-3: var(--dark-identity-3);
+    --color-identity-4: var(--dark-identity-4);
+    --color-identity-5: var(--dark-identity-5);
+    --color-identity-6: var(--dark-identity-6);
+
+    --shadow-sm: var(--dark-shadow-sm);
+    --shadow-md: var(--dark-shadow-md);
+    --shadow-lg: var(--dark-shadow-lg);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg-primary: #16171a;
-  --color-bg-surface: #1e2024;
-  --color-bg-raised: #24272c;
-  --color-bg-sunken: #121316;
-  --color-bg-overlay: rgba(0, 0, 0, 0.6);
+  --color-canvas: var(--dark-canvas);
+  --color-surface: var(--dark-surface);
+  --color-raised: var(--dark-raised);
+  --color-sunken: var(--dark-sunken);
+  --color-scrim: var(--dark-scrim);
 
-  --color-text-primary: #f2f1ee;
-  --color-text-secondary: #b6b3ac;
-  --color-text-muted: #82807a;
-  --color-text-inverse: #16171a;
+  --color-ink: var(--dark-ink);
+  --color-ink-secondary: var(--dark-ink-secondary);
+  --color-ink-muted: var(--dark-ink-muted);
+  --color-ink-inverse: var(--dark-ink-inverse);
 
-  --color-border: #32353b;
-  --color-border-strong: #474b52;
-  --color-divider: #282b30;
+  --color-line: var(--dark-line);
+  --color-line-strong: var(--dark-line-strong);
+  --color-divider: var(--dark-divider);
 
-  --color-accent: #7aa892;
-  --color-accent-hover: #8dbaa4;
-  --color-accent-contrast: #16171a;
-  --color-accent-subtle: rgba(122, 168, 146, 0.16);
-  --color-accent-faint: rgba(122, 168, 146, 0.08);
+  --color-accent: var(--dark-accent);
+  --color-accent-hover: var(--dark-accent-hover);
+  --color-accent-contrast: var(--dark-accent-contrast);
+  --color-accent-subtle: var(--dark-accent-subtle);
+  --color-accent-faint: var(--dark-accent-faint);
 
-  --color-state-success: #6fae85;
-  --color-state-warning: #c9a961;
-  --color-state-error: #d66f63;
-  --color-state-info: #6fa3c4;
-  --color-state-success-bg: rgba(111, 174, 133, 0.14);
-  --color-state-warning-bg: rgba(201, 169, 97, 0.14);
-  --color-state-error-bg: rgba(214, 111, 99, 0.14);
-  --color-state-info-bg: rgba(111, 163, 196, 0.14);
+  --color-success: var(--dark-success);
+  --color-success-bg: var(--dark-success-bg);
+  --color-warning: var(--dark-warning);
+  --color-warning-bg: var(--dark-warning-bg);
+  --color-danger: var(--dark-danger);
+  --color-danger-hover: var(--dark-danger-hover);
+  --color-danger-bg: var(--dark-danger-bg);
+  --color-info: var(--dark-info);
+  --color-info-bg: var(--dark-info-bg);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --color-identity-1: var(--dark-identity-1);
+  --color-identity-2: var(--dark-identity-2);
+  --color-identity-3: var(--dark-identity-3);
+  --color-identity-4: var(--dark-identity-4);
+  --color-identity-5: var(--dark-identity-5);
+  --color-identity-6: var(--dark-identity-6);
+
+  --shadow-sm: var(--dark-shadow-sm);
+  --shadow-md: var(--dark-shadow-md);
+  --shadow-lg: var(--dark-shadow-lg);
+}
+
+/**
+ * Basskiktet. Det enda som sätts globalt, och medvetet lite.
+ *
+ * ⛔ Frestelsen är att lägga "bara en till" global regel här varje gång något
+ * ser fel ut på ett ställe. Efter tio sådana beskriver basskiktet inte längre
+ * något gemensamt, utan tio specialfall som alla andra vyer får leva med.
+ */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  /* Ramverket ritar sina egna fokusringar. Den här raden gör att den som
+     glömmer ändå får en, i stället för att tangentbordsläget blir osynligt. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
 }

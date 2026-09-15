@@ -1,0 +1,57 @@
+/**
+ * Ljust och mörkt läge. Tre tillstånd, inte två.
+ *
+ * ⛔ Den vanliga buggen är att behandla temat som en boolean. Då finns bara
+ * "mörkt av" och "mörkt på", och "följ systemet" försvinner. Användaren som
+ * aldrig valt något hamnar då permanent i ljust läge även om telefonen står i
+ * mörkt, och det ser ut som att inställningen är trasig.
+ *
+ * Attributet skrivs på `<html>` eftersom tokenkontraktets selektorer utgår från
+ * `:root`. Skriver du det på `<body>` matchar ingenting och felet är stumt.
+ */
+
+/** @typedef {"light" | "dark" | "system"} Temalage */
+
+const NYCKEL = "ops-theme";
+/** @type {Temalage[]} */
+const GILTIGA = ["light", "dark", "system"];
+
+/**
+ * Läser användarens val. Aldrig vad systemet råkar stå på: det är ett annat
+ * faktum och blandas de ihop går valet inte att skilja från slumpen.
+ * @returns {Temalage}
+ */
+export function getTheme() {
+  try {
+    const sparat = globalThis.localStorage?.getItem(NYCKEL);
+    return GILTIGA.includes(/** @type {Temalage} */ (sparat)) ? /** @type {Temalage} */ (sparat) : "system";
+  } catch {
+    // Privat fönster eller blockerad lagring. Systemval är rätt svar, inte en krasch.
+    return "system";
+  }
+}
+
+/**
+ * Skriver valet till `<html>` och sparar det.
+ * @param {Temalage} lage
+ */
+export function setTheme(lage) {
+  if (!GILTIGA.includes(lage)) throw new Error(`setTheme: okänt läge "${lage}". Giltiga: ${GILTIGA.join(", ")}.`);
+  const rot = globalThis.document?.documentElement;
+  if (!rot) return;
+  if (lage === "system") rot.removeAttribute("data-theme");
+  else rot.setAttribute("data-theme", lage);
+  try {
+    globalThis.localStorage?.setItem(NYCKEL, lage);
+  } catch {
+    // Valet gäller för den här sidvisningen även om det inte kan sparas.
+  }
+}
+
+/**
+ * Körs en gång vid uppstart, före första renderingen, så sidan inte blinkar
+ * ljust innan valet hunnit läsas.
+ */
+export function initTheme() {
+  setTheme(getTheme());
+}
