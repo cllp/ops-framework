@@ -294,6 +294,28 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   );
 }
 
+// ── Dokumentationsvakten ───────────────────────────────────────────────────
+//
+// ⛔ Dokumentation ruttnar tyst. En ny primitiv laggs till, README uppdateras
+// inte, och sex manader senare beskriver dokumentet ett ramverk som inte langre
+// ar det som finns. Da ar dokumentet SAMRE an inget dokument, for det ser
+// fortfarande auktoritativt ut. Den forsta korningen av den har vakten hittade
+// fyra odokumenterade exporter, alltsa precis det den finns for.
+{
+  const namn = "docs: ny export utan omnamnande i README";
+  const riktig = path.join(rot, "src", "index.js");
+  const original = fs.readFileSync(riktig, "utf8");
+  fs.writeFileSync(riktig, `${original}\nexport const OpsHittepa = 1;\n`);
+  const k = spawnSync(process.execPath, ["scripts/check-docs.mjs"], { cwd: rot, encoding: "utf8" });
+  fs.writeFileSync(riktig, original);
+  const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
+  resultat.push(
+    k.status !== 0 && utdata.includes("OpsHittepa")
+      ? { namn, vantat: "rott", utfall: "ok" }
+      : { namn, vantat: "rott", utfall: `vakten fangade inte en odokumenterad export. Status ${k.status}: ${utdata.trim().split("\n").slice(0, 2).join(" | ")}` },
+  );
+}
+
 // ── Byggvakten ─────────────────────────────────────────────────────────────
 // Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
 // `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är

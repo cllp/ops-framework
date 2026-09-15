@@ -47,6 +47,14 @@ for (const m of kalla.matchAll(/export\s*\{([^}]*)\}\s*from\s*["']([^"']+)["']/g
   }
 }
 
+// ⛔ Aven direktdeklarerade exporter. Forsta versionen last bara `export { ... }`,
+// och ett `export const X` i index.js hade darfor varit osynligt for vakten.
+// Mutationsharnesset hittade det direkt, vilket ar precis dess uppgift.
+for (const m of kalla.matchAll(/export\s+(?:const|let|var|function|class)\s+([A-Za-z0-9_$]+)/g)) {
+  utlovade.push({ namn: m[1], fran: "src/index.js" });
+}
+
+
 /** @type {string[]} */
 const brott = [];
 

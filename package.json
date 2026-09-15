@@ -31,13 +31,14 @@
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
-    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:closed-api && npm run check:css-build && npm run check:guards && npm test",
+    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:css-build && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
     "check:all": "npm run check && npm run check:scaffold",
     "check:exports": "node scripts/check-exports.mjs",
     "check:adoption": "node scripts/check-adoption.mjs",
-    "check:types": "npx tsc -p tsconfig.json"
+    "check:types": "npx tsc -p tsconfig.json",
+    "check:docs": "node scripts/check-docs.mjs"
   },
   "peerDependencies": {
     "react": ">=18",

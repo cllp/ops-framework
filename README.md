@@ -5,6 +5,20 @@ färdiga byggdelar, arbetsregler och vakter, så att `bolag.ops.staiger.se`,
 `tam.ops.staiger.se` och det som kommer sedan ser likadana ut, fungerar likadant
 och följer samma regler, utan att grovjobbet görs om varje gång.
 
+## Hur det funkar, i tre meningar
+
+**Varje ops-plattform installerar ramverket som ett beroende och bygger sina
+sidor av färdiga delar, så att knapp, tabell, fält och färg kommer från ett enda
+ställe i stället för att uppfinnas på nytt i varje app.**
+
+**Ingen del går att färga om eller tänja på anropsstället, så när något saknas är
+den enda vägen att lägga till det i ramverket, och då får alla plattformar det
+samtidigt.**
+
+**Att reglerna faktiskt följs är inte en fråga om disciplin utan om mekanik:
+tjugosex vaktregler blir röda före push, och var och en av dem är bevisad genom att
+den gått att göra röd med flit.**
+
 ---
 
 ## Vad problemet är
@@ -33,6 +47,83 @@ bli olika, kopieras det.**
 
 ---
 
+## Arkitektur och strategi
+
+### Vad det är för sorts sak
+
+Ett **designsystem som paket**, inte en stilguide. Skillnaden är att en stilguide
+beskriver hur något borde se ut, medan det här levererar koden som gör det, och
+gör avvikelser omöjliga i stället för olämpliga.
+
+Fem val bär arkitekturen, och vart och ett kan sammanfattas i en mening:
+
+| Val | Vad det betyder | Varför |
+|---|---|---|
+| **Stängt komponent-API** | ingen primitiv tar `className`, `style` eller `...rest` | Rörig CSS orsakas av kryphål, inte av teknikval. Ett kryphål används alltid, av alla, under press |
+| **Tema i CSS, inte i config** | `tokens/tokens.css` ÄR Tailwind-temat | I Tailwind 3 hade tema och tokens varit två filer som beskriver samma faktum. Två original glider isär, alltid |
+| **Lånat beteende, ägt utseende** | Radix ger dialog, väljare och flikar. Vi ger klasser och tokens | Fokusfälla och tangentbordsnavigering är veckor att bygga och osynligt fel tills någon slutar använda musen |
+| **Mekanism före dokumentation** | åtta vakter i grinden, 25 regler bevisade röda | En regel som bara står i ett dokument följs inte. Det är mätt, inte en åsikt |
+| **Konsumera, inte kopiera** | tokens, primitiver, regler och vakter är ett beroende | En ändring i ramverket ska nå alla appar utan att någon rör deras kod |
+
+### Lagren
+
+```
+tokens/tokens.css        värdena. En sanning, som också är Tailwinds tema
+        ↓
+src/components/          primitiverna. Stängt API, lånat beteende
+        ↓
+appens vyer              layout med Tailwind, delar från ramverket
+        ↓
+appens domänkod          data, affärslogik, behörighet. INTE ramverkets sak
+```
+
+Gränsen mellan tredje och fjärde lagret är avsiktlig: **ramverket kan hantverk,
+inte domän.** En tidrapportrad eller ett kvittokort hör hemma i sin app, för
+frågan "skulle den här komponenten betyda något i den andra plattformen?" är nej.
+
+### Teknikval
+
+| | | Varför just den |
+|---|---|---|
+| React 18 | komponentmodell | samma som SessionStudio, ingen ny inlärning |
+| Vite 6 | bygge | snabbt, och Tailwinds plugin är förstahandsstöd |
+| Tailwind 4 | utseende | temat konfigureras i CSS, vilket är hela skälet |
+| Radix | beteende | headless, bara det som är dyrt att bygga själv |
+| JS + JSDoc + `tsc --checkJs` | typer | typad yta utan TypeScript-byggkedja, `.d.ts` följer med |
+| esbuild | paketering | Vite transformerar inte JSX i `node_modules`, så vi bygger en gång |
+| Vitest | tester | beteende, aldrig klassnamn |
+
+⛔ **Inget ikonberoende.** Ramverket har tre egna SVG:er för sina egna behov.
+Appen väljer sin uppsättning, och ett ramverk som drar in ett helt ikonbibliotek
+för tre pilar tvingar på alla konsumenter en dependency de inte bad om.
+
+### Hur en ändring sprider sig
+
+1. Något saknas i en app.
+2. Det läggs till i **ramverket**, aldrig lokalt.
+3. Ny tagg.
+4. Apparna bumpar när de vill ha den. Ingen tvingas, ingen hamnar efter i tysthet.
+
+Versionen är en **git-tagg**, inte npm, eftersom repot är privat:
+
+```json
+"@staiger/ops-framework": "github:cllp/ops-framework#v0.1.0"
+```
+
+npm kör ramverkets `prepare` vid installation, alltså bygger bundle och typer åt
+sig själv. Byggkedjan behöver läsrättighet till repot.
+
+### Strategin för att rensa upp i något befintligt
+
+**Ett tak som bara får sjunka.** Mät dagens siffror, lås dem, låt dem gå ner.
+
+⛔ Sätt aldrig ett tak till noll direkt. Då blir all befintlig kod röd på en
+gång, ingen hinner laga den, och inom en vecka är vakten avstängd eller
+kringgången. Då är läget sämre än innan, för nu finns dessutom en avstängd vakt
+som ser ut att skydda något.
+
+---
+
 ## Vad du får
 
 ### Tokens
@@ -55,43 +146,77 @@ bredvid det.
 Mörkt läge har tre tillstånd: valt ljust, valt mörkt, och inte valt. Paletten för
 mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
-### Primitiver
+### Komponenter
 
-Femton komponenter, alla med stängt API. Ingen tar emot `className` eller
-`style`.
+**23 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
+något godtyckligt.
 
-| Åtgärder och ytor | |
+#### Åtgärder och ytor
+
+| Komponent | Props |
 |---|---|
-| `OpsButton` | `variant` primary, secondary, ghost, danger. `size`, `busy`, `iconOnly`, `href` |
-| `OpsCard` | `tone` raised, sunken, plain. `elevated`, `flush` |
-| `OpsView`, `OpsViewHeader` | vyskal med fyra bredder, säker botten, rubrik med åtgärder |
-| `OpsModal` | dialog med fokusfälla, Escape, scrollås. Kräver titel |
+| `OpsButton` | `variant` primary \| secondary \| ghost \| danger, `size` sm \| md, `type`, `disabled`, `busy`, `fullWidth`, `iconOnly`, `href`, `newTab`, `ariaLabel`, `title`, `id`, `onClick`, `children` |
+| `OpsCard` | `tone` raised \| sunken \| plain, `elevated`, `flush`, `id`, `children` |
+| `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
+| `OpsViewHeader` | `title`, `description`, `actions` |
+| `OpsModal` | `open`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
 
-| Formulär | |
-|---|---|
-| `OpsField` | etikett, hjälptext och fel, kopplade med id åt dig |
-| `OpsInput`, `OpsTextarea` | vägrar webbläsarens egna datum- och färgväljare |
-| `OpsSelect` | designad väljare med tangentbord och typeahead |
-| `OpsCheckbox`, `OpsSwitch` | riktiga fält, inte div med roll |
+#### Formulär
 
-| Data | |
+| Komponent | Props |
 |---|---|
-| `OpsList`, `OpsListRow` | rader utan fast höjd, riktig knapp eller länk när de är klickbara |
-| `OpsTable` | egen scroll i sidled, `tabular-nums` i sifferkolumner, kräver caption |
-| `OpsStat` | nyckeltal med etikett, värde, jämförelse och ton |
-| `OpsEmpty` | tomt tillstånd OCH laddning, som är olika saker |
+| `OpsField` | `label`, `hint`, `error`, `required`, `children` |
+| `OpsInput` | `value`, `onChange`, `type` text \| email \| search \| tel \| url \| password \| number, `placeholder`, `name`, `autoComplete`, `disabled`, `readOnly`, `maxLength`, `ariaLabel` |
+| `OpsTextarea` | `value`, `onChange`, `placeholder`, `name`, `rows`, `disabled`, `maxLength`, `ariaLabel` |
+| `OpsSelect` | `options` [{value, label, disabled}], `value`, `onChange`, `placeholder`, `disabled`, `ariaLabel` |
+| `OpsCheckbox` | `label`, `checked`, `onChange`, `disabled`, `hint` |
+| `OpsSwitch` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 
-| Märkning | |
-|---|---|
-| `OpsPill` | status. `tone` neutral, success, warning, danger, info |
-| `OpsTag` | kategori. Tonen härleds ur etiketten, ingen kod per värde |
-| `OpsIdentity` | bild, ikon eller initialer i egen ton. Aldrig en färgad prick |
-| `OpsProvenance` | människa, agent eller automatik, alltid med ordet utskrivet |
+#### Data
 
-| Navigering och meddelanden | |
+| Komponent | Props |
 |---|---|
-| `OpsTabs`, `OpsTabPanel` | flikar med piltangenter och korrekt koppling |
-| `OpsBanner` | `info` och `success` avbryter inte, `warning` och `danger` gör det |
+| `OpsList` | `divided`, `ariaLabel`, `children` |
+| `OpsListRow` | `interactive`, `selected`, `href`, `onClick`, `ariaLabel`, `children` |
+| `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
+| `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge` |
+| `OpsEmpty` | `title`, `description`, `action`, `busy`, `busyLabel` |
+
+#### Märkning
+
+| Komponent | Props |
+|---|---|
+| `OpsPill` | `tone` neutral \| success \| warning \| danger \| info, `children` |
+| `OpsTag` | `label` (bestämmer också tonen), `onRemove`, `removeLabel` |
+| `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
+| `OpsProvenance` | `kind` human \| agent \| auto, `label` |
+
+#### Navigering och meddelanden
+
+| Komponent | Props |
+|---|---|
+| `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
+| `OpsTabPanel` | `id`, `children` |
+| `OpsBanner` | `tone` info \| success \| warning \| danger, `title`, `action`, `onDismiss`, `dismissLabel`, `children` |
+
+#### Vad var och en gör som du annars fått bygga själv
+
+| | |
+|---|---|
+| `OpsButton` | spärrad länk tappar sitt `href`, så den försvinner ur tabordningen |
+| `OpsModal` | fokusfälla, Escape, scrollås, fokus tillbaka till öppnande knapp |
+| `OpsField` | kopplar etikett, hjälptext och fel till fältet med genererade id |
+| `OpsInput` | vägrar `type="date"` och `type="color"`, som inte går att tokenisera |
+| `OpsSelect` | tangentbord, typeahead och positionering, via Radix |
+| `OpsList`, `OpsTable` | rader utan fast höjd, tabell med egen scroll i sidled |
+| `OpsTable` | `tabular-nums` i sifferkolumner så belopp linjerar |
+| `OpsStat` | `tabular-nums` så ett tal som ändras inte hoppar i bredd |
+| `OpsEmpty` | skiljer tomt från laddande, som ser likadant ut men betyder motsatsen |
+| `OpsTag` | härleder tonen ur etiketten, så ny kategori kräver ingen kod |
+| `OpsIdentity` | initialer som inte klipper mitt i ett tecken |
+| `OpsBanner` | `role="alert"` bara för det som ska avbryta |
+| `OpsTabs` | piltangenter, Home, End och koppling flik till panel |
 
 ### Typer
 
@@ -115,13 +240,16 @@ typkontrollerades.
 | `formatCurrency`, `formatNumber`, `formatPercent` | svensk formatering via `Intl` |
 | `formatDate`, `formatDateTime` | rena datum visas som rätt dag, inte dagen innan |
 | `getTheme`, `setTheme`, `initTheme` | ljust, mörkt, följ systemet |
-| `identityTone`, `initials` | deterministisk ton och initialer som inte klipper tecken |
+| `identityTone`, `initials`, `ANTAL_IDENTITETSTONER` | deterministisk ton och initialer som inte klipper tecken |
+| `SAKNAS` | vad som visas när ett värde saknas. Aldrig `0`, som är ett påstående om datan |
+| `TALMELLANSLAG` | strippar det mellanslag `Intl` stoppar i tal. Vilket tecken det är beror på Node-versionen, så det får aldrig hårdkodas |
 
 ### Vakter
 
 | Vakt | Vad den bevisar |
 |---|---|
 | `check-types` (`tsc --checkJs`) | JSDoc-typerna kontrolleras, och `.d.ts` följer med paketet |
+| `check-docs` | varje exporterat namn och varje vakt är omnämnd i README, och antalet komponenter stämmer |
 | `check-tokens` | sju regler i tokenkontraktet, plus golv mot fel fil |
 | `check-exports` | den publika ytan stämmer med modulerna, inget internt läcker |
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
@@ -290,7 +418,7 @@ Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
 |---|---|
 | tokenkontraktet som Tailwind-tema, 193 tokens | auth, Firestore-regler och regeltester |
 | femton primitiver med stängt API, 43 beteendetester | observability: logger, larm till issue |
-| åtta vakter plus mutationsharnesset, 25 regler bevisade röda | toast, tooltip, appskal |
+| nio vakter plus mutationsharnesset, 26 regler bevisade röda | toast, tooltip, appskal |
 | `create-ops-app`, bevisad genom en riktig installation | appskal och navigering in i ramverket |
 | adoptionsplan för bolag-ops, mätt mot repot | själva adoptionen, som väntar på profilbeslutet |
 | skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |
