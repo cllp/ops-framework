@@ -89,5 +89,5 @@ Mätt i `scripts/check-css-build.mjs`, inte antaget:
 | tokenkontraktet som Tailwind-tema, sju vaktregler | observability: logger, larm till issue, statusvy |
 | nio primitiver med stängt API, 18 beteendetester | i18n med täckningsvakt |
 | fyra vakter plus mutationsharnesset, 20 regler bevisade röda | resten av de portabla vakterna ur SessionStudio |
-| `create-ops-app`, bevisad genom en riktig installation | skills: web-app, testing, firebase-data, auth-google-idp, observability, ci-and-guards, architecture-decisions |
-| `css-and-components` som skill | adoptionsräknare med tak som bara får sjunka |
+| `create-ops-app`, bevisad genom en riktig installation | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |
+| skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | adoptionsräknare med tak som bara får sjunka |
