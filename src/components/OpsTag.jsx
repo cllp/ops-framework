@@ -31,16 +31,36 @@ const TONKLASSER = {
 };
 
 /**
+ * ⛔ `tone` finns för de FÅ etiketter där färgen bär betydelse, och den ska
+ * användas sparsamt. Skälet är mätt i bolag-ops: där skiljer AB från PRIVAT
+ * vems pengar en rad gäller, och att blanda ihop dem är precis det fel
+ * plattformen finns för att förhindra. En sådan färg får inte falla ut ur en
+ * hash, för då kan två livsviktigt olika saker landa på samma ton, och den får
+ * inte flytta sig den dag någon skriver "Privat" i stället för "PRIVAT".
+ *
+ * Det är inte samma sak som de tjugofem handskrivna klasserna ovan. Skillnaden
+ * är antalet och skälet: ett fåtal fasta nycklar som betyder något, i stället
+ * för en klass per datavärde. Går listan över en handfull har appen börjat
+ * bygga sin egen palett igen, och då är vi tillbaka där vi startade.
+ *
+ * Utan `tone` härleds tonen som förut, och det är rätt för vanliga kategorier.
+ *
  * @param {object} props
  * @param {string} props.label
+ * @param {1|2|3|4|5|6} [props.tone] Låser tonen. Bara när färgen betyder något.
  * @param {() => void} [props.onRemove]
  * @param {string} [props.removeLabel] Skärmläsarnamn på bort-knappen. Ska säga VILKEN etikett.
  */
-export function OpsTag({ label, onRemove, removeLabel }) {
+export function OpsTag({ label, tone, onRemove, removeLabel }) {
   if (!label) throw new Error("OpsTag: label krävs. Den är både texten och nyckeln som bestämmer tonen.");
 
+  const tonKlass = tone === undefined ? TONKLASSER[identityTone(label)] : TONKLASSER[tone];
+  if (!tonKlass) {
+    throw new Error(`OpsTag: okänd tone "${tone}". Giltiga: ${Object.keys(TONKLASSER).join(", ")}.`);
+  }
+
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full py-1 text-xs font-semibold leading-tight", TONKLASSER[identityTone(label)], onRemove ? "pl-3 pr-1" : "px-3")}>
+    <span className={cx("inline-flex items-center gap-1 rounded-full py-1 text-xs font-semibold leading-tight", tonKlass, onRemove ? "pl-3 pr-1" : "px-3")}>
       {label}
       {onRemove ? (
         <button

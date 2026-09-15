@@ -108,6 +108,37 @@ if (css.includes(".bg-red-500")) {
   brott.push(".bg-red-500 finns i appens byggda CSS. Nollningen av Tailwinds palett nådde inte hela vägen genom en riktig installation.");
 }
 
+// ── Logotypen måste överleva vägen genom paketet ─────────────────────────────
+//
+// ⛔ Det här är den enda kontroll som kan fånga felet, och felet är tyst.
+// `--logo-phst` är en `url()` skriven relativt `tokens/tokens.css` INNE i
+// node_modules. Att den pekar rätt bygger på att byggverktyget skriver om
+// sökvägen när filen importeras från appens `src/index.css` och kopierar ut
+// bilden. Gör det inte det blir det ingen varning, ingen röd rad och inget
+// byggfel, bara ett varumärke som är en tom ruta hos användaren.
+//
+// ⛔ ALLA fyra kontrolleras, inte den första som råkar matcha. Första versionen
+// av den här kontrollen läste bara `css.match(...)`, alltså en enda träff.
+// Provkörning med `--logo-phst` pekad på en fil som inte finns gav GRÖNT, för
+// att träffen blev `phst-estd-light` i stället. En vakt som svarar på fel fråga
+// är farligare än ingen vakt, eftersom den får en att sluta titta.
+const MARKEN = ["phst-light", "phst-dark", "phst-estd-light", "phst-estd-dark"];
+const urler = [...css.matchAll(/url\(([^)]*phst[^)]*)\)/g)].map((m) => m[1].replace(/["']/g, "").trim());
+
+for (const marke of MARKEN) {
+  // Byggverktyget lägger på en innehållshash, så namnet matchas som prefix.
+  const traff = urler.find((u) => path.basename(u).startsWith(`${marke}-`) || path.basename(u) === `${marke}.png`);
+  if (!traff) {
+    brott.push(
+      `${marke}.png finns inte som url() i appens byggda CSS. Tokenet nådde inte hela vägen genom paketet, och märket blir en tom ruta i det temat.`,
+    );
+    continue;
+  }
+  if (!fs.existsSync(path.join(appmapp, "dist", traff.replace(/^\//, "")))) {
+    brott.push(`Appens CSS pekar på ${traff}, men filen finns inte i dist. Bilden skrevs aldrig ut, alltså trasigt märke utan felmeddelande.`);
+  }
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 if (brott.length > 0) {
@@ -116,4 +147,7 @@ if (brott.length > 0) {
   process.exit(1);
 }
 
-console.log(`\ncheck-scaffold: appen skapades, installerades, klarade sin egen grind och fick ${Math.round(css.length / 1024)} kB CSS med ramverkets utilities i sig`);
+console.log(
+  `\ncheck-scaffold: appen skapades, installerades, klarade sin egen grind, fick ${Math.round(css.length / 1024)} kB CSS ` +
+    `med ramverkets utilities i sig och skrev ut alla ${MARKEN.length} marken`,
+);

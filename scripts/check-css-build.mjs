@@ -98,6 +98,17 @@ const MASTE_FINNAS = [
   ".bg-identity-1\\/12",
   ".border-info\\/30",
   ".peer-checked\\:bg-accent",
+  // Rubriktokenet. Utan raden hade en app som pekar --font-display mot en
+  // antikva sett precis likadan ut, och felet hade lastats pa tokenet.
+  ".font-display",
+  // Vantan. `sr-only` ar texten skarmlasaren far i stallet for snurran.
+  // Genereras den inte blir vantan helt tyst, och det marks aldrig med ogat.
+  ".sr-only",
+  ".animate-spin",
+  ".motion-reduce\\:animate-spin-slow",
+  // Markets bildtoken. Genereras den inte star varumarket som en tom ruta i
+  // topraden, och det ar det forsta anvandaren ser.
+  ".bg-\\(image\\:--logo-phst\\)",
 ];
 for (const v of MASTE_FINNAS) {
   if (!css.includes(v)) {
@@ -115,6 +126,19 @@ for (const v of MASTE_SAKNAS) {
       `${v} genererades trots att tokenkontraktet nollar Tailwinds palett. Då är "inga ad-hoc-färger" en rekommendation igen, inte en mekanism.`,
     );
   }
+}
+
+// ── Snurren måste ha sina keyframes, inte bara sin utility ──────────────────
+//
+// ⛔ Det här är ett TYST fel om det inträffar. `animate-spin` utan
+// `@keyframes ops-spin` ger en regel som pekar på en animation som inte finns:
+// ingen varning i konsolen, ingen röd rad i bygget, bara en ikon som står
+// still. Och en väntesymbol som står still läses som en trasig sida, alltså
+// tvärtemot vad den ska säga.
+if (!/@keyframes\s+ops-spin/.test(css)) {
+  brott.push(
+    "@keyframes ops-spin finns inte i utdata trots att .animate-spin gör det. Snurran skulle stå stilla, och det syns varken som varning eller som byggfel.",
+  );
 }
 
 // ── Hålet Tailwind INTE täpper till, uttalat i stället för underförstått ─────

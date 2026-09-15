@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { KryssIkon } from "./icons.jsx";
+import { OpsBrand } from "./OpsBrand.jsx";
 
 /**
  * Appskalet: varumärke, navigering och ett utrymme för konto och tema.
@@ -20,7 +21,7 @@ import { KryssIkon } from "./icons.jsx";
 
 /**
  * @param {object} props
- * @param {import("react").ReactNode} props.brand Namn eller logotyp. Länkar till startsidan.
+ * @param {import("react").ReactNode} props.brand Appens namn som sträng, eller en egen `OpsBrand`. Länkar till startsidan.
  * @param {{ href: string, label: string }[]} props.nav
  * @param {string} props.activeHref Vilken sida som visas nu.
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
@@ -41,6 +42,13 @@ export function OpsAppShell({
 }) {
   const [oppen, setOppen] = useState(false);
   const menyId = useId();
+
+  // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
+  // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
+  // får man PH.ST-märket och namnet, utan att behöva veta att `OpsBrand` finns.
+  // Hade strängen renderats rå hade varje app fått en egen tolkning av hur en
+  // topprad ser ut, och då är vi tillbaka i tre plattformar med tre utseenden.
+  const varumarke = typeof brand === "string" ? <OpsBrand title={brand} /> : brand;
 
   if (!Array.isArray(nav)) {
     throw new Error("OpsAppShell: nav krävs och måste vara en lista av { href, label }.");
@@ -71,7 +79,7 @@ export function OpsAppShell({
             onClick={(e) => klick("/", e)}
             className="shrink-0 rounded-md px-1 py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            {brand}
+            {varumarke}
           </a>
 
           {/* Bred skärm: länkarna i raden. Smal: knappen nedan. */}

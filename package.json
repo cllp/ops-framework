@@ -16,6 +16,7 @@
   "files": [
     "dist",
     "src",
+    "assets",
     "tokens",
     "scripts",
     "skills",

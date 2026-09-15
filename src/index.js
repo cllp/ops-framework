@@ -11,6 +11,7 @@
 
 // ── Skal ───────────────────────────────────────────────────────────────────
 export { OpsAppShell } from "./components/OpsAppShell.jsx";
+export { OpsBrand } from "./components/OpsBrand.jsx";
 
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────
 export { OpsButton } from "./components/OpsButton.jsx";
@@ -29,6 +30,7 @@ export { OpsList, OpsListRow } from "./components/OpsList.jsx";
 export { OpsTable } from "./components/OpsTable.jsx";
 export { OpsStat } from "./components/OpsStat.jsx";
 export { OpsEmpty } from "./components/OpsEmpty.jsx";
+export { OpsSpinner } from "./components/OpsSpinner.jsx";
 
 // ── Märkning ───────────────────────────────────────────────────────────────
 export { OpsPill } from "./components/OpsPill.jsx";
@@ -41,6 +43,7 @@ export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
 export { OpsBanner } from "./components/OpsBanner.jsx";
 export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";
+export { OpsThemeToggle } from "./components/OpsThemeToggle.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
 export { skapaDatakalla, tillampaFraga, OPERATIONER } from "./data/kontrakt.js";

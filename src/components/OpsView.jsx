@@ -55,7 +55,7 @@ export function OpsViewHeader({ title, description, actions }) {
     // telefon och blir onåbara. Raden bryter i stället för att svämma över.
     <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="m-0 text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>
+        <h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>
         {description ? <p className="mt-1 text-base text-ink-secondary">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}

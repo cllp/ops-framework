@@ -145,6 +145,18 @@
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* Rubrikstilen, avsiktligt SAMMA som brödtexten som standard.
+   *
+   * ⛔ Den finns som eget token för att en plattform ska kunna ge sina rubriker
+   * en egen röst, till exempel en antikva, utan att röra en enda komponent.
+   * bolag-ops gör precis det i dag med sina serifrubriker, och utan ett token
+   * hade den appen tvingats skriva om OpsViewHeader lokalt, vilket är exakt den
+   * lokala gaffel ramverket finns för att förhindra.
+   *
+   * Standardvärdet pekar på sans, så ingen app ser någon skillnad förrän den
+   * själv väljer något annat. */
+  --font-display: var(--font-sans);
+
   /* Sex storlekar, och `text-base` är 14px, inte 16.
    *
    * Det är ett medvetet val för täta arbetsverktyg: en tidrapport eller en
@@ -161,6 +173,57 @@
   /* ─── Rörelse. En kurva per avsikt, inte en per komponent. ───────────── */
   --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ─── Väntan ─────────────────────────────────────────────────────────────
+   * Snurren är EN rörelse med ETT tempo, deklarerad här och ingen annanstans.
+   * Tailwind har en egen `--animate-spin`, och vår skriver över den med flit:
+   * annars finns två snurr i bygget som är nästan lika, och "nästan lika" syns
+   * exakt när två väntande saker råkar ligga bredvid varandra.
+   *
+   * ⛔ DE HÄR MÅSTE LIGGA I `@theme`, inte i `:root`-blocket längre ner där
+   * `--z-*`, `--duration-*` och `--safe-*` bor. Det är inte en smaksak:
+   * `--animate-*` ÄR en Tailwind-namnrymd, och bara härifrån genereras klassen
+   * `animate-spin-slow`. Första versionen av de här två raderna låg i `:root`,
+   * och då fanns variabeln i utdata medan utility-klassen saknades helt. Inget
+   * felmeddelande, ingen röd rad, bara en snurra som körde full fart för den
+   * som bett om mindre rörelse. `--z-*` och `--duration-*` ligger däremot rätt
+   * där de ligger, eftersom de inte är namnrymder och läses som
+   * `z-(--z-modal)`.
+   *
+   * ⛔ `--animate-spin-slow` är INTE en långsammare variant att välja mellan.
+   * Den finns enbart för `prefers-reduced-motion`, och skälet är att den som
+   * bett om mindre rörelse ändå måste kunna se ATT något pågår. Att stänga av
+   * rörelsen helt lämnar en stillastående ring som ser ut som en trasig ikon,
+   * och då är beskedet borta för just den som har svårast att gissa sig till
+   * det.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --animate-spin: ops-spin 900ms linear infinite;
+  --animate-spin-slow: ops-spin 2400ms linear infinite;
+
+  @keyframes ops-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* ─── Logotyp ────────────────────────────────────────────────────────────
+   * PH.ST-märket, som en bild-token precis som en färg är en färg-token.
+   *
+   * ⛔ Skälet till att den ligger HÄR och inte som ett `src` i komponenten är
+   * temaväxlingen. Märket finns i två utföranden, mörkt bläck och gräddvitt,
+   * och rätt utförande ska följa samma tre lägen som allt annat: systemets val
+   * när användaren inte valt, användarens val när hen valt. Ett `<picture>`
+   * med `prefers-color-scheme` hade bara klarat systemets val, och därmed gett
+   * ett gräddvitt märke på vit botten för den som kör mörk telefon men valt
+   * ljust läge i appen. Som token ärver märket hela maskineriet gratis, och
+   * bara den variant som faktiskt visas laddas ner.
+   *
+   * Filerna är beskurna till bläcket och nedskalade från originalens
+   * 4000x4000 till drygt 440 px höjd, alltså 6 kB i stället för 160. Se
+   * `assets/README.md` för var originalen bor.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --logo-phst: url("../assets/phst-light.png");
+  --logo-phst-estd: url("../assets/phst-estd-light.png");
 }
 
 /**
@@ -223,6 +286,10 @@
   --dark-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --dark-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
   --dark-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  /* Märket i gräddvitt bläck, för mörk botten. */
+  --dark-logo-phst: url("../assets/phst-dark.png");
+  --dark-logo-phst-estd: url("../assets/phst-estd-dark.png");
 
   /* ─── Lager. Tailwind har ingen z-namnrymd, så dessa är vanliga variabler
    * och används som `z-(--z-modal)`. ⛔ Aldrig en fallback i var(): två
@@ -309,6 +376,9 @@
     --shadow-sm: var(--dark-shadow-sm);
     --shadow-md: var(--dark-shadow-md);
     --shadow-lg: var(--dark-shadow-lg);
+
+    --logo-phst: var(--dark-logo-phst);
+    --logo-phst-estd: var(--dark-logo-phst-estd);
   }
 }
 
@@ -363,6 +433,9 @@
   --shadow-sm: var(--dark-shadow-sm);
   --shadow-md: var(--dark-shadow-md);
   --shadow-lg: var(--dark-shadow-lg);
+
+  --logo-phst: var(--dark-logo-phst);
+  --logo-phst-estd: var(--dark-logo-phst-estd);
 }
 
 /**

@@ -1,3 +1,5 @@
+import { OpsSpinner } from "./OpsSpinner.jsx";
+
 /**
  * Tomt tillstånd, och laddning.
  *
@@ -32,6 +34,12 @@ export function OpsEmpty({ title, description, action, busy = false, busyLabel =
       aria-busy={busy || undefined}
       className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line bg-sunken px-6 py-10 text-center"
     >
+      {/* ⛔ Snurran är `decorative`. Ytan bär redan `role="status"` och
+          `aria-busy`, så en annonserande snurra hade läst upp samma väntan två
+          gånger. Den finns för ögat: utan den är "Hämtar" en stillastående rad
+          som inte går att skilja från ett tomt tillstånd förrän man läst den,
+          och det är precis den förväxlingen den här komponenten finns för. */}
+      {busy ? <OpsSpinner size="lg" tone="accent" decorative /> : null}
       <p className="m-0 text-base font-semibold text-ink">{busy ? busyLabel : title}</p>
       {!busy && description ? <p className="m-0 max-w-prose text-base text-ink-secondary">{description}</p> : null}
       {!busy && action ? <div className="mt-2">{action}</div> : null}

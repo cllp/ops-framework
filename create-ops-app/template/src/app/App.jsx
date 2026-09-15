@@ -1,10 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { OpsAppShell, OpsDataProvider, OpsToastProvider, skapaMinneskalla } from "@staiger/ops-framework";
+import { OpsAppShell, OpsDataProvider, OpsThemeToggle, OpsToastProvider, skapaMinneskalla } from "@staiger/ops-framework";
 import { DashboardView } from "./views/DashboardView.jsx";
 import { PrimitivesView } from "./views/PrimitivesView.jsx";
 import { NotFoundView } from "./views/NotFoundView.jsx";
 import { Felgrans } from "../lib/Felgrans.jsx";
-import { Temavaxlare } from "../lib/Temavaxlare.jsx";
 
 const SIDOR = [
   { href: "/", label: "Översikt" },
@@ -33,7 +32,7 @@ function Skal({ children }) {
         e.preventDefault();
         navigera(href);
       }}
-      actions={<Temavaxlare />}
+      actions={<OpsThemeToggle />}
     >
       {children}
     </OpsAppShell>

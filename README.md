@@ -148,7 +148,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**30 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**33 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -183,13 +183,14 @@ något godtyckligt.
 | `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
 | `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge` |
 | `OpsEmpty` | `title`, `description`, `action`, `busy`, `busyLabel` |
+| `OpsSpinner` | `size` sm \| md \| lg, `tone` current \| accent \| muted, `label`, `decorative` |
 
 #### Märkning
 
 | Komponent | Props |
 |---|---|
 | `OpsPill` | `tone` neutral \| success \| warning \| danger \| info, `children` |
-| `OpsTag` | `label` (bestämmer också tonen), `onRemove`, `removeLabel` |
+| `OpsTag` | `label` (bestämmer också tonen), `tone` 1-6 (låser tonen), `onRemove`, `removeLabel` |
 | `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
 | `OpsProvenance` | `kind` human \| agent \| auto, `label` |
 
@@ -197,13 +198,15 @@ något godtyckligt.
 
 | Komponent | Props |
 |---|---|
-| `OpsAppShell` | `brand`, `nav` [{href, label}], `activeHref`, `onNavigate`, `actions`, `menuLabel`, `navLabel`, `children` |
+| `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label}], `activeHref`, `onNavigate`, `actions`, `menuLabel`, `navLabel`, `children` |
+| `OpsBrand` | `title` (krävs), `subtitle`, `mark` phst \| phst-estd \| none |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsTabPanel` | `id`, `children` |
 | `OpsBanner` | `tone` info \| success \| warning \| danger, `title`, `action`, `onDismiss`, `dismissLabel`, `children` |
 | `OpsToastProvider` | `children`, `closeLabel`. Läggs en gång, högst upp |
 | `useOpsToast` | `visa({ title, description, tone })` |
 | `OpsTooltip` | `content`, `side`, `children` |
+| `OpsThemeToggle` | `ariaLabel`, `labels` {system, light, dark} |
 
 #### Vad var och en gör som du annars fått bygga själv
 
@@ -218,7 +221,10 @@ något godtyckligt.
 | `OpsTable` | `tabular-nums` i sifferkolumner så belopp linjerar |
 | `OpsStat` | `tabular-nums` så ett tal som ändras inte hoppar i bredd |
 | `OpsEmpty` | skiljer tomt från laddande, som ser likadant ut men betyder motsatsen |
+| `OpsSpinner` | EN väntesymbol, som annonserar för skärmläsare utan att göra det två gånger |
 | `OpsTag` | härleder tonen ur etiketten, så ny kategori kräver ingen kod |
+| `OpsBrand` | byter märke med temat, inte med systemets inställning |
+| `OpsThemeToggle` | tre lägen, så "följ systemet" inte försvinner |
 | `OpsIdentity` | initialer som inte klipper mitt i ett tecken |
 | `OpsBanner` | `role="alert"` bara för det som ska avbryta |
 | `OpsTabs` | piltangenter, Home, End och koppling flik till panel |

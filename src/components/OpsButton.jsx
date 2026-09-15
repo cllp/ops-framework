@@ -1,4 +1,5 @@
 import { cx } from "../lib/cx.js";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * Knapp.
@@ -96,6 +97,30 @@ export function OpsButton({
   const klass = cx(BAS, variantKlass, storlekKlass, fullWidth && "w-full");
   const sparrad = disabled || busy;
 
+  /**
+   * ⛔ `busy` satte tidigare BARA `aria-busy` och spärrade knappen. Det betydde
+   * att en skärmläsare fick beskedet medan ögat fick en knapp som såg
+   * avstängd ut utan förklaring, alltså precis tvärtom mot hur den sortens
+   * fel brukar se ut. Den som klickar "Spara" och möter en grå knapp utan
+   * rörelse klickar igen, eller lämnar sidan mitt i skrivningen.
+   *
+   * ⛔ Etiketten står KVAR bredvid snurran. Att byta ut den mot enbart en
+   * snurra gör att knappen ändrar bredd i samma ögonblick som den spärras, och
+   * då hoppar allt som ligger bredvid. Undantaget är `iconOnly`, som inte har
+   * någon etikett att behålla.
+   *
+   * Snurran är `decorative`: knappen bär redan `aria-busy`, och två besked om
+   * samma väntan är värre än ett.
+   */
+  const innehall = busy ? (
+    <>
+      <OpsSpinner size="sm" tone="current" decorative />
+      {iconOnly ? null : children}
+    </>
+  ) : (
+    children
+  );
+
   if (href) {
     // En spärrad länk har inget href. `pointer-events-none` räcker inte: den
     // stoppar musen men inte tangentbordet, och länken är kvar i tabordningen.
@@ -112,7 +137,7 @@ export function OpsButton({
         title={title}
         onClick={sparrad ? undefined : onClick}
       >
-        {children}
+        {innehall}
       </a>
     );
   }
@@ -128,7 +153,7 @@ export function OpsButton({
       title={title}
       onClick={onClick}
     >
-      {children}
+      {innehall}
     </button>
   );
 }
