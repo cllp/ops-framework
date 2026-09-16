@@ -83,6 +83,14 @@ export function OpsEventList({ events, onNavigate, ariaLabel, labels = {}, empty
                 <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONER[lage])}>{marke}</span>
               ) : null}
 
+              {/* ⛔ SLAGET ÄR TEXT, INTE ETT TREDJE FÄRGAT MÄRKE.
+                  Raden bär redan en rollbadge och ibland ett brådskemärke. Ett
+                  tredje piller hade gjort den till ett klistermärkesalbum där
+                  ögat inte vet vilket märke som betyder mest, och brådskan är det
+                  enda som ska kunna ta uppmärksamhet.
+                  Dämpad färg av samma skäl: slaget är sammanhang, inte larm. */}
+              {h.slag ? <span className="min-w-0 truncate text-sm text-ink-muted">{h.slag}</span> : null}
+
               {/* ⛔ `tabular-nums`: utan den hoppar datumkolumnen i sidled mellan
                   rader, eftersom siffrorna har olika bredd i de flesta typsnitt.
                   Det syns inte på en rad och är omöjligt att sluta se på tio. */}

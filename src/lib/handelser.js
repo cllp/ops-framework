@@ -25,6 +25,12 @@
  *   ramverket TOLKAR den inte, det ritar den. Skulle den vara en sträng måste ramverket
  *   översätta den till något visuellt, och då måste det veta vad rollerna betyder. Det är
  *   precis det ord som inte får finnas här.
+ * @property {import("react").ReactNode} [slag] Vad för sorts händelse det är, i appens ord.
+ *   ⛔ SVARAR PÅ EN ANNAN FRÅGA ÄN `roll`, och blandas de ihop blir båda obrukbara.
+ *   `roll` säger VEM som ska göra något (du, en agent, ingen alls). `slag` säger VAD FÖR
+ *   SORTS sak det är (ett möte, en betalning, en uppgift). Ett filter på det ena kan inte
+ *   svara på det andra.
+ *   ReactNode av samma skäl som `roll`: ramverket ritar den, tolkar den aldrig.
  * @property {string} [url]
  */
 

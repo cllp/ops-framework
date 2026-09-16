@@ -198,7 +198,7 @@ något godtyckligt.
 |---|---|
 | `OpsList` | `divided`, `ariaLabel`, `children` |
 | `OpsBreakdown` | `groups` [{id, label, value, count, on, poster, note}], `onToggle`, `total`, `empty`, `offLabel`, `expandLabel`. En summa uppdelad i grupper som går att fälla ut och tona ned. ⛔ Den summerar ingenting själv: bara appen vet om ett intervall eller ett okänt belopp får räknas. |
-| `OpsEventList` | `events` [{id, titel, dagarKvar, pagar, nar, roll, url}], `onNavigate`, `ariaLabel`, `labels`, `empty`. Brådskan är härledd ur datumet, aldrig lagrad, och färgen bär den aldrig ensam. |
+| `OpsEventList` | `events` [{id, titel, dagarKvar, pagar, nar, roll, slag, url}], `onNavigate`, `ariaLabel`, `labels`, `empty`. Brådskan är härledd ur datumet, aldrig lagrad, och färgen bär den aldrig ensam. ⛔ `roll` säger VEM, `slag` säger VAD FÖR SORTS sak; titeln äger sin egen rad så löptext aldrig får en halv skärmbredd. |
 | `OpsListRow` | `interactive`, `selected`, `href`, `onClick`, `ariaLabel`, `children` |
 | `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
 | `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge`, `fact`, `factLabel`, `source`, `updatedAt`, `onDrillDown`, `drillDownLabel` |

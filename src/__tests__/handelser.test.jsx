@@ -95,6 +95,26 @@ describe("OpsEventList", () => {
     expect(/** @type {HTMLElement} */ (nar.parentElement).contains(titel)).toBe(false);
   });
 
+  it("visar slaget bredvid rollen, som två olika upplysningar", () => {
+    // ⛔ Rollen säger VEM, slaget säger VAD FÖR SORTS SAK. Bär raden bara det
+    // ena går det att filtrera på typ utan att kunna se vilken typ en rad har,
+    // alltså utan att kunna kontrollera sitt eget filter.
+    render(<OpsEventList events={[h("moms", 3, { roll: <span>Förfaller</span>, slag: "Pengar" })]} />);
+    expect(screen.getByText("Förfaller")).toBeInTheDocument();
+    expect(screen.getByText("Pengar")).toBeInTheDocument();
+  });
+
+  it("ritar slaget som text och inte som ett tredje färgat märke", () => {
+    // ⛔ Raden bär redan en rollbadge och ibland ett brådskemärke. Ett tredje
+    // piller gör den till ett klistermärkesalbum, och då vet ögat inte längre
+    // vilket märke som betyder mest. Brådskan är det enda som får larma.
+    render(<OpsEventList events={[h("moms", -2, { slag: "Pengar" })]} />);
+    const slag = screen.getByText("Pengar");
+    expect(slag.className).not.toMatch(/rounded-full/);
+    // Försenat-märket på samma rad ÄR ett piller, så provet visar skillnaden.
+    expect(screen.getByText("Försenat").className).toMatch(/rounded-full/);
+  });
+
   it("visar det tomma läget i stället för en tom lista", () => {
     // ⛔ Tom lista och "allt är gjort" ser likadana ut i markup och betyder
     // motsatta saker.
