@@ -9,7 +9,7 @@
  * Därför scaffoldar den här vakten på riktigt, installerar på riktigt och kör
  * appens egen grind på riktigt.
  *
- * Två detaljer som inte är godtyckliga:
+ * Tre detaljer som inte är godtyckliga:
  *
  *   1. `--install-links` gör att ramverket KOPIERAS som ett paket i stället för
  *      att symlänkas. Det provar samtidigt `files`-fältet: glömmer vi `dist`
@@ -19,6 +19,12 @@
  *      den. Det är enda sättet att bevisa att `@source`-raden mot node_modules
  *      gör sitt jobb, och den raden är den dyraste fällan i uppsättningen:
  *      saknas den blir appen helt ostylad UTAN felmeddelande.
+ *   3. Appen öppnas i en riktig webbläsare vid 390 och 768 px. ⛔ Det är den
+ *      ENDA plats i huset där CSS faktiskt körs: alla andra tester lever i
+ *      jsdom, som inte har någon layoutmotor och därför inte kan se skillnad på
+ *      `hidden md:flex` och ingenting alls. Mätningen ligger i
+ *      `scripts/lib/matVyport.mjs`; den läses härifrån för att appen redan är
+ *      byggd vid det laget och en andra installation vore ren väntetid.
  *
  * Kör: node scripts/check-scaffold.mjs
  */
@@ -29,6 +35,7 @@ import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { matVyport } from "./lib/matVyport.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arbetsmapp = fs.mkdtempSync(path.join(os.tmpdir(), "ops-scaffold-"));
@@ -139,6 +146,25 @@ for (const marke of MARKEN) {
   }
 }
 
+// ── Layouten mäts i en riktig webbläsare ────────────────────────────────────
+//
+// ⛔ Fail-closed. Går webbläsaren inte att starta blir vakten RÖD, inte
+// överhoppad. En grind som är grön för att den inte tittade är sämre än ingen
+// grind: den flyttar uppmärksamheten bort från risken, vilket är exakt hur
+// dubbelnavigeringen fick leva.
+process.stdout.write("  mäter layout vid 390 och 768 px ... ");
+let vyport;
+try {
+  vyport = await matVyport({ dist: path.join(appmapp, "dist"), rutter: ["/", "/primitiver"] });
+  console.log("ok");
+} catch (e) {
+  console.log("MISSLYCKADES");
+  fs.rmSync(arbetsmapp, { recursive: true, force: true });
+  console.error(`\ncheck-scaffold: layoutmätningen kunde inte köras.\n\n  ${/** @type {Error} */ (e).message}\n`);
+  process.exit(1);
+}
+brott.push(...vyport.brott);
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 if (brott.length > 0) {
@@ -149,5 +175,6 @@ if (brott.length > 0) {
 
 console.log(
   `\ncheck-scaffold: appen skapades, installerades, klarade sin egen grind, fick ${Math.round(css.length / 1024)} kB CSS ` +
-    `med ramverkets utilities i sig och skrev ut alla ${MARKEN.length} marken`,
+    `med ramverkets utilities i sig, skrev ut alla ${MARKEN.length} marken och klarade ${vyport.matningar} layoutmatningar ` +
+    `i en riktig webblasare (${vyport.varifran})`,
 );

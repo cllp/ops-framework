@@ -16,6 +16,20 @@ import { BockIkon } from "./icons.jsx";
  * ⛔ Skillnaden mellan de två är BETYDELSE, inte utseende. En kryssruta väljer
  * något som träder i kraft när man sparar. Ett reglage slår om något direkt.
  * Använder man reglage för det första undrar användaren varför inget hände.
+ *
+ * ⛔ TRÄFFYTAN ÄR RADEN, INTE RUTAN, och raden är 44 px på telefon.
+ *
+ * Rutan är 20 px och reglaget 24. Båda är långt under den minsta yta en tumme
+ * träffar pålitligt, och det går inte att lösa genom att rita dem större: då
+ * blir de klumpiga på skrivbordet, där en muspekare är exakt.
+ *
+ * Lösningen är att `<label>` omsluter både rutan och texten, så hela raden är
+ * klickbar, och att raden får ett höjdgolv på telefon. På `md` och uppåt släpps
+ * golvet så att ett formulär med tio kryssrutor inte blir en halv skärm luft.
+ * Samma uppdelning som datumväljarens dagknappar redan använder.
+ *
+ * Utan golvet var felet det tystaste som finns: allt fungerar, men var femte
+ * tryckning missar, och användaren tror att appen hänger sig.
  */
 
 /** @param {{ label: string, checked: boolean, onChange: (v: boolean) => void, disabled?: boolean, hint?: string }} props */
@@ -24,7 +38,10 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
   const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className={cx("flex cursor-pointer items-center gap-2 text-base text-ink", disabled && "cursor-not-allowed opacity-55")}>
+      <label
+        htmlFor={id}
+        className={cx("flex min-h-11 cursor-pointer items-center gap-2 text-base text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
+      >
         <input
           id={id}
           type="checkbox"
@@ -61,7 +78,10 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) 
   const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className={cx("flex cursor-pointer items-center gap-3 text-base text-ink", disabled && "cursor-not-allowed opacity-55")}>
+      <label
+        htmlFor={id}
+        className={cx("flex min-h-11 cursor-pointer items-center gap-3 text-base text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
+      >
         <input
           id={id}
           type="checkbox"
