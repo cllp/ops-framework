@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**37 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**38 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -196,6 +196,7 @@ något godtyckligt.
 | Komponent | Props |
 |---|---|
 | `OpsList` | `divided`, `ariaLabel`, `children` |
+| `OpsEventList` | `events` [{id, titel, dagarKvar, pagar, nar, roll, url}], `onNavigate`, `ariaLabel`, `labels`, `empty`. Brådskan är härledd ur datumet, aldrig lagrad, och färgen bär den aldrig ensam. |
 | `OpsListRow` | `interactive`, `selected`, `href`, `onClick`, `ariaLabel`, `children` |
 | `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
 | `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge`, `fact`, `factLabel`, `source`, `updatedAt`, `onDrillDown`, `drillDownLabel` |
@@ -368,6 +369,7 @@ typkontrollerades.
 | `formatRelativeDate` | ålder i ord, räknad i kalenderdagar: 23:50 i går är "i går" klockan 00:10, inte "i dag" |
 | `getTheme`, `setTheme`, `initTheme` | ljust, mörkt, följ systemet |
 | `identityTone`, `initials`, `ANTAL_IDENTITETSTONER` | deterministisk ton och initialer som inte klipper tecken |
+| `bradska`, `delaIdagKommande` | härleder hur bråttom en händelse är ur dagar kvar, och delar en lista i Idag och Kommande. Försenat ligger i Idag, odaterat i Kommande. |
 | `SAKNAS` | vad som visas när ett värde saknas. Aldrig `0`, som är ett påstående om datan |
 | `TALMELLANSLAG` | strippar det mellanslag `Intl` stoppar i tal. Vilket tecken det är beror på Node-versionen, så det får aldrig hårdkodas |
 
