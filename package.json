@@ -32,7 +32,7 @@
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
-    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:css-build && npm run check:guards && npm test",
+    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:css-build && npm run check:typsnitt && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
     "check:all": "npm run check && npm run check:scaffold",
@@ -40,7 +40,8 @@
     "check:adoption": "node scripts/check-adoption.mjs",
     "check:types": "npx tsc -p tsconfig.json",
     "check:docs": "node scripts/check-docs.mjs",
-    "check:data-layer": "node scripts/check-data-layer.mjs src"
+    "check:data-layer": "node scripts/check-data-layer.mjs src",
+    "check:typsnitt": "node scripts/check-typsnitt.mjs"
   },
   "peerDependencies": {
     "lucide-react": "^0.460.0",

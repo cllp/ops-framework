@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**38 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**41 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -189,6 +189,7 @@ något godtyckligt.
 | `OpsSelect` | `options` [{value, label, disabled}], `value`, `onChange`, `placeholder`, `disabled`, `ariaLabel` |
 | `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel` |
 | `OpsCheckbox` | `label`, `checked`, `onChange`, `disabled`, `hint` |
+| `OpsToggleRow` | `label`, `value`, `on`, `onChange`, `offLabel`. Rad som tonas ned i stället för att bockas ur. ⛔ Ett filter, inte ett påstående: kryssrutan frågar "är det sant?", den här frågar "ska det räknas?". |
 | `OpsSwitch` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 
 #### Data
@@ -222,12 +223,14 @@ något godtyckligt.
 | `OpsBrand` | `title` (krävs), `subtitle`, `mark` phst \| phst-estd \| none |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll. |
+| `OpsFilterChip` | `options` [{value, label}], `value`, `onChange`, `ariaLabel` (krävs), `allLabel`. Pillerformat filter bredvid en lista. ⛔ Valt värde står i pillret, annars läser man en beskuren lista i tron att den är komplett. |
 | `OpsTabPanel` | `id`, `children` |
 | `OpsBanner` | `tone` info \| success \| warning \| danger, `title`, `action`, `onDismiss`, `dismissLabel`, `children` |
 | `OpsToastProvider` | `children`, `closeLabel`. Läggs en gång, högst upp |
 | `useOpsToast` | `visa({ title, description, tone })` |
 | `OpsTooltip` | `content`, `side`, `children` |
 | `OpsThemeToggle` | `ariaLabel`, `labels` {system, light, dark}. Ikonknapp med Sol/Måne, meny med tre lägen |
+| `OpsFullscreenToggle` | `enterLabel`, `exitLabel`. ⛔ Läser tillståndet ur `document.fullscreenElement` och `fullscreenchange`, aldrig ur egen state: Escape och F11 lämnar helskärm utan att någon knapp tryckts. |
 
 #### Vad var och en gör som du annars fått bygga själv
 
@@ -383,6 +386,7 @@ typkontrollerades.
 | `check-exports` | den publika ytan stämmer med modulerna, inget internt läcker |
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |
+| `check-typsnitt` | typsnittet hämtas med `<link>` i mallen, aldrig med en `@import` som ignoreras |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
 | `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390 och 768 px** |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
