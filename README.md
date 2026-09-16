@@ -148,7 +148,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**34 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**35 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -161,6 +161,7 @@ något godtyckligt.
 | `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `open`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
+| `OpsDisclosure` | `summary` (krävs), `children`, `defaultOpen`, `open`, `onOpenChange`, `id`. Hopfällbart kort på native `<details>`: tangentbord, fokus och skärmläsarens expanderad/hopfälld gratis. Ostyrt via `defaultOpen`, eller styrt via `open` + `onOpenChange` |
 
 #### Formulär
 
