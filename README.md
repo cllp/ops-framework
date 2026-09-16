@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**43 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**45 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -199,6 +199,8 @@ något godtyckligt.
 | `OpsList` | `divided`, `ariaLabel`, `children` |
 | `OpsBreakdown` | `groups` [{id, label, value, count, on, poster, note}], `onToggle`, `total`, `empty`, `offLabel`, `expandLabel`. En summa uppdelad i grupper som går att fälla ut och tona ned. ⛔ Den summerar ingenting själv: bara appen vet om ett intervall eller ett okänt belopp får räknas. |
 | `OpsAttributes` | `rows` [{label, value}], `ariaLabel`. Vad vi vet om EN sak, fält för fält. ⛔ Tomma fält ritas inte och allt tomt ger `null`: ett bindestreck ser ut som ett mätt värde. Dubbel etikett kastar. Flera saker jämförda på samma fält är `OpsTable`, inte den här. |
+| `OpsShareChart` | `segments` [{id, label, value, text}], `ariaLabel`, `center`, `centerLabel`, `empty`. Hur en helhet är fördelad. ⛔ Duger inte för att jämföra närliggande värden: 18 mot 21 procent går inte att skilja som vinklar, då är det `OpsRankChart`. Högst sex bitar, sedan kastar den: en sjunde färg vore genererad, alltså omätt. Listan bredvid är inte en legend utan datan, och den är ett KRAV: tre av sex färger klarar inte 3:1 mot ljus yta och är tillåtna bara med synliga etiketter.
+| `OpsRankChart` | `rows` [{id, label, value, text, niva, note}], `ariaLabel`, `max`, `empty`. Vad som är stort och vad som är smått, i ordning. ⛔ `niva` (1 låg, 2 medel, 3 hög) är APPENS bedömning: var gränsen går är domän. Skalan är en nyans som mörknar, aldrig en regnbåge. Taket är största värdet, aldrig summan: mot summan blir varje stapel en strimma.
 | `OpsEventList` | `events` [{id, titel, dagarKvar, pagar, nar, deadline, roll, slag, detaljer, url}], `onNavigate`, `ariaLabel`, `labels`, `empty`, `expandLabel`. Brådskan är härledd ur datumet, aldrig lagrad, och färgen bär den aldrig ensam. ⛔ `roll` säger VEM, `slag` säger VAD FÖR SORTS sak, `nar` hur långt bort och `deadline` vilken dag; skriv inte datumet i både `nar` och `deadline`. Titeln äger sin egen rad så löptext aldrig får en halv skärmbredd. En rad med `detaljer` får en chevron, och kolumnen för den reserveras bara när någon rad i listan har dem. |
 | `OpsListRow` | `interactive`, `selected`, `href`, `onClick`, `ariaLabel`, `children` |
 | `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
@@ -389,6 +391,7 @@ typkontrollerades.
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |
 | `check-typsnitt` | typsnittet hämtas med `<link>` i mallen, aldrig med en `@import` som ignoreras |
+| `check-diagramfarger` | diagrampaletten **mäts**, i båda lägen och mot ramverkets egna ytor. Den enda regeln i repot som inte går att bedöma med ögat: identitetstonerna såg rimliga ut och föll på tre av fem kontroller |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
 | `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390 och 768 px** |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |

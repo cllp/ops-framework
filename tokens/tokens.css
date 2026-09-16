@@ -152,6 +152,49 @@
   --color-identity-5: #6b4a63;
   --color-identity-6: #5a5f4a;
 
+  /* ─── Diagram ────────────────────────────────────────────────────────────
+   * Sex serier och en ordnad skala, för när en yta ska bära identitet eller
+   * storlek.
+   *
+   * ⛔ IDENTITETSTONERNA OVAN DUGER INTE HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
+   * Körda genom paletteringsvalidatorn mot vit yta faller de på tre av fem
+   * kontroller: fyra av sex ligger under kromagolvet och läses som grått, och
+   * identity-5 mot identity-6 hamnar på delta E 8.9 för normalseende, alltså
+   * under golvet 15. Två serier som ingen kan skilja åt är värre än en tabell.
+   *
+   * Det är inte ett fel i identitetstonerna. De är dämpade med flit, för de är
+   * bakgrund till initialer i en lista och ska inte skrika. En diagramyta har
+   * motsatt krav: färgen ÄR budskapet där, eftersom det inte får plats en
+   * etikett i varje tårtbit.
+   *
+   * ⛔ ORDNINGEN ÄR MEKANIKEN, INTE SMAKEN. Slottarna delas ut i tur och
+   * ordning och cirkuleras aldrig. En genererad sjunde färg är omöjlig att
+   * skilja från en befintlig under färgblindhet; en sjunde serie blir "Övrigt",
+   * små multiplar, eller en tabell.
+   *
+   * Mätt mot ramverkets egna ytor (#ffffff ljust, #16161c mörkt): alla gater
+   * gröna i båda lägen, sämsta granne delta E 9.1 ljust och 8.4 mörkt för
+   * färgblindhet, 19.6 respektive 19.3 för normalseende.
+   *
+   * ⛔ I LJUST LÄGE LIGGER TRE SLOTTAR UNDER 3:1 mot vitt (3, 4 och 5). Det är
+   * tillåtet ENDAST med relief: synliga etiketter vid ytan eller en tabellvy.
+   * Ritar du ett diagram utan någon av dem är paletten fel använd, inte fel.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  --color-series-4: #eda100;
+  --color-series-5: #e87ba4;
+  --color-series-6: #008300;
+
+  /* Ordnad skala, låg till hög. EN nyans som mörknar, aldrig en regnbåge: en
+   * regnbåge har ingen ordning och läsaren måste slå upp legenden för varje
+   * steg. Stegen är valda så att det ljusaste klarar 2:1 mot ljus yta, alltså
+   * ordinal-golvet: en stapel som nästan är ytan läses som ingen stapel. */
+  --color-scale-1: #86b6ef;
+  --color-scale-2: #3987e5;
+  --color-scale-3: #1c5cab;
+
   /* ─── Proveniens ─────────────────────────────────────────────────────────
    * Vem producerade det här: en människa, en agent, eller automatik.
    *
@@ -375,6 +418,22 @@
   --dark-identity-5: #b08fa6;
   --dark-identity-6: #9aa08a;
 
+  /* Diagram. Samma sex nyanser, steg-om-satta för den mörka ytan, inte en
+   * automatisk invertering: ett ljust läge speglat blir för ljust mot mörkt och
+   * tappar kromat. Validerat som en uppsättning mot #16161c. */
+  --dark-series-1: #3987e5;
+  --dark-series-2: #d95926;
+  --dark-series-3: #199e70;
+  --dark-series-4: #c98500;
+  --dark-series-5: #d55181;
+  --dark-series-6: #008300;
+
+  /* Ordnad skala mot mörk yta: vänd ordning, alltså ljusare betyder mer, och
+   * det mörkaste steget får inte gå under 2:1 mot ytan. */
+  --dark-scale-1: #184f95;
+  --dark-scale-2: #2a78d6;
+  --dark-scale-3: #86b6ef;
+
   --dark-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --dark-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45);
   --dark-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
@@ -480,6 +539,15 @@
     --color-identity-4: var(--dark-identity-4);
     --color-identity-5: var(--dark-identity-5);
     --color-identity-6: var(--dark-identity-6);
+    --color-series-1: var(--dark-series-1);
+    --color-series-2: var(--dark-series-2);
+    --color-series-3: var(--dark-series-3);
+    --color-series-4: var(--dark-series-4);
+    --color-series-5: var(--dark-series-5);
+    --color-series-6: var(--dark-series-6);
+    --color-scale-1: var(--dark-scale-1);
+    --color-scale-2: var(--dark-scale-2);
+    --color-scale-3: var(--dark-scale-3);
 
     --shadow-sm: var(--dark-shadow-sm);
     --shadow-md: var(--dark-shadow-md);
@@ -548,6 +616,15 @@
   --color-identity-4: var(--dark-identity-4);
   --color-identity-5: var(--dark-identity-5);
   --color-identity-6: var(--dark-identity-6);
+  --color-series-1: var(--dark-series-1);
+  --color-series-2: var(--dark-series-2);
+  --color-series-3: var(--dark-series-3);
+  --color-series-4: var(--dark-series-4);
+  --color-series-5: var(--dark-series-5);
+  --color-series-6: var(--dark-series-6);
+  --color-scale-1: var(--dark-scale-1);
+  --color-scale-2: var(--dark-scale-2);
+  --color-scale-3: var(--dark-scale-3);
 
   --shadow-sm: var(--dark-shadow-sm);
   --shadow-md: var(--dark-shadow-md);
