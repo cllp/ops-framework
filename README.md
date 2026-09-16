@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**41 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**42 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -197,6 +197,7 @@ något godtyckligt.
 | Komponent | Props |
 |---|---|
 | `OpsList` | `divided`, `ariaLabel`, `children` |
+| `OpsBreakdown` | `groups` [{id, label, value, count, on, poster, note}], `onToggle`, `total`, `empty`, `offLabel`, `expandLabel`. En summa uppdelad i grupper som går att fälla ut och tona ned. ⛔ Den summerar ingenting själv: bara appen vet om ett intervall eller ett okänt belopp får räknas. |
 | `OpsEventList` | `events` [{id, titel, dagarKvar, pagar, nar, roll, url}], `onNavigate`, `ariaLabel`, `labels`, `empty`. Brådskan är härledd ur datumet, aldrig lagrad, och färgen bär den aldrig ensam. |
 | `OpsListRow` | `interactive`, `selected`, `href`, `onClick`, `ariaLabel`, `children` |
 | `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
