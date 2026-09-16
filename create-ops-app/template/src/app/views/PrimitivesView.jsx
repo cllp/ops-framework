@@ -4,6 +4,7 @@ import {
   OpsButton,
   OpsCard,
   OpsDisclosure,
+  OpsFact,
   OpsField,
   OpsIdentity,
   OpsInput,
@@ -143,6 +144,46 @@ export function PrimitivesView() {
           <OpsStat label="Obetalda fakturor" value="4" tone="warning" hint="Äldsta 31 dagar" />
           <OpsStat label="Marginal" value="18 %" tone="success" />
         </div>
+
+        {/* Samma primitiv med källa, ålder och väg vidare. Den vänstra går att
+            klicka, den högra är ett scenario och säger det själv. */}
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <OpsStat
+            label="Kostnader"
+            value={formatCurrency(67650)}
+            hint="Per månad"
+            fact="uppmatt"
+            source="Bokföringen"
+            updatedAt="2026-09-15T09:00:00Z"
+            onDrillDown={() => {}}
+            drillDownLabel="Kostnader: visa de rader som ingår"
+          />
+          <OpsStat
+            label="Rörliga utgifter"
+            value={formatCurrency(4200)}
+            fact="uppskattat"
+            factLabel="Snitt 12 mån"
+            source="Kontoutdrag"
+            updatedAt="2026-08-30T09:00:00Z"
+          />
+          <OpsStat label="Pension vid 65" value={formatCurrency(5290000)} fact="scenario" factLabel="Vid 3 % avkastning" />
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-md font-bold text-ink">Tillförlitlighet</h2>
+        <OpsCard>
+          <div className="flex flex-wrap items-center gap-3">
+            <OpsFact kind="uppmatt" />
+            <OpsFact kind="uppskattat" label="Snitt 12 mån" />
+            <OpsFact kind="okant" />
+            <OpsFact kind="scenario" value={formatCurrency(5290000)} label="Vid 3 % avkastning" />
+          </div>
+          <p className="m-0 mt-3 text-sm text-ink-muted">
+            Svarar på om en siffra går att lita på. Det är en annan fråga än proveniens, som svarar på vem som skrev den. Märk där olika sorters
+            siffror möts, inte på varje rad: är allt märkt är inget märkt.
+          </p>
+        </OpsCard>
       </section>
 
       <section className="mb-8">

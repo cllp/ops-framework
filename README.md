@@ -148,7 +148,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**35 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**36 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -182,7 +182,7 @@ något godtyckligt.
 | `OpsList` | `divided`, `ariaLabel`, `children` |
 | `OpsListRow` | `interactive`, `selected`, `href`, `onClick`, `ariaLabel`, `children` |
 | `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
-| `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge` |
+| `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge`, `fact`, `factLabel`, `source`, `updatedAt`, `onDrillDown`, `drillDownLabel` |
 | `OpsEmpty` | `title`, `description`, `action`, `busy`, `busyLabel` |
 | `OpsSpinner` | `size` sm \| md \| lg, `tone` current \| accent \| muted, `label`, `decorative` |
 
@@ -194,6 +194,7 @@ något godtyckligt.
 | `OpsTag` | `label` (bestämmer också tonen), `tone` 1-6 (låser tonen), `onRemove`, `removeLabel` |
 | `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
 | `OpsProvenance` | `kind` human \| agent \| auto, `label` |
+| `OpsFact` | `kind` uppmatt \| uppskattat \| okant \| scenario, `label`, `value` |
 
 #### Navigering och meddelanden
 
@@ -222,7 +223,8 @@ något godtyckligt.
 | `OpsSelect` | tangentbord, typeahead och positionering, via Radix |
 | `OpsList`, `OpsTable` | rader utan fast höjd, tabell med egen scroll i sidled |
 | `OpsTable` | `tabular-nums` i sifferkolumner så belopp linjerar |
-| `OpsStat` | `tabular-nums` så ett tal som ändras inte hoppar i bredd |
+| `OpsStat` | `tabular-nums` så ett tal som ändras inte hoppar i bredd; blir en knapp bara när den leder någonstans |
+| `OpsFact` | vägrar visa ett belopp i läget `okant`, så noll och okänt aldrig ser likadana ut |
 | `OpsEmpty` | skiljer tomt från laddande, som ser likadant ut men betyder motsatsen |
 | `OpsSpinner` | EN väntesymbol, som annonserar för skärmläsare utan att göra det två gånger |
 | `OpsTag` | härleder tonen ur etiketten, så ny kategori kräver ingen kod |
@@ -232,6 +234,34 @@ något godtyckligt.
 | `OpsBanner` | `role="alert"` bara för det som ska avbryta |
 | `OpsTabs` | piltangenter, Home, End och koppling flik till panel |
 | `OpsBottomNav` | fast bottenrad utan att sidan hoppar, säker yta i botten, Meny-sheet med fokusfälla och ur DOM när stängd |
+
+#### Tillförlitlighet är inte proveniens
+
+Två frågor som är lätta att slå ihop och som inte går att härleda ur varandra:
+
+| | Frågan | Komponent |
+|---|---|---|
+| **Proveniens** | Vem producerade det här? | `OpsProvenance`: människa, agent, automatik |
+| **Tillförlitlighet** | Går det att lita på? | `OpsFact`: uppmätt, uppskattat, okänt, scenario |
+
+En agent kan skriva en uppmätt siffra och en människa kan gissa. Slås de ihop
+försvinner den ena.
+
+⛔ Utan tillförlitlighet ser fyra olika saker likadana ut. En pensionsprognos
+ligger visuellt bredvid faktiskt kassaflöde, ett tolvmånaderssnitt ser ut som ett
+bokfört belopp, och **"0 kr" går inte att skilja från "vi vet inte"**. Det sista
+är det farliga: noll och okänt är motsatser, och den som läser har ingen
+anledning att misstro siffran. Därför kastar `OpsFact` om någon försöker ge läget
+`okant` ett värde.
+
+⛔ **Märk där blandningen sker, inte överallt.** Är allt på en sida märkt är
+inget märkt, och märkningen blir mönstrad tapet som ögat slutar se. Är en hel
+tabell uppmätt hör märket på tabellen, en gång. Därav att `uppmatt` har den
+tystaste tonen av de fyra: den är normalfallet.
+
+Nyckeltal bär samma sak: `OpsStat` tar `fact`, plus `source` och `updatedAt`.
+⛔ **En siffra utan ålder läses som färsk**, alltid, och det är den vanligaste
+tysta lögnen i en översiktsvy.
 
 ### Datalager
 
@@ -317,6 +347,7 @@ typkontrollerades.
 |---|---|
 | `formatCurrency`, `formatNumber`, `formatPercent` | svensk formatering via `Intl` |
 | `formatDate`, `formatDateTime` | rena datum visas som rätt dag, inte dagen innan |
+| `formatRelativeDate` | ålder i ord, räknad i kalenderdagar: 23:50 i går är "i går" klockan 00:10, inte "i dag" |
 | `getTheme`, `setTheme`, `initTheme` | ljust, mörkt, följ systemet |
 | `identityTone`, `initials`, `ANTAL_IDENTITETSTONER` | deterministisk ton och initialer som inte klipper tecken |
 | `SAKNAS` | vad som visas när ett värde saknas. Aldrig `0`, som är ett påstående om datan |
@@ -365,6 +396,22 @@ Därför öppnar `check-scaffold` den byggda appen i Chromium vid **390 px** och
 är att hoppa över tyst så att grinden går igenom på en maskin utan webbläsare,
 men då är den grön av att inte ha tittat. Sätt `OPS_CHROMIUM` till en körbar
 Chromium om den ligger på en egen plats.
+
+**Appen kör samma mätning på sina egna sidor.** Mallappen har två rutter och
+nästan inget innehåll, alltså låg mätningen först precis där problemet inte var.
+Därför följer den med som ett kommando:
+
+```bash
+npx ops-viewport dist --rutter /,/kostnader,/tillgangar,/schema
+```
+
+Rutterna är appens beslut; ramverket vet aldrig vilka sidor en plattform har.
+Mätningen ligger redan i mallens `check` och `gate`, med bara `/` i listan, och
+⛔ **den listan ska fyllas på**. Mäts bara startsidan är grinden grön för en sida
+av tio, och det är exakt så horisontell scroll hann ligga kvar i en app tills
+någon klickade igenom den för hand. `playwright` är en valfri peer: den finns i
+mallens devDependencies, men webbläsaren hämtas en gång per maskin med
+`npx playwright install chromium`.
 
 #### Träffytan är 44 px på telefon
 

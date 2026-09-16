@@ -11,8 +11,9 @@
     "test": "vitest run",
     "check:tokens": "node node_modules/@staiger/ops-framework/scripts/check-token-overrides.mjs src/index.css",
     "check:closed-api": "node node_modules/@staiger/ops-framework/scripts/check-closed-api.mjs src",
-    "check": "npm run lint && npm run check:tokens && npm run check:closed-api && npm run test && npm run build",
-    "gate": "bash scripts/pre-push-gate.sh"
+    "check": "npm run lint && npm run check:tokens && npm run check:closed-api && npm run test && npm run build && npm run check:viewport",
+    "gate": "bash scripts/pre-push-gate.sh",
+    "check:viewport": "node node_modules/@staiger/ops-framework/scripts/ops-viewport.mjs dist --rutter /"
   },
   "dependencies": {
     "@staiger/ops-framework": "__FRAMEWORK_SPEC__",
@@ -31,6 +32,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "globals": "^15.14.0",
     "jsdom": "^25.0.1",
+    "playwright": "^1.49.0",
     "tailwindcss": "^4.3.3",
     "vite": "^6.0.7",
     "vitest": "^2.1.8"
