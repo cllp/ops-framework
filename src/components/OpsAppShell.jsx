@@ -35,7 +35,8 @@ import { ChevronNedIkon } from "./icons.jsx";
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
- * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden. Resten hamnar under "Mer".
+ * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden på bred skärm (1024 och uppåt). Resten hamnar under "Mer".
+ * @param {number} [props.maxTopNavSmal] Hur många som får plats mellan 768 och 1024. Mätt: fler än tre ger horisontell scroll på en iPad i stående läge.
  * @param {string} [props.moreLabel] Texten på överflödesknappen i toppraden.
  * @param {string} [props.bottomNavLabel] Skärmläsarnamn på bottenraden. ⛔ Eget
  *   namn med flit, INTE samma som `navLabel`: se OpsBottomNav för varför två
@@ -55,11 +56,24 @@ export function OpsAppShell({
   // fönstret. Ett fast tak är förutsägbart, och appen styr vilka fem genom sin
   // ordning.
   maxTopNav = 5,
+  maxTopNavSmal,
   moreLabel = "Mer",
   bottomNavLabel = "Snabbnavigering",
   children,
 }) {
   valideraNav(nav, "OpsAppShell");
+  // ⛔ Kastar hellre än att rendera en rad som tyst tappar destinationer:
+  // vore taket på smal skärm högre skulle poster mellan talen ligga i raden på
+  // smal skärm och ingenstans alls på bred.
+  if (maxTopNavSmal !== undefined && maxTopNavSmal > maxTopNav) {
+    throw new Error(
+      `OpsAppShell: maxTopNavSmal (${maxTopNavSmal}) kan inte vara större än maxTopNav (${maxTopNav}). Den smala skärmen visar aldrig fler än den breda.`,
+    );
+  }
+  // Standardvärdet HÄRLEDS och står inte i signaturen. En app som säger
+  // `maxTopNav={2}` har sagt allt som behövs, och ska inte behöva känna till
+  // ett andra tal för att slippa ett undantag.
+  const smaltTak = maxTopNavSmal ?? Math.min(3, maxTopNav);
   const [merOppen, setMerOppen] = useState(false);
 
   // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
@@ -82,13 +96,37 @@ export function OpsAppShell({
    *
    * En understruken flik säger position. Det är också vad SessionStudio gör, och
    * den likheten är hela poängen med paritet: samma sak ska se likadan ut.
+   *
+   * ⛔ TRE LÄGEN, INTE TVÅ, och det tredje finns av ett mätt skäl.
+   *
+   * När antalet i raden ändras vid `lg` kan samma destination ligga i raden på
+   * bred skärm och i menyn på smal. Då måste "du är här" sitta på olika ställen
+   * vid olika bredder, och det går inte att uttrycka med en boolean.
+   *
+   * Klasserna står utskrivna i stället för att byggas, av samma skäl som
+   * `OpsCard`s kantfärger: Tailwind läser källkoden som text.
    */
-  const lankKlass = (/** @type {boolean} */ aktiv) =>
+  /**
+   * ⛔ `inline-flex` STÅR INTE HÄR, och det är inte en stilfråga.
+   *
+   * Först gjorde den det, och posterna utanför det smala taket fick
+   * `hidden lg:inline-flex` ovanpå. De doldes aldrig. Tailwind skriver
+   * `.hidden` före `.inline-flex` i utdatan, så när ett element bär båda vinner
+   * den senare, och raden var lika bred som förut. Mätningen i Chromium gav
+   * exakt samma 892 px efter "fixen" som före, vilket är skälet till att den
+   * finns: enhetstestet såg grönt ut eftersom jsdom inte kör någon CSS alls.
+   *
+   * Därför äger anropsstället display-klassen, och de två kan inte krocka.
+   */
+  const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ lage) =>
     cx(
-      "inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-base font-semibold",
+      "shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-base font-semibold",
       "transition-colors duration-(--duration-fast) ease-standard",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-      aktiv ? "border-ink text-ink" : "border-transparent text-ink-secondary hover:border-line-strong hover:text-ink",
+      lage === "pa" && "border-ink text-ink",
+      lage === "av" && "border-transparent text-ink-secondary hover:border-line-strong hover:text-ink",
+      lage === "pa-under-lg" &&
+        "border-ink text-ink lg:border-transparent lg:text-ink-secondary lg:hover:border-line-strong lg:hover:text-ink",
     );
 
   // ⛔ Bara de första får plats i raden, resten hamnar under "Mer".
@@ -99,9 +137,29 @@ export function OpsAppShell({
   // och ingen mätning av tillgänglig bredd: appen listar sina destinationer i
   // den ordning den vill ha dem, och de första syns. Samma regel som
   // bottenraden, av samma skäl.
+  //
+  // ⛔ TVÅ TAL, INTE ETT, OCH DET ANDRA KOMMER UR EN MÄTNING.
+  //
+  // Ett enda `maxTopNav` fick raden att fungera på 1280 och spricka på 768.
+  // Mätt i Chromium mot en riktig app: vid 768 px blev sidan 892 px bred,
+  // alltså horisontell scroll på VARJE rutt, med länkarna och "Mer" utanför
+  // kanten. Länkarna vägde 110 till 129 px styck, "Mer" 78, varumärket och
+  // temaväxlaren omkring 184 tillsammans. Tre länkar plus "Mer" får plats vid
+  // 768, fyra gör det inte.
+  //
+  // Bytet sker i CSS vid `lg`, inte genom att mäta bredd i JavaScript. En
+  // ResizeObserver hade gett samma utseende och tre nya problem: ett hopp
+  // första renderingen, en rad som inte finns i markup förrän JS kört, och ett
+  // test som måste låtsas ha en layout. CSS vet redan hur bred skärmen är.
   const iRaden = nav.slice(0, maxTopNav);
-  const iMenyn = nav.slice(maxTopNav);
-  const nagotIMenynArAktivt = iMenyn.some((s) => postAktiv(s, activeHref));
+  const iMenyn = nav.slice(smaltTak);
+  const aktivIndex = nav.findIndex((s) => postAktiv(s, activeHref));
+
+  // Ligger den aktiva posten i menyn på BÅDA bredderna, eller bara på den
+  // smala? Utan den skillnaden är ingenting markerat mellan 768 och 1024, och
+  // det är exakt felet raden skulle rätta: man ser inte var man är.
+  const merLage =
+    aktivIndex >= maxTopNav ? "pa" : aktivIndex >= smaltTak ? "pa-under-lg" : "av";
 
   return (
     <div className="min-h-dvh bg-canvas">
@@ -119,13 +177,19 @@ export function OpsAppShell({
 
           {/* Bred skärm: länkarna i raden. Smal: bottenraden nedan. */}
           <nav aria-label={navLabel} className="hidden min-w-0 flex-1 items-center gap-1 md:flex">
-            {iRaden.map((s) => (
+            {iRaden.map((s, i) => (
               <a
                 key={s.href}
                 href={s.href}
                 onClick={(e) => klick(s.href, e)}
                 aria-current={postAktiv(s, activeHref) ? "page" : undefined}
-                className={lankKlass(postAktiv(s, activeHref))}
+                className={cx(
+                  lankKlass(postAktiv(s, activeHref) ? "pa" : "av"),
+                  // Utanför det som får plats vid 768: finns i menyn i stället,
+                  // och `display:none` tar bort den ur uppläsningen också, så
+                  // ingen möter samma destination två gånger.
+                  i >= smaltTak ? "hidden lg:inline-flex" : "inline-flex",
+                )}
               >
                 {s.icon ? (
                   <span aria-hidden="true" className="shrink-0">
@@ -139,8 +203,16 @@ export function OpsAppShell({
             {iMenyn.length ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
                 <Popover.Trigger
-                  className={cx(lankKlass(nagotIMenynArAktivt), "cursor-pointer")}
-                  aria-label={`${moreLabel}, ${iMenyn.length} till`}
+                  className={cx(
+                    lankKlass(merLage),
+                    "inline-flex cursor-pointer",
+                    // Ryms allt i raden vid `lg` finns ingen meny att öppna där.
+                    nav.length <= maxTopNav && "lg:hidden",
+                  )}
+                  // ⛔ Ingen siffra i namnet. Antalet bakom knappen beror på
+                  // skärmbredden, och ett tal som bara stämmer ibland är värre
+                  // än inget tal.
+                  aria-label={`${moreLabel}, fler destinationer`}
                 >
                   {moreLabel}
                   <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", merOppen && "rotate-180")}>
@@ -157,7 +229,7 @@ export function OpsAppShell({
                         alltså navigering, och utan namn blir den en tredje
                         anonym `<nav>` i dokumentet. */}
                     <nav aria-label={moreLabel} className="flex flex-col">
-                      {iMenyn.map((s) => (
+                      {iMenyn.map((s, i) => (
                         <a
                           key={s.href}
                           href={s.href}
@@ -168,6 +240,8 @@ export function OpsAppShell({
                           aria-current={postAktiv(s, activeHref) ? "page" : undefined}
                           className={cx(
                             "flex min-h-11 items-center gap-2 rounded-sm px-3 text-base",
+                            // Ligger i raden vid `lg`, alltså inte också här.
+                            smaltTak + i < maxTopNav && "lg:hidden",
                             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                             postAktiv(s, activeHref) ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
                           )}

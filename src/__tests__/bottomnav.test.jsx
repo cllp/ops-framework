@@ -205,14 +205,47 @@ describe("OpsAppShell efter mobilomställningen", () => {
     expect(within(toppnav).getAllByRole("link")).toHaveLength(5);
     expect(within(toppnav).queryByRole("link", { name: "Kontakter" })).toBeNull();
 
-    // ⛔ fireEvent och inte userEvent. userEvent:s pekarsimulering hänger mot
-    // Radix Popover i jsdom (mätt: 5 s timeout, 32 s total), medan Dialog i
-    // samma fil fungerar. Det som testas här är att menyn öppnas, inte
-    // pekarsekvensen, så den billigare händelsen svarar på rätt fråga.
+    // ⛔ fireEvent och inte userEvent, och den första förklaringen till det var
+    // fel. Här stod att userEvent:s pekarsimulering hängde. Ommätt: kostnaden
+    // ligger i Radix Popover självt i jsdom. En naken Popover som öppnas en gång,
+    // utan userEvent och utan den här komponenten, tar cirka 20 s filtid, och
+    // profileringen visar att det varken är klicket (96 ms) eller sökningen i
+    // DOM:en (1-3 ms) utan väntan efteråt.
+    //
+    // Skillnaden spelar roll: hade jag trott på den gamla texten hade nästa
+    // steg varit att byta frågeverktyg igen, vilket inte hade ändrat någonting.
+    // fireEvent är ändå rätt val, men för att det testar rätt sak, inte för att
+    // det är snabbare.
     fireEvent.click(within(toppnav).getByRole("button", { name: /^Mer/ }));
     const meny = await screen.findByRole("navigation", { name: "Mer" });
     expect(within(meny).getByRole("link", { name: "Schema" })).toBeInTheDocument();
     expect(within(meny).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
+  });
+
+  it("lägger posterna mellan de två taken både i raden och i menyn", async () => {
+    // ⛔ DUBBLETTEN ÄR AVSIKTEN, INTE ETT MISSTAG.
+    //
+    // Mellan 768 och 1024 får bara tre plats i raden, från 1024 fem. Posterna
+    // däremellan renderas på båda ställena och CSS döljer den ena. `display:
+    // none` tar bort den ur uppläsningen också, så ingen möter dem två gånger.
+    //
+    // ⛔ Det här testet kan inte SE det, och det ska stå här: jsdom kör ingen
+    // CSS, så `hidden lg:inline-flex` är osynligt. Att raden inte spiller över
+    // mäts i Chromium av `matVyport`, och det var den mätningen som hittade
+    // felet. Det här bevakar bara att markupen finns kvar på båda ställena,
+    // alltså att ingen "städar bort dubbletten" i tron att den är ett slarv.
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const iRaden = within(toppnav).getByRole("link", { name: "Tillgångar" });
+    expect(iRaden.className).toContain("lg:inline-flex");
+
+    fireEvent.click(within(toppnav).getByRole("button", { name: /^Mer/ }));
+    const meny = await screen.findByRole("navigation", { name: "Mer" });
+    expect(within(meny).getByRole("link", { name: "Tillgångar" }).className).toContain("lg:hidden");
   });
 
   it("låter appen bestämma hur många som får plats", () => {

@@ -37,7 +37,7 @@ if (argv.includes("--help") || argv.includes("-h")) {
     [
       "ops-viewport <dist-mapp> [--rutter /,/en-sida,/en-till]",
       "",
-      "  Mäter tre saker vid 390 och 768 px, på varje rutt:",
+      "  Mäter tre saker vid 390, 768 och 1280 px, på varje rutt:",
       "    1. sidan är inte bredare än fönstret",
       "    2. exakt en navigering syns per bredd",
       "    3. main har botteninset minst lika stort som bottenraden",
