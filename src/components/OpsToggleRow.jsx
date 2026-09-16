@@ -13,26 +13,46 @@ import { cx } from "../lib/cx.js";
  * påstående, och kryssrutan får raden att se ut som data man redigerar snarare
  * än som ett urval man leker med.
  *
- * ⛔ Följden syns i vad som händer när man glömmer. Bockar man ur en kryssruta
- * ser raden nästan likadan ut, och totalen ovanför är plötsligt inte ens
- * riktiga total utan att något säger det. En nedtonad rad SER nedtonad ut, och
- * hela listan visar med en blick vad som räknas.
+ * ── ⛔ EN SYNLIG KNAPP, INTE BARA NEDTONAD TEXT ──────────────────────────
  *
- * ── ⛔ OPACITETEN BÄR INTE BETYDELSEN ENSAM ──────────────────────────────
+ * Första versionen var en osynlig yta: ingen ram, ingen bakgrund, bara opacitet
+ * som skillnad. Den var lugn och gick inte att se att den gick att trycka på.
  *
- * Tre saker säger samma sak, av tre olika skäl:
+ * CP föreslog formen som gäller nu: "knappar med text och rundade hörn som blir
+ * utgråade (unselected) och aktiverade genom tryckning". Raden har därför en
+ * egen yta med ram och rundade hörn. Påslagen är den upphöjd, avslagen är den
+ * nedsänkt och gråare.
  *
- *   1. `aria-pressed` gör tillståndet läsbart för skärmläsare. Utan den finns
- *      urvalet helt enkelt inte för den som inte ser skärmen.
- *   2. Beloppet får genomstruken stil. Nedtonad text kan läsas som "inaktiv"
- *      eller "inte klar" lika gärna som "räknas inte", och en genomstrykning
- *      betyder bara en sak.
- *   3. Nedtoningen är kraftig nog att synas i förbifarten men inte så kraftig
- *      att raden blir oläslig. Man ska kunna läsa vad man valt bort.
+ * ⛔ Den behåller sina TVÅ KOLUMNER, och det var det som avgjorde valet mellan
+ * en full bredd och ett piller. Beloppen i en tillgångslista spänner från
+ * 99 947 till 6 800 000 kr. Står de högerställda i en kolumn ser man med en
+ * blick vilka poster som dominerar; sitter de inuti ett piller som radbryts
+ * måste man läsa varje för sig, och den visuella rangordningen försvinner.
+ * Pillerformen hör hemma där det inte finns siffror, alltså i `OpsFilterChip`.
  *
- * ⛔ Nedtonad är INTE `disabled`. Raden går att trycka på igen, och en
- * `disabled`-knapp hade tagits bort ur tabbordningen, alltså gjort urvalet
- * omöjligt att ångra med tangentbord.
+ * ── ⛔ TRE SAKER BÄR TILLSTÅNDET, OCH DET ÄR MÄTT ────────────────────────
+ *
+ * 1. `aria-pressed` gör tillståndet läsbart för skärmläsare. Utan den finns
+ *    urvalet helt enkelt inte för den som inte ser skärmen.
+ * 2. Beloppet får genomstruken stil. Grå text kan läsas som "inaktiv" eller
+ *    "inte klar" lika gärna som "räknas inte"; en genomstrykning betyder en sak.
+ * 3. Ytan sänks och texten dämpas, men BARA till `ink-secondary`.
+ *
+ * ⛔ Punkt tre är en rättning av ett mätt fel. Avslaget läge använde
+ * `ink-muted`, och kontrasten blev då 3,13:1 i ljust läge och 2,84:1 i mörkt.
+ * WCAG AA kräver 4,5:1 för brödtext. Undantaget för inaktiva kontroller gäller
+ * INTE här: raden är inte avstängd, den är fullt tryckbar och ska gå att ångra.
+ * Med `ink-secondary` blev det 8,11:1 respektive 4,49:1.
+ *
+ * Den gamla `opacity-45`-varianten mätte 2,88:1 i ljust läge, alltså sämre än
+ * båda. "Nedtonad" får inte betyda "oläslig": man ska kunna läsa vad man valt
+ * bort, annars går urvalet inte att granska.
+ *
+ * ⛔ Nedtonad är INTE `disabled`. En `disabled`-knapp faller ur tabbordningen,
+ * alltså går urvalet inte att ångra med tangentbord.
+ *
+ * ⛔ Raden äger inte sitt eget avstånd till nästa rad. Den har en synlig ram, så
+ * en lista behöver luft mellan raderna: ge behållaren `gap`.
  */
 
 /**
@@ -50,17 +70,19 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
       aria-pressed={on}
       onClick={() => onChange(!on)}
       className={cx(
-        "flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left",
-        "transition-opacity duration-(--duration-fast) ease-standard",
-        "hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        on ? "opacity-100" : "opacity-45",
+        "flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left",
+        "transition-colors duration-(--duration-fast) ease-standard",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+        on
+          ? "border-line-strong bg-raised text-ink hover:border-accent"
+          : "border-line bg-sunken text-ink-secondary hover:border-line-strong",
       )}
     >
-      <span className="min-w-0 flex-1 truncate text-ink">
+      <span className="min-w-0 flex-1 truncate font-medium">
         {label}
-        {/* ⛔ Ordet, inte bara opaciteten. Skärmläsaren får `aria-pressed`, men
-            den som ser skärmen med nedsatt kontrastseende får ingenting av en
-            opacitetsskillnad, och det här kostar ingenting.
+        {/* ⛔ Ordet, inte bara ytan. Skärmläsaren får `aria-pressed`, men den som
+            ser skärmen med nedsatt färgseende får ingenting av en gråare
+            bakgrund, och det här kostar ingenting.
 
             ⛔ INGET KOMMATECKEN i strängen. Det stod ", {offLabel}" här, och
             Chromium lade som väntat till ett eget blanksteg mellan textnoderna
@@ -75,7 +97,7 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
         {on ? null : <span className="sr-only">{offLabel}</span>}
       </span>
       {value === undefined || value === null ? null : (
-        <span className={cx("shrink-0 tabular-nums text-ink-secondary", on ? null : "line-through")}>{value}</span>
+        <span className={cx("shrink-0 tabular-nums", on ? "text-ink-secondary" : "line-through")}>{value}</span>
       )}
     </button>
   );
