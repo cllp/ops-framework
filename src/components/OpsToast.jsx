@@ -67,7 +67,9 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
             </div>
             <Toast.Close
               aria-label={closeLabel}
-              className="inline-flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              /* 44 px på telefon, 32 på skrivbord. Samma golv som banderollens
+                 stängknapp, av samma skäl. */
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:min-h-8 md:min-w-8"
             >
               <KryssIkon />
             </Toast.Close>

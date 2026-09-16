@@ -3,6 +3,7 @@ import {
   OpsBanner,
   OpsButton,
   OpsCard,
+  OpsDisclosure,
   OpsField,
   OpsIdentity,
   OpsInput,
@@ -219,6 +220,25 @@ export function PrimitivesView() {
           />
           <OpsEmpty busy title="Inga kostnader ännu" />
         </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-md font-bold text-ink">Fäll ut</h2>
+        <OpsCard>
+          {/* Två stycken efter varandra, eftersom det är så de används: en rad
+              fält som alltid syns, och det ovanliga undanstoppat men nåbart. */}
+          <OpsDisclosure label="Mer inställningar">
+            <div className="flex flex-col gap-3">
+              <OpsField label="Kostnadsställe">
+                <OpsSelect options={AVDELNINGAR} value={avdelning} onChange={setAvdelning} />
+              </OpsField>
+              <OpsCheckbox label="Ta med i månadsrapporten" checked={kryss} onChange={setKryss} />
+            </div>
+          </OpsDisclosure>
+          <OpsDisclosure label="Gäster" badge={3} divider>
+            <p className="m-0 text-base text-ink-secondary">Siffran efter rubriken visas bara när den är över noll.</p>
+          </OpsDisclosure>
+        </OpsCard>
       </section>
 
       <Ruta rubrik="Val">

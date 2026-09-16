@@ -148,7 +148,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**34 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**35 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -161,6 +161,7 @@ något godtyckligt.
 | `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `open`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
+| `OpsDisclosure` | `label`, `defaultOpen`, `storageKey`, `badge`, `ariaLabel`, `divider`, `children` |
 
 #### Formulär
 
@@ -215,6 +216,7 @@ något godtyckligt.
 |---|---|
 | `OpsButton` | spärrad länk tappar sitt `href`, så den försvinner ur tabordningen |
 | `OpsModal` | fokusfälla, Escape, scrollås, fokus tillbaka till öppnande knapp |
+| `OpsDisclosure` | hopfälld panel tas ur tabbordningen med `inert`, så Tab inte försvinner in i osynliga fält |
 | `OpsField` | kopplar etikett, hjälptext och fel till fältet med genererade id |
 | `OpsInput` | vägrar `type="date"` och `type="color"`, som inte går att tokenisera |
 | `OpsSelect` | tangentbord, typeahead och positionering, via Radix |
@@ -331,7 +333,7 @@ typkontrollerades.
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
-| `check-scaffold` | en app skapas, installeras och kör sin egen grind |
+| `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390 och 768 px** |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
 | `check-adoption` | en pågående upprensning går framåt, aldrig bakåt |
 | `test-guards` | **bryter varje regel ovan och kräver rött** |
@@ -339,6 +341,38 @@ typkontrollerades.
 ⛔ Den sista är inte en extra finess. **En vakt ingen sett faila är en
 förhoppning.** Vi har haft vakter som var gröna i månader för att de läste fel
 fil, jämförde en lista mot en kopia av sig själv, eller blev gröna av tom indata.
+
+#### Mobilgolvet mäts, det lovas inte
+
+Alla tester utom ett kör i jsdom, och **jsdom lägger ingen CSS alls**. Där är
+`hidden md:flex` osynligt: båda navigeringarna finns i DOM:en och testet kan
+inte se vilken en användare faktiskt möter. Det hålet lät två navigeringar bära
+samma namn i veckor utan att något blev rött.
+
+Därför öppnar `check-scaffold` den byggda appen i Chromium vid **390 px** och
+**768 px** och mäter tre saker som antingen är sanna eller falska:
+
+1. **Sidan är inte bredare än fönstret.** Blir den det namnges elementet som
+   sticker ut, med sina koordinater. Något som medvetet scrollar i sidled, som
+   en tabell inuti ett kort, räknas inte.
+2. **Exakt en navigering syns per bredd.** Bottenraden under `md`, toppraden
+   från `md`. Två synliga samtidigt är två sanningar om var man klickar.
+3. **`main` har botteninset minst lika stort som bottenraden.** Utan det ligger
+   sista raden i innehållet bakom baren, och det upptäcks först när någon undrar
+   var deras sista post tog vägen.
+
+⛔ Går Chromium inte att starta blir vakten **röd**, inte överhoppad. Frestelsen
+är att hoppa över tyst så att grinden går igenom på en maskin utan webbläsare,
+men då är den grön av att inte ha tittat. Sätt `OPS_CHROMIUM` till en körbar
+Chromium om den ligger på en egen plats.
+
+#### Träffytan är 44 px på telefon
+
+Klickbara ytor har `min-h-11` under `md`. På `md` och uppåt släpps golvet där det
+gör layouten onödigt luftig, eftersom en muspekare är exakt och en tumme inte är
+det. Det gäller även ytor som inte ser ut som knappar: en kryssrutas träffyta är
+**hela raden**, inte rutan, och en utfällbar rubrik är 44 px hög även när texten
+är mindre.
 
 ---
 
@@ -488,7 +522,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 | `src/lib/` | tema, identitet, formatering |
 | `scripts/` | vakterna |
 | `create-ops-app/` | mallen som kopieras en gång |
-| `adoption/` | planer för att flytta en befintlig plattform hit |
+| `adoption/` | planer för att flytta en befintlig plattform hit, och hur en app tar emot det ramverket redan gör (`mobil-nav.md`, `ss-paritet.md`) |
 
 ### Varför skills och inte ett dokument
 
@@ -501,9 +535,9 @@ Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
 
 | Klart | Kvar |
 |---|---|
-| tokenkontraktet som Tailwind-tema, 193 tokens | auth, Firestore-regler och regeltester |
-| femton primitiver med stängt API, 43 beteendetester | observability: logger, larm till issue |
-| tio vakter plus mutationsharnesset, 29 regler bevisade röda, 72 tester | toast, tooltip, appskal |
-| `create-ops-app`, bevisad genom en riktig installation | appskal och navigering in i ramverket |
+| tokenkontraktet som Tailwind-tema, 205 tokens | auth, Firestore-regler och regeltester |
+| 35 primitiver med stängt API, 111 beteendetester | observability: logger, larm till issue |
+| åtta vakter plus mutationsharnesset, 29 regler bevisade röda | desktop-menyer för undersidor, om vi vill ha dem |
+| `create-ops-app`, bevisad genom en riktig installation, mätt i Chromium vid 390 och 768 px | riktig telefon: mätningen ser layout, inte hur det känns i handen |
 | adoptionsplan för bolag-ops, mätt mot repot | själva adoptionen, som väntar på profilbeslutet |
 | skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |

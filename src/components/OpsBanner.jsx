@@ -48,7 +48,10 @@ export function OpsBanner({ tone = "info", title, children, action, onDismiss, d
           type="button"
           onClick={onDismiss}
           aria-label={dismissLabel}
-          className="inline-flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          /* ⛔ 44 px på telefon, 32 på skrivbord. En stängknapp som är för liten
+             för tummen träffar antingen ingenting eller det som ligger bredvid,
+             och det är värre än att inte kunna stänga alls. */
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:min-h-8 md:min-w-8"
         >
           <KryssIkon />
         </button>
