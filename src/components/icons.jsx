@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { Check, ChevronDown, Maximize2, Menu, Minimize2, Monitor, Moon, Sun, X } from "lucide-react";
+import { Check, ChevronDown, Maximize2, Menu, Minimize2, Monitor, Moon, Plus, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function ChevronNedIkon({ size = 16 }) {
@@ -42,6 +42,17 @@ export function KryssIkon({ size = 16 }) {
 /** @param {{ size?: number }} props */
 export function MenyIkon({ size = 24 }) {
   return <Menu size={size} aria-hidden="true" />;
+}
+
+/**
+ * ⛔ Standardikonen för huvudåtgärden i bottenraden. Appen får skicka en egen,
+ * men får ALDRIG behöva det: en app utan ikonval ska ändå få en knapp som ser ut
+ * som en knapp, inte en tom cirkel.
+ *
+ * @param {{ size?: number }} props
+ */
+export function PlusIkon({ size = 24 }) {
+  return <Plus size={size} aria-hidden="true" />;
 }
 
 /** @param {{ size?: number }} props */

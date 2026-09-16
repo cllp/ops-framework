@@ -334,3 +334,79 @@ describe("OpsAppShell efter mobilomställningen", () => {
     expect(within(toppnav).getAllByText(/12 nya/).length).toBeGreaterThan(0);
   });
 });
+
+describe("OpsBottomNav, huvudåtgärden", () => {
+  const nav = [
+    { href: "/", label: "Idag", icon: <span>i</span> },
+    { href: "/oversikt", label: "Översikt", icon: <span>o</span> },
+    { href: "/ekonomi", label: "Ekonomi", icon: <span>e</span> },
+    { href: "/schema", label: "Schema", icon: <span>s</span> },
+    { href: "/sok", label: "Sök", icon: <span>k</span> },
+  ];
+
+  it("ritar en knapp som går att trycka på, med ett namn", () => {
+    // ⛔ Namnet ligger i aria-label och aldrig som synlig etikett: en knapp på
+    // 56 px rymmer inget ord, och ett avhugget ord under den ser ut som ett fel.
+    const onClick = vi.fn();
+    render(<OpsBottomNav nav={nav} activeHref="/" primaryAction={{ label: "Nytt ärende", onClick }} />);
+
+    const knapp = screen.getByRole("button", { name: "Nytt ärende" });
+    fireEvent.click(knapp);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("ger plats åt knappen genom att flytta en flik till menyn", () => {
+    // ⛔ MÄTT, och det är ingen besparing att göra på: raden är 390 px. Fyra
+    // flikar plus Meny plus en knapp på 56 px ger sex platser, alltså 56 px var
+    // med noll luft och avhuggna etiketter.
+    const { rerender } = render(<OpsBottomNav nav={nav} activeHref="/" navLabel="Bottenrad" />);
+    const rad = () => screen.getByRole("navigation", { name: "Bottenrad" });
+    expect(within(rad()).getAllByRole("link")).toHaveLength(4);
+
+    rerender(<OpsBottomNav nav={nav} activeHref="/" navLabel="Bottenrad" primaryAction={{ label: "Nytt", onClick: () => {} }} />);
+    expect(within(rad()).getAllByRole("link")).toHaveLength(3);
+  });
+
+  it("har flikar på BÅDA sidor om knappen", () => {
+    /*
+     * ⛔ Sist skulle den bli en femte flik som råkar vara rund, och skillnaden
+     * mellan "gå till" och "gör" försvinner. Mitten är det som gör den till en
+     * annan sorts sak utan att något behöver skrivas ut.
+     *
+     * ⛔ FÖRSTA VERSIONEN KRÄVDE BARA "INTE SIST", och det var för svagt: med
+     * knappen efter alla flikar men före Meny-knappen var provet grönt. Mätt
+     * genom plantering, inte resonerat fram. Kravet är att det finns en LÄNK på
+     * var sida, alltså att den faktiskt delar raden.
+     */
+    const { container } = render(
+      <OpsBottomNav nav={nav} activeHref="/" primaryAction={{ label: "Nytt", onClick: () => {} }} />,
+    );
+    const platser = [...container.querySelectorAll("a, button")].filter((el) => el.closest("[class*='items-stretch']"));
+    const index = platser.findIndex((el) => el.getAttribute("aria-label") === "Nytt");
+
+    const fore = platser.slice(0, index).filter((el) => el.tagName === "A");
+    const efter = platser.slice(index + 1).filter((el) => el.tagName === "A");
+    expect(fore.length).toBeGreaterThan(0);
+    expect(efter.length).toBeGreaterThan(0);
+  });
+
+  it("kastar när knappen saknar namn eller handling", () => {
+    // ⛔ Etiketten är knappens enda namn för den som inte ser den. En rund knapp
+    // utan namn är en knapp ingen kan använda, och det syns inte i granskningen.
+    expect(() =>
+      render(<OpsBottomNav nav={nav} activeHref="/" primaryAction={/** @type {any} */ ({ onClick: () => {} })} />),
+    ).toThrow(/label/);
+    expect(() =>
+      render(<OpsBottomNav nav={nav} activeHref="/" primaryAction={/** @type {any} */ ({ label: "Nytt" })} />),
+    ).toThrow(/onClick/);
+  });
+
+  it("lägger inte knappen i överflödesmenyn", () => {
+    // ⛔ En åtgärd i en destinationslista läses som en sida man kan navigera
+    // tillbaka från.
+    render(<OpsBottomNav nav={nav} activeHref="/" primaryAction={{ label: "Nytt ärende", onClick: () => {} }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Meny" }));
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).queryByText("Nytt ärende")).toBeNull();
+  });
+});

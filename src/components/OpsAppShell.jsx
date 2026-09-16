@@ -33,6 +33,7 @@ import { ChevronNedIkon } from "./icons.jsx";
  * @param {string} props.activeHref Vilken sida som visas nu.
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
+ * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
  * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden på bred skärm (1024 och uppåt). Resten hamnar under "Mer".
@@ -50,6 +51,7 @@ export function OpsAppShell({
   activeHref,
   onNavigate,
   actions,
+  primaryAction,
   menuLabel = "Meny",
   navLabel = "Huvudnavigering",
   // ⛔ Fem, inte "så många som får plats". En mätning av tillgänglig bredd vid
@@ -326,6 +328,7 @@ export function OpsAppShell({
         nav={nav}
         activeHref={activeHref}
         onNavigate={onNavigate}
+        primaryAction={primaryAction}
         menuLabel={menuLabel}
         navLabel={bottomNavLabel}
         badgeText={badgeText}
