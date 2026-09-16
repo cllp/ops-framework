@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { bradska, delaIdagKommande } from "../lib/handelser.js";
 import { OpsEventList } from "../components/OpsEventList.jsx";
 
@@ -84,15 +84,22 @@ describe("OpsEventList", () => {
      * mätningen i mätbygget; det här är golvet som gör att strukturen inte kan
      * falla tillbaka obemärkt.
      */
-    const { container } = render(<OpsEventList events={[h("lang", 3, { nar: "Om 2 veckor (2026-09-30)", roll: <span>Du</span> })]} />);
-    const rad = /** @type {HTMLElement} */ (container.querySelector("li"));
+    render(<OpsEventList events={[h("lang", 3, { nar: "Om 2 veckor (2026-09-30)", roll: <span>Du</span> })]} />);
     const titel = screen.getByText("lang");
     const nar = screen.getByText("Om 2 veckor (2026-09-30)");
 
-    expect(titel.parentElement).toBe(rad);
-    expect(nar.parentElement).not.toBe(rad);
-    expect(titel.contains(nar)).toBe(false);
-    expect(/** @type {HTMLElement} */ (nar.parentElement).contains(titel)).toBe(false);
+    // ⛔ Detaljraden hittas via `closest("div")` från datumet och inte som
+    // `li`:s första barn. Provet sade förut `titel.parentElement === li`, vilket
+    // var sant ända till chevronkolumnen lade en kolumn mellan dem: det gick
+    // rött av en ren strukturändring medan felet det bevakar var oförändrat.
+    // Ett prov som är rött av fel anledning slutar man läsa.
+    const metarad = /** @type {HTMLElement} */ (nar.closest("div"));
+
+    // Titeln får inte ligga i detaljraden, för då konkurrerar de om bredden igen.
+    expect(metarad.contains(titel)).toBe(false);
+    // Och de ska vara syskon, alltså två rader i samma kolumn. Låg titeln någon
+    // annanstans i trädet vore provet grönt utan att layouten var rätt.
+    expect(titel.parentElement).toBe(metarad.parentElement);
   });
 
   it("visar slaget bredvid rollen, som två olika upplysningar", () => {
@@ -113,6 +120,84 @@ describe("OpsEventList", () => {
     expect(slag.className).not.toMatch(/rounded-full/);
     // Försenat-märket på samma rad ÄR ett piller, så provet visar skillnaden.
     expect(screen.getByText("Försenat").className).toMatch(/rounded-full/);
+  });
+
+  it("fäller ut detaljer på den rad som har dem", () => {
+    render(
+      <OpsEventList
+        events={[h("moms", 3, { detaljer: <p>Redovisas via e-tjänsten</p> })]}
+      />,
+    );
+
+    const knapp = screen.getByRole("button", { name: "Visa detaljer för moms" });
+    expect(knapp.getAttribute("aria-expanded")).toBe("false");
+
+    // ⛔ Panelen finns i DOM:en hela tiden och styrs med `hidden`. Därför räcker
+    // det inte att leta efter texten: den hittas även hopfälld. Provet läser
+    // `hidden` på det element `aria-controls` pekar på, alltså samma väg som en
+    // skärmläsare tar.
+    const panel = () => document.getElementById(/** @type {string} */ (knapp.getAttribute("aria-controls")));
+    expect(panel()?.hidden).toBe(true);
+
+    fireEvent.click(knapp);
+    expect(knapp.getAttribute("aria-expanded")).toBe("true");
+    expect(panel()?.hidden).toBe(false);
+    expect(screen.getByText("Redovisas via e-tjänsten")).toBeInTheDocument();
+  });
+
+  it("ger ingen chevron till en rad utan detaljer", () => {
+    // ⛔ En pil som inte öppnar något är ett löfte som inte infrias, och den som
+    // tryckt en gång utan att något hände slutar lita på de andra pilarna.
+    render(<OpsEventList events={[h("ett", 1, { detaljer: <p>d</p> }), h("tva", 2)]} />);
+    expect(screen.getByRole("button", { name: "Visa detaljer för ett" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Visa detaljer för tva" })).toBeNull();
+  });
+
+  it("reserverar ingen chevronkolumn när ingen rad kan fällas ut", () => {
+    // ⛔ Kolumnen är 44 px av en 390 px bred telefon och tas från titeln. En
+    // lista helt utan utfällbara rader ska inte betala för en gest som inte
+    // finns: det var precis så titeln en gång kom ner till 178 px.
+    const { container } = render(<OpsEventList events={[h("ett", 1), h("tva", 2)]} />);
+    expect(container.querySelectorAll(".w-11")).toHaveLength(0);
+
+    const { container: medDetaljer } = render(<OpsEventList events={[h("tre", 1, { detaljer: <p>d</p> })]} />);
+    expect(medDetaljer.querySelectorAll(".w-11").length).toBeGreaterThan(0);
+  });
+
+  it("skriver deadline som eget faktum, inte som en del av brådskan", () => {
+    // ⛔ CP: "Om det finns en deadline på aktiviteten så skriv det."
+    //
+    // `nar` säger hur långt bort något är, `deadline` vilken dag. Två olika
+    // fakta, och båda behövs: det ena svarar på "måste jag nu", det andra på
+    // "vad skriver jag in i kalendern".
+    render(<OpsEventList events={[h("moms", 14, { nar: "Om 2 veckor", deadline: "Förfaller 2026-09-30" })]} />);
+    expect(screen.getByText("Om 2 veckor")).toBeInTheDocument();
+    expect(screen.getByText("Förfaller 2026-09-30")).toBeInTheDocument();
+  });
+
+  it("håller när och deadline i samma element så de inte wrappar isär", () => {
+    // ⛔ Som syskon direkt i flexraden kan datumet hamna på egen rad under
+    // rollbadgen, där det läses som ett tredje obesläktat fält i stället för
+    // som samma upplysning ur ett annat håll.
+    render(
+      <OpsEventList events={[h("moms", 14, { roll: <span>Förfaller</span>, nar: "Om 2 veckor", deadline: "2026-09-30" })]} />,
+    );
+    const nar = screen.getByText("Om 2 veckor");
+    const deadline = screen.getByText("2026-09-30");
+    const klustret = /** @type {HTMLElement} */ (nar.parentElement);
+
+    expect(deadline.parentElement).toBe(klustret);
+
+    // ⛔ DEN HÄR RADEN ÄR HELA PROVET, och första versionen saknade den.
+    //
+    // Den nöjde sig med att de två har samma förälder, och det är sant både när
+    // de sitter i ett eget kluster och när de ligger platt i detaljraden: då är
+    // den gemensamma föräldern bara detaljraden i stället. Planterade jag felet
+    // blev provet grönt.
+    //
+    // Klustret måste alltså vara ETT ELEMENT SNÄVARE än raden, och det syns på
+    // att rollbadgen ligger utanför det.
+    expect(klustret.contains(screen.getByText("Förfaller"))).toBe(false);
   });
 
   it("visar det tomma läget i stället för en tom lista", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsBreakdown } from "../components/OpsBreakdown.jsx";
+import { OpsAttributes } from "../components/OpsAttributes.jsx";
 
 const grupper = [
   {
@@ -96,5 +97,47 @@ describe("OpsBreakdown", () => {
     // intervall och främmande valuta, alltså gissa. Totalen kommer utifrån.
     render(<OpsBreakdown groups={grupper} onToggle={() => {}} total={{ label: "Summa", value: "sju stycken" }} />);
     expect(screen.getByText("sju stycken")).toBeInTheDocument();
+  });
+});
+
+describe("OpsAttributes", () => {
+  it("ritar etikett och värde som ett par en skärmläsare kan följa", () => {
+    render(<OpsAttributes rows={[{ label: "OCR", value: "165846692" }]} ariaLabel="Om posten" />);
+    const lista = screen.getByLabelText("Om posten");
+    expect(lista.tagName).toBe("DL");
+    expect(within(lista).getByText("OCR").tagName).toBe("DT");
+    expect(within(lista).getByText("165846692").tagName).toBe("DD");
+  });
+
+  it("hoppar över tomma fält och ritar ingenting när allt är tomt", () => {
+    // ⛔ Ett bindestreck eller ett "[okänt]" ser ut som ett mätt värde när man
+    // skummar, och att veta noll och att inte veta är motsatser.
+    const { container } = render(
+      <OpsAttributes rows={[{ label: "Har", value: "ja" }, { label: "Saknas", value: null }, { label: "Tom", value: "" }]} />,
+    );
+    expect(screen.getByText("Har")).toBeInTheDocument();
+    expect(screen.queryByText("Saknas")).toBeNull();
+    expect(screen.queryByText("Tom")).toBeNull();
+
+    const { container: inget } = render(<OpsAttributes rows={[{ label: "Saknas", value: undefined }]} />);
+    expect(inget.querySelector("dl")).toBeNull();
+    expect(container.querySelector("dl")).not.toBeNull();
+  });
+
+  it("behåller noll, eftersom noll är ett värde", () => {
+    // ⛔ Filtret får inte falla på falsy. `0 kr` är ett mätt svar, och att tappa
+    // det vore att göra ett känt värde till ett okänt.
+    render(<OpsAttributes rows={[{ label: "Belopp", value: 0 }]} />);
+    expect(screen.getByText("Belopp")).toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("kastar när samma etikett finns två gånger", () => {
+    // ⛔ Två rader med samma etikett påstår att samma fält har två värden, och
+    // läsaren kan inte avgöra vilket som gäller. Nästan alltid samma fält hämtat
+    // ur två källor, alltså ett riktigt fel.
+    expect(() =>
+      render(<OpsAttributes rows={[{ label: "Belopp", value: "1 kr" }, { label: "Belopp", value: "2 kr" }]} />),
+    ).toThrow(/två gånger/);
   });
 });

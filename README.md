@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**42 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**43 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -198,7 +198,8 @@ något godtyckligt.
 |---|---|
 | `OpsList` | `divided`, `ariaLabel`, `children` |
 | `OpsBreakdown` | `groups` [{id, label, value, count, on, poster, note}], `onToggle`, `total`, `empty`, `offLabel`, `expandLabel`. En summa uppdelad i grupper som går att fälla ut och tona ned. ⛔ Den summerar ingenting själv: bara appen vet om ett intervall eller ett okänt belopp får räknas. |
-| `OpsEventList` | `events` [{id, titel, dagarKvar, pagar, nar, roll, slag, url}], `onNavigate`, `ariaLabel`, `labels`, `empty`. Brådskan är härledd ur datumet, aldrig lagrad, och färgen bär den aldrig ensam. ⛔ `roll` säger VEM, `slag` säger VAD FÖR SORTS sak; titeln äger sin egen rad så löptext aldrig får en halv skärmbredd. |
+| `OpsAttributes` | `rows` [{label, value}], `ariaLabel`. Vad vi vet om EN sak, fält för fält. ⛔ Tomma fält ritas inte och allt tomt ger `null`: ett bindestreck ser ut som ett mätt värde. Dubbel etikett kastar. Flera saker jämförda på samma fält är `OpsTable`, inte den här. |
+| `OpsEventList` | `events` [{id, titel, dagarKvar, pagar, nar, deadline, roll, slag, detaljer, url}], `onNavigate`, `ariaLabel`, `labels`, `empty`, `expandLabel`. Brådskan är härledd ur datumet, aldrig lagrad, och färgen bär den aldrig ensam. ⛔ `roll` säger VEM, `slag` säger VAD FÖR SORTS sak, `nar` hur långt bort och `deadline` vilken dag; skriv inte datumet i både `nar` och `deadline`. Titeln äger sin egen rad så löptext aldrig får en halv skärmbredd. En rad med `detaljer` får en chevron, och kolumnen för den reserveras bara när någon rad i listan har dem. |
 | `OpsListRow` | `interactive`, `selected`, `href`, `onClick`, `ariaLabel`, `children` |
 | `OpsTable` | `columns` [{key, label, numeric, tight}], `rows`, `caption` (krävs), `hideCaption`, `stickyHeader`, `empty` |
 | `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge`, `fact`, `factLabel`, `source`, `updatedAt`, `onDrillDown`, `drillDownLabel` |

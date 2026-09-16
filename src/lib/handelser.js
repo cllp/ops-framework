@@ -31,6 +31,13 @@
  *   SORTS sak det är (ett möte, en betalning, en uppgift). Ett filter på det ena kan inte
  *   svara på det andra.
  *   ReactNode av samma skäl som `roll`: ramverket ritar den, tolkar den aldrig.
+ * @property {string} [deadline] Absolut sista dag, i appens ord ("Förfaller 2026-09-30").
+ *   ⛔ NÄR det finns en sådan. `nar` säger hur långt bort något är ("Om 2 veckor"),
+ *   vilket är brådskan; `deadline` säger vilken dag, vilket är det man skriver in i
+ *   en kalender. De är olika fakta och båda behövs, men skriv inte datumet i båda:
+ *   står det på två ställen på samma rad börjar man leta efter skillnaden.
+ * @property {import("react").ReactNode} [detaljer] Fälls ut under raden. Utan den får
+ *   raden ingen chevron: en pil som inte öppnar något är ett löfte som inte infrias.
  * @property {string} [url]
  */
 
