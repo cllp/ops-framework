@@ -38,6 +38,7 @@ import { ChevronNedIkon } from "./icons.jsx";
  * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden på bred skärm (1024 och uppåt). Resten hamnar under "Mer".
  * @param {number} [props.maxTopNavSmal] Hur många som får plats mellan 768 och 1024. Mätt: fler än tre ger horisontell scroll på en iPad i stående läge.
  * @param {string} [props.moreLabel] Texten på överflödesknappen i toppraden.
+ * @param {string} [props.badgeText] Skärmläsarord efter siffran i en räknare, t.ex. "olästa". Appen bestämmer vad den räknar.
  * @param {string} [props.bottomNavLabel] Skärmläsarnamn på bottenraden. ⛔ Eget
  *   namn med flit, INTE samma som `navLabel`: se OpsBottomNav för varför två
  *   navigeringar med samma namn gör app-tester tvetydiga.
@@ -58,6 +59,7 @@ export function OpsAppShell({
   maxTopNav = 5,
   maxTopNavSmal,
   moreLabel = "Mer",
+  badgeText = "nya",
   bottomNavLabel = "Snabbnavigering",
   children,
 }) {
@@ -118,15 +120,40 @@ export function OpsAppShell({
    *
    * Därför äger anropsstället display-klassen, och de två kan inte krocka.
    */
+  /**
+   * ⛔ KLASSERNA ÄR AVLÄSTA UR SESSIONSTUDIO, INTE VALDA AV MIG.
+   *
+   * `apps/web/src/components/AppHeader.jsx`, flikknappen:
+   *
+   *   relative shrink-0 px-3 lg:px-4 py-2 text-sm font-medium whitespace-nowrap
+   *   transition-all border-b-2
+   *   aktiv:    border-[--color-text-primary] text-[--color-text-primary]
+   *   inaktiv:  border-transparent text-[--color-text-muted]
+   *             hover:text-[--color-text-secondary]
+   *             hover:border-[--color-border-hover]
+   *
+   * Översatt till tokenkontraktet: `text-primary` är `ink`, `text-muted` är
+   * `ink-muted`, `text-secondary` är `ink-secondary`, `border-hover` är
+   * `line-strong`.
+   *
+   * ⛔ Två glidningar rättas här, och båda var mina egna:
+   *   - `text-base font-semibold` skulle varit `text-sm font-medium`. Raden såg
+   *     tyngre ut än förlagan.
+   *   - Inaktiv flik var `text-ink-secondary` med hover till `ink`. Förlagan
+   *     går från `muted` till `secondary`, alltså en svagare vila och ett
+   *     svagare lyft. Min variant gjorde hela raden mörkare och lät varje flik
+   *     se halvaktiv ut, vilket är precis det som gör att man inte ser var man
+   *     står.
+   */
   const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ lage) =>
     cx(
-      "shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-base font-semibold",
-      "transition-colors duration-(--duration-fast) ease-standard",
+      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium lg:px-4",
+      "transition-all duration-(--duration-fast) ease-standard",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       lage === "pa" && "border-ink text-ink",
-      lage === "av" && "border-transparent text-ink-secondary hover:border-line-strong hover:text-ink",
+      lage === "av" && "border-transparent text-ink-muted hover:border-line-strong hover:text-ink-secondary",
       lage === "pa-under-lg" &&
-        "border-ink text-ink lg:border-transparent lg:text-ink-secondary lg:hover:border-line-strong lg:hover:text-ink",
+        "border-ink text-ink lg:border-transparent lg:text-ink-muted lg:hover:border-line-strong lg:hover:text-ink-secondary",
     );
 
   // ⛔ Bara de första får plats i raden, resten hamnar under "Mer".
@@ -191,12 +218,37 @@ export function OpsAppShell({
                   i >= smaltTak ? "hidden lg:inline-flex" : "inline-flex",
                 )}
               >
-                {s.icon ? (
-                  <span aria-hidden="true" className="shrink-0">
-                    {s.icon}
+                {/*
+                  ⛔ INGEN IKON HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
+
+                  Toppraden ritade `s.icon` en kort period, efter rapporten
+                  "finns inga ikoner?". Den rapporten gällde att ikonfältet
+                  slängdes överallt, och jag drog slutsatsen till toppraden utan
+                  att titta på förlagan.
+
+                  SessionStudios header (`apps/web/src/components/AppHeader.jsx`)
+                  renderar `{n.label}` och inget annat. Chevron bara på posten
+                  med undermeny, badge som en liten cirkel. Ikonerna sitter i
+                  hamburgermenyn (16 px) och i mobilens bottenrad (20 px), aldrig
+                  i flikraden.
+
+                  Utfallet av min variant beskrevs som "fruktansvärda, ser
+                  80-tal ut". Med tolv ikoner i rad blir raden en verktygslåda i
+                  stället för fyra ord, och ett kontosammanhang har inga
+                  självklara bilder: en spargris för pension är den sortens
+                  gissning som ser billig ut i just det sammanhang där den ska
+                  inge förtroende.
+
+                  `icon` är kvar i kontraktet. Bottenraden och menyn ritar den.
+                  Den här raden gör det inte.
+                */}
+                {s.label}
+                {Array.isArray(s.children) && s.children.length ? (
+                  <span aria-hidden="true" className="ml-0.5 inline-block shrink-0">
+                    <ChevronNedIkon size={12} />
                   </span>
                 ) : null}
-                {s.label}
+                {typeof s.badge === "number" && s.badge > 0 ? <FlikBadge antal={s.badge} text={badgeText} /> : null}
               </a>
             ))}
 
@@ -270,7 +322,50 @@ export function OpsAppShell({
           det upptäcks först när någon inte hittar sin sista rad. */}
       <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">{children}</main>
 
-      <OpsBottomNav nav={nav} activeHref={activeHref} onNavigate={onNavigate} menuLabel={menuLabel} navLabel={bottomNavLabel} />
+      <OpsBottomNav
+        nav={nav}
+        activeHref={activeHref}
+        onNavigate={onNavigate}
+        menuLabel={menuLabel}
+        navLabel={bottomNavLabel}
+        badgeText={badgeText}
+      />
     </div>
+  );
+}
+
+/**
+ * Räknaren på en flik i toppraden.
+ *
+ * ⛔ Avläst ur SessionStudios header, inte utformad här:
+ *
+ *   absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-0.5 text-[8px]
+ *   font-bold rounded-full flex items-center justify-center
+ *   bg-[--color-notification-badge] text-white
+ *
+ * ⛔ Den är AVSIKTLIGT en annan form än bottenradens. Där sitter siffran på
+ * ikonen (`-top-1.5 -right-2`, 9 px text, accentfärgad); här sitter den på
+ * fliken, som är text. Att göra dem lika hade varit att välja symmetri framför
+ * förlagan, och det är precis den sortens glidning som gör att två ytor slutar
+ * kännas som samma produkt.
+ *
+ * ⛔ Siffran kapas vid 9+. En tvåsiffrig räknare spränger cirkeln, och exakt
+ * antal olästa är inte det fliken svarar på.
+ *
+ * @param {{ antal: number, text: string }} props
+ */
+function FlikBadge({ antal, text }) {
+  return (
+    <span
+      className={cx(
+        "absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5",
+        "bg-badge text-[8px] font-bold text-badge-contrast",
+      )}
+    >
+      <span aria-hidden="true">{antal > 9 ? "9+" : antal}</span>
+      <span className="sr-only">
+        {antal} {text}
+      </span>
+    </span>
   );
 }

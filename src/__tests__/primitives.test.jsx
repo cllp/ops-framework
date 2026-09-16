@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { OpsButton } from "../components/OpsButton.jsx";
 import { OpsField, OpsInput } from "../components/OpsField.jsx";
 import { OpsList, OpsListRow } from "../components/OpsList.jsx";
@@ -7,6 +7,7 @@ import { OpsModal } from "../components/OpsModal.jsx";
 import { OpsIdentity } from "../components/OpsIdentity.jsx";
 import { OpsPill } from "../components/OpsPill.jsx";
 import { OpsCard } from "../components/OpsCard.jsx";
+import { OpsSegmented } from "../components/OpsSegmented.jsx";
 import { identityTone, initials } from "../lib/identity.js";
 
 /**
@@ -235,5 +236,35 @@ describe("OpsCard", () => {
     } finally {
       tyst.mockRestore();
     }
+  });
+});
+
+describe("OpsSegmented", () => {
+  it("markerar det valda läget och byter på klick", () => {
+    const valda = [];
+    render(
+      <OpsSegmented
+        ariaLabel="Vad som visas"
+        value="idag"
+        onChange={(v) => valda.push(v)}
+        options={[
+          { value: "idag", label: "Idag", badge: 2 },
+          { value: "kommande", label: "Kommande", badge: 4 },
+        ]}
+      />,
+    );
+    const idag = screen.getByRole("tab", { name: /Idag/ });
+    expect(idag).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Kommande/ })).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.click(screen.getByRole("tab", { name: /Kommande/ }));
+    expect(valda).toEqual(["kommande"]);
+  });
+
+  it("kastar vid fler än tre lägen", () => {
+    // ⛔ Vakten finns för att fyra segment ger ord som är för korta för att
+    // betyda något. Är den inte brytbar är den en kommentar, inte en regel.
+    const fyra = ["a", "b", "c", "d"].map((v) => ({ value: v, label: v.toUpperCase() }));
+    expect(() => render(<OpsSegmented ariaLabel="x" value="a" onChange={() => {}} options={fyra} />)).toThrow(/två eller tre lägen/);
   });
 });

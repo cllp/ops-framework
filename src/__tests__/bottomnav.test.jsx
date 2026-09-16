@@ -288,13 +288,49 @@ describe("OpsAppShell efter mobilomställningen", () => {
    * det. Bara bottenraden ritade ikoner. Följden var en app helt utan ikonspråk
    * på skrivbordet, vilket rapporterades som "finns inga ikoner?".
    */
-  it("renderar ikonen i toppraden, inte bara i bottenraden", () => {
+  /**
+   * ⛔ DET HÄR TESTET SADE TIDIGARE MOTSATSEN, och det är själva poängen med
+   * att det står kvar.
+   *
+   * Det hette "renderar ikonen i toppraden, inte bara i bottenraden" och
+   * krävde fem ikoner i raden. Det skrevs efter rapporten "finns inga ikoner?",
+   * som gällde att ikonfältet slängdes överallt, och jag drog slutsatsen till
+   * toppraden utan att läsa förlagan.
+   *
+   * SessionStudios header renderar bara etiketten. Testet kodifierade alltså en
+   * glidning bort från paritet, och ett grönt test gjorde den svårare att se,
+   * inte lättare: den som ändrar tillbaka möts av ett rött test och tror att
+   * hen har fel.
+   *
+   * Ikonerna finns kvar i kontraktet och ritas i bottenraden och i Mer-menyn.
+   */
+  it("renderar INGEN ikon i toppraden, som SessionStudio", () => {
     render(
       <OpsAppShell brand="X" nav={NAV} activeHref="/">
         <p>x</p>
       </OpsAppShell>,
     );
     const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    expect(within(toppnav).getAllByTestId("ikon").length).toBe(5);
+    expect(within(toppnav).queryAllByTestId("ikon")).toHaveLength(0);
+
+    // Bottenraden ritar dem fortfarande: fyra destinationer plus Meny.
+    const bottennav = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    expect(within(bottennav).getAllByTestId("ikon").length).toBeGreaterThan(0);
+  });
+
+  it("visar räknaren på fliken och kapar den vid 9+", async () => {
+    // ⛔ Avläst ur SessionStudio: `{n.badge > 9 ? "9+" : n.badge}`. En
+    // tvåsiffrig räknare spränger cirkeln, och exakt antal är inte det fliken
+    // svarar på.
+    const medRaknare = NAV.map((p, i) => (i === 1 ? { ...p, badge: 12 } : p));
+    render(
+      <OpsAppShell brand="X" nav={medRaknare} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(toppnav).getAllByText("9+").length).toBeGreaterThan(0);
+    // Siffran ensam säger inget uppläst, så ordet följer med.
+    expect(within(toppnav).getAllByText(/12 nya/).length).toBeGreaterThan(0);
   });
 });
