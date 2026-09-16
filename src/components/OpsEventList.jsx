@@ -73,34 +73,61 @@ export function OpsEventList({ events, onNavigate, ariaLabel, labels = {}, empty
         // `string | undefined` där även om raden bara renderas när den finns.
         const url = h.url;
         return (
-          <li key={h.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 py-2">
-            {h.roll ? <span className="shrink-0">{h.roll}</span> : null}
+          <li key={h.id} className="flex flex-col gap-y-0.5 py-2">
+            {/* Detaljraden: vem, hur bråttom, när, och länken. Korta saker som
+                tål att trängas. */}
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              {h.roll ? <span className="shrink-0">{h.roll}</span> : null}
 
-            {marke ? (
-              <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONER[lage])}>{marke}</span>
-            ) : null}
+              {marke ? (
+                <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONER[lage])}>{marke}</span>
+              ) : null}
 
-            <span className="min-w-0 flex-1 text-ink">{h.titel}</span>
+              {/* ⛔ `tabular-nums`: utan den hoppar datumkolumnen i sidled mellan
+                  rader, eftersom siffrorna har olika bredd i de flesta typsnitt.
+                  Det syns inte på en rad och är omöjligt att sluta se på tio. */}
+              {h.nar ? <span className="ml-auto shrink-0 text-sm tabular-nums text-ink-secondary">{h.nar}</span> : null}
 
-            {/* ⛔ `tabular-nums`: utan den hoppar datumkolumnen i sidled mellan
-                rader, eftersom siffrorna har olika bredd i de flesta typsnitt.
-                Det syns inte på en rad och är omöjligt att sluta se på tio. */}
-            {h.nar ? <span className="shrink-0 text-sm tabular-nums text-ink-secondary">{h.nar}</span> : null}
+              {url ? (
+                <a
+                  href={url}
+                  onClick={(e) => onNavigate?.(url, e)}
+                  target={onNavigate ? undefined : "_blank"}
+                  rel={onNavigate ? undefined : "noopener noreferrer"}
+                  className={cx(
+                    "shrink-0 rounded-sm text-sm text-accent underline underline-offset-2 hover:no-underline",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                    h.nar ? null : "ml-auto",
+                  )}
+                >
+                  {/* Namnet säger vad man öppnar, inte bara "Öppna": med tio rader
+                      läser en skärmläsare annars upp samma ord tio gånger. */}
+                  <span aria-hidden="true">Öppna</span>
+                  <span className="sr-only">Öppna {h.titel}</span>
+                </a>
+              ) : null}
+            </div>
 
-            {url ? (
-              <a
-                href={url}
-                onClick={(e) => onNavigate?.(url, e)}
-                target={onNavigate ? undefined : "_blank"}
-                rel={onNavigate ? undefined : "noopener noreferrer"}
-                className="shrink-0 rounded-sm text-sm text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                {/* Namnet säger vad man öppnar, inte bara "Öppna": med tio rader
-                    läser en skärmläsare annars upp samma ord tio gånger. */}
-                <span aria-hidden="true">Öppna</span>
-                <span className="sr-only">Öppna {h.titel}</span>
-              </a>
-            ) : null}
+            {/* ⛔ TITELN PÅ EGEN RAD, MED HELA BREDDEN. LÄS DET HÄR INNAN DU
+                LÄGGER TILLBAKA DEN I RADEN OVAN.
+
+                Den låg förut i samma flexrad som allt annat, med `flex-1`. Det
+                låter rimligt tills man mäter: `flex-1` betyder "ta det som blir
+                över", och det som blev över efter en rollbadge, ett brådskemärke
+                och en datumkolumn var 178 till 196 px av en 390 px bred telefon.
+                Alltså under halva skärmen, för radens enda innehåll som faktiskt
+                är en mening.
+
+                Följden var att "Attest större leverantörsfakturor" bröts i tre
+                rader à två ord medan halva raden stod tom, och en lista med tio
+                sådana går inte att läsa.
+
+                ⛔ Detaljerna är korta och tål att trängas. Löptext gör det inte.
+                Därför äger den sin egen rad på ALLA bredder, inte bara under en
+                brytpunkt: en titel som får halva bredden på en smal skärm och
+                hela på en bred är samma komponent med två utseenden, och det är
+                den sortens skillnad som gör att bara den ena blir provad. */}
+            <span className="text-ink">{h.titel}</span>
           </li>
         );
       })}
