@@ -32,6 +32,7 @@ export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
 export { OpsEventList } from "./components/OpsEventList.jsx";
 export { OpsBreakdown } from "./components/OpsBreakdown.jsx";
+export { OpsAttributes } from "./components/OpsAttributes.jsx";
 export { OpsTable } from "./components/OpsTable.jsx";
 export { OpsStat } from "./components/OpsStat.jsx";
 export { OpsEmpty } from "./components/OpsEmpty.jsx";
