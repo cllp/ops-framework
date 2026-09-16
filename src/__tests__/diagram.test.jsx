@@ -119,3 +119,24 @@ describe("OpsRankChart", () => {
     expect(screen.getByText("Inga kostnader")).toBeInTheDocument();
   });
 });
+
+describe("OpsShareChart, hålet", () => {
+  it("ritar ingen total i mitten av ringen", () => {
+    /*
+     * ⛔ Regression, och den upptäcktes bara för att sidan mättes i en webbläsare.
+     *
+     * Komponenten hade `center`, alltså en total mitt i ringen. Mätt i Chromium
+     * är ringen 160 px med 14 px linje, så hålet är cirka 130 px, och
+     * "3 500 000 kr" är bredare än så: texten lade sig ovanpå färgen i båda
+     * ändar, mörk text på blått.
+     *
+     * jsdom kan inte mäta bredder, så provet kan inte se felet. Det kan däremot
+     * se att propen är borta, alltså att fällan inte kan återinföras av vana.
+     */
+    const { container } = render(
+      <OpsShareChart segments={andelar} ariaLabel="Tillgångar" center="3 500 000 kr" centerLabel="totalt" />,
+    );
+    expect(container.textContent).not.toMatch(/3 500 000 kr/);
+    expect(container.querySelector(".absolute")).toBeNull();
+  });
+});

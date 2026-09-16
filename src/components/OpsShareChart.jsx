@@ -64,11 +64,9 @@ const GLAPP = 1.2;
  * @param {object} props
  * @param {Andel[]} props.segments
  * @param {string} props.ariaLabel Vad ringen visar, för den som inte ser den.
- * @param {import("react").ReactNode} [props.center] Står i mitten av ringen, t.ex. totalen.
- * @param {import("react").ReactNode} [props.centerLabel] Rad under `center`, mindre.
  * @param {import("react").ReactNode} [props.empty] Visas när allt är noll eller listan är tom.
  */
-export function OpsShareChart({ segments, ariaLabel, center, centerLabel, empty = null }) {
+export function OpsShareChart({ segments, ariaLabel, empty = null }) {
   const [aktiv, setAktiv] = useState(/** @type {string | null} */ (null));
 
   const poster = (segments || []).filter((s) => s && typeof s.value === "number" && Number.isFinite(s.value) && s.value > 0);
@@ -103,7 +101,7 @@ export function OpsShareChart({ segments, ariaLabel, center, centerLabel, empty 
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      <div className="relative shrink-0 self-center">
+      <div className="shrink-0 self-center">
         {/* ⛔ `role="img"` med ett namn, inte en osynlig graf. Utan det läses
             ringen upp som en hög med tomma cirklar, eller inte alls. Siffrorna
             finns i listan bredvid, som är den faktiska datavyn. */}
@@ -131,12 +129,6 @@ export function OpsShareChart({ segments, ariaLabel, center, centerLabel, empty 
             />
           ))}
         </svg>
-        {center ? (
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-lg font-bold tabular-nums text-ink">{center}</span>
-            {centerLabel ? <span className="text-sm text-ink-muted">{centerLabel}</span> : null}
-          </div>
-        ) : null}
       </div>
 
       {/* ⛔ DET HÄR ÄR INTE EN LEGEND, DET ÄR DATAN. Varje rad bär etikett,
