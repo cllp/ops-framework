@@ -313,6 +313,11 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
+  /* ─── Bottenradens höjd (utan säker yta). Delas mellan OpsBottomNav och
+   * `main`:s padding-bottom, så att sista kortet aldrig hamnar under baren.
+   * Höjden härleds ur träffytan (44px) plus luft. ──────────────────────── */
+  --bottom-nav-h: 3.5rem;
+
   color-scheme: light;
 }
 

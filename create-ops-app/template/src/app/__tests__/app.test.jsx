@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { App } from "../App.jsx";
 
 /**
@@ -22,8 +22,21 @@ describe("appskalet", () => {
     expect(screen.getByRole("button", { name: "Nytt ärende" })).toBeInTheDocument();
   });
 
+  // ⛔ Frågan MÅSTE avgränsas till en av navigeringarna. Skalet renderar navet
+  // två gånger, i toppraden och i bottenraden, och döljer den ena med CSS. I en
+  // webbläsare är därför bara en i tillgänglighetsträdet, men i ett test finns
+  // ingen CSS och båda syns. En ofrågad `getByRole("link", ...)` hittar då två
+  // och kastar, vilket är precis vad som hände innan raderna fick egna namn.
   it("har en navigering där aktuell sida är utpekad för skärmläsare", () => {
     render(<App />);
-    expect(screen.getByRole("link", { name: "Översikt", current: "page" })).toBeInTheDocument();
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(toppnav).getByRole("link", { name: "Översikt", current: "page" })).toBeInTheDocument();
+  });
+
+  // Samma sida är utpekad i bottenraden, och raderna går att skilja åt.
+  it("pekar ut samma sida i bottenraden, under ett eget namn", () => {
+    render(<App />);
+    const bottennav = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    expect(within(bottennav).getByRole("link", { name: "Översikt", current: "page" })).toBeInTheDocument();
   });
 });

@@ -37,7 +37,7 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
         id={f.id}
         className={cx(
           "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11",
-          "text-base text-ink data-[placeholder]:text-ink-muted",
+          "text-md md:text-base text-ink data-[placeholder]:text-ink-muted",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           "disabled:opacity-55 disabled:cursor-not-allowed",
           f.ogiltigt ? "border-danger" : "border-line",

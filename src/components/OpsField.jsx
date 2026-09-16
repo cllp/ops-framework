@@ -72,8 +72,11 @@ export function useFaltKoppling() {
   return useContext(FaltContext) ?? { ogiltigt: false, kravs: false };
 }
 
+// ⛔ `text-md` (16px) på telefon, `md:text-base` (14px) på desktop. Under 16px
+// zoomar iOS Safari in fältet vid fokus och lämnar användaren utzoomad efteråt.
+// Densiteten på desktop är oförändrad.
 const KONTROLL_BAS =
-  "w-full rounded-md border bg-canvas px-3 py-2 text-base text-ink placeholder:text-ink-muted " +
+  "w-full rounded-md border bg-canvas px-3 py-2 text-md md:text-base text-ink placeholder:text-ink-muted " +
   "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent " +
   "disabled:opacity-55 disabled:cursor-not-allowed";
 

@@ -48,11 +48,18 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
         <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
         {/* `max-h` + inre scroll i stället för fast höjd: en modal med fast höjd
             klipper sitt innehåll så fort texten översätts till ett längre språk
-            eller någon zoomar. */}
+            eller någon zoomar.
+
+            ⛔ På telefon en bottnad sheet i nästan full höjd med säker yta i
+            botten, inte en centrerad ruta vars marginaler knappt får plats på
+            390px. På md+ den centrerade rutan. `dvh`, aldrig `vh`: Safaris
+            verktygsrad ändrar höjd och 100vh räknar med den största. */}
         <Dialog.Content
           className={cx(
-            "fixed left-1/2 top-1/2 z-(--z-modal) w-[calc(100vw---spacing(8))] -translate-x-1/2 -translate-y-1/2",
-            "flex max-h-[calc(100dvh---spacing(8))] flex-col rounded-lg border border-line bg-raised shadow-lg",
+            "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[calc(100dvh---safe-top)] w-full flex-col",
+            "rounded-t-lg border border-line bg-raised pb-(--safe-bottom) shadow-lg",
+            "md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:w-[calc(100vw---spacing(8))]",
+            "md:max-h-[calc(100dvh---spacing(8))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg md:pb-0",
             storlekKlass,
           )}
         >
