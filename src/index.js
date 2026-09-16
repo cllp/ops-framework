@@ -29,6 +29,7 @@ export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
+export { OpsEventList } from "./components/OpsEventList.jsx";
 export { OpsTable } from "./components/OpsTable.jsx";
 export { OpsStat } from "./components/OpsStat.jsx";
 export { OpsEmpty } from "./components/OpsEmpty.jsx";
@@ -62,4 +63,5 @@ export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAu
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, ANTAL_IDENTITETSTONER } from "./lib/identity.js";
+export { bradska, delaIdagKommande } from "./lib/handelser.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, TALMELLANSLAG, SAKNAS } from "./lib/format.js";
