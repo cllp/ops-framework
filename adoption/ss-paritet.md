@@ -1,4 +1,4 @@
-# SessionStudio-paritet: vad ramverket redan gör åt dig (v0.3.0)
+# SessionStudio-paritet: vad ramverket redan gör åt dig (v0.4.0)
 
 Målet är att appar byggda på ramverket ska kännas som SessionStudio utan att
 varje app bygger känslan själv. Det mesta av det är **default**, alltså något du
@@ -110,3 +110,72 @@ sortens regel som ser ut som ett skydd utan att vara det.
 - **Pixeljämförelse av skärmbilder.** Den blir röd av varje typsnittsuppdatering
   och varje avsiktlig designändring, alltså varje vecka, och en vakt som är röd
   varje vecka stängs av inom en månad. Vi mäter påståenden i stället.
+
+---
+
+## 6. Tillförlitlighet: `OpsFact` (från v0.4.0)
+
+Ramverket kunde säga **vem** som skrev en siffra (`OpsProvenance`). Det kunde
+inte säga **hur sann** den är. Det är en annan fråga: en agent kan skriva ett
+uppmätt tal och en människa kan gissa.
+
+```jsx
+<OpsFact kind="uppmatt" />
+<OpsFact kind="uppskattat" label="Snitt 12 mån" />
+<OpsFact kind="okant" />
+<OpsFact kind="scenario" value="5 290 000 kr" label="Vid 3 % avkastning" />
+```
+
+⛔ **`okant` kan inte bära ett värde.** Komponenten kastar. Skälet är att
+"0 kr" och "vi vet inte" är motsatser som ser likadana ut på skärmen, och ett
+märke som samtidigt säger okänt och visar ett belopp gör saken värre: nu står
+det uttryckligen att vi inte vet, bredvid en siffra som ser mätt ut.
+
+⛔ **Märk där blandningen sker, inte överallt.** Är allt märkt är inget märkt.
+Är en hel tabell uppmätt hör märket på tabellen, en gång, inte på varje rad.
+`uppmatt` har därför den tystaste tonen: den är normalfallet.
+
+Förlagan är `/marknad` på sessionstudio.se, där varje påstående bär **i drift**,
+**byggs nu** eller **förslag**. Det som gör den sidan trovärdig är inte texten
+utan att lägena går att se utan att läsa.
+
+## 7. Nyckeltal med väg vidare (från v0.4.0)
+
+`OpsStat` var en ruta man inte kunde göra något med. Nu:
+
+```jsx
+<OpsStat
+  label="Kostnader"
+  value={formatCurrency(67650)}
+  fact="uppmatt"
+  source="Bokföringen"
+  updatedAt="2026-09-15T09:00:00Z"
+  onDrillDown={() => navigera("/kostnader")}
+  drillDownLabel="Kostnader: visa de rader som ingår"
+/>
+```
+
+- `source` och `updatedAt` besvarar samma fråga, "kan jag lita på det här", och
+  står därför på samma rad i samma ton. ⛔ **En siffra utan ålder läses som
+  färsk**, alltid.
+- `onDrillDown` gör rutan till en riktig knapp. ⛔ Utan propen renderas **ingen**
+  knapp och inget fokusbart element: en klickbar yta som inte leder någonstans
+  är värre än en död ruta, för användaren trycker igen och tror att appen hängt
+  sig.
+- `updatedAt` visas i ord (`formatRelativeDate`, räknat i kalenderdagar) med
+  exakt tid kvar i `title`. Åldern i ord är det man vill veta i förbifarten;
+  datumet är det man vill veta i det ögonblick man börjar misstro talet.
+
+## 8. Mät appens egna sidor, inte bara mallens
+
+```bash
+npx ops-viewport dist --rutter /,/kostnader,/tillgangar,/schema
+```
+
+Ligger redan i mallens `check` och `gate` med bara `/` i listan. ⛔ **Fyll på
+den.** Mäts bara startsidan är grinden grön för en sida av tio, och det är exakt
+så horisontell scroll hann ligga kvar i en app tills någon klickade igenom den
+för hand.
+
+`playwright` är en valfri peer. Webbläsaren hämtas en gång per maskin med
+`npx playwright install chromium`, eller pekas ut med `OPS_CHROMIUM`.

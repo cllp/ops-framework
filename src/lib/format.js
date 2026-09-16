@@ -151,6 +151,46 @@ export function formatDateTime(varde, val = {}) {
 }
 
 /**
+ * Ålder i ord: "i dag", "i går", "för 3 dagar sedan".
+ *
+ * ⛔ Finns för att en siffra utan ålder alltid läses som färsk. Det är den
+ * enskilt vanligaste tysta lögnen i en översiktsvy: talet stod där i morse,
+ * står där nu, och ingenting säger att källan slutade svara i tisdags.
+ *
+ * ⛔ Går via `Intl.RelativeTimeFormat`, inte via egna strängar. "för 1 dagar
+ * sedan" är precis den sortens fel handskriven pluralisering ger, och den syns
+ * bara vid vissa värden.
+ *
+ * ⛔ Räknar i KALENDERDAGAR, inte i dygn om 24 timmar. Något som hände 23:50 i
+ * går är "i går" klockan 00:10, inte "i dag". Skillnaden är hela skälet att
+ * texten finns: den ska stämma med vad läsaren själv skulle kalla det.
+ *
+ * @param {Date | number | string | null | undefined} varde
+ * @param {{ locale?: string, now?: Date | number | string }} [val]
+ * @returns {string}
+ */
+export function formatRelativeDate(varde, val = {}) {
+  const d = tillDatum(varde);
+  if (!d) return SAKNAS;
+  const nu = tillDatum(val.now ?? Date.now());
+  if (!nu) return SAKNAS;
+  const locale = val.locale ?? SPRAK;
+
+  const dagar = Math.round((midnatt(d) - midnatt(nu)) / 86400000);
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+
+  if (Math.abs(dagar) < 1) return rtf.format(0, "day");
+  if (Math.abs(dagar) < 30) return rtf.format(dagar, "day");
+  if (Math.abs(dagar) < 365) return rtf.format(Math.round(dagar / 30), "month");
+  return rtf.format(Math.round(dagar / 365), "year");
+}
+
+/** @param {Date} d @returns {number} */
+function midnatt(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/**
  * @param {Date | number | string | null | undefined} varde
  * @returns {Date | null}
  */

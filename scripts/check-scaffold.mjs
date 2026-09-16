@@ -44,7 +44,15 @@ const appmapp = path.join(arbetsmapp, "provapp");
 /** @param {string} vad @param {string[]} argv @param {string} cwd */
 function kor(vad, argv, cwd) {
   process.stdout.write(`  ${vad} ... `);
-  const r = spawnSync(argv[0], argv.slice(1), { cwd, encoding: "utf8", env: { ...process.env, CI: "1" } });
+  // ⛔ PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: appen har playwright i devDependencies
+  // för sin layoutmätning, men vi ska inte ladda ner en webbläsare per
+  // scaffold-körning. Mätningen hittar en befintlig Chromium via sin egen
+  // fallback, och saknas den blir den röd, aldrig tyst överhoppad.
+  const r = spawnSync(argv[0], argv.slice(1), {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, CI: "1", PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" },
+  });
   if (r.status !== 0) {
     console.log("MISSLYCKADES");
     console.error(`\ncheck-scaffold: "${argv.join(" ")}" gav ${r.status}\n`);

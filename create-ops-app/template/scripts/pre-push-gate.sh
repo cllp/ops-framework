@@ -40,4 +40,19 @@ npm run test
 steg "Bygge"
 npm run build
 
+# ⛔ Layouten mäts EFTER bygget, på det som faktiskt ska ut, och i en riktig
+# webbläsare. Alla steg ovan kör i Node eller jsdom, och jsdom lägger ingen CSS
+# alls: där är `hidden md:flex` osynligt, och "ingen horisontell scroll vid 390
+# px" går inte att kontrollera, bara att lova.
+#
+# ⛔ Lägg till appens EGNA rutter i listan. Mäts bara startsidan är grinden grön
+# för en sida av tio, och det är precis så horisontell scroll hann ligga kvar i
+# bolag-ops tills någon klickade igenom appen för hand.
+#
+# Playwright ligger redan i devDependencies. Webbläsaren gör den inte:
+# kör `npx playwright install chromium` en gång per maskin, eller peka ut en
+# du redan har med OPS_CHROMIUM.
+steg "Layout vid 390 och 768 px"
+npm run check:viewport
+
 printf '\n\033[32mGrinden är grön. Push är okej.\033[0m\n'

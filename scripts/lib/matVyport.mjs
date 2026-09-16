@@ -101,8 +101,14 @@ async function startaWebblasare() {
   try {
     ({ chromium } = await import("playwright"));
   } catch {
+    // ⛔ Playwright är en valfri peer, inte ett beroende paketet drar in. Ett
+    // ramverk som tvingar varje konsument att ladda ner en webbläsare vid
+    // `npm install` är inte ett ramverk, det är en börda. Men saknas den får
+    // mätningen ALDRIG hoppas över: då är den grön av att inte ha tittat.
     throw new Error(
-      "playwright är inte installerat. Vakten kan inte mäta layout utan en webbläsare, och ett överhoppat mått får aldrig räknas som grönt. Kör `npm install` i ramverket.",
+      "playwright saknas. Layouten kan inte mätas utan en webbläsare, och ett överhoppat mått får aldrig räknas som grönt.\n" +
+        "    I en app: npm install --save-dev playwright\n" +
+        "    Har du redan en Chromium: sätt OPS_CHROMIUM till den körbara filen.",
     );
   }
 

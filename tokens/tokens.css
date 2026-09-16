@@ -119,6 +119,35 @@
   --color-auto: #4a6b5d;
   --color-auto-bg: rgba(74, 107, 93, 0.12);
 
+  /* ─── Tillförlitlighet ───────────────────────────────────────────────────
+   * Hur sann är siffran: uppmätt, uppskattad, okänd, eller ett scenario.
+   *
+   * ⛔ Det här är INTE samma fråga som proveniens ovan. Proveniens svarar på
+   * vem som skrev något. Den här svarar på om det går att lita på. En agent
+   * kan skriva en uppmätt siffra och en människa kan gissa, så de två går inte
+   * att härleda ur varandra.
+   *
+   * Skälet är mätt i bolag-ops: en pensionsprognos ligger visuellt bredvid
+   * faktiskt kassaflöde, och "Företag 0 kr" går inte att skilja från "vi vet
+   * inte". Noll och okänt är motsatser som ser likadana ut, och den som läser
+   * har ingen anledning att misstro siffran.
+   *
+   * ⛔ Egna färger, aldrig återbruk av warning eller danger. Okänt är inte ett
+   * fel och ett scenario är inte en varning. Lånar vi de färgerna lär sig ögat
+   * att larmfärgen betyder "titta noga", och då tappar riktiga larm sin kraft.
+   *
+   * ⛔ Uppmätt är avsiktligt den tystaste. Är allt på en sida markerat är inget
+   * markerat, och märkningen blir mönstrad tapet i stället för information.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-fact-uppmatt: #4c5a63;
+  --color-fact-uppmatt-bg: rgba(76, 90, 99, 0.1);
+  --color-fact-uppskattat: #6b5a86;
+  --color-fact-uppskattat-bg: rgba(107, 90, 134, 0.12);
+  --color-fact-okant: #71695f;
+  --color-fact-okant-bg: rgba(113, 105, 95, 0.12);
+  --color-fact-scenario: #2f6f78;
+  --color-fact-scenario-bg: rgba(47, 111, 120, 0.12);
+
   /* ─── Rytm ───────────────────────────────────────────────────────────────
    * Tailwind räknar avstånd som `--spacing × n`. Med 4px ger `p-2` 8px och
    * `p-6` 24px, alltså exakt den skala vi ändå skulle skrivit för hand.
@@ -276,6 +305,15 @@
   --dark-auto: #7d9b7a;
   --dark-auto-bg: rgba(125, 155, 122, 0.16);
 
+  --dark-fact-uppmatt: #9aa7b0;
+  --dark-fact-uppmatt-bg: rgba(154, 167, 176, 0.14);
+  --dark-fact-uppskattat: #a795c4;
+  --dark-fact-uppskattat-bg: rgba(167, 149, 196, 0.16);
+  --dark-fact-okant: #a89c8e;
+  --dark-fact-okant-bg: rgba(168, 156, 142, 0.16);
+  --dark-fact-scenario: #6fb0b8;
+  --dark-fact-scenario-bg: rgba(111, 176, 184, 0.16);
+
   --dark-identity-1: #7aa892;
   --dark-identity-2: #c9a961;
   --dark-identity-3: #d66f63;
@@ -371,6 +409,15 @@
     --color-auto: var(--dark-auto);
     --color-auto-bg: var(--dark-auto-bg);
 
+    --color-fact-uppmatt: var(--dark-fact-uppmatt);
+    --color-fact-uppmatt-bg: var(--dark-fact-uppmatt-bg);
+    --color-fact-uppskattat: var(--dark-fact-uppskattat);
+    --color-fact-uppskattat-bg: var(--dark-fact-uppskattat-bg);
+    --color-fact-okant: var(--dark-fact-okant);
+    --color-fact-okant-bg: var(--dark-fact-okant-bg);
+    --color-fact-scenario: var(--dark-fact-scenario);
+    --color-fact-scenario-bg: var(--dark-fact-scenario-bg);
+
     --color-identity-1: var(--dark-identity-1);
     --color-identity-2: var(--dark-identity-2);
     --color-identity-3: var(--dark-identity-3);
@@ -427,6 +474,15 @@
   --color-agent-bg: var(--dark-agent-bg);
   --color-auto: var(--dark-auto);
   --color-auto-bg: var(--dark-auto-bg);
+
+  --color-fact-uppmatt: var(--dark-fact-uppmatt);
+  --color-fact-uppmatt-bg: var(--dark-fact-uppmatt-bg);
+  --color-fact-uppskattat: var(--dark-fact-uppskattat);
+  --color-fact-uppskattat-bg: var(--dark-fact-uppskattat-bg);
+  --color-fact-okant: var(--dark-fact-okant);
+  --color-fact-okant-bg: var(--dark-fact-okant-bg);
+  --color-fact-scenario: var(--dark-fact-scenario);
+  --color-fact-scenario-bg: var(--dark-fact-scenario-bg);
 
   --color-identity-1: var(--dark-identity-1);
   --color-identity-2: var(--dark-identity-2);

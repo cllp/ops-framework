@@ -39,6 +39,7 @@ export { OpsPill } from "./components/OpsPill.jsx";
 export { OpsTag } from "./components/OpsTag.jsx";
 export { OpsIdentity } from "./components/OpsIdentity.jsx";
 export { OpsProvenance } from "./components/OpsProvenance.jsx";
+export { OpsFact } from "./components/OpsFact.jsx";
 
 // ── Navigering och meddelanden ─────────────────────────────────────────────
 export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
@@ -60,4 +61,4 @@ export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAu
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, ANTAL_IDENTITETSTONER } from "./lib/identity.js";
-export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, TALMELLANSLAG, SAKNAS } from "./lib/format.js";
+export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, TALMELLANSLAG, SAKNAS } from "./lib/format.js";
