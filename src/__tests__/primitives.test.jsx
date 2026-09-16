@@ -6,6 +6,7 @@ import { OpsList, OpsListRow } from "../components/OpsList.jsx";
 import { OpsModal } from "../components/OpsModal.jsx";
 import { OpsIdentity } from "../components/OpsIdentity.jsx";
 import { OpsPill } from "../components/OpsPill.jsx";
+import { OpsCard } from "../components/OpsCard.jsx";
 import { identityTone, initials } from "../lib/identity.js";
 
 /**
@@ -186,5 +187,53 @@ describe("OpsPill", () => {
   it("bär betydelsen i text, inte bara i färg", () => {
     render(<OpsPill tone="danger">Försenad</OpsPill>);
     expect(screen.getByText("Försenad")).toBeInTheDocument();
+  });
+});
+
+describe("OpsCard", () => {
+  it("ritar ingen kant utan edge", () => {
+    const { container } = render(<OpsCard>innehåll</OpsCard>);
+    expect(container.firstElementChild?.className).not.toContain("border-l-4");
+  });
+
+  it("ritar en kant ur identitetspaletten", () => {
+    const { container } = render(
+      <OpsCard edge={2} edgeLabel="Privat">
+        innehåll
+      </OpsCard>,
+    );
+    expect(container.firstElementChild?.className).toContain("border-l-identity-2");
+  });
+
+  /**
+   * ⛔ Samma regel som för identitet och proveniens: färgen ensam får inte bära
+   * betydelsen. En kant i en färg säger ingenting till den som inte lärt sig
+   * koden, går inte att läsa upp, och är osynlig för var tjugonde man.
+   */
+  it("kastar när en kant saknar ord", () => {
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => render(<OpsCard edge={2}>x</OpsCard>)).toThrow(/edgeLabel/);
+    } finally {
+      tyst.mockRestore();
+    }
+  });
+
+  it("annonserar vad kanten betyder", () => {
+    render(
+      <OpsCard edge={1} edgeLabel="Företag">
+        innehåll
+      </OpsCard>,
+    );
+    expect(screen.getByText("Företag")).toBeInTheDocument();
+  });
+
+  it("kastar på okänd edge i stället för att rendera en färglös kant", () => {
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => render(<OpsCard edge={9} edgeLabel="X">x</OpsCard>)).toThrow(/okänd edge/);
+    } finally {
+      tyst.mockRestore();
+    }
   });
 });

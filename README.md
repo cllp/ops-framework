@@ -1,9 +1,11 @@
 # ops-framework
 
 Det gemensamma fundamentet för Staigers ops-plattformar. Färg- och formsystem,
-färdiga byggdelar, arbetsregler och vakter, så att `bolag.ops.staiger.se`,
-`tam.ops.staiger.se` och det som kommer sedan ser likadana ut, fungerar likadant
-och följer samma regler, utan att grovjobbet görs om varje gång.
+färdiga byggdelar, arbetsregler och vakter, så att varje plattform ser likadan ut,
+fungerar likadant och följer samma regler, utan att grovjobbet görs om varje gång.
+
+⛔ Vilka plattformarna är står i `adoption/`, inte här. Ramverket ska inte veta
+vilka som använder det: gör det det, smyger domänen in i kontraktet.
 
 ## Hur det funkar, i tre meningar
 
@@ -62,7 +64,7 @@ Fem val bär arkitekturen, och vart och ett kan sammanfattas i en mening:
 | **Stängt komponent-API** | ingen primitiv tar `className`, `style` eller `...rest` | Rörig CSS orsakas av kryphål, inte av teknikval. Ett kryphål används alltid, av alla, under press |
 | **Tema i CSS, inte i config** | `tokens/tokens.css` ÄR Tailwind-temat | I Tailwind 3 hade tema och tokens varit två filer som beskriver samma faktum. Två original glider isär, alltid |
 | **Lånat beteende, ägt utseende** | Radix ger dialog, väljare och flikar. Vi ger klasser och tokens | Fokusfälla och tangentbordsnavigering är veckor att bygga och osynligt fel tills någon slutar använda musen |
-| **Mekanism före dokumentation** | åtta vakter i grinden, 25 regler bevisade röda | En regel som bara står i ett dokument följs inte. Det är mätt, inte en åsikt |
+| **Mekanism före dokumentation** | åtta vakter i grinden, 29 regler bevisade röda | En regel som bara står i ett dokument följs inte. Det är mätt, inte en åsikt |
 | **Konsumera, inte kopiera** | tokens, primitiver, regler och vakter är ett beroende | En ändring i ramverket ska nå alla appar utan att någon rör deras kod |
 
 ### Lagren
@@ -93,9 +95,23 @@ frågan "skulle den här komponenten betyda något i den andra plattformen?" är
 | esbuild | paketering | Vite transformerar inte JSX i `node_modules`, så vi bygger en gång |
 | Vitest | tester | beteende, aldrig klassnamn |
 
-⛔ **Inget ikonberoende.** Ramverket har tre egna SVG:er för sina egna behov.
-Appen väljer sin uppsättning, och ett ramverk som drar in ett helt ikonbibliotek
-för tre pilar tvingar på alla konsumenter en dependency de inte bad om.
+#### Ikoner: Lucide, som peer dependency
+
+⛔ **Den här raden sade tidigare motsatsen**, alltså att ramverket medvetet tog
+noll ikonberoende och ritade tre egna SVG:er. Motiveringen var att ett ramverk
+inte ska dra in ett helt ikonbibliotek för tre pilar. **Premissen var fel:**
+`lucide-react` är träd-skakbart, så tolv importerade ikoner ger tolv ikoner, inte
+biblioteket. Kostnaden är ett beroende, inte vikt.
+
+Med premissen borta föll slutsatsen. Egna SVG:er i Lucides form är formspråket
+utan uppsättningen: ramverket hade en egen chevron som Lucide redan har, och
+varje app som ville ha en ikon till installerade Lucide ändå. Två källor för samma
+streck är precis den drift ramverket finns för att stoppa.
+
+`lucide-react` är därför en **peer dependency**, som React. Appen installerar den
+en gång, och både ramverket och appen ritar ur samma uppsättning och samma
+version. Ramverket importerar den bara i `src/components/icons.jsx`, så ett byte
+av uppsättning är en fil.
 
 ### Hur en ändring sprider sig
 
@@ -128,7 +144,7 @@ som ser ut att skydda något.
 
 ### Tokens
 
-193 värden i `tokens/tokens.css`, som **är** Tailwind-temat och inte en kopia
+237 värden i `tokens/tokens.css`, som **är** Tailwind-temat och inte en kopia
 bredvid det.
 
 | Grupp | Vad den svarar på |
@@ -157,7 +173,7 @@ något godtyckligt.
 | Komponent | Props |
 |---|---|
 | `OpsButton` | `variant` primary \| secondary \| ghost \| danger, `size` sm \| md, `type`, `disabled`, `busy`, `fullWidth`, `iconOnly`, `href`, `newTab`, `ariaLabel`, `title`, `id`, `onClick`, `children` |
-| `OpsCard` | `tone` raised \| sunken \| plain, `elevated`, `flush`, `id`, `children` |
+| `OpsCard` | `tone` raised \| sunken \| plain, `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children` |
 | `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `open`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
@@ -209,7 +225,7 @@ något godtyckligt.
 | `OpsToastProvider` | `children`, `closeLabel`. Läggs en gång, högst upp |
 | `useOpsToast` | `visa({ title, description, tone })` |
 | `OpsTooltip` | `content`, `side`, `children` |
-| `OpsThemeToggle` | `ariaLabel`, `labels` {system, light, dark} |
+| `OpsThemeToggle` | `ariaLabel`, `labels` {system, light, dark}. Ikonknapp med Sol/Måne, meny med tre lägen |
 
 #### Vad var och en gör som du annars fått bygga själv
 
@@ -229,7 +245,8 @@ något godtyckligt.
 | `OpsSpinner` | EN väntesymbol, som annonserar för skärmläsare utan att göra det två gånger |
 | `OpsTag` | härleder tonen ur etiketten, så ny kategori kräver ingen kod |
 | `OpsBrand` | byter märke med temat, inte med systemets inställning |
-| `OpsThemeToggle` | tre lägen, så "följ systemet" inte försvinner |
+| `OpsThemeToggle` | tre lägen, så "följ systemet" inte försvinner, i en 44 px ikonknapp i stället för en 140 px textdropdown |
+| `OpsCard` | vägrar rita en färgad kant utan ett ord som säger vad färgen betyder |
 | `OpsIdentity` | initialer som inte klipper mitt i ett tecken |
 | `OpsBanner` | `role="alert"` bara för det som ska avbryta |
 | `OpsTabs` | piltangenter, Home, End och koppling flik till panel |
@@ -569,7 +586,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 | `src/lib/` | tema, identitet, formatering |
 | `scripts/` | vakterna |
 | `create-ops-app/` | mallen som kopieras en gång |
-| `adoption/` | planer för att flytta en befintlig plattform hit, och hur en app tar emot det ramverket redan gör (`mobil-nav.md`, `ss-paritet.md`) |
+| `adoption/` | **det enda stället som får veta vilka som använder ramverket.** Här beskrivs hur en namngiven plattform tar ramverket i bruk och vad som återstår i dess upprensning (`mobil-nav.md`, `ss-paritet.md`) |
 
 ### Varför skills och inte ett dokument
 
@@ -586,5 +603,5 @@ Formen är hämtad ur SessionStudio, där den är den enda som visat sig hålla.
 | 35 primitiver med stängt API, 111 beteendetester | observability: logger, larm till issue |
 | åtta vakter plus mutationsharnesset, 29 regler bevisade röda | desktop-menyer för undersidor, om vi vill ha dem |
 | `create-ops-app`, bevisad genom en riktig installation, mätt i Chromium vid 390 och 768 px | riktig telefon: mätningen ser layout, inte hur det känns i handen |
-| adoptionsplan för bolag-ops, mätt mot repot | själva adoptionen, som väntar på profilbeslutet |
+| adoptionsplan för den första plattformen, mätt mot dess repo | själva adoptionen, som väntar på profilbeslutet |
 | skills: `css-and-components`, `web-app`, `testing`, `ci-and-guards` | skills: `firebase-data`, `auth-google-idp`, `observability`, `architecture-decisions` |

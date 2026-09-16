@@ -1,6 +1,8 @@
 import { useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
+import { cx } from "../lib/cx.js";
 import { getTheme, setTheme } from "../lib/theme.js";
-import { OpsSelect } from "./OpsSelect.jsx";
+import { BockIkon, ManeIkon, SkarmIkon, SolIkon } from "./icons.jsx";
 
 /**
  * Växlare för ljust, mörkt och följ systemet.
@@ -14,8 +16,23 @@ import { OpsSelect } from "./OpsSelect.jsx";
  * ljust läge även med telefonen i mörkt, och det ser ut som att inställningen är
  * trasig.
  *
- * Etiketterna går att skicka in, eftersom en app kan köras på ett annat språk
- * än svenska. Standardvärdena är svenska därför att det är vad vi kör.
+ * ── ⛔ IKONKNAPP, INTE EN TEXTDROPDOWN ─────────────────────────────────────
+ *
+ * Första versionen var en `OpsSelect` som visade "Följ systemet" i klartext.
+ * Två fel följde av det, och båda syntes först på en riktig skärm:
+ *
+ *   1. Den tog omkring 140 px i sidhuvudet. I en app med många destinationer
+ *      knuffade den ut de sista ur navigeringsraden, så "Schema" hamnade under
+ *      växlaren och två destinationer försvann helt ur bild.
+ *   2. Den ser inte ut som SessionStudios, som är en Sol/Måne-ikonknapp. Hela
+ *      poängen med paritet är att samma sak ska se likadan ut.
+ *
+ * Nu: en 44 px ikonknapp som visar NUVARANDE läge, och en liten meny med de tre
+ * valen bakom. Lägena är kvar, ytan är en femtedel.
+ *
+ * ⛔ Ikonen ensam bär inte betydelsen. Knappen har `aria-label` med läget
+ * utskrivet, och menyvalen är text. En ikon utan namn är oläsbar för den som
+ * använder skärmläsare och gissningsbar för alla andra.
  */
 
 /**
@@ -27,22 +44,70 @@ export function OpsThemeToggle({ ariaLabel = "Utseende", labels = {} }) {
   // Läses en gång vid montering. Attributet på <html> är redan satt av
   // `initTheme` före första renderingen, så det finns inget att synka här.
   const [lage, setLage] = useState(() => getTheme());
+  const [oppen, setOppen] = useState(false);
 
   const val = [
-    { value: "system", label: labels.system ?? "Följ systemet" },
-    { value: "light", label: labels.light ?? "Ljust" },
-    { value: "dark", label: labels.dark ?? "Mörkt" },
+    { value: "system", label: labels.system ?? "Följ systemet", Ikon: SkarmIkon },
+    { value: "light", label: labels.light ?? "Ljust", Ikon: SolIkon },
+    { value: "dark", label: labels.dark ?? "Mörkt", Ikon: ManeIkon },
   ];
 
+  const nuvarande = val.find((v) => v.value === lage) ?? val[0];
+  const NuIkon = nuvarande.Ikon;
+
   return (
-    <OpsSelect
-      options={val}
-      value={lage}
-      ariaLabel={ariaLabel}
-      onChange={(nytt) => {
-        setTheme(/** @type {any} */ (nytt));
-        setLage(/** @type {any} */ (nytt));
-      }}
-    />
+    <Popover.Root open={oppen} onOpenChange={setOppen}>
+      <Popover.Trigger
+        aria-label={`${ariaLabel}: ${nuvarande.label}`}
+        className={cx(
+          "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
+          "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        )}
+      >
+        <NuIkon />
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={4}
+          className="z-(--z-dropdown) min-w-44 rounded-md border border-line bg-raised p-1 shadow-md"
+        >
+          <div role="group" aria-label={ariaLabel} className="flex flex-col">
+            {val.map((v) => {
+              const Ikon = v.Ikon;
+              const vald = v.value === lage;
+              return (
+                <button
+                  key={v.value}
+                  type="button"
+                  aria-pressed={vald}
+                  onClick={() => {
+                    setTheme(/** @type {any} */ (v.value));
+                    setLage(/** @type {any} */ (v.value));
+                    setOppen(false);
+                  }}
+                  className={cx(
+                    "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base",
+                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                    vald ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                  )}
+                >
+                  <span aria-hidden="true" className="shrink-0 text-ink-muted">
+                    <Ikon size={16} />
+                  </span>
+                  <span className="flex-1">{v.label}</span>
+                  {vald ? (
+                    <span aria-hidden="true" className="shrink-0 text-accent">
+                      <BockIkon />
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

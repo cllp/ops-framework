@@ -1,50 +1,65 @@
 /**
- * De tre ikoner primitiverna själva behöver, inlagda som SVG.
+ * Ikonerna primitiverna själva behöver, hämtade ur Lucide.
  *
- * ⛔ Ramverket tar medvetet INTE ett ikonberoende. Ikonuppsättningen är ett val
- * appen gör (vi kör Lucide, se skillen), och ett ramverk som drar in ett helt
- * ikonbibliotek för tre pilar tvingar på alla konsumenter en dependency de inte
- * bad om. Tre SVG:er är billigare än den kopplingen.
+ * ── ⛔ DEN HÄR FILEN INNEHÖLL TIDIGARE HANDRITADE SVG:er ───────────────────
  *
- * Alla är `aria-hidden`: ikonen är dekor, betydelsen sitter i texten bredvid
- * eller i komponentens aria-label.
+ * Motiveringen var att "ett ramverk som drar in ett helt ikonbibliotek för tre
+ * pilar tvingar på alla konsumenter en dependency de inte bad om". **Premissen
+ * var fel.** `lucide-react` är träd-skakbart: importerar man tolv ikoner
+ * levereras tolv ikoner, inte biblioteket. Kostnaden är ett beroende, inte vikt,
+ * och den skillnaden bär hela argumentet.
+ *
+ * Med premissen borta faller slutsatsen. Handritade SVG:er i Lucides form är en
+ * halvmesyr: formspråket utan uppsättningen. Ramverket hade en egen chevron som
+ * Lucide redan har, och varje app som ville ha en ikon utöver de fyra fick
+ * installera Lucide ändå. Då finns två källor för samma streck, vilket är precis
+ * den drift ramverket existerar för att stoppa. Det rapporterades som "finns
+ * inga ikoner?".
+ *
+ * Nu är `lucide-react` en **peer dependency**, som React. Appen installerar den
+ * en gång, och både ramverket och appen ritar ur samma uppsättning och samma
+ * version.
+ *
+ * ⛔ Omslaget är kvar med flit, med svenska namn. Det gör att primitiverna
+ * importerar från EN plats, så ett byte av ikonuppsättning blir en ändring i den
+ * här filen i stället för i tjugo komponenter. Omslaget sätter också
+ * `aria-hidden` en gång för alla: ikonen är dekor, betydelsen sitter i texten
+ * bredvid eller i komponentens `aria-label`.
  */
+
+import { Check, ChevronDown, Menu, Monitor, Moon, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function ChevronNedIkon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
+  return <ChevronDown size={size} aria-hidden="true" />;
 }
 
 /** @param {{ size?: number }} props */
 export function KryssIkon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M18 6 6 18" />
-      <path d="m6 6 12 12" />
-    </svg>
-  );
+  return <X size={size} aria-hidden="true" />;
 }
 
 /** @param {{ size?: number }} props */
 export function MenyIkon({ size = 24 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h16" />
-    </svg>
-  );
+  return <Menu size={size} aria-hidden="true" />;
 }
 
 /** @param {{ size?: number }} props */
 export function BockIkon({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
+  return <Check size={size} aria-hidden="true" />;
+}
+
+/** @param {{ size?: number }} props */
+export function SolIkon({ size = 18 }) {
+  return <Sun size={size} aria-hidden="true" />;
+}
+
+/** @param {{ size?: number }} props */
+export function ManeIkon({ size = 18 }) {
+  return <Moon size={size} aria-hidden="true" />;
+}
+
+/** Följ systemet: en skärm, alltså "vad enheten säger". @param {{ size?: number }} props */
+export function SkarmIkon({ size = 18 }) {
+  return <Monitor size={size} aria-hidden="true" />;
 }

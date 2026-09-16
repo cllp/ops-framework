@@ -35,6 +35,15 @@ export function OpsView({ width = "normal", children }) {
         "mx-auto w-full px-4 pt-6",
         // Minst 16 px sidomarginal vid varje bredd, och säker yta i botten.
         "pb-[calc(--spacing(6)+var(--safe-bottom))]",
+        // ⛔ VYN GER SINA BARN VERTIKAL RYTM. Utan den här raden lägger sig två
+        // kort kant mot kant och bildar en dubbel linje: de ser ihopsvetsade ut.
+        //
+        // Det rapporterades två gånger från två olika sidor, vilket är beviset
+        // på att det inte var vyernas fel. De flesta vyer råkade slippa det för
+        // att de lindade in innehållet i en egen `flex flex-col gap-*`; de som
+        // inte gjorde det fick defekten. En app ska inte behöva MINNAS rytm,
+        // lika lite som den ska sätta sin egen radie.
+        "flex flex-col gap-4",
         breddKlass,
       )}
     >
