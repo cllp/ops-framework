@@ -19,7 +19,7 @@
  *      den. Det är enda sättet att bevisa att `@source`-raden mot node_modules
  *      gör sitt jobb, och den raden är den dyraste fällan i uppsättningen:
  *      saknas den blir appen helt ostylad UTAN felmeddelande.
- *   3. Appen öppnas i en riktig webbläsare vid 390 och 768 px. ⛔ Det är den
+ *   3. Appen öppnas i en riktig webbläsare vid 390, 768 och 1280 px. ⛔ Det är den
  *      ENDA plats i huset där CSS faktiskt körs: alla andra tester lever i
  *      jsdom, som inte har någon layoutmotor och därför inte kan se skillnad på
  *      `hidden md:flex` och ingenting alls. Mätningen ligger i
@@ -160,7 +160,7 @@ for (const marke of MARKEN) {
 // överhoppad. En grind som är grön för att den inte tittade är sämre än ingen
 // grind: den flyttar uppmärksamheten bort från risken, vilket är exakt hur
 // dubbelnavigeringen fick leva.
-process.stdout.write("  mäter layout vid 390 och 768 px ... ");
+process.stdout.write("  mäter layout vid 390, 768 och 1280 px ... ");
 let vyport;
 try {
   vyport = await matVyport({ dist: path.join(appmapp, "dist"), rutter: ["/", "/primitiver"] });

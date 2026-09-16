@@ -42,10 +42,21 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 
-/** Bredder vi lovar. `md` i Tailwind är 768, så 767 är sista telefonbredden. */
+/**
+ * Bredder vi lovar. `md` i Tailwind är 768, så 767 är sista telefonbredden.
+ *
+ * ⛔ 1024 kom till efteråt, och skälet är värt att minnas: med bara 390 och 768
+ * mättes ingenting på skrivbordsbredd, och toppraden bytte antal poster vid
+ * `lg` (1024) utan att någon mätning såg det. En brytpunkt som inte mäts på
+ * båda sidor är en brytpunkt man tror på.
+ *
+ * Tre bredder räcker eftersom det är vad layouten har lägen för. Fler vore en
+ * gissning om att något händer däremellan.
+ */
 const VYPORTER = [
   { namn: "telefon 390", bredd: 390, hojd: 844, bottenrad: true },
   { namn: "surfplatta 768", bredd: 768, hojd: 1024, bottenrad: false },
+  { namn: "skrivbord 1280", bredd: 1280, hojd: 900, bottenrad: false },
 ];
 
 /**
