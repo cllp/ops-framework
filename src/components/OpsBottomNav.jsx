@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { KryssIkon, MenyIkon } from "./icons.jsx";
+import { KryssIkon, MenyIkon, PlusIkon } from "./icons.jsx";
 import { postAktiv, valideraNav } from "../lib/nav.js";
 
 /**
@@ -20,9 +20,28 @@ import { postAktiv, valideraNav } from "../lib/nav.js";
  * Kontraktet: högst fyra toppdestinationer i raden, `Meny` alltid sist och
  * öppnar resten i en sheet. Ordningen i `nav` är appens beslut, ingen "smart"
  * prioritering.
+ *
+ * ── ⛔ HUVUDÅTGÄRDEN, OCH VARFÖR DEN TAR EN PLATS I RADEN ────────────────
+ *
+ * `primaryAction` är den enda saken man GÖR i stället för går till. Den ritas
+ * som en rund knapp mitt i raden, större än flikarna och i accentfärg, eftersom
+ * den inte är en destination bland andra.
+ *
+ * ⛔ NÄR DEN FINNS RYMS EN DESTINATION MINDRE, och det är ingen besparing att
+ * göra på. Raden är 390 px på en telefon. Fyra flikar plus Meny plus en knapp på
+ * 56 px ger 6 platser, alltså 56 px var med noll luft, och etiketterna blir
+ * avhuggna. Med tre flikar plus Meny blir det 4 textplatser runt knappen, vilket
+ * är exakt vad mönstret på telefoner ser ut som.
+ *
+ * ⛔ Knappen är INTE en länk och hamnar inte i menyn. Den öppnar något i appen,
+ * och en åtgärd som ligger i en destinationslista läses som en sida man kan
+ * navigera tillbaka från.
  */
 
 const MAX_I_RADEN = 4;
+
+/** Med en huvudåtgärd i mitten ryms färre flikar. Mätt, se filhuvudet. */
+const MAX_I_RADEN_MED_ATGARD = 3;
 
 /**
  * @param {object} props
@@ -38,11 +57,13 @@ const MAX_I_RADEN = 4;
  * @param {string} [props.sheetLabel] Rubrik i överflödes-sheeten (annonseras av skärmläsaren).
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten.
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en badge, t.ex. "olästa" eller "att göra". Appen bestämmer vad den räknar.
+ * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
  */
 export function OpsBottomNav({
   nav,
   activeHref,
   onNavigate,
+  primaryAction,
   menuLabel = "Meny",
   navLabel = "Snabbnavigering",
   sheetLabel = "Meny",
@@ -52,7 +73,19 @@ export function OpsBottomNav({
   valideraNav(nav, "OpsBottomNav");
   const [oppen, setOppen] = useState(false);
 
-  const iRaden = nav.slice(0, MAX_I_RADEN);
+  if (primaryAction && (typeof primaryAction.label !== "string" || typeof primaryAction.onClick !== "function")) {
+    throw new Error(
+      "OpsBottomNav: primaryAction måste ha label (sträng) och onClick (funktion). " +
+        "Etiketten är knappens enda namn för den som inte ser den, och en rund knapp utan namn är en knapp ingen kan använda.",
+    );
+  }
+
+  const tak = primaryAction ? MAX_I_RADEN_MED_ATGARD : MAX_I_RADEN;
+  const iRaden = nav.slice(0, tak);
+
+  // Knappen delar raden på mitten. Udda antal flikar ger en extra till vänster,
+  // vilket är rätt håll: den första fliken är den man trycker oftast.
+  const brytpunkt = Math.ceil(iRaden.length / 2);
 
   // ⛔ SHEETEN LISTAR BARA DET SOM INTE REDAN STÅR I BAREN.
   //
@@ -68,7 +101,7 @@ export function OpsBottomNav({
   // ⛔ Undantaget: en post med barn står kvar även om den syns i baren,
   // eftersom barnen bara finns här. Utan det blir undersidorna onåbara på
   // telefon, och det är en trasig app snarare än en repetitiv meny.
-  const iMenyn = nav.filter((post, i) => i >= MAX_I_RADEN || (Array.isArray(post.children) && post.children.length > 0));
+  const iMenyn = nav.filter((post, i) => i >= tak || (Array.isArray(post.children) && post.children.length > 0));
 
   /** @param {string} href @param {any} e */
   const klick = (href, e) => {
@@ -84,7 +117,19 @@ export function OpsBottomNav({
       className="fixed inset-x-0 bottom-0 z-(--z-sticky) border-t border-line bg-surface pb-(--safe-bottom) md:hidden"
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
-        {iRaden.map((post) => (
+        {iRaden.slice(0, brytpunkt).map((post) => (
+          <BottomLank
+            key={post.href}
+            post={post}
+            aktiv={postAktiv(post, activeHref)}
+            onClick={(/** @type {any} */ e) => klick(post.href, e)}
+            badgeText={badgeText}
+          />
+        ))}
+
+        {primaryAction ? <Huvudatgard atgard={primaryAction} /> : null}
+
+        {iRaden.slice(brytpunkt).map((post) => (
           <BottomLank
             key={post.href}
             post={post}
@@ -128,6 +173,39 @@ export function OpsBottomNav({
         </Dialog.Root>
       </div>
     </nav>
+  );
+}
+
+/**
+ * Den runda knappen mitt i raden.
+ *
+ * ⛔ Den STICKER UPP ur raden (`-translate-y-3`) och har en ring i ytans färg.
+ * Utan det blir den en cirkel bland fyra ikoner, alltså en femte flik som råkar
+ * vara rund, och hela poängen med att skilja "gör" från "gå till" försvinner.
+ *
+ * ⛔ Namnet ligger i `aria-label` och som `sr-only`-text, aldrig som synlig
+ * etikett. En knapp på 56 px rymmer inget ord, och ett avhugget ord under den
+ * ser ut som ett fel.
+ *
+ * @param {{ atgard: { label: string, onClick: () => void, icon?: import("react").ReactNode } }} props
+ */
+function Huvudatgard({ atgard }) {
+  return (
+    <div className="flex shrink-0 items-center justify-center px-1">
+      <button
+        type="button"
+        onClick={atgard.onClick}
+        aria-label={atgard.label}
+        className={cx(
+          "-translate-y-3 inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
+          "bg-accent text-accent-contrast ring-4 ring-surface",
+          "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        )}
+      >
+        {atgard.icon ?? <PlusIkon size={26} />}
+      </button>
+    </div>
   );
 }
 
