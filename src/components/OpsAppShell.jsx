@@ -31,7 +31,10 @@ import { postAktiv, valideraNav } from "../lib/nav.js";
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
- * @param {string} [props.navLabel] Skärmläsarnamn på navigeringen.
+ * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
+ * @param {string} [props.bottomNavLabel] Skärmläsarnamn på bottenraden. ⛔ Eget
+ *   namn med flit, INTE samma som `navLabel`: se OpsBottomNav för varför två
+ *   navigeringar med samma namn gör app-tester tvetydiga.
  * @param {import("react").ReactNode} props.children
  */
 export function OpsAppShell({
@@ -42,6 +45,7 @@ export function OpsAppShell({
   actions,
   menuLabel = "Meny",
   navLabel = "Huvudnavigering",
+  bottomNavLabel = "Snabbnavigering",
   children,
 }) {
   valideraNav(nav, "OpsAppShell");
@@ -102,7 +106,7 @@ export function OpsAppShell({
           det upptäcks först när någon inte hittar sin sista rad. */}
       <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">{children}</main>
 
-      <OpsBottomNav nav={nav} activeHref={activeHref} onNavigate={onNavigate} menuLabel={menuLabel} navLabel={navLabel} />
+      <OpsBottomNav nav={nav} activeHref={activeHref} onNavigate={onNavigate} menuLabel={menuLabel} navLabel={bottomNavLabel} />
     </div>
   );
 }

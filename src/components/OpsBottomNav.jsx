@@ -30,7 +30,11 @@ const MAX_I_RADEN = 4;
  * @param {string} props.activeHref
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {string} [props.menuLabel] Text på Meny-platsen.
- * @param {string} [props.navLabel] Skärmläsarnamn på bottenraden.
+ * @param {string} [props.navLabel] Skärmläsarnamn på bottenraden. ⛔ MÅSTE skilja
+ *   sig från toppradens. Båda raderna ligger i DOM:en samtidigt och döljs med
+ *   CSS, så i en riktig webbläsare är bara en i tillgänglighetsträdet, men i ett
+ *   test finns ingen CSS. Delar de namn går de inte att skilja åt, och varje
+ *   `getByRole` i en app som bygger på ramverket får dubbletter.
  * @param {string} [props.sheetLabel] Rubrik i överflödes-sheeten (annonseras av skärmläsaren).
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten.
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en badge, t.ex. "olästa" eller "att göra". Appen bestämmer vad den räknar.
@@ -40,7 +44,7 @@ export function OpsBottomNav({
   activeHref,
   onNavigate,
   menuLabel = "Meny",
-  navLabel = "Huvudnavigering",
+  navLabel = "Snabbnavigering",
   sheetLabel = "Meny",
   closeLabel = "Stäng",
   badgeText = "nya",
