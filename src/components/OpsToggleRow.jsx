@@ -60,8 +60,19 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
         {label}
         {/* ⛔ Ordet, inte bara opaciteten. Skärmläsaren får `aria-pressed`, men
             den som ser skärmen med nedsatt kontrastseende får ingenting av en
-            opacitetsskillnad, och det här kostar ingenting. */}
-        {on ? null : <span className="sr-only">, {offLabel}</span>}
+            opacitetsskillnad, och det här kostar ingenting.
+
+            ⛔ INGET KOMMATECKEN i strängen. Det stod ", {offLabel}" här, och
+            Chromium lade som väntat till ett eget blanksteg mellan textnoderna
+            när namnet räknades fram. Mätt med `ariaSnapshot`:
+
+              button "Fonder , räknas inte 3 000 000 kr"
+
+            Skiljetecknet hamnade alltså löst mitt i namnet. Utan det blir raden
+            "Fonder räknas inte 3 000 000 kr", som är en läsbar mening. Lita inte
+            på att egen interpunktion mellan element hamnar där du tänkte: det är
+            namnberäkningen och inte du som bestämmer avstånden. */}
+        {on ? null : <span className="sr-only">{offLabel}</span>}
       </span>
       {value === undefined || value === null ? null : (
         <span className={cx("shrink-0 tabular-nums text-ink-secondary", on ? null : "line-through")}>{value}</span>

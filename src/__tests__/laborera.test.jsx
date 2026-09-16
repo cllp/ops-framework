@@ -21,6 +21,16 @@ describe("OpsToggleRow", () => {
     expect(screen.getByRole("button", { name: /räknas inte/ })).toBeInTheDocument();
   });
 
+  it("sätter inget löst skiljetecken i namnet", () => {
+    // ⛔ Regression, och den upptäcktes bara av en riktig webbläsare: texten var
+    // ", räknas inte", och Chromium lade till sitt eget blanksteg mellan
+    // textnoderna. Namnet blev "Bostad , räknas inte 1 kr", med kommatecknet
+    // löst mitt i. jsdom räknar fram namnet på ett annat sätt, så det här testet
+    // är ett golv och inte beviset: beviset är `ariaSnapshot` i mätbygget.
+    render(<OpsToggleRow label="Bostad" value="1 kr" on={false} onChange={() => {}} />);
+    expect(screen.getByRole("button").textContent).not.toMatch(/\s,/);
+  });
+
   it("växlar åt båda håll", () => {
     const onChange = vi.fn();
     const { rerender } = render(<OpsToggleRow label="Bostad" on onChange={onChange} />);
