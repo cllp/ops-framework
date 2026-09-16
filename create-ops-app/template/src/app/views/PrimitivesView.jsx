@@ -49,6 +49,21 @@ const AVDELNINGAR = [
   { value: "drift", label: "Drift", disabled: true },
 ];
 
+/**
+ * `summary` är vad som helst, inte bara text. Det är hela poängen med propen:
+ * en rubrik får bära etiketter och ett belopp till höger, vilket är så den
+ * faktiskt används i en riktig vy.
+ */
+const enkelRubrik = <span className="text-base font-semibold text-ink">Mer inställningar</span>;
+
+const rikRubrik = (
+  <div className="flex min-w-0 items-center gap-2">
+    <span className="truncate text-base font-semibold text-ink">Leverantörsavtal</span>
+    <OpsTag label="IT" />
+    <span className="ml-auto shrink-0 text-base tabular-nums text-ink-secondary">{formatCurrency(4788)}</span>
+  </div>
+);
+
 function Ruta({ rubrik, children }) {
   return (
     <section className="mb-8">
@@ -265,10 +280,12 @@ export function PrimitivesView() {
 
       <section className="mb-8">
         <h2 className="mb-3 text-md font-bold text-ink">Fäll ut</h2>
-        <OpsCard>
-          {/* Två stycken efter varandra, eftersom det är så de används: en rad
-              fält som alltid syns, och det ovanliga undanstoppat men nåbart. */}
-          <OpsDisclosure label="Mer inställningar">
+        {/* ⛔ Rubrikerna byggs i variabler ovanför, inte inline. Dels för att
+            `check-closed-api` läser `className` textuellt i en primitivs
+            öppningstagg, dels för att en rubrik med etiketter och ett belopp
+            blir oläslig inklämd i ett attribut. */}
+        <div className="flex flex-col gap-3">
+          <OpsDisclosure summary={enkelRubrik}>
             <div className="flex flex-col gap-3">
               <OpsField label="Kostnadsställe">
                 <OpsSelect options={AVDELNINGAR} value={avdelning} onChange={setAvdelning} />
@@ -276,10 +293,10 @@ export function PrimitivesView() {
               <OpsCheckbox label="Ta med i månadsrapporten" checked={kryss} onChange={setKryss} />
             </div>
           </OpsDisclosure>
-          <OpsDisclosure label="Gäster" badge={3} divider>
+          <OpsDisclosure summary={rikRubrik} badge={3}>
             <p className="m-0 text-base text-ink-secondary">Siffran efter rubriken visas bara när den är över noll.</p>
           </OpsDisclosure>
-        </OpsCard>
+        </div>
       </section>
 
       <Ruta rubrik="Val">

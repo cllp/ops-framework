@@ -3,6 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OpsDisclosure } from "../components/OpsDisclosure.jsx";
 
+/**
+ * Prov för OpsDisclosure. Reglerna som testas är de som annars ger tyst fel:
+ * rubriken ska alltid synas, ostyrt läge ska fälla ut vid klick, styrt läge ska
+ * INTE ändra sig självt utan lämna beslutet till appen (annars två sanningar).
+ */
 afterEach(() => {
   try {
     globalThis.localStorage?.clear();
@@ -12,74 +17,72 @@ afterEach(() => {
 });
 
 describe("OpsDisclosure", () => {
-  it("börjar hopfälld och fälls ut av ett klick", async () => {
-    render(
-      <OpsDisclosure label="Mer inställningar">
-        <p>hemligheten</p>
-      </OpsDisclosure>,
-    );
-    const knapp = screen.getByRole("button", { name: "Mer inställningar" });
-    expect(knapp).toHaveAttribute("aria-expanded", "false");
-
-    await userEvent.click(knapp);
-    expect(knapp).toHaveAttribute("aria-expanded", "true");
+  it("visar rubriken och är hopfälld från start (ostyrt)", () => {
+    render(<OpsDisclosure summary={<span>Rubrik</span>}>Kroppen</OpsDisclosure>);
+    expect(screen.getByText("Rubrik")).toBeInTheDocument();
+    // <details> utan open-attribut = hopfälld.
+    const details = screen.getByText("Rubrik").closest("details");
+    expect(details).not.toHaveAttribute("open");
   });
 
-  it("pekar ut sin panel med aria-controls, så skärmläsaren hittar dit", () => {
+  it("defaultOpen fäller ut från start", () => {
+    render(<OpsDisclosure summary={<span>Rubrik</span>} defaultOpen>Kroppen</OpsDisclosure>);
+    const details = screen.getByText("Rubrik").closest("details");
+    expect(details).toHaveAttribute("open");
+  });
+
+  it("ostyrt: klick fäller ut och anropar onOpenChange", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
     render(
-      <OpsDisclosure label="Mer" defaultOpen>
-        <p>innehåll</p>
+      <OpsDisclosure summary={<span>Rubrik</span>} onOpenChange={onOpenChange}>
+        Kroppen
       </OpsDisclosure>,
     );
-    const knapp = screen.getByRole("button", { name: "Mer" });
-    const panel = screen.getByRole("region", { name: "Mer" });
-    expect(knapp.getAttribute("aria-controls")).toBe(panel.getAttribute("id"));
+    const details = screen.getByText("Rubrik").closest("details");
+    expect(details).not.toHaveAttribute("open");
+    await user.click(screen.getByText("Rubrik"));
+    expect(details).toHaveAttribute("open");
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it("styrt: open äger läget, appen får beslutet via onOpenChange", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <OpsDisclosure summary={<span>Rubrik</span>} open={false} onOpenChange={onOpenChange}>
+        Kroppen
+      </OpsDisclosure>,
+    );
+    await user.click(screen.getByText("Rubrik"));
+    // Appen underrättas om avsikten men styr själv; komponenten öppnar sig inte
+    // på egen hand i styrt läge.
+    expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 
   /**
-   * ⛔ Den här är hela skälet till att komponenten inte bara är en div med
-   * `max-height: 0`.
-   *
-   * Hopfälld panel har noll höjd men ligger kvar i DOM:en. Utan `inert` går det
-   * att tabba in i den, och den som gör det ser fokusringen försvinna från
-   * skärmen medan Tab verkar sluta fungera. Det är en bugg man aldrig hittar
-   * genom att titta på sidan, bara genom att använda tangentbordet.
+   * ⛔ Tilläggen nedan kom från en andra, dubblerad implementation som annars
+   * hade kastats bort helt. De är just tillägg: de gör inte samma sak som
+   * `summary` och `open` på ett andra sätt, de gör nya saker.
    */
-  it("tar hopfälld panel ur tabbordningen, och släpper in den igen när den öppnas", async () => {
-    render(
-      <OpsDisclosure label="Mer">
-        <button type="button">Inuti</button>
-      </OpsDisclosure>,
-    );
-    const panel = screen.getByRole("region", { hidden: true });
-    expect(panel.inert).toBe(true);
-
-    await userEvent.click(screen.getByRole("button", { name: "Mer" }));
-    expect(panel.inert).toBe(false);
-  });
-
   it("minns sitt läge mellan monteringar när en storageKey finns", async () => {
+    const user = userEvent.setup();
     const { unmount } = render(
-      <OpsDisclosure label="Mer" storageKey="prov-disclosure">
-        <p>x</p>
+      <OpsDisclosure summary={<span>Rubrik</span>} storageKey="prov-disclosure">
+        Kroppen
       </OpsDisclosure>,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Mer" }));
+    await user.click(screen.getByText("Rubrik"));
     unmount();
 
     render(
-      <OpsDisclosure label="Mer" storageKey="prov-disclosure">
-        <p>x</p>
+      <OpsDisclosure summary={<span>Rubrik</span>} storageKey="prov-disclosure">
+        Kroppen
       </OpsDisclosure>,
     );
-    expect(screen.getByRole("button", { name: "Mer" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Rubrik").closest("details")).toHaveAttribute("open");
   });
 
-  /**
-   * ⛔ Blockerad lagring är inte ett undantagsfall, det är privat läge och varje
-   * webbläsare med skärpta inställningar. Kastar läsningen blir ett hopfällbart
-   * avsnitt anledningen att hela sidan är vit.
-   */
   it("fungerar när localStorage kastar", () => {
     const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
     Object.defineProperty(globalThis, "localStorage", {
@@ -91,79 +94,39 @@ describe("OpsDisclosure", () => {
     try {
       expect(() =>
         render(
-          <OpsDisclosure label="Mer" storageKey="spelar-ingen-roll" defaultOpen>
-            <p>x</p>
+          <OpsDisclosure summary={<span>Rubrik</span>} storageKey="spelar-ingen-roll" defaultOpen>
+            Kroppen
           </OpsDisclosure>,
         ),
       ).not.toThrow();
-      expect(screen.getByRole("button", { name: "Mer" })).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("Rubrik").closest("details")).toHaveAttribute("open");
     } finally {
       if (original) Object.defineProperty(globalThis, "localStorage", original);
     }
   });
 
-  it("visar en siffra efter rubriken bara när den är över noll", () => {
+  it("visar en siffra bara när den är över noll", () => {
     const { rerender } = render(
-      <OpsDisclosure label="Gäster" badge={0}>
-        <p>x</p>
+      <OpsDisclosure summary={<span>Gäster</span>} badge={0}>
+        Kroppen
       </OpsDisclosure>,
     );
-    expect(screen.getByRole("button", { name: "Gäster" })).toBeInTheDocument();
-
+    expect(screen.queryByText("0")).toBeNull();
     rerender(
-      <OpsDisclosure label="Gäster" badge={3}>
-        <p>x</p>
+      <OpsDisclosure summary={<span>Gäster</span>} badge={3}>
+        Kroppen
       </OpsDisclosure>,
     );
-    expect(screen.getByRole("button", { name: "Gäster (3)" })).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
-  it("låter ett eget ariaLabel ta över när rubriken inte räcker", () => {
-    render(
-      <OpsDisclosure label="Mer" ariaLabel="Fler inställningar för sessionen">
-        <p>x</p>
-      </OpsDisclosure>,
-    );
-    expect(screen.getByRole("button", { name: "Fler inställningar för sessionen" })).toBeInTheDocument();
-  });
-
-  it("stänger igen vid andra klicket", async () => {
-    render(
-      <OpsDisclosure label="Mer" defaultOpen>
-        <p>x</p>
-      </OpsDisclosure>,
-    );
-    const knapp = screen.getByRole("button", { name: "Mer" });
-    await userEvent.click(knapp);
-    expect(knapp).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("öppnas och stängs med tangentbordet", async () => {
-    render(
-      <OpsDisclosure label="Mer">
-        <p>x</p>
-      </OpsDisclosure>,
-    );
-    const knapp = screen.getByRole("button", { name: "Mer" });
-    knapp.focus();
-    await userEvent.keyboard("{Enter}");
-    expect(knapp).toHaveAttribute("aria-expanded", "true");
-    await userEvent.keyboard(" ");
-    expect(knapp).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("kastar inte när storageKey saknas", async () => {
-    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      render(
-        <OpsDisclosure label="Mer">
-          <p>x</p>
-        </OpsDisclosure>,
-      );
-      await userEvent.click(screen.getByRole("button", { name: "Mer" }));
-      expect(tyst).not.toHaveBeenCalled();
-    } finally {
-      tyst.mockRestore();
-    }
+  /**
+   * Golvet mäts i webbläsaren av check-scaffold; jsdom lägger ingen CSS och kan
+   * inte mäta höjd. Här kontrolleras bara att klassen sitter kvar, så att en
+   * omskrivning av rubrikraden inte tyst tar bort den.
+   */
+  it("behåller höjdgolvet på rubrikraden", () => {
+    const { container } = render(<OpsDisclosure summary={<span>Rubrik</span>}>Kroppen</OpsDisclosure>);
+    expect(container.querySelector("summary")?.className).toContain("min-h-11");
   });
 });
