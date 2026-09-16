@@ -406,6 +406,63 @@ kravRott(
   );
 }
 
+// ── Diagramfärgvakten ───────────────────────────────────────────────────────
+// ⛔ Den enda vakten i repot vars regel inte går att bedöma med ögat. En palett
+// kan se utmärkt ut och ändå ha två serier som är identiska för var tjugonde
+// man, så beviset för att den biter är särskilt viktigt: kan den inte bli röd
+// är den bara ett påstående om att färgerna är mätta.
+{
+  const diagramvakt = "scripts/check-diagramfarger.mjs";
+
+  kravRott(
+    "diagramfärger: två serier som ingen kan skilja åt",
+    [
+      diagramvakt,
+      // Slot 2 sätts nästan lika slot 1. Det är exakt felet identitetstonerna
+      // hade: två grannar under normalseendets golv.
+      tokenkopia("df1", (s) => s.replace("--color-series-2: #eb6834;", "--color-series-2: #2f7cd8;")),
+    ],
+    "serier, ljust läge",
+  );
+
+  kravRott(
+    "diagramfärger: en serie som läses som grått",
+    [
+      diagramvakt,
+      tokenkopia("df2", (s) => s.replace("--color-series-3: #1baf7a;", "--color-series-3: #8a8a88;")),
+    ],
+    "serier, ljust läge",
+  );
+
+  kravRott(
+    "diagramfärger: skalan är ingen enda nyans",
+    [
+      diagramvakt,
+      // En regnbåge i stället för en nyans som mörknar. Den har ingen ordning,
+      // så läsaren måste slå upp legenden för varje steg.
+      tokenkopia("df3", (s) => s.replace("--color-scale-2: #3987e5;", "--color-scale-2: #1baf7a;")),
+    ],
+    "skala, ljust läge",
+  );
+
+  kravRott(
+    "diagramfärger: mörka läget mäts mot mörk yta, inte mot vitt",
+    [
+      diagramvakt,
+      // Ett mörkt steg som är för mörkt mot #16161c. Klarar sig mot vitt, alltså
+      // fångas det bara av att båda lägena mäts var för sig.
+      tokenkopia("df4", (s) => s.replace("--dark-series-1: #3987e5;", "--dark-series-1: #123a66;")),
+    ],
+    "serier, mörkt läge",
+  );
+
+  kravRott(
+    "diagramfärger golv: inga tokens alls",
+    [diagramvakt, tokenkopia("df5", (s) => s.replace(/--(color|dark)-series-\d+: #[0-9a-f]{6};\n/g, ""))],
+    "Hittade bara",
+  );
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");

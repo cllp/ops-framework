@@ -33,6 +33,8 @@ export { OpsList, OpsListRow } from "./components/OpsList.jsx";
 export { OpsEventList } from "./components/OpsEventList.jsx";
 export { OpsBreakdown } from "./components/OpsBreakdown.jsx";
 export { OpsAttributes } from "./components/OpsAttributes.jsx";
+export { OpsShareChart } from "./components/OpsShareChart.jsx";
+export { OpsRankChart } from "./components/OpsRankChart.jsx";
 export { OpsTable } from "./components/OpsTable.jsx";
 export { OpsStat } from "./components/OpsStat.jsx";
 export { OpsEmpty } from "./components/OpsEmpty.jsx";
