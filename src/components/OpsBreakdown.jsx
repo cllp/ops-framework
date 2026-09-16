@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
+import { OpsToggleRow } from "./OpsToggleRow.jsx";
 
 /**
  * En summa uppdelad i grupper som går att fälla ut och tona ned.
@@ -90,14 +91,14 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
       </div>
       {total.hint ? <p className="mt-1 mb-0 text-sm text-ink-muted">{total.hint}</p> : null}
 
-      <ul className="m-0 mt-1 flex list-none flex-col p-0">
+      <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
         {groups.map((g) => {
           const oppen = oppna.indexOf(g.id) >= 0;
           const panelId = `${idBas}-${g.id}`;
           const harPoster = Boolean(g.poster && g.poster.length);
 
           return (
-            <li key={g.id} className="border-b border-line last:border-b-0">
+            <li key={g.id}>
               <div className="flex items-stretch gap-1">
                 {harPoster ? (
                   <button
@@ -127,33 +128,36 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
                   <span aria-hidden="true" className="w-11 shrink-0" />
                 )}
 
-                <button
-                  type="button"
-                  aria-pressed={g.on}
-                  onClick={() => onToggle(g.id, !g.on)}
-                  className={cx(
-                    "flex min-h-11 flex-1 cursor-pointer items-center justify-between gap-3 rounded-md px-2 text-left",
-                    "transition-opacity duration-(--duration-fast) ease-standard",
-                    "hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    g.on ? "opacity-100" : "opacity-45",
-                  )}
-                >
-                  <span className="min-w-0 flex-1 truncate text-ink">
-                    {g.label}
-                    {typeof g.count === "number" ? <span className="ml-2 text-sm text-ink-muted tabular-nums">{g.count}</span> : null}
-                    {g.on ? null : <span className="sr-only">{offLabel}</span>}
-                  </span>
-                  {g.value === undefined || g.value === null ? null : (
-                    <span className={cx("shrink-0 tabular-nums text-ink-secondary", g.on ? null : "line-through")}>{g.value}</span>
-                  )}
-                </button>
+                {/* ⛔ SAMMA KOMPONENT som en rad i en summeringslista, inte en
+                    kopia av den. Här låg tidigare en egen `<button>` med egen
+                    styling, och två uppsättningar klassnamn för samma gest är
+                    precis den drift ramverket finns för att stoppa: den dagen
+                    utseendet ändrades skulle bara den ena följa med.
+
+                    Chevronen står UTANFÖR knappen och inte i den. En `<button>`
+                    inuti en `<button>` är ogiltig HTML som webbläsaren river
+                    isär, så de måste vara syskon. */}
+                <div className="min-w-0 flex-1">
+                  <OpsToggleRow
+                    label={
+                      <>
+                        {g.label}
+                        {typeof g.count === "number" ? <span className="ml-2 text-sm font-normal tabular-nums text-ink-muted">{g.count}</span> : null}
+                      </>
+                    }
+                    value={g.value}
+                    on={g.on}
+                    onChange={(pa) => onToggle(g.id, pa)}
+                    offLabel={offLabel}
+                  />
+                </div>
               </div>
 
-              {g.note ? <p className="mt-0 mb-2 pl-12 text-sm text-ink-muted">{g.note}</p> : null}
+              {g.note ? <p className="mt-1 mb-0 pl-12 text-sm text-ink-muted">{g.note}</p> : null}
 
               {harPoster ? (
                 <div id={panelId} hidden={!oppen}>
-                  <ul className="m-0 mb-2 flex list-none flex-col gap-1 p-0 pl-12">
+                  <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0 pl-12">
                     {(g.poster ?? []).map((p) => (
                       <li key={p.id} className="flex items-baseline justify-between gap-3">
                         <span className="min-w-0 text-sm text-ink-secondary">
