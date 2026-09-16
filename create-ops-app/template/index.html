@@ -5,6 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>__APP_NAME__</title>
     <!--
+      Typsnittet. ⛔ TA INTE BORT, och flytta det inte till CSS. Det LÅG en gång
+      som `@import` i ramverkets `tokens/tokens.css` och hämtade då ingenting
+      alls: en CSS-import som inte står allra först ignoreras av webbläsaren, och
+      appens stilrot börjar med `@import "tailwindcss"`. Sidan renderades i
+      systemets typsnitt, och såg nästan rätt ut. Hela historien står i tokenfilen.
+
+      `preconnect` mot två värdnamn, för stilmallen och för fontfilerna ligger på
+      olika. `crossorigin` på den andra är inte dekoration: fontfiler hämtas
+      anonymt, och utan attributet öppnas anslutningen en andra gång.
+
+      Vikterna är fyra: 400/500/600/700 är vad komponenterna ritar.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
+    <!--
       Temat sätts INNAN React monterar. Görs det i en useEffect hinner sidan
       rendera ljust i en bildruta först, och den blinkningen syns tydligt på en
       telefon i mörkt rum. Skriptet är avsiktligt litet nog att läsas i sin

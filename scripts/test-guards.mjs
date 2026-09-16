@@ -358,6 +358,54 @@ kravRott(
   "genererades trots att tokenkontraktet nollar",
 );
 
+// ── Typsnittsvakten ────────────────────────────────────────────────────────
+// ⛔ Bevakar ett fel vi HADE, inte ett vi föreställer oss: Inter hämtades med
+// `@import` i tokenfilen, raden ignorerades av webbläsaren eftersom den inte
+// stod först, och sidan ritades i systemets typsnitt. Bredvid stod en utförlig
+// kommentar som förklarade varför lösningen var den rätta.
+{
+  const typsnittsvakt = "scripts/check-typsnitt.mjs";
+  const mallsokvag = "create-ops-app/template/index.html";
+
+  kravRott(
+    "typsnitt 1: @import tillbaka i tokenfilen",
+    [
+      typsnittsvakt,
+      tokenkopia("ty1", (s) => `@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap");\n${s}`),
+      mallsokvag,
+    ],
+    "ignoreras av webbläsaren",
+  );
+
+  /** @param {string} namn @param {(s: string) => string} mutera @returns {string} */
+  const mallkopia = (namn, mutera) => {
+    const forlaga = fs.readFileSync(path.join(rot, mallsokvag), "utf8");
+    const muterat = mutera(forlaga);
+    if (muterat === forlaga) {
+      throw new Error(`test-guards: mallmutationen "${namn}" ändrade ingenting. Då provar den inget, den bara ser ut att göra det.`);
+    }
+    const fil = path.join(arbetsmapp, `${namn}.html`);
+    fs.writeFileSync(fil, muterat);
+    return fil;
+  };
+
+  kravRott(
+    "typsnitt 2: mallen slutar hämta Inter",
+    [typsnittsvakt, "tokens/tokens.css", mallkopia("ty2", (s) => s.replace(/<link\s+rel="stylesheet"[\s\S]*?\/>/, ""))],
+    'saknar <link rel="stylesheet"> för Inter',
+  );
+
+  kravRott(
+    "typsnitt 3: preconnect utan crossorigin",
+    [
+      typsnittsvakt,
+      "tokens/tokens.css",
+      mallkopia("ty3", (s) => s.replace('href="https://fonts.gstatic.com" crossorigin', 'href="https://fonts.gstatic.com"')),
+    ],
+    "utan crossorigin",
+  );
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");

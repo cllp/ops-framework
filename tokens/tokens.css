@@ -17,18 +17,36 @@
  * via namn och en namnreferens inte räknas som användning.
  */
 
-/* ⛔ Typsnittet hämtas här, inte av varje app.
+/* ⛔ HÄR LÅG EN `@import url(...)` FÖR INTER. DEN HÄMTADE INGENTING.
  *
- * SessionStudio gör samma import överst i sin `index.css`. Låg den i appen i
- * stället skulle varje ny plattform behöva minnas den, och den som glömmer får
- * inte ett fel utan en sida som ser nästan rätt ut i systemets typsnitt. Ett
- * "nästan" som ingen kan peka på är precis den sortens glidning kontraktet
- * finns för att stoppa.
+ * Kommentaren som stod här argumenterade för att typsnittet ska hämtas av
+ * ramverket och inte av varje app, så att ingen plattform kan glömma det.
+ * Argumentet håller. Mekanismen gjorde det inte, och det är mätt och inte tyckt:
+ * bygget i bolag-ops sade
  *
- * ⛔ Vikterna är fyra och inte alla nio: 400/500/600/700 är vad komponenterna
- * faktiskt använder. Varje extra vikt är en nedladdning till för något ingen
- * ritar. */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+ *   @import rules must precede all rules aside from @charset and @layer
+ *
+ * och en CSS-`@import` som inte står först IGNORERAS av webbläsaren. Appens
+ * stilrot börjar med `@import "tailwindcss"`, alltså låg tusentals rader före den
+ * här filen när allt plattats ut. Sidan hade renderats i systemets typsnitt hela
+ * tiden.
+ *
+ * ⛔ Det är exakt felet raden påstod att den skyddade mot: "en sida som ser
+ * nästan rätt ut i systemets typsnitt". Skillnaden är att ingen kunde peka på
+ * den, eftersom en självsäker kommentar stod bredvid och sade att det var löst.
+ *
+ * Lägg den inte tillbaka. Ordningen går inte att kasta om: `tailwindcss` MÅSTE
+ * stå före `@theme static` nedan, annars läggs Tailwinds egna paletter tillbaka
+ * efter vår `--color-*: initial`.
+ *
+ * ⛔ Typsnittet laddas i stället med `<link>` i appens `index.html`. Ett `<link>`
+ * i `<head>` är dessutom snabbare än en CSS-import, som måste vänta på att
+ * stilmallen hämtats och parsats innan fontanropet ens börjar.
+ * `create-ops-app`-mallen bär raderna, så en ny plattform får dem utan att minnas
+ * något, och `OpsAppShell` säger till i utvecklingsläge om de saknas.
+ *
+ * Vikterna är fyra och inte alla nio: 400/500/600/700 är vad komponenterna
+ * faktiskt använder. Varje extra vikt är en nedladdning för något ingen ritar. */
 
 @theme static {
   /* ─────────────────────────────────────────────────────────────────────────

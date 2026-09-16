@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { Check, ChevronDown, Menu, Monitor, Moon, Sun, X } from "lucide-react";
+import { Check, ChevronDown, Maximize2, Menu, Minimize2, Monitor, Moon, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function ChevronNedIkon({ size = 16 }) {
@@ -62,4 +62,17 @@ export function ManeIkon({ size = 18 }) {
 /** Följ systemet: en skärm, alltså "vad enheten säger". @param {{ size?: number }} props */
 export function SkarmIkon({ size = 18 }) {
   return <Monitor size={size} aria-hidden="true" />;
+}
+
+/**
+ * ⛔ Samma två ikoner som SessionStudio använder för helskärm, avläst ur dess
+ * `AppHeader`. Paritet betyder att samma sak ser likadan ut, och en egen
+ * expandera-pil hade varit ett tredje formspråk för en knapp som redan har ett.
+ */
+export function HelskarmIkon({ size = 20 }) {
+  return <Maximize2 size={size} aria-hidden="true" />;
+}
+
+export function HelskarmAvIkon({ size = 20 }) {
+  return <Minimize2 size={size} aria-hidden="true" />;
 }

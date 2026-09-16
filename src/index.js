@@ -26,6 +26,7 @@ export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
 export { OpsSelect } from "./components/OpsSelect.jsx";
 export { OpsDatePicker } from "./components/OpsDatePicker.jsx";
 export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
+export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
@@ -45,10 +46,12 @@ export { OpsFact } from "./components/OpsFact.jsx";
 // ── Navigering och meddelanden ─────────────────────────────────────────────
 export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
 export { OpsSegmented } from "./components/OpsSegmented.jsx";
+export { OpsFilterChip } from "./components/OpsFilterChip.jsx";
 export { OpsBanner } from "./components/OpsBanner.jsx";
 export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";
 export { OpsThemeToggle } from "./components/OpsThemeToggle.jsx";
+export { OpsFullscreenToggle } from "./components/OpsFullscreenToggle.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
 export { skapaDatakalla, tillampaFraga, OPERATIONER } from "./data/kontrakt.js";
