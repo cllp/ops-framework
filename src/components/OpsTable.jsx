@@ -60,7 +60,7 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
         <caption className={cx("text-left text-sm text-ink-muted", hideCaption ? "sr-only" : "pb-2")}>{caption}</caption>
         <thead>
           <tr className="border-b border-line">
-            {columns.map((k) => (
+            {columns.map((k, i) => (
               <th
                 key={k.key}
                 scope="col"
@@ -68,6 +68,11 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
                   "px-3 py-2 text-sm font-semibold text-ink-secondary",
                   k.numeric ? "text-right" : "text-left",
                   k.tight && "w-px whitespace-nowrap",
+                  // ⛔ Första kolumnen låses vid vänsterkanten så radrubriken syns
+                  // medan beloppskolumnerna scrollar förbi. Bakgrund krävs, annars
+                  // lyser innehållet under igenom. bg-raised: tabellen bor på ett
+                  // OpsCard (raised).
+                  i === 0 && "sticky left-0 z-(--z-sticky) bg-raised",
                   stickyHeader && "sticky top-0 z-(--z-sticky) bg-raised",
                 )}
               >
@@ -79,13 +84,14 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
         <tbody>
           {(rows ?? []).map((rad) => (
             <tr key={rad.id} className="border-b border-divider last:border-b-0">
-              {columns.map((k) => (
+              {columns.map((k, i) => (
                 <td
                   key={k.key}
                   className={cx(
                     "px-3 py-2 align-top text-ink",
                     k.numeric ? "text-right tabular-nums" : "text-left",
                     k.tight && "whitespace-nowrap",
+                    i === 0 && "sticky left-0 z-(--z-sticky) bg-raised",
                   )}
                 >
                   {rad[k.key]}

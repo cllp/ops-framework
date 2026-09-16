@@ -148,7 +148,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**33 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**34 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -198,7 +198,8 @@ något godtyckligt.
 
 | Komponent | Props |
 |---|---|
-| `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label}], `activeHref`, `onNavigate`, `actions`, `menuLabel`, `navLabel`, `children` |
+| `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label, icon?, badge?, children?}], `activeHref`, `onNavigate`, `actions`, `menuLabel`, `navLabel`, `children` |
+| `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `activeHref`, `onNavigate`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. Renderas av `OpsAppShell` men kan användas fristående |
 | `OpsBrand` | `title` (krävs), `subtitle`, `mark` phst \| phst-estd \| none |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsTabPanel` | `id`, `children` |
@@ -228,6 +229,7 @@ något godtyckligt.
 | `OpsIdentity` | initialer som inte klipper mitt i ett tecken |
 | `OpsBanner` | `role="alert"` bara för det som ska avbryta |
 | `OpsTabs` | piltangenter, Home, End och koppling flik till panel |
+| `OpsBottomNav` | fast bottenrad utan att sidan hoppar, säker yta i botten, Meny-sheet med fokusfälla och ur DOM när stängd |
 
 ### Datalager
 

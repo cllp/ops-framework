@@ -1,7 +1,7 @@
-import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { KryssIkon } from "./icons.jsx";
 import { OpsBrand } from "./OpsBrand.jsx";
+import { OpsBottomNav } from "./OpsBottomNav.jsx";
+import { postAktiv, valideraNav } from "../lib/nav.js";
 
 /**
  * Appskalet: varumärke, navigering och ett utrymme för konto och tema.
@@ -13,20 +13,24 @@ import { OpsBrand } from "./OpsBrand.jsx";
  * `<a href>` och tar emot ett valfritt `onNavigate`. Appen skickar in en
  * hanterare som anropar sin router och stoppar webbläsarens omladdning.
  *
- * Vinsten är dubbel: utan JavaScript, i en ny flik, eller vid högerklick och
- * "öppna i nytt fönster" fungerar länkarna ändå, eftersom de är riktiga länkar.
- * En nav byggd av `<div onClick>` tappar allt det, och ingen märker det förrän
- * någon försöker dela en länk till en sida.
+ * ⛔ Skalet vet aldrig vilka destinationer en plattform har. Listan kommer in
+ * som `nav`-data. Dyker ett plattformsspecifikt ord upp här är något fel.
+ *
+ * Navigering i två lägen, en sanning:
+ *   - Bred skärm (md+): länkarna i toppraden.
+ *   - Smal skärm (under md): `OpsBottomNav`, en fast bottenrad med en Meny-sheet
+ *     för överflödet. Den gamla push-menyn i headern finns inte längre — två
+ *     mobila menyer parallellt är två sanningar.
  */
 
 /**
  * @param {object} props
  * @param {import("react").ReactNode} props.brand Appens namn som sträng, eller en egen `OpsBrand`. Länkar till startsidan.
- * @param {{ href: string, label: string }[]} props.nav
+ * @param {import("../lib/nav.js").NavPost[]} props.nav Toppdestinationer. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg.
  * @param {string} props.activeHref Vilken sida som visas nu.
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
- * @param {string} [props.menuLabel] Skärmläsarnamn på menyknappen i smalt läge.
+ * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på navigeringen.
  * @param {import("react").ReactNode} props.children
  */
@@ -40,23 +44,15 @@ export function OpsAppShell({
   navLabel = "Huvudnavigering",
   children,
 }) {
-  const [oppen, setOppen] = useState(false);
-  const menyId = useId();
+  valideraNav(nav, "OpsAppShell");
 
   // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
   // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
   // får man PH.ST-märket och namnet, utan att behöva veta att `OpsBrand` finns.
-  // Hade strängen renderats rå hade varje app fått en egen tolkning av hur en
-  // topprad ser ut, och då är vi tillbaka i tre plattformar med tre utseenden.
   const varumarke = typeof brand === "string" ? <OpsBrand title={brand} /> : brand;
-
-  if (!Array.isArray(nav)) {
-    throw new Error("OpsAppShell: nav krävs och måste vara en lista av { href, label }.");
-  }
 
   /** @param {string} href @param {any} e */
   const klick = (href, e) => {
-    setOppen(false);
     if (onNavigate) onNavigate(href, e);
   };
 
@@ -82,72 +78,31 @@ export function OpsAppShell({
             {varumarke}
           </a>
 
-          {/* Bred skärm: länkarna i raden. Smal: knappen nedan. */}
+          {/* Bred skärm: länkarna i raden. Smal: bottenraden nedan. */}
           <nav aria-label={navLabel} className="hidden min-w-0 flex-1 items-center gap-1 md:flex">
             {nav.map((s) => (
               <a
                 key={s.href}
                 href={s.href}
                 onClick={(e) => klick(s.href, e)}
-                aria-current={s.href === activeHref ? "page" : undefined}
-                className={lankKlass(s.href === activeHref)}
+                aria-current={postAktiv(s, activeHref) ? "page" : undefined}
+                className={lankKlass(postAktiv(s, activeHref))}
               >
                 {s.label}
               </a>
             ))}
           </nav>
 
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {actions}
-            <button
-              type="button"
-              onClick={() => setOppen((v) => !v)}
-              aria-label={menyLabelText(menuLabel, oppen)}
-              aria-expanded={oppen}
-              aria-controls={menyId}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
-            >
-              {oppen ? <KryssIkon size={20} /> : <HamburgerIkon />}
-            </button>
-          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>
         </div>
-
-        {/* ⛔ Menyn tas UR DOM:en när den är stängd, i stället för att döljas med
-            CSS. En dold meny som ligger kvar fångar tabb-fokus, och användaren
-            hamnar då i en osynlig lista utan att förstå var fokus tog vägen. */}
-        {oppen ? (
-          <nav id={menyId} aria-label={navLabel} className="flex flex-col gap-1 border-t border-line px-4 py-2 md:hidden">
-            {nav.map((s) => (
-              <a
-                key={s.href}
-                href={s.href}
-                onClick={(e) => klick(s.href, e)}
-                aria-current={s.href === activeHref ? "page" : undefined}
-                className={lankKlass(s.href === activeHref)}
-              >
-                {s.label}
-              </a>
-            ))}
-          </nav>
-        ) : null}
       </header>
 
-      <main>{children}</main>
+      {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
+          under md där baren finns. Utan den ligger sista kortet under baren, och
+          det upptäcks först när någon inte hittar sin sista rad. */}
+      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">{children}</main>
+
+      <OpsBottomNav nav={nav} activeHref={activeHref} onNavigate={onNavigate} menuLabel={menuLabel} navLabel={navLabel} />
     </div>
-  );
-}
-
-/** @param {string} bas @param {boolean} oppen @returns {string} */
-function menyLabelText(bas, oppen) {
-  return oppen ? `${bas}, stäng` : `${bas}, öppna`;
-}
-
-function HamburgerIkon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h16" />
-    </svg>
   );
 }

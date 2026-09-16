@@ -73,9 +73,10 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
             </Toast.Close>
           </Toast.Root>
         ))}
-        {/* Botteninset räknar in säker yta. Utan det hamnar toasten under
-            hemknappsstapeln på en telefon, alltså delvis osynlig. */}
-        <Toast.Viewport className="fixed bottom-(--safe-bottom) right-0 z-(--z-toast) flex w-full max-w-sm flex-col gap-2 p-4" />
+        {/* Botteninset räknar in säker yta OCH bottenradens höjd under md, annars
+            hamnar toasten bakom/under bottennavigeringen på en telefon. På
+            desktop finns ingen bottenrad, så då räcker den säkra ytan. */}
+        <Toast.Viewport className="fixed bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] right-0 z-(--z-toast) flex w-full max-w-sm flex-col gap-2 p-4 md:bottom-(--safe-bottom)" />
       </Toast.Provider>
     </ToastContext.Provider>
   );

@@ -70,7 +70,7 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
         aria-invalid={f.ogiltigt || undefined}
         aria-describedby={f.beskrivsAv}
         className={cx(
-          "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11 text-base",
+          "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11 text-md md:text-base",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           "disabled:opacity-55 disabled:cursor-not-allowed",
           f.ogiltigt ? "border-danger" : "border-line",
@@ -84,7 +84,7 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
       <Popover.Portal>
         <Popover.Content
           sideOffset={4}
-          className="z-(--z-dropdown) rounded-md border border-line bg-raised p-3 shadow-md"
+          className="z-(--z-dropdown) max-w-[calc(100vw---spacing(6))] rounded-md border border-line bg-raised p-3 shadow-md"
         >
           <DayPicker
             mode="single"
@@ -101,12 +101,13 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
               months: "text-base text-ink",
               month_caption: "flex items-center justify-center py-1 text-base font-semibold text-ink",
               nav: "flex items-center justify-between",
-              button_previous: "inline-flex size-8 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
-              button_next: "inline-flex size-8 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
+              // 44px träffyta på telefon (size-11), tätare på desktop (md:size-9).
+              button_previous: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
+              button_next: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
               weekday: "text-xs font-semibold text-ink-muted",
               day: "p-0",
               day_button:
-                "inline-flex size-9 items-center justify-center rounded-md text-base text-ink hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-base text-ink hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
               selected: "[&_button]:bg-accent [&_button]:text-accent-contrast",
               today: "[&_button]:font-bold [&_button]:text-accent",
               outside: "[&_button]:text-ink-muted",
