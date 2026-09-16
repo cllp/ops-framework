@@ -147,6 +147,7 @@ export async function matVyport({ dist, rutter }) {
   /** @type {string[]} */
   const brott = [];
   let matningar = 0;
+  let sidorUtanNav = 0;
 
   try {
     for (const vy of VYPORTER) {
@@ -218,6 +219,7 @@ export async function matVyport({ dist, rutter }) {
 
         // 2. Rätt navigering syns för rätt bredd.
         const synliga = matt.navs.filter((n) => n.synlig).map((n) => n.namn);
+        if (synliga.length === 0) sidorUtanNav += 1;
         if (synliga.length !== 1) {
           brott.push(
             `${var_}: ${synliga.length} navigeringar är synliga samtidigt (${synliga.join(", ") || "ingen"}). ` +
@@ -243,6 +245,29 @@ export async function matVyport({ dist, rutter }) {
   } finally {
     await browser.close();
     server.close();
+  }
+
+  // ── ⛔ Golv: mätte vi ens appen? ─────────────────────────────────────────
+  //
+  // Saknar VARENDA sida navigering är slutsatsen nästan aldrig att navigeringen
+  // är trasig. Den är att vi tittar på något annat: en inloggningsskärm, en
+  // felsida, eller en dist-mapp från ett gammalt bygge.
+  //
+  // Utan det här golvet rapporterades det som ett fynd PER sida och bredd. Mätt
+  // på bolag-ops gav det 18 rader som alla sade samma sak och ingen av dem det
+  // som var sant, alltså att appen ligger bakom en inloggning. En vakt som
+  // svarar med brus på fel fråga blir avstängd, och då skyddar den ingenting.
+  const alla = VYPORTER.length * rutter.length;
+  if (matningar > 0 && sidorUtanNav === alla) {
+    return {
+      brott: [
+        `Ingen av de ${alla} mätningarna hittade någon navigering. Det betyder nästan säkert att mätningen inte ser appen: ` +
+          "en inloggningsskärm, en felsida, eller en dist-mapp från ett annat bygge. Kontrollera att sökvägen stämmer och " +
+          "att sidorna går att nå utan att logga in innan du tolkar något annat resultat.",
+      ],
+      matningar,
+      varifran,
+    };
   }
 
   return { brott, matningar, varifran };
