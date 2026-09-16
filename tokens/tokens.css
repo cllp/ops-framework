@@ -17,6 +17,19 @@
  * via namn och en namnreferens inte räknas som användning.
  */
 
+/* ⛔ Typsnittet hämtas här, inte av varje app.
+ *
+ * SessionStudio gör samma import överst i sin `index.css`. Låg den i appen i
+ * stället skulle varje ny plattform behöva minnas den, och den som glömmer får
+ * inte ett fel utan en sida som ser nästan rätt ut i systemets typsnitt. Ett
+ * "nästan" som ingen kan peka på är precis den sortens glidning kontraktet
+ * finns för att stoppa.
+ *
+ * ⛔ Vikterna är fyra och inte alla nio: 400/500/600/700 är vad komponenterna
+ * faktiskt använder. Varje extra vikt är en nedladdning till för något ingen
+ * ritar. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
 @theme static {
   /* ─────────────────────────────────────────────────────────────────────────
    * Vi nollar Tailwinds egna paletter innan våra egna sätts.
@@ -40,35 +53,42 @@
    * token som hetat `--color-bg-primary` hade gett `bg-bg-primary`, och en
    * liten skavank som skrivs tusen gånger är inte längre liten.
    * ──────────────────────────────────────────────────────────────────────── */
-  --color-canvas: #ffffff;
-  --color-surface: #f7f7f6;
+  --color-canvas: #f8f7f4;
+  --color-surface: #ffffff;
   --color-raised: #ffffff;
-  --color-sunken: #efeeec;
-  --color-scrim: rgba(20, 20, 19, 0.45);
+  --color-sunken: #f0ede8;
+  --color-scrim: rgba(26, 26, 26, 0.45);
 
   /* ─── Text ───────────────────────────────────────────────────────────────
    * Fyra nivåer räcker. En femte blir alltid "ungefär som muted", och sedan
    * kan ingen förklara vilken som gäller när.
    * ──────────────────────────────────────────────────────────────────────── */
-  --color-ink: #1a1a19;
-  --color-ink-secondary: #55534e;
-  --color-ink-muted: #86837c;
+  --color-ink: #1a1a1a;
+  --color-ink-secondary: #4a4540;
+  --color-ink-muted: #8a8580;
   --color-ink-inverse: #ffffff;
 
   /* ─── Kanter och avdelare ─────────────────────────────────────────────── */
-  --color-line: #dedcd7;
-  --color-line-strong: #c3c0b9;
-  --color-divider: #e8e6e1;
+  --color-line: rgba(0, 0, 0, 0.08);
+  --color-line-strong: rgba(0, 0, 0, 0.1);
+  --color-divider: rgba(0, 0, 0, 0.05);
 
   /* ─── Accent ─────────────────────────────────────────────────────────────
    * EN accent plus varianter. Två accenter blir aldrig två, de blir fem, och
    * då betyder accent ingenting längre.
    * ──────────────────────────────────────────────────────────────────────── */
-  --color-accent: #4a6b5d;
-  --color-accent-hover: #3d594d;
-  --color-accent-contrast: #ffffff;
-  --color-accent-subtle: rgba(74, 107, 93, 0.12);
-  --color-accent-faint: rgba(74, 107, 93, 0.06);
+  --color-accent: #9a9588;
+  --color-accent-hover: #a89f92;
+  /* ⛔ Sidans botten, inte vitt, och det är avläst: SessionStudios enda
+   * accentfyllda knapp är `bg-[--color-accent] text-[--color-bg-primary]`.
+   *
+   * ⛔ MÄTT SVAGHET, MEDVETET ÄRVD: #f8f7f4 på #9a9588 ger 2,99:1, alltså under
+   * WCAG AA. Mörk text (#1a1a1a) hade gett 5,83:1. Vi bär förlagans värde
+   * eftersom paritet var beslutet, men det står här så ingen tror att det är
+   * kontrollerat. Mörkt läge har inte problemet: #2a2520 på #e8e0d0 ger 11,6:1. */
+  --color-accent-contrast: #f8f7f4;
+  --color-accent-subtle: rgba(154, 149, 136, 0.12);
+  --color-accent-faint: rgba(154, 149, 136, 0.06);
 
   /* ─── Tillstånd ──────────────────────────────────────────────────────────
    * Namngivna efter BETYDELSE, aldrig efter färg. `danger` täcker både en
@@ -84,6 +104,19 @@
   --color-danger-bg: rgba(163, 58, 48, 0.1);
   --color-info: #3a6a8a;
   --color-info-bg: rgba(58, 106, 138, 0.1);
+
+  /* Räknaren på en flik eller en bottenradsikon: olästa, att göra, vad appen
+   * nu räknar.
+   *
+   * ⛔ Egen token och inte `danger`, eftersom en räknare inte är ett fel. Fyra
+   * olästa meddelanden är inte samma betydelse som en misslyckad betalning, och
+   * delar de färg slutar färgen betyda något.
+   *
+   * Värdena är avlästa ur SessionStudios `--color-notification-badge`, som i
+   * sin tur pekar på `--color-status-alert`. Samma siffra ska se likadan ut i
+   * båda produkterna. */
+  --color-badge: #dc2626;
+  --color-badge-contrast: #ffffff;
 
   /* ─── Identitet ──────────────────────────────────────────────────────────
    * Sex toner, numrerade och inte färgnamngivna, som väljs deterministiskt ur
@@ -160,19 +193,19 @@
 
   /* ─── Form ───────────────────────────────────────────────────────────── */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-full: 999px;
 
   /* ─── Djup. Tre skuggor. Fler blir brus. ─────────────────────────────── */
-  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.06);
-  --shadow-md: 0 2px 8px rgba(20, 20, 19, 0.1);
-  --shadow-lg: 0 8px 24px rgba(20, 20, 19, 0.14);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
 
   /* ─── Typografi ──────────────────────────────────────────────────────── */
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
 
   /* Rubrikstilen, avsiktligt SAMMA som brödtexten som standard.
    *
@@ -267,26 +300,26 @@
  * Aliasblocken får därför inte innehålla ett enda råvärde. Vaktad av regel 3.
  */
 :root {
-  --dark-canvas: #16171a;
-  --dark-surface: #1e2024;
-  --dark-raised: #24272c;
-  --dark-sunken: #121316;
+  --dark-canvas: #121218;
+  --dark-surface: #16161c;
+  --dark-raised: #1f1f28;
+  --dark-sunken: #1f1f25;
   --dark-scrim: rgba(0, 0, 0, 0.6);
 
-  --dark-ink: #f2f1ee;
-  --dark-ink-secondary: #b6b3ac;
-  --dark-ink-muted: #82807a;
-  --dark-ink-inverse: #16171a;
+  --dark-ink: #e8e4df;
+  --dark-ink-secondary: #8a8580;
+  --dark-ink-muted: #6a6560;
+  --dark-ink-inverse: #121218;
 
-  --dark-line: #32353b;
-  --dark-line-strong: #474b52;
-  --dark-divider: #282b30;
+  --dark-line: rgba(255, 255, 255, 0.05);
+  --dark-line-strong: rgba(255, 255, 255, 0.07);
+  --dark-divider: rgba(255, 255, 255, 0.06);
 
-  --dark-accent: #7aa892;
-  --dark-accent-hover: #8dbaa4;
-  --dark-accent-contrast: #16171a;
-  --dark-accent-subtle: rgba(122, 168, 146, 0.16);
-  --dark-accent-faint: rgba(122, 168, 146, 0.08);
+  --dark-accent: #e8e0d0;
+  --dark-accent-hover: #f0ebe0;
+  --dark-accent-contrast: #2a2520;
+  --dark-accent-subtle: rgba(232, 224, 208, 0.12);
+  --dark-accent-faint: rgba(232, 224, 208, 0.06);
 
   --dark-success: #6fae85;
   --dark-success-bg: rgba(111, 174, 133, 0.14);
@@ -297,6 +330,9 @@
   --dark-danger-bg: rgba(214, 111, 99, 0.14);
   --dark-info: #6fa3c4;
   --dark-info-bg: rgba(111, 163, 196, 0.14);
+  /* SessionStudios --color-status-alert i mörkt läge. */
+  --dark-badge: #ef4444;
+  --dark-badge-contrast: #ffffff;
 
   --dark-human: #e0b35c;
   --dark-human-bg: rgba(224, 179, 92, 0.16);
@@ -400,6 +436,8 @@
     --color-danger-hover: var(--dark-danger-hover);
     --color-danger-bg: var(--dark-danger-bg);
     --color-info: var(--dark-info);
+    --color-badge: var(--dark-badge);
+    --color-badge-contrast: var(--dark-badge-contrast);
     --color-info-bg: var(--dark-info-bg);
 
     --color-human: var(--dark-human);
@@ -466,6 +504,8 @@
   --color-danger-hover: var(--dark-danger-hover);
   --color-danger-bg: var(--dark-danger-bg);
   --color-info: var(--dark-info);
+  --color-badge: var(--dark-badge);
+  --color-badge-contrast: var(--dark-badge-contrast);
   --color-info-bg: var(--dark-info-bg);
 
   --color-human: var(--dark-human);

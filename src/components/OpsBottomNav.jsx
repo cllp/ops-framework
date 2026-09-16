@@ -54,6 +54,22 @@ export function OpsBottomNav({
 
   const iRaden = nav.slice(0, MAX_I_RADEN);
 
+  // ⛔ SHEETEN LISTAR BARA DET SOM INTE REDAN STÅR I BAREN.
+  //
+  // Den listade hela `nav`, alltså även de fyra som syns en centimeter längre
+  // ned i samma vy. Rapporten löd: "hamburgermenyn behöver inte upprepa
+  // menyalternativen som redan finns."
+  //
+  // Det är inte bara onödigt. En meny som upprepar det synliga får läsaren att
+  // leta efter skillnaden mellan de två listorna, och svaret är att det inte
+  // finns någon. Menyn ska svara på "vad mer finns det", inte "här är allt
+  // igen".
+  //
+  // ⛔ Undantaget: en post med barn står kvar även om den syns i baren,
+  // eftersom barnen bara finns här. Utan det blir undersidorna onåbara på
+  // telefon, och det är en trasig app snarare än en repetitiv meny.
+  const iMenyn = nav.filter((post, i) => i >= MAX_I_RADEN || (Array.isArray(post.children) && post.children.length > 0));
+
   /** @param {string} href @param {any} e */
   const klick = (href, e) => {
     setOppen(false);
@@ -103,7 +119,7 @@ export function OpsBottomNav({
                 </Dialog.Close>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
-                {nav.map((post) => (
+                {iMenyn.map((post) => (
                   <SheetPost key={post.href} post={post} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
                 ))}
               </div>

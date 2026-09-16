@@ -43,6 +43,7 @@ export { OpsFact } from "./components/OpsFact.jsx";
 
 // ── Navigering och meddelanden ─────────────────────────────────────────────
 export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
+export { OpsSegmented } from "./components/OpsSegmented.jsx";
 export { OpsBanner } from "./components/OpsBanner.jsx";
 export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";

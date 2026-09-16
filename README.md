@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**36 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**37 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -220,6 +220,7 @@ något godtyckligt.
 | `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `activeHref`, `onNavigate`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. Renderas av `OpsAppShell` men kan användas fristående |
 | `OpsBrand` | `title` (krävs), `subtitle`, `mark` phst \| phst-estd \| none |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
+| `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll. |
 | `OpsTabPanel` | `id`, `children` |
 | `OpsBanner` | `tone` info \| success \| warning \| danger, `title`, `action`, `onDismiss`, `dismissLabel`, `children` |
 | `OpsToastProvider` | `children`, `closeLabel`. Läggs en gång, högst upp |
