@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OpsBottomNav } from "../components/OpsBottomNav.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
@@ -111,17 +111,26 @@ describe("OpsBottomNav", () => {
 });
 
 describe("OpsAppShell efter mobilomställningen", () => {
-  it("renderar ingen push-meny-knapp i headern längre", () => {
+  /**
+   * ⛔ Testet kollade tidigare att headern inte hade NÅGOT med aria-expanded.
+   *
+   * Den proxyn slutade gälla när toppraden fick sin egen "Mer"-meny, som med
+   * rätta är expanderbar. Avsikten var aldrig "ingen expanderbar kontroll", den
+   * var "ingen andra MOBIL meny i headern": den gamla push-menyn renderade hela
+   * navigeringen en gång till, `md:hidden`, parallellt med bottenraden.
+   *
+   * Ett test som mäter en proxy i stället för avsikten blir antingen falskt rött
+   * vid en riktig förbättring, eller falskt grönt när avsikten bryts på ett nytt
+   * sätt. Här mäts avsikten: headern bär exakt en navigering.
+   */
+  it("har ingen andra mobil meny i headern", () => {
     render(
       <OpsAppShell brand="Bolag Ops" nav={NAV} activeHref="/">
         <p>innehåll</p>
       </OpsAppShell>,
     );
-    // Den gamla push-menyn styrdes av en knapp i headern med aria-controls /
-    // aria-expanded. Den ska vara borta; bottenradens Meny ligger utanför headern.
     const banner = screen.getByRole("banner");
-    expect(banner.querySelector("[aria-controls]")).toBeNull();
-    expect(banner.querySelector("[aria-expanded]")).toBeNull();
+    expect(banner.querySelectorAll("nav")).toHaveLength(1);
   });
 
   /**
@@ -175,5 +184,84 @@ describe("OpsAppShell efter mobilomställningen", () => {
         ),
       /EN nivå barn/,
     );
+  });
+
+  /**
+   * ⛔ Tretton platta textlänkar får inte plats på någon skärm.
+   *
+   * Mätt i bolag-ops: de klämdes ihop tills de sista hamnade UNDER temaväxlaren
+   * och två försvann helt ur bild. Rapporten löd "menyn är enorm, man vet inte
+   * var man är", och det var två fel i ett: för många poster, och en aktiv
+   * markering som såg ut som en knapp i stället för en position.
+   */
+  it("visar bara de första i toppraden och lägger resten under Mer", async () => {
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    // Fem destinationer får plats som standard; sjunde och sjätte hamnar i menyn.
+    expect(within(toppnav).getAllByRole("link")).toHaveLength(5);
+    expect(within(toppnav).queryByRole("link", { name: "Kontakter" })).toBeNull();
+
+    // ⛔ fireEvent och inte userEvent. userEvent:s pekarsimulering hänger mot
+    // Radix Popover i jsdom (mätt: 5 s timeout, 32 s total), medan Dialog i
+    // samma fil fungerar. Det som testas här är att menyn öppnas, inte
+    // pekarsekvensen, så den billigare händelsen svarar på rätt fråga.
+    fireEvent.click(within(toppnav).getByRole("button", { name: /^Mer/ }));
+    const meny = await screen.findByRole("navigation", { name: "Mer" });
+    expect(within(meny).getByRole("link", { name: "Schema" })).toBeInTheDocument();
+    expect(within(meny).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
+  });
+
+  it("låter appen bestämma hur många som får plats", () => {
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/" maxTopNav={2}>
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(toppnav).getAllByRole("link")).toHaveLength(2);
+  });
+
+  it("visar ingen Mer-knapp när allt får plats", () => {
+    render(
+      <OpsAppShell brand="X" nav={NAV.slice(0, 3)} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(toppnav).queryByRole("button", { name: /^Mer/ })).toBeNull();
+  });
+
+  /**
+   * Står man på en sida som ligger i menyn ska raden ändå säga var man är.
+   * Annars ser det ut som att ingen destination är vald.
+   */
+  it("markerar Mer när den aktiva sidan ligger i menyn", () => {
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/kontakter">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const mer = within(toppnav).getByRole("button", { name: /^Mer/ });
+    expect(mer.className).toContain("border-ink");
+  });
+
+  /**
+   * ⛔ Nav-kontraktet har haft ett `icon`-fält hela tiden, och toppraden slängde
+   * det. Bara bottenraden ritade ikoner. Följden var en app helt utan ikonspråk
+   * på skrivbordet, vilket rapporterades som "finns inga ikoner?".
+   */
+  it("renderar ikonen i toppraden, inte bara i bottenraden", () => {
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(toppnav).getAllByTestId("ikon").length).toBe(5);
   });
 });

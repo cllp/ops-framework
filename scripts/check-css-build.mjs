@@ -96,6 +96,10 @@ const MASTE_FINNAS = [
   ".bg-human-bg",
   ".text-agent",
   ".bg-identity-1\\/12",
+  // ⛔ Kortets färgade vänsterkant. Den kombinerar en riktnings-utility med
+  // vår egen färgnamnrymd, och det är precis den sortens klass som tyst
+  // uteblir: kortet renderas, kanten blir bara osynlig.
+  ".border-l-identity-2",
   ".border-info\\/30",
   ".peer-checked\\:bg-accent",
   // Rubriktokenet. Utan raden hade en app som pekar --font-display mot en
