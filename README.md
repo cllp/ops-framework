@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**45 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**46 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -190,6 +190,7 @@ något godtyckligt.
 | `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel` |
 | `OpsCheckbox` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 | `OpsToggleRow` | `label`, `value`, `on`, `onChange`, `offLabel`. Rad som tonas ned i stället för att bockas ur. ⛔ Ett filter, inte ett påstående: kryssrutan frågar "är det sant?", den här frågar "ska det räknas?". |
+| `OpsRadioGroup` | `options` [{value, label, hint?}], `value`, `onChange`, `ariaLabel`, `name`, `columns` 1 \| 2. Ett val bland flera, alla synliga. ⛔ Nativa `<input type="radio">` under ytan, aldrig `<button role="radio">`: piltangenter, gruppering och "3 av 4" uppläst kommer gratis och blir fel i något hörn när de byggs för hand. Använd den när `OpsSegmented` tagit slut (den kastar vid fyra) och `OpsSelect` skulle gömma alternativen bakom ett klick. |
 | `OpsSwitch` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 
 #### Data
