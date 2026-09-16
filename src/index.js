@@ -27,6 +27,7 @@ export { OpsSelect } from "./components/OpsSelect.jsx";
 export { OpsDatePicker } from "./components/OpsDatePicker.jsx";
 export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
 export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
+export { OpsRadioGroup } from "./components/OpsRadioGroup.jsx";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
