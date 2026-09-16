@@ -18,6 +18,7 @@ export { OpsButton } from "./components/OpsButton.jsx";
 export { OpsCard } from "./components/OpsCard.jsx";
 export { OpsView, OpsViewHeader } from "./components/OpsView.jsx";
 export { OpsModal } from "./components/OpsModal.jsx";
+export { OpsDisclosure } from "./components/OpsDisclosure.jsx";
 
 // ── Formulär ───────────────────────────────────────────────────────────────
 export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
