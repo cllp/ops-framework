@@ -69,6 +69,32 @@ describe("OpsEventList", () => {
     expect(screen.getByRole("link", { name: "Öppna tva" })).toBeInTheDocument();
   });
 
+  it("låter titeln stå för sig, inte i samma rad som detaljerna", () => {
+    /*
+     * ⛔ Regression, och den upptäcktes bara för att CP skickade en skärmbild.
+     *
+     * Titeln låg i samma flexrad som rollbadge, brådskemärke och datum, med
+     * `flex-1`. Mätt i Chromium vid 390 px fick den 178 till 196 px, alltså under
+     * halva skärmen, och "Attest större leverantörsfakturor" bröts i tre rader à
+     * två ord medan halva raden stod tom.
+     *
+     * jsdom kör ingen CSS och kan inte mäta bredder, så provet kan inte se felet.
+     * Det kan däremot se STRUKTUREN som orsakade det: ligger titeln i samma
+     * element som datumet konkurrerar de om bredden igen. Beviset för bredden är
+     * mätningen i mätbygget; det här är golvet som gör att strukturen inte kan
+     * falla tillbaka obemärkt.
+     */
+    const { container } = render(<OpsEventList events={[h("lang", 3, { nar: "Om 2 veckor (2026-09-30)", roll: <span>Du</span> })]} />);
+    const rad = /** @type {HTMLElement} */ (container.querySelector("li"));
+    const titel = screen.getByText("lang");
+    const nar = screen.getByText("Om 2 veckor (2026-09-30)");
+
+    expect(titel.parentElement).toBe(rad);
+    expect(nar.parentElement).not.toBe(rad);
+    expect(titel.contains(nar)).toBe(false);
+    expect(/** @type {HTMLElement} */ (nar.parentElement).contains(titel)).toBe(false);
+  });
+
   it("visar det tomma läget i stället för en tom lista", () => {
     // ⛔ Tom lista och "allt är gjort" ser likadana ut i markup och betyder
     // motsatta saker.
