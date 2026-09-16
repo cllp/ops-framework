@@ -1,130 +1,117 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useState } from "react";
 import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
 
 /**
- * Fäll ut och fäll ihop. Rubrik med chevron, innehåll under.
+ * Hopfällbart kort: en alltid synlig rubrik som fäller ut ett innehåll.
  *
- * Mönstret är hämtat från SessionStudios `MoreSettingsDisclosure`, som är det
- * vi redan känner igen: knapp med `aria-expanded`, chevron som roterar 180
- * grader, och en panel som växer i höjd i stället för att hoppa fram.
+ * ⛔ Byggt på native `<details>`/`<summary>`, inte en egen knapp med state.
+ * Skälet är mätt: en hopfällning gjord av `<div onClick>` tappar tangentbord
+ * (Enter/Space), fokusordning och skärmläsarens "expanderad/hopfälld" gratis,
+ * och någon måste återuppfinna dem, oftast fel. `<details>` bär allt det i
+ * plattformen. Den här komponenten lägger bara till form (token-radie, ram,
+ * chevron) och ett valfritt styrt läge.
  *
- * ── ⛔ TRE SAKER SOM SER UT SOM DETALJER OCH INTE ÄR DET ────────────────────
+ * ⛔ Ramverket äger formen, inte innehållet. `summary` och `children` är vad
+ * appen än vill visa: en rubrik med etiketter och ett belopp till höger, en
+ * lista, en tabell. Ingen domän här.
  *
- * **1. Höjden animeras med grid, inte med `max-height`.**
- * Den vanliga lösningen är `max-height: 0` till `max-height: 500px`. Den kräver
- * att någon gissar en maxhöjd. Gissar man för lågt klipps innehållet av utan
- * felmeddelande, gissar man för högt blir utfällningen långsam i början
- * eftersom övergången räknar på ett avstånd som inte finns. `grid-template-rows`
- * från `0fr` till `1fr` animerar till innehållets FAKTISKA höjd, och då finns
- * ingen siffra att ha fel om.
+ * ── ⛔ DEN HÄR FILEN HAR HAFT TVÅ IMPLEMENTATIONER SAMTIDIGT ────────────────
  *
- * **2. Hopfälld panel tas ur tabbordningen med `inert`.**
- * Det här är den enda riktiga buggen i mönstret vi ärvde. `0fr` plus
- * `overflow: hidden` ger noll höjd, men innehållet är fortfarande i DOM:en och
- * fortfarande fokuserbart. Följden är att den som tabbar sig genom sidan
- * försvinner in i osynliga fält: fokusringen är borta från skärmen, och det
- * enda som händer är att sidan verkar sluta svara på Tab.
+ * Den här versionen skrevs först och låg i en öppen PR som bolag-ops redan
+ * pinnade till. En senare session byggde en ANDRA `OpsDisclosure` på main, med
+ * en `label`-prop, en egen knapp och höjdanimering med grid, utan att veta att
+ * den här fanns. Skälet var att sessionen listade repots öppna **issues** men
+ * inte dess öppna **pull requests**.
  *
- * `aria-hidden` är INTE lösningen. Det döljer för skärmläsaren men lämnar kvar
- * elementen i tabbordningen, alltså exakt det värsta av två världar: ett fält
- * som går att fokusera men inte att höra.
+ * Lärdomen är inte "läs PR-listan". Den är att **ett begrepp kan finnas utan
+ * att finnas på main**, och att en konsument kan peka på en ogrenad commit. Vad
+ * ramverket består av går därför inte att avgöra genom att titta på main
+ * ensamt.
  *
- * `inert` gör båda sakerna. Det sätts via ref i stället för som JSX-attribut,
- * eftersom React 18 inte känner till propen och tyst släpper den. Sätter man
- * den på DOM-elementet fungerar den i varje webbläsare som stöder den och är en
- * tom operation i övriga, vilket är rätt gradvis försämring.
+ * Den här implementationen vann, av två skäl som båda är principiella:
  *
- * **3. Sparat läge får inte krascha appen.**
- * `localStorage` kastar i privat läge och när webbplatsdata är blockerad. Läser
- * man den utan try blir ett hopfällbart avsnitt anledningen att hela sidan är
- * vit. Både läsning och skrivning är därför inneslutna, och utan lagring
- * fungerar allt utom att läget minns sig.
- */
-
-/**
+ *   1. `<details>` har aldrig det fokusproblem den andra versionen byggde en
+ *      `inert`-hantering för att lösa. Hopfälld panel är inte fokuserbar i
+ *      plattformen. Att skriva 40 rader för att återskapa en garanti man redan
+ *      har är per definition fel väg.
+ *   2. `summary` var redan en publicerad yta som en app använde. Att byta den
+ *      till `label` hade brutit en konsument för noll användarvinst.
+ *
+ * Det den andra versionen hade och som är värt att behålla ligger nedan:
+ * `storageKey`, `badge` och 44 px träffyta. De är tillägg, inte en andra väg
+ * att göra samma sak.
+ *
+ * Priset för `<details>` är att höjden inte går att animera. Det är ett
+ * medvetet byte: en utfällning som hoppar fram är en kosmetisk brist, en
+ * hopfällning man kan tabba in i är en trasig sida.
+ *
  * @param {object} props
- * @param {string} props.label Rubriktexten på knappen.
- * @param {import("react").ReactNode} props.children Innehållet som fälls ut.
- * @param {boolean} [props.defaultOpen] Läget första gången, när inget är sparat.
- * @param {string} [props.storageKey] Sparar öppet eller stängt per webbläsare. Utelämnas den minns komponenten ingenting.
- * @param {number} [props.badge] Siffra efter rubriken, t.ex. antal ifyllda fält därinne. Visas bara när den är över noll.
- * @param {string} [props.ariaLabel] När rubriktexten inte räcker som namn på egen hand.
- * @param {boolean} [props.divider] Linje ovanför rubriken. Av som standard: ett kort har redan en kant.
+ * @param {import("react").ReactNode} props.summary Alltid synlig rad. Klickytan som fäller ut.
+ * @param {import("react").ReactNode} props.children Innehållet som visas när den är öppen.
+ * @param {boolean} [props.defaultOpen] Startläge när komponenten är ostyrd.
+ * @param {boolean} [props.open] Styrt läge. Anges det äger appen öppet/stängt via `onOpenChange`.
+ * @param {(open: boolean) => void} [props.onOpenChange] Anropas när användaren fäller ut eller ihop.
+ * @param {string} [props.storageKey] Minns öppet eller stängt per webbläsare. Bara i ostyrt läge.
+ * @param {number} [props.badge] Siffra efter rubriken, t.ex. antal ifyllda fält därinne. Visas bara över noll.
+ * @param {string} [props.id]
  */
-export function OpsDisclosure({ label, children, defaultOpen = false, storageKey, badge, ariaLabel, divider = false }) {
-  const knappId = useId();
-  const panelId = useId();
-  const panelRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+export function OpsDisclosure({ summary, children, defaultOpen = false, open, onOpenChange, storageKey, badge, id }) {
+  const styrd = open !== undefined;
+  const [internOppen, setInternOppen] = useState(() => lasSparat(storageKey, defaultOpen));
+  const arOppen = styrd ? open : internOppen;
 
-  const [oppen, setOppen] = useState(() => lasSparat(storageKey, defaultOpen));
-
-  useEffect(() => {
-    const el = panelRef.current;
-    if (el) el.inert = !oppen;
-  }, [oppen]);
-
-  const vaxla = useCallback(() => {
-    setOppen((foreg) => {
-      const nytt = !foreg;
-      if (storageKey) {
-        try {
-          globalThis.localStorage?.setItem(storageKey, nytt ? "1" : "0");
-        } catch {
-          // Läget gäller för den här sidvisningen även om det inte kan sparas.
-        }
-      }
-      return nytt;
-    });
-  }, [storageKey]);
-
-  const text = badge && badge > 0 ? `${label} (${badge})` : label;
+  /** @param {any} e */
+  function hanteraToggle(e) {
+    const ny = e.currentTarget.open;
+    // ⛔ I ostyrt läge följer state med native-elementet. I styrt läge rör vi
+    // INTE internt state; appen bestämmer, annars finns två sanningar om öppet.
+    if (!styrd) {
+      setInternOppen(ny);
+      skrivSparat(storageKey, ny);
+    }
+    if (ny !== arOppen) onOpenChange?.(ny);
+  }
 
   return (
-    <div className={cx(divider && "border-t border-line")}>
-      <button
-        type="button"
-        id={knappId}
-        aria-expanded={oppen}
-        aria-controls={panelId}
-        aria-label={ariaLabel}
-        onClick={vaxla}
+    <details
+      id={id}
+      open={arOppen}
+      onToggle={hanteraToggle}
+      className="group rounded-lg border border-line bg-raised"
+    >
+      <summary
         className={cx(
-          // ⛔ 44 px träffyta. En rubrik som bara är lika hög som sin text är
-          // omöjlig att träffa med tummen, och det är den vanligaste platsen
-          // där ett utfällbart avsnitt känns trasigt på telefon.
-          "flex min-h-11 w-full items-center gap-2 py-2 text-base font-semibold text-ink-secondary",
-          "transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          // ⛔ 44 px träffyta. En rubrikrad som bara är lika hög som sin text är
+          // svår att träffa med tummen, och det är den vanligaste platsen där
+          // ett utfällbart avsnitt känns trasigt på telefon.
+          "flex min-h-11 cursor-pointer list-none items-center gap-3 p-4",
+          // Native marker bort (den ligger annars kvar bredvid chevronen).
+          "[&::-webkit-details-marker]:hidden",
+          "rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         )}
       >
-        <span className="min-w-0 flex-1 text-left">{text}</span>
+        <div className="min-w-0 flex-1">{summary}</div>
+        {badge && badge > 0 ? (
+          <span className="shrink-0 rounded-full bg-accent-subtle px-2 py-0.5 text-xs font-semibold tabular-nums text-ink">{badge}</span>
+        ) : null}
         <span
-          className={cx(
-            "shrink-0 text-ink-muted transition-transform duration-(--duration-fast) ease-standard",
-            oppen && "rotate-180",
-          )}
+          aria-hidden="true"
+          className={cx("shrink-0 text-ink-secondary transition-transform duration-(--duration-fast)", arOppen && "rotate-180")}
         >
           <ChevronNedIkon />
         </span>
-      </button>
-
-      <div
-        className="grid transition-[grid-template-rows] duration-(--duration-fast) ease-standard"
-        style={{ gridTemplateRows: oppen ? "1fr" : "0fr" }}
-      >
-        <div ref={panelRef} id={panelId} role="region" aria-labelledby={knappId} className="overflow-hidden">
-          <div className="pb-3 pt-1">{children}</div>
-        </div>
-      </div>
-    </div>
+      </summary>
+      <div className="border-t border-divider p-4">{children}</div>
+    </details>
   );
 }
 
 /**
- * @param {string | undefined} nyckel
- * @param {boolean} standard
- * @returns {boolean}
+ * ⛔ `localStorage` kastar i privat läge och när webbplatsdata är blockerad.
+ * Läser man den utan try blir ett hopfällbart avsnitt anledningen att hela
+ * sidan är vit.
+ * @param {string | undefined} nyckel @param {boolean} standard @returns {boolean}
  */
 function lasSparat(nyckel, standard) {
   if (!nyckel) return standard;
@@ -136,4 +123,14 @@ function lasSparat(nyckel, standard) {
     // Blockerad lagring är inte ett fel, det är bara ingen minneskälla.
   }
   return standard;
+}
+
+/** @param {string | undefined} nyckel @param {boolean} varde */
+function skrivSparat(nyckel, varde) {
+  if (!nyckel) return;
+  try {
+    globalThis.localStorage?.setItem(nyckel, varde ? "1" : "0");
+  } catch {
+    // Läget gäller för den här sidvisningen även om det inte kan sparas.
+  }
 }

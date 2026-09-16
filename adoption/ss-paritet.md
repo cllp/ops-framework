@@ -28,25 +28,31 @@ inbyggda.
 
 ## 2. Fäll ut och fäll ihop: `OpsDisclosure`
 
-Det som i SessionStudio är `MoreSettingsDisclosure`. Rubrik med chevron som
-roterar, innehåll som växer i höjd.
+Hopfällbart kort: en alltid synlig rubrik som fäller ut sitt innehåll.
 
 ```jsx
-<OpsDisclosure label="Mer inställningar" storageKey="kostnad-mer" badge={2}>
-  …fälten som inte behövs varje gång…
+<OpsDisclosure summary={<PolicyRubrik namn="Sjukförsäkring" belopp="1 000 kr/mån" />} storageKey="forsakring-p1" badge={2}>
+  …detaljerna…
 </OpsDisclosure>
 ```
 
-- `storageKey` minns öppet eller stängt per webbläsare. Utelämnad minns den inget.
-- `badge` visas bara när den är över noll, som "Mer inställningar (2)".
-- `divider` ritar en linje ovanför rubriken. Av som standard, eftersom ett kort
-  redan har en kant.
+- `summary` är vad som helst: en rubrik med etiketter och ett belopp till höger, inte bara text.
+- `open` + `onOpenChange` ger appen kontrollen när den vill äga läget.
+- `storageKey` minns öppet eller stängt per webbläsare, i ostyrt läge.
+- `badge` visas bara när den är över noll.
 
-⛔ **Hopfälld panel tas ur tabbordningen med `inert`.** Det är den bugg mönstret
-annars bär: noll höjd med `overflow: hidden` betyder inte borttagen ur DOM:en, så
-den som tabbar sig genom sidan försvinner in i osynliga fält och ser bara att Tab
-verkar sluta fungera. `aria-hidden` löser det inte, det gör saken värre: dolt för
-skärmläsaren men fortfarande fokuserbart.
+⛔ **Byggd på native `<details>`/`<summary>`, inte på en egen knapp med state.**
+En hopfällning gjord av `<div onClick>` tappar tangentbord, fokusordning och
+skärmläsarens expanderat-läge, och någon måste återuppfinna dem, oftast fel.
+
+Det betyder också att hopfälld panel **aldrig** går att tabba in i. En
+handskriven variant med noll höjd och `overflow: hidden` har kvar innehållet i
+tabbordningen, och den som tabbar ser fokusringen lämna skärmen medan Tab verkar
+sluta fungera. Plattformen har inte det problemet.
+
+Priset är att höjden inte går att animera. Medvetet byte: en utfällning som
+hoppar fram är en kosmetisk brist, en hopfällning man kan tabba in i är en
+trasig sida.
 
 ## 3. Temaväxlaren: gjort, inkl. ingen ljus blinkning
 
@@ -78,7 +84,7 @@ motsvarighet i mörkt läge, och felet upptäcks av en användare, inte av oss.
 är 20 px och ett reglage 24; klickytan är hela `<label>`, med höjdgolv på telefon
 och utan golv från `md`, så ett formulär med tio kryssrutor inte blir en halv
 skärm luft på skrivbordet. Samma uppdelning gäller stängknappar i banderoller och
-toaster, och rubriken i `OpsDisclosure`.
+toaster, och rubrikraden i `OpsDisclosure`.
 
 **Layouten mäts i Chromium vid 390 och 768 px** av `check-scaffold`, på en app som
 faktiskt är byggd och serverad. Den kontrollerar att sidan inte är bredare än

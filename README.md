@@ -161,7 +161,7 @@ något godtyckligt.
 | `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `open`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
-| `OpsDisclosure` | `label`, `defaultOpen`, `storageKey`, `badge`, `ariaLabel`, `divider`, `children` |
+| `OpsDisclosure` | `summary` (krävs), `defaultOpen`, `open`, `onOpenChange`, `storageKey`, `badge`, `id`, `children` |
 
 #### Formulär
 
@@ -217,7 +217,7 @@ något godtyckligt.
 |---|---|
 | `OpsButton` | spärrad länk tappar sitt `href`, så den försvinner ur tabordningen |
 | `OpsModal` | fokusfälla, Escape, scrollås, fokus tillbaka till öppnande knapp |
-| `OpsDisclosure` | hopfälld panel tas ur tabbordningen med `inert`, så Tab inte försvinner in i osynliga fält |
+| `OpsDisclosure` | native `<details>`, så tangentbord, fokusordning och expanderat-läge kommer ur plattformen i stället för att återuppfinnas |
 | `OpsField` | kopplar etikett, hjälptext och fel till fältet med genererade id |
 | `OpsInput` | vägrar `type="date"` och `type="color"`, som inte går att tokenisera |
 | `OpsSelect` | tangentbord, typeahead och positionering, via Radix |
