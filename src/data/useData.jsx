@@ -161,7 +161,24 @@ export function useSamlingLive(samling, fraga) {
   const [rakna, setRakna] = useState(0);
   const uppdatera = useCallback(() => setRakna((n) => n + 1), []);
 
-  const kanStromma = typeof kalla.prenumerera === "function";
+  /*
+   * ⛔ FRÅGAN STÄLLS PER SAMLING NÄR KÄLLAN KAN SVARA PÅ DET.
+   *
+   * `typeof kalla.prenumerera === "function"` är ett sant svar om EN källa och en
+   * lögn om en routande: den kan strömma `chat` via Firestore och inte `kostnader`
+   * via en JSON-fil, alltså har frågan två svar.
+   *
+   * `skapaRoutingKalla` svarar per samling med `kanPrenumerera`. Utan den här
+   * raden hade hooken tagit strömvägen för varje samling så snart NÅGON källa
+   * kunde strömma, och sedan kastat på den som inte kan. Med den faller den
+   * tillbaka på `lista` och rapporterar `realtid: false`, alltså det ärliga
+   * svaret i stället för det tysta.
+   */
+  const kanStromma =
+    typeof kalla.prenumerera === "function" &&
+    (typeof (/** @type {any} */ (kalla).kanPrenumerera) === "function"
+      ? Boolean(/** @type {any} */ (kalla).kanPrenumerera(samling))
+      : true);
 
   useEffect(() => {
     let avbruten = false;
