@@ -153,16 +153,29 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
   });
 
   /*
-   * ⛔ `sm:items-start` OCH INTE `sm:items-center` (#152). Ringen låg centrerad
-   * mot listan, så när en rad fälldes ut växte raden på höjden och ringen gled
-   * nedåt. Rapporterat som att diagrammet hoppar när man ändrar i listan.
-   * Toppankrad står den stilla oavsett hur lång listan är.
+   * ⛔ TOPPANKRAD, ALDRIG VERTIKALT CENTRERAD (bolag-ops#152). `sm:items-center`
+   * plus `self-center` stod här och gav ett hopp som såg ut som en ritbugg:
+   * ringen gled nedåt när man fällde ut en rad i listan bredvid, eftersom en
+   * högre lista flyttar den mittpunkt ringen centrerades mot.
    *
-   * ⛔ `self-center sm:self-start` OCH INTE BARA BORTTAGET `self-center`.
-   * Under `sm` är behållaren `flex-col`, och då är `self-center` det som håller
-   * ringen centrerad över listan. Tas den bort helt vänsterställs ringen i
-   * mobilen, alltså en regression på den skärm där den syns mest.
-   * Centrerad staplad, toppankrad sida vid sida.
+   * ⛔ DET SYNS EXTRA MYCKET I ETT STRÄCKT RUTNÄT. Översikt lägger två sådana
+   * kort i `grid lg:grid-cols-2`, som med flit sträcker korten till samma höjd.
+   * Växte det ena kortet centrerades ringen om i BÅDA, alltså hoppade ett
+   * diagram vars egen data inte ändrats.
+   *
+   * Att centrera mot ett syskon vars höjd användaren styr är alltid ett hopp som
+   * väntar. Ringen har en egen fast höjd och behöver ingen centrering.
+   *
+   * ⛔ `self-center sm:self-start` OCH INTE BARA `self-start`. Toppankringen
+   * gäller radläget, och radläget börjar först vid `sm`. Under `sm` är
+   * behållaren `flex-col`, alltså är tväraxeln VÅGRÄT, och där betyder
+   * `self-start` vänsterställd ring med tom yta till höger. Ringen stod
+   * centrerad över listan före #152, och den fixen handlade om lodrät glidning
+   * i radläget, inte om mobilens vågräta placering.
+   *
+   * Centrerad staplad, toppankrad sida vid sida. Ett enda `self-start` löser
+   * hoppet och byter samtidigt utseende på den skärm där diagrammet syns mest,
+   * och den sortens gratis-ändring är den som ingen minns att någon beslutade.
    */
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">

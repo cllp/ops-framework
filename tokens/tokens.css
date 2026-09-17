@@ -642,19 +642,35 @@
  * något gemensamt, utan tio specialfall som alla andra vyer får leva med.
  */
 @layer base {
-  /* ⛔ `scrollbar-gutter: stable` LÖSER ETT HOPP SOM SÅG UT SOM EN NAV-BUGG (#143).
-     Skalet centrerar innehållet med `mx-auto`. En sida som är högre än fönstret
-     får en vertikal rullningslist, en kortare får ingen. Slås listen av och på
-     krymper och växer det synliga området, och allt centrerat flyttar sig i
-     sidled: både innehållet och den sticky toppmenyn.
-     Rapporterat som att menyn hoppar och inte känns solid. Det syntes tydligast
-     på Idag, där Idag och Kommande har olika många rader, alltså vid varje
-     flikbyte.
-     ⛔ INTE `overflow-y: scroll`. Den reserverar plats genom att alltid rita en
-     list, även på sidor som inte går att rulla. `scrollbar-gutter` reserverar
-     platsen utan listen, och är no-op där listen ligger ovanpå innehållet. */
   html {
     -webkit-text-size-adjust: 100%;
+
+    /*
+     * ⛔ RESERVERAR RULLNINGSLISTENS PLATS PERMANENT (bolag-ops#143). Utan den
+     * här raden hoppar hela sidan cirka 15px i sidled när man byter vy, och det
+     * ser ut som tre olika buggar:
+     *
+     *   sidan hoppar när man byter navigering
+     *   Idag hoppar när man växlar Idag och Kommande
+     *   toppmenyn hoppar och känns inte solid
+     *
+     * Det är EN orsak. `OpsAppShell` centrerar innehållet med `mx-auto`, och en
+     * sida högre än fönstret får en vertikal rullningslist medan en kortare inte
+     * får någon. När listen slås av och på krymper och växer det synliga
+     * området, och allt centrerat flyttar sig i sidled. Den sticky toppmenyn
+     * med.
+     *
+     * ⛔ `scrollbar-gutter: stable` OCH INTE `overflow-y: scroll`. Den senare
+     * ritar alltid en tom list även på korta sidor. Den här reserverar platsen
+     * utan att rita något, och är en no-op på mobilens overlay-lister.
+     *
+     * ⛔ RADEN HÖR HIT OCH INTE I EN APP. Det är global sidram som gäller varje
+     * ops-plattform, och en lokal override i bolag-ops hade blivit en andra
+     * sanning om samma faktum. Basskiktet ska vara litet, och det här är just
+     * den sortens regel det finns för: något gemensamt, inte ett specialfall.
+     *
+     * `scripts/check-sidram.mjs` blir röd om raden försvinner.
+     */
     scrollbar-gutter: stable;
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "@staiger/ops-framework",
-  "version": "0.12.1",
+  "version": "0.14.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
@@ -35,7 +35,7 @@
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
-    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:nodsida && npm run check:konfigkrav && npm run check:css-build && npm run check:typsnitt && npm run check:diagramfarger && npm run check:guards && npm test",
+    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:nodsida && npm run check:konfigkrav && npm run check:css-build && npm run check:typsnitt && npm run check:diagramfarger && npm run check:sidram && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
     "check:all": "npm run check && npm run check:scaffold",
@@ -47,7 +47,8 @@
     "check:typsnitt": "node scripts/check-typsnitt.mjs",
     "check:diagramfarger": "node scripts/check-diagramfarger.mjs",
     "check:nodsida": "node scripts/check-nodsida.mjs",
-    "check:konfigkrav": "node scripts/check-konfigkrav.mjs"
+    "check:konfigkrav": "node scripts/check-konfigkrav.mjs",
+    "check:sidram": "node scripts/check-sidram.mjs"
   },
   "peerDependencies": {
     "lucide-react": "^0.460.0",
