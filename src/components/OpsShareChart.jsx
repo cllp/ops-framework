@@ -152,9 +152,23 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
     return bit;
   });
 
+  /*
+   * ⛔ TOPPANKRAD, ALDRIG VERTIKALT CENTRERAD (bolag-ops#152). `sm:items-center`
+   * plus `self-center` stod här och gav ett hopp som såg ut som en ritbugg:
+   * ringen gled nedåt när man fällde ut en rad i listan bredvid, eftersom en
+   * högre lista flyttar den mittpunkt ringen centrerades mot.
+   *
+   * ⛔ DET SYNS EXTRA MYCKET I ETT STRÄCKT RUTNÄT. Översikt lägger två sådana
+   * kort i `grid lg:grid-cols-2`, som med flit sträcker korten till samma höjd.
+   * Växte det ena kortet centrerades ringen om i BÅDA, alltså hoppade ett
+   * diagram vars egen data inte ändrats.
+   *
+   * Att centrera mot ett syskon vars höjd användaren styr är alltid ett hopp som
+   * väntar. Ringen har en egen fast höjd och behöver ingen centrering.
+   */
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      <div className="shrink-0 self-center">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <div className="shrink-0 self-start">
         {/* ⛔ `role="img"` med ett namn, inte en osynlig graf. Utan det läses
             ringen upp som en hög med tomma cirklar, eller inte alls. Siffrorna
             finns i listan bredvid, som är den faktiska datavyn. */}
