@@ -407,6 +407,117 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   );
 }
 
+// ── Nodsidevakten ──────────────────────────────────────────────────────────
+//
+// ⛔ Den enda vakten i repot som skyddar mot ett SÄKERHETSFEL och inte ett
+// kvalitetsfel: att kod som hanterar en token hamnar i webbundeln. Den ska
+// därför falla på båda formerna en import kan ta, och SKILJA dem, eftersom
+// åtgärderna är olika.
+//
+// ⛔ Den fångade sitt första fel i sin egen PR: kontraktet låg på nodsidan och
+// importerades in i webbsidan som en typ. Det var inget läckage, men fel
+// riktning, och nästa person följer typen dit och lägger körkod intill den.
+{
+  const nodvakt = "scripts/check-nodsida.mjs";
+
+  /**
+   * En kopia av trädet, med en fil planterad i `src/` utanför `src/nod/`.
+   *
+   * ⛔ Kopian bär ett eget README och ett eget `src/nod/index.js`, eftersom vakten
+   * kontrollerar båda halvorna. Utan dem hade den fallit på dokumentationshalvan,
+   * och provet sett rött ut av fel skäl.
+   *
+   * @param {string} namn @param {string} innehall
+   */
+  const nodkopia = (namn, innehall) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.mkdirSync(path.join(mapp, "src", "nod"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "src", "lib"), { recursive: true });
+    fs.writeFileSync(path.join(mapp, "src", "nod", "index.js"), 'export { nagot } from "./nagot.js";\n');
+    fs.writeFileSync(path.join(mapp, "src", "nod", "nagot.js"), "export const nagot = 1;\n");
+    fs.writeFileSync(path.join(mapp, "README.md"), "Dokumenterar nagot.\n");
+    fs.writeFileSync(path.join(mapp, "src", "lib", "Prov.js"), innehall);
+    return mapp;
+  };
+
+  kravRott(
+    "nodsida 1: körimport från webbsidan",
+    [nodvakt, nodkopia("n1", 'import { nagot } from "../nod/nagot.js";\nexport const x = nagot;\n')],
+    "i KÖRKOD",
+  );
+
+  kravRott(
+    "nodsida 2: dynamisk import räknas också",
+    [nodvakt, nodkopia("n2", 'export const x = () => import("../nod/nagot.js");\n')],
+    "i KÖRKOD",
+  );
+
+  kravRott(
+    "nodsida 3: JSDoc-typimport, fel riktning men inget läckage",
+    [nodvakt, nodkopia("n3", '/** @typedef {import("../nod/nagot.js").T} T */\nexport const x = 1;\n')],
+    "nodsidans TYPER",
+  );
+
+  {
+    const mapp = nodkopia("n4", "export const x = 1;\n");
+    fs.writeFileSync(path.join(mapp, "README.md"), "Namner ingenting.\n");
+    kravRott("nodsida 4: odokumenterad export", [nodvakt, mapp], "saknas i README");
+  }
+
+  {
+    const mapp = nodkopia("n5", "export const x = 1;\n");
+    fs.writeFileSync(path.join(mapp, "src", "nod", "index.js"), "// ingen export\n");
+    kravRott("nodsida golv: noll exporter", [nodvakt, mapp], "noll exporter");
+  }
+
+  kravRott("nodsida golv: src saknas", [nodvakt, path.join(arbetsmapp, "finns-inte-nod")], "Fel sökväg i vakten");
+
+  // ⛔ Omvägen genom proven. Proven FÅR importera nodsidan, alltså får ingen annan
+  // importera proven: då når nodsidan bundlen i två hopp och den första
+  // kontrollen ser ingenting. Ingen skulle göra det med flit, och det är precis
+  // därför det kontrolleras.
+  {
+    const mapp = nodkopia("n7", 'import { h } from "../__tests__/hjalp.js";\nexport const x = h;\n');
+    fs.mkdirSync(path.join(mapp, "src", "__tests__"), { recursive: true });
+    fs.writeFileSync(path.join(mapp, "src", "__tests__", "hjalp.js"), 'export { nagot as h } from "../nod/nagot.js";\n');
+    kravRott("nodsida 5: omväg genom provkatalogen", [nodvakt, mapp], "importerar provkatalogen");
+  }
+
+  // Kontroll av kontrollen: ett PROV får importera nodsidan, annars går modulen
+  // inte att prova och vakten hade tvingat fram oprovad kod.
+  {
+    const mapp = nodkopia("n8", "export const x = 1;\n");
+    fs.mkdirSync(path.join(mapp, "src", "__tests__"), { recursive: true });
+    fs.writeFileSync(path.join(mapp, "src", "__tests__", "nagot.test.js"), 'import { nagot } from "../nod/nagot.js";\nexport default nagot;\n');
+    const k = spawnSync(process.execPath, [nodvakt, mapp], { cwd: rot, encoding: "utf8" });
+    resultat.push(
+      k.status === 0
+        ? { namn: "nodsida: ett prov far importera nodsidan", vantat: "gront", utfall: "ok" }
+        : {
+            namn: "nodsida: ett prov far importera nodsidan",
+            vantat: "gront",
+            utfall: `vakten blev rod pa ett prov, alltsa tvingar den fram oprovad kod: ${(k.stderr ?? "").trim().split("\n").slice(0, 2).join(" | ")}`,
+          },
+    );
+  }
+
+  // Kontroll av kontrollen: ett rent träd MÅSTE vara grönt, annars vore vakten
+  // omöjlig att uppfylla och skulle stängas av.
+  {
+    const mapp = nodkopia("n6", "export const x = 1;\n");
+    const k = spawnSync(process.execPath, [nodvakt, mapp], { cwd: rot, encoding: "utf8" });
+    resultat.push(
+      k.status === 0
+        ? { namn: "nodsida: ett rent trad ar gront", vantat: "gront", utfall: "ok" }
+        : {
+            namn: "nodsida: ett rent trad ar gront",
+            vantat: "gront",
+            utfall: `vakten blev rod pa ett rent trad, alltsa omojlig att uppfylla: ${(k.stderr ?? "").trim().split("\n").slice(0, 2).join(" | ")}`,
+          },
+    );
+  }
+}
+
 // ── Byggvakten ─────────────────────────────────────────────────────────────
 // Den dyraste och viktigaste: tar vi bort nollningen av Tailwinds palett ska
 // `bg-red-500` dyka upp i utdata igen och vakten bli röd. Är den grön här är

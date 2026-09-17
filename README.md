@@ -427,9 +427,24 @@ typkontrollerades.
 | `bradska`, `delaIdagKommande` | härleder hur bråttom en händelse är ur dagar kvar, och delar en lista i Idag och Kommande. Försenat ligger i Idag, odaterat i Kommande. |
 | `dagarMellan`, `dagarTill` | kalenderdagar, inte dygn: 23.59 i kväll och 00.01 i morgon är en dag isär, och sommartidsskiftet finns inte att drabbas av. `dagarTill` svarar `null` på ett oläsligt datum och aldrig `0`, eftersom `0` betyder "idag" i hela kedjan och ett trasigt fält annars hamnar överst med full brådska |
 | `samlaHandelser` | slår ihop flera källors färdiga `Handelse`-listor till en läsordning: närmast först, odaterat sist, och inom samma dag det appens `ordning` sätter först. Mappningarna äger appen, sorteringen ramverket. ⛔ Odaterat sist är ett påstående: `null` är mindre än varje tal, så en naiv sortering lägger allt utan dag överst, precis framför det som brinner, och listan ser fortfarande sorterad ut |
+| `lasArendeflode` | läser en ärende-ögonblicksbild och svarar med **tre** utfall, inte två: inget flöde ännu (inte ett fel, källan har inte svarat), flöde med noll poster (ett giltigt svar), och oläsligt flöde (ett fel med en orsak). ⛔ Den vanliga raden `(f && Array.isArray(f.items) && f.items) \|\| []` gör det tredje till det andra: ett trasigt flöde blir en tom lista, och vyn säger "allt klart" när sanningen är "det gick inte att läsa" |
 | `arBild`, `storlekstext`, `bilagestorlek` | för att VISA en sparad bilaga. `bilagestorlek` räknar tillbaka från lagrade tecken till en ungefärlig filstorlek, så base64-faktorn inte hamnar som en magisk 1,4 i varje app som visar en bilaga. `arBild` tar MIME-typen och inte filen, så samma fråga går att ställa om en fil man just valt och om en bilaga man läst ur en databas. ⛔ Själva inläsningen exporteras inte: en app som läser filer förbi `OpsFilePicker` har skaffat ett andra ställe som bestämmer vad som ryms |
 | `SAKNAS` | vad som visas när ett värde saknas. Aldrig `0`, som är ett påstående om datan |
 | `TALMELLANSLAG` | strippar det mellanslag `Intl` stoppar i tal. Vilket tecken det är beror på Node-versionen, så det får aldrig hårdkodas |
+
+### Nodsidan: `@staiger/ops-framework/nod`
+
+En andra ingång, för det som behöver en token. Buntas **inte** för webbläsaren.
+
+| | |
+|---|---|
+| `skapaArendespegel` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ agare, repo, etikett }` som konfiguration, plus `sammanfattning` och `extraFalt` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `hamta` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
+
+⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
+`src/index.js` buntas för webbläsaren, alltså hamnar i varje besökares JS-fil.
+Speglingen kräver en token. Gränsen upprätthålls av `check-nodsida` och inte av en
+kommentar, eftersom ett löfte om att en hemlighet inte läcker är värt exakt vad den
+som råkar bryta det råkar minnas.
 
 ### Vakter
 
@@ -447,6 +462,7 @@ typkontrollerades.
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
 | `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390 och 768 px** |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
+| `check-nodsida` | webbsidan rör inte `src/nod/`, och nodsidans exporter är dokumenterade. Skiljer på **körimport** (hamnar i bundlen, alltså ett läckage) och **JSDoc-typimport** (når aldrig bundlen, men vänder beroendet så nästa person lägger körkod intill typen). Proven är undantagna, eftersom de måste nå koden de provar, och **omvägen genom dem är stängd**: ingen annan fil får importera provkatalogen, annars når nodsidan bundlen i två hopp. ⛔ Fångade två fel i sin egen PR: kontraktet låg på nodsidan, och undantaget för proven var först ett hål |
 | `check-adoption` | en pågående upprensning går framåt, aldrig bakåt |
 | `test-guards` | **bryter varje regel ovan och kräver rött** |
 
@@ -648,6 +664,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 | `tokens/tokens.css` | tokenkontraktet, som är Tailwind-temat |
 | `src/components/` | primitiverna |
 | `src/lib/` | tema, identitet, formatering |
+| `src/nod/` | **nodsidan**, importeras som `@staiger/ops-framework/nod`. Hit hör det som behöver en token, en filsökväg eller ett autentiserat nätanrop. ⛔ Ligger utanför webbundeln med flit: en token i bundlen är en token i varje besökares JS-fil. `check-nodsida` gör det till rött bygge om webbsidan importerar härifrån |
 | `scripts/` | vakterna |
 | `create-ops-app/` | mallen som kopieras en gång |
 | `adoption/` | **det enda stället som får veta vilka som använder ramverket.** Här beskrivs hur en namngiven plattform tar ramverket i bruk och vad som återstår i dess upprensning (`mobil-nav.md`, `ss-paritet.md`) |

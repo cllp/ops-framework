@@ -1,6 +1,6 @@
 {
   "name": "@staiger/ops-framework",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
@@ -11,7 +11,10 @@
       "default": "./dist/index.js"
     },
     "./tokens.css": "./tokens/tokens.css",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./nod": {
+      "default": "./src/nod/index.js"
+    }
   },
   "files": [
     "dist",
@@ -32,7 +35,7 @@
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
-    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:css-build && npm run check:typsnitt && npm run check:diagramfarger && npm run check:guards && npm test",
+    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:nodsida && npm run check:css-build && npm run check:typsnitt && npm run check:diagramfarger && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
     "check:all": "npm run check && npm run check:scaffold",
@@ -42,7 +45,8 @@
     "check:docs": "node scripts/check-docs.mjs",
     "check:data-layer": "node scripts/check-data-layer.mjs src",
     "check:typsnitt": "node scripts/check-typsnitt.mjs",
-    "check:diagramfarger": "node scripts/check-diagramfarger.mjs"
+    "check:diagramfarger": "node scripts/check-diagramfarger.mjs",
+    "check:nodsida": "node scripts/check-nodsida.mjs"
   },
   "peerDependencies": {
     "lucide-react": "^0.460.0",
