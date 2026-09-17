@@ -54,10 +54,24 @@ const KRAVS = [
 
 /**
  * @template {{ id: string }} T
- * @param {{ db: any, sdk: Record<string, any> }} val
+ * @param {{ db: any, sdk: Record<string, any> }} konfig
  * @returns {import("./kontrakt.js").Datakalla<T>}
  */
-export function skapaFirestoreKalla({ db, sdk }) {
+export function skapaFirestoreKalla(konfig) {
+  /*
+   * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
+   *
+   * Med `({ x })` i signaturen kraschar ett anrop UTAN argument på destrukturen,
+   * med "Cannot destructure property 'x' of 'undefined'". Det felet nämner en
+   * variabel inne i ramverket och inte vad appen glömde, och det pekar mot en fil
+   * anroparen aldrig öppnat.
+   *
+   * ⛔ `= {}` I SIGNATUREN VAR FEL SVAR: typkontrollen avvisade det, och med rätta.
+   * Typen säger att fälten krävs, och det ska den fortsätta göra, annars tappar en
+   * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
+   * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
+   */
+  const { db, sdk } = konfig ?? /** @type {any} */ ({});
   if (!db) throw new Error("skapaFirestoreKalla: db krävs. Skicka in resultatet av getFirestore(app).");
   if (!sdk) throw new Error('skapaFirestoreKalla: sdk krävs. Skicka in modulen: import * as firestore from "firebase/firestore".');
 

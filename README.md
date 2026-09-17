@@ -433,6 +433,34 @@ typkontrollerades.
 | `SAKNAS` | vad som visas när ett värde saknas. Aldrig `0`, som är ett påstående om datan |
 | `TALMELLANSLAG` | strippar det mellanslag `Intl` stoppar i tal. Vilket tecken det är beror på Node-versionen, så det får aldrig hårdkodas |
 
+### Vad appen måste mata in
+
+Ramverket vet ingenting om verksamheten. Allt det behöver veta kommer in genom en
+`skapa*`-fabrik vid uppstart, och det här är hela listan.
+
+| Fabrik | Appen måste skicka | Appen kan skicka |
+|---|---|---|
+| `skapaArendemodell` | `sorter`, `prioer`, `basetikett` | `maxRubrik`. Per sort: `krav`, `extraFalt` |
+| `skapaArendespegel` (nodsidan) | `agare`, `repo`, `etikett` | `sammanfattning`, `extraFalt`, `hamtare` |
+| `skapaRoutingKalla` | `standard` | `rutter` |
+| `skapaFirestoreKalla` | `db`, `sdk` | |
+| `skapaPostgresKalla` | `fraga` | `idKolumn` |
+| `skapaJsonKalla` | `bas` | `hamta` |
+| `skapaGoogleAuth` | `auth`, `sdk` | `hamtaProfil` |
+| `skapaAutentisering` | en adapter med `loggaIn`, `loggaUt`, `lyssna` | |
+| `skapaDatakalla` | en adapter med `OPERATIONER` | `prenumerera` |
+| `skapaMinneskalla` | ingenting | `start` |
+
+⛔ **Allt som är ett VAL är en funktion och inte en flagga.** `krav`, `extraFalt`,
+`sammanfattning`, `ordning`: en flagga (`kraverBelopp: true`) tvingar ramverket att
+veta vad ett belopp är, och då står appens ord i ramverket igen. En funktion flyttar
+ingenting.
+
+⛔ **Varje fabrik kontrollerar sin konfiguration vid uppstart**, inte vid första
+användningen. En halv konfiguration kraschar annars först den dag någon råkar anropa
+just den metoden, och felet pekar mot anropsstället i stället för mot uppsättningen.
+`check-konfigkrav` mäter det genom att anropa varje fabrik utan argument.
+
 ### Nodsidan: `@staiger/ops-framework/nod`
 
 En andra ingång, för det som behöver en token. Buntas **inte** för webbläsaren.
@@ -463,6 +491,7 @@ som råkar bryta det råkar minnas.
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
 | `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390 och 768 px** |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
+| `check-konfigkrav` | **anropar varje `skapa*`-fabrik utan argument och kräver att felet nämner fabrikens eget namn.** ⛔ Kravet är namnet och inte "kastar något": en destruktureringskrasch ÄR ett kast, den ser ut som en kontroll, och den säger `Cannot destructure property 'db' of 'undefined'` i stället för vad appen glömde. Varje fabrik måste dessutom vara klassificerad, så en ny fabrik ingen tagit ställning till blir röd i stället för tyst utanför. ⛔ Fångade fyra av nio fabriker som bröt mot en regel som stod som text i tre filer |
 | `check-nodsida` | webbsidan rör inte `src/nod/`, och nodsidans exporter är dokumenterade. Skiljer på **körimport** (hamnar i bundlen, alltså ett läckage) och **JSDoc-typimport** (når aldrig bundlen, men vänder beroendet så nästa person lägger körkod intill typen). Proven är undantagna, eftersom de måste nå koden de provar, och **omvägen genom dem är stängd**: ingen annan fil får importera provkatalogen, annars når nodsidan bundlen i två hopp. ⛔ Fångade två fel i sin egen PR: kontraktet låg på nodsidan, och undantaget för proven var först ett hål |
 | `check-adoption` | en pågående upprensning går framåt, aldrig bakåt |
 | `test-guards` | **bryter varje regel ovan och kräver rött** |
