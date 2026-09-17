@@ -642,8 +642,20 @@
  * något gemensamt, utan tio specialfall som alla andra vyer får leva med.
  */
 @layer base {
+  /* ⛔ `scrollbar-gutter: stable` LÖSER ETT HOPP SOM SÅG UT SOM EN NAV-BUGG (#143).
+     Skalet centrerar innehållet med `mx-auto`. En sida som är högre än fönstret
+     får en vertikal rullningslist, en kortare får ingen. Slås listen av och på
+     krymper och växer det synliga området, och allt centrerat flyttar sig i
+     sidled: både innehållet och den sticky toppmenyn.
+     Rapporterat som att menyn hoppar och inte känns solid. Det syntes tydligast
+     på Idag, där Idag och Kommande har olika många rader, alltså vid varje
+     flikbyte.
+     ⛔ INTE `overflow-y: scroll`. Den reserverar plats genom att alltid rita en
+     list, även på sidor som inte går att rulla. `scrollbar-gutter` reserverar
+     platsen utan listen, och är no-op där listen ligger ovanpå innehållet. */
   html {
     -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
   }
 
   body {

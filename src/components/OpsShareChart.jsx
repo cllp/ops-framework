@@ -152,9 +152,21 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
     return bit;
   });
 
+  /*
+   * ⛔ `sm:items-start` OCH INTE `sm:items-center` (#152). Ringen låg centrerad
+   * mot listan, så när en rad fälldes ut växte raden på höjden och ringen gled
+   * nedåt. Rapporterat som att diagrammet hoppar när man ändrar i listan.
+   * Toppankrad står den stilla oavsett hur lång listan är.
+   *
+   * ⛔ `self-center sm:self-start` OCH INTE BARA BORTTAGET `self-center`.
+   * Under `sm` är behållaren `flex-col`, och då är `self-center` det som håller
+   * ringen centrerad över listan. Tas den bort helt vänsterställs ringen i
+   * mobilen, alltså en regression på den skärm där den syns mest.
+   * Centrerad staplad, toppankrad sida vid sida.
+   */
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      <div className="shrink-0 self-center">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <div className="shrink-0 self-center sm:self-start">
         {/* ⛔ `role="img"` med ett namn, inte en osynlig graf. Utan det läses
             ringen upp som en hög med tomma cirklar, eller inte alls. Siffrorna
             finns i listan bredvid, som är den faktiska datavyn. */}
