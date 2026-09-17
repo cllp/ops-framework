@@ -29,6 +29,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { utanKommentarer } from "./lib/kallkod.mjs";
 
 const rotter = process.argv.slice(2);
 if (rotter.length === 0) {
@@ -58,18 +59,6 @@ function filer(dir) {
   return ut;
 }
 
-/**
- * Kommentarer bort, radnummer kvar.
- *
- * ⛔ Utan det här steget flaggar vakten sina egna varningstexter. Det hände i
- * tokenvakten samma dag, och en vakt med falska positiva blir avstängd oavsett
- * hur rätt den har i sak.
- * @param {string} text
- */
-const utanKommentarer = (text) =>
-  text
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => "\n".repeat((m.match(/\n/g) || []).length))
-    .replace(/(^|[^:])\/\/[^\n]*/g, (_m, p1) => p1);
 
 /**
  * Plockar parameterlistan ur en funktionsdeklaration genom att räkna parenteser.

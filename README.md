@@ -388,6 +388,7 @@ typkontrollerades.
 
 | Vakt | Vad den bevisar |
 |---|---|
+| `check-closed-api` läser strängar som strängar | `scripts/lib/kallkod.mjs` stryker kommentarer utan att tro att `accept="image/*"` är en. Den gamla strykaren slukade allt från snedstreck-stjärnan i strängen till nästa kommentarslut: synligt som en falsk positiv, osynligt som ett hål där riktiga brott passerade oläsa |
 | `check-types` (`tsc --checkJs`) | JSDoc-typerna kontrolleras, och `.d.ts` följer med paketet |
 | `check-docs` | varje exporterat namn och varje vakt är omnämnd i README, och antalet komponenter stämmer |
 | `check-tokens` | sju regler i tokenkontraktet, plus golv mot fel fil |

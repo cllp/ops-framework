@@ -54,6 +54,25 @@ function kravRott(namn, kommando, forvantat) {
   resultat.push({ namn, vantat: "rott", utfall: "ok" });
 }
 
+/**
+ * Kräver att vakten är GRÖN mot ett underlag som INTE bryter mot något.
+ *
+ * ⛔ Lika viktigt som `kravRott`. En vakt som är röd mot korrekt kod blir
+ * avstängd inom en vecka, och då skyddar den ingenting alls. Det var precis vad
+ * som höll på att hända när `accept="image/*"` lästes som en kommentar.
+ *
+ * @param {string} namn @param {string[]} kommando
+ */
+function kravGront(namn, kommando) {
+  const k = spawnSync(process.execPath, kommando, { cwd: rot, encoding: "utf8" });
+  const utdata = `${k.stdout ?? ""}${k.stderr ?? ""}`;
+  resultat.push(
+    k.status === 0
+      ? { namn, vantat: "gront", utfall: "ok" }
+      : { namn, vantat: "gront", utfall: `vakten blev RÖD mot korrekt kod: ${utdata.trim().split("\n").slice(0, 3).join(" | ")}` },
+  );
+}
+
 /** @param {string} namn @param {(s: string) => string} mutera @returns {string} */
 function tokenkopia(namn, mutera) {
   const muterat = mutera(original);
@@ -145,6 +164,46 @@ kravRott(
   [apivakt, kallkopia("a2", 'export const Vy = () => <OpsButton className="mt-4">Spara</OpsButton>;\n')],
   "ingen lappning",
 );
+
+// ── ⛔ Strängar är inte kod, och den skillnaden var en lucka i vakten ───────
+//
+// `accept="image/*,application/pdf"` är en helt vanlig rad i en filväljare. Den
+// gamla kommentarstrykaren läste snedstreck-stjärna inuti strängen som början på
+// en blockkommentar och slukade allt fram till nästa kommentarslut i filen.
+//
+// Den SYNLIGA skadan var en falsk positiv. Den OSYNLIGA var att allt i det
+// uppslukade spannet blev osynligt för vakten, alltså ett hål man inte kunde se.
+// Båda proven behövs: det ena visar att hålet är igenluckat, det andra att
+// lagningen inte gjorde vakten skrikig.
+kravRott(
+  "api 2b: brott gömt bakom image/* i en sträng",
+  [
+    apivakt,
+    kallkopia(
+      "a2b",
+      // ⛔ JSDoc-blocket LÄNGST NER ÄR HELA POÄNGEN. Den gamla strykaren behövde
+      // ett kommentarslut att svälja fram till; utan ett sådant i filen matchade
+      // den ingenting alls och provet hade varit grönt mot båda varianterna,
+      // alltså mätt ingenting. Det var precis vad första utkastet gjorde.
+      'export function Vy() {\n  return <OpsFilePicker accept="image/*,application/pdf" />;\n}\n' +
+        '\nexport function Rad() {\n  return <OpsButton className="mt-4">Spara</OpsButton>;\n}\n' +
+        '\n/** En kommentar som stänger. */\nexport const slut = 1;\n',
+    ),
+  ],
+  "ingen lappning",
+);
+
+kravGront("api 2c: image/* i en sträng är inte ett brott", [
+  apivakt,
+  // ⛔ Inget `>` mellan kommentarslutet och `className`, alltså inga pilfunktioner
+  // här. Med `() =>` finns ett `>` som stoppar vaktens `[^>]*?`, och då blir
+  // provet grönt även med den trasiga strykaren, alltså grönt av fel anledning.
+  kallkopia(
+    "a2c",
+    'export function Vy() {\n  return <OpsFilePicker accept="image/*,application/pdf" />;\n}\n' +
+      '\n/** En kommentar som stänger. */\nfunction Rad() {\n  return <div className="mt-4" />;\n}\n',
+  ),
+]);
 
 kravRott(
   "api 3a: godtycklig hex i klass",
