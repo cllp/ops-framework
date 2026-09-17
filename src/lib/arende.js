@@ -59,6 +59,48 @@
 const MAX_RUBRIK_STANDARD = 120;
 
 /**
+ * De lägen en post kan sluta i, plus det den börjar i.
+ *
+ * ⛔ TVÅ SLUTLÄGEN, INTE ETT. "Hanterad" betyder att något gjordes, "avskriven"
+ * att någon tagit ställning till att inget skulle göras. Utan det andra läget
+ * blir en medveten nedprioritering omöjlig att skilja från en glömska, och båda
+ * ser ut som en post som slutat röra sig.
+ */
+const LAGEN = Object.freeze({ NY: "ny", HANTERAD: "hanterad", AVSKRIVEN: "avskriven" });
+
+/** Ett dygn i millisekunder. */
+const DYGN_MS = 86400000;
+
+/**
+ * Vad som saknas för att en post ska gå att avsluta.
+ *
+ * ⛔ MODULNIVÅ OCH INTE EN METOD SOM ANROPAR `this`. `byggAvslut` behöver samma
+ * kontroll, och en metod som når en annan via `this` går sönder i samma sekund
+ * någon skriver `const { byggAvslut } = modell`. Destrukturering är normalt, och
+ * ett fel som bara uppstår då hittas inte av ett prov som anropar modellen helt.
+ *
+ * @param {string} lage
+ * @param {{ url?: string, not?: string } | null} [resultat]
+ * @returns {string[]}
+ */
+function saknasVidAvslutInternt(lage, resultat) {
+  const fel = [];
+  if (lage !== LAGEN.HANTERAD && lage !== LAGEN.AVSKRIVEN) {
+    fel.push(`Avslut kräver läget "${LAGEN.HANTERAD}" eller "${LAGEN.AVSKRIVEN}".`);
+    return fel;
+  }
+  const not = String((resultat || {}).not || "").trim();
+  if (!not) {
+    fel.push(
+      lage === LAGEN.AVSKRIVEN
+        ? "Skriv varför inget gjordes. En avskrivning utan skäl läses som att någon glömde."
+        : "Skriv vad som gjordes. Ett avslut utan text säger inte om något hänt.",
+    );
+  }
+  return fel;
+}
+
+/**
  * Bygger modellen ur appens konfiguration.
  *
  * ⛔ KONTROLLERAR KONFIGURATIONEN VID UPPSTART, inte vid första användningen.
@@ -209,6 +251,69 @@ export function skapaArendemodell(konfig) {
         status: "ny",
         resultat: null,
       };
+    },
+
+    /** Lägesnamnen, så appen slipper skriva strängarna själv. */
+    LAGEN,
+
+    /**
+     * Vad som saknas för att posten ska gå att avsluta.
+     *
+     * ⛔ ETT AVSLUT UTAN RESULTAT ÄR DET VÄRSTA UTFALLET, och det är mätt. En
+     * post stod som "hanterad" med tomt resultat, och vyn visade en grön bricka
+     * utan ett ord om vad som gjorts. Den som skickade in såg inte om något
+     * hänt, bara att någon tryckt på en knapp.
+     *
+     * ⛔ `not` KRÄVS, `url` GÖR DET INTE. Allt som görs lämnar inte en länk
+     * efter sig: en siffra kan ha förts in i ett register, en fråga kan ha
+     * besvarats. Men det ska alltid gå att läsa VAD som hände, och en mening
+     * kostar ingenting att skriva.
+     *
+     * ⛔ RETURNERAR SKÄLEN, som `saknas`. Samma form för samma sorts fråga.
+     */
+    /** @param {string} lage @param {{ url?: string, not?: string } | null} [resultat] @returns {string[]} */
+    saknasVidAvslut(lage, resultat) {
+      return saknasVidAvslutInternt(lage, resultat);
+    },
+
+    /**
+     * Bygger avslutet, eller kastar med skälen.
+     *
+     * ⛔ KASTAR I STÄLLET FÖR ATT RETURNERA NÅGOT HALVT. Den som avslutar en
+     * post gör det i ett skript eller en serverfunktion, inte i ett formulär,
+     * och där är ett tyst halvt resultat värre än ett stopp: det skrivs till
+     * databasen och ser klart ut.
+     */
+    /**
+     * @param {string} lage
+     * @param {{ url?: string, not?: string }} resultat
+     * @param {{ nu?: () => string }} [sammanhang]
+     */
+    byggAvslut(lage, resultat, { nu = () => new Date().toISOString() } = {}) {
+      const fel = saknasVidAvslutInternt(lage, resultat);
+      if (fel.length) throw new Error(`byggAvslut: ${fel.join(" ")}`);
+      return {
+        status: lage,
+        resultat: { url: (resultat || {}).url || null, not: String(resultat.not).trim() },
+        avslutad: nu(),
+      };
+    },
+
+    /**
+     * Hur många hela dygn posten legat i "ny". Null när den inte är ny.
+     *
+     * ⛔ EN GAMMAL "NY" ÄR ETT LARM, INTE ETT TILLSTÅND. Ligger inskick kvar
+     * orörda betyder det att kedjan är trasig någonstans, och den sortens fel
+     * ser likadant ut som en lugn vecka. Talet finns här så vyn kan säga ifrån
+     * utan att själv veta vad som räknas som länge.
+     */
+    /** @param {{ status?: string, skapad?: string }} post @param {Date | number} [nu] @returns {number | null} */
+    dygnINy(post, nu = Date.now()) {
+      if (!post || post.status !== LAGEN.NY) return null;
+      const skapad = Date.parse(String(post.skapad || ""));
+      if (!Number.isFinite(skapad)) return null;
+      const gick = (nu instanceof Date ? nu.getTime() : Number(nu)) - skapad;
+      return gick > 0 ? Math.floor(gick / DYGN_MS) : 0;
     },
   };
 }
