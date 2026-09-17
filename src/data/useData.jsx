@@ -17,6 +17,22 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
  * strömmar in medan man läser. Hämta om vid fokus, alltså `uppdatera()`, är
  * enklare att resonera om och kan inte visa två sanningar samtidigt. Behövs
  * realtid någonstans är det en riktig fråga att ta då, inte en default.
+ *
+ * ⛔ FRÅGAN STÄLLDES, OCH SVARET ÄR `useSamlingLive`. INTE EN FLAGGA PÅ `useSamling`.
+ *
+ * En inkorg är motsatsen till en rapport: den finns för att något ska dyka upp
+ * i den medan man tittar, och en agent som markerar en post hanterad är precis
+ * det man väntar på. Där är ett omladdningsklick ingen enkelhet, bara en fråga
+ * användaren måste ställa om och om igen.
+ *
+ * Det är ändå EN ANNAN HOOK och inte `useSamling(..., { live: true })`, och
+ * skillnaden är hela poängen. En flagga i ett optionsobjekt kan komma från en
+ * spread, en konstant eller en prop, och då står valet inte längre i vyn som
+ * läser datan. Ett eget namn måste skrivas ut på anropsstället, syns i en diff,
+ * och går att räkna: `grep useSamlingLive` svarar exakt vilka ytor som strömmar.
+ *
+ * Defaulten ovan är alltså oförändrad. Realtid är ett val man tar, en yta i
+ * taget, och aldrig något som smyger in via en inställning.
  */
 
 /** @type {import("react").Context<import("./kontrakt.js").Datakalla<any> | null>} */
@@ -100,6 +116,111 @@ export function useSamling(samling, fraga) {
   }, [kalla, samling, fraganyckel, rakna]);
 
   return useMemo(() => ({ data, laddar, fel, uppdatera }), [data, laddar, fel, uppdatera]);
+}
+
+/**
+ * En samling som uppdaterar sig själv när källan kan det.
+ *
+ * Samma retur som `useSamling`, plus `realtid`. Ett anropsställe kan alltså byta
+ * ett ord och få strömmen, och behöver inte skriva om något annat.
+ *
+ * ⛔ `realtid` SÄGER OM DU FAKTISKT FICK DET DU BAD OM. Källor som inte kan
+ * prenumerera (JSON i repot, minnesadaptern i tester) hämtar en gång, precis som
+ * `useSamling`, och då står det `false`. Utan det fältet hade en app som tror sig
+ * strömma sett exakt likadan ut som en som gör det, och skillnaden hade upptäckts
+ * först när någon undrade varför en post aldrig dök upp.
+ *
+ * ⛔ DEN KASTAR INTE när källan saknar `prenumerera`. Att kasta hade gjort varje
+ * test med en minneskälla till ett krascher, och tvingat fram en andra kodväg i
+ * appen just för tester. En ärlig tillbakafallning som SÄGER att den föll
+ * tillbaka är både mindre och sannare.
+ *
+ * ⛔ `uppdatera()` STARTAR OM PRENUMERATIONEN, den hämtar inte vid sidan av.
+ * Firestore återansluter inte av sig själv efter ett avvisat lyssnande, så efter
+ * ett fel är det enda som hjälper en ny prenumeration. En engångshämtning hade
+ * gett en bild som genast slutar uppdateras igen, alltså sett ut som att felet
+ * gick över.
+ *
+ * @template {{ id: string }} T
+ * @param {string} samling
+ * @param {import("./kontrakt.js").Fraga} [fraga]
+ * @returns {{ data: T[], laddar: boolean, fel: Error | null, uppdatera: () => void, realtid: boolean }}
+ */
+export function useSamlingLive(samling, fraga) {
+  const kalla = useDatakalla();
+  const [data, setData] = useState(/** @type {T[]} */ ([]));
+  const [laddar, setLaddar] = useState(true);
+  const [fel, setFel] = useState(/** @type {Error | null} */ (null));
+
+  // Samma innehållsjämförelse som `useSamling`. Ett objektliteral i en vy är ett
+  // nytt objekt vid varje rendering, och utan detta hade prenumerationen rivits
+  // och satts upp igen i en oändlig loop. Dyrare här än där: varje varv är en
+  // ny lyssnare mot servern.
+  const fraganyckel = JSON.stringify(fraga ?? null);
+
+  const [rakna, setRakna] = useState(0);
+  const uppdatera = useCallback(() => setRakna((n) => n + 1), []);
+
+  const kanStromma = typeof kalla.prenumerera === "function";
+
+  useEffect(() => {
+    let avbruten = false;
+    setLaddar(true);
+    setFel(null);
+
+    if (!kanStromma) {
+      kalla
+        .lista(samling, fraga)
+        .then((rader) => {
+          if (avbruten) return;
+          setData(rader);
+        })
+        .catch((e) => {
+          // ⛔ Data nollställs INTE vid fel, av samma skäl som i `useSamling`:
+          // en tömd lista ser ut som att datan försvunnit.
+          if (avbruten) return;
+          setFel(e instanceof Error ? e : new Error(String(e)));
+        })
+        .finally(() => {
+          if (avbruten) return;
+          setLaddar(false);
+        });
+      return () => {
+        avbruten = true;
+      };
+    }
+
+    const avsluta = /** @type {NonNullable<typeof kalla.prenumerera>} */ (kalla.prenumerera)(samling, fraga, {
+      vidData: (rader) => {
+        if (avbruten) return;
+        setData(rader);
+        // ⛔ Felet nollställs vid varje lyckad leverans. Ett fel som ligger kvar
+        // ovanför färsk data påstår att något är trasigt medan man tittar på
+        // beviset för motsatsen.
+        setFel(null);
+        setLaddar(false);
+      },
+      vidFel: (e) => {
+        if (avbruten) return;
+        setFel(e);
+        setLaddar(false);
+      },
+    });
+
+    return () => {
+      avbruten = true;
+      // ⛔ Utan den här raden lever lyssnaren vidare efter att vyn stängts, och
+      // varje besök lägger till en till. Det syns inte i UI:t, bara i notan och
+      // till slut i minnet.
+      if (typeof avsluta === "function") avsluta();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, samling, fraganyckel, rakna, kanStromma]);
+
+  return useMemo(
+    () => ({ data, laddar, fel, uppdatera, realtid: kanStromma }),
+    [data, laddar, fel, uppdatera, kanStromma],
+  );
 }
 
 /**

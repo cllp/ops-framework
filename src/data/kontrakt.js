@@ -33,6 +33,24 @@
  *
  * Utan en gemensam nyckelkonvention kan ingen delad kod, som listor eller
  * tabeller, veta vad som identifierar en rad.
+ *
+ * ⛔ 5. `prenumerera` ÄR FRIVILLIG, och de fem obligatoriska är fortfarande fem.
+ *
+ * Realtid är inte en egenskap hos kontraktet utan hos källan. En JSON-fil i
+ * repot kan inte pusha, och att kräva metoden hade tvingat varje adapter att
+ * ljuga: antingen med en pollingloop som låtsas vara en ström, eller med en
+ * metod som kastar och därmed inte går att anropa. Båda är sämre än ett ärligt
+ * "den här källan kan det inte".
+ *
+ * Därför står den INTE i `OPERATIONER`, och `skapaDatakalla` kräver den inte.
+ * Den som vill ha realtid frågar källan (`typeof kalla.prenumerera === "function"`)
+ * och får ett svar den kan handla på. `useSamlingLive` gör precis det och
+ * rapporterar utfallet i `realtid`, i stället för att falla tillbaka i tysthet.
+ *
+ * ⛔ EN TYST TILLBAKAFALLNING VORE DET FARLIGA HÄR. En app som tror sig ha
+ * realtid och inte har det ser exakt likadan ut som en som har det, ända tills
+ * någon undrar varför en post inte dök upp. Det felet går inte att se, bara att
+ * misstänka.
  */
 
 /**
@@ -43,7 +61,18 @@
  * @property {(samling: string, data: Partial<T>) => Promise<T>} skapa Returnerar posten med sitt id.
  * @property {(samling: string, id: string, data: Partial<T>) => Promise<T>} uppdatera
  * @property {(samling: string, id: string) => Promise<void>} taBort
+ * @property {(samling: string, fraga: Fraga | undefined, lyssnare: Lyssnare<T>) => Avsluta} [prenumerera]
+ *   ⛔ FRIVILLIG. Se regel 5 nedan.
  */
+
+/**
+ * @template T
+ * @typedef {object} Lyssnare
+ * @property {(rader: T[]) => void} vidData Varje gång urvalet ändras, inklusive första gången.
+ * @property {(fel: Error) => void} vidFel
+ */
+
+/** @typedef {() => void} Avsluta Stänger prenumerationen. Måste tåla att anropas flera gånger. */
 
 /**
  * @typedef {object} Fraga
