@@ -48,10 +48,24 @@ function identifierare(namn) {
 
 /**
  * @template {{ id: string }} T
- * @param {{ fraga: (sql: string, params: unknown[]) => Promise<any[]>, idKolumn?: string }} val
+ * @param {{ fraga: (sql: string, params: unknown[]) => Promise<any[]>, idKolumn?: string }} konfig
  * @returns {import("./kontrakt.js").Datakalla<T>}
  */
-export function skapaPostgresKalla({ fraga, idKolumn = "id" }) {
+export function skapaPostgresKalla(konfig) {
+  /*
+   * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
+   *
+   * Med `({ x })` i signaturen kraschar ett anrop UTAN argument på destrukturen,
+   * med "Cannot destructure property 'x' of 'undefined'". Det felet nämner en
+   * variabel inne i ramverket och inte vad appen glömde, och det pekar mot en fil
+   * anroparen aldrig öppnat.
+   *
+   * ⛔ `= {}` I SIGNATUREN VAR FEL SVAR: typkontrollen avvisade det, och med rätta.
+   * Typen säger att fälten krävs, och det ska den fortsätta göra, annars tappar en
+   * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
+   * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
+   */
+  const { fraga, idKolumn = "id" } = konfig ?? /** @type {any} */ ({});
   if (typeof fraga !== "function") {
     throw new Error("skapaPostgresKalla: fraga krävs och ska vara en funktion (sql, params) => Promise<rader>.");
   }

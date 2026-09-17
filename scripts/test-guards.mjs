@@ -407,6 +407,73 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   );
 }
 
+// ── Konfigkravvakten ───────────────────────────────────────────────────────
+//
+// ⛔ Regeln den upprätthåller stod som text i tre filers kommentarer och bröts av
+// fyra av nio fabriker utan att någon sett det. Valideringen fanns och hann aldrig
+// tala, eftersom destruktureringen i parameterlistan dog först.
+//
+// ⛔ Kravet är att felet NÄMNER FABRIKEN, inte bara att något kastas. Ett krav på
+// "kastar något" hade varit grönt för båda fallen, och det farliga är just att en
+// destruktureringskrasch ÄR ett kast: den ser ut som en kontroll.
+{
+  const konfigvakt = "scripts/check-konfigkrav.mjs";
+
+  /** @param {string} namn @param {string} innehall */
+  const fixtur = (namn, innehall) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.mkdirSync(mapp, { recursive: true });
+    const fil = path.join(mapp, "fabriker.mjs");
+    fs.writeFileSync(fil, innehall);
+    return fil;
+  };
+
+  kravRott(
+    "konfigkrav 1: destrukturering i parameterlistan",
+    [konfigvakt, fixtur("k1", 'export function skapaProv({ db }) { if (!db) throw new Error("skapaProv: db krävs"); return {}; }\n')],
+    "nämner inte fabriken",
+  );
+
+  kravRott(
+    "konfigkrav 2: fabrik utan kontroll alls",
+    [konfigvakt, fixtur("k2", "export function skapaProv() { return {}; }\n")],
+    "utan att säga ifrån",
+  );
+
+  kravRott(
+    "konfigkrav 3: klassificerad som utan krav men kastar",
+    [konfigvakt, fixtur("k3", 'export function skapaMinneskalla() { throw new Error("skapaMinneskalla: nej"); }\n')],
+    "men kastade ändå",
+  );
+
+  kravRott("konfigkrav golv: noll fabriker", [konfigvakt, fixtur("k4", "export const x = 1;\n")], "noll fabriker");
+
+  kravRott(
+    "konfigkrav golv: fel sökväg",
+    [konfigvakt, path.join(arbetsmapp, "finns-inte-konfig.mjs")],
+    "Fel sökväg i vakten",
+  );
+
+  // Kontroll av kontrollen: en fabrik som gör rätt MÅSTE vara grön, annars vore
+  // vakten omöjlig att uppfylla.
+  {
+    const fil = fixtur(
+      "k5",
+      "export function skapaProv(konfig) { const { db } = konfig ?? {}; if (!db) throw new Error('skapaProv: db krävs. Skicka in getFirestore(app).'); return {}; }\n",
+    );
+    const k = spawnSync(process.execPath, [konfigvakt, fil], { cwd: rot, encoding: "utf8" });
+    resultat.push(
+      k.status === 0
+        ? { namn: "konfigkrav: en fabrik som namnger sig ar gron", vantat: "gront", utfall: "ok" }
+        : {
+            namn: "konfigkrav: en fabrik som namnger sig ar gron",
+            vantat: "gront",
+            utfall: `vakten blev rod pa en korrekt fabrik, alltsa omojlig att uppfylla: ${(k.stderr ?? "").trim().split("\n").slice(0, 2).join(" | ")}`,
+          },
+    );
+  }
+}
+
 // ── Nodsidevakten ──────────────────────────────────────────────────────────
 //
 // ⛔ Den enda vakten i repot som skyddar mot ett SÄKERHETSFEL och inte ett
