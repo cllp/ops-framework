@@ -131,8 +131,16 @@ export function OpsFilePicker({
             {labels.taBort ?? "Ta bort"}
           </OpsButton>
         ) : null}
+        {/* ⛔ HINTEN GÖMS PÅ TELEFON, inte lyssnaren. Att ta en skärmbild och
+            klistra in den är ett skrivbordsarbetssätt: en telefon har inget
+            urklipp som når ett filfält, så texten hade lovat något som inte går
+            att göra, på den skärm där utrymmet är minst.
+
+            ⛔ Lyssnaren är kvar på alla bredder. En surfplatta med tangentbord är
+            smalare än `sm` i liggande läge ibland, och en funktion som fungerar
+            ska inte stängas av för att texten om den är gömd. */}
         {paste && !value ? (
-          <span className="inline-flex items-center gap-1 text-sm text-ink-muted">
+          <span className="hidden items-center gap-1 text-sm text-ink-muted sm:inline-flex">
             <GemIkon />
             {labels.klistra ?? "eller klistra in en skärmbild"}
           </span>

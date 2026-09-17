@@ -63,6 +63,29 @@ const PRICK = ["bg-series-1", "bg-series-2", "bg-series-3", "bg-series-4", "bg-s
 
 const MAX_BITAR = STRECK.length;
 
+/**
+ * Bredden på allt som står EFTER värdet på en rad: andelen och chevronen.
+ *
+ * ⛔ ETT TAL, TVÅ ANVÄNDNINGAR, SKRIVNA BREDVID VARANDRA. Raden reserverar den
+ * här bredden för svansen, och den utfällda panelen håller samma bredd fri till
+ * höger. Utan det högerställs panelens belopp mot kortets kant medan radens
+ * belopp står 68 px längre in, och skillnaden ser ut som ett fel.
+ *
+ * Mätt: andelen 44 px (`w-11`) + mellanrum 8 px + chevron 16 px = 68 px.
+ *
+ * ⛔ PANELENS MARGINAL ÄR 84 OCH INTE 68, och de 16 pixlarna är inte slarv.
+ * Raden har `px-2` inuti sig och ett `gap-2` mellan värdet och svansen; panelen
+ * ligger utanför båda, eftersom den börjar vid listans kant. Första försöket
+ * satte 68 på båda och mätningen gav 531 mot 547, alltså sexton pixlars glapp
+ * som ser ut precis som det fel raden skulle rätta.
+ *
+ * ⛔ Två Tailwind-klasser och inte ett räknat värde: Tailwind läser källkod som
+ * text, så ett hopbyggt klassnamn genereras inte alls. Att de står på rad efter
+ * varandra är det som gör att de inte glider isär.
+ */
+const SVANS = "w-[4.25rem]";
+const SVANS_MARGINAL = "pr-[5.25rem]";
+
 const RADIE = 40;
 const OMKRETS = 2 * Math.PI * RADIE;
 // ⛔ Ett mellanrum i ytans färg mellan bitarna, inte en ritad kant runt dem. En
@@ -178,30 +201,32 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
               {b.text === undefined || b.text === null ? null : (
                 <span className="shrink-0 text-sm tabular-nums text-ink-secondary">{b.text}</span>
               )}
-              {/* Andelen räknas här och inte av appen: den följer direkt av
-                  geometrin, och två uträkningar av samma tal glider isär. */}
-              <span className="w-11 shrink-0 text-right text-sm tabular-nums text-ink-muted">
-                {Math.round(b.andel * 100)} %
+              {/* Svansen: andel och chevron i ETT block med den bredd panelen
+                  nedanför håller fri. Andelen räknas här och inte av appen: den
+                  följer direkt av geometrin, och två uträkningar av samma tal
+                  glider isär. */}
+              <span className={cx("flex shrink-0 items-center justify-end gap-2", nagonHarDetaljer ? SVANS : "w-11")}>
+                <span className="text-right text-sm tabular-nums text-ink-muted">{Math.round(b.andel * 100)} %</span>
+                {nagonHarDetaljer ? (
+                  harDetaljer ? (
+                    <span
+                      aria-hidden="true"
+                      className={cx(
+                        "text-ink-muted transition-transform duration-(--duration-fast) ease-standard",
+                        oppen && "rotate-180",
+                      )}
+                    >
+                      <ChevronNedIkon size={16} />
+                    </span>
+                  ) : (
+                    // ⛔ Tom yta och INTE en utgråad pil, samma regel som i
+                    // OpsEventList: en pil som inte öppnar något är ett löfte som
+                    // inte infrias, och den som tryckt en gång utan att något hände
+                    // slutar lita på de andra pilarna.
+                    <span aria-hidden="true" className="w-4" />
+                  )
+                ) : null}
               </span>
-              {nagonHarDetaljer ? (
-                harDetaljer ? (
-                  <span
-                    aria-hidden="true"
-                    className={cx(
-                      "shrink-0 text-ink-muted transition-transform duration-(--duration-fast) ease-standard",
-                      oppen && "rotate-180",
-                    )}
-                  >
-                    <ChevronNedIkon size={16} />
-                  </span>
-                ) : (
-                  // ⛔ Tom yta och INTE en utgråad pil, samma regel som i
-                  // OpsEventList: en pil som inte öppnar något är ett löfte som
-                  // inte infrias, och den som tryckt en gång utan att något hände
-                  // slutar lita på de andra pilarna.
-                  <span aria-hidden="true" className="w-4 shrink-0" />
-                )
-              ) : null}
             </>
           );
 
@@ -242,7 +267,11 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
                   linjera med etiketten. Ett mått som "nästan" linjerar ser ut som
                   ett fel; en linje säger "det här hör till raden ovanför". */}
               {harDetaljer ? (
-                <div id={panelId} hidden={!oppen} className="mt-1 mb-2 ml-3 border-l-2 border-line pl-3 text-sm text-ink-secondary">
+                <div
+                  id={panelId}
+                  hidden={!oppen}
+                  className={cx("mt-1 mb-2 ml-3 border-l-2 border-line pl-3 text-sm text-ink-secondary", SVANS_MARGINAL)}
+                >
                   {b.detaljer}
                 </div>
               ) : null}
