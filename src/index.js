@@ -79,4 +79,5 @@ export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAu
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, ANTAL_IDENTITETSTONER } from "./lib/identity.js";
 export { bradska, delaIdagKommande } from "./lib/handelser.js";
+export { skapaArendemodell } from "./lib/arende.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, TALMELLANSLAG, SAKNAS } from "./lib/format.js";

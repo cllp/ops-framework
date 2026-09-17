@@ -292,6 +292,29 @@ Nyckeltal bär samma sak: `OpsStat` tar `fact`, plus `source` och `updatedAt`.
 ⛔ **En siffra utan ålder läses som färsk**, alltid, och det är den vanligaste
 tysta lögnen i en översiktsvy.
 
+### Ärenden
+
+`skapaArendemodell(konfig)` äger **formen** på ett inskickat ärende: att det har
+en sort och en prioritet, bär vem som skickade in det och när, att `status` och
+`resultat` tillhör servern och aldrig klienten, att etiketterna är basen plus
+sorten plus prion, och att validering svarar med **skälen** i stället för ett ja
+eller nej.
+
+Appen äger **värdena**: vilka sorter som finns, vad de heter, vilken etikett de
+får, vilka extra villkor just den sorten har (`krav`) och vilka extra fält den
+skriver (`extraFalt`).
+
+⛔ **Ett ord som "kvitto" får aldrig stå i modulen.** Ett kvitto är ett
+bokföringsbegrepp i en viss verksamhet, inte en egenskap hos ärenden. Står det i
+ramverket har ramverket tagit ställning till vad plattformen handlar om, och
+nästa app måste antingen leva med vår vokabulär eller bygga sin egen modell vid
+sidan av. Proven använder därför en påhittad taxonomi: skulle modellen råka bero
+på appens ord hade den fungerat i proven och gått sönder i nästa app.
+
+Konfigurationen kontrolleras vid uppstart, inte vid första användningen. En sort
+utan `etikett` ger annars ett ärende som saknar sin märkning, och det felet syns
+först i ärendesystemet: posten skapades, den hamnade bara aldrig där någon letar.
+
 ### Datalager
 
 Ett CRUD-kontrakt med utbytbara adaptrar. **Vyerna vet aldrig var datan kommer
