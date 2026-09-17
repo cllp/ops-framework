@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OpsFilePicker } from "../components/OpsFilePicker.jsx";
 import { OpsIconLink } from "../components/OpsIconLink.jsx";
-import { arBild, storlekstext } from "../lib/fil.js";
+import { arBild, bilagestorlek, storlekstext } from "../lib/fil.js";
 
 /**
  * ⛔ jsdom HAR INGEN `createImageBitmap`, och det är inte ett hinder utan själva
@@ -159,6 +159,16 @@ describe("fil-hjälparna", () => {
     expect(storlekstext(3 * 1024 * 1024)).toBe("3,0 MB");
     // Noll är inte en storlek utan en avsaknad av mätning.
     expect(storlekstext(0)).toBe("");
+  });
+
+  it("räknar tillbaka från lagrade tecken till en ungefärlig filstorlek", () => {
+    // ⛔ Finns för att base64-faktorn inte ska stå som en magisk 1,4 i varje app
+    // som visar en bilaga. En bilaga lagrar `tecken` och inte byte, eftersom det
+    // är tecknen som räknas mot dokumentgränsen.
+    expect(bilagestorlek(2867)).toBe("2 kB");
+    // ⛔ Ungefärlig, inte exakt: 1,4 är en avrundning uppåt av 4/3 plus prefixet.
+    // Skillnaden syns inte i "2 kB", vilket är den precision frågan har.
+    expect(bilagestorlek(1400)).toBe("1000 B");
   });
 });
 

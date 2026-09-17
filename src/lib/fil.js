@@ -63,6 +63,25 @@ export function arBild(typ) {
   return typeof typ === "string" && typ.indexOf("image/") === 0;
 }
 
+/**
+ * Ungefär hur stor en LAGRAD bilaga är, utifrån vad den kostar i dokumentet.
+ *
+ * ⛔ FINNS FÖR ATT `TECKEN_PER_BYTE` INTE SKA STÅ I EN APP. En bilaga lagrar
+ * `tecken` och inte byte, eftersom det är tecknen som räknas mot dokumentgränsen.
+ * En vy som vill visa en storlek måste då räkna tillbaka, och gjorde den det
+ * själv skulle 1,4 stå i varje app som visar en bilaga. Det är samma tal på tre
+ * ställen, och det tredje är alltid det som glöms den dag det ändras.
+ *
+ * ⛔ Resultatet är en UNGEFÄRLIG storlek och ska läsas så. Base64-overheaden är
+ * inte exakt 1,4, och prefixet räknas med. Skillnaden syns inte i "2 kB", vilket
+ * är precis den precision frågan har.
+ *
+ * @param {number} tecken
+ */
+export function bilagestorlek(tecken) {
+  return storlekstext(Math.round(tecken / TECKEN_PER_BYTE));
+}
+
 /** @param {number} byte */
 export function storlekstext(byte) {
   if (!Number.isFinite(byte) || byte <= 0) return "";

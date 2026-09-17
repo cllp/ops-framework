@@ -380,7 +380,7 @@ typkontrollerades.
 | `getTheme`, `setTheme`, `initTheme` | ljust, mörkt, följ systemet |
 | `identityTone`, `initials`, `ANTAL_IDENTITETSTONER` | deterministisk ton och initialer som inte klipper tecken |
 | `bradska`, `delaIdagKommande` | härleder hur bråttom en händelse är ur dagar kvar, och delar en lista i Idag och Kommande. Försenat ligger i Idag, odaterat i Kommande. |
-| `arBild`, `storlekstext` | för att VISA en sparad bilaga. `arBild` tar MIME-typen och inte filen, så samma fråga går att ställa om en fil man just valt och om en bilaga man läst ur en databas. ⛔ Själva inläsningen exporteras inte: en app som läser filer förbi `OpsFilePicker` har skaffat ett andra ställe som bestämmer vad som ryms |
+| `arBild`, `storlekstext`, `bilagestorlek` | för att VISA en sparad bilaga. `bilagestorlek` räknar tillbaka från lagrade tecken till en ungefärlig filstorlek, så base64-faktorn inte hamnar som en magisk 1,4 i varje app som visar en bilaga. `arBild` tar MIME-typen och inte filen, så samma fråga går att ställa om en fil man just valt och om en bilaga man läst ur en databas. ⛔ Själva inläsningen exporteras inte: en app som läser filer förbi `OpsFilePicker` har skaffat ett andra ställe som bestämmer vad som ryms |
 | `SAKNAS` | vad som visas när ett värde saknas. Aldrig `0`, som är ett påstående om datan |
 | `TALMELLANSLAG` | strippar det mellanslag `Intl` stoppar i tal. Vilket tecken det är beror på Node-versionen, så det får aldrig hårdkodas |
 
