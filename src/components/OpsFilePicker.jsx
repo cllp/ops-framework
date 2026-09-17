@@ -1,0 +1,174 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { arBild as arBildtyp, lasBilaga, storlekstext } from "../lib/fil.js";
+import { OpsButton } from "./OpsButton.jsx";
+import { FilIkon, GemIkon } from "./icons.jsx";
+
+/**
+ * Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag.
+ *
+ * ══ ⛔ VARFÖR DEN INTE HETER OpsImagePicker ══════════════════════════════
+ *
+ * Den gjorde det i praktiken en dag: `accept="image/*"` och namnet "Välj bild".
+ * Rapporten kom omgående, och den var ett krav och inte en önskan: "det kan vara
+ * ett kontoutdrag, pdf, excel, eller bild". En bildväljare som får en PDF är
+ * ingen bildväljare, och en bildväljare som ARTIGT vägrar en PDF tvingar fram en
+ * skärmbild av ett dokument man redan har.
+ *
+ * ⛔ Bilder får särbehandling INUTI komponenten (de krymps och visas), men
+ * aldrig i namnet eller i kontraktet. Se `lib/fil.js` för varför bara bilder går
+ * att krympa.
+ *
+ * ══ ⛔ URKLIPPET ÄR EN FÖRSTAKLASSVÄG, INTE EN GENVÄG ═══════════════════
+ *
+ * På en dator är den snabbaste vägen från "jag ser något på skärmen" till "det
+ * ligger i ärendet" en skärmbild i urklipp. Går den inte att klistra in måste man
+ * spara till en fil, leta upp filen i en dialog, och sedan städa bort den. Tre
+ * steg och ett skräp för något som borde vara ett kommando.
+ *
+ * ⛔ Lyssnaren sitter på DOKUMENTET och inte på ett fält. Man klistrar in där
+ * blicken är, inte där fokus råkar ligga, och en inklistring som bara fungerar om
+ * man först klickat i rätt ruta läses som att funktionen inte finns.
+ *
+ * ⛔ Följden är att TVÅ monterade filväljare båda tar emot samma inklistring.
+ * Det är inte något som går att lösa inifrån komponenten, och det är därför
+ * `paste` går att stänga av: en yta med två bilagor får välja vilken som lyssnar.
+ *
+ * ⛔ Bara inklistringar som bär FILER tas. Klistrar man in text i ett textfält
+ * bär samma händelse text, och en filväljare som svalde den hade stulit
+ * inklistringen från fältet man faktiskt skrev i.
+ */
+
+/**
+ * @param {object} props
+ * @param {import("../lib/fil.js").Bilaga | null} props.value
+ * @param {(bilaga: import("../lib/fil.js").Bilaga | null) => void} props.onChange
+ * @param {number} props.maxChars Tak för data-URL:en i tecken. Plattformen äger talet: ramverket vet inte vad den lagrar i.
+ * @param {string} [props.accept] Vad filväljaren erbjuder. ⛔ Ett filter, aldrig ett skydd: en fil kan alltid dras in eller klistras in ändå.
+ * @param {boolean} [props.paste] Ta emot inklistrade filer. Av när två väljare delar yta.
+ * @param {string} [props.ariaLabel] Vad som ska bifogas, för den som inte ser knappen.
+ * @param {{ valj?: string, byt?: string, taBort?: string, klistra?: string }} [props.labels]
+ */
+export function OpsFilePicker({
+  value,
+  onChange,
+  maxChars,
+  accept,
+  paste = true,
+  ariaLabel = "Bifoga fil",
+  labels = {},
+}) {
+  const filRef = useRef(/** @type {HTMLInputElement | null} */ (null));
+  const [fel, setFel] = useState("");
+  const [laser, setLaser] = useState(false);
+  const felId = useId();
+
+  if (!Number.isFinite(maxChars) || maxChars <= 0) {
+    throw new Error(
+      `OpsFilePicker: maxChars måste vara ett positivt tal, fick ${maxChars}. Utan tak skrivs filen till en lagring som avvisar den, och avslaget når användaren som "kunde inte spara".`,
+    );
+  }
+
+  const ta = async (/** @type {File | Blob | null} */ fil) => {
+    if (!fil) return;
+    setFel("");
+    setLaser(true);
+    try {
+      onChange(await lasBilaga(fil, { maxTecken: maxChars }));
+    } catch (err) {
+      onChange(null);
+      setFel(err instanceof Error ? err.message : "Filen kunde inte läsas.");
+    } finally {
+      setLaser(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!paste) return undefined;
+    /** @param {ClipboardEvent} e */
+    const vid = (e) => {
+      const filer = e.clipboardData ? Array.from(e.clipboardData.files || []) : [];
+      if (!filer.length) return;
+      // ⛔ Först när vi VET att det finns en fil. Ett `preventDefault` på varje
+      // inklistring hade dödat vanlig textinklistring på hela sidan.
+      e.preventDefault();
+      ta(filer[0]);
+    };
+    document.addEventListener("paste", vid);
+    return () => document.removeEventListener("paste", vid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paste, maxChars]);
+
+  const arBild = Boolean(value && arBildtyp(value.typ));
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* ⛔ Det råa fältet är dolt och knappen är ramverkets. En
+          `<input type="file">` går inte att forma, och en app som formar den
+          själv har börjat bygga en egen knapp av ramverkets klasser. */}
+      <input
+        ref={filRef}
+        type="file"
+        accept={accept}
+        aria-label={ariaLabel}
+        aria-describedby={fel ? felId : undefined}
+        onChange={(e) => {
+          const fil = e.target.files && e.target.files[0];
+          // ⛔ Nollställ fältet direkt. Utan det går det inte att välja SAMMA fil
+          // igen efter att man tagit bort den, eftersom `change` inte fyrar när
+          // värdet är oförändrat.
+          e.target.value = "";
+          ta(fil);
+        }}
+        className="sr-only"
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <OpsButton variant="secondary" onClick={() => filRef.current?.click()} disabled={laser}>
+          {laser ? "Läser" : value ? labels.byt ?? "Byt fil" : labels.valj ?? "Välj fil"}
+        </OpsButton>
+        {value ? (
+          <OpsButton variant="ghost" onClick={() => onChange(null)}>
+            {labels.taBort ?? "Ta bort"}
+          </OpsButton>
+        ) : null}
+        {paste && !value ? (
+          <span className="inline-flex items-center gap-1 text-sm text-ink-muted">
+            <GemIkon />
+            {labels.klistra ?? "eller klistra in en skärmbild"}
+          </span>
+        ) : null}
+      </div>
+
+      {/* ⛔ `role="alert"` så orsaken LÄSES UPP. En röd rad som bara syns lämnar
+          den som inte ser skärmen med en knapp som inte gjorde något. */}
+      {fel ? (
+        <p id={felId} role="alert" className="m-0 text-sm text-danger">
+          {fel}
+        </p>
+      ) : null}
+
+      {value ? (
+        <figure className="m-0">
+          {arBild ? (
+            // Förhandsvisningen är liten med flit: den ska bekräfta att rätt fil
+            // valts, inte visa den i full storlek i ett formulär.
+            <img src={value.dataUrl} alt={`Vald bilaga: ${value.namn}`} className="max-h-40 rounded-md border border-line" />
+          ) : (
+            // ⛔ Ingen förhandsvisning av en PDF i en `<iframe>`. Den renderas
+            // olika i varje webbläsare, kan vara flera sidor, och en ruta som
+            // ibland är tom ser ut som att filen inte kom fram. Namnet och
+            // storleken svarar på den enda fråga man har: blev det rätt fil?
+            <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-ink">
+              <FilIkon />
+              <span className="min-w-0 truncate">{value.namn}</span>
+            </div>
+          )}
+          <figcaption className="mt-1 text-sm text-ink-muted">
+            {arBild && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
+            {storlekstext(Math.round(value.tecken / 1.4))}
+          </figcaption>
+        </figure>
+      ) : null}
+    </div>
+  );
+}

@@ -27,7 +27,25 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { Check, ChevronDown, Maximize2, Menu, Minimize2, Monitor, Moon, Plus, Sun, X } from "lucide-react";
+import { Check, ChevronDown, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, Sun, X } from "lucide-react";
+
+/** @param {{ size?: number }} props */
+export function GemIkon({ size = 16 }) {
+  return <Paperclip size={size} aria-hidden="true" />;
+}
+
+/**
+ * En bilaga som inte är en bild.
+ *
+ * ⛔ `FileText` och inte ett formatspecifikt märke. Ramverket vet inte om filen
+ * är en PDF, ett kalkylark eller ett kontoutdrag, och en ikon som påstår
+ * "kalkylark" om en PDF är en gissning användaren tror på.
+ *
+ * @param {{ size?: number }} props
+ */
+export function FilIkon({ size = 20 }) {
+  return <FileText size={size} aria-hidden="true" />;
+}
 
 /** @param {{ size?: number }} props */
 export function ChevronNedIkon({ size = 16 }) {

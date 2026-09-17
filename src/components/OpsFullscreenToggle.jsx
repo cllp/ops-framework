@@ -22,6 +22,23 @@ import { HelskarmIkon, HelskarmAvIkon } from "./icons.jsx";
  * en användargest eller när sidan ligger i en iframe utan `allow="fullscreen"`.
  * Löftet fångas därför, och knappen blir helt enkelt kvar i sitt läge i stället
  * för att kasta ett ohanterat fel i konsolen.
+ *
+ * ── ⛔ KNAPPEN RITAS INTE ALLS DÄR HELSKÄRM INTE FINNS ───────────────────
+ *
+ * Rapporterat från en iPhone: "fullscreen som inte funkar i mobil". Det stämde,
+ * och skälet är att Safari på iPhone inte har Fullscreen-API:et för vanliga
+ * element alls, bara för video. Knappen satt alltså i sidhuvudet och gjorde
+ * ingenting, på den skärm där utrymmet i sidhuvudet är som dyrast.
+ *
+ * ⛔ Villkoret är webbläsarens EGET svar (`document.fullscreenEnabled` plus att
+ * metoden finns), inte en brytpunkt på skärmbredd. En brytpunkt hade gömt
+ * knappen på en liten men fullt kapabel skärm och visat den på en stor iPad där
+ * den ändå inte fungerar. Frågan är "kan den här webbläsaren", och den frågan
+ * kan bara webbläsaren svara på.
+ *
+ * ⛔ Den gamla webkit-prefixen (`webkitRequestFullscreen`) räknas MED FLIT inte
+ * som ett ja. Komponenten anropar bara den oprefixade metoden, så ett ja på den
+ * prefixade hade gett tillbaka exakt den döda knapp raden finns för att ta bort.
  */
 
 /**
@@ -31,6 +48,14 @@ import { HelskarmIkon, HelskarmAvIkon } from "./icons.jsx";
  */
 export function OpsFullscreenToggle({ enterLabel = "Helskärm", exitLabel = "Avsluta helskärm" }) {
   const [helskarm, setHelskarm] = useState(false);
+  // Läses en gång vid montering. Svaret ändras inte under en sidas livstid, och
+  // ett värde som läses vid varje rendering är ett värde som kan hoppa.
+  const [kanHelskarm] = useState(
+    () =>
+      typeof document !== "undefined" &&
+      Boolean(document.fullscreenEnabled) &&
+      typeof document.documentElement.requestFullscreen === "function",
+  );
 
   useEffect(() => {
     const vid = () => setHelskarm(Boolean(document.fullscreenElement));
@@ -48,6 +73,11 @@ export function OpsFullscreenToggle({ enterLabel = "Helskärm", exitLabel = "Avs
     }
     document.documentElement.requestFullscreen?.()?.catch(() => {});
   }, []);
+
+  // ⛔ Inget alls, och inte en utgråad knapp. En avstängd kontroll säger "det här
+  // går att göra, men inte nu", vilket är osant här: det går aldrig i den här
+  // webbläsaren. Då är rätt mängd knappar noll.
+  if (!kanHelskarm) return null;
 
   const Ikon = helskarm ? HelskarmAvIkon : HelskarmIkon;
 
