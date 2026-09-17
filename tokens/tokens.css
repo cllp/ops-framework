@@ -689,3 +689,98 @@
     outline-offset: 2px;
   }
 }
+
+/*
+ * ⛔ ETT KOMPONENTSKIKT, OCH BARA FÖR DET SOM INTE GÅR ATT UTTRYCKA SOM KLASSER.
+ *
+ * Resten av ramverket målar med verktygsklasser inuti primitiverna, och det ska
+ * det fortsätta göra. Undantaget här är att ett `input type=range` bara går att
+ * måla genom leverantörsspecifika pseudoelement (`::-webkit-slider-thumb`,
+ * `::-moz-range-thumb`). De finns inte som klasser, och de går inte att sätta
+ * inline heller.
+ *
+ * ⛔ UTAN DEN HÄR BLOCKET ÄR REGLAGET INTE OSTYLAT, DET ÄR FEL STYLAT. Webbläsaren
+ * ritar då sin egen tumme i SYSTEMETS accentfärg, alltså en färg som ligger
+ * utanför tokenkontraktet och som inte byter med mörkt läge. Det är den enda
+ * ytan i ramverket som kan råka bli blå på en Mac och grön på en telefon.
+ *
+ * ⛔ `@layer components` OCH INTE `base`. Basskiktet är element utan klass, och
+ * ska förbli litet nog att läsa i sin helhet. Skiktordningen gör också att en
+ * verktygsklass på samma element fortfarande vinner, vilket är rätt håll.
+ */
+@layer components {
+  .ops-reglage {
+    /*
+     * ⛔ `appearance: none` MÅSTE stå här och inte bara på tumme-pseudoelementet.
+     * Utan den ritar webbläsaren sin egen skena UNDER vår, och man ser två
+     * skenor ovanpå varandra där bara den ena följer värdet.
+     */
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /*
+   * Skenan. Tunn att se på, men elementet runt den är 44px högt: det är tummen
+   * som ska träffa reglaget, inte pekaren.
+   */
+  .ops-reglage::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--color-line);
+  }
+
+  .ops-reglage::-moz-range-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--color-line);
+  }
+
+  /*
+   * ⛔ TUMMEN ÄR 20px OCH INTE 12px. Den är det man ser att man kan ta tag i, och
+   * en liten tumme läses som dekoration snarare än som en kontroll. Träffytan är
+   * ändå elementets 44px, så storleken här är enbart en fråga om att synas.
+   *
+   * ⛔ `margin-top` FINNS BARA I WEBKIT-GRENEN, och den är inte godtycklig: där
+   * ligger tummen på skenans ÖVERKANT om man inte flyttar den, alltså
+   * (4 - 20) / 2 = -8px. Firefox centrerar själv, och samma rad där hade flyttat
+   * tummen uppåt ur skenan.
+   */
+  .ops-reglage::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    margin-top: -8px;
+    border: 2px solid var(--color-surface);
+    border-radius: 9999px;
+    background: var(--color-accent);
+  }
+
+  .ops-reglage::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-surface);
+    border-radius: 9999px;
+    background: var(--color-accent);
+  }
+
+  /*
+   * Fokusringen ritas på elementet, inte på tummen: en ring runt ett 44px högt
+   * osynligt fält ser ut som en ring runt ingenting. Elementets egen ring
+   * stängs av och ersätts av en ring runt tummen.
+   */
+  .ops-reglage:focus-visible {
+    outline: none;
+  }
+
+  .ops-reglage:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  .ops-reglage:focus-visible::-moz-range-thumb {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
