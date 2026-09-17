@@ -25,6 +25,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { utanKommentarer } from "./lib/kallkod.mjs";
 
 const rotter = process.argv.slice(2);
 if (rotter.length === 0) {
@@ -77,10 +78,6 @@ function filer(dir) {
   return ut;
 }
 
-const utanKommentarer = (/** @type {string} */ text) =>
-  text
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => "\n".repeat((m.match(/\n/g) || []).length))
-    .replace(/(^|[^:])\/\/[^\n]*/g, (_m, p1) => p1);
 
 /** @type {{ fil: string, rad: number, skal: string }[]} */
 const brott = [];

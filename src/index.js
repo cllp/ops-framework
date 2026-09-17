@@ -28,6 +28,12 @@ export { OpsDatePicker } from "./components/OpsDatePicker.jsx";
 export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
 export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
 export { OpsRadioGroup } from "./components/OpsRadioGroup.jsx";
+export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
+// ⛔ `lasBilaga` och `MAX_SIDA` exporteras MED FLIT inte. En app som läser filer
+// själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
+// ryms. `arBild` och `storlekstext` behövs för att VISA en sparad bilaga, alltså
+// på andra sidan lagringen, där komponenten inte finns.
+export { arBild, storlekstext } from "./lib/fil.js";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
@@ -57,6 +63,7 @@ export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";
 export { OpsThemeToggle } from "./components/OpsThemeToggle.jsx";
 export { OpsFullscreenToggle } from "./components/OpsFullscreenToggle.jsx";
+export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
 export { skapaDatakalla, tillampaFraga, OPERATIONER } from "./data/kontrakt.js";

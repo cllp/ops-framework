@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsRankChart } from "../components/OpsRankChart.jsx";
 import { OpsShareChart } from "../components/OpsShareChart.jsx";
 
@@ -61,6 +61,58 @@ describe("OpsShareChart", () => {
     render(<OpsShareChart segments={[{ id: "a", label: "A", value: 1 }, { id: "b", label: "B", value: 3 }]} ariaLabel="Fjärdedelar" />);
     expect(screen.getByText("25 %")).toBeInTheDocument();
     expect(screen.getByText("75 %")).toBeInTheDocument();
+  });
+});
+
+describe("OpsShareChart, det som ingår i en bit", () => {
+  const medDetaljer = [
+    { id: "pension", label: "Pension", value: 5285733, text: "5 285 733 kr", detaljer: <p>Minpension, ITP</p> },
+    { id: "bostad", label: "Bostad", value: 6800000, text: "6 800 000 kr" },
+  ];
+
+  it("gör HELA raden till knappen, inte en pil i egen kolumn", () => {
+    // ⛔ En 44 px pil bredvid en 28 px rad gör listan halvannan gång högre utan
+    // att säga något nytt. Att raden ÄR knappen är också vad som gör den möjlig
+    // att träffa med tummen.
+    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+
+    const knapp = screen.getByRole("button", { expanded: false });
+    // Knappen bär radens egen text. Ett påklistrat "visa detaljer" hade ersatt
+    // siffrorna med ett verb i uppläsningen.
+    expect(within(knapp).getByText("Pension")).toBeInTheDocument();
+    expect(within(knapp).getByText("5 285 733 kr")).toBeInTheDocument();
+    expect(within(knapp).getByText("44 %")).toBeInTheDocument();
+  });
+
+  it("håller detaljerna dolda tills man öppnar dem", () => {
+    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+    expect(screen.getByText("Minpension, ITP")).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("Minpension, ITP")).toBeVisible();
+    expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
+  });
+
+  it("pekar på en panel som finns även när raden är stängd", () => {
+    // ⛔ `hidden` och inte villkorlig rendering. Ett `aria-controls` som pekar på
+    // ett id som bara finns ibland är en trasig referens i uppläsningen varje
+    // gång raden är stängd, och det syns inte på skärmen.
+    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+    const id = screen.getByRole("button", { expanded: false }).getAttribute("aria-controls");
+    expect(id).toBeTruthy();
+    expect(document.getElementById(String(id))).not.toBeNull();
+  });
+
+  it("ger ingen knapp åt en rad som inte har något att visa", () => {
+    // ⛔ En pil som inte öppnar något är ett löfte som inte infrias, och den som
+    // tryckt en gång utan att något hände slutar lita på de andra pilarna.
+    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("lämnar listan som en ren lista när ingen bit har detaljer", () => {
+    render(<OpsShareChart segments={andelar} ariaLabel="Tillgångar" />);
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });
 

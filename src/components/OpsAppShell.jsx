@@ -4,6 +4,7 @@ import { cx } from "../lib/cx.js";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { postAktiv, valideraNav } from "../lib/nav.js";
+import { Raknare } from "./raknare.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
 
 /**
@@ -250,7 +251,7 @@ export function OpsAppShell({
                     <ChevronNedIkon size={12} />
                   </span>
                 ) : null}
-                {typeof s.badge === "number" && s.badge > 0 ? <FlikBadge antal={s.badge} text={badgeText} /> : null}
+                {typeof s.badge === "number" && s.badge > 0 ? <Raknare antal={s.badge} text={badgeText} /> : null}
               </a>
             ))}
 
@@ -334,41 +335,5 @@ export function OpsAppShell({
         badgeText={badgeText}
       />
     </div>
-  );
-}
-
-/**
- * Räknaren på en flik i toppraden.
- *
- * ⛔ Avläst ur SessionStudios header, inte utformad här:
- *
- *   absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-0.5 text-[8px]
- *   font-bold rounded-full flex items-center justify-center
- *   bg-[--color-notification-badge] text-white
- *
- * ⛔ Den är AVSIKTLIGT en annan form än bottenradens. Där sitter siffran på
- * ikonen (`-top-1.5 -right-2`, 9 px text, accentfärgad); här sitter den på
- * fliken, som är text. Att göra dem lika hade varit att välja symmetri framför
- * förlagan, och det är precis den sortens glidning som gör att två ytor slutar
- * kännas som samma produkt.
- *
- * ⛔ Siffran kapas vid 9+. En tvåsiffrig räknare spränger cirkeln, och exakt
- * antal olästa är inte det fliken svarar på.
- *
- * @param {{ antal: number, text: string }} props
- */
-function FlikBadge({ antal, text }) {
-  return (
-    <span
-      className={cx(
-        "absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5",
-        "bg-badge text-[8px] font-bold text-badge-contrast",
-      )}
-    >
-      <span aria-hidden="true">{antal > 9 ? "9+" : antal}</span>
-      <span className="sr-only">
-        {antal} {text}
-      </span>
-    </span>
   );
 }

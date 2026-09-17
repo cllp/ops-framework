@@ -78,10 +78,51 @@ describe("OpsFilterChip", () => {
 });
 
 describe("OpsFullscreenToggle", () => {
+  /**
+   * jsdom har varken `fullscreenEnabled` eller `requestFullscreen`, alltså samma
+   * svar som Safari på en iPhone: "den här webbläsaren kan inte".
+   *
+   * ⛔ Uppsättningen står här för att proven nedan handlar om vad knappen GÖR när
+   * helskärm finns. Utan den vore de gröna mot en komponent som inte ritar något
+   * alls, och ett prov som inte kan bli rött mäter ingenting.
+   */
+  function latsasWebblasarenKan() {
+    Object.defineProperty(document, "fullscreenEnabled", { value: true, configurable: true });
+    // ⛔ `defineProperty` och inte en tilldelning. Ett tidigare prov i samma fil
+    // definierar om egenskapen utan `writable`, alltså skrivskyddad, och en ren
+    // tilldelning kastar då i nästa prov. Ordningsberoendet är exakt den sortens
+    // fel som ser ut som ett fel i komponenten.
+    Object.defineProperty(document.documentElement, "requestFullscreen", {
+      value: () => Promise.resolve(),
+      configurable: true,
+    });
+  }
+
+  it("ritar ingenting i en webbläsare som inte kan helskärm", () => {
+    // ⛔ Rapporterat från en iPhone: knappen satt i sidhuvudet och gjorde
+    // ingenting, eftersom Safari på iPhone saknar Fullscreen-API:et för vanliga
+    // element. En knapp som aldrig kan fungera ska inte ta plats där utrymmet är
+    // som dyrast.
+    Object.defineProperty(document, "fullscreenEnabled", { value: false, configurable: true });
+    const { container } = render(<OpsFullscreenToggle />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("ritar ingenting när flaggan säger ja men metoden saknas", () => {
+    // ⛔ Två villkor och inte ett. En webbläsare som svarar ja på flaggan men bara
+    // har den webkit-prefixade metoden hade annars fått tillbaka exakt den döda
+    // knapp det här handlar om: komponenten anropar bara den oprefixade.
+    Object.defineProperty(document, "fullscreenEnabled", { value: true, configurable: true });
+    Object.defineProperty(document.documentElement, "requestFullscreen", { value: undefined, configurable: true });
+    const { container } = render(<OpsFullscreenToggle />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("speglar webbläsarens läge i stället för att äga ett eget", () => {
     // ⛔ Man kan lämna helskärm med Escape och F11 utan att någon knapp tryckts.
     // En egen boolean blir då fel, och knappen erbjuder att avsluta något man
     // redan lämnat.
+    latsasWebblasarenKan();
     render(<OpsFullscreenToggle />);
     expect(screen.getByRole("button", { name: "Helskärm" })).toBeInTheDocument();
 
@@ -101,7 +142,11 @@ describe("OpsFullscreenToggle", () => {
     // ⛔ requestFullscreen avslås utanför en användargest och i iframes utan
     // allow="fullscreen". Ett ohanterat löfte hade gett ett fel i konsolen som
     // ser ut som en bugg i appen.
-    document.documentElement.requestFullscreen = () => Promise.reject(new Error("nekad"));
+    latsasWebblasarenKan();
+    Object.defineProperty(document.documentElement, "requestFullscreen", {
+      value: () => Promise.reject(new Error("nekad")),
+      configurable: true,
+    });
     render(<OpsFullscreenToggle />);
     expect(() => fireEvent.click(screen.getByRole("button"))).not.toThrow();
   });

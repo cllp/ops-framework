@@ -89,7 +89,16 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
                   key={k.key}
                   className={cx(
                     "px-3 py-2 align-top text-ink",
-                    k.numeric ? "text-right tabular-nums" : "text-left",
+                    // ⛔ `whitespace-nowrap` PÅ SIFFERKOLUMNER, och det är mätt.
+                    // I en 390 px vy bröt "126 720 kr" mellan talet och "kr", och
+                    // "2026-08" mitt i årtalet. Ett tal som bryts mitt itu läses
+                    // som två tal, och hela skälet till en beloppskolumn är att
+                    // den ska gå att summera med ögat.
+                    //
+                    // Tabellen scrollar redan i sin EGEN behållare
+                    // (`overflow-x-auto` på omslaget), så en kolumn som vägrar
+                    // brytas ger scroll i tabellen och aldrig i sidan.
+                    k.numeric ? "text-right tabular-nums whitespace-nowrap" : "text-left",
                     k.tight && "whitespace-nowrap",
                     i === 0 && "sticky left-0 z-(--z-sticky) bg-raised",
                   )}
