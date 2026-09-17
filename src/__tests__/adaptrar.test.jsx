@@ -29,6 +29,12 @@ function fejkFirestore() {
     where: (f, op, v) => ({ typ: "where", f, op, v }),
     orderBy: (f, r) => ({ typ: "orderBy", f, r }),
     limit: (n) => ({ typ: "limit", n }),
+    // ⛔ Tillagd när adaptern fick `prenumerera` (#133). Den hör hit och inte i
+    // en uppmjukning av uppstartskontrollen: adaptern LOVAR att kunna
+    // prenumerera, alltså behöver den funktionen. Att i stället ta bort
+    // `onSnapshot` ur kraven hade gjort testet grönt genom att ta bort kravet
+    // det testar. Prenumerationens eget beteende provas i realtid.test.jsx.
+    onSnapshot: vi.fn(() => () => {}),
   };
   return { sdk, anrop };
 }

@@ -68,7 +68,7 @@ export { OpsIconLink } from "./components/OpsIconLink.jsx";
 // ── Datalager ──────────────────────────────────────────────────────────────
 export { skapaDatakalla, tillampaFraga, OPERATIONER } from "./data/kontrakt.js";
 export { skapaMinneskalla, skapaJsonKalla } from "./data/adaptrar.js";
-export { OpsDataProvider, useDatakalla, useSamling, useDokument } from "./data/useData.jsx";
+export { OpsDataProvider, useDatakalla, useSamling, useSamlingLive, useDokument } from "./data/useData.jsx";
 export { skapaFirestoreKalla } from "./data/firestore.js";
 export { skapaPostgresKalla } from "./data/postgres.js";
 

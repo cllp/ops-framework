@@ -30,7 +30,27 @@ import { skapaDatakalla } from "./kontrakt.js";
  */
 
 /** Funktionerna adaptern behöver ur SDK:n. */
-const KRAVS = ["collection", "doc", "getDoc", "getDocs", "addDoc", "setDoc", "updateDoc", "deleteDoc", "query", "where", "orderBy", "limit"];
+const KRAVS = [
+  "collection",
+  "doc",
+  "getDoc",
+  "getDocs",
+  "addDoc",
+  "setDoc",
+  "updateDoc",
+  "deleteDoc",
+  "query",
+  "where",
+  "orderBy",
+  "limit",
+  // ⛔ `onSnapshot` står bland de OBLIGATORISKA trots att `prenumerera` är en
+  // frivillig del av kontraktet. Det är inte en motsägelse: frivilligheten
+  // gäller ADAPTRAR, och den här adaptern har valt att kunna prenumerera.
+  // Firestore-SDK:n exporterar alltid funktionen, så saknas den har appen
+  // skickat in plock i stället för hela modulen, och då är det bättre att säga
+  // det vid uppstart än att låta realtiden tyst utebli.
+  "onSnapshot",
+];
 
 /**
  * @template {{ id: string }} T
@@ -51,10 +71,27 @@ export function skapaFirestoreKalla({ db, sdk }) {
     );
   }
 
-  const { collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit } = sdk;
+  const { collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } = sdk;
 
   /** @param {any} snap @returns {any} */
   const tillPost = (snap) => ({ id: snap.id, ...snap.data() });
+
+  /**
+   * Bygger frågan. Delas av `lista` och `prenumerera`.
+   *
+   * ⛔ EN ÖVERSÄTTNING, INTE TVÅ. Stod villkoren på två ställen skulle en
+   * hämtning och en prenumeration på samma samling kunna ge olika urval, och
+   * den skillnaden syns inte: båda returnerar rader, bara inte samma.
+   *
+   * @param {string} samling @param {import("./kontrakt.js").Fraga} [fraga]
+   */
+  function bygg(samling, fraga) {
+    const villkor = [];
+    if (fraga?.dar) for (const [falt, varde] of Object.entries(fraga.dar)) villkor.push(where(falt, "==", varde));
+    if (fraga?.sortera) villkor.push(orderBy(fraga.sortera, fraga.riktning === "ner" ? "desc" : "asc"));
+    if (typeof fraga?.antal === "number") villkor.push(limit(fraga.antal));
+    return query(collection(db, samling), ...villkor);
+  }
 
   return skapaDatakalla({
     namn: "firestore",
@@ -67,13 +104,34 @@ export function skapaFirestoreKalla({ db, sdk }) {
     },
 
     async lista(samling, fraga) {
-      const villkor = [];
-      if (fraga?.dar) for (const [falt, varde] of Object.entries(fraga.dar)) villkor.push(where(falt, "==", varde));
-      if (fraga?.sortera) villkor.push(orderBy(fraga.sortera, fraga.riktning === "ner" ? "desc" : "asc"));
-      if (typeof fraga?.antal === "number") villkor.push(limit(fraga.antal));
-
-      const snap = await getDocs(query(collection(db, samling), ...villkor));
+      const snap = await getDocs(bygg(samling, fraga));
       return snap.docs.map(tillPost);
+    },
+
+    /**
+     * Lyssnar på ett urval. Returnerar funktionen som stänger lyssnandet.
+     *
+     * ⛔ FELET GÅR TILL `vidFel`, ALDRIG TILL EN TOM LISTA. Firestore anropar
+     * felkanalen bland annat vid `permission-denied`, alltså exakt det som
+     * händer när reglerna för samlingen saknas. Skickades det vidare som noll
+     * rader hade appen sagt "inkorgen är tom" till någon vars inkorg är full,
+     * och det är ett värre besked än ett felmeddelande.
+     *
+     * ⛔ Efter ett fel är prenumerationen DÖD. Firestore återansluter inte
+     * själv efter en avvisning, så den som vill försöka igen måste starta en ny.
+     * `useSamlingLive` gör det via `uppdatera()`.
+     *
+     * @param {string} samling
+     * @param {import("./kontrakt.js").Fraga | undefined} fraga
+     * @param {import("./kontrakt.js").Lyssnare<any>} lyssnare
+     * @returns {import("./kontrakt.js").Avsluta}
+     */
+    prenumerera(samling, fraga, lyssnare) {
+      return onSnapshot(
+        bygg(samling, fraga),
+        /** @param {any} snap */ (snap) => lyssnare.vidData(snap.docs.map(tillPost)),
+        /** @param {any} e */ (e) => lyssnare.vidFel(e instanceof Error ? e : new Error(String(e))),
+      );
     },
 
     async skapa(samling, data) {

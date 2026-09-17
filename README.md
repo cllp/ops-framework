@@ -304,13 +304,14 @@ Firestore i morgon, SQL bakom ett API sedan.
 | `skapaMinneskalla(start)` | allt i minnet. Tester, utveckling, och innan källan bestämts |
 | `skapaJsonKalla({ bas })` | läser JSON-filer över HTTP. Läsbar, inte skrivbar |
 | `tillampaFraga(rader, fraga)` | filtrering, sortering och gräns för adaptrar som håller allt i minnet |
-| `OPERATIONER` | `las`, `lista`, `skapa`, `uppdatera`, `taBort` |
+| `OPERATIONER` | `las`, `lista`, `skapa`, `uppdatera`, `taBort`. `prenumerera` är frivillig och står inte här |
 | `skapaFirestoreKalla({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
 | `skapaPostgresKalla({ fraga })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
 | `OpsDataProvider` | ger appen sin källa |
 | `useDatakalla`, `useSamling`, `useDokument` | React-sidan, med `laddar`, `fel` och `data` åtskilda |
+| `useSamlingLive` | samma som `useSamling`, men strömmande när källan kan. Se realtidsstycket nedan |
 
-Fyra regler gör kontraktet värt något:
+Fem regler gör kontraktet värt något:
 
 1. **Allt är asynkront**, även minnesadaptern. Kontraktet får inte avslöja hur
    snabb källan råkar vara, för då skrivs anropsställen som går sönder vid byte.
@@ -320,9 +321,30 @@ Fyra regler gör kontraktet värt något:
    "kunde inte fråga" måste gå att hantera olika.
 4. **Varje post har ett `id`.** Utan en gemensam nyckel kan delad kod inte veta
    vad som identifierar en rad.
+5. **`prenumerera` är frivillig.** Realtid är en egenskap hos källan, inte hos
+   kontraktet. En JSON-fil i repot kan inte pusha, och att kräva metoden hade
+   tvingat varje adapter att ljuga: antingen med en pollingloop som låtsas vara
+   en ström, eller med en metod som kastar och därmed inte går att anropa.
 
-⛔ **Ingen cache och ingen realtid, med avsikt.** Ett arbetsverktyg behöver färsk
-data när man tittar på det, inte data som strömmar in medan man läser.
+⛔ **Ingen cache och ingen realtid som default, med avsikt.** Ett arbetsverktyg
+behöver färsk data när man tittar på det, inte data som strömmar in medan man
+läser. `useSamling` hämtar en gång och om på `uppdatera()`.
+
+⛔ **`useSamlingLive` är undantaget, och det är en egen hook och inte en flagga.**
+En inkorg är motsatsen till en rapport: den finns för att något ska dyka upp i
+den medan man tittar. Men en flagga i ett optionsobjekt kan komma från en spread,
+en konstant eller en prop, och då står valet inte längre i vyn som läser datan.
+Ett eget namn måste skrivas ut på anropsstället, syns i en diff, och går att
+räkna: `grep useSamlingLive` svarar exakt vilka ytor som strömmar.
+
+Hooken returnerar `realtid: boolean`. Källor som inte kan prenumerera hämtar en
+gång och säger det, i stället för att falla tillbaka i tysthet. **Den tysta
+tillbakafallningen vore det farliga:** en app som tror sig ha realtid och inte har
+det ser exakt likadan ut som en som har det, ända tills någon undrar varför en
+post aldrig dök upp. Ett fel man bara kan misstänka, aldrig se.
+
+`uppdatera()` startar om prenumerationen i stället för att hämta vid sidan av,
+eftersom Firestore inte återansluter av sig själv efter ett avvisat lyssnande.
 
 ⛔ Den regel som avgör om datalagret är värt något är inte kontraktet utan
 `check-data-layer`: **en databas-SDK får bara importeras i en adapter.** Alla

@@ -1,0 +1,43 @@
+# Ramverkets egen grind.
+#
+# ⛔ DEN HÄR SAKNADES HELT, OCH LUCKAN VAR INTE UPPENBAR.
+#
+# Konsumentapparna pinnar ramverket per SHA och har en egen vakt (`check-pin`)
+# som ser till att pinnen är äkta och installerad. Det ser ut som ett skydd, och
+# det är det: mot FEL VERSION. Det säger ingenting om att versionen FUNGERAR.
+#
+# Följden var att varje "grönt" på en framework-PR bara var ett påstående från
+# den maskin som råkade köra `npm run check`. Ingen körning på GitHub bekräftade
+# det, och en trasig commit på main hade upptäckts först när en app repinnade,
+# alltså långt ifrån sin orsak och av fel person.
+#
+# ⛔ Appens kedja räddar oss inte. `web/npm run check` kör APPENS tester, inte
+# ramverkets. De 247 proven och de 38 vaktreglerna körs ingen annanstans.
+#
+# `npm run check` är avsiktligt hela kedjan och inte bara `npm test`: bygget,
+# typerna, tokens, exportytan, README-täckningen, det stängda API:et, datalagret,
+# CSS-bygget, typsnittet, diagramfärgerna och vaktproven. Att plocka ut en bit av
+# den här hade gjort grinden billigare än den lokala, alltså en grind som säger ja
+# till sådant utvecklaren själv hade fått nej på.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      # ⛔ `npm ci` och inte `npm install`. Den senare får uppdatera lockfilen,
+      # och då kan grinden köra mot andra versioner än utvecklaren gjorde. En
+      # grön körning mot en annan uppsättning beroenden bevisar fel sak.
+      - run: npm ci
+      - run: npm run check
