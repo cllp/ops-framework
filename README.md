@@ -330,6 +330,7 @@ Firestore i morgon, SQL bakom ett API sedan.
 | `OPERATIONER` | `las`, `lista`, `skapa`, `uppdatera`, `taBort`. `prenumerera` är frivillig och står inte här |
 | `skapaFirestoreKalla({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
 | `skapaPostgresKalla({ fraga })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
+| `skapaRoutingKalla({ standard, rutter })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `kanPrenumerera(samling)` svarar, `prenumerera` **kastar med samlingens namn** för en som inte kan, och `useSamlingLive` frågar först och rapporterar `realtid: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid |
 | `OpsDataProvider` | ger appen sin källa |
 | `useDatakalla`, `useSamling`, `useDokument` | React-sidan, med `laddar`, `fel` och `data` åtskilda |
 | `useSamlingLive` | samma som `useSamling`, men strömmande när källan kan. Se realtidsstycket nedan |
