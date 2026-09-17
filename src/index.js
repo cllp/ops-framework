@@ -33,7 +33,7 @@ export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
 // ryms. `arBild` och `storlekstext` behövs för att VISA en sparad bilaga, alltså
 // på andra sidan lagringen, där komponenten inte finns.
-export { arBild, storlekstext } from "./lib/fil.js";
+export { arBild, storlekstext, bilagestorlek } from "./lib/fil.js";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";

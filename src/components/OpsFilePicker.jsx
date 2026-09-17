@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { arBild as arBildtyp, lasBilaga, storlekstext } from "../lib/fil.js";
+import { arBild as arBildtyp, bilagestorlek, lasBilaga } from "../lib/fil.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { FilIkon, GemIkon } from "./icons.jsx";
 
@@ -173,7 +173,7 @@ export function OpsFilePicker({
           )}
           <figcaption className="mt-1 text-sm text-ink-muted">
             {arBild && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
-            {storlekstext(Math.round(value.tecken / 1.4))}
+            {bilagestorlek(value.tecken)}
           </figcaption>
         </figure>
       ) : null}
