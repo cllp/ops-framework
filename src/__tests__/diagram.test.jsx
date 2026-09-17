@@ -62,6 +62,32 @@ describe("OpsShareChart", () => {
     expect(screen.getByText("25 %")).toBeInTheDocument();
     expect(screen.getByText("75 %")).toBeInTheDocument();
   });
+
+  /*
+   * ⛔ DET HÄR PROVET BRYTER MOT FILENS EGEN REGEL, OCH DET STÅR DÄRFÖR HÄR.
+   *
+   * Rubriken överst säger att proven läser text och struktur, aldrig geometri.
+   * Det här läser en klassträng, alltså varken text eller geometri. Skälet är
+   * att det som gick sönder (bolag-ops#152) inte går att upptäcka på något annat
+   * sätt här: jsdom kör ingen CSS, så ringens faktiska position finns inte att
+   * mäta, och utan provet kan nästa person skriva tillbaka `items-center` utan
+   * att en enda rad blir röd.
+   *
+   * ⛔ VAR ÄRLIG OM VAD DET BEVISAR. Det bevisar att DEKLARATIONEN står kvar,
+   * inte att ringen står still. Den andra kontrollen är ett öga på en riktig
+   * webbläsare, och den står i issuens verifieringssteg. Ett prov som låtsas
+   * vara den vore värre än inget prov.
+   */
+  it("ankrar ringen upptill i stället för att centrera den mot listan", () => {
+    const { container } = render(<OpsShareChart segments={andelar} ariaLabel="Tillgångar per klass" />);
+    const rad = container.firstElementChild;
+    const ringen = rad?.firstElementChild;
+
+    expect(rad?.className).toContain("sm:items-start");
+    expect(rad?.className).not.toContain("items-center");
+    expect(ringen?.className).toContain("self-start");
+    expect(ringen?.className).not.toContain("self-center");
+  });
 });
 
 describe("OpsShareChart, det som ingår i en bit", () => {

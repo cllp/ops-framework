@@ -700,6 +700,46 @@ kravRott(
   );
 }
 
+// ── Sidramsvakten ───────────────────────────────────────────────────────────
+// ⛔ Bevakar en enda CSS-rad som ingen provsvit kan se. jsdom kör ingen CSS och
+// ingen komponent importerar tokenfilen, så `scrollbar-gutter: stable` kan
+// försvinna ur basskiktet utan att ett enda prov blir rött. Symptomet läses
+// dessutom inte som en bugg utan som att "appen känns ostadig"
+// (bolag-ops#143), vilket är precis den felklass en vakt finns för.
+{
+  const sidramsvakt = "scripts/check-sidram.mjs";
+
+  kravRott(
+    "sidram 1: raden borttagen ur basskiktet",
+    [sidramsvakt, tokenkopia("sr1", (s) => s.replace(/\n\s*scrollbar-gutter: stable;/, ""))],
+    "saknas i basskiktets",
+  );
+
+  // ⛔ En bortkommenterad rad är en borttagen rad. Utan det här provet hade
+  // vakten varit grön för den som kommenterar bort raden "tillfälligt", alltså
+  // det vanligaste sättet en regel faktiskt försvinner.
+  kravRott(
+    "sidram 2: raden bortkommenterad i stället för borttagen",
+    [sidramsvakt, tokenkopia("sr2", (s) => s.replace("scrollbar-gutter: stable;", "/* scrollbar-gutter: stable; */"))],
+    "saknas i basskiktets",
+  );
+
+  // ⛔ Rätt rad, fel selektor. Den här mutationen är hela skälet att vakten läser
+  // `html`-regeln och inte hela filen: en träff var som helst hade varit grön.
+  kravRott(
+    "sidram 3: raden finns men i en annan selektor",
+    [
+      sidramsvakt,
+      tokenkopia("sr3", (s) =>
+        s.replace(/\n\s*scrollbar-gutter: stable;/, "").replace("  body {\n    margin: 0;", "  body {\n    scrollbar-gutter: stable;\n    margin: 0;"),
+      ),
+    ],
+    "saknas i basskiktets",
+  );
+
+  kravGront("sidram 4: den riktiga tokenfilen är grön", [sidramsvakt, "tokens/tokens.css"]);
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
