@@ -114,7 +114,7 @@ export function OpsBottomNav({
     // på en iPhone, och det syns bara på riktig hårdvara.
     <nav
       aria-label={navLabel}
-      className="fixed inset-x-0 bottom-0 z-(--z-sticky) border-t border-line bg-surface pb-(--safe-bottom) md:hidden"
+      className="fixed inset-x-0 bottom-0 z-(--z-chrome) border-t border-line bg-surface pb-(--safe-bottom) md:hidden"
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
         {iRaden.slice(0, brytpunkt).map((post) => (

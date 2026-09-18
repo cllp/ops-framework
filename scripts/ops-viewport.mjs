@@ -37,10 +37,11 @@ if (argv.includes("--help") || argv.includes("-h")) {
     [
       "ops-viewport <dist-mapp> [--rutter /,/en-sida,/en-till]",
       "",
-      "  Mäter tre saker vid 390, 768 och 1280 px, på varje rutt:",
+      "  Mäter fyra saker vid 390, 768 och 1280 px, på varje rutt:",
       "    1. sidan är inte bredare än fönstret",
       "    2. exakt en navigering syns per bredd",
       "    3. main har botteninset minst lika stort som bottenraden",
+      "    4. kromet ligger kvar överst efter scroll, inget innehåll målar över det",
       "",
       "  Och i ett andra pass vid 390 px, i både ljust och mörkt läge:",
       "    4. sidans bakgrund är en annan färg i mörkt läge",

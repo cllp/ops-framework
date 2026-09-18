@@ -341,6 +341,68 @@ async function matTeman({ browser, url, rutter }) {
  * @param {string[]} arg.rutter Sökvägar att mäta, t.ex. ["/", "/primitiver"].
  * @returns {Promise<{ brott: string[], matningar: number, temamatningar: number, reglage: number, varifran: string }>}
  */
+/**
+ * Är appskalets krom (headern och bottenraden) fortfarande överst efter att
+ * sidan scrollats?
+ *
+ * ⛔ MÄTS MED `elementFromPoint`, INTE MED z-index. Att läsa z-index av två
+ * element svarar inte på frågan: värdena kan vara lika, de kan ligga i olika
+ * stackningskontexter, och `position: sticky` flyttar dessutom elementet efter
+ * att stilen är beräknad. `elementFromPoint` svarar på det som faktiskt gäller
+ * — vad en tumme träffar på den punkten.
+ *
+ * Kräver att sidan går att scrolla. Gör den inte det kan ingenting glida förbi
+ * kromet, och då mäter provet ingenting; det rapporteras som `scrollad: false`
+ * i stället för som ett grönt utfall, eftersom en mätning utan underlag inte är
+ * ett godkännande.
+ *
+ * @param {import("playwright").Page} sida
+ * @returns {Promise<{ scrollad: boolean, traffar: { krom: string, x: number, overst: string }[] }>}
+ */
+async function matKrom(sida) {
+  return await sida.evaluate(() => {
+    const rot = document.documentElement;
+    if (rot.scrollHeight <= window.innerHeight + 50) return { scrollad: false, traffar: [] };
+
+    window.scrollTo(0, Math.min(400, rot.scrollHeight - window.innerHeight));
+
+    /** @param {Element | null} el */
+    const namn = (el) => {
+      if (!el) return "ingenting";
+      const klass = String(el.className || "").split(" ")[0];
+      return `${el.tagName.toLowerCase()}${klass ? `.${klass}` : ""}`;
+    };
+
+    const kromdelar = [
+      { krom: "appskalets header", el: document.querySelector("header") },
+      { krom: "bottenraden", el: document.querySelector('nav[aria-label="Snabbnavigering"]') },
+    ];
+
+    const traffar = [];
+    for (const { krom, el } of kromdelar) {
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height <= 0 || getComputedStyle(el).display === "none") continue;
+      // ⛔ Krom som inte syns i fönstret mäts inte. `elementFromPoint` svarar
+      // `null` utanför fönstret, och `null` är inte en övermålning — det är
+      // ingen mätning alls. Utan det här blev varje sida röd så fort en
+      // bottenrad låg i flödet i stället för fast, alltså ett falskt rött
+      // som hade fått hela mätningen avstängd.
+      if (r.bottom <= 0 || r.top >= window.innerHeight) continue;
+      const y = Math.min(window.innerHeight - 1, Math.max(0, Math.round(r.top + r.height / 2)));
+      // Tre punkter i stället för en: en övermålning täcker sällan hela bredden.
+      // Förstakolumnen i en tabell tar vänsterkanten, en modal hela mitten.
+      for (const andel of [0.1, 0.5, 0.9]) {
+        const x = Math.round(r.left + r.width * andel);
+        const overst = document.elementFromPoint(x, y);
+        if (overst && (overst === el || el.contains(overst))) continue;
+        traffar.push({ krom, x, overst: namn(overst) });
+      }
+    }
+    return { scrollad: true, traffar };
+  });
+}
+
 export async function matVyport({ dist, rutter }) {
   const { server, url } = await serveraDist(dist);
   const { browser, varifran } = await startaWebblasare().catch(async (e) => {
@@ -443,6 +505,30 @@ export async function matVyport({ dist, rutter }) {
             `${var_}: main har ${Math.round(matt.insetBotten)} px botteninset men baren är ${Math.round(matt.barhojdPx)} px hög. ` +
               "Sista raden i innehållet hamnar bakom baren, och det märks först när någon letar efter sin sista post.",
           );
+        }
+
+        // 4. Kromet ligger kvar överst när sidan har scrollats.
+        //
+        // ⛔ DEN HÄR MÄTNINGEN FINNS FÖR ATT LAGREN INTE GÅR ATT LÄSA SIG TILL.
+        // Två element på samma z-index är inte ordnade, de är oavgjorda:
+        // dokumentordningen avgör, och den som står sist vinner. Ingen ser det i
+        // koden, för båda raderna ser rimliga ut var för sig.
+        //
+        // Mätt i bolag-ops 2026-09-18: OpsTables låsta förstakolumn och
+        // appskalets header låg båda på `--z-sticky`, och kolumnen målade rakt
+        // över headern på telefon så fort sidan scrollades. Logotyp, inkorg och
+        // temaknapp försvann bakom en tabellcell.
+        //
+        // Ett skärmklipp hittade det. En mätning hittar det varje gång.
+        const krom = await matKrom(sida);
+        if (krom.scrollad) {
+          for (const t of krom.traffar) {
+            brott.push(
+              `${var_}: ${t.krom} är övermålad vid x=${t.x} efter scroll. Överst ligger ${t.overst}. ` +
+                "Kromets hela uppgift är att finnas kvar när innehållet rör sig, så innehåll får aldrig ligga över det. " +
+                "Nästan alltid samma z-index på båda, och då avgör dokumentordningen i stället för avsikten.",
+            );
+          }
         }
       }
 
