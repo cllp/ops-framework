@@ -165,10 +165,21 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
    *
    * Att centrera mot ett syskon vars höjd användaren styr är alltid ett hopp som
    * väntar. Ringen har en egen fast höjd och behöver ingen centrering.
+   *
+   * ⛔ `self-center sm:self-start` OCH INTE BARA `self-start`. Toppankringen
+   * gäller radläget, och radläget börjar först vid `sm`. Under `sm` är
+   * behållaren `flex-col`, alltså är tväraxeln VÅGRÄT, och där betyder
+   * `self-start` vänsterställd ring med tom yta till höger. Ringen stod
+   * centrerad över listan före #152, och den fixen handlade om lodrät glidning
+   * i radläget, inte om mobilens vågräta placering.
+   *
+   * Centrerad staplad, toppankrad sida vid sida. Ett enda `self-start` löser
+   * hoppet och byter samtidigt utseende på den skärm där diagrammet syns mest,
+   * och den sortens gratis-ändring är den som ingen minns att någon beslutade.
    */
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-      <div className="shrink-0 self-start">
+      <div className="shrink-0 self-center sm:self-start">
         {/* ⛔ `role="img"` med ett namn, inte en osynlig graf. Utan det läses
             ringen upp som en hög med tomma cirklar, eller inte alls. Siffrorna
             finns i listan bredvid, som är den faktiska datavyn. */}

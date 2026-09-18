@@ -85,8 +85,17 @@ describe("OpsShareChart", () => {
 
     expect(rad?.className).toContain("sm:items-start");
     expect(rad?.className).not.toContain("items-center");
-    expect(ringen?.className).toContain("self-start");
-    expect(ringen?.className).not.toContain("self-center");
+
+    /*
+     * ⛔ TOPPANKRINGEN ÄR VILLKORAD, OCH PROVET MÅSTE SÄGA DET. Raden är
+     * `flex-col` under `sm`, alltså är tväraxeln vågrät där, och ett ovillkorat
+     * `self-start` vänsterställer ringen i mobilen. Ett prov som bara krävde
+     * "self-start" någonstans i strängen hade varit grönt för båda varianterna,
+     * och då är det inte provet som håller mobilen centrerad.
+     */
+    expect(ringen?.className).toContain("self-center");
+    expect(ringen?.className).toContain("sm:self-start");
+    expect(ringen?.className).not.toMatch(/(^|\s)self-start/);
   });
 });
 
