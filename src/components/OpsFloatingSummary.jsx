@@ -41,11 +41,32 @@ import { cx } from "../lib/cx.js";
  * som inte laborerar ser den aldrig, och den som gör det kan klicka bort den.
  * Appen avgör när den ska finnas; komponenten renderar inte något eget villkor.
  *
- * ── ⛔ BOTTNAR ÖVANFÖR BOTTENRADEN ─────────────────────────────────────
+ * ── ⛔ BOTTNAR ÖVANFÖR BOTTENRADEN, OCH ÖVANFÖR DESS KNAPP ─────────────
  *
  * `--bottom-nav-h` plus `--safe-bottom`, precis som OpsToast. Räknas det bort
  * hamnar bubblan ovanpå telefonens navigering, alltså över den enda knappen man
  * behöver för att komma därifrån.
+ *
+ * Det räckte inte. Bottenradens huvudåtgärd är en rund knapp som STICKER UPP
+ * ovanför baren (12px lyft plus 4px ring), och bubblan bottnade 8px över baren.
+ * CP 2026-09-18, med bild: plusknappen låg mitt över bubblans nederkant.
+ * `--bottom-nav-overhang` är den sträckan, och den bor i tokens.css så att den
+ * ändras på ett ställe den dagen knappen ändras.
+ *
+ * ── ⛔ BREDDEN ÄR FAST, FÖR ATT SIFFROR BYTER BREDD ────────────────────
+ *
+ * CP: "Den svajar lite med siffrornas bredd." Bubblan ligger högerställd, så
+ * när talet blir en siffra bredare växer den åt VÄNSTER. Man drar i ett reglage
+ * och rutan man läser rör sig under blicken.
+ *
+ * Därför: full bredd upp till `max-w-sm` på telefon och en golvbredd på större
+ * skärmar, med namnet till vänster och talet till höger. Behållaren står still,
+ * talet byter bredd inuti den, och `tabular-nums` gör att varje siffra är lika
+ * bred som varje annan.
+ *
+ * ⛔ Och ingenting bryter rad. En hint som blev två rader gjorde bubblan högre
+ * och sköt upp den över sitt eget utrymme. Den kortas i stället av med `truncate`:
+ * en avhuggen rad är synligt avhuggen, en ombruten ser ut att vara hel.
  *
  * ── ⛔ LAGRET ÄR `--z-sticky`, INTE `--z-chrome` ────────────────────────
  *
@@ -80,23 +101,40 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
      * Omslaget spänner hela bredden för att bubblan ska kunna skjutas åt höger,
      * och utan det hade den osynliga remsan ätit varje tryck längs nederkanten.
      */
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+0.5rem)] z-(--z-sticky) flex justify-end px-4 md:bottom-[calc(var(--safe-bottom)+1rem)]">
-      <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-line bg-raised shadow-lg">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.5rem)] z-(--z-sticky) flex justify-end px-4 md:bottom-[calc(var(--safe-bottom)+1rem)]">
+      <div
+        className={cx(
+          "pointer-events-auto flex items-center gap-1 rounded-full border border-line bg-raised shadow-lg",
+          // ⛔ Bara utfälld. Ihopfälld är bubblan bara talet, och en tom remsa
+          // tvärs över skärmen för en siffra är inte en mindre bubbla.
+          oppen ? "w-full max-w-sm md:w-auto md:min-w-72" : "w-auto",
+        )}
+      >
         <button
           type="button"
           id={id}
           onClick={() => setOppen((o) => !o)}
           aria-expanded={oppen}
           aria-label={oppen ? `${label}: ${value}. Fäll ihop` : `${label}: ${value}. Fäll ut`}
-          className={cx("flex min-h-11 items-center gap-3 rounded-full", oppen ? "pl-4 pr-3" : "px-3")}
+          className={cx(
+            "flex min-h-11 items-center gap-3 rounded-full",
+            // `flex-1 justify-between` håller talet vid högerkanten i den fasta
+            // bredden. Utan det klumpar namn och tal ihop sig till vänster.
+            oppen ? "flex-1 justify-between pl-4 pr-3" : "px-3",
+          )}
         >
           {oppen ? (
-            <span className="flex flex-col items-start text-left">
-              <span className="text-xs font-medium uppercase tracking-wide text-ink-secondary">{label}</span>
-              {hint ? <span className="text-xs text-ink-secondary">{hint}</span> : null}
+            // `min-w-0`: utan den vägrar en flex-cell krympa under sitt innehåll,
+            // och då kortar `truncate` ingenting utan bubblan växer i stället.
+            <span className="flex min-w-0 flex-col items-start text-left">
+              <span className="w-full truncate text-xs font-medium uppercase tracking-wide text-ink-secondary">{label}</span>
+              {hint ? <span className="w-full truncate tabular-nums text-xs text-ink-secondary">{hint}</span> : null}
             </span>
           ) : null}
-          <span className={cx("tabular-nums text-md font-bold", tonklass)}>{value}</span>
+          {/* ⛔ `shrink-0` och `whitespace-nowrap`: talet är hela poängen med
+              bubblan och får varken kortas av eller brytas till två rader. Blir
+              det trångt är det namnet som ska ge vika, inte siffran. */}
+          <span className={cx("shrink-0 whitespace-nowrap tabular-nums text-md font-bold", tonklass)}>{value}</span>
         </button>
 
         {/* ⛔ EGEN KNAPP OCH INTE ETT KRYSS INUTI DEN ANDRA. En knapp i en knapp

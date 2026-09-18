@@ -99,6 +99,60 @@ describe("OpsFloatingSummary", () => {
     expect(container.firstChild.className).toContain("--safe-bottom");
   });
 
+  it("räknar även med knappen som sticker upp ur bottenraden", () => {
+    /*
+     * ⛔ ATT KLARA BAREN RÄCKTE INTE, OCH DET SYNTES BARA PÅ EN TELEFON.
+     *
+     * Bottenradens huvudåtgärd är en rund knapp som lyfts 12px och bär en 4px
+     * ring, alltså 16px ovanför baren. Bubblan bottnade 8px över baren och låg
+     * därmed halvt under knappen. CP 2026-09-18, med bild.
+     *
+     * Provet läser tokennamnet och inte ett tal: hela poängen med
+     * `--bottom-nav-overhang` är att sträckan bor på ETT ställe, och ett prov
+     * som skrev 16px hit hade gjort det till två.
+     */
+    const { container } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
+    expect(container.firstChild.className).toContain("--bottom-nav-overhang");
+  });
+
+  it("har fast bredd utfälld och egen bredd ihopfälld", () => {
+    /*
+     * ⛔ CP: "Den svajar lite med siffrornas bredd."
+     *
+     * Bubblan ligger högerställd, så ett tal som blir en siffra bredare växer åt
+     * vänster. Man drar i ett reglage och rutan man läser rör sig under blicken.
+     * Full bredd utfälld gör behållaren orörlig; talet byter bredd inuti den.
+     *
+     * Ihopfälld ska den däremot INTE spänna skärmen: en tom remsa tvärs över
+     * telefonen för en ensam siffra är inte en mindre bubbla.
+     */
+    const { container } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
+    const bubbla = () => container.firstChild.firstChild;
+    expect(String(bubbla().className).split(/\s+/)).toContain("w-full");
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(String(bubbla().className).split(/\s+/)).not.toContain("w-full");
+  });
+
+  it("låter namnet kortas av men aldrig talet", () => {
+    /*
+     * ⛔ EN HINT SOM BLEV TVÅ RADER VAR HALVA FELET I CP:S BILD. Bubblan blev
+     * högre, sköt upp över sitt utrymme och la sig i vägen. Det som ska ge vika
+     * när det blir trångt är namnet, aldrig siffran: siffran är hela skälet till
+     * att bubblan finns.
+     */
+    render(<OpsFloatingSummary label="Månadskassaflöde" value="+23 176 kr/mån" hint="Nuläget 23 256 kr" />);
+
+    for (const text of ["Månadskassaflöde", "Nuläget 23 256 kr"]) {
+      expect(String(screen.getByText(text).className).split(/\s+/)).toContain("truncate");
+    }
+
+    const talet = String(screen.getByText("+23 176 kr/mån").className).split(/\s+/);
+    expect(talet).toContain("whitespace-nowrap");
+    expect(talet).toContain("shrink-0");
+    expect(talet).not.toContain("truncate");
+  });
+
   it("är fast i fönstret och inte sticky i en förälder", () => {
     /*
      * ⛔ DET HÄR ÄR PROVET SOM SAKNADES, OCH DESS FRÅNVARO KOSTADE EN RUNDA.
