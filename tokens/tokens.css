@@ -445,9 +445,29 @@
   /* ─── Lager. Tailwind har ingen z-namnrymd, så dessa är vanliga variabler
    * och används som `z-(--z-modal)`. ⛔ Aldrig en fallback i var(): två
    * gissningar i olika komponenter blir en modal bakom en dropdown.
+   *
+   * ⛔ TVÅ SAKER PÅ SAMMA LAGER ÄR INTE ORDNADE, DE ÄR OAVGJORDA. Vid lika
+   * z-index avgör dokumentordningen, och den som står sist vinner. Det är inte
+   * ett val någon gjort, det är ett utfall av var i filen taggen råkade hamna.
+   *
+   * Mätt 2026-09-18 i bolag-ops: appskalets header och OpsTables låsta
+   * förstakolumn låg båda på `--z-sticky`. Tabellen står i `main`, alltså efter
+   * `header` i dokumentet, så kolumnen målade rakt över headern när sidan
+   * scrollades på telefon — logotyp, inkorg och temaknapp försvann bakom en
+   * tabellcell.
+   *
+   * Därför är lagren nu åtskilda med mening:
+   *   --z-sticky         sticky INUTI innehåll (OpsTables låsta kolumn)
+   *   --z-sticky-header   en sticky rad som innehållets egna sticky-celler
+   *                       ska glida under (OpsTables rubrikrad)
+   *   --z-chrome          appskalet: headern och bottenraden. Ligger över allt
+   *                       innehåll, eftersom kroms hela uppgift är att finnas
+   *                       kvar när innehållet rör sig.
    * ──────────────────────────────────────────────────────────────────────── */
   --z-base: 0;
   --z-sticky: 100;
+  --z-sticky-header: 110;
+  --z-chrome: 150;
   --z-dropdown: 200;
   --z-overlay: 300;
   --z-modal: 400;

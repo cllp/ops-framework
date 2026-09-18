@@ -17,6 +17,13 @@ import { cx } from "../lib/cx.js";
  * proportionella siffror gör att kronorna inte linjerar, och då går kolumnen
  * inte att summera med ögat, vilket är hela poängen med en beloppskolumn.
  *
+ * ⛔ DEN LÅSTA KOLUMNEN LIGGER UNDER APPSKALET, OCH DET ÄR MÄTT. Kolumnen låg
+ * på `--z-sticky`, samma lager som OpsAppShells header. Vid lika z-index avgör
+ * dokumentordningen, och tabellen står i `main`, alltså efter `header`. Följden
+ * på telefon 2026-09-18: kolumnen målade rakt över headern under scroll, och
+ * logotyp, inkorg och temaknapp försvann bakom en tabellcell. Appskalet ligger
+ * nu på `--z-chrome` och tabellen rör det inte.
+ *
  * ⛔ Det finns med flit ingen `onRowClick`. En klickbar `<tr>` går inte att nå
  * med tangentbord, och att ge raden `role="button"` förstör tabellsemantiken:
  * en rad kan inte vara både rad och knapp. Lägg en länk eller en knapp i en
@@ -72,8 +79,13 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
                   // medan beloppskolumnerna scrollar förbi. Bakgrund krävs, annars
                   // lyser innehållet under igenom. bg-raised: tabellen bor på ett
                   // OpsCard (raised).
-                  i === 0 && "sticky left-0 z-(--z-sticky) bg-raised",
-                  stickyHeader && "sticky top-0 z-(--z-sticky) bg-raised",
+                  i === 0 && "sticky left-0 bg-raised",
+                  stickyHeader && "sticky top-0 bg-raised",
+                  // ⛔ ETT LAGER PER CELL, ALDRIG TVÅ KLASSER SOM SÄTTER SAMMA SAK.
+                  // Rubrikraden måste ligga över den låsta kolumnen, annars glider
+                  // tbody-cellerna över sina egna rubriker när båda är på: tbody
+                  // står efter thead i dokumentet och vinner vid lika z-index.
+                  stickyHeader ? "z-(--z-sticky-header)" : i === 0 && "z-(--z-sticky)",
                 )}
               >
                 {k.label}

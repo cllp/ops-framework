@@ -82,7 +82,19 @@ const SIDA = `<!doctype html>
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--color-surface); font-family: system-ui, sans-serif; }
   main { padding: 16px 16px calc(var(--bottom-nav-h) + 8px); }
-  nav[aria-label="Snabbnavigering"] { display: flex; height: var(--bottom-nav-h); }
+  /* ⛔ Kromet och den låsta kolumnen ligger på SKILDA lager med flit, och det är
+     just den skillnaden prov 8 tar bort. Värdena speglar ramverkets
+     --z-chrome (150) och --z-sticky (100), men står i klartext här av samma
+     skäl som resten av fixturen: den ska prova mätningen, inte tokenfilen. */
+  header { position: sticky; top: 0; z-index: 150; height: 56px; background: var(--color-surface); border-bottom: 1px solid var(--color-line); }
+  .lang { height: 2000px; }
+  /* Höjden är inte kosmetisk: mätningen tittar mitt i headern, och en kolumn
+     lägre än 56/2 px hade aldrig nått dit. Provet var grönt av det skälet en
+     gång, vilket är precis den sortens tysta miss vakten finns för. */
+  .kolumn { position: sticky; top: 0; left: 0; z-index: 100; width: 40%; height: 80px; margin: 0; background: var(--color-surface); }
+  /* Fast, precis som OpsBottomNav. Låg den i flödet provades aldrig att krom
+     kan målas över, eftersom den då scrollar ur fönstret. */
+  nav[aria-label="Snabbnavigering"] { display: flex; height: var(--bottom-nav-h); position: fixed; inset-inline: 0; bottom: 0; z-index: 150; background: var(--color-surface); }
   nav[aria-label="Huvudnavigering"] { display: none; height: 48px; }
   @media (min-width: 768px) {
     nav[aria-label="Snabbnavigering"] { display: none; }
@@ -117,9 +129,11 @@ const SIDA = `<!doctype html>
 </head>
 <body>
   <nav aria-label="Huvudnavigering"><a href="/">Start</a></nav>
+  <header>Fixtur</header>
   <main>
     <h1>Fixtur</h1>
     <input type="range" min="-50" max="100" step="5" value="0" aria-label="Hyra">
+    <div class="lang"><p class="kolumn">Låst kolumn</p></div>
   </main>
   <nav aria-label="Snabbnavigering"><a href="/">Start</a></nav>
 </body>
@@ -188,7 +202,7 @@ function kravGront(namn) {
 // ⛔ Ordningen är inte kosmetisk. Är den korrekta fixturen röd är varje rött
 // nedan meningslöst, eftersom det då kan komma ur fixturen i stället för ur
 // mutationen. Då vill jag se det på första raden.
-kravGront("en korrekt sida går igenom alla sex påståenden");
+kravGront("en korrekt sida går igenom alla sju påståenden");
 
 // ── 1. Horisontell scroll ───────────────────────────────────────────────────
 kravRott(
@@ -255,6 +269,27 @@ kravRott(
         : `väntade grönt med "0 reglage fotograferade" i utskriften, fick status ${status}: ${utdata.trim().split("\n").slice(-3).join(" | ")}`,
   });
 }
+
+// ── 8. Innehåll målar över kromet ───────────────────────────────────────────
+//
+// ⛔ DET HÄR ÄR FELET SOM HITTADES AV ETT SKÄRMKLIPP, INTE AV EN VAKT.
+// I bolag-ops låg OpsTables låsta förstakolumn och appskalets header båda på
+// `--z-sticky`. Vid lika z-index avgör dokumentordningen, och tabellen står i
+// `main`, alltså efter `header`. På telefon målade kolumnen rakt över headern
+// under scroll: logotyp, inkorg och temaknapp försvann bakom en tabellcell.
+//
+// Mutationen gör exakt det: den lyfter den låsta kolumnen till kromets lager.
+// Inget annat ändras. Blir mätningen grön ändå mäter den inte lagren, utan bara
+// att de står skrivna någonstans.
+//
+// ⛔ Kolumnen är 40 % bred med flit. En övermålning täcker sällan hela bredden,
+// och mätningen måste därför prova flera punkter. Med bara mittpunkten hade det
+// här provet varit grönt och felet levt kvar.
+kravRott(
+  "innehåll ligger på kromets lager och målar över headern",
+  (s) => s.replace(".kolumn { position: sticky; top: 0; left: 0; z-index: 100;", ".kolumn { position: sticky; top: 0; left: 0; z-index: 150;"),
+  "appskalets header är övermålad",
+);
 
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 

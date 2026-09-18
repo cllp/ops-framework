@@ -195,7 +195,7 @@ export function OpsAppShell({
     <div className="min-h-dvh bg-canvas">
       {/* `top-(--safe-top)` och inte `top-0`: utan säker yta hamnar raden under
           statusfältet på en telefon, och det syns bara på riktig hårdvara. */}
-      <header className="sticky top-(--safe-top) z-(--z-sticky) border-b border-line bg-surface">
+      <header className="sticky top-(--safe-top) z-(--z-chrome) border-b border-line bg-surface">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2">
           <a
             href="/"
