@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**49 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**50 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -193,6 +193,7 @@ något godtyckligt.
 | `OpsFilePicker` | `value`, `onChange`, `maxChars`, `accept`, `paste`, `ariaLabel`, `labels` {valj, byt, taBort, klistra}. Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag. Ger `{dataUrl, namn, typ, tecken, bredd?, hojd?}`. ⛔ Heter inte OpsImagePicker: en bildväljare som får ett kontoutdrag tvingar fram en skärmbild av ett dokument man redan har. Bilder krymps i steg, andra filer ryms eller avvisas med besked om vad man ska göra. ⛔ Lyssnar på inklistring i DOKUMENTET, för man klistrar in där blicken är, inte där fokus råkar ligga; två monterade väljare tar därför emot samma inklistring, och det är vad `paste={false}` finns till för. |
 | `OpsRadioGroup` | `options` [{value, label, hint?}], `value`, `onChange`, `ariaLabel`, `name`, `columns` 1 \| 2. Ett val bland flera, alla synliga. ⛔ Nativa `<input type="radio">` under ytan, aldrig `<button role="radio">`: piltangenter, gruppering och "3 av 4" uppläst kommer gratis och blir fel i något hörn när de byggs för hand. Använd den när `OpsSegmented` tagit slut (den kastar vid fyra) och `OpsSelect` skulle gömma alternativen bakom ett klick. |
 | `OpsSlider` | `label`, `value`, `onChange`, `min`, `max`, `noll`, `formateraVarde`, `step`, `aterstallLabel`. Dragreglage för att SIMULERA ett tal, inte mata in det. ⛔ `noll` är läget som betyder "som det är idag", och det måste gå att träffa EXAKT: därför en `Återställ`-knapp som blir inaktiv i stället för att försvinna (en knapp som försvinner flyttar allt bredvid sig) plus ett märke på skenan. ⛔ `formateraVarde` är obligatorisk: ett reglage som läses upp som "minus femton" säger inte minus femton vadå. Nativt `input type=range` under ytan, så touch, piltangenter och hela aria-värdefamiljen kommer gratis; tumme och skena målas i `.ops-reglage` i tokens, eftersom pseudoelementen inte finns som klasser. |
+| `OpsStickySummary` | `label`, `value`, `tone`, `hint`, `defaultOpen`, `storageKey`. En siffra som följer med när man scrollar och går att fälla ihop. ⛔ `sticky`, aldrig `fixed`: en fast bubbla täcker sista raden i innehållet för alltid, medan en sticky nyper fast vid nederkanten och LANDAR på sin plats när man når slutet. Mekanismen är lånad från SessionStudios kalender. Kraven som följer med: elementet måste ligga SIST i det som scrollar, och ingen förälder får ha `overflow: hidden` — bryts något av dem slutar den bara följa med, utan att något går sönder. ⛔ Bottnar ovanför bottenraden (`--bottom-nav-h` + `--safe-bottom`), annars ligger den över telefonens navigering. ⛔ Lagret är `--z-sticky` och inte `--z-chrome`: bubblan är innehåll som fastnar, inte appskal. Ihopfälld blir den en smal pille med bara värdet kvar, aldrig ingenting. |
 | `OpsSwitch` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 
 #### Data
