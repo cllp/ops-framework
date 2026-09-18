@@ -56,7 +56,7 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
             verktygsrad ändrar höjd och 100vh räknar med den största. */}
         <Dialog.Content
           className={cx(
-            "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[calc(100dvh---safe-top)] w-full flex-col",
+            "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[calc(100dvh-var(--safe-top))] w-full flex-col",
             "rounded-t-lg border border-line bg-raised pb-(--safe-bottom) shadow-lg",
             "md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:w-[calc(100vw---spacing(8))]",
             "md:max-h-[calc(100dvh---spacing(8))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg md:pb-0",
