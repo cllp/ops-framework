@@ -160,7 +160,7 @@ for (const marke of MARKEN) {
 // överhoppad. En grind som är grön för att den inte tittade är sämre än ingen
 // grind: den flyttar uppmärksamheten bort från risken, vilket är exakt hur
 // dubbelnavigeringen fick leva.
-process.stdout.write("  mäter layout vid 390, 768 och 1280 px ... ");
+process.stdout.write("  mäter layout vid 390, 768 och 1280 px, plus tema och träffyta ... ");
 let vyport;
 try {
   vyport = await matVyport({ dist: path.join(appmapp, "dist"), rutter: ["/", "/primitiver"] });
@@ -173,6 +173,23 @@ try {
 }
 brott.push(...vyport.brott);
 
+// ⛔ NOLL REGLAGE ÄR ETT SVAR, INTE EN TYSTNAD.
+//
+// Temapasset mäter tumman genom att fotografera varje `input[type=range]` på de
+// mätta rutterna. Finns inget reglage där mäter den ingenting OCH rapporterar
+// inga brott, alltså exakt den tysta tomhet som resten av det här repot är
+// skrivet för att undvika: en grön bock som betyder "jag tittade inte".
+//
+// Mallens primitivsida har ett reglage just därför. Försvinner det, eller slutar
+// sidan gå att nå, ska den här raden säga det rakt ut.
+if (vyport.reglage === 0) {
+  brott.push(
+    "Temapasset hittade inget reglage på de mätta rutterna, så tumman mättes aldrig. " +
+      "Antingen är OpsSlider borta ur mallens primitivsida, eller så nås inte sidan av mätningen. " +
+      "Beviset för att tumman målas ur tokens i båda lägen är därmed inte kört, och det får inte passera som grönt.",
+  );
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 if (brott.length > 0) {
@@ -184,5 +201,6 @@ if (brott.length > 0) {
 console.log(
   `\ncheck-scaffold: appen skapades, installerades, klarade sin egen grind, fick ${Math.round(css.length / 1024)} kB CSS ` +
     `med ramverkets utilities i sig, skrev ut alla ${MARKEN.length} marken och klarade ${vyport.matningar} layoutmatningar ` +
+    `plus ${vyport.temamatningar} temamatningar med ${vyport.reglage} reglage fotograferade ` +
     `i en riktig webblasare (${vyport.varifran})`,
 );

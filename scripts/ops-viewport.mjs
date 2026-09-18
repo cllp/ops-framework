@@ -42,6 +42,11 @@ if (argv.includes("--help") || argv.includes("-h")) {
       "    2. exakt en navigering syns per bredd",
       "    3. main har botteninset minst lika stort som bottenraden",
       "",
+      "  Och i ett andra pass vid 390 px, i både ljust och mörkt läge:",
+      "    4. sidans bakgrund är en annan färg i mörkt läge",
+      "    5. varje reglage är minst 44px högt i den renderade rutan",
+      "    6. accentfärgen finns i varje reglages bild, alltså är tumman vår",
+      "",
       "  OPS_CHROMIUM pekar ut en egen Chromium om playwrights egen inte finns.",
     ].join("\n"),
   );
@@ -107,4 +112,7 @@ if (resultat.brott.length > 0) {
   process.exit(1);
 }
 
-console.log(`\nops-viewport: ${resultat.matningar} mätningar, inga brott (${resultat.varifran})`);
+console.log(
+  `\nops-viewport: ${resultat.matningar} layoutmätningar och ${resultat.temamatningar} temamätningar ` +
+    `med ${resultat.reglage} reglage fotograferade, inga brott (${resultat.varifran})`,
+);

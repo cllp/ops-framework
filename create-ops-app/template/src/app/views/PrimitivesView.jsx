@@ -14,6 +14,7 @@ import {
   OpsPill,
   OpsProvenance,
   OpsSelect,
+  OpsSlider,
   OpsStat,
   OpsTable,
   OpsTabPanel,
@@ -82,6 +83,7 @@ export function PrimitivesView() {
   const [flik, setFlik] = useState("utfall");
   const [kryss, setKryss] = useState(true);
   const [reglage, setReglage] = useState(false);
+  const [simulerat, setSimulerat] = useState(0);
 
   return (
     <OpsView>
@@ -303,6 +305,36 @@ export function PrimitivesView() {
         <OpsCheckbox label="Visa arkiverade" checked={kryss} onChange={setKryss} hint="Träder i kraft när du sparar" />
         <OpsSwitch label="Kompakt läge" checked={reglage} onChange={setReglage} hint="Slår om direkt" />
       </Ruta>
+
+      {/* ⛔ Egen `section` och inte `Ruta`: den lägger sina barn i en
+          `flex-wrap`-rad, och ett reglage som krymper till sitt innehåll är ett
+          reglage man inte kan dra i.
+
+          ⛔ RADEN HÄR ÄR OCKSÅ EN MÄTPUNKT, inte bara en demonstration.
+          `matVyport` fotograferar varje `input[type=range]` på den här sidan och
+          räknar bildpunkter i accentfärgen, i både ljust och mörkt läge. Tas
+          reglaget bort härifrån slutar det enda beviset för att tumman målas ur
+          tokens att köras, och `check-scaffold` blir röd med just den
+          förklaringen i stället för att tystna. */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-md font-bold text-ink">Reglage</h2>
+        <OpsCard>
+          <OpsSlider
+            label="Hyra"
+            value={simulerat}
+            onChange={setSimulerat}
+            min={-50}
+            max={100}
+            step={5}
+            noll={0}
+            formateraVarde={(v) =>
+              v === 0
+                ? `som idag, ${formatCurrency(10918)}/mån`
+                : `${v > 0 ? "+" : ""}${v} procent, ${formatCurrency(Math.round(10918 * (1 + v / 100)))}/mån`
+            }
+          />
+        </OpsCard>
+      </section>
 
       <Ruta rubrik="Modal">
         <OpsButton variant="primary" onClick={() => setOppen(true)}>

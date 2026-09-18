@@ -41,3 +41,41 @@ jobs:
       # grön körning mot en annan uppsättning beroenden bevisar fel sak.
       - run: npm ci
       - run: npm run check
+
+  # ⛔ DEN ENDA VAKT SOM SER CSS KÖRDES ALDRIG AV NÅGON MASKIN, OCH DET ÄR MÄTT.
+  #
+  # `check-scaffold` bär hela mobilgolvet: den är det enda stället i huset där CSS
+  # faktiskt körs, eftersom alla andra prov lever i jsdom som inte har någon
+  # layoutmotor. Ändå låg den utanför `npm run check` och alltså utanför jobbet
+  # ovan. Den fanns bara i `check:all`, och `check:all` nämndes på exakt två
+  # ställen i hela repot: i `package.json` och i README som ett kommando en
+  # människa kan skriva.
+  #
+  # Följden var att mobilgolvet mättes när någon kom ihåg det. Det är samma
+  # felklass som allt annat den här vakten finns för att fånga: en kontroll som
+  # inte körs ser exakt ut som en som passerar.
+  #
+  # ⛔ EGET JOBB OCH INTE ETT STEG I DET OVAN. Den installerar en webbläsare,
+  # scaffoldar en app och kör `npm install` i den, alltså flera minuter. Som ett
+  # steg hade den fördröjt varje svar på typfel och tokenbrott; som eget jobb kör
+  # den parallellt och kostar bara sin egen väggtid.
+  #
+  # ⛔ ATT DEN GÅR ATT KÖRA HÄR ÄR INTE GRATIS ÖVERALLT. Det här repot är publikt,
+  # alltså fria Actions-minuter. Samma mätning i en privat konsumentapp debiteras.
+  # Dyr verifiering hör därför hemma här, och det är motsatsen till var den låg.
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      # ⛔ Bara chromium och bara dess systemberoenden. Tre webbläsare hade tagit
+      # tre gånger tiden för samma svar: mätningen körs i en av dem.
+      - run: npx playwright install --with-deps chromium
+      # ⛔ Provaren FÖRE vakten den provar. Är mätningen trasig är ett grönt
+      # `check-scaffold` inte ett bevis, och då vill jag veta det först.
+      - run: npm run check:vyportvakt
+      - run: npm run check:scaffold
