@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**48 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**49 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -192,6 +192,7 @@ något godtyckligt.
 | `OpsToggleRow` | `label`, `value`, `on`, `onChange`, `offLabel`. Rad som tonas ned i stället för att bockas ur. ⛔ Ett filter, inte ett påstående: kryssrutan frågar "är det sant?", den här frågar "ska det räknas?". |
 | `OpsFilePicker` | `value`, `onChange`, `maxChars`, `accept`, `paste`, `ariaLabel`, `labels` {valj, byt, taBort, klistra}. Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag. Ger `{dataUrl, namn, typ, tecken, bredd?, hojd?}`. ⛔ Heter inte OpsImagePicker: en bildväljare som får ett kontoutdrag tvingar fram en skärmbild av ett dokument man redan har. Bilder krymps i steg, andra filer ryms eller avvisas med besked om vad man ska göra. ⛔ Lyssnar på inklistring i DOKUMENTET, för man klistrar in där blicken är, inte där fokus råkar ligga; två monterade väljare tar därför emot samma inklistring, och det är vad `paste={false}` finns till för. |
 | `OpsRadioGroup` | `options` [{value, label, hint?}], `value`, `onChange`, `ariaLabel`, `name`, `columns` 1 \| 2. Ett val bland flera, alla synliga. ⛔ Nativa `<input type="radio">` under ytan, aldrig `<button role="radio">`: piltangenter, gruppering och "3 av 4" uppläst kommer gratis och blir fel i något hörn när de byggs för hand. Använd den när `OpsSegmented` tagit slut (den kastar vid fyra) och `OpsSelect` skulle gömma alternativen bakom ett klick. |
+| `OpsSlider` | `label`, `value`, `onChange`, `min`, `max`, `noll`, `formateraVarde`, `step`, `aterstallLabel`. Dragreglage för att SIMULERA ett tal, inte mata in det. ⛔ `noll` är läget som betyder "som det är idag", och det måste gå att träffa EXAKT: därför en `Återställ`-knapp som blir inaktiv i stället för att försvinna (en knapp som försvinner flyttar allt bredvid sig) plus ett märke på skenan. ⛔ `formateraVarde` är obligatorisk: ett reglage som läses upp som "minus femton" säger inte minus femton vadå. Nativt `input type=range` under ytan, så touch, piltangenter och hela aria-värdefamiljen kommer gratis; tumme och skena målas i `.ops-reglage` i tokens, eftersom pseudoelementen inte finns som klasser. |
 | `OpsSwitch` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 
 #### Data
@@ -494,6 +495,7 @@ som råkar bryta det råkar minnas.
 | `check-konfigkrav` | **anropar varje `skapa*`-fabrik utan argument och kräver att felet nämner fabrikens eget namn.** ⛔ Kravet är namnet och inte "kastar något": en destruktureringskrasch ÄR ett kast, den ser ut som en kontroll, och den säger `Cannot destructure property 'db' of 'undefined'` i stället för vad appen glömde. Varje fabrik måste dessutom vara klassificerad, så en ny fabrik ingen tagit ställning till blir röd i stället för tyst utanför. ⛔ Fångade fyra av nio fabriker som bröt mot en regel som stod som text i tre filer |
 | `check-nodsida` | webbsidan rör inte `src/nod/`, och nodsidans exporter är dokumenterade. Skiljer på **körimport** (hamnar i bundlen, alltså ett läckage) och **JSDoc-typimport** (når aldrig bundlen, men vänder beroendet så nästa person lägger körkod intill typen). Proven är undantagna, eftersom de måste nå koden de provar, och **omvägen genom dem är stängd**: ingen annan fil får importera provkatalogen, annars når nodsidan bundlen i två hopp. ⛔ Fångade två fel i sin egen PR: kontraktet låg på nodsidan, och undantaget för proven var först ett hål |
 | `check-sidram` | basskiktets `html`-regel reserverar rullningslistens plats (`scrollbar-gutter: stable`). ⛔ En enda CSS-rad som **ingen provsvit kan se**: jsdom kör ingen CSS och ingen komponent importerar tokenfilen, så raden kan försvinna med hela sviten grön. Utan den hoppar varje ops-plattform cirka 15px i sidled när listen slås av och på, och symptomet rapporteras inte som en bugg utan som att appen känns ostadig. Läser `html`-regeln och inte hela filen, och räknar en bortkommenterad rad som borttagen |
+| `check-reglage` | `.ops-reglage` målar tumme och skena ur tokens i BÅDA motorerna. ⛔ Samma osynliga felklass som `check-sidram`: jsdom ritar ingen tumme, så `reglage.test.jsx` vore grönt även om hela blocket försvann. Utan det blir reglaget inte ostylat utan **fel stylat**, ritat i systemets accentfärg, alltså en färg utanför tokenkontraktet som inte byter med mörkt läge och är olika på olika maskiner. Kräver `appearance: none` på elementet separat (annars ritas webbläsarens egen skena under vår) och avvisar hårdkodade färgvärden i blocket |
 | `check-adoption` | en pågående upprensning går framåt, aldrig bakåt |
 | `test-guards` | **bryter varje regel ovan och kräver rött** |
 

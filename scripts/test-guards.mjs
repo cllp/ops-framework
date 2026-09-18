@@ -740,6 +740,50 @@ kravRott(
   kravGront("sidram 4: den riktiga tokenfilen är grön", [sidramsvakt, "tokens/tokens.css"]);
 }
 
+// ── Reglagevakten ───────────────────────────────────────────────────────────
+// ⛔ Samma felklass som sidramen, och samma skäl att inte vara ett prov: jsdom
+// ritar ingen tumme. `reglage.test.jsx` provar elva saker om `OpsSlider` och
+// vore grönt även om hela `.ops-reglage` försvann ur tokenfilen. Reglaget blir
+// då inte ostylat utan FEL stylat: webbläsaren ritar det i systemets accentfärg,
+// alltså en färg utanför tokenkontraktet som inte byter med mörkt läge
+// (bolag-ops#141).
+{
+  const reglagevakt = "scripts/check-reglage.mjs";
+
+  kravRott(
+    "reglage 1: hela blocket borttaget",
+    [reglagevakt, tokenkopia("rg1", (s) => s.replace(/@layer components \{[\s\S]*$/, ""))],
+    "hittade inga",
+  );
+
+  // ⛔ Elementets egen `appearance: none` har ett eget prov, för utan den ritar
+  // webbläsaren sin egen skena UNDER vår: två skenor ovanpå varandra där bara
+  // den ena följer värdet. En vakt som bara läste tummen hade varit grön.
+  kravRott(
+    "reglage 2: appearance borta från elementet, tummen kvar",
+    [reglagevakt, tokenkopia("rg2", (s) => s.replace("    appearance: none;\n    -webkit-appearance: none;\n    margin: 0;", "    margin: 0;"))],
+    "egen skena under",
+  );
+
+  // ⛔ Motorerna delar inte pseudoelement. Räckte en av dem vore reglaget rätt i
+  // Chrome och systemfärgat i Firefox, alltså ett fel bara halva publiken ser.
+  kravRott(
+    "reglage 3: bara webkit-tummen kvar",
+    [reglagevakt, tokenkopia("rg3", (s) => s.replace(/\s*\.ops-reglage::-moz-range-thumb \{[^}]*\}/, ""))],
+    "-moz-range-thumb",
+  );
+
+  // ⛔ Den troligaste framtida ändringen: någon justerar tummen "bara här" med
+  // ett hexvärde. Då finns en färg i ramverket som inte finns i tokenkontraktet.
+  kravRott(
+    "reglage 4: hårdkodad färg i stället för token",
+    [reglagevakt, tokenkopia("rg4", (s) => s.replace("    background: var(--color-accent);\n  }\n\n  .ops-reglage::-moz-range-thumb", "    background: #c9a227;\n  }\n\n  .ops-reglage::-moz-range-thumb"))],
+    "hårdkodat färgvärde",
+  );
+
+  kravGront("reglage 5: den riktiga tokenfilen är grön", [reglagevakt, "tokens/tokens.css"]);
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
