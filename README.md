@@ -490,7 +490,8 @@ som råkar bryta det råkar minnas.
 | `check-typsnitt` | typsnittet hämtas med `<link>` i mallen, aldrig med en `@import` som ignoreras |
 | `check-diagramfarger` | diagrampaletten **mäts**, i båda lägen och mot ramverkets egna ytor. Den enda regeln i repot som inte går att bedöma med ögat: identitetstonerna såg rimliga ut och föll på tre av fem kontroller |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet |
-| `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390 och 768 px** |
+| `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390, 768 och 1280 px**, plus ett temapass som bevisar att mörkt läge når den renderade sidan och att reglagets tumme är målad ur tokens. ⛔ Noll reglage på de mätta rutterna är ett **brott** och inte en tystnad: mallens primitivsida har ett, så noll betyder att mätningen inte ser appen |
+| `test-vyportvakt` | **bryter mot alla sex påståenden i layoutmätningen och kräver rött.** ⛔ Skrevs efter att `check-scaffold` visat sig vara den enda vakten i huset som ingen sett faila: ordet "scaffold" förekom noll gånger i `test-guards.mjs`, samtidigt som den bär hela mobilgolvet. Provar mot en HTML-fixtur med samma form som en ops-app, eftersom en defekt per scaffold hade kostat tio minuter för att bevisa en if-sats. Kräver en webbläsare och ligger därför i CI:s scaffoldjobb, inte i `npm run check` |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
 | `check-konfigkrav` | **anropar varje `skapa*`-fabrik utan argument och kräver att felet nämner fabrikens eget namn.** ⛔ Kravet är namnet och inte "kastar något": en destruktureringskrasch ÄR ett kast, den ser ut som en kontroll, och den säger `Cannot destructure property 'db' of 'undefined'` i stället för vad appen glömde. Varje fabrik måste dessutom vara klassificerad, så en ny fabrik ingen tagit ställning till blir röd i stället för tyst utanför. ⛔ Fångade fyra av nio fabriker som bröt mot en regel som stod som text i tre filer |
 | `check-nodsida` | webbsidan rör inte `src/nod/`, och nodsidans exporter är dokumenterade. Skiljer på **körimport** (hamnar i bundlen, alltså ett läckage) och **JSDoc-typimport** (når aldrig bundlen, men vänder beroendet så nästa person lägger körkod intill typen). Proven är undantagna, eftersom de måste nå koden de provar, och **omvägen genom dem är stängd**: ingen annan fil får importera provkatalogen, annars når nodsidan bundlen i två hopp. ⛔ Fångade två fel i sin egen PR: kontraktet låg på nodsidan, och undantaget för proven var först ett hål |
@@ -521,6 +522,29 @@ Därför öppnar `check-scaffold` den byggda appen i Chromium vid **390 px** och
 3. **`main` har botteninset minst lika stort som bottenraden.** Utan det ligger
    sista raden i innehållet bakom baren, och det upptäcks först när någon undrar
    var deras sista post tog vägen.
+
+Och i ett andra pass vid 390 px, i **både ljust och mörkt läge**:
+
+4. **Sidans bakgrund är en annan färg i mörkt läge än i ljust.** ⛔ Ingenting
+   mätte det förut. `check-diagramfarger` läser färgvärden ur tokenfilen, men att
+   temaväxlingen faktiskt NÅR en renderad sida stod bara som ett löfte. Ett
+   `@media (prefers-color-scheme: dark)`-block med ett stavfel i selektorn är helt
+   tyst: filen ser komplett ut, sviten är grön, och appen är ljus i mörkt läge hos
+   användaren.
+5. **Varje reglage är minst 44px högt i den renderade rutan.** En klass som lovar
+   `h-11` bevisar ingenting i jsdom, där `h-11` och ingenting alls ser identiska ut.
+6. **Accentfärgen finns i varje reglages bild, i båda lägen.** Alltså att tumman
+   är vår och inte webbläsarens egen i systemets accentfärg.
+
+⛔ **Punkt 6 behövde en bild, och det är inte en pixeljämförelse.** Tumman finns
+bara som ett leverantörsspecifikt pseudoelement och går inte att läsa: mätt,
+`getComputedStyle(el, "::-webkit-slider-thumb")` svarar `rgba(0, 0, 0, 0)` för
+bakgrunden och `129px` för bredden, alltså elementets egen ruta. Den vägen ser ut
+att fungera och svarar med skräp. Mätningen fotograferar därför elementet och
+räknar bildpunkter i accentfärgen: en 20px tumme ger 268 träffar, samma sida utan
+tumregeln ger 0. Det är **en räkning av en färg**, inte en jämförelse mot en
+referensbild, så den bryr sig inte om typsnitt, form eller kantutjämning och blir
+inte röd av en avsiktlig designändring.
 
 ⛔ Går Chromium inte att starta blir vakten **röd**, inte överhoppad. Frestelsen
 är att hoppa över tyst så att grinden går igenom på en maskin utan webbläsare,

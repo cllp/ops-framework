@@ -59,9 +59,16 @@ for (const namn of utlovade) {
 }
 
 // ── Vakterna ska också stå i README, av samma skäl ──────────────────────────
+//
+// ⛔ `test-` RÄKNAS OCKSÅ, OCH DET ÄR EN RÄTTELSE. Filtret läste bara `check-`,
+// så vakterna som PROVAR vakterna (`test-guards`, `test-vyportvakt`) kunde
+// existera utan att stå någonstans. Just de är de som är lättast att missa, för
+// ingen saknar dem i vardagen: de körs sällan och nämns aldrig i ett felmeddelande.
+// `check-scaffold` levde nio dagar utanför både CI och `test-guards` av precis
+// den anledningen.
 const vakter = fs
   .readdirSync(path.join(rot, "scripts"))
-  .filter((f) => f.startsWith("check-") && f.endsWith(".mjs"))
+  .filter((f) => (f.startsWith("check-") || f.startsWith("test-")) && f.endsWith(".mjs"))
   .map((f) => f.replace(/\.mjs$/, ""));
 
 for (const vakt of vakter) {

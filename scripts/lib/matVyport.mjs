@@ -31,6 +31,14 @@
  *      sista raden i innehållet bakom baren, och det upptäcks först när någon
  *      undrar var deras sista post tog vägen.
  *
+ * Och i ett andra pass, som `matTeman` nedan förklarar i detalj:
+ *
+ *   4. Sidans bakgrund är en annan färg i mörkt läge än i ljust, alltså att
+ *      temaväxlingen når en renderad sida och inte bara står i tokenfilen.
+ *   5. Varje reglage är minst 44px högt i den renderade rutan.
+ *   6. Accentfärgen finns i varje reglages bild i båda lägen, alltså att tumman
+ *      är vår och inte webbläsarens egen.
+ *
  * ── ⛔ FAIL-CLOSED NÄR WEBBLÄSAREN SAKNAS ───────────────────────────────────
  *
  * Kan den inte starta Chromium säger den det och blir RÖD. Frestelsen är att
@@ -143,10 +151,195 @@ async function startaWebblasare() {
 }
 
 /**
+ * Minsta träffyta i px. Kommer ur CP:s krav på mobil (bolag-ops#141): en kontroll
+ * man drar med tummen och inte med en pekare.
+ *
+ * ⛔ 44 är inte en smaksak utan samma golv som ramverkets `touchTarget`-regel, och
+ * det mäts på den RENDERADE rutan. En klass som lovar `h-11` bevisar ingenting:
+ * jsdom lägger ingen CSS, så `h-11` och ingenting alls ser identiska ut där.
+ */
+const TRAFFYTA_MIN = 44;
+
+/**
+ * Hur många bildpunkter av accentfärgen som räcker för att tumman är vår.
+ *
+ * ⛔ Siffran är mätt, inte vald. En 20px rund tumme ger 268 träffar inom
+ * toleransen (kantutjämningen räknas inte), och samma mätning med tumregeln
+ * borttagen ger 0, alltså webbläsarens egen tumme i systemets accentfärg. Golvet
+ * ligger lågt för att tåla en mindre tumme, och skiljer ändå de två utfallen.
+ */
+const ACCENTPIXLAR_MIN = 20;
+
+/**
+ * Läser den renderade bilden av ett element och räknar bildpunkter i accentfärgen.
+ *
+ * ── ⛔ VARFÖR EN BILD OCH INTE `getComputedStyle` ────────────────────────────
+ *
+ * Reglagets tumme finns bara som ett leverantörsspecifikt pseudoelement, och det
+ * går INTE att läsa. Mätt: `getComputedStyle(el, "::-webkit-slider-thumb")`
+ * svarar `rgba(0, 0, 0, 0)` för bakgrunden och `129px` för bredden, alltså
+ * elementets egen ruta och inte tummens. Den vägen ser ut att fungera och
+ * svarar med skräp, vilket är värre än att inte finnas.
+ *
+ * ── ⛔ VARFÖR DET INTE ÄR EN BILDJÄMFÖRELSE ─────────────────────────────────
+ *
+ * Filens huvudkommentar avvisar pixeljämförelse, och det gäller fortfarande: en
+ * vakt som blir röd av varje typsnittsuppdatering stängs av inom en månad. Det
+ * här är inte en jämförelse mot en referensbild utan EN räkning av EN färg. Den
+ * bryr sig inte om form, position, kantutjämning eller typsnitt.
+ *
+ * Bilden avkodas av webbläsaren själv via en canvas, inte av en egen PNG-läsare.
+ * En handskriven avkodare hade varit femtio rader med fem filtertyper att ha fel
+ * i, alltså en vakt vars egen korrekthet blir nästa sak att bevisa.
+ *
+ * @param {any} sida Playwright-sidan.
+ * @param {number} index Vilket reglage på sidan.
+ * @returns {Promise<{ accent: string, traffar: number, fel?: string }>}
+ */
+async function raknaAccentpixlar(sida, index) {
+  const bild = (await sida.locator("input[type=range]").nth(index).screenshot()).toString("base64");
+  return await sida.evaluate(
+    async ({ b64 }) => {
+      // Normaliserar tokenets värde till rgb via webbläsaren, så en hex, en
+      // `color-mix` eller ett `oklch` behandlas likadant.
+      const prob = document.createElement("div");
+      prob.style.color = getComputedStyle(document.documentElement).getPropertyValue("--color-accent").trim();
+      document.body.appendChild(prob);
+      const accent = getComputedStyle(prob).color;
+      prob.remove();
+
+      const delar = accent.match(/\d+(\.\d+)?/g);
+      if (!delar || delar.length < 3) {
+        // ⛔ Ett oläsbart tokenvärde rapporteras, det tolkas inte som noll
+        // träffar. Noll hade skyllt på tumman för ett fel i mätningen.
+        return { accent, traffar: -1, fel: `--color-accent gick inte att läsa som rgb (${accent}).` };
+      }
+      const [r, g, b] = delar.slice(0, 3).map(Number);
+
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await img.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+      let traffar = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (Math.abs(d[i] - r) <= 2 && Math.abs(d[i + 1] - g) <= 2 && Math.abs(d[i + 2] - b) <= 2 && d[i + 3] > 200) traffar += 1;
+      }
+      return { accent, traffar };
+    },
+    { b64: bild },
+  );
+}
+
+/**
+ * Mäter det som bara en riktig webbläsare kan svara på om TEMAT och om TUMMEN.
+ *
+ * ── ⛔ VARFÖR DET HÄR PASSET FINNS ──────────────────────────────────────────
+ *
+ * `check-diagramfarger` var länge den enda regeln i huset som brydde sig om
+ * mörkt läge, och den mäter färgvärden ur tokenfilen. Ingenting mätte att
+ * temaväxlingen faktiskt NÅR en renderad sida. Ett `@media (prefers-color-scheme:
+ * dark)`-block med ett stavfel i selektorn är helt tyst: filen ser komplett ut,
+ * sviten är grön, och appen är ljus i mörkt läge hos användaren.
+ *
+ * ⛔ Och det är inte teoretiskt. Reglaget (bolag-ops#141) är målat ur tokens just
+ * för att webbläsarens egen tumme annars ritas i systemets accentfärg, alltså en
+ * färg utanför kontraktet som inte byter med läget. `check-reglage` bevisar att
+ * CSS-blocket säger `var(--color-accent)`. Det här beviset är det andra ledet:
+ * att tokenet verkligen är ett annat värde i mörkt läge OCH att det är den färgen
+ * som hamnar på skärmen.
+ *
+ * Tre påståenden, alla sanna eller falska:
+ *
+ *   1. Sidans bakgrund är en ANNAN färg i mörkt läge än i ljust.
+ *   2. Varje reglage är minst 44px högt i den renderade rutan.
+ *   3. Accentfärgen finns i varje reglages bild, i BÅDA lägen.
+ *
+ * @param {object} arg
+ * @param {any} arg.browser
+ * @param {string} arg.url
+ * @param {string[]} arg.rutter
+ * @returns {Promise<{ brott: string[], matningar: number, reglage: number }>}
+ */
+async function matTeman({ browser, url, rutter }) {
+  /** @type {string[]} */
+  const brott = [];
+  let matningar = 0;
+  let reglage = 0;
+
+  // ⛔ Telefonbredd och bara den. Temat och träffytan beror inte på bredden, och
+  // en tredubbling av webbläsartiden för samma svar är bara väntan.
+  for (const rutt of rutter) {
+    /** @type {Record<string, { bakgrund: string, reglage: { hojd: number, accent: string, traffar: number, fel?: string }[] }>} */
+    const perTema = {};
+
+    for (const tema of /** @type {const} */ (["light", "dark"])) {
+      const kontext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: tema });
+      const sida = await kontext.newPage();
+      await sida.goto(`${url}${rutt}`, { waitUntil: "networkidle" });
+      matningar += 1;
+
+      const grund = await sida.evaluate(() => ({
+        bakgrund: getComputedStyle(document.body).backgroundColor,
+        antal: document.querySelectorAll("input[type=range]").length,
+        hojder: Array.from(document.querySelectorAll("input[type=range]")).map((el) => el.getBoundingClientRect().height),
+      }));
+
+      const matta = [];
+      for (let i = 0; i < grund.antal; i += 1) {
+        const px = await raknaAccentpixlar(sida, i);
+        matta.push({ hojd: grund.hojder[i], accent: px.accent, traffar: px.traffar, fel: px.fel });
+      }
+      perTema[tema] = { bakgrund: grund.bakgrund, reglage: matta };
+
+      await kontext.close();
+    }
+
+    // 1. Temat når sidan.
+    if (perTema.light.bakgrund === perTema.dark.bakgrund) {
+      brott.push(
+        `${rutt}: sidans bakgrund är ${perTema.light.bakgrund} i BÅDA lägen. Mörkt läge når inte den renderade sidan, ` +
+          "alltså är appen ljus för den som har mörkt läge påslaget, utan att något blir rött någon annanstans.",
+      );
+    }
+
+    for (const tema of ["light", "dark"]) {
+      perTema[tema].reglage.forEach((r, i) => {
+        // 2. Träffytan.
+        if (r.hojd < TRAFFYTA_MIN) {
+          brott.push(
+            `${rutt} (${tema}): reglage ${i + 1} är ${Math.round(r.hojd)} px högt, golvet är ${TRAFFYTA_MIN}. ` +
+              "En tunn skena går inte att ta tag i med tummen, och det rapporteras som att kontrollen inte fungerar, inte som att den är liten.",
+          );
+        }
+        // 3. Tumman är vår.
+        if (r.fel) {
+          brott.push(`${rutt} (${tema}): reglage ${i + 1} gick inte att mäta. ${r.fel}`);
+        } else if (r.traffar < ACCENTPIXLAR_MIN) {
+          brott.push(
+            `${rutt} (${tema}): reglage ${i + 1} har ${r.traffar} bildpunkter i accentfärgen (${r.accent}), golvet är ${ACCENTPIXLAR_MIN}. ` +
+              "Tumman målas alltså inte ur tokens utan av webbläsaren själv, i systemets accentfärg: en färg utanför kontraktet som inte byter med läget.",
+          );
+        }
+      });
+    }
+
+    reglage += perTema.light.reglage.length;
+  }
+
+  return { brott, matningar, reglage };
+}
+
+/**
  * @param {object} arg
  * @param {string} arg.dist Mappen med den byggda appen.
  * @param {string[]} arg.rutter Sökvägar att mäta, t.ex. ["/", "/primitiver"].
- * @returns {Promise<{ brott: string[], matningar: number, varifran: string }>}
+ * @returns {Promise<{ brott: string[], matningar: number, temamatningar: number, reglage: number, varifran: string }>}
  */
 export async function matVyport({ dist, rutter }) {
   const { server, url } = await serveraDist(dist);
@@ -159,6 +352,8 @@ export async function matVyport({ dist, rutter }) {
   const brott = [];
   let matningar = 0;
   let sidorUtanNav = 0;
+  /** @type {{ brott: string[], matningar: number, reglage: number }} */
+  let tema = { brott: [], matningar: 0, reglage: 0 };
 
   try {
     for (const vy of VYPORTER) {
@@ -253,6 +448,10 @@ export async function matVyport({ dist, rutter }) {
 
       await kontext.close();
     }
+
+    // ⛔ Temapasset ligger INNANFÖR samma `try`, så webbläsaren och servern
+    // stängs även när det kastar. En kvarlämnad Chromium hänger körningen.
+    tema = await matTeman({ browser, url, rutter });
   } finally {
     await browser.close();
     server.close();
@@ -277,9 +476,11 @@ export async function matVyport({ dist, rutter }) {
           "att sidorna går att nå utan att logga in innan du tolkar något annat resultat.",
       ],
       matningar,
+      temamatningar: tema.matningar,
+      reglage: tema.reglage,
       varifran,
     };
   }
 
-  return { brott, matningar, varifran };
+  return { brott: [...brott, ...tema.brott], matningar, temamatningar: tema.matningar, reglage: tema.reglage, varifran };
 }

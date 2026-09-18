@@ -1,6 +1,6 @@
 {
   "name": "@staiger/ops-framework",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
@@ -38,7 +38,7 @@
     "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:nodsida && npm run check:konfigkrav && npm run check:css-build && npm run check:typsnitt && npm run check:diagramfarger && npm run check:sidram && npm run check:reglage && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
-    "check:all": "npm run check && npm run check:scaffold",
+    "check:all": "npm run check && npm run check:vyportvakt && npm run check:scaffold",
     "check:exports": "node scripts/check-exports.mjs",
     "check:adoption": "node scripts/check-adoption.mjs",
     "check:types": "npx tsc -p tsconfig.json",
@@ -49,7 +49,8 @@
     "check:nodsida": "node scripts/check-nodsida.mjs",
     "check:konfigkrav": "node scripts/check-konfigkrav.mjs",
     "check:sidram": "node scripts/check-sidram.mjs",
-    "check:reglage": "node scripts/check-reglage.mjs"
+    "check:reglage": "node scripts/check-reglage.mjs",
+    "check:vyportvakt": "node scripts/test-vyportvakt.mjs"
   },
   "peerDependencies": {
     "lucide-react": "^0.460.0",
