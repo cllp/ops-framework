@@ -489,6 +489,18 @@
    * Höjden härleds ur träffytan (44px) plus luft. ──────────────────────── */
   --bottom-nav-h: 3.5rem;
 
+  /* ─── Hur långt huvudåtgärden sticker upp OVANFÖR bottenraden. ─────────
+   * OpsBottomNav lyfter sin runda knapp 12px och lägger en 4px ring runt
+   * den, alltså 16px utanför baren. Allt som ligger fast strax ovanför
+   * baren måste räkna med den sträckan, annars målar knappen över det.
+   *
+   * ⛔ Talet bor HÄR och inte i varje komponent som råkar veta det. Första
+   * versionen av sifferbubblan bottnade på `--bottom-nav-h` plus 8px och
+   * hamnade därför halvt under knappen. Det syntes bara på en telefon.
+   * (OpsToast klarar sig på sin egen `p-4`, som råkar vara exakt lika
+   * mycket. Ändras knappen är det den här raden som ska ändras.) */
+  --bottom-nav-overhang: 1rem;
+
   color-scheme: light;
 }
 
