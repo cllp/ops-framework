@@ -19,6 +19,37 @@ import { ChevronNedIkon } from "./icons.jsx";
  *
  * ⛔ Appen äger VAD som står i raden. Ramverket äger hur brådskan ser ut.
  *
+ * ── ⛔ EN ÅTGÄRD PÅ RADEN KRÄVER ETT SVAR PÅ RADERNA UTAN ────────────────
+ *
+ * `atgard` är appens egen kontroll, till exempel en knapp som bockar av raden.
+ * Ramverket ritar den och tolkar den aldrig.
+ *
+ * ⛔ SÅ SNART EN RAD HAR EN MÅSTE LISTAN FÖRKLARA DE SOM INTE HAR DET, i
+ * `atgardsforklaring`. Det är inte artighet utan komponentens enda svar på ett
+ * fel vi redan haft: en lista där vissa rader går att göra något åt och andra
+ * ser likadana ut lär användaren att trycka på måfå. Den som tryckt förgäves en
+ * gång slutar lita på hela listan, också de rader där knappen fanns.
+ *
+ * Orden är appens, för bara appen vet varför: "Bara påminnelser går att bocka
+ * av" är sant i en app och nonsens i nästa. Att förklaringen FINNS är vårt, och
+ * därför kastar komponenten.
+ *
+ * ⛔ EN GÅNG FÖR LISTAN OCH INTE EN GÅNG PER RAD, OCH DET ÄR MÄTT.
+ *
+ * Första versionen krävde en mening på varje rad utan knapp. Provkört mot Idag i
+ * Chromium: tre av fyra rader var uppgifter, alltså stod "Försvinner när den är
+ * gjord." tre gånger under varandra. Skälet är att det som saknar knapp saknar
+ * den av SAMMA skäl, varje gång. Raderna växte från 64 till omkring 90 px och
+ * listan blev en tredjedel längre för att upprepa en sanning.
+ *
+ * En rad som säger samma sak som raden ovanför slutar läsas, och då är
+ * förklaringen borta i praktiken fast den står där.
+ *
+ * ⛔ PLATSEN PÅ RADEN RESERVERAS BARA NÄR RADEN HAR EN ÅTGÄRD, exakt som
+ * chevronkolumnen bara finns när någon rad kan fällas ut. En lista utan
+ * åtgärder ser ut precis som förut och betalar ingen höjd för en gest som inte
+ * finns.
+ *
  * ── ⛔ CHEVRONKOLUMNEN RESERVERAS BARA NÄR NÅGON RAD KAN FÄLLAS UT ────────
  *
  * Kolumnen är 44 px, alltså 11 procent av en 390 px bred telefon, och den tas
@@ -55,8 +86,18 @@ const TONER = {
  * @param {{ forsenat?: string, pagar?: string, framat?: string, odaterat?: string }} [props.labels] Orden för de fyra lägena.
  * @param {import("react").ReactNode} [props.empty] Vad som visas när listan är tom. ⛔ Skicka alltid något: tom lista och "allt är gjort" betyder motsatta saker.
  * @param {string} [props.expandLabel] Verb för utfällningsknappens namn, följt av radens titel.
+ * @param {import("react").ReactNode} [props.atgardsforklaring] En mening om VILKA rader som går
+ *   att göra något åt. ⛔ KRÄVS så snart någon rad har en `atgard` och någon annan inte har det.
  */
-export function OpsEventList({ events, onNavigate, ariaLabel, labels = {}, empty = null, expandLabel = "Visa detaljer för" }) {
+export function OpsEventList({
+  events,
+  onNavigate,
+  ariaLabel,
+  labels = {},
+  empty = null,
+  expandLabel = "Visa detaljer för",
+  atgardsforklaring = null,
+}) {
   // ⛔ BARA FÖRSENAT FÅR ETT ORD SOM STANDARD, och det följer direkt av
   // TONER ovan: försenat är det enda läget som lånar larmfärgen, alltså det
   // enda där färgen skulle bära betydelse ensam.
@@ -86,10 +127,30 @@ export function OpsEventList({ events, onNavigate, ariaLabel, labels = {}, empty
   // flaggan men skickar `detaljer` skulle annars få en pil som inte syns.
   const nagonHarDetaljer = events.some((e) => Boolean(e && e.detaljer));
 
+  // Samma fråga för åtgärder, och av samma skäl.
+  const nagonHarAtgard = events.some((e) => Boolean(e && e.atgard));
+
+  /*
+   * ⛔ KASTAR HELLRE ÄN RITAR EN LISTA SOM INTE FÖRKLARAR SIG.
+   *
+   * En tyst nedsläppsväg hade varit sämre än felet: raderna ritas utan knapp,
+   * ser ut som de med, och den som trycker förgäves slutar lita på listan. Det
+   * är hela skälet till att propen finns, så den provas i stället för att hoppas
+   * på.
+   *
+   * ⛔ VILLKORET ÄR "NÅGON HAR OCH NÅGON SAKNAR". En lista där ALLA rader har en
+   * åtgärd behöver ingen förklaring: då finns ingen tyst rad att undra över.
+   */
+  if (nagonHarAtgard && events.some((e) => e && !e.atgard) && !atgardsforklaring) {
+    throw new Error(
+      "OpsEventList: några rader har en atgard och andra inte, men listan saknar atgardsforklaring. En lista där vissa rader går att göra något åt och andra ser likadana ut lär den som läser att trycka på måfå.",
+    );
+  }
+
   /** @param {string} id */
   const vaxlaOppen = (id) => setOppna((f) => (f.indexOf(id) >= 0 ? f.filter((x) => x !== id) : [...f, id]));
 
-  return (
+  const lista = (
     <ul className="m-0 flex list-none flex-col divide-y divide-divider p-0" aria-label={ariaLabel}>
       {events.map((h) => {
         const lage = bradska(h);
@@ -225,6 +286,19 @@ export function OpsEventList({ events, onNavigate, ariaLabel, labels = {}, empty
                   hela på en bred är samma komponent med två utseenden, och det är
                   den sortens skillnad som gör att bara den ena blir provad. */}
               <span className="text-ink">{h.titel}</span>
+
+              {/* ⛔ EGEN RAD UNDER TITELN, INTE BREDVID DEN. Samma mätning som
+                  titeln bygger på: vid 390 px finns 280 px kvar efter
+                  chevronkolumnen, och en knapp på 90 px hade lämnat 190 px åt
+                  titeln. Det var precis det felet titeln en gång flyttades ut ur.
+
+                  ⛔ HÖGERSTÄLLD, så att ögat hittar samma kolumn på varje rad
+                  som har en knapp.
+
+                  ⛔ VILLKORET ÄR RADENS EGEN `atgard` OCH INTE `nagonHarAtgard`.
+                  Frågade platsen listan skulle varje rad utan knapp rita en tom
+                  `div`, alltså betala marginal för något som aldrig syns. */}
+              {h.atgard ? <div className="mt-1 flex justify-end">{h.atgard}</div> : null}
               </div>
             </div>
 
@@ -245,5 +319,19 @@ export function OpsEventList({ events, onNavigate, ariaLabel, labels = {}, empty
         );
       })}
     </ul>
+  );
+
+  if (!atgardsforklaring) return lista;
+
+  /*
+   * ⛔ ÖVER LISTAN OCH INTE UNDER DEN. Förklaringen är något man behöver INNAN
+   * man börjar leta efter knappar, och under en lista med tjugo rader hade den
+   * lästs av den som redan gett upp.
+   */
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="m-0 text-sm text-ink-muted">{atgardsforklaring}</p>
+      {lista}
+    </div>
   );
 }

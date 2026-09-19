@@ -27,6 +27,28 @@ on:
   pull_request:
     branches: [main]
 
+# ⛔ EN KÖRNING PER GREN, INTE EN PER PUSH.
+#
+# CP 2026-09-19: "Minimera nu antalet PR. GitHub-minuterna börjar gå i taket."
+# Mätt i bolag-ops samma natt: 40 körningar och 38,3 minuter på 6,5 timmar. En
+# ramverks-PR kostar cirka 3,8 minuter, eftersom `check` och `scaffold` kör både
+# på grenen och på main efter mergen.
+#
+# Pushar jag två gånger till samma gren, vilket händer varje gång en vakt hittar
+# något i mitt eget arbete, betalar vi för den första körningen fram till att den
+# blivit meningslös. Med gruppen avbryts den i samma sekund den andra startar.
+#
+# ⛔ `github.ref` OCH INTE GRENNAMNET: en PR och en push till main måste hamna i
+# olika grupper, annars avbryter mergen den körning som just då avgör om mergen
+# var rätt.
+#
+# ⛔ MAIN AVBRYTS ALDRIG, och det är hela poängen med villkoret. En avbruten
+# körning på main lämnar ingen uppgift om huruvida main är grön, och nästa app
+# som pinnar om gör det mot ett okänt läge.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
