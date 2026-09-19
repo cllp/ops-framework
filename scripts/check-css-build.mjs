@@ -63,10 +63,39 @@ export const prov = (
 `;
 fs.writeFileSync(path.join(arbetsmapp, "fixtur.jsx"), fixtur);
 
+/*
+ * ⛔ DIST SKANNAS UTAN SINA KOMMENTARER, OCH DET ÄR INTE KOSMETIK.
+ *
+ * Tailwinds skanner letar efter klassnamn i TEXT. Den skiljer inte kod från
+ * prosa, så varje klass som står citerad i en kommentar genererar en regel.
+ * Ramverket citerar SessionStudios klasser på flera ställen, med flit och med
+ * skälet utskrivet, och de citaten är inte vår kod.
+ *
+ * Utan den här tvätten rapporterar vakten nedanför fyra brott i förlagans
+ * citat och noll i vår egen kod, alltså rätt sorts larm på fel rad. Och att
+ * skriva om ett citat för att blidka en vakt vore att förfalska det.
+ *
+ * ⛔ Regexen kan kapa fel i en sträng som innehåller `/*`. Det är avsiktligt
+ * ofarligt: indata går till en SKANNER och inte till en JS-motor, och skulle
+ * den äta för mycket blir MASTE_FINNAS-listan ovan röd. Vakten vaktas alltså
+ * av de andra kontrollerna i samma fil.
+ */
+const distUtanKommentarer = path.join(arbetsmapp, "dist-skannad.js");
+fs.writeFileSync(
+  distUtanKommentarer,
+  fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "),
+);
+
+/*
+ * ⛔ `source(none)`: ingen automatisk innehållsdetektering. Utan den skannar
+ * Tailwind vad som råkar ligga i arbetskatalogen, och då avgör en kvarglömd
+ * byggartefakt om vakten blir grön. En vakt vars utfall beror på skräp i
+ * arbetsträdet mäter inte ramverket.
+ */
 const indata = `
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "${tokenfil.replace(/\\/g, "/")}";
-@source "${dist.replace(/\\/g, "/")}";
+@source "${distUtanKommentarer.replace(/\\/g, "/")}";
 @source "${path.join(arbetsmapp, "fixtur.jsx").replace(/\\/g, "/")}";
 `;
 
@@ -155,6 +184,58 @@ if (!css.includes("#ff0000")) {
   brott.push(
     "bg-[#ff0000] genererades INTE längre. Antagandet att godtyckliga färgvärden måste stoppas i källkoden gäller inte i den här Tailwind-versionen. Läs om regel 3 i scripts/check-closed-api.mjs innan du ändrar något här.",
   );
+}
+
+// ── Ingen deklaration får bära ett bart `--namn` som VÄRDE ──────────────────
+//
+// ⛔ DEN HÄR VAKTEN FINNS FÖR ATT FELET ÄR OSYNLIGT PÅ VARJE NIVÅ UTOM DEN HÄR.
+//
+// CP 2026-09-18, med bild: formuläret för nytt ärende gick inte att scrolla på
+// telefon, och dess överkant låg utanför skärmen. OpsModal hade skrivits
+//
+//   max-h-[calc(100dvh---safe-top)]
+//
+// i tron att Tailwind expanderar `--safe-top` till `var(--safe-top)`. Det gör
+// den inte. Den gör det för sina EGNA funktioner, så `--spacing(8)` bredvid i
+// samma fil blev `calc(var(--spacing) * 8)` och såg ut att bevisa mönstret.
+//
+// Utdata blev `max-height: calc(100dvh - --safe-top)`, vilket är ogiltig CSS.
+// Webbläsaren slänger hela deklarationen utan att säga något. Dialogen fick då
+// ingen takhöjd alls, växte förbi fönstret, och den inre `overflow-auto` slog
+// aldrig till eftersom en obegränsad flexbehållare aldrig blir för liten.
+//
+// Inget fångade det: klassnamnet är korrekt skrivet, Tailwind kompilerar utan
+// varning, jsdom räknar ingen layout, och `check-closed-api` läser källkod och
+// inte utdata. Den enda platsen där felet SYNS är den kompilerade CSS:en.
+{
+  // Deklarationer, alltså `prop: värde;` inuti en regel. Egna egenskaper
+  // (`--tw-x: initial`) hoppas över: där står namnet till VÄNSTER, vilket är
+  // hela skillnaden.
+  const misstankta = [];
+  for (const m of css.matchAll(/([a-zA-Z-]+)\s*:\s*([^;{}]+)/g)) {
+    const [, egenskap, varde] = m;
+    if (egenskap.startsWith("--")) continue;
+    /*
+     * ⛔ TVÅ EGENSKAPER TAR EGENSKAPSNAMN SOM VÄRDE, och där är ett bart
+     * `--namn` det enda rätta. `transition-property: --tw-gradient-from` säger
+     * vilken egenskap som ska övergå; skrevs den `var(--tw-gradient-from)` hade
+     * den i stället läst variabelns VÄRDE och blivit meningslös.
+     *
+     * Tailwind genererar själv den första, så utan undantaget är vakten röd
+     * från första körningen mot kod som är korrekt, och en vakt som alltid är
+     * röd slutar man läsa.
+     */
+    if (egenskap === "transition-property" || egenskap === "will-change") continue;
+    // Ett `--namn` som inte står direkt efter `var(`.
+    if (/(^|[^a-zA-Z0-9_(-])--[a-zA-Z]/.test(varde.replace(/var\(\s*--/g, "var(§"))) {
+      misstankta.push(`${egenskap}: ${varde.trim()}`);
+    }
+  }
+  for (const d of misstankta.slice(0, 5)) {
+    brott.push(
+      `Deklarationen "${d}" bär ett bart --namn som värde i stället för var(--namn). Det är ogiltig CSS, webbläsaren slänger hela raden utan att varna, och felet syns först som en trasig layout på en riktig telefon.`,
+    );
+  }
 }
 
 // ── Golv: en tom utdata får aldrig räknas som grön ───────────────────────────
