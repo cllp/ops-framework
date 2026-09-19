@@ -68,6 +68,24 @@ import { cx } from "../lib/cx.js";
  * och sköt upp den över sitt eget utrymme. Den kortas i stället av med `truncate`:
  * en avhuggen rad är synligt avhuggen, en ombruten ser ut att vara hel.
  *
+ * ── ⛔ DEN RÖR INTE KANTERNA, FÖR EN REMSA LÄSES SOM EN LIST ────────────
+ *
+ * CP 2026-09-19: "Bubblan måste vara väldigt flytande. Och gärna komma in en
+ * bit i sidan."
+ *
+ * Första versionen var `max-w-sm`, alltså 384 px, inuti ett omslag med 16 px
+ * luft. På en 390 px bred telefon blev bubblan 358 px och nuddade båda kanterna.
+ * Då ser den inte ut som något som svävar ovanför sidan utan som en list fäst i
+ * nederkanten, alltså som appskal. Och appskal läser man förbi: bubblan finns
+ * just för att TITTAS PÅ medan man drar i ett reglage.
+ *
+ * Nu 20 rem med 20 px luft, alltså 320 px av 390. Den har luft på båda sidor och
+ * ligger tydligt ovanpå innehållet.
+ *
+ * ⛔ BREDDEN ÄR FORTFARANDE FAST. Det var inte smak utan fixen på att bubblan
+ * svajade när talet bytte bredd, och en smalare bubbla som svajar är sämre än en
+ * bred som står still.
+ *
  * ── ⛔ LAGRET ÄR `--z-sticky`, INTE `--z-chrome` ────────────────────────
  *
  * Bubblan är innehåll som fastnar, inte appskal. Kromet ligger på `--z-chrome`
@@ -101,13 +119,13 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
      * Omslaget spänner hela bredden för att bubblan ska kunna skjutas åt höger,
      * och utan det hade den osynliga remsan ätit varje tryck längs nederkanten.
      */
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.5rem)] z-(--z-sticky) flex justify-end px-4 md:bottom-[calc(var(--safe-bottom)+1rem)]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem)] z-(--z-sticky) flex justify-end px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
       <div
         className={cx(
           "pointer-events-auto flex items-center gap-1 rounded-full border border-line bg-raised shadow-lg",
           // ⛔ Bara utfälld. Ihopfälld är bubblan bara talet, och en tom remsa
           // tvärs över skärmen för en siffra är inte en mindre bubbla.
-          oppen ? "w-full max-w-sm md:w-auto md:min-w-72" : "w-auto",
+          oppen ? "w-full max-w-xs md:w-auto md:min-w-72" : "w-auto",
         )}
       >
         <button

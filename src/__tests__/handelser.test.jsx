@@ -200,6 +200,69 @@ describe("OpsEventList", () => {
     expect(klustret.contains(screen.getByText("Förfaller"))).toBe(false);
   });
 
+  it("ritar appens åtgärd på raden och förklaringen en gång för listan", () => {
+    // ⛔ Ramverket RITAR åtgärden och tolkar den aldrig. Provet skickar in en
+    // knapp och kontrollerar att den kommer fram och fungerar, inte vad den gör.
+    const rader = [];
+    render(
+      <OpsEventList
+        events={[h("lon", 3, { atgard: <button onClick={() => rader.push("lon")}>Bocka av</button> }), h("faktura", 5)]}
+        atgardsforklaring="Bara påminnelser går att bocka av."
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bocka av" }));
+    expect(rader).toEqual(["lon"]);
+
+    // ⛔ EN gång, inte en gång per rad utan knapp. Tre identiska meningar under
+    // varandra mättes fram som en tredjedel längre lista i bolag-ops Idag, och
+    // en rad som säger samma sak som raden ovanför slutar läsas.
+    expect(screen.getAllByText("Bara påminnelser går att bocka av.")).toHaveLength(1);
+  });
+
+  it("lämnar en lista utan åtgärder precis som förut", () => {
+    /*
+     * ⛔ Platsen ritas bara när raden har något att lägga där, exakt som
+     * chevronkolumnen bara finns när någon rad kan fällas ut. Annars betalar
+     * varje befintlig lista marginal för en gest som inte finns, och det felet
+     * har komponenten redan gjort en gång med titeln som fick 178 px.
+     *
+     * ⛔ FÖRSTA VERSIONEN AV DET HÄR PROVET MÄTTE FEL SAK. Den räknade knappar,
+     * och en tom `div` innehåller inga knappar: planterade jag felet, alltså
+     * lät platsen ritas alltid, stod provet grönt. Nu letar det efter TOMMA
+     * element, vilket är precis vad den onödiga platsen är.
+     */
+    // ⛔ `nar` på båda raderna med flit: utan den är detaljraden tom av egna
+    // skäl, och då hade provet fällt på något det inte handlar om.
+    const { container } = render(<OpsEventList events={[h("a", 1, { nar: "I morgon" }), h("b", 2, { nar: "Om 2 dagar" })]} />);
+    const tomma = [...container.querySelectorAll("li *")].filter((e) => !e.children.length && !e.textContent.trim());
+    expect(tomma).toHaveLength(0);
+  });
+
+  it("kastar när några rader går att göra något åt och listan inte säger vilka", () => {
+    /*
+     * ⛔ DET HÄR ÄR LÖFTET, INTE EN ARTIGHET.
+     *
+     * En lista där vissa rader går att göra något åt och andra ser likadana ut
+     * lär användaren att trycka på måfå, och den som tryckt förgäves en gång
+     * slutar lita på hela listan, också de rader där knappen fanns.
+     */
+    const tyst = () => render(<OpsEventList events={[h("lon", 3, { atgard: <button>Bocka av</button> }), h("stum", 5)]} />);
+    expect(tyst).toThrow(/atgardsforklaring/);
+  });
+
+  it("kräver ingen förklaring när ALLA rader har en åtgärd", () => {
+    // ⛔ Då finns ingen tyst rad att undra över, och ett krav som larmar utan
+    // att det finns något att larma på lär man sig att kringgå.
+    const alla = () =>
+      render(
+        <OpsEventList
+          events={[h("a", 1, { atgard: <button>Ett</button> }), h("b", 2, { atgard: <button>Två</button> })]}
+        />,
+      );
+    expect(alla).not.toThrow();
+  });
+
   it("visar det tomma läget i stället för en tom lista", () => {
     // ⛔ Tom lista och "allt är gjort" ser likadana ut i markup och betyder
     // motsatta saker.

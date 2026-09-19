@@ -39,6 +39,11 @@
  * @property {import("react").ReactNode} [detaljer] Fälls ut under raden. Utan den får
  *   raden ingen chevron: en pil som inte öppnar något är ett löfte som inte infrias.
  * @property {string} [url]
+ * @property {import("react").ReactNode} [atgard] Appens egen kontroll för raden, till exempel
+ *   en knapp som bockar av den. ⛔ RAMVERKET RITAR DEN, TOLKAR DEN ALDRIG: vad en åtgärd
+ *   gör är appens sak, var den hamnar och att den hamnar likadant på varje rad är vår.
+ *   ⛔ Har någon rad en `atgard` KRÄVER `OpsEventList` att listan förklarar de rader som
+ *   saknar en, i sin `atgardsforklaring`. Skälet står i komponenten.
  */
 
 /**
