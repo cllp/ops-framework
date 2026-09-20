@@ -131,3 +131,36 @@ describe("OpsSlider", () => {
     expect(a.id).not.toBe(b.id);
   });
 });
+
+describe("OpsSlider med dold etikett", () => {
+  it("döljer ordet men behåller kopplingen mellan etikett och fält", () => {
+    /*
+     * ⛔ FÖR ATT REGLAGET SKA KUNNA SITTA I EN RAD SOM REDAN SÄGER SITT NAMN.
+     * Utan den står "Mat" två gånger på samma rad, och den andra gången lär
+     * ingen läsa.
+     *
+     * ⛔ ETT `aria-label` HADE INTE DUGT som ersättning. Etiketten står kvar som
+     * `<label htmlFor>`, bara omålad, så den som ser skärmen med förstoring har
+     * kvar kopplingen mellan ordet och fältet. Provet mäter därför BÅDE att
+     * namnet finns kvar och att ordet inte målas.
+     */
+    render(
+      <OpsSlider label="Mat" value={0} onChange={() => {}} min={-50} max={100} noll={0} formateraVarde={(v) => `${v} %`} doldEtikett />,
+    );
+
+    // Namnet finns kvar för den som lyssnar.
+    expect(screen.getByRole("slider", { name: "Mat" })).toBeInTheDocument();
+    // Men ordet målas inte.
+    expect(String(screen.getByText("Mat").className).split(/\s+/)).toContain("sr-only");
+    // Och läget i ord står kvar, det är det man läser medan man drar.
+    expect(screen.getByText("0 %")).toBeInTheDocument();
+  });
+
+  it("målar etiketten som vanligt utan flaggan", () => {
+    // ⛔ Golvet under provet ovan: utan flaggan ska ingenting ha ändrats.
+    render(
+      <OpsSlider label="Mat" value={0} onChange={() => {}} min={-50} max={100} noll={0} formateraVarde={(v) => `${v} %`} />,
+    );
+    expect(String(screen.getByText("Mat").className).split(/\s+/)).not.toContain("sr-only");
+  });
+});

@@ -74,6 +74,8 @@ import { cx } from "../lib/cx.js";
  * @param {number} props.max
  * @param {number} props.noll Läget som betyder "som det är idag".
  * @param {(value: number) => string} props.formateraVarde Läget i ord, för både skärm och uppläsning.
+ * @param {boolean} [props.doldEtikett] Döljer etiketten VISUELLT, aldrig för skärmläsare.
+ *   För ett reglage som sitter i en rad som redan säger sitt namn.
  * @param {number} [props.step]
  * @param {string} [props.aterstallLabel] Texten på återställningsknappen.
  */
@@ -85,6 +87,7 @@ export function OpsSlider({
   max,
   noll,
   formateraVarde,
+  doldEtikett = false,
   step = 1,
   aterstallLabel = "Återställ",
 }) {
@@ -115,8 +118,17 @@ export function OpsSlider({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-baseline justify-between gap-3">
-        <label htmlFor={id} className="text-sm font-medium text-ink">
+      {/* ⛔ `doldEtikett` DÖLJER ORDET, ALDRIG NAMNET. Etiketten står kvar som
+          `<label htmlFor>`, bara utan att målas. Den som lyssnar hör alltså
+          fortfarande vad reglaget styr, vilket är hela skälet till att en
+          `aria-label` inte duger som ersättning: den hade tagit bort kopplingen
+          mellan ordet och fältet för den som ser skärmen med förstoring.
+
+          Finns för att reglaget ska kunna sitta i en rad som redan säger sitt
+          namn, till exempel `OpsToggleRow`. Utan den står namnet två gånger på
+          samma rad, och den andra gången lär ingen läsa. */}
+      <div className={cx("flex items-baseline gap-3", doldEtikett ? "justify-end" : "justify-between")}>
+        <label htmlFor={id} className={cx("text-sm font-medium text-ink", doldEtikett && "sr-only")}>
           {label}
         </label>
         <span className={cx("text-sm tabular-nums", vidNoll ? "text-ink-secondary" : "text-accent")}>{text}</span>

@@ -27,62 +27,57 @@ describe("OpsFloatingSummary", () => {
     }
   });
 
-  it("visar namnet och siffran utfälld", () => {
-    render(<OpsFloatingSummary label="Månadskassaflöde" value="+23 256 kr" />);
-    expect(screen.getByText("Månadskassaflöde")).toBeInTheDocument();
-    expect(screen.getByText("+23 256 kr")).toBeInTheDocument();
-  });
-
-  it("behåller siffran när den fälls ihop, och tappar bara namnet", () => {
-    render(<OpsFloatingSummary label="Månadskassaflöde" value="+23 256 kr" />);
-    fireEvent.click(screen.getByRole("button"));
-
-    // ⛔ Det här är provets hela poäng: ihopfälld är inte borta.
-    expect(screen.getByText("+23 256 kr")).toBeInTheDocument();
-    expect(screen.queryByText("Månadskassaflöde")).not.toBeInTheDocument();
-  });
-
-  it("går att fälla ut igen", () => {
-    render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
-    const knapp = screen.getByRole("button");
-    fireEvent.click(knapp);
-    fireEvent.click(knapp);
-    expect(screen.getByText("Netto")).toBeInTheDocument();
-  });
-
-  it("säger sitt läge för den som lyssnar, inte bara för den som ser", () => {
-    render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
-    const knapp = screen.getByRole("button");
-    expect(knapp).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(knapp);
-    expect(knapp).toHaveAttribute("aria-expanded", "false");
-    // Namnet är borta ur texten men finns kvar i etiketten, annars är knappen
-    // "plus ett kronor" och ingenting mer.
-    expect(knapp.getAttribute("aria-label")).toContain("Netto");
-  });
-
-  it("visar hinten utfälld och inte ihopfälld", () => {
-    render(<OpsFloatingSummary label="Netto" value="+1 kr" hint="−2 344 kr mot nuläget" />);
-    expect(screen.getByText("−2 344 kr mot nuläget")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button"));
-    expect(screen.queryByText("−2 344 kr mot nuläget")).not.toBeInTheDocument();
-  });
-
-  it("startar utfälld varje gång", () => {
+  it("visar nuläget överst och det simulerade under, i en enda storlek", () => {
     /*
-     * ⛔ `storageKey` ÄR BORTTAGEN, OCH DET ÄR EN FÖLJD AV NÄR BUBBLAN FINNS.
+     * ⛔ CP 2026-09-20: "det större lägen i bubblan får inte allt plats. Bättre
+     * att ha en storlek, den lilla. Och sedan ha två rader med nuvarande i
+     * mindre text överst och den justerade i stort grönt under."
      *
-     * Den lever bara medan något är justerat, och justeringarna överlever inte
-     * en omladdning. Ett minne av "ihopfälld" hade därför gällt ett läge som
-     * ändå är borta, och nästa gång man drog i ett reglage hade siffran man bad
-     * om kommit tillbaka hopvikt.
+     * Ordningen i DOM:en ÄR kravet, inte en detalj: nuläget är referensen man
+     * jämför mot och ska läsas först, både av ögat och av den som lyssnar.
      */
+    const { container } = render(
+      <OpsFloatingSummary label="Månadskassaflöde" value="+23 256 kr/mån" hint="Nuläget 25 600 kr/mån" tone="success" />,
+    );
+
+    const nulaget = screen.getByText("Nuläget 25 600 kr/mån");
+    const talet = screen.getByText("+23 256 kr/mån");
+    expect(nulaget.compareDocumentPosition(talet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Litet överst, stort och tonat under.
+    expect(String(nulaget.className).split(/\s+/)).toContain("text-sm");
+    const talklasser = String(talet.className).split(/\s+/);
+    expect(talklasser).toContain("text-lg");
+    expect(talklasser).toContain("font-bold");
+    expect(talklasser).toContain("text-success");
+
+    // ⛔ Och ingen växling finns kvar. Utan kryss har bubblan noll knappar.
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+  });
+
+  it("målar inte namnet men tappar det aldrig för den som lyssnar", () => {
+    /*
+     * ⛔ Tre rader ryms inte i "den lilla", och kortet ovanför säger redan vad
+     * talet är. Den som inte ser skärmen har inget kort att luta sig mot, så
+     * namnet står kvar som skärmläsartext. Utan det är bubblan två nakna tal.
+     */
+    render(<OpsFloatingSummary label="Månadskassaflöde" value="+1 kr" />);
+    const namn = screen.getByText("Månadskassaflöde");
+    expect(String(namn.className).split(/\s+/)).toContain("sr-only");
+  });
+
+  it("har samma bredd oavsett innehåll", () => {
+    // ⛔ En storlek betyder en bredd. Byter talet antal siffror ska rutan stå
+    // still, det var hela fixen på att den svajade under blicken.
+    const bubbla = () => document.querySelector(".pointer-events-auto");
+
     const { unmount } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
-    fireEvent.click(screen.getByRole("button"));
+    const smal = String(bubbla().className);
     unmount();
 
-    render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
-    expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "true");
+    render(<OpsFloatingSummary label="Netto" value="+1 234 567 kr/mån" hint="Nuläget 9 876 543 kr/mån" />);
+    expect(String(bubbla().className)).toBe(smal);
+    expect(smal.split(/\s+/)).toContain("max-w-xs");
   });
 
   it("kastar hellre än att rendera en bubbla utan siffra eller utan namn", () => {
@@ -115,41 +110,40 @@ describe("OpsFloatingSummary", () => {
     expect(container.firstChild.className).toContain("--bottom-nav-overhang");
   });
 
-  it("har fast bredd utfälld och egen bredd ihopfälld", () => {
+  it("står still när talet byter bredd", () => {
     /*
      * ⛔ CP: "Den svajar lite med siffrornas bredd."
      *
-     * Bubblan ligger högerställd, så ett tal som blir en siffra bredare växer åt
-     * vänster. Man drar i ett reglage och rutan man läser rör sig under blicken.
-     * Full bredd utfälld gör behållaren orörlig; talet byter bredd inuti den.
+     * Bubblan ligger högerställd, så ett tal som blir en siffra bredare skulle
+     * växa åt vänster. Man drar i ett reglage och rutan man läser rör sig under
+     * blicken. Full bredd upp till taket gör behållaren orörlig; talet byter
+     * bredd inuti den.
      *
-     * Ihopfälld ska den däremot INTE spänna skärmen: en tom remsa tvärs över
-     * telefonen för en ensam siffra är inte en mindre bubbla.
+     * ⛔ Provet mätte förut skillnaden mellan utfällt och ihopfällt. Lägena är
+     * borta, så det mäter nu det som faktiskt bar värdet: att bredden är fast.
      */
     const { container } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
-    const bubbla = () => container.firstChild.firstChild;
-    expect(String(bubbla().className).split(/\s+/)).toContain("w-full");
-
-    fireEvent.click(screen.getByRole("button"));
-    expect(String(bubbla().className).split(/\s+/)).not.toContain("w-full");
+    const klasser = String(container.firstChild.firstChild.className).split(/\s+/);
+    expect(klasser).toContain("w-full");
+    expect(klasser).toContain("max-w-xs");
   });
 
-  it("låter namnet kortas av men aldrig talet", () => {
+  it("låter nuläget kortas av men aldrig talet", () => {
     /*
      * ⛔ EN HINT SOM BLEV TVÅ RADER VAR HALVA FELET I CP:S BILD. Bubblan blev
      * högre, sköt upp över sitt utrymme och la sig i vägen. Det som ska ge vika
-     * när det blir trångt är namnet, aldrig siffran: siffran är hela skälet till
-     * att bubblan finns.
+     * när det blir trångt är nuläget, aldrig siffran: siffran är hela skälet
+     * till att bubblan finns.
+     *
+     * ⛔ Namnet står inte längre i provet, för det målas inte längre. Det är
+     * `sr-only` och har ingen bredd att ge vika med.
      */
-    render(<OpsFloatingSummary label="Månadskassaflöde" value="+23 176 kr/mån" hint="Nuläget 23 256 kr" />);
+    render(<OpsFloatingSummary label="Månadskassaflöde" value="+23 176 kr/mån" hint="Nuläget 23 256 kr/mån" />);
 
-    for (const text of ["Månadskassaflöde", "Nuläget 23 256 kr"]) {
-      expect(String(screen.getByText(text).className).split(/\s+/)).toContain("truncate");
-    }
+    expect(String(screen.getByText("Nuläget 23 256 kr/mån").className).split(/\s+/)).toContain("truncate");
 
     const talet = String(screen.getByText("+23 176 kr/mån").className).split(/\s+/);
     expect(talet).toContain("whitespace-nowrap");
-    expect(talet).toContain("shrink-0");
     expect(talet).not.toContain("truncate");
   });
 
@@ -181,25 +175,30 @@ describe("OpsFloatingSummary", () => {
     // ⛔ Krysset är valfritt med flit. En bubbla som appen själv tar bort när
     // villkoret upphör behöver inget, och ett kryss som inte gör något är värre
     // än inget kryss.
-    const { rerender } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
-    expect(screen.getAllByRole("button")).toHaveLength(1);
+    //
+    // ⛔ Noll knappar utan det, inte en: växlingen är borta, så krysset är den
+    // enda knapp bubblan kan ha.
+    const { container, rerender } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
+    expect(container.querySelectorAll("button")).toHaveLength(0);
 
     rerender(<OpsFloatingSummary label="Netto" value="+1 kr" onDismiss={() => {}} />);
-    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(container.querySelectorAll("button")).toHaveLength(1);
   });
 
-  it("stänger utan att fälla ihop när man trycker på krysset", () => {
+  it("krysset bär namnet, så den som lyssnar vet vad som döljs", () => {
     /*
-     * ⛔ TVÅ SYSKONKNAPPAR OCH INTE EN KNAPP I EN KNAPP. En knapp inuti en knapp
-     * är ogiltig HTML, och trycket hade bubblat upp: ett försök att STÄNGA hade
-     * i stället FÄLLT IHOP, och bubblan blivit kvar. Provet håller isär dem.
+     * ⛔ Provet hette förut "stänger utan att fälla ihop" och höll isär två
+     * syskonknappar. Det finns bara en knapp kvar, men kravet på den lever: utan
+     * `label` i sitt namn är krysset "Dölj" i en lista med andra kryss, och då
+     * vet den som lyssnar inte vad som försvinner.
      */
     let stangd = 0;
-    render(<OpsFloatingSummary label="Netto" value="+1 kr" onDismiss={() => { stangd += 1; }} />);
+    render(<OpsFloatingSummary label="Månadskassaflöde" value="+1 kr" onDismiss={() => { stangd += 1; }} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Dölj/ }));
+    const kryss = screen.getByRole("button", { name: /Dölj/ });
+    expect(kryss.getAttribute("aria-label")).toContain("Månadskassaflöde");
+    fireEvent.click(kryss);
     expect(stangd).toBe(1);
-    expect(screen.getByRole("button", { name: /Fäll ihop/ })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("ligger på innehållets lager och inte på appskalets", () => {

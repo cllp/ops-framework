@@ -1,4 +1,3 @@
-import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 
 /**
@@ -52,6 +51,34 @@ import { cx } from "../lib/cx.js";
  * CP 2026-09-18, med bild: plusknappen låg mitt över bubblans nederkant.
  * `--bottom-nav-overhang` är den sträckan, och den bor i tokens.css så att den
  * ändras på ett ställe den dagen knappen ändras.
+ *
+ * ── ⛔ EN STORLEK, OCH TVÅ RADER I DEN ─────────────────────────────────
+ *
+ * CP 2026-09-20: "det större lägen i bubblan får inte allt plats. Bättre att ha
+ * en storlek, den lilla. Och sedan ha två rader med nuvarande i mindre text
+ * överst och den justerade i stort grönt under."
+ *
+ * Den hade två lägen, utfällt och ihopfällt, och man växlade genom att trycka på
+ * den. Det var fel på två sätt samtidigt.
+ *
+ * ⛔ DET UTFÄLLDA LÄGET FICK INTE PLATS. Namn, hint och tal på EN rad betyder
+ * att tre texter delar på 320 px. Talet är det enda som inte får kortas, så
+ * namnet och hinten trängdes och `truncate` åt upp dem. En bubbla som visar
+ * "Nuläget 125 1..." har slutat svara på frågan den finns för.
+ *
+ * ⛔ OCH VÄXLINGEN VAR EN GEST UTAN NYTTA. Den som drar i ett reglage vill se
+ * talet, inte administrera en ruta. Ett tryck som byter storlek mitt under ett
+ * drag är dessutom precis den rörelse resten av den här komponenten finns för
+ * att undvika.
+ *
+ * Nu: nuläget litet överst, det simulerade stort och tonat under. Två rader som
+ * båda får hela bredden, och ingen växling alls.
+ *
+ * ⛔ NAMNET MÅLAS INTE LÄNGRE, MEN FINNS KVAR SOM UPPLÄST NAMN. Tre rader ryms
+ * inte i "den lilla", och kortet ovanför säger redan vad talet är. Den som inte
+ * ser skärmen har inget kort att luta sig mot, så `label` står som en
+ * skärmläsartext och `aria-label` på krysset. Att ta bort det helt hade gjort
+ * bubblan till två nakna tal för den som lyssnar.
  *
  * ── ⛔ BREDDEN ÄR FAST, FÖR ATT SIFFROR BYTER BREDD ────────────────────
  *
@@ -109,8 +136,6 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
     );
   }
 
-  const id = useId();
-  const [oppen, setOppen] = useState(true);
   const tonklass = tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : "text-ink";
 
   return (
@@ -120,50 +145,40 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
      * och utan det hade den osynliga remsan ätit varje tryck längs nederkanten.
      */
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem)] z-(--z-sticky) flex justify-end px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
-      <div
-        className={cx(
-          "pointer-events-auto flex items-center gap-1 rounded-full border border-line bg-raised shadow-lg",
-          // ⛔ Bara utfälld. Ihopfälld är bubblan bara talet, och en tom remsa
-          // tvärs över skärmen för en siffra är inte en mindre bubbla.
-          oppen ? "w-full max-w-xs md:w-auto md:min-w-72" : "w-auto",
-        )}
-      >
-        <button
-          type="button"
-          id={id}
-          onClick={() => setOppen((o) => !o)}
-          aria-expanded={oppen}
-          aria-label={oppen ? `${label}: ${value}. Fäll ihop` : `${label}: ${value}. Fäll ut`}
-          className={cx(
-            "flex min-h-11 items-center gap-3 rounded-full",
-            // `flex-1 justify-between` håller talet vid högerkanten i den fasta
-            // bredden. Utan det klumpar namn och tal ihop sig till vänster.
-            oppen ? "flex-1 justify-between pl-4 pr-3" : "px-3",
-          )}
-        >
-          {oppen ? (
-            // `min-w-0`: utan den vägrar en flex-cell krympa under sitt innehåll,
-            // och då kortar `truncate` ingenting utan bubblan växer i stället.
-            <span className="flex min-w-0 flex-col items-start text-left">
-              <span className="w-full truncate text-xs font-medium uppercase tracking-wide text-ink-secondary">{label}</span>
-              {hint ? <span className="w-full truncate tabular-nums text-xs text-ink-secondary">{hint}</span> : null}
-            </span>
-          ) : null}
-          {/* ⛔ `shrink-0` och `whitespace-nowrap`: talet är hela poängen med
-              bubblan och får varken kortas av eller brytas till två rader. Blir
-              det trångt är det namnet som ska ge vika, inte siffran. */}
-          <span className={cx("shrink-0 whitespace-nowrap tabular-nums text-md font-bold", tonklass)}>{value}</span>
-        </button>
+      {/* ⛔ `rounded-2xl` OCH INTE `rounded-full`. Pillerformen hörde till en rad
+          text. Två rader gör rutan omkring 70 px hög, och en helrund kant på den
+          höjden äter 35 px i vardera änden av en bubbla som är 320 px bred. Det
+          är utrymme talet behöver. */}
+      <div className="pointer-events-auto flex w-full max-w-xs items-center gap-2 rounded-2xl border border-line bg-raised py-3 pl-4 pr-3 shadow-lg">
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* ⛔ Namnet bara för den som lyssnar, se doktexten ovan. */}
+          <span className="sr-only">{label}</span>
 
-        {/* ⛔ EGEN KNAPP OCH INTE ETT KRYSS INUTI DEN ANDRA. En knapp i en knapp
-            är ogiltig HTML, och trycket hade bubblat upp så att ett försök att
-            stänga i stället fällde ihop. */}
+          {/* ⛔ NULÄGET ÖVERST OCH LITET. Det är referensen man jämför mot, inte
+              svaret, och en referens som är lika stor som svaret tvingar ögat
+              att välja mellan två tal som ser lika viktiga ut.
+
+              `truncate`: hinten är appens ord och kan bli hur lång som helst. En
+              avhuggen rad är synligt avhuggen, en ombruten gör bubblan högre och
+              skjuter upp den över sitt eget utrymme. */}
+          {hint ? <span className="w-full truncate tabular-nums text-sm text-ink-secondary">{hint}</span> : null}
+
+          {/* ⛔ TALET UNDER, STORT OCH TONAT. `whitespace-nowrap` och
+              `tabular-nums`: talet är hela poängen med bubblan och får varken
+              kortas eller brytas, och siffror som byter bredd får rutan att
+              svaja under blicken. */}
+          <span className={cx("whitespace-nowrap tabular-nums text-lg font-bold leading-tight", tonklass)}>{value}</span>
+        </div>
+
+        {/* ⛔ KRYSSET BÄR NAMNET, eftersom det är den enda knappen kvar i
+            bubblan. Utan `label` i sitt namn blir det "Dölj" i en lista med
+            andra kryss, och då vet den som lyssnar inte vad som döljs. */}
         {onDismiss ? (
           <button
             type="button"
             onClick={onDismiss}
             aria-label={`${dismissLabel} ${label}`}
-            className="flex size-11 items-center justify-center rounded-full text-ink-secondary"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-ink-secondary"
           >
             <svg viewBox="0 0 20 20" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M5 5l10 10M15 5L5 15" />

@@ -53,6 +53,30 @@ import { cx } from "../lib/cx.js";
  *
  * ⛔ Raden äger inte sitt eget avstånd till nästa rad. Den har en synlig ram, så
  * en lista behöver luft mellan raderna: ge behållaren `gap`.
+ *
+ * ── ⛔ `kontroll`: EN KONTROLL PÅ RADEN, UTANFÖR KNAPPEN ─────────────────
+ *
+ * CP 2026-09-20: "Skulle vilja att reglage fanns i varje post direkt att man
+ * kan dra i reglaget."
+ *
+ * Det gick inte förut, och skälet stod utskrivet i bolag-ops: raden VAR en
+ * knapp. Ett reglage inuti en `<button>` är ogiltig HTML, och varje drag hade
+ * dessutom bubblat upp och växlat radens nedtoning. Man hade tonat ned posten
+ * genom att simulera den.
+ *
+ * Därför bär nu ett OMSLAG ramen och färgen, medan knappen är genomskinlig och
+ * äger översta raden. Kontrollen ligger som syskon till knappen, alltså utanför
+ * den. Ingen händelse från kontrollen når knappen, och ingen av dem ligger i den
+ * andra.
+ *
+ * ⛔ UTAN `kontroll` ÄR MARKUPEN OFÖRÄNDRAD I ALLT SOM SYNS. Ramen flyttade ett
+ * steg ut, men måtten, färgerna och tillstånden är desamma. En lista utan
+ * kontroller ska inte betala något för att möjligheten finns.
+ *
+ * ⛔ RAMVERKET AVGÖR INTE OM EN NEDTONAD RAD FÅR HA EN KONTROLL. Det vet bara
+ * appen: i bolag-ops är en nedtonad post borträknad och kan därför inte
+ * simuleras, så där skickas ingen kontroll in för den. En annan app kan ha en
+ * kontroll som är meningsfull även avstängd. Komponenten ritar det den får.
  */
 
 /**
@@ -62,20 +86,22 @@ import { cx } from "../lib/cx.js";
  * @param {boolean} props.on Sant = räknas med, skarp. Falskt = nedtonad.
  * @param {(on: boolean) => void} props.onChange
  * @param {string} [props.offLabel] Vad nedtonat betyder, för skärmläsare. Läggs efter etiketten.
+ * @param {import("react").ReactNode} [props.kontroll] En kontroll på raden, till exempel ett reglage.
+ *   ⛔ Renderas UTANFÖR knappen: se doktexten. Utelämnad ritas ingenting extra.
  */
-export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas inte" }) {
-  return (
+export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas inte", kontroll }) {
+  const knapp = (
     <button
       type="button"
       aria-pressed={on}
       onClick={() => onChange(!on)}
       className={cx(
-        "flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left",
+        "flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg text-left",
+        kontroll ? null : "px-4 py-3",
+        kontroll ? "px-1" : null,
         "transition-colors duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        on
-          ? "border-line-strong bg-raised text-ink hover:border-accent"
-          : "border-line bg-sunken text-ink-secondary hover:border-line-strong",
+        on ? "text-ink" : "text-ink-secondary",
       )}
     >
       <span className="min-w-0 flex-1 truncate font-medium">
@@ -100,5 +126,29 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
         <span className={cx("shrink-0 tabular-nums", on ? "text-ink-secondary" : "line-through")}>{value}</span>
       )}
     </button>
+  );
+
+  /*
+   * ⛔ RAMEN BOR PÅ OMSLAGET OCH INTE PÅ KNAPPEN, så att kontrollen ligger
+   * innanför samma yta utan att ligga inuti knappen. `group` finns för att
+   * knappens hover ska kunna färga omslagets kant: annars reagerar ramen inte på
+   * att man är på väg att trycka, och raden känns död.
+   */
+  const omslag = cx(
+    "rounded-lg border transition-colors duration-(--duration-fast) ease-standard",
+    on
+      ? "border-line-strong bg-raised hover:border-accent"
+      : "border-line bg-sunken hover:border-line-strong",
+  );
+
+  if (!kontroll) return <div className={omslag}>{knapp}</div>;
+
+  return (
+    <div className={cx(omslag, "flex flex-col gap-1 px-3 py-2")}>
+      {knapp}
+      {/* ⛔ EGET SYSKON, ALDRIG INUTI KNAPPEN. Ett reglage i en `<button>` är
+          ogiltig HTML, och draget hade växlat radens nedtoning. */}
+      <div className="px-1 pb-1">{kontroll}</div>
+    </div>
   );
 }
