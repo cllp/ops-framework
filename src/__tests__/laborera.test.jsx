@@ -42,6 +42,51 @@ describe("OpsToggleRow", () => {
     expect(onChange).toHaveBeenLastCalledWith(true);
   });
 
+  it("lägger kontrollen utanför knappen, aldrig inuti den", () => {
+    /*
+     * ⛔ CP 2026-09-20: "Skulle vilja att reglage fanns i varje post direkt att
+     * man kan dra i reglaget."
+     *
+     * Det gick inte förut: raden VAR en knapp. Ett reglage inuti en `<button>`
+     * är ogiltig HTML, och varje drag hade bubblat upp och växlat radens
+     * nedtoning. Man hade tonat ned posten genom att simulera den.
+     *
+     * Provet mäter just det: kontrollen får inte ligga i knappen.
+     */
+    render(
+      <OpsToggleRow label="Mat" value="8 000 kr/mån" on onChange={() => {}} kontroll={<input type="range" aria-label="Justera Mat" />} />,
+    );
+
+    const knapp = screen.getByRole("button", { name: /Mat/ });
+    const reglage = screen.getByRole("slider", { name: "Justera Mat" });
+    expect(knapp.contains(reglage)).toBe(false);
+  });
+
+  it("låter draget vara ett drag och inte en nedtoning", () => {
+    // ⛔ Följden av provet ovan, mätt som beteende: rör man kontrollen ska
+    // radens tillstånd stå still. Det var hela skälet att reglaget låg i en
+    // egen panel innan.
+    const vaxla = vi.fn();
+    render(
+      <OpsToggleRow label="Mat" value="8 000 kr/mån" on onChange={vaxla} kontroll={<input type="range" aria-label="Justera Mat" />} />,
+    );
+
+    fireEvent.click(screen.getByRole("slider", { name: "Justera Mat" }));
+    expect(vaxla).not.toHaveBeenCalled();
+  });
+
+  it("ritar ingen extra behållare utan kontroll", () => {
+    /*
+     * ⛔ En lista utan kontroller ska inte betala något för att möjligheten
+     * finns. Ramen flyttade ut ett steg, men raden ska inte få ett tomt element
+     * per post: med hundra rader är det hundra element som aldrig syns.
+     */
+    const { container } = render(<OpsToggleRow label="Bostad" value="1 kr" on onChange={() => {}} />);
+    const omslag = container.firstChild;
+    expect(omslag.children).toHaveLength(1);
+    expect(omslag.firstChild.tagName).toBe("BUTTON");
+  });
+
   it("är inte disabled när den är nedtonad", () => {
     // ⛔ En disabled-knapp faller ur tabbordningen, alltså går urvalet inte att
     // ångra med tangentbord. Nedtonad är ett läge, inte ett förbud.
