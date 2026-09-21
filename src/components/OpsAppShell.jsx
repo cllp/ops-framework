@@ -268,8 +268,12 @@ export function OpsAppShell({
             ⛔ Hamburgaren LIGGER EFTER actions, längst till höger.
             Inte inne i den centrerade nav-klustret och inte före temaväxlaren.
             SessionStudio: sök/tema/… sedan hamburgare sist.
+
+            ⛔ gap-1, inte gap-2. Klustret är 44 px-ikonknappar; gap-2 gjorde
+            dem glest på desktop (bolag-ops #246). gap-1 håller träffytorna
+            men sätter dem tätare.
           */}
-          <div className="flex shrink-0 items-center justify-self-end gap-2">
+          <div className="flex shrink-0 items-center justify-self-end gap-1">
             {actions}
             {iMenyn.length ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
