@@ -67,14 +67,21 @@
   /* ─── Ytor ───────────────────────────────────────────────────────────────
    * canvas är sidans botten, surface ligger på den, raised är det som sticker
    * upp (kort, meny, modal), sunken det som trycks in (fält, tomt tillstånd).
-   * Namnen är valda för hur de läses i JSX: `bg-canvas`, `bg-raised`. Ett
-   * token som hetat `--color-bg-primary` hade gett `bg-bg-primary`, och en
-   * liten skavank som skrivs tusen gånger är inte längre liten.
+   * contrast-panel är den inverterade ytan: soft charcoal i ljust läge, varmt
+   * papper i mörkt — samma kontrastidé som FAB (`accent` + `accent-contrast`),
+   * men som panel. Bara laborera-popover och sifferbubbla; inte hela appen.
+   * Namnen är valda för hur de läses i JSX: `bg-canvas`, `bg-raised`,
+   * `bg-contrast-panel`. Ett token som hetat `--color-bg-primary` hade gett
+   * `bg-bg-primary`, och en liten skavank som skrivs tusen gånger är inte
+   * längre liten.
    * ──────────────────────────────────────────────────────────────────────── */
   --color-canvas: #f8f7f4;
   --color-surface: #ffffff;
   --color-raised: #ffffff;
   --color-sunken: #f0ede8;
+  /* Inverterad yta för flytande laborera-UI (popover + sifferbubbla):
+   * soft charcoal på ljus sida, varmt papper på mörk. Se .ops-contrast-panel. */
+  --color-contrast-panel: #2a2520;
   --color-scrim: rgba(26, 26, 26, 0.45);
 
   /* ─── Text ───────────────────────────────────────────────────────────────
@@ -403,6 +410,7 @@
   --dark-surface: #16161c;
   --dark-raised: #1f1f28;
   --dark-sunken: #1f1f25;
+  --dark-contrast-panel: #f8f7f4;
   --dark-scrim: rgba(0, 0, 0, 0.6);
 
   --dark-ink: #e8e4df;
@@ -566,6 +574,7 @@
     --color-surface: var(--dark-surface);
     --color-raised: var(--dark-raised);
     --color-sunken: var(--dark-sunken);
+    --color-contrast-panel: var(--dark-contrast-panel);
     --color-scrim: var(--dark-scrim);
 
     --color-ink: var(--dark-ink);
@@ -651,6 +660,7 @@
   --color-surface: var(--dark-surface);
   --color-raised: var(--dark-raised);
   --color-sunken: var(--dark-sunken);
+  --color-contrast-panel: var(--dark-contrast-panel);
   --color-scrim: var(--dark-scrim);
 
   --color-ink: var(--dark-ink);
@@ -803,6 +813,102 @@
  * verktygsklass på samma element fortfarande vinner, vilket är rätt håll.
  */
 @layer components {
+  /*
+   * Inverterad panel: soft charcoal på ljus sida, varmt papper på mörk.
+   * Remappar semantik-tokens för ättlingar (`text-ink`, `bg-raised`, accent,
+   * success/danger) så OpsSlider och bubblan håller kontrast utan egna hex.
+   * ⛔ BARA laborera-popover + OpsFloatingSummary. Inte appskal.
+   */
+  .ops-contrast-panel {
+    color: var(--dark-ink);
+    --color-ink: var(--dark-ink);
+    --color-ink-secondary: var(--dark-ink-secondary);
+    --color-ink-muted: var(--dark-ink-muted);
+    --color-line: var(--dark-line);
+    --color-line-strong: var(--dark-line-strong);
+    --color-divider: var(--dark-divider);
+    /* Lite ljusare/mörkare än panelen (#2a2520) så nested raised/sunken syns. */
+    --color-raised: #3a3530;
+    --color-sunken: #1f1c18;
+    --color-surface: #2a2520;
+    --color-success: var(--dark-success);
+    --color-danger: var(--dark-danger);
+    --color-accent: var(--dark-accent);
+    --color-accent-hover: var(--dark-accent-hover);
+    --color-laborera: var(--dark-laborera);
+    --color-laborera-glow: var(--dark-laborera-glow);
+    --color-laborera-track: var(--dark-laborera-track);
+    --shadow-lg: var(--dark-shadow-lg);
+  }
+
+  /* Mörk sida: varmt papper → ljust-lägets bläck och accenter (samma siffror
+   * som @theme-grundvärdena; speglas här för att --color-* redan pekar mörkt). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .ops-contrast-panel {
+      color: #1a1a1a;
+      --color-ink: #1a1a1a;
+      --color-ink-secondary: #4a4540;
+      --color-ink-muted: #8a8580;
+      --color-line: rgba(0, 0, 0, 0.08);
+      --color-line-strong: rgba(0, 0, 0, 0.1);
+      --color-divider: rgba(0, 0, 0, 0.05);
+      --color-raised: #ffffff;
+      --color-sunken: #f0ede8;
+      --color-surface: #f8f7f4;
+      --color-success: #3f7a55;
+      --color-danger: #a33a30;
+      --color-accent: #9a9588;
+      --color-accent-hover: #a89f92;
+      --color-laborera: #c4783a;
+      --color-laborera-glow: #e8a45a;
+      --color-laborera-track: #c4b8a8;
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+  }
+
+  :root[data-theme="dark"] .ops-contrast-panel {
+    color: #1a1a1a;
+    --color-ink: #1a1a1a;
+    --color-ink-secondary: #4a4540;
+    --color-ink-muted: #8a8580;
+    --color-line: rgba(0, 0, 0, 0.08);
+    --color-line-strong: rgba(0, 0, 0, 0.1);
+    --color-divider: rgba(0, 0, 0, 0.05);
+    --color-raised: #ffffff;
+    --color-sunken: #f0ede8;
+    --color-surface: #f8f7f4;
+    --color-success: #3f7a55;
+    --color-danger: #a33a30;
+    --color-accent: #9a9588;
+    --color-accent-hover: #a89f92;
+    --color-laborera: #c4783a;
+    --color-laborera-glow: #e8a45a;
+    --color-laborera-track: #c4b8a8;
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Uttryckligt ljust vinner över system-mörkt: samma remap som standard. */
+  :root[data-theme="light"] .ops-contrast-panel {
+    color: var(--dark-ink);
+    --color-ink: var(--dark-ink);
+    --color-ink-secondary: var(--dark-ink-secondary);
+    --color-ink-muted: var(--dark-ink-muted);
+    --color-line: var(--dark-line);
+    --color-line-strong: var(--dark-line-strong);
+    --color-divider: var(--dark-divider);
+    --color-raised: #3a3530;
+    --color-sunken: #1f1c18;
+    --color-surface: #2a2520;
+    --color-success: var(--dark-success);
+    --color-danger: var(--dark-danger);
+    --color-accent: var(--dark-accent);
+    --color-accent-hover: var(--dark-accent-hover);
+    --color-laborera: var(--dark-laborera);
+    --color-laborera-glow: var(--dark-laborera-glow);
+    --color-laborera-track: var(--dark-laborera-track);
+    --shadow-lg: var(--dark-shadow-lg);
+  }
+
   .ops-reglage {
     /*
      * ⛔ `appearance: none` MÅSTE stå här och inte bara på tumme-pseudoelementet.

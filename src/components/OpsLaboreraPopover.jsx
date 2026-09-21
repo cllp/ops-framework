@@ -115,7 +115,7 @@ export function OpsLaboreraPopover({
           collisionPadding={12}
           aria-label={`Justera ${label}`}
           className={cx(
-            "z-(--z-dropdown) w-[min(calc(100vw---spacing(8)),20rem)] rounded-lg border border-line bg-raised p-4 shadow-lg",
+            "ops-contrast-panel z-(--z-dropdown) w-[min(calc(100vw---spacing(8)),20rem)] rounded-lg border border-line bg-contrast-panel p-4 shadow-lg",
             "outline-none",
           )}
         >

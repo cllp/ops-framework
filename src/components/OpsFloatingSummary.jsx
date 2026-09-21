@@ -160,7 +160,7 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
           egna steg, och skalan hade bara sm–xl/full — ingen 2xl. Klassen emitterade
           ingen border-radius, och bubblan såg ut som en fyrkant (ops-framework#54).
           3xl (24px) är tydligt rundad utan att äta layouten. */}
-      <div className="pointer-events-auto flex w-full max-w-xs items-center gap-2 rounded-3xl border border-line bg-raised py-3 pl-4 pr-3 shadow-lg">
+      <div className="ops-contrast-panel pointer-events-auto flex w-full max-w-xs items-center gap-2 rounded-3xl border border-line bg-contrast-panel py-3 pl-4 pr-3 shadow-lg">
         <div className="flex min-w-0 flex-1 flex-col">
           {/* ⛔ Namnet bara för den som lyssnar, se doktexten ovan. */}
           <span className="sr-only">{label}</span>
