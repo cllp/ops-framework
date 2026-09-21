@@ -193,6 +193,54 @@ kravRott(
   "ingen lappning",
 );
 
+/*
+ * ⛔ REGEL 2 LÄSTE IN I BARNELEMENT, OCH DET UPPTÄCKTES AV EN RÖD GRIND I
+ * bolag-ops, inte av det här harnesset.
+ *
+ * Den gamla regexen var `<(Ops[A-Za-z0-9_]*)\b[^>]*?\b(className|style)\s*=`.
+ * `[^>]*?` stannar vid ett `>`, och i en flerradig tagg med en ReactNode-prop
+ * finns inget `>` att stanna vid förrän långt inne i barnet. En `className` på
+ * appens egen `span` inuti `summary={...}` rapporterades därför som ett brott
+ * mot det stängda API:et.
+ *
+ * ⛔ EN FALSK POSITIV ÄR INTE OFARLIG. En grind som är röd av fel skäl är en
+ * grind man lär sig att gå förbi, och då fångar den inte det riktiga brottet.
+ */
+kravGront("api 2d: className inuti en ReactNode-prop är appens layout, inte lappning", [
+  apivakt,
+  kallkopia(
+    "a2d",
+    "export function Vy() {\n  return (\n    <OpsDisclosure\n      summary={\n" +
+      '        <span className="flex w-full">\n          <span className="font-semibold">Rubrik</span>\n        </span>\n' +
+      "      }\n    >\n      <p>Innehåll</p>\n    </OpsDisclosure>\n  );\n}\n",
+  ),
+]);
+
+kravRott(
+  "api 2f: lappning EFTER en pilfunktion i en prop fångas",
+  [
+    apivakt,
+    // ⛔ `() =>` bär ett `>`. Stannar scannern där är className osynlig, alltså
+    // ett riktigt brott som slinker igenom. Mutationsprovet visade att inget
+    // annat prov täckte just den vägen.
+    kallkopia("a2f", 'export const Vy = () => <OpsButton onClick={() => spara(1)} className="mt-4">Spara</OpsButton>;\n'),
+  ],
+  "ingen lappning",
+);
+
+kravRott(
+  "api 2e: lappning på en FLERRADIG tagg fångas fortfarande",
+  [
+    apivakt,
+    kallkopia(
+      "a2e",
+      "export function Vy() {\n  return (\n    <OpsCard\n      tone=\"raised\"\n" +
+        '      className="mt-4"\n    >\n      <p>Innehåll</p>\n    </OpsCard>\n  );\n}\n',
+    ),
+  ],
+  "ingen lappning",
+);
+
 kravGront("api 2c: image/* i en sträng är inte ett brott", [
   apivakt,
   // ⛔ Inget `>` mellan kommentarslutet och `className`, alltså inga pilfunktioner

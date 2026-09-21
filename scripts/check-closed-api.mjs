@@ -78,6 +78,71 @@ function parameterlista(text, fran) {
   return "";
 }
 
+/**
+ * Primitivens EGNA attribut, alltså allt fram till taggens `>`, och ingenting
+ * som ligger inuti ett `{...}`.
+ *
+ * ── ⛔ VARFÖR DEN HÄR FUNKTIONEN FINNS ──────────────────────────────────
+ *
+ * Regel 2 var en regex: `<(Ops[A-Za-z0-9_]*)\b[^>]*?\b(className|style)\s*=`.
+ * `[^>]*?` stannar vid ett `>`, och i den här formen finns inget `>` att stanna
+ * vid förrän långt inne i barnet:
+ *
+ *   <OpsDisclosure
+ *     summary={
+ *       <span className="flex w-full">...</span>
+ *
+ * Vakten läste alltså in i BARNET och rapporterade ett brott på en `className`
+ * som satt på appens egen `span` inuti en ReactNode-prop. Det är tillåtet:
+ * layout är fri, primitiverna är stängda.
+ *
+ * ⛔ FALSKA POSITIVER ÄR INTE OFARLIGA. `bolag-ops` main stod röd på sin egen
+ * grind av precis det här skälet, och en grind som är röd av fel skäl är en
+ * grind man lär sig att gå förbi. Då fångar den inte det riktiga brottet heller.
+ *
+ * Scannern räknar klamrar och hoppar över strängar, så att ett `>` i en
+ * pilfunktion (`onClick={() => x}`) inte avslutar taggen för tidigt och döljer
+ * en lappning som står EFTER den.
+ *
+ * @param {string} text @param {number} fran Index direkt efter taggnamnet.
+ * @returns {string} Attributtexten, med varje `{...}`-uttryck utbytt mot tomrum.
+ */
+function attributlista(text, fran) {
+  let djup = 0;
+  let citat = "";
+  let ut = "";
+  for (let i = fran; i < text.length; i += 1) {
+    const tecken = text[i];
+
+    if (citat) {
+      if (tecken === citat && text[i - 1] !== "\\") citat = "";
+      ut += djup === 0 ? tecken : " ";
+      continue;
+    }
+    if (tecken === '"' || tecken === "'" || tecken === "`") {
+      citat = tecken;
+      ut += djup === 0 ? tecken : " ";
+      continue;
+    }
+    if (tecken === "{") {
+      djup += 1;
+      ut += " ";
+      continue;
+    }
+    if (tecken === "}") {
+      djup -= 1;
+      ut += " ";
+      continue;
+    }
+    // ⛔ Taggen tar slut bara på DJUP NOLL. Ett `>` inuti ett uttryck är en
+    // pilfunktion eller en nästlad tagg, och stannar scannern där missas varje
+    // lappning som står efter den.
+    if (tecken === ">" && djup === 0) return ut;
+    ut += djup === 0 ? tecken : " ";
+  }
+  return ut;
+}
+
 for (const rot of rotter) {
   for (const fil of filer(rot)) {
     const text = utanKommentarer(fs.readFileSync(fil, "utf8"));
@@ -113,12 +178,15 @@ for (const rot of rotter) {
     }
 
     // ── Regel 2: konsument lappar inte på anropsstället ─────────────────────
-    for (const m of text.matchAll(/<(Ops[A-Za-z0-9_]*)\b[^>]*?\b(className|style)\s*=/gs)) {
+    for (const m of text.matchAll(/<(Ops[A-Za-z0-9_]*)\b/g)) {
+      const attribut = attributlista(text, m.index + m[0].length);
+      const lappning = attribut.match(/\b(className|style)\s*=/);
+      if (!lappning) continue;
       brott.push({
         fil,
         rad: radAv(m.index),
         regel: "2. ingen lappning",
-        skal: `<${m[1]}> får "${m[2]}" på anropsstället. Det är vägen som gör ramverket till en rekommendation. Behövs utseendet, utöka primitiven.`,
+        skal: `<${m[1]}> får "${lappning[1]}" på anropsstället. Det är vägen som gör ramverket till en rekommendation. Behövs utseendet, utöka primitiven.`,
       });
     }
 
