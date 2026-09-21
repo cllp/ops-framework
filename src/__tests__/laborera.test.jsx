@@ -120,6 +120,15 @@ describe("OpsFilterChip", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Kalender" }));
     expect(onChange).toHaveBeenCalledWith("kalender");
   });
+
+  it("ikon-variant visar reglage, inte textpillret", () => {
+    render(
+      <OpsFilterChip variant="icon" options={val} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
+    );
+    const knapp = screen.getByRole("button", { name: "Typ: Alla typer" });
+    expect(knapp.className).toMatch(/min-w-11/);
+    expect(knapp.textContent).not.toMatch(/Alla typer/);
+  });
 });
 
 describe("OpsFullscreenToggle", () => {

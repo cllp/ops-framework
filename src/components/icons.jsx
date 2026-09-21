@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { Check, ChevronDown, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, Sun, X } from "lucide-react";
+import { Check, ChevronDown, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -105,3 +105,9 @@ export function HelskarmIkon({ size = 20 }) {
 export function HelskarmAvIkon({ size = 20 }) {
   return <Minimize2 size={size} aria-hidden="true" />;
 }
+
+/** @param {{ size?: number }} props */
+export function ReglageIkon({ size = 20 }) {
+  return <SlidersHorizontal size={size} aria-hidden="true" />;
+}
+

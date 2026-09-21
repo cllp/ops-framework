@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, ChevronNedIkon } from "./icons.jsx";
+import { BockIkon, ChevronNedIkon, ReglageIkon } from "./icons.jsx";
 
 /**
  * Pillerformat filter: visar vad som är valt, öppnar resten.
@@ -16,8 +16,8 @@ import { BockIkon, ChevronNedIkon } from "./icons.jsx";
  * filter är normalläget. Därför visar den här "Alla X" och inte en tom ruta,
  * och därför är den ett piller och inte ett fält.
  *
- * Formen är avläst ur SessionStudios gruppfilter i Idag-vyn: ett piller med
- * text och chevron som öppnar en meny.
+ * Formen är avläst ur SessionStudio: piller med text+chevron, eller (variant
+ * `icon`) en reglageikon bredvid ett centrerat segment — som SS Idag.
  *
  * ⛔ Valt värde står I PILLRET, inte bara i menyn. Ett filter som ser likadant
  * ut oavsett vad som är valt gör att man läser en filtrerad lista i tron att
@@ -31,35 +31,52 @@ import { BockIkon, ChevronNedIkon } from "./icons.jsx";
  * @param {T | null} props.value
  * @param {(value: T | null) => void} props.onChange
  * @param {string} props.ariaLabel Vad filtret filtrerar på.
- * @param {string} [props.allLabel] Texten när inget är valt.
+ * @param {string} [props.allLabel] Texten när inget är valt (chip-variant).
+ * @param {"chip"|"icon"} [props.variant] `chip` = textpiller (default). `icon` = reglageikon som SessionStudio, valt värde bara i aria-label + aktiv ton.
  */
-export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = "Alla" }) {
+export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = "Alla", variant = "chip" }) {
   const [oppen, setOppen] = useState(false);
   const vald = options.find((o) => o.value === value);
   const text = value === null || value === undefined ? allLabel : (vald?.label ?? allLabel);
   const filtrerar = value !== null && value !== undefined;
 
+  if (variant !== "chip" && variant !== "icon") {
+    throw new Error(`OpsFilterChip: okänd variant "${variant}". Giltiga: chip, icon.`);
+  }
+
   return (
     <Popover.Root open={oppen} onOpenChange={setOppen}>
       <Popover.Trigger
         aria-label={`${ariaLabel}: ${text}`}
+        title={text}
         className={cx(
-          "inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium",
-          "transition-colors duration-(--duration-fast) ease-standard",
+          "inline-flex cursor-pointer items-center transition-colors duration-(--duration-fast) ease-standard",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-          // ⛔ Ett aktivt filter ser annorlunda ut än ett vilande. Utan det går
-          // det inte att se i förbifarten att listan är beskuren.
-          filtrerar ? "bg-accent-subtle text-ink" : "bg-surface text-ink-secondary hover:text-ink",
+          variant === "icon"
+            ? cx(
+                "min-h-11 min-w-11 justify-center rounded-md",
+                filtrerar ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+              )
+            : cx(
+                "min-h-9 gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium",
+                filtrerar ? "bg-accent-subtle text-ink" : "bg-surface text-ink-secondary hover:text-ink",
+              ),
         )}
       >
-        {text}
-        <span aria-hidden="true" className={cx("shrink-0 transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
-          <ChevronNedIkon size={14} />
-        </span>
+        {variant === "icon" ? (
+          <ReglageIkon size={20} />
+        ) : (
+          <>
+            {text}
+            <span aria-hidden="true" className={cx("shrink-0 transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
+              <ChevronNedIkon size={14} />
+            </span>
+          </>
+        )}
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          align="start"
+          align={variant === "icon" ? "end" : "start"}
           sideOffset={4}
           className="z-(--z-dropdown) min-w-52 rounded-md border border-line bg-raised p-1 shadow-md"
         >
