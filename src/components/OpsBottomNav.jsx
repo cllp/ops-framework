@@ -98,10 +98,21 @@ export function OpsBottomNav({
   // finns någon. Menyn ska svara på "vad mer finns det", inte "här är allt
   // igen".
   //
-  // ⛔ Undantaget: en post med barn står kvar även om den syns i baren,
-  // eftersom barnen bara finns här. Utan det blir undersidorna onåbara på
-  // telefon, och det är en trasig app snarare än en repetitiv meny.
-  const iMenyn = nav.filter((post, i) => i >= tak || (Array.isArray(post.children) && post.children.length > 0));
+  // ⛔ Barn till en post I BAREN lyfts in som egna rader — inte föräldern.
+  // Förut stod föräldern kvar "för barnens skull" (t.ex. Ekonomi med
+  // Inkomster/…). Då syntes Ekonomi både i bottenraden och i Mer, vilket CP
+  // markerade som fel. Barnen måste fortfarande nås; föräldern ska inte.
+  /** @type {import("../lib/nav.js").NavPost[]} */
+  const iMenyn = [];
+  for (let i = 0; i < nav.length; i++) {
+    const post = nav[i];
+    const barn = Array.isArray(post.children) ? post.children : [];
+    if (i >= tak) {
+      iMenyn.push(post);
+    } else if (barn.length > 0) {
+      for (const b of barn) iMenyn.push(b);
+    }
+  }
 
   /** @param {string} href @param {any} e */
   const klick = (href, e) => {

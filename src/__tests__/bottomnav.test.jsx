@@ -68,6 +68,19 @@ describe("OpsBottomNav", () => {
     expect(within(sheet).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
   });
 
+  it("upprepar inte en bar-post i Mer, men lyfter in dess barn", async () => {
+    // ⛔ Ekonomi (här: Kostnader) syns i bottenraden. Mer ska inte lista den
+    // igen — bara undersidorna, som annars saknar väg på telefon.
+    render(<OpsBottomNav nav={NAV} activeHref="/" />);
+    const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    expect(within(rad).getByRole("link", { name: "Kostnader" })).toBeInTheDocument();
+    await userEvent.click(within(rad).getByRole("button", { name: "Meny" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).queryByRole("link", { name: "Kostnader" })).toBeNull();
+    expect(within(sheet).getByRole("link", { name: "Företag" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("link", { name: "Privat" })).toBeInTheDocument();
+  });
+
   it("markerar avsnittet i raden när en undersida är aktiv", () => {
     render(<OpsBottomNav nav={NAV} activeHref="/kostnader/foretag" />);
     const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
@@ -266,6 +279,20 @@ describe("OpsAppShell efter mobilomställningen", () => {
     );
     const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
     expect(screen.queryByRole("button", { name: /fler destinationer/ })).toBeNull();
+  });
+
+  it("använder två header-kolumner under md så actions inte landar i mitten", () => {
+    // ⛔ När nav är display:none försvinner den ur griden. Tre kolumner
+    // (`1fr auto 1fr`) placerade då actions i mitten-auto. Kontraktet är
+    // `1fr auto` under md, tre kolumner från md.
+    const { container } = render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const rad = container.querySelector("header > div");
+    expect(rad?.className).toMatch(/grid-cols-\[1fr_auto\]/);
+    expect(rad?.className).toMatch(/md:grid-cols-\[1fr_auto_1fr\]/);
   });
 
   /**

@@ -197,14 +197,20 @@ export function OpsAppShell({
           statusfältet på en telefon, och det syns bara på riktig hårdvara. */}
       <header className="sticky top-(--safe-top) z-(--z-chrome) border-b border-line bg-surface">
         {/*
-          ⛔ TRE KOLUMNER, INTE EN FLEX-RAD MED flex-1.
+          ⛔ TRE KOLUMNER PÅ md+, TVÅ UNDER.
 
           Brand vänster, primärflikar mitt i headern, åtgärder + hamburgare
           höger — samma upplägg som SessionStudio. En `flex-1`-nav vänsterjusterar
           flikarna mot varumärket. Grid med `1fr auto 1fr` håller mitten mitt
           utan att absolutpositionera över åtgärderna.
+
+          ⛔ Under md är nav `display:none` och FÖRSVINNER UR GRIDEN. Med tre
+          kolumner (`1fr auto 1fr`) landade då actions i mitten-`auto` och
+          höger-`1fr` blev tom — ikonerna mitt i headern med lucka till höger
+          (bolag-ops mobil). Därför: `1fr auto` under md (brand | actions),
+          tre kolumner från md.
         */}
-        <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2">
+        <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-4 py-2 md:grid-cols-[1fr_auto_1fr]">
           <a
             href="/"
             onClick={(e) => klick("/", e)}
