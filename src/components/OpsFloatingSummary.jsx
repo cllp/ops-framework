@@ -82,14 +82,14 @@ import { cx } from "../lib/cx.js";
  *
  * ── ⛔ BREDDEN ÄR FAST, FÖR ATT SIFFROR BYTER BREDD ────────────────────
  *
- * CP: "Den svajar lite med siffrornas bredd." Bubblan ligger högerställd, så
- * när talet blir en siffra bredare växer den åt VÄNSTER. Man drar i ett reglage
- * och rutan man läser rör sig under blicken.
+ * CP: "Den svajar lite med siffrornas bredd." När behållaren inte har fast
+ * bredd växer den när talet blir en siffra bredare, och rutan man läser rör sig
+ * under blicken (åt vänster när den var högerställd, åt båda håll när den är
+ * centrerad — samma problem, annan riktning).
  *
- * Därför: full bredd upp till `max-w-sm` på telefon och en golvbredd på större
- * skärmar, med namnet till vänster och talet till höger. Behållaren står still,
- * talet byter bredd inuti den, och `tabular-nums` gör att varje siffra är lika
- * bred som varje annan.
+ * Därför: full bredd upp till `max-w-xs`, behållaren står still, talet byter
+ * bredd inuti den, och `tabular-nums` gör att varje siffra är lika bred som
+ * varje annan.
  *
  * ⛔ Och ingenting bryter rad. En hint som blev två rader gjorde bubblan högre
  * och sköt upp den över sitt eget utrymme. Den kortas i stället av med `truncate`:
@@ -112,6 +112,12 @@ import { cx } from "../lib/cx.js";
  * ⛔ BREDDEN ÄR FORTFARANDE FAST. Det var inte smak utan fixen på att bubblan
  * svajade när talet bytte bredd, och en smalare bubbla som svajar är sämre än en
  * bred som står still.
+ *
+ * ── ⛔ CENTRERAD, INTE HÖGERSTÄLLD ─────────────────────────────────────
+ *
+ * CP 2026-09-20 / ops-framework#54: bubblan låg långt ner i högra hörnet och
+ * kändes inte som en bubbla. `justify-end` sköt den åt sidan; nu `justify-center`
+ * så den ligger ungefär mitt i viewport, fortfarande ovanför botten-nav.
  *
  * ── ⛔ LAGRET ÄR `--z-sticky`, INTE `--z-chrome` ────────────────────────
  *
@@ -141,15 +147,20 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
   return (
     /*
      * ⛔ `pointer-events-none` på omslaget och `pointer-events-auto` på bubblan.
-     * Omslaget spänner hela bredden för att bubblan ska kunna skjutas åt höger,
-     * och utan det hade den osynliga remsan ätit varje tryck längs nederkanten.
+     * Omslaget spänner hela bredden så bubblan kan centreras med flex; utan det
+     * hade den osynliga remsan ätit varje tryck längs nederkanten.
      */
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem)] z-(--z-sticky) flex justify-end px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
-      {/* ⛔ `rounded-2xl` OCH INTE `rounded-full`. Pillerformen hörde till en rad
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem)] z-(--z-sticky) flex justify-center px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
+      {/* ⛔ `rounded-3xl` OCH INTE `rounded-full`. Pillerformen hörde till en rad
           text. Två rader gör rutan omkring 70 px hög, och en helrund kant på den
           höjden äter 35 px i vardera änden av en bubbla som är 320 px bred. Det
-          är utrymme talet behöver. */}
-      <div className="pointer-events-auto flex w-full max-w-xs items-center gap-2 rounded-2xl border border-line bg-raised py-3 pl-4 pr-3 shadow-lg">
+          är utrymme talet behöver.
+
+          ⛔ `rounded-2xl` VAR DÖD KOD. `--radius-*: initial` nollar Tailwinds
+          egna steg, och skalan hade bara sm–xl/full — ingen 2xl. Klassen emitterade
+          ingen border-radius, och bubblan såg ut som en fyrkant (ops-framework#54).
+          3xl (24px) är tydligt rundad utan att äta layouten. */}
+      <div className="pointer-events-auto flex w-full max-w-xs items-center gap-2 rounded-3xl border border-line bg-raised py-3 pl-4 pr-3 shadow-lg">
         <div className="flex min-w-0 flex-1 flex-col">
           {/* ⛔ Namnet bara för den som lyssnar, se doktexten ovan. */}
           <span className="sr-only">{label}</span>

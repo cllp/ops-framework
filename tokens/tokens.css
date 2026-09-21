@@ -252,11 +252,17 @@
    * ──────────────────────────────────────────────────────────────────────── */
   --spacing: 4px;
 
-  /* ─── Form ───────────────────────────────────────────────────────────── */
+  /* ─── Form ─────────────────────────────────────────────────────────────
+   * ⛔ `--radius-*: initial` ovan nollar Tailwinds egna steg. Utan 2xl/3xl
+   * här dör `rounded-2xl` / `rounded-3xl` tyst — ingen border-radius alls.
+   * ops-framework#54: bubblan såg ut som en fyrkant av precis det skälet.
+   * ──────────────────────────────────────────────────────────────────────── */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
   --radius-full: 999px;
 
   /* ─── Djup. Tre skuggor. Fler blir brus. ─────────────────────────────── */
