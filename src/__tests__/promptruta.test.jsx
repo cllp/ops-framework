@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsPrompt } from "../components/OpsPrompt.jsx";
 import { skapaPromptkalla } from "../lib/prompt.js";
@@ -133,12 +133,19 @@ describe("OpsPrompt", () => {
 
     expect(screen.getByLabelText("Fråga")).toHaveValue("Vad händer i oktober?");
     expect(skicka).not.toHaveBeenCalled();
+
     /*
      * ⛔ OCH INGET FEL SYNS, vilket är det som faktiskt fäller mutationen.
      * Ett förslag som skickar sig självt läser `text` innan React hunnit
      * uppdatera den, alltså skickas en tom fråga och rutan svarar "Skriv en
      * fråga först" på ett tryck användaren just gjorde rätt.
+     *
+     * ⛔ MIKROTASKARNA MÅSTE TÖMMAS FÖRST. Felet sätts i en `catch`, alltså
+     * efter minst ett varv i kön, och ett synkront `queryByRole` direkt efter
+     * klicket hann titta innan det renderades. Provet var grönt mot mutationen
+     * av exakt det skälet.
      */
+    await act(async () => {});
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
