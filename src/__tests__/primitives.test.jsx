@@ -65,6 +65,21 @@ describe("OpsButton", () => {
     forvantaKrasch(() => render(<OpsButton iconOnly>x</OpsButton>), /ariaLabel/);
   });
 
+  it("rund ikonknapp blir cirkel, som bottenradens huvudåtgärd", () => {
+    render(
+      <OpsButton variant="primary" iconOnly round ariaLabel="Nytt ärende">
+        +
+      </OpsButton>,
+    );
+    const knapp = screen.getByRole("button", { name: "Nytt ärende" });
+    expect(knapp.className).toMatch(/rounded-full/);
+    expect(knapp.className).not.toMatch(/rounded-md/);
+  });
+
+  it("vägrar round utan iconOnly", () => {
+    forvantaKrasch(() => render(<OpsButton round>x</OpsButton>), /round kräver iconOnly/);
+  });
+
   it("vägrar en okänd variant i stället för att rendera något godtyckligt", () => {
     forvantaKrasch(() => render(<OpsButton variant="fancy">x</OpsButton>), /okänd variant/);
   });

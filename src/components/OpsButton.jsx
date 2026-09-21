@@ -37,7 +37,7 @@ const IKONSTORLEKAR = {
 };
 
 const BAS =
-  "inline-flex items-center justify-center rounded-md border font-semibold leading-tight " +
+  "inline-flex items-center justify-center border font-semibold leading-tight " +
   "transition-colors duration-(--duration-fast) ease-standard " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent " +
   "disabled:opacity-55 disabled:cursor-not-allowed aria-disabled:opacity-55 aria-disabled:cursor-not-allowed";
@@ -51,6 +51,7 @@ const BAS =
  * @param {boolean} [props.busy] Visar och annonserar pågående arbete, och spärrar knappen.
  * @param {boolean} [props.fullWidth]
  * @param {boolean} [props.iconOnly] Kvadratisk träffyta. Kräver `ariaLabel`.
+ * @param {boolean} [props.round] Cirkel (`rounded-full`). Kräver `iconOnly`. Samma form som bottenradens huvudåtgärd (Huvudatgard), utan dess överskjutning/ring — för desktop-headerns +.
  * @param {string} [props.href] Anges href renderas en länk i stället för en knapp.
  * @param {boolean} [props.newTab]
  * @param {string} [props.ariaLabel]
@@ -67,6 +68,7 @@ export function OpsButton({
   busy = false,
   fullWidth = false,
   iconOnly = false,
+  round = false,
   href,
   newTab = false,
   ariaLabel,
@@ -94,7 +96,22 @@ export function OpsButton({
     throw new Error("OpsButton: iconOnly kräver ariaLabel. En ikon utan namn går inte att nå med tangentbord eller röst.");
   }
 
-  const klass = cx(BAS, variantKlass, storlekKlass, fullWidth && "w-full");
+  // ⛔ `round` utan `iconOnly` ger en textknapp med cirkelhörn — alltså en
+  // pillerform som inte är den rundade plusknappen. Kräv båda så formen
+  // betyder samma sak överallt: cirkel = ikonmitten, som Huvudatgard.
+  if (round && !iconOnly) {
+    throw new Error(
+      "OpsButton: round kräver iconOnly. En rund textknapp är en pillerform, inte bottenradens cirkel.",
+    );
+  }
+
+  const klass = cx(
+    BAS,
+    round ? "rounded-full" : "rounded-md",
+    variantKlass,
+    storlekKlass,
+    fullWidth && "w-full",
+  );
   const sparrad = disabled || busy;
 
   /**

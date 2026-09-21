@@ -269,11 +269,10 @@ export function OpsAppShell({
             Inte inne i den centrerade nav-klustret och inte före temaväxlaren.
             SessionStudio: sök/tema/… sedan hamburgare sist.
 
-            ⛔ gap-1, inte gap-2. Klustret är 44 px-ikonknappar; gap-2 gjorde
-            dem glest på desktop (bolag-ops #246). gap-1 håller träffytorna
-            men sätter dem tätare.
+            ⛔ gap-0.5, inte gap-1/gap-2. Klustret är 44 px-ikonknappar;
+            CP ville dem tätare än gap-1 på desktop (bolag-ops header polish).
           */}
-          <div className="flex shrink-0 items-center justify-self-end gap-1">
+          <div className="flex shrink-0 items-center justify-self-end gap-0.5">
             {actions}
             {iMenyn.length ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
