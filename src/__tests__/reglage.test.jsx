@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { OpsSlider } from "../components/OpsSlider.jsx";
+import { OpsKnob } from "../components/OpsKnob.jsx";
 
 /**
  * ⛔ PROVEN LÄSER NAMN, VÄRDEN OCH UTFALL, ALDRIG GEOMETRI.
@@ -162,5 +163,75 @@ describe("OpsSlider med dold etikett", () => {
       <OpsSlider label="Mat" value={0} onChange={() => {}} min={-50} max={100} noll={0} formateraVarde={(v) => `${v} %`} />,
     );
     expect(String(screen.getByText("Mat").className).split(/\s+/)).not.toContain("sr-only");
+  });
+});
+
+
+describe("OpsKnob", () => {
+  const grund = {
+    label: "Hyra",
+    min: -50,
+    max: 50,
+    noll: 0,
+    formateraVarde: (v) => (v === 0 ? "0 %" : `${v > 0 ? "+" : ""}${v} %`),
+  };
+
+  it("är ett reglage med spann och läge", () => {
+    render(<OpsKnob {...grund} value={0} onChange={() => {}} />);
+    const ratt = screen.getByRole("slider", { name: "Hyra" });
+    expect(ratt).toHaveAttribute("min", "-50");
+    expect(ratt).toHaveAttribute("max", "50");
+    expect(ratt).toHaveValue("0");
+  });
+
+  it("säger vad läget betyder i ord, inte bara talet", () => {
+    render(<OpsKnob {...grund} value={-15} onChange={() => {}} />);
+    expect(screen.getByRole("slider", { name: "Hyra" })).toHaveAttribute("aria-valuetext", "-15 %");
+  });
+
+  it("visar samma text under ratten som den läser upp", () => {
+    render(<OpsKnob {...grund} value={20} onChange={() => {}} />);
+    const ratt = screen.getByRole("slider", { name: "Hyra" });
+    expect(screen.getByText("+20 %")).toBeInTheDocument();
+    expect(ratt.getAttribute("aria-valuetext")).toBe("+20 %");
+  });
+
+  it("skickar ett tal och inte en sträng när man drar", () => {
+    const onChange = vi.fn();
+    render(<OpsKnob {...grund} value={0} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("slider", { name: "Hyra" }), { target: { value: "25" } });
+    expect(onChange).toHaveBeenCalledWith(25);
+    expect(typeof onChange.mock.calls[0][0]).toBe("number");
+  });
+
+  it("återställer till exakt nolläget vid dubbelklick", () => {
+    const onChange = vi.fn();
+    render(<OpsKnob {...grund} value={-35} onChange={onChange} />);
+    fireEvent.doubleClick(screen.getByRole("slider", { name: "Hyra" }));
+    expect(onChange).toHaveBeenCalledWith(0);
+  });
+
+  it("kastar hellre än att rita en ratt vars nolläge ligger utanför spannet", () => {
+    expect(() => render(<OpsKnob {...grund} noll={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
+  });
+
+  it("kastar hellre än att läsa upp ett naket tal", () => {
+    expect(() =>
+      render(<OpsKnob {...grund} formateraVarde={undefined} value={0} onChange={() => {}} />),
+    ).toThrow(/formateraVarde/);
+  });
+
+  it("döljer etiketten visuellt med doldEtikett men behåller namnet", () => {
+    render(
+      <OpsKnob label="Mat" value={0} onChange={() => {}} min={-50} max={100} noll={0} formateraVarde={(v) => `${v} %`} doldEtikett />,
+    );
+    expect(screen.getByRole("slider", { name: "Mat" })).toBeInTheDocument();
+    expect(String(screen.getByText("Mat").className).split(/\s+/)).toContain("sr-only");
+    expect(screen.getByText("0 %")).toBeInTheDocument();
+  });
+
+  it("berättar i title att dubbelklick återställer", () => {
+    const { container } = render(<OpsKnob {...grund} value={10} onChange={() => {}} />);
+    expect(container.querySelector("[title='Dubbelklick = återställ']")).not.toBeNull();
   });
 });

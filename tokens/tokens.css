@@ -159,6 +159,15 @@
   --color-badge: #dc2626;
   --color-badge-contrast: #ffffff;
 
+  /* Simuleringsratt (OpsKnob): varm amber/terrakotta, inte accent/blå.
+   * ⛔ Egen roll och inte warning: en justerad kategori är inte en varning. */
+  --color-laborera: #c4783a;
+  --color-laborera-glow: #e8a45a;
+  --color-laborera-track: #c4b8a8;
+  --color-laborera-face: #ebe4da;
+  --color-laborera-face-edge: #d4cbbd;
+  --color-laborera-well: #f5f1ea;
+
   /* ─── Identitet ──────────────────────────────────────────────────────────
    * Sex toner, numrerade och inte färgnamngivna, som väljs deterministiskt ur
    * ett id. De bär grupp- och personidentitet i listor.
@@ -425,6 +434,12 @@
   /* SessionStudios --color-status-alert i mörkt läge. */
   --dark-badge: #ef4444;
   --dark-badge-contrast: #ffffff;
+  --dark-laborera: #e8a45a;
+  --dark-laborera-glow: #f0b86a;
+  --dark-laborera-track: #3d3428;
+  --dark-laborera-face: #2a241c;
+  --dark-laborera-face-edge: #4a3f32;
+  --dark-laborera-well: #1e1a15;
 
   --dark-human: #e0b35c;
   --dark-human-bg: rgba(224, 179, 92, 0.16);
@@ -578,6 +593,12 @@
     --color-info: var(--dark-info);
     --color-badge: var(--dark-badge);
     --color-badge-contrast: var(--dark-badge-contrast);
+    --color-laborera: var(--dark-laborera);
+    --color-laborera-glow: var(--dark-laborera-glow);
+    --color-laborera-track: var(--dark-laborera-track);
+    --color-laborera-face: var(--dark-laborera-face);
+    --color-laborera-face-edge: var(--dark-laborera-face-edge);
+    --color-laborera-well: var(--dark-laborera-well);
     --color-info-bg: var(--dark-info-bg);
     --color-blocked: var(--dark-blocked);
     --color-blocked-bg: var(--dark-blocked-bg);
@@ -657,6 +678,12 @@
   --color-info: var(--dark-info);
   --color-badge: var(--dark-badge);
   --color-badge-contrast: var(--dark-badge-contrast);
+  --color-laborera: var(--dark-laborera);
+  --color-laborera-glow: var(--dark-laborera-glow);
+  --color-laborera-track: var(--dark-laborera-track);
+  --color-laborera-face: var(--dark-laborera-face);
+  --color-laborera-face-edge: var(--dark-laborera-face-edge);
+  --color-laborera-well: var(--dark-laborera-well);
   --color-info-bg: var(--dark-info-bg);
   --color-blocked: var(--dark-blocked);
   --color-blocked-bg: var(--dark-blocked-bg);
@@ -849,5 +876,122 @@
   .ops-reglage:focus-visible::-moz-range-thumb {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+  }
+
+  /*
+   * OpsKnob — kompakt simuleringsratt. Mått från godkänd mock
+   * (inline-reglage-v2): 28px dial, 44px kolumn, varm laborera-accent.
+   */
+  .ops-ratt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+
+  .ops-ratt-kolumn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 44px;
+    position: relative;
+  }
+
+  .ops-ratt-dial {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--color-laborera-face-edge), var(--color-laborera-face));
+    border: 1.5px solid var(--color-laborera-face-edge);
+    position: relative;
+    box-shadow: inset 0 0 0 5px var(--color-laborera-well);
+    flex: none;
+    pointer-events: none;
+  }
+
+  .ops-ratt-bag {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: conic-gradient(from 210deg, var(--color-laborera-track) 0 270deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+    pointer-events: none;
+  }
+
+  .ops-ratt-nal {
+    position: absolute;
+    left: 50%;
+    top: 5px;
+    width: 2px;
+    height: 7px;
+    background: var(--color-laborera);
+    border-radius: 1px;
+    transform: translateX(-50%) rotate(0deg);
+    transform-origin: 50% 9px;
+    pointer-events: none;
+  }
+
+  .ops-ratt-dial--justerad .ops-ratt-nal {
+    background: var(--color-laborera-glow);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--color-laborera-glow) 55%, transparent);
+  }
+
+  .ops-ratt-input {
+    appearance: none;
+    -webkit-appearance: none;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    opacity: 0.001;
+    cursor: grab;
+    z-index: 1;
+    background: transparent;
+  }
+
+  .ops-ratt-input:active {
+    cursor: grabbing;
+  }
+
+  .ops-ratt-input::-webkit-slider-runnable-track,
+  .ops-ratt-input::-webkit-slider-thumb,
+  .ops-ratt-input::-moz-range-track,
+  .ops-ratt-input::-moz-range-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: 0;
+    width: 1px;
+    height: 1px;
+  }
+
+  .ops-ratt-input:focus-visible {
+    outline: none;
+  }
+
+  .ops-ratt-kolumn:has(.ops-ratt-input:focus-visible) .ops-ratt-dial {
+    outline: 2px solid var(--color-laborera);
+    outline-offset: 2px;
+  }
+
+  .ops-ratt-pct {
+    font-size: 10px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-muted);
+    line-height: 1;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .ops-ratt-pct--on {
+    color: var(--color-laborera);
   }
 }

@@ -29,6 +29,7 @@ export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
 export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
 export { OpsRadioGroup } from "./components/OpsRadioGroup.jsx";
 export { OpsSlider } from "./components/OpsSlider.jsx";
+export { OpsKnob } from "./components/OpsKnob.jsx";
 export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
 export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
 // ⛔ `lasBilaga` och `MAX_SIDA` exporteras MED FLIT inte. En app som läser filer

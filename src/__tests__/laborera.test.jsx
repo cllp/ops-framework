@@ -95,6 +95,37 @@ describe("OpsToggleRow", () => {
   });
 });
 
+
+  it("lägger trailing utanför knappen, längst till höger", () => {
+    render(
+      <OpsToggleRow
+        label="Mat"
+        value="8 000 kr/mån"
+        on
+        onChange={() => {}}
+        trailing={<input type="range" aria-label="Justera Mat" />}
+      />,
+    );
+    const knapp = screen.getByRole("button", { name: /Mat/ });
+    const ratt = screen.getByRole("slider", { name: "Justera Mat" });
+    expect(knapp.contains(ratt)).toBe(false);
+  });
+
+  it("låter trailing-draget vara ett drag och inte en nedtoning", () => {
+    const vaxla = vi.fn();
+    render(
+      <OpsToggleRow
+        label="Mat"
+        value="8 000 kr/mån"
+        on
+        onChange={vaxla}
+        trailing={<input type="range" aria-label="Justera Mat" />}
+      />,
+    );
+    fireEvent.click(screen.getByRole("slider", { name: "Justera Mat" }));
+    expect(vaxla).not.toHaveBeenCalled();
+  });
+
 describe("OpsFilterChip", () => {
   const val = [
     { value: null, label: "Alla typer" },

@@ -54,7 +54,7 @@ import { cx } from "../lib/cx.js";
  * ⛔ Raden äger inte sitt eget avstånd till nästa rad. Den har en synlig ram, så
  * en lista behöver luft mellan raderna: ge behållaren `gap`.
  *
- * ── ⛔ `kontroll`: EN KONTROLL PÅ RADEN, UTANFÖR KNAPPEN ─────────────────
+ * ── ⛔ `kontroll` OCH `trailing`: KONTROLLER UTANFÖR KNAPPEN ─────────────
  *
  * CP 2026-09-20: "Skulle vilja att reglage fanns i varje post direkt att man
  * kan dra i reglaget."
@@ -65,11 +65,14 @@ import { cx } from "../lib/cx.js";
  * genom att simulera den.
  *
  * Därför bär nu ett OMSLAG ramen och färgen, medan knappen är genomskinlig och
- * äger översta raden. Kontrollen ligger som syskon till knappen, alltså utanför
- * den. Ingen händelse från kontrollen når knappen, och ingen av dem ligger i den
- * andra.
+ * äger översta raden. Kontrollerna ligger som syskon till knappen, alltså
+ * utanför den.
  *
- * ⛔ UTAN `kontroll` ÄR MARKUPEN OFÖRÄNDRAD I ALLT SOM SYNS. Ramen flyttade ett
+ * ⛔ `kontroll` lägger innehållet UNDER knappen (fullbreddsreglage, lönerad).
+ * ⛔ `trailing` lägger innehållet LÄNGST TILL HÖGER på samma rad (kompakt
+ * `OpsKnob`). De kan kombineras: ratt till höger, brutto/netto under.
+ *
+ * ⛔ UTAN båda ÄR MARKUPEN OFÖRÄNDRAD I ALLT SOM SYNS. Ramen flyttade ett
  * steg ut, men måtten, färgerna och tillstånden är desamma. En lista utan
  * kontroller ska inte betala något för att möjligheten finns.
  *
@@ -86,10 +89,12 @@ import { cx } from "../lib/cx.js";
  * @param {boolean} props.on Sant = räknas med, skarp. Falskt = nedtonad.
  * @param {(on: boolean) => void} props.onChange
  * @param {string} [props.offLabel] Vad nedtonat betyder, för skärmläsare. Läggs efter etiketten.
- * @param {import("react").ReactNode} [props.kontroll] En kontroll på raden, till exempel ett reglage.
- *   ⛔ Renderas UTANFÖR knappen: se doktexten. Utelämnad ritas ingenting extra.
+ * @param {import("react").ReactNode} [props.kontroll] Kontroll UNDER knappen (t.ex. fullbreddsreglage).
+ * @param {import("react").ReactNode} [props.trailing] Kontroll LÄNGST TILL HÖGER på samma rad (t.ex. OpsKnob).
  */
-export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas inte", kontroll }) {
+export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas inte", kontroll, trailing }) {
+  const harExtra = Boolean(kontroll || trailing);
+
   const knapp = (
     <button
       type="button"
@@ -97,8 +102,7 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
       onClick={() => onChange(!on)}
       className={cx(
         "flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg text-left",
-        kontroll ? null : "px-4 py-3",
-        kontroll ? "px-1" : null,
+        harExtra ? "px-1" : "px-4 py-3",
         "transition-colors duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
         on ? "text-ink" : "text-ink-secondary",
@@ -141,14 +145,17 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
       : "border-line bg-sunken hover:border-line-strong",
   );
 
-  if (!kontroll) return <div className={omslag}>{knapp}</div>;
+  if (!harExtra) return <div className={omslag}>{knapp}</div>;
 
   return (
     <div className={cx(omslag, "flex flex-col gap-1 px-3 py-2")}>
-      {knapp}
-      {/* ⛔ EGET SYSKON, ALDRIG INUTI KNAPPEN. Ett reglage i en `<button>` är
-          ogiltig HTML, och draget hade växlat radens nedtoning. */}
-      <div className="px-1 pb-1">{kontroll}</div>
+      <div className={cx("flex items-center gap-2", trailing ? "min-h-11" : null)}>
+        <div className="min-w-0 flex-1">{knapp}</div>
+        {/* ⛔ EGET SYSKON, ALDRIG INUTI KNAPPEN. En ratt i en `<button>` är
+            ogiltig HTML, och draget hade växlat radens nedtoning. */}
+        {trailing ? <div className="shrink-0 self-center">{trailing}</div> : null}
+      </div>
+      {kontroll ? <div className="px-1 pb-1">{kontroll}</div> : null}
     </div>
   );
 }
