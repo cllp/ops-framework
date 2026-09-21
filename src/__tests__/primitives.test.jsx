@@ -284,4 +284,62 @@ describe("OpsSegmented", () => {
     const fyra = ["a", "b", "c", "d"].map((v) => ({ value: v, label: v.toUpperCase() }));
     expect(() => render(<OpsSegmented ariaLabel="x" value="a" onChange={() => {}} options={fyra} />)).toThrow(/två eller tre lägen/);
   });
+
+  it("visar chevron och undermeny på aktivt segment med menu", () => {
+    // ⛔ SessionStudio: Idag bär Idag|Tidigare. Chevron bara när fliken är
+    // aktiv; klick på inaktivt segment byter utan att öppna menyn.
+    const valda = [];
+    const { rerender } = render(
+      <OpsSegmented
+        ariaLabel="Vad som visas"
+        value="idag"
+        onChange={(v) => valda.push(v)}
+        options={[
+          {
+            value: "idag",
+            label: "Idag",
+            menu: {
+              items: [
+                { value: "idag", label: "Idag" },
+                { value: "tidigare", label: "Tidigare" },
+              ],
+            },
+          },
+          { value: "kommande", label: "Kommande" },
+        ]}
+      />,
+    );
+    const idag = screen.getByRole("tab", { name: /Idag/ });
+    expect(idag).toHaveAttribute("aria-selected", "true");
+    expect(idag).toHaveAttribute("aria-haspopup", "menu");
+    expect(idag).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(idag);
+    expect(idag).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /Tidigare/ }));
+    expect(valda).toEqual(["tidigare"]);
+
+    rerender(
+      <OpsSegmented
+        ariaLabel="Vad som visas"
+        value="tidigare"
+        onChange={(v) => valda.push(v)}
+        options={[
+          {
+            value: "idag",
+            label: "Idag",
+            menu: {
+              items: [
+                { value: "idag", label: "Idag" },
+                { value: "tidigare", label: "Tidigare" },
+              ],
+            },
+          },
+          { value: "kommande", label: "Kommande" },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("tab", { name: /Tidigare/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Kommande/ })).toHaveAttribute("aria-selected", "false");
+  });
 });
