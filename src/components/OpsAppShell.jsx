@@ -5,7 +5,7 @@ import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { postAktiv, valideraNav } from "../lib/nav.js";
 import { Raknare } from "./raknare.jsx";
-import { ChevronNedIkon } from "./icons.jsx";
+import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
 
 /**
  * Appskalet: varumärke, navigering och ett utrymme för konto och tema.
@@ -37,9 +37,9 @@ import { ChevronNedIkon } from "./icons.jsx";
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
- * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden på bred skärm (1024 och uppåt). Resten hamnar under "Mer".
+ * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden på bred skärm (1024 och uppåt). Resten hamnar i hamburgarmenyn.
  * @param {number} [props.maxTopNavSmal] Hur många som får plats mellan 768 och 1024. Mätt: fler än tre ger horisontell scroll på en iPad i stående läge.
- * @param {string} [props.moreLabel] Texten på överflödesknappen i toppraden.
+ * @param {string} [props.moreLabel] Namn på överflödesmenyn (aria/nav). Knappen visar en hamburgare, inte text.
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en räknare, t.ex. "olästa". Appen bestämmer vad den räknar.
  * @param {string} [props.bottomNavLabel] Skärmläsarnamn på bottenraden. ⛔ Eget
  *   namn med flit, INTE samma som `navLabel`: se OpsBottomNav för varför två
@@ -61,7 +61,7 @@ export function OpsAppShell({
   // ordning.
   maxTopNav = 5,
   maxTopNavSmal,
-  moreLabel = "Mer",
+  moreLabel = "Meny",
   badgeText = "nya",
   bottomNavLabel = "Snabbnavigering",
   children,
@@ -159,7 +159,7 @@ export function OpsAppShell({
         "border-ink text-ink lg:border-transparent lg:text-ink-muted lg:hover:border-line-strong lg:hover:text-ink-secondary",
     );
 
-  // ⛔ Bara de första får plats i raden, resten hamnar under "Mer".
+  // ⛔ Bara de första får plats i raden, resten hamnar i hamburgarmenyn.
   //
   // Skälet är mätt: bolag-ops har tretton destinationer, och tretton platta
   // textlänkar får inte plats på någon skärm. De klämdes ihop tills de sista
@@ -172,8 +172,8 @@ export function OpsAppShell({
   //
   // Ett enda `maxTopNav` fick raden att fungera på 1280 och spricka på 768.
   // Mätt i Chromium mot en riktig app: vid 768 px blev sidan 892 px bred,
-  // alltså horisontell scroll på VARJE rutt, med länkarna och "Mer" utanför
-  // kanten. Länkarna vägde 110 till 129 px styck, "Mer" 78, varumärket och
+  // alltså horisontell scroll på VARJE rutt, med länkarna och överflödesknappen
+  // utanför kanten. Länkarna vägde 110 till 129 px styck, knappen ~44, varumärket och
   // temaväxlaren omkring 184 tillsammans. Tre länkar plus "Mer" får plats vid
   // 768, fyra gör det inte.
   //
@@ -196,17 +196,25 @@ export function OpsAppShell({
       {/* `top-(--safe-top)` och inte `top-0`: utan säker yta hamnar raden under
           statusfältet på en telefon, och det syns bara på riktig hårdvara. */}
       <header className="sticky top-(--safe-top) z-(--z-chrome) border-b border-line bg-surface">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2">
+        {/*
+          ⛔ TRE KOLUMNER, INTE EN FLEX-RAD MED flex-1.
+
+          Brand vänster, primärflikar mitt i headern, åtgärder + hamburgare
+          höger — samma upplägg som SessionStudio. En `flex-1`-nav vänsterjusterar
+          flikarna mot varumärket. Grid med `1fr auto 1fr` håller mitten mitt
+          utan att absolutpositionera över åtgärderna.
+        */}
+        <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2">
           <a
             href="/"
             onClick={(e) => klick("/", e)}
-            className="shrink-0 rounded-md px-1 py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="justify-self-start shrink-0 rounded-md px-1 py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {varumarke}
           </a>
 
-          {/* Bred skärm: länkarna i raden. Smal: bottenraden nedan. */}
-          <nav aria-label={navLabel} className="hidden min-w-0 flex-1 items-center gap-1 md:flex">
+          {/* Bred skärm: länkarna centrerade. Smal: bottenraden nedan. */}
+          <nav aria-label={navLabel} className="hidden items-center gap-1 justify-self-center md:flex">
             {iRaden.map((s, i) => (
               <a
                 key={s.href}
@@ -254,14 +262,30 @@ export function OpsAppShell({
                 {typeof s.badge === "number" && s.badge > 0 ? <Raknare antal={s.badge} text={badgeText} /> : null}
               </a>
             ))}
+          </nav>
 
+          {/*
+            ⛔ Hamburgaren LIGGER EFTER actions, längst till höger.
+            Inte inne i den centrerade nav-klustret och inte före temaväxlaren.
+            SessionStudio: sök/tema/… sedan hamburgare sist.
+          */}
+          <div className="flex shrink-0 items-center justify-self-end gap-2">
+            {actions}
             {iMenyn.length ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
                 <Popover.Trigger
                   className={cx(
-                    lankKlass(merLage),
-                    "inline-flex cursor-pointer",
+                    // Samma 44 px ikonknapp som tema/sök — inte en textflik "Mer".
+                    "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md",
+                    "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                    // Aktiv sida bakom menyn: mörkare bläck, samma språk som OpsIconLink.
+                    merLage === "pa" && "text-ink",
+                    merLage === "pa-under-lg" && "text-ink lg:text-ink-secondary",
+                    merLage === "av" && "text-ink-secondary",
                     // Ryms allt i raden vid `lg` finns ingen meny att öppna där.
+                    // Under md finns bottenradens Meny i stället — dölj här.
+                    "hidden md:inline-flex",
                     nav.length <= maxTopNav && "lg:hidden",
                   )}
                   // ⛔ Ingen siffra i namnet. Antalet bakom knappen beror på
@@ -269,14 +293,11 @@ export function OpsAppShell({
                   // än inget tal.
                   aria-label={`${moreLabel}, fler destinationer`}
                 >
-                  {moreLabel}
-                  <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", merOppen && "rotate-180")}>
-                    <ChevronNedIkon />
-                  </span>
+                  <MenyIkon size={20} />
                 </Popover.Trigger>
                 <Popover.Portal>
                   <Popover.Content
-                    align="start"
+                    align="end"
                     sideOffset={4}
                     className="z-(--z-dropdown) min-w-52 rounded-md border border-line bg-raised p-1 shadow-md"
                   >
@@ -314,9 +335,7 @@ export function OpsAppShell({
                 </Popover.Portal>
               </Popover.Root>
             ) : null}
-          </nav>
-
-          <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div>
+          </div>
         </div>
       </header>
 

@@ -194,7 +194,7 @@ describe("OpsAppShell efter mobilomställningen", () => {
    * var man är", och det var två fel i ett: för många poster, och en aktiv
    * markering som såg ut som en knapp i stället för en position.
    */
-  it("visar bara de första i toppraden och lägger resten under Mer", async () => {
+  it("visar bara de första i toppraden och lägger resten i hamburgarmenyn", async () => {
     render(
       <OpsAppShell brand="X" nav={NAV} activeHref="/">
         <p>x</p>
@@ -216,8 +216,8 @@ describe("OpsAppShell efter mobilomställningen", () => {
     // steg varit att byta frågeverktyg igen, vilket inte hade ändrat någonting.
     // fireEvent är ändå rätt val, men för att det testar rätt sak, inte för att
     // det är snabbare.
-    fireEvent.click(within(toppnav).getByRole("button", { name: /^Mer/ }));
-    const meny = await screen.findByRole("navigation", { name: "Mer" });
+    fireEvent.click(screen.getByRole("button", { name: /fler destinationer/ }));
+    const meny = await screen.findByRole("navigation", { name: "Meny" });
     expect(within(meny).getByRole("link", { name: "Schema" })).toBeInTheDocument();
     expect(within(meny).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
   });
@@ -243,8 +243,8 @@ describe("OpsAppShell efter mobilomställningen", () => {
     const iRaden = within(toppnav).getByRole("link", { name: "Tillgångar" });
     expect(iRaden.className).toContain("lg:inline-flex");
 
-    fireEvent.click(within(toppnav).getByRole("button", { name: /^Mer/ }));
-    const meny = await screen.findByRole("navigation", { name: "Mer" });
+    fireEvent.click(screen.getByRole("button", { name: /fler destinationer/ }));
+    const meny = await screen.findByRole("navigation", { name: "Meny" });
     expect(within(meny).getByRole("link", { name: "Tillgångar" }).className).toContain("lg:hidden");
   });
 
@@ -258,29 +258,29 @@ describe("OpsAppShell efter mobilomställningen", () => {
     expect(within(toppnav).getAllByRole("link")).toHaveLength(2);
   });
 
-  it("visar ingen Mer-knapp när allt får plats", () => {
+  it("visar ingen hamburgare när allt får plats", () => {
     render(
       <OpsAppShell brand="X" nav={NAV.slice(0, 3)} activeHref="/">
         <p>x</p>
       </OpsAppShell>,
     );
     const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    expect(within(toppnav).queryByRole("button", { name: /^Mer/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /fler destinationer/ })).toBeNull();
   });
 
   /**
    * Står man på en sida som ligger i menyn ska raden ändå säga var man är.
    * Annars ser det ut som att ingen destination är vald.
    */
-  it("markerar Mer när den aktiva sidan ligger i menyn", () => {
+  it("markerar hamburgaren när den aktiva sidan ligger i menyn", () => {
     render(
       <OpsAppShell brand="X" nav={NAV} activeHref="/kontakter">
         <p>x</p>
       </OpsAppShell>,
     );
     const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    const mer = within(toppnav).getByRole("button", { name: /^Mer/ });
-    expect(mer.className).toContain("border-ink");
+    const meny = screen.getByRole("button", { name: /fler destinationer/ });
+    expect(meny.className).toContain("text-ink");
   });
 
   /**
@@ -302,7 +302,7 @@ describe("OpsAppShell efter mobilomställningen", () => {
    * inte lättare: den som ändrar tillbaka möts av ett rött test och tror att
    * hen har fel.
    *
-   * Ikonerna finns kvar i kontraktet och ritas i bottenraden och i Mer-menyn.
+   * Ikonerna finns kvar i kontraktet och ritas i bottenraden och i hamburgarmenyn.
    */
   it("renderar INGEN ikon i toppraden, som SessionStudio", () => {
     render(
