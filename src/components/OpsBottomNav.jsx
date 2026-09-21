@@ -46,6 +46,7 @@ const MAX_I_RADEN_MED_ATGARD = 3;
 /**
  * @param {object} props
  * @param {import("../lib/nav.js").NavPost[]} props.nav
+ * @param {import("../lib/nav.js").NavPost[]} [props.moreNav] Överlopp till Mer-sheeten. ⛔ När skalet skickar den här är det SAMMA lista som header-hamburgaren (`nav.slice(smaltTak)`). Utan den (fristående användning) beräknas överlopp från `tak`.
  * @param {string} props.activeHref
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {string} [props.menuLabel] Text på Meny-platsen.
@@ -61,6 +62,7 @@ const MAX_I_RADEN_MED_ATGARD = 3;
  */
 export function OpsBottomNav({
   nav,
+  moreNav,
   activeHref,
   onNavigate,
   primaryAction,
@@ -87,32 +89,16 @@ export function OpsBottomNav({
   // vilket är rätt håll: den första fliken är den man trycker oftast.
   const brytpunkt = Math.ceil(iRaden.length / 2);
 
-  // ⛔ SHEETEN LISTAR BARA DET SOM INTE REDAN STÅR I BAREN.
+  // ⛔ SHEETEN = HEADERNS MER-LISTA, INTE EN ANDRA SANNING.
   //
-  // Den listade hela `nav`, alltså även de fyra som syns en centimeter längre
-  // ned i samma vy. Rapporten löd: "hamburgermenyn behöver inte upprepa
-  // menyalternativen som redan finns."
+  // Skalet skickar `moreNav` (= `nav.slice(smaltTak)`), samma poster som
+  // desktop-hamburgaren. Då är det EN meny med två ytor: popover på md+,
+  // sheet under md. Utan `moreNav` (fristående) är fallback överlopp från `tak`.
   //
-  // Det är inte bara onödigt. En meny som upprepar det synliga får läsaren att
-  // leta efter skillnaden mellan de två listorna, och svaret är att det inte
-  // finns någon. Menyn ska svara på "vad mer finns det", inte "här är allt
-  // igen".
-  //
-  // ⛔ Barn till en post I BAREN lyfts in som egna rader — inte föräldern.
-  // Förut stod föräldern kvar "för barnens skull" (t.ex. Ekonomi med
-  // Inkomster/…). Då syntes Ekonomi både i bottenraden och i Mer, vilket CP
-  // markerade som fel. Barnen måste fortfarande nås; föräldern ska inte.
+  // ⛔ Ingen barn-lyft av bar-poster. Ekonomi syns i bottenraden; dess
+  // undersidor nås via Ekonomisidan, inte som dubblett i Mer.
   /** @type {import("../lib/nav.js").NavPost[]} */
-  const iMenyn = [];
-  for (let i = 0; i < nav.length; i++) {
-    const post = nav[i];
-    const barn = Array.isArray(post.children) ? post.children : [];
-    if (i >= tak) {
-      iMenyn.push(post);
-    } else if (barn.length > 0) {
-      for (const b of barn) iMenyn.push(b);
-    }
-  }
+  const iMenyn = Array.isArray(moreNav) ? moreNav : nav.slice(tak);
 
   /** @param {string} href @param {any} e */
   const klick = (href, e) => {

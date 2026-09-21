@@ -68,17 +68,31 @@ describe("OpsBottomNav", () => {
     expect(within(sheet).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
   });
 
-  it("upprepar inte en bar-post i Mer, men lyfter in dess barn", async () => {
-    // ⛔ Ekonomi (här: Kostnader) syns i bottenraden. Mer ska inte lista den
-    // igen — bara undersidorna, som annars saknar väg på telefon.
+  it("upprepar inte en bar-post (eller dess barn) i Mer", async () => {
+    // ⛔ Kostnader syns i bottenraden. Mer = samma överlopp som header-hamburgaren,
+    // inte föräldern och inte barn-lyft. Undersidor nås via avsnittet i baren.
     render(<OpsBottomNav nav={NAV} activeHref="/" />);
     const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
     expect(within(rad).getByRole("link", { name: "Kostnader" })).toBeInTheDocument();
     await userEvent.click(within(rad).getByRole("button", { name: "Meny" }));
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).queryByRole("link", { name: "Kostnader" })).toBeNull();
-    expect(within(sheet).getByRole("link", { name: "Företag" })).toBeInTheDocument();
-    expect(within(sheet).getByRole("link", { name: "Privat" })).toBeInTheDocument();
+    expect(within(sheet).queryByRole("link", { name: "Företag" })).toBeNull();
+    expect(within(sheet).queryByRole("link", { name: "Privat" })).toBeNull();
+  });
+
+  it("använder moreNav från skalet så botten-Mer = header-Mer", async () => {
+    const more = [
+      { href: "/schema", label: "Schema", icon: IKON },
+      { href: "/kontakter", label: "Kontakter", icon: IKON },
+    ];
+    render(<OpsBottomNav nav={NAV} moreNav={more} activeHref="/" />);
+    await userEvent.click(screen.getByRole("button", { name: "Meny" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByRole("link", { name: "Schema" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
+    // Inte hela överloppet från nav — moreNav styr.
+    expect(within(sheet).queryByRole("link", { name: "Pension" })).toBeNull();
   });
 
   it("markerar avsnittet i raden när en undersida är aktiv", () => {
@@ -293,6 +307,21 @@ describe("OpsAppShell efter mobilomställningen", () => {
     const rad = container.querySelector("header > div");
     expect(rad?.className).toMatch(/grid-cols-\[1fr_auto\]/);
     expect(rad?.className).toMatch(/md:grid-cols-\[1fr_auto_1fr\]/);
+  });
+
+  it("döljer header-hamburgaren under md utan inline-flex-krock", () => {
+    // ⛔ Bar `inline-flex` + `hidden` = synlig på mobil (Tailwind-ordning).
+    // Knappen får bara `hidden md:inline-flex` som display.
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const meny = screen.getByRole("button", { name: /fler destinationer/ });
+    expect(meny.className).toMatch(/\bhidden\b/);
+    expect(meny.className).toMatch(/md:inline-flex/);
+    // Ingen fristående inline-flex som krockar med hidden under md.
+    expect(meny.className.split(/\s+/).filter((c) => c === "inline-flex")).toHaveLength(0);
   });
 
   /**

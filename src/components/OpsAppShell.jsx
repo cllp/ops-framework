@@ -284,17 +284,19 @@ export function OpsAppShell({
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
                 <Popover.Trigger
                   className={cx(
-                    // Samma 44 px ikonknapp som tema/sök — inte en textflik "Mer".
-                    "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md",
+                    // ⛔ INGEN bar `inline-flex` här. Tailwind skriver `.hidden`
+                    // före `.inline-flex` i CSS:et, så när båda sitter på
+                    // knappen vinner den senare och hamburgaren syns PÅ MOBIL
+                    // parallellt med bottenradens Meny (bolag-ops). Display
+                    // ägs av `hidden md:inline-flex` ensam — samma mönster som
+                    // flikarna i raden.
+                    "hidden min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md md:inline-flex",
                     "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
                     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                    // Aktiv sida bakom menyn: mörkare bläck, samma språk som OpsIconLink.
                     merLage === "pa" && "text-ink",
                     merLage === "pa-under-lg" && "text-ink lg:text-ink-secondary",
                     merLage === "av" && "text-ink-secondary",
                     // Ryms allt i raden vid `lg` finns ingen meny att öppna där.
-                    // Under md finns bottenradens Meny i stället — dölj här.
-                    "hidden md:inline-flex",
                     nav.length <= maxTopNav && "lg:hidden",
                   )}
                   // ⛔ Ingen siffra i namnet. Antalet bakom knappen beror på
@@ -353,8 +355,11 @@ export function OpsAppShell({
           det upptäcks först när någon inte hittar sin sista rad. */}
       <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">{children}</main>
 
+      {/* ⛔ moreNav = samma lista som header-hamburgaren (iMenyn). Botten-Meny
+          öppnar den listan i en sheet — en sanning, två ytor (mobil vs desktop). */}
       <OpsBottomNav
         nav={nav}
+        moreNav={iMenyn}
         activeHref={activeHref}
         onNavigate={onNavigate}
         primaryAction={primaryAction}
