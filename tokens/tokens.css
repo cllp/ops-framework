@@ -994,4 +994,16 @@
   .ops-ratt-pct--on {
     color: var(--color-laborera);
   }
+
+  /*
+   * OpsLaboreraPopover-trigger: varm när justerad, annars muted.
+   * Dial-klasserna ovan återanvänds; här bara knappens yta.
+   */
+  .ops-laborera-trigger--justerad {
+    color: var(--color-laborera);
+  }
+
+  .ops-laborera-trigger--justerad:hover {
+    background: color-mix(in srgb, var(--color-laborera) 12%, transparent);
+  }
 }

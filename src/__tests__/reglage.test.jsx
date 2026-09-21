@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsSlider } from "../components/OpsSlider.jsx";
 import { OpsKnob } from "../components/OpsKnob.jsx";
+import { OpsLaboreraPopover } from "../components/OpsLaboreraPopover.jsx";
 
 /**
  * ⛔ PROVEN LÄSER NAMN, VÄRDEN OCH UTFALL, ALDRIG GEOMETRI.
@@ -233,5 +234,71 @@ describe("OpsKnob", () => {
   it("berättar i title att dubbelklick återställer", () => {
     const { container } = render(<OpsKnob {...grund} value={10} onChange={() => {}} />);
     expect(container.querySelector("[title='Dubbelklick = återställ']")).not.toBeNull();
+  });
+});
+
+describe("OpsLaboreraPopover", () => {
+  const grund = {
+    label: "Hyra",
+    min: -50,
+    max: 50,
+    noll: 0,
+    formateraVarde: (v) => (v === 0 ? "0 %" : `${v > 0 ? "+" : ""}${v} %`),
+  };
+
+  it("visar en dial-ikon, inte ett reglage, tills man öppnar", () => {
+    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    expect(screen.getByRole("button", { name: "Justera Hyra: 0 %" })).toBeInTheDocument();
+    expect(screen.queryByRole("slider")).toBeNull();
+  });
+
+  it("öppnar OpsSlider i popovern", () => {
+    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    // ⛔ fireEvent och inte userEvent: Radix Popover i jsdom, se issue #17.
+    fireEvent.click(screen.getByRole("button", { name: "Justera Hyra: 0 %" }));
+    const slider = screen.getByRole("slider", { name: "Hyra" });
+    expect(slider).toHaveAttribute("min", "-50");
+    expect(slider).toHaveAttribute("max", "50");
+    expect(slider).toHaveValue("0");
+    expect(screen.getByRole("button", { name: "Återställ" })).toBeInTheDocument();
+  });
+
+  it("skickar ett tal när man drar i popovern", () => {
+    const onChange = vi.fn();
+    render(<OpsLaboreraPopover {...grund} value={0} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Justera Hyra: 0 %" }));
+    fireEvent.change(screen.getByRole("slider", { name: "Hyra" }), { target: { value: "25" } });
+    expect(onChange).toHaveBeenCalledWith(25);
+  });
+
+  it("återställer till noll via knappen i popovern", () => {
+    const onChange = vi.fn();
+    render(<OpsLaboreraPopover {...grund} value={-35} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Justera Hyra: -35 %" }));
+    fireEvent.click(screen.getByRole("button", { name: "Återställ" }));
+    expect(onChange).toHaveBeenCalledWith(0);
+  });
+
+  it("visar %-bricka på triggern när justerad", () => {
+    render(<OpsLaboreraPopover {...grund} value={20} onChange={() => {}} />);
+    const trigger = screen.getByRole("button", { name: "Justera Hyra: +20 %" });
+    expect(within(trigger).getByText("+20 %")).toBeInTheDocument();
+    expect(trigger.className).toMatch(/ops-laborera-trigger--justerad/);
+  });
+
+  it("döljer %-brickan vid noll, så raden är lugn", () => {
+    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    const trigger = screen.getByRole("button", { name: "Justera Hyra: 0 %" });
+    expect(within(trigger).queryByText("0 %")).toBeNull();
+    expect(trigger.className).not.toMatch(/ops-laborera-trigger--justerad/);
+  });
+
+  it("kastar hellre än att rita ett reglage vars nolläge ligger utanför spannet", () => {
+    expect(() => render(<OpsLaboreraPopover {...grund} noll={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
+  });
+
+  it("markerar triggern som dialog-öppnare", () => {
+    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    expect(screen.getByRole("button", { name: "Justera Hyra: 0 %" })).toHaveAttribute("aria-haspopup", "dialog");
   });
 });
