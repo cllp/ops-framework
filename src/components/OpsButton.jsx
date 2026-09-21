@@ -36,6 +36,15 @@ const IKONSTORLEKAR = {
   md: "px-2 py-2 min-w-11 min-h-11",
 };
 
+// ⛔ Rund ikonknapp i header-klustret: syskonen (OpsIconLink/tema/helskärm) är
+// 44 px träffyta med ~18–20 px glyph. En fylld `min-w-11`-cirkel såg ut som en
+// jätte-FAB bredvid dem (bolag-ops). `size-8` (32 px) med p-0 håller rund form
+// och låter 20 px-Plus sitta i samma skala; appen centrerar i 44 px-slot.
+const RUND_IKONSTORLEKAR = {
+  sm: "size-7 p-0",
+  md: "size-8 p-0",
+};
+
 const BAS =
   "inline-flex items-center justify-center border font-semibold leading-tight " +
   "transition-colors duration-(--duration-fast) ease-standard " +
@@ -51,7 +60,7 @@ const BAS =
  * @param {boolean} [props.busy] Visar och annonserar pågående arbete, och spärrar knappen.
  * @param {boolean} [props.fullWidth]
  * @param {boolean} [props.iconOnly] Kvadratisk träffyta. Kräver `ariaLabel`.
- * @param {boolean} [props.round] Cirkel (`rounded-full`). Kräver `iconOnly`. Samma form som bottenradens huvudåtgärd (Huvudatgard), utan dess överskjutning/ring — för desktop-headerns +.
+ * @param {boolean} [props.round] Cirkel (`rounded-full`). Kräver `iconOnly`. Samma accentform som bottenradens huvudåtgärd, men `size-8` (inte 44 px fylld skiva) så + i header-klustret matchar syskonikonernas skala.
  * @param {string} [props.href] Anges href renderas en länk i stället för en knapp.
  * @param {boolean} [props.newTab]
  * @param {string} [props.ariaLabel]
@@ -84,7 +93,9 @@ export function OpsButton({
         "En femte variant läggs till i OpsButton.jsx, inte på anropsstället.",
     );
   }
-  const storlekKlass = iconOnly ? IKONSTORLEKAR[size] : STORLEKAR[size];
+  const storlekKlass = iconOnly
+    ? (round ? RUND_IKONSTORLEKAR[size] : IKONSTORLEKAR[size])
+    : STORLEKAR[size];
   if (!storlekKlass) {
     throw new Error(`OpsButton: okänd size "${size}". Giltiga: ${Object.keys(STORLEKAR).join(", ")}.`);
   }
