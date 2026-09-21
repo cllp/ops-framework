@@ -114,10 +114,9 @@ describe("OpsFloatingSummary", () => {
     /*
      * ⛔ CP: "Den svajar lite med siffrornas bredd."
      *
-     * Bubblan ligger högerställd, så ett tal som blir en siffra bredare skulle
-     * växa åt vänster. Man drar i ett reglage och rutan man läser rör sig under
-     * blicken. Full bredd upp till taket gör behållaren orörlig; talet byter
-     * bredd inuti den.
+     * Utan fast bredd växer bubblan när talet blir en siffra bredare, och rutan
+     * man läser rör sig under blicken. Full bredd upp till taket gör behållaren
+     * orörlig; talet byter bredd inuti den.
      *
      * ⛔ Provet mätte förut skillnaden mellan utfällt och ihopfällt. Lägena är
      * borta, så det mäter nu det som faktiskt bar värdet: att bredden är fast.
@@ -207,5 +206,30 @@ describe("OpsFloatingSummary", () => {
     const { container } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
     expect(container.firstChild.className).toContain("z-(--z-sticky)");
     expect(container.firstChild.className).not.toContain("z-(--z-chrome)");
+  });
+
+  it("är centrerad horisontellt, inte högerställd", () => {
+    /*
+     * ⛔ ops-framework#54: `justify-end` sköt bubblan långt ner i högra hörnet.
+     * CP ville ha den ungefär mitt i viewport, fortfarande ovanför botten-nav.
+     */
+    const { container } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
+    const klasser = String(container.firstChild.className).split(/\s+/);
+    expect(klasser).toContain("justify-center");
+    expect(klasser).not.toContain("justify-end");
+  });
+
+  it("har tydligt rundade hörn via en token som faktiskt finns", () => {
+    /*
+     * ⛔ ops-framework#54: `rounded-2xl` emitterade ingen border-radius eftersom
+     * `--radius-*: initial` nollat Tailwinds egna steg och skalan saknade 2xl.
+     * Bubblan såg ut som en fyrkant. `rounded-3xl` (24px) finns i tokens och
+     * läses som bubbla utan att äta tvåradslayouten som `rounded-full` skulle.
+     */
+    const { container } = render(<OpsFloatingSummary label="Netto" value="+1 kr" />);
+    const klasser = String(container.firstChild.firstChild.className).split(/\s+/);
+    expect(klasser).toContain("rounded-3xl");
+    expect(klasser).not.toContain("rounded-2xl");
+    expect(klasser).not.toContain("rounded-full");
   });
 });
