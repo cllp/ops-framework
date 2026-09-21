@@ -59,6 +59,7 @@ const MAX_I_RADEN_MED_ATGARD = 3;
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten.
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en badge, t.ex. "olästa" eller "att göra". Appen bestämmer vad den räknar.
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
+ * @param {import("react").ReactNode} [props.menuExtras] Extra kontroller i Mer-sheeten (samma som header-hamburgaren), t.ex. tema och helskärm.
  */
 export function OpsBottomNav({
   nav,
@@ -71,6 +72,7 @@ export function OpsBottomNav({
   sheetLabel = "Meny",
   closeLabel = "Stäng",
   badgeText = "nya",
+  menuExtras,
 }) {
   valideraNav(nav, "OpsBottomNav");
   const [oppen, setOppen] = useState(false);
@@ -164,6 +166,14 @@ export function OpsBottomNav({
                 {iMenyn.map((post) => (
                   <SheetPost key={post.href} post={post} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
                 ))}
+                {menuExtras ? (
+                  <>
+                    {iMenyn.length ? (
+                      <div role="separator" className="my-2 border-t border-line" />
+                    ) : null}
+                    <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
+                  </>
+                ) : null}
               </div>
             </Dialog.Content>
           </Dialog.Portal>

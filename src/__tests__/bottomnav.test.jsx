@@ -295,6 +295,57 @@ describe("OpsAppShell efter mobilomställningen", () => {
     expect(screen.queryByRole("button", { name: /fler destinationer/ })).toBeNull();
   });
 
+  it("visar hamburgare för menuExtras även när nav ryms", () => {
+    // ⛔ Öppnar inte popovern: Radix Popover tar ~20 s i jsdom (se testet ovan).
+    // Här räcker att knappen finns med rätt aria när bara extras kräver Mer.
+    render(
+      <OpsAppShell
+        brand="X"
+        nav={NAV.slice(0, 3)}
+        activeHref="/"
+        menuExtras={<button type="button">Utseende</button>}
+      >
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    expect(screen.getByRole("button", { name: /fler åtgärder/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /fler destinationer/ })).toBeNull();
+  });
+
+  it("skickar menuExtras till botten-Mer och fyller luckan när smaltTak > barens tak", async () => {
+    // Header visar 4, bottenrad med primaryAction visar 3. Index 3 (Fråga) måste
+    // finnas i sheeten. Botten-Dialog är snabbare än header-Popover i jsdom.
+    const lang = [
+      { href: "/", label: "Idag", icon: IKON },
+      { href: "/oversikt", label: "Översikt", icon: IKON },
+      { href: "/ekonomi", label: "Ekonomi", icon: IKON },
+      { href: "/fraga", label: "Fråga", icon: IKON },
+      { href: "/schema", label: "Schema", icon: IKON },
+    ];
+    render(
+      <OpsAppShell
+        brand="X"
+        nav={lang}
+        activeHref="/"
+        maxTopNav={4}
+        maxTopNavSmal={4}
+        primaryAction={{ label: "Nytt", onClick: () => {} }}
+        menuExtras={<button type="button">Utseende</button>}
+      >
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(toppnav).getByRole("link", { name: "Fråga" })).toBeInTheDocument();
+
+    const botten = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    fireEvent.click(within(botten).getByRole("button", { name: "Meny" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByRole("link", { name: "Fråga" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("link", { name: "Schema" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Utseende" })).toBeInTheDocument();
+  });
+
   it("använder två header-kolumner under md så actions inte landar i mitten", () => {
     // ⛔ När nav är display:none försvinner den ur griden. Tre kolumner
     // (`1fr auto 1fr`) placerade då actions i mitten-auto. Kontraktet är

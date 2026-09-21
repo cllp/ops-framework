@@ -44,6 +44,9 @@ import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
  * @param {string} [props.bottomNavLabel] Skärmläsarnamn på bottenraden. ⛔ Eget
  *   namn med flit, INTE samma som `navLabel`: se OpsBottomNav för varför två
  *   navigeringar med samma namn gör app-tester tvetydiga.
+ * @param {import("react").ReactNode} [props.menuExtras] Extra rader/kontroller i
+ *   Mer-menyn (header-hamburgare och botten-Meny). Typiskt tema och helskärm, så
+ *   åtgärdsklustret i headern kan hållas till primära ikoner.
  * @param {import("react").ReactNode} props.children
  */
 export function OpsAppShell({
@@ -64,6 +67,7 @@ export function OpsAppShell({
   moreLabel = "Meny",
   badgeText = "nya",
   bottomNavLabel = "Snabbnavigering",
+  menuExtras,
   children,
 }) {
   valideraNav(nav, "OpsAppShell");
@@ -280,7 +284,9 @@ export function OpsAppShell({
           */}
           <div className="flex shrink-0 items-center justify-self-end gap-0.5">
             {actions}
-            {iMenyn.length ? (
+            {/* ⛔ Hamburgaren syns också när nav ryms men menuExtras finns —
+                annars blir tema/helskärm oåtkomliga på md+. */}
+            {iMenyn.length || menuExtras ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
                 <Popover.Trigger
                   className={cx(
@@ -296,13 +302,18 @@ export function OpsAppShell({
                     merLage === "pa" && "text-ink",
                     merLage === "pa-under-lg" && "text-ink lg:text-ink-secondary",
                     merLage === "av" && "text-ink-secondary",
-                    // Ryms allt i raden vid `lg` finns ingen meny att öppna där.
-                    nav.length <= maxTopNav && "lg:hidden",
+                    // Ryms allt i raden vid `lg` finns ingen meny att öppna där —
+                    // utom när menuExtras tvingar fram den.
+                    nav.length <= maxTopNav && !menuExtras && "lg:hidden",
                   )}
                   // ⛔ Ingen siffra i namnet. Antalet bakom knappen beror på
                   // skärmbredden, och ett tal som bara stämmer ibland är värre
                   // än inget tal.
-                  aria-label={`${moreLabel}, fler destinationer`}
+                  aria-label={
+                    iMenyn.length
+                      ? `${moreLabel}, fler destinationer`
+                      : `${moreLabel}, fler åtgärder`
+                  }
                 >
                   <MenyIkon size={20} />
                 </Popover.Trigger>
@@ -341,6 +352,14 @@ export function OpsAppShell({
                           {s.label}
                         </a>
                       ))}
+                      {menuExtras ? (
+                        <>
+                          {iMenyn.length ? (
+                            <div role="separator" className="my-1 border-t border-line" />
+                          ) : null}
+                          <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
+                        </>
+                      ) : null}
                     </nav>
                   </Popover.Content>
                 </Popover.Portal>
@@ -355,17 +374,19 @@ export function OpsAppShell({
           det upptäcks först när någon inte hittar sin sista rad. */}
       <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">{children}</main>
 
-      {/* ⛔ moreNav = samma lista som header-hamburgaren (iMenyn). Botten-Meny
-          öppnar den listan i en sheet — en sanning, två ytor (mobil vs desktop). */}
+      {/* ⛔ Botten-Mer speglar header-Mer, men får inte börja senare än barens
+          tak. Med primaryAction rymmer baren 3 (OpsBottomNav); om smaltTak är 4
+          skulle slice(smaltTak) hoppa över index 3 och göra den oåtkomlig under md. */}
       <OpsBottomNav
         nav={nav}
-        moreNav={iMenyn}
+        moreNav={nav.slice(Math.min(smaltTak, primaryAction ? 3 : 4))}
         activeHref={activeHref}
         onNavigate={onNavigate}
         primaryAction={primaryAction}
         menuLabel={menuLabel}
         navLabel={bottomNavLabel}
         badgeText={badgeText}
+        menuExtras={menuExtras}
       />
     </div>
   );

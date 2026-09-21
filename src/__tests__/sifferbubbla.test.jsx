@@ -13,8 +13,9 @@ import { OpsFloatingSummary } from "../components/OpsFloatingSummary.jsx";
  * ⛔ Färgerna går INTE att prova här. jsdom räknar ingen CSS, så ett prov som
  * påstår sig kontrollera att bubblan funkar i mörkt läge hade varit grönt oavsett.
  * Det som går att göra i stället är gjort: komponenten använder bara tokens
- * (`bg-raised`, `border-line`, `text-ink`, `text-success`, `text-danger`,
- * `shadow-lg`), och alla sex byter med temat i `tokens.css`. Ramverkets
+ * (`bg-contrast-panel`, `ops-contrast-panel`, `border-line`, `text-ink`,
+ * `text-success`, `text-danger`, `shadow-lg`). Panelen inverterar mot sidan;
+ * bläck/accent remapdas i `.ops-contrast-panel` så tokens byter med temat. Ramverkets
  * `check-closed-api` fäller varje egen färg, och vyportvakten mäter mörkt läge
  * i en riktig webbläsare.
  */
