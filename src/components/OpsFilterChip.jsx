@@ -19,20 +19,24 @@ import { BockIkon, ChevronNedIkon, ReglageIkon } from "./icons.jsx";
  * Formen är avläst ur SessionStudio: piller med text+chevron, eller (variant
  * `icon`) en reglageikon bredvid ett centrerat segment — som SS Idag.
  *
- * ⛔ Valt värde står I PILLRET, inte bara i menyn. Ett filter som ser likadant
- * ut oavsett vad som är valt gör att man läser en filtrerad lista i tron att
- * den är komplett, och det är ett värre fel än att inte ha något filter alls.
+ * ⛔ Valt värde syns PÅ TRIGGERN, inte bara i menyn. Chip-varianten skriver
+ * ordet i pillret; ikon-varianten tänder accentfärg (och appen kan dessutom
+ * skriva etiketten under verktygsraden). Ett filter som ser likadant ut oavsett
+ * val gör att man läser en filtrerad lista i tron att den är komplett.
+ *
+ * ⛔ Menyval får valfri `icon`. Utan den är raden bara text+bock — bra nog för
+ * Inkorgs statusfilter — men Idags slagfilter behöver ikon per typ.
  */
 
 /**
  * @template {string} T
  * @param {object} props
- * @param {{ value: T | null, label: string }[]} props.options ⛔ Ta med `null` som "alla" om det ska gå att nollställa.
+ * @param {{ value: T | null, label: string, icon?: import("react").ReactNode }[]} props.options ⛔ Ta med `null` som "alla" om det ska gå att nollställa.
  * @param {T | null} props.value
  * @param {(value: T | null) => void} props.onChange
  * @param {string} props.ariaLabel Vad filtret filtrerar på.
  * @param {string} [props.allLabel] Texten när inget är valt (chip-variant).
- * @param {"chip"|"icon"} [props.variant] `chip` = textpiller (default). `icon` = reglageikon som SessionStudio, valt värde bara i aria-label + aktiv ton.
+ * @param {"chip"|"icon"} [props.variant] `chip` = textpiller (default). `icon` = reglageikon som SessionStudio.
  */
 export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = "Alla", variant = "chip" }) {
   const [oppen, setOppen] = useState(false);
@@ -48,6 +52,7 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
     <Popover.Root open={oppen} onOpenChange={setOppen}>
       <Popover.Trigger
         aria-label={`${ariaLabel}: ${text}`}
+        aria-pressed={filtrerar}
         title={text}
         className={cx(
           "inline-flex cursor-pointer items-center transition-colors duration-(--duration-fast) ease-standard",
@@ -55,11 +60,16 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
           variant === "icon"
             ? cx(
                 "min-h-11 min-w-11 justify-center rounded-md",
-                filtrerar ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                // ⛔ Accentfärg när filtret är aktivt — subtil yta räcker inte:
+                // på mörk duk syns den knappt, och då ser reglaget likadant ut
+                // som i Alla-läget (felet CP skärmdumpade).
+                filtrerar
+                  ? "bg-accent-subtle text-accent"
+                  : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
               )
             : cx(
                 "min-h-9 gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium",
-                filtrerar ? "bg-accent-subtle text-ink" : "bg-surface text-ink-secondary hover:text-ink",
+                filtrerar ? "bg-accent-subtle font-semibold text-accent" : "bg-surface text-ink-secondary hover:text-ink",
               ),
         )}
       >
@@ -98,6 +108,7 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
                     valt ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
                   )}
                 >
+                  {o.icon ? <span className="shrink-0 text-ink-secondary">{o.icon}</span> : null}
                   <span className="flex-1">{o.label}</span>
                   {valt ? (
                     <span aria-hidden="true" className="shrink-0 text-accent">

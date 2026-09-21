@@ -39,6 +39,8 @@
  * @property {import("react").ReactNode} [detaljer] Fälls ut under raden. Utan den får
  *   raden ingen chevron: en pil som inte öppnar något är ett löfte som inte infrias.
  * @property {string} [url]
+ * @property {string} [urlLabel] Synlig länktext, t.ex. "#183". Utan den står "Öppna".
+ * @property {string} [uppdaterad] Senast ändrad (t.ex. "2026-09-18"), höger i kompakta raden.
  * @property {import("react").ReactNode} [atgard] Appens egen kontroll för raden, till exempel
  *   en knapp som bockar av den. ⛔ RAMVERKET RITAR DEN, TOLKAR DEN ALDRIG: vad en åtgärd
  *   gör är appens sak, var den hamnar och att den hamnar likadant på varje rad är vår.

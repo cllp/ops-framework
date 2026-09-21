@@ -69,6 +69,18 @@ describe("OpsEventList", () => {
     expect(screen.getByRole("link", { name: "Öppna tva" })).toBeInTheDocument();
   });
 
+  it("visar urlLabel och uppdaterad i headern i stället för Öppna", () => {
+    render(
+      <OpsEventList
+        events={[h("fix", 1, { url: "/x/183", urlLabel: "#183", uppdaterad: "2026-09-18" })]}
+      />,
+    );
+    const lank = screen.getByRole("link", { name: "#183 fix" });
+    expect(lank).toHaveTextContent("#183");
+    expect(screen.getByText("2026-09-18")).toBeInTheDocument();
+    expect(screen.queryByText("Öppna")).toBeNull();
+  });
+
   it("låter titeln stå för sig, inte i samma rad som detaljerna", () => {
     /*
      * ⛔ Regression, och den upptäcktes bara för att CP skickade en skärmbild.

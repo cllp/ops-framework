@@ -129,6 +129,29 @@ describe("OpsFilterChip", () => {
     expect(knapp.className).toMatch(/min-w-11/);
     expect(knapp.textContent).not.toMatch(/Alla typer/);
   });
+
+  it("tänder accent när ikonfiltret är aktivt, och ritar menyikoner", () => {
+    const medIkon = [
+      { value: null, label: "Alla typer", icon: <span data-testid="ikon-alla">A</span> },
+      { value: "pengar", label: "Pengar", icon: <span data-testid="ikon-pengar">P</span> },
+    ];
+    const { rerender } = render(
+      <OpsFilterChip variant="icon" options={medIkon} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
+    );
+    expect(screen.getByRole("button", { name: "Typ: Alla typer" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Typ: Alla typer" }).className).not.toMatch(/text-accent/);
+
+    rerender(
+      <OpsFilterChip variant="icon" options={medIkon} value="pengar" onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
+    );
+    const aktiv = screen.getByRole("button", { name: "Typ: Pengar" });
+    expect(aktiv).toHaveAttribute("aria-pressed", "true");
+    expect(aktiv.className).toMatch(/text-accent/);
+
+    fireEvent.click(aktiv);
+    expect(screen.getByTestId("ikon-pengar")).toBeInTheDocument();
+    expect(screen.getByTestId("ikon-alla")).toBeInTheDocument();
+  });
 });
 
 describe("OpsFullscreenToggle", () => {

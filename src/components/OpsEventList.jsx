@@ -241,34 +241,40 @@ export function OpsEventList({
                     ellips, och en etikett kapad till "Dr..." är sämre än en rad
                     till. Samma avvägning som titeln nedan: text får plats eller får
                     en egen rad, den kapas inte. */}
-                {h.nar || h.deadline ? (
-                  <span className="ml-auto flex shrink-0 items-baseline gap-x-2 text-sm tabular-nums text-ink-secondary">
+                {/* ⛔ HÖGERKLUSTRET: när/deadline, uppdaterad, länk. Ett ml-auto
+                    för hela gruppen så datum och #183 landar uppe till höger i
+                    den kompakta raden (CP: uppdaterad top-right, ärendenummer
+                    i stället för "Öppna"). */}
+                {h.nar || h.deadline || h.uppdaterad || url ? (
+                  <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-sm tabular-nums text-ink-secondary">
                     {h.nar ? <span>{h.nar}</span> : null}
                     {/* ⛔ Dämpad, inte framhävd. Deadline är ett faktum man skriver
                         in i en kalender, inte ett larm: brådskan är redan sagd av
                         märket till vänster, och skulle datumet också ta
                         uppmärksamhet konkurrerar två fält om samma roll. */}
                     {h.deadline ? <span className="text-ink-muted">{h.deadline}</span> : null}
+                    {h.uppdaterad ? <span className="text-ink-muted">{h.uppdaterad}</span> : null}
+                    {url ? (
+                      <a
+                        href={url}
+                        onClick={(e) => onNavigate?.(url, e)}
+                        target={onNavigate ? undefined : "_blank"}
+                        rel={onNavigate ? undefined : "noopener noreferrer"}
+                        className={cx(
+                          "shrink-0 rounded-sm text-sm text-accent underline underline-offset-2 hover:no-underline",
+                          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                        )}
+                      >
+                        {/* ⛔ Synlig text är `urlLabel` (#183) eller "Öppna".
+                            Skärmläsarnamnet tar alltid med titeln så tio länkar
+                            inte uppläses som samma ord. */}
+                        <span aria-hidden="true">{h.urlLabel || "Öppna"}</span>
+                        <span className="sr-only">
+                          {h.urlLabel ? `${h.urlLabel} ${h.titel}` : `Öppna ${h.titel}`}
+                        </span>
+                      </a>
+                    ) : null}
                   </span>
-                ) : null}
-
-                {url ? (
-                  <a
-                    href={url}
-                    onClick={(e) => onNavigate?.(url, e)}
-                    target={onNavigate ? undefined : "_blank"}
-                    rel={onNavigate ? undefined : "noopener noreferrer"}
-                    className={cx(
-                      "shrink-0 rounded-sm text-sm text-accent underline underline-offset-2 hover:no-underline",
-                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                      h.nar || h.deadline ? null : "ml-auto",
-                    )}
-                  >
-                    {/* Namnet säger vad man öppnar, inte bara "Öppna": med tio rader
-                        läser en skärmläsare annars upp samma ord tio gånger. */}
-                    <span aria-hidden="true">Öppna</span>
-                    <span className="sr-only">Öppna {h.titel}</span>
-                  </a>
                 ) : null}
               </div>
 
