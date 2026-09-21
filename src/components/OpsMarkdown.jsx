@@ -68,7 +68,14 @@ function inline(bitar, nyckel) {
         </strong>
       );
     }
-    return <span key={k}>{b.varde}</span>;
+    /*
+     * ⛔ REN TEXT BLIR EN TEXTNOD, INTE ETT `span`. Första versionen slog ett
+     * `span` om varje textbit "för nyckelns skull", och det syntes i provet:
+     * en rubrik blev `<h4><span>Context</span></h4>`, alltså en extra nivå att
+     * ta sig igenom för den som söker i DOM:en. React behöver ingen nyckel för
+     * en sträng i en lista.
+     */
+    return b.varde;
   });
 }
 

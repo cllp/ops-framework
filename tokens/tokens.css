@@ -132,11 +132,19 @@
    * `warning` skulle guld betyda två saker, och då slutar den ena synas.
    *
    * Värdet ligger mellan guld och rött med flit, eftersom betydelsen gör det
-   * också. Skillnaden mot `--color-warning` är mätt och inte tyckt: se
-   * `src/__tests__/statusprick.test.jsx`, som kräver fem olika toner.
+   * också, och det är OMMÄTT en gång. Första försöket var #b06a2c ljust och
+   * #d99a5b mörkt. Provsviten var grön (fem toner, fem olika klasser), och
+   * fotograferat i Chromium låg den mörka pricken på rgb(217,154,91) bredvid
+   * guldets rgb(201,169,97): sexton steg rött, femton gröna, sex blå. På en
+   * 8 px punkt är det ingen skillnad alls.
+   *
+   * ⛔ ETT PROV SOM RÄKNAR KLASSER MÄTER INTE FÄRG. Provet kunde bara säga att
+   * tonerna var olika, inte att de SYNS olika, och där tar en enhetstest slut.
+   * Värdena nedan är valda efter en mätning i en riktig webbläsare i båda
+   * lägena.
    */
-  --color-blocked: #b06a2c;
-  --color-blocked-bg: rgba(176, 106, 44, 0.1);
+  --color-blocked: #c2681c;
+  --color-blocked-bg: rgba(194, 104, 28, 0.1);
 
   /* Räknaren på en flik eller en bottenradsikon: olästa, att göra, vad appen
    * nu räknar.
@@ -412,8 +420,8 @@
   --dark-danger-bg: rgba(214, 111, 99, 0.14);
   --dark-info: #6fa3c4;
   --dark-info-bg: rgba(111, 163, 196, 0.14);
-  --dark-blocked: #d99a5b;
-  --dark-blocked-bg: rgba(217, 154, 91, 0.14);
+  --dark-blocked: #e8944a;
+  --dark-blocked-bg: rgba(232, 148, 74, 0.14);
   /* SessionStudios --color-status-alert i mörkt läge. */
   --dark-badge: #ef4444;
   --dark-badge-contrast: #ffffff;
