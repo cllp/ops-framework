@@ -10,7 +10,7 @@ import { ChevronNedIkon } from "./icons.jsx";
  * (Enter/Space), fokusordning och skärmläsarens "expanderad/hopfälld" gratis,
  * och någon måste återuppfinna dem, oftast fel. `<details>` bär allt det i
  * plattformen. Den här komponenten lägger bara till form (token-radie, ram,
- * chevron) och ett valfritt styrt läge.
+ * chevron till HÖGER — samma sida app-wide som Inkorg/Idag (CP)) och ett valfritt styrt läge.
  *
  * ⛔ Ramverket äger formen, inte innehållet. `summary` och `children` är vad
  * appen än vill visa: en rubrik med etiketter och ett belopp till höger, en

@@ -99,44 +99,9 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
 
           return (
             <li key={g.id}>
+              {/* ⛔ Chevron HÖGER — samma sida som OpsDisclosure/OpsEventList (CP). */}
               <div className="flex items-stretch gap-1">
-                {harPoster ? (
-                  <button
-                    type="button"
-                    onClick={() => vaxlaOppen(g.id)}
-                    aria-expanded={oppen}
-                    aria-controls={panelId}
-                    className={cx(
-                      "flex min-h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted",
-                      "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
-                      "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    )}
-                  >
-                    {/* Namnet är inte "expandera": uppläst i följd blir tio
-                        likadana "expandera" obrukbart. */}
-                    <span className="sr-only">
-                      {expandLabel} {typeof g.label === "string" ? g.label : ""}
-                    </span>
-                    <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
-                      <ChevronNedIkon size={16} />
-                    </span>
-                  </button>
-                ) : (
-                  // Tom yta i samma bredd, så etiketterna står i linje oavsett
-                  // om gruppen går att fälla ut. Ojämna vänsterkanter läses som
-                  // slarv, inte som information.
-                  <span aria-hidden="true" className="w-11 shrink-0" />
-                )}
-
-                {/* ⛔ SAMMA KOMPONENT som en rad i en summeringslista, inte en
-                    kopia av den. Här låg tidigare en egen `<button>` med egen
-                    styling, och två uppsättningar klassnamn för samma gest är
-                    precis den drift ramverket finns för att stoppa: den dagen
-                    utseendet ändrades skulle bara den ena följa med.
-
-                    Chevronen står UTANFÖR knappen och inte i den. En `<button>`
-                    inuti en `<button>` är ogiltig HTML som webbläsaren river
-                    isär, så de måste vara syskon. */}
+                {/* Chevronen står UTANFÖR OpsToggleRow. En button-in-button är ogiltig HTML. */}
                 <div className="min-w-0 flex-1">
                   <OpsToggleRow
                     label={
@@ -151,13 +116,35 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
                     offLabel={offLabel}
                   />
                 </div>
+                {harPoster ? (
+                  <button
+                    type="button"
+                    onClick={() => vaxlaOppen(g.id)}
+                    aria-expanded={oppen}
+                    aria-controls={panelId}
+                    className={cx(
+                      "flex min-h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted",
+                      "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+                      "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                    )}
+                  >
+                    <span className="sr-only">
+                      {expandLabel} {typeof g.label === "string" ? g.label : ""}
+                    </span>
+                    <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
+                      <ChevronNedIkon size={16} />
+                    </span>
+                  </button>
+                ) : (
+                  <span aria-hidden="true" className="w-11 shrink-0" />
+                )}
               </div>
 
-              {g.note ? <p className="mt-1 mb-0 pl-12 text-sm text-ink-muted">{g.note}</p> : null}
+              {g.note ? <p className="mt-1 mb-0 text-sm text-ink-muted">{g.note}</p> : null}
 
               {harPoster ? (
                 <div id={panelId} hidden={!oppen}>
-                  <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0 pl-12">
+                  <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
                     {(g.poster ?? []).map((p) => (
                       <li key={p.id} className="flex items-baseline justify-between gap-3">
                         <span className="min-w-0 text-sm text-ink-secondary">

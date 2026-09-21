@@ -171,37 +171,8 @@ export function OpsEventList({
         return (
           <li key={h.id}>
             <OpsCard>
+            {/* ⛔ Chevron HÖGER, samma sida som OpsDisclosure/Inkorg (CP 2026-09-21). */}
             <div className="flex items-start gap-1">
-              {nagonHarDetaljer ? (
-                harDetaljer ? (
-                  <button
-                    type="button"
-                    onClick={() => vaxlaOppen(h.id)}
-                    aria-expanded={oppen}
-                    aria-controls={panelId}
-                    className={cx(
-                      "flex min-h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted",
-                      "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
-                      "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    )}
-                  >
-                    {/* Namnet bär radens titel. Uppläst i följd blir tio
-                        likadana "visa detaljer" obrukbart. */}
-                    <span className="sr-only">
-                      {expandLabel} {h.titel}
-                    </span>
-                    <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
-                      <ChevronNedIkon size={16} />
-                    </span>
-                  </button>
-                ) : (
-                  // ⛔ Tom yta och INTE en utgråad pil. En pil som inte öppnar
-                  // något är ett löfte som inte infrias, och den som tryckt en
-                  // gång utan att något hände slutar lita på de andra pilarna.
-                  <span aria-hidden="true" className="w-11 shrink-0" />
-                )
-              ) : null}
-
               <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">
               {/* Detaljraden: vem, hur bråttom, när, och länken. Korta saker som
                   tål att trängas. */}
@@ -231,8 +202,8 @@ export function OpsEventList({
                     Det syns inte på en rad och är omöjligt att sluta se på tio.
 
                     ⛔ KLUSTRET FÅR EN EGEN RAD PÅ SMALA SKÄRMAR, OCH DET ÄR RÄTT.
-                    Mätt i Chromium: vid 390 px har raden 280 px efter
-                    chevronkolumnen, och rollbadge plus slag plus "Om 4 veckor
+                    Mätt i Chromium: vid 390 px har raden ~280 px efter
+                    chevronkolumnen (höger), och rollbadge plus slag plus "Om 4 veckor
                     Senast 12 okt" kräver omkring 357. Fyra upplysningar ryms inte,
                     punkt. Vid 768 px och uppåt ryms de och står på en rad.
 
@@ -300,8 +271,8 @@ export function OpsEventList({
               <span className="text-ink">{h.titel}</span>
 
               {/* ⛔ EGEN RAD UNDER TITELN, INTE BREDVID DEN. Samma mätning som
-                  titeln bygger på: vid 390 px finns 280 px kvar efter
-                  chevronkolumnen, och en knapp på 90 px hade lämnat 190 px åt
+                  titeln bygger på: vid 390 px finns ~280 px kvar efter
+                  chevronkolumnen (höger), och en knapp på 90 px hade lämnat 190 px åt
                   titeln. Det var precis det felet titeln en gång flyttades ut ur.
 
                   ⛔ HÖGERSTÄLLD, så att ögat hittar samma kolumn på varje rad
@@ -312,18 +283,38 @@ export function OpsEventList({
                   `div`, alltså betala marginal för något som aldrig syns. */}
               {h.atgard ? <div className="mt-1 flex justify-end">{h.atgard}</div> : null}
               </div>
+
+              {nagonHarDetaljer ? (
+                harDetaljer ? (
+                  <button
+                    type="button"
+                    onClick={() => vaxlaOppen(h.id)}
+                    aria-expanded={oppen}
+                    aria-controls={panelId}
+                    className={cx(
+                      "flex min-h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted",
+                      "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+                      "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                    )}
+                  >
+                    <span className="sr-only">
+                      {expandLabel} {h.titel}
+                    </span>
+                    <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
+                      <ChevronNedIkon size={16} />
+                    </span>
+                  </button>
+                ) : (
+                  // ⛔ Tom yta och INTE en utgråad pil (samma regel som vänster var).
+                  <span aria-hidden="true" className="w-11 shrink-0" />
+                )
+              ) : null}
             </div>
 
-            {/* ⛔ PANELEN LIGGER UTANFÖR DEN INDRAGNA KOLUMNEN, med samma
-                `pl-12` som `OpsBreakdown`. Låg den inuti `flex-1`-kolumnen
-                skulle den ärva chevronens indrag OCH sin egen, alltså dras in
-                dubbelt, och utfälld text vore smalare än titeln ovanför den.
-
-                `hidden` och inte villkorlig rendering: `aria-controls` pekar på
-                ett id, och ett id som bara finns ibland är en trasig referens
-                halva tiden. */}
+            {/* ⛔ PANELEN under raden, full bredd. Chevron står till HÖGER (CP),
+                så ingen pl-12-indrag från vänsterkolumn. */}
             {harDetaljer ? (
-              <div id={panelId} hidden={!oppen} className={cx("mt-2 text-sm text-ink-secondary", nagonHarDetaljer && "pl-12")}>
+              <div id={panelId} hidden={!oppen} className="mt-2 text-sm text-ink-secondary">
                 {h.detaljer}
               </div>
             ) : null}
