@@ -77,10 +77,20 @@ describe("OpsPrompt", () => {
     const skicka = vi.fn(() => new Promise((r) => { slapp = () => r({ text: "Svar" }); }));
     render(<OpsPrompt kalla={kallaSom(skicka)} label="Fråga" />);
 
-    fireEvent.change(screen.getByLabelText("Fråga"), { target: { value: "Vad händer?" } });
-    const knapp = screen.getByRole("button", { name: "Fråga" });
-    fireEvent.click(knapp);
-    fireEvent.click(knapp);
+    const falt = screen.getByLabelText("Fråga");
+    fireEvent.change(falt, { target: { value: "Vad händer?" } });
+
+    /*
+     * ⛔ GENVÄGEN OCH INTE KNAPPEN, och den rättelsen kom ur mutationsprovet.
+     * Ett prov som tryckte på knappen två gånger var grönt även utan vakten,
+     * eftersom knappen stängs av av sitt eget `disabled`. Vakten satt alltså
+     * oprövad, och kommentaren bredvid den påstod ett skydd den inte gav.
+     *
+     * Cmd plus Enter går förbi knappen och når `fraga` direkt. Det är den väg
+     * vakten finns för.
+     */
+    fireEvent.keyDown(falt, { key: "Enter", metaKey: true });
+    fireEvent.keyDown(falt, { key: "Enter", metaKey: true });
 
     expect(skicka).toHaveBeenCalledTimes(1);
     slapp();
@@ -122,6 +132,26 @@ describe("OpsPrompt", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vad händer i oktober?" }));
 
     expect(screen.getByLabelText("Fråga")).toHaveValue("Vad händer i oktober?");
+    expect(skicka).not.toHaveBeenCalled();
+    /*
+     * ⛔ OCH INGET FEL SYNS, vilket är det som faktiskt fäller mutationen.
+     * Ett förslag som skickar sig självt läser `text` innan React hunnit
+     * uppdatera den, alltså skickas en tom fråga och rutan svarar "Skriv en
+     * fråga först" på ett tryck användaren just gjorde rätt.
+     */
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("skickar inte på Enter ensamt", () => {
+    // ⛔ En fråga är ofta flera rader. Skickade Enter vore radbrytning omöjlig
+    // utan att man först lärt sig en genväg, och då skickas halva frågor.
+    const skicka = vi.fn(async () => ({ text: "Svar" }));
+    render(<OpsPrompt kalla={kallaSom(skicka)} label="Fråga" />);
+
+    const falt = screen.getByLabelText("Fråga");
+    fireEvent.change(falt, { target: { value: "Rad ett" } });
+    fireEvent.keyDown(falt, { key: "Enter" });
+
     expect(skicka).not.toHaveBeenCalled();
   });
 

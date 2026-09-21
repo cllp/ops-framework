@@ -112,6 +112,14 @@ export function OpsPrompt({
         <OpsTextarea
           value={text}
           onChange={setText}
+          /*
+           * ⛔ GENVÄGEN GÅR FÖRBI KNAPPEN, och det är skälet till att `fraga`
+           * har en egen vakt mot dubbelkörning. Mutationsprovet visade att
+           * vakten var ONÅBAR innan genvägen fanns: kommentaren påstod att
+           * Enter gick förbi knappen, men ingen tangenthanterare existerade.
+           * En vakt som inte går att nå är inte en vakt, den är en kommentar.
+           */
+          onSkicka={fraga}
           placeholder={placeholder}
           rows={3}
           disabled={vantar}
