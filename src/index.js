@@ -51,6 +51,8 @@ export { OpsSpinner } from "./components/OpsSpinner.jsx";
 
 // ── Märkning ───────────────────────────────────────────────────────────────
 export { OpsPill } from "./components/OpsPill.jsx";
+export { OpsStatusDot } from "./components/OpsStatusDot.jsx";
+export { OpsMarkdown } from "./components/OpsMarkdown.jsx";
 export { OpsTag } from "./components/OpsTag.jsx";
 export { OpsIdentity } from "./components/OpsIdentity.jsx";
 export { OpsProvenance } from "./components/OpsProvenance.jsx";
@@ -83,5 +85,6 @@ export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, ANTAL_IDENTITETSTONER } from "./lib/identity.js";
 export { bradska, delaIdagKommande, dagarMellan, dagarTill, samlaHandelser } from "./lib/handelser.js";
 export { lasArendeflode } from "./lib/arendeflode.js";
+export { delaMarkdown, delaInline } from "./lib/markdown.js";
 export { skapaArendemodell } from "./lib/arende.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, TALMELLANSLAG, SAKNAS } from "./lib/format.js";

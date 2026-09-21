@@ -12,6 +12,13 @@
  * räknar. Ett lagrat `status: "forsenat"` blir fel klockan tolv på natten utan
  * att något ändras, och den sortens fel syns inte: raden ser lika lugn ut dagen
  * efter som dagen före.
+ *
+ * ⛔ DET FÄLT SOM NU HETER `status` ÄR NÅGOT ANNAT ÄN DET, och läs det här
+ * innan du tror att regeln ovan har mjuknat. Brådska är en funktion av KLOCKAN
+ * och får därför aldrig lagras. `status` är var ett ärende står i sitt eget
+ * flöde: öppet, pågår, väntar på en motpart, klart, akut. Det ändras bara när
+ * någon ändrar det, och det finns ingen klocka som kan göra ett lagrat värde
+ * osant över en natt. Därför skickas det in, medan brådskan fortsätter räknas.
  */
 
 /**
@@ -46,6 +53,13 @@
  *   gör är appens sak, var den hamnar och att den hamnar likadant på varje rad är vår.
  *   ⛔ Har någon rad en `atgard` KRÄVER `OpsEventList` att listan förklarar de rader som
  *   saknar en, i sin `atgardsforklaring`. Skälet står i komponenten.
+ * @property {"oppet" | "pagar" | "vantar" | "klart" | "akut"} [status] Var raden står, som en
+ *   prick i kortets rubrik. ⛔ EN SLUTEN MÄNGD OCH INTE EN ReactNode, till skillnad från `roll`
+ *   och `slag`. Skillnaden är avsiktlig: rollens ORD är appens, men vilka FÄRGER ett tillstånd
+ *   får är ramverkets, precis som brådskan. Skickade appen in sin egen prick skulle nästa app
+ *   välja sin egen gula, och samma läge visas på två sätt i två plattformar.
+ *   Orden kommer ur `OpsEventList`s `statusOrd`, eftersom bara appen vet vad `vantar` betyder
+ *   hos just den.
  */
 
 /**

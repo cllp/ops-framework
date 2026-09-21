@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { bradska } from "../lib/handelser.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsCard } from "./OpsCard.jsx";
+import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 /**
  * Lista över händelser: vem, vad, och hur bråttom.
@@ -89,6 +90,11 @@ const TONER = {
  * @param {string} [props.expandLabel] Verb för utfällningsknappens namn, följt av radens titel.
  * @param {import("react").ReactNode} [props.atgardsforklaring] En mening om VILKA rader som går
  *   att göra något åt. ⛔ KRÄVS så snart någon rad har en `atgard` och någon annan inte har det.
+ * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusOrd]
+ *   Orden för de fem statuslägena. ⛔ KRÄVS för varje status som faktiskt förekommer: en prick
+ *   utan ord är en färg som bär betydelsen ensam, och det är osynligt för skärmläsaren och för
+ *   ungefär var tjugonde man. Orden är appens, eftersom bara den vet vad `vantar` betyder hos
+ *   just den: "väntar på motpart" i ett ops-flöde och "väntar på granskning" i nästa.
  */
 export function OpsEventList({
   events,
@@ -98,6 +104,7 @@ export function OpsEventList({
   empty = null,
   expandLabel = "Visa detaljer för",
   atgardsforklaring = null,
+  statusOrd = {},
 }) {
   // ⛔ BARA FÖRSENAT FÅR ETT ORD SOM STANDARD, och det följer direkt av
   // TONER ovan: försenat är det enda läget som lånar larmfärgen, alltså det
@@ -142,6 +149,28 @@ export function OpsEventList({
    * ⛔ VILLKORET ÄR "NÅGON HAR OCH NÅGON SAKNAR". En lista där ALLA rader har en
    * åtgärd behöver ingen förklaring: då finns ingen tyst rad att undra över.
    */
+  /*
+   * ⛔ EN STATUS UTAN ORD KASTAR, PRECIS SOM EN ÅTGÄRD UTAN FÖRKLARING.
+   *
+   * Pricken är en färg, och en färg går inte att läsa upp och är osynlig för
+   * ungefär var tjugonde man. Utan ordet är raden alltså tom för dem, och det
+   * syns inte på skärmen hos den som byggde den: felet är osynligt just för den
+   * som inte drabbas.
+   *
+   * Orden kan inte ha ett standardvärde här. `vantar` betyder "hos en motpart"
+   * i ett ops-flöde och "hos en granskare" i nästa, och ett ramverksord hade
+   * blivit fel i den ena appen utan att någon märkte det.
+   */
+  /** @type {("oppet"|"pagar"|"vantar"|"klart"|"akut")[]} */
+  const statusar = [];
+  for (const e of events) if (e && e.status) statusar.push(e.status);
+  const utanOrd = [...new Set(statusar)].filter((st) => !statusOrd[st]);
+  if (utanOrd.length > 0) {
+    throw new Error(
+      `OpsEventList: rader har status ${utanOrd.join(", ")} men statusOrd saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`,
+    );
+  }
+
   if (nagonHarAtgard && events.some((e) => e && !e.atgard) && !atgardsforklaring) {
     throw new Error(
       "OpsEventList: några rader har en atgard och andra inte, men listan saknar atgardsforklaring. En lista där vissa rader går att göra något åt och andra ser likadana ut lär den som läser att trycka på måfå.",
@@ -206,6 +235,22 @@ export function OpsEventList({
               {/* Detaljraden: vem, hur bråttom, när, och länken. Korta saker som
                   tål att trängas. */}
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                {/* ⛔ FÖRST I RADEN, OCH DEN SYNS ÄVEN NÄR KORTET ÄR IHOPFÄLLT.
+                    CP (bolag-ops #249): status ska vara en färgprick i kortets
+                    header. Ligger den i utfällningen svarar den bara den som
+                    redan öppnat kortet, och frågan "vad väntar på någon annan"
+                    ställs när man SKUMMAR listan, inte när man läser en rad.
+
+                    Före rollen, eftersom ögat läser vänsterifrån och pricken är
+                    det grövsta beskedet: vad som händer med raden alls, före vem
+                    som ska göra något åt den. */}
+                {/* ⛔ `|| ""` är inte en nedsläppsväg: vakten ovanför har redan
+                    kastat om ordet saknas. Den står här för att `statusOrd` är
+                    en valfri karta i typen, och en tom sträng får `OpsStatusDot`
+                    att kasta i stället för att rita en stum prick, om någon
+                    skulle ta bort vakten. */}
+                {h.status ? <OpsStatusDot status={h.status} label={statusOrd[h.status] || ""} /> : null}
+
                 {h.roll ? <span className="shrink-0">{h.roll}</span> : null}
 
                 {marke ? (

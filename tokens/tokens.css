@@ -123,6 +123,21 @@
   --color-info: #3a6a8a;
   --color-info-bg: rgba(58, 106, 138, 0.1);
 
+  /* ⛔ EGET TOKEN FÖR "VÄNTAR PÅ NÅGON ANNAN", och skälet är att tre
+   * närliggande betydelser annars delar färg.
+   *
+   * `warning` betyder "se upp, du kan göra något åt det". `danger` betyder
+   * "det här är fel". Ett ärende som ligger hos en motpart är ingetdera:
+   * ingen här kan göra något, och inget har gått sönder. Lånade det
+   * `warning` skulle guld betyda två saker, och då slutar den ena synas.
+   *
+   * Värdet ligger mellan guld och rött med flit, eftersom betydelsen gör det
+   * också. Skillnaden mot `--color-warning` är mätt och inte tyckt: se
+   * `src/__tests__/statusprick.test.jsx`, som kräver fem olika toner.
+   */
+  --color-blocked: #b06a2c;
+  --color-blocked-bg: rgba(176, 106, 44, 0.1);
+
   /* Räknaren på en flik eller en bottenradsikon: olästa, att göra, vad appen
    * nu räknar.
    *
@@ -397,6 +412,8 @@
   --dark-danger-bg: rgba(214, 111, 99, 0.14);
   --dark-info: #6fa3c4;
   --dark-info-bg: rgba(111, 163, 196, 0.14);
+  --dark-blocked: #d99a5b;
+  --dark-blocked-bg: rgba(217, 154, 91, 0.14);
   /* SessionStudios --color-status-alert i mörkt läge. */
   --dark-badge: #ef4444;
   --dark-badge-contrast: #ffffff;
@@ -554,6 +571,8 @@
     --color-badge: var(--dark-badge);
     --color-badge-contrast: var(--dark-badge-contrast);
     --color-info-bg: var(--dark-info-bg);
+    --color-blocked: var(--dark-blocked);
+    --color-blocked-bg: var(--dark-blocked-bg);
 
     --color-human: var(--dark-human);
     --color-human-bg: var(--dark-human-bg);
@@ -631,6 +650,8 @@
   --color-badge: var(--dark-badge);
   --color-badge-contrast: var(--dark-badge-contrast);
   --color-info-bg: var(--dark-info-bg);
+  --color-blocked: var(--dark-blocked);
+  --color-blocked-bg: var(--dark-blocked-bg);
 
   --color-human: var(--dark-human);
   --color-human-bg: var(--dark-human-bg);
