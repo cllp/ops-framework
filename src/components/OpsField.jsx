@@ -151,11 +151,30 @@ export function OpsInput({
  * @param {boolean} [props.disabled]
  * @param {number} [props.maxLength]
  * @param {string} [props.ariaLabel]
+ * @param {() => void} [props.onSkicka] Anropas på Cmd eller Ctrl plus Enter.
+ *
+ *   ⛔ EN NAMNGIVEN GENVÄG OCH INTE EN RÅ `onKeyDown`. Tog fältet emot godtyckliga
+ *   tangenthanterare skulle varje app välja sin egen genväg, och samma ruta skickas
+ *   med Enter i den ena appen och med Cmd plus Enter i den andra. Det är samma sorts
+ *   drift som ett `className` ger, fast i beteende.
+ *
+ *   ⛔ ENTER ENSAMT SKICKAR ALDRIG. En textarea bär flera rader, och en ruta där
+ *   Enter skickar gör radbrytning omöjlig utan att man först lärt sig en genväg.
  */
-export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel }) {
+export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSkicka }) {
   const f = useFaltKoppling();
   return (
     <textarea
+      onKeyDown={
+        onSkicka
+          ? (e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                onSkicka();
+              }
+            }
+          : undefined
+      }
       id={f.id}
       className={cx(KONTROLL_BAS, "resize-y", f.ogiltigt ? "border-danger" : "border-line")}
       value={value}
