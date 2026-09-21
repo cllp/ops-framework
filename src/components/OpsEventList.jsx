@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { bradska } from "../lib/handelser.js";
 import { ChevronNedIkon } from "./icons.jsx";
+import { OpsCard } from "./OpsCard.jsx";
 
 /**
  * Lista över händelser: vem, vad, och hur bråttom.
@@ -150,8 +151,12 @@ export function OpsEventList({
   /** @param {string} id */
   const vaxlaOppen = (id) => setOppna((f) => (f.indexOf(id) >= 0 ? f.filter((x) => x !== id) : [...f, id]));
 
+  // ⛔ VARJE HÄNDELSE ÄR ETT EGET OpsCard, inte en divider-rad i ett delat
+  // kort. CP (bolag-ops Idag): två kundfakturor i "kräver dig nu" låg i ETT
+  // mörkt kort med streck emellan; Inkorg har redan ett kort per post med
+  // gap-3. Samma mönster här så Idag/Kommande och Inkorg läses likadant.
   const lista = (
-    <ul className="m-0 flex list-none flex-col divide-y divide-divider p-0" aria-label={ariaLabel}>
+    <ul className="m-0 flex list-none flex-col gap-3 p-0" aria-label={ariaLabel}>
       {events.map((h) => {
         const lage = bradska(h);
         const marke = ord[lage];
@@ -164,7 +169,8 @@ export function OpsEventList({
         const harDetaljer = Boolean(h.detaljer);
 
         return (
-          <li key={h.id} className="py-2">
+          <li key={h.id}>
+            <OpsCard>
             <div className="flex items-start gap-1">
               {nagonHarDetaljer ? (
                 harDetaljer ? (
@@ -315,6 +321,7 @@ export function OpsEventList({
                 {h.detaljer}
               </div>
             ) : null}
+            </OpsCard>
           </li>
         );
       })}

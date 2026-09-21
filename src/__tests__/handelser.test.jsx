@@ -153,6 +153,17 @@ describe("OpsEventList", () => {
     expect(screen.queryByRole("button", { name: "Visa detaljer för tva" })).toBeNull();
   });
 
+  it("ritar varje händelse som eget kort, inte divider-rader i ett delat kort", () => {
+    // ⛔ Inkorg-mönstret: gap-3 mellan OpsCard. En ul.divide-y i ett ytterkort
+    // var felet på bolag-ops Idag ("kräver dig nu").
+    const { container } = render(<OpsEventList events={[h("a", 1, { nar: "Idag" }), h("b", 2, { nar: "I morgon" })]} />);
+    const lista = container.querySelector("ul");
+    expect(lista?.className).toMatch(/gap-3/);
+    expect(lista?.className).not.toMatch(/divide-y/);
+    const kort = container.querySelectorAll("ul > li > div.rounded-lg.border");
+    expect(kort).toHaveLength(2);
+  });
+
   it("reserverar ingen chevronkolumn när ingen rad kan fällas ut", () => {
     // ⛔ Kolumnen är 44 px av en 390 px bred telefon och tas från titeln. En
     // lista helt utan utfällbara rader ska inte betala för en gest som inte
