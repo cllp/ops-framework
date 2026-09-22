@@ -285,6 +285,62 @@ describe("OpsSegmented", () => {
     expect(() => render(<OpsSegmented ariaLabel="x" value="a" onChange={() => {}} options={fyra} />)).toThrow(/två eller tre lägen/);
   });
 
+  it("ritar ikonen i stället för ordet, men behåller ordet för den som lyssnar", () => {
+    /*
+     * ⛔ CP 2026-09-22, med bild: "Låt lista och kalender vara två ikoner som man
+     * togglar, så det blir en dublett på idag/kommande."
+     *
+     * Två breda pillerspår under varandra läses som samma kontroll två gånger,
+     * och det nedre åt så mycket bredd att rubriken bredvid kapades.
+     *
+     * ⛔ ORDET FÖRSVINNER INTE, det blir skärmläsartext. En ikon utan namn är en
+     * knapp som inte går att höra, och två sådana bredvid varandra är ett val man
+     * inte kan göra. Provet frågar därför efter det TILLGÄNGLIGA NAMNET och inte
+     * efter synlig text: det är den halvan som går att tappa utan att någon ser
+     * det på skärmen.
+     */
+    render(
+      <OpsSegmented
+        ariaLabel="Lista eller kalender"
+        value="lista"
+        onChange={() => {}}
+        options={[
+          { value: "lista", label: "Lista", icon: <svg data-testid="ikon-lista" /> },
+          { value: "kalender", label: "Kalender", icon: <svg data-testid="ikon-kalender" /> },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: "Lista" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Kalender" })).toBeInTheDocument();
+    expect(screen.getByTestId("ikon-lista")).toBeInTheDocument();
+    // ⛔ Och ordet står inte som synlig text bredvid ikonen: då vore det ingen
+    // ikonväxel, bara samma breda piller med en bild framför.
+    expect(screen.getByRole("tab", { name: "Lista" }).textContent).toBe("Lista");
+    expect(screen.getByRole("tab", { name: "Lista" }).querySelector(".sr-only")).not.toBeNull();
+  });
+
+  it("vägrar en rad där bara vissa lägen har ikon", () => {
+    /*
+     * ⛔ EN IKON BREDVID ETT ORD SER UT SOM ETT FEL, och läsaren vet inte om
+     * ikonen betyder något extra. En tyst nedsläppsväg hade ritat den blandade
+     * raden, och ingen hade sett det förrän på en skärmbild.
+     */
+    expect(() =>
+      render(
+        <OpsSegmented
+          ariaLabel="x"
+          value="a"
+          onChange={() => {}}
+          options={[
+            { value: "a", label: "A", icon: <svg /> },
+            { value: "b", label: "B" },
+          ]}
+        />,
+      ),
+    ).toThrow(/Antingen alla eller inget/);
+  });
+
   it("visar chevron och undermeny på aktivt segment med menu", () => {
     // ⛔ SessionStudio: Idag bär Idag|Tidigare. Chevron bara när fliken är
     // aktiv; klick på inaktivt segment byter utan att öppna menyn.
