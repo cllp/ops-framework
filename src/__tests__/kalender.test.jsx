@@ -1,7 +1,15 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { OpsKalender } from "../components/OpsKalender.jsx";
-import { datumnyckel, forstaKolumnen, idagsnyckel, manader, manadsrutnat, perDag } from "../lib/kalender.js";
+import {
+  datumnyckel,
+  datumtext,
+  forstaKolumnen,
+  idagsnyckel,
+  manader,
+  manadsrutnat,
+  perDag,
+} from "../lib/kalender.js";
 
 /**
  * Kalendern: räkningen för sig, rutnätet för sig.
@@ -80,6 +88,22 @@ describe("kalenderräkningen", () => {
     // in under en påhittad nyckel.
     expect(karta.size).toBe(2);
   });
+
+  it("skriver datumet som en rubrik och inte som en nyckel", () => {
+    /*
+     * ⛔ BUBBLANS RUBRIK ÄR "12 oktober". Man trycker på en dag man ser, alltså
+     * är året och månaden redan kända, och "2026-10-12" överst läses som ännu
+     * en post i listan i stället för som en rubrik.
+     *
+     * ⛔ OCH DET SOM INTE ÄR ETT DATUM GER TILLBAKA SIG SJÄLV. Utan den vägen
+     * hade en trasig nyckel skrivits ut som "NaN undefined", alltså ett fel som
+     * skriker på en plats där ingenting gick sönder.
+     */
+    expect(datumtext("2026-10-12")).toBe("12 oktober");
+    expect(datumtext("2026-01-01")).toBe("1 januari");
+    expect(datumtext("")).toBe("");
+    expect(datumtext("imorgon")).toBe("imorgon");
+  });
 });
 
 const IDAG = new Date(2026, 9, 5); // måndag 5 oktober 2026
@@ -140,15 +164,92 @@ describe("OpsKalender", () => {
     expect(within(oktober).getByRole("button", { name: "13" })).toBeDisabled();
   });
 
-  it("fäller ut dagens poster under månaden, och stänger på ett andra tryck", () => {
+  it("öppnar dagen i en bubbla som ligger UTANFÖR rullbehållaren", () => {
+    /*
+     * ⛔ DET HÄR PROVET ÄR CP:s ÄNDRING, ORDAGRANT: "bubblorna måste vara
+     * flytande som i SessionStudio."
+     *
+     * Första versionen fällde ut dagen inuti månadsblocket, och då SKJUTS
+     * resten av rutnätet nedåt: man trycker på den 12:e, dagarna under flyttar
+     * sig, och nästa tryck landar på fel dag.
+     *
+     * Provet frågar därför var i trädet bubblan hamnade och inte hur den ser
+     * ut. Ett påstående om en klass hade varit grönt även med bubblan
+     * inklistrad mitt i rutnätet, alltså grönt för exakt det fel som skulle
+     * bort.
+     */
+    const { container } = rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    const bubblan = screen.getByRole("region", { name: "Poster den 12 oktober" });
+    expect(within(bubblan).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
+
+    const rulle = container.querySelector("[class*='overflow-y-auto']");
+    expect(rulle).not.toBeNull();
+    expect(rulle.contains(bubblan)).toBe(false);
+  });
+
+  it("stänger bubblan på ett andra tryck, på krysset och på Escape", () => {
+    /*
+     * ⛔ TRE VÄGAR UT, och det är inte generositet. Bubblan ligger över en del
+     * av rutnätet, så den som inte hittar ut ur den kan inte se dagarna under.
+     * Ett litet kryss ensamt är den ruta man till slut rullar ifrån i stället
+     * för att stänga.
+     */
     rendera();
-    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    const dagen = () => screen.getByRole("button", { name: "12, 2 poster" });
+    const bubblan = () => screen.queryByRole("region", { name: "Poster den 12 oktober" });
 
-    const listan = screen.getByText("2026-10-12").closest("div");
-    expect(within(listan).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
+    fireEvent.click(dagen());
+    fireEvent.click(dagen());
+    expect(bubblan()).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
-    expect(screen.queryByText("2026-10-12")).toBeNull();
+    fireEvent.click(dagen());
+    fireEvent.click(screen.getByRole("button", { name: "Stäng 12 oktober" }));
+    expect(bubblan()).toBeNull();
+
+    fireEvent.click(dagen());
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(bubblan()).toBeNull();
+  });
+
+  it("rullar sin EGEN behållare vid montering, inte sidan", () => {
+    /*
+     * ⛔ CP 2026-09-22, med bild: "Scrollningen tar med hela menyn och allt."
+     *
+     * `scrollIntoView` rullar ALLA rullbara förfäder, alltså också dokumentet,
+     * och det var precis symptomet: kalendern drog med sig appskalet och varje
+     * väg tillbaka till idag gick genom hela sidan.
+     *
+     * Provet mäter VILKET element som rullades, för det är skillnaden. Ett prov
+     * som bara kollade att något rullade hade varit grönt före ändringen också.
+     */
+    const rullade = [];
+    let intoView = 0;
+    const fannsScrollTo = "scrollTo" in Element.prototype;
+    const orgScrollTo = Element.prototype.scrollTo;
+    const orgIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollTo = function () {
+      rullade.push(this);
+    };
+    Element.prototype.scrollIntoView = function () {
+      intoView += 1;
+    };
+
+    try {
+      rendera();
+      expect(intoView).toBe(0);
+      expect(rullade.length).toBe(1);
+      // ⛔ Och det som rullades ÄR rullbehållaren, inte vilket element som helst.
+      expect(rullade[0].className).toContain("overflow-y-auto");
+      // ⛔ Utan `overscroll-contain` fortsätter rullningen ut i sidan så fort man
+      // nått kalenderns botten, alltså samma fel en halv sekund senare.
+      expect(rullade[0].className).toContain("overscroll-contain");
+    } finally {
+      if (fannsScrollTo) Element.prototype.scrollTo = orgScrollTo;
+      else delete Element.prototype.scrollTo;
+      Element.prototype.scrollIntoView = orgIntoView;
+    }
   });
 
   it("gör en post med url till en länk och resten till text", () => {
