@@ -40,8 +40,9 @@ import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
  * @param {(href: string, e: any) => void} props.klick
  * @param {string} props.badgeText
  * @param {string} props.klass
+ * @param {string} props.undermenyLabel Verb för chevronens namn, följt av postens etikett.
  */
-function Radpost({ post, aktiv, activeHref, klick, badgeText, klass }) {
+function Radpost({ post, aktiv, activeHref, klick, badgeText, klass, undermenyLabel }) {
   const [oppen, setOppen] = useState(false);
   const barn = Array.isArray(post.children) ? post.children : [];
 
@@ -81,48 +82,77 @@ function Radpost({ post, aktiv, activeHref, klick, badgeText, klass }) {
     );
   }
 
-  const rad = (/** @type {{ href: string, label: string }} */ p) => (
-    <a
-      key={p.href}
-      href={p.href}
-      onClick={(e) => {
-        setOppen(false);
-        klick(p.href, e);
-      }}
-      aria-current={p.href === activeHref ? "page" : undefined}
-      className={cx(
-        "flex min-h-11 items-center rounded-sm px-3 text-sm",
-        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        p.href === activeHref ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-      )}
-    >
-      {p.label}
-    </a>
-  );
 
+  /*
+   * ⛔ ORDET EN GÅNG, INTE TVÅ. Första versionen lade föräldern som första rad i
+   * menyn, så att sidan skulle gå att nå från raden. CP 2026-09-22, med bild:
+   * "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första
+   * rad sa Ekonomi, tjugo pixlar isär, alltså exakt den dubblett som Fråga och
+   * Översikt-kortet fick stryka på foten för samma kväll.
+   *
+   * ⛔ ETIKETTEN ÄR LÄNKEN, CHEVRONEN ÄR KNAPPEN. Två kontroller som gör var sin
+   * sak, inte en kontroll som gör två. Skälet att posten inte fick vara EN länk
+   * som också öppnar står kvar och är ett annat: då är ett tryck tvetydigt,
+   * navigerade jag eller öppnade jag. Här är svaret givet av var man trycker.
+   *
+   * ⛔ RADEN FINNS BARA FRÅN 768 px, alltså där det finns en pekare eller en
+   * surfplatta. Chevronens träffyta är ändå 44 px hög, för en surfplatta är en
+   * tumme. På telefon finns ingen topprad: där ligger barnen indragna under
+   * föräldern i Mer-arket, som förut.
+   */
   return (
-    <Popover.Root open={oppen} onOpenChange={setOppen}>
-      <Popover.Trigger className={cx(klass, "cursor-pointer")} aria-current={aktiv ? "page" : undefined}>
+    <span className={cx(klass, "gap-0 p-0")}>
+      <a
+        href={post.href}
+        onClick={(e) => klick(post.href, e)}
+        aria-current={aktiv ? "page" : undefined}
+        className="inline-flex min-h-11 items-center rounded-l-md px-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
+      >
         {post.label}
-        <span aria-hidden="true" className="ml-0.5 inline-block shrink-0">
-          <ChevronNedIkon size={12} />
-        </span>
         {raknare}
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          align="start"
-          sideOffset={6}
-          className="z-(--z-dropdown) flex w-56 flex-col rounded-md border border-line bg-raised p-2 shadow-md"
+      </a>
+      <Popover.Root open={oppen} onOpenChange={setOppen}>
+        <Popover.Trigger
+          aria-label={`${undermenyLabel} ${post.label}`}
+          className={cx(
+            "inline-flex min-h-11 cursor-pointer items-center rounded-r-md pr-2 pl-0.5",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+          )}
         >
-          {rad({ href: post.href, label: post.label })}
-          {/* ⛔ En linje mellan föräldern och barnen. Utan den läses sex rader
-              som en lista där den första råkar heta samma sak som knappen. */}
-          <div className="my-1 border-t border-line" />
-          {barn.map(rad)}
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+          <span aria-hidden="true" className="inline-block shrink-0">
+            <ChevronNedIkon size={12} />
+          </span>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="start"
+            sideOffset={6}
+            className="z-(--z-dropdown) flex w-56 flex-col rounded-md border border-line bg-raised p-2 shadow-md"
+          >
+            {barn.map((b) => (
+              <a
+                key={b.href}
+                href={b.href}
+                onClick={(e) => {
+                  setOppen(false);
+                  klick(b.href, e);
+                }}
+                aria-current={b.href === activeHref ? "page" : undefined}
+                className={cx(
+                  "flex min-h-11 items-center rounded-sm px-3 text-sm",
+                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                  b.href === activeHref
+                    ? "bg-accent-subtle font-semibold text-ink"
+                    : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                )}
+              >
+                {b.label}
+              </a>
+            ))}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </span>
   );
 }
 
@@ -156,6 +186,8 @@ function Radpost({ post, aktiv, activeHref, klick, badgeText, klass }) {
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
+ * @param {string} [props.undermenyLabel] Verb för chevronens namn på en post med undermeny,
+ *   följt av postens etikett: "Visa sidorna under Ekonomi".
  * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden på bred skärm (1024 och uppåt). Resten hamnar i hamburgarmenyn.
  * @param {number} [props.maxTopNavSmal] Hur många som får plats mellan 768 och 1024. Mätt: fler än tre ger horisontell scroll på en iPad i stående läge.
  * @param {string} [props.moreLabel] Namn på överflödesmenyn (aria/nav). Knappen visar en hamburgare, inte text.
@@ -177,6 +209,7 @@ export function OpsAppShell({
   primaryAction,
   menuLabel = "Meny",
   navLabel = "Huvudnavigering",
+  undermenyLabel = "Visa sidorna under",
   // ⛔ Fem, inte "så många som får plats". En mätning av tillgänglig bredd vid
   // varje rendering ger hopp när typsnittet laddar och gör ordningen beroende av
   // fönstret. Ett fast tak är förutsägbart, och appen styr vilka fem genom sin
@@ -352,6 +385,7 @@ export function OpsAppShell({
                 activeHref={activeHref}
                 klick={klick}
                 badgeText={badgeText}
+                undermenyLabel={undermenyLabel}
                 klass={cx(
                   lankKlass(postAktiv(s, activeHref) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,
