@@ -8,6 +8,125 @@ import { Raknare } from "./raknare.jsx";
 import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
 
 /**
+ * En post i toppraden. Med `children` en riktig meny, utan dem en länk.
+ *
+ * ══ ⛔ CHEVRONEN VAR ETT LÖFTE SOM INTE INFRIADES ══════════════════════
+ *
+ * CP 2026-09-22: "Ekonomi är ingen dropdown. Sublänkar saknas."
+ *
+ * Han hade rätt, och felet var ramverkets. Toppraden ritade en chevron så fort
+ * en post hade `children`, men posten var en naken `<a href>`: ett tryck gick
+ * till föräldersidan och menyn fanns inte. Barnen ritades bara i MOBILENS
+ * Mer-ark. På en dator gick de fem ekonomisidorna alltså att nå enbart genom
+ * att först besöka `/ekonomi` och trycka på ett kort, medan raden ovanför
+ * visade en pil nedåt som lovade något annat.
+ *
+ * ⛔ DET ÄR SAMMA REGEL SOM KALENDERKORTETS CHEVRON FICK, tillämpad på navet:
+ * en pil som öppnar ingenting är värre än ingen pil, för den lär den som ser
+ * den att pilar i den här appen inte betyder något.
+ *
+ * ⛔ FÖRÄLDERN LIGGER FÖRST I MENYN, inte bara som en rubrik. `/ekonomi` är en
+ * riktig sida med siffrorna bredvid varandra, och en meny som listar fem barn
+ * men inte vägen till föräldern gör den sidan onåbar från raden.
+ *
+ * ⛔ EN KNAPP OCH INTE EN LÄNK NÄR DET FINNS BARN. En länk som också öppnar en
+ * meny gör ett tryck tvetydigt: navigerade jag eller öppnade jag? Knappen gör
+ * en sak, och sidan nås på första raden i det som öppnas.
+ *
+ * @param {object} props
+ * @param {import("../lib/nav.js").NavPost} props.post
+ * @param {boolean} props.aktiv
+ * @param {string} props.activeHref
+ * @param {(href: string, e: any) => void} props.klick
+ * @param {string} props.badgeText
+ * @param {string} props.klass
+ */
+function Radpost({ post, aktiv, activeHref, klick, badgeText, klass }) {
+  const [oppen, setOppen] = useState(false);
+  const barn = Array.isArray(post.children) ? post.children : [];
+
+  const raknare = typeof post.badge === "number" && post.badge > 0 ? <Raknare antal={post.badge} text={badgeText} /> : null;
+
+                {/*
+        ⛔ INGEN IKON HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
+
+        Toppraden ritade `s.icon` en kort period, efter rapporten
+        "finns inga ikoner?". Den rapporten gällde att ikonfältet
+        slängdes överallt, och jag drog slutsatsen till toppraden utan
+        att titta på förlagan.
+
+        SessionStudios header (`apps/web/src/components/AppHeader.jsx`)
+        renderar `{n.label}` och inget annat. Chevron bara på posten
+        med undermeny, badge som en liten cirkel. Ikonerna sitter i
+        hamburgermenyn (16 px) och i mobilens bottenrad (20 px), aldrig
+        i flikraden.
+
+        Utfallet av min variant beskrevs som "fruktansvärda, ser
+        80-tal ut". Med tolv ikoner i rad blir raden en verktygslåda i
+        stället för fyra ord, och ett kontosammanhang har inga
+        självklara bilder: en spargris för pension är den sortens
+        gissning som ser billig ut i just det sammanhang där den ska
+        inge förtroende.
+
+        `icon` är kvar i kontraktet. Bottenraden och menyn ritar den.
+        Den här raden gör det inte.
+      */}
+
+  if (!barn.length) {
+    return (
+      <a href={post.href} onClick={(e) => klick(post.href, e)} aria-current={aktiv ? "page" : undefined} className={klass}>
+        {post.label}
+        {raknare}
+      </a>
+    );
+  }
+
+  const rad = (/** @type {{ href: string, label: string }} */ p) => (
+    <a
+      key={p.href}
+      href={p.href}
+      onClick={(e) => {
+        setOppen(false);
+        klick(p.href, e);
+      }}
+      aria-current={p.href === activeHref ? "page" : undefined}
+      className={cx(
+        "flex min-h-11 items-center rounded-sm px-3 text-sm",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+        p.href === activeHref ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+      )}
+    >
+      {p.label}
+    </a>
+  );
+
+  return (
+    <Popover.Root open={oppen} onOpenChange={setOppen}>
+      <Popover.Trigger className={cx(klass, "cursor-pointer")} aria-current={aktiv ? "page" : undefined}>
+        {post.label}
+        <span aria-hidden="true" className="ml-0.5 inline-block shrink-0">
+          <ChevronNedIkon size={12} />
+        </span>
+        {raknare}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="start"
+          sideOffset={6}
+          className="z-(--z-dropdown) flex w-56 flex-col rounded-md border border-line bg-raised p-2 shadow-md"
+        >
+          {rad({ href: post.href, label: post.label })}
+          {/* ⛔ En linje mellan föräldern och barnen. Utan den läses sex rader
+              som en lista där den första råkar heta samma sak som knappen. */}
+          <div className="my-1 border-t border-line" />
+          {barn.map(rad)}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+/**
  * Appskalet: varumärke, navigering och ett utrymme för konto och tema.
  *
  * ⛔ Skalet är ROUTER-AGNOSTISKT, och det är ett medvetet val.
@@ -226,51 +345,21 @@ export function OpsAppShell({
           {/* Bred skärm: länkarna centrerade. Smal: bottenraden nedan. */}
           <nav aria-label={navLabel} className="hidden items-center gap-1 justify-self-center md:flex">
             {iRaden.map((s, i) => (
-              <a
+              <Radpost
                 key={s.href}
-                href={s.href}
-                onClick={(e) => klick(s.href, e)}
-                aria-current={postAktiv(s, activeHref) ? "page" : undefined}
-                className={cx(
+                post={s}
+                aktiv={postAktiv(s, activeHref)}
+                activeHref={activeHref}
+                klick={klick}
+                badgeText={badgeText}
+                klass={cx(
                   lankKlass(postAktiv(s, activeHref) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,
                   // och `display:none` tar bort den ur uppläsningen också, så
                   // ingen möter samma destination två gånger.
                   i >= smaltTak ? "hidden lg:inline-flex" : "inline-flex",
                 )}
-              >
-                {/*
-                  ⛔ INGEN IKON HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
-
-                  Toppraden ritade `s.icon` en kort period, efter rapporten
-                  "finns inga ikoner?". Den rapporten gällde att ikonfältet
-                  slängdes överallt, och jag drog slutsatsen till toppraden utan
-                  att titta på förlagan.
-
-                  SessionStudios header (`apps/web/src/components/AppHeader.jsx`)
-                  renderar `{n.label}` och inget annat. Chevron bara på posten
-                  med undermeny, badge som en liten cirkel. Ikonerna sitter i
-                  hamburgermenyn (16 px) och i mobilens bottenrad (20 px), aldrig
-                  i flikraden.
-
-                  Utfallet av min variant beskrevs som "fruktansvärda, ser
-                  80-tal ut". Med tolv ikoner i rad blir raden en verktygslåda i
-                  stället för fyra ord, och ett kontosammanhang har inga
-                  självklara bilder: en spargris för pension är den sortens
-                  gissning som ser billig ut i just det sammanhang där den ska
-                  inge förtroende.
-
-                  `icon` är kvar i kontraktet. Bottenraden och menyn ritar den.
-                  Den här raden gör det inte.
-                */}
-                {s.label}
-                {Array.isArray(s.children) && s.children.length ? (
-                  <span aria-hidden="true" className="ml-0.5 inline-block shrink-0">
-                    <ChevronNedIkon size={12} />
-                  </span>
-                ) : null}
-                {typeof s.badge === "number" && s.badge > 0 ? <Raknare antal={s.badge} text={badgeText} /> : null}
-              </a>
+              />
             ))}
           </nav>
 

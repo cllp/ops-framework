@@ -228,8 +228,14 @@ describe("OpsAppShell efter mobilomställningen", () => {
       </OpsAppShell>,
     );
     const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    // Fem destinationer får plats som standard; sjunde och sjätte hamnar i menyn.
-    expect(within(toppnav).getAllByRole("link")).toHaveLength(5);
+    /*
+     * ⛔ FEM DESTINATIONER, MEN FYRA LÄNKAR OCH EN KNAPP sedan 2026-09-22.
+     * Kostnader har `children`, och en post med barn är numera en riktig meny i
+     * stället för en länk med en chevron som inte öppnade något. Provet räknar
+     * därför båda rollerna: siffran fem är kravet, rollen är en följd.
+     */
+    expect(within(toppnav).getAllByRole("link")).toHaveLength(4);
+    expect(within(toppnav).getAllByRole("button")).toHaveLength(1);
     expect(within(toppnav).queryByRole("link", { name: "Kontakter" })).toBeNull();
 
     // ⛔ fireEvent och inte userEvent, och den första förklaringen till det var
@@ -247,6 +253,65 @@ describe("OpsAppShell efter mobilomställningen", () => {
     const meny = await screen.findByRole("navigation", { name: "Meny" });
     expect(within(meny).getByRole("link", { name: "Schema" })).toBeInTheDocument();
     expect(within(meny).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
+  });
+
+  it("öppnar en riktig meny på posten med barn, i stället för att bara rita en pil", async () => {
+    /*
+     * ⛔ CP 2026-09-22: "Ekonomi är ingen dropdown. Sublänkar saknas."
+     *
+     * Toppraden ritade en chevron så fort en post hade `children`, men posten
+     * var en naken `<a href>`: ett tryck gick till föräldersidan och menyn fanns
+     * inte. Barnen ritades bara i MOBILENS Mer-ark, så på en dator gick de bara
+     * att nå genom att först besöka föräldersidan och trycka på ett kort.
+     *
+     * ⛔ PROVET KRÄVER ATT BARNEN INTE SYNS FÖRRÄN MAN TRYCKER. Ett prov som
+     * bara letade efter dem efteråt hade varit grönt även med fem länkar
+     * permanent utlagda i raden, alltså med en rad som inte får plats.
+     */
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+
+    /*
+     * ⛔ SÖKT PÅ HELA SIDAN OCH INTE INUTI `<nav>`, och den skillnaden är hela
+     * provets värde. Radix portalerar menyn till `body`, alltså UTANFÖR navet.
+     * Första versionen frågade `within(toppnav)` och var därför grön även med
+     * menyn tvångsöppnad: den letade på ett ställe där svaret aldrig kunde
+     * finnas. Mutationen "öppen från start" avslöjade det.
+     */
+    expect(screen.queryByRole("link", { name: "Företag" })).toBeNull();
+
+    fireEvent.click(within(toppnav).getByRole("button", { name: /Kostnader/ }));
+    expect(await screen.findByRole("link", { name: "Företag" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Privat" })).toBeInTheDocument();
+  });
+
+  it("lägger föräldersidan först i sin egen meny", async () => {
+    /*
+     * ⛔ EN MENY SOM LISTAR FEM BARN MEN INTE VÄGEN TILL FÖRÄLDERN GÖR DEN
+     * SIDAN ONÅBAR FRÅN RADEN. `/kostnader` är en riktig sida, och knappen som
+     * öppnar menyn navigerar inte längre dit själv: det är hela bytet mot den
+     * gamla länken, och utan den här raden är bytet en förlust.
+     */
+    render(
+      <OpsAppShell brand="X" nav={NAV} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Kostnader/ }));
+
+    /*
+     * ⛔ SÖKT INUTI MENYN OCH INTE PÅ HELA SIDAN. "Kostnader" står också i
+     * mobilens bottenrad, som renderas samtidigt i jsdom, och en sökning på
+     * hela dokumentet blir röd på "flera element" i stället för på något
+     * verkligt.
+     */
+    const menyn = (await screen.findByRole("link", { name: "Företag" })).parentElement;
+    if (!menyn) throw new Error("Hittar ingen meny kring barnen");
+    expect(within(menyn).getByRole("link", { name: "Kostnader" })).toHaveAttribute("href", "/kostnader");
   });
 
   it("lägger posterna mellan de två taken både i raden och i menyn", async () => {
