@@ -229,12 +229,11 @@ describe("OpsAppShell efter mobilomställningen", () => {
     );
     const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
     /*
-     * ⛔ FEM DESTINATIONER, MEN FYRA LÄNKAR OCH EN KNAPP sedan 2026-09-22.
-     * Kostnader har `children`, och en post med barn är numera en riktig meny i
-     * stället för en länk med en chevron som inte öppnade något. Provet räknar
-     * därför båda rollerna: siffran fem är kravet, rollen är en följd.
+     * ⛔ FEM DESTINATIONER ÄR FEM LÄNKAR, plus en knapp för chevronen på den
+     * post som har barn. Siffran fem är kravet; knappen är en följd av att
+     * etiketten och chevronen är två kontroller som gör var sin sak.
      */
-    expect(within(toppnav).getAllByRole("link")).toHaveLength(4);
+    expect(within(toppnav).getAllByRole("link")).toHaveLength(5);
     expect(within(toppnav).getAllByRole("button")).toHaveLength(1);
     expect(within(toppnav).queryByRole("link", { name: "Kontakter" })).toBeNull();
 
@@ -289,29 +288,44 @@ describe("OpsAppShell efter mobilomställningen", () => {
     expect(screen.getByRole("link", { name: "Privat" })).toBeInTheDocument();
   });
 
-  it("lägger föräldersidan först i sin egen meny", async () => {
+  it("säger ordet en gång: etiketten är länken, chevronen är knappen", async () => {
     /*
-     * ⛔ EN MENY SOM LISTAR FEM BARN MEN INTE VÄGEN TILL FÖRÄLDERN GÖR DEN
-     * SIDAN ONÅBAR FRÅN RADEN. `/kostnader` är en riktig sida, och knappen som
-     * öppnar menyn navigerar inte längre dit själv: det är hela bytet mot den
-     * gamla länken, och utan den här raden är bytet en förlust.
+     * ⛔ CP 2026-09-22, med bild: "Men varför står Ekonomi två gånger?"
+     *
+     * Första versionen lade föräldern som FÖRSTA RAD i menyn, så att sidan
+     * skulle gå att nå från raden. Priset blev ordet två gånger med tjugo
+     * pixlar emellan, alltså exakt den dubblett som Fråga och Översikt-kortet
+     * fick stryka på foten för samma kväll.
+     *
+     * ⛔ PROVET HAR TVÅ HALVOR. Att dubbletten är borta går att uppfylla genom
+     * att göra föräldersidan onåbar. Andra halvan kräver att etiketten fortsatt
+     * LÄNKAR dit, vilket är hela skälet att den inte bara blev en knapp.
      */
     render(
       <OpsAppShell brand="X" nav={NAV} activeHref="/">
         <p>x</p>
       </OpsAppShell>,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Kostnader/ }));
+    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+
+    expect(within(toppnav).getByRole("link", { name: "Kostnader" })).toHaveAttribute("href", "/kostnader");
+
+    fireEvent.click(within(toppnav).getByRole("button", { name: /Kostnader/ }));
+    await screen.findByRole("link", { name: "Företag" });
 
     /*
-     * ⛔ SÖKT INUTI MENYN OCH INTE PÅ HELA SIDAN. "Kostnader" står också i
-     * mobilens bottenrad, som renderas samtidigt i jsdom, och en sökning på
-     * hela dokumentet blir röd på "flera element" i stället för på något
-     * verkligt.
+     * ⛔ RÄKNAT I HELA HEADERN OCH INTE `within(toppnav)`, och det är andra
+     * gången samma fälla slår till i kväll: Radix portalerar menyn till `body`,
+     * alltså UTANFÖR navet. En fråga inom navet kan därför aldrig se menyns
+     * rader, och första versionen av det här provet var grönt även med
+     * föräldern återinsatt som menyns första rad, alltså med precis det fel CP
+     * rapporterade.
+     *
+     * ⛔ HEADERN OCH INTE `screen`, för "Kostnader" står också i mobilens
+     * bottenrad, som renderas samtidigt i jsdom.
      */
-    const menyn = (await screen.findByRole("link", { name: "Företag" })).parentElement;
-    if (!menyn) throw new Error("Hittar ingen meny kring barnen");
-    expect(within(menyn).getByRole("link", { name: "Kostnader" })).toHaveAttribute("href", "/kostnader");
+    const iHeadern = document.querySelectorAll('header a[href="/kostnader"], [data-radix-popper-content-wrapper] a[href="/kostnader"]');
+    expect(iHeadern).toHaveLength(1);
   });
 
   it("lägger posterna mellan de två taken både i raden och i menyn", async () => {
