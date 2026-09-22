@@ -108,6 +108,18 @@ const VECKODAGAR = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
 /** Hur många prickar en ruta ritar innan den börjar räkna i stället. */
 const MAX_PRICKAR = 3;
 
+/**
+ * Millisekunder mellan två svepande element i dagspanelen.
+ *
+ * ⛔ 40 MS ÄR FÖREBILDENS TAL, avläst ur SessionStudios dagspanel
+ * (`popIn 180ms ease-out ${idx * 40}ms both`). Trappan är det som gör att en
+ * panel med sex kort läses som EN rörelse i stället för sex samtidiga.
+ *
+ * ⛔ OCH DEN TAS INTE UR LUFTEN IGEN. Skulle den ändras är det för att någon
+ * mätt att den känns fel, inte för att ett annat tal råkade se rundare ut.
+ */
+const SVEPSTEG = 40;
+
 /*
  * ══ ⛔ RUTNÄTETS PRICKAR BÄR "NÅGOT FINNS", INTE VILKEN STATUS ══════════
  *
@@ -203,12 +215,15 @@ function Kryss({ stor = false }) {
  * stängkryss två centimeter till höger, och två knappar med samma verkan får
  * läsaren att leta efter skillnaden.
  *
- * @param {{ nyckel: string, kanTasBort: boolean, onTaBort: (nyckel: string) => void }} props
+ * @param {{ nyckel: string, kanTasBort: boolean, onTaBort: (nyckel: string) => void, ordning: number }} props
  */
-function Datumpiller({ nyckel, kanTasBort, onTaBort }) {
+function Datumpiller({ nyckel, kanTasBort, onTaBort, ordning }) {
   const text = datumtext(nyckel);
   return (
-    <span className="ops-contrast-panel inline-flex items-center gap-1.5 rounded-full bg-contrast-panel py-1 pr-2 pl-2.5 text-xs font-semibold text-ink shadow-md">
+    <span
+      style={{ animationDelay: `${ordning * SVEPSTEG}ms` }}
+      className="ops-contrast-panel inline-flex animate-svep items-center gap-1.5 rounded-full bg-contrast-panel py-1 pr-2 pl-2.5 text-xs font-semibold text-ink shadow-md"
+    >
       {text}
       {kanTasBort ? (
         <button
@@ -242,13 +257,16 @@ function Datumpiller({ nyckel, kanTasBort, onTaBort }) {
  * säger vilken av dem just den här posten tillhör. Med tre dagar valda är det
  * enda som skiljer två likadana påminnelser åt.
  *
- * @param {{ nyckel: string, post: import("../lib/kalender.js").Kalenderpost, statusOrd: Record<string, string> }} props
+ * @param {{ nyckel: string, post: import("../lib/kalender.js").Kalenderpost, statusOrd: Record<string, string>, ordning: number }} props
  */
-function Postkort({ nyckel, post, statusOrd }) {
+function Postkort({ nyckel, post, statusOrd, ordning }) {
   const meta = post.not ? `${datumtext(nyckel)} · ${post.not}` : datumtext(nyckel);
 
   return (
-    <div className="ops-contrast-panel flex items-start gap-2 rounded-xl bg-contrast-panel p-2.5 shadow-md">
+    <div
+      style={{ animationDelay: `${ordning * SVEPSTEG}ms` }}
+      className="ops-contrast-panel flex animate-svep items-start gap-2 rounded-xl bg-contrast-panel p-2.5 shadow-md"
+    >
       {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
           Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är rätt:
           en färg utan ord är inget besked. */}
@@ -289,13 +307,26 @@ function Postkort({ nyckel, post, statusOrd }) {
  *
  * Förebilden avgör det med en enda rad, `showSidePanel = !isPhone`:
  *
- *   TELEFON: en remsa längst ner, över rutnätet. Det finns ingen bredd att ta av.
- *   ALLT ANNAT: en egen kolumn BREDVID rutnätet, i flödet, 300 px från 768 px
- *   och 360 px från 1024 px. Där finns utrymmet, och då behöver ingenting läggas
- *   ovanpå något annat.
+ *   SMALT: en remsa längst ner, över rutnätet. Det finns ingen bredd att ta av.
+ *   BRETT: en egen kolumn BREDVID rutnätet, i flödet, 300 px från 1024 px och
+ *   360 px från 1280 px.
  *
- * Bredderna och brytpunkterna här är förebildens egna tal, inte omgissade:
- * `md` är 768 och `lg` är 1024, `w-75` är 300 px och `w-90` är 360 px.
+ * ⛔ GRÄNSEN GICK FÖRST VID 768 px, OCH DET KLÄMDE IHOP KALENDERN. CP
+ * 2026-09-22, med bild: "I web-vyn har du tryckt ihop kalendern. Se
+ * sessionstudio, bubblorna får utrymme till höger om panelen när skärmen ger
+ * tillåtelse."
+ *
+ * Räknat: en app-vy på 768 px har 736 px innanför sin sidomarginal. Drar man
+ * 300 px till en kolumn återstår 436 px åt sju dagsrutor, alltså 62 px styck.
+ * Det är smalare än träffytan de ska ha. Vid 1024 px blir samma räkning 99 px
+ * och vid 1280 px omkring 127 px, alltså först då finns utrymmet att ta av.
+ *
+ * ⛔ OCH DET ÄR FÖREBILDENS EGEN REGEL, inte en ny. `showSidePanel = !isPhone`
+ * är bara halva den: `showSplitChrome = !isPhone && isLandscape`, med
+ * kommentaren "iPad Chrome stående: samma «mobil»-chrome som telefon (kalender:
+ * dagpanel under rutnät)". En surfplatta i stående läge får alltså remsan, och
+ * en stående iPad är 768 till 834 px bred. 1024 px är den bredd där en
+ * surfplatta ligger ner.
  *
  * ⛔ KOLUMNEN RESERVERAS ÄVEN NÄR INGEN DAG ÄR VALD, och det följer av samma
  * rad: `showSidePanel` frågar efter skärmbredden, aldrig efter urvalet. Dök
@@ -337,11 +368,11 @@ function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
   return (
     <section
       aria-label={namn}
-      className="pointer-events-auto flex max-h-[45svh] w-full max-w-sm flex-col gap-2 overflow-y-auto overscroll-contain md:max-h-[70svh] md:max-w-none"
+      className="pointer-events-auto flex max-h-[45svh] w-full max-w-sm flex-col gap-2 overflow-y-auto overscroll-contain lg:max-h-[70svh] lg:max-w-none"
     >
       <div className="flex flex-wrap items-center gap-1.5">
-        {dagar.map((d) => (
-          <Datumpiller key={d.nyckel} nyckel={d.nyckel} kanTasBort={flera} onTaBort={onTaBort} />
+        {dagar.map((d, i) => (
+          <Datumpiller key={d.nyckel} nyckel={d.nyckel} kanTasBort={flera} onTaBort={onTaBort} ordning={i} />
         ))}
         {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad som
             stängs för den som lyssnar sig igenom sidan. */}
@@ -358,9 +389,18 @@ function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
         </button>
       </div>
 
-      {dagar.map((d) =>
-        d.poster.map((p) => (
-          <Postkort key={`${d.nyckel}-${p.id}`} nyckel={d.nyckel} post={p} statusOrd={statusOrd} />
+      {/* ⛔ TRAPPAN RÄKNAS ÖVER HELA PANELEN och inte per dag. Räknades den om
+          för varje dag skulle första kortet under varje datum svepa in
+          samtidigt, och det som ska läsas som en rörelse blir tre. */}
+      {dagar.flatMap((d, di) =>
+        d.poster.map((p, pi) => (
+          <Postkort
+            key={`${d.nyckel}-${p.id}`}
+            nyckel={d.nyckel}
+            post={p}
+            statusOrd={statusOrd}
+            ordning={dagar.length + dagar.slice(0, di).reduce((n, x) => n + x.poster.length, 0) + pi}
+          />
         )),
       )}
     </section>
@@ -537,7 +577,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
      * utom telefon finns bredd att lägga dagens poster BREDVID rutnätet, och då
      * behöver ingenting läggas ovanpå något annat.
      */
-    <section aria-label={ariaLabel} className="flex flex-col gap-4 md:flex-row md:items-start">
+    <section aria-label={ariaLabel} className="flex flex-col gap-4 lg:flex-row lg:items-start">
       <div className="relative min-w-0 flex-1">
       {/* ⛔ TAKET GÖR KALENDERN TILL SIN EGEN RULLE. Se filens huvud: utan det
           rullar sidan, veckodagsraden nyper under appens toppmeny och vägen
@@ -636,7 +676,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
                det man läser just då; Idag-knappen är ett hjälpmedel medan man
                rullar. Från 768 px bor panelen i egen kolumn och krocken finns
                inte. */
-            dagar.length > 0 ? "hidden md:flex" : "flex",
+            dagar.length > 0 ? "hidden lg:flex" : "flex",
           )}
         >
           <span aria-hidden="true">{riktning === "upp" ? "↑" : "↓"}</span>
@@ -660,7 +700,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
       <div
         className={cx(
           "pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] z-(--z-sticky) flex justify-center px-4",
-          "md:pointer-events-auto md:static md:z-auto md:block md:w-75 md:shrink-0 md:px-0 lg:w-90",
+          "lg:pointer-events-auto lg:static lg:z-auto lg:block lg:w-75 lg:shrink-0 lg:px-0 xl:w-90",
         )}
       >
         {/* ⛔ KRYSSET OCH ESCAPE TÖMMER HELA URVALET och inte den översta dagen.
@@ -680,7 +720,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
               rad om vad den är till för kostar ingenting. På telefon finns ingen
               kolumn att förklara, och en ruta längst ner som säger «tryck på en
               dag» hade legat i vägen för dagarna man ska trycka på. */
-          <p className="m-0 hidden rounded-md border border-dashed border-line p-3 text-sm text-ink-muted md:block">
+          <p className="m-0 hidden rounded-md border border-dashed border-line p-3 text-sm text-ink-muted lg:block">
             Tryck på en dag för att se vad som ligger där. Tryck på fler för att samla dem.
           </p>
         )}
