@@ -164,24 +164,91 @@ function Dagsruta({ dag, nyckel, poster, arIdag, vald, onValj }) {
 }
 
 /**
- * Dagens poster, i en flytande inverterad bubbla.
+ * En dags poster i bubblan, med sitt datum över sig när det behövs.
  *
  * ⛔ EN POST MED `url` BLIR EN LÄNK, resten blir text. En rad som ser tryckbar ut
  * och inte är det är ett löfte som inte infrias, och i en kalender över stängda
  * ärenden är länken hela poängen: man öppnar dagen för att komma vidare.
  *
- * ⛔ RUBRIKEN ÄR "12 oktober" OCH INTE "2026-10-12". Man trycker på en dag man
- * ser, alltså är året och månaden redan kända; rubriken bekräftar vilken ruta
- * man träffade. En maskinnyckel överst läses som ännu en post.
+ * ⛔ DATUMRUBRIKEN RITAS BARA NÄR FLERA DAGAR ÄR VALDA, och det är inte snålhet.
+ * Är EN dag vald står datumet redan i bubblans egen rubrik, och samma datum två
+ * gånger med tio pixlar emellan får läsaren att leta efter skillnaden. Är flera
+ * valda är datumet tvärtom det enda som skiljer posterna åt.
  *
- * ⛔ BUBBLAN HAR EGET TAK OCH EGEN RULLNING. En dag med tolv poster hade annars
- * växt ut ur fönstret uppåt, alltså åt det håll där det varken finns kant eller
- * kryss.
- *
- * @param {{ nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[], statusOrd: Record<string, string>, onStang: () => void }} props
+ * @param {{ nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[], statusOrd: Record<string, string>, visaDatum: boolean }} props
  */
-function Dagsbubbla({ nyckel, poster, statusOrd, onStang }) {
-  const rubrik = datumtext(nyckel);
+function Dagsgrupp({ nyckel, poster, statusOrd, visaDatum }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {visaDatum ? (
+        <h5 className="m-0 text-xs font-semibold uppercase tracking-wide text-ink-muted">{datumtext(nyckel)}</h5>
+      ) : null}
+      {poster.map((p) => (
+        <div key={p.id} className="flex items-baseline gap-2">
+          {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
+              Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är
+              rätt: en färg utan ord är inget besked. */}
+          {p.status ? (
+            <span className="shrink-0 translate-y-0.5">
+              <OpsStatusDot status={p.status} label={statusOrd[p.status] || ""} />
+            </span>
+          ) : null}
+          <span className="min-w-0">
+            {p.url ? (
+              <a
+                className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {p.titel}
+              </a>
+            ) : (
+              <span className="font-semibold text-ink">{p.titel}</span>
+            )}
+            {p.not ? <span className="block text-sm text-ink-secondary">{p.not}</span> : null}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * De valda dagarnas poster, i en flytande inverterad bubbla.
+ *
+ * ══ ⛔ FLERA DAGAR I SAMMA BUBBLA, INTE EN BUBBLA PER DAG ═══════════════
+ *
+ * CP 2026-09-22: "jag kan markera flera som gör listan i bubblorna scrollbar och
+ * datumen finns med på denna tryckt på."
+ *
+ * En bubbla per vald dag hade krävt att de staplas eller läggs bredvid varandra,
+ * alltså positionering och kollisionshantering, och på en telefon hade den andra
+ * täckt den första. EN bubbla som växer inuti sig själv har inget av det: den
+ * står på samma plats hur många dagar man än markerar.
+ *
+ * ⛔ RUBRIKEN BYTER FRÅGA MED ANTALET. En dag: "12 oktober", alltså vilken ruta
+ * man träffade. Flera: "3 dagar", alltså hur mycket man samlat, eftersom varje
+ * grupp då bär sitt eget datum längre ner och ett av tre datum i rubriken hade
+ * varit godtyckligt.
+ *
+ * ══ ⛔ LISTAN RULLAR, INTE BUBBLAN ═════════════════════════════════════
+ *
+ * Rubriken och krysset ligger UTANFÖR den rullande delen. Rullade hela bubblan
+ * skulle krysset rulla ur bild så fort man markerat fyra dagar, alltså skulle
+ * vägen ut försvinna precis när man börjat behöva den.
+ *
+ * ⛔ `min-h-0` PÅ LISTAN ÄR INTE PRYDNAD. En flexbarnnod vägrar krympa under sitt
+ * innehåll som standard, så utan den växer listan förbi bubblans tak och
+ * `overflow-y-auto` får aldrig något att göra: bubblan hade svällt ut ur fönstret
+ * i stället för att rulla.
+ *
+ * @param {{ dagar: { nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[] }[], statusOrd: Record<string, string>, onStang: () => void }} props
+ */
+function Dagsbubbla({ dagar, statusOrd, onStang }) {
+  const flera = dagar.length > 1;
+  const rubrik = flera ? `${dagar.length} dagar` : datumtext(dagar[0].nyckel);
+  const namn = flera ? `Poster för ${dagar.length} valda dagar` : `Poster den ${rubrik}`;
 
   /*
    * ⛔ ESCAPE STÄNGER, och den lyssnaren sitter på fönstret och inte på bubblan.
@@ -206,12 +273,14 @@ function Dagsbubbla({ nyckel, poster, statusOrd, onStang }) {
      */
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem)] z-(--z-sticky) flex justify-center px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
       <section
-        aria-label={`Poster den ${rubrik}`}
-        className="ops-contrast-panel pointer-events-auto flex max-h-[50svh] w-full max-w-sm flex-col gap-2 overflow-y-auto overscroll-contain rounded-3xl border border-line bg-contrast-panel py-3 pl-4 pr-3 shadow-lg"
+        aria-label={namn}
+        className="ops-contrast-panel pointer-events-auto flex max-h-[50svh] w-full max-w-sm flex-col rounded-3xl border border-line bg-contrast-panel py-3 pl-4 pr-3 shadow-lg"
       >
-        <div className="flex items-start gap-2">
+        {/* ⛔ RUBRIKRADEN LIGGER UTANFÖR RULLNINGEN, se doktexten: krysset får
+            inte rulla ur bild när man markerat fyra dagar. */}
+        <div className="flex shrink-0 items-start gap-2">
           <h4 className="m-0 flex-1 text-sm font-semibold text-ink">{rubrik}</h4>
-          {/* ⛔ KRYSSET BÄR DATUMET I SITT NAMN. "Stäng" ensamt säger inte vad
+          {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad
               som stängs för den som lyssnar sig igenom sidan. */}
           <button
             type="button"
@@ -228,33 +297,11 @@ function Dagsbubbla({ nyckel, poster, statusOrd, onStang }) {
           </button>
         </div>
 
-        {poster.map((p) => (
-          <div key={p.id} className="flex items-baseline gap-2">
-            {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
-                Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är
-                rätt: en färg utan ord är inget besked. */}
-            {p.status ? (
-              <span className="shrink-0 translate-y-0.5">
-                <OpsStatusDot status={p.status} label={statusOrd[p.status] || ""} />
-              </span>
-            ) : null}
-            <span className="min-w-0">
-              {p.url ? (
-                <a
-                  className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
-                  href={p.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {p.titel}
-                </a>
-              ) : (
-                <span className="font-semibold text-ink">{p.titel}</span>
-              )}
-              {p.not ? <span className="block text-sm text-ink-secondary">{p.not}</span> : null}
-            </span>
-          </div>
-        ))}
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain pt-2">
+          {dagar.map((d) => (
+            <Dagsgrupp key={d.nyckel} nyckel={d.nyckel} poster={d.poster} statusOrd={statusOrd} visaDatum={flera} />
+          ))}
+        </div>
       </section>
     </div>
   );
@@ -279,7 +326,17 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
 
   const nu = idag || new Date();
   const idagNyckel = idagsnyckel(nu);
-  const [vald, setVald] = useState(/** @type {string | null} */ (null));
+  /*
+   * ⛔ FLERA VALDA DAGAR, OCH DÄRFÖR EN LISTA OCH INTE ETT VÄRDE. CP 2026-09-22:
+   * "jag kan markera flera". Ett enda `vald` hade gjort varje nytt tryck till ett
+   * byte i stället för ett tillägg, alltså exakt det man inte vill när man
+   * jämför två dagar med varandra.
+   *
+   * ⛔ EN ARRAY OCH INTE ETT `Set`. React jämför med identitet, och ett `Set`
+   * som muteras på plats ger samma referens tillbaka, alltså ingen omrendering.
+   * Det felet ser ut som att knappen inte fungerar.
+   */
+  const [valda, setValda] = useState(/** @type {string[]} */ ([]));
 
   const karta = useMemo(() => perDag(poster), [poster]);
   const lista = useMemo(() => manader(nu, manaderBakat, manaderFramat), [nu, manaderBakat, manaderFramat]);
@@ -349,7 +406,26 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
   }, []);
 
   const harPoster = karta.size > 0;
-  const valdaPoster = vald ? karta.get(vald) || [] : [];
+
+  /*
+   * ⛔ SORTERAT PÅ DATUM OCH INTE PÅ TRYCKORDNING. Markerar man den 25:e och
+   * sedan den 12:e läser man ändå bubblan uppifrån och ner, och en lista i
+   * tryckordning hade visat oktober efter november utan att något sagt varför.
+   * Att en ren strängsortering RÄCKER är hela skälet till att nycklarna skrivs
+   * `YYYY-MM-DD` med två siffror.
+   *
+   * ⛔ DAGAR SOM BLIVIT TOMMA FALLER BORT. Filtreras posterna om medan bubblan
+   * är öppen kan en markerad dag bli tom, och en datumrubrik utan rader under
+   * ser ut som att något gick sönder.
+   */
+  const dagar = useMemo(
+    () =>
+      [...valda]
+        .sort()
+        .map((nyckel) => ({ nyckel, poster: karta.get(nyckel) || [] }))
+        .filter((d) => d.poster.length > 0),
+    [valda, karta],
+  );
 
   return (
     <section aria-label={ariaLabel} className="relative">
@@ -398,8 +474,10 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
                           nyckel={nyckel}
                           poster={dag === null ? [] : karta.get(nyckel) || []}
                           arIdag={nyckel === idagNyckel}
-                          vald={nyckel === vald}
-                          onValj={(n) => setVald((forra) => (forra === n ? null : n))}
+                          vald={valda.indexOf(nyckel) >= 0}
+                          onValj={(n) =>
+                            setValda((forra) => (forra.indexOf(n) >= 0 ? forra.filter((x) => x !== n) : [...forra, n]))
+                          }
                         />
                       );
                     }),
@@ -428,8 +506,12 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
         </button>
       ) : null}
 
-      {vald && valdaPoster.length > 0 ? (
-        <Dagsbubbla nyckel={vald} poster={valdaPoster} statusOrd={statusOrd} onStang={() => setVald(null)} />
+      {/* ⛔ KRYSSET OCH ESCAPE TÖMMER HELA URVALET och inte den översta dagen.
+          Bubblan är ETT objekt på skärmen, så en stängning som lämnade två av
+          tre dagar kvar hade sett ut som att knappen inte fungerade. Enskilda
+          dagar tas bort där de valdes, med ett andra tryck i rutnätet. */}
+      {dagar.length > 0 ? (
+        <Dagsbubbla dagar={dagar} statusOrd={statusOrd} onStang={() => setValda([])} />
       ) : null}
     </section>
   );
