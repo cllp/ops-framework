@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import {
   MANADSNAMN,
@@ -10,6 +10,7 @@ import {
   perDag,
   rullriktning,
 } from "../lib/kalender.js";
+import { ChevronNedIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 /**
@@ -260,39 +261,100 @@ function Datumpiller({ nyckel, kanTasBort, onTaBort, ordning }) {
  * @param {{ nyckel: string, post: import("../lib/kalender.js").Kalenderpost, statusOrd: Record<string, string>, ordning: number }} props
  */
 function Postkort({ nyckel, post, statusOrd, ordning }) {
+  const [oppen, setOppen] = useState(false);
+  const idBas = useId();
+  const panelId = `${idBas}-detaljer`;
+
   const meta = post.not ? `${datumtext(nyckel)} · ${post.not}` : datumtext(nyckel);
+
+  /*
+   * ⛔ CHEVRONEN FINNS BARA NÄR DET FINNS NÅGOT ATT FÄLLA UT. En pil som öppnar
+   * en tom ruta är ett löfte som inte infrias, och den som tryckt en gång utan
+   * att något hände slutar lita på de andra. Samma regel som `OpsEventList` har.
+   */
+  const statusord = post.status ? statusOrd[post.status] : "";
+  const harDetaljer = Boolean(statusord || post.url || post.detaljer);
 
   return (
     <div
       style={{ animationDelay: `${ordning * SVEPSTEG}ms` }}
-      className="ops-contrast-panel flex animate-svep items-start gap-2 rounded-xl bg-contrast-panel p-2.5 shadow-md"
+      className="ops-contrast-panel animate-svep rounded-xl bg-contrast-panel p-2.5 shadow-md"
     >
-      {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
-          Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är rätt:
-          en färg utan ord är inget besked. */}
-      {post.status ? (
-        <span className="mt-1 shrink-0">
-          <OpsStatusDot status={post.status} label={statusOrd[post.status] || ""} />
-        </span>
-      ) : null}
-      <div className="min-w-0 flex-1">
-        {/* ⛔ EN POST MED `url` BLIR EN LÄNK, resten blir text. En rad som ser
-            tryckbar ut och inte är det är ett löfte som inte infrias, och i en
-            kalender över stängda ärenden är länken hela poängen. */}
-        {post.url ? (
-          <a
-            className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
-            href={post.url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {post.titel}
-          </a>
-        ) : (
+      <div className="flex items-start gap-2">
+        {/* ⛔ PRICKEN STÅR KVAR I DEN IHOPFÄLLDA RADEN. Den svarar på frågan man
+            ställer när man SKUMMAR panelen, alltså innan man öppnat något; ordet
+            bredvid den finns i utfällningen, där det får plats. Samma
+            arbetsdelning som `OpsEventList` gör. */}
+        {post.status ? (
+          <span className="mt-1 shrink-0">
+            <OpsStatusDot status={post.status} label={statusord || ""} />
+          </span>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          {/* ⛔ TITELN ÄR TEXT OCH INTE LÄNGRE EN LÄNK. CP 2026-09-22: "man vill
+              kunna se status och länk (issue) där också om det finns", alltså i
+              utfällningen. Låg länken kvar på titeln VOCH i utfällningen vore det
+              samma adress två gånger på samma kort, och det är precis dubbletten
+              som togs bort ur navet samma dag.
+              ⛔ Det kostar ett tryck till för ett stängt ärende, och det är en
+              medveten avvägning: kortet blir läsbart som en rad, och adressen
+              står där den kan bära sitt eget ord. */}
           <span className="font-semibold text-ink">{post.titel}</span>
-        )}
-        <p className="m-0 text-xs text-ink-secondary">{meta}</p>
+          <p className="m-0 text-xs text-ink-secondary">{meta}</p>
+        </div>
+
+        {harDetaljer ? (
+          <button
+            type="button"
+            onClick={() => setOppen((f) => !f)}
+            aria-expanded={oppen}
+            aria-controls={panelId}
+            className={cx(
+              "-mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
+              "transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
+              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+            )}
+          >
+            <span className="sr-only">Visa detaljer för {post.titel}</span>
+            <span
+              aria-hidden="true"
+              className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}
+            >
+              <ChevronNedIkon size={16} />
+            </span>
+          </button>
+        ) : null}
       </div>
+
+      {harDetaljer ? (
+        <div id={panelId} hidden={!oppen} className="mt-2 flex flex-col gap-1 border-t border-line pt-2 text-sm">
+          {/* ⛔ STATUS SOM ORD, inte som färg. Pricken ovanför är samma faktum
+              för den som ser den; här står det så det går att läsa upp. */}
+          {statusord ? (
+            <p className="m-0 text-ink-secondary">
+              Status: <span className="font-semibold text-ink">{statusord}</span>
+            </p>
+          ) : null}
+          {post.url ? (
+            /* ⛔ TITELN I `aria-label` OCH INTE SOM EN `sr-only`-text bredvid.
+               Tio kort får annars tio identiska "Öppna" upplästa, vilket var
+               skälet till att titeln ska med. Men en osynlig textnod med samma
+               ord som rubriken gör att varje sökning efter titeln träffar TVÅ
+               noder, och det slog ut två prov direkt. `aria-label` ger samma
+               upplästa namn utan att lägga en andra kopia i dokumentet. */
+            <a
+              className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
+              href={post.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${post.urlLabel || "Öppna"} ${post.titel}`}
+            >
+              {post.urlLabel || "Öppna"}
+            </a>
+          ) : null}
+          {post.detaljer}
+        </div>
+      ) : null}
     </div>
   );
 }

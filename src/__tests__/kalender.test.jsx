@@ -518,112 +518,60 @@ describe("OpsKalender", () => {
     expect(screen.getByRole("button", { name: "12, 2 poster" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("gör en post med url till en länk och resten till text", () => {
+  it("fäller ut status som ORD och länken, bakom en chevron", () => {
     /*
-     * ⛔ LÄNKEN ÄR HELA POÄNGEN för ett stängt ärende: man öppnar dagen för att
-     * komma vidare. En rad som ser tryckbar ut och inte är det är ett löfte som
-     * inte infrias, så posterna utan url är text.
+     * ⛔ CP 2026-09-22: "Låt varje bubbla vara expanderbar så att man kan fälla
+     * ut detaljer. Vidare vill man kunna se status och länk (issue) där också om
+     * det finns."
+     *
+     * ⛔ STATUS FINNS PÅ TVÅ NIVÅER OCH DET ÄR AVSIKTLIGT. Pricken i den
+     * ihopfällda raden svarar på frågan man ställer när man SKUMMAR panelen;
+     * ORDET står i utfällningen, där det får plats. Samma arbetsdelning som
+     * `OpsEventList` gör mellan pricken på raden och Status i panelen.
+     *
+     * ⛔ LÄNKEN FLYTTADE FRÅN TITELN HIT. Låg den kvar på båda vore det samma
+     * adress två gånger på samma kort. Det kostar ett tryck till för ett stängt
+     * ärende, och det är den avvägning CP:s formulering gör.
      */
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
 
-    expect(screen.getByRole("link", { name: "#249 stängdes" })).toHaveAttribute(
+    // Ihopfälld: titeln är text, inte en länk.
+    expect(screen.queryByRole("link", { name: /#249 stängdes/ })).toBeNull();
+
+    const chevron = screen.getByRole("button", { name: "Visa detaljer för #249 stängdes" });
+    fireEvent.click(chevron);
+
+    /*
+     * ⛔ LÄST INNE I UTFÄLLNINGEN, via `aria-controls`. Ordet "Klart" står också
+     * i statusprickens eget upplästa namn i raden ovanför, så ett osagt
+     * `getByText` träffade två noder. Att provet blir rött på två träffar är
+     * rött av fel anledning: det säger inget om utfällningen.
+     */
+    const panelen = document.getElementById(chevron.getAttribute("aria-controls"));
+    expect(panelen).not.toBeNull();
+    expect(panelen.hidden).toBe(false);
+    expect(within(panelen).getByRole("link", { name: "Öppna #249 stängdes" })).toHaveAttribute(
       "href",
       "https://github.com/cllp/bolag-ops/issues/249",
     );
-    expect(screen.queryByRole("link", { name: "Arbetsgivardeklaration" })).toBeNull();
+    expect(within(panelen).getByText("Klart")).toBeInTheDocument();
   });
 
-  it("låter rullytan gå ända ner i stället för att sluta på ett påhittat tak", () => {
+  it("ger ingen chevron åt ett kort utan något att fälla ut", () => {
     /*
-     * ⛔ CP 2026-09-22, med bild: "Börja med att ta bort botten och låt den gå
-     * ända ner."
-     *
-     * Taket var `max-h-[60svh]`, ett tal taget ur luften, och bilden visade
-     * följden: rutnätet slutade en bit ner på skärmen med en ram under sig och
-     * en stor tom yta därefter. Man rullade i en lucka mitt på en sida som mest
-     * bestod av ingenting.
-     *
-     * ⛔ TVÅ SAKER MÄTS, OCH BÅDA BEHÖVS. Höjden räknas ur fönstret minus det
-     * MÄTTA avståndet till rullytans överkant, och ramen är borta. En höjd utan
-     * mätning hade varit ett nytt påhittat tal, och en mätning som inte når CSS
-     * hade inte kunnat ha en brytpunkt: en inline-stil kan inte ha en
-     * media-fråga, så mätningen går in som en variabel och räkningen sker i
-     * klassen.
-     *
-     * ⛔ VAD PROVET INTE BEVISAR: att rutnätet faktiskt når skärmens underkant.
-     * jsdom har ingen layout, alla rektanglar är noll. Det som mäts är att
-     * variabeln sätts, att höjden räknas ur den, att bottenraden dras bort på
-     * telefon men inte från 768 px, och att ramen är borta.
+     * ⛔ EN PIL SOM ÖPPNAR EN TOM RUTA ÄR ETT LÖFTE SOM INTE INFRIAS, och den som
+     * tryckt en gång utan att något hände slutar lita på de andra. Samma regel
+     * som `OpsEventList` har om sin chevronkolumn.
      */
-    rendera();
-    const rulle = rullbehallaren();
+    rendera({
+      poster: [{ id: "naken", datum: "2026-10-12", titel: "Utan status och utan länk" }],
+      statusOrd: {},
+    });
+    fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }));
 
-    expect(rulle.style.getPropertyValue("--kalender-topp")).toBe("0px");
-    expect(rulle.className).toContain("h-[calc(100svh_-_var(--kalender-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom))]");
-    expect(rulle.className).toContain("md:h-[calc(100svh_-_var(--kalender-topp)_-_var(--safe-bottom))]");
-    // ⛔ Inget tak kvar, och ingen ram under.
-    expect(rulle.className).not.toContain("max-h-");
-    expect(rulle.className).not.toContain("border");
-  });
-
-  it("låter Idag-knappen vika för dagspanelen på telefon, men inte på bred skärm", () => {
-    /*
-     * ⛔ EN KROCK SOM DEN NYA HÖJDEN SKAPADE. Sedan rullytan går ända ner bottnar
-     * knappen och panelen på samma linje, och två flytande kontroller ovanpå
-     * varandra i underkanten är en av dem man inte kommer åt.
-     *
-     * Panelen är det man läser just då; Idag-knappen är ett hjälpmedel medan man
-     * rullar. Från 768 px bor panelen i egen kolumn och krocken finns inte, så
-     * knappen ska stå kvar där.
-     *
-     * ⛔ KNAPPEN MÅSTE FINNAS FÖR ATT PROVET SKA SÄGA NÅGOT, och den dyker upp
-     * först när idag rullat ur bild. jsdom kör ingen `IntersectionObserver`, så
-     * den ställs in här: utan det hade provet varit grönt för att knappen
-     * saknades, inte för att den vek.
-     */
-    const aterstall = visaIdagknappen();
-    try {
-      rendera();
-      const knappen = () => screen.getByRole("button", { name: /Idag$/ });
-
-      // Utan panel: synlig på alla bredder, alltså varken dold eller villkorad.
-      expect(knappen().className).not.toContain("hidden");
-      expect(knappen().className).not.toContain("lg:flex");
-
-      fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
-      expect(knappen().className).toContain("hidden");
-      expect(knappen().className).toContain("lg:flex");
-    } finally {
-      aterstall();
-    }
-  });
-
-  it("sveper in pillren och korten i en trappa, inte allt på en gång", () => {
-    /*
-     * ⛔ CP 2026-09-22: "Alla bubblor både i kalendern och Översikt får en
-     * snabbt svepande känsla in så att den är lite animerad."
-     *
-     * ⛔ TRAPPAN RÄKNAS ÖVER HELA PANELEN och inte per dag. Räknades den om för
-     * varje dag skulle första kortet under varje datum svepa in samtidigt, och
-     * det som ska läsas som EN rörelse blir tre.
-     *
-     * Med två dagar valda: två piller (0 ms, 40 ms) och sedan tre kort
-     * (80, 120, 160 ms). Provet läser fördröjningarna i dokumentordning, alltså
-     * exakt den kedja ögat ser.
-     *
-     * ⛔ VAD PROVET INTE BEVISAR: att det ser bra ut, eller att rörelsen körs.
-     * jsdom animerar ingenting. Det som mäts är att varje bubbla bär klassen och
-     * att trappan räknas över panelen och inte börjar om.
-     */
-    rendera();
-    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
-    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
-
-    const panelen = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
-    const svepande = [...panelen.querySelectorAll(".animate-svep")];
-    expect(svepande.length).toBe(5);
-    expect(svepande.map((n) => n.style.animationDelay)).toEqual(["0ms", "40ms", "80ms", "120ms", "160ms"]);
+    expect(screen.getByText("Utan status och utan länk")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Visa detaljer/ })).toBeNull();
   });
 
   it("kastar utan namn i stället för att rita ett stumt rutnät", () => {
