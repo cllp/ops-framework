@@ -191,3 +191,36 @@ export function datumtext(nyckel) {
   if (manad < 0 || manad > 11) return nyckel;
   return `${Number(traff[3])} ${MANADSNAMN[manad]}`;
 }
+
+/**
+ * Åt vilket håll man ska rulla för att nå ett element som lämnat rutan.
+ *
+ * ══ ⛔ VARFÖR DET HÄR ÄR EN FUNKTION OCH INTE TVÅ RADER I EN OBSERVATÖR ══
+ *
+ * CP 2026-09-22, med bild: "Idag-bubblan för att komma tillbaka till idag visar
+ * alltid ner-pil. När idag är uppåt skall pilen gå uppåt."
+ *
+ * Den gamla raden jämförde elementets NEDERKANT med rutans överkant. Det låter
+ * rätt och är fel i praktiken, för `IntersectionObserver` skickar sitt svar i
+ * samma ögonblick som elementet KORSAR tröskeln, alltså när nederkanten ligger
+ * på ungefär samma pixel som rutans överkant. En bråkdels pixel åt fel håll,
+ * och jämförelsen svarar "under" fast månaden just försvann uppåt. Därför pekade
+ * pilen nedåt så gott som alltid.
+ *
+ * ⛔ ÖVERKANT MOT ÖVERKANT I STÄLLET. Den jämförelsen är inte hårfin: har
+ * månaden lämnat uppåt ligger dess överkant en hel månadshöjd ovanför rutans,
+ * och har den lämnat nedåt ligger den långt under. Det finns ingen situation där
+ * de två är nära varandra och elementet ändå är ur bild.
+ *
+ * ⛔ REN FUNKTION, FÖR ATT DEN SKA GÅ ATT PROVA. jsdom har ingen
+ * `IntersectionObserver` och ingen layout, så beslutet går inte att nå genom att
+ * rendera något. Som funktion är det två tal in och ett ord ut.
+ *
+ * @param {{ top: number }} elementet Elementets rektangel.
+ * @param {{ top: number } | null} rutan Rullbehållarens rektangel, eller null.
+ * @returns {"upp" | "ner"} "upp" = rulla uppåt för att nå det.
+ */
+export function rullriktning(elementet, rutan) {
+  const rutansTopp = rutan ? rutan.top : 0;
+  return elementet.top < rutansTopp ? "upp" : "ner";
+}
