@@ -36,6 +36,26 @@ import { BockIkon, ChevronNedIkon } from "./icons.jsx";
  * ⛔ Antalet segment är två eller tre. Fler och orden blir för korta för att
  * betyda något, och då är det en flikrad eller en dropdown man vill ha.
  *
+ * ── ⛔ ETT SEGMENT KAN VARA EN IKON I STÄLLET FÖR ETT ORD ─────────────────
+ *
+ * CP 2026-09-22, med bild: "Låt lista och kalender vara två ikoner som man
+ * togglar, så det blir en dublett på idag/kommande."
+ *
+ * På Idag stod två väljare under varandra, båda breda pillerspår med ord i:
+ * Idag/Kommande överst och Lista/Kalender under. Två identiska former i rad
+ * läses som samma kontroll två gånger, och den nedre åt dessutom så mycket
+ * bredd att rubriken bredvid kapades till "3 kräver dig ...".
+ *
+ * Med `icon` på ett segment ritas ikonen i stället för ordet. ORDET FÖRSVINNER
+ * INTE, det blir skärmläsartext: en ikon utan namn är en knapp som inte går att
+ * höra, och `label` är därför lika obligatorisk som förut.
+ *
+ * ⛔ ANTINGEN ALLA SEGMENT ELLER INGET, och komponenten kastar annars. En rad
+ * med en ikon bredvid ett ord ser ut som ett fel, och den som läser vet inte om
+ * ikonen betyder något extra. Det är samma slags regel som `atgardsforklaring`
+ * i `OpsEventList`: en yta där hälften av elementen bär något de andra saknar
+ * lär läsaren att gissa.
+ *
  * ── ⛔ VALFRI UNDERMENY (SessionStudio Idag | Tidigare) ───────────────────
  *
  * Ett segment kan bära `menu` med underlägen. Chevron syns bara när segmentet
@@ -51,6 +71,7 @@ import { BockIkon, ChevronNedIkon } from "./icons.jsx";
  * @param {{
  *   value: T,
  *   label: string,
+ *   icon?: import("react").ReactNode,
  *   badge?: number,
  *   menu?: { items: { value: T, label: string, icon?: import("react").ReactNode }[] },
  * }[]} props.options Två eller tre lägen.
@@ -64,6 +85,20 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
       `OpsSegmented: två eller tre lägen, inte ${Array.isArray(options) ? options.length : "inget"}. Fler lägen gör orden för korta för att betyda något, och då är det OpsTabs eller OpsSelect du vill ha.`,
     );
   }
+
+  /*
+   * ⛔ ANTINGEN ALLA SEGMENT MED IKON ELLER INGET. En rad med en ikon bredvid
+   * ett ord ser ut som ett fel, och läsaren vet inte om ikonen betyder något
+   * extra. En tyst nedsläppsväg hade varit sämre än felet: den hade ritat den
+   * blandade raden och ingen hade sett det förrän på en skärmbild.
+   */
+  const medIkon = options.filter((o) => Boolean(o.icon)).length;
+  if (medIkon > 0 && medIkon < options.length) {
+    throw new Error(
+      `OpsSegmented: ${medIkon} av ${options.length} lägen har icon. Antingen alla eller inget: en rad med en ikon bredvid ett ord ser ut som ett fel, och den som läser vet inte om ikonen betyder något extra.`,
+    );
+  }
+  const baraIkoner = medIkon > 0;
 
   const [menyFor, setMenyFor] = useState(/** @type {string | null} */ (null));
 
@@ -95,13 +130,30 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
               }
             }}
             className={cx(
-              "inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-5 py-2 text-sm font-medium",
+              "inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full py-2 text-sm font-medium",
               "transition-all duration-(--duration-fast) ease-standard",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              // ⛔ Ikonsegmentet är kvadratiskt och inte ett smalare piller.
+              // `px-5` runt en 16 px ikon ger en yta som är bredare än hög och
+              // läses som ett ord som råkat sakna text.
+              baraIkoner ? "justify-center px-2.5" : "px-5",
               valt ? "bg-ink text-canvas shadow-sm" : "text-ink-muted hover:text-ink-secondary",
             )}
           >
-            {etikett}
+            {/* ⛔ IKONEN ERSÄTTER ORDET PÅ SKÄRMEN, men inte för den som lyssnar:
+                `sr-only` behåller namnet. En ikon utan namn är en knapp som inte
+                går att höra, och två sådana bredvid varandra är ett val man inte
+                kan göra. */}
+            {o.icon ? (
+              <>
+                <span aria-hidden="true" className="flex items-center">
+                  {o.icon}
+                </span>
+                <span className="sr-only">{etikett}</span>
+              </>
+            ) : (
+              etikett
+            )}
             {typeof o.badge === "number" && o.badge > 0 ? (
               // ⛔ Siffran står INNE i segmentet och inte som en cirkel ovanpå.
               // En påhängd badge på ett valt, fyllt segment får två bakgrunder

@@ -472,20 +472,27 @@ describe("OpsKalender", () => {
      * under fingret, och nästa tryck landa på fel dag. Det är exakt det fel
      * utfällningen under månaden en gång hade, fast i sidled.
      *
-     * Bredderna är förebildens egna: 300 px från 768, 360 px från 1024.
+     * ⛔ GRÄNSEN GÅR VID 1024 px OCH INTE 768, och det är CP:s andra rättelse:
+     * "I web-vyn har du tryckt ihop kalendern." Räknat: en app-vy på 768 px har
+     * 736 px innanför sidomarginalen, och drar man 300 px till en kolumn
+     * återstår 62 px per dagsruta. Vid 1024 blir samma räkning 99 px.
+     *
+     * Det är dessutom förebildens egen regel: `showSplitChrome = !isPhone &&
+     * isLandscape`, med kommentaren att en stående iPad får samma krom som en
+     * telefon. En stående iPad är 768 till 834 px bred.
      */
     rendera();
     expect(screen.queryByRole("region", { name: /^Poster/ })).toBeNull();
 
     const hint = screen.getByText(/Tryck på en dag/);
     const kolumnen = hint.parentElement;
-    expect(kolumnen.className).toContain("md:w-75");
-    expect(kolumnen.className).toContain("lg:w-90");
+    expect(kolumnen.className).toContain("lg:w-75");
+    expect(kolumnen.className).toContain("xl:w-90");
     // ⛔ Raden syns BARA på breda skärmar. På telefon finns ingen kolumn att
     // förklara, och en ruta längst ner hade legat i vägen för dagarna man ska
     // trycka på.
     expect(hint.className).toContain("hidden");
-    expect(hint.className).toContain("md:block");
+    expect(hint.className).toContain("lg:block");
   });
 
   it("tömmer hela urvalet på krysset, och en dag i taget i rutnätet", () => {
@@ -582,14 +589,41 @@ describe("OpsKalender", () => {
 
       // Utan panel: synlig på alla bredder, alltså varken dold eller villkorad.
       expect(knappen().className).not.toContain("hidden");
-      expect(knappen().className).not.toContain("md:flex");
+      expect(knappen().className).not.toContain("lg:flex");
 
       fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
       expect(knappen().className).toContain("hidden");
-      expect(knappen().className).toContain("md:flex");
+      expect(knappen().className).toContain("lg:flex");
     } finally {
       aterstall();
     }
+  });
+
+  it("sveper in pillren och korten i en trappa, inte allt på en gång", () => {
+    /*
+     * ⛔ CP 2026-09-22: "Alla bubblor både i kalendern och Översikt får en
+     * snabbt svepande känsla in så att den är lite animerad."
+     *
+     * ⛔ TRAPPAN RÄKNAS ÖVER HELA PANELEN och inte per dag. Räknades den om för
+     * varje dag skulle första kortet under varje datum svepa in samtidigt, och
+     * det som ska läsas som EN rörelse blir tre.
+     *
+     * Med två dagar valda: två piller (0 ms, 40 ms) och sedan tre kort
+     * (80, 120, 160 ms). Provet läser fördröjningarna i dokumentordning, alltså
+     * exakt den kedja ögat ser.
+     *
+     * ⛔ VAD PROVET INTE BEVISAR: att det ser bra ut, eller att rörelsen körs.
+     * jsdom animerar ingenting. Det som mäts är att varje bubbla bär klassen och
+     * att trappan räknas över panelen och inte börjar om.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+
+    const panelen = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
+    const svepande = [...panelen.querySelectorAll(".animate-svep")];
+    expect(svepande.length).toBe(5);
+    expect(svepande.map((n) => n.style.animationDelay)).toEqual(["0ms", "40ms", "80ms", "120ms", "160ms"]);
   });
 
   it("kastar utan namn i stället för att rita ett stumt rutnät", () => {

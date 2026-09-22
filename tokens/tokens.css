@@ -374,6 +374,45 @@
     }
   }
 
+  /* ─── Svep ───────────────────────────────────────────────────────────────
+   * En bubbla som dyker upp gör det med ett kort svep, inte genom att bara
+   * finnas där nästa bildruta.
+   *
+   * CP 2026-09-22: "Alla bubblor både i kalendern och Översikt får en snabbt
+   * svepande känsla in så att den är lite animerad, det ger en behaglig känsla."
+   *
+   * ⛔ TIDEN OCH TRAPPAN ÄR AVLÄSTA UR FÖREBILDEN, inte valda. SessionStudios
+   * dagspanel animerar sina datumpiller med `popIn 180ms ease-out ${idx * 40}ms
+   * both`, och sin bredare variant med 200ms. 180 ms är dessutom exakt vårt
+   * `--duration-base`, så talet fanns redan i kontraktet.
+   *
+   * ⛔ RÖRELSEN ÄR INTE DERAS. Förebildens `popIn` går från `scale(0.6)`, vilket
+   * fungerar på ett piller som är 60 px brett och blir en zoom på en panel som
+   * är 360. Vår går från `scale(0.96)` plus åtta pixlar nedifrån: samma korthet,
+   * men det läses som ett svep in i stället för att något förstoras.
+   *
+   * ⛔ `both` FYLLER ÅT BÅDA HÅLL, och det är hela poängen med trappan. Utan den
+   * är elementet fullt synligt under sin fördröjning och poppar först därefter,
+   * alltså syns det först och animeras sedan.
+   *
+   * ⛔ FÖR DEN SOM BETT OM MINDRE RÖRELSE ÄR DEN BORTA HELT, till skillnad från
+   * snurren ovan. Skillnaden är vad rörelsen BÄR: snurren är själva beskedet att
+   * något pågår, och utan den står en ring stilla och ser trasig ut. Svepet bär
+   * ingenting, det är trevligt. Det som är trevligt tas bort först.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --animate-svep: ops-svep var(--duration-base) ease-out both;
+
+  @keyframes ops-svep {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /* ─── Logotyp ────────────────────────────────────────────────────────────
    * PH.ST-märket, som en bild-token precis som en färg är en färg-token.
    *
@@ -812,6 +851,18 @@
  * ska förbli litet nog att läsa i sin helhet. Skiktordningen gör också att en
  * verktygsklass på samma element fortfarande vinner, vilket är rätt håll.
  */
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * ⛔ SVEPET BORT, HELT. Variabeln skrivs om i stället för att klassen tas
+   * bort, så allt som använder `animate-svep` följer med utan att veta om det.
+   * `none` betyder att elementet ritas färdigt direkt, vilket är rätt: svepet
+   * bär ingen information, det är bara behagligt.
+   */
+  :root {
+    --animate-svep: none;
+  }
+}
+
 @layer components {
   /*
    * Inverterad panel: soft charcoal på ljus sida, varmt papper på mörk.
