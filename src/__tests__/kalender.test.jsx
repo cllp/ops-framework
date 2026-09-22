@@ -163,6 +163,38 @@ function rullbehallaren() {
   return rulle;
 }
 
+/**
+ * Ställer in en `IntersectionObserver` som säger "inte synlig", och lämnar
+ * tillbaka en återställare.
+ *
+ * ⛔ JSDOM HAR INGEN, så `OpsKalender` hoppar över observatören helt och
+ * Idag-knappen dyker aldrig upp. Ett prov om knappen hade då varit grönt för att
+ * den saknades, vilket är den sämsta sortens grönt.
+ *
+ * ⛔ ÅTERSTÄLLAREN LÄMNAS TILLBAKA i stället för att registreras som en
+ * `afterEach` här inne. En hook som registreras inifrån ett prov hör till hela
+ * sviten, alltså skulle den läcka ut över prov som aldrig bett om den.
+ */
+function visaIdagknappen() {
+  const riktig = globalThis.IntersectionObserver;
+  globalThis.IntersectionObserver = class {
+    /** @param {(poster: any[]) => void} vidTraff */
+    constructor(vidTraff) {
+      this.vidTraff = vidTraff;
+    }
+    observe() {
+      this.vidTraff([
+        { isIntersecting: false, boundingClientRect: { top: -400, bottom: -10 }, rootBounds: { top: 0 } },
+      ]);
+    }
+    unobserve() {}
+    disconnect() {}
+  };
+  return () => {
+    globalThis.IntersectionObserver = riktig;
+  };
+}
+
 function rendera(extra = {}) {
   return render(
     <OpsKalender poster={POSTER} ariaLabel="Kalender" idag={IDAG} statusOrd={STATUSORD} {...extra} />,
@@ -493,6 +525,71 @@ describe("OpsKalender", () => {
       "https://github.com/cllp/bolag-ops/issues/249",
     );
     expect(screen.queryByRole("link", { name: "Arbetsgivardeklaration" })).toBeNull();
+  });
+
+  it("låter rullytan gå ända ner i stället för att sluta på ett påhittat tak", () => {
+    /*
+     * ⛔ CP 2026-09-22, med bild: "Börja med att ta bort botten och låt den gå
+     * ända ner."
+     *
+     * Taket var `max-h-[60svh]`, ett tal taget ur luften, och bilden visade
+     * följden: rutnätet slutade en bit ner på skärmen med en ram under sig och
+     * en stor tom yta därefter. Man rullade i en lucka mitt på en sida som mest
+     * bestod av ingenting.
+     *
+     * ⛔ TVÅ SAKER MÄTS, OCH BÅDA BEHÖVS. Höjden räknas ur fönstret minus det
+     * MÄTTA avståndet till rullytans överkant, och ramen är borta. En höjd utan
+     * mätning hade varit ett nytt påhittat tal, och en mätning som inte når CSS
+     * hade inte kunnat ha en brytpunkt: en inline-stil kan inte ha en
+     * media-fråga, så mätningen går in som en variabel och räkningen sker i
+     * klassen.
+     *
+     * ⛔ VAD PROVET INTE BEVISAR: att rutnätet faktiskt når skärmens underkant.
+     * jsdom har ingen layout, alla rektanglar är noll. Det som mäts är att
+     * variabeln sätts, att höjden räknas ur den, att bottenraden dras bort på
+     * telefon men inte från 768 px, och att ramen är borta.
+     */
+    rendera();
+    const rulle = rullbehallaren();
+
+    expect(rulle.style.getPropertyValue("--kalender-topp")).toBe("0px");
+    expect(rulle.className).toContain("h-[calc(100svh_-_var(--kalender-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom))]");
+    expect(rulle.className).toContain("md:h-[calc(100svh_-_var(--kalender-topp)_-_var(--safe-bottom))]");
+    // ⛔ Inget tak kvar, och ingen ram under.
+    expect(rulle.className).not.toContain("max-h-");
+    expect(rulle.className).not.toContain("border");
+  });
+
+  it("låter Idag-knappen vika för dagspanelen på telefon, men inte på bred skärm", () => {
+    /*
+     * ⛔ EN KROCK SOM DEN NYA HÖJDEN SKAPADE. Sedan rullytan går ända ner bottnar
+     * knappen och panelen på samma linje, och två flytande kontroller ovanpå
+     * varandra i underkanten är en av dem man inte kommer åt.
+     *
+     * Panelen är det man läser just då; Idag-knappen är ett hjälpmedel medan man
+     * rullar. Från 768 px bor panelen i egen kolumn och krocken finns inte, så
+     * knappen ska stå kvar där.
+     *
+     * ⛔ KNAPPEN MÅSTE FINNAS FÖR ATT PROVET SKA SÄGA NÅGOT, och den dyker upp
+     * först när idag rullat ur bild. jsdom kör ingen `IntersectionObserver`, så
+     * den ställs in här: utan det hade provet varit grönt för att knappen
+     * saknades, inte för att den vek.
+     */
+    const aterstall = visaIdagknappen();
+    try {
+      rendera();
+      const knappen = () => screen.getByRole("button", { name: /Idag$/ });
+
+      // Utan panel: synlig på alla bredder, alltså varken dold eller villkorad.
+      expect(knappen().className).not.toContain("hidden");
+      expect(knappen().className).not.toContain("md:flex");
+
+      fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+      expect(knappen().className).toContain("hidden");
+      expect(knappen().className).toContain("md:flex");
+    } finally {
+      aterstall();
+    }
   });
 
   it("kastar utan namn i stället för att rita ett stumt rutnät", () => {
