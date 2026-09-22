@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
+import { FULLHOJD_KLASSER, useFullHojd } from "../lib/fullhojd.js";
 import {
   MANADSNAMN,
   datumnyckel,
@@ -546,46 +547,12 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
   }, [tillIdag]);
 
   /*
-   * ══ ⛔ RULLYTAN GÅR HELA VÄGEN NER, OCH DÄRFÖR MÄTS DEN ════════════════
-   *
-   * CP 2026-09-22, med bild: "Börja med att ta bort botten och låt den gå ända
-   * ner."
-   *
-   * Taket var `max-h-[60svh]`, ett tal taget ur luften. Följden syns på bilden:
-   * rutnätet tar slut en bit ner på skärmen, med en ram under sig och en stor
-   * tom yta därefter. Man rullar alltså i en liten lucka mitt på en sida som
-   * mest består av ingenting.
-   *
-   * Förebilden har varken tak eller ram. Dess rullyta är `flex-1 min-h-0
-   * overflow-y-auto`, alltså "ta resten av höjden", för den bor i en kolumn med
-   * känd höjd. Här gör den inte det: kalendern sitter mitt i en sida som skalet
-   * rullar, så det finns ingen förälder att ta resten av.
-   *
-   * ⛔ DÄRFÖR MÄTS AVSTÅNDET TILL FÖNSTRETS ÖVERKANT, en gång, och läggs i en
-   * CSS-variabel. Höjden räknas sedan i CSS, vilket är det enda sättet att få
-   * BÅDE en mätning och en brytpunkt: en inline-stil kan inte ha en media-fråga,
-   * och en klass kan inte veta var elementet hamnade.
-   *
-   * ⛔ DOKUMENTETS OFFSET OCH INTE RUTANS. `getBoundingClientRect().top` ensamt
-   * är avståndet till fönstrets överkant PRECIS NU, alltså ett annat tal så fort
-   * sidan rullats. Med `scrollY` adderat blir det avståndet vid sidans topp, och
-   * det är ett fast tal som inte ruttnar.
-   *
-   * ⛔ OMMÄTS VID RESIZE, alltså också när telefonen vrids. Utan det blir höjden
-   * kvar från stående läge i liggande, och då sticker rutnätet ut under skärmen.
+   * ⛔ HÖJDEN KOMMER UR `useFullHojd`, inte ur tjugo rader här. Skälet till att
+   * den mäts i stället för att sättas står i hooken; skälet till att den bor där
+   * och inte här är att listan behövde samma sak (CP 2026-09-22), och två kopior
+   * hade glidit isär första gången någon rättade den ena.
    */
-  const [topp, setTopp] = useState(0);
-  useEffect(() => {
-    const el = rulleRef.current;
-    if (!el) return undefined;
-    const mat = () => {
-      const rect = el.getBoundingClientRect();
-      setTopp(Math.max(0, Math.round(rect.top + (window.scrollY || 0))));
-    };
-    mat();
-    window.addEventListener("resize", mat);
-    return () => window.removeEventListener("resize", mat);
-  }, []);
+  const fullhojd = useFullHojd(rulleRef);
 
   useEffect(() => {
     const el = idagRef.current;
@@ -650,27 +617,14 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
           här klassen räknas de mot sidan och rullningen landar fel. */}
       <div
         ref={rulleRef}
-        /* ⛔ Kastad till `CSSProperties`, eftersom TypeScript inte känner till
-           egna CSS-variabler i ett stilobjekt. Det är typsystemets lucka och
-           inte en osäkerhet i koden: webbläsaren tar emot `--kalender-topp`
-           precis som vilken annan deklaration som helst. */
-        style={/** @type {import("react").CSSProperties} */ ({ "--kalender-topp": `${topp}px` })}
+        style={fullhojd}
         className={cx(
-          "relative overflow-y-auto overscroll-contain bg-canvas px-1",
+          "relative bg-canvas px-1",
+          FULLHOJD_KLASSER,
           /* ⛔ INGEN RAM OCH INGEN RUNDNING. En ram runt något som når skärmens
              underkant läses som en ruta som blivit avhuggen, inte som en ruta.
              Förebilden har ingen heller: dess rullyta är bara `overflow-y-auto`.
              Veckodagsraden är klistrad och målad, så överkanten syns ändå. */
-          /* ⛔ HÖJDEN RÄKNAS I CSS UR DEN MÄTTA VARIABELN, se effekten ovan.
-             På telefon dras bottenraden bort, annars ligger sista veckan under
-             den; från 768 px finns ingen bottenrad, och då är det bara skärmens
-             säkra kant som ska undantas. */
-          "h-[calc(100svh_-_var(--kalender-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom))]",
-          "md:h-[calc(100svh_-_var(--kalender-topp)_-_var(--safe-bottom))]",
-          /* ⛔ ETT GOLV, för den dag kalendern hamnar långt ner på en kort sida.
-             Utan det kan uttrycket bli noll eller negativt, och då försvinner
-             rutnätet helt i stället för att bli obekvämt litet. */
-          "min-h-60",
         )}
       >
         {/* ⛔ Klistrad veckodagsrad. Efter tre månaders rullning är kolumnernas

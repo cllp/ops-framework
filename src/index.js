@@ -32,6 +32,7 @@ export { OpsSlider } from "./components/OpsSlider.jsx";
 export { OpsKnob } from "./components/OpsKnob.jsx";
 export { OpsLaboreraPopover } from "./components/OpsLaboreraPopover.jsx";
 export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
+export { OpsRullyta } from "./components/OpsRullyta.jsx";
 export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
 // ⛔ `lasBilaga` och `MAX_SIDA` exporteras MED FLIT inte. En app som läser filer
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
