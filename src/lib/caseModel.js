@@ -32,11 +32,11 @@
  * @property {string} value Nyckeln som lagras.
  * @property {string} label Vad människor kallar den.
  * @property {string} externalLabel Vad som skickas vidare, till exempel till ett ärendesystem.
- * @property {(draft: any) => string[]} [requirements] Extra villkor för just den här sorten.
+ * @property {(utkast: any) => string[]} [requirements] Extra villkor för just den här sorten.
  *   Returnerar skälen som saknas, tom lista när allt är på plats.
  *   ⛔ EN FUNKTION OCH INTE FLAGGOR. Flaggor (`kraverBelopp: true`) tvingar ramverket
  *   att veta vad ett belopp är, och då står appens ord här igen.
- * @property {(draft: any) => Record<string, unknown>} [extraFields] App-specifika fält
+ * @property {(utkast: any) => Record<string, unknown>} [extraFields] App-specifika fält
  *   som ska med i dokumentet för just den sorten.
  */
 
@@ -155,10 +155,10 @@ export function createCaseModel(konfig) {
      * som skapar ärendet sätter dem. Står de på två ställen glider de isär den
      * dag en sort läggs till.
      */
-    /** @param {{ kind?: string, prio?: string } | null | undefined} entry @returns {string[]} */
+    /** @param {{ typ?: string, prio?: string } | null | undefined} entry @returns {string[]} */
     labelsFor(entry) {
       const ut = [konfig.baseLabel];
-      const s = sort((entry || {}).kind);
+      const s = sort((entry || {}).typ);
       if (s) ut.push(s.externalLabel);
       const p = prio((entry || {}).prio);
       if (p) ut.push(p.externalLabel);
@@ -188,20 +188,20 @@ export function createCaseModel(konfig) {
      * sort med egna villkor blir då en rad i appens register, inte en ändring i
      * ramverket som någon måste be om.
      */
-    /** @param {Record<string, any>} [draft] @returns {string[]} */
-    saknas(draft = {}) {
+    /** @param {Record<string, any>} [utkast] @returns {string[]} */
+    saknas(utkast = {}) {
       const error = [];
-      const s = sort(draft.kind);
+      const s = sort(utkast.typ);
       if (!s) error.push("Välj vad det gäller.");
 
-      const title = String(draft.title || "").trim();
-      if (!title) error.push("Skriv en rubrik.");
-      else if (title.length > maxTitle) error.push(`Rubriken får vara högst ${maxTitle} tecken.`);
+      const rubrik = String(utkast.rubrik || "").trim();
+      if (!rubrik) error.push("Skriv en rubrik.");
+      else if (rubrik.length > maxTitle) error.push(`Rubriken får vara högst ${maxTitle} tecken.`);
 
-      if (!prio(draft.prio)) error.push("Välj hur bråttom det är.");
+      if (!prio(utkast.prio)) error.push("Välj hur bråttom det är.");
 
       if (s && typeof s.requirements === "function") {
-        const egna = s.requirements(draft);
+        const egna = s.requirements(utkast);
         if (Array.isArray(egna)) error.push(...egna);
       }
 
@@ -222,30 +222,30 @@ export function createCaseModel(konfig) {
      * samma sak, och den som förlorar är den som skrev sist.
      */
     /**
-     * @param {Record<string, any>} draft
+     * @param {Record<string, any>} utkast
      * @param {{ email?: string, nu?: () => string }} [context]
      */
-    byggPost(draft, { email = "", nu = () => new Date().toISOString() } = {}) {
-      const s = sort(draft.kind);
+    byggPost(utkast, { email = "", nu = () => new Date().toISOString() } = {}) {
+      const s = sort(utkast.typ);
       return {
-        kind: draft.kind,
-        prio: draft.prio,
-        title: String(draft.title || "").trim(),
-        text: String(draft.text || "").trim(),
-        attachment: draft.attachment
+        typ: utkast.typ,
+        prio: utkast.prio,
+        rubrik: String(utkast.rubrik || "").trim(),
+        text: String(utkast.text || "").trim(),
+        bilaga: utkast.bilaga
           ? {
-              dataUrl: draft.attachment.dataUrl,
-              name: draft.attachment.name,
-              kind: draft.attachment.kind,
-              chars: draft.attachment.chars,
-              width: draft.attachment.width ?? null,
-              height: draft.attachment.height ?? null,
+              dataUrl: utkast.bilaga.dataUrl,
+              namn: utkast.bilaga.namn,
+              typ: utkast.bilaga.typ,
+              tecken: utkast.bilaga.tecken,
+              bredd: utkast.bilaga.bredd ?? null,
+              hojd: utkast.bilaga.hojd ?? null,
             }
           : null,
         // ⛔ Appens extra fält skrivs BARA för en sort som har dem. Ett tomt
         // fältblock på en sort som inte handlar om det ser ut som något någon
         // glömt fylla i.
-        ...(s && typeof s.extraFields === "function" ? s.extraFields(draft) : {}),
+        ...(s && typeof s.extraFields === "function" ? s.extraFields(utkast) : {}),
         skapad: nu(),
         skapadAv: email,
         status: "ny",

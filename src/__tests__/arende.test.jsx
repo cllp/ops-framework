@@ -41,7 +41,7 @@ describe("konfigurationen kontrolleras vid uppstart", () => {
     expect(() => createCaseModel({ priorities: KONFIG.priorities, baseLabel: "x" })).toThrow(/minst en sort/);
   });
 
-  it("vägrar en modell utan basetikett", () => {
+  it("vägrar en modell utan baseLabel", () => {
     // ⛔ Felet den fångar är dyrt och osynligt: ärendet skapas, det hamnar bara
     // aldrig där någon letar, och det ser ut som att det aldrig skapades.
     expect(() => createCaseModel({ kinds: KONFIG.kinds, priorities: KONFIG.priorities })).toThrow(/baseLabel/);
@@ -56,11 +56,11 @@ describe("konfigurationen kontrolleras vid uppstart", () => {
 
 describe("etiketterna", () => {
   it("är basen, sorten och prion, i den ordningen", () => {
-    expect(modell.labelsFor({ kind: "storning", prio: "nu" })).toEqual(["drift", "storning", "prio:nu"]);
+    expect(modell.labelsFor({ typ: "storning", prio: "nu" })).toEqual(["drift", "storning", "prio:nu"]);
   });
 
   it("utelämnar det som inte går att slå upp i stället för att gissa", () => {
-    expect(modell.labelsFor({ kind: "finns-inte", prio: "nu" })).toEqual(["drift", "prio:nu"]);
+    expect(modell.labelsFor({ typ: "finns-inte", prio: "nu" })).toEqual(["drift", "prio:nu"]);
     expect(modell.labelsFor({})).toEqual(["drift"]);
   });
 });
@@ -77,25 +77,25 @@ describe("saknas", () => {
   });
 
   it("släpper igenom en komplett post", () => {
-    expect(modell.saknas({ kind: "storning", prio: "nu", title: "Strömmen borta" })).toEqual([]);
+    expect(modell.saknas({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" })).toEqual([]);
   });
 
   it("läser sortens egna krav ur sorten", () => {
     // ⛔ Villkoret står i APPENS register, inte som en gren i ramverket. En ny
     // sort med egna krav blir en rad hos appen, inte en ändring någon måste be om.
-    expect(modell.saknas({ kind: "leverans", prio: "nu", title: "Pall från Ahlsell" })).toEqual([
+    expect(modell.saknas({ typ: "leverans", prio: "nu", rubrik: "Pall från Ahlsell" })).toEqual([
       "Ange antal kolli.",
     ]);
-    expect(modell.saknas({ kind: "leverans", prio: "nu", title: "Pall", kolli: 2 })).toEqual([]);
+    expect(modell.saknas({ typ: "leverans", prio: "nu", rubrik: "Pall", kolli: 2 })).toEqual([]);
   });
 
   it("kräver inte sortens extra villkor av en annan sort", () => {
-    expect(modell.saknas({ kind: "storning", prio: "nu", title: "Strömmen borta" })).toEqual([]);
+    expect(modell.saknas({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" })).toEqual([]);
   });
 
   it("stoppar en rubrik som inte ryms i en lista", () => {
     const lang = "x".repeat(121);
-    expect(modell.saknas({ kind: "storning", prio: "nu", title: lang })).toEqual([
+    expect(modell.saknas({ typ: "storning", prio: "nu", rubrik: lang })).toEqual([
       "Rubriken får vara högst 120 tecken.",
     ]);
   });
@@ -107,7 +107,7 @@ describe("byggPost", () => {
   it("sätter status till ny och resultat till null, en gång", () => {
     // ⛔ Därefter är båda serverns fält. Skrev båda sidor samma fält vore det två
     // sanningar om samma sak, och den som förlorar är den som skrev sist.
-    const p = modell.byggPost({ kind: "storning", prio: "nu", title: "Strömmen borta" }, { email: "a@b.se", nu });
+    const p = modell.byggPost({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" }, { email: "a@b.se", nu });
     expect(p.status).toBe("ny");
     expect(p.resultat).toBeNull();
     expect(p.skapadAv).toBe("a@b.se");
@@ -119,30 +119,30 @@ describe("byggPost", () => {
     // returnera i databasen, utan att någon bestämt att det hör hemma där.
     const p = modell.byggPost(
       {
-        kind: "storning",
+        typ: "storning",
         prio: "nu",
-        title: "Foto",
-        attachment: { dataUrl: "d", name: "n", kind: "image/png", chars: 10, smuts: "ska inte med" },
+        rubrik: "Foto",
+        bilaga: { dataUrl: "d", namn: "n", typ: "image/png", tecken: 10, smuts: "ska inte med" },
       },
       { nu },
     );
-    expect(p.attachment).toEqual({ dataUrl: "d", name: "n", kind: "image/png", chars: 10, width: null, height: null });
-    expect("smuts" in p.attachment).toBe(false);
+    expect(p.bilaga).toEqual({ dataUrl: "d", namn: "n", typ: "image/png", tecken: 10, bredd: null, hojd: null });
+    expect("smuts" in p.bilaga).toBe(false);
   });
 
   it("tar med appens extra fält, men bara för den sort som har dem", () => {
-    const leverans = modell.byggPost({ kind: "leverans", prio: "nu", title: "Pall", kolli: "3" }, { nu });
+    const leverans = modell.byggPost({ typ: "leverans", prio: "nu", rubrik: "Pall", kolli: "3" }, { nu });
     expect(leverans.frakt).toEqual({ kolli: 3 });
 
     // ⛔ Ett tomt fältblock på en sort som inte handlar om det ser ut som något
     // någon glömt fylla i.
-    const storning = modell.byggPost({ kind: "storning", prio: "nu", title: "Strömmen borta" }, { nu });
+    const storning = modell.byggPost({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" }, { nu });
     expect("frakt" in storning).toBe(false);
   });
 
   it("trimmar rubrik och text", () => {
-    const p = modell.byggPost({ kind: "storning", prio: "nu", title: "  A  ", text: "  B  " }, { nu });
-    expect(p.title).toBe("A");
+    const p = modell.byggPost({ typ: "storning", prio: "nu", rubrik: "  A  ", text: "  B  " }, { nu });
+    expect(p.rubrik).toBe("A");
     expect(p.text).toBe("B");
   });
 });
