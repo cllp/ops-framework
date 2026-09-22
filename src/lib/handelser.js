@@ -47,6 +47,13 @@
  *   raden ingen chevron: en pil som inte öppnar något är ett löfte som inte infrias.
  * @property {string} [url]
  * @property {string} [urlLabel] Synlig länktext, t.ex. "#183". Utan den står "Öppna".
+ * @property {1|2|3|4|5|6} [kant] Färgad vänsterkant ur identitetspaletten, som säger vilken
+ *   GRUPP raden tillhör. ⛔ APPENS SIFFRA OCH INTE RAMVERKETS BETYDELSE: vilket slag som
+ *   är grönt beror på vilka slagen ÄR, och det vet bara appen. Ramverket ritar kanten,
+ *   det tolkar den aldrig.
+ * @property {string} [kantLabel] Vad kanten betyder, i ord. ⛔ KRÄVS när `kant` finns:
+ *   en färg utan ord säger ingenting till den som inte lärt sig koden, går inte att läsa
+ *   upp, och är osynlig för var tjugonde man. `OpsCard` kastar hellre än att rita den.
  * @property {string} [uppdaterad] Senast ändrad (t.ex. "2026-09-18"), höger i kompakta raden.
  * @property {import("react").ReactNode} [atgard] Appens egen kontroll för raden, till exempel
  *   en knapp som bockar av den. ⛔ RAMVERKET RITAR DEN, TOLKAR DEN ALDRIG: vad en åtgärd

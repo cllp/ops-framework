@@ -237,6 +237,37 @@ describe("OpsCard", () => {
     }
   });
 
+  it("vägrar en rundning som inte finns i stället för att rita panelens hörn", () => {
+    /*
+     * ⛔ EN TYST RESERV GÖR ETT STAVFEL TILL ETT KORT SOM SER NÄSTAN RÄTT UT.
+     * `rundning="bubla"` hade fått panelens 8 px, och den som skrev det hade
+     * trott att bubblan inte gick att få. Samma skäl som `tone` och `edge`
+     * redan kastar av.
+     */
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      /* @ts-expect-error avsiktligt fel värde */
+      expect(() => render(<OpsCard rundning="bubla">x</OpsCard>)).toThrow(/okänd rundning/);
+    } finally {
+      tyst.mockRestore();
+    }
+  });
+
+  it("ger bubblan förebildens 24 px och panelen sina 8", () => {
+    /*
+     * ⛔ BÅDA HALVORNA, för bara med dem är det ett prov. Att bubblan är rund
+     * går att uppfylla genom att göra ALLT runt, och då är skillnaden borta.
+     *
+     * 24 px är mätt mot SessionStudios `--radius-card: 1.5rem` och inte valt på
+     * känsla, och `--radius-3xl` råkade redan vara exakt det steget.
+     */
+    const { container: panel } = render(<OpsCard>x</OpsCard>);
+    expect(panel.firstElementChild?.className).toMatch(/rounded-lg/);
+
+    const { container: bubbla } = render(<OpsCard rundning="bubbla">x</OpsCard>);
+    expect(bubbla.firstElementChild?.className).toMatch(/rounded-3xl/);
+  });
+
   it("annonserar vad kanten betyder", () => {
     render(
       <OpsCard edge={1} edgeLabel="Företag">

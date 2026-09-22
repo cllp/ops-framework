@@ -199,7 +199,19 @@ export function OpsEventList({
 
         return (
           <li key={h.id}>
-            <OpsCard>
+            {/*
+              ⛔ EN BUBBLA OCH INTE EN RUTA. CP 2026-09-22: "Samma mjuka
+              SS-rundning på alla händelsebubblor." En händelse är ett objekt i
+              en ström, inte en panel på en sida, och 24 px mot 8 säger det utan
+              ett ord.
+
+              ⛔ KANTEN SLÄPPS IGENOM, DEN BYGGS INTE HÄR. `OpsCard` har haft en
+              färgad vänsterkant hela tiden, med kravet på ett ord inbyggt.
+              Listan gjorde den bara inte nåbar, så varje yta som ville visa
+              slaget som en kant hade fått rita sin egen. Att lägga till två
+              rader här är hela skillnaden.
+            */}
+            <OpsCard rundning="bubbla" edge={h.kant} edgeLabel={h.kantLabel}>
             {/* ⛔ Chevron HÖGER, samma sida som OpsDisclosure/Inkorg (CP 2026-09-21). */}
             <div className="flex items-start gap-1">
               <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">

@@ -36,15 +36,34 @@ const KANTKLASSER = {
  * @param {"raised"|"sunken"|"plain"} [props.tone]
  * @param {boolean} [props.elevated] Skugga. Används för det som ligger ÖVER sidan, inte för att lyfta fram.
  * @param {boolean} [props.flush] Ingen inre padding. För kort som bär en lista kant i kant.
+ * @param {"kort"|"bubbla"} [props.rundning] Hur mjukt hörnet är. `kort` (8 px) är
+ *   förvalet och gäller allt som är en RUTA: en panel, en sektion, en tabell.
+ *   `bubbla` (24 px) är för det som är ett OBJEKT i en ström, alltså en händelse,
+ *   ett meddelande, ett kort i en lista man bläddrar igenom.
+ *   ⛔ TVÅ RADIER OCH INTE EN SKALA. Skillnaden ska gå att se utan att jämföra;
+ *   ett tredje steg emellan gör att ingen av dem längre betyder något.
  * @param {1|2|3|4|5|6} [props.edge] Färgad vänsterkant ur identitetspaletten. För kort som tillhör något: en scope, en grupp, en avdelning.
  * @param {string} [props.edgeLabel] Vad kanten betyder, för skärmläsare. ⛔ Krävs när `edge` används.
  * @param {string} [props.id]
  * @param {import("react").ReactNode} props.children
  */
-export function OpsCard({ tone = "raised", elevated = false, flush = false, edge, edgeLabel, id, children }) {
+export function OpsCard({ tone = "raised", rundning = "kort", elevated = false, flush = false, edge, edgeLabel, id, children }) {
   const tonKlass = TONER[tone];
   if (!tonKlass) {
     throw new Error(`OpsCard: okänd tone "${tone}". Giltiga: ${Object.keys(TONER).join(", ")}.`);
+  }
+
+  /*
+   * ⛔ 24 px ÄR MÄTT MOT FÖREBILDEN OCH INTE VALT PÅ KÄNSLA. SessionStudios
+   * `--radius-card` är 1.5rem, alltså 24 px, och vår `--radius-3xl` råkade
+   * redan vara exakt det. CP 2026-09-22: "Samma mjuka SS-rundning på alla
+   * händelsebubblor (hög radius / squircle som SessionStudio session-kort)."
+   *
+   * ⛔ INGET NYTT TOKEN. Steget fanns, det användes bara inte här.
+   */
+  const rundningKlass = RUNDNINGAR[rundning];
+  if (!rundningKlass) {
+    throw new Error(`OpsCard: okänd rundning "${rundning}". Giltiga: ${Object.keys(RUNDNINGAR).join(", ")}.`);
   }
 
   const kantKlass = edge === undefined ? null : KANTKLASSER[edge];
@@ -67,7 +86,8 @@ export function OpsCard({ tone = "raised", elevated = false, flush = false, edge
     <div
       id={id}
       className={cx(
-        "rounded-lg border",
+        rundningKlass,
+        "border",
         tonKlass,
         // Kanten ritas som en tjockare vänsterram i stället för ett extra
         // element, så den följer radien och inte kan hamna utanför kortet.
@@ -81,3 +101,8 @@ export function OpsCard({ tone = "raised", elevated = false, flush = false, edge
     </div>
   );
 }
+
+const RUNDNINGAR = /** @type {const} */ ({
+  kort: "rounded-lg",
+  bubbla: "rounded-3xl",
+});

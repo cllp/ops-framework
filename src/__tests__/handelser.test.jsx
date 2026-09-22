@@ -172,8 +172,52 @@ describe("OpsEventList", () => {
     const lista = container.querySelector("ul");
     expect(lista?.className).toMatch(/gap-3/);
     expect(lista?.className).not.toMatch(/divide-y/);
-    const kort = container.querySelectorAll("ul > li > div.rounded-lg.border");
+    /*
+     * ⛔ RADIEN ÄR INTE KRAVET. Här stod `div.rounded-lg.border`, alltså en
+     * fråga som band fast ett hörnvärde provet aldrig handlade om. Kravet är
+     * att varje händelse är ETT EGET kort, och det säger `border` plus
+     * räkningen. Hörnet blev `rounded-3xl` när bubblan kom, och provet gick
+     * rött utan att något blivit fel.
+     */
+    const kort = container.querySelectorAll("ul > li > div.border");
     expect(kort).toHaveLength(2);
+    // ⛔ Och de ÄR bubblor, alltså 24 px och inte panelens 8. Det är ett eget
+    // krav och står som en egen rad, inte insmuget i frågan ovan.
+    for (const k of kort) expect(k.className).toMatch(/rounded-3xl/);
+  });
+
+  it("släpper igenom slagets vänsterkant till kortet", () => {
+    /*
+     * ⛔ CP 2026-09-22: "Matt vänsterkant per slag (Uppgift / Påminnelse /
+     * Faktum) som SS left accent."
+     *
+     * ⛔ KANTEN BYGGS INTE HÄR, DEN SLÄPPS IGENOM. `OpsCard` har haft den hela
+     * tiden. Listan gjorde den bara inte nåbar, så varje yta som ville visa
+     * slaget som en kant hade fått rita sin egen, och då hade tre ytor haft tre
+     * kanter som nästan var lika.
+     */
+    const { container } = render(
+      <OpsEventList events={[h("a", 1, { nar: "Idag", kant: 2, kantLabel: "Påminnelse" })]} />,
+    );
+    const kortet = container.querySelector("ul > li > div.border");
+    expect(kortet?.className).toMatch(/border-l-4/);
+    // ⛔ Och ordet följer med. En färg utan ord säger ingenting till den som
+    // inte lärt sig koden, och `OpsCard` kastar hellre än att rita den.
+    expect(screen.getByText("Påminnelse")).toBeInTheDocument();
+  });
+
+  it("kastar när kanten saknar sitt ord", () => {
+    /*
+     * ⛔ REGELN BOR I `OpsCard` OCH PROVAS HÄR ÄNDÅ, för det är genom listan
+     * appen faktiskt når den. Ett prov bara på kortet hade lämnat vägen hit
+     * obevakad, och det är vägen som används.
+     */
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => render(<OpsEventList events={[h("a", 1, { nar: "Idag", kant: 2 })]} />)).toThrow(/edgeLabel/);
+    } finally {
+      tyst.mockRestore();
+    }
   });
 
   it("reserverar ingen chevronkolumn när ingen rad kan fällas ut", () => {
