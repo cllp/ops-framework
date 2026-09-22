@@ -23,7 +23,11 @@
  * @property {string} datum `YYYY-MM-DD`.
  * @property {string} titel
  * @property {"oppet"|"pagar"|"vantar"|"klart"|"akut"} [status] Pricken ärver `OpsStatusDot`s toner.
- * @property {string} [url] Finns den blir raden en länk.
+ * @property {string} [url] Finns den blir det en länk i kortets utfällning.
+ * @property {string} [urlLabel] Länkens synliga ord, t.ex. "#249". Utan den står "Öppna".
+ * @property {import("react").ReactNode} [detaljer] Appens eget innehåll i utfällningen.
+ *   ⛔ Ramverket ritar den, tolkar den aldrig: vad som är värt att fälla ut om en
+ *   post beror på vad posten ÄR hos just den appen.
  * @property {string} [not] En rad extra under titeln i dagslistan.
  */
 

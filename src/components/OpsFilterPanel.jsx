@@ -43,6 +43,35 @@ import { Raknare } from "./raknare.jsx";
  * fortfarande komplett, och att låta en sortering tända filterknappen hade
  * sagt "något är dolt" när ingenting är dolt. Sorteringen ligger ändå i samma
  * panel, eftersom det är samma fråga ställd av samma person vid samma tillfälle.
+ *
+ * ══ ⛔ TVÅ UTFÖRANDEN, OCH SKÄLET ÄR HÖJDEN ════════════════════════════
+ *
+ * CP 2026-09-22, med bild: "Detta filtret är absurt stort. Vi måste hitta ett
+ * bättre sätt att filtrera poster. En ikon för varje Lägen, Tid, Roller och
+ * sortering, vänsterställda så de får plats i mobil, och belys ikonen om det är
+ * ett aktivt filter."
+ *
+ * Med fyra dimensioner plus sortering blev den samlade panelen en lista på
+ * tjugo rader som täckte halva skärmen. Den formen är rätt när dimensionerna är
+ * två eller tre och fel när de är fem: man rullar i en meny för att hitta en
+ * rad man redan vet namnet på.
+ *
+ *   `layout="samlad"`  EN knapp, alla grupper i en panel. Standard, och rätt så
+ *                      länge panelen ryms utan att rullas.
+ *   `layout="ikoner"`  EN IKON PER GRUPP, bredvid varandra, var och en med sin
+ *                      egen lilla meny. Ikonen lyser när just den gruppen är
+ *                      satt, så raden visar hela filtertillståndet utan att
+ *                      något öppnas.
+ *
+ * ⛔ SAMMA KOMPONENT OCH INTE TVÅ. Raderna, bockarna, "Alla"-valet och regeln om
+ * att sortering aldrig tänder ett filter är identiska i båda utförandena. Som
+ * två komponenter hade de glidit isär första gången någon rättade en av dem, och
+ * `OpsFilterPanel` används redan på två sidor.
+ *
+ * ⛔ I IKONLÄGET BÄR VARJE GRUPP SIN EGEN IKON, och appen skickar den. Ramverket
+ * äger formen, appen äger bilden: vilken ikon som betyder "roll" beror på vad
+ * rollerna ÄR hos just den appen. Saknas en faller gruppen tillbaka på
+ * reglageikonen, vilket är precis vad CP bad om för Typ.
  */
 
 /**
@@ -50,6 +79,8 @@ import { Raknare } from "./raknare.jsx";
  * @property {string} id Nyckeln i `value`.
  * @property {string} label Rubriken i panelen, t.ex. "Status".
  * @property {string} [allaLabel] Texten för "inget valt" i gruppen. Standard "Alla".
+ * @property {import("react").ReactNode} [icon] Gruppens egen ikon i `layout="ikoner"`.
+ *   ⛔ Saknas den faller gruppen tillbaka på reglageikonen.
  * @property {{ value: string, label: string, icon?: import("react").ReactNode }[]} options
  */
 
@@ -59,7 +90,11 @@ import { Raknare } from "./raknare.jsx";
  * @param {Record<string, string | null>} props.value Vad som är valt per grupp, `null` = alla.
  * @param {(value: Record<string, string | null>) => void} props.onChange Hela kartan, inte en delmängd.
  * @param {string} props.ariaLabel Vad knappen öppnar, t.ex. "Filter och sortering".
- * @param {{ label: string, value: string, options: { value: string, label: string }[], onChange: (v: string) => void }} [props.sortering]
+ * @param {{ label: string, value: string, options: { value: string, label: string }[], onChange: (v: string) => void, icon?: import("react").ReactNode, standard?: string }} [props.sortering]
+ *   ⛔ `standard` säger vilket val som är "orörd". Utan den räknas det första
+ *   alternativet som standard, vilket är sant i båda apparna idag men är en
+ *   gissning så snart någon listar sitt förval någon annanstans än först.
+ * @param {"samlad"|"ikoner"} [props.layout] Standard `"samlad"`, alltså en knapp för allt.
  * @param {string} [props.rensaLabel]
  * @param {string} [props.flerLabel] Ordet efter antalet när mer än ett filter är satt, t.ex. "filter".
  */
@@ -71,8 +106,14 @@ export function OpsFilterPanel({
   sortering,
   rensaLabel = "Rensa",
   flerLabel = "filter",
+  layout = "samlad",
 }) {
   const [oppen, setOppen] = useState(false);
+  const [oppenGrupp, setOppenGrupp] = useState(/** @type {string | null} */ (null));
+
+  if (layout !== "samlad" && layout !== "ikoner") {
+    throw new Error(`OpsFilterPanel: okänd layout "${layout}". Giltiga: samlad, ikoner.`);
+  }
 
   if (!Array.isArray(grupper) || grupper.length === 0) {
     throw new Error("OpsFilterPanel: grupper krävs. En panel utan grupper är en knapp som inte gör något.");
@@ -111,6 +152,148 @@ export function OpsFilterPanel({
     onChange(tomt);
   };
 
+  /**
+   * En grupps rader: "Alla" överst och sedan alternativen.
+   *
+   * ⛔ EN FUNKTION OCH INTE TVÅ KOPIOR. Raderna är identiska i båda
+   * utförandena, och två kopior hade glidit isär första gången någon rättade
+   * den ena.
+   *
+   * @param {Filtergrupp} g
+   */
+  const gruppensRader = (g) => (
+    <>
+      <Rad vald={!val[g.id]} onClick={() => vlj(g.id, null)} text={g.allaLabel || "Alla"} />
+      {g.options.map((o) => (
+        <Rad key={o.value} vald={val[g.id] === o.value} onClick={() => vlj(g.id, o.value)} text={o.label} ikon={o.icon} />
+      ))}
+    </>
+  );
+
+  /** Sorteringens rader, likaså delade. */
+  const sorteringensRader = () =>
+    sortering ? (
+      <>
+        {sortering.options.map((o) => (
+          <Rad key={o.value} vald={sortering.value === o.value} onClick={() => sortering.onChange(o.value)} text={o.label} />
+        ))}
+      </>
+    ) : null;
+
+  if (layout === "ikoner") {
+    /*
+     * ⛔ SORTERINGEN ÄR "RÖRD" NÄR DEN INTE STÅR PÅ SITT FÖRVAL, och det är inte
+     * samma sak som att den är ett filter. Ikonen lyser för att säga "du har
+     * ändrat den här", inte "något är dolt". Räknaren och ordet i den samlade
+     * knappen visar fortfarande bara filter.
+     */
+    const sorteringStandard = sortering ? (sortering.standard ?? sortering.options[0]?.value) : undefined;
+    // ⛔ Bunden till en const: TypeScript smalnar inte av `sortering` genom ett
+    // `Boolean(...) &&`, så uttrycket måste ställa frågan på den bundna.
+    const sorteringRord = sortering ? sortering.value !== sorteringStandard : false;
+
+    return (
+      /*
+       * ⛔ VÄNSTERSTÄLLD RAD SOM FÅR BRYTAS. CP: "Låt dessa ikoner vara
+       * vänsterställda så att de får plats i mobil." Fem ikoner à 44 px plus
+       * mellanrum är omkring 240 px, alltså ryms de på en rad även vid 390.
+       * `flex-wrap` finns ändå kvar som golv: går appen från fem dimensioner
+       * till åtta ska raden bryta i stället för att rinna ut ur skärmen.
+       */
+      <div role="group" aria-label={ariaLabel} className="flex flex-wrap items-center gap-1">
+        {grupper.map((g) => {
+          const vald = g.options.find((o) => o.value === val[g.id]);
+          return (
+            <Popover.Root
+              key={g.id}
+              open={oppenGrupp === g.id}
+              onOpenChange={(nasta) => setOppenGrupp(nasta ? g.id : null)}
+            >
+              <Popover.Trigger
+                aria-label={vald ? `${g.label}: ${vald.label}` : g.label}
+                aria-pressed={Boolean(vald)}
+                className={cx(
+                  "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl",
+                  "transition-colors duration-(--duration-fast) ease-standard",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                  // ⛔ TÄND IKON = SATT FILTER, och det är hela skälet till att
+                  // raden finns: filtertillståndet ska synas utan att något
+                  // öppnas. Samma två lägen som den samlade knappen har, fast
+                  // per dimension.
+                  vald
+                    ? "border border-line bg-surface text-ink"
+                    : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                )}
+              >
+                {g.icon || <ReglageIkon size={20} />}
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content
+                  align="start"
+                  sideOffset={6}
+                  className="z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
+                >
+                  <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.label}</p>
+                  <div className="flex flex-col">{gruppensRader(g)}</div>
+                </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
+          );
+        })}
+
+        {sortering ? (
+          <Popover.Root
+            open={oppenGrupp === "__sortering"}
+            onOpenChange={(nasta) => setOppenGrupp(nasta ? "__sortering" : null)}
+          >
+            <Popover.Trigger
+              aria-label={`${sortering.label}: ${sortering.options.find((o) => o.value === sortering.value)?.label ?? ""}`}
+              aria-pressed={sorteringRord}
+              className={cx(
+                "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl",
+                "transition-colors duration-(--duration-fast) ease-standard",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                sorteringRord
+                  ? "border border-line bg-surface text-ink"
+                  : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+              )}
+            >
+              {sortering.icon || <ReglageIkon size={20} />}
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content
+                align="start"
+                sideOffset={6}
+                className="z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
+              >
+                <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  {sortering.label}
+                </p>
+                <div className="flex flex-col">{sorteringensRader()}</div>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+        ) : null}
+
+        {/* ⛔ Rensa syns bara när det finns något att rensa, precis som i den
+            samlade panelen. Här som ett ord och inte en ikon: "rensa" har ingen
+            bild som betyder det utan att först förklaras. */}
+        {aktiva.length > 0 ? (
+          <button
+            type="button"
+            onClick={rensa}
+            className={cx(
+              "min-h-11 cursor-pointer rounded-xl px-3 text-sm font-semibold text-accent",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:bg-accent-faint",
+            )}
+          >
+            {rensaLabel}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <Popover.Root open={oppen} onOpenChange={setOppen}>
       <Popover.Trigger
@@ -146,20 +329,7 @@ export function OpsFilterPanel({
             {grupper.map((g) => (
               <div key={g.id} className="flex flex-col">
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.label}</p>
-                <Rad
-                  vald={!val[g.id]}
-                  onClick={() => vlj(g.id, null)}
-                  text={g.allaLabel || "Alla"}
-                />
-                {g.options.map((o) => (
-                  <Rad
-                    key={o.value}
-                    vald={val[g.id] === o.value}
-                    onClick={() => vlj(g.id, o.value)}
-                    text={o.label}
-                    ikon={o.icon}
-                  />
-                ))}
+                {gruppensRader(g)}
               </div>
             ))}
 
@@ -168,14 +338,7 @@ export function OpsFilterPanel({
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   {sortering.label}
                 </p>
-                {sortering.options.map((o) => (
-                  <Rad
-                    key={o.value}
-                    vald={sortering.value === o.value}
-                    onClick={() => sortering.onChange(o.value)}
-                    text={o.label}
-                  />
-                ))}
+                {sorteringensRader()}
               </div>
             ) : null}
 
