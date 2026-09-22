@@ -225,6 +225,99 @@ describe("OpsFilterPanel", () => {
     expect(screen.getByRole("button", { name: "Sortering: A-Ö" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("ritar sorteringens egen bild, inte reglaget", () => {
+    /*
+     * ⛔ CP 2026-09-22: "Vill gärna ha detta så mkt som är relevant i
+     * ramverket."
+     *
+     * Grupperna är appens: vilken bild som betyder "roll" beror på vad rollerna
+     * ÄR. Sorteringen är tvärtom samma sak i varje app, nämligen i vilken
+     * ordning raderna ligger, så ramverket äger dess bild.
+     *
+     * ⛔ FELET SOM PROVAS ÄR EN KOLLISION. Reserven var reglageikonen, alltså
+     * SAMMA bild som en grupp utan egen ikon får. Provet kräver därför att de
+     * två knapparna har OLIKA svg, inte bara att sorteringen har någon.
+     */
+    render(
+      <OpsFilterPanel
+        layout="ikoner"
+        ariaLabel="Filter"
+        grupper={[{ id: "a", label: "Slag", allaLabel: "Alla slag", options: [{ value: "x", label: "X" }] }]}
+        value={{ a: null }}
+        onChange={() => {}}
+        sortering={{
+          label: "Sortering",
+          value: "d",
+          standard: "d",
+          options: [{ value: "d", label: "Datum" }, { value: "t", label: "Titel" }],
+          onChange: () => {},
+        }}
+      />,
+    );
+
+    const gruppen = screen.getByRole("button", { name: /^Slag/ }).innerHTML;
+    const sorteringen = screen.getByRole("button", { name: /^Sortering/ }).innerHTML;
+    expect(sorteringen).not.toBe("");
+    expect(sorteringen).not.toBe(gruppen);
+  });
+
+  it("vägrar en sortering utan `standard` i stället för att gissa förvalet", () => {
+    /*
+     * ⛔ RESERVEN "FÖRSTA ALTERNATIVET" ÄR RÄTT ÄNDA TILLS NÅGON SORTERAR OM
+     * `options`. Då lyser ikonen från start utan att någon rört den, eller är
+     * släckt fast den är ändrad. Ingenting går sönder, sidan ljuger bara om sitt
+     * eget tillstånd, och det är precis den sortens fel ingen app upptäcker i
+     * sina egna prov: bolag-ops hade fällan uppskriven i en kommentar eftersom
+     * förvalet RÅKADE ligga först, så en planterad defekt förblev grön.
+     */
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() =>
+        render(
+          <OpsFilterPanel
+            layout="ikoner"
+            ariaLabel="Filter"
+            grupper={[{ id: "a", label: "Slag", options: [{ value: "x", label: "X" }] }]}
+            value={{ a: null }}
+            onChange={() => {}}
+            sortering={{
+              label: "Sortering",
+              value: "d",
+              options: [{ value: "d", label: "Datum" }],
+              onChange: () => {},
+            }}
+          />,
+        ),
+      ).toThrow(/sortering\.standard krävs/);
+    } finally {
+      tyst.mockRestore();
+    }
+  });
+
+  it("kräver inte `standard` i den samlade panelen, som inte tänder något", () => {
+    /*
+     * ⛔ KRAVET GÄLLER DÄR DET BETYDER NÅGOT. Den samlade panelen tänder
+     * ingenting, alltså läses `standard` aldrig, och att kräva in data som ingen
+     * använder lär den som läser felet att kravet är godtyckligt.
+     */
+    expect(() =>
+      render(
+        <OpsFilterPanel
+          ariaLabel="Filter"
+          grupper={[{ id: "a", label: "Slag", options: [{ value: "x", label: "X" }] }]}
+          value={{ a: null }}
+          onChange={() => {}}
+          sortering={{
+            label: "Sortering",
+            value: "d",
+            options: [{ value: "d", label: "Datum" }],
+            onChange: () => {},
+          }}
+        />,
+      ),
+    ).not.toThrow();
+  });
+
   it("rensar med ett kryss i ikonraden, men heter fortfarande Rensa", () => {
     /*
      * ⛔ CP 2026-09-22: "Går det att ersätta rensa med ett kryss eller nåt annat
