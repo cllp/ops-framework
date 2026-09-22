@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**56 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**57 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -237,6 +237,7 @@ något godtyckligt.
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll. |
 | `OpsFilterChip` | `options` [{value, label}], `value`, `onChange`, `ariaLabel` (krävs), `allLabel`. Pillerformat filter bredvid en lista. ⛔ Valt värde står i pillret, annars läser man en beskuren lista i tron att den är komplett. |
+| `OpsKalender` | `poster` [{id, datum `YYYY-MM-DD`, titel, status?, url?, not?}], `ariaLabel` (krävs), `statusOrd` {läge: ord}, `manaderBakat` (1), `manaderFramat` (3), `tomtText`. Månadsrutnät i en rulle: öppnar på idag, klistrad veckodagsrad, flytande Idag-knapp när månaden rullat ur bild. ⛔ Ritar bara DATERADE poster; odaterat hör hemma i en lista. ⛔ Rutans prickar säger «något finns», inte vilken status: status med sitt ord bor i dagslistan ett tryck bort, eftersom tre färger i en 44 px-ruta är brus och en färg utan ord inget besked. ⛔ Dagen fälls ut UNDER månaden och inte i en popover: ingen positionering, och listan går att läsa med tummen kvar |
 | `OpsFilterPanel` | `grupper` [{id, label, options, allaLabel?}], `value` {grupp: valt \| null}, `onChange` (hela kartan), `ariaLabel` (krävs), `sortering` {label, value, options, onChange}, `rensaLabel`, `flerLabel`. Flera filterdimensioner plus sortering bakom en knapp. ⛔ Knappen byter form med valet: ikon utan text när inget är valt, piller med den VALDA etiketten när något är, räknare först vid två. ⛔ Sortering räknas aldrig som filter, en sorterad lista är fortfarande komplett. Ersätter inte `OpsFilterChip`: en dimension ska vara ett piller |
 | `OpsTabPanel` | `id`, `children` |
 | `OpsBanner` | `tone` info \| success \| warning \| danger, `title`, `action`, `onDismiss`, `dismissLabel`, `children` |
@@ -435,6 +436,8 @@ typkontrollerades.
 | `identityTone`, `initials`, `ANTAL_IDENTITETSTONER` | deterministisk ton och initialer som inte klipper tecken |
 | `bradska`, `delaIdagKommande` | härleder hur bråttom en händelse är ur dagar kvar, och delar en lista i Idag och Kommande. Försenat ligger i Idag, odaterat i Kommande. |
 | `dagarMellan`, `dagarTill` | kalenderdagar, inte dygn: 23.59 i kväll och 00.01 i morgon är en dag isär, och sommartidsskiftet finns inte att drabbas av. `dagarTill` svarar `null` på ett oläsligt datum och aldrig `0`, eftersom `0` betyder "idag" i hela kedjan och ett trasigt fält annars hamnar överst med full brådska |
+| `datumnyckel`, `idagsnyckel` | `YYYY-MM-DD` ur år/månad/dag respektive ur en `Date`, i LOKAL tid. ⛔ Inte `toISOString()`: den går via UTC, så 01.30 den 5:e blir "den 4:e" i svensk sommartid, och kalendern ramar in fel dag som idag mellan midnatt och två på natten |
+| `manadsrutnat`, `manader`, `perDag` | månadens rutor radvis med `null` före den 1:a (måndag är kolumn noll), månaderna kring en utgångspunkt, och posterna grupperade per datum. ⛔ Ren räkning utan JSX: att den 1 oktober 2026 är en torsdag är ett faktum om kalendern och inte om en komponent |
 | `samlaHandelser` | slår ihop flera källors färdiga `Handelse`-listor till en läsordning: närmast först, odaterat sist, och inom samma dag det appens `ordning` sätter först. Mappningarna äger appen, sorteringen ramverket. ⛔ Odaterat sist är ett påstående: `null` är mindre än varje tal, så en naiv sortering lägger allt utan dag överst, precis framför det som brinner, och listan ser fortfarande sorterad ut |
 | `lasArendeflode` | läser en ärende-ögonblicksbild och svarar med **tre** utfall, inte två: inget flöde ännu (inte ett fel, källan har inte svarat), flöde med noll poster (ett giltigt svar), och oläsligt flöde (ett fel med en orsak). ⛔ Den vanliga raden `(f && Array.isArray(f.items) && f.items) \|\| []` gör det tredje till det andra: ett trasigt flöde blir en tom lista, och vyn säger "allt klart" när sanningen är "det gick inte att läsa" |
 | `delaMarkdown`, `delaInline` | delar markdown i block respektive en rad i text, fet text, kod och länkar. Rena funktioner, så de går att prova utan att rendera. ⛔ Gissar aldrig en länk ur "#183" och släpper aldrig igenom `javascript:`: en gissad länk ser likadan ut som en riktig ända tills någon klickar |

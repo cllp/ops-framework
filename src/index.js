@@ -53,6 +53,7 @@ export { OpsSpinner } from "./components/OpsSpinner.jsx";
 
 // ── Märkning ───────────────────────────────────────────────────────────────
 export { OpsPill } from "./components/OpsPill.jsx";
+export { OpsKalender } from "./components/OpsKalender.jsx";
 export { OpsStatusDot } from "./components/OpsStatusDot.jsx";
 export { OpsMarkdown } from "./components/OpsMarkdown.jsx";
 export { OpsPrompt } from "./components/OpsPrompt.jsx";
@@ -88,6 +89,7 @@ export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAu
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, ANTAL_IDENTITETSTONER } from "./lib/identity.js";
 export { bradska, delaIdagKommande, dagarMellan, dagarTill, samlaHandelser } from "./lib/handelser.js";
+export { datumnyckel, idagsnyckel, manader, manadsrutnat, perDag } from "./lib/kalender.js";
 export { lasArendeflode } from "./lib/arendeflode.js";
 export { delaMarkdown, delaInline } from "./lib/markdown.js";
 export { skapaPromptkalla } from "./lib/prompt.js";
