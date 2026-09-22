@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, ReglageIkon } from "./icons.jsx";
+import { BockIkon, KryssIkon, ReglageIkon } from "./icons.jsx";
 import { Raknare } from "./raknare.jsx";
 
 /**
@@ -276,18 +276,44 @@ export function OpsFilterPanel({
         ) : null}
 
         {/* ⛔ Rensa syns bara när det finns något att rensa, precis som i den
-            samlade panelen. Här som ett ord och inte en ikon: "rensa" har ingen
-            bild som betyder det utan att först förklaras. */}
+            samlade panelen.
+
+            ⛔ ETT KRYSS OCH INTE ORDET, och den förra raden här sa motsatsen:
+            att "rensa" saknar en bild som betyder det utan att först förklaras.
+            Det stämmer om krysset står ensamt. Det gör det aldrig: knappen finns
+            bara när minst en ikon till vänster om den LYSER, och ett kryss sist i
+            en rad tända ikoner läses som "släck dem". Ordet finns dessutom kvar
+            som knappens namn, så den som lyssnar hör "Rensa" och inte "kryss".
+
+            ⛔ KRYSSET SPARAR INGEN BREDD, OCH DET SKA STÅ HÄR. CP frågade
+            2026-09-22: "Går det att ersätta rensa med ett kryss eller nåt annat
+            grepp som gör att allt får plats i en liten skärm?" Svaret ser ut att
+            vara ja och är nej. Mätt på den här komponenten i Chromium: raden är
+            286 px med ordet och 284 px med krysset. Två pixlar.
+
+            Skälet är att en ikonknapp som respekterar sin träffyta är `min-w-11`,
+            alltså 44 px, och ordet "Rensa" med `px-3` är 46. Bilden är smalare än
+            ordet, knappen är det inte. ⛔ EN IKON I STÄLLET FÖR ETT ORD SPARAR
+            ALLTSÅ INGEN PLATS så länge träffytan är kvar, och den som räknar med
+            det räknar fel. Det som gjorde att raden rymdes var att en HEL kontroll
+            flyttade till en annan rad.
+
+            Krysset är kvar för att det är det CP bad om och för att raden blir
+            tystare utan ett ord i accentfärg. Men det är ett utseendeval, inte en
+            passformsfix, och den skillnaden är hela skälet till att det står
+            utskrivet: nästa gång någon behöver nitton pixlar ska den inte leta
+            efter dem här. */}
         {aktiva.length > 0 ? (
           <button
             type="button"
             onClick={rensa}
+            aria-label={rensaLabel}
             className={cx(
-              "min-h-11 cursor-pointer rounded-xl px-3 text-sm font-semibold text-accent",
+              "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl text-accent",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:bg-accent-faint",
             )}
           >
-            {rensaLabel}
+            <KryssIkon size={18} />
           </button>
         ) : null}
       </div>

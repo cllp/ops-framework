@@ -1,0 +1,91 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { OpsKontrollrad } from "../components/OpsKontrollrad.jsx";
+
+/**
+ * Kontrollraden: regeln för vad som händer när raden inte ryms.
+ */
+
+function raden() {
+  const el = screen.getByText("ett").parentElement;
+  if (!el) throw new Error("Hittar ingen rad kring kontrollerna");
+  return el;
+}
+
+describe("OpsKontrollrad", () => {
+  it("bryter raden i stället för att krympa kontrollerna", () => {
+    /*
+     * ⛔ DET HÄR ÄR HELA KOMPONENTEN. Utan `flex-wrap` krymper flex-barnen i
+     * stället, och en knapp som krympt under sin egen träffyta är värre än en
+     * som flyttat ner en rad: den ser fortfarande ut att gå att trycka på.
+     */
+    render(
+      <OpsKontrollrad>
+        <button type="button">ett</button>
+      </OpsKontrollrad>,
+    );
+    expect(raden().className).toContain("flex-wrap");
+    // ⛔ Och kontrollerna står mitt för varandra i höjdled, inte toppställda.
+    expect(raden().className).toContain("items-center");
+  });
+
+  it("håller samma luft mellan kontrollerna som resten av ramverket", () => {
+    /*
+     * ⛔ ETT TAL OCH INTE ETT PER VY. Två rader på samma sida med olika gap är
+     * exakt den skillnaden som uppstod när varje vy skrev raden själv, och den
+     * upptäcktes först när telefonen låg bredvid datorn.
+     */
+    render(
+      <OpsKontrollrad>
+        <button type="button">ett</button>
+      </OpsKontrollrad>,
+    );
+    expect(raden().className).toContain("gap-2");
+  });
+
+  it("ligger i mitten som förval och i vänsterkant på begäran", () => {
+    /*
+     * ⛔ FÖRVALET ÄR MITTEN, eftersom en ensam kontroll över en lista hör hemma
+     * över listans mitt. `start` är för rader med FLERA kontroller: då är
+     * vänsterkanten den enda punkt som ligger still när en av dem byter bredd,
+     * och en rad vars ikoner hoppar i sidled när ett filter tänds är en rad man
+     * måste sikta om på varje gång.
+     */
+    const { unmount } = render(
+      <OpsKontrollrad>
+        <button type="button">ett</button>
+      </OpsKontrollrad>,
+    );
+    expect(raden().className).toContain("justify-center");
+    unmount();
+
+    render(
+      <OpsKontrollrad justering="start">
+        <button type="button">ett</button>
+      </OpsKontrollrad>,
+    );
+    expect(raden().className).toContain("justify-start");
+    expect(raden().className).not.toContain("justify-center");
+  });
+
+  it("kastar på en justering som inte finns", () => {
+    /*
+     * ⛔ EN TYST RESERV GÖR ETT STAVFEL TILL EN RAD SOM SER NÄSTAN RÄTT UT, och
+     * nästan rätt upptäcks aldrig: `justering="vanster"` hade centrerats, och
+     * den som skrev det hade trott att ramverket inte kunde vänsterställa.
+     */
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() =>
+        render(
+          /* @ts-expect-error avsiktligt fel värde */
+          <OpsKontrollrad justering="vanster">
+            <button type="button">ett</button>
+          </OpsKontrollrad>,
+        ),
+      ).toThrow(/okänd justering/);
+    } finally {
+      tyst.mockRestore();
+    }
+  });
+});
