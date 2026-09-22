@@ -51,6 +51,7 @@ export { OpsTable } from "./components/OpsTable.jsx";
 export { OpsStat } from "./components/OpsStat.jsx";
 export { OpsEmpty } from "./components/OpsEmpty.jsx";
 export { OpsSpinner } from "./components/OpsSpinner.jsx";
+export { OpsDatavy } from "./components/OpsDatavy.jsx";
 
 // ── Märkning ───────────────────────────────────────────────────────────────
 export { OpsPill } from "./components/OpsPill.jsx";
@@ -84,6 +85,7 @@ export { skapaRoutingKalla } from "./data/routing.js";
 export { OpsDataProvider, useDatakalla, useSamling, useSamlingLive, useDokument } from "./data/useData.jsx";
 export { skapaFirestoreKalla } from "./data/firestore.js";
 export { skapaPostgresKalla } from "./data/postgres.js";
+export { skapaHttpKalla } from "./data/http.js";
 
 // ── Inloggning ─────────────────────────────────────────────────────────────
 export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";

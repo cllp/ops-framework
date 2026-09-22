@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**60 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**61 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -215,6 +215,7 @@ något godtyckligt.
 | `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge`, `fact`, `factLabel`, `source`, `updatedAt`, `onDrillDown`, `drillDownLabel` |
 | `OpsEmpty` | `title`, `description`, `action`, `busy`, `busyLabel` |
 | `OpsSpinner` | `size` sm \| md \| lg, `tone` current \| accent \| muted, `label`, `decorative` |
+| `OpsDatavy` | `laddar`, `fel`, `data`, `huvud`, `felrubrik` (krävs), `laddarLabel` (krävs), `saknasRubrik`, `children` **som funktion** | En vys tre datatillstånd, mätta i bolag-ops som nio vyer som skrev samma tre grenar för hand. ⛔ Fel vinner över laddning: med flera läsningar kan felet komma medan en annan hämtar, och låter man laddningen vinna göms felet bakom en snurra som aldrig slutar snurra. ⛔ `laddarLabel` krävs och gissas inte fram, för "Hämtar" utan objekt är samma text i tolv vyer och då går det inte att se vilken av fem läsningar som hänger. ⛔ **Hämtat men tomt är inte hämtning som pågår**, och det är felet den handskrivna varianten faktiskt hade: `laddar \|\| !data` ritar "Hämtar ..." för alltid när en läsning gick igenom men gav `null`, alltså påstår sidan att den arbetar när den gett upp. Det tillståndet får OpsEmpty med egna ord och `role="status"`, inte en röd banderoll: kontraktets regel 3 säger att `null` betyder "finns inte" och inte att något gick sönder. ⛔ **Utelämnas `data` görs ingen tomhetskontroll**, för `"data" in props` skiljer utelämnad från null; annars hade varje vy som läser fem listor fått tomhetsrutan fast allt gick bra. ⛔ Barnen är en FUNKTION: som nod hade React byggt dem innan grenen valdes, alltså hade `data.totals` kastat i precis det läge komponenten finns för |
 
 #### Märkning
 
@@ -268,6 +269,7 @@ något godtyckligt.
 | `OpsFact` | vägrar visa ett belopp i läget `okant`, så noll och okänt aldrig ser likadana ut |
 | `OpsEmpty` | skiljer tomt från laddande, som ser likadant ut men betyder motsatsen |
 | `OpsSpinner` | EN väntesymbol, som annonserar för skärmläsare utan att göra det två gånger |
+| `OpsDatavy` | de tre datatillstånden som kod i stället för som kommentar, så en vakt kan se skillnad på en vy som följer regeln och en som glömde den |
 | `OpsTag` | härleder tonen ur etiketten, så ny kategori kräver ingen kod |
 | `OpsBrand` | byter märke med temat, inte med systemets inställning |
 | `OpsThemeToggle` | tre lägen, så "följ systemet" inte försvinner, i en 44 px ikonknapp i stället för en 140 px textdropdown |
@@ -343,6 +345,7 @@ Firestore i morgon, SQL bakom ett API sedan.
 | `OPERATIONER` | `las`, `lista`, `skapa`, `uppdatera`, `taBort`. `prenumerera` är frivillig och står inte här |
 | `skapaFirestoreKalla({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
 | `skapaPostgresKalla({ fraga })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
+| `skapaHttpKalla({ basUrl, hamtaToken?, hamta?, huvuden? })` | **ett eget API över HTTP, alltså REST.** Kontraktets fem operationer ÄR CRUD, så översättningen är en rad var, och vilken databas som står bakom API:et syns inte här. ⛔ `fetch` **kastar inte på 404 eller 500**, bara när anropet aldrig kom fram: den som skriver `await (await fetch(u)).json()` får serverns felsida parsad som data. Därför kontrolleras `res.ok` på varje operation, så kontraktets regel 2 håller. ⛔ **404 betyder olika saker för olika operationer**: på `las` är det `null` ("finns inte", regel 3), på `uppdatera` och `taBort` är det ett fel, eftersom någon bad om en ändring av något som inte finns. ⛔ Felet bär `status`, så appen kan skilja 401 (logga in igen) från 500 (försök senare) utan att matcha på text. ⛔ Ett 200-svar som inte är JSON är ett fel, för en proxy eller ett inloggningsskal svarar 200 med HTML och en tyst `{}` hade blivit "inga poster". ⛔ Styrparametrarna heter `_sort`, `_order` och `_limit`: en samling med ett fält som heter `sortera` hade annars krockat, och symptomet är inte ett fel utan en lista som ibland inte lyder. ⛔ Token hämtas **per anrop**, aldrig en gång vid uppstart, för en token som gick ut medan appen stod öppen ser ut som att allt slutade fungera av sig självt. ⛔ **Ingen `prenumerera`**, med flit (CP 2026-09-22): ett REST-API kan inte pusha, och `useSamlingLive` rapporterar då `realtid: false` i stället för att en pollingloop låtsas. ⛔ GraphQL är en **annan adapter**, inte ett läge här: den har en endpoint och ett frågedokument, och vilka fält som hämtas är appens beslut |
 | `skapaRoutingKalla({ standard, rutter })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `kanPrenumerera(samling)` svarar, `prenumerera` **kastar med samlingens namn** för en som inte kan, och `useSamlingLive` frågar först och rapporterar `realtid: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid |
 | `OpsDataProvider` | ger appen sin källa |
 | `useDatakalla`, `useSamling`, `useDokument` | React-sidan, med `laddar`, `fel` och `data` åtskilda |
@@ -463,6 +466,7 @@ Ramverket vet ingenting om verksamheten. Allt det behöver veta kommer in genom 
 | `skapaRoutingKalla` | `standard` | `rutter` |
 | `skapaFirestoreKalla` | `db`, `sdk` | |
 | `skapaPostgresKalla` | `fraga` | `idKolumn` |
+| `skapaHttpKalla` | `basUrl` | `hamtaToken`, `hamta`, `huvuden` |
 | `skapaJsonKalla` | `bas` | `hamta` |
 | `skapaGoogleAuth` | `auth`, `sdk` | `hamtaProfil` |
 | `skapaAutentisering` | en adapter med `loggaIn`, `loggaUt`, `lyssna` | |
