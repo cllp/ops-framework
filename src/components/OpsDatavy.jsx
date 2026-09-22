@@ -5,10 +5,17 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
  * En vys tre datatillstånd: fel, hämtning, och innehåll som inte kom.
  *
  * ⛔ DET HÄR ÄR REGLER SOM I DAG BARA BEVAKAS AV KOMMENTARER. Mätt i
- * bolag-ops skriver nio vyer samma tre grenar för hand, ord för ord:
+ * bolag-ops skriver SEX vyer samma tre grenar för hand, ord för ord:
  * `if (fel) ... if (laddar || !data) ... annars innehållet`. Varje vy som
  * skriver dem själv kan skriva dem fel, och ingen vakt kan se skillnaden på
  * en vy som följer regeln och en som glömde den.
+ *
+ * ⛔ SIFFRAN STOD FÖRST SOM NIO, OCH DET VAR FEL. Nio vyer skriver
+ * felbanderollen med orden "Kunde inte hämta", och den räkningen förväxlades
+ * med hela formen. Fem har den rakt av (Tillgångar, Pension, Försäkringar,
+ * Inkomster, Kostnader) och Översikt har den i en ternär med egen väntetext.
+ * Rättelsen står kvar i stället för att skrivas över: en siffra som en gång
+ * varit fel är värd att kunna känna igen nästa gång.
  *
  * ⛔ 1. FEL VINNER ÖVER LADDNING, aldrig tvärtom.
  *
