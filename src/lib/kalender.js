@@ -143,3 +143,51 @@ export function perDag(poster) {
   }
   return karta;
 }
+
+/**
+ * Månadernas namn, i den form som står i en mening: "17 september".
+ *
+ * ⛔ HÄR OCH INTE I KOMPONENTEN. Rubriken över ett månadsrutnät och rubriken i
+ * dagsbubblan är samma ord, och två listor hade glidit isär första gången någon
+ * rättade en stavning i den ena.
+ */
+export const MANADSNAMN = [
+  "januari",
+  "februari",
+  "mars",
+  "april",
+  "maj",
+  "juni",
+  "juli",
+  "augusti",
+  "september",
+  "oktober",
+  "november",
+  "december",
+];
+
+/**
+ * Datumnyckeln som läsbar rubrik: "2026-10-12" blir "12 oktober".
+ *
+ * ⛔ RUBRIKEN I DAGSBUBBLAN ÄR INTE NYCKELN. Bubblan öppnas genom att man
+ * trycker på en dag man ser, alltså vet man redan året och månaden; det som
+ * behövs är en bekräftelse på VILKEN dag man träffade. "2026-10-12" är en
+ * maskinnyckel och läses som en post, inte som en rubrik.
+ *
+ * ⛔ INGEN `toLocaleDateString`. Den läser webbläsarens språk, så samma app hade
+ * skrivit "October 12" på en dator satt på engelska medan resten av gränssnittet
+ * står på svenska. Kalendern har redan sina veckodagar och månadsnamn i koden,
+ * och två källor till samma ord glider isär.
+ *
+ * ⛔ STRÄNGEN SOM INTE ÄR ETT DATUM GER TILLBAKA SIG SJÄLV i stället för
+ * "NaN undefined". En rubrik som skriker är sämre än en som är tråkig.
+ *
+ * @param {string} nyckel `YYYY-MM-DD`.
+ */
+export function datumtext(nyckel) {
+  const traff = /^(\d{4})-(\d{2})-(\d{2})$/.exec(nyckel || "");
+  if (!traff) return nyckel || "";
+  const manad = Number(traff[2]) - 1;
+  if (manad < 0 || manad > 11) return nyckel;
+  return `${Number(traff[3])} ${MANADSNAMN[manad]}`;
+}

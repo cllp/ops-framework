@@ -21,6 +21,22 @@ if (!Element.prototype.scrollIntoView) {
 }
 
 /*
+ * ⛔ `Element.prototype.scrollTo` SAKNAS HELT I JSDOM, till skillnad från
+ * `scrollIntoView` ovan som bara saknar effekt. Utan den här raden KASTAR varje
+ * prov som monterar `OpsKalender`, eftersom kalendern rullar sin egen behållare
+ * till innevarande månad vid montering.
+ *
+ * ⛔ EN TOM FUNKTION ÄR SANNINGEN HÄR och inte en nedsläppsväg: jsdom har ingen
+ * layout, alltså finns det ingen rullsträcka att flytta sig längs. Att i stället
+ * lägga ett `typeof === "function"`-villkor i komponenten hade smugit in ett
+ * provsammanhang i produktionskoden, och den grenen hade aldrig körts i en
+ * webbläsare.
+ */
+if (!Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = () => {};
+}
+
+/*
  * ══ ⛔ `:popover-open` I JSDOM KOSTADE 31 SEKUNDER PER ÖPPNAD POPOVER ════
  *
  * Mätt 2026-09-21, här och i bolag-ops. Ett prov som öppnar en popover och

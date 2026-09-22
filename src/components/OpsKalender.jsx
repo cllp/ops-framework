@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { datumnyckel, idagsnyckel, manader, manadsrutnat, perDag } from "../lib/kalender.js";
+import { MANADSNAMN, datumnyckel, datumtext, idagsnyckel, manader, manadsrutnat, perDag } from "../lib/kalender.js";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 /**
@@ -40,31 +40,61 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
  * hade dragit in ett andra designspråk i appen. Formen bär över, färgerna gör det
  * inte.
  *
- * ══ ⛔ DAGEN ÖPPNAS UNDER MÅNADEN, INTE I EN POPOVER ═══════════════════
+ * ══ ⛔ KALENDERN RULLAR I SIG SJÄLV, INTE I SIDAN ══════════════════════
  *
- * Förebilden lägger dagens innehåll i en flytande ruta vid fingret. Det kräver
- * positionering, kollisionshantering och en stängningsväg, alltså den dyraste
- * delen av hela komponenten, och på en telefon täcker rutan ändå det man pekar på.
+ * CP 2026-09-22, med bild: "Scrollningen tar med hela menyn och allt. Kan vi
+ * göra så att vi scrollar kalendern så att jag inte behöver scrolla upp för att
+ * komma tillbaka till idag."
  *
- * Här fälls dagen ut UNDER sitt rutnät. Ingen positionering, inget lager, och
- * listan går att läsa med tummen kvar på skärmen.
+ * Första versionen låg i dokumentets flöde, och då är det SIDAN som rullar. Tre
+ * följdfel, alla på bilden:
+ *
+ *   - `sticky top-0` på veckodagsraden nyper mot fönstrets överkant, alltså
+ *     UNDER appens egen toppmeny, och raden försvann bakom den.
+ *   - "Idag"-knappen låg `sticky bottom-4` i samma flöde och kunde bara nypa
+ *     inom sin förälders rullsträcka, alltså inte där den behövdes.
+ *   - Varje väg tillbaka till idag var en resa genom hela sidan.
+ *
+ * Nu äger rutnätet en egen rullbehållare med tak. Då nyper veckodagsraden mot
+ * KALENDERNS överkant, "Idag" kan ligga absolut i kalenderns nedre hörn, och
+ * appskalet står stilla medan man bläddrar genom månader.
+ *
+ * ⛔ `overscroll-contain` HÖR TILL SAMMA BESLUT. Utan den fortsätter rullningen
+ * ut i sidan så fort man nått botten av kalendern, alltså exakt det som skulle
+ * bort, fast en halv sekund senare.
+ *
+ * ⛔ TAKET ÄR `svh` OCH INTE `vh`. På en telefon krymper `vh` aldrig när
+ * adressfältet fälls in, så en `vh`-höjd lägger kalenderns nederkant under
+ * webbläsarens eget krom, och "Idag"-knappen hamnar under det man inte kan rulla
+ * bort.
+ *
+ * ══ ⛔ DAGEN ÖPPNAS I EN FLYTANDE, INVERTERAD BUBBLA ═══════════════════
+ *
+ * CP 2026-09-22, med bild ur SessionStudio: "bubblorna måste vara flytande som
+ * i SessionStudio. Lägg märke till det inverterade."
+ *
+ * Första versionen fällde ut dagen UNDER månadsrutnätet, med skälet att en
+ * flytande ruta kostar positionering. Det var fel av ett skäl som bara syns i
+ * bruk: utfällningen SKJUTER RESTEN AV RUTNÄTET NEDÅT. Man trycker på den 12:e,
+ * och dagarna under 12:e flyttar sig, så nästa tryck landar på fel dag.
+ *
+ * Bubblan här kostar ingen kollisionshantering, för den är inte ankrad vid
+ * fingret som förebilden. Den ligger `fixed` nära nederkanten, centrerad, precis
+ * som `OpsFloatingSummary`, och skälet till `fixed` framför `sticky` står
+ * utskrivet där: en sida som rullar i dokumentet har ingen andra behållare att
+ * stå stilla i.
+ *
+ * ⛔ INVERTERAD MED `ops-contrast-panel`, alltså samma yta som laborera-popovern
+ * och sifferbubblan. Den klassen remappar bläck, linjer och accent, så bubblan
+ * håller kontrast i både ljust och mörkt läge utan en enda egen hex. En bubbla
+ * som målats med `bg-ink` hade varit en fjärde mörk yta med sin egen ton.
+ *
+ * ⛔ TRE VÄGAR UT, för bubblan täcker en del av rutnätet: krysset, Escape, och
+ * ett andra tryck på samma dag. En flytande ruta med bara ett litet kryss är den
+ * ruta man till slut rullar ifrån i stället för att stänga.
  */
 
 const VECKODAGAR = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
-const MANADSNAMN = [
-  "januari",
-  "februari",
-  "mars",
-  "april",
-  "maj",
-  "juni",
-  "juli",
-  "augusti",
-  "september",
-  "oktober",
-  "november",
-  "december",
-];
 
 /** Hur många prickar en ruta ritar innan den börjar räkna i stället. */
 const MAX_PRICKAR = 3;
@@ -81,7 +111,7 @@ const MAX_PRICKAR = 3;
  * inte vad, och måste öppna dagen ändå.
  *
  * Rutan svarar därför bara på "finns det något här, och hur mycket". STATUS,
- * MED SITT ORD, bor i dagslistan ett tryck bort, där det finns plats för både
+ * MED SITT ORD, bor i dagsbubblan ett tryck bort, där det finns plats för både
  * färgen och ordet bredvid titeln. Det är samma arbetsdelning som `OpsEventList`
  * gör mellan pricken på raden och `Status` i utfällningen.
  */
@@ -134,45 +164,98 @@ function Dagsruta({ dag, nyckel, poster, arIdag, vald, onValj }) {
 }
 
 /**
- * Dagens poster, utfällda under månaden.
+ * Dagens poster, i en flytande inverterad bubbla.
  *
  * ⛔ EN POST MED `url` BLIR EN LÄNK, resten blir text. En rad som ser tryckbar ut
  * och inte är det är ett löfte som inte infrias, och i en kalender över stängda
  * ärenden är länken hela poängen: man öppnar dagen för att komma vidare.
  *
- * @param {{ nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[], statusOrd: Record<string, string> }} props
+ * ⛔ RUBRIKEN ÄR "12 oktober" OCH INTE "2026-10-12". Man trycker på en dag man
+ * ser, alltså är året och månaden redan kända; rubriken bekräftar vilken ruta
+ * man träffade. En maskinnyckel överst läses som ännu en post.
+ *
+ * ⛔ BUBBLAN HAR EGET TAK OCH EGEN RULLNING. En dag med tolv poster hade annars
+ * växt ut ur fönstret uppåt, alltså åt det håll där det varken finns kant eller
+ * kryss.
+ *
+ * @param {{ nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[], statusOrd: Record<string, string>, onStang: () => void }} props
  */
-function Dagslista({ nyckel, poster, statusOrd }) {
+function Dagsbubbla({ nyckel, poster, statusOrd, onStang }) {
+  const rubrik = datumtext(nyckel);
+
+  /*
+   * ⛔ ESCAPE STÄNGER, och den lyssnaren sitter på fönstret och inte på bubblan.
+   * Fokus ligger kvar på dagsrutan man tryckte på, alltså utanför bubblan, så en
+   * lyssnare på bubblans egen nod hade aldrig hört tangenten.
+   */
+  useEffect(() => {
+    /** @param {KeyboardEvent} e */
+    const vid = (e) => {
+      if (e.key === "Escape") onStang();
+    };
+    window.addEventListener("keydown", vid);
+    return () => window.removeEventListener("keydown", vid);
+  }, [onStang]);
+
   return (
-    <div className="mt-2 flex flex-col gap-1 rounded-md border border-line bg-raised p-3">
-      <p className="m-0 text-xs font-semibold uppercase tracking-wide text-ink-muted">{nyckel}</p>
-      {poster.map((p) => (
-        <div key={p.id} className="flex items-baseline gap-2">
-          {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
-              Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är
-              rätt: en färg utan ord är inget besked. */}
-          {p.status ? (
-            <span className="shrink-0 translate-y-0.5">
-              <OpsStatusDot status={p.status} label={statusOrd[p.status] || ""} />
-            </span>
-          ) : null}
-          <span className="min-w-0">
-            {p.url ? (
-              <a
-                className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
-                href={p.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {p.titel}
-              </a>
-            ) : (
-              <span className="font-semibold text-ink">{p.titel}</span>
+    /*
+     * ⛔ `pointer-events-none` på omslaget och `pointer-events-auto` på bubblan,
+     * precis som i `OpsFloatingSummary`. Omslaget spänner hela bredden för att
+     * kunna centrera, och utan det hade den osynliga remsan ätit varje tryck
+     * längs nederkanten, alltså också trycken på kalenderdagarna under den.
+     */
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem)] z-(--z-sticky) flex justify-center px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
+      <section
+        aria-label={`Poster den ${rubrik}`}
+        className="ops-contrast-panel pointer-events-auto flex max-h-[50svh] w-full max-w-sm flex-col gap-2 overflow-y-auto overscroll-contain rounded-3xl border border-line bg-contrast-panel py-3 pl-4 pr-3 shadow-lg"
+      >
+        <div className="flex items-start gap-2">
+          <h4 className="m-0 flex-1 text-sm font-semibold text-ink">{rubrik}</h4>
+          {/* ⛔ KRYSSET BÄR DATUMET I SITT NAMN. "Stäng" ensamt säger inte vad
+              som stängs för den som lyssnar sig igenom sidan. */}
+          <button
+            type="button"
+            onClick={onStang}
+            aria-label={`Stäng ${rubrik}`}
+            className={cx(
+              "-mt-1 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary",
+              "hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             )}
-            {p.not ? <span className="block text-sm text-ink-secondary">{p.not}</span> : null}
-          </span>
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M5 5l10 10M15 5L5 15" />
+            </svg>
+          </button>
         </div>
-      ))}
+
+        {poster.map((p) => (
+          <div key={p.id} className="flex items-baseline gap-2">
+            {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
+                Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är
+                rätt: en färg utan ord är inget besked. */}
+            {p.status ? (
+              <span className="shrink-0 translate-y-0.5">
+                <OpsStatusDot status={p.status} label={statusOrd[p.status] || ""} />
+              </span>
+            ) : null}
+            <span className="min-w-0">
+              {p.url ? (
+                <a
+                  className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
+                  href={p.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {p.titel}
+                </a>
+              ) : (
+                <span className="font-semibold text-ink">{p.titel}</span>
+              )}
+              {p.not ? <span className="block text-sm text-ink-secondary">{p.not}</span> : null}
+            </span>
+          </div>
+        ))}
+      </section>
     </div>
   );
 }
@@ -201,9 +284,32 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
   const karta = useMemo(() => perDag(poster), [poster]);
   const lista = useMemo(() => manader(nu, manaderBakat, manaderFramat), [nu, manaderBakat, manaderFramat]);
 
+  const rulleRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const huvudRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const idagRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [visaTillbaka, setVisaTillbaka] = useState(false);
   const [riktning, setRiktning] = useState(/** @type {"upp" | "ner"} */ ("upp"));
+
+  /**
+   * Rullar behållaren till innevarande månad.
+   *
+   * ⛔ `scrollTop` OCH INTE `scrollIntoView`. Den senare rullar ALLA rullbara
+   * förfäder, alltså också sidan, och då gör den vid montering precis det CP bad
+   * att slippa: hela vyn hoppar.
+   *
+   * ⛔ VECKODAGSRADENS HÖJD DRAS BORT. Raden är klistrad överst i behållaren, så
+   * en rullning till månadens exakta överkant lägger månadsrubriken UNDER den.
+   * Höjden läses av noden i stället för att skrivas som ett tal, eftersom talet
+   * hade blivit fel den dag typsnittet ändras.
+   *
+   */
+  const tillIdag = useCallback((/** @type {ScrollBehavior} */ beteende = "auto") => {
+    const rulle = rulleRef.current;
+    const manad = idagRef.current;
+    if (!rulle || !manad) return;
+    const huvud = huvudRef.current ? huvudRef.current.offsetHeight : 0;
+    rulle.scrollTo({ top: Math.max(0, manad.offsetTop - huvud), behavior: beteende });
+  }, []);
 
   /*
    * ⛔ ETT HOPP UTAN ANIMERING VID MONTERING. Med historik bakåt ligger den
@@ -215,14 +321,15 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
    */
   const didRef = useRef(false);
   useEffect(() => {
-    if (didRef.current || !idagRef.current) return;
+    if (didRef.current) return;
     didRef.current = true;
-    idagRef.current.scrollIntoView({ block: "start" });
-  }, []);
+    tillIdag();
+  }, [tillIdag]);
 
   useEffect(() => {
     const el = idagRef.current;
-    if (!el || typeof IntersectionObserver !== "function") return undefined;
+    const rulle = rulleRef.current;
+    if (!el || !rulle || typeof IntersectionObserver !== "function") return undefined;
     const obs = new IntersectionObserver(
       ([traff]) => {
         setVisaTillbaka(!traff.isIntersecting);
@@ -231,83 +338,98 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
         const topp = traff.rootBounds ? traff.rootBounds.top : 0;
         setRiktning(traff.boundingClientRect.bottom <= topp ? "upp" : "ner");
       },
-      { threshold: 0.1 },
+      // ⛔ `root` ÄR RULLBEHÅLLAREN OCH INTE FÖNSTRET. Utan den mäts synligheten
+      // mot viewporten, och eftersom hela kalendern ryms där skulle månaden
+      // räknas som synlig hur långt bort man än rullat inuti den: knappen hade
+      // aldrig dykt upp.
+      { root: rulle, threshold: 0.1 },
     );
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
 
-  const tillIdag = useCallback(() => {
-    idagRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
-
   const harPoster = karta.size > 0;
+  const valdaPoster = vald ? karta.get(vald) || [] : [];
 
   return (
     <section aria-label={ariaLabel} className="relative">
-      {/* ⛔ Klistrad veckodagsrad. Efter tre månaders rullning är kolumnernas
-          betydelse borta, och man räknar sig fram i stället för att läsa. */}
-      <div className="sticky top-0 z-(--z-sticky) grid grid-cols-7 gap-1 bg-canvas pt-1 pb-2">
-        {VECKODAGAR.map((d) => (
-          <span key={d} className="text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            {d}
-          </span>
-        ))}
-      </div>
+      {/* ⛔ TAKET GÖR KALENDERN TILL SIN EGEN RULLE. Se filens huvud: utan det
+          rullar sidan, veckodagsraden nyper under appens toppmeny och vägen
+          tillbaka till idag går genom hela vyn.
 
-      {!harPoster && tomtText ? <p className="m-0 pb-3 text-sm text-ink-muted">{tomtText}</p> : null}
+          ⛔ `relative` ÄR INTE PRYDNAD. Månadsblocken mäter sin plats med
+          `offsetTop`, alltså mot närmaste positionerade förälder, och utan den
+          här klassen räknas de mot sidan och rullningen landar fel. */}
+      <div
+        ref={rulleRef}
+        className="relative max-h-[60svh] overflow-y-auto overscroll-contain rounded-md border border-line bg-canvas px-1"
+      >
+        {/* ⛔ Klistrad veckodagsrad. Efter tre månaders rullning är kolumnernas
+            betydelse borta, och man räknar sig fram i stället för att läsa. */}
+        <div ref={huvudRef} className="sticky top-0 z-(--z-sticky) grid grid-cols-7 gap-1 bg-canvas pt-1 pb-2">
+          {VECKODAGAR.map((d) => (
+            <span key={d} className="text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              {d}
+            </span>
+          ))}
+        </div>
 
-      <div className="flex flex-col gap-6">
-        {lista.map(({ ar, manad }) => {
-          const arIdagsManad = ar === nu.getFullYear() && manad === nu.getMonth();
-          const rader = manadsrutnat(ar, manad);
-          const valdIManaden = vald && vald.startsWith(`${ar}-${String(manad + 1).padStart(2, "0")}`) ? vald : null;
+        {!harPoster && tomtText ? <p className="m-0 pb-3 text-sm text-ink-muted">{tomtText}</p> : null}
 
-          return (
-            <div key={`${ar}-${manad}`} ref={arIdagsManad ? idagRef : null}>
-              <h3 className="m-0 mb-2 text-lg font-bold capitalize text-ink font-display">
-                {MANADSNAMN[manad]} {ar}
-              </h3>
+        <div className="flex flex-col gap-6 pb-4">
+          {lista.map(({ ar, manad }) => {
+            const arIdagsManad = ar === nu.getFullYear() && manad === nu.getMonth();
+            const rader = manadsrutnat(ar, manad);
 
-              <div className="grid grid-cols-7 gap-1">
-                {rader.map((rad, i) =>
-                  rad.map((dag, j) => {
-                    const nyckel = dag === null ? `tom-${i}-${j}` : datumnyckel(ar, manad, dag);
-                    return (
-                      <Dagsruta
-                        key={nyckel}
-                        dag={dag}
-                        nyckel={nyckel}
-                        poster={dag === null ? [] : karta.get(nyckel) || []}
-                        arIdag={nyckel === idagNyckel}
-                        vald={nyckel === vald}
-                        onValj={(n) => setVald((forra) => (forra === n ? null : n))}
-                      />
-                    );
-                  }),
-                )}
+            return (
+              <div key={`${ar}-${manad}`} ref={arIdagsManad ? idagRef : null}>
+                <h3 className="m-0 mb-2 text-lg font-bold capitalize text-ink font-display">
+                  {MANADSNAMN[manad]} {ar}
+                </h3>
+
+                <div className="grid grid-cols-7 gap-1">
+                  {rader.map((rad, i) =>
+                    rad.map((dag, j) => {
+                      const nyckel = dag === null ? `tom-${i}-${j}` : datumnyckel(ar, manad, dag);
+                      return (
+                        <Dagsruta
+                          key={nyckel}
+                          dag={dag}
+                          nyckel={nyckel}
+                          poster={dag === null ? [] : karta.get(nyckel) || []}
+                          arIdag={nyckel === idagNyckel}
+                          vald={nyckel === vald}
+                          onValj={(n) => setVald((forra) => (forra === n ? null : n))}
+                        />
+                      );
+                    }),
+                  )}
+                </div>
               </div>
-
-              {valdIManaden ? (
-                <Dagslista nyckel={valdIManaden} poster={karta.get(valdIManaden) || []} statusOrd={statusOrd} />
-              ) : null}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
+      {/* ⛔ `absolute` I KALENDERNS EGET HÖRN, inte `sticky` i flödet. Knappen
+          hör till rutnätet och ska stå still medan det rullar under den, och
+          `sticky` kunde bara nypa inom sin förälders rullsträcka. */}
       {visaTillbaka ? (
         <button
           type="button"
-          onClick={tillIdag}
+          onClick={() => tillIdag("smooth")}
           className={cx(
-            "sticky bottom-4 ml-auto flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-4 text-sm font-semibold text-ink shadow-md",
+            "absolute right-4 bottom-4 flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-4 text-sm font-semibold text-ink shadow-md",
             "hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           )}
         >
           <span aria-hidden="true">{riktning === "upp" ? "↑" : "↓"}</span>
           Idag
         </button>
+      ) : null}
+
+      {vald && valdaPoster.length > 0 ? (
+        <Dagsbubbla nyckel={vald} poster={valdaPoster} statusOrd={statusOrd} onStang={() => setVald(null)} />
       ) : null}
     </section>
   );
