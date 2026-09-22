@@ -164,7 +164,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**55 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**56 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -237,6 +237,7 @@ något godtyckligt.
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll. |
 | `OpsFilterChip` | `options` [{value, label}], `value`, `onChange`, `ariaLabel` (krävs), `allLabel`. Pillerformat filter bredvid en lista. ⛔ Valt värde står i pillret, annars läser man en beskuren lista i tron att den är komplett. |
+| `OpsFilterPanel` | `grupper` [{id, label, options, allaLabel?}], `value` {grupp: valt \| null}, `onChange` (hela kartan), `ariaLabel` (krävs), `sortering` {label, value, options, onChange}, `rensaLabel`, `flerLabel`. Flera filterdimensioner plus sortering bakom en knapp. ⛔ Knappen byter form med valet: ikon utan text när inget är valt, piller med den VALDA etiketten när något är, räknare först vid två. ⛔ Sortering räknas aldrig som filter, en sorterad lista är fortfarande komplett. Ersätter inte `OpsFilterChip`: en dimension ska vara ett piller |
 | `OpsTabPanel` | `id`, `children` |
 | `OpsBanner` | `tone` info \| success \| warning \| danger, `title`, `action`, `onDismiss`, `dismissLabel`, `children` |
 | `OpsToastProvider` | `children`, `closeLabel`. Läggs en gång, högst upp |
