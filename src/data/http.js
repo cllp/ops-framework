@@ -111,7 +111,7 @@ export function createHttpSource(config) {
   const bas = basUrl.replace(/\/+$/, "");
   const doFetch = load ?? globalThis.fetch;
   if (typeof doFetch !== "function") {
-    throw new Error("createHttpSource: ingen fetch finns. Skicka in en med `hamta` i miljöer utan global fetch.");
+    throw new Error("createHttpSource: ingen fetch finns. Skicka in en med `load` i miljöer utan global fetch.");
   }
 
   /**
@@ -203,16 +203,16 @@ export function createHttpSource(config) {
       const vad = `POST ${collectionName}`;
       const res = await request("POST", `/${encodeURIComponent(collectionName)}`, data);
       if (!res.ok) throw await errorFromResponse(res, vad);
-      const post = await json(res, vad);
+      const entry = await json(res, vad);
       /*
        * ⛔ KONTRAKTETS REGEL 4: posten kommer tillbaka MED sitt id. Ett API som
        * svarar 201 utan kropp tvingar annars anropsstället att gissa, och en
        * gissad nyckel går sönder först vid nästa läsning, långt från felet.
        */
-      if (!post || typeof post.id !== "string") {
+      if (!entry || typeof entry.id !== "string") {
         throw new Error(`${vad}: svaret saknar id. API:et ska svara med den skapade posten, id inräknat.`);
       }
-      return post;
+      return entry;
     },
 
     async update(collectionName, id, data) {

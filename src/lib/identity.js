@@ -9,7 +9,7 @@
  */
 
 /** Antalet toner i tokenkontraktet (`--color-identity-1` .. `-6`). */
-export const ANTAL_IDENTITETSTONER = 6;
+export const IDENTITY_TONE_COUNT = 6;
 
 /**
  * ⛔ Returtypen är en union och inte `number`. Det gör att uppslaget i
@@ -26,7 +26,7 @@ export function identityTone(seed) {
   for (let i = 0; i < text.length; i += 1) {
     hash = (hash * 31 + text.charCodeAt(i)) % 100000007;
   }
-  return /** @type {1|2|3|4|5|6} */ ((hash % ANTAL_IDENTITETSTONER) + 1);
+  return /** @type {1|2|3|4|5|6} */ ((hash % IDENTITY_TONE_COUNT) + 1);
 }
 
 /**
@@ -36,11 +36,11 @@ export function identityTone(seed) {
  * emoji eller ett tecken utanför BMP och ger en trasig ruta i stället för en
  * bokstav.
  *
- * @param {string} namn
+ * @param {string} name
  * @returns {string}
  */
-export function initials(namn) {
-  const rent = String(namn ?? "").trim();
+export function initials(name) {
+  const rent = String(name ?? "").trim();
   if (!rent) return "?";
   const ord = rent.split(/\s+/).slice(0, 2);
   return ord.map((o) => forstaTecknet(o)).join("").toUpperCase() || "?";

@@ -465,7 +465,7 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
 // "kastar något" hade varit grönt för båda fallen, och det farliga är just att en
 // destruktureringskrasch ÄR ett kast: den ser ut som en kontroll.
 {
-  const konfigvakt = "scripts/check-konfigkrav.mjs";
+  const konfigvakt = "scripts/check-config-requirements.mjs";
 
   /** @param {string} namn @param {string} innehall */
   const fixtur = (namn, innehall) => {
@@ -478,19 +478,19 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
 
   kravRott(
     "konfigkrav 1: destrukturering i parameterlistan",
-    [konfigvakt, fixtur("k1", 'export function skapaProv({ db }) { if (!db) throw new Error("skapaProv: db krävs"); return {}; }\n')],
+    [konfigvakt, fixtur("k1", 'export function createProbe({ db }) { if (!db) throw new Error("createProbe: db krävs"); return {}; }\n')],
     "nämner inte fabriken",
   );
 
   kravRott(
     "konfigkrav 2: fabrik utan kontroll alls",
-    [konfigvakt, fixtur("k2", "export function skapaProv() { return {}; }\n")],
+    [konfigvakt, fixtur("k2", "export function createProbe() { return {}; }\n")],
     "utan att säga ifrån",
   );
 
   kravRott(
     "konfigkrav 3: klassificerad som utan krav men kastar",
-    [konfigvakt, fixtur("k3", 'export function skapaMinneskalla() { throw new Error("skapaMinneskalla: nej"); }\n')],
+    [konfigvakt, fixtur("k3", 'export function createMemorySource() { throw new Error("createMemorySource: nej"); }\n')],
     "men kastade ändå",
   );
 
@@ -507,7 +507,7 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   {
     const fil = fixtur(
       "k5",
-      "export function skapaProv(konfig) { const { db } = konfig ?? {}; if (!db) throw new Error('skapaProv: db krävs. Skicka in getFirestore(app).'); return {}; }\n",
+      "export function createProbe(konfig) { const { db } = konfig ?? {}; if (!db) throw new Error('createProbe: db krävs. Skicka in getFirestore(app).'); return {}; }\n",
     );
     const k = spawnSync(process.execPath, [konfigvakt, fil], { cwd: rot, encoding: "utf8" });
     resultat.push(
@@ -533,12 +533,12 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
 // importerades in i webbsidan som en typ. Det var inget läckage, men fel
 // riktning, och nästa person följer typen dit och lägger körkod intill den.
 {
-  const nodvakt = "scripts/check-nodsida.mjs";
+  const nodvakt = "scripts/check-node-side.mjs";
 
   /**
-   * En kopia av trädet, med en fil planterad i `src/` utanför `src/nod/`.
+   * En kopia av trädet, med en fil planterad i `src/` utanför `src/node/`.
    *
-   * ⛔ Kopian bär ett eget README och ett eget `src/nod/index.js`, eftersom vakten
+   * ⛔ Kopian bär ett eget README och ett eget `src/node/index.js`, eftersom vakten
    * kontrollerar båda halvorna. Utan dem hade den fallit på dokumentationshalvan,
    * och provet sett rött ut av fel skäl.
    *
@@ -546,10 +546,10 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
    */
   const nodkopia = (namn, innehall) => {
     const mapp = path.join(arbetsmapp, namn);
-    fs.mkdirSync(path.join(mapp, "src", "nod"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "src", "node"), { recursive: true });
     fs.mkdirSync(path.join(mapp, "src", "lib"), { recursive: true });
-    fs.writeFileSync(path.join(mapp, "src", "nod", "index.js"), 'export { nagot } from "./nagot.js";\n');
-    fs.writeFileSync(path.join(mapp, "src", "nod", "nagot.js"), "export const nagot = 1;\n");
+    fs.writeFileSync(path.join(mapp, "src", "node", "index.js"), 'export { nagot } from "./nagot.js";\n');
+    fs.writeFileSync(path.join(mapp, "src", "node", "nagot.js"), "export const nagot = 1;\n");
     fs.writeFileSync(path.join(mapp, "README.md"), "Dokumenterar nagot.\n");
     fs.writeFileSync(path.join(mapp, "src", "lib", "Prov.js"), innehall);
     return mapp;
@@ -557,19 +557,19 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
 
   kravRott(
     "nodsida 1: körimport från webbsidan",
-    [nodvakt, nodkopia("n1", 'import { nagot } from "../nod/nagot.js";\nexport const x = nagot;\n')],
+    [nodvakt, nodkopia("n1", 'import { nagot } from "../node/nagot.js";\nexport const x = nagot;\n')],
     "i KÖRKOD",
   );
 
   kravRott(
     "nodsida 2: dynamisk import räknas också",
-    [nodvakt, nodkopia("n2", 'export const x = () => import("../nod/nagot.js");\n')],
+    [nodvakt, nodkopia("n2", 'export const x = () => import("../node/nagot.js");\n')],
     "i KÖRKOD",
   );
 
   kravRott(
     "nodsida 3: JSDoc-typimport, fel riktning men inget läckage",
-    [nodvakt, nodkopia("n3", '/** @typedef {import("../nod/nagot.js").T} T */\nexport const x = 1;\n')],
+    [nodvakt, nodkopia("n3", '/** @typedef {import("../node/nagot.js").T} T */\nexport const x = 1;\n')],
     "nodsidans TYPER",
   );
 
@@ -581,7 +581,7 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
 
   {
     const mapp = nodkopia("n5", "export const x = 1;\n");
-    fs.writeFileSync(path.join(mapp, "src", "nod", "index.js"), "// ingen export\n");
+    fs.writeFileSync(path.join(mapp, "src", "node", "index.js"), "// ingen export\n");
     kravRott("nodsida golv: noll exporter", [nodvakt, mapp], "noll exporter");
   }
 
@@ -594,7 +594,7 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   {
     const mapp = nodkopia("n7", 'import { h } from "../__tests__/hjalp.js";\nexport const x = h;\n');
     fs.mkdirSync(path.join(mapp, "src", "__tests__"), { recursive: true });
-    fs.writeFileSync(path.join(mapp, "src", "__tests__", "hjalp.js"), 'export { nagot as h } from "../nod/nagot.js";\n');
+    fs.writeFileSync(path.join(mapp, "src", "__tests__", "hjalp.js"), 'export { nagot as h } from "../node/nagot.js";\n');
     kravRott("nodsida 5: omväg genom provkatalogen", [nodvakt, mapp], "importerar provkatalogen");
   }
 
@@ -603,7 +603,7 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
   {
     const mapp = nodkopia("n8", "export const x = 1;\n");
     fs.mkdirSync(path.join(mapp, "src", "__tests__"), { recursive: true });
-    fs.writeFileSync(path.join(mapp, "src", "__tests__", "nagot.test.js"), 'import { nagot } from "../nod/nagot.js";\nexport default nagot;\n');
+    fs.writeFileSync(path.join(mapp, "src", "__tests__", "nagot.test.js"), 'import { nagot } from "../node/nagot.js";\nexport default nagot;\n');
     const k = spawnSync(process.execPath, [nodvakt, mapp], { cwd: rot, encoding: "utf8" });
     resultat.push(
       k.status === 0
@@ -649,7 +649,7 @@ kravRott(
 // stod först, och sidan ritades i systemets typsnitt. Bredvid stod en utförlig
 // kommentar som förklarade varför lösningen var den rätta.
 {
-  const typsnittsvakt = "scripts/check-typsnitt.mjs";
+  const typsnittsvakt = "scripts/check-fonts.mjs";
   const mallsokvag = "create-ops-app/template/index.html";
 
   kravRott(
@@ -697,7 +697,7 @@ kravRott(
 // man, så beviset för att den biter är särskilt viktigt: kan den inte bli röd
 // är den bara ett påstående om att färgerna är mätta.
 {
-  const diagramvakt = "scripts/check-diagramfarger.mjs";
+  const diagramvakt = "scripts/check-chart-colors.mjs";
 
   kravRott(
     "diagramfärger: två serier som ingen kan skilja åt",
@@ -755,7 +755,7 @@ kravRott(
 // dessutom inte som en bugg utan som att "appen känns ostadig"
 // (bolag-ops#143), vilket är precis den felklass en vakt finns för.
 {
-  const sidramsvakt = "scripts/check-sidram.mjs";
+  const sidramsvakt = "scripts/check-page-frame.mjs";
 
   kravRott(
     "sidram 1: raden borttagen ur basskiktet",
@@ -796,7 +796,7 @@ kravRott(
 // alltså en färg utanför tokenkontraktet som inte byter med mörkt läge
 // (bolag-ops#141).
 {
-  const reglagevakt = "scripts/check-reglage.mjs";
+  const reglagevakt = "scripts/check-slider.mjs";
 
   kravRott(
     "reglage 1: hela blocket borttaget",

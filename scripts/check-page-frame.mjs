@@ -33,7 +33,7 @@
  * riktig webbläsare, och det står i issuens verifieringssteg. En vakt som
  * utger sig för att vara det andra hade varit sämre än ingen vakt.
  *
- * Kör: node scripts/check-sidram.mjs
+ * Kör: node scripts/check-page-frame.mjs
  */
 
 import fs from "node:fs";
@@ -53,7 +53,7 @@ const arg = process.argv[2];
 const vag = arg ? path.resolve(arg) : path.join(rot, "tokens", "tokens.css");
 
 if (!fs.existsSync(vag)) {
-  console.error(`check-sidram: ${vag} finns inte. Fel sökväg i vakten, inte ett godkänt utfall.`);
+  console.error(`check-page-frame: ${vag} finns inte. Fel sökväg i vakten, inte ett godkänt utfall.`);
   process.exit(1);
 }
 
@@ -67,7 +67,7 @@ const css = fs.readFileSync(vag, "utf8");
 const htmlRegeln = /@layer\s+base\s*\{[\s\S]*?\bhtml\s*\{([\s\S]*?)\n\s*\}/.exec(css);
 
 if (!htmlRegeln) {
-  console.error("check-sidram: hittade ingen `html`-regel i basskiktet.");
+  console.error("check-page-frame: hittade ingen `html`-regel i basskiktet.");
   console.error("  Antingen är basskiktet omskrivet, eller så matchar vakten inte längre filen.");
   console.error("  Bägge kräver ett beslut, inget av dem är ett godkänt utfall.");
   process.exit(1);
@@ -77,7 +77,7 @@ if (!htmlRegeln) {
 const kropp = htmlRegeln[1].replace(/\/\*[\s\S]*?\*\//g, "");
 
 if (!/scrollbar-gutter:\s*stable/.test(kropp)) {
-  console.error("check-sidram: `scrollbar-gutter: stable` saknas i basskiktets `html`-regel.\n");
+  console.error("check-page-frame: `scrollbar-gutter: stable` saknas i basskiktets `html`-regel.\n");
   console.error("  Utan den hoppar varje ops-plattform cirka 15px i sidled när rullningslisten");
   console.error("  slås av och på, och det rapporteras som tre olika buggar i stället för en.");
   console.error("  Se bolag-ops#143 och kommentaren i tokens.css.\n");
@@ -86,4 +86,4 @@ if (!/scrollbar-gutter:\s*stable/.test(kropp)) {
   process.exit(1);
 }
 
-console.log("check-sidram: basskiktets `html`-regel reserverar rullningslistens plats");
+console.log("check-page-frame: basskiktets `html`-regel reserverar rullningslistens plats");

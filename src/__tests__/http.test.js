@@ -140,7 +140,7 @@ describe("createHttpSource", () => {
      */
     const { f } = falskFetch(svar(200, { items: [{ id: "a" }] }));
     const k = createHttpSource({ basUrl: BAS, load: f });
-    await expect(k.list("kostnader")).rejects.toThrow(/list/);
+    await expect(k.list("kostnader")).rejects.toThrow(/lista/);
   });
 
   it("kräver att den skapade posten kommer tillbaka med sitt id", async () => {

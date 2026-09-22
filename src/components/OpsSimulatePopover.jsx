@@ -16,7 +16,7 @@ import { OpsSlider } from "./OpsSlider.jsx";
  * varm amber när justerad ≠ noll, valfri %-bricka) men har ingen `input
  * type=range`. Själva dragandet sker i popovern, med fullbredds-`OpsSlider`
  * och Återställ. Samma kontrakt som `OpsSlider`/`OpsKnob`: nolläge, spann,
- * obligatorisk `formateraVarde`.
+ * obligatorisk `formatValue`.
  *
  * ⛔ INTE `modal`. `OpsFilterChip`/`OpsThemeToggle` är samma mönster: Escape
  * och klick utanför stänger. En fokusfälla här gjorde jsdom-proven mångsekunders
@@ -34,40 +34,40 @@ import { OpsSlider } from "./OpsSlider.jsx";
  * @param {(value: number) => void} props.onChange
  * @param {number} props.min
  * @param {number} props.max
- * @param {number} props.noll Läget som betyder "som det är idag".
- * @param {(value: number) => string} props.formateraVarde Läget i ord, för både skärm och uppläsning.
+ * @param {number} props.zero Läget som betyder "som det är idag".
+ * @param {(value: number) => string} props.formatValue Läget i ord, för både skärm och uppläsning.
  * @param {number} [props.step]
- * @param {string} [props.aterstallLabel]
+ * @param {string} [props.resetLabel]
  */
-export function OpsLaboreraPopover({
+export function OpsSimulatePopover({
   label,
   value,
   onChange,
   min,
   max,
-  noll,
-  formateraVarde,
+  zero,
+  formatValue,
   step = 1,
-  aterstallLabel = "Återställ",
+  resetLabel = "Återställ",
 }) {
-  if (!(noll >= min && noll <= max)) {
+  if (!(zero >= min && zero <= max)) {
     throw new Error(
-      `OpsLaboreraPopover: noll (${noll}) ligger utanför ${min} till ${max}. Nolläget är det man återställer till, så ett nolläge utanför spannet är ett reglage som inte går att nollställa.`,
+      `OpsSimulatePopover: noll (${zero}) ligger utanför ${min} till ${max}. Nolläget är det man återställer till, så ett nolläge utanför spannet är ett reglage som inte går att nollställa.`,
     );
   }
-  if (typeof formateraVarde !== "function") {
+  if (typeof formatValue !== "function") {
     throw new Error(
-      "OpsLaboreraPopover: formateraVarde måste vara en funktion. Ett reglage som läses upp som ett naket tal säger inte vad talet betyder.",
+      "OpsSimulatePopover: formatValue måste vara en funktion. Ett reglage som läses upp som ett naket tal säger inte vad talet betyder.",
     );
   }
 
   const [oppen, setOppen] = useState(false);
-  const text = formateraVarde(value);
-  const vidNoll = value === noll;
+  const text = formatValue(value);
+  const vidNoll = value === zero;
   const spann = max - min;
-  const nalGrad = spann === 0 ? 0 : ((value - noll) / spann) * 270;
-  const bagProcent = spann === 0 ? 0 : (Math.abs(value - noll) / spann) * 100;
-  const positiv = value >= noll;
+  const nalGrad = spann === 0 ? 0 : ((value - zero) / spann) * 270;
+  const bagProcent = spann === 0 ? 0 : (Math.abs(value - zero) / spann) * 100;
+  const positiv = value >= zero;
 
   const bagGrad = bagProcent * 2.7;
   const bagStil =
@@ -129,10 +129,10 @@ export function OpsLaboreraPopover({
             onChange={onChange}
             min={min}
             max={max}
-            noll={noll}
-            formateraVarde={formateraVarde}
+            zero={zero}
+            formatValue={formatValue}
             step={step}
-            aterstallLabel={aterstallLabel}
+            resetLabel={resetLabel}
           />
         </Popover.Content>
       </Popover.Portal>

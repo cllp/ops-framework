@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { bradska, delaIdagKommande } from "../lib/handelser.js";
+import { urgency, splitTodayUpcoming } from "../lib/events.js";
 import { OpsEventList } from "../components/OpsEventList.jsx";
 
-const h = (id, dagarKvar, extra = {}) => ({ id, titel: id, dagarKvar, ...extra });
+const h = (id, daysLeft, extra = {}) => ({ id, title: id, daysLeft, ...extra });
 
 describe("bradska", () => {
   it("skiljer försenat, nu, framåt och odaterat", () => {
-    expect(bradska(h("a", -2))).toBe("forsenat");
-    expect(bradska(h("b", 0))).toBe("pagar");
-    expect(bradska(h("c", 3))).toBe("framat");
-    expect(bradska(h("d", null))).toBe("odaterat");
+    expect(urgency(h("a", -2))).toBe("late");
+    expect(urgency(h("b", 0))).toBe("inProgress");
+    expect(urgency(h("c", 3))).toBe("ahead");
+    expect(urgency(h("d", null))).toBe("undated");
   });
 
   /**
@@ -20,45 +20,45 @@ describe("bradska", () => {
    * när det i själva verket var dags nu.
    */
   it("räknar ett pågående intervall som nu, inte som passerat", () => {
-    expect(bradska(h("lon", -1, { pagar: true }))).toBe("pagar");
+    expect(urgency(h("lon", -1, { inProgress: true }))).toBe("inProgress");
   });
 
   it("tål att sakna fält utan att kasta", () => {
-    expect(bradska(/** @type {any} */ (null))).toBe("odaterat");
-    expect(bradska(/** @type {any} */ ({ id: "x", titel: "x" }))).toBe("odaterat");
+    expect(urgency(/** @type {any} */ (null))).toBe("undated");
+    expect(urgency(/** @type {any} */ ({ id: "x", title: "x" }))).toBe("undated");
   });
 });
 
 describe("delaIdagKommande", () => {
   it("lägger försenat i Idag och odaterat i Kommande", () => {
-    const { idag, kommande, forsenat } = delaIdagKommande([h("sent", -3), h("nu", 0), h("snart", 2), h("nagon-gang", null)]);
+    const { today, kommande, late } = splitTodayUpcoming([h("sent", -3), h("nu", 0), h("snart", 2), h("nagon-gang", null)]);
 
     // ⛔ Försenat ligger i Idag, inte i en egen tredje hink: det kräver dig just
     // nu, och en egen flik hade gömt det bakom ett klick.
-    expect(idag.map((x) => x.id)).toEqual(["sent", "nu"]);
+    expect(today.map((x) => x.id)).toEqual(["sent", "nu"]);
 
     // ⛔ Odaterat i Kommande: det kräver dig inte idag, och lägger man det i
     // Idag slutar den siffran svara på "hur mycket måste jag göra nu".
     expect(kommande.map((x) => x.id)).toEqual(["snart", "nagon-gang"]);
 
-    expect(forsenat).toBe(1);
+    expect(late).toBe(1);
   });
 
   it("klarar tom och saknad lista", () => {
-    expect(delaIdagKommande([])).toEqual({ idag: [], kommande: [], forsenat: 0 });
-    expect(delaIdagKommande(/** @type {any} */ (undefined)).idag).toEqual([]);
+    expect(splitTodayUpcoming([])).toEqual({ today: [], kommande: [], late: 0 });
+    expect(splitTodayUpcoming(/** @type {any} */ (undefined)).today).toEqual([]);
   });
 });
 
 describe("OpsEventList", () => {
   it("skriver ut ordet för försenat, inte bara färgen", () => {
     // ⛔ En färg går inte att läsa upp och är osynlig för var tjugonde man.
-    render(<OpsEventList events={[h("moms", -2, { nar: "För 2 dagar sedan" })]} />);
+    render(<OpsEventList events={[h("moms", -2, { when: "För 2 dagar sedan" })]} />);
     expect(screen.getByText("Försenat")).toBeInTheDocument();
   });
 
   it("låter appen skriva sitt eget språk men inte ta bort ordet", () => {
-    render(<OpsEventList events={[h("moms", -2)]} labels={{ forsenat: "Overdue" }} />);
+    render(<OpsEventList events={[h("moms", -2)]} labels={{ late: "Overdue" }} />);
     expect(screen.getByText("Overdue")).toBeInTheDocument();
   });
 
@@ -72,7 +72,7 @@ describe("OpsEventList", () => {
   it("visar urlLabel och uppdaterad i headern i stället för Öppna", () => {
     render(
       <OpsEventList
-        events={[h("fix", 1, { url: "/x/183", urlLabel: "#183", uppdaterad: "2026-09-18" })]}
+        events={[h("fix", 1, { url: "/x/183", urlLabel: "#183", updatedAt: "2026-09-18" })]}
       />,
     );
     const lank = screen.getByRole("link", { name: "#183 fix" });
@@ -96,29 +96,29 @@ describe("OpsEventList", () => {
      * mätningen i mätbygget; det här är golvet som gör att strukturen inte kan
      * falla tillbaka obemärkt.
      */
-    render(<OpsEventList events={[h("lang", 3, { nar: "Om 2 veckor (2026-09-30)", roll: <span>Du</span> })]} />);
-    const titel = screen.getByText("lang");
-    const nar = screen.getByText("Om 2 veckor (2026-09-30)");
+    render(<OpsEventList events={[h("lang", 3, { when: "Om 2 veckor (2026-09-30)", role: <span>Du</span> })]} />);
+    const title = screen.getByText("lang");
+    const when = screen.getByText("Om 2 veckor (2026-09-30)");
 
     // ⛔ Detaljraden hittas via `closest("div")` från datumet och inte som
-    // `li`:s första barn. Provet sade förut `titel.parentElement === li`, vilket
+    // `li`:s första barn. Provet sade förut `title.parentElement === li`, vilket
     // var sant ända till chevronkolumnen lade en kolumn mellan dem: det gick
     // rött av en ren strukturändring medan felet det bevakar var oförändrat.
     // Ett prov som är rött av fel anledning slutar man läsa.
-    const metarad = /** @type {HTMLElement} */ (nar.closest("div"));
+    const metarad = /** @type {HTMLElement} */ (when.closest("div"));
 
     // Titeln får inte ligga i detaljraden, för då konkurrerar de om bredden igen.
-    expect(metarad.contains(titel)).toBe(false);
+    expect(metarad.contains(title)).toBe(false);
     // Och de ska vara syskon, alltså två rader i samma kolumn. Låg titeln någon
     // annanstans i trädet vore provet grönt utan att layouten var rätt.
-    expect(titel.parentElement).toBe(metarad.parentElement);
+    expect(title.parentElement).toBe(metarad.parentElement);
   });
 
   it("visar slaget bredvid rollen, som två olika upplysningar", () => {
     // ⛔ Rollen säger VEM, slaget säger VAD FÖR SORTS SAK. Bär raden bara det
     // ena går det att filtrera på typ utan att kunna se vilken typ en rad har,
     // alltså utan att kunna kontrollera sitt eget filter.
-    render(<OpsEventList events={[h("moms", 3, { roll: <span>Förfaller</span>, slag: "Pengar" })]} />);
+    render(<OpsEventList events={[h("moms", 3, { role: <span>Förfaller</span>, kind: "Pengar" })]} />);
     expect(screen.getByText("Förfaller")).toBeInTheDocument();
     expect(screen.getByText("Pengar")).toBeInTheDocument();
   });
@@ -127,9 +127,9 @@ describe("OpsEventList", () => {
     // ⛔ Raden bär redan en rollbadge och ibland ett brådskemärke. Ett tredje
     // piller gör den till ett klistermärkesalbum, och då vet ögat inte längre
     // vilket märke som betyder mest. Brådskan är det enda som får larma.
-    render(<OpsEventList events={[h("moms", -2, { slag: "Pengar" })]} />);
-    const slag = screen.getByText("Pengar");
-    expect(slag.className).not.toMatch(/rounded-full/);
+    render(<OpsEventList events={[h("moms", -2, { kind: "Pengar" })]} />);
+    const kind = screen.getByText("Pengar");
+    expect(kind.className).not.toMatch(/rounded-full/);
     // Försenat-märket på samma rad ÄR ett piller, så provet visar skillnaden.
     expect(screen.getByText("Försenat").className).toMatch(/rounded-full/);
   });
@@ -137,7 +137,7 @@ describe("OpsEventList", () => {
   it("fäller ut detaljer på den rad som har dem", () => {
     render(
       <OpsEventList
-        events={[h("moms", 3, { detaljer: <p>Redovisas via e-tjänsten</p> })]}
+        events={[h("moms", 3, { details: <p>Redovisas via e-tjänsten</p> })]}
       />,
     );
 
@@ -160,7 +160,7 @@ describe("OpsEventList", () => {
   it("ger ingen chevron till en rad utan detaljer", () => {
     // ⛔ En pil som inte öppnar något är ett löfte som inte infrias, och den som
     // tryckt en gång utan att något hände slutar lita på de andra pilarna.
-    render(<OpsEventList events={[h("ett", 1, { detaljer: <p>d</p> }), h("tva", 2)]} />);
+    render(<OpsEventList events={[h("ett", 1, { details: <p>d</p> }), h("tva", 2)]} />);
     expect(screen.getByRole("button", { name: "Visa detaljer för ett" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Visa detaljer för tva" })).toBeNull();
   });
@@ -168,7 +168,7 @@ describe("OpsEventList", () => {
   it("ritar varje händelse som eget kort, inte divider-rader i ett delat kort", () => {
     // ⛔ Inkorg-mönstret: gap-3 mellan OpsCard. En ul.divide-y i ett ytterkort
     // var felet på bolag-ops Idag ("kräver dig nu").
-    const { container } = render(<OpsEventList events={[h("a", 1, { nar: "Idag" }), h("b", 2, { nar: "I morgon" })]} />);
+    const { container } = render(<OpsEventList events={[h("a", 1, { when: "Idag" }), h("b", 2, { when: "I morgon" })]} />);
     const list = container.querySelector("ul");
     expect(list?.className).toMatch(/gap-3/);
     expect(list?.className).not.toMatch(/divide-y/);
@@ -197,7 +197,7 @@ describe("OpsEventList", () => {
      * kanter som nästan var lika.
      */
     const { container } = render(
-      <OpsEventList events={[h("a", 1, { nar: "Idag", kant: 2, kantLabel: "Påminnelse" })]} />,
+      <OpsEventList events={[h("a", 1, { when: "Idag", edge: 2, edgeLabel: "Påminnelse" })]} />,
     );
     const kortet = container.querySelector("ul > li > div.border");
     expect(kortet?.className).toMatch(/border-l-4/);
@@ -214,7 +214,7 @@ describe("OpsEventList", () => {
      */
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      expect(() => render(<OpsEventList events={[h("a", 1, { nar: "Idag", kant: 2 })]} />)).toThrow(/edgeLabel/);
+      expect(() => render(<OpsEventList events={[h("a", 1, { when: "Idag", edge: 2 })]} />)).toThrow(/edgeLabel/);
     } finally {
       tyst.mockRestore();
     }
@@ -227,17 +227,17 @@ describe("OpsEventList", () => {
     const { container } = render(<OpsEventList events={[h("ett", 1), h("tva", 2)]} />);
     expect(container.querySelectorAll(".w-11")).toHaveLength(0);
 
-    const { container: medDetaljer } = render(<OpsEventList events={[h("tre", 1, { detaljer: <p>d</p> })]} />);
+    const { container: medDetaljer } = render(<OpsEventList events={[h("tre", 1, { details: <p>d</p> })]} />);
     expect(medDetaljer.querySelectorAll(".w-11").length).toBeGreaterThan(0);
   });
 
   it("skriver deadline som eget faktum, inte som en del av brådskan", () => {
     // ⛔ CP: "Om det finns en deadline på aktiviteten så skriv det."
     //
-    // `nar` säger hur långt bort något är, `deadline` vilken dag. Två olika
+    // `when` säger hur långt bort något är, `deadline` vilken dag. Två olika
     // fakta, och båda behövs: det ena svarar på "måste jag nu", det andra på
     // "vad skriver jag in i kalendern".
-    render(<OpsEventList events={[h("moms", 14, { nar: "Om 2 veckor", deadline: "Förfaller 2026-09-30" })]} />);
+    render(<OpsEventList events={[h("moms", 14, { when: "Om 2 veckor", deadline: "Förfaller 2026-09-30" })]} />);
     expect(screen.getByText("Om 2 veckor")).toBeInTheDocument();
     expect(screen.getByText("Förfaller 2026-09-30")).toBeInTheDocument();
   });
@@ -247,11 +247,11 @@ describe("OpsEventList", () => {
     // rollbadgen, där det läses som ett tredje obesläktat fält i stället för
     // som samma upplysning ur ett annat håll.
     render(
-      <OpsEventList events={[h("moms", 14, { roll: <span>Förfaller</span>, nar: "Om 2 veckor", deadline: "2026-09-30" })]} />,
+      <OpsEventList events={[h("moms", 14, { role: <span>Förfaller</span>, when: "Om 2 veckor", deadline: "2026-09-30" })]} />,
     );
-    const nar = screen.getByText("Om 2 veckor");
+    const when = screen.getByText("Om 2 veckor");
     const deadline = screen.getByText("2026-09-30");
-    const klustret = /** @type {HTMLElement} */ (nar.parentElement);
+    const klustret = /** @type {HTMLElement} */ (when.parentElement);
 
     expect(deadline.parentElement).toBe(klustret);
 
@@ -274,7 +274,7 @@ describe("OpsEventList", () => {
     render(
       <OpsEventList
         events={[h("lon", 3, { atgard: <button onClick={() => rader.push("lon")}>Bocka av</button> }), h("faktura", 5)]}
-        atgardsforklaring="Bara påminnelser går att bocka av."
+        actionHint="Bara påminnelser går att bocka av."
       />,
     );
 
@@ -299,9 +299,9 @@ describe("OpsEventList", () => {
      * lät platsen ritas alltid, stod provet grönt. Nu letar det efter TOMMA
      * element, vilket är precis vad den onödiga platsen är.
      */
-    // ⛔ `nar` på båda raderna med flit: utan den är detaljraden tom av egna
+    // ⛔ `when` på båda raderna med flit: utan den är detaljraden tom av egna
     // skäl, och då hade provet fällt på något det inte handlar om.
-    const { container } = render(<OpsEventList events={[h("a", 1, { nar: "I morgon" }), h("b", 2, { nar: "Om 2 dagar" })]} />);
+    const { container } = render(<OpsEventList events={[h("a", 1, { when: "I morgon" }), h("b", 2, { when: "Om 2 dagar" })]} />);
     const tomma = [...container.querySelectorAll("li *")].filter((e) => !e.children.length && !e.textContent.trim());
     expect(tomma).toHaveLength(0);
   });
@@ -315,7 +315,7 @@ describe("OpsEventList", () => {
      * slutar lita på hela listan, också de rader där knappen fanns.
      */
     const tyst = () => render(<OpsEventList events={[h("lon", 3, { atgard: <button>Bocka av</button> }), h("stum", 5)]} />);
-    expect(tyst).toThrow(/atgardsforklaring/);
+    expect(tyst).toThrow(/actionHint/);
   });
 
   it("kräver ingen förklaring när ALLA rader har en åtgärd", () => {

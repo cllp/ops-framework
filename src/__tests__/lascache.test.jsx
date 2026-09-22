@@ -57,9 +57,9 @@ function Lista() {
   return <p>{loading ? "loading" : `rows: ${data.length}`}</p>;
 }
 
-function Dokument({ etikett }) {
+function Dokument({ label }) {
   const { data, loading } = useDocument("data", "pension");
-  return <p>{loading ? `${etikett}: laddar` : `${etikett}: ${data ? data.value : "inget"}`}</p>;
+  return <p>{loading ? `${label}: laddar` : `${label}: ${data ? data.value : "inget"}`}</p>;
 }
 
 describe("läscachen", () => {
@@ -72,8 +72,8 @@ describe("läscachen", () => {
     const { source, rakning } = raknandeKalla();
     render(
       <Med source={source}>
-        <Dokument etikett="a" />
-        <Dokument etikett="b" />
+        <Dokument label="a" />
+        <Dokument label="b" />
       </Med>,
     );
 
@@ -232,7 +232,7 @@ describe("läscachen", () => {
 
     const forsta = render(
       <Med source={source}>
-        <Dokument etikett="a" />
+        <Dokument label="a" />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("a: inget")).toBeInTheDocument());
@@ -240,7 +240,7 @@ describe("läscachen", () => {
 
     render(
       <Med source={source}>
-        <Dokument etikett="b" />
+        <Dokument label="b" />
       </Med>,
     );
     expect(screen.getByText("b: inget")).toBeInTheDocument();

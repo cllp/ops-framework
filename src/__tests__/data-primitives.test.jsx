@@ -9,7 +9,7 @@ import { OpsTag } from "../components/OpsTag.jsx";
 import { OpsTabs, OpsTabPanel } from "../components/OpsTabs.jsx";
 import { OpsCheckbox, OpsSwitch } from "../components/OpsToggle.jsx";
 import { OpsProvenance } from "../components/OpsProvenance.jsx";
-import { formatCurrency, formatDate, formatDateTime, formatNumber, formatPercent, SAKNAS, TALMELLANSLAG } from "../lib/format.js";
+import { formatCurrency, formatDate, formatDateTime, formatNumber, formatPercent, MISSING, NUMBER_SPACE } from "../lib/format.js";
 
 /** @param {() => void} kor @param {RegExp} meddelande */
 function forvantaKrasch(kor, meddelande) {
@@ -26,8 +26,8 @@ const KOLUMNER = [
   { key: "belopp", label: "Belopp", numeric: true },
 ];
 const RADER = [
-  { id: "1", titel: "Fortnox", belopp: "1 200 kr" },
-  { id: "2", titel: "Telia", belopp: "449 kr" },
+  { id: "1", title: "Fortnox", belopp: "1 200 kr" },
+  { id: "2", title: "Telia", belopp: "449 kr" },
 ];
 
 describe("OpsTable", () => {
@@ -205,20 +205,20 @@ describe("formatering", () => {
     // låser tecknet går sönder vid nästa runtime-uppgradering och ser då ut som
     // att formateringen är trasig.
     expect(ut).not.toBe("1234567 kr");
-    expect(ut.replace(TALMELLANSLAG, "")).toBe("1234567kr");
+    expect(ut.replace(NUMBER_SPACE, "")).toBe("1234567kr");
   });
 
   it("visar tomhet som streck i stället för NaN eller noll", () => {
     // Bindestreck, inte tankstreck: Intl sätter U+2212 framför negativa tal, så
     // platshållaren kan inte forvaxlas med ett minustecken.
-    expect(SAKNAS).toBe("-");
+    expect(MISSING).toBe("-");
     // ⛔ En saknad siffra som visas som 0 kr är en LÖGN om datan, och den
     // lögnen syns inte. Ett streck syns.
-    expect(formatCurrency(null)).toBe(SAKNAS);
-    expect(formatNumber(undefined)).toBe(SAKNAS);
-    expect(formatPercent(Number.NaN)).toBe(SAKNAS);
-    expect(formatDate("")).toBe(SAKNAS);
-    expect(formatDate("inte-ett-datum")).toBe(SAKNAS);
+    expect(formatCurrency(null)).toBe(MISSING);
+    expect(formatNumber(undefined)).toBe(MISSING);
+    expect(formatPercent(Number.NaN)).toBe(MISSING);
+    expect(formatDate("")).toBe(MISSING);
+    expect(formatDate("inte-ett-datum")).toBe(MISSING);
   });
 
   it("tar andel och inte procenttal", () => {
@@ -242,6 +242,6 @@ describe("formatering", () => {
 
   it("avrundar decimaler i stället för att klippa", () => {
     expect(formatNumber(2.5, { decimals: 0 })).toBe("3");
-    expect(formatCurrency(-1500).replace(TALMELLANSLAG, "")).toContain("1500");
+    expect(formatCurrency(-1500).replace(NUMBER_SPACE, "")).toContain("1500");
   });
 });

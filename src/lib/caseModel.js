@@ -21,22 +21,22 @@
  *
  * ══ ⛔ VAD SOM INTE FLYTTADE HIT, OCH VARFÖR ═════════════════════════════
  *
- * Fältet `kvitto` med belopp, datum och moms stannar i appen, som `extraFalt`.
+ * Fältet `kvitto` med belopp, datum och moms stannar i appen, som `extraFields`.
  * Samma sak med taket för bilagan: det följer av LAGRINGEN (ett Firestore-
  * dokument får vara 1 048 576 byte) och inte av vad ett ärende är. En app som
  * lagrar i Postgres har ett helt annat tak, och en konstant här hade gällt båda.
  */
 
 /**
- * @typedef {object} Sort
+ * @typedef {object} Kind
  * @property {string} value Nyckeln som lagras.
  * @property {string} label Vad människor kallar den.
- * @property {string} etikett Vad som skickas vidare, till exempel till ett ärendesystem.
- * @property {(utkast: any) => string[]} [krav] Extra villkor för just den här sorten.
+ * @property {string} externalLabel Vad som skickas vidare, till exempel till ett ärendesystem.
+ * @property {(draft: any) => string[]} [requirements] Extra villkor för just den här sorten.
  *   Returnerar skälen som saknas, tom lista när allt är på plats.
  *   ⛔ EN FUNKTION OCH INTE FLAGGOR. Flaggor (`kraverBelopp: true`) tvingar ramverket
  *   att veta vad ett belopp är, och då står appens ord här igen.
- * @property {(utkast: any) => Record<string, unknown>} [extraFalt] App-specifika fält
+ * @property {(draft: any) => Record<string, unknown>} [extraFields] App-specifika fält
  *   som ska med i dokumentet för just den sorten.
  */
 
@@ -44,15 +44,15 @@
  * @typedef {object} Prio
  * @property {string} value
  * @property {string} label
- * @property {string} etikett
+ * @property {string} externalLabel
  */
 
 /**
  * @typedef {object} Arendekonfig
- * @property {Sort[]} sorter
- * @property {Prio[]} prioer
- * @property {string} basetikett Etiketten varje ärende bär, oavsett sort.
- * @property {number} [maxRubrik] Standard 120.
+ * @property {Kind[]} kinds
+ * @property {Prio[]} priorities
+ * @property {string} baseLabel Etiketten varje ärende bär, oavsett sort.
+ * @property {number} [maxTitle] Standard 120.
  */
 
 /** Rubriken blir en titel i en lista, och en titel som inte ryms är ingen titel. */
@@ -104,49 +104,49 @@ function saknasVidAvslutInternt(lage, resultat) {
  * Bygger modellen ur appens konfiguration.
  *
  * ⛔ KONTROLLERAR KONFIGURATIONEN VID UPPSTART, inte vid första användningen.
- * En sort utan `etikett` ger annars ett ärende som saknar sin märkning, och det
+ * En sort utan `externalLabel` ger annars ett ärende som saknar sin märkning, och det
  * felet syns först i ärendesystemet: posten skapades, den hamnade bara aldrig
  * där någon letar. Samma skäl som `createDataSource` kontrollerar sin adapter.
  *
  * @param {Arendekonfig} konfig
  */
-export function skapaArendemodell(konfig) {
-  if (!konfig || !Array.isArray(konfig.sorter) || konfig.sorter.length === 0) {
-    throw new Error("skapaArendemodell: minst en sort krävs. Sorterna är appens taxonomi, inte ramverkets.");
+export function createCaseModel(konfig) {
+  if (!konfig || !Array.isArray(konfig.kinds) || konfig.kinds.length === 0) {
+    throw new Error("createCaseModel: minst en sort krävs. Sorterna är appens taxonomi, inte ramverkets.");
   }
-  if (!Array.isArray(konfig.prioer) || konfig.prioer.length === 0) {
-    throw new Error("skapaArendemodell: minst en prio krävs.");
+  if (!Array.isArray(konfig.priorities) || konfig.priorities.length === 0) {
+    throw new Error("createCaseModel: minst en prio krävs.");
   }
-  if (!konfig.basetikett) {
+  if (!konfig.baseLabel) {
     throw new Error(
-      "skapaArendemodell: basetikett krävs. Utan den saknar ärendet den märkning som gör att det syns där någon letar, och det felet ser ut som att ärendet aldrig skapades.",
+      "createCaseModel: baseLabel krävs. Utan den saknar ärendet den märkning som gör att det syns där någon letar, och det felet ser ut som att ärendet aldrig skapades.",
     );
   }
 
   for (const list of [
-    { namn: "sorter", rader: konfig.sorter },
-    { namn: "prioer", rader: konfig.prioer },
+    { name: "kinds", rader: konfig.kinds },
+    { name: "priorities", rader: konfig.priorities },
   ]) {
     for (const rad of /** @type {Record<string, any>[]} */ (list.rader)) {
-      for (const falt of ["value", "label", "etikett"]) {
+      for (const falt of ["value", "label", "externalLabel"]) {
         if (!rad || !rad[falt]) {
-          throw new Error(`skapaArendemodell: ${list.namn} saknar "${falt}" på ${JSON.stringify(rad)}.`);
+          throw new Error(`createCaseModel: ${list.name} saknar "${falt}" på ${JSON.stringify(rad)}.`);
         }
       }
     }
   }
 
-  const maxRubrik = konfig.maxRubrik ?? MAX_RUBRIK_STANDARD;
+  const maxTitle = konfig.maxTitle ?? MAX_RUBRIK_STANDARD;
   /** @param {string | undefined} v */
-  const sort = (v) => konfig.sorter.find((s) => s.value === v);
+  const sort = (v) => konfig.kinds.find((s) => s.value === v);
   /** @param {string | undefined} v */
-  const prio = (v) => konfig.prioer.find((p) => p.value === v);
+  const prio = (v) => konfig.priorities.find((p) => p.value === v);
 
   return {
-    sorter: konfig.sorter,
-    prioer: konfig.prioer,
-    basetikett: konfig.basetikett,
-    maxRubrik,
+    kinds: konfig.kinds,
+    priorities: konfig.priorities,
+    baseLabel: konfig.baseLabel,
+    maxTitle,
 
     /**
      * Etiketterna ett ärende ska bära: basen, sorten, prion.
@@ -155,13 +155,13 @@ export function skapaArendemodell(konfig) {
      * som skapar ärendet sätter dem. Står de på två ställen glider de isär den
      * dag en sort läggs till.
      */
-    /** @param {{ typ?: string, prio?: string } | null | undefined} post @returns {string[]} */
-    etiketter(post) {
-      const ut = [konfig.basetikett];
-      const s = sort((post || {}).typ);
-      if (s) ut.push(s.etikett);
-      const p = prio((post || {}).prio);
-      if (p) ut.push(p.etikett);
+    /** @param {{ kind?: string, prio?: string } | null | undefined} entry @returns {string[]} */
+    labelsFor(entry) {
+      const ut = [konfig.baseLabel];
+      const s = sort((entry || {}).kind);
+      if (s) ut.push(s.externalLabel);
+      const p = prio((entry || {}).prio);
+      if (p) ut.push(p.externalLabel);
       return ut;
     },
 
@@ -188,20 +188,20 @@ export function skapaArendemodell(konfig) {
      * sort med egna villkor blir då en rad i appens register, inte en ändring i
      * ramverket som någon måste be om.
      */
-    /** @param {Record<string, any>} [utkast] @returns {string[]} */
-    saknas(utkast = {}) {
+    /** @param {Record<string, any>} [draft] @returns {string[]} */
+    saknas(draft = {}) {
       const error = [];
-      const s = sort(utkast.typ);
+      const s = sort(draft.kind);
       if (!s) error.push("Välj vad det gäller.");
 
-      const rubrik = String(utkast.rubrik || "").trim();
-      if (!rubrik) error.push("Skriv en rubrik.");
-      else if (rubrik.length > maxRubrik) error.push(`Rubriken får vara högst ${maxRubrik} tecken.`);
+      const title = String(draft.title || "").trim();
+      if (!title) error.push("Skriv en rubrik.");
+      else if (title.length > maxTitle) error.push(`Rubriken får vara högst ${maxTitle} tecken.`);
 
-      if (!prio(utkast.prio)) error.push("Välj hur bråttom det är.");
+      if (!prio(draft.prio)) error.push("Välj hur bråttom det är.");
 
-      if (s && typeof s.krav === "function") {
-        const egna = s.krav(utkast);
+      if (s && typeof s.requirements === "function") {
+        const egna = s.requirements(draft);
         if (Array.isArray(egna)) error.push(...egna);
       }
 
@@ -222,32 +222,32 @@ export function skapaArendemodell(konfig) {
      * samma sak, och den som förlorar är den som skrev sist.
      */
     /**
-     * @param {Record<string, any>} utkast
-     * @param {{ epost?: string, nu?: () => string }} [sammanhang]
+     * @param {Record<string, any>} draft
+     * @param {{ email?: string, nu?: () => string }} [context]
      */
-    byggPost(utkast, { epost = "", nu = () => new Date().toISOString() } = {}) {
-      const s = sort(utkast.typ);
+    byggPost(draft, { email = "", nu = () => new Date().toISOString() } = {}) {
+      const s = sort(draft.kind);
       return {
-        typ: utkast.typ,
-        prio: utkast.prio,
-        rubrik: String(utkast.rubrik || "").trim(),
-        text: String(utkast.text || "").trim(),
-        bilaga: utkast.bilaga
+        kind: draft.kind,
+        prio: draft.prio,
+        title: String(draft.title || "").trim(),
+        text: String(draft.text || "").trim(),
+        attachment: draft.attachment
           ? {
-              dataUrl: utkast.bilaga.dataUrl,
-              namn: utkast.bilaga.namn,
-              typ: utkast.bilaga.typ,
-              tecken: utkast.bilaga.tecken,
-              bredd: utkast.bilaga.bredd ?? null,
-              hojd: utkast.bilaga.hojd ?? null,
+              dataUrl: draft.attachment.dataUrl,
+              name: draft.attachment.name,
+              kind: draft.attachment.kind,
+              chars: draft.attachment.chars,
+              width: draft.attachment.width ?? null,
+              height: draft.attachment.height ?? null,
             }
           : null,
         // ⛔ Appens extra fält skrivs BARA för en sort som har dem. Ett tomt
         // fältblock på en sort som inte handlar om det ser ut som något någon
         // glömt fylla i.
-        ...(s && typeof s.extraFalt === "function" ? s.extraFalt(utkast) : {}),
+        ...(s && typeof s.extraFields === "function" ? s.extraFields(draft) : {}),
         skapad: nu(),
-        skapadAv: epost,
+        skapadAv: email,
         status: "ny",
         resultat: null,
       };
@@ -287,7 +287,7 @@ export function skapaArendemodell(konfig) {
     /**
      * @param {string} lage
      * @param {{ url?: string, not?: string }} resultat
-     * @param {{ nu?: () => string }} [sammanhang]
+     * @param {{ nu?: () => string }} [context]
      */
     byggAvslut(lage, resultat, { nu = () => new Date().toISOString() } = {}) {
       const error = saknasVidAvslutInternt(lage, resultat);
@@ -307,10 +307,10 @@ export function skapaArendemodell(konfig) {
      * ser likadant ut som en lugn vecka. Talet finns här så vyn kan säga ifrån
      * utan att själv veta vad som räknas som länge.
      */
-    /** @param {{ status?: string, skapad?: string }} post @param {Date | number} [nu] @returns {number | null} */
-    dygnINy(post, nu = Date.now()) {
-      if (!post || post.status !== LAGEN.NY) return null;
-      const skapad = Date.parse(String(post.skapad || ""));
+    /** @param {{ status?: string, skapad?: string }} entry @param {Date | number} [nu] @returns {number | null} */
+    dygnINy(entry, nu = Date.now()) {
+      if (!entry || entry.status !== LAGEN.NY) return null;
+      const skapad = Date.parse(String(entry.skapad || ""));
       if (!Number.isFinite(skapad)) return null;
       const gick = (nu instanceof Date ? nu.getTime() : Number(nu)) - skapad;
       return gick > 0 ? Math.floor(gick / DYGN_MS) : 0;

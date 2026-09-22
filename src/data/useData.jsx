@@ -339,9 +339,9 @@ export function useDocument(collectionName, id) {
     setFel(null);
 
     throughCache(source, nyckel, () => source.read(collectionName, id))
-      .then((post) => {
+      .then((entry) => {
         if (mitt !== senaste.current) return;
-        setData(post);
+        setData(entry);
       })
       .catch((e) => {
         if (mitt !== senaste.current) return;

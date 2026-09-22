@@ -131,14 +131,14 @@ export function applyQuery(rows, query) {
 
   if (query.sortBy) {
     const field = query.sortBy;
-    const tecken = query.direction === "desc" ? -1 : 1;
+    const chars = query.direction === "desc" ? -1 : 1;
     // Kopia före sort: `Array.sort` muterar, och en adapter som sorterar om
     // sin egen lagring ändrar tyst ordningen för nästa läsare.
     ut = [...ut].sort((a, b) => {
       const x = /** @type {any} */ (a)[field];
       const y = /** @type {any} */ (b)[field];
       if (x === y) return 0;
-      return (x > y ? 1 : -1) * tecken;
+      return (x > y ? 1 : -1) * chars;
     });
   }
 

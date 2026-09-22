@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OpsFilePicker } from "../components/OpsFilePicker.jsx";
 import { OpsIconLink } from "../components/OpsIconLink.jsx";
-import { arBild, bilagestorlek, storlekstext } from "../lib/fil.js";
+import { isImage, attachmentSize, sizeText } from "../lib/file.js";
 
 /**
  * ⛔ jsdom HAR INGEN `createImageBitmap`, och det är inte ett hinder utan själva
@@ -15,9 +15,9 @@ import { arBild, bilagestorlek, storlekstext } from "../lib/fil.js";
  * skrivet i stället för att låtsas mätas.
  */
 
-/** @param {string} innehall @param {string} namn @param {string} typ */
-function fil(innehall, namn, typ) {
-  return new File([innehall], namn, { type: typ });
+/** @param {string} innehall @param {string} name @param {string} kind */
+function file(innehall, name, kind) {
+  return new File([innehall], name, { type: kind });
 }
 
 describe("OpsFilePicker", () => {
@@ -29,14 +29,14 @@ describe("OpsFilePicker", () => {
     render(<OpsFilePicker value={null} onChange={onChange} maxChars={100000} />);
 
     fireEvent.change(screen.getByLabelText("Bifoga fil"), {
-      target: { files: [fil("kontoutdrag", "utdrag.pdf", "application/pdf")] },
+      target: { files: [file("kontoutdrag", "utdrag.pdf", "application/pdf")] },
     });
 
     await waitFor(() => expect(onChange).toHaveBeenCalled());
-    const bilaga = onChange.mock.calls[0][0];
-    expect(bilaga.namn).toBe("utdrag.pdf");
-    expect(bilaga.typ).toBe("application/pdf");
-    expect(bilaga.dataUrl.startsWith("data:application/pdf")).toBe(true);
+    const attachment = onChange.mock.calls[0][0];
+    expect(attachment.name).toBe("utdrag.pdf");
+    expect(attachment.kind).toBe("application/pdf");
+    expect(attachment.dataUrl.startsWith("data:application/pdf")).toBe(true);
   });
 
   it("tar emot en inklistrad skärmbild utan att man först klickat i ett fält", async () => {
@@ -47,13 +47,13 @@ describe("OpsFilePicker", () => {
     render(<OpsFilePicker value={null} onChange={onChange} maxChars={100000} />);
 
     const handelse = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(handelse, "clipboardData", { value: { files: [fil("png", "", "image/png")] } });
+    Object.defineProperty(handelse, "clipboardData", { value: { files: [file("png", "", "image/png")] } });
     fireEvent(document, handelse);
 
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     // Urklippsbilder saknar filnamn. Ett tomt namn i en lista ser ut som en
     // trasig post, så den får säga vad den är.
-    expect(onChange.mock.calls[0][0].namn).toBe("Urklipp");
+    expect(onChange.mock.calls[0][0].name).toBe("Urklipp");
   });
 
   it("lämnar en inklistring som bara bär text i fred", () => {
@@ -78,7 +78,7 @@ describe("OpsFilePicker", () => {
     render(<OpsFilePicker value={null} onChange={onChange} maxChars={100000} paste={false} />);
 
     const handelse = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(handelse, "clipboardData", { value: { files: [fil("png", "bild.png", "image/png")] } });
+    Object.defineProperty(handelse, "clipboardData", { value: { files: [file("png", "bild.png", "image/png")] } });
     fireEvent(document, handelse);
 
     expect(onChange).not.toHaveBeenCalled();
@@ -91,7 +91,7 @@ describe("OpsFilePicker", () => {
     render(<OpsFilePicker value={null} onChange={onChange} maxChars={40} />);
 
     fireEvent.change(screen.getByLabelText("Bifoga fil"), {
-      target: { files: [fil("x".repeat(5000), "stor.pdf", "application/pdf")] },
+      target: { files: [file("x".repeat(5000), "stor.pdf", "application/pdf")] },
     });
 
     const larm = await screen.findByRole("alert");
@@ -106,7 +106,7 @@ describe("OpsFilePicker", () => {
     render(<OpsFilePicker value={null} onChange={() => {}} maxChars={40} />);
 
     fireEvent.change(screen.getByLabelText("Bifoga fil"), {
-      target: { files: [fil("x".repeat(5000), "bild.heic", "image/heic")] },
+      target: { files: [file("x".repeat(5000), "bild.heic", "image/heic")] },
     });
 
     const larm = await screen.findByRole("alert");
@@ -118,7 +118,7 @@ describe("OpsFilePicker", () => {
     // ruta som ibland är tom ser ut som att filen inte kom fram.
     const { rerender } = render(
       <OpsFilePicker
-        value={{ dataUrl: "data:image/jpeg;base64,x", namn: "kvitto.jpg", typ: "image/jpeg", tecken: 1400, bredd: 800, hojd: 600 }}
+        value={{ dataUrl: "data:image/jpeg;base64,x", name: "kvitto.jpg", kind: "image/jpeg", chars: 1400, width: 800, height: 600 }}
         onChange={() => {}}
         maxChars={100000}
       />,
@@ -127,7 +127,7 @@ describe("OpsFilePicker", () => {
 
     rerender(
       <OpsFilePicker
-        value={{ dataUrl: "data:application/pdf;base64,x", namn: "utdrag.pdf", typ: "application/pdf", tecken: 1400 }}
+        value={{ dataUrl: "data:application/pdf;base64,x", name: "utdrag.pdf", kind: "application/pdf", chars: 1400 }}
         onChange={() => {}}
         maxChars={100000}
       />,
@@ -145,30 +145,30 @@ describe("OpsFilePicker", () => {
 
 describe("fil-hjälparna", () => {
   it("svarar på bildfrågan utifrån typen, så samma fråga funkar före och efter lagring", () => {
-    expect(arBild("image/png")).toBe(true);
-    expect(arBild("application/pdf")).toBe(false);
+    expect(isImage("image/png")).toBe(true);
+    expect(isImage("application/pdf")).toBe(false);
     // ⛔ Tom typ är "vet inte", och "vet inte" är inte "ja". En okänd fil som
     // renderas som `<img>` blir en trasig bildikon.
-    expect(arBild("")).toBe(false);
-    expect(arBild(undefined)).toBe(false);
+    expect(isImage("")).toBe(false);
+    expect(isImage(undefined)).toBe(false);
   });
 
   it("skriver storleken i den enhet talet faktiskt hör hemma i", () => {
-    expect(storlekstext(512)).toBe("512 B");
-    expect(storlekstext(2048)).toBe("2 kB");
-    expect(storlekstext(3 * 1024 * 1024)).toBe("3,0 MB");
+    expect(sizeText(512)).toBe("512 B");
+    expect(sizeText(2048)).toBe("2 kB");
+    expect(sizeText(3 * 1024 * 1024)).toBe("3,0 MB");
     // Noll är inte en storlek utan en avsaknad av mätning.
-    expect(storlekstext(0)).toBe("");
+    expect(sizeText(0)).toBe("");
   });
 
   it("räknar tillbaka från lagrade tecken till en ungefärlig filstorlek", () => {
     // ⛔ Finns för att base64-faktorn inte ska stå som en magisk 1,4 i varje app
-    // som visar en bilaga. En bilaga lagrar `tecken` och inte byte, eftersom det
+    // som visar en bilaga. En bilaga lagrar `chars` och inte byte, eftersom det
     // är tecknen som räknas mot dokumentgränsen.
-    expect(bilagestorlek(2867)).toBe("2 kB");
+    expect(attachmentSize(2867)).toBe("2 kB");
     // ⛔ Ungefärlig, inte exakt: 1,4 är en avrundning uppåt av 4/3 plus prefixet.
     // Skillnaden syns inte i "2 kB", vilket är den precision frågan har.
-    expect(bilagestorlek(1400)).toBe("1000 B");
+    expect(attachmentSize(1400)).toBe("1000 B");
   });
 });
 

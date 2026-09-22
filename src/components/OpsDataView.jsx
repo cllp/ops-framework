@@ -61,17 +61,17 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
  * @param {string} [props.missingTitle]
  * @param {(data: T) => import("react").ReactNode} props.children
  */
-export function OpsDatavy(props) {
+export function OpsDataView(props) {
   /* ⛔ HELA OBJEKTET OCH INTE EN DESTRUKTURERING, med flit. `data` får vara
      `null`, och `null` betyder något annat än "vyn skickade ingen data alls".
      En destrukturerad parameter gör de två omöjliga att skilja åt, och då hade
      varje vy som läser flera listor fått tomhetsbanderollen i ansiktet. */
   const { loading, error, header, errorTitle, loadingLabel, missingTitle = "Innehållet saknas", children } = props;
   if (typeof children !== "function") {
-    throw new Error("OpsDatavy: children måste vara en funktion (data) => innehåll. Se regeln om barnen.");
+    throw new Error("OpsDataView: children måste vara en funktion (data) => innehåll. Se regeln om barnen.");
   }
-  if (!errorTitle) throw new Error("OpsDatavy: errorTitle krävs och gissas inte fram.");
-  if (!loadingLabel) throw new Error("OpsDatavy: loadingLabel krävs, annars går det inte att se vad som hänger.");
+  if (!errorTitle) throw new Error("OpsDataView: errorTitle krävs och gissas inte fram.");
+  if (!loadingLabel) throw new Error("OpsDataView: loadingLabel krävs, annars går det inte att se vad som hänger.");
 
   if (error) {
     return (

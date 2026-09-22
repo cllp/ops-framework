@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createFirestoreSource } from "../data/firestore.js";
 import { createPostgresSource } from "../data/postgres.js";
-import { OpsAuthGate, OpsAuthProvider, skapaAutentisering, skapaGoogleAuth } from "../auth/auth.jsx";
+import { OpsAuthGate, OpsAuthProvider, createAuth, createGoogleAuth } from "../auth/auth.jsx";
 
 /**
  * ⛔ Adaptrarna testas mot en INJICERAD attrapp, inte mot en riktig databas.
@@ -26,9 +26,9 @@ function fejkFirestore() {
     updateDoc: vi.fn(async () => {}),
     deleteDoc: vi.fn(async () => {}),
     query: (bas, ...conditions) => ({ bas, conditions }),
-    where: (f, op, v) => ({ typ: "where", f, op, v }),
-    orderBy: (f, r) => ({ typ: "orderBy", f, r }),
-    limit: (n) => ({ typ: "limit", n }),
+    where: (f, op, v) => ({ kind: "where", f, op, v }),
+    orderBy: (f, r) => ({ kind: "orderBy", f, r }),
+    limit: (n) => ({ kind: "limit", n }),
     // ⛔ Tillagd när adaptern fick `subscribe` (#133). Den hör hit och inte i
     // en uppmjukning av uppstartskontrollen: adaptern LOVAR att kunna
     // prenumerera, alltså behöver den funktionen. Att i stället ta bort
@@ -58,9 +58,9 @@ describe("firestore-adaptern", () => {
 
     const skickat = sdk.getDocs.mock.calls[0][0];
     expect(skickat.conditions).toEqual([
-      { typ: "where", f: "status", op: "==", v: "oppen" },
-      { typ: "orderBy", f: "belopp", r: "desc" },
-      { typ: "limit", n: 5 },
+      { kind: "where", f: "status", op: "==", v: "oppen" },
+      { kind: "orderBy", f: "belopp", r: "desc" },
+      { kind: "limit", n: 5 },
     ]);
   });
 
@@ -129,9 +129,9 @@ describe("postgres-adaptern", () => {
 });
 
 describe("inloggning", () => {
-  /** @param {{ id: string, roll?: string } | null} anvandare */
+  /** @param {{ id: string, role?: string } | null} anvandare */
   function fejkAuth(anvandare) {
-    return skapaAutentisering({
+    return createAuth({
       loggaIn: async () => {},
       loggaUt: async () => {},
       lyssna: (l) => {
@@ -166,8 +166,8 @@ describe("inloggning", () => {
 
   it("nekar den som är inloggad men saknar rollen", async () => {
     render(
-      <OpsAuthProvider autentisering={fejkAuth({ id: "u1", roll: "lasare" })}>
-        <OpsAuthGate tillatnaRoller={["admin"]}>
+      <OpsAuthProvider autentisering={fejkAuth({ id: "u1", role: "lasare" })}>
+        <OpsAuthGate allowedRoles={["admin"]}>
           <p>hemligt</p>
         </OpsAuthGate>
       </OpsAuthProvider>,
@@ -188,7 +188,7 @@ describe("inloggning", () => {
         return () => {};
       },
     };
-    const autentisering = skapaGoogleAuth({
+    const autentisering = createGoogleAuth({
       auth: {},
       sdk,
       hamtaProfil: async () => {
@@ -198,7 +198,7 @@ describe("inloggning", () => {
 
     render(
       <OpsAuthProvider autentisering={autentisering}>
-        <OpsAuthGate tillatnaRoller={["admin"]}>
+        <OpsAuthGate allowedRoles={["admin"]}>
           <p>hemligt</p>
         </OpsAuthGate>
       </OpsAuthProvider>,

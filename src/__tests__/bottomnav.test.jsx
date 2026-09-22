@@ -181,11 +181,11 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>innehåll</p>
       </OpsAppShell>,
     );
-    const namn = screen.getAllByRole("navigation").map((n) => n.getAttribute("aria-label"));
-    expect(namn).toHaveLength(2);
-    expect(new Set(namn).size).toBe(2);
-    expect(namn).toContain("Huvudnavigering");
-    expect(namn).toContain("Snabbnavigering");
+    const name = screen.getAllByRole("navigation").map((n) => n.getAttribute("aria-label"));
+    expect(name).toHaveLength(2);
+    expect(new Set(name).size).toBe(2);
+    expect(name).toContain("Huvudnavigering");
+    expect(name).toContain("Snabbnavigering");
   });
 
   it("låter appen döpa om bottenraden utan att röra toppraden", () => {

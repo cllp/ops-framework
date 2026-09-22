@@ -56,7 +56,7 @@ import { OpsToggleRow } from "./OpsToggleRow.jsx";
  * @property {import("react").ReactNode} [value]
  * @property {number} [count] Antal poster, visas vid etiketten.
  * @property {boolean} on Räknas med i totalen.
- * @property {BreakdownPost[]} [poster]
+ * @property {BreakdownPost[]} [entries]
  * @property {import("react").ReactNode} [note] Står under gruppen även när den är hopfälld.
  */
 
@@ -95,7 +95,7 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
         {groups.map((g) => {
           const oppen = oppna.indexOf(g.id) >= 0;
           const panelId = `${idBas}-${g.id}`;
-          const harPoster = Boolean(g.poster && g.poster.length);
+          const harPoster = Boolean(g.entries && g.entries.length);
 
           return (
             <li key={g.id}>
@@ -145,7 +145,7 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
               {harPoster ? (
                 <div id={panelId} hidden={!oppen}>
                   <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
-                    {(g.poster ?? []).map((p) => (
+                    {(g.entries ?? []).map((p) => (
                       <li key={p.id} className="flex items-baseline justify-between gap-3">
                         <span className="min-w-0 text-sm text-ink-secondary">
                           {p.label}

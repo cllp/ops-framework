@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsSlider } from "../components/OpsSlider.jsx";
 import { OpsKnob } from "../components/OpsKnob.jsx";
-import { OpsLaboreraPopover } from "../components/OpsLaboreraPopover.jsx";
+import { OpsSimulatePopover } from "../components/OpsSimulatePopover.jsx";
 
 /**
  * ⛔ PROVEN LÄSER NAMN, VÄRDEN OCH UTFALL, ALDRIG GEOMETRI.
@@ -21,8 +21,8 @@ const grund = {
   label: "Hyra",
   min: -50,
   max: 50,
-  noll: 0,
-  formateraVarde: (v) => (v === 0 ? "som idag" : `${v > 0 ? "+" : ""}${v} procent`),
+  zero: 0,
+  formatValue: (v) => (v === 0 ? "som idag" : `${v > 0 ? "+" : ""}${v} procent`),
 };
 
 describe("OpsSlider", () => {
@@ -89,13 +89,13 @@ describe("OpsSlider", () => {
   it("kastar hellre än att rita ett reglage vars nolläge ligger utanför skenan", () => {
     // ⛔ Tyst felform: inget kraschar, återställningsknappen sätter bara ett värde
     // reglaget inte kan visa, och då säger tumme och siffra olika saker.
-    expect(() => render(<OpsSlider {...grund} noll={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
+    expect(() => render(<OpsSlider {...grund} zero={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
   });
 
   it("kastar hellre än att läsa upp ett naket tal", () => {
     expect(() =>
-      render(<OpsSlider {...grund} formateraVarde={undefined} value={0} onChange={() => {}} />),
-    ).toThrow(/formateraVarde/);
+      render(<OpsSlider {...grund} formatValue={undefined} value={0} onChange={() => {}} />),
+    ).toThrow(/formatValue/);
   });
 
   it("låter nolläget ligga var som helst i spannet, inte bara i mitten", () => {
@@ -103,7 +103,7 @@ describe("OpsSlider", () => {
     // bara klarar symmetriska spann är ett reglage som inte går att använda till
     // något som bara kan minska.
     const onChange = vi.fn();
-    render(<OpsSlider label="Avgift" min={0} max={100} noll={100} formateraVarde={(v) => `${v} kr`} value={40} onChange={onChange} />);
+    render(<OpsSlider label="Avgift" min={0} max={100} zero={100} formatValue={(v) => `${v} kr`} value={40} onChange={onChange} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Återställ" }));
     expect(onChange).toHaveBeenCalledWith(100);
@@ -113,9 +113,9 @@ describe("OpsSlider", () => {
     render(<OpsSlider {...grund} value={0} onChange={() => {}} />);
     // getByLabelText skulle hitta reglaget även via aria-label. Här mäts att det
     // är den SYNLIGA etiketten som är namnet, alltså att texten går att trycka på.
-    const etikett = screen.getByText("Hyra");
-    expect(etikett.tagName).toBe("LABEL");
-    expect(etikett.getAttribute("for")).toBe(screen.getByRole("slider", { name: "Hyra" }).id);
+    const label = screen.getByText("Hyra");
+    expect(label.tagName).toBe("LABEL");
+    expect(label.getAttribute("for")).toBe(screen.getByRole("slider", { name: "Hyra" }).id);
   });
 
   it("ger varje reglage ett eget id, så två i samma lista inte delar etikett", () => {
@@ -147,7 +147,7 @@ describe("OpsSlider med dold etikett", () => {
      * namnet finns kvar och att ordet inte målas.
      */
     render(
-      <OpsSlider label="Mat" value={0} onChange={() => {}} min={-50} max={100} noll={0} formateraVarde={(v) => `${v} %`} doldEtikett />,
+      <OpsSlider label="Mat" value={0} onChange={() => {}} min={-50} max={100} zero={0} formatValue={(v) => `${v} %`} hiddenLabel />,
     );
 
     // Namnet finns kvar för den som lyssnar.
@@ -161,7 +161,7 @@ describe("OpsSlider med dold etikett", () => {
   it("målar etiketten som vanligt utan flaggan", () => {
     // ⛔ Golvet under provet ovan: utan flaggan ska ingenting ha ändrats.
     render(
-      <OpsSlider label="Mat" value={0} onChange={() => {}} min={-50} max={100} noll={0} formateraVarde={(v) => `${v} %`} />,
+      <OpsSlider label="Mat" value={0} onChange={() => {}} min={-50} max={100} zero={0} formatValue={(v) => `${v} %`} />,
     );
     expect(String(screen.getByText("Mat").className).split(/\s+/)).not.toContain("sr-only");
   });
@@ -173,8 +173,8 @@ describe("OpsKnob", () => {
     label: "Hyra",
     min: -50,
     max: 50,
-    noll: 0,
-    formateraVarde: (v) => (v === 0 ? "0 %" : `${v > 0 ? "+" : ""}${v} %`),
+    zero: 0,
+    formatValue: (v) => (v === 0 ? "0 %" : `${v > 0 ? "+" : ""}${v} %`),
   };
 
   it("är ett reglage med spann och läge", () => {
@@ -213,18 +213,18 @@ describe("OpsKnob", () => {
   });
 
   it("kastar hellre än att rita en ratt vars nolläge ligger utanför spannet", () => {
-    expect(() => render(<OpsKnob {...grund} noll={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
+    expect(() => render(<OpsKnob {...grund} zero={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
   });
 
   it("kastar hellre än att läsa upp ett naket tal", () => {
     expect(() =>
-      render(<OpsKnob {...grund} formateraVarde={undefined} value={0} onChange={() => {}} />),
-    ).toThrow(/formateraVarde/);
+      render(<OpsKnob {...grund} formatValue={undefined} value={0} onChange={() => {}} />),
+    ).toThrow(/formatValue/);
   });
 
   it("döljer etiketten visuellt med doldEtikett men behåller namnet", () => {
     render(
-      <OpsKnob label="Mat" value={0} onChange={() => {}} min={-50} max={100} noll={0} formateraVarde={(v) => `${v} %`} doldEtikett />,
+      <OpsKnob label="Mat" value={0} onChange={() => {}} min={-50} max={100} zero={0} formatValue={(v) => `${v} %`} hiddenLabel />,
     );
     expect(screen.getByRole("slider", { name: "Mat" })).toBeInTheDocument();
     expect(String(screen.getByText("Mat").className).split(/\s+/)).toContain("sr-only");
@@ -242,18 +242,18 @@ describe("OpsLaboreraPopover", () => {
     label: "Hyra",
     min: -50,
     max: 50,
-    noll: 0,
-    formateraVarde: (v) => (v === 0 ? "0 %" : `${v > 0 ? "+" : ""}${v} %`),
+    zero: 0,
+    formatValue: (v) => (v === 0 ? "0 %" : `${v > 0 ? "+" : ""}${v} %`),
   };
 
   it("visar en dial-ikon, inte ett reglage, tills man öppnar", () => {
-    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    render(<OpsSimulatePopover {...grund} value={0} onChange={() => {}} />);
     expect(screen.getByRole("button", { name: "Justera Hyra: 0 %" })).toBeInTheDocument();
     expect(screen.queryByRole("slider")).toBeNull();
   });
 
   it("öppnar OpsSlider i popovern", () => {
-    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    render(<OpsSimulatePopover {...grund} value={0} onChange={() => {}} />);
     // ⛔ fireEvent och inte userEvent: Radix Popover i jsdom, se issue #17.
     fireEvent.click(screen.getByRole("button", { name: "Justera Hyra: 0 %" }));
     const slider = screen.getByRole("slider", { name: "Hyra" });
@@ -265,7 +265,7 @@ describe("OpsLaboreraPopover", () => {
 
   it("skickar ett tal när man drar i popovern", () => {
     const onChange = vi.fn();
-    render(<OpsLaboreraPopover {...grund} value={0} onChange={onChange} />);
+    render(<OpsSimulatePopover {...grund} value={0} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: "Justera Hyra: 0 %" }));
     fireEvent.change(screen.getByRole("slider", { name: "Hyra" }), { target: { value: "25" } });
     expect(onChange).toHaveBeenCalledWith(25);
@@ -273,32 +273,32 @@ describe("OpsLaboreraPopover", () => {
 
   it("återställer till noll via knappen i popovern", () => {
     const onChange = vi.fn();
-    render(<OpsLaboreraPopover {...grund} value={-35} onChange={onChange} />);
+    render(<OpsSimulatePopover {...grund} value={-35} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: "Justera Hyra: -35 %" }));
     fireEvent.click(screen.getByRole("button", { name: "Återställ" }));
     expect(onChange).toHaveBeenCalledWith(0);
   });
 
   it("visar %-bricka på triggern när justerad", () => {
-    render(<OpsLaboreraPopover {...grund} value={20} onChange={() => {}} />);
+    render(<OpsSimulatePopover {...grund} value={20} onChange={() => {}} />);
     const trigger = screen.getByRole("button", { name: "Justera Hyra: +20 %" });
     expect(within(trigger).getByText("+20 %")).toBeInTheDocument();
     expect(trigger.className).toMatch(/ops-laborera-trigger--justerad/);
   });
 
   it("döljer %-brickan vid noll, så raden är lugn", () => {
-    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    render(<OpsSimulatePopover {...grund} value={0} onChange={() => {}} />);
     const trigger = screen.getByRole("button", { name: "Justera Hyra: 0 %" });
     expect(within(trigger).queryByText("0 %")).toBeNull();
     expect(trigger.className).not.toMatch(/ops-laborera-trigger--justerad/);
   });
 
   it("kastar hellre än att rita ett reglage vars nolläge ligger utanför spannet", () => {
-    expect(() => render(<OpsLaboreraPopover {...grund} noll={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
+    expect(() => render(<OpsSimulatePopover {...grund} zero={80} value={0} onChange={() => {}} />)).toThrow(/utanför/);
   });
 
   it("markerar triggern som dialog-öppnare", () => {
-    render(<OpsLaboreraPopover {...grund} value={0} onChange={() => {}} />);
+    render(<OpsSimulatePopover {...grund} value={0} onChange={() => {}} />);
     expect(screen.getByRole("button", { name: "Justera Hyra: 0 %" })).toHaveAttribute("aria-haspopup", "dialog");
   });
 });

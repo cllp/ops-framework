@@ -23,7 +23,7 @@ if (!Element.prototype.scrollIntoView) {
 /*
  * ⛔ `Element.prototype.scrollTo` SAKNAS HELT I JSDOM, till skillnad från
  * `scrollIntoView` ovan som bara saknar effekt. Utan den här raden KASTAR varje
- * prov som monterar `OpsKalender`, eftersom kalendern rullar sin egen behållare
+ * prov som monterar `OpsCalendar`, eftersom kalendern rullar sin egen behållare
  * till innevarande månad vid montering.
  *
  * ⛔ EN TOM FUNKTION ÄR SANNINGEN HÄR och inte en nedsläppsväg: jsdom har ingen

@@ -27,7 +27,7 @@ describe("jsdom-stubbar", () => {
   it("öppnar en popover utan att kosta sekunder", async () => {
     render(
       <OpsFilterPanel
-        grupper={[{ id: "a", label: "A", options: [{ value: "x", label: "X" }] }]}
+        groups={[{ id: "a", label: "A", options: [{ value: "x", label: "X" }] }]}
         value={{ a: null }}
         onChange={() => {}}
         ariaLabel="Filter"

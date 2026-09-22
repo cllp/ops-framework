@@ -1,5 +1,5 @@
 import { cx } from "../lib/cx.js";
-import { Raknare } from "./raknare.jsx";
+import { Raknare } from "./counter.jsx";
 
 /**
  * En destination som en ikon, för åtgärdsklustret längst till höger i toppraden.

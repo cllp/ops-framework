@@ -4,7 +4,7 @@ import { DayPicker } from "react-day-picker";
 import { sv } from "react-day-picker/locale";
 import { cx } from "../lib/cx.js";
 import { formatDate } from "../lib/format.js";
-import { useFaltKoppling } from "./OpsField.jsx";
+import { useFieldBinding } from "./OpsField.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
 
 /**
@@ -57,7 +57,7 @@ function franIso(iso) {
  */
 export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", disabled = false, ariaLabel, clearLabel = "Rensa datum" }) {
   const [oppen, setOppen] = useState(false);
-  const f = useFaltKoppling();
+  const f = useFieldBinding();
   const valt = franIso(value);
 
   return (
@@ -67,13 +67,13 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
         type="button"
         disabled={disabled}
         aria-label={ariaLabel}
-        aria-invalid={f.ogiltigt || undefined}
-        aria-describedby={f.beskrivsAv}
+        aria-invalid={f.invalid || undefined}
+        aria-describedby={f.describedBy}
         className={cx(
           "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11 text-md md:text-base",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           "disabled:opacity-55 disabled:cursor-not-allowed",
-          f.ogiltigt ? "border-danger" : "border-line",
+          f.invalid ? "border-danger" : "border-line",
           valt ? "text-ink" : "text-ink-muted",
         )}
       >

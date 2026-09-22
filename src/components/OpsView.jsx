@@ -1,5 +1,5 @@
 import { cx } from "../lib/cx.js";
-import { OpsHjalp } from "./OpsHjalp.jsx";
+import { OpsHelp } from "./OpsHelp.jsx";
 
 /**
  * Vyskalet. Varje sida i en ops-app ligger i en av dessa.
@@ -74,16 +74,16 @@ export function OpsViewHeader({ title, description, actions }) {
         sitt eget frågetecken hade vi fått arton varianter av samma gest, och
         skillnaderna hade upptäckts när någon jämförde två sidor.
 
-        ⛔ `OpsHjalp` RITAR RUBRIKEN SJÄLV, även när ingen beskrivning finns. Den
+        ⛔ `OpsHelp` RITAR RUBRIKEN SJÄLV, även när ingen beskrivning finns. Den
         vägen har vyn ETT utseende och inte två som ska hållas lika: ligger
         rubriken kvar här för det ena fallet driver de isär första gången någon
         rör typografin.
       */}
-      <OpsHjalp
-        rubrik={<h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>}
+      <OpsHelp
+        title={<h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>}
       >
         {description}
-      </OpsHjalp>
+      </OpsHelp>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   );

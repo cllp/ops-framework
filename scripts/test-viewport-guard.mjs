@@ -34,7 +34,7 @@
  * och då är vi tillbaka i att mobilgolvet mäts när någon kommer ihåg det. Den kör
  * i CI:s scaffoldjobb, tillsammans med den vakt den provar.
  *
- * Kör: node scripts/test-vyportvakt.mjs
+ * Kör: node scripts/test-viewport-guard.mjs
  */
 
 import fs from "node:fs";
@@ -155,7 +155,7 @@ function fixtur(namn, mutera) {
   if (mutera && html === SIDA) {
     // ⛔ Samma golv som `tokenkopia` i test-guards: en mutation som inte ändrar
     // något provar ingenting, den ser bara ut att göra det. Det har hänt.
-    throw new Error(`test-vyportvakt: mutationen "${namn}" ändrade ingenting i fixturen.`);
+    throw new Error(`test-viewport-guard: mutationen "${namn}" ändrade ingenting i fixturen.`);
   }
   const mapp = path.join(arbetsmapp, namn);
   fs.mkdirSync(mapp, { recursive: true });
@@ -302,8 +302,8 @@ const roda = resultat.filter((r) => r.vantat === "rott").length;
 const grona = resultat.filter((r) => r.vantat === "gront").length;
 
 if (fel.length > 0) {
-  console.error(`\ntest-vyportvakt: ${fel.length} av ${resultat.length} kontroller gick inte som väntat.`);
+  console.error(`\ntest-viewport-guard: ${fel.length} av ${resultat.length} kontroller gick inte som väntat.`);
   process.exit(1);
 }
 
-console.log(`\ntest-vyportvakt: ${roda} inplanterade brott gav rött, ${grona} korrekta sidor gav grönt.`);
+console.log(`\ntest-viewport-guard: ${roda} inplanterade brott gav rött, ${grona} korrekta sidor gav grönt.`);

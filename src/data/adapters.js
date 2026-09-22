@@ -48,9 +48,9 @@ export function createMemorySource(seed = {}) {
     },
 
     async create(collectionName, data) {
-      const post = /** @type {T} */ ({ ...data, id: /** @type {any} */ (data).id ?? newId() });
-      load(collectionName).push(post);
-      return { ...post };
+      const entry = /** @type {T} */ ({ ...data, id: /** @type {any} */ (data).id ?? newId() });
+      load(collectionName).push(entry);
+      return { ...entry };
     },
 
     async update(collectionName, id, data) {

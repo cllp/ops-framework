@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { OpsDatavy } from "../components/OpsDatavy.jsx";
+import { OpsDataView } from "../components/OpsDataView.jsx";
 
 /**
  * Datavyn: de fyra reglerna, en per prov. Varje prov är bevisat rött mot en
@@ -18,9 +18,9 @@ describe("OpsDatavy", () => {
      * felet bakom en snurra som aldrig slutar snurra.
      */
     render(
-      <OpsDatavy loading error={new Error("servern svarade 500")} {...ORD}>
+      <OpsDataView loading error={new Error("servern svarade 500")} {...ORD}>
         {() => <p>innehållet</p>}
-      </OpsDatavy>,
+      </OpsDataView>,
     );
     expect(screen.getByText("Kunde inte hämta tillgångarna")).toBeInTheDocument();
     expect(screen.getByText("servern svarade 500")).toBeInTheDocument();
@@ -34,9 +34,9 @@ describe("OpsDatavy", () => {
      * fem läsningar i en vy är "Hämtar" samma text i alla fem.
      */
     render(
-      <OpsDatavy loading {...ORD}>
+      <OpsDataView loading {...ORD}>
         {() => <p>innehållet</p>}
-      </OpsDatavy>,
+      </OpsDataView>,
     );
     expect(screen.getByText("Hämtar tillgångar")).toBeInTheDocument();
     expect(screen.queryByText("innehållet")).not.toBeInTheDocument();
@@ -51,9 +51,9 @@ describe("OpsDatavy", () => {
      * har gett upp.
      */
     render(
-      <OpsDatavy loading={false} data={null} {...ORD}>
+      <OpsDataView loading={false} data={null} {...ORD}>
         {() => <p>innehållet</p>}
-      </OpsDatavy>,
+      </OpsDataView>,
     );
     expect(screen.getByText("Innehållet saknas")).toBeInTheDocument();
     expect(screen.queryByText("Hämtar tillgångar")).not.toBeInTheDocument();
@@ -77,9 +77,9 @@ describe("OpsDatavy", () => {
      * fast allt gick bra.
      */
     render(
-      <OpsDatavy loading={false} {...ORD}>
+      <OpsDataView loading={false} {...ORD}>
         {() => <p>innehållet</p>}
-      </OpsDatavy>,
+      </OpsDataView>,
     );
     expect(screen.getByText("innehållet")).toBeInTheDocument();
     expect(screen.queryByText("Innehållet saknas")).not.toBeInTheDocument();
@@ -94,9 +94,9 @@ describe("OpsDatavy", () => {
      */
     const barn = vi.fn(() => <p>innehållet</p>);
     render(
-      <OpsDatavy loading error={null} {...ORD}>
+      <OpsDataView loading error={null} {...ORD}>
         {barn}
-      </OpsDatavy>,
+      </OpsDataView>,
     );
     expect(barn).not.toHaveBeenCalled();
   });
@@ -110,9 +110,9 @@ describe("OpsDatavy", () => {
      */
     for (const fall of [{ loading: true }, { loading: false, error: new Error("x") }, { loading: false, data: null }]) {
       const { unmount } = render(
-        <OpsDatavy {...fall} {...ORD} header={<h1>Tillgångar</h1>}>
+        <OpsDataView {...fall} {...ORD} header={<h1>Tillgångar</h1>}>
           {() => <p>innehållet</p>}
-        </OpsDatavy>,
+        </OpsDataView>,
       );
       expect(screen.getByRole("heading", { name: "Tillgångar" })).toBeInTheDocument();
       unmount();
@@ -121,9 +121,9 @@ describe("OpsDatavy", () => {
 
   it("skickar datan vidare till barnen", () => {
     render(
-      <OpsDatavy loading={false} data={{ namn: "Adavo" }} {...ORD}>
-        {(d) => <p>{d.namn}</p>}
-      </OpsDatavy>,
+      <OpsDataView loading={false} data={{ name: "Adavo" }} {...ORD}>
+        {(d) => <p>{d.name}</p>}
+      </OpsDataView>,
     );
     expect(screen.getByText("Adavo")).toBeInTheDocument();
   });
@@ -137,19 +137,19 @@ describe("OpsDatavy", () => {
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() =>
       render(
-        <OpsDatavy loading loadingLabel="Hämtar tillgångar">
+        <OpsDataView loading loadingLabel="Hämtar tillgångar">
           {() => null}
-        </OpsDatavy>,
+        </OpsDataView>,
       ),
     ).toThrow(/errorTitle/);
     expect(() =>
       render(
-        <OpsDatavy loading errorTitle="Kunde inte hämta tillgångarna">
+        <OpsDataView loading errorTitle="Kunde inte hämta tillgångarna">
           {() => null}
-        </OpsDatavy>,
+        </OpsDataView>,
       ),
     ).toThrow(/loadingLabel/);
-    expect(() => render(<OpsDatavy loading {...ORD}>{/* nod, inte funktion */}<p>error</p></OpsDatavy>)).toThrow(
+    expect(() => render(<OpsDataView loading {...ORD}>{/* nod, inte funktion */}<p>error</p></OpsDataView>)).toThrow(
       /funktion/,
     );
     tyst.mockRestore();

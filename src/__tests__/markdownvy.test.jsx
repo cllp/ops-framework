@@ -5,8 +5,8 @@ import { OpsMarkdown } from "../components/OpsMarkdown.jsx";
 describe("OpsMarkdown", () => {
   it("ritar rubriken som en rubrik och inte som text med brädgårdar", () => {
     const { container } = render(<OpsMarkdown text={"## Vad\n\nEn mening."} />);
-    const rubrik = container.querySelector("h4");
-    expect(rubrik?.textContent).toBe("Vad");
+    const title = container.querySelector("h4");
+    expect(title?.textContent).toBe("Vad");
     // ⛔ Tecknen finns inte kvar någonstans. Det var hela felet CP såg.
     expect(container.textContent).not.toContain("##");
   });

@@ -66,8 +66,8 @@
 
 /**
  * @typedef {object} Box
- * @property {Map<string, any>} varden Färdiga svar, för den synkrona titten.
- * @property {Map<string, Promise<any>>} loften Läsningar som är ute just nu.
+ * @property {Map<string, any>} values Färdiga svar, för den synkrona titten.
+ * @property {Map<string, Promise<any>>} promises Läsningar som är ute just nu.
  */
 
 /** @type {WeakMap<object, Box>} */
@@ -77,7 +77,7 @@ const BOXES = new WeakMap();
 function box(source) {
   let l = BOXES.get(source);
   if (!l) {
-    l = { varden: new Map(), loften: new Map() };
+    l = { values: new Map(), promises: new Map() };
     BOXES.set(source, l);
   }
   return l;
@@ -125,8 +125,8 @@ export function documentKey(collectionName, id) {
  */
 export function cached(source, nyckel) {
   const l = BOXES.get(source);
-  if (!l || !l.varden.has(nyckel)) return { har: false, value: undefined };
-  return { har: true, value: l.varden.get(nyckel) };
+  if (!l || !l.values.has(nyckel)) return { har: false, value: undefined };
+  return { har: true, value: l.values.get(nyckel) };
 }
 
 /**
@@ -141,25 +141,25 @@ export function cached(source, nyckel) {
 export function throughCache(source, nyckel, load) {
   const l = box(source);
 
-  if (l.varden.has(nyckel)) return Promise.resolve(l.varden.get(nyckel));
+  if (l.values.has(nyckel)) return Promise.resolve(l.values.get(nyckel));
 
-  const pagaende = l.loften.get(nyckel);
+  const pagaende = l.promises.get(nyckel);
   if (pagaende) return pagaende;
 
   const loftet = load()
     .then((value) => {
-      l.varden.set(nyckel, value);
-      l.loften.delete(nyckel);
+      l.values.set(nyckel, value);
+      l.promises.delete(nyckel);
       return value;
     })
     .catch((error) => {
       // ⛔ Felet lämnar inget spår i cachen. Se filens huvud: ett cachat fel
       // gör en tillfällig störning permanent för resten av sessionen.
-      l.loften.delete(nyckel);
+      l.promises.delete(nyckel);
       throw error;
     });
 
-  l.loften.set(nyckel, loftet);
+  l.promises.set(nyckel, loftet);
   return loftet;
 }
 
@@ -176,6 +176,6 @@ export function throughCache(source, nyckel, load) {
 export function forget(source, nyckel) {
   const l = BOXES.get(source);
   if (!l) return;
-  l.varden.delete(nyckel);
-  l.loften.delete(nyckel);
+  l.values.delete(nyckel);
+  l.promises.delete(nyckel);
 }

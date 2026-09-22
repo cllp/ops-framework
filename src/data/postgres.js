@@ -67,7 +67,7 @@ export function createPostgresSource(config) {
    */
   const { query, idColumn = "id" } = config ?? /** @type {any} */ ({});
   if (typeof query !== "function") {
-    throw new Error("createPostgresSource: fraga krävs och ska vara en funktion (sql, params) => Promise<rader>.");
+    throw new Error("createPostgresSource: query krävs och ska vara en funktion (sql, params) => Promise<rader>.");
   }
   const ID = identifier(idColumn);
 
@@ -107,14 +107,14 @@ export function createPostgresSource(config) {
     },
 
     async create(collectionName, data) {
-      const poster = Object.entries(/** @type {any} */ (data));
-      if (poster.length === 0) throw new Error("postgres: skapa utan fält. En tom rad är nästan alltid ett programfel.");
+      const entries = Object.entries(/** @type {any} */ (data));
+      if (entries.length === 0) throw new Error("postgres: skapa utan fält. En tom rad är nästan alltid ett programfel.");
 
-      const columns = poster.map(([k]) => identifier(k)).join(", ");
-      const placeholders = poster.map((_, i) => `$${i + 1}`).join(", ");
+      const columns = entries.map(([k]) => identifier(k)).join(", ");
+      const placeholders = entries.map((_, i) => `$${i + 1}`).join(", ");
       const rows = await query(
         `INSERT INTO ${identifier(collectionName)} (${columns}) VALUES (${placeholders}) RETURNING *`,
-        poster.map(([, v]) => v),
+        entries.map(([, v]) => v),
       );
       // RETURNING, inte en gissning: databasen kan sätta id, tidsstämplar och
       // standardvärden som appen inte känner till.
@@ -122,11 +122,11 @@ export function createPostgresSource(config) {
     },
 
     async update(collectionName, id, data) {
-      const poster = Object.entries(/** @type {any} */ (data)).filter(([k]) => k !== idColumn);
-      if (poster.length === 0) throw new Error("postgres: uppdatera utan fält att ändra.");
+      const entries = Object.entries(/** @type {any} */ (data)).filter(([k]) => k !== idColumn);
+      if (entries.length === 0) throw new Error("postgres: uppdatera utan fält att ändra.");
 
-      const satt = poster.map(([k], i) => `${identifier(k)} = $${i + 1}`).join(", ");
-      const params = [...poster.map(([, v]) => v), id];
+      const satt = entries.map(([k], i) => `${identifier(k)} = $${i + 1}`).join(", ");
+      const params = [...entries.map(([, v]) => v), id];
       const rows = await query(
         `UPDATE ${identifier(collectionName)} SET ${satt} WHERE ${ID} = $${params.length} RETURNING *`,
         params,

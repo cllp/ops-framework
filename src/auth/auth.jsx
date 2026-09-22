@@ -24,10 +24,10 @@ import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
 /**
  * @typedef {object} Anvandare
  * @property {string} id
- * @property {string} [epost]
+ * @property {string} [email]
  * @property {string} [namn]
- * @property {string} [bildUrl]
- * @property {string} [roll] Kommer ur appens egen användarlista, inte ur Google.
+ * @property {string} [imageUrl]
+ * @property {string} [role] Kommer ur appens egen användarlista, inte ur Google.
  */
 
 /**
@@ -45,10 +45,10 @@ const AuthContext = createContext(
  * Kontrollerar att en adapter är hel innan den används.
  * @param {Partial<Autentisering> & { namn?: string }} adapter @returns {Autentisering}
  */
-export function skapaAutentisering(adapter) {
+export function createAuth(adapter) {
   const saknas = ["loggaIn", "loggaUt", "lyssna"].filter((op) => typeof (/** @type {any} */ (adapter ?? {})[op]) !== "function");
   if (saknas.length > 0) {
-    throw new Error(`skapaAutentisering: adaptern saknar ${saknas.join(", ")}.`);
+    throw new Error(`createAuth: adaptern saknar ${saknas.join(", ")}.`);
   }
   return /** @type {Autentisering} */ (adapter);
 }
@@ -65,14 +65,14 @@ export function skapaAutentisering(adapter) {
  * });
  * ```
  *
- * `hamtaProfil` är valfri och är det som ger `roll`. Den läser appens egen
+ * `hamtaProfil` är valfri och är det som ger `role`. Den läser appens egen
  * användarlista, alltså ett dokument per användare, via datalagret. Rollen
  * kommer aldrig från Google: Google svarar på vem någon ÄR, inte på vad hen får.
  *
  * @param {{ auth: any, sdk: Record<string, any>, hamtaProfil?: (a: Anvandare) => Promise<any> }} konfig
  * @returns {Autentisering}
  */
-export function skapaGoogleAuth(konfig) {
+export function createGoogleAuth(konfig) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
    *
@@ -87,13 +87,13 @@ export function skapaGoogleAuth(konfig) {
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
   const { auth, sdk, hamtaProfil } = konfig ?? /** @type {any} */ ({});
-  if (!auth) throw new Error("skapaGoogleAuth: auth krävs. Skicka in getAuth(app).");
+  if (!auth) throw new Error("createGoogleAuth: auth krävs. Skicka in getAuth(app).");
   const saknas = ["GoogleAuthProvider", "signInWithPopup", "signOut", "onAuthStateChanged"].filter((f) => !sdk?.[f]);
   if (saknas.length > 0) {
-    throw new Error(`skapaGoogleAuth: sdk saknar ${saknas.join(", ")}. Skicka in hela modulen "firebase/auth".`);
+    throw new Error(`createGoogleAuth: sdk saknar ${saknas.join(", ")}. Skicka in hela modulen "firebase/auth".`);
   }
 
-  return skapaAutentisering({
+  return createAuth({
     namn: "google",
     async loggaIn() {
       await sdk.signInWithPopup(auth, new sdk.GoogleAuthProvider());
@@ -108,7 +108,7 @@ export function skapaGoogleAuth(konfig) {
           return;
         }
         /** @type {Anvandare} */
-        const bas = { id: konto.uid, epost: konto.email ?? undefined, namn: konto.displayName ?? undefined, bildUrl: konto.photoURL ?? undefined };
+        const bas = { id: konto.uid, email: konto.email ?? undefined, namn: konto.displayName ?? undefined, imageUrl: konto.photoURL ?? undefined };
         if (!hamtaProfil) {
           lyssnare(bas);
           return;
@@ -165,26 +165,26 @@ export function useOpsAuth() {
 /**
  * Visar sitt innehåll för den som är inloggad och godkänd.
  *
- * ⛔ Igen: det här styr RENDERING, inte åtkomst. `tillatnaRoller` här måste ha
+ * ⛔ Igen: det här styr RENDERING, inte åtkomst. `allowedRoles` här måste ha
  * en motsvarighet i Firestore-reglerna eller i API:et, annars är listan en
  * skylt och inte ett lås.
  *
  * @param {object} props
- * @param {string[]} [props.tillatnaRoller] Tom eller utelämnad betyder "vem som helst som är inloggad".
- * @param {string} [props.titel]
- * @param {string} [props.beskrivning]
- * @param {string} [props.loggaInText]
- * @param {string} [props.nekadTitel]
- * @param {string} [props.nekadText]
+ * @param {string[]} [props.allowedRoles] Tom eller utelämnad betyder "vem som helst som är inloggad".
+ * @param {string} [props.title]
+ * @param {string} [props.description]
+ * @param {string} [props.signInText]
+ * @param {string} [props.deniedTitle]
+ * @param {string} [props.deniedText]
  * @param {import("react").ReactNode} props.children
  */
 export function OpsAuthGate({
-  tillatnaRoller,
-  titel = "Logga in",
-  beskrivning = "Den här plattformen kräver inloggning.",
-  loggaInText = "Logga in med Google",
-  nekadTitel = "Du har inte tillgång",
-  nekadText = "Ditt konto är inloggat men saknar behörighet här. Be den som förvaltar plattformen lägga till dig.",
+  allowedRoles,
+  title = "Logga in",
+  description = "Den här plattformen kräver inloggning.",
+  signInText = "Logga in med Google",
+  deniedTitle = "Du har inte tillgång",
+  deniedText = "Ditt konto är inloggat men saknar behörighet här. Be den som förvaltar plattformen lägga till dig.",
   children,
 }) {
   const { anvandare, loading, error, loggaIn } = useOpsAuth();
@@ -192,7 +192,7 @@ export function OpsAuthGate({
   if (loading) {
     return (
       <OpsView width="narrow">
-        <OpsEmpty busy title={titel} busyLabel="Kontrollerar inloggning" />
+        <OpsEmpty busy title={title} busyLabel="Kontrollerar inloggning" />
       </OpsView>
     );
   }
@@ -200,10 +200,10 @@ export function OpsAuthGate({
   if (!anvandare) {
     return (
       <OpsView width="narrow">
-        <OpsViewHeader title={titel} description={beskrivning} />
+        <OpsViewHeader title={title} description={description} />
         <OpsCard>
           <OpsButton variant="primary" onClick={loggaIn}>
-            {loggaInText}
+            {signInText}
           </OpsButton>
           {/* Felet visas, det sväljs inte. En inloggning som inte händer och
               inte förklarar sig får användaren att trycka igen i evighet. */}
@@ -213,11 +213,11 @@ export function OpsAuthGate({
     );
   }
 
-  const nekad = Array.isArray(tillatnaRoller) && tillatnaRoller.length > 0 && !tillatnaRoller.includes(anvandare.roll ?? "");
+  const nekad = Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(anvandare.role ?? "");
   if (nekad) {
     return (
       <OpsView width="narrow">
-        <OpsViewHeader title={nekadTitel} description={nekadText} />
+        <OpsViewHeader title={deniedTitle} description={deniedText} />
       </OpsView>
     );
   }

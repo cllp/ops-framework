@@ -36,7 +36,7 @@ const KANTKLASSER = {
  * @param {"raised"|"sunken"|"plain"} [props.tone]
  * @param {boolean} [props.elevated] Skugga. Används för det som ligger ÖVER sidan, inte för att lyfta fram.
  * @param {boolean} [props.flush] Ingen inre padding. För kort som bär en lista kant i kant.
- * @param {"kort"|"bubbla"} [props.rundning] Hur mjukt hörnet är. `kort` (8 px) är
+ * @param {"kort"|"bubbla"} [props.rounding] Hur mjukt hörnet är. `kort` (8 px) är
  *   förvalet och gäller allt som är en RUTA: en panel, en sektion, en tabell.
  *   `bubbla` (24 px) är för det som är ett OBJEKT i en ström, alltså en händelse,
  *   ett meddelande, ett kort i en lista man bläddrar igenom.
@@ -47,7 +47,7 @@ const KANTKLASSER = {
  * @param {string} [props.id]
  * @param {import("react").ReactNode} props.children
  */
-export function OpsCard({ tone = "raised", rundning = "kort", elevated = false, flush = false, edge, edgeLabel, id, children }) {
+export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, flush = false, edge, edgeLabel, id, children }) {
   const tonKlass = TONER[tone];
   if (!tonKlass) {
     throw new Error(`OpsCard: okänd tone "${tone}". Giltiga: ${Object.keys(TONER).join(", ")}.`);
@@ -61,9 +61,9 @@ export function OpsCard({ tone = "raised", rundning = "kort", elevated = false, 
    *
    * ⛔ INGET NYTT TOKEN. Steget fanns, det användes bara inte här.
    */
-  const rundningKlass = RUNDNINGAR[rundning];
+  const rundningKlass = RUNDNINGAR[rounding];
   if (!rundningKlass) {
-    throw new Error(`OpsCard: okänd rundning "${rundning}". Giltiga: ${Object.keys(RUNDNINGAR).join(", ")}.`);
+    throw new Error(`OpsCard: okänd rounding "${rounding}". Giltiga: ${Object.keys(RUNDNINGAR).join(", ")}.`);
   }
 
   const kantKlass = edge === undefined ? null : KANTKLASSER[edge];

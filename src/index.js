@@ -30,15 +30,15 @@ export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
 export { OpsRadioGroup } from "./components/OpsRadioGroup.jsx";
 export { OpsSlider } from "./components/OpsSlider.jsx";
 export { OpsKnob } from "./components/OpsKnob.jsx";
-export { OpsLaboreraPopover } from "./components/OpsLaboreraPopover.jsx";
+export { OpsSimulatePopover } from "./components/OpsSimulatePopover.jsx";
 export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
-export { OpsRullyta } from "./components/OpsRullyta.jsx";
+export { OpsScrollArea } from "./components/OpsScrollArea.jsx";
 export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
-// ⛔ `lasBilaga` och `MAX_SIDA` exporteras MED FLIT inte. En app som läser filer
+// ⛔ `readAttachment` och `MAX_SIDA` exporteras MED FLIT inte. En app som läser filer
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
-// ryms. `arBild` och `storlekstext` behövs för att VISA en sparad bilaga, alltså
+// ryms. `isImage` och `sizeText` behövs för att VISA en sparad bilaga, alltså
 // på andra sidan lagringen, där komponenten inte finns.
-export { arBild, storlekstext, bilagestorlek } from "./lib/fil.js";
+export { isImage, sizeText, attachmentSize } from "./lib/file.js";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
@@ -51,11 +51,11 @@ export { OpsTable } from "./components/OpsTable.jsx";
 export { OpsStat } from "./components/OpsStat.jsx";
 export { OpsEmpty } from "./components/OpsEmpty.jsx";
 export { OpsSpinner } from "./components/OpsSpinner.jsx";
-export { OpsDatavy } from "./components/OpsDatavy.jsx";
+export { OpsDataView } from "./components/OpsDataView.jsx";
 
 // ── Märkning ───────────────────────────────────────────────────────────────
 export { OpsPill } from "./components/OpsPill.jsx";
-export { OpsKalender } from "./components/OpsKalender.jsx";
+export { OpsCalendar } from "./components/OpsCalendar.jsx";
 export { OpsStatusDot } from "./components/OpsStatusDot.jsx";
 export { OpsMarkdown } from "./components/OpsMarkdown.jsx";
 export { OpsPrompt } from "./components/OpsPrompt.jsx";
@@ -69,8 +69,8 @@ export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
 export { OpsSegmented } from "./components/OpsSegmented.jsx";
 export { OpsFilterChip } from "./components/OpsFilterChip.jsx";
 export { OpsFilterPanel } from "./components/OpsFilterPanel.jsx";
-export { OpsHjalp } from "./components/OpsHjalp.jsx";
-export { OpsKontrollrad } from "./components/OpsKontrollrad.jsx";
+export { OpsHelp } from "./components/OpsHelp.jsx";
+export { OpsControlRow } from "./components/OpsControlRow.jsx";
 export { OpsBanner } from "./components/OpsBanner.jsx";
 export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";
@@ -88,15 +88,15 @@ export { createPostgresSource } from "./data/postgres.js";
 export { createHttpSource } from "./data/http.js";
 
 // ── Inloggning ─────────────────────────────────────────────────────────────
-export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
+export { createAuth, createGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
-export { identityTone, initials, ANTAL_IDENTITETSTONER } from "./lib/identity.js";
-export { bradska, delaIdagKommande, dagarMellan, dagarTill, samlaHandelser } from "./lib/handelser.js";
-export { datumnyckel, idagsnyckel, manader, manadsrutnat, perDag } from "./lib/kalender.js";
-export { lasArendeflode } from "./lib/arendeflode.js";
-export { delaMarkdown, delaInline } from "./lib/markdown.js";
+export { identityTone, initials, IDENTITY_TONE_COUNT } from "./lib/identity.js";
+export { urgency, splitTodayUpcoming, daysBetween, daysUntil, collectEvents } from "./lib/events.js";
+export { dateKey, todayKey, months, monthGrid, perDay } from "./lib/calendar.js";
+export { readCaseFlow } from "./lib/caseFlow.js";
+export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
-export { skapaArendemodell } from "./lib/arende.js";
-export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, TALMELLANSLAG, SAKNAS } from "./lib/format.js";
+export { createCaseModel } from "./lib/caseModel.js";
+export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";

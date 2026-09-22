@@ -16,10 +16,10 @@ import { KryssIkon } from "./icons.jsx";
  */
 
 const TONER = {
-  info: { yta: "bg-info-bg border-info/30", text: "text-info", roll: "status" },
-  success: { yta: "bg-success-bg border-success/30", text: "text-success", roll: "status" },
-  warning: { yta: "bg-warning-bg border-warning/30", text: "text-warning", roll: "alert" },
-  danger: { yta: "bg-danger-bg border-danger/30", text: "text-danger", roll: "alert" },
+  info: { yta: "bg-info-bg border-info/30", text: "text-info", role: "status" },
+  success: { yta: "bg-success-bg border-success/30", text: "text-success", role: "status" },
+  warning: { yta: "bg-warning-bg border-warning/30", text: "text-warning", role: "alert" },
+  danger: { yta: "bg-danger-bg border-danger/30", text: "text-danger", role: "alert" },
 };
 
 /**
@@ -37,7 +37,7 @@ export function OpsBanner({ tone = "info", title, children, action, onDismiss, d
     throw new Error(`OpsBanner: okänd tone "${tone}". Giltiga: ${Object.keys(TONER).join(", ")}.`);
   }
   return (
-    <div role={t.roll} className={cx("flex items-start gap-3 rounded-md border p-3", t.yta)}>
+    <div role={t.role} className={cx("flex items-start gap-3 rounded-md border p-3", t.yta)}>
       <div className="min-w-0 flex-1">
         <p className={cx("m-0 text-base font-semibold", t.text)}>{title}</p>
         {children ? <div className="mt-1 text-base text-ink-secondary">{children}</div> : null}

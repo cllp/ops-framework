@@ -9,7 +9,7 @@
  * och står aldrig här.
  *
  * ⛔ BRÅDSKAN ÄR HÄRLEDD, ALDRIG LAGRAD. Appen skickar ett datum, det här
- * räknar. Ett lagrat `status: "forsenat"` blir fel klockan tolv på natten utan
+ * räknar. Ett lagrat `status: "late"` blir fel klockan tolv på natten utan
  * att något ändras, och den sortens fel syns inte: raden ser lika lugn ut dagen
  * efter som dagen före.
  *
@@ -22,50 +22,50 @@
  */
 
 /**
- * @typedef {object} Handelse
+ * @typedef {object} OpsEvent
  * @property {string} id
- * @property {string} titel
- * @property {number | null} dagarKvar Negativt = passerat, 0 = idag eller pågående, positivt = framåt, null = odaterat.
- * @property {boolean} [pagar] Sant när ett intervall är igång just nu.
- * @property {string} [nar] Färdig text, t.ex. "I morgon (12)". Appen äger formuleringen.
- * @property {import("react").ReactNode} [roll] Appens egen roll-etikett. ⛔ ReactNode och inte string:
+ * @property {string} title
+ * @property {number | null} daysLeft Negativt = passerat, 0 = idag eller pågående, positivt = framåt, null = odaterat.
+ * @property {boolean} [inProgress] Sant när ett intervall är igång just nu.
+ * @property {string} [when] Färdig text, t.ex. "I morgon (12)". Appen äger formuleringen.
+ * @property {import("react").ReactNode} [role] Appens egen roll-etikett. ⛔ ReactNode och inte string:
  *   ramverket TOLKAR den inte, det ritar den. Skulle den vara en sträng måste ramverket
  *   översätta den till något visuellt, och då måste det veta vad rollerna betyder. Det är
  *   precis det ord som inte får finnas här.
- * @property {import("react").ReactNode} [slag] Vad för sorts händelse det är, i appens ord.
- *   ⛔ SVARAR PÅ EN ANNAN FRÅGA ÄN `roll`, och blandas de ihop blir båda obrukbara.
- *   `roll` säger VEM som ska göra något (du, en agent, ingen alls). `slag` säger VAD FÖR
+ * @property {import("react").ReactNode} [kind] Vad för sorts händelse det är, i appens ord.
+ *   ⛔ SVARAR PÅ EN ANNAN FRÅGA ÄN `role`, och blandas de ihop blir båda obrukbara.
+ *   `role` säger VEM som ska göra något (du, en agent, ingen alls). `kind` säger VAD FÖR
  *   SORTS sak det är (ett möte, en betalning, en uppgift). Ett filter på det ena kan inte
  *   svara på det andra.
- *   ReactNode av samma skäl som `roll`: ramverket ritar den, tolkar den aldrig.
+ *   ReactNode av samma skäl som `role`: ramverket ritar den, tolkar den aldrig.
  * @property {string} [deadline] Absolut sista dag, i appens ord ("Förfaller 2026-09-30").
- *   ⛔ NÄR det finns en sådan. `nar` säger hur långt bort något är ("Om 2 veckor"),
+ *   ⛔ NÄR det finns en sådan. `when` säger hur långt bort något är ("Om 2 veckor"),
  *   vilket är brådskan; `deadline` säger vilken dag, vilket är det man skriver in i
  *   en kalender. De är olika fakta och båda behövs, men skriv inte datumet i båda:
  *   står det på två ställen på samma rad börjar man leta efter skillnaden.
- * @property {import("react").ReactNode} [detaljer] Fälls ut under raden. Utan den får
+ * @property {import("react").ReactNode} [details] Fälls ut under raden. Utan den får
  *   raden ingen chevron: en pil som inte öppnar något är ett löfte som inte infrias.
  * @property {string} [url]
  * @property {string} [urlLabel] Synlig länktext, t.ex. "#183". Utan den står "Öppna".
- * @property {1|2|3|4|5|6} [kant] Färgad vänsterkant ur identitetspaletten, som säger vilken
+ * @property {1|2|3|4|5|6} [edge] Färgad vänsterkant ur identitetspaletten, som säger vilken
  *   GRUPP raden tillhör. ⛔ APPENS SIFFRA OCH INTE RAMVERKETS BETYDELSE: vilket slag som
  *   är grönt beror på vilka slagen ÄR, och det vet bara appen. Ramverket ritar kanten,
  *   det tolkar den aldrig.
- * @property {string} [kantLabel] Vad kanten betyder, i ord. ⛔ KRÄVS när `kant` finns:
+ * @property {string} [edgeLabel] Vad kanten betyder, i ord. ⛔ KRÄVS när `edge` finns:
  *   en färg utan ord säger ingenting till den som inte lärt sig koden, går inte att läsa
  *   upp, och är osynlig för var tjugonde man. `OpsCard` kastar hellre än att rita den.
- * @property {string} [uppdaterad] Senast ändrad (t.ex. "2026-09-18"), höger i kompakta raden.
+ * @property {string} [updatedAt] Senast ändrad (t.ex. "2026-09-18"), höger i kompakta raden.
  * @property {import("react").ReactNode} [atgard] Appens egen kontroll för raden, till exempel
  *   en knapp som bockar av den. ⛔ RAMVERKET RITAR DEN, TOLKAR DEN ALDRIG: vad en åtgärd
  *   gör är appens sak, var den hamnar och att den hamnar likadant på varje rad är vår.
  *   ⛔ Har någon rad en `atgard` KRÄVER `OpsEventList` att listan förklarar de rader som
- *   saknar en, i sin `atgardsforklaring`. Skälet står i komponenten.
- * @property {"oppet" | "pagar" | "vantar" | "klart" | "akut"} [status] Var raden står, som en
- *   prick i kortets rubrik. ⛔ EN SLUTEN MÄNGD OCH INTE EN ReactNode, till skillnad från `roll`
- *   och `slag`. Skillnaden är avsiktlig: rollens ORD är appens, men vilka FÄRGER ett tillstånd
+ *   saknar en, i sin `actionHint`. Skälet står i komponenten.
+ * @property {"open" | "inProgress" | "waiting" | "done" | "urgent"} [status] Var raden står, som en
+ *   prick i kortets rubrik. ⛔ EN SLUTEN MÄNGD OCH INTE EN ReactNode, till skillnad från `role`
+ *   och `kind`. Skillnaden är avsiktlig: rollens ORD är appens, men vilka FÄRGER ett tillstånd
  *   får är ramverkets, precis som brådskan. Skickade appen in sin egen prick skulle nästa app
  *   välja sin egen gula, och samma läge visas på två sätt i två plattformar.
- *   Orden kommer ur `OpsEventList`s `statusOrd`, eftersom bara appen vet vad `vantar` betyder
+ *   Orden kommer ur `OpsEventList`s `statusWords`, eftersom bara appen vet vad `waiting` betyder
  *   hos just den.
  */
 
@@ -78,15 +78,15 @@
  * skulle gjorts igår när det i själva verket är dags nu. Det felet levde i
  * bolag-ops tills CP såg det.
  *
- * @param {Handelse} handelse
- * @returns {"forsenat" | "pagar" | "framat" | "odaterat"}
+ * @param {OpsEvent} handelse
+ * @returns {"late" | "inProgress" | "ahead" | "undated"}
  */
-export function bradska(handelse) {
-  if (!handelse || handelse.dagarKvar === null || handelse.dagarKvar === undefined) return "odaterat";
-  if (handelse.pagar) return "pagar";
-  if (handelse.dagarKvar < 0) return "forsenat";
-  if (handelse.dagarKvar === 0) return "pagar";
-  return "framat";
+export function urgency(handelse) {
+  if (!handelse || handelse.daysLeft === null || handelse.daysLeft === undefined) return "undated";
+  if (handelse.inProgress) return "inProgress";
+  if (handelse.daysLeft < 0) return "late";
+  if (handelse.daysLeft === 0) return "inProgress";
+  return "ahead";
 }
 
 /**
@@ -101,22 +101,22 @@ export function bradska(handelse) {
  * kräver dig inte heller idag, och lägger man det i Idag blir den siffran
  * meningslös: den slutar svara på "hur mycket måste jag göra nu".
  *
- * @param {Handelse[]} handelser
- * @returns {{ idag: Handelse[], kommande: Handelse[], forsenat: number }}
+ * @param {OpsEvent[]} handelser
+ * @returns {{ today: OpsEvent[], kommande: OpsEvent[], late: number }}
  */
-export function delaIdagKommande(handelser) {
-  const idag = [];
+export function splitTodayUpcoming(handelser) {
+  const today = [];
   const kommande = [];
-  let forsenat = 0;
+  let late = 0;
 
   for (const h of handelser || []) {
-    const b = bradska(h);
-    if (b === "forsenat") forsenat += 1;
-    if (b === "forsenat" || b === "pagar") idag.push(h);
+    const b = urgency(h);
+    if (b === "late") late += 1;
+    if (b === "late" || b === "inProgress") today.push(h);
     else kommande.push(h);
   }
 
-  return { idag, kommande, forsenat };
+  return { today, kommande, late };
 }
 
 /**
@@ -135,7 +135,7 @@ export function delaIdagKommande(handelser) {
  * @param {Date} a @param {Date} b
  * @returns {number} Positivt när `b` ligger efter `a`.
  */
-export function dagarMellan(a, b) {
+export function daysBetween(a, b) {
   const ms = 24 * 60 * 60 * 1000;
   const da = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
   const db = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
@@ -155,13 +155,13 @@ export function dagarMellan(a, b) {
  * lokalt kvällen innan. Datumet hade då legat en dag fel under halva året, i den
  * riktning som får en deadline att se ut att ha passerat.
  *
- * @param {string} iso @param {Date} idag
+ * @param {string} iso @param {Date} today
  * @returns {number | null}
  */
-export function dagarTill(iso, idag) {
+export function daysUntil(iso, today) {
   const d = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(d.getTime())) return null;
-  return dagarMellan(idag, d);
+  return daysBetween(today, d);
 }
 
 /**
@@ -173,7 +173,7 @@ export function dagarTill(iso, idag) {
  * ORDNINGEN är densamma för varje ops-plattform: närmast först, odaterat sist,
  * och inom samma dag det som kräver en människa före det som sköter sig självt.
  *
- * Därför tar den här emot FÄRDIGA `Handelse`-listor, en per källa. Appen har
+ * Därför tar den här emot FÄRDIGA `OpsEvent`-listor, en per källa. Appen har
  * redan gjort sina mappningar och äger varje ord i dem.
  *
  * ⛔ LISTOR OCH INTE FUNKTIONER. Skickade appen in mappers hade ramverket
@@ -182,23 +182,23 @@ export function dagarTill(iso, idag) {
  *
  * ── ⛔ ODATERAT SIST, OCH DET ÄR ETT PÅSTÅENDE ────────────────────────────
  *
- * `dagarKvar: null` betyder "har ingen dag", inte "har dagen noll". Sorterar man
+ * `daysLeft: null` betyder "har ingen dag", inte "har dagen noll". Sorterar man
  * naivt blir `null` mindre än varje tal och allt odaterat hamnar ÖVERST, alltså
  * precis framför det som faktiskt brinner. Det felet är tyst: listan ser sorterad
  * ut.
  *
  * @param {object} [arg]
- * @param {Handelse[][]} [arg.kallor] En lista per källa. Tomma listor är i sin ordning.
- * @param {(handelse: Handelse) => number} [arg.ordning] Tie-break inom samma dag, lägre först.
- *   ⛔ EN FUNKTION FRÅN APPEN OCH INGEN INBYGGD RANGORDNING. `Handelse.roll` är
+ * @param {OpsEvent[][]} [arg.kallor] En lista per källa. Tomma listor är i sin ordning.
+ * @param {(handelse: OpsEvent) => number} [arg.ordning] Tie-break inom samma dag, lägre först.
+ *   ⛔ EN FUNKTION FRÅN APPEN OCH INGEN INBYGGD RANGORDNING. `OpsEvent.role` är
  *   uttryckligen något ramverket ritar men aldrig tolkar (se typedefen ovan), och en
  *   inbyggd vikt på "human" före "auto" hade gjort just den tolkningen i smyg. Appen
  *   vet vilka roller den har och vilken av dem som inte går att skala.
  *   Utan den behålls källornas inbördes ordning inom samma dag.
- * @returns {Handelse[]}
+ * @returns {OpsEvent[]}
  */
-export function samlaHandelser({ kallor = [], ordning } = {}) {
-  /** @type {{ h: Handelse, plats: number, vikt: number }[]} */
+export function collectEvents({ kallor = [], ordning } = {}) {
+  /** @type {{ h: OpsEvent, plats: number, vikt: number }[]} */
   const alla = [];
   for (const list of kallor) {
     for (const h of list || []) {
@@ -211,8 +211,8 @@ export function samlaHandelser({ kallor = [], ordning } = {}) {
   }
 
   alla.sort((a, b) => {
-    const ad = a.h.dagarKvar;
-    const bd = b.h.dagarKvar;
+    const ad = a.h.daysLeft;
+    const bd = b.h.daysLeft;
     const aOdaterad = ad === null || ad === undefined;
     const bOdaterad = bd === null || bd === undefined;
     if (aOdaterad !== bOdaterad) return aOdaterad ? 1 : -1;

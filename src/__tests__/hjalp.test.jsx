@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { OpsHjalp } from "../components/OpsHjalp.jsx";
+import { OpsHelp } from "../components/OpsHelp.jsx";
 import { OpsViewHeader } from "../components/OpsView.jsx";
 
 /**
@@ -18,7 +18,7 @@ describe("OpsHjalp", () => {
      * kräver att den saknas hade tvingat fram en egen knapp med state, alltså
      * bort från plattformen och in i det `OpsDisclosure` redan varnar för.
      */
-    render(<OpsHjalp rubrik={<h1>Idag</h1>}>Vad som kräver dig nu.</OpsHjalp>);
+    render(<OpsHelp title={<h1>Idag</h1>}>Vad som kräver dig nu.</OpsHelp>);
 
     expect(screen.getByText("Vad som kräver dig nu.")).not.toBeVisible();
     fireEvent.click(screen.getByText("Idag"));
@@ -30,7 +30,7 @@ describe("OpsHjalp", () => {
      * ⛔ EN KNAPP SOM ÖPPNAR INGENTING ÄR ETT LÖFTE SOM INTE INFRIAS, samma
      * regel som kalenderkortets chevron fick. Rubriken ska stå kvar, naken.
      */
-    const { container } = render(<OpsHjalp rubrik={<h1>Idag</h1>} />);
+    const { container } = render(<OpsHelp title={<h1>Idag</h1>} />);
     expect(screen.getByRole("heading", { name: "Idag", level: 1 })).toBeInTheDocument();
     expect(container.querySelector("details")).toBeNull();
   });
@@ -41,7 +41,7 @@ describe("OpsHjalp", () => {
      * är skälet att hela raden får vara träffytan utan att kosta något: den som
      * navigerar på rubriker hittar sidan som förut.
      */
-    render(<OpsHjalp rubrik={<h1>Idag</h1>}>Förklaringen.</OpsHjalp>);
+    render(<OpsHelp title={<h1>Idag</h1>}>Förklaringen.</OpsHelp>);
     const rubriken = screen.getByRole("heading", { name: "Idag", level: 1 });
     expect(rubriken.closest("summary")).not.toBeNull();
   });
@@ -52,18 +52,18 @@ describe("OpsHjalp", () => {
      * lätt att lägga till och fel: mindes texten sig öppen vore vi tillbaka i en
      * mening som står kvar för alltid, alltså precis det som skulle bort.
      */
-    const { container, unmount } = render(<OpsHjalp rubrik={<h1>Idag</h1>}>Förklaringen.</OpsHjalp>);
+    const { container, unmount } = render(<OpsHelp title={<h1>Idag</h1>}>Förklaringen.</OpsHelp>);
     fireEvent.click(screen.getByText("Idag"));
     expect(container.querySelector("details")?.open).toBe(true);
     unmount();
 
-    const andra = render(<OpsHjalp rubrik={<h1>Idag</h1>}>Förklaringen.</OpsHjalp>);
+    const andra = render(<OpsHelp title={<h1>Idag</h1>}>Förklaringen.</OpsHelp>);
     expect(andra.container.querySelector("details")?.open).toBe(false);
   });
 
   it("ger tecknet ett ord för den som lyssnar", () => {
     // ⛔ "?" är en bild för örat. Utan `label` heter knappen bara rubriken.
-    render(<OpsHjalp rubrik={<h1>Idag</h1>} label="Visa förklaring">Förklaringen.</OpsHjalp>);
+    render(<OpsHelp title={<h1>Idag</h1>} label="Visa förklaring">Förklaringen.</OpsHelp>);
     expect(screen.getByText("Visa förklaring")).toBeInTheDocument();
   });
 });

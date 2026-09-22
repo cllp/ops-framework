@@ -1,16 +1,16 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { OpsKalender } from "../components/OpsKalender.jsx";
+import { OpsCalendar } from "../components/OpsCalendar.jsx";
 import {
-  datumnyckel,
+  dateKey,
   datumtext,
   forstaKolumnen,
-  idagsnyckel,
-  manader,
-  manadsrutnat,
-  perDag,
+  todayKey,
+  months,
+  monthGrid,
+  perDay,
   rullriktning,
-} from "../lib/kalender.js";
+} from "../lib/calendar.js";
 
 /**
  * Kalendern: räkningen för sig, rutnätet för sig.
@@ -38,7 +38,7 @@ describe("kalenderräkningen", () => {
   it("räknar skottår rätt", () => {
     // ⛔ Februari 2028 har 29 dagar. En hårdkodad tabell hade tappat den dagen,
     // och en post den 29:e hade tyst försvunnit ur rutnätet.
-    const rader = manadsrutnat(2028, 1);
+    const rader = monthGrid(2028, 1);
     const dagar = rader.flat().filter((d) => d !== null);
     expect(dagar.length).toBe(29);
     expect(dagar[dagar.length - 1]).toBe(29);
@@ -47,7 +47,7 @@ describe("kalenderräkningen", () => {
   it("fyller ut med tomma platser före den första, inte med förra månadens dagar", () => {
     // ⛔ En grå 29:a bredvid en svart 1:a inbjuder till ett tryck som inte gör
     // något. En tom ruta lovar ingenting.
-    const rader = manadsrutnat(2026, 9); // oktober 2026, börjar på en torsdag
+    const rader = monthGrid(2026, 9); // oktober 2026, börjar på en torsdag
     expect(rader[0].slice(0, 3)).toEqual([null, null, null]);
     expect(rader[0][3]).toBe(1);
   });
@@ -55,7 +55,7 @@ describe("kalenderräkningen", () => {
   it("skriver datum med två siffror, så strängarna går att jämföra", () => {
     // ⛔ "2026-9-5" sorterar efter "2026-10-01" i en strängjämförelse, och alla
     // nycklar här ÄR strängar.
-    expect(datumnyckel(2026, 8, 5)).toBe("2026-09-05");
+    expect(dateKey(2026, 8, 5)).toBe("2026-09-05");
   });
 
   it("läser dagens datum lokalt och inte via UTC", () => {
@@ -64,11 +64,11 @@ describe("kalenderräkningen", () => {
      * sommartid. Kalendern hade ramat in fel dag som idag, bara mellan midnatt
      * och två på natten, alltså ett fel ingen lyckas återskapa.
      */
-    expect(idagsnyckel(new Date(2026, 9, 5, 1, 30))).toBe("2026-10-05");
+    expect(todayKey(new Date(2026, 9, 5, 1, 30))).toBe("2026-10-05");
   });
 
   it("räknar månader över ett årsskifte", () => {
-    const ut = manader(new Date(2026, 11, 15), 1, 1);
+    const ut = months(new Date(2026, 11, 15), 1, 1);
     expect(ut).toEqual([
       { ar: 2026, manad: 10 },
       { ar: 2026, manad: 11 },
@@ -77,11 +77,11 @@ describe("kalenderräkningen", () => {
   });
 
   it("grupperar poster per dag och behåller ordningen inom dagen", () => {
-    const karta = perDag([
-      { id: "a", datum: "2026-10-05", titel: "A" },
-      { id: "b", datum: "2026-10-05", titel: "B" },
-      { id: "c", datum: "2026-10-06", titel: "C" },
-      { id: "d", datum: "", titel: "Odaterad" },
+    const karta = perDay([
+      { id: "a", date: "2026-10-05", title: "A" },
+      { id: "b", date: "2026-10-05", title: "B" },
+      { id: "c", date: "2026-10-06", title: "C" },
+      { id: "d", date: "", title: "Odaterad" },
     ]);
     expect(karta.get("2026-10-05").map((p) => p.id)).toEqual(["a", "b"]);
     expect(karta.get("2026-10-06").length).toBe(1);
@@ -133,19 +133,19 @@ describe("kalenderräkningen", () => {
 const IDAG = new Date(2026, 9, 5); // måndag 5 oktober 2026
 
 /** Appens ord, precis som `OpsEventList` kräver dem. */
-const STATUSORD = { oppet: "Öppet", pagar: "Pågår", vantar: "Väntar", klart: "Klart", akut: "Akut" };
+const STATUSORD = { open: "Öppet", inProgress: "Pågår", waiting: "Väntar", done: "Klart", urgent: "Akut" };
 
 const POSTER = [
-  { id: "agi", datum: "2026-10-12", titel: "Arbetsgivardeklaration", status: "oppet" },
-  { id: "lon", datum: "2026-10-25", titel: "Löneutbetalning", status: "oppet", not: "Påminnelse" },
-  { id: "stangt", datum: "2026-10-12", titel: "#249 stängdes", status: "klart", url: "https://github.com/cllp/bolag-ops/issues/249" },
+  { id: "agi", date: "2026-10-12", title: "Arbetsgivardeklaration", status: "open" },
+  { id: "lon", date: "2026-10-25", title: "Löneutbetalning", status: "open", not: "Påminnelse" },
+  { id: "stangt", date: "2026-10-12", title: "#249 stängdes", status: "done", url: "https://github.com/cllp/bolag-ops/issues/249" },
 ];
 
 /** Månadens block, alltså rubriken plus dess rutnät. */
-function manadsruta(namn) {
-  const rubrik = screen.getByRole("heading", { name: namn });
-  const block = rubrik.parentElement;
-  if (!block) throw new Error(`Månaden "${namn}" har inget block`);
+function manadsruta(name) {
+  const title = screen.getByRole("heading", { name: name });
+  const block = title.parentElement;
+  if (!block) throw new Error(`Månaden "${name}" har inget block`);
   return block;
 }
 
@@ -167,7 +167,7 @@ function rullbehallaren() {
  * Ställer in en `IntersectionObserver` som säger "inte synlig", och lämnar
  * tillbaka en återställare.
  *
- * ⛔ JSDOM HAR INGEN, så `OpsKalender` hoppar över observatören helt och
+ * ⛔ JSDOM HAR INGEN, så `OpsCalendar` hoppar över observatören helt och
  * Idag-knappen dyker aldrig upp. Ett prov om knappen hade då varit grönt för att
  * den saknades, vilket är den sämsta sortens grönt.
  *
@@ -178,7 +178,7 @@ function rullbehallaren() {
 function visaIdagknappen() {
   const riktig = globalThis.IntersectionObserver;
   globalThis.IntersectionObserver = class {
-    /** @param {(poster: any[]) => void} vidTraff */
+    /** @param {(entries: any[]) => void} vidTraff */
     constructor(vidTraff) {
       this.vidTraff = vidTraff;
     }
@@ -197,13 +197,13 @@ function visaIdagknappen() {
 
 function rendera(extra = {}) {
   return render(
-    <OpsKalender poster={POSTER} ariaLabel="Kalender" idag={IDAG} statusOrd={STATUSORD} {...extra} />,
+    <OpsCalendar entries={POSTER} ariaLabel="Kalender" today={IDAG} statusWords={STATUSORD} {...extra} />,
   );
 }
 
 describe("OpsKalender", () => {
   it("ritar månaderna bakåt och framåt kring idag", () => {
-    rendera({ manaderBakat: 1, manaderFramat: 1 });
+    rendera({ monthsBack: 1, monthsForward: 1 });
     expect(screen.getByRole("heading", { name: "september 2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "oktober 2026" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "november 2026" })).toBeInTheDocument();
@@ -357,7 +357,7 @@ describe("OpsKalender", () => {
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
 
-    const kortFor = (titel) => screen.getByText(titel).closest(".ops-contrast-panel");
+    const kortFor = (title) => screen.getByText(title).closest(".ops-contrast-panel");
     const ett = kortFor("Arbetsgivardeklaration");
     const tva = kortFor("#249 stängdes");
 
@@ -565,23 +565,23 @@ describe("OpsKalender", () => {
      * som `OpsEventList` har om sin chevronkolumn.
      */
     rendera({
-      poster: [{ id: "naken", datum: "2026-10-12", titel: "Utan status och utan länk" }],
-      statusOrd: {},
+      entries: [{ id: "naken", date: "2026-10-12", title: "Utan status och utan länk" }],
+      statusWords: {},
     });
     fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }));
 
     expect(screen.getByText("Utan status och utan länk")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Visa detaljer/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Visa details/ })).toBeNull();
   });
 
   it("kastar utan namn i stället för att rita ett stumt rutnät", () => {
-    expect(() => render(<OpsKalender poster={[]} idag={IDAG} />)).toThrow(/ariaLabel krävs/);
+    expect(() => render(<OpsCalendar entries={[]} today={IDAG} />)).toThrow(/ariaLabel krävs/);
   });
 
   it("säger ifrån när ingen post har datum", () => {
     // ⛔ Ett tomt rutnät ser likadant ut vare sig ingenting är daterat eller
     // ingenting finns, och de två är olika besked.
-    rendera({ poster: [], tomtText: "Inget daterat framåt." });
+    rendera({ entries: [], emptyText: "Inget daterat framåt." });
     expect(screen.getByText("Inget daterat framåt.")).toBeInTheDocument();
   });
 });

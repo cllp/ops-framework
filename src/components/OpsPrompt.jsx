@@ -41,18 +41,18 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * @param {object} props
- * @param {import("../lib/prompt.js").Promptkalla} props.source Från `createPromptSource`.
+ * @param {import("../lib/prompt.js").PromptSource} props.source Från `createPromptSource`.
  * @param {string} props.label Vad rutan frågar om. ⛔ Krävs: ett fält utan etikett är
  *   osynligt för skärmläsaren, och en promptruta utan ämne är en tom uppmaning.
  * @param {string} [props.hint] En rad om vad rutan kan svara på.
  * @param {string} [props.placeholder]
- * @param {any} [props.sammanhang] Skickas med varje fråga, ogenomskinligt för ramverket.
- * @param {string} [props.skickaLabel]
+ * @param {any} [props.context] Skickas med varje fråga, ogenomskinligt för ramverket.
+ * @param {string} [props.sendLabel]
  * @param {string} [props.waitingLabel] Vad snurran säger. Läses upp, syns inte.
- * @param {string[]} [props.forslag] Färdiga frågor att trycka på. ⛔ De SKRIVS IN i fältet
+ * @param {string[]} [props.suggestions] Färdiga frågor att trycka på. ⛔ De SKRIVS IN i fältet
  *   och skickas inte direkt: ett förslag som skickar sig självt gör ett klick till ett anrop
  *   man inte hann läsa, och man kan inte längre ändra ett ord innan man frågar.
- * @param {(svar: import("../lib/prompt.js").Promptsvar) => void} [props.onSvar] Anropas när ett
+ * @param {(svar: import("../lib/prompt.js").PromptAnswer) => void} [props.onAnswer] Anropas när ett
  *   svar kommit. Appen kan logga tokens där, ramverket gör det aldrig.
  */
 export function OpsPrompt({
@@ -60,15 +60,15 @@ export function OpsPrompt({
   label,
   hint,
   placeholder,
-  sammanhang,
-  skickaLabel = "Fråga",
+  context,
+  sendLabel = "Fråga",
   waitingLabel = "Väntar på svar",
-  forslag = [],
-  onSvar,
+  suggestions = [],
+  onAnswer,
 }) {
-  if (!source || typeof source.fraga !== "function") {
+  if (!source || typeof source.ask !== "function") {
     throw new Error(
-      "OpsPrompt: kalla måste komma från createPromptSource. Utan den vet rutan inte var frågan ska skickas, och det syns först när någon trycker.",
+      "OpsPrompt: source måste komma från createPromptSource. Utan den vet rutan inte var frågan ska skickas, och det syns först när någon trycker.",
     );
   }
   if (!label) {
@@ -76,29 +76,40 @@ export function OpsPrompt({
   }
 
   const [text, setText] = useState("");
-  const [vantar, setVantar] = useState(false);
-  const [svar, setSvar] = useState(/** @type {import("../lib/prompt.js").Promptsvar | null} */ (null));
+  const [waiting, setVantar] = useState(false);
+  const [svar, setSvar] = useState(/** @type {import("../lib/prompt.js").PromptAnswer | null} */ (null));
   const [faltfel, setFaltfel] = useState("");
   const [svarsfel, setSvarsfel] = useState("");
 
-  const fraga = async () => {
+  const ask = async () => {
     // ⛔ Dubbeltryck ignoreras här och inte bara genom en avstängd knapp:
     // Enter i fältet går förbi knappen, och två anrop för samma fråga är två
     // fakturor för ett svar.
-    if (vantar) return;
+    if (waiting) return;
 
     setFaltfel("");
     setSvarsfel("");
     setVantar(true);
     try {
-      const nytt = await source.fraga({ prompt: text, sammanhang });
+      const nytt = await source.ask({ prompt: text, context });
       setSvar(nytt);
-      onSvar?.(nytt);
+      onAnswer?.(nytt);
     } catch (error) {
       const meddelande = error instanceof Error ? error.message : String(error);
       // ⛔ Längdfel och tomhet hör till FÄLTET, resten till svarsytan. Källan
       // kastar båda sorterna, och skillnaden är om användaren kan rätta det
       // själv där hen står.
+      /*
+       * ⛔ ORDEN I DET HÄR UTTRYCKET ÄR SVENSKA TEXTFRAGMENT UR FELMEDDELANDET,
+       * inte identifierare. Vid namnbytet till engelska byttes "tecken" till
+       * "chars" här, eftersom en reguljäruttrycksliteral ser ut som kod för ett
+       * verktyg som letar ord. Då slutade längdfelet hamna VID FÄLTET och
+       * hamnade bara i svarsytan, alltså tappade fältet sin aria-invalid.
+       *
+       * Provet blev rött, men först på andra raden: findByText hittade felet i
+       * svarsytan och gick vidare. Det är värt att minnas nästa gång ett prov
+       * går rött "en rad för sent".
+       */
       if (/Skriv en fråga|tecken/.test(meddelande)) setFaltfel(meddelande);
       else setSvarsfel(meddelande);
     } finally {
@@ -113,24 +124,24 @@ export function OpsPrompt({
           value={text}
           onChange={setText}
           /*
-           * ⛔ GENVÄGEN GÅR FÖRBI KNAPPEN, och det är skälet till att `fraga`
+           * ⛔ GENVÄGEN GÅR FÖRBI KNAPPEN, och det är skälet till att `ask`
            * har en egen vakt mot dubbelkörning. Mutationsprovet visade att
            * vakten var ONÅBAR innan genvägen fanns: kommentaren påstod att
            * Enter gick förbi knappen, men ingen tangenthanterare existerade.
            * En vakt som inte går att nå är inte en vakt, den är en kommentar.
            */
-          onSkicka={fraga}
+          onSend={ask}
           placeholder={placeholder}
           rows={3}
-          disabled={vantar}
-          maxLength={source.maxTecken}
+          disabled={waiting}
+          maxLength={source.maxChars}
         />
       </OpsField>
 
-      {forslag.length > 0 ? (
+      {suggestions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {forslag.map((f) => (
-            <OpsButton key={f} variant="secondary" size="sm" onClick={() => setText(f)} disabled={vantar}>
+          {suggestions.map((f) => (
+            <OpsButton key={f} variant="secondary" size="sm" onClick={() => setText(f)} disabled={waiting}>
               {f}
             </OpsButton>
           ))}
@@ -138,12 +149,12 @@ export function OpsPrompt({
       ) : null}
 
       <div className="flex items-center gap-3">
-        <OpsButton onClick={fraga} disabled={vantar || text.trim().length === 0}>
-          {skickaLabel}
+        <OpsButton onClick={ask} disabled={waiting || text.trim().length === 0}>
+          {sendLabel}
         </OpsButton>
         {/* ⛔ Snurran står BREDVID knappen och inte i den. En knapp som byter
             innehåll till en snurra ändrar bredd, och raden under hoppar. */}
-        {vantar ? <OpsSpinner size="sm" tone="muted" label={waitingLabel} /> : null}
+        {waiting ? <OpsSpinner size="sm" tone="muted" label={waitingLabel} /> : null}
       </div>
 
       {svarsfel ? (
@@ -153,7 +164,7 @@ export function OpsPrompt({
       ) : null}
 
       {svar ? (
-        <div aria-busy={vantar || undefined} aria-live="polite">
+        <div aria-busy={waiting || undefined} aria-live="polite">
           <OpsMarkdown text={svar.text} />
         </div>
       ) : null}

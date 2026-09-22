@@ -58,7 +58,7 @@ function Lista({ collectionName = "inkorg", query }) {
       <p data-testid="fel">{error ? error.message : "-"}</p>
       <ul>
         {data.map((r) => (
-          <li key={r.id}>{r.rubrik}</li>
+          <li key={r.id}>{r.title}</li>
         ))}
       </ul>
       <button type="button" onClick={update}>
@@ -79,7 +79,7 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
 
     expect(screen.getByTestId("lage")).toHaveTextContent("laddar");
 
-    s.skicka([{ id: "1", rubrik: "Riksbyggen höjde avgiften" }]);
+    s.skicka([{ id: "1", title: "Riksbyggen höjde avgiften" }]);
     await waitFor(() => expect(screen.getByText("Riksbyggen höjde avgiften")).toBeInTheDocument());
     expect(screen.getByTestId("lage")).toHaveTextContent("klar");
     expect(screen.getByTestId("realtid")).toHaveTextContent("ja");
@@ -87,8 +87,8 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
     // ⛔ Det här är hela poängen med #133: en post till dyker upp utan att
     // någonting i vyn frågat efter den.
     s.skicka([
-      { id: "1", rubrik: "Riksbyggen höjde avgiften" },
-      { id: "2", rubrik: "Säg upp Canva" },
+      { id: "1", title: "Riksbyggen höjde avgiften" },
+      { id: "2", title: "Säg upp Canva" },
     ]);
     await waitFor(() => expect(screen.getByText("Säg upp Canva")).toBeInTheDocument());
   });
@@ -102,10 +102,10 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
       </OpsDataProvider>,
     );
 
-    s.skicka([{ id: "1", rubrik: "Ny" }]);
+    s.skicka([{ id: "1", title: "Ny" }]);
     await waitFor(() => expect(screen.getByText("Ny")).toBeInTheDocument());
 
-    s.skicka([{ id: "1", rubrik: "Hanterad" }]);
+    s.skicka([{ id: "1", title: "Hanterad" }]);
     await waitFor(() => expect(screen.getByText("Hanterad")).toBeInTheDocument());
     expect(screen.queryByText("Ny")).not.toBeInTheDocument();
   });
@@ -122,7 +122,7 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
       </OpsDataProvider>,
     );
 
-    s.skicka([{ id: "1", rubrik: "Kvar" }]);
+    s.skicka([{ id: "1", title: "Kvar" }]);
     await waitFor(() => expect(screen.getByText("Kvar")).toBeInTheDocument());
 
     s.fela(new Error("Missing or insufficient permissions."));
@@ -142,7 +142,7 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
     s.fela(new Error("tappade kontakten"));
     await waitFor(() => expect(screen.getByTestId("fel")).toHaveTextContent("tappade kontakten"));
 
-    s.skicka([{ id: "1", rubrik: "Tillbaka" }]);
+    s.skicka([{ id: "1", title: "Tillbaka" }]);
     await waitFor(() => expect(screen.getByTestId("fel")).toHaveTextContent("-"));
   });
 
@@ -212,7 +212,7 @@ describe("useLiveCollection mot en källa som inte kan strömma", () => {
     // ⛔ Det tysta alternativet hade varit att falla tillbaka utan att säga
     // något. Då ser en app som tror sig strömma exakt likadan ut som en som gör
     // det, ända tills någon undrar varför en post aldrig dök upp.
-    const source = createMemorySource({ inkorg: [{ id: "1", rubrik: "Från minnet" }] });
+    const source = createMemorySource({ inkorg: [{ id: "1", title: "Från minnet" }] });
     render(
       <OpsDataProvider source={source}>
         <Lista />
@@ -291,9 +291,9 @@ describe("Firestore-adapterns prenumeration", () => {
 
     const rows = [];
     source.subscribe("inkorg", undefined, { onData: (r) => rows.push(...r), onError: () => {} });
-    snapshotHandler({ docs: [{ id: "a", data: () => ({ rubrik: "Hej" }) }] });
+    snapshotHandler({ docs: [{ id: "a", data: () => ({ title: "Hej" }) }] });
 
-    expect(rows).toEqual([{ id: "a", rubrik: "Hej" }]);
+    expect(rows).toEqual([{ id: "a", title: "Hej" }]);
   });
 
   it("skickar felet till vidFel, aldrig som en tom lista", () => {

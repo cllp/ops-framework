@@ -49,13 +49,13 @@ describe("minneskällan", () => {
 
   it("skapar med id, läser tillbaka och uppdaterar", async () => {
     const source = createMemorySource();
-    const post = await source.create("kostnader", { name: "Telia", belopp: 449 });
-    expect(post.id).toBeTruthy();
+    const entry = await source.create("kostnader", { name: "Telia", belopp: 449 });
+    expect(entry.id).toBeTruthy();
 
-    expect(await source.read("kostnader", post.id)).toMatchObject({ name: "Telia" });
+    expect(await source.read("kostnader", entry.id)).toMatchObject({ name: "Telia" });
 
-    const uppdaterad = await source.update("kostnader", post.id, { belopp: 500 });
-    expect(uppdaterad).toMatchObject({ id: post.id, name: "Telia", belopp: 500 });
+    const updatedAt = await source.update("kostnader", entry.id, { belopp: 500 });
+    expect(updatedAt).toMatchObject({ id: entry.id, name: "Telia", belopp: 500 });
   });
 
   // ⛔ "Finns inte" är inte ett fel. Skillnaden mot "kunde inte fråga" måste gå

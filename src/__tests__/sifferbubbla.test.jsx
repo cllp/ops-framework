@@ -63,8 +63,8 @@ describe("OpsFloatingSummary", () => {
      * namnet står kvar som skärmläsartext. Utan det är bubblan två nakna tal.
      */
     render(<OpsFloatingSummary label="Månadskassaflöde" value="+1 kr" />);
-    const namn = screen.getByText("Månadskassaflöde");
-    expect(String(namn.className).split(/\s+/)).toContain("sr-only");
+    const name = screen.getByText("Månadskassaflöde");
+    expect(String(name.className).split(/\s+/)).toContain("sr-only");
   });
 
   it("har samma bredd oavsett innehåll", () => {

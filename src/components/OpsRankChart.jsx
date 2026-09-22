@@ -16,14 +16,14 @@ import { cx } from "../lib/cx.js";
  *
  * Komponenten räknar INTE ut vad som är högt. Var gränsen går mellan hög och
  * medel är ett domänbeslut: för en kostnadslista kan tusen kronor vara högt och
- * för en annan försumbart. Appen skickar `niva` (1 låg, 2 medel, 3 hög) och
+ * för en annan försumbart. Appen skickar `level` (1 låg, 2 medel, 3 hög) och
  * ramverket målar den, med en skala där mer är mörkare.
  *
  * ⛔ Skalan är EN nyans som mörknar, aldrig en regnbåge. En regnbåge har ingen
  * ordning, så läsaren måste slå upp legenden för varje steg i stället för att
  * se den.
  *
- * ⛔ Utan `niva` får alla staplar samma ton. Det är rätt utfall och inte en
+ * ⛔ Utan `level` får alla staplar samma ton. Det är rätt utfall och inte en
  * degradering: längden bär redan storleken, och en färgskala ovanpå den säger
  * ingenting nytt om den inte delar in i klasser appen menar något med.
  *
@@ -49,7 +49,7 @@ const STANDARDFARG = "bg-scale-2";
  * @property {import("react").ReactNode} label
  * @property {number} value Stapelns längd. Negativa värden ritas inte: den här formen har en baslinje i noll.
  * @property {import("react").ReactNode} [text] Värdet som det ska LÄSAS. ⛔ Ramverket formaterar aldrig pengar.
- * @property {1 | 2 | 3} [niva] Appens bedömning: låg, medel, hög.
+ * @property {1 | 2 | 3} [level] Appens bedömning: låg, medel, hög.
  * @property {import("react").ReactNode} [note] Andra raden, t.ex. varför posten sticker ut.
  */
 
@@ -61,17 +61,17 @@ const STANDARDFARG = "bg-scale-2";
  * @param {import("react").ReactNode} [props.empty]
  */
 export function OpsRankChart({ rows, ariaLabel, max, empty = null }) {
-  const poster = (rows || []).filter((r) => r && typeof r.value === "number" && Number.isFinite(r.value) && r.value > 0);
-  if (poster.length === 0) return empty;
+  const entries = (rows || []).filter((r) => r && typeof r.value === "number" && Number.isFinite(r.value) && r.value > 0);
+  if (entries.length === 0) return empty;
 
   // ⛔ Taket är det största värdet om appen inte säger annat, och ALDRIG summan.
   // Mot summan blir varje enskild stapel en tunn strimma och listan säger
   // ingenting om vad som är störst, vilket är hela frågan.
-  const tak = typeof max === "number" && max > 0 ? max : Math.max(...poster.map((p) => p.value));
+  const tak = typeof max === "number" && max > 0 ? max : Math.max(...entries.map((p) => p.value));
 
   return (
     <ul className="m-0 flex list-none flex-col gap-2 p-0" aria-label={ariaLabel}>
-      {poster.map((r) => {
+      {entries.map((r) => {
         const andel = Math.min(r.value / tak, 1);
         return (
           <li key={r.id} className="flex flex-col gap-1">
@@ -89,7 +89,7 @@ export function OpsRankChart({ rows, ariaLabel, max, empty = null }) {
               <div
                 className={cx(
                   "h-full rounded-full transition-[width] duration-(--duration-slow) ease-standard",
-                  r.niva ? NIVAFARG[r.niva] || STANDARDFARG : STANDARDFARG,
+                  r.level ? NIVAFARG[r.level] || STANDARDFARG : STANDARDFARG,
                 )}
                 // ⛔ Bredden är geometri och måste vara ett räknat tal. Färg via
                 // style vore däremot fel: den går förbi tokenkontraktet och

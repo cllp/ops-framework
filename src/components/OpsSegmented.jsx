@@ -52,7 +52,7 @@ import { BockIkon, ChevronNedIkon } from "./icons.jsx";
  *
  * ⛔ ANTINGEN ALLA SEGMENT ELLER INGET, och komponenten kastar annars. En rad
  * med en ikon bredvid ett ord ser ut som ett fel, och den som läser vet inte om
- * ikonen betyder något extra. Det är samma slags regel som `atgardsforklaring`
+ * ikonen betyder något extra. Det är samma slags regel som `actionHint`
  * i `OpsEventList`: en yta där hälften av elementen bär något de andra saknar
  * lär läsaren att gissa.
  *
@@ -109,7 +109,7 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
         const harMeny = Array.isArray(menyItems) && menyItems.length > 0;
         const menyMatch = harMeny ? menyItems.find((i) => i.value === value) : undefined;
         const valt = o.value === value || Boolean(menyMatch);
-        const etikett = menyMatch?.label ?? o.label;
+        const label = menyMatch?.label ?? o.label;
         const menyOppen = harMeny && valt && menyFor === o.value;
 
         const knappen = (
@@ -149,10 +149,10 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
                 <span aria-hidden="true" className="flex items-center">
                   {o.icon}
                 </span>
-                <span className="sr-only">{etikett}</span>
+                <span className="sr-only">{label}</span>
               </>
             ) : (
-              etikett
+              label
             )}
             {typeof o.badge === "number" && o.badge > 0 ? (
               // ⛔ Siffran står INNE i segmentet och inte som en cirkel ovanpå.
@@ -193,13 +193,13 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
               >
                 <div role="menu" aria-label={o.label} className="flex flex-col">
                   {menyItems.map((item) => {
-                    const aktiv = item.value === value;
+                    const active = item.value === value;
                     return (
                       <button
                         key={item.value}
                         type="button"
                         role="menuitemradio"
-                        aria-checked={aktiv}
+                        aria-checked={active}
                         onClick={() => {
                           onChange(item.value);
                           setMenyFor(null);
@@ -207,14 +207,14 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
                         className={cx(
                           "flex min-h-11 w-full cursor-pointer items-center gap-3 px-3 text-left text-sm",
                           "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                          aktiv
+                          active
                             ? "bg-accent-subtle font-semibold text-ink"
                             : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
                         )}
                       >
                         {item.icon ? <span className="shrink-0 text-ink-secondary">{item.icon}</span> : null}
                         <span className="flex-1">{item.label}</span>
-                        {aktiv ? (
+                        {active ? (
                           <span aria-hidden="true" className="shrink-0 text-accent">
                             <BockIkon size={14} />
                           </span>

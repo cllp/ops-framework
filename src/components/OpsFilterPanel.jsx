@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { BockIkon, KryssIkon, ReglageIkon, SorteringIkon } from "./icons.jsx";
-import { Raknare } from "./raknare.jsx";
+import { Raknare } from "./counter.jsx";
 
 /**
  * Filter i flera dimensioner, bakom EN knapp, plus sortering.
@@ -75,10 +75,10 @@ import { Raknare } from "./raknare.jsx";
  */
 
 /**
- * @typedef {object} Filtergrupp
+ * @typedef {object} FilterGroup
  * @property {string} id Nyckeln i `value`.
  * @property {string} label Rubriken i panelen, t.ex. "Status".
- * @property {string} [allaLabel] Texten för "inget valt" i gruppen. Standard "Alla".
+ * @property {string} [allLabel] Texten för "inget valt" i gruppen. Standard "Alla".
  * @property {import("react").ReactNode} [icon] Gruppens egen ikon i `layout="ikoner"`.
  *   ⛔ Saknas den faller gruppen tillbaka på reglageikonen.
  * @property {{ value: string, label: string, icon?: import("react").ReactNode }[]} options
@@ -86,26 +86,26 @@ import { Raknare } from "./raknare.jsx";
 
 /**
  * @param {object} props
- * @param {Filtergrupp[]} props.grupper ⛔ Minst en. En panel utan grupper är en knapp som inte gör något.
+ * @param {FilterGroup[]} props.groups ⛔ Minst en. En panel utan grupper är en knapp som inte gör något.
  * @param {Record<string, string | null>} props.value Vad som är valt per grupp, `null` = alla.
  * @param {(value: Record<string, string | null>) => void} props.onChange Hela kartan, inte en delmängd.
  * @param {string} props.ariaLabel Vad knappen öppnar, t.ex. "Filter och sortering".
- * @param {{ label: string, value: string, options: { value: string, label: string }[], onChange: (v: string) => void, icon?: import("react").ReactNode, standard?: string }} [props.sortering]
+ * @param {{ label: string, value: string, options: { value: string, label: string }[], onChange: (v: string) => void, icon?: import("react").ReactNode, standard?: string }} [props.sorting]
  *   ⛔ `standard` säger vilket val som är "orörd". Utan den räknas det första
  *   alternativet som standard, vilket är sant i båda apparna idag men är en
  *   gissning så snart någon listar sitt förval någon annanstans än först.
  * @param {"samlad"|"ikoner"} [props.layout] Standard `"samlad"`, alltså en knapp för allt.
- * @param {string} [props.rensaLabel]
- * @param {string} [props.flerLabel] Ordet efter antalet när mer än ett filter är satt, t.ex. "filter".
+ * @param {string} [props.clearLabel]
+ * @param {string} [props.moreLabel] Ordet efter antalet när mer än ett filter är satt, t.ex. "filter".
  */
 export function OpsFilterPanel({
-  grupper,
+  groups,
   value,
   onChange,
   ariaLabel,
-  sortering,
-  rensaLabel = "Rensa",
-  flerLabel = "filter",
+  sorting,
+  clearLabel = "Rensa",
+  moreLabel = "filter",
   layout = "samlad",
 }) {
   const [oppen, setOppen] = useState(false);
@@ -115,8 +115,8 @@ export function OpsFilterPanel({
     throw new Error(`OpsFilterPanel: okänd layout "${layout}". Giltiga: samlad, ikoner.`);
   }
 
-  if (!Array.isArray(grupper) || grupper.length === 0) {
-    throw new Error("OpsFilterPanel: grupper krävs. En panel utan grupper är en knapp som inte gör något.");
+  if (!Array.isArray(groups) || groups.length === 0) {
+    throw new Error("OpsFilterPanel: groups krävs. En panel utan grupper är en knapp som inte gör något.");
   }
   if (!ariaLabel) {
     throw new Error("OpsFilterPanel: ariaLabel krävs. En knapp med bara en ikon har inget namn för den som inte ser den.");
@@ -125,9 +125,9 @@ export function OpsFilterPanel({
   /** @type {Record<string, string | null>} */
   const val = value || {};
 
-  /** @type {{ grupp: Filtergrupp, vald: { value: string, label: string } }[]} */
+  /** @type {{ grupp: FilterGroup, vald: { value: string, label: string } }[]} */
   const aktiva = [];
-  for (const g of grupper) {
+  for (const g of groups) {
     const vald = g.options.find((o) => o.value === val[g.id]);
     if (vald) aktiva.push({ grupp: g, vald });
   }
@@ -148,7 +148,7 @@ export function OpsFilterPanel({
     // hade sett en nyckel som saknas som "aldrig konfigurerad".
     /** @type {Record<string, string | null>} */
     const tomt = {};
-    for (const g of grupper) tomt[g.id] = null;
+    for (const g of groups) tomt[g.id] = null;
     onChange(tomt);
   };
 
@@ -159,11 +159,11 @@ export function OpsFilterPanel({
    * utförandena, och två kopior hade glidit isär första gången någon rättade
    * den ena.
    *
-   * @param {Filtergrupp} g
+   * @param {FilterGroup} g
    */
   const gruppensRader = (g) => (
     <>
-      <Rad vald={!val[g.id]} onClick={() => vlj(g.id, null)} text={g.allaLabel || "Alla"} />
+      <Rad vald={!val[g.id]} onClick={() => vlj(g.id, null)} text={g.allLabel || "Alla"} />
       {g.options.map((o) => (
         <Rad key={o.value} vald={val[g.id] === o.value} onClick={() => vlj(g.id, o.value)} text={o.label} ikon={o.icon} />
       ))}
@@ -172,10 +172,10 @@ export function OpsFilterPanel({
 
   /** Sorteringens rader, likaså delade. */
   const sorteringensRader = () =>
-    sortering ? (
+    sorting ? (
       <>
-        {sortering.options.map((o) => (
-          <Rad key={o.value} vald={sortering.value === o.value} onClick={() => sortering.onChange(o.value)} text={o.label} />
+        {sorting.options.map((o) => (
+          <Rad key={o.value} vald={sorting.value === o.value} onClick={() => sorting.onChange(o.value)} text={o.label} />
         ))}
       </>
     ) : null;
@@ -206,15 +206,15 @@ export function OpsFilterPanel({
      * ingenting, alltså läses `standard` aldrig, och att kräva in data som
      * ingen använder är att lära den som läser felet att kravet är godtyckligt.
      */
-    if (sortering && sortering.standard === undefined) {
+    if (sorting && sorting.standard === undefined) {
       throw new Error(
-        "OpsFilterPanel: sortering.standard krävs. Utan den gissas förvalet till första alternativet, och ikonen ljuger om sitt tillstånd så fort listan sorteras om.",
+        "OpsFilterPanel: sorting.standard krävs. Utan den gissas förvalet till första alternativet, och ikonen ljuger om sitt tillstånd så fort listan sorteras om.",
       );
     }
-    const sorteringStandard = sortering ? sortering.standard : undefined;
-    // ⛔ Bunden till en const: TypeScript smalnar inte av `sortering` genom ett
+    const sorteringStandard = sorting ? sorting.standard : undefined;
+    // ⛔ Bunden till en const: TypeScript smalnar inte av `sorting` genom ett
     // `Boolean(...) &&`, så uttrycket måste ställa frågan på den bundna.
-    const sorteringRord = sortering ? sortering.value !== sorteringStandard : false;
+    const sorteringRord = sorting ? sorting.value !== sorteringStandard : false;
 
     return (
       /*
@@ -225,7 +225,7 @@ export function OpsFilterPanel({
        * till åtta ska raden bryta i stället för att rinna ut ur skärmen.
        */
       <div role="group" aria-label={ariaLabel} className="flex flex-wrap items-center gap-1">
-        {grupper.map((g) => {
+        {groups.map((g) => {
           const vald = g.options.find((o) => o.value === val[g.id]);
           return (
             <Popover.Root
@@ -265,13 +265,13 @@ export function OpsFilterPanel({
           );
         })}
 
-        {sortering ? (
+        {sorting ? (
           <Popover.Root
             open={oppenGrupp === "__sortering"}
             onOpenChange={(nasta) => setOppenGrupp(nasta ? "__sortering" : null)}
           >
             <Popover.Trigger
-              aria-label={`${sortering.label}: ${sortering.options.find((o) => o.value === sortering.value)?.label ?? ""}`}
+              aria-label={`${sorting.label}: ${sorting.options.find((o) => o.value === sorting.value)?.label ?? ""}`}
               aria-pressed={sorteringRord}
               className={cx(
                 "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl",
@@ -282,7 +282,7 @@ export function OpsFilterPanel({
                   : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
               )}
             >
-              {sortering.icon || <SorteringIkon size={20} />}
+              {sorting.icon || <SorteringIkon size={20} />}
             </Popover.Trigger>
             <Popover.Portal>
               <Popover.Content
@@ -291,7 +291,7 @@ export function OpsFilterPanel({
                 className="z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
               >
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                  {sortering.label}
+                  {sorting.label}
                 </p>
                 <div className="flex flex-col">{sorteringensRader()}</div>
               </Popover.Content>
@@ -331,7 +331,7 @@ export function OpsFilterPanel({
           <button
             type="button"
             onClick={rensa}
-            aria-label={rensaLabel}
+            aria-label={clearLabel}
             className={cx(
               "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl text-accent",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:bg-accent-faint",
@@ -366,7 +366,7 @@ export function OpsFilterPanel({
         {/* ⛔ Räknaren visas BARA när ordet inte räcker, alltså från två filter
             och uppåt. Vid ett filter står hela sanningen redan i knappen, och en
             etta i ett hörn hade varit dekor. */}
-        {aktiva.length > 1 ? <Raknare antal={aktiva.length} text={flerLabel} /> : null}
+        {aktiva.length > 1 ? <Raknare antal={aktiva.length} text={moreLabel} /> : null}
       </Popover.Trigger>
 
       <Popover.Portal>
@@ -376,17 +376,17 @@ export function OpsFilterPanel({
           className="z-(--z-dropdown) max-h-[70vh] w-72 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
         >
           <div className="flex flex-col gap-3">
-            {grupper.map((g) => (
+            {groups.map((g) => (
               <div key={g.id} className="flex flex-col">
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.label}</p>
                 {gruppensRader(g)}
               </div>
             ))}
 
-            {sortering ? (
+            {sorting ? (
               <div className="flex flex-col border-t border-line pt-2">
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                  {sortering.label}
+                  {sorting.label}
                 </p>
                 {sorteringensRader()}
               </div>
@@ -406,7 +406,7 @@ export function OpsFilterPanel({
                   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent hover:bg-accent-faint",
                 )}
               >
-                {rensaLabel}
+                {clearLabel}
               </button>
             ) : null}
           </div>

@@ -41,15 +41,15 @@
 const AVSLUT = /[.,;:!?)\]]+$/;
 
 /**
- * @typedef {{ typ: "text" | "lank" | "kod" | "fet", varde: string, url?: string }} Bit
- * @typedef {{ kryss: boolean | null, inline: Bit[] }} Listpost
- * @typedef {{ typ: "rubrik", niva: number, inline: Bit[] }
- *   | { typ: "stycke", inline: Bit[] }
- *   | { typ: "citat", inline: Bit[] }
- *   | { typ: "list", ordnad: boolean, poster: Listpost[] }
- *   | { typ: "kod", text: string }
- *   | { typ: "tabell", header: Bit[][], rader: Bit[][][] }
- *   | { typ: "linje" }} Block
+ * @typedef {{ kind: "text" | "link" | "code" | "bold", varde: string, url?: string }} Bit
+ * @typedef {{ kryss: boolean | null, inline: Bit[] }} ListEntry
+ * @typedef {{ kind: "heading", level: number, inline: Bit[] }
+ *   | { kind: "paragraph", inline: Bit[] }
+ *   | { kind: "quote", inline: Bit[] }
+ *   | { kind: "list", ordnad: boolean, entries: ListEntry[] }
+ *   | { kind: "code", text: string }
+ *   | { kind: "table", header: Bit[][], rader: Bit[][][] }
+ *   | { kind: "rule" }} Block
  */
 
 // ⛔ EN regex med alternativ, inte fyra svep. Fyra svep över samma sträng
@@ -71,7 +71,7 @@ function saker(url) {
  *
  * @param {string} rad @returns {Bit[]}
  */
-export function delaInline(rad) {
+export function splitInline(rad) {
   if (typeof rad !== "string" || rad === "") return [];
 
   /** @type {Bit[]} */
@@ -84,18 +84,18 @@ export function delaInline(rad) {
     /** @type {Bit | null} */
     let bit = null;
 
-    if (m[1] !== undefined) bit = { typ: "kod", varde: m[1] };
+    if (m[1] !== undefined) bit = { kind: "code", varde: m[1] };
     else if (m[2] !== undefined && m[3] !== undefined) {
       // ⛔ `[text](javascript:...)` blir TEXT, inte en länk, och behåller sin
       // råa form. Den som skrev den ska se att den inte blev en länk.
-      bit = saker(m[3]) ? { typ: "lank", varde: m[2], url: m[3] } : { typ: "text", varde: m[0] };
-    } else if (m[4] !== undefined) bit = { typ: "fet", varde: m[4] };
+      bit = saker(m[3]) ? { kind: "link", varde: m[2], url: m[3] } : { kind: "text", varde: m[0] };
+    } else if (m[4] !== undefined) bit = { kind: "bold", varde: m[4] };
     else if (m[5] !== undefined) {
       const url = m[5].replace(AVSLUT, "");
       // Hela träffen var skiljetecken efter schemat: ingen adress att länka.
       if (url === "https://" || url === "http://") continue;
-      bit = { typ: "lank", varde: url, url };
-      if (start > sist) ut.push({ typ: "text", varde: rad.slice(sist, start) });
+      bit = { kind: "link", varde: url, url };
+      if (start > sist) ut.push({ kind: "text", varde: rad.slice(sist, start) });
       ut.push(bit);
       sist = start + url.length;
       INLINE.lastIndex = sist;
@@ -103,12 +103,12 @@ export function delaInline(rad) {
     }
 
     if (!bit) continue;
-    if (start > sist) ut.push({ typ: "text", varde: rad.slice(sist, start) });
+    if (start > sist) ut.push({ kind: "text", varde: rad.slice(sist, start) });
     ut.push(bit);
     sist = start + m[0].length;
   }
 
-  if (sist < rad.length) ut.push({ typ: "text", varde: rad.slice(sist) });
+  if (sist < rad.length) ut.push({ kind: "text", varde: rad.slice(sist) });
   return ut;
 }
 
@@ -132,7 +132,7 @@ const arTabellstreck = (rad) => /^\s*\|[\s:|-]+\|\s*$/.test(rad) && rad.includes
  *
  * @param {string | null | undefined} text @returns {Block[]}
  */
-export function delaMarkdown(text) {
+export function splitMarkdown(text) {
   if (typeof text !== "string" || !text.trim()) return [];
 
   const rader = text.replace(/\r\n?/g, "\n").split("\n");
@@ -146,7 +146,7 @@ export function delaMarkdown(text) {
     // ⛔ Mjuka radbrytningar blir mellanslag, som i markdown. Gjorde de inte
     // det skulle varje rad i ett stycke bli ett eget stycke, och texten få
     // luft mitt i en mening.
-    block.push({ typ: "stycke", inline: delaInline(stycke.join(" ")) });
+    block.push({ kind: "paragraph", inline: splitInline(stycke.join(" ")) });
     stycke = [];
   };
 
@@ -167,7 +167,7 @@ export function delaMarkdown(text) {
       // ⛔ Ett ostängt staket tar resten av texten, precis som i GitHub. Att i
       // stället kasta tillbaka raderna som stycken hade gett en text som ser
       // annorlunda ut här än där den skrevs.
-      block.push({ typ: "kod", text: kod.join("\n") });
+      block.push({ kind: "code", text: kod.join("\n") });
       continue;
     }
 
@@ -176,54 +176,54 @@ export function delaMarkdown(text) {
       continue;
     }
 
-    const rubrik = rad.match(/^\s*(#{1,6})\s+(.*)$/);
-    if (rubrik) {
+    const title = rad.match(/^\s*(#{1,6})\s+(.*)$/);
+    if (title) {
       stangStycke();
-      block.push({ typ: "rubrik", niva: rubrik[1].length, inline: delaInline(rubrik[2].trim()) });
+      block.push({ kind: "heading", level: title[1].length, inline: splitInline(title[2].trim()) });
       continue;
     }
 
     if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(rad)) {
       stangStycke();
-      block.push({ typ: "linje" });
+      block.push({ kind: "rule" });
       continue;
     }
 
     // ── Tabell: en radrad följd av ett streck. Utan strecket är det text ───
     if (arTabellrad(rad) && i + 1 < rader.length && arTabellstreck(rader[i + 1])) {
       stangStycke();
-      const header = tabellceller(rad).map(delaInline);
+      const header = tabellceller(rad).map(splitInline);
       /** @type {Bit[][][]} */
       const kropp = [];
       i += 2;
       while (i < rader.length && arTabellrad(rader[i])) {
-        kropp.push(tabellceller(rader[i]).map(delaInline));
+        kropp.push(tabellceller(rader[i]).map(splitInline));
         i += 1;
       }
       i -= 1;
-      block.push({ typ: "tabell", header, rader: kropp });
+      block.push({ kind: "table", header, rader: kropp });
       continue;
     }
 
-    const post = rad.match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/);
-    if (post) {
+    const entry = rad.match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/);
+    if (entry) {
       stangStycke();
-      const ordnad = post[1] === undefined;
+      const ordnad = entry[1] === undefined;
       const sista = block[block.length - 1];
       const list =
-        sista && sista.typ === "list" && sista.ordnad === ordnad
+        sista && sista.kind === "list" && sista.ordnad === ordnad
           ? sista
-          : /** @type {Block & { typ: "list" }} */ (
-              block[block.push({ typ: "list", ordnad, poster: [] }) - 1]
+          : /** @type {Block & { kind: "list" }} */ (
+              block[block.push({ kind: "list", ordnad, entries: [] }) - 1]
             );
 
       // ⛔ Kryssrutan läses UR texten och blir ett fält, inte tecken i den. En
       // `- [x]` som renderas som text ser ut som en skrivfel-parentes, och en
       // lista där hälften är gjort går då inte att skumma.
-      const kryss = post[3].match(/^\[([ xX])\]\s*(.*)$/);
-      list.poster.push({
+      const kryss = entry[3].match(/^\[([ xX])\]\s*(.*)$/);
+      list.entries.push({
         kryss: kryss ? kryss[1].toLowerCase() === "x" : null,
-        inline: delaInline((kryss ? kryss[2] : post[3]).trim()),
+        inline: splitInline((kryss ? kryss[2] : entry[3]).trim()),
       });
       continue;
     }
@@ -242,7 +242,7 @@ export function delaMarkdown(text) {
         i += 1;
         rader2.push(rader[i].replace(/^\s*>\s?/, "").trim());
       }
-      block.push({ typ: "citat", inline: delaInline(rader2.join(" ").trim()) });
+      block.push({ kind: "quote", inline: splitInline(rader2.join(" ").trim()) });
       continue;
     }
 

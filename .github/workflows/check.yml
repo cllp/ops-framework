@@ -99,5 +99,5 @@ jobs:
       - run: npx playwright install --with-deps chromium
       # ⛔ Provaren FÖRE vakten den provar. Är mätningen trasig är ett grönt
       # `check-scaffold` inte ett bevis, och då vill jag veta det först.
-      - run: npm run check:vyportvakt
+      - run: npm run check:viewport-guard
       - run: npm run check:scaffold
