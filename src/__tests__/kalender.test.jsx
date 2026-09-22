@@ -9,6 +9,7 @@ import {
   manader,
   manadsrutnat,
   perDag,
+  rullriktning,
 } from "../lib/kalender.js";
 
 /**
@@ -104,6 +105,29 @@ describe("kalenderräkningen", () => {
     expect(datumtext("")).toBe("");
     expect(datumtext("imorgon")).toBe("imorgon");
   });
+
+  it("pekar pilen uppåt när idag rullat ur bild uppåt", () => {
+    /*
+     * ⛔ CP 2026-09-22, med bild: "Idag-bubblan visar alltid ner-pil. När idag är
+     * uppåt skall pilen gå uppåt."
+     *
+     * ⛔ FELET LÅG I VILKA KANTER SOM JÄMFÖRDES. Den gamla raden vägde elementets
+     * NEDERKANT mot rutans överkant, och `IntersectionObserver` svarar i samma
+     * ögonblick som tröskeln korsas, alltså när de två ligger på ungefär samma
+     * pixel. En bråkdels pixel åt fel håll gav "ner" fast månaden försvann uppåt.
+     *
+     * Raden här nere är just det ögonblicket: en månad som är 400 px hög och vars
+     * nederkant ligger EN pixel under rutans överkant. Det gamla uttrycket svarade
+     * "ner". Överkant mot överkant svarar "upp", och är inte ens i närheten av
+     * gränsen.
+     */
+    expect(rullriktning({ top: -399, bottom: 1 }, { top: 0 })).toBe("upp");
+    expect(rullriktning({ top: -400, bottom: -100 }, { top: 0 })).toBe("upp");
+    expect(rullriktning({ top: 900, bottom: 1300 }, { top: 0 })).toBe("ner");
+    // ⛔ Utan ruta räknas fönstrets överkant, alltså noll. Ett `rootBounds` som
+    // är null får inte kasta: då slutar knappen fungera helt.
+    expect(rullriktning({ top: -5, bottom: 300 }, null)).toBe("upp");
+  });
 });
 
 const IDAG = new Date(2026, 9, 5); // måndag 5 oktober 2026
@@ -113,7 +137,7 @@ const STATUSORD = { oppet: "Öppet", pagar: "Pågår", vantar: "Väntar", klart:
 
 const POSTER = [
   { id: "agi", datum: "2026-10-12", titel: "Arbetsgivardeklaration", status: "oppet" },
-  { id: "lon", datum: "2026-10-25", titel: "Löneutbetalning", status: "oppet" },
+  { id: "lon", datum: "2026-10-25", titel: "Löneutbetalning", status: "oppet", not: "Påminnelse" },
   { id: "stangt", datum: "2026-10-12", titel: "#249 stängdes", status: "klart", url: "https://github.com/cllp/bolag-ops/issues/249" },
 ];
 
@@ -123,6 +147,20 @@ function manadsruta(namn) {
   const block = rubrik.parentElement;
   if (!block) throw new Error(`Månaden "${namn}" har inget block`);
   return block;
+}
+
+/**
+ * Månadernas rullbehållare, hittad via veckodagsraden.
+ *
+ * ⛔ INTE `querySelector("[class*='overflow-y-auto']")`. Dagspanelen rullar
+ * också, så den frågan träffar två noder och provet hade blivit grönt eller rött
+ * beroende på vilken som råkade komma först i trädet.
+ */
+function rullbehallaren() {
+  const veckorad = screen.getByText("Mån").parentElement;
+  const rulle = veckorad && veckorad.parentElement;
+  if (!rulle) throw new Error("Hittar ingen rullbehållare kring veckodagsraden");
+  return rulle;
 }
 
 function rendera(extra = {}) {
@@ -164,7 +202,7 @@ describe("OpsKalender", () => {
     expect(within(oktober).getByRole("button", { name: "13" })).toBeDisabled();
   });
 
-  it("öppnar dagen i en bubbla som ligger UTANFÖR rullbehållaren", () => {
+  it("öppnar dagen i en panel som ligger UTANFÖR rullbehållaren", () => {
     /*
      * ⛔ DET HÄR PROVET ÄR CP:s ÄNDRING, ORDAGRANT: "bubblorna måste vara
      * flytande som i SessionStudio."
@@ -178,18 +216,18 @@ describe("OpsKalender", () => {
      * inklistrad mitt i rutnätet, alltså grönt för exakt det fel som skulle
      * bort.
      */
-    const { container } = rendera();
+    rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
 
     const bubblan = screen.getByRole("region", { name: "Poster den 12 oktober" });
     expect(within(bubblan).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
 
-    const rulle = container.querySelector("[class*='overflow-y-auto']");
-    expect(rulle).not.toBeNull();
+    const rulle = rullbehallaren();
+    expect(rulle.className).toContain("overflow-y-auto");
     expect(rulle.contains(bubblan)).toBe(false);
   });
 
-  it("stänger bubblan på ett andra tryck, på krysset och på Escape", () => {
+  it("stänger panelen på ett andra tryck, på krysset och på Escape", () => {
     /*
      * ⛔ TRE VÄGAR UT, och det är inte generositet. Bubblan ligger över en del
      * av rutnätet, så den som inte hittar ut ur den kan inte se dagarna under.
@@ -252,31 +290,88 @@ describe("OpsKalender", () => {
     }
   });
 
-  it("samlar flera markerade dagar i EN bubbla, med datumet över varje", () => {
+  it("samlar flera markerade dagar i EN panel", () => {
     /*
      * ⛔ CP 2026-09-22: "jag kan markera flera som gör listan i bubblorna
      * scrollbar och datumen finns med på denna tryckt på."
      *
-     * Två påståenden, och båda behövs. Att den andra dagen LÄGGS TILL i stället
-     * för att ERSÄTTA den första är hela funktionen: med ett enda vald-värde
-     * hade provet sett en bubbla med rätt rubrik och fel innehåll. Och datumet
-     * per grupp är det enda som skiljer posterna åt när flera dagar ligger i
-     * samma lista.
+     * Att den andra dagen LÄGGS TILL i stället för att ERSÄTTA den första är hela
+     * funktionen: med ett enda vald-värde hade provet sett en panel med rätt namn
+     * och fel innehåll.
      */
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
     fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
 
-    const bubblan = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
-    expect(within(bubblan).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
-    expect(within(bubblan).getByText("Löneutbetalning")).toBeInTheDocument();
-    expect(within(bubblan).getByText("12 oktober")).toBeInTheDocument();
-    expect(within(bubblan).getByText("25 oktober")).toBeInTheDocument();
+    const panelen = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
+    expect(within(panelen).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
+    expect(within(panelen).getByText("Löneutbetalning")).toBeInTheDocument();
   });
 
-  it("radar upp dagarna i datumordning och inte i tryckordning", () => {
+  it("ger varje post ett EGET kort, inte rader i ett gemensamt", () => {
     /*
-     * ⛔ Man läser bubblan uppifrån och ner, och en lista i tryckordning hade
+     * ⛔ CP 2026-09-22, med bild ur SessionStudio: "Det finns ingen separator med
+     * flera händelser i bubblan."
+     *
+     * Första versionen la posterna som rader i EN panel, och fem påminnelser i
+     * rad blev en vägg av fet text utan något som skiljer dem åt. Förebilden
+     * lägger varje post i ett eget kort med egen skugga och luft omkring, och
+     * luften ÄR avdelaren.
+     *
+     * ⛔ PROVET FRÅGAR EFTER TVÅ SKILDA KORT och inte efter en klass. Ett
+     * påstående om `rounded-xl` hade varit grönt även om båda posterna låg i
+     * samma ruta, alltså grönt för exakt det fel som skulle bort.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    const kortFor = (titel) => screen.getByText(titel).closest(".ops-contrast-panel");
+    const ett = kortFor("Arbetsgivardeklaration");
+    const tva = kortFor("#249 stängdes");
+
+    expect(ett).not.toBeNull();
+    expect(tva).not.toBeNull();
+    expect(ett).not.toBe(tva);
+    // ⛔ Och det ena är inte det andras förälder: två kort som är syskon, inte en
+    // låda med en låda i.
+    expect(ett.contains(tva)).toBe(false);
+    expect(tva.contains(ett)).toBe(false);
+  });
+
+  it("skriver datumet både som piller överst och på varje kort", () => {
+    /*
+     * ⛔ CP 2026-09-22: "vi får inte upp datumet precis som i session studio.
+     * Placeringen är fel."
+     *
+     * Förebilden gör det på två ställen, och de svarar på olika frågor. PILLREN
+     * överst säger vilka dagar urvalet består av, och är samtidigt kontrollen som
+     * plockar bort en av dem. KORTETS metarad säger vilken av dagarna just den
+     * posten tillhör, vilket med flera dagar valda är det enda som skiljer två
+     * likadana påminnelser åt.
+     *
+     * Tre träffar på "12 oktober": ett piller plus två kort.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    const panelen = screen.getByRole("region", { name: "Poster den 12 oktober" });
+    expect(within(panelen).getAllByText("12 oktober").length).toBe(3);
+  });
+
+  it("sätter noten efter datumet på kortet, inte på en egen rad", () => {
+    // ⛔ Ett kort i förebilden har EN metarad: datumet, och efter det som gäller
+    // just den posten. Två rader hade gjort kortet dubbelt så högt för en
+    // upplysning som får plats efter en prick.
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+
+    const panelen = screen.getByRole("region", { name: "Poster den 25 oktober" });
+    expect(within(panelen).getByText("25 oktober · Påminnelse")).toBeInTheDocument();
+  });
+
+  it("radar upp pillren i datumordning och inte i tryckordning", () => {
+    /*
+     * ⛔ Man läser panelen uppifrån och ner, och en lista i tryckordning hade
      * visat den 25:e över den 12:e utan att något sagt varför. Att en ren
      * strängsortering räcker är hela skälet till att nycklarna skrivs
      * `YYYY-MM-DD` med två siffror.
@@ -285,51 +380,80 @@ describe("OpsKalender", () => {
     fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
 
-    const bubblan = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
-    const datum = within(bubblan)
-      .getAllByRole("heading", { level: 5 })
-      .map((h) => h.textContent);
-    expect(datum).toEqual(["12 oktober", "25 oktober"]);
+    const panelen = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
+    // ⛔ Pillren ligger först i trädet, alltså de två första träffarna i
+    // dokumentordning.
+    const ordning = within(panelen)
+      .getAllByText(/oktober/)
+      .slice(0, 2)
+      .map((n) => n.textContent);
+    expect(ordning).toEqual(["12 oktober", "25 oktober"]);
   });
 
-  it("skriver inte datumet två gånger när bara en dag är markerad", () => {
+  it("ger varje piller ett kryss när flera dagar är valda, och inget när en är det", () => {
     /*
-     * ⛔ Datumet står redan i bubblans rubrik när en enda dag är vald, och samma
-     * datum två gånger med tio pixlar emellan får läsaren att leta efter
-     * skillnaden. Gruppens datumrubrik dyker därför upp först när den skiljer
-     * något åt.
-     */
-    rendera();
-    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
-
-    const bubblan = screen.getByRole("region", { name: "Poster den 12 oktober" });
-    expect(within(bubblan).getAllByText("12 oktober").length).toBe(1);
-    expect(within(bubblan).queryAllByRole("heading", { level: 5 }).length).toBe(0);
-  });
-
-  it("låter LISTAN rulla, inte hela bubblan", () => {
-    /*
-     * ⛔ Rullade hela bubblan skulle krysset rulla ur bild så fort man markerat
-     * fyra dagar, alltså skulle vägen ut försvinna precis när man börjat behöva
-     * den. Rubrikraden ligger därför utanför den rullande delen.
+     * ⛔ PILLRET ÄR BÅDE UPPLYSNINGEN OCH KONTROLLEN, precis som i förebilden:
+     * krysset i pillret plockar bort just den dagen ur urvalet.
      *
-     * ⛔ VAD PROVET BEVISAR: att rullningen sitter på en nod som INTE innehåller
-     * krysset, och att den noden får krympa (`min-h-0`). jsdom räknar ingen
-     * layout, så den faktiska rullsträckan går inte att mäta här; utan `min-h-0`
-     * växer listan förbi bubblans tak och `overflow-y-auto` får aldrig något att
-     * göra, vilket är det fel som annars smyger sig in.
+     * ⛔ OCH DET FINNS BARA NÄR DET GÖR NÅGON SKILLNAD. Med en enda vald dag gör
+     * pillrets kryss exakt samma sak som panelens stängkryss två centimeter till
+     * höger, och två knappar med samma verkan får läsaren att leta efter
+     * skillnaden.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    expect(screen.queryByRole("button", { name: "Ta bort 12 oktober" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ta bort 25 oktober" }));
+
+    expect(screen.getByRole("region", { name: "Poster den 12 oktober" })).toBeInTheDocument();
+    expect(screen.queryByText("Löneutbetalning")).toBeNull();
+    // ⛔ Rutnätet vet om det: markeringen är släckt, inte bara dold.
+    expect(screen.getByRole("button", { name: "25, 1 post" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("ger panelen ett tak och egen rullning på telefon", () => {
+    /*
+     * ⛔ EN DAG MED TOLV POSTER FÅR INTE VÄXA UT UR FÖNSTRET. Förebildens remsa
+     * har `max-h-[45%]` och `overflow-y-auto`, alltså samma sak: panelen tar en
+     * dryg tredjedel av skärmen och rullar inuti sig själv.
+     *
+     * ⛔ VAD PROVET BEVISAR OCH VAD DET INTE GÖR. jsdom räknar ingen layout, så
+     * den faktiska rullsträckan går inte att mäta här. Det som mäts är att taket
+     * och rullningen sitter på panelen, och att rullningen inte fortsätter ut i
+     * sidan när man nått botten.
      */
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
 
-    const bubblan = screen.getByRole("region", { name: "Poster den 12 oktober" });
-    const kryss = within(bubblan).getByRole("button", { name: "Stäng 12 oktober" });
-    const rullande = bubblan.querySelector("[class*='overflow-y-auto']");
+    const panelen = screen.getByRole("region", { name: "Poster den 12 oktober" });
+    expect(panelen.className).toContain("max-h-[45svh]");
+    expect(panelen.className).toContain("overflow-y-auto");
+    expect(panelen.className).toContain("overscroll-contain");
+  });
 
-    expect(rullande).not.toBeNull();
-    expect(rullande.contains(kryss)).toBe(false);
-    expect(rullande.className).toContain("min-h-0");
-    expect(within(rullande).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
+  it("reserverar sidokolumnen även när ingen dag är vald", () => {
+    /*
+     * ⛔ FÖREBILDENS `showSidePanel = !isPhone` FRÅGAR EFTER SKÄRMBREDDEN, aldrig
+     * efter urvalet. Dök kolumnen upp först vid ett tryck skulle rutnätet krympa
+     * under fingret, och nästa tryck landa på fel dag. Det är exakt det fel
+     * utfällningen under månaden en gång hade, fast i sidled.
+     *
+     * Bredderna är förebildens egna: 300 px från 768, 360 px från 1024.
+     */
+    rendera();
+    expect(screen.queryByRole("region", { name: /^Poster/ })).toBeNull();
+
+    const hint = screen.getByText(/Tryck på en dag/);
+    const kolumnen = hint.parentElement;
+    expect(kolumnen.className).toContain("md:w-75");
+    expect(kolumnen.className).toContain("lg:w-90");
+    // ⛔ Raden syns BARA på breda skärmar. På telefon finns ingen kolumn att
+    // förklara, och en ruta längst ner hade legat i vägen för dagarna man ska
+    // trycka på.
+    expect(hint.className).toContain("hidden");
+    expect(hint.className).toContain("md:block");
   });
 
   it("tömmer hela urvalet på krysset, och en dag i taget i rutnätet", () => {

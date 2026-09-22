@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { MANADSNAMN, datumnyckel, datumtext, idagsnyckel, manader, manadsrutnat, perDag } from "../lib/kalender.js";
+import {
+  MANADSNAMN,
+  datumnyckel,
+  datumtext,
+  idagsnyckel,
+  manader,
+  manadsrutnat,
+  perDag,
+  rullriktning,
+} from "../lib/kalender.js";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 /**
@@ -163,97 +172,158 @@ function Dagsruta({ dag, nyckel, poster, arIdag, vald, onValj }) {
   );
 }
 
-/**
- * En dags poster i bubblan, med sitt datum över sig när det behövs.
- *
- * ⛔ EN POST MED `url` BLIR EN LÄNK, resten blir text. En rad som ser tryckbar ut
- * och inte är det är ett löfte som inte infrias, och i en kalender över stängda
- * ärenden är länken hela poängen: man öppnar dagen för att komma vidare.
- *
- * ⛔ DATUMRUBRIKEN RITAS BARA NÄR FLERA DAGAR ÄR VALDA, och det är inte snålhet.
- * Är EN dag vald står datumet redan i bubblans egen rubrik, och samma datum två
- * gånger med tio pixlar emellan får läsaren att leta efter skillnaden. Är flera
- * valda är datumet tvärtom det enda som skiljer posterna åt.
- *
- * @param {{ nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[], statusOrd: Record<string, string>, visaDatum: boolean }} props
- */
-function Dagsgrupp({ nyckel, poster, statusOrd, visaDatum }) {
+/** Krysset, i två storlekar. En svg på tre ställen är tre ställen att rätta. */
+function Kryss({ stor = false }) {
   return (
-    <div className="flex flex-col gap-1">
-      {visaDatum ? (
-        <h5 className="m-0 text-xs font-semibold uppercase tracking-wide text-ink-muted">{datumtext(nyckel)}</h5>
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      className={stor ? "size-3.5" : "size-2.5"}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+    >
+      <path d="M5 5l10 10M15 5L5 15" />
+    </svg>
+  );
+}
+
+/**
+ * Ett piller per vald dag.
+ *
+ * ⛔ DATUMET STÅR HÄR, ÖVER KORTEN, OCH INTE SOM EN RUBRIK INUTI PANELEN.
+ * Förebilden (SessionStudios dagspanel) radar upp de valda datumen som piller
+ * överst, och pillren är samtidigt kontrollen som tar bort en dag ur urvalet.
+ * Ett datum som bara är en rubrik är en upplysning; ett datum som är ett piller
+ * är en upplysning man kan göra något åt.
+ *
+ * ⛔ KRYSSET I PILLRET FINNS BARA NÄR FLERA DAGAR ÄR VALDA, precis som i
+ * förebilden. Med en enda dag gör pillrets kryss exakt samma sak som panelens
+ * stängkryss två centimeter till höger, och två knappar med samma verkan får
+ * läsaren att leta efter skillnaden.
+ *
+ * @param {{ nyckel: string, kanTasBort: boolean, onTaBort: (nyckel: string) => void }} props
+ */
+function Datumpiller({ nyckel, kanTasBort, onTaBort }) {
+  const text = datumtext(nyckel);
+  return (
+    <span className="ops-contrast-panel inline-flex items-center gap-1.5 rounded-full bg-contrast-panel py-1 pr-2 pl-2.5 text-xs font-semibold text-ink shadow-md">
+      {text}
+      {kanTasBort ? (
+        <button
+          type="button"
+          onClick={() => onTaBort(nyckel)}
+          aria-label={`Ta bort ${text}`}
+          className="flex cursor-pointer items-center text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <Kryss />
+        </button>
       ) : null}
-      {poster.map((p) => (
-        <div key={p.id} className="flex items-baseline gap-2">
-          {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
-              Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är
-              rätt: en färg utan ord är inget besked. */}
-          {p.status ? (
-            <span className="shrink-0 translate-y-0.5">
-              <OpsStatusDot status={p.status} label={statusOrd[p.status] || ""} />
-            </span>
-          ) : null}
-          <span className="min-w-0">
-            {p.url ? (
-              <a
-                className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
-                href={p.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {p.titel}
-              </a>
-            ) : (
-              <span className="font-semibold text-ink">{p.titel}</span>
-            )}
-            {p.not ? <span className="block text-sm text-ink-secondary">{p.not}</span> : null}
-          </span>
-        </div>
-      ))}
+    </span>
+  );
+}
+
+/**
+ * En post, som ett eget kort.
+ *
+ * ══ ⛔ ETT KORT PER POST, INTE EN LISTA I ETT KORT ══════════════════════
+ *
+ * CP 2026-09-22, med bild ur SessionStudio: "Det finns ingen separator med flera
+ * händelser i bubblan."
+ *
+ * Första versionen la posterna som rader i EN bubbla, och fyra påminnelser i rad
+ * blev då en vägg av fet text utan något som skiljer dem åt. Förebilden gör
+ * tvärtom: varje post är ett eget `rounded-xl`-kort med egen skugga, staplade
+ * med luft emellan. Luften ÄR avdelaren, och den behöver därför ingen linje.
+ *
+ * ⛔ DATUMET ÅTERKOMMER PÅ KORTET, under titeln, och det är inte en upprepning
+ * av pillret ovanför. Pillren säger vilka dagar urvalet består av; kortets rad
+ * säger vilken av dem just den här posten tillhör. Med tre dagar valda är det
+ * enda som skiljer två likadana påminnelser åt.
+ *
+ * @param {{ nyckel: string, post: import("../lib/kalender.js").Kalenderpost, statusOrd: Record<string, string> }} props
+ */
+function Postkort({ nyckel, post, statusOrd }) {
+  const meta = post.not ? `${datumtext(nyckel)} · ${post.not}` : datumtext(nyckel);
+
+  return (
+    <div className="ops-contrast-panel flex items-start gap-2 rounded-xl bg-contrast-panel p-2.5 shadow-md">
+      {/* ⛔ HÄR får pricken finnas, för här finns plats för ordet bredvid.
+          Saknar appen ordet för ett läge kastar `OpsStatusDot`, och det är rätt:
+          en färg utan ord är inget besked. */}
+      {post.status ? (
+        <span className="mt-1 shrink-0">
+          <OpsStatusDot status={post.status} label={statusOrd[post.status] || ""} />
+        </span>
+      ) : null}
+      <div className="min-w-0 flex-1">
+        {/* ⛔ EN POST MED `url` BLIR EN LÄNK, resten blir text. En rad som ser
+            tryckbar ut och inte är det är ett löfte som inte infrias, och i en
+            kalender över stängda ärenden är länken hela poängen. */}
+        {post.url ? (
+          <a
+            className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
+            href={post.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {post.titel}
+          </a>
+        ) : (
+          <span className="font-semibold text-ink">{post.titel}</span>
+        )}
+        <p className="m-0 text-xs text-ink-secondary">{meta}</p>
+      </div>
     </div>
   );
 }
 
 /**
- * De valda dagarnas poster, i en flytande inverterad bubbla.
+ * De valda dagarnas poster: piller överst, ett kort per post under.
  *
- * ══ ⛔ FLERA DAGAR I SAMMA BUBBLA, INTE EN BUBBLA PER DAG ═══════════════
+ * ══ ⛔ VAR DEN LIGGER, OCH VARFÖR DET ÄR TVÅ OLIKA SVAR ════════════════
  *
- * CP 2026-09-22: "jag kan markera flera som gör listan i bubblorna scrollbar och
- * datumen finns med på denna tryckt på."
+ * CP 2026-09-22: "Se var bubblorna är i web där det finns utrymme och se var de
+ * finns i mobil och hur det ser ut."
  *
- * En bubbla per vald dag hade krävt att de staplas eller läggs bredvid varandra,
- * alltså positionering och kollisionshantering, och på en telefon hade den andra
- * täckt den första. EN bubbla som växer inuti sig själv har inget av det: den
- * står på samma plats hur många dagar man än markerar.
+ * Förebilden avgör det med en enda rad, `showSidePanel = !isPhone`:
  *
- * ⛔ RUBRIKEN BYTER FRÅGA MED ANTALET. En dag: "12 oktober", alltså vilken ruta
- * man träffade. Flera: "3 dagar", alltså hur mycket man samlat, eftersom varje
- * grupp då bär sitt eget datum längre ner och ett av tre datum i rubriken hade
- * varit godtyckligt.
+ *   TELEFON: en remsa längst ner, över rutnätet. Det finns ingen bredd att ta av.
+ *   ALLT ANNAT: en egen kolumn BREDVID rutnätet, i flödet, 300 px från 768 px
+ *   och 360 px från 1024 px. Där finns utrymmet, och då behöver ingenting läggas
+ *   ovanpå något annat.
  *
- * ══ ⛔ LISTAN RULLAR, INTE BUBBLAN ═════════════════════════════════════
+ * Bredderna och brytpunkterna här är förebildens egna tal, inte omgissade:
+ * `md` är 768 och `lg` är 1024, `w-75` är 300 px och `w-90` är 360 px.
  *
- * Rubriken och krysset ligger UTANFÖR den rullande delen. Rullade hela bubblan
- * skulle krysset rulla ur bild så fort man markerat fyra dagar, alltså skulle
- * vägen ut försvinna precis när man börjat behöva den.
+ * ⛔ KOLUMNEN RESERVERAS ÄVEN NÄR INGEN DAG ÄR VALD, och det följer av samma
+ * rad: `showSidePanel` frågar efter skärmbredden, aldrig efter urvalet. Dök
+ * kolumnen upp först vid ett tryck skulle rutnätet krympa under fingret, och
+ * nästa tryck landa på fel dag. Det är exakt det fel utfällningen under månaden
+ * en gång hade, fast i sidled.
  *
- * ⛔ `min-h-0` PÅ LISTAN ÄR INTE PRYDNAD. En flexbarnnod vägrar krympa under sitt
- * innehåll som standard, så utan den växer listan förbi bubblans tak och
- * `overflow-y-auto` får aldrig något att göra: bubblan hade svällt ut ur fönstret
- * i stället för att rulla.
+ * ⛔ PÅ TELEFON BOTTNAR DEN PÅ BOTTENRADEN, utan luft under. CP: "Bottendelen
+ * skall inte vara med. Den kan gå ända ner." Här låg `--bottom-nav-overhang`
+ * plus 0,75 rem, alltså plats för en rund plusknapp som sticker upp ur baren i
+ * andra vyer och inte finns i den här. Marginalen betalade för något som inte
+ * var där.
  *
- * @param {{ dagar: { nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[] }[], statusOrd: Record<string, string>, onStang: () => void }} props
+ * ⛔ PILLERRADEN RULLAR MED, precis som i förebilden, där den ligger inuti samma
+ * `max-h`-behållare som korten. Escape och ett andra tryck i rutnätet är vägar
+ * ut som inte kan rulla bort.
+ *
+ * @param {{ dagar: { nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[] }[], statusOrd: Record<string, string>, onStang: () => void, onTaBort: (nyckel: string) => void }} props
  */
-function Dagsbubbla({ dagar, statusOrd, onStang }) {
+function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
   const flera = dagar.length > 1;
   const rubrik = flera ? `${dagar.length} dagar` : datumtext(dagar[0].nyckel);
   const namn = flera ? `Poster för ${dagar.length} valda dagar` : `Poster den ${rubrik}`;
 
   /*
-   * ⛔ ESCAPE STÄNGER, och den lyssnaren sitter på fönstret och inte på bubblan.
-   * Fokus ligger kvar på dagsrutan man tryckte på, alltså utanför bubblan, så en
-   * lyssnare på bubblans egen nod hade aldrig hört tangenten.
+   * ⛔ ESCAPE STÄNGER, och den lyssnaren sitter på fönstret och inte på panelen.
+   * Fokus ligger kvar på dagsrutan man tryckte på, alltså utanför panelen, så en
+   * lyssnare på panelens egen nod hade aldrig hört tangenten.
    */
   useEffect(() => {
     /** @param {KeyboardEvent} e */
@@ -265,45 +335,35 @@ function Dagsbubbla({ dagar, statusOrd, onStang }) {
   }, [onStang]);
 
   return (
-    /*
-     * ⛔ `pointer-events-none` på omslaget och `pointer-events-auto` på bubblan,
-     * precis som i `OpsFloatingSummary`. Omslaget spänner hela bredden för att
-     * kunna centrera, och utan det hade den osynliga remsan ätit varje tryck
-     * längs nederkanten, alltså också trycken på kalenderdagarna under den.
-     */
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom)+var(--bottom-nav-overhang)+0.75rem)] z-(--z-sticky) flex justify-center px-5 md:bottom-[calc(var(--safe-bottom)+1.25rem)]">
-      <section
-        aria-label={namn}
-        className="ops-contrast-panel pointer-events-auto flex max-h-[50svh] w-full max-w-sm flex-col rounded-3xl border border-line bg-contrast-panel py-3 pl-4 pr-3 shadow-lg"
-      >
-        {/* ⛔ RUBRIKRADEN LIGGER UTANFÖR RULLNINGEN, se doktexten: krysset får
-            inte rulla ur bild när man markerat fyra dagar. */}
-        <div className="flex shrink-0 items-start gap-2">
-          <h4 className="m-0 flex-1 text-sm font-semibold text-ink">{rubrik}</h4>
-          {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad
-              som stängs för den som lyssnar sig igenom sidan. */}
-          <button
-            type="button"
-            onClick={onStang}
-            aria-label={`Stäng ${rubrik}`}
-            className={cx(
-              "-mt-1 flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-secondary",
-              "hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            )}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M5 5l10 10M15 5L5 15" />
-            </svg>
-          </button>
-        </div>
+    <section
+      aria-label={namn}
+      className="pointer-events-auto flex max-h-[45svh] w-full max-w-sm flex-col gap-2 overflow-y-auto overscroll-contain md:max-h-[70svh] md:max-w-none"
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        {dagar.map((d) => (
+          <Datumpiller key={d.nyckel} nyckel={d.nyckel} kanTasBort={flera} onTaBort={onTaBort} />
+        ))}
+        {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad som
+            stängs för den som lyssnar sig igenom sidan. */}
+        <button
+          type="button"
+          onClick={onStang}
+          aria-label={`Stäng ${rubrik}`}
+          className={cx(
+            "ops-contrast-panel ml-auto flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-contrast-panel text-ink shadow-md",
+            "hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          )}
+        >
+          <Kryss stor />
+        </button>
+      </div>
 
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain pt-2">
-          {dagar.map((d) => (
-            <Dagsgrupp key={d.nyckel} nyckel={d.nyckel} poster={d.poster} statusOrd={statusOrd} visaDatum={flera} />
-          ))}
-        </div>
-      </section>
-    </div>
+      {dagar.map((d) =>
+        d.poster.map((p) => (
+          <Postkort key={`${d.nyckel}-${p.id}`} nyckel={d.nyckel} post={p} statusOrd={statusOrd} />
+        )),
+      )}
+    </section>
   );
 }
 
@@ -391,9 +451,10 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
       ([traff]) => {
         setVisaTillbaka(!traff.isIntersecting);
         if (traff.isIntersecting) return;
-        // Pilen pekar åt det håll man ska rulla för att nå idag.
-        const topp = traff.rootBounds ? traff.rootBounds.top : 0;
-        setRiktning(traff.boundingClientRect.bottom <= topp ? "upp" : "ner");
+        // ⛔ Beslutet bor i `rullriktning` och inte här, se den funktionen: den
+        // gamla jämförelsen var hårfin på just den pixel där observatören
+        // svarar, så pilen pekade nedåt så gott som alltid.
+        setRiktning(rullriktning(traff.boundingClientRect, traff.rootBounds));
       },
       // ⛔ `root` ÄR RULLBEHÅLLAREN OCH INTE FÖNSTRET. Utan den mäts synligheten
       // mot viewporten, och eftersom hela kalendern ryms där skulle månaden
@@ -428,7 +489,14 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
   );
 
   return (
-    <section aria-label={ariaLabel} className="relative">
+    /*
+     * ⛔ EN RAD PÅ BREDA SKÄRMAR, EN SPALT PÅ SMALA, och det är förebildens
+     * `showSidePanel = !isPhone`. Se `Dagspanel` för hela resonemanget: på allt
+     * utom telefon finns bredd att lägga dagens poster BREDVID rutnätet, och då
+     * behöver ingenting läggas ovanpå något annat.
+     */
+    <section aria-label={ariaLabel} className="flex flex-col gap-4 md:flex-row md:items-start">
+      <div className="relative min-w-0 flex-1">
       {/* ⛔ TAKET GÖR KALENDERN TILL SIN EGEN RULLE. Se filens huvud: utan det
           rullar sidan, veckodagsraden nyper under appens toppmeny och vägen
           tillbaka till idag går genom hela vyn.
@@ -489,7 +557,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
         </div>
       </div>
 
-      {/* ⛔ `absolute` I KALENDERNS EGET HÖRN, inte `sticky` i flödet. Knappen
+      {/* ⛔ `absolute` I RUTNÄTETS EGET HÖRN, inte `sticky` i flödet. Knappen
           hör till rutnätet och ska stå still medan det rullar under den, och
           `sticky` kunde bara nypa inom sin förälders rullsträcka. */}
       {visaTillbaka ? (
@@ -505,14 +573,48 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
           Idag
         </button>
       ) : null}
+      </div>
 
-      {/* ⛔ KRYSSET OCH ESCAPE TÖMMER HELA URVALET och inte den översta dagen.
-          Bubblan är ETT objekt på skärmen, så en stängning som lämnade två av
-          tre dagar kvar hade sett ut som att knappen inte fungerade. Enskilda
-          dagar tas bort där de valdes, med ett andra tryck i rutnätet. */}
-      {dagar.length > 0 ? (
-        <Dagsbubbla dagar={dagar} statusOrd={statusOrd} onStang={() => setValda([])} />
-      ) : null}
+      {/*
+        ⛔ SAMMA NOD I BÅDA LÄGENA, med brytpunkten som enda skillnad. Två
+        renderingar av samma panel hade betytt två ställen att rätta, och den ena
+        hade varit den som ingen tittar på.
+
+        TELEFON: `fixed` längst ner, ovanpå rutnätet, utan luft under.
+        `pointer-events-none` på omslaget så den osynliga remsan inte äter tryck
+        på dagarna under; panelen själv tar tillbaka dem.
+
+        FRÅN 768 px: en vanlig kolumn i raden, 300 px, och 360 px från 1024 px.
+        Förebildens egna tal.
+      */}
+      <div
+        className={cx(
+          "pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] z-(--z-sticky) flex justify-center px-4",
+          "md:pointer-events-auto md:static md:z-auto md:block md:w-75 md:shrink-0 md:px-0 lg:w-90",
+        )}
+      >
+        {/* ⛔ KRYSSET OCH ESCAPE TÖMMER HELA URVALET och inte den översta dagen.
+            Panelen är ETT objekt på skärmen, så en stängning som lämnade två av
+            tre dagar kvar hade sett ut som att knappen inte fungerade. Enskilda
+            dagar tas bort på sitt eget piller, eller med ett andra tryck i
+            rutnätet. */}
+        {dagar.length > 0 ? (
+          <Dagspanel
+            dagar={dagar}
+            statusOrd={statusOrd}
+            onStang={() => setValda([])}
+            onTaBort={(n) => setValda((forra) => forra.filter((x) => x !== n))}
+          />
+        ) : (
+          /* ⛔ BARA PÅ BREDA SKÄRMAR. Kolumnen finns redan där och är tom, så en
+              rad om vad den är till för kostar ingenting. På telefon finns ingen
+              kolumn att förklara, och en ruta längst ner som säger «tryck på en
+              dag» hade legat i vägen för dagarna man ska trycka på. */
+          <p className="m-0 hidden rounded-md border border-dashed border-line p-3 text-sm text-ink-muted md:block">
+            Tryck på en dag för att se vad som ligger där. Tryck på fler för att samla dem.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
