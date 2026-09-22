@@ -252,6 +252,109 @@ describe("OpsKalender", () => {
     }
   });
 
+  it("samlar flera markerade dagar i EN bubbla, med datumet över varje", () => {
+    /*
+     * ⛔ CP 2026-09-22: "jag kan markera flera som gör listan i bubblorna
+     * scrollbar och datumen finns med på denna tryckt på."
+     *
+     * Två påståenden, och båda behövs. Att den andra dagen LÄGGS TILL i stället
+     * för att ERSÄTTA den första är hela funktionen: med ett enda vald-värde
+     * hade provet sett en bubbla med rätt rubrik och fel innehåll. Och datumet
+     * per grupp är det enda som skiljer posterna åt när flera dagar ligger i
+     * samma lista.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+
+    const bubblan = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
+    expect(within(bubblan).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
+    expect(within(bubblan).getByText("Löneutbetalning")).toBeInTheDocument();
+    expect(within(bubblan).getByText("12 oktober")).toBeInTheDocument();
+    expect(within(bubblan).getByText("25 oktober")).toBeInTheDocument();
+  });
+
+  it("radar upp dagarna i datumordning och inte i tryckordning", () => {
+    /*
+     * ⛔ Man läser bubblan uppifrån och ner, och en lista i tryckordning hade
+     * visat den 25:e över den 12:e utan att något sagt varför. Att en ren
+     * strängsortering räcker är hela skälet till att nycklarna skrivs
+     * `YYYY-MM-DD` med två siffror.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    const bubblan = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
+    const datum = within(bubblan)
+      .getAllByRole("heading", { level: 5 })
+      .map((h) => h.textContent);
+    expect(datum).toEqual(["12 oktober", "25 oktober"]);
+  });
+
+  it("skriver inte datumet två gånger när bara en dag är markerad", () => {
+    /*
+     * ⛔ Datumet står redan i bubblans rubrik när en enda dag är vald, och samma
+     * datum två gånger med tio pixlar emellan får läsaren att leta efter
+     * skillnaden. Gruppens datumrubrik dyker därför upp först när den skiljer
+     * något åt.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    const bubblan = screen.getByRole("region", { name: "Poster den 12 oktober" });
+    expect(within(bubblan).getAllByText("12 oktober").length).toBe(1);
+    expect(within(bubblan).queryAllByRole("heading", { level: 5 }).length).toBe(0);
+  });
+
+  it("låter LISTAN rulla, inte hela bubblan", () => {
+    /*
+     * ⛔ Rullade hela bubblan skulle krysset rulla ur bild så fort man markerat
+     * fyra dagar, alltså skulle vägen ut försvinna precis när man börjat behöva
+     * den. Rubrikraden ligger därför utanför den rullande delen.
+     *
+     * ⛔ VAD PROVET BEVISAR: att rullningen sitter på en nod som INTE innehåller
+     * krysset, och att den noden får krympa (`min-h-0`). jsdom räknar ingen
+     * layout, så den faktiska rullsträckan går inte att mäta här; utan `min-h-0`
+     * växer listan förbi bubblans tak och `overflow-y-auto` får aldrig något att
+     * göra, vilket är det fel som annars smyger sig in.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    const bubblan = screen.getByRole("region", { name: "Poster den 12 oktober" });
+    const kryss = within(bubblan).getByRole("button", { name: "Stäng 12 oktober" });
+    const rullande = bubblan.querySelector("[class*='overflow-y-auto']");
+
+    expect(rullande).not.toBeNull();
+    expect(rullande.contains(kryss)).toBe(false);
+    expect(rullande.className).toContain("min-h-0");
+    expect(within(rullande).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
+  });
+
+  it("tömmer hela urvalet på krysset, och en dag i taget i rutnätet", () => {
+    /*
+     * ⛔ TVÅ OLIKA GESTER MED TVÅ OLIKA RÄCKVIDDER, och det är avsiktligt.
+     * Bubblan är ETT objekt på skärmen, så ett kryss som lämnade två av tre
+     * dagar kvar hade sett ut som att knappen inte fungerade. Enskilda dagar tas
+     * bort där de valdes, med ett andra tryck i rutnätet.
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+
+    // Ett andra tryck tar bort EN dag, och bubblan står kvar med den andra.
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+    expect(screen.getByRole("region", { name: "Poster den 12 oktober" })).toBeInTheDocument();
+
+    // Och tillbaka till två, så krysset har något att tömma.
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stäng 2 dagar" }));
+    expect(screen.queryByRole("region", { name: /^Poster/ })).toBeNull();
+    // ⛔ Och rutnätet vet om det: markeringarna är släckta, inte bara dolda.
+    expect(screen.getByRole("button", { name: "12, 2 poster" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("gör en post med url till en länk och resten till text", () => {
     /*
      * ⛔ LÄNKEN ÄR HELA POÄNGEN för ett stängt ärende: man öppnar dagen för att
