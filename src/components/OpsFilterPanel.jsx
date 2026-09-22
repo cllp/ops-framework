@@ -285,12 +285,24 @@ export function OpsFilterPanel({
             en rad tända ikoner läses som "släck dem". Ordet finns dessutom kvar
             som knappens namn, så den som lyssnar hör "Rensa" och inte "kryss".
 
-            ⛔ SKÄLET ÄR MÄTT OCH INTE TYCKT. CP 2026-09-22: "Går det att ersätta
-            rensa med ett kryss eller nåt annat grepp som gör att allt får plats i
-            en liten skärm?" Mätt i Chromium vid 390 px: raden är 303 px med ordet
-            och 284 px med krysset. Båda ryms i de 343 px som finns, men en telefon
-            på 360 px ger bara 313 px, och då är ordets fyrtio pixlar marginal
-            nästan hela skillnaden mellan en rad och två. */}
+            ⛔ KRYSSET SPARAR INGEN BREDD, OCH DET SKA STÅ HÄR. CP frågade
+            2026-09-22: "Går det att ersätta rensa med ett kryss eller nåt annat
+            grepp som gör att allt får plats i en liten skärm?" Svaret ser ut att
+            vara ja och är nej. Mätt på den här komponenten i Chromium: raden är
+            286 px med ordet och 284 px med krysset. Två pixlar.
+
+            Skälet är att en ikonknapp som respekterar sin träffyta är `min-w-11`,
+            alltså 44 px, och ordet "Rensa" med `px-3` är 46. Bilden är smalare än
+            ordet, knappen är det inte. ⛔ EN IKON I STÄLLET FÖR ETT ORD SPARAR
+            ALLTSÅ INGEN PLATS så länge träffytan är kvar, och den som räknar med
+            det räknar fel. Det som gjorde att raden rymdes var att en HEL kontroll
+            flyttade till en annan rad.
+
+            Krysset är kvar för att det är det CP bad om och för att raden blir
+            tystare utan ett ord i accentfärg. Men det är ett utseendeval, inte en
+            passformsfix, och den skillnaden är hela skälet till att det står
+            utskrivet: nästa gång någon behöver nitton pixlar ska den inte leta
+            efter dem här. */}
         {aktiva.length > 0 ? (
           <button
             type="button"
