@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, KryssIkon, ReglageIkon } from "./icons.jsx";
+import { BockIkon, KryssIkon, ReglageIkon, SorteringIkon } from "./icons.jsx";
 import { Raknare } from "./raknare.jsx";
 
 /**
@@ -187,7 +187,31 @@ export function OpsFilterPanel({
      * ändrat den här", inte "något är dolt". Räknaren och ordet i den samlade
      * knappen visar fortfarande bara filter.
      */
-    const sorteringStandard = sortering ? (sortering.standard ?? sortering.options[0]?.value) : undefined;
+    /*
+     * ⛔ `standard` KRÄVS OCH GISSAS INTE LÄNGRE, och skälet är ett fel som
+     * ingen app kunde upptäcka i sina egna prov.
+     *
+     * Reserven var "det FÖRSTA alternativet". Den är rätt precis så länge
+     * förvalet råkar ligga först i listan, och den dagen någon sorterar om
+     * `options` blir ikonen tänd från start utan att någon rört den, eller
+     * släckt fast den är ändrad. Ingenting går sönder, sidan ser bara ut att
+     * ljuga om sitt eget tillstånd.
+     *
+     * bolag-ops hade exakt den fällan uppskriven i sin kod: förvalet råkade
+     * ligga först, så en planterad defekt som tog bort `standard` förblev grön.
+     * Ett hål som bara går att bevaka med en kommentar hör hemma i ramverket
+     * som ett kast.
+     *
+     * ⛔ KRAVET GÄLLER BARA IKONLÄGET, med flit. I den samlade panelen tänds
+     * ingenting, alltså läses `standard` aldrig, och att kräva in data som
+     * ingen använder är att lära den som läser felet att kravet är godtyckligt.
+     */
+    if (sortering && sortering.standard === undefined) {
+      throw new Error(
+        "OpsFilterPanel: sortering.standard krävs. Utan den gissas förvalet till första alternativet, och ikonen ljuger om sitt tillstånd så fort listan sorteras om.",
+      );
+    }
+    const sorteringStandard = sortering ? sortering.standard : undefined;
     // ⛔ Bunden till en const: TypeScript smalnar inte av `sortering` genom ett
     // `Boolean(...) &&`, så uttrycket måste ställa frågan på den bundna.
     const sorteringRord = sortering ? sortering.value !== sorteringStandard : false;
@@ -258,7 +282,7 @@ export function OpsFilterPanel({
                   : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
               )}
             >
-              {sortering.icon || <ReglageIkon size={20} />}
+              {sortering.icon || <SorteringIkon size={20} />}
             </Popover.Trigger>
             <Popover.Portal>
               <Popover.Content

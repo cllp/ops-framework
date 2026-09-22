@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { Check, ChevronDown, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
+import { ArrowDownUp, Check, ChevronDown, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -111,3 +111,25 @@ export function ReglageIkon({ size = 20 }) {
   return <SlidersHorizontal size={size} aria-hidden="true" />;
 }
 
+
+/**
+ * Sorteringens bild.
+ *
+ * ⛔ DEN FINNS FÖR ATT SORTERINGEN ÄR RAMVERKETS EGEN SAK. Grupperna i
+ * `OpsFilterPanel` är appens: vilken bild som betyder "roll" beror på vad
+ * rollerna ÄR, och det vet bara appen. Sorteringen är tvärtom samma sak i varje
+ * app som finns, nämligen i vilken ordning raderna ligger, så att låta varje app
+ * välja bild åt den är att be dem svara på en fråga som redan är besvarad.
+ *
+ * ⛔ SKÄLET ÄR OCKSÅ ETT FEL SOM FANNS. Föll `sortering.icon` bort ritades
+ * reglageikonen, alltså SAMMA bild som en grupp utan egen ikon får. Två olika
+ * kontroller med samma bild bredvid varandra är inte en skönhetsfläck, det är
+ * två knappar man inte kan skilja på. Båda vyerna i bolag-ops skickade in
+ * `ArrowDownUp` för att komma runt det, alltså samma rad kod två gånger för att
+ * täcka över samma hål.
+ *
+ * @param {{ size?: number }} props
+ */
+export function SorteringIkon({ size = 20 }) {
+  return <ArrowDownUp size={size} aria-hidden="true" />;
+}
