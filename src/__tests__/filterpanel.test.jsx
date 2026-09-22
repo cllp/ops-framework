@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsFilterPanel } from "../components/OpsFilterPanel.jsx";
@@ -137,5 +138,105 @@ describe("OpsFilterPanel", () => {
       /grupper krävs/,
     );
     expect(() => render(<OpsFilterPanel grupper={GRUPPER} value={{}} onChange={() => {}} />)).toThrow(/ariaLabel krävs/);
+  });
+
+  it("ger varje grupp en egen ikon som lyser när just den är satt", async () => {
+    /*
+     * ⛔ CP 2026-09-22, med bild: "Detta filtret är absurt stort. En ikon för
+     * varje Lägen, Tid, Roller och sortering, vänsterställda så de får plats i
+     * mobil, och belys ikonen om det är ett aktivt filter."
+     *
+     * Med fyra dimensioner plus sortering blev den samlade panelen en lista på
+     * tjugo rader som täckte halva skärmen. Man rullade i en meny för att hitta
+     * en rad man redan visste namnet på.
+     *
+     * ⛔ POÄNGEN ÄR ATT TILLSTÅNDET SYNS UTAN ATT NÅGOT ÖPPNAS, och det är det
+     * provet mäter: `aria-pressed` per ikon, alltså en per dimension, och bara
+     * den satta är tänd. Ett påstående om en klass hade missat att det tända
+     * läget också måste gå att HÖRA.
+     */
+    function Prov() {
+      const [val, setVal] = useState({ status: null, tid: null });
+      return (
+        <OpsFilterPanel
+          layout="ikoner"
+          ariaLabel="Filter"
+          grupper={[
+            { id: "status", label: "Lägen", allaLabel: "Alla lägen", options: [{ value: "oppet", label: "Öppet" }] },
+            { id: "tid", label: "När", allaLabel: "När som helst", options: [{ value: "7", label: "Inom 7 dagar" }] },
+          ]}
+          value={val}
+          onChange={setVal}
+        />
+      );
+    }
+    render(<Prov />);
+
+    const lagen = () => screen.getByRole("button", { name: /^Lägen/ });
+    const nar = () => screen.getByRole("button", { name: /^När/ });
+    expect(lagen()).toHaveAttribute("aria-pressed", "false");
+    expect(nar()).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(lagen());
+    fireEvent.click(await screen.findByRole("button", { name: "Öppet" }));
+
+    // ⛔ Bara den satta lyser. Tändes båda vore raden en lampa i stället för
+    // ett besked.
+    expect(screen.getByRole("button", { name: "Lägen: Öppet" })).toHaveAttribute("aria-pressed", "true");
+    expect(nar()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("tänder sorteringsikonen först när den lämnat sitt förval", () => {
+    /*
+     * ⛔ SORTERING ÄR INTE ETT FILTER, och det är samma regel som den samlade
+     * panelen redan har: en sorterad lista är fortfarande komplett. Ikonen lyser
+     * för att säga "du har ändrat den här", inte "något är dolt".
+     *
+     * ⛔ FÖRVALET SKICKAS IN, och räknas annars som det första alternativet.
+     * Provet sätter `standard` uttryckligen till det ANDRA, så en implementation
+     * som bara antar "första" blir röd.
+     */
+    const grupper = [{ id: "a", label: "A", options: [{ value: "x", label: "X" }] }];
+    const sortering = {
+      label: "Sortering",
+      value: "b",
+      standard: "b",
+      options: [
+        { value: "a", label: "A-Ö" },
+        { value: "b", label: "Datum" },
+      ],
+      onChange: () => {},
+    };
+    const { rerender } = render(
+      <OpsFilterPanel layout="ikoner" ariaLabel="Filter" grupper={grupper} value={{ a: null }} onChange={() => {}} sortering={sortering} />,
+    );
+    expect(screen.getByRole("button", { name: "Sortering: Datum" })).toHaveAttribute("aria-pressed", "false");
+
+    rerender(
+      <OpsFilterPanel
+        layout="ikoner"
+        ariaLabel="Filter"
+        grupper={grupper}
+        value={{ a: null }}
+        onChange={() => {}}
+        sortering={{ ...sortering, value: "a" }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Sortering: A-Ö" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("vägrar en okänd layout i stället för att rita den samlade ändå", () => {
+    // ⛔ En tyst nedsläppsväg hade ritat fel form och sett ut att fungera.
+    expect(() =>
+      render(
+        <OpsFilterPanel
+          layout="raketstol"
+          ariaLabel="Filter"
+          grupper={[{ id: "a", label: "A", options: [] }]}
+          value={{}}
+          onChange={() => {}}
+        />,
+      ),
+    ).toThrow(/okänd layout/);
   });
 });
