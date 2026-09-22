@@ -67,6 +67,7 @@ export { OpsTabs, OpsTabPanel } from "./components/OpsTabs.jsx";
 export { OpsSegmented } from "./components/OpsSegmented.jsx";
 export { OpsFilterChip } from "./components/OpsFilterChip.jsx";
 export { OpsFilterPanel } from "./components/OpsFilterPanel.jsx";
+export { OpsKontrollrad } from "./components/OpsKontrollrad.jsx";
 export { OpsBanner } from "./components/OpsBanner.jsx";
 export { OpsToastProvider, useOpsToast } from "./components/OpsToast.jsx";
 export { OpsTooltip } from "./components/OpsTooltip.jsx";

@@ -225,6 +225,42 @@ describe("OpsFilterPanel", () => {
     expect(screen.getByRole("button", { name: "Sortering: A-Ö" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("rensar med ett kryss i ikonraden, men heter fortfarande Rensa", () => {
+    /*
+     * ⛔ CP 2026-09-22: "Går det att ersätta rensa med ett kryss eller nåt annat
+     * grepp som gör att allt får plats i en liten skärm?"
+     *
+     * ⛔ PROVET HAR TVÅ HALVOR. Att ordet är borta ur bilden går att uppfylla
+     * genom att ta bort knappen helt. Andra halvan kräver att den FINNS och
+     * heter något: krysset bär `Rensa` som sitt namn, så den som lyssnar hör ett
+     * ord och inte "kryss". Ett kryss utan namn är en knapp som inte går att
+     * hitta för den som inte ser den.
+     *
+     * ⛔ OCH DEN FUNGERAR. En knapp som ser rätt ut men inte rensar är felet som
+     * ett rent utseendeprov släpper igenom.
+     */
+    const grupper = [
+      { id: "a", label: "Slag", allaLabel: "Alla slag", options: [{ value: "x", label: "X" }] },
+    ];
+    const rensade = [];
+    render(
+      <OpsFilterPanel
+        layout="ikoner"
+        ariaLabel="Filter"
+        grupper={grupper}
+        value={{ a: "x" }}
+        onChange={(v) => rensade.push(v)}
+      />,
+    );
+
+    const knappen = screen.getByRole("button", { name: "Rensa" });
+    expect(knappen.textContent).toBe("");
+    expect(knappen.querySelector("svg")).not.toBeNull();
+
+    fireEvent.click(knappen);
+    expect(rensade).toEqual([{ a: null }]);
+  });
+
   it("vägrar en okänd layout i stället för att rita den samlade ändå", () => {
     // ⛔ En tyst nedsläppsväg hade ritat fel form och sett ut att fungera.
     expect(() =>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, ReglageIkon } from "./icons.jsx";
+import { BockIkon, KryssIkon, ReglageIkon } from "./icons.jsx";
 import { Raknare } from "./raknare.jsx";
 
 /**
@@ -276,18 +276,32 @@ export function OpsFilterPanel({
         ) : null}
 
         {/* ⛔ Rensa syns bara när det finns något att rensa, precis som i den
-            samlade panelen. Här som ett ord och inte en ikon: "rensa" har ingen
-            bild som betyder det utan att först förklaras. */}
+            samlade panelen.
+
+            ⛔ ETT KRYSS OCH INTE ORDET, och den förra raden här sa motsatsen:
+            att "rensa" saknar en bild som betyder det utan att först förklaras.
+            Det stämmer om krysset står ensamt. Det gör det aldrig: knappen finns
+            bara när minst en ikon till vänster om den LYSER, och ett kryss sist i
+            en rad tända ikoner läses som "släck dem". Ordet finns dessutom kvar
+            som knappens namn, så den som lyssnar hör "Rensa" och inte "kryss".
+
+            ⛔ SKÄLET ÄR MÄTT OCH INTE TYCKT. CP 2026-09-22: "Går det att ersätta
+            rensa med ett kryss eller nåt annat grepp som gör att allt får plats i
+            en liten skärm?" Mätt i Chromium vid 390 px: raden är 303 px med ordet
+            och 284 px med krysset. Båda ryms i de 343 px som finns, men en telefon
+            på 360 px ger bara 313 px, och då är ordets fyrtio pixlar marginal
+            nästan hela skillnaden mellan en rad och två. */}
         {aktiva.length > 0 ? (
           <button
             type="button"
             onClick={rensa}
+            aria-label={rensaLabel}
             className={cx(
-              "min-h-11 cursor-pointer rounded-xl px-3 text-sm font-semibold text-accent",
+              "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl text-accent",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent hover:bg-accent-faint",
             )}
           >
-            {rensaLabel}
+            <KryssIkon size={18} />
           </button>
         ) : null}
       </div>
