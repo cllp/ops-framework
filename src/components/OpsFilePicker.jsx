@@ -46,7 +46,7 @@ import { FilIkon, GemIkon } from "./icons.jsx";
  * @param {string} [props.accept] Vad filväljaren erbjuder. ⛔ Ett filter, aldrig ett skydd: en fil kan alltid dras in eller klistras in ändå.
  * @param {boolean} [props.paste] Ta emot inklistrade filer. Av när två väljare delar yta.
  * @param {string} [props.ariaLabel] Vad som ska bifogas, för den som inte ser knappen.
- * @param {{ valj?: string, byt?: string, taBort?: string, klistra?: string }} [props.labels]
+ * @param {{ valj?: string, byt?: string, remove?: string, klistra?: string }} [props.labels]
  */
 export function OpsFilePicker({
   value,
@@ -58,7 +58,7 @@ export function OpsFilePicker({
   labels = {},
 }) {
   const filRef = useRef(/** @type {HTMLInputElement | null} */ (null));
-  const [fel, setFel] = useState("");
+  const [error, setFel] = useState("");
   const [laser, setLaser] = useState(false);
   const felId = useId();
 
@@ -110,7 +110,7 @@ export function OpsFilePicker({
         type="file"
         accept={accept}
         aria-label={ariaLabel}
-        aria-describedby={fel ? felId : undefined}
+        aria-describedby={error ? felId : undefined}
         onChange={(e) => {
           const fil = e.target.files && e.target.files[0];
           // ⛔ Nollställ fältet direkt. Utan det går det inte att välja SAMMA fil
@@ -128,7 +128,7 @@ export function OpsFilePicker({
         </OpsButton>
         {value ? (
           <OpsButton variant="ghost" onClick={() => onChange(null)}>
-            {labels.taBort ?? "Ta bort"}
+            {labels.remove ?? "Ta bort"}
           </OpsButton>
         ) : null}
         {/* ⛔ HINTEN GÖMS PÅ TELEFON, inte lyssnaren. Att ta en skärmbild och
@@ -149,9 +149,9 @@ export function OpsFilePicker({
 
       {/* ⛔ `role="alert"` så orsaken LÄSES UPP. En röd rad som bara syns lämnar
           den som inte ser skärmen med en knapp som inte gjorde något. */}
-      {fel ? (
+      {error ? (
         <p id={felId} role="alert" className="m-0 text-sm text-danger">
-          {fel}
+          {error}
         </p>
       ) : null}
 

@@ -1,40 +1,40 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { skapaDatakalla, tillampaFraga } from "../data/kontrakt.js";
-import { skapaJsonKalla, skapaMinneskalla } from "../data/adaptrar.js";
-import { OpsDataProvider, useSamling } from "../data/useData.jsx";
+import { createDataSource, applyQuery } from "../data/contract.js";
+import { createJsonSource, createMemorySource } from "../data/adapters.js";
+import { OpsDataProvider, useCollection } from "../data/useData.jsx";
 
 describe("datakontraktet", () => {
   // ⛔ En halv adapter kraschar annars först den dag någon anropar just den
   // metoden, och felet pekar då mot anropsstället i stället för mot adaptern.
   it("vägrar en adapter som saknar en operation", () => {
-    expect(() => skapaDatakalla({ namn: "halv", las: async () => null })).toThrow(/saknar lista, skapa, uppdatera, taBort/);
+    expect(() => createDataSource({ name: "halv", read: async () => null })).toThrow(/saknar list, create, update, remove/);
   });
 
   it("vägrar något som inte är en adapter alls", () => {
-    expect(() => skapaDatakalla(/** @type {any} */ (null))).toThrow(/adapter krävs/);
+    expect(() => createDataSource(/** @type {any} */ (null))).toThrow(/adapter krävs/);
   });
 });
 
 describe("frågor", () => {
-  const rader = [
-    { id: "1", namn: "Telia", belopp: 449, status: "oppen" },
-    { id: "2", namn: "Fortnox", belopp: 399, status: "stangd" },
-    { id: "3", namn: "Ahlsell", belopp: 1200, status: "oppen" },
+  const rows = [
+    { id: "1", name: "Telia", belopp: 449, status: "oppen" },
+    { id: "2", name: "Fortnox", belopp: 399, status: "stangd" },
+    { id: "3", name: "Ahlsell", belopp: 1200, status: "oppen" },
   ];
 
   it("filtrerar, sorterar och begränsar", () => {
-    const ut = tillampaFraga(rader, { dar: { status: "oppen" }, sortera: "belopp", riktning: "ner" });
+    const ut = applyQuery(rows, { where: { status: "oppen" }, sortBy: "belopp", direction: "desc" });
     expect(ut.map((r) => r.id)).toEqual(["3", "1"]);
-    expect(tillampaFraga(rader, { antal: 2 })).toHaveLength(2);
+    expect(applyQuery(rows, { limit: 2 })).toHaveLength(2);
   });
 
   // ⛔ Array.sort muterar. En adapter som sorterade om sin egen lagring hade
   // tyst ändrat ordningen för nästa läsare.
   it("muterar inte listan den fick", () => {
-    const original = [...rader];
-    tillampaFraga(rader, { sortera: "namn" });
-    expect(rader).toEqual(original);
+    const original = [...rows];
+    applyQuery(rows, { sortBy: "namn" });
+    expect(rows).toEqual(original);
   });
 });
 
@@ -43,38 +43,38 @@ describe("minneskällan", () => {
   // synkront API hade tvingat fram en omskrivning av varje anropsställe den dag
   // källan blev ett nätverksanrop.
   it("är asynkron även om inget väntar", () => {
-    const kalla = skapaMinneskalla();
-    expect(kalla.lista("x")).toBeInstanceOf(Promise);
+    const source = createMemorySource();
+    expect(source.list("x")).toBeInstanceOf(Promise);
   });
 
   it("skapar med id, läser tillbaka och uppdaterar", async () => {
-    const kalla = skapaMinneskalla();
-    const post = await kalla.skapa("kostnader", { namn: "Telia", belopp: 449 });
+    const source = createMemorySource();
+    const post = await source.create("kostnader", { name: "Telia", belopp: 449 });
     expect(post.id).toBeTruthy();
 
-    expect(await kalla.las("kostnader", post.id)).toMatchObject({ namn: "Telia" });
+    expect(await source.read("kostnader", post.id)).toMatchObject({ name: "Telia" });
 
-    const uppdaterad = await kalla.uppdatera("kostnader", post.id, { belopp: 500 });
-    expect(uppdaterad).toMatchObject({ id: post.id, namn: "Telia", belopp: 500 });
+    const uppdaterad = await source.update("kostnader", post.id, { belopp: 500 });
+    expect(uppdaterad).toMatchObject({ id: post.id, name: "Telia", belopp: 500 });
   });
 
   // ⛔ "Finns inte" är inte ett fel. Skillnaden mot "kunde inte fråga" måste gå
   // att hantera olika, annars går den inte att hantera alls.
   it("ger null för en post som inte finns, inte ett fel", async () => {
-    const kalla = skapaMinneskalla();
-    await expect(kalla.las("kostnader", "saknas")).resolves.toBeNull();
+    const source = createMemorySource();
+    await expect(source.read("kostnader", "saknas")).resolves.toBeNull();
   });
 
   it("kastar när något uppdateras som inte finns, i stället för att skapa det tyst", async () => {
-    const kalla = skapaMinneskalla();
-    await expect(kalla.uppdatera("kostnader", "saknas", { belopp: 1 })).rejects.toThrow(/finns inte/);
+    const source = createMemorySource();
+    await expect(source.update("kostnader", "saknas", { belopp: 1 })).rejects.toThrow(/finns inte/);
   });
 
   it("lämnar inte ut sin interna lagring", async () => {
-    const kalla = skapaMinneskalla({ kostnader: [{ id: "1", belopp: 100 }] });
-    const rader = await kalla.lista("kostnader");
-    rader[0].belopp = 999;
-    expect((await kalla.lista("kostnader"))[0].belopp).toBe(100);
+    const source = createMemorySource({ kostnader: [{ id: "1", belopp: 100 }] });
+    const rows = await source.list("kostnader");
+    rows[0].belopp = 999;
+    expect((await source.list("kostnader"))[0].belopp).toBe(100);
   });
 });
 
@@ -84,64 +84,64 @@ describe("json-källan", () => {
     vi.fn(async () => /** @type {any} */ ({ ok: status >= 200 && status < 300, status, json: async () => data }));
 
   it("läser en samling ur en fil", async () => {
-    const hamta = svar([{ id: "1", namn: "Telia" }]);
-    const kalla = skapaJsonKalla({ bas: "/assets/data", hamta });
-    expect(await kalla.lista("kostnader")).toHaveLength(1);
-    expect(hamta).toHaveBeenCalledWith("/assets/data/kostnader.json");
+    const load = svar([{ id: "1", name: "Telia" }]);
+    const source = createJsonSource({ bas: "/assets/data", load });
+    expect(await source.list("kostnader")).toHaveLength(1);
+    expect(load).toHaveBeenCalledWith("/assets/data/kostnader.json");
   });
 
   // ⛔ fetch kastar INTE på 404 eller 500. Utan kontrollen blir ett serverfel en
   // tom lista, och appen visar "inga träffar" när sanningen är att den inte
   // kunde fråga.
   it("gör ett serverfel till ett fel, inte till en tom lista", async () => {
-    const kalla = skapaJsonKalla({ bas: "/d", hamta: svar(null, 500) });
-    await expect(kalla.lista("kostnader")).rejects.toThrow(/svarade 500/);
+    const source = createJsonSource({ bas: "/d", load: svar(null, 500) });
+    await expect(source.list("kostnader")).rejects.toThrow(/svarade 500/);
   });
 
   it("vägrar en fil som inte innehåller en lista", async () => {
-    const kalla = skapaJsonKalla({ bas: "/d", hamta: svar({ inte: "en lista" }) });
-    await expect(kalla.lista("kostnader")).rejects.toThrow(/inte en lista/);
+    const source = createJsonSource({ bas: "/d", load: svar({ inte: "en lista" }) });
+    await expect(source.list("kostnader")).rejects.toThrow(/inte en list/);
   });
 
   // ⛔ En skrivning som ser ut att lyckas men försvinner vid omladdning är värre
   // än ett tydligt nej.
   it("nekar skrivningar i stället för att låtsas", async () => {
-    const kalla = skapaJsonKalla({ bas: "/d", hamta: svar([]) });
-    await expect(kalla.skapa("kostnader", {})).rejects.toThrow(/Byt datakälla/);
+    const source = createJsonSource({ bas: "/d", load: svar([]) });
+    await expect(source.create("kostnader", {})).rejects.toThrow(/Byt datakälla/);
   });
 });
 
-describe("useSamling", () => {
-  /** @param {{ samling?: string }} props */
-  function Prov({ samling = "kostnader" }) {
-    const { data, laddar, fel } = useSamling(samling);
-    if (laddar) return <p>laddar</p>;
-    if (fel) return <p>fel: {fel.message}</p>;
-    return <p>rader: {data.length}</p>;
+describe("useCollection", () => {
+  /** @param {{ collectionName?: string }} props */
+  function Prov({ collectionName = "kostnader" }) {
+    const { data, loading, error } = useCollection(collectionName);
+    if (loading) return <p>loading</p>;
+    if (error) return <p>error: {error.message}</p>;
+    return <p>rows: {data.length}</p>;
   }
 
   it("visar laddar först och data sedan", async () => {
-    const kalla = skapaMinneskalla({ kostnader: [{ id: "1" }, { id: "2" }] });
+    const source = createMemorySource({ kostnader: [{ id: "1" }, { id: "2" }] });
     render(
-      <OpsDataProvider kalla={kalla}>
+      <OpsDataProvider source={source}>
         <Prov />
       </OpsDataProvider>,
     );
-    expect(screen.getByText("laddar")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("rader: 2")).toBeInTheDocument());
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("rows: 2")).toBeInTheDocument());
   });
 
   // ⛔ Ett fel får aldrig se ut som tomhet. Att visa "0 rader" när servern
   // svarade 500 får användaren att dra en slutsats om sin data som inte stämmer.
   it("skiljer ett fel från en tom lista", async () => {
-    const trasig = skapaJsonKalla({ bas: "/d", hamta: vi.fn(async () => /** @type {any} */ ({ ok: false, status: 500 })) });
+    const trasig = createJsonSource({ bas: "/d", load: vi.fn(async () => /** @type {any} */ ({ ok: false, status: 500 })) });
     render(
-      <OpsDataProvider kalla={trasig}>
+      <OpsDataProvider source={trasig}>
         <Prov />
       </OpsDataProvider>,
     );
-    await waitFor(() => expect(screen.getByText(/fel: .*svarade 500/)).toBeInTheDocument());
-    expect(screen.queryByText("rader: 0")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/error: .*svarade 500/)).toBeInTheDocument());
+    expect(screen.queryByText("rows: 0")).not.toBeInTheDocument();
   });
 
   it("kräver en provider i stället för att tyst ge noll rader", () => {

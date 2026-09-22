@@ -1,4 +1,4 @@
-import { skapaDatakalla, tillampaFraga } from "./kontrakt.js";
+import { createDataSource, applyQuery } from "./contract.js";
 
 /**
  * Två adaptrar som följer med ramverket.
@@ -19,53 +19,53 @@ import { skapaDatakalla, tillampaFraga } from "./kontrakt.js";
  * någon bestämt var datan ska bo.
  *
  * @template {{ id: string }} T
- * @param {Record<string, T[]>} [start] Förifyllda samlingar.
- * @returns {import("./kontrakt.js").Datakalla<T>}
+ * @param {Record<string, T[]>} [seed] Förifyllda samlingar.
+ * @returns {import("./contract.js").DataSource<T>}
  */
-export function skapaMinneskalla(start = {}) {
+export function createMemorySource(seed = {}) {
   /** @type {Record<string, T[]>} */
-  const lagring = {};
-  for (const [namn, rader] of Object.entries(start)) lagring[namn] = rader.map((r) => ({ ...r }));
+  const store = {};
+  for (const [name, rows] of Object.entries(seed)) store[name] = rows.map((r) => ({ ...r }));
 
-  let raknare = 0;
-  const nyttId = () => `m_${Date.now().toString(36)}_${(raknare += 1)}`;
+  let counter = 0;
+  const newId = () => `m_${Date.now().toString(36)}_${(counter += 1)}`;
 
-  /** @param {string} samling */
-  const hamta = (samling) => (lagring[samling] ??= []);
+  /** @param {string} collectionName */
+  const load = (collectionName) => (store[collectionName] ??= []);
 
-  return skapaDatakalla({
-    namn: "minne",
+  return createDataSource({
+    name: "minne",
 
     // ⛔ `async` trots att inget väntar. Kontraktet får inte avslöja att just
     // den här källan är snabb, för då skrivs anropsställen som går sönder den
     // dag källan blir ett nätverksanrop.
-    async las(samling, id) {
-      return hamta(samling).find((r) => r.id === id) ?? null;
+    async read(collectionName, id) {
+      return load(collectionName).find((r) => r.id === id) ?? null;
     },
 
-    async lista(samling, fraga) {
-      return tillampaFraga(hamta(samling), fraga).map((r) => ({ ...r }));
+    async list(collectionName, query) {
+      return applyQuery(load(collectionName), query).map((r) => ({ ...r }));
     },
 
-    async skapa(samling, data) {
-      const post = /** @type {T} */ ({ ...data, id: /** @type {any} */ (data).id ?? nyttId() });
-      hamta(samling).push(post);
+    async create(collectionName, data) {
+      const post = /** @type {T} */ ({ ...data, id: /** @type {any} */ (data).id ?? newId() });
+      load(collectionName).push(post);
       return { ...post };
     },
 
-    async uppdatera(samling, id, data) {
-      const rader = hamta(samling);
-      const i = rader.findIndex((r) => r.id === id);
-      if (i === -1) throw new Error(`minne: ${samling}/${id} finns inte. En uppdatering av något som saknas är ett fel, inte en tyst skapelse.`);
-      rader[i] = { ...rader[i], ...data, id };
-      return { ...rader[i] };
+    async update(collectionName, id, data) {
+      const rows = load(collectionName);
+      const i = rows.findIndex((r) => r.id === id);
+      if (i === -1) throw new Error(`minne: ${collectionName}/${id} finns inte. En uppdatering av något som saknas är ett fel, inte en tyst skapelse.`);
+      rows[i] = { ...rows[i], ...data, id };
+      return { ...rows[i] };
     },
 
-    async taBort(samling, id) {
-      const rader = hamta(samling);
-      const i = rader.findIndex((r) => r.id === id);
-      if (i === -1) throw new Error(`minne: ${samling}/${id} finns inte.`);
-      rader.splice(i, 1);
+    async remove(collectionName, id) {
+      const rows = load(collectionName);
+      const i = rows.findIndex((r) => r.id === id);
+      if (i === -1) throw new Error(`minne: ${collectionName}/${id} finns inte.`);
+      rows.splice(i, 1);
     },
   });
 }
@@ -81,10 +81,10 @@ export function skapaMinneskalla(start = {}) {
  * användaren ser "Sparat", laddar om, och arbetet är borta.
  *
  * @template {{ id: string }} T
- * @param {{ bas: string, hamta?: typeof fetch }} konfig
- * @returns {import("./kontrakt.js").Datakalla<T>}
+ * @param {{ bas: string, load?: typeof fetch }} config
+ * @returns {import("./contract.js").DataSource<T>}
  */
-export function skapaJsonKalla(konfig) {
+export function createJsonSource(config) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
    *
@@ -98,22 +98,22 @@ export function skapaJsonKalla(konfig) {
    * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
-  const { bas, hamta = fetch } = konfig ?? /** @type {any} */ ({});
-  if (!bas) throw new Error("skapaJsonKalla: bas krävs, till exempel \"/assets/data\".");
+  const { bas, load = fetch } = config ?? /** @type {any} */ ({});
+  if (!bas) throw new Error("createJsonSource: bas krävs, till exempel \"/assets/data\".");
 
-  /** @param {string} samling @returns {Promise<T[]>} */
-  async function las(samling) {
-    const svar = await hamta(`${bas}/${samling}.json`);
+  /** @param {string} collectionName @returns {Promise<T[]>} */
+  async function read(collectionName) {
+    const svar = await load(`${bas}/${collectionName}.json`);
 
     // ⛔ `fetch` kastar INTE på 404 eller 500. Utan den här kontrollen blir ett
     // serverfel en tom lista, och appen visar "inga träffar" när sanningen är
     // att den inte kunde fråga.
     if (!svar.ok) {
-      throw new Error(`jsonkalla: ${bas}/${samling}.json svarade ${svar.status}. Det är ett fel, inte en tom samling.`);
+      throw new Error(`jsonkalla: ${bas}/${collectionName}.json svarade ${svar.status}. Det är ett fel, inte en tom samling.`);
     }
     const data = await svar.json();
     if (!Array.isArray(data)) {
-      throw new Error(`jsonkalla: ${bas}/${samling}.json innehåller inte en lista. Varje samling är en JSON-array av poster med id.`);
+      throw new Error(`jsonkalla: ${bas}/${collectionName}.json innehåller inte en lista. Varje samling är en JSON-array av poster med id.`);
     }
     return data;
   }
@@ -124,21 +124,21 @@ export function skapaJsonKalla(konfig) {
     );
   };
 
-  return skapaDatakalla({
-    namn: "json",
-    async las(samling, id) {
-      return (await las(samling)).find((r) => r.id === id) ?? null;
+  return createDataSource({
+    name: "json",
+    async read(collectionName, id) {
+      return (await read(collectionName)).find((r) => r.id === id) ?? null;
     },
-    async lista(samling, fraga) {
-      return tillampaFraga(await las(samling), fraga);
+    async list(collectionName, query) {
+      return applyQuery(await read(collectionName), query);
     },
-    async skapa() {
+    async create() {
       return nekad("skapa");
     },
-    async uppdatera() {
+    async update() {
       return nekad("uppdatera");
     },
-    async taBort() {
+    async remove() {
       return nekad("taBort");
     },
   });

@@ -19,9 +19,9 @@ const KONFIG = {
       label: "Leverans",
       etikett: "leverans",
       krav: (u) => {
-        const fel = [];
-        if (!u.kolli) fel.push("Ange antal kolli.");
-        return fel;
+        const error = [];
+        if (!u.kolli) error.push("Ange antal kolli.");
+        return error;
       },
       extraFalt: (u) => ({ frakt: { kolli: Number(u.kolli) } }),
     },
@@ -70,10 +70,10 @@ describe("saknas", () => {
     // ⛔ Ett formulär som bara säger "kan inte sparas" tvingar användaren att
     // gissa vilket fält som är fel, och det är den gissningen som gör att folk
     // slutar rapportera saker.
-    const fel = modell.saknas({});
-    expect(fel).toContain("Välj vad det gäller.");
-    expect(fel).toContain("Skriv en rubrik.");
-    expect(fel).toContain("Välj hur bråttom det är.");
+    const error = modell.saknas({});
+    expect(error).toContain("Välj vad det gäller.");
+    expect(error).toContain("Skriv en rubrik.");
+    expect(error).toContain("Välj hur bråttom det är.");
   });
 
   it("släpper igenom en komplett post", () => {
@@ -179,9 +179,9 @@ describe("avslut", () => {
   });
 
   it("vägrar avskriven utan skäl, och säger att skälet är poängen", () => {
-    const fel = modell.saknasVidAvslut("avskriven", null);
-    expect(fel).toHaveLength(1);
-    expect(fel[0]).toMatch(/varför/i);
+    const error = modell.saknasVidAvslut("avskriven", null);
+    expect(error).toHaveLength(1);
+    expect(error[0]).toMatch(/varför/i);
   });
 
   it("kräver text men inte länk, eftersom allt som görs inte lämnar en länk", () => {

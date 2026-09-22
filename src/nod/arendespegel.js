@@ -76,13 +76,13 @@ export function skapaArendespegel(konfig) {
   const repoSokvag = `${agare}/${repo}`;
 
   /** Urvalet som en människa kan öppna i en webbläsare. */
-  const kalla = `https://github.com/${repoSokvag}/issues?q=is%3Aissue+is%3Aopen+label%3A${encodeURIComponent(etikett)}`;
+  const source = `https://github.com/${repoSokvag}/issues?q=is%3Aissue+is%3Aopen+label%3A${encodeURIComponent(etikett)}`;
 
   return {
     agare,
     repo,
     etikett,
-    kalla,
+    source,
 
     /**
      * Hämtar de öppna ärendena med etiketten.
@@ -129,7 +129,7 @@ export function skapaArendespegel(konfig) {
      * @param {any} rat
      * @returns {Post}
      */
-    tillPost(rat) {
+    toEntry(rat) {
       const post = {
         number: rat.number,
         title: rat.title,
@@ -167,13 +167,13 @@ export function skapaArendespegel(konfig) {
     tillFlode(rader, { nu = () => new Date().toISOString().slice(0, 10) } = {}) {
       const items = (rader || [])
         .filter((r) => r && !r.pull_request)
-        .map((r) => this.tillPost(r))
+        .map((r) => this.toEntry(r))
         .sort((a, b) => {
           const ta = a.updatedAt || "";
           const tb = b.updatedAt || "";
           return tb.localeCompare(ta) || b.number - a.number;
         });
-      return { updated: nu(), source: kalla, label: etikett, items };
+      return { updated: nu(), source: source, label: etikett, items };
     },
   };
 }

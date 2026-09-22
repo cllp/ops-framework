@@ -141,7 +141,7 @@ export function OpsMarkdown({ text }) {
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr>
-                    {b.huvud.map((cell, ci) => (
+                    {b.header.map((cell, ci) => (
                       <th key={`${k}-h${ci}`} className="border-b border-line px-2 py-1 font-semibold text-ink">
                         {inline(cell, `${k}-h${ci}`)}
                       </th>

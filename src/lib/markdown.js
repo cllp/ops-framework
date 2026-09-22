@@ -46,9 +46,9 @@ const AVSLUT = /[.,;:!?)\]]+$/;
  * @typedef {{ typ: "rubrik", niva: number, inline: Bit[] }
  *   | { typ: "stycke", inline: Bit[] }
  *   | { typ: "citat", inline: Bit[] }
- *   | { typ: "lista", ordnad: boolean, poster: Listpost[] }
+ *   | { typ: "list", ordnad: boolean, poster: Listpost[] }
  *   | { typ: "kod", text: string }
- *   | { typ: "tabell", huvud: Bit[][], rader: Bit[][][] }
+ *   | { typ: "tabell", header: Bit[][], rader: Bit[][][] }
  *   | { typ: "linje" }} Block
  */
 
@@ -192,7 +192,7 @@ export function delaMarkdown(text) {
     // ── Tabell: en radrad följd av ett streck. Utan strecket är det text ───
     if (arTabellrad(rad) && i + 1 < rader.length && arTabellstreck(rader[i + 1])) {
       stangStycke();
-      const huvud = tabellceller(rad).map(delaInline);
+      const header = tabellceller(rad).map(delaInline);
       /** @type {Bit[][][]} */
       const kropp = [];
       i += 2;
@@ -201,7 +201,7 @@ export function delaMarkdown(text) {
         i += 1;
       }
       i -= 1;
-      block.push({ typ: "tabell", huvud, rader: kropp });
+      block.push({ typ: "tabell", header, rader: kropp });
       continue;
     }
 
@@ -210,18 +210,18 @@ export function delaMarkdown(text) {
       stangStycke();
       const ordnad = post[1] === undefined;
       const sista = block[block.length - 1];
-      const lista =
-        sista && sista.typ === "lista" && sista.ordnad === ordnad
+      const list =
+        sista && sista.typ === "list" && sista.ordnad === ordnad
           ? sista
-          : /** @type {Block & { typ: "lista" }} */ (
-              block[block.push({ typ: "lista", ordnad, poster: [] }) - 1]
+          : /** @type {Block & { typ: "list" }} */ (
+              block[block.push({ typ: "list", ordnad, poster: [] }) - 1]
             );
 
       // ⛔ Kryssrutan läses UR texten och blir ett fält, inte tecken i den. En
       // `- [x]` som renderas som text ser ut som en skrivfel-parentes, och en
       // lista där hälften är gjort går då inte att skumma.
       const kryss = post[3].match(/^\[([ xX])\]\s*(.*)$/);
-      lista.poster.push({
+      list.poster.push({
         kryss: kryss ? kryss[1].toLowerCase() === "x" : null,
         inline: delaInline((kryss ? kryss[2] : post[3]).trim()),
       });

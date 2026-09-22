@@ -79,13 +79,13 @@ export { OpsFullscreenToggle } from "./components/OpsFullscreenToggle.jsx";
 export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
-export { skapaDatakalla, tillampaFraga, OPERATIONER } from "./data/kontrakt.js";
-export { skapaMinneskalla, skapaJsonKalla } from "./data/adaptrar.js";
-export { skapaRoutingKalla } from "./data/routing.js";
-export { OpsDataProvider, useDatakalla, useSamling, useSamlingLive, useDokument } from "./data/useData.jsx";
-export { skapaFirestoreKalla } from "./data/firestore.js";
-export { skapaPostgresKalla } from "./data/postgres.js";
-export { skapaHttpKalla } from "./data/http.js";
+export { createDataSource, applyQuery, OPERATIONS } from "./data/contract.js";
+export { createMemorySource, createJsonSource } from "./data/adapters.js";
+export { createRoutingSource } from "./data/routing.js";
+export { OpsDataProvider, useDataSource, useCollection, useLiveCollection, useDocument } from "./data/useData.jsx";
+export { createFirestoreSource } from "./data/firestore.js";
+export { createPostgresSource } from "./data/postgres.js";
+export { createHttpSource } from "./data/http.js";
 
 // ── Inloggning ─────────────────────────────────────────────────────────────
 export { skapaAutentisering, skapaGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
@@ -97,6 +97,6 @@ export { bradska, delaIdagKommande, dagarMellan, dagarTill, samlaHandelser } fro
 export { datumnyckel, idagsnyckel, manader, manadsrutnat, perDag } from "./lib/kalender.js";
 export { lasArendeflode } from "./lib/arendeflode.js";
 export { delaMarkdown, delaInline } from "./lib/markdown.js";
-export { skapaPromptkalla } from "./lib/prompt.js";
+export { createPromptSource } from "./lib/prompt.js";
 export { skapaArendemodell } from "./lib/arende.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, TALMELLANSLAG, SAKNAS } from "./lib/format.js";

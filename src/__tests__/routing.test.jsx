@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { skapaRoutingKalla } from "../data/routing.js";
-import { skapaMinneskalla } from "../data/adaptrar.js";
-import { OpsDataProvider, useSamlingLive } from "../data/useData.jsx";
+import { createRoutingSource } from "../data/routing.js";
+import { createMemorySource } from "../data/adapters.js";
+import { OpsDataProvider, useLiveCollection } from "../data/useData.jsx";
 
 /**
  * ⛔ SAMLINGSNAMNEN ÄR PÅHITTADE. Ramverket får inte kunna bero på den app som
@@ -14,20 +14,20 @@ import { OpsDataProvider, useSamlingLive } from "../data/useData.jsx";
  * En källa som kan strömma, byggd på minneskällan.
  *
  * ⛔ SAMLINGSNAMNET ÄR ETT ARGUMENT OCH INTE INBAKAT. Första versionen hade
- * `saker` hårdkodat, och provet mot hooken blev rött med `antal=0`: strömmen
+ * `saker` hårdkodat, och provet mot hooken blev rött med `limit=0`: strömmen
  * levererade, men ur en samling som inte var den provet routade. Ett
  * provhjälpmedel som tyst svarar med tomhet mäter ingenting.
  *
- * @param {string} [samling] @param {{ id: string }[]} [rader]
+ * @param {string} [collectionName] @param {{ id: string }[]} [rows]
  */
-function stromkalla(samling = "saker", rader = []) {
-  const bas = skapaMinneskalla({ [samling]: rader });
+function stromkalla(collectionName = "saker", rows = []) {
+  const bas = createMemorySource({ [collectionName]: rows });
   const lyssnare = [];
   return {
     ...bas,
-    prenumerera: (samling, fraga, l) => {
+    subscribe: (collectionName, query, l) => {
       lyssnare.push(l);
-      bas.lista(samling, fraga).then((r) => l.vidData(r));
+      bas.list(collectionName, query).then((r) => l.onData(r));
       return () => {
         const i = lyssnare.indexOf(l);
         if (i >= 0) lyssnare.splice(i, 1);
@@ -37,27 +37,27 @@ function stromkalla(samling = "saker", rader = []) {
   };
 }
 
-describe("skapaRoutingKalla, uppsättningen", () => {
+describe("createRoutingSource, uppsättningen", () => {
   it("kräver en standard", () => {
     // ⛔ Utan standard blir en glömd rutt ett fel som dyker upp först den dag
     // någon öppnar just den vyn.
-    expect(() => skapaRoutingKalla(/** @type {any} */ ({}))).toThrow(/standard krävs/);
-    expect(() => skapaRoutingKalla(/** @type {any} */ (null))).toThrow(/standard krävs/);
+    expect(() => createRoutingSource(/** @type {any} */ ({}))).toThrow(/standard krävs/);
+    expect(() => createRoutingSource(/** @type {any} */ (null))).toThrow(/standard krävs/);
   });
 
   it("avvisar en rutt som inte är en datakälla, vid uppstart", () => {
     // ⛔ Annars ger den `undefined is not a function` först den dag samlingen
     // läses, och felet pekar mot vyn i stället för mot uppsättningen.
-    const standard = skapaMinneskalla({});
-    expect(() => skapaRoutingKalla({ standard, rutter: { saker: /** @type {any} */ ({}) } })).toThrow(/saknar las/);
-    expect(() => skapaRoutingKalla({ standard, rutter: { saker: /** @type {any} */ (null) } })).toThrow(
+    const standard = createMemorySource({});
+    expect(() => createRoutingSource({ standard, routes: { saker: /** @type {any} */ ({}) } })).toThrow(/saknar read/);
+    expect(() => createRoutingSource({ standard, routes: { saker: /** @type {any} */ (null) } })).toThrow(
       /pekar inte på en datakälla/,
     );
   });
 
   it("nämner samlingen i felet, inte bara att något är fel", () => {
-    const standard = skapaMinneskalla({});
-    expect(() => skapaRoutingKalla({ standard, rutter: { mittfall: /** @type {any} */ ({ las: () => {} }) } })).toThrow(
+    const standard = createMemorySource({});
+    expect(() => createRoutingSource({ standard, routes: { mittfall: /** @type {any} */ ({ read: () => {} }) } })).toThrow(
       /"mittfall"/,
     );
   });
@@ -65,93 +65,93 @@ describe("skapaRoutingKalla, uppsättningen", () => {
 
 describe("routningen", () => {
   it("skickar en samling till sin rutt och resten till standarden", async () => {
-    const ettstalle = skapaMinneskalla({ saker: [{ id: "a", var: "rutt" }] });
-    const standard = skapaMinneskalla({ saker: [{ id: "b", var: "standard" }], annat: [{ id: "c" }] });
-    const kalla = skapaRoutingKalla({ standard, rutter: { saker: ettstalle } });
+    const ettstalle = createMemorySource({ saker: [{ id: "a", var: "rutt" }] });
+    const standard = createMemorySource({ saker: [{ id: "b", var: "standard" }], annat: [{ id: "c" }] });
+    const source = createRoutingSource({ standard, routes: { saker: ettstalle } });
 
-    expect((await kalla.lista("saker")).map((r) => r.id)).toEqual(["a"]);
-    expect((await kalla.lista("annat")).map((r) => r.id)).toEqual(["c"]);
+    expect((await source.list("saker")).map((r) => r.id)).toEqual(["a"]);
+    expect((await source.list("annat")).map((r) => r.id)).toEqual(["c"]);
   });
 
   it("routar alla fem operationerna, inte bara läsningarna", async () => {
-    // ⛔ Ett prov per operation, eftersom en glömd `taBort` i sömmen skriver till
+    // ⛔ Ett prov per operation, eftersom en glömd `remove` i sömmen skriver till
     // FEL DATABAS. Det felet upptäcks när någon saknar en post, alltså långt
     // efteråt och utan spår.
-    const mal = skapaMinneskalla({ saker: [{ id: "a", tal: 1 }] });
-    const standard = skapaMinneskalla({ saker: [{ id: "z", tal: 99 }] });
-    const kalla = skapaRoutingKalla({ standard, rutter: { saker: mal } });
+    const mal = createMemorySource({ saker: [{ id: "a", tal: 1 }] });
+    const standard = createMemorySource({ saker: [{ id: "z", tal: 99 }] });
+    const source = createRoutingSource({ standard, routes: { saker: mal } });
 
-    expect(await kalla.las("saker", "a")).toMatchObject({ id: "a" });
-    expect(await kalla.las("saker", "z")).toBeNull();
+    expect(await source.read("saker", "a")).toMatchObject({ id: "a" });
+    expect(await source.read("saker", "z")).toBeNull();
 
-    const ny = await kalla.skapa("saker", { tal: 2 });
-    expect(await mal.las("saker", ny.id)).toMatchObject({ tal: 2 });
-    expect(await standard.las("saker", ny.id)).toBeNull();
+    const ny = await source.create("saker", { tal: 2 });
+    expect(await mal.read("saker", ny.id)).toMatchObject({ tal: 2 });
+    expect(await standard.read("saker", ny.id)).toBeNull();
 
-    await kalla.uppdatera("saker", "a", { tal: 3 });
-    expect(await mal.las("saker", "a")).toMatchObject({ tal: 3 });
+    await source.update("saker", "a", { tal: 3 });
+    expect(await mal.read("saker", "a")).toMatchObject({ tal: 3 });
 
-    await kalla.taBort("saker", "a");
-    expect(await mal.las("saker", "a")).toBeNull();
+    await source.remove("saker", "a");
+    expect(await mal.read("saker", "a")).toBeNull();
     // Standardens egen post är orörd.
-    expect(await standard.las("saker", "z")).toMatchObject({ tal: 99 });
+    expect(await standard.read("saker", "z")).toMatchObject({ tal: 99 });
   });
 
   it("går att inspektera, så uppsättningen kan mätas", () => {
     // ⛔ En routing man inte kan inspektera är en routing man får gissa om, och
     // den gissningen står sedan i ett dokument som ruttnar.
-    const mal = skapaMinneskalla({});
-    const standard = skapaMinneskalla({});
-    const kalla = skapaRoutingKalla({ standard, rutter: { saker: mal } });
-    expect(kalla.kallaFor("saker")).toBe(mal);
-    expect(kalla.kallaFor("annat")).toBe(standard);
+    const mal = createMemorySource({});
+    const standard = createMemorySource({});
+    const source = createRoutingSource({ standard, routes: { saker: mal } });
+    expect(source.sourceFor("saker")).toBe(mal);
+    expect(source.sourceFor("annat")).toBe(standard);
   });
 });
 
 describe("realtid per samling", () => {
   it("svarar per samling och inte per källa", () => {
-    // ⛔ DET EGENTLIGA PROVET. `typeof kalla.prenumerera === "function"` är ett
+    // ⛔ DET EGENTLIGA PROVET. `typeof source.subscribe === "function"` är ett
     // sant svar om en källa och en lögn om en routande: den kan strömma en
     // samling och inte en annan, alltså har frågan två svar.
     const strommar = stromkalla("strommande", [{ id: "a" }]);
-    const stilla = skapaMinneskalla({ stillsamt: [{ id: "b" }] });
-    const kalla = skapaRoutingKalla({ standard: stilla, rutter: { strommande: strommar } });
+    const stilla = createMemorySource({ stillsamt: [{ id: "b" }] });
+    const source = createRoutingSource({ standard: stilla, routes: { strommande: strommar } });
 
-    expect(kalla.kanPrenumerera("strommande")).toBe(true);
-    expect(kalla.kanPrenumerera("stillsamt")).toBe(false);
+    expect(source.canSubscribe("strommande")).toBe(true);
+    expect(source.canSubscribe("stillsamt")).toBe(false);
   });
 
   it("exponerar inte prenumerera när ingen källa kan", () => {
     // ⛔ Annars hade den routande källan påstått en förmåga ingen av dess källor
     // har, och läsaren tagit strömvägen för att sedan kasta.
-    const kalla = skapaRoutingKalla({ standard: skapaMinneskalla({}), rutter: { x: skapaMinneskalla({}) } });
-    expect(kalla.prenumerera).toBeUndefined();
+    const source = createRoutingSource({ standard: createMemorySource({}), routes: { x: createMemorySource({}) } });
+    expect(source.subscribe).toBeUndefined();
   });
 
   it("exponerar prenumerera när minst en källa kan", () => {
-    const kalla = skapaRoutingKalla({ standard: skapaMinneskalla({}), rutter: { s: stromkalla() } });
-    expect(typeof kalla.prenumerera).toBe("function");
+    const source = createRoutingSource({ standard: createMemorySource({}), routes: { s: stromkalla() } });
+    expect(typeof source.subscribe).toBe("function");
   });
 
   it("kastar med samlingens namn för en samling som inte kan strömma", () => {
     // ⛔ Alternativet vore en lyssnare som aldrig levererar, alltså en vy som
     // väntar för alltid och ser ut som att ingenting händer i systemet.
-    const kalla = skapaRoutingKalla({ standard: skapaMinneskalla({}), rutter: { s: stromkalla() } });
+    const source = createRoutingSource({ standard: createMemorySource({}), routes: { s: stromkalla() } });
     expect(() =>
-      /** @type {any} */ (kalla).prenumerera("stillsamt", undefined, { vidData: () => {}, vidFel: () => {} }),
+      /** @type {any} */ (source).subscribe("stillsamt", undefined, { onData: () => {}, onError: () => {} }),
     ).toThrow(/"stillsamt"/);
     expect(() =>
-      /** @type {any} */ (kalla).prenumerera("stillsamt", undefined, { vidData: () => {}, vidFel: () => {} }),
-    ).toThrow(/kanPrenumerera/);
+      /** @type {any} */ (source).subscribe("stillsamt", undefined, { onData: () => {}, onError: () => {} }),
+    ).toThrow(/canSubscribe/);
   });
 
   it("strömmar den samling som kan", async () => {
     const strommar = stromkalla("s", [{ id: "a" }]);
-    const kalla = skapaRoutingKalla({ standard: skapaMinneskalla({}), rutter: { s: strommar } });
+    const source = createRoutingSource({ standard: createMemorySource({}), routes: { s: strommar } });
     const mottaget = [];
-    const avsluta = /** @type {any} */ (kalla).prenumerera("s", undefined, {
-      vidData: (r) => mottaget.push(r),
-      vidFel: () => {},
+    const avsluta = /** @type {any} */ (source).subscribe("s", undefined, {
+      onData: (r) => mottaget.push(r),
+      onError: () => {},
     });
     // ⛔ RADERNA KONTROLLERAS, INTE BARA ATT EN LEVERANS SKEDDE. Provet räknade
     // först bara leveranser, och passerade därför med en TOM lista: hjälpmedlet
@@ -167,44 +167,44 @@ describe("realtid per samling", () => {
 /**
  * ⛔ HOOKEN PROVAS MOT SÖMMEN, inte bara sömmen för sig.
  *
- * Utan det här provet vore påståendet "useSamlingLive faller tillbaka ärligt"
- * obevisat, och det är hela skälet att `kanPrenumerera` finns. Mätt: tas raden i
+ * Utan det här provet vore påståendet "useLiveCollection faller tillbaka ärligt"
+ * obevisat, och det är hela skälet att `canSubscribe` finns. Mätt: tas raden i
  * useData.jsx bort blir det här provet rött, medan alla ovan förblir gröna.
  */
-describe("useSamlingLive mot en routande källa", () => {
-  /** @param {{ samling: string }} props */
-  function Vy({ samling }) {
-    const { data, laddar, realtid } = useSamlingLive(samling);
+describe("useLiveCollection mot en routande källa", () => {
+  /** @param {{ collectionName: string }} props */
+  function Vy({ collectionName }) {
+    const { data, loading, realtime } = useLiveCollection(collectionName);
     return (
-      <span data-testid="tillstand">{`${laddar ? "laddar" : "klar"} realtid=${String(realtid)} antal=${data.length}`}</span>
+      <span data-testid="tillstand">{`${loading ? "loading" : "klar"} realtid=${String(realtime)} antal=${data.length}`}</span>
     );
   }
 
-  /** @param {any} kalla @param {string} samling */
-  const rita = (kalla, samling) =>
+  /** @param {any} source @param {string} collectionName */
+  const rita = (source, collectionName) =>
     render(
-      <OpsDataProvider kalla={kalla}>
-        <Vy samling={samling} />
+      <OpsDataProvider source={source}>
+        <Vy collectionName={collectionName} />
       </OpsDataProvider>,
     );
 
   it("rapporterar realtid för den samling som strömmar", async () => {
-    const kalla = skapaRoutingKalla({
-      standard: skapaMinneskalla({ stillsamt: [{ id: "b" }] }),
-      rutter: { strommande: stromkalla("strommande", [{ id: "a" }]) },
+    const source = createRoutingSource({
+      standard: createMemorySource({ stillsamt: [{ id: "b" }] }),
+      routes: { strommande: stromkalla("strommande", [{ id: "a" }]) },
     });
-    rita(kalla, "strommande");
+    rita(source, "strommande");
     await waitFor(() => expect(screen.getByTestId("tillstand").textContent).toBe("klar realtid=true antal=1"));
   });
 
   it("faller tillbaka och SÄGER det för den samling som inte strömmar", async () => {
     // ⛔ En app som tror sig ha realtid och inte har det ser exakt likadan ut som
     // en som har det, ända tills någon undrar varför en post inte dök upp.
-    const kalla = skapaRoutingKalla({
-      standard: skapaMinneskalla({ stillsamt: [{ id: "b" }, { id: "c" }] }),
-      rutter: { strommande: stromkalla("strommande", [{ id: "a" }]) },
+    const source = createRoutingSource({
+      standard: createMemorySource({ stillsamt: [{ id: "b" }, { id: "c" }] }),
+      routes: { strommande: stromkalla("strommande", [{ id: "a" }]) },
     });
-    rita(kalla, "stillsamt");
+    rita(source, "stillsamt");
     await waitFor(() => expect(screen.getByTestId("tillstand").textContent).toBe("klar realtid=false antal=2"));
   });
 });

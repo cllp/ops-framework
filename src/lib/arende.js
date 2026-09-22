@@ -84,20 +84,20 @@ const DYGN_MS = 86400000;
  * @returns {string[]}
  */
 function saknasVidAvslutInternt(lage, resultat) {
-  const fel = [];
+  const error = [];
   if (lage !== LAGEN.HANTERAD && lage !== LAGEN.AVSKRIVEN) {
-    fel.push(`Avslut kräver läget "${LAGEN.HANTERAD}" eller "${LAGEN.AVSKRIVEN}".`);
-    return fel;
+    error.push(`Avslut kräver läget "${LAGEN.HANTERAD}" eller "${LAGEN.AVSKRIVEN}".`);
+    return error;
   }
   const not = String((resultat || {}).not || "").trim();
   if (!not) {
-    fel.push(
+    error.push(
       lage === LAGEN.AVSKRIVEN
         ? "Skriv varför inget gjordes. En avskrivning utan skäl läses som att någon glömde."
         : "Skriv vad som gjordes. Ett avslut utan text säger inte om något hänt.",
     );
   }
-  return fel;
+  return error;
 }
 
 /**
@@ -106,7 +106,7 @@ function saknasVidAvslutInternt(lage, resultat) {
  * ⛔ KONTROLLERAR KONFIGURATIONEN VID UPPSTART, inte vid första användningen.
  * En sort utan `etikett` ger annars ett ärende som saknar sin märkning, och det
  * felet syns först i ärendesystemet: posten skapades, den hamnade bara aldrig
- * där någon letar. Samma skäl som `skapaDatakalla` kontrollerar sin adapter.
+ * där någon letar. Samma skäl som `createDataSource` kontrollerar sin adapter.
  *
  * @param {Arendekonfig} konfig
  */
@@ -123,14 +123,14 @@ export function skapaArendemodell(konfig) {
     );
   }
 
-  for (const lista of [
+  for (const list of [
     { namn: "sorter", rader: konfig.sorter },
     { namn: "prioer", rader: konfig.prioer },
   ]) {
-    for (const rad of /** @type {Record<string, any>[]} */ (lista.rader)) {
+    for (const rad of /** @type {Record<string, any>[]} */ (list.rader)) {
       for (const falt of ["value", "label", "etikett"]) {
         if (!rad || !rad[falt]) {
-          throw new Error(`skapaArendemodell: ${lista.namn} saknar "${falt}" på ${JSON.stringify(rad)}.`);
+          throw new Error(`skapaArendemodell: ${list.namn} saknar "${falt}" på ${JSON.stringify(rad)}.`);
         }
       }
     }
@@ -190,22 +190,22 @@ export function skapaArendemodell(konfig) {
      */
     /** @param {Record<string, any>} [utkast] @returns {string[]} */
     saknas(utkast = {}) {
-      const fel = [];
+      const error = [];
       const s = sort(utkast.typ);
-      if (!s) fel.push("Välj vad det gäller.");
+      if (!s) error.push("Välj vad det gäller.");
 
       const rubrik = String(utkast.rubrik || "").trim();
-      if (!rubrik) fel.push("Skriv en rubrik.");
-      else if (rubrik.length > maxRubrik) fel.push(`Rubriken får vara högst ${maxRubrik} tecken.`);
+      if (!rubrik) error.push("Skriv en rubrik.");
+      else if (rubrik.length > maxRubrik) error.push(`Rubriken får vara högst ${maxRubrik} tecken.`);
 
-      if (!prio(utkast.prio)) fel.push("Välj hur bråttom det är.");
+      if (!prio(utkast.prio)) error.push("Välj hur bråttom det är.");
 
       if (s && typeof s.krav === "function") {
         const egna = s.krav(utkast);
-        if (Array.isArray(egna)) fel.push(...egna);
+        if (Array.isArray(egna)) error.push(...egna);
       }
 
-      return fel;
+      return error;
     },
 
     /**
@@ -290,8 +290,8 @@ export function skapaArendemodell(konfig) {
      * @param {{ nu?: () => string }} [sammanhang]
      */
     byggAvslut(lage, resultat, { nu = () => new Date().toISOString() } = {}) {
-      const fel = saknasVidAvslutInternt(lage, resultat);
-      if (fel.length) throw new Error(`byggAvslut: ${fel.join(" ")}`);
+      const error = saknasVidAvslutInternt(lage, resultat);
+      if (error.length) throw new Error(`byggAvslut: ${error.join(" ")}`);
       return {
         status: lage,
         resultat: { url: (resultat || {}).url || null, not: String(resultat.not).trim() },

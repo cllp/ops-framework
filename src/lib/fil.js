@@ -100,9 +100,9 @@ function skalat(bredd, hojd) {
 
 /** @param {File | Blob} fil @returns {Promise<string>} */
 function lasSomDataUrl(fil) {
-  return new Promise((klart, fel) => {
+  return new Promise((klart, error) => {
     const lasare = new FileReader();
-    lasare.onerror = () => fel(new Error("Filen kunde inte läsas."));
+    lasare.onerror = () => error(new Error("Filen kunde inte läsas."));
     lasare.onload = () => klart(String(lasare.result || ""));
     lasare.readAsDataURL(fil);
   });

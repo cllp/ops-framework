@@ -162,9 +162,9 @@ describe("OpsRankChart", () => {
     // ⛔ Skalans ljusaste steg ligger nära ytan. En stapel som nästan är ytan
     // måste ha sin siffra skriven, annars är raden tom för den som inte ser den.
     render(<OpsRankChart rows={rader} ariaLabel="Kostnader" />);
-    const lista = screen.getByLabelText("Kostnader");
-    expect(within(lista).getByText("10 918 kr")).toBeInTheDocument();
-    expect(within(lista).getByText("979 kr")).toBeInTheDocument();
+    const list = screen.getByLabelText("Kostnader");
+    expect(within(list).getByText("10 918 kr")).toBeInTheDocument();
+    expect(within(list).getByText("979 kr")).toBeInTheDocument();
   });
 
   it("mäter mot det största värdet och inte mot summan", () => {

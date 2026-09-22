@@ -20,7 +20,7 @@ describe("inget flöde ännu", () => {
     // ignorera felmeddelanden.
     for (const tomt of [null, undefined, ""]) {
       const last = lasArendeflode(tomt);
-      expect(last.fel).toBeNull();
+      expect(last.error).toBeNull();
       expect(last.fanns).toBe(false);
       expect(last.poster).toEqual([]);
     }
@@ -30,7 +30,7 @@ describe("inget flöde ännu", () => {
 describe("flöde med noll poster", () => {
   it("är ett giltigt svar och inget fel", () => {
     const last = lasArendeflode({ ...gott, items: [] });
-    expect(last.fel).toBeNull();
+    expect(last.error).toBeNull();
     expect(last.fanns).toBe(true);
     expect(last.poster).toEqual([]);
   });
@@ -49,20 +49,20 @@ describe("oläsligt flöde", () => {
     // alltså ett påstående om verksamheten när sanningen är ett påstående om datan.
     const last = lasArendeflode({ updated: "2026-09-17", label: "drift" });
     expect(last.fanns).toBe(false);
-    expect(last.fel).toMatch(/saknar en lista/);
+    expect(last.error).toMatch(/saknar en list/);
     expect(last.poster).toEqual([]);
   });
 
   it("items som något annat än en lista är ett fel, och felet säger vad det var", () => {
-    expect(lasArendeflode({ ...gott, items: "tre" }).fel).toMatch(/string/);
-    expect(lasArendeflode({ ...gott, items: 3 }).fel).toMatch(/number/);
-    expect(lasArendeflode({ ...gott, items: {} }).fel).toMatch(/object/);
+    expect(lasArendeflode({ ...gott, items: "tre" }).error).toMatch(/string/);
+    expect(lasArendeflode({ ...gott, items: 3 }).error).toMatch(/number/);
+    expect(lasArendeflode({ ...gott, items: {} }).error).toMatch(/object/);
   });
 
   it("trasig JSON är ett fel med orsaken kvar", () => {
     const last = lasArendeflode("{ inte json");
     expect(last.fanns).toBe(false);
-    expect(last.fel).toMatch(/inte giltig JSON/);
+    expect(last.error).toMatch(/inte giltig JSON/);
   });
 
   it("en lista på toppnivå är inte ett flöde", () => {
@@ -71,7 +71,7 @@ describe("oläsligt flöde", () => {
     // skickar läsaren att leta efter ett fält i stället för att se att hela
     // omslaget saknas.
     const last = lasArendeflode([{ number: 1 }]);
-    expect(last.fel).toMatch(/inte ett objekt/);
+    expect(last.error).toMatch(/inte ett objekt/);
   });
 
   it("behåller datumstämpeln även när posterna är trasiga", () => {

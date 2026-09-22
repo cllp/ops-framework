@@ -73,7 +73,7 @@
  * @typedef {object} Last
  * @property {Post[]} poster Alltid en lista, även vid fel. En vy ska inte behöva kolla.
  * @property {boolean} fanns Sant när något gick att tolka som ett flöde.
- * @property {string | null} fel Orsaken, i klartext, när det inte gick.
+ * @property {string | null} error Orsaken, i klartext, när det inte gick.
  * @property {string | null} uppdaterad Flödets egen datumstämpel, när den finns.
  */
 
@@ -89,7 +89,7 @@
  * @returns {Last}
  */
 export function lasArendeflode(rat) {
-  const tomt = { poster: /** @type {Post[]} */ ([]), fanns: false, fel: null, uppdaterad: null };
+  const tomt = { poster: /** @type {Post[]} */ ([]), fanns: false, error: null, uppdaterad: null };
 
   // ⛔ Frånvaro är INTE ett fel. `null` betyder oftast "har inte hämtats än", och
   // ett felmeddelande under laddning är ett fel användaren inte kan göra något åt.
@@ -100,12 +100,12 @@ export function lasArendeflode(rat) {
     try {
       flode = JSON.parse(rat);
     } catch (e) {
-      return { ...tomt, fel: `Flödet är inte giltig JSON: ${e instanceof Error ? e.message : String(e)}` };
+      return { ...tomt, error: `Flödet är inte giltig JSON: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
 
   if (typeof flode !== "object" || flode === null || Array.isArray(flode)) {
-    return { ...tomt, fel: "Flödet är inte ett objekt." };
+    return { ...tomt, error: "Flödet är inte ett objekt." };
   }
 
   const kropp = /** @type {Record<string, unknown>} */ (flode);
@@ -117,7 +117,7 @@ export function lasArendeflode(rat) {
   if (!Array.isArray(kropp.items)) {
     return {
       ...tomt,
-      fel: `Flödet saknar en lista i "items" (fick ${kropp.items === undefined ? "inget fält" : typeof kropp.items}).`,
+      error: `Flödet saknar en lista i "items" (fick ${kropp.items === undefined ? "inget fält" : typeof kropp.items}).`,
       uppdaterad: typeof kropp.updated === "string" ? kropp.updated : null,
     };
   }
@@ -125,7 +125,7 @@ export function lasArendeflode(rat) {
   return {
     poster: /** @type {Post[]} */ (kropp.items),
     fanns: true,
-    fel: null,
+    error: null,
     uppdaterad: typeof kropp.updated === "string" ? kropp.updated : null,
   };
 }

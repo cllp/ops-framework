@@ -39,14 +39,14 @@ describe("skapaArendespegel, konfigurationen", () => {
 
   it("bygger en källa en människa kan öppna", () => {
     const spegel = skapaArendespegel(KONFIG);
-    expect(spegel.kalla).toBe("https://github.com/nagon/nagot/issues?q=is%3Aissue+is%3Aopen+label%3Adrift");
+    expect(spegel.source).toBe("https://github.com/nagon/nagot/issues?q=is%3Aissue+is%3Aopen+label%3Adrift");
   });
 
   it("kodar en etikett med mellanslag i både anrop och länk", () => {
     // ⛔ En okodad etikett ger ett anrop som tystnar eller svarar med fel urval.
     const { hamtare, anrop } = svarar([]);
     const spegel = skapaArendespegel({ ...KONFIG, etikett: "att göra", hamtare });
-    expect(spegel.kalla).toContain("att%20g%C3%B6ra");
+    expect(spegel.source).toContain("att%20g%C3%B6ra");
     return spegel.hamta("t").then(() => {
       expect(anrop[0].url).toContain("labels=att%20g%C3%B6ra");
     });
@@ -69,7 +69,7 @@ describe("hamta", () => {
     // kastar långt senare med ett fel som inte pekar hit.
     const { hamtare } = svarar({ message: "Not Found" });
     const spegel = skapaArendespegel({ ...KONFIG, hamtare });
-    await expect(spegel.hamta("t")).rejects.toThrow(/annat än en lista/);
+    await expect(spegel.hamta("t")).rejects.toThrow(/annat än en list/);
   });
 
   it("kräver en token", async () => {
@@ -165,7 +165,7 @@ describe("spegeln och läsaren hänger ihop", () => {
     const spegel = skapaArendespegel(KONFIG);
     const flode = spegel.tillFlode([arende({ number: 7 })], { nu: () => "2026-09-17" });
     const last = lasArendeflode(flode);
-    expect(last.fel).toBeNull();
+    expect(last.error).toBeNull();
     expect(last.fanns).toBe(true);
     expect(last.uppdaterad).toBe("2026-09-17");
     expect(last.poster.map((p) => p.number)).toEqual([7]);

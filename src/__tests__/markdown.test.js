@@ -28,7 +28,7 @@ describe("delaMarkdown", () => {
     // där hälften är gjort går då inte att skumma.
     const [block] = delaMarkdown("- [x] Statusprick\n- [ ] Markdown\n- Vanlig");
     expect(block).toEqual({
-      typ: "lista",
+      typ: "list",
       ordnad: false,
       poster: [
         { kryss: true, inline: [{ typ: "text", varde: "Statusprick" }] },
@@ -41,13 +41,13 @@ describe("delaMarkdown", () => {
   it("håller isär punktlista och sifferlista", () => {
     // Två listor och inte en, annars ärver den andra den förstas numrering.
     const block = delaMarkdown("- a\n1. b");
-    expect(block.map((b) => b.typ === "lista" && b.ordnad)).toEqual([false, true]);
+    expect(block.map((b) => b.typ === "list" && b.ordnad)).toEqual([false, true]);
   });
 
   it("läser en tabell bara när strecket finns under rubrikraden", () => {
     const [tabell] = delaMarkdown("| Vad | Färg |\n|---|---|\n| Öppet | gul |");
     expect(tabell.typ).toBe("tabell");
-    expect(tabell.huvud.map((c) => c[0].varde)).toEqual(["Vad", "Färg"]);
+    expect(tabell.header.map((c) => c[0].varde)).toEqual(["Vad", "Färg"]);
     expect(tabell.rader[0].map((c) => c[0].varde)).toEqual(["Öppet", "gul"]);
 
     // ⛔ Utan streck är det inte en tabell utan en rad med rörtecken, och att
@@ -89,7 +89,7 @@ describe("delaMarkdown", () => {
   it("tappar aldrig text", () => {
     const text = "## Rubrik\n\nEtt stycke med https://example.com/x i.\n\n- en punkt";
     const allt = delaMarkdown(text)
-      .flatMap((b) => (b.typ === "lista" ? b.poster.flatMap((p) => p.inline) : b.inline || []))
+      .flatMap((b) => (b.typ === "list" ? b.poster.flatMap((p) => p.inline) : b.inline || []))
       .map((bit) => bit.varde)
       .join("");
     for (const ord of ["Rubrik", "Ett stycke med", "https://example.com/x", "en punkt"]) {

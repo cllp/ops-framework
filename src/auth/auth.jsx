@@ -38,7 +38,7 @@ import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
  */
 
 const AuthContext = createContext(
-  /** @type {{ anvandare: Anvandare | null, laddar: boolean, fel: Error | null, loggaIn: () => void, loggaUt: () => void } | null} */ (null),
+  /** @type {{ anvandare: Anvandare | null, loading: boolean, error: Error | null, loggaIn: () => void, loggaUt: () => void } | null} */ (null),
 );
 
 /**
@@ -132,8 +132,8 @@ export function skapaGoogleAuth(konfig) {
  */
 export function OpsAuthProvider({ autentisering, children }) {
   const [anvandare, setAnvandare] = useState(/** @type {Anvandare | null} */ (null));
-  const [laddar, setLaddar] = useState(true);
-  const [fel, setFel] = useState(/** @type {Error | null} */ (null));
+  const [loading, setLaddar] = useState(true);
+  const [error, setFel] = useState(/** @type {Error | null} */ (null));
 
   useEffect(() => {
     const av = autentisering.lyssna((a) => {
@@ -152,7 +152,7 @@ export function OpsAuthProvider({ autentisering, children }) {
     autentisering.loggaUt().catch((e) => setFel(e instanceof Error ? e : new Error(String(e))));
   }, [autentisering]);
 
-  const varde = useMemo(() => ({ anvandare, laddar, fel, loggaIn, loggaUt }), [anvandare, laddar, fel, loggaIn, loggaUt]);
+  const varde = useMemo(() => ({ anvandare, loading, error, loggaIn, loggaUt }), [anvandare, loading, error, loggaIn, loggaUt]);
   return <AuthContext.Provider value={varde}>{children}</AuthContext.Provider>;
 }
 
@@ -187,9 +187,9 @@ export function OpsAuthGate({
   nekadText = "Ditt konto är inloggat men saknar behörighet här. Be den som förvaltar plattformen lägga till dig.",
   children,
 }) {
-  const { anvandare, laddar, fel, loggaIn } = useOpsAuth();
+  const { anvandare, loading, error, loggaIn } = useOpsAuth();
 
-  if (laddar) {
+  if (loading) {
     return (
       <OpsView width="narrow">
         <OpsEmpty busy title={titel} busyLabel="Kontrollerar inloggning" />
@@ -207,7 +207,7 @@ export function OpsAuthGate({
           </OpsButton>
           {/* Felet visas, det sväljs inte. En inloggning som inte händer och
               inte förklarar sig får användaren att trycka igen i evighet. */}
-          {fel ? <p className="mt-3 text-base text-danger">{fel.message}</p> : null}
+          {error ? <p className="mt-3 text-base text-danger">{error.message}</p> : null}
         </OpsCard>
       </OpsView>
     );

@@ -169,9 +169,9 @@ describe("OpsEventList", () => {
     // ⛔ Inkorg-mönstret: gap-3 mellan OpsCard. En ul.divide-y i ett ytterkort
     // var felet på bolag-ops Idag ("kräver dig nu").
     const { container } = render(<OpsEventList events={[h("a", 1, { nar: "Idag" }), h("b", 2, { nar: "I morgon" })]} />);
-    const lista = container.querySelector("ul");
-    expect(lista?.className).toMatch(/gap-3/);
-    expect(lista?.className).not.toMatch(/divide-y/);
+    const list = container.querySelector("ul");
+    expect(list?.className).toMatch(/gap-3/);
+    expect(list?.className).not.toMatch(/divide-y/);
     /*
      * ⛔ RADIEN ÄR INTE KRAVET. Här stod `div.rounded-lg.border`, alltså en
      * fråga som band fast ett hörnvärde provet aldrig handlade om. Kravet är

@@ -502,7 +502,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
   const [valda, setValda] = useState(/** @type {string[]} */ ([]));
 
   const karta = useMemo(() => perDag(poster), [poster]);
-  const lista = useMemo(() => manader(nu, manaderBakat, manaderFramat), [nu, manaderBakat, manaderFramat]);
+  const list = useMemo(() => manader(nu, manaderBakat, manaderFramat), [nu, manaderBakat, manaderFramat]);
 
   const rulleRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const huvudRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -527,8 +527,8 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
     const rulle = rulleRef.current;
     const manad = idagRef.current;
     if (!rulle || !manad) return;
-    const huvud = huvudRef.current ? huvudRef.current.offsetHeight : 0;
-    rulle.scrollTo({ top: Math.max(0, manad.offsetTop - huvud), behavior: beteende });
+    const header = huvudRef.current ? huvudRef.current.offsetHeight : 0;
+    rulle.scrollTo({ top: Math.max(0, manad.offsetTop - header), behavior: beteende });
   }, []);
 
   /*
@@ -640,7 +640,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
         {!harPoster && tomtText ? <p className="m-0 pb-3 text-sm text-ink-muted">{tomtText}</p> : null}
 
         <div className="flex flex-col gap-6 pb-4">
-          {lista.map(({ ar, manad }) => {
+          {list.map(({ ar, manad }) => {
             const arIdagsManad = ar === nu.getFullYear() && manad === nu.getMonth();
             const rader = manadsrutnat(ar, manad);
 

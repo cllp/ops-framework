@@ -11,7 +11,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *
  * Ramverket äger rutan, väntetillståndet, felplatsen och hur svaret ritas.
  * Appen äger vad som frågas, vilken modell som svarar och vad som får skickas
- * med. Gränsen går vid `skapaPromptkalla` (se `lib/prompt.js`), och den här
+ * med. Gränsen går vid `createPromptSource` (se `lib/prompt.js`), och den här
  * komponenten vet inte vilken leverantör som ligger bakom.
  *
  * ── ⛔ SVARET RENDERAS SOM MARKDOWN, INTE SOM TEXT ─────────────────────
@@ -41,14 +41,14 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * @param {object} props
- * @param {import("../lib/prompt.js").Promptkalla} props.kalla Från `skapaPromptkalla`.
+ * @param {import("../lib/prompt.js").Promptkalla} props.source Från `createPromptSource`.
  * @param {string} props.label Vad rutan frågar om. ⛔ Krävs: ett fält utan etikett är
  *   osynligt för skärmläsaren, och en promptruta utan ämne är en tom uppmaning.
  * @param {string} [props.hint] En rad om vad rutan kan svara på.
  * @param {string} [props.placeholder]
  * @param {any} [props.sammanhang] Skickas med varje fråga, ogenomskinligt för ramverket.
  * @param {string} [props.skickaLabel]
- * @param {string} [props.vantarLabel] Vad snurran säger. Läses upp, syns inte.
+ * @param {string} [props.waitingLabel] Vad snurran säger. Läses upp, syns inte.
  * @param {string[]} [props.forslag] Färdiga frågor att trycka på. ⛔ De SKRIVS IN i fältet
  *   och skickas inte direkt: ett förslag som skickar sig självt gör ett klick till ett anrop
  *   man inte hann läsa, och man kan inte längre ändra ett ord innan man frågar.
@@ -56,19 +56,19 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *   svar kommit. Appen kan logga tokens där, ramverket gör det aldrig.
  */
 export function OpsPrompt({
-  kalla,
+  source,
   label,
   hint,
   placeholder,
   sammanhang,
   skickaLabel = "Fråga",
-  vantarLabel = "Väntar på svar",
+  waitingLabel = "Väntar på svar",
   forslag = [],
   onSvar,
 }) {
-  if (!kalla || typeof kalla.fraga !== "function") {
+  if (!source || typeof source.fraga !== "function") {
     throw new Error(
-      "OpsPrompt: kalla måste komma från skapaPromptkalla. Utan den vet rutan inte var frågan ska skickas, och det syns först när någon trycker.",
+      "OpsPrompt: kalla måste komma från createPromptSource. Utan den vet rutan inte var frågan ska skickas, och det syns först när någon trycker.",
     );
   }
   if (!label) {
@@ -91,11 +91,11 @@ export function OpsPrompt({
     setSvarsfel("");
     setVantar(true);
     try {
-      const nytt = await kalla.fraga({ prompt: text, sammanhang });
+      const nytt = await source.fraga({ prompt: text, sammanhang });
       setSvar(nytt);
       onSvar?.(nytt);
-    } catch (fel) {
-      const meddelande = fel instanceof Error ? fel.message : String(fel);
+    } catch (error) {
+      const meddelande = error instanceof Error ? error.message : String(error);
       // ⛔ Längdfel och tomhet hör till FÄLTET, resten till svarsytan. Källan
       // kastar båda sorterna, och skillnaden är om användaren kan rätta det
       // själv där hen står.
@@ -123,7 +123,7 @@ export function OpsPrompt({
           placeholder={placeholder}
           rows={3}
           disabled={vantar}
-          maxLength={kalla.maxTecken}
+          maxLength={source.maxTecken}
         />
       </OpsField>
 
@@ -143,7 +143,7 @@ export function OpsPrompt({
         </OpsButton>
         {/* ⛔ Snurran står BREDVID knappen och inte i den. En knapp som byter
             innehåll till en snurra ändrar bredd, och raden under hoppar. */}
-        {vantar ? <OpsSpinner size="sm" tone="muted" label={vantarLabel} /> : null}
+        {vantar ? <OpsSpinner size="sm" tone="muted" label={waitingLabel} /> : null}
       </div>
 
       {svarsfel ? (

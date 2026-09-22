@@ -103,10 +103,10 @@ describe("OpsBreakdown", () => {
 describe("OpsAttributes", () => {
   it("ritar etikett och värde som ett par en skärmläsare kan följa", () => {
     render(<OpsAttributes rows={[{ label: "OCR", value: "165846692" }]} ariaLabel="Om posten" />);
-    const lista = screen.getByLabelText("Om posten");
-    expect(lista.tagName).toBe("DL");
-    expect(within(lista).getByText("OCR").tagName).toBe("DT");
-    expect(within(lista).getByText("165846692").tagName).toBe("DD");
+    const list = screen.getByLabelText("Om posten");
+    expect(list.tagName).toBe("DL");
+    expect(within(list).getByText("OCR").tagName).toBe("DT");
+    expect(within(list).getByText("165846692").tagName).toBe("DD");
   });
 
   it("hoppar över tomma fält och ritar ingenting när allt är tomt", () => {

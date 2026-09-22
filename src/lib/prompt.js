@@ -3,7 +3,7 @@
  *
  * ── ⛔ SAMMA GRÄNS SOM DATALAGRET, AV SAMMA SKÄL ────────────────────────
  *
- * Ramverket når aldrig ett nätverk själv. `skapaDatakalla` finns för att en
+ * Ramverket når aldrig ett nätverk själv. `createDataSource` finns för att en
  * primitiv som kan sina egna HTTP-anrop är en primitiv som bara passar den app
  * den skrevs i, och det gäller ordagrant här: nyckeln, modellen, taket och
  * vilken leverantör det är hör hemma i appen. Ramverket äger rutan, väntan och
@@ -57,14 +57,14 @@
  *   som kräver ett bibliotek är ett tak som inte kommer att finnas.
  * @returns {Promptkalla}
  */
-export function skapaPromptkalla({ skicka, maxTecken = 2000 } = {}) {
+export function createPromptSource({ skicka, maxTecken = 2000 } = {}) {
   if (typeof skicka !== "function") {
     throw new Error(
-      "skapaPromptkalla: skicka måste vara en funktion. Ramverket når aldrig ett nätverk själv, appen skickar in vägen ut.",
+      "createPromptSource: skicka måste vara en funktion. Ramverket når aldrig ett nätverk själv, appen skickar in vägen ut.",
     );
   }
   if (!Number.isFinite(maxTecken) || maxTecken <= 0) {
-    throw new Error(`skapaPromptkalla: maxTecken måste vara ett positivt tal, fick ${maxTecken}.`);
+    throw new Error(`createPromptSource: maxTecken måste vara ett positivt tal, fick ${maxTecken}.`);
   }
 
   return {

@@ -191,7 +191,7 @@ något godtyckligt.
 | `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel` |
 | `OpsCheckbox` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 | `OpsToggleRow` | `label`, `value`, `on`, `onChange`, `offLabel`, `kontroll`, `trailing`. Rad som tonas ned i stället för att bockas ur. ⛔ Ett filter, inte ett påstående: kryssrutan frågar "är det sant?", den här frågar "ska det räknas?". ⛔ `kontroll` lägger en kontroll UNDER knappen; `trailing` lägger en kompakt kontroll LÄNGST TILL HÖGER på samma rad (t.ex. `OpsLaboreraPopover` eller `OpsKnob`). Båda ligger UTANFÖR knappen: ett reglage inuti en `<button>` är ogiltig HTML, och draget hade bubblat upp och tonat ned posten man just simulerade. Ramen bor därför på ett omslag. Utan båda ritas ingen extra behållare. |
-| `OpsFilePicker` | `value`, `onChange`, `maxChars`, `accept`, `paste`, `ariaLabel`, `labels` {valj, byt, taBort, klistra}. Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag. Ger `{dataUrl, namn, typ, tecken, bredd?, hojd?}`. ⛔ Heter inte OpsImagePicker: en bildväljare som får ett kontoutdrag tvingar fram en skärmbild av ett dokument man redan har. Bilder krymps i steg, andra filer ryms eller avvisas med besked om vad man ska göra. ⛔ Lyssnar på inklistring i DOKUMENTET, för man klistrar in där blicken är, inte där fokus råkar ligga; två monterade väljare tar därför emot samma inklistring, och det är vad `paste={false}` finns till för. |
+| `OpsFilePicker` | `value`, `onChange`, `maxChars`, `accept`, `paste`, `ariaLabel`, `labels` {valj, byt, taBort, klistra}. Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag. Ger `{dataUrl, name, typ, tecken, bredd?, hojd?}`. ⛔ Heter inte OpsImagePicker: en bildväljare som får ett kontoutdrag tvingar fram en skärmbild av ett dokument man redan har. Bilder krymps i steg, andra filer ryms eller avvisas med besked om vad man ska göra. ⛔ Lyssnar på inklistring i DOKUMENTET, för man klistrar in där blicken är, inte där fokus råkar ligga; två monterade väljare tar därför emot samma inklistring, och det är vad `paste={false}` finns till för. |
 | `OpsRadioGroup` | `options` [{value, label, hint?}], `value`, `onChange`, `ariaLabel`, `name`, `columns` 1 \| 2. Ett val bland flera, alla synliga. ⛔ Nativa `<input type="radio">` under ytan, aldrig `<button role="radio">`: piltangenter, gruppering och "3 av 4" uppläst kommer gratis och blir fel i något hörn när de byggs för hand. Använd den när `OpsSegmented` tagit slut (den kastar vid fyra) och `OpsSelect` skulle gömma alternativen bakom ett klick. |
 | `OpsSlider` | `label`, `value`, `onChange`, `min`, `max`, `noll`, `formateraVarde`, `step`, `aterstallLabel`, `doldEtikett`. Dragreglage för att SIMULERA ett tal, inte mata in det. ⛔ `noll` är läget som betyder "som det är idag", och det måste gå att träffa EXAKT: därför en `Återställ`-knapp som blir inaktiv i stället för att försvinna (en knapp som försvinner flyttar allt bredvid sig) plus ett märke på skenan. ⛔ `formateraVarde` är obligatorisk: ett reglage som läses upp som "minus femton" säger inte minus femton vadå. Nativt `input type=range` under ytan, så touch, piltangenter och hela aria-värdefamiljen kommer gratis; tumme och skena målas i `.ops-reglage` i tokens, eftersom pseudoelementen inte finns som klasser. ⛔ `doldEtikett` döljer ordet visuellt men behåller `<label htmlFor>`, för ett reglage som sitter i en rad som redan säger sitt namn. Ett `aria-label` hade tagit bort kopplingen mellan ord och fält för den som använder förstoring. |
 | `OpsKnob` | `label`, `value`, `onChange`, `min`, `max`, `noll`, `formateraVarde`, `step`, `doldEtikett`. Kompakt simuleringsratt (~28 px) för samma jobb som `OpsSlider`, men inline längst till höger på en rad. ⛔ Dubbelklick återställer till `noll` (ingen Återställ-knapp: den hade krävt bredd raden inte har). ⛔ Varm `laborera`-accent, inte blå systemaccent. ⛔ `formateraVarde` syns under ratten och ska vara kort (t.ex. "0 %" / "+25 %"); belopp hör hemma i radens värdekolumn. Nativt `input type=range` under den målade ratten. |
@@ -215,7 +215,7 @@ något godtyckligt.
 | `OpsStat` | `label`, `value`, `hint`, `tone` neutral \| success \| warning \| danger, `badge`, `fact`, `factLabel`, `source`, `updatedAt`, `onDrillDown`, `drillDownLabel` |
 | `OpsEmpty` | `title`, `description`, `action`, `busy`, `busyLabel` |
 | `OpsSpinner` | `size` sm \| md \| lg, `tone` current \| accent \| muted, `label`, `decorative` |
-| `OpsDatavy` | `laddar`, `fel`, `data`, `huvud`, `felrubrik` (krävs), `laddarLabel` (krävs), `saknasRubrik`, `children` **som funktion** | En vys tre datatillstånd, mätta i bolag-ops som **sex** vyer som skrev samma tre grenar för hand (fem rakt av, Översikt i en ternär). ⛔ Siffran stod först som nio, vilket var antalet vyer som skriver felbanderollen och inte antalet med hela formen. ⛔ Fel vinner över laddning: med flera läsningar kan felet komma medan en annan hämtar, och låter man laddningen vinna göms felet bakom en snurra som aldrig slutar snurra. ⛔ `laddarLabel` krävs och gissas inte fram, för "Hämtar" utan objekt är samma text i tolv vyer och då går det inte att se vilken av fem läsningar som hänger. ⛔ **Hämtat men tomt är inte hämtning som pågår**, och det är felet den handskrivna varianten faktiskt hade: `laddar \|\| !data` ritar "Hämtar ..." för alltid när en läsning gick igenom men gav `null`, alltså påstår sidan att den arbetar när den gett upp. Det tillståndet får OpsEmpty med egna ord och `role="status"`, inte en röd banderoll: kontraktets regel 3 säger att `null` betyder "finns inte" och inte att något gick sönder. ⛔ **Utelämnas `data` görs ingen tomhetskontroll**, för `"data" in props` skiljer utelämnad från null; annars hade varje vy som läser fem listor fått tomhetsrutan fast allt gick bra. ⛔ Barnen är en FUNKTION: som nod hade React byggt dem innan grenen valdes, alltså hade `data.totals` kastat i precis det läge komponenten finns för |
+| `OpsDatavy` | `loading`, `error`, `data`, `header`, `errorTitle` (krävs), `loadingLabel` (krävs), `missingTitle`, `children` **som funktion** | En vys tre datatillstånd, mätta i bolag-ops som **sex** vyer som skrev samma tre grenar för hand (fem rakt av, Översikt i en ternär). ⛔ Siffran stod först som nio, vilket var antalet vyer som skriver felbanderollen och inte antalet med hela formen. ⛔ Fel vinner över laddning: med flera läsningar kan felet komma medan en annan hämtar, och låter man laddningen vinna göms felet bakom en snurra som aldrig slutar snurra. ⛔ `loadingLabel` krävs och gissas inte fram, för "Hämtar" utan objekt är samma text i tolv vyer och då går det inte att se vilken av fem läsningar som hänger. ⛔ **Hämtat men tomt är inte hämtning som pågår**, och det är felet den handskrivna varianten faktiskt hade: `loading \|\| !data` ritar "Hämtar ..." för alltid när en läsning gick igenom men gav `null`, alltså påstår sidan att den arbetar när den gett upp. Det tillståndet får OpsEmpty med egna ord och `role="status"`, inte en röd banderoll: kontraktets regel 3 säger att `null` betyder "finns inte" och inte att något gick sönder. ⛔ **Utelämnas `data` görs ingen tomhetskontroll**, för `"data" in props` skiljer utelämnad från null; annars hade varje vy som läser fem listor fått tomhetsrutan fast allt gick bra. ⛔ Barnen är en FUNKTION: som nod hade React byggt dem innan grenen valdes, alltså hade `data.totals` kastat i precis det läge komponenten finns för |
 
 #### Märkning
 
@@ -224,7 +224,7 @@ något godtyckligt.
 | `OpsPill` | `tone` neutral \| success \| warning \| danger \| info, `children` |
 | `OpsStatusDot` | `status` oppet \| pagar \| vantar \| klart \| akut, `label` (krävs). Färgprick för var ett ärende står, tänkt för en kortrubrik. ⛔ Ordet krävs och renderas alltid, som `sr-only` utom för `akut` som skriver ut det synligt: en färg går inte att läsa upp och är osynlig för var tjugonde man. Vyn måste visa ordet någonstans synligt, till exempel i utfällningen |
 | `OpsMarkdown` | `text`. Renderar rubriker, stycken, listor, kryssrutor, citat, kod, tabeller och länkar som riktiga element. ⛔ Ingen HTML passerar en sträng: `dangerouslySetInnerHTML` finns inte, och bara `http`/`https` blir länkar. Kapar aldrig texten, det är datalagrets beslut |
-| `OpsPrompt` | `kalla` (från `skapaPromptkalla`), `label` (krävs), `hint`, `placeholder`, `sammanhang`, `skickaLabel`, `vantarLabel`, `forslag` [sträng], `onSvar`. En fråga in, ett svar ut, renderat som markdown. ⛔ Vet inte vilken leverantör som svarar: modell, nyckel och tak är appens. ⛔ Förra svaret ligger kvar tills ett nytt kommit, även efter ett fel |
+| `OpsPrompt` | `source` (från `createPromptSource`), `label` (krävs), `hint`, `placeholder`, `sammanhang`, `skickaLabel`, `waitingLabel`, `forslag` [sträng], `onSvar`. En fråga in, ett svar ut, renderat som markdown. ⛔ Vet inte vilken leverantör som svarar: modell, nyckel och tak är appens. ⛔ Förra svaret ligger kvar tills ett nytt kommit, även efter ett fel |
 | `OpsTag` | `label` (bestämmer också tonen), `tone` 1-6 (låser tonen), `onRemove`, `removeLabel` |
 | `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
 | `OpsProvenance` | `kind` human \| agent \| auto, `label` |
@@ -309,7 +309,7 @@ tysta lögnen i en översiktsvy.
 
 ### Ärenden
 
-`skapaArendemodell(konfig)` äger **formen** på ett inskickat ärende: att det har
+`skapaArendemodell(config)` äger **formen** på ett inskickat ärende: att det har
 en sort och en prioritet, bär vem som skickade in det och när, att `status` och
 `resultat` tillhör servern och aldrig klienten, att etiketterna är basen plus
 sorten plus prion, och att validering svarar med **skälen** i stället för ett ja
@@ -338,18 +338,18 @@ Firestore i morgon, SQL bakom ett API sedan.
 
 | | |
 |---|---|
-| `skapaDatakalla(adapter)` | tar en adapter, vägrar en som saknar en operation |
-| `skapaMinneskalla(start)` | allt i minnet. Tester, utveckling, och innan källan bestämts |
-| `skapaJsonKalla({ bas })` | läser JSON-filer över HTTP. Läsbar, inte skrivbar |
-| `tillampaFraga(rader, fraga)` | filtrering, sortering och gräns för adaptrar som håller allt i minnet |
-| `OPERATIONER` | `las`, `lista`, `skapa`, `uppdatera`, `taBort`. `prenumerera` är frivillig och står inte här |
-| `skapaFirestoreKalla({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
-| `skapaPostgresKalla({ fraga })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
-| `skapaHttpKalla({ basUrl, hamtaToken?, hamta?, huvuden? })` | **ett eget API över HTTP, alltså REST.** Kontraktets fem operationer ÄR CRUD, så översättningen är en rad var, och vilken databas som står bakom API:et syns inte här. ⛔ `fetch` **kastar inte på 404 eller 500**, bara när anropet aldrig kom fram: den som skriver `await (await fetch(u)).json()` får serverns felsida parsad som data. Därför kontrolleras `res.ok` på varje operation, så kontraktets regel 2 håller. ⛔ **404 betyder olika saker för olika operationer**: på `las` är det `null` ("finns inte", regel 3), på `uppdatera` och `taBort` är det ett fel, eftersom någon bad om en ändring av något som inte finns. ⛔ Felet bär `status`, så appen kan skilja 401 (logga in igen) från 500 (försök senare) utan att matcha på text. ⛔ Ett 200-svar som inte är JSON är ett fel, för en proxy eller ett inloggningsskal svarar 200 med HTML och en tyst `{}` hade blivit "inga poster". ⛔ Styrparametrarna heter `_sort`, `_order` och `_limit`: en samling med ett fält som heter `sortera` hade annars krockat, och symptomet är inte ett fel utan en lista som ibland inte lyder. ⛔ Token hämtas **per anrop**, aldrig en gång vid uppstart, för en token som gick ut medan appen stod öppen ser ut som att allt slutade fungera av sig självt. ⛔ **Ingen `prenumerera`**, med flit (CP 2026-09-22): ett REST-API kan inte pusha, och `useSamlingLive` rapporterar då `realtid: false` i stället för att en pollingloop låtsas. ⛔ GraphQL är en **annan adapter**, inte ett läge här: den har en endpoint och ett frågedokument, och vilka fält som hämtas är appens beslut |
-| `skapaRoutingKalla({ standard, rutter })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `kanPrenumerera(samling)` svarar, `prenumerera` **kastar med samlingens namn** för en som inte kan, och `useSamlingLive` frågar först och rapporterar `realtid: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid |
+| `createDataSource(adapter)` | tar en adapter, vägrar en som saknar en operation |
+| `createMemorySource(start)` | allt i minnet. Tester, utveckling, och innan källan bestämts |
+| `createJsonSource({ bas })` | läser JSON-filer över HTTP. Läsbar, inte skrivbar |
+| `applyQuery(rows, query)` | filtrering, sortering och gräns för adaptrar som håller allt i minnet |
+| `OPERATIONS` | `read`, `list`, `create`, `update`, `remove`. `subscribe` är frivillig och står inte här |
+| `createFirestoreSource({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
+| `createPostgresSource({ query })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
+| `createHttpSource({ basUrl, getToken?, load?, headers? })` | **ett eget API över HTTP, alltså REST.** Kontraktets fem operationer ÄR CRUD, så översättningen är en rad var, och vilken databas som står bakom API:et syns inte här. ⛔ `fetch` **kastar inte på 404 eller 500**, bara när anropet aldrig kom fram: den som skriver `await (await fetch(u)).json()` får serverns felsida parsad som data. Därför kontrolleras `res.ok` på varje operation, så kontraktets regel 2 håller. ⛔ **404 betyder olika saker för olika operationer**: på `read` är det `null` ("finns inte", regel 3), på `update` och `remove` är det ett fel, eftersom någon bad om en ändring av något som inte finns. ⛔ Felet bär `status`, så appen kan skilja 401 (logga in igen) från 500 (försök senare) utan att matcha på text. ⛔ Ett 200-svar som inte är JSON är ett fel, för en proxy eller ett inloggningsskal svarar 200 med HTML och en tyst `{}` hade blivit "inga poster". ⛔ Styrparametrarna heter `_sort`, `_order` och `_limit`: en samling med ett fält som heter `sortBy` hade annars krockat, och symptomet är inte ett fel utan en lista som ibland inte lyder. ⛔ Token hämtas **per anrop**, aldrig en gång vid uppstart, för en token som gick ut medan appen stod öppen ser ut som att allt slutade fungera av sig självt. ⛔ **Ingen `subscribe`**, med flit (CP 2026-09-22): ett REST-API kan inte pusha, och `useLiveCollection` rapporterar då `realtime: false` i stället för att en pollingloop låtsas. ⛔ GraphQL är en **annan adapter**, inte ett läge här: den har en endpoint och ett frågedokument, och vilka fält som hämtas är appens beslut |
+| `createRoutingSource({ standard, routes })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `canSubscribe(collectionName)` svarar, `subscribe` **kastar med samlingens namn** för en som inte kan, och `useLiveCollection` frågar först och rapporterar `realtime: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid |
 | `OpsDataProvider` | ger appen sin källa |
-| `useDatakalla`, `useSamling`, `useDokument` | React-sidan, med `laddar`, `fel` och `data` åtskilda |
-| `useSamlingLive` | samma som `useSamling`, men strömmande när källan kan. Se realtidsstycket nedan |
+| `useDataSource`, `useCollection`, `useDocument` | React-sidan, med `loading`, `error` och `data` åtskilda |
+| `useLiveCollection` | samma som `useCollection`, men strömmande när källan kan. Se realtidsstycket nedan |
 
 Fem regler gör kontraktet värt något:
 
@@ -357,33 +357,33 @@ Fem regler gör kontraktet värt något:
    snabb källan råkar vara, för då skrivs anropsställen som går sönder vid byte.
 2. **Fel kastas, de returneras aldrig som tomhet.** `fetch` kastar inte på 500,
    så utan den regeln visar appen "inga träffar" när den inte kunde fråga.
-3. **`las` ger `null` för "finns inte", vilket inte är ett fel.** Skillnaden mot
+3. **`read` ger `null` för "finns inte", vilket inte är ett fel.** Skillnaden mot
    "kunde inte fråga" måste gå att hantera olika.
 4. **Varje post har ett `id`.** Utan en gemensam nyckel kan delad kod inte veta
    vad som identifierar en rad.
-5. **`prenumerera` är frivillig.** Realtid är en egenskap hos källan, inte hos
+5. **`subscribe` är frivillig.** Realtid är en egenskap hos källan, inte hos
    kontraktet. En JSON-fil i repot kan inte pusha, och att kräva metoden hade
    tvingat varje adapter att ljuga: antingen med en pollingloop som låtsas vara
    en ström, eller med en metod som kastar och därmed inte går att anropa.
 
 ⛔ **Ingen cache och ingen realtid som default, med avsikt.** Ett arbetsverktyg
 behöver färsk data när man tittar på det, inte data som strömmar in medan man
-läser. `useSamling` hämtar en gång och om på `uppdatera()`.
+läser. `useCollection` hämtar en gång och om på `update()`.
 
-⛔ **`useSamlingLive` är undantaget, och det är en egen hook och inte en flagga.**
+⛔ **`useLiveCollection` är undantaget, och det är en egen hook och inte en flagga.**
 En inkorg är motsatsen till en rapport: den finns för att något ska dyka upp i
 den medan man tittar. Men en flagga i ett optionsobjekt kan komma från en spread,
 en konstant eller en prop, och då står valet inte längre i vyn som läser datan.
 Ett eget namn måste skrivas ut på anropsstället, syns i en diff, och går att
-räkna: `grep useSamlingLive` svarar exakt vilka ytor som strömmar.
+räkna: `grep useLiveCollection` svarar exakt vilka ytor som strömmar.
 
-Hooken returnerar `realtid: boolean`. Källor som inte kan prenumerera hämtar en
+Hooken returnerar `realtime: boolean`. Källor som inte kan prenumerera hämtar en
 gång och säger det, i stället för att falla tillbaka i tysthet. **Den tysta
 tillbakafallningen vore det farliga:** en app som tror sig ha realtid och inte har
 det ser exakt likadan ut som en som har det, ända tills någon undrar varför en
 post aldrig dök upp. Ett fel man bara kan misstänka, aldrig se.
 
-`uppdatera()` startar om prenumerationen i stället för att hämta vid sidan av,
+`update()` startar om prenumerationen i stället för att hämta vid sidan av,
 eftersom Firestore inte återansluter av sig själv efter ett avvisat lyssnande.
 
 ⛔ Den regel som avgör om datalagret är värt något är inte kontraktet utan
@@ -400,7 +400,7 @@ importerar ingen auth-SDK**, appen skickar in den.
 |---|---|
 | `skapaGoogleAuth({ auth, sdk, hamtaProfil })` | Google-inloggning. `hamtaProfil` läser appens egen användarlista och ger `roll` |
 | `skapaAutentisering(adapter)` | för en egen inloggning |
-| `OpsAuthProvider`, `useOpsAuth` | inloggat konto, `laddar`, `fel`, `loggaIn`, `loggaUt` |
+| `OpsAuthProvider`, `useOpsAuth` | inloggat konto, `loading`, `error`, `loggaIn`, `loggaUt` |
 | `OpsAuthGate` | visar sitt innehåll för den som är inloggad och har rätt roll |
 
 Rollen kommer **aldrig** från Google. Google svarar på vem någon är, inte på vad
@@ -449,7 +449,7 @@ typkontrollerades.
 | `samlaHandelser` | slår ihop flera källors färdiga `Handelse`-listor till en läsordning: närmast först, odaterat sist, och inom samma dag det appens `ordning` sätter först. Mappningarna äger appen, sorteringen ramverket. ⛔ Odaterat sist är ett påstående: `null` är mindre än varje tal, så en naiv sortering lägger allt utan dag överst, precis framför det som brinner, och listan ser fortfarande sorterad ut |
 | `lasArendeflode` | läser en ärende-ögonblicksbild och svarar med **tre** utfall, inte två: inget flöde ännu (inte ett fel, källan har inte svarat), flöde med noll poster (ett giltigt svar), och oläsligt flöde (ett fel med en orsak). ⛔ Den vanliga raden `(f && Array.isArray(f.items) && f.items) \|\| []` gör det tredje till det andra: ett trasigt flöde blir en tom lista, och vyn säger "allt klart" när sanningen är "det gick inte att läsa" |
 | `delaMarkdown`, `delaInline` | delar markdown i block respektive en rad i text, fet text, kod och länkar. Rena funktioner, så de går att prova utan att rendera. ⛔ Gissar aldrig en länk ur "#183" och släpper aldrig igenom `javascript:`: en gissad länk ser likadan ut som en riktig ända tills någon klickar |
-| `skapaPromptkalla` | appens väg ut till en modell, som `skapaDatakalla` är till en databas. Kontraktet är `{ prompt, sammanhang }` in och `{ text, tokens }` ut, utan ett enda leverantörsord. ⛔ Ett tomt svar KASTAR i stället för att rita en tom yta: skillnaden mot "anropet gick sönder" är skillnaden mellan att fråga igen och att ge upp |
+| `createPromptSource` | appens väg ut till en modell, som `createDataSource` är till en databas. Kontraktet är `{ prompt, sammanhang }` in och `{ text, tokens }` ut, utan ett enda leverantörsord. ⛔ Ett tomt svar KASTAR i stället för att rita en tom yta: skillnaden mot "anropet gick sönder" är skillnaden mellan att fråga igen och att ge upp |
 | `arBild`, `storlekstext`, `bilagestorlek` | för att VISA en sparad bilaga. `bilagestorlek` räknar tillbaka från lagrade tecken till en ungefärlig filstorlek, så base64-faktorn inte hamnar som en magisk 1,4 i varje app som visar en bilaga. `arBild` tar MIME-typen och inte filen, så samma fråga går att ställa om en fil man just valt och om en bilaga man läst ur en databas. ⛔ Själva inläsningen exporteras inte: en app som läser filer förbi `OpsFilePicker` har skaffat ett andra ställe som bestämmer vad som ryms |
 | `SAKNAS` | vad som visas när ett värde saknas. Aldrig `0`, som är ett påstående om datan |
 | `TALMELLANSLAG` | strippar det mellanslag `Intl` stoppar i tal. Vilket tecken det är beror på Node-versionen, så det får aldrig hårdkodas |
@@ -457,21 +457,21 @@ typkontrollerades.
 ### Vad appen måste mata in
 
 Ramverket vet ingenting om verksamheten. Allt det behöver veta kommer in genom en
-`skapa*`-fabrik vid uppstart, och det här är hela listan.
+`create*`-fabrik vid uppstart, och det här är hela listan.
 
 | Fabrik | Appen måste skicka | Appen kan skicka |
 |---|---|---|
 | `skapaArendemodell` | `sorter`, `prioer`, `basetikett` | `maxRubrik`. Per sort: `krav`, `extraFalt` |
-| `skapaArendespegel` (nodsidan) | `agare`, `repo`, `etikett` | `sammanfattning`, `extraFalt`, `hamtare` |
-| `skapaRoutingKalla` | `standard` | `rutter` |
-| `skapaFirestoreKalla` | `db`, `sdk` | |
-| `skapaPostgresKalla` | `fraga` | `idKolumn` |
-| `skapaHttpKalla` | `basUrl` | `hamtaToken`, `hamta`, `huvuden` |
-| `skapaJsonKalla` | `bas` | `hamta` |
+| `skapaArendespegel` (nodsidan) | `agare`, `repo`, `etikett` | `sammanfattning`, `extraFalt`, `fetcher` |
+| `createRoutingSource` | `standard` | `routes` |
+| `createFirestoreSource` | `db`, `sdk` | |
+| `createPostgresSource` | `query` | `idColumn` |
+| `createHttpSource` | `basUrl` | `getToken`, `load`, `headers` |
+| `createJsonSource` | `bas` | `load` |
 | `skapaGoogleAuth` | `auth`, `sdk` | `hamtaProfil` |
 | `skapaAutentisering` | en adapter med `loggaIn`, `loggaUt`, `lyssna` | |
-| `skapaDatakalla` | en adapter med `OPERATIONER` | `prenumerera` |
-| `skapaMinneskalla` | ingenting | `start` |
+| `createDataSource` | en adapter med `OPERATIONS` | `subscribe` |
+| `createMemorySource` | ingenting | `start` |
 
 ⛔ **Allt som är ett VAL är en funktion och inte en flagga.** `krav`, `extraFalt`,
 `sammanfattning`, `ordning`: en flagga (`kraverBelopp: true`) tvingar ramverket att
@@ -489,7 +489,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 
 | | |
 |---|---|
-| `skapaArendespegel` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ agare, repo, etikett }` som konfiguration, plus `sammanfattning` och `extraFalt` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `hamta` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
+| `skapaArendespegel` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ agare, repo, etikett }` som konfiguration, plus `sammanfattning` och `extraFalt` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `load` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
 `src/index.js` buntas för webbläsaren, alltså hamnar i varje besökares JS-fil.
@@ -514,7 +514,7 @@ som råkar bryta det råkar minnas.
 | `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390, 768 och 1280 px**, plus ett temapass som bevisar att mörkt läge når den renderade sidan och att reglagets tumme är målad ur tokens. ⛔ Noll reglage på de mätta rutterna är ett **brott** och inte en tystnad: mallens primitivsida har ett, så noll betyder att mätningen inte ser appen |
 | `test-vyportvakt` | **bryter mot alla sex påståenden i layoutmätningen och kräver rött.** ⛔ Skrevs efter att `check-scaffold` visat sig vara den enda vakten i huset som ingen sett faila: ordet "scaffold" förekom noll gånger i `test-guards.mjs`, samtidigt som den bär hela mobilgolvet. Provar mot en HTML-fixtur med samma form som en ops-app, eftersom en defekt per scaffold hade kostat tio minuter för att bevisa en if-sats. Kräver en webbläsare och ligger därför i CI:s scaffoldjobb, inte i `npm run check` |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
-| `check-konfigkrav` | **anropar varje `skapa*`-fabrik utan argument och kräver att felet nämner fabrikens eget namn.** ⛔ Kravet är namnet och inte "kastar något": en destruktureringskrasch ÄR ett kast, den ser ut som en kontroll, och den säger `Cannot destructure property 'db' of 'undefined'` i stället för vad appen glömde. Varje fabrik måste dessutom vara klassificerad, så en ny fabrik ingen tagit ställning till blir röd i stället för tyst utanför. ⛔ Fångade fyra av nio fabriker som bröt mot en regel som stod som text i tre filer |
+| `check-konfigkrav` | **anropar varje `create*`-fabrik utan argument och kräver att felet nämner fabrikens eget namn.** ⛔ Kravet är namnet och inte "kastar något": en destruktureringskrasch ÄR ett kast, den ser ut som en kontroll, och den säger `Cannot destructure property 'db' of 'undefined'` i stället för vad appen glömde. Varje fabrik måste dessutom vara klassificerad, så en ny fabrik ingen tagit ställning till blir röd i stället för tyst utanför. ⛔ Fångade fyra av nio fabriker som bröt mot en regel som stod som text i tre filer |
 | `check-nodsida` | webbsidan rör inte `src/nod/`, och nodsidans exporter är dokumenterade. Skiljer på **körimport** (hamnar i bundlen, alltså ett läckage) och **JSDoc-typimport** (når aldrig bundlen, men vänder beroendet så nästa person lägger körkod intill typen). Proven är undantagna, eftersom de måste nå koden de provar, och **omvägen genom dem är stängd**: ingen annan fil får importera provkatalogen, annars når nodsidan bundlen i två hopp. ⛔ Fångade två fel i sin egen PR: kontraktet låg på nodsidan, och undantaget för proven var först ett hål |
 | `check-sidram` | basskiktets `html`-regel reserverar rullningslistens plats (`scrollbar-gutter: stable`). ⛔ En enda CSS-rad som **ingen provsvit kan se**: jsdom kör ingen CSS och ingen komponent importerar tokenfilen, så raden kan försvinna med hela sviten grön. Utan den hoppar varje ops-plattform cirka 15px i sidled när listen slås av och på, och symptomet rapporteras inte som en bugg utan som att appen känns ostadig. Läser `html`-regeln och inte hela filen, och räknar en bortkommenterad rad som borttagen |
 | `check-reglage` | `.ops-reglage` målar tumme och skena ur tokens i BÅDA motorerna. ⛔ Samma osynliga felklass som `check-sidram`: jsdom ritar ingen tumme, så `reglage.test.jsx` vore grönt även om hela blocket försvann. Utan det blir reglaget inte ostylat utan **fel stylat**, ritat i systemets accentfärg, alltså en färg utanför tokenkontraktet som inte byter med mörkt läge och är olika på olika maskiner. Kräver `appearance: none` på elementet separat (annars ritas webbläsarens egen skena under vår) och avvisar hårdkodade färgvärden i blocket |
@@ -577,7 +577,7 @@ nästan inget innehåll, alltså låg mätningen först precis där problemet in
 Därför följer den med som ett kommando:
 
 ```bash
-npx ops-viewport dist --rutter /,/kostnader,/tillgangar,/schema
+npx ops-viewport dist --routes /,/kostnader,/tillgangar,/schema
 ```
 
 Rutterna är appens beslut; ramverket vet aldrig vilka sidor en plattform har.
@@ -727,7 +727,7 @@ en genväg, det är en lucka som ska lagas här.
 6. **Ny vaktregel får en mutation** i `test-guards.mjs`. Utan den är den oprövad.
 
 ```bash
-npm run check       # bygg, alla vakter, mutationsprov och tester
+npm run check       # build, alla vakter, mutationsprov och tester
 npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 ```
 
@@ -738,7 +738,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 | | |
 |---|---|
 | `CLAUDE.md` | arbetsreglerna. Läses alltid. Varje regel bär händelsen som skapade den |
-| `skills/<namn>/SKILL.md` | laddas vid behov, inte allt på en gång |
+| `skills/<name>/SKILL.md` | laddas vid behov, inte allt på en gång |
 | `tokens/tokens.css` | tokenkontraktet, som är Tailwind-temat |
 | `src/components/` | primitiverna |
 | `src/lib/` | tema, identitet, formatering |

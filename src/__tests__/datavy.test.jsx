@@ -7,18 +7,18 @@ import { OpsDatavy } from "../components/OpsDatavy.jsx";
  * planterad defekt, och det står utskrivet vilken.
  */
 
-const ORD = { felrubrik: "Kunde inte hämta tillgångarna", laddarLabel: "Hämtar tillgångar" };
+const ORD = { errorTitle: "Kunde inte hämta tillgångarna", loadingLabel: "Hämtar tillgångar" };
 
 describe("OpsDatavy", () => {
   it("visar felet även medan något fortfarande laddar", () => {
     /*
      * ⛔ REGEL 1, och den enda ordningen som går att lita på. Planterad defekt:
-     * byt plats på `if (fel)` och `if (laddar)`, alltså precis den ordning en
+     * byt plats på `if (error)` och `if (loading)`, alltså precis den ordning en
      * vy råkar skriva när laddningen känns som det första som händer. Då göms
      * felet bakom en snurra som aldrig slutar snurra.
      */
     render(
-      <OpsDatavy laddar fel={new Error("servern svarade 500")} {...ORD}>
+      <OpsDatavy loading error={new Error("servern svarade 500")} {...ORD}>
         {() => <p>innehållet</p>}
       </OpsDatavy>,
     );
@@ -34,7 +34,7 @@ describe("OpsDatavy", () => {
      * fem läsningar i en vy är "Hämtar" samma text i alla fem.
      */
     render(
-      <OpsDatavy laddar {...ORD}>
+      <OpsDatavy loading {...ORD}>
         {() => <p>innehållet</p>}
       </OpsDatavy>,
     );
@@ -45,13 +45,13 @@ describe("OpsDatavy", () => {
   it("säger att innehållet saknas i stället för att hämta i evighet", () => {
     /*
      * ⛔ REGEL 3, och den som fanns på riktigt i nio vyer. Planterad defekt:
-     * byt grenen mot `if (laddar || props.data == null)`, alltså den handskrivna
+     * byt grenen mot `if (loading || props.data == null)`, alltså den handskrivna
      * varianten. Då ritar en läsning som gick igenom men gav `null` texten
      * "Hämtar tillgångar" för alltid, och sidan påstår att den arbetar när den
      * har gett upp.
      */
     render(
-      <OpsDatavy laddar={false} data={null} {...ORD}>
+      <OpsDatavy loading={false} data={null} {...ORD}>
         {() => <p>innehållet</p>}
       </OpsDatavy>,
     );
@@ -77,7 +77,7 @@ describe("OpsDatavy", () => {
      * fast allt gick bra.
      */
     render(
-      <OpsDatavy laddar={false} {...ORD}>
+      <OpsDatavy loading={false} {...ORD}>
         {() => <p>innehållet</p>}
       </OpsDatavy>,
     );
@@ -94,7 +94,7 @@ describe("OpsDatavy", () => {
      */
     const barn = vi.fn(() => <p>innehållet</p>);
     render(
-      <OpsDatavy laddar fel={null} {...ORD}>
+      <OpsDatavy loading error={null} {...ORD}>
         {barn}
       </OpsDatavy>,
     );
@@ -105,12 +105,12 @@ describe("OpsDatavy", () => {
     /*
      * ⛔ ANNARS TAPPAR FELSIDAN SIN RUBRIK, och en sida utan rubrik går inte att
      * placera: användaren ser en röd ruta utan att veta vilken sida den gäller.
-     * Planterad defekt: ta bort `{huvud}` ur felgrenen, vilket är precis det en
+     * Planterad defekt: ta bort `{header}` ur felgrenen, vilket är precis det en
      * handskriven vy glömmer eftersom grenen skrivs sist.
      */
-    for (const fall of [{ laddar: true }, { laddar: false, fel: new Error("x") }, { laddar: false, data: null }]) {
+    for (const fall of [{ loading: true }, { loading: false, error: new Error("x") }, { loading: false, data: null }]) {
       const { unmount } = render(
-        <OpsDatavy {...fall} {...ORD} huvud={<h1>Tillgångar</h1>}>
+        <OpsDatavy {...fall} {...ORD} header={<h1>Tillgångar</h1>}>
           {() => <p>innehållet</p>}
         </OpsDatavy>,
       );
@@ -121,7 +121,7 @@ describe("OpsDatavy", () => {
 
   it("skickar datan vidare till barnen", () => {
     render(
-      <OpsDatavy laddar={false} data={{ namn: "Adavo" }} {...ORD}>
+      <OpsDatavy loading={false} data={{ namn: "Adavo" }} {...ORD}>
         {(d) => <p>{d.namn}</p>}
       </OpsDatavy>,
     );
@@ -137,19 +137,19 @@ describe("OpsDatavy", () => {
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() =>
       render(
-        <OpsDatavy laddar laddarLabel="Hämtar tillgångar">
+        <OpsDatavy loading loadingLabel="Hämtar tillgångar">
           {() => null}
         </OpsDatavy>,
       ),
-    ).toThrow(/felrubrik/);
+    ).toThrow(/errorTitle/);
     expect(() =>
       render(
-        <OpsDatavy laddar felrubrik="Kunde inte hämta tillgångarna">
+        <OpsDatavy loading errorTitle="Kunde inte hämta tillgångarna">
           {() => null}
         </OpsDatavy>,
       ),
-    ).toThrow(/laddarLabel/);
-    expect(() => render(<OpsDatavy laddar {...ORD}>{/* nod, inte funktion */}<p>fel</p></OpsDatavy>)).toThrow(
+    ).toThrow(/loadingLabel/);
+    expect(() => render(<OpsDatavy loading {...ORD}>{/* nod, inte funktion */}<p>error</p></OpsDatavy>)).toThrow(
       /funktion/,
     );
     tyst.mockRestore();

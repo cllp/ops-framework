@@ -200,8 +200,8 @@ export function dagarTill(iso, idag) {
 export function samlaHandelser({ kallor = [], ordning } = {}) {
   /** @type {{ h: Handelse, plats: number, vikt: number }[]} */
   const alla = [];
-  for (const lista of kallor) {
-    for (const h of lista || []) {
+  for (const list of kallor) {
+    for (const h of list || []) {
       // ⛔ `plats` gör sorteringen STABIL utan att lita på motorns sort.
       // Array.prototype.sort är stabil i dagens V8, men det är en egenskap hos
       // körningen och inte hos den här funktionen. Ett index kostar ingenting

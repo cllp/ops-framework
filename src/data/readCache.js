@@ -22,14 +22,14 @@
  * göra resten av sessionen trasig, och den som trycker "försök igen" skulle få
  * samma fel utan att något faktiskt provats.
  *
- * ⛔ `useSamlingLive` RÖR INTE CACHEN, varken läser eller skriver. En ström är
+ * ⛔ `useLiveCollection` RÖR INTE CACHEN, varken läser eller skriver. En ström är
  * sin egen sanning och uppdaterar sig själv; att blanda in en ögonblicksbild
  * hade gett två svar på samma fråga, och det svar man ser hade berott på vilken
  * hook som råkade montera först.
  *
  * ══ ⛔ CACHEN HÖR TILL KÄLLAN, INTE TILL MODULEN ════════════════════════
  *
- * Nyckeln är `Datakalla`-instansen, i en `WeakMap`. Det ger tre saker gratis:
+ * Nyckeln är `DataSource`-instansen, i en `WeakMap`. Det ger tre saker gratis:
  *
  *   - En app som skapar sin källa en gång vid uppstart får en SESSIONSCACHE,
  *     vilket är precis vad som efterfrågades.
@@ -49,7 +49,7 @@
  *
  * Så här ser färskheten ut med cachen på plats:
  *
- *   - `uppdatera()` glömmer nyckeln och hämtar på riktigt. Det är vägen tillbaka
+ *   - `update()` glömmer nyckeln och hämtar på riktigt. Det är vägen tillbaka
  *     till servern, och den som skriver något ska anropa den.
  *   - En omladdning av sidan ger en ny källa och därmed en tom cache.
  *   - Det som INTE finns är en automatisk invalidering när någon annan skrivit.
@@ -65,20 +65,20 @@
  */
 
 /**
- * @typedef {object} Lada
+ * @typedef {object} Box
  * @property {Map<string, any>} varden Färdiga svar, för den synkrona titten.
  * @property {Map<string, Promise<any>>} loften Läsningar som är ute just nu.
  */
 
-/** @type {WeakMap<object, Lada>} */
-const LADOR = new WeakMap();
+/** @type {WeakMap<object, Box>} */
+const BOXES = new WeakMap();
 
-/** @param {object} kalla @returns {Lada} */
-function lada(kalla) {
-  let l = LADOR.get(kalla);
+/** @param {object} source @returns {Box} */
+function box(source) {
+  let l = BOXES.get(source);
   if (!l) {
     l = { varden: new Map(), loften: new Map() };
-    LADOR.set(kalla, l);
+    BOXES.set(source, l);
   }
   return l;
 }
@@ -93,70 +93,70 @@ function lada(kalla) {
  * växer och aldrig träffar. Samma jämförelse som hookarna redan gör i sina
  * beroendelistor.
  *
- * @param {string} samling
- * @param {unknown} fraga
+ * @param {string} collectionName
+ * @param {unknown} query
  */
-export function listnyckel(samling, fraga) {
-  return `lista:${samling}:${JSON.stringify(fraga ?? null)}`;
+export function listKey(collectionName, query) {
+  return `lista:${collectionName}:${JSON.stringify(query ?? null)}`;
 }
 
 /**
  * Nyckeln för ett dokument.
  *
- * @param {string} samling
+ * @param {string} collectionName
  * @param {string} id
  */
-export function dokumentnyckel(samling, id) {
-  return `las:${samling}:${id}`;
+export function documentKey(collectionName, id) {
+  return `las:${collectionName}:${id}`;
 }
 
 /**
  * Det cachade svaret, synkront.
  *
- * ⛔ RETURNERAR `{ har, varde }` OCH INTE BARA VÄRDET. `las` svarar `null` för
+ * ⛔ RETURNERAR `{ har, value }` OCH INTE BARA VÄRDET. `read` svarar `null` för
  * "dokumentet finns inte", och det är ett giltigt svar som ska cachas. Ett
  * returvärde som blandar ihop "inget cachat" med "cachat null" hade gjort att
  * just de dokumenten hämtades om varje gång, alltså precis de som kostar mest
  * att leta efter.
  *
- * @param {object} kalla
+ * @param {object} source
  * @param {string} nyckel
- * @returns {{ har: boolean, varde: any }}
+ * @returns {{ har: boolean, value: any }}
  */
-export function cachat(kalla, nyckel) {
-  const l = LADOR.get(kalla);
-  if (!l || !l.varden.has(nyckel)) return { har: false, varde: undefined };
-  return { har: true, varde: l.varden.get(nyckel) };
+export function cached(source, nyckel) {
+  const l = BOXES.get(source);
+  if (!l || !l.varden.has(nyckel)) return { har: false, value: undefined };
+  return { har: true, value: l.varden.get(nyckel) };
 }
 
 /**
  * Läser genom cachen: delar en pågående läsning, eller startar en.
  *
  * @template T
- * @param {object} kalla
+ * @param {object} source
  * @param {string} nyckel
- * @param {() => Promise<T>} hamta Vad som ska göras när svaret inte finns.
+ * @param {() => Promise<T>} load Vad som ska göras när svaret inte finns.
  * @returns {Promise<T>}
  */
-export function genomCachen(kalla, nyckel, hamta) {
-  const l = lada(kalla);
+export function throughCache(source, nyckel, load) {
+  const l = box(source);
 
   if (l.varden.has(nyckel)) return Promise.resolve(l.varden.get(nyckel));
 
   const pagaende = l.loften.get(nyckel);
   if (pagaende) return pagaende;
 
-  const loftet = hamta()
-    .then((varde) => {
-      l.varden.set(nyckel, varde);
+  const loftet = load()
+    .then((value) => {
+      l.varden.set(nyckel, value);
       l.loften.delete(nyckel);
-      return varde;
+      return value;
     })
-    .catch((fel) => {
+    .catch((error) => {
       // ⛔ Felet lämnar inget spår i cachen. Se filens huvud: ett cachat fel
       // gör en tillfällig störning permanent för resten av sessionen.
       l.loften.delete(nyckel);
-      throw fel;
+      throw error;
     });
 
   l.loften.set(nyckel, loftet);
@@ -167,14 +167,14 @@ export function genomCachen(kalla, nyckel, hamta) {
  * Glömmer en nyckel, så nästa läsning går till källan.
  *
  * ⛔ GLÖMMER BÅDE SVARET OCH DEN PÅGÅENDE LÄSNINGEN. Lämnades löftet kvar skulle
- * ett `uppdatera()` mitt under en hämtning få tillbaka exakt det svar man bad om
+ * ett `update()` mitt under en hämtning få tillbaka exakt det svar man bad om
  * att slippa, och knappen hade sett ut att fungera medan ingenting hände.
  *
- * @param {object} kalla
+ * @param {object} source
  * @param {string} nyckel
  */
-export function glom(kalla, nyckel) {
-  const l = LADOR.get(kalla);
+export function forget(source, nyckel) {
+  const l = BOXES.get(source);
   if (!l) return;
   l.varden.delete(nyckel);
   l.loften.delete(nyckel);

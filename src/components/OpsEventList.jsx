@@ -184,7 +184,7 @@ export function OpsEventList({
   // kort. CP (bolag-ops Idag): två kundfakturor i "kräver dig nu" låg i ETT
   // mörkt kort med streck emellan; Inkorg har redan ett kort per post med
   // gap-3. Samma mönster här så Idag/Kommande och Inkorg läses likadant.
-  const lista = (
+  const list = (
     <ul className="m-0 flex list-none flex-col gap-3 p-0" aria-label={ariaLabel}>
       {events.map((h) => {
         const lage = bradska(h);
@@ -382,7 +382,7 @@ export function OpsEventList({
     </ul>
   );
 
-  if (!atgardsforklaring) return lista;
+  if (!atgardsforklaring) return list;
 
   /*
    * ⛔ ÖVER LISTAN OCH INTE UNDER DEN. Förklaringen är något man behöver INNAN
@@ -392,7 +392,7 @@ export function OpsEventList({
   return (
     <div className="flex flex-col gap-2">
       <p className="m-0 text-sm text-ink-muted">{atgardsforklaring}</p>
-      {lista}
+      {list}
     </div>
   );
 }
