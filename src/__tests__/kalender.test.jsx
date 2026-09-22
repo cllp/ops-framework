@@ -571,7 +571,7 @@ describe("OpsKalender", () => {
     fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }));
 
     expect(screen.getByText("Utan status och utan länk")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Visa details/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Visa detaljer/ })).toBeNull();
   });
 
   it("kastar utan namn i stället för att rita ett stumt rutnät", () => {

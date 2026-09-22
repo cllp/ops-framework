@@ -100,7 +100,7 @@ describe("json-källan", () => {
 
   it("vägrar en fil som inte innehåller en lista", async () => {
     const source = createJsonSource({ bas: "/d", load: svar({ inte: "en lista" }) });
-    await expect(source.list("kostnader")).rejects.toThrow(/inte en list/);
+    await expect(source.list("kostnader")).rejects.toThrow(/inte en lista/);
   });
 
   // ⛔ En skrivning som ser ut att lyckas men försvinner vid omladdning är värre

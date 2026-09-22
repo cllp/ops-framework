@@ -69,7 +69,7 @@ describe("hamta", () => {
     // kastar långt senare med ett fel som inte pekar hit.
     const { fetcher } = svarar({ message: "Not Found" });
     const mirror = createCaseMirror({ ...KONFIG, fetcher });
-    await expect(mirror.hamta("t")).rejects.toThrow(/annat än en list/);
+    await expect(mirror.hamta("t")).rejects.toThrow(/annat än en lista/);
   });
 
   it("kräver en token", async () => {

@@ -49,7 +49,7 @@ describe("oläsligt flöde", () => {
     // alltså ett påstående om verksamheten när sanningen är ett påstående om datan.
     const last = readCaseFlow({ updated: "2026-09-17", label: "drift" });
     expect(last.existed).toBe(false);
-    expect(last.error).toMatch(/saknar en list/);
+    expect(last.error).toMatch(/saknar en lista/);
     expect(last.entries).toEqual([]);
   });
 
