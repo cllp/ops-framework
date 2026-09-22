@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { cachat, dokumentnyckel, genomCachen, glom, listnyckel } from "./lascache.js";
 
 /**
  * React-sidan av datalagret.
@@ -11,12 +12,28 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
  * slutsats om sin data som inte stämmer, och den slutsatsen är omöjlig att ta
  * tillbaka. `OpsEmpty` finns just för att göra skillnaden synlig.
  *
- * ⛔ Ingen cache och ingen realtid, med avsikt.
+ * ⛔ Ingen realtid, med avsikt.
  *
  * Ett arbetsverktyg behöver färsk data när man tittar på det, inte data som
- * strömmar in medan man läser. Hämta om vid fokus, alltså `uppdatera()`, är
- * enklare att resonera om och kan inte visa två sanningar samtidigt. Behövs
- * realtid någonstans är det en riktig fråga att ta då, inte en default.
+ * strömmar in medan man läser. Hämta om, alltså `uppdatera()`, är enklare att
+ * resonera om och kan inte visa två sanningar samtidigt. Behövs realtid
+ * någonstans är det en riktig fråga att ta då, inte en default.
+ *
+ * ⛔ HÄR STOD OCKSÅ "INGEN CACHE", OCH DEN MENINGEN VAR FÖR BRED.
+ *
+ * Avsikten bakom den var FÄRSKHET, och den gäller fortfarande. Det den råkade
+ * förbjuda var något annat: att två hookar som frågar efter samma dokument i
+ * samma renderpass betalar två gånger. Det är ingen färskhetsfråga, det är en
+ * dubblett, och den kostade bolag-ops en helsidesspinner och en dubbel
+ * pensionsläsning (#256).
+ *
+ * `useSamling` och `useDokument` läser därför genom `lascache.js`: en läsning
+ * per unik fråga och källa, delad mellan hookar och behållen över ommontering.
+ * `uppdatera()` glömmer nyckeln först, så den fortfarande går till servern.
+ * Varför det inte finns någon tidsgräns, och vad som INTE är löst, står i
+ * cachefilens huvud.
+ *
+ * ⛔ `useSamlingLive` RÖR INTE CACHEN. En ström är sin egen sanning.
  *
  * ⛔ FRÅGAN STÄLLDES, OCH SVARET ÄR `useSamlingLive`. INTE EN FLAGGA PÅ `useSamling`.
  *
@@ -68,18 +85,37 @@ export function useDatakalla() {
  */
 export function useSamling(samling, fraga) {
   const kalla = useDatakalla();
-  const [data, setData] = useState(/** @type {T[]} */ ([]));
-  const [laddar, setLaddar] = useState(true);
-  const [fel, setFel] = useState(/** @type {Error | null} */ (null));
 
   // ⛔ Frågan jämförs på innehåll, inte på referens. Ett objektliteral i en vy
   // är ett nytt objekt vid varje rendering, och utan det här hade hooken hämtat
   // om i en oändlig loop. Den buggen ser ut som ett prestandaproblem och är ett
   // jämförelseproblem.
-  const fraganyckel = JSON.stringify(fraga ?? null);
+  const nyckel = listnyckel(samling, fraga);
+
+  /*
+   * ⛔ CACHEN LÄSES REDAN I `useState`, INTE FÖRST I EFFEKTEN.
+   *
+   * En effekt kör efter första målningen. Sattes `laddar` till true tills den
+   * hunnit titta i cachen skulle varje ommontering blinka till en spinner för
+   * data som redan ligger i minnet, och det är precis det blinkandet som gör
+   * att en sida känns långsam fast ingenting hämtas.
+   */
+  const forsta = cachat(kalla, nyckel);
+  const [data, setData] = useState(/** @type {T[]} */ (forsta.har ? forsta.varde : []));
+  const [laddar, setLaddar] = useState(!forsta.har);
+  const [fel, setFel] = useState(/** @type {Error | null} */ (null));
 
   const [rakna, setRakna] = useState(0);
-  const uppdatera = useCallback(() => setRakna((n) => n + 1), []);
+  /*
+   * ⛔ `uppdatera()` GLÖMMER FÖRST OCH HÄMTAR SEDAN. Utan glömskan skulle den
+   * bara be om samma cachade svar en gång till, alltså en knapp som ser ut att
+   * fungera medan ingenting händer. Det är hela vägen tillbaka till servern, och
+   * den som skriver något ska anropa den.
+   */
+  const uppdatera = useCallback(() => {
+    glom(kalla, nyckel);
+    setRakna((n) => n + 1);
+  }, [kalla, nyckel]);
 
   // Räknare för att kasta svar som hunnit bli inaktuella. Utan den kan ett
   // långsamt äldre svar landa efter ett snabbare nyare och skriva över det.
@@ -88,11 +124,21 @@ export function useSamling(samling, fraga) {
   useEffect(() => {
     const mitt = (senaste.current += 1);
     let avbruten = false;
+
+    // ⛔ Titten görs OM här, och inte bara i `useState` ovan. Samlingen kan byta
+    // under en levande hook, och då är det första värdet svaret på en annan fråga.
+    const traff = cachat(kalla, nyckel);
+    if (traff.har) {
+      setData(traff.varde);
+      setFel(null);
+      setLaddar(false);
+      return undefined;
+    }
+
     setLaddar(true);
     setFel(null);
 
-    kalla
-      .lista(samling, fraga)
+    genomCachen(kalla, nyckel, () => kalla.lista(samling, fraga))
       .then((rader) => {
         if (avbruten || mitt !== senaste.current) return;
         setData(rader);
@@ -113,7 +159,7 @@ export function useSamling(samling, fraga) {
       avbruten = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kalla, samling, fraganyckel, rakna]);
+  }, [kalla, samling, nyckel, rakna]);
 
   return useMemo(() => ({ data, laddar, fel, uppdatera }), [data, laddar, fel, uppdatera]);
 }
@@ -253,11 +299,24 @@ export function useSamlingLive(samling, fraga) {
  */
 export function useDokument(samling, id) {
   const kalla = useDatakalla();
-  const [data, setData] = useState(/** @type {T | null} */ (null));
-  const [laddar, setLaddar] = useState(Boolean(id));
+
+  /*
+   * ⛔ SAMMA CACHE SOM `useSamling`, OCH DET ÄR HÄR #256 FAKTISKT BOR.
+   * `data/pension` lästes av två hookar på samma mount, en i översiktens
+   * beräkning och en i pensionsvyn. Med en delad nyckel blir det en läsning, och
+   * den andra hooken får svaret utan att fråga.
+   */
+  const nyckel = id ? dokumentnyckel(samling, id) : "";
+  const forsta = id ? cachat(kalla, nyckel) : { har: false, varde: undefined };
+
+  const [data, setData] = useState(/** @type {T | null} */ (forsta.har ? forsta.varde : null));
+  const [laddar, setLaddar] = useState(Boolean(id) && !forsta.har);
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
   const [rakna, setRakna] = useState(0);
-  const uppdatera = useCallback(() => setRakna((n) => n + 1), []);
+  const uppdatera = useCallback(() => {
+    if (nyckel) glom(kalla, nyckel);
+    setRakna((n) => n + 1);
+  }, [kalla, nyckel]);
   const senaste = useRef(0);
 
   useEffect(() => {
@@ -266,12 +325,20 @@ export function useDokument(samling, id) {
       setLaddar(false);
       return;
     }
+
+    const traff = cachat(kalla, nyckel);
+    if (traff.har) {
+      setData(traff.varde);
+      setFel(null);
+      setLaddar(false);
+      return;
+    }
+
     const mitt = (senaste.current += 1);
     setLaddar(true);
     setFel(null);
 
-    kalla
-      .las(samling, id)
+    genomCachen(kalla, nyckel, () => kalla.las(samling, id))
       .then((post) => {
         if (mitt !== senaste.current) return;
         setData(post);
@@ -284,7 +351,7 @@ export function useDokument(samling, id) {
         if (mitt !== senaste.current) return;
         setLaddar(false);
       });
-  }, [kalla, samling, id, rakna]);
+  }, [kalla, samling, id, nyckel, rakna]);
 
   return useMemo(() => ({ data, laddar, fel, uppdatera }), [data, laddar, fel, uppdatera]);
 }
