@@ -1,4 +1,5 @@
 import { cx } from "../lib/cx.js";
+import { OpsHjalp } from "./OpsHjalp.jsx";
 
 /**
  * Vyskalet. Varje sida i en ops-app ligger i en av dessa.
@@ -63,10 +64,26 @@ export function OpsViewHeader({ title, description, actions }) {
     // `flex-wrap` är inte kosmetik: utan den trycks knapparna ut ur skärmen på
     // telefon och blir onåbara. Raden bryter i stället för att svämma över.
     <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>
-        {description ? <p className="mt-1 text-base text-ink-secondary">{description}</p> : null}
-      </div>
+      {/*
+        ⛔ BESKRIVNINGEN LIGGER BAKOM ETT FRÅGETECKEN sedan 2026-09-22. CP: "Låt
+        texter komma fram med hjälp av att man trycker på ett frågetecken, så
+        blir appen lite renare."
+
+        ⛔ ALLA VYER PÅ EN GÅNG, OCH DET ÄR HELA POÄNGEN MED ATT GÖRA DET HÄR.
+        Arton vyer i bolag-ops skickar in `description`. Hade varje vy fått bygga
+        sitt eget frågetecken hade vi fått arton varianter av samma gest, och
+        skillnaderna hade upptäckts när någon jämförde två sidor.
+
+        ⛔ `OpsHjalp` RITAR RUBRIKEN SJÄLV, även när ingen beskrivning finns. Den
+        vägen har vyn ETT utseende och inte två som ska hållas lika: ligger
+        rubriken kvar här för det ena fallet driver de isär första gången någon
+        rör typografin.
+      */}
+      <OpsHjalp
+        rubrik={<h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>}
+      >
+        {description}
+      </OpsHjalp>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </header>
   );
