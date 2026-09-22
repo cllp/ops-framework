@@ -5,7 +5,7 @@ import { OpsFilterPanel } from "../components/OpsFilterPanel.jsx";
 
 const GRUPPER = [
   { id: "kind", label: "Slag", options: [{ value: "uppgift", label: "Uppgift" }, { value: "paminnelse", label: "Påminnelse" }] },
-  { id: "status", label: "Status", options: [{ value: "waiting", label: "Väntar" }, { value: "urgent", label: "Akut" }] },
+  { id: "status", label: "Status", options: [{ value: "vantar", label: "Väntar" }, { value: "akut", label: "Akut" }] },
 ];
 
 const tomt = { kind: null, status: null };
@@ -36,7 +36,7 @@ describe("OpsFilterPanel", () => {
      * ⛔ "Väntar" säger vad som visas. "Status" säger bara vilken sorts filter
      * som är satt, alltså precis det man redan ser av att knappen är tänd.
      */
-    rendera({ value: { kind: null, status: "waiting" } });
+    rendera({ value: { kind: null, status: "vantar" } });
     expect(screen.getByRole("button", { name: "Filter: Väntar" }).textContent).toBe("Väntar");
   });
 
@@ -47,7 +47,7 @@ describe("OpsFilterPanel", () => {
     expect(ett.container.textContent).not.toContain("2");
     ett.unmount();
 
-    rendera({ value: { kind: "uppgift", status: "urgent" } });
+    rendera({ value: { kind: "uppgift", status: "akut" } });
     const knapp = screen.getByRole("button", { name: /Filter:/ });
     expect(knapp.textContent).toContain("2");
   });
@@ -79,7 +79,7 @@ describe("OpsFilterPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Filter:/ }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Väntar" }));
-    expect(onChange).toHaveBeenCalledWith({ kind: "uppgift", status: "waiting" });
+    expect(onChange).toHaveBeenCalledWith({ kind: "uppgift", status: "vantar" });
   });
 
   it("rensar alla grupper, även de som inte var satta", async () => {
@@ -162,7 +162,7 @@ describe("OpsFilterPanel", () => {
           layout="ikoner"
           ariaLabel="Filter"
           groups={[
-            { id: "status", label: "Lägen", allLabel: "Alla lägen", options: [{ value: "open", label: "Öppet" }] },
+            { id: "status", label: "Lägen", allLabel: "Alla lägen", options: [{ value: "oppet", label: "Öppet" }] },
             { id: "tid", label: "När", allLabel: "När som helst", options: [{ value: "7", label: "Inom 7 dagar" }] },
           ]}
           value={val}

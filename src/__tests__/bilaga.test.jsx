@@ -34,8 +34,8 @@ describe("OpsFilePicker", () => {
 
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     const attachment = onChange.mock.calls[0][0];
-    expect(attachment.name).toBe("utdrag.pdf");
-    expect(attachment.kind).toBe("application/pdf");
+    expect(attachment.namn).toBe("utdrag.pdf");
+    expect(attachment.typ).toBe("application/pdf");
     expect(attachment.dataUrl.startsWith("data:application/pdf")).toBe(true);
   });
 
@@ -53,7 +53,7 @@ describe("OpsFilePicker", () => {
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     // Urklippsbilder saknar filnamn. Ett tomt namn i en lista ser ut som en
     // trasig post, så den får säga vad den är.
-    expect(onChange.mock.calls[0][0].name).toBe("Urklipp");
+    expect(onChange.mock.calls[0][0].namn).toBe("Urklipp");
   });
 
   it("lämnar en inklistring som bara bär text i fred", () => {
@@ -118,16 +118,16 @@ describe("OpsFilePicker", () => {
     // ruta som ibland är tom ser ut som att filen inte kom fram.
     const { rerender } = render(
       <OpsFilePicker
-        value={{ dataUrl: "data:image/jpeg;base64,x", name: "kvitto.jpg", kind: "image/jpeg", chars: 1400, width: 800, height: 600 }}
+        value={{ dataUrl: "data:image/jpeg;base64,x", namn: "kvitto.jpg", typ: "image/jpeg", tecken: 1400, bredd: 800, hojd: 600 }}
         onChange={() => {}}
         maxChars={100000}
       />,
     );
-    expect(screen.getByRole("img", { name: /kvitto\.jpg/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { namn: /kvitto\.jpg/ })).toBeInTheDocument();
 
     rerender(
       <OpsFilePicker
-        value={{ dataUrl: "data:application/pdf;base64,x", name: "utdrag.pdf", kind: "application/pdf", chars: 1400 }}
+        value={{ dataUrl: "data:application/pdf;base64,x", namn: "utdrag.pdf", typ: "application/pdf", tecken: 1400 }}
         onChange={() => {}}
         maxChars={100000}
       />,
@@ -177,7 +177,7 @@ describe("OpsIconLink", () => {
     // ⛔ Utan namn läses adressen upp, alltså "/inkorg", och det är inte ett namn
     // på något.
     render(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" />);
-    expect(screen.getByRole("link", { name: "Inkorg" })).toHaveAttribute("href", "/inkorg");
+    expect(screen.getByRole("link", { namn: "Inkorg" })).toHaveAttribute("href", "/inkorg");
   });
 
   it("kastar hellre än att rendera en ikon utan namn", () => {
@@ -196,7 +196,7 @@ describe("OpsIconLink", () => {
   it("håller antalet utanför länkens namn", () => {
     // ⛔ Vore talet också i namnet skulle "Inkorg, 3 nya, 3 nya" läsas upp.
     render(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" badge={3} badgeText="nya" />);
-    expect(screen.getByRole("link", { name: "Inkorg" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { namn: "Inkorg" })).toBeInTheDocument();
   });
 
   it("kapar räknaren vid 9+ men säger det riktiga antalet i uppläsningen", () => {
@@ -210,7 +210,7 @@ describe("OpsIconLink", () => {
   it("låter appens router ta över klicket i stället för en sidladdning", () => {
     const onNavigate = vi.fn();
     render(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole("link", { name: "Inkorg" }));
+    fireEvent.click(screen.getByRole("link", { namn: "Inkorg" }));
     expect(onNavigate).toHaveBeenCalledWith("/inkorg", expect.anything());
   });
 });

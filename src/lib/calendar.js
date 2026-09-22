@@ -22,7 +22,7 @@
  * @property {string} id
  * @property {string} date `YYYY-MM-DD`.
  * @property {string} title
- * @property {"open"|"inProgress"|"waiting"|"done"|"urgent"} [status] Pricken ärver `OpsStatusDot`s toner.
+ * @property {"oppet"|"pagar"|"vantar"|"klart"|"akut"} [status] Pricken ärver `OpsStatusDot`s toner.
  * @property {string} [url] Finns den blir det en länk i kortets utfällning.
  * @property {string} [urlLabel] Länkens synliga ord, t.ex. "#249". Utan den står "Öppna".
  * @property {import("react").ReactNode} [details] Appens eget innehåll i utfällningen.

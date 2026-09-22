@@ -19,23 +19,23 @@ describe("OpsStatusDot", () => {
      * använder skärmläsare, och för ungefär var tjugonde man som inte skiljer
      * färgerna åt. Felet är osynligt just för den som byggde vyn.
      */
-    render(<OpsStatusDot status="waiting" label="Väntar" />);
+    render(<OpsStatusDot status="vantar" label="Väntar" />);
     expect(screen.getByText("Väntar")).toBeTruthy();
   });
 
   it("skriver ut ordet synligt för akut, och bara för akut", () => {
     /*
      * ⛔ Samma logik som `OpsEventList`: bara det läge som lånar larmfärgen får
-     * ett ord som standard. Ett missat "urgent" kostar något, ett missat "öppet"
+     * ett ord som standard. Ett missat "akut" kostar något, ett missat "öppet"
      * gör det inte, och fem synliga ord på varje rad hade tvingat fram en
      * radbrytning i en lista där fyra upplysningar redan trängs.
      */
-    const { container, unmount } = render(<OpsStatusDot status="urgent" label="Akut" />);
+    const { container, unmount } = render(<OpsStatusDot status="akut" label="Akut" />);
     expect(container.querySelector(".sr-only")).toBeNull();
     expect(container.textContent).toBe("Akut");
     unmount();
 
-    const andra = render(<OpsStatusDot status="open" label="Öppet" />);
+    const andra = render(<OpsStatusDot status="oppet" label="Öppet" />);
     expect(andra.container.querySelector(".sr-only")?.textContent).toBe("Öppet");
   });
 
@@ -48,11 +48,11 @@ describe("OpsStatusDot", () => {
      */
     const klasser = new Set();
     for (const [status, ord] of [
-      ["open", "Öppet"],
-      ["inProgress", "Pågår"],
-      ["waiting", "Väntar"],
-      ["done", "Klart"],
-      ["urgent", "Akut"],
+      ["oppet", "Öppet"],
+      ["pagar", "Pågår"],
+      ["vantar", "Väntar"],
+      ["klart", "Klart"],
+      ["akut", "Akut"],
     ]) {
       const { container, unmount } = render(<OpsStatusDot status={status} label={ord} />);
       const prick = container.querySelector("[aria-hidden='true'].rounded-full");
@@ -68,7 +68,7 @@ describe("OpsStatusDot", () => {
     // ⛔ En prick i fel färg är sämre än ingen prick: den ser ut att betyda
     // något. Samma val som `OpsPill` gör med sina toner.
     expect(() => render(<OpsStatusDot status="kanske" label="Kanske" />)).toThrow(/okänd status/);
-    expect(() => render(<OpsStatusDot status="open" label="" />)).toThrow(/label saknas/);
+    expect(() => render(<OpsStatusDot status="oppet" label="" />)).toThrow(/label saknas/);
   });
 });
 
@@ -83,9 +83,9 @@ describe("OpsEventList med status", () => {
      */
     render(
       <OpsEventList
-        events={[rad({ status: "waiting", details: <p>Detaljer</p> })]}
+        events={[rad({ status: "vantar", details: <p>Detaljer</p> })]}
         ariaLabel="Händelser"
-        statusWords={{ waiting: "Väntar på motpart" }}
+        statusWords={{ vantar: "Väntar på motpart" }}
       />,
     );
     expect(screen.getByText("Väntar på motpart")).toBeTruthy();
@@ -100,7 +100,7 @@ describe("OpsEventList med status", () => {
      * en färgad prick utan besked, och det ser rätt ut för den som byggde den.
      */
     expect(() =>
-      render(<OpsEventList events={[rad({ status: "urgent" })]} ariaLabel="Händelser" statusWords={{ open: "Öppet" }} />),
+      render(<OpsEventList events={[rad({ status: "akut" })]} ariaLabel="Händelser" statusWords={{ oppet: "Öppet" }} />),
     ).toThrow(/statusWords saknar ordet/);
   });
 

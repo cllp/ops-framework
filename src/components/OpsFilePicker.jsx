@@ -98,7 +98,7 @@ export function OpsFilePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paste, maxChars]);
 
-  const isImage = Boolean(value && arBildtyp(value.kind));
+  const isImage = Boolean(value && arBildtyp(value.typ));
 
   return (
     <div className="flex flex-col gap-2">
@@ -160,7 +160,7 @@ export function OpsFilePicker({
           {isImage ? (
             // Förhandsvisningen är liten med flit: den ska bekräfta att rätt fil
             // valts, inte visa den i full storlek i ett formulär.
-            <img src={value.dataUrl} alt={`Vald bilaga: ${value.name}`} className="max-h-40 rounded-md border border-line" />
+            <img src={value.dataUrl} alt={`Vald bilaga: ${value.namn}`} className="max-h-40 rounded-md border border-line" />
           ) : (
             // ⛔ Ingen förhandsvisning av en PDF i en `<iframe>`. Den renderas
             // olika i varje webbläsare, kan vara flera sidor, och en ruta som
@@ -168,12 +168,12 @@ export function OpsFilePicker({
             // storleken svarar på den enda fråga man har: blev det rätt fil?
             <div className="flex items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-ink">
               <FilIkon />
-              <span className="min-w-0 truncate">{value.name}</span>
+              <span className="min-w-0 truncate">{value.namn}</span>
             </div>
           )}
           <figcaption className="mt-1 text-sm text-ink-muted">
-            {isImage && value.width ? `${value.width} × ${value.height} px · ` : ""}
-            {attachmentSize(value.chars)}
+            {isImage && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
+            {attachmentSize(value.tecken)}
           </figcaption>
         </figure>
       ) : null}

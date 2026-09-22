@@ -9,7 +9,7 @@
  * och står aldrig här.
  *
  * ⛔ BRÅDSKAN ÄR HÄRLEDD, ALDRIG LAGRAD. Appen skickar ett datum, det här
- * räknar. Ett lagrat `status: "late"` blir fel klockan tolv på natten utan
+ * räknar. Ett lagrat `status: "forsenat"` blir fel klockan tolv på natten utan
  * att något ändras, och den sortens fel syns inte: raden ser lika lugn ut dagen
  * efter som dagen före.
  *
@@ -26,7 +26,7 @@
  * @property {string} id
  * @property {string} title
  * @property {number | null} daysLeft Negativt = passerat, 0 = idag eller pågående, positivt = framåt, null = odaterat.
- * @property {boolean} [inProgress] Sant när ett intervall är igång just nu.
+ * @property {boolean} [pagar] Sant när ett intervall är igång just nu.
  * @property {string} [when] Färdig text, t.ex. "I morgon (12)". Appen äger formuleringen.
  * @property {import("react").ReactNode} [role] Appens egen roll-etikett. ⛔ ReactNode och inte string:
  *   ramverket TOLKAR den inte, det ritar den. Skulle den vara en sträng måste ramverket
@@ -60,7 +60,7 @@
  *   gör är appens sak, var den hamnar och att den hamnar likadant på varje rad är vår.
  *   ⛔ Har någon rad en `atgard` KRÄVER `OpsEventList` att listan förklarar de rader som
  *   saknar en, i sin `actionHint`. Skälet står i komponenten.
- * @property {"open" | "inProgress" | "waiting" | "done" | "urgent"} [status] Var raden står, som en
+ * @property {"oppet" | "pagar" | "vantar" | "klart" | "akut"} [status] Var raden står, som en
  *   prick i kortets rubrik. ⛔ EN SLUTEN MÄNGD OCH INTE EN ReactNode, till skillnad från `role`
  *   och `kind`. Skillnaden är avsiktlig: rollens ORD är appens, men vilka FÄRGER ett tillstånd
  *   får är ramverkets, precis som brådskan. Skickade appen in sin egen prick skulle nästa app
@@ -79,14 +79,14 @@
  * bolag-ops tills CP såg det.
  *
  * @param {OpsEvent} handelse
- * @returns {"late" | "inProgress" | "ahead" | "undated"}
+ * @returns {"forsenat" | "pagar" | "framat" | "odaterat"}
  */
 export function urgency(handelse) {
-  if (!handelse || handelse.daysLeft === null || handelse.daysLeft === undefined) return "undated";
-  if (handelse.inProgress) return "inProgress";
-  if (handelse.daysLeft < 0) return "late";
-  if (handelse.daysLeft === 0) return "inProgress";
-  return "ahead";
+  if (!handelse || handelse.daysLeft === null || handelse.daysLeft === undefined) return "odaterat";
+  if (handelse.pagar) return "pagar";
+  if (handelse.daysLeft < 0) return "forsenat";
+  if (handelse.daysLeft === 0) return "pagar";
+  return "framat";
 }
 
 /**
@@ -102,21 +102,21 @@ export function urgency(handelse) {
  * meningslös: den slutar svara på "hur mycket måste jag göra nu".
  *
  * @param {OpsEvent[]} handelser
- * @returns {{ today: OpsEvent[], kommande: OpsEvent[], late: number }}
+ * @returns {{ today: OpsEvent[], kommande: OpsEvent[], forsenat: number }}
  */
 export function splitTodayUpcoming(handelser) {
   const today = [];
   const kommande = [];
-  let late = 0;
+  let forsenat = 0;
 
   for (const h of handelser || []) {
     const b = urgency(h);
-    if (b === "late") late += 1;
-    if (b === "late" || b === "inProgress") today.push(h);
+    if (b === "forsenat") forsenat += 1;
+    if (b === "forsenat" || b === "pagar") today.push(h);
     else kommande.push(h);
   }
 
-  return { today, kommande, late };
+  return { today, kommande, forsenat };
 }
 
 /**

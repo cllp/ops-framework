@@ -45,16 +45,16 @@ import { cx } from "../lib/cx.js";
  */
 
 const TONER = {
-  open: "bg-warning",
-  inProgress: "bg-info",
-  waiting: "bg-blocked",
-  done: "bg-success",
-  urgent: "bg-danger",
+  oppet: "bg-warning",
+  pagar: "bg-info",
+  vantar: "bg-blocked",
+  klart: "bg-success",
+  akut: "bg-danger",
 };
 
 /**
  * @param {object} props
- * @param {"open"|"inProgress"|"waiting"|"done"|"urgent"} props.status
+ * @param {"oppet"|"pagar"|"vantar"|"klart"|"akut"} props.status
  * @param {string} props.label Ordet för läget. ⛔ Krävs: färgen får aldrig bära betydelsen ensam.
  */
 export function OpsStatusDot({ status, label }) {
@@ -80,7 +80,7 @@ export function OpsStatusDot({ status, label }) {
           elementet `aria-hidden`, så attributet ger muspekaren sitt svar utan
           att säga något till skärmläsaren. */}
       <span aria-hidden="true" title={label} className={cx("size-2 shrink-0 rounded-full", tonKlass)} />
-      {status === "urgent" ? (
+      {status === "akut" ? (
         <span className="text-xs font-semibold text-danger">{label}</span>
       ) : (
         <span className="sr-only">{label}</span>

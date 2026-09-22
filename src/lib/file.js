@@ -43,11 +43,11 @@ const TECKEN_PER_BYTE = 1.4;
 /**
  * @typedef {object} Bilaga
  * @property {string} dataUrl
- * @property {string} name Filens namn som användaren ser det.
- * @property {string} kind MIME-typ, tom sträng när webbläsaren inte vet.
- * @property {number} chars Längden på data-URL:en, alltså vad den kostar i dokumentet.
- * @property {number} [width] Bara för bilder som gick att läsa.
- * @property {number} [height] Bara för bilder som gick att läsa.
+ * @property {string} namn Filens namn som användaren ser det.
+ * @property {string} typ MIME-typ, tom sträng när webbläsaren inte vet.
+ * @property {number} tecken Längden på data-URL:en, alltså vad den kostar i dokumentet.
+ * @property {number} [bredd] Bara för bilder som gick att läsa.
+ * @property {number} [hojd] Bara för bilder som gick att läsa.
  */
 
 /**
@@ -141,14 +141,14 @@ async function shrinkImage(file, maxChars) {
     if (dataUrl.length <= maxChars) {
       return {
         dataUrl,
-        name: nameFor(file),
+        namn: nameFor(file),
         // ⛔ `image/jpeg` och inte filens ursprungliga typ. Duken har skrivit om
         // den, och en HEIC som sparas märkt `image/heic` men innehåller JPEG är
         // en lögn nästa läsare tror på.
-        kind: "image/jpeg",
-        chars: dataUrl.length,
-        width,
-        height,
+        typ: "image/jpeg",
+        tecken: dataUrl.length,
+        bredd: width,
+        hojd: height,
       };
     }
   }
@@ -199,5 +199,5 @@ export async function readAttachment(file, { maxChars }) {
   if (dataUrl.length > maxChars) {
     throw new Error(`Filen är för stor (${sizeText(storlek)}). Skicka ett utdrag eller en skärmbild i stället.`);
   }
-  return { dataUrl, name: nameFor(file), kind: file.type || "", chars: dataUrl.length };
+  return { dataUrl, namn: nameFor(file), typ: file.type || "", tecken: dataUrl.length };
 }

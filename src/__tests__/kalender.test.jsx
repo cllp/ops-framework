@@ -133,12 +133,12 @@ describe("kalenderräkningen", () => {
 const IDAG = new Date(2026, 9, 5); // måndag 5 oktober 2026
 
 /** Appens ord, precis som `OpsEventList` kräver dem. */
-const STATUSORD = { open: "Öppet", inProgress: "Pågår", waiting: "Väntar", done: "Klart", urgent: "Akut" };
+const STATUSORD = { oppet: "Öppet", pagar: "Pågår", vantar: "Väntar", klart: "Klart", akut: "Akut" };
 
 const POSTER = [
-  { id: "agi", date: "2026-10-12", title: "Arbetsgivardeklaration", status: "open" },
-  { id: "lon", date: "2026-10-25", title: "Löneutbetalning", status: "open", not: "Påminnelse" },
-  { id: "stangt", date: "2026-10-12", title: "#249 stängdes", status: "done", url: "https://github.com/cllp/bolag-ops/issues/249" },
+  { id: "agi", date: "2026-10-12", title: "Arbetsgivardeklaration", status: "oppet" },
+  { id: "lon", date: "2026-10-25", title: "Löneutbetalning", status: "oppet", not: "Påminnelse" },
+  { id: "stangt", date: "2026-10-12", title: "#249 stängdes", status: "klart", url: "https://github.com/cllp/bolag-ops/issues/249" },
 ];
 
 /** Månadens block, alltså rubriken plus dess rutnät. */

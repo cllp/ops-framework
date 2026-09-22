@@ -7,10 +7,10 @@ const h = (id, daysLeft, extra = {}) => ({ id, title: id, daysLeft, ...extra });
 
 describe("bradska", () => {
   it("skiljer försenat, nu, framåt och odaterat", () => {
-    expect(urgency(h("a", -2))).toBe("late");
-    expect(urgency(h("b", 0))).toBe("inProgress");
-    expect(urgency(h("c", 3))).toBe("ahead");
-    expect(urgency(h("d", null))).toBe("undated");
+    expect(urgency(h("a", -2))).toBe("forsenat");
+    expect(urgency(h("b", 0))).toBe("pagar");
+    expect(urgency(h("c", 3))).toBe("framat");
+    expect(urgency(h("d", null))).toBe("odaterat");
   });
 
   /**
@@ -20,18 +20,18 @@ describe("bradska", () => {
    * när det i själva verket var dags nu.
    */
   it("räknar ett pågående intervall som nu, inte som passerat", () => {
-    expect(urgency(h("lon", -1, { inProgress: true }))).toBe("inProgress");
+    expect(urgency(h("lon", -1, { pagar: true }))).toBe("pagar");
   });
 
   it("tål att sakna fält utan att kasta", () => {
-    expect(urgency(/** @type {any} */ (null))).toBe("undated");
-    expect(urgency(/** @type {any} */ ({ id: "x", title: "x" }))).toBe("undated");
+    expect(urgency(/** @type {any} */ (null))).toBe("odaterat");
+    expect(urgency(/** @type {any} */ ({ id: "x", title: "x" }))).toBe("odaterat");
   });
 });
 
 describe("delaIdagKommande", () => {
   it("lägger försenat i Idag och odaterat i Kommande", () => {
-    const { today, kommande, late } = splitTodayUpcoming([h("sent", -3), h("nu", 0), h("snart", 2), h("nagon-gang", null)]);
+    const { today, kommande, forsenat } = splitTodayUpcoming([h("sent", -3), h("nu", 0), h("snart", 2), h("nagon-gang", null)]);
 
     // ⛔ Försenat ligger i Idag, inte i en egen tredje hink: det kräver dig just
     // nu, och en egen flik hade gömt det bakom ett klick.
@@ -41,11 +41,11 @@ describe("delaIdagKommande", () => {
     // Idag slutar den siffran svara på "hur mycket måste jag göra nu".
     expect(kommande.map((x) => x.id)).toEqual(["snart", "nagon-gang"]);
 
-    expect(late).toBe(1);
+    expect(forsenat).toBe(1);
   });
 
   it("klarar tom och saknad lista", () => {
-    expect(splitTodayUpcoming([])).toEqual({ today: [], kommande: [], late: 0 });
+    expect(splitTodayUpcoming([])).toEqual({ today: [], kommande: [], forsenat: 0 });
     expect(splitTodayUpcoming(/** @type {any} */ (undefined)).today).toEqual([]);
   });
 });
@@ -58,7 +58,7 @@ describe("OpsEventList", () => {
   });
 
   it("låter appen skriva sitt eget språk men inte ta bort ordet", () => {
-    render(<OpsEventList events={[h("moms", -2)]} labels={{ late: "Overdue" }} />);
+    render(<OpsEventList events={[h("moms", -2)]} labels={{ forsenat: "Overdue" }} />);
     expect(screen.getByText("Overdue")).toBeInTheDocument();
   });
 

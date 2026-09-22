@@ -126,14 +126,14 @@ describe("samlaHandelser", () => {
       [
         handelse({ id: "sent", daysLeft: -2 }),
         handelse({ id: "idag", daysLeft: 0 }),
-        handelse({ id: "inProgress", daysLeft: 4, inProgress: true }),
-        handelse({ id: "ahead", daysLeft: 4 }),
-        handelse({ id: "undated" }),
+        handelse({ id: "pagar", daysLeft: 4, pagar: true }),
+        handelse({ id: "framat", daysLeft: 4 }),
+        handelse({ id: "odaterat" }),
       ],
     ];
-    const { today, kommande, late } = splitTodayUpcoming(collectEvents({ kallor }));
-    expect(late).toBe(1);
-    expect(today.map((h) => h.id)).toEqual(["sent", "idag", "inProgress"]);
-    expect(kommande.map((h) => h.id)).toEqual(["ahead", "undated"]);
+    const { today, kommande, forsenat } = splitTodayUpcoming(collectEvents({ kallor }));
+    expect(forsenat).toBe(1);
+    expect(today.map((h) => h.id)).toEqual(["sent", "idag", "pagar"]);
+    expect(kommande.map((h) => h.id)).toEqual(["framat", "odaterat"]);
   });
 });

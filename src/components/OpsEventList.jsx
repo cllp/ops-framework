@@ -74,10 +74,10 @@ const TONER = {
   // ⛔ `danger`, och det är den ENDA brådskan som får låna larmfärgen. Är två
   // av tre lägen röda lär sig ögat att rött betyder "en rad", inte "något är
   // fel", och då tappar det verkliga larmet sin kraft.
-  late: "bg-danger-bg text-danger",
-  inProgress: "bg-accent-subtle text-ink",
-  ahead: "bg-sunken text-ink-secondary",
-  undated: "bg-sunken text-ink-muted",
+  forsenat: "bg-danger-bg text-danger",
+  pagar: "bg-accent-subtle text-ink",
+  framat: "bg-sunken text-ink-secondary",
+  odaterat: "bg-sunken text-ink-muted",
 };
 
 /**
@@ -85,12 +85,12 @@ const TONER = {
  * @param {import("../lib/events.js").OpsEvent[]} props.events
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {string} [props.ariaLabel]
- * @param {{ late?: string, inProgress?: string, ahead?: string, undated?: string }} [props.labels] Orden för de fyra lägena.
+ * @param {{ forsenat?: string, pagar?: string, framat?: string, odaterat?: string }} [props.labels] Orden för de fyra lägena.
  * @param {import("react").ReactNode} [props.empty] Vad som visas när listan är tom. ⛔ Skicka alltid något: tom lista och "allt är gjort" betyder motsatta saker.
  * @param {string} [props.expandLabel] Verb för utfällningsknappens namn, följt av radens titel.
  * @param {import("react").ReactNode} [props.actionHint] En mening om VILKA rader som går
  *   att göra något åt. ⛔ KRÄVS så snart någon rad har en `atgard` och någon annan inte har det.
- * @param {{ open?: string, inProgress?: string, waiting?: string, done?: string, urgent?: string }} [props.statusWords]
+ * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords]
  *   Orden för de fem statuslägena. ⛔ KRÄVS för varje status som faktiskt förekommer: en prick
  *   utan ord är en färg som bär betydelsen ensam, och det är osynligt för skärmläsaren och för
  *   ungefär var tjugonde man. Orden är appens, eftersom bara den vet vad `waiting` betyder hos
@@ -111,16 +111,16 @@ export function OpsEventList({
   // enda där färgen skulle bära betydelse ensam.
   //
   // De andra tre får sitt sammanhang ur `when` ("Pågår (15-20)", "Om 3 dagar").
-  // Första versionen satte `inProgress: "Nu"`, och raden sade då både "Nu" och
+  // Första versionen satte `pagar: "Nu"`, och raden sade då både "Nu" och
   // "Pågår (15-20)" bredvid varandra: samma faktum två gånger, vilket får
   // läsaren att leta efter skillnaden.
   //
   // En app som VILL ha ett ord på de andra skickar det själv.
   const ord = {
-    late: labels.late ?? "Försenat",
-    inProgress: labels.inProgress ?? "",
-    ahead: labels.ahead ?? "",
-    undated: labels.undated ?? "",
+    forsenat: labels.forsenat ?? "Försenat",
+    pagar: labels.pagar ?? "",
+    framat: labels.framat ?? "",
+    odaterat: labels.odaterat ?? "",
   };
 
   const [oppna, setOppna] = useState(/** @type {string[]} */ ([]));
@@ -161,7 +161,7 @@ export function OpsEventList({
    * i ett ops-flöde och "hos en granskare" i nästa, och ett ramverksord hade
    * blivit fel i den ena appen utan att någon märkte det.
    */
-  /** @type {("open"|"inProgress"|"waiting"|"done"|"urgent")[]} */
+  /** @type {("oppet"|"pagar"|"vantar"|"klart"|"akut")[]} */
   const statusar = [];
   for (const e of events) if (e && e.status) statusar.push(e.status);
   const utanOrd = [...new Set(statusar)].filter((st) => !statusWords[st]);

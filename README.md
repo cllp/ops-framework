@@ -177,8 +177,8 @@ något godtyckligt.
 | `OpsCard` | `rounding` (`"kort"` 8 px, förval, eller `"bubbla"` 24 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. 24 px är MÄTT mot SessionStudios `--radius-card: 1.5rem` och inte valt på känsla; `--radius-3xl` råkade redan vara exakt det steget, så inget nytt token behövdes. Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children` |
 | `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
 | `OpsViewHeader` | `title`, `description`, `actions` |
-| `OpsModal` | `open`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
-| `OpsDisclosure` | `summary` (krävs), `defaultOpen`, `open`, `onOpenChange`, `storageKey`, `badge`, `id`, `children` |
+| `OpsModal` | `oppet`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
+| `OpsDisclosure` | `summary` (krävs), `defaultOpen`, `oppet`, `onOpenChange`, `storageKey`, `badge`, `id`, `children` |
 
 #### Formulär
 
