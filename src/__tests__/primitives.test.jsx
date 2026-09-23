@@ -14,12 +14,12 @@ import { identityTone, initials } from "../lib/identity.js";
  * React loggar varje kastad render till console.error, även den vi väntar oss.
  * Utan den här hjälparen dränks testutskriften i stackspår från tester som gick
  * bra, och en oläslig utskrift är precis hur ett riktigt fel slinker igenom.
- * @param {() => void} kor @param {RegExp} meddelande
+ * @param {() => void} kor @param {RegExp} message
  */
-function forvantaKrasch(kor, meddelande) {
+function forvantaKrasch(kor, message) {
   const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
-    expect(kor).toThrow(meddelande);
+    expect(kor).toThrow(message);
   } finally {
     tyst.mockRestore();
   }
@@ -38,8 +38,8 @@ describe("OpsButton", () => {
   it("renderar en riktig knapp och anropar onClick", async () => {
     const onClick = vi.fn();
     render(<OpsButton onClick={onClick}>Spara</OpsButton>);
-    const knapp = screen.getByRole("button", { name: "Spara" });
-    knapp.click();
+    const button = screen.getByRole("button", { name: "Spara" });
+    button.click();
     expect(onClick).toHaveBeenCalledOnce();
   });
 
@@ -71,11 +71,11 @@ describe("OpsButton", () => {
         +
       </OpsButton>,
     );
-    const knapp = screen.getByRole("button", { name: "Nytt ärende" });
-    expect(knapp.className).toMatch(/rounded-full/);
-    expect(knapp.className).toMatch(/\bsize-8\b/);
-    expect(knapp.className).not.toMatch(/rounded-md/);
-    expect(knapp.className).not.toMatch(/min-w-11/);
+    const button = screen.getByRole("button", { name: "Nytt ärende" });
+    expect(button.className).toMatch(/rounded-full/);
+    expect(button.className).toMatch(/\bsize-8\b/);
+    expect(button.className).not.toMatch(/rounded-md/);
+    expect(button.className).not.toMatch(/min-w-11/);
   });
 
   it("vägrar round utan iconOnly", () => {
@@ -289,12 +289,12 @@ describe("OpsCard", () => {
 
 describe("OpsSegmented", () => {
   it("markerar det valda läget och byter på klick", () => {
-    const valda = [];
+    const chosen = [];
     render(
       <OpsSegmented
         ariaLabel="Vad som visas"
         value="idag"
-        onChange={(v) => valda.push(v)}
+        onChange={(v) => chosen.push(v)}
         options={[
           { value: "idag", label: "Idag", badge: 2 },
           { value: "kommande", label: "Kommande", badge: 4 },
@@ -306,7 +306,7 @@ describe("OpsSegmented", () => {
     expect(screen.getByRole("tab", { name: /Kommande/ })).toHaveAttribute("aria-selected", "false");
 
     fireEvent.click(screen.getByRole("tab", { name: /Kommande/ }));
-    expect(valda).toEqual(["kommande"]);
+    expect(chosen).toEqual(["kommande"]);
   });
 
   it("kastar vid fler än tre lägen", () => {
@@ -375,12 +375,12 @@ describe("OpsSegmented", () => {
   it("visar chevron och undermeny på aktivt segment med menu", () => {
     // ⛔ SessionStudio: Idag bär Idag|Tidigare. Chevron bara när fliken är
     // aktiv; klick på inaktivt segment byter utan att öppna menyn.
-    const valda = [];
+    const chosen = [];
     const { rerender } = render(
       <OpsSegmented
         ariaLabel="Vad som visas"
         value="idag"
-        onChange={(v) => valda.push(v)}
+        onChange={(v) => chosen.push(v)}
         options={[
           {
             value: "idag",
@@ -404,13 +404,13 @@ describe("OpsSegmented", () => {
     fireEvent.click(today);
     expect(today).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(screen.getByRole("menuitemradio", { name: /Tidigare/ }));
-    expect(valda).toEqual(["tidigare"]);
+    expect(chosen).toEqual(["tidigare"]);
 
     rerender(
       <OpsSegmented
         ariaLabel="Vad som visas"
         value="tidigare"
-        onChange={(v) => valda.push(v)}
+        onChange={(v) => chosen.push(v)}
         options={[
           {
             value: "idag",

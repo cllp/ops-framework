@@ -15,13 +15,13 @@ describe("createPromptSource", () => {
   });
 
   it("skickar den trimmade frågan och sammanhanget vidare", async () => {
-    const send = vi.fn(async () => ({ text: "Svar", tokens: { in: 10, ut: 5 } }));
+    const send = vi.fn(async () => ({ text: "Svar", tokens: { in: 10, out: 5 } }));
     const source = createPromptSource({ send });
 
-    const svar = await source.ask({ prompt: "  Vad händer i oktober?  ", context: { manad: 10 } });
+    const answer = await source.ask({ prompt: "  Vad händer i oktober?  ", context: { month: 10 } });
 
-    expect(send).toHaveBeenCalledWith({ prompt: "Vad händer i oktober?", context: { manad: 10 } });
-    expect(svar).toEqual({ text: "Svar", tokens: { in: 10, ut: 5 } });
+    expect(send).toHaveBeenCalledWith({ prompt: "Vad händer i oktober?", context: { month: 10 } });
+    expect(answer).toEqual({ text: "Svar", tokens: { in: 10, out: 5 } });
   });
 
   it("stoppar en för lång fråga innan nätanropet", async () => {
@@ -50,13 +50,13 @@ describe("createPromptSource", () => {
 });
 
 describe("OpsPrompt", () => {
-  const kallaSom = (send) => createPromptSource({ send });
+  const sourceAs = (send) => createPromptSource({ send });
 
   it("visar svaret som markdown och inte som brädgårdar", async () => {
     // ⛔ En modell svarar i markdown om man inte ber den låta bli. Renderat som
-    // text får läsaren `## Rubrik` rakt av, vilket är felet bolag-ops #249 finns för.
+    // text får läsaren `## Title` rakt av, vilket är felet bolag-ops #249 finns för.
     render(
-      <OpsPrompt source={kallaSom(async () => ({ text: "## Oktober\n\nMoms den 12:e." }))} label="Fråga om din ekonomi" />,
+      <OpsPrompt source={sourceAs(async () => ({ text: "## Oktober\n\nMoms den 12:e." }))} label="Fråga om din ekonomi" />,
     );
 
     fireEvent.change(screen.getByLabelText("Fråga om din ekonomi"), { target: { value: "Vad händer?" } });
@@ -75,7 +75,7 @@ describe("OpsPrompt", () => {
      */
     let slapp;
     const send = vi.fn(() => new Promise((r) => { slapp = () => r({ text: "Svar" }); }));
-    render(<OpsPrompt source={kallaSom(send)} label="Fråga" />);
+    render(<OpsPrompt source={sourceAs(send)} label="Fråga" />);
 
     const falt = screen.getByLabelText("Fråga");
     fireEvent.change(falt, { target: { value: "Vad händer?" } });
@@ -107,7 +107,7 @@ describe("OpsPrompt", () => {
       .fn()
       .mockResolvedValueOnce({ text: "Första svaret" })
       .mockRejectedValueOnce(new Error("Funktionen svarade inte"));
-    render(<OpsPrompt source={kallaSom(send)} label="Fråga" />);
+    render(<OpsPrompt source={sourceAs(send)} label="Fråga" />);
 
     const falt = screen.getByLabelText("Fråga");
     fireEvent.change(falt, { target: { value: "ett" } });
@@ -127,7 +127,7 @@ describe("OpsPrompt", () => {
      * inte hann läsa, och man kan inte längre ändra ett ord innan man frågar.
      */
     const send = vi.fn(async () => ({ text: "Svar" }));
-    render(<OpsPrompt source={kallaSom(send)} label="Fråga" suggestions={["Vad händer i oktober?"]} />);
+    render(<OpsPrompt source={sourceAs(send)} label="Fråga" suggestions={["Vad händer i oktober?"]} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Vad händer i oktober?" }));
 
@@ -153,7 +153,7 @@ describe("OpsPrompt", () => {
     // ⛔ En fråga är ofta flera rader. Skickade Enter vore radbrytning omöjlig
     // utan att man först lärt sig en genväg, och då skickas halva frågor.
     const send = vi.fn(async () => ({ text: "Svar" }));
-    render(<OpsPrompt source={kallaSom(send)} label="Fråga" />);
+    render(<OpsPrompt source={sourceAs(send)} label="Fråga" />);
 
     const falt = screen.getByLabelText("Fråga");
     fireEvent.change(falt, { target: { value: "Rad ett" } });
@@ -171,7 +171,7 @@ describe("OpsPrompt", () => {
     fireEvent.change(screen.getByLabelText("Fråga"), { target: { value: "alldeles för lång fråga" } });
     fireEvent.click(screen.getByRole("button", { name: "Fråga" }));
 
-    const felrad = await screen.findByText(/Taket är 5/);
+    const errorRow = await screen.findByText(/Taket är 5/);
     /*
      * ⛔ KOPPLINGEN PROVAS, INTE BARA ATT TEXTEN FINNS. `OpsField` ger sitt fel
      * `role="alert"`, så ett prov som letade efter frånvaron av en alert var
@@ -180,7 +180,7 @@ describe("OpsPrompt", () => {
      * står i fältet, och svarsytans inte gör det.
      */
     const falt = screen.getByLabelText("Fråga");
-    expect(falt.getAttribute("aria-describedby") || "").toContain(felrad.id);
+    expect(falt.getAttribute("aria-describedby") || "").toContain(errorRow.id);
     expect(falt.getAttribute("aria-invalid")).toBe("true");
   });
 
@@ -188,6 +188,6 @@ describe("OpsPrompt", () => {
     // ⛔ Samma val som OpsEventList gör med atgardsforklaring: hellre ett fel
     // än en ruta som ser färdig ut och inte leder någonstans.
     expect(() => render(<OpsPrompt label="Fråga" />)).toThrow(/createPromptSource/);
-    expect(() => render(<OpsPrompt source={kallaSom(async () => ({ text: "x" }))} />)).toThrow(/label krävs/);
+    expect(() => render(<OpsPrompt source={sourceAs(async () => ({ text: "x" }))} />)).toThrow(/label krävs/);
   });
 });

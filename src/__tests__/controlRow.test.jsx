@@ -6,7 +6,7 @@ import { OpsControlRow } from "../components/OpsControlRow.jsx";
  * Kontrollraden: regeln för vad som händer när raden inte ryms.
  */
 
-function raden() {
+function theRow() {
   const el = screen.getByText("ett").parentElement;
   if (!el) throw new Error("Hittar ingen rad kring kontrollerna");
   return el;
@@ -24,9 +24,9 @@ describe("OpsKontrollrad", () => {
         <button type="button">ett</button>
       </OpsControlRow>,
     );
-    expect(raden().className).toContain("flex-wrap");
+    expect(theRow().className).toContain("flex-wrap");
     // ⛔ Och kontrollerna står mitt för varandra i höjdled, inte toppställda.
-    expect(raden().className).toContain("items-center");
+    expect(theRow().className).toContain("items-center");
   });
 
   it("håller samma luft mellan kontrollerna som resten av ramverket", () => {
@@ -40,7 +40,7 @@ describe("OpsKontrollrad", () => {
         <button type="button">ett</button>
       </OpsControlRow>,
     );
-    expect(raden().className).toContain("gap-2");
+    expect(theRow().className).toContain("gap-2");
   });
 
   it("ligger i mitten som förval och i vänsterkant på begäran", () => {
@@ -56,7 +56,7 @@ describe("OpsKontrollrad", () => {
         <button type="button">ett</button>
       </OpsControlRow>,
     );
-    expect(raden().className).toContain("justify-center");
+    expect(theRow().className).toContain("justify-center");
     unmount();
 
     render(
@@ -64,8 +64,8 @@ describe("OpsKontrollrad", () => {
         <button type="button">ett</button>
       </OpsControlRow>,
     );
-    expect(raden().className).toContain("justify-start");
-    expect(raden().className).not.toContain("justify-center");
+    expect(theRow().className).toContain("justify-start");
+    expect(theRow().className).not.toContain("justify-center");
   });
 
   it("kastar på en justering som inte finns", () => {

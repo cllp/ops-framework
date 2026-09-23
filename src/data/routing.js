@@ -41,7 +41,7 @@ import { OPERATIONS, createDataSource } from "./contract.js";
 /**
  * @template T
  * @typedef {object} RoutingConfig
- * @property {import("./contract.js").DataSource<T>} standard Källan för allt som inte står i `routes`.
+ * @property {import("./contract.js").DataSource<T>} fallback Källan för allt som inte står i `routes`.
  * @property {Record<string, import("./contract.js").DataSource<T>>} [routes] Samling till källa.
  */
 
@@ -64,7 +64,7 @@ import { OPERATIONS, createDataSource } from "./contract.js";
  * @returns {import("./contract.js").DataSource<T> & { canSubscribe: (collectionName: string) => boolean, sourceFor: (collectionName: string) => import("./contract.js").DataSource<T> }}
  */
 export function createRoutingSource(config) {
-  if (!config || !config.standard) {
+  if (!config || !config.fallback) {
     throw new Error(
       "createRoutingSource: standard krävs. Utan den blir en glömd rutt ett fel som dyker upp först den dag någon öppnar just den vyn.",
     );
@@ -76,17 +76,17 @@ export function createRoutingSource(config) {
     if (!source || typeof source !== "object") {
       throw new Error(`createRoutingSource: rutten "${collectionName}" pekar inte på en datakälla.`);
     }
-    const saknas = OPERATIONS.filter((op) => typeof (/** @type {any} */ (source)[op]) !== "function");
-    if (saknas.length > 0) {
+    const missing = OPERATIONS.filter((op) => typeof (/** @type {any} */ (source)[op]) !== "function");
+    if (missing.length > 0) {
       throw new Error(
-        `createRoutingSource: källan för "${collectionName}" saknar ${saknas.join(", ")}. ` +
+        `createRoutingSource: källan för "${collectionName}" saknar ${missing.join(", ")}. ` +
           "En halv adapter kraschar först den dag någon anropar just den metoden, och felet pekar då mot vyn i stället för hit.",
       );
     }
   }
 
   /** @param {string} collectionName */
-  const pick = (collectionName) => routes[collectionName] || config.standard;
+  const pick = (collectionName) => routes[collectionName] || config.fallback;
 
   /** @param {string} collectionName */
   const canSubscribe = (collectionName) => typeof pick(collectionName).subscribe === "function";
@@ -97,7 +97,7 @@ export function createRoutingSource(config) {
    * strömvägen för att sedan kasta på första samlingen.
    */
   const anyCanStream =
-    typeof config.standard.subscribe === "function" ||
+    typeof config.fallback.subscribe === "function" ||
     Object.values(routes).some((k) => typeof k.subscribe === "function");
 
   /** @type {Record<string, any>} */
@@ -130,11 +130,11 @@ export function createRoutingSource(config) {
     /**
      * @param {string} collectionName
      * @param {import("./contract.js").Query | undefined} query
-     * @param {import("./contract.js").Listener<T>} lyssnare
+     * @param {import("./contract.js").Listener<T>} listener
      */
-    source.subscribe = (collectionName, query, lyssnare) => {
-      const mal = pick(collectionName);
-      if (typeof mal.subscribe !== "function") {
+    source.subscribe = (collectionName, query, listener) => {
+      const target = pick(collectionName);
+      if (typeof target.subscribe !== "function") {
         // ⛔ KASTAR MED SAMLINGENS NAMN. Alternativet vore att sätta upp en
         // lyssnare som aldrig levererar, alltså en vy som väntar för alltid och
         // ser ut som att ingenting händer i systemet. Frågan går att ställa i
@@ -144,7 +144,7 @@ export function createRoutingSource(config) {
             `Fråga canSubscribe("${collectionName}") först, eller läs med lista.`,
         );
       }
-      return mal.subscribe(collectionName, query, lyssnare);
+      return target.subscribe(collectionName, query, listener);
     };
   }
 

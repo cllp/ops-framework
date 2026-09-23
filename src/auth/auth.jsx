@@ -34,11 +34,11 @@ import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
  * @typedef {object} Autentisering
  * @property {() => Promise<void>} loggaIn
  * @property {() => Promise<void>} loggaUt
- * @property {(lyssnare: (a: Anvandare | null) => void) => () => void} lyssna Returnerar en avregistrering.
+ * @property {(listener: (a: Anvandare | null) => void) => () => void} lyssna Returnerar en avregistrering.
  */
 
 const AuthContext = createContext(
-  /** @type {{ anvandare: Anvandare | null, loading: boolean, error: Error | null, loggaIn: () => void, loggaUt: () => void } | null} */ (null),
+  /** @type {{ user: Anvandare | null, loading: boolean, error: Error | null, loggaIn: () => void, loggaUt: () => void } | null} */ (null),
 );
 
 /**
@@ -46,9 +46,9 @@ const AuthContext = createContext(
  * @param {Partial<Autentisering> & { namn?: string }} adapter @returns {Autentisering}
  */
 export function createAuth(adapter) {
-  const saknas = ["loggaIn", "loggaUt", "lyssna"].filter((op) => typeof (/** @type {any} */ (adapter ?? {})[op]) !== "function");
-  if (saknas.length > 0) {
-    throw new Error(`createAuth: adaptern saknar ${saknas.join(", ")}.`);
+  const missing = ["loggaIn", "loggaUt", "lyssna"].filter((op) => typeof (/** @type {any} */ (adapter ?? {})[op]) !== "function");
+  if (missing.length > 0) {
+    throw new Error(`createAuth: adaptern saknar ${missing.join(", ")}.`);
   }
   return /** @type {Autentisering} */ (adapter);
 }
@@ -69,10 +69,10 @@ export function createAuth(adapter) {
  * användarlista, alltså ett dokument per användare, via datalagret. Rollen
  * kommer aldrig från Google: Google svarar på vem någon ÄR, inte på vad hen får.
  *
- * @param {{ auth: any, sdk: Record<string, any>, hamtaProfil?: (a: Anvandare) => Promise<any> }} konfig
+ * @param {{ auth: any, sdk: Record<string, any>, hamtaProfil?: (a: Anvandare) => Promise<any> }} config
  * @returns {Autentisering}
  */
-export function createGoogleAuth(konfig) {
+export function createGoogleAuth(config) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
    *
@@ -86,11 +86,11 @@ export function createGoogleAuth(konfig) {
    * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
-  const { auth, sdk, hamtaProfil } = konfig ?? /** @type {any} */ ({});
+  const { auth, sdk, hamtaProfil } = config ?? /** @type {any} */ ({});
   if (!auth) throw new Error("createGoogleAuth: auth krävs. Skicka in getAuth(app).");
-  const saknas = ["GoogleAuthProvider", "signInWithPopup", "signOut", "onAuthStateChanged"].filter((f) => !sdk?.[f]);
-  if (saknas.length > 0) {
-    throw new Error(`createGoogleAuth: sdk saknar ${saknas.join(", ")}. Skicka in hela modulen "firebase/auth".`);
+  const missing = ["GoogleAuthProvider", "signInWithPopup", "signOut", "onAuthStateChanged"].filter((f) => !sdk?.[f]);
+  if (missing.length > 0) {
+    throw new Error(`createGoogleAuth: sdk saknar ${missing.join(", ")}. Skicka in hela modulen "firebase/auth".`);
   }
 
   return createAuth({
@@ -101,26 +101,26 @@ export function createGoogleAuth(konfig) {
     async loggaUt() {
       await sdk.signOut(auth);
     },
-    lyssna(lyssnare) {
+    lyssna(listener) {
       return sdk.onAuthStateChanged(auth, async (/** @type {any} */ konto) => {
         if (!konto) {
-          lyssnare(null);
+          listener(null);
           return;
         }
         /** @type {Anvandare} */
-        const bas = { id: konto.uid, email: konto.email ?? undefined, namn: konto.displayName ?? undefined, imageUrl: konto.photoURL ?? undefined };
+        const base = { id: konto.uid, email: konto.email ?? undefined, namn: konto.displayName ?? undefined, imageUrl: konto.photoURL ?? undefined };
         if (!hamtaProfil) {
-          lyssnare(bas);
+          listener(base);
           return;
         }
         try {
-          const profil = await hamtaProfil(bas);
-          lyssnare({ ...bas, ...(profil ?? {}) });
+          const profil = await hamtaProfil(base);
+          listener({ ...base, ...(profil ?? {}) });
         } catch {
           // ⛔ Misslyckas profilhämtningen loggas användaren in UTAN roll, inte
           // in med en gissad roll. Ett fel i en uppslagning får aldrig ge mer
           // behörighet än den som lyckades.
-          lyssnare(bas);
+          listener(base);
         }
       });
     },
@@ -131,29 +131,29 @@ export function createGoogleAuth(konfig) {
  * @param {{ autentisering: Autentisering, children: import("react").ReactNode }} props
  */
 export function OpsAuthProvider({ autentisering, children }) {
-  const [anvandare, setAnvandare] = useState(/** @type {Anvandare | null} */ (null));
-  const [loading, setLaddar] = useState(true);
-  const [error, setFel] = useState(/** @type {Error | null} */ (null));
+  const [user, setUser] = useState(/** @type {Anvandare | null} */ (null));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(/** @type {Error | null} */ (null));
 
   useEffect(() => {
     const av = autentisering.lyssna((a) => {
-      setAnvandare(a);
-      setLaddar(false);
+      setUser(a);
+      setLoading(false);
     });
     return av;
   }, [autentisering]);
 
   const loggaIn = useCallback(() => {
-    setFel(null);
-    autentisering.loggaIn().catch((e) => setFel(e instanceof Error ? e : new Error(String(e))));
+    setError(null);
+    autentisering.loggaIn().catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
   }, [autentisering]);
 
   const loggaUt = useCallback(() => {
-    autentisering.loggaUt().catch((e) => setFel(e instanceof Error ? e : new Error(String(e))));
+    autentisering.loggaUt().catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
   }, [autentisering]);
 
-  const varde = useMemo(() => ({ anvandare, loading, error, loggaIn, loggaUt }), [anvandare, loading, error, loggaIn, loggaUt]);
-  return <AuthContext.Provider value={varde}>{children}</AuthContext.Provider>;
+  const contextValue = useMemo(() => ({ user, loading, error, loggaIn, loggaUt }), [user, loading, error, loggaIn, loggaUt]);
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
 export function useOpsAuth() {
@@ -187,7 +187,7 @@ export function OpsAuthGate({
   deniedText = "Ditt konto är inloggat men saknar behörighet här. Be den som förvaltar plattformen lägga till dig.",
   children,
 }) {
-  const { anvandare, loading, error, loggaIn } = useOpsAuth();
+  const { user, loading, error, loggaIn } = useOpsAuth();
 
   if (loading) {
     return (
@@ -197,7 +197,7 @@ export function OpsAuthGate({
     );
   }
 
-  if (!anvandare) {
+  if (!user) {
     return (
       <OpsView width="narrow">
         <OpsViewHeader title={title} description={description} />
@@ -213,8 +213,8 @@ export function OpsAuthGate({
     );
   }
 
-  const nekad = Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(anvandare.role ?? "");
-  if (nekad) {
+  const denied = Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(user.role ?? "");
+  if (denied) {
     return (
       <OpsView width="narrow">
         <OpsViewHeader title={deniedTitle} description={deniedText} />

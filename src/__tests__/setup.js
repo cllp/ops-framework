@@ -77,9 +77,9 @@ if (!Element.prototype.scrollTo) {
  * väntan blir längre än vitests eget tak. Det är fortfarande rätt prov som
  * pekar på rätt rad.
  */
-const OSTODDA_VALJARE = new Set([":popover-open", ":modal"]);
+const UNSUPPORTED_SELECTORS = new Set([":popover-open", ":modal"]);
 const riktigMatches = Element.prototype.matches;
-Element.prototype.matches = function matches(valjare) {
-  if (OSTODDA_VALJARE.has(valjare)) return false;
-  return riktigMatches.call(this, valjare);
+Element.prototype.matches = function matches(selector) {
+  if (UNSUPPORTED_SELECTORS.has(selector)) return false;
+  return riktigMatches.call(this, selector);
 };

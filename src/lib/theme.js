@@ -12,7 +12,7 @@
 
 /** @typedef {"light" | "dark" | "system"} Temalage */
 
-const NYCKEL = "ops-theme";
+const KEY = "ops-theme";
 /** @type {Temalage[]} */
 const GILTIGA = ["light", "dark", "system"];
 
@@ -23,8 +23,8 @@ const GILTIGA = ["light", "dark", "system"];
  */
 export function getTheme() {
   try {
-    const sparat = globalThis.localStorage?.getItem(NYCKEL);
-    return GILTIGA.includes(/** @type {Temalage} */ (sparat)) ? /** @type {Temalage} */ (sparat) : "system";
+    const saved = globalThis.localStorage?.getItem(KEY);
+    return GILTIGA.includes(/** @type {Temalage} */ (saved)) ? /** @type {Temalage} */ (saved) : "system";
   } catch {
     // Privat fönster eller blockerad lagring. Systemval är rätt svar, inte en krasch.
     return "system";
@@ -33,16 +33,16 @@ export function getTheme() {
 
 /**
  * Skriver valet till `<html>` och sparar det.
- * @param {Temalage} lage
+ * @param {Temalage} state
  */
-export function setTheme(lage) {
-  if (!GILTIGA.includes(lage)) throw new Error(`setTheme: okänt läge "${lage}". Giltiga: ${GILTIGA.join(", ")}.`);
-  const rot = globalThis.document?.documentElement;
-  if (!rot) return;
-  if (lage === "system") rot.removeAttribute("data-theme");
-  else rot.setAttribute("data-theme", lage);
+export function setTheme(state) {
+  if (!GILTIGA.includes(state)) throw new Error(`setTheme: okänt läge "${state}". Giltiga: ${GILTIGA.join(", ")}.`);
+  const root = globalThis.document?.documentElement;
+  if (!root) return;
+  if (state === "system") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", state);
   try {
-    globalThis.localStorage?.setItem(NYCKEL, lage);
+    globalThis.localStorage?.setItem(KEY, state);
   } catch {
     // Valet gäller för den här sidvisningen även om det inte kan sparas.
   }

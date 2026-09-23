@@ -52,20 +52,20 @@ export function OpsIdentity({ name, seed, imageUrl, size = "md" }) {
     throw new Error("OpsIdentity: seed krävs och ska vara ett stabilt id. Utan den blir tonen slumpad, och då byter samma grupp färg mellan två renderingar.");
   }
 
-  const bas = cx("inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md", storlekKlass);
+  const base = cx("inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md", storlekKlass);
 
   if (imageUrl) {
     // Bilden har alt="" och märket bär namnet, annars läses namnet upp två
     // gånger i rad av skärmläsaren.
     return (
-      <span className={bas} role="img" aria-label={name}>
+      <span className={base} role="img" aria-label={name}>
         <img src={imageUrl} alt="" className="size-full object-cover" />
       </span>
     );
   }
 
   return (
-    <span className={cx(bas, TONKLASSER[identityTone(seed)], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
+    <span className={cx(base, TONKLASSER[identityTone(seed)], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
       <span aria-hidden="true">{initials(name)}</span>
     </span>
   );

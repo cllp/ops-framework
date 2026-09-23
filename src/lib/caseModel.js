@@ -32,11 +32,11 @@
  * @property {string} value Nyckeln som lagras.
  * @property {string} label Vad människor kallar den.
  * @property {string} externalLabel Vad som skickas vidare, till exempel till ett ärendesystem.
- * @property {(utkast: any) => string[]} [requirements] Extra villkor för just den här sorten.
+ * @property {(draft: any) => string[]} [requirements] Extra villkor för just den här sorten.
  *   Returnerar skälen som saknas, tom lista när allt är på plats.
  *   ⛔ EN FUNKTION OCH INTE FLAGGOR. Flaggor (`kraverBelopp: true`) tvingar ramverket
  *   att veta vad ett belopp är, och då står appens ord här igen.
- * @property {(utkast: any) => Record<string, unknown>} [extraFields] App-specifika fält
+ * @property {(draft: any) => Record<string, unknown>} [extraFields] App-specifika fält
  *   som ska med i dokumentet för just den sorten.
  */
 
@@ -56,7 +56,7 @@
  */
 
 /** Rubriken blir en titel i en lista, och en titel som inte ryms är ingen titel. */
-const MAX_RUBRIK_STANDARD = 120;
+const MAX_TITLE_DEFAULT = 120;
 
 /**
  * De lägen en post kan sluta i, plus det den börjar i.
@@ -66,33 +66,33 @@ const MAX_RUBRIK_STANDARD = 120;
  * blir en medveten nedprioritering omöjlig att skilja från en glömska, och båda
  * ser ut som en post som slutat röra sig.
  */
-const LAGEN = Object.freeze({ NY: "ny", HANTERAD: "hanterad", AVSKRIVEN: "avskriven" });
+const STATES = Object.freeze({ NEW: "ny", HANDLED: "hanterad", DISMISSED: "avskriven" });
 
 /** Ett dygn i millisekunder. */
-const DYGN_MS = 86400000;
+const DAY_MS = 86400000;
 
 /**
  * Vad som saknas för att en post ska gå att avsluta.
  *
- * ⛔ MODULNIVÅ OCH INTE EN METOD SOM ANROPAR `this`. `byggAvslut` behöver samma
+ * ⛔ MODULNIVÅ OCH INTE EN METOD SOM ANROPAR `this`. `buildClose` behöver samma
  * kontroll, och en metod som når en annan via `this` går sönder i samma sekund
- * någon skriver `const { byggAvslut } = modell`. Destrukturering är normalt, och
+ * någon skriver `const { buildClose } = modell`. Destrukturering är normalt, och
  * ett fel som bara uppstår då hittas inte av ett prov som anropar modellen helt.
  *
- * @param {string} lage
+ * @param {string} state
  * @param {{ url?: string, not?: string } | null} [resultat]
  * @returns {string[]}
  */
-function saknasVidAvslutInternt(lage, resultat) {
+function missingAtCloseInternal(state, resultat) {
   const error = [];
-  if (lage !== LAGEN.HANTERAD && lage !== LAGEN.AVSKRIVEN) {
-    error.push(`Avslut kräver läget "${LAGEN.HANTERAD}" eller "${LAGEN.AVSKRIVEN}".`);
+  if (state !== STATES.HANDLED && state !== STATES.DISMISSED) {
+    error.push(`Avslut kräver läget "${STATES.HANDLED}" eller "${STATES.DISMISSED}".`);
     return error;
   }
   const not = String((resultat || {}).not || "").trim();
   if (!not) {
     error.push(
-      lage === LAGEN.AVSKRIVEN
+      state === STATES.DISMISSED
         ? "Skriv varför inget gjordes. En avskrivning utan skäl läses som att någon glömde."
         : "Skriv vad som gjordes. Ett avslut utan text säger inte om något hänt.",
     );
@@ -108,44 +108,44 @@ function saknasVidAvslutInternt(lage, resultat) {
  * felet syns först i ärendesystemet: posten skapades, den hamnade bara aldrig
  * där någon letar. Samma skäl som `createDataSource` kontrollerar sin adapter.
  *
- * @param {Arendekonfig} konfig
+ * @param {Arendekonfig} config
  */
-export function createCaseModel(konfig) {
-  if (!konfig || !Array.isArray(konfig.kinds) || konfig.kinds.length === 0) {
+export function createCaseModel(config) {
+  if (!config || !Array.isArray(config.kinds) || config.kinds.length === 0) {
     throw new Error("createCaseModel: minst en sort krävs. Sorterna är appens taxonomi, inte ramverkets.");
   }
-  if (!Array.isArray(konfig.priorities) || konfig.priorities.length === 0) {
+  if (!Array.isArray(config.priorities) || config.priorities.length === 0) {
     throw new Error("createCaseModel: minst en prio krävs.");
   }
-  if (!konfig.baseLabel) {
+  if (!config.baseLabel) {
     throw new Error(
       "createCaseModel: baseLabel krävs. Utan den saknar ärendet den märkning som gör att det syns där någon letar, och det felet ser ut som att ärendet aldrig skapades.",
     );
   }
 
   for (const list of [
-    { name: "kinds", rader: konfig.kinds },
-    { name: "priorities", rader: konfig.priorities },
+    { name: "kinds", rows: config.kinds },
+    { name: "priorities", rows: config.priorities },
   ]) {
-    for (const rad of /** @type {Record<string, any>[]} */ (list.rader)) {
+    for (const row of /** @type {Record<string, any>[]} */ (list.rows)) {
       for (const falt of ["value", "label", "externalLabel"]) {
-        if (!rad || !rad[falt]) {
-          throw new Error(`createCaseModel: ${list.name} saknar "${falt}" på ${JSON.stringify(rad)}.`);
+        if (!row || !row[falt]) {
+          throw new Error(`createCaseModel: ${list.name} saknar "${falt}" på ${JSON.stringify(row)}.`);
         }
       }
     }
   }
 
-  const maxTitle = konfig.maxTitle ?? MAX_RUBRIK_STANDARD;
+  const maxTitle = config.maxTitle ?? MAX_TITLE_DEFAULT;
   /** @param {string | undefined} v */
-  const sort = (v) => konfig.kinds.find((s) => s.value === v);
+  const sort = (v) => config.kinds.find((s) => s.value === v);
   /** @param {string | undefined} v */
-  const prio = (v) => konfig.priorities.find((p) => p.value === v);
+  const prio = (v) => config.priorities.find((p) => p.value === v);
 
   return {
-    kinds: konfig.kinds,
-    priorities: konfig.priorities,
-    baseLabel: konfig.baseLabel,
+    kinds: config.kinds,
+    priorities: config.priorities,
+    baseLabel: config.baseLabel,
     maxTitle,
 
     /**
@@ -157,23 +157,23 @@ export function createCaseModel(konfig) {
      */
     /** @param {{ typ?: string, prio?: string } | null | undefined} entry @returns {string[]} */
     labelsFor(entry) {
-      const ut = [konfig.baseLabel];
+      const out = [config.baseLabel];
       const s = sort((entry || {}).typ);
-      if (s) ut.push(s.externalLabel);
+      if (s) out.push(s.externalLabel);
       const p = prio((entry || {}).prio);
-      if (p) ut.push(p.externalLabel);
-      return ut;
+      if (p) out.push(p.externalLabel);
+      return out;
     },
 
     /** Sortens namn för människor. Tom sträng när sorten är okänd, aldrig en gissning. */
     /** @param {string | undefined} v */
-    sortnamn(v) {
+    kindName(v) {
       return (sort(v) || {}).label || "";
     },
 
     /** Prions namn för människor. */
     /** @param {string | undefined} v */
-    prionamn(v) {
+    priorityName(v) {
       return (prio(v) || {}).label || "";
     },
 
@@ -188,21 +188,21 @@ export function createCaseModel(konfig) {
      * sort med egna villkor blir då en rad i appens register, inte en ändring i
      * ramverket som någon måste be om.
      */
-    /** @param {Record<string, any>} [utkast] @returns {string[]} */
-    saknas(utkast = {}) {
+    /** @param {Record<string, any>} [draft] @returns {string[]} */
+    missing(draft = {}) {
       const error = [];
-      const s = sort(utkast.typ);
+      const s = sort(draft.typ);
       if (!s) error.push("Välj vad det gäller.");
 
-      const rubrik = String(utkast.rubrik || "").trim();
+      const rubrik = String(draft.rubrik || "").trim();
       if (!rubrik) error.push("Skriv en rubrik.");
       else if (rubrik.length > maxTitle) error.push(`Rubriken får vara högst ${maxTitle} tecken.`);
 
-      if (!prio(utkast.prio)) error.push("Välj hur bråttom det är.");
+      if (!prio(draft.prio)) error.push("Välj hur bråttom det är.");
 
       if (s && typeof s.requirements === "function") {
-        const egna = s.requirements(utkast);
-        if (Array.isArray(egna)) error.push(...egna);
+        const own = s.requirements(draft);
+        if (Array.isArray(own)) error.push(...own);
       }
 
       return error;
@@ -222,30 +222,30 @@ export function createCaseModel(konfig) {
      * samma sak, och den som förlorar är den som skrev sist.
      */
     /**
-     * @param {Record<string, any>} utkast
+     * @param {Record<string, any>} draft
      * @param {{ email?: string, nu?: () => string }} [context]
      */
-    byggPost(utkast, { email = "", nu = () => new Date().toISOString() } = {}) {
-      const s = sort(utkast.typ);
+    buildEntry(draft, { email = "", nu = () => new Date().toISOString() } = {}) {
+      const s = sort(draft.typ);
       return {
-        typ: utkast.typ,
-        prio: utkast.prio,
-        rubrik: String(utkast.rubrik || "").trim(),
-        text: String(utkast.text || "").trim(),
-        bilaga: utkast.bilaga
+        typ: draft.typ,
+        prio: draft.prio,
+        rubrik: String(draft.rubrik || "").trim(),
+        text: String(draft.text || "").trim(),
+        bilaga: draft.bilaga
           ? {
-              dataUrl: utkast.bilaga.dataUrl,
-              namn: utkast.bilaga.namn,
-              typ: utkast.bilaga.typ,
-              tecken: utkast.bilaga.tecken,
-              bredd: utkast.bilaga.bredd ?? null,
-              hojd: utkast.bilaga.hojd ?? null,
+              dataUrl: draft.bilaga.dataUrl,
+              namn: draft.bilaga.namn,
+              typ: draft.bilaga.typ,
+              tecken: draft.bilaga.tecken,
+              bredd: draft.bilaga.bredd ?? null,
+              hojd: draft.bilaga.hojd ?? null,
             }
           : null,
         // ⛔ Appens extra fält skrivs BARA för en sort som har dem. Ett tomt
         // fältblock på en sort som inte handlar om det ser ut som något någon
         // glömt fylla i.
-        ...(s && typeof s.extraFields === "function" ? s.extraFields(utkast) : {}),
+        ...(s && typeof s.extraFields === "function" ? s.extraFields(draft) : {}),
         skapad: nu(),
         skapadAv: email,
         status: "ny",
@@ -254,7 +254,7 @@ export function createCaseModel(konfig) {
     },
 
     /** Lägesnamnen, så appen slipper skriva strängarna själv. */
-    LAGEN,
+    STATES,
 
     /**
      * Vad som saknas för att posten ska gå att avsluta.
@@ -269,11 +269,11 @@ export function createCaseModel(konfig) {
      * besvarats. Men det ska alltid gå att läsa VAD som hände, och en mening
      * kostar ingenting att skriva.
      *
-     * ⛔ RETURNERAR SKÄLEN, som `saknas`. Samma form för samma sorts fråga.
+     * ⛔ RETURNERAR SKÄLEN, som `missing`. Samma form för samma sorts fråga.
      */
-    /** @param {string} lage @param {{ url?: string, not?: string } | null} [resultat] @returns {string[]} */
-    saknasVidAvslut(lage, resultat) {
-      return saknasVidAvslutInternt(lage, resultat);
+    /** @param {string} state @param {{ url?: string, not?: string } | null} [resultat] @returns {string[]} */
+    missingAtClose(state, resultat) {
+      return missingAtCloseInternal(state, resultat);
     },
 
     /**
@@ -285,17 +285,17 @@ export function createCaseModel(konfig) {
      * databasen och ser klart ut.
      */
     /**
-     * @param {string} lage
+     * @param {string} state
      * @param {{ url?: string, not?: string }} resultat
      * @param {{ nu?: () => string }} [context]
      */
-    byggAvslut(lage, resultat, { nu = () => new Date().toISOString() } = {}) {
-      const error = saknasVidAvslutInternt(lage, resultat);
+    buildClose(state, resultat, { nu = () => new Date().toISOString() } = {}) {
+      const error = missingAtCloseInternal(state, resultat);
       if (error.length) throw new Error(`byggAvslut: ${error.join(" ")}`);
       return {
-        status: lage,
+        status: state,
         resultat: { url: (resultat || {}).url || null, not: String(resultat.not).trim() },
-        avslutad: nu(),
+        closed: nu(),
       };
     },
 
@@ -308,12 +308,12 @@ export function createCaseModel(konfig) {
      * utan att själv veta vad som räknas som länge.
      */
     /** @param {{ status?: string, skapad?: string }} entry @param {Date | number} [nu] @returns {number | null} */
-    dygnINy(entry, nu = Date.now()) {
-      if (!entry || entry.status !== LAGEN.NY) return null;
+    daysInNew(entry, nu = Date.now()) {
+      if (!entry || entry.status !== STATES.NEW) return null;
       const skapad = Date.parse(String(entry.skapad || ""));
       if (!Number.isFinite(skapad)) return null;
-      const gick = (nu instanceof Date ? nu.getTime() : Number(nu)) - skapad;
-      return gick > 0 ? Math.floor(gick / DYGN_MS) : 0;
+      const went = (nu instanceof Date ? nu.getTime() : Number(nu)) - skapad;
+      return went > 0 ? Math.floor(went / DAY_MS) : 0;
     },
   };
 }

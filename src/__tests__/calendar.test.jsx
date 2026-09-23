@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
 import {
   dateKey,
-  datumtext,
-  forstaKolumnen,
+  dateText,
+  firstColumn,
   todayKey,
   months,
   monthGrid,
   perDay,
-  rullriktning,
+  scrollDirection,
 } from "../lib/calendar.js";
 
 /**
@@ -30,26 +30,26 @@ describe("kalenderräkningen", () => {
      * 1 juni 2026 är en måndag, 1 oktober 2026 en torsdag, 1 november 2026 en
      * söndag, alltså sista kolumnen.
      */
-    expect(forstaKolumnen(2026, 5)).toBe(0);
-    expect(forstaKolumnen(2026, 9)).toBe(3);
-    expect(forstaKolumnen(2026, 10)).toBe(6);
+    expect(firstColumn(2026, 5)).toBe(0);
+    expect(firstColumn(2026, 9)).toBe(3);
+    expect(firstColumn(2026, 10)).toBe(6);
   });
 
   it("räknar skottår rätt", () => {
     // ⛔ Februari 2028 har 29 dagar. En hårdkodad tabell hade tappat den dagen,
     // och en post den 29:e hade tyst försvunnit ur rutnätet.
-    const rader = monthGrid(2028, 1);
-    const dagar = rader.flat().filter((d) => d !== null);
-    expect(dagar.length).toBe(29);
-    expect(dagar[dagar.length - 1]).toBe(29);
+    const rows = monthGrid(2028, 1);
+    const days = rows.flat().filter((d) => d !== null);
+    expect(days.length).toBe(29);
+    expect(days[days.length - 1]).toBe(29);
   });
 
   it("fyller ut med tomma platser före den första, inte med förra månadens dagar", () => {
     // ⛔ En grå 29:a bredvid en svart 1:a inbjuder till ett tryck som inte gör
     // något. En tom ruta lovar ingenting.
-    const rader = monthGrid(2026, 9); // oktober 2026, börjar på en torsdag
-    expect(rader[0].slice(0, 3)).toEqual([null, null, null]);
-    expect(rader[0][3]).toBe(1);
+    const rows = monthGrid(2026, 9); // oktober 2026, börjar på en torsdag
+    expect(rows[0].slice(0, 3)).toEqual([null, null, null]);
+    expect(rows[0][3]).toBe(1);
   });
 
   it("skriver datum med två siffror, så strängarna går att jämföra", () => {
@@ -68,26 +68,26 @@ describe("kalenderräkningen", () => {
   });
 
   it("räknar månader över ett årsskifte", () => {
-    const ut = months(new Date(2026, 11, 15), 1, 1);
-    expect(ut).toEqual([
-      { ar: 2026, manad: 10 },
-      { ar: 2026, manad: 11 },
-      { ar: 2027, manad: 0 },
+    const out = months(new Date(2026, 11, 15), 1, 1);
+    expect(out).toEqual([
+      { ar: 2026, month: 10 },
+      { ar: 2026, month: 11 },
+      { ar: 2027, month: 0 },
     ]);
   });
 
   it("grupperar poster per dag och behåller ordningen inom dagen", () => {
-    const karta = perDay([
+    const byKey = perDay([
       { id: "a", date: "2026-10-05", title: "A" },
       { id: "b", date: "2026-10-05", title: "B" },
       { id: "c", date: "2026-10-06", title: "C" },
       { id: "d", date: "", title: "Odaterad" },
     ]);
-    expect(karta.get("2026-10-05").map((p) => p.id)).toEqual(["a", "b"]);
-    expect(karta.get("2026-10-06").length).toBe(1);
+    expect(byKey.get("2026-10-05").map((p) => p.id)).toEqual(["a", "b"]);
+    expect(byKey.get("2026-10-06").length).toBe(1);
     // ⛔ En post utan datum hör inte hemma i ett rutnät över datum och tas inte
     // in under en påhittad nyckel.
-    expect(karta.size).toBe(2);
+    expect(byKey.size).toBe(2);
   });
 
   it("skriver datumet som en rubrik och inte som en nyckel", () => {
@@ -100,10 +100,10 @@ describe("kalenderräkningen", () => {
      * hade en trasig nyckel skrivits ut som "NaN undefined", alltså ett fel som
      * skriker på en plats där ingenting gick sönder.
      */
-    expect(datumtext("2026-10-12")).toBe("12 oktober");
-    expect(datumtext("2026-01-01")).toBe("1 januari");
-    expect(datumtext("")).toBe("");
-    expect(datumtext("imorgon")).toBe("imorgon");
+    expect(dateText("2026-10-12")).toBe("12 oktober");
+    expect(dateText("2026-01-01")).toBe("1 januari");
+    expect(dateText("")).toBe("");
+    expect(dateText("imorgon")).toBe("imorgon");
   });
 
   it("pekar pilen uppåt när idag rullat ur bild uppåt", () => {
@@ -121,16 +121,16 @@ describe("kalenderräkningen", () => {
      * "ner". Överkant mot överkant svarar "upp", och är inte ens i närheten av
      * gränsen.
      */
-    expect(rullriktning({ top: -399, bottom: 1 }, { top: 0 })).toBe("upp");
-    expect(rullriktning({ top: -400, bottom: -100 }, { top: 0 })).toBe("upp");
-    expect(rullriktning({ top: 900, bottom: 1300 }, { top: 0 })).toBe("ner");
+    expect(scrollDirection({ top: -399, bottom: 1 }, { top: 0 })).toBe("upp");
+    expect(scrollDirection({ top: -400, bottom: -100 }, { top: 0 })).toBe("upp");
+    expect(scrollDirection({ top: 900, bottom: 1300 }, { top: 0 })).toBe("ner");
     // ⛔ Utan ruta räknas fönstrets överkant, alltså noll. Ett `rootBounds` som
     // är null får inte kasta: då slutar knappen fungera helt.
-    expect(rullriktning({ top: -5, bottom: 300 }, null)).toBe("upp");
+    expect(scrollDirection({ top: -5, bottom: 300 }, null)).toBe("upp");
   });
 });
 
-const IDAG = new Date(2026, 9, 5); // måndag 5 oktober 2026
+const TODAY = new Date(2026, 9, 5); // måndag 5 oktober 2026
 
 /** Appens ord, precis som `OpsEventList` kräver dem. */
 const STATUSORD = { oppet: "Öppet", pagar: "Pågår", vantar: "Väntar", klart: "Klart", akut: "Akut" };
@@ -142,7 +142,7 @@ const POSTER = [
 ];
 
 /** Månadens block, alltså rubriken plus dess rutnät. */
-function manadsruta(name) {
+function monthBox(name) {
   const title = screen.getByRole("heading", { name: name });
   const block = title.parentElement;
   if (!block) throw new Error(`Månaden "${name}" har inget block`);
@@ -157,8 +157,8 @@ function manadsruta(name) {
  * beroende på vilken som råkade komma först i trädet.
  */
 function rullbehallaren() {
-  const veckorad = screen.getByText("Mån").parentElement;
-  const rulle = veckorad && veckorad.parentElement;
+  const weekRow = screen.getByText("Mån").parentElement;
+  const rulle = weekRow && weekRow.parentElement;
   if (!rulle) throw new Error("Hittar ingen rullbehållare kring veckodagsraden");
   return rulle;
 }
@@ -175,7 +175,7 @@ function rullbehallaren() {
  * `afterEach` här inne. En hook som registreras inifrån ett prov hör till hela
  * sviten, alltså skulle den läcka ut över prov som aldrig bett om den.
  */
-function visaIdagknappen() {
+function showTodayButton() {
   const riktig = globalThis.IntersectionObserver;
   globalThis.IntersectionObserver = class {
     /** @param {(entries: any[]) => void} vidTraff */
@@ -197,7 +197,7 @@ function visaIdagknappen() {
 
 function rendera(extra = {}) {
   return render(
-    <OpsCalendar entries={POSTER} ariaLabel="Kalender" today={IDAG} statusWords={STATUSORD} {...extra} />,
+    <OpsCalendar entries={POSTER} ariaLabel="Kalender" today={TODAY} statusWords={STATUSORD} {...extra} />,
   );
 }
 
@@ -230,7 +230,7 @@ describe("OpsKalender", () => {
      * komponenten i stället för en tvetydig fråga i provet.
      */
     rendera();
-    const oktober = manadsruta("oktober 2026");
+    const oktober = monthBox("oktober 2026");
     expect(within(oktober).getByRole("button", { name: "13" })).toBeDisabled();
   });
 
@@ -267,18 +267,18 @@ describe("OpsKalender", () => {
      * för att stänga.
      */
     rendera();
-    const dagen = () => screen.getByRole("button", { name: "12, 2 poster" });
+    const theDay = () => screen.getByRole("button", { name: "12, 2 poster" });
     const bubblan = () => screen.queryByRole("region", { name: "Poster den 12 oktober" });
 
-    fireEvent.click(dagen());
-    fireEvent.click(dagen());
+    fireEvent.click(theDay());
+    fireEvent.click(theDay());
     expect(bubblan()).toBeNull();
 
-    fireEvent.click(dagen());
+    fireEvent.click(theDay());
     fireEvent.click(screen.getByRole("button", { name: "Stäng 12 oktober" }));
     expect(bubblan()).toBeNull();
 
-    fireEvent.click(dagen());
+    fireEvent.click(theDay());
     fireEvent.keyDown(window, { key: "Escape" });
     expect(bubblan()).toBeNull();
   });
@@ -359,15 +359,15 @@ describe("OpsKalender", () => {
 
     const kortFor = (title) => screen.getByText(title).closest(".ops-contrast-panel");
     const ett = kortFor("Arbetsgivardeklaration");
-    const tva = kortFor("#249 stängdes");
+    const two = kortFor("#249 stängdes");
 
     expect(ett).not.toBeNull();
-    expect(tva).not.toBeNull();
-    expect(ett).not.toBe(tva);
+    expect(two).not.toBeNull();
+    expect(ett).not.toBe(two);
     // ⛔ Och det ena är inte det andras förälder: två kort som är syskon, inte en
     // låda med en låda i.
-    expect(ett.contains(tva)).toBe(false);
-    expect(tva.contains(ett)).toBe(false);
+    expect(ett.contains(two)).toBe(false);
+    expect(two.contains(ett)).toBe(false);
   });
 
   it("skriver datumet både som piller överst och på varje kort", () => {
@@ -415,11 +415,11 @@ describe("OpsKalender", () => {
     const panelen = screen.getByRole("region", { name: "Poster för 2 valda dagar" });
     // ⛔ Pillren ligger först i trädet, alltså de två första träffarna i
     // dokumentordning.
-    const ordning = within(panelen)
+    const order = within(panelen)
       .getAllByText(/oktober/)
       .slice(0, 2)
       .map((n) => n.textContent);
-    expect(ordning).toEqual(["12 oktober", "25 oktober"]);
+    expect(order).toEqual(["12 oktober", "25 oktober"]);
   });
 
   it("ger varje piller ett kryss när flera dagar är valda, och inget när en är det", () => {
@@ -485,9 +485,9 @@ describe("OpsKalender", () => {
     expect(screen.queryByRole("region", { name: /^Poster/ })).toBeNull();
 
     const hint = screen.getByText(/Tryck på en dag/);
-    const kolumnen = hint.parentElement;
-    expect(kolumnen.className).toContain("lg:w-75");
-    expect(kolumnen.className).toContain("xl:w-90");
+    const theColumn = hint.parentElement;
+    expect(theColumn.className).toContain("lg:w-75");
+    expect(theColumn.className).toContain("xl:w-90");
     // ⛔ Raden syns BARA på breda skärmar. På telefon finns ingen kolumn att
     // förklara, och en ruta längst ner hade legat i vägen för dagarna man ska
     // trycka på.
@@ -575,7 +575,7 @@ describe("OpsKalender", () => {
   });
 
   it("kastar utan namn i stället för att rita ett stumt rutnät", () => {
-    expect(() => render(<OpsCalendar entries={[]} today={IDAG} />)).toThrow(/ariaLabel krävs/);
+    expect(() => render(<OpsCalendar entries={[]} today={TODAY} />)).toThrow(/ariaLabel krävs/);
   });
 
   it("säger ifrån när ingen post har datum", () => {

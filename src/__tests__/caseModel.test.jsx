@@ -65,49 +65,49 @@ describe("etiketterna", () => {
   });
 });
 
-describe("saknas", () => {
+describe("missing", () => {
   it("svarar med skälen, inte med ett nej", () => {
     // ⛔ Ett formulär som bara säger "kan inte sparas" tvingar användaren att
     // gissa vilket fält som är fel, och det är den gissningen som gör att folk
     // slutar rapportera saker.
-    const error = modell.saknas({});
+    const error = modell.missing({});
     expect(error).toContain("Välj vad det gäller.");
     expect(error).toContain("Skriv en rubrik.");
     expect(error).toContain("Välj hur bråttom det är.");
   });
 
   it("släpper igenom en komplett post", () => {
-    expect(modell.saknas({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" })).toEqual([]);
+    expect(modell.missing({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" })).toEqual([]);
   });
 
   it("läser sortens egna krav ur sorten", () => {
     // ⛔ Villkoret står i APPENS register, inte som en gren i ramverket. En ny
     // sort med egna krav blir en rad hos appen, inte en ändring någon måste be om.
-    expect(modell.saknas({ typ: "leverans", prio: "nu", rubrik: "Pall från Ahlsell" })).toEqual([
+    expect(modell.missing({ typ: "leverans", prio: "nu", rubrik: "Pall från Ahlsell" })).toEqual([
       "Ange antal kolli.",
     ]);
-    expect(modell.saknas({ typ: "leverans", prio: "nu", rubrik: "Pall", kolli: 2 })).toEqual([]);
+    expect(modell.missing({ typ: "leverans", prio: "nu", rubrik: "Pall", kolli: 2 })).toEqual([]);
   });
 
   it("kräver inte sortens extra villkor av en annan sort", () => {
-    expect(modell.saknas({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" })).toEqual([]);
+    expect(modell.missing({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" })).toEqual([]);
   });
 
   it("stoppar en rubrik som inte ryms i en lista", () => {
     const lang = "x".repeat(121);
-    expect(modell.saknas({ typ: "storning", prio: "nu", rubrik: lang })).toEqual([
+    expect(modell.missing({ typ: "storning", prio: "nu", rubrik: lang })).toEqual([
       "Rubriken får vara högst 120 tecken.",
     ]);
   });
 });
 
-describe("byggPost", () => {
+describe("buildEntry", () => {
   const nu = () => "2026-09-17T12:00:00.000Z";
 
   it("sätter status till ny och resultat till null, en gång", () => {
     // ⛔ Därefter är båda serverns fält. Skrev båda sidor samma fält vore det två
     // sanningar om samma sak, och den som förlorar är den som skrev sist.
-    const p = modell.byggPost({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" }, { email: "a@b.se", nu });
+    const p = modell.buildEntry({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" }, { email: "a@b.se", nu });
     expect(p.status).toBe("ny");
     expect(p.resultat).toBeNull();
     expect(p.skapadAv).toBe("a@b.se");
@@ -117,7 +117,7 @@ describe("byggPost", () => {
   it("plockar bilagans fält ett och ett", () => {
     // ⛔ Sprids posten in med `...` hamnar vad som helst en filväljare råkar
     // returnera i databasen, utan att någon bestämt att det hör hemma där.
-    const p = modell.byggPost(
+    const p = modell.buildEntry(
       {
         typ: "storning",
         prio: "nu",
@@ -131,17 +131,17 @@ describe("byggPost", () => {
   });
 
   it("tar med appens extra fält, men bara för den sort som har dem", () => {
-    const leverans = modell.byggPost({ typ: "leverans", prio: "nu", rubrik: "Pall", kolli: "3" }, { nu });
+    const leverans = modell.buildEntry({ typ: "leverans", prio: "nu", rubrik: "Pall", kolli: "3" }, { nu });
     expect(leverans.frakt).toEqual({ kolli: 3 });
 
     // ⛔ Ett tomt fältblock på en sort som inte handlar om det ser ut som något
     // någon glömt fylla i.
-    const storning = modell.byggPost({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" }, { nu });
+    const storning = modell.buildEntry({ typ: "storning", prio: "nu", rubrik: "Strömmen borta" }, { nu });
     expect("frakt" in storning).toBe(false);
   });
 
   it("trimmar rubrik och text", () => {
-    const p = modell.byggPost({ typ: "storning", prio: "nu", rubrik: "  A  ", text: "  B  " }, { nu });
+    const p = modell.buildEntry({ typ: "storning", prio: "nu", rubrik: "  A  ", text: "  B  " }, { nu });
     expect(p.rubrik).toBe("A");
     expect(p.text).toBe("B");
   });
@@ -158,8 +158,8 @@ describe("ramverket kan inte appens ord", () => {
     });
     expect(minimal.kinds).toHaveLength(1);
     expect(minimal.priorities).toHaveLength(1);
-    expect(minimal.sortnamn("kvitto")).toBe("");
-    expect(minimal.prionamn("hog")).toBe("");
+    expect(minimal.kindName("kvitto")).toBe("");
+    expect(minimal.priorityName("hog")).toBe("");
   });
 });
 
@@ -173,50 +173,50 @@ describe("ramverket kan inte appens ord", () => {
  */
 describe("avslut", () => {
   it("vägrar hanterad utan en text om vad som gjordes", () => {
-    expect(modell.saknasVidAvslut("hanterad", {})).toHaveLength(1);
-    expect(modell.saknasVidAvslut("hanterad", { url: "https://x" })).toHaveLength(1);
-    expect(modell.saknasVidAvslut("hanterad", { not: "   " })).toHaveLength(1);
+    expect(modell.missingAtClose("hanterad", {})).toHaveLength(1);
+    expect(modell.missingAtClose("hanterad", { url: "https://x" })).toHaveLength(1);
+    expect(modell.missingAtClose("hanterad", { not: "   " })).toHaveLength(1);
   });
 
   it("vägrar avskriven utan skäl, och säger att skälet är poängen", () => {
-    const error = modell.saknasVidAvslut("avskriven", null);
+    const error = modell.missingAtClose("avskriven", null);
     expect(error).toHaveLength(1);
     expect(error[0]).toMatch(/varför/i);
   });
 
   it("kräver text men inte länk, eftersom allt som görs inte lämnar en länk", () => {
-    expect(modell.saknasVidAvslut("hanterad", { not: "Siffran är införd i registret." })).toEqual([]);
-    expect(modell.byggAvslut("hanterad", { not: "Siffran är införd i registret." }).resultat.url).toBeNull();
+    expect(modell.missingAtClose("hanterad", { not: "Siffran är införd i registret." })).toEqual([]);
+    expect(modell.buildClose("hanterad", { not: "Siffran är införd i registret." }).resultat.url).toBeNull();
   });
 
   it("vägrar avslut till ett läge som inte är ett slutläge", () => {
-    expect(modell.saknasVidAvslut("ny", { not: "x" })).toHaveLength(1);
-    expect(modell.saknasVidAvslut("pahittat", { not: "x" })).toHaveLength(1);
+    expect(modell.missingAtClose("ny", { not: "x" })).toHaveLength(1);
+    expect(modell.missingAtClose("pahittat", { not: "x" })).toHaveLength(1);
   });
 
   it("kastar i stället för att skriva något halvt", () => {
-    expect(() => modell.byggAvslut("hanterad", {})).toThrow(/Skriv vad som gjordes/);
-    expect(() => modell.byggAvslut("avskriven", { not: "" })).toThrow(/varför/i);
+    expect(() => modell.buildClose("hanterad", {})).toThrow(/Skriv vad som gjordes/);
+    expect(() => modell.buildClose("avskriven", { not: "" })).toThrow(/varför/i);
   });
 
   /**
    * ⛔ DESTRUKTURERING ÄR NORMALT, OCH DET HÄR PROVET FINNS FÖR ATT FÖRSTA
-   * VERSIONEN GICK SÖNDER AV DET. `byggAvslut` nådde sin validering via `this`,
-   * vilket fungerar så länge någon skriver `modell.byggAvslut(...)` och slutar
-   * fungera i samma sekund någon skriver `const { byggAvslut } = modell`.
+   * VERSIONEN GICK SÖNDER AV DET. `buildClose` nådde sin validering via `this`,
+   * vilket fungerar så länge någon skriver `modell.buildClose(...)` och slutar
+   * fungera i samma sekund någon skriver `const { buildClose } = modell`.
    */
   it("fungerar destrukturerad, utan att hänga på this", () => {
-    const { byggAvslut, saknasVidAvslut } = modell;
-    expect(saknasVidAvslut("hanterad", { not: "gjort" })).toEqual([]);
-    expect(byggAvslut("hanterad", { not: "gjort" }, { nu: () => "T" }).status).toBe("hanterad");
+    const { buildClose, missingAtClose } = modell;
+    expect(missingAtClose("hanterad", { not: "gjort" })).toEqual([]);
+    expect(buildClose("hanterad", { not: "gjort" }, { nu: () => "T" }).status).toBe("hanterad");
   });
 
   it("trimmar texten och stämplar avslutet", () => {
-    const a = modell.byggAvslut("hanterad", { not: "  Blev #141  ", url: "https://x" }, { nu: () => "2026-09-17T21:00:00Z" });
+    const a = modell.buildClose("hanterad", { not: "  Blev #141  ", url: "https://x" }, { nu: () => "2026-09-17T21:00:00Z" });
     expect(a).toEqual({
       status: "hanterad",
       resultat: { url: "https://x", not: "Blev #141" },
-      avslutad: "2026-09-17T21:00:00Z",
+      closed: "2026-09-17T21:00:00Z",
     });
   });
 });
@@ -226,21 +226,21 @@ describe("avslut", () => {
  * betyder det att kedjan är trasig någonstans, och det felet ser likadant ut
  * som en lugn vecka.
  */
-describe("dygnINy", () => {
+describe("daysInNew", () => {
   it("räknar hela dygn för en post som fortfarande är ny", () => {
     const skapad = new Date(Date.UTC(2026, 8, 10)).toISOString();
     const nu = new Date(Date.UTC(2026, 8, 17));
-    expect(modell.dygnINy({ status: "ny", skapad }, nu)).toBe(7);
+    expect(modell.daysInNew({ status: "ny", skapad }, nu)).toBe(7);
   });
 
   it("svarar null för en post som inte är ny, oavsett ålder", () => {
-    expect(modell.dygnINy({ status: "hanterad", skapad: "2020-01-01T00:00:00Z" })).toBeNull();
-    expect(modell.dygnINy({ status: "avskriven", skapad: "2020-01-01T00:00:00Z" })).toBeNull();
+    expect(modell.daysInNew({ status: "hanterad", skapad: "2020-01-01T00:00:00Z" })).toBeNull();
+    expect(modell.daysInNew({ status: "avskriven", skapad: "2020-01-01T00:00:00Z" })).toBeNull();
   });
 
   it("svarar null i stället för att hitta på ett tal när datumet inte går att läsa", () => {
-    expect(modell.dygnINy({ status: "ny", skapad: "inte ett datum" })).toBeNull();
-    expect(modell.dygnINy({ status: "ny" })).toBeNull();
-    expect(modell.dygnINy(null)).toBeNull();
+    expect(modell.daysInNew({ status: "ny", skapad: "inte ett datum" })).toBeNull();
+    expect(modell.daysInNew({ status: "ny" })).toBeNull();
+    expect(modell.daysInNew(null)).toBeNull();
   });
 });

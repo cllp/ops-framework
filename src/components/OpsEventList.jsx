@@ -116,14 +116,14 @@ export function OpsEventList({
   // läsaren att leta efter skillnaden.
   //
   // En app som VILL ha ett ord på de andra skickar det själv.
-  const ord = {
+  const word = {
     forsenat: labels.forsenat ?? "Försenat",
     pagar: labels.pagar ?? "",
     framat: labels.framat ?? "",
     odaterat: labels.odaterat ?? "",
   };
 
-  const [oppna, setOppna] = useState(/** @type {string[]} */ ([]));
+  const [open, setOpen] = useState(/** @type {string[]} */ ([]));
   const idBas = useId();
 
   // ⛔ FÖRE `events`-vakten, för hookar får inte hoppas över. Låg `useState`
@@ -164,10 +164,10 @@ export function OpsEventList({
   /** @type {("oppet"|"pagar"|"vantar"|"klart"|"akut")[]} */
   const statusar = [];
   for (const e of events) if (e && e.status) statusar.push(e.status);
-  const utanOrd = [...new Set(statusar)].filter((st) => !statusWords[st]);
-  if (utanOrd.length > 0) {
+  const withoutWords = [...new Set(statusar)].filter((st) => !statusWords[st]);
+  if (withoutWords.length > 0) {
     throw new Error(
-      `OpsEventList: rader har status ${utanOrd.join(", ")} men statusWords saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`,
+      `OpsEventList: rader har status ${withoutWords.join(", ")} men statusWords saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`,
     );
   }
 
@@ -178,7 +178,7 @@ export function OpsEventList({
   }
 
   /** @param {string} id */
-  const vaxlaOppen = (id) => setOppna((f) => (f.indexOf(id) >= 0 ? f.filter((x) => x !== id) : [...f, id]));
+  const vaxlaOppen = (id) => setOpen((f) => (f.indexOf(id) >= 0 ? f.filter((x) => x !== id) : [...f, id]));
 
   // ⛔ VARJE HÄNDELSE ÄR ETT EGET OpsCard, inte en divider-rad i ett delat
   // kort. CP (bolag-ops Idag): två kundfakturor i "kräver dig nu" låg i ETT
@@ -187,13 +187,13 @@ export function OpsEventList({
   const list = (
     <ul className="m-0 flex list-none flex-col gap-3 p-0" aria-label={ariaLabel}>
       {events.map((h) => {
-        const lage = urgency(h);
-        const marke = ord[lage];
+        const state = urgency(h);
+        const marke = word[state];
         // ⛔ Bunden till en const och inte läst som `h.url` i klickhanteraren:
         // TypeScript smalnar inte av ett fält inuti en closure, så `h.url` är
         // `string | undefined` där även om raden bara renderas när den finns.
         const url = h.url;
-        const oppen = oppna.indexOf(h.id) >= 0;
+        const oppen = open.indexOf(h.id) >= 0;
         const panelId = `${idBas}-${h.id}`;
         const harDetaljer = Boolean(h.details);
 
@@ -237,7 +237,7 @@ export function OpsEventList({
                 {h.role ? <span className="shrink-0">{h.role}</span> : null}
 
                 {marke ? (
-                  <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONER[lage])}>{marke}</span>
+                  <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONER[state])}>{marke}</span>
                 ) : null}
 
                 {/* ⛔ SLAGET ÄR TEXT, INTE ETT TREDJE FÄRGAT MÄRKE.

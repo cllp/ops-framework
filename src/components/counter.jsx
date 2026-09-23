@@ -26,9 +26,9 @@ import { cx } from "../lib/cx.js";
  * ⛔ Både siffra och skärmläsartext. En prick utan namn säger ingenting till den
  * som inte ser den, och en siffra utan substantiv säger inte nio av vad.
  *
- * @param {{ antal: number, text: string }} props
+ * @param {{ count: number, text: string }} props
  */
-export function Raknare({ antal, text }) {
+export function Counter({ count, text }) {
   return (
     <span
       className={cx(
@@ -36,9 +36,9 @@ export function Raknare({ antal, text }) {
         "bg-badge text-[8px] font-bold text-badge-contrast",
       )}
     >
-      <span aria-hidden="true">{antal > 9 ? "9+" : antal}</span>
+      <span aria-hidden="true">{count > 9 ? "9+" : count}</span>
       <span className="sr-only">
-        {antal} {text}
+        {count} {text}
       </span>
     </span>
   );

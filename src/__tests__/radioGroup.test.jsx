@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { OpsRadioGroup } from "../components/OpsRadioGroup.jsx";
 
-const val = [
+const choice = [
   { value: "ekonomi", label: "Ekonomisk uppdatering", hint: "En siffra som ändrats." },
   { value: "kvitto", label: "Kvitto", hint: "Ett utlägg att bokföra." },
   { value: "arende", label: "Ärende" },
@@ -20,7 +20,7 @@ describe("OpsRadioGroup", () => {
      * fel i något hörn i varje kodbas som har den, utan att det syns förrän
      * någon provar med tangentbord.
      */
-    render(<OpsRadioGroup options={val} value="ekonomi" onChange={() => {}} ariaLabel="Vad gäller det" />);
+    render(<OpsRadioGroup options={choice} value="ekonomi" onChange={() => {}} ariaLabel="Vad gäller det" />);
     const radios = screen.getAllByRole("radio");
     expect(radios).toHaveLength(4);
     for (const r of radios) expect(r.tagName).toBe("INPUT");
@@ -30,21 +30,21 @@ describe("OpsRadioGroup", () => {
   it("hör ihop som EN grupp, alltså delar name", () => {
     // ⛔ Utan gemensamt `name` är de fyra oberoende kryssrutor i radioskepnad:
     // piltangenterna hoppar inte mellan dem och två kan bli valda samtidigt.
-    render(<OpsRadioGroup options={val} value="ekonomi" onChange={() => {}} ariaLabel="Sort" />);
+    render(<OpsRadioGroup options={choice} value="ekonomi" onChange={() => {}} ariaLabel="Sort" />);
     const name = new Set(screen.getAllByRole("radio").map((r) => r.getAttribute("name")));
     expect(name.size).toBe(1);
     expect([...name][0]).toBeTruthy();
   });
 
   it("markerar det valda och bara det", () => {
-    render(<OpsRadioGroup options={val} value="kvitto" onChange={() => {}} ariaLabel="Sort" />);
+    render(<OpsRadioGroup options={choice} value="kvitto" onChange={() => {}} ariaLabel="Sort" />);
     expect(screen.getByRole("radio", { name: /Kvitto/ })).toBeChecked();
     expect(screen.getByRole("radio", { name: /Ärende/ })).not.toBeChecked();
   });
 
   it("svarar med värdet när man väljer", () => {
     const onChange = vi.fn();
-    render(<OpsRadioGroup options={val} value="ekonomi" onChange={onChange} ariaLabel="Sort" />);
+    render(<OpsRadioGroup options={choice} value="ekonomi" onChange={onChange} ariaLabel="Sort" />);
     fireEvent.click(screen.getByRole("radio", { name: /Kvitto/ }));
     expect(onChange).toHaveBeenCalledWith("kvitto");
   });
@@ -53,14 +53,14 @@ describe("OpsRadioGroup", () => {
     // ⛔ Hinten ligger inuti etiketten, inte bredvid den. Ligger den utanför hörs
     // den inte när man stegar med piltangenter, och skillnaden mellan "Ärende"
     // och "Övrigt" finns bara i förklaringen.
-    render(<OpsRadioGroup options={val} value="ekonomi" onChange={() => {}} ariaLabel="Sort" />);
+    render(<OpsRadioGroup options={choice} value="ekonomi" onChange={() => {}} ariaLabel="Sort" />);
     expect(screen.getByRole("radio", { name: /En siffra som ändrats/ })).toBeInTheDocument();
   });
 
   it("kastar hellre än att visa ett val som inte är ett val", () => {
     // ⛔ Ett ensamt alternativ är inget val, och noll är ett tomt formulärfält
     // som ser ut att ladda.
-    expect(() => render(<OpsRadioGroup options={[val[0]]} value="a" onChange={() => {}} />)).toThrow(/minst två/);
+    expect(() => render(<OpsRadioGroup options={[choice[0]]} value="a" onChange={() => {}} />)).toThrow(/minst två/);
     expect(() => render(<OpsRadioGroup options={[]} value="a" onChange={() => {}} />)).toThrow(/minst två/);
   });
 });

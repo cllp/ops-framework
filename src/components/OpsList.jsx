@@ -39,10 +39,10 @@ export function OpsList({ divided = true, ariaLabel, children }) {
  */
 export function OpsListRow({ interactive = false, selected = false, href, onClick, ariaLabel, children }) {
   const innehall = <div className="flex w-full items-center gap-3">{children}</div>;
-  const radKlass = cx("px-4 py-3", selected && "bg-accent-subtle");
+  const rowClass = cx("px-4 py-3", selected && "bg-accent-subtle");
 
   if (!interactive) {
-    return <li className={radKlass}>{innehall}</li>;
+    return <li className={rowClass}>{innehall}</li>;
   }
 
   if (!href && !onClick) {

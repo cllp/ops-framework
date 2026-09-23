@@ -78,14 +78,14 @@
  * skulle gjorts igår när det i själva verket är dags nu. Det felet levde i
  * bolag-ops tills CP såg det.
  *
- * @param {OpsEvent} handelse
+ * @param {OpsEvent} event
  * @returns {"forsenat" | "pagar" | "framat" | "odaterat"}
  */
-export function urgency(handelse) {
-  if (!handelse || handelse.daysLeft === null || handelse.daysLeft === undefined) return "odaterat";
-  if (handelse.pagar) return "pagar";
-  if (handelse.daysLeft < 0) return "forsenat";
-  if (handelse.daysLeft === 0) return "pagar";
+export function urgency(event) {
+  if (!event || event.daysLeft === null || event.daysLeft === undefined) return "odaterat";
+  if (event.pagar) return "pagar";
+  if (event.daysLeft < 0) return "forsenat";
+  if (event.daysLeft === 0) return "pagar";
   return "framat";
 }
 
@@ -101,22 +101,22 @@ export function urgency(handelse) {
  * kräver dig inte heller idag, och lägger man det i Idag blir den siffran
  * meningslös: den slutar svara på "hur mycket måste jag göra nu".
  *
- * @param {OpsEvent[]} handelser
- * @returns {{ today: OpsEvent[], kommande: OpsEvent[], forsenat: number }}
+ * @param {OpsEvent[]} events
+ * @returns {{ today: OpsEvent[], upcoming: OpsEvent[], forsenat: number }}
  */
-export function splitTodayUpcoming(handelser) {
+export function splitTodayUpcoming(events) {
   const today = [];
-  const kommande = [];
+  const upcoming = [];
   let forsenat = 0;
 
-  for (const h of handelser || []) {
+  for (const h of events || []) {
     const b = urgency(h);
     if (b === "forsenat") forsenat += 1;
     if (b === "forsenat" || b === "pagar") today.push(h);
-    else kommande.push(h);
+    else upcoming.push(h);
   }
 
-  return { today, kommande, forsenat };
+  return { today, upcoming, forsenat };
 }
 
 /**
@@ -188,8 +188,8 @@ export function daysUntil(iso, today) {
  * ut.
  *
  * @param {object} [arg]
- * @param {OpsEvent[][]} [arg.kallor] En lista per källa. Tomma listor är i sin ordning.
- * @param {(handelse: OpsEvent) => number} [arg.ordning] Tie-break inom samma dag, lägre först.
+ * @param {OpsEvent[][]} [arg.sources] En lista per källa. Tomma listor är i sin ordning.
+ * @param {(event: OpsEvent) => number} [arg.order] Tie-break inom samma dag, lägre först.
  *   ⛔ EN FUNKTION FRÅN APPEN OCH INGEN INBYGGD RANGORDNING. `OpsEvent.role` är
  *   uttryckligen något ramverket ritar men aldrig tolkar (se typedefen ovan), och en
  *   inbyggd vikt på "human" före "auto" hade gjort just den tolkningen i smyg. Appen
@@ -197,29 +197,29 @@ export function daysUntil(iso, today) {
  *   Utan den behålls källornas inbördes ordning inom samma dag.
  * @returns {OpsEvent[]}
  */
-export function collectEvents({ kallor = [], ordning } = {}) {
-  /** @type {{ h: OpsEvent, plats: number, vikt: number }[]} */
-  const alla = [];
-  for (const list of kallor) {
+export function collectEvents({ sources = [], order } = {}) {
+  /** @type {{ h: OpsEvent, place: number, weight: number }[]} */
+  const all = [];
+  for (const list of sources) {
     for (const h of list || []) {
-      // ⛔ `plats` gör sorteringen STABIL utan att lita på motorns sort.
+      // ⛔ `place` gör sorteringen STABIL utan att lita på motorns sort.
       // Array.prototype.sort är stabil i dagens V8, men det är en egenskap hos
       // körningen och inte hos den här funktionen. Ett index kostar ingenting
       // och gör ordningen till något som går att prova.
-      alla.push({ h, plats: alla.length, vikt: ordning ? ordning(h) : 0 });
+      all.push({ h, place: all.length, weight: order ? order(h) : 0 });
     }
   }
 
-  alla.sort((a, b) => {
+  all.sort((a, b) => {
     const ad = a.h.daysLeft;
     const bd = b.h.daysLeft;
-    const aOdaterad = ad === null || ad === undefined;
-    const bOdaterad = bd === null || bd === undefined;
-    if (aOdaterad !== bOdaterad) return aOdaterad ? 1 : -1;
-    if (!aOdaterad && !bOdaterad && ad !== bd) return /** @type {number} */ (ad) - /** @type {number} */ (bd);
-    if (a.vikt !== b.vikt) return a.vikt - b.vikt;
-    return a.plats - b.plats;
+    const aUndated = ad === null || ad === undefined;
+    const bUndated = bd === null || bd === undefined;
+    if (aUndated !== bUndated) return aUndated ? 1 : -1;
+    if (!aUndated && !bUndated && ad !== bd) return /** @type {number} */ (ad) - /** @type {number} */ (bd);
+    if (a.weight !== b.weight) return a.weight - b.weight;
+    return a.place - b.place;
   });
 
-  return alla.map((x) => x.h);
+  return all.map((x) => x.h);
 }

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, KryssIkon, ReglageIkon, SorteringIkon } from "./icons.jsx";
-import { Raknare } from "./counter.jsx";
+import { BockIkon, KryssIkon, ReglageIkon, SortIcon } from "./icons.jsx";
+import { Counter } from "./counter.jsx";
 
 /**
  * Filter i flera dimensioner, bakom EN knapp, plus sortering.
@@ -90,8 +90,8 @@ import { Raknare } from "./counter.jsx";
  * @param {Record<string, string | null>} props.value Vad som är valt per grupp, `null` = alla.
  * @param {(value: Record<string, string | null>) => void} props.onChange Hela kartan, inte en delmängd.
  * @param {string} props.ariaLabel Vad knappen öppnar, t.ex. "Filter och sortering".
- * @param {{ label: string, value: string, options: { value: string, label: string }[], onChange: (v: string) => void, icon?: import("react").ReactNode, standard?: string }} [props.sorting]
- *   ⛔ `standard` säger vilket val som är "orörd". Utan den räknas det första
+ * @param {{ label: string, value: string, options: { value: string, label: string }[], onChange: (v: string) => void, icon?: import("react").ReactNode, fallback?: string }} [props.sorting]
+ *   ⛔ `fallback` säger vilket val som är "orörd". Utan den räknas det första
  *   alternativet som standard, vilket är sant i båda apparna idag men är en
  *   gissning så snart någon listar sitt förval någon annanstans än först.
  * @param {"samlad"|"ikoner"} [props.layout] Standard `"samlad"`, alltså en knapp för allt.
@@ -123,13 +123,13 @@ export function OpsFilterPanel({
   }
 
   /** @type {Record<string, string | null>} */
-  const val = value || {};
+  const choice = value || {};
 
-  /** @type {{ grupp: FilterGroup, vald: { value: string, label: string } }[]} */
+  /** @type {{ grupp: FilterGroup, chosen: { value: string, label: string } }[]} */
   const aktiva = [];
   for (const g of groups) {
-    const vald = g.options.find((o) => o.value === val[g.id]);
-    if (vald) aktiva.push({ grupp: g, vald });
+    const chosen = g.options.find((o) => o.value === choice[g.id]);
+    if (chosen) aktiva.push({ grupp: g, chosen });
   }
 
   /*
@@ -137,19 +137,19 @@ export function OpsFilterPanel({
    * "Väntar" säger vad som visas; "Status" säger bara vilken sorts filter som
    * är satt, alltså precis det man redan ser av att knappen är tänd.
    */
-  const text = aktiva.length > 0 ? aktiva[0].vald.label : "";
+  const text = aktiva.length > 0 ? aktiva[0].chosen.label : "";
 
   /** @param {string} id @param {string | null} nytt */
-  const vlj = (id, nytt) => onChange({ ...val, [id]: nytt });
+  const vlj = (id, nytt) => onChange({ ...choice, [id]: nytt });
 
   const rensa = () => {
     // ⛔ Alla grupper nollställs, även de som inte var satta. Ett `onChange`
     // med en delmängd hade lämnat appens karta halvfylld, och nästa läsning
     // hade sett en nyckel som saknas som "aldrig konfigurerad".
     /** @type {Record<string, string | null>} */
-    const tomt = {};
-    for (const g of groups) tomt[g.id] = null;
-    onChange(tomt);
+    const empty = {};
+    for (const g of groups) empty[g.id] = null;
+    onChange(empty);
   };
 
   /**
@@ -161,21 +161,21 @@ export function OpsFilterPanel({
    *
    * @param {FilterGroup} g
    */
-  const gruppensRader = (g) => (
+  const groupRows = (g) => (
     <>
-      <Rad vald={!val[g.id]} onClick={() => vlj(g.id, null)} text={g.allLabel || "Alla"} />
+      <Row chosen={!choice[g.id]} onClick={() => vlj(g.id, null)} text={g.allLabel || "Alla"} />
       {g.options.map((o) => (
-        <Rad key={o.value} vald={val[g.id] === o.value} onClick={() => vlj(g.id, o.value)} text={o.label} ikon={o.icon} />
+        <Row key={o.value} chosen={choice[g.id] === o.value} onClick={() => vlj(g.id, o.value)} text={o.label} ikon={o.icon} />
       ))}
     </>
   );
 
   /** Sorteringens rader, likaså delade. */
-  const sorteringensRader = () =>
+  const sortRows = () =>
     sorting ? (
       <>
         {sorting.options.map((o) => (
-          <Rad key={o.value} vald={sorting.value === o.value} onClick={() => sorting.onChange(o.value)} text={o.label} />
+          <Row key={o.value} chosen={sorting.value === o.value} onClick={() => sorting.onChange(o.value)} text={o.label} />
         ))}
       </>
     ) : null;
@@ -188,7 +188,7 @@ export function OpsFilterPanel({
      * knappen visar fortfarande bara filter.
      */
     /*
-     * ⛔ `standard` KRÄVS OCH GISSAS INTE LÄNGRE, och skälet är ett fel som
+     * ⛔ `fallback` KRÄVS OCH GISSAS INTE LÄNGRE, och skälet är ett fel som
      * ingen app kunde upptäcka i sina egna prov.
      *
      * Reserven var "det FÖRSTA alternativet". Den är rätt precis så länge
@@ -198,23 +198,23 @@ export function OpsFilterPanel({
      * ljuga om sitt eget tillstånd.
      *
      * bolag-ops hade exakt den fällan uppskriven i sin kod: förvalet råkade
-     * ligga först, så en planterad defekt som tog bort `standard` förblev grön.
+     * ligga först, så en planterad defekt som tog bort `fallback` förblev grön.
      * Ett hål som bara går att bevaka med en kommentar hör hemma i ramverket
      * som ett kast.
      *
      * ⛔ KRAVET GÄLLER BARA IKONLÄGET, med flit. I den samlade panelen tänds
-     * ingenting, alltså läses `standard` aldrig, och att kräva in data som
+     * ingenting, alltså läses `fallback` aldrig, och att kräva in data som
      * ingen använder är att lära den som läser felet att kravet är godtyckligt.
      */
-    if (sorting && sorting.standard === undefined) {
+    if (sorting && sorting.fallback === undefined) {
       throw new Error(
         "OpsFilterPanel: sorting.standard krävs. Utan den gissas förvalet till första alternativet, och ikonen ljuger om sitt tillstånd så fort listan sorteras om.",
       );
     }
-    const sorteringStandard = sorting ? sorting.standard : undefined;
+    const sortDefault = sorting ? sorting.fallback : undefined;
     // ⛔ Bunden till en const: TypeScript smalnar inte av `sorting` genom ett
     // `Boolean(...) &&`, så uttrycket måste ställa frågan på den bundna.
-    const sorteringRord = sorting ? sorting.value !== sorteringStandard : false;
+    const sortTouched = sorting ? sorting.value !== sortDefault : false;
 
     return (
       /*
@@ -226,16 +226,16 @@ export function OpsFilterPanel({
        */
       <div role="group" aria-label={ariaLabel} className="flex flex-wrap items-center gap-1">
         {groups.map((g) => {
-          const vald = g.options.find((o) => o.value === val[g.id]);
+          const chosen = g.options.find((o) => o.value === choice[g.id]);
           return (
             <Popover.Root
               key={g.id}
               open={oppenGrupp === g.id}
-              onOpenChange={(nasta) => setOppenGrupp(nasta ? g.id : null)}
+              onOpenChange={(next) => setOppenGrupp(next ? g.id : null)}
             >
               <Popover.Trigger
-                aria-label={vald ? `${g.label}: ${vald.label}` : g.label}
-                aria-pressed={Boolean(vald)}
+                aria-label={chosen ? `${g.label}: ${chosen.label}` : g.label}
+                aria-pressed={Boolean(chosen)}
                 className={cx(
                   "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl",
                   "transition-colors duration-(--duration-fast) ease-standard",
@@ -244,7 +244,7 @@ export function OpsFilterPanel({
                   // raden finns: filtertillståndet ska synas utan att något
                   // öppnas. Samma två lägen som den samlade knappen har, fast
                   // per dimension.
-                  vald
+                  chosen
                     ? "border border-line bg-surface text-ink"
                     : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
                 )}
@@ -258,7 +258,7 @@ export function OpsFilterPanel({
                   className="z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
                 >
                   <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.label}</p>
-                  <div className="flex flex-col">{gruppensRader(g)}</div>
+                  <div className="flex flex-col">{groupRows(g)}</div>
                 </Popover.Content>
               </Popover.Portal>
             </Popover.Root>
@@ -268,21 +268,21 @@ export function OpsFilterPanel({
         {sorting ? (
           <Popover.Root
             open={oppenGrupp === "__sortering"}
-            onOpenChange={(nasta) => setOppenGrupp(nasta ? "__sortering" : null)}
+            onOpenChange={(next) => setOppenGrupp(next ? "__sortering" : null)}
           >
             <Popover.Trigger
               aria-label={`${sorting.label}: ${sorting.options.find((o) => o.value === sorting.value)?.label ?? ""}`}
-              aria-pressed={sorteringRord}
+              aria-pressed={sortTouched}
               className={cx(
                 "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl",
                 "transition-colors duration-(--duration-fast) ease-standard",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                sorteringRord
+                sortTouched
                   ? "border border-line bg-surface text-ink"
                   : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
               )}
             >
-              {sorting.icon || <SorteringIkon size={20} />}
+              {sorting.icon || <SortIcon size={20} />}
             </Popover.Trigger>
             <Popover.Portal>
               <Popover.Content
@@ -293,7 +293,7 @@ export function OpsFilterPanel({
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   {sorting.label}
                 </p>
-                <div className="flex flex-col">{sorteringensRader()}</div>
+                <div className="flex flex-col">{sortRows()}</div>
               </Popover.Content>
             </Popover.Portal>
           </Popover.Root>
@@ -366,7 +366,7 @@ export function OpsFilterPanel({
         {/* ⛔ Räknaren visas BARA när ordet inte räcker, alltså från två filter
             och uppåt. Vid ett filter står hela sanningen redan i knappen, och en
             etta i ett hörn hade varit dekor. */}
-        {aktiva.length > 1 ? <Raknare antal={aktiva.length} text={moreLabel} /> : null}
+        {aktiva.length > 1 ? <Counter count={aktiva.length} text={moreLabel} /> : null}
       </Popover.Trigger>
 
       <Popover.Portal>
@@ -379,7 +379,7 @@ export function OpsFilterPanel({
             {groups.map((g) => (
               <div key={g.id} className="flex flex-col">
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.label}</p>
-                {gruppensRader(g)}
+                {groupRows(g)}
               </div>
             ))}
 
@@ -388,7 +388,7 @@ export function OpsFilterPanel({
                 <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                   {sorting.label}
                 </p>
-                {sorteringensRader()}
+                {sortRows()}
               </div>
             ) : null}
 
@@ -423,23 +423,23 @@ export function OpsFilterPanel({
  * "alla"-raden ritas likadant, och tre kopior av samma fjorton klasser hade
  * glidit isär första gången någon ändrade höjden på en av dem.
  *
- * @param {{ vald: boolean, onClick: () => void, text: string, ikon?: import("react").ReactNode }} props
+ * @param {{ chosen: boolean, onClick: () => void, text: string, ikon?: import("react").ReactNode }} props
  */
-function Rad({ vald, onClick, text, ikon }) {
+function Row({ chosen, onClick, text, ikon }) {
   return (
     <button
       type="button"
-      aria-pressed={vald}
+      aria-pressed={chosen}
       onClick={onClick}
       className={cx(
         "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        vald ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+        chosen ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
       )}
     >
       {ikon ? <span className="shrink-0 text-ink-secondary">{ikon}</span> : null}
       <span className="flex-1">{text}</span>
-      {vald ? (
+      {chosen ? (
         <span aria-hidden="true" className="shrink-0 text-accent">
           <BockIkon />
         </span>

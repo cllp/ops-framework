@@ -11,28 +11,28 @@ import { OpsCheckbox, OpsSwitch } from "../components/OpsToggle.jsx";
 import { OpsProvenance } from "../components/OpsProvenance.jsx";
 import { formatCurrency, formatDate, formatDateTime, formatNumber, formatPercent, MISSING, NUMBER_SPACE } from "../lib/format.js";
 
-/** @param {() => void} kor @param {RegExp} meddelande */
-function forvantaKrasch(kor, meddelande) {
+/** @param {() => void} kor @param {RegExp} message */
+function forvantaKrasch(kor, message) {
   const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
-    expect(kor).toThrow(meddelande);
+    expect(kor).toThrow(message);
   } finally {
     tyst.mockRestore();
   }
 }
 
-const KOLUMNER = [
+const COLUMNS = [
   { key: "titel", label: "Leverantör" },
   { key: "belopp", label: "Belopp", numeric: true },
 ];
-const RADER = [
+const ROWS = [
   { id: "1", title: "Fortnox", belopp: "1 200 kr" },
   { id: "2", title: "Telia", belopp: "449 kr" },
 ];
 
 describe("OpsTable", () => {
   it("bygger en riktig tabell med kolumnrubriker", () => {
-    render(<OpsTable caption="Kostnader 2026" columns={KOLUMNER} rows={RADER} />);
+    render(<OpsTable caption="Kostnader 2026" columns={COLUMNS} rows={ROWS} />);
     expect(screen.getByRole("table", { name: "Kostnader 2026" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Leverantör" })).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(3); // rubrikrad + tva datarader
@@ -41,16 +41,16 @@ describe("OpsTable", () => {
   // ⛔ Utan caption är en tabell bara ett rutnät av lösryckta värden för den
   // som lyssnar i stället för ser.
   it("vägrar en tabell utan caption", () => {
-    forvantaKrasch(() => render(<OpsTable columns={KOLUMNER} rows={RADER} />), /caption krävs/);
+    forvantaKrasch(() => render(<OpsTable columns={COLUMNS} rows={ROWS} />), /caption krävs/);
   });
 
   it("behåller namnet för skärmläsare även när rubriken döljs visuellt", () => {
-    render(<OpsTable caption="Kostnader 2026" hideCaption columns={KOLUMNER} rows={RADER} />);
+    render(<OpsTable caption="Kostnader 2026" hideCaption columns={COLUMNS} rows={ROWS} />);
     expect(screen.getByRole("table", { name: "Kostnader 2026" })).toBeInTheDocument();
   });
 
   it("visar tomt tillstånd i stället för en tabell utan rader", () => {
-    render(<OpsTable caption="Kostnader" columns={KOLUMNER} rows={[]} empty={<OpsEmpty title="Inga kostnader" />} />);
+    render(<OpsTable caption="Kostnader" columns={COLUMNS} rows={[]} empty={<OpsEmpty title="Inga kostnader" />} />);
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Inga kostnader")).toBeInTheDocument();
   });
@@ -110,14 +110,14 @@ describe("OpsTag", () => {
 });
 
 describe("OpsTabs", () => {
-  const FLIKAR = [
+  const TABS = [
     { id: "a", label: "Utfall" },
     { id: "b", label: "Prognos" },
   ];
 
   it("visar bara den aktiva panelen", () => {
     render(
-      <OpsTabs tabs={FLIKAR} value="a" onChange={() => {}} ariaLabel="Vy">
+      <OpsTabs tabs={TABS} value="a" onChange={() => {}} ariaLabel="Vy">
         <OpsTabPanel id="a">Utfallet</OpsTabPanel>
         <OpsTabPanel id="b">Prognosen</OpsTabPanel>
       </OpsTabs>,
@@ -134,7 +134,7 @@ describe("OpsTabs", () => {
   it("byter flik när man klickar", async () => {
     const onChange = vi.fn();
     render(
-      <OpsTabs tabs={FLIKAR} value="a" onChange={onChange} ariaLabel="Vy">
+      <OpsTabs tabs={TABS} value="a" onChange={onChange} ariaLabel="Vy">
         <OpsTabPanel id="a">Utfallet</OpsTabPanel>
       </OpsTabs>,
     );
@@ -146,7 +146,7 @@ describe("OpsTabs", () => {
     forvantaKrasch(
       () =>
         render(
-          <OpsTabs tabs={FLIKAR} value="a" onChange={() => {}}>
+          <OpsTabs tabs={TABS} value="a" onChange={() => {}}>
             <OpsTabPanel id="a">x</OpsTabPanel>
           </OpsTabs>,
         ),
@@ -160,8 +160,8 @@ describe("kryssruta och reglage", () => {
   it("kryssrutan är ett riktigt fält som går att nå via sin etikett", () => {
     const onChange = vi.fn();
     render(<OpsCheckbox label="Visa arkiverade" checked={false} onChange={onChange} />);
-    const ruta = screen.getByRole("checkbox", { name: "Visa arkiverade" });
-    ruta.click();
+    const box = screen.getByRole("checkbox", { name: "Visa arkiverade" });
+    box.click();
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
@@ -198,14 +198,14 @@ describe("OpsStat", () => {
 
 describe("formatering", () => {
   it("skriver belopp med svensk avgränsare och valuta", () => {
-    const ut = formatCurrency(1234567);
-    expect(ut).toContain("kr");
+    const out = formatCurrency(1234567);
+    expect(out).toContain("kr");
     // ⛔ Vi jämför INTE mot ett specifikt mellanslagstecken. Vilket Intl väljer
     // beror på ICU-versionen, alltså på vilken Node som kör, och ett test som
     // låser tecknet går sönder vid nästa runtime-uppgradering och ser då ut som
     // att formateringen är trasig.
-    expect(ut).not.toBe("1234567 kr");
-    expect(ut.replace(NUMBER_SPACE, "")).toBe("1234567kr");
+    expect(out).not.toBe("1234567 kr");
+    expect(out.replace(NUMBER_SPACE, "")).toBe("1234567kr");
   });
 
   it("visar tomhet som streck i stället för NaN eller noll", () => {
@@ -234,10 +234,10 @@ describe("formatering", () => {
   });
 
   it("formaterar datum och tid tillsammans", () => {
-    const ut = formatDateTime(new Date(2026, 8, 15, 14, 5));
-    expect(ut).toContain("2026");
-    expect(ut).toContain("14");
-    expect(ut).toContain("05");
+    const out = formatDateTime(new Date(2026, 8, 15, 14, 5));
+    expect(out).toContain("2026");
+    expect(out).toContain("14");
+    expect(out).toContain("05");
   });
 
   it("avrundar decimaler i stället för att klippa", () => {

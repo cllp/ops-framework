@@ -4,12 +4,12 @@ import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import {
   MONTH_NAMES,
   dateKey,
-  datumtext,
+  dateText,
   todayKey,
   months,
   monthGrid,
   perDay,
-  rullriktning,
+  scrollDirection,
 } from "../lib/calendar.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
@@ -105,7 +105,7 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
  * ruta man till slut rullar ifrån i stället för att stänga.
  */
 
-const VECKODAGAR = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
+const WEEKDAYS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
 
 /** Hur många prickar en ruta ritar innan den börjar räkna i stället. */
 const MAX_PRICKAR = 3;
@@ -149,38 +149,38 @@ const SVEPSTEG = 40;
  * ⛔ TRÄFFYTAN ÄR HELA RUTAN. En siffra är några pixlar bred, och en kalender man
  * missar med tummen är en kalender man slutar öppna.
  *
- * @param {{ dag: number | null, nyckel: string, entries: import("../lib/calendar.js").CalendarEntry[], arIdag: boolean, vald: boolean, onValj: (nyckel: string) => void }} props
+ * @param {{ day: number | null, dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[], isToday: boolean, chosen: boolean, onSelect: (dayKey: string) => void }} props
  */
-function Dagsruta({ dag, nyckel, entries, arIdag, vald, onValj }) {
-  if (dag === null) return <div aria-hidden="true" />;
+function DayBox({ day, dayKey, entries, isToday, chosen, onSelect }) {
+  if (day === null) return <div aria-hidden="true" />;
 
-  const antal = entries.length;
-  const label = antal === 0 ? `${dag}` : `${dag}, ${antal} ${antal === 1 ? "post" : "poster"}`;
+  const count = entries.length;
+  const label = count === 0 ? `${day}` : `${day}, ${count} ${count === 1 ? "post" : "poster"}`;
 
   return (
     <button
       type="button"
-      disabled={antal === 0}
-      aria-pressed={vald}
+      disabled={count === 0}
+      aria-pressed={chosen}
       aria-label={label}
-      onClick={() => onValj(nyckel)}
+      onClick={() => onSelect(dayKey)}
       className={cx(
         "flex min-h-14 flex-col items-center gap-1 rounded-md px-1 pt-1.5 pb-1 text-sm transition-colors duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        antal === 0 ? "cursor-default text-ink-muted" : "cursor-pointer text-ink hover:bg-accent-faint",
-        vald && "bg-accent-subtle",
+        count === 0 ? "cursor-default text-ink-muted" : "cursor-pointer text-ink hover:bg-accent-faint",
+        chosen && "bg-accent-subtle",
         // ⛔ Idag är en RING och inte en fylld yta. Fylld krockar med markeringen
         // för vald dag, och då går det inte att se vilken av de två man tittar på.
-        arIdag && "ring-2 ring-accent ring-inset font-bold",
+        isToday && "ring-2 ring-accent ring-inset font-bold",
       )}
     >
-      <span className="tabular-nums">{dag}</span>
+      <span className="tabular-nums">{day}</span>
       {/* ⛔ Dekor, och läses inte upp: antalet står redan i knappens namn. */}
       <span aria-hidden="true" className="flex min-h-2 items-center gap-0.5">
         {entries.slice(0, MAX_PRICKAR).map((p) => (
           <span key={p.id} className="size-1.5 rounded-full bg-accent" />
         ))}
-        {antal > MAX_PRICKAR ? <span className="text-xs tabular-nums text-ink-muted">+{antal - MAX_PRICKAR}</span> : null}
+        {count > MAX_PRICKAR ? <span className="text-xs tabular-nums text-ink-muted">+{count - MAX_PRICKAR}</span> : null}
       </span>
     </button>
   );
@@ -217,20 +217,20 @@ function Kryss({ stor = false }) {
  * stängkryss två centimeter till höger, och två knappar med samma verkan får
  * läsaren att leta efter skillnaden.
  *
- * @param {{ nyckel: string, kanTasBort: boolean, onTaBort: (nyckel: string) => void, ordning: number }} props
+ * @param {{ dayKey: string, kanTasBort: boolean, onTaBort: (dayKey: string) => void, order: number }} props
  */
-function Datumpiller({ nyckel, kanTasBort, onTaBort, ordning }) {
-  const text = datumtext(nyckel);
+function Datumpiller({ dayKey, kanTasBort, onTaBort, order }) {
+  const text = dateText(dayKey);
   return (
     <span
-      style={{ animationDelay: `${ordning * SVEPSTEG}ms` }}
+      style={{ animationDelay: `${order * SVEPSTEG}ms` }}
       className="ops-contrast-panel inline-flex animate-svep items-center gap-1.5 rounded-full bg-contrast-panel py-1 pr-2 pl-2.5 text-xs font-semibold text-ink shadow-md"
     >
       {text}
       {kanTasBort ? (
         <button
           type="button"
-          onClick={() => onTaBort(nyckel)}
+          onClick={() => onTaBort(dayKey)}
           aria-label={`Ta bort ${text}`}
           className="flex cursor-pointer items-center text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
@@ -259,14 +259,14 @@ function Datumpiller({ nyckel, kanTasBort, onTaBort, ordning }) {
  * säger vilken av dem just den här posten tillhör. Med tre dagar valda är det
  * enda som skiljer två likadana påminnelser åt.
  *
- * @param {{ nyckel: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, ordning: number }} props
+ * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number }} props
  */
-function Postkort({ nyckel, entry, statusWords, ordning }) {
+function Postkort({ dayKey, entry, statusWords, order }) {
   const [oppen, setOppen] = useState(false);
   const idBas = useId();
   const panelId = `${idBas}-detaljer`;
 
-  const meta = entry.not ? `${datumtext(nyckel)} · ${entry.not}` : datumtext(nyckel);
+  const meta = entry.not ? `${dateText(dayKey)} · ${entry.not}` : dateText(dayKey);
 
   /*
    * ⛔ CHEVRONEN FINNS BARA NÄR DET FINNS NÅGOT ATT FÄLLA UT. En pil som öppnar
@@ -278,7 +278,7 @@ function Postkort({ nyckel, entry, statusWords, ordning }) {
 
   return (
     <div
-      style={{ animationDelay: `${ordning * SVEPSTEG}ms` }}
+      style={{ animationDelay: `${order * SVEPSTEG}ms` }}
       className="ops-contrast-panel animate-svep rounded-xl bg-contrast-panel p-2.5 shadow-md"
     >
       <div className="flex items-start gap-2">
@@ -407,12 +407,12 @@ function Postkort({ nyckel, entry, statusWords, ordning }) {
  * `max-h`-behållare som korten. Escape och ett andra tryck i rutnätet är vägar
  * ut som inte kan rulla bort.
  *
- * @param {{ dagar: { nyckel: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onStang: () => void, onTaBort: (nyckel: string) => void }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void }} props
  */
-function Dagspanel({ dagar, statusWords, onStang, onTaBort }) {
-  const flera = dagar.length > 1;
-  const title = flera ? `${dagar.length} dagar` : datumtext(dagar[0].nyckel);
-  const name = flera ? `Poster för ${dagar.length} valda dagar` : `Poster den ${title}`;
+function DayPanel({ days, statusWords, onClose, onTaBort }) {
+  const flera = days.length > 1;
+  const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey);
+  const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
 
   /*
    * ⛔ ESCAPE STÄNGER, och den lyssnaren sitter på fönstret och inte på panelen.
@@ -422,11 +422,11 @@ function Dagspanel({ dagar, statusWords, onStang, onTaBort }) {
   useEffect(() => {
     /** @param {KeyboardEvent} e */
     const vid = (e) => {
-      if (e.key === "Escape") onStang();
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", vid);
     return () => window.removeEventListener("keydown", vid);
-  }, [onStang]);
+  }, [onClose]);
 
   return (
     <section
@@ -434,14 +434,14 @@ function Dagspanel({ dagar, statusWords, onStang, onTaBort }) {
       className="pointer-events-auto flex max-h-[45svh] w-full max-w-sm flex-col gap-2 overflow-y-auto overscroll-contain lg:max-h-[70svh] lg:max-w-none"
     >
       <div className="flex flex-wrap items-center gap-1.5">
-        {dagar.map((d, i) => (
-          <Datumpiller key={d.nyckel} nyckel={d.nyckel} kanTasBort={flera} onTaBort={onTaBort} ordning={i} />
+        {days.map((d, i) => (
+          <Datumpiller key={d.dayKey} dayKey={d.dayKey} kanTasBort={flera} onTaBort={onTaBort} order={i} />
         ))}
         {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad som
             stängs för den som lyssnar sig igenom sidan. */}
         <button
           type="button"
-          onClick={onStang}
+          onClick={onClose}
           aria-label={`Stäng ${title}`}
           className={cx(
             "ops-contrast-panel ml-auto flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-contrast-panel text-ink shadow-md",
@@ -455,14 +455,14 @@ function Dagspanel({ dagar, statusWords, onStang, onTaBort }) {
       {/* ⛔ TRAPPAN RÄKNAS ÖVER HELA PANELEN och inte per dag. Räknades den om
           för varje dag skulle första kortet under varje datum svepa in
           samtidigt, och det som ska läsas som en rörelse blir tre. */}
-      {dagar.flatMap((d, di) =>
+      {days.flatMap((d, di) =>
         d.entries.map((p, pi) => (
           <Postkort
-            key={`${d.nyckel}-${p.id}`}
-            nyckel={d.nyckel}
+            key={`${d.dayKey}-${p.id}`}
+            dayKey={d.dayKey}
             entry={p}
             statusWords={statusWords}
-            ordning={dagar.length + dagar.slice(0, di).reduce((n, x) => n + x.entries.length, 0) + pi}
+            order={days.length + days.slice(0, di).reduce((n, x) => n + x.entries.length, 0) + pi}
           />
         )),
       )}
@@ -488,10 +488,10 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
   }
 
   const nu = today || new Date();
-  const idagNyckel = todayKey(nu);
+  const todayDayKey = todayKey(nu);
   /*
    * ⛔ FLERA VALDA DAGAR, OCH DÄRFÖR EN LISTA OCH INTE ETT VÄRDE. CP 2026-09-22:
-   * "jag kan markera flera". Ett enda `vald` hade gjort varje nytt tryck till ett
+   * "jag kan markera flera". Ett enda `chosen` hade gjort varje nytt tryck till ett
    * byte i stället för ett tillägg, alltså exakt det man inte vill när man
    * jämför två dagar med varandra.
    *
@@ -499,16 +499,16 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
    * som muteras på plats ger samma referens tillbaka, alltså ingen omrendering.
    * Det felet ser ut som att knappen inte fungerar.
    */
-  const [valda, setValda] = useState(/** @type {string[]} */ ([]));
+  const [chosen, setValda] = useState(/** @type {string[]} */ ([]));
 
-  const karta = useMemo(() => perDay(entries), [entries]);
+  const byKey = useMemo(() => perDay(entries), [entries]);
   const list = useMemo(() => months(nu, monthsBack, monthsForward), [nu, monthsBack, monthsForward]);
 
   const rulleRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const huvudRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const idagRef = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const [visaTillbaka, setVisaTillbaka] = useState(false);
-  const [riktning, setRiktning] = useState(/** @type {"upp" | "ner"} */ ("upp"));
+  const todayRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [showBack, setShowBack] = useState(false);
+  const [direction, setDirection] = useState(/** @type {"upp" | "ner"} */ ("upp"));
 
   /**
    * Rullar behållaren till innevarande månad.
@@ -523,12 +523,12 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
    * hade blivit fel den dag typsnittet ändras.
    *
    */
-  const tillIdag = useCallback((/** @type {ScrollBehavior} */ beteende = "auto") => {
+  const toToday = useCallback((/** @type {ScrollBehavior} */ beteende = "auto") => {
     const rulle = rulleRef.current;
-    const manad = idagRef.current;
-    if (!rulle || !manad) return;
+    const month = todayRef.current;
+    if (!rulle || !month) return;
     const header = huvudRef.current ? huvudRef.current.offsetHeight : 0;
-    rulle.scrollTo({ top: Math.max(0, manad.offsetTop - header), behavior: beteende });
+    rulle.scrollTo({ top: Math.max(0, month.offsetTop - header), behavior: beteende });
   }, []);
 
   /*
@@ -543,8 +543,8 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
   useEffect(() => {
     if (didRef.current) return;
     didRef.current = true;
-    tillIdag();
-  }, [tillIdag]);
+    toToday();
+  }, [toToday]);
 
   /*
    * ⛔ HÖJDEN KOMMER UR `useFullHeight`, inte ur tjugo rader här. Skälet till att
@@ -555,17 +555,17 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
   const fullhojd = useFullHeight(rulleRef);
 
   useEffect(() => {
-    const el = idagRef.current;
+    const el = todayRef.current;
     const rulle = rulleRef.current;
     if (!el || !rulle || typeof IntersectionObserver !== "function") return undefined;
     const obs = new IntersectionObserver(
-      ([traff]) => {
-        setVisaTillbaka(!traff.isIntersecting);
-        if (traff.isIntersecting) return;
-        // ⛔ Beslutet bor i `rullriktning` och inte här, se den funktionen: den
+      ([hit]) => {
+        setShowBack(!hit.isIntersecting);
+        if (hit.isIntersecting) return;
+        // ⛔ Beslutet bor i `scrollDirection` och inte här, se den funktionen: den
         // gamla jämförelsen var hårfin på just den pixel där observatören
         // svarar, så pilen pekade nedåt så gott som alltid.
-        setRiktning(rullriktning(traff.boundingClientRect, traff.rootBounds));
+        setDirection(scrollDirection(hit.boundingClientRect, hit.rootBounds));
       },
       // ⛔ `root` ÄR RULLBEHÅLLAREN OCH INTE FÖNSTRET. Utan den mäts synligheten
       // mot viewporten, och eftersom hela kalendern ryms där skulle månaden
@@ -577,7 +577,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
     return () => obs.disconnect();
   }, []);
 
-  const harPoster = karta.size > 0;
+  const harPoster = byKey.size > 0;
 
   /*
    * ⛔ SORTERAT PÅ DATUM OCH INTE PÅ TRYCKORDNING. Markerar man den 25:e och
@@ -590,19 +590,19 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
    * är öppen kan en markerad dag bli tom, och en datumrubrik utan rader under
    * ser ut som att något gick sönder.
    */
-  const dagar = useMemo(
+  const days = useMemo(
     () =>
-      [...valda]
+      [...chosen]
         .sort()
-        .map((nyckel) => ({ nyckel, entries: karta.get(nyckel) || [] }))
+        .map((dayKey) => ({ dayKey, entries: byKey.get(dayKey) || [] }))
         .filter((d) => d.entries.length > 0),
-    [valda, karta],
+    [chosen, byKey],
   );
 
   return (
     /*
      * ⛔ EN RAD PÅ BREDA SKÄRMAR, EN SPALT PÅ SMALA, och det är förebildens
-     * `showSidePanel = !isPhone`. Se `Dagspanel` för hela resonemanget: på allt
+     * `showSidePanel = !isPhone`. Se `DayPanel` för hela resonemanget: på allt
      * utom telefon finns bredd att lägga dagens poster BREDVID rutnätet, och då
      * behöver ingenting läggas ovanpå något annat.
      */
@@ -630,7 +630,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
         {/* ⛔ Klistrad veckodagsrad. Efter tre månaders rullning är kolumnernas
             betydelse borta, och man räknar sig fram i stället för att läsa. */}
         <div ref={huvudRef} className="sticky top-0 z-(--z-sticky) grid grid-cols-7 gap-1 bg-canvas pt-1 pb-2">
-          {VECKODAGAR.map((d) => (
+          {WEEKDAYS.map((d) => (
             <span key={d} className="text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
               {d}
             </span>
@@ -640,29 +640,29 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
         {!harPoster && emptyText ? <p className="m-0 pb-3 text-sm text-ink-muted">{emptyText}</p> : null}
 
         <div className="flex flex-col gap-6 pb-4">
-          {list.map(({ ar, manad }) => {
-            const arIdagsManad = ar === nu.getFullYear() && manad === nu.getMonth();
-            const rader = monthGrid(ar, manad);
+          {list.map(({ ar, month }) => {
+            const isCurrentMonth = ar === nu.getFullYear() && month === nu.getMonth();
+            const rows = monthGrid(ar, month);
 
             return (
-              <div key={`${ar}-${manad}`} ref={arIdagsManad ? idagRef : null}>
+              <div key={`${ar}-${month}`} ref={isCurrentMonth ? todayRef : null}>
                 <h3 className="m-0 mb-2 text-lg font-bold capitalize text-ink font-display">
-                  {MONTH_NAMES[manad]} {ar}
+                  {MONTH_NAMES[month]} {ar}
                 </h3>
 
                 <div className="grid grid-cols-7 gap-1">
-                  {rader.map((rad, i) =>
-                    rad.map((dag, j) => {
-                      const nyckel = dag === null ? `tom-${i}-${j}` : dateKey(ar, manad, dag);
+                  {rows.map((row, i) =>
+                    row.map((day, j) => {
+                      const dayKey = day === null ? `tom-${i}-${j}` : dateKey(ar, month, day);
                       return (
-                        <Dagsruta
-                          key={nyckel}
-                          dag={dag}
-                          nyckel={nyckel}
-                          entries={dag === null ? [] : karta.get(nyckel) || []}
-                          arIdag={nyckel === idagNyckel}
-                          vald={valda.indexOf(nyckel) >= 0}
-                          onValj={(n) =>
+                        <DayBox
+                          key={dayKey}
+                          day={day}
+                          dayKey={dayKey}
+                          entries={day === null ? [] : byKey.get(dayKey) || []}
+                          isToday={dayKey === todayDayKey}
+                          chosen={chosen.indexOf(dayKey) >= 0}
+                          onSelect={(n) =>
                             setValda((forra) => (forra.indexOf(n) >= 0 ? forra.filter((x) => x !== n) : [...forra, n]))
                           }
                         />
@@ -679,10 +679,10 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
       {/* ⛔ `absolute` I RUTNÄTETS EGET HÖRN, inte `sticky` i flödet. Knappen
           hör till rutnätet och ska stå still medan det rullar under den, och
           `sticky` kunde bara nypa inom sin förälders rullsträcka. */}
-      {visaTillbaka ? (
+      {showBack ? (
         <button
           type="button"
-          onClick={() => tillIdag("smooth")}
+          onClick={() => toToday("smooth")}
           className={cx(
             "absolute right-4 bottom-4 min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-4 text-sm font-semibold text-ink shadow-md",
             "hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -692,10 +692,10 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
                det man läser just då; Idag-knappen är ett hjälpmedel medan man
                rullar. Från 768 px bor panelen i egen kolumn och krocken finns
                inte. */
-            dagar.length > 0 ? "hidden lg:flex" : "flex",
+            days.length > 0 ? "hidden lg:flex" : "flex",
           )}
         >
-          <span aria-hidden="true">{riktning === "upp" ? "↑" : "↓"}</span>
+          <span aria-hidden="true">{direction === "upp" ? "↑" : "↓"}</span>
           Idag
         </button>
       ) : null}
@@ -724,11 +724,11 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
             tre dagar kvar hade sett ut som att knappen inte fungerade. Enskilda
             dagar tas bort på sitt eget piller, eller med ett andra tryck i
             rutnätet. */}
-        {dagar.length > 0 ? (
-          <Dagspanel
-            dagar={dagar}
+        {days.length > 0 ? (
+          <DayPanel
+            days={days}
             statusWords={statusWords}
-            onStang={() => setValda([])}
+            onClose={() => setValda([])}
             onTaBort={(n) => setValda((forra) => forra.filter((x) => x !== n))}
           />
         ) : (

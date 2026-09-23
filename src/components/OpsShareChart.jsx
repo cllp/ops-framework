@@ -86,8 +86,8 @@ const MAX_BITAR = STRECK.length;
 const SVANS = "w-[4.25rem]";
 const SVANS_MARGINAL = "pr-[5.25rem]";
 
-const RADIE = 40;
-const OMKRETS = 2 * Math.PI * RADIE;
+const RADIUS = 40;
+const OMKRETS = 2 * Math.PI * RADIUS;
 // ⛔ Ett mellanrum i ytans färg mellan bitarna, inte en ritad kant runt dem. En
 // kant lägger till en linje som ögat läser som information; ett mellanrum säger
 // bara "här slutar den ena".
@@ -110,7 +110,7 @@ const GLAPP = 1.2;
  */
 export function OpsShareChart({ segments, ariaLabel, empty = null }) {
   const [active, setAktiv] = useState(/** @type {string | null} */ (null));
-  const [oppna, setOppna] = useState(/** @type {string[]} */ ([]));
+  const [open, setOpen] = useState(/** @type {string[]} */ ([]));
   // ⛔ Krokarna står FÖRE den tidiga returen för tomt läge. En krok efter en
   // return körs inte i alla renderingar, och React räknar krokar på ordning:
   // listan skulle byta betydelse den rendering datan kommer in.
@@ -135,13 +135,13 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
   const nagonHarDetaljer = entries.some((p) => Boolean(p.details));
 
   let vinkel = 0;
-  const bitar = entries.map((p, i) => {
-    const andel = p.value / summa;
-    const langd = andel * OMKRETS;
-    const bit = {
+  const pieces = entries.map((p, i) => {
+    const share = p.value / summa;
+    const langd = share * OMKRETS;
+    const piece = {
       ...p,
       i,
-      andel,
+      share,
       // ⛔ Glappet dras från bitens egen längd i stället för att läggas till
       // nästa. Läggs det till driver summan ifrån omkretsen och sista biten
       // hamnar ovanpå den första.
@@ -149,7 +149,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
       offset: -vinkel,
     };
     vinkel += langd;
-    return bit;
+    return piece;
   });
 
   /*
@@ -184,12 +184,12 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
             ringen upp som en hög med tomma cirklar, eller inte alls. Siffrorna
             finns i listan bredvid, som är den faktiska datavyn. */}
         <svg viewBox="0 0 100 100" role="img" aria-label={ariaLabel} className="h-40 w-40 -rotate-90">
-          {bitar.map((b) => (
+          {pieces.map((b) => (
             <circle
               key={b.id}
               cx="50"
               cy="50"
-              r={RADIE}
+              r={RADIUS}
               fill="none"
               strokeWidth="14"
               strokeDasharray={b.dash}
@@ -214,8 +214,8 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
           sex färger klarar inte 3:1 mot ljus yta och är tillåtna just för att
           den här listan finns. */}
       <ul className="m-0 flex min-w-0 flex-1 list-none flex-col gap-1 p-0">
-        {bitar.map((b) => {
-          const oppen = oppna.indexOf(b.id) >= 0;
+        {pieces.map((b) => {
+          const oppen = open.indexOf(b.id) >= 0;
           const panelId = `${idBas}-${b.id}`;
           const harDetaljer = Boolean(b.details);
 
@@ -231,7 +231,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
                   följer direkt av geometrin, och två uträkningar av samma tal
                   glider isär. */}
               <span className={cx("flex shrink-0 items-center justify-end gap-2", nagonHarDetaljer ? SVANS : "w-11")}>
-                <span className="text-right text-sm tabular-nums text-ink-muted">{Math.round(b.andel * 100)} %</span>
+                <span className="text-right text-sm tabular-nums text-ink-muted">{Math.round(b.share * 100)} %</span>
                 {nagonHarDetaljer ? (
                   harDetaljer ? (
                     <span
@@ -258,7 +258,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
           // ⛔ Samma radhöjd i hela listan när NÅGON rad går att fälla ut. Bara
           // de fällbara raderna kan inte vara 44 px höga: då blir listan ojämn
           // och ojämnheten ser ut som att raderna betyder olika mycket.
-          const radklass = cx(
+          const rowClass = cx(
             "flex w-full items-center gap-2 rounded-md px-2 transition-colors duration-(--duration-fast) ease-standard",
             nagonHarDetaljer ? "min-h-11 py-2" : "py-1",
             active === b.id && "bg-sunken",
@@ -269,11 +269,11 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
               {harDetaljer ? (
                 <button
                   type="button"
-                  onClick={() => setOppna((f) => (f.indexOf(b.id) >= 0 ? f.filter((x) => x !== b.id) : [...f, b.id]))}
+                  onClick={() => setOpen((f) => (f.indexOf(b.id) >= 0 ? f.filter((x) => x !== b.id) : [...f, b.id]))}
                   aria-expanded={oppen}
                   aria-controls={panelId}
                   className={cx(
-                    radklass,
+                    rowClass,
                     "cursor-pointer hover:bg-sunken",
                     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                   )}
@@ -281,7 +281,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
                   {innehall}
                 </button>
               ) : (
-                <div className={radklass}>{innehall}</div>
+                <div className={rowClass}>{innehall}</div>
               )}
 
               {/* ⛔ `hidden` och inte villkorlig rendering: `aria-controls` pekar

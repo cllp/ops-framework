@@ -1,5 +1,5 @@
 import { cx } from "../lib/cx.js";
-import { Raknare } from "./counter.jsx";
+import { Counter } from "./counter.jsx";
 
 /**
  * En destination som en ikon, för åtgärdsklustret längst till höger i toppraden.
@@ -46,7 +46,7 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
     );
   }
 
-  const antal = typeof badge === "number" && badge > 0 ? badge : 0;
+  const count = typeof badge === "number" && badge > 0 ? badge : 0;
 
   return (
     <a
@@ -69,7 +69,7 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
       )}
     >
       <span aria-hidden="true">{icon}</span>
-      {antal > 0 ? <Raknare antal={antal} text={badgeText} /> : null}
+      {count > 0 ? <Counter count={count} text={badgeText} /> : null}
     </a>
   );
 }

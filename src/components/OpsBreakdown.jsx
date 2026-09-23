@@ -70,7 +70,7 @@ import { OpsToggleRow } from "./OpsToggleRow.jsx";
  * @param {string} [props.expandLabel] Verb för utfällningsknappens namn, följt av gruppens etikett.
  */
 export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räknas inte", expandLabel = "Visa poster i" }) {
-  const [oppna, setOppna] = useState(/** @type {string[]} */ ([]));
+  const [open, setOpen] = useState(/** @type {string[]} */ ([]));
   const idBas = useId();
 
   if (!groups || groups.length === 0) {
@@ -78,7 +78,7 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
   }
 
   /** @param {string} id */
-  const vaxlaOppen = (id) => setOppna((f) => (f.indexOf(id) >= 0 ? f.filter((x) => x !== id) : [...f, id]));
+  const vaxlaOppen = (id) => setOpen((f) => (f.indexOf(id) >= 0 ? f.filter((x) => x !== id) : [...f, id]));
 
   return (
     <div className="flex flex-col">
@@ -93,7 +93,7 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
 
       <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
         {groups.map((g) => {
-          const oppen = oppna.indexOf(g.id) >= 0;
+          const oppen = open.indexOf(g.id) >= 0;
           const panelId = `${idBas}-${g.id}`;
           const harPoster = Boolean(g.entries && g.entries.length);
 

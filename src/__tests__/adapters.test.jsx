@@ -25,7 +25,7 @@ function fejkFirestore() {
     setDoc: vi.fn(async () => {}),
     updateDoc: vi.fn(async () => {}),
     deleteDoc: vi.fn(async () => {}),
-    query: (bas, ...conditions) => ({ bas, conditions }),
+    query: (base, ...conditions) => ({ base, conditions }),
     where: (f, op, v) => ({ kind: "where", f, op, v }),
     orderBy: (f, r) => ({ kind: "orderBy", f, r }),
     limit: (n) => ({ kind: "limit", n }),
@@ -129,13 +129,13 @@ describe("postgres-adaptern", () => {
 });
 
 describe("inloggning", () => {
-  /** @param {{ id: string, role?: string } | null} anvandare */
-  function fejkAuth(anvandare) {
+  /** @param {{ id: string, role?: string } | null} user */
+  function fejkAuth(user) {
     return createAuth({
       loggaIn: async () => {},
       loggaUt: async () => {},
       lyssna: (l) => {
-        l(anvandare);
+        l(user);
         return () => {};
       },
     });

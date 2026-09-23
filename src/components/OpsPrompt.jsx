@@ -17,7 +17,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * ── ⛔ SVARET RENDERAS SOM MARKDOWN, INTE SOM TEXT ─────────────────────
  *
  * En modell svarar i markdown, alltid, om man inte ber den låta bli. Renderas
- * det som ren text får läsaren `## Rubrik` och `- punkt` rakt av, vilket är
+ * det som ren text får läsaren `## Title` och `- punkt` rakt av, vilket är
  * precis det fel bolag-ops #249 finns för. `OpsMarkdown` gör ingen HTML av en
  * sträng och länkar bara http och https, så ett svar kan inte köra kod.
  *
@@ -52,7 +52,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @param {string[]} [props.suggestions] Färdiga frågor att trycka på. ⛔ De SKRIVS IN i fältet
  *   och skickas inte direkt: ett förslag som skickar sig självt gör ett klick till ett anrop
  *   man inte hann läsa, och man kan inte längre ändra ett ord innan man frågar.
- * @param {(svar: import("../lib/prompt.js").PromptAnswer) => void} [props.onAnswer] Anropas när ett
+ * @param {(answer: import("../lib/prompt.js").PromptAnswer) => void} [props.onAnswer] Anropas när ett
  *   svar kommit. Appen kan logga tokens där, ramverket gör det aldrig.
  */
 export function OpsPrompt({
@@ -77,9 +77,9 @@ export function OpsPrompt({
 
   const [text, setText] = useState("");
   const [waiting, setVantar] = useState(false);
-  const [svar, setSvar] = useState(/** @type {import("../lib/prompt.js").PromptAnswer | null} */ (null));
-  const [faltfel, setFaltfel] = useState("");
-  const [svarsfel, setSvarsfel] = useState("");
+  const [answer, setAnswer] = useState(/** @type {import("../lib/prompt.js").PromptAnswer | null} */ (null));
+  const [fieldError, setFieldError] = useState("");
+  const [answerError, setAnswerError] = useState("");
 
   const ask = async () => {
     // ⛔ Dubbeltryck ignoreras här och inte bara genom en avstängd knapp:
@@ -87,15 +87,15 @@ export function OpsPrompt({
     // fakturor för ett svar.
     if (waiting) return;
 
-    setFaltfel("");
-    setSvarsfel("");
+    setFieldError("");
+    setAnswerError("");
     setVantar(true);
     try {
       const nytt = await source.ask({ prompt: text, context });
-      setSvar(nytt);
+      setAnswer(nytt);
       onAnswer?.(nytt);
     } catch (error) {
-      const meddelande = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       // ⛔ Längdfel och tomhet hör till FÄLTET, resten till svarsytan. Källan
       // kastar båda sorterna, och skillnaden är om användaren kan rätta det
       // själv där hen står.
@@ -110,8 +110,8 @@ export function OpsPrompt({
        * svarsytan och gick vidare. Det är värt att minnas nästa gång ett prov
        * går rött "en rad för sent".
        */
-      if (/Skriv en fråga|tecken/.test(meddelande)) setFaltfel(meddelande);
-      else setSvarsfel(meddelande);
+      if (/Skriv en fråga|tecken/.test(message)) setFieldError(message);
+      else setAnswerError(message);
     } finally {
       setVantar(false);
     }
@@ -119,7 +119,7 @@ export function OpsPrompt({
 
   return (
     <div className="flex flex-col gap-3">
-      <OpsField label={label} hint={hint} error={faltfel || undefined}>
+      <OpsField label={label} hint={hint} error={fieldError || undefined}>
         <OpsTextarea
           value={text}
           onChange={setText}
@@ -157,15 +157,15 @@ export function OpsPrompt({
         {waiting ? <OpsSpinner size="sm" tone="muted" label={waitingLabel} /> : null}
       </div>
 
-      {svarsfel ? (
+      {answerError ? (
         <p className="m-0 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
-          {svarsfel}
+          {answerError}
         </p>
       ) : null}
 
-      {svar ? (
+      {answer ? (
         <div aria-busy={waiting || undefined} aria-live="polite">
-          <OpsMarkdown text={svar.text} />
+          <OpsMarkdown text={answer.text} />
         </div>
       ) : null}
     </div>

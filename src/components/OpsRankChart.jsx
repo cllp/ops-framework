@@ -72,7 +72,7 @@ export function OpsRankChart({ rows, ariaLabel, max, empty = null }) {
   return (
     <ul className="m-0 flex list-none flex-col gap-2 p-0" aria-label={ariaLabel}>
       {entries.map((r) => {
-        const andel = Math.min(r.value / tak, 1);
+        const share = Math.min(r.value / tak, 1);
         return (
           <li key={r.id} className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-3">
@@ -94,7 +94,7 @@ export function OpsRankChart({ rows, ariaLabel, max, empty = null }) {
                 // ⛔ Bredden är geometri och måste vara ett räknat tal. Färg via
                 // style vore däremot fel: den går förbi tokenkontraktet och
                 // mörkt läge, och syns inte i någon granskning av CSS.
-                style={{ width: `${Math.max(andel * 100, 1.5)}%` }}
+                style={{ width: `${Math.max(share * 100, 1.5)}%` }}
               />
             </div>
 

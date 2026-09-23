@@ -35,12 +35,12 @@ import { splitMarkdown } from "../lib/markdown.js";
  */
 
 /**
- * @param {import("../lib/markdown.js").Bit[]} bitar
- * @param {string} nyckel
+ * @param {import("../lib/markdown.js").Bit[]} pieces
+ * @param {string} blockKey
  */
-function inline(bitar, nyckel) {
-  return bitar.map((b, i) => {
-    const k = `${nyckel}-${i}`;
+function inline(pieces, blockKey) {
+  return pieces.map((b, i) => {
+    const k = `${blockKey}-${i}`;
     if (b.kind === "link") {
       return (
         <a
@@ -50,21 +50,21 @@ function inline(bitar, nyckel) {
           rel="noopener noreferrer"
           className="rounded-sm text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          {b.varde}
+          {b.value}
         </a>
       );
     }
     if (b.kind === "code") {
       return (
         <code key={k} className="rounded-sm bg-sunken px-1 py-0.5 font-mono text-xs text-ink">
-          {b.varde}
+          {b.value}
         </code>
       );
     }
     if (b.kind === "bold") {
       return (
         <strong key={k} className="font-semibold text-ink">
-          {b.varde}
+          {b.value}
         </strong>
       );
     }
@@ -75,14 +75,14 @@ function inline(bitar, nyckel) {
      * ta sig igenom för den som söker i DOM:en. React behöver ingen nyckel för
      * en sträng i en lista.
      */
-    return b.varde;
+    return b.value;
   });
 }
 
 // ⛔ Uppslagstabell och inte `text-${...}`. Tailwind läser källkoden som text,
 // så ett interpolerat klassnamn genererar ingen CSS alls.
 /** @type {Record<number, string>} */
-const RUBRIKSTORLEK = {
+const TITLE_SIZE = {
   1: "text-base font-semibold",
   2: "text-base font-semibold",
   3: "text-sm font-semibold",
@@ -108,11 +108,11 @@ export function OpsMarkdown({ text }) {
         const k = `b${i}`;
         if (b.kind === "heading") {
           // Nivå 1 och 2 i texten blir h4, resten h5 och h6: se filens huvud.
-          const Rubrik = b.level <= 2 ? "h4" : b.level === 3 ? "h5" : "h6";
+          const Title = b.level <= 2 ? "h4" : b.level === 3 ? "h5" : "h6";
           return (
-            <Rubrik key={k} className={cx("m-0 text-ink", RUBRIKSTORLEK[b.level])}>
+            <Title key={k} className={cx("m-0 text-ink", TITLE_SIZE[b.level])}>
               {inline(b.inline, k)}
-            </Rubrik>
+            </Title>
           );
         }
         if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k)}</p>;
@@ -149,9 +149,9 @@ export function OpsMarkdown({ text }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {b.rader.map((rad, ri) => (
+                  {b.rows.map((row, ri) => (
                     <tr key={`${k}-r${ri}`}>
-                      {rad.map((cell, ci) => (
+                      {row.map((cell, ci) => (
                         <td key={`${k}-r${ri}c${ci}`} className="border-b border-line px-2 py-1 align-top">
                           {inline(cell, `${k}-r${ri}c${ci}`)}
                         </td>
@@ -164,9 +164,9 @@ export function OpsMarkdown({ text }) {
           );
         }
 
-        const Lista = b.ordnad ? "ol" : "ul";
+        const List = b.ordered ? "ol" : "ul";
         return (
-          <Lista
+          <List
             key={k}
             className="m-0 flex list-none flex-col gap-1 p-0"
           >
@@ -179,22 +179,22 @@ export function OpsMarkdown({ text }) {
 
                     Tecknet är hårdkodat text, och ordet ligger i `sr-only`
                     bredvid: en bock är osynlig för en skärmläsare. */}
-                {entry.kryss === null ? (
+                {entry.cross === null ? (
                   <span aria-hidden="true" className="shrink-0 text-ink-muted">
-                    {b.ordnad ? `${pi + 1}.` : "•"}
+                    {b.ordered ? `${pi + 1}.` : "•"}
                   </span>
                 ) : (
                   <span className="shrink-0">
-                    <span aria-hidden="true" className={entry.kryss ? "text-success" : "text-ink-muted"}>
-                      {entry.kryss ? "☑" : "☐"}
+                    <span aria-hidden="true" className={entry.cross ? "text-success" : "text-ink-muted"}>
+                      {entry.cross ? "☑" : "☐"}
                     </span>
-                    <span className="sr-only">{entry.kryss ? "Gjort:" : "Ogjort:"}</span>
+                    <span className="sr-only">{entry.cross ? "Gjort:" : "Ogjort:"}</span>
                   </span>
                 )}
                 <span className="min-w-0 flex-1">{inline(entry.inline, `${k}-p${pi}`)}</span>
               </li>
             ))}
-          </Lista>
+          </List>
         );
       })}
     </div>

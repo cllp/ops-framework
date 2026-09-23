@@ -20,20 +20,20 @@ import { OpsDataProvider, useLiveCollection } from "../data/useData.jsx";
  *
  * @param {string} [collectionName] @param {{ id: string }[]} [rows]
  */
-function stromkalla(collectionName = "saker", rows = []) {
-  const bas = createMemorySource({ [collectionName]: rows });
-  const lyssnare = [];
+function streamSource(collectionName = "saker", rows = []) {
+  const base = createMemorySource({ [collectionName]: rows });
+  const listener = [];
   return {
-    ...bas,
+    ...base,
     subscribe: (collectionName, query, l) => {
-      lyssnare.push(l);
-      bas.list(collectionName, query).then((r) => l.onData(r));
+      listener.push(l);
+      base.list(collectionName, query).then((r) => l.onData(r));
       return () => {
-        const i = lyssnare.indexOf(l);
-        if (i >= 0) lyssnare.splice(i, 1);
+        const i = listener.indexOf(l);
+        if (i >= 0) listener.splice(i, 1);
       };
     },
-    antalLyssnare: () => lyssnare.length,
+    listenerCount: () => listener.length,
   };
 }
 
@@ -48,16 +48,16 @@ describe("createRoutingSource, uppsättningen", () => {
   it("avvisar en rutt som inte är en datakälla, vid uppstart", () => {
     // ⛔ Annars ger den `undefined is not a function` först den dag samlingen
     // läses, och felet pekar mot vyn i stället för mot uppsättningen.
-    const standard = createMemorySource({});
-    expect(() => createRoutingSource({ standard, routes: { saker: /** @type {any} */ ({}) } })).toThrow(/saknar read/);
-    expect(() => createRoutingSource({ standard, routes: { saker: /** @type {any} */ (null) } })).toThrow(
+    const fallback = createMemorySource({});
+    expect(() => createRoutingSource({ fallback, routes: { saker: /** @type {any} */ ({}) } })).toThrow(/saknar read/);
+    expect(() => createRoutingSource({ fallback, routes: { saker: /** @type {any} */ (null) } })).toThrow(
       /pekar inte på en datakälla/,
     );
   });
 
   it("nämner samlingen i felet, inte bara att något är fel", () => {
-    const standard = createMemorySource({});
-    expect(() => createRoutingSource({ standard, routes: { mittfall: /** @type {any} */ ({ read: () => {} }) } })).toThrow(
+    const fallback = createMemorySource({});
+    expect(() => createRoutingSource({ fallback, routes: { mittfall: /** @type {any} */ ({ read: () => {} }) } })).toThrow(
       /"mittfall"/,
     );
   });
@@ -66,8 +66,8 @@ describe("createRoutingSource, uppsättningen", () => {
 describe("routningen", () => {
   it("skickar en samling till sin rutt och resten till standarden", async () => {
     const ettstalle = createMemorySource({ saker: [{ id: "a", var: "rutt" }] });
-    const standard = createMemorySource({ saker: [{ id: "b", var: "standard" }], annat: [{ id: "c" }] });
-    const source = createRoutingSource({ standard, routes: { saker: ettstalle } });
+    const fallback = createMemorySource({ saker: [{ id: "b", var: "standard" }], annat: [{ id: "c" }] });
+    const source = createRoutingSource({ fallback, routes: { saker: ettstalle } });
 
     expect((await source.list("saker")).map((r) => r.id)).toEqual(["a"]);
     expect((await source.list("annat")).map((r) => r.id)).toEqual(["c"]);
@@ -77,34 +77,34 @@ describe("routningen", () => {
     // ⛔ Ett prov per operation, eftersom en glömd `remove` i sömmen skriver till
     // FEL DATABAS. Det felet upptäcks när någon saknar en post, alltså långt
     // efteråt och utan spår.
-    const mal = createMemorySource({ saker: [{ id: "a", tal: 1 }] });
-    const standard = createMemorySource({ saker: [{ id: "z", tal: 99 }] });
-    const source = createRoutingSource({ standard, routes: { saker: mal } });
+    const target = createMemorySource({ saker: [{ id: "a", tal: 1 }] });
+    const fallback = createMemorySource({ saker: [{ id: "z", tal: 99 }] });
+    const source = createRoutingSource({ fallback, routes: { saker: target } });
 
     expect(await source.read("saker", "a")).toMatchObject({ id: "a" });
     expect(await source.read("saker", "z")).toBeNull();
 
     const ny = await source.create("saker", { tal: 2 });
-    expect(await mal.read("saker", ny.id)).toMatchObject({ tal: 2 });
-    expect(await standard.read("saker", ny.id)).toBeNull();
+    expect(await target.read("saker", ny.id)).toMatchObject({ tal: 2 });
+    expect(await fallback.read("saker", ny.id)).toBeNull();
 
     await source.update("saker", "a", { tal: 3 });
-    expect(await mal.read("saker", "a")).toMatchObject({ tal: 3 });
+    expect(await target.read("saker", "a")).toMatchObject({ tal: 3 });
 
     await source.remove("saker", "a");
-    expect(await mal.read("saker", "a")).toBeNull();
+    expect(await target.read("saker", "a")).toBeNull();
     // Standardens egen post är orörd.
-    expect(await standard.read("saker", "z")).toMatchObject({ tal: 99 });
+    expect(await fallback.read("saker", "z")).toMatchObject({ tal: 99 });
   });
 
   it("går att inspektera, så uppsättningen kan mätas", () => {
     // ⛔ En routing man inte kan inspektera är en routing man får gissa om, och
     // den gissningen står sedan i ett dokument som ruttnar.
-    const mal = createMemorySource({});
-    const standard = createMemorySource({});
-    const source = createRoutingSource({ standard, routes: { saker: mal } });
-    expect(source.sourceFor("saker")).toBe(mal);
-    expect(source.sourceFor("annat")).toBe(standard);
+    const target = createMemorySource({});
+    const fallback = createMemorySource({});
+    const source = createRoutingSource({ fallback, routes: { saker: target } });
+    expect(source.sourceFor("saker")).toBe(target);
+    expect(source.sourceFor("annat")).toBe(fallback);
   });
 });
 
@@ -113,9 +113,9 @@ describe("realtid per samling", () => {
     // ⛔ DET EGENTLIGA PROVET. `typeof source.subscribe === "function"` är ett
     // sant svar om en källa och en lögn om en routande: den kan strömma en
     // samling och inte en annan, alltså har frågan två svar.
-    const strommar = stromkalla("strommande", [{ id: "a" }]);
+    const strommar = streamSource("strommande", [{ id: "a" }]);
     const stilla = createMemorySource({ stillsamt: [{ id: "b" }] });
-    const source = createRoutingSource({ standard: stilla, routes: { strommande: strommar } });
+    const source = createRoutingSource({ fallback: stilla, routes: { strommande: strommar } });
 
     expect(source.canSubscribe("strommande")).toBe(true);
     expect(source.canSubscribe("stillsamt")).toBe(false);
@@ -124,19 +124,19 @@ describe("realtid per samling", () => {
   it("exponerar inte prenumerera när ingen källa kan", () => {
     // ⛔ Annars hade den routande källan påstått en förmåga ingen av dess källor
     // har, och läsaren tagit strömvägen för att sedan kasta.
-    const source = createRoutingSource({ standard: createMemorySource({}), routes: { x: createMemorySource({}) } });
+    const source = createRoutingSource({ fallback: createMemorySource({}), routes: { x: createMemorySource({}) } });
     expect(source.subscribe).toBeUndefined();
   });
 
   it("exponerar prenumerera när minst en källa kan", () => {
-    const source = createRoutingSource({ standard: createMemorySource({}), routes: { s: stromkalla() } });
+    const source = createRoutingSource({ fallback: createMemorySource({}), routes: { s: streamSource() } });
     expect(typeof source.subscribe).toBe("function");
   });
 
   it("kastar med samlingens namn för en samling som inte kan strömma", () => {
     // ⛔ Alternativet vore en lyssnare som aldrig levererar, alltså en vy som
     // väntar för alltid och ser ut som att ingenting händer i systemet.
-    const source = createRoutingSource({ standard: createMemorySource({}), routes: { s: stromkalla() } });
+    const source = createRoutingSource({ fallback: createMemorySource({}), routes: { s: streamSource() } });
     expect(() =>
       /** @type {any} */ (source).subscribe("stillsamt", undefined, { onData: () => {}, onError: () => {} }),
     ).toThrow(/"stillsamt"/);
@@ -146,10 +146,10 @@ describe("realtid per samling", () => {
   });
 
   it("strömmar den samling som kan", async () => {
-    const strommar = stromkalla("s", [{ id: "a" }]);
-    const source = createRoutingSource({ standard: createMemorySource({}), routes: { s: strommar } });
+    const strommar = streamSource("s", [{ id: "a" }]);
+    const source = createRoutingSource({ fallback: createMemorySource({}), routes: { s: strommar } });
     const mottaget = [];
-    const avsluta = /** @type {any} */ (source).subscribe("s", undefined, {
+    const unsubscribe = /** @type {any} */ (source).subscribe("s", undefined, {
       onData: (r) => mottaget.push(r),
       onError: () => {},
     });
@@ -158,9 +158,9 @@ describe("realtid per samling", () => {
     // hade fel samlingsnamn och strömmade ur en samling som inte fanns. Ett prov
     // som bara räknar anrop kan inte se det.
     await vi.waitFor(() => expect(mottaget).toEqual([[{ id: "a" }]]));
-    expect(strommar.antalLyssnare()).toBe(1);
-    avsluta();
-    expect(strommar.antalLyssnare()).toBe(0);
+    expect(strommar.listenerCount()).toBe(1);
+    unsubscribe();
+    expect(strommar.listenerCount()).toBe(0);
   });
 });
 
@@ -190,8 +190,8 @@ describe("useLiveCollection mot en routande källa", () => {
 
   it("rapporterar realtid för den samling som strömmar", async () => {
     const source = createRoutingSource({
-      standard: createMemorySource({ stillsamt: [{ id: "b" }] }),
-      routes: { strommande: stromkalla("strommande", [{ id: "a" }]) },
+      fallback: createMemorySource({ stillsamt: [{ id: "b" }] }),
+      routes: { strommande: streamSource("strommande", [{ id: "a" }]) },
     });
     rita(source, "strommande");
     await waitFor(() => expect(screen.getByTestId("tillstand").textContent).toBe("klar realtid=true antal=1"));
@@ -201,8 +201,8 @@ describe("useLiveCollection mot en routande källa", () => {
     // ⛔ En app som tror sig ha realtid och inte har det ser exakt likadan ut som
     // en som har det, ända tills någon undrar varför en post inte dök upp.
     const source = createRoutingSource({
-      standard: createMemorySource({ stillsamt: [{ id: "b" }, { id: "c" }] }),
-      routes: { strommande: stromkalla("strommande", [{ id: "a" }]) },
+      fallback: createMemorySource({ stillsamt: [{ id: "b" }, { id: "c" }] }),
+      routes: { strommande: streamSource("strommande", [{ id: "a" }]) },
     });
     rita(source, "stillsamt");
     await waitFor(() => expect(screen.getByTestId("tillstand").textContent).toBe("klar realtid=false antal=2"));

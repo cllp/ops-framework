@@ -42,8 +42,8 @@ describe("OpsHjalp", () => {
      * navigerar på rubriker hittar sidan som förut.
      */
     render(<OpsHelp title={<h1>Idag</h1>}>Förklaringen.</OpsHelp>);
-    const rubriken = screen.getByRole("heading", { name: "Idag", level: 1 });
-    expect(rubriken.closest("summary")).not.toBeNull();
+    const theTitle = screen.getByRole("heading", { name: "Idag", level: 1 });
+    expect(theTitle.closest("summary")).not.toBeNull();
   });
 
   it("är stängd från start, varje gång", () => {
@@ -96,8 +96,8 @@ describe("OpsViewHeader, förklaringen bakom frågetecknet", () => {
     const { container } = render(
       <OpsViewHeader title="Kostnader" description="Förklaringen." actions={<button type="button">Lägg till</button>} />,
     );
-    const knappen = screen.getByRole("button", { name: "Lägg till" });
-    expect(knappen).toBeInTheDocument();
-    expect(container.querySelector("details")?.contains(knappen)).toBe(false);
+    const theButton = screen.getByRole("button", { name: "Lägg till" });
+    expect(theButton).toBeInTheDocument();
+    expect(container.querySelector("details")?.contains(theButton)).toBe(false);
   });
 });

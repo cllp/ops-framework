@@ -3,9 +3,9 @@ import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
-import { postAktiv, validateNav } from "../lib/nav.js";
-import { Raknare } from "./counter.jsx";
-import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
+import { entryActive, validateNav } from "../lib/nav.js";
+import { Counter } from "./counter.jsx";
+import { ChevronNedIkon, MenuIcon } from "./icons.jsx";
 
 /**
  * En post i toppraden. Med `children` en riktig meny, utan dem en länk.
@@ -42,11 +42,11 @@ import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
  * @param {string} props.classes
  * @param {string} props.submenuLabel Verb för chevronens namn, följt av postens etikett.
  */
-function Radpost({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel }) {
+function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel }) {
   const [oppen, setOppen] = useState(false);
-  const barn = Array.isArray(entry.children) ? entry.children : [];
+  const childEntries = Array.isArray(entry.children) ? entry.children : [];
 
-  const raknare = typeof entry.badge === "number" && entry.badge > 0 ? <Raknare antal={entry.badge} text={badgeText} /> : null;
+  const counter = typeof entry.badge === "number" && entry.badge > 0 ? <Counter count={entry.badge} text={badgeText} /> : null;
 
                 {/*
         ⛔ INGEN IKON HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
@@ -73,11 +73,11 @@ function Radpost({ entry, active, activeHref, onActivate, badgeText, classes, su
         Den här raden gör det inte.
       */}
 
-  if (!barn.length) {
+  if (!childEntries.length) {
     return (
       <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={classes}>
         {entry.label}
-        {raknare}
+        {counter}
       </a>
     );
   }
@@ -109,7 +109,7 @@ function Radpost({ entry, active, activeHref, onActivate, badgeText, classes, su
         className="inline-flex min-h-11 items-center rounded-l-md px-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
       >
         {entry.label}
-        {raknare}
+        {counter}
       </a>
       <Popover.Root open={oppen} onOpenChange={setOppen}>
         <Popover.Trigger
@@ -129,7 +129,7 @@ function Radpost({ entry, active, activeHref, onActivate, badgeText, classes, su
             sideOffset={6}
             className="z-(--z-dropdown) flex w-56 flex-col rounded-md border border-line bg-raised p-2 shadow-md"
           >
-            {barn.map((b) => (
+            {childEntries.map((b) => (
               <a
                 key={b.href}
                 href={b.href}
@@ -304,14 +304,14 @@ export function OpsAppShell({
    *     se halvaktiv ut, vilket är precis det som gör att man inte ser var man
    *     står.
    */
-  const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ lage) =>
+  const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ state) =>
     cx(
       "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium lg:px-4",
       "transition-all duration-(--duration-fast) ease-standard",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-      lage === "pa" && "border-ink text-ink",
-      lage === "av" && "border-transparent text-ink-muted hover:border-line-strong hover:text-ink-secondary",
-      lage === "pa-under-lg" &&
+      state === "pa" && "border-ink text-ink",
+      state === "av" && "border-transparent text-ink-muted hover:border-line-strong hover:text-ink-secondary",
+      state === "pa-under-lg" &&
         "border-ink text-ink lg:border-transparent lg:text-ink-muted lg:hover:border-line-strong lg:hover:text-ink-secondary",
     );
 
@@ -337,9 +337,9 @@ export function OpsAppShell({
   // ResizeObserver hade gett samma utseende och tre nya problem: ett hopp
   // första renderingen, en rad som inte finns i markup förrän JS kört, och ett
   // test som måste låtsas ha en layout. CSS vet redan hur bred skärmen är.
-  const iRaden = nav.slice(0, maxTopNav);
-  const iMenyn = nav.slice(smaltTak);
-  const aktivIndex = nav.findIndex((s) => postAktiv(s, activeHref));
+  const inRow = nav.slice(0, maxTopNav);
+  const inMenu = nav.slice(smaltTak);
+  const aktivIndex = nav.findIndex((s) => entryActive(s, activeHref));
 
   // Ligger den aktiva posten i menyn på BÅDA bredderna, eller bara på den
   // smala? Utan den skillnaden är ingenting markerat mellan 768 och 1024, och
@@ -377,17 +377,17 @@ export function OpsAppShell({
 
           {/* Bred skärm: länkarna centrerade. Smal: bottenraden nedan. */}
           <nav aria-label={navLabel} className="hidden items-center gap-1 justify-self-center md:flex">
-            {iRaden.map((s, i) => (
-              <Radpost
+            {inRow.map((s, i) => (
+              <RowEntry
                 key={s.href}
                 entry={s}
-                active={postAktiv(s, activeHref)}
+                active={entryActive(s, activeHref)}
                 activeHref={activeHref}
                 onActivate={onActivate}
                 badgeText={badgeText}
                 submenuLabel={submenuLabel}
                 classes={cx(
-                  lankKlass(postAktiv(s, activeHref) ? "pa" : "av"),
+                  lankKlass(entryActive(s, activeHref) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,
                   // och `display:none` tar bort den ur uppläsningen också, så
                   // ingen möter samma destination två gånger.
@@ -409,7 +409,7 @@ export function OpsAppShell({
             {actions}
             {/* ⛔ Hamburgaren syns också när nav ryms men menuExtras finns —
                 annars blir tema/helskärm oåtkomliga på md+. */}
-            {iMenyn.length || menuExtras ? (
+            {inMenu.length || menuExtras ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
                 <Popover.Trigger
                   className={cx(
@@ -433,12 +433,12 @@ export function OpsAppShell({
                   // skärmbredden, och ett tal som bara stämmer ibland är värre
                   // än inget tal.
                   aria-label={
-                    iMenyn.length
+                    inMenu.length
                       ? `${moreLabel}, fler destinationer`
                       : `${moreLabel}, fler åtgärder`
                   }
                 >
-                  <MenyIkon size={20} />
+                  <MenuIcon size={20} />
                 </Popover.Trigger>
                 <Popover.Portal>
                   <Popover.Content
@@ -450,7 +450,7 @@ export function OpsAppShell({
                         alltså navigering, och utan namn blir den en tredje
                         anonym `<nav>` i dokumentet. */}
                     <nav aria-label={moreLabel} className="flex flex-col">
-                      {iMenyn.map((s, i) => (
+                      {inMenu.map((s, i) => (
                         <a
                           key={s.href}
                           href={s.href}
@@ -458,13 +458,13 @@ export function OpsAppShell({
                             setMerOppen(false);
                             onActivate(s.href, e);
                           }}
-                          aria-current={postAktiv(s, activeHref) ? "page" : undefined}
+                          aria-current={entryActive(s, activeHref) ? "page" : undefined}
                           className={cx(
                             "flex min-h-11 items-center gap-2 rounded-sm px-3 text-base",
                             // Ligger i raden vid `lg`, alltså inte också här.
                             smaltTak + i < maxTopNav && "lg:hidden",
                             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                            postAktiv(s, activeHref) ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                            entryActive(s, activeHref) ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
                           )}
                         >
                           {s.icon ? (
@@ -477,7 +477,7 @@ export function OpsAppShell({
                       ))}
                       {menuExtras ? (
                         <>
-                          {iMenyn.length ? (
+                          {inMenu.length ? (
                             <div role="separator" className="my-1 border-t border-line" />
                           ) : null}
                           <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>

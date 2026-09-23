@@ -18,8 +18,8 @@ describe("inget flöde ännu", () => {
     // ⛔ `null` betyder oftast "har inte hämtats än". Ett felmeddelande under
     // laddning är ett fel användaren inte kan göra något åt, och det lär hen att
     // ignorera felmeddelanden.
-    for (const tomt of [null, undefined, ""]) {
-      const last = readCaseFlow(tomt);
+    for (const empty of [null, undefined, ""]) {
+      const last = readCaseFlow(empty);
       expect(last.error).toBeNull();
       expect(last.existed).toBe(false);
       expect(last.entries).toEqual([]);

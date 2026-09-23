@@ -46,7 +46,7 @@ import { FilIkon, GemIkon } from "./icons.jsx";
  * @param {string} [props.accept] Vad filväljaren erbjuder. ⛔ Ett filter, aldrig ett skydd: en fil kan alltid dras in eller klistras in ändå.
  * @param {boolean} [props.paste] Ta emot inklistrade filer. Av när två väljare delar yta.
  * @param {string} [props.ariaLabel] Vad som ska bifogas, för den som inte ser knappen.
- * @param {{ valj?: string, byt?: string, remove?: string, klistra?: string }} [props.labels]
+ * @param {{ select?: string, byt?: string, remove?: string, klistra?: string }} [props.labels]
  */
 export function OpsFilePicker({
   value,
@@ -58,9 +58,9 @@ export function OpsFilePicker({
   labels = {},
 }) {
   const filRef = useRef(/** @type {HTMLInputElement | null} */ (null));
-  const [error, setFel] = useState("");
-  const [laser, setLaser] = useState(false);
-  const felId = useId();
+  const [error, setError] = useState("");
+  const [reading, setLaser] = useState(false);
+  const errorId = useId();
 
   if (!Number.isFinite(maxChars) || maxChars <= 0) {
     throw new Error(
@@ -70,13 +70,13 @@ export function OpsFilePicker({
 
   const ta = async (/** @type {File | Blob | null} */ file) => {
     if (!file) return;
-    setFel("");
+    setError("");
     setLaser(true);
     try {
       onChange(await readAttachment(file, { maxChars: maxChars }));
     } catch (err) {
       onChange(null);
-      setFel(err instanceof Error ? err.message : "Filen kunde inte läsas.");
+      setError(err instanceof Error ? err.message : "Filen kunde inte läsas.");
     } finally {
       setLaser(false);
     }
@@ -110,7 +110,7 @@ export function OpsFilePicker({
         type="file"
         accept={accept}
         aria-label={ariaLabel}
-        aria-describedby={error ? felId : undefined}
+        aria-describedby={error ? errorId : undefined}
         onChange={(e) => {
           const file = e.target.files && e.target.files[0];
           // ⛔ Nollställ fältet direkt. Utan det går det inte att välja SAMMA fil
@@ -123,8 +123,8 @@ export function OpsFilePicker({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <OpsButton variant="secondary" onClick={() => filRef.current?.click()} disabled={laser}>
-          {laser ? "Läser" : value ? labels.byt ?? "Byt fil" : labels.valj ?? "Välj fil"}
+        <OpsButton variant="secondary" onClick={() => filRef.current?.click()} disabled={reading}>
+          {reading ? "Läser" : value ? labels.byt ?? "Byt fil" : labels.select ?? "Välj fil"}
         </OpsButton>
         {value ? (
           <OpsButton variant="ghost" onClick={() => onChange(null)}>
@@ -150,7 +150,7 @@ export function OpsFilePicker({
       {/* ⛔ `role="alert"` så orsaken LÄSES UPP. En röd rad som bara syns lämnar
           den som inte ser skärmen med en knapp som inte gjorde något. */}
       {error ? (
-        <p id={felId} role="alert" className="m-0 text-sm text-danger">
+        <p id={errorId} role="alert" className="m-0 text-sm text-danger">
           {error}
         </p>
       ) : null}

@@ -61,7 +61,7 @@
  * @property {(collectionName: string, data: Partial<T>) => Promise<T>} create Returnerar posten med sitt id.
  * @property {(collectionName: string, id: string, data: Partial<T>) => Promise<T>} update
  * @property {(collectionName: string, id: string) => Promise<void>} remove
- * @property {(collectionName: string, query: Query | undefined, lyssnare: Listener<T>) => Unsubscribe} [subscribe]
+ * @property {(collectionName: string, query: Query | undefined, listener: Listener<T>) => Unsubscribe} [subscribe]
  *   ⛔ FRIVILLIG. Se regel 5 nedan.
  */
 
@@ -101,10 +101,10 @@ export function createDataSource(adapter) {
   if (!adapter || typeof adapter !== "object") {
     throw new Error("createDataSource: en adapter krävs. Se createMemorySource eller createJsonSource för exempel.");
   }
-  const saknas = OPERATIONS.filter((op) => typeof (/** @type {any} */ (adapter)[op]) !== "function");
-  if (saknas.length > 0) {
+  const missing = OPERATIONS.filter((op) => typeof (/** @type {any} */ (adapter)[op]) !== "function");
+  if (missing.length > 0) {
     throw new Error(
-      `createDataSource: adaptern "${adapter.name ?? "namnlös"}" saknar ${saknas.join(", ")}. ` +
+      `createDataSource: adaptern "${adapter.name ?? "namnlös"}" saknar ${missing.join(", ")}. ` +
         "En halv adapter kraschar först den dag någon anropar just den metoden, och felet pekar då mot anropsstället i stället för hit.",
     );
   }
@@ -122,11 +122,11 @@ export function createDataSource(adapter) {
  */
 export function applyQuery(rows, query) {
   if (!query) return rows;
-  let ut = rows;
+  let out = rows;
 
   if (query.where) {
     const conditions = Object.entries(query.where);
-    ut = ut.filter((r) => conditions.every(([f, v]) => /** @type {any} */ (r)[f] === v));
+    out = out.filter((r) => conditions.every(([f, v]) => /** @type {any} */ (r)[f] === v));
   }
 
   if (query.sortBy) {
@@ -134,7 +134,7 @@ export function applyQuery(rows, query) {
     const chars = query.direction === "desc" ? -1 : 1;
     // Kopia före sort: `Array.sort` muterar, och en adapter som sorterar om
     // sin egen lagring ändrar tyst ordningen för nästa läsare.
-    ut = [...ut].sort((a, b) => {
+    out = [...out].sort((a, b) => {
       const x = /** @type {any} */ (a)[field];
       const y = /** @type {any} */ (b)[field];
       if (x === y) return 0;
@@ -142,5 +142,5 @@ export function applyQuery(rows, query) {
     });
   }
 
-  return typeof query.limit === "number" ? ut.slice(0, query.limit) : ut;
+  return typeof query.limit === "number" ? out.slice(0, query.limit) : out;
 }

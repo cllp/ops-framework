@@ -15,7 +15,7 @@
  * internationalisering av produkten, det är att inte låsa in oss.
  */
 
-const SPRAK = "sv-SE";
+const LANGUAGE = "sv-SE";
 
 /**
  * Matchar det mellanslag `Intl` stoppar in i tal, oavsett vilket det är.
@@ -58,31 +58,31 @@ export const MISSING = "-";
 
 /**
  * Belopp med valuta.
- * @param {number | null | undefined} varde
- * @param {{ currency?: string, decimals?: number, locale?: string }} [val]
+ * @param {number | null | undefined} value
+ * @param {{ currency?: string, decimals?: number, locale?: string }} [choice]
  * @returns {string}
  */
-export function formatCurrency(varde, val = {}) {
-  if (varde === null || varde === undefined || Number.isNaN(varde)) return MISSING;
-  const { currency = "SEK", decimals = 0, locale = SPRAK } = val;
+export function formatCurrency(value, choice = {}) {
+  if (value === null || value === undefined || Number.isNaN(value)) return MISSING;
+  const { currency = "SEK", decimals = 0, locale = LANGUAGE } = choice;
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  }).format(varde);
+  }).format(value);
 }
 
 /**
  * Tal utan valuta.
- * @param {number | null | undefined} varde
- * @param {{ decimals?: number, locale?: string }} [val]
+ * @param {number | null | undefined} value
+ * @param {{ decimals?: number, locale?: string }} [choice]
  * @returns {string}
  */
-export function formatNumber(varde, val = {}) {
-  if (varde === null || varde === undefined || Number.isNaN(varde)) return MISSING;
-  const { decimals = 0, locale = SPRAK } = val;
-  return new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(varde);
+export function formatNumber(value, choice = {}) {
+  if (value === null || value === undefined || Number.isNaN(value)) return MISSING;
+  const { decimals = 0, locale = LANGUAGE } = choice;
+  return new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
 }
 
 /**
@@ -91,14 +91,14 @@ export function formatNumber(varde, val = {}) {
  * ⛔ Gränssnittet tar ANDEL, inte procenttal, eftersom det är så `Intl` och
  * matematiken fungerar. Tar en funktion emot både 0,42 och 42 utan att kunna
  * skilja dem åt blir felet tyst och hundra gånger för stort.
- * @param {number | null | undefined} andel
- * @param {{ decimals?: number, locale?: string }} [val]
+ * @param {number | null | undefined} share
+ * @param {{ decimals?: number, locale?: string }} [choice]
  * @returns {string}
  */
-export function formatPercent(andel, val = {}) {
-  if (andel === null || andel === undefined || Number.isNaN(andel)) return MISSING;
-  const { decimals = 0, locale = SPRAK } = val;
-  return new Intl.NumberFormat(locale, { style: "percent", minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(andel);
+export function formatPercent(share, choice = {}) {
+  if (share === null || share === undefined || Number.isNaN(share)) return MISSING;
+  const { decimals = 0, locale = LANGUAGE } = choice;
+  return new Intl.NumberFormat(locale, { style: "percent", minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(share);
 }
 
 /**
@@ -108,15 +108,15 @@ export function formatPercent(andel, val = {}) {
  * `new Date("2026-09-15T00:00")` tolkas som lokal tid. I Sverige på sommaren
  * betyder det att ett rent datum kan visas som dagen innan. Därför behandlas
  * en ren datumsträng här som ett kalenderdatum utan tidszon.
- * @param {Date | number | string | null | undefined} varde
- * @param {{ style?: "short" | "long" | "month", locale?: string }} [val]
+ * @param {Date | number | string | null | undefined} value
+ * @param {{ style?: "short" | "long" | "month", locale?: string }} [choice]
  * @returns {string}
  */
-export function formatDate(varde, val = {}) {
-  const d = tillDatum(varde);
+export function formatDate(value, choice = {}) {
+  const d = toDate(value);
   if (!d) return MISSING;
-  const { style = "short", locale = SPRAK } = val;
-  const renDatumstrang = typeof varde === "string" && /^\d{4}-\d{2}-\d{2}$/.test(varde);
+  const { style = "short", locale = LANGUAGE } = choice;
+  const pureDateString = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
   // ⛔ Annoteringen är inte kosmetik. Utan den vidgas "numeric" till `string`,
   // och då slutar typkontrollen märka om någon skriver "numerisk" eller
@@ -128,20 +128,20 @@ export function formatDate(varde, val = {}) {
       : style === "month"
         ? { year: "numeric", month: "long" }
         : { year: "numeric", month: "2-digit", day: "2-digit" };
-  if (renDatumstrang) options.timeZone = "UTC";
+  if (pureDateString) options.timeZone = "UTC";
   return new Intl.DateTimeFormat(locale, options).format(d);
 }
 
 /**
  * Datum och klockslag.
- * @param {Date | number | string | null | undefined} varde
- * @param {{ locale?: string }} [val]
+ * @param {Date | number | string | null | undefined} value
+ * @param {{ locale?: string }} [choice]
  * @returns {string}
  */
-export function formatDateTime(varde, val = {}) {
-  const d = tillDatum(varde);
+export function formatDateTime(value, choice = {}) {
+  const d = toDate(value);
   if (!d) return MISSING;
-  return new Intl.DateTimeFormat(val.locale ?? SPRAK, {
+  return new Intl.DateTimeFormat(choice.locale ?? LANGUAGE, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -165,37 +165,37 @@ export function formatDateTime(varde, val = {}) {
  * går är "i går" klockan 00:10, inte "i dag". Skillnaden är hela skälet att
  * texten finns: den ska stämma med vad läsaren själv skulle kalla det.
  *
- * @param {Date | number | string | null | undefined} varde
- * @param {{ locale?: string, now?: Date | number | string }} [val]
+ * @param {Date | number | string | null | undefined} value
+ * @param {{ locale?: string, now?: Date | number | string }} [choice]
  * @returns {string}
  */
-export function formatRelativeDate(varde, val = {}) {
-  const d = tillDatum(varde);
+export function formatRelativeDate(value, choice = {}) {
+  const d = toDate(value);
   if (!d) return MISSING;
-  const nu = tillDatum(val.now ?? Date.now());
+  const nu = toDate(choice.now ?? Date.now());
   if (!nu) return MISSING;
-  const locale = val.locale ?? SPRAK;
+  const locale = choice.locale ?? LANGUAGE;
 
-  const dagar = Math.round((midnatt(d) - midnatt(nu)) / 86400000);
+  const days = Math.round((midnight(d) - midnight(nu)) / 86400000);
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
 
-  if (Math.abs(dagar) < 1) return rtf.format(0, "day");
-  if (Math.abs(dagar) < 30) return rtf.format(dagar, "day");
-  if (Math.abs(dagar) < 365) return rtf.format(Math.round(dagar / 30), "month");
-  return rtf.format(Math.round(dagar / 365), "year");
+  if (Math.abs(days) < 1) return rtf.format(0, "day");
+  if (Math.abs(days) < 30) return rtf.format(days, "day");
+  if (Math.abs(days) < 365) return rtf.format(Math.round(days / 30), "month");
+  return rtf.format(Math.round(days / 365), "year");
 }
 
 /** @param {Date} d @returns {number} */
-function midnatt(d) {
+function midnight(d) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
 /**
- * @param {Date | number | string | null | undefined} varde
+ * @param {Date | number | string | null | undefined} value
  * @returns {Date | null}
  */
-function tillDatum(varde) {
-  if (varde === null || varde === undefined || varde === "") return null;
-  const d = varde instanceof Date ? varde : new Date(varde);
+function toDate(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const d = value instanceof Date ? value : new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }

@@ -192,13 +192,13 @@ describe("OpsFloatingSummary", () => {
      * `label` i sitt namn är krysset "Dölj" i en lista med andra kryss, och då
      * vet den som lyssnar inte vad som försvinner.
      */
-    let stangd = 0;
-    render(<OpsFloatingSummary label="Månadskassaflöde" value="+1 kr" onDismiss={() => { stangd += 1; }} />);
+    let closed = 0;
+    render(<OpsFloatingSummary label="Månadskassaflöde" value="+1 kr" onDismiss={() => { closed += 1; }} />);
 
-    const kryss = screen.getByRole("button", { name: /Dölj/ });
-    expect(kryss.getAttribute("aria-label")).toContain("Månadskassaflöde");
-    fireEvent.click(kryss);
-    expect(stangd).toBe(1);
+    const cross = screen.getByRole("button", { name: /Dölj/ });
+    expect(cross.getAttribute("aria-label")).toContain("Månadskassaflöde");
+    fireEvent.click(cross);
+    expect(closed).toBe(1);
   });
 
   it("ligger på innehållets lager och inte på appskalets", () => {

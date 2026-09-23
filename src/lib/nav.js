@@ -25,27 +25,27 @@
  * om den vaktas, inte om den står i en kommentar.
  *
  * @param {any} nav
- * @param {string} komponent Namnet som ska stå i felmeddelandet.
+ * @param {string} component Namnet som ska stå i felmeddelandet.
  */
-export function validateNav(nav, komponent) {
+export function validateNav(nav, component) {
   if (!Array.isArray(nav)) {
-    throw new Error(`${komponent}: nav krävs och måste vara en lista av { href, label }.`);
+    throw new Error(`${component}: nav krävs och måste vara en lista av { href, label }.`);
   }
   for (const entry of nav) {
     if (!entry || typeof entry.href !== "string" || typeof entry.label !== "string") {
-      throw new Error(`${komponent}: varje nav-post måste ha href och label som strängar.`);
+      throw new Error(`${component}: varje nav-post måste ha href och label som strängar.`);
     }
     if (entry.children === undefined) continue;
     if (!Array.isArray(entry.children)) {
-      throw new Error(`${komponent}: nav-postens children måste vara en lista av { href, label }.`);
+      throw new Error(`${component}: nav-postens children måste vara en lista av { href, label }.`);
     }
-    for (const barn of entry.children) {
-      if (!barn || typeof barn.href !== "string" || typeof barn.label !== "string") {
-        throw new Error(`${komponent}: varje barn i children måste ha href och label som strängar.`);
+    for (const children of entry.children) {
+      if (!children || typeof children.href !== "string" || typeof children.label !== "string") {
+        throw new Error(`${component}: varje barn i children måste ha href och label som strängar.`);
       }
-      if (barn.children !== undefined) {
+      if (children.children !== undefined) {
         throw new Error(
-          `${komponent}: nav får ha EN nivå barn. Posten "${barn.label}" ligger i children och har själv children. ` +
+          `${component}: nav får ha EN nivå barn. Posten "${children.label}" ligger i children och har själv children. ` +
             "En meny djupare än så hittar ingen i, och det finns ingen telefon där nivå tre är rätt. " +
             "Vill du ha djupare hierarki är svaret en egen vy, inte en djupare meny.",
         );
@@ -62,10 +62,10 @@ export function validateNav(nav, komponent) {
  * @param {string} activeHref
  * @returns {boolean}
  */
-export function postAktiv(entry, activeHref) {
+export function entryActive(entry, activeHref) {
   if (entry.href === activeHref) return true;
   if (Array.isArray(entry.children)) {
-    return entry.children.some((barn) => barn.href === activeHref);
+    return entry.children.some((children) => children.href === activeHref);
   }
   return false;
 }

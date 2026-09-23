@@ -30,7 +30,7 @@ import { createDataSource } from "./contract.js";
  */
 
 /** Funktionerna adaptern behöver ur SDK:n. */
-const KRAVS = [
+const REQUIRED = [
   "collection",
   "doc",
   "getDoc",
@@ -78,10 +78,10 @@ export function createFirestoreSource(config) {
   // ⛔ Kontrollen sker vid uppstart, inte vid första anropet. En saknad funktion
   // ger annars "undefined is not a function" först den dag någon råkar ta bort
   // något, och felet pekar då mot vyn i stället för mot uppkopplingen.
-  const saknas = KRAVS.filter((f) => typeof sdk[f] !== "function");
-  if (saknas.length > 0) {
+  const missing = REQUIRED.filter((f) => typeof sdk[f] !== "function");
+  if (missing.length > 0) {
     throw new Error(
-      `createFirestoreSource: sdk saknar ${saknas.join(", ")}. Skicka in hela modulen "firebase/firestore", inte enskilda funktioner.`,
+      `createFirestoreSource: sdk saknar ${missing.join(", ")}. Skicka in hela modulen "firebase/firestore", inte enskilda funktioner.`,
     );
   }
 
@@ -145,14 +145,14 @@ export function createFirestoreSource(config) {
      *
      * @param {string} collectionName
      * @param {import("./contract.js").Query | undefined} query
-     * @param {import("./contract.js").Listener<any>} lyssnare
+     * @param {import("./contract.js").Listener<any>} listener
      * @returns {import("./contract.js").Unsubscribe}
      */
-    subscribe(collectionName, query, lyssnare) {
+    subscribe(collectionName, query, listener) {
       return onSnapshot(
         build(collectionName, query),
-        /** @param {any} snap */ (snap) => lyssnare.onData(snap.docs.map(toEntry)),
-        /** @param {any} e */ (e) => lyssnare.onError(e instanceof Error ? e : new Error(String(e))),
+        /** @param {any} snap */ (snap) => listener.onData(snap.docs.map(toEntry)),
+        /** @param {any} e */ (e) => listener.onError(e instanceof Error ? e : new Error(String(e))),
       );
     },
 
@@ -170,7 +170,7 @@ export function createFirestoreSource(config) {
     },
 
     async update(collectionName, id, data) {
-      const { id: _ignorerat, ...field } = /** @type {any} */ (data);
+      const { id: _ignored, ...field } = /** @type {any} */ (data);
       const ref = doc(db, collectionName, id);
       await updateDoc(ref, field);
 

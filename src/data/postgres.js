@@ -86,11 +86,11 @@ export function createPostgresSource(config) {
       let sql = `SELECT * FROM ${identifier(collectionName)}`;
 
       if (queryArg?.where) {
-        const delar = Object.entries(queryArg.where).map(([field, value]) => {
+        const parts = Object.entries(queryArg.where).map(([field, value]) => {
           params.push(value);
           return `${identifier(field)} = $${params.length}`;
         });
-        if (delar.length > 0) sql += ` WHERE ${delar.join(" AND ")}`;
+        if (parts.length > 0) sql += ` WHERE ${parts.join(" AND ")}`;
       }
 
       if (queryArg?.sortBy) {
@@ -125,10 +125,10 @@ export function createPostgresSource(config) {
       const entries = Object.entries(/** @type {any} */ (data)).filter(([k]) => k !== idColumn);
       if (entries.length === 0) throw new Error("postgres: uppdatera utan fält att ändra.");
 
-      const satt = entries.map(([k], i) => `${identifier(k)} = $${i + 1}`).join(", ");
+      const assignments = entries.map(([k], i) => `${identifier(k)} = $${i + 1}`).join(", ");
       const params = [...entries.map(([, v]) => v), id];
       const rows = await query(
-        `UPDATE ${identifier(collectionName)} SET ${satt} WHERE ${ID} = $${params.length} RETURNING *`,
+        `UPDATE ${identifier(collectionName)} SET ${assignments} WHERE ${ID} = $${params.length} RETURNING *`,
         params,
       );
 

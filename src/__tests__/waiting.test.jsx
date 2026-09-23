@@ -7,11 +7,11 @@ import { OpsBrand } from "../components/OpsBrand.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsTag } from "../components/OpsTag.jsx";
 
-/** @param {() => void} kor @param {RegExp} meddelande */
-function forvantaKrasch(kor, meddelande) {
+/** @param {() => void} kor @param {RegExp} message */
+function forvantaKrasch(kor, message) {
   const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
-    expect(kor).toThrow(meddelande);
+    expect(kor).toThrow(message);
   } finally {
     tyst.mockRestore();
   }

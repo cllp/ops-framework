@@ -7,7 +7,7 @@ import { OpsDataView } from "../components/OpsDataView.jsx";
  * planterad defekt, och det står utskrivet vilken.
  */
 
-const ORD = { errorTitle: "Kunde inte hämta tillgångarna", loadingLabel: "Hämtar tillgångar" };
+const WORDS = { errorTitle: "Kunde inte hämta tillgångarna", loadingLabel: "Hämtar tillgångar" };
 
 describe("OpsDatavy", () => {
   it("visar felet även medan något fortfarande laddar", () => {
@@ -18,7 +18,7 @@ describe("OpsDatavy", () => {
      * felet bakom en snurra som aldrig slutar snurra.
      */
     render(
-      <OpsDataView loading error={new Error("servern svarade 500")} {...ORD}>
+      <OpsDataView loading error={new Error("servern svarade 500")} {...WORDS}>
         {() => <p>innehållet</p>}
       </OpsDataView>,
     );
@@ -34,7 +34,7 @@ describe("OpsDatavy", () => {
      * fem läsningar i en vy är "Hämtar" samma text i alla fem.
      */
     render(
-      <OpsDataView loading {...ORD}>
+      <OpsDataView loading {...WORDS}>
         {() => <p>innehållet</p>}
       </OpsDataView>,
     );
@@ -51,7 +51,7 @@ describe("OpsDatavy", () => {
      * har gett upp.
      */
     render(
-      <OpsDataView loading={false} data={null} {...ORD}>
+      <OpsDataView loading={false} data={null} {...WORDS}>
         {() => <p>innehållet</p>}
       </OpsDataView>,
     );
@@ -77,7 +77,7 @@ describe("OpsDatavy", () => {
      * fast allt gick bra.
      */
     render(
-      <OpsDataView loading={false} {...ORD}>
+      <OpsDataView loading={false} {...WORDS}>
         {() => <p>innehållet</p>}
       </OpsDataView>,
     );
@@ -92,13 +92,13 @@ describe("OpsDatavy", () => {
      * välja gren, alltså kastar `data.totals` i precis det läge komponenten
      * finns för. Provet mäter det direkt: funktionen får INTE ha anropats.
      */
-    const barn = vi.fn(() => <p>innehållet</p>);
+    const children = vi.fn(() => <p>innehållet</p>);
     render(
-      <OpsDataView loading error={null} {...ORD}>
-        {barn}
+      <OpsDataView loading error={null} {...WORDS}>
+        {children}
       </OpsDataView>,
     );
-    expect(barn).not.toHaveBeenCalled();
+    expect(children).not.toHaveBeenCalled();
   });
 
   it("ritar huvudet i alla tre tillstånden, felet inräknat", () => {
@@ -110,7 +110,7 @@ describe("OpsDatavy", () => {
      */
     for (const fall of [{ loading: true }, { loading: false, error: new Error("x") }, { loading: false, data: null }]) {
       const { unmount } = render(
-        <OpsDataView {...fall} {...ORD} header={<h1>Tillgångar</h1>}>
+        <OpsDataView {...fall} {...WORDS} header={<h1>Tillgångar</h1>}>
           {() => <p>innehållet</p>}
         </OpsDataView>,
       );
@@ -121,7 +121,7 @@ describe("OpsDatavy", () => {
 
   it("skickar datan vidare till barnen", () => {
     render(
-      <OpsDataView loading={false} data={{ name: "Adavo" }} {...ORD}>
+      <OpsDataView loading={false} data={{ name: "Adavo" }} {...WORDS}>
         {(d) => <p>{d.name}</p>}
       </OpsDataView>,
     );
@@ -149,7 +149,7 @@ describe("OpsDatavy", () => {
         </OpsDataView>,
       ),
     ).toThrow(/loadingLabel/);
-    expect(() => render(<OpsDataView loading {...ORD}>{/* nod, inte funktion */}<p>error</p></OpsDataView>)).toThrow(
+    expect(() => render(<OpsDataView loading {...WORDS}>{/* nod, inte funktion */}<p>error</p></OpsDataView>)).toThrow(
       /funktion/,
     );
     tyst.mockRestore();

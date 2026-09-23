@@ -81,7 +81,7 @@ export function createMemorySource(seed = {}) {
  * användaren ser "Sparat", laddar om, och arbetet är borta.
  *
  * @template {{ id: string }} T
- * @param {{ bas: string, load?: typeof fetch }} config
+ * @param {{ base: string, load?: typeof fetch }} config
  * @returns {import("./contract.js").DataSource<T>}
  */
 export function createJsonSource(config) {
@@ -98,27 +98,27 @@ export function createJsonSource(config) {
    * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
-  const { bas, load = fetch } = config ?? /** @type {any} */ ({});
-  if (!bas) throw new Error("createJsonSource: bas krävs, till exempel \"/assets/data\".");
+  const { base, load = fetch } = config ?? /** @type {any} */ ({});
+  if (!base) throw new Error("createJsonSource: bas krävs, till exempel \"/assets/data\".");
 
   /** @param {string} collectionName @returns {Promise<T[]>} */
   async function read(collectionName) {
-    const svar = await load(`${bas}/${collectionName}.json`);
+    const answer = await load(`${base}/${collectionName}.json`);
 
     // ⛔ `fetch` kastar INTE på 404 eller 500. Utan den här kontrollen blir ett
     // serverfel en tom lista, och appen visar "inga träffar" när sanningen är
     // att den inte kunde fråga.
-    if (!svar.ok) {
-      throw new Error(`jsonkalla: ${bas}/${collectionName}.json svarade ${svar.status}. Det är ett fel, inte en tom samling.`);
+    if (!answer.ok) {
+      throw new Error(`jsonkalla: ${base}/${collectionName}.json svarade ${answer.status}. Det är ett fel, inte en tom samling.`);
     }
-    const data = await svar.json();
+    const data = await answer.json();
     if (!Array.isArray(data)) {
-      throw new Error(`jsonkalla: ${bas}/${collectionName}.json innehåller inte en lista. Varje samling är en JSON-array av poster med id.`);
+      throw new Error(`jsonkalla: ${base}/${collectionName}.json innehåller inte en lista. Varje samling är en JSON-array av poster med id.`);
     }
     return data;
   }
 
-  const nekad = (/** @type {string} */ op) => {
+  const denied = (/** @type {string} */ op) => {
     throw new Error(
       `jsonkalla: ${op} går inte mot statiska filer. Byt datakälla i stället för att bygga runt det: en skrivning som ser ut att lyckas men försvinner vid omladdning är värre än ett tydligt nej.`,
     );
@@ -133,13 +133,13 @@ export function createJsonSource(config) {
       return applyQuery(await read(collectionName), query);
     },
     async create() {
-      return nekad("skapa");
+      return denied("skapa");
     },
     async update() {
-      return nekad("uppdatera");
+      return denied("uppdatera");
     },
     async remove() {
-      return nekad("taBort");
+      return denied("taBort");
     },
   });
 }

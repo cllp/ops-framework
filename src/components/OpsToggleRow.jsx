@@ -95,7 +95,7 @@ import { cx } from "../lib/cx.js";
 export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas inte", control, trailing }) {
   const harExtra = Boolean(control || trailing);
 
-  const knapp = (
+  const button = (
     <button
       type="button"
       aria-pressed={on}
@@ -145,12 +145,12 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
       : "border-line bg-sunken hover:border-line-strong",
   );
 
-  if (!harExtra) return <div className={omslag}>{knapp}</div>;
+  if (!harExtra) return <div className={omslag}>{button}</div>;
 
   return (
     <div className={cx(omslag, "flex flex-col gap-1 px-3 py-2")}>
       <div className={cx("flex items-center gap-2", trailing ? "min-h-11" : null)}>
-        <div className="min-w-0 flex-1">{knapp}</div>
+        <div className="min-w-0 flex-1">{button}</div>
         {/* ⛔ EGET SYSKON, ALDRIG INUTI KNAPPEN. En ratt i en `<button>` är
             ogiltig HTML, och draget hade växlat radens nedtoning. */}
         {trailing ? <div className="shrink-0 self-center">{trailing}</div> : null}

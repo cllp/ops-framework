@@ -92,41 +92,41 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
    * extra. En tyst nedsläppsväg hade varit sämre än felet: den hade ritat den
    * blandade raden och ingen hade sett det förrän på en skärmbild.
    */
-  const medIkon = options.filter((o) => Boolean(o.icon)).length;
-  if (medIkon > 0 && medIkon < options.length) {
+  const withIcon = options.filter((o) => Boolean(o.icon)).length;
+  if (withIcon > 0 && withIcon < options.length) {
     throw new Error(
-      `OpsSegmented: ${medIkon} av ${options.length} lägen har icon. Antingen alla eller inget: en rad med en ikon bredvid ett ord ser ut som ett fel, och den som läser vet inte om ikonen betyder något extra.`,
+      `OpsSegmented: ${withIcon} av ${options.length} lägen har icon. Antingen alla eller inget: en rad med en ikon bredvid ett ord ser ut som ett fel, och den som läser vet inte om ikonen betyder något extra.`,
     );
   }
-  const baraIkoner = medIkon > 0;
+  const baraIkoner = withIcon > 0;
 
-  const [menyFor, setMenyFor] = useState(/** @type {string | null} */ (null));
+  const [menuFor, setMenuFor] = useState(/** @type {string | null} */ (null));
 
   return (
     <div role="tablist" aria-label={ariaLabel} className="inline-flex items-center rounded-full bg-surface p-1">
       {options.map((o) => {
-        const menyItems = o.menu?.items;
-        const harMeny = Array.isArray(menyItems) && menyItems.length > 0;
-        const menyMatch = harMeny ? menyItems.find((i) => i.value === value) : undefined;
-        const valt = o.value === value || Boolean(menyMatch);
-        const label = menyMatch?.label ?? o.label;
-        const menyOppen = harMeny && valt && menyFor === o.value;
+        const menuItems = o.menu?.items;
+        const hasMenu = Array.isArray(menuItems) && menuItems.length > 0;
+        const menuMatch = hasMenu ? menuItems.find((i) => i.value === value) : undefined;
+        const chosen = o.value === value || Boolean(menuMatch);
+        const label = menuMatch?.label ?? o.label;
+        const menuOpen = hasMenu && chosen && menuFor === o.value;
 
-        const knappen = (
+        const theButton = (
           <button
             type="button"
             role="tab"
-            aria-selected={valt}
-            aria-haspopup={harMeny ? "menu" : undefined}
-            aria-expanded={harMeny ? menyOppen : undefined}
+            aria-selected={chosen}
+            aria-haspopup={hasMenu ? "menu" : undefined}
+            aria-expanded={hasMenu ? menuOpen : undefined}
             onClick={() => {
-              if (!valt) {
+              if (!chosen) {
                 onChange(o.value);
-                setMenyFor(null);
+                setMenuFor(null);
                 return;
               }
-              if (harMeny) {
-                setMenyFor((nu) => (nu === o.value ? null : o.value));
+              if (hasMenu) {
+                setMenuFor((nu) => (nu === o.value ? null : o.value));
               }
             }}
             className={cx(
@@ -137,7 +137,7 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
               // `px-5` runt en 16 px ikon ger en yta som är bredare än hög och
               // läses som ett ord som råkat sakna text.
               baraIkoner ? "justify-center px-2.5" : "px-5",
-              valt ? "bg-ink text-canvas shadow-sm" : "text-ink-muted hover:text-ink-secondary",
+              chosen ? "bg-ink text-canvas shadow-sm" : "text-ink-muted hover:text-ink-secondary",
             )}
           >
             {/* ⛔ IKONEN ERSÄTTER ORDET PÅ SKÄRMEN, men inte för den som lyssnar:
@@ -158,12 +158,12 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
               // ⛔ Siffran står INNE i segmentet och inte som en cirkel ovanpå.
               // En påhängd badge på ett valt, fyllt segment får två bakgrunder
               // ovanpå varandra och blir en fläck. Här är den en del av ordet.
-              <span className={cx("tabular-nums", valt ? "opacity-80" : "opacity-70")}>{o.badge}</span>
+              <span className={cx("tabular-nums", chosen ? "opacity-80" : "opacity-70")}>{o.badge}</span>
             ) : null}
-            {valt && harMeny ? (
+            {chosen && hasMenu ? (
               <span
                 aria-hidden="true"
-                className={cx("shrink-0 transition-transform duration-(--duration-fast)", menyOppen && "rotate-180")}
+                className={cx("shrink-0 transition-transform duration-(--duration-fast)", menuOpen && "rotate-180")}
               >
                 <ChevronNedIkon size={14} />
               </span>
@@ -171,19 +171,19 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
           </button>
         );
 
-        if (!harMeny) {
-          return <span key={o.value}>{knappen}</span>;
+        if (!hasMenu) {
+          return <span key={o.value}>{theButton}</span>;
         }
 
         return (
           <Popover.Root
             key={o.value}
-            open={menyOppen}
-            onOpenChange={(nasta) => {
-              if (!nasta) setMenyFor(null);
+            open={menuOpen}
+            onOpenChange={(next) => {
+              if (!next) setMenuFor(null);
             }}
           >
-            <Popover.Anchor asChild>{knappen}</Popover.Anchor>
+            <Popover.Anchor asChild>{theButton}</Popover.Anchor>
             <Popover.Portal>
               <Popover.Content
                 align="center"
@@ -192,7 +192,7 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
                 onCloseAutoFocus={(e) => e.preventDefault()}
               >
                 <div role="menu" aria-label={o.label} className="flex flex-col">
-                  {menyItems.map((item) => {
+                  {menuItems.map((item) => {
                     const active = item.value === value;
                     return (
                       <button
@@ -202,7 +202,7 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
                         aria-checked={active}
                         onClick={() => {
                           onChange(item.value);
-                          setMenyFor(null);
+                          setMenuFor(null);
                         }}
                         className={cx(
                           "flex min-h-11 w-full cursor-pointer items-center gap-3 px-3 text-left text-sm",

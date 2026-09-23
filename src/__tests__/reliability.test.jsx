@@ -5,11 +5,11 @@ import { OpsFact } from "../components/OpsFact.jsx";
 import { OpsStat } from "../components/OpsStat.jsx";
 import { formatRelativeDate } from "../lib/format.js";
 
-/** @param {() => void} kor @param {RegExp} meddelande */
-function forvantaKrasch(kor, meddelande) {
+/** @param {() => void} kor @param {RegExp} message */
+function forvantaKrasch(kor, message) {
   const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
-    expect(kor).toThrow(meddelande);
+    expect(kor).toThrow(message);
   } finally {
     tyst.mockRestore();
   }
@@ -73,8 +73,8 @@ describe("OpsStat", () => {
   it("blir en riktig knapp med onDrillDown, och säger vart den leder", async () => {
     const vidare = vi.fn();
     render(<OpsStat label="Kostnader" value="67 650 kr" onDrillDown={vidare} />);
-    const knapp = screen.getByRole("button", { name: "Kostnader: visa underlaget" });
-    await userEvent.click(knapp);
+    const button = screen.getByRole("button", { name: "Kostnader: visa underlaget" });
+    await userEvent.click(button);
     expect(vidare).toHaveBeenCalledTimes(1);
   });
 

@@ -57,9 +57,9 @@ describe("OpsToggleRow", () => {
       <OpsToggleRow label="Mat" value="8 000 kr/mån" on onChange={() => {}} control={<input type="range" aria-label="Justera Mat" />} />,
     );
 
-    const knapp = screen.getByRole("button", { name: /Mat/ });
+    const button = screen.getByRole("button", { name: /Mat/ });
     const reglage = screen.getByRole("slider", { name: "Justera Mat" });
-    expect(knapp.contains(reglage)).toBe(false);
+    expect(button.contains(reglage)).toBe(false);
   });
 
   it("låter draget vara ett drag och inte en nedtoning", () => {
@@ -106,9 +106,9 @@ describe("OpsToggleRow", () => {
         trailing={<input type="range" aria-label="Justera Mat" />}
       />,
     );
-    const knapp = screen.getByRole("button", { name: /Mat/ });
+    const button = screen.getByRole("button", { name: /Mat/ });
     const ratt = screen.getByRole("slider", { name: "Justera Mat" });
-    expect(knapp.contains(ratt)).toBe(false);
+    expect(button.contains(ratt)).toBe(false);
   });
 
   it("låter trailing-draget vara ett drag och inte en nedtoning", () => {
@@ -127,7 +127,7 @@ describe("OpsToggleRow", () => {
   });
 
 describe("OpsFilterChip", () => {
-  const val = [
+  const choice = [
     { value: null, label: "Alla typer" },
     { value: "kalender", label: "Kalender" },
     { value: "pengar", label: "Pengar" },
@@ -136,16 +136,16 @@ describe("OpsFilterChip", () => {
   it("visar vad som är valt i pillret, inte bara i menyn", () => {
     // ⛔ Ett filter som ser likadant ut oavsett val gör att man läser en
     // beskuren lista i tron att den är komplett.
-    const { rerender } = render(<OpsFilterChip options={val} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />);
+    const { rerender } = render(<OpsFilterChip options={choice} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />);
     expect(screen.getByRole("button", { name: "Typ: Alla typer" })).toBeInTheDocument();
 
-    rerender(<OpsFilterChip options={val} value="pengar" onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />);
+    rerender(<OpsFilterChip options={choice} value="pengar" onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />);
     expect(screen.getByRole("button", { name: "Typ: Pengar" })).toBeInTheDocument();
   });
 
   it("väljer ur menyn", async () => {
     const onChange = vi.fn();
-    render(<OpsFilterChip options={val} value={null} onChange={onChange} ariaLabel="Typ" allLabel="Alla typer" />);
+    render(<OpsFilterChip options={choice} value={null} onChange={onChange} ariaLabel="Typ" allLabel="Alla typer" />);
     // ⛔ fireEvent och inte userEvent: Radix Popover i jsdom, se issue #17.
     fireEvent.click(screen.getByRole("button", { name: /^Typ:/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Kalender" }));
@@ -154,26 +154,26 @@ describe("OpsFilterChip", () => {
 
   it("ikon-variant visar reglage, inte textpillret", () => {
     render(
-      <OpsFilterChip variant="icon" options={val} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
+      <OpsFilterChip variant="icon" options={choice} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
     );
-    const knapp = screen.getByRole("button", { name: "Typ: Alla typer" });
-    expect(knapp.className).toMatch(/min-w-11/);
-    expect(knapp.textContent).not.toMatch(/Alla typer/);
+    const button = screen.getByRole("button", { name: "Typ: Alla typer" });
+    expect(button.className).toMatch(/min-w-11/);
+    expect(button.textContent).not.toMatch(/Alla typer/);
   });
 
   it("tänder accent när ikonfiltret är aktivt, och ritar menyikoner", () => {
-    const medIkon = [
+    const withIcon = [
       { value: null, label: "Alla typer", icon: <span data-testid="ikon-alla">A</span> },
       { value: "pengar", label: "Pengar", icon: <span data-testid="ikon-pengar">P</span> },
     ];
     const { rerender } = render(
-      <OpsFilterChip variant="icon" options={medIkon} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
+      <OpsFilterChip variant="icon" options={withIcon} value={null} onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
     );
     expect(screen.getByRole("button", { name: "Typ: Alla typer" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Typ: Alla typer" }).className).not.toMatch(/text-accent/);
 
     rerender(
-      <OpsFilterChip variant="icon" options={medIkon} value="pengar" onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
+      <OpsFilterChip variant="icon" options={withIcon} value="pengar" onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
     );
     const active = screen.getByRole("button", { name: "Typ: Pengar" });
     expect(active).toHaveAttribute("aria-pressed", "true");

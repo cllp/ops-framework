@@ -40,14 +40,14 @@ export function identityTone(seed) {
  * @returns {string}
  */
 export function initials(name) {
-  const rent = String(name ?? "").trim();
-  if (!rent) return "?";
-  const ord = rent.split(/\s+/).slice(0, 2);
-  return ord.map((o) => forstaTecknet(o)).join("").toUpperCase() || "?";
+  const clean = String(name ?? "").trim();
+  if (!clean) return "?";
+  const word = clean.split(/\s+/).slice(0, 2);
+  return word.map((o) => firstChar(o)).join("").toUpperCase() || "?";
 }
 
 /** @param {string} text @returns {string} */
-function forstaTecknet(text) {
+function firstChar(text) {
   if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
     const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
     for (const s of seg.segment(text)) return s.segment;

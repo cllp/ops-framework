@@ -47,18 +47,18 @@ describe("OpsStatusDot", () => {
      * färg är samma sak som ingen färg: pricken slutar svara på frågan.
      */
     const klasser = new Set();
-    for (const [status, ord] of [
+    for (const [status, word] of [
       ["oppet", "Öppet"],
       ["pagar", "Pågår"],
       ["vantar", "Väntar"],
       ["klart", "Klart"],
       ["akut", "Akut"],
     ]) {
-      const { container, unmount } = render(<OpsStatusDot status={status} label={ord} />);
+      const { container, unmount } = render(<OpsStatusDot status={status} label={word} />);
       const prick = container.querySelector("[aria-hidden='true'].rounded-full");
       klasser.add(prick?.className);
       // Muspekaren får samma svar som skärmläsaren, utan att säga det två gånger.
-      expect(prick?.getAttribute("title")).toBe(ord);
+      expect(prick?.getAttribute("title")).toBe(word);
       unmount();
     }
     expect(klasser.size).toBe(5);
@@ -73,7 +73,7 @@ describe("OpsStatusDot", () => {
 });
 
 describe("OpsEventList med status", () => {
-  const rad = (extra) => ({ id: "a", title: "Ärende", daysLeft: null, ...extra });
+  const row = (extra) => ({ id: "a", title: "Ärende", daysLeft: null, ...extra });
 
   it("visar pricken i den kollapsade raden, alltså utan att något fälls ut", () => {
     /*
@@ -83,7 +83,7 @@ describe("OpsEventList med status", () => {
      */
     render(
       <OpsEventList
-        events={[rad({ status: "vantar", details: <p>Detaljer</p> })]}
+        events={[row({ status: "vantar", details: <p>Detaljer</p> })]}
         ariaLabel="Händelser"
         statusWords={{ vantar: "Väntar på motpart" }}
       />,
@@ -100,7 +100,7 @@ describe("OpsEventList med status", () => {
      * en färgad prick utan besked, och det ser rätt ut för den som byggde den.
      */
     expect(() =>
-      render(<OpsEventList events={[rad({ status: "akut" })]} ariaLabel="Händelser" statusWords={{ oppet: "Öppet" }} />),
+      render(<OpsEventList events={[row({ status: "akut" })]} ariaLabel="Händelser" statusWords={{ oppet: "Öppet" }} />),
     ).toThrow(/statusWords saknar ordet/);
   });
 
@@ -108,7 +108,7 @@ describe("OpsEventList med status", () => {
     // ⛔ Ingen reserverad plats för ett fält som inte finns, exakt som
     // chevronkolumnen och åtgärdsplatsen. En lista utan statusar ska se ut
     // precis som förut.
-    const { container } = render(<OpsEventList events={[rad({})]} ariaLabel="Händelser" />);
+    const { container } = render(<OpsEventList events={[row({})]} ariaLabel="Händelser" />);
     expect(container.querySelector(".rounded-full")).toBeNull();
   });
 });

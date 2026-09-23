@@ -38,17 +38,17 @@
  * och semikolon FÅR förekomma inuti en URL men aldrig sist, så att klippa dem
  * i slutet kan inte göra en giltig adress ogiltig.
  */
-const AVSLUT = /[.,;:!?)\]]+$/;
+const CLOSE = /[.,;:!?)\]]+$/;
 
 /**
- * @typedef {{ kind: "text" | "link" | "code" | "bold", varde: string, url?: string }} Bit
- * @typedef {{ kryss: boolean | null, inline: Bit[] }} ListEntry
+ * @typedef {{ kind: "text" | "link" | "code" | "bold", value: string, url?: string }} Bit
+ * @typedef {{ cross: boolean | null, inline: Bit[] }} ListEntry
  * @typedef {{ kind: "heading", level: number, inline: Bit[] }
  *   | { kind: "paragraph", inline: Bit[] }
  *   | { kind: "quote", inline: Bit[] }
- *   | { kind: "list", ordnad: boolean, entries: ListEntry[] }
+ *   | { kind: "list", ordered: boolean, entries: ListEntry[] }
  *   | { kind: "code", text: string }
- *   | { kind: "table", header: Bit[][], rader: Bit[][][] }
+ *   | { kind: "table", header: Bit[][], rows: Bit[][][] }
  *   | { kind: "rule" }} Block
  */
 
@@ -69,59 +69,59 @@ function saker(url) {
  * ⛔ RETURNERAR ALLTID HELA TEXTEN. En felskriven länk syns som det den är i
  * stället för att tappas bort: en tyst nedsläppsväg är värre än en ful rad.
  *
- * @param {string} rad @returns {Bit[]}
+ * @param {string} row @returns {Bit[]}
  */
-export function splitInline(rad) {
-  if (typeof rad !== "string" || rad === "") return [];
+export function splitInline(row) {
+  if (typeof row !== "string" || row === "") return [];
 
   /** @type {Bit[]} */
-  const ut = [];
-  let sist = 0;
+  const out = [];
+  let last = 0;
   INLINE.lastIndex = 0;
 
-  for (let m = INLINE.exec(rad); m; m = INLINE.exec(rad)) {
+  for (let m = INLINE.exec(row); m; m = INLINE.exec(row)) {
     const start = m.index;
     /** @type {Bit | null} */
-    let bit = null;
+    let piece = null;
 
-    if (m[1] !== undefined) bit = { kind: "code", varde: m[1] };
+    if (m[1] !== undefined) piece = { kind: "code", value: m[1] };
     else if (m[2] !== undefined && m[3] !== undefined) {
       // ⛔ `[text](javascript:...)` blir TEXT, inte en länk, och behåller sin
       // råa form. Den som skrev den ska se att den inte blev en länk.
-      bit = saker(m[3]) ? { kind: "link", varde: m[2], url: m[3] } : { kind: "text", varde: m[0] };
-    } else if (m[4] !== undefined) bit = { kind: "bold", varde: m[4] };
+      piece = saker(m[3]) ? { kind: "link", value: m[2], url: m[3] } : { kind: "text", value: m[0] };
+    } else if (m[4] !== undefined) piece = { kind: "bold", value: m[4] };
     else if (m[5] !== undefined) {
-      const url = m[5].replace(AVSLUT, "");
+      const url = m[5].replace(CLOSE, "");
       // Hela träffen var skiljetecken efter schemat: ingen adress att länka.
       if (url === "https://" || url === "http://") continue;
-      bit = { kind: "link", varde: url, url };
-      if (start > sist) ut.push({ kind: "text", varde: rad.slice(sist, start) });
-      ut.push(bit);
-      sist = start + url.length;
-      INLINE.lastIndex = sist;
+      piece = { kind: "link", value: url, url };
+      if (start > last) out.push({ kind: "text", value: row.slice(last, start) });
+      out.push(piece);
+      last = start + url.length;
+      INLINE.lastIndex = last;
       continue;
     }
 
-    if (!bit) continue;
-    if (start > sist) ut.push({ kind: "text", varde: rad.slice(sist, start) });
-    ut.push(bit);
-    sist = start + m[0].length;
+    if (!piece) continue;
+    if (start > last) out.push({ kind: "text", value: row.slice(last, start) });
+    out.push(piece);
+    last = start + m[0].length;
   }
 
-  if (sist < rad.length) ut.push({ kind: "text", varde: rad.slice(sist) });
-  return ut;
+  if (last < row.length) out.push({ kind: "text", value: row.slice(last) });
+  return out;
 }
 
-/** @param {string} rad @returns {string[]} */
-function tabellceller(rad) {
-  const inre = rad.trim().replace(/^\|/, "").replace(/\|$/, "");
-  return inre.split("|").map((c) => c.trim());
+/** @param {string} row @returns {string[]} */
+function tableCells(row) {
+  const inner = row.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return inner.split("|").map((c) => c.trim());
 }
 
-/** @param {string} rad */
-const arTabellrad = (rad) => /^\s*\|.*\|\s*$/.test(rad);
-/** @param {string} rad */
-const arTabellstreck = (rad) => /^\s*\|[\s:|-]+\|\s*$/.test(rad) && rad.includes("-");
+/** @param {string} row */
+const isTableRow = (row) => /^\s*\|.*\|\s*$/.test(row);
+/** @param {string} row */
+const isTableRule = (row) => /^\s*\|[\s:|-]+\|\s*$/.test(row) && row.includes("-");
 
 /**
  * Delar markdown i block.
@@ -135,120 +135,120 @@ const arTabellstreck = (rad) => /^\s*\|[\s:|-]+\|\s*$/.test(rad) && rad.includes
 export function splitMarkdown(text) {
   if (typeof text !== "string" || !text.trim()) return [];
 
-  const rader = text.replace(/\r\n?/g, "\n").split("\n");
+  const rows = text.replace(/\r\n?/g, "\n").split("\n");
   /** @type {Block[]} */
   const block = [];
   /** @type {string[]} */
-  let stycke = [];
+  let paragraph = [];
 
-  const stangStycke = () => {
-    if (stycke.length === 0) return;
+  const closeParagraph = () => {
+    if (paragraph.length === 0) return;
     // ⛔ Mjuka radbrytningar blir mellanslag, som i markdown. Gjorde de inte
     // det skulle varje rad i ett stycke bli ett eget stycke, och texten få
     // luft mitt i en mening.
-    block.push({ kind: "paragraph", inline: splitInline(stycke.join(" ")) });
-    stycke = [];
+    block.push({ kind: "paragraph", inline: splitInline(paragraph.join(" ")) });
+    paragraph = [];
   };
 
-  for (let i = 0; i < rader.length; i += 1) {
-    const rad = rader[i];
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
 
     // ── Kodblock: allt mellan staketen är text, inte markdown ──────────────
-    const staket = rad.match(/^\s*```(.*)$/);
-    if (staket) {
-      stangStycke();
+    const fence = row.match(/^\s*```(.*)$/);
+    if (fence) {
+      closeParagraph();
       /** @type {string[]} */
-      const kod = [];
+      const code = [];
       i += 1;
-      while (i < rader.length && !/^\s*```/.test(rader[i])) {
-        kod.push(rader[i]);
+      while (i < rows.length && !/^\s*```/.test(rows[i])) {
+        code.push(rows[i]);
         i += 1;
       }
       // ⛔ Ett ostängt staket tar resten av texten, precis som i GitHub. Att i
       // stället kasta tillbaka raderna som stycken hade gett en text som ser
       // annorlunda ut här än där den skrevs.
-      block.push({ kind: "code", text: kod.join("\n") });
+      block.push({ kind: "code", text: code.join("\n") });
       continue;
     }
 
-    if (!rad.trim()) {
-      stangStycke();
+    if (!row.trim()) {
+      closeParagraph();
       continue;
     }
 
-    const title = rad.match(/^\s*(#{1,6})\s+(.*)$/);
+    const title = row.match(/^\s*(#{1,6})\s+(.*)$/);
     if (title) {
-      stangStycke();
+      closeParagraph();
       block.push({ kind: "heading", level: title[1].length, inline: splitInline(title[2].trim()) });
       continue;
     }
 
-    if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(rad)) {
-      stangStycke();
+    if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(row)) {
+      closeParagraph();
       block.push({ kind: "rule" });
       continue;
     }
 
     // ── Tabell: en radrad följd av ett streck. Utan strecket är det text ───
-    if (arTabellrad(rad) && i + 1 < rader.length && arTabellstreck(rader[i + 1])) {
-      stangStycke();
-      const header = tabellceller(rad).map(splitInline);
+    if (isTableRow(row) && i + 1 < rows.length && isTableRule(rows[i + 1])) {
+      closeParagraph();
+      const header = tableCells(row).map(splitInline);
       /** @type {Bit[][][]} */
-      const kropp = [];
+      const body = [];
       i += 2;
-      while (i < rader.length && arTabellrad(rader[i])) {
-        kropp.push(tabellceller(rader[i]).map(splitInline));
+      while (i < rows.length && isTableRow(rows[i])) {
+        body.push(tableCells(rows[i]).map(splitInline));
         i += 1;
       }
       i -= 1;
-      block.push({ kind: "table", header, rader: kropp });
+      block.push({ kind: "table", header, rows: body });
       continue;
     }
 
-    const entry = rad.match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/);
+    const entry = row.match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/);
     if (entry) {
-      stangStycke();
-      const ordnad = entry[1] === undefined;
-      const sista = block[block.length - 1];
+      closeParagraph();
+      const ordered = entry[1] === undefined;
+      const last = block[block.length - 1];
       const list =
-        sista && sista.kind === "list" && sista.ordnad === ordnad
-          ? sista
+        last && last.kind === "list" && last.ordered === ordered
+          ? last
           : /** @type {Block & { kind: "list" }} */ (
-              block[block.push({ kind: "list", ordnad, entries: [] }) - 1]
+              block[block.push({ kind: "list", ordered, entries: [] }) - 1]
             );
 
       // ⛔ Kryssrutan läses UR texten och blir ett fält, inte tecken i den. En
       // `- [x]` som renderas som text ser ut som en skrivfel-parentes, och en
       // lista där hälften är gjort går då inte att skumma.
-      const kryss = entry[3].match(/^\[([ xX])\]\s*(.*)$/);
+      const cross = entry[3].match(/^\[([ xX])\]\s*(.*)$/);
       list.entries.push({
-        kryss: kryss ? kryss[1].toLowerCase() === "x" : null,
-        inline: splitInline((kryss ? kryss[2] : entry[3]).trim()),
+        cross: cross ? cross[1].toLowerCase() === "x" : null,
+        inline: splitInline((cross ? cross[2] : entry[3]).trim()),
       });
       continue;
     }
 
-    const citat = rad.match(/^\s*>\s?(.*)$/);
-    if (citat) {
-      stangStycke();
+    const quote = row.match(/^\s*>\s?(.*)$/);
+    if (quote) {
+      closeParagraph();
       // ⛔ RÅ TEXT SAMLAS FÖRST, INLINE-DELNINGEN GÖRS EN GÅNG PÅ SLUTET. En
       // tidig version slog ihop citatrader genom att plocka isär det redan
       // delade blocket och sätta ihop strängen igen. Det såg ut att fungera
       // och tappade tyst all fet text, eftersom stjärnorna inte finns kvar i
       // en bit som redan är typad som `fet`.
       /** @type {string[]} */
-      const rader2 = [citat[1].trim()];
-      while (i + 1 < rader.length && /^\s*>\s?/.test(rader[i + 1])) {
+      const rows2 = [quote[1].trim()];
+      while (i + 1 < rows.length && /^\s*>\s?/.test(rows[i + 1])) {
         i += 1;
-        rader2.push(rader[i].replace(/^\s*>\s?/, "").trim());
+        rows2.push(rows[i].replace(/^\s*>\s?/, "").trim());
       }
-      block.push({ kind: "quote", inline: splitInline(rader2.join(" ").trim()) });
+      block.push({ kind: "quote", inline: splitInline(rows2.join(" ").trim()) });
       continue;
     }
 
-    stycke.push(rad.trim());
+    paragraph.push(row.trim());
   }
 
-  stangStycke();
+  closeParagraph();
   return block;
 }

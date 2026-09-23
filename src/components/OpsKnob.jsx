@@ -63,7 +63,7 @@ export function OpsKnob({
   const vidNoll = value === zero;
   const spann = max - min;
   // Nålens vinkel: noll pekar rakt upp. Positivt medurs över 270° båge.
-  const nalGrad = spann === 0 ? 0 : ((value - zero) / spann) * 270;
+  const needleDeg = spann === 0 ? 0 : ((value - zero) / spann) * 270;
   const bagProcent = spann === 0 ? 0 : (Math.abs(value - zero) / spann) * 100;
   const positiv = value >= zero;
 
@@ -78,16 +78,16 @@ export function OpsKnob({
    * Conic-gradient för den varma bågen. Vid noll: bara spår. Vid positivt:
    * fyll medurs från toppen. Vid negativt: fyll moturs.
    */
-  const bagGrad = bagProcent * 2.7;
+  const arcDeg = bagProcent * 2.7;
   const bagStil =
     bagProcent < 0.01
       ? undefined
       : positiv
         ? {
-            background: `conic-gradient(from 210deg, var(--color-laborera) 0 ${bagGrad}deg, var(--color-laborera-glow) ${bagGrad}deg ${bagGrad}deg, var(--color-laborera-track) ${bagGrad}deg 270deg)`,
+            background: `conic-gradient(from 210deg, var(--color-laborera) 0 ${arcDeg}deg, var(--color-laborera-glow) ${arcDeg}deg ${arcDeg}deg, var(--color-laborera-track) ${arcDeg}deg 270deg)`,
           }
         : {
-            background: `conic-gradient(from ${210 + 270 - bagGrad}deg, var(--color-laborera-track) 0 ${270 - bagGrad}deg, var(--color-laborera) ${270 - bagGrad}deg 270deg)`,
+            background: `conic-gradient(from ${210 + 270 - arcDeg}deg, var(--color-laborera-track) 0 ${270 - arcDeg}deg, var(--color-laborera) ${270 - arcDeg}deg 270deg)`,
           };
 
   return (
@@ -104,7 +104,7 @@ export function OpsKnob({
           <span className="ops-ratt-bag" style={bagStil} />
           <span
             className="ops-ratt-nal"
-            style={{ transform: `translateX(-50%) rotate(${nalGrad}deg)` }}
+            style={{ transform: `translateX(-50%) rotate(${needleDeg}deg)` }}
           />
         </div>
 

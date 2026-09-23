@@ -11,22 +11,22 @@ import { readCaseFlow } from "../lib/caseFlow.js";
 const KONFIG = { owner: "nagon", repo: "nagot", label: "drift" };
 
 /** En hämtare som svarar med det man ger den, i stället för att nå nätet. */
-function svarar(kropp, { ok = true, status = 200 } = {}) {
+function answers(body, { ok = true, status = 200 } = {}) {
   const anrop = [];
   const fetcher = async (/** @type {string} */ url, /** @type {any} */ init) => {
     anrop.push({ url, init });
     return {
       ok,
       status,
-      json: async () => kropp,
-      text: async () => (typeof kropp === "string" ? kropp : JSON.stringify(kropp)),
+      json: async () => body,
+      text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
     };
   };
   return { fetcher, anrop };
 }
 
 /** @param {object} d */
-const arende = (d) => ({ number: 1, title: "Titel", state: "open", labels: [], updated_at: "2026-09-01T00:00:00Z", ...d });
+const caseEntry = (d) => ({ number: 1, title: "Titel", state: "open", labels: [], updated_at: "2026-09-01T00:00:00Z", ...d });
 
 describe("skapaArendespegel, konfigurationen", () => {
   it("kräver etikett, eftersom ett saknat urval ser ut som att speglingen fungerar", () => {
@@ -44,7 +44,7 @@ describe("skapaArendespegel, konfigurationen", () => {
 
   it("kodar en etikett med mellanslag i både anrop och länk", () => {
     // ⛔ En okodad etikett ger ett anrop som tystnar eller svarar med fel urval.
-    const { fetcher, anrop } = svarar([]);
+    const { fetcher, anrop } = answers([]);
     const mirror = createCaseMirror({ ...KONFIG, label: "att göra", fetcher });
     expect(mirror.source).toContain("att%20g%C3%B6ra");
     return mirror.hamta("t").then(() => {
@@ -58,7 +58,7 @@ describe("hamta", () => {
     // ⛔ Det egentliga provet. Ett 403 som blir `[]` ser exakt ut som "inga öppna
     // ärenden", och den som läser listan ser en tom lista i stället för ett
     // trasigt anrop.
-    const { fetcher } = svarar("Bad credentials", { ok: false, status: 403 });
+    const { fetcher } = answers("Bad credentials", { ok: false, status: 403 });
     const mirror = createCaseMirror({ ...KONFIG, fetcher });
     await expect(mirror.hamta("t")).rejects.toThrow(/403/);
     await expect(mirror.hamta("t")).rejects.toThrow(/Bad credentials/);
@@ -67,7 +67,7 @@ describe("hamta", () => {
   it("kastar när svaret är ett objekt trots 200", async () => {
     // ⛔ GitHub svarar med en `message`-kropp i vissa fall. Ett `.filter` på det
     // kastar långt senare med ett fel som inte pekar hit.
-    const { fetcher } = svarar({ message: "Not Found" });
+    const { fetcher } = answers({ message: "Not Found" });
     const mirror = createCaseMirror({ ...KONFIG, fetcher });
     await expect(mirror.hamta("t")).rejects.toThrow(/annat än en lista/);
   });
@@ -78,7 +78,7 @@ describe("hamta", () => {
   });
 
   it("skickar etiketten och bara öppna ärenden", async () => {
-    const { fetcher, anrop } = svarar([]);
+    const { fetcher, anrop } = answers([]);
     const mirror = createCaseMirror({ ...KONFIG, fetcher });
     await mirror.hamta("hemlig");
     expect(anrop[0].url).toContain("labels=drift");
@@ -95,27 +95,27 @@ describe("tillFlode", () => {
     // ⛔ GitHubs issues-API returnerar dem som ärenden med ett `pull_request`-fält.
     // Utan filtret hamnar varje öppen PR i uppgiftslistan, och en PR är arbete som
     // redan är gjort och väntar på granskning, inte en uppgift.
-    const flode = mirror.tillFlode([arende({ number: 1 }), arende({ number: 2, pull_request: { url: "x" } })], { nu });
-    expect(flode.items.map((p) => p.number)).toEqual([1]);
+    const flow = mirror.tillFlode([caseEntry({ number: 1 }), caseEntry({ number: 2, pull_request: { url: "x" } })], { nu });
+    expect(flow.items.map((p) => p.number)).toEqual([1]);
   });
 
   it("sorterar på senast ändrad, med numret som andrahandsnyckel", () => {
-    const rader = [
-      arende({ number: 10, updated_at: "2026-09-01T00:00:00Z" }),
-      arende({ number: 11, updated_at: "2026-09-05T00:00:00Z" }),
-      arende({ number: 12, updated_at: "2026-09-01T00:00:00Z" }),
+    const rows = [
+      caseEntry({ number: 10, updated_at: "2026-09-01T00:00:00Z" }),
+      caseEntry({ number: 11, updated_at: "2026-09-05T00:00:00Z" }),
+      caseEntry({ number: 12, updated_at: "2026-09-01T00:00:00Z" }),
     ];
-    expect(mirror.tillFlode(rader, { nu }).items.map((p) => p.number)).toEqual([11, 12, 10]);
+    expect(mirror.tillFlode(rows, { nu }).items.map((p) => p.number)).toEqual([11, 12, 10]);
   });
 
   it("ger tom sammanfattning utan en sammanfattningsfunktion, aldrig första raden", () => {
     // ⛔ Första raden är ofta en rubrik eller en tom rad, och en automatiskt
     // plockad mening ser ut som en skriven sammanfattning.
-    const utan = mirror.tillFlode([arende({ body: "## Rubrik\n\nEn mening om något." })], { nu });
+    const utan = mirror.tillFlode([caseEntry({ body: "## Rubrik\n\nEn mening om något." })], { nu });
     expect(utan.items[0].summary).toBe("");
 
     const med = createCaseMirror({ ...KONFIG, summary: (t) => t.split("\n").pop() || "" });
-    expect(med.tillFlode([arende({ body: "## Rubrik\n\nEn mening om något." })], { nu }).items[0].summary).toBe(
+    expect(med.tillFlode([caseEntry({ body: "## Rubrik\n\nEn mening om något." })], { nu }).items[0].summary).toBe(
       "En mening om något.",
     );
   });
@@ -124,21 +124,21 @@ describe("tillFlode", () => {
     // ⛔ GitHub svarar med objekt, men en handskriven fixtur och vissa
     // API-varianter ger strängar. Att bara läsa `l.name` gav `undefined` i listan,
     // alltså en etikett som finns men inte matchar något filter.
-    const flode = mirror.tillFlode([arende({ labels: [{ name: "drift" }, "bradskande"] })], { nu });
-    expect(flode.items[0].labels).toEqual(["drift", "bradskande"]);
+    const flow = mirror.tillFlode([caseEntry({ labels: [{ name: "drift" }, "bradskande"] })], { nu });
+    expect(flow.items[0].labels).toEqual(["drift", "bradskande"]);
   });
 
   it("bygger en länk när GitHub inte skickar en", () => {
-    const flode = mirror.tillFlode([arende({ number: 42, html_url: undefined })], { nu });
-    expect(flode.items[0].url).toBe("https://github.com/nagon/nagot/issues/42");
+    const flow = mirror.tillFlode([caseEntry({ number: 42, html_url: undefined })], { nu });
+    expect(flow.items[0].url).toBe("https://github.com/nagon/nagot/issues/42");
   });
 
   it("skriver inget live-fält", () => {
     // ⛔ Det stod `live: true` i den app modulen ersätter, och skrevs omedelbart
     // över med `false` av den som anropade. Ett fält som sätts av två parter med
     // motsatta värden är en fråga ingen bestämt vem som äger.
-    const flode = mirror.tillFlode([arende({})], { nu });
-    expect("live" in flode).toBe(false);
+    const flow = mirror.tillFlode([caseEntry({})], { nu });
+    expect("live" in flow).toBe(false);
   });
 
   it("appens extra fält följer med per post", () => {
@@ -146,8 +146,8 @@ describe("tillFlode", () => {
       ...KONFIG,
       extraFields: (entry) => ({ roller: entry.number === 1 ? ["manniska"] : ["agent"] }),
     });
-    const flode = med.tillFlode([arende({ number: 1 }), arende({ number: 2 })], { nu });
-    expect(flode.items.map((p) => /** @type {any} */ (p).roller)).toEqual([["agent"], ["manniska"]]);
+    const flow = med.tillFlode([caseEntry({ number: 1 }), caseEntry({ number: 2 })], { nu });
+    expect(flow.items.map((p) => /** @type {any} */ (p).roller)).toEqual([["agent"], ["manniska"]]);
   });
 
   it("tål en tom och en saknad lista", () => {
@@ -163,8 +163,8 @@ describe("spegeln och läsaren hänger ihop", () => {
     // lista i vyn, alltså "inga uppgifter", vilket är felklassen `readCaseFlow`
     // byggdes för att stoppa.
     const mirror = createCaseMirror(KONFIG);
-    const flode = mirror.tillFlode([arende({ number: 7 })], { nu: () => "2026-09-17" });
-    const last = readCaseFlow(flode);
+    const flow = mirror.tillFlode([caseEntry({ number: 7 })], { nu: () => "2026-09-17" });
+    const last = readCaseFlow(flow);
     expect(last.error).toBeNull();
     expect(last.existed).toBe(true);
     expect(last.updatedAt).toBe("2026-09-17");
@@ -173,8 +173,8 @@ describe("spegeln och läsaren hänger ihop", () => {
 
   it("och även efter en tur genom JSON", () => {
     const mirror = createCaseMirror(KONFIG);
-    const flode = mirror.tillFlode([arende({ number: 7 })], { nu: () => "2026-09-17" });
-    const last = readCaseFlow(JSON.stringify(flode));
+    const flow = mirror.tillFlode([caseEntry({ number: 7 })], { nu: () => "2026-09-17" });
+    const last = readCaseFlow(JSON.stringify(flow));
     expect(last.existed).toBe(true);
     expect(last.entries.map((p) => p.number)).toEqual([7]);
   });

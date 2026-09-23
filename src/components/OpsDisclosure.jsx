@@ -58,7 +58,7 @@ import { ChevronNedIkon } from "./icons.jsx";
  */
 export function OpsDisclosure({ summary, children, defaultOpen = false, open, onOpenChange, storageKey, badge, id }) {
   const styrd = open !== undefined;
-  const [internOppen, setInternOppen] = useState(() => lasSparat(storageKey, defaultOpen));
+  const [internOppen, setInternOppen] = useState(() => readSaved(storageKey, defaultOpen));
   const arOppen = styrd ? open : internOppen;
 
   /** @param {any} e */
@@ -68,7 +68,7 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
     // INTE internt state; appen bestämmer, annars finns två sanningar om öppet.
     if (!styrd) {
       setInternOppen(ny);
-      skrivSparat(storageKey, ny);
+      writeSaved(storageKey, ny);
     }
     if (ny !== arOppen) onOpenChange?.(ny);
   }
@@ -111,25 +111,25 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
  * ⛔ `localStorage` kastar i privat läge och när webbplatsdata är blockerad.
  * Läser man den utan try blir ett hopfällbart avsnitt anledningen att hela
  * sidan är vit.
- * @param {string | undefined} nyckel @param {boolean} standard @returns {boolean}
+ * @param {string | undefined} key @param {boolean} fallback @returns {boolean}
  */
-function lasSparat(nyckel, standard) {
-  if (!nyckel) return standard;
+function readSaved(key, fallback) {
+  if (!key) return fallback;
   try {
-    const sparat = globalThis.localStorage?.getItem(nyckel);
-    if (sparat === "1") return true;
-    if (sparat === "0") return false;
+    const saved = globalThis.localStorage?.getItem(key);
+    if (saved === "1") return true;
+    if (saved === "0") return false;
   } catch {
     // Blockerad lagring är inte ett fel, det är bara ingen minneskälla.
   }
-  return standard;
+  return fallback;
 }
 
-/** @param {string | undefined} nyckel @param {boolean} varde */
-function skrivSparat(nyckel, varde) {
-  if (!nyckel) return;
+/** @param {string | undefined} key @param {boolean} value */
+function writeSaved(key, value) {
+  if (!key) return;
   try {
-    globalThis.localStorage?.setItem(nyckel, varde ? "1" : "0");
+    globalThis.localStorage?.setItem(key, value ? "1" : "0");
   } catch {
     // Läget gäller för den här sidvisningen även om det inte kan sparas.
   }

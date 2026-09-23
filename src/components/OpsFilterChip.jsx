@@ -40,9 +40,9 @@ import { BockIkon, ChevronNedIkon, ReglageIkon } from "./icons.jsx";
  */
 export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = "Alla", variant = "chip" }) {
   const [oppen, setOppen] = useState(false);
-  const vald = options.find((o) => o.value === value);
-  const text = value === null || value === undefined ? allLabel : (vald?.label ?? allLabel);
-  const filtrerar = value !== null && value !== undefined;
+  const chosen = options.find((o) => o.value === value);
+  const text = value === null || value === undefined ? allLabel : (chosen?.label ?? allLabel);
+  const filters = value !== null && value !== undefined;
 
   if (variant !== "chip" && variant !== "icon") {
     throw new Error(`OpsFilterChip: okänd variant "${variant}". Giltiga: chip, icon.`);
@@ -52,7 +52,7 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
     <Popover.Root open={oppen} onOpenChange={setOppen}>
       <Popover.Trigger
         aria-label={`${ariaLabel}: ${text}`}
-        aria-pressed={filtrerar}
+        aria-pressed={filters}
         title={text}
         className={cx(
           "inline-flex cursor-pointer items-center transition-colors duration-(--duration-fast) ease-standard",
@@ -63,13 +63,13 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
                 // ⛔ Accentfärg när filtret är aktivt — subtil yta räcker inte:
                 // på mörk duk syns den knappt, och då ser reglaget likadant ut
                 // som i Alla-läget (felet CP skärmdumpade).
-                filtrerar
+                filters
                   ? "bg-accent-subtle text-accent"
                   : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
               )
             : cx(
                 "min-h-9 gap-1.5 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium",
-                filtrerar ? "bg-accent-subtle font-semibold text-accent" : "bg-surface text-ink-secondary hover:text-ink",
+                filters ? "bg-accent-subtle font-semibold text-accent" : "bg-surface text-ink-secondary hover:text-ink",
               ),
         )}
       >
@@ -92,12 +92,12 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
         >
           <div role="group" aria-label={ariaLabel} className="flex flex-col">
             {options.map((o) => {
-              const valt = o.value === value;
+              const chosen = o.value === value;
               return (
                 <button
                   key={o.value ?? "__alla"}
                   type="button"
-                  aria-pressed={valt}
+                  aria-pressed={chosen}
                   onClick={() => {
                     onChange(o.value);
                     setOppen(false);
@@ -105,12 +105,12 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
                   className={cx(
                     "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base",
                     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    valt ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                    chosen ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
                   )}
                 >
                   {o.icon ? <span className="shrink-0 text-ink-secondary">{o.icon}</span> : null}
                   <span className="flex-1">{o.label}</span>
-                  {valt ? (
+                  {chosen ? (
                     <span aria-hidden="true" className="shrink-0 text-accent">
                       <BockIkon />
                     </span>

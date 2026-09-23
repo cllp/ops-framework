@@ -65,20 +65,20 @@ export function OpsSimulatePopover({
   const text = formatValue(value);
   const vidNoll = value === zero;
   const spann = max - min;
-  const nalGrad = spann === 0 ? 0 : ((value - zero) / spann) * 270;
+  const needleDeg = spann === 0 ? 0 : ((value - zero) / spann) * 270;
   const bagProcent = spann === 0 ? 0 : (Math.abs(value - zero) / spann) * 100;
   const positiv = value >= zero;
 
-  const bagGrad = bagProcent * 2.7;
+  const arcDeg = bagProcent * 2.7;
   const bagStil =
     bagProcent < 0.01
       ? undefined
       : positiv
         ? {
-            background: `conic-gradient(from 210deg, var(--color-laborera) 0 ${bagGrad}deg, var(--color-laborera-glow) ${bagGrad}deg ${bagGrad}deg, var(--color-laborera-track) ${bagGrad}deg 270deg)`,
+            background: `conic-gradient(from 210deg, var(--color-laborera) 0 ${arcDeg}deg, var(--color-laborera-glow) ${arcDeg}deg ${arcDeg}deg, var(--color-laborera-track) ${arcDeg}deg 270deg)`,
           }
         : {
-            background: `conic-gradient(from ${210 + 270 - bagGrad}deg, var(--color-laborera-track) 0 ${270 - bagGrad}deg, var(--color-laborera) ${270 - bagGrad}deg 270deg)`,
+            background: `conic-gradient(from ${210 + 270 - arcDeg}deg, var(--color-laborera-track) 0 ${270 - arcDeg}deg, var(--color-laborera) ${270 - arcDeg}deg 270deg)`,
           };
 
   return (
@@ -101,7 +101,7 @@ export function OpsSimulatePopover({
          */}
         <span className={cx("ops-ratt-dial", !vidNoll && "ops-ratt-dial--justerad")} aria-hidden="true">
           <span className="ops-ratt-bag" style={bagStil} />
-          <span className="ops-ratt-nal" style={{ transform: `translateX(-50%) rotate(${nalGrad}deg)` }} />
+          <span className="ops-ratt-nal" style={{ transform: `translateX(-50%) rotate(${needleDeg}deg)` }} />
         </span>
         {/* %-bricka bara när justerad: raden ska vara lugn vid noll. */}
         {vidNoll ? null : <span className="ops-ratt-pct ops-ratt-pct--on">{text}</span>}

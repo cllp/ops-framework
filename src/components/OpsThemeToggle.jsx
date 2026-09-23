@@ -43,16 +43,16 @@ import { BockIkon, ManeIkon, SkarmIkon, SolIkon } from "./icons.jsx";
 export function OpsThemeToggle({ ariaLabel = "Utseende", labels = {} }) {
   // Läses en gång vid montering. Attributet på <html> är redan satt av
   // `initTheme` före första renderingen, så det finns inget att synka här.
-  const [lage, setLage] = useState(() => getTheme());
+  const [state, setLage] = useState(() => getTheme());
   const [oppen, setOppen] = useState(false);
 
-  const val = [
+  const choice = [
     { value: "system", label: labels.system ?? "Följ systemet", Ikon: SkarmIkon },
     { value: "light", label: labels.light ?? "Ljust", Ikon: SolIkon },
     { value: "dark", label: labels.dark ?? "Mörkt", Ikon: ManeIkon },
   ];
 
-  const nuvarande = val.find((v) => v.value === lage) ?? val[0];
+  const nuvarande = choice.find((v) => v.value === state) ?? choice[0];
   const NuIkon = nuvarande.Ikon;
 
   return (
@@ -74,14 +74,14 @@ export function OpsThemeToggle({ ariaLabel = "Utseende", labels = {} }) {
           className="z-(--z-dropdown) min-w-44 rounded-md border border-line bg-raised p-1 shadow-md"
         >
           <div role="group" aria-label={ariaLabel} className="flex flex-col">
-            {val.map((v) => {
+            {choice.map((v) => {
               const Ikon = v.Ikon;
-              const vald = v.value === lage;
+              const chosen = v.value === state;
               return (
                 <button
                   key={v.value}
                   type="button"
-                  aria-pressed={vald}
+                  aria-pressed={chosen}
                   onClick={() => {
                     setTheme(/** @type {any} */ (v.value));
                     setLage(/** @type {any} */ (v.value));
@@ -90,14 +90,14 @@ export function OpsThemeToggle({ ariaLabel = "Utseende", labels = {} }) {
                   className={cx(
                     "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base",
                     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    vald ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                    chosen ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
                   )}
                 >
                   <span aria-hidden="true" className="shrink-0 text-ink-muted">
                     <Ikon size={16} />
                   </span>
                   <span className="flex-1">{v.label}</span>
-                  {vald ? (
+                  {chosen ? (
                     <span aria-hidden="true" className="shrink-0 text-accent">
                       <BockIkon />
                     </span>
