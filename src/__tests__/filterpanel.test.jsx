@@ -4,16 +4,16 @@ import { describe, expect, it, vi } from "vitest";
 import { OpsFilterPanel } from "../components/OpsFilterPanel.jsx";
 
 const GRUPPER = [
-  { id: "slag", label: "Slag", options: [{ value: "uppgift", label: "Uppgift" }, { value: "paminnelse", label: "Påminnelse" }] },
+  { id: "kind", label: "Slag", options: [{ value: "uppgift", label: "Uppgift" }, { value: "paminnelse", label: "Påminnelse" }] },
   { id: "status", label: "Status", options: [{ value: "vantar", label: "Väntar" }, { value: "akut", label: "Akut" }] },
 ];
 
-const tomt = { slag: null, status: null };
+const tomt = { kind: null, status: null };
 
 function rendera(extra = {}) {
   const onChange = vi.fn();
   const ut = render(
-    <OpsFilterPanel grupper={GRUPPER} value={tomt} onChange={onChange} ariaLabel="Filter" {...extra} />,
+    <OpsFilterPanel groups={GRUPPER} value={tomt} onChange={onChange} ariaLabel="Filter" {...extra} />,
   );
   return { onChange, ...ut };
 }
@@ -36,18 +36,18 @@ describe("OpsFilterPanel", () => {
      * ⛔ "Väntar" säger vad som visas. "Status" säger bara vilken sorts filter
      * som är satt, alltså precis det man redan ser av att knappen är tänd.
      */
-    rendera({ value: { slag: null, status: "vantar" } });
+    rendera({ value: { kind: null, status: "vantar" } });
     expect(screen.getByRole("button", { name: "Filter: Väntar" }).textContent).toBe("Väntar");
   });
 
   it("lägger en räknare först vid två filter, inte vid ett", () => {
     // ⛔ Vid ett filter står hela sanningen i ordet, och en etta i ett hörn vore
     // dekor. Vid två är ordet ofullständigt, och då behövs siffran.
-    const ett = rendera({ value: { slag: "uppgift", status: null } });
+    const ett = rendera({ value: { kind: "uppgift", status: null } });
     expect(ett.container.textContent).not.toContain("2");
     ett.unmount();
 
-    rendera({ value: { slag: "uppgift", status: "akut" } });
+    rendera({ value: { kind: "uppgift", status: "akut" } });
     const knapp = screen.getByRole("button", { name: /Filter:/ });
     expect(knapp.textContent).toContain("2");
   });
@@ -63,7 +63,7 @@ describe("OpsFilterPanel", () => {
     const a = screen.getByRole("button", { name: "Filter" }).className;
     utan.unmount();
 
-    rendera({ value: { slag: "uppgift", status: null } });
+    rendera({ value: { kind: "uppgift", status: null } });
     const b = screen.getByRole("button", { name: /Filter:/ }).className;
 
     expect(a).toContain("min-h-11");
@@ -75,19 +75,19 @@ describe("OpsFilterPanel", () => {
      * ⛔ Ett `onChange` med en delmängd hade lämnat appens karta halvfylld, och
      * nästa läsning hade sett en nyckel som saknas som "aldrig konfigurerad".
      */
-    const { onChange } = rendera({ value: { slag: "uppgift", status: null } });
+    const { onChange } = rendera({ value: { kind: "uppgift", status: null } });
     fireEvent.click(screen.getByRole("button", { name: /Filter:/ }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Väntar" }));
-    expect(onChange).toHaveBeenCalledWith({ slag: "uppgift", status: "vantar" });
+    expect(onChange).toHaveBeenCalledWith({ kind: "uppgift", status: "vantar" });
   });
 
   it("rensar alla grupper, även de som inte var satta", async () => {
-    const { onChange } = rendera({ value: { slag: "uppgift", status: null } });
+    const { onChange } = rendera({ value: { kind: "uppgift", status: null } });
     fireEvent.click(screen.getByRole("button", { name: /Filter:/ }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Rensa" }));
-    expect(onChange).toHaveBeenCalledWith({ slag: null, status: null });
+    expect(onChange).toHaveBeenCalledWith({ kind: null, status: null });
   });
 
   it("visar Rensa bara när något är valt", async () => {
@@ -110,7 +110,7 @@ describe("OpsFilterPanel", () => {
      */
     const onSortera = vi.fn();
     rendera({
-      sortering: {
+      sorting: {
         label: "Sortering",
         value: "titel",
         options: [
@@ -134,10 +134,10 @@ describe("OpsFilterPanel", () => {
   it("kastar utan grupper eller namn", () => {
     // ⛔ Samma val som OpsEventList: hellre ett fel än en knapp som ser färdig
     // ut och inte leder någonstans, eller en ikon utan namn för skärmläsaren.
-    expect(() => render(<OpsFilterPanel grupper={[]} value={{}} onChange={() => {}} ariaLabel="Filter" />)).toThrow(
-      /grupper krävs/,
+    expect(() => render(<OpsFilterPanel groups={[]} value={{}} onChange={() => {}} ariaLabel="Filter" />)).toThrow(
+      /groups krävs/,
     );
-    expect(() => render(<OpsFilterPanel grupper={GRUPPER} value={{}} onChange={() => {}} />)).toThrow(/ariaLabel krävs/);
+    expect(() => render(<OpsFilterPanel groups={GRUPPER} value={{}} onChange={() => {}} />)).toThrow(/ariaLabel krävs/);
   });
 
   it("ger varje grupp en egen ikon som lyser när just den är satt", async () => {
@@ -161,9 +161,9 @@ describe("OpsFilterPanel", () => {
         <OpsFilterPanel
           layout="ikoner"
           ariaLabel="Filter"
-          grupper={[
-            { id: "status", label: "Lägen", allaLabel: "Alla lägen", options: [{ value: "oppet", label: "Öppet" }] },
-            { id: "tid", label: "När", allaLabel: "När som helst", options: [{ value: "7", label: "Inom 7 dagar" }] },
+          groups={[
+            { id: "status", label: "Lägen", allLabel: "Alla lägen", options: [{ value: "oppet", label: "Öppet" }] },
+            { id: "tid", label: "När", allLabel: "När som helst", options: [{ value: "7", label: "Inom 7 dagar" }] },
           ]}
           value={val}
           onChange={setVal}
@@ -173,9 +173,9 @@ describe("OpsFilterPanel", () => {
     render(<Prov />);
 
     const lagen = () => screen.getByRole("button", { name: /^Lägen/ });
-    const nar = () => screen.getByRole("button", { name: /^När/ });
+    const when = () => screen.getByRole("button", { name: /^När/ });
     expect(lagen()).toHaveAttribute("aria-pressed", "false");
-    expect(nar()).toHaveAttribute("aria-pressed", "false");
+    expect(when()).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(lagen());
     fireEvent.click(await screen.findByRole("button", { name: "Öppet" }));
@@ -183,7 +183,7 @@ describe("OpsFilterPanel", () => {
     // ⛔ Bara den satta lyser. Tändes båda vore raden en lampa i stället för
     // ett besked.
     expect(screen.getByRole("button", { name: "Lägen: Öppet" })).toHaveAttribute("aria-pressed", "true");
-    expect(nar()).toHaveAttribute("aria-pressed", "false");
+    expect(when()).toHaveAttribute("aria-pressed", "false");
   });
 
   it("tänder sorteringsikonen först när den lämnat sitt förval", () => {
@@ -196,8 +196,8 @@ describe("OpsFilterPanel", () => {
      * Provet sätter `standard` uttryckligen till det ANDRA, så en implementation
      * som bara antar "första" blir röd.
      */
-    const grupper = [{ id: "a", label: "A", options: [{ value: "x", label: "X" }] }];
-    const sortering = {
+    const groups = [{ id: "a", label: "A", options: [{ value: "x", label: "X" }] }];
+    const sorting = {
       label: "Sortering",
       value: "b",
       standard: "b",
@@ -208,7 +208,7 @@ describe("OpsFilterPanel", () => {
       onChange: () => {},
     };
     const { rerender } = render(
-      <OpsFilterPanel layout="ikoner" ariaLabel="Filter" grupper={grupper} value={{ a: null }} onChange={() => {}} sortering={sortering} />,
+      <OpsFilterPanel layout="ikoner" ariaLabel="Filter" groups={groups} value={{ a: null }} onChange={() => {}} sorting={sorting} />,
     );
     expect(screen.getByRole("button", { name: "Sortering: Datum" })).toHaveAttribute("aria-pressed", "false");
 
@@ -216,10 +216,10 @@ describe("OpsFilterPanel", () => {
       <OpsFilterPanel
         layout="ikoner"
         ariaLabel="Filter"
-        grupper={grupper}
+        groups={groups}
         value={{ a: null }}
         onChange={() => {}}
-        sortering={{ ...sortering, value: "a" }}
+        sorting={{ ...sorting, value: "a" }}
       />,
     );
     expect(screen.getByRole("button", { name: "Sortering: A-Ö" })).toHaveAttribute("aria-pressed", "true");
@@ -242,10 +242,10 @@ describe("OpsFilterPanel", () => {
       <OpsFilterPanel
         layout="ikoner"
         ariaLabel="Filter"
-        grupper={[{ id: "a", label: "Slag", allaLabel: "Alla slag", options: [{ value: "x", label: "X" }] }]}
+        groups={[{ id: "a", label: "Slag", allLabel: "Alla slag", options: [{ value: "x", label: "X" }] }]}
         value={{ a: null }}
         onChange={() => {}}
-        sortering={{
+        sorting={{
           label: "Sortering",
           value: "d",
           standard: "d",
@@ -277,10 +277,10 @@ describe("OpsFilterPanel", () => {
           <OpsFilterPanel
             layout="ikoner"
             ariaLabel="Filter"
-            grupper={[{ id: "a", label: "Slag", options: [{ value: "x", label: "X" }] }]}
+            groups={[{ id: "a", label: "Slag", options: [{ value: "x", label: "X" }] }]}
             value={{ a: null }}
             onChange={() => {}}
-            sortering={{
+            sorting={{
               label: "Sortering",
               value: "d",
               options: [{ value: "d", label: "Datum" }],
@@ -288,7 +288,7 @@ describe("OpsFilterPanel", () => {
             }}
           />,
         ),
-      ).toThrow(/sortering\.standard krävs/);
+      ).toThrow(/sorting\.standard krävs/);
     } finally {
       tyst.mockRestore();
     }
@@ -304,10 +304,10 @@ describe("OpsFilterPanel", () => {
       render(
         <OpsFilterPanel
           ariaLabel="Filter"
-          grupper={[{ id: "a", label: "Slag", options: [{ value: "x", label: "X" }] }]}
+          groups={[{ id: "a", label: "Slag", options: [{ value: "x", label: "X" }] }]}
           value={{ a: null }}
           onChange={() => {}}
-          sortering={{
+          sorting={{
             label: "Sortering",
             value: "d",
             options: [{ value: "d", label: "Datum" }],
@@ -332,15 +332,15 @@ describe("OpsFilterPanel", () => {
      * ⛔ OCH DEN FUNGERAR. En knapp som ser rätt ut men inte rensar är felet som
      * ett rent utseendeprov släpper igenom.
      */
-    const grupper = [
-      { id: "a", label: "Slag", allaLabel: "Alla slag", options: [{ value: "x", label: "X" }] },
+    const groups = [
+      { id: "a", label: "Slag", allLabel: "Alla slag", options: [{ value: "x", label: "X" }] },
     ];
     const rensade = [];
     render(
       <OpsFilterPanel
         layout="ikoner"
         ariaLabel="Filter"
-        grupper={grupper}
+        groups={groups}
         value={{ a: "x" }}
         onChange={(v) => rensade.push(v)}
       />,
@@ -361,7 +361,7 @@ describe("OpsFilterPanel", () => {
         <OpsFilterPanel
           layout="raketstol"
           ariaLabel="Filter"
-          grupper={[{ id: "a", label: "A", options: [] }]}
+          groups={[{ id: "a", label: "A", options: [] }]}
           value={{}}
           onChange={() => {}}
         />,

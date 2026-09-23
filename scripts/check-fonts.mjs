@@ -38,7 +38,7 @@
  * den trasiga importen. Den här filen körs varje gång grinden körs, på samma sätt
  * varje gång, och kan inte sluta köra i tysthet.
  *
- * Kör: node scripts/check-typsnitt.mjs
+ * Kör: node scripts/check-fonts.mjs
  */
 
 import fs from "node:fs";
@@ -95,9 +95,9 @@ if (!/wght@400;500;600;700/.test(mall)) {
 }
 
 if (fel.length > 0) {
-  console.error("check-typsnitt: FEL\n");
+  console.error("check-fonts: FEL\n");
   for (const f of fel) console.error(`  - ${f}\n`);
   process.exit(1);
 }
 
-console.log("check-typsnitt: typsnittet hämtas med <link> i mallen, inte med en @import som ignoreras.");
+console.log("check-fonts: typsnittet hämtas med <link> i mallen, inte med en @import som ignoreras.");

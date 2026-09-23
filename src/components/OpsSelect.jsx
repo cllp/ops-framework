@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { cx } from "../lib/cx.js";
-import { useFaltKoppling } from "./OpsField.jsx";
+import { useFieldBinding } from "./OpsField.jsx";
 import { BockIkon, ChevronNedIkon } from "./icons.jsx";
 
 /**
@@ -29,10 +29,10 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
   if (!Array.isArray(options)) {
     throw new Error("OpsSelect: options måste vara en lista av { value, label }.");
   }
-  const f = useFaltKoppling();
+  const f = useFieldBinding();
 
   return (
-    <Select.Root value={value} onValueChange={onChange} disabled={disabled} required={f.kravs || undefined}>
+    <Select.Root value={value} onValueChange={onChange} disabled={disabled} required={f.required || undefined}>
       <Select.Trigger
         id={f.id}
         className={cx(
@@ -40,11 +40,11 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
           "text-md md:text-base text-ink data-[placeholder]:text-ink-muted",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           "disabled:opacity-55 disabled:cursor-not-allowed",
-          f.ogiltigt ? "border-danger" : "border-line",
+          f.invalid ? "border-danger" : "border-line",
         )}
         aria-label={ariaLabel}
-        aria-invalid={f.ogiltigt || undefined}
-        aria-describedby={f.beskrivsAv}
+        aria-invalid={f.invalid || undefined}
+        aria-describedby={f.describedBy}
       >
         <Select.Value placeholder={placeholder} />
         <Select.Icon className="text-ink-muted">

@@ -29,9 +29,9 @@ import {
  */
 
 const ARENDEN = [
-  { id: "a_1", titel: "Kvartalsrapport Q3", agare: "Ekonomi", seed: "grp_ekonomi", status: "neutral", statusText: "Pågår" },
-  { id: "a_2", titel: "Avtal Nordisk Logistik", agare: "Juridik", seed: "grp_juridik", status: "warning", statusText: "Väntar svar" },
-  { id: "a_3", titel: "Årsredovisning", agare: "Ekonomi", seed: "grp_ekonomi", status: "success", statusText: "Klar" },
+  { id: "a_1", title: "Kvartalsrapport Q3", owner: "Ekonomi", seed: "grp_ekonomi", status: "neutral", statusText: "Pågår" },
+  { id: "a_2", title: "Avtal Nordisk Logistik", owner: "Juridik", seed: "grp_juridik", status: "warning", statusText: "Väntar svar" },
+  { id: "a_3", title: "Årsredovisning", owner: "Ekonomi", seed: "grp_ekonomi", status: "success", statusText: "Klar" },
 ];
 
 const KOSTNADER = [
@@ -59,9 +59,9 @@ export function DashboardView() {
       <OpsCard flush>
         <OpsList ariaLabel="Senaste ärenden">
           {ARENDEN.map((a) => (
-            <OpsListRow key={a.id} interactive href={`/arende/${a.id}`} ariaLabel={`${a.titel}, ${a.statusText}`}>
-              <OpsIdentity name={a.agare} seed={a.seed} size="sm" />
-              <span className="min-w-0 flex-1 truncate text-base text-ink">{a.titel}</span>
+            <OpsListRow key={a.id} interactive href={`/arende/${a.id}`} ariaLabel={`${a.title}, ${a.statusText}`}>
+              <OpsIdentity name={a.owner} seed={a.seed} size="sm" />
+              <span className="min-w-0 flex-1 truncate text-base text-ink">{a.title}</span>
               <OpsPill tone={a.status}>{a.statusText}</OpsPill>
             </OpsListRow>
           ))}

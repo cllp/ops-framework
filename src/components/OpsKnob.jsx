@@ -9,7 +9,7 @@ import { cx } from "../lib/cx.js";
  * Samma premiss som `OpsSlider`: nolläget är verkligheten, och det måste gå
  * att träffa EXAKT. Skillnaden är formen. Ratten sitter INLINE på en rad
  * (Översikt Kostnader/Inkomster), så den får inte ta en egen rad under
- * kategorinamnet. Dubbelklick återställer till `noll` — det finns ingen
+ * kategorinamnet. Dubbelklick återställer till `zero` — det finns ingen
  * Återställ-knapp, för knappen hade krävt bredd raden inte har.
  *
  * ── ⛔ NATIVT `input type=range` UNDER YTAN ──────────────────────────────
@@ -19,7 +19,7 @@ import { cx } from "../lib/cx.js";
  * (`aria-hidden`) som speglar värdet. Utan det nativa elementet hade vi byggt
  * om allt det, och det är precis det som brukar gå sönder på mobil.
  *
- * ⛔ `formateraVarde` är obligatorisk och syns under ratten. På en 44 px-kolumn
+ * ⛔ `formatValue` är obligatorisk och syns under ratten. På en 44 px-kolumn
  * ska den vara KORT (till exempel "0 %" / "+25 %"); belopp och "idag"-text hör
  * hemma i radens värdekolumn, inte här.
  */
@@ -31,9 +31,9 @@ import { cx } from "../lib/cx.js";
  * @param {(value: number) => void} props.onChange
  * @param {number} props.min
  * @param {number} props.max
- * @param {number} props.noll Läget som betyder "som det är idag".
- * @param {(value: number) => string} props.formateraVarde Läget i ord, för både skärm och uppläsning.
- * @param {boolean} [props.doldEtikett] Döljer etiketten VISUELLT, aldrig för skärmläsare.
+ * @param {number} props.zero Läget som betyder "som det är idag".
+ * @param {(value: number) => string} props.formatValue Läget i ord, för både skärm och uppläsning.
+ * @param {boolean} [props.hiddenLabel] Döljer etiketten VISUELLT, aldrig för skärmläsare.
  * @param {number} [props.step]
  */
 export function OpsKnob({
@@ -42,36 +42,36 @@ export function OpsKnob({
   onChange,
   min,
   max,
-  noll,
-  formateraVarde,
-  doldEtikett = false,
+  zero,
+  formatValue,
+  hiddenLabel = false,
   step = 1,
 }) {
-  if (!(noll >= min && noll <= max)) {
+  if (!(zero >= min && zero <= max)) {
     throw new Error(
-      `OpsKnob: noll (${noll}) ligger utanför ${min} till ${max}. Nolläget är det man återställer till, så ett nolläge utanför spannet är en ratt som inte går att nollställa.`,
+      `OpsKnob: noll (${zero}) ligger utanför ${min} till ${max}. Nolläget är det man återställer till, så ett nolläge utanför spannet är en ratt som inte går att nollställa.`,
     );
   }
-  if (typeof formateraVarde !== "function") {
+  if (typeof formatValue !== "function") {
     throw new Error(
-      "OpsKnob: formateraVarde måste vara en funktion. En ratt som läses upp som ett naket tal säger inte vad talet betyder.",
+      "OpsKnob: formatValue måste vara en funktion. En ratt som läses upp som ett naket tal säger inte vad talet betyder.",
     );
   }
 
   const id = useId();
-  const text = formateraVarde(value);
-  const vidNoll = value === noll;
+  const text = formatValue(value);
+  const vidNoll = value === zero;
   const spann = max - min;
   // Nålens vinkel: noll pekar rakt upp. Positivt medurs över 270° båge.
-  const nalGrad = spann === 0 ? 0 : ((value - noll) / spann) * 270;
-  const bagProcent = spann === 0 ? 0 : (Math.abs(value - noll) / spann) * 100;
-  const positiv = value >= noll;
+  const nalGrad = spann === 0 ? 0 : ((value - zero) / spann) * 270;
+  const bagProcent = spann === 0 ? 0 : (Math.abs(value - zero) / spann) * 100;
+  const positiv = value >= zero;
 
   /** @param {import('react').SyntheticEvent} e */
   const aterstall = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    onChange(noll);
+    onChange(zero);
   };
 
   /*
@@ -92,7 +92,7 @@ export function OpsKnob({
 
   return (
     <div className="ops-ratt" title="Dubbelklick = återställ" onDoubleClick={aterstall}>
-      <label htmlFor={id} className={cx("text-sm font-medium text-ink", doldEtikett ? "sr-only" : "mb-1 block")}>
+      <label htmlFor={id} className={cx("text-sm font-medium text-ink", hiddenLabel ? "sr-only" : "mb-1 block")}>
         {label}
       </label>
 

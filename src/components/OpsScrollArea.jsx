@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { cx } from "../lib/cx.js";
-import { FULLHOJD_KLASSER, useFullHojd } from "../lib/fullhojd.js";
+import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 
 /**
  * En yta som rullar i sig själv, hela vägen ner till skärmens underkant.
@@ -24,12 +24,12 @@ import { FULLHOJD_KLASSER, useFullHojd } from "../lib/fullhojd.js";
  * @param {object} props
  * @param {import("react").ReactNode} props.children
  */
-export function OpsRullyta({ children }) {
+export function OpsScrollArea({ children }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
-  const stil = useFullHojd(ref);
+  const stil = useFullHeight(ref);
 
   return (
-    <div ref={ref} style={stil} className={cx("relative", FULLHOJD_KLASSER, "pb-6")}>
+    <div ref={ref} style={stil} className={cx("relative", FULL_HEIGHT_CLASSES, "pb-6")}>
       {children}
     </div>
   );

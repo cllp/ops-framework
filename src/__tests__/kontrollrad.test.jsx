@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { OpsKontrollrad } from "../components/OpsKontrollrad.jsx";
+import { OpsControlRow } from "../components/OpsControlRow.jsx";
 
 /**
  * Kontrollraden: regeln för vad som händer när raden inte ryms.
@@ -20,9 +20,9 @@ describe("OpsKontrollrad", () => {
      * som flyttat ner en rad: den ser fortfarande ut att gå att trycka på.
      */
     render(
-      <OpsKontrollrad>
+      <OpsControlRow>
         <button type="button">ett</button>
-      </OpsKontrollrad>,
+      </OpsControlRow>,
     );
     expect(raden().className).toContain("flex-wrap");
     // ⛔ Och kontrollerna står mitt för varandra i höjdled, inte toppställda.
@@ -36,9 +36,9 @@ describe("OpsKontrollrad", () => {
      * upptäcktes först när telefonen låg bredvid datorn.
      */
     render(
-      <OpsKontrollrad>
+      <OpsControlRow>
         <button type="button">ett</button>
-      </OpsKontrollrad>,
+      </OpsControlRow>,
     );
     expect(raden().className).toContain("gap-2");
   });
@@ -52,17 +52,17 @@ describe("OpsKontrollrad", () => {
      * måste sikta om på varje gång.
      */
     const { unmount } = render(
-      <OpsKontrollrad>
+      <OpsControlRow>
         <button type="button">ett</button>
-      </OpsKontrollrad>,
+      </OpsControlRow>,
     );
     expect(raden().className).toContain("justify-center");
     unmount();
 
     render(
-      <OpsKontrollrad justering="start">
+      <OpsControlRow align="start">
         <button type="button">ett</button>
-      </OpsKontrollrad>,
+      </OpsControlRow>,
     );
     expect(raden().className).toContain("justify-start");
     expect(raden().className).not.toContain("justify-center");
@@ -71,7 +71,7 @@ describe("OpsKontrollrad", () => {
   it("kastar på en justering som inte finns", () => {
     /*
      * ⛔ EN TYST RESERV GÖR ETT STAVFEL TILL EN RAD SOM SER NÄSTAN RÄTT UT, och
-     * nästan rätt upptäcks aldrig: `justering="vanster"` hade centrerats, och
+     * nästan rätt upptäcks aldrig: `align="vanster"` hade centrerats, och
      * den som skrev det hade trott att ramverket inte kunde vänsterställa.
      */
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -79,11 +79,11 @@ describe("OpsKontrollrad", () => {
       expect(() =>
         render(
           /* @ts-expect-error avsiktligt fel värde */
-          <OpsKontrollrad justering="vanster">
+          <OpsControlRow align="vanster">
             <button type="button">ett</button>
-          </OpsKontrollrad>,
+          </OpsControlRow>,
         ),
-      ).toThrow(/okänd justering/);
+      ).toThrow(/okänd align/);
     } finally {
       tyst.mockRestore();
     }

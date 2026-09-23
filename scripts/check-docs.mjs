@@ -61,7 +61,7 @@ for (const namn of utlovade) {
 // ── Vakterna ska också stå i README, av samma skäl ──────────────────────────
 //
 // ⛔ `test-` RÄKNAS OCKSÅ, OCH DET ÄR EN RÄTTELSE. Filtret läste bara `check-`,
-// så vakterna som PROVAR vakterna (`test-guards`, `test-vyportvakt`) kunde
+// så vakterna som PROVAR vakterna (`test-guards`, `test-viewport-guard`) kunde
 // existera utan att stå någonstans. Just de är de som är lättast att missa, för
 // ingen saknar dem i vardagen: de körs sällan och nämns aldrig i ett felmeddelande.
 // `check-scaffold` levde nio dagar utanför både CI och `test-guards` av precis

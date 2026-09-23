@@ -105,10 +105,10 @@ describe("OpsStat", () => {
    * inte kräva att man letar upp en annan sida.
    */
   it("har exakt tid kvar i title och i dateTime", () => {
-    const nar = new Date("2026-09-10T08:30:00Z");
-    render(<OpsStat label="Netto" value="1" updatedAt={nar} />);
-    const tid = screen.getByText(formatRelativeDate(nar));
-    expect(tid.getAttribute("datetime")).toBe(nar.toISOString());
+    const when = new Date("2026-09-10T08:30:00Z");
+    render(<OpsStat label="Netto" value="1" updatedAt={when} />);
+    const tid = screen.getByText(formatRelativeDate(when));
+    expect(tid.getAttribute("datetime")).toBe(when.toISOString());
     expect(tid.getAttribute("title")).toBeTruthy();
   });
 

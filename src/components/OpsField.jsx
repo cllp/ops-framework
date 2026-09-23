@@ -14,15 +14,15 @@ import { cx } from "../lib/cx.js";
  */
 
 /**
- * @typedef {object} Faltkoppling
+ * @typedef {object} FieldBinding
  * @property {string} id
- * @property {string} [beskrivsAv]
- * @property {boolean} ogiltigt
- * @property {boolean} kravs
+ * @property {string} [describedBy]
+ * @property {boolean} invalid
+ * @property {boolean} required
  */
 
-/** @type {import("react").Context<Faltkoppling | null>} */
-const FaltContext = createContext(/** @type {Faltkoppling | null} */ (null));
+/** @type {import("react").Context<FieldBinding | null>} */
+const FieldContext = createContext(/** @type {FieldBinding | null} */ (null));
 
 /**
  * @param {object} props
@@ -36,10 +36,10 @@ export function OpsField({ label, hint, error, required = false, children }) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   const felId = error ? `${id}-fel` : undefined;
-  const beskrivsAv = cx(hintId, felId) || undefined;
+  const describedBy = cx(hintId, felId) || undefined;
 
   return (
-    <FaltContext.Provider value={{ id, beskrivsAv, ogiltigt: Boolean(error), kravs: required }}>
+    <FieldContext.Provider value={{ id, describedBy, invalid: Boolean(error), required: required }}>
       <div className="flex flex-col gap-1">
         <label htmlFor={id} className="text-sm font-semibold text-ink-secondary">
           {label}
@@ -63,13 +63,13 @@ export function OpsField({ label, hint, error, required = false, children }) {
           </p>
         ) : null}
       </div>
-    </FaltContext.Provider>
+    </FieldContext.Provider>
   );
 }
 
-/** @returns {{ id?: string, beskrivsAv?: string, ogiltigt: boolean, kravs: boolean }} */
-export function useFaltKoppling() {
-  return useContext(FaltContext) ?? { ogiltigt: false, kravs: false };
+/** @returns {{ id?: string, describedBy?: string, invalid: boolean, required: boolean }} */
+export function useFieldBinding() {
+  return useContext(FieldContext) ?? { invalid: false, required: false };
 }
 
 // ⛔ `text-md` (16px) på telefon, `md:text-base` (14px) på desktop. Under 16px
@@ -119,11 +119,11 @@ export function OpsInput({
         "Webbläsarens egna datum- och färgväljare ser olika ut i varje webbläsare och går inte att tokenisera.",
     );
   }
-  const f = useFaltKoppling();
+  const f = useFieldBinding();
   return (
     <input
       id={f.id}
-      className={cx(KONTROLL_BAS, f.ogiltigt ? "border-danger" : "border-line")}
+      className={cx(KONTROLL_BAS, f.invalid ? "border-danger" : "border-line")}
       type={type}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
@@ -133,10 +133,10 @@ export function OpsInput({
       disabled={disabled}
       readOnly={readOnly}
       maxLength={maxLength}
-      required={f.kravs || undefined}
+      required={f.required || undefined}
       aria-label={ariaLabel}
-      aria-invalid={f.ogiltigt || undefined}
-      aria-describedby={f.beskrivsAv}
+      aria-invalid={f.invalid || undefined}
+      aria-describedby={f.describedBy}
     />
   );
 }
@@ -151,7 +151,7 @@ export function OpsInput({
  * @param {boolean} [props.disabled]
  * @param {number} [props.maxLength]
  * @param {string} [props.ariaLabel]
- * @param {() => void} [props.onSkicka] Anropas på Cmd eller Ctrl plus Enter.
+ * @param {() => void} [props.onSend] Anropas på Cmd eller Ctrl plus Enter.
  *
  *   ⛔ EN NAMNGIVEN GENVÄG OCH INTE EN RÅ `onKeyDown`. Tog fältet emot godtyckliga
  *   tangenthanterare skulle varje app välja sin egen genväg, och samma ruta skickas
@@ -161,22 +161,22 @@ export function OpsInput({
  *   ⛔ ENTER ENSAMT SKICKAR ALDRIG. En textarea bär flera rader, och en ruta där
  *   Enter skickar gör radbrytning omöjlig utan att man först lärt sig en genväg.
  */
-export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSkicka }) {
-  const f = useFaltKoppling();
+export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disabled = false, maxLength, ariaLabel, onSend }) {
+  const f = useFieldBinding();
   return (
     <textarea
       onKeyDown={
-        onSkicka
+        onSend
           ? (e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
-                onSkicka();
+                onSend();
               }
             }
           : undefined
       }
       id={f.id}
-      className={cx(KONTROLL_BAS, "resize-y", f.ogiltigt ? "border-danger" : "border-line")}
+      className={cx(KONTROLL_BAS, "resize-y", f.invalid ? "border-danger" : "border-line")}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
       placeholder={placeholder}
@@ -184,10 +184,10 @@ export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disa
       rows={rows}
       disabled={disabled}
       maxLength={maxLength}
-      required={f.kravs || undefined}
+      required={f.required || undefined}
       aria-label={ariaLabel}
-      aria-invalid={f.ogiltigt || undefined}
-      aria-describedby={f.beskrivsAv}
+      aria-invalid={f.invalid || undefined}
+      aria-describedby={f.describedBy}
     />
   );
 }

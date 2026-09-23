@@ -24,17 +24,17 @@
  * "Inga kostnader" när sanningen är att servern svarade 500, och användaren
  * drar en slutsats om sin data som inte stämmer.
  *
- * ⛔ 3. `las` returnerar `null` för "finns inte", och det är INTE ett fel.
+ * ⛔ 3. `read` returnerar `null` för "finns inte", och det är INTE ett fel.
  *
  * Skillnaden mellan "dokumentet saknas" och "jag kunde inte fråga" måste gå att
  * se, annars går den inte att hantera olika.
  *
- * ⛔ 4. Varje post har ett `id`. Adaptern sätter det vid `skapa`.
+ * ⛔ 4. Varje post har ett `id`. Adaptern sätter det vid `create`.
  *
  * Utan en gemensam nyckelkonvention kan ingen delad kod, som listor eller
  * tabeller, veta vad som identifierar en rad.
  *
- * ⛔ 5. `prenumerera` ÄR FRIVILLIG, och de fem obligatoriska är fortfarande fem.
+ * ⛔ 5. `subscribe` ÄR FRIVILLIG, och de fem obligatoriska är fortfarande fem.
  *
  * Realtid är inte en egenskap hos kontraktet utan hos källan. En JSON-fil i
  * repot kan inte pusha, och att kräva metoden hade tvingat varje adapter att
@@ -42,10 +42,10 @@
  * metod som kastar och därmed inte går att anropa. Båda är sämre än ett ärligt
  * "den här källan kan det inte".
  *
- * Därför står den INTE i `OPERATIONER`, och `skapaDatakalla` kräver den inte.
- * Den som vill ha realtid frågar källan (`typeof kalla.prenumerera === "function"`)
- * och får ett svar den kan handla på. `useSamlingLive` gör precis det och
- * rapporterar utfallet i `realtid`, i stället för att falla tillbaka i tysthet.
+ * Därför står den INTE i `OPERATIONS`, och `createDataSource` kräver den inte.
+ * Den som vill ha realtid frågar källan (`typeof source.subscribe === "function"`)
+ * och får ett svar den kan handla på. `useLiveCollection` gör precis det och
+ * rapporterar utfallet i `realtime`, i stället för att falla tillbaka i tysthet.
  *
  * ⛔ EN TYST TILLBAKAFALLNING VORE DET FARLIGA HÄR. En app som tror sig ha
  * realtid och inte har det ser exakt likadan ut som en som har det, ända tills
@@ -55,35 +55,35 @@
 
 /**
  * @template T
- * @typedef {object} Datakalla
- * @property {(samling: string, id: string) => Promise<T | null>} las En post, eller null om den inte finns.
- * @property {(samling: string, fraga?: Fraga) => Promise<T[]>} lista
- * @property {(samling: string, data: Partial<T>) => Promise<T>} skapa Returnerar posten med sitt id.
- * @property {(samling: string, id: string, data: Partial<T>) => Promise<T>} uppdatera
- * @property {(samling: string, id: string) => Promise<void>} taBort
- * @property {(samling: string, fraga: Fraga | undefined, lyssnare: Lyssnare<T>) => Avsluta} [prenumerera]
+ * @typedef {object} DataSource
+ * @property {(collectionName: string, id: string) => Promise<T | null>} read En post, eller null om den inte finns.
+ * @property {(collectionName: string, query?: Query) => Promise<T[]>} list
+ * @property {(collectionName: string, data: Partial<T>) => Promise<T>} create Returnerar posten med sitt id.
+ * @property {(collectionName: string, id: string, data: Partial<T>) => Promise<T>} update
+ * @property {(collectionName: string, id: string) => Promise<void>} remove
+ * @property {(collectionName: string, query: Query | undefined, lyssnare: Listener<T>) => Unsubscribe} [subscribe]
  *   ⛔ FRIVILLIG. Se regel 5 nedan.
  */
 
 /**
  * @template T
- * @typedef {object} Lyssnare
- * @property {(rader: T[]) => void} vidData Varje gång urvalet ändras, inklusive första gången.
- * @property {(fel: Error) => void} vidFel
+ * @typedef {object} Listener
+ * @property {(rows: T[]) => void} onData Varje gång urvalet ändras, inklusive första gången.
+ * @property {(error: Error) => void} onError
  */
 
-/** @typedef {() => void} Avsluta Stänger prenumerationen. Måste tåla att anropas flera gånger. */
+/** @typedef {() => void} Unsubscribe Stänger prenumerationen. Måste tåla att anropas flera gånger. */
 
 /**
- * @typedef {object} Fraga
- * @property {Record<string, unknown>} [dar] Likhetsvillkor. `{ status: "oppen" }`.
- * @property {string} [sortera] Fältnamn.
- * @property {"upp" | "ner"} [riktning]
- * @property {number} [antal]
+ * @typedef {object} Query
+ * @property {Record<string, unknown>} [where] Likhetsvillkor. `{ status: "oppen" }`.
+ * @property {string} [sortBy] Fältnamn.
+ * @property {"asc" | "desc"} [direction]
+ * @property {number} [limit]
  */
 
 /** De operationer varje adapter måste ha. */
-export const OPERATIONER = ["las", "lista", "skapa", "uppdatera", "taBort"];
+export const OPERATIONS = ["read", "list", "create", "update", "remove"];
 
 /**
  * Tar emot en adapter och ger tillbaka en datakälla.
@@ -94,21 +94,21 @@ export const OPERATIONER = ["las", "lista", "skapa", "uppdatera", "taBort"];
  * vid uppstart flyttar felet dit det hör hemma.
  *
  * @template T
- * @param {Partial<Datakalla<T>> & { namn?: string }} adapter
- * @returns {Datakalla<T>}
+ * @param {Partial<DataSource<T>> & { name?: string }} adapter
+ * @returns {DataSource<T>}
  */
-export function skapaDatakalla(adapter) {
+export function createDataSource(adapter) {
   if (!adapter || typeof adapter !== "object") {
-    throw new Error("skapaDatakalla: en adapter krävs. Se skapaMinneskalla eller skapaJsonKalla för exempel.");
+    throw new Error("createDataSource: en adapter krävs. Se createMemorySource eller createJsonSource för exempel.");
   }
-  const saknas = OPERATIONER.filter((op) => typeof (/** @type {any} */ (adapter)[op]) !== "function");
+  const saknas = OPERATIONS.filter((op) => typeof (/** @type {any} */ (adapter)[op]) !== "function");
   if (saknas.length > 0) {
     throw new Error(
-      `skapaDatakalla: adaptern "${adapter.namn ?? "namnlös"}" saknar ${saknas.join(", ")}. ` +
+      `createDataSource: adaptern "${adapter.name ?? "namnlös"}" saknar ${saknas.join(", ")}. ` +
         "En halv adapter kraschar först den dag någon anropar just den metoden, och felet pekar då mot anropsstället i stället för hit.",
     );
   }
-  return /** @type {Datakalla<T>} */ (adapter);
+  return /** @type {DataSource<T>} */ (adapter);
 }
 
 /**
@@ -118,29 +118,29 @@ export function skapaDatakalla(adapter) {
  * gör det här i sin egen frågemotor och använder alltså inte den här.
  *
  * @template {{ id: string }} T
- * @param {T[]} rader @param {Fraga} [fraga] @returns {T[]}
+ * @param {T[]} rows @param {Query} [query] @returns {T[]}
  */
-export function tillampaFraga(rader, fraga) {
-  if (!fraga) return rader;
-  let ut = rader;
+export function applyQuery(rows, query) {
+  if (!query) return rows;
+  let ut = rows;
 
-  if (fraga.dar) {
-    const villkor = Object.entries(fraga.dar);
-    ut = ut.filter((r) => villkor.every(([f, v]) => /** @type {any} */ (r)[f] === v));
+  if (query.where) {
+    const conditions = Object.entries(query.where);
+    ut = ut.filter((r) => conditions.every(([f, v]) => /** @type {any} */ (r)[f] === v));
   }
 
-  if (fraga.sortera) {
-    const falt = fraga.sortera;
-    const tecken = fraga.riktning === "ner" ? -1 : 1;
+  if (query.sortBy) {
+    const field = query.sortBy;
+    const chars = query.direction === "desc" ? -1 : 1;
     // Kopia före sort: `Array.sort` muterar, och en adapter som sorterar om
     // sin egen lagring ändrar tyst ordningen för nästa läsare.
     ut = [...ut].sort((a, b) => {
-      const x = /** @type {any} */ (a)[falt];
-      const y = /** @type {any} */ (b)[falt];
+      const x = /** @type {any} */ (a)[field];
+      const y = /** @type {any} */ (b)[field];
       if (x === y) return 0;
-      return (x > y ? 1 : -1) * tecken;
+      return (x > y ? 1 : -1) * chars;
     });
   }
 
-  return typeof fraga.antal === "number" ? ut.slice(0, fraga.antal) : ut;
+  return typeof query.limit === "number" ? ut.slice(0, query.limit) : ut;
 }

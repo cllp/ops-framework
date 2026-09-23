@@ -27,19 +27,19 @@
  * @param {any} nav
  * @param {string} komponent Namnet som ska stå i felmeddelandet.
  */
-export function valideraNav(nav, komponent) {
+export function validateNav(nav, komponent) {
   if (!Array.isArray(nav)) {
     throw new Error(`${komponent}: nav krävs och måste vara en lista av { href, label }.`);
   }
-  for (const post of nav) {
-    if (!post || typeof post.href !== "string" || typeof post.label !== "string") {
+  for (const entry of nav) {
+    if (!entry || typeof entry.href !== "string" || typeof entry.label !== "string") {
       throw new Error(`${komponent}: varje nav-post måste ha href och label som strängar.`);
     }
-    if (post.children === undefined) continue;
-    if (!Array.isArray(post.children)) {
+    if (entry.children === undefined) continue;
+    if (!Array.isArray(entry.children)) {
       throw new Error(`${komponent}: nav-postens children måste vara en lista av { href, label }.`);
     }
-    for (const barn of post.children) {
+    for (const barn of entry.children) {
       if (!barn || typeof barn.href !== "string" || typeof barn.label !== "string") {
         throw new Error(`${komponent}: varje barn i children måste ha href och label som strängar.`);
       }
@@ -58,14 +58,14 @@ export function valideraNav(nav, komponent) {
  * Sant om posten är den aktiva sidan, inklusive när en av dess undersidor är
  * aktiv (så att ett avsnitt markeras när man står på en av dess undersidor).
  *
- * @param {{ href: string, children?: { href: string }[] }} post
+ * @param {{ href: string, children?: { href: string }[] }} entry
  * @param {string} activeHref
  * @returns {boolean}
  */
-export function postAktiv(post, activeHref) {
-  if (post.href === activeHref) return true;
-  if (Array.isArray(post.children)) {
-    return post.children.some((barn) => barn.href === activeHref);
+export function postAktiv(entry, activeHref) {
+  if (entry.href === activeHref) return true;
+  if (Array.isArray(entry.children)) {
+    return entry.children.some((barn) => barn.href === activeHref);
   }
   return false;
 }

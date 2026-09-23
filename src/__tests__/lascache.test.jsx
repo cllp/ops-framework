@@ -1,13 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { OpsDataProvider, useDokument, useSamling, useSamlingLive } from "../index.js";
+import { OpsDataProvider, useDocument, useCollection, useLiveCollection } from "../index.js";
 
 /**
  * Läscachen, provad genom hookarna och inte mot modulen.
  *
  * ⛔ GENOM HOOKARNA, för det är där kravet bor: bolag-ops #256 handlar om att
  * TVÅ HOOKAR PÅ SAMMA MOUNT läste `data/pension` var för sig. Ett prov som
- * anropar `genomCachen` direkt hade bevisat att en Map fungerar, vilket ingen
+ * anropar `throughCache` direkt hade bevisat att en Map fungerar, vilket ingen
  * tvivlade på, och missat att hookarna faktiskt delar nyckel.
  */
 
@@ -21,45 +21,45 @@ import { OpsDataProvider, useDokument, useSamling, useSamlingLive } from "../ind
  * synkron källa hade dolt just det fall cachen finns för: två hookar som frågar
  * INNAN det första svaret hunnit fram.
  */
-function raknandeKalla({ kostnader = [{ id: "1" }], pension = { id: "pension", varde: 42 }, fel = null } = {}) {
-  const rakning = { lista: 0, las: 0 };
+function raknandeKalla({ kostnader = [{ id: "1" }], pension = { id: "pension", value: 42 }, error = null } = {}) {
+  const rakning = { list: 0, read: 0 };
   return {
     rakning,
-    kalla: {
-      async lista(samling) {
-        rakning.lista += 1;
-        if (fel) throw new Error(fel);
-        return samling === "kostnader" ? kostnader : [];
+    source: {
+      async list(collectionName) {
+        rakning.list += 1;
+        if (error) throw new Error(error);
+        return collectionName === "kostnader" ? kostnader : [];
       },
-      async las() {
-        rakning.las += 1;
-        if (fel) throw new Error(fel);
+      async read() {
+        rakning.read += 1;
+        if (error) throw new Error(error);
         return pension;
       },
-      async skapa(_s, d) {
+      async create(_s, d) {
         return { id: "ny", ...d };
       },
-      async uppdatera(_s, id, d) {
+      async update(_s, id, d) {
         return { id, ...d };
       },
-      async taBort() {},
+      async remove() {},
     },
   };
 }
 
-/** @param {{ kalla: any, children: import("react").ReactNode }} props */
-function Med({ kalla, children }) {
-  return <OpsDataProvider kalla={kalla}>{children}</OpsDataProvider>;
+/** @param {{ source: any, children: import("react").ReactNode }} props */
+function Med({ source, children }) {
+  return <OpsDataProvider source={source}>{children}</OpsDataProvider>;
 }
 
 function Lista() {
-  const { data, laddar } = useSamling("kostnader");
-  return <p>{laddar ? "laddar" : `rader: ${data.length}`}</p>;
+  const { data, loading } = useCollection("kostnader");
+  return <p>{loading ? "loading" : `rows: ${data.length}`}</p>;
 }
 
-function Dokument({ etikett }) {
-  const { data, laddar } = useDokument("data", "pension");
-  return <p>{laddar ? `${etikett}: laddar` : `${etikett}: ${data ? data.varde : "inget"}`}</p>;
+function Dokument({ label }) {
+  const { data, loading } = useDocument("data", "pension");
+  return <p>{loading ? `${label}: laddar` : `${label}: ${data ? data.value : "inget"}`}</p>;
 }
 
 describe("läscachen", () => {
@@ -69,23 +69,23 @@ describe("läscachen", () => {
      * `data/pension` var för sig på samma mount. Ingen av dem gjorde fel, de
      * visste bara inte om varandra.
      */
-    const { kalla, rakning } = raknandeKalla();
+    const { source, rakning } = raknandeKalla();
     render(
-      <Med kalla={kalla}>
-        <Dokument etikett="a" />
-        <Dokument etikett="b" />
+      <Med source={source}>
+        <Dokument label="a" />
+        <Dokument label="b" />
       </Med>,
     );
 
     await waitFor(() => expect(screen.getByText("a: 42")).toBeInTheDocument());
     expect(screen.getByText("b: 42")).toBeInTheDocument();
-    expect(rakning.las).toBe(1);
+    expect(rakning.read).toBe(1);
   });
 
   it("hämtar inte om vid ommontering, och blinkar inte till en spinner", async () => {
     /*
      * ⛔ PROVET LÄSER VARJE RENDERPASS OCH INTE BARA SLUTRESULTATET, och det är
-     * en rättelse värd att minnas. Först stod här ett `getByText("rader: 1")`
+     * en rättelse värd att minnas. Först stod här ett `getByText("rows: 1")`
      * direkt efter ommonteringen, och det provet var GRÖNT även när cachen bara
      * lästes inne i effekten: `render` i testbiblioteket kör effekterna innan
      * det returnerar, så mellanläget hann aldrig synas. I en webbläsare målas
@@ -93,35 +93,35 @@ describe("läscachen", () => {
      * långsam fast ingenting hämtas.
      *
      * Med en lista över vad komponenten faktiskt renderade blir påståendet det
-     * man menade: att `laddar` aldrig var sant.
+     * man menade: att `loading` aldrig var sant.
      */
-    const { kalla, rakning } = raknandeKalla();
+    const { source, rakning } = raknandeKalla();
     /** @type {string[]} */
     const pass = [];
     function Loggande() {
-      const { data, laddar } = useSamling("kostnader");
-      pass.push(laddar ? "laddar" : `rader: ${data.length}`);
-      return <p>{laddar ? "laddar" : `rader: ${data.length}`}</p>;
+      const { data, loading } = useCollection("kostnader");
+      pass.push(loading ? "loading" : `rows: ${data.length}`);
+      return <p>{loading ? "loading" : `rows: ${data.length}`}</p>;
     }
 
     const forsta = render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <Loggande />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("rader: 1")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
     forsta.unmount();
 
     pass.length = 0;
     render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <Loggande />
       </Med>,
     );
 
-    expect(pass).not.toContain("laddar");
-    expect(screen.getByText("rader: 1")).toBeInTheDocument();
-    expect(rakning.lista).toBe(1);
+    expect(pass).not.toContain("loading");
+    expect(screen.getByText("rows: 1")).toBeInTheDocument();
+    expect(rakning.list).toBe(1);
   });
 
   it("går till källan igen när uppdatera anropas", async () => {
@@ -130,13 +130,13 @@ describe("läscachen", () => {
      * sedan trycker uppdatera skulle få tillbaka exakt det gamla svaret, och
      * knappen hade sett ut att fungera medan ingenting hände.
      */
-    const { kalla, rakning } = raknandeKalla();
+    const { source, rakning } = raknandeKalla();
     function MedKnapp() {
-      const { data, laddar, uppdatera } = useSamling("kostnader");
+      const { data, loading, update } = useCollection("kostnader");
       return (
         <>
-          <p>{laddar ? "laddar" : `rader: ${data.length}`}</p>
-          <button type="button" onClick={uppdatera}>
+          <p>{loading ? "loading" : `rows: ${data.length}`}</p>
+          <button type="button" onClick={update}>
             Uppdatera
           </button>
         </>
@@ -144,15 +144,15 @@ describe("läscachen", () => {
     }
 
     render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <MedKnapp />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("rader: 1")).toBeInTheDocument());
-    expect(rakning.lista).toBe(1);
+    await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
+    expect(rakning.list).toBe(1);
 
     screen.getByRole("button", { name: "Uppdatera" }).click();
-    await waitFor(() => expect(rakning.lista).toBe(2));
+    await waitFor(() => expect(rakning.list).toBe(2));
   });
 
   it("cachar aldrig ett fel", async () => {
@@ -162,48 +162,48 @@ describe("läscachen", () => {
      * blivit en knapp som ljuger.
      */
     let trasig = true;
-    const rakning = { lista: 0 };
-    const kalla = {
-      async lista() {
-        rakning.lista += 1;
+    const rakning = { list: 0 };
+    const source = {
+      async list() {
+        rakning.list += 1;
         if (trasig) throw new Error("nätet");
         return [{ id: "1" }, { id: "2" }];
       },
-      async las() {
+      async read() {
         return null;
       },
-      async skapa(_s, d) {
+      async create(_s, d) {
         return { id: "ny", ...d };
       },
-      async uppdatera(_s, id, d) {
+      async update(_s, id, d) {
         return { id, ...d };
       },
-      async taBort() {},
+      async remove() {},
     };
 
     function Prov() {
-      const { data, laddar, fel } = useSamling("kostnader");
-      if (laddar) return <p>laddar</p>;
-      if (fel) return <p>fel</p>;
-      return <p>rader: {data.length}</p>;
+      const { data, loading, error } = useCollection("kostnader");
+      if (loading) return <p>loading</p>;
+      if (error) return <p>error</p>;
+      return <p>rows: {data.length}</p>;
     }
 
     const forsta = render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <Prov />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("fel")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("error")).toBeInTheDocument());
     forsta.unmount();
 
     trasig = false;
     render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <Prov />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("rader: 2")).toBeInTheDocument());
-    expect(rakning.lista).toBe(2);
+    await waitFor(() => expect(screen.getByText("rows: 2")).toBeInTheDocument());
+    expect(rakning.list).toBe(2);
   });
 
   it("cachar ett dokument som inte finns, i stället för att leta varje gång", async () => {
@@ -212,39 +212,39 @@ describe("läscachen", () => {
      * just de dokument som inte finns läsas om vid varje mount, alltså precis de
      * som kostar mest att leta efter.
      */
-    const rakning = { las: 0 };
-    const kalla = {
-      async lista() {
+    const rakning = { read: 0 };
+    const source = {
+      async list() {
         return [];
       },
-      async las() {
-        rakning.las += 1;
+      async read() {
+        rakning.read += 1;
         return null;
       },
-      async skapa(_s, d) {
+      async create(_s, d) {
         return { id: "ny", ...d };
       },
-      async uppdatera(_s, id, d) {
+      async update(_s, id, d) {
         return { id, ...d };
       },
-      async taBort() {},
+      async remove() {},
     };
 
     const forsta = render(
-      <Med kalla={kalla}>
-        <Dokument etikett="a" />
+      <Med source={source}>
+        <Dokument label="a" />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("a: inget")).toBeInTheDocument());
     forsta.unmount();
 
     render(
-      <Med kalla={kalla}>
-        <Dokument etikett="b" />
+      <Med source={source}>
+        <Dokument label="b" />
       </Med>,
     );
     expect(screen.getByText("b: inget")).toBeInTheDocument();
-    expect(rakning.las).toBe(1);
+    expect(rakning.read).toBe(1);
   });
 
   it("delar aldrig cache mellan två källor", async () => {
@@ -257,75 +257,75 @@ describe("läscachen", () => {
     const b = raknandeKalla({ kostnader: [{ id: "1" }, { id: "2" }, { id: "3" }] });
 
     const forsta = render(
-      <Med kalla={a.kalla}>
+      <Med source={a.source}>
         <Lista />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("rader: 1")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
     forsta.unmount();
 
     render(
-      <Med kalla={b.kalla}>
+      <Med source={b.source}>
         <Lista />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("rader: 3")).toBeInTheDocument());
-    expect(b.rakning.lista).toBe(1);
+    await waitFor(() => expect(screen.getByText("rows: 3")).toBeInTheDocument());
+    expect(b.rakning.list).toBe(1);
   });
 
   it("låter strömmen vara i fred", async () => {
     /*
-     * ⛔ `useSamlingLive` VARKEN LÄSER ELLER SKRIVER CACHEN. En ström är sin egen
+     * ⛔ `useLiveCollection` VARKEN LÄSER ELLER SKRIVER CACHEN. En ström är sin egen
      * sanning. Serverades den ur cachen skulle den visa en ögonblicksbild och
      * sedan rätta sig själv, och vilken bild man ser hade berott på vilken hook
      * som råkade montera först.
      */
-    const { kalla, rakning } = raknandeKalla();
+    const { source, rakning } = raknandeKalla();
     function Ström() {
-      const { data, laddar } = useSamlingLive("kostnader");
-      return <p>{laddar ? "laddar" : `ström: ${data.length}`}</p>;
+      const { data, loading } = useLiveCollection("kostnader");
+      return <p>{loading ? "loading" : `ström: ${data.length}`}</p>;
     }
 
     const forsta = render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <Lista />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("rader: 1")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
     forsta.unmount();
 
     render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <Ström />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("ström: 1")).toBeInTheDocument());
-    // Två läsningar: en cachad för `useSamling`, en egen för strömmen.
-    expect(rakning.lista).toBe(2);
+    // Två läsningar: en cachad för `useCollection`, en egen för strömmen.
+    expect(rakning.list).toBe(2);
   });
 
   it("frågar om igen när frågan ändras", async () => {
     // ⛔ Nyckeln bär frågan. Gjorde den inte det skulle ett filtrerat urval
     // serveras ur samma låda som det ofiltrerade, alltså fel rader utan att
     // något ser fel ut.
-    const { kalla, rakning } = raknandeKalla();
+    const { source, rakning } = raknandeKalla();
     function MedFraga({ status }) {
-      const { data, laddar } = useSamling("kostnader", { dar: { status } });
-      return <p>{laddar ? "laddar" : `rader: ${data.length}`}</p>;
+      const { data, loading } = useCollection("kostnader", { where: { status } });
+      return <p>{loading ? "loading" : `rows: ${data.length}`}</p>;
     }
 
     const ut = render(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <MedFraga status="oppen" />
       </Med>,
     );
-    await waitFor(() => expect(screen.getByText("rader: 1")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
 
     ut.rerender(
-      <Med kalla={kalla}>
+      <Med source={source}>
         <MedFraga status="stangd" />
       </Med>,
     );
-    await waitFor(() => expect(rakning.lista).toBe(2));
+    await waitFor(() => expect(rakning.list).toBe(2));
   });
 });

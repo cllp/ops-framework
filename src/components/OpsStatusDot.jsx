@@ -23,9 +23,9 @@ import { cx } from "../lib/cx.js";
  * 1. `label` KRÄVS och renderas alltid, som `sr-only`. Skärmläsaren säger
  *    "Väntar" där ögat ser orange.
  * 2. `title` sätter samma ord, så en muspekare svarar på samma fråga.
- * 3. **`akut` skriver dessutom ut sitt ord synligt.** Det är det enda läget där
+ * 3. **`urgent` skriver dessutom ut sitt ord synligt.** Det är det enda läget där
  *    ett missat besked kostar något, och det följer samma logik som
- *    `OpsEventList`: bara `forsenat` får ett ord som standard, eftersom bara
+ *    `OpsEventList`: bara `late` får ett ord som standard, eftersom bara
  *    den lånar larmfärgen.
  *
  * ⛔ DE ANDRA FYRA ORDEN MÅSTE FINNAS SYNLIGA NÅGON ANNANSTANS I VYN. I
@@ -39,7 +39,7 @@ import { cx } from "../lib/cx.js";
  * rendera något godtyckligt, precis som `OpsPill`: en prick i fel färg är
  * sämre än ingen prick, för den ser ut att betyda något.
  *
- * `vantar` har ett EGET token (`--color-blocked`) och lånar inte `warning`.
+ * `waiting` har ett EGET token (`--color-blocked`) och lånar inte `warning`.
  * Skälet står i `tokens/tokens.css`: "väntar på någon annan" är varken en
  * varning eller ett fel, och delade de färg skulle guld betyda två saker.
  */
@@ -76,7 +76,7 @@ export function OpsStatusDot({ status, label }) {
 
           ⛔ `title` SITTER PÅ DEN DOLDA PRICKEN OCH INTE PÅ omslaget. En
           `title` på omslaget hade lästs upp UTÖVER `sr-only`-ordet, alltså
-          samma ord två gånger i följd, och på `akut`-raden tre. Här är
+          samma ord två gånger i följd, och på `urgent`-raden tre. Här är
           elementet `aria-hidden`, så attributet ger muspekaren sitt svar utan
           att säga något till skärmläsaren. */}
       <span aria-hidden="true" title={label} className={cx("size-2 shrink-0 rounded-full", tonKlass)} />

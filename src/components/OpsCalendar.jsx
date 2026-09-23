@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { FULLHOJD_KLASSER, useFullHojd } from "../lib/fullhojd.js";
+import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import {
-  MANADSNAMN,
-  datumnyckel,
+  MONTH_NAMES,
+  dateKey,
   datumtext,
-  idagsnyckel,
-  manader,
-  manadsrutnat,
-  perDag,
+  todayKey,
+  months,
+  monthGrid,
+  perDay,
   rullriktning,
-} from "../lib/kalender.js";
+} from "../lib/calendar.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
@@ -149,20 +149,20 @@ const SVEPSTEG = 40;
  * ⛔ TRÄFFYTAN ÄR HELA RUTAN. En siffra är några pixlar bred, och en kalender man
  * missar med tummen är en kalender man slutar öppna.
  *
- * @param {{ dag: number | null, nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[], arIdag: boolean, vald: boolean, onValj: (nyckel: string) => void }} props
+ * @param {{ dag: number | null, nyckel: string, entries: import("../lib/calendar.js").CalendarEntry[], arIdag: boolean, vald: boolean, onValj: (nyckel: string) => void }} props
  */
-function Dagsruta({ dag, nyckel, poster, arIdag, vald, onValj }) {
+function Dagsruta({ dag, nyckel, entries, arIdag, vald, onValj }) {
   if (dag === null) return <div aria-hidden="true" />;
 
-  const antal = poster.length;
-  const etikett = antal === 0 ? `${dag}` : `${dag}, ${antal} ${antal === 1 ? "post" : "poster"}`;
+  const antal = entries.length;
+  const label = antal === 0 ? `${dag}` : `${dag}, ${antal} ${antal === 1 ? "post" : "poster"}`;
 
   return (
     <button
       type="button"
       disabled={antal === 0}
       aria-pressed={vald}
-      aria-label={etikett}
+      aria-label={label}
       onClick={() => onValj(nyckel)}
       className={cx(
         "flex min-h-14 flex-col items-center gap-1 rounded-md px-1 pt-1.5 pb-1 text-sm transition-colors duration-(--duration-fast) ease-standard",
@@ -177,7 +177,7 @@ function Dagsruta({ dag, nyckel, poster, arIdag, vald, onValj }) {
       <span className="tabular-nums">{dag}</span>
       {/* ⛔ Dekor, och läses inte upp: antalet står redan i knappens namn. */}
       <span aria-hidden="true" className="flex min-h-2 items-center gap-0.5">
-        {poster.slice(0, MAX_PRICKAR).map((p) => (
+        {entries.slice(0, MAX_PRICKAR).map((p) => (
           <span key={p.id} className="size-1.5 rounded-full bg-accent" />
         ))}
         {antal > MAX_PRICKAR ? <span className="text-xs tabular-nums text-ink-muted">+{antal - MAX_PRICKAR}</span> : null}
@@ -259,22 +259,22 @@ function Datumpiller({ nyckel, kanTasBort, onTaBort, ordning }) {
  * säger vilken av dem just den här posten tillhör. Med tre dagar valda är det
  * enda som skiljer två likadana påminnelser åt.
  *
- * @param {{ nyckel: string, post: import("../lib/kalender.js").Kalenderpost, statusOrd: Record<string, string>, ordning: number }} props
+ * @param {{ nyckel: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, ordning: number }} props
  */
-function Postkort({ nyckel, post, statusOrd, ordning }) {
+function Postkort({ nyckel, entry, statusWords, ordning }) {
   const [oppen, setOppen] = useState(false);
   const idBas = useId();
   const panelId = `${idBas}-detaljer`;
 
-  const meta = post.not ? `${datumtext(nyckel)} · ${post.not}` : datumtext(nyckel);
+  const meta = entry.not ? `${datumtext(nyckel)} · ${entry.not}` : datumtext(nyckel);
 
   /*
    * ⛔ CHEVRONEN FINNS BARA NÄR DET FINNS NÅGOT ATT FÄLLA UT. En pil som öppnar
    * en tom ruta är ett löfte som inte infrias, och den som tryckt en gång utan
    * att något hände slutar lita på de andra. Samma regel som `OpsEventList` har.
    */
-  const statusord = post.status ? statusOrd[post.status] : "";
-  const harDetaljer = Boolean(statusord || post.url || post.detaljer);
+  const statusord = entry.status ? statusWords[entry.status] : "";
+  const harDetaljer = Boolean(statusord || entry.url || entry.details);
 
   return (
     <div
@@ -286,9 +286,9 @@ function Postkort({ nyckel, post, statusOrd, ordning }) {
             ställer när man SKUMMAR panelen, alltså innan man öppnat något; ordet
             bredvid den finns i utfällningen, där det får plats. Samma
             arbetsdelning som `OpsEventList` gör. */}
-        {post.status ? (
+        {entry.status ? (
           <span className="mt-1 shrink-0">
-            <OpsStatusDot status={post.status} label={statusord || ""} />
+            <OpsStatusDot status={entry.status} label={statusord || ""} />
           </span>
         ) : null}
         <div className="min-w-0 flex-1">
@@ -300,7 +300,7 @@ function Postkort({ nyckel, post, statusOrd, ordning }) {
               ⛔ Det kostar ett tryck till för ett stängt ärende, och det är en
               medveten avvägning: kortet blir läsbart som en rad, och adressen
               står där den kan bära sitt eget ord. */}
-          <span className="font-semibold text-ink">{post.titel}</span>
+          <span className="font-semibold text-ink">{entry.title}</span>
           <p className="m-0 text-xs text-ink-secondary">{meta}</p>
         </div>
 
@@ -316,7 +316,7 @@ function Postkort({ nyckel, post, statusOrd, ordning }) {
               "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
             )}
           >
-            <span className="sr-only">Visa detaljer för {post.titel}</span>
+            <span className="sr-only">Visa detaljer för {entry.title}</span>
             <span
               aria-hidden="true"
               className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}
@@ -336,7 +336,7 @@ function Postkort({ nyckel, post, statusOrd, ordning }) {
               Status: <span className="font-semibold text-ink">{statusord}</span>
             </p>
           ) : null}
-          {post.url ? (
+          {entry.url ? (
             /* ⛔ TITELN I `aria-label` OCH INTE SOM EN `sr-only`-text bredvid.
                Tio kort får annars tio identiska "Öppna" upplästa, vilket var
                skälet till att titeln ska med. Men en osynlig textnod med samma
@@ -345,15 +345,15 @@ function Postkort({ nyckel, post, statusOrd, ordning }) {
                upplästa namn utan att lägga en andra kopia i dokumentet. */
             <a
               className="font-semibold text-accent underline decoration-from-font underline-offset-2 hover:text-accent-hover"
-              href={post.url}
+              href={entry.url}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`${post.urlLabel || "Öppna"} ${post.titel}`}
+              aria-label={`${entry.urlLabel || "Öppna"} ${entry.title}`}
             >
-              {post.urlLabel || "Öppna"}
+              {entry.urlLabel || "Öppna"}
             </a>
           ) : null}
-          {post.detaljer}
+          {entry.details}
         </div>
       ) : null}
     </div>
@@ -407,12 +407,12 @@ function Postkort({ nyckel, post, statusOrd, ordning }) {
  * `max-h`-behållare som korten. Escape och ett andra tryck i rutnätet är vägar
  * ut som inte kan rulla bort.
  *
- * @param {{ dagar: { nyckel: string, poster: import("../lib/kalender.js").Kalenderpost[] }[], statusOrd: Record<string, string>, onStang: () => void, onTaBort: (nyckel: string) => void }} props
+ * @param {{ dagar: { nyckel: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onStang: () => void, onTaBort: (nyckel: string) => void }} props
  */
-function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
+function Dagspanel({ dagar, statusWords, onStang, onTaBort }) {
   const flera = dagar.length > 1;
-  const rubrik = flera ? `${dagar.length} dagar` : datumtext(dagar[0].nyckel);
-  const namn = flera ? `Poster för ${dagar.length} valda dagar` : `Poster den ${rubrik}`;
+  const title = flera ? `${dagar.length} dagar` : datumtext(dagar[0].nyckel);
+  const name = flera ? `Poster för ${dagar.length} valda dagar` : `Poster den ${title}`;
 
   /*
    * ⛔ ESCAPE STÄNGER, och den lyssnaren sitter på fönstret och inte på panelen.
@@ -430,7 +430,7 @@ function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
 
   return (
     <section
-      aria-label={namn}
+      aria-label={name}
       className="pointer-events-auto flex max-h-[45svh] w-full max-w-sm flex-col gap-2 overflow-y-auto overscroll-contain lg:max-h-[70svh] lg:max-w-none"
     >
       <div className="flex flex-wrap items-center gap-1.5">
@@ -442,7 +442,7 @@ function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
         <button
           type="button"
           onClick={onStang}
-          aria-label={`Stäng ${rubrik}`}
+          aria-label={`Stäng ${title}`}
           className={cx(
             "ops-contrast-panel ml-auto flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-contrast-panel text-ink shadow-md",
             "hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -456,13 +456,13 @@ function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
           för varje dag skulle första kortet under varje datum svepa in
           samtidigt, och det som ska läsas som en rörelse blir tre. */}
       {dagar.flatMap((d, di) =>
-        d.poster.map((p, pi) => (
+        d.entries.map((p, pi) => (
           <Postkort
             key={`${d.nyckel}-${p.id}`}
             nyckel={d.nyckel}
-            post={p}
-            statusOrd={statusOrd}
-            ordning={dagar.length + dagar.slice(0, di).reduce((n, x) => n + x.poster.length, 0) + pi}
+            entry={p}
+            statusWords={statusWords}
+            ordning={dagar.length + dagar.slice(0, di).reduce((n, x) => n + x.entries.length, 0) + pi}
           />
         )),
       )}
@@ -472,23 +472,23 @@ function Dagspanel({ dagar, statusOrd, onStang, onTaBort }) {
 
 /**
  * @param {object} props
- * @param {import("../lib/kalender.js").Kalenderpost[]} props.poster Daterade poster. Odaterat hör inte hemma här.
+ * @param {import("../lib/calendar.js").CalendarEntry[]} props.entries Daterade poster. Odaterat hör inte hemma här.
  * @param {string} props.ariaLabel ⛔ Krävs: ett rutnät med tal är osynligt för den som inte ser det.
- * @param {Record<string, string>} [props.statusOrd] Appens ord per läge, som i `OpsEventList`.
- *   ⛔ Ramverket äger färgerna och appen orden: bara appen vet vad `vantar` betyder hos just den.
- * @param {number} [props.manaderBakat] Standard 1. ⛔ Inte tolv: en bolagskalender har få poster bakåt,
+ * @param {Record<string, string>} [props.statusWords] Appens ord per läge, som i `OpsEventList`.
+ *   ⛔ Ramverket äger färgerna och appen orden: bara appen vet vad `waiting` betyder hos just den.
+ * @param {number} [props.monthsBack] Standard 1. ⛔ Inte tolv: en bolagskalender har få poster bakåt,
  *   och varje månad är ett rutnät till att rita och rulla förbi.
- * @param {number} [props.manaderFramat] Standard 3.
- * @param {Date} [props.idag] Bara för prov. Produktionen har en klocka.
- * @param {import("react").ReactNode} [props.tomtText] Vad som står när ingen post har datum.
+ * @param {number} [props.monthsForward] Standard 3.
+ * @param {Date} [props.today] Bara för prov. Produktionen har en klocka.
+ * @param {import("react").ReactNode} [props.emptyText] Vad som står när ingen post har datum.
  */
-export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBakat = 1, manaderFramat = 3, idag, tomtText }) {
+export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsBack = 1, monthsForward = 3, today, emptyText }) {
   if (!ariaLabel) {
-    throw new Error("OpsKalender: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
+    throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
   }
 
-  const nu = idag || new Date();
-  const idagNyckel = idagsnyckel(nu);
+  const nu = today || new Date();
+  const idagNyckel = todayKey(nu);
   /*
    * ⛔ FLERA VALDA DAGAR, OCH DÄRFÖR EN LISTA OCH INTE ETT VÄRDE. CP 2026-09-22:
    * "jag kan markera flera". Ett enda `vald` hade gjort varje nytt tryck till ett
@@ -501,8 +501,8 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
    */
   const [valda, setValda] = useState(/** @type {string[]} */ ([]));
 
-  const karta = useMemo(() => perDag(poster), [poster]);
-  const lista = useMemo(() => manader(nu, manaderBakat, manaderFramat), [nu, manaderBakat, manaderFramat]);
+  const karta = useMemo(() => perDay(entries), [entries]);
+  const list = useMemo(() => months(nu, monthsBack, monthsForward), [nu, monthsBack, monthsForward]);
 
   const rulleRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const huvudRef = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -527,8 +527,8 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
     const rulle = rulleRef.current;
     const manad = idagRef.current;
     if (!rulle || !manad) return;
-    const huvud = huvudRef.current ? huvudRef.current.offsetHeight : 0;
-    rulle.scrollTo({ top: Math.max(0, manad.offsetTop - huvud), behavior: beteende });
+    const header = huvudRef.current ? huvudRef.current.offsetHeight : 0;
+    rulle.scrollTo({ top: Math.max(0, manad.offsetTop - header), behavior: beteende });
   }, []);
 
   /*
@@ -547,12 +547,12 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
   }, [tillIdag]);
 
   /*
-   * ⛔ HÖJDEN KOMMER UR `useFullHojd`, inte ur tjugo rader här. Skälet till att
+   * ⛔ HÖJDEN KOMMER UR `useFullHeight`, inte ur tjugo rader här. Skälet till att
    * den mäts i stället för att sättas står i hooken; skälet till att den bor där
    * och inte här är att listan behövde samma sak (CP 2026-09-22), och två kopior
    * hade glidit isär första gången någon rättade den ena.
    */
-  const fullhojd = useFullHojd(rulleRef);
+  const fullhojd = useFullHeight(rulleRef);
 
   useEffect(() => {
     const el = idagRef.current;
@@ -594,8 +594,8 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
     () =>
       [...valda]
         .sort()
-        .map((nyckel) => ({ nyckel, poster: karta.get(nyckel) || [] }))
-        .filter((d) => d.poster.length > 0),
+        .map((nyckel) => ({ nyckel, entries: karta.get(nyckel) || [] }))
+        .filter((d) => d.entries.length > 0),
     [valda, karta],
   );
 
@@ -620,7 +620,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
         style={fullhojd}
         className={cx(
           "relative bg-canvas px-1",
-          FULLHOJD_KLASSER,
+          FULL_HEIGHT_CLASSES,
           /* ⛔ INGEN RAM OCH INGEN RUNDNING. En ram runt något som når skärmens
              underkant läses som en ruta som blivit avhuggen, inte som en ruta.
              Förebilden har ingen heller: dess rullyta är bara `overflow-y-auto`.
@@ -637,29 +637,29 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
           ))}
         </div>
 
-        {!harPoster && tomtText ? <p className="m-0 pb-3 text-sm text-ink-muted">{tomtText}</p> : null}
+        {!harPoster && emptyText ? <p className="m-0 pb-3 text-sm text-ink-muted">{emptyText}</p> : null}
 
         <div className="flex flex-col gap-6 pb-4">
-          {lista.map(({ ar, manad }) => {
+          {list.map(({ ar, manad }) => {
             const arIdagsManad = ar === nu.getFullYear() && manad === nu.getMonth();
-            const rader = manadsrutnat(ar, manad);
+            const rader = monthGrid(ar, manad);
 
             return (
               <div key={`${ar}-${manad}`} ref={arIdagsManad ? idagRef : null}>
                 <h3 className="m-0 mb-2 text-lg font-bold capitalize text-ink font-display">
-                  {MANADSNAMN[manad]} {ar}
+                  {MONTH_NAMES[manad]} {ar}
                 </h3>
 
                 <div className="grid grid-cols-7 gap-1">
                   {rader.map((rad, i) =>
                     rad.map((dag, j) => {
-                      const nyckel = dag === null ? `tom-${i}-${j}` : datumnyckel(ar, manad, dag);
+                      const nyckel = dag === null ? `tom-${i}-${j}` : dateKey(ar, manad, dag);
                       return (
                         <Dagsruta
                           key={nyckel}
                           dag={dag}
                           nyckel={nyckel}
-                          poster={dag === null ? [] : karta.get(nyckel) || []}
+                          entries={dag === null ? [] : karta.get(nyckel) || []}
                           arIdag={nyckel === idagNyckel}
                           vald={valda.indexOf(nyckel) >= 0}
                           onValj={(n) =>
@@ -727,7 +727,7 @@ export function OpsKalender({ poster = [], ariaLabel, statusOrd = {}, manaderBak
         {dagar.length > 0 ? (
           <Dagspanel
             dagar={dagar}
-            statusOrd={statusOrd}
+            statusWords={statusWords}
             onStang={() => setValda([])}
             onTaBort={(n) => setValda((forra) => forra.filter((x) => x !== n))}
           />

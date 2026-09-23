@@ -1,5 +1,5 @@
 import { cx } from "../lib/cx.js";
-import { delaMarkdown } from "../lib/markdown.js";
+import { splitMarkdown } from "../lib/markdown.js";
 
 /**
  * Markdown som riktiga element.
@@ -24,7 +24,7 @@ import { delaMarkdown } from "../lib/markdown.js";
  * En issue-text börjar på `##` eller `###` och vet ingenting om sidan den
  * hamnar i. Renderades `#` som `<h1>` skulle ett utfällt kort ha en rubrik
  * över sidans egen, och en skärmläsares dokumentöversikt blir då obrukbar.
- * Nivåerna klampas till h4 till h6 med `niva` som bara styr STORLEKEN, som
+ * Nivåerna klampas till h4 till h6 med `level` som bara styr STORLEKEN, som
  * `OpsCard` gör med sina rubriker.
  *
  * ── ⛔ DEN KAPAR INTE, DEN VISAR ALLT SOM SKICKAS IN ────────────────────
@@ -41,7 +41,7 @@ import { delaMarkdown } from "../lib/markdown.js";
 function inline(bitar, nyckel) {
   return bitar.map((b, i) => {
     const k = `${nyckel}-${i}`;
-    if (b.typ === "lank") {
+    if (b.kind === "link") {
       return (
         <a
           key={k}
@@ -54,14 +54,14 @@ function inline(bitar, nyckel) {
         </a>
       );
     }
-    if (b.typ === "kod") {
+    if (b.kind === "code") {
       return (
         <code key={k} className="rounded-sm bg-sunken px-1 py-0.5 font-mono text-xs text-ink">
           {b.varde}
         </code>
       );
     }
-    if (b.typ === "fet") {
+    if (b.kind === "bold") {
       return (
         <strong key={k} className="font-semibold text-ink">
           {b.varde}
@@ -96,7 +96,7 @@ const RUBRIKSTORLEK = {
  * @param {string | null | undefined} props.text Markdown. Tom text ger ingenting alls.
  */
 export function OpsMarkdown({ text }) {
-  const block = delaMarkdown(text);
+  const block = splitMarkdown(text);
   if (block.length === 0) return null;
 
   return (
@@ -106,32 +106,32 @@ export function OpsMarkdown({ text }) {
     <div className="flex flex-col gap-2 break-words text-sm text-ink-secondary">
       {block.map((b, i) => {
         const k = `b${i}`;
-        if (b.typ === "rubrik") {
+        if (b.kind === "heading") {
           // Nivå 1 och 2 i texten blir h4, resten h5 och h6: se filens huvud.
-          const Rubrik = b.niva <= 2 ? "h4" : b.niva === 3 ? "h5" : "h6";
+          const Rubrik = b.level <= 2 ? "h4" : b.level === 3 ? "h5" : "h6";
           return (
-            <Rubrik key={k} className={cx("m-0 text-ink", RUBRIKSTORLEK[b.niva])}>
+            <Rubrik key={k} className={cx("m-0 text-ink", RUBRIKSTORLEK[b.level])}>
               {inline(b.inline, k)}
             </Rubrik>
           );
         }
-        if (b.typ === "stycke") return <p key={k} className="m-0">{inline(b.inline, k)}</p>;
-        if (b.typ === "citat") {
+        if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k)}</p>;
+        if (b.kind === "quote") {
           return (
             <blockquote key={k} className="m-0 border-l-2 border-line-strong pl-3 text-ink-muted">
               {inline(b.inline, k)}
             </blockquote>
           );
         }
-        if (b.typ === "kod") {
+        if (b.kind === "code") {
           return (
             <pre key={k} className="m-0 overflow-x-auto rounded-md bg-sunken p-3 font-mono text-xs text-ink">
               {b.text}
             </pre>
           );
         }
-        if (b.typ === "linje") return <hr key={k} className="m-0 border-0 border-t border-line" />;
-        if (b.typ === "tabell") {
+        if (b.kind === "rule") return <hr key={k} className="m-0 border-0 border-t border-line" />;
+        if (b.kind === "table") {
           return (
             /* ⛔ Egen enkel tabell och inte `OpsTable`. Den primitiven tar
                kolumner med nycklar och riktar tal, alltså ett schema, och en
@@ -141,7 +141,7 @@ export function OpsMarkdown({ text }) {
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr>
-                    {b.huvud.map((cell, ci) => (
+                    {b.header.map((cell, ci) => (
                       <th key={`${k}-h${ci}`} className="border-b border-line px-2 py-1 font-semibold text-ink">
                         {inline(cell, `${k}-h${ci}`)}
                       </th>
@@ -170,7 +170,7 @@ export function OpsMarkdown({ text }) {
             key={k}
             className="m-0 flex list-none flex-col gap-1 p-0"
           >
-            {b.poster.map((post, pi) => (
+            {b.entries.map((entry, pi) => (
               <li key={`${k}-p${pi}`} className="flex gap-2">
                 {/* ⛔ Kryssrutan är en RUTA, inte en inaktiverad `OpsCheckbox`.
                     Den speglar vad som står i ärendet på GitHub och går inte
@@ -179,19 +179,19 @@ export function OpsMarkdown({ text }) {
 
                     Tecknet är hårdkodat text, och ordet ligger i `sr-only`
                     bredvid: en bock är osynlig för en skärmläsare. */}
-                {post.kryss === null ? (
+                {entry.kryss === null ? (
                   <span aria-hidden="true" className="shrink-0 text-ink-muted">
                     {b.ordnad ? `${pi + 1}.` : "•"}
                   </span>
                 ) : (
                   <span className="shrink-0">
-                    <span aria-hidden="true" className={post.kryss ? "text-success" : "text-ink-muted"}>
-                      {post.kryss ? "☑" : "☐"}
+                    <span aria-hidden="true" className={entry.kryss ? "text-success" : "text-ink-muted"}>
+                      {entry.kryss ? "☑" : "☐"}
                     </span>
-                    <span className="sr-only">{post.kryss ? "Gjort:" : "Ogjort:"}</span>
+                    <span className="sr-only">{entry.kryss ? "Gjort:" : "Ogjort:"}</span>
                   </span>
                 )}
-                <span className="min-w-0 flex-1">{inline(post.inline, `${k}-p${pi}`)}</span>
+                <span className="min-w-0 flex-1">{inline(entry.inline, `${k}-p${pi}`)}</span>
               </li>
             ))}
           </Lista>

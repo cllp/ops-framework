@@ -44,7 +44,7 @@ import { useEffect, useState } from "react";
  * Utan det kan uttrycket bli noll eller negativt, och då försvinner innehållet
  * helt i stället för att bli obekvämt litet.
  */
-export const FULLHOJD_KLASSER = [
+export const FULL_HEIGHT_CLASSES = [
   "overflow-y-auto overscroll-contain",
   "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom))]",
   "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom))]",
@@ -57,7 +57,7 @@ export const FULLHOJD_KLASSER = [
  * @param {{ current: HTMLElement | null }} ref Elementet som ska rulla.
  * @returns {import("react").CSSProperties} Sätts som `style` på samma element.
  */
-export function useFullHojd(ref) {
+export function useFullHeight(ref) {
   const [topp, setTopp] = useState(0);
 
   useEffect(() => {

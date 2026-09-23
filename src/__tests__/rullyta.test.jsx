@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { OpsRullyta } from "../components/OpsRullyta.jsx";
-import { FULLHOJD_KLASSER } from "../lib/fullhojd.js";
+import { OpsScrollArea } from "../components/OpsScrollArea.jsx";
+import { FULL_HEIGHT_CLASSES } from "../lib/fullHeight.js";
 
 /**
  * Rullytan: en yta som rullar i sig själv i stället för att rulla sidan.
@@ -53,7 +53,7 @@ describe("OpsRullyta", () => {
      * Utan den fortsätter rullningen ut i sidan så fort ytans botten är nådd,
      * alltså exakt felet CP pekade på, en halv sekund senare.
      */
-    render(<OpsRullyta><span>innehåll</span></OpsRullyta>);
+    render(<OpsScrollArea><span>innehåll</span></OpsScrollArea>);
     expect(ytan().className).toContain("overflow-y-auto");
     expect(ytan().className).toContain("overscroll-contain");
   });
@@ -65,7 +65,7 @@ describe("OpsRullyta", () => {
      * sticker ut under skärmen, eller för låg.
      */
     laggYtanVid(212);
-    render(<OpsRullyta><span>innehåll</span></OpsRullyta>);
+    render(<OpsScrollArea><span>innehåll</span></OpsScrollArea>);
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("212px");
   });
 
@@ -79,7 +79,7 @@ describe("OpsRullyta", () => {
      */
     window.scrollY = 300;
     laggYtanVid(12);
-    render(<OpsRullyta><span>innehåll</span></OpsRullyta>);
+    render(<OpsScrollArea><span>innehåll</span></OpsScrollArea>);
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("312px");
   });
 
@@ -90,7 +90,7 @@ describe("OpsRullyta", () => {
      * någon laddar om.
      */
     laggYtanVid(212);
-    render(<OpsRullyta><span>innehåll</span></OpsRullyta>);
+    render(<OpsScrollArea><span>innehåll</span></OpsScrollArea>);
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("212px");
 
     laggYtanVid(96);
@@ -104,7 +104,7 @@ describe("OpsRullyta", () => {
      * negativt tal i `calc` gör ytan HÖGRE än skärmen i stället för lägre.
      */
     laggYtanVid(-400);
-    render(<OpsRullyta><span>innehåll</span></OpsRullyta>);
+    render(<OpsScrollArea><span>innehåll</span></OpsScrollArea>);
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("0px");
   });
 
@@ -114,15 +114,15 @@ describe("OpsRullyta", () => {
      * brytpunkterna skulle ytan sluta en bottenradshöjd för tidigt på en dator,
      * alltså en remsa tomhet som ingen kan förklara.
      */
-    expect(FULLHOJD_KLASSER).toContain(
+    expect(FULL_HEIGHT_CLASSES).toContain(
       "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom))]",
     );
-    expect(FULLHOJD_KLASSER).toContain(
+    expect(FULL_HEIGHT_CLASSES).toContain(
       "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom))]",
     );
     // ⛔ Golv, för den dag ytan hamnar långt ner på en kort sida: utan det kan
     // uttrycket bli noll och innehållet försvinna helt.
-    expect(FULLHOJD_KLASSER).toContain("min-h-60");
+    expect(FULL_HEIGHT_CLASSES).toContain("min-h-60");
   });
 
   it("är ingen låda: ingen ram, ingen rundning, ingen egen bakgrund", () => {
@@ -130,7 +130,7 @@ describe("OpsRullyta", () => {
      * ⛔ En yta som når skärmens underkant OCH har en ram läses som en ruta som
      * blivit avhuggen. Innehållet ska se ut som sidan.
      */
-    render(<OpsRullyta><span>innehåll</span></OpsRullyta>);
+    render(<OpsScrollArea><span>innehåll</span></OpsScrollArea>);
     const klasser = ytan().className;
     expect(klasser).not.toMatch(/\bborder\b|\bborder-/);
     expect(klasser).not.toMatch(/\brounded/);

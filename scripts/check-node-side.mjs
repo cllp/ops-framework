@@ -4,7 +4,7 @@
  *
  * ══ ⛔ VARFÖR VAKTEN FINNS ═══════════════════════════════════════════════
  *
- * `src/nod/` innehåller kod som hanterar en token. En token i webbundeln är en
+ * `src/node/` innehåller kod som hanterar en token. En token i webbundeln är en
  * token i varje besökares JS-fil, och det finns ingen variant av det som är
  * säker.
  *
@@ -24,9 +24,9 @@
  *
  * Det är samma hål som `check-docs` finns för: dokumentation ruttnar tyst, och ett
  * dokument som beskriver ett ramverk som inte längre är det som finns är sämre än
- * inget dokument. Därför kräver den här vakten samma sak för `src/nod/index.js`.
+ * inget dokument. Därför kräver den här vakten samma sak för `src/node/index.js`.
  *
- * Kör: node scripts/check-nodsida.mjs
+ * Kör: node scripts/check-node-side.mjs
  */
 
 import fs from "node:fs";
@@ -46,15 +46,15 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  */
 const bas = process.argv[2] ? path.resolve(process.argv[2]) : rot;
 const src = path.join(bas, "src");
-const nodkatalog = path.join(src, "nod");
+const nodeDir = path.join(src, "node");
 
 if (!fs.existsSync(src)) {
-  console.error(`check-nodsida: ${path.relative(rot, src) || src} finns inte. Fel sökväg i vakten, inte ett godkänt utfall.`);
+  console.error(`check-node-side: ${path.relative(rot, src) || src} finns inte. Fel sökväg i vakten, inte ett godkänt utfall.`);
   process.exit(1);
 }
 
-if (!fs.existsSync(nodkatalog)) {
-  console.error("check-nodsida: src/nod/ finns inte. Är vakten kvar efter att katalogen togs bort?");
+if (!fs.existsSync(nodeDir)) {
+  console.error("check-node-side: src/node/ finns inte. Är vakten kvar efter att katalogen togs bort?");
   process.exit(1);
 }
 
@@ -86,7 +86,7 @@ const alla = filer(src);
 const provkatalog = path.join(src, "__tests__");
 const arProv = (/** @type {string} */ f) => f.startsWith(provkatalog + path.sep);
 
-const utanfor = alla.filter((f) => !f.startsWith(nodkatalog + path.sep) && !arProv(f));
+const utanfor = alla.filter((f) => !f.startsWith(nodeDir + path.sep) && !arProv(f));
 
 /*
  * ⛔ MÖNSTRET MATCHAR `from "..."` OCH `import("...")`, inte bara det första.
@@ -128,7 +128,7 @@ for (const fil of utanfor) {
     const mal = m[1];
     if (!mal.startsWith(".")) continue;
     const lost = path.resolve(path.dirname(fil), mal);
-    if (lost !== nodkatalog && !lost.startsWith(nodkatalog + path.sep)) continue;
+    if (lost !== nodeDir && !lost.startsWith(nodeDir + path.sep)) continue;
     const rad = text.slice(0, m.index).split("\n").length;
     const post = { fil: path.relative(bas, fil), mal, rad };
     if (arTypimport(text, /** @type {number} */ (m.index))) typimporter.push(post);
@@ -137,10 +137,10 @@ for (const fil of utanfor) {
 }
 
 if (korimporter.length > 0) {
-  console.error("check-nodsida: webbsidan importerar nodsidan i KÖRKOD\n");
+  console.error("check-node-side: webbsidan importerar nodsidan i KÖRKOD\n");
   for (const t of korimporter) console.error(`  ${t.fil}:${t.rad}  ->  ${t.mal}`);
   console.error(
-    "\n  Det här hamnar i webbundeln. src/nod/ hanterar tokens, och en token i bundlen är\n" +
+    "\n  Det här hamnar i webbundeln. src/node/ hanterar tokens, och en token i bundlen är\n" +
       "  en token i varje besökares JS-fil.\n\n" +
       "  Behöver webbsidan något som ligger där: flytta den delen som INTE rör hemligheter\n" +
       "  till src/lib/ och låt nodsidan importera den, aldrig andra vägen.",
@@ -148,7 +148,7 @@ if (korimporter.length > 0) {
 }
 
 if (typimporter.length > 0) {
-  console.error(`${korimporter.length > 0 ? "\n" : ""}check-nodsida: webbsidan importerar nodsidans TYPER\n`);
+  console.error(`${korimporter.length > 0 ? "\n" : ""}check-node-side: webbsidan importerar nodsidans TYPER\n`);
   for (const t of typimporter) console.error(`  ${t.fil}:${t.rad}  ->  ${t.mal}`);
   console.error(
     "\n  Det här når INTE bundlen, så det är inget läckage. Men riktningen är fel: en\n" +
@@ -182,10 +182,10 @@ for (const fil of utanfor) {
 }
 
 if (provimporter.length > 0) {
-  console.error(`${korimporter.length + typimporter.length > 0 ? "\n" : ""}check-nodsida: en fil utanför proven importerar provkatalogen\n`);
+  console.error(`${korimporter.length + typimporter.length > 0 ? "\n" : ""}check-node-side: en fil utanför proven importerar provkatalogen\n`);
   for (const t of provimporter) console.error(`  ${t.fil}:${t.rad}  ->  ${t.mal}`);
   console.error(
-    "\n  Proven får importera src/nod/. Därför får ingen annan importera proven: annars når\n" +
+    "\n  Proven får importera src/node/. Därför får ingen annan importera proven: annars når\n" +
       "  nodsidan bundlen i två hopp, och kontrollen ovan ser ingenting.\n\n" +
       "  Behöver körkod något som ligger i ett prov är det inte ett prov. Flytta det till src/lib/.",
   );
@@ -195,9 +195,9 @@ if (korimporter.length > 0 || typimporter.length > 0 || provimporter.length > 0)
 
 // ── Dokumentationshalvan ───────────────────────────────────────────────────
 
-const indexfil = path.join(nodkatalog, "index.js");
+const indexfil = path.join(nodeDir, "index.js");
 if (!fs.existsSync(indexfil)) {
-  console.error("check-nodsida: src/nod/index.js finns inte. Nodsidan måste ha en ingång, annars är dess yta odefinierad.");
+  console.error("check-node-side: src/node/index.js finns inte. Nodsidan måste ha en ingång, annars är dess yta odefinierad.");
   process.exit(1);
 }
 
@@ -215,14 +215,14 @@ for (const m of index.matchAll(/export\s+(?:async\s+)?(?:function|const|class)\s
 }
 
 if (utlovade.length === 0) {
-  console.error("check-nodsida: läste noll exporter ur src/nod/index.js. En tom lista gör vakten grön av fel skäl.");
+  console.error("check-node-side: läste noll exporter ur src/node/index.js. En tom lista gör vakten grön av fel skäl.");
   process.exit(1);
 }
 
 const readme = fs.readFileSync(path.join(bas, "README.md"), "utf8");
 const odokumenterade = utlovade.filter((namn) => !readme.includes(namn));
 if (odokumenterade.length > 0) {
-  console.error("check-nodsida: nodsidans exporter saknas i README\n");
+  console.error("check-node-side: nodsidans exporter saknas i README\n");
   for (const namn of odokumenterade) console.error(`  ${namn}`);
   console.error(
     "\n  check-docs läser bara src/index.js, så nodsidan hade annars blivit en publik yta\n" +
@@ -232,5 +232,5 @@ if (odokumenterade.length > 0) {
 }
 
 console.log(
-  `check-nodsida: ${utanfor.length} webbfiler rör inte src/nod/, och nodsidans ${utlovade.length} export(er) är nämnda i README`,
+  `check-node-side: ${utanfor.length} webbfiler rör inte src/node/, och nodsidans ${utlovade.length} export(er) är nämnda i README`,
 );

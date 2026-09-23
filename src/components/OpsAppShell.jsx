@@ -3,8 +3,8 @@ import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
-import { postAktiv, valideraNav } from "../lib/nav.js";
-import { Raknare } from "./raknare.jsx";
+import { postAktiv, validateNav } from "../lib/nav.js";
+import { Raknare } from "./counter.jsx";
 import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
 
 /**
@@ -34,19 +34,19 @@ import { ChevronNedIkon, MenyIkon } from "./icons.jsx";
  * en sak, och sidan nås på första raden i det som öppnas.
  *
  * @param {object} props
- * @param {import("../lib/nav.js").NavPost} props.post
- * @param {boolean} props.aktiv
+ * @param {import("../lib/nav.js").NavPost} props.entry
+ * @param {boolean} props.active
  * @param {string} props.activeHref
- * @param {(href: string, e: any) => void} props.klick
+ * @param {(href: string, e: any) => void} props.onActivate
  * @param {string} props.badgeText
- * @param {string} props.klass
- * @param {string} props.undermenyLabel Verb för chevronens namn, följt av postens etikett.
+ * @param {string} props.classes
+ * @param {string} props.submenuLabel Verb för chevronens namn, följt av postens etikett.
  */
-function Radpost({ post, aktiv, activeHref, klick, badgeText, klass, undermenyLabel }) {
+function Radpost({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel }) {
   const [oppen, setOppen] = useState(false);
-  const barn = Array.isArray(post.children) ? post.children : [];
+  const barn = Array.isArray(entry.children) ? entry.children : [];
 
-  const raknare = typeof post.badge === "number" && post.badge > 0 ? <Raknare antal={post.badge} text={badgeText} /> : null;
+  const raknare = typeof entry.badge === "number" && entry.badge > 0 ? <Raknare antal={entry.badge} text={badgeText} /> : null;
 
                 {/*
         ⛔ INGEN IKON HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
@@ -75,8 +75,8 @@ function Radpost({ post, aktiv, activeHref, klick, badgeText, klass, undermenyLa
 
   if (!barn.length) {
     return (
-      <a href={post.href} onClick={(e) => klick(post.href, e)} aria-current={aktiv ? "page" : undefined} className={klass}>
-        {post.label}
+      <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={classes}>
+        {entry.label}
         {raknare}
       </a>
     );
@@ -101,19 +101,19 @@ function Radpost({ post, aktiv, activeHref, klick, badgeText, klass, undermenyLa
    * föräldern i Mer-arket, som förut.
    */
   return (
-    <span className={cx(klass, "gap-0 p-0")}>
+    <span className={cx(classes, "gap-0 p-0")}>
       <a
-        href={post.href}
-        onClick={(e) => klick(post.href, e)}
-        aria-current={aktiv ? "page" : undefined}
+        href={entry.href}
+        onClick={(e) => onActivate(entry.href, e)}
+        aria-current={active ? "page" : undefined}
         className="inline-flex min-h-11 items-center rounded-l-md px-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
       >
-        {post.label}
+        {entry.label}
         {raknare}
       </a>
       <Popover.Root open={oppen} onOpenChange={setOppen}>
         <Popover.Trigger
-          aria-label={`${undermenyLabel} ${post.label}`}
+          aria-label={`${submenuLabel} ${entry.label}`}
           className={cx(
             "inline-flex min-h-11 cursor-pointer items-center rounded-r-md pr-2 pl-0.5",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
@@ -135,7 +135,7 @@ function Radpost({ post, aktiv, activeHref, klick, badgeText, klass, undermenyLa
                 href={b.href}
                 onClick={(e) => {
                   setOppen(false);
-                  klick(b.href, e);
+                  onActivate(b.href, e);
                 }}
                 aria-current={b.href === activeHref ? "page" : undefined}
                 className={cx(
@@ -186,7 +186,7 @@ function Radpost({ post, aktiv, activeHref, klick, badgeText, klass, undermenyLa
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
- * @param {string} [props.undermenyLabel] Verb för chevronens namn på en post med undermeny,
+ * @param {string} [props.submenuLabel] Verb för chevronens namn på en post med undermeny,
  *   följt av postens etikett: "Visa sidorna under Ekonomi".
  * @param {number} [props.maxTopNav] Hur många destinationer som får plats i toppraden på bred skärm (1024 och uppåt). Resten hamnar i hamburgarmenyn.
  * @param {number} [props.maxTopNavSmal] Hur många som får plats mellan 768 och 1024. Mätt: fler än tre ger horisontell scroll på en iPad i stående läge.
@@ -209,7 +209,7 @@ export function OpsAppShell({
   primaryAction,
   menuLabel = "Meny",
   navLabel = "Huvudnavigering",
-  undermenyLabel = "Visa sidorna under",
+  submenuLabel = "Visa sidorna under",
   // ⛔ Fem, inte "så många som får plats". En mätning av tillgänglig bredd vid
   // varje rendering ger hopp när typsnittet laddar och gör ordningen beroende av
   // fönstret. Ett fast tak är förutsägbart, och appen styr vilka fem genom sin
@@ -222,7 +222,7 @@ export function OpsAppShell({
   menuExtras,
   children,
 }) {
-  valideraNav(nav, "OpsAppShell");
+  validateNav(nav, "OpsAppShell");
   // ⛔ Kastar hellre än att rendera en rad som tyst tappar destinationer:
   // vore taket på smal skärm högre skulle poster mellan talen ligga i raden på
   // smal skärm och ingenstans alls på bred.
@@ -243,7 +243,7 @@ export function OpsAppShell({
   const varumarke = typeof brand === "string" ? <OpsBrand title={brand} /> : brand;
 
   /** @param {string} href @param {any} e */
-  const klick = (href, e) => {
+  const onActivate = (href, e) => {
     if (onNavigate) onNavigate(href, e);
   };
 
@@ -369,7 +369,7 @@ export function OpsAppShell({
         <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-4 py-2 md:grid-cols-[1fr_auto_1fr]">
           <a
             href="/"
-            onClick={(e) => klick("/", e)}
+            onClick={(e) => onActivate("/", e)}
             className="justify-self-start shrink-0 rounded-md px-1 py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {varumarke}
@@ -380,13 +380,13 @@ export function OpsAppShell({
             {iRaden.map((s, i) => (
               <Radpost
                 key={s.href}
-                post={s}
-                aktiv={postAktiv(s, activeHref)}
+                entry={s}
+                active={postAktiv(s, activeHref)}
                 activeHref={activeHref}
-                klick={klick}
+                onActivate={onActivate}
                 badgeText={badgeText}
-                undermenyLabel={undermenyLabel}
-                klass={cx(
+                submenuLabel={submenuLabel}
+                classes={cx(
                   lankKlass(postAktiv(s, activeHref) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,
                   // och `display:none` tar bort den ur uppläsningen också, så
@@ -456,7 +456,7 @@ export function OpsAppShell({
                           href={s.href}
                           onClick={(e) => {
                             setMerOppen(false);
-                            klick(s.href, e);
+                            onActivate(s.href, e);
                           }}
                           aria-current={postAktiv(s, activeHref) ? "page" : undefined}
                           className={cx(

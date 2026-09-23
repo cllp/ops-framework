@@ -121,7 +121,7 @@ export function ReglageIkon({ size = 20 }) {
  * app som finns, nämligen i vilken ordning raderna ligger, så att låta varje app
  * välja bild åt den är att be dem svara på en fråga som redan är besvarad.
  *
- * ⛔ SKÄLET ÄR OCKSÅ ETT FEL SOM FANNS. Föll `sortering.icon` bort ritades
+ * ⛔ SKÄLET ÄR OCKSÅ ETT FEL SOM FANNS. Föll `sorting.icon` bort ritades
  * reglageikonen, alltså SAMMA bild som en grupp utan egen ikon får. Två olika
  * kontroller med samma bild bredvid varandra är inte en skönhetsfläck, det är
  * två knappar man inte kan skilja på. Båda vyerna i bolag-ops skickade in

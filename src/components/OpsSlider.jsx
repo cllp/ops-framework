@@ -24,7 +24,7 @@ import { cx } from "../lib/cx.js";
  *
  * Två saker löser det, och båda behövs:
  *
- *   1. En `Återställ`-knapp som sätter värdet till exakt `noll`.
+ *   1. En `Återställ`-knapp som sätter värdet till exakt `zero`.
  *   2. Ett synligt märke på skenan där nolläget ligger, så man ser vad man
  *      siktar mot innan man drar.
  *
@@ -53,7 +53,7 @@ import { cx } from "../lib/cx.js";
  * ── ⛔ `aria-valuetext` I ORD, ALDRIG BARA TALET ─────────────────────────
  *
  * Ett reglage som läses upp som "minus femton" säger ingenting: minus femton
- * vadå, och av vad? `formateraVarde` är därför OBLIGATORISK och inte en
+ * vadå, och av vad? `formatValue` är därför OBLIGATORISK och inte en
  * bekvämlighet. Den som lyssnar ska höra samma sak som den som ser, alltså
  * "15 procent lägre, 4 500 kr per månad".
  *
@@ -72,12 +72,12 @@ import { cx } from "../lib/cx.js";
  * @param {(value: number) => void} props.onChange
  * @param {number} props.min
  * @param {number} props.max
- * @param {number} props.noll Läget som betyder "som det är idag".
- * @param {(value: number) => string} props.formateraVarde Läget i ord, för både skärm och uppläsning.
- * @param {boolean} [props.doldEtikett] Döljer etiketten VISUELLT, aldrig för skärmläsare.
+ * @param {number} props.zero Läget som betyder "som det är idag".
+ * @param {(value: number) => string} props.formatValue Läget i ord, för både skärm och uppläsning.
+ * @param {boolean} [props.hiddenLabel] Döljer etiketten VISUELLT, aldrig för skärmläsare.
  *   För ett reglage som sitter i en rad som redan säger sitt namn.
  * @param {number} [props.step]
- * @param {string} [props.aterstallLabel] Texten på återställningsknappen.
+ * @param {string} [props.resetLabel] Texten på återställningsknappen.
  */
 export function OpsSlider({
   label,
@@ -85,40 +85,40 @@ export function OpsSlider({
   onChange,
   min,
   max,
-  noll,
-  formateraVarde,
-  doldEtikett = false,
+  zero,
+  formatValue,
+  hiddenLabel = false,
   step = 1,
-  aterstallLabel = "Återställ",
+  resetLabel = "Återställ",
 }) {
   /*
    * ⛔ KASTAR HELLRE ÄN RITAR ETT REGLAGE DÄR NOLLÄGET INTE GÅR ATT NÅ. Ligger
-   * `noll` utanför spannet blir återställningsknappen en knapp som sätter ett
+   * `zero` utanför spannet blir återställningsknappen en knapp som sätter ett
    * värde reglaget inte kan visa, och då står tumme och siffra och säger olika
    * saker. Det är en tyst felform: inget kraschar, det ser bara konstigt ut.
    */
-  if (!(noll >= min && noll <= max)) {
+  if (!(zero >= min && zero <= max)) {
     throw new Error(
-      `OpsSlider: noll (${noll}) ligger utanför ${min} till ${max}. Nolläget är det man återställer till, så ett nolläge utanför skenan är ett reglage som inte går att nollställa.`,
+      `OpsSlider: noll (${zero}) ligger utanför ${min} till ${max}. Nolläget är det man återställer till, så ett nolläge utanför skenan är ett reglage som inte går att nollställa.`,
     );
   }
-  if (typeof formateraVarde !== "function") {
+  if (typeof formatValue !== "function") {
     throw new Error(
-      "OpsSlider: formateraVarde måste vara en funktion. Ett reglage som läses upp som ett naket tal säger inte vad talet betyder, och det är hela poängen med att ha ett reglage i stället för ett fält.",
+      "OpsSlider: formatValue måste vara en funktion. Ett reglage som läses upp som ett naket tal säger inte vad talet betyder, och det är hela poängen med att ha ett reglage i stället för ett fält.",
     );
   }
 
   const id = useId();
-  const text = formateraVarde(value);
-  const vidNoll = value === noll;
+  const text = formatValue(value);
+  const vidNoll = value === zero;
 
   // Nollmärkets plats på skenan, i procent. Räknas ur samma spann som reglaget
   // självt, så märket kan inte hamna på fel ställe utan att reglaget gör det med.
-  const nollProcent = max === min ? 50 : ((noll - min) / (max - min)) * 100;
+  const nollProcent = max === min ? 50 : ((zero - min) / (max - min)) * 100;
 
   return (
     <div className="flex flex-col gap-1">
-      {/* ⛔ `doldEtikett` DÖLJER ORDET, ALDRIG NAMNET. Etiketten står kvar som
+      {/* ⛔ `hiddenLabel` DÖLJER ORDET, ALDRIG NAMNET. Etiketten står kvar som
           `<label htmlFor>`, bara utan att målas. Den som lyssnar hör alltså
           fortfarande vad reglaget styr, vilket är hela skälet till att en
           `aria-label` inte duger som ersättning: den hade tagit bort kopplingen
@@ -127,8 +127,8 @@ export function OpsSlider({
           Finns för att reglaget ska kunna sitta i en rad som redan säger sitt
           namn, till exempel `OpsToggleRow`. Utan den står namnet två gånger på
           samma rad, och den andra gången lär ingen läsa. */}
-      <div className={cx("flex items-baseline gap-3", doldEtikett ? "justify-end" : "justify-between")}>
-        <label htmlFor={id} className={cx("text-sm font-medium text-ink", doldEtikett && "sr-only")}>
+      <div className={cx("flex items-baseline gap-3", hiddenLabel ? "justify-end" : "justify-between")}>
+        <label htmlFor={id} className={cx("text-sm font-medium text-ink", hiddenLabel && "sr-only")}>
           {label}
         </label>
         <span className={cx("text-sm tabular-nums", vidNoll ? "text-ink-secondary" : "text-accent")}>{text}</span>
@@ -163,7 +163,7 @@ export function OpsSlider({
         <button
           type="button"
           disabled={vidNoll}
-          onClick={() => onChange(noll)}
+          onClick={() => onChange(zero)}
           className={cx(
             "shrink-0 rounded-md border px-3 py-2 text-sm",
             "transition-colors duration-(--duration-fast) ease-standard",
@@ -173,7 +173,7 @@ export function OpsSlider({
               : "cursor-pointer border-line-strong bg-raised text-ink hover:border-accent",
           )}
         >
-          {aterstallLabel}
+          {resetLabel}
         </button>
       </div>
     </div>

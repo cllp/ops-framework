@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { KryssIkon, MenyIkon, PlusIkon } from "./icons.jsx";
-import { postAktiv, valideraNav } from "../lib/nav.js";
+import { postAktiv, validateNav } from "../lib/nav.js";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -74,7 +74,7 @@ export function OpsBottomNav({
   badgeText = "nya",
   menuExtras,
 }) {
-  valideraNav(nav, "OpsBottomNav");
+  validateNav(nav, "OpsBottomNav");
   const [oppen, setOppen] = useState(false);
 
   if (primaryAction && (typeof primaryAction.label !== "string" || typeof primaryAction.onClick !== "function")) {
@@ -116,24 +116,24 @@ export function OpsBottomNav({
       className="fixed inset-x-0 bottom-0 z-(--z-chrome) border-t border-line bg-surface pb-(--safe-bottom) md:hidden"
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
-        {iRaden.slice(0, brytpunkt).map((post) => (
+        {iRaden.slice(0, brytpunkt).map((entry) => (
           <BottomLank
-            key={post.href}
-            post={post}
-            aktiv={postAktiv(post, activeHref)}
-            onClick={(/** @type {any} */ e) => klick(post.href, e)}
+            key={entry.href}
+            entry={entry}
+            active={postAktiv(entry, activeHref)}
+            onClick={(/** @type {any} */ e) => klick(entry.href, e)}
             badgeText={badgeText}
           />
         ))}
 
         {primaryAction ? <Huvudatgard atgard={primaryAction} /> : null}
 
-        {iRaden.slice(brytpunkt).map((post) => (
+        {iRaden.slice(brytpunkt).map((entry) => (
           <BottomLank
-            key={post.href}
-            post={post}
-            aktiv={postAktiv(post, activeHref)}
-            onClick={(/** @type {any} */ e) => klick(post.href, e)}
+            key={entry.href}
+            entry={entry}
+            active={postAktiv(entry, activeHref)}
+            onClick={(/** @type {any} */ e) => klick(entry.href, e)}
             badgeText={badgeText}
           />
         ))}
@@ -163,8 +163,8 @@ export function OpsBottomNav({
                 </Dialog.Close>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
-                {iMenyn.map((post) => (
-                  <SheetPost key={post.href} post={post} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
+                {iMenyn.map((entry) => (
+                  <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
                 ))}
                 {menuExtras ? (
                   <>
@@ -216,58 +216,58 @@ function Huvudatgard({ atgard }) {
   );
 }
 
-/** @param {boolean} aktiv @returns {string} */
-function platsKlass(aktiv) {
+/** @param {boolean} active @returns {string} */
+function platsKlass(active) {
   return cx(
     "relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0 px-1 py-1.5",
     "text-center transition-colors duration-(--duration-fast) ease-standard",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-    aktiv ? "text-accent" : "text-ink-secondary hover:text-ink",
+    active ? "text-accent" : "text-ink-secondary hover:text-ink",
   );
 }
 
 /**
- * @param {{ post: import("../lib/nav.js").NavPost, aktiv: boolean, onClick: (e: any) => void, badgeText: string }} props
+ * @param {{ entry: import("../lib/nav.js").NavPost, active: boolean, onClick: (e: any) => void, badgeText: string }} props
  */
-function BottomLank({ post, aktiv, onClick, badgeText }) {
+function BottomLank({ entry, active, onClick, badgeText }) {
   return (
     <a
-      href={post.href}
+      href={entry.href}
       onClick={onClick}
-      aria-current={aktiv ? "page" : undefined}
-      className={platsKlass(aktiv)}
+      aria-current={active ? "page" : undefined}
+      className={platsKlass(active)}
     >
       <span className="relative inline-flex">
-        {post.icon ?? <span className="inline-block h-[22px] w-[22px] rounded-full border-2 border-current" aria-hidden="true" />}
-        {typeof post.badge === "number" ? <Badge antal={post.badge} text={badgeText} /> : null}
+        {entry.icon ?? <span className="inline-block h-[22px] w-[22px] rounded-full border-2 border-current" aria-hidden="true" />}
+        {typeof entry.badge === "number" ? <Badge antal={entry.badge} text={badgeText} /> : null}
       </span>
-      <span className="mt-0.5 max-w-full truncate text-xs font-medium">{post.label}</span>
+      <span className="mt-0.5 max-w-full truncate text-xs font-medium">{entry.label}</span>
     </a>
   );
 }
 
 /**
- * @param {{ post: import("../lib/nav.js").NavPost, activeHref: string, onNavigate: (href: string, e: any) => void, badgeText: string }} props
+ * @param {{ entry: import("../lib/nav.js").NavPost, activeHref: string, onNavigate: (href: string, e: any) => void, badgeText: string }} props
  */
-function SheetPost({ post, activeHref, onNavigate, badgeText }) {
-  const harBarn = Array.isArray(post.children) && post.children.length > 0;
+function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
+  const harBarn = Array.isArray(entry.children) && entry.children.length > 0;
   return (
     <div className="mb-1">
       <a
-        href={post.href}
-        onClick={(e) => onNavigate(post.href, e)}
-        aria-current={post.href === activeHref ? "page" : undefined}
-        className={sheetLankKlass(post.href === activeHref, harBarn)}
+        href={entry.href}
+        onClick={(e) => onNavigate(entry.href, e)}
+        aria-current={entry.href === activeHref ? "page" : undefined}
+        className={sheetLankKlass(entry.href === activeHref, harBarn)}
       >
         <span className="flex min-w-0 items-center gap-3">
-          {post.icon ? <span className="shrink-0">{post.icon}</span> : null}
-          <span className="truncate">{post.label}</span>
+          {entry.icon ? <span className="shrink-0">{entry.icon}</span> : null}
+          <span className="truncate">{entry.label}</span>
         </span>
-        {typeof post.badge === "number" ? <Badge antal={post.badge} text={badgeText} /> : null}
+        {typeof entry.badge === "number" ? <Badge antal={entry.badge} text={badgeText} /> : null}
       </a>
       {harBarn ? (
         <div className="mt-0.5 flex flex-col gap-0.5 pl-4">
-          {(post.children ?? []).map((barn) => (
+          {(entry.children ?? []).map((barn) => (
             <a
               key={barn.href}
               href={barn.href}
@@ -284,14 +284,14 @@ function SheetPost({ post, activeHref, onNavigate, badgeText }) {
   );
 }
 
-/** @param {boolean} aktiv @param {boolean} rubrik @returns {string} */
-function sheetLankKlass(aktiv, rubrik) {
+/** @param {boolean} active @param {boolean} title @returns {string} */
+function sheetLankKlass(active, title) {
   return cx(
     "flex min-h-11 items-center justify-between gap-3 rounded-md px-3 py-2",
     "transition-colors duration-(--duration-fast) ease-standard",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-    rubrik ? "font-semibold" : "text-base",
-    aktiv ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+    title ? "font-semibold" : "text-base",
+    active ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
   );
 }
 

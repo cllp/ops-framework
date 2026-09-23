@@ -54,7 +54,7 @@ import { cx } from "../lib/cx.js";
  * ⛔ Raden äger inte sitt eget avstånd till nästa rad. Den har en synlig ram, så
  * en lista behöver luft mellan raderna: ge behållaren `gap`.
  *
- * ── ⛔ `kontroll` OCH `trailing`: KONTROLLER UTANFÖR KNAPPEN ─────────────
+ * ── ⛔ `control` OCH `trailing`: KONTROLLER UTANFÖR KNAPPEN ─────────────
  *
  * CP 2026-09-20: "Skulle vilja att reglage fanns i varje post direkt att man
  * kan dra i reglaget."
@@ -68,7 +68,7 @@ import { cx } from "../lib/cx.js";
  * äger översta raden. Kontrollerna ligger som syskon till knappen, alltså
  * utanför den.
  *
- * ⛔ `kontroll` lägger innehållet UNDER knappen (fullbreddsreglage, lönerad).
+ * ⛔ `control` lägger innehållet UNDER knappen (fullbreddsreglage, lönerad).
  * ⛔ `trailing` lägger innehållet LÄNGST TILL HÖGER på samma rad (kompakt
  * `OpsKnob`). De kan kombineras: ratt till höger, brutto/netto under.
  *
@@ -89,11 +89,11 @@ import { cx } from "../lib/cx.js";
  * @param {boolean} props.on Sant = räknas med, skarp. Falskt = nedtonad.
  * @param {(on: boolean) => void} props.onChange
  * @param {string} [props.offLabel] Vad nedtonat betyder, för skärmläsare. Läggs efter etiketten.
- * @param {import("react").ReactNode} [props.kontroll] Kontroll UNDER knappen (t.ex. fullbreddsreglage).
+ * @param {import("react").ReactNode} [props.control] Kontroll UNDER knappen (t.ex. fullbreddsreglage).
  * @param {import("react").ReactNode} [props.trailing] Kontroll LÄNGST TILL HÖGER på samma rad (t.ex. OpsKnob).
  */
-export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas inte", kontroll, trailing }) {
-  const harExtra = Boolean(kontroll || trailing);
+export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas inte", control, trailing }) {
+  const harExtra = Boolean(control || trailing);
 
   const knapp = (
     <button
@@ -155,7 +155,7 @@ export function OpsToggleRow({ label, value, on, onChange, offLabel = "räknas i
             ogiltig HTML, och draget hade växlat radens nedtoning. */}
         {trailing ? <div className="shrink-0 self-center">{trailing}</div> : null}
       </div>
-      {kontroll ? <div className="px-1 pb-1">{kontroll}</div> : null}
+      {control ? <div className="px-1 pb-1">{control}</div> : null}
     </div>
   );
 }

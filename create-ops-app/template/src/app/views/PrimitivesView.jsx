@@ -216,9 +216,9 @@ export function PrimitivesView() {
               { key: "datum", label: "Senast", numeric: true, tight: true },
             ]}
             rows={[
-              { id: "1", namn: "Fortnox", kategori: <OpsTag label="IT" />, belopp: formatCurrency(4788), datum: formatDate("2026-09-01") },
-              { id: "2", namn: "Telia", kategori: <OpsTag label="Telefoni" />, belopp: formatCurrency(5388), datum: formatDate("2026-08-28") },
-              { id: "3", namn: "Länsförsäkringar", kategori: <OpsTag label="Försäkring" />, belopp: formatCurrency(12400), datum: formatDate("2026-08-15") },
+              { id: "1", namn: "Fortnox", kategori: <OpsTag label="IT" />, belopp: formatCurrency(4788), date: formatDate("2026-09-01") },
+              { id: "2", namn: "Telia", kategori: <OpsTag label="Telefoni" />, belopp: formatCurrency(5388), date: formatDate("2026-08-28") },
+              { id: "3", namn: "Länsförsäkringar", kategori: <OpsTag label="Försäkring" />, belopp: formatCurrency(12400), date: formatDate("2026-08-15") },
             ]}
           />
         </OpsCard>
@@ -296,7 +296,7 @@ export function PrimitivesView() {
             </div>
           </OpsDisclosure>
           <OpsDisclosure summary={rikRubrik} badge={3}>
-            <p className="m-0 text-base text-ink-secondary">Siffran efter rubriken visas bara när den är över noll.</p>
+            <p className="m-0 text-base text-ink-secondary">Siffran efter rubriken visas bara när den är över zero.</p>
           </OpsDisclosure>
         </div>
       </section>
@@ -326,8 +326,8 @@ export function PrimitivesView() {
             min={-50}
             max={100}
             step={5}
-            noll={0}
-            formateraVarde={(v) =>
+            zero={0}
+            formatValue={(v) =>
               v === 0
                 ? `som idag, ${formatCurrency(10918)}/mån`
                 : `${v > 0 ? "+" : ""}${v} procent, ${formatCurrency(Math.round(10918 * (1 + v / 100)))}/mån`

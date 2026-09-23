@@ -5,11 +5,11 @@
  *
  * Speglingen kräver en token med läsrätt på repot. En token i klienten är en
  * token i varje besökares JS-fil, och det finns ingen variant av det som är
- * säker. Därför bor filen under `src/nod/`, som INTE ingår i webbundeln:
+ * säker. Därför bor filen under `src/node/`, som INTE ingår i webbundeln:
  * `scripts/build.mjs` buntar bara vad `src/index.js` når.
  *
  * ⛔ DEN GRÄNSEN ÄR EN VAKT OCH INTE EN KONVENTION. `scripts/check-nodsida.mjs`
- * gör det till rött bygge om något under `src/` utanför `src/nod/` importerar
+ * gör det till rött bygge om något under `src/` utanför `src/node/` importerar
  * härifrån. Utan vakten är gränsen ett löfte, och ett löfte om att en hemlighet
  * inte läcker är värt exakt vad den som råkar bryta det råkar minnas.
  *
@@ -20,22 +20,22 @@
  *
  * Appen äger VÄRDENA: vilket repo, vilken etikett, och hur en sammanfattning
  * plockas ur brödtexten. Det sista är en funktion och inte ett mönster i
- * konfigurationen, av samma skäl som `krav` på en ärendesort: ett reguljärt
+ * konfigurationen, av samma skäl som `requirements` på en ärendesort: ett reguljärt
  * uttryck i konfigurationen hade tvingat ramverket att veta att just den här
  * verksamheten skriver en rubrik som heter "Varför" i sina ärenden.
  */
 
 /**
  * @typedef {object} Spegelkonfig
- * @property {string} agare Kontot eller organisationen.
+ * @property {string} owner Kontot eller organisationen.
  * @property {string} repo
- * @property {string} etikett Bara ärenden med den här etiketten speglas.
- * @property {(brodtext: string) => string} [sammanfattning] Plockar en kort text ur
+ * @property {string} label Bara ärenden med den här etiketten speglas.
+ * @property {(brodtext: string) => string} [summary] Plockar en kort text ur
  *   brödtexten. Utan den blir `summary` tom sträng, aldrig en gissning ur första raden.
- * @property {(post: Post, rat: any) => Record<string, unknown>} [extraFalt] App-egna fält
+ * @property {(entry: Post, rat: any) => Record<string, unknown>} [extraFields] App-egna fält
  *   per post. ⛔ En funktion och inte flaggor: appen vet vad dess fält betyder, ramverket
  *   ska inte kunna nämna dem.
- * @property {typeof fetch} [hamtare] Injiceras av proven. ⛔ Utan den vore varje prov
+ * @property {typeof fetch} [fetcher] Injiceras av proven. ⛔ Utan den vore varje prov
  *   tvunget att nå GitHub, alltså långsamt, opålitligt och beroende av en token.
  */
 
@@ -46,43 +46,43 @@
  * blev röd. Den hade rätt: riktningen ska vara att kontraktet är webbsidans,
  * eftersom det är appen som LÄSER flödet. Den här filen skriver in i kontraktet.
  *
- * Skälet står i `src/lib/arendeflode.js`. Kort: en typberoende är också ett
+ * Skälet står i `src/lib/caseFlow.js`. Kort: en typberoende är också ett
  * beroende, och nästa person följer typen till sitt hem och lägger körkod intill.
  */
 
-/** @typedef {import("../lib/arendeflode.js").Post} Post */
-/** @typedef {import("../lib/arendeflode.js").Flode} Flode */
+/** @typedef {import("../lib/caseFlow.js").Post} Post */
+/** @typedef {import("../lib/caseFlow.js").Flode} Flode */
 
 /**
  * Bygger spegeln ur appens konfiguration.
  *
- * ⛔ KONTROLLERAR KONFIGURATIONEN VID UPPSTART, precis som `skapaArendemodell`.
+ * ⛔ KONTROLLERAR KONFIGURATIONEN VID UPPSTART, precis som `createCaseModel`.
  * En saknad etikett ger annars en spegling av ALLA öppna ärenden, och det felet
  * ser ut som att speglingen fungerar: listan fylls, den fylls bara med fel saker.
  *
  * @param {Spegelkonfig} konfig
  */
-export function skapaArendespegel(konfig) {
-  for (const falt of ["agare", "repo", "etikett"]) {
+export function createCaseMirror(konfig) {
+  for (const falt of ["owner", "repo", "label"]) {
     if (!konfig || !(/** @type {any} */ (konfig)[falt])) {
       throw new Error(
-        `skapaArendespegel: ${falt} krävs. Utan etikett speglas varje öppet ärende, och det felet ser ut som att speglingen fungerar.`,
+        `createCaseMirror: ${falt} krävs. Utan etikett speglas varje öppet ärende, och det felet ser ut som att speglingen fungerar.`,
       );
     }
   }
 
-  const { agare, repo, etikett, sammanfattning, extraFalt, hamtare } = konfig;
-  const nat = hamtare || fetch;
-  const repoSokvag = `${agare}/${repo}`;
+  const { owner, repo, label, summary, extraFields, fetcher } = konfig;
+  const nat = fetcher || fetch;
+  const repoSokvag = `${owner}/${repo}`;
 
   /** Urvalet som en människa kan öppna i en webbläsare. */
-  const kalla = `https://github.com/${repoSokvag}/issues?q=is%3Aissue+is%3Aopen+label%3A${encodeURIComponent(etikett)}`;
+  const source = `https://github.com/${repoSokvag}/issues?q=is%3Aissue+is%3Aopen+label%3A${encodeURIComponent(label)}`;
 
   return {
-    agare,
+    owner,
     repo,
-    etikett,
-    kalla,
+    label,
+    source,
 
     /**
      * Hämtar de öppna ärendena med etiketten.
@@ -97,7 +97,7 @@ export function skapaArendespegel(konfig) {
      */
     async hamta(token) {
       if (!token) throw new Error("skapaArendespegel.hamta: token krävs.");
-      const url = `https://api.github.com/repos/${repoSokvag}/issues?labels=${encodeURIComponent(etikett)}&state=open&per_page=100`;
+      const url = `https://api.github.com/repos/${repoSokvag}/issues?labels=${encodeURIComponent(label)}&state=open&per_page=100`;
       const svar = await nat(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -122,24 +122,24 @@ export function skapaArendespegel(konfig) {
     /**
      * En post ur ett råt ärende.
      *
-     * ⛔ `summary` BLIR TOM UTAN `sammanfattning`, aldrig första raden i
+     * ⛔ `summary` BLIR TOM UTAN `summary`, aldrig första raden i
      * brödtexten. Första raden är ofta en rubrik eller en tom rad, och en
      * automatiskt plockad mening ser ut som en skriven sammanfattning.
      *
      * @param {any} rat
      * @returns {Post}
      */
-    tillPost(rat) {
-      const post = {
+    toEntry(rat) {
+      const entry = {
         number: rat.number,
         title: rat.title,
         state: rat.state || "open",
         labels: (rat.labels || []).map((/** @type {any} */ l) => (typeof l === "string" ? l : l.name)),
         updatedAt: rat.updated_at || null,
         url: rat.html_url || `https://github.com/${repoSokvag}/issues/${rat.number}`,
-        summary: typeof sammanfattning === "function" ? sammanfattning(rat.body || "") : "",
+        summary: typeof summary === "function" ? summary(rat.body || "") : "",
       };
-      return extraFalt ? { ...post, ...extraFalt(post, rat) } : post;
+      return extraFields ? { ...entry, ...extraFields(entry, rat) } : entry;
     },
 
     /**
@@ -161,19 +161,19 @@ export function skapaArendespegel(konfig) {
      * äger. Ramverket vet inte om flödet är live, så det påstår ingenting.
      *
      * @param {any[]} rader
-     * @param {{ nu?: () => string }} [sammanhang]
+     * @param {{ nu?: () => string }} [context]
      * @returns {Flode}
      */
     tillFlode(rader, { nu = () => new Date().toISOString().slice(0, 10) } = {}) {
       const items = (rader || [])
         .filter((r) => r && !r.pull_request)
-        .map((r) => this.tillPost(r))
+        .map((r) => this.toEntry(r))
         .sort((a, b) => {
           const ta = a.updatedAt || "";
           const tb = b.updatedAt || "";
           return tb.localeCompare(ta) || b.number - a.number;
         });
-      return { updated: nu(), source: kalla, label: etikett, items };
+      return { updated: nu(), source: source, label: label, items };
     },
   };
 }

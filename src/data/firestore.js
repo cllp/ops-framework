@@ -1,4 +1,4 @@
-import { skapaDatakalla } from "./kontrakt.js";
+import { createDataSource } from "./contract.js";
 
 /**
  * Adapter mot Firestore.
@@ -19,10 +19,10 @@ import { skapaDatakalla } from "./kontrakt.js";
  * ```js
  * import { initializeApp } from "firebase/app";
  * import * as firestore from "firebase/firestore";
- * import { skapaFirestoreKalla } from "@staiger/ops-framework";
+ * import { createFirestoreSource } from "@staiger/ops-framework";
  *
  * const app = initializeApp(config);
- * const kalla = skapaFirestoreKalla({ db: firestore.getFirestore(app), sdk: firestore });
+ * const kalla = createFirestoreSource({ db: firestore.getFirestore(app), sdk: firestore });
  * ```
  *
  * ⛔ Den filen i appen är den ENDA som får importera `firebase/*`.
@@ -43,7 +43,7 @@ const KRAVS = [
   "where",
   "orderBy",
   "limit",
-  // ⛔ `onSnapshot` står bland de OBLIGATORISKA trots att `prenumerera` är en
+  // ⛔ `onSnapshot` står bland de OBLIGATORISKA trots att `subscribe` är en
   // frivillig del av kontraktet. Det är inte en motsägelse: frivilligheten
   // gäller ADAPTRAR, och den här adaptern har valt att kunna prenumerera.
   // Firestore-SDK:n exporterar alltid funktionen, så saknas den har appen
@@ -54,10 +54,10 @@ const KRAVS = [
 
 /**
  * @template {{ id: string }} T
- * @param {{ db: any, sdk: Record<string, any> }} konfig
- * @returns {import("./kontrakt.js").Datakalla<T>}
+ * @param {{ db: any, sdk: Record<string, any> }} config
+ * @returns {import("./contract.js").DataSource<T>}
  */
-export function skapaFirestoreKalla(konfig) {
+export function createFirestoreSource(config) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
    *
@@ -71,9 +71,9 @@ export function skapaFirestoreKalla(konfig) {
    * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
-  const { db, sdk } = konfig ?? /** @type {any} */ ({});
-  if (!db) throw new Error("skapaFirestoreKalla: db krävs. Skicka in resultatet av getFirestore(app).");
-  if (!sdk) throw new Error('skapaFirestoreKalla: sdk krävs. Skicka in modulen: import * as firestore from "firebase/firestore".');
+  const { db, sdk } = config ?? /** @type {any} */ ({});
+  if (!db) throw new Error("createFirestoreSource: db krävs. Skicka in resultatet av getFirestore(app).");
+  if (!sdk) throw new Error('createFirestoreSource: sdk krävs. Skicka in modulen: import * as firestore from "firebase/firestore".');
 
   // ⛔ Kontrollen sker vid uppstart, inte vid första anropet. En saknad funktion
   // ger annars "undefined is not a function" först den dag någon råkar ta bort
@@ -81,51 +81,59 @@ export function skapaFirestoreKalla(konfig) {
   const saknas = KRAVS.filter((f) => typeof sdk[f] !== "function");
   if (saknas.length > 0) {
     throw new Error(
-      `skapaFirestoreKalla: sdk saknar ${saknas.join(", ")}. Skicka in hela modulen "firebase/firestore", inte enskilda funktioner.`,
+      `createFirestoreSource: sdk saknar ${saknas.join(", ")}. Skicka in hela modulen "firebase/firestore", inte enskilda funktioner.`,
     );
   }
 
   const { collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } = sdk;
 
   /** @param {any} snap @returns {any} */
-  const tillPost = (snap) => ({ id: snap.id, ...snap.data() });
+  const toEntry = (snap) => ({ id: snap.id, ...snap.data() });
 
   /**
-   * Bygger frågan. Delas av `lista` och `prenumerera`.
+   * Bygger frågan. Delas av `list` och `subscribe`.
    *
    * ⛔ EN ÖVERSÄTTNING, INTE TVÅ. Stod villkoren på två ställen skulle en
    * hämtning och en prenumeration på samma samling kunna ge olika urval, och
    * den skillnaden syns inte: båda returnerar rader, bara inte samma.
    *
-   * @param {string} samling @param {import("./kontrakt.js").Fraga} [fraga]
+   * ⛔ PARAMETERN HETER `q` OCH INTE `query`, och det är inte slarv. Firestores
+   * SDK exporterar en funktion som heter `query`, och den destruktureras en rad
+   * ovanför. En parameter med samma namn skuggar den inne i funktionen, alltså
+   * hade sista raden anropat vårt eget frågeobjekt som om det vore en funktion.
+   * Typkontrollen sade "Type 'Query' has no call signatures", men bara för att
+   * SDK:n är typad; i en otypad adapter hade det blivit ett krasch-vid-körning
+   * som inget prov mot minnesadaptern kan se.
+   *
+   * @param {string} collectionName @param {import("./contract.js").Query} [q]
    */
-  function bygg(samling, fraga) {
-    const villkor = [];
-    if (fraga?.dar) for (const [falt, varde] of Object.entries(fraga.dar)) villkor.push(where(falt, "==", varde));
-    if (fraga?.sortera) villkor.push(orderBy(fraga.sortera, fraga.riktning === "ner" ? "desc" : "asc"));
-    if (typeof fraga?.antal === "number") villkor.push(limit(fraga.antal));
-    return query(collection(db, samling), ...villkor);
+  function build(collectionName, q) {
+    const conditions = [];
+    if (q?.where) for (const [field, value] of Object.entries(q.where)) conditions.push(where(field, "==", value));
+    if (q?.sortBy) conditions.push(orderBy(q.sortBy, q.direction === "desc" ? "desc" : "asc"));
+    if (typeof q?.limit === "number") conditions.push(limit(q.limit));
+    return query(collection(db, collectionName), ...conditions);
   }
 
-  return skapaDatakalla({
-    namn: "firestore",
+  return createDataSource({
+    name: "firestore",
 
-    async las(samling, id) {
-      const snap = await getDoc(doc(db, samling, id));
+    async read(collectionName, id) {
+      const snap = await getDoc(doc(db, collectionName, id));
       // ⛔ `exists()` och inte en sanningsprövning av datan. Ett dokument som
       // finns men är tomt är inte samma sak som ett som saknas.
-      return snap.exists() ? tillPost(snap) : null;
+      return snap.exists() ? toEntry(snap) : null;
     },
 
-    async lista(samling, fraga) {
-      const snap = await getDocs(bygg(samling, fraga));
-      return snap.docs.map(tillPost);
+    async list(collectionName, query) {
+      const snap = await getDocs(build(collectionName, query));
+      return snap.docs.map(toEntry);
     },
 
     /**
      * Lyssnar på ett urval. Returnerar funktionen som stänger lyssnandet.
      *
-     * ⛔ FELET GÅR TILL `vidFel`, ALDRIG TILL EN TOM LISTA. Firestore anropar
+     * ⛔ FELET GÅR TILL `onError`, ALDRIG TILL EN TOM LISTA. Firestore anropar
      * felkanalen bland annat vid `permission-denied`, alltså exakt det som
      * händer när reglerna för samlingen saknas. Skickades det vidare som noll
      * rader hade appen sagt "inkorgen är tom" till någon vars inkorg är full,
@@ -133,49 +141,49 @@ export function skapaFirestoreKalla(konfig) {
      *
      * ⛔ Efter ett fel är prenumerationen DÖD. Firestore återansluter inte
      * själv efter en avvisning, så den som vill försöka igen måste starta en ny.
-     * `useSamlingLive` gör det via `uppdatera()`.
+     * `useLiveCollection` gör det via `update()`.
      *
-     * @param {string} samling
-     * @param {import("./kontrakt.js").Fraga | undefined} fraga
-     * @param {import("./kontrakt.js").Lyssnare<any>} lyssnare
-     * @returns {import("./kontrakt.js").Avsluta}
+     * @param {string} collectionName
+     * @param {import("./contract.js").Query | undefined} query
+     * @param {import("./contract.js").Listener<any>} lyssnare
+     * @returns {import("./contract.js").Unsubscribe}
      */
-    prenumerera(samling, fraga, lyssnare) {
+    subscribe(collectionName, query, lyssnare) {
       return onSnapshot(
-        bygg(samling, fraga),
-        /** @param {any} snap */ (snap) => lyssnare.vidData(snap.docs.map(tillPost)),
-        /** @param {any} e */ (e) => lyssnare.vidFel(e instanceof Error ? e : new Error(String(e))),
+        build(collectionName, query),
+        /** @param {any} snap */ (snap) => lyssnare.onData(snap.docs.map(toEntry)),
+        /** @param {any} e */ (e) => lyssnare.onError(e instanceof Error ? e : new Error(String(e))),
       );
     },
 
-    async skapa(samling, data) {
-      const { id, ...falt } = /** @type {any} */ (data);
+    async create(collectionName, data) {
+      const { id, ...field } = /** @type {any} */ (data);
 
       // Eget id: setDoc. Inget id: addDoc. Skillnaden spelar roll, för setDoc
       // skriver över ett befintligt dokument utan att säga ifrån.
       if (id) {
-        await setDoc(doc(db, samling, id), falt);
-        return /** @type {any} */ ({ id, ...falt });
+        await setDoc(doc(db, collectionName, id), field);
+        return /** @type {any} */ ({ id, ...field });
       }
-      const ref = await addDoc(collection(db, samling), falt);
-      return /** @type {any} */ ({ id: ref.id, ...falt });
+      const ref = await addDoc(collection(db, collectionName), field);
+      return /** @type {any} */ ({ id: ref.id, ...field });
     },
 
-    async uppdatera(samling, id, data) {
-      const { id: _ignorerat, ...falt } = /** @type {any} */ (data);
-      const ref = doc(db, samling, id);
-      await updateDoc(ref, falt);
+    async update(collectionName, id, data) {
+      const { id: _ignorerat, ...field } = /** @type {any} */ (data);
+      const ref = doc(db, collectionName, id);
+      await updateDoc(ref, field);
 
       // ⛔ Läser tillbaka i stället för att gissa resultatet. En serverside-
       // timestamp eller en regel som ändrar värdet skulle annars ge appen ett
       // objekt som inte stämmer med vad som faktiskt står i databasen.
       const snap = await getDoc(ref);
-      if (!snap.exists()) throw new Error(`firestore: ${samling}/${id} finns inte efter uppdatering.`);
-      return tillPost(snap);
+      if (!snap.exists()) throw new Error(`firestore: ${collectionName}/${id} finns inte efter uppdatering.`);
+      return toEntry(snap);
     },
 
-    async taBort(samling, id) {
-      await deleteDoc(doc(db, samling, id));
+    async remove(collectionName, id) {
+      await deleteDoc(doc(db, collectionName, id));
     },
   });
 }

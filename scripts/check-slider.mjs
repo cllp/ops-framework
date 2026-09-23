@@ -4,7 +4,7 @@
  *
  * ══ ⛔ VARFÖR EN VAKT OCH INTE ETT PROV ══════════════════════════════════
  *
- * Samma felklass som `check-sidram.mjs`: jsdom kör ingen CSS, Vitest ritar ingen
+ * Samma felklass som `check-page-frame.mjs`: jsdom kör ingen CSS, Vitest ritar ingen
  * tumme, och ingen komponent importerar `tokens.css`. `reglage.test.jsx` provar
  * elva saker om `OpsSlider` och skulle vara grönt även om hela `.ops-reglage`
  * försvann ur tokenfilen.
@@ -33,7 +33,7 @@
  * inte här, och den kontrollen är ett öga på en riktig telefon enligt
  * bolag-ops#141. En vakt som utgav sig för att vara det vore sämre än ingen.
  *
- * Kör: node scripts/check-reglage.mjs [tokens.css]
+ * Kör: node scripts/check-slider.mjs [tokens.css]
  */
 
 import fs from "node:fs";
@@ -53,7 +53,7 @@ const arg = process.argv[2];
 const vag = arg ? path.resolve(arg) : path.join(rot, "tokens", "tokens.css");
 
 if (!fs.existsSync(vag)) {
-  console.error(`check-reglage: ${vag} finns inte. Fel sökväg i vakten, inte ett godkänt utfall.`);
+  console.error(`check-slider: ${vag} finns inte. Fel sökväg i vakten, inte ett godkänt utfall.`);
   process.exit(1);
 }
 
@@ -74,7 +74,7 @@ const regler = [...utanKommentarer.matchAll(/(\.ops-reglage[^{]*)\{([^}]*)\}/g)]
 }));
 
 if (regler.length === 0) {
-  console.error("check-reglage: hittade inga `.ops-reglage`-regler alls.\n");
+  console.error("check-slider: hittade inga `.ops-reglage`-regler alls.\n");
   console.error("  Reglaget ritas då av webbläsaren i systemets accentfärg, alltså en färg utanför");
   console.error("  tokenkontraktet som inte byter med mörkt läge och är olika på olika maskiner.");
   console.error("  Se bolag-ops#141 och kommentaren i tokens.css.");
@@ -130,7 +130,7 @@ for (const r of regler) {
 }
 
 if (brott.length > 0) {
-  console.error(`check-reglage: ${brott.length} brott\n`);
+  console.error(`check-slider: ${brott.length} brott\n`);
   for (const b of brott) console.error(`  ${b}`);
   console.error("\n  ⛔ Reglagets tumme och skena går bara att måla genom leverantörsspecifika");
   console.error("     pseudoelement. De finns inte som verktygsklasser, så de bor i tokens.css");
@@ -138,4 +138,4 @@ if (brott.length > 0) {
   process.exit(1);
 }
 
-console.log(`check-reglage: ${regler.length} \`.ops-reglage\`-regler, tumme och skena målade ur tokens i båda motorerna`);
+console.log(`check-slider: ${regler.length} \`.ops-reglage\`-regler, tumme och skena målade ur tokens i båda motorerna`);

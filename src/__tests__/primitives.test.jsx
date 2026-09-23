@@ -193,7 +193,7 @@ describe("identitetslogik", () => {
     expect(sedda.size).toBe(6);
   });
 
-  // ⛔ `namn[0]` klipper mitt i tecken utanför BMP och ger en trasig ruta.
+  // ⛔ `name[0]` klipper mitt i tecken utanför BMP och ger en trasig ruta.
   it("klipper inte mitt i ett tecken", () => {
     expect(initials("Åsa Öberg")).toBe("ÅÖ");
     expect(initials("🎻 Stråkar")).toBe("🎻S");
@@ -240,14 +240,14 @@ describe("OpsCard", () => {
   it("vägrar en rundning som inte finns i stället för att rita panelens hörn", () => {
     /*
      * ⛔ EN TYST RESERV GÖR ETT STAVFEL TILL ETT KORT SOM SER NÄSTAN RÄTT UT.
-     * `rundning="bubla"` hade fått panelens 8 px, och den som skrev det hade
+     * `rounding="bubla"` hade fått panelens 8 px, och den som skrev det hade
      * trott att bubblan inte gick att få. Samma skäl som `tone` och `edge`
      * redan kastar av.
      */
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       /* @ts-expect-error avsiktligt fel värde */
-      expect(() => render(<OpsCard rundning="bubla">x</OpsCard>)).toThrow(/okänd rundning/);
+      expect(() => render(<OpsCard rounding="bubla">x</OpsCard>)).toThrow(/okänd rounding/);
     } finally {
       tyst.mockRestore();
     }
@@ -264,7 +264,7 @@ describe("OpsCard", () => {
     const { container: panel } = render(<OpsCard>x</OpsCard>);
     expect(panel.firstElementChild?.className).toMatch(/rounded-lg/);
 
-    const { container: bubbla } = render(<OpsCard rundning="bubbla">x</OpsCard>);
+    const { container: bubbla } = render(<OpsCard rounding="bubbla">x</OpsCard>);
     expect(bubbla.firstElementChild?.className).toMatch(/rounded-3xl/);
   });
 
@@ -301,8 +301,8 @@ describe("OpsSegmented", () => {
         ]}
       />,
     );
-    const idag = screen.getByRole("tab", { name: /Idag/ });
-    expect(idag).toHaveAttribute("aria-selected", "true");
+    const today = screen.getByRole("tab", { name: /Idag/ });
+    expect(today).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: /Kommande/ })).toHaveAttribute("aria-selected", "false");
 
     fireEvent.click(screen.getByRole("tab", { name: /Kommande/ }));
@@ -396,13 +396,13 @@ describe("OpsSegmented", () => {
         ]}
       />,
     );
-    const idag = screen.getByRole("tab", { name: /Idag/ });
-    expect(idag).toHaveAttribute("aria-selected", "true");
-    expect(idag).toHaveAttribute("aria-haspopup", "menu");
-    expect(idag).toHaveAttribute("aria-expanded", "false");
+    const today = screen.getByRole("tab", { name: /Idag/ });
+    expect(today).toHaveAttribute("aria-selected", "true");
+    expect(today).toHaveAttribute("aria-haspopup", "menu");
+    expect(today).toHaveAttribute("aria-expanded", "false");
 
-    fireEvent.click(idag);
-    expect(idag).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(today);
+    expect(today).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(screen.getByRole("menuitemradio", { name: /Tidigare/ }));
     expect(valda).toEqual(["tidigare"]);
 

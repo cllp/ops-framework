@@ -30,7 +30,7 @@
  * ligger i repot i stället för att köras ur en skill, eftersom en vakt som bara
  * finns i någons verktygslåda inte är en vakt.
  *
- * Kör: node scripts/check-diagramfarger.mjs
+ * Kör: node scripts/check-chart-colors.mjs
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -121,10 +121,10 @@ for (const k of korningar) {
 }
 
 if (fel.length > 0) {
-  console.error("\ncheck-diagramfarger: FEL\n");
+  console.error("\ncheck-chart-colors: FEL\n");
   for (const f of fel) console.error(`  - ${f}\n`);
   console.error("  Färg i diagram går inte att bedöma med ögat. Fixa värdena, stäng inte av mätningen.\n");
   process.exit(1);
 }
 
-console.log(`\ncheck-diagramfarger: ${ljusSerier.length} serier och ${ljusSkala.length} skalsteg mätta i båda lägen, mot ramverkets egna ytor.`);
+console.log(`\ncheck-chart-colors: ${ljusSerier.length} serier och ${ljusSkala.length} skalsteg mätta i båda lägen, mot ramverkets egna ytor.`);

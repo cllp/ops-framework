@@ -6,7 +6,7 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
  *
  * ⛔ DET HÄR ÄR REGLER SOM I DAG BARA BEVAKAS AV KOMMENTARER. Mätt i
  * bolag-ops skriver SEX vyer samma tre grenar för hand, ord för ord:
- * `if (fel) ... if (laddar || !data) ... annars innehållet`. Varje vy som
+ * `if (error) ... if (loading || !data) ... annars innehållet`. Varje vy som
  * skriver dem själv kan skriva dem fel, och ingen vakt kan se skillnaden på
  * en vy som följer regeln och en som glömde den.
  *
@@ -26,17 +26,17 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
  * ⛔ 2. LADDNING SÄGER VAD DEN VÄNTAR PÅ.
  *
  * "Hämtar" utan objekt är samma text i tolv vyer, och när en av fem läsningar
- * hänger går det inte att se vilken. Därför är `laddarLabel` obligatorisk och
+ * hänger går det inte att se vilken. Därför är `loadingLabel` obligatorisk och
  * gissas inte fram ur rubriken.
  *
  * ⛔ 3. HÄMTAT MEN TOMT ÄR INTE HÄMTNING SOM PÅGÅR.
  *
- * Det här är det verkliga felet i den handskrivna varianten. `laddar || !data`
+ * Det här är det verkliga felet i den handskrivna varianten. `loading || !data`
  * betyder att en läsning som gick igenom men gav `null` ritar "Hämtar ..." för
  * ALLTID. Sidan säger att den arbetar när den har gett upp, och det är den
  * sortens fel ingen rapporterar som en bugg utan som att appen "hängde sig".
  *
- * Kontraktet säger att `las` ger `null` för "finns inte", och att det INTE är
+ * Kontraktet säger att `read` ger `null` för "finns inte", och att det INTE är
  * ett fel. Alltså är det inte heller ett fel här, utan ett eget tillstånd med
  * egna ord: hämtningen gick, posten fanns inte.
  *
@@ -49,46 +49,46 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
 /**
  * @template T
  * @param {object} props
- * @param {boolean} props.laddar
- * @param {Error | null | undefined} [props.fel]
+ * @param {boolean} props.loading
+ * @param {Error | null | undefined} [props.error]
  * @param {T | null | undefined} [props.data]
  *   ⛔ Utelämnas den görs INGEN tomhetskontroll, och regel 3 är då vyns eget
  *   ansvar. Det gäller vyer som läser flera listor och inte har ett enda värde
  *   att peka på.
- * @param {import("react").ReactNode} [props.huvud] Ritas i alla tillstånd, alltså även i felet.
- * @param {string} props.felrubrik Appens ord: "Kunde inte hämta tillgångarna".
- * @param {string} props.laddarLabel Appens ord: "Hämtar tillgångar".
- * @param {string} [props.saknasRubrik]
+ * @param {import("react").ReactNode} [props.header] Ritas i alla tillstånd, alltså även i felet.
+ * @param {string} props.errorTitle Appens ord: "Kunde inte hämta tillgångarna".
+ * @param {string} props.loadingLabel Appens ord: "Hämtar tillgångar".
+ * @param {string} [props.missingTitle]
  * @param {(data: T) => import("react").ReactNode} props.children
  */
-export function OpsDatavy(props) {
+export function OpsDataView(props) {
   /* ⛔ HELA OBJEKTET OCH INTE EN DESTRUKTURERING, med flit. `data` får vara
      `null`, och `null` betyder något annat än "vyn skickade ingen data alls".
      En destrukturerad parameter gör de två omöjliga att skilja åt, och då hade
      varje vy som läser flera listor fått tomhetsbanderollen i ansiktet. */
-  const { laddar, fel, huvud, felrubrik, laddarLabel, saknasRubrik = "Innehållet saknas", children } = props;
+  const { loading, error, header, errorTitle, loadingLabel, missingTitle = "Innehållet saknas", children } = props;
   if (typeof children !== "function") {
-    throw new Error("OpsDatavy: children måste vara en funktion (data) => innehåll. Se regeln om barnen.");
+    throw new Error("OpsDataView: children måste vara en funktion (data) => innehåll. Se regeln om barnen.");
   }
-  if (!felrubrik) throw new Error("OpsDatavy: felrubrik krävs och gissas inte fram.");
-  if (!laddarLabel) throw new Error("OpsDatavy: laddarLabel krävs, annars går det inte att se vad som hänger.");
+  if (!errorTitle) throw new Error("OpsDataView: errorTitle krävs och gissas inte fram.");
+  if (!loadingLabel) throw new Error("OpsDataView: loadingLabel krävs, annars går det inte att se vad som hänger.");
 
-  if (fel) {
+  if (error) {
     return (
       <>
-        {huvud}
-        <OpsBanner tone="danger" title={felrubrik}>
-          {fel.message}
+        {header}
+        <OpsBanner tone="danger" title={errorTitle}>
+          {error.message}
         </OpsBanner>
       </>
     );
   }
 
-  if (laddar) {
+  if (loading) {
     return (
       <>
-        {huvud}
-        <OpsEmpty title={laddarLabel} busy busyLabel={laddarLabel} />
+        {header}
+        <OpsEmpty title={loadingLabel} busy busyLabel={loadingLabel} />
       </>
     );
   }
@@ -96,21 +96,21 @@ export function OpsDatavy(props) {
   if ("data" in props && (props.data === null || props.data === undefined)) {
     return (
       <>
-        {huvud}
+        {header}
         {/* ⛔ TOMHET OCH INTE EN BANDEROLL. Första försöket var en banderoll,
             och den valde mellan `danger` (röd för något som inte gick sönder)
             och `warning`, som i OpsBanner får `role="alert"` och alltså AVBRYTER
             skärmläsaren. Att posten inte finns är information, precis som
             OpsEmpty redan säger om sig själv, och det är den som har
             `role="status"` och en artig annonsering. */}
-        <OpsEmpty title={saknasRubrik} description="Hämtningen gick igenom, men det kom inget innehåll tillbaka." />
+        <OpsEmpty title={missingTitle} description="Hämtningen gick igenom, men det kom inget innehåll tillbaka." />
       </>
     );
   }
 
   return (
     <>
-      {huvud}
+      {header}
       {/* ⛔ Kontrollen ovan har redan uteslutit null och undefined NÄR `data`
           skickades in. Utelämnades den får barnen `undefined`, och då ska de
           inte läsa argumentet. Typen säger `T` för det vanliga fallet. */}

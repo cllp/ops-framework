@@ -18,14 +18,14 @@
  */
 
 /**
- * @typedef {object} Kalenderpost
+ * @typedef {object} CalendarEntry
  * @property {string} id
- * @property {string} datum `YYYY-MM-DD`.
- * @property {string} titel
+ * @property {string} date `YYYY-MM-DD`.
+ * @property {string} title
  * @property {"oppet"|"pagar"|"vantar"|"klart"|"akut"} [status] Pricken ärver `OpsStatusDot`s toner.
  * @property {string} [url] Finns den blir det en länk i kortets utfällning.
  * @property {string} [urlLabel] Länkens synliga ord, t.ex. "#249". Utan den står "Öppna".
- * @property {import("react").ReactNode} [detaljer] Appens eget innehåll i utfällningen.
+ * @property {import("react").ReactNode} [details] Appens eget innehåll i utfällningen.
  *   ⛔ Ramverket ritar den, tolkar den aldrig: vad som är värt att fälla ut om en
  *   post beror på vad posten ÄR hos just den appen.
  * @property {string} [not] En rad extra under titeln i dagslistan.
@@ -45,7 +45,7 @@ function tva(n) {
  *
  * @param {number} ar @param {number} manad @param {number} dag
  */
-export function datumnyckel(ar, manad, dag) {
+export function dateKey(ar, manad, dag) {
   return `${ar}-${tva(manad + 1)}-${tva(dag)}`;
 }
 
@@ -57,10 +57,10 @@ export function datumnyckel(ar, manad, dag) {
  * bara mellan midnatt och två på natten, vilket är precis den sortens fel ingen
  * lyckas återskapa.
  *
- * @param {Date} [idag]
+ * @param {Date} [today]
  */
-export function idagsnyckel(idag = new Date()) {
-  return datumnyckel(idag.getFullYear(), idag.getMonth(), idag.getDate());
+export function todayKey(today = new Date()) {
+  return dateKey(today.getFullYear(), today.getMonth(), today.getDate());
 }
 
 /**
@@ -94,7 +94,7 @@ export function dagarIManaden(ar, manad) {
  * @param {number} ar @param {number} manad
  * @returns {(number | null)[][]} En lista rader, varje rad sju platser.
  */
-export function manadsrutnat(ar, manad) {
+export function monthGrid(ar, manad) {
   /** @type {(number | null)[]} */
   const rutor = [];
   for (let i = 0; i < forstaKolumnen(ar, manad); i += 1) rutor.push(null);
@@ -109,15 +109,15 @@ export function manadsrutnat(ar, manad) {
 /**
  * Månaderna som ska ritas, bakåt och framåt från en utgångspunkt.
  *
- * @param {Date} idag
+ * @param {Date} today
  * @param {number} bakat Antal månader före den innevarande.
- * @param {number} framat Antal månader efter den innevarande.
+ * @param {number} ahead Antal månader efter den innevarande.
  * @returns {{ ar: number, manad: number }[]}
  */
-export function manader(idag, bakat, framat) {
+export function months(today, bakat, ahead) {
   const ut = [];
-  for (let i = -bakat; i <= framat; i += 1) {
-    const d = new Date(idag.getFullYear(), idag.getMonth() + i, 1);
+  for (let i = -bakat; i <= ahead; i += 1) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
     ut.push({ ar: d.getFullYear(), manad: d.getMonth() });
   }
   return ut;
@@ -133,17 +133,17 @@ export function manader(idag, bakat, framat) {
  * ⛔ ORDNINGEN INOM DAGEN ÄR DEN INSKICKADE. Appen vet vad som är viktigast på
  * en dag; kalendern vet det inte och ska inte gissa.
  *
- * @param {Kalenderpost[]} poster
- * @returns {Map<string, Kalenderpost[]>}
+ * @param {CalendarEntry[]} entries
+ * @returns {Map<string, CalendarEntry[]>}
  */
-export function perDag(poster) {
-  /** @type {Map<string, Kalenderpost[]>} */
+export function perDay(entries) {
+  /** @type {Map<string, CalendarEntry[]>} */
   const karta = new Map();
-  for (const p of poster || []) {
-    if (!p || typeof p.datum !== "string" || !p.datum) continue;
-    const fanns = karta.get(p.datum);
-    if (fanns) fanns.push(p);
-    else karta.set(p.datum, [p]);
+  for (const p of entries || []) {
+    if (!p || typeof p.date !== "string" || !p.date) continue;
+    const existed = karta.get(p.date);
+    if (existed) existed.push(p);
+    else karta.set(p.date, [p]);
   }
   return karta;
 }
@@ -155,7 +155,7 @@ export function perDag(poster) {
  * dagsbubblan är samma ord, och två listor hade glidit isär första gången någon
  * rättade en stavning i den ena.
  */
-export const MANADSNAMN = [
+export const MONTH_NAMES = [
   "januari",
   "februari",
   "mars",
@@ -193,7 +193,7 @@ export function datumtext(nyckel) {
   if (!traff) return nyckel || "";
   const manad = Number(traff[2]) - 1;
   if (manad < 0 || manad > 11) return nyckel;
-  return `${Number(traff[3])} ${MANADSNAMN[manad]}`;
+  return `${Number(traff[3])} ${MONTH_NAMES[manad]}`;
 }
 
 /**

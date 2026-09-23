@@ -103,8 +103,8 @@ describe("kryssrutans träffyta", () => {
    */
   it("behåller höjdgolvet på telefon i etikettens klasser", () => {
     const { container } = render(<OpsCheckbox label="Bostad" checked onChange={() => {}} />);
-    const etikett = container.querySelector("label");
-    expect(etikett?.className).toContain("min-h-11");
-    expect(etikett?.className).toContain("md:min-h-0");
+    const label = container.querySelector("label");
+    expect(label?.className).toContain("min-h-11");
+    expect(label?.className).toContain("md:min-h-0");
   });
 });

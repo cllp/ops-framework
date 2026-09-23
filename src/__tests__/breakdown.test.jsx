@@ -3,19 +3,19 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { OpsBreakdown } from "../components/OpsBreakdown.jsx";
 import { OpsAttributes } from "../components/OpsAttributes.jsx";
 
-const grupper = [
+const groups = [
   {
     id: "bostad",
     label: "Bostad",
     value: "12 000 kr",
     count: 3,
     on: true,
-    poster: [
+    entries: [
       { id: "brf", label: "Riksbyggen", value: "10 918 kr", hint: "Månadsvis" },
       { id: "el", label: "GEAB", value: "979 kr" },
     ],
   },
-  { id: "mat", label: "Mat", value: "5 000 kr", count: 1, on: false, poster: [{ id: "ica", label: "ICA", value: "5 000 kr" }] },
+  { id: "mat", label: "Mat", value: "5 000 kr", count: 1, on: false, entries: [{ id: "ica", label: "ICA", value: "5 000 kr" }] },
   { id: "tomt", label: "Utan poster", value: "0 kr", on: true },
 ];
 
@@ -26,13 +26,13 @@ describe("OpsBreakdown", () => {
     // ⛔ Ordningen är inte kosmetik. Läser man uppifrån vill man ha svaret
     // först. En summa i foten tvingar en att läsa hela listan för att få veta
     // vad den blev.
-    const { container } = render(<OpsBreakdown groups={grupper} onToggle={() => {}} total={total} />);
+    const { container } = render(<OpsBreakdown groups={groups} onToggle={() => {}} total={total} />);
     const text = /** @type {string} */ (container.textContent);
     expect(text.indexOf("Fasta kostnader")).toBeLessThan(text.indexOf("Bostad"));
   });
 
   it("håller posterna dolda tills gruppen fälls ut", () => {
-    render(<OpsBreakdown groups={grupper} onToggle={() => {}} total={total} />);
+    render(<OpsBreakdown groups={groups} onToggle={() => {}} total={total} />);
     expect(screen.queryByText("Riksbyggen")).not.toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Visa poster i Bostad" }));
@@ -43,7 +43,7 @@ describe("OpsBreakdown", () => {
   it("säger om gruppen är utfälld, i stället för att bara vrida en pil", () => {
     // ⛔ En roterad chevron är osynlig för en skärmläsare. aria-expanded är det
     // enda som faktiskt bär tillståndet.
-    render(<OpsBreakdown groups={grupper} onToggle={() => {}} total={total} />);
+    render(<OpsBreakdown groups={groups} onToggle={() => {}} total={total} />);
     const knapp = screen.getByRole("button", { name: "Visa poster i Bostad" });
     expect(knapp).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(knapp);
@@ -56,7 +56,7 @@ describe("OpsBreakdown", () => {
     // sidor i samma app. Och en <button> i en <button> är ogiltig HTML som
     // webbläsaren river isär, så de måste vara syskon.
     const onToggle = vi.fn();
-    render(<OpsBreakdown groups={grupper} onToggle={onToggle} total={total} />);
+    render(<OpsBreakdown groups={groups} onToggle={onToggle} total={total} />);
 
     const fall = screen.getByRole("button", { name: "Visa poster i Bostad" });
     fireEvent.click(fall);
@@ -70,7 +70,7 @@ describe("OpsBreakdown", () => {
   });
 
   it("bär gruppens tillstånd i aria-pressed och stryker över beloppet", () => {
-    render(<OpsBreakdown groups={grupper} onToggle={() => {}} total={total} />);
+    render(<OpsBreakdown groups={groups} onToggle={() => {}} total={total} />);
     expect(screen.getByRole("button", { name: /^Bostad/ })).toHaveAttribute("aria-pressed", "true");
 
     const mat = screen.getByRole("button", { name: /^Mat/ });
@@ -81,7 +81,7 @@ describe("OpsBreakdown", () => {
   it("ger en grupp utan poster ingen utfällningsknapp", () => {
     // ⛔ En chevron som inte öppnar något är ett löfte som inte infrias, och den
     // som trycker drar slutsatsen att sidan är trasig.
-    render(<OpsBreakdown groups={grupper} onToggle={() => {}} total={total} />);
+    render(<OpsBreakdown groups={groups} onToggle={() => {}} total={total} />);
     expect(screen.queryByRole("button", { name: "Visa poster i Utan poster" })).toBeNull();
   });
 
@@ -95,7 +95,7 @@ describe("OpsBreakdown", () => {
     // ⛔ Regressionsprov för en frestelse, inte för en bugg vi haft. Räknade
     // komponenten ihop gruppernas värden skulle den behöva tolka "[okänt]",
     // intervall och främmande valuta, alltså gissa. Totalen kommer utifrån.
-    render(<OpsBreakdown groups={grupper} onToggle={() => {}} total={{ label: "Summa", value: "sju stycken" }} />);
+    render(<OpsBreakdown groups={groups} onToggle={() => {}} total={{ label: "Summa", value: "sju stycken" }} />);
     expect(screen.getByText("sju stycken")).toBeInTheDocument();
   });
 });
@@ -103,10 +103,10 @@ describe("OpsBreakdown", () => {
 describe("OpsAttributes", () => {
   it("ritar etikett och värde som ett par en skärmläsare kan följa", () => {
     render(<OpsAttributes rows={[{ label: "OCR", value: "165846692" }]} ariaLabel="Om posten" />);
-    const lista = screen.getByLabelText("Om posten");
-    expect(lista.tagName).toBe("DL");
-    expect(within(lista).getByText("OCR").tagName).toBe("DT");
-    expect(within(lista).getByText("165846692").tagName).toBe("DD");
+    const list = screen.getByLabelText("Om posten");
+    expect(list.tagName).toBe("DL");
+    expect(within(list).getByText("OCR").tagName).toBe("DT");
+    expect(within(list).getByText("165846692").tagName).toBe("DD");
   });
 
   it("hoppar över tomma fält och ritar ingenting när allt är tomt", () => {

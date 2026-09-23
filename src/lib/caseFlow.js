@@ -27,7 +27,7 @@
 /*
  * ══ ⛔ DATAKONTRAKTET BOR HÄR, HOS LÄSAREN, OCH INTE HOS SPEGELN ══════════
  *
- * Första utkastet hade `Post` och `Flode` definierade i `src/nod/arendespegel.js`
+ * Första utkastet hade `Post` och `Flode` definierade i `src/node/caseMirror.js`
  * och importerade hit. `check-nodsida` blev röd, och den hade rätt av ett skäl jag
  * inte tänkt på:
  *
@@ -44,7 +44,7 @@
  * En post i flödet.
  *
  * ⛔ FÄLTNAMNEN ÄR ENGELSKA OCH DET ÄR INTE ETT SLARV. Ramverkets egna namn är
- * svenska (`lasArendeflode`, `skapaArendespegel`). Men flödets FÄLT är ett
+ * svenska (`readCaseFlow`, `skapaArendespegel`). Men flödets FÄLT är ett
  * datakontrakt som redan ligger i en databas och i en incheckad fil hos den app
  * som ska adoptera modulen. Att döpa om dem vore en datamigrering.
  *
@@ -71,10 +71,10 @@
 
 /**
  * @typedef {object} Last
- * @property {Post[]} poster Alltid en lista, även vid fel. En vy ska inte behöva kolla.
- * @property {boolean} fanns Sant när något gick att tolka som ett flöde.
- * @property {string | null} fel Orsaken, i klartext, när det inte gick.
- * @property {string | null} uppdaterad Flödets egen datumstämpel, när den finns.
+ * @property {Post[]} entries Alltid en lista, även vid fel. En vy ska inte behöva kolla.
+ * @property {boolean} existed Sant när något gick att tolka som ett flöde.
+ * @property {string | null} error Orsaken, i klartext, när det inte gick.
+ * @property {string | null} updatedAt Flödets egen datumstämpel, när den finns.
  */
 
 /**
@@ -88,8 +88,8 @@
  * @param {unknown} rat
  * @returns {Last}
  */
-export function lasArendeflode(rat) {
-  const tomt = { poster: /** @type {Post[]} */ ([]), fanns: false, fel: null, uppdaterad: null };
+export function readCaseFlow(rat) {
+  const tomt = { entries: /** @type {Post[]} */ ([]), existed: false, error: null, updatedAt: null };
 
   // ⛔ Frånvaro är INTE ett fel. `null` betyder oftast "har inte hämtats än", och
   // ett felmeddelande under laddning är ett fel användaren inte kan göra något åt.
@@ -100,12 +100,12 @@ export function lasArendeflode(rat) {
     try {
       flode = JSON.parse(rat);
     } catch (e) {
-      return { ...tomt, fel: `Flödet är inte giltig JSON: ${e instanceof Error ? e.message : String(e)}` };
+      return { ...tomt, error: `Flödet är inte giltig JSON: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
 
   if (typeof flode !== "object" || flode === null || Array.isArray(flode)) {
-    return { ...tomt, fel: "Flödet är inte ett objekt." };
+    return { ...tomt, error: "Flödet är inte ett objekt." };
   }
 
   const kropp = /** @type {Record<string, unknown>} */ (flode);
@@ -117,15 +117,15 @@ export function lasArendeflode(rat) {
   if (!Array.isArray(kropp.items)) {
     return {
       ...tomt,
-      fel: `Flödet saknar en lista i "items" (fick ${kropp.items === undefined ? "inget fält" : typeof kropp.items}).`,
-      uppdaterad: typeof kropp.updated === "string" ? kropp.updated : null,
+      error: `Flödet saknar en lista i "items" (fick ${kropp.items === undefined ? "inget fält" : typeof kropp.items}).`,
+      updatedAt: typeof kropp.updated === "string" ? kropp.updated : null,
     };
   }
 
   return {
-    poster: /** @type {Post[]} */ (kropp.items),
-    fanns: true,
-    fel: null,
-    uppdaterad: typeof kropp.updated === "string" ? kropp.updated : null,
+    entries: /** @type {Post[]} */ (kropp.items),
+    existed: true,
+    error: null,
+    updatedAt: typeof kropp.updated === "string" ? kropp.updated : null,
   };
 }

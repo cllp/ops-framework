@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { arBild as arBildtyp, bilagestorlek, lasBilaga } from "../lib/fil.js";
+import { isImage as arBildtyp, attachmentSize, readAttachment } from "../lib/file.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { FilIkon, GemIkon } from "./icons.jsx";
 
@@ -15,7 +15,7 @@ import { FilIkon, GemIkon } from "./icons.jsx";
  * skärmbild av ett dokument man redan har.
  *
  * ⛔ Bilder får särbehandling INUTI komponenten (de krymps och visas), men
- * aldrig i namnet eller i kontraktet. Se `lib/fil.js` för varför bara bilder går
+ * aldrig i namnet eller i kontraktet. Se `lib/file.js` för varför bara bilder går
  * att krympa.
  *
  * ══ ⛔ URKLIPPET ÄR EN FÖRSTAKLASSVÄG, INTE EN GENVÄG ═══════════════════
@@ -40,13 +40,13 @@ import { FilIkon, GemIkon } from "./icons.jsx";
 
 /**
  * @param {object} props
- * @param {import("../lib/fil.js").Bilaga | null} props.value
- * @param {(bilaga: import("../lib/fil.js").Bilaga | null) => void} props.onChange
+ * @param {import("../lib/file.js").Bilaga | null} props.value
+ * @param {(attachment: import("../lib/file.js").Bilaga | null) => void} props.onChange
  * @param {number} props.maxChars Tak för data-URL:en i tecken. Plattformen äger talet: ramverket vet inte vad den lagrar i.
  * @param {string} [props.accept] Vad filväljaren erbjuder. ⛔ Ett filter, aldrig ett skydd: en fil kan alltid dras in eller klistras in ändå.
  * @param {boolean} [props.paste] Ta emot inklistrade filer. Av när två väljare delar yta.
  * @param {string} [props.ariaLabel] Vad som ska bifogas, för den som inte ser knappen.
- * @param {{ valj?: string, byt?: string, taBort?: string, klistra?: string }} [props.labels]
+ * @param {{ valj?: string, byt?: string, remove?: string, klistra?: string }} [props.labels]
  */
 export function OpsFilePicker({
   value,
@@ -58,7 +58,7 @@ export function OpsFilePicker({
   labels = {},
 }) {
   const filRef = useRef(/** @type {HTMLInputElement | null} */ (null));
-  const [fel, setFel] = useState("");
+  const [error, setFel] = useState("");
   const [laser, setLaser] = useState(false);
   const felId = useId();
 
@@ -68,12 +68,12 @@ export function OpsFilePicker({
     );
   }
 
-  const ta = async (/** @type {File | Blob | null} */ fil) => {
-    if (!fil) return;
+  const ta = async (/** @type {File | Blob | null} */ file) => {
+    if (!file) return;
     setFel("");
     setLaser(true);
     try {
-      onChange(await lasBilaga(fil, { maxTecken: maxChars }));
+      onChange(await readAttachment(file, { maxChars: maxChars }));
     } catch (err) {
       onChange(null);
       setFel(err instanceof Error ? err.message : "Filen kunde inte läsas.");
@@ -98,7 +98,7 @@ export function OpsFilePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paste, maxChars]);
 
-  const arBild = Boolean(value && arBildtyp(value.typ));
+  const isImage = Boolean(value && arBildtyp(value.typ));
 
   return (
     <div className="flex flex-col gap-2">
@@ -110,14 +110,14 @@ export function OpsFilePicker({
         type="file"
         accept={accept}
         aria-label={ariaLabel}
-        aria-describedby={fel ? felId : undefined}
+        aria-describedby={error ? felId : undefined}
         onChange={(e) => {
-          const fil = e.target.files && e.target.files[0];
+          const file = e.target.files && e.target.files[0];
           // ⛔ Nollställ fältet direkt. Utan det går det inte att välja SAMMA fil
           // igen efter att man tagit bort den, eftersom `change` inte fyrar när
           // värdet är oförändrat.
           e.target.value = "";
-          ta(fil);
+          ta(file);
         }}
         className="sr-only"
       />
@@ -128,7 +128,7 @@ export function OpsFilePicker({
         </OpsButton>
         {value ? (
           <OpsButton variant="ghost" onClick={() => onChange(null)}>
-            {labels.taBort ?? "Ta bort"}
+            {labels.remove ?? "Ta bort"}
           </OpsButton>
         ) : null}
         {/* ⛔ HINTEN GÖMS PÅ TELEFON, inte lyssnaren. Att ta en skärmbild och
@@ -149,15 +149,15 @@ export function OpsFilePicker({
 
       {/* ⛔ `role="alert"` så orsaken LÄSES UPP. En röd rad som bara syns lämnar
           den som inte ser skärmen med en knapp som inte gjorde något. */}
-      {fel ? (
+      {error ? (
         <p id={felId} role="alert" className="m-0 text-sm text-danger">
-          {fel}
+          {error}
         </p>
       ) : null}
 
       {value ? (
         <figure className="m-0">
-          {arBild ? (
+          {isImage ? (
             // Förhandsvisningen är liten med flit: den ska bekräfta att rätt fil
             // valts, inte visa den i full storlek i ett formulär.
             <img src={value.dataUrl} alt={`Vald bilaga: ${value.namn}`} className="max-h-40 rounded-md border border-line" />
@@ -172,8 +172,8 @@ export function OpsFilePicker({
             </div>
           )}
           <figcaption className="mt-1 text-sm text-ink-muted">
-            {arBild && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
-            {bilagestorlek(value.tecken)}
+            {isImage && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
+            {attachmentSize(value.tecken)}
           </figcaption>
         </figure>
       ) : null}

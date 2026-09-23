@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { bradska } from "../lib/handelser.js";
+import { urgency } from "../lib/events.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsCard } from "./OpsCard.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
@@ -27,7 +27,7 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
  * Ramverket ritar den och tolkar den aldrig.
  *
  * ⛔ SÅ SNART EN RAD HAR EN MÅSTE LISTAN FÖRKLARA DE SOM INTE HAR DET, i
- * `atgardsforklaring`. Det är inte artighet utan komponentens enda svar på ett
+ * `actionHint`. Det är inte artighet utan komponentens enda svar på ett
  * fel vi redan haft: en lista där vissa rader går att göra något åt och andra
  * ser likadana ut lär användaren att trycka på måfå. Den som tryckt förgäves en
  * gång slutar lita på hela listan, också de rader där knappen fanns.
@@ -59,7 +59,7 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
  * betala för en gest som inte finns, och vi har redan en dyr läxa om exakt det:
  * titeln fick 178 px i samma komponent och blev oläslig.
  *
- * Därför frågar listan sina egna rader först. Har ingen `detaljer` finns ingen
+ * Därför frågar listan sina egna rader först. Har ingen `details` finns ingen
  * kolumn. Har någon det får alla den, för ojämna vänsterkanter läses som slarv.
  *
  * ── ⛔ FÄRGEN BÄR INTE BETYDELSEN ────────────────────────────────────────
@@ -82,18 +82,18 @@ const TONER = {
 
 /**
  * @param {object} props
- * @param {import("../lib/handelser.js").Handelse[]} props.events
+ * @param {import("../lib/events.js").OpsEvent[]} props.events
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {string} [props.ariaLabel]
  * @param {{ forsenat?: string, pagar?: string, framat?: string, odaterat?: string }} [props.labels] Orden för de fyra lägena.
  * @param {import("react").ReactNode} [props.empty] Vad som visas när listan är tom. ⛔ Skicka alltid något: tom lista och "allt är gjort" betyder motsatta saker.
  * @param {string} [props.expandLabel] Verb för utfällningsknappens namn, följt av radens titel.
- * @param {import("react").ReactNode} [props.atgardsforklaring] En mening om VILKA rader som går
+ * @param {import("react").ReactNode} [props.actionHint] En mening om VILKA rader som går
  *   att göra något åt. ⛔ KRÄVS så snart någon rad har en `atgard` och någon annan inte har det.
- * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusOrd]
+ * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords]
  *   Orden för de fem statuslägena. ⛔ KRÄVS för varje status som faktiskt förekommer: en prick
  *   utan ord är en färg som bär betydelsen ensam, och det är osynligt för skärmläsaren och för
- *   ungefär var tjugonde man. Orden är appens, eftersom bara den vet vad `vantar` betyder hos
+ *   ungefär var tjugonde man. Orden är appens, eftersom bara den vet vad `waiting` betyder hos
  *   just den: "väntar på motpart" i ett ops-flöde och "väntar på granskning" i nästa.
  */
 export function OpsEventList({
@@ -103,14 +103,14 @@ export function OpsEventList({
   labels = {},
   empty = null,
   expandLabel = "Visa detaljer för",
-  atgardsforklaring = null,
-  statusOrd = {},
+  actionHint = null,
+  statusWords = {},
 }) {
   // ⛔ BARA FÖRSENAT FÅR ETT ORD SOM STANDARD, och det följer direkt av
   // TONER ovan: försenat är det enda läget som lånar larmfärgen, alltså det
   // enda där färgen skulle bära betydelse ensam.
   //
-  // De andra tre får sitt sammanhang ur `nar` ("Pågår (15-20)", "Om 3 dagar").
+  // De andra tre får sitt sammanhang ur `when` ("Pågår (15-20)", "Om 3 dagar").
   // Första versionen satte `pagar: "Nu"`, och raden sade då både "Nu" och
   // "Pågår (15-20)" bredvid varandra: samma faktum två gånger, vilket får
   // läsaren att leta efter skillnaden.
@@ -132,8 +132,8 @@ export function OpsEventList({
   if (!events || events.length === 0) return empty;
 
   // Frågar raderna själva i stället för att ta en prop: en app som glömmer
-  // flaggan men skickar `detaljer` skulle annars få en pil som inte syns.
-  const nagonHarDetaljer = events.some((e) => Boolean(e && e.detaljer));
+  // flaggan men skickar `details` skulle annars få en pil som inte syns.
+  const nagonHarDetaljer = events.some((e) => Boolean(e && e.details));
 
   // Samma fråga för åtgärder, och av samma skäl.
   const nagonHarAtgard = events.some((e) => Boolean(e && e.atgard));
@@ -157,23 +157,23 @@ export function OpsEventList({
    * syns inte på skärmen hos den som byggde den: felet är osynligt just för den
    * som inte drabbas.
    *
-   * Orden kan inte ha ett standardvärde här. `vantar` betyder "hos en motpart"
+   * Orden kan inte ha ett standardvärde här. `waiting` betyder "hos en motpart"
    * i ett ops-flöde och "hos en granskare" i nästa, och ett ramverksord hade
    * blivit fel i den ena appen utan att någon märkte det.
    */
   /** @type {("oppet"|"pagar"|"vantar"|"klart"|"akut")[]} */
   const statusar = [];
   for (const e of events) if (e && e.status) statusar.push(e.status);
-  const utanOrd = [...new Set(statusar)].filter((st) => !statusOrd[st]);
+  const utanOrd = [...new Set(statusar)].filter((st) => !statusWords[st]);
   if (utanOrd.length > 0) {
     throw new Error(
-      `OpsEventList: rader har status ${utanOrd.join(", ")} men statusOrd saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`,
+      `OpsEventList: rader har status ${utanOrd.join(", ")} men statusWords saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`,
     );
   }
 
-  if (nagonHarAtgard && events.some((e) => e && !e.atgard) && !atgardsforklaring) {
+  if (nagonHarAtgard && events.some((e) => e && !e.atgard) && !actionHint) {
     throw new Error(
-      "OpsEventList: några rader har en atgard och andra inte, men listan saknar atgardsforklaring. En lista där vissa rader går att göra något åt och andra ser likadana ut lär den som läser att trycka på måfå.",
+      "OpsEventList: några rader har en action och andra inte, men listan saknar actionHint. En lista där vissa rader går att göra något åt och andra ser likadana ut lär den som läser att trycka på måfå.",
     );
   }
 
@@ -184,10 +184,10 @@ export function OpsEventList({
   // kort. CP (bolag-ops Idag): två kundfakturor i "kräver dig nu" låg i ETT
   // mörkt kort med streck emellan; Inkorg har redan ett kort per post med
   // gap-3. Samma mönster här så Idag/Kommande och Inkorg läses likadant.
-  const lista = (
+  const list = (
     <ul className="m-0 flex list-none flex-col gap-3 p-0" aria-label={ariaLabel}>
       {events.map((h) => {
-        const lage = bradska(h);
+        const lage = urgency(h);
         const marke = ord[lage];
         // ⛔ Bunden till en const och inte läst som `h.url` i klickhanteraren:
         // TypeScript smalnar inte av ett fält inuti en closure, så `h.url` är
@@ -195,7 +195,7 @@ export function OpsEventList({
         const url = h.url;
         const oppen = oppna.indexOf(h.id) >= 0;
         const panelId = `${idBas}-${h.id}`;
-        const harDetaljer = Boolean(h.detaljer);
+        const harDetaljer = Boolean(h.details);
 
         return (
           <li key={h.id}>
@@ -211,7 +211,7 @@ export function OpsEventList({
               slaget som en kant hade fått rita sin egen. Att lägga till två
               rader här är hela skillnaden.
             */}
-            <OpsCard rundning="bubbla" edge={h.kant} edgeLabel={h.kantLabel}>
+            <OpsCard rounding="bubbla" edge={h.edge} edgeLabel={h.edgeLabel}>
             {/* ⛔ Chevron HÖGER, samma sida som OpsDisclosure/Inkorg (CP 2026-09-21). */}
             <div className="flex items-start gap-1">
               <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">
@@ -228,13 +228,13 @@ export function OpsEventList({
                     det grövsta beskedet: vad som händer med raden alls, före vem
                     som ska göra något åt den. */}
                 {/* ⛔ `|| ""` är inte en nedsläppsväg: vakten ovanför har redan
-                    kastat om ordet saknas. Den står här för att `statusOrd` är
+                    kastat om ordet saknas. Den står här för att `statusWords` är
                     en valfri karta i typen, och en tom sträng får `OpsStatusDot`
                     att kasta i stället för att rita en stum prick, om någon
                     skulle ta bort vakten. */}
-                {h.status ? <OpsStatusDot status={h.status} label={statusOrd[h.status] || ""} /> : null}
+                {h.status ? <OpsStatusDot status={h.status} label={statusWords[h.status] || ""} /> : null}
 
-                {h.roll ? <span className="shrink-0">{h.roll}</span> : null}
+                {h.role ? <span className="shrink-0">{h.role}</span> : null}
 
                 {marke ? (
                   <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONER[lage])}>{marke}</span>
@@ -246,7 +246,7 @@ export function OpsEventList({
                     ögat inte vet vilket märke som betyder mest, och brådskan är det
                     enda som ska kunna ta uppmärksamhet.
                     Dämpad färg av samma skäl: slaget är sammanhang, inte larm. */}
-                {h.slag ? <span className="min-w-0 truncate text-sm text-ink-muted">{h.slag}</span> : null}
+                {h.kind ? <span className="min-w-0 truncate text-sm text-ink-muted">{h.kind}</span> : null}
 
                 {/* ⛔ NÄR OCH DEADLINE HÅLLS IHOP I ETT ELEMENT, inte som två
                     syskon i flexraden. De svarar på samma fråga ur två håll ("hur
@@ -273,15 +273,15 @@ export function OpsEventList({
                     för hela gruppen så datum och #183 landar uppe till höger i
                     den kompakta raden (CP: uppdaterad top-right, ärendenummer
                     i stället för "Öppna"). */}
-                {h.nar || h.deadline || h.uppdaterad || url ? (
+                {h.when || h.deadline || h.updatedAt || url ? (
                   <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-sm tabular-nums text-ink-secondary">
-                    {h.nar ? <span>{h.nar}</span> : null}
+                    {h.when ? <span>{h.when}</span> : null}
                     {/* ⛔ Dämpad, inte framhävd. Deadline är ett faktum man skriver
                         in i en kalender, inte ett larm: brådskan är redan sagd av
                         märket till vänster, och skulle datumet också ta
                         uppmärksamhet konkurrerar två fält om samma roll. */}
                     {h.deadline ? <span className="text-ink-muted">{h.deadline}</span> : null}
-                    {h.uppdaterad ? <span className="text-ink-muted">{h.uppdaterad}</span> : null}
+                    {h.updatedAt ? <span className="text-ink-muted">{h.updatedAt}</span> : null}
                     {url ? (
                       <a
                         href={url}
@@ -298,7 +298,7 @@ export function OpsEventList({
                             inte uppläses som samma ord. */}
                         <span aria-hidden="true">{h.urlLabel || "Öppna"}</span>
                         <span className="sr-only">
-                          {h.urlLabel ? `${h.urlLabel} ${h.titel}` : `Öppna ${h.titel}`}
+                          {h.urlLabel ? `${h.urlLabel} ${h.title}` : `Öppna ${h.title}`}
                         </span>
                       </a>
                     ) : null}
@@ -325,7 +325,7 @@ export function OpsEventList({
                   brytpunkt: en titel som får halva bredden på en smal skärm och
                   hela på en bred är samma komponent med två utseenden, och det är
                   den sortens skillnad som gör att bara den ena blir provad. */}
-              <span className="text-ink">{h.titel}</span>
+              <span className="text-ink">{h.title}</span>
 
               {/* ⛔ EGEN RAD UNDER TITELN, INTE BREDVID DEN. Samma mätning som
                   titeln bygger på: vid 390 px finns ~280 px kvar efter
@@ -355,7 +355,7 @@ export function OpsEventList({
                     )}
                   >
                     <span className="sr-only">
-                      {expandLabel} {h.titel}
+                      {expandLabel} {h.title}
                     </span>
                     <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
                       <ChevronNedIkon size={16} />
@@ -372,7 +372,7 @@ export function OpsEventList({
                 så ingen pl-12-indrag från vänsterkolumn. */}
             {harDetaljer ? (
               <div id={panelId} hidden={!oppen} className="mt-2 text-sm text-ink-secondary">
-                {h.detaljer}
+                {h.details}
               </div>
             ) : null}
             </OpsCard>
@@ -382,7 +382,7 @@ export function OpsEventList({
     </ul>
   );
 
-  if (!atgardsforklaring) return lista;
+  if (!actionHint) return list;
 
   /*
    * ⛔ ÖVER LISTAN OCH INTE UNDER DEN. Förklaringen är något man behöver INNAN
@@ -391,8 +391,8 @@ export function OpsEventList({
    */
   return (
     <div className="flex flex-col gap-2">
-      <p className="m-0 text-sm text-ink-muted">{atgardsforklaring}</p>
-      {lista}
+      <p className="m-0 text-sm text-ink-muted">{actionHint}</p>
+      {list}
     </div>
   );
 }

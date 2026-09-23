@@ -40,7 +40,7 @@ const SPRAK = "sv-SE";
  * ⛔ Negativa tal får dessutom U+2212 MINUSTECKEN, inte bindestreck. Samma
  * fälla, samma lösning: jämför inte på tecknet.
  */
-export const TALMELLANSLAG = /[\u00A0\u202F\u2009\u2007\u0020]/g;
+export const NUMBER_SPACE = /[\u00A0\u202F\u2009\u2007\u0020]/g;
 
 /**
  * Vad som visas när ett värde saknas.
@@ -54,7 +54,7 @@ export const TALMELLANSLAG = /[\u00A0\u202F\u2009\u2007\u0020]/g;
  * negativt tal: `Intl` sätter U+2212 MINUSTECKEN framför negativa belopp, inte
  * bindestreck. Uppmätt, inte antaget.
  */
-export const SAKNAS = "-";
+export const MISSING = "-";
 
 /**
  * Belopp med valuta.
@@ -63,7 +63,7 @@ export const SAKNAS = "-";
  * @returns {string}
  */
 export function formatCurrency(varde, val = {}) {
-  if (varde === null || varde === undefined || Number.isNaN(varde)) return SAKNAS;
+  if (varde === null || varde === undefined || Number.isNaN(varde)) return MISSING;
   const { currency = "SEK", decimals = 0, locale = SPRAK } = val;
   return new Intl.NumberFormat(locale, {
     style: "currency",
@@ -80,7 +80,7 @@ export function formatCurrency(varde, val = {}) {
  * @returns {string}
  */
 export function formatNumber(varde, val = {}) {
-  if (varde === null || varde === undefined || Number.isNaN(varde)) return SAKNAS;
+  if (varde === null || varde === undefined || Number.isNaN(varde)) return MISSING;
   const { decimals = 0, locale = SPRAK } = val;
   return new Intl.NumberFormat(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(varde);
 }
@@ -96,7 +96,7 @@ export function formatNumber(varde, val = {}) {
  * @returns {string}
  */
 export function formatPercent(andel, val = {}) {
-  if (andel === null || andel === undefined || Number.isNaN(andel)) return SAKNAS;
+  if (andel === null || andel === undefined || Number.isNaN(andel)) return MISSING;
   const { decimals = 0, locale = SPRAK } = val;
   return new Intl.NumberFormat(locale, { style: "percent", minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(andel);
 }
@@ -114,7 +114,7 @@ export function formatPercent(andel, val = {}) {
  */
 export function formatDate(varde, val = {}) {
   const d = tillDatum(varde);
-  if (!d) return SAKNAS;
+  if (!d) return MISSING;
   const { style = "short", locale = SPRAK } = val;
   const renDatumstrang = typeof varde === "string" && /^\d{4}-\d{2}-\d{2}$/.test(varde);
 
@@ -140,7 +140,7 @@ export function formatDate(varde, val = {}) {
  */
 export function formatDateTime(varde, val = {}) {
   const d = tillDatum(varde);
-  if (!d) return SAKNAS;
+  if (!d) return MISSING;
   return new Intl.DateTimeFormat(val.locale ?? SPRAK, {
     year: "numeric",
     month: "2-digit",
@@ -171,9 +171,9 @@ export function formatDateTime(varde, val = {}) {
  */
 export function formatRelativeDate(varde, val = {}) {
   const d = tillDatum(varde);
-  if (!d) return SAKNAS;
+  if (!d) return MISSING;
   const nu = tillDatum(val.now ?? Date.now());
-  if (!nu) return SAKNAS;
+  if (!nu) return MISSING;
   const locale = val.locale ?? SPRAK;
 
   const dagar = Math.round((midnatt(d) - midnatt(nu)) / 86400000);

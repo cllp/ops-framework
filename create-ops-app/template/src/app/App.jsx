@@ -1,9 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { OpsAppShell, OpsDataProvider, OpsThemeToggle, OpsToastProvider, skapaMinneskalla } from "@staiger/ops-framework";
+import { OpsAppShell, OpsDataProvider, OpsThemeToggle, OpsToastProvider, createMemorySource } from "@staiger/ops-framework";
 import { DashboardView } from "./views/DashboardView.jsx";
 import { PrimitivesView } from "./views/PrimitivesView.jsx";
 import { NotFoundView } from "./views/NotFoundView.jsx";
-import { Felgrans } from "../lib/Felgrans.jsx";
+import { ErrorBoundary } from "../lib/ErrorBoundary.jsx";
 
 const SIDOR = [
   { href: "/", label: "Översikt" },
@@ -15,7 +15,7 @@ const SIDOR = [
  * appen ska gå att köra innan någon bestämt var datan bor, inte för att den är
  * ett rimligt slutläge: allt försvinner vid omladdning.
  */
-const kalla = skapaMinneskalla();
+const source = createMemorySource();
 
 function Skal({ children }) {
   const { pathname } = useLocation();
@@ -41,21 +41,21 @@ function Skal({ children }) {
 
 export function App() {
   return (
-    <OpsDataProvider kalla={kalla}>
+    <OpsDataProvider source={source}>
       <OpsToastProvider>
         <BrowserRouter>
           <Skal>
             {/* ⛔ Felgränsen ligger INNANFÖR routern. Utanför slår ett fel i en
                 enda vy ut hela appen, och användaren har ingen väg tillbaka
                 utom att ladda om. */}
-            <Felgrans>
+            <ErrorBoundary>
               <Routes>
                 <Route path="/" element={<DashboardView />} />
                 <Route path="/primitiver" element={<PrimitivesView />} />
                 <Route path="/hem" element={<Navigate to="/" replace />} />
                 <Route path="*" element={<NotFoundView />} />
               </Routes>
-            </Felgrans>
+            </ErrorBoundary>
           </Skal>
         </BrowserRouter>
       </OpsToastProvider>

@@ -54,7 +54,7 @@ describe("OpsToggleRow", () => {
      * Provet mäter just det: kontrollen får inte ligga i knappen.
      */
     render(
-      <OpsToggleRow label="Mat" value="8 000 kr/mån" on onChange={() => {}} kontroll={<input type="range" aria-label="Justera Mat" />} />,
+      <OpsToggleRow label="Mat" value="8 000 kr/mån" on onChange={() => {}} control={<input type="range" aria-label="Justera Mat" />} />,
     );
 
     const knapp = screen.getByRole("button", { name: /Mat/ });
@@ -68,7 +68,7 @@ describe("OpsToggleRow", () => {
     // egen panel innan.
     const vaxla = vi.fn();
     render(
-      <OpsToggleRow label="Mat" value="8 000 kr/mån" on onChange={vaxla} kontroll={<input type="range" aria-label="Justera Mat" />} />,
+      <OpsToggleRow label="Mat" value="8 000 kr/mån" on onChange={vaxla} control={<input type="range" aria-label="Justera Mat" />} />,
     );
 
     fireEvent.click(screen.getByRole("slider", { name: "Justera Mat" }));
@@ -175,11 +175,11 @@ describe("OpsFilterChip", () => {
     rerender(
       <OpsFilterChip variant="icon" options={medIkon} value="pengar" onChange={() => {}} ariaLabel="Typ" allLabel="Alla typer" />,
     );
-    const aktiv = screen.getByRole("button", { name: "Typ: Pengar" });
-    expect(aktiv).toHaveAttribute("aria-pressed", "true");
-    expect(aktiv.className).toMatch(/text-accent/);
+    const active = screen.getByRole("button", { name: "Typ: Pengar" });
+    expect(active).toHaveAttribute("aria-pressed", "true");
+    expect(active.className).toMatch(/text-accent/);
 
-    fireEvent.click(aktiv);
+    fireEvent.click(active);
     expect(screen.getByTestId("ikon-pengar")).toBeInTheDocument();
     expect(screen.getByTestId("ikon-alla")).toBeInTheDocument();
   });

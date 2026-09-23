@@ -1,4 +1,4 @@
-import { skapaDatakalla } from "./kontrakt.js";
+import { createDataSource } from "./contract.js";
 
 /**
  * Adapter mot Postgres, till exempel Cloud SQL i Google Cloud.
@@ -12,10 +12,10 @@ import { skapaDatakalla } from "./kontrakt.js";
  *
  * ```js
  * import { Pool } from "pg";
- * import { skapaPostgresKalla } from "@staiger/ops-framework";
+ * import { createPostgresSource } from "@staiger/ops-framework";
  *
  * const pool = new Pool({ ... });
- * const kalla = skapaPostgresKalla({
+ * const kalla = createPostgresSource({
  *   fraga: async (sql, params) => (await pool.query(sql, params)).rows,
  * });
  * ```
@@ -34,24 +34,24 @@ import { skapaDatakalla } from "./kontrakt.js";
  * matchar avvisas med ett fel i stället för att skickas vidare, för en
  * injektion som går igenom syns inte i något testfall.
  *
- * @param {string} namn @returns {string}
+ * @param {string} name @returns {string}
  */
-function identifierare(namn) {
-  if (typeof namn !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(namn)) {
+function identifier(name) {
+  if (typeof name !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
     throw new Error(
-      `postgres: "${namn}" duger inte som tabell- eller kolumnnamn. Endast bokstäver, siffror och understreck, och inte inledande siffra. ` +
+      `postgres: "${name}" duger inte som tabell- eller kolumnnamn. Endast bokstäver, siffror och understreck, och inte inledande siffra. ` +
         "Namn kan inte skickas som parametrar, så ett namn som släpps igenom är en väg in för SQL-injektion.",
     );
   }
-  return `"${namn}"`;
+  return `"${name}"`;
 }
 
 /**
  * @template {{ id: string }} T
- * @param {{ fraga: (sql: string, params: unknown[]) => Promise<any[]>, idKolumn?: string }} konfig
- * @returns {import("./kontrakt.js").Datakalla<T>}
+ * @param {{ query: (sql: string, params: unknown[]) => Promise<any[]>, idColumn?: string }} config
+ * @returns {import("./contract.js").DataSource<T>}
  */
-export function skapaPostgresKalla(konfig) {
+export function createPostgresSource(config) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
    *
@@ -65,82 +65,82 @@ export function skapaPostgresKalla(konfig) {
    * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
-  const { fraga, idKolumn = "id" } = konfig ?? /** @type {any} */ ({});
-  if (typeof fraga !== "function") {
-    throw new Error("skapaPostgresKalla: fraga krävs och ska vara en funktion (sql, params) => Promise<rader>.");
+  const { query, idColumn = "id" } = config ?? /** @type {any} */ ({});
+  if (typeof query !== "function") {
+    throw new Error("createPostgresSource: query krävs och ska vara en funktion (sql, params) => Promise<rader>.");
   }
-  const ID = identifierare(idKolumn);
+  const ID = identifier(idColumn);
 
-  return skapaDatakalla({
-    namn: "postgres",
+  return createDataSource({
+    name: "postgres",
 
-    async las(samling, id) {
-      const rader = await fraga(`SELECT * FROM ${identifierare(samling)} WHERE ${ID} = $1 LIMIT 1`, [id]);
+    async read(collectionName, id) {
+      const rows = await query(`SELECT * FROM ${identifier(collectionName)} WHERE ${ID} = $1 LIMIT 1`, [id]);
       // ⛔ `?? null` och inte `|| null`: ett tomt objekt eller nollvärde är ett
       // giltigt svar och ska inte förvandlas till "finns inte".
-      return rader[0] ?? null;
+      return rows[0] ?? null;
     },
 
-    async lista(samling, fragaVal) {
+    async list(collectionName, queryArg) {
       const params = [];
-      let sql = `SELECT * FROM ${identifierare(samling)}`;
+      let sql = `SELECT * FROM ${identifier(collectionName)}`;
 
-      if (fragaVal?.dar) {
-        const delar = Object.entries(fragaVal.dar).map(([falt, varde]) => {
-          params.push(varde);
-          return `${identifierare(falt)} = $${params.length}`;
+      if (queryArg?.where) {
+        const delar = Object.entries(queryArg.where).map(([field, value]) => {
+          params.push(value);
+          return `${identifier(field)} = $${params.length}`;
         });
         if (delar.length > 0) sql += ` WHERE ${delar.join(" AND ")}`;
       }
 
-      if (fragaVal?.sortera) {
+      if (queryArg?.sortBy) {
         // Riktningen är en sluten mängd, aldrig inskickad text.
-        sql += ` ORDER BY ${identifierare(fragaVal.sortera)} ${fragaVal.riktning === "ner" ? "DESC" : "ASC"}`;
+        sql += ` ORDER BY ${identifier(queryArg.sortBy)} ${queryArg.direction === "desc" ? "DESC" : "ASC"}`;
       }
 
-      if (typeof fragaVal?.antal === "number") {
-        params.push(fragaVal.antal);
+      if (typeof queryArg?.limit === "number") {
+        params.push(queryArg.limit);
         sql += ` LIMIT $${params.length}`;
       }
 
-      return fraga(sql, params);
+      return query(sql, params);
     },
 
-    async skapa(samling, data) {
-      const poster = Object.entries(/** @type {any} */ (data));
-      if (poster.length === 0) throw new Error("postgres: skapa utan fält. En tom rad är nästan alltid ett programfel.");
+    async create(collectionName, data) {
+      const entries = Object.entries(/** @type {any} */ (data));
+      if (entries.length === 0) throw new Error("postgres: skapa utan fält. En tom rad är nästan alltid ett programfel.");
 
-      const kolumner = poster.map(([k]) => identifierare(k)).join(", ");
-      const platser = poster.map((_, i) => `$${i + 1}`).join(", ");
-      const rader = await fraga(
-        `INSERT INTO ${identifierare(samling)} (${kolumner}) VALUES (${platser}) RETURNING *`,
-        poster.map(([, v]) => v),
+      const columns = entries.map(([k]) => identifier(k)).join(", ");
+      const placeholders = entries.map((_, i) => `$${i + 1}`).join(", ");
+      const rows = await query(
+        `INSERT INTO ${identifier(collectionName)} (${columns}) VALUES (${placeholders}) RETURNING *`,
+        entries.map(([, v]) => v),
       );
       // RETURNING, inte en gissning: databasen kan sätta id, tidsstämplar och
       // standardvärden som appen inte känner till.
-      return rader[0];
+      return rows[0];
     },
 
-    async uppdatera(samling, id, data) {
-      const poster = Object.entries(/** @type {any} */ (data)).filter(([k]) => k !== idKolumn);
-      if (poster.length === 0) throw new Error("postgres: uppdatera utan fält att ändra.");
+    async update(collectionName, id, data) {
+      const entries = Object.entries(/** @type {any} */ (data)).filter(([k]) => k !== idColumn);
+      if (entries.length === 0) throw new Error("postgres: uppdatera utan fält att ändra.");
 
-      const satt = poster.map(([k], i) => `${identifierare(k)} = $${i + 1}`).join(", ");
-      const params = [...poster.map(([, v]) => v), id];
-      const rader = await fraga(
-        `UPDATE ${identifierare(samling)} SET ${satt} WHERE ${ID} = $${params.length} RETURNING *`,
+      const satt = entries.map(([k], i) => `${identifier(k)} = $${i + 1}`).join(", ");
+      const params = [...entries.map(([, v]) => v), id];
+      const rows = await query(
+        `UPDATE ${identifier(collectionName)} SET ${satt} WHERE ${ID} = $${params.length} RETURNING *`,
         params,
       );
 
       // ⛔ Noll rader betyder att posten inte fanns. Att returnera undefined
       // hade låtit anropsstället tro att uppdateringen lyckades.
-      if (rader.length === 0) throw new Error(`postgres: ${samling}/${id} finns inte. Ingen rad uppdaterades.`);
-      return rader[0];
+      if (rows.length === 0) throw new Error(`postgres: ${collectionName}/${id} finns inte. Ingen rad uppdaterades.`);
+      return rows[0];
     },
 
-    async taBort(samling, id) {
-      const rader = await fraga(`DELETE FROM ${identifierare(samling)} WHERE ${ID} = $1 RETURNING ${ID}`, [id]);
-      if (rader.length === 0) throw new Error(`postgres: ${samling}/${id} finns inte. Ingen rad togs bort.`);
+    async remove(collectionName, id) {
+      const rows = await query(`DELETE FROM ${identifier(collectionName)} WHERE ${ID} = $1 RETURNING ${ID}`, [id]);
+      if (rows.length === 0) throw new Error(`postgres: ${collectionName}/${id} finns inte. Ingen rad togs bort.`);
     },
   });
 }

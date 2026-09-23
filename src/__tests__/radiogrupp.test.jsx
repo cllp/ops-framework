@@ -31,9 +31,9 @@ describe("OpsRadioGroup", () => {
     // ⛔ Utan gemensamt `name` är de fyra oberoende kryssrutor i radioskepnad:
     // piltangenterna hoppar inte mellan dem och två kan bli valda samtidigt.
     render(<OpsRadioGroup options={val} value="ekonomi" onChange={() => {}} ariaLabel="Sort" />);
-    const namn = new Set(screen.getAllByRole("radio").map((r) => r.getAttribute("name")));
-    expect(namn.size).toBe(1);
-    expect([...namn][0]).toBeTruthy();
+    const name = new Set(screen.getAllByRole("radio").map((r) => r.getAttribute("name")));
+    expect(name.size).toBe(1);
+    expect([...name][0]).toBeTruthy();
   });
 
   it("markerar det valda och bara det", () => {

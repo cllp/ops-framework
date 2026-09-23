@@ -13,7 +13,7 @@
  * redan gäller.
  *
  * ⛔ GRÄNSEN ÄR EN VAKT. `scripts/check-nodsida.mjs` gör det till rött bygge om
- * något under `src/` utanför `src/nod/` importerar härifrån, och kräver dessutom
+ * något under `src/` utanför `src/node/` importerar härifrån, och kräver dessutom
  * att varje export här nämns i README. Utan det första vore gränsen ett löfte om
  * att en hemlighet inte läcker, alltså värt vad den som bryter det råkar minnas.
  * Utan det andra hade ramverket fått en publik yta som dokumentationsvakten inte
@@ -24,4 +24,4 @@
  * synk med källan, för noll vinst: Node läser ESM som det är.
  */
 
-export { skapaArendespegel } from "./arendespegel.js";
+export { createCaseMirror } from "./caseMirror.js";

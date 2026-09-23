@@ -44,12 +44,12 @@ import { cx } from "../lib/cx.js";
  * kvar för alltid, alltså precis det som skulle bort.
  *
  * @param {object} props
- * @param {import("react").ReactNode} props.rubrik Rubriken. Ett rubrikelement, inte en sträng.
+ * @param {import("react").ReactNode} props.title Rubriken. Ett rubrikelement, inte en sträng.
  * @param {import("react").ReactNode} [props.children] Förklaringen. Saknas den ritas ingen knapp.
  * @param {string} [props.label] Skärmläsarens ord för tecknet.
  */
-export function OpsHjalp({ rubrik, children, label = "Visa förklaring" }) {
-  if (!children) return rubrik;
+export function OpsHelp({ title, children, label = "Visa förklaring" }) {
+  if (!children) return title;
 
   return (
     <details className="group min-w-0">
@@ -61,7 +61,7 @@ export function OpsHjalp({ rubrik, children, label = "Visa förklaring" }) {
           "rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         )}
       >
-        {rubrik}
+        {title}
         {/*
           ⛔ ETT TECKEN OCH INTE EN BILD. "?" betyder förklaring i varje
           gränssnitt som finns, och en ikon hade varit en bild till att ladda och

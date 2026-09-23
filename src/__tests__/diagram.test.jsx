@@ -101,7 +101,7 @@ describe("OpsShareChart", () => {
 
 describe("OpsShareChart, det som ingår i en bit", () => {
   const medDetaljer = [
-    { id: "pension", label: "Pension", value: 5285733, text: "5 285 733 kr", detaljer: <p>Minpension, ITP</p> },
+    { id: "pension", label: "Pension", value: 5285733, text: "5 285 733 kr", details: <p>Minpension, ITP</p> },
     { id: "bostad", label: "Bostad", value: 6800000, text: "6 800 000 kr" },
   ];
 
@@ -153,18 +153,18 @@ describe("OpsShareChart, det som ingår i en bit", () => {
 
 describe("OpsRankChart", () => {
   const rader = [
-    { id: "brf", label: "Boende", value: 10918, text: "10 918 kr", niva: /** @type {3} */ (3) },
-    { id: "mat", label: "Mat", value: 5000, text: "5 000 kr", niva: /** @type {2} */ (2) },
-    { id: "strom", label: "Ström", value: 979, text: "979 kr", niva: /** @type {1} */ (1) },
+    { id: "brf", label: "Boende", value: 10918, text: "10 918 kr", level: /** @type {3} */ (3) },
+    { id: "mat", label: "Mat", value: 5000, text: "5 000 kr", level: /** @type {2} */ (2) },
+    { id: "strom", label: "Ström", value: 979, text: "979 kr", level: /** @type {1} */ (1) },
   ];
 
   it("bär varje värde som text, så listan går att läsa utan att mäta mot en axel", () => {
     // ⛔ Skalans ljusaste steg ligger nära ytan. En stapel som nästan är ytan
     // måste ha sin siffra skriven, annars är raden tom för den som inte ser den.
     render(<OpsRankChart rows={rader} ariaLabel="Kostnader" />);
-    const lista = screen.getByLabelText("Kostnader");
-    expect(within(lista).getByText("10 918 kr")).toBeInTheDocument();
-    expect(within(lista).getByText("979 kr")).toBeInTheDocument();
+    const list = screen.getByLabelText("Kostnader");
+    expect(within(list).getByText("10 918 kr")).toBeInTheDocument();
+    expect(within(list).getByText("979 kr")).toBeInTheDocument();
   });
 
   it("mäter mot det största värdet och inte mot summan", () => {
@@ -179,10 +179,10 @@ describe("OpsRankChart", () => {
 
   it("låter appen bestämma vad som är högt, och klarar sig utan bedömningen", () => {
     // ⛔ Var gränsen mellan hög och medel går är domän: tusen kronor kan vara
-    // mycket i en lista och försumbart i en annan. Utan `niva` får alla staplar
+    // mycket i en lista och försumbart i en annan. Utan `level` får alla staplar
     // samma ton, vilket är rätt och inte en degradering: längden bär redan
     // storleken.
-    const utan = rader.map(({ niva, ...r }) => r);
+    const utan = rader.map(({ level, ...r }) => r);
     const { container } = render(<OpsRankChart rows={utan} ariaLabel="Utan nivå" />);
     const toner = [...container.querySelectorAll("[class*='bg-scale-']")].map((el) =>
       (el.className.match(/bg-scale-\d/) || [])[0],

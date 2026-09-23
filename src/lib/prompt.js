@@ -3,7 +3,7 @@
  *
  * ── ⛔ SAMMA GRÄNS SOM DATALAGRET, AV SAMMA SKÄL ────────────────────────
  *
- * Ramverket når aldrig ett nätverk själv. `skapaDatakalla` finns för att en
+ * Ramverket når aldrig ett nätverk själv. `createDataSource` finns för att en
  * primitiv som kan sina egna HTTP-anrop är en primitiv som bara passar den app
  * den skrevs i, och det gäller ordagrant här: nyckeln, modellen, taket och
  * vilken leverantör det är hör hemma i appen. Ramverket äger rutan, väntan och
@@ -14,12 +14,12 @@
  *
  * ── ⛔ KONTRAKTET NÄMNER INGEN LEVERANTÖR ───────────────────────────────
  *
- * In: `{ prompt, sammanhang }`. Ut: `{ text, tokens }`. Inget `model`, inget
+ * In: `{ prompt, context }`. Ut: `{ text, tokens }`. Inget `model`, inget
  * `system`, inget `max_tokens`, ingen `anthropic`. Ett leverantörsfält här är
  * början på en primitiv som inte går att använda i nästa app, och det är exakt
  * den drift ramverket finns för att stoppa.
  *
- * `sammanhang` är ogenomskinligt för ramverket. Appen vet vad som får skickas
+ * `context` är ogenomskinligt för ramverket. Appen vet vad som får skickas
  * med och bär ansvaret för det: i bolag-ops får ingenting ur `assets/data/**`
  * någonsin nå en prompt.
  *
@@ -31,59 +31,59 @@
  */
 
 /**
- * @typedef {object} Promptsvar
+ * @typedef {object} PromptAnswer
  * @property {string} text Svaret, i markdown. Renderas av `OpsMarkdown`.
  * @property {{ in: number, ut: number }} [tokens] Vad anropet kostade, när appen vet det.
  */
 
 /**
- * @typedef {object} Promptkalla
- * @property {(fraga: { prompt: string, sammanhang?: any }) => Promise<Promptsvar>} fraga
- * @property {number} maxTecken
+ * @typedef {object} PromptSource
+ * @property {(query: { prompt: string, context?: any }) => Promise<PromptAnswer>} ask
+ * @property {number} maxChars
  */
 
 /**
  * Bygger en promptkälla ur appens egen skicka-funktion.
  *
  * ⛔ KASTAR PÅ EN TRASIG KONFIGURATION I STÄLLET FÖR VID FÖRSTA FRÅGAN.
- * En källa utan `skicka` ser ut att fungera ända tills någon skrivit en fråga
+ * En källa utan `send` ser ut att fungera ända tills någon skrivit en fråga
  * och tryckt, alltså upptäcks felet av användaren i stället för av den som
  * kopplade in den.
  *
- * @param {object} [konfig]
- * @param {(fraga: { prompt: string, sammanhang?: any }) => Promise<any>} [konfig.skicka]
- * @param {number} [konfig.maxTecken] Tak för frågans längd. ⛔ Ett tak i tecken och inte i
+ * @param {object} [config]
+ * @param {(query: { prompt: string, context?: any }) => Promise<any>} [config.send]
+ * @param {number} [config.maxChars] Tak för frågans längd. ⛔ Ett tak i tecken och inte i
  *   tokens: tokens går inte att räkna i webbläsaren utan att ta in en tokenizer, och ett tak
  *   som kräver ett bibliotek är ett tak som inte kommer att finnas.
- * @returns {Promptkalla}
+ * @returns {PromptSource}
  */
-export function skapaPromptkalla({ skicka, maxTecken = 2000 } = {}) {
-  if (typeof skicka !== "function") {
+export function createPromptSource({ send, maxChars = 2000 } = {}) {
+  if (typeof send !== "function") {
     throw new Error(
-      "skapaPromptkalla: skicka måste vara en funktion. Ramverket når aldrig ett nätverk själv, appen skickar in vägen ut.",
+      "createPromptSource: send måste vara en funktion. Ramverket når aldrig ett nätverk själv, appen skickar in vägen ut.",
     );
   }
-  if (!Number.isFinite(maxTecken) || maxTecken <= 0) {
-    throw new Error(`skapaPromptkalla: maxTecken måste vara ett positivt tal, fick ${maxTecken}.`);
+  if (!Number.isFinite(maxChars) || maxChars <= 0) {
+    throw new Error(`createPromptSource: maxChars måste vara ett positivt tal, fick ${maxChars}.`);
   }
 
   return {
-    maxTecken,
+    maxChars,
 
-    /** @param {{ prompt?: string, sammanhang?: any }} [fraga] */
-    async fraga({ prompt, sammanhang } = {}) {
+    /** @param {{ prompt?: string, context?: any }} [query] */
+    async ask({ prompt, context } = {}) {
       const text = typeof prompt === "string" ? prompt.trim() : "";
       if (!text) {
         throw new Error("Skriv en fråga först.");
       }
-      if (text.length > maxTecken) {
+      if (text.length > maxChars) {
         // ⛔ Stoppas här och inte i funktionen på andra sidan. En fråga som
         // avvisas efter ett nätanrop har redan kostat väntan, och felet är
         // dessutom något användaren kan rätta själv innan hen trycker.
-        throw new Error(`Frågan är ${text.length} tecken. Taket är ${maxTecken}.`);
+        throw new Error(`Frågan är ${text.length} tecken. Taket är ${maxChars}.`);
       }
 
-      const svar = await skicka({ prompt: text, sammanhang });
+      const svar = await send({ prompt: text, context });
 
       /*
        * ⛔ ETT SVAR UTAN TEXT ÄR ETT FEL, INTE ETT TOMT SVAR.

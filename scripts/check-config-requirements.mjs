@@ -42,7 +42,7 @@
  * tagit ställning till gör bygget rött, i stället för att tyst hamna utanför. Samma
  * mönster som destinationslistorna i bolag-ops: att glömma blir rött, inte tyst.
  *
- * Kör: node scripts/check-konfigkrav.mjs
+ * Kör: node scripts/check-config-requirements.mjs
  */
 
 import path from "node:path";
@@ -58,7 +58,7 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  * lägger till sin egen under, och listan blir en undantagshink.
  */
 const KLARAR_UTAN = {
-  skapaMinneskalla: "utan argument är en tom lagring, vilket är giltigt och används av varje prov",
+  createMemorySource: "utan argument är en tom lagring, vilket är giltigt och används av varje prov",
 };
 
 const misslyckanden = [];
@@ -76,7 +76,7 @@ const misslyckanden = [];
  * mot små fixturmoduler. En vakt ingen sett falla är en förhoppning.
  */
 const moduler = process.argv.slice(2);
-const vagar = moduler.length > 0 ? moduler : [path.join(rot, "dist", "index.js"), path.join(rot, "src", "nod", "index.js")];
+const vagar = moduler.length > 0 ? moduler : [path.join(rot, "dist", "index.js"), path.join(rot, "src", "node", "index.js")];
 
 /** @type {Record<string, any>} */
 const alla = {};
@@ -84,18 +84,24 @@ for (const vag of vagar) {
   try {
     Object.assign(alla, await import(path.resolve(vag)));
   } catch (e) {
-    console.error(`check-konfigkrav: kunde inte importera ${vag}. Fel sökväg i vakten, inte ett godkänt utfall.`);
+    console.error(`check-config-requirements: kunde inte importera ${vag}. Fel sökväg i vakten, inte ett godkänt utfall.`);
     console.error(`  ${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
   }
 }
 
 const fabriker = Object.keys(alla)
-  .filter((namn) => namn.startsWith("skapa") && typeof alla[namn] === "function")
+  /*
+   * ⛔ PREFIXET ÄR "create" SEDAN NAMNBYTET TILL ENGELSKA, och vakten hittade
+   * noll fabriker tills det ändrades. Att den sade ifrån i stället för att bli
+   * grön på en tom lista är precis vad den finns för: en vakt som blir grön av
+   * ingenting lovar ett skydd den inte ger.
+   */
+  .filter((namn) => namn.startsWith("create") && typeof alla[namn] === "function")
   .sort();
 
 if (fabriker.length === 0) {
-  console.error("check-konfigkrav: hittade noll fabriker. En tom lista gör vakten grön av fel skäl, alltså är den ett fel i sig.");
+  console.error("check-config-requirements: hittade noll fabriker. En tom lista gör vakten grön av fel skäl, alltså är den ett fel i sig.");
   process.exit(1);
 }
 
@@ -144,7 +150,7 @@ for (const namn of fabriker) {
 }
 
 if (misslyckanden.length > 0) {
-  console.error("check-konfigkrav: fabriker som inte säger vad appen glömde\n");
+  console.error("check-config-requirements: fabriker som inte säger vad appen glömde\n");
   for (const m of misslyckanden) {
     console.error(`  ${m.namn}`);
     console.error(`    ${m.varfor}`);
@@ -155,5 +161,5 @@ if (misslyckanden.length > 0) {
 
 const kravande = fabriker.length - Object.keys(KLARAR_UTAN).length;
 console.log(
-  `check-konfigkrav: ${fabriker.length} fabriker klassificerade, ${kravande} namnger sig vid tom konfiguration`,
+  `check-config-requirements: ${fabriker.length} fabriker klassificerade, ${kravande} namnger sig vid tom konfiguration`,
 );

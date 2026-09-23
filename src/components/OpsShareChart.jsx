@@ -99,7 +99,7 @@ const GLAPP = 1.2;
  * @property {import("react").ReactNode} label
  * @property {number} value Används för geometrin. Måste vara ett tal.
  * @property {import("react").ReactNode} [text] Värdet som det ska LÄSAS, t.ex. "4 600 000 kr". ⛔ Ramverket formaterar aldrig pengar: det vet inte vilken valuta plattformen räknar i.
- * @property {import("react").ReactNode} [detaljer] Vad biten BESTÅR AV, t.ex. de enskilda innehaven i en tillgångsklass. Finns det inget att fälla ut ska fältet utelämnas, inte sättas till tom sträng: en pil som öppnar ingenting är ett löfte som inte infrias.
+ * @property {import("react").ReactNode} [details] Vad biten BESTÅR AV, t.ex. de enskilda innehaven i en tillgångsklass. Finns det inget att fälla ut ska fältet utelämnas, inte sättas till tom sträng: en pil som öppnar ingenting är ett löfte som inte infrias.
  */
 
 /**
@@ -109,33 +109,33 @@ const GLAPP = 1.2;
  * @param {import("react").ReactNode} [props.empty] Visas när allt är noll eller listan är tom.
  */
 export function OpsShareChart({ segments, ariaLabel, empty = null }) {
-  const [aktiv, setAktiv] = useState(/** @type {string | null} */ (null));
+  const [active, setAktiv] = useState(/** @type {string | null} */ (null));
   const [oppna, setOppna] = useState(/** @type {string[]} */ ([]));
   // ⛔ Krokarna står FÖRE den tidiga returen för tomt läge. En krok efter en
   // return körs inte i alla renderingar, och React räknar krokar på ordning:
   // listan skulle byta betydelse den rendering datan kommer in.
   const idBas = useId();
 
-  const poster = (segments || []).filter((s) => s && typeof s.value === "number" && Number.isFinite(s.value) && s.value > 0);
+  const entries = (segments || []).filter((s) => s && typeof s.value === "number" && Number.isFinite(s.value) && s.value > 0);
 
-  if (poster.length > MAX_BITAR) {
+  if (entries.length > MAX_BITAR) {
     throw new Error(
-      `OpsShareChart: ${poster.length} bitar, högst ${MAX_BITAR}. En sjunde färg skulle behöva genereras, och en genererad färg är omätt. ` +
+      `OpsShareChart: ${entries.length} bitar, högst ${MAX_BITAR}. En sjunde färg skulle behöva genereras, och en genererad färg är omätt. ` +
         "Slå ihop svansen till en restpost i appen (ordet är ditt, inte ramverkets), dela upp i flera ringar, eller visa en tabell.",
     );
   }
 
-  const summa = poster.reduce((s, p) => s + p.value, 0);
+  const summa = entries.reduce((s, p) => s + p.value, 0);
   if (summa <= 0) return empty;
 
   // ⛔ EN FRÅGA FÖR HELA LISTAN, inte per rad. Vet listan att någon rad kan
   // fällas ut reserverar alla rader pilens bredd, och procentkolumnen står kvar
   // på samma ställe oavsett vilken rad man tittar på. Utan det hoppar kolumnen
   // in och ut beroende på om just den raden har något att visa.
-  const nagonHarDetaljer = poster.some((p) => Boolean(p.detaljer));
+  const nagonHarDetaljer = entries.some((p) => Boolean(p.details));
 
   let vinkel = 0;
-  const bitar = poster.map((p, i) => {
+  const bitar = entries.map((p, i) => {
     const andel = p.value / summa;
     const langd = andel * OMKRETS;
     const bit = {
@@ -202,7 +202,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
                 // ⛔ Framhävning genom att DÄMPA de andra, inte genom att lysa
                 // upp den aktiva. En bit som byter färg vid hover ser ut att
                 // byta betydelse.
-                aktiv && aktiv !== b.id && "opacity-25",
+                active && active !== b.id && "opacity-25",
               )}
             />
           ))}
@@ -217,7 +217,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
         {bitar.map((b) => {
           const oppen = oppna.indexOf(b.id) >= 0;
           const panelId = `${idBas}-${b.id}`;
-          const harDetaljer = Boolean(b.detaljer);
+          const harDetaljer = Boolean(b.details);
 
           const innehall = (
             <>
@@ -261,7 +261,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
           const radklass = cx(
             "flex w-full items-center gap-2 rounded-md px-2 transition-colors duration-(--duration-fast) ease-standard",
             nagonHarDetaljer ? "min-h-11 py-2" : "py-1",
-            aktiv === b.id && "bg-sunken",
+            active === b.id && "bg-sunken",
           );
 
           return (
@@ -297,7 +297,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
                   hidden={!oppen}
                   className={cx("mt-1 mb-2 ml-3 border-l-2 border-line pl-3 text-sm text-ink-secondary", SVANS_MARGINAL)}
                 >
-                  {b.detaljer}
+                  {b.details}
                 </div>
               ) : null}
             </li>

@@ -26,20 +26,20 @@ import { cx } from "../lib/cx.js";
  *
  * @param {object} props
  * @param {import("react").ReactNode} props.children
- * @param {"start" | "mitten"} [props.justering] Var raden ligger. `mitten` som
+ * @param {"start" | "mitten"} [props.align] Var raden ligger. `mitten` som
  *   förval, eftersom en ensam kontroll över en lista hör hemma över listans
  *   mitt. `start` när raden bär FLERA kontroller: då är vänsterkanten den enda
  *   punkt som ligger still när en av dem byter bredd.
  */
-export function OpsKontrollrad({ children, justering = "mitten" }) {
-  const klass = JUSTERINGAR[justering];
+export function OpsControlRow({ children, align = "mitten" }) {
+  const klass = JUSTERINGAR[align];
   /*
    * ⛔ KASTAR I STÄLLET FÖR ATT FALLA TILLBAKA. En tyst reserv gör ett stavfel
    * till en rad som ser nästan rätt ut, och nästan rätt upptäcks aldrig.
    */
   if (!klass) {
     throw new Error(
-      `OpsKontrollrad: okänd justering "${justering}". Giltiga: ${Object.keys(JUSTERINGAR).join(", ")}.`,
+      `OpsControlRow: okänd align "${align}". Giltiga: ${Object.keys(JUSTERINGAR).join(", ")}.`,
     );
   }
   return <div className={cx("flex flex-wrap items-center gap-2", klass)}>{children}</div>;

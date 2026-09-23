@@ -36,10 +36,10 @@ const TONER = {
  * @param {string} [props.closeLabel]
  */
 export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
-  const [poster, setPoster] = useState(/** @type {Toastpost[]} */ ([]));
+  const [entries, setPoster] = useState(/** @type {Toastpost[]} */ ([]));
 
-  const visa = useCallback((/** @type {Omit<Toastpost, "id">} */ post) => {
-    setPoster((tidigare) => [...tidigare, { ...post, id: Date.now() + Math.random() }]);
+  const visa = useCallback((/** @type {Omit<Toastpost, "id">} */ entry) => {
+    setPoster((tidigare) => [...tidigare, { ...entry, id: Date.now() + Math.random() }]);
   }, []);
 
   const varde = useMemo(() => ({ visa }), [visa]);
@@ -51,7 +51,7 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
           nedräkningen när pekaren är över eller fokus är i. */}
       <Toast.Provider duration={6000} swipeDirection="right">
         {children}
-        {poster.map((p) => (
+        {entries.map((p) => (
           <Toast.Root
             key={p.id}
             onOpenChange={(open) => {
