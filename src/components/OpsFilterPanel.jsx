@@ -208,7 +208,7 @@ export function OpsFilterPanel({
      */
     if (sorting && sorting.fallback === undefined) {
       throw new Error(
-        "OpsFilterPanel: sorting.standard krävs. Utan den gissas förvalet till första alternativet, och ikonen ljuger om sitt tillstånd så fort listan sorteras om.",
+        "OpsFilterPanel: sorting.fallback krävs. Utan den gissas förvalet till första alternativet, och ikonen ljuger om sitt tillstånd så fort listan sorteras om.",
       );
     }
     const sortDefault = sorting ? sorting.fallback : undefined;

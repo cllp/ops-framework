@@ -21,7 +21,7 @@ function answer(status, body, { text } = {}) {
 }
 
 /** @param {any[]} theAnswers */
-function falskFetch(...theAnswers) {
+function fakeFetch(...theAnswers) {
   const request = [];
   const f = vi.fn(async (url, init) => {
     request.push({ url, ...init });
@@ -33,13 +33,13 @@ function falskFetch(...theAnswers) {
 const BAS = "https://api.example.se/v1";
 
 describe("createHttpSource", () => {
-  it("kräver en basUrl i stället för att bygga anrop mot undefined", () => {
-    expect(() => createHttpSource(/** @type {any} */ (undefined))).toThrow(/basUrl/);
-    expect(() => createHttpSource(/** @type {any} */ ({}))).toThrow(/basUrl/);
+  it("kräver en baseUrl i stället för att bygga anrop mot undefined", () => {
+    expect(() => createHttpSource(/** @type {any} */ (undefined))).toThrow(/baseUrl/);
+    expect(() => createHttpSource(/** @type {any} */ ({}))).toThrow(/baseUrl/);
   });
 
   it("uppfyller kontraktets fem operationer", () => {
-    const { f } = falskFetch();
+    const { f } = fakeFetch();
     const k = createHttpSource({ baseUrl: BAS, load: f });
     for (const op of ["read", "list", "create", "update", "remove"]) {
       expect(typeof k[op]).toBe("function");
@@ -58,7 +58,7 @@ describe("createHttpSource", () => {
      * Då blir "posten finns inte" ett kastat fel, och vyn visar en röd
      * banderoll för något som bara inte fanns.
      */
-    const { f } = falskFetch(answer(404, null, { text: "Not Found" }));
+    const { f } = fakeFetch(answer(404, null, { text: "Not Found" }));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await expect(k.read("kostnader", "abc")).resolves.toBeNull();
   });
@@ -69,7 +69,7 @@ describe("createHttpSource", () => {
      * Planterad defekt: ta bort `if (!res.ok)` ur `read`. Då returneras serverns
      * felsida som om den vore posten, och kontraktets regel 2 är bruten.
      */
-    const { f } = falskFetch(answer(500, null, { text: "<html>Internal Error</html>" }));
+    const { f } = fakeFetch(answer(500, null, { text: "<html>Internal Error</html>" }));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await expect(k.read("kostnader", "abc")).rejects.toThrow(/500/);
   });
@@ -80,13 +80,13 @@ describe("createHttpSource", () => {
      * försök senare. Planterad defekt: ta bort `error.status = res.status`. Då
      * måste appen matcha på felets text, och texten ändras.
      */
-    const { f } = falskFetch(answer(401, null, { text: "token expired" }));
+    const { f } = fakeFetch(answer(401, null, { text: "token expired" }));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await expect(k.read("kostnader", "a")).rejects.toMatchObject({ status: 401 });
   });
 
   it("tar med serverns egen text i felet, avkortad", async () => {
-    const { f } = falskFetch(answer(400, null, { text: "x".repeat(500) }));
+    const { f } = fakeFetch(answer(400, null, { text: "x".repeat(500) }));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await expect(k.read("kostnader", "a")).rejects.toThrow(/x{200}\)/);
   });
@@ -97,7 +97,7 @@ describe("createHttpSource", () => {
      * tyst `{}` blivit "inga poster" i vyn. Planterad defekt: fånga
      * parse-felet och returnera null.
      */
-    const { f } = falskFetch(answer(200, null, { text: "<html>logga in</html>" }));
+    const { f } = fakeFetch(answer(200, null, { text: "<html>logga in</html>" }));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await expect(k.read("kostnader", "a")).rejects.toThrow(/JSON/);
   });
@@ -108,7 +108,7 @@ describe("createHttpSource", () => {
      * En samling med ett fält som heter `sort` krockar då med sorteringen, och
      * symptomet är inte ett fel utan en lista som ibland inte lyder.
      */
-    const { f, request } = falskFetch(answer(200, []));
+    const { f, request } = fakeFetch(answer(200, []));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await k.list("kostnader", { where: { status: "oppen" }, sortBy: "forfaller", direction: "desc", limit: 20 });
     const url = new URL(request[0].url);
@@ -125,7 +125,7 @@ describe("createHttpSource", () => {
      * `textValue`. Då blir `{ where: { kategori: null } }` ett filter på texten
      * "null", alltså ett villkor som matchar fel i tysthet.
      */
-    const { f, request } = falskFetch(answer(200, []));
+    const { f, request } = fakeFetch(answer(200, []));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await k.list("kostnader", { where: { kategori: null } });
     expect(new URL(request[0].url).searchParams.has("kategori")).toBe(false);
@@ -138,7 +138,7 @@ describe("createHttpSource", () => {
      * defekt: returnera `data.items ?? data`. Då fungerar det tills någon döper
      * fältet till `rows`, och då blir det noll rader utan fel.
      */
-    const { f } = falskFetch(answer(200, { items: [{ id: "a" }] }));
+    const { f } = fakeFetch(answer(200, { items: [{ id: "a" }] }));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await expect(k.list("kostnader")).rejects.toThrow(/lista/);
   });
@@ -149,11 +149,11 @@ describe("createHttpSource", () => {
      * id-kontrollen. En gissad nyckel går sönder först vid nästa läsning,
      * alltså långt från felet.
      */
-    const { f } = falskFetch(answer(201, { name: "Adavo" }));
+    const { f } = fakeFetch(answer(201, { name: "Adavo" }));
     const k = createHttpSource({ baseUrl: BAS, load: f });
     await expect(k.create("kostnader", { name: "Adavo" })).rejects.toThrow(/id/);
 
-    const { f: f2 } = falskFetch(answer(201, { id: "k1", name: "Adavo" }));
+    const { f: f2 } = fakeFetch(answer(201, { id: "k1", name: "Adavo" }));
     const k2 = createHttpSource({ baseUrl: BAS, load: f2 });
     await expect(k2.create("kostnader", { name: "Adavo" })).resolves.toEqual({ id: "k1", name: "Adavo" });
   });
@@ -164,10 +164,10 @@ describe("createHttpSource", () => {
      * `if (res.status === 404) return null` även här. Då ser en uppdatering av
      * något som inte finns ut att ha lyckats.
      */
-    const { f } = falskFetch(answer(404, null, { text: "" }));
+    const { f } = fakeFetch(answer(404, null, { text: "" }));
     await expect(createHttpSource({ baseUrl: BAS, load: f }).update("kostnader", "a", { x: 1 })).rejects.toThrow(/404/);
 
-    const { f: f2 } = falskFetch(answer(404, null, { text: "" }));
+    const { f: f2 } = fakeFetch(answer(404, null, { text: "" }));
     await expect(createHttpSource({ baseUrl: BAS, load: f2 }).remove("kostnader", "a")).rejects.toThrow(/404/);
   });
 
@@ -176,7 +176,7 @@ describe("createHttpSource", () => {
      * ⛔ 204 UTAN KROPP ÄR DET NORMALA SVARET. Planterad defekt: `await
      * res.json()` i `taBort`. Då blir varje lyckad borttagning ett JSON-fel.
      */
-    const { f } = falskFetch(answer(204, null, { text: "" }));
+    const { f } = fakeFetch(answer(204, null, { text: "" }));
     await expect(createHttpSource({ baseUrl: BAS, load: f }).remove("kostnader", "a")).resolves.toBeUndefined();
   });
 
@@ -188,7 +188,7 @@ describe("createHttpSource", () => {
      * återanvänd den.
      */
     const getToken = vi.fn(async () => "t" + getToken.mock.calls.length);
-    const { f, request } = falskFetch(answer(200, { id: "a" }), answer(200, { id: "a" }));
+    const { f, request } = fakeFetch(answer(200, { id: "a" }), answer(200, { id: "a" }));
     const k = createHttpSource({ baseUrl: BAS, load: f, getToken });
     await k.read("kostnader", "a");
     await k.read("kostnader", "a");
@@ -202,7 +202,7 @@ describe("createHttpSource", () => {
      * ⛔ ETT ID MED SNEDSTRECK hade annars blivit en annan sökväg, alltså ett
      * anrop mot något helt annat. Planterad defekt: ta bort encodeURIComponent.
      */
-    const { f, request } = falskFetch(answer(200, { id: "a" }));
+    const { f, request } = fakeFetch(answer(200, { id: "a" }));
     await createHttpSource({ baseUrl: BAS + "/", load: f }).read("kost nader", "a/b");
     expect(request[0].url).toBe("https://api.example.se/v1/kost%20nader/a%2Fb");
   });

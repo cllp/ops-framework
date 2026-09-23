@@ -38,11 +38,11 @@ function streamSource(collectionName = "saker", rows = []) {
 }
 
 describe("createRoutingSource, uppsättningen", () => {
-  it("kräver en standard", () => {
+  it("kräver en fallback", () => {
     // ⛔ Utan standard blir en glömd rutt ett fel som dyker upp först den dag
     // någon öppnar just den vyn.
-    expect(() => createRoutingSource(/** @type {any} */ ({}))).toThrow(/standard krävs/);
-    expect(() => createRoutingSource(/** @type {any} */ (null))).toThrow(/standard krävs/);
+    expect(() => createRoutingSource(/** @type {any} */ ({}))).toThrow(/fallback krävs/);
+    expect(() => createRoutingSource(/** @type {any} */ (null))).toThrow(/fallback krävs/);
   });
 
   it("avvisar en rutt som inte är en datakälla, vid uppstart", () => {

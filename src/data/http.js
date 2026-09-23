@@ -106,7 +106,7 @@ export function createHttpSource(config) {
   // utan argument ska mötas av valideringen nedan och inte av en destruktur.
   const { baseUrl, getToken, load, headers } = config ?? /** @type {any} */ ({});
   if (typeof baseUrl !== "string" || baseUrl === "") {
-    throw new Error('createHttpSource: basUrl krävs, till exempel "https://api.example.se/v1".');
+    throw new Error('createHttpSource: baseUrl krävs, till exempel "https://api.example.se/v1".');
   }
   const base = baseUrl.replace(/\/+$/, "");
   const doFetch = load ?? globalThis.fetch;

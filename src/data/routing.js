@@ -66,7 +66,7 @@ import { OPERATIONS, createDataSource } from "./contract.js";
 export function createRoutingSource(config) {
   if (!config || !config.fallback) {
     throw new Error(
-      "createRoutingSource: standard krävs. Utan den blir en glömd rutt ett fel som dyker upp först den dag någon öppnar just den vyn.",
+      "createRoutingSource: fallback krävs. Utan den blir en glömd rutt ett fel som dyker upp först den dag någon öppnar just den vyn.",
     );
   }
 

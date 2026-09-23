@@ -14,7 +14,7 @@ import { OpsAuthGate, OpsAuthProvider, createAuth, createGoogleAuth } from "../a
  * en emulator i appen.
  */
 
-function fejkFirestore() {
+function fakeFirestore() {
   const request = [];
   const sdk = {
     collection: (_db, s) => ({ __samling: s }),
@@ -45,14 +45,14 @@ describe("firestore-adaptern", () => {
   });
 
   it("skiljer ett dokument som saknas från ett som är tomt", async () => {
-    const { sdk } = fejkFirestore();
+    const { sdk } = fakeFirestore();
     const source = createFirestoreSource({ db: {}, sdk });
     expect(await source.read("kostnader", "saknas")).toBeNull();
     expect(await source.read("kostnader", "1")).toMatchObject({ id: "1", name: "Telia" });
   });
 
   it("översätter en fråga till where, orderBy och limit", async () => {
-    const { sdk } = fejkFirestore();
+    const { sdk } = fakeFirestore();
     const source = createFirestoreSource({ db: {}, sdk });
     await source.list("kostnader", { where: { status: "oppen" }, sortBy: "belopp", direction: "desc", limit: 5 });
 
@@ -67,7 +67,7 @@ describe("firestore-adaptern", () => {
   // ⛔ setDoc skriver över utan att säga ifrån. Skillnaden mot addDoc måste
   // styras av om anroparen gav ett id, inte av slump.
   it("använder addDoc utan id och setDoc med id", async () => {
-    const { sdk } = fejkFirestore();
+    const { sdk } = fakeFirestore();
     const source = createFirestoreSource({ db: {}, sdk });
 
     expect(await source.create("k", { name: "A" })).toMatchObject({ id: "nytt" });
@@ -80,7 +80,7 @@ describe("firestore-adaptern", () => {
   // ⛔ Läser tillbaka i stället för att gissa: servertidsstämplar och regler kan
   // ändra värdet, och då stämmer inte appens objekt med databasen.
   it("läser tillbaka efter uppdatering", async () => {
-    const { sdk } = fejkFirestore();
+    const { sdk } = fakeFirestore();
     const source = createFirestoreSource({ db: {}, sdk });
     await source.update("k", "1", { name: "Nytt" });
     expect(sdk.getDoc).toHaveBeenCalled();
@@ -130,11 +130,11 @@ describe("postgres-adaptern", () => {
 
 describe("inloggning", () => {
   /** @param {{ id: string, role?: string } | null} user */
-  function fejkAuth(user) {
+  function fakeAuth(user) {
     return createAuth({
-      loggaIn: async () => {},
-      loggaUt: async () => {},
-      lyssna: (l) => {
+      signIn: async () => {},
+      signOut: async () => {},
+      subscribe: (l) => {
         l(user);
         return () => {};
       },
@@ -143,7 +143,7 @@ describe("inloggning", () => {
 
   it("visar inloggning när ingen är inloggad", async () => {
     render(
-      <OpsAuthProvider autentisering={fejkAuth(null)}>
+      <OpsAuthProvider authentication={fakeAuth(null)}>
         <OpsAuthGate>
           <p>hemligt</p>
         </OpsAuthGate>
@@ -155,7 +155,7 @@ describe("inloggning", () => {
 
   it("släpper in den som är inloggad", async () => {
     render(
-      <OpsAuthProvider autentisering={fejkAuth({ id: "u1" })}>
+      <OpsAuthProvider authentication={fakeAuth({ id: "u1" })}>
         <OpsAuthGate>
           <p>hemligt</p>
         </OpsAuthGate>
@@ -166,7 +166,7 @@ describe("inloggning", () => {
 
   it("nekar den som är inloggad men saknar rollen", async () => {
     render(
-      <OpsAuthProvider autentisering={fejkAuth({ id: "u1", role: "lasare" })}>
+      <OpsAuthProvider authentication={fakeAuth({ id: "u1", role: "lasare" })}>
         <OpsAuthGate allowedRoles={["admin"]}>
           <p>hemligt</p>
         </OpsAuthGate>
@@ -188,16 +188,16 @@ describe("inloggning", () => {
         return () => {};
       },
     };
-    const autentisering = createGoogleAuth({
+    const authentication = createGoogleAuth({
       auth: {},
       sdk,
-      hamtaProfil: async () => {
+      fetchProfile: async () => {
         throw new Error("nätverket nere");
       },
     });
 
     render(
-      <OpsAuthProvider autentisering={autentisering}>
+      <OpsAuthProvider authentication={authentication}>
         <OpsAuthGate allowedRoles={["admin"]}>
           <p>hemligt</p>
         </OpsAuthGate>

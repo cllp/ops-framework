@@ -99,7 +99,7 @@ export function createJsonSource(config) {
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
   const { base, load = fetch } = config ?? /** @type {any} */ ({});
-  if (!base) throw new Error("createJsonSource: bas krävs, till exempel \"/assets/data\".");
+  if (!base) throw new Error("createJsonSource: base krävs, till exempel \"/assets/data\".");
 
   /** @param {string} collectionName @returns {Promise<T[]>} */
   async function read(collectionName) {

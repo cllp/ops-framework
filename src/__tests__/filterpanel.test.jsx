@@ -288,7 +288,7 @@ describe("OpsFilterPanel", () => {
             }}
           />,
         ),
-      ).toThrow(/sorting\.standard krävs/);
+      ).toThrow(/sorting\.fallback krävs/);
     } finally {
       tyst.mockRestore();
     }
