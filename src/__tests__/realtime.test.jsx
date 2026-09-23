@@ -23,33 +23,33 @@ import { OpsDataProvider, useLiveCollection } from "../data/useData.jsx";
  * `skicka()` är testets hand: den simulerar att servern levererar ett nytt
  * urval. `errorа()` simulerar en avvisning.
  */
-function strommandeKalla() {
-  const lyssnare = new Set();
+function streamingSource() {
+  const listener = new Set();
   let avslutade = 0;
 
-  const bas = createMemorySource();
+  const base = createMemorySource();
 
   return {
     source: createDataSource({
-      ...bas,
+      ...base,
       name: "strommande-minne",
       subscribe(_samling, _fraga, l) {
-        lyssnare.add(l);
+        listener.add(l);
         return () => {
           avslutade += 1;
-          lyssnare.delete(l);
+          listener.delete(l);
         };
       },
     }),
-    skicka: (rows) => act(() => lyssnare.forEach((l) => l.onData(rows))),
-    fela: (e) => act(() => lyssnare.forEach((l) => l.onError(e))),
-    antalLyssnare: () => lyssnare.size,
-    antalAvslutade: () => avslutade,
+    skicka: (rows) => act(() => listener.forEach((l) => l.onData(rows))),
+    fail: (e) => act(() => listener.forEach((l) => l.onError(e))),
+    listenerCount: () => listener.size,
+    closedCount: () => avslutade,
   };
 }
 
 /** @param {{ collectionName?: string, query?: any }} props */
-function Lista({ collectionName = "inkorg", query }) {
+function List({ collectionName = "inkorg", query }) {
   const { data, loading, error, update, realtime } = useLiveCollection(collectionName, query);
   return (
     <div>
@@ -70,10 +70,10 @@ function Lista({ collectionName = "inkorg", query }) {
 
 describe("useLiveCollection mot en källa som kan strömma", () => {
   it("visar det källan skickar, utan omladdning", async () => {
-    const s = strommandeKalla();
+    const s = streamingSource();
     render(
       <OpsDataProvider source={s.source}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
@@ -95,10 +95,10 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
 
   it("speglar en ändring på en post, inte bara nya rader", async () => {
     // Agenten sätter status hanterad via Admin SDK. Kortet ska ändra sig.
-    const s = strommandeKalla();
+    const s = streamingSource();
     render(
       <OpsDataProvider source={s.source}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
@@ -115,31 +115,31 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
     // permission-denied är exakt vad Firestore svarar när reglerna för samlingen
     // saknas. En tömd lista hade sagt "inkorgen är tom" till någon vars inkorg
     // är full.
-    const s = strommandeKalla();
+    const s = streamingSource();
     render(
       <OpsDataProvider source={s.source}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
     s.skicka([{ id: "1", title: "Kvar" }]);
     await waitFor(() => expect(screen.getByText("Kvar")).toBeInTheDocument());
 
-    s.fela(new Error("Missing or insufficient permissions."));
+    s.fail(new Error("Missing or insufficient permissions."));
     await waitFor(() => expect(screen.getByTestId("fel")).toHaveTextContent("Missing or insufficient permissions."));
     expect(screen.getByText("Kvar")).toBeInTheDocument();
     expect(screen.getByTestId("lage")).toHaveTextContent("klar");
   });
 
   it("släcker felet när data kommer fram igen", async () => {
-    const s = strommandeKalla();
+    const s = streamingSource();
     render(
       <OpsDataProvider source={s.source}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
-    s.fela(new Error("tappade kontakten"));
+    s.fail(new Error("tappade kontakten"));
     await waitFor(() => expect(screen.getByTestId("fel")).toHaveTextContent("tappade kontakten"));
 
     s.skicka([{ id: "1", title: "Tillbaka" }]);
@@ -149,61 +149,61 @@ describe("useLiveCollection mot en källa som kan strömma", () => {
   it("stänger lyssnaren när vyn stängs", async () => {
     // ⛔ En lyssnare som lever vidare syns inte i UI:t. Den syns i notan, och
     // till slut i minnet, och då är orsaken långt borta.
-    const s = strommandeKalla();
+    const s = streamingSource();
     const { unmount } = render(
       <OpsDataProvider source={s.source}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
-    await waitFor(() => expect(s.antalLyssnare()).toBe(1));
+    await waitFor(() => expect(s.listenerCount()).toBe(1));
     unmount();
-    expect(s.antalLyssnare()).toBe(0);
-    expect(s.antalAvslutade()).toBe(1);
+    expect(s.listenerCount()).toBe(0);
+    expect(s.closedCount()).toBe(1);
   });
 
   it("startar om prenumerationen vid uppdatera, i stället för att hämta vid sidan av", async () => {
     // ⛔ Efter ett avvisat lyssnande återansluter Firestore inte själv. En
     // engångshämtning hade gett en bild som genast slutar uppdateras igen,
     // alltså sett ut som att felet gick över.
-    const s = strommandeKalla();
+    const s = streamingSource();
     render(
       <OpsDataProvider source={s.source}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
-    await waitFor(() => expect(s.antalLyssnare()).toBe(1));
+    await waitFor(() => expect(s.listenerCount()).toBe(1));
     act(() => screen.getByRole("button", { name: "Uppdatera" }).click());
 
-    await waitFor(() => expect(s.antalAvslutade()).toBe(1));
-    expect(s.antalLyssnare()).toBe(1);
+    await waitFor(() => expect(s.closedCount()).toBe(1));
+    expect(s.listenerCount()).toBe(1);
   });
 
   it("byter prenumeration när frågan ändras, och bara då", async () => {
-    const s = strommandeKalla();
+    const s = streamingSource();
     const { rerender } = render(
       <OpsDataProvider source={s.source}>
-        <Lista query={{ where: { status: "ny" } }} />
+        <List query={{ where: { status: "ny" } }} />
       </OpsDataProvider>,
     );
-    await waitFor(() => expect(s.antalLyssnare()).toBe(1));
+    await waitFor(() => expect(s.listenerCount()).toBe(1));
 
     // ⛔ Nytt objekt, samma innehåll. Utan innehållsjämförelsen i hooken hade
     // varje rendering rivit och satt upp en ny lyssnare mot servern.
     rerender(
       <OpsDataProvider source={s.source}>
-        <Lista query={{ where: { status: "ny" } }} />
+        <List query={{ where: { status: "ny" } }} />
       </OpsDataProvider>,
     );
-    expect(s.antalAvslutade()).toBe(0);
+    expect(s.closedCount()).toBe(0);
 
     rerender(
       <OpsDataProvider source={s.source}>
-        <Lista query={{ where: { status: "hanterad" } }} />
+        <List query={{ where: { status: "hanterad" } }} />
       </OpsDataProvider>,
     );
-    await waitFor(() => expect(s.antalAvslutade()).toBe(1));
+    await waitFor(() => expect(s.closedCount()).toBe(1));
   });
 });
 
@@ -215,7 +215,7 @@ describe("useLiveCollection mot en källa som inte kan strömma", () => {
     const source = createMemorySource({ inkorg: [{ id: "1", title: "Från minnet" }] });
     render(
       <OpsDataProvider source={source}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
@@ -238,7 +238,7 @@ describe("useLiveCollection mot en källa som inte kan strömma", () => {
 
     render(
       <OpsDataProvider source={trasig}>
-        <Lista />
+        <List />
       </OpsDataProvider>,
     );
 
@@ -297,12 +297,12 @@ describe("Firestore-adapterns prenumeration", () => {
   });
 
   it("skickar felet till vidFel, aldrig som en tom lista", () => {
-    let felHandler;
+    let errorHandler;
     const source = createFirestoreSource({
       db: {},
       sdk: sdk({
         onSnapshot: (_q, _pa, onError) => {
-          felHandler = onError;
+          errorHandler = onError;
           return () => {};
         },
       }),
@@ -311,7 +311,7 @@ describe("Firestore-adapterns prenumeration", () => {
     const onData = vi.fn();
     const error = [];
     source.subscribe("inkorg", undefined, { onData, onError: (e) => error.push(e) });
-    felHandler(new Error("Missing or insufficient permissions."));
+    errorHandler(new Error("Missing or insufficient permissions."));
 
     expect(onData).not.toHaveBeenCalled();
     expect(error[0].message).toMatch(/insufficient permissions/);
@@ -341,10 +341,10 @@ describe("Firestore-adapterns prenumeration", () => {
   });
 
   it("returnerar funktionen som stänger lyssnandet", () => {
-    const avsluta = vi.fn();
-    const source = createFirestoreSource({ db: {}, sdk: sdk({ onSnapshot: () => avsluta }) });
-    const ut = source.subscribe("inkorg", undefined, { onData: () => {}, onError: () => {} });
-    ut();
-    expect(avsluta).toHaveBeenCalled();
+    const unsubscribe = vi.fn();
+    const source = createFirestoreSource({ db: {}, sdk: sdk({ onSnapshot: () => unsubscribe }) });
+    const out = source.subscribe("inkorg", undefined, { onData: () => {}, onError: () => {} });
+    out();
+    expect(unsubscribe).toHaveBeenCalled();
   });
 });

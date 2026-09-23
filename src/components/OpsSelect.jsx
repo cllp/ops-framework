@@ -20,7 +20,7 @@ import { BockIkon, ChevronNedIkon } from "./icons.jsx";
  * @param {object} props
  * @param {{ value: string, label: string, disabled?: boolean }[]} props.options
  * @param {string} [props.value]
- * @param {(varde: string) => void} props.onChange
+ * @param {(value: string) => void} props.onChange
  * @param {string} [props.placeholder]
  * @param {boolean} [props.disabled]
  * @param {string} [props.ariaLabel] Bara när väljaren står utanför en OpsField.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { splitInline, splitMarkdown } from "../lib/markdown.js";
 
-describe("delaMarkdown", () => {
+describe("splitMarkdown", () => {
   it("gör en rubrik till ett rubrikblock i stället för text med brädgårdar", () => {
     /*
      * ⛔ DET HÄR ÄR FELET CP SÅG (bolag-ops #249, med bild). Ett utfällt
@@ -10,8 +10,8 @@ describe("delaMarkdown", () => {
      * ett fel eftersom den var ett.
      */
     expect(splitMarkdown("## Context\n\nEn mening.")).toEqual([
-      { kind: "heading", level: 2, inline: [{ kind: "text", varde: "Context" }] },
-      { kind: "paragraph", inline: [{ kind: "text", varde: "En mening." }] },
+      { kind: "heading", level: 2, inline: [{ kind: "text", value: "Context" }] },
+      { kind: "paragraph", inline: [{ kind: "text", value: "En mening." }] },
     ]);
   });
 
@@ -19,7 +19,7 @@ describe("delaMarkdown", () => {
     // ⛔ Utan det blir varje rad i ett stycke ett eget stycke, och texten får
     // luft mitt i en mening. Markdown gör samma sak.
     expect(splitMarkdown("en rad\noch en till")).toEqual([
-      { kind: "paragraph", inline: [{ kind: "text", varde: "en rad och en till" }] },
+      { kind: "paragraph", inline: [{ kind: "text", value: "en rad och en till" }] },
     ]);
   });
 
@@ -29,11 +29,11 @@ describe("delaMarkdown", () => {
     const [block] = splitMarkdown("- [x] Statusprick\n- [ ] Markdown\n- Vanlig");
     expect(block).toEqual({
       kind: "list",
-      ordnad: false,
+      ordered: false,
       entries: [
-        { kryss: true, inline: [{ kind: "text", varde: "Statusprick" }] },
-        { kryss: false, inline: [{ kind: "text", varde: "Markdown" }] },
-        { kryss: null, inline: [{ kind: "text", varde: "Vanlig" }] },
+        { cross: true, inline: [{ kind: "text", value: "Statusprick" }] },
+        { cross: false, inline: [{ kind: "text", value: "Markdown" }] },
+        { cross: null, inline: [{ kind: "text", value: "Vanlig" }] },
       ],
     });
   });
@@ -41,14 +41,14 @@ describe("delaMarkdown", () => {
   it("håller isär punktlista och sifferlista", () => {
     // Två listor och inte en, annars ärver den andra den förstas numrering.
     const block = splitMarkdown("- a\n1. b");
-    expect(block.map((b) => b.kind === "list" && b.ordnad)).toEqual([false, true]);
+    expect(block.map((b) => b.kind === "list" && b.ordered)).toEqual([false, true]);
   });
 
   it("läser en tabell bara när strecket finns under rubrikraden", () => {
     const [tabell] = splitMarkdown("| Vad | Färg |\n|---|---|\n| Öppet | gul |");
     expect(tabell.kind).toBe("table");
-    expect(tabell.header.map((c) => c[0].varde)).toEqual(["Vad", "Färg"]);
-    expect(tabell.rader[0].map((c) => c[0].varde)).toEqual(["Öppet", "gul"]);
+    expect(tabell.header.map((c) => c[0].value)).toEqual(["Vad", "Färg"]);
+    expect(tabell.rows[0].map((c) => c[0].value)).toEqual(["Öppet", "gul"]);
 
     // ⛔ Utan streck är det inte en tabell utan en rad med rörtecken, och att
     // gissa hade gjort en ASCII-ritning till en trasig tabell.
@@ -72,9 +72,9 @@ describe("delaMarkdown", () => {
       {
         kind: "quote",
         inline: [
-          { kind: "text", varde: "CP sade " },
-          { kind: "bold", varde: "nej" },
-          { kind: "text", varde: " och menade det" },
+          { kind: "text", value: "CP sade " },
+          { kind: "bold", value: "nej" },
+          { kind: "text", value: " och menade det" },
         ],
       },
     ]);
@@ -83,17 +83,17 @@ describe("delaMarkdown", () => {
   it("tom text ger inga block alls", () => {
     // ⛔ Tomhet är ett svar: ett block med tom text hade ritat en tom panel,
     // och en tom panel ser ut som ett laddningsfel.
-    for (const tomt of ["", "   \n\n", null, undefined]) expect(splitMarkdown(tomt)).toEqual([]);
+    for (const empty of ["", "   \n\n", null, undefined]) expect(splitMarkdown(empty)).toEqual([]);
   });
 
   it("tappar aldrig text", () => {
     const text = "## Rubrik\n\nEtt stycke med https://example.com/x i.\n\n- en punkt";
     const allt = splitMarkdown(text)
       .flatMap((b) => (b.kind === "list" ? b.entries.flatMap((p) => p.inline) : b.inline || []))
-      .map((bit) => bit.varde)
+      .map((piece) => piece.value)
       .join("");
-    for (const ord of ["Rubrik", "Ett stycke med", "https://example.com/x", "en punkt"]) {
-      expect(allt).toContain(ord);
+    for (const word of ["Rubrik", "Ett stycke med", "https://example.com/x", "en punkt"]) {
+      expect(allt).toContain(word);
     }
   });
 });
@@ -101,11 +101,11 @@ describe("delaMarkdown", () => {
 describe("delaInline", () => {
   it("gör både markdown-länkar och nakna adresser till länkar", () => {
     expect(splitInline("se [PR 53](https://github.com/cllp/ops-framework/pull/53) och https://example.com/x.")).toEqual([
-      { kind: "text", varde: "se " },
-      { kind: "link", varde: "PR 53", url: "https://github.com/cllp/ops-framework/pull/53" },
-      { kind: "text", varde: " och " },
-      { kind: "link", varde: "https://example.com/x", url: "https://example.com/x" },
-      { kind: "text", varde: "." },
+      { kind: "text", value: "se " },
+      { kind: "link", value: "PR 53", url: "https://github.com/cllp/ops-framework/pull/53" },
+      { kind: "text", value: " och " },
+      { kind: "link", value: "https://example.com/x", url: "https://example.com/x" },
+      { kind: "text", value: "." },
     ]);
   });
 
@@ -119,16 +119,16 @@ describe("delaInline", () => {
      * blev en länk.
      */
     for (const farligt of ["javascript:alert(1)", "data:text/html,<script>x</script>", "file:///etc/passwd"]) {
-      const bitar = splitInline(`klicka [här](${farligt}) nu`);
-      expect(bitar.every((b) => b.kind === "text")).toBe(true);
-      expect(bitar.map((b) => b.varde).join("")).toContain(farligt);
+      const pieces = splitInline(`klicka [här](${farligt}) nu`);
+      expect(pieces.every((b) => b.kind === "text")).toBe(true);
+      expect(pieces.map((b) => b.value).join("")).toContain(farligt);
     }
   });
 
   it("gissar aldrig en länk ur ett ärendenummer", () => {
     // ⛔ En gissad länk ser exakt likadan ut som en riktig ända tills någon
     // klickar, och då är förtroendet för alla de andra borta.
-    expect(splitInline("Se #183 och PR 188.")).toEqual([{ kind: "text", varde: "Se #183 och PR 188." }]);
+    expect(splitInline("Se #183 och PR 188.")).toEqual([{ kind: "text", value: "Se #183 och PR 188." }]);
   });
 
   it("låter en länk inuti en kodsnutt vara kod", () => {
@@ -139,8 +139,8 @@ describe("delaInline", () => {
      * klickbar.
      */
     expect(splitInline("kör `curl https://example.com/x`")).toEqual([
-      { kind: "text", varde: "kör " },
-      { kind: "code", varde: "curl https://example.com/x" },
+      { kind: "text", value: "kör " },
+      { kind: "code", value: "curl https://example.com/x" },
     ]);
   });
 });

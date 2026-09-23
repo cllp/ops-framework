@@ -58,25 +58,25 @@ export const FULL_HEIGHT_CLASSES = [
  * @returns {import("react").CSSProperties} Sätts som `style` på samma element.
  */
 export function useFullHeight(ref) {
-  const [topp, setTopp] = useState(0);
+  const [top, setTop] = useState(0);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
-    const mat = () => {
+    const measure = () => {
       const rect = el.getBoundingClientRect();
-      setTopp(Math.max(0, Math.round(rect.top + (window.scrollY || 0))));
+      setTop(Math.max(0, Math.round(rect.top + (window.scrollY || 0))));
     };
-    mat();
-    window.addEventListener("resize", mat);
-    return () => window.removeEventListener("resize", mat);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, [ref]);
 
   /*
    * ⛔ Kastad till `CSSProperties`, eftersom TypeScript inte känner till egna
    * CSS-variabler i ett stilobjekt. Det är typsystemets lucka och inte en
-   * osäkerhet: webbläsaren tar emot `--fullhojd-topp` som vilken deklaration
+   * osäkerhet: webbläsaren tar emot `--fullhojd-top` som vilken deklaration
    * som helst.
    */
-  return /** @type {import("react").CSSProperties} */ ({ "--fullhojd-topp": `${topp}px` });
+  return /** @type {import("react").CSSProperties} */ ({ "--fullhojd-topp": `${top}px` });
 }

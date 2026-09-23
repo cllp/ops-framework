@@ -31,7 +31,7 @@ describe("bradska", () => {
 
 describe("delaIdagKommande", () => {
   it("lägger försenat i Idag och odaterat i Kommande", () => {
-    const { today, kommande, forsenat } = splitTodayUpcoming([h("sent", -3), h("nu", 0), h("snart", 2), h("nagon-gang", null)]);
+    const { today, upcoming, forsenat } = splitTodayUpcoming([h("sent", -3), h("nu", 0), h("snart", 2), h("nagon-gang", null)]);
 
     // ⛔ Försenat ligger i Idag, inte i en egen tredje hink: det kräver dig just
     // nu, och en egen flik hade gömt det bakom ett klick.
@@ -39,13 +39,13 @@ describe("delaIdagKommande", () => {
 
     // ⛔ Odaterat i Kommande: det kräver dig inte idag, och lägger man det i
     // Idag slutar den siffran svara på "hur mycket måste jag göra nu".
-    expect(kommande.map((x) => x.id)).toEqual(["snart", "nagon-gang"]);
+    expect(upcoming.map((x) => x.id)).toEqual(["snart", "nagon-gang"]);
 
     expect(forsenat).toBe(1);
   });
 
   it("klarar tom och saknad lista", () => {
-    expect(splitTodayUpcoming([])).toEqual({ today: [], kommande: [], forsenat: 0 });
+    expect(splitTodayUpcoming([])).toEqual({ today: [], upcoming: [], forsenat: 0 });
     expect(splitTodayUpcoming(/** @type {any} */ (undefined)).today).toEqual([]);
   });
 });
@@ -105,13 +105,13 @@ describe("OpsEventList", () => {
     // var sant ända till chevronkolumnen lade en kolumn mellan dem: det gick
     // rött av en ren strukturändring medan felet det bevakar var oförändrat.
     // Ett prov som är rött av fel anledning slutar man läsa.
-    const metarad = /** @type {HTMLElement} */ (when.closest("div"));
+    const metaRow = /** @type {HTMLElement} */ (when.closest("div"));
 
     // Titeln får inte ligga i detaljraden, för då konkurrerar de om bredden igen.
-    expect(metarad.contains(title)).toBe(false);
+    expect(metaRow.contains(title)).toBe(false);
     // Och de ska vara syskon, alltså två rader i samma kolumn. Låg titeln någon
     // annanstans i trädet vore provet grönt utan att layouten var rätt.
-    expect(title.parentElement).toBe(metarad.parentElement);
+    expect(title.parentElement).toBe(metaRow.parentElement);
   });
 
   it("visar slaget bredvid rollen, som två olika upplysningar", () => {
@@ -141,18 +141,18 @@ describe("OpsEventList", () => {
       />,
     );
 
-    const knapp = screen.getByRole("button", { name: "Visa detaljer för moms" });
-    expect(knapp.getAttribute("aria-expanded")).toBe("false");
+    const button = screen.getByRole("button", { name: "Visa detaljer för moms" });
+    expect(button.getAttribute("aria-expanded")).toBe("false");
 
     // ⛔ Panelen finns i DOM:en hela tiden och styrs med `hidden`. Därför räcker
     // det inte att leta efter texten: den hittas även hopfälld. Provet läser
     // `hidden` på det element `aria-controls` pekar på, alltså samma väg som en
     // skärmläsare tar.
-    const panel = () => document.getElementById(/** @type {string} */ (knapp.getAttribute("aria-controls")));
+    const panel = () => document.getElementById(/** @type {string} */ (button.getAttribute("aria-controls")));
     expect(panel()?.hidden).toBe(true);
 
-    fireEvent.click(knapp);
-    expect(knapp.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
     expect(panel()?.hidden).toBe(false);
     expect(screen.getByText("Redovisas via e-tjänsten")).toBeInTheDocument();
   });
@@ -227,8 +227,8 @@ describe("OpsEventList", () => {
     const { container } = render(<OpsEventList events={[h("ett", 1), h("tva", 2)]} />);
     expect(container.querySelectorAll(".w-11")).toHaveLength(0);
 
-    const { container: medDetaljer } = render(<OpsEventList events={[h("tre", 1, { details: <p>d</p> })]} />);
-    expect(medDetaljer.querySelectorAll(".w-11").length).toBeGreaterThan(0);
+    const { container: withDetails } = render(<OpsEventList events={[h("tre", 1, { details: <p>d</p> })]} />);
+    expect(withDetails.querySelectorAll(".w-11").length).toBeGreaterThan(0);
   });
 
   it("skriver deadline som eget faktum, inte som en del av brådskan", () => {
@@ -270,16 +270,16 @@ describe("OpsEventList", () => {
   it("ritar appens åtgärd på raden och förklaringen en gång för listan", () => {
     // ⛔ Ramverket RITAR åtgärden och tolkar den aldrig. Provet skickar in en
     // knapp och kontrollerar att den kommer fram och fungerar, inte vad den gör.
-    const rader = [];
+    const rows = [];
     render(
       <OpsEventList
-        events={[h("lon", 3, { atgard: <button onClick={() => rader.push("lon")}>Bocka av</button> }), h("faktura", 5)]}
+        events={[h("lon", 3, { atgard: <button onClick={() => rows.push("lon")}>Bocka av</button> }), h("faktura", 5)]}
         actionHint="Bara påminnelser går att bocka av."
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Bocka av" }));
-    expect(rader).toEqual(["lon"]);
+    expect(rows).toEqual(["lon"]);
 
     // ⛔ EN gång, inte en gång per rad utan knapp. Tre identiska meningar under
     // varandra mättes fram som en tredjedel längre lista i bolag-ops Idag, och
@@ -302,8 +302,8 @@ describe("OpsEventList", () => {
     // ⛔ `when` på båda raderna med flit: utan den är detaljraden tom av egna
     // skäl, och då hade provet fällt på något det inte handlar om.
     const { container } = render(<OpsEventList events={[h("a", 1, { when: "I morgon" }), h("b", 2, { when: "Om 2 dagar" })]} />);
-    const tomma = [...container.querySelectorAll("li *")].filter((e) => !e.children.length && !e.textContent.trim());
-    expect(tomma).toHaveLength(0);
+    const empty = [...container.querySelectorAll("li *")].filter((e) => !e.children.length && !e.textContent.trim());
+    expect(empty).toHaveLength(0);
   });
 
   it("kastar när några rader går att göra något åt och listan inte säger vilka", () => {
@@ -321,13 +321,13 @@ describe("OpsEventList", () => {
   it("kräver ingen förklaring när ALLA rader har en åtgärd", () => {
     // ⛔ Då finns ingen tyst rad att undra över, och ett krav som larmar utan
     // att det finns något att larma på lär man sig att kringgå.
-    const alla = () =>
+    const all = () =>
       render(
         <OpsEventList
           events={[h("a", 1, { atgard: <button>Ett</button> }), h("b", 2, { atgard: <button>Två</button> })]}
         />,
       );
-    expect(alla).not.toThrow();
+    expect(all).not.toThrow();
   });
 
   it("visar det tomma läget i stället för en tom lista", () => {

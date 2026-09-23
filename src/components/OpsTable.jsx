@@ -94,8 +94,8 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
           </tr>
         </thead>
         <tbody>
-          {(rows ?? []).map((rad) => (
-            <tr key={rad.id} className="border-b border-divider last:border-b-0">
+          {(rows ?? []).map((row) => (
+            <tr key={row.id} className="border-b border-divider last:border-b-0">
               {columns.map((k, i) => (
                 <td
                   key={k.key}
@@ -115,7 +115,7 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
                     i === 0 && "sticky left-0 z-(--z-sticky) bg-raised",
                   )}
                 >
-                  {rad[k.key]}
+                  {row[k.key]}
                 </td>
               ))}
             </tr>

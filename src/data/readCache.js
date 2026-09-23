@@ -113,20 +113,20 @@ export function documentKey(collectionName, id) {
 /**
  * Det cachade svaret, synkront.
  *
- * ⛔ RETURNERAR `{ har, value }` OCH INTE BARA VÄRDET. `read` svarar `null` för
+ * ⛔ RETURNERAR `{ has, value }` OCH INTE BARA VÄRDET. `read` svarar `null` för
  * "dokumentet finns inte", och det är ett giltigt svar som ska cachas. Ett
  * returvärde som blandar ihop "inget cachat" med "cachat null" hade gjort att
  * just de dokumenten hämtades om varje gång, alltså precis de som kostar mest
  * att leta efter.
  *
  * @param {object} source
- * @param {string} nyckel
- * @returns {{ har: boolean, value: any }}
+ * @param {string} key
+ * @returns {{ has: boolean, value: any }}
  */
-export function cached(source, nyckel) {
+export function cached(source, key) {
   const l = BOXES.get(source);
-  if (!l || !l.values.has(nyckel)) return { har: false, value: undefined };
-  return { har: true, value: l.values.get(nyckel) };
+  if (!l || !l.values.has(key)) return { has: false, value: undefined };
+  return { has: true, value: l.values.get(key) };
 }
 
 /**
@@ -134,33 +134,33 @@ export function cached(source, nyckel) {
  *
  * @template T
  * @param {object} source
- * @param {string} nyckel
+ * @param {string} key
  * @param {() => Promise<T>} load Vad som ska göras när svaret inte finns.
  * @returns {Promise<T>}
  */
-export function throughCache(source, nyckel, load) {
+export function throughCache(source, key, load) {
   const l = box(source);
 
-  if (l.values.has(nyckel)) return Promise.resolve(l.values.get(nyckel));
+  if (l.values.has(key)) return Promise.resolve(l.values.get(key));
 
-  const pagaende = l.promises.get(nyckel);
-  if (pagaende) return pagaende;
+  const pending = l.promises.get(key);
+  if (pending) return pending;
 
-  const loftet = load()
+  const promise = load()
     .then((value) => {
-      l.values.set(nyckel, value);
-      l.promises.delete(nyckel);
+      l.values.set(key, value);
+      l.promises.delete(key);
       return value;
     })
     .catch((error) => {
       // ⛔ Felet lämnar inget spår i cachen. Se filens huvud: ett cachat fel
       // gör en tillfällig störning permanent för resten av sessionen.
-      l.promises.delete(nyckel);
+      l.promises.delete(key);
       throw error;
     });
 
-  l.promises.set(nyckel, loftet);
-  return loftet;
+  l.promises.set(key, promise);
+  return promise;
 }
 
 /**
@@ -171,11 +171,11 @@ export function throughCache(source, nyckel, load) {
  * att slippa, och knappen hade sett ut att fungera medan ingenting hände.
  *
  * @param {object} source
- * @param {string} nyckel
+ * @param {string} key
  */
-export function forget(source, nyckel) {
+export function forget(source, key) {
   const l = BOXES.get(source);
   if (!l) return;
-  l.values.delete(nyckel);
-  l.promises.delete(nyckel);
+  l.values.delete(key);
+  l.promises.delete(key);
 }

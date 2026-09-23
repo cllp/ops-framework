@@ -22,7 +22,7 @@ import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
  */
 
 /**
- * @typedef {object} Anvandare
+ * @typedef {object} User
  * @property {string} id
  * @property {string} [email]
  * @property {string} [namn]
@@ -31,26 +31,26 @@ import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
  */
 
 /**
- * @typedef {object} Autentisering
- * @property {() => Promise<void>} loggaIn
- * @property {() => Promise<void>} loggaUt
- * @property {(lyssnare: (a: Anvandare | null) => void) => () => void} lyssna Returnerar en avregistrering.
+ * @typedef {object} Authentication
+ * @property {() => Promise<void>} signIn
+ * @property {() => Promise<void>} signOut
+ * @property {(listener: (a: User | null) => void) => () => void} subscribe Returnerar en avregistrering.
  */
 
 const AuthContext = createContext(
-  /** @type {{ anvandare: Anvandare | null, loading: boolean, error: Error | null, loggaIn: () => void, loggaUt: () => void } | null} */ (null),
+  /** @type {{ user: User | null, loading: boolean, error: Error | null, signIn: () => void, signOut: () => void } | null} */ (null),
 );
 
 /**
  * Kontrollerar att en adapter är hel innan den används.
- * @param {Partial<Autentisering> & { namn?: string }} adapter @returns {Autentisering}
+ * @param {Partial<Authentication> & { namn?: string }} adapter @returns {Authentication}
  */
 export function createAuth(adapter) {
-  const saknas = ["loggaIn", "loggaUt", "lyssna"].filter((op) => typeof (/** @type {any} */ (adapter ?? {})[op]) !== "function");
-  if (saknas.length > 0) {
-    throw new Error(`createAuth: adaptern saknar ${saknas.join(", ")}.`);
+  const missing = ["signIn", "signOut", "subscribe"].filter((op) => typeof (/** @type {any} */ (adapter ?? {})[op]) !== "function");
+  if (missing.length > 0) {
+    throw new Error(`createAuth: adaptern saknar ${missing.join(", ")}.`);
   }
-  return /** @type {Autentisering} */ (adapter);
+  return /** @type {Authentication} */ (adapter);
 }
 
 /**
@@ -61,18 +61,18 @@ export function createAuth(adapter) {
  * const autentisering = skapaGoogleAuth({
  *   auth: auth.getAuth(app),
  *   sdk: auth,
- *   hamtaProfil: async (a) => kalla.las("users", a.id),
+ *   fetchProfile: async (a) => kalla.las("users", a.id),
  * });
  * ```
  *
- * `hamtaProfil` är valfri och är det som ger `role`. Den läser appens egen
+ * `fetchProfile` är valfri och är det som ger `role`. Den läser appens egen
  * användarlista, alltså ett dokument per användare, via datalagret. Rollen
  * kommer aldrig från Google: Google svarar på vem någon ÄR, inte på vad hen får.
  *
- * @param {{ auth: any, sdk: Record<string, any>, hamtaProfil?: (a: Anvandare) => Promise<any> }} konfig
- * @returns {Autentisering}
+ * @param {{ auth: any, sdk: Record<string, any>, fetchProfile?: (a: User) => Promise<any> }} config
+ * @returns {Authentication}
  */
-export function createGoogleAuth(konfig) {
+export function createGoogleAuth(config) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN (#129 punkt 5).
    *
@@ -86,41 +86,41 @@ export function createGoogleAuth(konfig) {
    * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
-  const { auth, sdk, hamtaProfil } = konfig ?? /** @type {any} */ ({});
+  const { auth, sdk, fetchProfile } = config ?? /** @type {any} */ ({});
   if (!auth) throw new Error("createGoogleAuth: auth krävs. Skicka in getAuth(app).");
-  const saknas = ["GoogleAuthProvider", "signInWithPopup", "signOut", "onAuthStateChanged"].filter((f) => !sdk?.[f]);
-  if (saknas.length > 0) {
-    throw new Error(`createGoogleAuth: sdk saknar ${saknas.join(", ")}. Skicka in hela modulen "firebase/auth".`);
+  const missing = ["GoogleAuthProvider", "signInWithPopup", "signOut", "onAuthStateChanged"].filter((f) => !sdk?.[f]);
+  if (missing.length > 0) {
+    throw new Error(`createGoogleAuth: sdk saknar ${missing.join(", ")}. Skicka in hela modulen "firebase/auth".`);
   }
 
   return createAuth({
     namn: "google",
-    async loggaIn() {
+    async signIn() {
       await sdk.signInWithPopup(auth, new sdk.GoogleAuthProvider());
     },
-    async loggaUt() {
+    async signOut() {
       await sdk.signOut(auth);
     },
-    lyssna(lyssnare) {
-      return sdk.onAuthStateChanged(auth, async (/** @type {any} */ konto) => {
-        if (!konto) {
-          lyssnare(null);
+    subscribe(listener) {
+      return sdk.onAuthStateChanged(auth, async (/** @type {any} */ account) => {
+        if (!account) {
+          listener(null);
           return;
         }
-        /** @type {Anvandare} */
-        const bas = { id: konto.uid, email: konto.email ?? undefined, namn: konto.displayName ?? undefined, imageUrl: konto.photoURL ?? undefined };
-        if (!hamtaProfil) {
-          lyssnare(bas);
+        /** @type {User} */
+        const base = { id: account.uid, email: account.email ?? undefined, namn: account.displayName ?? undefined, imageUrl: account.photoURL ?? undefined };
+        if (!fetchProfile) {
+          listener(base);
           return;
         }
         try {
-          const profil = await hamtaProfil(bas);
-          lyssnare({ ...bas, ...(profil ?? {}) });
+          const profile = await fetchProfile(base);
+          listener({ ...base, ...(profile ?? {}) });
         } catch {
           // ⛔ Misslyckas profilhämtningen loggas användaren in UTAN roll, inte
           // in med en gissad roll. Ett fel i en uppslagning får aldrig ge mer
           // behörighet än den som lyckades.
-          lyssnare(bas);
+          listener(base);
         }
       });
     },
@@ -128,32 +128,32 @@ export function createGoogleAuth(konfig) {
 }
 
 /**
- * @param {{ autentisering: Autentisering, children: import("react").ReactNode }} props
+ * @param {{ authentication: Authentication, children: import("react").ReactNode }} props
  */
-export function OpsAuthProvider({ autentisering, children }) {
-  const [anvandare, setAnvandare] = useState(/** @type {Anvandare | null} */ (null));
-  const [loading, setLaddar] = useState(true);
-  const [error, setFel] = useState(/** @type {Error | null} */ (null));
+export function OpsAuthProvider({ authentication, children }) {
+  const [user, setUser] = useState(/** @type {User | null} */ (null));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(/** @type {Error | null} */ (null));
 
   useEffect(() => {
-    const av = autentisering.lyssna((a) => {
-      setAnvandare(a);
-      setLaddar(false);
+    const av = authentication.subscribe((a) => {
+      setUser(a);
+      setLoading(false);
     });
     return av;
-  }, [autentisering]);
+  }, [authentication]);
 
-  const loggaIn = useCallback(() => {
-    setFel(null);
-    autentisering.loggaIn().catch((e) => setFel(e instanceof Error ? e : new Error(String(e))));
-  }, [autentisering]);
+  const signIn = useCallback(() => {
+    setError(null);
+    authentication.signIn().catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
+  }, [authentication]);
 
-  const loggaUt = useCallback(() => {
-    autentisering.loggaUt().catch((e) => setFel(e instanceof Error ? e : new Error(String(e))));
-  }, [autentisering]);
+  const signOut = useCallback(() => {
+    authentication.signOut().catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
+  }, [authentication]);
 
-  const varde = useMemo(() => ({ anvandare, loading, error, loggaIn, loggaUt }), [anvandare, loading, error, loggaIn, loggaUt]);
-  return <AuthContext.Provider value={varde}>{children}</AuthContext.Provider>;
+  const contextValue = useMemo(() => ({ user, loading, error, signIn, signOut }), [user, loading, error, signIn, signOut]);
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
 export function useOpsAuth() {
@@ -187,7 +187,7 @@ export function OpsAuthGate({
   deniedText = "Ditt konto är inloggat men saknar behörighet här. Be den som förvaltar plattformen lägga till dig.",
   children,
 }) {
-  const { anvandare, loading, error, loggaIn } = useOpsAuth();
+  const { user, loading, error, signIn } = useOpsAuth();
 
   if (loading) {
     return (
@@ -197,12 +197,12 @@ export function OpsAuthGate({
     );
   }
 
-  if (!anvandare) {
+  if (!user) {
     return (
       <OpsView width="narrow">
         <OpsViewHeader title={title} description={description} />
         <OpsCard>
-          <OpsButton variant="primary" onClick={loggaIn}>
+          <OpsButton variant="primary" onClick={signIn}>
             {signInText}
           </OpsButton>
           {/* Felet visas, det sväljs inte. En inloggning som inte händer och
@@ -213,8 +213,8 @@ export function OpsAuthGate({
     );
   }
 
-  const nekad = Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(anvandare.role ?? "");
-  if (nekad) {
+  const denied = Array.isArray(allowedRoles) && allowedRoles.length > 0 && !allowedRoles.includes(user.role ?? "");
+  if (denied) {
     return (
       <OpsView width="narrow">
         <OpsViewHeader title={deniedTitle} description={deniedText} />

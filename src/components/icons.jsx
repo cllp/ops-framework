@@ -58,7 +58,7 @@ export function KryssIkon({ size = 16 }) {
 }
 
 /** @param {{ size?: number }} props */
-export function MenyIkon({ size = 24 }) {
+export function MenuIcon({ size = 24 }) {
   return <Menu size={size} aria-hidden="true" />;
 }
 
@@ -130,6 +130,6 @@ export function ReglageIkon({ size = 20 }) {
  *
  * @param {{ size?: number }} props
  */
-export function SorteringIkon({ size = 20 }) {
+export function SortIcon({ size = 20 }) {
   return <ArrowDownUp size={size} aria-hidden="true" />;
 }

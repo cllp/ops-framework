@@ -10,7 +10,7 @@ import { createDataSource } from "./contract.js";
  *
  * ```js
  * const kalla = createHttpSource({
- *   basUrl: "https://api.example.se/v1",
+ *   baseUrl: "https://api.example.se/v1",
  *   getToken: () => auth.currentUser.getIdToken(),
  * });
  * ```
@@ -51,9 +51,9 @@ import { createDataSource } from "./contract.js";
  * heter `sortBy` hade annars krockat med sorteringen. Kollisionen märks inte
  * som ett fel utan som en sortering som ibland inte lyder.
  */
-const SORT = "_sort";
+const KIND = "_sort";
 const DIRECTION = "_order";
-const ANTAL = "_limit";
+const LIMIT = "_limit";
 
 /** @param {unknown} v */
 function textValue(v) {
@@ -76,14 +76,14 @@ async function errorFromResponse(res, vad) {
    * på en telefon. Med hela texten kan en felsida i HTML lägga tusentals tecken
    * i en banderoll som ska rymmas på en rad.
    */
-  let kropp = "";
+  let body = "";
   try {
-    kropp = (await res.text()).trim().slice(0, 200);
+    body = (await res.text()).trim().slice(0, 200);
   } catch {
-    kropp = "";
+    body = "";
   }
   const error = /** @type {Error & { status?: number }} */ (
-    new Error(`${vad}: ${res.status} ${res.statusText}${kropp ? ` (${kropp})` : ""}`)
+    new Error(`${vad}: ${res.status} ${res.statusText}${body ? ` (${body})` : ""}`)
   );
   // ⛔ Statusen ligger kvar på felet. Appen ska kunna skilja 401 (logga in igen)
   // från 500 (försök senare) utan att läsa i felets text, för texten ändras.
@@ -94,7 +94,7 @@ async function errorFromResponse(res, vad) {
 /**
  * @template {{ id: string }} T
  * @param {{
- *   basUrl: string,
+ *   baseUrl: string,
  *   getToken?: () => Promise<string | null> | string | null,
  *   load?: typeof fetch,
  *   headers?: Record<string, string>,
@@ -104,21 +104,21 @@ async function errorFromResponse(res, vad) {
 export function createHttpSource(config) {
   // Destrukturering i kroppen, av samma skäl som i Postgres-adaptern: ett anrop
   // utan argument ska mötas av valideringen nedan och inte av en destruktur.
-  const { basUrl, getToken, load, headers } = config ?? /** @type {any} */ ({});
-  if (typeof basUrl !== "string" || basUrl === "") {
-    throw new Error('createHttpSource: basUrl krävs, till exempel "https://api.example.se/v1".');
+  const { baseUrl, getToken, load, headers } = config ?? /** @type {any} */ ({});
+  if (typeof baseUrl !== "string" || baseUrl === "") {
+    throw new Error('createHttpSource: baseUrl krävs, till exempel "https://api.example.se/v1".');
   }
-  const bas = basUrl.replace(/\/+$/, "");
+  const base = baseUrl.replace(/\/+$/, "");
   const doFetch = load ?? globalThis.fetch;
   if (typeof doFetch !== "function") {
     throw new Error("createHttpSource: ingen fetch finns. Skicka in en med `load` i miljöer utan global fetch.");
   }
 
   /**
-   * @param {string} metod @param {string} vag @param {unknown} [kropp]
+   * @param {string} method @param {string} path @param {unknown} [body]
    * @returns {Promise<Response>}
    */
-  async function request(metod, vag, kropp) {
+  async function request(method, path, body) {
     /*
      * ⛔ TOKEN HÄMTAS PER ANROP och sparas inte i en closure. En token som
      * hämtades vid uppstart går ut medan appen står öppen, och symptomet är att
@@ -126,14 +126,14 @@ export function createHttpSource(config) {
      * `getToken` får själv cacha, den vet när den går ut.
      */
     const token = getToken ? await getToken() : null;
-    return doFetch(`${bas}${vag}`, {
-      method: metod,
+    return doFetch(`${base}${path}`, {
+      method: method,
       headers: {
-        ...(kropp === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(headers ?? {}),
       },
-      ...(kropp === undefined ? {} : { body: JSON.stringify(kropp) }),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   }
 
@@ -175,14 +175,14 @@ export function createHttpSource(config) {
         }
       }
       if (query?.sortBy) {
-        p.set(SORT, query.sortBy);
+        p.set(KIND, query.sortBy);
         p.set(DIRECTION, query.direction === "desc" ? "desc" : "asc");
       }
-      if (typeof query?.limit === "number") p.set(ANTAL, String(query.limit));
+      if (typeof query?.limit === "number") p.set(LIMIT, String(query.limit));
 
-      const fragestrang = p.toString();
+      const queryString = p.toString();
       const vad = `GET ${collectionName}`;
-      const res = await request("GET", `/${encodeURIComponent(collectionName)}${fragestrang ? `?${fragestrang}` : ""}`);
+      const res = await request("GET", `/${encodeURIComponent(collectionName)}${queryString ? `?${queryString}` : ""}`);
       if (!res.ok) throw await errorFromResponse(res, vad);
       const data = await json(res, vad);
       /*

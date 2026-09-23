@@ -53,14 +53,14 @@ import { cx } from "../lib/cx.js";
  * @param {object} props
  * @param {RadioVal[]} props.options
  * @param {string} props.value
- * @param {(varde: string) => void} props.onChange
+ * @param {(value: string) => void} props.onChange
  * @param {string} [props.ariaLabel] Vad gruppen frågar om. ⛔ Utelämnas bara när gruppen ligger i en `OpsField`, som redan namnger den.
  * @param {string} [props.name] Formulärnamn. Ett genereras när det saknas.
  * @param {1 | 2} [props.columns] Två kolumner på bred skärm. Alltid en på smal: en etikett med förklaring i halva telefonbredden bryts sönder.
  */
 export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, columns = 1 }) {
   const genererat = useId();
-  const gruppnamn = name ?? genererat;
+  const groupName = name ?? genererat;
 
   if (!Array.isArray(options) || options.length < 2) {
     throw new Error(
@@ -80,7 +80,7 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
       className={cx("grid gap-2", columns === 2 && "sm:grid-cols-2")}
     >
       {options.map((o) => {
-        const vald = o.value === value;
+        const chosen = o.value === value;
         return (
           <label
             key={o.value}
@@ -92,7 +92,7 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
               // var tangentbordsfokus är, och gruppen blir omöjlig att använda
               // utan mus trots att den fungerar.
               "focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-accent",
-              vald
+              chosen
                 ? "border-line-strong bg-raised text-ink hover:border-accent"
                 : "border-line bg-sunken text-ink-secondary hover:border-line-strong",
             )}
@@ -100,9 +100,9 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
             <span className="flex items-center gap-3">
               <input
                 type="radio"
-                name={gruppnamn}
+                name={groupName}
                 value={o.value}
-                checked={vald}
+                checked={chosen}
                 onChange={() => onChange(o.value)}
                 className="sr-only"
               />
@@ -111,10 +111,10 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
                 aria-hidden="true"
                 className={cx(
                   "inline-flex size-4 shrink-0 items-center justify-center rounded-full border-2",
-                  vald ? "border-accent" : "border-line-strong",
+                  chosen ? "border-accent" : "border-line-strong",
                 )}
               >
-                {vald ? <span className="size-2 rounded-full bg-accent" /> : null}
+                {chosen ? <span className="size-2 rounded-full bg-accent" /> : null}
               </span>
               <span className="min-w-0 font-semibold">{o.label}</span>
             </span>

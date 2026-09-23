@@ -8,7 +8,7 @@ import { daysBetween, daysUntil, collectEvents, splitTodayUpcoming } from "../li
  */
 
 /** @param {object} h */
-const handelse = (h) => ({ id: String(h.id), title: String(h.title || h.id), daysLeft: null, ...h });
+const event = (h) => ({ id: String(h.id), title: String(h.title || h.id), daysLeft: null, ...h });
 
 describe("dagarMellan", () => {
   it("räknar kalenderdagar, inte dygn", () => {
@@ -61,57 +61,57 @@ describe("dagarTill", () => {
 
 describe("samlaHandelser", () => {
   it("slår ihop källorna och sorterar närmast först", () => {
-    const a = [handelse({ id: "a1", daysLeft: 5 }), handelse({ id: "a2", daysLeft: 1 })];
-    const b = [handelse({ id: "b1", daysLeft: 3 })];
-    expect(collectEvents({ kallor: [a, b] }).map((h) => h.id)).toEqual(["a2", "b1", "a1"]);
+    const a = [event({ id: "a1", daysLeft: 5 }), event({ id: "a2", daysLeft: 1 })];
+    const b = [event({ id: "b1", daysLeft: 3 })];
+    expect(collectEvents({ sources: [a, b] }).map((h) => h.id)).toEqual(["a2", "b1", "a1"]);
   });
 
   it("lägger odaterat sist, inte först", () => {
     // ⛔ Det här är felet en naiv sortering gör: null är mindre än varje tal, så
     // allt odaterat hamnar överst, precis framför det som brinner. Listan ser
     // sorterad ut, och det är därför felet överlever.
-    const kallor = [[handelse({ id: "utan" }), handelse({ id: "med", daysLeft: 4 })]];
-    expect(collectEvents({ kallor }).map((h) => h.id)).toEqual(["med", "utan"]);
+    const sources = [[event({ id: "utan" }), event({ id: "med", daysLeft: 4 })]];
+    expect(collectEvents({ sources }).map((h) => h.id)).toEqual(["med", "utan"]);
   });
 
   it("behandlar undefined dagarKvar som odaterat", () => {
-    const kallor = [[{ id: "oskrivet", title: "oskrivet" }, handelse({ id: "med", daysLeft: 9 })]];
-    expect(collectEvents({ kallor }).map((h) => h.id)).toEqual(["med", "oskrivet"]);
+    const sources = [[{ id: "oskrivet", title: "oskrivet" }, event({ id: "med", daysLeft: 9 })]];
+    expect(collectEvents({ sources }).map((h) => h.id)).toEqual(["med", "oskrivet"]);
   });
 
   it("sorterar försenat före dagens", () => {
-    const kallor = [[handelse({ id: "idag", daysLeft: 0 }), handelse({ id: "sent", daysLeft: -3 })]];
-    expect(collectEvents({ kallor }).map((h) => h.id)).toEqual(["sent", "idag"]);
+    const sources = [[event({ id: "idag", daysLeft: 0 }), event({ id: "sent", daysLeft: -3 })]];
+    expect(collectEvents({ sources }).map((h) => h.id)).toEqual(["sent", "idag"]);
   });
 
   it("bryter lika dagar med appens ordningsfunktion", () => {
-    const kallor = [
+    const sources = [
       [
-        handelse({ id: "maskin", daysLeft: 2, role: "auto" }),
-        handelse({ id: "manniska", daysLeft: 2, role: "human" }),
+        event({ id: "maskin", daysLeft: 2, role: "auto" }),
+        event({ id: "manniska", daysLeft: 2, role: "human" }),
       ],
     ];
-    const ordning = (/** @type {any} */ h) => (h.role === "human" ? 0 : 1);
-    expect(collectEvents({ kallor, ordning }).map((h) => h.id)).toEqual(["manniska", "maskin"]);
+    const order = (/** @type {any} */ h) => (h.role === "human" ? 0 : 1);
+    expect(collectEvents({ sources, order }).map((h) => h.id)).toEqual(["manniska", "maskin"]);
   });
 
   it("ordningsfunktionen bryter aldrig dagordningen", () => {
     // ⛔ Tie-break betyder INOM samma dag. En rollvikt som får gå före dagarKvar
     // hade lyft något som ligger tre veckor bort över något som förfaller i dag,
     // bara för att en människa råkar äga det.
-    const kallor = [[handelse({ id: "fjarran", daysLeft: 21, role: "human" }), handelse({ id: "nara", daysLeft: 0, role: "auto" })]];
-    const ordning = (/** @type {any} */ h) => (h.role === "human" ? 0 : 1);
-    expect(collectEvents({ kallor, ordning }).map((h) => h.id)).toEqual(["nara", "fjarran"]);
+    const sources = [[event({ id: "fjarran", daysLeft: 21, role: "human" }), event({ id: "nara", daysLeft: 0, role: "auto" })]];
+    const order = (/** @type {any} */ h) => (h.role === "human" ? 0 : 1);
+    expect(collectEvents({ sources, order }).map((h) => h.id)).toEqual(["nara", "fjarran"]);
   });
 
   it("behåller källornas ordning när inget skiljer dem åt", () => {
-    const kallor = [[handelse({ id: "forst", daysLeft: 2 }), handelse({ id: "sedan", daysLeft: 2 }), handelse({ id: "sist", daysLeft: 2 })]];
-    expect(collectEvents({ kallor }).map((h) => h.id)).toEqual(["forst", "sedan", "sist"]);
+    const sources = [[event({ id: "forst", daysLeft: 2 }), event({ id: "sedan", daysLeft: 2 }), event({ id: "sist", daysLeft: 2 })]];
+    expect(collectEvents({ sources }).map((h) => h.id)).toEqual(["forst", "sedan", "sist"]);
   });
 
   it("tål tomma och saknade källor utan att tappa de andra", () => {
-    const kallor = [[], [handelse({ id: "kvar", daysLeft: 1 })], /** @type {any} */ (null)];
-    expect(collectEvents({ kallor }).map((h) => h.id)).toEqual(["kvar"]);
+    const sources = [[], [event({ id: "kvar", daysLeft: 1 })], /** @type {any} */ (null)];
+    expect(collectEvents({ sources }).map((h) => h.id)).toEqual(["kvar"]);
   });
 
   it("utan argument är svaret en tom lista och inte ett fel", () => {
@@ -122,18 +122,18 @@ describe("samlaHandelser", () => {
   it("matar delaIdagKommande utan mellansteg", () => {
     // ⛔ De två funktionerna används alltid ihop, och provet finns för att visa
     // att `collectEvents` inte formar om något som `splitTodayUpcoming` behöver.
-    const kallor = [
+    const sources = [
       [
-        handelse({ id: "sent", daysLeft: -2 }),
-        handelse({ id: "idag", daysLeft: 0 }),
-        handelse({ id: "pagar", daysLeft: 4, pagar: true }),
-        handelse({ id: "framat", daysLeft: 4 }),
-        handelse({ id: "odaterat" }),
+        event({ id: "sent", daysLeft: -2 }),
+        event({ id: "idag", daysLeft: 0 }),
+        event({ id: "pagar", daysLeft: 4, pagar: true }),
+        event({ id: "framat", daysLeft: 4 }),
+        event({ id: "odaterat" }),
       ],
     ];
-    const { today, kommande, forsenat } = splitTodayUpcoming(collectEvents({ kallor }));
+    const { today, upcoming, forsenat } = splitTodayUpcoming(collectEvents({ sources }));
     expect(forsenat).toBe(1);
     expect(today.map((h) => h.id)).toEqual(["sent", "idag", "pagar"]);
-    expect(kommande.map((h) => h.id)).toEqual(["framat", "odaterat"]);
+    expect(upcoming.map((h) => h.id)).toEqual(["framat", "odaterat"]);
   });
 });

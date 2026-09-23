@@ -20,8 +20,8 @@ import { KryssIkon } from "./icons.jsx";
 
 /** @typedef {{ id: number, title: string, description?: string, tone: "success"|"danger"|"info" }} Toastpost */
 
-/** @type {import("react").Context<{ visa: (t: Omit<Toastpost, "id">) => void } | null>} */
-const ToastContext = createContext(/** @type {{ visa: (t: Omit<Toastpost, "id">) => void } | null} */ (null));
+/** @type {import("react").Context<{ show: (t: Omit<Toastpost, "id">) => void } | null>} */
+const ToastContext = createContext(/** @type {{ show: (t: Omit<Toastpost, "id">) => void } | null} */ (null));
 
 const TONER = {
   success: "border-success/30 bg-success-bg text-success",
@@ -38,14 +38,14 @@ const TONER = {
 export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
   const [entries, setPoster] = useState(/** @type {Toastpost[]} */ ([]));
 
-  const visa = useCallback((/** @type {Omit<Toastpost, "id">} */ entry) => {
+  const show = useCallback((/** @type {Omit<Toastpost, "id">} */ entry) => {
     setPoster((tidigare) => [...tidigare, { ...entry, id: Date.now() + Math.random() }]);
   }, []);
 
-  const varde = useMemo(() => ({ visa }), [visa]);
+  const contextValue = useMemo(() => ({ show }), [show]);
 
   return (
-    <ToastContext.Provider value={varde}>
+    <ToastContext.Provider value={contextValue}>
       {/* `duration` är 6 sekunder, inte 3. Tre räcker inte för att läsa en
           mening på ett språk man inte läser snabbt, och Radix pausar ändå
           nedräkningen när pekaren är över eller fokus är i. */}
@@ -85,7 +85,7 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
 }
 
 /**
- * @returns {{ visa: (t: { title: string, description?: string, tone?: "success"|"danger"|"info" }) => void }}
+ * @returns {{ show: (t: { title: string, description?: string, tone?: "success"|"danger"|"info" }) => void }}
  */
 export function useOpsToast() {
   const ctx = useContext(ToastContext);
@@ -94,5 +94,5 @@ export function useOpsToast() {
       "useOpsToast: ingen OpsToastProvider hittades. Lägg den högst upp i appen. Att tyst returnera en tom funktion hade gjort att bekräftelser försvann utan att någon märkte det.",
     );
   }
-  return { visa: (t) => ctx.visa({ tone: "success", ...t }) };
+  return { show: (t) => ctx.show({ tone: "success", ...t }) };
 }

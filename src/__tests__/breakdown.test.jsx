@@ -44,10 +44,10 @@ describe("OpsBreakdown", () => {
     // ⛔ En roterad chevron är osynlig för en skärmläsare. aria-expanded är det
     // enda som faktiskt bär tillståndet.
     render(<OpsBreakdown groups={groups} onToggle={() => {}} total={total} />);
-    const knapp = screen.getByRole("button", { name: "Visa poster i Bostad" });
-    expect(knapp).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(knapp);
-    expect(knapp).toHaveAttribute("aria-expanded", "true");
+    const button = screen.getByRole("button", { name: "Visa poster i Bostad" });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
   });
 
   it("skiljer utfällning från nedtoning, och nästlar dem inte", () => {
@@ -73,9 +73,9 @@ describe("OpsBreakdown", () => {
     render(<OpsBreakdown groups={groups} onToggle={() => {}} total={total} />);
     expect(screen.getByRole("button", { name: /^Bostad/ })).toHaveAttribute("aria-pressed", "true");
 
-    const mat = screen.getByRole("button", { name: /^Mat/ });
-    expect(mat).toHaveAttribute("aria-pressed", "false");
-    expect(within(mat).getByText("5 000 kr")).toHaveClass("line-through");
+    const measure = screen.getByRole("button", { name: /^Mat/ });
+    expect(measure).toHaveAttribute("aria-pressed", "false");
+    expect(within(measure).getByText("5 000 kr")).toHaveClass("line-through");
   });
 
   it("ger en grupp utan poster ingen utfällningsknapp", () => {

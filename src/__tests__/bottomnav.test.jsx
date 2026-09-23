@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { OpsBottomNav } from "../components/OpsBottomNav.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 
-/** @param {() => void} kor @param {RegExp} meddelande */
-function forvantaKrasch(kor, meddelande) {
+/** @param {() => void} kor @param {RegExp} message */
+function forvantaKrasch(kor, message) {
   const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
-    expect(kor).toThrow(meddelande);
+    expect(kor).toThrow(message);
   } finally {
     tyst.mockRestore();
   }
@@ -42,26 +42,26 @@ const NAV = [
 describe("OpsBottomNav", () => {
   it("visar högst fem platser i raden och Meny finns alltid med", () => {
     render(<OpsBottomNav nav={NAV} activeHref="/" />);
-    const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    const row = screen.getByRole("navigation", { name: "Snabbnavigering" });
     // Fyra toppdestinationer som länkar, plus Meny som knapp = fem platser.
-    expect(within(rad).getAllByRole("link")).toHaveLength(4);
-    expect(within(rad).getByRole("button", { name: "Meny" })).toBeInTheDocument();
+    expect(within(row).getAllByRole("link")).toHaveLength(4);
+    expect(within(row).getByRole("button", { name: "Meny" })).toBeInTheDocument();
   });
 
   it("har Meny även när destinationerna får plats", () => {
     render(<OpsBottomNav nav={NAV.slice(0, 2)} activeHref="/" />);
-    const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
-    expect(within(rad).getByRole("button", { name: "Meny" })).toBeInTheDocument();
+    const row = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    expect(within(row).getByRole("button", { name: "Meny" })).toBeInTheDocument();
   });
 
   it("lägger femte till sjunde destinationen i sheeten, inte i raden", async () => {
     render(<OpsBottomNav nav={NAV} activeHref="/" />);
-    const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    const row = screen.getByRole("navigation", { name: "Snabbnavigering" });
     // Inte i raden.
-    expect(within(rad).queryByRole("link", { name: "Pension" })).toBeNull();
-    expect(within(rad).queryByRole("link", { name: "Kontakter" })).toBeNull();
+    expect(within(row).queryByRole("link", { name: "Pension" })).toBeNull();
+    expect(within(row).queryByRole("link", { name: "Kontakter" })).toBeNull();
     // Men i sheeten när Meny öppnas.
-    await userEvent.click(within(rad).getByRole("button", { name: "Meny" }));
+    await userEvent.click(within(row).getByRole("button", { name: "Meny" }));
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByRole("link", { name: "Pension" })).toBeInTheDocument();
     expect(within(sheet).getByRole("link", { name: "Schema" })).toBeInTheDocument();
@@ -72,9 +72,9 @@ describe("OpsBottomNav", () => {
     // ⛔ Kostnader syns i bottenraden. Mer = samma överlopp som header-hamburgaren,
     // inte föräldern och inte barn-lyft. Undersidor nås via avsnittet i baren.
     render(<OpsBottomNav nav={NAV} activeHref="/" />);
-    const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
-    expect(within(rad).getByRole("link", { name: "Kostnader" })).toBeInTheDocument();
-    await userEvent.click(within(rad).getByRole("button", { name: "Meny" }));
+    const row = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    expect(within(row).getByRole("link", { name: "Kostnader" })).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("button", { name: "Meny" }));
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).queryByRole("link", { name: "Kostnader" })).toBeNull();
     expect(within(sheet).queryByRole("link", { name: "Företag" })).toBeNull();
@@ -97,8 +97,8 @@ describe("OpsBottomNav", () => {
 
   it("markerar avsnittet i raden när en undersida är aktiv", () => {
     render(<OpsBottomNav nav={NAV} activeHref="/kostnader/foretag" />);
-    const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
-    const kostnader = within(rad).getByRole("link", { name: "Kostnader" });
+    const row = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    const kostnader = within(row).getByRole("link", { name: "Kostnader" });
     expect(kostnader).toHaveAttribute("aria-current", "page");
   });
 
@@ -111,18 +111,18 @@ describe("OpsBottomNav", () => {
 
   it("lämnar fokus tillbaka till Meny-knappen när sheeten stängs", async () => {
     render(<OpsBottomNav nav={NAV} activeHref="/" />);
-    const meny = screen.getByRole("button", { name: "Meny" });
-    await userEvent.click(meny);
+    const menu = screen.getByRole("button", { name: "Meny" });
+    await userEvent.click(menu);
     await screen.findByRole("dialog");
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await waitFor(() => expect(meny).toHaveFocus());
+    await waitFor(() => expect(menu).toHaveFocus());
   });
 
   it("visar badge med både siffra och skärmläsartext", () => {
     render(<OpsBottomNav nav={NAV} activeHref="/" badgeText="olästa" />);
-    const rad = screen.getByRole("navigation", { name: "Snabbnavigering" });
-    expect(within(rad).getByText("3 olästa")).toBeInTheDocument();
+    const row = screen.getByRole("navigation", { name: "Snabbnavigering" });
+    expect(within(row).getByText("3 olästa")).toBeInTheDocument();
   });
 
   it("kastar med förklarande text när children har egna children", () => {
@@ -227,15 +227,15 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
     /*
      * ⛔ FEM DESTINATIONER ÄR FEM LÄNKAR, plus en knapp för chevronen på den
      * post som har barn. Siffran fem är kravet; knappen är en följd av att
      * etiketten och chevronen är två kontroller som gör var sin sak.
      */
-    expect(within(toppnav).getAllByRole("link")).toHaveLength(5);
-    expect(within(toppnav).getAllByRole("button")).toHaveLength(1);
-    expect(within(toppnav).queryByRole("link", { name: "Kontakter" })).toBeNull();
+    expect(within(topNav).getAllByRole("link")).toHaveLength(5);
+    expect(within(topNav).getAllByRole("button")).toHaveLength(1);
+    expect(within(topNav).queryByRole("link", { name: "Kontakter" })).toBeNull();
 
     // ⛔ fireEvent och inte userEvent, och den första förklaringen till det var
     // fel. Här stod att userEvent:s pekarsimulering hängde. Ommätt: kostnaden
@@ -249,9 +249,9 @@ describe("OpsAppShell efter mobilomställningen", () => {
     // fireEvent är ändå rätt val, men för att det testar rätt sak, inte för att
     // det är snabbare.
     fireEvent.click(screen.getByRole("button", { name: /fler destinationer/ }));
-    const meny = await screen.findByRole("navigation", { name: "Meny" });
-    expect(within(meny).getByRole("link", { name: "Schema" })).toBeInTheDocument();
-    expect(within(meny).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
+    const menu = await screen.findByRole("navigation", { name: "Meny" });
+    expect(within(menu).getByRole("link", { name: "Schema" })).toBeInTheDocument();
+    expect(within(menu).getByRole("link", { name: "Kontakter" })).toBeInTheDocument();
   });
 
   it("öppnar en riktig meny på posten med barn, i stället för att bara rita en pil", async () => {
@@ -272,18 +272,18 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
 
     /*
      * ⛔ SÖKT PÅ HELA SIDAN OCH INTE INUTI `<nav>`, och den skillnaden är hela
      * provets värde. Radix portalerar menyn till `body`, alltså UTANFÖR navet.
-     * Första versionen frågade `within(toppnav)` och var därför grön även med
+     * Första versionen frågade `within(topNav)` och var därför grön även med
      * menyn tvångsöppnad: den letade på ett ställe där svaret aldrig kunde
      * finnas. Mutationen "öppen från start" avslöjade det.
      */
     expect(screen.queryByRole("link", { name: "Företag" })).toBeNull();
 
-    fireEvent.click(within(toppnav).getByRole("button", { name: /Kostnader/ }));
+    fireEvent.click(within(topNav).getByRole("button", { name: /Kostnader/ }));
     expect(await screen.findByRole("link", { name: "Företag" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Privat" })).toBeInTheDocument();
   });
@@ -306,15 +306,15 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
 
-    expect(within(toppnav).getByRole("link", { name: "Kostnader" })).toHaveAttribute("href", "/kostnader");
+    expect(within(topNav).getByRole("link", { name: "Kostnader" })).toHaveAttribute("href", "/kostnader");
 
-    fireEvent.click(within(toppnav).getByRole("button", { name: /Kostnader/ }));
+    fireEvent.click(within(topNav).getByRole("button", { name: /Kostnader/ }));
     await screen.findByRole("link", { name: "Företag" });
 
     /*
-     * ⛔ RÄKNAT I HELA HEADERN OCH INTE `within(toppnav)`, och det är andra
+     * ⛔ RÄKNAT I HELA HEADERN OCH INTE `within(topNav)`, och det är andra
      * gången samma fälla slår till i kväll: Radix portalerar menyn till `body`,
      * alltså UTANFÖR navet. En fråga inom navet kan därför aldrig se menyns
      * rader, och första versionen av det här provet var grönt även med
@@ -345,13 +345,13 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    const iRaden = within(toppnav).getByRole("link", { name: "Tillgångar" });
-    expect(iRaden.className).toContain("lg:inline-flex");
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const inRow = within(topNav).getByRole("link", { name: "Tillgångar" });
+    expect(inRow.className).toContain("lg:inline-flex");
 
     fireEvent.click(screen.getByRole("button", { name: /fler destinationer/ }));
-    const meny = await screen.findByRole("navigation", { name: "Meny" });
-    expect(within(meny).getByRole("link", { name: "Tillgångar" }).className).toContain("lg:hidden");
+    const menu = await screen.findByRole("navigation", { name: "Meny" });
+    expect(within(menu).getByRole("link", { name: "Tillgångar" }).className).toContain("lg:hidden");
   });
 
   it("låter appen bestämma hur många som får plats", () => {
@@ -360,8 +360,8 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    expect(within(toppnav).getAllByRole("link")).toHaveLength(2);
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(topNav).getAllByRole("link")).toHaveLength(2);
   });
 
   it("visar ingen hamburgare när allt får plats", () => {
@@ -370,7 +370,7 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
     expect(screen.queryByRole("button", { name: /fler destinationer/ })).toBeNull();
   });
 
@@ -414,8 +414,8 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    expect(within(toppnav).getByRole("link", { name: "Fråga" })).toBeInTheDocument();
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(topNav).getByRole("link", { name: "Fråga" })).toBeInTheDocument();
 
     const botten = screen.getByRole("navigation", { name: "Snabbnavigering" });
     fireEvent.click(within(botten).getByRole("button", { name: "Meny" }));
@@ -434,9 +434,9 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const rad = container.querySelector("header > div");
-    expect(rad?.className).toMatch(/grid-cols-\[1fr_auto\]/);
-    expect(rad?.className).toMatch(/md:grid-cols-\[1fr_auto_1fr\]/);
+    const row = container.querySelector("header > div");
+    expect(row?.className).toMatch(/grid-cols-\[1fr_auto\]/);
+    expect(row?.className).toMatch(/md:grid-cols-\[1fr_auto_1fr\]/);
   });
 
   it("döljer header-hamburgaren under md utan inline-flex-krock", () => {
@@ -447,11 +447,11 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const meny = screen.getByRole("button", { name: /fler destinationer/ });
-    expect(meny.className).toMatch(/\bhidden\b/);
-    expect(meny.className).toMatch(/md:inline-flex/);
+    const menu = screen.getByRole("button", { name: /fler destinationer/ });
+    expect(menu.className).toMatch(/\bhidden\b/);
+    expect(menu.className).toMatch(/md:inline-flex/);
     // Ingen fristående inline-flex som krockar med hidden under md.
-    expect(meny.className.split(/\s+/).filter((c) => c === "inline-flex")).toHaveLength(0);
+    expect(menu.className.split(/\s+/).filter((c) => c === "inline-flex")).toHaveLength(0);
   });
 
   /**
@@ -464,9 +464,9 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    const meny = screen.getByRole("button", { name: /fler destinationer/ });
-    expect(meny.className).toContain("text-ink");
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    const menu = screen.getByRole("button", { name: /fler destinationer/ });
+    expect(menu.className).toContain("text-ink");
   });
 
   /**
@@ -496,8 +496,8 @@ describe("OpsAppShell efter mobilomställningen", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    expect(within(toppnav).queryAllByTestId("ikon")).toHaveLength(0);
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(topNav).queryAllByTestId("ikon")).toHaveLength(0);
 
     // Bottenraden ritar dem fortfarande: fyra destinationer plus Meny.
     const bottennav = screen.getByRole("navigation", { name: "Snabbnavigering" });
@@ -508,16 +508,16 @@ describe("OpsAppShell efter mobilomställningen", () => {
     // ⛔ Avläst ur SessionStudio: `{n.badge > 9 ? "9+" : n.badge}`. En
     // tvåsiffrig räknare spränger cirkeln, och exakt antal är inte det fliken
     // svarar på.
-    const medRaknare = NAV.map((p, i) => (i === 1 ? { ...p, badge: 12 } : p));
+    const withCounter = NAV.map((p, i) => (i === 1 ? { ...p, badge: 12 } : p));
     render(
-      <OpsAppShell brand="X" nav={medRaknare} activeHref="/">
+      <OpsAppShell brand="X" nav={withCounter} activeHref="/">
         <p>x</p>
       </OpsAppShell>,
     );
-    const toppnav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    expect(within(toppnav).getAllByText("9+").length).toBeGreaterThan(0);
+    const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    expect(within(topNav).getAllByText("9+").length).toBeGreaterThan(0);
     // Siffran ensam säger inget uppläst, så ordet följer med.
-    expect(within(toppnav).getAllByText(/12 nya/).length).toBeGreaterThan(0);
+    expect(within(topNav).getAllByText(/12 nya/).length).toBeGreaterThan(0);
   });
 });
 
@@ -536,8 +536,8 @@ describe("OpsBottomNav, huvudåtgärden", () => {
     const onClick = vi.fn();
     render(<OpsBottomNav nav={nav} activeHref="/" primaryAction={{ label: "Nytt ärende", onClick }} />);
 
-    const knapp = screen.getByRole("button", { name: "Nytt ärende" });
-    fireEvent.click(knapp);
+    const button = screen.getByRole("button", { name: "Nytt ärende" });
+    fireEvent.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
@@ -546,11 +546,11 @@ describe("OpsBottomNav, huvudåtgärden", () => {
     // flikar plus Meny plus en knapp på 56 px ger sex platser, alltså 56 px var
     // med noll luft och avhuggna etiketter.
     const { rerender } = render(<OpsBottomNav nav={nav} activeHref="/" navLabel="Bottenrad" />);
-    const rad = () => screen.getByRole("navigation", { name: "Bottenrad" });
-    expect(within(rad()).getAllByRole("link")).toHaveLength(4);
+    const row = () => screen.getByRole("navigation", { name: "Bottenrad" });
+    expect(within(row()).getAllByRole("link")).toHaveLength(4);
 
     rerender(<OpsBottomNav nav={nav} activeHref="/" navLabel="Bottenrad" primaryAction={{ label: "Nytt", onClick: () => {} }} />);
-    expect(within(rad()).getAllByRole("link")).toHaveLength(3);
+    expect(within(row()).getAllByRole("link")).toHaveLength(3);
   });
 
   it("har flikar på BÅDA sidor om knappen", () => {

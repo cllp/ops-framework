@@ -29,10 +29,10 @@ describe("kryssrutans träffyta", () => {
     const { container } = render(<OpsCheckbox label="Ta med i rapporten" checked={false} onChange={vidValt} />);
 
     // Den dekorativa rutan är det aria-hidden-spannet inuti etiketten.
-    const ruta = container.querySelector("label > span[aria-hidden='true']");
-    expect(ruta).not.toBeNull();
+    const box = container.querySelector("label > span[aria-hidden='true']");
+    expect(box).not.toBeNull();
 
-    await userEvent.click(/** @type {Element} */ (ruta));
+    await userEvent.click(/** @type {Element} */ (box));
     expect(vidValt).toHaveBeenCalledTimes(1);
     expect(vidValt).toHaveBeenCalledWith(true);
   });
@@ -59,14 +59,14 @@ describe("kryssrutans träffyta", () => {
       </>,
     );
 
-    const rutor = container.querySelectorAll("label > span[aria-hidden='true']");
-    expect(rutor).toHaveLength(2);
+    const boxes = container.querySelectorAll("label > span[aria-hidden='true']");
+    expect(boxes).toHaveLength(2);
 
-    await userEvent.click(rutor[0]);
+    await userEvent.click(boxes[0]);
     expect(forst).toHaveBeenCalledTimes(1);
     expect(sedan).not.toHaveBeenCalled();
 
-    await userEvent.click(rutor[1]);
+    await userEvent.click(boxes[1]);
     expect(sedan).toHaveBeenCalledTimes(1);
     expect(forst).toHaveBeenCalledTimes(1);
   });

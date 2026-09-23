@@ -85,47 +85,47 @@
  * hade gjort funktionen till något som gissar vad anroparen menade. Appen vet hur
  * dess lagring ser ut och packar upp själv.
  *
- * @param {unknown} rat
+ * @param {unknown} raw
  * @returns {Last}
  */
-export function readCaseFlow(rat) {
-  const tomt = { entries: /** @type {Post[]} */ ([]), existed: false, error: null, updatedAt: null };
+export function readCaseFlow(raw) {
+  const empty = { entries: /** @type {Post[]} */ ([]), existed: false, error: null, updatedAt: null };
 
   // ⛔ Frånvaro är INTE ett fel. `null` betyder oftast "har inte hämtats än", och
   // ett felmeddelande under laddning är ett fel användaren inte kan göra något åt.
-  if (rat === null || rat === undefined || rat === "") return tomt;
+  if (raw === null || raw === undefined || raw === "") return empty;
 
-  let flode = rat;
-  if (typeof rat === "string") {
+  let flow = raw;
+  if (typeof raw === "string") {
     try {
-      flode = JSON.parse(rat);
+      flow = JSON.parse(raw);
     } catch (e) {
-      return { ...tomt, error: `Flödet är inte giltig JSON: ${e instanceof Error ? e.message : String(e)}` };
+      return { ...empty, error: `Flödet är inte giltig JSON: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
 
-  if (typeof flode !== "object" || flode === null || Array.isArray(flode)) {
-    return { ...tomt, error: "Flödet är inte ett objekt." };
+  if (typeof flow !== "object" || flow === null || Array.isArray(flow)) {
+    return { ...empty, error: "Flödet är inte ett objekt." };
   }
 
-  const kropp = /** @type {Record<string, unknown>} */ (flode);
+  const body = /** @type {Record<string, unknown>} */ (flow);
 
   // ⛔ DET HÄR ÄR RADEN SOM VAR TYST. Saknas `items`, eller är det något annat än
   // en lista, är flödet trasigt. Utan den här grenen blev svaret en tom lista,
   // alltså "inga uppgifter", vilket är ett påstående om verksamheten när
   // sanningen är ett påstående om datan.
-  if (!Array.isArray(kropp.items)) {
+  if (!Array.isArray(body.items)) {
     return {
-      ...tomt,
-      error: `Flödet saknar en lista i "items" (fick ${kropp.items === undefined ? "inget fält" : typeof kropp.items}).`,
-      updatedAt: typeof kropp.updated === "string" ? kropp.updated : null,
+      ...empty,
+      error: `Flödet saknar en lista i "items" (fick ${body.items === undefined ? "inget fält" : typeof body.items}).`,
+      updatedAt: typeof body.updated === "string" ? body.updated : null,
     };
   }
 
   return {
-    entries: /** @type {Post[]} */ (kropp.items),
+    entries: /** @type {Post[]} */ (body.items),
     existed: true,
     error: null,
-    updatedAt: typeof kropp.updated === "string" ? kropp.updated : null,
+    updatedAt: typeof body.updated === "string" ? body.updated : null,
   };
 }

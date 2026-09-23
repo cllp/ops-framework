@@ -6,7 +6,7 @@ import { KryssIkon } from "./icons.jsx";
  * Etikett för en kategori, alltså det bolag-ops kallar tag.
  *
  * ⛔ Den här komponenten finns för ett mätt problem. bolag-ops har i dag
- * TJUGOFEM handskrivna klasser: `.tag-pill--mat`, `--bil`, `--ica`,
+ * TJUGOFEM handskrivna klasser: `.tag-pill--measure`, `--bil`, `--ica`,
  * `--systembolaget`, `--streaming` och så vidare. En klass per datavärde
  * betyder att varje ny kategori kräver en kodändring, att ingen kan säga vilka
  * som finns utan att läsa CSS:en, och att de tjugofem färgerna valdes en och en

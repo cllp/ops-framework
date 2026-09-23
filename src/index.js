@@ -34,7 +34,7 @@ export { OpsSimulatePopover } from "./components/OpsSimulatePopover.jsx";
 export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
 export { OpsScrollArea } from "./components/OpsScrollArea.jsx";
 export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
-// ⛔ `readAttachment` och `MAX_SIDA` exporteras MED FLIT inte. En app som läser filer
+// ⛔ `readAttachment` och `MAX_SIDE` exporteras MED FLIT inte. En app som läser filer
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
 // ryms. `isImage` och `sizeText` behövs för att VISA en sparad bilaga, alltså
 // på andra sidan lagringen, där komponenten inte finns.

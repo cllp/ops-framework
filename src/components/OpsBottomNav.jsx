@@ -1,8 +1,8 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { KryssIkon, MenyIkon, PlusIkon } from "./icons.jsx";
-import { postAktiv, validateNav } from "../lib/nav.js";
+import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
+import { entryActive, validateNav } from "../lib/nav.js";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -38,10 +38,10 @@ import { postAktiv, validateNav } from "../lib/nav.js";
  * navigera tillbaka från.
  */
 
-const MAX_I_RADEN = 4;
+const MAX_IN_ROW = 4;
 
 /** Med en huvudåtgärd i mitten ryms färre flikar. Mätt, se filhuvudet. */
-const MAX_I_RADEN_MED_ATGARD = 3;
+const MAX_IN_ROW_WITH_ACTION = 3;
 
 /**
  * @param {object} props
@@ -84,12 +84,12 @@ export function OpsBottomNav({
     );
   }
 
-  const tak = primaryAction ? MAX_I_RADEN_MED_ATGARD : MAX_I_RADEN;
-  const iRaden = nav.slice(0, tak);
+  const tak = primaryAction ? MAX_IN_ROW_WITH_ACTION : MAX_IN_ROW;
+  const inRow = nav.slice(0, tak);
 
   // Knappen delar raden på mitten. Udda antal flikar ger en extra till vänster,
   // vilket är rätt håll: den första fliken är den man trycker oftast.
-  const brytpunkt = Math.ceil(iRaden.length / 2);
+  const brytpunkt = Math.ceil(inRow.length / 2);
 
   // ⛔ SHEETEN = HEADERNS MER-LISTA, INTE EN ANDRA SANNING.
   //
@@ -100,7 +100,7 @@ export function OpsBottomNav({
   // ⛔ Ingen barn-lyft av bar-poster. Ekonomi syns i bottenraden; dess
   // undersidor nås via Ekonomisidan, inte som dubblett i Mer.
   /** @type {import("../lib/nav.js").NavPost[]} */
-  const iMenyn = Array.isArray(moreNav) ? moreNav : nav.slice(tak);
+  const inMenu = Array.isArray(moreNav) ? moreNav : nav.slice(tak);
 
   /** @param {string} href @param {any} e */
   const klick = (href, e) => {
@@ -116,11 +116,11 @@ export function OpsBottomNav({
       className="fixed inset-x-0 bottom-0 z-(--z-chrome) border-t border-line bg-surface pb-(--safe-bottom) md:hidden"
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
-        {iRaden.slice(0, brytpunkt).map((entry) => (
+        {inRow.slice(0, brytpunkt).map((entry) => (
           <BottomLank
             key={entry.href}
             entry={entry}
-            active={postAktiv(entry, activeHref)}
+            active={entryActive(entry, activeHref)}
             onClick={(/** @type {any} */ e) => klick(entry.href, e)}
             badgeText={badgeText}
           />
@@ -128,11 +128,11 @@ export function OpsBottomNav({
 
         {primaryAction ? <Huvudatgard atgard={primaryAction} /> : null}
 
-        {iRaden.slice(brytpunkt).map((entry) => (
+        {inRow.slice(brytpunkt).map((entry) => (
           <BottomLank
             key={entry.href}
             entry={entry}
-            active={postAktiv(entry, activeHref)}
+            active={entryActive(entry, activeHref)}
             onClick={(/** @type {any} */ e) => klick(entry.href, e)}
             badgeText={badgeText}
           />
@@ -141,7 +141,7 @@ export function OpsBottomNav({
         <Dialog.Root open={oppen} onOpenChange={setOppen}>
           <Dialog.Trigger asChild>
             <button type="button" className={platsKlass(false)}>
-              <MenyIkon size={22} />
+              <MenuIcon size={22} />
               <span className="mt-0.5 max-w-full truncate text-xs font-medium">{menuLabel}</span>
             </button>
           </Dialog.Trigger>
@@ -163,12 +163,12 @@ export function OpsBottomNav({
                 </Dialog.Close>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
-                {iMenyn.map((entry) => (
+                {inMenu.map((entry) => (
                   <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
                 ))}
                 {menuExtras ? (
                   <>
-                    {iMenyn.length ? (
+                    {inMenu.length ? (
                       <div role="separator" className="my-2 border-t border-line" />
                     ) : null}
                     <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
@@ -239,7 +239,7 @@ function BottomLank({ entry, active, onClick, badgeText }) {
     >
       <span className="relative inline-flex">
         {entry.icon ?? <span className="inline-block h-[22px] w-[22px] rounded-full border-2 border-current" aria-hidden="true" />}
-        {typeof entry.badge === "number" ? <Badge antal={entry.badge} text={badgeText} /> : null}
+        {typeof entry.badge === "number" ? <Badge count={entry.badge} text={badgeText} /> : null}
       </span>
       <span className="mt-0.5 max-w-full truncate text-xs font-medium">{entry.label}</span>
     </a>
@@ -250,32 +250,32 @@ function BottomLank({ entry, active, onClick, badgeText }) {
  * @param {{ entry: import("../lib/nav.js").NavPost, activeHref: string, onNavigate: (href: string, e: any) => void, badgeText: string }} props
  */
 function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
-  const harBarn = Array.isArray(entry.children) && entry.children.length > 0;
+  const hasChildren = Array.isArray(entry.children) && entry.children.length > 0;
   return (
     <div className="mb-1">
       <a
         href={entry.href}
         onClick={(e) => onNavigate(entry.href, e)}
         aria-current={entry.href === activeHref ? "page" : undefined}
-        className={sheetLankKlass(entry.href === activeHref, harBarn)}
+        className={sheetLankKlass(entry.href === activeHref, hasChildren)}
       >
         <span className="flex min-w-0 items-center gap-3">
           {entry.icon ? <span className="shrink-0">{entry.icon}</span> : null}
           <span className="truncate">{entry.label}</span>
         </span>
-        {typeof entry.badge === "number" ? <Badge antal={entry.badge} text={badgeText} /> : null}
+        {typeof entry.badge === "number" ? <Badge count={entry.badge} text={badgeText} /> : null}
       </a>
-      {harBarn ? (
+      {hasChildren ? (
         <div className="mt-0.5 flex flex-col gap-0.5 pl-4">
-          {(entry.children ?? []).map((barn) => (
+          {(entry.children ?? []).map((childEntries) => (
             <a
-              key={barn.href}
-              href={barn.href}
-              onClick={(e) => onNavigate(barn.href, e)}
-              aria-current={barn.href === activeHref ? "page" : undefined}
-              className={sheetLankKlass(barn.href === activeHref, false)}
+              key={childEntries.href}
+              href={childEntries.href}
+              onClick={(e) => onNavigate(childEntries.href, e)}
+              aria-current={childEntries.href === activeHref ? "page" : undefined}
+              className={sheetLankKlass(childEntries.href === activeHref, false)}
             >
-              <span className="truncate">{barn.label}</span>
+              <span className="truncate">{childEntries.label}</span>
             </a>
           ))}
         </div>
@@ -298,14 +298,14 @@ function sheetLankKlass(active, title) {
 /**
  * En badge har både siffra och skärmläsartext. En prick utan namn säger
  * ingenting till den som inte ser den.
- * @param {{ antal: number, text: string }} props
+ * @param {{ count: number, text: string }} props
  */
-function Badge({ antal, text }) {
+function Badge({ count, text }) {
   return (
     <span className="inline-flex min-h-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-accent px-1 text-xs font-bold leading-none text-accent-contrast">
-      <span aria-hidden="true">{antal}</span>
+      <span aria-hidden="true">{count}</span>
       <span className="sr-only">
-        {antal} {text}
+        {count} {text}
       </span>
     </span>
   );

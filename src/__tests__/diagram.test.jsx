@@ -80,11 +80,11 @@ describe("OpsShareChart", () => {
    */
   it("ankrar ringen upptill i stället för att centrera den mot listan", () => {
     const { container } = render(<OpsShareChart segments={andelar} ariaLabel="Tillgångar per klass" />);
-    const rad = container.firstElementChild;
-    const ringen = rad?.firstElementChild;
+    const row = container.firstElementChild;
+    const ringen = row?.firstElementChild;
 
-    expect(rad?.className).toContain("sm:items-start");
-    expect(rad?.className).not.toContain("items-center");
+    expect(row?.className).toContain("sm:items-start");
+    expect(row?.className).not.toContain("items-center");
 
     /*
      * ⛔ TOPPANKRINGEN ÄR VILLKORAD, OCH PROVET MÅSTE SÄGA DET. Raden är
@@ -100,7 +100,7 @@ describe("OpsShareChart", () => {
 });
 
 describe("OpsShareChart, det som ingår i en bit", () => {
-  const medDetaljer = [
+  const withDetails = [
     { id: "pension", label: "Pension", value: 5285733, text: "5 285 733 kr", details: <p>Minpension, ITP</p> },
     { id: "bostad", label: "Bostad", value: 6800000, text: "6 800 000 kr" },
   ];
@@ -109,18 +109,18 @@ describe("OpsShareChart, det som ingår i en bit", () => {
     // ⛔ En 44 px pil bredvid en 28 px rad gör listan halvannan gång högre utan
     // att säga något nytt. Att raden ÄR knappen är också vad som gör den möjlig
     // att träffa med tummen.
-    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+    render(<OpsShareChart segments={withDetails} ariaLabel="Tillgångar" />);
 
-    const knapp = screen.getByRole("button", { expanded: false });
+    const button = screen.getByRole("button", { expanded: false });
     // Knappen bär radens egen text. Ett påklistrat "visa detaljer" hade ersatt
     // siffrorna med ett verb i uppläsningen.
-    expect(within(knapp).getByText("Pension")).toBeInTheDocument();
-    expect(within(knapp).getByText("5 285 733 kr")).toBeInTheDocument();
-    expect(within(knapp).getByText("44 %")).toBeInTheDocument();
+    expect(within(button).getByText("Pension")).toBeInTheDocument();
+    expect(within(button).getByText("5 285 733 kr")).toBeInTheDocument();
+    expect(within(button).getByText("44 %")).toBeInTheDocument();
   });
 
   it("håller detaljerna dolda tills man öppnar dem", () => {
-    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+    render(<OpsShareChart segments={withDetails} ariaLabel="Tillgångar" />);
     expect(screen.getByText("Minpension, ITP")).not.toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { expanded: false }));
@@ -132,7 +132,7 @@ describe("OpsShareChart, det som ingår i en bit", () => {
     // ⛔ `hidden` och inte villkorlig rendering. Ett `aria-controls` som pekar på
     // ett id som bara finns ibland är en trasig referens i uppläsningen varje
     // gång raden är stängd, och det syns inte på skärmen.
-    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+    render(<OpsShareChart segments={withDetails} ariaLabel="Tillgångar" />);
     const id = screen.getByRole("button", { expanded: false }).getAttribute("aria-controls");
     expect(id).toBeTruthy();
     expect(document.getElementById(String(id))).not.toBeNull();
@@ -141,7 +141,7 @@ describe("OpsShareChart, det som ingår i en bit", () => {
   it("ger ingen knapp åt en rad som inte har något att visa", () => {
     // ⛔ En pil som inte öppnar något är ett löfte som inte infrias, och den som
     // tryckt en gång utan att något hände slutar lita på de andra pilarna.
-    render(<OpsShareChart segments={medDetaljer} ariaLabel="Tillgångar" />);
+    render(<OpsShareChart segments={withDetails} ariaLabel="Tillgångar" />);
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
@@ -152,7 +152,7 @@ describe("OpsShareChart, det som ingår i en bit", () => {
 });
 
 describe("OpsRankChart", () => {
-  const rader = [
+  const rows = [
     { id: "brf", label: "Boende", value: 10918, text: "10 918 kr", level: /** @type {3} */ (3) },
     { id: "mat", label: "Mat", value: 5000, text: "5 000 kr", level: /** @type {2} */ (2) },
     { id: "strom", label: "Ström", value: 979, text: "979 kr", level: /** @type {1} */ (1) },
@@ -161,7 +161,7 @@ describe("OpsRankChart", () => {
   it("bär varje värde som text, så listan går att läsa utan att mäta mot en axel", () => {
     // ⛔ Skalans ljusaste steg ligger nära ytan. En stapel som nästan är ytan
     // måste ha sin siffra skriven, annars är raden tom för den som inte ser den.
-    render(<OpsRankChart rows={rader} ariaLabel="Kostnader" />);
+    render(<OpsRankChart rows={rows} ariaLabel="Kostnader" />);
     const list = screen.getByLabelText("Kostnader");
     expect(within(list).getByText("10 918 kr")).toBeInTheDocument();
     expect(within(list).getByText("979 kr")).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe("OpsRankChart", () => {
   it("mäter mot det största värdet och inte mot summan", () => {
     // ⛔ Mot summan blir varje enskild stapel en tunn strimma, och listan slutar
     // svara på vilken post som är störst, vilket är hela frågan.
-    const { container } = render(<OpsRankChart rows={rader} ariaLabel="Kostnader" />);
+    const { container } = render(<OpsRankChart rows={rows} ariaLabel="Kostnader" />);
     const bredder = [...container.querySelectorAll("[style*='width']")].map((el) => el.getAttribute("style"));
     expect(bredder[0]).toMatch(/width:\s*100%/);
     // 5 000 av 10 918 är 45,8 procent, alltså inte 5 000 av 16 897 (29,6).
@@ -182,7 +182,7 @@ describe("OpsRankChart", () => {
     // mycket i en lista och försumbart i en annan. Utan `level` får alla staplar
     // samma ton, vilket är rätt och inte en degradering: längden bär redan
     // storleken.
-    const utan = rader.map(({ level, ...r }) => r);
+    const utan = rows.map(({ level, ...r }) => r);
     const { container } = render(<OpsRankChart rows={utan} ariaLabel="Utan nivå" />);
     const toner = [...container.querySelectorAll("[class*='bg-scale-']")].map((el) =>
       (el.className.match(/bg-scale-\d/) || [])[0],
@@ -194,7 +194,7 @@ describe("OpsRankChart", () => {
     // ⛔ En regnbåge har ingen ordning: läsaren måste slå upp legenden för varje
     // steg i stället för att se den. Serieslottarna bär IDENTITET och skalan bär
     // STORLEK, och byter man plats på dem betyder färgen två saker samtidigt.
-    const { container } = render(<OpsRankChart rows={rader} ariaLabel="Kostnader" />);
+    const { container } = render(<OpsRankChart rows={rows} ariaLabel="Kostnader" />);
     const klasser = container.innerHTML;
     expect(klasser).toMatch(/bg-scale-3/);
     expect(klasser).toMatch(/bg-scale-1/);

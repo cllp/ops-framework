@@ -30,8 +30,8 @@ import { ChevronNedIkon } from "./icons.jsx";
 function tillIso(d) {
   const ar = d.getFullYear();
   const man = String(d.getMonth() + 1).padStart(2, "0");
-  const dag = String(d.getDate()).padStart(2, "0");
-  return `${ar}-${man}-${dag}`;
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${ar}-${man}-${day}`;
 }
 
 /**
@@ -42,8 +42,8 @@ function tillIso(d) {
  */
 function franIso(iso) {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return undefined;
-  const [ar, man, dag] = iso.split("-").map(Number);
-  return new Date(ar, man - 1, dag);
+  const [ar, man, day] = iso.split("-").map(Number);
+  return new Date(ar, man - 1, day);
 }
 
 /**
@@ -58,7 +58,7 @@ function franIso(iso) {
 export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", disabled = false, ariaLabel, clearLabel = "Rensa datum" }) {
   const [oppen, setOppen] = useState(false);
   const f = useFieldBinding();
-  const valt = franIso(value);
+  const chosen = franIso(value);
 
   return (
     <Popover.Root open={oppen} onOpenChange={setOppen}>
@@ -74,10 +74,10 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           "disabled:opacity-55 disabled:cursor-not-allowed",
           f.invalid ? "border-danger" : "border-line",
-          valt ? "text-ink" : "text-ink-muted",
+          chosen ? "text-ink" : "text-ink-muted",
         )}
       >
-        {valt ? formatDate(value) : placeholder}
+        {chosen ? formatDate(value) : placeholder}
         <ChevronNedIkon />
       </Popover.Trigger>
 
@@ -91,8 +91,8 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
             locale={sv}
             weekStartsOn={1}
             showOutsideDays
-            selected={valt}
-            month={valt}
+            selected={chosen}
+            month={chosen}
             onSelect={(d) => {
               onChange(d ? tillIso(d) : undefined);
               setOppen(false);

@@ -33,7 +33,7 @@
 /**
  * @typedef {object} PromptAnswer
  * @property {string} text Svaret, i markdown. Renderas av `OpsMarkdown`.
- * @property {{ in: number, ut: number }} [tokens] Vad anropet kostade, när appen vet det.
+ * @property {{ in: number, out: number }} [tokens] Vad anropet kostade, när appen vet det.
  */
 
 /**
@@ -83,7 +83,7 @@ export function createPromptSource({ send, maxChars = 2000 } = {}) {
         throw new Error(`Frågan är ${text.length} tecken. Taket är ${maxChars}.`);
       }
 
-      const svar = await send({ prompt: text, context });
+      const answer = await send({ prompt: text, context });
 
       /*
        * ⛔ ETT SVAR UTAN TEXT ÄR ETT FEL, INTE ETT TOMT SVAR.
@@ -92,11 +92,11 @@ export function createPromptSource({ send, maxChars = 2000 } = {}) {
        * som att modellen inte hade något att säga. Skillnaden mot "anropet gick
        * sönder" är hela skillnaden mellan att fråga om igen och att ge upp.
        */
-      if (!svar || typeof svar.text !== "string" || !svar.text.trim()) {
+      if (!answer || typeof answer.text !== "string" || !answer.text.trim()) {
         throw new Error("Svaret kom tillbaka tomt. Frågan gick fram, men modellen svarade inget.");
       }
 
-      return { text: svar.text, tokens: svar.tokens };
+      return { text: answer.text, tokens: answer.tokens };
     },
   };
 }

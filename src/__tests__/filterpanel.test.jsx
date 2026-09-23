@@ -8,14 +8,14 @@ const GRUPPER = [
   { id: "status", label: "Status", options: [{ value: "vantar", label: "Väntar" }, { value: "akut", label: "Akut" }] },
 ];
 
-const tomt = { kind: null, status: null };
+const empty = { kind: null, status: null };
 
 function rendera(extra = {}) {
   const onChange = vi.fn();
-  const ut = render(
-    <OpsFilterPanel groups={GRUPPER} value={tomt} onChange={onChange} ariaLabel="Filter" {...extra} />,
+  const out = render(
+    <OpsFilterPanel groups={GRUPPER} value={empty} onChange={onChange} ariaLabel="Filter" {...extra} />,
   );
-  return { onChange, ...ut };
+  return { onChange, ...out };
 }
 
 describe("OpsFilterPanel", () => {
@@ -26,8 +26,8 @@ describe("OpsFilterPanel", () => {
      * inget om huruvida listan är beskuren.
      */
     const { container } = rendera();
-    const knapp = screen.getByRole("button", { name: "Filter" });
-    expect(knapp.textContent).toBe("");
+    const button = screen.getByRole("button", { name: "Filter" });
+    expect(button.textContent).toBe("");
     expect(container.querySelector("svg")).toBeTruthy();
   });
 
@@ -48,8 +48,8 @@ describe("OpsFilterPanel", () => {
     ett.unmount();
 
     rendera({ value: { kind: "uppgift", status: "akut" } });
-    const knapp = screen.getByRole("button", { name: /Filter:/ });
-    expect(knapp.textContent).toContain("2");
+    const button = screen.getByRole("button", { name: /Filter:/ });
+    expect(button.textContent).toContain("2");
   });
 
   it("byter inte höjd när ett filter sätts", () => {
@@ -98,8 +98,8 @@ describe("OpsFilterPanel", () => {
     // ⛔ `findAllByRole`: VARJE grupp har en egen "Alla"-rad, så entalsformen
     // kastade på två träffar. Ett prov som är rött av fel anledning slutar man
     // läsa, och det här hade dessutom dolt att panelen öppnade som den skulle.
-    const allaRader = await screen.findAllByRole("button", { name: "Alla" });
-    expect(allaRader.length).toBe(GRUPPER.length);
+    const allRows = await screen.findAllByRole("button", { name: "Alla" });
+    expect(allRows.length).toBe(GRUPPER.length);
     expect(screen.queryByRole("button", { name: "Rensa" })).toBeNull();
   });
 
@@ -108,7 +108,7 @@ describe("OpsFilterPanel", () => {
      * ⛔ En sorterad lista är fortfarande komplett. Tände sorteringen
      * filterknappen skulle den säga "något är dolt" när ingenting är dolt.
      */
-    const onSortera = vi.fn();
+    const onSort = vi.fn();
     rendera({
       sorting: {
         label: "Sortering",
@@ -117,16 +117,16 @@ describe("OpsFilterPanel", () => {
           { value: "datum", label: "Datum" },
           { value: "titel", label: "Titel" },
         ],
-        onChange: onSortera,
+        onChange: onSort,
       },
     });
 
-    const knapp = screen.getByRole("button", { name: "Filter" });
-    expect(knapp.textContent).toBe("");
+    const button = screen.getByRole("button", { name: "Filter" });
+    expect(button.textContent).toBe("");
 
-    fireEvent.click(knapp);
+    fireEvent.click(button);
     fireEvent.click(await screen.findByRole("button", { name: "Datum" }));
-    expect(onSortera).toHaveBeenCalledWith("datum");
+    expect(onSort).toHaveBeenCalledWith("datum");
     // Fortfarande ingen text: sorteringen ändrade ordningen, inte urvalet.
     expect(screen.getByRole("button", { name: "Filter" }).textContent).toBe("");
   });
@@ -156,7 +156,7 @@ describe("OpsFilterPanel", () => {
      * läget också måste gå att HÖRA.
      */
     function Prov() {
-      const [val, setVal] = useState({ status: null, tid: null });
+      const [choice, setVal] = useState({ status: null, tid: null });
       return (
         <OpsFilterPanel
           layout="ikoner"
@@ -165,7 +165,7 @@ describe("OpsFilterPanel", () => {
             { id: "status", label: "Lägen", allLabel: "Alla lägen", options: [{ value: "oppet", label: "Öppet" }] },
             { id: "tid", label: "När", allLabel: "När som helst", options: [{ value: "7", label: "Inom 7 dagar" }] },
           ]}
-          value={val}
+          value={choice}
           onChange={setVal}
         />
       );
@@ -193,14 +193,14 @@ describe("OpsFilterPanel", () => {
      * för att säga "du har ändrat den här", inte "något är dolt".
      *
      * ⛔ FÖRVALET SKICKAS IN, och räknas annars som det första alternativet.
-     * Provet sätter `standard` uttryckligen till det ANDRA, så en implementation
+     * Provet sätter `fallback` uttryckligen till det ANDRA, så en implementation
      * som bara antar "första" blir röd.
      */
     const groups = [{ id: "a", label: "A", options: [{ value: "x", label: "X" }] }];
     const sorting = {
       label: "Sortering",
       value: "b",
-      standard: "b",
+      fallback: "b",
       options: [
         { value: "a", label: "A-Ö" },
         { value: "b", label: "Datum" },
@@ -248,7 +248,7 @@ describe("OpsFilterPanel", () => {
         sorting={{
           label: "Sortering",
           value: "d",
-          standard: "d",
+          fallback: "d",
           options: [{ value: "d", label: "Datum" }, { value: "t", label: "Titel" }],
           onChange: () => {},
         }}
@@ -256,9 +256,9 @@ describe("OpsFilterPanel", () => {
     );
 
     const gruppen = screen.getByRole("button", { name: /^Slag/ }).innerHTML;
-    const sorteringen = screen.getByRole("button", { name: /^Sortering/ }).innerHTML;
-    expect(sorteringen).not.toBe("");
-    expect(sorteringen).not.toBe(gruppen);
+    const theSort = screen.getByRole("button", { name: /^Sortering/ }).innerHTML;
+    expect(theSort).not.toBe("");
+    expect(theSort).not.toBe(gruppen);
   });
 
   it("vägrar en sortering utan `standard` i stället för att gissa förvalet", () => {
@@ -288,7 +288,7 @@ describe("OpsFilterPanel", () => {
             }}
           />,
         ),
-      ).toThrow(/sorting\.standard krävs/);
+      ).toThrow(/sorting\.fallback krävs/);
     } finally {
       tyst.mockRestore();
     }
@@ -297,7 +297,7 @@ describe("OpsFilterPanel", () => {
   it("kräver inte `standard` i den samlade panelen, som inte tänder något", () => {
     /*
      * ⛔ KRAVET GÄLLER DÄR DET BETYDER NÅGOT. Den samlade panelen tänder
-     * ingenting, alltså läses `standard` aldrig, och att kräva in data som ingen
+     * ingenting, alltså läses `fallback` aldrig, och att kräva in data som ingen
      * använder lär den som läser felet att kravet är godtyckligt.
      */
     expect(() =>
@@ -346,11 +346,11 @@ describe("OpsFilterPanel", () => {
       />,
     );
 
-    const knappen = screen.getByRole("button", { name: "Rensa" });
-    expect(knappen.textContent).toBe("");
-    expect(knappen.querySelector("svg")).not.toBeNull();
+    const theButton = screen.getByRole("button", { name: "Rensa" });
+    expect(theButton.textContent).toBe("");
+    expect(theButton.querySelector("svg")).not.toBeNull();
 
-    fireEvent.click(knappen);
+    fireEvent.click(theButton);
     expect(rensade).toEqual([{ a: null }]);
   });
 

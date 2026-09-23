@@ -35,8 +35,8 @@ const FieldContext = createContext(/** @type {FieldBinding | null} */ (null));
 export function OpsField({ label, hint, error, required = false, children }) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
-  const felId = error ? `${id}-fel` : undefined;
-  const describedBy = cx(hintId, felId) || undefined;
+  const errorId = error ? `${id}-fel` : undefined;
+  const describedBy = cx(hintId, errorId) || undefined;
 
   return (
     <FieldContext.Provider value={{ id, describedBy, invalid: Boolean(error), required: required }}>
@@ -58,7 +58,7 @@ export function OpsField({ label, hint, error, required = false, children }) {
         {error ? (
           // role="alert" gör att felet läses upp när det dyker upp, inte bara
           // när någon råkar navigera förbi det.
-          <p id={felId} role="alert" className="text-sm text-danger">
+          <p id={errorId} role="alert" className="text-sm text-danger">
             {error}
           </p>
         ) : null}
@@ -91,7 +91,7 @@ const TILLATNA_TYPER = ["text", "email", "search", "tel", "url", "password", "nu
 /**
  * @param {object} props
  * @param {string} [props.value]
- * @param {(varde: string) => void} [props.onChange]
+ * @param {(value: string) => void} [props.onChange]
  * @param {"text"|"email"|"search"|"tel"|"url"|"password"|"number"} [props.type]
  * @param {string} [props.placeholder]
  * @param {string} [props.name]
@@ -144,7 +144,7 @@ export function OpsInput({
 /**
  * @param {object} props
  * @param {string} [props.value]
- * @param {(varde: string) => void} [props.onChange]
+ * @param {(value: string) => void} [props.onChange]
  * @param {string} [props.placeholder]
  * @param {string} [props.name]
  * @param {number} [props.rows]

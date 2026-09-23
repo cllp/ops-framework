@@ -24,8 +24,8 @@ describe("frågor", () => {
   ];
 
   it("filtrerar, sorterar och begränsar", () => {
-    const ut = applyQuery(rows, { where: { status: "oppen" }, sortBy: "belopp", direction: "desc" });
-    expect(ut.map((r) => r.id)).toEqual(["3", "1"]);
+    const out = applyQuery(rows, { where: { status: "oppen" }, sortBy: "belopp", direction: "desc" });
+    expect(out.map((r) => r.id)).toEqual(["3", "1"]);
     expect(applyQuery(rows, { limit: 2 })).toHaveLength(2);
   });
 
@@ -80,12 +80,12 @@ describe("minneskällan", () => {
 
 describe("json-källan", () => {
   /** @param {any} data @param {number} status */
-  const svar = (data, status = 200) =>
+  const answer = (data, status = 200) =>
     vi.fn(async () => /** @type {any} */ ({ ok: status >= 200 && status < 300, status, json: async () => data }));
 
   it("läser en samling ur en fil", async () => {
-    const load = svar([{ id: "1", name: "Telia" }]);
-    const source = createJsonSource({ bas: "/assets/data", load });
+    const load = answer([{ id: "1", name: "Telia" }]);
+    const source = createJsonSource({ base: "/assets/data", load });
     expect(await source.list("kostnader")).toHaveLength(1);
     expect(load).toHaveBeenCalledWith("/assets/data/kostnader.json");
   });
@@ -94,19 +94,19 @@ describe("json-källan", () => {
   // tom lista, och appen visar "inga träffar" när sanningen är att den inte
   // kunde fråga.
   it("gör ett serverfel till ett fel, inte till en tom lista", async () => {
-    const source = createJsonSource({ bas: "/d", load: svar(null, 500) });
+    const source = createJsonSource({ base: "/d", load: answer(null, 500) });
     await expect(source.list("kostnader")).rejects.toThrow(/svarade 500/);
   });
 
   it("vägrar en fil som inte innehåller en lista", async () => {
-    const source = createJsonSource({ bas: "/d", load: svar({ inte: "en lista" }) });
+    const source = createJsonSource({ base: "/d", load: answer({ inte: "en lista" }) });
     await expect(source.list("kostnader")).rejects.toThrow(/inte en lista/);
   });
 
   // ⛔ En skrivning som ser ut att lyckas men försvinner vid omladdning är värre
   // än ett tydligt nej.
   it("nekar skrivningar i stället för att låtsas", async () => {
-    const source = createJsonSource({ bas: "/d", load: svar([]) });
+    const source = createJsonSource({ base: "/d", load: answer([]) });
     await expect(source.create("kostnader", {})).rejects.toThrow(/Byt datakälla/);
   });
 });
@@ -134,7 +134,7 @@ describe("useCollection", () => {
   // ⛔ Ett fel får aldrig se ut som tomhet. Att visa "0 rader" när servern
   // svarade 500 får användaren att dra en slutsats om sin data som inte stämmer.
   it("skiljer ett fel från en tom lista", async () => {
-    const trasig = createJsonSource({ bas: "/d", load: vi.fn(async () => /** @type {any} */ ({ ok: false, status: 500 })) });
+    const trasig = createJsonSource({ base: "/d", load: vi.fn(async () => /** @type {any} */ ({ ok: false, status: 500 })) });
     render(
       <OpsDataProvider source={trasig}>
         <Prov />

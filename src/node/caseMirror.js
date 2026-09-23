@@ -32,7 +32,7 @@
  * @property {string} label Bara ärenden med den här etiketten speglas.
  * @property {(brodtext: string) => string} [summary] Plockar en kort text ur
  *   brödtexten. Utan den blir `summary` tom sträng, aldrig en gissning ur första raden.
- * @property {(entry: Post, rat: any) => Record<string, unknown>} [extraFields] App-egna fält
+ * @property {(entry: Post, raw: any) => Record<string, unknown>} [extraFields] App-egna fält
  *   per post. ⛔ En funktion och inte flaggor: appen vet vad dess fält betyder, ramverket
  *   ska inte kunna nämna dem.
  * @property {typeof fetch} [fetcher] Injiceras av proven. ⛔ Utan den vore varje prov
@@ -60,23 +60,23 @@
  * En saknad etikett ger annars en spegling av ALLA öppna ärenden, och det felet
  * ser ut som att speglingen fungerar: listan fylls, den fylls bara med fel saker.
  *
- * @param {Spegelkonfig} konfig
+ * @param {Spegelkonfig} config
  */
-export function createCaseMirror(konfig) {
+export function createCaseMirror(config) {
   for (const falt of ["owner", "repo", "label"]) {
-    if (!konfig || !(/** @type {any} */ (konfig)[falt])) {
+    if (!config || !(/** @type {any} */ (config)[falt])) {
       throw new Error(
         `createCaseMirror: ${falt} krävs. Utan etikett speglas varje öppet ärende, och det felet ser ut som att speglingen fungerar.`,
       );
     }
   }
 
-  const { owner, repo, label, summary, extraFields, fetcher } = konfig;
+  const { owner, repo, label, summary, extraFields, fetcher } = config;
   const nat = fetcher || fetch;
-  const repoSokvag = `${owner}/${repo}`;
+  const repoPath = `${owner}/${repo}`;
 
   /** Urvalet som en människa kan öppna i en webbläsare. */
-  const source = `https://github.com/${repoSokvag}/issues?q=is%3Aissue+is%3Aopen+label%3A${encodeURIComponent(label)}`;
+  const source = `https://github.com/${repoPath}/issues?q=is%3Aissue+is%3Aopen+label%3A${encodeURIComponent(label)}`;
 
   return {
     owner,
@@ -97,26 +97,26 @@ export function createCaseMirror(konfig) {
      */
     async hamta(token) {
       if (!token) throw new Error("skapaArendespegel.hamta: token krävs.");
-      const url = `https://api.github.com/repos/${repoSokvag}/issues?labels=${encodeURIComponent(label)}&state=open&per_page=100`;
-      const svar = await nat(url, {
+      const url = `https://api.github.com/repos/${repoPath}/issues?labels=${encodeURIComponent(label)}&state=open&per_page=100`;
+      const answer = await nat(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/vnd.github+json",
-          "User-Agent": `ops-framework-arendespegel/${repoSokvag}`,
+          "User-Agent": `ops-framework-arendespegel/${repoPath}`,
         },
       });
-      if (!svar.ok) {
-        const detalj = await svar.text().catch(() => "");
-        throw new Error(`GitHub svarade ${svar.status} på ${repoSokvag}: ${String(detalj).slice(0, 200)}`);
+      if (!answer.ok) {
+        const detalj = await answer.text().catch(() => "");
+        throw new Error(`GitHub svarade ${answer.status} på ${repoPath}: ${String(detalj).slice(0, 200)}`);
       }
-      const rader = await svar.json();
-      if (!Array.isArray(rader)) {
+      const rows = await answer.json();
+      if (!Array.isArray(rows)) {
         // ⛔ GitHub svarar med ett OBJEKT vid vissa fel trots 200, till exempel
         // en `message`-kropp. Ett `.filter` på det kastar långt senare med ett
         // fel som inte pekar hit.
-        throw new Error(`GitHub svarade med något annat än en lista för ${repoSokvag}.`);
+        throw new Error(`GitHub svarade med något annat än en lista för ${repoPath}.`);
       }
-      return rader;
+      return rows;
     },
 
     /**
@@ -126,20 +126,20 @@ export function createCaseMirror(konfig) {
      * brödtexten. Första raden är ofta en rubrik eller en tom rad, och en
      * automatiskt plockad mening ser ut som en skriven sammanfattning.
      *
-     * @param {any} rat
+     * @param {any} raw
      * @returns {Post}
      */
-    toEntry(rat) {
+    toEntry(raw) {
       const entry = {
-        number: rat.number,
-        title: rat.title,
-        state: rat.state || "open",
-        labels: (rat.labels || []).map((/** @type {any} */ l) => (typeof l === "string" ? l : l.name)),
-        updatedAt: rat.updated_at || null,
-        url: rat.html_url || `https://github.com/${repoSokvag}/issues/${rat.number}`,
-        summary: typeof summary === "function" ? summary(rat.body || "") : "",
+        number: raw.number,
+        title: raw.title,
+        state: raw.state || "open",
+        labels: (raw.labels || []).map((/** @type {any} */ l) => (typeof l === "string" ? l : l.name)),
+        updatedAt: raw.updated_at || null,
+        url: raw.html_url || `https://github.com/${repoPath}/issues/${raw.number}`,
+        summary: typeof summary === "function" ? summary(raw.body || "") : "",
       };
-      return extraFields ? { ...entry, ...extraFields(entry, rat) } : entry;
+      return extraFields ? { ...entry, ...extraFields(entry, raw) } : entry;
     },
 
     /**
@@ -160,12 +160,12 @@ export function createCaseMirror(konfig) {
      * motsatta värden är inte ett fält, det är en fråga ingen bestämt vem som
      * äger. Ramverket vet inte om flödet är live, så det påstår ingenting.
      *
-     * @param {any[]} rader
+     * @param {any[]} rows
      * @param {{ nu?: () => string }} [context]
      * @returns {Flode}
      */
-    tillFlode(rader, { nu = () => new Date().toISOString().slice(0, 10) } = {}) {
-      const items = (rader || [])
+    tillFlode(rows, { nu = () => new Date().toISOString().slice(0, 10) } = {}) {
+      const items = (rows || [])
         .filter((r) => r && !r.pull_request)
         .map((r) => this.toEntry(r))
         .sort((a, b) => {

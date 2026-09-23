@@ -21,7 +21,7 @@ import { OpsDataProvider, useDocument, useCollection, useLiveCollection } from "
  * synkron källa hade dolt just det fall cachen finns för: två hookar som frågar
  * INNAN det första svaret hunnit fram.
  */
-function raknandeKalla({ kostnader = [{ id: "1" }], pension = { id: "pension", value: 42 }, error = null } = {}) {
+function countingSource({ kostnader = [{ id: "1" }], pension = { id: "pension", value: 42 }, error = null } = {}) {
   const rakning = { list: 0, read: 0 };
   return {
     rakning,
@@ -52,7 +52,7 @@ function Med({ source, children }) {
   return <OpsDataProvider source={source}>{children}</OpsDataProvider>;
 }
 
-function Lista() {
+function List() {
   const { data, loading } = useCollection("kostnader");
   return <p>{loading ? "loading" : `rows: ${data.length}`}</p>;
 }
@@ -69,7 +69,7 @@ describe("läscachen", () => {
      * `data/pension` var för sig på samma mount. Ingen av dem gjorde fel, de
      * visste bara inte om varandra.
      */
-    const { source, rakning } = raknandeKalla();
+    const { source, rakning } = countingSource();
     render(
       <Med source={source}>
         <Dokument label="a" />
@@ -95,7 +95,7 @@ describe("läscachen", () => {
      * Med en lista över vad komponenten faktiskt renderade blir påståendet det
      * man menade: att `loading` aldrig var sant.
      */
-    const { source, rakning } = raknandeKalla();
+    const { source, rakning } = countingSource();
     /** @type {string[]} */
     const pass = [];
     function Loggande() {
@@ -104,13 +104,13 @@ describe("läscachen", () => {
       return <p>{loading ? "loading" : `rows: ${data.length}`}</p>;
     }
 
-    const forsta = render(
+    const first = render(
       <Med source={source}>
         <Loggande />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
-    forsta.unmount();
+    first.unmount();
 
     pass.length = 0;
     render(
@@ -130,7 +130,7 @@ describe("läscachen", () => {
      * sedan trycker uppdatera skulle få tillbaka exakt det gamla svaret, och
      * knappen hade sett ut att fungera medan ingenting hände.
      */
-    const { source, rakning } = raknandeKalla();
+    const { source, rakning } = countingSource();
     function MedKnapp() {
       const { data, loading, update } = useCollection("kostnader");
       return (
@@ -188,13 +188,13 @@ describe("läscachen", () => {
       return <p>rows: {data.length}</p>;
     }
 
-    const forsta = render(
+    const first = render(
       <Med source={source}>
         <Prov />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("error")).toBeInTheDocument());
-    forsta.unmount();
+    first.unmount();
 
     trasig = false;
     render(
@@ -230,13 +230,13 @@ describe("läscachen", () => {
       async remove() {},
     };
 
-    const forsta = render(
+    const first = render(
       <Med source={source}>
         <Dokument label="a" />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("a: inget")).toBeInTheDocument());
-    forsta.unmount();
+    first.unmount();
 
     render(
       <Med source={source}>
@@ -253,20 +253,20 @@ describe("läscachen", () => {
      * provs data, och den sortens fel dyker upp först när någon lägger till ett
      * prov någon annanstans i sviten.
      */
-    const a = raknandeKalla({ kostnader: [{ id: "1" }] });
-    const b = raknandeKalla({ kostnader: [{ id: "1" }, { id: "2" }, { id: "3" }] });
+    const a = countingSource({ kostnader: [{ id: "1" }] });
+    const b = countingSource({ kostnader: [{ id: "1" }, { id: "2" }, { id: "3" }] });
 
-    const forsta = render(
+    const first = render(
       <Med source={a.source}>
-        <Lista />
+        <List />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
-    forsta.unmount();
+    first.unmount();
 
     render(
       <Med source={b.source}>
-        <Lista />
+        <List />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("rows: 3")).toBeInTheDocument());
@@ -280,19 +280,19 @@ describe("läscachen", () => {
      * sedan rätta sig själv, och vilken bild man ser hade berott på vilken hook
      * som råkade montera först.
      */
-    const { source, rakning } = raknandeKalla();
+    const { source, rakning } = countingSource();
     function Ström() {
       const { data, loading } = useLiveCollection("kostnader");
       return <p>{loading ? "loading" : `ström: ${data.length}`}</p>;
     }
 
-    const forsta = render(
+    const first = render(
       <Med source={source}>
-        <Lista />
+        <List />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
-    forsta.unmount();
+    first.unmount();
 
     render(
       <Med source={source}>
@@ -308,20 +308,20 @@ describe("läscachen", () => {
     // ⛔ Nyckeln bär frågan. Gjorde den inte det skulle ett filtrerat urval
     // serveras ur samma låda som det ofiltrerade, alltså fel rader utan att
     // något ser fel ut.
-    const { source, rakning } = raknandeKalla();
+    const { source, rakning } = countingSource();
     function MedFraga({ status }) {
       const { data, loading } = useCollection("kostnader", { where: { status } });
       return <p>{loading ? "loading" : `rows: ${data.length}`}</p>;
     }
 
-    const ut = render(
+    const out = render(
       <Med source={source}>
         <MedFraga status="oppen" />
       </Med>,
     );
     await waitFor(() => expect(screen.getByText("rows: 1")).toBeInTheDocument());
 
-    ut.rerender(
+    out.rerender(
       <Med source={source}>
         <MedFraga status="stangd" />
       </Med>,

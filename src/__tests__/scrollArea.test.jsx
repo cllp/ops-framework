@@ -17,19 +17,19 @@ import { FULL_HEIGHT_CLASSES } from "../lib/fullHeight.js";
 
 const orgRect = Element.prototype.getBoundingClientRect;
 
-/** Låtsas att ytan börjar `topp` px ner i FÖNSTRET. */
-function laggYtanVid(topp) {
+/** Låtsas att ytan börjar `top` px ner i FÖNSTRET. */
+function laggYtanVid(top) {
   Element.prototype.getBoundingClientRect = function () {
     return /** @type {DOMRect} */ ({
       ...orgRect.call(this).toJSON?.(),
-      top: topp,
-      bottom: topp,
+      top: top,
+      bottom: top,
       left: 0,
       right: 0,
       width: 0,
       height: 0,
       x: 0,
-      y: topp,
+      y: top,
     });
   };
 }
@@ -40,8 +40,8 @@ afterEach(() => {
 });
 
 function ytan() {
-  const barnet = screen.getByText("innehåll");
-  const el = barnet.parentElement;
+  const theChild = screen.getByText("innehåll");
+  const el = theChild.parentElement;
   if (!el) throw new Error("Hittar ingen rullyta kring innehållet");
   return el;
 }
@@ -60,7 +60,7 @@ describe("OpsRullyta", () => {
 
   it("mäter avståndet till sidans topp och lägger det i variabeln", () => {
     /*
-     * ⛔ TALET ÄR HELA KOMPONENTEN. Höjden räknas i CSS ur `--fullhojd-topp`, så
+     * ⛔ TALET ÄR HELA KOMPONENTEN. Höjden räknas i CSS ur `--fullhojd-top`, så
      * en yta som inte mäter blir antingen en skärmhöjd för hög (talet noll) och
      * sticker ut under skärmen, eller för låg.
      */

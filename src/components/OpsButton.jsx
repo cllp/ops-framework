@@ -123,7 +123,7 @@ export function OpsButton({
     storlekKlass,
     fullWidth && "w-full",
   );
-  const sparrad = disabled || busy;
+  const blocked = disabled || busy;
 
   /**
    * ⛔ `busy` satte tidigare BARA `aria-busy` och spärrade knappen. Det betydde
@@ -156,14 +156,14 @@ export function OpsButton({
       <a
         id={id}
         className={klass}
-        href={sparrad ? undefined : href}
+        href={blocked ? undefined : href}
         target={newTab ? "_blank" : undefined}
         rel={newTab ? "noreferrer noopener" : undefined}
         aria-label={ariaLabel}
-        aria-disabled={sparrad || undefined}
+        aria-disabled={blocked || undefined}
         aria-busy={busy || undefined}
         title={title}
-        onClick={sparrad ? undefined : onClick}
+        onClick={blocked ? undefined : onClick}
       >
         {innehall}
       </a>
@@ -175,7 +175,7 @@ export function OpsButton({
       id={id}
       className={klass}
       type={type}
-      disabled={sparrad}
+      disabled={blocked}
       aria-label={ariaLabel}
       aria-busy={busy || undefined}
       title={title}

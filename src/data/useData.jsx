@@ -90,7 +90,7 @@ export function useCollection(collectionName, query) {
   // är ett nytt objekt vid varje rendering, och utan det här hade hooken hämtat
   // om i en oändlig loop. Den buggen ser ut som ett prestandaproblem och är ett
   // jämförelseproblem.
-  const nyckel = listKey(collectionName, query);
+  const key = listKey(collectionName, query);
 
   /*
    * ⛔ CACHEN LÄSES REDAN I `useState`, INTE FÖRST I EFFEKTEN.
@@ -100,12 +100,12 @@ export function useCollection(collectionName, query) {
    * data som redan ligger i minnet, och det är precis det blinkandet som gör
    * att en sida känns långsam fast ingenting hämtas.
    */
-  const forsta = cached(source, nyckel);
-  const [data, setData] = useState(/** @type {T[]} */ (forsta.har ? forsta.value : []));
-  const [loading, setLaddar] = useState(!forsta.har);
-  const [error, setFel] = useState(/** @type {Error | null} */ (null));
+  const first = cached(source, key);
+  const [data, setData] = useState(/** @type {T[]} */ (first.has ? first.value : []));
+  const [loading, setLoading] = useState(!first.has);
+  const [error, setError] = useState(/** @type {Error | null} */ (null));
 
-  const [rakna, setRakna] = useState(0);
+  const [count, setCount] = useState(0);
   /*
    * ⛔ `update()` GLÖMMER FÖRST OCH HÄMTAR SEDAN. Utan glömskan skulle den
    * bara be om samma cachade svar en gång till, alltså en knapp som ser ut att
@@ -113,53 +113,53 @@ export function useCollection(collectionName, query) {
    * den som skriver något ska anropa den.
    */
   const update = useCallback(() => {
-    forget(source, nyckel);
-    setRakna((n) => n + 1);
-  }, [source, nyckel]);
+    forget(source, key);
+    setCount((n) => n + 1);
+  }, [source, key]);
 
   // Räknare för att kasta svar som hunnit bli inaktuella. Utan den kan ett
   // långsamt äldre svar landa efter ett snabbare nyare och skriva över det.
-  const senaste = useRef(0);
+  const latest = useRef(0);
 
   useEffect(() => {
-    const mitt = (senaste.current += 1);
-    let avbruten = false;
+    const mine = (latest.current += 1);
+    let aborted = false;
 
     // ⛔ Titten görs OM här, och inte bara i `useState` ovan. Samlingen kan byta
     // under en levande hook, och då är det första värdet svaret på en annan fråga.
-    const traff = cached(source, nyckel);
-    if (traff.har) {
-      setData(traff.value);
-      setFel(null);
-      setLaddar(false);
+    const hit = cached(source, key);
+    if (hit.has) {
+      setData(hit.value);
+      setError(null);
+      setLoading(false);
       return undefined;
     }
 
-    setLaddar(true);
-    setFel(null);
+    setLoading(true);
+    setError(null);
 
-    throughCache(source, nyckel, () => source.list(collectionName, query))
+    throughCache(source, key, () => source.list(collectionName, query))
       .then((rows) => {
-        if (avbruten || mitt !== senaste.current) return;
+        if (aborted || mine !== latest.current) return;
         setData(rows);
       })
       .catch((e) => {
-        if (avbruten || mitt !== senaste.current) return;
+        if (aborted || mine !== latest.current) return;
         // ⛔ Data nollställs INTE vid fel. Att tömma listan hade sett ut som att
         // datan försvunnit, vilket är ett annat och mycket värre besked än att
         // en hämtning misslyckades.
-        setFel(e instanceof Error ? e : new Error(String(e)));
+        setError(e instanceof Error ? e : new Error(String(e)));
       })
       .finally(() => {
-        if (avbruten || mitt !== senaste.current) return;
-        setLaddar(false);
+        if (aborted || mine !== latest.current) return;
+        setLoading(false);
       });
 
     return () => {
-      avbruten = true;
+      aborted = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, collectionName, nyckel, rakna]);
+  }, [source, collectionName, key, count]);
 
   return useMemo(() => ({ data, loading, error, update }), [data, loading, error, update]);
 }
@@ -195,17 +195,17 @@ export function useCollection(collectionName, query) {
 export function useLiveCollection(collectionName, query) {
   const source = useDataSource();
   const [data, setData] = useState(/** @type {T[]} */ ([]));
-  const [loading, setLaddar] = useState(true);
-  const [error, setFel] = useState(/** @type {Error | null} */ (null));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(/** @type {Error | null} */ (null));
 
   // Samma innehållsjämförelse som `useCollection`. Ett objektliteral i en vy är ett
   // nytt objekt vid varje rendering, och utan detta hade prenumerationen rivits
   // och satts upp igen i en oändlig loop. Dyrare här än där: varje varv är en
   // ny lyssnare mot servern.
-  const fraganyckel = JSON.stringify(query ?? null);
+  const queryKey = JSON.stringify(query ?? null);
 
-  const [rakna, setRakna] = useState(0);
-  const update = useCallback(() => setRakna((n) => n + 1), []);
+  const [count, setCount] = useState(0);
+  const update = useCallback(() => setCount((n) => n + 1), []);
 
   /*
    * ⛔ FRÅGAN STÄLLS PER SAMLING NÄR KÄLLAN KAN SVARA PÅ DET.
@@ -227,58 +227,58 @@ export function useLiveCollection(collectionName, query) {
       : true);
 
   useEffect(() => {
-    let avbruten = false;
-    setLaddar(true);
-    setFel(null);
+    let aborted = false;
+    setLoading(true);
+    setError(null);
 
     if (!canStream) {
       source
         .list(collectionName, query)
         .then((rows) => {
-          if (avbruten) return;
+          if (aborted) return;
           setData(rows);
         })
         .catch((e) => {
           // ⛔ Data nollställs INTE vid fel, av samma skäl som i `useCollection`:
           // en tömd lista ser ut som att datan försvunnit.
-          if (avbruten) return;
-          setFel(e instanceof Error ? e : new Error(String(e)));
+          if (aborted) return;
+          setError(e instanceof Error ? e : new Error(String(e)));
         })
         .finally(() => {
-          if (avbruten) return;
-          setLaddar(false);
+          if (aborted) return;
+          setLoading(false);
         });
       return () => {
-        avbruten = true;
+        aborted = true;
       };
     }
 
-    const avsluta = /** @type {NonNullable<typeof source.subscribe>} */ (source.subscribe)(collectionName, query, {
+    const unsubscribe = /** @type {NonNullable<typeof source.subscribe>} */ (source.subscribe)(collectionName, query, {
       onData: (rows) => {
-        if (avbruten) return;
+        if (aborted) return;
         setData(rows);
         // ⛔ Felet nollställs vid varje lyckad leverans. Ett fel som ligger kvar
         // ovanför färsk data påstår att något är trasigt medan man tittar på
         // beviset för motsatsen.
-        setFel(null);
-        setLaddar(false);
+        setError(null);
+        setLoading(false);
       },
       onError: (e) => {
-        if (avbruten) return;
-        setFel(e);
-        setLaddar(false);
+        if (aborted) return;
+        setError(e);
+        setLoading(false);
       },
     });
 
     return () => {
-      avbruten = true;
+      aborted = true;
       // ⛔ Utan den här raden lever lyssnaren vidare efter att vyn stängts, och
       // varje besök lägger till en till. Det syns inte i UI:t, bara i notan och
       // till slut i minnet.
-      if (typeof avsluta === "function") avsluta();
+      if (typeof unsubscribe === "function") unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, collectionName, fraganyckel, rakna, canStream]);
+  }, [source, collectionName, queryKey, count, canStream]);
 
   return useMemo(
     () => ({ data, loading, error, update, realtime: canStream }),
@@ -306,52 +306,52 @@ export function useDocument(collectionName, id) {
    * beräkning och en i pensionsvyn. Med en delad nyckel blir det en läsning, och
    * den andra hooken får svaret utan att fråga.
    */
-  const nyckel = id ? documentKey(collectionName, id) : "";
-  const forsta = id ? cached(source, nyckel) : { har: false, value: undefined };
+  const key = id ? documentKey(collectionName, id) : "";
+  const first = id ? cached(source, key) : { has: false, value: undefined };
 
-  const [data, setData] = useState(/** @type {T | null} */ (forsta.har ? forsta.value : null));
-  const [loading, setLaddar] = useState(Boolean(id) && !forsta.har);
-  const [error, setFel] = useState(/** @type {Error | null} */ (null));
-  const [rakna, setRakna] = useState(0);
+  const [data, setData] = useState(/** @type {T | null} */ (first.has ? first.value : null));
+  const [loading, setLoading] = useState(Boolean(id) && !first.has);
+  const [error, setError] = useState(/** @type {Error | null} */ (null));
+  const [count, setCount] = useState(0);
   const update = useCallback(() => {
-    if (nyckel) forget(source, nyckel);
-    setRakna((n) => n + 1);
-  }, [source, nyckel]);
-  const senaste = useRef(0);
+    if (key) forget(source, key);
+    setCount((n) => n + 1);
+  }, [source, key]);
+  const latest = useRef(0);
 
   useEffect(() => {
     if (!id) {
       setData(null);
-      setLaddar(false);
+      setLoading(false);
       return;
     }
 
-    const traff = cached(source, nyckel);
-    if (traff.har) {
-      setData(traff.value);
-      setFel(null);
-      setLaddar(false);
+    const hit = cached(source, key);
+    if (hit.has) {
+      setData(hit.value);
+      setError(null);
+      setLoading(false);
       return;
     }
 
-    const mitt = (senaste.current += 1);
-    setLaddar(true);
-    setFel(null);
+    const mine = (latest.current += 1);
+    setLoading(true);
+    setError(null);
 
-    throughCache(source, nyckel, () => source.read(collectionName, id))
+    throughCache(source, key, () => source.read(collectionName, id))
       .then((entry) => {
-        if (mitt !== senaste.current) return;
+        if (mine !== latest.current) return;
         setData(entry);
       })
       .catch((e) => {
-        if (mitt !== senaste.current) return;
-        setFel(e instanceof Error ? e : new Error(String(e)));
+        if (mine !== latest.current) return;
+        setError(e instanceof Error ? e : new Error(String(e)));
       })
       .finally(() => {
-        if (mitt !== senaste.current) return;
-        setLaddar(false);
+        if (mine !== latest.current) return;
+        setLoading(false);
       });
-  }, [source, collectionName, id, nyckel, rakna]);
+  }, [source, collectionName, id, key, count]);
 
   return useMemo(() => ({ data, loading, error, update }), [data, loading, error, update]);
 }

@@ -46,9 +46,9 @@ describe("OpsFilePicker", () => {
     const onChange = vi.fn();
     render(<OpsFilePicker value={null} onChange={onChange} maxChars={100000} />);
 
-    const handelse = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(handelse, "clipboardData", { value: { files: [file("png", "", "image/png")] } });
-    fireEvent(document, handelse);
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: { files: [file("png", "", "image/png")] } });
+    fireEvent(document, event);
 
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     // Urklippsbilder saknar filnamn. Ett tomt namn i en lista ser ut som en
@@ -63,12 +63,12 @@ describe("OpsFilePicker", () => {
     const onChange = vi.fn();
     render(<OpsFilePicker value={null} onChange={onChange} maxChars={100000} />);
 
-    const handelse = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(handelse, "clipboardData", { value: { files: [] } });
-    fireEvent(document, handelse);
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: { files: [] } });
+    fireEvent(document, event);
 
     expect(onChange).not.toHaveBeenCalled();
-    expect(handelse.defaultPrevented).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it("slutar lyssna på inklistring när paste är av", () => {
@@ -77,9 +77,9 @@ describe("OpsFilePicker", () => {
     const onChange = vi.fn();
     render(<OpsFilePicker value={null} onChange={onChange} maxChars={100000} paste={false} />);
 
-    const handelse = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(handelse, "clipboardData", { value: { files: [file("png", "bild.png", "image/png")] } });
-    fireEvent(document, handelse);
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: { files: [file("png", "bild.png", "image/png")] } });
+    fireEvent(document, event);
 
     expect(onChange).not.toHaveBeenCalled();
   });

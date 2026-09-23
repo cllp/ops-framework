@@ -36,17 +36,17 @@
  *
  * @param {number} n
  */
-function tva(n) {
+function two(n) {
   return String(n).padStart(2, "0");
 }
 
 /**
  * Datumsträngen för ett år, en månad (0-indexerad) och en dag.
  *
- * @param {number} ar @param {number} manad @param {number} dag
+ * @param {number} ar @param {number} month @param {number} day
  */
-export function dateKey(ar, manad, dag) {
-  return `${ar}-${tva(manad + 1)}-${tva(dag)}`;
+export function dateKey(ar, month, day) {
+  return `${ar}-${two(month + 1)}-${two(day)}`;
 }
 
 /**
@@ -66,19 +66,19 @@ export function todayKey(today = new Date()) {
 /**
  * Vilken kolumn den 1:a hamnar i, med måndag som kolumn noll.
  *
- * @param {number} ar @param {number} manad
+ * @param {number} ar @param {number} month
  */
-export function forstaKolumnen(ar, manad) {
-  return (new Date(ar, manad, 1).getDay() + 6) % 7;
+export function firstColumn(ar, month) {
+  return (new Date(ar, month, 1).getDay() + 6) % 7;
 }
 
 /**
  * Antal dagar i månaden. Dag 0 i nästa månad ÄR sista dagen i den här.
  *
- * @param {number} ar @param {number} manad
+ * @param {number} ar @param {number} month
  */
-export function dagarIManaden(ar, manad) {
-  return new Date(ar, manad + 1, 0).getDate();
+export function daysInMonth(ar, month) {
+  return new Date(ar, month + 1, 0).getDate();
 }
 
 /**
@@ -91,36 +91,36 @@ export function dagarIManaden(ar, manad) {
  * ⛔ SISTA RADEN FYLLS INTE UT. Ett rutnät med `grid-cols-7` radar upp sig ändå,
  * och utfyllnad hade bara varit fler element att rita.
  *
- * @param {number} ar @param {number} manad
+ * @param {number} ar @param {number} month
  * @returns {(number | null)[][]} En lista rader, varje rad sju platser.
  */
-export function monthGrid(ar, manad) {
+export function monthGrid(ar, month) {
   /** @type {(number | null)[]} */
-  const rutor = [];
-  for (let i = 0; i < forstaKolumnen(ar, manad); i += 1) rutor.push(null);
-  for (let d = 1; d <= dagarIManaden(ar, manad); d += 1) rutor.push(d);
+  const boxes = [];
+  for (let i = 0; i < firstColumn(ar, month); i += 1) boxes.push(null);
+  for (let d = 1; d <= daysInMonth(ar, month); d += 1) boxes.push(d);
 
   /** @type {(number | null)[][]} */
-  const rader = [];
-  for (let i = 0; i < rutor.length; i += 7) rader.push(rutor.slice(i, i + 7));
-  return rader;
+  const rows = [];
+  for (let i = 0; i < boxes.length; i += 7) rows.push(boxes.slice(i, i + 7));
+  return rows;
 }
 
 /**
  * Månaderna som ska ritas, bakåt och framåt från en utgångspunkt.
  *
  * @param {Date} today
- * @param {number} bakat Antal månader före den innevarande.
+ * @param {number} back Antal månader före den innevarande.
  * @param {number} ahead Antal månader efter den innevarande.
- * @returns {{ ar: number, manad: number }[]}
+ * @returns {{ ar: number, month: number }[]}
  */
-export function months(today, bakat, ahead) {
-  const ut = [];
-  for (let i = -bakat; i <= ahead; i += 1) {
+export function months(today, back, ahead) {
+  const out = [];
+  for (let i = -back; i <= ahead; i += 1) {
     const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
-    ut.push({ ar: d.getFullYear(), manad: d.getMonth() });
+    out.push({ ar: d.getFullYear(), month: d.getMonth() });
   }
-  return ut;
+  return out;
 }
 
 /**
@@ -138,14 +138,14 @@ export function months(today, bakat, ahead) {
  */
 export function perDay(entries) {
   /** @type {Map<string, CalendarEntry[]>} */
-  const karta = new Map();
+  const byKey = new Map();
   for (const p of entries || []) {
     if (!p || typeof p.date !== "string" || !p.date) continue;
-    const existed = karta.get(p.date);
+    const existed = byKey.get(p.date);
     if (existed) existed.push(p);
-    else karta.set(p.date, [p]);
+    else byKey.set(p.date, [p]);
   }
-  return karta;
+  return byKey;
 }
 
 /**
@@ -186,14 +186,14 @@ export const MONTH_NAMES = [
  * ⛔ STRÄNGEN SOM INTE ÄR ETT DATUM GER TILLBAKA SIG SJÄLV i stället för
  * "NaN undefined". En rubrik som skriker är sämre än en som är tråkig.
  *
- * @param {string} nyckel `YYYY-MM-DD`.
+ * @param {string} key `YYYY-MM-DD`.
  */
-export function datumtext(nyckel) {
-  const traff = /^(\d{4})-(\d{2})-(\d{2})$/.exec(nyckel || "");
-  if (!traff) return nyckel || "";
-  const manad = Number(traff[2]) - 1;
-  if (manad < 0 || manad > 11) return nyckel;
-  return `${Number(traff[3])} ${MONTH_NAMES[manad]}`;
+export function dateText(key) {
+  const hit = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key || "");
+  if (!hit) return key || "";
+  const month = Number(hit[2]) - 1;
+  if (month < 0 || month > 11) return key;
+  return `${Number(hit[3])} ${MONTH_NAMES[month]}`;
 }
 
 /**
@@ -220,11 +220,11 @@ export function datumtext(nyckel) {
  * `IntersectionObserver` och ingen layout, så beslutet går inte att nå genom att
  * rendera något. Som funktion är det två tal in och ett ord ut.
  *
- * @param {{ top: number }} elementet Elementets rektangel.
- * @param {{ top: number } | null} rutan Rullbehållarens rektangel, eller null.
+ * @param {{ top: number }} theElement Elementets rektangel.
+ * @param {{ top: number } | null} theBox Rullbehållarens rektangel, eller null.
  * @returns {"upp" | "ner"} "upp" = rulla uppåt för att nå det.
  */
-export function rullriktning(elementet, rutan) {
-  const rutansTopp = rutan ? rutan.top : 0;
-  return elementet.top < rutansTopp ? "upp" : "ner";
+export function scrollDirection(theElement, theBox) {
+  const boxTop = theBox ? theBox.top : 0;
+  return theElement.top < boxTop ? "upp" : "ner";
 }

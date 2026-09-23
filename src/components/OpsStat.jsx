@@ -117,10 +117,10 @@ export function OpsStat({
     </>
   );
 
-  const bas = "rounded-lg border border-line bg-raised p-4 text-left";
+  const base = "rounded-lg border border-line bg-raised p-4 text-left";
 
   if (!onDrillDown) {
-    return <div className={bas}>{innehall}</div>;
+    return <div className={base}>{innehall}</div>;
   }
 
   return (
@@ -129,7 +129,7 @@ export function OpsStat({
       onClick={onDrillDown}
       aria-label={drillDownLabel ?? `${label}: visa underlaget`}
       className={cx(
-        bas,
+        base,
         "block min-h-11 w-full cursor-pointer",
         "transition-colors duration-(--duration-fast) ease-standard hover:border-accent hover:bg-accent-faint",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -140,8 +140,8 @@ export function OpsStat({
   );
 }
 
-/** @param {Date|number|string} varde @returns {string | undefined} */
-function tillIso(varde) {
-  const d = varde instanceof Date ? varde : new Date(varde);
+/** @param {Date|number|string} displayValue @returns {string | undefined} */
+function tillIso(displayValue) {
+  const d = displayValue instanceof Date ? displayValue : new Date(displayValue);
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
