@@ -25,3 +25,4 @@
  */
 
 export { createCaseMirror } from "./caseMirror.js";
+export { createActivityWriter } from "./aktivitet.js";
