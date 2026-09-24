@@ -688,6 +688,142 @@ describe("OpsKalender", () => {
     expect(klasser).not.toContain("border-l-identity-4");
   });
 
+  it("ritar slagets ikon i stället för pricken, färgad ur samma palett", () => {
+    /*
+     * ⛔ CP 2026-09-24: "Går det att ha en färgad liten ikon (väldigt liten)?"
+     *
+     * Och det är inte bara en smaksak. Paletten bär en varning som står kvar med
+     * flit: slag-1 mot slag-2 ligger på delta E 6,9 vid rödgrönblindhet, vilket
+     * är tillåtet BARA med en andra kodning. På raden är ordet den kodningen; i
+     * rutnätet fanns ingen. Formen är den.
+     *
+     * ⛔ PROVET KRÄVER BÅDA HALVORNA: att bilden är med, OCH att den bär slagets
+     * textfärg. En ikon utan färg hade varit grön här om provet bara letat efter
+     * en svg, och då hade två slag sett likadana ut igen.
+     */
+    rendera({
+      entries: [
+        { id: "a", date: "2026-10-12", title: "En uppgift", slag: 1, slagLabel: "Uppgift", kindIcon: <svg data-prov="uppgift" /> },
+        { id: "b", date: "2026-10-12", title: "En påminnelse", slag: 2, slagLabel: "Påminnelse", kindIcon: <svg data-prov="paminnelse" /> },
+      ],
+    });
+
+    const ruta = screen.getByRole("button", { name: "12, 2 poster" });
+    // ⛔ Ingen prick kvar. Ritades båda vore rutan dubbelt så bred som mätt.
+    expect(ruta.querySelectorAll("span.rounded-full").length).toBe(0);
+
+    const marken = [...ruta.querySelectorAll("svg[data-prov]")];
+    expect(marken.map((m) => m.dataset.prov)).toEqual(["uppgift", "paminnelse"]);
+
+    const farger = marken.map((m) => String(m.parentElement.className).split(/\s+/).find((k) => k.startsWith("text-slag-")));
+    expect(farger).toEqual(["text-slag-1", "text-slag-2"]);
+  });
+
+  it("tvingar ikonens storlek i rutan, oavsett vad appen skickar", () => {
+    /*
+     * ⛔ RAMVERKET ÄGER STORLEKEN HÄR. Samma `kindIcon` ritas 16 px på raden i
+     * `OpsEventList`, eftersom en rad har plats. Vid 390 px är en dagsruta 47,7
+     * px bred och dess innehållsyta 39,7 px: tre märken på 10 px med `gap-0.5`
+     * blir 34 px och ryms, tre på 12 px blir 40 px och gör inte det. Skickade
+     * appen storleken skulle en radikon spränga rutnätet på en telefon, och det
+     * felet syns först hos användaren.
+     */
+    rendera({
+      entries: [{ id: "a", date: "2026-10-12", title: "Stor ikon", slag: 1, slagLabel: "Uppgift", kindIcon: <svg data-prov="stor" width="16" height="16" /> }],
+    });
+
+    const omslag = screen.getByRole("button", { name: "12, 1 post" }).querySelector("svg[data-prov]").parentElement;
+    const klasser = String(omslag.className).split(/\s+/);
+    expect(klasser).toContain("[&>svg]:size-2.5");
+    // ⛔ Och strecket tjocknar. Lucides `stroke-width: 2` i en 24-enheters
+    // viewBox blir 0,83 px vid 10 px, alltså tunnare än en bildpunkt.
+    expect(klasser).toContain("[&>svg]:[stroke-width:2.75]");
+  });
+
+  it("behåller pricken för en post utan ikon, så en app utan bilder inte blir tom", () => {
+    rendera({
+      entries: [
+        { id: "a", date: "2026-10-12", title: "Med ikon", slag: 1, slagLabel: "Uppgift", kindIcon: <svg data-prov="med" /> },
+        { id: "b", date: "2026-10-12", title: "Utan ikon", slag: 2, slagLabel: "Påminnelse" },
+      ],
+    });
+
+    const ruta = screen.getByRole("button", { name: "12, 2 poster" });
+    expect(ruta.querySelectorAll("svg[data-prov]").length).toBe(1);
+    const prick = ruta.querySelector("span.rounded-full");
+    expect(String(prick.className).split(/\s+/)).toContain("bg-slag-2");
+  });
+
+  it("lämnar plats åt räknaren genom att visa ett märke mindre", () => {
+    /*
+     * ⛔ MÄTT I CHROMIUM VID 390 PX, och det var mätningen som hittade felet:
+     * rutan är 45,6 px och innehållsytan 37,6 px efter `px-1`. Tre ikoner på
+     * 10 px ryms (34 px). Tre ikoner OCH ett "+2" blir 49,7 px, alltså 12 px
+     * utanför rutan.
+     *
+     * ⛔ jsdom KAN INTE SE DET. Där finns ingen layoutmotor, så provet bevakar
+     * REGELN och inte bredden: en ruta som räknar visar två märken, inte tre.
+     * Bredden är mätt en gång i en riktig webbläsare, och siffrorna står ovan.
+     *
+     * ⛔ OCH REGELN GÄLLER PRICKARNA OCKSÅ, fast de klarade sig på 35,7 px. Två
+     * regler för samma rad hade varit en rad som byter bredd beroende på vad
+     * appen skickar, alltså ett spill bara vissa appar ser.
+     */
+    const fyra = [1, 2, 3, 4].map((n) => ({
+      id: `p${n}`,
+      date: "2026-10-12",
+      title: `Post ${n}`,
+      slag: 1,
+      slagLabel: "Uppgift",
+      kindIcon: <svg data-prov={`p${n}`} />,
+    }));
+    rendera({ entries: fyra });
+
+    const ruta = screen.getByRole("button", { name: "12, 4 poster" });
+    expect(ruta.querySelectorAll("svg[data-prov]").length).toBe(2);
+    expect(ruta.textContent).toContain("+2");
+
+    // ⛔ Och EXAKT tre när ingen räknare behövs. Utan den här halvan hade
+    // "visa alltid två" varit grönt, alltså ett märke bortkastat varje dag.
+    rendera({ entries: fyra.slice(0, 3) });
+    const tre = screen.getByRole("button", { name: "12, 3 poster" });
+    expect(tre.querySelectorAll("svg[data-prov]").length).toBe(3);
+    expect(tre.textContent).not.toContain("+");
+  });
+
+  it("ger räknaren hela raden när talet blir tresiffrigt", () => {
+    /*
+     * ⛔ MÄTT: ett märke och "+139" blir 39,0 px i en yta på 37,6, alltså
+     * utanför rutan. Noll märken och "+140" blir 27,0 px.
+     *
+     * ⛔ OCH DET ÄR RÄTT ÄVEN UTAN MÅTTET. En dag med hundrafyrtio poster har
+     * inget att säga med en färg: den säger "för mycket", och det säger talet
+     * bättre än en ensam grön ikon bredvid.
+     */
+    const manga = Array.from({ length: 140 }, (_, n) => ({
+      id: `p${n}`,
+      date: "2026-10-12",
+      title: `Post ${n}`,
+      slag: 1,
+      slagLabel: "Uppgift",
+      kindIcon: <svg data-prov={`p${n}`} />,
+    }));
+    rendera({ entries: manga });
+
+    const ruta = screen.getByRole("button", { name: "12, 140 poster" });
+    expect(ruta.querySelectorAll("svg[data-prov]").length).toBe(0);
+    expect(ruta.textContent).toContain("+140");
+  });
+
+  it("kräver ordet även när märket är en ikon", () => {
+    // ⛔ Ikonen är en andra kodning, inte en ersättning för ordet: den som
+    // lyssnar hör varken färg eller form. Kastet ska komma här också, annars
+    // vore ikonen en väg runt kravet.
+    expect(() =>
+      rendera({ entries: [{ id: "a", date: "2026-10-12", title: "Utan ord", slag: 1, kindIcon: <svg /> }] }),
+    ).toThrow(/slagLabel/);
+  });
+
   it("kastar på ett slag utan ord, redan när rutnätet ritas", () => {
     /*
      * ⛔ Samma krav som kanten ställer. En färg utan ord går inte att läsa upp,
