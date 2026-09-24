@@ -70,11 +70,39 @@ export function OpsHelp({ title, children, label = "Visa förklaring" }) {
           ⛔ `shrink-0` SÅ DET INTE KLÄMS. Utan den krymper cirkeln till en oval
           så fort rubriken är lång, och en oval frågetecken-knapp ser trasig ut.
         */}
+        {/*
+          ⛔ RINGEN RITAS I SAMMA BLÄCK SOM TECKNET, INTE I `border-line`.
+
+          CP 2026-09-24, mörkt läge på telefon: frågetecknet såg "hängande" ut,
+          alltså tecknet utan ring. Det var inte en känsla. MÄTT som WCAG-kvot
+          mot ytan:
+
+            border-line, mörkt     1,14:1
+            border-line, ljust     1,19:1
+
+          Golvet för en kontrollyta är 3:1. Ringen fanns alltså inte, i BÅDA
+          lägena; att den rapporterades i mörkt är en slump i vilken skärm som
+          var framme.
+
+          ⛔ OCH TOKENET FICK INTE HÖJAS. `--color-line` ritar dividers och
+          kortkanter, som ska viska. Höjs det syns varje linje i appen, alltså
+          hade en hel yta ändrats för att en knapp var otydlig.
+
+          Ringen är en KONTROLL och ska bära samma vikt som tecknet i den. Mätt:
+
+            ink-muted      mörkt 3,13 på yta men 2,84 på upphöjd, alltså UNDER
+            ink-secondary  mörkt 4,93 och 4,47, ljust 9,47 och 8,84
+
+          `ink-secondary` var redan teckenfärgen, så ringen och tecknet blir ett.
+
+          ⛔ ÖPPET LÄGE ÄR OFÖRÄNDRAT. Skillnaden ska vara att texten fälls ut
+          och att ringen blir ljusare, inte att ringen dyker upp ur ingenting.
+        */}
         <span
           aria-hidden="true"
           className={cx(
             "inline-flex size-6 shrink-0 items-center justify-center rounded-full",
-            "border border-line text-sm font-bold text-ink-secondary",
+            "border border-ink-secondary text-sm font-bold text-ink-secondary",
             "transition-colors duration-(--duration-fast) ease-standard",
             "group-open:border-accent group-open:text-accent",
           )}
