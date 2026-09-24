@@ -33,6 +33,13 @@
  *   översätta den till något visuellt, och då måste det veta vad rollerna betyder. Det är
  *   precis det ord som inte får finnas här.
  * @property {import("react").ReactNode} [kind] Vad för sorts händelse det är, i appens ord.
+ * @property {import("react").ReactNode} [kindIcon] Slagets ikon, före ordet på raden.
+ *   ⛔ Samma ikon som filtrets meny visar för samma slag. Två olika ikoner för
+ *   samma sak är hur man slutar lita på båda. Färgas ur `slag`.
+ * @property {1|2|3} [slag] Vad raden ÄR, ur slagpaletten. Färgar kortets kant
+ *   och ikonen ovan, och är samma ton som kalenderns prick för samma post.
+ *   ⛔ Vinner över `edge`, som svarar på VEM raden tillhör.
+ * @property {string} [slagLabel] Vad slaget heter. ⛔ Krävs när `slag` finns.
  *   ⛔ SVARAR PÅ EN ANNAN FRÅGA ÄN `role`, och blandas de ihop blir båda obrukbara.
  *   `role` säger VEM som ska göra något (du, en agent, ingen alls). `kind` säger VAD FÖR
  *   SORTS sak det är (ett möte, en betalning, en uppgift). Ett filter på det ena kan inte

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { kantKlass } from "../lib/kant.js";
+import { slagKant, slagPrick } from "../lib/slag.js";
 import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import {
   MONTH_NAMES,
@@ -179,7 +180,10 @@ function DayBox({ day, dayKey, entries, isToday, chosen, onSelect }) {
       {/* ⛔ Dekor, och läses inte upp: antalet står redan i knappens namn. */}
       <span aria-hidden="true" className="flex min-h-2 items-center gap-0.5">
         {entries.slice(0, MAX_PRICKAR).map((p) => (
-          <span key={p.id} className="size-1.5 rounded-full bg-accent" />
+          <span
+            key={p.id}
+            className={cx("size-1.5 rounded-full", slagPrick(p.slag, p.slagLabel, "OpsCalendar") || "bg-accent")}
+          />
         ))}
         {count > MAX_PRICKAR ? <span className="text-xs tabular-nums text-ink-muted">+{count - MAX_PRICKAR}</span> : null}
       </span>
@@ -292,7 +296,19 @@ function Postkort({ dayKey, entry, statusWords, order }) {
    * `rounded-xl`, precis som i `OpsCard`. Ett eget element hade kunnat hamna
    * utanför hörnet.
    */
-  const kanten = kantKlass(entry.edge, entry.edgeLabel, "OpsCalendar");
+  /*
+   * ⛔ SLAGET VINNER ÖVER `edge`, OCH DE ÄR INTE SAMMA FRÅGA.
+   *
+   * `edge` svarar på VEM posten tillhör: en scope, en grupp, en avdelning, ur
+   * identitetspaletten. `slag` svarar på VAD den är, ur slagpaletten, och det
+   * är det svaret prickarna i rutnätet ovanför också bär. Bär kortet och
+   * pricken olika färger för samma post säger vyn emot sig själv i två
+   * element man ser samtidigt.
+   *
+   * Båda finns kvar eftersom en app kan vilja ha båda. Anges båda vinner
+   * slaget, av just det skälet: pricken kan bara visa ett av dem.
+   */
+  const kanten = slagKant(entry.slag, entry.slagLabel, "OpsCalendar") || kantKlass(entry.edge, entry.edgeLabel, "OpsCalendar");
 
   return (
     <div
@@ -304,7 +320,7 @@ function Postkort({ dayKey, entry, statusWords, order }) {
     >
       {/* ⛔ ORDET FÖRST I KORTET, precis som i `OpsCard`. Den som lyssnar ska
           höra vad kanten betyder innan titeln, inte efter den. */}
-      {kanten ? <span className="sr-only">{entry.edgeLabel}</span> : null}
+      {kanten ? <span className="sr-only">{entry.slagLabel || entry.edgeLabel}</span> : null}
       <div className="flex items-start gap-2">
         {/* ⛔ PRICKEN STÅR KVAR I DEN IHOPFÄLLDA RADEN. Den svarar på frågan man
             ställer när man SKUMMAR panelen, alltså innan man öppnat något; ordet

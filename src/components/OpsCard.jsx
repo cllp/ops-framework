@@ -1,5 +1,6 @@
 import { cx } from "../lib/cx.js";
 import { kantKlass } from "../lib/kant.js";
+import { slagKant } from "../lib/slag.js";
 
 /**
  * Kort.
@@ -28,10 +29,13 @@ const TONER = {
  *   ett tredje steg emellan gör att ingen av dem längre betyder något.
  * @param {1|2|3|4|5|6} [props.edge] Färgad vänsterkant ur identitetspaletten. För kort som tillhör något: en scope, en grupp, en avdelning.
  * @param {string} [props.edgeLabel] Vad kanten betyder, för skärmläsare. ⛔ Krävs när `edge` används.
+ * @param {1|2|3} [props.slag] Vad kortet ÄR, ur slagpaletten. Samma ton som kalenderns prick för samma post.
+ *   ⛔ Vinner över `edge` när båda finns. Se `lib/slag.js`.
+ * @param {string} [props.slagLabel] Vad slaget heter. ⛔ Krävs när `slag` används.
  * @param {string} [props.id]
  * @param {import("react").ReactNode} props.children
  */
-export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, flush = false, edge, edgeLabel, id, children }) {
+export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, flush = false, edge, edgeLabel, slag, slagLabel, id, children }) {
   const tonKlass = TONER[tone];
   if (!tonKlass) {
     throw new Error(`OpsCard: okänd tone "${tone}". Giltiga: ${Object.keys(TONER).join(", ")}.`);
@@ -52,7 +56,12 @@ export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, 
 
   // ⛔ KANTEN OCH DESS KRAV BOR I `lib/kant.js`, eftersom kalenderns postkort
   // ritar samma sak. Se den filen för varför ett ord krävs.
-  const kanten = kantKlass(edge, edgeLabel, "OpsCard");
+  /*
+   * ⛔ SLAGET VINNER ÖVER `edge`. `edge` säger VEM kortet tillhör, `slag` säger
+   * VAD det är, och bara det senare har en motsvarighet som prick i kalendern.
+   * Vann `edge` skulle samma post kunna bära två färger på två ytor.
+   */
+  const kanten = slagKant(slag, slagLabel, "OpsCard") || kantKlass(edge, edgeLabel, "OpsCard");
 
   return (
     <div
@@ -68,7 +77,7 @@ export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, 
         flush ? "p-0 overflow-hidden" : "p-4",
       )}
     >
-      {kanten ? <span className="sr-only">{edgeLabel}</span> : null}
+      {kanten ? <span className="sr-only">{slagLabel || edgeLabel}</span> : null}
       {children}
     </div>
   );

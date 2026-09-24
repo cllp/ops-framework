@@ -191,6 +191,68 @@
   --color-identity-5: #6b4a63;
   --color-identity-6: #5a5f4a;
 
+  /* ─── Slag ───────────────────────────────────────────────────────────────
+   * Vad en post ÄR, när samma svar ska synas på flera ytor samtidigt: ett
+   * korts vänsterkant, en ikon i en rad, och en prick i en kalenderruta.
+   *
+   * ⛔ IDENTITETSTONERNA OVAN DUGER INTE HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
+   *
+   * CP 2026-09-24: "Prickarna i kalendern skall ju också ha färgen av vilken
+   * typ det är. Gärna matta färger."
+   *
+   * Kanten fick identitetstoner först, och där fungerar de: kanten sitter
+   * bredvid ett ord, och ordet bär betydelsen. En prick på 6 px har inget ord
+   * bredvid sig. Körda genom paletteringsvalidatorn som prickar, ljust läge:
+   *
+   *   Kromagolv        identity-1 (0,044) och identity-4 (0,073) under 0,1,
+   *                    alltså läses grön och blå som GRÅTT
+   *   Normalseende     identity-1 mot identity-4 delta E 7,4, golvet är 15
+   *
+   * Två prickar som ingen kan skilja åt är värre än en prick.
+   *
+   * ⛔ OCH DIAGRAMSERIERNA ÄR FEL ÅT ANDRA HÅLLET. De är byggda för att färgen
+   * ÄR budskapet i en tårtbit, alltså mättade. En rad prickar i en kalender som
+   * man tittar på varje dag ska inte skrika.
+   *
+   * Därför en egen uppsättning: jordnära och dämpad som identitetstonerna, men
+   * över kromagolvet. Uppmätt, båda lägena, alla kontroller passerade:
+   *
+   *   ljust   delta E 16,5 mellan det svåraste paret, kontrast över 3:1
+   *   mörkt   delta E 15,6 mellan det svåraste paret, kontrast över 3:1
+   *
+   * ⛔ EN VARNING STÅR KVAR MED FLIT. Vid rödgrönblindhet ligger slag-1 mot
+   * slag-2 på delta E 6,9, vilket är tillåtet BARA med en andra kodning. Den
+   * finns: raden bär ordet, kortet bär ikonen, och kalenderrutans knapp säger
+   * antalet i sitt namn. Färgen är aldrig ensam bärare av vad något är.
+   * Tas den andra kodningen bort någonstans är den här raden det som gör att
+   * det räknas som ett fel och inte som en smaksak.
+   *
+   * ⛔ TRE PLATSER, OCH DET ÄR EN MÄTT GRÄNS, INTE EN STARTPUNKT.
+   *
+   * Identitetstonerna har sex. Den här kan inte ha sex, och skälet är att den
+   * har ett krav de inte har: den ska gå att skilja åt utan ord. Uppmätt när
+   * platserna lades till en i taget, alla par:
+   *
+   *   sex platser    fjärde tonen under kromagolvet, delta E ned till 3,9
+   *   fem platser    bäst funna femma delta E 9,9, golvet är 15
+   *   fyra platser   GÅR i ljust läge (delta E 15,4), men inte i mörkt:
+   *                  mörkt lägets band är smalare (L 0,48 till 0,67) och varje
+   *                  försökt fjärde ton föll på rödgrönseendet, delta E 3,6
+   *                  till 5,0
+   *
+   * Ett token som fungerar i ett läge men inte i det andra är inte ett token.
+   * Alltså tre.
+   *
+   * ⛔ BEHÖVS EN FJÄRDE SORT ÄR DET INTE DEN HÄR FILEN SOM SKA HITTA PÅ EN
+   * FÄRG. Antingen får sorterna dela plats, eller så får ytan en andra kodning
+   * som bär skillnaden, eller så byter den ytan till diagramserierna och blir
+   * mättad. Att lägga till `--color-slag-4` utan att köra validatorn är att
+   * återinföra exakt det grå som den här uppsättningen finns för att undvika.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --color-slag-1: #1f8055;
+  --color-slag-2: #a8781a;
+  --color-slag-3: #3a68b0;
+
   /* ─── Diagram ────────────────────────────────────────────────────────────
    * Sex serier och en ordnad skala, för när en yta ska bära identitet eller
    * storlek.
@@ -511,6 +573,13 @@
   --dark-identity-5: #b08fa6;
   --dark-identity-6: #9aa08a;
 
+  /* Slagen i mörkt läge. Uppmätta mot `--dark-canvas`, alla kontroller
+     passerade: delta E 15,6 mellan det svåraste paret, kromagolvet klarat av
+     alla tre, kontrast över 3:1. Se den långa noten vid `--color-slag-*`. */
+  --dark-slag-1: #3b976b;
+  --dark-slag-2: #b98d2e;
+  --dark-slag-3: #5a85c8;
+
   /* Diagram. Samma sex nyanser, steg-om-satta för den mörka ytan, inte en
    * automatisk invertering: ett ljust läge speglat blir för ljust mot mörkt och
    * tappar kromat. Validerat som en uppsättning mot #16161c. */
@@ -673,6 +742,9 @@
     --color-identity-4: var(--dark-identity-4);
     --color-identity-5: var(--dark-identity-5);
     --color-identity-6: var(--dark-identity-6);
+    --color-slag-1: var(--dark-slag-1);
+    --color-slag-2: var(--dark-slag-2);
+    --color-slag-3: var(--dark-slag-3);
     --color-series-1: var(--dark-series-1);
     --color-series-2: var(--dark-series-2);
     --color-series-3: var(--dark-series-3);
@@ -759,6 +831,9 @@
   --color-identity-4: var(--dark-identity-4);
   --color-identity-5: var(--dark-identity-5);
   --color-identity-6: var(--dark-identity-6);
+  --color-slag-1: var(--dark-slag-1);
+  --color-slag-2: var(--dark-slag-2);
+  --color-slag-3: var(--dark-slag-3);
   --color-series-1: var(--dark-series-1);
   --color-series-2: var(--dark-series-2);
   --color-series-3: var(--dark-series-3);

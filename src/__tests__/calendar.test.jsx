@@ -633,6 +633,77 @@ describe("OpsKalender", () => {
     expect(() => fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }))).toThrow(/edgeLabel/);
   });
 
+  it("färgar rutnätets prickar efter slaget, inte alla lika", () => {
+    /*
+     * ⛔ CP 2026-09-24, med bild: "Prickarna i kalendern skall ju också ha
+     * färgen av vilken typ det är."
+     *
+     * Alla prickar var `bg-accent`, alltså en enda färg. En ruta med tre
+     * prickar sade "tre saker händer" och ingenting om vilka, vilket är det man
+     * vill veta när man skummar en månad.
+     *
+     * ⛔ PROVET KRÄVER TVÅ OLIKA KLASSER OCH INTE EN RIKTIG. Ett påstående om
+     * att den första pricken har `bg-slag-1` hade varit grönt även om varje
+     * prick ritats i samma färg, alltså grönt för exakt det fel som skulle bort.
+     */
+    rendera({
+      entries: [
+        { id: "a", date: "2026-10-12", title: "En uppgift", slag: 1, slagLabel: "Uppgift" },
+        { id: "b", date: "2026-10-12", title: "En påminnelse", slag: 2, slagLabel: "Påminnelse" },
+      ],
+    });
+
+    const ruta = screen.getByRole("button", { name: "12, 2 poster" });
+    const prickar = [...ruta.querySelectorAll("span.rounded-full")];
+    expect(prickar.length).toBe(2);
+
+    const klasser = prickar.map((d) => String(d.className).split(/\s+/).find((k) => k.startsWith("bg-slag-")));
+    expect(klasser).toEqual(["bg-slag-1", "bg-slag-2"]);
+  });
+
+  it("låter en post utan slag behålla accentpricken", () => {
+    // ⛔ Slaget är valfritt. En app som inte har sorter ska inte tappa sina
+    // prickar, den ska få dem som förut.
+    rendera({ entries: [{ id: "a", date: "2026-10-12", title: "Utan slag" }] });
+
+    const ruta = screen.getByRole("button", { name: "12, 1 post" });
+    const prick = ruta.querySelector("span.rounded-full");
+    expect(String(prick.className).split(/\s+/)).toContain("bg-accent");
+  });
+
+  it("låter slaget vinna över edge på kortet, så prick och kant säger samma sak", () => {
+    /*
+     * ⛔ DE TVÅ SVARAR PÅ OLIKA FRÅGOR: `edge` på VEM posten tillhör, `slag` på
+     * VAD den är. Pricken kan bara visa ett av dem, och den visar slaget.
+     * Vann `edge` här hade kortet och pricken burit olika färger för samma post,
+     * i två element man ser samtidigt.
+     */
+    rendera({
+      entries: [{ id: "a", date: "2026-10-12", title: "Båda satta", edge: 4, edgeLabel: "Företag", slag: 1, slagLabel: "Uppgift" }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }));
+
+    const klasser = String(kortFor("Båda satta").className).split(/\s+/);
+    expect(klasser).toContain("border-l-slag-1");
+    expect(klasser).not.toContain("border-l-identity-4");
+  });
+
+  it("kastar på ett slag utan ord, redan när rutnätet ritas", () => {
+    /*
+     * ⛔ Samma krav som kanten ställer. En färg utan ord går inte att läsa upp,
+     * och validatorns rödgrönvarning är tillåten BARA med en andra kodning.
+     *
+     * ⛔ OCH KASTET KOMMER TIDIGARE ÄN KANTENS. Kanten sitter på ett kort, som
+     * ritas först när dagen öppnas; pricken sitter i rutan och ritas direkt.
+     * Provet skrevs först med ett klick och blev rött av fel anledning: det
+     * hade redan kastat. Skillnaden är värd att veta, för den betyder att ett
+     * slag utan ord sänker hela kalendern och inte bara en dagspanel.
+     */
+    expect(() =>
+      rendera({ entries: [{ id: "a", date: "2026-10-12", title: "Utan ord", slag: 1 }] }),
+    ).toThrow(/slagLabel/);
+  });
+
   it("kastar på en plats som inte finns i paletten", () => {
     rendera({ entries: [{ id: "x", date: "2026-10-12", title: "Plats nio", edge: 9, edgeLabel: "Nio" }] });
     expect(() => fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }))).toThrow(/okänd edge/);
