@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**61 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**63 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -225,6 +225,8 @@ något godtyckligt.
 | `OpsStatusDot` | `status` oppet \| pagar \| vantar \| klart \| akut, `label` (krävs). Färgprick för var ett ärende står, tänkt för en kortrubrik. ⛔ Ordet krävs och renderas alltid, som `sr-only` utom för `akut` som skriver ut det synligt: en färg går inte att läsa upp och är osynlig för var tjugonde man. Vyn måste visa ordet någonstans synligt, till exempel i utfällningen |
 | `OpsMarkdown` | `text`. Renderar rubriker, stycken, listor, kryssrutor, citat, kod, tabeller och länkar som riktiga element. ⛔ Ingen HTML passerar en sträng: `dangerouslySetInnerHTML` finns inte, och bara `http`/`https` blir länkar. Kapar aldrig texten, det är datalagrets beslut |
 | `OpsPrompt` | `source` (från `createPromptSource`), `label` (krävs), `hint`, `placeholder`, `context`, `sendLabel`, `waitingLabel`, `suggestions` [sträng], `onAnswer`. En fråga in, ett svar ut, renderat som markdown. ⛔ Vet inte vilken leverantör som svarar: modell, nyckel och tak är appens. ⛔ Förra svaret ligger kvar tills ett nytt kommit, även efter ett fel |
+| `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `title`, `label`, `storageKey`, `icon`, `empty`, `now`. Klockikon med ett märke, och loggen bakom den i en `OpsModal`. ⛔ Antalet står i knappens NAMN och inte bara som en prick: en prick är dekor och läses inte upp. ⛔ "Oläst" räknas ur en tidpunkt i webbläsaren och aldrig ur ett fält på dokumentet: två läsare har olika svar, och ett delat `last` betyder att den som läser sist skriver över den andres |
+| `OpsActivityList` | `entries`, `kindLabel`, `empty`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. ⛔ Varje rad bär både relativ och exakt tid: "för 2 timmar sedan" är det man läser, klockslaget är det man kan jämföra |
 | `OpsTag` | `label` (bestämmer också tonen), `tone` 1-6 (låser tonen), `onRemove`, `removeLabel` |
 | `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
 | `OpsProvenance` | `kind` human \| agent \| auto, `label` |
@@ -308,6 +310,20 @@ Nyckeltal bär samma sak: `OpsStat` tar `fact`, plus `source` och `updatedAt`.
 tysta lögnen i en översiktsvy.
 
 ### Ärenden
+
+`createActivityLog(config)` äger **formen** på en rad i aktivitetsloggen: när
+det hände, vilket slag, vad som ändrades och om det gick igenom. Appen skickar
+`kinds`, alltså vilka jobb som finns, eftersom ramverket inte vet det.
+`buildEntry` **kastar** på ett okänt slag eller en rad utan rubrik, medan
+`missing(utkast)` svarar med skälen: den första anropas av ett skript som inte
+har någon att visa dem för, den andra av en yta som har det. `ACTIVITY_RESULTS`
+är de två utfallen, `ok` och `fel`, och de är två med flit: en "varning"
+däremellan glider tills varken varningen eller felet betyder något.
+
+`unreadCount(rader, sedd)` räknar det som är nyare än en tidpunkt. ⛔ En ren
+funktion och inte ett fält på raden: "oläst" är läsarens egenskap, inte
+händelsens, och den jämför på tid och inte på antal eftersom ett antal glider så
+fort en gammal rad städas bort.
 
 `createCaseModel(config)` äger **formen** på ett inskickat ärende: att det har
 en sort och en prioritet, bär vem som skickade in det och när, att `status` och
@@ -463,6 +479,8 @@ Ramverket vet ingenting om verksamheten. Allt det behöver veta kommer in genom 
 |---|---|---|
 | `createCaseModel` | `kinds`, `priorities`, `baseLabel` | `maxTitle`. Per sort: `requirements`, `extraFields` |
 | `createCaseMirror` (nodsidan) | `owner`, `repo`, `label` | `summary`, `extraFields`, `fetcher` |
+| `createActivityLog` | `kinds` | |
+| `createActivityWriter` (nodsidan) | `model`, `append` | `kalla`, `nu` |
 | `createRoutingSource` | `standard` | `routes` |
 | `createFirestoreSource` | `db`, `sdk` | |
 | `createPostgresSource` | `query` | `idColumn` |
@@ -489,6 +507,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 
 | | |
 |---|---|
+| `createActivityWriter` | vägen in i aktivitetsloggen för det som körs utan skärm: importskript, synkjobb, utlösare. Tar `model` (ur `createActivityLog`) och `append`, en injicerad skrivning, så ramverket får inget beroende till en databas. ⛔ `skriv` KASTAR ALDRIG, den svarar `{ ok, fel, orsak }`: en logg som kan sänka jobbet den loggar är värre än ingen logg, och alternativet, att varje anropsställe lindar sitt anrop i try, fungerar tills någon glömmer en gång. ⛔ `orsak` skiljer `utkast` från `skrivning`, eftersom det första är ett programfel och det andra är drift. ⛔ `misslyckades(utkast, fel)` finns för att en glömd `resultat: "fel"` lägger ett misslyckande i listan som ett lyckat jobb |
 | `createCaseMirror` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ owner, repo, label }` som konfiguration, plus `summary` och `extraFields` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `load` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
