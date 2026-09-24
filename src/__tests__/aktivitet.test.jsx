@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { ACTIVITY_RESULTS, createActivityLog, groupByDay, isUnread, unreadCount } from "../lib/aktivitet.js";
+import { ACTIVITY_RESULTS, activityId, activityWindow, createActivityLog, groupByDay, isUnread, unread, unreadCount, unreadRows } from "../lib/aktivitet.js";
 import { createActivityWriter } from "../node/aktivitet.js";
-import { OpsActivityButton, OpsActivityList } from "../components/OpsActivity.jsx";
+import { OpsActivityButton, OpsActivityDetail, OpsActivityList } from "../components/OpsActivity.jsx";
 
 const SLAG = [
   { value: "import", label: "Import" },
@@ -203,13 +203,19 @@ describe("OpsActivityList", () => {
     { nar: "2026-09-23T10:00:00.000Z", slag: "import", rubrik: "Skrev underlagen", resultat: "fel", fel: "permission denied" },
   ];
 
-  it("visar vad som hände, när, och vilket jobb som gjorde det", () => {
+  it("visar vad som hände, när, och vilket slag det var", () => {
+    /*
+     * ⛔ JOBBETS NAMN STÅR INTE HÄR LÄNGRE, och det är ett beslut och inte ett
+     * tapp. Listan är kort med flit: rubriken, detaljen och när. Källan, det
+     * exakta klockslaget och hela feltexten står i DETALJEN, eftersom de är vad
+     * man behöver den dag något gick sönder och brus resten av tiden.
+     */
     render(<OpsActivityList entries={rader} kindLabel={modell.kindLabel} now={new Date("2026-09-24T12:00:00.000Z")} />);
 
     expect(screen.getByText("Hämtade transaktioner")).toBeInTheDocument();
     expect(screen.getByText("42 poster")).toBeInTheDocument();
-    expect(screen.getByText("sync.py")).toBeInTheDocument();
     expect(screen.getByText("Banksynk")).toBeInTheDocument();
+    expect(screen.queryByText("sync.py")).not.toBeInTheDocument();
   });
 
   it("säger med ORD att något gick fel, inte bara med en färg", () => {
@@ -248,7 +254,7 @@ describe("OpsActivityList", () => {
       <OpsActivityList
         entries={rader}
         kindLabel={modell.kindLabel}
-        unreadSince="2026-09-23T12:00:00.000Z"
+        lasning={{ sedd: "2026-09-23T12:00:00.000Z" }}
         now={new Date("2026-09-24T12:00:00.000Z")}
       />,
     );
@@ -453,5 +459,196 @@ describe("isUnread", () => {
 
   it("räknar allt som nytt när läsaren aldrig sett något", () => {
     expect(isUnread({ nar: "2020-01-01T00:00:00.000Z" }, null)).toBe(true);
+  });
+});
+
+describe("activityWindow", () => {
+  const vid = (...delar) => new Date(...delar).toISOString();
+  const rad = (nar, id) => ({ id, nar, slag: "import", rubrik: id, resultat: "ok" });
+  const NU = new Date(2026, 8, 24, 12, 0);
+
+  const rader = [
+    rad(vid(2026, 8, 24, 9, 0), "idag"),
+    rad(vid(2026, 8, 20, 9, 0), "i veckan"),
+    rad(vid(2026, 8, 1, 9, 0), "för tre veckor sedan"),
+  ];
+
+  it("visar bara fönstret bakåt i tiden", () => {
+    // CP: "i listan syns bara en viss tid tillbaka i tiden, ex. 2 veckor".
+    const ut = activityWindow(rader, { dagar: 14, sedd: vid(2026, 8, 24, 23, 0), nu: NU });
+    expect(ut.rader.map((r) => r.id)).toEqual(["idag", "i veckan"]);
+    expect(ut.dolda).toBe(1);
+  });
+
+  it("⛔ men en OLÄST rad slipper fönstret", () => {
+    /*
+     * En rad som aldrig lästs ska inte kunna försvinna för att den blev gammal
+     * medan man var borta. Märket på knappen hade då räknat något som inte gick
+     * att hitta i listan, och det är precis den sortens siffra man slutar tro på.
+     */
+    // `sedd` före ALLA rader, så även den tre veckor gamla räknas som oläst.
+    const ut = activityWindow(rader, { dagar: 14, sedd: vid(2026, 7, 1, 0, 0), nu: NU });
+    expect(ut.rader.map((r) => r.id)).toEqual(["idag", "i veckan", "för tre veckor sedan"]);
+  });
+
+  it("kapar till en sida och säger hur många som är kvar", () => {
+    // CP: "max 20 notiser i taget, om det är fler olästa notiser får man hämta fler".
+    const ut = activityWindow(rader, { sida: 2, sedd: vid(2026, 8, 24, 23, 0), nu: NU });
+    expect(ut.rader).toHaveLength(2);
+    expect(ut.fler).toBe(1);
+  });
+
+  it("⛔ RENSNINGEN DÖLJER, DEN RADERAR INTE", () => {
+    /*
+     * Raden finns kvar i databasen, så den som undersöker något i efterhand ser
+     * hela historiken. En logg man kan radera ur en flik är ingen logg: den
+     * säger bara vad någon ville att den skulle säga.
+     */
+    const ut = activityWindow(rader, {
+      rensatTill: vid(2026, 8, 24, 23, 0),
+      sedd: vid(2026, 8, 24, 23, 0),
+      nu: NU,
+    });
+    expect(ut.rader).toEqual([]);
+    expect(ut.dolda).toBe(3);
+  });
+
+  it("⛔ men en OLÄST rad slipper rensningen också", () => {
+    const ut = activityWindow(rader, { rensatTill: vid(2026, 8, 24, 23, 0), sedd: vid(2026, 8, 20, 12, 0), nu: NU });
+    expect(ut.rader.map((r) => r.id)).toEqual(["idag"]);
+  });
+
+  it("utan gränser lämnar den listan i fred", () => {
+    expect(activityWindow(rader, { nu: NU }).rader).toHaveLength(3);
+    expect(activityWindow(null, {}).rader).toEqual([]);
+  });
+});
+
+describe("unread med lästa rader", () => {
+  const rader = [
+    { id: "a", nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "a", resultat: "ok" },
+    { id: "b", nar: "2026-09-24T10:00:00.000Z", slag: "import", rubrik: "b", resultat: "ok" },
+  ];
+
+  it("⛔ en öppnad rad är läst även om den är nyare än tidpunkten", () => {
+    /*
+     * Två olika handlingar, och därför två källor: "jag har sett listan" är en
+     * tidpunkt, "jag har läst DEN HÄR raden" är ett id. Slås de ihop kan man
+     * inte läsa en gammal rad utan att också påstå sig ha läst allt nyare.
+     */
+    expect(unread(rader[0], { sedd: null, lasta: ["a"] })).toBe(false);
+    expect(unread(rader[1], { sedd: null, lasta: ["a"] })).toBe(true);
+    expect(unreadRows(rader, { sedd: null, lasta: ["a"] })).toHaveLength(1);
+  });
+
+  it("ger raden en identitet ur id, och faller tillbaka på tiden", () => {
+    expect(activityId({ id: "x", nar: "2026-01-01T00:00:00.000Z" })).toBe("x");
+    expect(activityId({ nar: "2026-01-01T00:00:00.000Z" })).toBe("2026-01-01T00:00:00.000Z");
+  });
+});
+
+describe("OpsActivityDetail", () => {
+  const handelse = {
+    id: "d1",
+    nar: "2026-09-24T10:00:00.000Z",
+    slag: "bank",
+    rubrik: "Hämtade transaktioner",
+    detalj: "42 poster",
+    resultat: "fel",
+    fel: "401 Unauthorized från api.enablebanking.com",
+    kalla: "sync_lf.py",
+  };
+
+  it("⛔ bär det listan INTE har plats för", () => {
+    render(<OpsActivityDetail handelse={handelse} slagord="Banksynk" nu={new Date("2026-09-24T12:00:00.000Z")} />);
+    expect(screen.getByText("sync_lf.py")).toBeInTheDocument();
+    expect(screen.getByText("401 Unauthorized från api.enablebanking.com")).toBeInTheDocument();
+    expect(screen.getByText("Gick fel")).toBeInTheDocument();
+  });
+
+  it("utelämnar fakta som saknas i stället för att rita en tom rad", () => {
+    render(<OpsActivityDetail handelse={{ nar: "2026-09-24T10:00:00.000Z", slag: "import", rubrik: "Utan källa", resultat: "ok" }} slagord="Import" />);
+    expect(screen.queryByText("Jobb")).not.toBeInTheDocument();
+    expect(screen.getByText("Gick igenom")).toBeInTheDocument();
+  });
+});
+
+describe("OpsActivityButton, lista till detalj", () => {
+  const rader = [
+    { id: "a", nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "Nyast", resultat: "ok", kalla: "import.mjs" },
+    { id: "b", nar: "2026-09-24T10:00:00.000Z", slag: "import", rubrik: "Äldre", resultat: "ok" },
+  ];
+  const NU = new Date("2026-09-24T14:00:00.000Z");
+
+  it("⛔ ETT TRYCK PÅ RADEN ÖPPNAR DETALJEN OCH MARKERAR DEN LÄST", () => {
+    // CP: "trycka på en notis/aktivitet och markera som läst. Tänker en lista
+    // och sedan en detalj, då är den läst."
+    const lasta = [];
+    render(
+      <OpsActivityButton
+        entries={rader}
+        lasning={{ sedd: null, lasta }}
+        onRead={(h) => lasta.push(h.id)}
+        now={NU}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Nyast/ }));
+
+    expect(lasta).toEqual(["a"]);
+    // Detaljen syns, och listan är borta.
+    expect(within(dialog).getByText("import.mjs")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Äldre/ })).not.toBeInTheDocument();
+  });
+
+  it("går tillbaka till listan utan att stänga rutan", () => {
+    render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={NU} />);
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Nyast/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tillbaka till listan" }));
+    expect(within(dialog).getByRole("button", { name: /Äldre/ })).toBeInTheDocument();
+  });
+
+  it("⛔ säger hur många som ligger bakom Hämta fler, inte bara att det finns fler", () => {
+    // "Hämta fler" ensamt säger inte om det är tre rader eller trehundra kvar,
+    // och den skillnaden avgör om man orkar trycka.
+    render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} sida={1} now={NU} />);
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Hämta fler (1)" })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hämta fler (1)" }));
+    expect(within(dialog).getByRole("button", { name: /Äldre/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Hämta fler/ })).not.toBeInTheDocument();
+  });
+
+  it("ritar Rensa bara när appen har någonstans att ta vägen med den", () => {
+    // ⛔ Utan `onClear` finns ingen rensning att göra, och en knapp som inte gör
+    // något är värre än ingen knapp.
+    const { unmount } = render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={NU} />);
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Rensa listan" })).not.toBeInTheDocument();
+    unmount();
+
+    let rensat = 0;
+    render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} onClear={() => { rensat += 1; }} now={NU} />);
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Rensa listan" }));
+    expect(rensat).toBe(1);
+  });
+
+  it("⛔ säger till appen att listan setts, i stället för att minnas det själv", () => {
+    /*
+     * Styr appen läsningen ligger den där appen lägger den, till exempel i
+     * databasen, och följer med mellan telefon och dator. `localStorage` hade
+     * varit EN webbläsare, alltså fel så fort samma människa har två enheter.
+     */
+    const sedda = [];
+    render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} onSeen={(n) => sedda.push(n)} storageKey="prov:ska-inte-anvandas" now={NU} />);
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    expect(sedda).toEqual(["2026-09-24T12:00:00.000Z"]);
+    expect(globalThis.localStorage.getItem("prov:ska-inte-anvandas")).toBe(null);
   });
 });
