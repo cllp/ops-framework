@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
+import { kantKlass } from "../lib/kant.js";
 import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import {
   MONTH_NAMES,
@@ -276,11 +277,34 @@ function Postkort({ dayKey, entry, statusWords, order }) {
   const statusord = entry.status ? statusWords[entry.status] : "";
   const harDetaljer = Boolean(statusord || entry.url || entry.details);
 
+  /*
+   * ⛔ SAMMA KANT SOM PÅ LISTANS KORT, UR SAMMA FIL.
+   *
+   * CP 2026-09-24, med bild: "Bubblorna i kalender och listan idag färgar inte
+   * vänstersidorna efter typens specifika färg."
+   *
+   * Listan fick kanten genom `OpsCard`, som burit den hela tiden. Kalenderns
+   * postkort är ingen `OpsCard` utan en egen ruta, så här fanns ingen kant att
+   * släppa igenom. Den hämtas ur `lib/kant.js` i stället för att ritas om, så
+   * kravet på ett ord gäller båda ytorna och kan inte glida isär.
+   *
+   * ⛔ KANTEN FÖLJER RADIEN, alltså `border-l-4` på samma ruta som har
+   * `rounded-xl`, precis som i `OpsCard`. Ett eget element hade kunnat hamna
+   * utanför hörnet.
+   */
+  const kanten = kantKlass(entry.edge, entry.edgeLabel, "OpsCalendar");
+
   return (
     <div
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
-      className="ops-contrast-panel animate-svep rounded-xl bg-contrast-panel p-2.5 shadow-md"
+      className={cx(
+        "ops-contrast-panel animate-svep rounded-xl bg-contrast-panel p-2.5 shadow-md",
+        kanten && cx("border-l-4", kanten),
+      )}
     >
+      {/* ⛔ ORDET FÖRST I KORTET, precis som i `OpsCard`. Den som lyssnar ska
+          höra vad kanten betyder innan titeln, inte efter den. */}
+      {kanten ? <span className="sr-only">{entry.edgeLabel}</span> : null}
       <div className="flex items-start gap-2">
         {/* ⛔ PRICKEN STÅR KVAR I DEN IHOPFÄLLDA RADEN. Den svarar på frågan man
             ställer när man SKUMMAR panelen, alltså innan man öppnat något; ordet

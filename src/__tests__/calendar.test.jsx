@@ -584,4 +584,57 @@ describe("OpsKalender", () => {
     rendera({ entries: [], emptyText: "Inget daterat framåt." });
     expect(screen.getByText("Inget daterat framåt.")).toBeInTheDocument();
   });
+
+  /*
+   * ⛔ CP 2026-09-24, med bild: "Bubblorna i kalender och listan idag färgar
+   * inte vänstersidorna efter typens specifika färg."
+   *
+   * Listans kort hade kanten hela tiden, genom `OpsCard`. Kalenderns postkort är
+   * en egen ruta och hade ingen, så samma post såg olika ut i de två lägena av
+   * samma vy. Nu hämtar båda den ur `lib/kant.js`.
+   */
+  const MED_KANT = [
+    { id: "agi", date: "2026-10-12", title: "Arbetsgivardeklaration", status: "oppet", edge: 2, edgeLabel: "Påminnelse" },
+    { id: "naken", date: "2026-10-12", title: "Utan slag", status: "oppet" },
+  ];
+
+  /** @param {string} title */
+  const kortFor = (title) => screen.getByText(title).closest(".ops-contrast-panel");
+
+  it("målar kanten i slagets färg, och lämnar kortet utan slag orört", () => {
+    rendera({ entries: MED_KANT });
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    const klasser = String(kortFor("Arbetsgivardeklaration").className).split(/\s+/);
+    expect(klasser).toContain("border-l-4");
+    expect(klasser).toContain("border-l-identity-2");
+
+    /*
+     * ⛔ OCH DET ANDRA KORTET SKA INTE HA NÅGON KANT. Utan den halvan hade
+     * provet varit grönt även om kanten ritats på varje kort oavsett `edge`,
+     * alltså grönt för en färg som slutat betyda något.
+     */
+    expect(String(kortFor("Utan slag").className).split(/\s+/)).not.toContain("border-l-4");
+  });
+
+  it("säger vad kanten betyder för den som lyssnar", () => {
+    // ⛔ En färg ensam går inte att läsa upp och är osynlig för var tjugonde man.
+    // Samma krav som `OpsCard` ställer, av samma skäl.
+    rendera({ entries: MED_KANT });
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+
+    expect(within(kortFor("Arbetsgivardeklaration")).getByText("Påminnelse")).toBeInTheDocument();
+  });
+
+  it("kastar på en kant utan ord i stället för att rita en färg som inte betyder något", () => {
+    // ⛔ Kastet sker när KORTET ritas, alltså när dagen öppnas, inte när rutnätet
+    // ritas. Ett prov som bara renderade kalendern hade varit grönt.
+    rendera({ entries: [{ id: "x", date: "2026-10-12", title: "Utan ord", edge: 2 }] });
+    expect(() => fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }))).toThrow(/edgeLabel/);
+  });
+
+  it("kastar på en plats som inte finns i paletten", () => {
+    rendera({ entries: [{ id: "x", date: "2026-10-12", title: "Plats nio", edge: 9, edgeLabel: "Nio" }] });
+    expect(() => fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }))).toThrow(/okänd edge/);
+  });
 });

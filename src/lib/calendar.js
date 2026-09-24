@@ -29,6 +29,13 @@
  *   ⛔ Ramverket ritar den, tolkar den aldrig: vad som är värt att fälla ut om en
  *   post beror på vad posten ÄR hos just den appen.
  * @property {string} [not] En rad extra under titeln i dagslistan.
+ * @property {1|2|3|4|5|6} [edge] Färgad vänsterkant ur identitetspaletten, samma
+ *   plats som `OpsCard` tar. För poster som tillhör något: ett slag, en grupp.
+ *   ⛔ Vilken plats en sort får är APPENS beslut och aldrig ramverkets. Ramverket
+ *   vet inte vilka sorter en plattform har, bara att en sort ska se likadan ut
+ *   varje gång den syns.
+ * @property {string} [edgeLabel] Vad kanten betyder. ⛔ Krävs när `edge` finns,
+ *   annars kastar kortet. Se `lib/kant.js`.
  */
 
 /**
