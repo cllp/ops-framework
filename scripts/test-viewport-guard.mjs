@@ -71,6 +71,10 @@ const SIDA = `<!doctype html>
     --color-surface: #f8f7f4;
     --color-line: #d8d4cc;
     --bottom-nav-h: 3.5rem;
+    /* ⛔ Bottenradens huvudknapp sticker upp ovanför baren, och en flytande yta
+       måste bottna ovanför även den. Samma token som i ramverket, skriven i
+       klartext av samma skäl som resten av fixturen. */
+    --bottom-nav-overhang: 1rem;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -96,6 +100,16 @@ const SIDA = `<!doctype html>
      kan målas över, eftersom den då scrollar ur fönstret. */
   nav[aria-label="Snabbnavigering"] { display: flex; height: var(--bottom-nav-h); position: fixed; inset-inline: 0; bottom: 0; z-index: 150; background: var(--color-surface); }
   nav[aria-label="Huvudnavigering"] { display: none; height: 48px; }
+  /* Flytande yta med samma form som OpsFloatingSummary: fast, på innehållets
+     lager, och bottnande ovanför baren plus dess upphöjda knapp. */
+  .bubbla { position: fixed; inset-inline: 0; bottom: calc(var(--bottom-nav-h) + var(--bottom-nav-overhang) + 12px); z-index: 100; display: flex; justify-content: center; }
+  .bubbla > span { padding: 12px 16px; border: 1px solid var(--color-line); border-radius: 24px; background: var(--color-surface); }
+  /* ⛔ TOM PORTALBEHÅLLARE, OCH DEN LIGGER HÄR MED FLIT ÖVER HELA BAREN.
+     MÄTT i provappen: toastarnas ol-lista är en sådan, en ruta av bara luft utan
+     barn och utan text, och första versionen av mätningen blev röd på den på
+     varje sida. En vakt som är röd i vila blir avstängd. Står den kvar här kan
+     den bristen inte komma tillbaka utan att det här provet säger ifrån. */
+  .tom-portal { position: fixed; inset-inline: 0; bottom: 0; height: 32px; z-index: 100; margin: 0; }
   @media (min-width: 768px) {
     nav[aria-label="Snabbnavigering"] { display: none; }
     nav[aria-label="Huvudnavigering"] { display: flex; }
@@ -135,6 +149,8 @@ const SIDA = `<!doctype html>
     <input type="range" min="-50" max="100" step="5" value="0" aria-label="Hyra">
     <div class="lang"><p class="kolumn">Låst kolumn</p></div>
   </main>
+  <div class="bubbla"><span>Månadskassaflöde</span></div>
+  <ol class="tom-portal"></ol>
   <nav aria-label="Snabbnavigering"><a href="/">Start</a></nav>
 </body>
 </html>
@@ -202,7 +218,7 @@ function kravGront(namn) {
 // ⛔ Ordningen är inte kosmetisk. Är den korrekta fixturen röd är varje rött
 // nedan meningslöst, eftersom det då kan komma ur fixturen i stället för ur
 // mutationen. Då vill jag se det på första raden.
-kravGront("en korrekt sida går igenom alla sju påståenden");
+kravGront("en korrekt sida går igenom alla nio påståenden");
 
 // ── 1. Horisontell scroll ───────────────────────────────────────────────────
 kravRott(
@@ -290,6 +306,50 @@ kravRott(
   (s) => s.replace(".kolumn { position: sticky; top: 0; left: 0; z-index: 100;", ".kolumn { position: sticky; top: 0; left: 0; z-index: 150;"),
   "appskalets header är övermålad",
 );
+
+// ── 9. En flytande yta kryper in under bottenraden ──────────────────────────
+//
+// ⛔ DEN HÄR MÄTNINGEN ERSATTE EN SOM INTE KUNDE FALLA.
+//
+// bolag-ops#210 bad om motsatsen: "en punkt mitt i bottenradens rektangel ska
+// fortfarande träffa bottenraden när panelen är öppen." MÄTT i Chromium på
+// 390 px, med bubblan flyttad till `bottom: 0` rakt ovanpå baren: alla tre
+// punkterna träffade fortfarande bottenraden. Baren ligger på `--z-chrome` och
+// den flytande ytan på `--z-sticky`, så baren vinner alltid. Vakten hade varit
+// grön för evigt och sett ut som ett skydd.
+//
+// Felet finns åt andra hållet, och är det CP fotograferade 2026-09-18: ytan
+// hamnar BAKOM baren, där den varken går att läsa eller stänga.
+kravRott(
+  "en flytande yta bottnar under bottenradens överkant",
+  (s) => s.replace("bottom: calc(var(--bottom-nav-h) + var(--bottom-nav-overhang) + 12px);", "bottom: 0;"),
+  "ligger bakom bottenraden",
+);
+
+// ── 10. En bildpunkt är avrundning, inte ett överlapp ───────────────────────
+//
+// ⛔ MÄTT: toastarnas behållare bottnar på exakt barens överkant och Chromium
+// rapporterade ändå 788 mot barens 787. Utan den här gränsen hade varje sida med
+// en synlig toast blivit röd för en delbildpunkt, alltså rött för något ingen
+// kan se. Felet vakten finns för mäts i tiotals: prov 9 ovan ger 57 px.
+{
+  const { status, utdata } = mat(
+    fixtur("en-bildpunkt", (s) =>
+      s.replace(
+        "bottom: calc(var(--bottom-nav-h) + var(--bottom-nav-overhang) + 12px);",
+        "bottom: calc(var(--bottom-nav-h) - 1px);",
+      ),
+    ),
+  );
+  resultat.push({
+    namn: "en yta som slutar en bildpunkt in i baren är inte ett brott",
+    vantat: "gront",
+    utfall:
+      status === 0
+        ? "ok"
+        : `blev RÖD på en bildpunkts avrundning: ${utdata.trim().split("\n").slice(-3).join(" | ")}`,
+  });
+}
 
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
