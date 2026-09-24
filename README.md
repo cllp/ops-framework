@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**63 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**64 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -225,8 +225,9 @@ något godtyckligt.
 | `OpsStatusDot` | `status` oppet \| pagar \| vantar \| klart \| akut, `label` (krävs). Färgprick för var ett ärende står, tänkt för en kortrubrik. ⛔ Ordet krävs och renderas alltid, som `sr-only` utom för `akut` som skriver ut det synligt: en färg går inte att läsa upp och är osynlig för var tjugonde man. Vyn måste visa ordet någonstans synligt, till exempel i utfällningen |
 | `OpsMarkdown` | `text`. Renderar rubriker, stycken, listor, kryssrutor, citat, kod, tabeller och länkar som riktiga element. ⛔ Ingen HTML passerar en sträng: `dangerouslySetInnerHTML` finns inte, och bara `http`/`https` blir länkar. Kapar aldrig texten, det är datalagrets beslut |
 | `OpsPrompt` | `source` (från `createPromptSource`), `label` (krävs), `hint`, `placeholder`, `context`, `sendLabel`, `waitingLabel`, `suggestions` [sträng], `onAnswer`. En fråga in, ett svar ut, renderat som markdown. ⛔ Vet inte vilken leverantör som svarar: modell, nyckel och tak är appens. ⛔ Förra svaret ligger kvar tills ett nytt kommit, även efter ett fel |
-| `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `title`, `label`, `storageKey`, `icon`, `empty`, `now`. Klockikon med ett märke, och loggen bakom den i en `OpsModal`. ⛔ Antalet står i knappens NAMN och inte bara som en prick: en prick är dekor och läses inte upp. ⛔ "Oläst" räknas ur en tidpunkt i webbläsaren och aldrig ur ett fält på dokumentet: två läsare har olika svar, och ett delat `last` betyder att den som läser sist skriver över den andres. ⛔ Vilka rader som var olästa FRYSES vid öppning och skickas vidare som `unreadSince`: märket på knappen räknar olästa, listan visar alla, och tidpunkten flyttas fram i samma ögonblick som panelen öppnas, så utan frysningen sa knappen tre medan listan märkte noll |
-| `OpsActivityList` | `entries`, `kindLabel`, `empty`, `unreadSince`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. ⛔ Varje rad bär både relativ och exakt tid: "för 2 timmar sedan" är det man läser, klockslaget är det man kan jämföra. ⛔ Delas i Idag, I går, Senaste veckan och Äldre: ett nattligt jobb skriver en rad om dagen, och efter en månad kräver frågan "kördes det i dag" att man läser tidsstämplar i en platt lista. ⛔ `unreadSince` märker raden med ORDET Ny, inte med en ton |
+| `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `title`, `label`, `lasning` {sedd, lasta, rensatTill}, `onSeen`, `onRead`, `onClear`, `dagar`, `sida`, `storageKey`, `icon`, `empty`, `now`. Klockikon med ett märke, listan bakom den och DETALJEN bakom listan. ⛔ Ett tryck på raden öppnar detaljen och markerar raden läst: en egen kryssruta bredvid varje rad är ett andra klick för något man just gjort, och listor med den knappen lär folk att bocka av utan att läsa. ⛔ Antalet står i knappens NAMN och inte bara som en prick. ⛔ TVÅ SÄTT ATT SKÖTA LÄSNINGEN: `lasning` + `onSeen`/`onRead` lägger den där APPEN vill, till exempel i databasen, så den följer med mellan telefon och dator; `storageKey` lägger den i EN webbläsare. Ramverket väljer inte, eftersom bara appen vet om den har en plats. ⛔ `dagar` är fönstret bakåt, `sida` hur många som ritas åt gången, `rensatTill` läsarens egen städning. Olästa rader slipper alla tre: en rad som aldrig lästs får inte försvinna för att den blev gammal medan man var borta, och märket hade då räknat något som inte gick att hitta |
+| `OpsActivityList` | `entries`, `kindLabel`, `empty`, `lasning`, `onOpen`, `fler`, `onMore`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. ⛔ Delas i Idag, I går, Senaste veckan och Äldre: ett nattligt jobb skriver en rad om dagen, och efter en månad kräver frågan "kördes det i dag" att man läser tidsstämplar i en platt lista. ⛔ Raden är kort med flit: rubrik, detalj och när. Källan, det exakta klockslaget och hela feltexten står i `OpsActivityDetail`, eftersom de är vad man behöver den dag något gick sönder och brus resten av tiden. ⛔ HELA raden är knappen, inte en pil i kanten: ett 12 px mål i högerkanten är det säkraste sättet att göra en lista som inte går att använda med tummen. ⛔ Antalet står på "Hämta fler": ensamt säger det inte om det är tre rader eller trehundra kvar, och den skillnaden avgör om man orkar trycka |
+| `OpsActivityDetail` | `handelse`, `slagord`, `now`. En rad i sin helhet, utan kapning. ⛔ Feltexten står hel i en kodruta: den kommer ordagrant från ett API och den som ska söka på den behöver den oförvanskad. ⛔ "Utfall" står bara när det gick bra, eftersom ett misslyckande redan sagts med ord överst och i rutan |
 | `OpsTag` | `label` (bestämmer också tonen), `tone` 1-6 (låser tonen), `onRemove`, `removeLabel` |
 | `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
 | `OpsProvenance` | `kind` human \| agent \| auto, `label` |
@@ -327,6 +328,21 @@ tid och inte på antal eftersom ett antal glider så fort en gammal rad städas
 bort. ⛔ **Samma jämförelse i båda**, eftersom knappens siffra och radens märke
 måste stämma överens: säger knappen tre och tre rader inte är märkta blir
 siffran något man slutar tro på.
+
+`activityWindow(rader, { dagar, sida, rensatTill, sedd, lasta, nu })` avgör vad
+listan ska visa. ⛔ **Tre gränser som gör olika saker**, och blandas de ihop blir
+beteendet omöjligt att förutsäga: `dagar` är fönstret bakåt (en driftslogg svarar
+på "kördes det nyligen", och en rad från i våras svarar inte på någon fråga man
+ställer), `rensatTill` är läsarens egen städning, och `sida` är hur många som
+ritas åt gången. ⛔ **Rensningen DÖLJER, den raderar inte**: raden finns kvar i
+databasen, så den som undersöker något i efterhand ser hela historiken. En logg
+man kan radera ur en flik är ingen logg. ⛔ **Olästa rader slipper alla tre.**
+
+`unread(rad, { sedd, lasta })` och `unreadRows` väger in BÅDE tidpunkten och de
+rader läsaren öppnat en och en. ⛔ **Två källor, eftersom det är två handlingar:**
+"jag har sett listan" är en tidpunkt, "jag har läst DEN HÄR raden" är ett id.
+Slås de ihop kan man inte läsa en gammal rad utan att också påstå sig ha läst
+allt nyare än den. `activityId(rad)` är `id` när det finns och tidpunkten annars.
 
 `groupByDay(rader, { nu })` delar listan i `ACTIVITY_SECTIONS`, alltså Idag,
 I går, Senaste veckan och Äldre. ⛔ Räknar **kalenderdagar** och inte dygn om 24

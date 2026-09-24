@@ -208,6 +208,23 @@ export function unreadCount(rader, sedd) {
 }
 
 /**
+ * Radens identitet.
+ *
+ * ⛔ `id` NÄR DET FINNS, ANNARS TIDPUNKTEN. Läsmärket och detaljvyn behöver
+ * kunna peka ut EN rad, och en logg som hämtas ur en databas har alltid ett id.
+ * En rad byggd i minnet har inte det, och då är tidpunkten det närmaste unika
+ * som finns. Faller båda bort får raden ingen identitet alls, och det syns som
+ * att den inte går att markera: bättre än att två rader delar märke.
+ *
+ * @param {Handelse & { id?: string }} rad
+ * @returns {string}
+ */
+export function activityId(rad) {
+  const r = rad || {};
+  return String(r.id || r.nar || "");
+}
+
+/**
  * Om EN rad är nyare än den tidpunkt läsaren senast såg.
  *
  * ⛔ SAMMA JÄMFÖRELSE SOM `unreadCount`, OCH DÄRFÖR EXPORTERAD. Märket på
@@ -300,4 +317,76 @@ export function groupByDay(rader, choice = {}) {
     label: a.label,
     rader: hinkar[a.value],
   })).filter((a) => a.rader.length > 0);
+}
+
+/**
+ * Om raden räknas som oläst, med hänsyn till BÅDE tidpunkten och de rader
+ * läsaren öppnat en och en.
+ *
+ * ⛔ TVÅ KÄLLOR, OCH DET ÄR INTE EN KOMPLIKATION UTAN TVÅ OLIKA HANDLINGAR.
+ * "Jag har sett listan" är en tidpunkt; "jag har läst DEN HÄR raden" är ett id.
+ * Slås de ihop till en tidpunkt kan man inte läsa en gammal rad utan att också
+ * påstå sig ha läst allt nyare än den.
+ *
+ * @param {Handelse & { id?: string }} rad
+ * @param {{ sedd?: string | null, lasta?: Iterable<string> | null }} [lasning]
+ */
+export function unread(rad, lasning = {}) {
+  const lasta = lasning.lasta ? new Set(lasning.lasta) : null;
+  if (lasta && lasta.has(activityId(rad))) return false;
+  return isUnread(rad, lasning.sedd);
+}
+
+/**
+ * Raderna läsaren inte tagit del av.
+ *
+ * @param {(Handelse & { id?: string })[]} rader
+ * @param {{ sedd?: string | null, lasta?: Iterable<string> | null }} [lasning]
+ */
+export function unreadRows(rader, lasning = {}) {
+  return (rader || []).filter((r) => unread(r, lasning));
+}
+
+/**
+ * Vad listan ska visa: fönstret bakåt i tiden, det som rensats bort, och sidan.
+ *
+ * ⛔ TRE GRÄNSER, OCH DE GÖR OLIKA SAKER. Blandas de ihop blir beteendet
+ * omöjligt att förutsäga:
+ *
+ *  - `dagar` är FÖNSTRET. En driftslogg svarar på "kördes det nyligen", och en
+ *    rad från i våras svarar inte på någon fråga man ställer.
+ *  - `rensatTill` är LÄSARENS EGEN STÄDNING. Den döljer, den raderar inte:
+ *    raden finns kvar i databasen, så den som undersöker något i efterhand ser
+ *    hela historiken. En logg man kan radera ur en flik är ingen logg.
+ *  - `sida` är hur många som ritas åt gången, så en lång lista inte blir en
+ *    vägg. `fler` säger om det finns mer bakom knappen.
+ *
+ * ⛔ OLÄSTA SLIPPER FÖNSTRET OCH RENSNINGEN. En rad som aldrig lästs ska inte
+ * kunna försvinna för att den blev gammal medan man var borta, och märket på
+ * knappen hade då räknat något som inte gick att hitta.
+ *
+ * @param {(Handelse & { id?: string })[]} rader Nyast först.
+ * @param {{ dagar?: number, sida?: number, rensatTill?: string | null, sedd?: string | null, lasta?: Iterable<string> | null, nu?: Date | number | string }} [choice]
+ * @returns {{ rader: (Handelse & { id?: string })[], fler: number, dolda: number }}
+ */
+export function activityWindow(rader, choice = {}) {
+  const lista = rader || [];
+  const { dagar, sida, rensatTill, sedd, lasta, nu } = choice;
+  const klocka = new Date(nu ?? Date.now());
+  const grans =
+    typeof dagar === "number"
+      ? new Date((Number.isNaN(klocka.getTime()) ? Date.now() : klocka.getTime()) - dagar * DAG).toISOString()
+      : null;
+
+  const kvar = lista.filter((r) => {
+    if (unread(r, { sedd, lasta })) return true;
+    const nar = String((r && r.nar) || "");
+    if (rensatTill && nar && nar <= rensatTill) return false;
+    if (grans && nar && nar < grans) return false;
+    return true;
+  });
+
+  const dolda = lista.length - kvar.length;
+  if (typeof sida !== "number" || sida <= 0) return { rader: kvar, fler: 0, dolda };
+  return { rader: kvar.slice(0, sida), fler: Math.max(0, kvar.length - sida), dolda };
 }
