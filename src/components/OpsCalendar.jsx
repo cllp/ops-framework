@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { kantKlass } from "../lib/kant.js";
-import { slagKant, slagPrick } from "../lib/slag.js";
+import { slagKant, slagPrick, slagText } from "../lib/slag.js";
 import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import {
   MONTH_NAMES,
@@ -109,8 +109,20 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 const WEEKDAYS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
 
-/** Hur många prickar en ruta ritar innan den börjar räkna i stället. */
-const MAX_PRICKAR = 3;
+/**
+ * Hur många märken en ruta ritar innan den börjar räkna i stället.
+ *
+ * ⛔ TRE, OCH TALET ÄR MÄTT MOT RUTANS BREDD OCH INTE VALT. Vid 390 px är en
+ * ruta 47,7 px bred och dess innehållsyta 39,7 px efter `px-1`. Tre märken på
+ * 10 px med `gap-0.5` blir 34 px och ryms; tre på 12 px blir 40 px och gör inte
+ * det. Skulle talet höjas måste märket krympa, och ett märke under 10 px är en
+ * fläck.
+ *
+ * ⛔ HETTE `MAX_PRICKAR`. Namnet bytte när märket kunde bli en ikon: ett tal som
+ * heter "prickar" och styr ikoner är det slags namn någon senare läser som att
+ * det bara gäller det ena.
+ */
+const MAX_MARKEN = 3;
 
 /**
  * Millisekunder mellan två svepande element i dagspanelen.
@@ -142,6 +154,62 @@ const SVEPSTEG = 40;
  */
 
 /**
+ * Märket i rutnätet: slagets ikon om posten har en, annars en prick.
+ *
+ * ══ ⛔ VARFÖR EN IKON OCH INTE BARA EN FÄRG ════════════════════════════
+ *
+ * CP 2026-09-24: "Går det att ha en färgad liten ikon (väldigt liten)?"
+ *
+ * Det är inte bara en smaksak, det är den andra kodningen paletten KRÄVER.
+ * Validatorn lämnade en varning som står kvar med flit: slag-1 mot slag-2
+ * ligger på delta E 6,9 vid rödgrönblindhet, vilket är tillåtet BARA med en
+ * andra kodning. På raden är ordet den kodningen. I rutnätet fanns ingen: en
+ * prick har inget ord bredvid sig, och rutans knappnamn säger antalet men inte
+ * slaget. Formen är därför det enda som kan skilja två märken åt för den som
+ * inte ser färgskillnaden.
+ *
+ * ── ⛔ RAMVERKET ÄGER STORLEKEN, APPEN ÄGER BILDEN ──────────────────────
+ *
+ * `[&>svg]:size-2.5`, alltså 10 px, och den tvingas HÄR. Samma `kindIcon` ritas
+ * 16 px på raden i `OpsEventList`, eftersom en rad har plats. En ruta har inte
+ * det, och appen kan inte veta hur bred rutan är hos den som tittar. Skickade
+ * appen storleken skulle en 16 px ikon spränga rutnätet på en telefon, och det
+ * felet syns först hos användaren.
+ *
+ * ⛔ CSS VINNER ÖVER SVG:NS EGNA `width` OCH `height`, så en ikon som kommer hit
+ * med sitt radmått krymper i stället för att klippas.
+ *
+ * ⛔ STRECKET BLIR TJOCKARE, och det är räknat. Lucide ritar `stroke-width: 2` i
+ * en 24-enheters viewBox. Skalat till 10 px blir det 2 gånger 10/24 = 0,83
+ * enhetspixlar, alltså tunnare än en bildpunkt: bilden bleknar och formen går
+ * förlorad precis när den behövs som mest. 2,75 ger 1,15 px, alltså ett helt
+ * streck.
+ *
+ * ⛔ PRICKEN FINNS KVAR som fall tillbaka, och det är inte en rest. En post utan
+ * `kindIcon` ska synas i rutnätet, och en appyta som inte har ikoner ska inte
+ * bli tom av att den här möjligheten tillkom.
+ *
+ * @param {{ entry: import("../lib/calendar.js").CalendarEntry }} props
+ */
+function Slagmarke({ entry }) {
+  if (entry.kindIcon) {
+    return (
+      <span
+        className={cx(
+          "flex shrink-0 items-center [&>svg]:size-2.5 [&>svg]:[stroke-width:2.75]",
+          slagText(entry.slag, entry.slagLabel, "OpsCalendar") || "text-accent",
+        )}
+      >
+        {entry.kindIcon}
+      </span>
+    );
+  }
+  return (
+    <span className={cx("size-1.5 shrink-0 rounded-full", slagPrick(entry.slag, entry.slagLabel, "OpsCalendar") || "bg-accent")} />
+  );
+}
+
+/**
  * En dagsruta.
  *
  * ⛔ EN `<button>` OCH INTE EN `<div onClick>`, även för en tom dag. Tomma dagar
@@ -158,6 +226,40 @@ function DayBox({ day, dayKey, entries, isToday, chosen, onSelect }) {
 
   const count = entries.length;
   const label = count === 0 ? `${day}` : `${day}, ${count} ${count === 1 ? "post" : "poster"}`;
+
+  /*
+   * ⛔ RÄKNAREN TAR MÄRKENS PLATS, OCH BÅDA TALEN ÄR MÄTTA OCH INTE ANTAGNA.
+   *
+   * Mätt i Chromium vid 390 px: rutan är 45,6 px och innehållsytan 37,6 px
+   * efter `px-1`. Ett märke är 10 px, en siffra i räknaren 5,8 px.
+   *
+   *   tre märken, ingen räknare      34,0 px    ryms
+   *   tre märken och "+2"            49,7 px    12 px UTANFÖR rutan
+   *   två märken och "+2"            37,7 px    ryms, med 0 px över
+   *   två märken och "+11"           43,5 px    UTANFÖR rutan
+   *   ett märke och "+12"            32,4 px    ryms
+   *   ett märke och "+139"           39,0 px    UTANFÖR rutan
+   *   inget märke och "+140"         27,0 px    ryms
+   *
+   * ⛔ DET ANDRA FELET FANNS REDAN I PRICKARNA. Tre prickar och en tvåsiffrig
+   * räknare spillde också, alltså varje dag med tretton poster eller fler. Det
+   * har aldrig synts eftersom ingen dag i appen varit så full, och det hade
+   * fortsatt vara osynligt tills den blev det.
+   *
+   * ⛔ DÄRFÖR RÄKNAS PLATSEN UR SIFFRORNA och sätts inte till ett fast tal. Ett
+   * "visa alltid två" hade varit grönt på "+2" och rött igen på "+11", alltså
+   * samma fel en gång till med en annan tröskel.
+   *
+   * ⛔ OCH REGELN GÄLLER PRICKARNA OCKSÅ, fast deras spill kom senare. Två
+   * regler för samma rad vore en rad som byter bredd beroende på vad appen
+   * skickar, alltså ett spill bara vissa appar ser.
+   *
+   * ⛔ VID TRE SIFFROR BLIR DET NOLL MÄRKEN, alltså bara talet. En dag med
+   * hundra poster har inget att säga med en färg ändå: den säger "för mycket",
+   * och det säger talet bättre. Golvet är noll och inte ett, eftersom ett märke
+   * plus "+139" mätte 39,0 px, alltså utanför rutan.
+   */
+  const visade = count > MAX_MARKEN ? Math.max(0, MAX_MARKEN - String(count).length) : MAX_MARKEN;
 
   return (
     <button
@@ -179,13 +281,10 @@ function DayBox({ day, dayKey, entries, isToday, chosen, onSelect }) {
       <span className="tabular-nums">{day}</span>
       {/* ⛔ Dekor, och läses inte upp: antalet står redan i knappens namn. */}
       <span aria-hidden="true" className="flex min-h-2 items-center gap-0.5">
-        {entries.slice(0, MAX_PRICKAR).map((p) => (
-          <span
-            key={p.id}
-            className={cx("size-1.5 rounded-full", slagPrick(p.slag, p.slagLabel, "OpsCalendar") || "bg-accent")}
-          />
+        {entries.slice(0, visade).map((p) => (
+          <Slagmarke key={p.id} entry={p} />
         ))}
-        {count > MAX_PRICKAR ? <span className="text-xs tabular-nums text-ink-muted">+{count - MAX_PRICKAR}</span> : null}
+        {count > visade ? <span className="text-xs tabular-nums text-ink-muted">+{count - visade}</span> : null}
       </span>
     </button>
   );

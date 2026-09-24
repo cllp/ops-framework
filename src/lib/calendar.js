@@ -41,6 +41,16 @@
  *   ⛔ Vinner över `edge` när båda finns: pricken kan bara visa ett av dem.
  * @property {string} [slagLabel] Vad slaget heter. ⛔ Krävs när `slag` finns,
  *   och kastet sker redan när RUTNÄTET ritas, inte först när dagen öppnas.
+ * @property {import("react").ReactNode} [kindIcon] Slagets bild. Ritas i stället
+ *   för pricken i RUTNÄTET, i slagets färg.
+ *   ⛔ BARA I RUTNÄTET. Dagspanelens kort bär redan statusprick, kant och slagets
+ *   ord; en fjärde markör på samma rad är brus på ett kort som ska gå att läsa.
+ *   Rutan är den enda yta där slaget inte gick att se alls.
+ *   ⛔ SAMMA FÄLTNAMN SOM `OpsEventList` REDAN TAR, med flit. Samma post syns i
+ *   båda ytorna, och två namn för samma bild är hur de börjar visa olika saker.
+ *   ⛔ Ramverket bestämmer STORLEKEN i rutnätet och appen bestämmer BILDEN. En
+ *   16 px ikon som passar en rad spränger en kalenderruta, och appen kan inte
+ *   veta hur bred rutan är hos den som tittar.
  */
 
 /**
