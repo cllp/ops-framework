@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { ACTIVITY_RESULTS, createActivityLog, unreadCount } from "../lib/aktivitet.js";
+import { ACTIVITY_RESULTS, createActivityLog, groupByDay, isUnread, unreadCount } from "../lib/aktivitet.js";
 import { createActivityWriter } from "../node/aktivitet.js";
 import { OpsActivityButton, OpsActivityList } from "../components/OpsActivity.jsx";
 
@@ -229,6 +229,42 @@ describe("OpsActivityList", () => {
     render(<OpsActivityList entries={[]} />);
     expect(screen.getByText("Inget har hänt än")).toBeInTheDocument();
   });
+
+  it("delar listan i dagsavsnitt med riktiga rubriker", () => {
+    /*
+     * ⛔ Ett nattligt jobb skriver en rad om dagen. Efter en månad är en platt
+     * lista trettio likadana rader, och frågan "kördes det i dag" kräver då att
+     * man läser tidsstämplar. Rubriken är en riktig rubrik så den som hoppar
+     * mellan dem i en skärmläsare kan gå till "Idag" direkt.
+     */
+    render(<OpsActivityList entries={rader} kindLabel={modell.kindLabel} now={new Date("2026-09-24T12:00:00.000Z")} />);
+
+    const rubriker = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(rubriker).toEqual(["Idag", "I går"]);
+  });
+
+  it("märker med ORDET Ny bara det som är nyare än det lästa", () => {
+    render(
+      <OpsActivityList
+        entries={rader}
+        kindLabel={modell.kindLabel}
+        unreadSince="2026-09-23T12:00:00.000Z"
+        now={new Date("2026-09-24T12:00:00.000Z")}
+      />,
+    );
+
+    expect(screen.getAllByText("Ny")).toHaveLength(1);
+    // ⛔ Och det är den NYA raden som bär märket, inte bara någon rad.
+    const ny = screen.getByText("Hämtade transaktioner").closest("li");
+    expect(within(/** @type {HTMLElement} */ (ny)).getByText("Ny")).toBeInTheDocument();
+  });
+
+  it("märker ingenting när ingen läsning skickats in", () => {
+    // ⛔ Listan på en egen sida har ingen som öppnade den. Ett märke där hade
+    // påstått något om en läsning som aldrig skett.
+    render(<OpsActivityList entries={rader} now={new Date("2026-09-24T12:00:00.000Z")} />);
+    expect(screen.queryByText("Ny")).not.toBeInTheDocument();
+  });
 });
 
 describe("OpsActivityButton", () => {
@@ -290,6 +326,31 @@ describe("OpsActivityButton", () => {
     }
   });
 
+  it("⛔ MÄRKNINGEN ÖVERLEVER ATT LÄSNINGEN FLYTTAS FRAM VID ÖPPNING", () => {
+    /*
+     * Det här är hela skälet till att den frusna tidpunkten finns.
+     *
+     * Märket på knappen räknar OLÄSTA, listan visar ALLA rader, och "senast
+     * sedd" flyttas fram i samma ögonblick som panelen öppnas. Utan frysningen
+     * är därför allt redan läst vid första renderingen: knappen sa ett, och
+     * listan märker noll. Siffran ser då ut att ljuga, och en siffra man inte
+     * tror på är värre än ingen siffra alls.
+     */
+    globalThis.localStorage.setItem("prov:fryst", "2026-09-24T10:00:00.000Z");
+    render(<OpsActivityButton entries={rader} storageKey="prov:fryst" now={new Date("2026-09-24T14:00:00.000Z")} />);
+
+    expect(screen.getByRole("button", { name: "Aktivitet, 1 nya" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+
+    const dialog = screen.getByRole("dialog");
+    // Lika många märken som knappen räknade, och på RÄTT rad.
+    expect(within(dialog).getAllByText("Ny")).toHaveLength(1);
+    expect(within(/** @type {HTMLElement} */ (within(dialog).getByText("Nyast").closest("li"))).getByText("Ny")).toBeInTheDocument();
+
+    // Och läsningen är ändå framflyttad, så märket är borta nästa gång.
+    expect(globalThis.localStorage.getItem("prov:fryst")).toBe("2026-09-24T12:00:00.000Z");
+  });
+
   it("visar inget märke när allt är sett", () => {
     globalThis.localStorage.setItem("prov:sett", "2026-09-24T12:00:00.000Z");
     render(<OpsActivityButton entries={rader} storageKey="prov:sett" />);
@@ -307,5 +368,90 @@ describe("OpsActivityButton", () => {
     expect(screen.getByText("99+")).toBeInTheDocument();
     // ⛔ Och namnet bär det RIKTIGA talet. "99+" är en bredd, inte ett faktum.
     expect(screen.getByRole("button", { name: "Aktivitet, 120 nya" })).toBeInTheDocument();
+  });
+});
+
+describe("groupByDay", () => {
+  /** Byggs ur LOKAL tid, så provet säger samma sak i varje tidszon. */
+  const vid = (/** @type {number[]} */ ...delar) => new Date(...delar).toISOString();
+  const rad = (/** @type {string} */ nar, /** @type {string} */ rubrik) => ({ nar, slag: "import", rubrik, resultat: "ok" });
+
+  const NU = new Date(2026, 8, 24, 12, 0);
+
+  it("delar raderna i Idag, I går, Senaste veckan och Äldre", () => {
+    const avsnitt = groupByDay(
+      [
+        rad(vid(2026, 8, 24, 9, 0), "idag"),
+        rad(vid(2026, 8, 23, 9, 0), "igår"),
+        rad(vid(2026, 8, 20, 9, 0), "i veckan"),
+        rad(vid(2026, 8, 1, 9, 0), "gammalt"),
+      ],
+      { nu: NU },
+    );
+
+    expect(avsnitt.map((a) => a.value)).toEqual(["idag", "igar", "veckan", "aldre"]);
+    expect(avsnitt.map((a) => a.rader.map((r) => r.rubrik))).toEqual([["idag"], ["igår"], ["i veckan"], ["gammalt"]]);
+  });
+
+  it("⛔ räknar KALENDERDAGAR och inte dygn om 24 timmar", () => {
+    /*
+     * Något som kördes 23:50 i går ligger under "I går" klockan 00:10, inte
+     * under "Idag". Tjugo minuter har gått, men det är inte vad läsaren kallar
+     * det, och radens egen text säger redan "i går". Räknades det i timmar hade
+     * rubriken och raden sagt emot varandra, och då tror man på ingendera.
+     */
+    const avsnitt = groupByDay([rad(vid(2026, 8, 23, 23, 50), "sent i går")], { nu: new Date(2026, 8, 24, 0, 10) });
+    expect(avsnitt.map((a) => a.value)).toEqual(["igar"]);
+  });
+
+  it("utelämnar tomma avsnitt i stället för att påstå att något saknas där", () => {
+    const avsnitt = groupByDay([rad(vid(2026, 8, 24, 9, 0), "bara idag")], { nu: NU });
+    expect(avsnitt).toHaveLength(1);
+    expect(avsnitt[0].label).toBe("Idag");
+  });
+
+  it("⛔ KASTAR ALDRIG en rad med trasig tid, den faller till Äldre", () => {
+    /*
+     * Att sortera bort det man inte förstår är hur en logg tyst blir
+     * ofullständig: den som letar efter raden ser en lista utan den och drar
+     * slutsatsen att jobbet aldrig kördes.
+     */
+    const avsnitt = groupByDay([{ nar: "inte en tid", slag: "import", rubrik: "trasig", resultat: "ok" }], { nu: NU });
+    expect(avsnitt.map((a) => a.value)).toEqual(["aldre"]);
+    expect(avsnitt[0].rader[0].rubrik).toBe("trasig");
+  });
+
+  it("lägger en rad från framtiden under Idag, där den syns", () => {
+    // ⛔ Den betyder att en klocka går fel, och det är värt att se. Under
+    // "Äldre" hade den hamnat längst ned i en lista ingen rullar till.
+    const avsnitt = groupByDay([rad(vid(2026, 8, 26, 9, 0), "framtiden")], { nu: NU });
+    expect(avsnitt.map((a) => a.value)).toEqual(["idag"]);
+  });
+
+  it("svarar med en tom lista när det inte finns något att dela", () => {
+    expect(groupByDay([], { nu: NU })).toEqual([]);
+    expect(groupByDay(null, { nu: NU })).toEqual([]);
+  });
+});
+
+describe("isUnread", () => {
+  it("⛔ ger samma svar som unreadCount räknar", () => {
+    /*
+     * Knappens siffra och radens märke måste stämma överens: säger knappen tre
+     * och tre rader inte är märkta blir siffran något man slutar tro på. Därför
+     * EN jämförelse, inte två som glider isär vid första ändringen.
+     */
+    const rader = [
+      { nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "a", resultat: "ok" },
+      { nar: "2026-09-24T10:00:00.000Z", slag: "import", rubrik: "b", resultat: "ok" },
+      { nar: "2026-09-23T10:00:00.000Z", slag: "import", rubrik: "c", resultat: "ok" },
+    ];
+    for (const sedd of [null, "2026-09-24T11:00:00.000Z", "2026-09-24T12:00:00.000Z"]) {
+      expect(rader.filter((r) => isUnread(r, sedd))).toHaveLength(unreadCount(rader, sedd));
+    }
+  });
+
+  it("räknar allt som nytt när läsaren aldrig sett något", () => {
+    expect(isUnread({ nar: "2020-01-01T00:00:00.000Z" }, null)).toBe(true);
   });
 });

@@ -204,7 +204,100 @@ export function createActivityLog(config) {
  * @param {Handelse[]} rader @param {string | null | undefined} sedd ISO, eller inget alls.
  */
 export function unreadCount(rader, sedd) {
+  return (rader || []).filter((r) => isUnread(r, sedd)).length;
+}
+
+/**
+ * Om EN rad är nyare än den tidpunkt läsaren senast såg.
+ *
+ * ⛔ SAMMA JÄMFÖRELSE SOM `unreadCount`, OCH DÄRFÖR EXPORTERAD. Märket på
+ * knappen och märket på raden måste svara samma sak: säger knappen tre och tre
+ * rader inte är märkta blir siffran något man slutar tro på. Skrevs
+ * jämförelsen två gånger hade de glidit isär vid första ändringen.
+ *
+ * @param {Handelse} rad @param {string | null | undefined} sedd ISO, eller inget alls.
+ */
+export function isUnread(rad, sedd) {
+  if (!sedd) return true;
+  return String((rad && rad.nar) || "") > sedd;
+}
+
+/**
+ * Avsnitten listan delas i, nyast först.
+ *
+ * ⛔ RAMVERKETS ORD OCH INTE APPENS, till skillnad från `kinds`. Vilka JOBB som
+ * finns är appens taxonomi; att i går heter "I går" är det inte. Lades de i
+ * appen fick varje plattform hitta på sina egna, och två loggar som visar samma
+ * sak hade läst olika.
+ */
+export const ACTIVITY_SECTIONS = [
+  { value: "idag", label: "Idag" },
+  { value: "igar", label: "I går" },
+  { value: "veckan", label: "Senaste veckan" },
+  { value: "aldre", label: "Äldre" },
+];
+
+const DAG = 86400000;
+
+/** @param {Date} d */
+function midnatt(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/**
+ * Delar raderna i Idag, I går, Senaste veckan och Äldre.
+ *
+ * ⛔ VARFÖR EN PLATT LISTA INTE RÄCKER. Ett jobb som kör varje natt skriver en
+ * rad om dagen, så efter en månad är listan trettio rader som alla ser likadana
+ * ut. Frågan man ställer är nästan aldrig "vad är rad sjutton", den är "kördes
+ * det i dag", och det svaret ska synas utan att läsa en enda tidsstämpel.
+ *
+ * ⛔ KALENDERDAGAR, INTE DYGN OM 24 TIMMAR. Samma räkning som
+ * `formatRelativeDate` gör. Något som kördes 23:50 i går ligger under "I går"
+ * klockan 00:10, inte under "Idag", eftersom det är vad läsaren själv kallar
+ * det. Räknades det i timmar hade avsnittet och radens egen text sagt emot
+ * varandra, och då tror man på ingendera.
+ *
+ * ⛔ EN RAD MED TRASIG TID FALLER TILL "ÄLDRE" OCH KASTAS ALDRIG. Att sortera
+ * bort det man inte förstår är hur en logg tyst blir ofullständig: den som
+ * letar efter raden ser en lista utan den och drar slutsatsen att jobbet aldrig
+ * kördes.
+ *
+ * ⛔ EN RAD FRÅN FRAMTIDEN LIGGER UNDER "IDAG". Den betyder att en klocka går
+ * fel, och det är värt att se. Under "Äldre" hade den hamnat längst ned i en
+ * lista ingen rullar till.
+ *
+ * ⛔ TOMMA AVSNITT UTELÄMNAS. En rubrik utan rader påstår att något saknas just
+ * där, när sanningen är att ingenting hände den dagen.
+ *
+ * @param {Handelse[]} rader Nyast först. Ordningen inom avsnittet är den som kom in.
+ * @param {{ nu?: Date | number | string }} [choice] Bara för prov. Produktionen har en klocka.
+ * @returns {{ value: string, label: string, rader: Handelse[] }[]}
+ */
+export function groupByDay(rader, choice = {}) {
   const lista = rader || [];
-  if (!sedd) return lista.length;
-  return lista.filter((r) => String(r.nar || "") > sedd).length;
+  const nu = new Date(choice.nu ?? Date.now());
+  const idag = midnatt(Number.isNaN(nu.getTime()) ? new Date() : nu);
+
+  /** @type {Record<string, Handelse[]>} */
+  const hinkar = { idag: [], igar: [], veckan: [], aldre: [] };
+
+  for (const rad of lista) {
+    const d = new Date(rad && rad.nar ? rad.nar : NaN);
+    if (Number.isNaN(d.getTime())) {
+      hinkar.aldre.push(rad);
+      continue;
+    }
+    const dagar = Math.round((idag - midnatt(d)) / DAG);
+    if (dagar <= 0) hinkar.idag.push(rad);
+    else if (dagar === 1) hinkar.igar.push(rad);
+    else if (dagar < 7) hinkar.veckan.push(rad);
+    else hinkar.aldre.push(rad);
+  }
+
+  return ACTIVITY_SECTIONS.map((a) => ({
+    value: a.value,
+    label: a.label,
+    rader: hinkar[a.value],
+  })).filter((a) => a.rader.length > 0);
 }

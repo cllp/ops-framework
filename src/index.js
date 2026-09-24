@@ -100,5 +100,5 @@ export { readCaseFlow } from "./lib/caseFlow.js";
 export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
 export { createCaseModel } from "./lib/caseModel.js";
-export { createActivityLog, unreadCount, ACTIVITY_RESULTS } from "./lib/aktivitet.js";
+export { createActivityLog, unreadCount, isUnread, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";

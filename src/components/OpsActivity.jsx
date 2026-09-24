@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
-import { unreadCount } from "../lib/aktivitet.js";
+import { groupByDay, isUnread, unreadCount } from "../lib/aktivitet.js";
 import { formatDateTime, formatRelativeDate } from "../lib/format.js";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsModal } from "./OpsModal.jsx";
@@ -66,13 +66,20 @@ function sparaSedd(key, value) {
  * efter en ändring behöver klockslaget. Det exakta står i `title` och som liten
  * text, så raden går att skumma utan att bli en tabell.
  *
- * @param {{ handelse: import("../lib/aktivitet.js").Handelse, slagord: string, nu?: Date | number }} props
+ * ⛔ "NY" STÅR SOM ETT ORD OCH INTE SOM EN TON. Samma skäl som "Gick fel" nedan:
+ * en rad som bara är lite ljusare än grannen är ingen skillnad alls för den som
+ * lyssnar, och knappt någon för den som ser.
+ *
+ * @param {{ handelse: import("../lib/aktivitet.js").Handelse, slagord: string, ny?: boolean, nu?: Date | number }} props
  */
-function Rad({ handelse, slagord, nu }) {
+function Rad({ handelse, slagord, ny, nu }) {
   const trasig = handelse.resultat === "fel";
   return (
     <li className="flex flex-col gap-0.5 border-t border-divider py-3 first:border-t-0 first:pt-0">
       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        {ny ? (
+          <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-on-accent">Ny</span>
+        ) : null}
         {/* ⛔ ORDET OCH INTE BARA EN FÄRG. Ett misslyckande som bara syns som en
             röd ton går inte att läsa upp och är osynligt för var tjugonde man. */}
         {trasig ? <span className="text-sm font-semibold text-danger">Gick fel</span> : null}
@@ -114,13 +121,20 @@ function Rad({ handelse, slagord, nu }) {
  * stället för bakom ikonen. Knappen är ett sätt att komma åt listan, inte
  * listans enda hem.
  *
+ * ⛔ DELAS I IDAG, I GÅR, SENASTE VECKAN OCH ÄLDRE. Skälet i sin helhet står vid
+ * `groupByDay`. Kort: ett nattligt jobb skriver en rad om dagen, och efter en
+ * månad är en platt lista trettio likadana rader där frågan "kördes det i dag"
+ * kräver att man läser tidsstämplar.
+ *
  * @param {object} props
  * @param {import("../lib/aktivitet.js").Handelse[]} props.entries Nyast först. ⛔ Appen sorterar: den vet vilken klocka som gäller.
  * @param {(slag: string) => string} [props.kindLabel] Slagets ord. Utan den står inget slag på raden.
  * @param {import("react").ReactNode} [props.empty] Vad som står när loggen är tom.
+ * @param {string | null} [props.unreadSince] Tidpunkten läsaren senast såg. Rader
+ *   nyare än den märks "Ny". ⛔ Skickas FRUSEN av `OpsActivityButton`, se noten där.
  * @param {Date | number} [props.now] Bara för prov. Produktionen har en klocka.
  */
-export function OpsActivityList({ entries, kindLabel, empty, now }) {
+export function OpsActivityList({ entries, kindLabel, empty, unreadSince, now }) {
   const rader = entries || [];
 
   if (rader.length === 0) {
@@ -130,12 +144,30 @@ export function OpsActivityList({ entries, kindLabel, empty, now }) {
     return empty ?? <OpsEmpty title="Inget har hänt än" description="Här står vad som kördes och när, så fort något gjort det." />;
   }
 
+  const avsnitt = groupByDay(rader, now ? { nu: now } : undefined);
+
   return (
-    <ul className="m-0 flex list-none flex-col p-0">
-      {rader.map((h, i) => (
-        <Rad key={`${h.nar}-${i}`} handelse={h} slagord={kindLabel ? kindLabel(h.slag) : ""} nu={now} />
+    <div className="flex flex-col gap-5">
+      {avsnitt.map((a) => (
+        <section key={a.value}>
+          {/* ⛔ EN RIKTIG RUBRIK OCH INTE EN FET RAD. Den som hoppar mellan
+              rubriker i en skärmläsare ska kunna gå till "Idag" direkt, och det
+              går bara om avsnittet är ett avsnitt. */}
+          <h3 className="mb-2 text-sm font-semibold text-ink-muted">{a.label}</h3>
+          <ul className="m-0 flex list-none flex-col p-0">
+            {a.rader.map((h, i) => (
+              <Rad
+                key={`${h.nar}-${i}`}
+                handelse={h}
+                slagord={kindLabel ? kindLabel(h.slag) : ""}
+                ny={unreadSince !== undefined ? isUnread(h, unreadSince) : false}
+                nu={now}
+              />
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -154,6 +186,10 @@ export function OpsActivityList({ entries, kindLabel, empty, now }) {
  * ⛔ ANTALET STÅR I KNAPPENS NAMN. En prick är dekor och läses inte upp, så utan
  * namnet vet den som lyssnar inte att det finns något nytt alls.
  *
+ * ⛔ OCH DE RADER SIFFRAN RÄKNADE ÄR MÄRKTA I LISTAN. Se noten i `oppna`: utan
+ * frysningen försvinner märkningen i samma ögonblick som panelen öppnas, och
+ * knappens siffra saknar motsvarighet i det man ser.
+ *
  * @param {object} props
  * @param {import("../lib/aktivitet.js").Handelse[]} props.entries Nyast först.
  * @param {(slag: string) => string} [props.kindLabel]
@@ -169,6 +205,7 @@ export function OpsActivityList({ entries, kindLabel, empty, now }) {
 export function OpsActivityButton({ entries, kindLabel, title = "Aktivitet", label = "Aktivitet", storageKey, icon, empty, now }) {
   const rader = entries || [];
   const [sedd, setSedd] = useState(() => lastSedd(storageKey));
+  const [vidOppning, setVidOppning] = useState(/** @type {string | null | undefined} */ (undefined));
   const [open, setOpen] = useState(false);
 
   const olasta = unreadCount(rader, sedd);
@@ -176,10 +213,25 @@ export function OpsActivityButton({ entries, kindLabel, title = "Aktivitet", lab
   /** @param {boolean} nytt */
   function oppna(nytt) {
     setOpen(nytt);
+    if (!nytt) return;
+
+    // ⛔ VILKA SOM VAR OLÄSTA FRYSES INNAN `sedd` FLYTTAS FRAM, och det är hela
+    // poängen med den här extra variabeln. Märket på knappen räknar olästa,
+    // listan visar ALLA rader, och `sedd` flyttas fram i samma ögonblick som
+    // panelen öppnas. Utan frysningen är därför allt redan läst vid första
+    // renderingen: knappen sa tre, och listan märker noll. Siffran ser då ut att
+    // ljuga, och en siffra man inte tror på är värre än ingen siffra.
+    //
+    // ⛔ TIDIGARE VÄRDE OCH INTE NUVARANDE. `sedd` läses ur den här renderingen
+    // och inte ur den setState just köat: reaktionen är asynkron, och `sedd`
+    // hade här alltid varit det gamla värdet ändå, men den som skriver om
+    // raden ska inte behöva veta det för att den ska bli rätt.
+    setVidOppning(sedd);
+
     // ⛔ MARKERAS SOM SETT NÄR DEN ÖPPNAS, inte när den stängs. Den som öppnar
     // och läser en rad har sett den, även om fliken sedan dör. Vid stängning
     // hade ett tappat fönster gett samma märke igen nästa dag.
-    if (nytt && rader.length > 0) {
+    if (rader.length > 0) {
       const senaste = rader[0].nar;
       sparaSedd(storageKey, senaste);
       setSedd(senaste);
@@ -213,7 +265,7 @@ export function OpsActivityButton({ entries, kindLabel, title = "Aktivitet", lab
       </button>
 
       <OpsModal open={open} onOpenChange={oppna} title={title}>
-        <OpsActivityList entries={rader} kindLabel={kindLabel} empty={empty} now={now} />
+        <OpsActivityList entries={rader} kindLabel={kindLabel} empty={empty} unreadSince={vidOppning} now={now} />
       </OpsModal>
     </>
   );

@@ -225,8 +225,8 @@ något godtyckligt.
 | `OpsStatusDot` | `status` oppet \| pagar \| vantar \| klart \| akut, `label` (krävs). Färgprick för var ett ärende står, tänkt för en kortrubrik. ⛔ Ordet krävs och renderas alltid, som `sr-only` utom för `akut` som skriver ut det synligt: en färg går inte att läsa upp och är osynlig för var tjugonde man. Vyn måste visa ordet någonstans synligt, till exempel i utfällningen |
 | `OpsMarkdown` | `text`. Renderar rubriker, stycken, listor, kryssrutor, citat, kod, tabeller och länkar som riktiga element. ⛔ Ingen HTML passerar en sträng: `dangerouslySetInnerHTML` finns inte, och bara `http`/`https` blir länkar. Kapar aldrig texten, det är datalagrets beslut |
 | `OpsPrompt` | `source` (från `createPromptSource`), `label` (krävs), `hint`, `placeholder`, `context`, `sendLabel`, `waitingLabel`, `suggestions` [sträng], `onAnswer`. En fråga in, ett svar ut, renderat som markdown. ⛔ Vet inte vilken leverantör som svarar: modell, nyckel och tak är appens. ⛔ Förra svaret ligger kvar tills ett nytt kommit, även efter ett fel |
-| `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `title`, `label`, `storageKey`, `icon`, `empty`, `now`. Klockikon med ett märke, och loggen bakom den i en `OpsModal`. ⛔ Antalet står i knappens NAMN och inte bara som en prick: en prick är dekor och läses inte upp. ⛔ "Oläst" räknas ur en tidpunkt i webbläsaren och aldrig ur ett fält på dokumentet: två läsare har olika svar, och ett delat `last` betyder att den som läser sist skriver över den andres |
-| `OpsActivityList` | `entries`, `kindLabel`, `empty`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. ⛔ Varje rad bär både relativ och exakt tid: "för 2 timmar sedan" är det man läser, klockslaget är det man kan jämföra |
+| `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `title`, `label`, `storageKey`, `icon`, `empty`, `now`. Klockikon med ett märke, och loggen bakom den i en `OpsModal`. ⛔ Antalet står i knappens NAMN och inte bara som en prick: en prick är dekor och läses inte upp. ⛔ "Oläst" räknas ur en tidpunkt i webbläsaren och aldrig ur ett fält på dokumentet: två läsare har olika svar, och ett delat `last` betyder att den som läser sist skriver över den andres. ⛔ Vilka rader som var olästa FRYSES vid öppning och skickas vidare som `unreadSince`: märket på knappen räknar olästa, listan visar alla, och tidpunkten flyttas fram i samma ögonblick som panelen öppnas, så utan frysningen sa knappen tre medan listan märkte noll |
+| `OpsActivityList` | `entries`, `kindLabel`, `empty`, `unreadSince`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. ⛔ Varje rad bär både relativ och exakt tid: "för 2 timmar sedan" är det man läser, klockslaget är det man kan jämföra. ⛔ Delas i Idag, I går, Senaste veckan och Äldre: ett nattligt jobb skriver en rad om dagen, och efter en månad kräver frågan "kördes det i dag" att man läser tidsstämplar i en platt lista. ⛔ `unreadSince` märker raden med ORDET Ny, inte med en ton |
 | `OpsTag` | `label` (bestämmer också tonen), `tone` 1-6 (låser tonen), `onRemove`, `removeLabel` |
 | `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
 | `OpsProvenance` | `kind` human \| agent \| auto, `label` |
@@ -320,10 +320,21 @@ har någon att visa dem för, den andra av en yta som har det. `ACTIVITY_RESULTS
 är de två utfallen, `ok` och `fel`, och de är två med flit: en "varning"
 däremellan glider tills varken varningen eller felet betyder något.
 
-`unreadCount(rader, sedd)` räknar det som är nyare än en tidpunkt. ⛔ En ren
-funktion och inte ett fält på raden: "oläst" är läsarens egenskap, inte
-händelsens, och den jämför på tid och inte på antal eftersom ett antal glider så
-fort en gammal rad städas bort.
+`unreadCount(rader, sedd)` räknar det som är nyare än en tidpunkt, och
+`isUnread(rad, sedd)` svarar för en enskild rad. ⛔ Rena funktioner och inte ett
+fält på raden: "oläst" är läsarens egenskap, inte händelsens, och de jämför på
+tid och inte på antal eftersom ett antal glider så fort en gammal rad städas
+bort. ⛔ **Samma jämförelse i båda**, eftersom knappens siffra och radens märke
+måste stämma överens: säger knappen tre och tre rader inte är märkta blir
+siffran något man slutar tro på.
+
+`groupByDay(rader, { nu })` delar listan i `ACTIVITY_SECTIONS`, alltså Idag,
+I går, Senaste veckan och Äldre. ⛔ Räknar **kalenderdagar** och inte dygn om 24
+timmar, samma sätt som `formatRelativeDate`: något som kördes 23:50 i går ligger
+under "I går" klockan 00:10, eftersom det är vad läsaren själv kallar det. ⛔ En
+rad med trasig tid faller till Äldre och **kastas aldrig**: att sortera bort det
+man inte förstår är hur en logg tyst blir ofullständig. ⛔ En rad från framtiden
+ligger under Idag, där den syns, eftersom den betyder att en klocka går fel.
 
 `createCaseModel(config)` äger **formen** på ett inskickat ärende: att det har
 en sort och en prioritet, bär vem som skickade in det och när, att `status` och
