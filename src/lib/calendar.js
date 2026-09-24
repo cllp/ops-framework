@@ -36,6 +36,11 @@
  *   varje gång den syns.
  * @property {string} [edgeLabel] Vad kanten betyder. ⛔ Krävs när `edge` finns,
  *   annars kastar kortet. Se `lib/kant.js`.
+ * @property {1|2|3} [slag] Vad posten ÄR, ur slagpaletten. Färgar både kortets
+ *   kant och PRICKEN i rutnätet, så de två aldrig kan säga olika saker.
+ *   ⛔ Vinner över `edge` när båda finns: pricken kan bara visa ett av dem.
+ * @property {string} [slagLabel] Vad slaget heter. ⛔ Krävs när `slag` finns,
+ *   och kastet sker redan när RUTNÄTET ritas, inte först när dagen öppnas.
  */
 
 /**

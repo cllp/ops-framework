@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
+import { slagText } from "../lib/slag.js";
 import { urgency } from "../lib/events.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsCard } from "./OpsCard.jsx";
@@ -196,6 +197,8 @@ export function OpsEventList({
         const oppen = open.indexOf(h.id) >= 0;
         const panelId = `${idBas}-${h.id}`;
         const harDetaljer = Boolean(h.details);
+        // ⛔ Samma ton som kortets kant och kalenderns prick, ur en källa.
+        const slagfarg = slagText(h.slag, h.slagLabel, "OpsEventList");
 
         return (
           <li key={h.id}>
@@ -211,7 +214,7 @@ export function OpsEventList({
               slaget som en kant hade fått rita sin egen. Att lägga till två
               rader här är hela skillnaden.
             */}
-            <OpsCard rounding="bubbla" edge={h.edge} edgeLabel={h.edgeLabel}>
+            <OpsCard rounding="bubbla" edge={h.edge} edgeLabel={h.edgeLabel} slag={h.slag} slagLabel={h.slagLabel}>
             {/* ⛔ Chevron HÖGER, samma sida som OpsDisclosure/Inkorg (CP 2026-09-21). */}
             <div className="flex items-start gap-1">
               <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">
@@ -246,7 +249,28 @@ export function OpsEventList({
                     ögat inte vet vilket märke som betyder mest, och brådskan är det
                     enda som ska kunna ta uppmärksamhet.
                     Dämpad färg av samma skäl: slaget är sammanhang, inte larm. */}
-                {h.kind ? <span className="min-w-0 truncate text-sm text-ink-muted">{h.kind}</span> : null}
+                {/* ⛔ IKONEN FÖRE ORDET, OCH BARA NÄR APPEN SKICKAT EN.
+                    CP 2026-09-24: "Bra om ikonen syns i listan också, både på
+                    ärenden och i inkorg på samma sätt."
+
+                    Ikonen är samma som står i filtrets meny för samma slag, och
+                    det är hela poängen: man ska känna igen det man filtrerade
+                    fram utan att läsa. Ordet står kvar bredvid, eftersom en
+                    ensam ikon är en gåta för den som inte lärt sig den.
+
+                    ⛔ FÄRGEN KOMMER UR SLAGET, inte ur en klass appen hittar på.
+                    Samma ton som kortets kant och kalenderns prick, ur
+                    `lib/slag.js`. Skiljer de sig säger vyn emot sig själv. */}
+                {h.kind ? (
+                  <span className="flex min-w-0 shrink-0 items-center gap-1 text-sm text-ink-muted">
+                    {h.kindIcon ? (
+                      <span aria-hidden="true" className={cx("flex shrink-0 items-center", slagfarg)}>
+                        {h.kindIcon}
+                      </span>
+                    ) : null}
+                    <span className="min-w-0 truncate">{h.kind}</span>
+                  </span>
+                ) : null}
 
                 {/* ⛔ NÄR OCH DEADLINE HÅLLS IHOP I ETT ELEMENT, inte som två
                     syskon i flexraden. De svarar på samma fråga ur två håll ("hur
