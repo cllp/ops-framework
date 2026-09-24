@@ -61,6 +61,35 @@ describe("OpsHjalp", () => {
     expect(andra.container.querySelector("details")?.open).toBe(false);
   });
 
+  it("⛔ ritar ringen i bläck och inte i linjefärgen, så den syns i vila", () => {
+    /*
+     * CP 2026-09-24, mörkt läge på telefon: frågetecknet såg "hängande" ut.
+     *
+     * ⛔ MÄTT SOM WCAG-KVOT MOT YTAN, inte tyckt: `border-line` ger 1,14:1 i
+     * mörkt och 1,19:1 i ljust. Golvet för en kontrollyta är 3:1, alltså fanns
+     * ringen inte i NÅGOT av lägena. `ink-secondary` ger 4,93 respektive 9,47.
+     *
+     * ⛔ PROVET LÅSER KLASSEN OCH INTE UTSEENDET. jsdom räknar ingen CSS, så
+     * ett prov om faktisk kontrast hade varit grönt oavsett. Det som går att
+     * hålla fast är vilket TOKEN ringen hämtar sin färg ur, och att det inte
+     * är linjefärgen, som per definition är den som ska viska.
+     */
+    const { container } = render(<OpsHelp title={<h1>Idag</h1>}>Förklaringen.</OpsHelp>);
+    const ringen = container.querySelector("summary span[aria-hidden='true']");
+    expect(ringen).not.toBeNull();
+
+    const klasser = String(ringen.className).split(/\s+/);
+    expect(klasser).toContain("border-ink-secondary");
+    expect(klasser).not.toContain("border-line");
+
+    /*
+     * ⛔ OCH DET ÖPPNA LÄGET SKA VARA KVAR. Skillnaden mellan stängt och öppet
+     * ska vara att ringen blir LJUSARE, inte att den dyker upp ur ingenting.
+     * Utan den här raden hade en fix som tog bort accentläget varit grön.
+     */
+    expect(klasser).toContain("group-open:border-accent");
+  });
+
   it("ger tecknet ett ord för den som lyssnar", () => {
     // ⛔ "?" är en bild för örat. Utan `label` heter knappen bara rubriken.
     render(<OpsHelp title={<h1>Idag</h1>} label="Visa förklaring">Förklaringen.</OpsHelp>);
