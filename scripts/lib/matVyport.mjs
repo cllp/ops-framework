@@ -20,7 +20,7 @@
  * röd av varje typsnittsuppdatering och av varje avsiktlig designändring, alltså
  * varje vecka, och en vakt som är röd varje vecka stängs av inom en månad.
  *
- * Den här mäter i stället tre påståenden som antingen är sanna eller falska och
+ * Den här mäter i stället fem påståenden som antingen är sanna eller falska och
  * som ingen designändring rimligen ska bryta:
  *
  *   1. Sidan är inte bredare än fönstret. Horisontell scroll i en app är alltid
@@ -30,13 +30,19 @@
  *   3. `main` har botteninset minst lika stor som bottenraden. Utan den ligger
  *      sista raden i innehållet bakom baren, och det upptäcks först när någon
  *      undrar var deras sista post tog vägen.
+ *   4. Kromet ligger kvar överst efter scroll, alltså målar inget innehåll över
+ *      headern eller bottenraden.
+ *   5. Ingen flytande yta ligger BAKOM bottenraden. Det är inte punkt 4
+ *      spegelvänd utan dess andra halva: en yta under kromets lager kan inte
+ *      måla över baren, men den kan krypa in under den och bli oläsbar där.
+ *      Se `matFastaYtor`.
  *
  * Och i ett andra pass, som `matTeman` nedan förklarar i detalj:
  *
- *   4. Sidans bakgrund är en annan färg i mörkt läge än i ljust, alltså att
+ *   6. Sidans bakgrund är en annan färg i mörkt läge än i ljust, alltså att
  *      temaväxlingen når en renderad sida och inte bara står i tokenfilen.
- *   5. Varje reglage är minst 44px högt i den renderade rutan.
- *   6. Accentfärgen finns i varje reglages bild i båda lägen, alltså att tumman
+ *   7. Varje reglage är minst 44px högt i den renderade rutan.
+ *   8. Accentfärgen finns i varje reglages bild i båda lägen, alltså att tumman
  *      är vår och inte webbläsarens egen.
  *
  * ── ⛔ FAIL-CLOSED NÄR WEBBLÄSAREN SAKNAS ───────────────────────────────────
@@ -403,6 +409,107 @@ async function matKrom(sida) {
   });
 }
 
+/**
+ * Ligger någon flytande yta BAKOM bottenraden?
+ *
+ * ⛔ DEN HÄR MÄTNINGEN ÄR INTE `matKrom` SPEGELVÄND, DEN ÄR DEN ANDRA HALVAN.
+ *
+ * bolag-ops#210 bad om en vakt formulerad så här: "en punkt mitt i bottenradens
+ * rektangel ska fortfarande träffa bottenraden när panelen är öppen."
+ *
+ * Den vakten kan inte falla, och det är värt att kunna. MÄTT i Chromium på
+ * 390 px med bubblan flyttad till `bottom-0`, alltså rakt ovanpå baren: alla
+ * tre punkterna i bottenradens rektangel träffade fortfarande bottenraden.
+ * Skälet är lagren. Bottenraden ligger på `--z-chrome` och en flytande yta på
+ * `--z-sticky`, så baren vinner alltid. `matKrom` mäter redan att inget målar
+ * över kromet, och en yta under kromet KAN inte göra det.
+ *
+ * Felet finns, men åt andra hållet: ytan hamnar BAKOM baren och är då varken
+ * läsbar eller möjlig att stänga. Det var precis vad CP fotograferade
+ * 2026-09-18, när bottenradens upphöjda knapp låg mitt över bubblans nederkant,
+ * och vad `--bottom-nav-overhang` finns för. Ingenting mätte det.
+ *
+ * ⛔ SAMMA TEKNIK SOM `matKrom`, OCH AV SAMMA SKÄL. Frågan ställs med
+ * `elementFromPoint` i överlappet i stället för genom att jämföra z-index: två
+ * värden i olika stackningskontexter går inte att jämföra i koden, men en punkt
+ * svarar alltid på vad en tumme faktiskt träffar där.
+ *
+ * ⛔ KROMET SJÄLVT RÄKNAS INTE. Headern och bottenraden är också `fixed`, och en
+ * bar som "överlappar sig själv" hade gjort varje sida röd på en gång. Inte
+ * heller ytor som ligger ÖVER baren: en modal ska täcka allt, det är vad en
+ * modal är.
+ *
+ * @param {import("playwright").Page} sida
+ * @returns {Promise<{ bakom: { yta: string, x: number, y: number }[] }>}
+ */
+async function matFastaYtor(sida) {
+  return await sida.evaluate(() => {
+    const bar = document.querySelector('nav[aria-label="Snabbnavigering"]');
+    if (!bar) return { bakom: [] };
+    const barR = bar.getBoundingClientRect();
+    if (barR.height <= 0 || getComputedStyle(bar).display === "none") return { bakom: [] };
+
+    const header = document.querySelector("header");
+    /** @param {Element} el */
+    const arKrom = (el) =>
+      el === bar || bar.contains(el) || el.contains(bar) || (header ? el === header || header.contains(el) || el.contains(header) : false);
+
+    /** @param {Element | null} el */
+    const namn = (el) => {
+      if (!el) return "ingenting";
+      const klass = String(el.className || "").split(" ")[0];
+      return `${el.tagName.toLowerCase()}${klass ? `.${klass}` : ""}`;
+    };
+
+    const bakom = [];
+    for (const el of document.querySelectorAll("body *")) {
+      if (arKrom(el)) continue;
+      const stil = getComputedStyle(el);
+      if (stil.position !== "fixed") continue;
+      if (stil.display === "none" || stil.visibility === "hidden" || stil.opacity === "0") continue;
+
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+
+      // ⛔ EN YTA SOM INTE MÅLAR NÅGOT GÖMMER INGENTING.
+      //
+      // MÄTT i provappen: toastarnas `ol` är en tom portalbehållare med
+      // `p-4`, alltså en ruta på 32 px som består av bara luft, noll barn och
+      // ingen text. Den fanns på varje sida och hade gjort vakten röd på en
+      // gång, alltså röd för något ingen kan se. En vakt som är röd i vila
+      // stängs av inom en månad, och då skyddar den ingenting alls.
+      if (el.children.length === 0 && !(el.textContent || "").trim()) continue;
+
+      // Överlappar ytan barens rektangel alls?
+      const x1 = Math.max(r.left, barR.left);
+      const x2 = Math.min(r.right, barR.right);
+      const y1 = Math.max(r.top, barR.top);
+      const y2 = Math.min(r.bottom, barR.bottom);
+      if (x2 <= x1 || y2 <= y1) continue;
+
+      // ⛔ EN BILDPUNKT ÄR AVRUNDNING, INTE ETT ÖVERLAPP.
+      //
+      // MÄTT: samma toast-behållare bottnar på `--bottom-nav-h` plus
+      // `--safe-bottom`, alltså exakt på barens överkant, och Chromium
+      // rapporterade ändå 788 mot barens 787. Det är delbildpunkter i en
+      // beräknad `bottom`, inte en yta som krupit in under baren. Felet vakten
+      // finns för mäts i tiotals bildpunkter: bubblan med sin botten borttagen
+      // låg 57 px in under baren i samma mätning.
+      if (y2 - y1 <= 1) continue;
+
+      // ⛔ Mitt i överlappet, och bara där. En punkt utanför överlappet svarar
+      // på en annan fråga än den som ställs.
+      const x = Math.round((x1 + x2) / 2);
+      const y = Math.round((y1 + y2) / 2);
+      const overst = document.elementFromPoint(x, y);
+      if (!overst) continue;
+      // Ligger baren överst i överlappet är ytan gömd bakom den.
+      if (overst === bar || bar.contains(overst)) bakom.push({ yta: namn(el), x, y });
+    }
+    return { bakom };
+  });
+}
+
 export async function matVyport({ dist, rutter }) {
   const { server, url } = await serveraDist(dist);
   const { browser, varifran } = await startaWebblasare().catch(async (e) => {
@@ -529,6 +636,22 @@ export async function matVyport({ dist, rutter }) {
                 "Nästan alltid samma z-index på båda, och då avgör dokumentordningen i stället för avsikten.",
             );
           }
+        }
+
+        // 5. Ingen flytande yta ligger BAKOM bottenraden.
+        //
+        // ⛔ DEN ANDRA HALVAN AV PUNKT 4, OCH INTE SAMMA SAK. Kromet ligger
+        // överst, alltså kan en yta under kromet aldrig måla över det. Det den
+        // däremot kan är att krypa in under baren och bli oläsbar där. Se
+        // `matFastaYtor` för mätningen som visade att den vakt bolag-ops#210 bad
+        // om inte kan falla, och varför den här ställer frågan åt andra hållet.
+        const fasta = await matFastaYtor(sida);
+        for (const f of fasta.bakom) {
+          brott.push(
+            `${var_}: ${f.yta} ligger bakom bottenraden vid x=${f.x}, y=${f.y}. ` +
+              "En flytande yta ska bottna ovanför baren, dess säkra zon och dess upphöjda knapp " +
+              "(`--bottom-nav-h` + `--safe-bottom` + `--bottom-nav-overhang`). Bakom baren går den varken att läsa eller stänga.",
+          );
         }
       }
 

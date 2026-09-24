@@ -6,6 +6,7 @@ import {
   OpsDisclosure,
   OpsFact,
   OpsField,
+  OpsFloatingSummary,
   OpsIdentity,
   OpsInput,
   OpsList,
@@ -84,6 +85,7 @@ export function PrimitivesView() {
   const [kryss, setKryss] = useState(true);
   const [reglage, setReglage] = useState(false);
   const [simulerat, setSimulerat] = useState(0);
+  const [bubblan, setBubblan] = useState(true);
 
   return (
     <OpsView>
@@ -333,6 +335,18 @@ export function PrimitivesView() {
                 : `${v > 0 ? "+" : ""}${v} procent, ${formatCurrency(Math.round(10918 * (1 + v / 100)))}/mån`
             }
           />
+
+          {/* ⛔ ÅTERSTÄLLAREN FINNS FÖR ATT BUBBLAN GÅR ATT KLICKA BORT.
+              Utan den vore katalogens bubbla borta för resten av besöket så
+              fort någon provade krysset, och en katalog som tappar sin post när
+              man rör den svarar inte längre på vad posten gör. */}
+          {bubblan ? null : (
+            <div className="mt-3">
+              <OpsButton size="sm" onClick={() => setBubblan(true)}>
+                Visa bubblan igen
+              </OpsButton>
+            </div>
+          )}
         </OpsCard>
       </section>
 
@@ -359,6 +373,38 @@ export function PrimitivesView() {
           </p>
         </OpsModal>
       </Ruta>
+
+      {/*
+        ⛔ BUBBLAN ÄR INTE EN DEMONSTRATION HÄR, DEN ÄR EN MÄTPUNKT.
+
+        bolag-ops#210 skrev ut vakten som saknades: "samma mätning ska utvidgas
+        till att panelen inte täcker bottenraden: en punkt mitt i bottenradens
+        rektangel ska fortfarande träffa bottenraden när panelen är öppen."
+
+        `matKrom` i `matVyport` gör redan precis det. Den skjuter tre punkter
+        genom bottenradens rektangel efter scroll och faller om något annat
+        ligger överst. Den mättes bara aldrig med en bubbla på skärmen, eftersom
+        `OpsFloatingSummary` inte fanns någonstans på de två rutter
+        `check-scaffold` mäter. Vakten var alltså byggd och blind samtidigt.
+
+        ⛔ DÄRFÖR STÅR DEN HÄR SYNLIG FRÅN BÖRJAN, INTE BAKOM EN KNAPP.
+        Mätningen klickar inte. En bubbla som kräver ett tryck för att dyka upp
+        är samma sak som ingen bubbla alls för vakten, och då hade den här raden
+        sett ut som ett skydd utan att vara ett.
+
+        Bubblan bottnar på `--bottom-nav-h` plus `--safe-bottom` plus
+        `--bottom-nav-overhang`. Tas någon av dem bort blir `check-scaffold` röd
+        med bottenraden utpekad vid namn.
+      */}
+      {bubblan ? (
+        <OpsFloatingSummary
+          label="Månadskassaflöde"
+          value={`${simulerat > 0 ? "+" : ""}${formatCurrency(Math.round(10918 * (simulerat / 100)))}/mån`}
+          tone={simulerat >= 0 ? "success" : "danger"}
+          hint={`Nuläget ${formatCurrency(10918)}/mån`}
+          onDismiss={() => setBubblan(false)}
+        />
+      ) : null}
     </OpsView>
   );
 }
