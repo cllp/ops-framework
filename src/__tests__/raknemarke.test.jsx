@@ -8,14 +8,21 @@ describe("OpsCountBadge (#97)", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("⛔ en storlek och en färg: 16 px, minsta typsteget, badge-tokens", () => {
-    const { container } = render(<OpsCountBadge count={7} text="nya" placement="icon" />);
-    const el = container.querySelector("[data-ops-count-badge]");
-    for (const k of ["h-4", "min-w-4", "text-xs", "tabular-nums", "bg-badge", "text-badge-contrast"]) {
-      expect(el.className).toContain(k);
+  it("⛔ inkorgens gamla märke, samma på klockan: 16 px, 8 px-siffra, samma hörn", () => {
+    // Förlagan är Counter i 414c56d (CP 18:10: "Du skulle ta den som var på inkorg innan").
+    const { container } = render(
+      <>
+        <OpsCountBadge count={7} text="nya" placement="icon" />
+        <OpsCountBadge count={10} text="olästa" placement="icon" />
+      </>,
+    );
+    const [inkorg, klocka] = container.querySelectorAll("[data-ops-count-badge]");
+    expect(inkorg.className).toBe(klocka.className);
+    for (const k of ["-top-0.5", "-right-0.5", "h-4", "min-w-4", "px-0.5", "text-[8px]", "font-bold", "tabular-nums", "bg-badge", "text-badge-contrast"]) {
+      expect(inkorg.className.split(/\s+/)).toContain(k);
     }
-    // Aldrig accenten: kräm i mörkt tema, det var klumpen CP såg.
-    expect(el.className).not.toMatch(/bg-accent|text-on-accent|font-bold/);
+    // Aldrig accenten (kräm i mörkt tema) och aldrig den stora siffran eller ringen.
+    expect(inkorg.className).not.toMatch(/bg-accent|text-on-accent|text-xs|ring-/);
   });
 
   it("kapar vid 99+ och läser upp det riktiga talet", () => {

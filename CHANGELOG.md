@@ -13,6 +13,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### Ändrat
 
+- **Räknemärket ser ut som inkorgens gamla** (CP 18:10, #97): `h-4 min-w-4
+  px-0.5`, `text-[8px] font-bold`, hörnet `-top-0.5 -right-0.5`, ingen ring,
+  på alla placeringar. Versionen nedan (`text-xs`, ring, flyttad placering) var
+  fel förlaga.
 - **Ett räknemärke, `OpsCountBadge`**, för inkorgen, klockan, toppradens flikar
   och panelens rader ([#97](https://github.com/cllp/ops-framework/issues/97)).
   16 px högt, `text-xs` med `tabular-nums`, `badge`/`badge-contrast` i båda
