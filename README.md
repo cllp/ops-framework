@@ -751,11 +751,11 @@ ut varianterna i en uppslagstabell.
 
 | Saknas | Varför |
 |---|---|
-| Firestore-regler och SQL-behörigheter | ramverket kan inte veta vem som får se vad. Det är ett produktbeslut, och det är där det riktiga skyddet ligger |
+| Firestore-regler för **appens** samlingar | ramverket kan inte veta vem som får se vad i en domän det inte känner. Det är ett produktbeslut, och det är där det riktiga skyddet ligger. ⛔ Reglerna för ramverkets EGNA samlingar (konfig, medlemmar, ändringslogg, aktivitet) är en annan sak och hör hit, sedan CP:s beslut 2026-09-25 i cllp/bolag-ops#359. Se epiken cllp/ops-framework#92 |
 | Beroenden på `firebase` och `pg` | adaptrarna finns, men SDK:n skickas in av appen. Ett ramverk som drar in en databasdrivrutin tvingar på den varje plattform |
 | Skelettladdning | `OpsEmpty busy` täcker det grova fallet. Skelett är polish |
 | Diagram | datavisualisering är ett eget hantverk och hör inte hemma i en komponentlåda |
-| i18n | ramverkets få egna strängar är svenska och går att skicka in som props. Blir det fler språk är det en riktig fråga, inte en parameter |
+| i18n för ramverkets egna strängar | de få som finns är svenska och går att skicka in som props. ⛔ **Datum och tal är undantagna och alltid har varit det**: de kommer ur `Intl` och styrs av `locale`, eftersom en egen ordlista per språk är tolv ord någon ska stava rätt medan webbläsaren redan kan dem (cllp/ops-framework#95). ⛔ Riktig tvåspråkighet, alltså ett namn som är `{ sv, en }` i stället för en sträng, är beslutad och ligger i Fas 2 av cllp/ops-framework#92. Den här raden krymper då till det som återstår |
 
 Listan är lika viktig som innehållsförteckningen. **Ett ramverk som låtsas täcka
 allt får folk att böja det i stället för att utöka det.**
