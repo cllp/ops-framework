@@ -52,3 +52,11 @@ export { createActivityWriter } from "./aktivitet.js";
  * Bakgrund: cllp/ops-framework#93, functions i bolag-ops.
  */
 export { createActivityLog } from "../lib/aktivitet.js";
+
+/*
+ * ⛔ SAMMA FYRA FUNKTIONER SOM I HUVUDINGÅNGEN, av samma skäl som
+ * `createActivityLog` ovan: både klienten och det som körs utan skärm skriver
+ * `skapadAv`, och två former av samma fält är precis det den här modulen finns
+ * för att förhindra. Filen är ren, `check-node-side` kräver det.
+ */
+export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } from "../lib/skapare.js";

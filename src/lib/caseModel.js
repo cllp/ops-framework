@@ -227,10 +227,21 @@ export function createCaseModel(config) {
      * samma sak, och den som förlorar är den som skrev sist.
      */
     /**
+     * ⛔ `skapare` VINNER ÖVER `email`, OCH BÅDA FINNS KVAR.
+     *
+     * Fältet bar en fri e-poststräng, och en adress går inte att kontrollera i
+     * en Firestore-regel: regeln har bara `request.auth.uid` att jämföra med.
+     * Den nya formen är `byggSkapare({ uid, namn, typ, kalla })`
+     * (cllp/ops-framework#106).
+     *
+     * `email` togs inte bort, eftersom migreringsordningen kräver att båda
+     * fungerar samtidigt: en konsument som ännu inte bytt ska inte gå sönder av
+     * en ramverksuppgradering. `laesSkapare` läser båda formerna.
+     *
      * @param {Record<string, any>} draft
-     * @param {{ email?: string, nu?: () => string }} [context]
+     * @param {{ skapare?: import("./skapare.js").Skapare, email?: string, nu?: () => string }} [context]
      */
-    buildEntry(draft, { email = "", nu = () => new Date().toISOString() } = {}) {
+    buildEntry(draft, { skapare, email = "", nu = () => new Date().toISOString() } = {}) {
       const s = sort(draft.typ);
       return {
         typ: draft.typ,
@@ -252,7 +263,7 @@ export function createCaseModel(config) {
         // glömt fylla i.
         ...(s && typeof s.extraFields === "function" ? s.extraFields(draft) : {}),
         skapad: nu(),
-        skapadAv: email,
+        skapadAv: skapare || email,
         status: "ny",
         resultat: null,
       };

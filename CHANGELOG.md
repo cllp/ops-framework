@@ -9,6 +9,36 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.18.0
+
+Fas 1 i epiken [#92](https://github.com/cllp/ops-framework/issues/92), ramverkets
+del: identiteten får en form.
+
+### Tillagt
+
+- **`skapadAv` blir `{ uid, namn, typ, kalla }`** ([#106](https://github.com/cllp/ops-framework/issues/106)).
+  Fältet bar en fri sträng, och tre sorters värde hamnade i det: en e-postadress
+  från klienten, `"ops-agent"` från agenten, och en påhittad adress från
+  mätbygget.
+
+  ⛔ En adress går inte att kontrollera i en Firestore-regel. Regeln har bara
+  `request.auth.uid` att jämföra med, så länge fältet är en sträng är det ett
+  **påstående** och inte ett bevis.
+
+- `byggSkapare`, `laesSkapare`, `skaparensNamn`, `arGammalForm` och
+  `SKAPARTYPER`, ur **båda** ingångarna: klienten och nodsidan skriver samma
+  fält.
+
+  ⛔ `laesSkapare` tål den gamla strängen, och det är inte snällhet.
+  Migreringsordningen är tvingande: läsaren måste tåla båda formerna **innan**
+  skrivaren byter, annars visar varje vy tomt för varje omigrerat dokument i
+  samma sekund.
+
+- `createCaseModel().buildEntry` tar `skapare`. `email` fungerar kvar, av samma
+  skäl: en konsument som inte bytt ska inte gå sönder av en uppgradering.
+
+---
+
 ## 0.17.1
 
 Släpps för **räknemärkesfixen** (CP 2026-09-25): `v0.17.0` saknar den, så en app
