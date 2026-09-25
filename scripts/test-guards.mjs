@@ -832,6 +832,172 @@ kravRott(
   kravGront("reglage 5: den riktiga tokenfilen är grön", [reglagevakt, "tokens/tokens.css"]);
 }
 
+// ── Vakten mot ordet Läge där taxonomin heter Status ───────────────────────
+//
+// ⛔ DEN HÄR VAKTEN ÄR LÄTTARE ATT SKRIVA FEL ÄN DE ANDRA, eftersom den handlar
+// om svenska och inte om struktur. Två fel ligger nära: att fälla på "mörkt
+// läge" och "nolläget", som är riktig svenska om något annat, och att missa
+// "lägesfiltret" för att ordet sitter ihop med nästa. Därför provas båda
+// riktningarna, inte bara att ett brott blir rött.
+{
+  const ordvakt = "scripts/check-statusord.mjs";
+
+  /** @param {string} namn @param {Record<string, string>} filer @returns {string} */
+  function ordkatalog(namn, filer) {
+    const mapp = path.join(arbetsmapp, `ord-${namn}`, "src", "components");
+    fs.mkdirSync(mapp, { recursive: true });
+    for (const [fil, innehall] of Object.entries(filer)) fs.writeFileSync(path.join(mapp, fil), innehall);
+    return path.join(arbetsmapp, `ord-${namn}`, "src");
+  }
+
+  kravRott(
+    "statusord 1: ett filter som heter Läge",
+    [ordvakt, ordkatalog("filter", { "Filter.jsx": 'export const f = { label: "Läge", allLabel: "Alla lägen" };\n' })],
+    'säger "läge" där taxonomin heter Status',
+  );
+
+  // ⛔ Det svåra fallet: ordet är förled i en sammansättning. En vakt som bara
+  // matchar det fristående ordet hade varit grön här, och just den formen är
+  // den som står i appens hjälptext (cllp/bolag-ops#362).
+  kravRott(
+    "statusord 2: lägesfiltret som sammansatt förled",
+    [ordvakt, ordkatalog("forled", { "Hjalp.jsx": 'export const t = "Det är oftast lägesfiltret som döljer raderna.";\n' })],
+    "lägesfiltret",
+  );
+
+  // ⛔ Motsatsen, och den som avgör om vakten går att leva med: efterled är en
+  // annan betydelse och ska INTE fällas. Blir den här röd är vakten oanvändbar
+  // och stängs av inom en vecka.
+  kravGront(
+    "statusord 3: nolläge och mörkt läge är en annan betydelse",
+    [ordvakt, ordkatalog("efterled", { "Reglage.jsx": 'export const a = "Nolläget är utgångspunkten";\nexport const b = "utvecklingsläge";\nexport const c = "radläget";\n' })],
+  );
+
+  // ⛔ Kommentarer är resonemang, inte gränssnitt. Faller vakten här får ingen
+  // längre skriva ned varför en kontrast mättes i mörkt läge.
+  kravGront(
+    "statusord 4: samma ord i en kommentar går fritt",
+    [ordvakt, ordkatalog("kommentar", { "Kommenterad.jsx": '/* Läge och lägen och lägesfiltret, allt i en kommentar. */\n// Läge här också.\nexport const x = 1;\n' })],
+  );
+
+  kravGront("statusord 5: ramverkets egen src är grön", [ordvakt, "src"]);
+
+  // ⛔ Golvet: en vakt som blir grön av att inte hitta något är den farligaste
+  // sorten. Den har hänt två gånger i det här repot.
+  kravRott("statusord golv: fel sökväg", [ordvakt, path.join(arbetsmapp, "finns-inte")], "finns inte");
+}
+
+// ── Vakten mot handskrivna månads- och veckodagsnamn ───────────────────────
+{
+  const datumvakt = "scripts/check-datumnamn.mjs";
+
+  /** @param {string} namn @param {string} innehall @returns {string} */
+  function datumkatalog(namn, innehall) {
+    const mapp = path.join(arbetsmapp, `datum-${namn}`, "src");
+    fs.mkdirSync(mapp, { recursive: true });
+    fs.writeFileSync(path.join(mapp, "Fil.jsx"), innehall);
+    return mapp;
+  }
+
+  kravRott(
+    "datumnamn 1: en egen månadslista",
+    [datumvakt, datumkatalog("manader", 'export const M = ["januari", "februari", "december"];\n')],
+    "handskrivna datumnamn",
+  );
+
+  kravRott(
+    "datumnamn 2: en egen veckodagsrad",
+    [datumvakt, datumkatalog("dagar", 'export const D = ["Mån", "Tis", "Sön"];\n')],
+    "handskrivna datumnamn",
+  );
+
+  // ⛔ Engelska räknas också. Ramverket ska gå att använda på engelska, och en
+  // handskriven engelsk lista är samma fel med en annan flagga.
+  kravRott(
+    "datumnamn 3: engelska namn är samma fel",
+    [datumvakt, datumkatalog("engelska", 'export const M = ["January", "October"];\n')],
+    "January",
+  );
+
+  // ⛔ Ett datum i en mening är ett exempel, inte en ordlista. Fälls det här får
+  // ingen skriva ned vad som mättes vilken dag.
+  kravGront(
+    "datumnamn 4: ett datum inuti en text går fritt",
+    [datumvakt, datumkatalog("mening", 'export const t = "Mätt 17 september 2026, före ändringen.";\n')],
+  );
+
+  // ⛔ "maj" och "mars" är också ett namn och en planet. Ett ensamt sådant ord
+  // är inte en ordlista, och en vakt som fäller på dem stängs av.
+  kravGront(
+    "datumnamn 5: tvetydiga ord fälls inte ensamma",
+    [datumvakt, datumkatalog("tvetydig", 'export const a = "mars";\nexport const b = "May";\n')],
+  );
+
+  kravGront("datumnamn 6: ramverkets egen src är grön", [datumvakt, "src"]);
+  kravRott("datumnamn golv: fel sökväg", [datumvakt, path.join(arbetsmapp, "finns-inte")], "finns inte");
+}
+
+// ── Vakten över paketets form ──────────────────────────────────────────────
+//
+// ⛔ BARA STRUKTURDELEN PROVAS HÄR. Den tunga delen packar och installerar på
+// riktigt och tar en halv minut; den körs som eget jobb i CI. Strukturdelen är
+// den som fångar utgivningens klassiska fel, att `exports` pekar på en fil som
+// inte ligger i `files`, och den går att plantera.
+{
+  const paketvakt = "scripts/check-paket.mjs";
+
+  /** @param {string} namn @param {Record<string, unknown>} manifest @returns {string} */
+  function paketrot(namn, manifest) {
+    const mapp = path.join(arbetsmapp, `paket-${namn}`);
+    fs.mkdirSync(path.join(mapp, "dist"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "tokens"), { recursive: true });
+    fs.writeFileSync(path.join(mapp, "tokens", "tokens.css"), ":root {}\n");
+    fs.writeFileSync(path.join(mapp, "CHANGELOG.md"), `## ${manifest.version}\n\nNågot.\n`);
+    fs.writeFileSync(path.join(mapp, "package.json"), JSON.stringify(manifest, null, 2));
+    return mapp;
+  }
+
+  const HEL = {
+    name: "@staiger/prov",
+    version: "1.2.3",
+    files: ["dist", "tokens"],
+    exports: { ".": { types: "./dist/types/index.d.ts", default: "./dist/index.js" }, "./tokens.css": "./tokens/tokens.css" },
+  };
+
+  kravGront("paket 0: ett helt manifest är grönt", [paketvakt, paketrot("helt", HEL), "--struktur"]);
+
+  // ⛔ Utgivningens klassiska fel: ingången finns i arbetskopian men inte i
+  // tarbollen. Allt är grönt i repot och paketet är tomt hos den som installerar.
+  kravRott(
+    "paket 1: en ingång som inte täcks av files",
+    [paketvakt, paketrot("otackt", { ...HEL, files: ["tokens"] }), "--struktur"],
+    "inte täcks av \"files\"",
+  );
+
+  kravRott(
+    "paket 2: en post i files som inte finns på disk",
+    [paketvakt, paketrot("saknad", { ...HEL, files: ["dist", "tokens", "skills"] }), "--struktur"],
+    "som inte finns",
+  );
+
+  kravRott(
+    "paket 3: en version som inte är semver",
+    [paketvakt, paketrot("version", { ...HEL, version: "0.17" }), "--struktur"],
+    "inte semver",
+  );
+
+  // ⛔ En utgivning utan anteckningar är en version ingen kan välja att hoppa
+  // över. Taggen sätts långt efter att koden skrevs.
+  {
+    const mapp = paketrot("logg", HEL);
+    fs.writeFileSync(path.join(mapp, "CHANGELOG.md"), "## 9.9.9\n\nFel version.\n");
+    kravRott("paket 4: versionen saknar avsnitt i ändringsloggen", [paketvakt, mapp, "--struktur"], "ingen rubrik");
+  }
+
+  kravGront("paket 5: ramverkets eget manifest är grönt", [paketvakt, rot, "--struktur"]);
+  kravRott("paket golv: fel sökväg", [paketvakt, path.join(arbetsmapp, "finns-inte"), "--struktur"], "finns inte");
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");

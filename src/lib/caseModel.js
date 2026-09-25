@@ -59,12 +59,17 @@
 const MAX_TITLE_DEFAULT = 120;
 
 /**
- * De lägen en post kan sluta i, plus det den börjar i.
+ * De statusar en post kan sluta i, plus den den börjar i.
  *
- * ⛔ TVÅ SLUTLÄGEN, INTE ETT. "Hanterad" betyder att något gjordes, "avskriven"
- * att någon tagit ställning till att inget skulle göras. Utan det andra läget
- * blir en medveten nedprioritering omöjlig att skilja från en glömska, och båda
- * ser ut som en post som slutat röra sig.
+ * ⛔ TVÅ SLUTSTATUSAR, INTE EN. "Hanterad" betyder att något gjordes,
+ * "avskriven" att någon tagit ställning till att inget skulle göras. Utan den
+ * andra blir en medveten nedprioritering omöjlig att skilja från en glömska,
+ * och båda ser ut som en post som slutat röra sig.
+ *
+ * ⛔ VÄRDENA ÄNDRAS INTE. "ny", "hanterad" och "avskriven" står i Firestore på
+ * varje post som finns. Ett ordbyte i gränssnittet är inte en datamigrering,
+ * och den dagen de två blandas ihop blir bytet av ett ord ett fält som inte
+ * går att läsa (CP 2026-09-25, cllp/bolag-ops#359).
  */
 const STATES = Object.freeze({ NEW: "ny", HANDLED: "hanterad", DISMISSED: "avskriven" });
 
@@ -86,7 +91,7 @@ const DAY_MS = 86400000;
 function missingAtCloseInternal(state, resultat) {
   const error = [];
   if (state !== STATES.HANDLED && state !== STATES.DISMISSED) {
-    error.push(`Avslut kräver läget "${STATES.HANDLED}" eller "${STATES.DISMISSED}".`);
+    error.push(`Avslut kräver statusen "${STATES.HANDLED}" eller "${STATES.DISMISSED}".`);
     return error;
   }
   const not = String((resultat || {}).not || "").trim();
@@ -253,7 +258,17 @@ export function createCaseModel(config) {
       };
     },
 
-    /** Lägesnamnen, så appen slipper skriva strängarna själv. */
+    /** Statusnamnen, så appen slipper skriva strängarna själv. */
+    STATUS: STATES,
+
+    /**
+     * @deprecated Heter `STATUS` sedan cllp/ops-framework#94. Tas bort tidigast
+     * när bolag-ops pekar på en tagg som har bytt (cllp/bolag-ops#362).
+     *
+     * ⛔ ALIASET ÄR SAMMA FRUSNA OBJEKT, inte en kopia. Två objekt hade kunnat
+     * glida isär, och då hade "samma lista" varit ett påstående i stället för
+     * en identitet.
+     */
     STATES,
 
     /**

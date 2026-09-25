@@ -101,3 +101,24 @@ jobs:
       # `check-scaffold` inte ett bevis, och då vill jag veta det först.
       - run: npm run check:viewport-guard
       - run: npm run check:scaffold
+
+  # ⛔ PACKNINGEN MÅSTE PROVAS PÅ VARJE PR, INTE FÖRST VID TAGGEN.
+  #
+  # Utgivningen (`publish.yml`) kör samma vakt, men då är taggen redan satt och
+  # en tagg är oföränderlig i praktiken: den som hunnit installera den har den.
+  # Ett paket som saknar en fil eller drar in en devDependency ska bli rött
+  # medan det fortfarande är en gren.
+  #
+  # ⛔ EGET JOBB, av samma skäl som scaffold: den packar, installerar i ett tomt
+  # projekt och importerar. Som ett steg i `check` hade den fördröjt varje svar
+  # på typfel.
+  paket:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run check:paket

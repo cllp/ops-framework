@@ -171,26 +171,90 @@ export function perDay(entries) {
 }
 
 /**
- * Månadernas namn, i den form som står i en mening: "17 september".
+ * Språket kalendern talar tills språkvalet per användare finns.
  *
- * ⛔ HÄR OCH INTE I KOMPONENTEN. Rubriken över ett månadsrutnät och rubriken i
- * dagsbubblan är samma ord, och två listor hade glidit isär första gången någon
- * rättade en stavning i den ena.
+ * ⛔ EN BCP-47-STRÄNG, inte ett locale-objekt från ett bibliotek. Resten av
+ * ramverket räknar redan så (`src/lib/format.js`), och två sorters språkvärde
+ * i samma paket blir två sorters språkval i varje app som använder det.
+ *
+ * Fas 2 i cllp/ops-framework#92 ger användaren valet. Till dess är förvalet
+ * svenska, precis som förut, men det är nu ett förval och inte en vägg.
  */
-export const MONTH_NAMES = [
-  "januari",
-  "februari",
-  "mars",
-  "april",
-  "maj",
-  "juni",
-  "juli",
-  "augusti",
-  "september",
-  "oktober",
-  "november",
-  "december",
-];
+export const DEFAULT_LOCALE = "sv-SE";
+
+/** @type {Map<string, string[]>} */
+const manadscache = new Map();
+
+/**
+ * Månadernas namn i ett språk, i den form som står i en mening: "17 september".
+ *
+ * ⛔ UR `Intl`, INTE UR EN EGEN LISTA. En egen lista är tolv ord per språk som
+ * någon ska skriva, stava rätt och hålla i takt, och webbläsaren kan dem redan
+ * för varje språk som finns. Mätt: `sv-SE` ger exakt de tolv ord som stod
+ * hårdkodade här innan, alltså är bytet osynligt på svenska och gratis på
+ * resten (cllp/ops-framework#95).
+ *
+ * ⛔ DEN GAMLA INVÄNDNINGEN STÅR KVAR, den är bara flyttad. Skälet till att
+ * `toLocaleDateString` var förbjudet i `dateText` var att den läser
+ * WEBBLÄSARENS språk, så en dator satt på engelska skrev "October 12" mitt i ett
+ * svenskt gränssnitt. Det som fixade det var aldrig den egna listan, utan att
+ * språket bestäms av appen. Här står det i ett argument.
+ *
+ * ⛔ MELLANLAGRAT PER SPRÅK. `Intl.DateTimeFormat` är dyr att konstruera, och
+ * `monthNames()` anropas en gång per månadsrubrik i en rulle som kan vara
+ * femtio månader lång.
+ *
+ * @param {string} [locale]
+ * @returns {string[]} Tolv namn, januari först.
+ */
+export function monthNames(locale = DEFAULT_LOCALE) {
+  const nyckel = String(locale || DEFAULT_LOCALE);
+  const fanns = manadscache.get(nyckel);
+  if (fanns) return fanns;
+  const fmt = new Intl.DateTimeFormat(nyckel, { month: "long" });
+  // Dag 1 i en månad utan sommartidsbyte: rubriken får aldrig bero på klockan.
+  const namn = Array.from({ length: 12 }, (_, i) => fmt.format(new Date(2021, i, 1)));
+  manadscache.set(nyckel, namn);
+  return namn;
+}
+
+/** @type {Map<string, string[]>} */
+const veckodagscache = new Map();
+
+/**
+ * Veckodagarnas korta namn, måndag först.
+ *
+ * ⛔ MÅNDAG FÖRST OCH INTE SPRÅKETS EGEN VECKOSTART. Rutnätet i `OpsCalendar`
+ * räknar sin första kolumn ur `firstColumn()`, som är måndagsbaserad. Hämtade
+ * raden sin ordning från språket medan rutorna behöll sin, hade varje dag
+ * hamnat under fel rubrik i en engelsk app. Det är ett fel som ser ut som en
+ * kalender: allt står snyggt, och allt är en dag fel.
+ *
+ * ⛔ STOR BOKSTAV PÅTVINGAD. Svenskan skriver veckodagar med liten bokstav, och
+ * `Intl` svarar därefter ("mån"), medan engelskan svarar "Mon". En rubrikrad där
+ * halva paketet är gement och halva versalt ser ut som ett fel, och versalisering
+ * av en redan versal bokstav kostar ingenting.
+ *
+ * ⛔ Mätt 2026-09-25, Node ICU 78.2: `sv-SE` ger mån tis ons tors fre lör sön.
+ * Den gamla hårdkodade raden sade "Tor", `Intl` säger "tors". Det är den korrekta
+ * svenska förkortningen, och kolumnen rymmer den.
+ *
+ * @param {string} [locale]
+ * @returns {string[]} Sju namn, måndag först.
+ */
+export function weekdayNames(locale = DEFAULT_LOCALE) {
+  const nyckel = String(locale || DEFAULT_LOCALE);
+  const fanns = veckodagscache.get(nyckel);
+  if (fanns) return fanns;
+  const fmt = new Intl.DateTimeFormat(nyckel, { weekday: "short" });
+  // 2024-01-01 var en måndag. Sju dagar framåt ger veckan i rätt ordning.
+  const namn = Array.from({ length: 7 }, (_, i) => {
+    const ord = fmt.format(new Date(2024, 0, 1 + i));
+    return ord.charAt(0).toUpperCase() + ord.slice(1);
+  });
+  veckodagscache.set(nyckel, namn);
+  return namn;
+}
 
 /**
  * Datumnyckeln som läsbar rubrik: "2026-10-12" blir "12 oktober".
@@ -200,22 +264,23 @@ export const MONTH_NAMES = [
  * behövs är en bekräftelse på VILKEN dag man träffade. "2026-10-12" är en
  * maskinnyckel och läses som en post, inte som en rubrik.
  *
- * ⛔ INGEN `toLocaleDateString`. Den läser webbläsarens språk, så samma app hade
+ * ⛔ INGEN `toLocaleDateString`. Den läser WEBBLÄSARENS språk, så samma app hade
  * skrivit "October 12" på en dator satt på engelska medan resten av gränssnittet
- * står på svenska. Kalendern har redan sina veckodagar och månadsnamn i koden,
- * och två källor till samma ord glider isär.
+ * står på svenska. Språket är appens beslut och kommer in som argument, aldrig
+ * ur maskinen (cllp/ops-framework#95).
  *
  * ⛔ STRÄNGEN SOM INTE ÄR ETT DATUM GER TILLBAKA SIG SJÄLV i stället för
  * "NaN undefined". En rubrik som skriker är sämre än en som är tråkig.
  *
  * @param {string} key `YYYY-MM-DD`.
+ * @param {string} [locale]
  */
-export function dateText(key) {
+export function dateText(key, locale = DEFAULT_LOCALE) {
   const hit = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key || "");
   if (!hit) return key || "";
   const month = Number(hit[2]) - 1;
   if (month < 0 || month > 11) return key;
-  return `${Number(hit[3])} ${MONTH_NAMES[month]}`;
+  return `${Number(hit[3])} ${monthNames(locale)[month]}`;
 }
 
 /**

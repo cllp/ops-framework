@@ -1,6 +1,6 @@
 {
   "name": "@staiger/ops-framework",
-  "version": "0.16.2",
+  "version": "0.17.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
@@ -35,10 +35,10 @@
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
-    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:node-side && npm run check:config-requirements && npm run check:css-build && npm run check:fonts && npm run check:chart-colors && npm run check:page-frame && npm run check:slider && npm run check:kontrast && npm run check:guards && npm test",
+    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:node-side && npm run check:config-requirements && npm run check:css-build && npm run check:fonts && npm run check:chart-colors && npm run check:page-frame && npm run check:slider && npm run check:kontrast && npm run check:statusord && npm run check:datumnamn && npm run check:paketform && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
-    "check:all": "npm run check && npm run check:viewport-guard && npm run check:scaffold",
+    "check:all": "npm run check && npm run check:viewport-guard && npm run check:scaffold && npm run check:paket",
     "check:exports": "node scripts/check-exports.mjs",
     "check:adoption": "node scripts/check-adoption.mjs",
     "check:types": "npx tsc -p tsconfig.json",
@@ -51,6 +51,10 @@
     "check:page-frame": "node scripts/check-page-frame.mjs",
     "check:slider": "node scripts/check-slider.mjs",
     "check:kontrast": "node scripts/check-kontrast.mjs",
+    "check:statusord": "node scripts/check-statusord.mjs",
+    "check:datumnamn": "node scripts/check-datumnamn.mjs",
+    "check:paketform": "node scripts/check-paket.mjs --struktur",
+    "check:paket": "node scripts/check-paket.mjs",
     "check:viewport-guard": "node scripts/test-viewport-guard.mjs"
   },
   "peerDependencies": {

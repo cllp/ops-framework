@@ -57,7 +57,7 @@ describe("OpsMarkdown", () => {
   });
 
   it("ritar en tabell som en tabell", () => {
-    const { container } = render(<OpsMarkdown text={"| Läge | Färg |\n|---|---|\n| Öppet | gul |"} />);
+    const { container } = render(<OpsMarkdown text={"| Status | Färg |\n|---|---|\n| Öppet | gul |"} />);
     expect(container.querySelectorAll("th").length).toBe(2);
     expect(container.querySelectorAll("td").length).toBe(2);
   });

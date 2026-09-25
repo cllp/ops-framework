@@ -162,7 +162,7 @@ describe("OpsFilterPanel", () => {
           layout="ikoner"
           ariaLabel="Filter"
           groups={[
-            { id: "status", label: "Lägen", allLabel: "Alla lägen", options: [{ value: "oppet", label: "Öppet" }] },
+            { id: "status", label: "Status", allLabel: "Alla statusar", options: [{ value: "oppet", label: "Öppet" }] },
             { id: "tid", label: "När", allLabel: "När som helst", options: [{ value: "7", label: "Inom 7 dagar" }] },
           ]}
           value={choice}
@@ -172,17 +172,17 @@ describe("OpsFilterPanel", () => {
     }
     render(<Prov />);
 
-    const lagen = () => screen.getByRole("button", { name: /^Lägen/ });
+    const status = () => screen.getByRole("button", { name: /^Status/ });
     const when = () => screen.getByRole("button", { name: /^När/ });
-    expect(lagen()).toHaveAttribute("aria-pressed", "false");
+    expect(status()).toHaveAttribute("aria-pressed", "false");
     expect(when()).toHaveAttribute("aria-pressed", "false");
 
-    fireEvent.click(lagen());
+    fireEvent.click(status());
     fireEvent.click(await screen.findByRole("button", { name: "Öppet" }));
 
     // ⛔ Bara den satta lyser. Tändes båda vore raden en lampa i stället för
     // ett besked.
-    expect(screen.getByRole("button", { name: "Lägen: Öppet" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Status: Öppet" })).toHaveAttribute("aria-pressed", "true");
     expect(when()).toHaveAttribute("aria-pressed", "false");
   });
 
