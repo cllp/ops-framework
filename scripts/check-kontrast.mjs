@@ -76,7 +76,7 @@ export const PAR = [
      och panelens rader (ops-framework #97). */
   { vad: "räknemärkets siffra", text: "badge-contrast", yta: "badge", niva: BROD },
   /* ⛔ MÄRKET MOT HEADERN. Det sitter på en ikonknapp i headern (`surface`),
-     med en ring i samma färg runt sig, och ska synas som en egen form där. */
+     och ska synas som en egen form där. */
   { vad: "märket mot headern", text: "badge", yta: "surface", niva: GRAFIK },
   /* ⛔ MÄRKET SJÄLVT MOT PANELEN, inte bara siffran i det. Ett märke som går i
      ett med ytan syns inte, hur läsbar siffran i det än är, och det är ett

@@ -12,10 +12,17 @@ import { cx } from "../lib/cx.js";
  * ljus/mörk teman. Och för stor."). Tre ritningar av samma sak i samma rad, och
  * var och en hade sin egen bugg. Därför finns det nu en.
  *
- * ⛔ STORLEKEN: 16 px hög, siffran på typskalans MINSTA steg (`text-xs`) med
- * `tabular-nums`, halvfet och inte fet. Den tidigare 8 px-siffran låg utanför
- * skalan och gick inte att läsa på en telefon; den feta 12 px-siffran med luft
- * runt blev en klump som täckte halva klockan.
+ * ⛔ UTSEENDET ÄR INKORGENS GAMLA MÄRKE, ORD FÖR ORD. CP 2026-09-25 18:10, om
+ * första versionen (#100) som gick på `text-xs` halvfet med ring: "Du tog den
+ * som var ful. Du skulle ta den som var på inkorg innan." Förlagan är
+ * `Counter` i 414c56d: `absolute -top-0.5 -right-0.5 flex h-4 min-w-4
+ * items-center justify-center rounded-full px-0.5 bg-badge text-[8px]
+ * font-bold text-badge-contrast`, ingen ring. De värdena gäller här, för
+ * varje placering. Ändra dem inte mot typskalan utan att CP ser en bild först:
+ * 12 px-siffran var precis den klump han inte ville ha.
+ *
+ * ⛔ Två siffror och "99+" breddar PILLEN (`min-w-4` + `px-0.5`), texten
+ * växer aldrig.
  *
  * ⛔ KAPAS VID 99+. "99+" ryms i samma höjd, och ett märke svarar på "finns det
  * något och ungefär hur mycket", inte på exakt antal. Det RIKTIGA talet står i
@@ -27,10 +34,10 @@ import { cx } from "../lib/cx.js";
  * klumpen CP såg.
  *
  * ⛔ PLACERINGEN:
- *   - `icon`:   på en ikonknapp (44 px). Märket börjar strax till höger om
- *               ikonens mitt och sticker upp över dess hörn, så själva ikonen
- *               syns. Ringen i headerns ytfärg skiljer märket från ikonen.
- *   - `corner`: i hörnet på en flik med text (toppradens destinationer,
+ *   - `icon`:   på en ikonknapp (44 px), i knappens övre högra hörn
+ *               (`-top-0.5 -right-0.5`), som inkorgens märke alltid suttit.
+ *               Ikonen syns, eftersom knappen är större än ikonen.
+ *   - `corner`: samma hörn på en flik med text (toppradens destinationer,
  *               filterknappen).
  *   - `inline`: efter ett ord i en rad (panelens rader).
  *
@@ -47,8 +54,8 @@ export function OpsCountBadge({ count, text = "", placement = "corner", max = 99
     <span
       data-ops-count-badge=""
       className={cx(
-        "flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1",
-        "bg-badge text-xs leading-none font-semibold tabular-nums text-badge-contrast",
+        "flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-0.5",
+        "bg-badge text-[8px] font-bold tabular-nums text-badge-contrast",
         plats,
       )}
     >
@@ -60,8 +67,8 @@ export function OpsCountBadge({ count, text = "", placement = "corner", max = 99
 }
 
 const PLATS = {
-  icon: "pointer-events-none absolute top-1 left-1/2 ml-2 ring-2 ring-surface",
-  corner: "pointer-events-none absolute -top-0.5 -right-0.5 ring-2 ring-surface",
+  icon: "pointer-events-none absolute -top-0.5 -right-0.5",
+  corner: "pointer-events-none absolute -top-0.5 -right-0.5",
   inline: "",
 };
 
