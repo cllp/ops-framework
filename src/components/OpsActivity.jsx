@@ -320,6 +320,8 @@ export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fl
  * @param {string} [props.storageKey] Bara när appen INTE styr läsningen.
  * @param {import("react").ReactNode} [props.icon]
  * @param {import("react").ReactNode} [props.empty]
+ * @param {import("react").ReactNode} [props.filter] Ritas UNDER huvudet och ovanför listan.
+ *   ⛔ Ramverket vet inte vad som är värt att filtrera bort; appen gör det.
  * @param {Date | number} [props.now] Bara för prov.
  */
 export function OpsActivityButton({
@@ -336,6 +338,7 @@ export function OpsActivityButton({
   storageKey,
   icon,
   empty,
+  filter,
   now,
 }) {
   const rader = entries || [];
@@ -453,12 +456,18 @@ export function OpsActivityButton({
       }
     >
       {(nav) => (
-        <OpsActivityList
-          entries={visade}
-          kindLabel={kindLabel}
-          empty={empty}
-          lasning={fryst}
-          onOpen={(h) => {
+        <>
+          {/* ⛔ FILTRET LIGGER OVANFÖR LISTAN OCH INTE I HUVUDET. Det styr vad
+              man ser, och en kontroll som styr ett urval hör hemma intill
+              urvalet. I huvudet hade den konkurrerat med Rensa, som gäller
+              något helt annat. */}
+          {filter ? <div className="mb-2 flex items-center justify-end">{filter}</div> : null}
+          <OpsActivityList
+            entries={visade}
+            kindLabel={kindLabel}
+            empty={empty}
+            lasning={fryst}
+            onOpen={(h) => {
             las(h);
             /* ⛔ DETALJEN ÄR EN VY I SAMMA PANEL, inte en ruta över sidan.
                Skälet i sin helhet står överst i `OpsPanel`. */
@@ -468,10 +477,11 @@ export function OpsActivityButton({
               content: <OpsActivityDetail handelse={h} slagord={kindLabel ? kindLabel(h.slag) : ""} nu={now} />,
             });
           }}
-          fler={fler}
-          onMore={() => setSidor((n) => n + 1)}
-          now={now}
-        />
+            fler={fler}
+            onMore={() => setSidor((n) => n + 1)}
+            now={now}
+          />
+        </>
       )}
     </OpsPanel>
   );

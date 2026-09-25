@@ -174,3 +174,36 @@ describe("⛔ understrecket på fliken med chevron (#90)", () => {
     expect(chevronGrenen).toMatch(/cx\(classes, "gap-0 px-0"\)/);
   });
 });
+
+describe("aktivitetspanelens filterslot", () => {
+  const rader = [{ id: "a", nar: "2026-09-25T09:00:00.000Z", slag: "import", rubrik: "En rad", resultat: "ok" }];
+
+  it("⛔ ritas bara när appen skickar ett, och ovanför listan", async () => {
+    /*
+     * Ramverket vet inte vad som är värt att filtrera bort; appen gör det. En
+     * tom filterrad som alltid finns hade tagit plats i en panel som är kort
+     * med flit.
+     */
+    const { OpsActivityButton } = await import("../components/OpsActivity.jsx");
+    const { unmount } = render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={new Date("2026-09-25T12:00:00.000Z")} />);
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    expect(within(screen.getByRole("dialog")).queryByText("Visa systemhändelser")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <OpsActivityButton
+        entries={rader}
+        lasning={{ sedd: null, lasta: [] }}
+        filter={<span>Visa systemhändelser</span>}
+        now={new Date("2026-09-25T12:00:00.000Z")}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    const panel = screen.getByRole("dialog");
+    expect(within(panel).getByText("Visa systemhändelser")).toBeInTheDocument();
+
+    // Ovanför listan: filtret kommer före första radens rubrik i DOM-ordning.
+    const text = panel.textContent || "";
+    expect(text.indexOf("Visa systemhändelser")).toBeLessThan(text.indexOf("En rad"));
+  });
+});
