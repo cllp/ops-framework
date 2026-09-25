@@ -212,6 +212,21 @@ describe("avslut", () => {
    * kopia, och två frysta kopior går isär första gången någon lägger till en
    * status i den ena. cllp/ops-framework#94.
    */
+  it("tar en skapare, och låter e-poststrängen fungera kvar", () => {
+    /*
+     * ⛔ BÅDA FORMERNA SAMTIDIGT ÄR KRAVET, inte en artighet. Migreringsordningen
+     * i cllp/bolag-ops#377 säger att läsaren måste tåla strängen innan skrivaren
+     * byter. Togs `email` bort här hade varje konsument som inte bytt gått sönder
+     * av en ramverksuppgradering, alltså tvingats byta i samma sekund.
+     */
+    const skapare = { uid: "abc123", namn: "CP", typ: "manniska", kalla: "InboxView" };
+    expect(modell.buildEntry({ typ: "storning", rubrik: "R", text: "T" }, { skapare }).skapadAv).toEqual(skapare);
+    expect(modell.buildEntry({ typ: "storning", rubrik: "R", text: "T" }, { email: "a@b.se" }).skapadAv).toBe("a@b.se");
+    // Skickas båda vinner den nya formen: annars hade en halvbytt anropare
+    // tyst fortsatt skriva strängen.
+    expect(modell.buildEntry({ typ: "storning", rubrik: "R", text: "T" }, { skapare, email: "a@b.se" }).skapadAv).toEqual(skapare);
+  });
+
   it("ger STATUS och det utfasade STATES som samma objekt", () => {
     expect(modell.STATUS).toBe(modell.STATES);
     expect(modell.STATUS).toEqual({ NEW: "ny", HANDLED: "hanterad", DISMISSED: "avskriven" });
