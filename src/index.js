@@ -55,6 +55,7 @@ export { OpsDataView } from "./components/OpsDataView.jsx";
 
 // ── Märkning ───────────────────────────────────────────────────────────────
 export { OpsPill } from "./components/OpsPill.jsx";
+export { OpsCountBadge } from "./components/counter.jsx";
 export { OpsCalendar } from "./components/OpsCalendar.jsx";
 export { OpsStatusDot } from "./components/OpsStatusDot.jsx";
 export { OpsMarkdown } from "./components/OpsMarkdown.jsx";
@@ -101,5 +102,6 @@ export { readCaseFlow } from "./lib/caseFlow.js";
 export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
 export { createCaseModel } from "./lib/caseModel.js";
+export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
 export { createActivityLog, unreadCount, isUnread, unread, unreadRows, activityId, activityWindow, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";

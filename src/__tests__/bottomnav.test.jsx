@@ -504,20 +504,20 @@ describe("OpsAppShell efter mobilomställningen", () => {
     expect(within(bottennav).getAllByTestId("ikon").length).toBeGreaterThan(0);
   });
 
-  it("visar räknaren på fliken och kapar den vid 9+", async () => {
-    // ⛔ Avläst ur SessionStudio: `{n.badge > 9 ? "9+" : n.badge}`. En
-    // tvåsiffrig räknare spränger cirkeln, och exakt antal är inte det fliken
-    // svarar på.
-    const withCounter = NAV.map((p, i) => (i === 1 ? { ...p, badge: 12 } : p));
+  it("visar räknaren på fliken och kapar den vid 99+", async () => {
+    // ⛔ Toppradens flik bär OpsCountBadge (#97), samma märke och tak som
+    // inkorgen och klockan. Förr "9+" efter SessionStudio, med en 8 px-siffra i
+    // en cirkel; pillen rymmer två siffror. Bottenradens egen räknare är orörd.
+    const withCounter = NAV.map((p, i) => (i === 1 ? { ...p, badge: 120 } : p));
     render(
       <OpsAppShell brand="X" nav={withCounter} activeHref="/">
         <p>x</p>
       </OpsAppShell>,
     );
     const topNav = screen.getByRole("navigation", { name: "Huvudnavigering" });
-    expect(within(topNav).getAllByText("9+").length).toBeGreaterThan(0);
+    expect(within(topNav).getAllByText("99+").length).toBeGreaterThan(0);
     // Siffran ensam säger inget uppläst, så ordet följer med.
-    expect(within(topNav).getAllByText(/12 nya/).length).toBeGreaterThan(0);
+    expect(within(topNav).getAllByText(/120 nya/).length).toBeGreaterThan(0);
   });
 });
 

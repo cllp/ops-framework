@@ -646,6 +646,9 @@
   --z-base: 0;
   --z-sticky: 100;
   --z-sticky-header: 110;
+  /* Dämpningen bakom en öppen panel på telefon (bolag-ops #363): över allt
+     innehåll, under kromet, så headern och bottenraden inte dämpas. */
+  --z-scrim: 140;
   --z-chrome: 150;
   --z-dropdown: 200;
   --z-overlay: 300;

@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { ChevronHogerIkon, ChevronVansterIkon } from "./icons.jsx";
+import { OpsCountBadge } from "./counter.jsx";
 
 /**
  * En panel med vyer i en stack: rot, undervy, detalj.
@@ -98,10 +99,7 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
            i hörnet på en ikonknapp; i en rad hade den hamnat ovanpå texten.
            Samma tokens, `bg-badge` och `text-badge-contrast`, så siffran ser
            likadan ut var den än står. */
-        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-badge px-1.5 text-xs font-bold text-badge-contrast">
-          {badge}
-          {badgeText ? <span className="sr-only"> {badgeText}</span> : null}
-        </span>
+        <OpsCountBadge count={badge} text={badgeText} placement="inline" />
       ) : null}
       {chevron ? (
         <span aria-hidden="true" className="flex shrink-0 items-center text-ink-muted">
@@ -213,6 +211,20 @@ export function OpsPanel({ trigger, label, title, action, children, open, onOpen
   return (
     <Popover.Root open={oppet} onOpenChange={satt}>
       <Popover.Trigger asChild>{trigger}</Popover.Trigger>
+      {/* Egen portal: Radix portal bär bara ETT barn. */}
+      <Popover.Portal>
+        {/* ⛔ DÄMPNINGEN BAKOM PANELEN PÅ TELEFON (bolag-ops #363). CP: "Menyn
+            krockar med komponenter i bakomliggande panel." Panelen är 22 rem
+            bred och högst 70 % av höjden, så på en telefon syns sidans kort
+            både till höger om den och under dess nederkant, i samma ton som
+            panelens egna rader. Det såg ut som att sidan låg i panelen.
+            Dämpningen skiljer dem åt. Den ligger UNDER kromet (`--z-scrim`),
+            så headern och bottenraden står kvar orörda, och över allt innehåll.
+            Ett tryck på den är ett tryck utanför panelen, och det stänger.
+            ⛔ Bara under md: på bred skärm är panelen en vanlig rullgardin
+            bredvid sin knapp och krockar inte med något. */}
+        <div aria-hidden="true" data-ops-panel-scrim="" className="fixed inset-0 z-(--z-scrim) bg-scrim md:hidden" />
+      </Popover.Portal>
       <Popover.Portal>
         <Popover.Content
           align={align}
@@ -223,7 +235,10 @@ export function OpsPanel({ trigger, label, title, action, children, open, onOpen
              panel på 22 rem i en 360 px vy hänger utanför kanten, och det syns
              bara på en telefon. */
           className={cx(
-            "z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] rounded-md border border-line bg-raised p-1 shadow-md",
+            /* ⛔ `isolate` GER PANELEN EGEN STAPLINGSKONTEXT, så inget i en rad
+               (ett märke med `absolute`, en rullande lista) kan hamna utanför
+               eller under dess kant. `bg-raised` är ogenomskinlig i båda teman. */
+            "isolate z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-md border border-line bg-raised p-1 shadow-lg",
           )}
         >
           {overst ? (

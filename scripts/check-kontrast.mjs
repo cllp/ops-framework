@@ -65,8 +65,19 @@ export const PAR = [
   { vad: "radens detalj", text: "ink-secondary", yta: "raised", niva: BROD },
   { vad: "radens metarad (klockslag, slag)", text: "ink-secondary", yta: "raised", niva: BROD },
   { vad: "dagsrubriken (Idag, I går)", text: "ink-secondary", yta: "raised", niva: BROD },
-  { vad: "chipset Ny", text: "badge-contrast", yta: "badge", niva: BROD },
-  { vad: "räknaren på klockan", text: "badge-contrast", yta: "badge", niva: BROD },
+  /* ⛔ "Ny" ÄR `OpsPill tone="info"`, i Aktivitet OCH i Inkorgen, ur
+     `STATUS_TONES` (bolag-ops #363). `info-bg` är halvgenomskinlig, så den
+     mäts SAMMANSATT över ytan chippet faktiskt ligger på (`bas`), i panelen
+     (`raised`) och i en lista på sidan (`surface`, `canvas`). */
+  { vad: "chipset Ny i panelen", text: "info", yta: "info-bg", bas: "raised", niva: BROD },
+  { vad: "chipset Ny på sidan (surface)", text: "info", yta: "info-bg", bas: "surface", niva: BROD },
+  { vad: "chipset Ny på sidan (canvas)", text: "info", yta: "info-bg", bas: "canvas", niva: BROD },
+  /* ⛔ RÄKNEMÄRKET, `OpsCountBadge`: samma par på klockan, inkorgen, flikarna
+     och panelens rader (ops-framework #97). */
+  { vad: "räknemärkets siffra", text: "badge-contrast", yta: "badge", niva: BROD },
+  /* ⛔ MÄRKET MOT HEADERN. Det sitter på en ikonknapp i headern (`surface`),
+     med en ring i samma färg runt sig, och ska synas som en egen form där. */
+  { vad: "märket mot headern", text: "badge", yta: "surface", niva: GRAFIK },
   /* ⛔ MÄRKET SJÄLVT MOT PANELEN, inte bara siffran i det. Ett märke som går i
      ett med ytan syns inte, hur läsbar siffran i det än är, och det är ett
      KRAV PÅ GRAFIK och därför 3:1 och inte 4,5. */
@@ -154,6 +165,45 @@ function deklarationer(css, prefix) {
 }
 
 /**
+ * `#rrggbb` eller `rgb(a)(...)` som [r, g, b, a].
+ * @param {string} v
+ */
+function rgba(v) {
+  if (v.startsWith("#")) {
+    const h = v.length === 4 ? [...v.slice(1)].map((c) => c + c).join("") : v.slice(1, 7);
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).concat(1);
+  }
+  const d = v.match(/[\d.]+/g)?.map(Number) ?? [];
+  if (d.length < 3) throw new Error(`check-kontrast: förstår inte färgen "${v}".`);
+  return [d[0], d[1], d[2], d[3] ?? 1];
+}
+
+/**
+ * Tokenets färg som hex, sammansatt över `bas` om den är genomskinlig.
+ *
+ * ⛔ EN GENOMSKINLIG YTA HAR INGEN KONTRAST FÖR SIG SJÄLV. `info-bg` är 10 %
+ * blått, och vad det blir beror helt på vad som ligger under. Utan `bas` är en
+ * genomskinlig yta därför ett fel i listan och inte ett tal att gissa.
+ *
+ * @param {Record<string, string>} tokens @param {string} namn @param {string} [bas]
+ * @returns {string | null}
+ */
+export function farg(tokens, namn, bas) {
+  const v = tokens[namn];
+  if (!v) return null;
+  const [r, g, b, a] = rgba(v);
+  let ut = [r, g, b];
+  if (a < 1) {
+    if (!bas) throw new Error(`check-kontrast: --color-${namn} är genomskinlig och paret saknar \`bas\`.`);
+    const under = farg(tokens, bas);
+    if (!under) return null;
+    const u = rgba(under);
+    ut = [r, g, b].map((c, i) => Math.round(c * a + u[i] * (1 - a)));
+  }
+  return "#" + ut.map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+/**
  * Kontrollerar alla par i ett tema.
  *
  * ⛔ ETT SAKNAT TOKEN ÄR ETT EGET FEL OCH INTE "kontrast 0". Skillnaden avgör
@@ -164,13 +214,15 @@ function deklarationer(css, prefix) {
 export function granska(tokens, tema) {
   const brott = [];
   for (const p of PAR) {
-    for (const roll of ["text", "yta"]) {
-      if (!tokens[p[roll]]) {
+    for (const roll of ["text", "yta", "bas"]) {
+      if (p[roll] && !tokens[p[roll]]) {
         brott.push(`${tema}: ${p.vad} pekar på --color-${p[roll]}, som inte finns. Ett fantomtoken resolvar till ingenting och texten ärver föräldern.`);
       }
     }
-    if (!tokens[p.text] || !tokens[p.yta]) continue;
-    const kvot = contrast(tokens[p.text], tokens[p.yta]);
+    const t = farg(tokens, p.text);
+    const y = farg(tokens, p.yta, p.bas);
+    if (!t || !y) continue;
+    const kvot = contrast(t, y);
     if (kvot < p.niva) {
       brott.push(`${tema}: ${p.vad} ger ${kvot.toFixed(2)}:1 (${p.text} mot ${p.yta}). Kravet är ${p.niva}:1.`);
     }
@@ -186,8 +238,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const tokens = lasTokens(css, tema);
     brott.push(...granska(tokens, tema));
     for (const p of PAR) {
-      if (tokens[p.text] && tokens[p.yta]) {
-        rader.push(`  ${tema.padEnd(5)} ${p.vad.padEnd(34)} ${contrast(tokens[p.text], tokens[p.yta]).toFixed(2)}:1`);
+      const t = farg(tokens, p.text);
+      const y = farg(tokens, p.yta, p.bas);
+      if (t && y) {
+        rader.push(`  ${tema.padEnd(5)} ${p.vad.padEnd(34)} ${contrast(t, y).toFixed(2)}:1`);
       }
     }
   }

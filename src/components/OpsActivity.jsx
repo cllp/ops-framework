@@ -6,6 +6,9 @@ import { slagKant } from "../lib/slag.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
+import { OpsPill } from "./OpsPill.jsx";
+import { OpsCountBadge } from "./counter.jsx";
+import { STATUS_TONES } from "../lib/statusTone.js";
 
 /**
  * Aktiviteten: vad som kördes, när, och vad det ändrade.
@@ -98,14 +101,12 @@ function Rad({ handelse, slagord, ny, onOpen }) {
           ink-muted`. Samma skala som resten av ramverket. */}
       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         {ny ? (
-          /* ⛔ `bg-badge` OCH INTE `bg-accent`. Det finns en token just för
-             olästa, och den bär sin egen textfärg med godkänd kontrast i båda
-             teman. Den gamla varianten skrev `text-on-accent`, en token som
-             ALDRIG FUNNITS: Tailwind skrev `color: var(--color-on-accent)`,
-             vilket resolvar till ingenting, så texten ärvde. På krämfärgad
-             accent i mörkt tema blev den osynlig, och det var precis det CP
-             rapporterade som "ljust chip med nästan osynlig text". */
-          <span className="rounded-full bg-badge px-1.5 py-px text-xs font-bold text-badge-contrast">Ny</span>
+          /* ⛔ SAMMA TON SOM "Ny" I INKORGEN, ur `STATUS_TONES` (bolag-ops #363).
+             Tidigare ett eget rött chip (`bg-badge`), alltså en andra färg för
+             samma ord. Innan dess `bg-accent text-on-accent`, där den senare
+             aldrig funnits som token: krämfärgat chip med osynlig text i mörkt
+             tema. Paret `info` mot `info-bg` är vaktat i check-kontrast. */
+          <OpsPill tone={STATUS_TONES.ny}>Ny</OpsPill>
         ) : null}
         {/* ⛔ ORDET OCH INTE BARA EN FÄRG. Ett misslyckande som bara syns som en
             röd ton går inte att läsa upp och är osynligt för var tjugonde man. */}
@@ -419,18 +420,13 @@ export function OpsActivityButton({
       )}
     >
       {icon ?? <KlockIkon />}
+      {/* ⛔ SAMMA MÄRKE SOM INKORGENS, `OpsCountBadge` (#97). Här stod en egen
+          pill med fet 12 px-siffra och luft runt, som blev en klump över halva
+          klockan; före det `bg-accent`, alltså kräm i mörkt tema. Namnet på
+          knappen bär redan antalet, så märkets skärmläsartext utelämnas. */}
       {olasta > 0 ? (
-        <span
-          aria-hidden="true"
-          /* ⛔ `bg-badge` / `text-badge-contrast`, tokens som finns och bär
-             godkänd kontrast. Stod tidigare `bg-accent text-on-accent`, och
-             den senare har aldrig funnits som token. */
-          className={cx(
-            "absolute top-1 right-1 min-w-4 rounded-full bg-badge px-1",
-            "text-center text-xs font-bold tabular-nums text-badge-contrast",
-          )}
-        >
-          {olasta > 99 ? "99+" : olasta}
+        <span aria-hidden="true">
+          <OpsCountBadge count={olasta} placement="icon" />
         </span>
       ) : null}
     </button>
