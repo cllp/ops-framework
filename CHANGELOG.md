@@ -9,7 +9,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## Ej utgivet
+## 0.17.1
+
+Släpps för **räknemärkesfixen** (CP 2026-09-25): `v0.17.0` saknar den, så en app
+som pinnar den versionen backar märket på live-sidan.
 
 ### Ändrat
 
@@ -27,6 +30,32 @@ anteckningar är en version ingen kan välja att hoppa över.
   egen staplingskontext och `shadow-lg`.
 - `check-kontrast` mäter genomskinliga ytor sammansatta över sin bas och vaktar
   "Ny" och märket mot headern.
+
+### Tillagt
+
+Följdrättningen till [#93](https://github.com/cllp/ops-framework/issues/93) åker
+med: utan den kostar det ärendet ville uppnå nästan två sekunder per kallstart.
+
+- `createActivityLog` återexporteras ur `@staiger/ops-framework/node`. Den låg
+  bara i huvudingången, så ett Cloud Function som ville skriva en rad i loggen
+  tvingades importera hela webbuntlen. Mätt, Node 20, ur den utgivna tarbollen:
+
+  | import | tid |
+  |---|---|
+  | `@staiger/ops-framework/node` | **8 ms** |
+  | `@staiger/ops-framework` | **1946 ms** |
+
+- `check-node-side` kräver att nodsidan inte når React eller en komponent,
+  varken direkt eller genom en mellanfil.
+
+### Rättat
+
+- ⛔ **`check-node-side` såg inte sidoeffektimporter.** Mönstret matchade
+  `from "x"` och `import("x")` men inte `import "x";`, alltså den form man
+  skriver när man vill åt en bieffekt. Mätt: en planterad `import "react";` i
+  `src/node/index.js` lämnade vakten grön. Gäller båda halvorna av vakten, så
+  en webbfil hade kunnat sidoeffektimportera nodsidan utan att bygget föll.
+- Filhuvudena sade `@staiger/ops-framework/nod`. Ingången heter `/node`.
 
 ---
 
