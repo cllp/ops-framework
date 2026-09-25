@@ -1,0 +1,118 @@
+# Ger ut paketet som en packad tarboll på en GitHub-release, vid varje tagg.
+#
+# ══ ⛔ VARFÖR EN RELEASE-TILLGÅNG OCH INTE ETT REGISTRY ═════════════════
+#
+# Ärendet cllp/ops-framework#93 föreslog GitHub Packages eller Artifact
+# Registry. Kravet i samma ärende är att `bolag-ops/functions` ska kunna
+# installera paketet "utan GitHub-inloggning". Mätt 2026-09-25:
+#
+#   GitHub Packages, publikt paket @github/catalyst, utan token
+#     -> HTTP 401 "authentication token not provided"
+#
+# Alltså faller det förslaget på ärendets eget krav. Artifact Registry har samma
+# egenskap: läsning kräver ett Google-konto som Firebase byggcontainer inte har.
+#
+#   En release-tillgång i ett publikt repo, utan auth
+#     -> HTTP 200
+#
+# ⛔ OCH INTE HELLER EN `github:`-BEROENDE. Repot är publikt sedan 2026-09-16, så
+# den vägen kräver ingen inloggning heller. Men `dist/` är git-ignorerad, alltså
+# skulle en sådan installation köra `prepare`, alltså esbuild och tsc, inne i
+# byggcontainern. Mätt: `git ls-files dist` ger noll filer, medan den installerade
+# kopian i appen har `dist/index.js`. En tarboll är färdigbyggd.
+#
+# ⛔ INGEN NY HEMLIGHET. Jobbet publicerar med `GITHUB_TOKEN`, som finns i varje
+# körning. Ett registry hade krävt en token i Secret Manager, alltså en sak till
+# som går ut och stoppar en deploy den dagen utan att någon minns varför. Samma
+# skäl som står i `firebase-hosting-merge.yml` i bolag-ops om varför en PAT togs
+# bort där.
+name: Publish
+
+on:
+  push:
+    tags:
+      # ⛔ Bara semver. En tagg som heter `v1` eller `release-3` ska inte ge ut
+      # något, eftersom versionen härleds ur taggnamnet och måste gå att jämföra.
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+# ⛔ `contents: write` KRÄVS för att skapa en release, och inget mer. Standard
+# för en tokenrättighet är att lista exakt det som behövs: en `write-all` här
+# hade gett jobbet rätt att skriva i repot, och det ska det inte ha.
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      # ⛔ TAGGEN OCH `package.json` MÅSTE SÄGA SAMMA SAK, och kontrollen står
+      # FÖRE grinden. En tagg som pekar på en annan version än paketet bär ger en
+      # release vars filnamn och vars innehåll inte stämmer överens, och den
+      # felen upptäcks av den som installerar.
+      #
+      # ⛔ TAGGNAMNET GÅR VIA `env` OCH INTERPOLERAS ALDRIG I SKALET. Ett
+      # taggnamn är indata, och indata i ett `run`-block är en väg in i körningen.
+      - name: Taggen matchar versionen
+        env:
+          TAGG: ${{ github.ref_name }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAGG" != "v$VERSION" ]; then
+            echo "Taggen är '$TAGG' men package.json säger '$VERSION'. Utgivningen stoppas." >&2
+            exit 1
+          fi
+          echo "Taggen och versionen är överens: $TAGG"
+
+      # ⛔ HELA GRINDEN FÖRE UTGIVNINGEN, inte bara proven. En tagg är
+      # oföränderlig i praktiken: den som installerat den har den, och en
+      # tillbakadragen version är värre än en som aldrig fanns.
+      - run: npm run check
+
+      # ⛔ Och vakten som packar och installerar på riktigt. Den är det enda
+      # steget som bevisar att just den tarboll som läggs upp går att använda.
+      - run: npm run check:paket
+
+      - name: Packa
+        id: packa
+        run: |
+          mkdir -p utgiven
+          npm pack --pack-destination utgiven
+          echo "fil=$(ls utgiven/*.tgz)" >> "$GITHUB_OUTPUT"
+
+      # ⛔ Anteckningarna hämtas ur CHANGELOG.md och skrivs inte i jobbet. Två
+      # ställen som beskriver samma version glider isär, och det är alltid
+      # releasetexten som blir den som ljuger, eftersom ingen läser om den.
+      - name: Avsnittet ur ändringsloggen
+        env:
+          VERSION_RUBRIK: ${{ github.ref_name }}
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const version = String(process.env.VERSION_RUBRIK || "").replace(/^v/, "");
+            const logg = fs.readFileSync("CHANGELOG.md", "utf8");
+            const rader = logg.split("\n");
+            const start = rader.findIndex((r) => r.trim() === `## ${version}`);
+            if (start < 0) { console.error(`CHANGELOG.md saknar "## ${version}"`); process.exit(1); }
+            const slut = rader.findIndex((r, i) => i > start && /^## /.test(r));
+            const avsnitt = rader.slice(start + 1, slut < 0 ? rader.length : slut).join("\n").trim();
+            fs.writeFileSync("release-text.md", `${avsnitt}\n`);
+          '
+          cat release-text.md
+
+      # ⛔ `gh release create` OCH INTE EN TREDJEPARTSACTION. En action som får
+      # `contents: write` på ett repo är en leverantörskedja till, och `gh` finns
+      # redan på körarna.
+      - name: Skapa releasen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAGG: ${{ github.ref_name }}
+          TARBOLL: ${{ steps.packa.outputs.fil }}
+        run: gh release create "$TAGG" "$TARBOLL" --title "$TAGG" --notes-file release-text.md

@@ -570,6 +570,7 @@ som råkar bryta det råkar minnas.
 | `check-kontrast` | varje text-mot-yta-par komponenterna använder klarar WCAG AA i BÅDA teman, 4,5:1 för brödtext och 3:1 för grafik. ⛔ Finns för att ett FANTOMTOKEN tog sig hela vägen förbi grinden: notischippet skrev `text-on-accent`, och `--color-on-accent` har aldrig funnits. Tailwind skriver då `color: var(--color-on-accent)`, som resolvar till ingenting, så texten ärver föräldern. I ljust tema såg det rimligt ut; i mörkt blev ljus text på krämfärgad yta, och det upptäcktes av en människa med en telefon. `check-token-overrides` läser appens CSS, `check-closed-api` bryr sig om vem som får ta emot `className`, och ingen av dem tittar på om ett token finns. ⛔ Paren står utskrivna och härleds INTE ur klasserna: en parser som gissar vilken bakgrund en text ligger på blir fel i första kapslade fallet, och en vakt som har fel ibland stängs av. ⛔ `ink-muted` ger 3,65:1 mot `raised` och bär därför aldrig information, bara dekor och avstängda kontroller |
 | `check-statusord` | ingen gränssnittssträng kallar en **status** för **läge**. Taxonomin heter Status sedan CP:s beslut 2026-09-25 (cllp/bolag-ops#359), och ett fält som heter `status` i koden men "Läge" på skärmen tvingar varje läsare att hålla två ord för en sak. ⛔ Ordet står på ett sextiotal rader i `src/`, och nästan alla är riktig svenska om något annat: "mörkt läge", "nolläget", "radläget". Vakten använder därför den regel svenskan själv har: är `läge` **efterled** är det ett tillstånd eller en position och går fritt, är det **förled** (`lägesfilter`, `lägesväljare`) eller fristående är det taxonomin och fälls. ⛔ Läser bara stränglitteraler utanför kommentarer, och inga prov: ett resonemang om varför en kontrast mättes i mörkt läge ska inte fälla ett bygge. ⛔ Undantagen bär ett skäl som säger vilken ANNAN betydelse ordet har, och ett undantag som slutat matcha är också rött. ⛔ Går att peka mot en katalog, så bolag-ops kör samma vakt mot sin egen `web/src` |
 | `check-datumnamn` | inga **månads- eller veckodagsnamn skrivna för hand**. `Intl` kan dem i varje språk; en egen lista kan ett, och ramverket hade två (`MONTH_NAMES` och `WEEKDAYS`) som var hela skälet till att kalendern inte gick att visa på engelska. ⛔ Vakten hämtar namnen den letar efter ur `Intl` själv: en vakt mot handskrivna ordlistor som bär en handskriven ordlista missar just den stavning någon kopierade därifrån. ⛔ Fäller bara när HELA strängen är ett namn, så "17 september 2026 mättes" går fritt: ett datum i en text är ett exempel. ⛔ `maj`, `mars` och `March` är undantagna som enskilda ord, eftersom de också är vanliga ord och en planet |
+| `check-paket` | **paketet går att installera och använda av någon som inte har repot.** Packar precis som utgivningen gör, installerar tarbollen i ett TOMT projekt med `--omit=dev` och importerar nodsidan, alltså samma tre steg som Firebase byggcontainer. ⛔ Fångar utgivningens klassiska fel: `exports` pekar på en fil som finns i arbetskopian men inte i tarbollen, så allt är grönt i repot och paketet är tomt hos den som installerar. ⛔ `--omit=dev` är hela provet: en nodsida som råkat importera esbuild eller vitest fungerar i repot och faller vid första anropet i molnet. ⛔ Kräver också att versionen är semver och har ett avsnitt i `CHANGELOG.md`. ⛔ Den bevisar INTE att en Firebase-deploy fungerar, den containern går inte att köra i CI. ⛔ `--struktur` kör bara de billiga reglerna och ligger i `npm run check`; hela vakten är ett eget jobb i CI och ett steg i utgivningen |
 | `check-adoption` | en pågående upprensning går framåt, aldrig bakåt |
 | `test-guards` | **bryter varje regel ovan och kräver rött** |
 
@@ -647,6 +648,37 @@ gör layouten onödigt luftig, eftersom en muspekare är exakt och en tumme inte
 det. Det gäller även ytor som inte ser ut som knappar: en kryssrutas träffyta är
 **hela raden**, inte rutan, och en utfällbar rubrik är 44 px hög även när texten
 är mindre.
+
+---
+
+## Utgivning: taggar, inte SHA:er
+
+Varje tagg `vX.Y.Z` ger en **GitHub-release med en packad tarboll**
+(`.github/workflows/publish.yml`). En konsument installerar den direkt:
+
+```bash
+npm install https://github.com/cllp/ops-framework/releases/download/v0.17.0/staiger-ops-framework-0.17.0.tgz
+```
+
+⛔ **Varför inte ett registry.** Kravet i cllp/ops-framework#93 är att
+`bolag-ops/functions` ska kunna installera paketet utan inloggning, eftersom
+Firebase byggcontainer inte har någon. Mätt 2026-09-25:
+
+| Väg | Utan auth | Varför den inte duger |
+|---|---|---|
+| GitHub Packages | **HTTP 401** mot det publika `@github/catalyst` | läsning kräver token även för publika paket |
+| Artifact Registry | kräver Google-konto | byggcontainern har inget |
+| `github:cllp/ops-framework#v0.17.0` | går, repot är publikt | `dist/` är git-ignorerad, så installationen kör `prepare`, alltså esbuild och tsc, inne i containern |
+| npmjs.com | går | kräver en ny hemlighet (`NPM_TOKEN`) och lägger bolagets gränssnitt publikt |
+| **Release-tillgång** | **HTTP 200** | färdigbyggd, publik, oföränderlig per tagg, och publiceras med `GITHUB_TOKEN` utan en enda ny hemlighet |
+
+⛔ **Taggen sätts av en människa efter merge**, och jobbet vägrar ge ut något om
+`package.json` säger en annan version än taggen. Hela grinden plus `check:paket`
+körs före releasen skapas: en tagg är oföränderlig i praktiken, och en
+tillbakadragen version är värre än en som aldrig fanns.
+
+Anteckningarna hämtas ur `CHANGELOG.md`. Saknas avsnittet för versionen är
+`check-paket` redan röd, långt innan taggen sätts.
 
 ---
 

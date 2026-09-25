@@ -937,6 +937,67 @@ kravRott(
   kravRott("datumnamn golv: fel sökväg", [datumvakt, path.join(arbetsmapp, "finns-inte")], "finns inte");
 }
 
+// ── Vakten över paketets form ──────────────────────────────────────────────
+//
+// ⛔ BARA STRUKTURDELEN PROVAS HÄR. Den tunga delen packar och installerar på
+// riktigt och tar en halv minut; den körs som eget jobb i CI. Strukturdelen är
+// den som fångar utgivningens klassiska fel, att `exports` pekar på en fil som
+// inte ligger i `files`, och den går att plantera.
+{
+  const paketvakt = "scripts/check-paket.mjs";
+
+  /** @param {string} namn @param {Record<string, unknown>} manifest @returns {string} */
+  function paketrot(namn, manifest) {
+    const mapp = path.join(arbetsmapp, `paket-${namn}`);
+    fs.mkdirSync(path.join(mapp, "dist"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "tokens"), { recursive: true });
+    fs.writeFileSync(path.join(mapp, "tokens", "tokens.css"), ":root {}\n");
+    fs.writeFileSync(path.join(mapp, "CHANGELOG.md"), `## ${manifest.version}\n\nNågot.\n`);
+    fs.writeFileSync(path.join(mapp, "package.json"), JSON.stringify(manifest, null, 2));
+    return mapp;
+  }
+
+  const HEL = {
+    name: "@staiger/prov",
+    version: "1.2.3",
+    files: ["dist", "tokens"],
+    exports: { ".": { types: "./dist/types/index.d.ts", default: "./dist/index.js" }, "./tokens.css": "./tokens/tokens.css" },
+  };
+
+  kravGront("paket 0: ett helt manifest är grönt", [paketvakt, paketrot("helt", HEL), "--struktur"]);
+
+  // ⛔ Utgivningens klassiska fel: ingången finns i arbetskopian men inte i
+  // tarbollen. Allt är grönt i repot och paketet är tomt hos den som installerar.
+  kravRott(
+    "paket 1: en ingång som inte täcks av files",
+    [paketvakt, paketrot("otackt", { ...HEL, files: ["tokens"] }), "--struktur"],
+    "inte täcks av \"files\"",
+  );
+
+  kravRott(
+    "paket 2: en post i files som inte finns på disk",
+    [paketvakt, paketrot("saknad", { ...HEL, files: ["dist", "tokens", "skills"] }), "--struktur"],
+    "som inte finns",
+  );
+
+  kravRott(
+    "paket 3: en version som inte är semver",
+    [paketvakt, paketrot("version", { ...HEL, version: "0.17" }), "--struktur"],
+    "inte semver",
+  );
+
+  // ⛔ En utgivning utan anteckningar är en version ingen kan välja att hoppa
+  // över. Taggen sätts långt efter att koden skrevs.
+  {
+    const mapp = paketrot("logg", HEL);
+    fs.writeFileSync(path.join(mapp, "CHANGELOG.md"), "## 9.9.9\n\nFel version.\n");
+    kravRott("paket 4: versionen saknar avsnitt i ändringsloggen", [paketvakt, mapp, "--struktur"], "ingen rubrik");
+  }
+
+  kravGront("paket 5: ramverkets eget manifest är grönt", [paketvakt, rot, "--struktur"]);
+  kravRott("paket golv: fel sökväg", [paketvakt, path.join(arbetsmapp, "finns-inte"), "--struktur"], "finns inte");
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
