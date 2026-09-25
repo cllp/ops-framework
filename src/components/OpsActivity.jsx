@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
 import { activityId, activityWindow, groupByDay, unread, unreadRows } from "../lib/aktivitet.js";
-import { formatDateTime, formatRelativeDate } from "../lib/format.js";
+import { formatDateTime, formatRelativeDate, formatTime } from "../lib/format.js";
+import { slagKant } from "../lib/slag.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { OpsModal } from "./OpsModal.jsx";
+import { OpsPanel } from "./OpsPanel.jsx";
 
 /**
  * Aktiviteten: vad som kördes, när, och vad det ändrade.
@@ -84,29 +85,44 @@ function sparaSedd(key, value) {
  * telefon är ett 12 px stort mål i högerkanten det säkraste sättet att göra en
  * lista som inte går att använda med tummen.
  *
- * @param {{ handelse: any, slagord: string, ny?: boolean, nu?: Date | number, onOpen?: () => void }} props
+ * @param {{ handelse: any, slagord: string, ny?: boolean, onOpen?: () => void }} props
  */
-function Rad({ handelse, slagord, ny, nu, onOpen }) {
+function Rad({ handelse, slagord, ny, onOpen }) {
   const trasig = handelse.resultat === "fel";
 
   const innehall = (
     <>
+      {/* ⛔ RUBRIKEN BÄR VIKTEN ENSAM. CP 2026-09-25: "Rubrik, undertext och
+          metarad har för lika vikt; raderna blir en vägg." Tre nivåer nu:
+          `text-sm font-semibold ink`, `text-sm ink-secondary`, `text-xs
+          ink-muted`. Samma skala som resten av ramverket. */}
       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         {ny ? (
-          <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-on-accent">Ny</span>
+          /* ⛔ `bg-badge` OCH INTE `bg-accent`. Det finns en token just för
+             olästa, och den bär sin egen textfärg med godkänd kontrast i båda
+             teman. Den gamla varianten skrev `text-on-accent`, en token som
+             ALDRIG FUNNITS: Tailwind skrev `color: var(--color-on-accent)`,
+             vilket resolvar till ingenting, så texten ärvde. På krämfärgad
+             accent i mörkt tema blev den osynlig, och det var precis det CP
+             rapporterade som "ljust chip med nästan osynlig text". */
+          <span className="rounded-full bg-badge px-1.5 py-px text-xs font-bold text-badge-contrast">Ny</span>
         ) : null}
         {/* ⛔ ORDET OCH INTE BARA EN FÄRG. Ett misslyckande som bara syns som en
             röd ton går inte att läsa upp och är osynligt för var tjugonde man. */}
-        {trasig ? <span className="text-sm font-semibold text-danger">Gick fel</span> : null}
-        <span className="font-semibold text-ink">{handelse.rubrik}</span>
+        {trasig ? <span className="text-xs font-semibold text-danger">Gick fel</span> : null}
+        <span className="text-sm font-semibold text-ink">{handelse.rubrik}</span>
       </span>
 
       {handelse.detalj ? <span className="text-sm text-ink-secondary">{handelse.detalj}</span> : null}
       {trasig && handelse.fel ? <span className="text-sm text-danger">{handelse.fel}</span> : null}
 
-      <span className="flex flex-wrap items-baseline gap-x-2 text-sm text-ink-muted">
+      <span className="flex flex-wrap items-baseline gap-x-2 text-xs text-ink-secondary">
+        {/* ⛔ KLOCKSLAG, INTE "I DAG". Raden står redan under en dagsrubrik, så
+            dagen är sagd. Med "i dag" på varje rad går två poster samma dag inte
+            att ordna, vilket är just det man vill veta. Det exakta datumet finns
+            kvar i `title` för den som hovrar. */}
         <time dateTime={handelse.nar} title={formatDateTime(handelse.nar)}>
-          {formatRelativeDate(handelse.nar, nu ? { now: nu } : undefined)}
+          {formatTime(handelse.nar)}
         </time>
         {slagord ? (
           <>
@@ -118,22 +134,29 @@ function Rad({ handelse, slagord, ny, nu, onOpen }) {
     </>
   );
 
+  /* ⛔ MATT VÄNSTERKANT PER SLAG, samma som hubbens händelsebubblor. Ett fyllt
+     chip hade krävt en egen ytfärg per slag med godkänd kontrast mot sin text,
+     alltså sex tokens till; kanten bär samma upplysning med noll nya. */
+  const kant = handelse.slag && handelse.slagPlats
+    ? slagKant(handelse.slagPlats, slagord || handelse.slag, "OpsActivityList")
+    : null;
+
   return (
-    <li className="border-t border-divider first:border-t-0">
+    <li className={cx("border-t border-divider first:border-t-0", kant && cx("border-l-2 pl-2", kant))}>
       {onOpen ? (
         <button
           type="button"
           onClick={onOpen}
           className={cx(
-            "flex w-full cursor-pointer flex-col gap-0.5 py-3 text-left",
-            "transition-colors duration-(--duration-fast) ease-standard hover:bg-sunken",
+            "flex w-full cursor-pointer flex-col gap-0.5 rounded-sm px-1 py-2.5 text-left",
+            "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
           )}
         >
           {innehall}
         </button>
       ) : (
-        <span className="flex flex-col gap-0.5 py-3">{innehall}</span>
+        <span className="flex flex-col gap-0.5 px-1 py-2.5">{innehall}</span>
       )}
     </li>
   );
@@ -183,7 +206,7 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
       <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         {fakta.map(([namn, varde]) => (
           <div key={namn} className="contents">
-            <dt className="text-ink-muted">{namn}</dt>
+            <dt className="text-ink-secondary">{namn}</dt>
             <dd className="m-0 text-ink-secondary">{varde}</dd>
           </div>
         ))}
@@ -231,7 +254,7 @@ export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fl
         <section key={a.value}>
           {/* ⛔ EN RIKTIG RUBRIK OCH INTE EN FET RAD. Den som hoppar mellan
               rubriker i en skärmläsare ska kunna gå till "Idag" direkt. */}
-          <h3 className="mb-2 text-sm font-semibold text-ink-muted">{a.label}</h3>
+          <h3 className="mb-2 text-sm font-semibold text-ink-secondary">{a.label}</h3>
           <ul className="m-0 flex list-none flex-col p-0">
             {a.rader.map((h) => (
               <Rad
@@ -239,7 +262,6 @@ export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fl
                 handelse={h}
                 slagord={kindLabel ? kindLabel(h.slag) : ""}
                 ny={lasning ? unread(h, lasning) : false}
-                nu={now}
                 onOpen={onOpen ? () => onOpen(h) : undefined}
               />
             ))}
@@ -260,10 +282,17 @@ export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fl
 /**
  * Klockikonen med sitt märke, listan bakom den, och detaljen bakom listan.
  *
- * ⛔ EN `<button>` OCH EN MODAL, INTE EN SVÄVANDE PANEL. En egen panel måste
- * återuppfinna fokusfällan, Escape och klick-utanför, och gör det oftast fel.
- * `OpsModal` bär dem redan, och på en telefon är en panel som svävar över halva
- * skärmen ändå en modal med extra steg.
+ * ⛔ EN PANEL OCH INTE EN MODAL, och det är en rättelse av mitt eget beslut.
+ * Första versionen valde `OpsModal` med argumentet att en egen panel måste
+ * återuppfinna fokusfällan, Escape och klick-utanför. Premissen var riktig,
+ * slutsatsen fel: `OpsPanel` står på samma Radix-primitiv som menyn och får
+ * alltihop gratis.
+ *
+ * CP 2026-09-25: "Navigeringen är inte bra att det kommer upp en detalj mitt i
+ * skärmen det skall kännas som att man är i samma panel." En modal mörklägger
+ * sidan, flyttar fokus och döljer bakgrunden för skärmläsare. Att göra det för
+ * att visa att ett jobb kört i natt är att avbryta någon för något som inte
+ * kräver ett svar.
  *
  * ⛔ MÄRKET VISAR ETT ANTAL OCH INTE BARA EN PRICK. "Något har hänt" säger inte
  * om det är värt att öppna; tre säger det. Över nittionio står "99+", eftersom
@@ -315,7 +344,6 @@ export function OpsActivityButton({
   const [egenSedd, setEgenSedd] = useState(() => (styrd ? null : lastSedd(storageKey)));
   const [vidOppning, setVidOppning] = useState(/** @type {any} */ (undefined));
   const [open, setOpen] = useState(false);
-  const [visad, setVisad] = useState(/** @type {any} */ (null));
   const [sidor, setSidor] = useState(1);
 
   // ⛔ EN GÅNG, MED `?.`, I STÄLLET FÖR TRE GÅNGER MED `styrd`. `styrd` är
@@ -346,7 +374,6 @@ export function OpsActivityButton({
     if (!nytt) {
       // ⛔ DETALJEN OCH SIDORNA NOLLSTÄLLS VID STÄNGNING. Öppnar man igen vill
       // man se listan från början, inte den rad man råkade läsa sist.
-      setVisad(null);
       setSidor(1);
       return;
     }
@@ -368,73 +395,85 @@ export function OpsActivityButton({
 
   /** @param {any} handelse */
   function las(handelse) {
-    setVisad(handelse);
     // ⛔ ATT ÖPPNA ÄR ATT LÄSA. Appen får veta vilken rad det gäller och lägger
     // den där läsningen bor; utan `onRead` är detaljen bara en vy.
     onRead?.(handelse);
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => oppna(true)}
-        aria-label={olasta > 0 ? `${label}, ${olasta} nya` : label}
-        className={cx(
-          "relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
-          "transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        )}
-      >
-        {icon ?? <KlockIkon />}
-        {olasta > 0 ? (
-          <span
-            aria-hidden="true"
-            className={cx(
-              "absolute top-1 right-1 min-w-4 rounded-full bg-accent px-1",
-              "text-center text-xs font-semibold tabular-nums text-on-accent",
-            )}
-          >
-            {olasta > 99 ? "99+" : olasta}
-          </span>
-        ) : null}
-      </button>
+  /*
+   * ⛔ TRIGGERN ÄR EN EGEN KNAPP SOM PANELEN TAR ÖVER. `OpsPanel` sätter
+   * `asChild`, så Radix lägger sina egna attribut på just det här elementet.
+   * En `<div>` här hade gett en öppnare som inte går att nå med tangentbordet.
+   */
+  const klocka = (
+    <button
+      type="button"
+      aria-label={olasta > 0 ? `${label}, ${olasta} nya` : label}
+      className={cx(
+        "relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
+        "transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+      )}
+    >
+      {icon ?? <KlockIkon />}
+      {olasta > 0 ? (
+        <span
+          aria-hidden="true"
+          /* ⛔ `bg-badge` / `text-badge-contrast`, tokens som finns och bär
+             godkänd kontrast. Stod tidigare `bg-accent text-on-accent`, och
+             den senare har aldrig funnits som token. */
+          className={cx(
+            "absolute top-1 right-1 min-w-4 rounded-full bg-badge px-1",
+            "text-center text-xs font-bold tabular-nums text-badge-contrast",
+          )}
+        >
+          {olasta > 99 ? "99+" : olasta}
+        </span>
+      ) : null}
+    </button>
+  );
 
-      <OpsModal open={open} onOpenChange={oppna} title={visad ? "Aktivitet" : title}>
-        {visad ? (
-          <div className="flex flex-col gap-4">
-            {/* ⛔ TILLBAKA STÅR FÖRST OCH SOM ORD. En pil ensam i ett hörn läses
-                inte upp som "tillbaka till listan", och i en modal är det enda
-                sättet ut utom att stänga hela rutan. */}
-            <OpsButton variant="ghost" onClick={() => setVisad(null)}>
-              Tillbaka till listan
-            </OpsButton>
-            <OpsActivityDetail handelse={visad} slagord={kindLabel ? kindLabel(visad.slag) : ""} nu={now} />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <OpsActivityList
-              entries={visade}
-              kindLabel={kindLabel}
-              empty={empty}
-              lasning={fryst}
-              onOpen={las}
-              fler={fler}
-              onMore={() => setSidor((n) => n + 1)}
-              now={now}
-            />
-            {onClear && visade.length > 0 ? (
-              /* ⛔ RENSA LIGGER SIST OCH ÄR DÄMPAD. Den är sällan det man kom
-                 för, och en knapp som tömmer en lista ska inte ligga där tummen
-                 råkar vara på väg. */
-              <OpsButton variant="ghost" onClick={onClear}>
-                Rensa listan
-              </OpsButton>
-            ) : null}
-          </div>
-        )}
-      </OpsModal>
-    </>
+  return (
+    <OpsPanel
+      trigger={klocka}
+      label={title}
+      title={title}
+      open={open}
+      onOpenChange={oppna}
+      action={
+        onClear && visade.length > 0 ? (
+          /* ⛔ RENSA LIGGER I HUVUDET, INTE SIST I LISTAN. Den gäller hela
+             listan, och en knapp som gäller allt hör hemma där allt börjar.
+             Längst ned låg den dessutom där tummen råkar vara på väg efter en
+             rullning. */
+          <OpsButton variant="ghost" size="sm" onClick={onClear}>
+            Rensa
+          </OpsButton>
+        ) : null
+      }
+    >
+      {(nav) => (
+        <OpsActivityList
+          entries={visade}
+          kindLabel={kindLabel}
+          empty={empty}
+          lasning={fryst}
+          onOpen={(h) => {
+            las(h);
+            /* ⛔ DETALJEN ÄR EN VY I SAMMA PANEL, inte en ruta över sidan.
+               Skälet i sin helhet står överst i `OpsPanel`. */
+            nav.push({
+              key: `detalj-${activityId(h)}`,
+              title: "Aktivitet",
+              content: <OpsActivityDetail handelse={h} slagord={kindLabel ? kindLabel(h.slag) : ""} nu={now} />,
+            });
+          }}
+          fler={fler}
+          onMore={() => setSidor((n) => n + 1)}
+          now={now}
+        />
+      )}
+    </OpsPanel>
   );
 }
 

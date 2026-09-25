@@ -515,7 +515,12 @@
   --dark-scrim: rgba(0, 0, 0, 0.6);
 
   --dark-ink: #e8e4df;
-  --dark-ink-secondary: #8a8580;
+  /* ⛔ LJUSNAD FRÅN #8a8580 (ops-framework#89). Den gamla gav 4,47:1 mot
+   * `--dark-raised`, alltså 0,03 under AA, medan den klarade canvas (5,11) och
+   * surface (4,93). Missen syntes bara på den yta paneler och kort faktiskt
+   * ligger på, vilket är där brödtexten står. #948f89 ger 5,10 mot raised och
+   * lyfter de andra två med. Bevakas av `scripts/check-kontrast.mjs`. */
+  --dark-ink-secondary: #948f89;
   --dark-ink-muted: #6a6560;
   --dark-ink-inverse: #121218;
 
@@ -541,7 +546,19 @@
   --dark-blocked: #e8944a;
   --dark-blocked-bg: rgba(232, 148, 74, 0.14);
   /* SessionStudios --color-status-alert i mörkt läge. */
-  --dark-badge: #ef4444;
+  /* ⛔ SÄNKT FRÅN #ef4444 (ops-framework#89). Märket bär TVÅ krav samtidigt, och
+   * de drar åt olika håll: siffran mot märket (AA 4,5:1) och märket mot ytan
+   * (3:1, det gäller grafik och inte text). Mätt mot `--dark-raised`:
+   *
+   *   #ef4444 + vit text   siffran 3,76  ✗   märket 4,34  ✓
+   *   #ef4444 + #1a1a1a    siffran 4,62  ✓   märket 4,34  ✓   men mörk text på rött
+   *   #dc2626 + vit text   siffran 4,83  ✓   märket 3,38  ✓
+   *
+   * Den sista vann. Vit siffra på rött är formen alla känner igen, och att byta
+   * till mörk text för 0,96 i märkeskontrast är att göra något välkänt konstigt
+   * för en marginal. Bonus: samma röda i båda teman, alltså samma
+   * `--color-status-alert` som SessionStudio. */
+  --dark-badge: #dc2626;
   --dark-badge-contrast: #ffffff;
   --dark-laborera: #e8a45a;
   --dark-laborera-glow: #f0b86a;

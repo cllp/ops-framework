@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { ArrowDownUp, Check, ChevronDown, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
+import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -132,4 +132,23 @@ export function ReglageIkon({ size = 20 }) {
  */
 export function SortIcon({ size = 20 }) {
   return <ArrowDownUp size={size} aria-hidden="true" />;
+}
+
+
+/**
+ * Chevron åt höger. Raden som öppnar en undervy i en panel.
+ *
+ * ⛔ SAMMA FAMILJ SOM `ChevronNedIkon`, alltså lucide och inte en handskriven
+ * svg. Två chevroner i samma panel, en nedåt på en flik och en höger på en rad,
+ * får inte se ut som två olika familjer.
+ *
+ * @param {{ size?: number }} props
+ */
+export function ChevronHogerIkon({ size = 16 }) {
+  return <ChevronRight size={size} aria-hidden="true" />;
+}
+
+/** Tillbaka till föregående vy i en panel. @param {{ size?: number }} props */
+export function ChevronVansterIkon({ size = 16 }) {
+  return <ChevronLeft size={size} aria-hidden="true" />;
 }

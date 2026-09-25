@@ -300,12 +300,11 @@ describe("OpsActivityButton", () => {
     expect(globalThis.localStorage.getItem("prov:aktivitet")).toBe("2026-09-24T12:00:00.000Z");
 
     /*
-     * ⛔ MÄRKET KONTROLLERAS EFTER ATT RUTAN STÄNGTS, och det är inte städnit.
-     * `OpsModal` döljer bakgrunden för skärmläsare medan den är öppen, så knappen
-     * finns inte som roll så länge listan syns. Ett prov som frågade efter den
-     * mitt i hade varit rött för att modalen fungerar.
+     * ⛔ KNAPPEN FINNS KVAR MEDAN PANELEN ÄR ÖPPEN, och det är skillnaden mot
+     * modalen. `OpsModal` dolde bakgrunden för skärmläsare, så den här raden
+     * krävde tidigare att rutan först stängdes. En panel avbryter ingen: sidan
+     * ligger kvar, och triggern är fortfarande en knapp med ett namn.
      */
-    fireEvent.click(within(dialog).getByRole("button", { name: "Stäng" }));
     expect(screen.getByRole("button", { name: "Aktivitet" })).toBeInTheDocument();
   });
 
@@ -607,7 +606,9 @@ describe("OpsActivityButton, lista till detalj", () => {
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
     const dialog = screen.getByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: /Nyast/ }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tillbaka till listan" }));
+    // ⛔ En PIL med ett namn, inte ett ord. Panelen går ett steg tillbaka; ett
+    // kryss hade stängt alltihop.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tillbaka" }));
     expect(within(dialog).getByRole("button", { name: /Äldre/ })).toBeInTheDocument();
   });
 
@@ -629,13 +630,13 @@ describe("OpsActivityButton, lista till detalj", () => {
     // något är värre än ingen knapp.
     const { unmount } = render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={NU} />);
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
-    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Rensa listan" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
     unmount();
 
     let rensat = 0;
     render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} onClear={() => { rensat += 1; }} now={NU} />);
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Rensa listan" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Rensa" }));
     expect(rensat).toBe(1);
   });
 
