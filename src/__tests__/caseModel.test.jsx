@@ -189,9 +189,32 @@ describe("avslut", () => {
     expect(modell.buildClose("hanterad", { not: "Siffran är införd i registret." }).resultat.url).toBeNull();
   });
 
-  it("vägrar avslut till ett läge som inte är ett slutläge", () => {
+  it("vägrar avslut till en status som inte är en slutstatus", () => {
     expect(modell.missingAtClose("ny", { not: "x" })).toHaveLength(1);
     expect(modell.missingAtClose("pahittat", { not: "x" })).toHaveLength(1);
+  });
+
+  /*
+   * ⛔ PROVAR ORDET, INTE BARA ATT DET BLEV ETT FEL. `toHaveLength(1)` ovan var
+   * grönt både före och efter bytet från "läget" till "statusen", alltså kunde
+   * ordet ha bytts tillbaka utan att något blev rött. Vakten
+   * `check-statusord` läser stränglitteraler och hade fångat det, men ett prov
+   * som läser meddelandet som en app faktiskt får det är det andra ögat.
+   */
+  it("säger statusen och inte läget i meddelandet om ett omöjligt avslut", () => {
+    const [meddelande] = modell.missingAtClose("ny", { not: "x" });
+    expect(meddelande).toContain("Avslut kräver statusen");
+    expect(meddelande).not.toMatch(/läge/i);
+  });
+
+  /*
+   * ⛔ IDENTITET, INTE LIKHET. `toEqual` hade varit grönt även om aliaset var en
+   * kopia, och två frysta kopior går isär första gången någon lägger till en
+   * status i den ena. cllp/ops-framework#94.
+   */
+  it("ger STATUS och det utfasade STATES som samma objekt", () => {
+    expect(modell.STATUS).toBe(modell.STATES);
+    expect(modell.STATUS).toEqual({ NEW: "ny", HANDLED: "hanterad", DISMISSED: "avskriven" });
   });
 
   it("kastar i stället för att skriva något halvt", () => {

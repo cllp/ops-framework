@@ -613,7 +613,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort }) {
  * @param {object} props
  * @param {import("../lib/calendar.js").CalendarEntry[]} props.entries Daterade poster. Odaterat hör inte hemma här.
  * @param {string} props.ariaLabel ⛔ Krävs: ett rutnät med tal är osynligt för den som inte ser det.
- * @param {Record<string, string>} [props.statusWords] Appens ord per läge, som i `OpsEventList`.
+ * @param {Record<string, string>} [props.statusWords] Appens ord per status, som i `OpsEventList`.
  *   ⛔ Ramverket äger färgerna och appen orden: bara appen vet vad `waiting` betyder hos just den.
  * @param {number} [props.monthsBack] Standard 1. ⛔ Inte tolv: en bolagskalender har få poster bakåt,
  *   och varje månad är ett rutnät till att rita och rulla förbi.

@@ -832,6 +832,61 @@ kravRott(
   kravGront("reglage 5: den riktiga tokenfilen är grön", [reglagevakt, "tokens/tokens.css"]);
 }
 
+// ── Vakten mot ordet Läge där taxonomin heter Status ───────────────────────
+//
+// ⛔ DEN HÄR VAKTEN ÄR LÄTTARE ATT SKRIVA FEL ÄN DE ANDRA, eftersom den handlar
+// om svenska och inte om struktur. Två fel ligger nära: att fälla på "mörkt
+// läge" och "nolläget", som är riktig svenska om något annat, och att missa
+// "lägesfiltret" för att ordet sitter ihop med nästa. Därför provas båda
+// riktningarna, inte bara att ett brott blir rött.
+{
+  const ordvakt = "scripts/check-statusord.mjs";
+
+  /** @param {string} namn @param {Record<string, string>} filer @returns {string} */
+  function ordkatalog(namn, filer) {
+    const mapp = path.join(arbetsmapp, `ord-${namn}`, "src", "components");
+    fs.mkdirSync(mapp, { recursive: true });
+    for (const [fil, innehall] of Object.entries(filer)) fs.writeFileSync(path.join(mapp, fil), innehall);
+    return path.join(arbetsmapp, `ord-${namn}`, "src");
+  }
+
+  kravRott(
+    "statusord 1: ett filter som heter Läge",
+    [ordvakt, ordkatalog("filter", { "Filter.jsx": 'export const f = { label: "Läge", allLabel: "Alla lägen" };\n' })],
+    'säger "läge" där taxonomin heter Status',
+  );
+
+  // ⛔ Det svåra fallet: ordet är förled i en sammansättning. En vakt som bara
+  // matchar det fristående ordet hade varit grön här, och just den formen är
+  // den som står i appens hjälptext (cllp/bolag-ops#362).
+  kravRott(
+    "statusord 2: lägesfiltret som sammansatt förled",
+    [ordvakt, ordkatalog("forled", { "Hjalp.jsx": 'export const t = "Det är oftast lägesfiltret som döljer raderna.";\n' })],
+    "lägesfiltret",
+  );
+
+  // ⛔ Motsatsen, och den som avgör om vakten går att leva med: efterled är en
+  // annan betydelse och ska INTE fällas. Blir den här röd är vakten oanvändbar
+  // och stängs av inom en vecka.
+  kravGront(
+    "statusord 3: nolläge och mörkt läge är en annan betydelse",
+    [ordvakt, ordkatalog("efterled", { "Reglage.jsx": 'export const a = "Nolläget är utgångspunkten";\nexport const b = "utvecklingsläge";\nexport const c = "radläget";\n' })],
+  );
+
+  // ⛔ Kommentarer är resonemang, inte gränssnitt. Faller vakten här får ingen
+  // längre skriva ned varför en kontrast mättes i mörkt läge.
+  kravGront(
+    "statusord 4: samma ord i en kommentar går fritt",
+    [ordvakt, ordkatalog("kommentar", { "Kommenterad.jsx": '/* Läge och lägen och lägesfiltret, allt i en kommentar. */\n// Läge här också.\nexport const x = 1;\n' })],
+  );
+
+  kravGront("statusord 5: ramverkets egen src är grön", [ordvakt, "src"]);
+
+  // ⛔ Golvet: en vakt som blir grön av att inte hitta något är den farligaste
+  // sorten. Den har hänt två gånger i det här repot.
+  kravRott("statusord golv: fel sökväg", [ordvakt, path.join(arbetsmapp, "finns-inte")], "finns inte");
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
