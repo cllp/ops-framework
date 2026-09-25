@@ -9,7 +9,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## Ej utgivet
+## 0.17.1
+
+Släpps för **räknemärkesfixen** (CP 2026-09-25): `v0.17.0` saknar den, så en app
+som pinnar den versionen backar märket på live-sidan.
 
 ### Ändrat
 
@@ -28,14 +31,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 - `check-kontrast` mäter genomskinliga ytor sammansatta över sin bas och vaktar
   "Ny" och märket mot headern.
 
----
-
-## 0.17.1
-
-Följdrättning till [#93](https://github.com/cllp/ops-framework/issues/93): utan
-den här kostar det som ärendet ville uppnå nästan två sekunder per kallstart.
-
 ### Tillagt
+
+Följdrättningen till [#93](https://github.com/cllp/ops-framework/issues/93) åker
+med: utan den kostar det ärendet ville uppnå nästan två sekunder per kallstart.
 
 - `createActivityLog` återexporteras ur `@staiger/ops-framework/node`. Den låg
   bara i huvudingången, så ett Cloud Function som ville skriva en rad i loggen
