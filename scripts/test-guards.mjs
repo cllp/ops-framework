@@ -887,6 +887,56 @@ kravRott(
   kravRott("statusord golv: fel sökväg", [ordvakt, path.join(arbetsmapp, "finns-inte")], "finns inte");
 }
 
+// ── Vakten mot handskrivna månads- och veckodagsnamn ───────────────────────
+{
+  const datumvakt = "scripts/check-datumnamn.mjs";
+
+  /** @param {string} namn @param {string} innehall @returns {string} */
+  function datumkatalog(namn, innehall) {
+    const mapp = path.join(arbetsmapp, `datum-${namn}`, "src");
+    fs.mkdirSync(mapp, { recursive: true });
+    fs.writeFileSync(path.join(mapp, "Fil.jsx"), innehall);
+    return mapp;
+  }
+
+  kravRott(
+    "datumnamn 1: en egen månadslista",
+    [datumvakt, datumkatalog("manader", 'export const M = ["januari", "februari", "december"];\n')],
+    "handskrivna datumnamn",
+  );
+
+  kravRott(
+    "datumnamn 2: en egen veckodagsrad",
+    [datumvakt, datumkatalog("dagar", 'export const D = ["Mån", "Tis", "Sön"];\n')],
+    "handskrivna datumnamn",
+  );
+
+  // ⛔ Engelska räknas också. Ramverket ska gå att använda på engelska, och en
+  // handskriven engelsk lista är samma fel med en annan flagga.
+  kravRott(
+    "datumnamn 3: engelska namn är samma fel",
+    [datumvakt, datumkatalog("engelska", 'export const M = ["January", "October"];\n')],
+    "January",
+  );
+
+  // ⛔ Ett datum i en mening är ett exempel, inte en ordlista. Fälls det här får
+  // ingen skriva ned vad som mättes vilken dag.
+  kravGront(
+    "datumnamn 4: ett datum inuti en text går fritt",
+    [datumvakt, datumkatalog("mening", 'export const t = "Mätt 17 september 2026, före ändringen.";\n')],
+  );
+
+  // ⛔ "maj" och "mars" är också ett namn och en planet. Ett ensamt sådant ord
+  // är inte en ordlista, och en vakt som fäller på dem stängs av.
+  kravGront(
+    "datumnamn 5: tvetydiga ord fälls inte ensamma",
+    [datumvakt, datumkatalog("tvetydig", 'export const a = "mars";\nexport const b = "May";\n')],
+  );
+
+  kravGront("datumnamn 6: ramverkets egen src är grön", [datumvakt, "src"]);
+  kravRott("datumnamn golv: fel sökväg", [datumvakt, path.join(arbetsmapp, "finns-inte")], "finns inte");
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");

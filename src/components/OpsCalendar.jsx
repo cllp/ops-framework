@@ -4,7 +4,9 @@ import { kantKlass } from "../lib/kant.js";
 import { slagKant, slagPrick, slagText } from "../lib/slag.js";
 import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import {
-  MONTH_NAMES,
+  DEFAULT_LOCALE,
+  monthNames,
+  weekdayNames,
   dateKey,
   dateText,
   todayKey,
@@ -107,7 +109,11 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
  * ruta man till slut rullar ifrån i stället för att stänga.
  */
 
-const WEEKDAYS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
+/*
+ * ⛔ VECKODAGARNA STOD HÄR SOM SJU STRÄNGAR. Nu kommer de ur `Intl`, som kan dem
+ * i varje språk. Se `weekdayNames` i `src/lib/calendar.js` för varför raden är
+ * måndagsbaserad oavsett vad språket själv tycker (cllp/ops-framework#95).
+ */
 
 /**
  * Hur många märken en ruta ritar innan den börjar räkna i stället.
@@ -321,10 +327,10 @@ function Kryss({ stor = false }) {
  * stängkryss två centimeter till höger, och två knappar med samma verkan får
  * läsaren att leta efter skillnaden.
  *
- * @param {{ dayKey: string, kanTasBort: boolean, onTaBort: (dayKey: string) => void, order: number }} props
+ * @param {{ dayKey: string, kanTasBort: boolean, onTaBort: (dayKey: string) => void, order: number, locale: string }} props
  */
-function Datumpiller({ dayKey, kanTasBort, onTaBort, order }) {
-  const text = dateText(dayKey);
+function Datumpiller({ dayKey, kanTasBort, onTaBort, order, locale }) {
+  const text = dateText(dayKey, locale);
   return (
     <span
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
@@ -363,14 +369,14 @@ function Datumpiller({ dayKey, kanTasBort, onTaBort, order }) {
  * säger vilken av dem just den här posten tillhör. Med tre dagar valda är det
  * enda som skiljer två likadana påminnelser åt.
  *
- * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number }} props
+ * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string }} props
  */
-function Postkort({ dayKey, entry, statusWords, order }) {
+function Postkort({ dayKey, entry, statusWords, order, locale }) {
   const [oppen, setOppen] = useState(false);
   const idBas = useId();
   const panelId = `${idBas}-detaljer`;
 
-  const meta = entry.not ? `${dateText(dayKey)} · ${entry.not}` : dateText(dayKey);
+  const meta = entry.not ? `${dateText(dayKey, locale)} · ${entry.not}` : dateText(dayKey, locale);
 
   /*
    * ⛔ CHEVRONEN FINNS BARA NÄR DET FINNS NÅGOT ATT FÄLLA UT. En pil som öppnar
@@ -546,11 +552,11 @@ function Postkort({ dayKey, entry, statusWords, order }) {
  * `max-h`-behållare som korten. Escape och ett andra tryck i rutnätet är vägar
  * ut som inte kan rulla bort.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, locale: string }} props
  */
-function DayPanel({ days, statusWords, onClose, onTaBort }) {
+function DayPanel({ days, statusWords, onClose, onTaBort, locale }) {
   const flera = days.length > 1;
-  const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey);
+  const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
 
   /*
@@ -574,7 +580,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort }) {
     >
       <div className="flex flex-wrap items-center gap-1.5">
         {days.map((d, i) => (
-          <Datumpiller key={d.dayKey} dayKey={d.dayKey} kanTasBort={flera} onTaBort={onTaBort} order={i} />
+          <Datumpiller key={d.dayKey} dayKey={d.dayKey} kanTasBort={flera} onTaBort={onTaBort} order={i} locale={locale} />
         ))}
         {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad som
             stängs för den som lyssnar sig igenom sidan. */}
@@ -602,6 +608,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort }) {
             entry={p}
             statusWords={statusWords}
             order={days.length + days.slice(0, di).reduce((n, x) => n + x.entries.length, 0) + pi}
+            locale={locale}
           />
         )),
       )}
@@ -620,8 +627,10 @@ function DayPanel({ days, statusWords, onClose, onTaBort }) {
  * @param {number} [props.monthsForward] Standard 3.
  * @param {Date} [props.today] Bara för prov. Produktionen har en klocka.
  * @param {import("react").ReactNode} [props.emptyText] Vad som står när ingen post har datum.
+ * @param {string} [props.locale] BCP-47, standard `sv-SE`. Styr månads- och veckodagsnamn, inget annat.
+ *   ⛔ Rutnätet är måndagsbaserat oavsett språk. Se `weekdayNames` i `src/lib/calendar.js`.
  */
-export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsBack = 1, monthsForward = 3, today, emptyText }) {
+export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsBack = 1, monthsForward = 3, today, emptyText, locale = DEFAULT_LOCALE }) {
   if (!ariaLabel) {
     throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
   }
@@ -769,7 +778,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
         {/* ⛔ Klistrad veckodagsrad. Efter tre månaders rullning är kolumnernas
             betydelse borta, och man räknar sig fram i stället för att läsa. */}
         <div ref={huvudRef} className="sticky top-0 z-(--z-sticky) grid grid-cols-7 gap-1 bg-canvas pt-1 pb-2">
-          {WEEKDAYS.map((d) => (
+          {weekdayNames(locale).map((d) => (
             <span key={d} className="text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
               {d}
             </span>
@@ -786,7 +795,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
             return (
               <div key={`${ar}-${month}`} ref={isCurrentMonth ? todayRef : null}>
                 <h3 className="m-0 mb-2 text-lg font-bold capitalize text-ink font-display">
-                  {MONTH_NAMES[month]} {ar}
+                  {monthNames(locale)[month]} {ar}
                 </h3>
 
                 <div className="grid grid-cols-7 gap-1">
@@ -869,6 +878,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
             statusWords={statusWords}
             onClose={() => setValda([])}
             onTaBort={(n) => setValda((forra) => forra.filter((x) => x !== n))}
+            locale={locale}
           />
         ) : (
           /* ⛔ BARA PÅ BREDA SKÄRMAR. Kolumnen finns redan där och är tom, så en

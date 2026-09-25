@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { DayPicker } from "react-day-picker";
-import { sv } from "react-day-picker/locale";
 import { cx } from "../lib/cx.js";
+import { DEFAULT_LOCALE } from "../lib/calendar.js";
 import { formatDate } from "../lib/format.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
@@ -24,6 +24,19 @@ import { ChevronNedIkon } from "./icons.jsx";
  *
  * Kalenderns beteende, alltså tangentbord, månadsnavigering och veckostart, kommer
  * från react-day-picker. Utseendet är vårt.
+ *
+ * ⛔ SPRÅKET ÄR EN BCP-47-STRÄNG OCH INTE ETT BIBLIOTEKS LOCALE-OBJEKT.
+ *
+ * Här stod `import { sv } from "react-day-picker/locale"`, alltså ett hårdkodat
+ * språk som inte gick att byta utifrån. Att bara göra objektet till en prop hade
+ * löst hälften av problemet och skapat ett nytt: appen hade behövt importera
+ * react-day-pickers språkobjekt för att kunna säga vilket språk den vill ha,
+ * alltså hade ramverkets val av kalenderbibliotek läckt ut i varje app som
+ * använder väljaren. Det är precis det ett stängt API finns för att hindra.
+ *
+ * Månadsrubrik och veckodagsrubrik ritas därför av `Intl` genom `formatters`,
+ * och `locale` är samma sorts sträng som resten av ramverket redan använder
+ * (cllp/ops-framework#95).
  */
 
 /** @param {Date} d @returns {string} */
@@ -54,11 +67,27 @@ function franIso(iso) {
  * @param {boolean} [props.disabled]
  * @param {string} [props.ariaLabel] Bara när väljaren står utanför en OpsField.
  * @param {string} [props.clearLabel]
+ * @param {string} [props.locale] BCP-47, standard `sv-SE`.
  */
-export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", disabled = false, ariaLabel, clearLabel = "Rensa datum" }) {
+export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", disabled = false, ariaLabel, clearLabel = "Rensa datum", locale = DEFAULT_LOCALE }) {
   const [oppen, setOppen] = useState(false);
   const f = useFieldBinding();
   const chosen = franIso(value);
+
+  /*
+   * ⛔ MELLANLAGRADE, för att `Intl.DateTimeFormat` är dyr att konstruera och
+   * `formatWeekdayName` anropas sju gånger per ritning.
+   *
+   * ⛔ Veckodagen är `short` och inte `narrow`. Narrow ger "M T O T F L S" på
+   * svenska, alltså två par som inte går att skilja åt.
+   */
+  const rubriker = useMemo(
+    () => ({
+      manad: new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }),
+      veckodag: new Intl.DateTimeFormat(locale, { weekday: "short" }),
+    }),
+    [locale],
+  );
 
   return (
     <Popover.Root open={oppen} onOpenChange={setOppen}>
@@ -77,7 +106,7 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
           chosen ? "text-ink" : "text-ink-muted",
         )}
       >
-        {chosen ? formatDate(value) : placeholder}
+        {chosen ? formatDate(value, { locale }) : placeholder}
         <ChevronNedIkon />
       </Popover.Trigger>
 
@@ -88,8 +117,14 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
         >
           <DayPicker
             mode="single"
-            locale={sv}
             weekStartsOn={1}
+            formatters={{
+              formatCaption: (m) => rubriker.manad.format(m),
+              formatWeekdayName: (d) => {
+                const ord = rubriker.veckodag.format(d);
+                return ord.charAt(0).toUpperCase() + ord.slice(1);
+              },
+            }}
             showOutsideDays
             selected={chosen}
             month={chosen}
