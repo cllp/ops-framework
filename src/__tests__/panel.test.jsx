@@ -102,7 +102,8 @@ describe("OpsPanelRow", () => {
   it("⛔ säger vad antalet BETYDER, inte bara talet", () => {
     // En trea utan ord är en trea. Ordet ligger som sr-only bredvid siffran.
     render(<OpsPanelRow label="Notiser" badge={3} badgeText="olästa" />);
-    expect(screen.getByText("olästa")).toBeInTheDocument();
+    // Talet och ordet uppläst tillsammans (OpsCountBadge, #97).
+    expect(screen.getByText("3 olästa")).toBeInTheDocument();
   });
 
   it("ritar inget märke på noll", () => {

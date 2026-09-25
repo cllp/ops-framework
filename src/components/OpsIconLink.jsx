@@ -1,5 +1,5 @@
 import { cx } from "../lib/cx.js";
-import { Counter } from "./counter.jsx";
+import { OpsCountBadge } from "./counter.jsx";
 
 /**
  * En destination som en ikon, för åtgärdsklustret längst till höger i toppraden.
@@ -69,7 +69,7 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
       )}
     >
       <span aria-hidden="true">{icon}</span>
-      {count > 0 ? <Counter count={count} text={badgeText} /> : null}
+      {count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" /> : null}
     </a>
   );
 }

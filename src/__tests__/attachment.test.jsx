@@ -199,12 +199,15 @@ describe("OpsIconLink", () => {
     expect(screen.getByRole("link", { namn: "Inkorg" })).toBeInTheDocument();
   });
 
-  it("kapar räknaren vid 9+ men säger det riktiga antalet i uppläsningen", () => {
-    // ⛔ En tvåsiffrig räknare spränger cirkeln. Siffran svarar på "finns det
-    // något", men den som lyssnar ska få veta hur mycket.
-    render(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" badge={42} badgeText="nya" />);
-    expect(screen.getByText("9+")).toBeInTheDocument();
-    expect(screen.getByText("42 nya")).toBeInTheDocument();
+  it("kapar räknaren vid 99+ men säger det riktiga antalet i uppläsningen", () => {
+    // ⛔ OpsCountBadge (#97): samma märke och samma tak som klockans. Två
+    // siffror ryms i pillen, tre gör den bredare än ikonen. Siffran svarar på
+    // "finns det något", men den som lyssnar ska få veta hur mycket.
+    const { rerender } = render(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" badge={42} badgeText="nya" />);
+    expect(screen.getByText("42")).toBeInTheDocument();
+    rerender(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" badge={142} badgeText="nya" />);
+    expect(screen.getByText("99+")).toBeInTheDocument();
+    expect(screen.getByText("142 nya")).toBeInTheDocument();
   });
 
   it("låter appens router ta över klicket i stället för en sidladdning", () => {
