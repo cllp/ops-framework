@@ -60,6 +60,7 @@ export { OpsStatusDot } from "./components/OpsStatusDot.jsx";
 export { OpsMarkdown } from "./components/OpsMarkdown.jsx";
 export { OpsPrompt } from "./components/OpsPrompt.jsx";
 export { OpsActivityButton, OpsActivityDetail, OpsActivityList } from "./components/OpsActivity.jsx";
+export { OpsPanel, OpsPanelHeader, OpsPanelRow } from "./components/OpsPanel.jsx";
 export { OpsTag } from "./components/OpsTag.jsx";
 export { OpsIdentity } from "./components/OpsIdentity.jsx";
 export { OpsProvenance } from "./components/OpsProvenance.jsx";

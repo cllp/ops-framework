@@ -100,13 +100,29 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
    * tumme. På telefon finns ingen topprad: där ligger barnen indragna under
    * föräldern i Mer-arket, som förut.
    */
+  /*
+   * ⛔ UNDERSTRECKET LÅG LÄGRE PÅ DEN HÄR FLIKEN ÄN PÅ DE ANDRA (#90), och
+   * orsaken var min egen konstruktion. Ytterlådan fick `p-0` medan båda barnen
+   * fick `min-h-11` för träffytans skull. Då blev lådan 44 px hög medan en
+   * vanlig flik är `py-2` runt en 20 px rad, alltså 36. `border-b-2` sitter på
+   * lådan, så strecket följde med ned de åtta pixlarna.
+   *
+   * ⛔ LÖSNINGEN ÄR INTE ATT TA BORT TRÄFFYTAN. 44 px är ett tumkrav och står
+   * kvar; den flyttar bara ut ur flödet. Chevronen får samma `py-2` som en
+   * vanlig flik och en osynlig `::after` som sträcker målet till 44 px utan att
+   * röra lådans höjd.
+   *
+   * ⛔ OCH LÅDAN BEHÅLLER SIN EGEN `py-2`. Tas den bort krymper lådan till
+   * barnens höjd igen, och då sitter strecket för HÖGT i stället. Felet byter
+   * bara tecken.
+   */
   return (
-    <span className={cx(classes, "gap-0 p-0")}>
+    <span className={cx(classes, "gap-0 px-0")}>
       <a
         href={entry.href}
         onClick={(e) => onActivate(entry.href, e)}
         aria-current={active ? "page" : undefined}
-        className="inline-flex min-h-11 items-center rounded-l-md px-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
+        className="inline-flex items-center self-stretch rounded-l-md px-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
       >
         {entry.label}
         {counter}
@@ -115,7 +131,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
         <Popover.Trigger
           aria-label={`${submenuLabel} ${entry.label}`}
           className={cx(
-            "inline-flex min-h-11 cursor-pointer items-center rounded-r-md pr-2 pl-0.5",
+            "relative inline-flex cursor-pointer items-center self-stretch rounded-r-md pr-2 pl-0.5",
+            // ⛔ Träffytan, 44 px, utanför flödet. `inset-x-0` täcker chevronens
+            // bredd och `-translate-y-1/2` centrerar den kring raden.
+            "after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 after:content-['']",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
           )}
         >

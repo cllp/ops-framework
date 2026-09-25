@@ -151,6 +151,28 @@ export function formatDateTime(value, choice = {}) {
 }
 
 /**
+ * Bara klockslaget: "11:57".
+ *
+ * ⛔ FINNS FÖR ATT SLIPPA SÄGA DAGEN TVÅ GÅNGER. CP 2026-09-25, om
+ * aktivitetslistan: «Dubblerad tid. Rubriken "Idag" plus "i dag" på varje rad.»
+ * Står raderna redan under en dagsrubrik är dagen sagd, och det raden saknar är
+ * NÄR PÅ DAGEN. Med "i dag" på varje rad går två poster samma dag inte att
+ * ordna, vilket är just det man vill veta.
+ *
+ * ⛔ TVÅ SIFFROR I BÅDA FÄLTEN, via `Intl`. "9:5" är inget klockslag, och
+ * handskriven nollutfyllnad är precis det fel som syns först före klockan tio.
+ *
+ * @param {Date | number | string | null | undefined} value
+ * @param {{ locale?: string }} [choice]
+ * @returns {string}
+ */
+export function formatTime(value, choice = {}) {
+  const d = toDate(value);
+  if (!d) return MISSING;
+  return new Intl.DateTimeFormat(choice.locale ?? LANGUAGE, { hour: "2-digit", minute: "2-digit" }).format(d);
+}
+
+/**
  * Ålder i ord: "i dag", "i går", "för 3 dagar sedan".
  *
  * ⛔ Finns för att en siffra utan ålder alltid läses som färsk. Det är den
