@@ -1,5 +1,5 @@
 /**
- * Ramverkets NODSIDA. Importeras som `@staiger/ops-framework/nod`.
+ * Ramverkets NODSIDA. Importeras som `@staiger/ops-framework/node`.
  *
  * ══ ⛔ VARFÖR EN ANDRA INGÅNG, OCH NÄR NÅGOT FÅR LIGGA HÄR ═══════════════
  *
@@ -26,3 +26,29 @@
 
 export { createCaseMirror } from "./caseMirror.js";
 export { createActivityWriter } from "./aktivitet.js";
+
+/*
+ * ⛔ `createActivityLog` ÅTEREXPORTERAS HÄRIFRÅN, OCH DET ÄR EN MÄTNING OCH INTE
+ * EN BEKVÄMLIGHET.
+ *
+ * `createActivityWriter` kräver en modell, alltså resultatet av
+ * `createActivityLog`. Den låg bara i huvudingången, så ett Cloud Function som
+ * ville skriva en rad i loggen tvingades importera hela webbuntlen.
+ *
+ * Mätt 2026-09-25, Node 20, paketet installerat ur den utgivna tarbollen:
+ *
+ *   import("@staiger/ops-framework/node")   ->     8 ms
+ *   import("@staiger/ops-framework")        ->  1946 ms
+ *
+ * Nästan två sekunder per kallstart, för att en funktion som skriver ETT
+ * dokument skulle ladda React, Radix och en kalender. Det är inte en optimering
+ * att slippa det, det är att inte göra något uppenbart fel.
+ *
+ * ⛔ FILEN ÄR REN. `src/lib/aktivitet.js` importerar ingenting alls, så den här
+ * raden drar inte in webbsidan bakvägen. Provet `nodsidan.test.js` kräver det,
+ * eftersom en framtida import av React där hade gjort mätningen ovan osann utan
+ * att någon märkte det.
+ *
+ * Bakgrund: cllp/ops-framework#93, functions i bolag-ops.
+ */
+export { createActivityLog } from "../lib/aktivitet.js";

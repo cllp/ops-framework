@@ -555,6 +555,60 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
     return mapp;
   };
 
+  /**
+   * En kopia där NODSIDANS ingång är det som planteras.
+   *
+   * @param {string} namn @param {string} nodIndex @param {Record<string, string>} [extra]
+   */
+  const nodsidekopia = (namn, nodIndex, extra = {}) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.mkdirSync(path.join(mapp, "src", "node"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "src", "lib"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "src", "components"), { recursive: true });
+    fs.writeFileSync(path.join(mapp, "src", "node", "index.js"), nodIndex);
+    fs.writeFileSync(path.join(mapp, "src", "node", "nagot.js"), "export const nagot = 1;\n");
+    fs.writeFileSync(path.join(mapp, "src", "lib", "ren.js"), "export const ren = 1;\n");
+    fs.writeFileSync(path.join(mapp, "src", "components", "Knapp.jsx"), 'import "react";\nexport const Knapp = 1;\n');
+    fs.writeFileSync(path.join(mapp, "README.md"), "Dokumenterar nagot och ren.\n");
+    for (const [rel, txt] of Object.entries(extra)) fs.writeFileSync(path.join(mapp, rel), txt);
+    return mapp;
+  };
+
+  // ⛔ SIDOEFFEKTIMPORTEN ÄR DET FALL SOM FAKTISKT SLAPP IGENOM. Mönstret
+  // matchade `from "x"` och `import("x")` men inte `import "x";`, alltså den form
+  // man skriver när man vill åt en bieffekt och inte tänker på vad filen drar
+  // med sig. Mätt: den planterade raden lämnade vakten grön.
+  kravRott(
+    "nodsida 5: sidoeffektimport av react i nodsidan",
+    [nodvakt, nodsidekopia("n5", 'export { nagot } from "./nagot.js";\nimport "react";\n')],
+    "drar in webben",
+  );
+
+  kravRott(
+    "nodsida 6: nodsidan importerar en komponent",
+    [nodvakt, nodsidekopia("n6", 'export { nagot } from "./nagot.js";\nimport { Knapp } from "../components/Knapp.jsx";\nexport const k = Knapp;\n')],
+    "drar in webben",
+  );
+
+  // ⛔ TRANSITIVT, och det är det svåra fallet: nodsidan ser ren ut, och filen
+  // den återexporterar ur drar in React. Exakt den kanten öppnades när
+  // `createActivityLog` började återexporteras ur `src/lib/`.
+  kravRott(
+    "nodsida 7: webben kommer in via en mellanfil",
+    [
+      nodvakt,
+      nodsidekopia("n7", 'export { nagot } from "./nagot.js";\nexport { ren } from "../lib/ren.js";\n', {
+        "src/lib/ren.js": 'import "react";\nexport const ren = 1;\n',
+      }),
+    ],
+    "drar in webben",
+  );
+
+  kravGront(
+    "nodsida 8: en ren nodsida som återexporterar ur lib är grön",
+    [nodvakt, nodsidekopia("n8", 'export { nagot } from "./nagot.js";\nexport { ren } from "../lib/ren.js";\n')],
+  );
+
   kravRott(
     "nodsida 1: körimport från webbsidan",
     [nodvakt, nodkopia("n1", 'import { nagot } from "../node/nagot.js";\nexport const x = nagot;\n')],

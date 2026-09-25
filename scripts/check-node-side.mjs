@@ -94,7 +94,18 @@ const utanfor = alla.filter((f) => !f.startsWith(nodeDir + path.sep) && !arProv(
  * bit. Att missa den formen hade gjort vakten grön för exakt det sätt någon skulle
  * ta sig runt den på.
  */
-const IMPORTMONSTER = /(?:from\s*|import\s*\(\s*)["']([^"']+)["']/g;
+/*
+ * ⛔ SIDOEFFEKTIMPORTEN SAKNADES, OCH DET VAR ETT HÅL I VAKTEN.
+ *
+ * Mönstret matchade `from "x"` och `import("x")`, men INTE `import "x";`, alltså
+ * den form som inte binder något namn. Mätt 2026-09-25: en planterad
+ * `import "react";` i `src/node/index.js` lämnade vakten grön.
+ *
+ * Just den formen är dessutom den mest sannolika i ett läckage, eftersom man
+ * skriver den när man vill åt en bieffekt och inte åt en export, alltså precis
+ * när man inte tänker på vad filen drar med sig.
+ */
+const IMPORTMONSTER = /(?:^|[^\w$.])(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
 
 /**
  * ⛔ TVÅ OLIKA PROBLEM MED SAMMA UTFALL, OCH BESKEDET MÅSTE SKILJA DEM.
@@ -192,6 +203,61 @@ if (provimporter.length > 0) {
 }
 
 if (korimporter.length > 0 || typimporter.length > 0 || provimporter.length > 0) process.exit(1);
+
+// ── Nodsidan får inte dra in webben bakvägen ───────────────────────────────
+//
+// ⛔ MÄTT, INTE ANTAGET. cllp/ops-framework#93: ett Cloud Function som vill
+// skriva en rad i aktivitetsloggen ska importera nodsidan och ingenting mer.
+//
+//   import("@staiger/ops-framework/node")   ->     8 ms
+//   import("@staiger/ops-framework")        ->  1946 ms
+//
+// Skillnaden är React, Radix och en kalender. Nästan två sekunder per
+// kallstart för en funktion som skriver ETT dokument.
+//
+// ⛔ REGELN UTAN VAKTEN HÅLLER INTE. Nodsidan återexporterar `createActivityLog`
+// ur `src/lib/`, alltså finns det redan en kant där en framtida import kan dra
+// in webben utan att någon märker det. Symptomet vore inte ett fel utan en
+// långsammare kallstart, alltså något ingen felsöker.
+//
+// Vakten följer grafen från `src/node/index.js` och kräver att ingenting i den
+// når React eller en komponent.
+{
+  const start = path.join(nodeDir, "index.js");
+  /** @type {Set<string>} */
+  const besokta = new Set();
+  /** @type {{ fil: string, spec: string }[]} */
+  const webbfynd = [];
+  const kokatalog = [start];
+
+  while (kokatalog.length > 0) {
+    const fil = /** @type {string} */ (kokatalog.pop());
+    if (besokta.has(fil) || !fs.existsSync(fil)) continue;
+    besokta.add(fil);
+    const text = fs.readFileSync(fil, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    for (const m of text.matchAll(IMPORTMONSTER)) {
+      const spec = m[1];
+      if (spec.startsWith(".")) {
+        const mal = path.resolve(path.dirname(fil), spec);
+        kokatalog.push(mal);
+        // ⛔ En komponent är webben även om den inte själv skriver `react`.
+        if (mal.startsWith(path.join(src, "components") + path.sep)) webbfynd.push({ fil, spec });
+        continue;
+      }
+      if (spec === "react" || spec === "react-dom" || spec.startsWith("react/") || spec.startsWith("react-dom/") || spec.startsWith("@radix-ui/")) {
+        webbfynd.push({ fil, spec });
+      }
+    }
+  }
+
+  if (webbfynd.length > 0) {
+    console.error("check-node-side: nodsidan drar in webben, alltså React eller en komponent.");
+    for (const f of webbfynd) console.error(`  ${path.relative(bas, f.fil)} importerar "${f.spec}"`);
+    console.error("");
+    console.error("En funktion som skriver ett dokument ska inte ladda ett komponentbibliotek. Mätt: 8 ms mot 1946 ms.");
+    process.exit(1);
+  }
+}
 
 // ── Dokumentationshalvan ───────────────────────────────────────────────────
 

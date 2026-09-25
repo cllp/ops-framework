@@ -30,6 +30,36 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.17.1
+
+Följdrättning till [#93](https://github.com/cllp/ops-framework/issues/93): utan
+den här kostar det som ärendet ville uppnå nästan två sekunder per kallstart.
+
+### Tillagt
+
+- `createActivityLog` återexporteras ur `@staiger/ops-framework/node`. Den låg
+  bara i huvudingången, så ett Cloud Function som ville skriva en rad i loggen
+  tvingades importera hela webbuntlen. Mätt, Node 20, ur den utgivna tarbollen:
+
+  | import | tid |
+  |---|---|
+  | `@staiger/ops-framework/node` | **8 ms** |
+  | `@staiger/ops-framework` | **1946 ms** |
+
+- `check-node-side` kräver att nodsidan inte når React eller en komponent,
+  varken direkt eller genom en mellanfil.
+
+### Rättat
+
+- ⛔ **`check-node-side` såg inte sidoeffektimporter.** Mönstret matchade
+  `from "x"` och `import("x")` men inte `import "x";`, alltså den form man
+  skriver när man vill åt en bieffekt. Mätt: en planterad `import "react";` i
+  `src/node/index.js` lämnade vakten grön. Gäller båda halvorna av vakten, så
+  en webbfil hade kunnat sidoeffektimportera nodsidan utan att bygget föll.
+- Filhuvudena sade `@staiger/ops-framework/nod`. Ingången heter `/node`.
+
+---
+
 ## 0.17.0
 
 Fas 0 i epiken [#92](https://github.com/cllp/ops-framework/issues/92). Första

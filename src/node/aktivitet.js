@@ -33,8 +33,10 @@
  *
  * ══ Användning ══════════════════════════════════════════════════════════
  *
- *   import { createActivityLog } from "@staiger/ops-framework";
- *   import { createActivityWriter } from "@staiger/ops-framework/nod";
+ *   import { createActivityLog, createActivityWriter } from "@staiger/ops-framework/node";
+ *
+ *   ⛔ BÅDA UR NODSIDAN. Huvudingången har också `createActivityLog`, men den
+ *   är webbuntlen: mätt 1946 ms att importera mot nodsidans 8.
  *
  *   const logg = createActivityWriter({
  *     model: createActivityLog({ kinds: SLAG }),
