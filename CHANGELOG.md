@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgivet
+
+### Ändrat
+
+- **Ett räknemärke, `OpsCountBadge`**, för inkorgen, klockan, toppradens flikar
+  och panelens rader ([#97](https://github.com/cllp/ops-framework/issues/97)).
+  16 px högt, `text-xs` med `tabular-nums`, `badge`/`badge-contrast` i båda
+  teman, kapas vid "99+" (tidigare "9+" på inkorgen och flikarna).
+- **"Ny" har en ton**, `STATUS_TONES.ny` (info), i Aktivitet och i appens lista
+  (bolag-ops #363). Aktivitetens eget röda chip är borta.
+- **Panelen på telefon** får en dämpning bakom sig (`--z-scrim`, under kromet),
+  egen staplingskontext och `shadow-lg`.
+- `check-kontrast` mäter genomskinliga ytor sammansatta över sin bas och vaktar
+  "Ny" och märket mot headern.
+
+---
+
 ## 0.17.0
 
 Fas 0 i epiken [#92](https://github.com/cllp/ops-framework/issues/92). Första
