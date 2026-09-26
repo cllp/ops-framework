@@ -159,6 +159,34 @@ describe("inställningsvyn", () => {
     expect(() => render(<OpsKatalogInstallning kategorier={[]} ikoner={[]} onSpara={() => {}} onArkivera={() => {}} />)).toThrow(/ikoner krävs/);
   });
 
+  it("⛔ visar ändringsloggen i samma vy, inte i en egen", () => {
+    /*
+     * En logg man måste leta upp läses aldrig. Den här ska läsas i samma
+     * ögonblick man undrar varför en kategori ser annorlunda ut än i går.
+     */
+    rita({
+      logg: [
+        {
+          handelse: "andrad",
+          id: "uppgift",
+          fore: { id: "uppgift", namn: { sv: "Uppgifter" } },
+          efter: { id: "uppgift", namn: { sv: "Ärenden" } },
+          nar: "2026-09-26T08:00:00.000Z",
+          av: { uid: "u1", namn: "Claes-Philip" },
+        },
+      ],
+    });
+    expect(screen.getByText("Uppgifter döptes om till Ärenden")).toBeInTheDocument();
+    expect(screen.getByText("Claes-Philip")).toBeInTheDocument();
+  });
+
+  it("utan logg ritas ingen tom rubrik", () => {
+    // Tomhet är ett svar, men en rubrik utan innehåll är inte det svaret: den
+    // ser ut som något som inte laddat klart.
+    rita();
+    expect(screen.queryByText("Senaste ändringarna")).toBeNull();
+  });
+
   it("visar namnet på valt språk", () => {
     rita({ sprak: "en" });
     expect(screen.getByText("Tasks")).toBeInTheDocument();

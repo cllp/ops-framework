@@ -70,4 +70,5 @@ export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } fr
  */
 export { FASER, AVSLUTADE_FASER, byggKategori, validateKatalog, valjbara, kategorin, arAvslutad } from "../lib/katalog.js";
 export { SPRAK, RESERVSPRAK, byggNamn, text, arGammalNamn, saknadeSprak } from "../lib/sprak.js";
+export { KONFIGHANDELSER, byggKonfigandring, beskrivKonfigandring, createConfigLog } from "../lib/konfiglogg.js";
 export { createCatalogSource } from "../data/katalogkalla.js";

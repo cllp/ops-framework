@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { byggKategori, FASER, valjbara } from "../lib/katalog.js";
+import { beskrivKonfigandring } from "../lib/konfiglogg.js";
 import { SLAGPLATSER, slagPrick } from "../lib/slag.js";
 import { text } from "../lib/sprak.js";
 import { OpsBanner } from "./OpsBanner.jsx";
@@ -64,8 +65,9 @@ const TOMT = { id: "", sv: "", en: "", farg: SLAGPLATSER[0], ikon: "", fas: "akt
  * @param {(kategori: import("../lib/katalog.js").Kategori, arkiverad: boolean) => void} props.onArkivera
  * @param {string} [props.sprak]
  * @param {string} [props.rubrik]
+ * @param {any[]} [props.logg] Ändringsloggens rader, nyast först. Se `createConfigLog`.
  */
-export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra = false, onSpara, onArkivera, sprak = "sv", rubrik = "Kategorier" }) {
+export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra = false, onSpara, onArkivera, sprak = "sv", rubrik = "Kategorier", logg = [] }) {
   if (!Array.isArray(ikoner) || ikoner.length === 0) {
     throw new Error(
       "OpsKatalogInstallning: ikoner krävs och måste ha minst ett namn. Utan tillåtelselista går det att spara en ikon som inte finns, och den blir en tom ruta i varje vy.",
@@ -164,6 +166,26 @@ export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra
         <div className="flex flex-col gap-2">
           <h3 className="m-0 text-sm text-ink-muted">Arkiverade</h3>
           <OpsList divided ariaLabel="Arkiverade kategorier">{arkiverade.map(rad)}</OpsList>
+        </div>
+      ) : null}
+
+      {/* ⛔ LOGGEN STÅR HÄR OCH INTE I EN EGEN VY. En logg man måste leta upp
+          läses aldrig, och den här ska läsas i samma ögonblick man undrar
+          varför en kategori ser annorlunda ut än i går. */}
+      {logg.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="m-0 text-sm text-ink-muted">Senaste ändringarna</h3>
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+            {logg.slice(0, 5).map((rad) => (
+              <li key={`${rad.id}-${rad.nar}`} className="flex flex-wrap items-baseline gap-x-2 text-sm text-ink-muted">
+                <span className="tabular-nums">{String(rad.nar || "").slice(0, 16).replace("T", " ")}</span>
+                <span className="text-ink">{beskrivKonfigandring(rad, sprak)}</span>
+                {/* ⛔ Vem, när det finns. Utan namnet är loggen en lista över
+                    att något hände, vilket är den halva ingen frågar efter. */}
+                {rad.av && rad.av.namn ? <span>{rad.av.namn}</span> : null}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
 
