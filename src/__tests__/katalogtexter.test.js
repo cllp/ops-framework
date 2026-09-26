@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { byggKategori, texten, validateKatalog } from "../lib/katalog.js";
+import { arAvslutad, byggKategori, texten, validateKatalog } from "../lib/katalog.js";
 import { saknadeSprak } from "../lib/sprak.js";
 
 /**
@@ -155,5 +155,49 @@ describe("vakten mot halva översättningar", () => {
   it("sökvägen pekar på raden i en hel katalog, inte bara på nyckeln", () => {
     const katalog = [bygg({ namn: { sv: "Kvitto", en: "Receipt" }, texter: { row: { sv: "Kvitto" } } })];
     expect(saknadeSprak({ kategorier: katalog })).toEqual(["kategorier.0.texter.row"]);
+  });
+});
+
+describe("sortkatalogen, alltså en katalog utan faser", () => {
+  /*
+   * ⛔ Mätt i cllp/bolag-ops#384: av appens åtta listor är varenda en som
+   * flyttar en SORTLISTA, och `arAvslutad` och `AVSLUTADE_FASER` används
+   * ingenstans i appen. Fasen hör till en STATUSKATALOG, där kategorierna är
+   * stegen i ett flöde.
+   */
+  const SORT = { id: "kvitto", namn: { sv: "Kvitto" }, farg: 1, ikon: "check" };
+
+  it("bygger utan fas, och fältet blir null och inte tom sträng", () => {
+    // null säger "den här katalogen har inga faser". En tom sträng hade sett
+    // ut som en fas någon glömt fylla i.
+    const k = byggKategori(SORT, { ikoner: IKONER, faser: false });
+    expect(k.fas).toBeNull();
+  });
+
+  it("⛔ en fas som ändå skickas in AVVISAS, den ignoreras inte", () => {
+    /*
+     * Vore fas bara valfri kunde två kategorier i samma katalog skilja sig åt,
+     * och då kan ingen vy lita på svaret. Det är katalogen som avgör, inte
+     * raden.
+     */
+    const fel = () => byggKategori({ ...SORT, fas: "aktiv" }, { ikoner: IKONER, faser: false });
+    expect(fel).toThrow(/hör inte hemma i den här katalogen/);
+    expect(fel).toThrow(/sortkatalog/);
+  });
+
+  it("⛔ och en statuskatalog kräver fortfarande sin fas", () => {
+    // Förvalet är oförändrat. Hade det bytt hade varje befintlig katalog tyst
+    // slutat kräva fasen.
+    expect(() => byggKategori(SORT, { ikoner: IKONER })).toThrow(/fas/);
+  });
+
+  it("arAvslutad svarar falskt på en sortkategori i stället för att kasta", () => {
+    const k = byggKategori(SORT, { ikoner: IKONER, faser: false });
+    expect(arAvslutad(k.fas)).toBe(false);
+  });
+
+  it("hela katalogen går igenom utan faser", () => {
+    const katalog = validateKatalog([SORT, { id: "resa", namn: { sv: "Resa" }, farg: 2, ikon: "bell" }], { ikoner: IKONER, faser: false });
+    expect(katalog.map((k) => k.fas)).toEqual([null, null]);
   });
 });

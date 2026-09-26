@@ -91,7 +91,7 @@ export const AVSLUTADE_FASER = /** @type {const} */ (["klar", "avskriven"]);
  * @property {import("./sprak.js").Namn} namn Det som visas.
  * @property {number} farg Palettplats ur `SLAGPLATSER`, aldrig hex.
  * @property {string} ikon Namn ur katalogens tillåtelselista.
- * @property {"ny"|"aktiv"|"vantar"|"klar"|"avskriven"} fas
+ * @property {"ny"|"aktiv"|"vantar"|"klar"|"avskriven"|null} fas `null` i en sortkatalog, se noten i `byggKategori`.
  * @property {number} ordning Lägre först.
  * @property {boolean} arkiverad Går inte att välja för nya poster.
  * @property {Record<string, import("./sprak.js").Namn>} texter Fria, namngivna texter. Se nedan.
@@ -140,10 +140,10 @@ const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
  * och inte data, samma regel som resten av ramverket.
  *
  * @param {Record<string, any>} d
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[] }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean }} [config]
  * @returns {Kategori}
  */
-export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar } = {}) {
+export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true } = {}) {
   const var_ = (/** @type {string} */ falt, /** @type {string} */ skal) =>
     new Error(`${katalog}: ${falt} ${skal}`);
 
@@ -194,8 +194,38 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     );
   }
 
+  /*
+   * ⛔ EN SORTKATALOG HAR INGEN FAS, OCH DET ÄR INTE SAMMA SAK SOM ATT
+   * FÄLTET ÄR VALFRITT (#119).
+   *
+   * Fasen finns för att en vy ska kunna fråga om en rad är klar utan att veta
+   * vad kategorin heter. Det gäller en STATUSKATALOG, där kategorierna är
+   * stegen i ett flöde. I en SORTKATALOG är kategorierna slag av rader
+   * (uppgift, påminnelse, faktum, kvitto), och om en sådan rad är klar avgörs
+   * av radens egen status, aldrig av dess sort.
+   *
+   * Mätt i cllp/bolag-ops#384: av appens åtta listor är varenda en som flyttar
+   * en sortlista, och `arAvslutad` och `AVSLUTADE_FASER` används ingenstans i
+   * appen. Att ändå skriva `fas: "aktiv"` på nio kategorier vore ett påhittat
+   * obligatoriskt värde, och ett sådant är hur ett schema slutar gå att lita
+   * på. Det hade dessutom stått som en rullgardin utan betydelse i
+   * inställningsvyn.
+   *
+   * ⛔ OCH DET ÄR KATALOGEN SOM AVGÖR, INTE RADEN. Vore `fas` bara valfri
+   * kunde två kategorier i samma katalog skilja sig åt, och då kan ingen vy
+   * lita på svaret. Därför avvisas en fas här i stället för att ignoreras.
+   */
+  if (!faser) {
+    if (d.fas !== undefined && d.fas !== null) {
+      throw var_(
+        `fas för "${id}"`,
+        'hör inte hemma i den här katalogen. Den är deklarerad utan faser, alltså en sortkatalog: om en rad är klar avgörs av radens status och inte av dess sort. Ska katalogen ha faser, sätt faser: true.',
+      );
+    }
+  }
+
   const fas = rensa(d.fas);
-  if (!(/** @type {readonly string[]} */ (FASER).includes(fas))) {
+  if (faser && !(/** @type {readonly string[]} */ (FASER).includes(fas))) {
     throw var_(`fas "${fas}" för "${id}"`, `finns inte. Faserna är ramverkets och går inte att lägga till: ${FASER.join(", ")}.`);
   }
 
@@ -206,7 +236,7 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     namn,
     farg,
     ikon,
-    fas: /** @type {Kategori["fas"]} */ (fas),
+    fas: faser ? /** @type {Kategori["fas"]} */ (fas) : null,
     ordning: Number.isFinite(Number(d.ordning)) ? Number(d.ordning) : 0,
     arkiverad: d.arkiverad === true,
     texter,
@@ -309,7 +339,7 @@ export function texten(kategori, nyckel, sprak = "sv") {
  * kvar men inte dess verkan.
  *
  * @param {unknown} kategorier
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[] }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean }} [config]
  * @returns {Kategori[]}
  */
 export function validateKatalog(kategorier, config = {}) {

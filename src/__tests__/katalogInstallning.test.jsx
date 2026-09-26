@@ -278,3 +278,42 @@ describe("texterna i inställningsvyn", () => {
     expect(screen.queryByText(/Texter, alltså/)).toBeNull();
   });
 });
+
+describe("sortkatalogen i inställningsvyn", () => {
+  const SORTER = validateKatalog([{ id: "kvitto", namn: { sv: "Kvitto" }, farg: 1, ikon: "check" }], { ikoner: IKONER, faser: false });
+  const sortvy = (props = {}) => rita({ kategorier: SORTER, faser: false, ...props });
+
+  it("⛔ ritar ingen fasväljare, eftersom fältet inte finns på kategorin", () => {
+    // En rullgardin för något som inte sparas är värre än ingen: den som
+    // väljer i den tror att valet betyder något.
+    sortvy();
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    expect(screen.queryByLabelText(/^Fas/)).toBeNull();
+  });
+
+  it("⛔ ritar ingen tom fas-etikett på raden heller", () => {
+    // En pill utan text är en ruta som ser ut som något som inte laddat klart.
+    sortvy();
+    expect(screen.queryByText("aktiv")).toBeNull();
+    expect(screen.getByText("Kvitto")).toBeInTheDocument();
+  });
+
+  it("sparar en ny kategori utan fas, och valideringen släpper igenom den", () => {
+    const onSpara = vi.fn();
+    sortvy({ onSpara });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0].fas).toBeNull();
+  });
+
+  it("en statuskatalog har kvar sin fasväljare", () => {
+    // Förvalet är oförändrat, annars hade varje befintlig vy tyst tappat den.
+    rita();
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    expect(screen.getByLabelText(/^Fas/)).toBeInTheDocument();
+  });
+});
