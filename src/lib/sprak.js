@@ -105,6 +105,12 @@ export const arGammalNamn = (namn) => typeof namn === "string";
  * är dessutom det som ska bort. Räknades den inte skulle vakten visa noll så
  * länge ingenting alls migrerats, alltså vara som grönast när läget är sämst.
  *
+ * ⛔ OCH ALLT UNDER `texter` RÄKNAS OCKSÅ (#117). Katalogens textpåse bär nio
+ * texter per sort i inkorgen, alltså vida mer ord än namnen. Tittade vakten
+ * bara på nyckeln `namn` skulle den visa noll medan merparten av appens ytor
+ * fortfarande var enspråkiga, vilket är exakt det den finns för att förhindra.
+ * Nyckeln inne i påsen är fri, så det är påsen och inte namnet som känns igen.
+ *
  * @param {unknown} varde Ett namn, en lista eller ett objekt som innehåller namn.
  * @param {string} [prefix]
  * @returns {string[]}
@@ -112,6 +118,13 @@ export const arGammalNamn = (namn) => typeof namn === "string";
 export function saknadeSprak(varde, prefix = "") {
   /** @type {string[]} */
   const ut = [];
+  /** Ett namn saknar språk om det är en sträng, eller har `sv` men inte `en`. */
+  const saknar = (/** @type {unknown} */ n) => {
+    if (typeof n === "string") return Boolean(n.trim());
+    if (!n || typeof n !== "object") return false;
+    return Boolean(rensa(/** @type {any} */ (n).sv)) && !rensa(/** @type {any} */ (n).en);
+  };
+
   const besok = (/** @type {unknown} */ v, /** @type {string} */ vag) => {
     if (typeof v === "string") return;
     if (Array.isArray(v)) {
@@ -125,9 +138,19 @@ export function saknadeSprak(varde, prefix = "") {
       // Ett namn känns igen på att det ÄR ett namn: en sträng där ett namn
       // förväntas, eller ett objekt med sv men utan en.
       if (nyckel === "namn") {
-        if (typeof inre === "string" && inre.trim()) ut.push(nyVag);
-        else if (inre && typeof inre === "object" && rensa(/** @type {any} */ (inre).sv) && !rensa(/** @type {any} */ (inre).en)) ut.push(nyVag);
+        if (saknar(inre)) ut.push(nyVag);
         else besok(inre, nyVag);
+        continue;
+      }
+      /*
+       * ⛔ I PÅSEN ÄR VARJE VÄRDE ETT NAMN, oavsett vad nyckeln heter. Det är
+       * därför påsen och inte nyckeln som känns igen här: `titleHint` säger
+       * ingenting om sin form, men `texter.titleHint` gör det.
+       */
+      if (nyckel === "texter" && inre && typeof inre === "object" && !Array.isArray(inre)) {
+        for (const [textnyckel, text_] of Object.entries(/** @type {Record<string, unknown>} */ (inre))) {
+          if (saknar(text_)) ut.push(`${nyVag}.${textnyckel}`);
+        }
         continue;
       }
       besok(inre, nyVag);

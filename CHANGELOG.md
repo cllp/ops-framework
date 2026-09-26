@@ -9,6 +9,60 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.20.0
+
+Fas 2 fortsätter. Luckan hittades när appens halva
+([cllp/bolag-ops#384](https://github.com/cllp/bolag-ops/issues/384)) skulle
+börja, alltså precis i den ordning som skulle hitta den: ramverket först, appen
+sedan.
+
+### Tillagt
+
+- **`texter` på kategorin** ([#117](https://github.com/cllp/ops-framework/issues/117)).
+  En påse namngivna texter, var och en ett `Namn` och alltså tvåspråkig. Skälet
+  är mätt i appens listor: en kategori behöver plural i filtret ("Uppgifter"),
+  singular på raden ("Uppgift"), en kort form i smala kontroller ("Ekonomi"),
+  och inkorgens sorter dessutom nio hjälptexter var. ⛔ En påse och inte fasta
+  fält, eftersom vilka texter som behövs är appens fråga och inte ramverkets.
+  Ramverket vet inte vad en rubrikhjälp är; det det kan veta är att varje text
+  har svenska.
+- **`textnycklar`, alltså vilka texter katalogen kräver**. Skickas till
+  `validateKatalog`, `byggKategori` och `createCatalogSource`. En kategori som
+  saknar en deklarerad nyckel är rött vid uppstart. ⛔ Utan det kravet är
+  "texterna tappas inte i flytten" ett löfte utan vakt: en kategori som läggs
+  till i inställningsvyn föds då utan hjälptexter, och resultatet är ett
+  formulär med tomma fält och inga exempel, alltså sämre än listan det ersatte.
+- **`texten(kategori, nyckel, sprak)`**. Svarar tom sträng och kastar aldrig,
+  samma val som `beteendet()`: den körs i en vy, på en rad som kan peka på en
+  kategori som hunnit arkiveras, och en vy som kastar där tar ned hela listan i
+  stället för en rad.
+
+### Ändrat
+
+- ⛔ **`byggKategori` AVVISAR OKÄNDA FÄLT i stället för att slänga dem.** Mätt
+  före ändringen: en kategori skriven med `lofte` och `titleHint` högst upp kom
+  ut utan båda, och ingenting kastades. Den som skrev fick en grön uppstart och
+  en tom rad i vyn, alltså letade i vyn efter ett fel som låg i katalogen. Felet
+  säger nu vart texten hör hemma i stället. Det här är den enda ändringen som
+  gör resten omöjlig att göra fel, och det är skälet till att den finns.
+- **`saknadeSprak` räknar också texterna i påsen.** Inkorgens sorter bär nio
+  texter var, alltså vida fler ord än namnen. En vakt som bara tittade på
+  nyckeln `namn` hade visat noll medan merparten av appens ytor fortfarande var
+  enspråkiga, vilket är exakt det den finns för att förhindra.
+- **`OpsKatalogInstallning` både bär och visar texterna.** Vyn byggde förut en
+  ny kategori av formulärets fält och bara dem, så en redigering av en befintlig
+  kategori hade RADERAT dess texter: samma tysta förlust en gång till, men
+  utlöst av en knapp och därmed värre. ⛔ Den ritar också de texter kategorin
+  bär utan att de är deklarerade, eftersom en text som bärs vidare utan att
+  synas är ett läge där vyn ljuger med utelämnande.
+
+⛔ **Bakåtkompatibelt.** `texter` är en tom påse när inget skickas in, och
+`textnycklar` utan värde kräver ingenting. Det som inte är bakåtkompatibelt är
+avvisningen av okända fält, och den är avsiktlig: ett fält som försvann tyst
+förut gör det inte längre.
+
+---
+
 ## 0.19.0
 
 Fas 2 i epiken [#92](https://github.com/cllp/ops-framework/issues/92), ramverkets

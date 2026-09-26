@@ -13,12 +13,21 @@ import { validateKatalog } from "../lib/katalog.js";
  */
 
 const IKONER = ["check", "bell"];
+const TEXTNYCKLAR = [{ nyckel: "lofte", etikett: { sv: "Löfte", en: "Promise" }, hjalp: "Vad som får raden att försvinna." }];
 const KATEGORIER = validateKatalog(
   [
-    { id: "uppgift", namn: { sv: "Uppgifter", en: "Tasks" }, farg: 1, ikon: "check", fas: "aktiv", ordning: 0 },
-    { id: "gammal", namn: { sv: "Gammal sort" }, farg: 2, ikon: "bell", fas: "klar", ordning: 1, arkiverad: true },
+    {
+      id: "uppgift",
+      namn: { sv: "Uppgifter", en: "Tasks" },
+      farg: 1,
+      ikon: "check",
+      fas: "aktiv",
+      ordning: 0,
+      texter: { lofte: { sv: "Försvinner när den är gjord.", en: "Gone when done." } },
+    },
+    { id: "gammal", namn: { sv: "Gammal sort" }, farg: 2, ikon: "bell", fas: "klar", ordning: 1, arkiverad: true, texter: { lofte: "Står kvar." } },
   ],
-  { ikoner: IKONER },
+  { ikoner: IKONER, textnycklar: ["lofte"] },
 );
 
 const rita = (props = {}) =>
@@ -192,5 +201,80 @@ describe("inställningsvyn", () => {
     expect(screen.getByText("Tasks")).toBeInTheDocument();
     // Den utan engelskt namn faller tillbaka på svenskan i stället för att bli tom.
     expect(screen.getByText("Gammal sort")).toBeInTheDocument();
+  });
+});
+
+describe("texterna i inställningsvyn", () => {
+  const medTexter = (props = {}) => rita({ textnycklar: TEXTNYCKLAR, ...props });
+
+  it("⛔ en redigering RADERAR INTE kategorins texter", () => {
+    /*
+     * Vyn byggde förut en ny kategori av formulärets fält och bara dem. Att
+     * spara efter en omdöpning hade därför tömt hjälptexterna, alltså samma
+     * tysta förlust som byggKategori nyss slutade göra, men utlöst av en knapp
+     * och därmed värre: den som tryckte trodde att hen bytte ett namn.
+     */
+    const onSpara = vi.fn();
+    medTexter({ onSpara });
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Ärenden" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0].namn.sv).toBe("Ärenden");
+    expect(onSpara.mock.calls[0][0].texter).toEqual({ lofte: { sv: "Försvinner när den är gjord.", en: "Gone when done." } });
+  });
+
+  it("ritar ett fält per språk för varje deklarerad text, med etiketten appen gav", () => {
+    medTexter();
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    expect(screen.getByLabelText(/^Löfte, svenska/)).toHaveValue("Försvinner när den är gjord.");
+    expect(screen.getByLabelText(/^Löfte, engelska/)).toHaveValue("Gone when done.");
+  });
+
+  it("⛔ en text kategorin bär utan att den är deklarerad ritas också", () => {
+    // En text som bärs vidare utan att synas är ett läge där vyn ljuger med
+    // utelämnande: den som tittar tror att kategorin har de fält som står där.
+    medTexter({ textnycklar: [] });
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    expect(screen.getByLabelText(/^lofte, svenska/)).toHaveValue("Försvinner när den är gjord.");
+  });
+
+  it("⛔ en ny kategori går inte att spara utan de texter katalogen kräver", () => {
+    /*
+     * Det är hela skälet till att kravet finns. Utan det föds en kategori som
+     * lagts till här utan hjälptexter, och resultatet är ett formulär med tomma
+     * fält och inga exempel, alltså sämre än listan det ersatte.
+     */
+    const onSpara = vi.fn();
+    medTexter({ onSpara });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).not.toHaveBeenCalled();
+    expect(screen.getByText(/lofte/)).toBeInTheDocument();
+  });
+
+  it("med texten ifylld sparas den nya kategorin", () => {
+    const onSpara = vi.fn();
+    medTexter({ onSpara });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.change(screen.getByLabelText(/^Löfte, svenska/), { target: { value: "Försvinner när resan är redovisad." } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0].texter).toEqual({ lofte: { sv: "Försvinner när resan är redovisad." } });
+  });
+
+  it("utan deklarerade texter och utan burna ritas ingen tom rubrik", () => {
+    // Tomhet är ett svar, men en rubrik utan innehåll ser ut som något som inte
+    // laddat klart.
+    rita({ kategorier: validateKatalog([{ id: "x", namn: { sv: "X" }, farg: 1, ikon: "check", fas: "ny" }], { ikoner: IKONER }) });
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    expect(screen.queryByText(/Texter, alltså/)).toBeNull();
   });
 });
