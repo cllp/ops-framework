@@ -1,7 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { ChevronHogerIkon, ChevronVansterIkon } from "./icons.jsx";
+import { ChevronHogerIkon, ChevronVansterIkon, KryssIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 
 /**
@@ -21,11 +22,37 @@ import { OpsCountBadge } from "./counter.jsx";
  * döljer bakgrunden för skärmläsare. Gör man det för att visa att ett jobb kört
  * i natt har man avbrutit någon för något som inte kräver ett svar.
  *
- * ══ ⛔ RADIX POPOVER SOM BOTTEN, INTE EN EGEN YTA ═══════════════════════════
+ * ══ ⛔ RADIX SOM BOTTEN, INTE EN EGEN YTA ═══════════════════════════════════
  *
  * Klick utanför, Escape, fokushantering och portalen finns redan och är svåra
- * att få rätt. Menyn i `OpsAppShell` står på samma primitiv, vilket är själva
- * poängen: panelen ska SE UT som menyn för att den är samma sak.
+ * att få rätt. Panelen ska SE UT som menyn, för den är samma sak.
+ *
+ * ══ ⛔ OCH MENYN ÄR INTE SAMMA YTA I BÅDA BREDDERNA ═════════════════════════
+ *
+ * CP 2026-09-26, om notiserna: "Vill ha notisers funktion med inkorgs
+ * utseende. Alltså bara att det är en egen panel och ingen ful dropdown. Den
+ * ser inte ut som i SessionStudio och är inget nice i mobil."
+ *
+ * Regeln ovan var rätt hela tiden. Det var den här filen som inte följde den
+ * under `md`: på bred skärm är menyn en rullgardin i headern, men på smal skärm
+ * är den en SHEET i `OpsBottomNav`. Panelen var en rullgardin i båda, alltså
+ * såg den ut som menyn på datorn och som ingenting alls på telefonen.
+ *
+ * ⛔ EN 22 REM BRED RULLGARDIN I EN 390 PX VY ÄR INTE EN PANEL. Den kapades av
+ * `max-w-[calc(100vw-1.5rem)]`, hängde under klockan med sidan synlig runt om,
+ * och behövde en egen dämpning för att inte läsas som en del av sidan. Alla tre
+ * raderna var lappar på samma sak: ytan var fel.
+ *
+ * ⛔ DÄRFÖR: SHEET UNDER `md`, RULLGARDIN FRÅN `md` OCH UPP. Samma yta som
+ * `OpsBottomNav`s Meny-sheet, ned i minsta detalj (rundad överkant, `bg-raised`,
+ * `85dvh`, `--safe-bottom`), så de två är samma sak och inte två saker som
+ * liknar varandra.
+ *
+ * ⛔ EN RADIX-ROT OCH INTE TVÅ. Att rendera båda och dölja den ena med CSS är
+ * mönstret i `OpsAppShell`, och det duger för en NAV. Här bär panelen en
+ * fokusfälla och en triggerknapp: två rötter hade gett två fokusfällor, två
+ * klockor i DOM:en och dubbletter i varje `getByRole` hos appen som bygger på
+ * ramverket. Valet görs därför i JS, och bara den ena monteras.
  *
  * ══ ⛔ STACKEN ÄGS AV PANELEN, INTE AV APPEN ════════════════════════════════
  *
@@ -136,6 +163,7 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
  * @param {string} props.title
  * @param {(() => void)} [props.onBack] Utan den ritas ingen pil, alltså roten.
  * @param {string} [props.backLabel]
+ * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten (smal skärm).
  * @param {import("react").ReactNode} [props.action]
  */
 export function OpsPanelHeader({ title, onBack, backLabel = "Tillbaka", action }) {
@@ -168,6 +196,49 @@ export function OpsPanelHeader({ title, onBack, backLabel = "Tillbaka", action }
 }
 
 /**
+ * Tailwinds `md`, avläst i JS i stället för i CSS.
+ *
+ * ⛔ TALET ÄR TAILWINDS EGET OCH INTE ETT PÅHITT. `md` är 48rem, så allt under
+ * det är smal skärm. Skrevs ett eget tal här hade panelen bytt yta vid en annan
+ * bredd än resten av skalet, och de två sekunderna mellan brytpunkterna hade
+ * visat en sheet bredvid en headermeny.
+ */
+const SMAL = "(max-width: 47.99rem)";
+
+/**
+ * Om skärmen är smal just nu.
+ *
+ * ⛔ SVARAR `false` NÄR `matchMedia` SAKNAS, alltså i jsdom och under en
+ * serverrendering. Det är det säkra svaret: rullgardinen är den yta som
+ * fungerar utan att veta något om fönstret, och en sheet på en bred skärm är
+ * fel på ett sätt man ser direkt. Prov som vill åt sheeten definierar
+ * `window.matchMedia` själva, och det är med flit: en global stubb i
+ * `setup.js` hade tyst flyttat varje befintligt panelprov till den nya vägen.
+ */
+function useSmalSkarm() {
+  const [smal, setSmal] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const fraga = window.matchMedia(SMAL);
+    setSmal(fraga.matches);
+    /** @param {any} e */
+    const lyssna = (e) => setSmal(Boolean(e.matches));
+    // ⛔ `addEventListener` med `addListener` som reserv. Safari under 14 har
+    // bara den gamla, och en panel som inte byter yta när man vrider telefonen
+    // är precis det fel den här ändringen finns till för att ta bort.
+    if (typeof fraga.addEventListener === "function") {
+      fraga.addEventListener("change", lyssna);
+      return () => fraga.removeEventListener("change", lyssna);
+    }
+    fraga.addListener?.(lyssna);
+    return () => fraga.removeListener?.(lyssna);
+  }, []);
+
+  return smal;
+}
+
+/**
  * Panelen.
  *
  * @param {object} props
@@ -181,8 +252,20 @@ export function OpsPanelHeader({ title, onBack, backLabel = "Tillbaka", action }
  * @param {(open: boolean) => void} [props.onOpenChange]
  * @param {"start"|"center"|"end"} [props.align]
  * @param {string} [props.backLabel]
+ * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten (smal skärm).
  */
-export function OpsPanel({ trigger, label, title, action, children, open, onOpenChange, align = "end", backLabel = "Tillbaka" }) {
+export function OpsPanel({
+  trigger,
+  label,
+  title,
+  action,
+  children,
+  open,
+  onOpenChange,
+  align = "end",
+  backLabel = "Tillbaka",
+  closeLabel = "Stäng",
+}) {
   const styrd = typeof open === "boolean";
   const [egetOppet, setEgetOppet] = useState(false);
   const oppet = styrd ? open : egetOppet;
@@ -207,56 +290,107 @@ export function OpsPanel({ trigger, label, title, action, children, open, onOpen
 
   const overst = stack.length ? stack[stack.length - 1] : null;
   const nav = { push, pop, close, depth: stack.length };
+  const smal = useSmalSkarm();
 
+  /*
+   * ⛔ INNEHÅLLET BYGGS EN GÅNG OCH DELAS AV BÅDA YTORNA. Skrevs det två gånger
+   * vore stacken, rubriken och rullningen ett par som glider isär, och den som
+   * glider är den man inte tittar på. Det enda som skiljer ytorna är BEHÅLLAREN.
+   */
+  const innehall = overst ? (
+    <div className="flex flex-col gap-1">
+      <OpsPanelHeader title={overst.title} onBack={pop} backLabel={backLabel} action={overst.action} />
+      {/* ⛔ TAK PÅ HÖJDEN OCH EGEN RULLNING. Utan det växer panelen förbi
+          skärmens underkant med en lång lista, och då är raderna längst ned
+          inte åtkomliga alls. I sheeten sköter behållaren höjden, så taket
+          gäller bara rullgardinen. */}
+      <div className={cx("overflow-y-auto overscroll-contain px-2 pt-1 pb-2", !smal && "max-h-[min(70vh,32rem)]")}>
+        {overst.content}
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-col gap-1">
+      {title ? <OpsPanelHeader title={title} action={action} /> : null}
+      <div className={cx("overflow-y-auto overscroll-contain", !smal && "max-h-[min(70vh,32rem)]", title && "px-2 pt-1 pb-2")}>
+        {children(nav)}
+      </div>
+    </div>
+  );
+
+  /*
+   * ══ ⛔ SMAL SKÄRM: SAMMA SHEET SOM MENYN I BOTTENRADEN ══════════════════
+   *
+   * Klasserna är avskrivna ur `OpsBottomNav` med flit, ned i `85dvh` och
+   * `--safe-bottom`. De två ska inte likna varandra, de ska vara samma yta:
+   * öppnar man Meny och sedan klockan ska ingenting röra sig.
+   *
+   * ⛔ `dvh` OCH INTE `vh`. Safaris verktygsrad ändrar höjd, och `100vh` räknar
+   * med den största, så underkanten hamnar utanför skärmen.
+   */
+  if (smal) {
+    return (
+      <Dialog.Root open={oppet} onOpenChange={satt}>
+        <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
+          <Dialog.Content
+            aria-label={label}
+            className="fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col rounded-t-xl border-t border-line bg-raised pb-(--safe-bottom)"
+            aria-describedby={undefined}
+          >
+            {/*
+              ⛔ EN EGEN STÄNGKNAPP, som i Meny-sheeten. En rullgardin stängs
+              genom att man trycker bredvid den, och det är hela ytan man ser.
+              En sheet täcker underkanten av skärmen med dämpning ovanför, och
+              på en telefon är "bredvid" då en remsa man inte siktar på.
+
+              ⛔ RUBRIKEN ÄR PANELENS NAMN OCH INTE VYNS. `title` byts när man
+              går in i en detalj, och en sheet vars rubrik hoppar ser ut som en
+              ny sheet. Vyns egen rubrik står i `OpsPanelHeader` inuti, med sin
+              tillbakapil bredvid sig.
+            */}
+            <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
+              <Dialog.Title className="m-0 text-md font-bold text-ink">{label}</Dialog.Title>
+              <Dialog.Close
+                aria-label={closeLabel}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <KryssIkon size={20} />
+              </Dialog.Close>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-1">{innehall}</div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    );
+  }
+
+  /*
+   * ══ BRED SKÄRM: RULLGARDIN BREDVID SIN KNAPP ═══════════════════════════
+   *
+   * ⛔ DÄMPNINGEN ÄR BORTA HÄRIFRÅN. Den fanns bara för telefonen (bolag-ops
+   * #363), där panelen hängde över sidan utan att skilja sig från den. På bred
+   * skärm ligger rullgardinen bredvid sin knapp och krockar inte med något, och
+   * sheeten ovan har Radix egen `Dialog.Overlay` i stället.
+   */
   return (
     <Popover.Root open={oppet} onOpenChange={satt}>
       <Popover.Trigger asChild>{trigger}</Popover.Trigger>
-      {/* Egen portal: Radix portal bär bara ETT barn. */}
-      <Popover.Portal>
-        {/* ⛔ DÄMPNINGEN BAKOM PANELEN PÅ TELEFON (bolag-ops #363). CP: "Menyn
-            krockar med komponenter i bakomliggande panel." Panelen är 22 rem
-            bred och högst 70 % av höjden, så på en telefon syns sidans kort
-            både till höger om den och under dess nederkant, i samma ton som
-            panelens egna rader. Det såg ut som att sidan låg i panelen.
-            Dämpningen skiljer dem åt. Den ligger UNDER kromet (`--z-scrim`),
-            så headern och bottenraden står kvar orörda, och över allt innehåll.
-            Ett tryck på den är ett tryck utanför panelen, och det stänger.
-            ⛔ Bara under md: på bred skärm är panelen en vanlig rullgardin
-            bredvid sin knapp och krockar inte med något. */}
-        <div aria-hidden="true" data-ops-panel-scrim="" className="fixed inset-0 z-(--z-scrim) bg-scrim md:hidden" />
-      </Popover.Portal>
       <Popover.Portal>
         <Popover.Content
           align={align}
           sideOffset={4}
           aria-label={label}
-          /* ⛔ SAMMA YTA SOM MENYN: rundad, `bg-raised`, tunn linje, mjuk skugga.
-             ⛔ Bredden är begränsad av FÖNSTRET och inte bara av innehållet. En
-             panel på 22 rem i en 360 px vy hänger utanför kanten, och det syns
-             bara på en telefon. */
+          /* ⛔ SAMMA YTA SOM HEADERMENYN: rundad, `bg-raised`, tunn linje, mjuk
+             skugga.
+             ⛔ `isolate` GER PANELEN EGEN STAPLINGSKONTEXT, så inget i en rad
+             (ett märke med `absolute`, en rullande lista) kan hamna utanför
+             eller under dess kant. `bg-raised` är ogenomskinlig i båda teman. */
           className={cx(
-            /* ⛔ `isolate` GER PANELEN EGEN STAPLINGSKONTEXT, så inget i en rad
-               (ett märke med `absolute`, en rullande lista) kan hamna utanför
-               eller under dess kant. `bg-raised` är ogenomskinlig i båda teman. */
             "isolate z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-md border border-line bg-raised p-1 shadow-lg",
           )}
         >
-          {overst ? (
-            <div className="flex flex-col gap-1">
-              <OpsPanelHeader title={overst.title} onBack={pop} backLabel={backLabel} action={overst.action} />
-              {/* ⛔ TAK PÅ HÖJDEN OCH EGEN RULLNING. Utan det växer panelen förbi
-                  skärmens underkant med en lång lista, och då är raderna längst
-                  ned inte åtkomliga alls. */}
-              <div className="max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain px-2 pt-1 pb-2">{overst.content}</div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {title ? <OpsPanelHeader title={title} action={action} /> : null}
-              <div className={cx("max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain", title && "px-2 pt-1 pb-2")}>
-                {children(nav)}
-              </div>
-            </div>
-          )}
+          {innehall}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
