@@ -93,6 +93,7 @@ function textraderna(deklarerade, bar) {
  * @param {string} [props.rubrik]
  * @param {any[]} [props.logg] Ändringsloggens rader, nyast först. Se `createConfigLog`.
  * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen kräver. Appen äger listan, eftersom den beror på vad appens vyer ritar.
+ * @param {boolean} [props.faser] Falskt för en sortkatalog. Då ritas ingen fasväljare, eftersom fältet inte finns på kategorin.
  */
 export function OpsKatalogInstallning({
   kategorier,
@@ -105,6 +106,7 @@ export function OpsKatalogInstallning({
   rubrik = "Kategorier",
   logg = [],
   textnycklar = [],
+  faser = true,
 }) {
   if (!Array.isArray(ikoner) || ikoner.length === 0) {
     throw new Error(
@@ -140,7 +142,7 @@ export function OpsKatalogInstallning({
       en: kategori.namn.en || "",
       farg: kategori.farg,
       ikon: kategori.ikon,
-      fas: kategori.fas,
+      fas: kategori.fas || TOMT.fas,
       ordning: kategori.ordning,
       texter: tomTextpase(kategori.texter),
     });
@@ -188,8 +190,8 @@ export function OpsKatalogInstallning({
       }
 
       const kategori = byggKategori(
-        { id: utkast.id, namn: { sv: utkast.sv, en: utkast.en }, farg: utkast.farg, ikon: utkast.ikon, fas: utkast.fas, ordning: utkast.ordning, texter },
-        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel) },
+        { id: utkast.id, namn: { sv: utkast.sv, en: utkast.en }, farg: utkast.farg, ikon: utkast.ikon, ...(faser ? { fas: utkast.fas } : {}), ordning: utkast.ordning, texter },
+        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser },
       );
       onSpara(kategori);
       setRedigerar(null);
@@ -209,7 +211,7 @@ export function OpsKatalogInstallning({
         <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
         <span className="font-medium text-ink">{text(kategori.namn, sprak)}</span>
         <span className="text-sm text-ink-muted">{ikonRitare ? ikonRitare(kategori.ikon) : kategori.ikon}</span>
-        <OpsPill tone="neutral">{kategori.fas}</OpsPill>
+        {kategori.fas ? <OpsPill tone="neutral">{kategori.fas}</OpsPill> : null}
         {kategori.arkiverad ? <OpsPill tone="warning">Arkiverad</OpsPill> : null}
         {kanAndra ? (
           <span className="ms-auto flex gap-2">
@@ -298,9 +300,15 @@ export function OpsKatalogInstallning({
             <OpsSelect options={ikoner.map((n) => ({ value: n, label: n }))} value={utkast.ikon} onChange={(v) => setUtkast({ ...utkast, ikon: v })} />
           </OpsField>
 
-          <OpsField label="Fas" hint="Ramverkets fem. De går inte att lägga till, så en vy kan fråga om något är klart utan att veta vad kategorin heter.">
-            <OpsSelect options={FASER.map((f) => ({ value: f, label: f }))} value={utkast.fas} onChange={(v) => setUtkast({ ...utkast, fas: v })} />
-          </OpsField>
+          {/* ⛔ INGEN FASVÄLJARE I EN SORTKATALOG. Fältet finns inte på
+              kategorin där, och en rullgardin för något som inte sparas är
+              värre än ingen: den som väljer i den tror att valet betyder
+              något. */}
+          {faser ? (
+            <OpsField label="Fas" hint="Ramverkets fem. De går inte att lägga till, så en vy kan fråga om något är klart utan att veta vad kategorin heter.">
+              <OpsSelect options={FASER.map((f) => ({ value: f, label: f }))} value={utkast.fas} onChange={(v) => setUtkast({ ...utkast, fas: v })} />
+            </OpsField>
+          ) : null}
 
           {textraderna(textnycklar, utkast.texter).length > 0 ? (
             <div className="flex flex-col gap-3">
@@ -337,7 +345,7 @@ export function OpsKatalogInstallning({
                 aria-hidden="true"
               />
               <span className="font-medium text-ink">{rensa(sprak === "en" ? utkast.en || utkast.sv : utkast.sv) || "Utan namn"}</span>
-              <OpsPill tone="neutral">{utkast.fas}</OpsPill>
+              {faser ? <OpsPill tone="neutral">{utkast.fas}</OpsPill> : null}
             </div>
           </div>
 

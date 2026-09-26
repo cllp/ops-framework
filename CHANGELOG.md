@@ -11,10 +11,14 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.20.0
 
-Fas 2 fortsätter. Luckan hittades när appens halva
+Fas 2 fortsätter. Båda luckorna nedan hittades när appens halva
 ([cllp/bolag-ops#384](https://github.com/cllp/bolag-ops/issues/384)) skulle
-börja, alltså precis i den ordning som skulle hitta den: ramverket först, appen
+börja, alltså precis i den ordning som skulle hitta dem: ramverket först, appen
 sedan.
+
+⛔ **`0.19.0` och den första `0.20.0` hann aldrig taggas.** Därför står #119 i
+det här avsnittet i stället för i ett eget: en version ingen någonsin kan
+installera är en rad i loggen som bara går att snubbla på.
 
 ### Tillagt
 
@@ -32,6 +36,19 @@ sedan.
   "texterna tappas inte i flytten" ett löfte utan vakt: en kategori som läggs
   till i inställningsvyn föds då utan hjälptexter, och resultatet är ett
   formulär med tomma fält och inga exempel, alltså sämre än listan det ersatte.
+- **`faser`, alltså om katalogen har faser alls** ([#119](https://github.com/cllp/ops-framework/issues/119)).
+  Skickas till `byggKategori`, `validateKatalog` och `createCatalogSource`.
+  Förvalet är `true`, alltså oförändrat. En **sortkatalog** deklareras med
+  `faser: false` och får `fas: null`. Skälet är mätt i cllp/bolag-ops#384: av
+  appens åtta listor är varenda en som flyttar en sortlista (uppgift,
+  påminnelse, faktum, kvitto, ärende), och `arAvslutad` och `AVSLUTADE_FASER`
+  används ingenstans i appen. Fasen finns för att en vy ska kunna fråga om en
+  RAD är klar, och i en sortkatalog avgörs det av radens egen status och aldrig
+  av dess sort. ⛔ En fas som ändå skickas in **avvisas**, den ignoreras inte:
+  vore fältet bara valfritt kunde två kategorier i samma katalog skilja sig åt,
+  och då kan ingen vy lita på svaret. ⛔ `null` och inte tom sträng, eftersom
+  `null` säger "den här katalogen har inga faser" medan en tom sträng ser ut som
+  något någon glömt fylla i.
 - **`texten(kategori, nyckel, sprak)`**. Svarar tom sträng och kastar aldrig,
   samma val som `beteendet()`: den körs i en vy, på en rad som kan peka på en
   kategori som hunnit arkiveras, och en vy som kastar där tar ned hela listan i
@@ -49,6 +66,10 @@ sedan.
   texter var, alltså vida fler ord än namnen. En vakt som bara tittade på
   nyckeln `namn` hade visat noll medan merparten av appens ytor fortfarande var
   enspråkiga, vilket är exakt det den finns för att förhindra.
+- **`OpsKatalogInstallning` ritar ingen fasväljare i en sortkatalog**, och
+  ingen tom fas-etikett på raden. En rullgardin för något som inte sparas är
+  värre än ingen: den som väljer i den tror att valet betyder något, och det
+  hade dessutom stått i den enda vy som byggts för den som äger verksamheten.
 - **`OpsKatalogInstallning` både bär och visar texterna.** Vyn byggde förut en
   ny kategori av formulärets fält och bara dem, så en redigering av en befintlig
   kategori hade RADERAT dess texter: samma tysta förlust en gång till, men

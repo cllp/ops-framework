@@ -48,7 +48,7 @@ import { validateKatalog } from "../lib/katalog.js";
  */
 
 /**
- * @param {{ source: any, collection: string, standard?: unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[] }} config
+ * @param {{ source: any, collection: string, standard?: unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[], faser?: boolean }} config
  */
 export function createCatalogSource(config) {
   /*
@@ -56,7 +56,7 @@ export function createCatalogSource(config) {
    * med `({ x })` i signaturen kraschar ett anrop utan argument på destrukturen
    * med ett fel som nämner en variabel inne i ramverket, inte vad appen glömde.
    */
-  const { source, collection, standard = [], ikoner, namn = "katalog", textnycklar } = config ?? /** @type {any} */ ({});
+  const { source, collection, standard = [], ikoner, namn = "katalog", textnycklar, faser } = config ?? /** @type {any} */ ({});
 
   if (!source || typeof source.list !== "function" || typeof source.create !== "function") {
     throw new Error("createCatalogSource: source krävs och måste vara en datakälla ur createDataSource.");
@@ -73,7 +73,7 @@ export function createCatalogSource(config) {
    * och inte första gången någon råkar köra mot en tom databas. Det senare är
    * ett fel i produktion hos den första kunden.
    */
-  const reserv = validateKatalog(standard, { ikoner, textnycklar, katalog: `${namn} (standardvärden)` });
+  const reserv = validateKatalog(standard, { ikoner, textnycklar, faser, katalog: `${namn} (standardvärden)` });
 
   return {
     /** Vad samlingen heter hos den här appen. För vyer som visar sin källa. */
@@ -93,7 +93,7 @@ export function createCatalogSource(config) {
     async las() {
       try {
         const rader = await source.list(collection);
-        const kategorier = validateKatalog(Array.isArray(rader) ? rader : [], { ikoner, textnycklar, katalog: namn });
+        const kategorier = validateKatalog(Array.isArray(rader) ? rader : [], { ikoner, textnycklar, faser, katalog: namn });
         // ⛔ En TOM samling är inte ett fel och inte heller reserven: det är
         // läget före seedningen, och `saknas` nedan är frågan man ställer då.
         return { kategorier, kalla: "databas", fel: null };
