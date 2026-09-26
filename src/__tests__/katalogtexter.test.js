@@ -201,3 +201,46 @@ describe("sortkatalogen, alltså en katalog utan faser", () => {
     expect(katalog.map((k) => k.fas)).toEqual([null, null]);
   });
 });
+
+describe("en katalog utan färger", () => {
+  /*
+   * ⛔ Mätt i cllp/bolag-ops#384: inkorgens SEX sorter skiljs åt med ikon och
+   * aldrig med färg, varken i vyn eller i datan. Slagpaletten har tre platser,
+   * en mätt gräns där en fjärde faller i mörkt läge, så sex kategorier KAN
+   * inte få var sin. Att kräva en palettplats hade tvingat fram dubbletter i
+   * ett schema som annars är strikt, och två kategorier med samma färg är en
+   * färg som slutat betyda något.
+   */
+  const SORT = { id: "kvitto", namn: { sv: "Kvitto" }, ikon: "check" };
+
+  it("bygger utan färg, och fältet blir null", () => {
+    const k = byggKategori(SORT, { ikoner: IKONER, faser: false, farger: false });
+    expect(k.farg).toBeNull();
+    expect(k.ikon).toBe("check");
+  });
+
+  it("⛔ en färg som ändå skickas in AVVISAS", () => {
+    const fel = () => byggKategori({ ...SORT, farg: 1 }, { ikoner: IKONER, faser: false, farger: false });
+    expect(fel).toThrow(/hör inte hemma i den här katalogen/);
+    expect(fel).toThrow(/skiljs kategorierna åt med ikon/);
+  });
+
+  it("⛔ och en katalog MED färger kräver fortfarande sin palettplats", () => {
+    // Förvalet är oförändrat. Hade det bytt hade varje befintlig katalog tyst
+    // slutat kräva färgen, och då ritas korten utan kant.
+    expect(() => byggKategori(SORT, { ikoner: IKONER, faser: false })).toThrow(/måste vara en palettplats/);
+  });
+
+  it("⛔ ikonen krävs fortfarande, för den är det enda som skiljer dem åt", () => {
+    // Utan färg bär ikonen hela igenkänningen. En kategori utan ikon vore då
+    // omöjlig att skilja från nästa.
+    expect(() => byggKategori({ id: "x", namn: { sv: "X" } }, { ikoner: IKONER, faser: false, farger: false })).toThrow(/ikon/);
+  });
+
+  it("sex kategorier går igenom, vilket tre palettplatser aldrig tillåtit", () => {
+    const sex = ["ekonomi", "kvitto", "arende", "forbattring", "bugg", "ovrigt"].map((id) => ({ id, namn: { sv: id }, ikon: "check" }));
+    const katalog = validateKatalog(sex, { ikoner: IKONER, faser: false, farger: false });
+    expect(katalog).toHaveLength(6);
+    expect(katalog.every((k) => k.farg === null)).toBe(true);
+  });
+});

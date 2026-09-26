@@ -89,7 +89,7 @@ export const AVSLUTADE_FASER = /** @type {const} */ (["klar", "avskriven"]);
  * @typedef {object} Kategori
  * @property {string} id Maskinnyckeln. Ändras aldrig.
  * @property {import("./sprak.js").Namn} namn Det som visas.
- * @property {number} farg Palettplats ur `SLAGPLATSER`, aldrig hex.
+ * @property {number|null} farg Palettplats ur `SLAGPLATSER`, aldrig hex. `null` i en katalog utan färger.
  * @property {string} ikon Namn ur katalogens tillåtelselista.
  * @property {"ny"|"aktiv"|"vantar"|"klar"|"avskriven"|null} fas `null` i en sortkatalog, se noten i `byggKategori`.
  * @property {number} ordning Lägre först.
@@ -140,10 +140,10 @@ const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
  * och inte data, samma regel som resten av ramverket.
  *
  * @param {Record<string, any>} d
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} [config]
  * @returns {Kategori}
  */
-export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true } = {}) {
+export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true, farger = true } = {}) {
   const var_ = (/** @type {string} */ falt, /** @type {string} */ skal) =>
     new Error(`${katalog}: ${falt} ${skal}`);
 
@@ -177,8 +177,30 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     throw var_(`namn för "${id}"`, fel instanceof Error ? fel.message.replace(/^byggNamn: /, "") : String(fel));
   }
 
+  /*
+   * ⛔ EN KATALOG UTAN FÄRGER, AV SAMMA SKÄL SOM EN UTAN FASER (#121).
+   *
+   * Slagpaletten har TRE platser, och det är en mätt gräns och ingen
+   * startpunkt: fyra faller i mörkt läge. En katalog med fler kategorier än så
+   * kan alltså inte ge dem var sin färg, och två kategorier med samma färg är
+   * en färg som slutat betyda något.
+   *
+   * Mätt i cllp/bolag-ops#384: inkorgens SEX sorter skiljs åt med ikon och
+   * aldrig med färg, varken i vyn eller i datan. Att kräva en palettplats av
+   * dem hade tvingat fram dubbletter i ett schema som annars är strikt.
+   *
+   * ⛔ OCH EN FÄRG SOM ÄNDÅ SKICKAS IN AVVISAS. Samma skäl som för fasen: det
+   * är katalogen som avgör, inte raden, annars kan ingen vy lita på svaret.
+   */
+  if (!farger && d.farg !== undefined && d.farg !== null) {
+    throw var_(
+      `farg för "${id}"`,
+      `hör inte hemma i den här katalogen. Den är deklarerad utan färger, alltså skiljs kategorierna åt med ikon. Slagpaletten har bara ${platser.length} platser, så en katalog med fler kategorier än så kan inte ge dem var sin.`,
+    );
+  }
+
   const farg = Number(d.farg);
-  if (!platser.includes(farg)) {
+  if (farger && !platser.includes(farg)) {
     throw var_(
       `farg för "${id}"`,
       `måste vara en palettplats (${platser.join(", ")}), inte ${JSON.stringify(d.farg)}. En hex i konfigurationen följer inte med när mörkt läge eller en ny identitet kommer.`,
@@ -234,7 +256,7 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
   return {
     id,
     namn,
-    farg,
+    farg: farger ? farg : null,
     ikon,
     fas: faser ? /** @type {Kategori["fas"]} */ (fas) : null,
     ordning: Number.isFinite(Number(d.ordning)) ? Number(d.ordning) : 0,
@@ -339,7 +361,7 @@ export function texten(kategori, nyckel, sprak = "sv") {
  * kvar men inte dess verkan.
  *
  * @param {unknown} kategorier
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} [config]
  * @returns {Kategori[]}
  */
 export function validateKatalog(kategorier, config = {}) {

@@ -317,3 +317,41 @@ describe("sortkatalogen i inställningsvyn", () => {
     expect(screen.getByLabelText(/^Fas/)).toBeInTheDocument();
   });
 });
+
+describe("en katalog utan färger i inställningsvyn", () => {
+  const UTAN = validateKatalog([{ id: "kvitto", namn: { sv: "Kvitto" }, ikon: "check" }], { ikoner: IKONER, faser: false, farger: false });
+  const vy = (props = {}) => rita({ kategorier: UTAN, faser: false, farger: false, ...props });
+
+  it("⛔ ritar ingen färgväljare och ingen ruta att skriva en hex i", () => {
+    vy();
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    expect(screen.queryByLabelText(/^Färg/)).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /Färg/ })).toBeNull();
+  });
+
+  it("⛔ ritar ingen prick, i stället för en grå", () => {
+    // `slagPrick` kastar på en plats som inte finns, och en grå prick hade sagt
+    // att kategorin har en färg som inte laddat klart.
+    const { container } = vy();
+    expect(container.querySelectorAll(".rounded-full")).toHaveLength(0);
+    expect(screen.getByText("Kvitto")).toBeInTheDocument();
+  });
+
+  it("sparar utan färg, och valideringen släpper igenom den", () => {
+    const onSpara = vi.fn();
+    vy({ onSpara });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0].farg).toBeNull();
+  });
+
+  it("en katalog med färger har kvar sin väljare och sin prick", () => {
+    rita();
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    expect(screen.getByLabelText(/^Färg/)).toBeInTheDocument();
+  });
+});

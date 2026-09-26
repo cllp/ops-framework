@@ -49,6 +49,14 @@ installera är en rad i loggen som bara går att snubbla på.
   och då kan ingen vy lita på svaret. ⛔ `null` och inte tom sträng, eftersom
   `null` säger "den här katalogen har inga faser" medan en tom sträng ser ut som
   något någon glömt fylla i.
+- **`farger`, alltså om katalogen har färger alls** ([#121](https://github.com/cllp/ops-framework/issues/121)).
+  Samma form och samma skäl som `faser`. Slagpaletten har **tre** platser, och
+  det är en mätt gräns där en fjärde faller i mörkt läge. Inkorgens **sex**
+  sorter kan alltså inte få var sin, och de skiljs redan i dag åt med ikon och
+  aldrig med färg, varken i vyn eller i datan. Att kräva en palettplats hade
+  tvingat fram dubbletter i ett schema som annars är strikt, och två kategorier
+  med samma färg är en färg som slutat betyda något. ⛔ Ikonen krävs fortfarande:
+  utan färg bär den hela igenkänningen.
 - **`texten(kategori, nyckel, sprak)`**. Svarar tom sträng och kastar aldrig,
   samma val som `beteendet()`: den körs i en vy, på en rad som kan peka på en
   kategori som hunnit arkiveras, och en vy som kastar där tar ned hela listan i
@@ -66,8 +74,8 @@ installera är en rad i loggen som bara går att snubbla på.
   texter var, alltså vida fler ord än namnen. En vakt som bara tittade på
   nyckeln `namn` hade visat noll medan merparten av appens ytor fortfarande var
   enspråkiga, vilket är exakt det den finns för att förhindra.
-- **`OpsKatalogInstallning` ritar ingen fasväljare i en sortkatalog**, och
-  ingen tom fas-etikett på raden. En rullgardin för något som inte sparas är
+- **`OpsKatalogInstallning` ritar varken fasväljare, färgväljare eller prick**
+  när katalogen saknar dem, och ingen tom fas-etikett på raden. En rullgardin för något som inte sparas är
   värre än ingen: den som väljer i den tror att valet betyder något, och det
   hade dessutom stått i den enda vy som byggts för den som äger verksamheten.
 - **`OpsKatalogInstallning` både bär och visar texterna.** Vyn byggde förut en
