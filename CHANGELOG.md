@@ -9,6 +9,54 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.19.0
+
+Fas 2 i epiken [#92](https://github.com/cllp/ops-framework/issues/92), ramverkets
+del: konfigurationen blir data, och orden blir två.
+
+### Tillagt
+
+- **Katalogschemat, med validering vid uppstart** ([#108](https://github.com/cllp/ops-framework/issues/108)).
+  En kategori är `{ id, namn, farg, ikon, fas, ordning, arkiverad }`.
+  `validateKatalog` körs vid uppstart i samma form som `validateNav` och kastar
+  med katalogens namn och fältet. ⛔ `id` ändras aldrig och `namn` får ändras
+  fritt, eftersom varje rad i databasen pekar på `id`: vore namnet nyckeln
+  förlorar en omdöpning kopplingen till allt som redan skrivits. ⛔ `farg` är en
+  palettplats och aldrig hex, för en hex i konfigurationen följer inte med när
+  temat byter. ⛔ Två kategorier med samma `id` är ett eget fel: de ser ut som
+  EN i varje vy.
+- **Två språk** ([#109](https://github.com/cllp/ops-framework/issues/109)). Ett
+  namn är `{ sv, en }`. `text()` tar emot en sträng också, samma
+  migreringsordning som `skapadAv` fick i Fas 1: läsaren måste tåla båda
+  formerna innan skrivarna byter. ⛔ Toleransen är inte tyst: `saknadeSprak`
+  räknar upp varje namn som saknar `en`, som sökvägar och inte som en siffra,
+  och en sträng räknas som saknad.
+- **Katalogkällan** ([#110](https://github.com/cllp/ops-framework/issues/110)).
+  `createCatalogSource` ovanpå datakontraktet. ⛔ Seedar aldrig ovanpå
+  befintliga värden, annars kommer en arkiverad kategori tillbaka vid nästa
+  driftsättning. ⛔ `las()` kastar aldrig och skiljer `databas` från `reserv`, så
+  ett läsfel kan visas i stället för att se ut som en tom katalog. ⛔ Samlingens
+  namn kommer utifrån: ramverket känner aldrig projekt-id eller samlingsnamn.
+- **Inställningsvyn** ([#112](https://github.com/cllp/ops-framework/issues/112)).
+  `OpsKatalogInstallning` lägger till, döper om och arkiverar. ⛔ Raderar aldrig:
+  en raderad kategori lämnar varje rad som pekar på den utan kategori. ⛔ Ägaren
+  ändrar, medlemmen läser, och vyn säger själv att den inte är låset.
+- **Ändringsloggen för konfig** ([#113](https://github.com/cllp/ops-framework/issues/113)).
+  `createConfigLog`. ⛔ `fore` krävs för allt utom en nytillagd: en rad utan det
+  svarar inte på vad som stod förut, och då är loggen en notis och inte ett
+  spår. ⛔ `skriv` kastar aldrig, och `orsak` skiljer ett trasigt utkast från en
+  trasig skrivning.
+
+### Noteringar
+
+- Allt ovan ligger i **båda ingångarna**, huvudingången och nodsidan, av samma
+  skäl som `createActivityLog`: konfigurationen läses också av det som körs utan
+  skärm, och nodsidan tar 8 ms mot huvudingångens 1946 ms.
+- Ingen konsument läser katalogen ännu. Utgivningen finns för att appens halva
+  ska kunna pinna mot en tagg där allt är grönt.
+
+---
+
 ## 0.18.0
 
 Fas 1 i epiken [#92](https://github.com/cllp/ops-framework/issues/92), ramverkets
