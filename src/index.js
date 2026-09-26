@@ -103,6 +103,16 @@ export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
 export { createCaseModel } from "./lib/caseModel.js";
 export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } from "./lib/skapare.js";
+
+/*
+ * ⛔ KATALOGEN OCH SPRÅKEN LIGGER I BÅDA INGÅNGARNA, av samma skäl som
+ * `createActivityLog` ovan: konfigurationen läses både av klienten och av det
+ * som körs utan skärm. Functions ska kunna fråga vilka sorter som finns utan
+ * att dra in React (cllp/bolag-ops#385), och huvudingången kostar 1946 ms mot
+ * nodsidans 8 ms, mätt i cllp/ops-framework#93.
+ */
+export { FASER, AVSLUTADE_FASER, byggKategori, validateKatalog, valjbara, kategorin, arAvslutad } from "./lib/katalog.js";
+export { SPRAK, RESERVSPRAK, byggNamn, text, arGammalNamn, saknadeSprak } from "./lib/sprak.js";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
 export { createActivityLog, unreadCount, isUnread, unread, unreadRows, activityId, activityWindow, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";
