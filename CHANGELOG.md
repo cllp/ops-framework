@@ -47,6 +47,16 @@ del: konfigurationen blir data, och orden blir två.
   spår. ⛔ `skriv` kastar aldrig, och `orsak` skiljer ett trasigt utkast från en
   trasig skrivning.
 
+- **Gränsen för det dynamiska, väg A** ([#111](https://github.com/cllp/ops-framework/issues/111),
+  beslut CP 2026-09-26). Katalogen bär data, koden bär beteende, och
+  `kopplaBeteenden` vaktar kopplingen åt BÅDA håll vid uppstart. ⛔ En kategori
+  utan hanterare ritas, går att välja och gör sedan ingenting: exakt felet i
+  cllp/bolag-ops#144, där sorten `bugg` aldrig blev ett ärende och ingenting
+  blev rött. ⛔ En hanterare utan kategori är död kod som ser levande ut.
+  ⛔ Arkiverade kategorier kräver också en hanterare, eftersom gamla rader ska
+  ritas och räknas som förut. Vad som går att ändra utan en release står som en
+  tabell i README: det är produktlöftet, och oskrivet blir det ett antagande.
+
 ### Noteringar
 
 - Allt ovan ligger i **båda ingångarna**, huvudingången och nodsidan, av samma
