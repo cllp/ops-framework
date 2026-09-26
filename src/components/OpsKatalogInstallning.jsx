@@ -94,6 +94,7 @@ function textraderna(deklarerade, bar) {
  * @param {any[]} [props.logg] Ändringsloggens rader, nyast först. Se `createConfigLog`.
  * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen kräver. Appen äger listan, eftersom den beror på vad appens vyer ritar.
  * @param {boolean} [props.faser] Falskt för en sortkatalog. Då ritas ingen fasväljare, eftersom fältet inte finns på kategorin.
+ * @param {boolean} [props.farger] Falskt när kategorierna skiljs åt med ikon. Då ritas ingen färgväljare och ingen prick.
  */
 export function OpsKatalogInstallning({
   kategorier,
@@ -107,6 +108,7 @@ export function OpsKatalogInstallning({
   logg = [],
   textnycklar = [],
   faser = true,
+  farger = true,
 }) {
   if (!Array.isArray(ikoner) || ikoner.length === 0) {
     throw new Error(
@@ -140,7 +142,7 @@ export function OpsKatalogInstallning({
       id: kategori.id,
       sv: kategori.namn.sv,
       en: kategori.namn.en || "",
-      farg: kategori.farg,
+      farg: kategori.farg || TOMT.farg,
       ikon: kategori.ikon,
       fas: kategori.fas || TOMT.fas,
       ordning: kategori.ordning,
@@ -190,8 +192,8 @@ export function OpsKatalogInstallning({
       }
 
       const kategori = byggKategori(
-        { id: utkast.id, namn: { sv: utkast.sv, en: utkast.en }, farg: utkast.farg, ikon: utkast.ikon, ...(faser ? { fas: utkast.fas } : {}), ordning: utkast.ordning, texter },
-        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser },
+        { id: utkast.id, namn: { sv: utkast.sv, en: utkast.en }, ...(farger ? { farg: utkast.farg } : {}), ikon: utkast.ikon, ...(faser ? { fas: utkast.fas } : {}), ordning: utkast.ordning, texter },
+        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser, farger },
       );
       onSpara(kategori);
       setRedigerar(null);
@@ -207,8 +209,11 @@ export function OpsKatalogInstallning({
   const rad = (/** @type {import("../lib/katalog.js").Kategori} */ kategori) => (
     <OpsListRow key={kategori.id}>
       <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1">
-        {/* ⛔ Ordet skickas med: `slagPrick` vägrar en prick utan det, eftersom en färg utan ord inte går att läsa upp och betyder ingenting för den som inte lärt sig koden. */}
-        <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
+        {/* ⛔ Ordet skickas med: `slagPrick` vägrar en prick utan det, eftersom en färg utan ord inte går att läsa upp och betyder ingenting för den som inte lärt sig koden.
+            ⛔ Och ingen prick alls i en katalog utan färger: `slagPrick` kastar på en plats som inte finns, och en grå prick hade sagt att kategorin har en färg som inte laddat. */}
+        {kategori.farg ? (
+          <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
+        ) : null}
         <span className="font-medium text-ink">{text(kategori.namn, sprak)}</span>
         <span className="text-sm text-ink-muted">{ikonRitare ? ikonRitare(kategori.ikon) : kategori.ikon}</span>
         {kategori.fas ? <OpsPill tone="neutral">{kategori.fas}</OpsPill> : null}
@@ -288,13 +293,19 @@ export function OpsKatalogInstallning({
             <OpsInput value={utkast.en} onChange={(v) => setUtkast({ ...utkast, en: v })} name="en" />
           </OpsField>
 
-          <OpsField label="Färg" hint="En plats i paletten, inte en färgkod. Platserna är mätta mot kontrastgolvet i både ljust och mörkt tema.">
-            <OpsSelect
-              options={SLAGPLATSER.map((n) => ({ value: String(n), label: `Plats ${n}` }))}
-              value={String(utkast.farg)}
-              onChange={(v) => setUtkast({ ...utkast, farg: Number(v) })}
-            />
-          </OpsField>
+          {/* ⛔ INGEN FÄRGVÄLJARE NÄR KATEGORIERNA SKILJS ÅT MED IKON. Paletten
+              har tre platser, så en katalog med fler kategorier än så kan inte
+              ge dem var sin, och en väljare som tvingar fram dubbletter är
+              värre än ingen. */}
+          {farger ? (
+            <OpsField label="Färg" hint="En plats i paletten, inte en färgkod. Platserna är mätta mot kontrastgolvet i både ljust och mörkt tema.">
+              <OpsSelect
+                options={SLAGPLATSER.map((n) => ({ value: String(n), label: `Plats ${n}` }))}
+                value={String(utkast.farg)}
+                onChange={(v) => setUtkast({ ...utkast, farg: Number(v) })}
+              />
+            </OpsField>
+          ) : null}
 
           <OpsField label="Ikon" required>
             <OpsSelect options={ikoner.map((n) => ({ value: n, label: n }))} value={utkast.ikon} onChange={(v) => setUtkast({ ...utkast, ikon: v })} />
@@ -340,10 +351,12 @@ export function OpsKatalogInstallning({
           <div className="flex flex-col gap-2">
             <h3 className="m-0 text-sm text-ink-muted">Så här kommer den att se ut</h3>
             <div className="flex items-center gap-3">
-              <span
-                className={cx("size-2 shrink-0 rounded-full", slagPrick(utkast.farg, rensa(utkast.sv) || "Utan namn", "OpsKatalogInstallning"))}
-                aria-hidden="true"
-              />
+              {farger ? (
+                <span
+                  className={cx("size-2 shrink-0 rounded-full", slagPrick(utkast.farg, rensa(utkast.sv) || "Utan namn", "OpsKatalogInstallning"))}
+                  aria-hidden="true"
+                />
+              ) : null}
               <span className="font-medium text-ink">{rensa(sprak === "en" ? utkast.en || utkast.sv : utkast.sv) || "Utan namn"}</span>
               {faser ? <OpsPill tone="neutral">{utkast.fas}</OpsPill> : null}
             </div>
