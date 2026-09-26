@@ -95,6 +95,11 @@ const UNDANTAG = [
     fras: "lägen har icon",
     skal: "samma segment som ovan, i den andra kontrollen.",
   },
+  {
+    fil: "src/lib/katalog.js",
+    fras: "mörkt läge",
+    skal: "temats mörka läge, samma betydelse som undantaget för theme.js. Skälet i felmeddelandet är just att en hex inte följer med när temat byter, så ordet är oundvikligt där.",
+  },
 ];
 
 /**

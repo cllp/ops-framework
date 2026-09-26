@@ -60,3 +60,15 @@ export { createActivityLog } from "../lib/aktivitet.js";
  * för att förhindra. Filen är ren, `check-node-side` kräver det.
  */
 export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } from "../lib/skapare.js";
+
+/*
+ * ⛔ KATALOGEN OCH SPRÅKEN LIGGER I BÅDA INGÅNGARNA, av samma skäl som
+ * `createActivityLog` ovan: konfigurationen läses både av klienten och av det
+ * som körs utan skärm. Functions ska kunna fråga vilka sorter som finns utan
+ * att dra in React (cllp/bolag-ops#385), och huvudingången kostar 1946 ms mot
+ * nodsidans 8 ms, mätt i cllp/ops-framework#93.
+ */
+export { FASER, AVSLUTADE_FASER, byggKategori, validateKatalog, valjbara, kategorin, arAvslutad } from "../lib/katalog.js";
+export { SPRAK, RESERVSPRAK, byggNamn, text, arGammalNamn, saknadeSprak } from "../lib/sprak.js";
+export { KONFIGHANDELSER, byggKonfigandring, beskrivKonfigandring, createConfigLog } from "../lib/konfiglogg.js";
+export { createCatalogSource } from "../data/katalogkalla.js";
