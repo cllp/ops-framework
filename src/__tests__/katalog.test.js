@@ -18,7 +18,10 @@ const IKONER = ["check", "bell", "file"];
 describe("katalogens schema", () => {
   it("bygger en kategori och fyller i det som har förval", () => {
     const k = byggKategori({ id: "x", namn: { sv: "X" }, farg: 2, ikon: "bell", fas: "ny" }, { ikoner: IKONER });
-    expect(k).toEqual({ id: "x", namn: { sv: "X" }, farg: 2, ikon: "bell", fas: "ny", ordning: 0, arkiverad: false });
+    // ⛔ `texter` är en tom påse och inte `undefined`. En kategori utan texter
+    // och en kategori vars påse inte byggts ska inte gå att skilja åt i en vy,
+    // för då måste varje uppslagning fråga vilket av de två det är.
+    expect(k).toEqual({ id: "x", namn: { sv: "X" }, farg: 2, ikon: "bell", fas: "ny", ordning: 0, arkiverad: false, texter: {} });
   });
 
   it("⛔ avvisar hex i farg, och säger varför en palettplats krävs", () => {

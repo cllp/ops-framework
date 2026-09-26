@@ -47,13 +47,39 @@ import { OpsSelect } from "./OpsSelect.jsx";
  * Det är inte en lucka, det är skälet till att man väljer en PLATS och inte en
  * färg: platserna är mätta mot kontrastgolvet i båda temana av
  * `check-kontrast`. En hex hade behövt den jämförelsen och inte haft den.
+ *
+ * ══ ⛔ TEXTERNA BÄRS OCH VISAS, DE FÅR INTE TAPPAS (#117) ══════════════
+ *
+ * Vyn byggde förut en ny kategori av formulärets fält och bara dem. En
+ * redigering av en befintlig kategori hade därför RADERAT dess texter, alltså
+ * samma tysta förlust som `byggKategori` nyss slutade göra, men utlöst av en
+ * knapp och därmed värre.
+ *
+ * ⛔ OCH DE SOM INTE ÄR DEKLARERADE RITAS OCKSÅ. En text som bärs vidare utan
+ * att synas är ett läge där vyn ljuger med utelämnande: den som tittar tror
+ * att kategorin har de fält som står där. Union av det deklarerade och det
+ * kategorin faktiskt bär, alltså ingenting dolt och ingenting tappat.
  */
 
 /** @param {unknown} v @returns {string} */
 const rensa = (v) => (typeof v === "string" ? v.trim() : "");
 
 /** Ett tomt utkast, för knappen som lägger till. */
-const TOMT = { id: "", sv: "", en: "", farg: SLAGPLATSER[0], ikon: "", fas: "aktiv", ordning: 0 };
+const TOMT = { id: "", sv: "", en: "", farg: SLAGPLATSER[0], ikon: "", fas: "aktiv", ordning: 0, texter: /** @type {Record<string, {sv: string, en: string}>} */ ({}) };
+
+/**
+ * Texterna att rita: de deklarerade först, sedan de kategorin bär utöver dem.
+ *
+ * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} deklarerade
+ * @param {Record<string, unknown>} bar
+ */
+function textraderna(deklarerade, bar) {
+  const sedda = new Set(deklarerade.map((t) => t.nyckel));
+  const extra = Object.keys(bar || {})
+    .filter((n) => !sedda.has(n))
+    .map((nyckel) => ({ nyckel, etikett: nyckel, hjalp: "Bärs av kategorin men krävs inte av katalogen." }));
+  return [...deklarerade, ...extra];
+}
 
 /**
  * @param {object} props
@@ -66,8 +92,20 @@ const TOMT = { id: "", sv: "", en: "", farg: SLAGPLATSER[0], ikon: "", fas: "akt
  * @param {string} [props.sprak]
  * @param {string} [props.rubrik]
  * @param {any[]} [props.logg] Ändringsloggens rader, nyast först. Se `createConfigLog`.
+ * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen kräver. Appen äger listan, eftersom den beror på vad appens vyer ritar.
  */
-export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra = false, onSpara, onArkivera, sprak = "sv", rubrik = "Kategorier", logg = [] }) {
+export function OpsKatalogInstallning({
+  kategorier,
+  ikoner,
+  ikonRitare,
+  kanAndra = false,
+  onSpara,
+  onArkivera,
+  sprak = "sv",
+  rubrik = "Kategorier",
+  logg = [],
+  textnycklar = [],
+}) {
   if (!Array.isArray(ikoner) || ikoner.length === 0) {
     throw new Error(
       "OpsKatalogInstallning: ikoner krävs och måste ha minst ett namn. Utan tillåtelselista går det att spara en ikon som inte finns, och den blir en tom ruta i varje vy.",
@@ -92,7 +130,7 @@ export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra
        * allt annat.
        */
       setRedigerar("");
-      setUtkast({ ...TOMT, ikon: ikoner[0], ordning: alla.length });
+      setUtkast({ ...TOMT, ikon: ikoner[0], ordning: alla.length, texter: tomTextpase({}) });
       return;
     }
     setRedigerar(kategori.id);
@@ -104,8 +142,28 @@ export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra
       ikon: kategori.ikon,
       fas: kategori.fas,
       ordning: kategori.ordning,
+      texter: tomTextpase(kategori.texter),
     });
   };
+
+  /**
+   * Utkastets textpåse: det kategorin bär, plus en tom rad för varje
+   * deklarerad nyckel som saknas.
+   *
+   * ⛔ DET KATEGORIN BÄR KOMMER FÖRST OCH SKRIVS ALDRIG ÖVER. En text som inte
+   * är deklarerad är inte en text som ska bort: appen kan ha slutat kräva den
+   * utan att vilja radera den ur varje kategori, och en radering här hade skett
+   * i tysthet vid nästa spara.
+   *
+   * @param {Record<string, any>} [bar]
+   */
+  function tomTextpase(bar) {
+    /** @type {Record<string, {sv: string, en: string}>} */
+    const ut = {};
+    for (const [nyckel, namn] of Object.entries(bar || {})) ut[nyckel] = { sv: text(namn, "sv"), en: (namn && namn.en) || "" };
+    for (const t of textnycklar) if (!(t.nyckel in ut)) ut[t.nyckel] = { sv: "", en: "" };
+    return ut;
+  }
 
   const spara = () => {
     try {
@@ -114,9 +172,24 @@ export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra
        * uppsättning regler i ett formulär glider isär från den som faktiskt
        * gäller, och då går det att spara något som sedan vägrar läsas in.
        */
+      /*
+       * ⛔ EN TEXT UTAN SVENSKA SKICKAS INTE MED SOM TOM, den utelämnas. Ett
+       * `{ sv: "" }` hade kastat i `byggNamn` med ett meddelande om formen, och
+       * frågan är inte formen: den är att texten saknas. Utelämnad får den
+       * kravet nedan att säga just det, med nyckelns namn.
+       */
+      /** @type {Record<string, {sv: string, en?: string}>} */
+      const texter = {};
+      for (const [nyckel, v] of Object.entries(utkast.texter || {})) {
+        const sv = rensa(v && v.sv);
+        if (!sv) continue;
+        const en = rensa(v && v.en);
+        texter[nyckel] = en ? { sv, en } : { sv };
+      }
+
       const kategori = byggKategori(
-        { id: utkast.id, namn: { sv: utkast.sv, en: utkast.en }, farg: utkast.farg, ikon: utkast.ikon, fas: utkast.fas, ordning: utkast.ordning },
-        { ikoner, katalog: rubrik },
+        { id: utkast.id, namn: { sv: utkast.sv, en: utkast.en }, farg: utkast.farg, ikon: utkast.ikon, fas: utkast.fas, ordning: utkast.ordning, texter },
+        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel) },
       );
       onSpara(kategori);
       setRedigerar(null);
@@ -228,6 +301,33 @@ export function OpsKatalogInstallning({ kategorier, ikoner, ikonRitare, kanAndra
           <OpsField label="Fas" hint="Ramverkets fem. De går inte att lägga till, så en vy kan fråga om något är klart utan att veta vad kategorin heter.">
             <OpsSelect options={FASER.map((f) => ({ value: f, label: f }))} value={utkast.fas} onChange={(v) => setUtkast({ ...utkast, fas: v })} />
           </OpsField>
+
+          {textraderna(textnycklar, utkast.texter).length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {/* ⛔ Rubriken säger vad de ÄR och inte bara att de finns. Utan
+                  den meningen ser arton fält ut som administration, och då
+                  fylls de i med ett ord var. */}
+              <h3 className="m-0 text-sm text-ink-muted">Texter, alltså det som gör formuläret begripligt</h3>
+              {textraderna(textnycklar, utkast.texter).map((t) => (
+                <div key={t.nyckel} className="flex flex-col gap-2">
+                  <OpsField label={`${text(t.etikett, sprak) || t.nyckel}, svenska`} hint={t.hjalp} required>
+                    <OpsInput
+                      value={(utkast.texter[t.nyckel] || {}).sv || ""}
+                      onChange={(v) => setUtkast({ ...utkast, texter: { ...utkast.texter, [t.nyckel]: { ...(utkast.texter[t.nyckel] || { en: "" }), sv: v } } })}
+                      name={`texter.${t.nyckel}.sv`}
+                    />
+                  </OpsField>
+                  <OpsField label={`${text(t.etikett, sprak) || t.nyckel}, engelska`}>
+                    <OpsInput
+                      value={(utkast.texter[t.nyckel] || {}).en || ""}
+                      onChange={(v) => setUtkast({ ...utkast, texter: { ...utkast.texter, [t.nyckel]: { ...(utkast.texter[t.nyckel] || { sv: "" }), en: v } } })}
+                      name={`texter.${t.nyckel}.en`}
+                    />
+                  </OpsField>
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <h3 className="m-0 text-sm text-ink-muted">Så här kommer den att se ut</h3>

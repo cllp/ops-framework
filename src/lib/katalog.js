@@ -47,6 +47,27 @@ import { SLAGPLATSER } from "./slag.js";
 import { byggNamn, text } from "./sprak.js";
 
 /**
+ * Fälten en kategori får bära. Allt annat avvisas.
+ *
+ * ⛔ LISTAN FINNS FÖR ATT DET TYSTA ÄR VÄRRE ÄN DET SOM SAKNAS (#117). Innan
+ * den fanns byggde `byggKategori` ett objekt av sju fält och slängde resten
+ * utan ett ljud. Mätt: en kategori skriven med `lofte` och `titleHint` högst
+ * upp kom ut utan båda, och ingenting kastades. Den som skrev fick en grön
+ * uppstart och en tom rad i vyn, alltså letade i vyn efter ett fel som låg i
+ * katalogen.
+ */
+const KATEGORIFALT = ["id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter"];
+
+/**
+ * ⛔ EN TEXTNYCKEL FÅR INTE BÄRA PUNKT ELLER MELLANSLAG, av samma skäl som
+ * `id`: den blir en sökväg i en Firestore-regel, alltså `texter.titleHint`.
+ * Versaler är däremot tillåtna här och inte i `id`, eftersom nycklarna är
+ * kodens egna namn på texterna och inte något två personer skriver in var för
+ * sig.
+ */
+const TEXTNYCKEL_FORM = /^[a-zA-Z][a-zA-Z0-9_]*$/;
+
+/**
  * Faserna. Ramverkets skelett, och de går inte att lägga till.
  *
  * ⛔ "vantar" FINNS OCH ÄR INTE SAMMA SAK SOM "aktiv". Skillnaden är om det
@@ -73,6 +94,28 @@ export const AVSLUTADE_FASER = /** @type {const} */ (["klar", "avskriven"]);
  * @property {"ny"|"aktiv"|"vantar"|"klar"|"avskriven"} fas
  * @property {number} ordning Lägre först.
  * @property {boolean} arkiverad Går inte att välja för nya poster.
+ * @property {Record<string, import("./sprak.js").Namn>} texter Fria, namngivna texter. Se nedan.
+ */
+
+/**
+ * ══ ⛔ VARFÖR `texter` OCH INTE FLER FASTA FÄLT (#117) ═════════════════
+ *
+ * En kategori behöver fler ord än ett namn, och det är mätt i appens listor:
+ * plural i filtret ("Uppgifter"), singular på raden ("Uppgift"), en kort form i
+ * smala kontroller ("Ekonomi"), och för inkorgens sorter dessutom nio
+ * hjälptexter var. Vyn får inte hugga av ett långt ord för att det inte ryms,
+ * eftersom en avhuggning i en vy är en andra vokabulär.
+ *
+ * ⛔ DE ÄR PRODUKTTEXT OCH INTE FYLLNAD. Tappas de blir resultatet ett
+ * formulär med tomma fält och inga exempel, alltså sämre än listan de ersatte.
+ * Det gäller särskilt en kategori som läggs till i inställningsvyn: den föds
+ * utan dem om ingen frågar efter dem.
+ *
+ * ⛔ EN PÅSE OCH INTE FASTA FÄLT, eftersom vilka texter som behövs är appens
+ * fråga och inte ramverkets. Ramverket vet inte vad en "rubrikhjälp" är. Det
+ * det kan veta är att varje text är ett `Namn`, alltså har svenska, och att
+ * katalogen kan KRÄVA vissa nycklar. Det andra är `textnycklar` nedan, och utan
+ * det kravet vore "texterna tappas inte" ett löfte utan vakt.
  */
 
 /** @param {unknown} v @returns {string} */
@@ -97,10 +140,10 @@ const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
  * och inte data, samma regel som resten av ramverket.
  *
  * @param {Record<string, any>} d
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[] }} [config]
  * @returns {Kategori}
  */
-export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog" } = {}) {
+export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar } = {}) {
   const var_ = (/** @type {string} */ falt, /** @type {string} */ skal) =>
     new Error(`${katalog}: ${falt} ${skal}`);
 
@@ -110,6 +153,20 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     throw var_(
       `id "${id}"`,
       "får bara innehålla små bokstäver, siffror, bindestreck och understreck. En punkt blir en sökväg i en Firestore-regel, och versaler gör två id som ser lika ut till olika nycklar.",
+    );
+  }
+
+  /*
+   * ⛔ OKÄNDA FÄLT AVVISAS, DE SLÄNGS INTE. Se noten vid `KATEGORIFALT`. Den
+   * här kontrollen står före resten med flit: har någon skrivit `lofte` högst
+   * upp är det den upplysningen hen behöver, och inte att `farg` också saknas
+   * i det utkast hen höll på att skriva.
+   */
+  const okanda = Object.keys(d && typeof d === "object" ? d : {}).filter((n) => !KATEGORIFALT.includes(n));
+  if (okanda.length > 0) {
+    throw var_(
+      `fälten ${okanda.join(", ")} för "${id}"`,
+      `känns inte igen. En kategori bär ${KATEGORIFALT.join(", ")}. Är det text som ska visas hör den hemma i texter, alltså texter: { ${okanda[0]}: { sv: "..." } }, och där följer den med i stället för att försvinna.`,
     );
   }
 
@@ -142,6 +199,8 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     throw var_(`fas "${fas}" för "${id}"`, `finns inte. Faserna är ramverkets och går inte att lägga till: ${FASER.join(", ")}.`);
   }
 
+  const texter = byggTexter(d.texter, { id, katalog, textnycklar });
+
   return {
     id,
     namn,
@@ -150,7 +209,82 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     fas: /** @type {Kategori["fas"]} */ (fas),
     ordning: Number.isFinite(Number(d.ordning)) ? Number(d.ordning) : 0,
     arkiverad: d.arkiverad === true,
+    texter,
   };
+}
+
+/**
+ * Bygger textpåsen, eller kastar med skälet.
+ *
+ * ⛔ VARJE TEXT GÅR GENOM `byggNamn`, alltså kräver svenska. Skälet är
+ * `sprak.js`: svenska är reserven för alla andra språk, så en text utan
+ * svenska har ingenting att falla tillbaka på och blir en tom sträng i vyn.
+ *
+ * ⛔ EN STRÄNG TAS EMOT OCH BLIR `{ sv }`. Samma migreringsordning som resten
+ * av epiken: läsaren tål båda formerna innan skrivarna byter. Appens listor är
+ * i dag strängar, och `saknadeSprak` räknar upp varje sådan så att toleransen
+ * inte blir tyst.
+ *
+ * @param {unknown} varde
+ * @param {{ id: string, katalog: string, textnycklar?: readonly string[] }} config
+ * @returns {Record<string, import("./sprak.js").Namn>}
+ */
+function byggTexter(varde, { id, katalog, textnycklar }) {
+  if (varde !== undefined && varde !== null && (typeof varde !== "object" || Array.isArray(varde))) {
+    throw new Error(`${katalog}: texter för "${id}" måste vara ett objekt med namngivna texter, inte ${Array.isArray(varde) ? "en lista" : typeof varde}.`);
+  }
+
+  /** @type {Record<string, import("./sprak.js").Namn>} */
+  const ut = {};
+  for (const [nyckel, text_] of Object.entries(/** @type {Record<string, unknown>} */ (varde || {}))) {
+    if (!TEXTNYCKEL_FORM.test(nyckel)) {
+      throw new Error(
+        `${katalog}: textnyckeln "${nyckel}" för "${id}" får bara innehålla bokstäver, siffror och understreck, och måste börja på en bokstav. En punkt blir en sökväg i en Firestore-regel.`,
+      );
+    }
+    try {
+      ut[nyckel] = byggNamn(typeof text_ === "string" ? { sv: text_ } : /** @type {any} */ (text_) || {});
+    } catch (fel) {
+      throw new Error(`${katalog}: texten "${nyckel}" för "${id}" ${fel instanceof Error ? fel.message.replace(/^byggNamn: /, "") : String(fel)}`);
+    }
+  }
+
+  /*
+   * ⛔ KRAVET STÅR HÄR OCH INTE I VARJE ANROPSSTÄLLE. Utan det är "texterna
+   * tappas inte i flytten" ett löfte utan vakt, och det som faktiskt händer är
+   * att en kategori som lagts till i inställningsvyn föds utan hjälptexter och
+   * ger ett formulär med tomma fält och inga exempel.
+   */
+  const saknade = (textnycklar || []).filter((n) => !(n in ut));
+  if (saknade.length > 0) {
+    throw new Error(
+      `${katalog}: texterna ${saknade.join(", ")} saknas för "${id}". Katalogen kräver dem, och utan dem ritas formuläret med tomma hjälpfält i stället för med de exempel som gör det begripligt.`,
+    );
+  }
+
+  return ut;
+}
+
+/**
+ * En text ur påsen, på valt språk.
+ *
+ * ⛔ SVARAR TOM STRÄNG OCH KASTAR ALDRIG, till skillnad från bygget ovan. Det
+ * körs vid uppstart och ska stoppa en felaktig uppsättning. Den här körs i en
+ * vy, på en rad som kan peka på en kategori som hunnit arkiveras eller tas bort
+ * ur standardvärdena, och en vy som kastar där tar ned hela listan i stället
+ * för en rad. Samma val som `beteendet()` i `beteenden.js`.
+ *
+ * @param {unknown} kategori
+ * @param {unknown} nyckel
+ * @param {string} [sprak]
+ * @returns {string}
+ */
+export function texten(kategori, nyckel, sprak = "sv") {
+  const n = rensa(nyckel);
+  if (!n || !kategori || typeof kategori !== "object") return "";
+  const pase = /** @type {any} */ (kategori).texter;
+  if (!pase || typeof pase !== "object") return "";
+  return text(pase[n], sprak);
 }
 
 /**
@@ -168,8 +302,14 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
  * ⛔ EN TOM KATALOG ÄR TILLÅTEN. Den är läget innan seedningen körts, och ett
  * fel där hade gjort en app omöjlig att starta första gången.
  *
+ * ⛔ `textnycklar` GÄLLER HELA KATALOGEN OCH INTE EN RAD. Det är just vad som
+ * gör den till en vakt: kravet formuleras en gång, av appen som vet vilka
+ * texter dess vyer ritar, och varenda kategori mäts mot det. Skrevs kravet per
+ * rad skulle en ny kategori kunna läggas till utan, och då finns kravet
+ * kvar men inte dess verkan.
+ *
  * @param {unknown} kategorier
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[] }} [config]
  * @returns {Kategori[]}
  */
 export function validateKatalog(kategorier, config = {}) {
