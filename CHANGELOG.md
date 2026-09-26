@@ -9,6 +9,47 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.21.0
+
+⛔ **Panelen följde sin egen regel på bred skärm och bröt den på smal.**
+Filhuvudet i `OpsPanel` sade redan att panelen ska se ut som menyn, för att den
+är samma sak. Men menyn är inte samma yta i båda bredderna: på bred skärm är
+den en rullgardin i headern, på smal skärm en sheet i `OpsBottomNav`. Panelen
+var en rullgardin i båda.
+
+CP 2026-09-26: "Vill ha notisers funktion med inkorgs utseende. Alltså bara att
+det är en egen panel och ingen ful dropdown. Den ser inte ut som i
+SessionStudio och är inget nice i mobil."
+
+### Ändrat
+
+- **`OpsPanel` är en sheet under `md` och en rullgardin från `md` och upp.**
+  Sheeten är samma yta som `OpsBottomNav`s Meny-sheet ned i detaljerna:
+  `85dvh`, rundad överkant, `--safe-bottom`, egen stängknapp. Beteendet är
+  oförändrat: samma stack, samma tillbakapil, samma nollställning vid
+  stängning.
+- **Tre lappar försvann med ytan.** `max-w-[calc(100vw-1.5rem)]`, taket på
+  `70vh` och den egna dämpningen `data-ops-panel-scrim` fanns alla för att en
+  22 rem bred rullgardin inte fick plats på en telefon. Sheeten har Radix egen
+  `Dialog.Overlay` i stället.
+- **Nytt fel: `closeLabel`** på `OpsPanel`, skärmläsarnamnet på sheetens
+  stängknapp. Förval `"Stäng"`, samma som `OpsBottomNav`.
+
+⛔ **Valet görs i JS och inte med CSS.** Att rendera båda och dölja den ena är
+mönstret i `OpsAppShell`, och det duger för en nav. Panelen bär en fokusfälla
+och en triggerknapp: två rötter hade gett två fokusfällor, två klockor i DOM:en
+och dubbletter i varje `getByRole` hos appen. Utan `matchMedia`, alltså i jsdom
+och vid serverrendering, blir det rullgardinen.
+
+### Mätt under arbetet
+
+- `role="dialog"` skiljer **inte** ytorna åt: Radix `Popover.Content` sätter den
+  också. Ett prov på rollen var grönt på bred skärm, alltså bevakade det inget.
+- `aria-modal` sätts **inte** av Radix `Dialog` här. Provet som utgick från det
+  var rött mot en sheet som renderades rätt.
+- Det som faktiskt skiljer är behållaren, vilket också är precis det som
+  klagomålet handlade om. Proven kontrollerar därför ytans klasser.
+
 ## 0.20.0
 
 Fas 2 fortsätter. Båda luckorna nedan hittades när appens halva

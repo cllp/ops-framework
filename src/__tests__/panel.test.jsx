@@ -208,3 +208,152 @@ describe("aktivitetspanelens filterslot", () => {
     expect(text.indexOf("Visa systemhändelser")).toBeLessThan(text.indexOf("En rad"));
   });
 });
+
+/**
+ * ══ ⛔ YTAN UNDER `md`: SHEET OCH INTE RULLGARDIN ══════════════════════════
+ *
+ * CP 2026-09-26: "Vill ha notisers funktion med inkorgs utseende. Alltså bara
+ * att det är en egen panel och ingen ful dropdown. Den ser inte ut som i
+ * SessionStudio och är inget nice i mobil."
+ *
+ * ⛔ STUBBEN ÄR LOKAL OCH INTE I `setup.js`. En global stubb hade tyst flyttat
+ * varje befintligt panelprov ovanför till den nya vägen, och då hade de sexton
+ * proven slutat bevaka rullgardinen utan att någon sagt det.
+ *
+ * @param {boolean} smal
+ */
+function medBredd(smal) {
+  const lyssnare = new Set();
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query) => ({
+      media: query,
+      matches: smal,
+      addEventListener: (_, fn) => lyssnare.add(fn),
+      removeEventListener: (_, fn) => lyssnare.delete(fn),
+      dispatchEvent: () => false,
+    }),
+  });
+  return () => {
+    // @ts-expect-error vi tar bort den vi själva satte
+    delete window.matchMedia;
+  };
+}
+
+describe("OpsPanel på smal skärm", () => {
+  it("⛔ öppnar som en SHEET, inte som en rullgardin", () => {
+    const stad = medBredd(true);
+    try {
+      render(<Prov />);
+      fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+      /*
+       * ⛔ YTAN SKILJER DEM ÅT, INTE ROLLEN. Två saker mättes när det här
+       * provet skrevs, och båda gissningarna var fel:
+       *
+       *   `role="dialog"`  Radix Popover.Content sätter den OCKSÅ. Ett prov på
+       *                    rollen var grönt på bred skärm, alltså bevakade det
+       *                    ingenting.
+       *   `aria-modal`     Radix Dialog sätter den inte här. Ett prov på den
+       *                    var rött mot en sheet som faktiskt renderades rätt.
+       *
+       * Det som faktiskt skiljer är BEHÅLLAREN, och det är precis det CP
+       * klagade på: en rullgardin hänger under sin knapp, en sheet sitter fast
+       * i underkanten och täcker bredden. Klasserna är därför rätt sak att
+       * prova, inte en formalitet i märkningen.
+       */
+      const sheet = screen.getByRole("dialog", { name: "Meny" });
+      expect(sheet.className).toContain("fixed");
+      expect(sheet.className).toContain("bottom-0");
+      expect(sheet.className).not.toContain("w-88");
+      expect(within(sheet).getByText("Notiser")).toBeInTheDocument();
+    } finally {
+      stad();
+    }
+  });
+
+  it("⛔ har en egen stängknapp, som Meny-sheeten i bottenraden", () => {
+    /*
+     * En rullgardin stängs genom att man trycker bredvid den, och det är hela
+     * ytan man ser. En sheet täcker underkanten med dämpning ovanför, och på en
+     * telefon är "bredvid" då en remsa man inte siktar på.
+     */
+    const stad = medBredd(true);
+    try {
+      render(<Prov />);
+      fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+      fireEvent.click(screen.getByRole("button", { name: "Stäng" }));
+      expect(screen.queryByRole("dialog", { name: "Meny" })).not.toBeInTheDocument();
+    } finally {
+      stad();
+    }
+  });
+
+  it("⛔ bär samma ytklasser som OpsBottomNavs sheet, inte bara liknande", () => {
+    /*
+     * De två ska vara SAMMA yta: öppnar man Meny och sedan klockan ska
+     * ingenting röra sig. `85dvh` och `--safe-bottom` står här för att de är
+     * precis de två som är lätta att glömma, och båda syns bara på en riktig
+     * telefon: `dvh` för Safaris verktygsrad, `--safe-bottom` för hemknappen.
+     */
+    const stad = medBredd(true);
+    try {
+      const { container } = render(<Prov />);
+      fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+      const sheet = screen.getByRole("dialog", { name: "Meny" });
+      for (const klass of ["fixed", "inset-x-0", "bottom-0", "max-h-[85dvh]", "rounded-t-xl", "bg-raised", "pb-(--safe-bottom)"]) {
+        expect(sheet.className, `sheeten saknar "${klass}"`).toContain(klass);
+      }
+      expect(container).toBeTruthy();
+    } finally {
+      stad();
+    }
+  });
+
+  it("⛔ stacken fungerar likadant i sheeten, inklusive tillbakapilen", () => {
+    // Funktionen är notisernas, bara ytan är Inkorgens. Bytte beteendet också
+    // vore det en annan komponent som råkar heta samma sak.
+    const stad = medBredd(true);
+    try {
+      render(<Prov />);
+      fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+      fireEvent.click(screen.getByText("Notiser"));
+      expect(screen.getByText("Tre nya saker")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
+      expect(screen.queryByText("Tre nya saker")).not.toBeInTheDocument();
+      expect(screen.getByText("Inställningar")).toBeInTheDocument();
+    } finally {
+      stad();
+    }
+  });
+
+  it("⛔ på BRED skärm är det fortfarande en rullgardin", () => {
+    /*
+     * Spegelraden, och den är inte formalia. Utan den kan proven ovan vara
+     * gröna för att panelen blivit en sheet i ALLA bredder, alltså för att
+     * rullgardinen försvunnit i stället för att sheeten tillkommit.
+     */
+    const stad = medBredd(false);
+    try {
+      render(<Prov />);
+      fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+      const yta = screen.getByRole("dialog", { name: "Meny" });
+      expect(yta.className).toContain("w-88");
+      expect(yta.className).not.toContain("bottom-0");
+      expect(screen.queryByRole("button", { name: "Stäng" })).not.toBeInTheDocument();
+      expect(screen.getByText("Notiser")).toBeInTheDocument();
+    } finally {
+      stad();
+    }
+  });
+
+  it("⛔ utan matchMedia blir det rullgardinen, inte ingenting", () => {
+    // jsdom och en serverrendering saknar den. Rullgardinen är den yta som
+    // fungerar utan att veta något om fönstret.
+    expect(typeof window.matchMedia).toBe("undefined");
+    render(<Prov />);
+    fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
+    expect(screen.getByRole("dialog", { name: "Meny" }).className).toContain("w-88");
+    expect(screen.getByText("Notiser")).toBeInTheDocument();
+  });
+});
