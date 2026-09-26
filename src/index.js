@@ -114,6 +114,7 @@ export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } fr
 export { FASER, AVSLUTADE_FASER, byggKategori, validateKatalog, valjbara, kategorin, arAvslutad } from "./lib/katalog.js";
 export { SPRAK, RESERVSPRAK, byggNamn, text, arGammalNamn, saknadeSprak } from "./lib/sprak.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
+export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
 export { createActivityLog, unreadCount, isUnread, unread, unreadRows, activityId, activityWindow, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";
