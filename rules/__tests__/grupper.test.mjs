@@ -227,6 +227,19 @@ describe("⛔ inbjudan: bara gruppens ägare, den bär en adress", () => {
   it("⛔ en inbjudan kan inte flyttas till en annan grupp", async () => {
     await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-1"), { groupId: ANNAN }));
   });
+
+  /*
+   * ⛔ ROLLEN ÄR OCKSÅ OFÖRÄNDERLIG (#137). En inbjudan är ett löfte som någon
+   * redan fått. Höjs rollen i efterhand blir en accepterad inbjudan till medlem
+   * plötsligt ett ägarskap, utan att den som accepterade såg det.
+   */
+  it("⛔ en inbjudans roll kan inte höjas i efterhand", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-1"), { roll: "agare" }));
+  });
+
+  it("ägaren får ändra statusen, alltså återkalla", async () => {
+    await assertSucceeds(updateDoc(doc(som(AGARE), "invitations/inb-1"), { status: "aterkallad" }));
+  });
 });
 
 describe("⛔ catch-allen nekar", () => {

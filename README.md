@@ -561,6 +561,33 @@ och vilken som gäller avgörs då av vilken regeln råkar slå upp. Ett härlet
 gör unikheten till en egenskap hos nyckeln i stället för en kontroll någon måste
 komma ihåg. Ett inskickat id som inte stämmer avvisas, det rättas inte.
 
+#### Vägen in för en ny person
+
+Två steg, båda på serversidan, ur `@staiger/ops-framework/node`:
+
+```js
+import { createInvitationService } from "@staiger/ops-framework/node";
+
+const tjanst = createInvitationService({ kalla });
+await tjanst.bjudIn({ avUid, groupId, epost, roll });          // ägaren bjuder in
+await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
+```
+
+1. **Ägaren bjuder in med e-post.** Finns personen redan som användare skrivs medlemskapet **direkt**, annars skrivs en rad i `invitations`. En inbjudan som väntar på en inloggning som redan skett är en rad ingen accepterar, och den som bjöd in ser en person som aldrig dyker upp.
+2. **Vid inloggning** anropar klienten en gång. Serversidan matchar den inloggades e-post mot väntande inbjudningar och skriver medlemskapen. Efter det är det uid som gäller, aldrig e-posten.
+
+⛔ **BARA NODSIDAN.** `memberships` skrivs aldrig av en klient, alltså är en callable med Admin SDK det enda som kan skriva dem. Låg funktionen i huvudingången vore den en yta en vy kunde anropa, och då vore `allow write: if false` en dörr med ett fönster bredvid.
+
+⛔ **ÄGARSKAPET KONTROLLERAS I FUNKTIONEN, INTE BARA I REGLERNA.** En callable kör förbi reglerna. Vore kontrollen bara i `firestore.rules` vore funktionen en väg runt dem, och det är den vanligaste luckan i ett callable-baserat system.
+
+⛔ **STEG 2 ÄR IDEMPOTENT.** Klienten anropar vid varje inloggning, eftersom den inte kan veta om något väntar. Andra körningen gör ingenting och kastar inte: ett fel där hade blivit en röd ruta vid varje inloggning för den som redan är medlem.
+
+⛔ **E-POSTEN JÄMFÖRS I GEMENER, ALLTID.** `CP@Staiger.se` och `cp@staiger.se` är samma brevlåda och två strängar. Matchas de inte loggar personen in och möter en tom app utan förklaring.
+
+⛔ **EN INBJUDANS ROLL GÅR INTE ATT ÄNDRA I EFTERHAND**, och inte dess grupp. En inbjudan är ett löfte som någon redan fått: höjs rollen blir en accepterad inbjudan till medlem plötsligt ett ägarskap, utan att den som accepterade såg det. Ska den ändras återkallas inbjudan och en ny skrivs.
+
+⛔ **INGEN MEJLUTSKICK HÄR.** Mailmodulen ([#101](https://github.com/cllp/ops-framework/issues/101)) tar det när den finns. Tills dess säger inställningsvyn "be personen logga in".
+
 #### Reglerna genereras, de skrivs inte per samling
 
 Firestore-regler har ingen import. Utan generering blir "du måste vara medlem i
