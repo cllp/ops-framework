@@ -133,6 +133,21 @@ export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
 export { regelfragment, gruppadSamling } from "./lib/regler.js";
+
+/*
+ * ⛔ GRUPPLÄGET OCH SAMMANSLAGNINGEN (#139). Besluten är rena funktioner och
+ * ligger därför här: vilka grupper som frågas och hur svaren läggs ihop måste
+ * gå att prova utan en skärm, och det är samma skäl som för katalogen.
+ *
+ * ⛔ `gruppLista` OCH `gruppSkapa` ÄR DEN ENDA VÄGEN IN till en grupps rader,
+ * och att `groupId` krävs är ett typkrav som `check-gruppfraga` bevisar genom
+ * att köra tsc mot en fråga utan grupp.
+ */
+export { ALLA_GRUPPER, minaGrupper, valtLage, grupperAttFraga, navForLage, gruppenAttSkapaI, slaIhopSvar, grupplagetsNyckel, lasAktivGrupp, sparaAktivGrupp } from "./lib/grupplage.js";
+export { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "./data/gruppkalla.js";
+export { OpsGruppvaljare } from "./components/OpsGruppvaljare.jsx";
+export { OpsGruppfilter } from "./components/OpsGruppfilter.jsx";
+export { OpsGruppmarke } from "./components/OpsGruppmarke.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";

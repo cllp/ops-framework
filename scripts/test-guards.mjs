@@ -1052,6 +1052,60 @@ kravRott(
   kravRott("paket golv: fel sökväg", [paketvakt, path.join(arbetsmapp, "finns-inte"), "--struktur"], "finns inte");
 }
 
+// ── Gruppfrågan: groupId är ett KRAV i typen, inte en konvention (#139) ────
+//
+// ⛔ VAKTEN BEVISAS MOT EN KOPIA AV HELA `src`, inte mot en lös fil. Kopieras
+// bara `gruppkalla.js` någon annanstans faller tsc på att `./contract.js` inte
+// finns, och det felet är också rött. En vakt som blir röd av en trasig import
+// har slutat mäta det den påstår sig mäta, och det syns inte utifrån.
+{
+  const gruppvakt = path.join(rot, "scripts", "check-gruppfraga.mjs");
+
+  /*
+   * ⛔ KOPIAN LIGGER UTANFÖR `node_modules`, OCH DET ÄR ETT MÄTFYND. Första
+   * försöket la den i harnessets vanliga arbetsmapp, alltså under
+   * `node_modules`, och tsc vägrar typkontrollera JS därifrån: den svarade
+   * TS7016, "implicitly has an any type". Vakten blev röd, men av att filen
+   * inte gick att läsa och inte av att kravet saknades, alltså exakt det
+   * "rött av fel anledning" harnessets andra villkor finns för att fånga.
+   */
+  const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-gruppfraga-prov-"));
+
+  /** @param {string} namn @param {(kalla: string) => string} mutera */
+  const kopieradKalla = (namn, mutera) => {
+    const mapp = path.join(gruppmapp, namn);
+    fs.cpSync(path.join(rot, "src"), path.join(mapp, "src"), { recursive: true });
+    const fil = path.join(mapp, "src", "data", "gruppkalla.js");
+    fs.writeFileSync(fil, mutera(fs.readFileSync(fil, "utf8")));
+    return fil;
+  };
+
+  kravGront("gruppfraga: den riktiga källan kräver groupId", [gruppvakt]);
+
+  kravRott(
+    "gruppfraga: groupId gjord valfri i GruppFraga",
+    [gruppvakt, kopieradKalla("gf1", (k) => k.replace("@property {string} groupId", "@property {string} [groupId]"))],
+    "SLÄPPTE IGENOM",
+  );
+
+  kravRott(
+    "gruppfraga: groupId gjord valfri i gruppSkapas data",
+    [
+      gruppvakt,
+      kopieradKalla("gf2", (k) =>
+        k
+          .replace("@property {string} groupId", "@property {string} [groupId]")
+          .replace("@param {Partial<T> & { groupId: string }} data", "@param {Partial<T> & { groupId?: string }} data"),
+      ),
+    ],
+    "SLÄPPTE IGENOM",
+  );
+
+  kravRott("gruppfraga golv: fel sökväg", [gruppvakt, path.join(gruppmapp, "finns-inte.js")], "hittar inte");
+
+  fs.rmSync(gruppmapp, { recursive: true, force: true });
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");

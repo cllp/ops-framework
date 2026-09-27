@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**71 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**74 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -643,6 +643,88 @@ samma regeltext glider isär i samma sekund som någon rättar den incheckade.
 ⛔ **`test:rules` ligger inte i `npm run check`**, utan i ett eget CI-jobb. Den
 kräver en emulator och en Java-körning, alltså minuter i stället för sekunder,
 och `check` ska svara medan man väntar. Samma uppdelning som `bolag-ops`.
+
+#### De två lägena: en grupp, eller alla
+
+[#139](https://github.com/cllp/ops-framework/issues/139). Gruppväljaren står i
+sidopanelen och har mina grupper plus **alla**. `minaGrupper` bygger listan ur
+mina medlemskap, inte ur grupplistan: en grupp jag kan läsa men inte är medlem i
+hade gett en tom vy och en fråga reglerna avvisar, alltså "Missing or
+insufficient permissions" i knäet på någon som bara bytte flik.
+
+```js
+import { ALLA_GRUPPER, minaGrupper, valtLage, grupperAttFraga, navForLage, gruppenAttSkapaI } from "@staiger/ops-framework";
+import { grupplagetsNyckel, lasAktivGrupp, sparaAktivGrupp } from "@staiger/ops-framework";
+import { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "@staiger/ops-framework";
+
+const mina = minaGrupper(mittMedlemskap, grupper);
+const aktiv = valtLage(lasAktivGrupp(uid, localStorage), mina);
+const { nav, saknade } = navForLage({ lage: aktiv, ramnav, moduler, mina });
+const rader = await listaPerGrupp(kalla, "handelser", grupperAttFraga({ lage: aktiv, mina, bortkryssade }), { sortBy: "datum" });
+```
+
+| Läget | Navet | Frågorna | Att skapa |
+|---|---|---|---|
+| **en grupp** | ramverkets ytor **plus gruppens `moduler`** | en fråga, `gruppLista` | gruppen är given |
+| **alla** | bara ramverkets ytor | **en fråga per grupp**, `listaPerGrupp` | ⛔ kräver att en grupp väljs först |
+
+⛔ **Sammanslagning är inte delning.** Varje rad tillhör fortfarande exakt en
+grupp, `slaIhopSvar` märker den med `gruppmarke` för `OpsGruppmarke`, och ingen
+rad och ingen regel ändras. En rad som redan bär ett `gruppmarke` avvisas: det
+är ett vyfält som smitit in i datan, och en sparad kopia kan peka på en annan
+grupp än raden gör.
+
+⛔ **`groupId` är ett krav i TYPEN, inte en konvention.** `gruppLista` och
+`gruppSkapa` är enda vägen in till en grupps rader, och `check-gruppfraga` kör
+tsc mot en fråga och ett skapande utan grupp och kräver ett typfel för var och
+en. En vakt som i stället letat efter raden `@property {string} groupId` i
+källan hade varit ett närvarogrep: raden kan stå kvar medan typen ändå släpper
+igenom. Gruppen läggs dessutom **sist** i `where`, så en anropare som skickar
+med ett eget `groupId` inte kan skriva över den.
+
+⛔ **`limit` gäller det ihopslagna, och skickas dessutom med nedåt.** Det
+avgörande taket är det sista: tio rader ur tre grupper är trettio, och tio av
+dem ska visas. Att varje delfråga också bär taket är en kostnadsfråga, och den
+är säker eftersom delfrågan bär samma sortering: en grupps tio översta
+innehåller allt den kan bidra med till de tio översta totalt. Sorteringen är
+`applyQuery`, alltså samma jämförelse som en enskild fråga, och utan den hade
+ordningen berott på vilket svar som kom först.
+
+⛔ **Den raden stod fel här först.** Noten påstod att ett tak per delfråga hade
+gett fel svar. Mutationssvepet visade motsatsen, eftersom sorteringen följer
+med, och ett skäl som inte stämmer är värre än inget skäl: nästa läsare tar det
+för mätt.
+
+⛔ **En fråga per grupp, ingen optimering.** Med en handfull grupper märks det
+inte, och med femtio är det en annan produkt. Gränsen står utskriven i ärendet.
+
+⛔ **Valet sparas per person, i `grupplagetsNyckel(uid)`, och inte i
+`users`-raden.** Vilken grupp jag tittar i är en egenskap hos enheten: språk och
+tema följer med till telefonen, medan "jag tittar just nu i den här gruppen"
+inte gör det. `lasAktivGrupp` och `sparaAktivGrupp` tar lagringen som argument
+och fångar inga fel: `localStorage` kastar i privat läge, och en tyst
+nedsläppsväg hade sett ut som att appen glömt valet.
+
+⛔ **Ett sparat val är ett tips och inte ett faktum.** Medlemskapet kan ha
+avslutats och gruppen kan ha arkiverats. `valtLage` faller då tillbaka till
+**alla**, så personen ser sina egna grupper i stället för en tom vy utan
+förklaring.
+
+⛔ **`navForLage` skriver ut `saknade`.** En grupp som pekar på en modul appen
+inte installerat är en halv utrullning, och den ser ut precis som en grupp med
+färre flikar. Ett kast vore fel svar: då ligger appen nere för den gruppen utan
+väg tillbaka till en som fungerar. Appen visar dem, som `KatalogLarm`.
+
+| Komponent | Vad |
+|---|---|
+| `OpsGruppvaljare` | listan i sidopanelen, med `aria-current` på den aktiva |
+| `OpsGruppfilter` | kryssar bort grupper ur en ihopslagen vy, med `raderPerGrupp` som siffra |
+| `OpsGruppmarke` | gruppens märke på en rad i läget alla: `OpsIdentity` plus namnet |
+
+⛔ **Ingen av dem använder Radix**, och det är mätt: en popover går inte att
+driva med `fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut
+inget prov kan mäta. Väljaren och filtret är vanliga knappar, och proven trycker
+på dem.
 
 ### Modulkontraktet
 
