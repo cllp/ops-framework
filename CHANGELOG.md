@@ -134,6 +134,23 @@ källtyp finns både i README-avsnittet och i exemplet.
 ⛔ **Manifestet importerar sin vy med `lazy`**, och exemplet visar varför:
 regelgeneratorn körs i ett Node-skript, och Node kan inte läsa JSX.
 
+### De tre ytorna som saknades
+
+⛔ **Sök** (#140), **Notiser** (#141) och **Översikt** (#142). Alla tre läser ur
+källregistret och äger sin egen tomhet, sitt fel och sin väntan.
+
+Sök indexerar inte: ramverket frågar källorna och visar vad de ger. Fältet
+frågar inte förrän något skrivits, eftersom en modul som får en tom söksträng
+rimligen svarar med allt den har. Tomheten bär sökordet, så stavfelet syns.
+
+Notisernas läsmärke är ramverkets data och skickas in av appen. Räknaren kan
+inte nå en grupp jag inte är med i, och det följer av kontraktet i stället för
+av en kontroll: källan frågas per grupp.
+
+Översikten är alltid en grupps. En widget som saknas i gruppens ordning hamnar
+sist, inte utanför: en ny modul ska dyka upp, inte vara osynlig tills någon
+redigerat en lista de inte visste fanns.
+
 ### Kedjan kontrollerar nu varje PR
 
 `check.yml` hade `branches: [main]` på `pull_request`, så en PR mot en annan

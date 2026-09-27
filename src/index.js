@@ -144,6 +144,15 @@ export { OpsModulHjalp } from "./components/OpsModulHjalp.jsx";
 export { OpsModulKataloger } from "./components/OpsModulKataloger.jsx";
 
 /*
+ * ⛔ DE TRE YTORNA SOM SAKNADES (#140, #141, #142). Architectens avgränsning
+ * av #129: kontraktet först, ytorna som egna ärenden. Alla tre läser ur
+ * registret och äger sin egen tomhet, sitt fel och sin väntan.
+ */
+export { OpsSok } from "./components/OpsSok.jsx";
+export { OpsNotiser, olasta } from "./components/OpsNotiser.jsx";
+export { OpsOversikt, iOrdning } from "./components/OpsOversikt.jsx";
+
+/*
  * ⛔ GRUPPER OCH MEDLEMSKAP (#136). Formerna är data in och data ut, och
  * regelfragmentet är text in och text ut, alltså ingen React. De ligger här av
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som

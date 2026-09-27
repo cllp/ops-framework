@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**79 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**82 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -902,6 +902,47 @@ Manifestet vet vilka ytor som finns och att modulen pekat ut en funktion per yta
 den fyller. Att låtsas validera radernas form redan nu vore en vakt som utlovar
 ett skydd den inte har.
 
+
+#### De tre ytorna: Sök, Notiser och Översikt
+
+[#140](https://github.com/cllp/ops-framework/issues/140),
+[#141](https://github.com/cllp/ops-framework/issues/141),
+[#142](https://github.com/cllp/ops-framework/issues/142). Alla tre läser ur
+registret och äger sin egen tomhet, sitt fel och sin väntan.
+
+| Yta | Komponent | Vad modulen ska ge för att synas rätt |
+|---|---|---|
+| Sök | `OpsSok` | `{ id, titel }` minst. `text` blir radtexten under titeln, `href` gör träffen öppningsbar. Träffarna grupperas per modul, så skicka in `modulnamn` för läsbara rubriker |
+| Notiser | `OpsNotiser` | `{ id, titel, prio }`. `prio` ur `NOTISPRIO` styr ordningen: brådskande först. `text` och `href` är frivilliga |
+| Översikt | `OpsOversikt` | `{ id, titel: { sv, en }, vy }`. Vyn får hela widgetraden som props, så lägg det den behöver på raden |
+
+⛔ **Ramverket indexerar inte.** Sök frågar källorna och visar vad de ger. Hur
+en modul söker är modulens sak, och ett index här hade varit en andra kopia av
+modulens data.
+
+⛔ **Sök frågar inte på ett tomt fält.** En modul som får en tom söksträng
+skulle rimligen svara med allt den har, och det är inte ett sökresultat utan en
+lista som ser ut som ett. Tomheten bär dessutom sökordet: "Inga träffar för
+fakura" visar stavfelet, som är den vanligaste orsaken till noll träffar.
+
+⛔ **Läsmärket i Notiser är ramverkets data, inte modulens.** Appen skickar in
+`lasta` och får `onLast`, precis som `lasmarken` redan fungerar i bolag-ops. En
+modul som ägde läsmärket hade behövt känna till användarna.
+
+⛔ **Räknaren kan inte nå en grupp jag inte är med i**, och det följer av
+kontraktet i stället för av en kontroll: källan frågas per grupp, och en grupp
+jag inte är medlem i frågas aldrig. `olasta(poster, lasta)` är en ren funktion,
+så räkningen går att mäta utan att rita en panel.
+
+⛔ **Översikten är alltid en grupps**, till skillnad mot Händelser. Ett kort som
+blandar två verksamheters siffror är ett kort ingen kan handla på.
+
+⛔ **En widget som saknas i gruppens ordning hamnar sist, inte utanför.** En ny
+modul ska dyka upp, inte vara osynlig tills någon redigerat en lista de inte
+visste fanns. `iOrdning(widgets, ordning)` är ren och provad.
+
+⛔ **En tom översikt säger varför och vart.** Ett tomt rutnät läser man som att
+det är trasigt.
 
 #### Exempelmodulen: kopiera `examples/paminnelser/`
 
