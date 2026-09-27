@@ -9,6 +9,73 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.24.0
+
+⛔ **Primärknappens text var oläsbar i ljust läge, och blev sämre av att man
+pekade på den.**
+
+`--color-accent-contrast` var `#f8f7f4`, alltså sidans botten, avläst ur
+förlagans enda accentfyllda knapp. Paritet var beslutet, och svagheten stod
+utskriven vid tokenet som "medvetet ärvd". Tre fynd 2026-09-27, och bara det
+första var känt:
+
+| | på `accent` | på `accent-hover` |
+|---|---|---|
+| `#f8f7f4`, förut | **2,79:1** | **2,44:1** |
+| `#1a1a1a`, nu | **5,83:1** | **6,66:1** |
+| WCAG AA kräver | 4,5:1 | 4,5:1 |
+
+⛔ **Noten hade fel siffra.** Den sade 2,99:1. Rätt svar är 2,79:1, och 2,99 är
+vad `raised` ger på accent, alltså raden bredvid i tabellen i
+`check-kontrast.mjs`. En felskriven siffra i en not om en MÄTT svaghet är precis
+den sorts uppgift ingen kontrollerar igen: den ser redan verifierad ut.
+
+⛔ **Hover-läget var aldrig mätt.** Det var sämre än viloläget. En vakt som bara
+mäter vila godkänner en knapp som blir oläsbar när muspekaren når den.
+
+### Ändrat
+
+- Ljust `--color-accent-contrast` går från `#f8f7f4` till `#1a1a1a`. Värdet är
+  inte påhittat: det är `--color-ink`, sidans egen text. En egen hex här hade
+  varit en färg vid sidan av paletten.
+
+### Lagt till
+
+- Två par i `PAR` i `scripts/check-kontrast.mjs`: `primärknappens text` och
+  `primärknappens text, hover`. Noten på platsen sade att hålet skulle stängas
+  den dag beslutet togs, och **en kommentar fäller inget bygge.**
+
+### Inte ändrat
+
+**Mörkt läge.** Det gav redan 11,56:1 och 12,76:1, och värdet står orört.
+
+**Reglagets på-läge.** Knoppen är då en yta och inte text, och inget befintligt
+token klarar 3:1 mot accent i båda teman. Hålet står kvar i noten, med sitt skäl.
+
+### ⛔ Vad som faktiskt ändras för den som uppgraderar
+
+Tokenet bär mer än en knapp. Fyra komponenter ser annorlunda ut i ljust läge:
+
+| Komponent | Vad som ändras |
+|---|---|
+| `OpsButton variant="primary"` | textens färg |
+| `OpsBottomNav` | FAB:ens plustecken och räknemärkets siffra |
+| `OpsDatePicker` | den valda dagens siffra |
+| `OpsToggle` | kryssrutans bock |
+
+⛔ **Bocken är det som gör det här till mer än kosmetik.** Den är en grafik på
+accent och behövde 3:1, vilket 2,79:1 aldrig var. Ändringen stänger därmed också
+en del av cllp/bolag-ops#417.
+
+### Beviset i båda riktningarna
+
+| | Utfall |
+|---|---|
+| `check-kontrast` **utan** fixen | `exit 1`, båda paren utskrivna med sina tal |
+| `check-kontrast` **med** fixen | 19 par i 2 teman, alla över AA, `exit 0` |
+
+---
+
 ## 0.23.1
 
 ⛔ **Katalogschemat hade elva kontroller och nio prov. Mätt, inte antaget.**
