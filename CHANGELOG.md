@@ -9,6 +9,32 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.22.0
+
+⛔ **Två adaptrar av samma kontrakt svarade olika på samma anrop.**
+`createFirestoreSource.create` med ett eget id gör `setDoc`, alltså ersätter
+dokumentet. `createMemorySource.create` la till en andra rad med samma id.
+
+Upptäckt i `cllp/bolag-ops` när inställningsvyn skulle provas: `list()` gav två
+poster där Firestore hade gett en, och `find(r => r.id === x)` svarade med den
+gamla. Provet var rött mot en app som var rätt.
+
+Riktningen kan lika gärna bli den andra. En adapter som står in för en annan i
+proven måste svara likadant på samma anrop, annars mäter provsviten en app som
+inte finns.
+
+### Ändrat
+
+- **`createMemorySource.create` ersätter posten när anropet bär ett eget `id`**,
+  precis som `setDoc`. Ersätter, slår inte ihop: en sammanslagning hade dolt en
+  bugg där appen skickar en delmängd, alltså fungerat i provet och tappat fält i
+  produktionen. Det är `update` som slår ihop. Utan id skapas fortfarande en ny
+  post med ett genererat id, precis som `addDoc`.
+- **Kontraktet säger nu vad ett eget `id` BETYDER vid `create`.** Det stod
+  ingenstans, så båda adaptrarna hade rätt var för sig.
+
+---
+
 ## 0.21.0
 
 ⛔ **Panelen följde sin egen regel på bred skärm och bröt den på smal.**
