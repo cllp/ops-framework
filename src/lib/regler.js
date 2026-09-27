@@ -131,8 +131,14 @@ export function regelfragment(namn = {}) {
     match /${inbjudningar}/{iid} {
       allow read: if opsArAgare(resource.data.groupId);
       allow create: if opsArAgare(request.resource.data.groupId);
+      // ⛔ VARKEN GRUPPEN ELLER ROLLEN GÅR ATT ÄNDRA (#137). Gruppen av samma
+      // skäl som på en vanlig rad. Rollen eftersom en inbjudan är ett löfte
+      // som någon redan fått: höjs den i efterhand blir en accepterad inbjudan
+      // till medlem plötsligt ett ägarskap, utan att den som accepterade såg
+      // det. Ska rollen ändras återkallas inbjudan och en ny skrivs.
       allow update: if opsArAgare(resource.data.groupId)
-        && request.resource.data.groupId == resource.data.groupId;
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.roll == resource.data.roll;
       allow delete: if false;
     }
 `;

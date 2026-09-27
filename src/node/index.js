@@ -28,6 +28,14 @@ export { createCaseMirror } from "./caseMirror.js";
 export { createActivityWriter } from "./aktivitet.js";
 
 /*
+ * ⛔ INBJUDAN OCH ACCEPTANS LIGGER BARA HÄR (#137). `memberships` skrivs aldrig
+ * av en klient, alltså är en callable med Admin SDK det enda som kan skriva
+ * dem. Låg funktionen i huvudingången vore den en yta en vy kunde anropa, och
+ * då vore regeln `allow write: if false` en dörr med ett fönster bredvid.
+ */
+export { createInvitationService } from "./inbjudan.js";
+
+/*
  * ⛔ `createActivityLog` ÅTEREXPORTERAS HÄRIFRÅN, OCH DET ÄR EN MÄTNING OCH INTE
  * EN BEKVÄMLIGHET.
  *
