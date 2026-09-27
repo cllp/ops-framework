@@ -874,7 +874,7 @@ export const liv = defineModule({
 | `namn` | det som visas | `{ sv, en }`. ⛔ **En sträng kastar här**, till skillnad från i katalogerna. Katalogen tål en sträng för att appens listor var strängar och läsaren måste tåla båda formerna under migreringen (#109). Modulerna har ingen sådan historia, så en sträng är inte ett arv utan ett nyskrivet fel |
 | `nav` | nav-poster | Valideras av **`validateNav`**, alltså exakt samma regler som skalet och bottenraden, inklusive EN nivå barn. ⛔ En egen kopia av de reglerna vore två sanningar om samma faktum |
 | `routes` | `{ path, vy }` | `path` börjar med snedstreck och står en gång. ⛔ Två routes med samma `path` avgörs annars av registreringsordningen, alltså av en slump. ⛔ `vy` får vara ett **objekt**: `memo`, `forwardRef` och `lazy` ger objekt, så ett krav på funktion hade avvisat tre vanliga sätt att skriva en vy |
-| `samlingar` | vad modulen äger | Relativa namn, aldrig sökvägar. ⛔ Ett snedstreck avvisas: modulen namnger relativt och **appen skickar in roten**, och det är den raden som gör att en kund senare kan bli ett eget Firebase-projekt utan att datamodellen ändras |
+| `samlingar` | vad modulen äger | `"namn"` eller `{ namn, falt, agareKravsForSkrivning }`. `falt` blir `keys().hasOnly` i de genererade reglerna (#130), och utelämnas den genereras ingen formvalidering. `agareKravsForSkrivning: true` ger ägarkrav i stället för medlemskrav. Relativa namn, aldrig sökvägar. ⛔ Ett snedstreck avvisas: modulen namnger relativt och **appen skickar in roten**, och det är den raden som gör att en kund senare kan bli ett eget Firebase-projekt utan att datamodellen ändras |
 | `kallor` | ytor modulen fyller | Nycklarna är `KALLTYPER`, alltså `handelser`, `sok`, `hjalp`, `notiser`, `widgets`, `kataloger`. Värdet är en funktion: ramverket anropar, modulen svarar |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`
@@ -902,6 +902,30 @@ Manifestet vet vilka ytor som finns och att modulen pekat ut en funktion per yta
 den fyller. Att låtsas validera radernas form redan nu vore en vakt som utlovar
 ett skydd den inte har.
 
+
+#### Exempelmodulen: kopiera `examples/paminnelser/`
+
+[#131](https://github.com/cllp/ops-framework/issues/131). En liten, fullständig
+modul: en samling med fältlista, en nav-post, en route, alla sex källorna och
+en egen katalog med två kategorier, på svenska och engelska.
+
+⛔ **`check-exempelmodul` håller README och exemplet i takt.** Varje
+manifestfält, varje samlingsfält och varje källtyp måste finnas både i det här
+avsnittet och i exemplet. Ett fält koden har men README saknar är ett fält
+ingen hittar; ett fält README lovar men exemplet inte visar är ett löfte utan
+täckning. Fältlistorna läses ur `src/lib/modul.js`, så vakten är inte en tredje
+sanning som själv kan glida isär.
+
+⛔ **Manifestet importerar sin vy med `lazy`, och det är inte en
+prestandafråga.** Regelgeneratorn körs i ett Node-skript i appens CI, och Node
+kan inte läsa JSX. Med en direkt `import ... from "./Vy.jsx"` faller det
+skriptet på "Unknown file extension .jsx", långt från sin orsak. Med `lazy` är
+vyn ett löfte som bara webbläsaren infriar, och manifestet är ren JavaScript.
+
+⛔ **Exemplet monteras inte i scaffold-mallen.** Mallen är vad varje ny app
+startar från, och en app som föds med en Påminnelser-modul ingen bett om är kod
+någon måste ta bort innan den kan börja. Beviset att modulen fungerar är dess
+egna prov, som kör den genom registret och generatorn.
 
 #### Källorna: hur en modul fyller ramverkets ytor
 

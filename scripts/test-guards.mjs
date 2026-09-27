@@ -1059,6 +1059,66 @@ kravRott(
  */
 const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
 
+// ── Exempelmodulen: README och exemplet säger samma sak (#131) ───────────
+//
+// ⛔ VAKTEN HÅLLER TVÅ DOKUMENT I TAKT, och kan bara bevisas genom att ta bort
+// ett fält ur vart och ett av dem. Den läser fältlistorna ur källan, alltså är
+// den inte en tredje sanning som själv kan glida isär.
+{
+  const exempelvakt = path.join(rot, "scripts", "check-exempelmodul.mjs");
+
+  /** @param {string} namn @param {(fil: string, text: string) => string} mutera @param {string} fil */
+  const kopia = (namn, fil, mutera) => {
+    const mapp = path.join(gruppmapp, namn);
+    fs.mkdirSync(path.join(mapp, "src", "lib"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "examples", "paminnelser"), { recursive: true });
+    fs.copyFileSync(path.join(rot, "src", "lib", "modul.js"), path.join(mapp, "src", "lib", "modul.js"));
+    fs.copyFileSync(path.join(rot, "README.md"), path.join(mapp, "README.md"));
+    for (const f of fs.readdirSync(path.join(rot, "examples", "paminnelser"))) {
+      fs.copyFileSync(path.join(rot, "examples", "paminnelser", f), path.join(mapp, "examples", "paminnelser", f));
+    }
+    const mal = path.join(mapp, fil);
+    fs.writeFileSync(mal, mutera(fil, fs.readFileSync(mal, "utf8")));
+    return mapp;
+  };
+
+  kravGront("exempelmodul: README och exemplet är i takt", [exempelvakt]);
+
+  kravRott(
+    "exempelmodul: en källtyp saknas i exemplet",
+    [exempelvakt, kopia("ex1", "examples/paminnelser/index.js", (_f, t) => t.replace(/    notiser: async[\s\S]*?\.map\(\(r\) => \(\{ id: r\.id[\s\S]*?\}\)\),\n/, ""))],
+    "inte i exempelmodulen",
+  );
+
+  /*
+   * ⛔ FÖRSTA MUTATIONEN HÄR VAR FÖR SVAG, och svepet visade det. Den bytte
+   * `kallor` mot `kaellor` i EN tabellrad, men ordet står kvar i kodexemplet i
+   * samma avsnitt, så vakten förblev grön. En vakt som letar efter en
+   * förekomst bevisas bara av att ta bort ALLA.
+   */
+  kravRott(
+    "exempelmodul: ett samlingsfält saknas i README-avsnittet",
+    [exempelvakt, kopia("ex2", "README.md", (_f, t) => t.split("agareKravsForSkrivning").join("agareKrav"))],
+    "inte i README-avsnittet",
+  );
+
+  kravRott(
+    "exempelmodul: rubriken Modulkontraktet omdöpt",
+    [exempelvakt, kopia("ex3", "README.md", (_f, t) => t.replace("### Modulkontraktet", "### Moduler"))],
+    "saknar rubriken",
+  );
+
+  // ⛔ GOLVET: läser vakten noll fält ur källan står den grön mot två dokument
+  // den aldrig jämfört.
+  kravRott(
+    "exempelmodul golv: fältlistorna går inte att läsa ur källan",
+    [exempelvakt, kopia("ex4", "src/lib/modul.js", (_f, t) => t.replace(/const MODULFALT = \[[^\]]*\]/, "const MODULFALT = []"))],
+    "mäter vakten ingenting",
+  );
+
+  kravRott("exempelmodul golv: fel sökväg", [exempelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");
+}
+
 // ── Regelgeneratorn: mönstret ändras inte i tysthet (#130) ────────────────
 //
 // ⛔ VAKTEN JÄMFÖR MOT FÖRRA UTFALLET, INTE MOT EN HANDSKRIVEN KOPIA. En

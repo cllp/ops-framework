@@ -112,6 +112,28 @@ som slutat slå upp medlemskapet.
 saknades. Ett oväntat undantag är visserligen rött, men säger fel sak, och det
 är precis den "röd av fel anledning" som harnessets andra villkor finns för.
 
+### Fas 3, första tre ärendena
+
+⛔ **Källkontraktet** (#129). `skapaKallregister(moduler)` ger en funktion per
+yta, och varje anrop bär exakt en grupp. Formen prövas när raden kommer, inte
+vid uppstart: vad en funktion returnerar går inte att veta förrän den anropats,
+och felet namnger modulen, ytan och radnumret. `OpsModulHandelser`,
+`OpsModulHjalp` och `OpsModulKataloger` läser ur registret, medan primitiverna
+fortsätter ta emot data. `useKallor` skiljer på laddar, fel, tomt och fyller.
+
+⛔ **Regelgeneratorn** (#130). `generateRules(moduler, { extra })` ger hela
+`firestore.rules` ur manifesten. Manifestets `samlingar` bär nu fält, eftersom
+`keys().hasOnly` inte går att generera ur ett namn; strängformen från 0.25.0
+tas fortfarande emot och läsaren får alltid den utskrivna formen.
+`check-regelgenerator` jämför mot en gyllene fil.
+
+⛔ **Exempelmodulen** (#131) i `examples/paminnelser/`, som nu följer med
+paketet. `check-exempelmodul` kräver att varje manifestfält, samlingsfält och
+källtyp finns både i README-avsnittet och i exemplet.
+
+⛔ **Manifestet importerar sin vy med `lazy`**, och exemplet visar varför:
+regelgeneratorn körs i ett Node-skript, och Node kan inte läsa JSX.
+
 ### Kedjan kontrollerar nu varje PR
 
 `check.yml` hade `branches: [main]` på `pull_request`, så en PR mot en annan
