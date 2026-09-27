@@ -95,7 +95,27 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) 
         <span
           aria-hidden="true"
           className={cx(
-            "relative inline-flex h-6 w-10 shrink-0 items-center rounded-full bg-sunken",
+            /*
+             * ⛔ SPÅRET HAR EN KANT, OCH DET ÄR DÄRFÖR DET SYNS ALLS.
+             *
+             * CP 2026-09-26, med bild från mobilen i mörkt läge: "Går ej att se
+             * kontrast på toggle". Mätt mot tokens, och det gällde BÅDA temana:
+             *
+             *   mörkt: spår av (sunken #1f1f25) mot panelen (raised #1f1f28)  1,00:1
+             *   ljust: spår av (sunken #f0ede8) mot panelen (raised #ffffff)  1,17:1
+             *
+             * Fyllningen KAN inte bära kravet: `sunken` är per definition en
+             * yta som ligger nära den den vilar på. Kanten bär det i stället,
+             * och `ink-secondary` ger 9,47:1 i ljust och 5,10:1 i mörkt.
+             *
+             * ⛔ KANTEN SITTER KVAR I BÅDA LÄGENA. Bara i av-läget hade gjort
+             * själva kanten till en lägesmarkör, alltså en andra signal som
+             * säger samma sak som knoppens position, och en kontroll som byter
+             * form mellan lägen är svårare att känna igen än en som byter färg.
+             * I på-läget behövs den dessutom: `accent` mot `raised` ger 2,99:1
+             * i ljust, alltså strax under 3.
+             */
+            "relative inline-flex h-6 w-10 shrink-0 items-center rounded-full border border-ink-secondary bg-sunken",
             "transition-colors duration-(--duration-fast) ease-standard",
             "peer-checked:bg-accent",
             "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent",
@@ -103,7 +123,22 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) 
         >
           <span
             className={cx(
-              "absolute left-0.5 size-5 rounded-full bg-canvas shadow-sm",
+              /*
+               * ⛔ KNOPPEN HAR OCKSÅ EN KANT, av samma skäl. `bg-canvas` mot
+               * `bg-sunken` är 1,14:1 i mörkt och 1,09:1 i ljust, alltså samma
+               * färg i praktiken. Det var det CP faktiskt såg: inte en knopp
+               * som var svår att se, utan en knopp som inte fanns.
+               *
+               * ⛔ FYLLNINGEN ÄR `raised` OCH INTE `canvas`. Knoppen ska läsas
+               * som något som ligger OVANPÅ spåret, och `raised` är tokenet för
+               * just det. Det ger dessutom 12,46:1 mot `accent` i mörkt läge,
+               * vilket är det enda paret där kanten inte räcker (2,44:1).
+               *
+               * ⛔ OCH LÄGET AVGÖRS INTE AV FÄRG ENSAM (WCAG 1.4.1). Knoppen
+               * flyttar sig fyra steg i sidled, och den rörelsen är hela
+               * skillnaden för den som inte skiljer tonerna åt.
+               */
+              "absolute left-0.5 size-5 rounded-full border border-ink-secondary bg-raised shadow-sm",
               "transition-transform duration-(--duration-fast) ease-standard",
               checked && "translate-x-4",
             )}

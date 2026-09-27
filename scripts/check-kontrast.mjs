@@ -86,6 +86,46 @@ export const PAR = [
   { vad: "tillbakapilen", text: "ink-secondary", yta: "raised", niva: BROD },
   { vad: "panelrad, vilande", text: "ink-secondary", yta: "raised", niva: BROD },
   { vad: "panelrad, aktiv", text: "ink", yta: "raised", niva: BROD },
+  /*
+   * ⛔ REGLAGET, `OpsToggle` (cllp/bolag-ops#417). CP 2026-09-26, med bild från
+   * mobilen: "Går ej att se kontrast på toggle". Mätt mot tokens gällde det
+   * BÅDA temana, och det var inte en knopp som var svår att se utan en knopp
+   * som inte fanns:
+   *
+   *   spår av (sunken) mot panelen (raised)    ljust 1,17:1   mörkt 1,00:1
+   *   knopp (canvas) mot spår av (sunken)      ljust 1,09:1   mörkt 1,14:1
+   *
+   * ⛔ DET ÄR KANTERNA SOM BÄR KRAVET, inte fyllningarna, och därför är det
+   * kanterna som står här. En fyllning som `sunken` ligger per definition nära
+   * ytan den vilar på, så ett par på fyllningen hade varit ett krav tokenet
+   * inte kan uppfylla.
+   *
+   * ⛔ PÅ-LÄGET SAKNAS HÄR, OCH DET ÄR INTE EN GLÖMSKA UTAN ETT MÄTT HÅL.
+   *
+   * Knoppen ligger då på `accent`, och INGET befintligt token klarar 3:1 mot
+   * accent i båda temana. Mätt:
+   *
+   *                        ljust (accent #9a9588)   mörkt (accent #e8e0d0)
+   *   raised                 2,99:1                  12,46:1
+   *   canvas                 2,79:1                  14,22:1
+   *   accent-contrast        2,79:1                  11,56:1
+   *   ink-secondary          3,17:1                   2,44:1
+   *
+   * Orsaken är att ljust `accent` ligger MITT i skalan: det är för mörkt för
+   * en ljus knopp och för ljust för en mörk. Samma sak gör att
+   * `accent-contrast` bara ger 2,79:1 på `accent` i ljust läge, vilket står
+   * utskrivet vid tokenet: mörk text hade gett 5,83:1, och det ljusa värdet
+   * bärs för paritet med förlagan.
+   *
+   * ⛔ ATT SKRIVA IN ETT PAR SOM FALLER HADE GJORT VAKTEN RÖD FÖR ETT BESLUT,
+   * inte för ett fel. Hålet stängs den dag ljust `accent-contrast` blir mörkt,
+   * och det är ett produktbeslut om hur varje primärknapp ser ut.
+   *
+   * Kontrollen som ändå finns i på-läget: knoppen FLYTTAR sig, och spårets
+   * kant mot panelen står kvar. Läget avgörs alltså aldrig av färg ensam.
+   */
+  { vad: "reglagets spårkant mot panelen", text: "ink-secondary", yta: "raised", niva: GRAFIK },
+  { vad: "reglagets knoppkant mot spåret, av", text: "ink-secondary", yta: "sunken", niva: GRAFIK },
 ];
 
 /**
