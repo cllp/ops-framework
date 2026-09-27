@@ -77,6 +77,26 @@ for (const vakt of vakter) {
   }
 }
 
+// ── Avsnitt som måste finnas, inte bara namn som nämns ─────────────────────
+//
+// ⛔ ATT ETT NAMN NÄMNS ÄR INTE ATT KONTRAKTET ÄR BESKRIVET (#128). Vakten
+// ovanför är nöjd så fort `defineModule` står någonstans i README, alltså även
+// om det bara är i en tabellrad eller i en länk. Modulkontraktet är däremot det
+// en modulbyggare ska kunna arbeta ur UTAN att öppna ramverkets källkod, och då
+// räcker inte ett omnämnande.
+//
+// ⛔ OCH LISTAN ÄR EN LISTA MED FLIT. Nästa Fas 3-ärende (#129) fyller samma
+// avsnitt med källornas form, och #131 lägger till exempelmodulen. En
+// hårdkodad enstaka sträng hade blivit en rad någon kopierar i stället för en
+// rad någon fyller på.
+const AVSNITT = ["Modulkontraktet"];
+
+for (const avsnitt of AVSNITT) {
+  if (!new RegExp(`^#{2,4} .*${avsnitt}`, "m").test(readme)) {
+    brott.push(`README saknar ett avsnitt med rubriken "${avsnitt}". Att namnen nämns någonstans är inte samma sak som att kontraktet är beskrivet där någon hittar det.`);
+  }
+}
+
 // ── Och antalet ska stämma ─────────────────────────────────────────────────
 //
 // ⛔ Den här kontrollen finns för att README påstod "femton komponenter" när

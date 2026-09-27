@@ -521,6 +521,61 @@ Ramverket vet ingenting om verksamheten. Allt det behöver veta kommer in genom 
 | `FASER`, `AVSLUTADE_FASER`, `arAvslutad` | | **det fasta skelettet bakom det fria**: `ny`, `aktiv`, `vantar`, `klar`, `avskriven`. Faserna är ramverkets och går inte att lägga till, så en vy kan fråga "är den klar" utan att veta vad kategorin heter hos just den kunden. ⛔ `vantar` är inte `aktiv`: skillnaden är om det ligger på oss eller på någon annan, och det man väntar på ska inte skava som något man borde göra. ⛔ `avskriven` är inte `klar`: den ena betyder gjort, den andra att någon tagit ställning till att inget skulle göras |
 | `valjbara`, `kategorin` | katalogen | att läsa den. ⛔ Arkiverade faller bort HÄR och inte i varje vy, annars glöms filtreringen i den fjärde vyn någon skriver. ⛔ Lika `ordning` sorteras på namnet, annars ligger raderna i den ordning databasen råkar svara och listan byter ordning mellan två laddningar. ⛔ `kategorin` svarar `null` och kastar aldrig: en rad kan peka på en kategori som arkiverats, och en vy som kastar där tar ned hela listan |
 | `byggNamn`, `text` | `{ sv, en }` | **ett namn är två språk, aldrig en sträng**. ⛔ `byggNamn` kastar utan `sv`, eftersom svenskan är reserven för alla andra språk och ett namn utan den har ingenting att falla tillbaka på. ⛔ `text` tar emot en STRÄNG också, av exakt samma skäl som `laesSkapare` gör det: läsaren måste tåla båda formerna innan skrivarna byter. ⛔ `text` kastar aldrig, den svarar tom sträng, för en vy som kastar på ett trasigt namn tar ned hela listan |
+### Modulkontraktet
+
+Fas 3 i [#92](https://github.com/cllp/ops-framework/issues/92). En **modul** lägger
+till nav, vyer, egna samlingar och rader i ramverkets ytor, och den beskriver sig
+med **ett** manifest. `defineModule` tar manifestet och kastar på allt som inte
+stämmer, `validateModuler` tar listan och kastar dessutom på det som bara syns
+mellan två moduler.
+
+```js
+import { defineModule } from "@staiger/ops-framework";
+
+export const liv = defineModule({
+  id: "liv",
+  namn: { sv: "Liv", en: "Life" },
+  nav: [{ href: "/liv", label: "Liv" }],
+  routes: [{ path: "/liv", vy: LivVy }],
+  samlingar: ["matningar"],
+  kallor: { handelser: livetsHandelser },
+});
+```
+
+| Fält | Vad | Regeln, och varför |
+|---|---|---|
+| `id` | maskinnyckeln | Samma form som ett kategori-`id`, alltså små bokstäver, siffror, bindestreck och understreck. ⛔ Regexpen är **delad** med katalogen och inte kopierad: två uttryck med samma avsikt glider isär, och den dag det ena släpper in en punkt syns felet först i en Firestore-regel |
+| `namn` | det som visas | `{ sv, en }`. ⛔ **En sträng kastar här**, till skillnad från i katalogerna. Katalogen tål en sträng för att appens listor var strängar och läsaren måste tåla båda formerna under migreringen (#109). Modulerna har ingen sådan historia, så en sträng är inte ett arv utan ett nyskrivet fel |
+| `nav` | nav-poster | Valideras av **`validateNav`**, alltså exakt samma regler som skalet och bottenraden, inklusive EN nivå barn. ⛔ En egen kopia av de reglerna vore två sanningar om samma faktum |
+| `routes` | `{ path, vy }` | `path` börjar med snedstreck och står en gång. ⛔ Två routes med samma `path` avgörs annars av registreringsordningen, alltså av en slump. ⛔ `vy` får vara ett **objekt**: `memo`, `forwardRef` och `lazy` ger objekt, så ett krav på funktion hade avvisat tre vanliga sätt att skriva en vy |
+| `samlingar` | vad modulen äger | Relativa namn, aldrig sökvägar. ⛔ Ett snedstreck avvisas: modulen namnger relativt och **appen skickar in roten**, och det är den raden som gör att en kund senare kan bli ett eget Firebase-projekt utan att datamodellen ändras |
+| `kallor` | ytor modulen fyller | Nycklarna är `KALLTYPER`, alltså `handelser`, `sok`, `hjalp`, `notiser`, `widgets`, `kataloger`. Värdet är en funktion: ramverket anropar, modulen svarar |
+
+⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`
+och en modul som inte fyller någon yta skriver `kallor: {}`. Skälet är
+arbetsreglernas punkt 5: tomhet är ett svar och inte en utelämnad rubrik. Vore
+fälten valfria såg en modul utan routes likadan ut som en modul som glömt sina,
+och den andra är ett fel.
+
+⛔ **MANIFESTET ÄR DATA, BETEENDET REFERERAS UR DET.** Komponenter och källornas
+funktioner bor inte i manifestet, de pekas ut av det. Samma väg A som
+katalogerna ([#111](https://github.com/cllp/ops-framework/issues/111)): data går
+att läsa, jämföra och validera, medan en funktion bara går att köra.
+
+⛔ **VALIDERINGEN KÖRS VID UPPSTART**, i samma form och av samma skäl som
+`validateNav` och `validateKatalog`. En trasig modul som upptäcks vid första
+klicket är ett fel i knäet på användaren.
+
+⛔ **`validateModuler` FÅNGAR DET SOM INTE SYNS I ETT MANIFEST.** Två moduler med
+samma `id`, samma route eller samma samling är var för sig giltiga och
+tillsammans ett fel: den ena skriver över den andra, och vilken avgörs av
+registreringsordningen. Det är den sortens fel som uppträder som "ibland".
+
+⛔ **FORMEN PÅ VARJE KÄLLA HÖR TILL [#129](https://github.com/cllp/ops-framework/issues/129), INTE HIT.**
+Manifestet vet vilka ytor som finns och att modulen pekat ut en funktion per yta
+den fyller. Att låtsas validera radernas form redan nu vore en vakt som utlovar
+ett skydd den inte har.
+
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 
 Det här är **produktlöftet**, och det står skrivet för att det annars blir ett

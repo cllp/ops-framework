@@ -129,7 +129,15 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * olika saker beroende på var det står. Versaler och mellanslag är mildare,
  * men de gör två `id` som ser lika ut till olika nycklar.
  */
-const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
+/*
+ * ⛔ EXPORTERAD INTERNT, FÖR ATT MODULMANIFESTET HAR SAMMA KRAV (#128). Ett
+ * modul-id blir en nyckel på samma sätt som ett kategori-id, och en andra
+ * regexp med samma avsikt är två sanningar om samma faktum: den dag den ena
+ * släpper in en punkt gör den andra det inte, och felet syns först i en
+ * Firestore-regel. Den går inte ut genom `index.js`, alltså är den ramverkets
+ * och inte en app-yta.
+ */
+export const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
 
 /**
  * Bygger en kategori, eller kastar med skälet.
