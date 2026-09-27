@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**69 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**71 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -585,6 +585,15 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 ⛔ **E-POSTEN JÄMFÖRS I GEMENER, ALLTID.** `CP@Staiger.se` och `cp@staiger.se` är samma brevlåda och två strängar. Matchas de inte loggar personen in och möter en tom app utan förklaring.
 
 ⛔ **EN INBJUDANS ROLL GÅR INTE ATT ÄNDRA I EFTERHAND**, och inte dess grupp. En inbjudan är ett löfte som någon redan fått: höjs rollen blir en accepterad inbjudan till medlem plötsligt ett ägarskap, utan att den som accepterade såg det. Ska den ändras återkallas inbjudan och en ny skrivs.
+
+**Vyerna:**
+
+| | |
+|---|---|
+| `OpsMedlemmar` | listan per grupp: bjud in, ändra roll, ta bort. ⛔ **Aldrig sig själv**: den som tar bort sitt eget ägarskap låser ut sig ur sin egen grupp, och `migUid` är obligatorisk just därför. Utan den vet vyn inte vilken rad som är ens egen, och skyddet blir en gissning |
+| `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto |
+
+⛔ **`kanAndra` i `OpsMedlemmar` är en artighet, inte ett skydd.** Samma not som i `OpsKatalogInstallning`: den som vill skriva ändå öppnar konsolen. Det riktiga låset är att `memberships` inte går att skriva från en klient alls, och att callablen kontrollerar ägarskapet själv.
 
 ⛔ **INGEN MEJLUTSKICK HÄR.** Mailmodulen ([#101](https://github.com/cllp/ops-framework/issues/101)) tar det när den finns. Tills dess säger inställningsvyn "be personen logga in".
 

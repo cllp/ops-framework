@@ -92,6 +92,8 @@ export { createHttpSource } from "./data/http.js";
 
 // ── Inloggning ─────────────────────────────────────────────────────────────
 export { createAuth, createGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
+export { OpsMedlemmar } from "./components/OpsMedlemmar.jsx";
+export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
