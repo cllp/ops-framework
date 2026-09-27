@@ -17,6 +17,50 @@ const med = (/** @type {string} */ userId, /** @type {string} */ roll) => ({
   namn: userId === "mig" ? "Jag Själv" : "Någon Annan",
 });
 
+describe("namnet kommer ur medlemskapet (#138, beslut A)", () => {
+  const ur = (/** @type {string} */ userId, /** @type {object} */ extra) => ({
+    medlemskap: { id: `${userId}_g`, userId, groupId: "g", roll: "medlem", typ: "person", status: "aktiv", namn: "", bild: "", ...extra },
+  });
+
+  it("visar medlemskapets namn utan att anroparen skickar något", () => {
+    render(<OpsMedlemmar medlemmar={[ur("annan", { namn: "Ur Medlemskapet" })]} migUid="mig" />);
+    expect(screen.getByText("Ur Medlemskapet")).toBeTruthy();
+  });
+
+  /*
+   * ⛔ MEDLEMSKAPET VINNER ÖVER ETT INSKICKAT NAMN. Annars hade en vy som
+   * råkar ha en gammal kopia i handen ritat den, och då är det inte längre
+   * gruppens läsbara källa som avgör vad som syns.
+   */
+  it("låter medlemskapets namn gå före ett inskickat", () => {
+    render(<OpsMedlemmar medlemmar={[{ ...ur("annan", { namn: "Ur Medlemskapet" }), namn: "Gammal Kopia" }]} migUid="mig" />);
+    expect(screen.getByText("Ur Medlemskapet")).toBeTruthy();
+    expect(screen.queryByText("Gammal Kopia")).toBe(null);
+  });
+
+  /*
+   * ⛔ DET HÄR PROVET SAKNADES, OCH SVEPET VISADE DET. Mutationen som slutade
+   * skicka `imageUrl` överlevde: alla andra prov läser namnet, och märket ser
+   * likadant ut i strukturen oavsett om det är en bild eller initialer.
+   */
+  it("ritar bilden ur medlemskapet, inte bara initialerna", () => {
+    const { container } = render(<OpsMedlemmar medlemmar={[ur("annan", { namn: "Med Bild", bild: "https://exempel/a.png" })]} migUid="mig" />);
+    const bild = container.querySelector("img");
+    expect(bild).toBeTruthy();
+    expect(bild?.getAttribute("src")).toBe("https://exempel/a.png");
+  });
+
+  it("ritar initialer när bilden saknas, i stället för en trasig bildruta", () => {
+    const { container } = render(<OpsMedlemmar medlemmar={[ur("annan", { namn: "Utan Bild", bild: "" })]} migUid="mig" />);
+    expect(container.querySelector("img")).toBe(null);
+  });
+
+  it("faller tillbaka på uid när namnet saknas, alltså för en rad skriven före fältet fanns", () => {
+    render(<OpsMedlemmar medlemmar={[ur("uid-utan-namn", {})]} migUid="mig" />);
+    expect(screen.getByText("uid-utan-namn")).toBeTruthy();
+  });
+});
+
 describe("OpsMedlemmar", () => {
   it("⛔ migUid krävs, annars är skyddet en gissning", () => {
     expect(() => render(<OpsMedlemmar medlemmar={[]} migUid={/** @type {any} */ (undefined)} />)).toThrow(/OpsMedlemmar: migUid krävs/);

@@ -45,7 +45,13 @@ import { fileURLToPath } from "node:url";
 import { contrast } from "./vendor/validate_palette.js";
 
 const HAR = path.dirname(fileURLToPath(import.meta.url));
-const TOKENS = path.join(HAR, "..", "tokens", "tokens.css");
+/*
+ * ⛔ SÖKVÄGEN GÅR ATT PEKA OM, av samma skäl som i de andra vakterna: en vakt
+ * som bara kan köras mot en fil som råkar vara grön går inte att se falla, och
+ * en vakt ingen sett faila är en förhoppning. `test-guards` pekar den mot en
+ * kopia med en planterad kontrastmiss.
+ */
+const TOKENS = process.argv[2] ? path.resolve(process.argv[2]) : path.join(HAR, "..", "tokens", "tokens.css");
 
 /** AA: 4.5 för brödtext, 3.0 för stor eller halvfet text från 18,66 px. */
 const BROD = 4.5;
@@ -295,11 +301,27 @@ export function granska(tokens, tema) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  if (!fs.existsSync(TOKENS)) {
+    console.error(`check-kontrast: hittar inte ${TOKENS}. Fel sökväg i vakten, inte ett godkänt utfall.`);
+    process.exit(1);
+  }
   const css = fs.readFileSync(TOKENS, "utf8");
   const brott = [];
   const rader = [];
   for (const tema of /** @type {const} */ (["light", "dark"])) {
-    const tokens = lasTokens(css, tema);
+    /*
+     * ⛔ ETT SAKNAT BLOCK ÄR ETT MÄTFEL, INTE EN KRASCH. `blocket` kastar när
+     * `:root {` eller temat inte finns, och ett oväntat undantag är visserligen
+     * rött men säger fel sak: harnessets andra villkor finns just för att
+     * fånga en vakt som blir röd av fel anledning. Här räknas det i stället
+     * som noll mätta par, och golvet nedan säger varför.
+     */
+    let tokens;
+    try {
+      tokens = lasTokens(css, tema);
+    } catch {
+      continue;
+    }
     brott.push(...granska(tokens, tema));
     for (const p of PAR) {
       const t = farg(tokens, p.text);
@@ -308,6 +330,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         rader.push(`  ${tema.padEnd(5)} ${p.vad.padEnd(34)} ${contrast(t, y).toFixed(2)}:1`);
       }
     }
+  }
+
+  /*
+   * ⛔ GOLV. En tokenfil som saknar paren ger noll mätningar, och noll brott.
+   * Det är arbetsreglernas tomma underlag: vakten blir grön av att ingenting
+   * lästes, vilket är exakt hur en vakt slutar vakta utan att någon märker det.
+   */
+  const matta = rader.length;
+  if (matta < PAR.length) {
+    console.error(`check-kontrast: bara ${matta} av ${PAR.length * 2} par gick att mäta i ${TOKENS}. Tokens saknas, alltså mäter vakten inte det den påstår.`);
+    process.exit(1);
   }
 
   if (brott.length) {

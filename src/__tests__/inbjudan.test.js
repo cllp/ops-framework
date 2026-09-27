@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { createInvitationService } from "../node/inbjudan.js";
 
@@ -205,6 +205,55 @@ describe("accepteraInbjudningar", () => {
     const { tjanst } = bygg();
     await expect(tjanst.accepteraInbjudningar({ epost: "a@b.se" })).rejects.toThrow(/accepteraInbjudningar: uid krävs/);
     await expect(tjanst.accepteraInbjudningar({ uid: "u" })).rejects.toThrow(/accepteraInbjudningar: epost krävs/);
+  });
+});
+
+describe("namnet och bilden följer med in i medlemskapet (#138, beslut A)", () => {
+  /*
+   * ⛔ UTAN DE HÄR FÄLTEN HAR MEDLEMSLISTAN INGENTING ATT VISA. `users` läses
+   * bara av sig själv, så en lista byggd på profiler visar en rad och sedan
+   * tomma rutor. Provet mäter alltså inte en bekvämlighet utan att vyn alls
+   * går att rita.
+   */
+  it("bjudIn skriver namn och bild när personen redan finns", async () => {
+    const { kalla, tjanst } = bygg({ users: [{ id: "uid-ny", namn: "Ny Person", epost: "ny@example.com", bild: "https://exempel/ny.png" }] });
+    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@example.com" });
+    const m = await kalla.read("memberships", `uid-ny_${GRUPP}`);
+    expect(m.namn).toBe("Ny Person");
+    expect(m.bild).toBe("https://exempel/ny.png");
+  });
+
+  it("accepteraInbjudningar skriver namn och bild ur profilen", async () => {
+    const { kalla, tjanst } = bygg({
+      users: [{ id: "uid-ny", namn: "Ny Person", epost: "ny@example.com", bild: "" }],
+      invitations: [{ id: "i1", epost: "ny@example.com", groupId: GRUPP, roll: "medlem", status: "vantar", skapadAv: { uid: AGARE, namn: "A", typ: "manniska", kalla: "prov" } }],
+    });
+    await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com" });
+    const m = await kalla.read("memberships", `uid-ny_${GRUPP}`);
+    expect(m.namn).toBe("Ny Person");
+    expect(m.bild).toBe("");
+  });
+
+  it("läser profilen EN gång även när tre inbjudningar accepteras", async () => {
+    const inb = (/** @type {string} */ g) => ({ id: `i-${g}`, epost: "ny@example.com", groupId: g, roll: "medlem", status: "vantar", skapadAv: { uid: AGARE, namn: "A", typ: "manniska", kalla: "prov" } });
+    const { kalla, tjanst } = bygg({
+      users: [{ id: "uid-ny", namn: "Ny Person", epost: "ny@example.com", bild: "" }],
+      invitations: [inb("g1"), inb("g2"), inb("g3")],
+    });
+    const read = vi.fn(kalla.read);
+    const tjanst2 = createInvitationService({ kalla: { ...kalla, read } });
+    void tjanst;
+    await tjanst2.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com" });
+    expect(read.mock.calls.filter((c) => c[0] === "users").length).toBe(1);
+  });
+
+  it("tål att profilen inte finns, och skriver tomt i stället för att kasta", async () => {
+    const { kalla, tjanst } = bygg({
+      invitations: [{ id: "i1", epost: "ny@example.com", groupId: GRUPP, roll: "medlem", status: "vantar", skapadAv: { uid: AGARE, namn: "A", typ: "manniska", kalla: "prov" } }],
+    });
+    await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com" });
+    const m = await kalla.read("memberships", `uid-ny_${GRUPP}`);
+    expect(m.namn).toBe("");
   });
 });
 

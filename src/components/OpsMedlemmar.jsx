@@ -33,6 +33,10 @@ import { OpsSelect } from "./OpsSelect.jsx";
  *
  * @param {object} props
  * @param {{ medlemskap: import("../lib/grupp.js").Medlemskap, namn?: string, epost?: string }[]} props.medlemmar
+ *   ⛔ `namn` och `epost` är VALFRIA och behövs inte längre: medlemskapet bär
+ *   själv `namn` och `bild` sedan #138. Fälten står kvar för den som redan har
+ *   uppgifterna i handen, och e-posten ritas bara för den som läser sin egen
+ *   rad. Se noten om e-posten nedan.
  * @param {{ id: string, epost: string, roll: string }[]} [props.inbjudningar] Väntande, för att den som bjöd in ska se att det hänt.
  * @param {string} props.migUid
  * @param {boolean} [props.kanAndra]
@@ -112,10 +116,22 @@ export function OpsMedlemmar({
         <OpsList ariaLabel={rubrik}>
           {medlemmar.map(({ medlemskap, namn, epost: medlemsEpost }) => {
             const jag = medlemskap.userId === migUid;
-            const visningsnamn = namn || medlemsEpost || medlemskap.userId;
+            /*
+             * ⛔ NAMNET KOMMER UR MEDLEMSKAPET FÖRST (#138, beslut A).
+             * `users` läses bara av sig själv, så en lista som byggde på
+             * profiler hade visat en rad och sedan tomma rutor för alla
+             * andra. Medlemskapet bär namnet denormaliserat, och det är den
+             * enda källan som är läsbar för hela gruppen.
+             *
+             * ⛔ E-POSTEN RITAS INTE. Den lämnar aldrig `users`, och att
+             * anroparen kan råka ha sin egen i handen gör den inte till något
+             * listan ska visa. Uid:t är sista utvägen och betyder "den här
+             * raden skrevs innan namnet fanns".
+             */
+            const visningsnamn = medlemskap.namn || namn || medlemsEpost || medlemskap.userId;
             return (
               <OpsListRow key={medlemskap.id}>
-                <OpsIdentity name={visningsnamn} seed={medlemskap.userId} size="sm" />
+                <OpsIdentity name={visningsnamn} seed={medlemskap.userId} imageUrl={medlemskap.bild || undefined} size="sm" />
                 <span className="min-w-0 flex-1 truncate text-ink">{visningsnamn}</span>
                 {jag ? <OpsPill tone="neutral">{duEtikett}</OpsPill> : null}
                 {kanAndra && !jag && onAndraRoll ? (

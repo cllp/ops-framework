@@ -89,6 +89,29 @@ som letat efter raden i källan hade varit ett närvarogrep.
 grupper märker inte den här versionen, vilket är skälet att den är minor och
 inte major.
 
+### Tre luckor stängda innan taggen
+
+⛔ **Gruppens modullista valideras mot de registrerade.** `byggGrupp(rad,
+kandaModuler)` avvisar ett påhittat modul-id, som annars sparades som en flik
+ingen hittar. Argumentet är valfritt med flit: skrivvägen skickar in listan,
+läsvägen måste tåla en avinstallerad modul och får sitt svar av `navForLage`.
+
+⛔ **`memberships` bär `namn` och `bild`** (beslut A i #138). E-posten lämnar
+aldrig `users`, och utan de två fälten hade medlemslistan varit en rad uid:n.
+Serversidan skriver dem vid inbjudan och vid acceptans, och profilen läses en
+gång även när tre inbjudningar accepteras samtidigt.
+
+⛔ **`check-kontrast` och `check-gruppnyckel` går nu att göra röda.** Båda
+saknade bevis i båda riktningarna, alltså var de förhoppningar och inte vakter.
+Sökvägarna går att peka om, båda har golv mot tom indata, och nio nya fall i
+`test-guards` planterar riktiga fel: brödtext i bakgrundens färg,
+`invitedGroupIds` i en fältlista, `array-contains` i regeltexten och en regel
+som slutat slå upp medlemskapet.
+
+⛔ **Och kontrastvakten kraschade i stället för att mäta** när ett tokenblock
+saknades. Ett oväntat undantag är visserligen rött, men säger fel sak, och det
+är precis den "röd av fel anledning" som harnessets andra villkor finns för.
+
 ### Kedjan kontrollerar nu varje PR
 
 `check.yml` hade `branches: [main]` på `pull_request`, så en PR mot en annan
