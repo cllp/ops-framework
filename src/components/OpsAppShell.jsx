@@ -202,6 +202,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @param {string} props.activeHref Vilken sida som visas nu.
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
+ * @param {import("react").ReactNode} [props.anvandare] Användarmenyn. ⛔ EGET FACK OCH INTE EN `action` (#138): klarkriteriet säger "samma plats i varje app", och en fri slot hamnar till vänster i en app och i en hamburgare i nästa. Ligger sist i klustret, efter `actions` och före hamburgaren, alltid. Typiskt en `OpsAnvandarmeny`.
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
@@ -225,6 +226,7 @@ export function OpsAppShell({
   activeHref,
   onNavigate,
   actions,
+  anvandare,
   primaryAction,
   menuLabel = "Meny",
   navLabel = "Huvudnavigering",
@@ -426,6 +428,10 @@ export function OpsAppShell({
           */}
           <div className="flex shrink-0 items-center justify-self-end gap-0.5">
             {actions}
+            {/* ⛔ Efter actions och FÖRE hamburgaren. Kontot är personens egen
+                yta och hör ihop med appens åtgärder; hamburgaren är resten av
+                navigeringen och ligger ytterst. Se noten vid propen. */}
+            {anvandare}
             {/* ⛔ Hamburgaren syns också när nav ryms men menuExtras finns —
                 annars blir tema/helskärm oåtkomliga på md+. */}
             {inMenu.length || menuExtras ? (

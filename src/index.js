@@ -92,6 +92,8 @@ export { createHttpSource } from "./data/http.js";
 
 // ── Inloggning ─────────────────────────────────────────────────────────────
 export { createAuth, createGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
+export { OpsProfil } from "./components/OpsProfil.jsx";
+export { OpsAnvandarmeny } from "./components/OpsAnvandarmeny.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
@@ -146,6 +148,7 @@ export { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "./data/gru
 export { OpsGruppvaljare } from "./components/OpsGruppvaljare.jsx";
 export { OpsGruppfilter } from "./components/OpsGruppfilter.jsx";
 export { OpsGruppmarke } from "./components/OpsGruppmarke.jsx";
+export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
