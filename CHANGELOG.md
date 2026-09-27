@@ -9,6 +9,34 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.24.0
+
+⛔ **Primärknappens text blir läsbar i ljust läge, och paret vaktas** (#132,
+förberett enligt cllp/bolag-ops#437 punkt 3, beslutat av CP 2026-09-27).
+
+Ljust `--color-accent-contrast` var `#f8f7f4`, sidans botten, avläst ur
+förlagan. Mot `accent` gav det 2,79:1 och mot `accent-hover` 2,44:1. WCAG AA
+kräver 4,5:1. Nu är det `#1a1a1a`, alltså `--color-ink`, sidans egen text:
+5,83:1 och 6,66:1. Mörkt läge rörs inte, det gav redan 11,56:1 och 12,76:1.
+
+Tokenet bär mer än en knapp: `OpsButton` primary, `OpsBottomNav` (FAB och
+räknemärke), `OpsDatePicker` (vald dag) och `OpsToggle` (kryssrutans bock).
+Bocken är en grafik på accent och behövde 3:1, vilket 2,79:1 aldrig var.
+
+### Ändrat
+
+- `tokens/tokens.css`: ljust `--color-accent-contrast` från `#f8f7f4` till
+  `#1a1a1a`.
+- `scripts/check-kontrast.mjs`: paren accent-contrast mot accent och mot
+  accent-hover står i `PAR`-listan i stället för i en kommentar. Utan fixen
+  ger vakten `exit 1` med båda paren utskrivna, med fixen 19 par i 2 teman
+  över AA. Noten hade dessutom fel siffra (2,99 i stället för 2,79), rättad.
+
+### Kvar, utskrivet
+
+- Reglagets på-läge: knoppen är en yta och inget befintligt token klarar 3:1
+  mot accent i båda teman. Eget beslut, står i noten i `check-kontrast.mjs`.
+
 ## 0.23.1
 
 ⛔ **Katalogschemat hade elva kontroller och nio prov. Mätt, inte antaget.**
