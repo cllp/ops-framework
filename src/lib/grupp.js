@@ -96,6 +96,8 @@ export const TEMAN = /** @type {const} */ (["system", "ljust", "morkt"]);
  * @property {"agare"|"medlem"} roll
  * @property {"person"|"agent"} typ
  * @property {"aktiv"|"avslutad"} status
+ * @property {string} namn Denormaliserat ur `users`, se noten vid MEDLEMSKAPSFALT.
+ * @property {string} bild Denormaliserat ur `users`, eller tom sträng.
  */
 
 /**
@@ -121,7 +123,27 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  */
 export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema"];
 export const GRUPPFALT = ["id", "namn", "moduler", "arkiverad", "skapadAv"];
-export const MEDLEMSKAPSFALT = ["id", "userId", "groupId", "roll", "typ", "status"];
+/*
+ * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT
+ * SKÄL (#138, architect 2026-09-27).
+ *
+ * Klarkriteriet löd "ingen läser en annans e-post utan att vara medlem i en
+ * gemensam grupp". Det går inte att skriva som Firestore-regel: villkoret
+ * kräver en iteration över mina medlemskap, och en läsregel på `users/{uid}`
+ * får ingen grupp-parameter att bygga uppslaget av. Det enda som gick utan
+ * iteration var "alla inloggade läser alla profiler", och då bär `users`
+ * e-postadresser åt vem som helst som är inloggad någonstans.
+ *
+ * ⛔ DÄRFÖR LÄMNAR E-POSTEN ALDRIG `users`. Medlemslistan visar namn och bild
+ * ur `memberships`, som ändå bara skrivs av serversidan. Kriteriets ANDA är
+ * uppfylld av konstruktion i stället för av en regel som inte finns.
+ *
+ * ⛔ ATT DE KAN BLI INAKTUELLA ÄR REDAN MODELLENS BETEENDE. `sakerstallAnvandare`
+ * rör inte namnet efter första inloggningen, så ett namn som släpar efter
+ * Google är ingen ny avvikelse. Priset är litet och synligt, till skillnad mot
+ * ett nätverksanrop per vy (väg B) eller en läsbar e-post (väg C).
+ */
+export const MEDLEMSKAPSFALT = ["id", "userId", "groupId", "roll", "typ", "status", "namn", "bild"];
 export const INBJUDNINGSFALT = ["id", "epost", "groupId", "roll", "status", "skapadAv"];
 
 /**
@@ -191,10 +213,21 @@ export function byggAnvandare(d) {
  * den listan som avgör vilka ytor gruppen ser, alltså måste den gå att jämföra
  * med ett manifest utan att någon gissar hur ett namn blev ett id.
  *
+ * ⛔ `kandaModuler` ÄR VALFRI, OCH DET ÄR INTE EN HALVMESYR UTAN TVÅ OLIKA
+ * FRÅGOR. Den som SKRIVER en grupp måste avvisa ett modul-id som inte finns,
+ * annars sparas ett skrivfel som en flik ingen hittar. Den som LÄSER en gammal
+ * rad måste tåla att en modul avinstallerats sedan raden skrevs, för annars
+ * ligger appen nere för den gruppen utan väg till en som fungerar. Läsvägens
+ * svar är `navForLage`, som skriver ut `saknade`.
+ *
+ * ⛔ SKRIVVÄGEN SKICKAR ALLTID IN LISTAN. Står det `byggGrupp(rad)` i något som
+ * sparar är det ett hål, och det är hela skälet att argumentet finns.
+ *
  * @param {Record<string, any>} d
+ * @param {ReadonlyArray<{ id: string }> | ReadonlyArray<string>} [kandaModuler] Installerade moduler, eller deras id.
  * @returns {Grupp}
  */
-export function byggGrupp(d) {
+export function byggGrupp(d, kandaModuler) {
   const rad = somObjekt(d);
   const id = rensa(rad.id);
   if (!id) throw new Error("groups: id krävs. Det är nyckeln varje rad i varje samling pekar på.");
@@ -230,6 +263,25 @@ export function byggGrupp(d) {
     }
     moduler.push(modulId);
   });
+
+  if (kandaModuler !== undefined) {
+    if (!Array.isArray(kandaModuler)) {
+      throw new Error(`groups: kandaModuler måste vara en lista moduler eller modul-id, inte ${typeof kandaModuler}. Utelämna den helt på läsvägen.`);
+    }
+    const kanda = kandaModuler.map((m) => (typeof m === "string" ? m : m?.id)).filter((x) => typeof x === "string");
+    /*
+     * ⛔ GOLV. En tom lista kända moduler skulle annars fälla ALLT, alltså
+     * göra vakten till en vägg, och en app som glömt skicka in sina moduler
+     * ser likadan ut som en app som inte har några. Den frågan ska ställas
+     * uttryckligen: skicka `[]` bara om gruppen verkligen inte får ha moduler.
+     */
+    const okanda = moduler.filter((m) => !kanda.includes(m));
+    if (okanda.length > 0) {
+      throw new Error(
+        `groups: gruppen "${id}" pekar på modulerna ${okanda.join(", ")} som inte är registrerade. Kända: ${kanda.length > 0 ? kanda.join(", ") : "inga"}. Ett påhittat modul-id sparas annars som en flik ingen hittar.`,
+      );
+    }
+  }
 
   return Object.freeze({
     id,
@@ -305,6 +357,14 @@ export function byggMedlemskap(d) {
     roll: /** @type {Medlemskap["roll"]} */ (roll),
     typ: /** @type {Medlemskap["typ"]} */ (typ),
     status: /** @type {Medlemskap["status"]} */ (status),
+    /*
+     * ⛔ TOMMA STRÄNGAR OCH INTE UTELÄMNADE FÄLT. En agent har inget namn hos
+     * Google, och en person kan sakna bild. Skrivs fältet inte alls går "har
+     * ingen bild" inte att skilja från "raden skrevs av en äldre version", och
+     * det är arbetsreglernas punkt 5.
+     */
+    namn: rensa(rad.namn),
+    bild: rensa(rad.bild),
   });
 }
 

@@ -120,7 +120,21 @@ export function createInvitationService(konfig) {
       if (anvandare) {
         const id = medlemskapsId(anvandare.id, groupId);
         if (await kalla.read(MEDLEMSKAP, id)) return { resultat: "fanns", id };
-        const medlemskap = byggMedlemskap({ userId: anvandare.id, groupId, roll, typ, status: "aktiv" });
+        /*
+         * ⛔ NAMN OCH BILD FÖLJER MED IN I MEDLEMSKAPET (#138, beslut A).
+         * E-posten lämnar aldrig `users`, alltså är det här den enda källan
+         * medlemslistan har att rita en rad ur. Skrivs de inte här blir listan
+         * en rad uid:n, vilket är samma sak som ingen lista.
+         */
+        const medlemskap = byggMedlemskap({
+          userId: anvandare.id,
+          groupId,
+          roll,
+          typ,
+          status: "aktiv",
+          namn: anvandare.namn ?? "",
+          bild: anvandare.bild ?? "",
+        });
         await kalla.create(MEDLEMSKAP, medlemskap);
         return { resultat: "medlemskap", id };
       }
@@ -167,6 +181,8 @@ export function createInvitationService(konfig) {
 
       /** @type {string[]} */
       const accepterade = [];
+      /** @type {Record<string, any> | null | undefined} `undefined` = inte läst än, `null` = finns inte. */
+      let anvandaren;
       for (const inbjudan of vantande) {
         const id = medlemskapsId(uid, inbjudan.groupId);
         /*
@@ -175,7 +191,24 @@ export function createInvitationService(konfig) {
          * "vantar" för alltid och räknas varje inloggning.
          */
         if (!(await kalla.read(MEDLEMSKAP, id))) {
-          await kalla.create(MEDLEMSKAP, byggMedlemskap({ userId: uid, groupId: inbjudan.groupId, roll: inbjudan.roll, typ: "person", status: "aktiv" }));
+          /*
+           * ⛔ PROFILEN LÄSES EN GÅNG, INTE EN GÅNG PER INBJUDAN. Den som
+           * bjudits in till tre grupper ska inte kosta tre läsningar av samma
+           * rad, och alla tre medlemskapen ska dessutom bära samma namn.
+           */
+          if (anvandaren === undefined) anvandaren = (await kalla.read(ANVANDARE, uid)) ?? null;
+          await kalla.create(
+            MEDLEMSKAP,
+            byggMedlemskap({
+              userId: uid,
+              groupId: inbjudan.groupId,
+              roll: inbjudan.roll,
+              typ: "person",
+              status: "aktiv",
+              namn: anvandaren?.namn ?? "",
+              bild: anvandaren?.bild ?? "",
+            }),
+          );
           accepterade.push(inbjudan.groupId);
         }
         await kalla.update(INBJUDNINGAR, inbjudan.id, { status: "accepterad" });

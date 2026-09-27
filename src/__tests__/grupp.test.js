@@ -10,6 +10,7 @@ import {
   byggInbjudan,
   byggMedlemskap,
   medlemskapsId,
+  MEDLEMSKAPSFALT,
 } from "../lib/grupp.js";
 import { gruppadSamling, regelfragment } from "../lib/regler.js";
 
@@ -109,6 +110,37 @@ describe("gruppen", () => {
   });
 });
 
+describe("gruppens moduler mot de registrerade", () => {
+  /*
+   * ⛔ CP 2026-09-27: "Ett påhittat modul-id går att spara." Formen var rätt
+   * och innehållet påhittat, alltså sparades en flik ingen hittar.
+   */
+  it("avvisar ett modul-id som inte är registrerat", () => {
+    expect(() => byggGrupp(GRUPP(), [{ id: "liv" }])).toThrow(/inte är registrerade/);
+  });
+
+  it("tar emot både manifest och rena id", () => {
+    expect(byggGrupp(GRUPP(), [{ id: "ekonomi" }]).moduler).toEqual(["ekonomi"]);
+    expect(byggGrupp(GRUPP(), ["ekonomi"]).moduler).toEqual(["ekonomi"]);
+  });
+
+  it("räknar upp vad som var känt, så felet går att rätta utan att gissa", () => {
+    expect(() => byggGrupp(GRUPP(), [{ id: "liv" }])).toThrow(/Kända: liv/);
+  });
+
+  it("släpper igenom utan listan, eftersom läsvägen måste tåla en avinstallerad modul", () => {
+    expect(byggGrupp(GRUPP()).moduler).toEqual(["ekonomi"]);
+  });
+
+  it("avvisar en lista som inte är en lista, i stället för att tyst släppa igenom", () => {
+    expect(() => byggGrupp(GRUPP(), /** @type {any} */ ("ekonomi"))).toThrow(/måste vara en lista/);
+  });
+
+  it("en tom lista kända moduler fäller en grupp som pekar på något", () => {
+    expect(() => byggGrupp(GRUPP(), [])).toThrow(/inte är registrerade/);
+  });
+});
+
 describe("medlemskapet", () => {
   it("id härleds ur userId och groupId", () => {
     expect(byggMedlemskap(MEDLEM()).id).toBe("uid-1_bolaget");
@@ -164,6 +196,31 @@ describe("medlemskapet", () => {
 
   it("okända fält avvisas", () => {
     expect(() => byggMedlemskap({ ...MEDLEM(), groupIds: ["a"] })).toThrow(/memberships: fälten groupIds för "uid-1_bolaget" känns inte igen/);
+  });
+});
+
+describe("medlemskapets namn och bild (#138, beslut A)", () => {
+  /*
+   * ⛔ E-POSTEN LÄMNAR ALDRIG `users`, så medlemslistan har ingenting annat att
+   * rita ur. Utan de här fälten blir listan en rad uid:n.
+   */
+  it("bär namn och bild", () => {
+    const m = byggMedlemskap({ ...MEDLEM(), namn: "CP", bild: "https://exempel/bild.png" });
+    expect(m.namn).toBe("CP");
+    expect(m.bild).toBe("https://exempel/bild.png");
+  });
+
+  it("skriver ut tomma strängar när de saknas, i stället för att utelämna fälten", () => {
+    const m = byggMedlemskap(MEDLEM());
+    expect(m.namn).toBe("");
+    expect(m.bild).toBe("");
+    expect(Object.keys(m)).toContain("namn");
+    expect(Object.keys(m)).toContain("bild");
+  });
+
+  it("står i fältlistan, alltså är de vaktade av check-gruppnyckel", () => {
+    expect(MEDLEMSKAPSFALT).toContain("namn");
+    expect(MEDLEMSKAPSFALT).toContain("bild");
   });
 });
 

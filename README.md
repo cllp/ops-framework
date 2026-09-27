@@ -569,7 +569,7 @@ datamodellen ändras.
 |---|---|---|
 | `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN` | personen själv, bara sin egen rad |
 | `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv` | ägare i gruppen. Aldrig radering, arkivering |
-| `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER`, `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS` | ⛔ **bara serversidan** |
+| `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER`, `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS`, plus `namn` och `bild` | ⛔ **bara serversidan** |
 | `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv` | ägare i gruppen. Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137) |
 
 ⛔ **EXAKT EN GRUPPNYCKEL PER RAD.** Varje rad bär `groupId`, ett värde, aldrig
@@ -633,6 +633,44 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 ⛔ **`kanAndra` i `OpsMedlemmar` är en artighet, inte ett skydd.** Samma not som i `OpsKatalogInstallning`: den som vill skriva ändå öppnar konsolen. Det riktiga låset är att `memberships` inte går att skriva från en klient alls, och att callablen kontrollerar ägarskapet själv.
 
 ⛔ **INGEN MEJLUTSKICK HÄR.** Mailmodulen ([#101](https://github.com/cllp/ops-framework/issues/101)) tar det när den finns. Tills dess säger inställningsvyn "be personen logga in".
+
+#### ⛔ E-posten lämnar aldrig `users`, och medlemslistan visar namn och bild
+
+Beslut A i [#138](https://github.com/cllp/ops-framework/issues/138), architect
+2026-09-27. Klarkriteriet löd först "ingen läser en annans e-post utan att vara
+medlem i en gemensam grupp", och **det går inte att skriva som Firestore-regel**:
+villkoret kräver en iteration över mina medlemskap, och en läsregel på
+`users/{uid}` får ingen grupp-parameter att bygga uppslaget av. Det enda som gick
+utan iteration var "alla inloggade läser alla profiler", och då bär `users`
+e-postadresser åt vem som helst som är inloggad någonstans.
+
+| Vad | Var |
+|---|---|
+| e-post | `users/{uid}`, läses bara av sig själv |
+| namn och bild i en medlemslista | `memberships`, denormaliserat av serversidan |
+
+Kriteriet är omskrivet till det mätbara: **e-posten lämnar aldrig `users`, och
+medlemslistan visar namn och bild ur `memberships`.** Regelprovet finns:
+`rules/__tests__/grupper.test.mjs` kräver att en annan inloggad inte kan läsa
+`users/{någon annan}`.
+
+⛔ **Att namnet kan bli inaktuellt är redan modellens beteende.**
+`sakerstallAnvandare` rör inte namnet efter första inloggningen, så ett namn som
+släpar efter Google är ingen ny avvikelse. Priset är litet och synligt, till
+skillnad mot ett nätverksanrop per vy (en callable som itererar) eller en
+e-post som är läsbar för alla inloggade.
+
+#### ⛔ Gruppens moduler valideras mot de registrerade, på skrivvägen
+
+`byggGrupp(rad, kandaModuler)` avvisar ett modul-id som inte finns bland de
+installerade. Utan den kontrollen sparas ett skrivfel som en flik ingen hittar.
+
+⛔ **Argumentet är valfritt, och det är två olika frågor och inte en halvmesyr.**
+Den som SKRIVER en grupp måste avvisa ett påhittat id. Den som LÄSER en gammal
+rad måste tåla att en modul avinstallerats sedan raden skrevs, för annars ligger
+appen nere för den gruppen utan väg till en som fungerar. Läsvägens svar är
+`navForLage`, som skriver ut `saknade`. Står det `byggGrupp(rad)` i något som
+sparar är det ett hål.
 
 #### Reglerna genereras, de skrivs inte per samling
 

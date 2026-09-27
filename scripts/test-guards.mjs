@@ -1052,6 +1052,95 @@ kravRott(
   kravRott("paket golv: fel sökväg", [paketvakt, path.join(arbetsmapp, "finns-inte"), "--struktur"], "finns inte");
 }
 
+/*
+ * ⛔ KOPIORNA LIGGER UTANFÖR `node_modules`, OCH DET ÄR ETT MÄTFYND. tsc vägrar
+ * typkontrollera JS därifrån och svarar TS7016, alltså rött av fel anledning.
+ * Mappen delas av kontrast-, gruppnyckel- och gruppfrågeproven.
+ */
+const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
+
+// ── Kontrasten: AA i båda teman (#132) ────────────────────────────────────
+//
+// ⛔ VAKTEN HADE INGET BEVIS FÖRRÄN NU, och den är en av de två CP räknade upp
+// 2026-09-27. Den hade stått grön genom hela det fel den skulle fånga om
+// mätningen slutat mäta, och ingen hade sett skillnaden utifrån.
+{
+  const kontrastvakt = path.join(rot, "scripts", "check-kontrast.mjs");
+  const tokenkalla = fs.readFileSync(path.join(rot, "tokens", "tokens.css"), "utf8");
+
+  /** @param {string} namn @param {(css: string) => string} mutera */
+  const tokenkopia = (namn, mutera) => {
+    const fil = path.join(arbetsmapp, `${namn}.css`);
+    fs.writeFileSync(fil, mutera(tokenkalla));
+    return fil;
+  };
+
+  kravGront("kontrast: de riktiga tokens håller AA", [kontrastvakt]);
+
+  // ⛔ Exakt det fel som fanns på riktigt: brödtext i sidans egen bottenfärg.
+  kravRott(
+    "kontrast: brödtexten sänks till bakgrundens färg",
+    [kontrastvakt, tokenkopia("k1", (css) => css.replace(/--color-ink:\s*#[0-9a-fA-F]{3,8}/, "--color-ink: #f8f7f4"))],
+    "ger",
+  );
+
+  kravRott(
+    "kontrast: accentens kontrastfärg tillbaka till den gamla",
+    [kontrastvakt, tokenkopia("k2", (css) => css.replace(/--color-accent-contrast:\s*#[0-9a-fA-F]{3,8}/, "--color-accent-contrast: #f8f7f4"))],
+    "Kravet är",
+  );
+
+  // ⛔ GOLVET, och det är den viktigaste av de tre: en tokenfil utan paren ger
+  // noll brott, alltså grönt av att ingenting mättes.
+  kravRott("kontrast golv: tokens utan paren", [kontrastvakt, tokenkopia("k3", () => ":root { --color-ink: #000; }\n")], "gick att mäta");
+
+  kravRott("kontrast golv: fel sökväg", [kontrastvakt, path.join(arbetsmapp, "finns-inte.css")], "hittar inte");
+}
+
+// ── Gruppnyckeln: exakt en per rad (#136) ─────────────────────────────────
+//
+// ⛔ DEN ANDRA VAKTEN UTAN BEVIS. Den vaktar det som inte går att eftermontera,
+// alltså är den den sista som borde ha stått oprövad.
+{
+  const nyckelvakt = path.join(rot, "scripts", "check-gruppnyckel.mjs");
+
+  /** @param {string} namn @param {(kalla: string) => string} mutera @param {string} [fil] */
+  const libkopia = (namn, mutera, fil = "grupp.js") => {
+    const mapp = path.join(gruppmapp, namn);
+    fs.cpSync(path.join(rot, "src"), path.join(mapp, "src"), { recursive: true });
+    const mal = path.join(mapp, "src", "lib", fil);
+    fs.writeFileSync(mal, mutera(fs.readFileSync(mal, "utf8")));
+    return path.join(mapp, "src");
+  };
+
+  kravGront("gruppnyckel: det riktiga källträdet bär en gruppnyckel", [nyckelvakt]);
+
+  // ⛔ SessionStudios fält, planterat i en fältlista.
+  kravRott(
+    "gruppnyckel: invitedGroupIds i en fältlista",
+    [nyckelvakt, libkopia("gn1", (k) => k.replace('"groupId", "roll", "typ", "status"', '"groupId", "invitedGroupIds", "roll", "typ", "status"'))],
+    "EXAKT en grupp",
+  );
+
+  // ⛔ Och samma hål från regelhållet: formen kan vara rätt medan regeln ändå
+  // frågar "är du med i någon av de här".
+  kravRott(
+    "gruppnyckel: array-contains i regeltexten",
+    [nyckelvakt, libkopia("gn2", (k) => k.replace("function opsArMedlem(", "function opsArMedlemLista(gid) { return resource.data.grupper.hasAny([gid]); }\n    // array-contains\n    function opsArMedlem("), "regler.js")],
+    "array-contains",
+  );
+
+  // ⛔ NÄRVAROGOLVET: en regeltext utan uppslag släpper igenom allt, och
+  // frånvarohalvan av vakten är nöjd med det.
+  kravRott(
+    "gruppnyckel golv: regeln slutar slå upp medlemskapet",
+    [nyckelvakt, libkopia("gn3", (k) => k.replace(/opsArMedlem/g, "opsNagon"), "regler.js")],
+    "mäter resten av vakten ingenting",
+  );
+
+  kravRott("gruppnyckel golv: fel sökväg", [nyckelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");
+}
+
 // ── Gruppfrågan: groupId är ett KRAV i typen, inte en konvention (#139) ────
 //
 // ⛔ VAKTEN BEVISAS MOT EN KOPIA AV HELA `src`, inte mot en lös fil. Kopieras
@@ -1060,16 +1149,6 @@ kravRott(
 // har slutat mäta det den påstår sig mäta, och det syns inte utifrån.
 {
   const gruppvakt = path.join(rot, "scripts", "check-gruppfraga.mjs");
-
-  /*
-   * ⛔ KOPIAN LIGGER UTANFÖR `node_modules`, OCH DET ÄR ETT MÄTFYND. Första
-   * försöket la den i harnessets vanliga arbetsmapp, alltså under
-   * `node_modules`, och tsc vägrar typkontrollera JS därifrån: den svarade
-   * TS7016, "implicitly has an any type". Vakten blev röd, men av att filen
-   * inte gick att läsa och inte av att kravet saknades, alltså exakt det
-   * "rött av fel anledning" harnessets andra villkor finns för att fånga.
-   */
-  const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-gruppfraga-prov-"));
 
   /** @param {string} namn @param {(kalla: string) => string} mutera */
   const kopieradKalla = (namn, mutera) => {

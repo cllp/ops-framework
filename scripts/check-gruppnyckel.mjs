@@ -22,10 +22,28 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
-import { gruppadSamling, regelfragment } from "../src/lib/regler.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/*
+ * ⛔ KÄLLTRÄDET GÅR ATT PEKA OM, av samma skäl som i de andra vakterna: en
+ * vakt som bara kan köras mot ett träd som råkar vara grönt går inte att se
+ * falla. `test-guards` pekar den mot en kopia med ett planterat `groupIds`.
+ *
+ * ⛔ OCH REGELTEXTEN IMPORTERAS UR SAMMA TRÄD. Läste vakten fältlistorna ur
+ * kopian men reglerna ur originalet vore halva mätningen alltid grön, oavsett
+ * vad som planterades.
+ */
+const kalltrad = process.argv[2] ? path.resolve(process.argv[2]) : path.join(rot, "src");
+const libmapp = path.join(kalltrad, "lib");
+
+if (!fs.existsSync(libmapp)) {
+  console.error(`check-gruppnyckel: hittar inte ${libmapp}. Fel sökväg i vakten, inte ett godkänt utfall.`);
+  process.exit(1);
+}
+
+const { gruppadSamling, regelfragment } = await import(pathToFileURL(path.join(libmapp, "regler.js")).href);
 
 /** Den enda tillåtna gruppnyckeln. */
 const ENDA = "groupId";
@@ -42,9 +60,9 @@ const brott = [];
 // de värden modulen råkar exportera, medan felet vi letar efter är ett fält
 // någon SKREV. Att läsa texten fångar också en lista som glömts exporteras.
 const libfiler = fs
-  .readdirSync(path.join(rot, "src", "lib"))
+  .readdirSync(libmapp)
   .filter((f) => f.endsWith(".js"))
-  .map((f) => path.join(rot, "src", "lib", f));
+  .map((f) => path.join(libmapp, f));
 
 /** @type {{ lista: string, falt: string[], fil: string }[]} */
 const listor = [];
@@ -59,7 +77,7 @@ for (const fil of libfiler) {
 // ⛔ GOLV. En vakt som blir grön av att ingenting lästes är det arbetsreglerna
 // kallar tomt underlag. Fyra listor är de fyra samlingarna i #136.
 if (listor.length < 4) {
-  console.error(`check-gruppnyckel: bara ${listor.length} fältlistor lästes ur src/lib. Fel mönster, eller en samling som saknar sin lista.`);
+  console.error(`check-gruppnyckel: bara ${listor.length} fältlistor lästes ur ${libmapp}. Fel mönster, eller en samling som saknar sin lista.`);
   process.exit(1);
 }
 
