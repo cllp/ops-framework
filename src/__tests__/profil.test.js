@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
-import { sakerstallAnvandare, sparaInstallningar } from "../lib/profil.js";
+import { andringen, sakerstallAnvandare, sparaInstallningar } from "../lib/profil.js";
 
 /**
  * Fas 2.5 i epiken #92: profilraden (#138).
@@ -92,5 +92,35 @@ describe("⛔ bara språk och tema går att spara", () => {
     const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
     await expect(sparaInstallningar({ kalla, anvandare, andring: { tema: "gult" } })).rejects.toThrow(/users: temat "gult"/);
     expect(await kalla.read("users", "uid-1")).toMatchObject({ tema: "system" });
+  });
+});
+
+describe("⛔ andringen: beslutet vyn inte får äga", () => {
+  const ANV = { id: "uid-1", namn: "CP", epost: "cp@staiger.se", bild: "", sprak: "sv", tema: /** @type {const} */ ("system") };
+
+  it("oförändrat utkast är inte ändrat", () => {
+    expect(andringen(ANV, { sprak: "sv", tema: "system" })).toEqual({ andrat: false, andring: { sprak: "sv", tema: "system" } });
+  });
+
+  it("ett tomt utkast betyder den sparade raden", () => {
+    expect(andringen(ANV)).toEqual({ andrat: false, andring: { sprak: "sv", tema: "system" } });
+  });
+
+  it("ett byte av språk är ändrat, och båda fälten följer med", () => {
+    expect(andringen(ANV, { sprak: "en" })).toEqual({ andrat: true, andring: { sprak: "en", tema: "system" } });
+  });
+
+  it("ett byte av tema är ändrat", () => {
+    expect(andringen(ANV, { tema: "morkt" }).andrat).toBe(true);
+  });
+
+  /*
+   * ⛔ BÅDA FÄLTEN SKICKAS ALLTID, ÄVEN DET OFÖRÄNDRADE. En delvis nyttolast
+   * hade fungerat mot `update`, men `sparaInstallningar` validerar hela raden
+   * med `byggAnvandare`, och den behöver båda för att kunna säga nej till ett
+   * tema som inte finns.
+   */
+  it("det oförändrade fältet skickas med", () => {
+    expect(andringen({ ...ANV, tema: "morkt" }, { sprak: "en" }).andring).toEqual({ sprak: "en", tema: "morkt" });
   });
 });

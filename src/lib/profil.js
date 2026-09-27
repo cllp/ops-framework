@@ -106,3 +106,28 @@ export async function sparaInstallningar({ kalla, anvandare, andring, samling = 
   await kalla.update(samling, anvandare.id, { sprak: nasta.sprak, tema: nasta.tema });
   return nasta;
 }
+
+/**
+ * Vad som ändrats mot den sparade raden, och om något alls har det.
+ *
+ * ══ ⛔ VARFÖR DET HÄR INTE BOR I VYN (#138) ════════════════════════════
+ *
+ * `OpsSelect` är en Radix Select, alltså ingen `<select>`. Den går inte att
+ * driva med `fireEvent.change` i jsdom, och ett prov som försöker står grönt
+ * genom varje fel: spionen anropas aldrig, och `not.toHaveBeenCalled` är sant
+ * både när vyn är rätt och när den är trasig.
+ *
+ * ⛔ SVARET ÄR INTE ETT PROV TILL, UTAN ETT BESLUT PÅ EN MÄTBAR PLATS. Vyn
+ * ritar och samlar in; vad "ändrat" betyder och vad som skickas vidare avgörs
+ * här, där ett prov kan se det. Det är samma val som `simulera()` i appen och
+ * `caseStatus` i händelselistan.
+ *
+ * @param {import("./grupp.js").Anvandare} anvandare Den sparade raden.
+ * @param {{ sprak?: string, tema?: string }} utkast Det vyn just nu visar.
+ * @returns {{ andrat: boolean, andring: { sprak: string, tema: string } }}
+ */
+export function andringen(anvandare, utkast = {}) {
+  const sprak = utkast.sprak ?? anvandare.sprak;
+  const tema = utkast.tema ?? anvandare.tema;
+  return { andrat: sprak !== anvandare.sprak || tema !== anvandare.tema, andring: { sprak, tema } };
+}

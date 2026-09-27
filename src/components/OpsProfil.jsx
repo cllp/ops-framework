@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { SPRAK, text } from "../lib/sprak.js";
 import { TEMAN } from "../lib/grupp.js";
+import { andringen } from "../lib/profil.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -83,7 +84,10 @@ export function OpsProfil({
   const [valtTema, setValtTema] = useState(anvandare.tema);
   const [sparar, setSparar] = useState(false);
 
-  const andrat = valtSprak !== anvandare.sprak || valtTema !== anvandare.tema;
+  /* ⛔ Beslutet ligger i `andringen`, inte här. Skälet står i profil.js:
+     Radix Select går inte att driva i jsdom, så logiken flyttades dit ett
+     prov kan se den i stället för att få ett prov som inte kan faila. */
+  const { andrat, andring } = andringen(anvandare, { sprak: valtSprak, tema: valtTema });
 
   const byteTema = (/** @type {string} */ v) => {
     setValtTema(/** @type {any} */ (v));
@@ -94,7 +98,7 @@ export function OpsProfil({
   const spara = async () => {
     setSparar(true);
     try {
-      await onSpara({ sprak: valtSprak, tema: valtTema });
+      await onSpara(andring);
     } finally {
       setSparar(false);
     }
