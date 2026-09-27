@@ -122,3 +122,35 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:paket
+
+  # ⛔ REGELPROVEN I ETT EGET JOBB, AV SAMMA SKÄL SOM SCAFFOLD OCH PAKET (#136).
+  #
+  # De startar Firestore-emulatorn, alltså en Java-process och en nedladdning,
+  # och kör 31 prov mot den. Som ett steg i `check` hade varje typfel fått vänta
+  # på det; som eget jobb kostar de bara sin egen väggtid.
+  #
+  # ⛔ OCH DE PROVAR GENERERAD TEXT, INTE EN INCHECKAD KOPIA.
+  # `rules/provregler.rules` skrivs av `skriv-provregler` ur `regelfragment()`
+  # strax innan emulatorn startar, och filen är git-ignorerad. Provas en
+  # handskriven kopia bevisar proven att någon skrev rätt en gång, inte att
+  # generatorn gör det.
+  #
+  # ⛔ JAVA KRÄVS, och det står här eftersom felet annars är kryptiskt:
+  # emulatorn dör med ett meddelande om en saknad körning och inte om Java.
+  regelprov:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+      # ⛔ JAVA KONTROLLERAS FÖRST, OCH DET ÄR INTE ÖVERFLÖDIGT. Emulatorn är
+      # en jar. Saknas Java faller den med ett meddelande om emulatorn, alltså
+      # långt ifrån orsaken, och nästa person felsöker reglerna. Ubuntu-köraren
+      # har Java förinstallerat; skulle den sluta ha det vill jag se det på
+      # raden som heter Java. Samma steg och samma skäl som i bolag-ops.
+      - name: Java finns
+        run: java -version
+      - run: npm ci
+      - run: npm run test:rules

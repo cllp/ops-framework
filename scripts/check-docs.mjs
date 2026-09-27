@@ -89,7 +89,7 @@ for (const vakt of vakter) {
 // avsnitt med källornas form, och #131 lägger till exempelmodulen. En
 // hårdkodad enstaka sträng hade blivit en rad någon kopierar i stället för en
 // rad någon fyller på.
-const AVSNITT = ["Modulkontraktet"];
+const AVSNITT = ["Modulkontraktet", "Grupper och medlemskap"];
 
 for (const avsnitt of AVSNITT) {
   if (!new RegExp(`^#{2,4} .*${avsnitt}`, "m").test(readme)) {
