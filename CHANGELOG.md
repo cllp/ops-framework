@@ -9,6 +9,46 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.23.0
+
+⛔ **Reglaget gick inte att se, och det var inte bara i mörkt läge.**
+
+CP 2026-09-26, med bild från mobilen: "Går ej att se kontrast på toggle".
+Mätt mot tokens gällde det båda temana, och det var inte en knopp som var svår
+att se utan en knopp som inte fanns:
+
+| Par | Ljust | Mörkt |
+|---|---|---|
+| spår av (`sunken`) mot panelen (`raised`) | 1,17:1 | **1,00:1** |
+| knopp (`canvas`) mot spår av (`sunken`) | 1,09:1 | 1,14:1 |
+
+### Ändrat
+
+- **`OpsToggle`s switch har kant på både spår och knopp.** Fyllningen kan inte
+  bära kravet: `sunken` ligger per definition nära ytan den vilar på. Kanten
+  (`ink-secondary`) ger 9,47:1 i ljust och 5,10:1 i mörkt.
+- **Knoppen ligger på `raised` i stället för `canvas`.** Det är tokenet för det
+  som ligger ovanpå något, och det enda som når 3:1 mot `accent` i mörkt läge.
+- **`check-kontrast` bevakar två av reglagets par**, och ett prov bredvid
+  kräver att komponenten faktiskt ritar de tokens vakten mäter. En vakt som
+  mäter tokens är grön även när ingen ritar dem.
+
+### Känt hål, utskrivet
+
+Knoppen i **på**-läget når inte 3:1 mot `accent` i ljust läge, och det går inte
+att lösa med befintliga tokens: ljust `accent` (#9a9588) ligger mitt i skalan,
+för mörkt för en ljus knopp och för ljust för en mörk. Samma orsak som gör att
+`accent-contrast` bara ger 2,79:1 på `accent` i ljust, vilket redan står
+utskrivet vid tokenet.
+
+Hålet stängs den dag ljust `--color-accent-contrast` blir mörkt (#1a1a1a ger
+5,83:1), och det är ett produktbeslut om hur varje primärknapp ser ut.
+
+I på-läget bär formen i stället: knoppen flyttar sig, och spårets kant mot
+panelen står kvar. Läget avgörs alltså aldrig av färg ensam (WCAG 1.4.1).
+
+---
+
 ## 0.22.0
 
 ⛔ **Två adaptrar av samma kontrakt svarade olika på samma anrop.**
