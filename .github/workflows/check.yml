@@ -24,8 +24,29 @@ name: Check
 on:
   push:
     branches: [main]
+  # ⛔ INGEN `branches`-FILTER PÅ PR, OCH DET ÄR MÄTT 2026-09-27.
+  #
+  # Här stod `branches: [main]`. Följden var att en PR mot en ANNAN gren fick
+  # NOLL check runs, tyst. Fas 2.5 byggdes som tre PR:ar ovanpå #136:s gren, och
+  # alla tre stod i timmar utan en enda kontroll. Ingenting var rött, ingenting
+  # var grönt, och det gick bara att se genom att fråga efter check runs och få
+  # en tom lista tillbaka. Det är arbetsreglernas punkt 5 i sin värsta form: en
+  # utelämnad rubrik som inte går att skilja från ett svar.
+  #
+  # ⛔ OCH ATT BYTA BAS I EFTERHAND RÄDDAR INGET. GitHub skickar `edited` när
+  # basen ändras, och en workflow lyssnar på `opened`, `synchronize` och
+  # `reopened`. Grenen måste alltså få en ny commit för att bli kontrollerad,
+  # vilket är ett ohyggligt dåligt sätt att upptäcka att man inte var det.
+  #
+  # ⛔ FILTRET SKYDDADE INGENTING. Varje PR i repot vill ha kedjan körd: en PR
+  # mot en annan gren är lika mycket kod som en mot main, och den mergas
+  # dessutom vidare till main sedan. Kostnaden är oförändrad, eftersom antalet
+  # PR:ar är detsamma.
   pull_request:
-    branches: [main]
+  # ⛔ OCH EN KNAPP, så kedjan går att köra mot en gren utan att först skriva en
+  # commit ingen bad om. Den är svaret på exakt den situation som uppstod ovan:
+  # tre grenar som behövde kontrolleras och inte hade något att pusha.
+  workflow_dispatch:
 
 # ⛔ EN KÖRNING PER GREN, INTE EN PER PUSH.
 #
