@@ -9,6 +9,32 @@ import { SLAGPLATSER } from "../lib/slag.js";
  * ⛔ PROVEN HÄR HANDLAR OM VAD SOM AVVISAS, inte om vad som accepteras. En
  * validering som bara provas med giltig data är en funktion som returnerar sitt
  * argument, och den är grön hela vägen genom felet den finns för att fånga.
+ *
+ * ══ ⛔ MUTATIONSSVEPET 2026-09-27, OCH VAD DET HITTADE ═════════════════
+ *
+ * En granskning (cllp/bolag-ops#420) noterade att katalogproven saknade
+ * synligt bevis på rött utan sin fix. Beviset togs genom att slå ut varje
+ * kontroll i `byggKategori` och `validateKatalog`, en i taget, och köra de
+ * fyra katalogprovfilerna mot den trasiga koden:
+ *
+ *   id-formen                    RÖD, 2 prov dog
+ *   okända fält avvisas          RÖD, 3
+ *   farg i en färglös katalog    RÖD, 1
+ *   farg är en palettplats       RÖD, 4
+ *   ikon ur tillåtelselistan     RÖD, 3
+ *   fas ur de fem                RÖD, 2
+ *   textnyckelns form            RÖD, 1
+ *   texterna som krävs           RÖD, 4
+ *   dubbla id                    RÖD, 1
+ *   ⛔ id KRÄVS                  GRÖN
+ *   ⛔ ikon KRÄVS                GRÖN
+ *
+ * ⛔ TVÅ KONTROLLER GICK ALLTSÅ ATT TA BORT UTAN ATT NÅGOT BLEV RÖTT, och de
+ * två proven längst ned i det här blocket är svaret. Skälet att de överlevde
+ * är lärorikt: en tom `id` föll ändå på ID-formen och en tom `ikon` föll ändå
+ * på tillåtelselistan, så BETEENDET såg rätt ut medan felmeddelandet blev ett
+ * annat. Det håller bara så länge en tillåtelselista SKICKAS IN, och
+ * `functions/katalog.js` skickar med flit ingen.
  */
 
 /** En giltig kategori, som allt annat varieras ifrån. */
@@ -50,6 +76,43 @@ describe("katalogens schema", () => {
 
   it("⛔ avvisar ett namn utan svenska, eftersom svenskan är reserven", () => {
     expect(() => byggKategori({ ...giltig, namn: { en: "Tasks" } }, { ikoner: IKONER })).toThrow(/sv krävs/);
+  });
+
+  it("⛔ avvisar en kategori UTAN id, och säger att id krävs", () => {
+    /*
+     * ⛔ ÖVERLEVDE MUTATIONSSVEPET 2026-09-27. Att ta bort `if (!id)` gav inget
+     * rött prov, eftersom en tom sträng ändå föll på ID-formen. Beteendet var
+     * alltså rätt och MEDDELANDET blev fel: "id \"\" får bara innehålla små
+     * bokstäver" säger till den som glömt fältet att hen stavat det fel.
+     *
+     * Provet läser därför meddelandet och inte bara att det kastar.
+     *
+     * Planterad defekt: byt `if (!id)` mot `if (false)`.
+     */
+    const utan = { namn: { sv: "X" }, ikon: "check", fas: "ny", farg: 1 };
+    expect(() => byggKategori(utan, { ikoner: IKONER })).toThrow(/id krävs/);
+    expect(() => byggKategori({ ...utan, id: "   " }, { ikoner: IKONER })).toThrow(/id krävs/);
+  });
+
+  it("⛔ avvisar en kategori UTAN ikon, också när ingen tillåtelselista skickats", () => {
+    /*
+     * ⛔ ÖVERLEVDE MUTATIONSSVEPET, och det här är det farliga av de två.
+     *
+     * Med en tillåtelselista föll en tom ikon ändå på listan. UTAN lista fanns
+     * ingenting kvar: `if (!ikon)` var det enda som stod mellan en kategori
+     * utan ikon och ett tyst godkännande.
+     *
+     * ⛔ OCH DET LÄGET ÄR INTE HYPOTETISKT. `functions/katalog.js` i bolag-ops
+     * bygger sin katalogkälla helt utan `ikoner`, med flit: en ikon som appen
+     * känner men inte functions skulle annars fälla hela katalogen till
+     * reserven för något som bara rör en vy.
+     *
+     * Planterad defekt: byt `if (!ikon)` mot `if (false)`.
+     */
+    const utan = { id: "x", namn: { sv: "X" }, fas: "ny", farg: 1 };
+    expect(() => byggKategori(utan, { ikoner: IKONER })).toThrow(/ikon för "x" krävs/);
+    // ⛔ Utan lista, alltså functions väg. Det är den här raden som är ny.
+    expect(() => byggKategori(utan)).toThrow(/ikon för "x" krävs/);
   });
 
   it("felet säger vilken katalog och vilket fält, inte bara att något är fel", () => {

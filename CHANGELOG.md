@@ -9,6 +9,44 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.23.1
+
+⛔ **Katalogschemat hade elva kontroller och nio prov. Mätt, inte antaget.**
+
+En granskning (cllp/bolag-ops#420) noterade att katalogproven saknade synligt
+bevis på rött utan sin fix. Beviset togs genom att slå ut varje kontroll i
+`byggKategori` och `validateKatalog`, en i taget, och köra de fyra
+katalogprovfilerna mot den trasiga koden.
+
+Nio kontroller gav rött. **Två gick att ta bort utan att något blev rött:**
+
+| Kontroll | Utfall före | Varför den överlevde |
+|---|---|---|
+| `id` krävs | **grön** | En tom sträng föll ändå på ID-formen. Beteendet var rätt, meddelandet blev fel |
+| `ikon` krävs | **grön** | En tom ikon föll ändå på tillåtelselistan, men bara när en lista skickas in |
+
+⛔ **Den andra är den farliga.** Utan tillåtelselista fanns ingenting kvar:
+`if (!ikon)` var det enda som stod mellan en kategori utan ikon och ett tyst
+godkännande. Och det läget är inte hypotetiskt: `functions/katalog.js` i
+bolag-ops bygger sin katalogkälla helt utan `ikoner`, med flit, eftersom en
+ikon som appen känner men inte functions annars hade fällt hela katalogen till
+reserven för något som bara rör en vy.
+
+### Lagt till
+
+- Två prov i `src/__tests__/katalog.test.js`: en kategori utan `id` avvisas med
+  meddelandet "id krävs", och en kategori utan `ikon` avvisas **också när ingen
+  tillåtelselista skickats**. Båda visade sig röda utan sin kontroll.
+- Hela mutationssvepet skrivet i provfilens filhuvud, så nästa läsare ser vad
+  som faktiskt är bevisat och vad som bara är skrivet.
+
+### Inte ändrat
+
+Ingen kod i `src/lib/katalog.js`. Kontrollerna fanns och gjorde rätt; det som
+saknades var beviset.
+
+---
+
 ## 0.23.0
 
 ⛔ **Reglaget gick inte att se, och det var inte bara i mörkt läge.**
