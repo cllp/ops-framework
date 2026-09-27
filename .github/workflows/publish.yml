@@ -28,12 +28,30 @@
 # bort där.
 name: Publish
 
+# ══ ⛔ TVÅ VÄGAR IN, OCH DEN ANDRA FINNS AV ETT MÄTT SKÄL ═══════════════
+#
+# Taggvägen är den ursprungliga: någon med en terminal kör `git tag v0.23.1 &&
+# git push --tags`, och jobbet ger ut.
+#
+# ⛔ DEN VÄGEN FÖRUTSÄTTER EN TERMINAL, OCH DEN 2026-09-27 FANNS INGEN. Ramverkets
+# main stod på 0.23.0 medan senaste taggen var v0.22.0, alltså var versionen
+# aldrig utgiven, och appen låg kvar på v0.21.0 med en reglagefix som var byggd,
+# mergad och inte live.
+#
+# ⛔ OCH FRÅN WEBBEN GÅR DET INTE ATT SKAPA BARA EN TAGG. GitHubs gränssnitt
+# skapar en tagg genom att skapa en RELEASE, och då faller det här jobbet på
+# `gh release create`: releasen finns redan. Den fällan är precis den sortens
+# sak som får någon att tro att utgivningen är trasig.
+#
+# Därför den här knappen. Den tar ingen indata alls: versionen läses ur
+# `package.json`, alltså ur den enda källa som ändå måste stämma.
 on:
   push:
     tags:
       # ⛔ Bara semver. En tagg som heter `v1` eller `release-3` ska inte ge ut
       # något, eftersom versionen härleds ur taggnamnet och måste gå att jämföra.
       - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
 
 # ⛔ `contents: write` KRÄVS för att skapa en release, och inget mer. Standard
 # för en tokenrättighet är att lista exakt det som behövs: en `write-all` här
@@ -53,23 +71,52 @@ jobs:
 
       - run: npm ci
 
-      # ⛔ TAGGEN OCH `package.json` MÅSTE SÄGA SAMMA SAK, och kontrollen står
-      # FÖRE grinden. En tagg som pekar på en annan version än paketet bär ger en
-      # release vars filnamn och vars innehåll inte stämmer överens, och den
-      # felen upptäcks av den som installerar.
+      # ⛔ VILKEN TAGG DET GÄLLER AVGÖRS HÄR, EN GÅNG, och båda vägarna landar i
+      # samma variabel. Räknades den ut på två ställen vore det två sanningar om
+      # vad som ges ut.
+      #
+      # ⛔ PÅ TAGGVÄGEN MÅSTE TAGGEN OCH `package.json` SÄGA SAMMA SAK. En tagg
+      # som pekar på en annan version än paketet bär ger en release vars filnamn
+      # och vars innehåll inte stämmer överens, och det felet upptäcks av den som
+      # installerar. På knappvägen kan de inte glida isär: taggen HÄRLEDS ur
+      # versionen, så kontrollen är sann av konstruktion och står kvar ändå.
       #
       # ⛔ TAGGNAMNET GÅR VIA `env` OCH INTERPOLERAS ALDRIG I SKALET. Ett
       # taggnamn är indata, och indata i ett `run`-block är en väg in i körningen.
-      - name: Taggen matchar versionen
+      - name: Vilken tagg, och att den matchar versionen
+        id: taggen
         env:
-          TAGG: ${{ github.ref_name }}
+          REF_NAMN: ${{ github.ref_name }}
+          HANDELSE: ${{ github.event_name }}
         run: |
           VERSION="$(node -p "require('./package.json').version")"
+          if [ "$HANDELSE" = "workflow_dispatch" ]; then
+            TAGG="v$VERSION"
+            echo "Knappvägen: taggen härleds ur package.json till $TAGG"
+          else
+            TAGG="$REF_NAMN"
+          fi
           if [ "$TAGG" != "v$VERSION" ]; then
             echo "Taggen är '$TAGG' men package.json säger '$VERSION'. Utgivningen stoppas." >&2
             exit 1
           fi
           echo "Taggen och versionen är överens: $TAGG"
+          echo "tagg=$TAGG" >> "$GITHUB_OUTPUT"
+
+      # ⛔ KONTROLLEN STÅR FÖRE GRINDEN OCH INTE EFTER. Hela kedjan tar minuter,
+      # och att falla på "releasen finns redan" EFTER dem är en körning som
+      # kostat allt och sagt ingenting. En redan utgiven version är dessutom det
+      # normala misstaget på knappvägen: man trycker en gång till.
+      - name: Versionen är inte redan utgiven
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAGG: ${{ steps.taggen.outputs.tagg }}
+        run: |
+          if gh release view "$TAGG" >/dev/null 2>&1; then
+            echo "Releasen $TAGG finns redan. Höj versionen i package.json och skriv ett avsnitt i CHANGELOG.md först." >&2
+            exit 1
+          fi
+          echo "$TAGG är inte utgiven än."
 
       # ⛔ HELA GRINDEN FÖRE UTGIVNINGEN, inte bara proven. En tagg är
       # oföränderlig i praktiken: den som installerat den har den, och en
@@ -92,7 +139,7 @@ jobs:
       # releasetexten som blir den som ljuger, eftersom ingen läser om den.
       - name: Avsnittet ur ändringsloggen
         env:
-          VERSION_RUBRIK: ${{ github.ref_name }}
+          VERSION_RUBRIK: ${{ steps.taggen.outputs.tagg }}
         run: |
           node --input-type=module -e '
             import fs from "node:fs";
@@ -113,6 +160,12 @@ jobs:
       - name: Skapa releasen
         env:
           GH_TOKEN: ${{ github.token }}
-          TAGG: ${{ github.ref_name }}
+          TAGG: ${{ steps.taggen.outputs.tagg }}
           TARBOLL: ${{ steps.packa.outputs.fil }}
-        run: gh release create "$TAGG" "$TARBOLL" --title "$TAGG" --notes-file release-text.md
+          SHA: ${{ github.sha }}
+        # ⛔ `--target` SÄTTS MED FLIT. På taggvägen pekar taggen redan på ett
+        # commit och flaggan är en upprepning. På knappvägen FINNS ingen tagg än,
+        # och `gh release create` skapar den: utan `--target` gissar den på
+        # standardgrenens spets, alltså möjligen ett annat commit än det som just
+        # provats och packats.
+        run: gh release create "$TAGG" "$TARBOLL" --target "$SHA" --title "$TAGG" --notes-file release-text.md
