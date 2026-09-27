@@ -58,7 +58,7 @@
  * @typedef {object} DataSource
  * @property {(collectionName: string, id: string) => Promise<T | null>} read En post, eller null om den inte finns.
  * @property {(collectionName: string, query?: Query) => Promise<T[]>} list
- * @property {(collectionName: string, data: Partial<T>) => Promise<T>} create Returnerar posten med sitt id.
+ * @property {(collectionName: string, data: Partial<T>) => Promise<T>} create Returnerar posten med sitt id. ⛔ Med ett eget `id` ERSÄTTER den posten som redan har det id:t, utan att säga ifrån, precis som `setDoc`. Utan id skapas en ny med ett genererat. Båda adaptrarna måste svara likadant: en källa som lägger till där en annan ersätter gör provsviten till en mätning av en app som inte finns.
  * @property {(collectionName: string, id: string, data: Partial<T>) => Promise<T>} update
  * @property {(collectionName: string, id: string) => Promise<void>} remove
  * @property {(collectionName: string, query: Query | undefined, listener: Listener<T>) => Unsubscribe} [subscribe]
