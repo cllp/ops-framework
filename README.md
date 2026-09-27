@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**76 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**79 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -854,6 +854,85 @@ registreringsordningen. Det är den sortens fel som uppträder som "ibland".
 Manifestet vet vilka ytor som finns och att modulen pekat ut en funktion per yta
 den fyller. Att låtsas validera radernas form redan nu vore en vakt som utlovar
 ett skydd den inte har.
+
+
+#### Källorna: hur en modul fyller ramverkets ytor
+
+[#129](https://github.com/cllp/ops-framework/issues/129). Ramverket äger ytorna,
+modulen fyller dem. **Ramverket anropar, modulen svarar**, aldrig tvärtom: en
+modul som kunde skjuta in rader när den ville hade gjort ordningen på en yta
+till en fråga om vem som hann först.
+
+⛔ **Varje anrop bär exakt en grupp.** Frågan är `{ groupId }`, typen kräver
+det, och körtiden upprepar kravet. Ramverket avgör vilka grupper som frågas och
+slår ihop svaren (`grupperAttFraga`, `listaPerGrupp`), så modulen ser aldrig
+fler än en grupp per anrop och kan därför inte råka läsa fel.
+
+```js
+import { defineModule, skapaKallregister } from "@staiger/ops-framework";
+
+const liv = defineModule({
+  id: "liv",
+  namn: { sv: "Liv", en: "Life" },
+  nav: [{ href: "/liv", label: "Liv" }],
+  routes: [{ path: "/liv", vy: LivVy }],
+  samlingar: ["matningar"],
+  kallor: {
+    // Händelser och kalendern. Formen är OpsEvent, samma som OpsEventList ritar.
+    handelser: async ({ groupId }) => [{ id: "m1", title: "Mätning", daysLeft: 3 }],
+
+    // Sök. En träff som går att välja mellan andra.
+    sok: async ({ groupId, text }) => [{ id: "m1", titel: "Mätning 1", text: "72 kg", href: "/liv/m1" }],
+
+    // Hjälp, per route. Modulen avgör vilka av sina sidor den svarar för.
+    hjalp: async ({ groupId, route }) => (route === "/liv" ? [{ titel: { sv: "Om Liv" }, text: { sv: "Så funkar det." } }] : []),
+
+    // Notiser, med brådska ur NOTISPRIO.
+    notiser: async ({ groupId }) => [{ id: "n1", titel: "Dags att mäta", prio: "normal" }],
+
+    // Ett kort på Översikt. Vyn pekas ut, den bakas inte in.
+    widgets: async ({ groupId }) => [{ id: "w1", titel: { sv: "Senaste mätningen" }, vy: SenasteKort }],
+
+    // En egen katalog i inställningsvyn. Kategorierna granskas av katalogmotorn.
+    kataloger: async ({ groupId }) => [{ id: "sorter", namn: { sv: "Mätsorter" }, kategorier: [vikt, puls] }],
+  },
+});
+
+const register = skapaKallregister([liv]);
+```
+
+| Källa | Raden | Ytan som ritar den |
+|---|---|---|
+| `handelser` | `OpsEvent`: `{ id, title, daysLeft }` plus det `OpsEventList` tar | `OpsModulHandelser` |
+| `sok` | `{ id, titel, text?, href? }` | Sök, [#140](https://github.com/cllp/ops-framework/issues/140) |
+| `hjalp` | `{ titel: { sv, en }, text: { sv, en } }` | `OpsModulHjalp` |
+| `notiser` | `{ id, titel, text?, prio, href? }` | Notiser, [#141](https://github.com/cllp/ops-framework/issues/141) |
+| `widgets` | `{ id, titel: { sv, en }, vy }` | Översikt, [#142](https://github.com/cllp/ops-framework/issues/142) |
+| `kataloger` | `{ id, namn: { sv, en }, kategorier }` | `OpsModulKataloger` |
+
+⛔ **`KALLTYPER` bär alla sex även innan ytorna finns.** En modul ska kunna
+deklarera en sökkälla i dag och få den ritad den dag Sök byggs, utan att skriva
+om sitt manifest.
+
+⛔ **Formen prövas när raden kommer, inte när modulen registreras.** Vad en
+funktion RETURNERAR går inte att veta förrän den anropats, och att låtsas annat
+vore en vakt som utlovar ett skydd den inte har. Det som går att avgöra vid
+uppstart gör `defineModule`: att ytan finns och att modulen pekat ut en
+funktion. Felet vid anropet namnger **modulen, ytan och radnumret**, eftersom
+ett formfel i en app med fem moduler annars är en halvtimmes letande.
+
+⛔ **En utebliven retur är ett fel, inte tomhet.** Noll rader skrivs `[]`. En
+källa som glömt sitt `return` ser annars ut som en källa utan rader, och då
+letar man i datan efter något som aldrig lämnade koden.
+
+⛔ **`modulId` stämplas av registret, det tas inte från raden.** En modul som
+kunde sätta det själv kunde sätta någon annans, och ytans svar på "vem bidrog
+med den här raden" vore då modulens påstående.
+
+⛔ **Tre tomheter, tre texter.** `useKallor` skiljer på att ingen modul fyller
+ytan (`fyller` är tom), att modulerna svarade utan rader (`tomt`) och att
+hämtningen pågår (`laddar`). Slås de ihop står det "allt är gjort" medan
+sanningen är att ingenting frågades.
 
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 

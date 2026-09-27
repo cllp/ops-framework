@@ -128,6 +128,22 @@ export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
 export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
 
 /*
+ * ⛔ KÄLLKONTRAKTET (#129). Registret och granskarna är data in och data ut,
+ * alltså ingen React, och ligger här av samma skäl som manifestet: en modul
+ * ska gå att validera av det som körs utan skärm.
+ *
+ * ⛔ YTORNA ÄR TRE KOMPONENTER OCH INTE TRE HOOKAR I VARJE APP. `OpsEventList`,
+ * `OpsHelp` och `OpsKatalogInstallning` fortsätter ta emot data, och
+ * kopplingen till registret bor i var sin liten komponent. En primitiv som
+ * hämtar går inte att använda med data appen redan har.
+ */
+export { NOTISPRIO, skapaKallregister } from "./lib/kallor.js";
+export { useKallor } from "./data/useKallor.jsx";
+export { OpsModulHandelser } from "./components/OpsModulHandelser.jsx";
+export { OpsModulHjalp } from "./components/OpsModulHjalp.jsx";
+export { OpsModulKataloger } from "./components/OpsModulKataloger.jsx";
+
+/*
  * ⛔ GRUPPER OCH MEDLEMSKAP (#136). Formerna är data in och data ut, och
  * regelfragmentet är text in och text ut, alltså ingen React. De ligger här av
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som
