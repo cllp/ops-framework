@@ -22,8 +22,7 @@
  */
 
 import { lazy } from "react";
-import { defineModule } from "../../src/lib/modul.js";
-import { byggKategori } from "../../src/lib/katalog.js";
+import { defineModule, byggKategori } from "@staiger/ops-framework";
 
 /**
  * ⛔ VYN LADDAS LAT, OCH DET ÄR INTE EN PRESTANDAFRÅGA. Manifestfilen måste gå

@@ -71,6 +71,9 @@ if (modulfalt.length < 6 || samlingsfalt.length < 3 || kalltyper.length < 6) {
   process.exit(1);
 }
 
+/** @type {string[]} */
+const brott = [];
+
 const readmetext = fs.readFileSync(readme, "utf8");
 const i = readmetext.indexOf("### Modulkontraktet");
 if (i < 0) {
@@ -85,14 +88,61 @@ if (i < 0) {
 const slut = readmetext.indexOf("\n### ", i + 5);
 const avsnitt = readmetext.slice(i, slut < 0 ? readmetext.length : slut);
 
-const exempel = fs
+const exempelfiler = fs
   .readdirSync(exempelmapp)
   .filter((f) => f.endsWith(".js") || f.endsWith(".jsx"))
-  .map((f) => fs.readFileSync(path.join(exempelmapp, f), "utf8"))
-  .join("\n");
+  .map((f) => ({ namn: f, text: fs.readFileSync(path.join(exempelmapp, f), "utf8") }));
 
+const exempel = exempelfiler.map((f) => f.text).join("\n");
+
+/*
+ * ══ ⛔ EXEMPLET FÅR INTE NÅ UT UR SIN EGEN MAPP ════════════════════════
+ *
+ * Granskningsfynd på #151. Exemplet importerade `../../src/lib/modul.js`,
+ * alltså ramverkets INNANMÄTE, medan README säger
+ * `import { defineModule } from "@staiger/ops-framework"`.
+ *
+ * ⛔ DET BRÖT MOT DET ENDA LÖFTE MAPPEN FINNS FÖR: att den ska gå att kopiera
+ * och bygga vidare på ur README, utan att öppna ramverkets källkod. En
+ * modulbyggare som kopierade mappen fick sökvägar som inte finns i en
+ * installerad tarboll, och felet kom först vid bygget i hens eget projekt.
+ *
+ * ⛔ OCH DEN GAMLA VAKTEN KUNDE INTE SE DET. Den jämför FÄLTNAMN mellan
+ * README, modul.js och exemplet. Importvägar är inte fältnamn, så avvikelsen
+ * var osynlig genom varje grön körning.
+ *
+ * Node tillåter självreferens via paketnamnet när `exports` finns, så
+ * exemplet importerar `@staiger/ops-framework` även inne i repot. Relativa
+ * vägar INOM mappen är tillåtna: det är så en kopierad mapp hänger ihop.
+ */
 /** @type {string[]} */
-const brott = [];
+const importrader = [];
+for (const fil of exempelfiler) {
+  for (const rad of fil.text.split("\n")) {
+    const m = /^\s*(?:import|export)\b[^"']*from\s*["']([^"']+)["']/.exec(rad) || /^\s*import\s*\(\s*["']([^"']+)["']/.exec(rad.trim());
+    const dynamisk = /import\(\s*["']([^"']+)["']\s*\)/.exec(rad);
+    const spec = m ? m[1] : dynamisk ? dynamisk[1] : null;
+    if (!spec) continue;
+    importrader.push(`${fil.namn}: ${spec}`);
+    if (spec.startsWith("../")) {
+      brott.push(
+        `exempelmodulen: ${fil.namn} importerar "${spec}", alltså utanför sin egen mapp. Den ska gå att kopiera och bygga ur README, och README säger import från "@staiger/ops-framework". En relativ väg ut ur mappen finns inte i en installerad tarboll.`,
+      );
+    }
+  }
+}
+
+/*
+ * ⛔ GOLV PÅ IMPORTRADERNA. Utan det blir kontrollen grön av att mönstret
+ * slutade matcha, alltså av att den inte läste någon import alls. Talet är
+ * dagens och får bara växa.
+ */
+if (importrader.length < 4) {
+  console.error(
+    `check-exempelmodul: läste bara ${importrader.length} importrader ur exempelmappen, golvet är 4. Fel mönster, alltså mäter importkontrollen ingenting.`,
+  );
+  process.exit(1);
+}
 
 /** @param {string[]} falt @param {string} vad */
 function kravBada(falt, vad) {
@@ -108,7 +158,7 @@ kravBada(kalltyper, "källtypen");
 
 if (brott.length === 0) {
   console.log(
-    `check-exempelmodul: ${modulfalt.length} manifestfält, ${samlingsfalt.length} samlingsfält och ${kalltyper.length} källtyper finns både i README-avsnittet och i exempelmodulen.`,
+    `check-exempelmodul: ${modulfalt.length} manifestfält, ${samlingsfalt.length} samlingsfält och ${kalltyper.length} källtyper finns både i README-avsnittet och i exempelmodulen, och exemplets ${importrader.length} importer går alla via paketnamnet eller inom mappen.`,
   );
   process.exit(0);
 }

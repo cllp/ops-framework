@@ -1108,6 +1108,43 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     "saknar rubriken",
   );
 
+  /*
+   * ⛔ IMPORTVÄGARNA, OCH DE ÄR ETT GRANSKNINGSFYND PÅ #151. Exemplet
+   * importerade `../../src/lib/modul.js`, alltså ramverkets innanmäte, medan
+   * README säger import från paketnamnet. En modulbyggare som kopierade
+   * mappen fick sökvägar som inte finns i en installerad tarboll.
+   *
+   * ⛔ OCH DEN GAMLA VAKTEN KUNDE INTE SE DET: den jämför fältnamn, och
+   * importvägar är inte fältnamn. Avvikelsen var osynlig genom varje grön
+   * körning i hela #131.
+   */
+  kravRott(
+    "exempelmodul: en import ut ur exempelmappen",
+    [
+      exempelvakt,
+      kopia("ex4", "examples/paminnelser/index.js", (_f, t) =>
+        t.replace('import { defineModule, byggKategori } from "@staiger/ops-framework";', 'import { defineModule } from "../../src/lib/modul.js";\nimport { byggKategori } from "../../src/lib/katalog.js";'),
+      ),
+    ],
+    "utanför sin egen mapp",
+  );
+
+  /*
+   * ⛔ OCH MOTSATSEN, som är lika viktig: en relativ import INOM mappen ska
+   * INTE fällas. Det är så en kopierad mapp hänger ihop, och en vakt som
+   * förbjöd även den hade tvingat fram en modul i en enda fil.
+   */
+  kravGront("exempelmodul: en relativ import inom mappen är tillåten", [
+    exempelvakt,
+    kopia("ex5", "examples/paminnelser/index.js", (_f, t) => t.replace('import { lazy } from "react";', 'import { lazy } from "react";\nimport "./PaminnelserVy.jsx";')),
+  ]);
+
+  kravRott(
+    "exempelmodul golv: importmönstret matchar ingenting",
+    [exempelvakt, kopia("ex6", "examples/paminnelser/index.js", (_f, t) => t.split("import").join("importera"))],
+    "golvet är 4",
+  );
+
   // ⛔ GOLVET: läser vakten noll fält ur källan står den grön mot två dokument
   // den aldrig jämfört.
   kravRott(
@@ -1156,6 +1193,21 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     original.replace("    match /{document=**} {\n      allow read, write: if false;\n    }\n", ""),
     "generatorn ger inte längre samma text",
     "regelgenerator: catch-allen borta ur den gyllene filen",
+  );
+
+  // ⛔ RADERINGEN, OCH DEN ÄR ETT GRANSKNINGSFYND PÅ #151. Generatorn skrev
+  // `allow delete: if opsArMedlem(...)`, alltså att en medlem fick radera,
+  // medan #136 säger arkivering och aldrig radering och ramverkets egna
+  // samlingar redan har `delete: if false`. Generatorn hade infört den enda
+  // raderingsvägen i hela modellen, som ett förval ingen valt.
+  //
+  // Det här fallet är rött om `delete` blir något ANNAT än `false`, oavsett
+  // vilket villkor som skrivs dit. Ett fall som bara letade efter det gamla
+  // uttrycket hade varit grönt för varje nytt sätt att öppna raderingen.
+  medÄndradFil(
+    original.replace("allow delete: if false;", "allow delete: if opsArAgare(resource.data.groupId);"),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: raderingen öppnad i den gyllene filen",
   );
 
   {

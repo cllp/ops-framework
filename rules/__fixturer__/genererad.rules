@@ -77,7 +77,7 @@ service cloud.firestore {
       allow update: if opsArMedlem(resource.data.groupId)
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.keys().hasOnly(["id", "groupId", "belopp", "skapadAv"]);
-      allow delete: if opsArMedlem(resource.data.groupId);
+      allow delete: if false;
     }
     match /konfig/{id} {
       allow read: if opsArMedlem(resource.data.groupId);
@@ -86,21 +86,21 @@ service cloud.firestore {
       allow update: if opsArAgare(resource.data.groupId)
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.keys().hasOnly(["id", "groupId", "varde"]);
-      allow delete: if opsArAgare(resource.data.groupId);
+      allow delete: if false;
     }
     match /matningar/{id} {
       allow read: if opsArMedlem(resource.data.groupId);
       allow create: if opsArMedlem(request.resource.data.groupId);
       allow update: if opsArMedlem(resource.data.groupId)
         && request.resource.data.groupId == resource.data.groupId;
-      allow delete: if opsArMedlem(resource.data.groupId);
+      allow delete: if false;
     }
     match /mal/{id} {
       allow read: if opsArMedlem(resource.data.groupId);
       allow create: if opsArAgare(request.resource.data.groupId);
       allow update: if opsArAgare(resource.data.groupId)
         && request.resource.data.groupId == resource.data.groupId;
-      allow delete: if opsArAgare(resource.data.groupId);
+      allow delete: if false;
     }
     // Appens eget undantag, skrivet för hand och skickat in som extra.
     match /grundarreserv/{id} {

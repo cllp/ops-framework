@@ -153,6 +153,16 @@ export function regelfragment(namn = {}) {
  * FLYTTAS till en grupp man inte är med i, eller ut ur en man är med i, och
  * båda är samma hål från var sitt håll.
  *
+ * ⛔ `allow delete: if false`, OCH DET ÄR INTE EN GLÖMSKA (granskningsfynd på
+ * #151). Här stod `${skrivvillkor}(resource.data.groupId)`, alltså att en
+ * medlem fick radera. Epikens beslut och #136 säger arkivering och aldrig
+ * radering, eftersom svaret på "varför försvann den" alltid efterfrågas i
+ * efterhand, och ramverkets EGNA samlingar har redan `delete: if false`.
+ *
+ * Generatorn hade alltså infört den enda raderingsvägen i hela modellen, och
+ * den hade kommit in som ett förval ingen valt. Behöver en modul radera ska
+ * det vara ett beslut i manifestet med sitt skäl utskrivet.
+ *
  * ⛔ INGEN EGEN KONTROLL AV ATT `groupId` FINNS, OCH DET ÄR ETT MUTATIONSFYND.
  * Här stod `request.resource.data.groupId is string` före medlemskapsuppslaget.
  * Svepet tog bort den och emulatorproven stod gröna: en rad utan grupp nekas
@@ -191,7 +201,7 @@ export function gruppadSamling(samling, config = {}) {
       allow create: if ${skrivvillkor}(request.resource.data.groupId)${formrad};
       allow update: if ${skrivvillkor}(resource.data.groupId)
         && request.resource.data.groupId == resource.data.groupId${formrad};
-      allow delete: if ${skrivvillkor}(resource.data.groupId);
+      allow delete: if false;
     }
 `;
 }

@@ -127,9 +127,28 @@ fortsätter ta emot data. `useKallor` skiljer på laddar, fel, tomt och fyller.
 tas fortfarande emot och läsaren får alltid den utskrivna formen.
 `check-regelgenerator` jämför mot en gyllene fil.
 
+⛔ **En modulsamling får `allow delete: if false`** (granskningsfynd på PR 151).
+Generatorn skrev först att en medlem fick radera. #136:s beslut är arkivering
+och aldrig radering, eftersom svaret på "varför försvann den" alltid
+efterfrågas i efterhand, och ramverkets egna samlingar har redan `delete: if
+false`. Generatorn hade alltså infört den enda raderingsvägen i hela modellen,
+som ett förval ingen valt. Behöver en modul radera ska det bli ett beslut i
+manifestet med sitt skäl. `test-guards` är rött om `delete` blir något annat
+än `false`.
+
 ⛔ **Exempelmodulen** (#131) i `examples/paminnelser/`, som nu följer med
 paketet. `check-exempelmodul` kräver att varje manifestfält, samlingsfält och
 källtyp finns både i README-avsnittet och i exemplet.
+
+⛔ **Exemplet importerar via paketnamnet, inte via `../../src/`**
+(granskningsfynd på PR 151). Det importerade ramverkets innanmäte medan README
+säger `import { defineModule } from "@staiger/ops-framework"`, alltså bröt det
+mot det enda löfte mappen finns för: att gå att kopiera och bygga ur README
+utan att öppna källkoden. En modulbyggare fick sökvägar som inte finns i en
+installerad tarboll. Node tillåter självreferens via paketnamnet när `exports`
+finns, så det fungerar även inne i repot. Vakten fäller nu varje import som
+lämnar exempelmappen, och släpper igenom relativa vägar inom den: den gamla
+vakten jämförde fältnamn, och importvägar är inte fältnamn.
 
 ⛔ **Manifestet importerar sin vy med `lazy`**, och exemplet visar varför:
 regelgeneratorn körs i ett Node-skript, och Node kan inte läsa JSX.
