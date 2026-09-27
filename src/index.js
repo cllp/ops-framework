@@ -115,6 +115,13 @@ export { FASER, AVSLUTADE_FASER, byggKategori, validateKatalog, valjbara, katego
 export { SPRAK, RESERVSPRAK, byggNamn, text, arGammalNamn, saknadeSprak } from "./lib/sprak.js";
 export { KONFIGHANDELSER, byggKonfigandring, beskrivKonfigandring, createConfigLog } from "./lib/konfiglogg.js";
 export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
+
+/*
+ * ⛔ MODULKONTRAKTET (#128). `defineModule` är data in och data ut, alltså
+ * ingen React, så den ligger här av samma skäl som katalogen: ett manifest ska
+ * gå att validera av det som körs utan skärm.
+ */
+export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
