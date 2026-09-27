@@ -92,6 +92,8 @@ export { createHttpSource } from "./data/http.js";
 
 // ── Inloggning ─────────────────────────────────────────────────────────────
 export { createAuth, createGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
+export { OpsProfil } from "./components/OpsProfil.jsx";
+export { OpsAnvandarmeny } from "./components/OpsAnvandarmeny.jsx";
 
 // ── Hjälpare ───────────────────────────────────────────────────────────────
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
@@ -131,6 +133,7 @@ export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
 export { regelfragment, gruppadSamling } from "./lib/regler.js";
+export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
