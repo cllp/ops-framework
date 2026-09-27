@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { createMemorySource } from "../data/adapters.js";
 import { createFirestoreSource } from "../data/firestore.js";
 import { createPostgresSource } from "../data/postgres.js";
 import { OpsAuthGate, OpsAuthProvider, createAuth, createGoogleAuth } from "../auth/auth.jsx";
@@ -84,6 +85,63 @@ describe("firestore-adaptern", () => {
     const source = createFirestoreSource({ db: {}, sdk });
     await source.update("k", "1", { name: "Nytt" });
     expect(sdk.getDoc).toHaveBeenCalled();
+  });
+});
+
+describe("minneskällan svarar som Firestore på samma anrop", () => {
+  /*
+   * ⛔ DE TVÅ MÅSTE VARA ÖVERENS, och det är inte en smaksak. Minneskällan
+   * finns för att stå in för den riktiga i prov och i utveckling. Svarar den
+   * annorlunda på samma anrop mäter provsviten en app som inte finns.
+   *
+   * Mätt i cllp/bolag-ops 2026-09-27: inställningsvyn sparar en kategori med
+   * `create` och kategorins eget id. Firestore gör `setDoc`, alltså skriver
+   * över. Minnet la till en ANDRA rad med samma id, så `list()` gav två poster
+   * och `find(r => r.id === x)` svarade med den gamla. Provet var rött mot en
+   * app som var rätt, och nästa gång hade det lika gärna kunnat vara grönt mot
+   * en app som var fel.
+   */
+  it("⛔ create med ett EGET id ersätter, precis som setDoc", async () => {
+    const source = createMemorySource({ k: [{ id: "eget", name: "A" }] });
+
+    await source.create("k", { id: "eget", name: "B" });
+
+    const rader = await source.list("k");
+    expect(rader).toHaveLength(1);
+    expect(rader[0]).toMatchObject({ id: "eget", name: "B" });
+  });
+
+  it("⛔ och ersättningen är hel, den slås inte ihop med den gamla raden", async () => {
+    /*
+     * `setDoc` utan merge ersätter dokumentet. En sammanslagning här hade dolt
+     * en bugg där appen skickar en delmängd: den hade fungerat i provet och
+     * tappat fält i produktionen. Det är `update` som slår ihop, och de två
+     * ska inte likna varandra.
+     */
+    const source = createMemorySource({ k: [{ id: "eget", name: "A", extra: "kvar?" }] });
+
+    await source.create("k", { id: "eget", name: "B" });
+
+    const rader = await source.list("k");
+    expect(rader[0].extra).toBeUndefined();
+  });
+
+  it("utan id skapas en ny post, precis som addDoc", async () => {
+    const source = createMemorySource({ k: [{ id: "eget", name: "A" }] });
+
+    const skapad = await source.create("k", { name: "B" });
+
+    expect(skapad.id).toBeTruthy();
+    expect(skapad.id).not.toBe("eget");
+    expect(await source.list("k")).toHaveLength(2);
+  });
+
+  it("⛔ update kräver fortfarande att raden finns, och create gör inte det", async () => {
+    // De två operationerna svarar på olika frågor. En uppdatering av något som
+    // saknas är ett fel; en skapelse med ett bestämt id är en seedning.
+    const source = createMemorySource({});
+    await expect(source.update("k", "saknas", { name: "A" })).rejects.toThrow(/finns inte/);
+    await expect(source.create("k", { id: "saknas", name: "A" })).resolves.toMatchObject({ id: "saknas" });
   });
 });
 

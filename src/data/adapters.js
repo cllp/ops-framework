@@ -47,9 +47,31 @@ export function createMemorySource(seed = {}) {
       return applyQuery(load(collectionName), query).map((r) => ({ ...r }));
     },
 
+    /**
+     * ⛔ ETT EGET ID ERSÄTTER, DET LÄGGER INTE TILL. Samma betydelse som
+     * `createFirestoreSource.create`, där ett id ger `setDoc` och alltså skriver
+     * över dokumentet.
+     *
+     * Mätt i cllp/bolag-ops 2026-09-27, när inställningsvyn skulle provas: den
+     * här källan la en ANDRA rad med samma id, så `list()` gav två poster där
+     * Firestore hade gett en, och `find(r => r.id === x)` svarade med den
+     * GAMLA. Provet var rött mot en app som var rätt.
+     *
+     * ⛔ OCH DET ÄR DEN FARLIGA RIKTNINGEN SOM ÄR SKÄLET, inte den här gången.
+     * Ett prov som är rött mot rätt kod kostar en kväll. Nästa gång kan det
+     * lika gärna vara grönt mot fel kod: en adapter som står in för en annan i
+     * proven måste svara likadant på samma anrop, annars mäter provsviten en
+     * app som inte finns.
+     *
+     * ⛔ INGET ID GER FORTFARANDE EN NY POST med ett genererat id, precis som
+     * `addDoc`. Det är den andra halvan av samma kontrakt.
+     */
     async create(collectionName, data) {
       const entry = /** @type {T} */ ({ ...data, id: /** @type {any} */ (data).id ?? newId() });
-      load(collectionName).push(entry);
+      const rows = load(collectionName);
+      const i = rows.findIndex((r) => r.id === entry.id);
+      if (i === -1) rows.push(entry);
+      else rows[i] = entry;
       return { ...entry };
     },
 
