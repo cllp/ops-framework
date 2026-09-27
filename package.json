@@ -35,7 +35,7 @@
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
     "check:guards": "node scripts/test-guards.mjs",
-    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:node-side && npm run check:config-requirements && npm run check:css-build && npm run check:fonts && npm run check:chart-colors && npm run check:page-frame && npm run check:slider && npm run check:kontrast && npm run check:statusord && npm run check:datumnamn && npm run check:paketform && npm run check:gruppnyckel && npm run check:gruppfraga && npm run check:guards && npm test",
+    "check": "npm run build && npm run check:types && npm run check:tokens && npm run check:exports && npm run check:docs && npm run check:closed-api && npm run check:data-layer && npm run check:node-side && npm run check:config-requirements && npm run check:css-build && npm run check:fonts && npm run check:chart-colors && npm run check:page-frame && npm run check:slider && npm run check:kontrast && npm run check:statusord && npm run check:datumnamn && npm run check:paketform && npm run check:gruppnyckel && npm run check:gruppfraga && npm run check:regelgenerator && npm run check:guards && npm test",
     "test": "vitest run",
     "check:scaffold": "node scripts/check-scaffold.mjs",
     "check:all": "npm run check && npm run check:viewport-guard && npm run check:scaffold && npm run check:paket",
@@ -58,6 +58,7 @@
     "check:viewport-guard": "node scripts/test-viewport-guard.mjs",
     "regler:skriv": "node scripts/skriv-provregler.mjs",
     "test:rules": "npm run regler:skriv && npx --yes firebase-tools@14 emulators:exec --only firestore --project regelprov \"node --test --test-concurrency=1 rules/__tests__/*.test.mjs\"",
+    "check:regelgenerator": "node scripts/check-regelgenerator.mjs",
     "check:gruppfraga": "node scripts/check-gruppfraga.mjs",
     "check:gruppnyckel": "node scripts/check-gruppnyckel.mjs"
   },

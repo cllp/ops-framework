@@ -57,6 +57,9 @@ const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor"];
 /** Fälten en route får bära. */
 const ROUTEFALT = ["path", "vy"];
 
+/** Fälten en samling får bära i sin utskrivna form. */
+const SAMLINGSFALT = ["namn", "falt", "agareKravsForSkrivning"];
+
 /**
  * Ytorna en modul kan fylla. Ramverkets, och de går inte att lägga till.
  *
@@ -67,6 +70,13 @@ const ROUTEFALT = ["path", "vy"];
  * (arbetsreglernas punkt 4).
  */
 export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "notiser", "widgets", "kataloger"]);
+
+/**
+ * @typedef {object} Samling
+ * @property {string} namn Relativt namn, aldrig en sökväg.
+ * @property {ReadonlyArray<string> | null} falt Fälten en rad får bära, för `keys().hasOnly`. `null` = ingen formvalidering.
+ * @property {boolean} agareKravsForSkrivning Sant när bara ägare får skriva.
+ */
 
 /**
  * @typedef {object} ModulRoute
@@ -80,7 +90,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {import("./sprak.js").Namn} namn Det som visas.
  * @property {ReadonlyArray<import("./nav.js").NavPost>} nav Nav-poster, EN nivå barn.
  * @property {ReadonlyArray<ModulRoute>} routes Vyerna modulen bidrar med.
- * @property {ReadonlyArray<string>} samlingar Samlingarna modulen äger, relativa namn.
+ * @property {ReadonlyArray<Samling>} samlingar Samlingarna modulen äger. ⛔ Alltid i utskriven form, även när manifestet skrev en sträng.
  * @property {Readonly<Record<string, Function>>} kallor Ytor modulen fyller, en funktion per yta.
  */
 
@@ -198,10 +208,31 @@ export function defineModule(manifest) {
   if (!Array.isArray(d.samlingar)) {
     throw var_("samlingar", "krävs och måste vara en lista, även när den är tom. En modul utan egna samlingar är vanlig, och den ska säga det.");
   }
-  /** @type {string[]} */
+  /** @type {Samling[]} */
   const samlingar = [];
   d.samlingar.forEach((/** @type {any} */ s, /** @type {number} */ i) => {
-    const namnet = rensa(s);
+    /*
+     * ⛔ TVÅ FORMER HÄR, TILL SKILLNAD MOT `namn`, OCH SKILLNADEN ÄR EN RIKTIG
+     * MIGRERING. Filhuvudet säger att modulerna inte har någon historia att
+     * migrera, och det var sant när det skrevs. Sedan 0.25.0 finns
+     * `samlingar: ["matningar"]` i en utgiven version, alltså finns historien
+     * nu, och samma resonemang som gav katalogen sin strängtolerans (#109)
+     * gäller här: läsaren måste tåla båda formerna innan skrivarna byter.
+     *
+     * ⛔ EN STRÄNG BETYDER "INGEN FORMVALIDERING", inte "inga fält". #130
+     * genererar `keys().hasOnly` ur `falt`, och en samling utan fältlista får
+     * ett block utan den raden i stället för ett block som låser allt ute.
+     * Tomhet är ett svar: `falt: []` säger uttryckligen att raden ska vara tom.
+     */
+    const rad = typeof s === "string" ? { namn: s } : s;
+    if (!rad || typeof rad !== "object" || Array.isArray(rad)) {
+      throw var_(`samlingar[${i}]`, `måste vara ett namn som sträng eller { namn, falt }, inte ${Array.isArray(rad) ? "en lista" : typeof rad}.`);
+    }
+    const okandaSamling = Object.keys(rad).filter((n) => !SAMLINGSFALT.includes(n));
+    if (okandaSamling.length > 0) {
+      throw var_(`fälten ${okandaSamling.join(", ")} i samlingar[${i}]`, `känns inte igen. En samling bär ${SAMLINGSFALT.join(", ")}.`);
+    }
+    const namnet = rensa(rad.namn);
     if (!namnet) throw var_(`samlingar[${i}]`, "måste vara ett namn som sträng.");
     if (namnet.includes("/")) {
       throw var_(
@@ -212,10 +243,26 @@ export function defineModule(manifest) {
     if (!ID_FORM.test(namnet)) {
       throw var_(`samlingar[${i}] "${namnet}"`, "får bara innehålla små bokstäver, siffror, bindestreck och understreck. Samma skäl som för id.");
     }
-    if (samlingar.includes(namnet)) {
+    if (samlingar.some((x) => x.namn === namnet)) {
       throw var_(`samlingar[${i}] "${namnet}"`, "står två gånger.");
     }
-    samlingar.push(namnet);
+
+    /** @type {string[] | null} */
+    let falt = null;
+    if (rad.falt !== undefined) {
+      if (!Array.isArray(rad.falt)) {
+        throw var_(`samlingar[${i}].falt för "${namnet}"`, `måste vara en lista fältnamn, inte ${typeof rad.falt}. Utelämna den helt om samlingen inte ska formvalideras.`);
+      }
+      falt = [];
+      rad.falt.forEach((/** @type {any} */ f, /** @type {number} */ k) => {
+        const faltnamn = rensa(f);
+        if (!faltnamn) throw var_(`samlingar[${i}].falt[${k}] för "${namnet}"`, "måste vara ett fältnamn som sträng.");
+        if (/** @type {string[]} */ (falt).includes(faltnamn)) throw var_(`samlingar[${i}].falt[${k}] "${faltnamn}"`, `står två gånger i "${namnet}".`);
+        /** @type {string[]} */ (falt).push(faltnamn);
+      });
+    }
+
+    samlingar.push(Object.freeze({ namn: namnet, falt: falt === null ? null : Object.freeze(falt), agareKravsForSkrivning: rad.agareKravsForSkrivning === true }));
   });
 
   if (!d.kallor || typeof d.kallor !== "object" || Array.isArray(d.kallor)) {
@@ -293,13 +340,20 @@ export function validateModuler(manifest) {
     }
 
     for (const samling of modul.samlingar) {
-      const agare = samlingsAgare.get(samling);
+      /*
+       * ⛔ NYCKELN ÄR NAMNET OCH INTE RADEN. När `samlingar` blev utskrivna
+       * objekt (#130) slutade den här kontrollen fälla, eftersom två olika
+       * objekt aldrig är samma nyckel i en Map. Provet "två moduler som gör
+       * anspråk på samma samling avvisas" blev rött, och det är precis vad ett
+       * prov som mäter beteende ska göra när formen ändras under det.
+       */
+      const agare = samlingsAgare.get(samling.namn);
       if (agare) {
         throw new Error(
-          `validateModuler: modulerna "${agare}" och "${modul.id}" gör båda anspråk på samlingen "${samling}". Ramverket äger inte modulernas data, så det finns ingen som kan medla mellan två skrivare.`,
+          `validateModuler: modulerna "${agare}" och "${modul.id}" gör båda anspråk på samlingen "${samling.namn}". Ramverket äger inte modulernas data, så det finns ingen som kan medla mellan två skrivare.`,
         );
       }
-      samlingsAgare.set(samling, modul.id);
+      samlingsAgare.set(samling.namn, modul.id);
     }
   }
 

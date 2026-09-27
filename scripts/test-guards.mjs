@@ -1059,6 +1059,53 @@ kravRott(
  */
 const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
 
+// ── Regelgeneratorn: mönstret ändras inte i tysthet (#130) ────────────────
+//
+// ⛔ VAKTEN JÄMFÖR MOT FÖRRA UTFALLET, INTE MOT EN HANDSKRIVEN KOPIA. En
+// gyllene fil kan inte glida isär, eftersom varje avvikelse är precis det den
+// larmar på. Att mönstret är RÄTT bevisas av emulatorproven, inte av den här.
+{
+  const genvakt = path.join(rot, "scripts", "check-regelgenerator.mjs");
+  const gyllene = path.join(rot, "rules", "__fixturer__", "genererad.rules");
+  const original = fs.readFileSync(gyllene, "utf8");
+
+  /** @param {string} mutation @param {string} vantat */
+  const medÄndradFil = (mutation, vantat, namn) => {
+    fs.writeFileSync(gyllene, mutation);
+    kravRott(namn, [genvakt], vantat);
+    fs.writeFileSync(gyllene, original);
+  };
+
+  kravGront("regelgenerator: den riktiga fixturen ger den gyllene filen", [genvakt]);
+
+  // ⛔ Det fall som faktiskt oroar: någon lossar på ett skrivvillkor och
+  // ingenting annat i filen ändras.
+  medÄndradFil(
+    original.replace("allow create: if opsArAgare(", "allow create: if opsArMedlem("),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: ett skrivvillkor lossat i den gyllene filen",
+  );
+
+  medÄndradFil(
+    original.replace(/\n *&& request\.resource\.data\.keys\(\)\.hasOnly\(\[[^\]]*\]\)/, ""),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: formvalideringen borta ur den gyllene filen",
+  );
+
+  medÄndradFil(
+    original.replace("    match /{document=**} {\n      allow read, write: if false;\n    }\n", ""),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: catch-allen borta ur den gyllene filen",
+  );
+
+  {
+    // ⛔ GOLVET: en gyllene fil som saknas ska inte vara ett godkänt utfall.
+    fs.rmSync(gyllene);
+    kravRott("regelgenerator golv: den gyllene filen saknas", [genvakt], "saknas");
+    fs.writeFileSync(gyllene, original);
+  }
+}
+
 // ── Kontrasten: AA i båda teman (#132) ────────────────────────────────────
 //
 // ⛔ VAKTEN HADE INGET BEVIS FÖRRÄN NU, och den är en av de två CP räknade upp

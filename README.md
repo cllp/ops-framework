@@ -707,6 +707,53 @@ med i, och det är samma hål från var sitt håll.
 ⛔ **Inga JWT-claims.** En claim ligger i en token som redan är utdelad, så en
 borttagen medlem är kvar tills token förnyas.
 
+#### Hela regelfilen ur manifesten
+
+[#130](https://github.com/cllp/ops-framework/issues/130). `generateRules(moduler, { namn, extra })`
+ger hela `firestore.rules` ur modulernas manifest: ramverkets fragment, ett
+block per modulsamling, appens egen text, och catch-allen sist.
+
+```js
+import { generateRules, validateModuler } from "@staiger/ops-framework";
+
+const moduler = validateModuler([ekonomi, liv]);
+fs.writeFileSync("firestore.rules", generateRules(moduler, { extra: appensEgnaBlock }));
+```
+
+En samling deklareras i manifestet, och det den får i regler är:
+
+| Deklaration | Regeln som genereras |
+|---|---|
+| `"matningar"` | medlem läser, medlem skriver, radering låst. Ingen formvalidering |
+| `{ namn, falt: ["id", "groupId", "vikt"] }` | samma, plus `keys().hasOnly([...])` på create och update |
+| `{ namn, agareKravsForSkrivning: true }` | medlem läser, **ägare** skriver |
+
+⛔ **En sträng betyder inte "inga fält", den betyder "ingen formvalidering".**
+Strängformen är utgiven i 0.25.0 och tas fortfarande emot. Läsaren får ändå
+alltid den utskrivna formen, så ingen konsument behöver två kodvägar. Det är
+samma tolerans katalogen fick i [#109](https://github.com/cllp/ops-framework/issues/109),
+och av samma skäl: en riktig migrering, inte bekvämlighet.
+
+⛔ **En tom fältlista fälls.** `keys().hasOnly([])` avvisar varje rad, alltså en
+regel som ser ut som en formvalidering och är en vägg.
+
+⛔ **Generatorn ersätter mönstret, inte tänkandet.** Det appen behöver utöver
+mönstret skrivs för hand och skickas in som `extra`. Grundarreserven i
+`bolag-ops` är ett sådant undantag: den har ett slutdatum och ett skäl, och en
+generator som bar appens undantag hade blivit en andra plats att leta på när en
+regel beter sig oväntat.
+
+⛔ **Noll samlingar utan `extra` fälls.** Resultatet hade blivit en regelfil där
+catch-allen är allt, alltså en app där ingenting går att läsa, och den filen
+ska inte gå att producera av misstag.
+
+⛔ **Ramverket genererar, appen committar.** Ingen deploy härifrån. Därför bor
+byte-för-byte-vakten mot appens `firestore.rules` i APPENS kedja, där båda
+halvorna finns: en incheckad kopia av den filen här vore den andra handskrivna
+sanningen punkt 2 förbjuder. `check-regelgenerator` bevisar i stället att
+generatorn är stabil, genom att jämföra mot en **gyllene fil**, alltså förra
+utfallet för en fast fixtur. Att mönstret är rätt bevisas av emulatorproven.
+
 #### Proven kör mot genererad text
 
 `npm run test:rules` skriver `rules/provregler.rules` ur fragmentet med
