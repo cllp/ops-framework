@@ -9,6 +9,95 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.25.0
+
+⛔ **Fas 2.5 i sin helhet: ramverket vet nu vems rad en rad är.**
+
+Fram till här svarade `members/{uid}` på "vem får använda appen". Det svarar inte
+på "vems rad är det här", och utan det svaret kan två verksamheter inte dela en
+app. Fem PR:ar samma dag, epiken [#92](https://github.com/cllp/ops-framework/issues/92).
+
+### Grupper och medlemskap ([#136](https://github.com/cllp/ops-framework/issues/136))
+
+Fyra samlingar ramverket äger: `users`, `groups`, `memberships`, `invitations`.
+Appen skickar in namnen, som för katalogen, så en kund senare kan bli ett eget
+Firebase-projekt utan att datamodellen ändras.
+
+⛔ **Exakt en gruppnyckel per rad.** Varje rad bär `groupId`, ett värde, aldrig
+en lista, och läsregeln blir ETT uppslag mot `memberships`. `check-gruppnyckel`
+vaktar raden. SessionStudio bar `invitedGroupIds` och fick bära "eller någon av
+de här" i varje regel, varje fråga och varje vy, och det gick inte att ta bort
+efteråt eftersom datan redan hade formen.
+
+⛔ **`memberships` skrivs aldrig av en klient.** Den som kan skriva sitt eget
+medlemskap kan ge sig själv rollen ägare i vilken grupp som helst vars id hen
+gissar. Reglerna säger `allow write: if false`, och serversidan skriver.
+
+`regelfragment()` och `gruppadSamling()` genererar regeltexten appen limmar in.
+Firestore-regler har ingen import, så alternativet är en textsnutt någon
+klistrar in per samling, och den dagen villkoret ändras sitter den gamla kvar i
+de samlingar ingen kom ihåg. Ramverket fick samtidigt sin första emulatorkedja.
+
+### Profil, inställningar och utloggning ([#138](https://github.com/cllp/ops-framework/issues/138))
+
+`OpsProfil`, `OpsAnvandarmeny` och en `anvandare`-plats i `OpsAppShell`, plus
+`sakerstallAnvandare`, `sparaInstallningar` och `andringen` i `profil.js`.
+
+⛔ **Beslutet ligger i en ren funktion, inte i komponenten.** En Radix-komponent
+går inte att driva med `fireEvent` i jsdom, så två prov stod gröna på att
+ingenting hände. `andringen()` flyttade beslutet dit ett prov når det.
+
+### Inbjudan och vägen in ([#137](https://github.com/cllp/ops-framework/issues/137))
+
+`createInvitationService` i `./node` med `bjudIn` och `accepteraInbjudningar`,
+plus `OpsMedlemmar` och `OpsUtanMedlemskap`.
+
+⛔ **Ägarskapet kontrolleras i funktionen, inte bara i reglerna.** En callable
+med Admin SDK kör FÖRBI reglerna, så en ägarkontroll som bara finns i
+`firestore.rules` gör funktionen till en väg runt dem.
+
+⛔ **En inbjudans roll är oföränderlig.** En inbjudan är ett löfte någon redan
+fått: höjs rollen i efterhand blir en accepterad inbjudan till medlem plötsligt
+ett ägarskap, utan att den som accepterade såg det.
+
+### Gruppväljare, gruppfilter och sammanslagning ([#139](https://github.com/cllp/ops-framework/issues/139))
+
+`OpsGruppvaljare`, `OpsGruppfilter` och `OpsGruppmarke`, plus `grupplage.js` och
+`gruppkalla.js`. Två lägen: en vald grupp, eller alla mina.
+
+⛔ **Sammanslagning är inte delning.** I läget alla frågas varje grupp en gång,
+`slaIhopSvar` märker varje rad med sin grupp, och ingen rad och ingen regel
+ändras. En fråga per grupp, ingen optimering.
+
+⛔ **`groupId` är ett krav i TYPEN**, och `check-gruppfraga` kör tsc mot en
+fråga och ett skapande utan grupp och kräver ett typfel för var och en. En vakt
+som letat efter raden i källan hade varit ett närvarogrep.
+
+### Nytt i den publika ytan
+
+`ROLLER`, `MEDLEMSTYPER`, `MEDLEMSSTATUS`, `INBJUDNINGSSTATUS`, `TEMAN`,
+`byggAnvandare`, `byggGrupp`, `byggMedlemskap`, `byggInbjudan`, `medlemskapsId`,
+`regelfragment`, `gruppadSamling`, `sakerstallAnvandare`, `sparaInstallningar`,
+`andringen`, `ALLA_GRUPPER`, `minaGrupper`, `valtLage`, `grupperAttFraga`,
+`navForLage`, `gruppenAttSkapaI`, `slaIhopSvar`, `grupplagetsNyckel`,
+`lasAktivGrupp`, `sparaAktivGrupp`, `gruppLista`, `gruppSkapa`, `listaPerGrupp`,
+`raderPerGrupp`, samt komponenterna `OpsProfil`, `OpsAnvandarmeny`,
+`OpsMedlemmar`, `OpsUtanMedlemskap`, `OpsGruppvaljare`, `OpsGruppfilter` och
+`OpsGruppmarke`. `createInvitationService` i `./node`.
+
+⛔ **Ingenting togs bort och ingenting bytte form.** En app som inte använder
+grupper märker inte den här versionen, vilket är skälet att den är minor och
+inte major.
+
+### Kedjan kontrollerar nu varje PR
+
+`check.yml` hade `branches: [main]` på `pull_request`, så en PR mot en annan
+gren fick NOLL kontroller, tyst. Tre av fasens PR:ar stod så i timmar, varken
+röda eller gröna. Filtret är borta och en knapp för att köra kedjan för hand är
+tillagd.
+
+---
+
 ## 0.24.0
 
 ⛔ **Primärknappens text var oläsbar i ljust läge, och blev sämre av att man
