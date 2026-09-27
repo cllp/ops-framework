@@ -521,6 +521,92 @@ Ramverket vet ingenting om verksamheten. Allt det behöver veta kommer in genom 
 | `FASER`, `AVSLUTADE_FASER`, `arAvslutad` | | **det fasta skelettet bakom det fria**: `ny`, `aktiv`, `vantar`, `klar`, `avskriven`. Faserna är ramverkets och går inte att lägga till, så en vy kan fråga "är den klar" utan att veta vad kategorin heter hos just den kunden. ⛔ `vantar` är inte `aktiv`: skillnaden är om det ligger på oss eller på någon annan, och det man väntar på ska inte skava som något man borde göra. ⛔ `avskriven` är inte `klar`: den ena betyder gjort, den andra att någon tagit ställning till att inget skulle göras |
 | `valjbara`, `kategorin` | katalogen | att läsa den. ⛔ Arkiverade faller bort HÄR och inte i varje vy, annars glöms filtreringen i den fjärde vyn någon skriver. ⛔ Lika `ordning` sorteras på namnet, annars ligger raderna i den ordning databasen råkar svara och listan byter ordning mellan två laddningar. ⛔ `kategorin` svarar `null` och kastar aldrig: en rad kan peka på en kategori som arkiverats, och en vy som kastar där tar ned hela listan |
 | `byggNamn`, `text` | `{ sv, en }` | **ett namn är två språk, aldrig en sträng**. ⛔ `byggNamn` kastar utan `sv`, eftersom svenskan är reserven för alla andra språk och ett namn utan den har ingenting att falla tillbaka på. ⛔ `text` tar emot en STRÄNG också, av exakt samma skäl som `laesSkapare` gör det: läsaren måste tåla båda formerna innan skrivarna byter. ⛔ `text` kastar aldrig, den svarar tom sträng, för en vy som kastar på ett trasigt namn tar ned hela listan |
+### Grupper och medlemskap
+
+Fas 2.5 i [#92](https://github.com/cllp/ops-framework/issues/92), beslutat av CP
+2026-09-27. Ramverket äger fyra samlingar. Appen skickar in namnen, precis som
+för katalogen, så en kund senare kan bli ett eget Firebase-projekt utan att
+datamodellen ändras.
+
+| Samling | Innehåll | Skrivs av |
+|---|---|---|
+| `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN` | personen själv, bara sin egen rad |
+| `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv` | ägare i gruppen. Aldrig radering, arkivering |
+| `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER`, `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS` | ⛔ **bara serversidan** |
+| `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv` | ägare i gruppen. Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137) |
+
+⛔ **EXAKT EN GRUPPNYCKEL PER RAD.** Varje rad bär `groupId`, ett värde, aldrig
+en lista. Läsregeln blir ETT uppslag: finns `memberships/{uid}_{groupId}` med
+status aktiv.
+
+Skälet är mätt någon annanstans och dyrt: SessionStudio bar `invitedGroupIds` på
+raderna, alltså delning inbakad i datamodellen, och varje regel, varje fråga och
+varje vy fick bära "eller någon av de här". Det går inte att ta bort sedan,
+eftersom datan redan har formen. **`check-gruppnyckel` vaktar raden**, och den
+vakten är billig i dag och omöjlig att eftermontera.
+
+⛔ **Sammanslagning är inte delning.** Att se flera gruppers rader i samma vy
+([#139](https://github.com/cllp/ops-framework/issues/139)) görs med en fråga per
+grupp och en hopslagning i ramverket. Ingen rad ändras, ingen regel ändras.
+
+⛔ **`memberships` skrivs aldrig av klienten.** Den som kan skriva sitt eget
+medlemskap kan ge sig själv rollen ägare i vilken grupp som helst vars id hen
+gissar. Serversidan skriver, med Admin SDK, förbi reglerna. Samma beslut som
+SessionStudio ADR-019, och det enda stället i modellen där en klient inte får
+skriva sin egen rad.
+
+⛔ **Nyckeln härleds med `medlemskapsId(userId, groupId)`, den skrivs inte för
+hand.** Vore id fritt kunde samma person och grupp få två rader med olika roll,
+och vilken som gäller avgörs då av vilken regeln råkar slå upp. Ett härlett id
+gör unikheten till en egenskap hos nyckeln i stället för en kontroll någon måste
+komma ihåg. Ett inskickat id som inte stämmer avvisas, det rättas inte.
+
+#### Reglerna genereras, de skrivs inte per samling
+
+Firestore-regler har ingen import. Utan generering blir "du måste vara medlem i
+radens grupp" en textsnutt någon klistrar in per samling, och den dagen villkoret
+ändras sitter den gamla versionen kvar i de samlingar ingen kom ihåg.
+
+```js
+import { regelfragment, gruppadSamling } from "@staiger/ops-framework";
+
+const text = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+${regelfragment()}
+${gruppadSamling("handelser")}
+${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
+    match /{document=**} { allow read, write: if false; }
+  }
+}`;
+```
+
+`regelfragment()` ger hjälpfunktionerna (`opsArMedlem`, `opsArAgare`) plus
+blocken för de fyra samlingarna. `gruppadSamling(namn)` ger ett block för en av
+**appens** samlingar.
+
+⛔ **Funktionsnamnen är prefixade med `ops`**, eftersom appen har egna
+hjälpfunktioner och en krock syns först när reglerna deployas, alltså i
+produktion.
+
+⛔ **`groupId` vaktas på båda sidor av en uppdatering.** Kontrolleras bara den
+ena kan en rad flyttas till en grupp man inte är med i, eller ut ur en man är
+med i, och det är samma hål från var sitt håll.
+
+⛔ **Inga JWT-claims.** En claim ligger i en token som redan är utdelad, så en
+borttagen medlem är kvar tills token förnyas.
+
+#### Proven kör mot genererad text
+
+`npm run test:rules` skriver `rules/provregler.rules` ur fragmentet med
+`skriv-provregler`, startar Firestore-emulatorn och kör
+`rules/__tests__/grupper.test.mjs`. Filen är git-ignorerad: två sanningar om
+samma regeltext glider isär i samma sekund som någon rättar den incheckade.
+
+⛔ **`test:rules` ligger inte i `npm run check`**, utan i ett eget CI-jobb. Den
+kräver en emulator och en Java-körning, alltså minuter i stället för sekunder,
+och `check` ska svara medan man väntar. Samma uppdelning som `bolag-ops`.
+
 ### Modulkontraktet
 
 Fas 3 i [#92](https://github.com/cllp/ops-framework/issues/92). En **modul** lägger

@@ -1,0 +1,218 @@
+import { describe, it, expect } from "vitest";
+import {
+  INBJUDNINGSSTATUS,
+  MEDLEMSSTATUS,
+  MEDLEMSTYPER,
+  ROLLER,
+  TEMAN,
+  byggAnvandare,
+  byggGrupp,
+  byggInbjudan,
+  byggMedlemskap,
+  medlemskapsId,
+} from "../lib/grupp.js";
+import { gruppadSamling, regelfragment } from "../lib/regler.js";
+
+/**
+ * Fas 2.5 i epiken #92: grupper och medlemskap (#136).
+ *
+ * ⛔ PROVEN HANDLAR OM VAD SOM AVVISAS. Samma skäl som katalog- och
+ * modulproven: en validering som bara provas med giltig data är en funktion som
+ * returnerar sitt argument.
+ *
+ * ⛔ REGELTEXTEN PROVAS I EMULATORN, INTE HÄR. `rules/__tests__/grupper.test.mjs`
+ * kör 31 prov mot den genererade texten. Det som provas här är formen på
+ * texten, alltså det som går att mäta utan en databas: att samlingsnamnen tas
+ * emot och att en sökväg avvisas. Ett prov som bara söker efter en sträng i
+ * reglerna vore annars det arbetsreglerna kallar ett närvarogrep.
+ */
+
+const ANV = () => ({ id: "uid-1", namn: "CP", epost: "CP@Staiger.se", bild: "", sprak: "sv", tema: "system" });
+const GRUPP = () => ({ id: "bolaget", namn: { sv: "Claes Philip Staiger AB" }, moduler: ["ekonomi"], arkiverad: false, skapadAv: { uid: "uid-1", namn: "CP", typ: "manniska", kalla: "prov" } });
+const MEDLEM = () => ({ userId: "uid-1", groupId: "bolaget", roll: "agare", typ: "person", status: "aktiv" });
+const INBJUDAN = () => ({ id: "inb-1", epost: "Ny@Example.com", groupId: "bolaget", roll: "medlem", status: "vantar", skapadAv: { uid: "uid-1", namn: "CP", typ: "manniska", kalla: "prov" } });
+
+describe("användaren", () => {
+  it("byggs och fryses", () => {
+    const a = byggAnvandare(ANV());
+    expect(a.id).toBe("uid-1");
+    expect(Object.isFrozen(a)).toBe(true);
+  });
+
+  it("⛔ e-posten normaliseras till gemener, annars matchar inbjudan inte", () => {
+    expect(byggAnvandare(ANV()).epost).toBe("cp@staiger.se");
+  });
+
+  it("id krävs", () => {
+    const { id: _id, ...utan } = ANV();
+    expect(() => byggAnvandare(utan)).toThrow(/users: id krävs/);
+  });
+
+  it("epost krävs", () => {
+    expect(() => byggAnvandare({ ...ANV(), epost: "" })).toThrow(/users: epost krävs för "uid-1"/);
+  });
+
+  it("okända fält avvisas", () => {
+    expect(() => byggAnvandare({ ...ANV(), roll: "agare" })).toThrow(/users: fälten roll för "uid-1" känns inte igen/);
+  });
+
+  it("ett okänt språk avvisas", () => {
+    expect(() => byggAnvandare({ ...ANV(), sprak: "no" })).toThrow(/users: språket "no" för "uid-1" finns inte/);
+  });
+
+  it("ett okänt tema avvisas", () => {
+    expect(() => byggAnvandare({ ...ANV(), tema: "gult" })).toThrow(/users: temat "gult" för "uid-1" finns inte/);
+  });
+
+  it("förvalen är svenska och system", () => {
+    const { sprak: _s, tema: _t, ...utan } = ANV();
+    const a = byggAnvandare(utan);
+    expect([a.sprak, a.tema]).toEqual(["sv", "system"]);
+    expect(TEMAN).toContain(a.tema);
+  });
+});
+
+describe("gruppen", () => {
+  it("byggs, och moduler fryses", () => {
+    const g = byggGrupp(GRUPP());
+    expect(g.namn).toEqual({ sv: "Claes Philip Staiger AB" });
+    expect(Object.isFrozen(g.moduler)).toBe(true);
+  });
+
+  it("id följer samma form som ett kategori-id", () => {
+    expect(() => byggGrupp({ ...GRUPP(), id: "Bolaget.AB" })).toThrow(/groups: id "Bolaget.AB" får bara innehålla små bokstäver/);
+  });
+
+  it("⛔ ett namn som är en sträng kastar", () => {
+    expect(() => byggGrupp({ ...GRUPP(), namn: "Bolaget" })).toThrow(/groups: namn för "bolaget" är en sträng/);
+  });
+
+  it("ett namn utan svenska kastar", () => {
+    expect(() => byggGrupp({ ...GRUPP(), namn: { en: "The company" } })).toThrow(/groups: namn för "bolaget" sv krävs/);
+  });
+
+  it("moduler krävs som lista, även tom", () => {
+    const { moduler: _m, ...utan } = GRUPP();
+    expect(() => byggGrupp(utan)).toThrow(/groups: moduler för "bolaget" krävs och måste vara en lista/);
+  });
+
+  it("ett modul-id i fel form avvisas", () => {
+    expect(() => byggGrupp({ ...GRUPP(), moduler: ["Ekonomi"] })).toThrow(/groups: moduler\[0\] för "bolaget" måste vara ett modul-id/);
+  });
+
+  it("samma modul två gånger avvisas", () => {
+    expect(() => byggGrupp({ ...GRUPP(), moduler: ["ekonomi", "ekonomi"] })).toThrow(/groups: moduler\[1\] "ekonomi" för "bolaget" står två gånger/);
+  });
+
+  it("okända fält avvisas", () => {
+    expect(() => byggGrupp({ ...GRUPP(), medlemmar: [] })).toThrow(/groups: fälten medlemmar för "bolaget" känns inte igen/);
+  });
+});
+
+describe("medlemskapet", () => {
+  it("id härleds ur userId och groupId", () => {
+    expect(byggMedlemskap(MEDLEM()).id).toBe("uid-1_bolaget");
+    expect(medlemskapsId("a", "b")).toBe("a_b");
+  });
+
+  /*
+   * ⛔ ANROPAD DIREKT, OCH DET ÄR ETT MUTATIONSFYND. Svepet tog bort kontrollen
+   * i `medlemskapsId` och ingenting blev rött, eftersom `byggMedlemskap` redan
+   * kastar på ett tomt userId innan den anropar. Men funktionen är EXPORTERAD,
+   * alltså en yta någon kan anropa själv, och då hade den tyst gett "_bolaget"
+   * som nyckel. Kontrollen är inte en dubblett: det är provet som saknades.
+   */
+  it("medlemskapsId kastar på en saknad halva, anropad direkt", () => {
+    expect(() => medlemskapsId("", "bolaget")).toThrow(/medlemskapsId: både userId och groupId krävs/);
+    expect(() => medlemskapsId("uid-1", "")).toThrow(/medlemskapsId: både userId och groupId krävs/);
+  });
+
+  it("⛔ ett inskickat id som inte stämmer avvisas, det rättas inte", () => {
+    expect(() => byggMedlemskap({ ...MEDLEM(), id: "nagot-annat" })).toThrow(/memberships: id "nagot-annat" stämmer inte med userId och groupId/);
+  });
+
+  it("ett inskickat id som stämmer tas emot", () => {
+    expect(byggMedlemskap({ ...MEDLEM(), id: "uid-1_bolaget" }).id).toBe("uid-1_bolaget");
+  });
+
+  it("userId krävs", () => {
+    const { userId: _u, ...utan } = MEDLEM();
+    expect(() => byggMedlemskap(utan)).toThrow(/memberships: userId krävs/);
+  });
+
+  it("groupId krävs", () => {
+    const { groupId: _g, ...utan } = MEDLEM();
+    expect(() => byggMedlemskap(utan)).toThrow(/memberships: groupId krävs/);
+  });
+
+  it("en okänd roll avvisas", () => {
+    expect(() => byggMedlemskap({ ...MEDLEM(), roll: "admin" })).toThrow(/memberships: rollen "admin" för "uid-1_bolaget" finns inte/);
+    expect(ROLLER).toEqual(["agare", "medlem"]);
+  });
+
+  it("en okänd typ avvisas", () => {
+    expect(() => byggMedlemskap({ ...MEDLEM(), typ: "robot" })).toThrow(/memberships: typen "robot" för "uid-1_bolaget" finns inte/);
+    expect(MEDLEMSTYPER).toEqual(["person", "agent"]);
+  });
+
+  it("en okänd status avvisas, och förvalet är aktiv", () => {
+    expect(() => byggMedlemskap({ ...MEDLEM(), status: "kanske" })).toThrow(/memberships: statusen "kanske" för "uid-1_bolaget" finns inte/);
+    const { status: _s, ...utan } = MEDLEM();
+    expect(byggMedlemskap(utan).status).toBe("aktiv");
+    expect(MEDLEMSSTATUS).toEqual(["aktiv", "avslutad"]);
+  });
+
+  it("okända fält avvisas", () => {
+    expect(() => byggMedlemskap({ ...MEDLEM(), groupIds: ["a"] })).toThrow(/memberships: fälten groupIds för "uid-1_bolaget" känns inte igen/);
+  });
+});
+
+describe("inbjudan", () => {
+  it("byggs, och e-posten blir gemener", () => {
+    expect(byggInbjudan(INBJUDAN()).epost).toBe("ny@example.com");
+  });
+
+  it("epost krävs", () => {
+    expect(() => byggInbjudan({ ...INBJUDAN(), epost: "" })).toThrow(/invitations: epost krävs för "inb-1"/);
+  });
+
+  it("groupId krävs", () => {
+    const { groupId: _g, ...utan } = INBJUDAN();
+    expect(() => byggInbjudan(utan)).toThrow(/invitations: groupId krävs för "inb-1"/);
+  });
+
+  it("en okänd roll avvisas", () => {
+    expect(() => byggInbjudan({ ...INBJUDAN(), roll: "gast" })).toThrow(/invitations: rollen "gast" för "inb-1" finns inte/);
+  });
+
+  it("en okänd status avvisas, och förvalet är vantar", () => {
+    expect(() => byggInbjudan({ ...INBJUDAN(), status: "kanske" })).toThrow(/invitations: statusen "kanske" för "inb-1" finns inte/);
+    const { status: _s, ...utan } = INBJUDAN();
+    expect(byggInbjudan(utan).status).toBe("vantar");
+    expect(INBJUDNINGSSTATUS).toEqual(["vantar", "accepterad", "aterkallad"]);
+  });
+});
+
+describe("regelfragmentet: formen, inte beteendet", () => {
+  it("tar emot appens samlingsnamn", () => {
+    const text = regelfragment({ medlemskap: "medlemskap", grupper: "bolag" });
+    expect(text).toContain("match /bolag/{gid}");
+    expect(text).toContain("documents/medlemskap/$(request.auth.uid");
+  });
+
+  it("⛔ ett samlingsnamn med snedstreck avvisas, det är en sökväg", () => {
+    expect(() => regelfragment({ grupper: "kunder/x/grupper" })).toThrow(/regelfragment: grupper "kunder\/x\/grupper" är inte ett samlingsnamn/);
+    expect(() => gruppadSamling("a/b")).toThrow(/regelfragment: samling "a\/b" är inte ett samlingsnamn/);
+  });
+
+  it("⛔ appens samling vaktar groupId på BÅDA sidor av en uppdatering", () => {
+    const text = gruppadSamling("handelser");
+    expect(text).toContain("opsArMedlem(resource.data.groupId)");
+    expect(text).toContain("request.resource.data.groupId == resource.data.groupId");
+  });
+
+  it("ägarkravet går att slå på per samling", () => {
+    expect(gruppadSamling("konfig", { agareKravsForSkrivning: true })).toContain("opsArAgare(request.resource.data.groupId)");
+    expect(gruppadSamling("handelser")).not.toContain("opsArAgare(request.resource.data.groupId)");
+  });
+});

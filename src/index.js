@@ -122,6 +122,15 @@ export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
  * gå att validera av det som körs utan skärm.
  */
 export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
+
+/*
+ * ⛔ GRUPPER OCH MEDLEMSKAP (#136). Formerna är data in och data ut, och
+ * regelfragmentet är text in och text ut, alltså ingen React. De ligger här av
+ * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som
+ * körs utan skärm, och reglerna genereras av ett skript.
+ */
+export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
+export { regelfragment, gruppadSamling } from "./lib/regler.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
