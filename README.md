@@ -439,7 +439,12 @@ eftersom Firestore inte återansluter av sig själv efter ett avvisat lyssnande.
 bygger ett datalager, och nästan alla får det förstört på samma sätt, nämligen
 att en enda vy anropar något källspecifikt "bara den här gången".
 
-### Inloggning och roller
+### Inloggning och profil
+
+⛔ **Avsnittet hette "Inloggning och roller" till 2026-09-27.** Det bytte namn
+när profilen kom (#138), eftersom rollen inte längre är det enda inloggningen
+ger: den ger också en rad i `users/{uid}` som personen själv äger.
+
 
 Google Auth via Firebase, med samma mönster som datalagret: **ramverket
 importerar ingen auth-SDK**, appen skickar in den.
@@ -464,6 +469,38 @@ så läckor uppstår.
 ⛔ Misslyckas profiluppslagningen loggas användaren in **utan** roll, inte in med
 en gissad. Ett fel i en uppslagning får aldrig ge mer behörighet än en som
 lyckades.
+
+
+#### Profilen och utloggningen
+
+| | |
+|---|---|
+| `sakerstallAnvandare({ kalla, inloggad })` | läser `users/{uid}` och skapar raden **bara om den saknas**. Svarar `{ anvandare, skapad }` |
+| `sparaInstallningar({ kalla, anvandare, andring })` | skriver språk och tema. ⛔ Avvisar allt annat: e-posten är identiteten, namn och bild hör till en egen åtgärd |
+| `andringen(anvandare, utkast)` | vad som skiljer utkastet från den sparade raden. Beslutet ligger utanför vyn, se noten nedan |
+| `OpsProfil` | vyn: namn, e-post, bild, språk, utseende och mina grupper med roll |
+| `OpsAnvandarmeny` | avataren i toppraden, med profil och utloggning bakom |
+
+⛔ **RADEN SKAPAS VID FÖRSTA INLOGGNINGEN OCH BARA DÅ.** Språk och tema bor i
+databasen för att följa personen mellan enheter. Skrevs raden vid varje
+inloggning skulle inloggningens uppgifter skriva över dem: du byter till mörkt
+läge på telefonen, loggar in på datorn, och telefonen är ljus igen nästa gång.
+Det felet ser inte ut som ett fel, det ser ut som att appen inte minns.
+
+⛔ **NAMN OCH BILD UPPDATERAS INTE HELLER.** Frestande, eftersom de kommer ur
+inloggningen. Men då är raden inte personens egen: den som redigerar sitt namn
+får det överskrivet nästa inloggning utan att något säger till.
+
+⛔ **ANVÄNDARMENYN HAR ETT EGET FACK I SKALET**, `OpsAppShell props.anvandare`,
+sist i klustret efter `actions` och före hamburgaren. Inte en `action` bland
+andra: klarkriteriet säger "samma plats i varje app", och en fri slot hamnar
+till vänster i en app och i en hamburgare i nästa.
+
+⛔ **BESLUTET OM VAD SOM ÄNDRATS LIGGER I `andringen`, INTE I VYN.** `OpsSelect`
+är en Radix Select, alltså ingen `<select>`, och går inte att driva med
+`fireEvent.change` i jsdom. Ett prov som försökte stod grönt på
+`not.toHaveBeenCalled` medan ingenting alls hade hänt. Logiken flyttades dit ett
+prov kan se den, i stället för att få ett prov som inte kan faila.
 
 ### Typer
 
