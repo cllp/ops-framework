@@ -104,14 +104,35 @@
    * ──────────────────────────────────────────────────────────────────────── */
   --color-accent: #9a9588;
   --color-accent-hover: #a89f92;
-  /* ⛔ Sidans botten, inte vitt, och det är avläst: SessionStudios enda
-   * accentfyllda knapp är `bg-[--color-accent] text-[--color-bg-primary]`.
+  /* ⛔ MÖRK TEXT I LJUST LÄGE, OCH DET ÄR EN ÄNDRING MED EN HISTORIA.
    *
-   * ⛔ MÄTT SVAGHET, MEDVETET ÄRVD: #f8f7f4 på #9a9588 ger 2,99:1, alltså under
-   * WCAG AA. Mörk text (#1a1a1a) hade gett 5,83:1. Vi bär förlagans värde
-   * eftersom paritet var beslutet, men det står här så ingen tror att det är
-   * kontrollerat. Mörkt läge har inte problemet: #2a2520 på #e8e0d0 ger 11,6:1. */
-  --color-accent-contrast: #f8f7f4;
+   * Här stod `#f8f7f4`, alltså sidans botten, avläst ur SessionStudios enda
+   * accentfyllda knapp (`bg-[--color-accent] text-[--color-bg-primary]`).
+   * Paritet med förlagan var beslutet, och svagheten stod utskriven som
+   * "medvetet ärvd".
+   *
+   * ⛔ NOTEN HADE FEL SIFFRA, OCH DET ÄR VÄRT ATT SKRIVA UT. Den sade att
+   * #f8f7f4 på #9a9588 ger 2,99:1. Rätt svar är 2,79:1, och 2,99 är vad
+   * `raised` ger på accent, alltså en rad bredvid i tabellen i
+   * `check-kontrast.mjs`. En felskriven siffra i en not om en MÄTT svaghet är
+   * precis den sorts uppgift ingen kontrollerar igen.
+   *
+   * ⛔ OCH HOVER-LÄGET VAR ALDRIG MÄTT. #f8f7f4 på `accent-hover` (#a89f92)
+   * ger 2,44:1, alltså sämre än viloläget. Knappen blev mindre läsbar av att
+   * man pekade på den.
+   *
+   * Mätt 2026-09-27, och nu vaktat som ett par i `check-kontrast.mjs`:
+   *
+   *                        på accent   på accent-hover
+   *   #f8f7f4 (förut)        2,79:1        2,44:1      båda under AA
+   *   #1a1a1a (nu)           5,83:1        6,66:1      båda över AA 4,5:1
+   *
+   * ⛔ VÄRDET ÄR INTE PÅHITTAT: #1a1a1a är `--color-ink`, sidans egen text.
+   * En egen hex här hade varit en färg vid sidan av paletten.
+   *
+   * Mörkt läge hade aldrig problemet: #2a2520 på #e8e0d0 ger 11,56:1, och på
+   * `accent-hover` 12,76:1. Det värdet står orört. */
+  --color-accent-contrast: #1a1a1a;
   --color-accent-subtle: rgba(154, 149, 136, 0.12);
   --color-accent-faint: rgba(154, 149, 136, 0.06);
 

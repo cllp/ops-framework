@@ -118,14 +118,38 @@ export const PAR = [
    * bärs för paritet med förlagan.
    *
    * ⛔ ATT SKRIVA IN ETT PAR SOM FALLER HADE GJORT VAKTEN RÖD FÖR ETT BESLUT,
-   * inte för ett fel. Hålet stängs den dag ljust `accent-contrast` blir mörkt,
-   * och det är ett produktbeslut om hur varje primärknapp ser ut.
+   * inte för ett fel. ⛔ BESLUTET ÄR NU TAGET: ljust `accent-contrast` är
+   * mörkt, och paret står i listan nedanför. Raden om `accent-contrast` i
+   * tabellen ovan gäller alltså det GAMLA värdet och är kvar som historik.
+   *
+   * Reglagets på-läge är ändå fortfarande ett öppet hål: knoppen är en YTA och
+   * inte text, så den behöver ett token som klarar 3:1 mot accent i båda
+   * teman, och `accent-contrast` klarar det bara i ljust läge nu.
    *
    * Kontrollen som ändå finns i på-läget: knoppen FLYTTAR sig, och spårets
    * kant mot panelen står kvar. Läget avgörs alltså aldrig av färg ensam.
    */
   { vad: "reglagets spårkant mot panelen", text: "ink-secondary", yta: "raised", niva: GRAFIK },
   { vad: "reglagets knoppkant mot spåret, av", text: "ink-secondary", yta: "sunken", niva: GRAFIK },
+  /*
+   * ⛔ PRIMÄRKNAPPEN, OCH HÅLET SOM NOTEN OVANFÖR SADE SKULLE STÄNGAS.
+   *
+   * Noten löd: "Hålet stängs den dag ljust `accent-contrast` blir mörkt, och
+   * det är ett produktbeslut om hur varje primärknapp ser ut." Beslutet är
+   * taget, och därför står paret här i stället för i en kommentar.
+   *
+   * Det gäller inte bara en knapp. `accent-contrast` bär texten på VARJE
+   * accentfylld yta i ramverket: `OpsButton variant="primary"`, FAB:en,
+   * räknemärket, den valda dagen i kalendern och kryssrutan.
+   *
+   * ⛔ OCH HOVER-LÄGET STÅR MED, vilket det inte gjorde i någon tidigare
+   * mätning. Mätt 2026-09-27: ljust `accent-contrast` gav 2,79:1 på `accent`
+   * men bara 2,44:1 på `accent-hover`, alltså SÄMRE i det läge muspekaren
+   * skapar. Ett par som bara mäter viloläget godkänner en knapp som blir
+   * oläsbar när man pekar på den.
+   */
+  { vad: "primärknappens text", text: "accent-contrast", yta: "accent", niva: BROD },
+  { vad: "primärknappens text, hover", text: "accent-contrast", yta: "accent-hover", niva: BROD },
 ];
 
 /**
