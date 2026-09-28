@@ -140,6 +140,25 @@ Siffror hämtas live vid varje generering. Skriv aldrig av dem från förra
 versionen. Bedömningar ska märkas som bedömningar: mätt data och gissningar får
 inte se likadana ut.
 
+## 11. En ramverksrelease är klar först när appen pinnat om, i samma pass.
+
+CP 2026-09-28 20:41, med en skärmbild från telefonen: "Ingen skillnad, ingen
+ut/inloggning. Ingenting... Vad händer?" Ramverket låg då på 0.25.0 med fyra
+mergade PR:ar bakom sig, taggat och publicerat, och appen pekade fortfarande på
+0.24.0. Allt CP hade bett om fanns, i ett paket ingen konsumerade. Samma
+eftermiddag hände det en gång till: 0.26.0 publicerades, och appen stod kvar
+på 0.25.0 tills han frågade igen.
+
+En release som inte konsumeras är för produktägaren exakt lika mycket som
+ingen release, och den är värre än ingen: statusen säger "klart" om något han
+inte kan se, så nästa fråga blir "vad händer?" i stället för "vad är nästa".
+
+**Regeln:** ett pass som publicerar en ramverksversion är inte avslutat förrän
+appens ompinnings-PR är öppnad med besked, i samma pass, med release-URL:en
+till den nya taggen. Ordningen står kvar (ramverket mergas och publiceras
+först, ompinningen mergas sedan), men de två är ett arbete och rapporteras
+som ett. En release-rad i statusen utan sin ompinningsrad är ofullständig.
+
 ## 12. Ett ärende som citerar SessionStudio är klart först när PR:en bär en skärmbild av samma flöde sida vid sida med förebilden.
 
 CP 2026-09-28 22:32: "Jag ber om samma sak massor av gånger men får ingen
