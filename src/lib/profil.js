@@ -50,7 +50,7 @@ import { byggAnvandare } from "./grupp.js";
  * är nyckeln, och `epost` är identiteten och kommer ur inloggningen (se
  * filhuvudet i `grupp.js`).
  */
-const PERSONFALT = ["sprak", "tema", "namn", "telefon", "stad", "presentation", "lankar", "bild", "bildSokvag"];
+const PERSONFALT = ["sprak", "tema", "namn", "telefon", "stad", "presentation", "lankar", "bild", "bildSokvag", "ikon", "farg"];
 
 /**
  * @typedef {object} Inloggad

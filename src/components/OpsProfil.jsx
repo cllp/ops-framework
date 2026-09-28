@@ -1,18 +1,35 @@
 import { useRef, useState } from "react";
+import { cx } from "../lib/cx.js";
 import { SPRAK, text } from "../lib/sprak.js";
-import { MAX_PRESENTATION, TEMAN } from "../lib/grupp.js";
+import { MAX_PRESENTATION, TEMAN, PROFILIKONER, PROFILFARGER } from "../lib/grupp.js";
 import { andringen } from "../lib/profil.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsCard } from "./OpsCard.jsx";
 import { OpsChip } from "./OpsChip.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { PROFILIKON_KOMPONENT } from "../lib/profilikoner.js";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 import { KryssIkon } from "./icons.jsx";
+
+/**
+ * ⛔ SAMMA MÖNSTER SOM `TONKLASSER` I `OpsIdentity.jsx`, UTSKRIVET AV SAMMA
+ * SKÄL: Tailwind hittar bara klasser den kan LÄSA i källkoden, och
+ * `` `bg-identity-${id}` `` hade byggt en tom klass. `PROFILFARGER` (grupp.js)
+ * äger ID:NA, den här kartan äger bara CSS-klassen för respektive id.
+ */
+const FARGKLASSER = {
+  1: "bg-identity-1",
+  2: "bg-identity-2",
+  3: "bg-identity-3",
+  4: "bg-identity-4",
+  5: "bg-identity-5",
+  6: "bg-identity-6",
+};
 
 /**
  * Profilvyn: vem du är, hur du vill ha det, och vilka grupper du är med i.
@@ -73,6 +90,9 @@ import { KryssIkon } from "./icons.jsx";
  *
  * @param {object} props
  * @param {import("../lib/grupp.js").Anvandare} props.anvandare
+ * @param {string} [props.roll] Personens EGEN roll, som en liten pill bredvid namnet (#164, korrigering C:
+ *   "rollen som en liten pill", t.ex. "Studio Admin"). Ramverket vet inte vad rollen HETER, appen skickar in
+ *   den redan översatta texten. Utelämnad ritas ingen pill: rollbegreppet är appens, inte ramverkets.
  * @param {{ grupp: { id: string, namn: any }, roll: string }[]} [props.grupper] Mina grupper, med roll i var och en.
  * @param {(andring: Record<string, any>) => void | Promise<void>} props.onSpara Kallas med `andring` från
  *   `andringen()` när Spara trycks, OCH direkt (bara `{ bild, bildSokvag }`) vid en bilduppladdning/borttagning/återställning.
@@ -98,9 +118,13 @@ import { KryssIkon } from "./icons.jsx";
  * @param {string} [props.loggaUtEtikett]
  * @param {string} [props.ingaGrupperText]
  * @param {string} [props.profilbildEtikett]
- * @param {string} [props.laddaUppEtikett]
+ * @param {string} [props.laddaUppEtikett] Knappen som öppnar filväljaren. #164: förval "Byt" (var "Ladda upp bild").
  * @param {string} [props.taBortEtikett]
  * @param {string} [props.aterstallEtikett]
+ * @param {string} [props.valjIkonEtikett] Rubriken över ikonraden (#164, korrigering C).
+ * @param {string} [props.fargEtikett] Rubriken över färgraden (#164, korrigering C).
+ * @param {string} [props.anvandInitialerEtikett] Knappen som nollställer bild OCH ikon (#164, korrigering C).
+ * @param {Record<string, string>} [props.ikonNamn] Vad varje `PROFILIKONER`-id heter i väljarens skärmläsarnamn.
  * @param {string} [props.personuppgifterEtikett]
  * @param {string} [props.namnEtikett]
  * @param {string} [props.telefonEtikett]
@@ -118,6 +142,7 @@ import { KryssIkon } from "./icons.jsx";
  */
 export function OpsProfil({
   anvandare,
+  roll,
   grupper = [],
   onSpara,
   onTema,
@@ -136,9 +161,13 @@ export function OpsProfil({
   loggaUtEtikett = "Logga ut",
   ingaGrupperText = "Du är inte med i någon grupp än.",
   profilbildEtikett = "Profilbild",
-  laddaUppEtikett = "Ladda upp bild",
+  laddaUppEtikett = "Byt",
   taBortEtikett = "Ta bort",
   aterstallEtikett = "Återställ",
+  valjIkonEtikett = "Välj standardikon",
+  fargEtikett = "Färg",
+  anvandInitialerEtikett = "Använd initialer",
+  ikonNamn = { person: "Person", stjarna: "Stjärna", hjarta: "Hjärta", blixt: "Blixt", leende: "Leende", krona: "Krona" },
   personuppgifterEtikett = "Personuppgifter",
   namnEtikett = "Namn",
   telefonEtikett = "Telefon",
@@ -250,6 +279,60 @@ export function OpsProfil({
     }
   }
 
+  /**
+   * Väljer en standardikon: sparar DIREKT, som bilduppladdningen. #164,
+   * korrigering C. ⛔ RENSAR OCKSÅ `bild`: `OpsIdentity` ritar bilden FÖRE
+   * ikonen när båda finns, så en ikon vald ovanpå en kvarvarande bild hade
+   * synts som "inget hände".
+   * @param {string} id
+   */
+  async function valjIkon(id) {
+    setBildFel("");
+    setBildLaddar(true);
+    try {
+      await onSpara({ ikon: id, bild: "", bildSokvag: "" });
+    } catch (e) {
+      setBildFel(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBildLaddar(false);
+    }
+  }
+
+  /**
+   * Väljer en bakgrundsfärg för märket. Fungerar oavsett om man visar en
+   * ikon eller initialer just nu (#164). Sparas direkt, av samma skäl som
+   * `valjIkon`.
+   * @param {string} id
+   */
+  async function valjFarg(id) {
+    setBildFel("");
+    setBildLaddar(true);
+    try {
+      await onSpara({ farg: id });
+    } catch (e) {
+      setBildFel(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBildLaddar(false);
+    }
+  }
+
+  /**
+   * "Använd initialer": nollställer BÅDE bild och ikon. Färgen (om vald)
+   * ligger kvar som bakgrund bakom initialerna, precis som den redan gör
+   * bakom en ikon (#164).
+   */
+  async function anvandInitialer() {
+    setBildFel("");
+    setBildLaddar(true);
+    try {
+      await onSpara({ bild: "", bildSokvag: "", ikon: "" });
+    } catch (e) {
+      setBildFel(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBildLaddar(false);
+    }
+  }
+
   const obeskrivnaPlattformar = plattformar.filter((p) => !lankar.some((l) => l.plattform === p.id));
 
   return (
@@ -260,9 +343,21 @@ export function OpsProfil({
         <OpsSectionLabel>{profilbildEtikett}</OpsSectionLabel>
         <OpsCard>
           <div className="flex items-center gap-3">
-            <OpsIdentity name={anvandare.namn || anvandare.epost} seed={anvandare.id} imageUrl={anvandare.bild} size="lg" />
+            <OpsIdentity
+              name={anvandare.namn || anvandare.epost}
+              seed={anvandare.id}
+              imageUrl={anvandare.bild}
+              icon={!anvandare.bild && anvandare.ikon ? PROFILIKON_KOMPONENT[/** @type {keyof typeof PROFILIKON_KOMPONENT} */ (anvandare.ikon)] : undefined}
+              tone={anvandare.farg ? /** @type {any} */ (Number(anvandare.farg)) : undefined}
+              size="lg"
+            />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold text-ink">{anvandare.namn || anvandare.epost}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate font-semibold text-ink">{anvandare.namn || anvandare.epost}</p>
+                {/* ⛔ #164, korrigering C: "rollen som en liten pill" bredvid namnet. Ritas bara
+                    när appen skickar en, eftersom rollens ORD är appens (t.ex. "Studio Admin"). */}
+                {roll ? <OpsPill tone="neutral">{roll}</OpsPill> : null}
+              </div>
               <p className="truncate text-sm text-ink-secondary">
                 <span className="sr-only">{epostEtikett}: </span>
                 {anvandare.epost}
@@ -270,34 +365,99 @@ export function OpsProfil({
             </div>
           </div>
 
-          {lagring ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <input
-                ref={filValjare}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const fil = e.target.files?.[0];
-                  e.target.value = "";
-                  if (fil) ladda(fil);
-                }}
-              />
-              <OpsButton variant="secondary" size="sm" busy={bildLaddar} onClick={() => filValjare.current?.click()}>
-                {laddaUppEtikett}
-              </OpsButton>
-              {anvandare.bild ? (
-                <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={taBortBild}>
-                  {taBortEtikett}
-                </OpsButton>
-              ) : null}
-              {inloggningsBild && inloggningsBild !== anvandare.bild ? (
-                <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={aterstallBild}>
-                  {aterstallEtikett}
-                </OpsButton>
-              ) : null}
+          {/* ⛔ #164, korrigering C: IKON OCH FÄRG KRÄVER INGEN LAGRING, till skillnad
+              från uppladdningsraden nedanför. Två strängar i `users/{uid}`, inga filer. */}
+          <div className="mt-3 flex flex-col gap-2">
+            <div>
+              <p className="mb-1 text-xs text-ink-secondary">{valjIkonEtikett}</p>
+              <div role="group" aria-label={valjIkonEtikett} className="flex flex-wrap gap-2">
+                {PROFILIKONER.map((id) => {
+                  const Ikon = PROFILIKON_KOMPONENT[id];
+                  const vald = !anvandare.bild && anvandare.ikon === id;
+                  return (
+                    <OpsButton
+                      key={id}
+                      variant={vald ? "secondary" : "ghost"}
+                      size="sm"
+                      iconOnly
+                      ariaLabel={ikonNamn[id] || id}
+                      disabled={bildLaddar}
+                      onClick={() => valjIkon(id)}
+                    >
+                      <Ikon size={18} />
+                    </OpsButton>
+                  );
+                })}
+              </div>
             </div>
-          ) : null}
+            <div>
+              <p className="mb-1 text-xs text-ink-secondary">{fargEtikett}</p>
+              <div role="group" aria-label={fargEtikett} className="flex flex-wrap gap-2">
+                {PROFILFARGER.map((id) => {
+                  const vald = anvandare.farg === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-label={`${fargEtikett} ${id}`}
+                      aria-pressed={vald}
+                      disabled={bildLaddar}
+                      onClick={() => valjFarg(id)}
+                      className={cx(
+                        // ⛔ KLASSNAMNEN STÅR UTSKRIVNA, INTE `bg-identity-${id}`. Samma skäl
+                        // som `TONKLASSER` i `OpsIdentity.jsx`: en interpolerad sträng genererar
+                        // ingen CSS i Tailwinds build, bara i utvecklingsläget.
+                        "size-6 shrink-0 rounded-full",
+                        FARGKLASSER[id],
+                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                        // ⛔ RINGEN, INTE EN IFYLLD PLATTA: samma "du är här"-mönster som
+                        // `OpsIconLink`s aktiva länk, en ring runt den valda pricken.
+                        vald ? "ring-2 ring-offset-2 ring-accent ring-offset-surface" : "cursor-pointer",
+                      )}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {lagring ? (
+              <>
+                <input
+                  ref={filValjare}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const fil = e.target.files?.[0];
+                    e.target.value = "";
+                    if (fil) ladda(fil);
+                  }}
+                />
+                <OpsButton variant="secondary" size="sm" busy={bildLaddar} onClick={() => filValjare.current?.click()}>
+                  {laddaUppEtikett}
+                </OpsButton>
+              </>
+            ) : null}
+            {anvandare.bild ? (
+              <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={taBortBild}>
+                {taBortEtikett}
+              </OpsButton>
+            ) : null}
+            {inloggningsBild && inloggningsBild !== anvandare.bild ? (
+              <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={aterstallBild}>
+                {aterstallEtikett}
+              </OpsButton>
+            ) : null}
+            {/* ⛔ "ANVÄND INITIALER" RITAS ÄVEN UTAN `lagring`: den nollställer ikonen
+                lika gärna som bilden, och kräver ingen Storage. */}
+            {anvandare.bild || anvandare.ikon ? (
+              <OpsButton variant="ghost" size="sm" disabled={bildLaddar} onClick={anvandInitialer}>
+                {anvandInitialerEtikett}
+              </OpsButton>
+            ) : null}
+          </div>
           {bildFel ? (
             <p role="alert" className="mt-2 text-sm text-danger">
               {bildFel}

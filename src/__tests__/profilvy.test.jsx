@@ -96,16 +96,21 @@ describe("OpsProfil", () => {
 
   // ══ #156: Profilbild, Personuppgifter, Länkar, och children-sloten ═══════
   describe("#156: Profilbild", () => {
-    it("utan lagring visas ingen uppladdnings- eller borttagningsknapp", () => {
+    it("⛔ #164 korrigering C: utan lagring döljs BARA uppladdningen (Byt); Ta bort kräver ingen Storage", () => {
+      // Coordinatorns egen rättelse: "knapparna 'Byt' (uppladdning, bara när
+      // lagring finns), 'Ta bort' och 'Använd initialer'". Ta bort och Använd
+      // initialer skriver bara `users/{uid}`, precis som ikon och färg, och är
+      // inte låsta bakom `props.lagring` längre.
       render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png" }} onSpara={() => {}} />);
-      expect(screen.queryByRole("button", { name: "Ladda upp bild" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Byt" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Ta bort" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Använd initialer" })).toBeTruthy();
     });
 
     it("med lagring visas Ladda upp, och Ta bort bara när en bild finns", () => {
       const lagring = { laddaUpp: vi.fn(), taBort: vi.fn() };
       const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={() => {}} lagring={lagring} />);
-      expect(screen.getByRole("button", { name: "Ladda upp bild" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Byt" })).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
 
       rerender(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png" }} onSpara={() => {}} lagring={lagring} />);
@@ -167,6 +172,67 @@ describe("OpsProfil", () => {
 
       rerender(<OpsProfil anvandare={{ ...ANV, bild: "https://google/foto.jpg" }} onSpara={onSpara} lagring={lagring} inloggningsBild="https://google/foto.jpg" />);
       expect(screen.queryByRole("button", { name: "Återställ" })).toBeNull();
+    });
+  });
+
+  // ══ #164, korrigering C: standardikon och färg, ingen Storage krävs ══════
+  describe("#164 korrigering C: Profilbild utan Storage (ikon, färg, initialer)", () => {
+    it("visar sex standardikoner och sex färger, oavsett om lagring finns", () => {
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+      expect(screen.getByRole("group", { name: "Välj standardikon" })).toBeTruthy();
+      expect(within(screen.getByRole("group", { name: "Välj standardikon" })).getAllByRole("button")).toHaveLength(6);
+      expect(screen.getByRole("group", { name: "Färg" })).toBeTruthy();
+      expect(within(screen.getByRole("group", { name: "Färg" })).getAllByRole("button")).toHaveLength(6);
+    });
+
+    it("⛔ ett ikonval sparas DIREKT (som bilden), och rensar bild/bildSokvag", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png", bildSokvag: "profilbilder/uid-1/y.jpg" }} onSpara={onSpara} />);
+      fireEvent.click(screen.getByRole("button", { name: "Stjärna" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ ikon: "stjarna", bild: "", bildSokvag: "" }));
+    });
+
+    it("⛔ ett färgval sparas DIREKT och rör inte ikon eller bild", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, ikon: "krona" }} onSpara={onSpara} />);
+      fireEvent.click(screen.getByRole("button", { name: "Färg 3" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ farg: "3" }));
+    });
+
+    it("'Använd initialer' nollställer bild OCH ikon direkt, och syns bara när en av dem är satt", async () => {
+      const onSpara = vi.fn(async () => {});
+      const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={onSpara} />);
+      expect(screen.queryByRole("button", { name: "Använd initialer" })).toBeNull();
+
+      rerender(<OpsProfil anvandare={{ ...ANV, ikon: "leende" }} onSpara={onSpara} />);
+      fireEvent.click(screen.getByRole("button", { name: "Använd initialer" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ bild: "", bildSokvag: "", ikon: "" }));
+    });
+
+    it("⛔ OpsIdentity ritar ikonen i vald färg när bild saknas, och bilden FÖRE ikonen när båda finns", () => {
+      const { rerender } = render(<OpsProfil anvandare={{ ...ANV, ikon: "krona", farg: "5" }} onSpara={() => {}} />);
+      // Huvudets märke (`role="img"`, namnet som aria-label) ritar ikonens svg,
+      // inte initialerna "CP". Sökt via `aria-label` för att inte träffa Krona-
+      // knappen i väljarraden, som ritar samma ikon.
+      const huvud = screen.getByRole("img", { name: "Claes Philip" });
+      expect(huvud.querySelector(".lucide-crown")).toBeTruthy();
+
+      rerender(<OpsProfil anvandare={{ ...ANV, ikon: "krona", farg: "5", bild: "https://x/y.png" }} onSpara={() => {}} />);
+      const huvudMedBild = screen.getByRole("img", { name: "Claes Philip" });
+      expect(huvudMedBild.querySelector(".lucide-crown")).toBeNull();
+      expect(huvudMedBild.querySelector("img")).toBeTruthy();
+    });
+  });
+
+  describe("#164 korrigering C: rollpillen bredvid namnet", () => {
+    it("ritas när appen skickar roll, med appens ord", () => {
+      render(<OpsProfil anvandare={ANV} roll="Studio Admin" onSpara={() => {}} />);
+      expect(screen.getByText("Studio Admin")).toBeTruthy();
+    });
+
+    it("ritas INTE när appen inte skickar någon roll (ramverket känner inte begreppet)", () => {
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+      expect(screen.queryByText("Studio Admin")).toBeNull();
     });
   });
 

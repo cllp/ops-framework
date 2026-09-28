@@ -54,7 +54,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, delete: if opsInloggad() && request.auth.uid == uid;
       allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag"]);
+        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"]);
     }
 
     // Gruppen. Medlem läser, ägare skriver. Aldrig radering: arkivering finns

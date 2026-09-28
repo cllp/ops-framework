@@ -178,6 +178,39 @@ describe("OpsIdentity", () => {
   it("kräver ett stabilt id, inte namnet", () => {
     forvantaKrasch(() => render(<OpsIdentity name="Utan id" seed="" />), /seed krävs/);
   });
+
+  // ══ #164, korrigering C: standardikon och uttryckligt vald ton ══════════
+  it("⛔ ritar en egen ikon i stället för initialer när `icon` skickas in", () => {
+    const Ikon = () => <svg data-testid="egen-ikon" />;
+    render(<OpsIdentity name="Claes Philip" seed="uid-1" icon={Ikon} />);
+    expect(screen.getByTestId("egen-ikon")).toBeInTheDocument();
+    expect(screen.queryByText("CP")).toBeNull();
+  });
+
+  it("⛔ `tone` åsidosätter den ur `seed` härledda tonen", () => {
+    const seed = "grp_9912";
+    const harleddTon = identityTone(seed);
+    // ⛔ EN TON SOM SKILJER SIG FRÅN DEN HÄRLEDDA, RÄKNAT FRÅN DEN, INTE
+    // HÅRDKODAD. Ett hårdkodat "1" hade kunnat råka VARA den härledda tonen
+    // för just detta seed, och då hade provet varit grönt utan att mäta
+    // något (arbetsreglernas punkt 4: tautologisk lista).
+    const annanTon = /** @type {1|2|3|4|5|6} */ (((harleddTon % 6) + 1));
+
+    const { container: standard } = render(<OpsIdentity name="X" seed={seed} />);
+    const harleddKlass = /** @type {HTMLElement} */ (standard.firstChild).className;
+
+    const { container: overridad } = render(<OpsIdentity name="X" seed={seed} tone={annanTon} />);
+    const overridadKlass = /** @type {HTMLElement} */ (overridad.firstChild).className;
+
+    expect(harleddKlass).not.toBe(overridadKlass);
+    expect(overridadKlass).toContain(`bg-identity-${annanTon}`);
+  });
+
+  it("bilden ritas FÖRE ikonen: `imageUrl` vinner även när `icon` skickas in", () => {
+    render(<OpsIdentity name="X" seed="uid-1" imageUrl="https://x/y.png" icon={() => <svg data-testid="egen-ikon" />} />);
+    expect(screen.queryByTestId("egen-ikon")).toBeNull();
+    expect(screen.getByRole("img", { name: "X" }).querySelector("img")).toBeTruthy();
+  });
 });
 
 describe("identitetslogik", () => {

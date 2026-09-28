@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileText, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
+import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Heart, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Plus, Smile, SlidersHorizontal, Star, Sun, User, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -165,6 +165,35 @@ export function ExternLankIkon({ size = 16 }) {
 /** Utloggningsraden i användarmenyn (#157). @param {{ size?: number }} props */
 export function LoggaUtIkon({ size = 16 }) {
   return <LogOut size={size} aria-hidden="true" />;
+}
+
+/**
+ * Sex standardikoner för en profilbild UTAN Storage (#164, korrigering C).
+ * Se `PROFILIKONER` i `src/lib/grupp.js` för id:na och skälet.
+ * @param {{ size?: number }} props
+ */
+export function PersonIkon({ size = 20 }) {
+  return <User size={size} aria-hidden="true" />;
+}
+/** @param {{ size?: number }} props */
+export function StjarnaIkon({ size = 20 }) {
+  return <Star size={size} aria-hidden="true" />;
+}
+/** @param {{ size?: number }} props */
+export function HjartaIkon({ size = 20 }) {
+  return <Heart size={size} aria-hidden="true" />;
+}
+/** @param {{ size?: number }} props */
+export function BlixtIkon({ size = 20 }) {
+  return <Zap size={size} aria-hidden="true" />;
+}
+/** @param {{ size?: number }} props */
+export function LeendeIkon({ size = 20 }) {
+  return <Smile size={size} aria-hidden="true" />;
+}
+/** @param {{ size?: number }} props */
+export function KronaIkon({ size = 20 }) {
+  return <Crown size={size} aria-hidden="true" />;
 }
 
 /**
