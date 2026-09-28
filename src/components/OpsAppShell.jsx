@@ -440,13 +440,27 @@ export function OpsAppShell({
   // (roten). En chevron-rad med `undervy` (t.ex. Aktivitet) byter INTE till en
   // egen Popover: den byter INNEHÅLLET i den här, redan öppna, popovern. Se
   // filhuvudets ärende och `MenySektioner`/`visaUndervy` i OpsMeny.jsx.
-  const [aktivUndervy, setAktivUndervy] = useState(/** @type {import("./OpsMeny.jsx").MenyRad | null} */ (null));
+  //
+  // ⛔ NYCKELN LAGRAS, ALDRIG RADEN (0.29.0, mätt i bolag-ops ompinning till
+  // 0.28.0). Första versionen sparade hela `MenyRad`-objektet i state, alltså
+  // även `undervy`-noden som den såg ut vid klicket. Appens efterföljande
+  // renders skickade nya `undervy`-noder (en OpsSwitch bunden till appens
+  // state), men panelen ritade den frysta kopian: knappen såg ut att inte
+  // reagera förrän menyn stängdes och öppnades igen. Appen valde att ta bort
+  // filtret hellre än att visa en knapp som ljuger. Nu lagras radens `key`,
+  // och raden slås upp ur `meny.sektioner` VID VARJE RENDER, så undervyn är
+  // alltid den appen just skickade in.
+  const [aktivUndervyKey, setAktivUndervyKey] = useState(/** @type {string | null} */ (null));
+  const aktivUndervy = aktivUndervyKey
+    ? ((meny?.sektioner ?? []).flat().find((rad) => rad.key === aktivUndervyKey && rad.undervy) ?? null)
+    : null;
+  const setAktivUndervy = (/** @type {import("./OpsMeny.jsx").MenyRad | null} */ rad) => setAktivUndervyKey(rad ? rad.key : null);
   // ⛔ MENYN STÄNGS: UNDERVYN NOLLSTÄLLS MED (#166). Annars visar nästa
   // öppning listan man råkade lämna i stället för menyns rot, se filhuvudets
   // "stängs menyn nollställs undervyn".
   const stangMenyn = (/** @type {boolean} */ nasta) => {
     setMerOppen(nasta);
-    if (!nasta) setAktivUndervy(null);
+    if (!nasta) setAktivUndervyKey(null);
   };
   // ⛔ Samma "stäng innan appens onClick körs"-mekanik som gamla `OpsMeny` hade,
   // nu delad med `OpsBottomNav` via `kordarePafunktion`. Se dess filhuvud.

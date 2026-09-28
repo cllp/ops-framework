@@ -75,6 +75,17 @@ heter nu `ordmarkeHojd`: `h-10` i toppraden (`AppHeader.jsx:191`), `h-20` i
 inloggningen (SessionStudios 4:1-logga vid 330 px är 82 px hög,
 `LoginScreen.jsx:224`). OPS Hub-ordmärket är 2,6:1, så samma bredd gav 128 px.
 
+### Menyns undervy är levande (mätt i appens ompinning till 0.28.0)
+
+`OpsAppShell` sparade hela menyraden i state när en undervy öppnades, alltså
+även `undervy`-noden som den såg ut vid klicket. Appens nästa render nådde
+aldrig panelen: en `OpsSwitch` bunden till appens state såg ut att inte
+reagera förrän menyn stängts och öppnats igen, och appen tog bort
+aktivitetsfiltret hellre än att visa en knapp som ljuger. Nu lagras radens
+`key` och raden slås upp ur `meny.sektioner` vid varje render. Prov: en
+räknare i undervyn ökar vid tryck, rött med den gamla koden och grönt med
+den nya.
+
 ### Deploy (appen)
 
 Nya samlingar: `vitlista` och katalogerna med `groupId`. **Reglerna deployas

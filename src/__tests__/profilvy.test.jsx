@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { useState } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { OpsProfil } from "../components/OpsProfil.jsx";
@@ -509,6 +510,49 @@ describe("OpsAppShell meny (#164, andra granskningen: en hamburgare, inte två)"
  * tillkommer, bara EN panel vars innehåll byts.
  */
 describe("OpsAppShell meny, undervy (#166: ingen egen, lös popover för en chevron-rad)", () => {
+  it("⛔ UNDERVYN ÄR LEVANDE: appens nästa render når den redan öppna panelen (0.29.0, mätt i bolag-ops)", () => {
+    function App() {
+      const [antal, setAntal] = useState(0);
+      return (
+        <OpsAppShell
+          brand="Ops"
+          nav={enkelNav}
+          activeHref="/"
+          meny={{
+            onLoggaUt: () => {},
+            sektioner: [
+              [
+                {
+                  key: "aktivitet",
+                  etikett: "Aktivitet",
+                  undervy: (
+                    <div>
+                      <p data-testid="raknare">{antal}</p>
+                      <button type="button" onClick={() => setAntal((n) => n + 1)}>
+                        Öka
+                      </button>
+                    </div>
+                  ),
+                },
+              ],
+            ],
+          }}
+        >
+          <p>innehåll</p>
+        </OpsAppShell>
+      );
+    }
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    expect(screen.getByTestId("raknare").textContent).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: "Öka" }));
+    // Med en fryst rad i state hade det här stått kvar på "0" tills menyn
+    // stängts och öppnats igen. Panelen ska visa appens nya nod direkt.
+    expect(screen.getByTestId("raknare").textContent).toBe("1");
+    expect(screen.getByRole("heading", { name: "Aktivitet" })).toBeTruthy();
+  });
+
   /** @param {{ badge?: number }} [opts] */
   function meny(opts = {}) {
     return {
