@@ -83,6 +83,46 @@ describe("createActivityLog", () => {
     expect(modell.kindLabel("bank")).toBe("Banksynk");
     expect(modell.kindLabel("nagot-nytt")).toBe("");
   });
+
+  describe("⛔ handelse.lank valideras, granskningsfynd på #157/#158-passet", () => {
+    it("bygger raden med en giltig länk", () => {
+      const rad = modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "https://example.com/arende/1", etikett: "Öppna ärendet" } });
+      expect(rad.lank).toEqual({ href: "https://example.com/arende/1", etikett: "Öppna ärendet" });
+    });
+
+    it("tillåter en relativ sökväg", () => {
+      const rad = modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "/inkorg/42", etikett: "Öppna inkorgen" } });
+      expect(rad.lank).toEqual({ href: "/inkorg/42", etikett: "Öppna inkorgen" });
+    });
+
+    it("utelämnar lank helt när den inte finns, aldrig som null eller ett halvt objekt", () => {
+      const rad = modell.buildEntry({ slag: "import", rubrik: "Kört" });
+      expect("lank" in rad).toBe(false);
+    });
+
+    it("kastar på en http-länk (inte https)", () => {
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "http://example.com", etikett: "Öppna" } })).toThrow(/varken https eller en relativ sökväg/);
+    });
+
+    it("kastar på en javascript:-länk", () => {
+      // ⛔ Det är precis den sortens värde en `<a href>` inte får rita blint.
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "javascript:alert(1)", etikett: "Öppna" } })).toThrow(/varken https eller en relativ sökväg/);
+    });
+
+    it("kastar på en tom etikett", () => {
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "https://example.com", etikett: "  " } })).toThrow(/etikett saknas/);
+    });
+
+    it("kastar på en länk som inte är ett objekt", () => {
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: "https://example.com" })).toThrow(/måste vara ett objekt/);
+    });
+
+    it("svarar med SKÄL via missing, precis som för rubriken", () => {
+      expect(modell.missing({ slag: "import", rubrik: "Kört", lank: { href: "ftp://example.com", etikett: "Öppna" } })).toEqual([
+        'Länkens href "ftp://example.com" är varken https eller en relativ sökväg (måste börja med "https://" eller "/").',
+      ]);
+    });
+  });
 });
 
 describe("unreadCount", () => {
@@ -247,6 +287,18 @@ describe("OpsActivityList", () => {
 
     const rubriker = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
     expect(rubriker).toEqual(["Idag", "Igår"]);
+  });
+
+  it("⛔ #109: avsnittsrubrikerna är tvåspråkiga, inte hårdkodad svenska", () => {
+    /*
+     * Granskningsfynd på #157/#158-passet: ACTIVITY_SECTIONS var fyra råa
+     * svenska strängar, trots att epikens princip (#109) är `{ sv, en }` från
+     * dag ett. En app som ritar `sprak="en"` ska se engelska rubriker här,
+     * precis som `OpsProfil` redan svarar på samma prop.
+     */
+    render(<OpsActivityList entries={rader} kindLabel={modell.kindLabel} now={new Date("2026-09-24T12:00:00.000Z")} sprak="en" />);
+    const rubriker = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(rubriker).toEqual(["Today", "Yesterday"]);
   });
 
   it("⛔ #158: märker det olästa med en PUNKT, inte med pillen 'Ny', och ordet finns kvar för skärmläsaren", () => {
@@ -416,7 +468,7 @@ describe("groupByDay", () => {
   it("utelämnar tomma avsnitt i stället för att påstå att något saknas där", () => {
     const avsnitt = groupByDay([rad(vid(2026, 8, 24, 9, 0), "bara idag")], { nu: NU });
     expect(avsnitt).toHaveLength(1);
-    expect(avsnitt[0].label).toBe("Idag");
+    expect(avsnitt[0].label).toEqual({ sv: "Idag", en: "Today" });
   });
 
   it("⛔ KASTAR ALDRIG en rad med trasig tid, den faller till Äldre", () => {

@@ -3,6 +3,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { activityId, activityWindow, groupByDay, unread, unreadRows } from "../lib/aktivitet.js";
 import { formatDateTime, formatRelativeDate, formatTime } from "../lib/format.js";
+import { text } from "../lib/sprak.js";
 import { slagKant } from "../lib/slag.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
@@ -318,8 +319,13 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
  * @param {number} [props.fler] Hur många som ligger bakom "Hämta fler". Noll döljer knappen.
  * @param {() => void} [props.onMore]
  * @param {Date | number} [props.now] Bara för prov.
+ * @param {string} [props.sprak] Språket avsnittsrubrikerna (Idag, Igår, ...) ritas på.
+ *   ⛔ SAMMA PROP SOM `OpsProfil` TAR, av samma skäl: `ACTIVITY_SECTIONS` är
+ *   ramverkets egna ord sedan #109/#157/#158-passet, ett `{ sv, en }` per
+ *   avsnitt, och `text()` läser ut rätt språk. Standardar till svenska, precis
+ *   som `text()` själv gör.
  */
-export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, onOpen, fler = 0, onMore, now }) {
+export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, onOpen, fler = 0, onMore, now, sprak = "sv" }) {
   const rader = entries || [];
 
   if (rader.length === 0) {
@@ -337,7 +343,7 @@ export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, 
         <section key={a.value}>
           {/* ⛔ EN RIKTIG RUBRIK OCH INTE EN FET RAD. Den som hoppar mellan
               rubriker i en skärmläsare ska kunna gå till "Idag" direkt. */}
-          <h3 className="mb-2 text-sm font-semibold text-ink-secondary">{a.label}</h3>
+          <h3 className="mb-2 text-sm font-semibold text-ink-secondary">{text(a.label, sprak)}</h3>
           <ul className="m-0 flex list-none flex-col p-0">
             {a.rader.map((h) => (
               <Rad
@@ -478,6 +484,7 @@ function Huvudatgarder({ filter, filterLabel = "Filter", onClear, clearLabel = "
  * @param {(open: boolean) => void} [props.onOpenChange]
  * @param {boolean} [props.renderTrigger] Falskt döljer klockan. Kräver då `open`+`onOpenChange`.
  * @param {Date | number} [props.now] Bara för prov.
+ * @param {string} [props.sprak] Vidarebefordras till `OpsActivityList`, se dess prop.
  */
 export function OpsActivityButton({
   entries,
@@ -500,6 +507,7 @@ export function OpsActivityButton({
   onOpenChange,
   renderTrigger = true,
   now,
+  sprak = "sv",
 }) {
   if (!renderTrigger && (typeof open !== "boolean" || !onOpenChange)) {
     throw new Error(
@@ -639,6 +647,7 @@ export function OpsActivityButton({
           fler={fler}
           onMore={() => setSidor((n) => n + 1)}
           now={now}
+          sprak={sprak}
         />
       )}
     </OpsPanel>
