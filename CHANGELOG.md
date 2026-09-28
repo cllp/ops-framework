@@ -9,6 +9,80 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.28.0
+
+⛔ **Utseendet som SessionStudio, den här gången mätt och inte tyckt.** CP
+2026-09-28, efter 0.27.0: "Jag ber om samma sak massor av gånger men får
+ingen skillnad." Tre orsaker, alla åtgärdade i den här versionen: fel profil
+hade kopierats (SessionStudios förval är `green`, `main.jsx:65`, inte
+grundprofilen), "klart" mättes med jsdom-prov i stället för skärmbilder, och
+releaser publicerades utan att appen pinnade om. Ärendena är
+[#166](https://github.com/cllp/ops-framework/issues/166),
+[#167](https://github.com/cllp/ops-framework/issues/167) och
+[#168](https://github.com/cllp/ops-framework/issues/168).
+
+### SessionStudios profil som en fixtur, med generator och vakt (#167)
+
+**`tokens/sessionstudio-profil.json` är hela green-profilen**, avläst ur
+SessionStudios källa med fil och rad per grupp: färger ljust och mörkt,
+skuggor, radier, typografiskala, ikonernas linjetjocklek, kortets kant och
+padding, diagramfärger, rörelsetider och toppradens höjd.
+`scripts/generate-tokens.mjs` skriver blocken i `tokens/tokens.css` mellan
+markörer, och `check-tokens` blir rött om ett block redigerats för hand
+(regel 8/9) eller om fixturen tömts (regel 11). Generatorn kör i `prebuild`,
+`pretest` och `precheck:types`, så ett handskrivet tal överlever aldrig ett
+bygge.
+
+Det som ändrats i talen: accent oliv (`#6B8E4E` ljust, `#7a9e5e` mörkt),
+`--text-sm` 14 px (var 13), `--word-spacing-normal` 0,06em, mörka ytor
+`#181c18/#202420/#262d26` med två nya steg `--color-elevated` och
+`--color-hover`, mörk sekundärtext `#b0b8ac`, skuggor ur green-profilen (alfa
+0,2/0,25/0,3, inte grundprofilens 0,3/0,4/0,5), rörelsetider 150/200/300 ms,
+topprad 56 px (`--topbar-height`). Ikonerna ritas med `strokeWidth` 1,5.
+`OpsCard` har ingen kant (SessionStudio skiljer kort från sida med ton, inte
+linje); `kant` finns som opt-in. `OpsStat`, `OpsTable` och `OpsField` sätter
+etiketter på sekundär färg i `font-medium`, aldrig `font-semibold`.
+
+**Diagramfärgerna byter namn** från `--color-series-*` till `--color-chart-*`.
+SessionStudios åtta gruppfärgförval sparas i fixturen som referens men matas
+INTE in som diagramfärger: mätta med `validate_palette.js` faller de på tre
+av fyra kontroller (kromgolv, CVD-separation, delta E mellan grannar), så de
+sex redan validerade tonerna behålls.
+
+### Undervyer i menyn (#166)
+
+**En menyrad kan öppna en undervy i samma panel**: `undervy` på raden byter
+panelens huvud till en tillbakapil med radens etikett som rubrik, och
+innehållet byts på plats. Chevronen sätts automatiskt av `undervy`; en
+handskriven `chevron` utan `undervy` är ett tomt löfte och stoppas av
+vakten. Aktivitetsflödet och inställningarna hör alltså hemma i menyn, som i
+SessionStudio, inte i egna sidor.
+
+### Plusset i toppraden, byggt ur modulerna (#168)
+
+**`OpsAppShell` tar `skapa`**: `{ handelse, arende, registreringar, lage,
+kataloger, onKlar }`. Plusset är en fylld rund accentknapp mellan `actions`
+och avataren, och trycket öppnar en popover med en platt lista: ramverkets
+rader "Ny händelse" och "Nytt ärende" först, sedan en rad per modul som
+registrerat ett skapa-formulär. Måtten är SessionStudios (`AppHeader.jsx`
+create-menyn): `w-56`, rader `px-4 py-2.5 gap-3`, ikon 18 px, `text-sm
+font-medium`, ikon och ord i accentfärg. `OpsPanelRow` får `accent` för
+exakt den raden; menyns vanliga rad är oförändrad. Valet öppnar formuläret i
+en `OpsModal`. `OpsSkapa` är nu bara listan; popovern och modalen är skalets.
+
+### Två nya regler i kanon
+
+**Regel 11:** en ramverksrelease är klar först när appens ompinnings-PR är
+öppnad med besked, i samma pass. **Regel 12:** ett ärende som citerar
+SessionStudio är klart först när PR:en bär en skärmbild av samma flöde sida
+vid sida med förebilden, tagen mot en byggd app, med en ärlig jämförelse.
+Konsumentrepon kör `node scripts/check-kanon.mjs --skriv`.
+
+### Övrigt
+
+`package-lock.json` låg kvar på 0.26.0 medan `package.json` sade 0.27.0;
+versionsbumpen skriver båda.
+
 ## 0.27.0
 
 ⛔ **Skalet nättare, som SessionStudio: rundningar, typografi, en meny, en
