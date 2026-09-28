@@ -57,11 +57,20 @@ if (!fs.existsSync(katalog)) {
  *     inte är, en katalog med EN rörlig undantagsikon bland stillbilder.
  *   - OpsShareChart.jsx: en beräknad cirkeldiagram-geometri (radie, vinkel,
  *     `strokeDasharray` ur data), inte en ikon. Ingen "märke" att duplicera.
+ *   - OpsInloggning.jsx (GoogleIkon, AppleIkon): Googles och Apples EGNA
+ *     varumärken, inte ramverkets ikonspråk. `icons.jsx` är uttryckligen
+ *     Lucide-omslag (se dess filhuvud), en katalog med EN generisk
+ *     glyfuppsättning; en trepunkts Google-logga och Apples äppelsilhuett är
+ *     motsatsen, exakta trademark-ritningar ingen annan källa har. Var och
+ *     en ritas EN gång, i den ENDA komponent som visar "Fortsätt med
+ *     Google/Apple" (#164, arkitektgranskningen); det är samma "inget att
+ *     duplicera"-skäl som KlockIkon fick, tillämpat på ett varumärke i
+ *     stället för en generisk symbol.
  *
  * Dyker ett fjärde `<svg>` upp i en fjärde fil utan en likadan rad här och i
  * koden: det ÄR ett fynd, lägg det inte tyst till i den här listan.
  */
-const UNDANTAG = new Set(["OpsActivity.jsx", "OpsSpinner.jsx", "OpsShareChart.jsx"]);
+const UNDANTAG = new Set(["OpsActivity.jsx", "OpsSpinner.jsx", "OpsShareChart.jsx", "OpsInloggning.jsx"]);
 
 /** @param {string} dir @returns {string[]} */
 function filer(dir) {
