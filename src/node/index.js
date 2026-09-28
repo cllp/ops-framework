@@ -91,3 +91,12 @@ export { SPRAK, RESERVSPRAK, byggNamn, text, arGammalNamn, saknadeSprak } from "
 export { KONFIGHANDELSER, byggKonfigandring, beskrivKonfigandring, createConfigLog } from "../lib/konfiglogg.js";
 export { kopplaBeteenden, beteendet } from "../lib/beteenden.js";
 export { createCatalogSource } from "../data/katalogkalla.js";
+
+/*
+ * ⛔ SEEDNINGEN VID `skapaGrupp` (#161, #162). Samma skäl som `uppdateraProfil`
+ * ovan: `skapaGrupp` kör med Admin SDK, utan skärm, och behöver kunna seeda
+ * en nyskapad grupps kataloger utan att själv känna `createCatalogSource`s
+ * konfiguration för var och en. Se `src/node/katalog.js` för signaturen och
+ * ett användningsexempel.
+ */
+export { seedaKataloger } from "./katalog.js";
