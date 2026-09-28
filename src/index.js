@@ -20,6 +20,9 @@ export { OpsCard } from "./components/OpsCard.jsx";
 export { OpsView, OpsViewHeader } from "./components/OpsView.jsx";
 export { OpsModal } from "./components/OpsModal.jsx";
 export { OpsDisclosure } from "./components/OpsDisclosure.jsx";
+// #157: sektionsrubrik och chip, mätta ur SessionStudios ProfileView.
+export { OpsSectionLabel } from "./components/OpsSectionLabel.jsx";
+export { OpsChip } from "./components/OpsChip.jsx";
 
 // ── Formulär ───────────────────────────────────────────────────────────────
 export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
@@ -83,10 +86,12 @@ export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
 export { createDataSource, applyQuery, OPERATIONS } from "./data/contract.js";
-export { createMemorySource, createJsonSource } from "./data/adapters.js";
+export { createMemorySource, createJsonSource, createMemoryStorage } from "./data/adapters.js";
+export { createStorageSource, STORAGE_OPERATIONS } from "./data/storage.js";
 export { createRoutingSource } from "./data/routing.js";
 export { OpsDataProvider, useDataSource, useCollection, useLiveCollection, useDocument } from "./data/useData.jsx";
 export { createFirestoreSource } from "./data/firestore.js";
+export { createFirebaseStorageSource } from "./data/firebaseStorage.js";
 export { createPostgresSource } from "./data/postgres.js";
 export { createHttpSource } from "./data/http.js";
 
@@ -167,8 +172,8 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som
  * körs utan skärm, och reglerna genereras av ett skript.
  */
-export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
-export { regelfragment, gruppadSamling, generateRules } from "./lib/regler.js";
+export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment } from "./lib/regler.js";
 
 /*
  * ⛔ GRUPPLÄGET OCH SAMMANSLAGNINGEN (#139). Besluten är rena funktioner och
@@ -190,3 +195,13 @@ export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
 export { createActivityLog, unreadCount, isUnread, unread, unreadRows, activityId, activityWindow, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";
+
+/*
+ * ⛔ #159: FELGRÄNSEN, LOGGPUNKTEN OCH KONTRAKTET. `rapporteraFel` är
+ * loggpunkten alla ytor kan använda (felgränsen i `OpsAppShell` gör det
+ * automatiskt). `Felmottagare`-kontraktet är bara en JSDoc-typedef och
+ * exporteras inte som ett värde, det finns ingenting att köra. En färdig
+ * mottagare (Sentry) ligger i en EGEN ingång, `@staiger/ops-framework/sentry`,
+ * så beroendet bara laddas av den app som väljer det. Se `src/sentry.js`.
+ */
+export { rapporteraFel } from "./lib/felrapport.js";

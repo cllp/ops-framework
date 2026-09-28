@@ -1,6 +1,6 @@
 {
   "name": "@staiger/ops-framework",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
@@ -14,6 +14,9 @@
     "./package.json": "./package.json",
     "./node": {
       "default": "./src/node/index.js"
+    },
+    "./sentry": {
+      "default": "./src/sentry.js"
     }
   },
   "files": [
@@ -30,8 +33,12 @@
     "*.css"
   ],
   "scripts": {
+    "generate:version": "node scripts/generate-framework-version.mjs",
+    "prebuild": "npm run generate:version",
+    "pretest": "npm run generate:version",
+    "precheck:types": "npm run generate:version",
     "build": "node scripts/build.mjs && npx tsc -p tsconfig.build.json",
-    "prepare": "node scripts/build.mjs && npx tsc -p tsconfig.build.json",
+    "prepare": "node scripts/generate-framework-version.mjs && node scripts/build.mjs && npx tsc -p tsconfig.build.json",
     "check:tokens": "node tokens/check-tokens.mjs tokens/tokens.css",
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",
@@ -65,6 +72,7 @@
     "check:gruppnyckel": "node scripts/check-gruppnyckel.mjs"
   },
   "peerDependencies": {
+    "@sentry/browser": ">=8",
     "lucide-react": "^0.460.0",
     "playwright": ">=1.40",
     "react": ">=18",
@@ -107,6 +115,9 @@
   },
   "peerDependenciesMeta": {
     "playwright": {
+      "optional": true
+    },
+    "@sentry/browser": {
       "optional": true
     }
   }

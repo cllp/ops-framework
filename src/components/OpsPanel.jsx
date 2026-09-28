@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { ChevronHogerIkon, ChevronVansterIkon, KryssIkon } from "./icons.jsx";
+import { ChevronHogerIkon, ChevronVansterIkon, ExternLankIkon, KryssIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 
 /**
@@ -99,10 +99,18 @@ import { OpsCountBadge } from "./counter.jsx";
  * @param {string} [props.badgeText] Vad antalet betyder, för skärmläsare.
  * @param {boolean} [props.chevron] Raden öppnar en undervy.
  * @param {() => void} [props.onClick]
- * @param {string} [props.href] Länk i stället för knapp.
+ * @param {string} [props.href] Länk i stället för knapp. Ritar en extern-länk-ikon
+ *   i stället för en chevron (#157, #158): en `href` lämnar den här panelen för
+ *   en annan adress, en chevron öppnar nästa vy i SAMMA panel. Aldrig båda.
  * @param {boolean} [props.active]
  */
 export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, href, active }) {
+  if (href && chevron) {
+    throw new Error(
+      "OpsPanelRow: \"href\" och \"chevron\" ihop. En rad med href lämnar appen och ritar en extern-länk-ikon; en rad med chevron öppnar en undervy i SAMMA panel. De är olika löften och kan inte båda hållas av en rad.",
+    );
+  }
+
   /* ⛔ SAMMA KLASSER SOM HAMBURGERMENYNS RADER i `OpsAppShell`. Panelen ska inte
      likna menyn ungefär, den ska vara densamma. Glider de isär ser en app ut att
      ha två olika menyer beroende på vad man tryckte på. */
@@ -133,12 +141,17 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
           <ChevronHogerIkon size={16} />
         </span>
       ) : null}
+      {href ? (
+        <span aria-hidden="true" className="flex shrink-0 items-center text-ink-muted">
+          <ExternLankIkon size={14} />
+        </span>
+      ) : null}
     </>
   );
 
   if (href) {
     return (
-      <a href={href} onClick={onClick} aria-current={active ? "page" : undefined} className={klass}>
+      <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} aria-current={active ? "page" : undefined} className={klass}>
         {inre}
       </a>
     );
@@ -310,8 +323,16 @@ export function OpsPanel({
     </div>
   ) : (
     <div className="flex flex-col gap-1">
-      {title ? <OpsPanelHeader title={title} action={action} /> : null}
-      <div className={cx("overflow-y-auto overscroll-contain", !smal && "max-h-[min(70vh,32rem)]", title && "px-2 pt-1 pb-2")}>
+      {/* ⛔ #158: INGEN EGEN RUBRIK PÅ ROTEN NÄR SHEETEN REDAN HAR EN. Detta
+          var bugen bakom "rubriken 'Aktivitet' stod två gånger" (mobil,
+          `OpsActivityButton`): sheeten nedan ritar redan `label` som sin egen
+          `Dialog.Title`, och roten här ritade SAMMA ord en gång till i sin
+          `OpsPanelHeader`, eftersom `title` och `label` oftast är samma text.
+          På bred skärm finns ingen annan synlig rubrik alls, så där behövs den.
+          `action` (t.ex. Rensa, ett filter) flyttar i sheeten till dialogens
+          egen rad, bredvid stängknappen, se nedan. */}
+      {title && !smal ? <OpsPanelHeader title={title} action={action} /> : null}
+      <div className={cx("overflow-y-auto overscroll-contain", !smal && "max-h-[min(70vh,32rem)]", title && !smal && "px-2 pt-1 pb-2")}>
         {children(nav)}
       </div>
     </div>
@@ -351,12 +372,20 @@ export function OpsPanel({
             */}
             <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
               <Dialog.Title className="m-0 text-md font-bold text-ink">{label}</Dialog.Title>
-              <Dialog.Close
-                aria-label={closeLabel}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                <KryssIkon size={20} />
-              </Dialog.Close>
+              <div className="flex shrink-0 items-center gap-0.5">
+                {/* ⛔ ROTENS `action` HAMNAR HÄR PÅ SMAL SKÄRM, se noten ovanför
+                    `OpsPanelHeader`-villkoret: roten har ingen egen rubrikrad
+                    i sheeten, så dess åtgärd behöver sheetens egen. En pushad
+                    undervy har kvar sin egen `OpsPanelHeader` och rör inte den
+                    här raden. */}
+                {!overst && action ? action : null}
+                <Dialog.Close
+                  aria-label={closeLabel}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <KryssIkon size={20} />
+                </Dialog.Close>
+              </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-1">{innehall}</div>
           </Dialog.Content>
@@ -381,6 +410,28 @@ export function OpsPanel({
           align={align}
           sideOffset={4}
           aria-label={label}
+          /* ⛔ #158: PANELEN FICK ALDRIG SES ÖPPEN NÄR DEN STYRDES FRÅN EN
+           * ANNAN, PRECIS STÄNGD, RADIX-YTA (t.ex. en rad i `OpsAnvandarmeny`
+           * som öppnar den här via `open`/`onOpenChange`). Mätt med Playwright
+           * i en riktig webbläsare, jsdom såg aldrig felet:
+           *
+           *   1. Menyns egen `Popover` stänger (dess rad kallade `onClick`).
+           *   2. Fokus, som satt på menyraden, försvinner med den ur DOM:en och
+           *      hamnar på `<body>`.
+           *   3. Den här panelen öppnas (`open` blir sant). Radix `onOpenAutoFocus`
+           *      försöker då flytta in fokus i innehållet, och samma ögonblick
+           *      läser `DismissableLayer` `<body>` som "fokus utanför" och
+           *      stänger panelen igen, cirka 10-15 ms efter att den öppnats.
+           *
+           * Symptomet var tyst: `onOpenChange` kallades med `true` och sedan
+           * omedelbart med `false`, appens state stämde med det ramverket bad
+           * om, och panelen syntes ändå aldrig. `onOpenAutoFocus` och
+           * `onFocusOutside` avstyrs därför här: `onPointerDownOutside` (en
+           * riktig klick utanför) rörs INTE, så "klicka bredvid för att stänga"
+           * fungerar precis som förut.
+           */
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
           /* ⛔ SAMMA YTA SOM HEADERMENYN: rundad, `bg-raised`, tunn linje, mjuk
              skugga.
              ⛔ `isolate` GER PANELEN EGEN STAPLINGSKONTEXT, så inget i en rad

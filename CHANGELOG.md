@@ -9,6 +9,168 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.26.0
+
+⛔ **SessionStudios profil: typsnitt, användarmeny, versionsrad, och en
+aktivitetspanel som ser ut som förebilden.** CP, efter att ha lagt bolag-ops
+och SessionStudio sida vid sida: "sessionstudios typsnitt är bättre än ops
+framework. Jag vill följa sessionstudios profil exakt." Två ärenden, samma
+dag, samma spår: [#157](https://github.com/cllp/ops-framework/issues/157) och
+[#158](https://github.com/cllp/ops-framework/issues/158).
+
+### Typsnitt, användarmeny och versionsrad ([#157](https://github.com/cllp/ops-framework/issues/157))
+
+**Plus Jakarta Sans i stället för Inter.** `--font-sans` byter till
+SessionStudios typsnitt, med samma systemstack men UTAN Inter kvar som
+reserv: två typsnitt är två sanningar. Hämtningen flyttar som förut i
+`create-ops-app/template/index.html`, `check-fonts.mjs` vaktar det nya
+namnet. `--font-mono` hade redan SessionStudios kedja.
+
+**`OpsAnvandarmeny` får SessionStudios form:** en rubrik ("Meny"), sektioner
+skilda med linjer, ikon per rad, en chevron på rader som öppnar en panel, en
+extern-länk-ikon på rader som lämnar appen, Logga ut i sin egen sektion, och
+en dämpad versionsrad sist. Vilka rader som finns bestämmer appen via en ny
+`sektioner`-prop (en lista rader, samma primitiv, `OpsPanelRow`, som notis-
+och aktivitetspanelerna redan ritar med); formen bestämmer ramverket.
+
+**Versionsraden bär två versioner:** `bolag-ops v1.4.2 · ops-framework
+v0.26.0`. Ramverkets tal kommer ur en konstant som skrivs vid bygget ur
+`package.json` (`scripts/generate-framework-version.mjs`, git-ignorerad
+utfil), aldrig en handskriven kopia. Appens version är en prop; saknas den
+skrivs raden ändå, med ramverkets ensam.
+
+**Två nya primitiver**, mätta ur SessionStudios `ProfileView.jsx`:
+`OpsSectionLabel` (sektionsrubrik, liten versal, spärrad, accentfärg) och
+`OpsChip` (ett val i pillform, med ikon och ett valt läge).
+
+**Kortens luft blir ett token.** `--card-padding: 20px` ersätter `OpsCard`s
+hårdkodade `p-4`, mätt mot SessionStudios `p-5`. Mörkrets skuggalfa
+(0.35/0.45/0.55, plus ett eget offset på `shadow-lg`) rättas till
+SessionStudios exakta tal (0.3/0.4/0.5, `0 4px 16px` överallt).
+
+⛔ **`tokens/check-tokens.mjs` fick en åttonde regel:** röd om en palettfärg
+glider från SessionStudios värden, med paletten inskriven som fixtur och
+skälet utskrivet. Paletten visade sig redan vara densamma, tecken för
+tecken; regeln håller den så framåt.
+
+### Aktivitet och notiser som i SessionStudio ([#158](https://github.com/cllp/ops-framework/issues/158))
+
+CP, mobilskärmbild: "I mobile ops står Aktivitet två gånger [...]. Filter
+högerställt och fult. [...] med en chevron down (expand) för detalj eftersom
+notisen inte leder någonstans om det inte är en länk."
+
+- **Rubriken stod två gånger på mobil.** Rotorsaken satt i `OpsPanel.jsx`:
+  roten ritade sin egen rubrik OVANPÅ sheetens egen `Dialog.Title`, med
+  samma ord. Roten ritar nu ingen egen rubrik på smal skärm.
+- **"Ny" var en pill, är nu en punkt**, med ordet kvar för skärmläsaren
+  (`sr-only`).
+- **Raden bytte förut vy. Nu fäller en chevron ut `OpsActivityDetail` PÅ
+  PLATS**, under raden, och listan blir kvar. En länk-knapp ritas bara när
+  händelsen bär en `lank`.
+- **Filtren låg ovanför listan, högerställda. De ligger nu bakom en
+  filterknapp** i huvudet, och "Rensa" flyttade till en trepunktsmeny
+  bredvid den. Ingendera syns förrän man tryckt på sin knapp.
+- **Grupperingens ord rättades**: "I går" → "Igår", "Senaste veckan" →
+  "Denna vecka".
+
+Datamodellen och läsmarkeringen (`lasning`, `onSeen`, `onRead`) är
+oförändrade: det här ärendet är ytan, inte källan. `OpsActivityButton` fick
+`open`/`onOpenChange`/`renderTrigger`, så panelen går att nå från en rad i
+`OpsAnvandarmeny` i stället för bara från sin egen klocka.
+
+⛔ **Mätt i en riktig webbläsare, inte i jsdom:** att öppna panelen från en
+rad i en ANNAN, just stängd, Radix-yta gjorde att panelen stängde sig själv
+igen inom 10-15 ms. Fokus, som satt på menyraden, hamnade på `<body>` när
+menyn stängdes, och `OpsPanel`s `DismissableLayer` läste det som "fokus
+utanför". `onOpenAutoFocus`/`onFocusOutside` avstyrs nu på panelens
+rullgardin; ett riktigt klick utanför stänger fortfarande som förut.
+
+**Granskningsrättelse:** `handelse.lank` ({ href, etikett }) skrevs och
+lästes utan att formen någonsin kontrollerades. `createActivityLog` avvisar
+nu en `lank` vars `href` inte är https eller en relativ sökväg, eller vars
+`etikett` är tom. `ACTIVITY_SECTIONS` bar dessutom fyra hårdkodade svenska
+ord trots epikens princip om tvåspråkigt från dag ett (#109); etiketterna är
+nu `{ sv, en }` och `OpsActivityList`/`OpsActivityButton` tar emot en
+`sprak`-prop, precis som `OpsProfil`.
+
+### Profilen som i SessionStudio ([#156](https://github.com/cllp/ops-framework/issues/156))
+
+CP: "vill ha profil precis som SessionStudio." Mätt mot SessionStudios
+`ProfileView.jsx`: bild, namn, telefon, stad, presentation och länkar är
+fält varje app med människor behöver, alltså ramverkets. Det kreativa
+(discipliner, roller, instrument) är SessionStudios egna begrepp och hör
+INTE hit, se `OpsProfil`s nya `children`-slot.
+
+**`users` växer med fem fält** (`ANVANDARFALT`, `byggAnvandare` i
+`src/lib/grupp.js`): `telefon` (E.164 eller tom sträng), `stad`,
+`presentation` (max `MAX_PRESENTATION`, 500 tecken), `lankar` (lista av
+`{ plattform, url }`, plattformen måste finnas i den lista appen skickar in,
+url måste vara https) och `bildSokvag` (lagringssökvägen, så bilden går att
+ta bort). Alla tomma strängar/listor när de saknas, aldrig utelämnade fält.
+
+**Namn och bild blir redigerbara av personen själv.** `sparaInstallningar`
+tar nu emot alla `PERSONFALT`, inte bara språk och tema. En namn- eller
+bildändring når däremot inte automatiskt medlemslistorna:
+`memberships` skrivs aldrig av en klient (#136), så en ny nodfunktion,
+`uppdateraProfil({ kalla, uid, andring })` (`@staiger/ops-framework/node`),
+skriver `users` OCH alla medlemskap för `uid` i samma steg. Appen anropar
+den, via en server-callable, när `onSpara` ser namn eller bild i andringen.
+
+**Ramverkets första Storage-yta**, bredvid `kalla`: `createStorageSource`
+(kontraktet), `createMemoryStorage` (för prov), `createFirebaseStorageSource`
+(mot Firebase Storage, ramverket importerar ingen Firebase-SDK) och
+`lagringsregelfragment({ prefix })` (bara sin egen sökväg, bara bilder,
+2 MB tak). `OpsProfil` fungerar utan en `lagring`-prop: Profilbild-sektionens
+knappar döljs då helt, ramverket kräver inte Storage.
+
+**`regelfragment()`s `users`-block fick en `keys().hasOnly`**, exakt
+`ANVANDARFALT`, splittad i `allow read, delete` och `allow create, update`
+(`request.resource` finns bara på det senare). `check-gruppnyckel.mjs`
+vaktar att `ANVANDARFALT` och `hasOnly`-listan inte glider isär.
+
+**`OpsProfil` får tre nya sektioner**, byggda med `OpsSectionLabel`,
+`OpsChip` och `OpsCard`: Profilbild (ladda upp, ta bort, återställ från
+inloggningen), Personuppgifter (namn, telefon, stad, presentation) och
+Länkar (plattform ur appens lista + url). En `children`-slot sist, för
+appens egna sektioner.
+
+⛔ **Storage-emulatorprov finns inte ännu.** `lagringsregelfragment` provas
+som text, inte mot en riktig Storage-emulator: `rules/__tests__/` kör bara
+Firestore-emulatorn i dag.
+
+### Felrapportering: felgräns, loggpunkt, Sentry som valfri mottagare ([#159](https://github.com/cllp/ops-framework/issues/159))
+
+CP: "Skall Sentry vara default eller optional i framework?" Beslut, CP:s
+svar "Allt perfekt": **valfritt, men färdigkopplat.**
+
+**`OpsAppShell` har nu en felgräns som alltid är på**, ingen prop stänger
+av den. Ett kastat fel ger en felyta med ett sexteckens id och en
+Ladda om-knapp, aldrig en vit sida.
+
+**En ny loggpunkt**, `rapporteraFel(fel, sammanhang, felmottagare)`
+(`src/lib/felrapport.js`): skriver ALLTID till `console.error`, oavsett
+mottagare eller miljö, och vidarebefordrar till `felmottagare.fanga` när en
+sådan finns. Kastar aldrig, ett fel i mottagaren fångas och loggas separat.
+
+**Ett kontrakt för mottagare**, `{ fanga, satt }`. `OpsAppShell` kallar
+`fanga` från felgränsen. `OpsAuthProvider` (nu med en `felmottagare`-prop)
+kallar `satt({ uid, groupId })` vid varje inloggningsbyte och `satt(null)`
+vid utloggning, aldrig med e-post.
+
+**En färdig Sentry-mottagare**, i en egen, obundlad ingång:
+`@staiger/ops-framework/sentry`, `sentryMottagare({ dsn, miljo, version })`.
+`@sentry/browser` bara laddas av den app som skriver raden;
+`check-paket.mjs` bevisar att ramverkets `dist/index.js` aldrig nämner
+Sentry. `@sentry/browser` är en `peerDependency`, `optional: true`, aldrig
+en `dependency`.
+
+**Scaffold-mallen** (`create-ops-app`): den handrullade
+`src/lib/ErrorBoundary.jsx` togs bort, den dupplicerade nu exakt det
+`OpsAppShell` gör åt alla. `App.jsx` har en utkommenterad rad för Sentry med
+skälet till att den är av som förval.
+
+---
+
 ## 0.25.0
 
 ⛔ **Fas 2.5 i sin helhet: ramverket vet nu vems rad en rad är.**

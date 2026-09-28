@@ -100,6 +100,36 @@ granskaIngang(paket.exports, "exports");
 if (paket.types) granskaIngang(paket.types, "types");
 if (paket.main) granskaIngang(paket.main, "main");
 
+// ── 2b. Sentry hamnar ALDRIG i huvudbundlen (#159) ────────────────────────
+//
+// ⛔ VALFRITT, MEN FÄRDIGKOPPLAT (CP:s beslut, #159). En app som aldrig
+// skriver `sentryMottagare(...)` ska inte betala för `@sentry/browser` i sin
+// bundle. Det bevisas här på två sätt, och bara det ANDRA räcker som riktigt
+// bevis: det första är billigt och kör i --struktur, det andra körs bara när
+// `dist/` faktiskt finns (alltså efter `npm run build`, som `npm run check`
+// alltid kör före den här vakten).
+{
+  // ⛔ `src/index.js` FINNS INTE I VARJE FIXTUR test-guards.mjs bygger (de
+  // provar bara `exports`/`files`-formen, med en tom `dist/`). Utan den här
+  // kontrollen kraschar vakten på ENOENT mot en fixtur som aldrig påstod sig
+  // ha en källkatalog, och en krasch är inte samma sak som ett fel i formen.
+  const indexvag = path.join(paketrot, "src", "index.js");
+  if (fs.existsSync(indexvag)) {
+    const indexKalla = fs.readFileSync(indexvag, "utf8");
+    if (/from\s+["']\.\/sentry\.js["']/.test(indexKalla)) {
+      fel.push("src/index.js importerar ./sentry.js. Huvudingången buntas för webbläsaren; en import där drar in @sentry/browser i VARJE apps bundle, oavsett om den använder Sentry.");
+    }
+  }
+
+  const distVag = path.join(paketrot, "dist", "index.js");
+  if (fs.existsSync(distVag)) {
+    const bundle = fs.readFileSync(distVag, "utf8");
+    if (/sentry/i.test(bundle)) {
+      fel.push(`${path.relative(paketrot, distVag)} nämner "sentry". Bundlen som varje app får ska vara identisk oavsett om appen valt Sentry eller inte.`);
+    }
+  }
+}
+
 // ── 3. Inget i `files` får saknas på disk ─────────────────────────────────
 for (const f of listade) {
   const full = path.join(paketrot, String(f).replace(/\/$/, ""));

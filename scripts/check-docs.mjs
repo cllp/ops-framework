@@ -89,7 +89,7 @@ for (const vakt of vakter) {
 // avsnitt med källornas form, och #131 lägger till exempelmodulen. En
 // hårdkodad enstaka sträng hade blivit en rad någon kopierar i stället för en
 // rad någon fyller på.
-const AVSNITT = ["Modulkontraktet", "Grupper och medlemskap", "Inloggning och profil"];
+const AVSNITT = ["Modulkontraktet", "Grupper och medlemskap", "Inloggning och profil", "Felrapportering"];
 
 for (const avsnitt of AVSNITT) {
   if (!new RegExp(`^#{2,4} .*${avsnitt}`, "m").test(readme)) {
@@ -108,6 +108,19 @@ if (!pastatt) {
   brott.push('README saknar en rad på formen "**N komponenter**". Utan den kan antalet inte kontrolleras och hinner glida.');
 } else if (Number(pastatt[1]) !== komponenter) {
   brott.push(`README påstår ${pastatt[1]} komponenter, men ${komponenter} exporteras. En siffra i en text åldras snabbast av allt.`);
+}
+
+// ── Sentry-ingången (#159), som utlovade INTE ser ───────────────────────────
+//
+// ⛔ `@staiger/ops-framework/sentry` ÄR EN EGEN INGÅNG, src/sentry.js, som
+// varken ligger i src/index.js eller src/node/index.js. Ingen av de andra
+// kontrollerna ovan ser den. Utan en egen rad hade den kunnat glömmas bort
+// helt, dokumentationslöst, trots att den är en publik del av paketets API.
+const SENTRY_STRANGAR = ["@staiger/ops-framework/sentry", "sentryMottagare", "felmottagare"];
+for (const strang of SENTRY_STRANGAR) {
+  if (!readme.includes(strang)) {
+    brott.push(`README nämner inte "${strang}". Sentry-ingången (src/sentry.js, #159) syns inte i den andra kontrollen ovan: den ligger varken i src/index.js eller src/node/index.js.`);
+  }
 }
 
 if (brott.length === 0) {

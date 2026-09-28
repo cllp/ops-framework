@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Component, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { OpsBrand } from "./OpsBrand.jsx";
@@ -6,6 +6,74 @@ import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
 import { ChevronNedIkon, MenuIcon } from "./icons.jsx";
+import { rapporteraFel } from "../lib/felrapport.js";
+import { OpsButton } from "./OpsButton.jsx";
+
+/**
+ * Felgränsen: alltid på, och en app kan inte stänga av den (#159).
+ *
+ * ══ ⛔ "ALLTID PÅ" ÄR DET SOM SKILJER DEN HÄR FRÅN VARJE ANNAN PRIMITIV ═══
+ *
+ * Varje annan komponent i ramverket är något en app VÄLJER att lägga in.
+ * Felgränsen är motsatsen: den finns i `OpsAppShell` utan en prop som slår av
+ * den, av samma skäl som arbetsreglernas punkt 5 säger att tomhet är ett svar
+ * och inte en utelämnad rubrik. Ett fält i en vy som kastar ska ge en felyta
+ * med ett id och en knapp för att ladda om, ALDRIG en vit sida: en vit sida
+ * ser ut som att ingenting hände, och den som möter den vet inte om appen
+ * laddar, hängt sig, eller är trasig.
+ *
+ * ⛔ EN KLASS, INTE EN HOOK. React har (ännu) inget hook-API för
+ * `componentDidCatch`/`getDerivedStateFromError`, en gräns MÅSTE vara en
+ * klasskomponent. Det är inte en stilfråga, det är den enda mekanism React
+ * ger.
+ *
+ * ⛔ FELET RAPPORTERAS I `componentDidCatch`, INTE I `render`. `render` kan
+ * anropas flera gånger av React (t.ex. i StrictMode, dubbelt i utveckling)
+ * utan att felet faktiskt hänt flera gånger, och en loggpunkt som körs i
+ * render hade räknat samma fel två gånger på en rad som aldrig var trasig.
+ *
+ * ⛔ ID:T ÄR FÖR PERSONEN, INTE FÖR SPÅRNING. Ett kastat fel ser likadant ut
+ * som "appen laddar för evigt" för den som möter det. Ett kort id (skrivet
+ * med versaler och siffror, sex tecken) ger personen något att säga eller
+ * skriva ned när hen hör av sig, utan att kräva att hen läser en hel
+ * stackspårning högt i telefon.
+ */
+class OpsFelgrans extends Component {
+  /** @param {{ felmottagare?: import("../lib/felrapport.js").Felmottagare | null, children: import("react").ReactNode, laddaOmEtikett: string, rubrik: string, beskrivning: string }} props */
+  constructor(props) {
+    super(props);
+    this.state = /** @type {{ fel: unknown, id: string } | { fel: null }} */ ({ fel: null });
+  }
+
+  /** @param {unknown} fel */
+  static getDerivedStateFromError(fel) {
+    // ⛔ ID:T SÄTTS HÄR OCH INTE I componentDidCatch: getDerivedStateFromError
+    // körs FÖRE render, så felytan har sitt id från första målningen.
+    return { fel, id: Math.random().toString(36).slice(2, 8).toUpperCase() };
+  }
+
+  /** @param {unknown} fel @param {{ componentStack?: string }} info */
+  componentDidCatch(fel, info) {
+    rapporteraFel(fel, { komponentstack: info?.componentStack, id: /** @type {any} */ (this.state).id }, this.props.felmottagare);
+  }
+
+  render() {
+    if (this.state.fel) {
+      const id = /** @type {any} */ (this.state).id;
+      return (
+        <div role="alert" className="flex min-h-svh flex-col items-center justify-center gap-3 bg-canvas p-6 text-center">
+          <p className="m-0 text-lg font-semibold text-ink">{this.props.rubrik}</p>
+          <p className="m-0 max-w-prose text-ink-secondary">{this.props.beskrivning}</p>
+          <p className="m-0 font-mono text-sm text-ink-muted">{id}</p>
+          <OpsButton variant="primary" onClick={() => globalThis.location?.reload()}>
+            {this.props.laddaOmEtikett}
+          </OpsButton>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /**
  * En post i toppraden. Med `children` en riktig meny, utan dem en länk.
@@ -218,6 +286,11 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @param {import("react").ReactNode} [props.menuExtras] Extra rader/kontroller i
  *   Mer-menyn (header-hamburgare och botten-Meny). Typiskt tema och helskärm, så
  *   åtgärdsklustret i headern kan hållas till primära ikoner.
+ * @param {import("../lib/felrapport.js").Felmottagare} [props.felmottagare] (#159) Kallas från felgränsen när en vy
+ *   kastar. Utan den skrivs felet ändå till konsolen, se `rapporteraFel`: felgränsen går inte att stänga av.
+ * @param {string} [props.felRubrik] Rubriken på felytan.
+ * @param {string} [props.felBeskrivning]
+ * @param {string} [props.laddaOmEtikett]
  * @param {import("react").ReactNode} props.children
  */
 export function OpsAppShell({
@@ -241,6 +314,10 @@ export function OpsAppShell({
   badgeText = "nya",
   bottomNavLabel = "Snabbnavigering",
   menuExtras,
+  felmottagare,
+  felRubrik = "Något gick fel",
+  felBeskrivning = "Sidan gick sönder. Ladda om för att försöka igen.",
+  laddaOmEtikett = "Ladda om",
   children,
 }) {
   validateNav(nav, "OpsAppShell");
@@ -520,7 +597,12 @@ export function OpsAppShell({
       {/* `padding-bottom` lika med bottenradens höjd plus säker yta, men bara
           under md där baren finns. Utan den ligger sista kortet under baren, och
           det upptäcks först när någon inte hittar sin sista rad. */}
-      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">{children}</main>
+      <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">
+        {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
+        <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
+          {children}
+        </OpsFelgrans>
+      </main>
 
       {/* ⛔ Botten-Mer speglar header-Mer, men får inte börja senare än barens
           tak. Med primaryAction rymmer baren 3 (OpsBottomNav); om smaltTak är 4

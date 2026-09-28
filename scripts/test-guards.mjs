@@ -144,6 +144,21 @@ kravRott(
   "skriver över tomhet",
 );
 
+// ⛔ #157, Regel 8: paletten delas med SessionStudio med flit. Två mutationer,
+// en per tema, eftersom ljust och mörkt läses ur olika delar av filen och en
+// vakt som bara provats i det ena hade kunnat läsa fel i det andra utan att
+// någon märkt det.
+kravRott(
+  "tokens 8a: ljus accent glider från SessionStudios palett",
+  [tokenvakt, tokenkopia("r8a", (s) => s.replace("--color-accent: #9a9588;", "--color-accent: #a0a0a0;"))],
+  "SessionStudios palett",
+);
+kravRott(
+  "tokens 8b: mörk accent glider från SessionStudios palett",
+  [tokenvakt, tokenkopia("r8b", (s) => s.replace("--dark-accent: #e8e0d0;", "--dark-accent: #c9a84c;"))],
+  "SessionStudios palett",
+);
+
 // ── Vakten för det stängda API:et ───────────────────────────────────────────
 const apivakt = "scripts/check-closed-api.mjs";
 
@@ -729,9 +744,9 @@ kravRott(
   };
 
   kravRott(
-    "typsnitt 2: mallen slutar hämta Inter",
+    "typsnitt 2: mallen slutar hämta Plus Jakarta Sans",
     [typsnittsvakt, "tokens/tokens.css", mallkopia("ty2", (s) => s.replace(/<link\s+rel="stylesheet"[\s\S]*?\/>/, ""))],
-    'saknar <link rel="stylesheet"> för Inter',
+    'saknar <link rel="stylesheet"> för Plus Jakarta Sans',
   );
 
   kravRott(
@@ -1050,6 +1065,21 @@ kravRott(
 
   kravGront("paket 5: ramverkets eget manifest är grönt", [paketvakt, rot, "--struktur"]);
   kravRott("paket golv: fel sökväg", [paketvakt, path.join(arbetsmapp, "finns-inte"), "--struktur"], "finns inte");
+
+  // ⛔ #159: SENTRY FÅR ALDRIG NÅ HUVUDBUNDLEN. Två sätt att bryta det, och
+  // båda ska fällas: en import i källan, eller ordet i den byggda filen.
+  {
+    const mappA = paketrot("sentry-import", HEL);
+    fs.mkdirSync(path.join(mappA, "src"), { recursive: true });
+    fs.writeFileSync(path.join(mappA, "src", "index.js"), 'export { sentryMottagare } from "./sentry.js";\n');
+    kravRott("paket: src/index.js importerar sentry.js", [paketvakt, mappA, "--struktur"], "importerar ./sentry.js");
+  }
+
+  {
+    const mappB = paketrot("sentry-bundlad", HEL);
+    fs.writeFileSync(path.join(mappB, "dist", "index.js"), '// @sentry/browser råkade hamna här\n');
+    kravRott("paket: dist/index.js nämner sentry", [paketvakt, mappB, "--struktur"], 'nämner "sentry"');
+  }
 }
 
 /*
@@ -1295,6 +1325,29 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     "gruppnyckel golv: regeln slutar slå upp medlemskapet",
     [nyckelvakt, libkopia("gn3", (k) => k.replace(/opsArMedlem/g, "opsNagon"), "regler.js")],
     "mäter resten av vakten ingenting",
+  );
+
+  // ⛔ #156: hasOnly ÄR HÄRLEDD UR ANVANDARFALT (regler.js importerar den ur
+  // grupp.js), så en ändring av ANVANDARFALT ensam kan inte längre få dem
+  // att glida isär. Det som KAN hända är att någon skriver om härledningen
+  // till en handskriven lista igen och glömmer ett fält, precis som en ren
+  // kopia hade gjort. Provet simulerar det: den härledda raden i regler.js
+  // ersätts med en hårdkodad, ofullständig lista.
+  kravRott(
+    "gruppnyckel: users-regelns hasOnly hårdkodad och ofullständig",
+    [
+      nyckelvakt,
+      libkopia(
+        "gn4",
+        (k) =>
+          k.replace(
+            'request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}])',
+            'request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar"])',
+          ),
+        "regler.js",
+      ),
+    ],
+    'saknar fältet "bildSokvag"',
   );
 
   kravRott("gruppnyckel golv: fel sökväg", [nyckelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");

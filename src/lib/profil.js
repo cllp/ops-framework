@@ -19,15 +19,38 @@
  * eget id ERSÄTTER posten, ordagrant enligt datalagrets kontrakt, så ett
  * ovillkorligt anrop hade varit exakt den överskrivningen.
  *
- * ══ ⛔ NAMN OCH BILD UPPDATERAS INTE HELLER ═══════════════════════════
+ * ══ ⛔ NAMN OCH BILD UPPDATERAS INTE AV INLOGGNINGEN ═══════════════════
  *
  * Frestande, eftersom de kommer ur inloggningen och kan ha ändrats där. Men då
  * är raden inte längre personens egen: den som redigerar sitt namn i appen får
  * det överskrivet nästa gång hen loggar in, utan att något sa till. En
  * uppdatering av namnet är en egen åtgärd, inte en bieffekt av att öppna appen.
+ *
+ * ⛔ #156: DEN EGNA ÅTGÄRDEN FINNS NU, OCH DET ÄR `sparaInstallningar`.
+ * Personen kan själv ändra namn, bild, telefon, stad, presentation och länkar,
+ * precis som hon redan kan ändra språk och tema. Det som ändras HÄR är att
+ * `sparaInstallningar` skriver till FLER fält, inte att raden plötsligt
+ * skrivs om av något appen inte bad om.
+ *
+ * ⛔ MEN `sparaInstallningar` SKRIVER BARA `users/{uid}`. En ändring av namn
+ * eller bild lämnar sina denormaliserade kopior i `memberships` (#138)
+ * oförändrade, av samma skäl som klienten aldrig får skriva den samlingen
+ * alls (#136): `allow write: if false`. Den app som vill hålla
+ * medlemslistorna i takt anropar EFTERÅT en server-callable byggd på
+ * `uppdateraProfil` (`@staiger/ops-framework/node`), som skriver users OCH
+ * alla medlemskap för uid i samma steg. Utan det anropet gäller samma
+ * ärvda eftersläpning som redan stod här: ett namn i medlemslistan kan bli
+ * inaktuellt, precis som det redan kunde bli mot Google.
  */
 
 import { byggAnvandare } from "./grupp.js";
+
+/**
+ * Fälten personen själv äger på sin rad. `id` och `epost` är INTE med: `id`
+ * är nyckeln, och `epost` är identiteten och kommer ur inloggningen (se
+ * filhuvudet i `grupp.js`).
+ */
+const PERSONFALT = ["sprak", "tema", "namn", "telefon", "stad", "presentation", "lankar", "bild", "bildSokvag"];
 
 /**
  * @typedef {object} Inloggad
@@ -80,30 +103,41 @@ export async function sakerstallAnvandare({ kalla, inloggad, samling = "users" }
 }
 
 /**
- * Sparar det personen själv ändrar: språk och tema.
+ * Sparar det personen själv ändrar: språk, tema, namn, bild, telefon, stad,
+ * presentation och länkar.
  *
- * ⛔ BARA DE TVÅ. E-posten är identiteten och kommer ur inloggningen, och namn
- * och bild hör till en egen åtgärd. En funktion som tar emot vad som helst blir
- * vägen runt de gränserna.
+ * ⛔ BARA DE ÅTTA (`PERSONFALT`). E-posten är identiteten och kommer ur
+ * inloggningen, den ändras aldrig här. En funktion som tar emot vad som helst
+ * blir vägen runt den gränsen.
+ *
+ * ⛔ #156: NAMN OCH BILD FICK SÄLLSKAP AV SEX FÄLT TILL. Skriver `andring`
+ * `namn` eller `bild` uppdateras BARA `users/{uid}` här. `memberships` bär
+ * denormaliserade kopior (#138) och skrivs aldrig av en klient (#136), se
+ * filhuvudets not om `uppdateraProfil`.
  *
  * @param {object} config
  * @param {import("../data/contract.js").DataSource<any>} config.kalla
  * @param {import("./grupp.js").Anvandare} config.anvandare
- * @param {{ sprak?: string, tema?: string }} config.andring
+ * @param {{ sprak?: string, tema?: string, namn?: string, telefon?: string, stad?: string, presentation?: string, lankar?: { plattform: string, url: string }[], bild?: string, bildSokvag?: string }} config.andring
  * @param {string} [config.samling]
+ * @param {ReadonlyArray<{ id: string }> | ReadonlyArray<string>} [config.tillatnaPlattformar] Vidarebefordras till `byggAnvandare` för `lankar`.
  * @returns {Promise<import("./grupp.js").Anvandare>}
  */
-export async function sparaInstallningar({ kalla, anvandare, andring, samling = "users" }) {
-  const okanda = Object.keys(andring || {}).filter((n) => n !== "sprak" && n !== "tema");
+export async function sparaInstallningar({ kalla, anvandare, andring, samling = "users", tillatnaPlattformar }) {
+  const okanda = Object.keys(andring || {}).filter((n) => !PERSONFALT.includes(n));
   if (okanda.length > 0) {
     throw new Error(
-      `sparaInstallningar: fälten ${okanda.join(", ")} går inte att spara här. Bara sprak och tema är personens egna. E-posten är identiteten, och namn och bild hör till en egen åtgärd.`,
+      `sparaInstallningar: fälten ${okanda.join(", ")} går inte att spara här. Personens egna fält är ${PERSONFALT.join(", ")}. E-posten är identiteten och kommer ur inloggningen.`,
     );
   }
-  // ⛔ Validerad FÖRE skrivningen. Ett okänt språk som skrivs och valideras vid
-  // nästa läsning är en rad som gör appen ostartbar för den som skrev den.
-  const nasta = byggAnvandare({ ...anvandare, ...andring });
-  await kalla.update(samling, anvandare.id, { sprak: nasta.sprak, tema: nasta.tema });
+  // ⛔ Validerad FÖRE skrivningen. Ett okänt språk eller en trasig länk som
+  // skrivs och valideras vid nästa läsning är en rad som gör appen ostartbar
+  // för den som skrev den.
+  const nasta = byggAnvandare({ ...anvandare, ...andring }, tillatnaPlattformar);
+  /** @type {Record<string, any>} */
+  const skriv = {};
+  for (const falt of PERSONFALT) skriv[falt] = nasta[/** @type {keyof import("./grupp.js").Anvandare} */ (falt)];
+  await kalla.update(samling, anvandare.id, skriv);
   return nasta;
 }
 
@@ -122,12 +156,32 @@ export async function sparaInstallningar({ kalla, anvandare, andring, samling = 
  * här, där ett prov kan se det. Det är samma val som `simulera()` i appen och
  * `caseStatus` i händelselistan.
  *
+ * ⛔ #156: BROTT UT ÖVER ALLA `PERSONFALT`, INTE BARA SPRÅK OCH TEMA. Samma
+ * skäl som förut, fast nu för fler fält: `OpsChip` (plattformsval) och
+ * `OpsField`/textarea för namn/telefon/stad/presentation går att driva med
+ * `fireEvent.change`, men beslutet om VAD SOM RÄKNAS SOM ÄNDRAT och vad som
+ * skickas vidare ska ändå avgöras på ett ställe ett prov kan se, inte
+ * upprepas i varje vy som visar en profil.
+ *
+ * ⛔ `lankar` JÄMFÖRS SOM VÄRDE, INTE SOM REFERENS. Två listor med samma
+ * innehåll i samma ordning är inte "ändrade" bara för att den ena är en ny
+ * array. `JSON.stringify` räcker: `lankar` är alltid `{ plattform, url }`,
+ * alltså platt data utan datum eller annat som kodas olika mellan varv.
+ *
  * @param {import("./grupp.js").Anvandare} anvandare Den sparade raden.
- * @param {{ sprak?: string, tema?: string }} utkast Det vyn just nu visar.
- * @returns {{ andrat: boolean, andring: { sprak: string, tema: string } }}
+ * @param {Partial<Record<typeof PERSONFALT[number], any>>} utkast Det vyn just nu visar.
+ * @returns {{ andrat: boolean, andring: Record<typeof PERSONFALT[number], any> }}
  */
 export function andringen(anvandare, utkast = {}) {
-  const sprak = utkast.sprak ?? anvandare.sprak;
-  const tema = utkast.tema ?? anvandare.tema;
-  return { andrat: sprak !== anvandare.sprak || tema !== anvandare.tema, andring: { sprak, tema } };
+  /** @type {Record<string, any>} */
+  const andring = {};
+  let andrat = false;
+  for (const falt of PERSONFALT) {
+    const varde = /** @type {any} */ (utkast)[falt] ?? /** @type {any} */ (anvandare)[falt];
+    andring[falt] = varde;
+    const sparat = /** @type {any} */ (anvandare)[falt];
+    const olika = falt === "lankar" ? JSON.stringify(varde ?? []) !== JSON.stringify(sparat ?? []) : varde !== sparat;
+    if (olika) andrat = true;
+  }
+  return { andrat, andring: /** @type {any} */ (andring) };
 }

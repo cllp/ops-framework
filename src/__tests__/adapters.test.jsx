@@ -263,4 +263,55 @@ describe("inloggning", () => {
     );
     await waitFor(() => expect(screen.getByText(/inte tillgång/)).toBeInTheDocument());
   });
+
+  // ══ #159: felmottagare.satt vid inloggning ══════════════════════════════
+  describe("#159: felmottagare.satt", () => {
+    it("kallas med uid när någon loggar in", async () => {
+      const satt = vi.fn();
+      render(
+        <OpsAuthProvider authentication={fakeAuth({ id: "u1" })} felmottagare={{ fanga: vi.fn(), satt }}>
+          <p>klar</p>
+        </OpsAuthProvider>,
+      );
+      await waitFor(() => expect(satt).toHaveBeenCalledWith({ uid: "u1", groupId: undefined }));
+    });
+
+    it("kallas med null vid utloggning", async () => {
+      const satt = vi.fn();
+      render(
+        <OpsAuthProvider authentication={fakeAuth(null)} felmottagare={{ fanga: vi.fn(), satt }}>
+          <p>klar</p>
+        </OpsAuthProvider>,
+      );
+      await waitFor(() => expect(satt).toHaveBeenCalledWith(null));
+    });
+
+    it("⛔ e-posten skickas ALDRIG med, bara uid och groupId", async () => {
+      const satt = vi.fn();
+      const authentication = createAuth({
+        signIn: async () => {},
+        signOut: async () => {},
+        subscribe: (l) => {
+          l(/** @type {any} */ ({ id: "u1", email: "cp@staiger.se", groupId: "bolaget" }));
+          return () => {};
+        },
+      });
+      render(
+        <OpsAuthProvider authentication={authentication} felmottagare={{ fanga: vi.fn(), satt }}>
+          <p>klar</p>
+        </OpsAuthProvider>,
+      );
+      await waitFor(() => expect(satt).toHaveBeenCalledWith({ uid: "u1", groupId: "bolaget" }));
+      expect(satt.mock.calls[0][0]).not.toHaveProperty("email");
+    });
+
+    it("utan felmottagare kastar ingenting", async () => {
+      render(
+        <OpsAuthProvider authentication={fakeAuth({ id: "u1" })}>
+          <p>klar</p>
+        </OpsAuthProvider>,
+      );
+      await waitFor(() => expect(screen.getByText("klar")).toBeInTheDocument());
+    });
+  });
 });

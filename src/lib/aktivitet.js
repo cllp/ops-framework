@@ -28,7 +28,21 @@
  * här, eftersom det är APPEN som läser flödet. Nodsidan skriver in i kontraktet
  * och definierar det inte. Skrevs formen där hade en typberoende pekat åt fel
  * håll, och nästa person hade lagt körkod intill den.
+ *
+ * ══ ⛔ `lank` VALIDERADES INTE, GRANSKNINGSFYND PÅ #157/#158-PASSET ═════
+ *
+ * `OpsActivityDetail` ritar en länk-knapp när `handelse.lank` finns
+ * (`{ href, etikett }`), men fram till nu skrevs raden utan att formen
+ * kontrollerades någonstans: `buildEntry` byggde rubrik, detalj och fel, och
+ * hoppade rakt förbi den fjärde formen en händelse kan bära. En rad med
+ * `lank: { href: "javascript:alert(1)" }` eller `lank: { etikett: "" }` hade
+ * sparats utan ett ljud och sedan ritat en knapp som antingen kör ett skript
+ * eller är ordlös. Kontrollen läggs HÄR, inte i komponenten: samma skäl som
+ * resten av filen, formen ska gå att pröva utan att något renderas, och ett
+ * skript som skriver en trasig länk ska få veta det där det händer.
  */
+
+import { byggNamn } from "./sprak.js";
 
 /**
  * @typedef {object} Handelse En rad i loggen.
@@ -40,6 +54,9 @@
  * @property {"ok"|"fel"} resultat Om jobbet gick igenom.
  * @property {string} [fel] Skälet, när `resultat` är "fel".
  * @property {string} [kalla] Vilket jobb som skrev raden, t.ex. ett skriptnamn.
+ * @property {{ href: string, etikett: string }} [lank] Vart raden leder, om den
+ *   leder någonstans. `href` måste vara https eller en relativ sökväg (aldrig
+ *   `javascript:` eller liknande), `etikett` en icke-tom sträng.
  */
 
 /**
@@ -53,6 +70,39 @@ export const ACTIVITY_RESULTS = ["ok", "fel"];
 
 /** Tak för rubriken. En rad i en lista som inte ryms är ingen rad. */
 const MAX_RUBRIK = 120;
+
+/** @param {unknown} v @returns {string} */
+const strang = (v) => (typeof v === "string" ? v.trim() : "");
+
+/**
+ * Vad som är fel med en länk. Tom lista om den är giltig ELLER saknas helt:
+ * `lank` är frivillig, precis som `detalj`.
+ *
+ * ⛔ HTTPS ELLER EN RELATIV SÖKVÄG, INGET ANNAT. En absolut `http://`-länk
+ * duger inte (den kan avlyssnas eller bytas ut på vägen till en användare som
+ * inte har säker uppkoppling), och en `javascript:`- eller `data:`-länk är
+ * kod, inte en adress. En chip som accepterar "vad som helst som är en
+ * sträng" är en chip som kör vad som helst en skrivare (eller en angripare med
+ * skrivbehörighet till loggen) råkar stoppa in.
+ *
+ * @param {unknown} lank
+ * @returns {string[]}
+ */
+function lankfel(lank) {
+  if (lank === undefined) return [];
+  if (!lank || typeof lank !== "object" || Array.isArray(lank)) {
+    return ["Länken (lank) måste vara ett objekt med href och etikett."];
+  }
+  const l = /** @type {Record<string, unknown>} */ (lank);
+  const skal = [];
+  const href = strang(l.href);
+  if (!href) skal.push("Länkens href saknas.");
+  else if (!/^https:\/\//.test(href) && !href.startsWith("/")) {
+    skal.push(`Länkens href "${href}" är varken https eller en relativ sökväg (måste börja med "https://" eller "/").`);
+  }
+  if (!strang(l.etikett)) skal.push("Länkens etikett saknas. En knapp utan ord säger ingenting om vart den går.");
+  return skal;
+}
 
 /**
  * Bygger loggen ur appens konfiguration.
@@ -123,6 +173,7 @@ export function createActivityLog(config) {
       if (d.resultat && !ACTIVITY_RESULTS.includes(d.resultat)) {
         skal.push(`Utfallet "${d.resultat}" finns inte. Giltiga: ${ACTIVITY_RESULTS.join(", ")}.`);
       }
+      skal.push(...lankfel(d.lank));
       return skal;
     },
 
@@ -185,6 +236,14 @@ export function createActivityLog(config) {
         rad.fel = text;
       }
 
+      // ⛔ SAMMA MÖNSTER SOM `detalj`/`kalla`: bara när den finns, och trimmad,
+      // aldrig som ett halvt objekt. `missing` har redan kastat om formen är
+      // fel, så det som är kvar här är att skriva den rent.
+      if (d.lank) {
+        const l = /** @type {Record<string, unknown>} */ (d.lank);
+        rad.lank = { href: String(l.href).trim(), etikett: String(l.etikett).trim() };
+      }
+
       return rad;
     },
   };
@@ -243,15 +302,27 @@ export function isUnread(rad, sedd) {
  * Avsnitten listan delas i, nyast först.
  *
  * ⛔ RAMVERKETS ORD OCH INTE APPENS, till skillnad från `kinds`. Vilka JOBB som
- * finns är appens taxonomi; att i går heter "I går" är det inte. Lades de i
+ * finns är appens taxonomi; att i går heter "Igår" är det inte. Lades de i
  * appen fick varje plattform hitta på sina egna, och två loggar som visar samma
  * sak hade läst olika.
  */
+// ⛔ #158: orden är SessionStudios, inte ramverkets egna. CP:s ärende:
+// "Gruppering per Idag, Igår, Denna vecka, Äldre, samma etiketter på båda
+// språk som SessionStudio." Två av fyra bytte: "I går" -> "Igår" (utan
+// mellanslag) och "Senaste veckan" -> "Denna vecka".
+//
+// ⛔ GRANSKNINGSFYND PÅ #157/#158-PASSET: LABELS VAR RÅA SVENSKA STRÄNGAR.
+// Epikens princip (#109, CP 2026-09-25 i bolag-ops#359) är tvåspråkigt från
+// dag ett, med `{ sv, en }` och `text()`, inte en översättning som görs sedan
+// på varje sträng någon glömde. Fyra hårdkodade svenska ord i en fil som
+// EXPORTERAS ur huvudingången hade varit precis den sortens glömska: en app
+// som ritar sin egen `sprak="en"` hade fått en engelsk vy med fyra svenska
+// rubriker mitt i.
 export const ACTIVITY_SECTIONS = [
-  { value: "idag", label: "Idag" },
-  { value: "igar", label: "I går" },
-  { value: "veckan", label: "Senaste veckan" },
-  { value: "aldre", label: "Äldre" },
+  { value: "idag", label: byggNamn({ sv: "Idag", en: "Today" }) },
+  { value: "igar", label: byggNamn({ sv: "Igår", en: "Yesterday" }) },
+  { value: "veckan", label: byggNamn({ sv: "Denna vecka", en: "This week" }) },
+  { value: "aldre", label: byggNamn({ sv: "Äldre", en: "Earlier" }) },
 ];
 
 const DAG = 86400000;
@@ -262,7 +333,7 @@ function midnatt(d) {
 }
 
 /**
- * Delar raderna i Idag, I går, Senaste veckan och Äldre.
+ * Delar raderna i Idag, Igår, Denna vecka och Äldre.
  *
  * ⛔ VARFÖR EN PLATT LISTA INTE RÄCKER. Ett jobb som kör varje natt skriver en
  * rad om dagen, så efter en månad är listan trettio rader som alla ser likadana
@@ -270,7 +341,7 @@ function midnatt(d) {
  * det i dag", och det svaret ska synas utan att läsa en enda tidsstämpel.
  *
  * ⛔ KALENDERDAGAR, INTE DYGN OM 24 TIMMAR. Samma räkning som
- * `formatRelativeDate` gör. Något som kördes 23:50 i går ligger under "I går"
+ * `formatRelativeDate` gör. Något som kördes 23:50 i går ligger under "Igår"
  * klockan 00:10, inte under "Idag", eftersom det är vad läsaren själv kallar
  * det. Räknades det i timmar hade avsnittet och radens egen text sagt emot
  * varandra, och då tror man på ingendera.
@@ -289,7 +360,7 @@ function midnatt(d) {
  *
  * @param {Handelse[]} rader Nyast först. Ordningen inom avsnittet är den som kom in.
  * @param {{ nu?: Date | number | string }} [choice] Bara för prov. Produktionen har en klocka.
- * @returns {{ value: string, label: string, rader: Handelse[] }[]}
+ * @returns {{ value: string, label: import("./sprak.js").Namn, rader: Handelse[] }[]}
  */
 export function groupByDay(rader, choice = {}) {
   const lista = rader || [];

@@ -83,6 +83,46 @@ describe("createActivityLog", () => {
     expect(modell.kindLabel("bank")).toBe("Banksynk");
     expect(modell.kindLabel("nagot-nytt")).toBe("");
   });
+
+  describe("⛔ handelse.lank valideras, granskningsfynd på #157/#158-passet", () => {
+    it("bygger raden med en giltig länk", () => {
+      const rad = modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "https://example.com/arende/1", etikett: "Öppna ärendet" } });
+      expect(rad.lank).toEqual({ href: "https://example.com/arende/1", etikett: "Öppna ärendet" });
+    });
+
+    it("tillåter en relativ sökväg", () => {
+      const rad = modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "/inkorg/42", etikett: "Öppna inkorgen" } });
+      expect(rad.lank).toEqual({ href: "/inkorg/42", etikett: "Öppna inkorgen" });
+    });
+
+    it("utelämnar lank helt när den inte finns, aldrig som null eller ett halvt objekt", () => {
+      const rad = modell.buildEntry({ slag: "import", rubrik: "Kört" });
+      expect("lank" in rad).toBe(false);
+    });
+
+    it("kastar på en http-länk (inte https)", () => {
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "http://example.com", etikett: "Öppna" } })).toThrow(/varken https eller en relativ sökväg/);
+    });
+
+    it("kastar på en javascript:-länk", () => {
+      // ⛔ Det är precis den sortens värde en `<a href>` inte får rita blint.
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "javascript:alert(1)", etikett: "Öppna" } })).toThrow(/varken https eller en relativ sökväg/);
+    });
+
+    it("kastar på en tom etikett", () => {
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: { href: "https://example.com", etikett: "  " } })).toThrow(/etikett saknas/);
+    });
+
+    it("kastar på en länk som inte är ett objekt", () => {
+      expect(() => modell.buildEntry({ slag: "import", rubrik: "Kört", lank: "https://example.com" })).toThrow(/måste vara ett objekt/);
+    });
+
+    it("svarar med SKÄL via missing, precis som för rubriken", () => {
+      expect(modell.missing({ slag: "import", rubrik: "Kört", lank: { href: "ftp://example.com", etikett: "Öppna" } })).toEqual([
+        'Länkens href "ftp://example.com" är varken https eller en relativ sökväg (måste börja med "https://" eller "/").',
+      ]);
+    });
+  });
 });
 
 describe("unreadCount", () => {
@@ -246,10 +286,22 @@ describe("OpsActivityList", () => {
     render(<OpsActivityList entries={rader} kindLabel={modell.kindLabel} now={new Date("2026-09-24T12:00:00.000Z")} />);
 
     const rubriker = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
-    expect(rubriker).toEqual(["Idag", "I går"]);
+    expect(rubriker).toEqual(["Idag", "Igår"]);
   });
 
-  it("märker med ORDET Ny bara det som är nyare än det lästa", () => {
+  it("⛔ #109: avsnittsrubrikerna är tvåspråkiga, inte hårdkodad svenska", () => {
+    /*
+     * Granskningsfynd på #157/#158-passet: ACTIVITY_SECTIONS var fyra råa
+     * svenska strängar, trots att epikens princip (#109) är `{ sv, en }` från
+     * dag ett. En app som ritar `sprak="en"` ska se engelska rubriker här,
+     * precis som `OpsProfil` redan svarar på samma prop.
+     */
+    render(<OpsActivityList entries={rader} kindLabel={modell.kindLabel} now={new Date("2026-09-24T12:00:00.000Z")} sprak="en" />);
+    const rubriker = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(rubriker).toEqual(["Today", "Yesterday"]);
+  });
+
+  it("⛔ #158: märker det olästa med en PUNKT, inte med pillen 'Ny', och ordet finns kvar för skärmläsaren", () => {
     render(
       <OpsActivityList
         entries={rader}
@@ -259,17 +311,21 @@ describe("OpsActivityList", () => {
       />,
     );
 
-    expect(screen.getAllByText("Ny")).toHaveLength(1);
+    // ⛔ INGEN PILL. SessionStudios rad bär en punkt, inte en etikett.
+    expect(screen.queryByText("Ny")).not.toBeInTheDocument();
+    // ⛔ MEN ORDET FINNS ÄNDÅ, för den som lyssnar: en färgad prick ensam är
+    // osynlig för en skärmläsare, av samma skäl som "Gick fel" står i klartext.
+    expect(screen.getAllByText("Oläst.", { selector: ".sr-only" })).toHaveLength(1);
     // ⛔ Och det är den NYA raden som bär märket, inte bara någon rad.
     const ny = screen.getByText("Hämtade transaktioner").closest("li");
-    expect(within(/** @type {HTMLElement} */ (ny)).getByText("Ny")).toBeInTheDocument();
+    expect(within(/** @type {HTMLElement} */ (ny)).getByText("Oläst.")).toBeInTheDocument();
   });
 
   it("märker ingenting när ingen läsning skickats in", () => {
     // ⛔ Listan på en egen sida har ingen som öppnade den. Ett märke där hade
     // påstått något om en läsning som aldrig skett.
     render(<OpsActivityList entries={rader} now={new Date("2026-09-24T12:00:00.000Z")} />);
-    expect(screen.queryByText("Ny")).not.toBeInTheDocument();
+    expect(screen.queryByText("Oläst.")).not.toBeInTheDocument();
   });
 });
 
@@ -349,8 +405,8 @@ describe("OpsActivityButton", () => {
 
     const dialog = screen.getByRole("dialog");
     // Lika många märken som knappen räknade, och på RÄTT rad.
-    expect(within(dialog).getAllByText("Ny")).toHaveLength(1);
-    expect(within(/** @type {HTMLElement} */ (within(dialog).getByText("Nyast").closest("li"))).getByText("Ny")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Oläst.")).toHaveLength(1);
+    expect(within(/** @type {HTMLElement} */ (within(dialog).getByText("Nyast").closest("li"))).getByText("Oläst.")).toBeInTheDocument();
 
     // Och läsningen är ändå framflyttad, så märket är borta nästa gång.
     expect(globalThis.localStorage.getItem("prov:fryst")).toBe("2026-09-24T12:00:00.000Z");
@@ -383,7 +439,7 @@ describe("groupByDay", () => {
 
   const NU = new Date(2026, 8, 24, 12, 0);
 
-  it("delar raderna i Idag, I går, Senaste veckan och Äldre", () => {
+  it("delar raderna i Idag, Igår, Denna vecka och Äldre", () => {
     const avsnitt = groupByDay(
       [
         rad(vid(2026, 8, 24, 9, 0), "idag"),
@@ -400,7 +456,7 @@ describe("groupByDay", () => {
 
   it("⛔ räknar KALENDERDAGAR och inte dygn om 24 timmar", () => {
     /*
-     * Något som kördes 23:50 i går ligger under "I går" klockan 00:10, inte
+     * Något som kördes 23:50 i går ligger under "Igår" klockan 00:10, inte
      * under "Idag". Tjugo minuter har gått, men det är inte vad läsaren kallar
      * det, och radens egen text säger redan "i går". Räknades det i timmar hade
      * rubriken och raden sagt emot varandra, och då tror man på ingendera.
@@ -412,7 +468,7 @@ describe("groupByDay", () => {
   it("utelämnar tomma avsnitt i stället för att påstå att något saknas där", () => {
     const avsnitt = groupByDay([rad(vid(2026, 8, 24, 9, 0), "bara idag")], { nu: NU });
     expect(avsnitt).toHaveLength(1);
-    expect(avsnitt[0].label).toBe("Idag");
+    expect(avsnitt[0].label).toEqual({ sv: "Idag", en: "Today" });
   });
 
   it("⛔ KASTAR ALDRIG en rad med trasig tid, den faller till Äldre", () => {
@@ -579,9 +635,10 @@ describe("OpsActivityButton, lista till detalj", () => {
   ];
   const NU = new Date("2026-09-24T14:00:00.000Z");
 
-  it("⛔ ETT TRYCK PÅ RADEN ÖPPNAR DETALJEN OCH MARKERAR DEN LÄST", () => {
+  it("⛔ #158: EN CHEVRON FÄLLER UT DETALJEN PÅ PLATS OCH MARKERAR DEN LÄST, LISTAN BLIR KVAR", () => {
     // CP: "trycka på en notis/aktivitet och markera som läst. Tänker en lista
-    // och sedan en detalj, då är den läst."
+    // och sedan en detalj, då är den läst." #158 lade till: detaljen fälls ut
+    // UNDER raden i stället för att byta vy, för en notis leder ofta ingenstans.
     const lasta = [];
     render(
       <OpsActivityButton
@@ -593,23 +650,40 @@ describe("OpsActivityButton, lista till detalj", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
     const dialog = screen.getByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /Nyast/ }));
+    const rad = within(dialog).getByRole("button", { name: /Nyast/ });
+    expect(rad).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(rad);
 
     expect(lasta).toEqual(["a"]);
-    // Detaljen syns, och listan är borta.
+    expect(rad).toHaveAttribute("aria-expanded", "true");
+    // Detaljen syns UNDER raden, och listan (den andra raden) är KVAR.
     expect(within(dialog).getByText("import.mjs")).toBeInTheDocument();
-    expect(within(dialog).queryByRole("button", { name: /Äldre/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Äldre/ })).toBeInTheDocument();
+
+    // Ett nytt klick fäller ihop igen, utan att läsa raden en gång till.
+    fireEvent.click(rad);
+    expect(rad).toHaveAttribute("aria-expanded", "false");
+    expect(within(dialog).queryByText("import.mjs")).not.toBeInTheDocument();
+    expect(lasta).toEqual(["a"]);
   });
 
-  it("går tillbaka till listan utan att stänga rutan", () => {
-    render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={NU} />);
+  it("⛔ #158: länk-knappen i detaljen ritas bara när händelsen bär en länk", () => {
+    // CP: "eftersom notisen inte leder någonstans om det inte är en länk till
+    // händelse, inkorg eller GitHub-ärende."
+    const medLank = [
+      { id: "a", nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "Utan länk", resultat: "ok" },
+      { id: "b", nar: "2026-09-24T11:00:00.000Z", slag: "import", rubrik: "Med länk", resultat: "ok", lank: { href: "https://example.se/arende/42", etikett: "Öppna ärendet" } },
+    ];
+    render(<OpsActivityButton entries={medLank} lasning={{ sedd: null, lasta: [] }} now={NU} />);
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
     const dialog = screen.getByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /Nyast/ }));
-    // ⛔ En PIL med ett namn, inte ett ord. Panelen går ett steg tillbaka; ett
-    // kryss hade stängt alltihop.
-    fireEvent.click(within(dialog).getByRole("button", { name: "Tillbaka" }));
-    expect(within(dialog).getByRole("button", { name: /Äldre/ })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /Utan länk/ }));
+    expect(within(dialog).queryByRole("link", { name: "Öppna ärendet" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /Med länk/ }));
+    const lank = within(dialog).getByRole("link", { name: "Öppna ärendet" });
+    expect(lank).toHaveAttribute("href", "https://example.se/arende/42");
   });
 
   it("⛔ säger hur många som ligger bakom Hämta fler, inte bara att det finns fler", () => {
@@ -625,18 +699,23 @@ describe("OpsActivityButton, lista till detalj", () => {
     expect(within(dialog).queryByRole("button", { name: /Hämta fler/ })).not.toBeInTheDocument();
   });
 
-  it("ritar Rensa bara när appen har någonstans att ta vägen med den", () => {
-    // ⛔ Utan `onClear` finns ingen rensning att göra, och en knapp som inte gör
-    // något är värre än ingen knapp.
+  it("⛔ #158: Rensa ligger i trepunktsmenyn, och menyn finns bara när appen har någonstans att ta vägen med den", () => {
+    // ⛔ Utan `onClear` finns ingen rensning att göra, och en meny som inte gör
+    // något är värre än ingen meny. Samma flytt som filtren: "Mer" syns bara
+    // när det finns något bakom den.
     const { unmount } = render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={NU} />);
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
-    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Rensa" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Mer" })).not.toBeInTheDocument();
     unmount();
 
     let rensat = 0;
     render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} onClear={() => { rensat += 1; }} now={NU} />);
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Rensa" }));
+    const dialog = screen.getByRole("dialog");
+    // ⛔ RENSA SYNS INTE FÖRRÄN "MER" TRYCKTS. Samma regel som filtren (#158).
+    expect(within(dialog).queryByText("Rensa")).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Mer" }));
+    fireEvent.click(screen.getByText("Rensa"));
     expect(rensat).toBe(1);
   });
 
@@ -651,5 +730,126 @@ describe("OpsActivityButton, lista till detalj", () => {
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
     expect(sedda).toEqual(["2026-09-24T12:00:00.000Z"]);
     expect(globalThis.localStorage.getItem("prov:ska-inte-anvandas")).toBe(null);
+  });
+});
+
+/**
+ * #158, CP:s skärmbild: "I mobile ops står Aktivitet två gånger [...]". Provet
+ * simulerar smal skärm precis som `panel.test.jsx` redan gör, lokalt och inte
+ * globalt: en global stubb hade tyst flyttat varje befintligt panelprov till
+ * sheeten, och det är inte den här filens jobb att bevaka.
+ * @param {boolean} smal
+ */
+function medBredd(smal) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query) => ({
+      media: query,
+      matches: smal,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+  return () => {
+    // @ts-expect-error vi tar bort den vi själva satte
+    delete window.matchMedia;
+  };
+}
+
+describe("⛔ #158: rubriken 'Aktivitet' står EN gång, även på mobil (sheet)", () => {
+  const rader = [{ id: "a", nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "Nyast", resultat: "ok" }];
+
+  it("på smal skärm ritar sheeten sin egen rubrik, och roten ritar ingen andra", () => {
+    const stad = medBredd(true);
+    try {
+      render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={new Date("2026-09-24T14:00:00.000Z")} />);
+      fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+
+      // ⛔ MÄTT MED ETT PROV SOM RÄKNAR FÖREKOMSTER, inte med ögat. Detta är
+      // exakt kravet i #158: "Mätt med ett prov som räknar förekomster av
+      // rubriktexten i den renderade panelen."
+      expect(screen.getAllByText("Aktivitet")).toHaveLength(1);
+    } finally {
+      stad();
+    }
+  });
+
+  it("på bred skärm (rullgardin) står rubriken också bara en gång", () => {
+    const stad = medBredd(false);
+    try {
+      render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={new Date("2026-09-24T14:00:00.000Z")} />);
+      fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+      expect(screen.getAllByText("Aktivitet")).toHaveLength(1);
+    } finally {
+      stad();
+    }
+  });
+});
+
+describe("⛔ #158: filtren syns inte förrän filterknappen tryckts", () => {
+  const rader = [{ id: "a", nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "Nyast", resultat: "ok" }];
+
+  it("filtret är dolt tills man trycker på filterknappen, och stängs igen", () => {
+    render(
+      <OpsActivityButton
+        entries={rader}
+        lasning={{ sedd: null, lasta: [] }}
+        now={new Date("2026-09-24T14:00:00.000Z")}
+        filter={<p>Visa systemhändelser</p>}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    const dialog = screen.getByRole("dialog");
+
+    expect(screen.queryByText("Visa systemhändelser")).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Filter" }));
+    expect(screen.getByText("Visa systemhändelser")).toBeInTheDocument();
+  });
+
+  it("utan filter finns ingen filterknapp alls", () => {
+    render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={new Date("2026-09-24T14:00:00.000Z")} />);
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Filter" })).not.toBeInTheDocument();
+  });
+});
+
+describe("⛔ #158: panelen går att öppna utifrån, t.ex. från en rad i OpsAnvandarmeny", () => {
+  const rader = [{ id: "a", nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "Nyast", resultat: "ok" }];
+
+  it("open+onOpenChange styr panelen, och den dolda triggern är inte nåbar", () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <OpsActivityButton
+        entries={rader}
+        lasning={{ sedd: null, lasta: [] }}
+        now={new Date("2026-09-24T14:00:00.000Z")}
+        renderTrigger={false}
+        open={false}
+        onOpenChange={onOpenChange}
+      />,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Aktivitet/ })).not.toBeInTheDocument();
+
+    rerender(
+      <OpsActivityButton
+        entries={rader}
+        lasning={{ sedd: null, lasta: [] }}
+        now={new Date("2026-09-24T14:00:00.000Z")}
+        renderTrigger={false}
+        open={true}
+        onOpenChange={onOpenChange}
+      />,
+    );
+    expect(screen.getByText("Nyast")).toBeInTheDocument();
+  });
+
+  it("⛔ renderTrigger={false} utan styrning kastar, en dold klocka är annars onåbar för alla", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<OpsActivityButton entries={rader} renderTrigger={false} />)).toThrow(/renderTrigger/);
+    spy.mockRestore();
   });
 });

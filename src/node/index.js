@@ -36,6 +36,13 @@ export { createActivityWriter } from "./aktivitet.js";
 export { createInvitationService } from "./inbjudan.js";
 
 /*
+ * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#156). `memberships` skrivs aldrig av en
+ * klient, alltså är `uppdateraProfil` (Admin SDK, skriver users OCH
+ * memberships i samma steg) bara meningsfull härifrån.
+ */
+export { uppdateraProfil } from "./profil.js";
+
+/*
  * ⛔ `createActivityLog` ÅTEREXPORTERAS HÄRIFRÅN, OCH DET ÄR EN MÄTNING OCH INTE
  * EN BEKVÄMLIGHET.
  *
@@ -52,10 +59,13 @@ export { createInvitationService } from "./inbjudan.js";
  * dokument skulle ladda React, Radix och en kalender. Det är inte en optimering
  * att slippa det, det är att inte göra något uppenbart fel.
  *
- * ⛔ FILEN ÄR REN. `src/lib/aktivitet.js` importerar ingenting alls, så den här
- * raden drar inte in webbsidan bakvägen. Provet `nodsidan.test.js` kräver det,
- * eftersom en framtida import av React där hade gjort mätningen ovan osann utan
- * att någon märkte det.
+ * ⛔ FILEN ÄR REN. `src/lib/aktivitet.js` importerar sedan #158/#159-passet
+ * `byggNamn` ur `src/lib/sprak.js` (för `ACTIVITY_SECTIONS`), en fil som i sin
+ * tur importerar ingenting. Kedjan når alltså fortfarande aldrig React eller
+ * Radix, vilket är det ENDA mätningen ovan handlar om. `scripts/check-node-side.mjs`
+ * följer hela importgrafen från den här filen och kräver det, eftersom en
+ * framtida import av React någonstans i kedjan hade gjort mätningen ovan osann
+ * utan att någon märkte det.
  *
  * Bakgrund: cllp/ops-framework#93, functions i bolag-ops.
  */

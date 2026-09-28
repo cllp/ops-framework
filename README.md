@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**83 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**85 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -174,7 +174,7 @@ något godtyckligt.
 | Komponent | Props |
 |---|---|
 | `OpsButton` | `variant` primary \| secondary \| ghost \| danger, `size` sm \| md, `type`, `disabled`, `busy`, `fullWidth`, `iconOnly`, `href`, `newTab`, `ariaLabel`, `title`, `id`, `onClick`, `children` |
-| `OpsCard` | `rounding` (`"kort"` 8 px, förval, eller `"bubbla"` 24 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. 24 px är MÄTT mot SessionStudios `--radius-card: 1.5rem` och inte valt på känsla; `--radius-3xl` råkade redan vara exakt det steget, så inget nytt token behövdes. Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children` |
+| `OpsCard` | `rounding` (`"kort"` 8 px, förval, eller `"bubbla"` 24 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. 24 px är MÄTT mot SessionStudios `--radius-card: 1.5rem` och inte valt på känsla; `--radius-3xl` råkade redan vara exakt det steget, så inget nytt token behövdes. Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children`. ⛔ Inre padding är `--card-padding` (20px, #157, mätt mot SessionStudios `p-5`), ett token och inte en klass: `p-4` satt förut hårdkodat i komponenten, så en justering hade krävt en ändring per primitiv i stället för en rad i `tokens/tokens.css` |
 | `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `oppet`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
@@ -227,12 +227,12 @@ något godtyckligt.
 | `OpsStatusDot` | `status` oppet \| pagar \| vantar \| klart \| akut, `label` (krävs). Färgprick för var ett ärende står, tänkt för en kortrubrik. ⛔ Ordet krävs och renderas alltid, som `sr-only` utom för `akut` som skriver ut det synligt: en färg går inte att läsa upp och är osynlig för var tjugonde man. Vyn måste visa ordet någonstans synligt, till exempel i utfällningen |
 | `OpsMarkdown` | `text`. Renderar rubriker, stycken, listor, kryssrutor, citat, kod, tabeller och länkar som riktiga element. ⛔ Ingen HTML passerar en sträng: `dangerouslySetInnerHTML` finns inte, och bara `http`/`https` blir länkar. Kapar aldrig texten, det är datalagrets beslut |
 | `OpsPrompt` | `source` (från `createPromptSource`), `label` (krävs), `hint`, `placeholder`, `context`, `sendLabel`, `waitingLabel`, `suggestions` [sträng], `onAnswer`. En fråga in, ett svar ut, renderat som markdown. ⛔ Vet inte vilken leverantör som svarar: modell, nyckel och tak är appens. ⛔ Förra svaret ligger kvar tills ett nytt kommit, även efter ett fel |
-| `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `title`, `label`, `lasning` {sedd, lasta, rensatTill}, `onSeen`, `onRead`, `onClear`, `dagar`, `sida`, `storageKey`, `icon`, `empty`, `filter`, `now`. Klockikon med ett märke, listan bakom den och DETALJEN bakom listan. ⛔ Ett tryck på raden öppnar detaljen och markerar raden läst: en egen kryssruta bredvid varje rad är ett andra klick för något man just gjort, och listor med den knappen lär folk att bocka av utan att läsa. ⛔ Antalet står i knappens NAMN och inte bara som en prick. ⛔ TVÅ SÄTT ATT SKÖTA LÄSNINGEN: `lasning` + `onSeen`/`onRead` lägger den där APPEN vill, till exempel i databasen, så den följer med mellan telefon och dator; `storageKey` lägger den i EN webbläsare. Ramverket väljer inte, eftersom bara appen vet om den har en plats. ⛔ `dagar` är fönstret bakåt, `sida` hur många som ritas åt gången, `rensatTill` läsarens egen städning. Olästa rader slipper alla tre: en rad som aldrig lästs får inte försvinna för att den blev gammal medan man var borta, och märket hade då räknat något som inte gick att hitta. ⛔ `filter` ritas under huvudet och OVANFÖR listan: en kontroll som styr ett urval hör hemma intill urvalet, inte i huvudet där den konkurrerar med Rensa |
-| `OpsActivityList` | `entries`, `kindLabel`, `empty`, `lasning`, `onOpen`, `fler`, `onMore`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. ⛔ Delas i Idag, I går, Senaste veckan och Äldre: ett nattligt jobb skriver en rad om dagen, och efter en månad kräver frågan "kördes det i dag" att man läser tidsstämplar i en platt lista. ⛔ Raden är kort med flit: rubrik, detalj och när. Källan, det exakta klockslaget och hela feltexten står i `OpsActivityDetail`, eftersom de är vad man behöver den dag något gick sönder och brus resten av tiden. ⛔ HELA raden är knappen, inte en pil i kanten: ett 12 px mål i högerkanten är det säkraste sättet att göra en lista som inte går att använda med tummen. ⛔ Antalet står på "Hämta fler": ensamt säger det inte om det är tre rader eller trehundra kvar, och den skillnaden avgör om man orkar trycka |
-| `OpsPanel` | `trigger`, `label`, `title`, `action`, `children` (en funktion som får `nav`), `open`, `onOpenChange`, `align`, `backLabel`. En panel med vyer i en STACK: rot, undervy, detalj. `nav.push({ key, title, action, content })` byter innehåll PÅ PLATS, `nav.pop()` går tillbaka. ⛔ Samma yta som hamburgermenyn och samma Radix-primitiv, eftersom panelen ska VARA menyn och inte likna den. ⛔ En panel och inte en modal: en modal mörklägger sidan, flyttar fokus och döljer bakgrunden för skärmläsare, och att göra det för att visa att ett jobb kört i natt är att avbryta någon för något som inte kräver ett svar. ⛔ Stacken nollställs vid stängning: öppnar man igen vill man se roten, inte den detalj man råkade läsa sist. ⛔ Ingen tillbakapil på roten, eftersom en pil som inte går någonstans är ett löfte som bryts vid första trycket. ⛔ PÅ TELEFON (under md) ligger en lätt dämpning (`bg-scrim`, `--z-scrim`) mellan sidan och panelen, under kromet (bolag-ops #363: sidans kort syntes bredvid och under panelens nederkant och såg ut att höra till den). Det är INTE en modal: ingen fokusfälla, sidan göms inte för skärmläsare, och ett tryck på dämpningen stänger bara panelen. Panelen har egen staplingskontext (`isolate`), ogenomskinlig `bg-raised` och `shadow-lg` |
-| `OpsPanelRow` | `icon`, `label`, `badge`, `badgeText`, `chevron`, `onClick`, `href`, `active`. Menyraden. ⛔ Chevron BARA när raden leder vidare: en pil på en rad som bara växlar något lovar en vy som inte finns. ⛔ Hela raden är målet, inte chevronen: ett 16 px mål i högerkanten är det säkraste sättet att göra en lista som inte går att använda med tummen. ⛔ `badgeText` krävs för att antalet ska betyda något uppläst: en trea utan ord är en trea |
+| `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `kindIcon`, `title`, `label`, `lasning` {sedd, lasta, rensatTill}, `onSeen`, `onRead`, `onClear`, `dagar`, `sida`, `storageKey`, `icon`, `empty`, `filter`, `filterLabel`, `open`, `onOpenChange`, `renderTrigger`, `now`. Klockikon med ett märke, listan bakom den, och detaljen numera PÅ PLATS i raden (#158, se `OpsActivityList`). ⛔ Att fälla ut en rad markerar den läst: en egen kryssruta bredvid varje rad är ett andra klick för något man just gjort, och listor med den knappen lär folk att bocka av utan att läsa. ⛔ Antalet står i knappens NAMN och inte bara som en prick. ⛔ TVÅ SÄTT ATT SKÖTA LÄSNINGEN: `lasning` + `onSeen`/`onRead` lägger den där APPEN vill, till exempel i databasen, så den följer med mellan telefon och dator; `storageKey` lägger den i EN webbläsare. Ramverket väljer inte, eftersom bara appen vet om den har en plats. ⛔ `dagar` är fönstret bakåt, `sida` hur många som ritas åt gången, `rensatTill` läsarens egen städning. Olästa rader slipper alla tre. ⛔ #158: `filter` RITAS BAKOM EN FILTERKNAPP i huvudet, inte längre ovanför listan; syns inte förrän man tryckt. `onClear` ("Rensa") flyttade till en trepunktsmeny bredvid filterknappen, av samma skäl. ⛔ `kindIcon(slag)` (#158) är ikonen i radens runda platta, `kindLabel`s syskon; saknas den för ett slag ritas ingen platta på just den raden. ⛔ `open`/`onOpenChange`/`renderTrigger` (#158) styr panelen UTIFRÅN, t.ex. från en rad i `OpsAnvandarmeny`: `renderTrigger={false}` döljer klockan och kräver då `open`+`onOpenChange` (kastar annars), utan styrning fungerar knappen som förut |
+| `OpsActivityList` | `entries`, `kindLabel`, `kindIcon`, `empty`, `lasning`, `onOpen`, `fler`, `onMore`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. Delas i **Idag, Igår, Denna vecka, Äldre** (#158, samma ord som SessionStudio; hette tidigare "I går" och "Senaste veckan"): ett nattligt jobb skriver en rad om dagen, och efter en månad kräver frågan "kördes det i dag" att man läser tidsstämplar i en platt lista. ⛔ Raden är kort med flit: rubrik, detalj och när, plus en metarad (grupp som `OpsIdentity`, aktör, tid). Källan, det exakta klockslaget och hela feltexten står i `OpsActivityDetail`. ⛔ #158: OLÄST ÄR EN PUNKT, INTE PILLEN "Ny", med ordet kvar för skärmläsaren (`sr-only` "Oläst."). ⛔ #158: EN CHEVRON FÄLLER UT `OpsActivityDetail` UNDER RADEN i stället för att byta vy: en notis leder ofta ingenstans (inget GitHub-ärende, ingen händelse), och en pil som lovar en sida man kan GÅ TILL är fel löfte då. ⛔ Antalet står på "Hämta fler": ensamt säger det inte om det är tre rader eller trehundra kvar |
+| `OpsPanel` | `trigger`, `label`, `title`, `action`, `children` (en funktion som får `nav`), `open`, `onOpenChange`, `align`, `backLabel`. En panel med vyer i en STACK: rot, undervy, detalj. `nav.push({ key, title, action, content })` byter innehåll PÅ PLATS, `nav.pop()` går tillbaka. ⛔ Samma yta som hamburgermenyn och samma Radix-primitiv, eftersom panelen ska VARA menyn och inte likna den. ⛔ En panel och inte en modal: en modal mörklägger sidan, flyttar fokus och döljer bakgrunden för skärmläsare, och att göra det för att visa att ett jobb kört i natt är att avbryta någon för något som inte kräver ett svar. ⛔ Stacken nollställs vid stängning: öppnar man igen vill man se roten, inte den detalj man råkade läsa sist. ⛔ Ingen tillbakapil på roten, eftersom en pil som inte går någonstans är ett löfte som bryts vid första trycket. ⛔ PÅ TELEFON (under md) ligger en lätt dämpning (`bg-scrim`, `--z-scrim`) mellan sidan och panelen, under kromet (bolag-ops #363: sidans kort syntes bredvid och under panelens nederkant och såg ut att höra till den). Det är INTE en modal: ingen fokusfälla, sidan göms inte för skärmläsare, och ett tryck på dämpningen stänger bara panelen. Panelen har egen staplingskontext (`isolate`), ogenomskinlig `bg-raised` och `shadow-lg`. ⛔ #158: ROTEN RITAR INGEN EGEN RUBRIK PÅ SMAL SKÄRM (sheet). Sheetens `Dialog.Title` visar redan `label`, och en `OpsPanelHeader` med SAMMA `title` bredvid den var precis den dubblerade rubriken CP skärmdumpade i `OpsActivityButton`. `action` flyttar då till sheetens egen rad bredvid stängknappen. Bred skärm (rullgardin) är oförändrad, den har ingen annan synlig rubrik. ⛔ #158: PANELEN KUNDE STÄNGA SIG SJÄLV OMEDELBART när den öppnades utifrån (t.ex. en menyrad) medan en ANNAN Radix-yta just stängde och tog fokus med sig: `DismissableLayer` läste fokus som hamnat på `<body>` som "fokus utanför" och stängde panelen 10-15 ms efter att den öppnats. Mätt i en riktig webbläsare (Playwright), aldrig synligt i jsdom. `onOpenAutoFocus` och `onFocusOutside` avstyrs därför på rullgardinens `Popover.Content`; ett riktigt klick utanför (`onPointerDownOutside`) stänger fortfarande som förut |
+| `OpsPanelRow` | `icon`, `label`, `badge`, `badgeText`, `chevron`, `onClick`, `href`, `active`. Menyraden. ⛔ Chevron BARA när raden leder vidare: en pil på en rad som bara växlar något lovar en vy som inte finns. ⛔ Hela raden är målet, inte chevronen: ett 16 px mål i högerkanten är det säkraste sättet att göra en lista som inte går att använda med tummen. ⛔ `badgeText` krävs för att antalet ska betyda något uppläst: en trea utan ord är en trea. ⛔ `href` (#157, #158) ritar en extern-länk-ikon i stället för en chevron och öppnar i ny flik: en `href` lämnar panelen, en chevron öppnar nästa vy i SAMMA panel, och kombineras aldrig (kastar annars) |
 | `OpsPanelHeader` | `title`, `onBack`, `backLabel`, `action`. Huvudet i en undervy. ⛔ Utan `onBack` ritas ingen pil, alltså roten. ⛔ En pil och inte ett kryss: krysset stänger allt, pilen går ett steg |
-| `OpsActivityDetail` | `handelse`, `slagord`, `now`. En rad i sin helhet, utan kapning. ⛔ Feltexten står hel i en kodruta: den kommer ordagrant från ett API och den som ska söka på den behöver den oförvanskad. ⛔ "Utfall" står bara när det gick bra, eftersom ett misslyckande redan sagts med ord överst och i rutan |
+| `OpsActivityDetail` | `handelse`, `slagord`, `now`. En rad i sin helhet, utan kapning. ⛔ Feltexten står hel i en kodruta: den kommer ordagrant från ett API och den som ska söka på den behöver den oförvanskad. ⛔ "Utfall" står bara när det gick bra, eftersom ett misslyckande redan sagts med ord överst och i rutan. ⛔ #158: `handelse.lank` ({href, etikett}) ritar en länk-knapp, annars ingen: "notisen leder ofta ingenstans" (CP), och en rad utan länk säger det genom att inte lova en knapp |
 | `OpsTag` | `label` (bestämmer också tonen), `tone` 1-6 (låser tonen), `onRemove`, `removeLabel` |
 | `OpsIdentity` | `name`, `seed` (krävs, stabilt id), `imageUrl`, `size` sm \| md \| lg |
 | `OpsProvenance` | `kind` human \| agent \| auto, `label` |
@@ -248,6 +248,8 @@ något godtyckligt.
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll.  ⛔ `icon` på ett läge ritar ikonen I STÄLLET för ordet, med ordet kvar som `sr-only`: en ikon utan namn är en knapp som inte går att höra. ANTINGEN ALLA LÄGEN ELLER INGET, annars kastar den — en ikon bredvid ett ord ser ut som ett fel |
 | `OpsFilterChip` | `options` [{value, label}], `value`, `onChange`, `ariaLabel` (krävs), `allLabel`. Pillerformat filter bredvid en lista. ⛔ Valt värde står i pillret, annars läser man en beskuren lista i tron att den är komplett. |
+| `OpsSectionLabel` | `children`. Sektionsrubrik: liten versal, spärrad, accentfärg (`text-xs font-bold uppercase tracking-wider text-accent`). Mätt ur SessionStudios `ProfileView.jsx` ("PROFILBILD", "PERSONUPPGIFTER"), inte uppskattat (#157). ⛔ `OpsGruppvaljare`, `OpsMedlemmar`, `OpsProfil` och `OpsFilterPanel` skrev innan dess var sin egen variant av samma rubrik (olika storlek, olika färg); den här primitiven är den gemensamma formen framåt, migreringen av de fyra är inte gjord i samma pass |
+| `OpsChip` | `icon`, `children` (ordet), `selected`, `onClick` (krävs), `disabled`. Ett VAL i pillform, inte ett filter: flera chips står bredvid varandra och trycks direkt, utan att något fälls ut (#157). Skiljer sig från `OpsFilterChip`, som är en TRIGGER som öppnar en meny. Mätt ur SessionStudios `ProfileView.jsx` (disciplin- och rollvalet): `rounded-full`, ikon, `aria-pressed` så läget är hörbart och inte bara en färg. Ingen inbyggd lista: appen sätter en `flex flex-wrap gap-2` runt chipsen själv |
 | `OpsCalendar` | `entries` [{id, datum `YYYY-MM-DD`, titel, status?, url?, not?}], `ariaLabel` (krävs), `statusWords` {status: ord}, `monthsBack` (1), `monthsForward` (3), `emptyText`. Månadsrutnät i en rulle: öppnar på idag, klistrad veckodagsrad, flytande Idag-knapp när månaden rullat ur bild. ⛔ Ritar bara DATERADE poster; odaterat hör hemma i en lista. ⛔ Rutans prickar säger «något finns», inte vilken status: status med sitt ord bor i dagsbubblan ett tryck bort, eftersom tre färger i en 44 px-ruta är brus och en färg utan ord inget besked. ⛔ RULLAR I SIN EGEN BEHÅLLARE (tak i `svh`, `overscroll-contain`): i dokumentets flöde rullade sidan i stället, veckodagsraden nöp under appens toppmeny och vägen tillbaka till idag gick genom hela vyn. ⛔ Dagens poster ligger i en DAGSPANEL byggd som SessionStudios: en rad inverterade datumpiller överst (kryss per piller när flera dagar är valda) och därunder ETT KORT PER POST, med luft i stället för avdelare och datumet i kortets metarad. ⛔ RULLYTAN GÅR HELA VÄGEN NER: inget påhittat `max-h`, ingen ram. Avståndet till fönstrets överkant MÄTS en gång (plus `scrollY`, så talet inte ruttnar när sidan rullas) och läggs i `--fullhojd-topp`; höjden räknas i CSS ur den, med bottenraden bortdragen under 768 px. Mätning i en variabel och räkning i klassen är enda sättet att få både en mätning och en brytpunkt. ⛔ PLACERINGEN FÖLJER FÖREBILDENS `showSidePanel = !isPhone`: egen kolumn bredvid rutnätet från 1024 px (300 px, 360 px från 1280 px) — vid 768 px blir dagsrutorna 62 px breda, alltså smalare än sin träffyta, och förebildens regel är `!isPhone && isLandscape`, alltid reserverad så rutnätet inte krymper under fingret; på telefon en flytande remsa som bottnar på bottenraden. ⛔ VARJE KORT ÄR FÄLLBART: chevron när posten har status, url eller `details`, och aldrig annars (en pil som öppnar en tom ruta är ett löfte som inte infrias). Utfällningen bär STATUS SOM ORD (pricken i raden är samma faktum för den som ser den) och länken med `urlLabel`. ⛔ Titeln är text och inte längre en länk: samma adress på både titel och utfällning vore dubbletten två gånger på samma kort. ⛔ Rullriktningen för Idag-knappen räknas i `rullriktning` |
 | `OpsFilterPanel` | `groups` [{id, label, options, allaLabel?}], `value` {grupp: valt \ ⛔ `layout="ikoner"` ger EN IKON PER GRUPP bredvid varandra i stället för en knapp för allt, var och en med sin egen meny och tänd när just den gruppen är satt: med fem dimensioner blev den samlade panelen tjugo rader som täckte halva skärmen. Gruppens `icon` är appens (vilken bild som betyder «roll» beror på vad rollerna är), och saknas den faller den tillbaka på reglageikonen. Sorteringen tänds när den lämnat `sorting.standard`, men räknas fortfarande aldrig som ett filter. ⛔ `sorting.standard` KRÄVS i ikonläget och gissas inte: reserven var «första alternativet», vilket är rätt precis tills någon sorterar om `options`, och då lyser ikonen från start utan att någon rört den. Ingenting går sönder, sidan ljuger bara om sitt eget tillstånd, och det är den sortens fel ingen app upptäcker i sina egna prov. Den samlade panelen kräver den inte, eftersom den inte tänder något. ⛔ SORTERINGENS BILD ÄR RAMVERKETS och inte appens, till skillnad från gruppernas: vilken bild som betyder «roll» beror på vad rollerna är, medan «i vilken ordning ligger raderna» är samma fråga i varje app. `sorting.icon` finns kvar som övertramp. Reserven var förut reglageikonen, alltså SAMMA bild som en grupp utan egen ikon får, och två kontroller med samma bild bredvid varandra går inte att skilja på. ⛔ RENSA ÄR ETT KRYSS I DET LÄGET och inte ordet (CP 2026-09-22: "Går det att ersätta rensa med ett kryss eller nåt annat grepp som gör att allt får plats i en liten skärm?"). Krysset står aldrig ensamt, eftersom knappen bara finns när minst en ikon till vänster om den LYSER, och ett kryss sist i en rad tända ikoner läses som «släck dem». `clearLabel` är kvar som knappens namn, så den som lyssnar hör «Rensa» och inte «kryss». ⛔ KRYSSET SPARAR INGEN BREDD: mätt på komponenten i Chromium är raden 286 px med ordet och 284 med krysset. En ikonknapp som behåller sin träffyta är `min-w-11`, alltså 44 px, och ordet «Rensa» med `px-3` är 46. Bilden är smalare än ordet, knappen är det inte, och den som byter ord mot ikon för att vinna plats räknar fel. Krysset är ett utseendeval och inte en passformsfix | null}, `onChange` (hela kartan), `ariaLabel` (krävs), `sorting` {label, value, options, onChange}, `clearLabel`, `moreLabel`. Flera filterdimensioner plus sortering bakom en knapp. ⛔ Knappen byter form med valet: ikon utan text när inget är valt, piller med den VALDA etiketten när något är, räknare först vid två. ⛔ Sortering räknas aldrig som filter, en sorterad lista är fortfarande komplett. Ersätter inte `OpsFilterChip`: en dimension ska vara ett piller |
 | `OpsHelp` | `title` (ett rubrikelement), `children` (förklaringen), `label`. En rubrik med sin förklaring bakom ett FRÅGETECKEN. ⛔ CP 2026-09-22: "Låt texter komma fram med hjälp av att man trycker på ett frågetecken, så blir appen lite renare." Meningen under rubriken är sann och värd att ha, men den läses en gång och står kvar för alltid, och på en telefon trycker den ner det man kom för. ⛔ BYGGD PÅ `<details>` OCH INTE EN KNAPP MED STATE, samma skäl som `OpsDisclosure` och värt att upprepa eftersom frestelsen är större här: en liten knapp ser ut som fem rader kod, men en egen hopfällning tappar tangentbord, fokusordning och skärmläsarens «expanderad» gratis. ⛔ HELA RUBRIKRADEN ÄR TRÄFFYTAN och inte bara tecknet: `<summary>` är ETT element, så ska tecknet vara enda klickytan måste texten ut ur det, och då är man tillbaka i egen state. Bytet gynnar dessutom tummen, ett 20 px tecken är en dålig träff. Tecknet är det man SER och siktar på, raden tar emot. Innehållsmodellen tillåter uttryckligen ett rubrikelement i ett `<summary>`, så rubriken förblir en rubrik. ⛔ INGET FRÅGETECKEN UTAN TEXT: saknas `children` ritas rubriken naken, för en knapp som öppnar ingenting är ett löfte som inte infrias. ⛔ STÄNGD FRÅN START, ALLTID. Ett `storageKey` som `OpsDisclosure` har vore lätt och fel: mindes texten sig öppen vore vi tillbaka i en mening som står kvar för alltid. ⛔ `OpsViewHeader` ANVÄNDER DEN FÖR SIN `description`, alltså får varje vy frågetecknet utan att göra något; arton vyer i bolag-ops hade annars fått arton varianter av samma gest. |
@@ -476,10 +478,11 @@ lyckades.
 | | |
 |---|---|
 | `sakerstallAnvandare({ kalla, inloggad })` | läser `users/{uid}` och skapar raden **bara om den saknas**. Svarar `{ anvandare, skapad }` |
-| `sparaInstallningar({ kalla, anvandare, andring })` | skriver språk och tema. ⛔ Avvisar allt annat: e-posten är identiteten, namn och bild hör till en egen åtgärd |
-| `andringen(anvandare, utkast)` | vad som skiljer utkastet från den sparade raden. Beslutet ligger utanför vyn, se noten nedan |
-| `OpsProfil` | vyn: namn, e-post, bild, språk, utseende och mina grupper med roll |
-| `OpsAnvandarmeny` | avataren i toppraden, med profil och utloggning bakom |
+| `sparaInstallningar({ kalla, anvandare, andring, tillatnaPlattformar })` | skriver **allt personen själv äger**: `sprak`, `tema`, `namn`, `telefon`, `stad`, `presentation`, `lankar`, `bild`, `bildSokvag` (#156, `PERSONFALT`). Avvisar allt annat: e-posten är identiteten och kommer ur inloggningen, `id` är nyckeln. `tillatnaPlattformar` vidarebefordras till `byggAnvandare` för `lankar` |
+| `andringen(anvandare, utkast)` | vad som skiljer utkastet från den sparade raden, över ALLA `PERSONFALT`. Beslutet ligger utanför vyn, se noten nedan. `lankar` jämförs som värde (`JSON.stringify`), inte som referens |
+| `MAX_PRESENTATION` | 500. Taket `byggAnvandare` avvisar en längre presentation mot |
+| `OpsProfil` | vyn, byggd med `OpsSectionLabel`, `OpsChip` och `OpsCard` (#156, mätt mot SessionStudios `ProfileView.jsx`): **Profilbild** (uppladdning/borttagning/återställning, se `props.lagring` nedan), **Personuppgifter** (namn, telefon, stad, presentation), **Länkar** (plattform ur `props.plattformar` + url), språk, utseende, och mina grupper med roll. `props.children` ritas SIST, efter Länkar och före Spara/Logga ut: appens EGNA sektioner (SessionStudios kreativa profil, disciplin/roll/instrument, hör dit och INTE hit, se filhuvudet). ⛔ **BILDUPPLADDNINGEN SPARAS DIREKT, INTE BAKOM "SPARA"**: en uppladdning är redan en färdig handling. Utan `props.lagring` (en `StorageSource`, se Lagring nedan) döljs Profilbild-sektionens knappar helt: ramverket fungerar utan Storage |
+| `OpsAnvandarmeny` | `anvandare` (krävs), `onLoggaUt` (krävs), `sektioner` (`AnvandarmenyRad[][]`: `key`, `etikett`, `ikon`, `onClick`, `href`, `chevron`, `badge`, `badgeText`), `rubrik` ("Meny"), `loggaUtEtikett`, `menyEtikett`, `appVersion`. Avataren i toppraden. Bakom den, mätt exakt mot SessionStudios `AppHeader.jsx` (#157): en rubrik, sektioner skilda med linjer där varje rad ritas med `OpsPanelRow` (samma primitiv notis- och aktivitetspanelerna använder), Logga ut i sin egen sista sektion, och en dämpad versionsrad längst ned. ⛔ VILKA RADER SOM FINNS ÄR APPENS: ramverket känner inte till "Kalender" eller "Bibliotekstyper" som begrepp, bara formen på en rad. ⛔ VERSIONSRADEN läser ramverkets tal ur en konstant som skrivs vid bygget (`scripts/generate-framework-version.mjs`, aldrig en handskriven kopia av `package.json`); appens egen version är `appVersion`-propen, och saknas den skrivs raden ändå med ramverkets ensam. Formen: `bolag-ops v1.4.2 · ops-framework v0.26.0` |
 
 ⛔ **RADEN SKAPAS VID FÖRSTA INLOGGNINGEN OCH BARA DÅ.** Språk och tema bor i
 databasen för att följa personen mellan enheter. Skrevs raden vid varje
@@ -487,9 +490,19 @@ inloggning skulle inloggningens uppgifter skriva över dem: du byter till mörkt
 läge på telefonen, loggar in på datorn, och telefonen är ljus igen nästa gång.
 Det felet ser inte ut som ett fel, det ser ut som att appen inte minns.
 
-⛔ **NAMN OCH BILD UPPDATERAS INTE HELLER.** Frestande, eftersom de kommer ur
-inloggningen. Men då är raden inte personens egen: den som redigerar sitt namn
-får det överskrivet nästa inloggning utan att något säger till.
+⛔ **NAMN OCH BILD UPPDATERAS INTE AV INLOGGNINGEN**, men är sedan #156
+redigerbara AV PERSONEN SJÄLV, via `sparaInstallningar`. Frestande att låta
+inloggningen skriva över dem, eftersom de kommer därifrån: men då är raden
+inte längre personens egen, och den som redigerar sitt namn i appen får det
+överskrivet nästa inloggning utan att något säger till.
+
+⛔ **EN NAMN- ELLER BILDÄNDRING NÅR INTE AUTOMATISKT MEDLEMSLISTORNA.**
+`sparaInstallningar` skriver bara `users/{uid}`. `memberships` bär
+denormaliserade kopior av namn och bild (#138) och skrivs aldrig av en klient
+(#136, `allow write: if false`). Appen som vill hålla dem i takt anropar
+EFTERÅT en server-callable byggd på `uppdateraProfil`
+(`@staiger/ops-framework/node`, se Nodsidan), som skriver `users` OCH alla
+medlemskap för uid i samma steg.
 
 ⛔ **ANVÄNDARMENYN HAR ETT EGET FACK I SKALET**, `OpsAppShell props.anvandare`,
 sist i klustret efter `actions` och före hamburgaren. Inte en `action` bland
@@ -567,7 +580,7 @@ datamodellen ändras.
 
 | Samling | Innehåll | Skrivs av |
 |---|---|---|
-| `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN` | personen själv, bara sin egen rad |
+| `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN`, och sedan #156: `telefon` (E.164 eller tom), `stad`, `presentation` (max `MAX_PRESENTATION`), `lankar` (`{ plattform, url }[]`, url https, plattform ur appens lista), `bildSokvag` | personen själv, bara sin egen rad |
 | `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv` | ägare i gruppen. Aldrig radering, arkivering |
 | `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER`, `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS`, plus `namn` och `bild` | ⛔ **bara serversidan** |
 | `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv` | ägare i gruppen. Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137) |
@@ -724,6 +737,42 @@ med i, och det är samma hål från var sitt håll.
 ⛔ **Inga JWT-claims.** En claim ligger i en token som redan är utdelad, så en
 borttagen medlem är kvar tills token förnyas.
 
+⛔ **`users`-blocket bär sedan #156 en `keys().hasOnly([...])`, exakt
+`ANVANDARFALT`** (`src/lib/grupp.js`), splittad i `allow read, delete`
+(inget `request.resource` där) och `allow create, update` (där `hasOnly`
+faktiskt går att utvärdera). `check-gruppnyckel.mjs` vaktar att de två
+listorna inte glider isär.
+
+#### Lagring: profilbilder, ramverkets första Storage-yta (#156)
+
+Samma snitt som Firestore, bredvid `kalla`: ramverket äger MAPPNINGEN, appen
+äger KOPPLINGEN och känner sin bucket och sitt sökvägsprefix.
+
+| | |
+|---|---|
+| `createStorageSource(adapter)` | kontrollerar att en adapter har `laddaUpp` och `taBort`, precis som `createDataSource` |
+| `STORAGE_OPERATIONS` | `["laddaUpp", "taBort"]` |
+| `createMemoryStorage(seed)` | i minnet, för prov. `laddaUpp({ sokvag, fil })` ger `{ url, sokvag }`; `taBort(sokvag)` |
+| `createFirebaseStorageSource({ storage, sdk })` | mot Firebase Storage. Ramverket importerar `firebase/storage` ALDRIG, appen skickar in `getStorage(app)` och hela SDK-modulen, precis som `createFirestoreSource`. `taBort` sväljer `storage/object-not-found` (en borttagning ska gå att köra två gånger), alla andra fel kastas |
+| `lagringsregelfragment({ prefix })` | Storage-regelfragment som text, `prefix` förval `"profilbilder"`: bara sin egen sökväg (`request.auth.uid == uid`), bara bilder (`contentType.matches('image/.*')`), 2 MB tak (`request.resource.size`). Limmas in i appens `storage.rules`, precis som `gruppadSamling` limmas in i `firestore.rules` |
+
+```js
+import { createFirebaseStorageSource, lagringsregelfragment } from "@staiger/ops-framework";
+import { getStorage } from "firebase/storage";
+import * as storage from "firebase/storage";
+
+const lagring = createFirebaseStorageSource({ storage: getStorage(app), sdk: storage });
+// lagringsregelfragment() -> limmas in i storage.rules, appen deployar
+```
+
+⛔ **`OpsProfil` döljer Profilbild-sektionens knappar helt utan `props.lagring`.**
+Ramverket fungerar fortfarande utan Storage, samma linje som resten av huset:
+`tam` behöver inte Firebase för att använda en knapp den inte trycker på.
+
+⛔ **STORAGE-EMULATORPROV FINNS INTE ÄNNU.** `lagringsregelfragment` provas som
+text (`src/__tests__/grupp.test.js`), inte mot en riktig Storage-emulator.
+`rules/__tests__/` kör bara Firestore-emulatorn i dag.
+
 #### Hela regelfilen ur manifesten
 
 [#130](https://github.com/cllp/ops-framework/issues/130). `generateRules(moduler, { namn, extra })`
@@ -863,6 +912,59 @@ väg tillbaka till en som fungerar. Appen visar dem, som `KatalogLarm`.
 driva med `fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut
 inget prov kan mäta. Väljaren och filtret är vanliga knappar, och proven trycker
 på dem.
+
+### Felrapportering
+
+[#159](https://github.com/cllp/ops-framework/issues/159). CP: "Skall Sentry
+vara default eller optional i framework?" Beslut, CP:s svar "Allt perfekt":
+**valfritt, men färdigkopplat.** Ramverket känner inga externa konton (ingen
+DSN, precis som ingen Firebase-projekt-id), men ett fel ska ALDRIG försvinna
+tyst, med eller utan ett sådant konto.
+
+| | |
+|---|---|
+| `rapporteraFel(fel, sammanhang, felmottagare)` | loggpunkten. Skriver **alltid** till `console.error`, oavsett mottagare eller miljö: det är det garanterade golvet. Finns en `felmottagare` kallas även dess `fanga(fel, sammanhang)`. Kastar aldrig, även om mottagaren själv kastar (fångas och loggas separat) |
+| `OpsAppShell props.felmottagare` | felgränsen (alltid på, ingen prop stänger av den) kallar `rapporteraFel` i `componentDidCatch` med `felmottagare` och ett sammanhang som bär felytans id |
+| `OpsAppShell props.felRubrik`, `felBeskrivning`, `laddaOmEtikett` | texten på felytan |
+| `OpsAuthProvider props.felmottagare` | kallar `felmottagare.satt({ uid, groupId })` vid varje inloggningsbyte, `satt(null)` vid utloggning. **Aldrig e-post**, även när den finns på `User`-objektet |
+| `sentryMottagare({ dsn, miljo, version })` | en färdig `felmottagare`, i en EGEN ingång: `@staiger/ops-framework/sentry` |
+
+```js
+import { OpsAppShell } from "@staiger/ops-framework";
+import { OpsAuthProvider } from "@staiger/ops-framework";
+// Förvalet är AV. Kommentera in när appen vill ha Sentry:
+// import { sentryMottagare } from "@staiger/ops-framework/sentry";
+// const felmottagare = sentryMottagare({ dsn, miljo: import.meta.env.MODE, version });
+
+<OpsAuthProvider authentication={auth} felmottagare={felmottagare}>
+  <OpsAppShell nav={nav} activeHref={pathname} felmottagare={felmottagare}>
+    {children}
+  </OpsAppShell>
+</OpsAuthProvider>;
+```
+
+⛔ **FELGRÄNSEN ÄR ALLTID PÅ, OCH DET SKILJER DEN FRÅN VARJE ANNAN KOMPONENT.**
+Ett fält i en vy som kastar ger en felyta med ett id och en knapp för att ladda
+om, aldrig en vit sida. En vit sida ser ut som att ingenting hände, och den som
+möter den vet inte om appen laddar, hängt sig, eller är trasig.
+
+⛔ **`console.error` KÖRS ÄVEN NÄR EN MOTTAGARE FINNS.** En loggpunkt som bara
+pratar med mottagaren gör felsökning utan nätverk (offline, en trasig DSN, en
+blockerad tredjepartsdomän) omöjlig: den enda platsen felet syns är i ett konto
+ingen kan nå just då.
+
+⛔ **`@staiger/ops-framework/sentry` ÄR EN EGEN, OBUNDLAD INGÅNG**, precis som
+`/node`: `package.json` pekar den direkt mot källan, ingen esbuild-runda.
+`@sentry/browser` bara laddas av den app som faktiskt skriver
+`import ... from "@staiger/ops-framework/sentry"`, aldrig av en app som inte
+gör det. `@sentry/browser` är en `peerDependency`, `optional: true`, ALDRIG en
+`dependency`: en `dependency` installeras åt ALLA, oavsett om de importerar
+filen. `check-paket.mjs` bevisar att ramverkets egen `dist/index.js` aldrig
+nämner Sentry.
+
+⛔ **KONTRAKTET, INTE EN SDK.** `Felmottagare` är formen `{ fanga, satt }`.
+`sentryMottagare` är EN implementation; en app som vill använda en annan
+tjänst skriver sin egen på samma form.
 
 ### Modulkontraktet
 
@@ -1166,6 +1268,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `FASER`, `AVSLUTADE_FASER`, `byggKategori`, `validateKatalog`, `valjbara`, `kategorin`, `arAvslutad`, `texten`, `SPRAK`, `RESERVSPRAK`, `byggNamn`, `text`, `arGammalNamn`, `saknadeSprak` | **katalogen och språken finns i båda ingångarna**, av samma skäl som `createActivityLog`: konfigurationen läses både av klienten och av det som körs utan skärm. Ett Cloud Function ska kunna fråga vilka sorter som finns utan att ladda React, och skillnaden är mätt till 8 ms mot 1946 ms |
 | `createActivityLog` | **samma funktion som i huvudingången, återexporterad här**, och det är en mätning och inte en bekvämlighet. `createActivityWriter` kräver en modell ur den, så ett Cloud Function som ville skriva en rad tvingades importera hela webbuntlen. Mätt (Node 20, ur den utgivna tarbollen): `@staiger/ops-framework/node` tar **8 ms**, `@staiger/ops-framework` tar **1946 ms**. Nästan två sekunder per kallstart för att en funktion som skriver ETT dokument skulle ladda React, Radix och en kalender. ⛔ `check-node-side` kräver att nodsidan inte når React eller en komponent, varken direkt eller genom en mellanfil, annars är mätningen osann inom en månad |
 | `createCaseMirror` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ owner, repo, label }` som konfiguration, plus `summary` och `extraFields` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `load` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
+| `uppdateraProfil({ kalla, uid, andring })` | #156. Den ENDA platsen som skriver `namn`/`bild` i `users` OCH i ALLA medlemskap för `uid` i samma steg, byggda genom `byggMedlemskap` så en trasig rad i databasen upptäcks i stället för att tystas in i ett rått patch-objekt. Bara `namn` och `bild` tas emot: de är de enda fälten som är denormaliserade i `memberships` (#138). Klienten kan inte göra det här själv, `memberships` har `allow write: if false` |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
 `src/index.js` buntas för webbläsaren, alltså hamnar i varje besökares JS-fil.
@@ -1180,7 +1283,7 @@ som råkar bryta det råkar minnas.
 | `check-closed-api` läser strängar som strängar | `scripts/lib/kallkod.mjs` stryker kommentarer utan att tro att `accept="image/*"` är en. Den gamla strykaren slukade allt från snedstreck-stjärnan i strängen till nästa kommentarslut: synligt som en falsk positiv, osynligt som ett hål där riktiga brott passerade oläsa |
 | `check-types` (`tsc --checkJs`) | JSDoc-typerna kontrolleras, och `.d.ts` följer med paketet |
 | `check-docs` | varje exporterat namn och varje vakt är omnämnd i README, och antalet komponenter stämmer |
-| `check-tokens` | sju regler i tokenkontraktet, plus golv mot fel fil |
+| `check-tokens` | åtta regler i tokenkontraktet, plus golv mot fel fil. ⛔ Regel 8 (#157): röd om en palettfärg glider från SessionStudios värden, med paletten inskriven som fixtur |
 | `check-exports` | den publika ytan stämmer med modulerna, inget internt läcker |
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |

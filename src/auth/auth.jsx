@@ -128,9 +128,14 @@ export function createGoogleAuth(config) {
 }
 
 /**
- * @param {{ authentication: Authentication, children: import("react").ReactNode }} props
+ * @param {{ authentication: Authentication, children: import("react").ReactNode, felmottagare?: import("../lib/felrapport.js").Felmottagare | null }} props
+ *
+ * ⛔ #159: `felmottagare.satt` KALLAS HÄR, VID VARJE INLOGGNINGSBYTE. Det är
+ * den enda platsen som SÄKERT vet vem som är inloggad: uid och, om appens
+ * `fetchProfile` skickat med den, `groupId`. ALDRIG e-post, se felrapport.js
+ * filhuvud: `User.email` finns på objektet men skickas medvetet inte vidare.
  */
-export function OpsAuthProvider({ authentication, children }) {
+export function OpsAuthProvider({ authentication, children, felmottagare }) {
   const [user, setUser] = useState(/** @type {User | null} */ (null));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(/** @type {Error | null} */ (null));
@@ -139,9 +144,10 @@ export function OpsAuthProvider({ authentication, children }) {
     const av = authentication.subscribe((a) => {
       setUser(a);
       setLoading(false);
+      if (felmottagare) felmottagare.satt(a ? { uid: a.id, groupId: /** @type {any} */ (a).groupId } : null);
     });
     return av;
-  }, [authentication]);
+  }, [authentication, felmottagare]);
 
   const signIn = useCallback(() => {
     setError(null);

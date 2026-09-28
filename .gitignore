@@ -5,3 +5,6 @@ dist/
 
 # Genererad av scripts/skriv-provregler.mjs inför regelproven. Se filhuvudet.
 rules/provregler.rules
+
+# Genererad av scripts/generate-framework-version.mjs ur package.json. Se filhuvudet.
+src/lib/frameworkVersion.generated.js
