@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { OpsProfil } from "../components/OpsProfil.jsx";
 import { OpsAnvandarmeny } from "../components/OpsAnvandarmeny.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
@@ -21,6 +21,14 @@ const ANV = {
   bild: "",
   sprak: "sv",
   tema: /** @type {const} */ ("system"),
+  // ⛔ #156: fem fält till på raden. Byggda ur byggAnvandare i verkligheten,
+  // men fixturen bär dem för hand precis som förut: vyn ska klara en rad
+  // ingen ram byggde, samma skäl som `namn: ""`-provet nedan.
+  telefon: "",
+  stad: "",
+  presentation: "",
+  lankar: /** @type {{ plattform: string, url: string }[]} */ ([]),
+  bildSokvag: "",
 };
 
 describe("OpsProfil", () => {
@@ -82,6 +90,167 @@ describe("OpsProfil", () => {
     render(<OpsProfil anvandare={ANV} onSpara={() => {}} rubrik="Profile" sprakEtikett="Language" sparaEtikett="Save" />);
     expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
     expect(screen.getByLabelText("Language")).toBeTruthy();
+  });
+
+  // ══ #156: Profilbild, Personuppgifter, Länkar, och children-sloten ═══════
+  describe("#156: Profilbild", () => {
+    it("utan lagring visas ingen uppladdnings- eller borttagningsknapp", () => {
+      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png" }} onSpara={() => {}} />);
+      expect(screen.queryByRole("button", { name: "Ladda upp bild" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
+    });
+
+    it("med lagring visas Ladda upp, och Ta bort bara när en bild finns", () => {
+      const lagring = { laddaUpp: vi.fn(), taBort: vi.fn() };
+      const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={() => {}} lagring={lagring} />);
+      expect(screen.getByRole("button", { name: "Ladda upp bild" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
+
+      rerender(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png" }} onSpara={() => {}} lagring={lagring} />);
+      expect(screen.getByRole("button", { name: "Ta bort" })).toBeTruthy();
+    });
+
+    it("⛔ laddar upp, sparar direkt (inte bakom Spara-knappen), och rensar upp den gamla filen", async () => {
+      const lagring = {
+        laddaUpp: vi.fn(async () => ({ url: "https://minlagring/ny.jpg", sokvag: "profilbilder/uid-1/ny.jpg" })),
+        taBort: vi.fn(async () => {}),
+      };
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/gammal.jpg", bildSokvag: "profilbilder/uid-1/gammal.jpg" }} onSpara={onSpara} lagring={lagring} />);
+
+      const filInput = document.querySelector('input[type="file"]');
+      const fil = new File(["x"], "ny.jpg", { type: "image/jpeg" });
+      fireEvent.change(/** @type {HTMLInputElement} */ (filInput), { target: { files: [fil] } });
+
+      expect(lagring.laddaUpp).toHaveBeenCalledWith(expect.objectContaining({ fil }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ bild: "https://minlagring/ny.jpg", bildSokvag: "profilbilder/uid-1/ny.jpg" }));
+      await waitFor(() => expect(lagring.taBort).toHaveBeenCalledWith("profilbilder/uid-1/gammal.jpg"));
+    });
+
+    it("⛔ vägrar en fil som inte är en bild, INNAN lagring.laddaUpp anropas", async () => {
+      const lagring = { laddaUpp: vi.fn(), taBort: vi.fn() };
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} lagring={lagring} />);
+      const filInput = document.querySelector('input[type="file"]');
+      const fil = new File(["x"], "kontrakt.pdf", { type: "application/pdf" });
+      fireEvent.change(/** @type {HTMLInputElement} */ (filInput), { target: { files: [fil] } });
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Bara bilder"));
+      expect(lagring.laddaUpp).not.toHaveBeenCalled();
+    });
+
+    it("⛔ vägrar en för stor fil, INNAN lagring.laddaUpp anropas", async () => {
+      const lagring = { laddaUpp: vi.fn(), taBort: vi.fn() };
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} lagring={lagring} />);
+      const filInput = document.querySelector('input[type="file"]');
+      const stor = new File([new Uint8Array(2 * 1024 * 1024)], "stor.jpg", { type: "image/jpeg" });
+      fireEvent.change(/** @type {HTMLInputElement} */ (filInput), { target: { files: [stor] } });
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("2 MB"));
+      expect(lagring.laddaUpp).not.toHaveBeenCalled();
+    });
+
+    it("Ta bort tar bort ur lagringen och sparar tom bild direkt", async () => {
+      const lagring = { laddaUpp: vi.fn(), taBort: vi.fn(async () => {}) };
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png", bildSokvag: "profilbilder/uid-1/y.jpg" }} onSpara={onSpara} lagring={lagring} />);
+      fireEvent.click(screen.getByRole("button", { name: "Ta bort" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ bild: "", bildSokvag: "" }));
+      expect(lagring.taBort).toHaveBeenCalledWith("profilbilder/uid-1/y.jpg");
+    });
+
+    it("Återställ syns bara när inloggningsBild skiljer sig från den sparade, och sparar den direkt", async () => {
+      const lagring = { laddaUpp: vi.fn(), taBort: vi.fn() };
+      const onSpara = vi.fn(async () => {});
+      const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={onSpara} lagring={lagring} inloggningsBild="https://google/foto.jpg" />);
+      fireEvent.click(screen.getByRole("button", { name: "Återställ" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ bild: "https://google/foto.jpg", bildSokvag: "" }));
+
+      rerender(<OpsProfil anvandare={{ ...ANV, bild: "https://google/foto.jpg" }} onSpara={onSpara} lagring={lagring} inloggningsBild="https://google/foto.jpg" />);
+      expect(screen.queryByRole("button", { name: "Återställ" })).toBeNull();
+    });
+  });
+
+  describe("#156: Personuppgifter", () => {
+    it("namn, telefon, stad och presentation går att fylla i och skickas med till Spara", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={ANV} onSpara={onSpara} />);
+
+      fireEvent.change(screen.getByLabelText("Namn"), { target: { value: "Ny person" } });
+      fireEvent.change(screen.getByLabelText("Telefon"), { target: { value: "+46701234567" } });
+      fireEvent.change(screen.getByLabelText("Stad"), { target: { value: "Visby" } });
+      fireEvent.change(screen.getByLabelText("Presentation"), { target: { value: "En kort text." } });
+
+      expect(screen.getByRole("button", { name: "Spara" }).hasAttribute("disabled")).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+      await waitFor(() =>
+        expect(onSpara).toHaveBeenCalledWith(
+          expect.objectContaining({ namn: "Ny person", telefon: "+46701234567", stad: "Visby", presentation: "En kort text." }),
+        ),
+      );
+    });
+
+    it("presentationens teckenräknare visar taket", () => {
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+      expect(screen.getByText("0/500")).toBeTruthy();
+    });
+  });
+
+  describe("#156: Länkar", () => {
+    const PLATTFORMAR = [
+      { id: "webbplats", label: "Webbplats" },
+      { id: "instagram", label: "Instagram" },
+    ];
+
+    it("utan plattformar syns ingen \"lägg till\"-rad", () => {
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+      expect(screen.queryByText("Lägg till länk")).toBeNull();
+    });
+
+    it("visar en chip per plattform som INTE redan är tillagd", () => {
+      const medEnLank = { ...ANV, lankar: [{ plattform: "webbplats", url: "https://staiger.se" }] };
+      render(<OpsProfil anvandare={medEnLank} onSpara={() => {}} plattformar={PLATTFORMAR} />);
+      expect(screen.getByRole("button", { name: "Instagram" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Webbplats" })).toBeNull();
+    });
+
+    it("⛔ lägger till en länkrad, fyller i url, och skickar den till Spara", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={ANV} onSpara={onSpara} plattformar={PLATTFORMAR} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Webbplats" }));
+      fireEvent.change(screen.getByLabelText("webbplats url"), { target: { value: "https://staiger.se" } });
+      fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+      await waitFor(() =>
+        expect(onSpara).toHaveBeenCalledWith(expect.objectContaining({ lankar: [{ plattform: "webbplats", url: "https://staiger.se" }] })),
+      );
+    });
+
+    it("tar bort en länkrad igen", () => {
+      const medEnLank = { ...ANV, lankar: [{ plattform: "webbplats", url: "https://staiger.se" }] };
+      render(<OpsProfil anvandare={medEnLank} onSpara={() => {}} plattformar={PLATTFORMAR} />);
+      expect(screen.getByLabelText("webbplats url")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Ta bort länken: webbplats" }));
+      expect(screen.queryByLabelText("webbplats url")).toBeNull();
+      // Chipet för webbplats är tillbaka bland dem man kan lägga till.
+      expect(screen.getByRole("button", { name: "Webbplats" })).toBeTruthy();
+    });
+
+    it("en redan sparad länk visas även om plattformen tagits bort ur appens lista", () => {
+      // ⛔ Samma tvådelade mönster som moduler/kandaModuler: en app som krympt
+      // sin plattformslista ska inte få en gammal länk att försvinna ur vyn.
+      const medOkand = { ...ANV, lankar: [{ plattform: "myspace", url: "https://myspace.com/cp" }] };
+      render(<OpsProfil anvandare={medOkand} onSpara={() => {}} plattformar={PLATTFORMAR} />);
+      expect(screen.getByLabelText("myspace url")).toBeTruthy();
+    });
+  });
+
+  it("#156: children-sloten ritas efter Länkar och före Spara", () => {
+    render(
+      <OpsProfil anvandare={ANV} onSpara={() => {}}>
+        <div data-testid="appens-sektion">Kreativ profil</div>
+      </OpsProfil>,
+    );
+    expect(screen.getByTestId("appens-sektion")).toBeTruthy();
   });
 });
 
