@@ -159,6 +159,25 @@ kravRott(
   "SessionStudios palett",
 );
 
+// ⛔ #164, Regel 9: rundningsskalan, samma mönster som Regel 8. Ett enda tal
+// mätt ur SessionStudio, och glider det utan att vakten fäller är felet
+// osynligt tills någon lägger skärmdumparna sida vid sida.
+kravRott(
+  "tokens 9: rundningsskalan glider från SessionStudio",
+  [tokenvakt, tokenkopia("r9", (s) => s.replace("--radius-sm: 8px;", "--radius-sm: 4px;"))],
+  "rundningsskala",
+);
+
+// ⛔ #164, Regel 10: ett border-radius-literal utanför @theme static som
+// råkar träffa ett redan deklarerat radie-token. Mutationen återinför exakt
+// det fyndet arkitekturgranskningen gjorde (999px, samma tal som
+// --radius-full), på en av de fyra rader som fixen bytte till var(...).
+kravRott(
+  "tokens 10: radie-literal dubblerar ett token",
+  [tokenvakt, tokenkopia("r10", (s) => s.replace("border-radius: var(--radius-full);\n    background:", "border-radius: 999px;\n    background:"))],
+  "dubblerar ett token",
+);
+
 // ── Vakten för det stängda API:et ───────────────────────────────────────────
 const apivakt = "scripts/check-closed-api.mjs";
 
@@ -1414,6 +1433,40 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("gruppfraga golv: fel sökväg", [gruppvakt, path.join(gruppmapp, "finns-inte.js")], "hittar inte");
 
   fs.rmSync(gruppmapp, { recursive: true, force: true });
+}
+
+// ── Vakten mot handritade ikoner (#164) ─────────────────────────────────────
+//
+// ⛔ VAKTEN SJÄLV LÅG UTAN PROV I DET FÖRRA PASSET. Den skrevs, verifierades
+// för hand mot en tillfällig kopia, och lades i `check`-kedjan, men aldrig in
+// här. En vakt som ingen sett faila i DET HÄR harnesset är, med samma ord som
+// filhuvudet ovan, en förhoppning och inte en vakt: nästa ändring av regexen
+// eller undantagslistan kan tysta den utan att något upptäcker det.
+{
+  const ikonvakt = "scripts/check-handritade-ikoner.mjs";
+  const ikonmapp = path.join(arbetsmapp, "ikoner");
+
+  // Grönt mot den riktiga komponentkatalogen: den ska INTE bli röd av sig
+  // själv, annars är vakten obrukbar från dag ett.
+  kravGront("handritade ikoner: den riktiga src/components är grön", [ikonvakt, path.join(rot, "src", "components")]);
+
+  // Rött: en kopia av den rensade katalogen med EN injicerad handritad ikon i
+  // en fil som inte står i undantagslistan.
+  fs.cpSync(path.join(rot, "src", "components"), path.join(ikonmapp, "smutsig"), { recursive: true });
+  fs.writeFileSync(
+    path.join(ikonmapp, "smutsig", "OpsProvikon.jsx"),
+    'export function OpsProvikon() {\n  return <svg viewBox="0 0 16 16"><path d="M0 0h16v16H0z" /></svg>;\n}\n',
+  );
+  kravRott("handritade ikoner: en injicerad svg utanför icons.jsx", [ikonvakt, path.join(ikonmapp, "smutsig")], "handritad");
+
+  // Golv: en katalog som finns men är för liten (t.ex. en trasig sökväg som
+  // råkar peka på en mapp) ska inte tolkas som "inga fynd, alltså klart".
+  const tunnmapp = path.join(ikonmapp, "tunn");
+  fs.mkdirSync(tunnmapp, { recursive: true });
+  fs.writeFileSync(path.join(tunnmapp, "Ensam.jsx"), "export function Ensam() { return null; }\n");
+  kravRott("handritade ikoner golv: för få filer lästa", [ikonvakt, tunnmapp], "väntat fler än");
+
+  kravRott("handritade ikoner golv: fel sökväg", [ikonvakt, path.join(ikonmapp, "finns-inte")], "finns inte");
 }
 
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
