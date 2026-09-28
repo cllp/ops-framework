@@ -170,6 +170,34 @@ av en kontroll: källan frågas per grupp.
 sist, inte utanför: en ny modul ska dyka upp, inte vara osynlig tills någon
 redigerat en lista de inte visste fanns.
 
+### Skapa-kontraktet: plusset ([#150](https://github.com/cllp/ops-framework/issues/150))
+
+⛔ **Manifestet får sin sjunde del, och den är spegelbilden av källorna.**
+Källorna läser IN i ramverkets ytor, `skapar[]` skriver UT ur plusset. En
+registrering bär `{ id, namn, ikon, katalog, form }`, och `OpsSkapa` ritar en
+flik per registrering från den aktiva gruppens påslagna moduler.
+
+⛔ **BRYTANDE: `skapar` krävs i varje manifest, även tomt.** Samma skäl som
+`kallor: {}`: en modul som inte kan skapa något och en som glömt fältet ser
+likadana ut om det är valfritt. Lägg till `skapar: []` i manifest som inte
+registrerar något.
+
+⛔ **Ramverket äger panelen, modulen äger formuläret.** Formuläret får
+`{ groupId, typ, onKlar }` och ingenting mer. Skulle ramverket skriva raden
+måste det känna till modulens samling, och då är uppdelningen bara en
+uppdelning på papperet.
+
+⛔ **Tre tomlägen, inte två.** `skapalaget` skiljer "välj en grupp först" från
+"inget att skapa här", eftersom de kräver olika handlingar. Samma text för båda
+lär användaren att plusset är trasigt, och den läxan sitter kvar efter att
+texten rättats.
+
+⛔ **Katalogkontrollen bor i `kontrolleraSkaparkataloger`, inte i
+`defineModule`, och det är en avvikelse från ärendets ord "kastar vid
+uppstart".** Kataloger kommer ur `kallor.kataloger`, alltså ur en funktion som
+frågas per grupp, och ingen lista finns förrän den frågats. Kontrollen körs så
+tidigt den kan: när gruppens kataloger är lästa.
+
 ### Kedjan kontrollerar nu varje PR
 
 `check.yml` hade `branches: [main]` på `pull_request`, så en PR mot en annan

@@ -1,0 +1,234 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { defineModule, validateModuler } from "../lib/modul.js";
+import { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "../lib/skapa.js";
+import { ALLA_GRUPPER } from "../lib/grupplage.js";
+import { OpsSkapa } from "../components/OpsSkapa.jsx";
+
+/**
+ * Fas 3: skapa-kontraktet (#150). Spegelbilden av källorna.
+ */
+
+const REG = (/** @type {string} */ id, /** @type {string | null} */ katalog = null) => ({
+  id,
+  namn: { sv: id, en: id },
+  ikon: "gem",
+  katalog,
+  form: () => <p>{`form ${id}`}</p>,
+});
+
+const modul = (/** @type {string} */ id, /** @type {any[]} */ skapar) =>
+  defineModule({ id, namn: { sv: id }, nav: [], routes: [], samlingar: [], kallor: {}, skapar });
+
+describe("manifestets sjunde del", () => {
+  it("tar emot en registrering och fryser den", () => {
+    const m = modul("inkorg", [REG("arende", "sorter")]);
+    expect(m.skapar).toHaveLength(1);
+    expect(m.skapar[0].katalog).toBe("sorter");
+    expect(Object.isFrozen(m.skapar)).toBe(true);
+  });
+
+  it("⛔ skapar krävs, även tomt", () => {
+    // Samma skäl som kallor: en modul som INTE kan skapa något och en som
+    // glömt fältet ser likadana ut om det är valfritt.
+    expect(() => defineModule({ id: "x", namn: { sv: "X" }, nav: [], routes: [], samlingar: [], kallor: {} })).toThrow(
+      /skapar krävs och måste vara en lista/,
+    );
+  });
+
+  it("⛔ katalog krävs även när den är null, och undefined är ett fel", () => {
+    // null är ett svar, saknad är en gissning. Ett kvitto har ingen typ.
+    const utan = { ...REG("kvitto") };
+    delete (/** @type {any} */ (utan)).katalog;
+    expect(() => modul("kvitton", [utan])).toThrow(/katalog för "kvitto" krävs/);
+    expect(() => modul("kvitton", [REG("kvitto", null)])).not.toThrow();
+  });
+
+  it("⛔ ett lazy-formulär tas emot, eftersom lazy ger ett objekt", () => {
+    // Mätt: exempelmodulen MÅSTE ladda sitt formulär lat, annars går manifestet
+    // inte att läsa ur regelgeneratorns Node-skript. En typeof-function-koll
+    // hade gjort det enda rätta sättet omöjligt.
+    const lat = { $$typeof: Symbol.for("react.lazy"), _payload: {}, _init: () => null };
+    expect(() => modul("liv", [{ ...REG("matning"), form: lat }])).not.toThrow();
+  });
+
+  it("⛔ ett saknat formulär är ett fel", () => {
+    expect(() => modul("liv", [{ ...REG("matning"), form: null }])).toThrow(/form för "matning" krävs/);
+  });
+
+  it("okända fält i en registrering avvisas", () => {
+    expect(() => modul("liv", [{ ...REG("matning"), farg: 3 }])).toThrow(/bär fälten farg som inte känns igen/);
+  });
+
+  it("två registreringar med samma id i samma modul avvisas", () => {
+    expect(() => modul("liv", [REG("matning"), REG("matning")])).toThrow(/står två gånger i samma modul/);
+  });
+
+  it("⛔ två MODULER som registrerar samma id avvisas av validateModuler", () => {
+    // Var för sig giltiga, tillsammans en flik vars innehåll avgörs av
+    // registreringsordningen. Samma felform som två moduler på samma route.
+    const a = { id: "inkorg", namn: { sv: "a" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [REG("arende")] };
+    const b = { id: "liv", namn: { sv: "b" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [REG("arende")] };
+    expect(() => validateModuler([a, b])).toThrow(/registrerar båda att de skapar "arende"/);
+  });
+});
+
+describe("skaparFor", () => {
+  const moduler = [modul("inkorg", [REG("arende", "sorter")]), modul("liv", [REG("matning")])];
+
+  it("⛔ en avstängd modul bidrar inte", () => {
+    // En flik som skapar rader ingen kan se efteråt är värre än ingen flik.
+    expect(skaparFor(moduler, ["inkorg"]).map((r) => r.id)).toEqual(["arende"]);
+  });
+
+  it("stämplar modulId, och det tas inte ur registreringen", () => {
+    expect(skaparFor(moduler, ["inkorg", "liv"]).map((r) => r.modulId)).toEqual(["inkorg", "liv"]);
+  });
+
+  it("en grupp utan påslagna moduler ger noll registreringar, inte ett fel", () => {
+    expect(skaparFor(moduler, [])).toEqual([]);
+  });
+});
+
+describe("kontrolleraSkaparkataloger", () => {
+  it("⛔ en katalog gruppen inte har är ett FEL, inte en tom lista", () => {
+    // En tom typväljare ser ut som en katalog någon glömt fylla, alltså som
+    // något användaren kan rätta. Det här är ett programmeringsfel.
+    expect(() => kontrolleraSkaparkataloger([{ id: "arende", katalog: "sorter", modulId: "inkorg" }], [])).toThrow(
+      /katalogen "sorter" finns inte i gruppen/,
+    );
+  });
+
+  it("en registrering utan katalog passerar", () => {
+    expect(() => kontrolleraSkaparkataloger([{ id: "kvitto", katalog: null }], [])).not.toThrow();
+  });
+
+  it("en känd katalog passerar", () => {
+    expect(() => kontrolleraSkaparkataloger([{ id: "arende", katalog: "sorter" }], ["sorter"])).not.toThrow();
+  });
+
+  it("⛔ en utelämnad lista kända kataloger är ett fel, inte en tom", () => {
+    expect(() => kontrolleraSkaparkataloger([], /** @type {any} */ (undefined))).toThrow(/måste vara en lista katalog-id/);
+  });
+});
+
+describe("typerAttValja", () => {
+  const kataloger = [
+    {
+      id: "sorter",
+      kategorier: [
+        { id: "b", namn: { sv: "B" }, ordning: 2 },
+        { id: "a", namn: { sv: "A" }, ordning: 1 },
+        { id: "gammal", namn: { sv: "Gammal" }, ordning: 0, arkiverad: true },
+      ],
+    },
+  ];
+
+  it("sorterar på ordning", () => {
+    expect(typerAttValja("sorter", kataloger).map((k) => k.id)).toEqual(["a", "b"]);
+  });
+
+  it("⛔ arkiverade går inte att välja", () => {
+    // De försvinner inte ur gamla rader: en rad som pekar på en borttagen
+    // kategori blir en rad utan ord. Därför arkivering och inte radering.
+    expect(typerAttValja("sorter", kataloger).map((k) => k.id)).not.toContain("gammal");
+  });
+
+  it("ingen katalog ger tom lista, och en okänd katalog också", () => {
+    expect(typerAttValja(null, kataloger)).toEqual([]);
+    expect(typerAttValja("finns-inte", kataloger)).toEqual([]);
+  });
+});
+
+describe("skapalaget", () => {
+  it("⛔ läget alla ber om ett gruppval, även när det finns registreringar", () => {
+    // Gruppfrågan går först. Frågades tomheten först hade en grupplös
+    // användare fått veta att det inte finns något att skapa, vilket är fel
+    // svar på rätt fråga.
+    expect(skapalaget({ lage: ALLA_GRUPPER, registreringar: [{ id: "a" }] }).tillstand).toBe("valjGrupp");
+  });
+
+  it("en grupp utan registreringar är tomt, inte valjGrupp", () => {
+    expect(skapalaget({ lage: "bolaget", registreringar: [] })).toEqual({ tillstand: "tomt", grupp: "bolaget" });
+  });
+
+  it("⛔ läget alla OCH noll registreringar ger ändå valjGrupp", () => {
+    // Mutationsfynd: provet ovan hade registreringar, så båda ordningarna gav
+    // samma svar och att byta dem överlevde svepet. Det är HÄR ordningen syns.
+    // Svarade panelen "inget att skapa" skulle användaren sluta leta, fastän
+    // det kan finnas gott om moduler i den grupp hen inte valt.
+    expect(skapalaget({ lage: ALLA_GRUPPER, registreringar: [] })).toEqual({ tillstand: "valjGrupp", grupp: null });
+  });
+
+  it("en grupp med registreringar är redo, och bär gruppen", () => {
+    expect(skapalaget({ lage: "bolaget", registreringar: [{ id: "a" }] })).toEqual({ tillstand: "redo", grupp: "bolaget" });
+  });
+});
+
+describe("OpsSkapa", () => {
+  const kataloger = [{ id: "sorter", kategorier: [{ id: "rakning", namn: { sv: "Räkning" }, ordning: 1 }] }];
+
+  it("⛔ läget alla säger välj grupp, inte att det är tomt", () => {
+    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage={ALLA_GRUPPER} kataloger={kataloger} />);
+    expect(screen.getByText(/Välj en grupp först/)).toBeTruthy();
+  });
+
+  it("⛔ en tom lista visar en text, aldrig ett tomt plus", () => {
+    render(<OpsSkapa registreringar={[]} lage="bolaget" />);
+    expect(screen.getByText(/Ingen av gruppens moduler kan skapa något än/)).toBeTruthy();
+  });
+
+  it("ritar en flik per registrering och modulens formulär i den första", () => {
+    render(
+      <OpsSkapa
+        registreringar={[
+          { ...REG("arende", "sorter"), modulId: "inkorg" },
+          { ...REG("kvitto"), modulId: "kvitton" },
+        ]}
+        lage="bolaget"
+        kataloger={kataloger}
+      />,
+    );
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    expect(screen.getByText("form arende")).toBeTruthy();
+  });
+
+  it("⛔ en registrering utan katalog ritar ingen typväljare", () => {
+    // Ett kvitto har ingen typ. En tom väljare hade sett ut som en katalog
+    // någon glömt fylla.
+    render(<OpsSkapa registreringar={[{ ...REG("kvitto"), modulId: "kvitton" }]} lage="bolaget" kataloger={kataloger} />);
+    expect(screen.queryByText("Typ")).toBeNull();
+  });
+
+  it("en registrering MED katalog ritar typväljaren", () => {
+    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage="bolaget" kataloger={kataloger} />);
+    expect(screen.getByText("Typ")).toBeTruthy();
+  });
+
+  it("⛔ fliken faller tillbaka på den första när den valda försvinner", () => {
+    // Mutationsfynd. Byter gruppen moduler medan panelen är öppen pekar det
+    // sparade valet på en flik som inte finns, och Radix ritar då ingen panel
+    // alls: en tom yta utan förklaring, vilket läses som ett fel i appen.
+    const tva = [
+      { ...REG("arende", "sorter"), modulId: "inkorg" },
+      { ...REG("kvitto"), modulId: "kvitton" },
+    ];
+    const { rerender } = render(<OpsSkapa registreringar={tva} lage="bolaget" kataloger={kataloger} />);
+    expect(screen.getByText("form arende")).toBeTruthy();
+
+    rerender(<OpsSkapa registreringar={[{ ...REG("kvitto"), modulId: "kvitton" }]} lage="bolaget" kataloger={kataloger} />);
+    expect(screen.getByText("form kvitto")).toBeTruthy();
+  });
+
+  it("⛔ formuläret får gruppen och typen inskickade, och ingenting mer", () => {
+    // Skulle ramverket skicka in appens datalager vore ramverket en app.
+    const Form = vi.fn(() => <p>form</p>);
+    render(
+      <OpsSkapa registreringar={[{ ...REG("arende", "sorter"), form: Form, modulId: "inkorg" }]} lage="bolaget" kataloger={kataloger} />,
+    );
+    const props = Form.mock.calls[0][0];
+    expect(props.groupId).toBe("bolaget");
+    expect(props.typ).toBe("rakning");
+    expect(Object.keys(props).sort()).toEqual(["groupId", "onKlar", "typ"]);
+  });
+});

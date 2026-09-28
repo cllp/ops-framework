@@ -19,7 +19,7 @@ const GRUPP = { groupId: "bolaget" };
 
 /** @param {Record<string, Function>} kallor @param {string} [id] */
 const modul = (kallor, id = "liv") =>
-  defineModule({ id, namn: { sv: "Liv" }, nav: [], routes: [], samlingar: [], kallor });
+  defineModule({ id, namn: { sv: "Liv" }, nav: [], routes: [], samlingar: [], kallor, skapar: [] });
 
 describe("registret byggs bara av byggda moduler", () => {
   it("avvisar ett rått manifest, eftersom det inte gått genom valideringen", () => {

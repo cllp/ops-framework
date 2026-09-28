@@ -24,6 +24,7 @@ const LIV = () => ({
   routes: [{ path: "/liv", vy: () => null }],
   samlingar: ["matningar"],
   kallor: {},
+  skapar: [],
 });
 
 describe("modulmanifestet tas emot", () => {

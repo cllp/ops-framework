@@ -59,14 +59,15 @@ function lista(namn) {
 const modulfalt = lista("MODULFALT");
 const samlingsfalt = lista("SAMLINGSFALT");
 const kalltyper = lista("KALLTYPER");
+const skaparfalt = lista("SKAPARFALT");
 
 /*
  * ⛔ GOLV. Blir mönstret fel läser vakten noll fält och står grön mot två
  * dokument den inte jämfört. Talen är dagens, och de får bara växa.
  */
-if (modulfalt.length < 6 || samlingsfalt.length < 3 || kalltyper.length < 6) {
+if (modulfalt.length < 7 || samlingsfalt.length < 3 || kalltyper.length < 6 || skaparfalt.length < 5) {
   console.error(
-    `check-exempelmodul: läste ${modulfalt.length} manifestfält, ${samlingsfalt.length} samlingsfält och ${kalltyper.length} källtyper ur modul.js. Väntade minst 6, 3 och 6. Fel mönster, alltså mäter vakten ingenting.`,
+    `check-exempelmodul: läste ${modulfalt.length} manifestfält, ${samlingsfalt.length} samlingsfält, ${kalltyper.length} källtyper och ${skaparfalt.length} skapa-fält ur modul.js. Väntade minst 7, 3, 6 och 5. Fel mönster, alltså mäter vakten ingenting.`,
   );
   process.exit(1);
 }
@@ -155,10 +156,11 @@ function kravBada(falt, vad) {
 kravBada(modulfalt, "manifestfältet");
 kravBada(samlingsfalt, "samlingsfältet");
 kravBada(kalltyper, "källtypen");
+kravBada(skaparfalt, "skapa-fältet");
 
 if (brott.length === 0) {
   console.log(
-    `check-exempelmodul: ${modulfalt.length} manifestfält, ${samlingsfalt.length} samlingsfält och ${kalltyper.length} källtyper finns både i README-avsnittet och i exempelmodulen, och exemplets ${importrader.length} importer går alla via paketnamnet eller inom mappen.`,
+    `check-exempelmodul: ${modulfalt.length} manifestfält, ${samlingsfalt.length} samlingsfält, ${kalltyper.length} källtyper och ${skaparfalt.length} skapa-fält finns både i README-avsnittet och i exempelmodulen, och exemplets ${importrader.length} importer går alla via paketnamnet eller inom mappen.`,
   );
   process.exit(0);
 }

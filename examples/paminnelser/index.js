@@ -40,6 +40,9 @@ import { defineModule, byggKategori } from "@staiger/ops-framework";
  */
 const PaminnelserVy = lazy(() => import("./PaminnelserVy.jsx"));
 
+/** Samma skäl som vyn ovan: Node kan inte läsa JSX, manifestet måste gå att importera. */
+const PaminnelserForm = lazy(() => import("./PaminnelserForm.jsx"));
+
 /**
  * Modulens egen katalog: vad en påminnelse handlar om.
  *
@@ -142,4 +145,24 @@ export const paminnelser = defineModule({
 
     kataloger: async () => [{ id: "sorter", namn: { sv: "Påminnelsesorter", en: "Reminder kinds" }, kategorier: SORTER }],
   },
+
+  /*
+   * ⛔ SKAPA-REGISTRERINGEN ÄR SPEGELBILDEN AV KÄLLORNA (#150). Källorna läser
+   * in i ramverkets ytor, den här skriver ut ur plusset. Ramverket ritar
+   * fliken och typväljaren, modulen ritar fälten och skriver raden.
+   *
+   * ⛔ `katalog` PEKAR PÅ MODULENS EGEN KATALOG OVAN, alltså "sorter". Hade den
+   * pekat på en katalog gruppen inte har kastar `kontrolleraSkaparkataloger`
+   * när gruppens kataloger är lästa, och inte tyst ritat en tom typlista.
+   * En registrering utan typ skriver `katalog: null`, aldrig ingenting.
+   */
+  skapar: [
+    {
+      id: "paminnelse",
+      namn: { sv: "Påminnelse", en: "Reminder" },
+      ikon: "gem",
+      katalog: "sorter",
+      form: PaminnelserForm,
+    },
+  ],
 });
