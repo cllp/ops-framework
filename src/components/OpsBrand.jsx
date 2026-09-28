@@ -7,7 +7,7 @@ import { cx } from "../lib/cx.js";
  * skickar en sträng, så det vanliga fallet är en rad:
  *
  *   <OpsAppShell brand="Bolag Ops" ... />
- *   <OpsAppShell brand={<OpsBrand title="Operations Hub" subtitle="CPS AB" />} ... />
+ *   <OpsAppShell brand={<OpsBrand title="OPS Hub" subtitle="CPS AB" />} ... />
  *
  * ⛔ PH.ST-märket ligger HÄR och inte som en fil i varje app. Samma märke ska
  * bäras av alla plattformar, och en kopia per repo är ett andra original:
@@ -46,7 +46,7 @@ const MARKEN = {
 
 /**
  * @param {object} props
- * @param {string} props.title Produktens namn. "Operations Hub", "Bolag Ops".
+ * @param {string} props.title Produktens namn. "OPS Hub", "Bolag Ops".
  * @param {string} [props.subtitle] Ägare eller sammanhang. Står i accentfärg under namnet.
  * @param {"phst"|"phst-estd"|"none"} [props.mark]
  */

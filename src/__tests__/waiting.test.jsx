@@ -99,8 +99,8 @@ describe("OpsEmpty när den hämtar", () => {
 
 describe("OpsBrand", () => {
   it("visar produktnamn och ägarrad", () => {
-    render(<OpsBrand title="Operations Hub" subtitle="CPS AB" />);
-    expect(screen.getByText("Operations Hub")).toBeInTheDocument();
+    render(<OpsBrand title="OPS Hub" subtitle="CPS AB" />);
+    expect(screen.getByText("OPS Hub")).toBeInTheDocument();
     expect(screen.getByText("CPS AB")).toBeInTheDocument();
   });
 
