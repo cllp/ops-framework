@@ -13,7 +13,8 @@ import {
   MEDLEMSKAPSAVGRANSARE,
   MEDLEMSKAPSFALT,
 } from "../lib/grupp.js";
-import { gruppadSamling, regelfragment } from "../lib/regler.js";
+import { generateRules, gruppadSamling, regelfragment } from "../lib/regler.js";
+import { defineModule } from "../lib/modul.js";
 
 /**
  * Fas 2.5 i epiken #92: grupper och medlemskap (#136).
@@ -306,5 +307,64 @@ describe("regelfragmentet: formen, inte beteendet", () => {
   it("ägarkravet går att slå på per samling", () => {
     expect(gruppadSamling("konfig", { agareKravsForSkrivning: true })).toContain("opsArAgare(request.resource.data.groupId)");
     expect(gruppadSamling("handelser")).not.toContain("opsArAgare(request.resource.data.groupId)");
+  });
+});
+
+describe("generateRules: hela filen ur manifesten (#130)", () => {
+  const modul = (/** @type {string} */ id, /** @type {any[]} */ samlingar) =>
+    defineModule({ id, namn: { sv: id }, nav: [], routes: [], kallor: {}, samlingar });
+
+  it("ger en komplett fil med ramverkets fragment, modulens block och catch-allen", () => {
+    const t = generateRules([modul("liv", ["matningar"])]);
+    expect(t.startsWith("rules_version = '2';")).toBe(true);
+    expect(t).toContain("function opsArMedlem(");
+    expect(t).toContain("match /matningar/{id}");
+    expect(t).toContain("match /{document=**}");
+    expect(t.trimEnd().endsWith("}")).toBe(true);
+  });
+
+  /*
+   * ⛔ DET FARLIGASTE UTFALLET ÄR EN FIL SOM TYST BLIR KORTARE. En regelfil
+   * där catch-allen är allt nekar hela appen, och den ska inte gå att
+   * producera av misstag.
+   */
+  it("vägrar generera ur noll samlingar utan att någon sagt det uttryckligen", () => {
+    expect(() => generateRules([])).toThrow(/nekar allt/);
+  });
+
+  it("tar emot noll samlingar när appen skickar extra, alltså har sagt det", () => {
+    expect(generateRules([], { extra: "    // appens eget\n" })).toContain("appens eget");
+  });
+
+  it("avvisar ett rått manifest, eftersom en tyst kortare fil är det farligaste", () => {
+    expect(() => generateRules([/** @type {any} */ ({ id: "liv" })])).toThrow(/byggd av defineModule/);
+  });
+
+  it("fäller två moduler som ger samma samling", () => {
+    expect(() => generateRules([modul("a", ["delad"]), modul("b", ["delad"])])).toThrow(/båda samlingen "delad"/);
+  });
+
+  it("genererar formvalidering ur fältlistan, och utelämnar raden utan den", () => {
+    const med = generateRules([modul("liv", [{ namn: "matningar", falt: ["id", "groupId"] }])]);
+    expect(med).toContain('keys().hasOnly(["id", "groupId"])');
+    expect(generateRules([modul("liv", ["matningar"])])).not.toContain("hasOnly");
+  });
+
+  it("kräver ägare för skrivning när samlingen säger det", () => {
+    const t = generateRules([modul("liv", [{ namn: "konfig", agareKravsForSkrivning: true }])]);
+    expect(t).toContain("allow create: if opsArAgare(request.resource.data.groupId)");
+  });
+
+  /*
+   * ⛔ EN TOM FÄLTLISTA HADE GETT hasOnly([]), alltså en regel som avvisar
+   * varje rad. Den sortens regel ser ut som en formvalidering och är en vägg.
+   */
+  it("fäller en tom fältlista i stället för att generera en vägg", () => {
+    expect(() => gruppadSamling("x", { falt: [] })).toThrow(/avvisar varje rad/);
+  });
+
+  it("limmar in appens extra före catch-allen, inte efter", () => {
+    const t = generateRules([modul("liv", ["matningar"])], { extra: "    // undantaget\n" });
+    expect(t.indexOf("// undantaget")).toBeLessThan(t.indexOf("match /{document=**}"));
   });
 });

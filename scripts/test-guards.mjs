@@ -1059,6 +1059,165 @@ kravRott(
  */
 const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
 
+// ── Exempelmodulen: README och exemplet säger samma sak (#131) ───────────
+//
+// ⛔ VAKTEN HÅLLER TVÅ DOKUMENT I TAKT, och kan bara bevisas genom att ta bort
+// ett fält ur vart och ett av dem. Den läser fältlistorna ur källan, alltså är
+// den inte en tredje sanning som själv kan glida isär.
+{
+  const exempelvakt = path.join(rot, "scripts", "check-exempelmodul.mjs");
+
+  /** @param {string} namn @param {(fil: string, text: string) => string} mutera @param {string} fil */
+  const kopia = (namn, fil, mutera) => {
+    const mapp = path.join(gruppmapp, namn);
+    fs.mkdirSync(path.join(mapp, "src", "lib"), { recursive: true });
+    fs.mkdirSync(path.join(mapp, "examples", "paminnelser"), { recursive: true });
+    fs.copyFileSync(path.join(rot, "src", "lib", "modul.js"), path.join(mapp, "src", "lib", "modul.js"));
+    fs.copyFileSync(path.join(rot, "README.md"), path.join(mapp, "README.md"));
+    for (const f of fs.readdirSync(path.join(rot, "examples", "paminnelser"))) {
+      fs.copyFileSync(path.join(rot, "examples", "paminnelser", f), path.join(mapp, "examples", "paminnelser", f));
+    }
+    const mal = path.join(mapp, fil);
+    fs.writeFileSync(mal, mutera(fil, fs.readFileSync(mal, "utf8")));
+    return mapp;
+  };
+
+  kravGront("exempelmodul: README och exemplet är i takt", [exempelvakt]);
+
+  kravRott(
+    "exempelmodul: en källtyp saknas i exemplet",
+    [exempelvakt, kopia("ex1", "examples/paminnelser/index.js", (_f, t) => t.replace(/    notiser: async[\s\S]*?\.map\(\(r\) => \(\{ id: r\.id[\s\S]*?\}\)\),\n/, ""))],
+    "inte i exempelmodulen",
+  );
+
+  /*
+   * ⛔ FÖRSTA MUTATIONEN HÄR VAR FÖR SVAG, och svepet visade det. Den bytte
+   * `kallor` mot `kaellor` i EN tabellrad, men ordet står kvar i kodexemplet i
+   * samma avsnitt, så vakten förblev grön. En vakt som letar efter en
+   * förekomst bevisas bara av att ta bort ALLA.
+   */
+  kravRott(
+    "exempelmodul: ett samlingsfält saknas i README-avsnittet",
+    [exempelvakt, kopia("ex2", "README.md", (_f, t) => t.split("agareKravsForSkrivning").join("agareKrav"))],
+    "inte i README-avsnittet",
+  );
+
+  kravRott(
+    "exempelmodul: rubriken Modulkontraktet omdöpt",
+    [exempelvakt, kopia("ex3", "README.md", (_f, t) => t.replace("### Modulkontraktet", "### Moduler"))],
+    "saknar rubriken",
+  );
+
+  /*
+   * ⛔ IMPORTVÄGARNA, OCH DE ÄR ETT GRANSKNINGSFYND PÅ #151. Exemplet
+   * importerade `../../src/lib/modul.js`, alltså ramverkets innanmäte, medan
+   * README säger import från paketnamnet. En modulbyggare som kopierade
+   * mappen fick sökvägar som inte finns i en installerad tarboll.
+   *
+   * ⛔ OCH DEN GAMLA VAKTEN KUNDE INTE SE DET: den jämför fältnamn, och
+   * importvägar är inte fältnamn. Avvikelsen var osynlig genom varje grön
+   * körning i hela #131.
+   */
+  kravRott(
+    "exempelmodul: en import ut ur exempelmappen",
+    [
+      exempelvakt,
+      kopia("ex4", "examples/paminnelser/index.js", (_f, t) =>
+        t.replace('import { defineModule, byggKategori } from "@staiger/ops-framework";', 'import { defineModule } from "../../src/lib/modul.js";\nimport { byggKategori } from "../../src/lib/katalog.js";'),
+      ),
+    ],
+    "utanför sin egen mapp",
+  );
+
+  /*
+   * ⛔ OCH MOTSATSEN, som är lika viktig: en relativ import INOM mappen ska
+   * INTE fällas. Det är så en kopierad mapp hänger ihop, och en vakt som
+   * förbjöd även den hade tvingat fram en modul i en enda fil.
+   */
+  kravGront("exempelmodul: en relativ import inom mappen är tillåten", [
+    exempelvakt,
+    kopia("ex5", "examples/paminnelser/index.js", (_f, t) => t.replace('import { lazy } from "react";', 'import { lazy } from "react";\nimport "./PaminnelserVy.jsx";')),
+  ]);
+
+  kravRott(
+    "exempelmodul golv: importmönstret matchar ingenting",
+    [exempelvakt, kopia("ex6", "examples/paminnelser/index.js", (_f, t) => t.split("import").join("importera"))],
+    "golvet är 4",
+  );
+
+  // ⛔ GOLVET: läser vakten noll fält ur källan står den grön mot två dokument
+  // den aldrig jämfört.
+  kravRott(
+    "exempelmodul golv: fältlistorna går inte att läsa ur källan",
+    [exempelvakt, kopia("ex4", "src/lib/modul.js", (_f, t) => t.replace(/const MODULFALT = \[[^\]]*\]/, "const MODULFALT = []"))],
+    "mäter vakten ingenting",
+  );
+
+  kravRott("exempelmodul golv: fel sökväg", [exempelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");
+}
+
+// ── Regelgeneratorn: mönstret ändras inte i tysthet (#130) ────────────────
+//
+// ⛔ VAKTEN JÄMFÖR MOT FÖRRA UTFALLET, INTE MOT EN HANDSKRIVEN KOPIA. En
+// gyllene fil kan inte glida isär, eftersom varje avvikelse är precis det den
+// larmar på. Att mönstret är RÄTT bevisas av emulatorproven, inte av den här.
+{
+  const genvakt = path.join(rot, "scripts", "check-regelgenerator.mjs");
+  const gyllene = path.join(rot, "rules", "__fixturer__", "genererad.rules");
+  const original = fs.readFileSync(gyllene, "utf8");
+
+  /** @param {string} mutation @param {string} vantat */
+  const medÄndradFil = (mutation, vantat, namn) => {
+    fs.writeFileSync(gyllene, mutation);
+    kravRott(namn, [genvakt], vantat);
+    fs.writeFileSync(gyllene, original);
+  };
+
+  kravGront("regelgenerator: den riktiga fixturen ger den gyllene filen", [genvakt]);
+
+  // ⛔ Det fall som faktiskt oroar: någon lossar på ett skrivvillkor och
+  // ingenting annat i filen ändras.
+  medÄndradFil(
+    original.replace("allow create: if opsArAgare(", "allow create: if opsArMedlem("),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: ett skrivvillkor lossat i den gyllene filen",
+  );
+
+  medÄndradFil(
+    original.replace(/\n *&& request\.resource\.data\.keys\(\)\.hasOnly\(\[[^\]]*\]\)/, ""),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: formvalideringen borta ur den gyllene filen",
+  );
+
+  medÄndradFil(
+    original.replace("    match /{document=**} {\n      allow read, write: if false;\n    }\n", ""),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: catch-allen borta ur den gyllene filen",
+  );
+
+  // ⛔ RADERINGEN, OCH DEN ÄR ETT GRANSKNINGSFYND PÅ #151. Generatorn skrev
+  // `allow delete: if opsArMedlem(...)`, alltså att en medlem fick radera,
+  // medan #136 säger arkivering och aldrig radering och ramverkets egna
+  // samlingar redan har `delete: if false`. Generatorn hade infört den enda
+  // raderingsvägen i hela modellen, som ett förval ingen valt.
+  //
+  // Det här fallet är rött om `delete` blir något ANNAT än `false`, oavsett
+  // vilket villkor som skrivs dit. Ett fall som bara letade efter det gamla
+  // uttrycket hade varit grönt för varje nytt sätt att öppna raderingen.
+  medÄndradFil(
+    original.replace("allow delete: if false;", "allow delete: if opsArAgare(resource.data.groupId);"),
+    "generatorn ger inte längre samma text",
+    "regelgenerator: raderingen öppnad i den gyllene filen",
+  );
+
+  {
+    // ⛔ GOLVET: en gyllene fil som saknas ska inte vara ett godkänt utfall.
+    fs.rmSync(gyllene);
+    kravRott("regelgenerator golv: den gyllene filen saknas", [genvakt], "saknas");
+    fs.writeFileSync(gyllene, original);
+  }
+}
+
 // ── Kontrasten: AA i båda teman (#132) ────────────────────────────────────
 //
 // ⛔ VAKTEN HADE INGET BEVIS FÖRRÄN NU, och den är en av de två CP räknade upp

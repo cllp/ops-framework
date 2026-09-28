@@ -149,6 +149,64 @@ som slutat slå upp medlemskapet.
 saknades. Ett oväntat undantag är visserligen rött, men säger fel sak, och det
 är precis den "röd av fel anledning" som harnessets andra villkor finns för.
 
+### Fas 3, första tre ärendena
+
+⛔ **Källkontraktet** (#129). `skapaKallregister(moduler)` ger en funktion per
+yta, och varje anrop bär exakt en grupp. Formen prövas när raden kommer, inte
+vid uppstart: vad en funktion returnerar går inte att veta förrän den anropats,
+och felet namnger modulen, ytan och radnumret. `OpsModulHandelser`,
+`OpsModulHjalp` och `OpsModulKataloger` läser ur registret, medan primitiverna
+fortsätter ta emot data. `useKallor` skiljer på laddar, fel, tomt och fyller.
+
+⛔ **Regelgeneratorn** (#130). `generateRules(moduler, { extra })` ger hela
+`firestore.rules` ur manifesten. Manifestets `samlingar` bär nu fält, eftersom
+`keys().hasOnly` inte går att generera ur ett namn; strängformen från 0.25.0
+tas fortfarande emot och läsaren får alltid den utskrivna formen.
+`check-regelgenerator` jämför mot en gyllene fil.
+
+⛔ **En modulsamling får `allow delete: if false`** (granskningsfynd på PR 151).
+Generatorn skrev först att en medlem fick radera. #136:s beslut är arkivering
+och aldrig radering, eftersom svaret på "varför försvann den" alltid
+efterfrågas i efterhand, och ramverkets egna samlingar har redan `delete: if
+false`. Generatorn hade alltså infört den enda raderingsvägen i hela modellen,
+som ett förval ingen valt. Behöver en modul radera ska det bli ett beslut i
+manifestet med sitt skäl. `test-guards` är rött om `delete` blir något annat
+än `false`.
+
+⛔ **Exempelmodulen** (#131) i `examples/paminnelser/`, som nu följer med
+paketet. `check-exempelmodul` kräver att varje manifestfält, samlingsfält och
+källtyp finns både i README-avsnittet och i exemplet.
+
+⛔ **Exemplet importerar via paketnamnet, inte via `../../src/`**
+(granskningsfynd på PR 151). Det importerade ramverkets innanmäte medan README
+säger `import { defineModule } from "@staiger/ops-framework"`, alltså bröt det
+mot det enda löfte mappen finns för: att gå att kopiera och bygga ur README
+utan att öppna källkoden. En modulbyggare fick sökvägar som inte finns i en
+installerad tarboll. Node tillåter självreferens via paketnamnet när `exports`
+finns, så det fungerar även inne i repot. Vakten fäller nu varje import som
+lämnar exempelmappen, och släpper igenom relativa vägar inom den: den gamla
+vakten jämförde fältnamn, och importvägar är inte fältnamn.
+
+⛔ **Manifestet importerar sin vy med `lazy`**, och exemplet visar varför:
+regelgeneratorn körs i ett Node-skript, och Node kan inte läsa JSX.
+
+### De tre ytorna som saknades
+
+⛔ **Sök** (#140), **Notiser** (#141) och **Översikt** (#142). Alla tre läser ur
+källregistret och äger sin egen tomhet, sitt fel och sin väntan.
+
+Sök indexerar inte: ramverket frågar källorna och visar vad de ger. Fältet
+frågar inte förrän något skrivits, eftersom en modul som får en tom söksträng
+rimligen svarar med allt den har. Tomheten bär sökordet, så stavfelet syns.
+
+Notisernas läsmärke är ramverkets data och skickas in av appen. Räknaren kan
+inte nå en grupp jag inte är med i, och det följer av kontraktet i stället för
+av en kontroll: källan frågas per grupp.
+
+Översikten är alltid en grupps. En widget som saknas i gruppens ordning hamnar
+sist, inte utanför: en ny modul ska dyka upp, inte vara osynlig tills någon
+redigerat en lista de inte visste fanns.
+
 ### Kedjan kontrollerar nu varje PR
 
 `check.yml` hade `branches: [main]` på `pull_request`, så en PR mot en annan

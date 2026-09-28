@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**76 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**82 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -724,6 +724,53 @@ med i, och det är samma hål från var sitt håll.
 ⛔ **Inga JWT-claims.** En claim ligger i en token som redan är utdelad, så en
 borttagen medlem är kvar tills token förnyas.
 
+#### Hela regelfilen ur manifesten
+
+[#130](https://github.com/cllp/ops-framework/issues/130). `generateRules(moduler, { namn, extra })`
+ger hela `firestore.rules` ur modulernas manifest: ramverkets fragment, ett
+block per modulsamling, appens egen text, och catch-allen sist.
+
+```js
+import { generateRules, validateModuler } from "@staiger/ops-framework";
+
+const moduler = validateModuler([ekonomi, liv]);
+fs.writeFileSync("firestore.rules", generateRules(moduler, { extra: appensEgnaBlock }));
+```
+
+En samling deklareras i manifestet, och det den får i regler är:
+
+| Deklaration | Regeln som genereras |
+|---|---|
+| `"matningar"` | medlem läser, medlem skriver, radering låst. Ingen formvalidering |
+| `{ namn, falt: ["id", "groupId", "vikt"] }` | samma, plus `keys().hasOnly([...])` på create och update |
+| `{ namn, agareKravsForSkrivning: true }` | medlem läser, **ägare** skriver |
+
+⛔ **En sträng betyder inte "inga fält", den betyder "ingen formvalidering".**
+Strängformen är utgiven i 0.25.0 och tas fortfarande emot. Läsaren får ändå
+alltid den utskrivna formen, så ingen konsument behöver två kodvägar. Det är
+samma tolerans katalogen fick i [#109](https://github.com/cllp/ops-framework/issues/109),
+och av samma skäl: en riktig migrering, inte bekvämlighet.
+
+⛔ **En tom fältlista fälls.** `keys().hasOnly([])` avvisar varje rad, alltså en
+regel som ser ut som en formvalidering och är en vägg.
+
+⛔ **Generatorn ersätter mönstret, inte tänkandet.** Det appen behöver utöver
+mönstret skrivs för hand och skickas in som `extra`. Grundarreserven i
+`bolag-ops` är ett sådant undantag: den har ett slutdatum och ett skäl, och en
+generator som bar appens undantag hade blivit en andra plats att leta på när en
+regel beter sig oväntat.
+
+⛔ **Noll samlingar utan `extra` fälls.** Resultatet hade blivit en regelfil där
+catch-allen är allt, alltså en app där ingenting går att läsa, och den filen
+ska inte gå att producera av misstag.
+
+⛔ **Ramverket genererar, appen committar.** Ingen deploy härifrån. Därför bor
+byte-för-byte-vakten mot appens `firestore.rules` i APPENS kedja, där båda
+halvorna finns: en incheckad kopia av den filen här vore den andra handskrivna
+sanningen punkt 2 förbjuder. `check-regelgenerator` bevisar i stället att
+generatorn är stabil, genom att jämföra mot en **gyllene fil**, alltså förra
+utfallet för en fast fixtur. Att mönstret är rätt bevisas av emulatorproven.
+
 #### Proven kör mot genererad text
 
 `npm run test:rules` skriver `rules/provregler.rules` ur fragmentet med
@@ -844,7 +891,7 @@ export const liv = defineModule({
 | `namn` | det som visas | `{ sv, en }`. ⛔ **En sträng kastar här**, till skillnad från i katalogerna. Katalogen tål en sträng för att appens listor var strängar och läsaren måste tåla båda formerna under migreringen (#109). Modulerna har ingen sådan historia, så en sträng är inte ett arv utan ett nyskrivet fel |
 | `nav` | nav-poster | Valideras av **`validateNav`**, alltså exakt samma regler som skalet och bottenraden, inklusive EN nivå barn. ⛔ En egen kopia av de reglerna vore två sanningar om samma faktum |
 | `routes` | `{ path, vy }` | `path` börjar med snedstreck och står en gång. ⛔ Två routes med samma `path` avgörs annars av registreringsordningen, alltså av en slump. ⛔ `vy` får vara ett **objekt**: `memo`, `forwardRef` och `lazy` ger objekt, så ett krav på funktion hade avvisat tre vanliga sätt att skriva en vy |
-| `samlingar` | vad modulen äger | Relativa namn, aldrig sökvägar. ⛔ Ett snedstreck avvisas: modulen namnger relativt och **appen skickar in roten**, och det är den raden som gör att en kund senare kan bli ett eget Firebase-projekt utan att datamodellen ändras |
+| `samlingar` | vad modulen äger | `"namn"` eller `{ namn, falt, agareKravsForSkrivning }`. `falt` blir `keys().hasOnly` i de genererade reglerna (#130), och utelämnas den genereras ingen formvalidering. `agareKravsForSkrivning: true` ger ägarkrav i stället för medlemskrav. Relativa namn, aldrig sökvägar. ⛔ Ett snedstreck avvisas: modulen namnger relativt och **appen skickar in roten**, och det är den raden som gör att en kund senare kan bli ett eget Firebase-projekt utan att datamodellen ändras |
 | `kallor` | ytor modulen fyller | Nycklarna är `KALLTYPER`, alltså `handelser`, `sok`, `hjalp`, `notiser`, `widgets`, `kataloger`. Värdet är en funktion: ramverket anropar, modulen svarar |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`
@@ -871,6 +918,150 @@ registreringsordningen. Det är den sortens fel som uppträder som "ibland".
 Manifestet vet vilka ytor som finns och att modulen pekat ut en funktion per yta
 den fyller. Att låtsas validera radernas form redan nu vore en vakt som utlovar
 ett skydd den inte har.
+
+
+#### De tre ytorna: Sök, Notiser och Översikt
+
+[#140](https://github.com/cllp/ops-framework/issues/140),
+[#141](https://github.com/cllp/ops-framework/issues/141),
+[#142](https://github.com/cllp/ops-framework/issues/142). Alla tre läser ur
+registret och äger sin egen tomhet, sitt fel och sin väntan.
+
+| Yta | Komponent | Vad modulen ska ge för att synas rätt |
+|---|---|---|
+| Sök | `OpsSok` | `{ id, titel }` minst. `text` blir radtexten under titeln, `href` gör träffen öppningsbar. Träffarna grupperas per modul, så skicka in `modulnamn` för läsbara rubriker |
+| Notiser | `OpsNotiser` | `{ id, titel, prio }`. `prio` ur `NOTISPRIO` styr ordningen: brådskande först. `text` och `href` är frivilliga |
+| Översikt | `OpsOversikt` | `{ id, titel: { sv, en }, vy }`. Vyn får hela widgetraden som props, så lägg det den behöver på raden |
+
+⛔ **Ramverket indexerar inte.** Sök frågar källorna och visar vad de ger. Hur
+en modul söker är modulens sak, och ett index här hade varit en andra kopia av
+modulens data.
+
+⛔ **Sök frågar inte på ett tomt fält.** En modul som får en tom söksträng
+skulle rimligen svara med allt den har, och det är inte ett sökresultat utan en
+lista som ser ut som ett. Tomheten bär dessutom sökordet: "Inga träffar för
+fakura" visar stavfelet, som är den vanligaste orsaken till noll träffar.
+
+⛔ **Läsmärket i Notiser är ramverkets data, inte modulens.** Appen skickar in
+`lasta` och får `onLast`, precis som `lasmarken` redan fungerar i bolag-ops. En
+modul som ägde läsmärket hade behövt känna till användarna.
+
+⛔ **Räknaren kan inte nå en grupp jag inte är med i**, och det följer av
+kontraktet i stället för av en kontroll: källan frågas per grupp, och en grupp
+jag inte är medlem i frågas aldrig. `olasta(poster, lasta)` är en ren funktion,
+så räkningen går att mäta utan att rita en panel.
+
+⛔ **Översikten är alltid en grupps**, till skillnad mot Händelser. Ett kort som
+blandar två verksamheters siffror är ett kort ingen kan handla på.
+
+⛔ **En widget som saknas i gruppens ordning hamnar sist, inte utanför.** En ny
+modul ska dyka upp, inte vara osynlig tills någon redigerat en lista de inte
+visste fanns. `iOrdning(widgets, ordning)` är ren och provad.
+
+⛔ **En tom översikt säger varför och vart.** Ett tomt rutnät läser man som att
+det är trasigt.
+
+#### Exempelmodulen: kopiera `examples/paminnelser/`
+
+[#131](https://github.com/cllp/ops-framework/issues/131). En liten, fullständig
+modul: en samling med fältlista, en nav-post, en route, alla sex källorna och
+en egen katalog med två kategorier, på svenska och engelska.
+
+⛔ **`check-exempelmodul` håller README och exemplet i takt.** Varje
+manifestfält, varje samlingsfält och varje källtyp måste finnas både i det här
+avsnittet och i exemplet. Ett fält koden har men README saknar är ett fält
+ingen hittar; ett fält README lovar men exemplet inte visar är ett löfte utan
+täckning. Fältlistorna läses ur `src/lib/modul.js`, så vakten är inte en tredje
+sanning som själv kan glida isär.
+
+⛔ **Manifestet importerar sin vy med `lazy`, och det är inte en
+prestandafråga.** Regelgeneratorn körs i ett Node-skript i appens CI, och Node
+kan inte läsa JSX. Med en direkt `import ... from "./Vy.jsx"` faller det
+skriptet på "Unknown file extension .jsx", långt från sin orsak. Med `lazy` är
+vyn ett löfte som bara webbläsaren infriar, och manifestet är ren JavaScript.
+
+⛔ **Exemplet monteras inte i scaffold-mallen.** Mallen är vad varje ny app
+startar från, och en app som föds med en Påminnelser-modul ingen bett om är kod
+någon måste ta bort innan den kan börja. Beviset att modulen fungerar är dess
+egna prov, som kör den genom registret och generatorn.
+
+#### Källorna: hur en modul fyller ramverkets ytor
+
+[#129](https://github.com/cllp/ops-framework/issues/129). Ramverket äger ytorna,
+modulen fyller dem. **Ramverket anropar, modulen svarar**, aldrig tvärtom: en
+modul som kunde skjuta in rader när den ville hade gjort ordningen på en yta
+till en fråga om vem som hann först.
+
+⛔ **Varje anrop bär exakt en grupp.** Frågan är `{ groupId }`, typen kräver
+det, och körtiden upprepar kravet. Ramverket avgör vilka grupper som frågas och
+slår ihop svaren (`grupperAttFraga`, `listaPerGrupp`), så modulen ser aldrig
+fler än en grupp per anrop och kan därför inte råka läsa fel.
+
+```js
+import { defineModule, skapaKallregister } from "@staiger/ops-framework";
+
+const liv = defineModule({
+  id: "liv",
+  namn: { sv: "Liv", en: "Life" },
+  nav: [{ href: "/liv", label: "Liv" }],
+  routes: [{ path: "/liv", vy: LivVy }],
+  samlingar: ["matningar"],
+  kallor: {
+    // Händelser och kalendern. Formen är OpsEvent, samma som OpsEventList ritar.
+    handelser: async ({ groupId }) => [{ id: "m1", title: "Mätning", daysLeft: 3 }],
+
+    // Sök. En träff som går att välja mellan andra.
+    sok: async ({ groupId, text }) => [{ id: "m1", titel: "Mätning 1", text: "72 kg", href: "/liv/m1" }],
+
+    // Hjälp, per route. Modulen avgör vilka av sina sidor den svarar för.
+    hjalp: async ({ groupId, route }) => (route === "/liv" ? [{ titel: { sv: "Om Liv" }, text: { sv: "Så funkar det." } }] : []),
+
+    // Notiser, med brådska ur NOTISPRIO.
+    notiser: async ({ groupId }) => [{ id: "n1", titel: "Dags att mäta", prio: "normal" }],
+
+    // Ett kort på Översikt. Vyn pekas ut, den bakas inte in.
+    widgets: async ({ groupId }) => [{ id: "w1", titel: { sv: "Senaste mätningen" }, vy: SenasteKort }],
+
+    // En egen katalog i inställningsvyn. Kategorierna granskas av katalogmotorn.
+    kataloger: async ({ groupId }) => [{ id: "sorter", namn: { sv: "Mätsorter" }, kategorier: [vikt, puls] }],
+  },
+});
+
+const register = skapaKallregister([liv]);
+```
+
+| Källa | Raden | Ytan som ritar den |
+|---|---|---|
+| `handelser` | `OpsEvent`: `{ id, title, daysLeft }` plus det `OpsEventList` tar | `OpsModulHandelser` |
+| `sok` | `{ id, titel, text?, href? }` | Sök, [#140](https://github.com/cllp/ops-framework/issues/140) |
+| `hjalp` | `{ titel: { sv, en }, text: { sv, en } }` | `OpsModulHjalp` |
+| `notiser` | `{ id, titel, text?, prio, href? }` | Notiser, [#141](https://github.com/cllp/ops-framework/issues/141) |
+| `widgets` | `{ id, titel: { sv, en }, vy }` | Översikt, [#142](https://github.com/cllp/ops-framework/issues/142) |
+| `kataloger` | `{ id, namn: { sv, en }, kategorier }` | `OpsModulKataloger` |
+
+⛔ **`KALLTYPER` bär alla sex även innan ytorna finns.** En modul ska kunna
+deklarera en sökkälla i dag och få den ritad den dag Sök byggs, utan att skriva
+om sitt manifest.
+
+⛔ **Formen prövas när raden kommer, inte när modulen registreras.** Vad en
+funktion RETURNERAR går inte att veta förrän den anropats, och att låtsas annat
+vore en vakt som utlovar ett skydd den inte har. Det som går att avgöra vid
+uppstart gör `defineModule`: att ytan finns och att modulen pekat ut en
+funktion. Felet vid anropet namnger **modulen, ytan och radnumret**, eftersom
+ett formfel i en app med fem moduler annars är en halvtimmes letande.
+
+⛔ **En utebliven retur är ett fel, inte tomhet.** Noll rader skrivs `[]`. En
+källa som glömt sitt `return` ser annars ut som en källa utan rader, och då
+letar man i datan efter något som aldrig lämnade koden.
+
+⛔ **`modulId` stämplas av registret, det tas inte från raden.** En modul som
+kunde sätta det själv kunde sätta någon annans, och ytans svar på "vem bidrog
+med den här raden" vore då modulens påstående.
+
+⛔ **Tre tomheter, tre texter.** `useKallor` skiljer på att ingen modul fyller
+ytan (`fyller` är tom), att modulerna svarade utan rader (`tomt`) och att
+hämtningen pågår (`laddar`). Slås de ihop står det "allt är gjort" medan
+sanningen är att ingenting frågades.
 
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 

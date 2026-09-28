@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ══ Ramverkets grupper och medlemskap. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: @staiger/ops-framework, regelfragment() i src/lib/regler.js.
+    // En ändring hör hemma där och kommer hit när fragmentet genereras om.
+
+    function opsInloggad() {
+      return request.auth != null;
+    }
+
+    function opsMedlemskapet(gid) {
+      return get(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + gid));
+    }
+
+    // ⛔ exists FÖRE get. Ett get på en rad som inte finns är ett fel i regeln,
+    // inte ett nej, och ett fel läses som "insufficient permissions" av den som
+    // råkar vara utanför gruppen. Det är samma symptom som ett riktigt nej och
+    // omöjligt att skilja åt i en logg.
+    function opsHarMedlemskap(gid) {
+      return opsInloggad()
+        && exists(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + gid));
+    }
+
+    function opsArMedlem(gid) {
+      return opsHarMedlemskap(gid) && opsMedlemskapet(gid).data.status == 'aktiv';
+    }
+
+    function opsArAgare(gid) {
+      return opsArMedlem(gid) && opsMedlemskapet(gid).data.roll == 'agare';
+    }
+
+    // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
+    match /users/{uid} {
+      allow read, write: if opsInloggad() && request.auth.uid == uid;
+    }
+
+    // Gruppen. Medlem läser, ägare skriver. Aldrig radering: arkivering finns
+    // för att svaret på "varför försvann den" alltid efterfrågas i efterhand.
+    match /groups/{gid} {
+      allow read: if opsArMedlem(gid);
+      allow create, update: if opsArAgare(gid);
+      allow delete: if false;
+    }
+
+    // ⛔ MEDLEMSKAP SKRIVS ALDRIG AV EN KLIENT. Den som kan skriva sitt eget
+    // medlemskap kan ge sig själv rollen ägare i vilken grupp som helst vars id
+    // hen gissar. Serversidan skriver, med Admin SDK, och den går förbi de här
+    // reglerna. Samma beslut som SessionStudio ADR-019.
+    match /memberships/{mid} {
+      allow read: if opsInloggad()
+        && (resource.data.userId == request.auth.uid || opsArAgare(resource.data.groupId));
+      allow write: if false;
+    }
+
+    // Inbjudan. Bara gruppens ägare ser och skriver den, eftersom den bär en
+    // e-postadress till någon som ännu inte är med.
+    match /invitations/{iid} {
+      allow read: if opsArAgare(resource.data.groupId);
+      allow create: if opsArAgare(request.resource.data.groupId);
+      // ⛔ VARKEN GRUPPEN ELLER ROLLEN GÅR ATT ÄNDRA (#137). Gruppen av samma
+      // skäl som på en vanlig rad. Rollen eftersom en inbjudan är ett löfte
+      // som någon redan fått: höjs den i efterhand blir en accepterad inbjudan
+      // till medlem plötsligt ett ägarskap, utan att den som accepterade såg
+      // det. Ska rollen ändras återkallas inbjudan och en ny skrivs.
+      allow update: if opsArAgare(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.roll == resource.data.roll;
+      allow delete: if false;
+    }
+
+    match /fakturor/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArMedlem(request.resource.data.groupId)
+        && request.resource.data.keys().hasOnly(["id", "groupId", "belopp", "skapadAv"]);
+      allow update: if opsArMedlem(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.keys().hasOnly(["id", "groupId", "belopp", "skapadAv"]);
+      allow delete: if false;
+    }
+    match /konfig/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArAgare(request.resource.data.groupId)
+        && request.resource.data.keys().hasOnly(["id", "groupId", "varde"]);
+      allow update: if opsArAgare(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.keys().hasOnly(["id", "groupId", "varde"]);
+      allow delete: if false;
+    }
+    match /matningar/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArMedlem(request.resource.data.groupId);
+      allow update: if opsArMedlem(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId;
+      allow delete: if false;
+    }
+    match /mal/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArAgare(request.resource.data.groupId);
+      allow update: if opsArAgare(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId;
+      allow delete: if false;
+    }
+    // Appens eget undantag, skrivet för hand och skickat in som extra.
+    match /grundarreserv/{id} {
+      allow read: if opsInloggad();
+      allow write: if false;
+    }
+
+    // ⛔ Allt som inte har ett block ovan nekas. En samling utan regel är en
+    // samling ingen kan läsa, och det är rätt utfall: alternativet är att en
+    // ny samling är öppen tills någon kommer ihåg att stänga den.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

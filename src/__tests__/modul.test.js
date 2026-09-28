@@ -32,7 +32,13 @@ describe("modulmanifestet tas emot", () => {
     expect(modul.id).toBe("liv");
     expect(modul.namn).toEqual({ sv: "Liv", en: "Life" });
     expect(modul.routes).toHaveLength(1);
-    expect(modul.samlingar).toEqual(["matningar"]);
+    /*
+     * ⛔ SAMLINGARNA ÄR UTSKRIVNA ÄVEN NÄR MANIFESTET SKREV EN STRÄNG (#130).
+     * Strängformen är utgiven i 0.25.0 och tas fortfarande emot, men läsaren
+     * får alltid samma form: en sträng och ett objekt ska inte kräva två
+     * kodvägar hos den som konsumerar manifestet.
+     */
+    expect(modul.samlingar).toEqual([{ namn: "matningar", falt: null, agareKravsForSkrivning: false }]);
   });
 
   it("fryser det den lämnar ifrån sig, så valideringen fortsätter gälla", () => {
