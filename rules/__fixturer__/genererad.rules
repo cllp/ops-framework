@@ -11,7 +11,7 @@ service cloud.firestore {
     }
 
     function opsMedlemskapet(gid) {
-      return get(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + gid));
+      return get(/databases/$(database)/documents/memberships/$(request.auth.uid + '|' + gid));
     }
 
     // ⛔ exists FÖRE get. Ett get på en rad som inte finns är ett fel i regeln,
@@ -20,7 +20,7 @@ service cloud.firestore {
     // omöjligt att skilja åt i en logg.
     function opsHarMedlemskap(gid) {
       return opsInloggad()
-        && exists(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + gid));
+        && exists(/databases/$(database)/documents/memberships/$(request.auth.uid + '|' + gid));
     }
 
     function opsArMedlem(gid) {

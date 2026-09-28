@@ -10,7 +10,7 @@
  * ══ ⛔ EXAKT EN GRUPPNYCKEL PER RAD, OCH DET ÄR HELA POÄNGEN ═══════════
  *
  * Varje rad bär `groupId`, ett värde, aldrig en lista. Läsregeln blir ETT
- * uppslag: finns `memberships/{uid}_{groupId}` med status aktiv.
+ * uppslag: finns `memberships/{uid}|{groupId}` med status aktiv.
  *
  * Skälet är mätt någon annanstans och dyrt: SessionStudio bar `invitedGroupIds`
  * på raderna, alltså delning inbakad i datamodellen, och varje regel, varje
@@ -90,7 +90,7 @@ export const TEMAN = /** @type {const} */ (["system", "ljust", "morkt"]);
 
 /**
  * @typedef {object} Medlemskap
- * @property {string} id `${userId}_${groupId}`. Härledd, aldrig skriven för hand.
+ * @property {string} id `${userId}|${groupId}`, alltså userId, MEDLEMSKAPSAVGRANSARE, groupId. Härledd, aldrig skriven för hand.
  * @property {string} userId
  * @property {string} groupId
  * @property {"agare"|"medlem"} roll
@@ -293,6 +293,34 @@ export function byggGrupp(d, kandaModuler) {
 }
 
 /**
+ * Tecknet som skiljer `userId` från `groupId` i ett medlemskaps nyckel.
+ *
+ * ══ ⛔ VARFÖR DET INTE ÄR ETT UNDERSTRECK (#152) ══════════════════════
+ *
+ * Det VAR ett understreck, och `ID_FORM` tillåter understreck i ett id. Alltså
+ * var avgränsaren ett lagligt tecken i båda halvorna, och nyckeln var tvetydig:
+ *
+ *   medlemskapsId("a_b", "c")  ->  "a_b_c"
+ *   medlemskapsId("a", "b_c")  ->  "a_b_c"
+ *
+ * Två olika medlemskap pekade på SAMMA dokument, och vilken roll som gällde
+ * avgjordes av vem som skrev sist. Regeln slår upp exakt den nyckeln.
+ *
+ * ⛔ FELET VAR AV DEN TYSTA SORTEN. Ingenting kraschar. En person får fel roll
+ * i en grupp, eller ser en grupp hen inte är med i, och det syns inte i en logg.
+ *
+ * ⛔ OCH DET ÄNDRAS NU FÖR ATT MIGRERINGEN ÄR TOM. Noll skarpa medlemskap
+ * finns. Om en månad hade varje nyckel i databasen behövt skrivas om, plus
+ * reglerna, i samma andetag. Det här är det billigaste tillfället som någonsin
+ * kommer att finnas.
+ *
+ * `|` går inte att skriva i ett id: `ID_FORM` släpper bara små bokstäver,
+ * siffror, bindestreck och understreck. Det är också giltigt i ett
+ * Firestore-dokument-id, till skillnad från snedstreck.
+ */
+export const MEDLEMSKAPSAVGRANSARE = "|";
+
+/**
  * Nyckeln till ett medlemskap.
  *
  * ⛔ HÄRLEDD OCH ALDRIG SKRIVEN FÖR HAND. Vore id fritt kunde samma person och
@@ -309,7 +337,24 @@ export function medlemskapsId(userId, groupId) {
   const u = rensa(userId);
   const g = rensa(groupId);
   if (!u || !g) throw new Error("medlemskapsId: både userId och groupId krävs.");
-  return `${u}_${g}`;
+  /*
+   * ⛔ OCH KONTROLLEN KVARSTÅR FASTÄN AVGRÄNSAREN INTE GÅR ATT SKRIVA I ETT
+   * GRUPP-ID. `ID_FORM` släpper inte igenom den, men `userId` är ett
+   * Firebase-uid och alltså någon annans format: med en custom token är det
+   * fritt. Att lita på att en annan leverantörs format aldrig råkar innehålla
+   * ett tecken är ett antagande, i en kodrad som avgör behörighet.
+   *
+   * Med kontrollen är unikheten en egenskap hos koden i stället för en
+   * egenskap hos något vi inte styr över.
+   */
+  for (const [namn, varde] of [["userId", u], ["groupId", g]]) {
+    if (varde.includes(MEDLEMSKAPSAVGRANSARE)) {
+      throw new Error(
+        `medlemskapsId: ${namn} "${varde}" innehåller avgränsaren "${MEDLEMSKAPSAVGRANSARE}". Nyckeln är userId, avgränsaren, groupId, så ett tecken i någon halva gör nyckeln tvetydig och två medlemskap kan kollapsa till ett dokument.`,
+      );
+    }
+  }
+  return `${u}${MEDLEMSKAPSAVGRANSARE}${g}`;
 }
 
 /**

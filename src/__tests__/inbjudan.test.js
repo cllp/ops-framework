@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { medlemskapsId } from "../lib/grupp.js";
 import { createMemorySource } from "../data/adapters.js";
 import { createInvitationService } from "../node/inbjudan.js";
 
@@ -19,7 +20,7 @@ const bygg = (/** @type {{users?: any[], memberships?: any[], invitations?: any[
   const kalla = createMemorySource({
     users: seed.users ?? [],
     memberships: seed.memberships ?? [
-      { id: `${AGARE}_${GRUPP}`, userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
+      { id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
     ],
     invitations: seed.invitations ?? [],
   });
@@ -29,7 +30,7 @@ const bygg = (/** @type {{users?: any[], memberships?: any[], invitations?: any[
 describe("⛔ ägarskapet kontrolleras i funktionen, inte bara i reglerna", () => {
   it("en medlem får inte bjuda in", async () => {
     const { tjanst, kalla } = bygg();
-    await kalla.create("memberships", { id: `${MEDLEM}_${GRUPP}`, userId: MEDLEM, groupId: GRUPP, roll: "medlem", typ: "person", status: "aktiv" });
+    await kalla.create("memberships", { id: medlemskapsId(MEDLEM, GRUPP), userId: MEDLEM, groupId: GRUPP, roll: "medlem", typ: "person", status: "aktiv" });
     await expect(tjanst.bjudIn({ avUid: MEDLEM, groupId: GRUPP, epost: "ny@x.se" })).rejects.toThrow(
       /uid-medlem är inte aktiv ägare i gruppen "bolaget"/,
     );
@@ -42,7 +43,7 @@ describe("⛔ ägarskapet kontrolleras i funktionen, inte bara i reglerna", () =
 
   it("en avslutad ägare får inte bjuda in", async () => {
     const { tjanst } = bygg({
-      memberships: [{ id: `${AGARE}_${GRUPP}`, userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "avslutad" }],
+      memberships: [{ id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "avslutad" }],
     });
     await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" })).rejects.toThrow(/inte aktiv ägare/);
   });
@@ -67,8 +68,8 @@ describe("bjudIn", () => {
   it("⛔ skriver medlemskapet DIREKT när personen redan finns", async () => {
     const { tjanst, kalla } = bygg({ users: [{ id: MEDLEM, epost: "finns@x.se" }] });
     const svar = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "finns@x.se" });
-    expect(svar).toEqual({ resultat: "medlemskap", id: `${MEDLEM}_${GRUPP}` });
-    expect(await kalla.read("memberships", `${MEDLEM}_${GRUPP}`)).toMatchObject({ roll: "medlem", status: "aktiv" });
+    expect(svar).toEqual({ resultat: "medlemskap", id: medlemskapsId(MEDLEM, GRUPP) });
+    expect(await kalla.read("memberships", medlemskapsId(MEDLEM, GRUPP))).toMatchObject({ roll: "medlem", status: "aktiv" });
     expect(await kalla.list("invitations", {})).toHaveLength(0);
   });
 
@@ -82,7 +83,7 @@ describe("bjudIn", () => {
 
   it("en som redan är medlem ger fanns, inte en dubblett", async () => {
     const { tjanst, kalla } = bygg({ users: [{ id: AGARE, epost: "agare@x.se" }] });
-    expect(await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "agare@x.se" })).toEqual({ resultat: "fanns", id: `${AGARE}_${GRUPP}` });
+    expect(await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "agare@x.se" })).toEqual({ resultat: "fanns", id: medlemskapsId(AGARE, GRUPP) });
     expect(await kalla.list("memberships", {})).toHaveLength(1);
   });
 
@@ -96,7 +97,7 @@ describe("bjudIn", () => {
     const { tjanst, kalla } = bygg({ users: [{ id: MEDLEM, epost: "finns@x.se" }] });
     expect(await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "Finns@X.SE" })).toEqual({
       resultat: "medlemskap",
-      id: `${MEDLEM}_${GRUPP}`,
+      id: medlemskapsId(MEDLEM, GRUPP),
     });
     expect(await kalla.list("invitations", {})).toHaveLength(0);
   });
@@ -121,7 +122,7 @@ describe("accepteraInbjudningar", () => {
     await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
     const svar = await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "Ny@X.se" });
     expect(svar).toEqual({ accepterade: [GRUPP] });
-    expect(await kalla.read("memberships", `uid-ny_${GRUPP}`)).toMatchObject({ roll: "medlem", status: "aktiv" });
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toMatchObject({ roll: "medlem", status: "aktiv" });
   });
 
   it("markerar inbjudan accepterad", async () => {
@@ -148,21 +149,21 @@ describe("accepteraInbjudningar", () => {
   it("flera inbjudningar blir flera medlemskap", async () => {
     const { tjanst, kalla } = bygg({
       memberships: [
-        { id: `${AGARE}_${GRUPP}`, userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
-        { id: `${AGARE}_annat`, userId: AGARE, groupId: "annat", roll: "agare", typ: "person", status: "aktiv" },
+        { id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
+        { id: medlemskapsId(AGARE, "annat"), userId: AGARE, groupId: "annat", roll: "agare", typ: "person", status: "aktiv" },
       ],
     });
     await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
     await tjanst.bjudIn({ avUid: AGARE, groupId: "annat", epost: "ny@x.se" });
     expect((await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).accepterade.sort()).toEqual(["annat", "bolaget"]);
-    expect(await kalla.read("memberships", "uid-ny_annat")).toBeTruthy();
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", "annat"))).toBeTruthy();
   });
 
   it("rollen ur inbjudan följer med till medlemskapet", async () => {
     const { tjanst, kalla } = bygg();
     await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", roll: "agare" });
     await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" });
-    expect(await kalla.read("memberships", `uid-ny_${GRUPP}`)).toMatchObject({ roll: "agare" });
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toMatchObject({ roll: "agare" });
   });
 
   /*
@@ -175,7 +176,7 @@ describe("accepteraInbjudningar", () => {
     const { id } = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
     await kalla.update("invitations", id, { status: "aterkallad" });
     expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [] });
-    expect(await kalla.read("memberships", `uid-ny_${GRUPP}`)).toBeNull();
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toBeNull();
   });
 
   /*
@@ -188,7 +189,7 @@ describe("accepteraInbjudningar", () => {
     const { tjanst, kalla } = bygg();
     await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
     await kalla.create("memberships", {
-      id: `uid-ny_${GRUPP}`,
+      id: medlemskapsId("uid-ny", GRUPP),
       userId: "uid-ny",
       groupId: GRUPP,
       roll: "agare",
@@ -198,7 +199,7 @@ describe("accepteraInbjudningar", () => {
 
     expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [] });
     // ⛔ Och rollen är kvar. Hade raden skrivits om hade ägaren blivit medlem.
-    expect(await kalla.read("memberships", `uid-ny_${GRUPP}`)).toMatchObject({ roll: "agare" });
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toMatchObject({ roll: "agare" });
   });
 
   it("uid och epost krävs", async () => {
@@ -218,7 +219,7 @@ describe("namnet och bilden följer med in i medlemskapet (#138, beslut A)", () 
   it("bjudIn skriver namn och bild när personen redan finns", async () => {
     const { kalla, tjanst } = bygg({ users: [{ id: "uid-ny", namn: "Ny Person", epost: "ny@example.com", bild: "https://exempel/ny.png" }] });
     await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@example.com" });
-    const m = await kalla.read("memberships", `uid-ny_${GRUPP}`);
+    const m = await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP));
     expect(m.namn).toBe("Ny Person");
     expect(m.bild).toBe("https://exempel/ny.png");
   });
@@ -229,7 +230,7 @@ describe("namnet och bilden följer med in i medlemskapet (#138, beslut A)", () 
       invitations: [{ id: "i1", epost: "ny@example.com", groupId: GRUPP, roll: "medlem", status: "vantar", skapadAv: { uid: AGARE, namn: "A", typ: "manniska", kalla: "prov" } }],
     });
     await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com" });
-    const m = await kalla.read("memberships", `uid-ny_${GRUPP}`);
+    const m = await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP));
     expect(m.namn).toBe("Ny Person");
     expect(m.bild).toBe("");
   });
@@ -252,7 +253,7 @@ describe("namnet och bilden följer med in i medlemskapet (#138, beslut A)", () 
       invitations: [{ id: "i1", epost: "ny@example.com", groupId: GRUPP, roll: "medlem", status: "vantar", skapadAv: { uid: AGARE, namn: "A", typ: "manniska", kalla: "prov" } }],
     });
     await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@example.com" });
-    const m = await kalla.read("memberships", `uid-ny_${GRUPP}`);
+    const m = await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP));
     expect(m.namn).toBe("");
   });
 });

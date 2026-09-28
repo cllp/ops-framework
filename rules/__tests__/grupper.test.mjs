@@ -35,6 +35,7 @@
  * Kör: npm run test:rules
  */
 
+import { medlemskapsId } from "../../src/lib/grupp.js";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -72,10 +73,10 @@ before(async () => {
    */
   await miljo.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, `memberships/${AGARE}_${VAR}`), { userId: AGARE, groupId: VAR, roll: "agare", typ: "person", status: "aktiv" });
-    await setDoc(doc(db, `memberships/${MEDLEM}_${VAR}`), { userId: MEDLEM, groupId: VAR, roll: "medlem", typ: "person", status: "aktiv" });
-    await setDoc(doc(db, `memberships/${AVSLUTAD}_${VAR}`), { userId: AVSLUTAD, groupId: VAR, roll: "medlem", typ: "person", status: "avslutad" });
-    await setDoc(doc(db, `memberships/${UTANFOR}_${ANNAN}`), { userId: UTANFOR, groupId: ANNAN, roll: "agare", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(AGARE, VAR)}`), { userId: AGARE, groupId: VAR, roll: "agare", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(MEDLEM, VAR)}`), { userId: MEDLEM, groupId: VAR, roll: "medlem", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(AVSLUTAD, VAR)}`), { userId: AVSLUTAD, groupId: VAR, roll: "medlem", typ: "person", status: "avslutad" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(UTANFOR, ANNAN)}`), { userId: UTANFOR, groupId: ANNAN, roll: "agare", typ: "person", status: "aktiv" });
 
     await setDoc(doc(db, `groups/${VAR}`), { namn: { sv: "Vår grupp" }, moduler: ["ekonomi"], arkiverad: false });
     await setDoc(doc(db, `groups/${ANNAN}`), { namn: { sv: "Annan grupp" }, moduler: [], arkiverad: false });
@@ -147,27 +148,27 @@ describe("⛔ ägare mot medlem: konfig kräver ägare", () => {
 
 describe("⛔ memberships skrivs aldrig av en klient", () => {
   it("ingen skapar sitt eget medlemskap", async () => {
-    await assertFails(setDoc(doc(som(UTANFOR), `memberships/${UTANFOR}_${VAR}`), { userId: UTANFOR, groupId: VAR, roll: "agare", typ: "person", status: "aktiv" }));
+    await assertFails(setDoc(doc(som(UTANFOR), `memberships/${medlemskapsId(UTANFOR, VAR)}`), { userId: UTANFOR, groupId: VAR, roll: "agare", typ: "person", status: "aktiv" }));
   });
 
   it("⛔ inte ens ägaren höjer någons roll", async () => {
-    await assertFails(updateDoc(doc(som(AGARE), `memberships/${MEDLEM}_${VAR}`), { roll: "agare" }));
+    await assertFails(updateDoc(doc(som(AGARE), `memberships/${medlemskapsId(MEDLEM, VAR)}`), { roll: "agare" }));
   });
 
   it("⛔ ägaren raderar inte sitt eget medlemskap", async () => {
-    await assertFails(deleteDoc(doc(som(AGARE), `memberships/${AGARE}_${VAR}`)));
+    await assertFails(deleteDoc(doc(som(AGARE), `memberships/${medlemskapsId(AGARE, VAR)}`)));
   });
 
   it("jag läser mitt eget medlemskap", async () => {
-    await assertSucceeds(getDoc(doc(som(MEDLEM), `memberships/${MEDLEM}_${VAR}`)));
+    await assertSucceeds(getDoc(doc(som(MEDLEM), `memberships/${medlemskapsId(MEDLEM, VAR)}`)));
   });
 
   it("ägaren läser gruppens medlemskap", async () => {
-    await assertSucceeds(getDoc(doc(som(AGARE), `memberships/${MEDLEM}_${VAR}`)));
+    await assertSucceeds(getDoc(doc(som(AGARE), `memberships/${medlemskapsId(MEDLEM, VAR)}`)));
   });
 
   it("en utomstående läser inte vårt medlemskap", async () => {
-    await assertFails(getDoc(doc(som(UTANFOR), `memberships/${MEDLEM}_${VAR}`)));
+    await assertFails(getDoc(doc(som(UTANFOR), `memberships/${medlemskapsId(MEDLEM, VAR)}`)));
   });
 });
 
