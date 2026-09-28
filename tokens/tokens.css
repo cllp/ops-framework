@@ -745,6 +745,36 @@
    * mycket. Ändras knappen är det den här raden som ska ändras.) */
   --bottom-nav-overhang: 1rem;
 
+  /* ─── Grupp-panelens bredd (#161). Delad mellan `OpsGruppanel` (kolumnen
+   * själv) och `OpsAppShell` (toppradens vänsterkolumn, där brandet sitter).
+   *
+   * ⛔ TVÅ STÄLLEN SOM MÅSTE VISA SAMMA TAL FÅR INTE HANDSKRIVA VARSIN
+   * TAILWIND-LITERAL. CP 2026-09-28, om logotypen: "Skalet äger alltså
+   * BÅDA panelens läge och brandens form; koppla dem i OpsAppShell." En
+   * literal `w-72` i en fil och `w-72` i en annan ÄR samma tal i dag och två
+   * tal den dag någon bara rättar det ena, och felet syns inte förrän
+   * logotypen glider ur linje med panelkanten under den. Ett token gör det
+   * till EN plats att ändra, arbetsreglernas punkt 2.
+   *
+   * ⛔ TALEN ÄR MÄTTA UR KÄLLAN, INTE GISSADE. Första versionen (288/72) var
+   * en uppskattning. De riktiga talen är lästa ur
+   * sessions-platform/apps/web/src/components/AppSidebar.jsx: 184px är
+   * `md:w-[184px]` (utfälld), 44px är `w-11` (infälld). Kommentaren där
+   * (rad 43-48) säger varför 44 och inte 40: en 40px-knapp plus `px-0.5`
+   * (4px) horisontell padding på ASIDE:t, `40 + 4 = 44`. */
+  --panel-bredd: 184px;
+  --panel-bredd-infalld: 44px;
+
+  /* ─── Toppradens logoruta (#161). EGNA TOKEN, INTE SAMMA SOM PANELEN.
+   * Mätt ur sessions-platform/apps/web/src/components/AppHeader.jsx rad 174:
+   * utfälld `md:w-[180px]`, infälld `w-10` (40px). 180 mot 184 och 40 mot 44
+   * är samma 4px-differens som ovan, av samma skäl: logorutan har ingen
+   * `px-0.5`, asidet (alltså panelen) har det. Två olika rutor med samma
+   * SKÄL till sin bredd är inte samma TAL, och ett gemensamt token för båda
+   * hade gömt just den skillnaden bakom ett namn som lovade mer än det höll. */
+  --logo-bredd: 180px;
+  --logo-bredd-infalld: 40px;
+
   color-scheme: light;
 }
 

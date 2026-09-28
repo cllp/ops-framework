@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { OpsGruppanel, OpsGruppvaxlare } from "../components/OpsGruppanel.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsBrand } from "../components/OpsBrand.jsx";
@@ -54,6 +56,19 @@ describe("OpsGruppanel", () => {
     const val = screen.getByRole("button", { name: "Bolaget" });
     expect(val).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("button", { name: "Klubben" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("⛔ vald grupp: accentram plus en svag accent-tonad bakgrund, på KORTET SJÄLVT (#161, rättad 2026-09-28)", () => {
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
+    // ⛔ Kortet ÄR `role="button"` (se filhuvudet: SessionStudios `<div
+    // onClick>`, ingen nästlad `OpsCard`), så markeringen sitter direkt på
+    // den, inte på ett separat överlägg.
+    const kort = screen.getByRole("button", { name: "Bolaget" });
+    expect(kort.className).toMatch(/border-accent/);
+    expect(kort.className).toMatch(/bg-accent\/10/);
+    // ⛔ Ingen sådan klass på en OVALD grupp.
+    const ovaldKort = screen.getByRole("button", { name: "Klubben" });
+    expect(ovaldKort.className).not.toMatch(/border-accent/);
   });
 
   it("tryck på en grupp anropar onValj med dess id", async () => {
@@ -211,25 +226,7 @@ describe("OpsAppShell: grupper-propen (#161)", () => {
     expect(screen.getAllByText("Alla mina grupper").length).toBeGreaterThan(0);
   });
 
-  it("⛔ brandet tvingas till ikon när grupper.infalld är sant (en enda bild i DOM)", () => {
-    const { container } = render(
-      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: true }}>
-        <p>Innehåll</p>
-      </OpsAppShell>,
-    );
-    expect(container.querySelectorAll("header img").length).toBe(1);
-  });
-
-  it("brandet visar ordmärket (två bilder: ikon dold via CSS, ordmärke synligt) när utfälld", () => {
-    const { container } = render(
-      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: false }}>
-        <p>Innehåll</p>
-      </OpsAppShell>,
-    );
-    expect(container.querySelectorAll("header img").length).toBe(2);
-  });
-
-  it("ett eget OpsBrand-element klonas med tvingaIkon", () => {
+  it("ett eget OpsBrand-element klonas med panelInfalld (två bilder, crossfade, inte ett bortplockat)", () => {
     const { container } = render(
       <OpsAppShell
         nav={NAV}
@@ -240,6 +237,87 @@ describe("OpsAppShell: grupper-propen (#161)", () => {
         <p>Innehåll</p>
       </OpsAppShell>,
     );
-    expect(container.querySelectorAll("header img").length).toBe(1);
+    // ⛔ RÄTTAD 2026-09-28: SessionStudios `AppHeader.jsx` monterar BÅDA
+    // bilderna alltid och crossfadar med opacity (rad 174-193), aldrig
+    // mount/unmount av en av dem. Se nästa `describe`-block för fler prov.
+    expect(container.querySelectorAll("header img").length).toBe(2);
+  });
+});
+
+describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissade (#161)", () => {
+  /*
+   * ⛔ RÄTTAD 2026-09-28: panelens bredd (288/72) OCH avataren (32px) var en
+   * uppskattning, inte en mätning. De riktiga talen kommer ur
+   * sessions-platform/apps/web/src/components/AppSidebar.jsx (panelen) och
+   * .../AppHeader.jsx (logorutan), och de är INTE samma tal som varandra:
+   * panelen är 184/44, logorutan är 180/40. Två olika rutor, två olika
+   * skäl (asidet har `px-0.5`, logorutan har det inte), alltså TVÅ tokenpar,
+   * inte ett gemensamt.
+   *
+   * ⛔ INTE ETT NÄRVAROGREP. Provet mäter inte "står ordet någonstans", det
+   * extraherar VILKA `w-(--namn)`-klasser varje fil faktiskt använder och
+   * kräver att rätt fil äger rätt par. En fil som byter till en egen
+   * literal (`w-72`) tappar sin post ur mängden och gör provet rött.
+   */
+  const har = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+  const gruppanelKalla = har("../components/OpsGruppanel.jsx");
+  const brandKalla = har("../components/OpsBrand.jsx");
+  const tokensKalla = har("../../tokens/tokens.css");
+
+  /** @param {string} kalla @param {string} namn @returns {Set<string>} */
+  const tokennamn = (kalla, namn) => new Set([...kalla.matchAll(new RegExp(`w-\\(--${namn}(-infalld)?\\)`, "g"))].map((m) => m[0]));
+
+  it("OpsGruppanel äger --panel-bredd/-infalld, som en riktig Tailwind-klass", () => {
+    expect([...tokennamn(gruppanelKalla, "panel-bredd")].sort()).toEqual(["w-(--panel-bredd)", "w-(--panel-bredd-infalld)"]);
+  });
+
+  it("OpsBrand äger --logo-bredd/-infalld, som en riktig Tailwind-klass", () => {
+    expect([...tokennamn(brandKalla, "logo-bredd")].sort()).toEqual(["w-(--logo-bredd)", "w-(--logo-bredd-infalld)"]);
+  });
+
+  it("alla fyra token är deklarerade i tokens.css, med de uppmätta talen", () => {
+    expect(tokensKalla).toMatch(/--panel-bredd:\s*184px/);
+    expect(tokensKalla).toMatch(/--panel-bredd-infalld:\s*44px/);
+    expect(tokensKalla).toMatch(/--logo-bredd:\s*180px/);
+    expect(tokensKalla).toMatch(/--logo-bredd-infalld:\s*40px/);
+  });
+
+  it("panelen bär sin klass i DOM, per läge", () => {
+    const utfalld = render(
+      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: false }}>
+        <p>Innehåll</p>
+      </OpsAppShell>,
+    );
+    expect(utfalld.container.querySelector(".w-\\(--panel-bredd\\)")).toBeTruthy();
+    expect(utfalld.container.querySelector(".w-\\(--panel-bredd-infalld\\)")).toBeFalsy();
+    utfalld.unmount();
+
+    const infalld = render(
+      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: true }}>
+        <p>Innehåll</p>
+      </OpsAppShell>,
+    );
+    expect(infalld.container.querySelector(".w-\\(--panel-bredd-infalld\\)")).toBeTruthy();
+    infalld.unmount();
+  });
+
+  it("logotyprutan bär sin klass i DOM, per läge, med båda bilderna alltid monterade", () => {
+    const utfalld = render(
+      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: false }}>
+        <p>Innehåll</p>
+      </OpsAppShell>,
+    );
+    expect(utfalld.container.querySelector("header .w-\\(--logo-bredd\\)")).toBeTruthy();
+    expect(utfalld.container.querySelectorAll("header img").length).toBe(2);
+    utfalld.unmount();
+
+    const infalld = render(
+      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: true }}>
+        <p>Innehåll</p>
+      </OpsAppShell>,
+    );
+    expect(infalld.container.querySelector("header .w-\\(--logo-bredd-infalld\\)")).toBeTruthy();
+    expect(infalld.container.querySelectorAll("header img").length).toBe(2);
+    infalld.unmount();
   });
 });

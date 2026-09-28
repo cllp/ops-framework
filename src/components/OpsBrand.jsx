@@ -85,14 +85,13 @@ const MARKEN = {
  *   Förval `"max-w-40"`, rätt mått för en topprad.
  * @param {boolean} [props.endastOrdmarke] Ritar BARA ordmärket, aldrig ikonen, oavsett skärmbredd (`OpsInloggning`,
  *   #164). En helskärmsvy är inte `OpsAppShell`s responsiva topprad: smal/bred-växlingen (punkt 9) hör dit, inte hit.
- * @param {boolean} [props.tvingaIkon] Ritar BARA ikonen, aldrig ordmärket, oavsett skärmbredd (#161, grupp-panelen).
- *   Motsatsen till `endastOrdmarke`: när `OpsAppShell`s `grupper`-panel är INFÄLLD ska brandet visa ikonen på VARJE
- *   bredd, inte bara under `md`. Ömsesidigt uteslutande med `endastOrdmarke`, båda styr samma sak åt varsitt håll.
+ * @param {boolean} [props.panelInfalld] Grupp-panelens läge (#161), NÄR `OpsAppShell`s `grupper`-panel finns.
+ *   Mätt ur SessionStudios `AppHeader.jsx` (rad 174-193), inte gissat: BÅDA bilderna monteras alltid, växlingen
+ *   sker med `opacity` (aldrig mount/unmount, annars flimrar det, samma lärdom som `AppSidebar.jsx` rad 13-16),
+ *   och rutan har en FAST bredd ur `--logo-bredd`/`--logo-bredd-infalld` (`tokens.css`), inte `OpsAppShell`s
+ *   vanliga `md:hidden`/`md:block`-brytpunkt. Utelämnad: brandet följer bara skärmbredden, som förut.
  */
-export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40", endastOrdmarke = false, tvingaIkon = false }) {
-  if (endastOrdmarke && tvingaIkon) {
-    throw new Error("OpsBrand: endastOrdmarke och tvingaIkon ihop. De styr samma val åt varsitt håll, och kan inte båda gälla.");
-  }
+export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40", endastOrdmarke = false, panelInfalld }) {
   if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i, och är undertexten under bilden.");
 
   if (!(mark in MARKEN)) {
@@ -116,15 +115,14 @@ export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordma
   // "smal vy" och rita den lilla ikonen i stället för det avsedda ordmärket.
   const visadIkon = endastOrdmarke ? undefined : appenOverridar ? ikon : (mark === "none" ? undefined : OPS_HUB_VARUMARKE.ikon);
 
-  // ⛔ `tvingaIkon`: SAMMA EN-BILDS-LÄGE SOM `OpsBrandBild` REDAN HAR, INTE ETT
-  // NYTT. Utelämnas `ordmarke` helt (i stället för att döljas med CSS) faller
-  // `OpsBrandBild` tillbaka på `ordmarke ?? ikon` och ritar ikonen i sin
-  // FASTA storlek (`h-8 w-auto`), på VARJE bredd, eftersom det då inte finns
-  // någon `md:hidden`/`md:block`-väg kvar att växla mellan.
-  const ordmarkeAttRita = tvingaIkon ? undefined : visadOrdmarke;
-
-  return ordmarkeAttRita || visadIkon ? (
-    <OpsBrandBild title={title} ordmarke={ordmarkeAttRita} ikon={visadIkon} ordmarkeMaxWidth={ordmarkeMaxWidth} />
+  return visadOrdmarke || visadIkon ? (
+    <OpsBrandBild
+      title={title}
+      ordmarke={visadOrdmarke}
+      ikon={visadIkon}
+      ordmarkeMaxWidth={ordmarkeMaxWidth}
+      panelInfalld={panelInfalld}
+    />
   ) : (
     <OpsBrandText title={title} subtitle={subtitle} mark={mark} />
   );
@@ -154,9 +152,9 @@ function OpsBrandText({ title, subtitle, mark }) {
 }
 
 /**
- * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeMaxWidth: string }} props
+ * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeMaxWidth: string, panelInfalld?: boolean }} props
  */
-function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
+function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth, panelInfalld }) {
   // ⛔ `useResolvedTheme()` SVARAR "light"/"dark" (samma `Temalage`-typ som
   // resten av `theme.js`). Bildernas nycklar är "ljus"/"mork", KORTFORMEN CP
   // gav i uppdraget, skild från `TEMAN` (grupp.js: "ljust"/"morkt"). Kartan
@@ -170,6 +168,45 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
   const undertext = <span className="mt-1 block text-center text-[11px] font-medium uppercase tracking-[0.22em] text-accent">{title}</span>;
 
   if (ordmarke && ikon) {
+    // ⛔ #161: `panelInfalld` GIVEN (BOOLEAN, INTE `undefined`) ÄR EN ANNAN
+    // RUTA ÄN DEN VANLIGA SMAL/BRED-VÄXLINGEN NEDANFÖR. Mätt ur
+    // SessionStudios `AppHeader.jsx` rad 174-193, inte gissat: en FAST
+    // bredd ur `--logo-bredd`/`--logo-bredd-infalld` (`tokens.css`), och
+    // BÅDA bilderna ALLTID monterade med `opacity`-crossfade, aldrig
+    // `hidden`/mount-unmount. Samma lärdom som `AppSidebar.jsx` rad 13-16
+    // (bort med bredd-`transition`, flimrade): en bild som kommer och går
+    // ur DOM:en trasslar layouten i samma tick som opaciteten hade kunnat
+    // sköta ensam.
+    if (typeof panelInfalld === "boolean") {
+      return (
+        <span
+          className={cx(
+            "relative flex shrink-0 items-center overflow-hidden",
+            panelInfalld ? "w-(--logo-bredd-infalld) justify-center" : "w-(--logo-bredd) justify-start",
+          )}
+        >
+          <img
+            src={ikon[tema]}
+            alt=""
+            aria-hidden={!panelInfalld}
+            className={cx(
+              "absolute inset-0 m-auto size-8 object-contain object-center transition-opacity duration-200 ease-out",
+              panelInfalld ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+          />
+          <img
+            src={ordmarke[tema]}
+            alt=""
+            aria-hidden={panelInfalld}
+            className={cx(
+              "h-7 w-full object-contain object-left transition-opacity duration-200 ease-out",
+              panelInfalld ? "pointer-events-none opacity-0" : "opacity-100",
+            )}
+          />
+        </span>
+      );
+    }
+
     // ⛔ IKONEN I SMAL VY, ORDMÄRKET I BRED (#164 punkt 9). `hidden md:block` /
     // `md:hidden` är samma brytpunkt `OpsAppShell` redan använder för sin egen
     // topprad, inte ett nytt tal påhittat här.

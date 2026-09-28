@@ -10,76 +10,106 @@ import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { text } from "../lib/sprak.js";
 
 /**
- * Grupp-panelen: SessionStudios arbetsytor, mätt in (#161).
+ * Grupp-panelen: SessionStudios arbetsytor, MÄTTA ur källan (#161).
+ *
+ * ══ ⛔ RÄTTAD 2026-09-28. FÖRSTA VERSIONEN VAR EN GISSNING ═════════════════
+ *
+ * Panelbredd (288/72), avatarstorlek (32px) och kortet byggt på `OpsCard`
+ * var alla en uppskattning mot en skärmbild. CP: "CP har sagt att det ska
+ * vara EXAKT som SessionStudio." De riktiga talen och klasserna är lästa ur
+ * `sessions-platform/apps/web/src/components/` (läs, ändra aldrig): rad-för-
+ * rad-referenser står vid varje mått nedan, så nästa person kan verifiera
+ * själv i stället för att lita på den här kommentaren.
  *
  * ══ ⛔ VARFÖR EN NY KOMPONENT OCH INTE `OpsGruppvaljare` ═════════════════
  *
- * CP 2026-09-28, med en skärmbild av SessionStudios `AppSidebar.jsx`:
- * "OCH GRUPPVÄLJARE? Var finns det?" Två uppföljande bilder (utfälld och
- * infälld) visar mer än en lista: ett kort per grupp med märke, en klase
- * SMÅ ÅTGÄRDSIKONER (glob, info, penna), namn, medlemsantal, en rad med
- * VALFRIA KNAPPAR (bibliotek med räknare, chatt), en avatarstapel, och en
- * kollapsbar remsa där bara märkena syns.
- *
  * `OpsGruppvaljare` (#139) löser en annan fråga: raden i en meny, mellan
  * "alla mina grupper" och en enskild. Den bär varken medlemsantal, åtgärder
- * eller avatarer, och den kollapsar inte. Ett tredje och fjärde fält på den
- * komponenten för ett ANNAT användningsfall (menyraden i #139 kontra
- * sidopanelen i #161) hade gjort en komponent till två i en trenchcoat.
- * `OpsGruppanel` är därför en egen, bredare yta: den ÅTERANVÄNDER
- * `OpsIdentity` och samma `ALLA_GRUPPER`-läge, men bygger sin egen rad.
+ * eller avatarer, och den kollapsar inte. `OpsGruppanel` är en egen, bredare
+ * yta: den ÅTERANVÄNDER `OpsIdentity` och samma `ALLA_GRUPPER`-läge, men
+ * bygger sin egen rad.
  *
- * ══ ⛔ ÅTGÄRDER, KNAPPAR OCH AVATARER ÄR APPENS, RAMVERKET GISSAR INGET ═══
+ * ══ ⛔ ÅTGÄRDER OCH KNAPPAR ÄR APPENS, RAMVERKET GISSAR INGET ════════════
  *
- * De tre glob/info/penna-ikonerna i CP:s bild betyder "publik sida", "info"
- * och "redigera". Bibliotek- och chattknapparna öppnar APPENS egna vyer.
- * Ramverket känner inte till någon av dem: `atgarder` och `knappar` är listor
- * appen skickar in per grupp (ikon, etikett, `onClick`, en valfri räknare på
- * `knappar`), precis som `OpsPanelRow`s `action` eller `OpsCard`s `edge`.
- * Utan dem ritas ingen rad, av samma skäl som `OpsUtanMedlemskap.onSkapaGrupp`:
- * en knapp som inte gör något är en knapp som ser ut att göra det.
+ * Glob/info/penna, bibliotek och chatt öppnar APPENS egna vyer. Ramverket
+ * känner inte till någon av dem: `atgarder` och `knappar` är listor appen
+ * skickar in per grupp (ikon, etikett, `onClick`, en valfri räknare).
+ *
+ * ══ ⛔ KORTET ÄR INTE `OpsCard`. Byggt för hand, med skälet utskrivet ═════
+ *
+ * `OpsCard` (`p-(--card-padding)`, ~20px, ingen kant som förval) är
+ * ramverkets EGEN kortform. SessionStudios `GroupCard.jsx` är en annan
+ * form: `p-3` (12px) MED en 1px kant som förval, `rounded-[var(--radius)]`
+ * (12px, INTE `--radius-card` 24px). Att pressa SessionStudios mått genom
+ * `OpsCard`s props hade antingen krävt att öppna `OpsCard`s stängda API
+ * (padding/kant som appen skickar in, vilket `check-closed-api` finns för
+ * att förhindra) eller gett ett kort som ser ut som `OpsCard` fast med fel
+ * siffror. Raden är därför handbyggd, med SessionStudios egna klasser.
+ *
+ * ══ ⛔ HELA RADEN VÄLJER, MEN DET ÄR EN `<div>`, INTE EN `<button>` ═══════
+ *
+ * SessionStudios `GroupCard.jsx` (rad 59-66) är en `<div onClick={onClick}>`
+ * som omsluter TRE riktiga `<button>`/`<a>`-element (glob, info, penna) och
+ * TVÅ till (bibliotek, chatt), var och en med `e.stopPropagation()` så ett
+ * tryck på en ikon inte också väljer kortet. Det är den enda formen som
+ * fungerar: en `<button>` FÅR INTE innehålla en `<button>` (ogiltig HTML,
+ * webbläsaren bryter isär trädet), så "hela raden är EN knapp" är inte en
+ * möjlig läsning av källan, oavsett hur den beskrivs i ett uppdrag.
+ *
+ * ⛔ VI LÄGGER TILL `role="button"`, `tabIndex={0}` OCH `onKeyDown`
+ * (Enter/Space), NÅGOT SESSIONSTUDIOS EGEN `<div>` INTE HAR. Husets linje är
+ * annars RIKTIGA kontroller, aldrig en `<div role="button">` som LÅTSAS vara
+ * en knapp utan att göra jobbet (se `OpsRadioGroup`s filhuvud): här gör den
+ * jobbet, tangentbord inkluderat, vilket är en förbättring över förlagan och
+ * inte en genväg förbi den. Åtgärdsknapparna INUTI stoppar propagering på
+ * sitt eget `onClick`, exakt som `GroupCard.jsx`.
+ *
+ * ══ ⛔ INGET PER-GRUPP HEX-FÄRG. ACCENT-TOKENET, MED FLIT ═════════════════
+ *
+ * SessionStudios markering målar med `group.color` (en fri hexsträng per
+ * grupp) plus en alfa-suffix (`"10"`, `"15"`, `"28"`, `"40"`). Ramverkets
+ * `GruppanelGrupp` har inget färgfält, och `OpsIdentity` härleder sin ton ur
+ * `seed` genom en FAST palett (`identityTone`), aldrig en fri hexsträng: det
+ * är samma arkitekturbeslut som `OpsIdentity`s eget filhuvud ("Identitet
+ * bärs aldrig av en färgad prick"), applicerat på markeringen. Vald grupp
+ * använder därför `--color-accent`, inte gruppens egen färg. En app som vill
+ * ha exakt SessionStudios per-grupp-färgade markering får bygga sitt eget
+ * lager ovanpå `atgarder`/`onValj`, ramverket erbjuder inte hex-in.
  *
  * ══ ⛔ EN LISTA, INTE EN POPOVER, AV SAMMA SKÄL SOM `OpsGruppvaljare` ═════
  *
- * Se den filens filhuvud: en popover går inte att driva med `fireEvent` i
- * jsdom. Panelen här är en kolonn med riktiga knappar, alltid framme från
- * 1024 px och uppåt.
- *
- * ══ ⛔ INGEN NÄSTLAD <button>. VARJE KORT ÄR TVÅ KNAPPAR, INTE EN ═════════
- *
- * Kortet har både ett VAL (tryck på namnet/märket väljer gruppen) och egna
- * åtgärder (glob, info, penna, bibliotek, chatt). HTML tillåter inte en
- * `<button>` inuti en annan, och husets linje är RIKTIGA kontroller, aldrig
- * en `<div role="button">` som låtsas vara en (se `OpsRadioGroup`s filhuvud).
- * Lösningen är att valknappen (märke, namn, medlemsantal) och åtgärdsknapparna
- * är SYSKON i samma `<li>`, aldrig förälder och barn.
+ * En popover går inte att driva med `fireEvent` i jsdom. Panelen är en
+ * kolonn med riktiga knappar, alltid framme från 1024 px och uppåt.
  *
  * ══ ⛔ UNDER 1024 PX: EN KNAPP OCH ETT ARK, INTE EN KOLUMN ═══════════════
  *
- * `OpsGruppvaxlare` (samma fil, delar sina rader med `OpsGruppanel` via
- * `GruppanelRader` nedan) ritar den aktiva gruppens märke och namn som en
- * knapp i headern. Ett tryck öppnar samma lista i `OpsPanel`, ramverkets
- * ark/rullgardin, i en enklare form (utan åtgärder/knappar/avatarer: se
- * noten på `GruppanelRader` för varför).
+ * `OpsGruppvaxlare` (samma fil) ritar den aktiva gruppens märke och namn som
+ * en knapp i headern. Ett tryck öppnar samma lista i `OpsPanel`, ramverkets
+ * ark/rullgardin, i en enklare form (utan åtgärder/knappar/avatarer).
  *
- * ⛔ OCH DET ÄR EN MEDVETEN AVVIKELSE FRÅN "ALLTID ETT ARK UNDER 1024 PX".
- * `OpsPanel` byter yta vid Tailwinds `md` (768 px, se den filens `SMAL`),
- * inte vid 1024. Mellan 768 och 1024 blir växlaren alltså en rullgardin, inte
- * en bottensheet. Att duplicera `OpsPanel`s brytpunktsmaskin (matchMedia,
- * lyssnare, Safari-reserv) för EN till konsument hade brutit mot att panelen
- * redan är den ytan appens meny och notiser delar: två sätt att avgöra "är
- * skärmen smal" i samma app är den sortens glidning arbetsreglernas punkt 2
- * varnar för. `OpsPanel` ÄR arket, och `OpsGruppvaxlare` använder det som det
- * är, med brytpunkten det redan har.
+ * ⛔ MEDVETEN AVVIKELSE: `OpsPanel` byter yta vid Tailwinds `md` (768 px),
+ * inte vid 1024. Att duplicera `OpsPanel`s brytpunktsmaskin för EN till
+ * konsument hade brutit mot en sanning per faktum (arbetsreglernas punkt 2).
  *
  * ══ ⛔ KOLLAPS ÄGS AV APPEN, PRECIS SOM VALET ═════════════════════════════
  *
- * CP 2026-09-28, om logotypen: "Skalet äger alltså både panelens läge och
- * brandens form; koppla dem i OpsAppShell." `infalld`/`onInfalld` är därför
- * STYRDA precis som `aktiv`/`onValj`, inte ett internt `useState` här. Utan
- * dem (fristående bruk av `OpsGruppanel` utanför skalet) sköter komponenten
- * det själv, samma mönster som `OpsPanel`s styrda/ostyrda `open`.
+ * `infalld`/`onInfalld` är STYRDA precis som `aktiv`/`onValj` (brandens form
+ * hänger på samma läge, se `OpsAppShell`/`OpsBrand`). Utan dem sköter
+ * komponenten kollapset själv, samma mönster som `OpsPanel`s styrda/ostyrda
+ * `open`.
  */
+
+/**
+ * SessionStudios `--radius` (`index.css` rad 215): `0.75rem` = 12px, bas för
+ * kort, knappar och `GroupMark`. Ramverkets egen radieskala har `--radius-md`
+ * (10px) och `--radius-lg` (16px), men INGEN 12px-nivå: en `rounded-[12px]`
+ * här är därför en LITERAL och inte ett token, med flit utskriven som en
+ * konstant på ETT ställe i stället för utspridd i varje className. Se
+ * README och slutrapporten för #161: det här är en medveten avvikelse
+ * ramverket ännu inte har ett namngivet steg för, inte en tyst gissning
+ * mellan `--radius-md` och `--radius-lg`.
+ */
+const RADIE = "rounded-[12px]";
 
 /**
  * @typedef {object} GruppanelKnapp En liten ikonknapp (glob, info, penna,
@@ -104,18 +134,33 @@ import { text } from "../lib/sprak.js";
  * @property {string} [bild] Gruppens egen bild till märket. Utelämnad: ikon eller initialer (`OpsIdentity`).
  * @property {number} [medlemsantal] Utelämnad: ingen siffra ritas, aldrig "0" som gissning.
  * @property {"agare"|"medlem"} [roll] Utelämnad: ingen rollpill.
- * @property {ReadonlyArray<GruppanelKnapp>} [atgarder] Uppe till höger på kortet (glob/info/penna i CP:s bild). Utelämnad: inga.
- * @property {ReadonlyArray<GruppanelKnapp>} [knappar] Under medlemsantalet (bibliotek/chatt i CP:s bild). Utelämnad: inga.
- * @property {ReadonlyArray<GruppanelAvatar>} [avatarer] Längst ner på kortet, max fyra, sedan "+N". Utelämnad: ingen rad.
+ * @property {ReadonlyArray<GruppanelKnapp>} [atgarder] Uppe till höger på kortet (glob/info/penna, `GroupCard.jsx` rad 71-107). Utelämnad: inga.
+ * @property {ReadonlyArray<GruppanelKnapp>} [knappar] Runda knappar på tredje raden (bibliotek/chatt, `GroupCard.jsx` rad 128-166). Utelämnad: inga.
+ * @property {ReadonlyArray<GruppanelAvatar>} [avatarer] Avatarraden längst ner, max fyra, sedan "+N" (`GroupCard.jsx` rad 176-191). Utelämnad: ingen rad.
  */
 
-/** Hur många avatarer som ritas innan resten blir en "+N". Mätt ur CP:s bild: fyra plus en rad. */
+/** Hur många avatarer som ritas innan resten blir en "+N" (`GroupCard.jsx` rad 178: `.slice(0, 4)`). */
 const MAX_AVATARER = 4;
 
 /**
+ * Enter/Space aktiverar kortets val, precis som en riktig `<button>` redan
+ * gör gratis. `<li role="button">` gör det inte utan hjälp.
+ *
+ * @param {() => void} valj
+ * @returns {(e: import("react").KeyboardEvent) => void}
+ */
+function tangentbordsVal(valj) {
+  return (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      valj();
+    }
+  };
+}
+
+/**
  * Raderna i FULL FORM (kort, åtgärder, knappar, avatarer), bara för panelen.
- * `OpsGruppvaxlare`s ark använder `EnkelGruppanelRader` nedan i stället, se
- * den funktionens filhuvud för skälet.
+ * `OpsGruppvaxlare`s ark använder `EnkelGruppanelRader` nedan i stället.
  *
  * @param {object} props
  * @param {ReadonlyArray<GruppanelGrupp>} props.grupper
@@ -126,31 +171,33 @@ const MAX_AVATARER = 4;
  * @param {string} [props.tomText]
  * @param {Record<string, string>} props.rollNamn
  * @param {string} props.medlemmarEtikett
- * @param {string} props.flerAvatarerEtikett Följt av antalet, t.ex. "+4 fler".
+ * @param {string} props.flerAvatarerEtikett
  */
 function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, rollNamn, medlemmarEtikett, flerAvatarerEtikett }) {
   const mina = grupper ?? [];
 
   return (
-    <ul className="flex flex-col gap-3" aria-label={allaEtikett}>
+    // ⛔ `gap-1.5` (AppSidebar.jsx rad 43), inte `gap-3`.
+    <ul className="flex flex-col gap-1.5" aria-label={allaEtikett}>
       <li>
+        {/* "Alla arbetsytor", AppSidebar.jsx rad 119-133: p-2.5, text-xs font-medium. */}
         <button
           type="button"
           onClick={() => onValj(ALLA_GRUPPER)}
           aria-current={aktiv === ALLA_GRUPPER ? "true" : undefined}
           className={cx(
-            "flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold",
-            "transition-colors duration-(--duration-fast) ease-standard",
+            "flex w-full items-center gap-2 border p-2.5 text-left text-xs font-medium transition-all",
+            RADIE,
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            aktiv === ALLA_GRUPPER ? "border-accent bg-sunken text-ink" : "border-transparent text-ink-secondary hover:bg-sunken hover:text-ink",
+            aktiv === ALLA_GRUPPER ? "border-accent bg-accent/10 text-accent" : "border-line bg-surface text-ink-secondary hover:border-line-strong",
           )}
         >
-          <PersonIkon size={18} />
+          <PersonIkon size={16} />
           {allaEtikett}
         </button>
       </li>
 
-      {mina.length === 0 && tomText ? <li className="px-3 py-1 text-sm text-ink-secondary">{tomText}</li> : null}
+      {mina.length === 0 && tomText ? <li className="px-2.5 py-1 text-sm text-ink-secondary">{tomText}</li> : null}
 
       {mina.map((g) => {
         const namn = text(g.namn, sprak);
@@ -158,28 +205,47 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
         const avatarer = g.avatarer ?? [];
         const synligaAvatarer = avatarer.slice(0, MAX_AVATARER);
         const resten = avatarer.length - synligaAvatarer.length;
+        const valj = () => onValj(g.id);
 
         return (
+          // ⛔ `GroupCard.jsx` rad 59-66: `<div onClick>`, INTE en `<button>`.
+          // Se filhuvudet: en knapp kan inte innehålla åtgärdsknapparna
+          // nedan. `role="button"`/`tabIndex`/`onKeyDown` läggs till för
+          // tangentbordet, något förlagan saknar.
           <li
             key={g.id}
+            role="button"
+            tabIndex={0}
+            onClick={valj}
+            onKeyDown={tangentbordsVal(valj)}
+            aria-current={vald ? "true" : undefined}
+            aria-label={namn}
             className={cx(
-              "flex flex-col gap-2 rounded-3xl border p-3",
-              vald ? "border-accent bg-sunken" : "border-line bg-canvas",
+              "flex w-full cursor-pointer flex-col overflow-hidden border p-3 text-left transition-all hover:shadow-md",
+              RADIE,
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              vald ? "border-accent bg-accent/10 shadow-sm" : "border-line bg-surface hover:border-line-strong",
             )}
           >
-            <div className="flex items-start justify-between gap-2">
-              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="md" />
+            {/* Rad 1: märke + åtgärder. GroupCard.jsx rad 70-107, sizePx=20. */}
+            <div className="mb-1.5 flex items-center justify-between">
+              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="sm" />
               {g.atgarder && g.atgarder.length > 0 ? (
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-0.5">
                   {g.atgarder.map((a, i) => (
                     <button
-                      // eslint-disable-next-line react/no-array-index-key -- ⛔ ÅTGÄRDER HAR INGET EGET ID. Appen skickar en lista ikoner, inte poster med nyckel; index räcker eftersom listan inte sorteras om under komponentens liv.
+                      // eslint-disable-next-line react/no-array-index-key -- ⛔ ÅTGÄRDER HAR INGET EGET ID. Appen skickar en lista ikoner, index räcker eftersom listan inte sorteras om under komponentens liv.
                       key={i}
                       type="button"
-                      onClick={a.onClick}
+                      onClick={(e) => {
+                        // ⛔ `e.stopPropagation()`, GroupCard.jsx rad 79/88/98.
+                        // Utan den väljer ett tryck på ikonen ÄVEN kortet.
+                        e.stopPropagation();
+                        a.onClick();
+                      }}
                       aria-label={a.label}
                       title={a.label}
-                      className="flex size-8 items-center justify-center rounded-md text-ink-secondary hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      className={cx("p-1.5 text-ink-muted hover:text-accent", RADIE, "hover:bg-sunken")}
                     >
                       {a.icon}
                     </button>
@@ -188,56 +254,65 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
               ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={() => onValj(g.id)}
-              aria-current={vald ? "true" : undefined}
-              aria-label={namn}
-              className="flex flex-col gap-0.5 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              <span className="truncate text-sm font-semibold text-ink">{namn}</span>
+            {/* Rad 2: namn. GroupCard.jsx rad 111-113. */}
+            <p className="mb-1 truncate text-xs leading-tight font-semibold text-ink">{namn}</p>
+
+            {g.roll ? (
+              <p className="mb-1">
+                <OpsPill tone={g.roll === "agare" ? "info" : "neutral"}>{rollNamn[g.roll] || g.roll}</OpsPill>
+              </p>
+            ) : null}
+
+            {/* Rad 3: medlemsantal + knappar. GroupCard.jsx rad 116-168. */}
+            <div className="mt-1.5 flex items-center justify-between">
               {typeof g.medlemsantal === "number" ? (
-                <span className="flex items-center gap-1 text-xs text-ink-secondary">
-                  <PersonIkon size={14} />
+                <span className="flex items-center gap-1 text-[10px] text-ink-muted">
+                  <PersonIkon size={10} />
                   {g.medlemsantal}
                   <span className="sr-only"> {medlemmarEtikett}</span>
                 </span>
+              ) : (
+                <span />
+              )}
+              {g.knappar && g.knappar.length > 0 ? (
+                <div className="flex items-center gap-1.5">
+                  {g.knappar.map((k, i) => (
+                    <button
+                      // eslint-disable-next-line react/no-array-index-key -- se noten vid atgarder ovan.
+                      key={i}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        k.onClick();
+                      }}
+                      aria-label={k.label}
+                      title={k.label}
+                      className="relative flex size-7 items-center justify-center rounded-full border border-line bg-surface text-ink-secondary hover:border-accent hover:text-accent"
+                    >
+                      {k.icon}
+                      {typeof k.badge === "number" ? <OpsCountBadge count={k.badge} text={k.label} placement="icon" /> : null}
+                    </button>
+                  ))}
+                </div>
               ) : null}
-              {g.roll ? (
-                <span className="mt-0.5">
-                  <OpsPill tone={g.roll === "agare" ? "info" : "neutral"}>{rollNamn[g.roll] || g.roll}</OpsPill>
-                </span>
-              ) : null}
-            </button>
+            </div>
 
-            {g.knappar && g.knappar.length > 0 ? (
-              <div className="flex items-center gap-2">
-                {g.knappar.map((k, i) => (
-                  <button
-                    // eslint-disable-next-line react/no-array-index-key -- se noten vid atgarder ovan.
-                    key={i}
-                    type="button"
-                    onClick={k.onClick}
-                    aria-label={k.label}
-                    title={k.label}
-                    className="relative flex size-9 items-center justify-center rounded-full bg-sunken text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  >
-                    {k.icon}
-                    {typeof k.badge === "number" ? <OpsCountBadge count={k.badge} text={k.label} placement="icon" /> : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
+            {/* Rad 4: avatarer. GroupCard.jsx rad 176-191: gap-0.5, Avatar size=5 (20px). */}
             {avatarer.length > 0 ? (
-              <div className="flex items-center -space-x-2">
+              <div className="mt-1.5 flex items-center gap-0.5">
                 {synligaAvatarer.map((a) => (
-                  <span key={a.id} className="ring-2 ring-canvas rounded-md">
+                  // ⛔ Rent dekorativt här: ramverket har inget `onViewUser`-
+                  // fält på `GruppanelAvatar` (#161-scope), till skillnad från
+                  // SessionStudios klickbara profil-avatar (GroupCard.jsx rad
+                  // 178-190). Ett tryck på en avatar navigerar alltså ingenstans
+                  // ännu, och en span som bara visar bilden ljuger då inte om
+                  // vad den gör.
+                  <span key={a.id} className="inline-flex rounded-full">
                     <OpsIdentity name={a.namn} seed={a.id} imageUrl={a.bild || undefined} size="sm" />
                   </span>
                 ))}
                 {resten > 0 ? (
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-sunken text-xs font-semibold text-ink-secondary ring-2 ring-canvas">
+                  <span className="ml-0.5 text-[9px] text-ink-muted">
                     +{resten}
                     <span className="sr-only"> {flerAvatarerEtikett}</span>
                   </span>
@@ -253,14 +328,8 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
 
 /**
  * Raderna i ENKEL FORM: namn, medlemsantal och rollpill, ingen åtgärd, ingen
- * knapp, ingen avatarstapel.
- *
- * ⛔ VARFÖR ARKET INTE ÅTERANVÄNDER `GruppanelRader` RAKT AV. Ett ark på en
- * telefon är för smalt för tre knappklasar per rad (märke, åtgärder, knappar,
- * avatarer): SessionStudios EGEN mobilväljare (`UnifiedGroupFilter`) är av
- * samma skäl bara en FORM, namn och räknare, aldrig hela kortet. Att tvinga
- * in samma kort i 280 px hade gett en rad ingen kan trycka rätt i med
- * tummen, precis den sortens fel #158/#159 redan flaggat i andra ark.
+ * knapp, ingen avatarstapel. Se `OpsGruppanel`s filhuvud för varför arket
+ * inte återanvänder `GruppanelRader` rakt av (för smalt för hela kortet).
  *
  * @param {object} props
  * @param {ReadonlyArray<GruppanelGrupp>} props.grupper
@@ -287,10 +356,11 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
           onClick={() => valj(ALLA_GRUPPER)}
           aria-current={aktiv === ALLA_GRUPPER ? "true" : undefined}
           className={cx(
-            "flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold",
+            "flex min-h-11 w-full items-center gap-2 border px-3 py-2 text-left text-sm font-semibold",
+            RADIE,
             "transition-colors duration-(--duration-fast) ease-standard",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            aktiv === ALLA_GRUPPER ? "border-accent bg-sunken text-ink" : "border-transparent text-ink-secondary hover:bg-sunken hover:text-ink",
+            aktiv === ALLA_GRUPPER ? "border-accent bg-accent/10 text-accent" : "border-transparent text-ink-secondary hover:bg-sunken hover:text-ink",
           )}
         >
           <PersonIkon size={18} />
@@ -311,10 +381,11 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
               aria-current={vald ? "true" : undefined}
               aria-label={namn}
               className={cx(
-                "flex min-h-11 w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left",
+                "flex min-h-11 w-full items-center gap-2.5 border px-3 py-2 text-left",
+                RADIE,
                 "transition-colors duration-(--duration-fast) ease-standard",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                vald ? "border-accent bg-sunken" : "border-transparent hover:bg-sunken",
+                vald ? "border-accent bg-accent/10" : "border-transparent hover:bg-sunken",
               )}
             >
               <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="sm" />
@@ -337,6 +408,7 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
 
 /**
  * Den infällda remsan: bara märkena, i samma ordning. Ingen text.
+ * `AppSidebar.jsx` rad 61-107.
  *
  * @param {object} props
  * @param {ReadonlyArray<GruppanelGrupp>} props.grupper
@@ -347,8 +419,10 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
  */
 function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
   return (
-    <ul className="flex flex-col items-center gap-2" aria-label={allaEtikett}>
+    // ⛔ `gap-1.5`, `AppSidebar.jsx` rad 60/61.
+    <ul className="flex flex-col gap-1.5" aria-label={allaEtikett}>
       <li>
+        {/* "Alla arbetsytor", rad 74-88: w-10 h-10 (40px). */}
         <button
           type="button"
           onClick={() => onValj(ALLA_GRUPPER)}
@@ -356,12 +430,13 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
           aria-label={allaEtikett}
           title={allaEtikett}
           className={cx(
-            "flex size-10 items-center justify-center rounded-lg border",
+            "flex size-10 items-center justify-center border transition-all",
+            RADIE,
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            aktiv === ALLA_GRUPPER ? "border-accent bg-sunken text-ink" : "border-transparent text-ink-secondary hover:bg-sunken hover:text-ink",
+            aktiv === ALLA_GRUPPER ? "border-accent bg-accent/10" : "border-line bg-surface hover:border-line-strong",
           )}
         >
-          <PersonIkon size={18} />
+          <PersonIkon size={16} />
         </button>
       </li>
       {(grupper ?? []).map((g) => {
@@ -369,6 +444,7 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
         const vald = g.id === aktiv;
         return (
           <li key={g.id}>
+            {/* Gruppknapp, rad 89-107: w-10 h-10, overflow-hidden p-0.5, märke 34px. */}
             <button
               type="button"
               onClick={() => onValj(g.id)}
@@ -376,10 +452,10 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
               aria-label={namn}
               title={namn}
               className={cx(
-                "flex size-10 items-center justify-center rounded-lg border",
-                "transition-colors duration-(--duration-fast) ease-standard",
+                "flex size-10 items-center justify-center overflow-hidden border p-0.5 transition-all",
+                RADIE,
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                vald ? "border-accent" : "border-transparent hover:bg-sunken",
+                vald ? "border-accent bg-accent/10 shadow-sm" : "border-line bg-surface hover:border-line-strong",
               )}
             >
               <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="md" />
@@ -431,9 +507,7 @@ export function OpsGruppanel({
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppanel: onValj krävs. En panel som inte kan välja är en lista som ser ut som en kontroll.");
   }
-  // ⛔ STYRD ELLER OSTYRD, SAMMA MÖNSTER SOM `OpsPanel`s `open`. Se filhuvudet:
-  // i skalet är den ALLTID styrd (brandens form hänger på samma läge), men en
-  // fristående `OpsGruppanel` ska ändå fungera utan att appen håller state.
+  // ⛔ STYRD ELLER OSTYRD, SAMMA MÖNSTER SOM `OpsPanel`s `open`.
   const styrd = typeof infalld === "boolean";
   const [egetInfalld, setEgetInfalld] = useState(false);
   const kollapsad = styrd ? infalld : egetInfalld;
@@ -446,24 +520,29 @@ export function OpsGruppanel({
   return (
     <nav
       aria-label={allaEtikett}
-      // ⛔ BREDDEN SITTER PÅ NAVEN, INTE PÅ SKALETS WRAPPER. `OpsAppShell`
-      // monterar den här komponenten i en `hidden lg:block`-kolumn utan egen
-      // bredd, av precis det här skälet: styr appen INTE `infalld`, kollapsar
-      // `OpsGruppanel` sig själv (se filhuvudet), och då måste bredden följa
-      // med HÄR. Låg bredden i skalets wrapper i stället hade krävt att den
-      // OCKSÅ kände till `kollapsad`, alltså samma tillstånd på två ställen.
-      className={cx("flex h-full flex-col gap-3 border-r border-line bg-surface p-3", kollapsad ? "w-[4.5rem]" : "w-64")}
+      // ⛔ BREDDEN SITTER PÅ NAVEN, INTE PÅ SKALETS WRAPPER (se `OpsAppShell`).
+      // ⛔ `w-(--panel-bredd)`/`w-(--panel-bredd-infalld)`: 184px/44px, MÄTTA
+      // ur `AppSidebar.jsx` rad 43-49 (`md:w-[184px]` / `w-11`), inte 288/72.
+      // ⛔ INGEN BREDD-TRANSITION. `AppSidebar.jsx` rad 13-16: transitionen
+      // togs bort medvetet 2026-04-22, den gav flimmer mellan bredd och
+      // `hidden`/`md:flex`-innehållet. Bredden byter direkt här också.
+      className={cx(
+        "flex h-full flex-col gap-1.5 overflow-y-auto px-0.5",
+        kollapsad ? "w-(--panel-bredd-infalld)" : "w-(--panel-bredd)",
+      )}
     >
-      <div className={cx("flex items-center", kollapsad ? "justify-center" : "justify-start")}>
-        <button
-          type="button"
-          onClick={vaxlaInfalld}
-          aria-label={kollapsad ? fallUtEtikett : kollapsaEtikett}
-          className="flex size-8 items-center justify-center rounded-md text-ink-secondary hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          {kollapsad ? <ChevronHogerIkon size={16} /> : <ChevronVansterIkon size={16} />}
-        </button>
-      </div>
+      {/*
+       * ⛔ CHEVRONEN ÄR FÖRSTA BARNET, I PANELEN (`AppSidebar.jsx` rad 51-59),
+       * INTE I TOPPRADEN. `w-full ... p-1.5`, ikon `w-3.5 h-3.5` (14px).
+       */}
+      <button
+        type="button"
+        onClick={vaxlaInfalld}
+        aria-label={kollapsad ? fallUtEtikett : kollapsaEtikett}
+        className={cx("flex w-full items-center justify-center p-1.5 text-ink-secondary hover:bg-sunken hover:text-ink", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+      >
+        {kollapsad ? <ChevronHogerIkon size={14} /> : <ChevronVansterIkon size={14} />}
+      </button>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {kollapsad ? (
@@ -484,23 +563,28 @@ export function OpsGruppanel({
       </div>
 
       {onSkapa ? (
-        <div className={kollapsad ? "flex justify-center" : undefined}>
-          {kollapsad ? (
-            <button
-              type="button"
-              onClick={onSkapa}
-              aria-label={skapaEtikett}
-              title={skapaEtikett}
-              className="flex size-10 items-center justify-center rounded-lg border border-dashed border-line text-ink-secondary hover:border-line-strong hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-            >
-              <PlusIkon size={18} />
-            </button>
-          ) : (
-            <OpsButton variant="secondary" onClick={onSkapa}>
-              {skapaEtikett}
-            </OpsButton>
-          )}
-        </div>
+        kollapsad ? (
+          // "Skapa nytt", infälld: rad 108-112, w-10 h-10 dashed.
+          <button
+            type="button"
+            onClick={onSkapa}
+            aria-label={skapaEtikett}
+            title={skapaEtikett}
+            className={cx("flex size-10 items-center justify-center border border-dashed border-accent/15 text-accent hover:border-accent hover:bg-accent/5", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+          >
+            <PlusIkon size={16} />
+          </button>
+        ) : (
+          // "Skapa nytt", utfälld: rad 157-166, p-3 dashed, text-sm font-medium.
+          <button
+            type="button"
+            onClick={onSkapa}
+            className={cx("flex w-full items-center justify-center gap-1.5 border border-dashed border-accent/15 p-3 text-sm font-medium text-accent hover:border-accent hover:bg-accent/5", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+          >
+            <PlusIkon size={16} />
+            {skapaEtikett}
+          </button>
+        )
       ) : null}
     </nav>
   );
@@ -554,9 +638,7 @@ export function OpsGruppvaxlare({
       trigger={
         // ⛔ EN RIKTIG <button>, INTE EN <span>. `OpsPanel`s `trigger` monteras
         // med Radix `asChild`, som SÄTTER a11y-attributen på elementet man ger
-        // den men inte GÖR om det till en knapp: en `<span>` hade blivit en
-        // klickbar yta utan knapp-roll, alltså osynlig för `getByRole("button")`
-        // och för alla som navigerar med tangentbord via röstkommando "knapp".
+        // den men inte GÖR om det till en knapp.
         <button type="button" aria-label={etikett} className="flex min-h-11 max-w-40 items-center gap-2 rounded-md px-2 text-sm font-semibold text-ink hover:bg-sunken">
           {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="sm" />}
           <span className="min-w-0 truncate">{aktivtNamn}</span>

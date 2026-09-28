@@ -408,21 +408,22 @@ export function OpsAppShell({
   //
   // ⛔ #161: BRANDET FÖLJER PANELENS LÄGE, INTE BARA SKÄRMBREDDEN. CP 2026-
   // 09-28: "Skalet äger alltså både panelens läge och brandens form; koppla
-  // dem i OpsAppShell." Är `grupper` given SKICKAS `tvingaIkon` med, satt till
-  // `grupper.infalld`: infälld panel ger ikonen på VARJE bredd, utfälld ger
-  // ordmärket tillbaka till sitt vanliga smal/bred-beteende (`tvingaIkon`
-  // false). En sträng blir ett nytt `OpsBrand` med propen på raka rör; ett
-  // FÄRDIGT `OpsBrand`-element (appens egen `<OpsBrand .../>`) KLONAS med
+  // dem i OpsAppShell." Är `grupper` given SKICKAS `panelInfalld` med, satt
+  // till `grupper.infalld`: `OpsBrand` crossfadar då ikon/ordmärke i en fast
+  // ruta ur `--logo-bredd`/`--logo-bredd-infalld` (se `OpsBrand`s filhuvud
+  // och `tokens.css`), i stället för sitt vanliga smal/bred-beteende. En
+  // sträng blir ett nytt `OpsBrand` med propen på raka rör; ett FÄRDIGT
+  // `OpsBrand`-element (appens egen `<OpsBrand .../>`) KLONAS med
   // `cloneElement`, eftersom skalet inte kan känna till appens övriga props.
   // ⛔ BARA OM ELEMENTET FAKTISKT ÄR `OpsBrand`. Ett godtyckligt `brand`-nod
-  // (en egen logga, ren text) har ingen `tvingaIkon`-prop att klona in, och en
-  // blind `cloneElement` hade skickat en prop till en komponent som inte
+  // (en egen logga, ren text) har ingen `panelInfalld`-prop att klona in, och
+  // en blind `cloneElement` hade skickat en prop till en komponent som inte
   // frågat efter den.
   const varumarke = grupper
     ? typeof brand === "string"
-      ? <OpsBrand title={brand} tvingaIkon={Boolean(grupper.infalld)} />
+      ? <OpsBrand title={brand} panelInfalld={Boolean(grupper.infalld)} />
       : isValidElement(brand) && brand.type === OpsBrand
-        ? cloneElement(/** @type {any} */ (brand), { tvingaIkon: Boolean(grupper.infalld) })
+        ? cloneElement(/** @type {any} */ (brand), { panelInfalld: Boolean(grupper.infalld) })
         : brand
     : typeof brand === "string"
       ? <OpsBrand title={brand} />
@@ -589,6 +590,14 @@ export function OpsAppShell({
           tre kolumner från md.
         */}
         <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-4 py-2 md:grid-cols-[1fr_auto_1fr]">
+          {/*
+            ⛔ #161: INGEN BREDD HÄR. `OpsBrand` sätter SIN EGEN bredd ur
+            `--logo-bredd`/`--logo-bredd-infalld` när `panelInfalld` är
+            given (se `varumarke` ovan och `OpsBrand`s filhuvud), och en
+            bredd på den här cellen OCKSÅ hade varit en TREDJE plats att
+            synka mot `--panel-bredd`/`--panel-bredd-infalld`, den panelen
+            själv redan äger (`OpsGruppanel`). Cellen är bara en flex-rad.
+          */}
           <div className="flex min-w-0 items-center gap-2 justify-self-start">
             <a
               href="/"
