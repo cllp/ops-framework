@@ -5,9 +5,16 @@ import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
-import { ChevronNedIkon, MenuIcon } from "./icons.jsx";
+import { ChevronNedIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
+import { OpsPanelRow } from "./OpsPanel.jsx";
+import { OpsModal } from "./OpsModal.jsx";
+import { OpsSkapa } from "./OpsSkapa.jsx";
+import { OpsField } from "./OpsField.jsx";
+import { OpsSelect } from "./OpsSelect.jsx";
+import { text } from "../lib/sprak.js";
+import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { kordarePafunktion, MenyFooter, MenyRubrikRad, MenySektioner, validateMenySektioner } from "./OpsMeny.jsx";
 
 /**
@@ -265,6 +272,19 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  */
 
 /**
+ * Skalets `skapa`-prop (#168), plusset i toppraden.
+ * @typedef {object} SkapaKonfiguration
+ * @property {import("react").ReactNode} [handelse] Ramverkets egen rad "Ny händelse". `null`/utelämnad döljer raden.
+ * @property {import("react").ReactNode} [arende] Ramverkets egen rad "Nytt ärende".
+ * @property {ReadonlyArray<import("../lib/modul.js").Skaparregistrering & { modulId: string }>} [registreringar] Ur `skaparFor` (#150).
+ * @property {string | null} [lage] Aktivt gruppläge, se `skapalaget`.
+ * @property {ReadonlyArray<{ id: string, kategorier?: ReadonlyArray<any> }>} [kataloger]
+ * @property {(namn: string) => import("react").ReactNode} [ikonRitare]
+ * @property {string} [sprak]
+ * @property {(arg: { registrering: string, typ: string | null }) => void} [onKlar] Anropas när en MODULENS formulär är klart.
+ */
+
+/**
  * @param {object} props
  * @param {import("react").ReactNode} props.brand Appens namn som sträng, eller en egen `OpsBrand`. Länkar till startsidan.
  * @param {import("../lib/nav.js").NavPost[]} props.nav Toppdestinationer. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg.
@@ -308,6 +328,21 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @param {string} [props.felRubrik] Rubriken på felytan.
  * @param {string} [props.felBeskrivning]
  * @param {string} [props.laddaOmEtikett]
+ * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden, mellan `actions` och `anvandare`.
+ *   Tryck öppnar en POPOVER med en platt lista (`ss-skapa-meny.png`), aldrig en yta i sidan: `handelse`
+ *   och `arende` är ramverkets EGNA rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler),
+ *   `registreringar`/`lage`/`kataloger`/`ikonRitare`/`sprak` är samma kontrakt som `OpsSkapa` redan hade
+ *   (#150/#153). En rad öppnar en RIKTIG `OpsModal` (stängbar med X, Escape, klick utanför), aldrig en andra
+ *   vy inuti popovern: 0.27.0:s inbyggda typval+formulär+"Tillbaka" i `OpsSkapa` själv är borttaget (#168),
+ *   det flyttade hit. ⛔ `handelse`/`arende` ÄR FÄRDIGA `ReactNode`: skalet vet inget om deras fält och kan
+ *   därför inte stänga modalen åt dem när de sparat, bara via X/Escape/klick-utanför (modalens egna vägar).
+ *   En modul-registrerings formulär får `{ groupId, typ, onKlar }` som förut, och `onKlar` stänger modalen.
+ *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `valjGrupp`/`tomt`-
+ *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
+ * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
+ * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
+ * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
+ * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
  * @param {import("react").ReactNode} props.children
  */
 export function OpsAppShell({
@@ -332,6 +367,11 @@ export function OpsAppShell({
   bottomNavLabel = "Snabbnavigering",
   menuExtras,
   meny,
+  skapa,
+  skapaLabel = "Skapa",
+  nyHandelseEtikett = "Ny händelse",
+  nyttArendeEtikett = "Nytt ärende",
+  skapaTypEtikett = "Typ",
   felmottagare,
   felRubrik = "Något gick fel",
   felBeskrivning = "Sidan gick sönder. Ladda om för att försöka igen.",
@@ -377,6 +417,68 @@ export function OpsAppShell({
   // ⛔ Samma "stäng innan appens onClick körs"-mekanik som gamla `OpsMeny` hade,
   // nu delad med `OpsBottomNav` via `kordarePafunktion`. Se dess filhuvud.
   const kor = kordarePafunktion(() => stangMenyn(false));
+
+  // ══ ⛔ #168: PLUSSET. POPOVERN ÄR SKALETS, MODALEN ÄR SKALETS. ═══════════
+  //
+  // `skapaOppen` styr popovern under plusknappen (listan). `skapaForm` styr
+  // den RIKTIGA modalen som öppnas när en rad väljs: `null` (stängd), eller
+  // en liten BESKRIVNING av vad modalen ska visa (aldrig ett färdigrenderat
+  // ReactNode i state, se `skapaTyp` nedan för skälet).
+  const [skapaOppen, setSkapaOppen] = useState(false);
+  const [skapaForm, setSkapaForm] = useState(
+    /** @type {{ kind: "handelse" | "arende" } | { kind: "modul", registrering: any } | null} */ (null),
+  );
+  // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
+  // `skapaForm` vid öppningstillfället är fruset: `OpsSelect`s `onChange`
+  // hade behövt skriva om ett redan monterat ReactNode i state, vilket inte
+  // går. Typen läses i stället ur `skapaTyp` VARJE RENDERING, se nedan.
+  const [skapaTyp, setSkapaTyp] = useState(/** @type {Record<string, string>} */ ({}));
+
+  const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
+  const skapaModulerRedo = skapaLaget?.tillstand === "redo";
+  const harRamverksrader = Boolean(skapa?.handelse) || Boolean(skapa?.arende);
+  // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
+  // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
+  // som trycker att plusset i den här appen inte gör något.
+  const visaSkapaKnapp = Boolean(skapa) && (harRamverksrader || skapaModulerRedo);
+
+  /** @type {string} */
+  let skapaModalTitel = "";
+  /** @type {import("react").ReactNode} */
+  let skapaModalInnehall = null;
+  if (skapaForm?.kind === "handelse") {
+    skapaModalTitel = nyHandelseEtikett;
+    skapaModalInnehall = skapa?.handelse;
+  } else if (skapaForm?.kind === "arende") {
+    skapaModalTitel = nyttArendeEtikett;
+    skapaModalInnehall = skapa?.arende;
+  } else if (skapaForm?.kind === "modul") {
+    const r = skapaForm.registrering;
+    const typer = typerAttValja(r.katalog, skapa?.kataloger ?? []);
+    const skapaSprak = skapa?.sprak ?? "sv";
+    const vald = skapaTyp[r.id] ?? typer[0]?.id ?? null;
+    const Form = /** @type {any} */ (r.form);
+    skapaModalTitel = text(r.namn, skapaSprak);
+    skapaModalInnehall = (
+      <div className="flex flex-col gap-3">
+        {r.katalog !== null ? (
+          <OpsField label={skapaTypEtikett}>
+            <OpsSelect
+              ariaLabel={`${skapaTypEtikett}, ${skapaModalTitel}`}
+              value={vald ?? ""}
+              onChange={(/** @type {string} */ v) => setSkapaTyp((s) => ({ ...s, [r.id]: v }))}
+              options={typer.map((k) => ({ value: k.id, label: text(/** @type {any} */ (k).namn, skapaSprak) || k.id }))}
+            />
+          </OpsField>
+        ) : null}
+        {/* ⛔ `groupId` KOMMER UR `skapaLaget`, INTE UR `skapa.lage` DIREKT
+            (samma skäl som gamla `OpsSkapa`): i "redo"-läget är de samma
+            värde, men beslutet om vad "aktiv grupp" betyder ligger på ETT
+            ställe. */}
+        <Form groupId={skapaLaget?.grupp ?? null} typ={vald} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); setSkapaForm(null); }} />
+      </div>
+    );
+  }
 
   // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
   // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
@@ -554,6 +656,76 @@ export function OpsAppShell({
           */}
           <div className="flex shrink-0 items-center justify-self-end gap-0.5">
             {actions}
+            {/* ⛔ #168: PLUSSET LIGGER EFTER actions OCH FÖRE avataren, SOM I
+                SESSIONSTUDIO (`ss-skapa-meny.png`: växlare, expandera, sök,
+                PLUS, avatar, hamburgare). Ett tryck öppnar en popover med
+                listan, aldrig en yta inuti sidan; en rad öppnar en RIKTIG
+                `OpsModal`, se filhuvudets ärende (#168). */}
+            {visaSkapaKnapp ? (
+              <Popover.Root open={skapaOppen} onOpenChange={setSkapaOppen}>
+                <Popover.Trigger
+                  aria-label={skapaLabel}
+                  className={cx(
+                    "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
+                    "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                  )}
+                >
+                  <PlusIkon size={20} />
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content
+                    align="end"
+                    sideOffset={4}
+                    className="z-(--z-dropdown) min-w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-md border border-line bg-raised p-1 shadow-md"
+                  >
+                    {/* ⛔ RAMVERKETS EGNA RADER FÖRST (#168, CP:s rättelse
+                        23:35): Idag/kalendern och Inkorgen är ramverkets vyer,
+                        inte moduler, och deras "Ny …"-rader hör därför hit,
+                        inte till `OpsSkapa`s modul-lista. */}
+                    {harRamverksrader ? (
+                      <div className="flex flex-col gap-0.5">
+                        {skapa?.handelse ? (
+                          <OpsPanelRow
+                            label={nyHandelseEtikett}
+                            onClick={() => {
+                              setSkapaOppen(false);
+                              setSkapaForm({ kind: "handelse" });
+                            }}
+                          />
+                        ) : null}
+                        {skapa?.arende ? (
+                          <OpsPanelRow
+                            label={nyttArendeEtikett}
+                            onClick={() => {
+                              setSkapaOppen(false);
+                              setSkapaForm({ kind: "arende" });
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {/* ⛔ EN AVDELARE MELLAN RAMVERKETS RADER OCH MODULERNAS,
+                        bara när BÅDA finns (samma "tunn avdelare"-mönster som
+                        `OpsSkapa` nu använder mellan moduler, se dess filhuvud). */}
+                    {harRamverksrader && skapaModulerRedo ? <div role="separator" className="my-0.5 border-t border-line" /> : null}
+                    {skapaModulerRedo ? (
+                      <OpsSkapa
+                        registreringar={skapa?.registreringar ?? []}
+                        lage={skapa?.lage ?? null}
+                        sprak={skapa?.sprak}
+                        ikonRitare={skapa?.ikonRitare}
+                        ariaLabel={skapaLabel}
+                        onValj={(r) => {
+                          setSkapaOppen(false);
+                          setSkapaForm({ kind: "modul", registrering: r });
+                        }}
+                      />
+                    ) : null}
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
+            ) : null}
             {/* ⛔ Efter actions och FÖRE hamburgaren. Kontot är personens egen
                 yta och hör ihop med appens åtgärder; hamburgaren är resten av
                 navigeringen och ligger ytterst. Se noten vid propen. */}
@@ -713,6 +885,16 @@ export function OpsAppShell({
         menuExtras={menuExtras}
         meny={meny}
       />
+
+      {/* ⛔ #168: MODALEN ÄR ÉN, DELAD MELLAN RAMVERKETS RADER OCH MODULERNAS.
+          Monteras bara medan `skapaForm` finns (se filhuvudets note vid
+          `OpsModal`: en `title`-lös modal kastar, så den ska inte finnas i
+          DOM:en när det inte finns något att visa). */}
+      {skapaForm ? (
+        <OpsModal open onOpenChange={(v) => { if (!v) setSkapaForm(null); }} title={skapaModalTitel || skapaLabel}>
+          {skapaModalInnehall}
+        </OpsModal>
+      ) : null}
     </div>
   );
 }
