@@ -219,6 +219,15 @@ if (!media || !attr) {
 // i vakten är sin egen lilla kopia. Genom att importera generatorns EGNA
 // funktion och köra den mot fixturen just nu, finns bara ETT ställe som vet
 // vad SessionStudios tal är.
+//
+// ⛔ "npm run check" NORMALISERAR FÖRST. `npm run build` (som `check` kör
+// innan den här vakten) har `prebuild: ... && npm run generate:tokens`, precis
+// som versionskonstanten. Är fixturen och tokens.css redan i takt gör det
+// ingenting; har någon redigerat det genererade blocket för hand skrivs det
+// tyst tillbaka INNAN den här vakten hinner se det, och `git status`/`git
+// diff` efter bygget visar rättningen. Vakten biter alltså skarpast när den
+// körs FRISTÅENDE (`node tokens/check-tokens.mjs`, t.ex. i en snabb
+// pre-commit-hook utan fullt bygge), precis som `check-kanon.mjs` i bolag-ops.
 const generatorVag = path.join(path.dirname(file), "..", "scripts", "generate-tokens.mjs");
 if (fs.existsSync(generatorVag)) {
   try {
