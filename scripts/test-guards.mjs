@@ -395,6 +395,25 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
       ? { namn, vantat: "gront", utfall: "ok" }
       : { namn, vantat: "gront", utfall: `vantade gront med forslag om sankt tak. Fick status ${k.status}: ${`${k.stdout}${k.stderr}`.trim().split("\n").slice(0, 2).join(" | ")}` },
   );
+
+  // ── check:fonts i konsumentens check-kedja (#164) ──────────────────────
+  //
+  // ⛔ DEN GAMLA FIXTUREN (`skriv(...)`) SAKNAR MED FLIT ETT package.json, och
+  // det är precis det som bevisar att kravet är villkorat: de mutationerna
+  // ovan är fortfarande gröna utan filen. Den här mutationen lägger filen
+  // till och tar sedan bort raden, för att visa att NÄR package.json finns
+  // blir avsaknaden av "check:fonts" rött.
+  const fontmapp = path.join(mapp, "fonter");
+  fs.mkdirSync(path.join(fontmapp, "web"), { recursive: true });
+  fs.writeFileSync(path.join(fontmapp, "web", "a.html"), "<p>x</p>\n");
+  const fontadoption = path.join(fontmapp, "adoption.json");
+  fs.writeFileSync(fontadoption, JSON.stringify({ matningar: [{ namn: "sidor", katalog: "web", andelser: [".html"], tak: 5 }] }));
+
+  fs.writeFileSync(path.join(fontmapp, "package.json"), JSON.stringify({ scripts: { check: "npm run lint && npm run check:tokens && npm test" } }));
+  kravRott("adoption: package.json saknar check:fonts i check-kedjan", [adoptvakt, fontadoption], "check:fonts");
+
+  fs.writeFileSync(path.join(fontmapp, "package.json"), JSON.stringify({ scripts: { check: "npm run lint && npm run check:fonts && npm test" } }));
+  kravGront("adoption: check:fonts finns i check-kedjan är grönt", [adoptvakt, fontadoption]);
 }
 
 // ── Typvakten ──────────────────────────────────────────────────────────────
