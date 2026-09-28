@@ -179,16 +179,18 @@ describe("⛔ understrecket på fliken med chevron (#90)", () => {
 describe("aktivitetspanelens filterslot", () => {
   const rader = [{ id: "a", nar: "2026-09-25T09:00:00.000Z", slag: "import", rubrik: "En rad", resultat: "ok" }];
 
-  it("⛔ ritas bara när appen skickar ett, och ovanför listan", async () => {
+  it("⛔ #158: ritas bara när appen skickar ett, och BAKOM filterknappen, inte ovanför listan", async () => {
     /*
-     * Ramverket vet inte vad som är värt att filtrera bort; appen gör det. En
-     * tom filterrad som alltid finns hade tagit plats i en panel som är kort
-     * med flit.
+     * Ramverket vet inte vad som är värt att filtrera bort; appen gör det.
+     * #158 flyttade platsen: filtret stod tidigare ovanför listan och syntes
+     * alltid, högerställt och "fult" (CP:s ord om mobilskärmbilden). Nu syns
+     * det inte förrän man tryckt på filterknappen i huvudet.
      */
     const { OpsActivityButton } = await import("../components/OpsActivity.jsx");
     const { unmount } = render(<OpsActivityButton entries={rader} lasning={{ sedd: null, lasta: [] }} now={new Date("2026-09-25T12:00:00.000Z")} />);
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
-    expect(within(screen.getByRole("dialog")).queryByText("Visa systemhändelser")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Filter" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Visa systemhändelser")).not.toBeInTheDocument();
     unmount();
 
     render(
@@ -201,11 +203,12 @@ describe("aktivitetspanelens filterslot", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
     const panel = screen.getByRole("dialog");
-    expect(within(panel).getByText("Visa systemhändelser")).toBeInTheDocument();
+    // Filterknappen finns, men innehållet syns ännu inte.
+    expect(within(panel).getByRole("button", { name: "Filter" })).toBeInTheDocument();
+    expect(screen.queryByText("Visa systemhändelser")).not.toBeInTheDocument();
 
-    // Ovanför listan: filtret kommer före första radens rubrik i DOM-ordning.
-    const text = panel.textContent || "";
-    expect(text.indexOf("Visa systemhändelser")).toBeLessThan(text.indexOf("En rad"));
+    fireEvent.click(within(panel).getByRole("button", { name: "Filter" }));
+    expect(screen.getByText("Visa systemhändelser")).toBeInTheDocument();
   });
 });
 

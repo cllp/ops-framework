@@ -1,14 +1,15 @@
 import { useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { activityId, activityWindow, groupByDay, unread, unreadRows } from "../lib/aktivitet.js";
 import { formatDateTime, formatRelativeDate, formatTime } from "../lib/format.js";
 import { slagKant } from "../lib/slag.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
+import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
-import { OpsPill } from "./OpsPill.jsx";
+import { ChevronNedIkon, MerIkon, ReglageIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { STATUS_TONES } from "../lib/statusTone.js";
 
 /**
  * Aktiviteten: vad som kördes, när, och vad det ändrade.
@@ -24,6 +25,33 @@ import { STATUS_TONES } from "../lib/statusTone.js";
  * i förrgår, och ett tal som ser färskt ut går inte att skilja från ett som är
  * gammalt.
  *
+ * ══ ⛔ #158, CP:S SKÄRMBILDSJÄMFÖRELSE MOT SESSIONSTUDIO 2026-09-28 ═════
+ *
+ * "I mobile ops står Aktivitet två gånger och känns bara inget najs. Filter
+ * högerställt och fult. [...] med en chevron down (expand) för detalj eftersom
+ * notisen inte leder någonstans om det inte är en länk."
+ *
+ * Fyra mätta skillnader mot SessionStudios `ActivityFeedPanel.jsx`, alla
+ * åtgärdade i den här filen:
+ *
+ *   1. RUBRIKEN STOD TVÅ GÅNGER PÅ MOBIL. Roten i `OpsPanel` ritade sin egen
+ *      `OpsPanelHeader` MED SAMMA TEXT som sheetens egen `Dialog.Title`, av
+ *      samma skäl, samma ord ("Aktivitet"). Fixet ligger i `OpsPanel.jsx`
+ *      (roten har ingen egen rubrik på smal skärm längre); den här filen
+ *      förlitar sig på fixet i stället för att kompensera lokalt.
+ *   2. "NY" VAR EN PILL, SESSIONSTUDIO ANVÄNDER EN PUNKT. En pill konkurrerar
+ *      om samma uppmärksamhet som "Gick fel" gör med flit; en punkt är en
+ *      status, inte ett larm.
+ *   3. RADEN ÖPPNADE EN NY VY I EN STACK. Notisen leder ofta ingenstans (inget
+ *      GitHub-ärende, ingen händelse att peka på), och en pil som lovar en
+ *      sida man kan gå TILL är fel löfte då. En chevron ned faller ut detaljen
+ *      PÅ PLATS, under raden, och en länk-knapp ritas bara när `handelse.lank`
+ *      finns.
+ *   4. FILTREN STOD OVANFÖR LISTAN, HÖGERSTÄLLDA. De flyttar bakom en
+ *      filterknapp i huvudet (samma `ReglageIkon` som `OpsFilterChip`), och
+ *      "Rensa" flyttar till en trepunktsmeny bredvid den. Ingendera syns
+ *      förrän man tryckt på sin knapp.
+ *
  * ══ ⛔ LISTA, SEDAN DETALJ, OCH DÅ ÄR DEN LÄST ══════════════════════════
  *
  * CP: "jag skall ju också kunna rensa loggen eller trycka på en notis/aktivitet
@@ -31,7 +59,8 @@ import { STATUS_TONES } from "../lib/statusTone.js";
  *
  * ⛔ ATT ÖPPNA ÄR HANDLINGEN, INTE EN KRYSSRUTA. En egen "markera som läst"
  * bredvid varje rad är ett andra klick för något man just gjort, och listor med
- * den knappen lär folk att bocka av utan att läsa.
+ * den knappen lär folk att bocka av utan att läsa. Det gäller oförändrat även
+ * när "öppna" numera betyder "fälla ut på plats" i stället för "byt vy".
  *
  * ══ ⛔ "LÄST" ÄR LÄSARENS EGENSKAP, MEN INTE NÖDVÄNDIGTVIS WEBBLÄSARENS ══
  *
@@ -45,7 +74,9 @@ import { STATUS_TONES } from "../lib/statusTone.js";
  *    två enheter.
  *
  * ⛔ Ramverket väljer INTE åt appen. Var läsningen hör hemma beror på om appen
- * har en plats att lägga den, och det vet bara appen.
+ * har en plats att lägga den, och det vet bara appen. Den här delningen och
+ * datamodellen (`lasning`, `onSeen`, `onRead`) är OFÖRÄNDRADE av #158: det
+ * ärendet är ytan, inte källan.
  *
  * ⛔ `localStorage` KASTAR i privat läge och när webbplatsdata är blockerad.
  * Läses den utan try blir en notisikon anledningen att hela sidan vitnar, och
@@ -80,18 +111,29 @@ function sparaSedd(key, value) {
  * går inte att jämföra med något: den som undrar om importen kördes före eller
  * efter en ändring behöver klockslaget.
  *
- * ⛔ "NY" STÅR SOM ETT ORD OCH INTE SOM EN TON. Samma skäl som "Gick fel": en
- * rad som bara är lite ljusare än grannen är ingen skillnad alls för den som
- * lyssnar, och knappt någon för den som ser.
+ * ⛔ "OLÄST" ÄR EN PUNKT OCH INTE ETT ORD I EN PILL (#158). SessionStudio
+ * ritar en punkt vid raden, inte en etikett. Ordet finns kvar, men bara för
+ * skärmläsaren (`sr-only`): en färgad prick ensam är osynlig för den som
+ * lyssnar, och arbetsreglernas egen regel ("ordet och inte bara en färg")
+ * gäller lika mycket för "oläst" som för "Gick fel" på raden nedanför.
  *
- * ⛔ HELA RADEN ÄR KNAPPEN NÄR DEN GÅR ATT ÖPPNA, inte en pil i kanten. På en
- * telefon är ett 12 px stort mål i högerkanten det säkraste sättet att göra en
- * lista som inte går att använda med tummen.
+ * ⛔ HELA RADEN ÄR KNAPPEN, och den fäller ut detaljen PÅ PLATS i stället för
+ * att byta vy (#158, punkt 3 ovan). Chevronen roterar med samma mönster som
+ * `OpsFilterChip` redan använder, så "öppen" ser likadant ut överallt i
+ * ramverket.
  *
- * @param {{ handelse: any, slagord: string, ny?: boolean, onOpen?: () => void }} props
+ * @param {{ handelse: any, slagord: string, slagIkon?: import("react").ReactNode, ny?: boolean, onOpen?: () => void }} props
  */
-function Rad({ handelse, slagord, ny, onOpen }) {
+function Rad({ handelse, slagord, slagIkon, ny, onOpen }) {
+  const [expanderad, setExpanderad] = useState(false);
   const trasig = handelse.resultat === "fel";
+
+  /** Fäller ut/in. Markerar läst bara när raden ÖPPNAS, inte när den stängs. */
+  function vaxla() {
+    const nasta = !expanderad;
+    setExpanderad(nasta);
+    if (nasta) onOpen?.();
+  }
 
   const innehall = (
     <>
@@ -99,14 +141,12 @@ function Rad({ handelse, slagord, ny, onOpen }) {
           metarad har för lika vikt; raderna blir en vägg." Tre nivåer nu:
           `text-sm font-semibold ink`, `text-sm ink-secondary`, `text-xs
           ink-muted`. Samma skala som resten av ramverket. */}
-      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
         {ny ? (
-          /* ⛔ SAMMA TON SOM "Ny" I INKORGEN, ur `STATUS_TONES` (bolag-ops #363).
-             Tidigare ett eget rött chip (`bg-badge`), alltså en andra färg för
-             samma ord. Innan dess `bg-accent text-on-accent`, där den senare
-             aldrig funnits som token: krämfärgat chip med osynlig text i mörkt
-             tema. Paret `info` mot `info-bg` är vaktat i check-kontrast. */
-          <OpsPill tone={STATUS_TONES.ny}>Ny</OpsPill>
+          <>
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
+            <span className="sr-only">Oläst.</span>
+          </>
         ) : null}
         {/* ⛔ ORDET OCH INTE BARA EN FÄRG. Ett misslyckande som bara syns som en
             röd ton går inte att läsa upp och är osynligt för var tjugonde man. */}
@@ -117,7 +157,18 @@ function Rad({ handelse, slagord, ny, onOpen }) {
       {handelse.detalj ? <span className="text-sm text-ink-secondary">{handelse.detalj}</span> : null}
       {trasig && handelse.fel ? <span className="text-sm text-danger">{handelse.fel}</span> : null}
 
-      <span className="flex flex-wrap items-baseline gap-x-2 text-xs text-ink-secondary">
+      <span className="flex flex-wrap items-center gap-x-2 text-xs text-ink-secondary">
+        {/* ⛔ GRUPPEN SOM `OpsIdentity`, INTE SOM RÅ TEXT (#158). SessionStudios
+            metarad bär en GroupMark bredvid gruppnamnet; `OpsIdentity` är
+            ramverkets motsvarighet och redan använd för precis den rollen i
+            `OpsAnvandarmeny`. */}
+        {handelse.grupp ? (
+          <span className="flex items-center gap-1">
+            <OpsIdentity name={handelse.grupp.namn} seed={handelse.grupp.id || handelse.grupp.namn} imageUrl={handelse.grupp.bild} size="sm" />
+            {handelse.grupp.namn}
+          </span>
+        ) : null}
+        {handelse.aktor ? <span>{handelse.aktor}</span> : null}
         {/* ⛔ KLOCKSLAG, INTE "I DAG". Raden står redan under en dagsrubrik, så
             dagen är sagd. Med "i dag" på varje rad går två poster samma dag inte
             att ordna, vilket är just det man vill veta. Det exakta datumet finns
@@ -144,21 +195,37 @@ function Rad({ handelse, slagord, ny, onOpen }) {
 
   return (
     <li className={cx("border-t border-divider first:border-t-0", kant && cx("border-l-2 pl-2", kant))}>
-      {onOpen ? (
+      <div className="flex w-full items-start gap-2 py-2.5">
+        {/* ⛔ IKONEN I EN RUND PLATTA (#158). SessionStudios rad börjar med
+            händelsens slag som en ikon i en rund platta, avläst ur
+            `kindIcon`, appens motsvarighet till `kindLabel`. Saknas ikonen
+            ritas ingen platta: en tom cirkel hade varit dekor utan betydelse. */}
+        {slagIkon ? (
+          <span aria-hidden="true" className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-accent">
+            {slagIkon}
+          </span>
+        ) : null}
         <button
           type="button"
-          onClick={onOpen}
+          onClick={vaxla}
+          aria-expanded={expanderad}
           className={cx(
-            "flex w-full cursor-pointer flex-col gap-0.5 rounded-sm px-1 py-2.5 text-left",
+            "flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded-sm px-1 text-left",
             "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
           )}
         >
-          {innehall}
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">{innehall}</span>
+          <span aria-hidden="true" className={cx("mt-1 flex shrink-0 items-center text-ink-muted transition-transform duration-(--duration-fast)", expanderad && "rotate-180")}>
+            <ChevronNedIkon size={16} />
+          </span>
         </button>
-      ) : (
-        <span className="flex flex-col gap-0.5 px-1 py-2.5">{innehall}</span>
-      )}
+      </div>
+      {expanderad ? (
+        <div className="border-t border-divider py-3 pr-1 pl-1">
+          <OpsActivityDetail handelse={handelse} slagord={slagord} />
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -169,6 +236,11 @@ function Rad({ handelse, slagord, ny, onOpen }) {
  * ⛔ DETALJEN FINNS FÖR ATT LISTAN INTE FÅR VARA HELA SANNINGEN. Listan är kort
  * med flit, och det som inte ryms där, alltså källan, det exakta klockslaget och
  * hela feltexten, är precis det man behöver den dag något gick sönder.
+ *
+ * ⛔ LÄNK-KNAPPEN RITAS BARA NÄR HÄNDELSEN BÄR EN LÄNK (#158). CP: "eftersom
+ * notisen inte leder någonstans om det inte är en länk till händelse, inkorg
+ * eller GitHub-ärende." En rad utan `handelse.lank` visar sitt innehåll här och
+ * lämnar ingenstans, och säger det inte heller: den ritar bara det den har.
  *
  * @param {{ handelse: any, slagord: string, nu?: Date | number }} props
  */
@@ -212,6 +284,14 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
           </div>
         ))}
       </dl>
+
+      {h.lank ? (
+        <div>
+          <OpsButton href={h.lank.href} newTab variant="secondary" size="sm">
+            {h.lank.etikett}
+          </OpsButton>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -223,21 +303,23 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
  * stället för bakom ikonen. Knappen är ett sätt att komma åt listan, inte
  * listans enda hem.
  *
- * ⛔ DELAS I IDAG, I GÅR, SENASTE VECKAN OCH ÄLDRE. Skälet i sin helhet står vid
- * `groupByDay`. Kort: ett nattligt jobb skriver en rad om dagen, och efter en
- * månad är en platt lista trettio likadana rader.
+ * ⛔ DELAS I IDAG, IGÅR, DENNA VECKA OCH ÄLDRE (#158). Skälet i sin helhet står
+ * vid `groupByDay`. Kort: ett nattligt jobb skriver en rad om dagen, och efter
+ * en månad är en platt lista trettio likadana rader.
  *
  * @param {object} props
  * @param {any[]} props.entries Nyast först. ⛔ Appen sorterar: den vet vilken klocka som gäller.
  * @param {(slag: string) => string} [props.kindLabel]
+ * @param {(slag: string) => import("react").ReactNode} [props.kindIcon] Ikonen i den runda plattan (#158).
+ *   Saknas den för ett slag ritas ingen platta på just den raden.
  * @param {import("react").ReactNode} [props.empty]
  * @param {{ sedd?: string | null, lasta?: Iterable<string> | null }} [props.lasning] Vad som räknas som läst.
- * @param {(handelse: any) => void} [props.onOpen] Utan den går raderna inte att öppna.
+ * @param {(handelse: any) => void} [props.onOpen] Utan den går raderna inte att fälla ut som lästa.
  * @param {number} [props.fler] Hur många som ligger bakom "Hämta fler". Noll döljer knappen.
  * @param {() => void} [props.onMore]
  * @param {Date | number} [props.now] Bara för prov.
  */
-export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fler = 0, onMore, now }) {
+export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, onOpen, fler = 0, onMore, now }) {
   const rader = entries || [];
 
   if (rader.length === 0) {
@@ -262,6 +344,7 @@ export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fl
                 key={activityId(h)}
                 handelse={h}
                 slagord={kindLabel ? kindLabel(h.slag) : ""}
+                slagIkon={kindIcon ? kindIcon(h.slag) : null}
                 ny={lasning ? unread(h, lasning) : false}
                 onOpen={onOpen ? () => onOpen(h) : undefined}
               />
@@ -281,19 +364,79 @@ export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fl
 }
 
 /**
- * Klockikonen med sitt märke, listan bakom den, och detaljen bakom listan.
+ * Filter- och mer-knapparna i panelens huvud.
  *
- * ⛔ EN PANEL OCH INTE EN MODAL, och det är en rättelse av mitt eget beslut.
- * Första versionen valde `OpsModal` med argumentet att en egen panel måste
- * återuppfinna fokusfällan, Escape och klick-utanför. Premissen var riktig,
- * slutsatsen fel: `OpsPanel` står på samma Radix-primitiv som menyn och får
- * alltihop gratis.
+ * ⛔ EN EGEN LITEN KOMPONENT, INTE EXPORTERAD. #158: "Filtren flyttar in bakom
+ * filterknappen i högerkanten, som en meny [...] 'Rensa' flyttar till
+ * trepunktsmenyn." Båda är popovrar av samma sort som `OpsFilterChip` redan
+ * använder, bara utan pillrets text: knapparna sitter i ett panelhuvud, inte
+ * bredvid en lista, och ska vara lika kompakta som huvudets övriga ikoner.
  *
- * CP 2026-09-25: "Navigeringen är inte bra att det kommer upp en detalj mitt i
- * skärmen det skall kännas som att man är i samma panel." En modal mörklägger
- * sidan, flyttar fokus och döljer bakgrunden för skärmläsare. Att göra det för
- * att visa att ett jobb kört i natt är att avbryta någon för något som inte
- * kräver ett svar.
+ * ⛔ RAMVERKET KÄNNER INTE APPENS FILTER. `filter` är fortfarande appens egen
+ * `ReactNode` (grupp, slag, period, "visa systemhändelser", vad appen nu vill),
+ * ramverket bestämmer bara VAR den dyker upp: bakom knappen, aldrig synlig
+ * förrän man tryckt.
+ *
+ * @param {object} props
+ * @param {import("react").ReactNode} [props.filter]
+ * @param {string} [props.filterLabel]
+ * @param {() => void} [props.onClear]
+ * @param {string} [props.clearLabel]
+ */
+function Huvudatgarder({ filter, filterLabel = "Filter", onClear, clearLabel = "Rensa" }) {
+  const [filterOppen, setFilterOppen] = useState(false);
+  const [menyOppen, setMenyOppen] = useState(false);
+
+  const ikonknapp = "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {filter ? (
+        <Popover.Root open={filterOppen} onOpenChange={setFilterOppen}>
+          <Popover.Trigger aria-label={filterLabel} aria-pressed={filterOppen} className={cx(ikonknapp, filterOppen && "bg-accent-subtle text-accent")}>
+            <ReglageIkon size={18} />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content align="end" sideOffset={4} className="z-(--z-dropdown) min-w-52 rounded-md border border-line bg-raised p-2 shadow-md">
+              {filter}
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      ) : null}
+      {onClear ? (
+        <Popover.Root open={menyOppen} onOpenChange={setMenyOppen}>
+          <Popover.Trigger aria-label="Mer" className={ikonknapp}>
+            <MerIkon size={18} />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content align="end" sideOffset={4} className="z-(--z-dropdown) min-w-40 rounded-md border border-line bg-raised p-1 shadow-md">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenyOppen(false);
+                  onClear();
+                }}
+                className="flex min-h-9 w-full cursor-pointer items-center rounded-sm px-3 text-left text-sm text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+              >
+                {clearLabel}
+              </button>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Klockikonen med sitt märke, listan bakom den, och detaljen på plats i raden.
+ *
+ * ⛔ EN PANEL OCH INTE EN MODAL. CP 2026-09-25: "Navigeringen är inte bra att
+ * det kommer upp en detalj mitt i skärmen det skall kännas som att man är i
+ * samma panel." En modal mörklägger sidan, flyttar fokus och döljer bakgrunden
+ * för skärmläsare. Efter #158 gäller det argumentet ÄNNU starkare: detaljen
+ * öppnas numera inline i samma rad, så den knuffar aldrig undan resten av
+ * listan över huvud taget.
  *
  * ⛔ MÄRKET VISAR ETT ANTAL OCH INTE BARA EN PRICK. "Något har hänt" säger inte
  * om det är värt att öppna; tre säger det. Över nittionio står "99+", eftersom
@@ -306,28 +449,40 @@ export function OpsActivityList({ entries, kindLabel, empty, lasning, onOpen, fl
  * frysningen försvinner märkningen i samma ögonblick som panelen öppnas, och
  * knappens siffra saknar motsvarighet i det man ser.
  *
+ * ⛔ #158: PANELEN GÅR OCKSÅ ATT ÖPPNA UTIFRÅN, T.EX. FRÅN EN RAD I
+ * `OpsAnvandarmeny` ("Aktivitet" med chevron). `open`/`onOpenChange` styr då
+ * i stället för knappens egen state, och `renderTrigger={false}` döljer
+ * klockan helt när appen bara vill nå panelen via menyn. Utan styrning sköter
+ * knappen sig själv precis som förut, bakåtkompatibelt.
+ *
  * @param {object} props
  * @param {any[]} props.entries Nyast först.
  * @param {(slag: string) => string} [props.kindLabel]
- * @param {string} [props.title] Modalens rubrik.
+ * @param {(slag: string) => import("react").ReactNode} [props.kindIcon]
+ * @param {string} [props.title] Panelens rubrik.
  * @param {string} [props.label] Knappens namn för skärmläsare, utan antalet.
  * @param {{ sedd?: string | null, lasta?: Iterable<string> | null, rensatTill?: string | null }} [props.lasning]
  *   Appens läsning. Utan den sköter komponenten det själv via `storageKey`.
  * @param {(nar: string) => void} [props.onSeen] Kallas när panelen öppnas.
- * @param {(handelse: any) => void} [props.onRead] Kallas när en detalj öppnas.
- * @param {() => void} [props.onClear] Finns den ritas "Rensa".
+ * @param {(handelse: any) => void} [props.onRead] Kallas när en rad fälls ut.
+ * @param {() => void} [props.onClear] Finns den ritas "Rensa" i trepunktsmenyn.
  * @param {number} [props.dagar] Fönstret bakåt. Olästa slipper det.
  * @param {number} [props.sida] Hur många som ritas åt gången.
  * @param {string} [props.storageKey] Bara när appen INTE styr läsningen.
  * @param {import("react").ReactNode} [props.icon]
  * @param {import("react").ReactNode} [props.empty]
- * @param {import("react").ReactNode} [props.filter] Ritas UNDER huvudet och ovanför listan.
+ * @param {import("react").ReactNode} [props.filter] Ritas BAKOM filterknappen (#158), inte ovanför listan.
  *   ⛔ Ramverket vet inte vad som är värt att filtrera bort; appen gör det.
+ * @param {string} [props.filterLabel] Skärmläsarnamn på filterknappen.
+ * @param {boolean} [props.open] Styrd öppning. Utan den sköter knappen det själv.
+ * @param {(open: boolean) => void} [props.onOpenChange]
+ * @param {boolean} [props.renderTrigger] Falskt döljer klockan. Kräver då `open`+`onOpenChange`.
  * @param {Date | number} [props.now] Bara för prov.
  */
 export function OpsActivityButton({
   entries,
   kindLabel,
+  kindIcon,
   title = "Aktivitet",
   label = "Aktivitet",
   lasning,
@@ -340,15 +495,28 @@ export function OpsActivityButton({
   icon,
   empty,
   filter,
+  filterLabel = "Filter",
+  open,
+  onOpenChange,
+  renderTrigger = true,
   now,
 }) {
+  if (!renderTrigger && (typeof open !== "boolean" || !onOpenChange)) {
+    throw new Error(
+      "OpsActivityButton: renderTrigger={false} kräver open OCH onOpenChange. Utan en synlig klocka måste NÅGON annan yta (t.ex. en rad i OpsAnvandarmeny) styra öppningen, annars går panelen inte att nå alls.",
+    );
+  }
+
   const rader = entries || [];
   const styrd = Boolean(lasning);
 
   const [egenSedd, setEgenSedd] = useState(() => (styrd ? null : lastSedd(storageKey)));
   const [vidOppning, setVidOppning] = useState(/** @type {any} */ (undefined));
-  const [open, setOpen] = useState(false);
+  const [egetOppet, setEgetOppet] = useState(false);
   const [sidor, setSidor] = useState(1);
+
+  const oppetStyrt = typeof open === "boolean";
+  const oppetVarde = oppetStyrt ? open : egetOppet;
 
   // ⛔ EN GÅNG, MED `?.`, I STÄLLET FÖR TRE GÅNGER MED `styrd`. `styrd` är
   // sanningen om att `lasning` finns, men typkontrollen ser inte sambandet, och
@@ -374,10 +542,11 @@ export function OpsActivityButton({
 
   /** @param {boolean} nytt */
   function oppna(nytt) {
-    setOpen(nytt);
+    if (!oppetStyrt) setEgetOppet(nytt);
+    onOpenChange?.(nytt);
     if (!nytt) {
-      // ⛔ DETALJEN OCH SIDORNA NOLLSTÄLLS VID STÄNGNING. Öppnar man igen vill
-      // man se listan från början, inte den rad man råkade läsa sist.
+      // ⛔ SIDORNA NOLLSTÄLLS VID STÄNGNING. Öppnar man igen vill man se listan
+      // från början, inte den sida man råkade bläddra till sist.
       setSidor(1);
       return;
     }
@@ -399,8 +568,8 @@ export function OpsActivityButton({
 
   /** @param {any} handelse */
   function las(handelse) {
-    // ⛔ ATT ÖPPNA ÄR ATT LÄSA. Appen får veta vilken rad det gäller och lägger
-    // den där läsningen bor; utan `onRead` är detaljen bara en vy.
+    // ⛔ ATT FÄLLA UT ÄR ATT LÄSA. Appen får veta vilken rad det gäller och
+    // lägger den där läsningen bor; utan `onRead` är detaljen bara en vy.
     onRead?.(handelse);
   }
 
@@ -408,8 +577,13 @@ export function OpsActivityButton({
    * ⛔ TRIGGERN ÄR EN EGEN KNAPP SOM PANELEN TAR ÖVER. `OpsPanel` sätter
    * `asChild`, så Radix lägger sina egna attribut på just det här elementet.
    * En `<div>` här hade gett en öppnare som inte går att nå med tangentbordet.
+   *
+   * ⛔ `renderTrigger={false}`: KNAPPEN FINNS ÄNDÅ, MEN OSYNLIG OCH DOLD FÖR
+   * SKÄRMLÄSARE. `OpsPanel` kräver ett riktigt element att sätta `asChild`-
+   * attributen på; utan ett sådant kastar Radix. Den enda vägen in är då
+   * `open`/`onOpenChange`, t.ex. en rad i `OpsAnvandarmeny`.
    */
-  const klocka = (
+  const klocka = renderTrigger ? (
     <button
       type="button"
       aria-label={olasta > 0 ? `${label}, ${olasta} nya` : label}
@@ -430,6 +604,8 @@ export function OpsActivityButton({
         </span>
       ) : null}
     </button>
+  ) : (
+    <button type="button" tabIndex={-1} aria-hidden="true" className="hidden" />
   );
 
   return (
@@ -437,47 +613,26 @@ export function OpsActivityButton({
       trigger={klocka}
       label={title}
       title={title}
-      open={open}
+      open={oppetVarde}
       onOpenChange={oppna}
       action={
-        onClear && visade.length > 0 ? (
-          /* ⛔ RENSA LIGGER I HUVUDET, INTE SIST I LISTAN. Den gäller hela
-             listan, och en knapp som gäller allt hör hemma där allt börjar.
-             Längst ned låg den dessutom där tummen råkar vara på väg efter en
-             rullning. */
-          <OpsButton variant="ghost" size="sm" onClick={onClear}>
-            Rensa
-          </OpsButton>
+        filter || (onClear && visade.length > 0) ? (
+          <Huvudatgarder filter={filter} filterLabel={filterLabel} onClear={onClear && visade.length > 0 ? onClear : undefined} />
         ) : null
       }
     >
-      {(nav) => (
-        <>
-          {/* ⛔ FILTRET LIGGER OVANFÖR LISTAN OCH INTE I HUVUDET. Det styr vad
-              man ser, och en kontroll som styr ett urval hör hemma intill
-              urvalet. I huvudet hade den konkurrerat med Rensa, som gäller
-              något helt annat. */}
-          {filter ? <div className="mb-2 flex items-center justify-end">{filter}</div> : null}
-          <OpsActivityList
-            entries={visade}
-            kindLabel={kindLabel}
-            empty={empty}
-            lasning={fryst}
-            onOpen={(h) => {
-            las(h);
-            /* ⛔ DETALJEN ÄR EN VY I SAMMA PANEL, inte en ruta över sidan.
-               Skälet i sin helhet står överst i `OpsPanel`. */
-            nav.push({
-              key: `detalj-${activityId(h)}`,
-              title: "Aktivitet",
-              content: <OpsActivityDetail handelse={h} slagord={kindLabel ? kindLabel(h.slag) : ""} nu={now} />,
-            });
-          }}
-            fler={fler}
-            onMore={() => setSidor((n) => n + 1)}
-            now={now}
-          />
-        </>
+      {() => (
+        <OpsActivityList
+          entries={visade}
+          kindLabel={kindLabel}
+          kindIcon={kindIcon}
+          empty={empty}
+          lasning={fryst}
+          onOpen={(h) => las(h)}
+          fler={fler}
+          onMore={() => setSidor((n) => n + 1)}
+          now={now}
+        />
       )}
     </OpsPanel>
   );

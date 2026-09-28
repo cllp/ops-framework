@@ -323,8 +323,16 @@ export function OpsPanel({
     </div>
   ) : (
     <div className="flex flex-col gap-1">
-      {title ? <OpsPanelHeader title={title} action={action} /> : null}
-      <div className={cx("overflow-y-auto overscroll-contain", !smal && "max-h-[min(70vh,32rem)]", title && "px-2 pt-1 pb-2")}>
+      {/* ⛔ #158: INGEN EGEN RUBRIK PÅ ROTEN NÄR SHEETEN REDAN HAR EN. Detta
+          var bugen bakom "rubriken 'Aktivitet' stod två gånger" (mobil,
+          `OpsActivityButton`): sheeten nedan ritar redan `label` som sin egen
+          `Dialog.Title`, och roten här ritade SAMMA ord en gång till i sin
+          `OpsPanelHeader`, eftersom `title` och `label` oftast är samma text.
+          På bred skärm finns ingen annan synlig rubrik alls, så där behövs den.
+          `action` (t.ex. Rensa, ett filter) flyttar i sheeten till dialogens
+          egen rad, bredvid stängknappen, se nedan. */}
+      {title && !smal ? <OpsPanelHeader title={title} action={action} /> : null}
+      <div className={cx("overflow-y-auto overscroll-contain", !smal && "max-h-[min(70vh,32rem)]", title && !smal && "px-2 pt-1 pb-2")}>
         {children(nav)}
       </div>
     </div>
@@ -364,12 +372,20 @@ export function OpsPanel({
             */}
             <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
               <Dialog.Title className="m-0 text-md font-bold text-ink">{label}</Dialog.Title>
-              <Dialog.Close
-                aria-label={closeLabel}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                <KryssIkon size={20} />
-              </Dialog.Close>
+              <div className="flex shrink-0 items-center gap-0.5">
+                {/* ⛔ ROTENS `action` HAMNAR HÄR PÅ SMAL SKÄRM, se noten ovanför
+                    `OpsPanelHeader`-villkoret: roten har ingen egen rubrikrad
+                    i sheeten, så dess åtgärd behöver sheetens egen. En pushad
+                    undervy har kvar sin egen `OpsPanelHeader` och rör inte den
+                    här raden. */}
+                {!overst && action ? action : null}
+                <Dialog.Close
+                  aria-label={closeLabel}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <KryssIkon size={20} />
+                </Dialog.Close>
+              </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-1">{innehall}</div>
           </Dialog.Content>

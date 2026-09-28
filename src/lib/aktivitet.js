@@ -243,14 +243,18 @@ export function isUnread(rad, sedd) {
  * Avsnitten listan delas i, nyast först.
  *
  * ⛔ RAMVERKETS ORD OCH INTE APPENS, till skillnad från `kinds`. Vilka JOBB som
- * finns är appens taxonomi; att i går heter "I går" är det inte. Lades de i
+ * finns är appens taxonomi; att i går heter "Igår" är det inte. Lades de i
  * appen fick varje plattform hitta på sina egna, och två loggar som visar samma
  * sak hade läst olika.
  */
+// ⛔ #158: orden är SessionStudios, inte ramverkets egna. CP:s ärende:
+// "Gruppering per Idag, Igår, Denna vecka, Äldre, samma etiketter på båda
+// språk som SessionStudio." Två av fyra bytte: "I går" -> "Igår" (utan
+// mellanslag) och "Senaste veckan" -> "Denna vecka".
 export const ACTIVITY_SECTIONS = [
   { value: "idag", label: "Idag" },
-  { value: "igar", label: "I går" },
-  { value: "veckan", label: "Senaste veckan" },
+  { value: "igar", label: "Igår" },
+  { value: "veckan", label: "Denna vecka" },
   { value: "aldre", label: "Äldre" },
 ];
 
@@ -262,7 +266,7 @@ function midnatt(d) {
 }
 
 /**
- * Delar raderna i Idag, I går, Senaste veckan och Äldre.
+ * Delar raderna i Idag, Igår, Denna vecka och Äldre.
  *
  * ⛔ VARFÖR EN PLATT LISTA INTE RÄCKER. Ett jobb som kör varje natt skriver en
  * rad om dagen, så efter en månad är listan trettio rader som alla ser likadana
@@ -270,7 +274,7 @@ function midnatt(d) {
  * det i dag", och det svaret ska synas utan att läsa en enda tidsstämpel.
  *
  * ⛔ KALENDERDAGAR, INTE DYGN OM 24 TIMMAR. Samma räkning som
- * `formatRelativeDate` gör. Något som kördes 23:50 i går ligger under "I går"
+ * `formatRelativeDate` gör. Något som kördes 23:50 i går ligger under "Igår"
  * klockan 00:10, inte under "Idag", eftersom det är vad läsaren själv kallar
  * det. Räknades det i timmar hade avsnittet och radens egen text sagt emot
  * varandra, och då tror man på ingendera.

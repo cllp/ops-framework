@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileText, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
+import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileText, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -165,4 +165,13 @@ export function ExternLankIkon({ size = 16 }) {
 /** Utloggningsraden i användarmenyn (#157). @param {{ size?: number }} props */
 export function LoggaUtIkon({ size = 16 }) {
   return <LogOut size={size} aria-hidden="true" />;
+}
+
+/**
+ * Tre punkter, en meny med sällanåtgärder. #158: "Rensa flyttar till
+ * trepunktsmenyn." Mätt i SessionStudios `ActivityFeedPanel.jsx`.
+ * @param {{ size?: number }} props
+ */
+export function MerIkon({ size = 18 }) {
+  return <MoreHorizontal size={size} aria-hidden="true" />;
 }
