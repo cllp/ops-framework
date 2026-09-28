@@ -547,7 +547,7 @@ export function OpsAppShell({
                 navigeringen och ligger ytterst. Se noten vid propen. */}
             {anvandare}
             {/* ⛔ Hamburgaren syns också när nav ryms men menuExtras eller
-                meny finns — annars blir tema/helskärm/menyn oåtkomliga på md+. */}
+                meny finns, annars blir tema/helskärm/menyn oåtkomliga på md+. */}
             {visaHamburgare ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
                 <Popover.Trigger
@@ -594,7 +594,7 @@ export function OpsAppShell({
                       meny ? "overflow-hidden" : "p-1",
                     )}
                   >
-                    {/* ⛔ RUBRIKEN STÅR EN GÅNG, ÖVERST — SAMMA FORM SOM GAMLA
+                    {/* ⛔ RUBRIKEN STÅR EN GÅNG, ÖVERST, SAMMA FORM SOM GAMLA
                         `OpsMeny` (mätt i SessionStudio: ett `<h2>` med "Meny",
                         inget namn eller e-post bredvid). Bara med `meny`: utan
                         den är detta fortfarande den rena överflödsmenyn, som
