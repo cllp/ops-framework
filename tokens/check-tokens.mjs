@@ -250,6 +250,34 @@ for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_MORKT)) {
   }
 }
 
+// ── Regel 9: rundningsskalan är SessionStudios, tal för tal ─────────────────
+// ops-framework#164, CP lade bolag-ops (kör ramverket) bredvid SessionStudio
+// och sade att allt ser bulligare ut och att rundningarna skiljer sig. Mätt i
+// SessionStudios `apps/web/src/index.css`, `.rounded-app`, samma dag ärendet
+// skrevs: sm 8px, md 10px, lg 16px, xl 20px, card 24px (`--radius-card`,
+// dit `rounded-2xl` mappas). Talen är inte gissade, de är avlästa. Precis som
+// Regel 8 ovan: glider en av de två filerna, blir vakten röd oavsett vilken
+// sida som ändrades, för annars syns glidningen inte förrän någon lägger
+// skärmdumparna sida vid sida, vilket är hela skälet CP hörde av sig.
+const SESSIONSTUDIO_RUNDNING = {
+  "--radius-sm": "8px",
+  "--radius-md": "10px",
+  "--radius-lg": "16px",
+  "--radius-xl": "20px",
+  "--radius-card": "24px",
+};
+
+for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_RUNDNING)) {
+  const traffar = alla.filter((d) => d.namn === namn);
+  const faktiskt = traffar.length > 0 ? traffar[traffar.length - 1].varde : undefined;
+  if (faktiskt !== forvantat) {
+    brott.push({
+      rule: "9. SessionStudios rundningsskala",
+      detail: `${namn} är "${faktiskt ?? "saknas"}" i ${file}, SessionStudio (.rounded-app) har "${forvantat}" (#164).`,
+    });
+  }
+}
+
 // ── Regel 4: golv, så vakten inte kan bli grön på tomhet ────────────────────
 // En vakt som blir grön av att ingenting lästes är den vanligaste falska
 // grönheten vi haft. Den ska säga ifrån, inte tiga.
@@ -262,7 +290,7 @@ if (alla.length < GOLV) {
 }
 
 if (brott.length === 0) {
-  console.log(`check-tokens: ${alla.length} tokens, alla åtta regler gröna (${file})`);
+  console.log(`check-tokens: ${alla.length} tokens, alla nio regler gröna (${file})`);
   process.exit(0);
 }
 

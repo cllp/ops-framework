@@ -385,15 +385,26 @@
 
   /* ─── Form ─────────────────────────────────────────────────────────────
    * ⛔ `--radius-*: initial` ovan nollar Tailwinds egna steg. Utan 2xl/3xl
-   * här dör `rounded-2xl` / `rounded-3xl` tyst — ingen border-radius alls.
+   * här dör `rounded-2xl` / `rounded-3xl` tyst, ingen border-radius alls.
    * ops-framework#54: bubblan såg ut som en fyrkant av precis det skälet.
+   *
+   * ⛔ ops-framework#164. Skalan var 4/6/8/12/16/24. CP lade bolag-ops (kör
+   * ramverket) bredvid SessionStudio och sade att allt ser bulligare ut, och
+   * rundningarna skiljer sig. Mätt i `apps/web/src/index.css` (`.rounded-app`,
+   * sessions-platform): sm 8, md 10, lg 16, xl 20, card 24. Det är inte en
+   * smaksak, det är den skalan appen faktiskt ritas med, mätt inte gissad.
+   * `--radius-card` är nytt: SessionStudio har ett eget kortsteg
+   * (`--radius-card: 1.5rem`) som `rounded-2xl` mappar till, skilt från
+   * `--radius-xl`. `OpsCard` använder det i stället för `--radius-xl`.
+   * Vaktad av regel 9 i `tokens/check-tokens.mjs` mot en SessionStudio-fixtur.
    * ──────────────────────────────────────────────────────────────────────── */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
-  --radius-3xl: 24px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-card: 24px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
   --radius-full: 999px;
 
   /* ─── Djup. Tre skuggor. Fler blir brus. ─────────────────────────────── */

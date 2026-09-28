@@ -253,16 +253,18 @@ describe("OpsCard", () => {
     }
   });
 
-  it("ger bubblan förebildens 24 px och panelen sina 8", () => {
+  it("ger panelen SessionStudios kortradie och bubblan sin egen", () => {
     /*
      * ⛔ BÅDA HALVORNA, för bara med dem är det ett prov. Att bubblan är rund
      * går att uppfylla genom att göra ALLT runt, och då är skillnaden borta.
      *
-     * 24 px är mätt mot SessionStudios `--radius-card: 1.5rem` och inte valt på
-     * känsla, och `--radius-3xl` råkade redan vara exakt det steget.
+     * ops-framework#164 flyttade rundningsskalan mot SessionStudios
+     * `.rounded-app`. `kort` är sedan dess `--radius-card` (24px) uttryckligt,
+     * inte `rounded-lg` (som numera är 16px, ett annat SessionStudio-mått).
+     * `bubbla` är `rounded-3xl`, 28px, SessionStudios `--radius-bubble`.
      */
     const { container: panel } = render(<OpsCard>x</OpsCard>);
-    expect(panel.firstElementChild?.className).toMatch(/rounded-lg/);
+    expect(panel.firstElementChild?.className).toMatch(/rounded-\[var\(--radius-card\)\]/);
 
     const { container: bubbla } = render(<OpsCard rounding="bubbla">x</OpsCard>);
     expect(bubbla.firstElementChild?.className).toMatch(/rounded-3xl/);

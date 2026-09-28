@@ -87,6 +87,12 @@ export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, 
 }
 
 const RUNDNINGAR = /** @type {const} */ ({
-  kort: "rounded-lg",
+  // ⛔ #164: `kort` var `rounded-lg`. Det var rätt så länge `--radius-lg` var
+  // 8px (SessionStudios eget kortmått), men #164 flyttade den skalan och
+  // `--radius-lg` är nu 16px (SessionStudios `.rounded-app` `--radius-lg`,
+  // ett annat mått). Kortet ska följa `--radius-card` (24px, SessionStudios
+  // eget kortsteg, `.rounded-app` `--radius-card`), namngivet och inte ett
+  // sammanträffande med en generisk skalsteg.
+  kort: "rounded-[var(--radius-card)]",
   bubbla: "rounded-3xl",
 });
