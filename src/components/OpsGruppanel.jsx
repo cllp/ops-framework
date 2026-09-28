@@ -542,7 +542,14 @@ export function OpsGruppanel({
         {kollapsad ? <ChevronHogerIkon size={14} /> : <ChevronVansterIkon size={14} />}
       </button>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/*
+       * ⛔ INGEN `flex-1` PÅ LISTAN. "Skapa nytt" FÖLJER listan (`AppSidebar.jsx`
+       * rad 119-184: samma `flex-col gap-1.5`, knappen är sista barnet), den
+       * fästs inte i panelens botten. Hela panelen scrollar (`overflow-y-auto`
+       * på asiden, rad 49), inte listan för sig. CP:s bild bekräftar: knappen
+       * står direkt under sista kortet.
+       */}
+      <div className="flex flex-col gap-1.5">
         {kollapsad ? (
           <GruppanelRemsa grupper={grupper} aktiv={aktiv} onValj={onValj} sprak={sprak} allaEtikett={allaEtikett} />
         ) : (

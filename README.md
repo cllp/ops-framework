@@ -1099,7 +1099,8 @@ SessionStudio", och en genomläsning av
 `AppHeader.jsx` gav andra tal. `OpsCard` är ramverkets EGNA kortform
 (`--card-padding`, ingen kant som förval), medan SessionStudios `GroupCard`
 är `p-3` (12px) MED en 1px kant som förval och `rounded-[var(--radius)]`
-(12px, inte `--radius-card` 24px): att pressa de talen genom `OpsCard`s
+(12px, sedan 0.29.0 ramverkets `--radius-base` ur fixturen, inte
+`--radius-card` 24px): att pressa de talen genom `OpsCard`s
 stängda API (`check-closed-api`) hade antingen krävt att öppna det för
 padding/kant, eller gett ett kort som SER UT som `OpsCard` med fel siffror.
 Kortet är därför handbyggt, med SessionStudios egna klasser.
