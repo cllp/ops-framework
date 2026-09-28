@@ -113,11 +113,25 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
 
   /* ⛔ SAMMA KLASSER SOM HAMBURGERMENYNS RADER i `OpsAppShell`. Panelen ska inte
      likna menyn ungefär, den ska vara densamma. Glider de isär ser en app ut att
-     ha två olika menyer beroende på vad man tryckte på. */
+     ha två olika menyer beroende på vad man tryckte på.
+
+     ⛔ #164, TYPOGRAFISVEPET: `text-base` VAR EN GISSNING, INTE EN MÄTNING.
+     Mätt i SessionStudios `apps/web/src/components/AppHeader.jsx`: raderna i
+     både "Meny"-dropdownen (`.../button className="... text-xs ..."`, raden
+     runt notiser/aktivitet/support/logga ut) och notis-/aktivitetspanelens
+     egna rader är `text-xs` (12px), aldrig `text-base` (16px). `text-base` var
+     en tredjedel större än förlagan på samma yta filhuvudet redan påstod var
+     identisk.
+
+     ⛔ AKTIV RAD FÄRGAS, DEN FETAS INTE. SessionStudios aktiva menyrad (t.ex.
+     "settings"/"contacts" i samma fil) byter bara till accentfärg och en svag
+     bakgrund, `font-semibold` finns inte i den klassen. `font-semibold` här
+     var alltså ett andra sätt att säga "du är här" utöver färgen, och det sättet
+     finns inte i förlagan. */
   const klass = cx(
-    "flex min-h-11 w-full items-center gap-2 rounded-sm px-3 text-left text-base",
+    "flex min-h-11 w-full items-center gap-2 rounded-sm px-3 text-left text-xs",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-    active ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+    active ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
     (onClick || href) && "cursor-pointer",
   );
 
