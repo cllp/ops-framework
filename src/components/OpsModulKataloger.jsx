@@ -43,7 +43,7 @@ import { text } from "../lib/sprak.js";
  * ett register; den här regeln, "vilka moduler delar ett katalog-id", är ren
  * datalogik och ska kunna bevisas utan att montera något.
  *
- * @param {readonly {id: string, modulId: string}[]} allaRader Hela svaret från `register.kataloger(fraga)`.
+ * @param {readonly Record<string, any>[]} allaRader Hela svaret från `register.kataloger(fraga)`, alltså `{ id, modulId, ... }`.
  * @param {string} katalogId
  * @param {(modulId: string) => import("../lib/sprak.js").Namn | null} modulNamn
  * @param {string} [sprak]
