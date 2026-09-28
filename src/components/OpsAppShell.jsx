@@ -8,7 +8,7 @@ import { Counter } from "./counter.jsx";
 import { ChevronNedIkon, MenuIcon } from "./icons.jsx";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
-import { kordarePafunktion, MenyFooter, MenySektioner, validateMenySektioner } from "./OpsMeny.jsx";
+import { kordarePafunktion, MenyFooter, MenyRubrikRad, MenySektioner, validateMenySektioner } from "./OpsMeny.jsx";
 
 /**
  * Felgränsen: alltid på, och en app kan inte stänga av den (#159).
@@ -362,9 +362,21 @@ export function OpsAppShell({
   // ett andra tal för att slippa ett undantag.
   const smaltTak = maxTopNavSmal ?? Math.min(3, maxTopNav);
   const [merOppen, setMerOppen] = useState(false);
+  // ⛔ #166: VILKEN RADS `undervy` SOM VISAS I STÄLLET FÖR ROTEN, ELLER `null`
+  // (roten). En chevron-rad med `undervy` (t.ex. Aktivitet) byter INTE till en
+  // egen Popover: den byter INNEHÅLLET i den här, redan öppna, popovern. Se
+  // filhuvudets ärende och `MenySektioner`/`visaUndervy` i OpsMeny.jsx.
+  const [aktivUndervy, setAktivUndervy] = useState(/** @type {import("./OpsMeny.jsx").MenyRad | null} */ (null));
+  // ⛔ MENYN STÄNGS: UNDERVYN NOLLSTÄLLS MED (#166). Annars visar nästa
+  // öppning listan man råkade lämna i stället för menyns rot, se filhuvudets
+  // "stängs menyn nollställs undervyn".
+  const stangMenyn = (/** @type {boolean} */ nasta) => {
+    setMerOppen(nasta);
+    if (!nasta) setAktivUndervy(null);
+  };
   // ⛔ Samma "stäng innan appens onClick körs"-mekanik som gamla `OpsMeny` hade,
   // nu delad med `OpsBottomNav` via `kordarePafunktion`. Se dess filhuvud.
-  const kor = kordarePafunktion(() => setMerOppen(false));
+  const kor = kordarePafunktion(() => stangMenyn(false));
 
   // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
   // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
@@ -549,7 +561,7 @@ export function OpsAppShell({
             {/* ⛔ Hamburgaren syns också när nav ryms men menuExtras eller
                 meny finns, annars blir tema/helskärm/menyn oåtkomliga på md+. */}
             {visaHamburgare ? (
-              <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
+              <Popover.Root open={merOppen} onOpenChange={stangMenyn}>
                 <Popover.Trigger
                   className={cx(
                     // ⛔ INGEN bar `inline-flex` här. Tailwind skriver `.hidden`
@@ -598,14 +610,32 @@ export function OpsAppShell({
                         `OpsMeny` (mätt i SessionStudio: ett `<h2>` med "Meny",
                         inget namn eller e-post bredvid). Bara med `meny`: utan
                         den är detta fortfarande den rena överflödsmenyn, som
-                        aldrig hade en rubrik. */}
+                        aldrig hade en rubrik.
+                        ⛔ #166: I EN UNDERVY VISAR SAMMA RAD EN TILLBAKAPIL +
+                        radens EGEN etikett i stället, se `MenyRubrikRad`. Det är
+                        SAMMA `Popover.Content`, alltså SAMMA panel, som
+                        `ss-jamfor-ss-meny.png` (mät: raden byts, den öppnas
+                        inte i en ny yta). */}
                     {meny ? (
-                      <div className="px-3 pt-3 pb-1">
-                        <h2 className="m-0 text-base font-semibold text-ink">{meny.rubrik ?? "Meny"}</h2>
+                      <MenyRubrikRad
+                        className="px-3 pt-3 pb-1"
+                        rubrik={aktivUndervy ? aktivUndervy.etikett : (meny.rubrik ?? "Meny")}
+                        onBack={aktivUndervy ? () => setAktivUndervy(null) : undefined}
+                        action={aktivUndervy ? aktivUndervy.undervyAction : undefined}
+                      />
+                    ) : null}
+                    {meny && aktivUndervy ? (
+                      // ⛔ UNDERVYNS INNEHÅLL ERSÄTTER RESTEN AV MENYN (#166):
+                      // sektioner, nav-överflöd, menuExtras och Logga ut hör
+                      // till ROTEN, inte till en undervy man just öppnat.
+                      <div className="max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain px-2 pt-1 pb-2">
+                        {aktivUndervy.undervy}
                       </div>
                     ) : null}
-                    {meny ? <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} /> : null}
-                    {inMenu.length || menuExtras ? (
+                    {meny && !aktivUndervy ? (
+                      <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} visaUndervy={setAktivUndervy} />
+                    ) : null}
+                    {!aktivUndervy && (inMenu.length || menuExtras) ? (
                       <div className={cx(meny ? "border-t border-line p-1" : null)}>
                         {/* ⛔ Egen nav med eget namn. Menyn är en lista destinationer,
                             alltså navigering, och utan namn blir den en tredje
@@ -616,7 +646,7 @@ export function OpsAppShell({
                               key={s.href}
                               href={s.href}
                               onClick={(e) => {
-                                setMerOppen(false);
+                                stangMenyn(false);
                                 onActivate(s.href, e);
                               }}
                               aria-current={entryActive(s, activeHref) ? "page" : undefined}
@@ -647,7 +677,7 @@ export function OpsAppShell({
                         </nav>
                       </div>
                     ) : null}
-                    {meny ? (
+                    {meny && !aktivUndervy ? (
                       <MenyFooter onLoggaUt={meny.onLoggaUt} loggaUtEtikett={meny.loggaUtEtikett} appVersion={meny.appVersion} kor={kor} />
                     ) : null}
                   </Popover.Content>
