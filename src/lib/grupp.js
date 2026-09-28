@@ -90,7 +90,7 @@ export const TEMAN = /** @type {const} */ (["system", "ljust", "morkt"]);
 
 /**
  * @typedef {object} Medlemskap
- * @property {string} id `${userId}_${groupId}`. Härledd, aldrig skriven för hand.
+ * @property {string} id `${userId}|${groupId}`, alltså userId, MEDLEMSKAPSAVGRANSARE, groupId. Härledd, aldrig skriven för hand.
  * @property {string} userId
  * @property {string} groupId
  * @property {"agare"|"medlem"} roll

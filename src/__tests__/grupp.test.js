@@ -13,7 +13,6 @@ import {
   MEDLEMSKAPSAVGRANSARE,
   MEDLEMSKAPSFALT,
 } from "../lib/grupp.js";
-import { regelfragment } from "../lib/regler.js";
 import { gruppadSamling, regelfragment } from "../lib/regler.js";
 
 /**
