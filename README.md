@@ -1207,13 +1207,28 @@ const typer = typerAttValja("sorter", kataloger);
 // Så tidigt det går: kastar när en registrering pekar på en katalog gruppen inte har.
 kontrolleraSkaparkataloger(registreringar, kataloger.map((k) => k.id));
 
-<OpsSkapa registreringar={registreringar} lage={lage} kataloger={kataloger} onKlar={stang} />
+<OpsSkapa registreringar={registreringar} lage={lage} kataloger={kataloger} onKlar={stang} ikonRitare={ikonRitare} />
 ```
 
-⛔ **Ramverket äger panelen, flikarna och typvalet. Modulen äger formuläret och
+⛔ **#164, KORRIGERING D, CP 2026-09-28: EN PLATT LISTA, INTE FLIKAR.** Mätt
+mot SessionStudios plus-meny: "när plusset trycks visas en platt lista med en
+rad per registrering, ikon plus ord, ingen rubrik, inga flikar." Ett tryck på
+en rad öppnar det som tidigare låg bakom fliken (typval via `OpsSelect` om
+registreringen har flera typer, sedan formuläret), med en "Tillbaka"-länk
+tillbaka till listan. Modulkontraktet är OFÖRÄNDRAT (#150/#153): modulen
+registrerar fortfarande vad den kan skapa, bara FÖRSTA NIVÅN bytte form, från
+`OpsTabs` till rader byggda av samma `OpsPanelRow`-primitiv `OpsMeny` redan
+använder.
+
+⛔ **Ramverket äger panelen, listan och typvalet. Modulen äger formuläret och
 skrivningen.** Formuläret får `{ groupId, typ, onKlar }` inskickat och ingenting
 mer: allt annat vet modulen själv. Skulle ramverket skriva raden måste det känna
 till modulens samling, och då är uppdelningen bara en uppdelning på papperet.
+
+⛔ **`ikonRitare(namn) => ReactNode`, samma mönster som `OpsKatalogInstallning
+props.ikonRitare`.** `Skaparregistrering.ikon` är ett namn ur appens EGEN
+tillåtelselista; ramverket vet inte hur man ritar det. Utan `ikonRitare` ritas
+ingen ikon på raden, bara ordet.
 
 ⛔ **Plusset skapar alltid i den AKTIVA gruppen.** I läget `alla` finns ingen
 grupp att skriva i, och panelen ber om ett val i stället för att gissa. `skapalaget`
