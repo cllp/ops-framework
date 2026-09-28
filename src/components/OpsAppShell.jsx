@@ -5,7 +5,7 @@ import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
-import { ChevronNedIkon, MenuIcon, PlusIkon } from "./icons.jsx";
+import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
@@ -663,21 +663,59 @@ export function OpsAppShell({
                 `OpsModal`, se filhuvudets ärende (#168). */}
             {visaSkapaKnapp ? (
               <Popover.Root open={skapaOppen} onOpenChange={setSkapaOppen}>
+                {/*
+                  ⛔ INTE `asChild` RUNT `OpsButton` (#168, andra granskningen).
+                  `OpsButton` är en vanlig funktionskomponent utan `forwardRef`
+                  (den är ett STÄNGT API med flit, se dess filhuvud), och Radix
+                  `asChild` klonar barnet och behöver dess `ref` för att
+                  POSITIONERA popovern mot rätt element. En `ref` till en
+                  funktionskomponent blir `null`; popovern hade då antingen
+                  varnat i konsolen eller positionerat sig fel, och felet
+                  hade varit osynligt tills någon råkade se var rutan hamnade.
+                  Klasserna nedan är ORDAGRANT desamma som `OpsButton
+                  variant="primary" round iconOnly size="md"` bygger (se dess
+                  `VARIANTER.primary`, `RUND_IKONSTORLEKAR.md`, `BAS`,
+                  `"rounded-full"`): en riktig `Popover.Trigger` (utan
+                  `asChild`, Radix ritar sitt EGET `<button>`) med SAMMA form.
+                  `piller.test.jsx` bevisar redan `OpsButton`s klasser; ett
+                  eget prov här bevisar att de INTE glidit isär.
+                */}
                 <Popover.Trigger
                   aria-label={skapaLabel}
                   className={cx(
-                    "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
-                    "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+                    "inline-flex items-center justify-center border font-medium leading-tight",
+                    "transition-colors duration-(--duration-fast) ease-standard",
                     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                    "rounded-full border-transparent bg-accent text-accent-contrast hover:bg-accent-hover",
+                    "size-8 p-0",
                   )}
                 >
+                  {/* ⛔ 20 px, SAMMA GLYFSKALA SOM RUND_IKONSTORLEKARs egen
+                      kommentar redan föreskriver för just den här knappen. */}
                   <PlusIkon size={20} />
                 </Popover.Trigger>
                 <Popover.Portal>
+                  {/*
+                    ⛔ MÄTT UR SESSIONSTUDIO (#168, andra granskningen), inte
+                    gissat: `apps/web/src/components/AppHeader.jsx`, create-
+                    menyns rader ("Ny session" m.fl.):
+                      - Popoverns bredd: `w-56` (14rem, 224 px)
+                      - Popoverns padding: `py-1.5` (6 px topp/botten), ingen
+                        egen horisontell padding (raderna bär sin egen)
+                      - Radens padding: `px-4 py-2.5` (16 px / 10 px)
+                      - Avstånd ikon–ord: `gap-3` (12 px)
+                      - Ikon: `w-4.5 h-4.5` (18 px), `text-[var(--color-accent)]`
+                      - Ord: `text-sm font-medium` (14 px / 500), samma accentfärg
+                      - Yta: `rounded-[var(--radius)]`, `shadow-xl`,
+                        `border border-[var(--color-border-hover)]`
+                    Se `OpsPanelRow props.accent` för hur ikon+ord-färgen och
+                    måtten flyttades dit (`text-accent` ärvs av ikonens
+                    `currentColor`, ingen egen ikonfärgklass här).
+                  */}
                   <Popover.Content
                     align="end"
                     sideOffset={4}
-                    className="z-(--z-dropdown) min-w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-md border border-line bg-raised p-1 shadow-md"
+                    className="z-(--z-dropdown) w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-md border border-line bg-raised py-1.5 shadow-md"
                   >
                     {/* ⛔ RAMVERKETS EGNA RADER FÖRST (#168, CP:s rättelse
                         23:35): Idag/kalendern och Inkorgen är ramverkets vyer,
@@ -687,7 +725,9 @@ export function OpsAppShell({
                       <div className="flex flex-col gap-0.5">
                         {skapa?.handelse ? (
                           <OpsPanelRow
+                            icon={<HandelsePlusIkon size={18} />}
                             label={nyHandelseEtikett}
+                            accent
                             onClick={() => {
                               setSkapaOppen(false);
                               setSkapaForm({ kind: "handelse" });
@@ -696,7 +736,9 @@ export function OpsAppShell({
                         ) : null}
                         {skapa?.arende ? (
                           <OpsPanelRow
+                            icon={<ArendePlusIkon size={18} />}
                             label={nyttArendeEtikett}
+                            accent
                             onClick={() => {
                               setSkapaOppen(false);
                               setSkapaForm({ kind: "arende" });

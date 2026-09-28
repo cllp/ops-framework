@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
+import { OpsButton } from "../components/OpsButton.jsx";
 
 /**
  * Plusset i skalets topprad (#168).
@@ -185,5 +186,70 @@ describe("OpsAppShell skapa (#168)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Nytt ärende" }));
     expect(screen.getByRole("dialog", { name: "Nytt ärende" })).toBeTruthy();
     expect(screen.getByTestId("arendeform")).toBeTruthy();
+  });
+
+  // ══ #168, ANDRA GRANSKNINGEN: MÄTT MOT SESSIONSTUDIOS AppHeader.jsx ══════
+  it("⛔ plussets EGEN knapp bär SAMMA klasser som OpsButton variant=\"primary\" round iconOnly", () => {
+    // ⛔ INTE `asChild` (se OpsAppShell.jsx filhuvud vid triggern): en
+    // funktionskomponent utan forwardRef kan inte vara Radix asChild-barn
+    // utan att förlora sin ref. Provet bevisar i stället att formen är
+    // IDENTISK, inte att komponenten återanvänds rakt av.
+    render(<OpsButton variant="primary" round iconOnly ariaLabel="Jamforelse" onClick={() => {}}>x</OpsButton>);
+    const jamforelse = screen.getByRole("button", { name: "Jamforelse" });
+
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ handelse: <p>x</p> }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    const plus = screen.getByRole("button", { name: "Skapa" });
+
+    for (const klass of ["rounded-full", "bg-accent", "text-accent-contrast", "size-8", "p-0"]) {
+      expect(jamforelse.className).toContain(klass);
+      expect(plus.className).toContain(klass);
+    }
+  });
+
+  it("⛔ popovern mäter w-56 (14rem, 224 px, mätt ur SessionStudios create-meny)", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ handelse: <p>x</p> }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
+    expect(screen.getByRole("button", { name: "Ny händelse" }).closest('[class*="w-56"]')).toBeTruthy();
+  });
+
+  it("⛔ ramverkets rad har en ikon i accentfärg, samma mått som SessionStudios create-rad", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ handelse: <p>x</p> }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
+    const rad = screen.getByRole("button", { name: "Ny händelse" });
+    // Ikonen finns i raden (aria-hidden, hittas via querySelector eftersom
+    // den är dekorativ).
+    expect(rad.querySelector("svg")).toBeTruthy();
+    for (const klass of ["text-sm", "font-medium", "px-4", "py-2.5", "gap-3", "text-accent"]) {
+      expect(rad.className).toContain(klass);
+    }
+  });
+
+  it("⛔ en modulrad i plusset är LIKA accentfärgad som ramverkets egna rader", () => {
+    render(
+      <OpsAppShell
+        brand="Ops"
+        nav={enkelNav}
+        activeHref="/"
+        skapa={{ registreringar: [{ ...REG("kvitto"), modulId: "kvitton" }], lage: "bolaget" }}
+      >
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
+    const rad = screen.getByRole("button", { name: "kvitto" });
+    expect(rad.className).toContain("text-accent");
+    expect(rad.className).toContain("text-sm");
   });
 });

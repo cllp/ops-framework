@@ -85,7 +85,12 @@ export function OpsSkapa({
           {/* ⛔ AVDELARE FÖRE RADEN, NÄR MODULEN BYTER (och inte för första
               raden, den har inget att avskilja sig från). */}
           {i > 0 && r.modulId !== rader[i - 1].modulId ? <div role="separator" className="my-0.5 border-t border-line" /> : null}
-          <OpsPanelRow icon={ikonRitare ? ikonRitare(r.ikon) : undefined} label={text(r.namn, sprak)} onClick={() => onValj?.(r)} />
+          {/* ⛔ #168, ANDRA GRANSKNINGEN: `accent`, SOM RAMVERKETS EGNA RADER I
+              SAMMA POPOVER. Listan är bara nådd genom plusset numera (se
+              filhuvudet); en modulrad som ser ut som en vanlig menyrad bredvid
+              ramverkets accentfärgade "Ny händelse"/"Nytt ärende" hade sett ut
+              som en annan sorts knapp i samma lista. */}
+          <OpsPanelRow icon={ikonRitare ? ikonRitare(r.ikon) : undefined} label={text(r.namn, sprak)} accent onClick={() => onValj?.(r)} />
         </div>
       ))}
     </div>

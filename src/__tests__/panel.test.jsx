@@ -384,3 +384,24 @@ describe("OpsPanel på smal skärm", () => {
     expect(screen.getByText("Notiser")).toBeInTheDocument();
   });
 });
+
+describe("OpsPanelRow accent (#168, mätt ur SessionStudios create-meny)", () => {
+  it("⛔ en accent-rad bär ramverkets mätta mått: px-4 py-2.5, gap-3, text-sm font-medium, text-accent", () => {
+    render(<OpsPanelRow label="Ny händelse" accent onClick={() => {}} />);
+    const rad = screen.getByRole("button", { name: "Ny händelse" });
+    for (const klass of ["px-4", "py-2.5", "gap-3", "text-sm", "font-medium", "text-accent"]) {
+      expect(rad.className).toContain(klass);
+    }
+    // ⛔ INTE den vanliga menyradens mått på samma gång: de två är olika rader.
+    expect(rad.className).not.toContain("text-xs");
+    expect(rad.className).not.toContain("px-3");
+  });
+
+  it("utan accent är raden oförändrad: text-xs, px-3, ingen text-accent", () => {
+    render(<OpsPanelRow label="Inställningar" onClick={() => {}} />);
+    const rad = screen.getByRole("button", { name: "Inställningar" });
+    expect(rad.className).toContain("text-xs");
+    expect(rad.className).toContain("px-3");
+    expect(rad.className).not.toContain("text-accent");
+  });
+});
