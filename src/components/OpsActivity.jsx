@@ -162,7 +162,7 @@ function Rad({ handelse, slagord, slagIkon, ny, onOpen }) {
         {/* ⛔ GRUPPEN SOM `OpsIdentity`, INTE SOM RÅ TEXT (#158). SessionStudios
             metarad bär en GroupMark bredvid gruppnamnet; `OpsIdentity` är
             ramverkets motsvarighet och redan använd för precis den rollen i
-            `OpsAnvandarmeny`. */}
+            `OpsMeny`. */}
         {handelse.grupp ? (
           <span className="flex items-center gap-1">
             <OpsIdentity name={handelse.grupp.namn} seed={handelse.grupp.id || handelse.grupp.namn} imageUrl={handelse.grupp.bild} size="sm" />
@@ -456,7 +456,7 @@ function Huvudatgarder({ filter, filterLabel = "Filter", onClear, clearLabel = "
  * knappens siffra saknar motsvarighet i det man ser.
  *
  * ⛔ #158: PANELEN GÅR OCKSÅ ATT ÖPPNA UTIFRÅN, T.EX. FRÅN EN RAD I
- * `OpsAnvandarmeny` ("Aktivitet" med chevron). `open`/`onOpenChange` styr då
+ * `OpsMeny` ("Aktivitet" med chevron). `open`/`onOpenChange` styr då
  * i stället för knappens egen state, och `renderTrigger={false}` döljer
  * klockan helt när appen bara vill nå panelen via menyn. Utan styrning sköter
  * knappen sig själv precis som förut, bakåtkompatibelt.
@@ -511,7 +511,7 @@ export function OpsActivityButton({
 }) {
   if (!renderTrigger && (typeof open !== "boolean" || !onOpenChange)) {
     throw new Error(
-      "OpsActivityButton: renderTrigger={false} kräver open OCH onOpenChange. Utan en synlig klocka måste NÅGON annan yta (t.ex. en rad i OpsAnvandarmeny) styra öppningen, annars går panelen inte att nå alls.",
+      "OpsActivityButton: renderTrigger={false} kräver open OCH onOpenChange. Utan en synlig klocka måste NÅGON annan yta (t.ex. en rad i OpsMeny) styra öppningen, annars går panelen inte att nå alls.",
     );
   }
 
@@ -589,7 +589,7 @@ export function OpsActivityButton({
    * ⛔ `renderTrigger={false}`: KNAPPEN FINNS ÄNDÅ, MEN OSYNLIG OCH DOLD FÖR
    * SKÄRMLÄSARE. `OpsPanel` kräver ett riktigt element att sätta `asChild`-
    * attributen på; utan ett sådant kastar Radix. Den enda vägen in är då
-   * `open`/`onOpenChange`, t.ex. en rad i `OpsAnvandarmeny`.
+   * `open`/`onOpenChange`, t.ex. en rad i `OpsMeny`.
    */
   const klocka = renderTrigger ? (
     <button

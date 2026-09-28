@@ -270,7 +270,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @param {string} props.activeHref Vilken sida som visas nu.
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
- * @param {import("react").ReactNode} [props.anvandare] Användarmenyn. ⛔ EGET FACK OCH INTE EN `action` (#138): klarkriteriet säger "samma plats i varje app", och en fri slot hamnar till vänster i en app och i en hamburgare i nästa. Ligger sist i klustret, efter `actions` och före hamburgaren, alltid. Typiskt en `OpsAnvandarmeny`.
+ * @param {import("react").ReactNode} [props.anvandare] Identiteten och menyn. ⛔ EGET FACK OCH INTE EN `action` (#138): klarkriteriet säger "samma plats i varje app", och en fri slot hamnar till vänster i en app och i en hamburgare i nästa. Ligger sist i klustret, efter `actions` och före Mer-hamburgaren, alltid.
+ *   ⛔ #164, KORRIGERING A: SessionStudios avatar har ingen meny, den är en
+ *   direktlänk till profilen. Facket bär därför TVÅ separata ytor sida vid
+ *   sida, inte en: `<OpsIconLink icon={<OpsIdentity .../>} label="Min profil"
+ *   href={profilHref} />` och `<OpsMeny .../>` (dess EGEN hamburgare, skild
+ *   från navigeringens Mer-knapp). Se README §Skalet för exemplet.
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.

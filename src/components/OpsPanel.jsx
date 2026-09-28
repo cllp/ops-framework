@@ -411,7 +411,7 @@ export function OpsPanel({
           sideOffset={4}
           aria-label={label}
           /* ⛔ #158: PANELEN FICK ALDRIG SES ÖPPEN NÄR DEN STYRDES FRÅN EN
-           * ANNAN, PRECIS STÄNGD, RADIX-YTA (t.ex. en rad i `OpsAnvandarmeny`
+           * ANNAN, PRECIS STÄNGD, RADIX-YTA (t.ex. en rad i `OpsMeny`
            * som öppnar den här via `open`/`onOpenChange`). Mätt med Playwright
            * i en riktig webbläsare, jsdom såg aldrig felet:
            *

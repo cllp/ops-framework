@@ -1,55 +1,58 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
-import { LoggaUtIkon } from "./icons.jsx";
+import { LoggaUtIkon, MenuIcon } from "./icons.jsx";
 import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
 
 /**
- * Användarmenyn i toppraden: vem du är, vägen till andra ytor, och utloggningen.
+ * DEN enda menyn: notiser/aktivitet, appens egna destinationer, utloggning,
+ * versionen. Öppnas från hamburgaren i toppraden.
  *
- * ══ ⛔ #157, CP 2026-09-28: "JAG VILL FÖLJA SESSIONSTUDIOS PROFIL EXAKT" ═══
+ * ══ ⛔ #164, KORRIGERING A, CP 2026-09-28 SKÄRMBILD 17:55 ════════════════
  *
- * Mätt mot SessionStudios `AppHeader.jsx`: rubrik ("Meny"), sektioner skilda
- * med linjer, ikon per rad, en chevron på rader som öppnar nästa vy, en
- * extern-länk-ikon på rader som lämnar appen, utloggningen i sin egen sektion
- * sist, och en dämpad versionsrad längst ned. Den här filen bar innan dess
- * bara en profilrad och Logga ut, utan sektioner och utan version.
+ * Filen hette `OpsAnvandarmeny` och öppnades genom att trycka på AVATAREN.
+ * Det var fel mätt mot SessionStudio: "Avataren i toppraden har ingen meny.
+ * Den är en direktlänk till profilen med tooltip 'Min profil'. Menyn
+ * ('Meny', hamburgaren) är EN meny."
+ *
+ * Namnet ljög alltså på två sätt: den öppnades inte via ett konto-ikon utan
+ * via samma hamburgare SessionStudio använder för HELA menyn, och den hette
+ * "användarmeny" trots att halva innehållet (notiser, aktivitet, appens
+ * navigering) inte har med användaren att göra. `OpsMeny` säger vad den är:
+ * appens EN meny, med fyra delar i given ordning.
+ *
+ * Avataren är sedan denna ändring appens eget jobb: en `OpsIconLink` med
+ * `OpsIdentity` som `icon` och `label="Min profil"`, pekande på en
+ * profil-route. Den ligger BREDVID `OpsMeny` i skalets `anvandare`-fack, inte
+ * inuti den. Se `README.md` §Skalet för exemplet.
  *
  * ⛔ RADERNA ÄR APPENS, FORMEN ÄR RAMVERKETS. Ramverket vet inte om appen
  * heter bolag-ops eller något annat, och känner inte till "Bibliotekstyper"
  * eller "Kalender" som begrepp. `sektioner` är därför en ren lista rader appen
- * bygger själv; det enda ramverket lägger till är Logga ut och versionsraden,
- * eftersom BÅDA finns i varje app som använder skalet.
+ * bygger själv (notiser, aktivitet, appens egna destinationer); det enda
+ * ramverket lägger till är Logga ut och de två versionsraderna, eftersom BÅDA
+ * finns i varje app som använder skalet.
  *
  * ⛔ RADEN ÅTERANVÄNDER `OpsPanelRow`, INTE EN EGEN KOPIA. Notis- och
  * aktivitetspanelerna (#158) byggs redan av samma primitiv, och en app som
  * öppnar dem via en rad i den här menyn ska se EXAKT samma rad som panelen
- * själv ritar när den listar sina egna poster. Två separata implementationer
- * av "en rad med ikon, etikett, räknare och chevron" hade glidit isär i sin
- * hover-färg eller sitt mått inom en version eller två.
+ * själv ritar när den listar sina egna poster.
  *
- * ══ ⛔ VARFÖR EN EGEN PLATS OCH INTE EN `action` BLAND ANDRA (#138) ════
+ * ══ ⛔ TVÅ VERSIONSRADER, INTE EN MED PUNKT EMELLAN ══════════════════════
  *
- * `OpsAppShell` tar emot `actions`, och appen bestämmer vad som ligger där.
- * Det är rätt för temaväxlare och söksymbol, och fel här: klarkriteriet säger
- * "samma plats i varje app". Ligger utloggningen i en fri slot hamnar den till
- * vänster i en app och i en hamburgare i nästa, och då får den som använder
- * båda leta efter samma knapp på två ställen.
- *
- * Därför ett eget `anvandare`-fack i skalet, sist i klustret, alltid.
- *
- * ══ ⛔ AVATAREN ÄR KNAPPEN, OCH DEN HAR ETT NAMN ══════════════════════
- *
- * En bild utan tillgängligt namn är en knapp en skärmläsare läser som "knapp".
- * `aria-label` bär personens namn, eftersom det är det menyn handlar om.
- *
- * ⛔ OCH INGEN TEXT BREDVID PÅ SMAL SKÄRM. Ett namn i toppraden är det första
- * som tvingar fram horisontell scroll på en telefon, och namnet står redan i
- * menyn när man öppnat den.
- *
- * @typedef {object} AnvandarmenyRad
+ * Skärmbilden visar SessionStudios enda rad ("SessionStudio™ v0.9.1602")
+ * eftersom SessionStudio bara HAR en version. Vi har två (appens och
+ * ramverkets), och CP:s korrigering säger uttryckligen "två rader är rätt".
+ * Den gamla koden slog ihop dem med " · " på en rad, vilket var fel redan
+ * innan skärmbilden: appVersion och ramverkets version är två olika fakta,
+ * och en rad som bär två fakta går inte att peka på var för sig i ett prov
+ * eller i en skärmläsare ("bolag-ops v1.4.2 · ops-framework v0.27.0" läses
+ * som en enda mening).
+ */
+
+/**
+ * @typedef {object} MenyRad
  * @property {string} key
  * @property {import("react").ReactNode} etikett
  * @property {import("react").ReactNode} [ikon]
@@ -63,43 +66,44 @@ import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
  * @param {object} props
  * @param {import("../lib/grupp.js").Anvandare} props.anvandare
  * @param {() => void} props.onLoggaUt
- * @param {AnvandarmenyRad[][]} [props.sektioner] Rader i grupper, en avdelare
- *   mellan varje grupp. Utelämnad: menyn visar bara Logga ut och versionsraden.
+ * @param {MenyRad[][]} [props.sektioner] Rader i grupper, en avdelare mellan
+ *   varje grupp, i den ordning appen skickar dem. SessionStudios form:
+ *   [Notiser, Aktivitet], [appens navrader]. Utelämnad: menyn visar bara
+ *   Logga ut och versionsraderna.
  * @param {string} [props.rubrik] Menyns titel, överst i panelen.
  * @param {string} [props.loggaUtEtikett]
- * @param {string} [props.menyEtikett] Skärmläsarnamn på knappen, följt av namnet.
+ * @param {string} [props.menyEtikett] Skärmläsarnamn på hamburgarknappen.
  * @param {string} [props.appVersion] Appens egen versionstext, t.ex. "bolag-ops v1.4.2".
  *   ⛔ SAKNAS DEN skrivs raden ändå, med ramverkets ensam: tomhet är ett svar,
  *   inte en utelämnad rad (arbetsreglernas punkt 5).
  */
-export function OpsAnvandarmeny({
+export function OpsMeny({
   anvandare,
   onLoggaUt,
   sektioner = [],
   rubrik = "Meny",
   loggaUtEtikett = "Logga ut",
-  menyEtikett = "Konto",
+  menyEtikett = "Meny",
   appVersion,
 }) {
   if (!anvandare) {
-    throw new Error("OpsAnvandarmeny: anvandare krävs. Menyn handlar om vem man är inloggad som.");
+    throw new Error("OpsMeny: anvandare krävs. Logga ut-raden och versionsraderna behöver veta att någon är inloggad.");
   }
   if (!onLoggaUt) {
-    throw new Error("OpsAnvandarmeny: onLoggaUt krävs. Varje app som visar menyn måste kunna logga ut.");
+    throw new Error("OpsMeny: onLoggaUt krävs. Varje app som visar menyn måste kunna logga ut.");
   }
   for (const sektion of sektioner) {
     for (const rad of sektion) {
       if (!rad || !rad.key) {
-        throw new Error("OpsAnvandarmeny: en rad i sektioner saknar \"key\". Utan den kan React inte skilja raderna åt.");
+        throw new Error("OpsMeny: en rad i sektioner saknar \"key\". Utan den kan React inte skilja raderna åt.");
       }
       if (!rad.etikett) {
-        throw new Error(`OpsAnvandarmeny: raden "${rad.key}" saknar etikett.`);
+        throw new Error(`OpsMeny: raden "${rad.key}" saknar etikett.`);
       }
     }
   }
 
   const [oppen, setOppen] = useState(false);
-  const visningsnamn = anvandare.namn || anvandare.epost;
 
   /**
    * Stänger menyn innan appens egen handling körs, som `onLoggaUt` redan gjorde.
@@ -125,13 +129,14 @@ export function OpsAnvandarmeny({
     <Popover.Root open={oppen} onOpenChange={setOppen}>
       <Popover.Trigger
         className={cx(
-          "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full",
-          "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint",
+          "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md",
+          "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          "text-ink-secondary",
         )}
-        aria-label={`${menyEtikett}, ${visningsnamn}`}
+        aria-label={menyEtikett}
       >
-        <OpsIdentity name={visningsnamn} seed={anvandare.id} imageUrl={anvandare.bild} size="sm" />
+        <MenuIcon size={20} />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
@@ -141,8 +146,8 @@ export function OpsAnvandarmeny({
         >
           {/* ⛔ RUBRIKEN STÅR EN GÅNG, ÖVERST. Mätt i SessionStudio: ett
               `<h3>` med "Meny", inget namn eller e-post bredvid. Identiteten
-              står redan på knappen som öppnade menyn (`aria-label`), och en
-              rad till här hade sagt samma sak två gånger. */}
+              har sin egen plats nu, bredvid menyn (avataren), och en rad till
+              här hade sagt samma sak två gånger på fel ställe. */}
           <div className="px-3 pt-3 pb-1">
             <h2 className="m-0 text-base font-semibold text-ink">{rubrik}</h2>
           </div>
@@ -169,16 +174,15 @@ export function OpsAnvandarmeny({
             <OpsPanelRow icon={<LoggaUtIkon />} label={loggaUtEtikett} onClick={kor(onLoggaUt)} />
           </div>
 
-          {/* ⛔ VERSIONSRADEN ÄR DÄMPAD OCH INTE KLICKBAR (#157). Den är ett
-              faktum om vad som körs, inte en handling. Ramverkets tal kommer ur
-              en konstant som skrivs vid bygget ur package.json, ALDRIG en
+          {/* ⛔ TVÅ RADER, INTE EN (#164, korrigering A). Appens tal och
+              ramverkets tal är två skilda fakta; en rad som bär båda går inte
+              att läsa eller peka på var för sig. Ramverkets rad kommer ur en
+              konstant som skrivs vid bygget ur package.json, ALDRIG en
               handskriven kopia här: se `scripts/generate-framework-version.mjs`
               och provet i `versionsrad.test.jsx` som är rött om de går isär. */}
-          <div className="border-t border-line px-3 pt-2 pb-3">
-            <span className="text-xs text-ink-muted">
-              {appVersion ? `${appVersion} · ` : ""}
-              {`ops-framework v${OPS_FRAMEWORK_VERSION}`}
-            </span>
+          <div className="flex flex-col gap-0.5 border-t border-line px-3 pt-2 pb-3">
+            {appVersion ? <span className="text-xs text-ink-muted">{appVersion}</span> : null}
+            <span className="text-xs text-ink-muted">{`ops-framework v${OPS_FRAMEWORK_VERSION}`}</span>
           </div>
         </Popover.Content>
       </Popover.Portal>
