@@ -96,6 +96,9 @@ function textraderna(deklarerade, bar) {
  * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen kräver. Appen äger listan, eftersom den beror på vad appens vyer ritar.
  * @param {boolean} [props.faser] Falskt för en sortkatalog. Då ritas ingen fasväljare, eftersom fältet inte finns på kategorin.
  * @param {boolean} [props.farger] Falskt när kategorierna skiljs åt med ikon. Då ritas ingen färgväljare och ingen prick.
+ * @param {string} [props.groupId] Gruppens id (#162). Satt: en ny eller ändrad kategori byggs med `grupp: true`
+ *   och det här `groupId`:t, precis som katalogen den kom ur. Utelämnad: katalogen är inte en grupps egen
+ *   (`grupp: false`, förvalet i `byggKategori`), oförändrat beteende från innan #162.
  */
 export function OpsKatalogInstallning({
   kategorier,
@@ -110,6 +113,7 @@ export function OpsKatalogInstallning({
   textnycklar = [],
   faser = true,
   farger = true,
+  groupId,
 }) {
   if (!Array.isArray(ikoner) || ikoner.length === 0) {
     throw new Error(
@@ -192,9 +196,25 @@ export function OpsKatalogInstallning({
         texter[nyckel] = en ? { sv, en } : { sv };
       }
 
+      /*
+       * ⛔ #162: `groupId` OCH `grupp: true` FÖLJS ÅT. En prop som satts avgör
+       * om katalogen är en grupps egen, precis som `faser`/`farger` avgör om
+       * fasen/färgen ens hör hemma på raden: `byggKategori` avvisar `groupId`
+       * i en katalog som inte deklarerat `grupp: true`, så de två måste stämma
+       * överens eller kastet flyttar bara felet hit i stället för att lösa det.
+       */
       const kategori = byggKategori(
-        { id: utkast.id, namn: { sv: utkast.sv, en: utkast.en }, ...(farger ? { farg: utkast.farg } : {}), ikon: utkast.ikon, ...(faser ? { fas: utkast.fas } : {}), ordning: utkast.ordning, texter },
-        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser, farger },
+        {
+          id: utkast.id,
+          namn: { sv: utkast.sv, en: utkast.en },
+          ...(farger ? { farg: utkast.farg } : {}),
+          ikon: utkast.ikon,
+          ...(faser ? { fas: utkast.fas } : {}),
+          ordning: utkast.ordning,
+          texter,
+          ...(groupId ? { groupId } : {}),
+        },
+        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser, farger, grupp: Boolean(groupId) },
       );
       onSpara(kategori);
       setRedigerar(null);
