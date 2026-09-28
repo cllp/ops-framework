@@ -48,6 +48,7 @@ const MODULER = [
     nav: [],
     routes: [],
     kallor: {},
+    skapar: [],
     samlingar: [
       { namn: "fakturor", falt: ["id", "groupId", "belopp", "skapadAv"] },
       { namn: "konfig", falt: ["id", "groupId", "varde"], agareKravsForSkrivning: true },
@@ -59,6 +60,7 @@ const MODULER = [
     nav: [],
     routes: [],
     kallor: {},
+    skapar: [],
     // ⛔ Strängformen med flit: den är utgiven i 0.25.0 och ska fortsätta ge
     // ett block utan formvalidering, inte ett block som låser allt ute.
     samlingar: ["matningar", { namn: "mal", agareKravsForSkrivning: true }],

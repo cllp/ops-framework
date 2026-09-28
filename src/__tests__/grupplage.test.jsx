@@ -125,6 +125,7 @@ describe("navet", () => {
     routes: [],
     samlingar: [],
     kallor: {},
+    skapar: [],
   });
 
   it("visar bara ramverkets ytor i läget alla", () => {

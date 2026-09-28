@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**82 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**83 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -865,6 +865,7 @@ export const liv = defineModule({
   routes: [{ path: "/liv", vy: LivVy }],
   samlingar: ["matningar"],
   kallor: { handelser: livetsHandelser },
+  skapar: [{ id: "matning", namn: { sv: "Mätning", en: "Measurement" }, ikon: "hjarta", katalog: "sorter", form: MatningForm }],
 });
 ```
 
@@ -876,9 +877,11 @@ export const liv = defineModule({
 | `routes` | `{ path, vy }` | `path` börjar med snedstreck och står en gång. ⛔ Två routes med samma `path` avgörs annars av registreringsordningen, alltså av en slump. ⛔ `vy` får vara ett **objekt**: `memo`, `forwardRef` och `lazy` ger objekt, så ett krav på funktion hade avvisat tre vanliga sätt att skriva en vy |
 | `samlingar` | vad modulen äger | `"namn"` eller `{ namn, falt, agareKravsForSkrivning }`. `falt` blir `keys().hasOnly` i de genererade reglerna (#130), och utelämnas den genereras ingen formvalidering. `agareKravsForSkrivning: true` ger ägarkrav i stället för medlemskrav. Relativa namn, aldrig sökvägar. ⛔ Ett snedstreck avvisas: modulen namnger relativt och **appen skickar in roten**, och det är den raden som gör att en kund senare kan bli ett eget Firebase-projekt utan att datamodellen ändras |
 | `kallor` | ytor modulen fyller | Nycklarna är `KALLTYPER`, alltså `handelser`, `sok`, `hjalp`, `notiser`, `widgets`, `kataloger`. Värdet är en funktion: ramverket anropar, modulen svarar |
+| `skapar` | vad plusset erbjuder | En lista `{ id, namn, ikon, katalog, form }`. Spegelbilden av `kallor`: källorna läser IN i ramverkets ytor, registreringarna skriver UT ur plusset. ⛔ `katalog` krävs **även när den är `null`**: ett kvitto har ingen typ att välja, och en registrering som glömt sin katalog ser likadan ut som en som inte har någon om fältet är valfritt. ⛔ `id` är unikt över **hela** modullistan, inte bara inom modulen: plusset ritar en flik per registrering |
 
-⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`
-och en modul som inte fyller någon yta skriver `kallor: {}`. Skälet är
+⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`,
+en modul som inte fyller någon yta skriver `kallor: {}`, och en modul som inte
+kan skapa något skriver `skapar: []`. Skälet är
 arbetsreglernas punkt 5: tomhet är ett svar och inte en utelämnad rubrik. Vore
 fälten valfria såg en modul utan routes likadan ut som en modul som glömt sina,
 och den andra är ett fel.
@@ -1008,6 +1011,9 @@ const liv = defineModule({
     // En egen katalog i inställningsvyn. Kategorierna granskas av katalogmotorn.
     kataloger: async ({ groupId }) => [{ id: "sorter", namn: { sv: "Mätsorter" }, kategorier: [vikt, puls] }],
   },
+
+  // Plusset. Ramverket ritar fliken och typväljaren, MatningForm ritar fälten.
+  skapar: [{ id: "matning", namn: { sv: "Mätning" }, ikon: "hjarta", katalog: "sorter", form: MatningForm }],
 });
 
 const register = skapaKallregister([liv]);
@@ -1045,6 +1051,45 @@ med den här raden" vore då modulens påstående.
 ytan (`fyller` är tom), att modulerna svarade utan rader (`tomt`) och att
 hämtningen pågår (`laddar`). Slås de ihop står det "allt är gjort" medan
 sanningen är att ingenting frågades.
+
+#### Skapa-kontraktet: plusset
+
+[#150](https://github.com/cllp/ops-framework/issues/150). Källorna läser in i
+ramverkets ytor. `skapar` är samma kontrakt åt andra hållet: **vad modulen kan
+skapa, och var typen väljs ur.**
+
+```js
+import { OpsSkapa, skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "@staiger/ops-framework";
+
+// Registreringarna för den aktiva gruppens PÅSLAGNA moduler, i registreringsordning.
+const registreringar = skaparFor(moduler, grupp.moduler);
+
+// Typerna en registrering erbjuder, ur gruppens katalog. Arkiverade utesluts.
+const typer = typerAttValja("sorter", kataloger);
+
+// Så tidigt det går: kastar när en registrering pekar på en katalog gruppen inte har.
+kontrolleraSkaparkataloger(registreringar, kataloger.map((k) => k.id));
+
+<OpsSkapa registreringar={registreringar} lage={lage} kataloger={kataloger} onKlar={stang} />
+```
+
+⛔ **Ramverket äger panelen, flikarna och typvalet. Modulen äger formuläret och
+skrivningen.** Formuläret får `{ groupId, typ, onKlar }` inskickat och ingenting
+mer: allt annat vet modulen själv. Skulle ramverket skriva raden måste det känna
+till modulens samling, och då är uppdelningen bara en uppdelning på papperet.
+
+⛔ **Plusset skapar alltid i den AKTIVA gruppen.** I läget `alla` finns ingen
+grupp att skriva i, och panelen ber om ett val i stället för att gissa. `skapalaget`
+ger tre utfall, inte två: `valjGrupp`, `tomt` och `redo`. "Välj en grupp först"
+och "inget att skapa här" kräver olika handlingar, och samma text för båda lär
+användaren att plusset är trasigt.
+
+⛔ **Katalogkontrollen kan inte bo i `defineModule`, och det är en avvikelse från
+ärendets ord "kastar vid uppstart".** Kataloger kommer ur `kallor.kataloger`,
+alltså ur en funktion som frågas per grupp, och ingen lista finns förrän den
+frågats. `kontrolleraSkaparkataloger` körs därför så tidigt den kan: när gruppens
+kataloger är lästa. Ett fel och inte en tom lista, eftersom en tom typväljare ser
+ut som en katalog någon glömt fylla.
 
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 

@@ -153,6 +153,15 @@ export { OpsNotiser, olasta } from "./components/OpsNotiser.jsx";
 export { OpsOversikt, iOrdning } from "./components/OpsOversikt.jsx";
 
 /*
+ * ⛔ SKAPA-KONTRAKTET ÄR SPEGELBILDEN AV KÄLLORNA (#150). Källorna läser in i
+ * ramverkets ytor, registreringarna skriver ut ur plusset. Den rena logiken
+ * ligger för sig eftersom besluten, vilken grupp och vilka typer, måste gå att
+ * mäta utan att en Radix-flikrad ritas i jsdom.
+ */
+export { OpsSkapa } from "./components/OpsSkapa.jsx";
+export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "./lib/skapa.js";
+
+/*
  * ⛔ GRUPPER OCH MEDLEMSKAP (#136). Formerna är data in och data ut, och
  * regelfragmentet är text in och text ut, alltså ingen React. De ligger här av
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som

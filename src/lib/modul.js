@@ -52,13 +52,23 @@ import { byggNamn } from "./sprak.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor"];
+const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar"];
 
 /** Fälten en route får bära. */
 const ROUTEFALT = ["path", "vy"];
 
 /** Fälten en samling får bära i sin utskrivna form. */
 const SAMLINGSFALT = ["namn", "falt", "agareKravsForSkrivning"];
+
+/**
+ * Fälten en skapa-registrering får bära (#150).
+ *
+ * ⛔ `katalog` KRÄVS ÄVEN NÄR DEN ÄR `null`, och det är arbetsreglernas punkt 5
+ * en gång till. Ett kvitto har ingen typ att välja, och en registrering som
+ * GLÖMT sin katalog ser likadan ut som en som inte har någon om fältet är
+ * valfritt. Den första är ett fel och den andra är vanlig.
+ */
+const SKAPARFALT = ["id", "namn", "ikon", "katalog", "form"];
 
 /**
  * Ytorna en modul kan fylla. Ramverkets, och de går inte att lägga till.
@@ -92,6 +102,16 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {ReadonlyArray<ModulRoute>} routes Vyerna modulen bidrar med.
  * @property {ReadonlyArray<Samling>} samlingar Samlingarna modulen äger. ⛔ Alltid i utskriven form, även när manifestet skrev en sträng.
  * @property {Readonly<Record<string, Function>>} kallor Ytor modulen fyller, en funktion per yta.
+ * @property {ReadonlyArray<Skaparregistrering>} skapar Vad modulen kan skapa, det plusset erbjuder.
+ */
+
+/**
+ * @typedef {object} Skaparregistrering
+ * @property {string} id Maskinnyckeln. Unik inom hela modullistan, inte bara inom modulen.
+ * @property {import("./sprak.js").Namn} namn Det som står på fliken.
+ * @property {string} ikon Namn ur appens tillåtelselista, samma lista som katalogens.
+ * @property {string | null} katalog Katalogen typen väljs ur, eller `null` när registreringen inte har någon typ.
+ * @property {unknown} form Komponenten som ritar formuläret. En referens, se filhuvudet om väg A.
  */
 
 /** @param {unknown} v @returns {string} */
@@ -281,6 +301,82 @@ export function defineModule(manifest) {
   }
 
   /*
+   * ⛔ SKAPA-REGISTRERINGARNA ÄR SPEGELBILDEN AV KÄLLORNA (#150). En källa
+   * läser IN i en av ramverkets ytor, en registrering skriver UT ur plusset.
+   * Formen valideras här och beteendet pekas bara ut, precis som en route.
+   */
+  if (!Array.isArray(d.skapar)) {
+    throw var_("skapar", "krävs och måste vara en lista, även när den är tom. En modul som inte kan skapa något skriver skapar: [].");
+  }
+  /** @type {Skaparregistrering[]} */
+  const skapar = [];
+  d.skapar.forEach((/** @type {any} */ rad, /** @type {number} */ i) => {
+    if (!rad || typeof rad !== "object" || Array.isArray(rad)) {
+      throw var_(`skapar[${i}]`, `måste vara ett objekt med ${SKAPARFALT.join(", ")}.`);
+    }
+    const okandaS = Object.keys(rad).filter((n) => !SKAPARFALT.includes(n));
+    if (okandaS.length > 0) {
+      throw var_(`skapar[${i}]`, `bär fälten ${okandaS.join(", ")} som inte känns igen. En registrering bär ${SKAPARFALT.join(", ")}.`);
+    }
+
+    const sid = rensa(rad.id);
+    if (!sid) throw var_(`skapar[${i}].id`, "krävs. Det är nyckeln fliken ritas med och som svaret pekar tillbaka på.");
+    if (!ID_FORM.test(sid)) throw var_(`skapar[${i}].id "${sid}"`, "får bara innehålla små bokstäver, siffror, bindestreck och understreck.");
+    if (skapar.some((r) => r.id === sid)) throw var_(`skapar[${i}].id "${sid}"`, "står två gånger i samma modul.");
+
+    let snamn;
+    try {
+      snamn = byggNamn(rad.namn);
+    } catch (fel) {
+      throw var_(`skapar[${i}].namn för "${sid}"`, fel instanceof Error ? fel.message.replace(/^byggNamn: /, "") : String(fel));
+    }
+
+    const sikon = rensa(rad.ikon);
+    if (!sikon) throw var_(`skapar[${i}].ikon för "${sid}"`, "krävs. En flik utan ikon blir ett hål i en rad som har ikoner överallt annars.");
+
+    /*
+     * ⛔ `katalog` SKILJER null FRÅN SAKNAD. `undefined` är ett fel, `null` är
+     * ett svar. Se SKAPARFALT om varför.
+     */
+    if (!("katalog" in rad)) {
+      throw var_(`skapar[${i}].katalog för "${sid}"`, "krävs. Skriv katalogens id, eller null när registreringen inte har någon typ att välja.");
+    }
+    let skatalog = null;
+    if (rad.katalog !== null) {
+      skatalog = rensa(rad.katalog);
+      if (!skatalog) throw var_(`skapar[${i}].katalog för "${sid}"`, `måste vara ett katalog-id eller null, inte ${JSON.stringify(rad.katalog)}.`);
+      if (!ID_FORM.test(skatalog)) throw var_(`skapar[${i}].katalog "${skatalog}" för "${sid}"`, "har fel form för ett katalog-id.");
+    }
+
+    /*
+     * ⛔ ATT KATALOGEN FINNS GÅR INTE ATT AVGÖRA HÄR, och det är en avvikelse
+     * från ärendets ord "kastar vid uppstart". Kataloger kommer ur `kallor.kataloger`,
+     * alltså ur en FUNKTION som frågas per grupp, och ingen lista finns förrän
+     * den frågats. Kontrollen bor i `kontrolleraSkaparkataloger` och körs så
+     * tidigt den kan: när gruppens kataloger är lästa. Att låtsas kontrollera
+     * den här hade varit en vakt som utlovar ett skydd den inte har.
+     */
+
+    /*
+     * ⛔ `typeof === "function"` DUGER INTE, OCH DET ÄR ETT MÄTT FYND. Ett
+     * `lazy()`-inslag är ett OBJEKT, inte en funktion, och exempelmodulen
+     * MÅSTE ladda sitt formulär lat: manifestet läses av regelgeneratorn i ett
+     * vanligt Node-skript, och Node kan inte importera JSX. En strängare
+     * kontroll hade alltså gjort det enda rätta sättet att skriva modulen
+     * omöjligt, och felet hade pekat på formuläret i stället för på kontrollen.
+     *
+     * Samma skäl som `routes[].vy` bara kräver att den finns: vad en giltig
+     * React-komponent är kan ramverket inte avgöra utan att kopiera Reacts
+     * egen lista, och den kopian hade ruttnat vid nästa React-version.
+     */
+    if (rad.form === undefined || rad.form === null) {
+      throw var_(`skapar[${i}].form för "${sid}"`, "krävs. Ramverket äger panelen, modulen äger formuläret, och en registrering utan formulär är en flik som öppnar en tom yta.");
+    }
+
+    skapar.push(Object.freeze({ id: sid, namn: snamn, ikon: sikon, katalog: skatalog, form: rad.form }));
+  });
+
+  /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
    */
@@ -296,6 +392,7 @@ export function defineModule(manifest) {
     routes: Object.freeze(routes),
     samlingar: Object.freeze(samlingar),
     kallor: Object.freeze(kallor),
+    skapar: Object.freeze(skapar),
   });
 }
 
@@ -324,6 +421,8 @@ export function validateModuler(manifest) {
   const samlingsAgare = new Map();
   /** @type {Set<string>} */
   const idn = new Set();
+  /** @type {Map<string, string>} */
+  const skaparAgare = new Map();
 
   for (const modul of moduler) {
     if (idn.has(modul.id)) {
@@ -354,6 +453,22 @@ export function validateModuler(manifest) {
         );
       }
       samlingsAgare.set(samling.namn, modul.id);
+    }
+
+    /*
+     * ⛔ SKAPA-ID:N ÄR UNIKA ÖVER HELA LISTAN, inte bara inom en modul. Plusset
+     * ritar en flik per registrering och behöver en stabil nyckel, och två
+     * flikar med samma nyckel gör vilken som visas till en fråga om
+     * registreringsordningen. Samma felform som två moduler på samma route.
+     */
+    for (const reg of modul.skapar) {
+      const agare = skaparAgare.get(reg.id);
+      if (agare) {
+        throw new Error(
+          `validateModuler: modulerna "${agare}" och "${modul.id}" registrerar båda att de skapar "${reg.id}". Plusset ritar en flik per registrering, och två med samma id ger en flik vars innehåll avgörs av registreringsordningen.`,
+        );
+      }
+      skaparAgare.set(reg.id, modul.id);
     }
   }
 
