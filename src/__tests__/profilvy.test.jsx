@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { OpsProfil } from "../components/OpsProfil.jsx";
@@ -97,21 +99,75 @@ describe("OpsAnvandarmeny", () => {
     expect(onLoggaUt).toHaveBeenCalledTimes(1);
   });
 
-  it("profilraden finns bara när appen skickar in onProfil", () => {
-    const { unmount } = render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
-    expect(screen.queryByRole("button", { name: "Profil" })).toBeNull();
-    unmount();
-
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} onProfil={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
-    expect(screen.getByRole("button", { name: "Profil" })).toBeTruthy();
-  });
-
-  it("menyn visar vem man är inloggad som", () => {
+  it("rubriken 'Meny' står överst, utan namn eller e-post bredvid (#157, samma form som SessionStudio)", () => {
     render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
-    expect(screen.getByText("cp@staiger.se")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Meny" })).toBeTruthy();
+    expect(screen.queryByText("cp@staiger.se")).toBeNull();
+  });
+
+  it("egen rubrik går att sätta via prop", () => {
+    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} rubrik="Konto" />);
+    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    expect(screen.getByRole("heading", { name: "Konto" })).toBeTruthy();
+  });
+
+  it("sektionerna är appens rader: bara det som skickas in finns, med ikon och chevron eller extern-länk-ikon", () => {
+    const onNotiser = vi.fn();
+    render(
+      <OpsAnvandarmeny
+        anvandare={ANV}
+        onLoggaUt={() => {}}
+        sektioner={[
+          [{ key: "notiser", etikett: "Notiser", onClick: onNotiser, chevron: true, badge: 3 }],
+          [{ key: "support", etikett: "Support", href: "https://example.se/support" }],
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+
+    // ⛔ Båda raderna läses UT innan någon klickas: ett klick på Notiser stänger
+    // menyn (samma sak som Logga ut redan gör), och den stängda menyn tar bort
+    // Support-raden ur DOM:en innan provet hinner fråga efter den.
+    const supportrad = screen.getByRole("link", { name: "Support" });
+    expect(supportrad.getAttribute("href")).toBe("https://example.se/support");
+    expect(supportrad.getAttribute("target")).toBe("_blank");
+
+    const notisrad = screen.getByRole("button", { name: /Notiser/ });
+    fireEvent.click(notisrad);
+    expect(onNotiser).toHaveBeenCalledTimes(1);
+  });
+
+  it("⛔ en rad utan key eller etikett kastar, i stället för att tyst rita fel", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} sektioner={[[{ key: "a" }]]} />),
+    ).toThrow(/saknar etikett/);
+    spy.mockRestore();
+  });
+});
+
+describe("⛔ versionsraden (#157)", () => {
+  it("visar ramverkets version, och den är RÖD om raden inte stämmer mot package.json", () => {
+    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    // ⛔ Läser package.json på riktigt, inte ett hårdkodat tal i provet: annars
+    // bevisar provet bara att TVÅ handskrivna kopior råkar stämma överens, inte
+    // att komponenten läser SANNINGEN. Se `frameworkVersion.generated.js`.
+    const paket = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"));
+    expect(screen.getByText(`ops-framework v${paket.version}`)).toBeTruthy();
+  });
+
+  it("visar appens version också, när den skickas in, i formen 'app · ops-framework'", () => {
+    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} appVersion="bolag-ops v1.4.2" />);
+    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    expect(screen.getByText(/^bolag-ops v1\.4\.2 · ops-framework v\d+\.\d+\.\d+$/)).toBeTruthy();
+  });
+
+  it("saknas appens version skrivs raden ändå, med ramverkets ensam (tomhet är ett svar)", () => {
+    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    expect(screen.getByText(/^ops-framework v\d+\.\d+\.\d+$/)).toBeTruthy();
   });
 });
 

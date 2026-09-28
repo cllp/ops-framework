@@ -144,6 +144,21 @@ kravRott(
   "skriver över tomhet",
 );
 
+// ⛔ #157, Regel 8: paletten delas med SessionStudio med flit. Två mutationer,
+// en per tema, eftersom ljust och mörkt läses ur olika delar av filen och en
+// vakt som bara provats i det ena hade kunnat läsa fel i det andra utan att
+// någon märkt det.
+kravRott(
+  "tokens 8a: ljus accent glider från SessionStudios palett",
+  [tokenvakt, tokenkopia("r8a", (s) => s.replace("--color-accent: #9a9588;", "--color-accent: #a0a0a0;"))],
+  "SessionStudios palett",
+);
+kravRott(
+  "tokens 8b: mörk accent glider från SessionStudios palett",
+  [tokenvakt, tokenkopia("r8b", (s) => s.replace("--dark-accent: #e8e0d0;", "--dark-accent: #c9a84c;"))],
+  "SessionStudios palett",
+);
+
 // ── Vakten för det stängda API:et ───────────────────────────────────────────
 const apivakt = "scripts/check-closed-api.mjs";
 

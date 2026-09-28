@@ -20,6 +20,9 @@ export { OpsCard } from "./components/OpsCard.jsx";
 export { OpsView, OpsViewHeader } from "./components/OpsView.jsx";
 export { OpsModal } from "./components/OpsModal.jsx";
 export { OpsDisclosure } from "./components/OpsDisclosure.jsx";
+// #157: sektionsrubrik och chip, mätta ur SessionStudios ProfileView.
+export { OpsSectionLabel } from "./components/OpsSectionLabel.jsx";
+export { OpsChip } from "./components/OpsChip.jsx";
 
 // ── Formulär ───────────────────────────────────────────────────────────────
 export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";

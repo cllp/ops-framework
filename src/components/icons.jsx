@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
+import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileText, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -151,4 +151,18 @@ export function ChevronHogerIkon({ size = 16 }) {
 /** Tillbaka till föregående vy i en panel. @param {{ size?: number }} props */
 export function ChevronVansterIkon({ size = 16 }) {
   return <ChevronLeft size={size} aria-hidden="true" />;
+}
+
+/**
+ * Raden lämnar appen. #157: "extern-länk-ikon på rader som lämnar appen."
+ * Mätt i SessionStudios `AppHeader.jsx`: samma `ExternalLink`, på Support-raden.
+ * @param {{ size?: number }} props
+ */
+export function ExternLankIkon({ size = 16 }) {
+  return <ExternalLink size={size} aria-hidden="true" />;
+}
+
+/** Utloggningsraden i användarmenyn (#157). @param {{ size?: number }} props */
+export function LoggaUtIkon({ size = 16 }) {
+  return <LogOut size={size} aria-hidden="true" />;
 }

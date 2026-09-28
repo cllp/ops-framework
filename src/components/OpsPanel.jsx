@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { ChevronHogerIkon, ChevronVansterIkon, KryssIkon } from "./icons.jsx";
+import { ChevronHogerIkon, ChevronVansterIkon, ExternLankIkon, KryssIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 
 /**
@@ -99,10 +99,18 @@ import { OpsCountBadge } from "./counter.jsx";
  * @param {string} [props.badgeText] Vad antalet betyder, för skärmläsare.
  * @param {boolean} [props.chevron] Raden öppnar en undervy.
  * @param {() => void} [props.onClick]
- * @param {string} [props.href] Länk i stället för knapp.
+ * @param {string} [props.href] Länk i stället för knapp. Ritar en extern-länk-ikon
+ *   i stället för en chevron (#157, #158): en `href` lämnar den här panelen för
+ *   en annan adress, en chevron öppnar nästa vy i SAMMA panel. Aldrig båda.
  * @param {boolean} [props.active]
  */
 export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, href, active }) {
+  if (href && chevron) {
+    throw new Error(
+      "OpsPanelRow: \"href\" och \"chevron\" ihop. En rad med href lämnar appen och ritar en extern-länk-ikon; en rad med chevron öppnar en undervy i SAMMA panel. De är olika löften och kan inte båda hållas av en rad.",
+    );
+  }
+
   /* ⛔ SAMMA KLASSER SOM HAMBURGERMENYNS RADER i `OpsAppShell`. Panelen ska inte
      likna menyn ungefär, den ska vara densamma. Glider de isär ser en app ut att
      ha två olika menyer beroende på vad man tryckte på. */
@@ -133,12 +141,17 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
           <ChevronHogerIkon size={16} />
         </span>
       ) : null}
+      {href ? (
+        <span aria-hidden="true" className="flex shrink-0 items-center text-ink-muted">
+          <ExternLankIkon size={14} />
+        </span>
+      ) : null}
     </>
   );
 
   if (href) {
     return (
-      <a href={href} onClick={onClick} aria-current={active ? "page" : undefined} className={klass}>
+      <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} aria-current={active ? "page" : undefined} className={klass}>
         {inre}
       </a>
     );

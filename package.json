@@ -30,8 +30,12 @@
     "*.css"
   ],
   "scripts": {
+    "generate:version": "node scripts/generate-framework-version.mjs",
+    "prebuild": "npm run generate:version",
+    "pretest": "npm run generate:version",
+    "precheck:types": "npm run generate:version",
     "build": "node scripts/build.mjs && npx tsc -p tsconfig.build.json",
-    "prepare": "node scripts/build.mjs && npx tsc -p tsconfig.build.json",
+    "prepare": "node scripts/generate-framework-version.mjs && node scripts/build.mjs && npx tsc -p tsconfig.build.json",
     "check:tokens": "node tokens/check-tokens.mjs tokens/tokens.css",
     "check:closed-api": "node scripts/check-closed-api.mjs src",
     "check:css-build": "node scripts/check-css-build.mjs",

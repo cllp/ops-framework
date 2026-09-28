@@ -197,6 +197,59 @@ if (!media || !attr) {
   }
 }
 
+// ── Regel 8: paletten är SessionStudios, tecken för tecken ──────────────────
+// #157, CP:s tillägg 2026-09-28: "Se hur färgschemat från SessionStudio är i
+// mörkt och ljust läge. Väldigt snyggt. Går det att få till detta." Mätt svar:
+// paletten var redan densamma, delad med flit sedan den skrevs. Den här regeln
+// är taket som håller den delningen sann framåt: värdena nedan är avlästa ur
+// SessionStudios `apps/web/src/index.css` (`:root` för mörkt, den ljusa
+// temablocket för ljust) samma dag som ärendet skrevs, inte gissade. Glider en
+// av de två filerna, blir vakten röd oavsett vilken sida som ändrades.
+const SESSIONSTUDIO_LJUST = {
+  "--color-canvas": "#f8f7f4",
+  "--color-surface": "#ffffff",
+  "--color-sunken": "#f0ede8",
+  "--color-ink": "#1a1a1a",
+  "--color-ink-secondary": "#4a4540",
+  "--color-accent": "#9a9588",
+  "--color-line": "rgba(0, 0, 0, 0.08)",
+};
+const SESSIONSTUDIO_MORKT = {
+  "--dark-canvas": "#121218",
+  "--dark-surface": "#16161c",
+  "--dark-raised": "#1f1f28",
+  "--dark-ink": "#e8e4df",
+  "--dark-ink-muted": "#6a6560",
+  "--dark-accent": "#e8e0d0",
+  "--dark-line": "rgba(255, 255, 255, 0.05)",
+};
+
+if (tema) {
+  const temaVarden = deklarationerI(tema.body);
+  for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_LJUST)) {
+    const faktiskt = temaVarden[namn];
+    if (faktiskt !== forvantat) {
+      brott.push({
+        rule: "8. SessionStudios palett",
+        detail: `${namn} är "${faktiskt ?? "saknas"}" i ${file}, SessionStudio har "${forvantat}". Paletten är delad med flit (#157, se comment 2026-09-28): en glidning syns annars inte förrän någon lägger skärmbilderna sida vid sida.`,
+      });
+    }
+  }
+}
+
+for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_MORKT)) {
+  // ⛔ SISTA deklarationen, inte första: samma `--dark-*`-namn kan i teorin stå
+  // flera gånger, och den som gäller är den en senare rad skrev sist.
+  const traffar = alla.filter((d) => d.namn === namn);
+  const faktiskt = traffar.length > 0 ? traffar[traffar.length - 1].varde : undefined;
+  if (faktiskt !== forvantat) {
+    brott.push({
+      rule: "8. SessionStudios palett",
+      detail: `${namn} är "${faktiskt ?? "saknas"}" i ${file}, SessionStudio har "${forvantat}".`,
+    });
+  }
+}
+
 // ── Regel 4: golv, så vakten inte kan bli grön på tomhet ────────────────────
 // En vakt som blir grön av att ingenting lästes är den vanligaste falska
 // grönheten vi haft. Den ska säga ifrån, inte tiga.
@@ -209,7 +262,7 @@ if (alla.length < GOLV) {
 }
 
 if (brott.length === 0) {
-  console.log(`check-tokens: ${alla.length} tokens, alla sju regler gröna (${file})`);
+  console.log(`check-tokens: ${alla.length} tokens, alla åtta regler gröna (${file})`);
   process.exit(0);
 }
 
