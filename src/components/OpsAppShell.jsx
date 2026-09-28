@@ -1,8 +1,9 @@
-import { Component, useState } from "react";
+import { cloneElement, Component, isValidElement, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
+import { OpsGruppanel, OpsGruppvaxlare } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
 import { ChevronNedIkon, MenuIcon } from "./icons.jsx";
@@ -265,6 +266,31 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  */
 
 /**
+ * `props.grupper`s form (#161). Samma fältnamn som `OpsGruppanel`/
+ * `OpsGruppvaxlare` tar direkt, plus `lista` (skickas som `grupper` till båda)
+ * och `infalld`/`onInfalld` (styr panelen OCH brandets ikon/ordmärke-val, se
+ * `varumarke` i själva komponenten).
+ *
+ * @typedef {object} OpsAppShellGrupper
+ * @property {ReadonlyArray<import("./OpsGruppanel.jsx").GruppanelGrupp>} lista
+ * @property {string} aktiv
+ * @property {(id: string) => void} onValj
+ * @property {() => void} [onSkapa]
+ * @property {boolean} [infalld]
+ * @property {(infalld: boolean) => void} [onInfalld]
+ * @property {string} [sprak]
+ * @property {string} [allaEtikett]
+ * @property {string} [skapaEtikett]
+ * @property {string} [tomText]
+ * @property {string} [kollapsaEtikett]
+ * @property {string} [fallUtEtikett]
+ * @property {Record<string, string>} [rollNamn]
+ * @property {string} [medlemmarEtikett]
+ * @property {string} [flerAvatarerEtikett]
+ * @property {string} [etikett] Skärmläsarnamn på `OpsGruppvaxlare`s ark (smal skärm).
+ */
+
+/**
  * @param {object} props
  * @param {import("react").ReactNode} props.brand Appens namn som sträng, eller en egen `OpsBrand`. Länkar till startsidan.
  * @param {import("../lib/nav.js").NavPost[]} props.nav Toppdestinationer. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg.
@@ -293,6 +319,15 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @param {import("react").ReactNode} [props.menuExtras] Extra rader/kontroller i
  *   Mer-menyn (header-hamburgare och botten-Meny). Typiskt tema och helskärm, så
  *   åtgärdsklustret i headern kan hållas till primära ikoner.
+ * @param {OpsAppShellGrupper} [props.grupper] Grupp-panelen (#161), SessionStudios arbetsytor. Utelämnad: ingen kolumn, ingen
+ *   växlare, skalet oförändrat. `lista` ([`GruppanelGrupp`](./OpsGruppanel.jsx), samma form `OpsGruppanel` tar),
+ *   `aktiv` (`ALLA_GRUPPER` eller ett grupp-id), `onValj` (krävs), `onSkapa` (utelämnad: ingen "Skapa grupp"-knapp),
+ *   `infalld`/`onInfalld` (styr BÅDE panelens läge och brandets ikon/ordmärke-val, se noten vid `varumarke`
+ *   nedan; utelämnade: panelen sköter läget själv och brandet följer bara skärmbredden som förut), `sprak`, samt
+ *   `allaEtikett`/`skapaEtikett`/`tomText`/`rollNamn`/`medlemmarEtikett`/`flerAvatarerEtikett`/`etikett`
+ *   (samma namn och förval som på `OpsGruppanel`/`OpsGruppvaxlare` direkt). Från 1024 px (`lg`) ritas
+ *   `OpsGruppanel` som en vänsterkolumn. Under 1024 px ritas ingen kolumn: i stället en `OpsGruppvaxlare`-knapp i
+ *   headern, som öppnar samma lista i `OpsPanel`s ark/rullgardin (se den komponentens filhuvud för brytpunkten).
  * @param {import("./OpsMeny.jsx").MenyKonfiguration} [props.meny] Appens EGEN meny (#164, andra granskningen):
  *   notiser, aktivitet, appens egna destinationer, utloggning, versionen (`sektioner`, `onLoggaUt` krävt,
  *   `appVersion`, `rubrik` förval "Meny", `loggaUtEtikett` förval "Logga ut"). Ritas i SKALETS EGEN
@@ -331,6 +366,7 @@ export function OpsAppShell({
   badgeText = "nya",
   bottomNavLabel = "Snabbnavigering",
   menuExtras,
+  grupper,
   meny,
   felmottagare,
   felRubrik = "Något gick fel",
@@ -369,7 +405,28 @@ export function OpsAppShell({
   // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
   // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
   // får man PH.ST-märket och namnet, utan att behöva veta att `OpsBrand` finns.
-  const varumarke = typeof brand === "string" ? <OpsBrand title={brand} /> : brand;
+  //
+  // ⛔ #161: BRANDET FÖLJER PANELENS LÄGE, INTE BARA SKÄRMBREDDEN. CP 2026-
+  // 09-28: "Skalet äger alltså både panelens läge och brandens form; koppla
+  // dem i OpsAppShell." Är `grupper` given SKICKAS `tvingaIkon` med, satt till
+  // `grupper.infalld`: infälld panel ger ikonen på VARJE bredd, utfälld ger
+  // ordmärket tillbaka till sitt vanliga smal/bred-beteende (`tvingaIkon`
+  // false). En sträng blir ett nytt `OpsBrand` med propen på raka rör; ett
+  // FÄRDIGT `OpsBrand`-element (appens egen `<OpsBrand .../>`) KLONAS med
+  // `cloneElement`, eftersom skalet inte kan känna till appens övriga props.
+  // ⛔ BARA OM ELEMENTET FAKTISKT ÄR `OpsBrand`. Ett godtyckligt `brand`-nod
+  // (en egen logga, ren text) har ingen `tvingaIkon`-prop att klona in, och en
+  // blind `cloneElement` hade skickat en prop till en komponent som inte
+  // frågat efter den.
+  const varumarke = grupper
+    ? typeof brand === "string"
+      ? <OpsBrand title={brand} tvingaIkon={Boolean(grupper.infalld)} />
+      : isValidElement(brand) && brand.type === OpsBrand
+        ? cloneElement(/** @type {any} */ (brand), { tvingaIkon: Boolean(grupper.infalld) })
+        : brand
+    : typeof brand === "string"
+      ? <OpsBrand title={brand} />
+      : brand;
 
   /** @param {string} href @param {any} e */
   const onActivate = (href, e) => {
@@ -483,7 +540,37 @@ export function OpsAppShell({
   const visaHamburgare = Boolean(meny) || inMenu.length > 0 || Boolean(menuExtras);
 
   return (
-    <div className="min-h-dvh bg-canvas">
+    <div className={cx("min-h-dvh bg-canvas", grupper && "lg:flex")}>
+      {/*
+        ⛔ #161: PANELEN ÄR EN EGEN KOLUMN, UTANFÖR header/main/OpsBottomNav.
+        Den ligger FÖRE dem i DOM-ordningen (naturlig tab-ordning: panelen
+        före innehållet, som SessionStudios egen sidopanel), sticky över hela
+        viewporten (`lg:h-dvh`), och utan egen bredd: se noten i
+        `OpsGruppanel` om varför bredden sitter DÄR och inte här.
+      */}
+      {grupper ? (
+        <div className="hidden shrink-0 lg:sticky lg:top-(--safe-top) lg:block lg:h-dvh">
+          <OpsGruppanel
+            grupper={grupper.lista}
+            aktiv={grupper.aktiv}
+            onValj={grupper.onValj}
+            onSkapa={grupper.onSkapa}
+            infalld={grupper.infalld}
+            onInfalld={grupper.onInfalld}
+            sprak={grupper.sprak}
+            allaEtikett={grupper.allaEtikett}
+            skapaEtikett={grupper.skapaEtikett}
+            tomText={grupper.tomText}
+            kollapsaEtikett={grupper.kollapsaEtikett}
+            fallUtEtikett={grupper.fallUtEtikett}
+            rollNamn={grupper.rollNamn}
+            medlemmarEtikett={grupper.medlemmarEtikett}
+            flerAvatarerEtikett={grupper.flerAvatarerEtikett}
+          />
+        </div>
+      ) : null}
+
+      <div className="min-w-0 flex-1">
       {/* `top-(--safe-top)` och inte `top-0`: utan säker yta hamnar raden under
           statusfältet på en telefon, och det syns bara på riktig hårdvara. */}
       <header className="sticky top-(--safe-top) z-(--z-chrome) border-b border-line bg-surface">
@@ -502,13 +589,38 @@ export function OpsAppShell({
           tre kolumner från md.
         */}
         <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-4 py-2 md:grid-cols-[1fr_auto_1fr]">
-          <a
-            href="/"
-            onClick={(e) => onActivate("/", e)}
-            className="justify-self-start shrink-0 rounded-md px-1 py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            {varumarke}
-          </a>
+          <div className="flex min-w-0 items-center gap-2 justify-self-start">
+            <a
+              href="/"
+              onClick={(e) => onActivate("/", e)}
+              className="shrink-0 rounded-md px-1 py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              {varumarke}
+            </a>
+            {/*
+              ⛔ #161: GRUPPVÄXLAREN, UNDER 1024 PX. Från `lg` tar panelen över
+              (kolumnen ovan), så knappen här döljs där i stället för att ge
+              TVÅ vägar att byta grupp på samma sida. Se `OpsGruppanel`s
+              filhuvud för varför den delar sina rader men inte sin brytpunkt
+              med `OpsPanel`.
+            */}
+            {grupper ? (
+              <div className="min-w-0 lg:hidden">
+                <OpsGruppvaxlare
+                  grupper={grupper.lista}
+                  aktiv={grupper.aktiv}
+                  onValj={grupper.onValj}
+                  onSkapa={grupper.onSkapa}
+                  sprak={grupper.sprak}
+                  allaEtikett={grupper.allaEtikett}
+                  skapaEtikett={grupper.skapaEtikett}
+                  tomText={grupper.tomText}
+                  rollNamn={grupper.rollNamn}
+                  etikett={grupper.etikett}
+                />
+              </div>
+            ) : null}
+          </div>
 
           {/* Bred skärm: länkarna centrerade. Smal: bottenraden nedan. */}
           <nav aria-label={navLabel} className="hidden items-center gap-1 justify-self-center md:flex">
@@ -683,6 +795,7 @@ export function OpsAppShell({
         menuExtras={menuExtras}
         meny={meny}
       />
+      </div>
     </div>
   );
 }

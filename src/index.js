@@ -195,6 +195,7 @@ export { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "./data/gru
 export { OpsGruppvaljare } from "./components/OpsGruppvaljare.jsx";
 export { OpsGruppfilter } from "./components/OpsGruppfilter.jsx";
 export { OpsGruppmarke } from "./components/OpsGruppmarke.jsx";
+export { OpsGruppanel, OpsGruppvaxlare } from "./components/OpsGruppanel.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";

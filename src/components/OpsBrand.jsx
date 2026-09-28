@@ -85,8 +85,14 @@ const MARKEN = {
  *   Förval `"max-w-40"`, rätt mått för en topprad.
  * @param {boolean} [props.endastOrdmarke] Ritar BARA ordmärket, aldrig ikonen, oavsett skärmbredd (`OpsInloggning`,
  *   #164). En helskärmsvy är inte `OpsAppShell`s responsiva topprad: smal/bred-växlingen (punkt 9) hör dit, inte hit.
+ * @param {boolean} [props.tvingaIkon] Ritar BARA ikonen, aldrig ordmärket, oavsett skärmbredd (#161, grupp-panelen).
+ *   Motsatsen till `endastOrdmarke`: när `OpsAppShell`s `grupper`-panel är INFÄLLD ska brandet visa ikonen på VARJE
+ *   bredd, inte bara under `md`. Ömsesidigt uteslutande med `endastOrdmarke`, båda styr samma sak åt varsitt håll.
  */
-export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40", endastOrdmarke = false }) {
+export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40", endastOrdmarke = false, tvingaIkon = false }) {
+  if (endastOrdmarke && tvingaIkon) {
+    throw new Error("OpsBrand: endastOrdmarke och tvingaIkon ihop. De styr samma val åt varsitt håll, och kan inte båda gälla.");
+  }
   if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i, och är undertexten under bilden.");
 
   if (!(mark in MARKEN)) {
@@ -110,8 +116,15 @@ export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordma
   // "smal vy" och rita den lilla ikonen i stället för det avsedda ordmärket.
   const visadIkon = endastOrdmarke ? undefined : appenOverridar ? ikon : (mark === "none" ? undefined : OPS_HUB_VARUMARKE.ikon);
 
-  return visadOrdmarke || visadIkon ? (
-    <OpsBrandBild title={title} ordmarke={visadOrdmarke} ikon={visadIkon} ordmarkeMaxWidth={ordmarkeMaxWidth} />
+  // ⛔ `tvingaIkon`: SAMMA EN-BILDS-LÄGE SOM `OpsBrandBild` REDAN HAR, INTE ETT
+  // NYTT. Utelämnas `ordmarke` helt (i stället för att döljas med CSS) faller
+  // `OpsBrandBild` tillbaka på `ordmarke ?? ikon` och ritar ikonen i sin
+  // FASTA storlek (`h-8 w-auto`), på VARJE bredd, eftersom det då inte finns
+  // någon `md:hidden`/`md:block`-väg kvar att växla mellan.
+  const ordmarkeAttRita = tvingaIkon ? undefined : visadOrdmarke;
+
+  return ordmarkeAttRita || visadIkon ? (
+    <OpsBrandBild title={title} ordmarke={ordmarkeAttRita} ikon={visadIkon} ordmarkeMaxWidth={ordmarkeMaxWidth} />
   ) : (
     <OpsBrandText title={title} subtitle={subtitle} mark={mark} />
   );

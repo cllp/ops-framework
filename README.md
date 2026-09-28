@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**85 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**87 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -1006,6 +1006,98 @@ väg tillbaka till en som fungerar. Appen visar dem, som `KatalogLarm`.
 driva med `fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut
 inget prov kan mäta. Väljaren och filtret är vanliga knappar, och proven trycker
 på dem.
+
+### Grupp-panelen och gruppväxlaren
+
+[#161](https://github.com/cllp/ops-framework/issues/161), CP 2026-09-28, med
+skärmbilder av SessionStudios `AppSidebar.jsx`: "OCH GRUPPVÄLJARE? Var finns
+det?" `OpsGruppvaljare` (ovan) svarar på en annan fråga, menyraden i #139.
+Sidopanelen är en egen, bredare yta.
+
+`OpsAppShell props.grupper` (utelämnad: ingen kolumn, ingen växlare, skalet
+oförändrat):
+
+```js
+<OpsAppShell
+  grupper={{
+    lista: minaGrupperMedRader, // { id, namn, medlemsantal?, roll?, bild?, atgarder?, knappar?, avatarer? }[]
+    aktiv: valtLage(lasAktivGrupp(uid, localStorage), mina),
+    onValj: (id) => { sparaAktivGrupp(uid, localStorage, id); setAktiv(id); },
+    onSkapa: () => setVisaSkapaGruppDialog(true),
+    infalld: panelInfalld,
+    onInfalld: setPanelInfalld,
+  }}
+  ...
+/>
+```
+
+| Bredd | Vad |
+|---|---|
+| **1024 px och uppåt (`lg`)** | `OpsGruppanel`, en vänsterkolumn med "Alla mina grupper" överst, ett kort per grupp, "Skapa grupp" sist. Kollapsbar till en smal remsa med bara märkena |
+| **Under 1024 px** | Ingen kolumn. I stället en `OpsGruppvaxlare`-knapp i headern (märke plus den aktiva gruppens namn), som öppnar SAMMA lista i `OpsPanel`s ark/rullgardin, i en enklare form (namn, medlemsantal, rollpill, ingen åtgärd/knapp/avatarrad) |
+
+**Varje grupp i `lista`** (`GruppanelGrupp`, samma form `OpsGruppanel` och
+`OpsGruppvaxlare` tar direkt): `id`, `namn` (`{ sv, en }`), och sedan
+UTELÄMNBARA fält appen härleder själv, ramverket räknar och känner till
+INGET av dem:
+
+| Fält | Utelämnad ritas | Ur CP:s bild |
+|---|---|---|
+| `medlemsantal` | ingen siffra (aldrig "0" som gissning, arbetsreglernas punkt 5) | personikon plus tal |
+| `roll` (`"agare"`\|`"medlem"`) | ingen rollpill | (inte i bilden, samma fält som `OpsMedlemmar`) |
+| `bild` | initialer/ikon ur `OpsIdentity` | gruppens märke, uppe till vänster |
+| `atgarder` (`{ icon, label, onClick }[]`) | inga knappar | glob (publik sida), info, penna, uppe till höger |
+| `knappar` (`{ icon, label, badge?, onClick }[]`) | ingen rad | biblioteksknappen med räknare, chattknappen |
+| `avatarer` (`{ id, namn, bild? }[]`) | ingen rad | avatarstapeln, max fyra plus "+N" |
+
+⛔ **INGEN NÄSTLAD `<button>`.** Kortet har både ett VAL (märke/namn/
+medlemsantal väljer gruppen) och egna åtgärder (`atgarder`/`knappar`). HTML
+tillåter inte en knapp inuti en annan, och huset bygger aldrig en
+`<div role="button">` som låtsas vara en (se `OpsRadioGroup`s filhuvud).
+Valknappen och åtgärdsknapparna är SYSKON i samma kort, aldrig förälder och
+barn.
+
+⛔ **KOLLAPS ÄGS AV APPEN, PRECIS SOM VALET.** `grupper.infalld`/`onInfalld`
+styr BÅDE panelens läge OCH brandets ikon/ordmärke-val (se nedan). Utan dem
+sköter `OpsGruppanel` kollapset själv (internt `useState`, samma styrd/ostyrd
+mönster som `OpsPanel`s `open`), men brandet följer då bara skärmbredden som
+förut: en fristående `OpsGruppanel` UTANFÖR skalet fungerar alltså fint utan
+dem, det är bara kopplingen till logotypen som kräver den styrda formen.
+
+#### ⛔ Logotypen följer panelens läge, inte bara skärmbredden
+
+CP 2026-09-28: "Var noga med utfällt och infällt läge och vad som händer med
+logotypen... Skalet äger alltså både panelens läge och brandens form; koppla
+dem i OpsAppShell." `OpsBrand` fick därför en ny prop:
+
+| Prop | Gör |
+|---|---|
+| `endastOrdmarke` (#164) | ritar BARA ordmärket, oavsett bredd (`OpsInloggning`, en helskärmsvy) |
+| `tvingaIkon` (#161) | ritar BARA ikonen, oavsett bredd (grupp-panelen, infälld) |
+
+`OpsAppShell` sätter `tvingaIkon={grupper.infalld}` på brandet när `grupper`
+är given: en sträng-`brand` blir ett nytt `OpsBrand` med propen på raka rör,
+ett FÄRDIGT `<OpsBrand .../>`-element KLONAS med `cloneElement`, och ett
+GODTYCKLIGT `brand`-nod (egen logga, ren text) lämnas orört, eftersom det inte
+har en `tvingaIkon`-prop att klona in. Utfälld panel = ordmärket (brandets
+vanliga smal/bred-beteende), infälld = ikonen på VARJE bredd.
+
+⛔ **DE TVÅ ÄR ÖMSESIDIGT UTESLUTANDE.** `OpsBrand` kastar om båda ges: de
+styr samma val åt varsitt håll och kan inte båda gälla.
+
+#### ⛔ Under 1024 px är ett ark, inte alltid ETT ark (#161)
+
+`OpsGruppvaxlare` ÅTERANVÄNDER `OpsPanel`, ramverkets befintliga ark/rullgardin
+(samma yta som appens meny och notiser), i stället för att uppfinna en egen
+brytpunktsmaskin. `OpsPanel` byter yta vid Tailwinds `md` (768 px), INTE vid
+1024. Mellan 768 och 1024 blir växlaren alltså en rullgardin i headern, inte
+en bottensheet, medan panelen ändå är dold (den tänder först vid `lg`).
+
+Det är en MEDVETEN avvikelse och inte en glömd detalj: att duplicera
+`OpsPanel`s brytpunktsmaskin (`matchMedia`, lyssnare, Safari-reserv `addListener`)
+för EN till konsument hade brutit mot arbetsreglernas punkt 2, en sanning per
+faktum. Två sätt att avgöra "är skärmen smal" i samma app glider isär den dag
+bara det ena rättas.
 
 ### Felrapportering
 
