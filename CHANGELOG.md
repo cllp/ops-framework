@@ -17,6 +17,43 @@ Fram till här svarade `members/{uid}` på "vem får använda appen". Det svarar
 på "vems rad är det här", och utan det svaret kan två verksamheter inte dela en
 app. Fem PR:ar samma dag, epiken [#92](https://github.com/cllp/ops-framework/issues/92).
 
+### ⛔ Medlemskapets nyckel är entydig ([#152](https://github.com/cllp/ops-framework/issues/152))
+
+Avgränsaren i `medlemskapsId` går från `_` till `|`, och den är nu **ett värde**
+som både funktionen och regelfragmentet läser: `MEDLEMSKAPSAVGRANSARE`.
+
+⛔ **Med understreck var nyckeln tvetydig.** `ID_FORM` tillåter understreck i
+ett id, alltså var avgränsaren ett lagligt tecken i båda halvorna:
+
+```
+medlemskapsId("a_b", "c")  ->  "a_b_c"
+medlemskapsId("a", "b_c")  ->  "a_b_c"
+```
+
+Två olika medlemskap pekade på samma dokument, och vilken roll som gällde
+avgjordes av vem som skrev sist. Regeln slår upp exakt den nyckeln.
+
+⛔ **Felet var av den tysta sorten.** Ingenting kraschar. En person får fel roll
+i en grupp, eller ser en grupp hen inte är med i, och det syns inte i en logg.
+
+⛔ **Och det ändras nu för att migreringen är TOM.** Noll skarpa medlemskap
+finns. Om en månad hade varje nyckel i databasen behövt skrivas om, plus
+reglerna, i samma andetag.
+
+⛔ **`medlemskapsId` kastar ändå om någon halva innehåller avgränsaren.**
+`ID_FORM` släpper inte igenom `|`, men `userId` är ett Firebase-uid och alltså
+någon annans format: med en custom token är det fritt. Att lita på en annan
+leverantörs format är ett antagande, i en kodrad som avgör behörighet.
+
+⛔ **Tecknet stod förut på tre ställen**, en gång i `grupp.js` och två gånger i
+regelfragmentet. Tre handskrivna kopior av samma faktum, och den dag en av dem
+ändrades hade regeln nekat varje läsning utan att något prov var rött. Ett prov
+mäter nu att regeltexten bär samma tecken som konstanten.
+
+**Har du redan medlemskap i en databas** måste varje `memberships`-dokument
+skrivas om till den nya nyckeln innan reglerna deployas. Inom bolag-ops finns
+inga, så där är det en tom åtgärd.
+
 ### Grupper och medlemskap ([#136](https://github.com/cllp/ops-framework/issues/136))
 
 Fyra samlingar ramverket äger: `users`, `groups`, `memberships`, `invitations`.

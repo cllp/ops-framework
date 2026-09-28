@@ -17,7 +17,7 @@
  *
  * ══ ⛔ ETT UPPSLAG, INGA CLAIMS, INGEN ARRAY ══════════════════════════
  *
- * "Får du läsa raden" är `exists(memberships/{uid}_{radens groupId})` plus
+ * "Får du läsa raden" är `exists(memberships/{uid}|{radens groupId})` plus
  * status aktiv. Ingen `array-contains`, inga JWT-claims, inget OR.
  *
  * En claim hade varit snabbare och är fel av ett mätbart skäl: den ligger i en
@@ -30,6 +30,8 @@
  * De skickas in, precis som för katalogen. Det är den raden som gör att en kund
  * kan bli ett eget projekt utan att datamodellen ändras.
  */
+
+import { MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -83,7 +85,7 @@ export function regelfragment(namn = {}) {
     }
 
     function opsMedlemskapet(gid) {
-      return get(/databases/$(database)/documents/${medlemskap}/$(request.auth.uid + '_' + gid));
+      return get(/databases/$(database)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid));
     }
 
     // ⛔ exists FÖRE get. Ett get på en rad som inte finns är ett fel i regeln,
@@ -92,7 +94,7 @@ export function regelfragment(namn = {}) {
     // omöjligt att skilja åt i en logg.
     function opsHarMedlemskap(gid) {
       return opsInloggad()
-        && exists(/databases/$(database)/documents/${medlemskap}/$(request.auth.uid + '_' + gid));
+        && exists(/databases/$(database)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid));
     }
 
     function opsArMedlem(gid) {

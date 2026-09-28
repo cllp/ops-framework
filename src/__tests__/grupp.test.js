@@ -10,8 +10,10 @@ import {
   byggInbjudan,
   byggMedlemskap,
   medlemskapsId,
+  MEDLEMSKAPSAVGRANSARE,
   MEDLEMSKAPSFALT,
 } from "../lib/grupp.js";
+import { regelfragment } from "../lib/regler.js";
 import { gruppadSamling, regelfragment } from "../lib/regler.js";
 
 /**
@@ -143,8 +145,8 @@ describe("gruppens moduler mot de registrerade", () => {
 
 describe("medlemskapet", () => {
   it("id härleds ur userId och groupId", () => {
-    expect(byggMedlemskap(MEDLEM()).id).toBe("uid-1_bolaget");
-    expect(medlemskapsId("a", "b")).toBe("a_b");
+    expect(byggMedlemskap(MEDLEM()).id).toBe("uid-1|bolaget");
+    expect(medlemskapsId("a", "b")).toBe("a|b");
   });
 
   /*
@@ -154,6 +156,40 @@ describe("medlemskapet", () => {
    * alltså en yta någon kan anropa själv, och då hade den tyst gett "_bolaget"
    * som nyckel. Kontrollen är inte en dubblett: det är provet som saknades.
    */
+  it("⛔ avgränsaren gör nyckeln entydig, och det gjorde understrecket inte (#152)", () => {
+    /*
+     * Med understreck som avgränsare gav "a_b" + "c" och "a" + "b_c" SAMMA
+     * dokument, eftersom ID_FORM tillåter understreck i ett id. Två medlemskap
+     * kollapsade till ett, och vilken roll som gällde avgjordes av vem som
+     * skrev sist. Ingenting kraschade: en person fick fel roll, tyst.
+     */
+    expect(medlemskapsId("a_b", "c")).not.toBe(medlemskapsId("a", "b_c"));
+    expect(medlemskapsId("a-b", "c")).not.toBe(medlemskapsId("a", "b-c"));
+  });
+
+  it("⛔ avgränsaren i någon halva är ett fel, inte en tvetydig nyckel", () => {
+    /*
+     * ID_FORM släpper inte igenom den i ett grupp-id, men userId är ett
+     * Firebase-uid och alltså någon annans format: med en custom token är det
+     * fritt. Att lita på en annan leverantörs format är ett antagande i en rad
+     * som avgör behörighet.
+     */
+    expect(() => medlemskapsId(`a${MEDLEMSKAPSAVGRANSARE}b`, "bolaget")).toThrow(/innehåller avgränsaren/);
+    expect(() => medlemskapsId("uid-1", `a${MEDLEMSKAPSAVGRANSARE}b`)).toThrow(/innehåller avgränsaren/);
+  });
+
+  it("⛔ reglerna och koden använder SAMMA avgränsare, och det är ett värde och inte två", () => {
+    /*
+     * Tecknet stod förut på tre ställen: en gång i grupp.js och två gånger i
+     * regelfragmentet. Tre handskrivna kopior av samma faktum, och den dag en
+     * av dem ändras nekar regeln varje läsning utan att något prov är rött.
+     * Nu importerar regler.js konstanten, och det här provet mäter det.
+     */
+    const text = regelfragment();
+    expect(text).toContain(`request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid`);
+    expect(text).not.toContain("request.auth.uid + '_' + gid");
+  });
+
   it("medlemskapsId kastar på en saknad halva, anropad direkt", () => {
     expect(() => medlemskapsId("", "bolaget")).toThrow(/medlemskapsId: både userId och groupId krävs/);
     expect(() => medlemskapsId("uid-1", "")).toThrow(/medlemskapsId: både userId och groupId krävs/);
@@ -164,7 +200,7 @@ describe("medlemskapet", () => {
   });
 
   it("ett inskickat id som stämmer tas emot", () => {
-    expect(byggMedlemskap({ ...MEDLEM(), id: "uid-1_bolaget" }).id).toBe("uid-1_bolaget");
+    expect(byggMedlemskap({ ...MEDLEM(), id: "uid-1|bolaget" }).id).toBe("uid-1|bolaget");
   });
 
   it("userId krävs", () => {
@@ -178,24 +214,24 @@ describe("medlemskapet", () => {
   });
 
   it("en okänd roll avvisas", () => {
-    expect(() => byggMedlemskap({ ...MEDLEM(), roll: "admin" })).toThrow(/memberships: rollen "admin" för "uid-1_bolaget" finns inte/);
+    expect(() => byggMedlemskap({ ...MEDLEM(), roll: "admin" })).toThrow(/memberships: rollen "admin" för "uid-1\\|bolaget" finns inte/);
     expect(ROLLER).toEqual(["agare", "medlem"]);
   });
 
   it("en okänd typ avvisas", () => {
-    expect(() => byggMedlemskap({ ...MEDLEM(), typ: "robot" })).toThrow(/memberships: typen "robot" för "uid-1_bolaget" finns inte/);
+    expect(() => byggMedlemskap({ ...MEDLEM(), typ: "robot" })).toThrow(/memberships: typen "robot" för "uid-1\\|bolaget" finns inte/);
     expect(MEDLEMSTYPER).toEqual(["person", "agent"]);
   });
 
   it("en okänd status avvisas, och förvalet är aktiv", () => {
-    expect(() => byggMedlemskap({ ...MEDLEM(), status: "kanske" })).toThrow(/memberships: statusen "kanske" för "uid-1_bolaget" finns inte/);
+    expect(() => byggMedlemskap({ ...MEDLEM(), status: "kanske" })).toThrow(/memberships: statusen "kanske" för "uid-1\\|bolaget" finns inte/);
     const { status: _s, ...utan } = MEDLEM();
     expect(byggMedlemskap(utan).status).toBe("aktiv");
     expect(MEDLEMSSTATUS).toEqual(["aktiv", "avslutad"]);
   });
 
   it("okända fält avvisas", () => {
-    expect(() => byggMedlemskap({ ...MEDLEM(), groupIds: ["a"] })).toThrow(/memberships: fälten groupIds för "uid-1_bolaget" känns inte igen/);
+    expect(() => byggMedlemskap({ ...MEDLEM(), groupIds: ["a"] })).toThrow(/memberships: fälten groupIds för "uid-1\\|bolaget" känns inte igen/);
   });
 });
 

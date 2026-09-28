@@ -598,6 +598,23 @@ och vilken som gäller avgörs då av vilken regeln råkar slå upp. Ett härlet
 gör unikheten till en egenskap hos nyckeln i stället för en kontroll någon måste
 komma ihåg. Ett inskickat id som inte stämmer avvisas, det rättas inte.
 
+⛔ **Avgränsaren är `MEDLEMSKAPSAVGRANSARE`, alltså `|`, och den är ETT värde
+som både `medlemskapsId` och regelfragmentet läser.** Den var ett understreck
+till [#152](https://github.com/cllp/ops-framework/issues/152), och `ID_FORM`
+tillåter understreck i ett id. Avgränsaren var alltså ett lagligt tecken i båda
+halvorna, och nyckeln var tvetydig: `"a_b" + "c"` och `"a" + "b_c"` gav båda
+dokumentet `a_b_c`. Två medlemskap kollapsade till ett, och vilken roll som
+gällde avgjordes av vem som skrev sist.
+
+⛔ **Felet var av den tysta sorten.** Ingenting kraschar. En person får fel roll
+i en grupp, eller ser en grupp hen inte är med i, och det syns inte i en logg.
+
+⛔ **`medlemskapsId` kastar ändå om någon halva innehåller avgränsaren.**
+`ID_FORM` släpper inte igenom `|` i ett grupp-id, men `userId` är ett
+Firebase-uid och alltså någon annans format: med en custom token är det fritt.
+Att lita på en annan leverantörs format är ett antagande, i en kodrad som avgör
+behörighet.
+
 #### Vägen in för en ny person
 
 Två steg, båda på serversidan, ur `@staiger/ops-framework/node`:
