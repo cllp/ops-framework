@@ -99,7 +99,12 @@ export { createHttpSource } from "./data/http.js";
 export { createAuth, createGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
 export { OpsProfil } from "./components/OpsProfil.jsx";
 export { OpsInloggning } from "./components/OpsInloggning.jsx";
-export { OpsMeny } from "./components/OpsMeny.jsx";
+// ⛔ #164, ANDRA GRANSKNINGEN: `OpsMeny` EXPORTERAS INTE LÄNGRE. Den hade sin
+// EGEN hamburgare, vid sidan av `OpsAppShell`s. Menyn är nu en av
+// `OpsAppShell`s inbyggda ytor (propen `meny`), ritad i skalets EGEN
+// hamburgare (header-popovern på bred skärm, botten-Meny-arket på smal). Se
+// `OpsAppShell.jsx` och `src/components/OpsMeny.jsx` (nu bara delade
+// innehålls-byggstenar, inget publikt API).
 export { OpsMedlemmar } from "./components/OpsMedlemmar.jsx";
 export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 
