@@ -137,8 +137,13 @@ function AppleIkon() {
 /**
  * @param {object} props
  * @param {import("../auth/auth.jsx").Authentication} props.auth
- * @param {string} [props.rubrik]
- * @param {string} [props.etikett] Under ordmärket, dämpad versal spärrad text (appens EGET namn eller slogan, "Made in Sweden"-platsen).
+ * @param {string} [props.rubrik] Inte undertexten under bilden, den heter `etikett` (se nedan). `rubrik` var
+ *   tidigare med som en av tre fallbacks för undertexten (`etikett || rubrik || "OPS Hub"`), vilket var fel: en app
+ *   som bara satte `title` på `OpsAuthGate` (skärmläsarrubriken, samma värde som `rubrik` här) fick DEN texten under
+ *   loggan i stället för sitt eget namn. #164-rättningen gör undertexten enbart en fråga om `etikett`, aldrig
+ *   `rubrik`. Propen tas fortfarande emot (så `OpsAuthGate` kan skicka den oförändrad), men läses inte här.
+ * @param {string} [props.etikett] Appens namn. Ritas som en dämpad, versal, spärrad undertext under ordmärket
+ *   (SessionStudios "MADE IN SWEDEN"-stil). Saknas den: "OPS Hub", ALDRIG `rubrik`.
  * @param {string} [props.viskning] Under etiketten, en rad ren text.
  * @param {{ label: string, href: string }[]} [props.lankar] Sidfoten. Tom lista: ingen sidfot alls.
  * @param {string} [props.appVersion] Appens version, sista på sidfotsraden (t.ex. "v1.4.2").
@@ -147,10 +152,10 @@ function AppleIkon() {
  * @param {string} [props.fel]
  * @param {() => void} [props.onRensaFel]
  * @param {"phst"|"phst-estd"|"none"} [props.mark] Vidarebefordras till `OpsBrand`. `"none"` stänger av BÅDE
- *   OPS Hub-förvalet och PH.ST-badgen: appen som vill ha ren text (`etikett`/`rubrik`) i stället för en bild sätter denna.
+ *   OPS Hub-förvalet och PH.ST-badgen: appen som vill ha ren text (`etikett`) i stället för en bild sätter denna.
  * @param {{ ljus: string, mork: string }} [props.ordmarke] Vidarebefordras till `OpsBrand`: appens EGEN logga, överrider OPS Hub-förvalet.
  */
-export function OpsInloggning({ auth, rubrik, etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel, mark, ordmarke }) {
+export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel, mark, ordmarke }) {
   if (!auth) throw new Error("OpsInloggning: auth krävs. Utan den vet vyn inte vilka förmågor som finns.");
   const t = COPY[sprak] ?? COPY.sv;
 
@@ -202,7 +207,7 @@ export function OpsInloggning({ auth, rubrik, etikett, viskning, lankar = [], ap
 
       <div className="relative z-10 flex w-full max-w-[360px] flex-col items-stretch gap-2">
         <div className="mb-3 flex flex-col items-center text-center">
-          <OpsBrand title={etikett || rubrik || "OPS Hub"} ordmarkeMaxWidth="max-w-[330px]" endastOrdmarke mark={mark} ordmarke={ordmarke} />
+          <OpsBrand title={etikett || "OPS Hub"} ordmarkeMaxWidth="max-w-[330px]" endastOrdmarke mark={mark} ordmarke={ordmarke} />
           {viskning ? <p className="mt-2 px-1 text-sm leading-snug text-ink-soft">{viskning}</p> : null}
         </div>
 

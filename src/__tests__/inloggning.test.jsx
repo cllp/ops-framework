@@ -32,6 +32,36 @@ describe("OpsInloggning: mark/ordmarke vidarebefordras till OpsBrand", () => {
   });
 });
 
+describe("OpsInloggning: undertexten under bilden är appens namn, aldrig 'Logga in' (#164 arkitektgranskning)", () => {
+  // ⛔ BUGGEN: `title={etikett || rubrik || "OPS Hub"}` gjorde att en app som
+  // bara satte `rubrik` (t.ex. `OpsAuthGate`s `title`, förvalt "Logga in")
+  // fick DEN texten som undertext under loggan, i stället för sitt eget namn.
+  // `OpsAuthGate` skickar ALLTID en `rubrik` (den har ett default-värde), så
+  // en app som glömde `etikett` fick permanent "Logga in" under bilden.
+  // ⛔ KORTETS RUBRIK ÄR ALLTID "Logga in" (hårdkodad `COPY`-text, se
+  // filhuvudet), OAVSETT `rubrik`-propen. `screen.getByText("Logga in")`
+  // hade alltså alltid hittat något, bugfri eller inte: det som avgör är
+  // vad som står i UNDERTEXTEN under bilden, den span:en som är bildens
+  // syskon (`OpsBrandBild` i `OpsBrand.jsx`), inte kortets h2.
+  /** @param {HTMLElement} container */
+  const undertext = (container) => /** @type {HTMLElement} */ (container.querySelector("img")).nextElementSibling;
+
+  it("etikett saknas OCH rubrik satt: undertexten är 'OPS Hub', ALDRIG rubrikens text", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} rubrik="Logga in" />);
+    expect(undertext(container).textContent).toBe("OPS Hub");
+  });
+
+  it("etikett satt: undertexten är etikett, oavsett vad rubrik säger", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} rubrik="Logga in" etikett="Bolag Ops" />);
+    expect(undertext(container).textContent).toBe("Bolag Ops");
+  });
+
+  it("varken etikett eller rubrik: undertexten är 'OPS Hub'", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} />);
+    expect(undertext(container).textContent).toBe("OPS Hub");
+  });
+});
+
 describe("OpsInloggning: bara Google ritar en rad", () => {
   it("en adapter med bara signInWithGoogle ritar EXAKT en leverantörsrad, inget annat", () => {
     const auth = createAuth({ ...enkelAuth(), signInWithGoogle: async () => {} });
