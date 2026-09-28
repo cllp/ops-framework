@@ -1,5 +1,6 @@
 import { OpsPanelRow } from "./OpsPanel.jsx";
-import { LoggaUtIkon } from "./icons.jsx";
+import { ChevronVansterIkon, LoggaUtIkon } from "./icons.jsx";
+import { cx } from "../lib/cx.js";
 import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
 
 /**
@@ -42,8 +43,18 @@ import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
  * @property {import("react").ReactNode} [ikon]
  * @property {() => void} [onClick]
  * @property {string} [href] Lämnar appen. Ritar en extern-länk-ikon i stället för
- *   en chevron. Kan inte kombineras med `chevron`.
- * @property {boolean} [chevron] Raden öppnar en panel eller en annan vy.
+ *   en chevron. Kan inte kombineras med `chevron` eller `undervy`.
+ * @property {boolean} [chevron] Raden öppnar en undervy. ⛔ FÅR INTE STÅ ENSAM
+ *   (#166): en chevron lovar en vy som öppnas, och ritas den utan `undervy` är
+ *   löftet tomt (se filhuvudets "chevronen var ett löfte som inte infriades").
+ *   Sätt `undervy`, inte `chevron`: den senare sätts automatiskt när `undervy` finns.
+ * @property {import("react").ReactNode} [undervy] Raden öppnar en undervy i SAMMA
+ *   panel (#166): huvudet byts till en tillbakapil + radens `etikett` som rubrik,
+ *   och det här innehållet ritas under. Ingen ny Popover/Dialog öppnas. Kan inte
+ *   kombineras med `href`.
+ * @property {import("react").ReactNode} [undervyAction] Ritas i undervyns huvud,
+ *   till höger om rubriken (#166, samma plats som `OpsPanel`s `action`). T.ex.
+ *   filter- och mer-knapparna till en `OpsActivityList`.
  * @property {number} [badge] Olästa eller liknande. Noll och under ritas inte.
  * @property {string} [badgeText] Skärmläsarord efter siffran, t.ex. "nya".
  */
@@ -74,6 +85,23 @@ export function validateMenySektioner(sektioner, vem) {
       }
       if (!rad.etikett) {
         throw new Error(`${vem}: raden "${rad.key}" saknar etikett.`);
+      }
+      // ⛔ #166, SAMMA STIL SOM OpsPanelRows BEFINTLIGA KONTROLL (href+chevron):
+      // en rad med `href` lämnar appen, en rad med `undervy` stannar i SAMMA
+      // panel. Två olika löften, och en rad kan inte hålla båda.
+      if (rad.href && rad.undervy) {
+        throw new Error(
+          `${vem}: raden "${rad.key}" har både "href" och "undervy". En rad med href lämnar appen och ritar en extern-länk-ikon; en rad med undervy öppnar en undervy i SAMMA panel. De är olika löften och kan inte båda hållas av en rad.`,
+        );
+      }
+      // ⛔ "CHEVRONEN VAR ETT LÖFTE SOM INTE INFRIADES" (se OpsAppShell.jsx,
+      // RowEntry). Samma fel kan hända här: en rad som ritar en chevron men
+      // inte öppnar något. `chevron` sätts numera AUTOMATISKT av `undervy`, så
+      // en handskriven `chevron: true` utan `undervy` är alltid ett tomt löfte.
+      if (rad.chevron && !rad.undervy) {
+        throw new Error(
+          `${vem}: raden "${rad.key}" har "chevron" utan "undervy". En chevron som inte öppnar något är ett löfte som bryts vid första trycket. Sätt "undervy" (chevronen ritas automatiskt), skriv inte "chevron" för hand.`,
+        );
       }
     }
   }
@@ -106,11 +134,18 @@ export function kordarePafunktion(onStang) {
 /**
  * Appens rader, i sina sektioner. Delad mellan header-popovern och
  * botten-arket, se filhuvudet.
+ *
+ * ⛔ #166: EN RAD MED `undervy` STÄNGER INTE MENYN. Den byter innehållet i
+ * SAMMA panel (se `visaUndervy`, anropad av skalet), i stället för `kor` som
+ * stänger hela Popover/Dialog innan appens `onClick` körs. Stänger man i
+ * stället för att byta försvinner exakt det #166 ville rätta: en chevron-rad
+ * som öppnar sin egen, lösa yta i stället för att stanna i menyn.
  * @param {object} props
  * @param {MenyRad[][]} props.sektioner
  * @param {(fn?: () => void) => () => void} props.kor
+ * @param {(rad: MenyRad) => void} [props.visaUndervy] Krävs om någon rad har `undervy`.
  */
-export function MenySektioner({ sektioner, kor }) {
+export function MenySektioner({ sektioner, kor, visaUndervy }) {
   return sektioner.map((sektion, i) => (
     // eslint-disable-next-line react/no-array-index-key -- ⛔ Sektioner har ingen egen identitet utöver sin plats: appen skickar en NY array varje render, och ett index som byter plats med sina rader byter plats med flit.
     <div key={i} className="flex flex-col gap-0.5 border-t border-line p-1">
@@ -119,15 +154,72 @@ export function MenySektioner({ sektioner, kor }) {
           key={rad.key}
           icon={rad.ikon}
           label={rad.etikett}
-          chevron={rad.chevron}
+          chevron={rad.undervy ? true : rad.chevron}
           href={rad.href}
           badge={rad.badge}
           badgeText={rad.badgeText}
-          onClick={kor(rad.onClick)}
+          onClick={rad.undervy ? () => visaUndervy?.(rad) : kor(rad.onClick)}
         />
       ))}
     </div>
   ));
+}
+
+/**
+ * Rubrikraden i menyns huvud: tillbakapil (bara i en undervy) + rubrik + en
+ * valfri åtgärd till höger. Delad mellan header-popovern (som redan hade en
+ * likadan rad) och botten-arkets `Dialog.Title`-rad (#166), så de två inte
+ * kan glida isär.
+ *
+ * ⛔ INTE `OpsPanelHeader`: den komponenten har en egen bottenkant
+ * (`border-b`) avsedd för `OpsPanel`s undervyer, medan skalets meny redan har
+ * en egen kant runt hela huvudet (headerns `border-b border-line` respektive
+ * sheetens `border-b`). Två kanter under varandra är en dubblett, inte en
+ * gräns till.
+ *
+ * @param {object} props
+ * @param {import("react").ReactNode} props.rubrik
+ * @param {(() => void)} [props.onBack] Utan den ritas ingen pil, alltså menyns rot.
+ * @param {string} [props.backLabel]
+ * @param {import("react").ReactNode} [props.action]
+ * @param {string} [props.className]
+ */
+export function MenyRubrikRad({ rubrik, onBack, backLabel = "Tillbaka till menyn", action, className }) {
+  return (
+    <div className={cx("flex items-center gap-1", className)}>
+      <MenyTillbakaKnapp onBack={onBack} backLabel={backLabel} />
+      <h2 className="m-0 min-w-0 flex-1 truncate text-base font-semibold text-ink">{rubrik}</h2>
+      {action ? <div className="flex shrink-0 items-center gap-0.5">{action}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Tillbakapilen ensam, utan sin egen rubrik. Exporteras separat för botten-
+ * arket (#166): dess rubrikrad är `Dialog.Title` (Radix kräver EXAKT en per
+ * dialog), och den kan inte ligga inuti `MenyRubrikRad`s egen `<h2>` utan att
+ * skriva en rubrik i en rubrik. Samma knapp, samma klasser, som `MenyRubrikRad`
+ * använder internt.
+ * @param {object} props
+ * @param {(() => void)} [props.onBack] Utan den ritas ingenting (menyns rot).
+ * @param {string} [props.backLabel]
+ */
+export function MenyTillbakaKnapp({ onBack, backLabel = "Tillbaka till menyn" }) {
+  if (!onBack) return null;
+  return (
+    <button
+      type="button"
+      onClick={onBack}
+      aria-label={backLabel}
+      className={cx(
+        "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-sm text-ink-secondary",
+        "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+      )}
+    >
+      <ChevronVansterIkon size={18} />
+    </button>
+  );
 }
 
 /**

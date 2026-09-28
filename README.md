@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**85 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**86 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -235,6 +235,7 @@ något godtyckligt.
 | `OpsPrompt` | `source` (från `createPromptSource`), `label` (krävs), `hint`, `placeholder`, `context`, `sendLabel`, `waitingLabel`, `suggestions` [sträng], `onAnswer`. En fråga in, ett svar ut, renderat som markdown. ⛔ Vet inte vilken leverantör som svarar: modell, nyckel och tak är appens. ⛔ Förra svaret ligger kvar tills ett nytt kommit, även efter ett fel |
 | `OpsActivityButton` | `entries` (nyast först), `kindLabel`, `kindIcon`, `title`, `label`, `lasning` {sedd, lasta, rensatTill}, `onSeen`, `onRead`, `onClear`, `dagar`, `sida`, `storageKey`, `icon`, `empty`, `filter`, `filterLabel`, `open`, `onOpenChange`, `renderTrigger`, `now`. Klockikon med ett märke, listan bakom den, och detaljen numera PÅ PLATS i raden (#158, se `OpsActivityList`). ⛔ Att fälla ut en rad markerar den läst: en egen kryssruta bredvid varje rad är ett andra klick för något man just gjort, och listor med den knappen lär folk att bocka av utan att läsa. ⛔ Antalet står i knappens NAMN och inte bara som en prick. ⛔ TVÅ SÄTT ATT SKÖTA LÄSNINGEN: `lasning` + `onSeen`/`onRead` lägger den där APPEN vill, till exempel i databasen, så den följer med mellan telefon och dator; `storageKey` lägger den i EN webbläsare. Ramverket väljer inte, eftersom bara appen vet om den har en plats. ⛔ `dagar` är fönstret bakåt, `sida` hur många som ritas åt gången, `rensatTill` läsarens egen städning. Olästa rader slipper alla tre. ⛔ #158: `filter` RITAS BAKOM EN FILTERKNAPP i huvudet, inte längre ovanför listan; syns inte förrän man tryckt. `onClear` ("Rensa") flyttade till en trepunktsmeny bredvid filterknappen, av samma skäl. ⛔ `kindIcon(slag)` (#158) är ikonen i radens runda platta, `kindLabel`s syskon; saknas den för ett slag ritas ingen platta på just den raden. ⛔ `open`/`onOpenChange`/`renderTrigger` (#158) styr panelen UTIFRÅN, t.ex. från en rad i skalets meny (`OpsAppShell props.meny`): `renderTrigger={false}` döljer klockan och kräver då `open`+`onOpenChange` (kastar annars), utan styrning fungerar knappen som förut |
 | `OpsActivityList` | `entries`, `kindLabel`, `kindIcon`, `empty`, `lasning`, `onOpen`, `fler`, `onMore`, `now`. Listan utan knapp, för en app som vill ha aktiviteten på en egen sida. Delas i **Idag, Igår, Denna vecka, Äldre** (#158, samma ord som SessionStudio; hette tidigare "I går" och "Senaste veckan"): ett nattligt jobb skriver en rad om dagen, och efter en månad kräver frågan "kördes det i dag" att man läser tidsstämplar i en platt lista. ⛔ Raden är kort med flit: rubrik, detalj och när, plus en metarad (grupp som `OpsIdentity`, aktör, tid). Källan, det exakta klockslaget och hela feltexten står i `OpsActivityDetail`. ⛔ #158: OLÄST ÄR EN PUNKT, INTE PILLEN "Ny", med ordet kvar för skärmläsaren (`sr-only` "Oläst."). ⛔ #158: EN CHEVRON FÄLLER UT `OpsActivityDetail` UNDER RADEN i stället för att byta vy: en notis leder ofta ingenstans (inget GitHub-ärende, ingen händelse), och en pil som lovar en sida man kan GÅ TILL är fel löfte då. ⛔ Antalet står på "Hämta fler": ensamt säger det inte om det är tre rader eller trehundra kvar |
+| `OpsActivityListActions` | `filter`, `filterLabel`, `onClear`, `clearLabel`. Filter- och mer-knapparna ur `OpsActivityButton`s huvud, exporterade separat (#166): en app som öppnar `OpsActivityList` direkt som en `undervy`-rad i skalets meny (i stället för `OpsActivityButton`, som lägger en egen, lös popover) sätter samma knappar själv, som radens `undervyAction`, se `OpsAppShell props.meny` och exemplet nedan |
 | `OpsPanel` | `trigger`, `label`, `title`, `action`, `children` (en funktion som får `nav`), `open`, `onOpenChange`, `align`, `backLabel`. En panel med vyer i en STACK: rot, undervy, detalj. `nav.push({ key, title, action, content })` byter innehåll PÅ PLATS, `nav.pop()` går tillbaka. ⛔ Samma yta som hamburgermenyn och samma Radix-primitiv, eftersom panelen ska VARA menyn och inte likna den. ⛔ En panel och inte en modal: en modal mörklägger sidan, flyttar fokus och döljer bakgrunden för skärmläsare, och att göra det för att visa att ett jobb kört i natt är att avbryta någon för något som inte kräver ett svar. ⛔ Stacken nollställs vid stängning: öppnar man igen vill man se roten, inte den detalj man råkade läsa sist. ⛔ Ingen tillbakapil på roten, eftersom en pil som inte går någonstans är ett löfte som bryts vid första trycket. ⛔ PÅ TELEFON (under md) ligger en lätt dämpning (`bg-scrim`, `--z-scrim`) mellan sidan och panelen, under kromet (bolag-ops #363: sidans kort syntes bredvid och under panelens nederkant och såg ut att höra till den). Det är INTE en modal: ingen fokusfälla, sidan göms inte för skärmläsare, och ett tryck på dämpningen stänger bara panelen. Panelen har egen staplingskontext (`isolate`), ogenomskinlig `bg-raised` och `shadow-lg`. ⛔ #158: ROTEN RITAR INGEN EGEN RUBRIK PÅ SMAL SKÄRM (sheet). Sheetens `Dialog.Title` visar redan `label`, och en `OpsPanelHeader` med SAMMA `title` bredvid den var precis den dubblerade rubriken CP skärmdumpade i `OpsActivityButton`. `action` flyttar då till sheetens egen rad bredvid stängknappen. Bred skärm (rullgardin) är oförändrad, den har ingen annan synlig rubrik. ⛔ #158: PANELEN KUNDE STÄNGA SIG SJÄLV OMEDELBART när den öppnades utifrån (t.ex. en menyrad) medan en ANNAN Radix-yta just stängde och tog fokus med sig: `DismissableLayer` läste fokus som hamnat på `<body>` som "fokus utanför" och stängde panelen 10-15 ms efter att den öppnats. Mätt i en riktig webbläsare (Playwright), aldrig synligt i jsdom. `onOpenAutoFocus` och `onFocusOutside` avstyrs därför på rullgardinens `Popover.Content`; ett riktigt klick utanför (`onPointerDownOutside`) stänger fortfarande som förut |
 | `OpsPanelRow` | `icon`, `label`, `badge`, `badgeText`, `chevron`, `onClick`, `href`, `active`. Menyraden. ⛔ Chevron BARA när raden leder vidare: en pil på en rad som bara växlar något lovar en vy som inte finns. ⛔ Hela raden är målet, inte chevronen: ett 16 px mål i högerkanten är det säkraste sättet att göra en lista som inte går att använda med tummen. ⛔ `badgeText` krävs för att antalet ska betyda något uppläst: en trea utan ord är en trea. ⛔ `href` (#157, #158) ritar en extern-länk-ikon i stället för en chevron och öppnar i ny flik: en `href` lämnar panelen, en chevron öppnar nästa vy i SAMMA panel, och kombineras aldrig (kastar annars). ⛔ TEXTEN ÄR `text-xs` (#164): mätt mot SessionStudios `AppHeader.jsx`, både "Meny"-dropdownens rader och notis-/aktivitetspanelens rader är 12px, aldrig `text-base` (16px), som stod här och var en tredjedel för stor. Aktiv rad byter FÄRG, inte vikt: `font-semibold` fanns inte i förlagans aktiva rad |
 | `OpsPanelHeader` | `title`, `onBack`, `backLabel`, `action`. Huvudet i en undervy. ⛔ Utan `onBack` ritas ingen pil, alltså roten. ⛔ En pil och inte ett kryss: krysset stänger allt, pilen går ett steg |
@@ -248,7 +249,7 @@ något godtyckligt.
 
 | Komponent | Props |
 |---|---|
-| `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label, icon?, badge?, children?}]. ⛔ EN POST MED `children` ÄR EN RIKTIG MENY I TOPPRADEN sedan 2026-09-22, inte en länk med en pil. CP: "Ekonomi är ingen dropdown. Sublänkar saknas." Raden ritade en chevron så fort posten hade barn, men posten var en naken `<a href>`: ett tryck gick till föräldersidan och menyn fanns inte. Barnen ritades bara i MOBILENS Mer-ark, så på en dator gick de bara att nå genom att först besöka föräldersidan. Det är samma regel som kalenderkortets chevron fick, tillämpad på navet: en pil som öppnar ingenting är värre än ingen pil, för den lär den som ser den att pilar i appen inte betyder något. ⛔ ETIKETTEN ÄR LÄNKEN OCH CHEVRONEN ÄR KNAPPEN, alltså två kontroller som gör var sin sak. Första versionen lade föräldern som första RAD i menyn så att sidan skulle gå att nå, och CP såg genast varför det var fel: "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första rad sa Ekonomi, tjugo pixlar isär. ⛔ Att posten inte får vara EN länk som också öppnar står kvar och är ett annat skäl: då är trycket tvetydigt, navigerade jag eller öppnade jag. Här ger platsen svaret. ⛔ `submenuLabel` namnger chevronen ("Visa sidorna under Ekonomi"), för en pil utan ord är en knapp som inte går att höra. ⛔ Raden finns bara från 768 px; chevronens träffyta är ändå 44 px, för en surfplatta är en tumme, `activeHref`, `onNavigate`, `actions`, `anvandare`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `meny`, `menuLabel`, `navLabel`, `maxTopNav`, `maxTopNavSmal`, `children`. ⛔ `primaryAction` blir den runda knappen i bottenraden på telefon. På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en topprad det inte äger. ⛔ `menuExtras` (tema/helskärm m.m.) landar i Mer-menyn, inte i åtgärdsklustret. ⛔ **`meny`** (#164, ANDRA GRANSKNINGEN: EN hamburgare, inte två) `{ sektioner?, onLoggaUt, appVersion?, rubrik?, loggaUtEtikett? }`: appens EGEN meny, ritad i SKALETS EGEN hamburgare (samma knapp som navigeringens överflöd, inte en andra bredvid avataren i `anvandare`-facket). Med `meny` ritas hamburgaren ALLTID, inte bara vid överflöd. Ordningen i panelen: `meny.sektioner` (appens rader, `MenyRad[][]`: `key`, `etikett`, `ikon`, `onClick`, `href`, `chevron`, `badge`, `badgeText`, ritade med `OpsPanelRow`), sedan navigeringens överflödsrader i en egen sektion, sedan `menuExtras`, sedan Logga ut, sist TVÅ dämpade versionsrader (appens `appVersion` och ramverkets, var sin rad, aldrig hopslagna med en punkt). Botten-Meny-arket (`OpsBottomNav`) ritar samma `meny`-innehåll i samma ordning. Utan `meny`: skalet fungerar som förut, bara överflöd och `menuExtras` |
+| `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label, icon?, badge?, children?}]. ⛔ EN POST MED `children` ÄR EN RIKTIG MENY I TOPPRADEN sedan 2026-09-22, inte en länk med en pil. CP: "Ekonomi är ingen dropdown. Sublänkar saknas." Raden ritade en chevron så fort posten hade barn, men posten var en naken `<a href>`: ett tryck gick till föräldersidan och menyn fanns inte. Barnen ritades bara i MOBILENS Mer-ark, så på en dator gick de bara att nå genom att först besöka föräldersidan. Det är samma regel som kalenderkortets chevron fick, tillämpad på navet: en pil som öppnar ingenting är värre än ingen pil, för den lär den som ser den att pilar i appen inte betyder något. ⛔ ETIKETTEN ÄR LÄNKEN OCH CHEVRONEN ÄR KNAPPEN, alltså två kontroller som gör var sin sak. Första versionen lade föräldern som första RAD i menyn så att sidan skulle gå att nå, och CP såg genast varför det var fel: "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första rad sa Ekonomi, tjugo pixlar isär. ⛔ Att posten inte får vara EN länk som också öppnar står kvar och är ett annat skäl: då är trycket tvetydigt, navigerade jag eller öppnade jag. Här ger platsen svaret. ⛔ `submenuLabel` namnger chevronen ("Visa sidorna under Ekonomi"), för en pil utan ord är en knapp som inte går att höra. ⛔ Raden finns bara från 768 px; chevronens träffyta är ändå 44 px, för en surfplatta är en tumme, `activeHref`, `onNavigate`, `actions`, `anvandare`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `meny`, `menuLabel`, `navLabel`, `maxTopNav`, `maxTopNavSmal`, `children`. ⛔ `primaryAction` blir den runda knappen i bottenraden på telefon. På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en topprad det inte äger. ⛔ `menuExtras` (tema/helskärm m.m.) landar i Mer-menyn, inte i åtgärdsklustret. ⛔ **`meny`** (#164, ANDRA GRANSKNINGEN: EN hamburgare, inte två) `{ sektioner?, onLoggaUt, appVersion?, rubrik?, loggaUtEtikett? }`: appens EGEN meny, ritad i SKALETS EGEN hamburgare (samma knapp som navigeringens överflöd, inte en andra bredvid avataren i `anvandare`-facket). Med `meny` ritas hamburgaren ALLTID, inte bara vid överflöd. Ordningen i panelen: `meny.sektioner` (appens rader, `MenyRad[][]`: `key`, `etikett`, `ikon`, `onClick`, `href`, `chevron`, `badge`, `badgeText`, ritade med `OpsPanelRow`), sedan navigeringens överflödsrader i en egen sektion, sedan `menuExtras`, sedan Logga ut, sist TVÅ dämpade versionsrader (appens `appVersion` och ramverkets, var sin rad, aldrig hopslagna med en punkt). Botten-Meny-arket (`OpsBottomNav`) ritar samma `meny`-innehåll i samma ordning. Utan `meny`: skalet fungerar som förut, bara överflöd och `menuExtras`. ⛔ **`skapa`** (#168, plusset som i SessionStudio) `SkapaKonfiguration { handelse?, arende?, registreringar?, lage?, kataloger?, ikonRitare?, sprak?, onKlar? }`, plus `skapaLabel`, `nyHandelseEtikett`, `nyttArendeEtikett`, `skapaTypEtikett`: en plusknapp mellan `actions` och `anvandare` som öppnar en POPOVER med en platt lista, aldrig en yta i sidan. `handelse`/`arende` är RAMVERKETS egna rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler) och ritas FÖRST; modulernas `registreringar` (samma kontrakt som `OpsSkapa`, #150/#153) ritas därefter, med en avdelare mellan de två grupperna. Ett tryck på en rad öppnar en RIKTIG `OpsModal` (stängbar med X/Escape/klick utanför), aldrig en andra vy inuti popovern. Utan `skapa`, eller utan något den kan visa, ritas inget plus alls |
 | `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `moreNav`, `activeHref`, `onNavigate`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. ⛔ Med `primaryAction` ritas en rund knapp MITT i raden och en flik flyttas till menyn: mätt ryms inte fyra flikar plus Meny plus en knapp på 56 px i 390 px. Knappen är en åtgärd och hamnar aldrig i menyn. Renderas av `OpsAppShell` men kan användas fristående |
 | `OpsBrand` | `title` (krävs, appens namn), `subtitle` (textläget), `mark` phst \| phst-estd \| none, `ordmarke`/`ikon` ({ljus, mork} URL:er). ⛔ **#164, CP-beslut 2026-09-28 19:00: FÖRVALET ÄR RAMVERKETS EGET MÄRKE, OPS HUB**, inte text. Utan `ordmarke`/`ikon` ritas `OPS_HUB_VARUMARKE` (`src/lib/varumarke.js`, fyra PNG:er i `varumarke/`, paketets "files"). En app som skickar in EGNA `ordmarke`/`ikon` (allt-eller-inget, se filhuvudet) OVERRIDER förvalet med sin egen bild; `mark="none"` utan bild-props ger ren text som förut (och tar bort PH.ST-badgen). CP 19:10: bilden bär SITT märke (OPS Hub eller appens egen), `title` (appens namn, t.ex. "Bolag Ops") ritas som en dämpad, versal, spärrad undertext UNDER bilden, aldrig i bildens alt-text (som är tom, bilden är dekor) |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
@@ -542,6 +543,39 @@ den inte har, och rättades. Facket bär bara identiteten:
   {children}
 </OpsAppShell>
 ```
+
+⛔ **#166: EN SEKTIONSRAD KAN ÖPPNA EN `undervy`, I SAMMA PANEL.** Mätt mot en
+skärmbild av SessionStudio (CP 2026-09-28, 22:32): tryck på "Aktivitet" byter
+menyns innehåll PÅ PLATS, huvudet blir en tillbakapil + "Aktivitet" som ny
+rubrik, listan ritas där menyn nyss var. En tidigare version av `OpsActivityButton`
+(`renderTrigger={false}` bakom en menyrad) löste inte det: den lämnade en
+osynlig ankarknapp i `actions` och öppnade sin EGEN, lösa popover mitt i
+toppraden, avskuren från menyn. `undervy` löser det rätt, utan `OpsActivityButton`:
+
+```jsx
+meny={{
+  onLoggaUt: loggaUt,
+  sektioner: [
+    [
+      {
+        key: "aktivitet",
+        etikett: "Aktivitet",
+        ikon: <KlockIkon />,
+        badge: olasta,
+        undervy: <OpsActivityList entries={aktivitet} lasning={lasning} onOpen={las} />,
+        undervyAction: <OpsActivityListActions onClear={rensaAktivitet} />,
+      },
+    ],
+  ],
+}}
+```
+
+En rad med `undervy` ritas ALLTID med chevron (sätts automatiskt, skriv aldrig
+`chevron` för hand: det kastar utan `undervy`, se `MenyRad` i `OpsMeny.jsx`).
+`href` och `undervy` kan inte kombineras: en rad lämnar appen eller stannar i
+panelen, aldrig båda. Stängs menyn nollställs undervyn, så nästa öppning visar
+roten. `OpsActivityButton` finns kvar, för en app UTAN `meny`: har skalet en
+meny är `undervy` vägen, inte en andra, egen panel bakom en dold knapp.
 
 ⛔ **BESLUTET OM VAD SOM ÄNDRATS LIGGER I `andringen`, INTE I VYN.** `OpsSelect`
 är en Radix Select, alltså ingen `<select>`, och går inte att driva med
@@ -1214,34 +1248,56 @@ ramverkets ytor. `skapar` är samma kontrakt åt andra hållet: **vad modulen ka
 skapa, och var typen väljs ur.**
 
 ```js
-import { OpsSkapa, skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "@staiger/ops-framework";
+import { OpsAppShell, skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "@staiger/ops-framework";
 
 // Registreringarna för den aktiva gruppens PÅSLAGNA moduler, i registreringsordning.
 const registreringar = skaparFor(moduler, grupp.moduler);
 
-// Typerna en registrering erbjuder, ur gruppens katalog. Arkiverade utesluts.
-const typer = typerAttValja("sorter", kataloger);
-
 // Så tidigt det går: kastar när en registrering pekar på en katalog gruppen inte har.
 kontrolleraSkaparkataloger(registreringar, kataloger.map((k) => k.id));
 
-<OpsSkapa registreringar={registreringar} lage={lage} kataloger={kataloger} onKlar={stang} ikonRitare={ikonRitare} />
+<OpsAppShell
+  // ...
+  skapa={{
+    // Idag/kalendern och Inkorgen är RAMVERKETS egna vyer, inte moduler (#168):
+    // deras "Ny …"-rader ritas FÖRST, före modulernas.
+    handelse: appenAktiverarHandelser ? <NyHandelseForm /> : undefined,
+    arende: appenAktiverarInkorg ? <NyttArendeForm sortAlternativ={SORT} /> : undefined,
+    registreringar,
+    lage,
+    kataloger,
+    ikonRitare,
+    onKlar: (arg) => uppdateraNagot(arg),
+  }}
+/>
 ```
 
-⛔ **#164, KORRIGERING D, CP 2026-09-28: EN PLATT LISTA, INTE FLIKAR.** Mätt
-mot SessionStudios plus-meny: "när plusset trycks visas en platt lista med en
-rad per registrering, ikon plus ord, ingen rubrik, inga flikar." Ett tryck på
-en rad öppnar det som tidigare låg bakom fliken (typval via `OpsSelect` om
-registreringen har flera typer, sedan formuläret), med en "Tillbaka"-länk
-tillbaka till listan. Modulkontraktet är OFÖRÄNDRAT (#150/#153): modulen
-registrerar fortfarande vad den kan skapa, bara FÖRSTA NIVÅN bytte form, från
-`OpsTabs` till rader byggda av samma `OpsPanelRow`-primitiv `OpsMeny` redan
-använder.
+⛔ **#168, CP:S SKÄRMINSPELNING 2026-09-28: EN POPOVER UNDER PLUSSET, EN
+RIKTIG MODAL PER RAD.** 0.27.0 (#164, korrigering D) gjorde plusset till en
+platt lista, men listan LÅG KVAR i samma yta och bytte sitt eget innehåll till
+typval+formulär+en "Tillbaka"-länk. Mätt mot SessionStudio (`ss-skapa-meny.png`)
+är plusset en Radix-POPOVER precis som skalets meny, och ett tryck på en rad
+öppnar en RIKTIG modal med sin egen stängknapp, aldrig en andra vy inuti
+popovern. `OpsSkapa` ritar numera BARA listan (och de två tomlägena); popovern
+och modalen hör hemma i `OpsAppShell props.skapa`, som är den yta som äger
+plusknappen. Modulkontraktet är OFÖRÄNDRAT (#150/#153): modulen registrerar
+fortfarande vad den kan skapa.
 
-⛔ **Ramverket äger panelen, listan och typvalet. Modulen äger formuläret och
-skrivningen.** Formuläret får `{ groupId, typ, onKlar }` inskickat och ingenting
-mer: allt annat vet modulen själv. Skulle ramverket skriva raden måste det känna
-till modulens samling, och då är uppdelningen bara en uppdelning på papperet.
+⛔ **RAMVERKETS EGNA RADER FÖRST, MODULERNAS SEDAN (#168, CP:s rättelse
+23:35).** Idag/kalendern och Inkorgen är inte moduler, de är ramverkets egna
+vyer, och deras "Ny händelse"/"Nytt ärende"-rader hör därför inte till
+`OpsSkapa`s modul-lista. `skapa.handelse`/`skapa.arende` är FÄRDIGA `ReactNode`
+skalet ritar överst i popovern, en tunn avdelare, sedan modulernas rader.
+⛔ Skalet vet inget om deras fält och kan därför INTE stänga modalen åt dem när
+de sparat, bara via modalens egna vägar (X, Escape, klick utanför). En moduls
+formulär får `{ groupId, typ, onKlar }` som förut, och `onKlar` stänger modalen
+åt den.
+
+⛔ **`OpsSkapa` tar `onValj`, inte längre `onKlar` eller `kataloger`.** Ett
+tryck på en rad är ett VAL, inte ett "klart": det är popoverns ägare (skalet)
+som vet vad ett val ska göra. `OpsSkapa` ritar dessutom en tunn avdelare
+MELLAN MODULER (inte mellan varje rad): en modul som registrerar flera rader
+ska inte se ut som flera moduler.
 
 ⛔ **`ikonRitare(namn) => ReactNode`, samma mönster som `OpsKatalogInstallning
 props.ikonRitare`.** `Skaparregistrering.ikon` är ett namn ur appens EGEN
@@ -1249,10 +1305,11 @@ tillåtelselista; ramverket vet inte hur man ritar det. Utan `ikonRitare` ritas
 ingen ikon på raden, bara ordet.
 
 ⛔ **Plusset skapar alltid i den AKTIVA gruppen.** I läget `alla` finns ingen
-grupp att skriva i, och panelen ber om ett val i stället för att gissa. `skapalaget`
-ger tre utfall, inte två: `valjGrupp`, `tomt` och `redo`. "Välj en grupp först"
-och "inget att skapa här" kräver olika handlingar, och samma text för båda lär
-användaren att plusset är trasigt.
+grupp att skriva i. `skapalaget` ger tre utfall: `valjGrupp`, `tomt` och `redo`,
+och modulernas rader ritas bara i popovern när läget är `redo`. Har appen
+`handelse`/`arende` visas plusset ändå: de vet inget om grupplägen, de är
+appens egna, färdiga formulär. Finns varken ramverksrader eller ett `redo`-läge
+ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
 
 ⛔ **Katalogkontrollen kan inte bo i `defineModule`, och det är en avvikelse från
 ärendets ord "kastar vid uppstart".** Kataloger kommer ur `kallor.kataloger`,

@@ -401,7 +401,7 @@ describe("OpsAppShell meny (#164, andra granskningen: en hamburgare, inte två)"
   });
 
   it("sektionerna är appens rader: bara det som skickas in finns, med ikon och chevron eller extern-länk-ikon", async () => {
-    const onNotiser = vi.fn();
+    const onKonto = vi.fn();
     render(
       <OpsAppShell
         brand="Ops"
@@ -410,7 +410,10 @@ describe("OpsAppShell meny (#164, andra granskningen: en hamburgare, inte två)"
         meny={{
           onLoggaUt: () => {},
           sektioner: [
-            [{ key: "notiser", etikett: "Notiser", onClick: onNotiser, chevron: true, badge: 3 }],
+            // ⛔ #166: en rad UTAN chevron/undervy är fortfarande giltig, den
+            // bara stänger menyn och kör sin egen onClick (t.ex. en modal appen
+            // öppnar själv, inte en undervy).
+            [{ key: "konto", etikett: "Konto", onClick: onKonto, badge: 3 }],
             [{ key: "support", etikett: "Support", href: "https://example.se/support" }],
           ],
         }}
@@ -420,17 +423,17 @@ describe("OpsAppShell meny (#164, andra granskningen: en hamburgare, inte två)"
     );
     fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
 
-    // ⛔ Båda raderna läses UT innan någon klickas: ett klick på Notiser stänger
+    // ⛔ Båda raderna läses UT innan någon klickas: ett klick på Konto stänger
     // menyn (samma sak som Logga ut redan gör), och den stängda menyn tar bort
     // Support-raden ur DOM:en innan provet hinner fråga efter den.
     const supportrad = screen.getByRole("link", { name: "Support" });
     expect(supportrad.getAttribute("href")).toBe("https://example.se/support");
     expect(supportrad.getAttribute("target")).toBe("_blank");
 
-    const notisrad = screen.getByRole("button", { name: /Notiser/ });
-    fireEvent.click(notisrad);
+    const kontorad = screen.getByRole("button", { name: /Konto/ });
+    fireEvent.click(kontorad);
     await new Promise((r) => setTimeout(r, 0));
-    expect(onNotiser).toHaveBeenCalledTimes(1);
+    expect(onKonto).toHaveBeenCalledTimes(1);
   });
 
   it("⛔ ORDNINGEN: appens sektioner, sedan navigeringens överflöd, sedan menuExtras, sedan Logga ut", () => {
@@ -494,6 +497,170 @@ describe("OpsAppShell meny (#164, andra granskningen: en hamburgare, inte två)"
       ),
     ).toThrow(/onLoggaUt krävs/);
     spy.mockRestore();
+  });
+});
+
+/**
+ * ⛔ #166: EN RAD MED `undervy` BYTER INNEHÅLLET I SAMMA PANEL. Se ärendets
+ * skärmbildsjämförelse (`ss-jamfor-ss-meny.png` mot `ss-jamfor-ops-aktivitet.png`):
+ * en `OpsActivityButton renderTrigger={false}` lämnade en osynlig ankarknapp i
+ * `actions` och öppnade en LÖS popover där, mitt i toppraden. Proven här mäter
+ * att en `undervy`-rad INTE gör det: ingen ny Popover.Content/Dialog.Content
+ * tillkommer, bara EN panel vars innehåll byts.
+ */
+describe("OpsAppShell meny, undervy (#166: ingen egen, lös popover för en chevron-rad)", () => {
+  /** @param {{ badge?: number }} [opts] */
+  function meny(opts = {}) {
+    return {
+      onLoggaUt: () => {},
+      sektioner: [
+        [
+          {
+            key: "aktivitet",
+            etikett: "Aktivitet",
+            badge: opts.badge,
+            undervy: <p data-testid="aktivitet-innehall">Listan</p>,
+            undervyAction: <button type="button">Filter</button>,
+          },
+        ],
+      ],
+    };
+  }
+
+  it("raden ritas med chevron, och tryck byter panelens innehåll PÅ PLATS: tillbakapil + radens etikett som rubrik", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={meny()}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
+
+    // Roten: en riktig OpsPanelRow-chevron, ingen tillbakapil ännu.
+    expect(screen.getByRole("heading", { name: "Meny" })).toBeTruthy();
+    expect(screen.queryByLabelText("Tillbaka till menyn")).toBeNull();
+    expect(screen.queryByTestId("aktivitet-innehall")).toBeNull();
+
+    // ⛔ MÄT ANTALET ÖPPNA POPOVRAR/DIALOGER INNAN TRYCK, jämför sedan att det
+    // INTE ökar (mät att inget nytt Popover.Content/Dialog.Content skapats).
+    const antalInnan = document.querySelectorAll('[data-radix-popper-content-wrapper], [role="dialog"]').length;
+
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+
+    // Rubriken bytt, tillbakapilen finns, listan syns, allt i SAMMA panel.
+    expect(screen.getByRole("heading", { name: "Aktivitet" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Meny" })).toBeNull();
+    expect(screen.getByLabelText("Tillbaka till menyn")).toBeTruthy();
+    expect(screen.getByTestId("aktivitet-innehall")).toBeTruthy();
+    // ⛔ undervyAction (filterknappen) ligger i huvudet, bredvid rubriken.
+    expect(screen.getByRole("button", { name: "Filter" })).toBeTruthy();
+
+    // ⛔ ANTALET ÄR OFÖRÄNDRAT. Ingen ny popover/dialog tillkom, panelen bytte
+    // bara sitt eget innehåll (#166: fixet på den lösa popovern i #158-varianten).
+    expect(document.querySelectorAll('[data-radix-popper-content-wrapper], [role="dialog"]').length).toBe(antalInnan);
+
+    // Roten, alltså Logga ut-raden och menyns egen rubrik, är borta medan
+    // undervyn visas: den ERSÄTTER resten av menyn, den läggs inte till.
+    expect(screen.queryByRole("button", { name: "Logga ut" })).toBeNull();
+  });
+
+  it("tillbakapilen återställer roten, samma panel", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={meny()}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    expect(screen.getByTestId("aktivitet-innehall")).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("Tillbaka till menyn"));
+
+    expect(screen.getByRole("heading", { name: "Meny" })).toBeTruthy();
+    expect(screen.queryByTestId("aktivitet-innehall")).toBeNull();
+    expect(screen.getByRole("button", { name: "Logga ut" })).toBeTruthy();
+  });
+
+  it("stängs menyn (klick utanför) nollställs undervyn: öppnar man igen visas roten, inte listan", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={meny()}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    const oppna = () => fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
+    oppna();
+    fireEvent.click(screen.getByRole("button", { name: /Aktivitet/ }));
+    expect(screen.getByTestId("aktivitet-innehall")).toBeTruthy();
+
+    // Escape stänger popovern (Radix), precis som ett klick utanför.
+    fireEvent.keyDown(screen.getByTestId("aktivitet-innehall"), { key: "Escape" });
+
+    oppna();
+    expect(screen.getByRole("heading", { name: "Meny" })).toBeTruthy();
+    expect(screen.queryByTestId("aktivitet-innehall")).toBeNull();
+  });
+
+  it("⛔ MUTATIONSSVEP: en rad utan undervy men med chevron:true kastar (löftet skulle annars vara tomt)", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(
+        <OpsAppShell
+          brand="Ops"
+          nav={enkelNav}
+          activeHref="/"
+          meny={{ onLoggaUt: () => {}, sektioner: [[{ key: "a", etikett: "A", chevron: true }]] }}
+        >
+          <p>innehåll</p>
+        </OpsAppShell>,
+      ),
+    ).toThrow(/chevron.*utan.*undervy/);
+    spy.mockRestore();
+  });
+
+  it("⛔ href ihop med undervy kastar: två olika löften, en rad kan inte hålla båda", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(
+        <OpsAppShell
+          brand="Ops"
+          nav={enkelNav}
+          activeHref="/"
+          meny={{
+            onLoggaUt: () => {},
+            sektioner: [[{ key: "a", etikett: "A", href: "/a", undervy: <p>x</p> }]],
+          }}
+        >
+          <p>innehåll</p>
+        </OpsAppShell>,
+      ),
+    ).toThrow(/href.*undervy/);
+    spy.mockRestore();
+  });
+
+  it("botten-arket (smal skärm) gör samma sak: tryck byter arket, tillbaka återställer", () => {
+    // ⛔ jsdom kör ingen CSS, så header-popovern OCH botten-arket ligger båda
+    // i DOM:en samtidigt (samma mönster som provet om ordningen ovan). Botten-
+    // arkets EGEN hamburgare heter "Meny" utan ", fler åtgärder"-suffixet.
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={meny()}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    const alla = screen.getAllByRole("button", { name: /^Meny$/ });
+    // Den sista är botten-arkets knapp (header-triggern heter "Meny, fler åtgärder").
+    fireEvent.click(alla[alla.length - 1]);
+
+    const alla2 = screen.getAllByRole("heading", { name: "Meny" });
+    expect(alla2.length).toBeGreaterThan(0);
+
+    const aktivitetsrader = screen.getAllByRole("button", { name: /Aktivitet/ });
+    fireEvent.click(aktivitetsrader[aktivitetsrader.length - 1]);
+
+    expect(screen.getAllByTestId("aktivitet-innehall").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Tillbaka till menyn").length).toBeGreaterThan(0);
+
+    const tillbaka = screen.getAllByLabelText("Tillbaka till menyn");
+    fireEvent.click(tillbaka[tillbaka.length - 1]);
+    expect(screen.queryAllByTestId("aktivitet-innehall")).toHaveLength(0);
   });
 });
 

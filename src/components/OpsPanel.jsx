@@ -103,8 +103,16 @@ import { OpsCountBadge } from "./counter.jsx";
  *   i stället för en chevron (#157, #158): en `href` lämnar den här panelen för
  *   en annan adress, en chevron öppnar nästa vy i SAMMA panel. Aldrig båda.
  * @param {boolean} [props.active]
+ * @param {boolean} [props.accent] (#168) Plussets rader, inte den vanliga menyns. Mätt ur
+ *   SessionStudios create-meny (`AppHeader.jsx`, "Ny session"-raden): `px-4 py-2.5` (inte
+ *   `px-3`), `gap-3` (inte `gap-2`), `text-sm font-medium` (14px/500, inte `text-xs`/12px),
+ *   ikon och ord i accentfärg (`currentColor` i ikonen ärver `text-accent` från raden, ingen
+ *   egen ikonfärgklass behövs). En vanlig menyrad (Kontakter, Inställningar, Logga ut) ska
+ *   INTE ha den här stilen, det var #164:s typografisvep som satte `text-xs` där, mätt mot
+ *   SAMMA fil: den vanliga "Meny"-dropdownen är `text-xs` och NEUTRAL, plusset är `text-sm`
+ *   och ACCENT. Två olika rader i samma källa, inte samma rad två gånger.
  */
-export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, href, active }) {
+export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onClick, href, active, accent }) {
   if (href && chevron) {
     throw new Error(
       "OpsPanelRow: \"href\" och \"chevron\" ihop. En rad med href lämnar appen och ritar en extern-länk-ikon; en rad med chevron öppnar en undervy i SAMMA panel. De är olika löften och kan inte båda hållas av en rad.",
@@ -127,11 +135,18 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
      "settings"/"contacts" i samma fil) byter bara till accentfärg och en svag
      bakgrund, `font-semibold` finns inte i den klassen. `font-semibold` här
      var alltså ett andra sätt att säga "du är här" utöver färgen, och det sättet
-     finns inte i förlagan. */
+     finns inte i förlagan.
+
+     ⛔ #168, EN ANDRA RAD SOM FICK ÅTGÄRDAS AV SAMMA SKÄL: plussets rader mättes
+     inte alls i #164, de fick bara #164:s "meny"-typografi genom att återanvända
+     samma primitiv. Mätt nu, i SAMMA fil, raden precis under: `px-4 py-2.5`,
+     `gap-3`, ikon `w-4.5 h-4.5` (18 px), `text-sm font-medium`, `text-[var(--color-accent)]`
+     på BÅDE ikonen och ordet, alltid, inte bara vid hover eller aktiv. */
   const klass = cx(
-    "flex min-h-11 w-full items-center gap-2 rounded-sm px-3 text-left text-xs",
+    "flex min-h-11 w-full items-center rounded-sm text-left",
+    accent ? "gap-3 px-4 py-2.5 text-sm font-medium" : "gap-2 px-3 text-xs",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-    active ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+    accent ? "text-accent hover:bg-accent-faint" : active ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
     (onClick || href) && "cursor-pointer",
   );
 

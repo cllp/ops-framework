@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, Bell, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Heart, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Bell, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Heart, Inbox, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -258,4 +258,23 @@ export function NotisIkon({ size = 16 }) {
  */
 export function AktivitetIkon({ size = 16 }) {
   return <Zap size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * "Ny händelse" i plusset (#168). Mätt ur SessionStudios create-meny
+ * (`apps/web/src/components/AppHeader.jsx`, "Ny session"-raden): 18 px
+ * (`w-4.5 h-4.5`), samma ikon Lucide-familjen redan kallar `CalendarPlus`.
+ * @param {{ size?: number }} props
+ */
+export function HandelsePlusIkon({ size = 18 }) {
+  return <CalendarPlus size={size} aria-hidden="true" />;
+}
+
+/**
+ * "Nytt ärende" i plusset (#168). Ramverket har ingen egen "inkorg"-ikon
+ * sedan förut; `Inbox` är samma familj som övriga rader här.
+ * @param {{ size?: number }} props
+ */
+export function ArendePlusIkon({ size = 18 }) {
+  return <Inbox size={size} aria-hidden="true" />;
 }

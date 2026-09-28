@@ -165,11 +165,9 @@ describe("skapalaget", () => {
   });
 });
 
-describe("OpsSkapa", () => {
-  const kataloger = [{ id: "sorter", kategorier: [{ id: "rakning", namn: { sv: "Räkning" }, ordning: 1 }] }];
-
+describe("OpsSkapa (#168: bara listan, popovern och modalen hör till OpsAppShell)", () => {
   it("⛔ läget alla säger välj grupp, inte att det är tomt", () => {
-    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage={ALLA_GRUPPER} kataloger={kataloger} />);
+    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage={ALLA_GRUPPER} />);
     expect(screen.getByText(/Välj en grupp först/)).toBeTruthy();
   });
 
@@ -179,7 +177,8 @@ describe("OpsSkapa", () => {
   });
 
   // ══ #164, korrigering D: platt lista, ikon + ord, ingen rubrik, inga
-  // flikar. Ett tryck öppnar det formuläret som förr låg bakom fliken. ══════
+  // flikar. Ett tryck kallar `onValj` med registreringen (#168: skalet
+  // bestämmer vad som händer sen, listan vet det inte). ══════════════════
   it("⛔ N registreringar ger N RADER med ikon och ord, ingen tablist, ingen rubrik", () => {
     const ikonRitare = (/** @type {string} */ namn) => <svg data-testid={`ikon-${namn}`} />;
     render(
@@ -189,7 +188,6 @@ describe("OpsSkapa", () => {
           { ...REG("kvitto"), modulId: "kvitton" },
         ]}
         lage="bolaget"
-        kataloger={kataloger}
         ikonRitare={ikonRitare}
       />,
     );
@@ -205,59 +203,47 @@ describe("OpsSkapa", () => {
   });
 
   it("utan ikonRitare ritas ingen ikon, bara ordet", () => {
-    render(<OpsSkapa registreringar={[{ ...REG("kvitto"), modulId: "kvitton" }]} lage="bolaget" kataloger={kataloger} />);
+    render(<OpsSkapa registreringar={[{ ...REG("kvitto"), modulId: "kvitton" }]} lage="bolaget" />);
     expect(screen.getByText("kvitto")).toBeTruthy();
   });
 
-  it("⛔ ETT TRYCK PÅ RADEN visar registreringens formulär, inte listan längre", () => {
+  it("⛔ ETT TRYCK PÅ RADEN kallar onValj med HELA registreringen, listan byts inte ut", () => {
+    const onValj = vi.fn();
+    const arende = { ...REG("arende", "sorter"), modulId: "inkorg" };
+    render(
+      <OpsSkapa
+        registreringar={[arende, { ...REG("kvitto"), modulId: "kvitton" }]}
+        lage="bolaget"
+        onValj={onValj}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "arende" }));
+    expect(onValj).toHaveBeenCalledTimes(1);
+    expect(onValj).toHaveBeenCalledWith(arende);
+    // ⛔ #168: LISTAN STANNAR KVAR. Det är popovern (skalet) som stänger sig
+    // själv och öppnar modalen, inte OpsSkapa som byter sitt eget innehåll.
+    expect(screen.getByRole("button", { name: "arende" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "kvitto" })).toBeTruthy();
+  });
+
+  it("⛔ MUTATIONSSVEP: utan onValj kastar ett klick inget fel, det är bara ett handslag ingen tar emot", () => {
+    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage="bolaget" />);
+    expect(() => fireEvent.click(screen.getByRole("button", { name: "arende" }))).not.toThrow();
+  });
+
+  it("⛔ en avdelare mellan TVÅ MODULER, ingen avdelare mellan rader i SAMMA modul", () => {
     render(
       <OpsSkapa
         registreringar={[
           { ...REG("arende", "sorter"), modulId: "inkorg" },
-          { ...REG("kvitto"), modulId: "kvitton" },
+          { ...REG("kvitto"), modulId: "inkorg" },
+          { ...REG("matning"), modulId: "liv" },
         ]}
         lage="bolaget"
-        kataloger={kataloger}
       />,
     );
-    // Formuläret syns INTE förrän man tryckt: annars mäter provet ingenting.
-    expect(screen.queryByText("form arende")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "arende" }));
-    expect(screen.getByText("form arende")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "arende" })).toBeNull();
-  });
-
-  it("⛔ en registrering utan katalog ritar ingen typväljare, en MED katalog gör det", () => {
-    // Ett kvitto har ingen typ. En tom väljare hade sett ut som en katalog
-    // någon glömt fylla.
-    render(<OpsSkapa registreringar={[{ ...REG("kvitto"), modulId: "kvitton" }]} lage="bolaget" kataloger={kataloger} />);
-    fireEvent.click(screen.getByRole("button", { name: "kvitto" }));
-    expect(screen.queryByText("Typ")).toBeNull();
-
-    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage="bolaget" kataloger={kataloger} />);
-    fireEvent.click(screen.getAllByRole("button", { name: "arende" })[0]);
-    expect(screen.getByText("Typ")).toBeTruthy();
-  });
-
-  it("⛔ Tillbaka-länken visar listan igen", () => {
-    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage="bolaget" kataloger={kataloger} />);
-    fireEvent.click(screen.getByRole("button", { name: "arende" }));
-    expect(screen.getByText("form arende")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Tillbaka/ }));
-    expect(screen.getByRole("button", { name: "arende" })).toBeTruthy();
-    expect(screen.queryByText("form arende")).toBeNull();
-  });
-
-  it("⛔ formuläret får gruppen och typen inskickade, och ingenting mer", () => {
-    // Skulle ramverket skicka in appens datalager vore ramverket en app.
-    const Form = vi.fn(() => <p>form</p>);
-    render(
-      <OpsSkapa registreringar={[{ ...REG("arende", "sorter"), form: Form, modulId: "inkorg" }]} lage="bolaget" kataloger={kataloger} />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "arende" }));
-    const props = Form.mock.calls[0][0];
-    expect(props.groupId).toBe("bolaget");
-    expect(props.typ).toBe("rakning");
-    expect(Object.keys(props).sort()).toEqual(["groupId", "onKlar", "typ"]);
+    // ⛔ GOLV: minst en avdelare (arbetsreglernas punkt 4, ett tomt underlag
+    // ger inte grönt av misstag). Exakt en: mellan "inkorg" och "liv".
+    expect(screen.getAllByRole("separator")).toHaveLength(1);
   });
 });
