@@ -301,7 +301,7 @@ export function skapaKallregister(moduler) {
    * ⛔ FRYST. Ett register som går att utöka efter uppstart är ett register
    * valideringen inte längre uttalar sig om, samma skäl som manifestet.
    */
-  return Object.freeze(/** @type {Record<string, (fraga: any) => Promise<Record<string, any>[]>> & { modulerFor: (namnet: string) => string[] }} */ ({
+  return Object.freeze(/** @type {Record<string, (fraga: any) => Promise<Record<string, any>[]>> & { modulerFor: (namnet: string) => string[], modulNamn: (modulId: string) => import("./sprak.js").Namn | null }} */ ({
     ...register,
     /**
      * Modulerna som fyller en yta. ⛔ Finns för att en tom yta ska kunna säga
@@ -310,6 +310,26 @@ export function skapaKallregister(moduler) {
      */
     modulerFor(namnet) {
       return moduler.filter((m) => typeof m.kallor[namnet] === "function").map((m) => m.id);
+    },
+    /**
+     * Modulens visningsnamn, ur samma manifest raderna stämplas med (#164).
+     *
+     * ⛔ FINNS FÖR ATT EN RAD BARA BÄR `modulId`, INTE MODULENS NAMN. Registret
+     * stämplar `modulId` på varje rad i `yta()` ovan, av samma skäl som gör att
+     * en modul inte kan sätta det själv: det är registrets påstående, inte
+     * modulens. En yta som vill visa VEM som lämnat en rad, som
+     * `OpsModulKataloger`:s "Används i" (#164), behöver därför fråga registret
+     * i stället för att gissa på id:t.
+     *
+     * `null` och inte id:t som fallback: en yta som inte hittar namnet ska
+     * kunna skilja "modulen finns inte längre" från "modulen heter bokstavligen
+     * sitt id", och gissa aldrig en text åt appen. Det är appens/ytans sak att
+     * bestämma vad ett uteblivet namn visas som.
+     *
+     * @param {string} modulId
+     */
+    modulNamn(modulId) {
+      return moduler.find((m) => m.id === modulId)?.namn ?? null;
     },
   }));
 }

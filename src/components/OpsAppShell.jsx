@@ -8,6 +8,7 @@ import { Counter } from "./counter.jsx";
 import { ChevronNedIkon, MenuIcon } from "./icons.jsx";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
+import { kordarePafunktion, MenyFooter, MenySektioner, validateMenySektioner } from "./OpsMeny.jsx";
 
 /**
  * Felgränsen: alltid på, och en app kan inte stänga av den (#159).
@@ -270,7 +271,13 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @param {string} props.activeHref Vilken sida som visas nu.
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
- * @param {import("react").ReactNode} [props.anvandare] Användarmenyn. ⛔ EGET FACK OCH INTE EN `action` (#138): klarkriteriet säger "samma plats i varje app", och en fri slot hamnar till vänster i en app och i en hamburgare i nästa. Ligger sist i klustret, efter `actions` och före hamburgaren, alltid. Typiskt en `OpsAnvandarmeny`.
+ * @param {import("react").ReactNode} [props.anvandare] Identiteten, ENSAM: `<OpsIconLink icon={<OpsIdentity .../>} label="Min profil" href={profilHref} />`,
+ *   direktlänken till profilen. ⛔ EGET FACK OCH INTE EN `action` (#138): klarkriteriet säger "samma plats i varje app", och en fri slot hamnar till
+ *   vänster i en app och i en hamburgare i nästa. Ligger sist i klustret, efter `actions` och före hamburgaren, alltid.
+ *   ⛔ #164, ANDRA GRANSKNINGEN: MENYN LIGGER INTE HÄR LÄNGRE. SessionStudios
+ *   avatar har ingen meny, den är en direktlänk till profilen, och menyn är
+ *   skalets EGEN hamburgare (se `meny`-propen nedan), inte en andra Popover
+ *   bredvid avataren i det här facket. Se README §Skalet för exemplet.
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR i appen, inte går till. Blir en rund knapp mitt i bottenraden på telefon. ⛔ På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en toppradslayout det inte äger.
  * @param {string} [props.menuLabel] Text på Meny-platsen i bottenraden.
  * @param {string} [props.navLabel] Skärmläsarnamn på toppradens navigering.
@@ -286,6 +293,16 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @param {import("react").ReactNode} [props.menuExtras] Extra rader/kontroller i
  *   Mer-menyn (header-hamburgare och botten-Meny). Typiskt tema och helskärm, så
  *   åtgärdsklustret i headern kan hållas till primära ikoner.
+ * @param {import("./OpsMeny.jsx").MenyKonfiguration} [props.meny] Appens EGEN meny (#164, andra granskningen):
+ *   notiser, aktivitet, appens egna destinationer, utloggning, versionen (`sektioner`, `onLoggaUt` krävt,
+ *   `appVersion`, `rubrik` förval "Meny", `loggaUtEtikett` förval "Logga ut"). Ritas i SKALETS EGEN
+ *   hamburgare, samma knapp som navigeringens överflöd, inte en andra hamburgare bredvid avataren.
+ *   Given: hamburgaren ritas ALLTID (inte bara vid överflöd), och innehållet kommer i den här
+ *   ordningen: `meny.sektioner` (appens rader, typiskt [Notiser, Aktivitet] först), sedan
+ *   navigeringens överflödsrader i en egen sektion, sedan `menuExtras`, sedan Logga ut, sist två
+ *   versionsrader (appens, ramverkets). Utan `meny` fungerar skalet som förut: bara överflöd och
+ *   `menuExtras`, ingen hamburgare om inget av dem finns. Botten-Mer-arket ritar samma innehåll,
+ *   se `OpsBottomNav`.
  * @param {import("../lib/felrapport.js").Felmottagare} [props.felmottagare] (#159) Kallas från felgränsen när en vy
  *   kastar. Utan den skrivs felet ändå till konsolen, se `rapporteraFel`: felgränsen går inte att stänga av.
  * @param {string} [props.felRubrik] Rubriken på felytan.
@@ -314,6 +331,7 @@ export function OpsAppShell({
   badgeText = "nya",
   bottomNavLabel = "Snabbnavigering",
   menuExtras,
+  meny,
   felmottagare,
   felRubrik = "Något gick fel",
   felBeskrivning = "Sidan gick sönder. Ladda om för att försöka igen.",
@@ -329,11 +347,24 @@ export function OpsAppShell({
       `OpsAppShell: maxTopNavSmal (${maxTopNavSmal}) kan inte vara större än maxTopNav (${maxTopNav}). Den smala skärmen visar aldrig fler än den breda.`,
     );
   }
+  // ⛔ SAMMA VALIDERING SOM DEN GAMLA `OpsMeny` HADE, FLYTTAD HIT (#164, andra
+  // granskningen). Menyn är nu en av skalets egna ytor, så dess krav på
+  // `onLoggaUt` och på att varje rad har `key`+`etikett` hör hemma här, inte
+  // i en separat komponent en app kunde glömma att validera mot.
+  if (meny) {
+    if (typeof meny.onLoggaUt !== "function") {
+      throw new Error("OpsAppShell: meny.onLoggaUt krävs (en funktion) när \"meny\" skickas in. Utan den kan ingen logga ut från menyn.");
+    }
+    validateMenySektioner(meny.sektioner ?? [], "OpsAppShell: meny.sektioner");
+  }
   // Standardvärdet HÄRLEDS och står inte i signaturen. En app som säger
   // `maxTopNav={2}` har sagt allt som behövs, och ska inte behöva känna till
   // ett andra tal för att slippa ett undantag.
   const smaltTak = maxTopNavSmal ?? Math.min(3, maxTopNav);
   const [merOppen, setMerOppen] = useState(false);
+  // ⛔ Samma "stäng innan appens onClick körs"-mekanik som gamla `OpsMeny` hade,
+  // nu delad med `OpsBottomNav` via `kordarePafunktion`. Se dess filhuvud.
+  const kor = kordarePafunktion(() => setMerOppen(false));
 
   // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
   // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
@@ -445,6 +476,12 @@ export function OpsAppShell({
   const merLage =
     aktivIndex >= maxTopNav ? "pa" : aktivIndex >= smaltTak ? "pa-under-lg" : "av";
 
+  // ⛔ MED `meny` RITAS HAMBURGAREN ALLTID (#164, andra granskningen), inte
+  // bara vid överflöd: menyn (notiser, aktivitet, Logga ut, versionen) finns
+  // oavsett om navigeringen råkar rymmas. Utan `meny` är villkoret oförändrat:
+  // bara nav-överflöd eller menuExtras tvingar fram knappen.
+  const visaHamburgare = Boolean(meny) || inMenu.length > 0 || Boolean(menuExtras);
+
   return (
     <div className="min-h-dvh bg-canvas">
       {/* `top-(--safe-top)` och inte `top-0`: utan säker yta hamnar raden under
@@ -509,9 +546,9 @@ export function OpsAppShell({
                 yta och hör ihop med appens åtgärder; hamburgaren är resten av
                 navigeringen och ligger ytterst. Se noten vid propen. */}
             {anvandare}
-            {/* ⛔ Hamburgaren syns också när nav ryms men menuExtras finns —
-                annars blir tema/helskärm oåtkomliga på md+. */}
-            {inMenu.length || menuExtras ? (
+            {/* ⛔ Hamburgaren syns också när nav ryms men menuExtras eller
+                meny finns, annars blir tema/helskärm/menyn oåtkomliga på md+. */}
+            {visaHamburgare ? (
               <Popover.Root open={merOppen} onOpenChange={setMerOppen}>
                 <Popover.Trigger
                   className={cx(
@@ -528,8 +565,9 @@ export function OpsAppShell({
                     merLage === "pa-under-lg" && "text-ink lg:text-ink-secondary",
                     merLage === "av" && "text-ink-secondary",
                     // Ryms allt i raden vid `lg` finns ingen meny att öppna där —
-                    // utom när menuExtras tvingar fram den.
-                    nav.length <= maxTopNav && !menuExtras && "lg:hidden",
+                    // utom när menuExtras eller meny tvingar fram den (menyn
+                    // finns oavsett om navigeringen råkar rymmas).
+                    nav.length <= maxTopNav && !menuExtras && !meny && "lg:hidden",
                   )}
                   // ⛔ Ingen siffra i namnet. Antalet bakom knappen beror på
                   // skärmbredden, och ett tal som bara stämmer ibland är värre
@@ -546,46 +584,72 @@ export function OpsAppShell({
                   <Popover.Content
                     align="end"
                     sideOffset={4}
-                    className="z-(--z-dropdown) min-w-52 rounded-md border border-line bg-raised p-1 shadow-md"
+                    className={cx(
+                      "z-(--z-dropdown) min-w-52 max-w-[calc(100vw-1.5rem)] rounded-md border border-line bg-raised shadow-md",
+                      // ⛔ Utan `meny` behåller poppovern sin gamla enkla form:
+                      // ett enda `p-1` runt bara nav+extras (ingen rubrik, inga
+                      // sektioner, ingen Logga ut). MED `meny` sköter varje
+                      // block sin egen kant (rubrik, `MenySektioner`, nav,
+                      // `menuExtras`, `MenyFooter`), som gamla `OpsMeny` gjorde.
+                      meny ? "overflow-hidden" : "p-1",
+                    )}
                   >
-                    {/* ⛔ Egen nav med eget namn. Menyn är en lista destinationer,
-                        alltså navigering, och utan namn blir den en tredje
-                        anonym `<nav>` i dokumentet. */}
-                    <nav aria-label={moreLabel} className="flex flex-col">
-                      {inMenu.map((s, i) => (
-                        <a
-                          key={s.href}
-                          href={s.href}
-                          onClick={(e) => {
-                            setMerOppen(false);
-                            onActivate(s.href, e);
-                          }}
-                          aria-current={entryActive(s, activeHref) ? "page" : undefined}
-                          className={cx(
-                            "flex min-h-11 items-center gap-2 rounded-sm px-3 text-base",
-                            // Ligger i raden vid `lg`, alltså inte också här.
-                            smaltTak + i < maxTopNav && "lg:hidden",
-                            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                            entryActive(s, activeHref) ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-                          )}
-                        >
-                          {s.icon ? (
-                            <span aria-hidden="true" className="shrink-0">
-                              {s.icon}
-                            </span>
+                    {/* ⛔ RUBRIKEN STÅR EN GÅNG, ÖVERST, SAMMA FORM SOM GAMLA
+                        `OpsMeny` (mätt i SessionStudio: ett `<h2>` med "Meny",
+                        inget namn eller e-post bredvid). Bara med `meny`: utan
+                        den är detta fortfarande den rena överflödsmenyn, som
+                        aldrig hade en rubrik. */}
+                    {meny ? (
+                      <div className="px-3 pt-3 pb-1">
+                        <h2 className="m-0 text-base font-semibold text-ink">{meny.rubrik ?? "Meny"}</h2>
+                      </div>
+                    ) : null}
+                    {meny ? <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} /> : null}
+                    {inMenu.length || menuExtras ? (
+                      <div className={cx(meny ? "border-t border-line p-1" : null)}>
+                        {/* ⛔ Egen nav med eget namn. Menyn är en lista destinationer,
+                            alltså navigering, och utan namn blir den en tredje
+                            anonym `<nav>` i dokumentet. */}
+                        <nav aria-label={moreLabel} className="flex flex-col">
+                          {inMenu.map((s, i) => (
+                            <a
+                              key={s.href}
+                              href={s.href}
+                              onClick={(e) => {
+                                setMerOppen(false);
+                                onActivate(s.href, e);
+                              }}
+                              aria-current={entryActive(s, activeHref) ? "page" : undefined}
+                              className={cx(
+                                "flex min-h-11 items-center gap-2 rounded-sm px-3 text-base",
+                                // Ligger i raden vid `lg`, alltså inte också här.
+                                smaltTak + i < maxTopNav && "lg:hidden",
+                                "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                                entryActive(s, activeHref) ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
+                              )}
+                            >
+                              {s.icon ? (
+                                <span aria-hidden="true" className="shrink-0">
+                                  {s.icon}
+                                </span>
+                              ) : null}
+                              {s.label}
+                            </a>
+                          ))}
+                          {menuExtras ? (
+                            <>
+                              {inMenu.length ? (
+                                <div role="separator" className="my-1 border-t border-line" />
+                              ) : null}
+                              <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
+                            </>
                           ) : null}
-                          {s.label}
-                        </a>
-                      ))}
-                      {menuExtras ? (
-                        <>
-                          {inMenu.length ? (
-                            <div role="separator" className="my-1 border-t border-line" />
-                          ) : null}
-                          <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
-                        </>
-                      ) : null}
-                    </nav>
+                        </nav>
+                      </div>
+                    ) : null}
+                    {meny ? (
+                      <MenyFooter onLoggaUt={meny.onLoggaUt} loggaUtEtikett={meny.loggaUtEtikett} appVersion={meny.appVersion} kor={kor} />
+                    ) : null}
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
@@ -617,6 +681,7 @@ export function OpsAppShell({
         navLabel={bottomNavLabel}
         badgeText={badgeText}
         menuExtras={menuExtras}
+        meny={meny}
       />
     </div>
   );

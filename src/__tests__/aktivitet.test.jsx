@@ -816,7 +816,7 @@ describe("⛔ #158: filtren syns inte förrän filterknappen tryckts", () => {
   });
 });
 
-describe("⛔ #158: panelen går att öppna utifrån, t.ex. från en rad i OpsAnvandarmeny", () => {
+describe("⛔ #158: panelen går att öppna utifrån, t.ex. från en rad i OpsMeny", () => {
   const rader = [{ id: "a", nar: "2026-09-24T12:00:00.000Z", slag: "import", rubrik: "Nyast", resultat: "ok" }];
 
   it("open+onOpenChange styr panelen, och den dolda triggern är inte nåbar", () => {

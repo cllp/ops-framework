@@ -250,6 +250,68 @@ for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_MORKT)) {
   }
 }
 
+// ── Regel 9: rundningsskalan är SessionStudios, tal för tal ─────────────────
+// ops-framework#164, CP lade bolag-ops (kör ramverket) bredvid SessionStudio
+// och sade att allt ser bulligare ut och att rundningarna skiljer sig. Mätt i
+// SessionStudios `apps/web/src/index.css`, `.rounded-app`, samma dag ärendet
+// skrevs: sm 8px, md 10px, lg 16px, xl 20px, card 24px (`--radius-card`,
+// dit `rounded-2xl` mappas). Talen är inte gissade, de är avlästa. Precis som
+// Regel 8 ovan: glider en av de två filerna, blir vakten röd oavsett vilken
+// sida som ändrades, för annars syns glidningen inte förrän någon lägger
+// skärmdumparna sida vid sida, vilket är hela skälet CP hörde av sig.
+const SESSIONSTUDIO_RUNDNING = {
+  "--radius-sm": "8px",
+  "--radius-md": "10px",
+  "--radius-lg": "16px",
+  "--radius-xl": "20px",
+  "--radius-card": "24px",
+};
+
+for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_RUNDNING)) {
+  const traffar = alla.filter((d) => d.namn === namn);
+  const faktiskt = traffar.length > 0 ? traffar[traffar.length - 1].varde : undefined;
+  if (faktiskt !== forvantat) {
+    brott.push({
+      rule: "9. SessionStudios rundningsskala",
+      detail: `${namn} är "${faktiskt ?? "saknas"}" i ${file}, SessionStudio (.rounded-app) har "${forvantat}" (#164).`,
+    });
+  }
+}
+
+// ── Regel 10: ett radie-literal som matchar ett token är ett andra original ─
+// ops-framework#164 (arkitekturgranskningen): fyra `border-radius: 9999px`
+// stod handskrivna i `.ops-reglage`-pseudoelementen, trots att `--radius-full`
+// redan var 999px, exakt samma tal i sak. Ett literal utanför `@theme static`
+// som råkar träffa ett redan deklarerat tokenvärde är Regel 2 i sin renaste
+// form ("en sanning per faktum"): ändras skalan i `@theme static` glider
+// literalet isär utan att något blir rött, för det är inte en referens.
+//
+// ⛔ Läser bara UTANFÖR `@theme static`-blocket, tokendeklarationerna SJÄLVA
+// får förstås sätta sina egna pixeltal. Läser bara `border-radius`, inte
+// `border-top-left-radius` med flera: den formen används inte i den här
+// filen, och att gissa dess mönster hade varit att bygga en regel mot ett
+// fynd som inte finns.
+if (tema) {
+  const temaVarden = deklarationerI(tema.body);
+  const RADIE_VARDEN = new Set();
+  for (const [namn, varde] of Object.entries(temaVarden)) {
+    if (namn.startsWith("--radius-")) RADIE_VARDEN.add(varde);
+  }
+  // Blockets kropp börjar direkt efter öppningsparentesen och slutar där den
+  // egna stängningsparentesen står, `tema.start` pekar på "@theme".
+  const temaSlut = tema.start + "@theme static {".length + tema.body.length + 1;
+  for (const m of css.matchAll(/border-radius\s*:\s*([^;]+);/g)) {
+    if (m.index >= tema.start && m.index < temaSlut) continue; // tokendeklarationen själv
+    const varde = m[1].trim();
+    if (RADIE_VARDEN.has(varde)) {
+      brott.push({
+        rule: "10. radie-literal dubblerar ett token",
+        detail: `"border-radius: ${varde}" i ${file} (rad ${radAv(m.index)}) skriver samma tal som ett token i @theme static gör. Använd var(--radius-*) i stället, annars glider de isär när skalan ändras (#164).`,
+      });
+    }
+  }
+}
+
 // ── Regel 4: golv, så vakten inte kan bli grön på tomhet ────────────────────
 // En vakt som blir grön av att ingenting lästes är den vanligaste falska
 // grönheten vi haft. Den ska säga ifrån, inte tiga.
@@ -262,7 +324,7 @@ if (alla.length < GOLV) {
 }
 
 if (brott.length === 0) {
-  console.log(`check-tokens: ${alla.length} tokens, alla åtta regler gröna (${file})`);
+  console.log(`check-tokens: ${alla.length} tokens, alla tio regler gröna (${file})`);
   process.exit(0);
 }
 

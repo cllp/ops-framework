@@ -39,11 +39,17 @@ const STORLEKAR = {
 /**
  * @param {object} props
  * @param {string} props.name Visningsnamn. Används för initialer och som alternativtext.
- * @param {string} props.seed Stabilt id som bestämmer tonen. Aldrig namnet.
+ * @param {string} props.seed Stabilt id som bestämmer tonen NÄR `tone` inte skickas in. Aldrig namnet.
  * @param {string} [props.imageUrl]
  * @param {"sm"|"md"|"lg"} [props.size]
+ * @param {import("react").ComponentType<{size?: number}>} [props.icon] En egen ikon i stället för initialer,
+ *   ritad bara när `imageUrl` saknas (#164, korrigering C: "standardikon plus färg kräver ingen Storage").
+ *   Ramverket känner inte till vilka ikoner som finns, appen skickar in komponenten (se `src/lib/profilikoner.js`
+ *   för profilvyns karta).
+ * @param {1|2|3|4|5|6} [props.tone] Åsidosätter tonen `identityTone(seed)` annars härleder. Ett UTTRYCKLIGT val,
+ *   t.ex. personens sparade `farg` (#164), väger tyngre än det härledda.
  */
-export function OpsIdentity({ name, seed, imageUrl, size = "md" }) {
+export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone }) {
   const storlekKlass = STORLEKAR[size];
   if (!storlekKlass) {
     throw new Error(`OpsIdentity: okänd size "${size}". Giltiga: ${Object.keys(STORLEKAR).join(", ")}.`);
@@ -64,9 +70,11 @@ export function OpsIdentity({ name, seed, imageUrl, size = "md" }) {
     );
   }
 
+  const vaildTone = tone && TONKLASSER[tone] ? tone : identityTone(seed);
+
   return (
-    <span className={cx(base, TONKLASSER[identityTone(seed)], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
-      <span aria-hidden="true">{initials(name)}</span>
+    <span className={cx(base, TONKLASSER[vaildTone], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
+      <span aria-hidden="true">{Icon ? <Icon size={size === "lg" ? 24 : size === "sm" ? 12 : 18} /> : initials(name)}</span>
     </span>
   );
 }

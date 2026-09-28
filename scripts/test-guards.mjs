@@ -159,6 +159,25 @@ kravRott(
   "SessionStudios palett",
 );
 
+// ⛔ #164, Regel 9: rundningsskalan, samma mönster som Regel 8. Ett enda tal
+// mätt ur SessionStudio, och glider det utan att vakten fäller är felet
+// osynligt tills någon lägger skärmdumparna sida vid sida.
+kravRott(
+  "tokens 9: rundningsskalan glider från SessionStudio",
+  [tokenvakt, tokenkopia("r9", (s) => s.replace("--radius-sm: 8px;", "--radius-sm: 4px;"))],
+  "rundningsskala",
+);
+
+// ⛔ #164, Regel 10: ett border-radius-literal utanför @theme static som
+// råkar träffa ett redan deklarerat radie-token. Mutationen återinför exakt
+// det fyndet arkitekturgranskningen gjorde (999px, samma tal som
+// --radius-full), på en av de fyra rader som fixen bytte till var(...).
+kravRott(
+  "tokens 10: radie-literal dubblerar ett token",
+  [tokenvakt, tokenkopia("r10", (s) => s.replace("border-radius: var(--radius-full);\n    background:", "border-radius: 999px;\n    background:"))],
+  "dubblerar ett token",
+);
+
 // ── Vakten för det stängda API:et ───────────────────────────────────────────
 const apivakt = "scripts/check-closed-api.mjs";
 
@@ -395,6 +414,25 @@ kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "f
       ? { namn, vantat: "gront", utfall: "ok" }
       : { namn, vantat: "gront", utfall: `vantade gront med forslag om sankt tak. Fick status ${k.status}: ${`${k.stdout}${k.stderr}`.trim().split("\n").slice(0, 2).join(" | ")}` },
   );
+
+  // ── check:fonts i konsumentens check-kedja (#164) ──────────────────────
+  //
+  // ⛔ DEN GAMLA FIXTUREN (`skriv(...)`) SAKNAR MED FLIT ETT package.json, och
+  // det är precis det som bevisar att kravet är villkorat: de mutationerna
+  // ovan är fortfarande gröna utan filen. Den här mutationen lägger filen
+  // till och tar sedan bort raden, för att visa att NÄR package.json finns
+  // blir avsaknaden av "check:fonts" rött.
+  const fontmapp = path.join(mapp, "fonter");
+  fs.mkdirSync(path.join(fontmapp, "web"), { recursive: true });
+  fs.writeFileSync(path.join(fontmapp, "web", "a.html"), "<p>x</p>\n");
+  const fontadoption = path.join(fontmapp, "adoption.json");
+  fs.writeFileSync(fontadoption, JSON.stringify({ matningar: [{ namn: "sidor", katalog: "web", andelser: [".html"], tak: 5 }] }));
+
+  fs.writeFileSync(path.join(fontmapp, "package.json"), JSON.stringify({ scripts: { check: "npm run lint && npm run check:tokens && npm test" } }));
+  kravRott("adoption: package.json saknar check:fonts i check-kedjan", [adoptvakt, fontadoption], "check:fonts");
+
+  fs.writeFileSync(path.join(fontmapp, "package.json"), JSON.stringify({ scripts: { check: "npm run lint && npm run check:fonts && npm test" } }));
+  kravGront("adoption: check:fonts finns i check-kedjan är grönt", [adoptvakt, fontadoption]);
 }
 
 // ── Typvakten ──────────────────────────────────────────────────────────────
@@ -1395,6 +1433,67 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("gruppfraga golv: fel sökväg", [gruppvakt, path.join(gruppmapp, "finns-inte.js")], "hittar inte");
 
   fs.rmSync(gruppmapp, { recursive: true, force: true });
+}
+
+// ── Vakten mot handritade ikoner (#164) ─────────────────────────────────────
+//
+// ⛔ VAKTEN SJÄLV LÅG UTAN PROV I DET FÖRRA PASSET. Den skrevs, verifierades
+// för hand mot en tillfällig kopia, och lades i `check`-kedjan, men aldrig in
+// här. En vakt som ingen sett faila i DET HÄR harnesset är, med samma ord som
+// filhuvudet ovan, en förhoppning och inte en vakt: nästa ändring av regexen
+// eller undantagslistan kan tysta den utan att något upptäcker det.
+{
+  const ikonvakt = "scripts/check-handritade-ikoner.mjs";
+  const ikonmapp = path.join(arbetsmapp, "ikoner");
+
+  // Grönt mot den riktiga komponentkatalogen: den ska INTE bli röd av sig
+  // själv, annars är vakten obrukbar från dag ett.
+  kravGront("handritade ikoner: den riktiga src/components är grön", [ikonvakt, path.join(rot, "src", "components")]);
+
+  // Rött: en kopia av den rensade katalogen med EN injicerad handritad ikon i
+  // en fil som inte står i undantagslistan.
+  fs.cpSync(path.join(rot, "src", "components"), path.join(ikonmapp, "smutsig"), { recursive: true });
+  fs.writeFileSync(
+    path.join(ikonmapp, "smutsig", "OpsProvikon.jsx"),
+    'export function OpsProvikon() {\n  return <svg viewBox="0 0 16 16"><path d="M0 0h16v16H0z" /></svg>;\n}\n',
+  );
+  kravRott("handritade ikoner: en injicerad svg utanför icons.jsx", [ikonvakt, path.join(ikonmapp, "smutsig")], "handritad");
+
+  // Golv: en katalog som finns men är för liten (t.ex. en trasig sökväg som
+  // råkar peka på en mapp) ska inte tolkas som "inga fynd, alltså klart".
+  const tunnmapp = path.join(ikonmapp, "tunn");
+  fs.mkdirSync(tunnmapp, { recursive: true });
+  fs.writeFileSync(path.join(tunnmapp, "Ensam.jsx"), "export function Ensam() { return null; }\n");
+  kravRott("handritade ikoner golv: för få filer lästa", [ikonvakt, tunnmapp], "väntat fler än");
+
+  kravRott("handritade ikoner golv: fel sökväg", [ikonvakt, path.join(ikonmapp, "finns-inte")], "finns inte");
+}
+
+// ⛔ #164, ANDRA VARVET: OPS Hub-bilderna kommer som data-URL:er ur
+// `scripts/generate-varumarke.mjs`, inte längre `new URL(..., import.meta.url)`
+// (se filhuvudet i `src/lib/varumarke.js`). En generator som TYST hoppar
+// över en saknad bildfil skickar ett skal utan logga till varje konsument,
+// utan att bygget säger varför. Detta bevisar att den inte gör det.
+{
+  const varumarkevakt = "scripts/generate-varumarke.mjs";
+  const varumarkemapp = path.join(arbetsmapp, "varumarke");
+  fs.mkdirSync(varumarkemapp, { recursive: true });
+  fs.cpSync(path.join(rot, "varumarke"), varumarkemapp, { recursive: true });
+
+  // Grönt mot en fullständig kopia av de riktiga fyra filerna.
+  kravGront("varumarke: en fullständig katalog med alla fyra filer är grön", [
+    varumarkevakt,
+    varumarkemapp,
+    path.join(varumarkemapp, "ut-helt.js"),
+  ]);
+
+  // Rött: exakt EN av de fyra filerna saknas.
+  fs.rmSync(path.join(varumarkemapp, "ops-hub-ikon-ljus.webp"));
+  kravRott(
+    "varumarke golv: en av de fyra bildfilerna saknas",
+    [varumarkevakt, varumarkemapp, path.join(varumarkemapp, "ut-golv.js")],
+    "ops-hub-ikon-ljus.webp",
+  );
 }
 
 fs.rmSync(arbetsmapp, { recursive: true, force: true });

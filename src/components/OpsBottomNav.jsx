@@ -3,6 +3,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
+import { OpsCountBadge } from "./counter.jsx";
+import { kordarePafunktion, MenyFooter, MenySektioner, validateMenySektioner } from "./OpsMeny.jsx";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -60,6 +62,11 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en badge, t.ex. "olästa" eller "att göra". Appen bestämmer vad den räknar.
  * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
  * @param {import("react").ReactNode} [props.menuExtras] Extra kontroller i Mer-sheeten (samma som header-hamburgaren), t.ex. tema och helskärm.
+ * @param {import("./OpsMeny.jsx").MenyKonfiguration} [props.meny] Skalets meny (#164, andra granskningen), SAMMA `meny`-prop som
+ *   `OpsAppShell` (`meny.sektioner`, `meny.onLoggaUt`, `meny.appVersion`, `meny.rubrik`,
+ *   `meny.loggaUtEtikett`). Sheeten visar samma innehåll och i samma ordning som header-
+ *   hamburgaren: appens sektioner, navigeringens överflödsrader, `menuExtras`, Logga ut, versionerna.
+ *   `meny.rubrik` styr då även sheetens rubrikrad (annars `sheetLabel`).
  */
 export function OpsBottomNav({
   nav,
@@ -73,9 +80,17 @@ export function OpsBottomNav({
   closeLabel = "Stäng",
   badgeText = "nya",
   menuExtras,
+  meny,
 }) {
   validateNav(nav, "OpsBottomNav");
+  if (meny) {
+    if (typeof meny.onLoggaUt !== "function") {
+      throw new Error("OpsBottomNav: meny.onLoggaUt krävs (en funktion) när \"meny\" skickas in. Utan den kan ingen logga ut från sheeten.");
+    }
+    validateMenySektioner(meny.sektioner ?? [], "OpsBottomNav: meny.sektioner");
+  }
   const [oppen, setOppen] = useState(false);
+  const kor = kordarePafunktion(() => setOppen(false));
 
   if (primaryAction && (typeof primaryAction.label !== "string" || typeof primaryAction.onClick !== "function")) {
     throw new Error(
@@ -154,7 +169,10 @@ export function OpsBottomNav({
               aria-describedby={undefined}
             >
               <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
-                <Dialog.Title className="m-0 text-md font-bold text-ink">{sheetLabel}</Dialog.Title>
+                {/* ⛔ #164, andra granskningen: MED `meny` styr `meny.rubrik`
+                    rubriken (samma form som header-hamburgarens h2), annars
+                    oförändrat `sheetLabel`. Samma rad, samma prioritet. */}
+                <Dialog.Title className="m-0 text-md font-bold text-ink">{meny?.rubrik ?? sheetLabel}</Dialog.Title>
                 <Dialog.Close
                   aria-label={closeLabel}
                   className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -163,16 +181,28 @@ export function OpsBottomNav({
                 </Dialog.Close>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
-                {inMenu.map((entry) => (
-                  <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
-                ))}
-                {menuExtras ? (
-                  <>
-                    {inMenu.length ? (
-                      <div role="separator" className="my-2 border-t border-line" />
-                    ) : null}
-                    <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
-                  </>
+                {/* ⛔ SAMMA ORDNING SOM HEADER-HAMBURGAREN (`OpsAppShell`):
+                    appens sektioner, sedan navigeringens överflödsrader i en
+                    egen sektion, sedan `menuExtras`, sedan Logga ut, sist
+                    versionerna. Bara med `meny`; utan den är sheeten oförändrad. */}
+                {meny ? <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} /> : null}
+                <div className={cx(meny && (meny.sektioner ?? []).length ? "mt-1 border-t border-line pt-1" : null)}>
+                  {inMenu.map((entry) => (
+                    <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
+                  ))}
+                  {menuExtras ? (
+                    <>
+                      {inMenu.length ? (
+                        <div role="separator" className="my-2 border-t border-line" />
+                      ) : null}
+                      <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
+                    </>
+                  ) : null}
+                </div>
+                {meny ? (
+                  <div className="-mx-2 -mb-2">
+                    <MenyFooter onLoggaUt={meny.onLoggaUt} loggaUtEtikett={meny.loggaUtEtikett} appVersion={meny.appVersion} kor={kor} />
+                  </div>
                 ) : null}
               </div>
             </Dialog.Content>
@@ -239,7 +269,7 @@ function BottomLank({ entry, active, onClick, badgeText }) {
     >
       <span className="relative inline-flex">
         {entry.icon ?? <span className="inline-block h-[22px] w-[22px] rounded-full border-2 border-current" aria-hidden="true" />}
-        {typeof entry.badge === "number" ? <Badge count={entry.badge} text={badgeText} /> : null}
+        {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </span>
       <span className="mt-0.5 max-w-full truncate text-xs font-medium">{entry.label}</span>
     </a>
@@ -263,7 +293,7 @@ function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
           {entry.icon ? <span className="shrink-0">{entry.icon}</span> : null}
           <span className="truncate">{entry.label}</span>
         </span>
-        {typeof entry.badge === "number" ? <Badge count={entry.badge} text={badgeText} /> : null}
+        {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </a>
       {hasChildren ? (
         <div className="mt-0.5 flex flex-col gap-0.5 pl-4">
@@ -295,18 +325,3 @@ function sheetLankKlass(active, title) {
   );
 }
 
-/**
- * En badge har både siffra och skärmläsartext. En prick utan namn säger
- * ingenting till den som inte ser den.
- * @param {{ count: number, text: string }} props
- */
-function Badge({ count, text }) {
-  return (
-    <span className="inline-flex min-h-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-accent px-1 text-xs font-bold leading-none text-accent-contrast">
-      <span aria-hidden="true">{count}</span>
-      <span className="sr-only">
-        {count} {text}
-      </span>
-    </span>
-  );
-}

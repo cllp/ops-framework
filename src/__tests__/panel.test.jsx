@@ -110,6 +110,30 @@ describe("OpsPanelRow", () => {
     render(<OpsPanelRow label="Tomt" badge={0} badgeText="olästa" />);
     expect(screen.queryByText("olästa")).not.toBeInTheDocument();
   });
+
+  /*
+   * ⛔ #164, TYPOGRAFISVEPET: mätt mot SessionStudios AppHeader.jsx, både
+   * "Meny"-dropdownens rader och notis-/aktivitetspanelens rader är
+   * `text-xs`. `text-base` var en tredjedel större än förlagan på en yta
+   * filhuvudet redan påstod var densamma.
+   */
+  it("⛔ radens text är text-xs, samma som SessionStudios menyrader (#164)", () => {
+    const { container } = render(<OpsPanelRow label="Rad" />);
+    const knapp = container.querySelector("button, a");
+    expect(knapp.className).toContain("text-xs");
+    expect(knapp.className).not.toContain("text-base");
+  });
+
+  /*
+   * ⛔ AKTIV RAD FÄRGAS, DEN FETAS INTE. SessionStudios aktiva menyrad byter
+   * bara accentfärg och bakgrund, ingen font-semibold i den klassen.
+   */
+  it("⛔ en aktiv rad byter färg, inte vikt (#164)", () => {
+    const { container } = render(<OpsPanelRow label="Rad" active />);
+    const knapp = container.querySelector("button, a");
+    expect(knapp.className).toContain("bg-accent-subtle");
+    expect(knapp.className).not.toContain("font-semibold");
+  });
 });
 
 describe("⛔ kontrasten håller AA i BÅDA teman", () => {

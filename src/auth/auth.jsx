@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { OpsButton } from "../components/OpsButton.jsx";
-import { OpsCard } from "../components/OpsCard.jsx";
+import { OpsInloggning } from "../components/OpsInloggning.jsx";
 import { OpsEmpty } from "../components/OpsEmpty.jsx";
 import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
 
@@ -19,6 +18,26 @@ import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
  * Skyddet måste ligga där datan bor: i Firestore-reglerna, eller i det API som
  * står framför Postgres. Grinden här är bekvämlighet och tydlighet, inget annat.
  * Att tro något annat är exakt så läckor uppstår.
+ *
+ * ══ ⛔ #164, KORRIGERING B: FÖRMÅGOR, INTE ETT ENDA signIn ═══════════════
+ *
+ * CP: "OpsInloggning exakt enligt formen jag skickade (piller-rader per
+ * adapterförmåga ...)". Fram till denna ändring hade en `Authentication` EN
+ * inloggningsväg (`signIn`), byggd för Google via `createGoogleAuth`. Mätt
+ * mot SessionStudios `LoginScreen.jsx`: Google, Apple, e-postlänk, lösenord
+ * (logga in OCH skapa konto) och lösenordsåterställning är FEM olika vägar in,
+ * och en app som bara har Google ska INTE se fyra döda knappar.
+ *
+ * Lösningen är samma mönster som `lagring` (valfri Storage) och `sdk`
+ * (valfri auth-SDK): en FÖRMÅGA finns bara om appens adapter faktiskt gav en
+ * funktion för den. `createAuth` normaliserar adaptern till en lista NÄRVARANDE
+ * förmågor, `OpsInloggning` ritar en rad per förmåga som finns och INGEN för
+ * de som saknas (se testerna "bara Google ritar en rad" / "allt ritar allt").
+ *
+ * ⛔ `signIn` ÄR KVAR, BAKÅTKOMPATIBELT. Den behandlas som `signInWithGoogle`
+ * om appen inte gett ett uttryckligt `signInWithGoogle`. Ett brytande API här
+ * hade tvingat om varje befintlig adapter samma dag som den här filen ändrades,
+ * för en förmåga (Google) som redan fanns och redan fungerade.
  */
 
 /**
@@ -31,34 +50,73 @@ import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
  */
 
 /**
- * @typedef {object} Authentication
- * @property {() => Promise<void>} signIn
+ * En adapters råa form, INNAN `createAuth` normaliserar den. `signIn` är
+ * den gamla, bakåtkompatibla vägen in (blir `signInWithGoogle`).
+ * @typedef {object} AuthAdapter
+ * @property {() => Promise<void>} [signIn] Bakåtkompatibel synonym för `signInWithGoogle`.
+ * @property {() => Promise<void>} [signInWithGoogle]
+ * @property {() => Promise<void>} [signInWithApple]
+ * @property {(email: string) => Promise<void>} [sendEmailLink]
+ * @property {(email: string) => Promise<void>} [completeEmailLink]
+ * @property {(email: string, password: string) => Promise<void>} [signInWithPassword]
+ * @property {(email: string, password: string, namn?: string) => Promise<void>} [createAccount]
+ * @property {(email: string) => Promise<void>} [resetPassword]
  * @property {() => Promise<void>} signOut
  * @property {(listener: (a: User | null) => void) => () => void} subscribe Returnerar en avregistrering.
  */
 
+/**
+ * Adaptern EFTER normalisering: bara de förmågor som faktiskt finns, plus
+ * `signOut`/`subscribe` som alltid krävs.
+ * @typedef {Pick<AuthAdapter, "signInWithGoogle"|"signInWithApple"|"sendEmailLink"|"completeEmailLink"|"signInWithPassword"|"createAccount"|"resetPassword"> & { signOut: () => Promise<void>, subscribe: (listener: (a: User | null) => void) => () => void }} Authentication
+ */
+
 const AuthContext = createContext(
-  /** @type {{ user: User | null, loading: boolean, error: Error | null, signIn: () => void, signOut: () => void } | null} */ (null),
+  /** @type {{ user: User | null, loading: boolean, error: Error | null, auth: Authentication, signOut: () => void, clearError: () => void } | null} */ (null),
 );
 
+/** Förmågorna `createAuth` normaliserar, utöver `signOut`/`subscribe`. */
+const FORMAGOR = /** @type {const} */ ([
+  "signInWithGoogle",
+  "signInWithApple",
+  "sendEmailLink",
+  "completeEmailLink",
+  "signInWithPassword",
+  "createAccount",
+  "resetPassword",
+]);
+
 /**
- * Kontrollerar att en adapter är hel innan den används.
- * @param {Partial<Authentication> & { namn?: string }} adapter @returns {Authentication}
+ * Kontrollerar att en adapter är hel innan den används, och normaliserar
+ * `signIn` (bakåtkompatibelt) till `signInWithGoogle`.
+ * @param {AuthAdapter} adapter @returns {Authentication}
  */
 export function createAuth(adapter) {
-  const missing = ["signIn", "signOut", "subscribe"].filter((op) => typeof (/** @type {any} */ (adapter ?? {})[op]) !== "function");
+  const bas = /** @type {Record<string, any>} */ (adapter ?? {});
+  const missing = ["signOut", "subscribe"].filter((op) => typeof bas[op] !== "function");
   if (missing.length > 0) {
     throw new Error(`createAuth: adaptern saknar ${missing.join(", ")}.`);
   }
-  return /** @type {Authentication} */ (adapter);
+
+  /** @type {any} */
+  const normaliserad = { signOut: bas.signOut, subscribe: bas.subscribe };
+  // ⛔ `signInWithGoogle` VINNER över `signIn` om BÅDA finns: en adapter som
+  // medvetet gett den nya, exakta namnet menar det namnet.
+  const google = typeof bas.signInWithGoogle === "function" ? bas.signInWithGoogle : bas.signIn;
+  if (typeof google === "function") normaliserad.signInWithGoogle = google;
+  for (const namn of FORMAGOR) {
+    if (namn === "signInWithGoogle") continue;
+    if (typeof bas[namn] === "function") normaliserad[namn] = bas[namn];
+  }
+  return /** @type {Authentication} */ (Object.freeze(normaliserad));
 }
 
 /**
- * Google-inloggning via Firebase Auth.
+ * Google-inloggning via Firebase Auth, med VALFRIA tillägg ur samma `sdk`.
  *
  * ```js
  * import * as auth from "firebase/auth";
- * const autentisering = skapaGoogleAuth({
+ * const autentisering = createGoogleAuth({
  *   auth: auth.getAuth(app),
  *   sdk: auth,
  *   fetchProfile: async (a) => kalla.las("users", a.id),
@@ -69,7 +127,24 @@ export function createAuth(adapter) {
  * användarlista, alltså ett dokument per användare, via datalagret. Rollen
  * kommer aldrig från Google: Google svarar på vem någon ÄR, inte på vad hen får.
  *
- * @param {{ auth: any, sdk: Record<string, any>, fetchProfile?: (a: User) => Promise<any> }} config
+ * ══ ⛔ #164: E-POSTLÄNK, LÖSENORD OCH APPLE ÄR VALFRIA DELAR AV SAMMA `sdk` ═
+ *
+ * `sdk` är HELA `"firebase/auth"`-modulen redan i dag (kravet på
+ * `GoogleAuthProvider`/`signInWithPopup`/`signOut`/`onAuthStateChanged`
+ * bevisar det). De sex extra funktionerna (`sendSignInLinkToEmail`,
+ * `isSignInWithEmailLink`, `signInWithEmailLink`,
+ * `signInWithEmailAndPassword`, `createUserWithEmailAndPassword`,
+ * `sendPasswordResetEmail`) finns REDAN på det objektet varje app redan
+ * skickar in. Ingen ny import, ingen ny config-nyckel: förmågan tänds av sig
+ * själv den dag Firebase Console har det inloggningssättet påslaget, för då
+ * FUNGERAR funktionen även om appen inte visste att den fanns.
+ *
+ * ⛔ SAKNAS EN FUNKTION I `sdk` SAKNAS FÖRMÅGAN, TYST. Ingen kastar: en app
+ * med en äldre `firebase/auth`-version, eller en attrapp i ett prov som bara
+ * gav de fyra grundläggande, ska inte krascha för att den inte skickade in
+ * lösenordsfunktioner den aldrig bad om.
+ *
+ * @param {{ auth: any, sdk: Record<string, any>, fetchProfile?: (a: User) => Promise<any>, emailLinkRedirectUrl?: string }} config
  * @returns {Authentication}
  */
 export function createGoogleAuth(config) {
@@ -86,22 +161,23 @@ export function createGoogleAuth(config) {
    * typad anropare sitt kompileringsfel. Nu får båda vad de behöver: typen är
    * strikt, och kroppen tål ingenting så att valideringen nedan hinner tala.
    */
-  const { auth, sdk, fetchProfile } = config ?? /** @type {any} */ ({});
+  const { auth, sdk, fetchProfile, emailLinkRedirectUrl } = config ?? /** @type {any} */ ({});
   if (!auth) throw new Error("createGoogleAuth: auth krävs. Skicka in getAuth(app).");
   const missing = ["GoogleAuthProvider", "signInWithPopup", "signOut", "onAuthStateChanged"].filter((f) => !sdk?.[f]);
   if (missing.length > 0) {
     throw new Error(`createGoogleAuth: sdk saknar ${missing.join(", ")}. Skicka in hela modulen "firebase/auth".`);
   }
 
-  return createAuth({
+  /** @type {any} */
+  const bas = {
     namn: "google",
-    async signIn() {
+    async signInWithGoogle() {
       await sdk.signInWithPopup(auth, new sdk.GoogleAuthProvider());
     },
     async signOut() {
       await sdk.signOut(auth);
     },
-    subscribe(listener) {
+    subscribe(/** @type {(a: User | null) => void} */ listener) {
       return sdk.onAuthStateChanged(auth, async (/** @type {any} */ account) => {
         if (!account) {
           listener(null);
@@ -124,7 +200,74 @@ export function createGoogleAuth(config) {
         }
       });
     },
-  });
+  };
+
+  // ⛔ APPLE, SAMMA MEKANISM SOM GOOGLE: `sdk.OAuthProvider` finns i
+  // "firebase/auth" oavsett om appen aktiverat Apple i Firebase Console.
+  // Förmågan tänds bara när appen UTTRYCKLIGEN ber om den (`appleProvider`
+  // eller `sdk.OAuthProvider`), av samma skäl som resten: ingen gissad
+  // provider-sträng, ingen tyst inloggningsväg appen inte visste fanns.
+  if (typeof sdk.OAuthProvider === "function") {
+    bas.signInWithApple = async () => {
+      await sdk.signInWithPopup(auth, new sdk.OAuthProvider("apple.com"));
+    };
+  }
+
+  if (typeof sdk.sendSignInLinkToEmail === "function") {
+    bas.sendEmailLink = async (/** @type {string} */ email) => {
+      const url = emailLinkRedirectUrl ?? (typeof window !== "undefined" ? window.location.href : "");
+      await sdk.sendSignInLinkToEmail(auth, email, { url, handleCodeInApp: true });
+      // ⛔ E-POSTEN SPARAS FÖR ATT ÅTERANVÄNDAS OM LÄNKEN ÖPPNAS PÅ SAMMA
+      // ENHET. Firebase kräver adressen igen vid `signInWithEmailLink` när
+      // den inte kan läsas ur en cross-device-QR, och SessionStudios egen
+      // "emailLinkSentTo"-mönster gör likadant. `try/catch`: en privat flik
+      // utan `localStorage` ska inte krascha SKICKANDET, bara tvinga fram
+      // att man skriver adressen igen på completeEmailLink-sidan.
+      try {
+        globalThis.localStorage?.setItem("opsEmailLinkAdress", email);
+      } catch {
+        // Se kommentaren ovan.
+      }
+    };
+  }
+
+  if (typeof sdk.isSignInWithEmailLink === "function" && typeof sdk.signInWithEmailLink === "function") {
+    bas.completeEmailLink = async (/** @type {string} */ email) => {
+      const url = typeof window !== "undefined" ? window.location.href : "";
+      if (!sdk.isSignInWithEmailLink(auth, url)) {
+        throw new Error("completeEmailLink: den här adressen är ingen giltig e-postlänk.");
+      }
+      await sdk.signInWithEmailLink(auth, email, url);
+      try {
+        globalThis.localStorage?.removeItem("opsEmailLinkAdress");
+      } catch {
+        // Se noten vid sendEmailLink.
+      }
+    };
+  }
+
+  if (typeof sdk.signInWithEmailAndPassword === "function") {
+    bas.signInWithPassword = async (/** @type {string} */ email, /** @type {string} */ password) => {
+      await sdk.signInWithEmailAndPassword(auth, email, password);
+    };
+  }
+
+  if (typeof sdk.createUserWithEmailAndPassword === "function") {
+    bas.createAccount = async (/** @type {string} */ email, /** @type {string} */ password, /** @type {string | undefined} */ namn) => {
+      const cred = await sdk.createUserWithEmailAndPassword(auth, email, password);
+      if (namn && typeof sdk.updateProfile === "function" && cred?.user) {
+        await sdk.updateProfile(cred.user, { displayName: namn });
+      }
+    };
+  }
+
+  if (typeof sdk.sendPasswordResetEmail === "function") {
+    bas.resetPassword = async (/** @type {string} */ email) => {
+      await sdk.sendPasswordResetEmail(auth, email);
+    };
+  }
+
+  return createAuth(bas);
 }
 
 /**
@@ -149,16 +292,17 @@ export function OpsAuthProvider({ authentication, children, felmottagare }) {
     return av;
   }, [authentication, felmottagare]);
 
-  const signIn = useCallback(() => {
-    setError(null);
-    authentication.signIn().catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
-  }, [authentication]);
-
   const signOut = useCallback(() => {
+    setError(null);
     authentication.signOut().catch((e) => setError(e instanceof Error ? e : new Error(String(e))));
   }, [authentication]);
 
-  const contextValue = useMemo(() => ({ user, loading, error, signIn, signOut }), [user, loading, error, signIn, signOut]);
+  const clearError = useCallback(() => setError(null), []);
+
+  const contextValue = useMemo(
+    () => ({ user, loading, error, auth: authentication, signOut, clearError }),
+    [user, loading, error, authentication, signOut, clearError],
+  );
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
@@ -175,11 +319,22 @@ export function useOpsAuth() {
  * en motsvarighet i Firestore-reglerna eller i API:et, annars är listan en
  * skylt och inte ett lås.
  *
+ * ⛔ #164, KORRIGERING B: OpsInloggning RITAR DET UTLOGGADE LÄGET, inte en
+ * ensam "Logga in med Google"-knapp. `OpsAuthGate` skickar vidare BARA de
+ * props som ändrar FORMEN (etikett, viskning, sidfotslänkar, språk); vilka
+ * PILLER som syns bestäms av vilka förmågor `auth` faktiskt har, inte av
+ * något OpsAuthGate behöver veta.
+ *
  * @param {object} props
  * @param {string[]} [props.allowedRoles] Tom eller utelämnad betyder "vem som helst som är inloggad".
- * @param {string} [props.title]
- * @param {string} [props.description]
- * @param {string} [props.signInText]
+ * @param {string} [props.title] Skärmläsarrubriken över kortet ("Kontrollerar inloggning"-läget) OCH `OpsInloggning`s rubrik.
+ * @param {string} [props.description] Historisk, ritas bara i "kontrollerar"-läget (laddar).
+ * @param {string} [props.etikett] `OpsInloggning props.etikett`, appens namn under ordmärket.
+ * @param {string} [props.viskning] `OpsInloggning props.viskning`.
+ * @param {{ label: string, href: string }[]} [props.lankar] `OpsInloggning props.lankar`.
+ * @param {string} [props.appVersion] `OpsInloggning props.appVersion`.
+ * @param {"sv"|"en"} [props.sprak]
+ * @param {(sprak: "sv"|"en") => void} [props.onSprak]
  * @param {string} [props.deniedTitle]
  * @param {string} [props.deniedText]
  * @param {import("react").ReactNode} props.children
@@ -188,34 +343,40 @@ export function OpsAuthGate({
   allowedRoles,
   title = "Logga in",
   description = "Den här plattformen kräver inloggning.",
-  signInText = "Logga in med Google",
+  etikett,
+  viskning,
+  lankar,
+  appVersion,
+  sprak = "sv",
+  onSprak,
   deniedTitle = "Du har inte tillgång",
   deniedText = "Ditt konto är inloggat men saknar behörighet här. Be den som förvaltar plattformen lägga till dig.",
   children,
 }) {
-  const { user, loading, error, signIn } = useOpsAuth();
+  const { user, loading, error, auth, clearError } = useOpsAuth();
 
   if (loading) {
     return (
       <OpsView width="narrow">
-        <OpsEmpty busy title={title} busyLabel="Kontrollerar inloggning" />
+        <OpsEmpty busy title={title} description={description} busyLabel="Kontrollerar inloggning" />
       </OpsView>
     );
   }
 
   if (!user) {
     return (
-      <OpsView width="narrow">
-        <OpsViewHeader title={title} description={description} />
-        <OpsCard>
-          <OpsButton variant="primary" onClick={signIn}>
-            {signInText}
-          </OpsButton>
-          {/* Felet visas, det sväljs inte. En inloggning som inte händer och
-              inte förklarar sig får användaren att trycka igen i evighet. */}
-          {error ? <p className="mt-3 text-base text-danger">{error.message}</p> : null}
-        </OpsCard>
-      </OpsView>
+      <OpsInloggning
+        auth={auth}
+        rubrik={title}
+        etikett={etikett}
+        viskning={viskning}
+        lankar={lankar}
+        appVersion={appVersion}
+        sprak={sprak}
+        onSprak={onSprak}
+        fel={error?.message}
+        onRensaFel={clearError}
+      />
     );
   }
 

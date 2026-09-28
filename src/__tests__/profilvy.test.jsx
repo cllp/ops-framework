@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { OpsProfil } from "../components/OpsProfil.jsx";
-import { OpsAnvandarmeny } from "../components/OpsAnvandarmeny.jsx";
+import { OpsIconLink } from "../components/OpsIconLink.jsx";
+import { OpsIdentity } from "../components/OpsIdentity.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 
 /**
@@ -94,16 +95,21 @@ describe("OpsProfil", () => {
 
   // ══ #156: Profilbild, Personuppgifter, Länkar, och children-sloten ═══════
   describe("#156: Profilbild", () => {
-    it("utan lagring visas ingen uppladdnings- eller borttagningsknapp", () => {
+    it("⛔ #164 korrigering C: utan lagring döljs BARA uppladdningen (Byt); Ta bort kräver ingen Storage", () => {
+      // Coordinatorns egen rättelse: "knapparna 'Byt' (uppladdning, bara när
+      // lagring finns), 'Ta bort' och 'Använd initialer'". Ta bort och Använd
+      // initialer skriver bara `users/{uid}`, precis som ikon och färg, och är
+      // inte låsta bakom `props.lagring` längre.
       render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png" }} onSpara={() => {}} />);
-      expect(screen.queryByRole("button", { name: "Ladda upp bild" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Byt" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Ta bort" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Använd initialer" })).toBeTruthy();
     });
 
     it("med lagring visas Ladda upp, och Ta bort bara när en bild finns", () => {
       const lagring = { laddaUpp: vi.fn(), taBort: vi.fn() };
       const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={() => {}} lagring={lagring} />);
-      expect(screen.getByRole("button", { name: "Ladda upp bild" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Byt" })).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Ta bort" })).toBeNull();
 
       rerender(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png" }} onSpara={() => {}} lagring={lagring} />);
@@ -165,6 +171,67 @@ describe("OpsProfil", () => {
 
       rerender(<OpsProfil anvandare={{ ...ANV, bild: "https://google/foto.jpg" }} onSpara={onSpara} lagring={lagring} inloggningsBild="https://google/foto.jpg" />);
       expect(screen.queryByRole("button", { name: "Återställ" })).toBeNull();
+    });
+  });
+
+  // ══ #164, korrigering C: standardikon och färg, ingen Storage krävs ══════
+  describe("#164 korrigering C: Profilbild utan Storage (ikon, färg, initialer)", () => {
+    it("visar sex standardikoner och sex färger, oavsett om lagring finns", () => {
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+      expect(screen.getByRole("group", { name: "Välj standardikon" })).toBeTruthy();
+      expect(within(screen.getByRole("group", { name: "Välj standardikon" })).getAllByRole("button")).toHaveLength(6);
+      expect(screen.getByRole("group", { name: "Färg" })).toBeTruthy();
+      expect(within(screen.getByRole("group", { name: "Färg" })).getAllByRole("button")).toHaveLength(6);
+    });
+
+    it("⛔ ett ikonval sparas DIREKT (som bilden), och rensar bild/bildSokvag", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, bild: "https://x/y.png", bildSokvag: "profilbilder/uid-1/y.jpg" }} onSpara={onSpara} />);
+      fireEvent.click(screen.getByRole("button", { name: "Stjärna" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ ikon: "stjarna", bild: "", bildSokvag: "" }));
+    });
+
+    it("⛔ ett färgval sparas DIREKT och rör inte ikon eller bild", async () => {
+      const onSpara = vi.fn(async () => {});
+      render(<OpsProfil anvandare={{ ...ANV, ikon: "krona" }} onSpara={onSpara} />);
+      fireEvent.click(screen.getByRole("button", { name: "Färg 3" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ farg: "3" }));
+    });
+
+    it("'Använd initialer' nollställer bild OCH ikon direkt, och syns bara när en av dem är satt", async () => {
+      const onSpara = vi.fn(async () => {});
+      const { rerender } = render(<OpsProfil anvandare={ANV} onSpara={onSpara} />);
+      expect(screen.queryByRole("button", { name: "Använd initialer" })).toBeNull();
+
+      rerender(<OpsProfil anvandare={{ ...ANV, ikon: "leende" }} onSpara={onSpara} />);
+      fireEvent.click(screen.getByRole("button", { name: "Använd initialer" }));
+      await waitFor(() => expect(onSpara).toHaveBeenCalledWith({ bild: "", bildSokvag: "", ikon: "" }));
+    });
+
+    it("⛔ OpsIdentity ritar ikonen i vald färg när bild saknas, och bilden FÖRE ikonen när båda finns", () => {
+      const { rerender } = render(<OpsProfil anvandare={{ ...ANV, ikon: "krona", farg: "5" }} onSpara={() => {}} />);
+      // Huvudets märke (`role="img"`, namnet som aria-label) ritar ikonens svg,
+      // inte initialerna "CP". Sökt via `aria-label` för att inte träffa Krona-
+      // knappen i väljarraden, som ritar samma ikon.
+      const huvud = screen.getByRole("img", { name: "Claes Philip" });
+      expect(huvud.querySelector(".lucide-crown")).toBeTruthy();
+
+      rerender(<OpsProfil anvandare={{ ...ANV, ikon: "krona", farg: "5", bild: "https://x/y.png" }} onSpara={() => {}} />);
+      const huvudMedBild = screen.getByRole("img", { name: "Claes Philip" });
+      expect(huvudMedBild.querySelector(".lucide-crown")).toBeNull();
+      expect(huvudMedBild.querySelector("img")).toBeTruthy();
+    });
+  });
+
+  describe("#164 korrigering C: rollpillen bredvid namnet", () => {
+    it("ritas när appen skickar roll, med appens ord", () => {
+      render(<OpsProfil anvandare={ANV} roll="Studio Admin" onSpara={() => {}} />);
+      expect(screen.getByText("Studio Admin")).toBeTruthy();
+    });
+
+    it("ritas INTE när appen inte skickar någon roll (ramverket känner inte begreppet)", () => {
+      render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+      expect(screen.queryByText("Studio Admin")).toBeNull();
     });
   });
 
@@ -254,50 +321,104 @@ describe("OpsProfil", () => {
   });
 });
 
-describe("OpsAnvandarmeny", () => {
-  it("knappen bär personens namn, inte bara ordet knapp", () => {
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
-    expect(screen.getByRole("button", { name: "Konto, Claes Philip" })).toBeTruthy();
+/**
+ * ⛔ #164, ANDRA GRANSKNINGEN: DET FINNS INGEN EGEN `<OpsMeny>` LÄNGRE. Den
+ * hade sin egen hamburgare bredvid `OpsAppShell`s, två knappar i samma
+ * toppräcke. Menyn är nu skalets EGEN yta, propen `meny` på `OpsAppShell`
+ * (och samma prop vidarebefordrad till `OpsBottomNav`s sheet). Proven här
+ * är de gamla `OpsMeny`-proven flyttade till `OpsAppShell meny={...}`.
+ */
+const enkelNav = [{ href: "/", label: "Start" }];
+
+describe("OpsAppShell meny (#164, andra granskningen: en hamburgare, inte två)", () => {
+  it("hamburgaren finns och heter 'Meny', även utan nav-överflöd eller menuExtras", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt: () => {} }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    expect(screen.getByRole("button", { name: "Meny, fler åtgärder" })).toBeTruthy();
+  });
+
+  it("⛔ EN hamburgare, inte två: ingen andra knapp döljer sig i anvandare-facket", () => {
+    render(
+      <OpsAppShell
+        brand="Ops"
+        nav={enkelNav}
+        activeHref="/"
+        anvandare={
+          <OpsIconLink
+            href="/profil"
+            icon={<OpsIdentity name={ANV.namn} seed={ANV.id} imageUrl={ANV.bild} size="sm" />}
+            label="Min profil"
+          />
+        }
+        meny={{ onLoggaUt: () => {} }}
+      >
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    const header = screen.getByRole("banner");
+    expect(within(header).getAllByRole("button", { name: /Meny/ })).toHaveLength(1);
+    expect(within(header).getByRole("link", { name: "Min profil" })).toBeTruthy();
   });
 
   it("⛔ utloggningen finns bakom menyn och anropas", async () => {
     const onLoggaUt = vi.fn();
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={onLoggaUt} />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
     fireEvent.click(screen.getByRole("button", { name: "Logga ut" }));
-    // ⛔ `onLoggaUt` KÖRS EN TICK SENARE (#158), se noten vid `kor` i
-    // `OpsAnvandarmeny.jsx`: annars hinner Radix stänga menyns egen panel och
-    // öppna nästa i SAMMA klick, och den nya stängs tillbaka på plats.
+    // ⛔ `onLoggaUt` KÖRS EN TICK SENARE (#158), se `kordarePafunktion` i
+    // `OpsMeny.jsx`: annars hinner Radix stänga popovern och öppna nästa i
+    // SAMMA klick, och den nya stängs tillbaka på plats.
     await new Promise((r) => setTimeout(r, 0));
     expect(onLoggaUt).toHaveBeenCalledTimes(1);
   });
 
   it("rubriken 'Meny' står överst, utan namn eller e-post bredvid (#157, samma form som SessionStudio)", () => {
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt: () => {} }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
     expect(screen.getByRole("heading", { name: "Meny" })).toBeTruthy();
     expect(screen.queryByText("cp@staiger.se")).toBeNull();
   });
 
-  it("egen rubrik går att sätta via prop", () => {
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} rubrik="Konto" />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+  it("egen rubrik går att sätta via meny.rubrik", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt: () => {}, rubrik: "Konto" }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
     expect(screen.getByRole("heading", { name: "Konto" })).toBeTruthy();
   });
 
   it("sektionerna är appens rader: bara det som skickas in finns, med ikon och chevron eller extern-länk-ikon", async () => {
     const onNotiser = vi.fn();
     render(
-      <OpsAnvandarmeny
-        anvandare={ANV}
-        onLoggaUt={() => {}}
-        sektioner={[
-          [{ key: "notiser", etikett: "Notiser", onClick: onNotiser, chevron: true, badge: 3 }],
-          [{ key: "support", etikett: "Support", href: "https://example.se/support" }],
-        ]}
-      />,
+      <OpsAppShell
+        brand="Ops"
+        nav={enkelNav}
+        activeHref="/"
+        meny={{
+          onLoggaUt: () => {},
+          sektioner: [
+            [{ key: "notiser", etikett: "Notiser", onClick: onNotiser, chevron: true, badge: 3 }],
+            [{ key: "support", etikett: "Support", href: "https://example.se/support" }],
+          ],
+        }}
+      >
+        <p>innehåll</p>
+      </OpsAppShell>,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
 
     // ⛔ Båda raderna läses UT innan någon klickas: ett klick på Notiser stänger
     // menyn (samma sak som Logga ut redan gör), och den stängda menyn tar bort
@@ -312,19 +433,95 @@ describe("OpsAnvandarmeny", () => {
     expect(onNotiser).toHaveBeenCalledTimes(1);
   });
 
+  it("⛔ ORDNINGEN: appens sektioner, sedan navigeringens överflöd, sedan menuExtras, sedan Logga ut", () => {
+    render(
+      <OpsAppShell
+        brand="Ops"
+        nav={[
+          { href: "/", label: "Start" },
+          { href: "/a", label: "A" },
+          { href: "/b", label: "B" },
+        ]}
+        activeHref="/"
+        maxTopNav={1}
+        maxTopNavSmal={1}
+        menuExtras={<button type="button">Tema</button>}
+        meny={{ onLoggaUt: () => {}, sektioner: [[{ key: "notiser", etikett: "Notiser" }]] }}
+      >
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    const header = screen.getByRole("banner");
+    // ⛔ `getByRole` mot HELA dokumentet hittar BÅDA hamburgarna (header-
+    // popovern OCH botten-Meny-arkets knapp, jsdom kör ingen CSS så
+    // `md:inline-flex`/`md:hidden` gömmer ingenting): scopa TRIGGERN till headern.
+    fireEvent.click(within(header).getByRole("button", { name: /Meny/ }));
+    // ⛔ INNEHÅLLET RITAS I EN RADIX-PORTAL, ALLTSÅ UTANFÖR `<header>` I DOM:EN
+    // (portalen hänger direkt på `document.body`), och botten-Meny-arkets
+    // EGEN rad (Start/A/B ryms alla i botten-navets rad här) skriver SAMMA
+    // etiketter en gång till på sidan. Ankra därför sökningen i menyns EGEN
+    // panel: rubrikens `<h2>` ligger direkt i `Popover.Content`, en nivå upp
+    // från sin omslutande `div`.
+    const rubrikEl = screen.getByRole("heading", { name: "Meny" });
+    const panel = /** @type {HTMLElement} */ (rubrikEl.parentElement?.parentElement);
+    const namn = Array.from(panel.querySelectorAll("button, a"))
+      .map((el) => el.textContent)
+      .filter(Boolean);
+    const iOrdning = ["Notiser", "A", "B", "Tema", "Logga ut"].map((n) => namn.findIndex((t) => t?.includes(n)));
+    expect(iOrdning.every((i) => i >= 0)).toBe(true);
+    expect(iOrdning).toEqual([...iOrdning].sort((a, b) => a - b));
+  });
+
   it("⛔ en rad utan key eller etikett kastar, i stället för att tyst rita fel", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() =>
-      render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} sektioner={[[{ key: "a" }]]} />),
+      render(
+        <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt: () => {}, sektioner: [[{ key: "a" }]] }}>
+          <p>innehåll</p>
+        </OpsAppShell>,
+      ),
     ).toThrow(/saknar etikett/);
+    spy.mockRestore();
+  });
+
+  it("⛔ meny utan onLoggaUt kastar", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(
+        <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{}}>
+          <p>innehåll</p>
+        </OpsAppShell>,
+      ),
+    ).toThrow(/onLoggaUt krävs/);
     spy.mockRestore();
   });
 });
 
-describe("⛔ versionsraden (#157)", () => {
+describe("⛔ #164 korrigering A: avataren är en direktlänk utan meny", () => {
+  it("OpsIconLink med OpsIdentity som ikon länkar rakt till profilen, ingen popover", () => {
+    render(
+      <OpsIconLink
+        href="/profil"
+        icon={<OpsIdentity name={ANV.namn} seed={ANV.id} imageUrl={ANV.bild} size="sm" />}
+        label="Min profil"
+      />,
+    );
+    const lank = screen.getByRole("link", { name: "Min profil" });
+    expect(lank.getAttribute("href")).toBe("/profil");
+    // ⛔ Ingen `aria-haspopup`/`aria-expanded`: en länk öppnar ingen panel.
+    expect(lank.getAttribute("aria-haspopup")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Min profil/ })).toBeNull();
+  });
+});
+
+describe("⛔ versionsraden (#157, #164: två rader, inte en med punkt emellan)", () => {
   it("visar ramverkets version, och den är RÖD om raden inte stämmer mot package.json", () => {
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt: () => {} }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
     // ⛔ Läser package.json på riktigt, inte ett hårdkodat tal i provet: annars
     // bevisar provet bara att TVÅ handskrivna kopior råkar stämma överens, inte
     // att komponenten läser SANNINGEN. Se `frameworkVersion.generated.js`.
@@ -332,32 +529,52 @@ describe("⛔ versionsraden (#157)", () => {
     expect(screen.getByText(`ops-framework v${paket.version}`)).toBeTruthy();
   });
 
-  it("visar appens version också, när den skickas in, i formen 'app · ops-framework'", () => {
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} appVersion="bolag-ops v1.4.2" />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
-    expect(screen.getByText(/^bolag-ops v1\.4\.2 · ops-framework v\d+\.\d+\.\d+$/)).toBeTruthy();
+  it("visar appens version på sin EGEN rad, inte hopslagen med ramverkets med en punkt", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt: () => {}, appVersion: "bolag-ops v1.4.2" }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
+    expect(screen.getByText("bolag-ops v1.4.2")).toBeTruthy();
+    expect(screen.queryByText(/·/)).toBeNull();
+    const paket = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"));
+    expect(screen.getByText(`ops-framework v${paket.version}`)).toBeTruthy();
   });
 
-  it("saknas appens version skrivs raden ändå, med ramverkets ensam (tomhet är ett svar)", () => {
-    render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
+  it("saknas appens version skrivs bara ramverkets rad (tomhet är ett svar)", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" meny={{ onLoggaUt: () => {} }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Meny, fler åtgärder" }));
     expect(screen.getByText(/^ops-framework v\d+\.\d+\.\d+$/)).toBeTruthy();
   });
 });
 
 describe("⛔ skalets användarfack", () => {
-  it("renderar det som skickas in", () => {
+  it("renderar det som skickas in: bara avataren, INGEN egen hamburgare där (menyn ligger i skalets EGEN, via meny-propen)", () => {
     render(
       <OpsAppShell
         brand="Ops"
-        nav={[{ href: "/", label: "Start" }]}
+        nav={enkelNav}
         activeHref="/"
-        anvandare={<OpsAnvandarmeny anvandare={ANV} onLoggaUt={() => {}} />}
+        anvandare={
+          <OpsIconLink
+            href="/profil"
+            icon={<OpsIdentity name={ANV.namn} seed={ANV.id} imageUrl={ANV.bild} size="sm" />}
+            label="Min profil"
+          />
+        }
+        meny={{ onLoggaUt: () => {} }}
       >
         <p>innehåll</p>
       </OpsAppShell>,
     );
-    expect(screen.getByRole("button", { name: "Konto, Claes Philip" })).toBeTruthy();
+    const header = screen.getByRole("banner");
+    expect(within(header).getByRole("link", { name: "Min profil" })).toBeTruthy();
+    expect(within(header).getByRole("button", { name: /Meny/ })).toBeTruthy();
   });
 
   it("skalet fungerar utan facket", () => {
@@ -366,6 +583,8 @@ describe("⛔ skalets användarfack", () => {
         <p>innehåll</p>
       </OpsAppShell>,
     );
-    expect(screen.queryByRole("button", { name: /Konto/ })).toBeNull();
+    const header = screen.getByRole("banner");
+    expect(within(header).queryByRole("link", { name: /Min profil/ })).toBeNull();
+    expect(within(header).queryByRole("button", { name: "Meny" })).toBeNull();
   });
 });

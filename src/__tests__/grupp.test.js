@@ -156,6 +156,34 @@ describe("användaren", () => {
     it("ANVANDARFALT bär de fem nya fälten", () => {
       expect(ANVANDARFALT).toEqual(expect.arrayContaining(["telefon", "stad", "presentation", "lankar", "bildSokvag"]));
     });
+
+    // ⛔ #164, korrigering C: standardikon och färg är två STRÄNGAR i users/{uid},
+    // inga filer, så profilbilden fungerar utan Storage (se `grupp.js` filhuvud
+    // vid PROFILIKONER). RÖD utan denna rad: ANVANDARFALT hade två fält färre än
+    // vad OpsProfil faktiskt skriver, och avvisaOkanda hade kastat på varje spara.
+    it("ANVANDARFALT bär ikon och farg (#164)", () => {
+      expect(ANVANDARFALT).toEqual(expect.arrayContaining(["ikon", "farg"]));
+    });
+
+    it("⛔ byggAnvandare avvisar ett ikon-id som inte finns i PROFILIKONER", () => {
+      expect(() => byggAnvandare({ ...ANV(), ikon: "gris" })).toThrow(/ikonen "gris".*finns inte/);
+    });
+
+    it("⛔ byggAnvandare avvisar en färg som inte finns i PROFILFARGER", () => {
+      expect(() => byggAnvandare({ ...ANV(), farg: "7" })).toThrow(/färgen "7".*finns inte/);
+    });
+
+    it("tom ikon och tom färg är giltiga (förvalet: initialer i seed-tonen)", () => {
+      const a = byggAnvandare({ ...ANV(), ikon: "", farg: "" });
+      expect(a.ikon).toBe("");
+      expect(a.farg).toBe("");
+    });
+
+    it("ett giltigt ikon-id och en giltig färg sparas", () => {
+      const a = byggAnvandare({ ...ANV(), ikon: "stjarna", farg: "4" });
+      expect(a.ikon).toBe("stjarna");
+      expect(a.farg).toBe("4");
+    });
   });
 });
 
@@ -397,7 +425,7 @@ describe("regelfragmentet: formen, inte beteendet", () => {
   it("users-blocket kräver hasOnly bara på create/update, aldrig på read/delete", () => {
     const text = regelfragment();
     expect(text).toContain("allow read, delete: if opsInloggad() && request.auth.uid == uid;");
-    expect(text).toContain('allow create, update: if opsInloggad() && request.auth.uid == uid\n        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag"]);');
+    expect(text).toContain('allow create, update: if opsInloggad() && request.auth.uid == uid\n        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"]);');
   });
 });
 

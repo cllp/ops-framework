@@ -9,6 +9,93 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.27.0
+
+⛔ **Skalet nättare, som SessionStudio: rundningar, typografi, en meny, en
+inloggning, OPS Hub som märke.** CP 2026-09-28, med bolag-ops (0.26.0) och
+SessionStudio sida vid sida: "Man ser tydligt att rundningen på ikoner och
+knappar och det som ligger i huvudmenyn inte är samma som sessionstudio. Allt
+ser lite bulligare ut." Ärendet är
+[#164](https://github.com/cllp/ops-framework/issues/164), och varje punkt
+nedan är mätt mot SessionStudios källa, inte tyckt.
+
+### Rundningsskalan och typografin (#164)
+
+**`--radius-sm/md/lg/xl` är nu 8/10/16/20 px, plus `--radius-card` 24 px**,
+alltså den skala SessionStudio faktiskt ritar med (`.rounded-app`), inte dess
+bastal 4/6/8/12 som ramverket hade kopierat. `OpsCard` använder
+`--radius-card`. Regel 9 i `check-tokens.mjs` håller talen som fixtur, regel
+10 fäller ett radie-literal som dubblerar ett token (fyra `9999px` i
+reglaget var det).
+
+**Knapparna blir piller** (CP 18:20: "Ja, som SessionStudio"): `OpsButton`
+textknappar är `rounded-full`, vikten `font-medium` (var `font-semibold`),
+`size="md"` är `text-sm` (var `text-base`). Ikonknappar oförändrade.
+`OpsPanelRow` är `text-xs` och en aktiv rad byter färg, inte vikt.
+
+### En meny, en inloggning, ett märke (#164)
+
+**Avataren har ingen meny.** Som i SessionStudio är den en länk till
+profilen ("Min profil"). **Menyn är skalets hamburgare**, och det finns bara
+en: `OpsAppShell` tar `meny` (`{ sektioner, onLoggaUt, appVersion, rubrik?,
+loggaUtEtikett? }`) och ritar rubriken "Meny", appens sektioner (typiskt
+Notiser och Aktivitet med chevron först), navigeringens överflöd,
+`menuExtras`, Logga ut och sist två versionsrader: appens och ramverkets.
+`OpsBottomNav` ritar samma innehåll i bottenradens Meny-ark. `OpsAnvandarmeny`
+från 0.26.0 är borta; en första omskrivning (`OpsMeny` med egen knapp) gav
+två hamburgare och togs bort igen innan utgivning.
+
+**`OpsInloggning`** ritas av `OpsAuthGate` i utloggat läge: ordmärket, appens
+namn som spärrad undertext, en viskning, ett kort med Swe/Eng-pill,
+leverantörsrader som piller, "ELLER", "Fortsätt med e-post och lösenord",
+"Skapa konto", "Logga in med e-postlänk", och en sidfot med appens länkar och
+version. **Raderna styrs av adapterns förmågor:** `createAuth` normaliserar
+`signInWithGoogle` (`signIn` fungerar fortfarande), `signInWithApple`,
+`sendEmailLink`/`completeEmailLink`, `signInWithPassword`, `createAccount`
+och `resetPassword`, och `createGoogleAuth` tänder dem som finns i det
+`sdk`-objekt appen skickar in. En app med bara Google får en rad.
+`useOpsAuth()` ger `auth` och `clearError` i stället för `signIn`;
+`OpsAuthGate` tar `etikett` (appens namn), `viskning`, `lankar`,
+`appVersion`, `sprak`, `onSprak` i stället för `signInText`.
+
+**OPS Hub är ramverkets märke** (CP 19:00: "Loggorna ska vara default för
+ramverket"; 19:10: appens namn som undertext under loggan). Fyra webp-filer
+i `varumarke/` (44 KB) bäddas in som data-URL:er vid bygget
+(`scripts/generate-varumarke.mjs`, git-ignorerad utfil), så bilden finns i
+paketet oavsett hur konsumenten bundlar. Bevisat i ett riktigt Vite-bygge av
+scaffold-mallen. `OpsBrand` ritar ordmärket i bred vy och ikonen i smal, i
+rätt tema via `useResolvedTheme`, och `title` som undertext; `ordmarke` och
+`ikon` som props är en apps överridning. Namnet "Operations Hub" är borta,
+`check-docs` fäller det.
+
+### Profil, inställningar, plus-meny (#164)
+
+**`OpsProfil`** får SessionStudios huvud (avatar, namn, e-post, rollen som
+pill via `roll`), och Profilbild-sektionen erbjuder standardikon och färg
+(`users` växer med `ikon` och `farg` i `ANVANDARFALT`, hasOnly följer med;
+konsumenten regenererar sina regler). Det kräver ingen Storage: bara "Byt"
+är gömd utan `lagring`. Länksektionen ritas bara när appen skickar
+plattformar, och Språk och Utseende har en egen rubrik, Inställningar.
+
+**`OpsKatalogInstallning`**: Ändra, Arkivera och Ta fram har ikoner.
+**`OpsModulKataloger`**: varje katalog står under sin moduls namn med raden
+"Används i: ...", härledd ur manifestet, och en katalog utan modul säger det.
+**`OpsSkapa`**: första nivån är en platt lista med ikon och ord (som
+SessionStudios plus-meny), typval och formulär efter valet; `ikonRitare` och
+`tillbakaEtikett` är nya props.
+
+### Vakter och arkitektur
+
+`check-fonts` är obligatorisk i konsumentens `check`-kedja (`check-adoption`
+fäller en `package.json` utan den; det var luckan som lät bolag-ops ladda
+Inter i en vecka). Ny `check-handritade-ikoner`: en `<svg>` utanför
+`icons.jsx` är röd, med fyra dokumenterade undantag. Bottennavens eget
+räknemärke och två handritade kryss är ersatta av `OpsCountBadge` och
+`KryssIkon`. Alla nya vakter är inkopplade i `test-guards.mjs` med rött
+utan sin fix.
+
+---
+
 ## 0.26.0
 
 ⛔ **SessionStudios profil: typsnitt, användarmeny, versionsrad, och en

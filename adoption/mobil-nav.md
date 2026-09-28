@@ -51,7 +51,7 @@ const SIDOR = [
   { href: "/pension", label: "Pension", icon: <PensionIkon /> },
 ];
 
-<OpsAppShell brand="Operations Hub" nav={SIDOR} activeHref={pathname} onNavigate={navigera} actions={<OpsThemeToggle />}>
+<OpsAppShell brand="OPS Hub" nav={SIDOR} activeHref={pathname} onNavigate={navigera} actions={<OpsThemeToggle />}>
   {vyer}
 </OpsAppShell>
 ```

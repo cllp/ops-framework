@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { OpsSpinner } from "../components/OpsSpinner.jsx";
 import { OpsButton } from "../components/OpsButton.jsx";
 import { OpsEmpty } from "../components/OpsEmpty.jsx";
 import { OpsBrand } from "../components/OpsBrand.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsTag } from "../components/OpsTag.jsx";
+import { OPS_HUB_VARUMARKE } from "../lib/varumarke.js";
 
 /** @param {() => void} kor @param {RegExp} message */
 function forvantaKrasch(kor, message) {
@@ -98,9 +99,9 @@ describe("OpsEmpty när den hämtar", () => {
 });
 
 describe("OpsBrand", () => {
-  it("visar produktnamn och ägarrad", () => {
-    render(<OpsBrand title="Operations Hub" subtitle="CPS AB" />);
-    expect(screen.getByText("Operations Hub")).toBeInTheDocument();
+  it("visar produktnamn och ägarrad i textläget (mark=\"none\", #164 19:00: förvalet är annars OPS Hub-bilden)", () => {
+    render(<OpsBrand title="Bolag Ops" subtitle="CPS AB" mark="none" />);
+    expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
     expect(screen.getByText("CPS AB")).toBeInTheDocument();
   });
 
@@ -123,6 +124,87 @@ describe("OpsBrand", () => {
       </OpsAppShell>,
     );
     expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
+  });
+
+  // ══ #164, korrigering B / punkt 9: OPS Hub-bilder som förval ═══════════
+  describe("bilder (#164), CP-beslut 2026-09-28 19:00 och 19:10", () => {
+    it("⛔ FÖRVALET ÄR OPS HUB-BILDERNA, UTAN NÅGON PROP (19:00: \"loggorna ska vara default\")", () => {
+      // ⛔ Förvalet skickar med BÅDA bilderna (ordmärke + ikon, som header-
+      // brytpunkten kräver), och jsdom kör ingen CSS: `md:hidden` döljer
+      // ingenting här. Därför `querySelectorAll` + `find`, inte "den första
+      // bilden i DOM:en".
+      // ⛔ #164, ANDRA VARVET: förvalsbilderna är sedan arkitektgranskningen
+      // `data:image/webp;base64,...`-strängar (se filhuvudet i
+      // `../lib/varumarke.js`), inte filnamn i en URL. Ett prov som letar
+      // efter "ops-hub-ordmarke-ljus.png" i `src` mäter alltså ingenting: det
+      // stod grönt genom hela bugen `new URL(..., import.meta.url)` gav i en
+      // riktig konsument. Vad som går att mäta här, i jsdom, är formen på
+      // `OPS_HUB_VARUMARKE` självt.
+      const { container } = render(<OpsBrand title="Bolag Ops" />);
+      const bilder = Array.from(container.querySelectorAll("img")).map((b) => /** @type {HTMLImageElement} */ (b).src);
+      expect(bilder.some((src) => src === OPS_HUB_VARUMARKE.ordmarke.ljus)).toBe(true);
+      expect(bilder.some((src) => src === OPS_HUB_VARUMARKE.ikon.ljus)).toBe(true);
+    });
+
+    it("mark=\"none\" och inga bild-props ger text som förut, INGEN OPS Hub-bild", () => {
+      const { container } = render(<OpsBrand title="Bolag Ops" mark="none" />);
+      expect(within(container).getByText("Bolag Ops")).toBeInTheDocument();
+      expect(container.querySelector("img")).toBeNull();
+    });
+
+    it("appens egna ordmarke/ikon ÖVERRIDER förvalet", () => {
+      const { container } = render(<OpsBrand title="Bolag Ops" ordmarke={{ ljus: "/ord-ljus.png", mork: "/ord-mork.png" }} />);
+      const bild = /** @type {HTMLImageElement} */ (container.querySelector("img"));
+      expect(bild.src).toContain("/ord-ljus.png");
+      expect(bild.src).not.toContain("ops-hub");
+    });
+
+    it("⛔ 19:10: title ritas som synlig, uppläst UNDERTEXT under bilden, bilden själv är dekor (alt=\"\")", () => {
+      const { container: c1 } = render(<OpsBrand title="Bolag Ops" ordmarke={{ ljus: "/ord-ljus.png", mork: "/ord-mork.png" }} />);
+      expect(within(c1).getByText("Bolag Ops")).toBeInTheDocument();
+      const bild = /** @type {HTMLImageElement} */ (c1.querySelector("img"));
+      expect(bild.alt).toBe("");
+      // ⛔ subtitle ritas ALDRIG i bildläget: title äger undertextplatsen.
+      const { container: c2 } = render(<OpsBrand title="X" subtitle="CPS AB" ordmarke={{ ljus: "/o.png", mork: "/o.png" }} />);
+      expect(within(c2).queryByText("CPS AB")).toBeNull();
+    });
+
+    it("väljer ljus/mork utifrån det upplösta temat", () => {
+      const { container: c1, unmount } = render(<OpsBrand title="X" ordmarke={{ ljus: "/ljus.png", mork: "/mork.png" }} />);
+      expect(/** @type {HTMLImageElement} */ (c1.querySelector("img")).src).toContain("/ljus.png");
+      unmount();
+
+      document.documentElement.setAttribute("data-theme", "dark");
+      const { container: c2 } = render(<OpsBrand title="X" ordmarke={{ ljus: "/ljus.png", mork: "/mork.png" }} />);
+      expect(/** @type {HTMLImageElement} */ (c2.querySelector("img")).src).toContain("/mork.png");
+      document.documentElement.removeAttribute("data-theme");
+    });
+
+    it("med BÅDA ordmarke och ikon ritas två bilder: ikonen smal (md:hidden), ordmärket bred (hidden md:block)", () => {
+      const { container } = render(
+        <OpsBrand
+          title="X"
+          ordmarke={{ ljus: "/ord.png", mork: "/ord.png" }}
+          ikon={{ ljus: "/ikon.png", mork: "/ikon.png" }}
+        />,
+      );
+      const bilder = Array.from(container.querySelectorAll("img"));
+      expect(bilder).toHaveLength(2);
+      expect(bilder.find((b) => b.getAttribute("src") === "/ikon.png")?.className).toContain("md:hidden");
+      expect(bilder.find((b) => b.getAttribute("src") === "/ord.png")?.className).toContain("hidden");
+    });
+
+    // ⛔ #164: `OpsInloggning` är en helskärmsvy, inte `OpsAppShell`s
+    // responsiva topprad. Utan `endastOrdmarke` hade en 480 px mobilskärm
+    // (den vanligaste bredden för just en inloggningssida) tyst räknats som
+    // "smal vy" och ritat den lilla ikonen i stället för det avsedda
+    // ordmärket.
+    it("endastOrdmarke ritar BARA ordmärket, aldrig ikonen, trots att båda finns i förvalet", () => {
+      const { container } = render(<OpsBrand title="Bolag Ops" endastOrdmarke />);
+      const bilder = Array.from(container.querySelectorAll("img"));
+      expect(bilder).toHaveLength(1);
+      expect(bilder[0].src).toBe(OPS_HUB_VARUMARKE.ordmarke.ljus);
+    });
   });
 });
 

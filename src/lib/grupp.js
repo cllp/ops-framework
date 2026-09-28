@@ -70,6 +70,33 @@ export const INBJUDNINGSSTATUS = /** @type {const} */ (["vantar", "accepterad", 
 export const TEMAN = /** @type {const} */ (["system", "ljust", "morkt"]);
 
 /**
+ * Standardikoner för en profilbild UTAN Storage (#164, korrigering C).
+ *
+ * ⛔ VARFÖR DEN HÄR LISTAN FINNS: CP 2026-09-28, mätt mot en skärmbild av
+ * SessionStudios profilvy: "PROFILBILD-sektionen erbjuder 'Välj standardikon'
+ * ... Det viktiga: standardikon plus färg kräver INGEN Storage, så
+ * profilbilden fungerar i bolag-ops i dag." bolag-ops har ingen Storage-
+ * konfiguration ännu (`OpsProfil props.lagring` är valfri av precis det
+ * skälet), och en profilbild som KRÄVER uppladdning hade alltså varit
+ * oanvändbar där tills den dagen. Ett ikon-id plus ett palett-id är två
+ * strängar i `users/{uid}`, inga filer, ingen regel för lagring.
+ *
+ * ⛔ IKON-ID:N ÄR RAMVERKETS EGNA, INTE LUCIDE-KOMPONENTNAMN. `OpsProfil` slår
+ * upp id:t mot `src/lib/profilikoner.js` för att rita SVG:n. Skulle raden bära
+ * ett Lucide-namn direkt hade ett byte av ikonbibliotek förvandlat varje sparad
+ * profil till ett fält ingen kod längre känner igen.
+ */
+export const PROFILIKONER = /** @type {const} */ (["person", "stjarna", "hjarta", "blixt", "leende", "krona"]);
+
+/**
+ * Palettens id:n för en profils bakgrundsfärg, samma sex toner som
+ * `OpsIdentity` redan väljer AUTOMATISKT ur `seed` (#164, korrigering C).
+ * Ett uttryckligt val åsidosätter det härledda: `identityTone(seed)` förblir
+ * FÖRVALET så länge `farg` är tom sträng, ingen ny färgskala.
+ */
+export const PROFILFARGER = /** @type {const} */ (["1", "2", "3", "4", "5", "6"]);
+
+/**
  * @typedef {object} Anvandare
  * @property {string} id Firebase Auth-uid.
  * @property {string} namn Ur inloggningen, sedan #156 redigerbar av personen själv.
@@ -86,6 +113,10 @@ export const TEMAN = /** @type {const} */ (["system", "ljust", "morkt"]);
  *   sökväg i en fillagring (Storage-URL:er är inte reversibla till sin sökväg
  *   utan att fråga lagringen, och det kravet hade gjort borttagning till ett
  *   nätverksanrop till, med ett eget felfall). #156.
+ * @property {string} ikon Ett id ur `PROFILIKONER`, eller tom sträng. Ritas bara när
+ *   `bild` saknas. #164, kräver ingen Storage.
+ * @property {string} farg Ett id ur `PROFILFARGER`, eller tom sträng (då väljer
+ *   `OpsIdentity` tonen ur `seed`, precis som innan detta fält fanns). #164.
  */
 
 /**
@@ -141,7 +172,7 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * sådan lista är det heller inte vaktat, så en ny samling utan sin lista är ett
  * hål och inte en förenkling.
  */
-export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag"];
+export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"];
 export const GRUPPFALT = ["id", "namn", "moduler", "arkiverad", "skapadAv"];
 /*
  * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT
@@ -242,6 +273,16 @@ export function byggAnvandare(d, tillatnaPlattformar) {
 
   const lankar = byggLankar(rad.lankar, id, tillatnaPlattformar);
 
+  const ikon = rensa(rad.ikon);
+  if (ikon && !(/** @type {readonly string[]} */ (PROFILIKONER).includes(ikon))) {
+    throw new Error(`users: ikonen "${ikon}" för "${id}" finns inte. Giltiga: ${PROFILIKONER.join(", ")}, eller tom sträng.`);
+  }
+
+  const farg = rensa(rad.farg);
+  if (farg && !(/** @type {readonly string[]} */ (PROFILFARGER).includes(farg))) {
+    throw new Error(`users: färgen "${farg}" för "${id}" finns inte. Giltiga: ${PROFILFARGER.join(", ")}, eller tom sträng.`);
+  }
+
   return Object.freeze({
     id,
     namn: rensa(rad.namn),
@@ -254,6 +295,8 @@ export function byggAnvandare(d, tillatnaPlattformar) {
     presentation,
     lankar,
     bildSokvag: rensa(rad.bildSokvag),
+    ikon,
+    farg,
   });
 }
 

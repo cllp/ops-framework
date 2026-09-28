@@ -8,6 +8,33 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * Saknas något: lägg till en variant här, lappa inte på anropsstället. Det är
  * den enda regeln som håller ihop resten, och den är vaktad av
  * `scripts/check-closed-api.mjs`.
+ *
+ * ══ ⛔ #164, CP-BESLUT 2026-09-28 18:20: "KNAPPARNA BLIR PILLER SOM
+ * SESSIONSTUDIO." ═══════════════════════════════════════════════════════
+ *
+ * Textknappar (allt utom `iconOnly`) fick tidigare `rounded-md`, samma
+ * skala som kort och paneler. Mätt mot SessionStudios EGEN knappklass,
+ * `v7PrimaryButtonClass` i `apps/web/src/components/LoginScreen.jsx`:
+ * `rounded-full`, en piller, inte ett kort med rundade hörn. CP:s ord är
+ * beslutet, inte en tolkning av en skärmbild: knappen ÄR nu en piller.
+ *
+ * Ikonknappar (`iconOnly`) ändras INTE. De var redan `rounded-md` (en
+ * kvadratisk träffyta med skarpare hörn, t.ex. "Ta bort länken"-krysset i
+ * `OpsProfil`), och en ikonknapp som plötsligt blir en cirkel utan att någon
+ * bad om det hade sett ut som en ny sorts kontroll mitt i en rad knappar som
+ * inte ändrats. `round` (kräver `iconOnly`) gav redan cirkeln, för
+ * Huvudatgard-knappen i bottenraden, och gör det fortfarande.
+ *
+ * ══ ⛔ SAMMA PASS, TYNGD OCH STORLEK: EN ANNAN AGENT MÄTTE VIDARE ═════════
+ *
+ * `font-semibold` (600) och `text-base` (16 px, `size="md"`) stod kvar från
+ * innan pillerbeslutet och avvek från SessionStudio på BÅDA punkterna, mätt
+ * mot `apps/web/src/views/ProfileView.jsx` rad ~604 (Spara-knappen) och flera
+ * rader i `apps/web/src/components/AppHeader.jsx`: SessionStudios knappar är
+ * `font-medium` (500), aldrig `font-semibold`, och Spara-knappens storlek är
+ * `text-sm` (14 px), inte 16. Båda rättade i samma commit som pillerformen.
+ * `min-h-11` (44 px träffyta) är ORÖRD: den är ett mått för tummen, inte för
+ * texten.
  */
 
 const VARIANTER = {
@@ -28,7 +55,11 @@ const VARIANTER = {
  */
 const STORLEKAR = {
   sm: "gap-1.5 px-3 py-1 text-sm min-h-8",
-  md: "gap-2 px-4 py-2 text-base min-h-11",
+  // ⛔ text-sm, INTE text-base (#164, mätt av en annan agent mot
+  // SessionStudios `ProfileView.jsx` rad ~604, Spara-knappen): 14 px, inte
+  // 16 px. Höjden (min-h-11, 44 px träffyta) är ORÖRD: den är ett mått för
+  // tummen, inte för texten, och de två frågorna svarar inte på varandra.
+  md: "gap-2 px-4 py-2 text-sm min-h-11",
 };
 
 const IKONSTORLEKAR = {
@@ -46,7 +77,11 @@ const RUND_IKONSTORLEKAR = {
 };
 
 const BAS =
-  "inline-flex items-center justify-center border font-semibold leading-tight " +
+  // ⛔ font-medium, INTE font-semibold (#164, mätt av en annan agent mot
+  // SessionStudios `ProfileView.jsx` r604 och flera rader i `AppHeader.jsx`):
+  // 500, aldrig 600. Provet i `piller.test.jsx` är rött om font-semibold
+  // kommer tillbaka.
+  "inline-flex items-center justify-center border font-medium leading-tight " +
   "transition-colors duration-(--duration-fast) ease-standard " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent " +
   "disabled:opacity-55 disabled:cursor-not-allowed aria-disabled:opacity-55 aria-disabled:cursor-not-allowed";
@@ -118,7 +153,16 @@ export function OpsButton({
 
   const klass = cx(
     BAS,
-    round ? "rounded-full" : "rounded-md",
+    // ⛔ #164, CP-BESLUT 2026-09-28 18:20: "KNAPPARNA BLIR PILLER SOM
+    // SESSIONSTUDIO." Mätt mot `v7PrimaryButtonClass` i SessionStudios
+    // `apps/web/src/components/LoginScreen.jsx`: `rounded-full`, inte
+    // `rounded-md`. En TEXTKNAPP (`!iconOnly`) är sedan detta beslut ALLTID
+    // en piller, oavsett variant, förvalet är inte längre valfritt. En
+    // IKONKNAPP ändras INTE: den var redan `rounded-md` (kvadratisk träffyta,
+    // t.ex. Ta bort-krysset i `OpsProfil`), och `round` ger fortfarande
+    // cirkeln (Huvudatgard-knappen). Provet i `piller.test.jsx` är rött om
+    // `rounded-md` kommer tillbaka på en textknapp.
+    round || !iconOnly ? "rounded-full" : "rounded-md",
     variantKlass,
     storlekKlass,
     fullWidth && "w-full",
