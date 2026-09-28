@@ -113,6 +113,12 @@ en gång, och både ramverket och appen ritar ur samma uppsättning och samma
 version. Ramverket importerar den bara i `src/components/icons.jsx`, så ett byte
 av uppsättning är en fil.
 
+⛔ **#167: `strokeWidth={1.5}`, inte Lucides eget förval (2).** SessionStudio
+ritar sina lucide-ikoner tunnare (`apps/web/src/index.css:437-445`), avläst
+i `tokens/sessionstudio-profil.json` ("ikoner"). `tokens.css` sätter samma tal
+på `--icon-stroke-width` och en `.lucide { stroke-width: var(--icon-stroke-width) }`
+i `@layer base`, så en apps EGNA direkta lucide-importer följer med.
+
 ### Hur en ändring sprider sig
 
 1. Något saknas i en app.
@@ -174,7 +180,7 @@ något godtyckligt.
 | Komponent | Props |
 |---|---|
 | `OpsButton` | `variant` primary \| secondary \| ghost \| danger, `size` sm \| md, `type`, `disabled`, `busy`, `fullWidth`, `iconOnly`, `href`, `newTab`, `ariaLabel`, `title`, `id`, `onClick`, `children` |
-| `OpsCard` | `rounding` (`"kort"` 24 px, förval, eller `"bubbla"` 28 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. Båda talen är MÄTTA mot SessionStudios `.rounded-app` (ops-framework#164): `kort` är `--radius-card` (24 px, ett namngivet token), `bubbla` är `--radius-3xl` (28 px, SessionStudios `--radius-bubble`). Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children`. ⛔ Inre padding är `--card-padding` (20px, #157, mätt mot SessionStudios `p-5`), ett token och inte en klass: `p-4` satt förut hårdkodat i komponenten, så en justering hade krävt en ändring per primitiv i stället för en rad i `tokens/tokens.css` |
+| `OpsCard` | `rounding` (`"kort"` 24 px, förval, eller `"bubbla"` 28 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. Båda talen är MÄTTA mot SessionStudios `.rounded-app` (ops-framework#164): `kort` är `--radius-card` (24 px, ett namngivet token), `bubbla` är `--radius-3xl` (28 px, SessionStudios `--radius-bubble`). Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `kant` (förval `false`, #167), `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children`. ⛔ Inre padding är `--card-padding` (20px, #157, mätt mot SessionStudios `p-5`), ett token och inte en klass: `p-4` satt förut hårdkodat i komponenten, så en justering hade krävt en ändring per primitiv i stället för en rad i `tokens/tokens.css`. ⛔ **#167: `kant` förvalt `false`.** Kortet satte tidigare `border` ovillkorligt; SessionStudio skiljer ett kort från sidan med `tone` (tonskillnad), aldrig med en synlig kant. Sätt `kant` när en yta ändå behöver en, t.ex. mot en likfärgad granne |
 | `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `oppet`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
@@ -1328,7 +1334,7 @@ som råkar bryta det råkar minnas.
 | `check-closed-api` läser strängar som strängar | `scripts/lib/kallkod.mjs` stryker kommentarer utan att tro att `accept="image/*"` är en. Den gamla strykaren slukade allt från snedstreck-stjärnan i strängen till nästa kommentarslut: synligt som en falsk positiv, osynligt som ett hål där riktiga brott passerade oläsa |
 | `check-types` (`tsc --checkJs`) | JSDoc-typerna kontrolleras, och `.d.ts` följer med paketet |
 | `check-docs` | varje exporterat namn och varje vakt är omnämnd i README, och antalet komponenter stämmer |
-| `check-tokens` | åtta regler i tokenkontraktet, plus golv mot fel fil. ⛔ Regel 8 (#157): röd om en palettfärg glider från SessionStudios värden, med paletten inskriven som fixtur |
+| `check-tokens` | elva regler i tokenkontraktet, plus golv mot fel fil. ⛔ **#167:** SessionStudios utseende är en fristående fixtur, `tokens/sessionstudio-profil.json` (färger, radier, typografiskala, ikonlinjebredd, kort, diagramfärger, rörelsetider, topprad), mätt ur `/home/user/sessions-platform` med fil och rad. `scripts/generate-tokens.mjs` skriver ur den in i `tokens.css` mellan markörer. Regel 8/9 (tidigare två handskrivna listor med SessionStudios tal, #157/#164) är nu EN regel: kör generatorns egen funktion mot fixturen och kräv byte-för-byte-likhet med vad som faktiskt står i filen. Regel 11: fixturen har ett eget golv. `npm run generate:tokens` körs i `prebuild`/`pretest`/`precheck:types`, som versionskonstanten |
 | `check-exports` | den publika ytan stämmer med modulerna, inget internt läcker |
 | `check-closed-api` | ingen primitiv tar `className`, ingen app lappar, ingen ad-hoc-färg |
 | `check-css-build` | bygger CSS på riktigt och läser i resultatet |
