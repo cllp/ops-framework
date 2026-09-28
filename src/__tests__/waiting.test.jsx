@@ -124,6 +124,47 @@ describe("OpsBrand", () => {
     );
     expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
   });
+
+  // ══ #164, korrigering B / punkt 9: ordmärket och ikonen som bilder ═════
+  describe("bilder (#164)", () => {
+    it("utan ordmarke/ikon ritas namnet som text, precis som förut", () => {
+      render(<OpsBrand title="Bolag Ops" ordmarke={undefined} ikon={undefined} />);
+      expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
+      expect(screen.queryByRole("img")).toBeNull();
+    });
+
+    it("med bara ordmarke ritas EN bild med rätt alt-text, ingen subtitle-rad", () => {
+      render(<OpsBrand title="Bolag Ops" subtitle="CPS AB" ordmarke={{ ljus: "/ord-ljus.png", mork: "/ord-mork.png" }} />);
+      const bilder = screen.getAllByRole("img", { name: "Bolag Ops" });
+      expect(bilder).toHaveLength(1);
+      expect(screen.queryByText("CPS AB")).toBeNull();
+    });
+
+    it("väljer ljus/mork utifrån det upplösta temat", () => {
+      const { unmount } = render(<OpsBrand title="X" ordmarke={{ ljus: "/ljus.png", mork: "/mork.png" }} />);
+      expect(screen.getByRole("img", { name: "X" })).toHaveAttribute("src", "/ljus.png");
+      unmount();
+
+      document.documentElement.setAttribute("data-theme", "dark");
+      render(<OpsBrand title="X" ordmarke={{ ljus: "/ljus.png", mork: "/mork.png" }} />);
+      expect(screen.getByRole("img", { name: "X" })).toHaveAttribute("src", "/mork.png");
+      document.documentElement.removeAttribute("data-theme");
+    });
+
+    it("med BÅDA ordmarke och ikon ritas två bilder: ikonen smal (md:hidden), ordmärket bred (hidden md:block)", () => {
+      render(
+        <OpsBrand
+          title="X"
+          ordmarke={{ ljus: "/ord.png", mork: "/ord.png" }}
+          ikon={{ ljus: "/ikon.png", mork: "/ikon.png" }}
+        />,
+      );
+      const bilder = screen.getAllByRole("img", { name: "X" });
+      expect(bilder).toHaveLength(2);
+      expect(bilder.find((b) => b.getAttribute("src") === "/ikon.png")?.className).toContain("md:hidden");
+      expect(bilder.find((b) => b.getAttribute("src") === "/ord.png")?.className).toContain("hidden");
+    });
+  });
 });
 
 describe("OpsTag när färgen betyder något", () => {

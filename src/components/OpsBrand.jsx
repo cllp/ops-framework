@@ -1,4 +1,5 @@
 import { cx } from "../lib/cx.js";
+import { useResolvedTheme } from "../lib/theme.js";
 
 /**
  * Varumärkesraden i skalet: märke, produktnamn och ägarrad.
@@ -45,19 +46,50 @@ const MARKEN = {
 };
 
 /**
+ * ⛔ ORDMÄRKE OCH IKON SOM BILDER, VALFRITT (#164, korrigering B och punkt 9).
+ *
+ * CP mätt mot en skärmbild av SessionStudio: ordmärket är en BILD som "följer
+ * temat", inte text ritad av CSS-tokens. `OpsBrand` känner fortfarande INTE
+ * appens filer, precis som `lagring`/`sdk` på andra ställen i ramverket: appen
+ * skickar in två URL:er per bild (`{ ljus, mork }`), en för varje upplöst
+ * tema, och `OpsBrand` väljer med `useResolvedTheme()` (`src/lib/theme.js`).
+ *
+ * ⛔ VARFÖR INTE `<picture>`/`prefers-color-scheme`, SAMMA SVAR SOM FÖR
+ * PH.ST-MÄRKET OVAN: det lyssnar bara på SYSTEMET, inte på personens eget val
+ * i appen (ljust/mörkt/följ enheten). `useResolvedTheme()` är samma sanning
+ * som resten av gränssnittet redan ritas efter.
+ *
+ * ⛔ UTAN BILDER RITAS NAMNET SOM TEXT, PRECIS SOM FÖRUT. `ordmarke`/`ikon` är
+ * tillägg, inte ett krav: en app utan loggofiler (t.ex. under utveckling) får
+ * ändå ett läsbart märke.
+ *
  * @param {object} props
- * @param {string} props.title Produktens namn. "Operations Hub", "Bolag Ops".
- * @param {string} [props.subtitle] Ägare eller sammanhang. Står i accentfärg under namnet.
+ * @param {string} props.title Produktens namn. "Operations Hub", "Bolag Ops". Alt-text när `ordmarke`/`ikon` ritas.
+ * @param {string} [props.subtitle] Ägare eller sammanhang. Står i accentfärg under namnet. Ritas INTE när `ordmarke` finns:
+ *   bilden bär redan hela märket, och en textrad under en bild ser ut som en bildtext ingen bad om.
  * @param {"phst"|"phst-estd"|"none"} [props.mark]
+ * @param {{ ljus: string, mork: string }} [props.ordmarke] Ordmärket som bild. Ritas i BRED vy (och alltid när `ikon` saknas).
+ * @param {{ ljus: string, mork: string }} [props.ikon] Ikonen som bild. Ritas i SMAL vy när `ordmarke` också finns.
+ * @param {string} [props.ordmarkeMaxWidth] Tailwind-bredd på ordmärkets bild, t.ex. `"max-w-[330px]"` (OpsInloggning).
+ *   Förval `"max-w-40"`, rätt mått för en topprad.
  */
-export function OpsBrand({ title, subtitle, mark = "phst" }) {
-  if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i.");
+export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40" }) {
+  if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i, och är alt-texten när en bild ritas.");
 
   if (!(mark in MARKEN)) {
     throw new Error(`OpsBrand: okänt mark "${mark}". Giltiga: ${Object.keys(MARKEN).join(", ")}.`);
   }
-  const markKlass = MARKEN[mark];
 
+  return ordmarke || ikon ? (
+    <OpsBrandBild title={title} ordmarke={ordmarke} ikon={ikon} ordmarkeMaxWidth={ordmarkeMaxWidth} />
+  ) : (
+    <OpsBrandText title={title} subtitle={subtitle} mark={mark} />
+  );
+}
+
+/** @param {{ title: string, subtitle?: string, mark: "phst"|"phst-estd"|"none" }} props */
+function OpsBrandText({ title, subtitle, mark }) {
+  const markKlass = MARKEN[mark];
   return (
     <span className="inline-flex items-center gap-3">
       {/* ⛔ `aria-hidden`, och det är inte slarv. Märket står alltid bredvid
@@ -76,4 +108,30 @@ export function OpsBrand({ title, subtitle, mark = "phst" }) {
       </span>
     </span>
   );
+}
+
+/**
+ * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeMaxWidth: string }} props
+ */
+function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
+  // ⛔ `useResolvedTheme()` SVARAR "light"/"dark" (samma `Temalage`-typ som
+  // resten av `theme.js`). Bildernas nycklar är "ljus"/"mork", KORTFORMEN CP
+  // gav i uppdraget, skild från `TEMAN` (grupp.js: "ljust"/"morkt"). Kartan
+  // står HÄR, en gång, i stället för att varje anropsställe gissar rätt ord.
+  const tema = useResolvedTheme() === "dark" ? "mork" : "ljus";
+
+  if (ordmarke && ikon) {
+    // ⛔ IKONEN I SMAL VY, ORDMÄRKET I BRED (#164 punkt 9). `hidden md:block` /
+    // `md:hidden` är samma brytpunkt `OpsAppShell` redan använder för sin egen
+    // topprad, inte ett nytt tal påhittat här.
+    return (
+      <span className="inline-flex items-center">
+        <img src={ikon[tema]} alt={title} className="block h-8 w-auto md:hidden" />
+        <img src={ordmarke[tema]} alt={title} className={cx("hidden md:block object-contain", ordmarkeMaxWidth)} />
+      </span>
+    );
+  }
+
+  const kalla = /** @type {{ ljus: string, mork: string }} */ (ordmarke ?? ikon);
+  return <img src={kalla[tema]} alt={title} className={cx("block object-contain", ordmarke ? ordmarkeMaxWidth : "h-8 w-auto")} />;
 }
