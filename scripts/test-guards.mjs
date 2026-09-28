@@ -729,9 +729,9 @@ kravRott(
   };
 
   kravRott(
-    "typsnitt 2: mallen slutar hämta Inter",
+    "typsnitt 2: mallen slutar hämta Plus Jakarta Sans",
     [typsnittsvakt, "tokens/tokens.css", mallkopia("ty2", (s) => s.replace(/<link\s+rel="stylesheet"[\s\S]*?\/>/, ""))],
-    'saknar <link rel="stylesheet"> för Inter',
+    'saknar <link rel="stylesheet"> för Plus Jakarta Sans',
   );
 
   kravRott(

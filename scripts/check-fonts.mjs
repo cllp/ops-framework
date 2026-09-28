@@ -8,6 +8,11 @@
  * utförlig kommentar om varför ramverket och inte varje app skulle äga
  * hämtningen. Argumentet höll. Importen hämtade ingenting.
  *
+ * ⛔ #157, CP 2026-09-28: typsnittet bytte namn från Inter till Plus Jakarta
+ * Sans (samma orsak som ursprungstexten nedan syftar på), och vakten bytte med.
+ * Mekaniken den provar är oförändrad: det spelar ingen roll VILKET typsnitt som
+ * hämtas fel, bara att hämtningen sker på rätt ställe.
+ *
  * En CSS-`@import` måste stå före alla andra regler, annars ignoreras den. Appens
  * stilrot börjar med `@import "tailwindcss"`, så när allt plattats ut låg
  * tusentals rader före vår rad. Bygget sade det rakt ut, som en varning bland
@@ -72,9 +77,9 @@ if (fontImport) {
 // ── 2. Mallen måste hämta det, annars ärver ingen ny plattform typsnittet ──
 const mall = fs.readFileSync(mallfil, "utf8");
 const mallRad = path.relative(rot, mallfil);
-if (!/<link[^>]+fonts\.googleapis\.com\/css2[^>]*Inter/i.test(mall)) {
+if (!/<link[^>]+fonts\.googleapis\.com\/css2[^>]*Plus\+Jakarta\+Sans/i.test(mall)) {
   fel.push(
-    `${mallRad} saknar <link rel="stylesheet"> för Inter.\n` +
+    `${mallRad} saknar <link rel="stylesheet"> för Plus Jakarta Sans.\n` +
       "    En ny plattform hade då ritats i systemets typsnitt från första minuten, utan felmeddelande.",
   );
 }

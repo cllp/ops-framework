@@ -74,7 +74,10 @@ export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, 
         // element, så den följer radien och inte kan hamna utanför kortet.
         kanten && cx("border-l-4", kanten),
         elevated && "shadow-md",
-        flush ? "p-0 overflow-hidden" : "p-4",
+        // ⛔ #157: `--card-padding` och inte `p-4`. Talet bor i tokens.css, så
+        // en justering mot SessionStudios mått (20 px) gäller varje kort och
+        // inte bara det här stället.
+        flush ? "p-0 overflow-hidden" : "p-(--card-padding)",
       )}
     >
       {kanten ? <span className="sr-only">{slagLabel || edgeLabel}</span> : null}
