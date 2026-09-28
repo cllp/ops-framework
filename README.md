@@ -1280,6 +1280,36 @@ varje gång något annat ska ändras.
 | `OpsKatalogInstallning` | `kategorier`, `ikoner`, `onSpara`, `onArkivera` | **inställningsvyn för en katalog.** ⛔ ARKIVERAR, RADERAR ALDRIG: en raderad kategori lämnar varje rad som pekar på den utan kategori, och de raderna blir omöjliga att filtrera och räkna långt efter att någon tryckt. Arkiverad går att ta fram igen, alltså är det det enda ångrbara alternativet. ⛔ `kanAndra` kommer ur rollerna, och vyn SÄGER att den inte är låset: den som vill skriva ändå öppnar konsolen, det riktiga låset är Firestore-reglerna. ⛔ Nyckeln går inte att ändra på en befintlig kategori, och formuläret säger att en omdöpning behåller kopplingen, annars vågar ingen döpa om något. ⛔ Färgen väljs som PLATS och det finns ingen ruta att skriva en hex i. ⛔ Vyn skriver inte själv: `onSpara` och `onArkivera` kommer utifrån, som datakällan. ⛔ `groupId` (#162, valfri): satt byggs en ny eller ändrad kategori med `grupp: true` och det groupId:t, alltså gruppens egen; outelämnad är beteendet oförändrat från innan #162 |
 | `createCatalogSource` | `source`, `collection`, `groupId` | **Firestore är sanningen, repot bär standardvärdena.** ⛔ `collection` kommer utifrån: det är raden som gör en framtida kund till ett eget projekt utan att datamodellen ändras. ⛔ `groupId` KRÄVS (#162, väg C i [#160](https://github.com/cllp/ops-framework/issues/160)): katalogen är EN GRUPPS EGEN, samma mönster som `gruppkalla.js`, och en källa utan grupp hade läst och skrivit mot hela den delade samlingen. ⛔ `las()` KASTAR ALDRIG, den svarar `{ kategorier, kalla, fel }`: en vy som får ett kastat fel ritar en tom lista, och en tom lista är samma sak som "det finns inga kategorier". `kalla` skiljer `databas` från `reserv`, så en banderoll går att visa, och reserven bär källans `groupId`. ⛔ En TOM samling är `databas` och inte `reserv`: det är läget före seedningen, FÖR DEN HÄR GRUPPEN. ⛔ `seeda()` rör aldrig en samling som har värden FÖR DEN HÄR GRUPPEN, annars kommer en arkiverad kategori tillbaka vid nästa driftsättning och ser ut som ett spöke. Den svarar med VAD som hände, så "skrev fem" och "gjorde inget" går att skilja åt i en logg. ⛔ Standardvärdena (`standard`) HAR INGET groupId och valideras utan det: de är mallen, gruppen äger sin kopia först efter seedning. ⛔ Skriver internt med en HÄRLEDD lagrad nyckel (`groupId` plus kategorins `id`, samma mönster som `medlemskapsId`), eftersom samlingen är delad och kategorins `id` bara är unikt inom en grupps egen katalog: två grupper med samma maskinnyckel ("uppgift") ska inte kunna skriva över varandras rad |
 | `katalogregelfragment` | ett eller flera samlingsnamn | **regelfragmentet för katalogens delade samling(ar) (#162).** Tunn namngiven genväg till `gruppadSamling(namn, { agareKravsForSkrivning: true, falt: KATEGORIFALT })`, så katalogens fältlista och regelns `hasOnly` inte kan glida isär: ägare skriver (katalogen är gruppens konfiguration), medlem läser, uppslag på radens `groupId`, ingen radering |
+
+⛔ **Bakfyllnaden av en befintlig katalog (#162) är APPENS eget skript, inte
+ramverkets.** Ramverket vet inte vilka kategorier som redan finns i en app som
+byggdes innan `groupId` blev obligatoriskt (`grupp: true`), bara hur en
+kategori med `groupId` ser ut. `cllp/bolag-ops`s befintliga kategorier hör i
+dag till `cps-ab`, och bakfyllnaden är ett vanligt Node-skript i APPENS repo
+(inte här), byggt av samma tre delar som varje annat skript i den familjen
+(jämför `scripts/skriv-provregler.mjs`, `scripts/gh-full-debt-bodies` i
+`bolag-ops`):
+
+1. **Läs** varje rad i samlingen `source.list(collection)` som SAKNAR
+   `groupId` (`Array.isArray(rad.groupId)` finns inte, `typeof rad.groupId !==
+   "string"`, eller en tom sträng).
+2. **Torrkörning FÖRVAL.** Skriptet skriver ut vad det SKULLE göra (`N
+   kategorier saknar groupId, sätter "cps-ab"`) och rör ingenting, om det inte
+   får en uttrycklig flagga (`--apply` eller liknande). Samma regel som varje
+   annan destruktiv operation i `bolag-ops` (se `purge:*`-skripten i
+   `scripts/README.md`): ett skript som skriver på riktigt utan att någon bad
+   om det är hur en drifthändelse börjar.
+3. **Skriv** `groupId: "cps-ab"` på varje rad som saknade det, en `update` per
+   rad (aldrig `create`, som hade ersatt kategorins övriga fält). Kör EN gång:
+   en andra körning hittar noll rader utan `groupId` och gör ingenting, precis
+   som `createCatalogSource.seeda()` gör mot en fylld samling.
+
+⛔ **VARFÖR INTE `byggKategori`/`validateKatalog` HÄR.** Ett bakfyllnadsskript
+skriver bara ETT fält (`groupId`) på en rad som redan finns och redan är
+giltig i övrigt; att köra hela raden genom `byggKategori` igen hade krävt att
+skriptet kände appens fulla katalogkonfiguration (`ikoner`, `textnycklar`)
+bara för att sätta ett fält den redan vet värdet på.
+
 | `saknadeSprak`, `arGammalNamn`, `SPRAK`, `RESERVSPRAK` | ett objekt med namn i | **toleransen får inte vara tyst.** `saknadeSprak` räknar upp varje namn som saknar `en`, som SÖKVÄGAR och inte som en siffra: "fyra namn saknar engelska" går inte att åtgärda utan att leta, `kategorier.1.namn` går det. ⛔ En sträng räknas som saknad, annars visar vakten noll så länge ingenting migrerats, alltså är den som grönast när läget är sämst. ⛔ Räknar också varje text i katalogens `texter` (#117): inkorgens sorter bär nio texter var, alltså vida fler ord än namnen, och en vakt som bara tittade på nyckeln `namn` hade visat noll medan merparten av ytorna var enspråkiga |
 | `createActivityLog` | `kinds` | |
 | `createActivityWriter` (nodsidan) | `model`, `append` | `kalla`, `nu` |
