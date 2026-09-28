@@ -43,7 +43,7 @@ import { skapalaget, typerAttValja } from "../lib/skapa.js";
  * Det är SAMMA form som `OpsMeny`s sektioner redan använder (`OpsPanelRow`,
  * ikon vänster, ord, ingen chevron här eftersom raden inte öppnar en
  * undermeny i SAMMA panel, den byter hela panelens innehåll som en riktig
- * navigering skulle) — panelen ska inte likna listan ungefär, den ska vara
+ * navigering skulle). Panelen ska inte likna listan ungefär, den ska vara
  * DENSAMMA primitiv.
  *
  * ⛔ IKONEN ÄR APPENS, INTE RAMVERKETS (`ikonRitare`, samma mönster som

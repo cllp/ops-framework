@@ -131,6 +131,8 @@ const FARGKLASSER = {
  * @param {string} [props.stadEtikett]
  * @param {string} [props.presentationEtikett]
  * @param {string} [props.lankarEtikett]
+ * @param {string} [props.installningarEtikett] Rubriken över Språk och Utseende. Utan den låg de två fälten under
+ *   närmast föregående rubrik, alltså under Länkar, och såg ut som länkinställningar.
  * @param {string} [props.laggTillLankEtikett]
  * @param {string} [props.urlEtikett]
  * @param {string} [props.taBortLankEtikett]
@@ -174,6 +176,7 @@ export function OpsProfil({
   stadEtikett = "Stad",
   presentationEtikett = "Presentation",
   lankarEtikett = "Länkar",
+  installningarEtikett = "Inställningar",
   laggTillLankEtikett = "Lägg till länk",
   urlEtikett = "url",
   taBortLankEtikett = "Ta bort länken",
@@ -482,6 +485,11 @@ export function OpsProfil({
         </OpsField>
       </div>
 
+      {/* ⛔ LÄNKSEKTIONEN RITAS BARA NÄR APPEN HAR PLATTFORMAR. Utan `plattformar` finns
+          inget att lägga till, och en rubrik "Länkar" över ingenting följdes av Språk
+          och Utseende, som då såg ut att höra till länkarna (skärmbild #164, 2026-09-28).
+          Tomheten är ett svar i appens beslut att inte skicka plattformar, inte en rad här. */}
+      {plattformar.length > 0 || lankar.length > 0 ? (
       <div className="flex flex-col gap-2">
         <OpsSectionLabel>{lankarEtikett}</OpsSectionLabel>
         {lankar.length > 0 ? (
@@ -529,9 +537,11 @@ export function OpsProfil({
           </div>
         ) : null}
       </div>
+      ) : null}
 
       {children}
 
+      <OpsSectionLabel>{installningarEtikett}</OpsSectionLabel>
       <OpsField label={sprakEtikett}>
         <OpsSelect
           options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))}

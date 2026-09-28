@@ -99,8 +99,8 @@ describe("OpsEmpty när den hämtar", () => {
 
 describe("OpsBrand", () => {
   it("visar produktnamn och ägarrad i textläget (mark=\"none\", #164 19:00: förvalet är annars OPS Hub-bilden)", () => {
-    render(<OpsBrand title="Operations Hub" subtitle="CPS AB" mark="none" />);
-    expect(screen.getByText("Operations Hub")).toBeInTheDocument();
+    render(<OpsBrand title="Bolag Ops" subtitle="CPS AB" mark="none" />);
+    expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
     expect(screen.getByText("CPS AB")).toBeInTheDocument();
   });
 
