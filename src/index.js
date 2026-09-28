@@ -128,13 +128,38 @@ export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
 export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
 
 /*
+ * ⛔ KÄLLKONTRAKTET (#129). Registret och granskarna är data in och data ut,
+ * alltså ingen React, och ligger här av samma skäl som manifestet: en modul
+ * ska gå att validera av det som körs utan skärm.
+ *
+ * ⛔ YTORNA ÄR TRE KOMPONENTER OCH INTE TRE HOOKAR I VARJE APP. `OpsEventList`,
+ * `OpsHelp` och `OpsKatalogInstallning` fortsätter ta emot data, och
+ * kopplingen till registret bor i var sin liten komponent. En primitiv som
+ * hämtar går inte att använda med data appen redan har.
+ */
+export { NOTISPRIO, skapaKallregister } from "./lib/kallor.js";
+export { useKallor } from "./data/useKallor.jsx";
+export { OpsModulHandelser } from "./components/OpsModulHandelser.jsx";
+export { OpsModulHjalp } from "./components/OpsModulHjalp.jsx";
+export { OpsModulKataloger } from "./components/OpsModulKataloger.jsx";
+
+/*
+ * ⛔ DE TRE YTORNA SOM SAKNADES (#140, #141, #142). Architectens avgränsning
+ * av #129: kontraktet först, ytorna som egna ärenden. Alla tre läser ur
+ * registret och äger sin egen tomhet, sitt fel och sin väntan.
+ */
+export { OpsSok } from "./components/OpsSok.jsx";
+export { OpsNotiser, olasta } from "./components/OpsNotiser.jsx";
+export { OpsOversikt, iOrdning } from "./components/OpsOversikt.jsx";
+
+/*
  * ⛔ GRUPPER OCH MEDLEMSKAP (#136). Formerna är data in och data ut, och
  * regelfragmentet är text in och text ut, alltså ingen React. De ligger här av
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som
  * körs utan skärm, och reglerna genereras av ett skript.
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
-export { regelfragment, gruppadSamling } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules } from "./lib/regler.js";
 
 /*
  * ⛔ GRUPPLÄGET OCH SAMMANSLAGNINGEN (#139). Besluten är rena funktioner och
