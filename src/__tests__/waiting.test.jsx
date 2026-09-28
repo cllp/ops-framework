@@ -6,6 +6,7 @@ import { OpsEmpty } from "../components/OpsEmpty.jsx";
 import { OpsBrand } from "../components/OpsBrand.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsTag } from "../components/OpsTag.jsx";
+import { OPS_HUB_VARUMARKE } from "../lib/varumarke.js";
 
 /** @param {() => void} kor @param {RegExp} message */
 function forvantaKrasch(kor, message) {
@@ -132,10 +133,17 @@ describe("OpsBrand", () => {
       // brytpunkten kräver), och jsdom kör ingen CSS: `md:hidden` döljer
       // ingenting här. Därför `querySelectorAll` + `find`, inte "den första
       // bilden i DOM:en".
+      // ⛔ #164, ANDRA VARVET: förvalsbilderna är sedan arkitektgranskningen
+      // `data:image/webp;base64,...`-strängar (se filhuvudet i
+      // `../lib/varumarke.js`), inte filnamn i en URL. Ett prov som letar
+      // efter "ops-hub-ordmarke-ljus.png" i `src` mäter alltså ingenting: det
+      // stod grönt genom hela bugen `new URL(..., import.meta.url)` gav i en
+      // riktig konsument. Vad som går att mäta här, i jsdom, är formen på
+      // `OPS_HUB_VARUMARKE` självt.
       const { container } = render(<OpsBrand title="Bolag Ops" />);
       const bilder = Array.from(container.querySelectorAll("img")).map((b) => /** @type {HTMLImageElement} */ (b).src);
-      expect(bilder.some((src) => src.includes("ops-hub-ordmarke-ljus.png"))).toBe(true);
-      expect(bilder.some((src) => src.includes("ops-hub-ikon-ljus.png"))).toBe(true);
+      expect(bilder.some((src) => src === OPS_HUB_VARUMARKE.ordmarke.ljus)).toBe(true);
+      expect(bilder.some((src) => src === OPS_HUB_VARUMARKE.ikon.ljus)).toBe(true);
     });
 
     it("mark=\"none\" och inga bild-props ger text som förut, INGEN OPS Hub-bild", () => {
@@ -195,7 +203,7 @@ describe("OpsBrand", () => {
       const { container } = render(<OpsBrand title="Bolag Ops" endastOrdmarke />);
       const bilder = Array.from(container.querySelectorAll("img"));
       expect(bilder).toHaveLength(1);
-      expect(bilder[0].src).toContain("ops-hub-ordmarke-ljus.png");
+      expect(bilder[0].src).toBe(OPS_HUB_VARUMARKE.ordmarke.ljus);
     });
   });
 });

@@ -1469,6 +1469,33 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("handritade ikoner golv: fel sökväg", [ikonvakt, path.join(ikonmapp, "finns-inte")], "finns inte");
 }
 
+// ⛔ #164, ANDRA VARVET: OPS Hub-bilderna kommer som data-URL:er ur
+// `scripts/generate-varumarke.mjs`, inte längre `new URL(..., import.meta.url)`
+// (se filhuvudet i `src/lib/varumarke.js`). En generator som TYST hoppar
+// över en saknad bildfil skickar ett skal utan logga till varje konsument,
+// utan att bygget säger varför. Detta bevisar att den inte gör det.
+{
+  const varumarkevakt = "scripts/generate-varumarke.mjs";
+  const varumarkemapp = path.join(arbetsmapp, "varumarke");
+  fs.mkdirSync(varumarkemapp, { recursive: true });
+  fs.cpSync(path.join(rot, "varumarke"), varumarkemapp, { recursive: true });
+
+  // Grönt mot en fullständig kopia av de riktiga fyra filerna.
+  kravGront("varumarke: en fullständig katalog med alla fyra filer är grön", [
+    varumarkevakt,
+    varumarkemapp,
+    path.join(varumarkemapp, "ut-helt.js"),
+  ]);
+
+  // Rött: exakt EN av de fyra filerna saknas.
+  fs.rmSync(path.join(varumarkemapp, "ops-hub-ikon-ljus.webp"));
+  kravRott(
+    "varumarke golv: en av de fyra bildfilerna saknas",
+    [varumarkevakt, varumarkemapp, path.join(varumarkemapp, "ut-golv.js")],
+    "ops-hub-ikon-ljus.webp",
+  );
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");
