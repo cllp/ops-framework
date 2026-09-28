@@ -140,6 +140,29 @@ Siffror hämtas live vid varje generering. Skriv aldrig av dem från förra
 versionen. Bedömningar ska märkas som bedömningar: mätt data och gissningar får
 inte se likadana ut.
 
+## 11. Ett ärende som citerar SessionStudio är klart först när PR:en bär en skärmbild av samma flöde sida vid sida med förebilden.
+
+CP 2026-09-28 22:32: "Jag ber om samma sak massor av gånger men får ingen
+skillnad." #157, #158 och #164 hade alla provats i jsdom och fotograferats
+ensamma, aldrig bredvid förebilden, och alla tre visade sig ändå avvika när
+CP till slut jämförde själv: en dropdown i stället för en panel, ett
+statusord i stället för en byggd komponent, en dubblerad hamburgare.
+jsdom kör ingen CSS och Vitest mäter aldrig hur något SER UT, bara att det
+renderar och att rätt text finns. Ett prov kan vara helt grönt genom precis
+den avvikelsen som gjorde att CP kände igen felet direkt i telefonen.
+
+En skärmbild av ramverket ensam bevisar ingenting: den visar att något
+ritades, inte att det ritades RÄTT. Bara bredvid sin förebild går det att se
+var de glider isär, på samma sätt som ett prov utan sin fix visar vad det
+faktiskt fångar (regel 4).
+
+**Regeln:** ett ärende vars beskrivning citerar eller hänvisar till en
+SessionStudio-skärmbild är inte klart förrän PR:en bär ett montage: den
+citerade förebilden och en riktig skärmbild av ramverkets flöde, sida vid
+sida, tagen med Playwright mot en byggd app (aldrig ett enhetstest, aldrig
+jsdom). Montaget följs av en ärlig egen jämförelse i PR-texten: vad som nu
+matchar och vad som fortfarande skiljer sig, aldrig bara "klart".
+
 ---
 
 ## Vad som inte är regler här
