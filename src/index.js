@@ -179,7 +179,7 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * körs utan skärm, och reglerna genereras av ett skript.
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment } from "./lib/regler.js";
 
 /*
  * ⛔ GRUPPLÄGET OCH SAMMANSLAGNINGEN (#139). Besluten är rena funktioner och
