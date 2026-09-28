@@ -25,13 +25,21 @@
  * här filen i stället för i tjugo komponenter. Omslaget sätter också
  * `aria-hidden` en gång för alla: ikonen är dekor, betydelsen sitter i texten
  * bredvid eller i komponentens `aria-label`.
+ *
+ * ⛔ #167: `strokeWidth={1.5}`, INTE LUCIDES EGET FÖRVAL (2). SessionStudio
+ * ritar sina egna lucide-ikoner tunnare (`apps/web/src/index.css:437-445`),
+ * och ramverket ska se ut som SessionStudio, inte som Lucides standardstil.
+ * Talet är också en fixturvärde: `tokens/sessionstudio-profil.json` "ikoner",
+ * och `--icon-stroke-width` (tokens.css) sätter samma tal på `.lucide` i
+ * `@layer base` för en apps EGNA, direkta lucide-importer. De två måste hållas
+ * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
 import { Archive, ArchiveRestore, ArrowDownUp, Bell, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Heart, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
-  return <Paperclip size={size} aria-hidden="true" />;
+  return <Paperclip size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -44,22 +52,22 @@ export function GemIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function FilIkon({ size = 20 }) {
-  return <FileText size={size} aria-hidden="true" />;
+  return <FileText size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function ChevronNedIkon({ size = 16 }) {
-  return <ChevronDown size={size} aria-hidden="true" />;
+  return <ChevronDown size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function KryssIkon({ size = 16 }) {
-  return <X size={size} aria-hidden="true" />;
+  return <X size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function MenuIcon({ size = 24 }) {
-  return <Menu size={size} aria-hidden="true" />;
+  return <Menu size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -70,27 +78,27 @@ export function MenuIcon({ size = 24 }) {
  * @param {{ size?: number }} props
  */
 export function PlusIkon({ size = 24 }) {
-  return <Plus size={size} aria-hidden="true" />;
+  return <Plus size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function BockIkon({ size = 16 }) {
-  return <Check size={size} aria-hidden="true" />;
+  return <Check size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function SolIkon({ size = 18 }) {
-  return <Sun size={size} aria-hidden="true" />;
+  return <Sun size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function ManeIkon({ size = 18 }) {
-  return <Moon size={size} aria-hidden="true" />;
+  return <Moon size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** Följ systemet: en skärm, alltså "vad enheten säger". @param {{ size?: number }} props */
 export function SkarmIkon({ size = 18 }) {
-  return <Monitor size={size} aria-hidden="true" />;
+  return <Monitor size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -99,16 +107,16 @@ export function SkarmIkon({ size = 18 }) {
  * expandera-pil hade varit ett tredje formspråk för en knapp som redan har ett.
  */
 export function HelskarmIkon({ size = 20 }) {
-  return <Maximize2 size={size} aria-hidden="true" />;
+  return <Maximize2 size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 export function HelskarmAvIkon({ size = 20 }) {
-  return <Minimize2 size={size} aria-hidden="true" />;
+  return <Minimize2 size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
 export function ReglageIkon({ size = 20 }) {
-  return <SlidersHorizontal size={size} aria-hidden="true" />;
+  return <SlidersHorizontal size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 
@@ -131,7 +139,7 @@ export function ReglageIkon({ size = 20 }) {
  * @param {{ size?: number }} props
  */
 export function SortIcon({ size = 20 }) {
-  return <ArrowDownUp size={size} aria-hidden="true" />;
+  return <ArrowDownUp size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 
@@ -145,12 +153,12 @@ export function SortIcon({ size = 20 }) {
  * @param {{ size?: number }} props
  */
 export function ChevronHogerIkon({ size = 16 }) {
-  return <ChevronRight size={size} aria-hidden="true" />;
+  return <ChevronRight size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** Tillbaka till föregående vy i en panel. @param {{ size?: number }} props */
 export function ChevronVansterIkon({ size = 16 }) {
-  return <ChevronLeft size={size} aria-hidden="true" />;
+  return <ChevronLeft size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -159,12 +167,12 @@ export function ChevronVansterIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function ExternLankIkon({ size = 16 }) {
-  return <ExternalLink size={size} aria-hidden="true" />;
+  return <ExternalLink size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** Utloggningsraden i användarmenyn (#157). @param {{ size?: number }} props */
 export function LoggaUtIkon({ size = 16 }) {
-  return <LogOut size={size} aria-hidden="true" />;
+  return <LogOut size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -173,27 +181,27 @@ export function LoggaUtIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function PersonIkon({ size = 20 }) {
-  return <User size={size} aria-hidden="true" />;
+  return <User size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 /** @param {{ size?: number }} props */
 export function StjarnaIkon({ size = 20 }) {
-  return <Star size={size} aria-hidden="true" />;
+  return <Star size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 /** @param {{ size?: number }} props */
 export function HjartaIkon({ size = 20 }) {
-  return <Heart size={size} aria-hidden="true" />;
+  return <Heart size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 /** @param {{ size?: number }} props */
 export function BlixtIkon({ size = 20 }) {
-  return <Zap size={size} aria-hidden="true" />;
+  return <Zap size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 /** @param {{ size?: number }} props */
 export function LeendeIkon({ size = 20 }) {
-  return <Smile size={size} aria-hidden="true" />;
+  return <Smile size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 /** @param {{ size?: number }} props */
 export function KronaIkon({ size = 20 }) {
-  return <Crown size={size} aria-hidden="true" />;
+  return <Crown size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -202,7 +210,7 @@ export function KronaIkon({ size = 20 }) {
  * @param {{ size?: number }} props
  */
 export function MerIkon({ size = 18 }) {
-  return <MoreHorizontal size={size} aria-hidden="true" />;
+  return <MoreHorizontal size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -211,7 +219,7 @@ export function MerIkon({ size = 18 }) {
  * @param {{ size?: number }} props
  */
 export function AndraIkon({ size = 16 }) {
-  return <Pencil size={size} aria-hidden="true" />;
+  return <Pencil size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -219,7 +227,7 @@ export function AndraIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function ArkiveraIkon({ size = 16 }) {
-  return <Archive size={size} aria-hidden="true" />;
+  return <Archive size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -230,7 +238,7 @@ export function ArkiveraIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function TaFramIkon({ size = 16 }) {
-  return <ArchiveRestore size={size} aria-hidden="true" />;
+  return <ArchiveRestore size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -238,7 +246,7 @@ export function TaFramIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function NotisIkon({ size = 16 }) {
-  return <Bell size={size} aria-hidden="true" />;
+  return <Bell size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
@@ -249,5 +257,5 @@ export function NotisIkon({ size = 16 }) {
  * @param {{ size?: number }} props
  */
 export function AktivitetIkon({ size = 16 }) {
-  return <Zap size={size} aria-hidden="true" />;
+  return <Zap size={size} aria-hidden="true" strokeWidth={1.5} />;
 }

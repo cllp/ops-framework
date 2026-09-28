@@ -500,8 +500,13 @@ export function OpsAppShell({
           höger-`1fr` blev tom — ikonerna mitt i headern med lucka till höger
           (bolag-ops mobil). Därför: `1fr auto` under md (brand | actions),
           tre kolumner från md.
+
+          ⛔ #167: `h-(--topbar-height)` I STÄLLET FÖR `py-2`. SessionStudios
+          toppradshöjd är fast, 56 px (`AppHeader.jsx:169`, `h-14`), inte
+          innehållsstyrd. Talet bor i tokens.css `--topbar-height`
+          (`tokens/sessionstudio-profil.json` "topprad"), inte här.
         */}
-        <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-4 py-2 md:grid-cols-[1fr_auto_1fr]">
+        <div className="mx-auto grid h-(--topbar-height) max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-4 md:grid-cols-[1fr_auto_1fr]">
           <a
             href="/"
             onClick={(e) => onActivate("/", e)}

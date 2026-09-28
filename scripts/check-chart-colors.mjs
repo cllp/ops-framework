@@ -58,8 +58,8 @@ function hexIOrdning(monster) {
   return ut;
 }
 
-const ljusSerier = hexIOrdning(/--color-series-(\d+):\s*(#[0-9a-f]{6})/g);
-const morkSerier = hexIOrdning(/--dark-series-(\d+):\s*(#[0-9a-f]{6})/g);
+const ljusChart = hexIOrdning(/--color-chart-(\d+):\s*(#[0-9a-f]{6})/g);
+const morkChart = hexIOrdning(/--dark-chart-(\d+):\s*(#[0-9a-f]{6})/g);
 const ljusSkala = hexIOrdning(/--color-scale-(\d+):\s*(#[0-9a-f]{6})/g);
 const morkSkala = hexIOrdning(/--dark-scale-(\d+):\s*(#[0-9a-f]{6})/g);
 
@@ -69,8 +69,8 @@ const fel = [];
 // ⛔ Golv. Matchar inget blir varje körning grön av tom indata, och det är den
 // vanligaste orsaken till att en vakt är grön i månader utan att göra något.
 for (const [namn, lista] of /** @type {[string, {nr:number,hex:string}[]][]} */ ([
-  ["--color-series-*", ljusSerier],
-  ["--dark-series-*", morkSerier],
+  ["--color-chart-*", ljusChart],
+  ["--dark-chart-*", morkChart],
   ["--color-scale-*", ljusSkala],
   ["--dark-scale-*", morkSkala],
 ])) {
@@ -79,8 +79,8 @@ for (const [namn, lista] of /** @type {[string, {nr:number,hex:string}[]][]} */ 
 
 // Ljus och mörk uppsättning måste ha samma antal slottar. En serie som saknar
 // sitt mörka steg ärver en färg som aldrig mättes.
-if (ljusSerier.length !== morkSerier.length) {
-  fel.push(`${ljusSerier.length} ljusa serier men ${morkSerier.length} mörka. Varje slot måste finnas i båda lägen, annars ritas en omätt färg i det ena.`);
+if (ljusChart.length !== morkChart.length) {
+  fel.push(`${ljusChart.length} ljusa serier men ${morkChart.length} mörka. Varje slot måste finnas i båda lägen, annars ritas en omätt färg i det ena.`);
 }
 if (ljusSkala.length !== morkSkala.length) {
   fel.push(`${ljusSkala.length} ljusa skalsteg men ${morkSkala.length} mörka.`);
@@ -93,10 +93,10 @@ if (ljusSkala.length !== morkSkala.length) {
  * den mätas som den står blir vakten röd mot en skala som är rätt.
  */
 const korningar = [
-  { namn: "serier, ljust läge", hex: ljusSerier.map((x) => x.hex), flaggor: ["--mode", "light", "--surface", "#ffffff"] },
-  { namn: "serier, mörkt läge", hex: morkSerier.map((x) => x.hex), flaggor: ["--mode", "dark", "--surface", "#16161c"] },
-  { namn: "skala, ljust läge", hex: ljusSkala.map((x) => x.hex), flaggor: ["--ordinal", "--mode", "light", "--surface", "#ffffff"] },
-  { namn: "skala, mörkt läge", hex: [...morkSkala].reverse().map((x) => x.hex), flaggor: ["--ordinal", "--mode", "dark", "--surface", "#16161c"] },
+  { namn: "chart, ljust läge", hex: ljusChart.map((x) => x.hex), flaggor: ["--mode", "light", "--surface", "#fefcf6"] },
+  { namn: "chart, mörkt läge", hex: morkChart.map((x) => x.hex), flaggor: ["--mode", "dark", "--surface", "#202420"] },
+  { namn: "skala, ljust läge", hex: ljusSkala.map((x) => x.hex), flaggor: ["--ordinal", "--mode", "light", "--surface", "#fefcf6"] },
+  { namn: "skala, mörkt läge", hex: [...morkSkala].reverse().map((x) => x.hex), flaggor: ["--ordinal", "--mode", "dark", "--surface", "#202420"] },
 ];
 
 for (const k of korningar) {
@@ -127,4 +127,4 @@ if (fel.length > 0) {
   process.exit(1);
 }
 
-console.log(`\ncheck-chart-colors: ${ljusSerier.length} serier och ${ljusSkala.length} skalsteg mätta i båda lägen, mot ramverkets egna ytor.`);
+console.log(`\ncheck-chart-colors: ${ljusChart.length} chart-toner och ${ljusSkala.length} skalsteg mätta i båda lägen, mot ramverkets egna ytor.`);

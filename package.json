@@ -36,9 +36,10 @@
   "scripts": {
     "generate:version": "node scripts/generate-framework-version.mjs",
     "generate:varumarke": "node scripts/generate-varumarke.mjs",
-    "prebuild": "npm run generate:version && npm run generate:varumarke",
-    "pretest": "npm run generate:version && npm run generate:varumarke",
-    "precheck:types": "npm run generate:version && npm run generate:varumarke",
+    "generate:tokens": "node scripts/generate-tokens.mjs",
+    "prebuild": "npm run generate:version && npm run generate:varumarke && npm run generate:tokens",
+    "pretest": "npm run generate:version && npm run generate:varumarke && npm run generate:tokens",
+    "precheck:types": "npm run generate:version && npm run generate:varumarke && npm run generate:tokens",
     "build": "node scripts/build.mjs && npx tsc -p tsconfig.build.json",
     "prepare": "node scripts/generate-framework-version.mjs && node scripts/generate-varumarke.mjs && node scripts/build.mjs && npx tsc -p tsconfig.build.json",
     "check:tokens": "node tokens/check-tokens.mjs tokens/tokens.css",

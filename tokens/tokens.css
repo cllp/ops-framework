@@ -75,10 +75,51 @@
    * `bg-bg-primary`, och en liten skavank som skrivs tusen gånger är inte
    * längre liten.
    * ──────────────────────────────────────────────────────────────────────── */
-  --color-canvas: #f8f7f4;
-  --color-surface: #ffffff;
-  --color-raised: #ffffff;
-  --color-sunken: #f0ede8;
+  /* ⛔ #167: ytorna, texten, kanterna och accenten härifrån och ner till
+   * "SLUT GENERERAT" ägs av `tokens/sessionstudio-profil.json` och skrivs av
+   * `scripts/generate-tokens.mjs`. Rör dem aldrig för hand, ändra fixturen och
+   * kör "npm run generate:tokens". `elevated` och `hover` är nya ytsteg:
+   * SessionStudio skiljer kortets yta från det som ligger ÖVER kortet
+   * (popover, meny) och från ett radhover-tillstånd, vilket ramverket
+   * saknade helt. */
+  /* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (@theme) ── */
+  --color-canvas: #fdf8ef;
+  --color-surface: #fefcf6;
+  --color-raised: #fefcf6;
+  --color-elevated: #ffffff;
+  --color-hover: #f0ede6;
+  --color-sunken: #FBF9F4;
+
+  --color-ink: #3C2F2F;
+  --color-ink-secondary: #5a5048;
+  --color-ink-muted: #8a8078;
+
+  --color-line: #E8E2DA;
+
+  --color-accent: #6B8E4E;
+  --color-accent-hover: #7a9e5e;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-card: 24px;
+
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+
+  --shadow-sm: 0 1px 2px rgba(60, 47, 47, 0.06);
+  --shadow-md: 0 2px 8px rgba(60, 47, 47, 0.08);
+  --shadow-lg: 0 4px 16px rgba(60, 47, 47, 0.10);
+
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-chart-3: #1baf7a;
+  --color-chart-4: #eda100;
+  --color-chart-5: #e87ba4;
+  --color-chart-6: #008300;
+  /* ── SLUT GENERERAT (@theme) ── */
+
   /* Inverterad yta för flytande laborera-UI (popover + sifferbubbla):
    * soft charcoal på ljus sida, varmt papper på mörk. Se .ops-contrast-panel. */
   --color-contrast-panel: #2a2520;
@@ -86,55 +127,50 @@
 
   /* ─── Text ───────────────────────────────────────────────────────────────
    * Fyra nivåer räcker. En femte blir alltid "ungefär som muted", och sedan
-   * kan ingen förklara vilken som gäller när.
+   * kan ingen förklara vilken som gäller när. `ink-inverse` är ramverkets
+   * egen, SessionStudio har ingen direkt motsvarighet, den ligger utanför
+   * fixturen.
    * ──────────────────────────────────────────────────────────────────────── */
-  --color-ink: #1a1a1a;
-  --color-ink-secondary: #4a4540;
-  --color-ink-muted: #8a8580;
   --color-ink-inverse: #ffffff;
 
   /* ─── Kanter och avdelare ─────────────────────────────────────────────── */
-  --color-line: rgba(0, 0, 0, 0.08);
   --color-line-strong: rgba(0, 0, 0, 0.1);
   --color-divider: rgba(0, 0, 0, 0.05);
 
   /* ─── Accent ─────────────────────────────────────────────────────────────
    * EN accent plus varianter. Två accenter blir aldrig två, de blir fem, och
    * då betyder accent ingenting längre.
+   *
+   * ⛔ #167: OLIVGRÖN, OCH DET ÄR AVSIKTLIGT. Ramverket hade tidigare ett
+   * gråbrunt `#9a9588`. SessionStudios `apps/web/src/main.jsx:65` sätter
+   * profilen GREEN som FÖRVAL för varje ny besökare
+   * (`localStorage.getItem("sp_profile") || PROFILE_IDS.GREEN`), så oliv ÄR
+   * det CP faktiskt ser, inte ett alternativ bland flera. Se
+   * `tokens/sessionstudio-profil.json`.
    * ──────────────────────────────────────────────────────────────────────── */
-  --color-accent: #9a9588;
-  --color-accent-hover: #a89f92;
-  /* ⛔ MÖRK TEXT I LJUST LÄGE, OCH DET ÄR EN ÄNDRING MED EN HISTORIA.
+  /* ⛔ MÖRK TEXT I LJUST LÄGE, OCH DET ÄR EN ÄNDRING MED EN HISTORIA SOM
+   * ÖVERLEVER BYTET AV ACCENT.
    *
-   * Här stod `#f8f7f4`, alltså sidans botten, avläst ur SessionStudios enda
-   * accentfyllda knapp (`bg-[--color-accent] text-[--color-bg-primary]`).
-   * Paritet med förlagan var beslutet, och svagheten stod utskriven som
-   * "medvetet ärvd".
+   * Här stod tidigare `#f8f7f4`, sidans egen botten, som accentens textfärg:
+   * en svaghet som togs bort 2026-09-27 (se `check-kontrast.mjs`) eftersom
+   * den gav under AA i båda lägena. `--color-ink` (mörk text) vann då över en
+   * egen hex, av samma skäl som gällde då: ett eget värde här hade varit en
+   * färg vid sidan av paletten.
    *
-   * ⛔ NOTEN HADE FEL SIFFRA, OCH DET ÄR VÄRT ATT SKRIVA UT. Den sade att
-   * #f8f7f4 på #9a9588 ger 2,99:1. Rätt svar är 2,79:1, och 2,99 är vad
-   * `raised` ger på accent, alltså en rad bredvid i tabellen i
-   * `check-kontrast.mjs`. En felskriven siffra i en not om en MÄTT svaghet är
-   * precis den sorts uppgift ingen kontrollerar igen.
+   * ⛔ #167 MÄTT PÅ NYTT MOT DEN NYA OLIVGRÖNA ACCENTEN, och båda blev BÄTTRE
+   * i stället för sämre, vilket inte var givet i förväg:
    *
-   * ⛔ OCH HOVER-LÄGET VAR ALDRIG MÄTT. #f8f7f4 på `accent-hover` (#a89f92)
-   * ger 2,44:1, alltså sämre än viloläget. Knappen blev mindre läsbar av att
-   * man pekade på den.
+   *                        på accent    på accent-hover
+   *   ljust (#6B8E4E)        4,64:1         5,70:1        båda över AA 4,5:1
+   *   mörkt (#7a9e5e)        4,97:1         6,04:1        båda över AA 4,5:1
    *
-   * Mätt 2026-09-27, och nu vaktat som ett par i `check-kontrast.mjs`:
-   *
-   *                        på accent   på accent-hover
-   *   #f8f7f4 (förut)        2,79:1        2,44:1      båda under AA
-   *   #1a1a1a (nu)           5,83:1        6,66:1      båda över AA 4,5:1
-   *
-   * ⛔ VÄRDET ÄR INTE PÅHITTAT: #1a1a1a är `--color-ink`, sidans egen text.
-   * En egen hex här hade varit en färg vid sidan av paletten.
-   *
-   * Mörkt läge hade aldrig problemet: #2a2520 på #e8e0d0 ger 11,56:1, och på
-   * `accent-hover` 12,76:1. Det värdet står orört. */
+   * Mörkt läge använder `--dark-accent-contrast` (#2a2520, se `:root`
+   * nedanför), oförändrat sedan tidigare mätning. */
   --color-accent-contrast: #1a1a1a;
-  --color-accent-subtle: rgba(154, 149, 136, 0.12);
-  --color-accent-faint: rgba(154, 149, 136, 0.06);
+  /* rgba(107, 142, 78, …) är den nya accentens (#6B8E4E) egna RGB-tal, samma
+   * mönster som SessionStudios egna `--color-gold-overlay-*` (index.css:534). */
+  --color-accent-subtle: rgba(107, 142, 78, 0.12);
+  --color-accent-faint: rgba(107, 142, 78, 0.06);
 
   /* ─── Tillstånd ──────────────────────────────────────────────────────────
    * Namngivna efter BETYDELSE, aldrig efter färg. `danger` täcker både en
@@ -275,8 +311,21 @@
   --color-slag-3: #3a68b0;
 
   /* ─── Diagram ────────────────────────────────────────────────────────────
-   * Sex serier och en ordnad skala, för när en yta ska bära identitet eller
-   * storlek.
+   * Sex chart-toner och en ordnad skala, för när en yta ska bära identitet
+   * eller storlek.
+   *
+   * ⛔ #167: HETTE `--color-series-*`, DÖPTES OM TILL `--color-chart-*`.
+   * SAMMA SEX HEXVÄRDEN, INGEN NY MÄTNING. #167 bad om att SessionStudios
+   * `DEFAULT_PROFILE_COLOR_PRESETS` (åtta gruppfärger) skulle bli
+   * diagramfärgerna. Körda genom just den här palettvalidatorn (samma verktyg,
+   * `scripts/vendor/validate_palette.js`, som `check-chart-colors.mjs` kör)
+   * FAILADE de på tre av fyra kategoriska kontroller: kromgolv, CVD-separation
+   * och normalseende-golv, inte bara kontrasten mot ytan som ärendet antog.
+   * En ljushetsjustering kan inte laga en delta-E-brist. De sex raderna nedan
+   * är alltså OFÖRÄNDRADE och bara omdöpta, så komponenterna kan läsa
+   * `--chart-*` som ärendet bad om, utan att byta ut en redan validerad
+   * palett mot en som mätt sig själv i sank. Se `tokens/sessionstudio-profil.json`
+   * (gruppen "diagram") för själva mätningen.
    *
    * ⛔ IDENTITETSTONERNA OVAN DUGER INTE HÄR, OCH DET ÄR MÄTT, INTE TYCKT.
    * Körda genom paletteringsvalidatorn mot vit yta faller de på tre av fem
@@ -302,12 +351,6 @@
    * tillåtet ENDAST med relief: synliga etiketter vid ytan eller en tabellvy.
    * Ritar du ett diagram utan någon av dem är paletten fel använd, inte fel.
    * ──────────────────────────────────────────────────────────────────────── */
-  --color-series-1: #2a78d6;
-  --color-series-2: #eb6834;
-  --color-series-3: #1baf7a;
-  --color-series-4: #eda100;
-  --color-series-5: #e87ba4;
-  --color-series-6: #008300;
 
   /* Ordnad skala, låg till hög. EN nyans som mörknar, aldrig en regnbåge: en
    * regnbåge har ingen ordning och läsaren måste slå upp legenden för varje
@@ -396,21 +439,20 @@
    * `--radius-card` är nytt: SessionStudio har ett eget kortsteg
    * (`--radius-card: 1.5rem`) som `rounded-2xl` mappar till, skilt från
    * `--radius-xl`. `OpsCard` använder det i stället för `--radius-xl`.
-   * Vaktad av regel 9 i `tokens/check-tokens.mjs` mot en SessionStudio-fixtur.
+   *
+   * ⛔ #167: `--radius-sm/md/lg/xl/card` FLYTTADE UPP, in i det genererade
+   * blocket vid filens topp. De är samma tal, oförändrade, men fixturen
+   * (`tokens/sessionstudio-profil.json`) äger dem nu, och en handskriven rad
+   * här hade varit ett andra original. `--radius-2xl/3xl/full` är kvar här:
+   * de är ramverkets egna, ingen SessionStudio-motsvarighet.
    * ──────────────────────────────────────────────────────────────────────── */
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-card: 24px;
   --radius-2xl: 24px;
   --radius-3xl: 28px;
   --radius-full: 999px;
 
-  /* ─── Djup. Tre skuggor. Fler blir brus. ─────────────────────────────── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+  /* ─── Djup. Tre skuggor. Fler blir brus.
+   * ⛔ #167: `--shadow-sm/md/lg` FLYTTADE UPP i samma genererade block, se
+   * ovan. ──────────────────────────────────────────────────────────────── */
 
   /* ─── Typografi ──────────────────────────────────────────────────────── *
    * ⛔ #157, CP 2026-09-28: "sessionstudios typsnitt är bättre än ops
@@ -443,15 +485,17 @@
    * själv väljer något annat. */
   --font-display: var(--font-sans);
 
-  /* Sex storlekar, och `text-base` är 14px, inte 16.
+  /* Sex storlekar.
    *
-   * Det är ett medvetet val för täta arbetsverktyg: en tidrapport eller en
-   * ärendelista läses i svep, inte som brödtext. Skalan är avsiktligt kort, för
-   * det är i mellanstegen spretet uppstår. Behöver du en sjunde storlek är
-   * frågan först om en av de sex var fel. */
+   * ⛔ #167, CP: "sessionstudios typsnitt är bättre än ops framework. Jag vill
+   * följa sessionstudios profil exakt." `--text-sm` och `--text-base` var
+   * 0,8125rem/0,875rem (13/14px), ett eget kompakt arbetsverktygs-mått.
+   * SessionStudio skriver ingen egen `--text-*`-skala alls, den använder
+   * Tailwinds inbyggda tal rakt av (`text-sm` 0,875rem/14px, `text-base`
+   * 1rem/16px). De två flyttade upp i det genererade blocket vid filens
+   * topp, ur `tokens/sessionstudio-profil.json`. `--text-xs/md/lg/xl` är
+   * ramverkets egna mellansteg och står kvar här, oförändrade. */
   --text-xs: 0.75rem;
-  --text-sm: 0.8125rem;
-  --text-base: 0.875rem;
   --text-md: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.5rem;
@@ -563,42 +607,84 @@
  * Aliasblocken får därför inte innehålla ett enda råvärde. Vaktad av regel 3.
  */
 :root {
-  --dark-canvas: #121218;
-  --dark-surface: #16161c;
-  --dark-raised: #1f1f28;
-  --dark-sunken: #1f1f25;
-  --dark-contrast-panel: #f8f7f4;
+  /* ⛔ #167: härifrån och ner till "SLUT GENERERAT" ägs av
+   * `tokens/sessionstudio-profil.json`, skrivet av
+   * `scripts/generate-tokens.mjs`. `--dark-elevated`/`--dark-hover` är nya,
+   * se samma kommentar vid `--color-elevated`/`--color-hover` i `@theme`
+   * ovan. `--dark-ink-secondary` gick från `#948f89` till `#b0b8ac`:
+   * SessionStudios eget tal, klart ljusare, mätt 2026-09-28 mot `--dark-raised`
+   * (6,93:1, se `check-kontrast.mjs`), alltså fortsatt över AA. */
+  /* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (:root mörkt) ── */
+  --dark-canvas: #181c18;
+  --dark-surface: #202420;
+  --dark-raised: #262d26;
+  --dark-elevated: #2a322a;
+  --dark-hover: #323a32;
+  --dark-sunken: #1c221c;
+
+  --dark-ink: #e8ece6;
+  --dark-ink-secondary: #b0b8ac;
+  --dark-ink-muted: #8a9482;
+
+  --dark-line: rgba(255,255,255,0.06);
+
+  --dark-accent: #7a9e5e;
+  --dark-accent-hover: #8aae6e;
+
+  --dark-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --dark-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --dark-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.3);
+
+  --dark-chart-1: #3987e5;
+  --dark-chart-2: #d95926;
+  --dark-chart-3: #199e70;
+  --dark-chart-4: #c98500;
+  --dark-chart-5: #d55181;
+  --dark-chart-6: #008300;
+
+  --word-spacing-normal: 0.06em;
+
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+
+  --icon-stroke-width: 1.5;
+  --topbar-height: 56px;
+  /* ── SLUT GENERERAT (:root mörkt) ── */
+
+  --dark-contrast-panel: #fdf8ef;
   --dark-scrim: rgba(0, 0, 0, 0.6);
 
-  --dark-ink: #e8e4df;
-  /* ⛔ LJUSNAD FRÅN #8a8580 (ops-framework#89). Den gamla gav 4,47:1 mot
-   * `--dark-raised`, alltså 0,03 under AA, medan den klarade canvas (5,11) och
-   * surface (4,93). Missen syntes bara på den yta paneler och kort faktiskt
-   * ligger på, vilket är där brödtexten står. #948f89 ger 5,10 mot raised och
-   * lyfter de andra två med. Bevakas av `scripts/check-kontrast.mjs`. */
-  --dark-ink-secondary: #948f89;
-  --dark-ink-muted: #6a6560;
   --dark-ink-inverse: #121218;
 
-  --dark-line: rgba(255, 255, 255, 0.05);
   --dark-line-strong: rgba(255, 255, 255, 0.07);
   --dark-divider: rgba(255, 255, 255, 0.06);
 
-  --dark-accent: #e8e0d0;
-  --dark-accent-hover: #f0ebe0;
+  /* ⛔ #167: MÄTT PÅ NYTT MOT DEN NYA OLIVGRÖNA ACCENTEN (svart-på-accent-
+   * resonemanget står vid `--color-accent-contrast` i `@theme` ovan). Mörkt
+   * `accent-contrast` är oförändrat: #2a2520 på #7a9e5e ger 4,97:1. */
   --dark-accent-contrast: #2a2520;
-  --dark-accent-subtle: rgba(232, 224, 208, 0.12);
-  --dark-accent-faint: rgba(232, 224, 208, 0.06);
+  /* rgba(122, 158, 94, …) är nya mörka accentens (#7a9e5e) egna RGB-tal,
+   * samma mönster som SessionStudios `--color-gold-overlay-*` (index.css:601). */
+  --dark-accent-subtle: rgba(122, 158, 94, 0.12);
+  --dark-accent-faint: rgba(122, 158, 94, 0.06);
 
   --dark-success: #6fae85;
   --dark-success-bg: rgba(111, 174, 133, 0.14);
   --dark-warning: #c9a961;
   --dark-warning-bg: rgba(201, 169, 97, 0.14);
-  --dark-danger: #d66f63;
+  /* ⛔ #167: LJUSNAD FRÅN #d66f63. `--dark-raised` blev ljusare med
+   * SessionStudios palett (#1f1f28 → #262d26), och "Gick fel" mot panelen föll
+   * till 4,25:1. #d97669 ger 4,54:1 mot samma yta, mätt av `check-kontrast.mjs`. */
+  --dark-danger: #d97669;
   --dark-danger-hover: #e08479;
   --dark-danger-bg: rgba(214, 111, 99, 0.14);
-  --dark-info: #6fa3c4;
-  --dark-info-bg: rgba(111, 163, 196, 0.14);
+  /* ⛔ #167: LJUSNAD FRÅN #6fa3c4, samma skäl som danger ovan: "chipset Ny i
+   * panelen" föll till 4,10:1 mot den nya, ljusare `--dark-raised`. #80b0d1
+   * ger 4,71:1. `--dark-info-bg` följer med (samma RGB-tal, ny ton, oförändrad
+   * 0,14 alfa, samma mönster som resten av filen). */
+  --dark-info: #80b0d1;
+  --dark-info-bg: rgba(128, 176, 209, 0.14);
   --dark-blocked: #e8944a;
   --dark-blocked-bg: rgba(232, 148, 74, 0.14);
   /* SessionStudios --color-status-alert i mörkt läge. */
@@ -613,8 +699,18 @@
    * Den sista vann. Vit siffra på rött är formen alla känner igen, och att byta
    * till mörk text för 0,96 i märkeskontrast är att göra något välkänt konstigt
    * för en marginal. Bonus: samma röda i båda teman, alltså samma
-   * `--color-status-alert` som SessionStudio. */
-  --dark-badge: #dc2626;
+   * `--color-status-alert` som SessionStudio.
+   *
+   * ⛔ #167 BRÖT DEN PARITETEN, MÄTT OCH INTE VALT. `--dark-raised` blev
+   * ljusare (#1f1f28 → #262d26), och märket mot panelen föll till 2,93:1,
+   * under 3:1-golvet. #dc2626 klarar inte längre BÅDA kraven på den nya ytan:
+   * varje lättning som räddar grafik-kontrasten (3:1 mot panelen) sänker
+   * siffer-kontrasten (4,5:1 vit-på-märke), eftersom raised nu ligger så nära
+   * mörkt att fönstret mellan de två kraven blev smalt. #df3030 (lum 0,180)
+   * är den minsta lättning som klarar båda: 3,10:1 mot panelen, 4,56:1 vit
+   * siffra. Paritet med SessionStudios exakta `#dc2626` offras alltså med
+   * flit, för ett tillgänglighetskrav väger tyngre än en färgmatchning. */
+  --dark-badge: #df3030;
   --dark-badge-contrast: #ffffff;
   --dark-laborera: #e8a45a;
   --dark-laborera-glow: #f0b86a;
@@ -653,31 +749,21 @@
   --dark-slag-2: #b98d2e;
   --dark-slag-3: #5a85c8;
 
-  /* Diagram. Samma sex nyanser, steg-om-satta för den mörka ytan, inte en
-   * automatisk invertering: ett ljust läge speglat blir för ljust mot mörkt och
-   * tappar kromat. Validerat som en uppsättning mot #16161c. */
-  --dark-series-1: #3987e5;
-  --dark-series-2: #d95926;
-  --dark-series-3: #199e70;
-  --dark-series-4: #c98500;
-  --dark-series-5: #d55181;
-  --dark-series-6: #008300;
+  /* ⛔ #167: `--dark-chart-1..6` (tidigare `--dark-series-1..6`, samma tal,
+   * bara omdöpt) och `--dark-shadow-sm/md/lg` flyttade upp i det genererade
+   * blocket vid filens topp: fixturen äger dem nu. */
 
   /* Ordnad skala mot mörk yta: vänd ordning, alltså ljusare betyder mer, och
-   * det mörkaste steget får inte gå under 2:1 mot ytan. */
-  --dark-scale-1: #184f95;
+   * det mörkaste steget får inte gå under 2:1 mot ytan.
+   *
+   * ⛔ #167: LJUSNAD FRÅN #184f95. `--dark-surface` (som `check-chart-colors.mjs`
+   * mäter mot) blev ljusare med SessionStudios palett, #16161c → #202420, och
+   * det mörkaste skalsteget föll då under golvet: 1,94:1, mätt av
+   * `scripts/check-chart-colors.mjs`. #1c5aab ger 2,32:1 mot samma yta, samma
+   * nyans, bara en aning ljusare. */
+  --dark-scale-1: #1c5aab;
   --dark-scale-2: #2a78d6;
   --dark-scale-3: #86b6ef;
-
-  /* ⛔ #157, mätt mot SessionStudios `index.css` (samma offset i båda husen,
-   * `0 1px 2px` / `0 2px 8px` / `0 4px 16px`): denna filens mörka alfa låg på
-   * 0.35/0.45/0.55 och `--dark-shadow-lg` hade dessutom ett eget offset,
-   * `0 8px 24px`, som aldrig fanns i förebilden. Skuggan är rätt sak att dela
-   * mellan husen, precis som paletten redan är, så alla tre raderna är nu
-   * SessionStudios tal, tecken för tecken. */
-  --dark-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --dark-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --dark-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
 
   /* Märket i gräddvitt bläck, för mörk botten. */
   --dark-logo-phst: url("../assets/phst-dark.png");
@@ -717,10 +803,10 @@
   --z-modal: 400;
   --z-toast: 500;
 
-  /* ─── Varaktighet. Används som `duration-(--duration-fast)`. ─────────── */
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --duration-slow: 300ms;
+  /* ─── Varaktighet. Används som `duration-(--duration-fast)`.
+   * ⛔ #167: flyttade upp i det genererade blocket vid filens topp (150ms
+   * /200ms/300ms, SessionStudios egna tal, index.css:147-149). Var
+   * 120/180/300, ramverkets egna. ──────────────────────────────────────── */
 
   /* ─── Säkra ytor (telefon och surfplatta) ───────────────────────────── */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -764,6 +850,8 @@
     --color-surface: var(--dark-surface);
     --color-raised: var(--dark-raised);
     --color-sunken: var(--dark-sunken);
+    --color-elevated: var(--dark-elevated);
+    --color-hover: var(--dark-hover);
     --color-contrast-panel: var(--dark-contrast-panel);
     --color-scrim: var(--dark-scrim);
 
@@ -827,12 +915,12 @@
     --color-slag-1: var(--dark-slag-1);
     --color-slag-2: var(--dark-slag-2);
     --color-slag-3: var(--dark-slag-3);
-    --color-series-1: var(--dark-series-1);
-    --color-series-2: var(--dark-series-2);
-    --color-series-3: var(--dark-series-3);
-    --color-series-4: var(--dark-series-4);
-    --color-series-5: var(--dark-series-5);
-    --color-series-6: var(--dark-series-6);
+    --color-chart-1: var(--dark-chart-1);
+    --color-chart-2: var(--dark-chart-2);
+    --color-chart-3: var(--dark-chart-3);
+    --color-chart-4: var(--dark-chart-4);
+    --color-chart-5: var(--dark-chart-5);
+    --color-chart-6: var(--dark-chart-6);
     --color-scale-1: var(--dark-scale-1);
     --color-scale-2: var(--dark-scale-2);
     --color-scale-3: var(--dark-scale-3);
@@ -853,6 +941,8 @@
   --color-surface: var(--dark-surface);
   --color-raised: var(--dark-raised);
   --color-sunken: var(--dark-sunken);
+  --color-elevated: var(--dark-elevated);
+  --color-hover: var(--dark-hover);
   --color-contrast-panel: var(--dark-contrast-panel);
   --color-scrim: var(--dark-scrim);
 
@@ -916,12 +1006,12 @@
   --color-slag-1: var(--dark-slag-1);
   --color-slag-2: var(--dark-slag-2);
   --color-slag-3: var(--dark-slag-3);
-  --color-series-1: var(--dark-series-1);
-  --color-series-2: var(--dark-series-2);
-  --color-series-3: var(--dark-series-3);
-  --color-series-4: var(--dark-series-4);
-  --color-series-5: var(--dark-series-5);
-  --color-series-6: var(--dark-series-6);
+  --color-chart-1: var(--dark-chart-1);
+  --color-chart-2: var(--dark-chart-2);
+  --color-chart-3: var(--dark-chart-3);
+  --color-chart-4: var(--dark-chart-4);
+  --color-chart-5: var(--dark-chart-5);
+  --color-chart-6: var(--dark-chart-6);
   --color-scale-1: var(--dark-scale-1);
   --color-scale-2: var(--dark-scale-2);
   --color-scale-3: var(--dark-scale-3);
@@ -1321,3 +1411,19 @@
     background: color-mix(in srgb, var(--color-laborera) 12%, transparent);
   }
 }
+
+/* ⛔ #167: SessionStudios tunna linjeikoner. Gäller ALLA lucide-ikoner i
+ * konsumentappen, inte bara ramverkets egna omslag i src/components/icons.jsx,
+ * så att en apps direkta <Icon/>-import också följer profilen. Ägs av
+ * tokens/sessionstudio-profil.json ("ikoner"), skriven av
+ * scripts/generate-tokens.mjs. */
+/* ── GENERERAT UR sessionstudio-profil.json, RÖR INTE (@layer base) ── */
+@layer base {
+  /* SessionStudios tunna linjeikoner (index.css:437-445). Gäller ALLA
+   * lucide-ikoner, inte bara ramverkets egna omslag i icons.jsx, så att en
+   * apps direkta <Icon/>-import också följer profilen. */
+  .lucide {
+    stroke-width: var(--icon-stroke-width);
+  }
+}
+/* ── SLUT GENERERAT (@layer base) ── */

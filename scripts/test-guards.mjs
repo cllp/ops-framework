@@ -134,7 +134,7 @@ kravRott(
 
 kravRott(
   "tokens 6: föräldralös --dark-token",
-  [tokenvakt, tokenkopia("r6", (s) => s.replace("  --dark-info-bg: rgba(111, 163, 196, 0.14);\n", ""))],
+  [tokenvakt, tokenkopia("r6", (s) => s.replace("  --dark-info-bg: rgba(128, 176, 209, 0.14);\n", ""))],
   "föräldralös",
 );
 
@@ -144,29 +144,45 @@ kravRott(
   "skriver över tomhet",
 );
 
-// ⛔ #157, Regel 8: paletten delas med SessionStudio med flit. Två mutationer,
-// en per tema, eftersom ljust och mörkt läses ur olika delar av filen och en
-// vakt som bara provats i det ena hade kunnat läsa fel i det andra utan att
-// någon märkt det.
+// ⛔ #167, Regel 8/9: paletten och rundningsskalan är inte längre en lista i
+// vakten, de är ett genererat block ur `tokens/sessionstudio-profil.json`.
+// Muterar en av de genererade raderna för hand (exakt det filhuvudet i
+// `tokens.css` förbjuder), och vakten ska fälla för att blocket inte längre
+// matchar vad generatorn skulle skrivit.
 kravRott(
-  "tokens 8a: ljus accent glider från SessionStudios palett",
-  [tokenvakt, tokenkopia("r8a", (s) => s.replace("--color-accent: #9a9588;", "--color-accent: #a0a0a0;"))],
-  "SessionStudios palett",
+  "tokens 8/9a: ljus accent redigerad för hand i det genererade blocket",
+  [tokenvakt, tokenkopia("r8a", (s) => s.replace("--color-accent: #6B8E4E;", "--color-accent: #a0a0a0;"))],
+  "genererat block",
 );
 kravRott(
-  "tokens 8b: mörk accent glider från SessionStudios palett",
-  [tokenvakt, tokenkopia("r8b", (s) => s.replace("--dark-accent: #e8e0d0;", "--dark-accent: #c9a84c;"))],
-  "SessionStudios palett",
+  "tokens 8/9b: mörk accent redigerad för hand i det genererade blocket",
+  [tokenvakt, tokenkopia("r8b", (s) => s.replace("--dark-accent: #7a9e5e;", "--dark-accent: #c9a84c;"))],
+  "genererat block",
+);
+kravRott(
+  "tokens 8/9c: rundningsskalan redigerad för hand i det genererade blocket",
+  [tokenvakt, tokenkopia("r9", (s) => s.replace("--radius-sm: 8px;", "--radius-sm: 4px;"))],
+  "genererat block",
 );
 
-// ⛔ #164, Regel 9: rundningsskalan, samma mönster som Regel 8. Ett enda tal
-// mätt ur SessionStudio, och glider det utan att vakten fäller är felet
-// osynligt tills någon lägger skärmdumparna sida vid sida.
-kravRott(
-  "tokens 9: rundningsskalan glider från SessionStudio",
-  [tokenvakt, tokenkopia("r9", (s) => s.replace("--radius-sm: 8px;", "--radius-sm: 4px;"))],
-  "rundningsskala",
-);
+// ⛔ #167, Regel 11: fixturens golv. En tömd grupp ska fälla, inte tigas ihjäl
+// av att generatorn råkar skriva en tom sträng utan fel.
+{
+  const fixturVag = path.join(rot, "tokens", "sessionstudio-profil.json");
+  const fixturOriginal = fs.readFileSync(fixturVag, "utf8");
+  const tomFixtur = path.join(arbetsmapp, "tom-fixtur.json");
+  const parsed = JSON.parse(fixturOriginal);
+  parsed.radier = { sm: "8px" };
+  fs.writeFileSync(tomFixtur, JSON.stringify(parsed));
+  // Skriver den trasiga fixturen på PLATS (samma sökväg vakten alltid läser)
+  // och lägger tillbaka originalet efteråt, oavsett utfall.
+  fs.writeFileSync(fixturVag, JSON.stringify(parsed));
+  try {
+    kravRott("tokens 11: fixturens golv, en tömd grupp", [tokenvakt, tokenfil], "fixturens golv");
+  } finally {
+    fs.writeFileSync(fixturVag, fixturOriginal);
+  }
+}
 
 // ⛔ #164, Regel 10: ett border-radius-literal utanför @theme static som
 // råkar träffa ett redan deklarerat radie-token. Mutationen återinför exakt
@@ -807,23 +823,23 @@ kravRott(
   const diagramvakt = "scripts/check-chart-colors.mjs";
 
   kravRott(
-    "diagramfärger: två serier som ingen kan skilja åt",
+    "diagramfärger: två chart-toner som ingen kan skilja åt",
     [
       diagramvakt,
       // Slot 2 sätts nästan lika slot 1. Det är exakt felet identitetstonerna
       // hade: två grannar under normalseendets golv.
-      tokenkopia("df1", (s) => s.replace("--color-series-2: #eb6834;", "--color-series-2: #2f7cd8;")),
+      tokenkopia("df1", (s) => s.replace("--color-chart-2: #eb6834;", "--color-chart-2: #2f7cd8;")),
     ],
-    "serier, ljust läge",
+    "chart, ljust läge",
   );
 
   kravRott(
-    "diagramfärger: en serie som läses som grått",
+    "diagramfärger: en chart-ton som läses som grått",
     [
       diagramvakt,
-      tokenkopia("df2", (s) => s.replace("--color-series-3: #1baf7a;", "--color-series-3: #8a8a88;")),
+      tokenkopia("df2", (s) => s.replace("--color-chart-3: #1baf7a;", "--color-chart-3: #8a8a88;")),
     ],
-    "serier, ljust läge",
+    "chart, ljust läge",
   );
 
   kravRott(
@@ -841,16 +857,16 @@ kravRott(
     "diagramfärger: mörka läget mäts mot mörk yta, inte mot vitt",
     [
       diagramvakt,
-      // Ett mörkt steg som är för mörkt mot #16161c. Klarar sig mot vitt, alltså
+      // Ett mörkt steg som är för mörkt mot #202420. Klarar sig mot vitt, alltså
       // fångas det bara av att båda lägena mäts var för sig.
-      tokenkopia("df4", (s) => s.replace("--dark-series-1: #3987e5;", "--dark-series-1: #123a66;")),
+      tokenkopia("df4", (s) => s.replace("--dark-chart-1: #3987e5;", "--dark-chart-1: #123a66;")),
     ],
-    "serier, mörkt läge",
+    "chart, mörkt läge",
   );
 
   kravRott(
     "diagramfärger golv: inga tokens alls",
-    [diagramvakt, tokenkopia("df5", (s) => s.replace(/--(color|dark)-series-\d+: #[0-9a-f]{6};\n/g, ""))],
+    [diagramvakt, tokenkopia("df5", (s) => s.replace(/--(color|dark)-chart-\d+: #[0-9a-f]{6};\n/g, ""))],
     "Hittade bara",
   );
 }

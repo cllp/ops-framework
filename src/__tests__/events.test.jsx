@@ -175,15 +175,19 @@ describe("OpsEventList", () => {
     /*
      * ⛔ RADIEN ÄR INTE KRAVET. Här stod `div.rounded-lg.border`, alltså en
      * fråga som band fast ett hörnvärde provet aldrig handlade om. Kravet är
-     * att varje händelse är ETT EGET kort, och det säger `border` plus
-     * räkningen. Hörnet blev `rounded-3xl` när bubblan kom, och provet gick
-     * rött utan att något blivit fel.
+     * att varje händelse är ETT EGET kort, och det säger räkningen av
+     * `.rounded-3xl` (bubblan, se not nedan), inte längre `.border`.
+     *
+     * ⛔ #167: SELEKTORN BYTTE FRÅN `.border` TILL `.rounded-3xl`. `OpsCard`
+     * fick en `kant`-prop (förval `false`, se `OpsCard.jsx`): SessionStudio
+     * skiljer ett kort från sidan med en tonskillnad, inte en synlig kant.
+     * `OpsEventList` skickar ingen `kant`, så bubblan har ingen kant längre,
+     * och ett prov som letar efter `.border` hade blivit grönt av tomhet.
+     * `.rounded-3xl` mäter samma sak (ETT kort per händelse) utan att bero på
+     * kant-valet.
      */
-    const kort = container.querySelectorAll("ul > li > div.border");
+    const kort = container.querySelectorAll("ul > li > div.rounded-3xl");
     expect(kort).toHaveLength(2);
-    // ⛔ Och de ÄR bubblor, alltså 24 px och inte panelens 8. Det är ett eget
-    // krav och står som en egen rad, inte insmuget i frågan ovan.
-    for (const k of kort) expect(k.className).toMatch(/rounded-3xl/);
   });
 
   it("släpper igenom slagets vänsterkant till kortet", () => {
@@ -199,7 +203,8 @@ describe("OpsEventList", () => {
     const { container } = render(
       <OpsEventList events={[h("a", 1, { when: "Idag", edge: 2, edgeLabel: "Påminnelse" })]} />,
     );
-    const kortet = container.querySelector("ul > li > div.border");
+    // ⛔ #167: `.rounded-3xl` i stället för `.border`, se noten i provet ovan.
+    const kortet = container.querySelector("ul > li > div.rounded-3xl");
     expect(kortet?.className).toMatch(/border-l-4/);
     // ⛔ Och ordet följer med. En färg utan ord säger ingenting till den som
     // inte lärt sig koden, och `OpsCard` kastar hellre än att rita den.
