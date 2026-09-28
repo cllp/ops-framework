@@ -5,7 +5,7 @@ import { useKallor } from "../data/useKallor.jsx";
 import { defineModule } from "../lib/modul.js";
 import { OpsModulHandelser } from "../components/OpsModulHandelser.jsx";
 import { OpsModulHjalp } from "../components/OpsModulHjalp.jsx";
-import { OpsModulKataloger } from "../components/OpsModulKataloger.jsx";
+import { OpsModulKataloger, anvandsIModuler } from "../components/OpsModulKataloger.jsx";
 
 /**
  * Fas 3: källkontraktet och registret (#129).
@@ -233,5 +233,63 @@ describe("Katalogerna i inställningsvyn läser ur registret", () => {
   it("säger ifrån när ingen modul har kataloger", async () => {
     render(<OpsModulKataloger register={skapaKallregister([])} fraga={GRUPP} ikoner={["gem"]} onSpara={() => {}} onArkivera={() => {}} />);
     await waitFor(() => expect(screen.getByText(/Ingen modul i den här gruppen/)).toBeTruthy());
+  });
+
+  /*
+   * ⛔ #164: "Används i" härleds ur registret, aldrig handskrivet. Två moduler
+   * som råkar registrera SAMMA katalog-id ska visa BÅDA sina namn på raden,
+   * inte bara den ena.
+   */
+  it("⛔ en katalog två moduler deklarerar visar båda namnen i Används i (#164)", async () => {
+    const delad = { id: "prioritet", namn: { sv: "Prioritet" }, kategorier: [{ id: "hog", namn: { sv: "Hög" }, ikon: "gem", farg: 1, fas: "aktiv" }] };
+    const handelser = defineModule({ id: "handelser", namn: { sv: "Händelser" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [delad] }, skapar: [] });
+    const inkorg = defineModule({ id: "inkorg", namn: { sv: "Inkorg" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [delad] }, skapar: [] });
+    const r = skapaKallregister([handelser, inkorg]);
+    render(<OpsModulKataloger register={r} fraga={GRUPP} ikoner={["gem"]} onSpara={() => {}} onArkivera={() => {}} />);
+    await waitFor(() => expect(screen.getAllByText(/Används i:/)).toHaveLength(2));
+    // Båda raderna säger samma sak: de delar katalogen, och BÅDA namnen syns,
+    // inte bara den egna modulens.
+    for (const rad of screen.getAllByText(/Används i:/)) {
+      expect(rad.textContent).toBe("Används i: Händelser, Inkorg");
+    }
+  });
+
+  /*
+   * ⛔ Rubriken ovanför sektionen är modulens NAMN, inte dess maskin-id. Ett
+   * prov som bara läst id:t hade blivit grönt även om `modulNamn` aldrig
+   * kopplades in, eftersom id och namn råkar se snarlika ut i testfixturen
+   * ovan om man inte skiljer på dem.
+   */
+  it("skriver modulens namn ovanför katalogen, inte modulens id", async () => {
+    const katalog = { id: "sorter", namn: { sv: "Sorter" }, kategorier: [{ id: "a", namn: { sv: "A" }, ikon: "gem", farg: 1, fas: "aktiv" }] };
+    const r = skapaKallregister([defineModule({ id: "ekonomi-modulen", namn: { sv: "Ekonomi" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [katalog] }, skapar: [] })]);
+    render(<OpsModulKataloger register={r} fraga={GRUPP} ikoner={["gem"]} onSpara={() => {}} onArkivera={() => {}} />);
+    await waitFor(() => expect(screen.getByText("Ekonomi")).toBeTruthy());
+    expect(screen.queryByText("ekonomi-modulen")).toBeNull();
+  });
+});
+
+describe("anvandsIModuler: en ren funktion, provad utan att montera något (#164)", () => {
+  const rader = [
+    { id: "prioritet", modulId: "handelser" },
+    { id: "prioritet", modulId: "inkorg" },
+    { id: "sorter", modulId: "ekonomi" },
+  ];
+  /** @type {(modulId: string) => import("../lib/sprak.js").Namn | null} */
+  const namn = (modulId) => ({ handelser: { sv: "Händelser" }, inkorg: { sv: "Inkorg" }, ekonomi: { sv: "Ekonomi" } })[modulId] ?? null;
+
+  it("listar modulernas namn i den ordning de först syns, utan dubbletter", () => {
+    expect(anvandsIModuler(rader, "prioritet", namn, "sv")).toEqual(["Händelser", "Inkorg"]);
+  });
+
+  it("en katalog utan någon rad ger en tom lista, inte ett kastat fel", () => {
+    // ⛔ Detta är läget vyn möter tomtext för (arbetsreglernas punkt 5): en
+    // katalog vars id inte finns bland raderna längre, t.ex. en modul som
+    // plockats bort mellan två hämtningar.
+    expect(anvandsIModuler(rader, "finns-inte", namn, "sv")).toEqual([]);
+  });
+
+  it("en modul utan resolverbart namn faller tillbaka på sitt id, inte på tomhet", () => {
+    expect(anvandsIModuler(rader, "sorter", () => null, "sv")).toEqual(["ekonomi"]);
   });
 });

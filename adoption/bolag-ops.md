@@ -280,7 +280,7 @@ en egen palett igen, och då är vi tillbaka i de tjugofem `.tag-pill--*`-klasse
 ### 5. Toppraden
 
 ```jsx
-<OpsAppShell brand={<OpsBrand title="Operations Hub" subtitle="CPS AB" />} ... />
+<OpsAppShell brand={<OpsBrand title="OPS Hub" subtitle="CPS AB" />} ... />
 ```
 
 Märket, produktnamnet och ägarraden finns i ramverket och byter automatiskt

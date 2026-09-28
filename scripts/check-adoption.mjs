@@ -47,6 +47,37 @@ const rot = path.dirname(konfigfil);
 const konfig = JSON.parse(fs.readFileSync(konfigfil, "utf8"));
 const matningar = konfig.matningar;
 
+// ── check:fonts måste stå i konsumentens check-kedja (#164) ─────────────────
+//
+// ⛔ SAMMA FEL SOM check-fonts.mjs SJÄLV VAKTAR, ETT STEG UPP. Vaktens egen
+// fil skyddar mot att typsnittet hämtas fel. Den skyddar INGENTING om ingen
+// någonsin kör den. `create-ops-app`-mallen lägger `check:fonts` i sin
+// check-kedja från och med #164, men en app som redan finns när ramverket
+// uppdateras ärver inte det automatiskt, mallen kopieras bara vid `create`.
+// Utan den här kontrollen kan en app tappa raden ur `check` (eller aldrig få
+// den) utan att något säger ifrån, och då är den lika oskyddad som innan
+// check-fonts.mjs skrevs.
+//
+// ⛔ LÄSER BARA NÄR package.json FINNS. `check-adoption.mjs` körs mot fixturer
+// utan package.json i testharnesset (se test-guards.mjs), och ett hårt krav
+// här hade gjort de fixturerna röda av ett skäl de inte testar. Finns filen
+// intill adoption.json, vilket den gör i varje riktig konsumentapp, är kravet
+// obligatoriskt.
+const paketfil = path.join(rot, "package.json");
+if (fs.existsSync(paketfil)) {
+  /** @type {{ scripts?: Record<string, string> }} */
+  const paket = JSON.parse(fs.readFileSync(paketfil, "utf8"));
+  const checkKedja = (paket.scripts && paket.scripts.check) || "";
+  if (!checkKedja.includes("check:fonts")) {
+    console.error(
+      `check-adoption: ${path.relative(rot, paketfil)} saknar "check:fonts" i sin check-kedja (scripts.check).\n` +
+        "  Utan den kan appen hämta typsnittet fel (en @import som webbläsaren ignorerar) utan att\n" +
+        "  någon grind säger ifrån. Lägg till raden, samma mönster som create-ops-app/template/package.json (#164).",
+    );
+    process.exit(1);
+  }
+}
+
 if (!Array.isArray(matningar) || matningar.length === 0) {
   console.error("check-adoption: adoption.json saknar matningar. En tom lista är inte ett godkänt utfall, den är en vakt som aldrig kan säga ifrån.");
   process.exit(1);

@@ -15,7 +15,7 @@ import {
   perDay,
   scrollDirection,
 } from "../lib/calendar.js";
-import { ChevronNedIkon } from "./icons.jsx";
+import { ChevronNedIkon, KryssIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 /**
@@ -296,22 +296,6 @@ function DayBox({ day, dayKey, entries, isToday, chosen, onSelect }) {
   );
 }
 
-/** Krysset, i två storlekar. En svg på tre ställen är tre ställen att rätta. */
-function Kryss({ stor = false }) {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      className={stor ? "size-3.5" : "size-2.5"}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-    >
-      <path d="M5 5l10 10M15 5L5 15" />
-    </svg>
-  );
-}
 
 /**
  * Ett piller per vald dag.
@@ -344,7 +328,7 @@ function Datumpiller({ dayKey, kanTasBort, onTaBort, order, locale }) {
           aria-label={`Ta bort ${text}`}
           className="flex cursor-pointer items-center text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <Kryss />
+          <KryssIkon size={10} />
         </button>
       ) : null}
     </span>
@@ -593,7 +577,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, locale }) {
             "hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           )}
         >
-          <Kryss stor />
+          <KryssIkon size={14} />
         </button>
       </div>
 

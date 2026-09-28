@@ -123,6 +123,16 @@ for (const strang of SENTRY_STRANGAR) {
   }
 }
 
+// ── Namnet är "OPS Hub", inte "Operations Hub" (#164) ────────────────────
+//
+// ⛔ CP döpte ramverkets exempelapp om, och "Operations Hub" är kvar på
+// gamla ställen om ingen jagar det aktivt. En sträng i ett exempel är
+// precis den sortens påstående som glider utan att bygget märker det,
+// samma mekanism som komponent- och Sentry-kontrollerna ovan.
+if (readme.includes("Operations Hub")) {
+  brott.push('README nämner det gamla namnet "Operations Hub". #164 döpte det till "OPS Hub", byt varje förekomst.');
+}
+
 if (brott.length === 0) {
   console.log(`check-docs: ${utlovade.length} exporter och ${vakter.length} vakter, alla omnämnda i README`);
   process.exit(0);

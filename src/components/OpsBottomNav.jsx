@@ -3,6 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
+import { OpsCountBadge } from "./counter.jsx";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -239,7 +240,7 @@ function BottomLank({ entry, active, onClick, badgeText }) {
     >
       <span className="relative inline-flex">
         {entry.icon ?? <span className="inline-block h-[22px] w-[22px] rounded-full border-2 border-current" aria-hidden="true" />}
-        {typeof entry.badge === "number" ? <Badge count={entry.badge} text={badgeText} /> : null}
+        {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </span>
       <span className="mt-0.5 max-w-full truncate text-xs font-medium">{entry.label}</span>
     </a>
@@ -263,7 +264,7 @@ function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
           {entry.icon ? <span className="shrink-0">{entry.icon}</span> : null}
           <span className="truncate">{entry.label}</span>
         </span>
-        {typeof entry.badge === "number" ? <Badge count={entry.badge} text={badgeText} /> : null}
+        {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </a>
       {hasChildren ? (
         <div className="mt-0.5 flex flex-col gap-0.5 pl-4">
@@ -295,18 +296,3 @@ function sheetLankKlass(active, title) {
   );
 }
 
-/**
- * En badge har både siffra och skärmläsartext. En prick utan namn säger
- * ingenting till den som inte ser den.
- * @param {{ count: number, text: string }} props
- */
-function Badge({ count, text }) {
-  return (
-    <span className="inline-flex min-h-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-accent px-1 text-xs font-bold leading-none text-accent-contrast">
-      <span aria-hidden="true">{count}</span>
-      <span className="sr-only">
-        {count} {text}
-      </span>
-    </span>
-  );
-}
