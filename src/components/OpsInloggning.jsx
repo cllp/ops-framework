@@ -199,7 +199,7 @@ export function OpsInloggning({ auth, rubrik, etikett, viskning, lankar = [], ap
 
       <div className="relative z-10 flex w-full max-w-[360px] flex-col items-stretch gap-2">
         <div className="mb-3 flex flex-col items-center text-center">
-          <OpsBrand title={etikett || rubrik || "OPS Hub"} ordmarkeMaxWidth="max-w-[330px]" />
+          <OpsBrand title={etikett || rubrik || "OPS Hub"} ordmarkeMaxWidth="max-w-[330px]" endastOrdmarke />
           {viskning ? <p className="mt-2 px-1 text-sm leading-snug text-ink-soft">{viskning}</p> : null}
         </div>
 

@@ -185,6 +185,18 @@ describe("OpsBrand", () => {
       expect(bilder.find((b) => b.getAttribute("src") === "/ikon.png")?.className).toContain("md:hidden");
       expect(bilder.find((b) => b.getAttribute("src") === "/ord.png")?.className).toContain("hidden");
     });
+
+    // ⛔ #164: `OpsInloggning` är en helskärmsvy, inte `OpsAppShell`s
+    // responsiva topprad. Utan `endastOrdmarke` hade en 480 px mobilskärm
+    // (den vanligaste bredden för just en inloggningssida) tyst räknats som
+    // "smal vy" och ritat den lilla ikonen i stället för det avsedda
+    // ordmärket.
+    it("endastOrdmarke ritar BARA ordmärket, aldrig ikonen, trots att båda finns i förvalet", () => {
+      const { container } = render(<OpsBrand title="Bolag Ops" endastOrdmarke />);
+      const bilder = Array.from(container.querySelectorAll("img"));
+      expect(bilder).toHaveLength(1);
+      expect(bilder[0].src).toContain("ops-hub-ordmarke-ljus.png");
+    });
   });
 });
 

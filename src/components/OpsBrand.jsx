@@ -83,8 +83,10 @@ const MARKEN = {
  *   när `ordmarke` också finns.
  * @param {string} [props.ordmarkeMaxWidth] Tailwind-bredd på ordmärkets bild, t.ex. `"max-w-[330px]"` (OpsInloggning).
  *   Förval `"max-w-40"`, rätt mått för en topprad.
+ * @param {boolean} [props.endastOrdmarke] Ritar BARA ordmärket, aldrig ikonen, oavsett skärmbredd (`OpsInloggning`,
+ *   #164). En helskärmsvy är inte `OpsAppShell`s responsiva topprad: smal/bred-växlingen (punkt 9) hör dit, inte hit.
  */
-export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40" }) {
+export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40", endastOrdmarke = false }) {
   if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i, och är undertexten under bilden.");
 
   if (!(mark in MARKEN)) {
@@ -102,7 +104,11 @@ export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordma
   // och hamnar i EN-bilds-läget nedan (samma bild i alla brytpunkter).
   const appenOverridar = ordmarke !== undefined || ikon !== undefined;
   const visadOrdmarke = appenOverridar ? ordmarke : (mark === "none" ? undefined : OPS_HUB_VARUMARKE.ordmarke);
-  const visadIkon = appenOverridar ? ikon : (mark === "none" ? undefined : OPS_HUB_VARUMARKE.ikon);
+  // ⛔ `endastOrdmarke` (OpsInloggning, #164): en helskärmsvy är inte en
+  // responsiv topprad. Den smala/breda IKON-VÄXLINGEN hör till `OpsAppShell`s
+  // header (#164 punkt 9), och ska INTE tysta göra en 480 px mobilskärm till
+  // "smal vy" och rita den lilla ikonen i stället för det avsedda ordmärket.
+  const visadIkon = endastOrdmarke ? undefined : appenOverridar ? ikon : (mark === "none" ? undefined : OPS_HUB_VARUMARKE.ikon);
 
   return visadOrdmarke || visadIkon ? (
     <OpsBrandBild title={title} ordmarke={visadOrdmarke} ikon={visadIkon} ordmarkeMaxWidth={ordmarkeMaxWidth} />
