@@ -1327,14 +1327,27 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     "mäter resten av vakten ingenting",
   );
 
-  // ⛔ #156: ANVANDARFALT OCH REGELNS hasOnly ÄR TVÅ HANDSKRIVNA LISTOR.
-  // Lägger man till ett fält i den ena utan att röra den andra ska det synas,
-  // annars sparas fältet aldrig, och felet syns bara som "Missing or
-  // insufficient permissions" hos den som försökte spara sin profil.
+  // ⛔ #156: hasOnly ÄR HÄRLEDD UR ANVANDARFALT (regler.js importerar den ur
+  // grupp.js), så en ändring av ANVANDARFALT ensam kan inte längre få dem
+  // att glida isär. Det som KAN hända är att någon skriver om härledningen
+  // till en handskriven lista igen och glömmer ett fält, precis som en ren
+  // kopia hade gjort. Provet simulerar det: den härledda raden i regler.js
+  // ersätts med en hårdkodad, ofullständig lista.
   kravRott(
-    "gruppnyckel: ett fält i ANVANDARFALT saknas i users-regelns hasOnly",
-    [nyckelvakt, libkopia("gn4", (k) => k.replace('"presentation", "lankar", "bildSokvag"]', '"presentation", "lankar", "bildSokvag", "webbplats"]'))],
-    'saknar fältet "webbplats"',
+    "gruppnyckel: users-regelns hasOnly hårdkodad och ofullständig",
+    [
+      nyckelvakt,
+      libkopia(
+        "gn4",
+        (k) =>
+          k.replace(
+            'request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}])',
+            'request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar"])',
+          ),
+        "regler.js",
+      ),
+    ],
+    'saknar fältet "bildSokvag"',
   );
 
   kravRott("gruppnyckel golv: fel sökväg", [nyckelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");

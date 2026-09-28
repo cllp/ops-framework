@@ -12,7 +12,7 @@
  *
  * ══ ⛔ `console.error` ÄR INTE ETT FÖRVAL SOM VÄNTAR PÅ NÅGOT BÄTTRE ══════
  *
- * Det är den GARANTERADE golvet. Utan en mottagare, i EVERY miljö (utveckling
+ * Det är den GARANTERADE golvet. Utan en mottagare, i VARJE miljö (utveckling
  * OCH produktion), skrivs felet till konsolen. En app som aldrig kopplar in
  * något får ändå ett spår: den som öppnar utvecklarverktygen på en klagande
  * kunds dator ser felet, i stället för att gissa.

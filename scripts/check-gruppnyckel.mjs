@@ -120,17 +120,21 @@ if (!regelfragment().includes("opsArMedlem") || !regelfragment().includes("exist
 
 // ── 3. users-regelns hasOnly täcker varje fält i ANVANDARFALT (#156) ───────
 //
-// ⛔ VARFÖR DEN HÄR VAKTEN FINNS. ANVANDARFALT (src/lib/grupp.js) och
-// hasOnly-listan i `regelfragment()`s users-block är två handskrivna
-// listor som RÅKAR säga samma sak i dag. Två handskrivna sanningar glider
-// isär förr eller senare (arbetsreglernas punkt 2), och den dagen ett fält
-// läggs till i modellen men glöms i regeln sparas det inte: skrivningen
-// avvisas av `keys().hasOnly`, och det syns bara som "Missing or
-// insufficient permissions" hos personen som försökte spara sin profil.
+// ⛔ VARFÖR DEN HÄR VAKTEN FINNS, RÄTTAT EFTER GRANSKNING. hasOnly-listan i
+// `regelfragment()`s users-block ÄR SEDAN GRANSKNINGEN HÄRLEDD ur
+// ANVANDARFALT (`regler.js` importerar den ur `grupp.js`), inte en
+// handskriven kopia av den. En härledning kan inte glida isär av sig
+// själv, men det kan mekanismen som håller den härledd: en framtida
+// ändring som byter härledningen mot en handskriven lista igen (t.ex. vid
+// en omskrivning som "råkar" hårdkoda listan för läsbarhet) ska fällas
+// precis som en ren kopia hade fällts. Den här kontrollen mäter alltså
+// UTFALLET (täcker hasOnly varje fält), oavsett om det kommer från en
+// härledning eller en kopia, vilket är det enda en text-vakt kan mäta.
 //
-// ⛔ BÅDA RIKTNINGARNA MÄTS. Provet i `scripts/test-guards.mjs` lägger till
-// ett fält i en kopias ANVANDARFALT utan att röra regler.js, och kräver att
-// DET HÄR blocket fäller det.
+// ⛔ BÅDA RIKTNINGARNA MÄTS. Provet i `scripts/test-guards.mjs` ersätter i
+// en kopia den härledda hasOnly-raden med en HÅRDKODAD, ofullständig lista
+// (som om någon skrivit om härledningen till en kopia och glömt ett fält),
+// och kräver att DET HÄR blocket fäller det.
 {
   const anvandarfaltLista = listor.find((l) => l.lista === "ANVANDARFALT");
   if (!anvandarfaltLista) {

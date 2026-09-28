@@ -426,6 +426,13 @@ describe("lagringsregelfragment: Storage, bara sin egen bild (#156)", () => {
   it("en storleksgräns på 2 MB", () => {
     expect(lagringsregelfragment()).toContain("request.resource.size < 2 * 1024 * 1024");
   });
+
+  it("⛔ granskningsrättelse: create/update skilt från delete, eftersom en radering inte har request.resource", () => {
+    const text = lagringsregelfragment();
+    expect(text).toContain("allow create, update: if request.auth != null && request.auth.uid == uid\n        && request.resource.size < 2 * 1024 * 1024\n        && request.resource.contentType.matches('image/.*');");
+    expect(text).toContain("allow delete: if request.auth != null && request.auth.uid == uid;");
+    expect(text).not.toMatch(/allow write:/);
+  });
 });
 
 describe("generateRules: hela filen ur manifesten (#130)", () => {
