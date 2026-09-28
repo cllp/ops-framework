@@ -140,7 +140,7 @@ Siffror hämtas live vid varje generering. Skriv aldrig av dem från förra
 versionen. Bedömningar ska märkas som bedömningar: mätt data och gissningar får
 inte se likadana ut.
 
-## 11. Ett ärende som citerar SessionStudio är klart först när PR:en bär en skärmbild av samma flöde sida vid sida med förebilden.
+## 12. Ett ärende som citerar SessionStudio är klart först när PR:en bär en skärmbild av samma flöde sida vid sida med förebilden.
 
 CP 2026-09-28 22:32: "Jag ber om samma sak massor av gånger men får ingen
 skillnad." #157, #158 och #164 hade alla provats i jsdom och fotograferats
