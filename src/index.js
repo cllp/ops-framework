@@ -98,6 +98,7 @@ export { createHttpSource } from "./data/http.js";
 // ── Inloggning ─────────────────────────────────────────────────────────────
 export { createAuth, createGoogleAuth, OpsAuthProvider, useOpsAuth, OpsAuthGate } from "./auth/auth.jsx";
 export { OpsProfil } from "./components/OpsProfil.jsx";
+export { OpsInloggning } from "./components/OpsInloggning.jsx";
 export { OpsMeny } from "./components/OpsMeny.jsx";
 export { OpsMedlemmar } from "./components/OpsMedlemmar.jsx";
 export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";

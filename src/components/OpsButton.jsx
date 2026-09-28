@@ -24,6 +24,17 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * bad om det hade sett ut som en ny sorts kontroll mitt i en rad knappar som
  * inte ändrats. `round` (kräver `iconOnly`) gav redan cirkeln, för
  * Huvudatgard-knappen i bottenraden, och gör det fortfarande.
+ *
+ * ══ ⛔ SAMMA PASS, TYNGD OCH STORLEK: EN ANNAN AGENT MÄTTE VIDARE ═════════
+ *
+ * `font-semibold` (600) och `text-base` (16 px, `size="md"`) stod kvar från
+ * innan pillerbeslutet och avvek från SessionStudio på BÅDA punkterna, mätt
+ * mot `apps/web/src/views/ProfileView.jsx` rad ~604 (Spara-knappen) och flera
+ * rader i `apps/web/src/components/AppHeader.jsx`: SessionStudios knappar är
+ * `font-medium` (500), aldrig `font-semibold`, och Spara-knappens storlek är
+ * `text-sm` (14 px), inte 16. Båda rättade i samma commit som pillerformen.
+ * `min-h-11` (44 px träffyta) är ORÖRD: den är ett mått för tummen, inte för
+ * texten.
  */
 
 const VARIANTER = {
@@ -44,7 +55,11 @@ const VARIANTER = {
  */
 const STORLEKAR = {
   sm: "gap-1.5 px-3 py-1 text-sm min-h-8",
-  md: "gap-2 px-4 py-2 text-base min-h-11",
+  // ⛔ text-sm, INTE text-base (#164, mätt av en annan agent mot
+  // SessionStudios `ProfileView.jsx` rad ~604, Spara-knappen): 14 px, inte
+  // 16 px. Höjden (min-h-11, 44 px träffyta) är ORÖRD: den är ett mått för
+  // tummen, inte för texten, och de två frågorna svarar inte på varandra.
+  md: "gap-2 px-4 py-2 text-sm min-h-11",
 };
 
 const IKONSTORLEKAR = {
@@ -62,7 +77,11 @@ const RUND_IKONSTORLEKAR = {
 };
 
 const BAS =
-  "inline-flex items-center justify-center border font-semibold leading-tight " +
+  // ⛔ font-medium, INTE font-semibold (#164, mätt av en annan agent mot
+  // SessionStudios `ProfileView.jsx` r604 och flera rader i `AppHeader.jsx`):
+  // 500, aldrig 600. Provet i `piller.test.jsx` är rött om font-semibold
+  // kommer tillbaka.
+  "inline-flex items-center justify-center border font-medium leading-tight " +
   "transition-colors duration-(--duration-fast) ease-standard " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent " +
   "disabled:opacity-55 disabled:cursor-not-allowed aria-disabled:opacity-55 aria-disabled:cursor-not-allowed";

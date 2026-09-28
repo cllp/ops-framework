@@ -165,7 +165,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**85 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**86 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -453,10 +453,11 @@ importerar ingen auth-SDK**, appen skickar in den.
 
 | | |
 |---|---|
-| `createGoogleAuth({ auth, sdk, hamtaProfil })` | Google-inloggning. `hamtaProfil` läser appens egen användarlista och ger `role` |
-| `createAuth(adapter)` | för en egen inloggning |
-| `OpsAuthProvider`, `useOpsAuth` | inloggat konto, `loading`, `error`, `loggaIn`, `loggaUt` |
-| `OpsAuthGate` | visar sitt innehåll för den som är inloggad och har rätt roll |
+| `createGoogleAuth({ auth, sdk, fetchProfile, emailLinkRedirectUrl })` | Google, PLUS Apple/e-postlänk/lösenord som VALFRIA förmågor (#164, korrigering B), se nedan. `fetchProfile` läser appens egen användarlista och ger `role` |
+| `createAuth(adapter)` | för en egen inloggning. Normaliserar en adapter till FÖRMÅGOR: `signOut`+`subscribe` krävs, resten (`signInWithGoogle` — `signIn` fungerar fortfarande, bakåtkompatibelt — `signInWithApple`, `sendEmailLink`, `completeEmailLink`, `signInWithPassword`, `createAccount`, `resetPassword`) är valfria funktioner |
+| `OpsAuthProvider`, `useOpsAuth` | inloggat konto: `user`, `loading`, `error`, `auth` (den normaliserade förmågelistan), `signOut`, `clearError` |
+| `OpsAuthGate` | ritar `OpsInloggning` (se nedan) i utloggat läge, sitt innehåll för den som är inloggad och har rätt roll |
+| `OpsInloggning` | `auth` (krävs, från `createAuth`/`createGoogleAuth`), `rubrik`, `etikett`, `viskning`, `lankar` [{label, href}], `appVersion`, `sprak`, `onSprak`, `fel`, `onRensaFel`. ⛔ **#164, KORRIGERING B, EXAKT FORM UR EN SKÄRMBILD AV SESSIONSTUDIO**: helskärm, `OpsBrand` (OPS Hub-förvalet eller appens egen logga) med `etikett` och `viskning` under, ett kort (`--radius-card`) med en Swe/Eng-pill, EN leverantörsrad per förmåga `auth` faktiskt har (ingen gissning, ingen rad utan sin förmåga), en "ELLER"-avdelare bara när det finns fler än en väg in, en primär pill till lösenordsformuläret, en sekundär pill "Skapa konto" (bara med `createAccount`), en textlänk till e-postlänksflödet (bara med `sendEmailLink`), och en sidfot med `lankar` + `appVersion` på samma rad |
 
 Rollen kommer **aldrig** från Google. Google svarar på vem någon är, inte på vad
 hen får göra. Rollen läses ur appens egen användarlista, alltså ett dokument per

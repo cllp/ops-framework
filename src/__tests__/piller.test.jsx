@@ -43,4 +43,25 @@ describe("OpsButton: piller (#164)", () => {
     );
     expect(screen.getByRole("button", { name: "Skapa" }).className).toContain("rounded-full");
   });
+
+  // ══ Samma pass: tyngd och storlek mätt mot SessionStudios ProfileView r604
+  // och AppHeader.jsx (annan agent, samma commit som pillerformen) ═════════
+  it("⛔ font-medium (500), inte font-semibold (600)", () => {
+    render(<OpsButton>Spara</OpsButton>);
+    const knapp = screen.getByRole("button", { name: "Spara" });
+    expect(knapp.className).toContain("font-medium");
+    expect(knapp.className).not.toContain("font-semibold");
+  });
+
+  it("⛔ size=\"md\" är text-sm (14px, som SessionStudios Spara-knapp), inte text-base (16px)", () => {
+    render(<OpsButton size="md">Spara</OpsButton>);
+    const knapp = screen.getByRole("button", { name: "Spara" });
+    expect(knapp.className).toContain("text-sm");
+    expect(knapp.className).not.toContain("text-base");
+  });
+
+  it("min-h-11 (44px träffyta) är ORÖRD av storleksrättningen", () => {
+    render(<OpsButton size="md">Spara</OpsButton>);
+    expect(screen.getByRole("button", { name: "Spara" }).className).toContain("min-h-11");
+  });
 });

@@ -199,6 +199,10 @@ describe("inloggning", () => {
     });
   }
 
+  // ⛔ #164, korrigering B: OpsAuthGate ritar numera OpsInloggning (en rad per
+  // FÖRMÅGA, se auth.jsx filhuvud), inte en ensam "Logga in med Google"-knapp.
+  // `fakeAuth` här skickar bara den gamla `signIn` (bakåtkompatibel synonym
+  // för `signInWithGoogle`, se `createAuth`), så EN rad ska synas.
   it("visar inloggning när ingen är inloggad", async () => {
     render(
       <OpsAuthProvider authentication={fakeAuth(null)}>
@@ -207,7 +211,7 @@ describe("inloggning", () => {
         </OpsAuthGate>
       </OpsAuthProvider>,
     );
-    await waitFor(() => expect(screen.getByRole("button", { name: /Logga in med Google/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Fortsätt med Google/ })).toBeInTheDocument());
     expect(screen.queryByText("hemligt")).not.toBeInTheDocument();
   });
 
