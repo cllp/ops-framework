@@ -1,4 +1,5 @@
 import { cx } from "../lib/cx.js";
+import { KryssIkon } from "./icons.jsx";
 
 /**
  * Talet man laborerar med, som håller sin plats i fönstret.
@@ -196,9 +197,7 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
             aria-label={`${dismissLabel} ${label}`}
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-ink-secondary"
           >
-            <svg viewBox="0 0 20 20" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M5 5l10 10M15 5L5 15" />
-            </svg>
+            <KryssIkon />
           </button>
         ) : null}
       </div>

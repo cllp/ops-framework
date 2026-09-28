@@ -278,6 +278,40 @@ for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_RUNDNING)) {
   }
 }
 
+// ── Regel 10: ett radie-literal som matchar ett token är ett andra original ─
+// ops-framework#164 (arkitekturgranskningen): fyra `border-radius: 9999px`
+// stod handskrivna i `.ops-reglage`-pseudoelementen, trots att `--radius-full`
+// redan var 999px, exakt samma tal i sak. Ett literal utanför `@theme static`
+// som råkar träffa ett redan deklarerat tokenvärde är Regel 2 i sin renaste
+// form ("en sanning per faktum"): ändras skalan i `@theme static` glider
+// literalet isär utan att något blir rött, för det är inte en referens.
+//
+// ⛔ Läser bara UTANFÖR `@theme static`-blocket, tokendeklarationerna SJÄLVA
+// får förstås sätta sina egna pixeltal. Läser bara `border-radius`, inte
+// `border-top-left-radius` med flera: den formen används inte i den här
+// filen, och att gissa dess mönster hade varit att bygga en regel mot ett
+// fynd som inte finns.
+if (tema) {
+  const temaVarden = deklarationerI(tema.body);
+  const RADIE_VARDEN = new Set();
+  for (const [namn, varde] of Object.entries(temaVarden)) {
+    if (namn.startsWith("--radius-")) RADIE_VARDEN.add(varde);
+  }
+  // Blockets kropp börjar direkt efter öppningsparentesen och slutar där den
+  // egna stängningsparentesen står, `tema.start` pekar på "@theme".
+  const temaSlut = tema.start + "@theme static {".length + tema.body.length + 1;
+  for (const m of css.matchAll(/border-radius\s*:\s*([^;]+);/g)) {
+    if (m.index >= tema.start && m.index < temaSlut) continue; // tokendeklarationen själv
+    const varde = m[1].trim();
+    if (RADIE_VARDEN.has(varde)) {
+      brott.push({
+        rule: "10. radie-literal dubblerar ett token",
+        detail: `"border-radius: ${varde}" i ${file} (rad ${radAv(m.index)}) skriver samma tal som ett token i @theme static gör. Använd var(--radius-*) i stället, annars glider de isär när skalan ändras (#164).`,
+      });
+    }
+  }
+}
+
 // ── Regel 4: golv, så vakten inte kan bli grön på tomhet ────────────────────
 // En vakt som blir grön av att ingenting lästes är den vanligaste falska
 // grönheten vi haft. Den ska säga ifrån, inte tiga.
@@ -290,7 +324,7 @@ if (alla.length < GOLV) {
 }
 
 if (brott.length === 0) {
-  console.log(`check-tokens: ${alla.length} tokens, alla nio regler gröna (${file})`);
+  console.log(`check-tokens: ${alla.length} tokens, alla tio regler gröna (${file})`);
   process.exit(0);
 }
 
