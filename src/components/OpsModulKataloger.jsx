@@ -106,6 +106,13 @@ export function OpsModulKataloger({ register, fraga, ikoner, onSpara, onArkivera
               kanAndra={kanAndra}
               sprak={sprak}
               rubrik={text(rad.namn, sprak)}
+              /*
+               * ⛔ #162: SAMMA groupId SOM `fraga` FRÅGADE MED. Den här vyn
+               * ritar redan EN grupps kataloger (`useKallor(register, "kataloger", fraga)`
+               * ovan), så en ny eller ändrad kategori ska höra till samma
+               * grupp den lästes ur, aldrig till ingen alls.
+               */
+              groupId={fraga && fraga.groupId}
               onSpara={(kategori) => onSpara(rad.id, kategori)}
               onArkivera={(kategori, arkiverad) => onArkivera(rad.id, kategori, arkiverad)}
             />

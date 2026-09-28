@@ -372,3 +372,41 @@ describe("en katalog utan färger i inställningsvyn", () => {
     expect(screen.getByLabelText(/^Färg/)).toBeInTheDocument();
   });
 });
+
+describe("⛔ groupId (#162): satt eller inte, avgör om kategorin blir gruppens egen", () => {
+  it("ingen groupId-prop: kategorin byggs precis som innan #162, utan fältet", () => {
+    // ⛔ Oförändrat beteende. Det här är beviset på att en app som inte satt
+    // `groupId` inte märker att #162 hände.
+    const onSpara = vi.fn();
+    rita({ onSpara });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0].groupId).toBeNull();
+  });
+
+  it("groupId satt: en ny kategori bär den, byggd med grupp: true", () => {
+    const onSpara = vi.fn();
+    rita({ onSpara, groupId: "cps-ab" });
+    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
+    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0].groupId).toBe("cps-ab");
+  });
+
+  it("groupId satt: en ÄNDRAD kategori bär den också, inte bara en nyskapad", () => {
+    const onSpara = vi.fn();
+    rita({ onSpara, groupId: "cps-ab" });
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+
+    expect(onSpara).toHaveBeenCalledTimes(1);
+    expect(onSpara.mock.calls[0][0].groupId).toBe("cps-ab");
+  });
+});

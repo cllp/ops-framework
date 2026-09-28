@@ -56,7 +56,26 @@ import { byggNamn, text } from "./sprak.js";
  * uppstart och en tom rad i vyn, alltså letade i vyn efter ett fel som låg i
  * katalogen.
  */
-const KATEGORIFALT = ["id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter"];
+/*
+ * ⛔ `groupId` LADES TILL HÄR 2026-09-28 (#162, CP-beslut väg C i #160).
+ *
+ * Fram till dess kastade `byggKategori` på fältet, eftersom det inte stod i
+ * listan: allt utanför listan avvisas (se noten strax nedan). Det var mätt i
+ * cllp/bolag-ops#447 av appens egen utvecklare, som ville skriva `groupId` på
+ * en kategori för att skilja miranda ab:s händelsetyper från cps-ab:s, och
+ * fick tillbaka "fälten groupId ... känns inte igen".
+ *
+ * Fältet är BARA tillåtet, det är inte obligatoriskt av sig självt: en katalog
+ * som byggs med `grupp: true` (se `byggKategori`) kräver det som varje annat
+ * fält, en katalog utan (förvalet, oförändrat för varje befintlig anropare)
+ * avvisar det precis som `farg`/`fas` avvisas i en katalog utan färger eller
+ * faser. Skälet till att det INTE är obligatoriskt för alla är
+ * `examples/paminnelser/index.js`: en moduls egen klassificering (`SORTER`)
+ * är kod, delad likadan av varje grupp som installerar modulen, och har ingen
+ * databasgrupp att peka på. Det är GRUPPENS EGNA, Firestore-lagrade kataloger
+ * (`createCatalogSource`) som sätter `grupp: true`.
+ */
+export const KATEGORIFALT = ["id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter", "groupId"];
 
 /**
  * ⛔ EN TEXTNYCKEL FÅR INTE BÄRA PUNKT ELLER MELLANSLAG, av samma skäl som
@@ -95,6 +114,8 @@ export const AVSLUTADE_FASER = /** @type {const} */ (["klar", "avskriven"]);
  * @property {number} ordning Lägre först.
  * @property {boolean} arkiverad Går inte att välja för nya poster.
  * @property {Record<string, import("./sprak.js").Namn>} texter Fria, namngivna texter. Se nedan.
+ * @property {string | null} groupId Gruppen katalogen hör till (#162), eller `null` i en
+ *   katalog som är byggd utan `grupp: true`, alltså delad av alla som använder den.
  */
 
 /**
@@ -148,10 +169,12 @@ export const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
  * och inte data, samma regel som resten av ramverket.
  *
  * @param {Record<string, any>} d
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean, grupp?: boolean }} [config]
+ *   `grupp` (#162, förval `false`): sant för en katalog som är gruppens egen. Se noten vid
+ *   `groupId` nedan för vad det ändrar.
  * @returns {Kategori}
  */
-export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true, farger = true } = {}) {
+export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true, farger = true, grupp = false } = {}) {
   const var_ = (/** @type {string} */ falt, /** @type {string} */ skal) =>
     new Error(`${katalog}: ${falt} ${skal}`);
 
@@ -259,6 +282,48 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     throw var_(`fas "${fas}" för "${id}"`, `finns inte. Faserna är ramverkets och går inte att lägga till: ${FASER.join(", ")}.`);
   }
 
+  /*
+   * ══ ⛔ GRUPPEN, NÄR KATALOGEN ÄR GRUPPENS EGEN (#162) ═════════════════
+   *
+   * Samma mönster som `farg`/`fas` precis ovan: KONFIGURATIONEN avgör, inte
+   * raden. En katalog utan `grupp: true` (förvalet, alltså varje befintlig
+   * anropare) tillåter inte fältet alls, av samma skäl som en katalog utan
+   * färger inte tillåter `farg`: ett värde som ändå skulle skickas in vore en
+   * grupp ingen kod läser, alltså ett löfte om isolering som inte infrias.
+   *
+   * ⛔ OCH EN GRUPPAD KATALOG KRÄVER DET, PRECIS SOM `id`. Väg C (#160,
+   * CP-beslut i cllp/bolag-ops#359) är att kategorierna ÄR gruppens data: utan
+   * ett `groupId` på varje rad ser miranda ab cps-ab:s händelsetyper i sin
+   * rullgardin och tvärtom, exakt det beslutet finns för att stoppa.
+   *
+   * ⛔ SAMMA FORM SOM `ID_FORM`, EFTERSOM DET ÄR EN GRUPPS EGET ID. `byggGrupp`
+   * kräver redan den formen av en grupp, och `groupId` här pekar på precis en
+   * sådan rad. En annan form hade gjort två sanningar om vad ett grupp-id får
+   * se ut som (arbetsreglernas punkt 2).
+   */
+  if (!grupp) {
+    if (d.groupId !== undefined && d.groupId !== null) {
+      throw var_(
+        `groupId för "${id}"`,
+        "hör inte hemma i den här katalogen. Den är byggd utan grupp: true, alltså delad av alla som använder den. Ska katalogen vara en grupps egen, sätt grupp: true.",
+      );
+    }
+  }
+
+  const groupId = rensa(d.groupId);
+  if (grupp && !groupId) {
+    throw var_(
+      `groupId för "${id}"`,
+      'krävs. Katalogen är en grupps egen (#162): utan ett groupId på raden kan en annan grupp se eller ändra den här kategorin.',
+    );
+  }
+  if (grupp && !ID_FORM.test(groupId)) {
+    throw var_(
+      `groupId "${groupId}" för "${id}"`,
+      "får bara innehålla små bokstäver, siffror, bindestreck och understreck, samma form som gruppens eget id. En punkt blir en sökväg i en Firestore-regel.",
+    );
+  }
+
   const texter = byggTexter(d.texter, { id, katalog, textnycklar });
 
   return {
@@ -270,6 +335,7 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     ordning: Number.isFinite(Number(d.ordning)) ? Number(d.ordning) : 0,
     arkiverad: d.arkiverad === true,
     texter,
+    groupId: grupp ? groupId : null,
   };
 }
 
@@ -369,7 +435,7 @@ export function texten(kategori, nyckel, sprak = "sv") {
  * kvar men inte dess verkan.
  *
  * @param {unknown} kategorier
- * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} [config]
+ * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean, grupp?: boolean }} [config]
  * @returns {Kategori[]}
  */
 export function validateKatalog(kategorier, config = {}) {
