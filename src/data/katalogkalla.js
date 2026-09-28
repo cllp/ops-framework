@@ -121,7 +121,7 @@ function egetId(groupId, lagrad) {
  */
 
 /**
- * @param {{ source: any, collection: string, groupId: string, standard?: unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} config
+ * @param {{ source: any, collection: string, groupId: string, standard?: readonly unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} config
  */
 export function createCatalogSource(config) {
   /*
