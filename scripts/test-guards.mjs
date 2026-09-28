@@ -1389,6 +1389,23 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   );
 
   kravRott("gruppnyckel golv: fel sökväg", [nyckelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");
+
+  // ⛔ #162, cllp/bolag-ops#447: KATEGORIFALT SAKNADE groupId HELT, alltså
+  // NOLL träffar för steg 1 (som bara fäller fel FORM) att fälla. Steg 4
+  // (KATEGORIFALT bär groupId) finns för att fånga just det: en lista som
+  // saknar fältet, inte en som har det i fel form.
+  kravRott(
+    "gruppnyckel: KATEGORIFALT saknar groupId helt",
+    [
+      nyckelvakt,
+      libkopia(
+        "gn5",
+        (k) => k.replace('"id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter", "groupId"', '"id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter"'),
+        "katalog.js",
+      ),
+    ],
+    "KATEGORIFALT saknar",
+  );
 }
 
 // ── Gruppfrågan: groupId är ett KRAV i typen, inte en konvention (#139) ────

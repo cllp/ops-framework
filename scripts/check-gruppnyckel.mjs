@@ -157,6 +157,28 @@ if (!regelfragment().includes("opsArMedlem") || !regelfragment().includes("exist
   }
 }
 
+// ── 4. KATEGORIFALT bär groupId (#162) ─────────────────────────────────────
+//
+// ⛔ VARFÖR DEN HÄR ÄR ETT EGET STEG, INTE BARA STEG 1. Steg 1 fäller ett
+// fält som pekar på grupper i FEL FORM (plural, "invitedGroupIds" osv). Den
+// säger ingenting om en lista som INTE HAR NÅGOT gruppfält alls, och det var
+// exakt läget i cllp/bolag-ops#447: `KATEGORIFALT` saknade `groupId` helt,
+// alltså 0 träffar för steg 1 att fälla, medan appen ändå inte kunde göra en
+// katalog gruppens egen (väg C, #160). En vakt som bara letar efter fel form
+// missar den som saknar formen helt.
+{
+  const kategorifaltLista = listor.find((l) => l.lista === "KATEGORIFALT");
+  if (!kategorifaltLista) {
+    brott.push(
+      "KATEGORIFALT hittades inte bland fältlistorna. Katalogerna är gruppens egna (#162), och utan listan går det inte att se om schemat glömt groupId.",
+    );
+  } else if (!kategorifaltLista.falt.includes(ENDA)) {
+    brott.push(
+      `${kategorifaltLista.fil}: KATEGORIFALT saknar "${ENDA}". En kategori utan grupp delas av alla grupper som använder katalogen, exakt det väg C (#160) skulle stoppa.`,
+    );
+  }
+}
+
 if (brott.length === 0) {
   const falt = listor.reduce((n, l) => n + l.falt.length, 0);
   console.log(`check-gruppnyckel: ${listor.length} fältlistor och ${falt} fält, plus ${regeltexter.length} regeltexter. Exakt en gruppnyckel, och den heter ${ENDA}.`);
