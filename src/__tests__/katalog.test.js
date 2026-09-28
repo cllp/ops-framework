@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AVSLUTADE_FASER, FASER, arAvslutad, byggKategori, kategorin, valjbara, validateKatalog } from "../lib/katalog.js";
+import { AVSLUTADE_FASER, FASER, KATEGORIFALT, arAvslutad, byggKategori, kategorin, valjbara, validateKatalog } from "../lib/katalog.js";
 import { RESERVSPRAK, SPRAK, arGammalNamn, byggNamn, saknadeSprak, text } from "../lib/sprak.js";
 import { SLAGPLATSER } from "../lib/slag.js";
 
@@ -47,7 +47,7 @@ describe("katalogens schema", () => {
     // ⛔ `texter` är en tom påse och inte `undefined`. En kategori utan texter
     // och en kategori vars påse inte byggts ska inte gå att skilja åt i en vy,
     // för då måste varje uppslagning fråga vilket av de två det är.
-    expect(k).toEqual({ id: "x", namn: { sv: "X" }, farg: 2, ikon: "bell", fas: "ny", ordning: 0, arkiverad: false, texter: {} });
+    expect(k).toEqual({ id: "x", namn: { sv: "X" }, farg: 2, ikon: "bell", fas: "ny", ordning: 0, arkiverad: false, texter: {}, groupId: null });
   });
 
   it("⛔ avvisar hex i farg, och säger varför en palettplats krävs", () => {
@@ -250,5 +250,60 @@ describe("två språk", () => {
     expect(text(null)).toBe("");
     expect(text(undefined)).toBe("");
     expect(text(42)).toBe("");
+  });
+});
+
+describe("katalogen som en grupps egen (#162, väg C i #160)", () => {
+  /*
+   * ⛔ SAMMA BEVISFORM SOM RESTEN AV FILEN: vad som AVVISAS, inte bara vad som
+   * accepteras. `grupp` är förvalt falskt, alltså är varje prov ovanför det
+   * här blocket redan beviset på att en katalog UTAN grupp fortfarande fungerar
+   * precis som innan #162, utan en enda ändring i sina egna anrop.
+   */
+  const GRUPPAD = { ...giltig, groupId: "cps-ab" };
+
+  it("en katalog utan grupp: true avvisar groupId, den ignoreras inte", () => {
+    const fel = () => byggKategori(GRUPPAD, { ikoner: IKONER });
+    expect(fel).toThrow(/hör inte hemma i den här katalogen/);
+    expect(fel).toThrow(/grupp: true/);
+  });
+
+  it("⛔ en gruppad katalog kräver groupId, precis som id", () => {
+    const fel = () => byggKategori(giltig, { ikoner: IKONER, grupp: true });
+    expect(fel).toThrow(/groupId för "uppgift" krävs/);
+  });
+
+  it("⛔ tomt groupId räknas som saknat, inte som ett värde", () => {
+    expect(() => byggKategori({ ...giltig, groupId: "   " }, { ikoner: IKONER, grupp: true })).toThrow(/groupId för "uppgift" krävs/);
+  });
+
+  it("⛔ groupId med punkt, versal eller mellanslag avvisas, samma form som id", () => {
+    // Samma skäl som för id: punkten blir en sökväg i en Firestore-regel.
+    for (const groupId of ["cps.ab", "Cps-Ab", "cps ab"]) {
+      expect(() => byggKategori({ ...giltig, groupId }, { ikoner: IKONER, grupp: true })).toThrow(/små bokstäver/);
+    }
+  });
+
+  it("en giltig gruppad kategori bär sitt groupId oförändrat", () => {
+    const k = byggKategori(GRUPPAD, { ikoner: IKONER, grupp: true });
+    expect(k.groupId).toBe("cps-ab");
+  });
+
+  it("⛔ två grupper får var sin katalog: samma id, olika groupId, ingen krockar som dubblett", () => {
+    // validateKatalog fäller dubbletter av id inom EN katalog. Två grupper är
+    // två separata listor (frågade var för sig, se gruppkalla.js), så samma
+    // id i båda är inte samma fel, det är precis poängen med väg C.
+    const mirandaAb = validateKatalog([{ ...giltig, groupId: "miranda-ab" }], { ikoner: IKONER, grupp: true });
+    const cpsAb = validateKatalog([{ ...giltig, groupId: "cps-ab" }], { ikoner: IKONER, grupp: true });
+    expect(mirandaAb[0].groupId).toBe("miranda-ab");
+    expect(cpsAb[0].groupId).toBe("cps-ab");
+    expect(mirandaAb[0].groupId).not.toBe(cpsAb[0].groupId);
+  });
+
+  it("groupId hör hemma i KATEGORIFALT, annars vore fältet i sig avvisat", () => {
+    // ⛔ Det här är den rad som `check-gruppnyckel` (#136) läser. Mätningen i
+    // cllp/bolag-ops#447 var precis detta: fältet stod inte i listan, alltså
+    // kastade byggKategori på "känns inte igen" oavsett vad grupp sattes till.
+    expect(KATEGORIFALT).toContain("groupId");
   });
 });
