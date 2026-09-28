@@ -605,7 +605,14 @@ export function OpsActivityButton({
       ) : null}
     </button>
   ) : (
-    <button type="button" tabIndex={-1} aria-hidden="true" className="hidden" />
+    /* ⛔ `opacity-0`, INTE `hidden` (`display: none`). Radix Popover/Dialog
+     * positionerar sin ruta mot triggerns egen ruta i layouten (Floating UI),
+     * och ett element utan layout-ruta ger ingen plats att peka mot: panelen
+     * hade riskerat att aldrig synas alls när den styrs utifrån. `opacity-0`
+     * plus `pointer-events-none` gör knappen osynlig och onåbar utan att ta
+     * bort dess plats i flödet.
+     */
+    <button type="button" tabIndex={-1} aria-hidden="true" className="pointer-events-none absolute size-px opacity-0" />
   );
 
   return (

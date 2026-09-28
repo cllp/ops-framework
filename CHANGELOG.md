@@ -78,6 +78,13 @@ oförändrade: det här ärendet är ytan, inte källan. `OpsActivityButton` fic
 `open`/`onOpenChange`/`renderTrigger`, så panelen går att nå från en rad i
 `OpsAnvandarmeny` i stället för bara från sin egen klocka.
 
+⛔ **Mätt i en riktig webbläsare, inte i jsdom:** att öppna panelen från en
+rad i en ANNAN, just stängd, Radix-yta gjorde att panelen stängde sig själv
+igen inom 10-15 ms. Fokus, som satt på menyraden, hamnade på `<body>` när
+menyn stängdes, och `OpsPanel`s `DismissableLayer` läste det som "fokus
+utanför". `onOpenAutoFocus`/`onFocusOutside` avstyrs nu på panelens
+rullgardin; ett riktigt klick utanför stänger fortfarande som förut.
+
 ---
 
 ## 0.25.0

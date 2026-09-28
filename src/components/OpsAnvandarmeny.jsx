@@ -103,11 +103,22 @@ export function OpsAnvandarmeny({
 
   /**
    * Stänger menyn innan appens egen handling körs, som `onLoggaUt` redan gjorde.
+   *
+   * ⛔ `fn` SKJUTS TILL NÄSTA TICK, OCH DET ÄR MÄTT, INTE FÖRSIKTIGHET (#158).
+   * En rad som öppnar en ANNAN Radix-panel (t.ex. `OpsActivityButton` via en
+   * chevron-rad) öppnade den ALDRIG i praktiken när `setOppen(false)` och
+   * appens `onClick` kördes i samma händelse: Radix Popover river sin egen
+   * "klick utanför"-lyssnare på samma klick som stänger den, och den nya
+   * panelens öppning hann in i samma fönster och stängdes tillbaka på plats.
+   * Symptomet var tyst, inget kastade: knappens `onClick` kördes (mätt med
+   * en logg), state uppdaterades, men panelen syntes aldrig. `setTimeout(fn, 0)`
+   * lägger appens handling EFTER att den här menyns Radix-rot hunnit stänga
+   * och tas bort ur DOM:en.
    * @param {(() => void) | undefined} fn
    */
   const kor = (fn) => () => {
     setOppen(false);
-    fn?.();
+    if (fn) setTimeout(fn, 0);
   };
 
   return (

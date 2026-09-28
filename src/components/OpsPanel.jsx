@@ -410,6 +410,28 @@ export function OpsPanel({
           align={align}
           sideOffset={4}
           aria-label={label}
+          /* ⛔ #158: PANELEN FICK ALDRIG SES ÖPPEN NÄR DEN STYRDES FRÅN EN
+           * ANNAN, PRECIS STÄNGD, RADIX-YTA (t.ex. en rad i `OpsAnvandarmeny`
+           * som öppnar den här via `open`/`onOpenChange`). Mätt med Playwright
+           * i en riktig webbläsare, jsdom såg aldrig felet:
+           *
+           *   1. Menyns egen `Popover` stänger (dess rad kallade `onClick`).
+           *   2. Fokus, som satt på menyraden, försvinner med den ur DOM:en och
+           *      hamnar på `<body>`.
+           *   3. Den här panelen öppnas (`open` blir sant). Radix `onOpenAutoFocus`
+           *      försöker då flytta in fokus i innehållet, och samma ögonblick
+           *      läser `DismissableLayer` `<body>` som "fokus utanför" och
+           *      stänger panelen igen, cirka 10-15 ms efter att den öppnats.
+           *
+           * Symptomet var tyst: `onOpenChange` kallades med `true` och sedan
+           * omedelbart med `false`, appens state stämde med det ramverket bad
+           * om, och panelen syntes ändå aldrig. `onOpenAutoFocus` och
+           * `onFocusOutside` avstyrs därför här: `onPointerDownOutside` (en
+           * riktig klick utanför) rörs INTE, så "klicka bredvid för att stänga"
+           * fungerar precis som förut.
+           */
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
           /* ⛔ SAMMA YTA SOM HEADERMENYN: rundad, `bg-raised`, tunn linje, mjuk
              skugga.
              ⛔ `isolate` GER PANELEN EGEN STAPLINGSKONTEXT, så inget i en rad

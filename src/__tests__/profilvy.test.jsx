@@ -91,11 +91,15 @@ describe("OpsAnvandarmeny", () => {
     expect(screen.getByRole("button", { name: "Konto, Claes Philip" })).toBeTruthy();
   });
 
-  it("⛔ utloggningen finns bakom menyn och anropas", () => {
+  it("⛔ utloggningen finns bakom menyn och anropas", async () => {
     const onLoggaUt = vi.fn();
     render(<OpsAnvandarmeny anvandare={ANV} onLoggaUt={onLoggaUt} />);
     fireEvent.click(screen.getByRole("button", { name: "Konto, Claes Philip" }));
     fireEvent.click(screen.getByRole("button", { name: "Logga ut" }));
+    // ⛔ `onLoggaUt` KÖRS EN TICK SENARE (#158), se noten vid `kor` i
+    // `OpsAnvandarmeny.jsx`: annars hinner Radix stänga menyns egen panel och
+    // öppna nästa i SAMMA klick, och den nya stängs tillbaka på plats.
+    await new Promise((r) => setTimeout(r, 0));
     expect(onLoggaUt).toHaveBeenCalledTimes(1);
   });
 
@@ -112,7 +116,7 @@ describe("OpsAnvandarmeny", () => {
     expect(screen.getByRole("heading", { name: "Konto" })).toBeTruthy();
   });
 
-  it("sektionerna är appens rader: bara det som skickas in finns, med ikon och chevron eller extern-länk-ikon", () => {
+  it("sektionerna är appens rader: bara det som skickas in finns, med ikon och chevron eller extern-länk-ikon", async () => {
     const onNotiser = vi.fn();
     render(
       <OpsAnvandarmeny
@@ -135,6 +139,7 @@ describe("OpsAnvandarmeny", () => {
 
     const notisrad = screen.getByRole("button", { name: /Notiser/ });
     fireEvent.click(notisrad);
+    await new Promise((r) => setTimeout(r, 0));
     expect(onNotiser).toHaveBeenCalledTimes(1);
   });
 
