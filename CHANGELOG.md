@@ -9,6 +9,77 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.26.0
+
+⛔ **SessionStudios profil: typsnitt, användarmeny, versionsrad, och en
+aktivitetspanel som ser ut som förebilden.** CP, efter att ha lagt bolag-ops
+och SessionStudio sida vid sida: "sessionstudios typsnitt är bättre än ops
+framework. Jag vill följa sessionstudios profil exakt." Två ärenden, samma
+dag, samma spår: [#157](https://github.com/cllp/ops-framework/issues/157) och
+[#158](https://github.com/cllp/ops-framework/issues/158).
+
+### Typsnitt, användarmeny och versionsrad ([#157](https://github.com/cllp/ops-framework/issues/157))
+
+**Plus Jakarta Sans i stället för Inter.** `--font-sans` byter till
+SessionStudios typsnitt, med samma systemstack men UTAN Inter kvar som
+reserv: två typsnitt är två sanningar. Hämtningen flyttar som förut i
+`create-ops-app/template/index.html`, `check-fonts.mjs` vaktar det nya
+namnet. `--font-mono` hade redan SessionStudios kedja.
+
+**`OpsAnvandarmeny` får SessionStudios form:** en rubrik ("Meny"), sektioner
+skilda med linjer, ikon per rad, en chevron på rader som öppnar en panel, en
+extern-länk-ikon på rader som lämnar appen, Logga ut i sin egen sektion, och
+en dämpad versionsrad sist. Vilka rader som finns bestämmer appen via en ny
+`sektioner`-prop (en lista rader, samma primitiv, `OpsPanelRow`, som notis-
+och aktivitetspanelerna redan ritar med); formen bestämmer ramverket.
+
+**Versionsraden bär två versioner:** `bolag-ops v1.4.2 · ops-framework
+v0.26.0`. Ramverkets tal kommer ur en konstant som skrivs vid bygget ur
+`package.json` (`scripts/generate-framework-version.mjs`, git-ignorerad
+utfil), aldrig en handskriven kopia. Appens version är en prop; saknas den
+skrivs raden ändå, med ramverkets ensam.
+
+**Två nya primitiver**, mätta ur SessionStudios `ProfileView.jsx`:
+`OpsSectionLabel` (sektionsrubrik, liten versal, spärrad, accentfärg) och
+`OpsChip` (ett val i pillform, med ikon och ett valt läge).
+
+**Kortens luft blir ett token.** `--card-padding: 20px` ersätter `OpsCard`s
+hårdkodade `p-4`, mätt mot SessionStudios `p-5`. Mörkrets skuggalfa
+(0.35/0.45/0.55, plus ett eget offset på `shadow-lg`) rättas till
+SessionStudios exakta tal (0.3/0.4/0.5, `0 4px 16px` överallt).
+
+⛔ **`tokens/check-tokens.mjs` fick en åttonde regel:** röd om en palettfärg
+glider från SessionStudios värden, med paletten inskriven som fixtur och
+skälet utskrivet. Paletten visade sig redan vara densamma, tecken för
+tecken; regeln håller den så framåt.
+
+### Aktivitet och notiser som i SessionStudio ([#158](https://github.com/cllp/ops-framework/issues/158))
+
+CP, mobilskärmbild: "I mobile ops står Aktivitet två gånger [...]. Filter
+högerställt och fult. [...] med en chevron down (expand) för detalj eftersom
+notisen inte leder någonstans om det inte är en länk."
+
+- **Rubriken stod två gånger på mobil.** Rotorsaken satt i `OpsPanel.jsx`:
+  roten ritade sin egen rubrik OVANPÅ sheetens egen `Dialog.Title`, med
+  samma ord. Roten ritar nu ingen egen rubrik på smal skärm.
+- **"Ny" var en pill, är nu en punkt**, med ordet kvar för skärmläsaren
+  (`sr-only`).
+- **Raden bytte förut vy. Nu fäller en chevron ut `OpsActivityDetail` PÅ
+  PLATS**, under raden, och listan blir kvar. En länk-knapp ritas bara när
+  händelsen bär en `lank`.
+- **Filtren låg ovanför listan, högerställda. De ligger nu bakom en
+  filterknapp** i huvudet, och "Rensa" flyttade till en trepunktsmeny
+  bredvid den. Ingendera syns förrän man tryckt på sin knapp.
+- **Grupperingens ord rättades**: "I går" → "Igår", "Senaste veckan" →
+  "Denna vecka".
+
+Datamodellen och läsmarkeringen (`lasning`, `onSeen`, `onRead`) är
+oförändrade: det här ärendet är ytan, inte källan. `OpsActivityButton` fick
+`open`/`onOpenChange`/`renderTrigger`, så panelen går att nå från en rad i
+`OpsAnvandarmeny` i stället för bara från sin egen klocka.
+
+---
+
 ## 0.25.0
 
 ⛔ **Fas 2.5 i sin helhet: ramverket vet nu vems rad en rad är.**
