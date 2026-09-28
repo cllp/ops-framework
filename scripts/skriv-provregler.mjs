@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { gruppadSamling, regelfragment } from "../src/lib/regler.js";
+import { gruppadSamling, katalogregelfragment, regelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -27,6 +27,10 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * äger dem inte, och det är just det proven ska visa: samma fragment skyddar en
  * samling ramverket aldrig hört talas om. `konfig` kräver ägare, så skillnaden
  * mellan de två skrivvillkoren också blir mätt.
+ *
+ * ⛔ `kataloger` ÄR RAMVERKETS EGET FRAGMENT (#162), INTE `gruppadSamling`
+ * direkt: `katalogregelfragment` är den funktion en app faktiskt limmar in,
+ * och provet ska mäta DEN, inte mönstret den råkar bygga på.
  */
 const text = `rules_version = '2';
 
@@ -36,6 +40,7 @@ service cloud.firestore {
 ${regelfragment()}
 ${gruppadSamling("handelser")}
 ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
+${katalogregelfragment("kataloger")}
     // ⛔ Catch-all sist, och den nekar. En samling utan block ska falla här och
     // inte råka ärva någon annans villkor.
     match /{document=**} {
