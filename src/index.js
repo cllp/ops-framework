@@ -195,3 +195,13 @@ export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
 export { createActivityLog, unreadCount, isUnread, unread, unreadRows, activityId, activityWindow, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";
 export { formatCurrency, formatNumber, formatPercent, formatDate, formatDateTime, formatRelativeDate, NUMBER_SPACE, MISSING } from "./lib/format.js";
+
+/*
+ * ⛔ #159: FELGRÄNSEN, LOGGPUNKTEN OCH KONTRAKTET. `rapporteraFel` är
+ * loggpunkten alla ytor kan använda (felgränsen i `OpsAppShell` gör det
+ * automatiskt). `Felmottagare`-kontraktet är bara en JSDoc-typedef och
+ * exporteras inte som ett värde, det finns ingenting att köra. En färdig
+ * mottagare (Sentry) ligger i en EGEN ingång, `@staiger/ops-framework/sentry`,
+ * så beroendet bara laddas av den app som väljer det. Se `src/sentry.js`.
+ */
+export { rapporteraFel } from "./lib/felrapport.js";

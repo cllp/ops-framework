@@ -14,6 +14,9 @@
     "./package.json": "./package.json",
     "./node": {
       "default": "./src/node/index.js"
+    },
+    "./sentry": {
+      "default": "./src/sentry.js"
     }
   },
   "files": [
@@ -69,6 +72,7 @@
     "check:gruppnyckel": "node scripts/check-gruppnyckel.mjs"
   },
   "peerDependencies": {
+    "@sentry/browser": ">=8",
     "lucide-react": "^0.460.0",
     "playwright": ">=1.40",
     "react": ">=18",
@@ -111,6 +115,9 @@
   },
   "peerDependenciesMeta": {
     "playwright": {
+      "optional": true
+    },
+    "@sentry/browser": {
       "optional": true
     }
   }

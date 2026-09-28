@@ -1065,6 +1065,21 @@ kravRott(
 
   kravGront("paket 5: ramverkets eget manifest är grönt", [paketvakt, rot, "--struktur"]);
   kravRott("paket golv: fel sökväg", [paketvakt, path.join(arbetsmapp, "finns-inte"), "--struktur"], "finns inte");
+
+  // ⛔ #159: SENTRY FÅR ALDRIG NÅ HUVUDBUNDLEN. Två sätt att bryta det, och
+  // båda ska fällas: en import i källan, eller ordet i den byggda filen.
+  {
+    const mappA = paketrot("sentry-import", HEL);
+    fs.mkdirSync(path.join(mappA, "src"), { recursive: true });
+    fs.writeFileSync(path.join(mappA, "src", "index.js"), 'export { sentryMottagare } from "./sentry.js";\n');
+    kravRott("paket: src/index.js importerar sentry.js", [paketvakt, mappA, "--struktur"], "importerar ./sentry.js");
+  }
+
+  {
+    const mappB = paketrot("sentry-bundlad", HEL);
+    fs.writeFileSync(path.join(mappB, "dist", "index.js"), '// @sentry/browser råkade hamna här\n');
+    kravRott("paket: dist/index.js nämner sentry", [paketvakt, mappB, "--struktur"], 'nämner "sentry"');
+  }
 }
 
 /*

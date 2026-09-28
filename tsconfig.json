@@ -15,5 +15,15 @@
     "verbatimModuleSyntax": false
   },
   "include": ["src/**/*.js", "src/**/*.jsx"],
-  "exclude": ["node_modules", "dist", "src/__tests__"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/__tests__",
+    // ⛔ #159: src/sentry.js importerar @sentry/browser, en SDK ramverket
+    // avsiktligt inte installerar åt sig självt (peerDependency, optional,
+    // laddas bara av den app som väljer Sentry). En typkontroll av en modul
+    // som inte finns i det här repot vore bara ett annat sätt att tvinga
+    // fram beroendet ändå. Se filhuvudet i src/sentry.js.
+    "src/sentry.js"
+  ]
 }
