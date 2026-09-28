@@ -66,6 +66,16 @@ describe("inställningsvyn", () => {
     expect(screen.getByRole("button", { name: "Ta fram" })).toBeInTheDocument();
   });
 
+  it("⛔ Ändra och Arkivera/Ta fram bär en ikon, inte bara ordet (#164)", () => {
+    // Mätt mot SessionStudio: ikon plus ord, aldrig ordet ensamt på en knapp
+    // som utför en handling i en lista. Utan svg:n i knappen skulle den här
+    // rutan vara röd, oavsett vad namnet på knappen säger.
+    rita();
+    expect(screen.getAllByRole("button", { name: "Ändra" })[0].querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Arkivera" }).querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ta fram" }).querySelector("svg")).toBeInTheDocument();
+  });
+
   it("arkiverar med ett anrop utåt, och vyn skriver inte själv", () => {
     const onArkivera = vi.fn();
     rita({ onArkivera });

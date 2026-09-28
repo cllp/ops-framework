@@ -6,6 +6,7 @@ import { SLAGPLATSER, slagPrick } from "../lib/slag.js";
 import { text } from "../lib/sprak.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsButton } from "./OpsButton.jsx";
+import { AndraIkon, ArkiveraIkon, TaFramIkon } from "./icons.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
@@ -219,11 +220,17 @@ export function OpsKatalogInstallning({
         {kategori.fas ? <OpsPill tone="neutral">{kategori.fas}</OpsPill> : null}
         {kategori.arkiverad ? <OpsPill tone="warning">Arkiverad</OpsPill> : null}
         {kanAndra ? (
+          // ⛔ IKON PLUS ORD, INTE IKONEN ENSAM (#164). Mätt mot SessionStudio:
+          // en knapp utan text är snabbare att rita men går inte att skanna i
+          // en lista med tio rader, man måste läsa varje glyf. Ordet står kvar,
+          // ikonen är en genväg för ögat och inte en ersättning för texten.
           <span className="ms-auto flex gap-2">
             <OpsButton variant="ghost" onClick={() => oppna(kategori)}>
+              <AndraIkon />
               Ändra
             </OpsButton>
             <OpsButton variant="ghost" onClick={() => onArkivera(kategori, !kategori.arkiverad)}>
+              {kategori.arkiverad ? <TaFramIkon /> : <ArkiveraIkon />}
               {kategori.arkiverad ? "Ta fram" : "Arkivera"}
             </OpsButton>
           </span>

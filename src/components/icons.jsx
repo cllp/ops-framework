@@ -27,7 +27,7 @@
  * bredvid eller i komponentens `aria-label`.
  */
 
-import { ArrowDownUp, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileText, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Plus, SlidersHorizontal, Sun, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Bell, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, FileText, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Sun, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -174,4 +174,51 @@ export function LoggaUtIkon({ size = 16 }) {
  */
 export function MerIkon({ size = 18 }) {
   return <MoreHorizontal size={size} aria-hidden="true" />;
+}
+
+/**
+ * Ändra-raden i en kataloginställning (#164). Mätt i SessionStudios mönster
+ * för redigeringsknappar: en penna, ikon plus ord, aldrig ikonen ensam.
+ * @param {{ size?: number }} props
+ */
+export function AndraIkon({ size = 16 }) {
+  return <Pencil size={size} aria-hidden="true" />;
+}
+
+/**
+ * Arkivera-raden i en kataloginställning (#164).
+ * @param {{ size?: number }} props
+ */
+export function ArkiveraIkon({ size = 16 }) {
+  return <Archive size={size} aria-hidden="true" />;
+}
+
+/**
+ * Ta fram-raden: motsatsen till Arkivera, samma rad men en arkiverad kategori
+ * (#164). En egen ikon i stället för att återanvända `ArkiveraIkon` med
+ * flit: en pil som pekar tillbaka ut är en annan handling än en som lägger
+ * undan, och samma bild på båda hade gjort knappen tvetydig.
+ * @param {{ size?: number }} props
+ */
+export function TaFramIkon({ size = 16 }) {
+  return <ArchiveRestore size={size} aria-hidden="true" />;
+}
+
+/**
+ * Notiser-raden i hamburgarmenyn (#164). Sektion 1: Notiser och Aktivitet.
+ * @param {{ size?: number }} props
+ */
+export function NotisIkon({ size = 16 }) {
+  return <Bell size={size} aria-hidden="true" />;
+}
+
+/**
+ * Aktivitet-raden i hamburgarmenyn (#164). Skild från `KlockIkon` i
+ * `OpsActivity.jsx` (den ensamma undantagsritningen check-handritade-ikoner
+ * dokumenterar): den här är en riktig lucide-ikon i den delade uppsättningen,
+ * eftersom menyraden inte är samma yta som panelens egen knapp.
+ * @param {{ size?: number }} props
+ */
+export function AktivitetIkon({ size = 16 }) {
+  return <Zap size={size} aria-hidden="true" />;
 }
