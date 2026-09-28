@@ -36,6 +36,13 @@ export { createActivityWriter } from "./aktivitet.js";
 export { createInvitationService } from "./inbjudan.js";
 
 /*
+ * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#156). `memberships` skrivs aldrig av en
+ * klient, alltså är `uppdateraProfil` (Admin SDK, skriver users OCH
+ * memberships i samma steg) bara meningsfull härifrån.
+ */
+export { uppdateraProfil } from "./profil.js";
+
+/*
  * ⛔ `createActivityLog` ÅTEREXPORTERAS HÄRIFRÅN, OCH DET ÄR EN MÄTNING OCH INTE
  * EN BEKVÄMLIGHET.
  *

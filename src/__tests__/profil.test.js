@@ -70,8 +70,8 @@ describe("⛔ en andra inloggning rör inte språk eller tema", () => {
   });
 });
 
-describe("⛔ bara språk och tema går att spara", () => {
-  it("sparar de två", async () => {
+describe("⛔ personens egna fält går att spara (#156 utökade utöver språk och tema)", () => {
+  it("sparar språk och tema", async () => {
     const kalla = kallaMed();
     const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
     const nasta = await sparaInstallningar({ kalla, anvandare, andring: { tema: "ljust" } });
@@ -87,40 +87,127 @@ describe("⛔ bara språk och tema går att spara", () => {
     );
   });
 
+  it("⛔ id går inte att spara här heller, det är nyckeln", async () => {
+    const kalla = kallaMed();
+    const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
+    await expect(sparaInstallningar({ kalla, anvandare, andring: /** @type {any} */ ({ id: "annat-uid" }) })).rejects.toThrow(
+      /sparaInstallningar: fälten id går inte att spara här/,
+    );
+  });
+
   it("⛔ ett okänt tema avvisas FÖRE skrivningen", async () => {
     const kalla = kallaMed();
     const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
     await expect(sparaInstallningar({ kalla, anvandare, andring: { tema: "gult" } })).rejects.toThrow(/users: temat "gult"/);
     expect(await kalla.read("users", "uid-1")).toMatchObject({ tema: "system" });
   });
+
+  it("#156: sparar namn och bild, sedan personen själv redigerar dem", async () => {
+    const kalla = kallaMed();
+    const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
+    const nasta = await sparaInstallningar({ kalla, anvandare, andring: { namn: "Claes Philip", bild: "https://minlagring/1.jpg" } });
+    expect(nasta.namn).toBe("Claes Philip");
+    expect(nasta.bild).toBe("https://minlagring/1.jpg");
+    expect(await kalla.read("users", "uid-1")).toMatchObject({ namn: "Claes Philip", bild: "https://minlagring/1.jpg" });
+  });
+
+  it("#156: sparar telefon, stad, presentation, lankar och bildSokvag", async () => {
+    const kalla = kallaMed();
+    const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
+    const nasta = await sparaInstallningar({
+      kalla,
+      anvandare,
+      andring: {
+        telefon: "+46701234567",
+        stad: "Visby",
+        presentation: "Grundare av Claes Philip Staiger AB.",
+        lankar: [{ plattform: "webbplats", url: "https://staiger.se" }],
+        bildSokvag: "profilbilder/uid-1/1.jpg",
+      },
+      tillatnaPlattformar: ["webbplats"],
+    });
+    expect(nasta).toMatchObject({
+      telefon: "+46701234567",
+      stad: "Visby",
+      presentation: "Grundare av Claes Philip Staiger AB.",
+      lankar: [{ plattform: "webbplats", url: "https://staiger.se" }],
+      bildSokvag: "profilbilder/uid-1/1.jpg",
+    });
+    expect(await kalla.read("users", "uid-1")).toMatchObject({ telefon: "+46701234567", stad: "Visby" });
+  });
+
+  it("#156: ett ogiltigt telefonnummer avvisas FÖRE skrivningen", async () => {
+    const kalla = kallaMed();
+    const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
+    await expect(sparaInstallningar({ kalla, anvandare, andring: { telefon: "0701234567" } })).rejects.toThrow(/inte E\.164/);
+    expect(await kalla.read("users", "uid-1")).toMatchObject({ telefon: "" });
+  });
+
+  it("#156: en plattform utanför appens lista avvisas FÖRE skrivningen", async () => {
+    const kalla = kallaMed();
+    const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: INLOGGAD });
+    await expect(
+      sparaInstallningar({ kalla, anvandare, andring: { lankar: [{ plattform: "myspace", url: "https://myspace.com/cp" }] }, tillatnaPlattformar: ["webbplats"] }),
+    ).rejects.toThrow(/plattformen "myspace" som inte finns/);
+  });
 });
 
 describe("⛔ andringen: beslutet vyn inte får äga", () => {
-  const ANV = { id: "uid-1", namn: "CP", epost: "cp@staiger.se", bild: "", sprak: "sv", tema: /** @type {const} */ ("system") };
+  const ANV = {
+    id: "uid-1",
+    namn: "CP",
+    epost: "cp@staiger.se",
+    bild: "",
+    sprak: "sv",
+    tema: /** @type {const} */ ("system"),
+    telefon: "",
+    stad: "",
+    presentation: "",
+    lankar: /** @type {{ plattform: string, url: string }[]} */ ([]),
+    bildSokvag: "",
+  };
+
+  /** Fältens fulla svar när inget alls ändrats, dvs en spegling av ANV utan id/epost. */
+  const OFORANDRAT = { sprak: "sv", tema: "system", namn: "CP", telefon: "", stad: "", presentation: "", lankar: [], bild: "", bildSokvag: "" };
 
   it("oförändrat utkast är inte ändrat", () => {
-    expect(andringen(ANV, { sprak: "sv", tema: "system" })).toEqual({ andrat: false, andring: { sprak: "sv", tema: "system" } });
+    expect(andringen(ANV, { sprak: "sv", tema: "system" })).toEqual({ andrat: false, andring: OFORANDRAT });
   });
 
   it("ett tomt utkast betyder den sparade raden", () => {
-    expect(andringen(ANV)).toEqual({ andrat: false, andring: { sprak: "sv", tema: "system" } });
+    expect(andringen(ANV)).toEqual({ andrat: false, andring: OFORANDRAT });
   });
 
-  it("ett byte av språk är ändrat, och båda fälten följer med", () => {
-    expect(andringen(ANV, { sprak: "en" })).toEqual({ andrat: true, andring: { sprak: "en", tema: "system" } });
+  it("ett byte av språk är ändrat, och alla fält följer med", () => {
+    expect(andringen(ANV, { sprak: "en" })).toEqual({ andrat: true, andring: { ...OFORANDRAT, sprak: "en" } });
   });
 
   it("ett byte av tema är ändrat", () => {
     expect(andringen(ANV, { tema: "morkt" }).andrat).toBe(true);
   });
 
+  it("⛔ #156: ett byte av namn, telefon, stad, presentation, bild eller lankar räknas också som ändrat", () => {
+    expect(andringen(ANV, { namn: "Ny" }).andrat).toBe(true);
+    expect(andringen(ANV, { telefon: "+46701234567" }).andrat).toBe(true);
+    expect(andringen(ANV, { stad: "Visby" }).andrat).toBe(true);
+    expect(andringen(ANV, { presentation: "Ny text." }).andrat).toBe(true);
+    expect(andringen(ANV, { bild: "https://x/y.png" }).andrat).toBe(true);
+    expect(andringen(ANV, { lankar: [{ plattform: "webbplats", url: "https://staiger.se" }] }).andrat).toBe(true);
+  });
+
+  it("⛔ lankar jämförs som VÄRDE, inte som referens: samma innehåll i en ny array är inte ändrat", () => {
+    expect(andringen(ANV, { lankar: [] }).andrat).toBe(false);
+    const medLank = { ...ANV, lankar: [{ plattform: "webbplats", url: "https://staiger.se" }] };
+    expect(andringen(medLank, { lankar: [{ plattform: "webbplats", url: "https://staiger.se" }] }).andrat).toBe(false);
+  });
+
   /*
-   * ⛔ BÅDA FÄLTEN SKICKAS ALLTID, ÄVEN DET OFÖRÄNDRADE. En delvis nyttolast
+   * ⛔ VARJE FÄLT SKICKAS ALLTID, ÄVEN DE OFÖRÄNDRADE. En delvis nyttolast
    * hade fungerat mot `update`, men `sparaInstallningar` validerar hela raden
-   * med `byggAnvandare`, och den behöver båda för att kunna säga nej till ett
+   * med `byggAnvandare`, och den behöver alla för att kunna säga nej till ett
    * tema som inte finns.
    */
-  it("det oförändrade fältet skickas med", () => {
-    expect(andringen({ ...ANV, tema: "morkt" }, { sprak: "en" }).andring).toEqual({ sprak: "en", tema: "morkt" });
+  it("de oförändrade fälten skickas med", () => {
+    expect(andringen({ ...ANV, tema: "morkt" }, { sprak: "en" }).andring).toEqual({ ...OFORANDRAT, sprak: "en", tema: "morkt" });
   });
 });
