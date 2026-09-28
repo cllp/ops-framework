@@ -18,6 +18,20 @@ const enkelAuth = () =>
     signOut: async () => {},
   });
 
+describe("OpsInloggning: mark/ordmarke vidarebefordras till OpsBrand", () => {
+  it('mark="none" stänger av OPS Hub-förvalets bild, ren text i stället', () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} etikett="Bolag Ops" mark="none" />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
+  });
+
+  it("egen ordmarke överrider OPS Hub-förvalet", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} etikett="Bolag Ops" ordmarke={{ ljus: "/eget.png", mork: "/eget.png" }} />);
+    const bild = /** @type {HTMLImageElement} */ (container.querySelector("img"));
+    expect(bild.src).toContain("/eget.png");
+  });
+});
+
 describe("OpsInloggning: bara Google ritar en rad", () => {
   it("en adapter med bara signInWithGoogle ritar EXAKT en leverantörsrad, inget annat", () => {
     const auth = createAuth({ ...enkelAuth(), signInWithGoogle: async () => {} });

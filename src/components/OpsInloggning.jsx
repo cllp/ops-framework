@@ -146,8 +146,11 @@ function AppleIkon() {
  * @param {(sprak: "sv"|"en") => void} [props.onSprak]
  * @param {string} [props.fel]
  * @param {() => void} [props.onRensaFel]
+ * @param {"phst"|"phst-estd"|"none"} [props.mark] Vidarebefordras till `OpsBrand`. `"none"` stänger av BÅDE
+ *   OPS Hub-förvalet och PH.ST-badgen: appen som vill ha ren text (`etikett`/`rubrik`) i stället för en bild sätter denna.
+ * @param {{ ljus: string, mork: string }} [props.ordmarke] Vidarebefordras till `OpsBrand`: appens EGEN logga, överrider OPS Hub-förvalet.
  */
-export function OpsInloggning({ auth, rubrik, etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel }) {
+export function OpsInloggning({ auth, rubrik, etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel, mark, ordmarke }) {
   if (!auth) throw new Error("OpsInloggning: auth krävs. Utan den vet vyn inte vilka förmågor som finns.");
   const t = COPY[sprak] ?? COPY.sv;
 
@@ -199,7 +202,7 @@ export function OpsInloggning({ auth, rubrik, etikett, viskning, lankar = [], ap
 
       <div className="relative z-10 flex w-full max-w-[360px] flex-col items-stretch gap-2">
         <div className="mb-3 flex flex-col items-center text-center">
-          <OpsBrand title={etikett || rubrik || "OPS Hub"} ordmarkeMaxWidth="max-w-[330px]" endastOrdmarke />
+          <OpsBrand title={etikett || rubrik || "OPS Hub"} ordmarkeMaxWidth="max-w-[330px]" endastOrdmarke mark={mark} ordmarke={ordmarke} />
           {viskning ? <p className="mt-2 px-1 text-sm leading-snug text-ink-soft">{viskning}</p> : null}
         </div>
 
