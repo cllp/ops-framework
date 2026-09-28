@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**86 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**88 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -726,11 +726,77 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 | | |
 |---|---|
 | `OpsMedlemmar` | listan per grupp: bjud in, ändra roll, ta bort. ⛔ **Aldrig sig själv**: den som tar bort sitt eget ägarskap låser ut sig ur sin egen grupp, och `migUid` är obligatorisk just därför. Utan den vet vyn inte vilken rad som är ens egen, och skyddet blir en gissning |
-| `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto |
+| `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto. Sedan #161: med `props.onSkapaGrupp` ritas i stället en "Skapa din första grupp"-form (ett namnfält, `skapaEtikett`), för den som ÄR vitlistad men bara saknar en grupp än. Utan `onSkapaGrupp` är sidan oförändrad: kontakt plus utloggning |
 
 ⛔ **`kanAndra` i `OpsMedlemmar` är en artighet, inte ett skydd.** Samma not som i `OpsKatalogInstallning`: den som vill skriva ändå öppnar konsolen. Det riktiga låset är att `memberships` inte går att skriva från en klient alls, och att callablen kontrollerar ägarskapet själv.
 
 ⛔ **INGEN MEJLUTSKICK HÄR.** Mailmodulen ([#101](https://github.com/cllp/ops-framework/issues/101)) tar det när den finns. Tills dess säger inställningsvyn "be personen logga in".
+
+#### Vitlistan och den första gruppen
+
+[#161](https://github.com/cllp/ops-framework/issues/161), CP-beslut 2026-09-28
+i [#160](https://github.com/cllp/ops-framework/issues/160): en vitlista av
+e-postadresser styr vem som får logga in, och den som är vitlistad får skapa
+sin FÖRSTA grupp från ett namn.
+
+| Samling | Innehåll | Skrivs av |
+|---|---|---|
+| `vitlista/{epost}` | `byggVitlisterad`: `epost` (samma som dokumentets id, gemener), `tillagdAv`, `tid` | ⛔ **bara serversidan**, och ALDRIG ens LÄST av en klient |
+
+⛔ **VARFÖR EN VITLISTA OCH INTE EN REGELGREN PÅ `groups`.** Ett `allow create`
+för en grupp kollar normalt ägarskap, men den FÖRSTA gruppen har per
+definition ingen ägare än: `opsArAgare(gid)` slår upp ett medlemskap som inte
+finns förrän gruppen gör det. Frågan "får den här personen skapa NÅGOT alls"
+måste alltså besvaras innan frågan om en gruppspecifik roll ens går att
+ställa, och det är precis vad vitlistan svarar på.
+
+⛔ **DOKUMENTETS ID ÄR E-POSTEN, GEMENER.** Samma skäl som överallt annars i
+den här modellen: `CP@Staiger.se` och `cp@staiger.se` är samma brevlåda och
+två strängar, och ett härlett id gör unikheten till en egenskap hos nyckeln.
+
+⛔ **`vitlista` GÅR INTE ENS ATT LÄSA FRÅN EN KLIENT** (`regelfragment()`:
+`allow read, write: if false`), till skillnad från `groups` och `invitations`
+som en medlem respektive en ägare FÅR läsa. Läste en klient listan såg den
+varje adress som någonsin bjudits in att skapa en grupp, alltså en lista över
+precis vilka adresser det är värt att gissa lösenord för.
+
+```js
+import { createGroupService } from "@staiger/ops-framework/node";
+
+const tjanst = createGroupService({ kalla });
+const grupp = await tjanst.skapaGrupp({ uid, epost, namn: "Mitt bolag" });
+```
+
+`skapaGrupp({ uid, epost, namn, skapadAv? })`:
+
+1. Läser `vitlista/{epost}` (gemener). Finns raden inte kastas det, med skälet.
+2. Listar den inloggades AKTIVA medlemskap. Finns redan ett kastas det:
+   ⛔ **EN GRUPP PER PERSON, TILLS [#162](https://github.com/cllp/ops-framework/issues/162) ÄR KLAR.** Delning mellan
+   grupper finns inte än, och att låta någon skapa en andra grupp i dag hade
+   skrivit in ett tillstånd appen ännu inte har någon yta för.
+3. Härleder ett grupp-id ur namnet (en slug plus en kort svans, så "Bolaget"
+   och "Bolaget" inte krockar och den ena tyst ersätter den andra, se
+   `DataSource.create`), bygger gruppen med `byggGrupp` och skriver den.
+4. Skriver ägarens medlemskap med `byggMedlemskap`, roll `agare`.
+
+⛔ **"SAMMA BATCH" ÄR SEKVENSIELLA ANROP, INTE EN TRANSAKTION.** Datalagrets
+kontrakt har ingen batch- eller transaktionsoperation. `skapaGrupp` skriver
+gruppen och sedan medlemskapet, i den ordningen, precis som
+`uppdateraProfil` skriver `users` och sedan `memberships` "i samma steg". Ett
+riktigt skydd mot en krasch mitt emellan de två skrivningarna finns inte i den
+här versionen.
+
+⛔ **BARA NODSIDAN, SAMMA SKÄL SOM `createInvitationService`.** En callable
+kör med Admin SDK, förbi reglerna, och kontrollen ligger i FUNKTIONEN och inte
+bara i regeln: `vitlista` har ingen regelgren att kontrollera mot över huvud
+taget.
+
+`OpsUtanMedlemskap props.onSkapaGrupp` (namnet, se ovan) kopplas till den här
+funktionen via appens egen callable, precis som `OpsMedlemmar props.onBjudIn`
+kopplas till `bjudIn`. `byggVitlisterad` och `medlemskapsId` är återexporterade
+ur `@staiger/ops-framework/node` för den som skriver appens EGEN vitlista-yta
+(en administratörssida läggs till i #162): att skriva raden är fortfarande
+appens Admin SDK, inte ramverkets, precis som inbjudan.
 
 #### ⛔ E-posten lämnar aldrig `users`, och medlemslistan visar namn och bild
 
@@ -980,6 +1046,150 @@ väg tillbaka till en som fungerar. Appen visar dem, som `KatalogLarm`.
 driva med `fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut
 inget prov kan mäta. Väljaren och filtret är vanliga knappar, och proven trycker
 på dem.
+
+### Grupp-panelen och gruppväxlaren
+
+[#161](https://github.com/cllp/ops-framework/issues/161), CP 2026-09-28, med
+skärmbilder av SessionStudios `AppSidebar.jsx`: "OCH GRUPPVÄLJARE? Var finns
+det?" `OpsGruppvaljare` (ovan) svarar på en annan fråga, menyraden i #139.
+Sidopanelen är en egen, bredare yta.
+
+`OpsAppShell props.grupper` (utelämnad: ingen kolumn, ingen växlare, skalet
+oförändrat):
+
+```js
+<OpsAppShell
+  grupper={{
+    lista: minaGrupperMedRader, // { id, namn, medlemsantal?, roll?, bild?, atgarder?, knappar?, avatarer? }[]
+    aktiv: valtLage(lasAktivGrupp(uid, localStorage), mina),
+    onValj: (id) => { sparaAktivGrupp(uid, localStorage, id); setAktiv(id); },
+    onSkapa: () => setVisaSkapaGruppDialog(true),
+    infalld: panelInfalld,
+    onInfalld: setPanelInfalld,
+  }}
+  ...
+/>
+```
+
+| Bredd | Vad |
+|---|---|
+| **1024 px och uppåt (`lg`)** | `OpsGruppanel`, en vänsterkolumn med "Alla mina grupper" överst, ett kort per grupp, "Skapa grupp" sist. Kollapsbar till en smal remsa med bara märkena |
+| **Under 1024 px** | Ingen kolumn. I stället en `OpsGruppvaxlare`-knapp i headern (märke plus den aktiva gruppens namn), som öppnar SAMMA lista i `OpsPanel`s ark/rullgardin, i en enklare form (namn, medlemsantal, rollpill, ingen åtgärd/knapp/avatarrad) |
+
+**Varje grupp i `lista`** (`GruppanelGrupp`, samma form `OpsGruppanel` och
+`OpsGruppvaxlare` tar direkt): `id`, `namn` (`{ sv, en }`), och sedan
+UTELÄMNBARA fält appen härleder själv, ramverket räknar och känner till
+INGET av dem:
+
+| Fält | Utelämnad ritas | Ur CP:s bild |
+|---|---|---|
+| `medlemsantal` | ingen siffra (aldrig "0" som gissning, arbetsreglernas punkt 5) | personikon plus tal |
+| `roll` (`"agare"`\|`"medlem"`) | ingen rollpill | (inte i bilden, samma fält som `OpsMedlemmar`) |
+| `bild` | initialer/ikon ur `OpsIdentity` | gruppens märke, uppe till vänster |
+| `atgarder` (`{ icon, label, onClick }[]`) | inga knappar | glob (publik sida), info, penna, uppe till höger |
+| `knappar` (`{ icon, label, badge?, onClick }[]`) | ingen rad | biblioteksknappen med räknare, chattknappen |
+| `avatarer` (`{ id, namn, bild? }[]`) | ingen rad | avatarstapeln, max fyra plus "+N" |
+
+⛔ **RÄTTAD 2026-09-28: KORTET ÄR HANDBYGGT, INTE `OpsCard`, OCH MÅTTEN ÄR
+MÄTTA UR SESSIONSTUDIO, INTE GISSADE.** En första version gissade panelens
+bredd (288/72px), avatarerna (32px) och byggde kortet på `OpsCard`
+(`rounding="bubbla"`, `--card-padding` ~20px). CP: "Det ska vara EXAKT som
+SessionStudio", och en genomläsning av
+`sessions-platform/apps/web/src/components/AppSidebar.jsx`/`GroupCard.jsx`/
+`AppHeader.jsx` gav andra tal. `OpsCard` är ramverkets EGNA kortform
+(`--card-padding`, ingen kant som förval), medan SessionStudios `GroupCard`
+är `p-3` (12px) MED en 1px kant som förval och `rounded-[var(--radius)]`
+(12px, inte `--radius-card` 24px): att pressa de talen genom `OpsCard`s
+stängda API (`check-closed-api`) hade antingen krävt att öppna det för
+padding/kant, eller gett ett kort som SER UT som `OpsCard` med fel siffror.
+Kortet är därför handbyggt, med SessionStudios egna klasser.
+
+⛔ **INGEN NÄSTLAD `<button>`, OCH DET ÄR DÄRFÖR KORTET ÄR EN `<li
+role="button">`, INTE EN `<button>`.** SessionStudios `GroupCard.jsx`
+(rad 59-66) är en `<div onClick>` som omsluter riktiga knappar (glob, info,
+penna, bibliotek, chatt), var och en med `e.stopPropagation()` så ett tryck
+på en ikon inte också väljer kortet. En `<button>` FÅR INTE innehålla en
+`<button>` (webbläsaren bryter isär trädet), så "hela raden är en enda
+knapp" är inte möjligt när raden också bär riktiga knappar. Ramverket lägger
+till `role="button"`, `tabIndex={0}` och `onKeyDown` (Enter/Space) på raden,
+något SessionStudios egen `<div>` INTE har: en förbättring över förlagan,
+inte en genväg runt husets linje mot `<div role="button">`-attrapper (se
+`OpsRadioGroup`s filhuvud) eftersom den här HAR fullt tangentbordsstöd.
+
+⛔ **VALD GRUPP: ACCENTRAM PLUS EN SVAG ACCENT-TONAD BAKGRUND, PÅ KORTET
+SJÄLVT, INTE GRUPPENS EGEN FÄRG.** CP, efter att ha mätt mot
+`AppSidebar.jsx`/`GroupCard.jsx`: markeringen ska vara kraftigare än en
+vanlig 1px-kant. SessionStudio målar med `group.color` (en fri hexsträng per
+grupp, plus en alfa-suffix). `GruppanelGrupp` har inget färgfält: `OpsIdentity`
+härleder sin ton ur `seed` genom en fast palett, aldrig en fri hexsträng
+(samma arkitekturbeslut som `OpsIdentity`s eget filhuvud, "identitet bärs
+aldrig av en färgad prick"). Vald grupp använder därför `border-accent` +
+`bg-accent/10` direkt på kortet, inte gruppens egen färg. En app som vill ha
+SessionStudios per-grupp-färgade markering bygger ett eget lager ovanpå
+`onValj`, ramverket erbjuder inte hex-in.
+
+⛔ **PANELENS BREDD ÄR TVÅ TOKEN, `--panel-bredd` (184px) OCH
+`--panel-bredd-infalld` (44px), MÄTTA UR `AppSidebar.jsx` RAD 43-49
+(`md:w-[184px]` / `w-11`), INTE 288/72 OCH INTE EN TAILWIND-LITERAL PER
+FIL.** `OpsGruppanel` (kolumnens egen bredd) läser tokenet direkt.
+Toppradens logoruta är en EGEN, mindre ruta (`--logo-bredd` 180px /
+`--logo-bredd-infalld` 44px→40px, mätt ur `AppHeader.jsx` rad 174, se
+`OpsBrand` nedan): 180 mot 184 och 40 mot 44 är samma 4px-differens, av
+samma skäl (asidet har `px-0.5`, logorutan har det inte), alltså TVÅ
+tokenpar och inte ett gemensamt. Ett prov läser varje fil ur sitt eget par
+(`gruppanel.test.jsx`): det extraherar VILKA `w-(--namn...)`-klasser filen
+faktiskt använder, inte bara att ordet nämns någonstans (en bar textträff
+hade även fångat en förklarande kommentar, och missat att en verklig
+regression ändå gjorde provet grönt).
+
+⛔ **KOLLAPS ÄGS AV APPEN, PRECIS SOM VALET.** `grupper.infalld`/`onInfalld`
+styr BÅDE panelens läge OCH brandets ikon/ordmärke-val (se nedan). Utan dem
+sköter `OpsGruppanel` kollapset själv (internt `useState`, samma styrd/ostyrd
+mönster som `OpsPanel`s `open`), men brandet följer då bara skärmbredden som
+förut: en fristående `OpsGruppanel` UTANFÖR skalet fungerar alltså fint utan
+dem, det är bara kopplingen till logotypen som kräver den styrda formen.
+
+#### ⛔ Logotypen följer panelens läge, inte bara skärmbredden
+
+CP 2026-09-28: "Var noga med utfällt och infällt läge och vad som händer med
+logotypen... Skalet äger alltså både panelens läge och brandens form; koppla
+dem i OpsAppShell." `OpsBrand` fick därför en ny prop, `panelInfalld`
+(boolean, utelämnad: brandet följer bara skärmbredden som förut, oförändrat
+för appar som inte använder `grupper`).
+
+⛔ **RÄTTAD 2026-09-28: BÅDA BILDERNA ÄR ALLTID MONTERADE, VÄXLING ÄR
+`OPACITY`, ALDRIG MOUNT/UNMOUNT.** Mätt ur `AppHeader.jsx` rad 174-193: en
+`relative`-ruta med BÅDA `<img>`-taggarna hela tiden i DOM, `transition-
+opacity duration-200`. En första version av `panelInfalld` (då `tvingaIkon`)
+tog bort ordmärket helt och ritade bara ikonen, vilket INTE är samma sak:
+det ger ett hopp i stället för en tondämpning, och det är precis den sortens
+flimmer `AppSidebar.jsx` rad 13-16 redan dokumenterar som ett löst fel
+(bredd-transition borttagen av samma skäl, 2026-04-22).
+
+⛔ **RUTAN HAR EN FAST BREDD UR `--logo-bredd`/`--logo-bredd-infalld`
+(180px/40px, `AppHeader.jsx` rad 174), INTE `--panel-bredd`.** Se
+föregående avsnitts not om varför logorutan och panelen är två olika tal
+trots att de ser lika ut på en skärmbild.
+
+`OpsAppShell` sätter `panelInfalld={grupper.infalld}` på brandet när
+`grupper` är given: en sträng-`brand` blir ett nytt `OpsBrand` med propen på
+raka rör, ett FÄRDIGT `<OpsBrand .../>`-element KLONAS med `cloneElement`,
+och ett GODTYCKLIGT `brand`-nod (egen logga, ren text) lämnas orört,
+eftersom det inte har en `panelInfalld`-prop att klona in.
+
+#### ⛔ Under 1024 px är ett ark, inte alltid ETT ark (#161)
+
+`OpsGruppvaxlare` ÅTERANVÄNDER `OpsPanel`, ramverkets befintliga ark/rullgardin
+(samma yta som appens meny och notiser), i stället för att uppfinna en egen
+brytpunktsmaskin. `OpsPanel` byter yta vid Tailwinds `md` (768 px), INTE vid
+1024. Mellan 768 och 1024 blir växlaren alltså en rullgardin i headern, inte
+en bottensheet, medan panelen ändå är dold (den tänder först vid `lg`).
+
+Det är en MEDVETEN avvikelse och inte en glömd detalj: att duplicera
+`OpsPanel`s brytpunktsmaskin (`matchMedia`, lyssnare, Safari-reserv `addListener`)
+för EN till konsument hade brutit mot arbetsreglernas punkt 2, en sanning per
+faktum. Två sätt att avgöra "är skärmen smal" i samma app glider isär den dag
+bara det ena rättas.
 
 ### Felrapportering
 

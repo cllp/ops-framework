@@ -54,7 +54,8 @@
   },
 
   "radier": {
-    "_kalla": "Redan mätta i ops-framework#164 (samma dag som index.css '.rounded-app'-skalan lästes), återanvända här utan ändring. sm 8px, md 10px, lg 16px, xl 20px, card 24px.",
+    "_kalla": "Redan mätta i ops-framework#164 (samma dag som index.css '.rounded-app'-skalan lästes), återanvända här utan ändring. sm 8px, md 10px, lg 16px, xl 20px, card 24px. Tillägg 2026-09-29 (#161): 'bas' 12px är SessionStudios `--radius` (index.css:215, '0.75rem, base for cards, inputs'), det steg nästan allt i AppSidebar.jsx och GroupCard.jsx ritas med (`rounded-[var(--radius)]`). Det saknades i första fixturen, så gruppanelen fick en literal 12px; nu är det ett token.",
+    "bas": "12px",
     "sm": "8px",
     "md": "10px",
     "lg": "16px",

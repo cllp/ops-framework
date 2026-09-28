@@ -36,6 +36,13 @@ export { createActivityWriter } from "./aktivitet.js";
 export { createInvitationService } from "./inbjudan.js";
 
 /*
+ * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#161). Vitlistan nekar en klient allt
+ * (`regelfragment()`, `allow read, write: if false`), så `skapaGrupp` MÅSTE
+ * ligga bakom Admin SDK för att kunna kontrollera den alls.
+ */
+export { createGroupService } from "./grupp.js";
+
+/*
  * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#156). `memberships` skrivs aldrig av en
  * klient, alltså är `uppdateraProfil` (Admin SDK, skriver users OCH
  * memberships i samma steg) bara meningsfull härifrån.
