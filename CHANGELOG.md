@@ -85,6 +85,90 @@ menyn stängdes, och `OpsPanel`s `DismissableLayer` läste det som "fokus
 utanför". `onOpenAutoFocus`/`onFocusOutside` avstyrs nu på panelens
 rullgardin; ett riktigt klick utanför stänger fortfarande som förut.
 
+**Granskningsrättelse:** `handelse.lank` ({ href, etikett }) skrevs och
+lästes utan att formen någonsin kontrollerades. `createActivityLog` avvisar
+nu en `lank` vars `href` inte är https eller en relativ sökväg, eller vars
+`etikett` är tom. `ACTIVITY_SECTIONS` bar dessutom fyra hårdkodade svenska
+ord trots epikens princip om tvåspråkigt från dag ett (#109); etiketterna är
+nu `{ sv, en }` och `OpsActivityList`/`OpsActivityButton` tar emot en
+`sprak`-prop, precis som `OpsProfil`.
+
+### Profilen som i SessionStudio ([#156](https://github.com/cllp/ops-framework/issues/156))
+
+CP: "vill ha profil precis som SessionStudio." Mätt mot SessionStudios
+`ProfileView.jsx`: bild, namn, telefon, stad, presentation och länkar är
+fält varje app med människor behöver, alltså ramverkets. Det kreativa
+(discipliner, roller, instrument) är SessionStudios egna begrepp och hör
+INTE hit, se `OpsProfil`s nya `children`-slot.
+
+**`users` växer med fem fält** (`ANVANDARFALT`, `byggAnvandare` i
+`src/lib/grupp.js`): `telefon` (E.164 eller tom sträng), `stad`,
+`presentation` (max `MAX_PRESENTATION`, 500 tecken), `lankar` (lista av
+`{ plattform, url }`, plattformen måste finnas i den lista appen skickar in,
+url måste vara https) och `bildSokvag` (lagringssökvägen, så bilden går att
+ta bort). Alla tomma strängar/listor när de saknas, aldrig utelämnade fält.
+
+**Namn och bild blir redigerbara av personen själv.** `sparaInstallningar`
+tar nu emot alla `PERSONFALT`, inte bara språk och tema. En namn- eller
+bildändring når däremot inte automatiskt medlemslistorna:
+`memberships` skrivs aldrig av en klient (#136), så en ny nodfunktion,
+`uppdateraProfil({ kalla, uid, andring })` (`@staiger/ops-framework/node`),
+skriver `users` OCH alla medlemskap för `uid` i samma steg. Appen anropar
+den, via en server-callable, när `onSpara` ser namn eller bild i andringen.
+
+**Ramverkets första Storage-yta**, bredvid `kalla`: `createStorageSource`
+(kontraktet), `createMemoryStorage` (för prov), `createFirebaseStorageSource`
+(mot Firebase Storage, ramverket importerar ingen Firebase-SDK) och
+`lagringsregelfragment({ prefix })` (bara sin egen sökväg, bara bilder,
+2 MB tak). `OpsProfil` fungerar utan en `lagring`-prop: Profilbild-sektionens
+knappar döljs då helt, ramverket kräver inte Storage.
+
+**`regelfragment()`s `users`-block fick en `keys().hasOnly`**, exakt
+`ANVANDARFALT`, splittad i `allow read, delete` och `allow create, update`
+(`request.resource` finns bara på det senare). `check-gruppnyckel.mjs`
+vaktar att `ANVANDARFALT` och `hasOnly`-listan inte glider isär.
+
+**`OpsProfil` får tre nya sektioner**, byggda med `OpsSectionLabel`,
+`OpsChip` och `OpsCard`: Profilbild (ladda upp, ta bort, återställ från
+inloggningen), Personuppgifter (namn, telefon, stad, presentation) och
+Länkar (plattform ur appens lista + url). En `children`-slot sist, för
+appens egna sektioner.
+
+⛔ **Storage-emulatorprov finns inte ännu.** `lagringsregelfragment` provas
+som text, inte mot en riktig Storage-emulator: `rules/__tests__/` kör bara
+Firestore-emulatorn i dag.
+
+### Felrapportering: felgräns, loggpunkt, Sentry som valfri mottagare ([#159](https://github.com/cllp/ops-framework/issues/159))
+
+CP: "Skall Sentry vara default eller optional i framework?" Beslut, CP:s
+svar "Allt perfekt": **valfritt, men färdigkopplat.**
+
+**`OpsAppShell` har nu en felgräns som alltid är på**, ingen prop stänger
+av den. Ett kastat fel ger en felyta med ett sexteckens id och en
+Ladda om-knapp, aldrig en vit sida.
+
+**En ny loggpunkt**, `rapporteraFel(fel, sammanhang, felmottagare)`
+(`src/lib/felrapport.js`): skriver ALLTID till `console.error`, oavsett
+mottagare eller miljö, och vidarebefordrar till `felmottagare.fanga` när en
+sådan finns. Kastar aldrig, ett fel i mottagaren fångas och loggas separat.
+
+**Ett kontrakt för mottagare**, `{ fanga, satt }`. `OpsAppShell` kallar
+`fanga` från felgränsen. `OpsAuthProvider` (nu med en `felmottagare`-prop)
+kallar `satt({ uid, groupId })` vid varje inloggningsbyte och `satt(null)`
+vid utloggning, aldrig med e-post.
+
+**En färdig Sentry-mottagare**, i en egen, obundlad ingång:
+`@staiger/ops-framework/sentry`, `sentryMottagare({ dsn, miljo, version })`.
+`@sentry/browser` bara laddas av den app som skriver raden;
+`check-paket.mjs` bevisar att ramverkets `dist/index.js` aldrig nämner
+Sentry. `@sentry/browser` är en `peerDependency`, `optional: true`, aldrig
+en `dependency`.
+
+**Scaffold-mallen** (`create-ops-app`): den handrullade
+`src/lib/ErrorBoundary.jsx` togs bort, den dupplicerade nu exakt det
+`OpsAppShell` gör åt alla. `App.jsx` har en utkommenterad rad för Sentry med
+skälet till att den är av som förval.
+
 ---
 
 ## 0.25.0

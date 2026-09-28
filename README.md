@@ -478,9 +478,10 @@ lyckades.
 | | |
 |---|---|
 | `sakerstallAnvandare({ kalla, inloggad })` | läser `users/{uid}` och skapar raden **bara om den saknas**. Svarar `{ anvandare, skapad }` |
-| `sparaInstallningar({ kalla, anvandare, andring })` | skriver språk och tema. ⛔ Avvisar allt annat: e-posten är identiteten, namn och bild hör till en egen åtgärd |
-| `andringen(anvandare, utkast)` | vad som skiljer utkastet från den sparade raden. Beslutet ligger utanför vyn, se noten nedan |
-| `OpsProfil` | vyn: namn, e-post, bild, språk, utseende och mina grupper med roll |
+| `sparaInstallningar({ kalla, anvandare, andring, tillatnaPlattformar })` | skriver **allt personen själv äger**: `sprak`, `tema`, `namn`, `telefon`, `stad`, `presentation`, `lankar`, `bild`, `bildSokvag` (#156, `PERSONFALT`). Avvisar allt annat: e-posten är identiteten och kommer ur inloggningen, `id` är nyckeln. `tillatnaPlattformar` vidarebefordras till `byggAnvandare` för `lankar` |
+| `andringen(anvandare, utkast)` | vad som skiljer utkastet från den sparade raden, över ALLA `PERSONFALT`. Beslutet ligger utanför vyn, se noten nedan. `lankar` jämförs som värde (`JSON.stringify`), inte som referens |
+| `MAX_PRESENTATION` | 500. Taket `byggAnvandare` avvisar en längre presentation mot |
+| `OpsProfil` | vyn, byggd med `OpsSectionLabel`, `OpsChip` och `OpsCard` (#156, mätt mot SessionStudios `ProfileView.jsx`): **Profilbild** (uppladdning/borttagning/återställning, se `props.lagring` nedan), **Personuppgifter** (namn, telefon, stad, presentation), **Länkar** (plattform ur `props.plattformar` + url), språk, utseende, och mina grupper med roll. `props.children` ritas SIST, efter Länkar och före Spara/Logga ut: appens EGNA sektioner (SessionStudios kreativa profil, disciplin/roll/instrument, hör dit och INTE hit, se filhuvudet). ⛔ **BILDUPPLADDNINGEN SPARAS DIREKT, INTE BAKOM "SPARA"**: en uppladdning är redan en färdig handling. Utan `props.lagring` (en `StorageSource`, se Lagring nedan) döljs Profilbild-sektionens knappar helt: ramverket fungerar utan Storage |
 | `OpsAnvandarmeny` | `anvandare` (krävs), `onLoggaUt` (krävs), `sektioner` (`AnvandarmenyRad[][]`: `key`, `etikett`, `ikon`, `onClick`, `href`, `chevron`, `badge`, `badgeText`), `rubrik` ("Meny"), `loggaUtEtikett`, `menyEtikett`, `appVersion`. Avataren i toppraden. Bakom den, mätt exakt mot SessionStudios `AppHeader.jsx` (#157): en rubrik, sektioner skilda med linjer där varje rad ritas med `OpsPanelRow` (samma primitiv notis- och aktivitetspanelerna använder), Logga ut i sin egen sista sektion, och en dämpad versionsrad längst ned. ⛔ VILKA RADER SOM FINNS ÄR APPENS: ramverket känner inte till "Kalender" eller "Bibliotekstyper" som begrepp, bara formen på en rad. ⛔ VERSIONSRADEN läser ramverkets tal ur en konstant som skrivs vid bygget (`scripts/generate-framework-version.mjs`, aldrig en handskriven kopia av `package.json`); appens egen version är `appVersion`-propen, och saknas den skrivs raden ändå med ramverkets ensam. Formen: `bolag-ops v1.4.2 · ops-framework v0.26.0` |
 
 ⛔ **RADEN SKAPAS VID FÖRSTA INLOGGNINGEN OCH BARA DÅ.** Språk och tema bor i
@@ -489,9 +490,19 @@ inloggning skulle inloggningens uppgifter skriva över dem: du byter till mörkt
 läge på telefonen, loggar in på datorn, och telefonen är ljus igen nästa gång.
 Det felet ser inte ut som ett fel, det ser ut som att appen inte minns.
 
-⛔ **NAMN OCH BILD UPPDATERAS INTE HELLER.** Frestande, eftersom de kommer ur
-inloggningen. Men då är raden inte personens egen: den som redigerar sitt namn
-får det överskrivet nästa inloggning utan att något säger till.
+⛔ **NAMN OCH BILD UPPDATERAS INTE AV INLOGGNINGEN**, men är sedan #156
+redigerbara AV PERSONEN SJÄLV, via `sparaInstallningar`. Frestande att låta
+inloggningen skriva över dem, eftersom de kommer därifrån: men då är raden
+inte längre personens egen, och den som redigerar sitt namn i appen får det
+överskrivet nästa inloggning utan att något säger till.
+
+⛔ **EN NAMN- ELLER BILDÄNDRING NÅR INTE AUTOMATISKT MEDLEMSLISTORNA.**
+`sparaInstallningar` skriver bara `users/{uid}`. `memberships` bär
+denormaliserade kopior av namn och bild (#138) och skrivs aldrig av en klient
+(#136, `allow write: if false`). Appen som vill hålla dem i takt anropar
+EFTERÅT en server-callable byggd på `uppdateraProfil`
+(`@staiger/ops-framework/node`, se Nodsidan), som skriver `users` OCH alla
+medlemskap för uid i samma steg.
 
 ⛔ **ANVÄNDARMENYN HAR ETT EGET FACK I SKALET**, `OpsAppShell props.anvandare`,
 sist i klustret efter `actions` och före hamburgaren. Inte en `action` bland
@@ -569,7 +580,7 @@ datamodellen ändras.
 
 | Samling | Innehåll | Skrivs av |
 |---|---|---|
-| `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN` | personen själv, bara sin egen rad |
+| `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN`, och sedan #156: `telefon` (E.164 eller tom), `stad`, `presentation` (max `MAX_PRESENTATION`), `lankar` (`{ plattform, url }[]`, url https, plattform ur appens lista), `bildSokvag` | personen själv, bara sin egen rad |
 | `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv` | ägare i gruppen. Aldrig radering, arkivering |
 | `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER`, `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS`, plus `namn` och `bild` | ⛔ **bara serversidan** |
 | `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv` | ägare i gruppen. Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137) |
@@ -726,6 +737,42 @@ med i, och det är samma hål från var sitt håll.
 ⛔ **Inga JWT-claims.** En claim ligger i en token som redan är utdelad, så en
 borttagen medlem är kvar tills token förnyas.
 
+⛔ **`users`-blocket bär sedan #156 en `keys().hasOnly([...])`, exakt
+`ANVANDARFALT`** (`src/lib/grupp.js`), splittad i `allow read, delete`
+(inget `request.resource` där) och `allow create, update` (där `hasOnly`
+faktiskt går att utvärdera). `check-gruppnyckel.mjs` vaktar att de två
+listorna inte glider isär.
+
+#### Lagring: profilbilder, ramverkets första Storage-yta (#156)
+
+Samma snitt som Firestore, bredvid `kalla`: ramverket äger MAPPNINGEN, appen
+äger KOPPLINGEN och känner sin bucket och sitt sökvägsprefix.
+
+| | |
+|---|---|
+| `createStorageSource(adapter)` | kontrollerar att en adapter har `laddaUpp` och `taBort`, precis som `createDataSource` |
+| `STORAGE_OPERATIONS` | `["laddaUpp", "taBort"]` |
+| `createMemoryStorage(seed)` | i minnet, för prov. `laddaUpp({ sokvag, fil })` ger `{ url, sokvag }`; `taBort(sokvag)` |
+| `createFirebaseStorageSource({ storage, sdk })` | mot Firebase Storage. Ramverket importerar `firebase/storage` ALDRIG, appen skickar in `getStorage(app)` och hela SDK-modulen, precis som `createFirestoreSource`. `taBort` sväljer `storage/object-not-found` (en borttagning ska gå att köra två gånger), alla andra fel kastas |
+| `lagringsregelfragment({ prefix })` | Storage-regelfragment som text, `prefix` förval `"profilbilder"`: bara sin egen sökväg (`request.auth.uid == uid`), bara bilder (`contentType.matches('image/.*')`), 2 MB tak (`request.resource.size`). Limmas in i appens `storage.rules`, precis som `gruppadSamling` limmas in i `firestore.rules` |
+
+```js
+import { createFirebaseStorageSource, lagringsregelfragment } from "@staiger/ops-framework";
+import { getStorage } from "firebase/storage";
+import * as storage from "firebase/storage";
+
+const lagring = createFirebaseStorageSource({ storage: getStorage(app), sdk: storage });
+// lagringsregelfragment() -> limmas in i storage.rules, appen deployar
+```
+
+⛔ **`OpsProfil` döljer Profilbild-sektionens knappar helt utan `props.lagring`.**
+Ramverket fungerar fortfarande utan Storage, samma linje som resten av huset:
+`tam` behöver inte Firebase för att använda en knapp den inte trycker på.
+
+⛔ **STORAGE-EMULATORPROV FINNS INTE ÄNNU.** `lagringsregelfragment` provas som
+text (`src/__tests__/grupp.test.js`), inte mot en riktig Storage-emulator.
+`rules/__tests__/` kör bara Firestore-emulatorn i dag.
+
 #### Hela regelfilen ur manifesten
 
 [#130](https://github.com/cllp/ops-framework/issues/130). `generateRules(moduler, { namn, extra })`
@@ -865,6 +912,59 @@ väg tillbaka till en som fungerar. Appen visar dem, som `KatalogLarm`.
 driva med `fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut
 inget prov kan mäta. Väljaren och filtret är vanliga knappar, och proven trycker
 på dem.
+
+### Felrapportering
+
+[#159](https://github.com/cllp/ops-framework/issues/159). CP: "Skall Sentry
+vara default eller optional i framework?" Beslut, CP:s svar "Allt perfekt":
+**valfritt, men färdigkopplat.** Ramverket känner inga externa konton (ingen
+DSN, precis som ingen Firebase-projekt-id), men ett fel ska ALDRIG försvinna
+tyst, med eller utan ett sådant konto.
+
+| | |
+|---|---|
+| `rapporteraFel(fel, sammanhang, felmottagare)` | loggpunkten. Skriver **alltid** till `console.error`, oavsett mottagare eller miljö: det är det garanterade golvet. Finns en `felmottagare` kallas även dess `fanga(fel, sammanhang)`. Kastar aldrig, även om mottagaren själv kastar (fångas och loggas separat) |
+| `OpsAppShell props.felmottagare` | felgränsen (alltid på, ingen prop stänger av den) kallar `rapporteraFel` i `componentDidCatch` med `felmottagare` och ett sammanhang som bär felytans id |
+| `OpsAppShell props.felRubrik`, `felBeskrivning`, `laddaOmEtikett` | texten på felytan |
+| `OpsAuthProvider props.felmottagare` | kallar `felmottagare.satt({ uid, groupId })` vid varje inloggningsbyte, `satt(null)` vid utloggning. **Aldrig e-post**, även när den finns på `User`-objektet |
+| `sentryMottagare({ dsn, miljo, version })` | en färdig `felmottagare`, i en EGEN ingång: `@staiger/ops-framework/sentry` |
+
+```js
+import { OpsAppShell } from "@staiger/ops-framework";
+import { OpsAuthProvider } from "@staiger/ops-framework";
+// Förvalet är AV. Kommentera in när appen vill ha Sentry:
+// import { sentryMottagare } from "@staiger/ops-framework/sentry";
+// const felmottagare = sentryMottagare({ dsn, miljo: import.meta.env.MODE, version });
+
+<OpsAuthProvider authentication={auth} felmottagare={felmottagare}>
+  <OpsAppShell nav={nav} activeHref={pathname} felmottagare={felmottagare}>
+    {children}
+  </OpsAppShell>
+</OpsAuthProvider>;
+```
+
+⛔ **FELGRÄNSEN ÄR ALLTID PÅ, OCH DET SKILJER DEN FRÅN VARJE ANNAN KOMPONENT.**
+Ett fält i en vy som kastar ger en felyta med ett id och en knapp för att ladda
+om, aldrig en vit sida. En vit sida ser ut som att ingenting hände, och den som
+möter den vet inte om appen laddar, hängt sig, eller är trasig.
+
+⛔ **`console.error` KÖRS ÄVEN NÄR EN MOTTAGARE FINNS.** En loggpunkt som bara
+pratar med mottagaren gör felsökning utan nätverk (offline, en trasig DSN, en
+blockerad tredjepartsdomän) omöjlig: den enda platsen felet syns är i ett konto
+ingen kan nå just då.
+
+⛔ **`@staiger/ops-framework/sentry` ÄR EN EGEN, OBUNDLAD INGÅNG**, precis som
+`/node`: `package.json` pekar den direkt mot källan, ingen esbuild-runda.
+`@sentry/browser` bara laddas av den app som faktiskt skriver
+`import ... from "@staiger/ops-framework/sentry"`, aldrig av en app som inte
+gör det. `@sentry/browser` är en `peerDependency`, `optional: true`, ALDRIG en
+`dependency`: en `dependency` installeras åt ALLA, oavsett om de importerar
+filen. `check-paket.mjs` bevisar att ramverkets egen `dist/index.js` aldrig
+nämner Sentry.
+
+⛔ **KONTRAKTET, INTE EN SDK.** `Felmottagare` är formen `{ fanga, satt }`.
+`sentryMottagare` är EN implementation; en app som vill använda en annan
+tjänst skriver sin egen på samma form.
 
 ### Modulkontraktet
 
@@ -1168,6 +1268,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `FASER`, `AVSLUTADE_FASER`, `byggKategori`, `validateKatalog`, `valjbara`, `kategorin`, `arAvslutad`, `texten`, `SPRAK`, `RESERVSPRAK`, `byggNamn`, `text`, `arGammalNamn`, `saknadeSprak` | **katalogen och språken finns i båda ingångarna**, av samma skäl som `createActivityLog`: konfigurationen läses både av klienten och av det som körs utan skärm. Ett Cloud Function ska kunna fråga vilka sorter som finns utan att ladda React, och skillnaden är mätt till 8 ms mot 1946 ms |
 | `createActivityLog` | **samma funktion som i huvudingången, återexporterad här**, och det är en mätning och inte en bekvämlighet. `createActivityWriter` kräver en modell ur den, så ett Cloud Function som ville skriva en rad tvingades importera hela webbuntlen. Mätt (Node 20, ur den utgivna tarbollen): `@staiger/ops-framework/node` tar **8 ms**, `@staiger/ops-framework` tar **1946 ms**. Nästan två sekunder per kallstart för att en funktion som skriver ETT dokument skulle ladda React, Radix och en kalender. ⛔ `check-node-side` kräver att nodsidan inte når React eller en komponent, varken direkt eller genom en mellanfil, annars är mätningen osann inom en månad |
 | `createCaseMirror` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ owner, repo, label }` som konfiguration, plus `summary` och `extraFields` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `load` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
+| `uppdateraProfil({ kalla, uid, andring })` | #156. Den ENDA platsen som skriver `namn`/`bild` i `users` OCH i ALLA medlemskap för `uid` i samma steg, byggda genom `byggMedlemskap` så en trasig rad i databasen upptäcks i stället för att tystas in i ett rått patch-objekt. Bara `namn` och `bild` tas emot: de är de enda fälten som är denormaliserade i `memberships` (#138). Klienten kan inte göra det här själv, `memberships` har `allow write: if false` |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
 `src/index.js` buntas för webbläsaren, alltså hamnar i varje besökares JS-fil.
