@@ -59,6 +59,7 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  */
 const KLARAR_UTAN = {
   createMemorySource: "utan argument är en tom lagring, vilket är giltigt och används av varje prov",
+  createMemoryStorage: "utan argument är en tom fillagring, vilket är giltigt och används av varje prov (#156)",
 };
 
 const misslyckanden = [];

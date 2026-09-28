@@ -1,4 +1,5 @@
 import { createDataSource, applyQuery } from "./contract.js";
+import { createStorageSource } from "./storage.js";
 
 /**
  * Två adaptrar som följer med ramverket.
@@ -162,6 +163,44 @@ export function createJsonSource(config) {
     },
     async remove() {
       return denied("taBort");
+    },
+  });
+}
+
+/**
+ * Lagring i minnet. För tester, och för att komma igång innan appen kopplat
+ * in en riktig fillagring. Se `src/data/storage.js` för kontraktet.
+ *
+ * @param {Record<string, { url: string, fil: unknown }>} [seed]
+ * @returns {import("./storage.js").StorageSource}
+ */
+export function createMemoryStorage(seed = {}) {
+  /** @type {Record<string, { url: string, fil: unknown }>} */
+  const store = { ...seed };
+  let counter = 0;
+
+  return createStorageSource({
+    name: "minne",
+
+    // ⛔ `async` trots att inget väntar, samma skäl som createMemorySource:
+    // kontraktet får inte avslöja att just den här källan är snabb.
+    async laddaUpp({ sokvag, fil }) {
+      const s = typeof sokvag === "string" ? sokvag.trim() : "";
+      if (!s) throw new Error("createMemoryStorage.laddaUpp: sokvag krävs. Utan den vet ingen adapter var filen ska ligga eller hur den tas bort igen.");
+      if (fil === undefined || fil === null) throw new Error("createMemoryStorage.laddaUpp: fil krävs.");
+      counter += 1;
+      // ⛔ EN URL SOM BÄR SÖKVÄGEN, MED FLIT. Minneskällan har ingen riktig
+      // adress att ge tillbaka, och en URL som inte går att spåra till sin
+      // sökväg vore ett prov som inte mäter vad taBort faktiskt tar bort.
+      const url = `minne://${s}?v=${counter}`;
+      store[s] = { url, fil };
+      return { url, sokvag: s };
+    },
+
+    async taBort(sokvag) {
+      const s = typeof sokvag === "string" ? sokvag.trim() : "";
+      if (!s) throw new Error("createMemoryStorage.taBort: sokvag krävs.");
+      delete store[s];
     },
   });
 }

@@ -72,12 +72,32 @@ export const TEMAN = /** @type {const} */ (["system", "ljust", "morkt"]);
 /**
  * @typedef {object} Anvandare
  * @property {string} id Firebase Auth-uid.
- * @property {string} namn Ur inloggningen.
+ * @property {string} namn Ur inloggningen, sedan #156 redigerbar av personen själv.
  * @property {string} epost Identiteten. Ändras aldrig här.
- * @property {string} bild URL, eller tom sträng.
+ * @property {string} bild URL, eller tom sträng. Sedan #156 personens egen uppladdning.
  * @property {string} sprak Ur `SPRAK`.
  * @property {"system"|"ljust"|"morkt"} tema
+ * @property {string} telefon E.164 (`+46701234567`), eller tom sträng. #156.
+ * @property {string} stad Fritext, eller tom sträng. #156.
+ * @property {string} presentation Kort text om personen, max `MAX_PRESENTATION` tecken. #156.
+ * @property {ReadonlyArray<LankRad>} lankar Länkar till andra sidor. #156.
+ * @property {string} bildSokvag Lagringssökvägen till `bild`, eller tom sträng. Behövs
+ *   för att kunna TA BORT filen: en URL ensam räcker inte för att peka ut en
+ *   sökväg i en fillagring (Storage-URL:er är inte reversibla till sin sökväg
+ *   utan att fråga lagringen, och det kravet hade gjort borttagning till ett
+ *   nätverksanrop till, med ett eget felfall). #156.
  */
+
+/**
+ * @typedef {object} LankRad En rad i `Anvandare.lankar`.
+ * @property {string} plattform Ett värde ur den lista APPEN skickar in. Ramverket
+ *   vet inte vad en "plattform" är, bara att raden pekar på en.
+ * @property {string} url Måste vara https. En http-länk går att byta ut på vägen
+ *   till den som saknar säker uppkoppling, och en `javascript:`-länk är kod.
+ */
+
+/** Tak för presentationen. En biografi som aldrig tar slut är ingen kort presentation. */
+export const MAX_PRESENTATION = 500;
 
 /**
  * @typedef {object} Grupp
@@ -121,7 +141,7 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * sådan lista är det heller inte vaktat, så en ny samling utan sin lista är ett
  * hål och inte en förenkling.
  */
-export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema"];
+export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag"];
 export const GRUPPFALT = ["id", "namn", "moduler", "arkiverad", "skapadAv"];
 /*
  * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT
@@ -174,10 +194,22 @@ function somObjekt(v) {
  * brevlåda men två strängar. Matchas de inte blir följden en person som loggar
  * in och inte får sin inbjudan, alltså en tom app utan förklaring.
  *
+ * ⛔ #156: FEM FÄLT TILL, OCH ALLA FEM FÖLJER SAMMA REGEL SOM RESTEN AV RADEN:
+ * TOMMA STRÄNGAR, ALDRIG UTELÄMNADE FÄLT (arbetsreglernas punkt 5). En profil
+ * utan telefon har `telefon: ""`, inte ett fält som saknas, av samma skäl som
+ * `bild` redan är tom sträng och inte `undefined`: annars går "har ingen
+ * telefon" inte att skilja från "raden skrevs av en äldre version".
+ *
  * @param {Record<string, any>} d
+ * @param {ReadonlyArray<{ id: string }> | ReadonlyArray<string>} [tillatnaPlattformar]
+ *   Länkarnas plattformar, eller deras id. Samma tvådelade mönster som
+ *   `byggGrupp(d, kandaModuler)`: SKRIVVÄGEN skickar alltid in listan, så ett
+ *   påhittat plattforms-id avvisas i stället för att sparas som en rad ingen
+ *   väljare känner igen. LÄSVÄGEN utelämnar den, så en plattform som tagits
+ *   bort ur appens lista sedan raden skrevs inte gör hela profilen oläsbar.
  * @returns {Anvandare}
  */
-export function byggAnvandare(d) {
+export function byggAnvandare(d, tillatnaPlattformar) {
   const rad = somObjekt(d);
   const id = rensa(rad.id);
   if (!id) throw new Error("users: id krävs. Det är Firebase Auth-uid och nyckeln varje medlemskap pekar på.");
@@ -196,6 +228,20 @@ export function byggAnvandare(d) {
     throw new Error(`users: temat "${tema}" för "${id}" finns inte. Giltiga: ${TEMAN.join(", ")}.`);
   }
 
+  const telefon = rensa(rad.telefon);
+  if (telefon && !E164_FORM.test(telefon)) {
+    throw new Error(
+      `users: telefon "${telefon}" för "${id}" är inte E.164 (till exempel "+46701234567"). Ett nummer i lokalt format går inte att ringa eller skicka SMS till från ett annat land, och det är precis den gissning ett fritt textfält tvingar fram.`,
+    );
+  }
+
+  const presentation = rensa(rad.presentation);
+  if (presentation.length > MAX_PRESENTATION) {
+    throw new Error(`users: presentationen för "${id}" är ${presentation.length} tecken. Taket är ${MAX_PRESENTATION}.`);
+  }
+
+  const lankar = byggLankar(rad.lankar, id, tillatnaPlattformar);
+
   return Object.freeze({
     id,
     namn: rensa(rad.namn),
@@ -203,7 +249,71 @@ export function byggAnvandare(d) {
     bild: rensa(rad.bild),
     sprak,
     tema: /** @type {Anvandare["tema"]} */ (tema),
+    telefon,
+    stad: rensa(rad.stad),
+    presentation,
+    lankar,
+    bildSokvag: rensa(rad.bildSokvag),
   });
+}
+
+/**
+ * Ett telefonnummer i E.164: `+`, ett inledande 1-9, sedan upp till 14 siffror
+ * till, aldrig fler än 15 siffror totalt. Se `byggAnvandare`.
+ */
+const E164_FORM = /^\+[1-9]\d{1,14}$/;
+
+/**
+ * Validerar och bygger `lankar`. Egen funktion, inte inline i `byggAnvandare`,
+ * av samma skäl som `avvisaOkanda`: en lista är lättare att pröva för sig och
+ * lättare att läsa i felmeddelandet.
+ *
+ * @param {unknown} varde
+ * @param {string} id Användarens id, bara för felmeddelandet.
+ * @param {ReadonlyArray<{ id: string }> | ReadonlyArray<string>} [tillatnaPlattformar]
+ * @returns {ReadonlyArray<{ plattform: string, url: string }>}
+ */
+function byggLankar(varde, id, tillatnaPlattformar) {
+  if (varde === undefined) return Object.freeze([]);
+  if (!Array.isArray(varde)) {
+    throw new Error(`users: lankar för "${id}" måste vara en lista, inte ${typeof varde}.`);
+  }
+
+  const tillatna =
+    tillatnaPlattformar === undefined
+      ? null
+      : tillatnaPlattformar.map((p) => (typeof p === "string" ? p : p?.id)).filter((x) => typeof x === "string");
+  /*
+   * ⛔ GOLV, SAMMA SKÄL SOM `kandaModuler` I `byggGrupp`. En tom lista tillåtna
+   * plattformar skulle annars fälla varenda länk, och en app som glömt skicka
+   * in sin lista ser då likadan ut som en app som medvetet inte tillåter några
+   * länkar alls. Den frågan ska ställas uttryckligen med `[]`.
+   */
+  if (tillatna && tillatna.length === 0) {
+    throw new Error(`users: tillatnaPlattformar för "${id}" är en tom lista. Utelämna argumentet helt om profilen inte ska kunna bära länkar, annars fälls varje länk.`);
+  }
+
+  /** @type {{ plattform: string, url: string }[]} */
+  const lankar = [];
+  varde.forEach((/** @type {any} */ rad, /** @type {number} */ i) => {
+    const r = somObjekt(rad);
+    const plattform = rensa(r.plattform);
+    if (!plattform) throw new Error(`users: lankar[${i}] för "${id}" saknar plattform.`);
+    if (tillatna && !tillatna.includes(plattform)) {
+      throw new Error(`users: lankar[${i}] för "${id}" pekar på plattformen "${plattform}" som inte finns i appens lista. Kända: ${tillatna.length > 0 ? tillatna.join(", ") : "inga"}.`);
+    }
+    const url = rensa(r.url);
+    if (!url) throw new Error(`users: lankar[${i}] för "${id}" (${plattform}) saknar url.`);
+    if (!/^https:\/\//.test(url)) {
+      throw new Error(`users: lankar[${i}] för "${id}" (${plattform}) har url:en "${url}", som inte börjar med "https://". En http-länk kan bytas ut på vägen, och en javascript:-länk är kod.`);
+    }
+    const okanda = Object.keys(r).filter((n) => n !== "plattform" && n !== "url");
+    if (okanda.length > 0) {
+      throw new Error(`users: lankar[${i}] för "${id}" bär fälten ${okanda.join(", ")}. En rad är bara plattform och url.`);
+    }
+    lankar.push({ plattform, url });
+  });
+  return Object.freeze(lankar);
 }
 
 /**

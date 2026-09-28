@@ -106,8 +106,25 @@ export function regelfragment(namn = {}) {
     }
 
     // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
+    //
+    // ⛔ #156: hasOnly TILLKOM, OCH DEN ÄR EXAKT SAMMA LISTA SOM ANVANDARFALT
+    // (src/lib/grupp.js). check-gruppnyckel.mjs vaktar att de två inte glider
+    // isär: ett fält som läggs till i modellen men glöms här sparas som ett
+    // skrivfel den dagen appen försöker skriva det, och syns bara som
+    // "Missing or insufficient permissions" hos personen som sparade sin
+    // profil.
+    //
+    // ⛔ create/update SKILT FRÅN read/delete, OCH DET ÄR INTE KOSMETIK.
+    // request.resource finns bara på en skrivning som bär ett inkommande
+    // dokument: en läsning har inget, och en radering har inget nytt
+    // dokument att jämföra mot. Ett gemensamt \`allow read, write\` med
+    // hasOnly i villkoret hade fått en LÄSNING att utvärdera
+    // request.resource.data, alltså ett fält som inte finns, och den enda
+    // ärliga utgången av det är ett regelfel, inte ett nej.
     match /${anvandare}/{uid} {
-      allow read, write: if opsInloggad() && request.auth.uid == uid;
+      allow read, delete: if opsInloggad() && request.auth.uid == uid;
+      allow create, update: if opsInloggad() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag"]);
     }
 
     // Gruppen. Medlem läser, ägare skriver. Aldrig radering: arkivering finns
@@ -142,6 +159,52 @@ export function regelfragment(namn = {}) {
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.roll == resource.data.roll;
       allow delete: if false;
+    }
+`;
+}
+
+/**
+ * Storage-regelfragmentet: bara sin egen sökväg, bara bilder, en storleksgräns.
+ *
+ * ══ ⛔ VARFÖR RAMVERKET SKRIVER ÄVEN DE HÄR (#156) ══════════════════════
+ *
+ * Samma skäl som `regelfragment()`: Storage-regler har heller ingen import,
+ * och "bara sin egen bild, bara en bild, inte hur stor som helst" är precis
+ * den sortens villkor som annars klistras in för hand i varje app och glider
+ * isär den dagen gränsen ändras.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE BUCKETEN ELLER PREFIXET. Precis som samlingsnamnen
+ * i `regelfragment()`: appen skickar in var bilderna ligger, så en kund senare
+ * kan bli ett eget Firebase-projekt utan att den här texten ändras.
+ *
+ * ⛔ TEXTEN ÄR ETT FRAGMENT, INTE EN HEL REGELFIL. Precis som `gruppadSamling`
+ * limmas den in av appen, den här gången i `storage.rules`, inuti
+ * `match /b/{bucket}/o`. Ramverket genererar, appen committar och deployar.
+ *
+ * @param {{ prefix?: string }} [konfig] `prefix` förval `"profilbilder"`.
+ * @returns {string}
+ */
+export function lagringsregelfragment(konfig = {}) {
+  const prefix = kontrolleraNamn(konfig.prefix ?? "profilbilder", "prefix");
+
+  return `    // ══ Ramverkets profilbilder. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: @staiger/ops-framework, lagringsregelfragment() i src/lib/regler.js.
+    // En ändring hör hemma där och kommer hit när fragmentet genereras om.
+    //
+    // ⛔ BARA SIN EGEN SÖKVÄG. \`uid\` i sökvägen måste vara den inloggades eget,
+    // annars kan vem som helst skriva över eller ta bort en annans bild.
+    // ⛔ BARA BILDER. En profilbild-yta som tar emot vad som helst blir en
+    // gratis fillagring för den som hittar uppladdningsvägen.
+    // ⛔ EN STORLEKSGRÄNS. Utan den kostar en enda uppladdning lika mycket
+    // som tusen små, och en telefonbild på 12 MB tar lika lång tid att ladda
+    // upp på ett dåligt nät som appen sedan tar att kännas trasig.
+    match /${prefix}/{uid}/{fil} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 `;
 }

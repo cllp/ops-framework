@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  ANVANDARFALT,
   INBJUDNINGSSTATUS,
   MEDLEMSSTATUS,
   MEDLEMSTYPER,
@@ -13,7 +14,7 @@ import {
   MEDLEMSKAPSAVGRANSARE,
   MEDLEMSKAPSFALT,
 } from "../lib/grupp.js";
-import { generateRules, gruppadSamling, regelfragment } from "../lib/regler.js";
+import { generateRules, gruppadSamling, lagringsregelfragment, regelfragment } from "../lib/regler.js";
 import { defineModule } from "../lib/modul.js";
 
 /**
@@ -72,6 +73,89 @@ describe("användaren", () => {
     const a = byggAnvandare(utan);
     expect([a.sprak, a.tema]).toEqual(["sv", "system"]);
     expect(TEMAN).toContain(a.tema);
+  });
+
+  // ══ #156: telefon, stad, presentation, lankar, bildSokvag ═══════════════
+  describe("#156: profilens nya fält", () => {
+    it("tomma strängar när de saknas, aldrig utelämnade fält (arbetsreglernas punkt 5)", () => {
+      const a = byggAnvandare(ANV());
+      expect(a.telefon).toBe("");
+      expect(a.stad).toBe("");
+      expect(a.presentation).toBe("");
+      expect(a.bildSokvag).toBe("");
+      expect(a.lankar).toEqual([]);
+      expect(Object.isFrozen(a.lankar)).toBe(true);
+    });
+
+    it("tar emot stad, presentation och bildSokvag", () => {
+      const a = byggAnvandare({ ...ANV(), stad: "Visby", presentation: "Grundare.", bildSokvag: "profilbilder/uid-1/1.jpg" });
+      expect(a.stad).toBe("Visby");
+      expect(a.presentation).toBe("Grundare.");
+      expect(a.bildSokvag).toBe("profilbilder/uid-1/1.jpg");
+    });
+
+    it("tar emot ett E.164-telefonnummer", () => {
+      expect(byggAnvandare({ ...ANV(), telefon: "+46701234567" }).telefon).toBe("+46701234567");
+    });
+
+    it("kastar på ett telefonnummer som inte är E.164", () => {
+      expect(() => byggAnvandare({ ...ANV(), telefon: "0701234567" })).toThrow(/inte E\.164/);
+      expect(() => byggAnvandare({ ...ANV(), telefon: "+46 70 123 45 67" })).toThrow(/inte E\.164/);
+    });
+
+    it("kastar på en för lång presentation", () => {
+      expect(() => byggAnvandare({ ...ANV(), presentation: "a".repeat(501) })).toThrow(/501 tecken.*Taket är 500/);
+    });
+
+    it("tillåter exakt taket", () => {
+      expect(byggAnvandare({ ...ANV(), presentation: "a".repeat(500) }).presentation).toHaveLength(500);
+    });
+
+    it("bygger länkar när plattformen finns i den lista appen skickar in", () => {
+      const a = byggAnvandare({ ...ANV(), lankar: [{ plattform: "webbplats", url: "https://staiger.se" }] }, ["webbplats", "instagram"]);
+      expect(a.lankar).toEqual([{ plattform: "webbplats", url: "https://staiger.se" }]);
+    });
+
+    it("kastar på en plattform som inte finns i appens lista", () => {
+      expect(() => byggAnvandare({ ...ANV(), lankar: [{ plattform: "myspace", url: "https://myspace.com/cp" }] }, ["webbplats"])).toThrow(/plattformen "myspace" som inte finns/);
+    });
+
+    it("läsvägen tolererar en okänd plattform när ingen lista skickas in", () => {
+      // ⛔ Samma tvådelade mönster som byggGrupp/kandaModuler: den som LÄSER en
+      // gammal rad ska inte krascha för att appens plattformslista krympt sedan
+      // raden skrevs.
+      expect(byggAnvandare({ ...ANV(), lankar: [{ plattform: "myspace", url: "https://myspace.com/cp" }] }).lankar).toEqual([
+        { plattform: "myspace", url: "https://myspace.com/cp" },
+      ]);
+    });
+
+    it("kastar på en tom lista tillåtna plattformar, som annars fäller varje länk", () => {
+      expect(() => byggAnvandare({ ...ANV(), lankar: [] }, [])).toThrow(/en tom lista/);
+    });
+
+    it("kastar på en http-länk", () => {
+      expect(() => byggAnvandare({ ...ANV(), lankar: [{ plattform: "webbplats", url: "http://staiger.se" }] })).toThrow(/inte börjar med "https:\/\/"/);
+    });
+
+    it("kastar på en länk utan url", () => {
+      expect(() => byggAnvandare({ ...ANV(), lankar: [{ plattform: "webbplats", url: "" }] })).toThrow(/saknar url/);
+    });
+
+    it("kastar på en länk utan plattform", () => {
+      expect(() => byggAnvandare({ ...ANV(), lankar: [{ url: "https://staiger.se" }] })).toThrow(/saknar plattform/);
+    });
+
+    it("kastar på en länkrad med okända fält", () => {
+      expect(() => byggAnvandare({ ...ANV(), lankar: [{ plattform: "webbplats", url: "https://staiger.se", etikett: "Hemsida" }] })).toThrow(/bär fälten etikett/);
+    });
+
+    it("kastar när lankar inte är en lista", () => {
+      expect(() => byggAnvandare({ ...ANV(), lankar: "https://staiger.se" })).toThrow(/måste vara en lista/);
+    });
+
+    it("ANVANDARFALT bär de fem nya fälten", () => {
+      expect(ANVANDARFALT).toEqual(expect.arrayContaining(["telefon", "stad", "presentation", "lankar", "bildSokvag"]));
+    });
   });
 });
 
@@ -308,6 +392,40 @@ describe("regelfragmentet: formen, inte beteendet", () => {
     expect(gruppadSamling("konfig", { agareKravsForSkrivning: true })).toContain("opsArAgare(request.resource.data.groupId)");
     expect(gruppadSamling("handelser")).not.toContain("opsArAgare(request.resource.data.groupId)");
   });
+
+  // ══ #156: users har fått en hasOnly, splittad från read/delete ═══════════
+  it("users-blocket kräver hasOnly bara på create/update, aldrig på read/delete", () => {
+    const text = regelfragment();
+    expect(text).toContain("allow read, delete: if opsInloggad() && request.auth.uid == uid;");
+    expect(text).toContain('allow create, update: if opsInloggad() && request.auth.uid == uid\n        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag"]);');
+  });
+});
+
+describe("lagringsregelfragment: Storage, bara sin egen bild (#156)", () => {
+  it("förvalet är prefixet profilbilder", () => {
+    const text = lagringsregelfragment();
+    expect(text).toContain("match /profilbilder/{uid}/{fil}");
+  });
+
+  it("tar emot ett eget prefix", () => {
+    expect(lagringsregelfragment({ prefix: "avatarer" })).toContain("match /avatarer/{uid}/{fil}");
+  });
+
+  it("⛔ ett prefix med snedstreck avvisas, det är en sökväg", () => {
+    expect(() => lagringsregelfragment({ prefix: "a/b" })).toThrow(/inte ett samlingsnamn/);
+  });
+
+  it("bara sin egen sökväg", () => {
+    expect(lagringsregelfragment()).toContain("request.auth.uid == uid");
+  });
+
+  it("bara bilder", () => {
+    expect(lagringsregelfragment()).toContain("request.resource.contentType.matches('image/.*')");
+  });
+
+  it("en storleksgräns på 2 MB", () => {
+    expect(lagringsregelfragment()).toContain("request.resource.size < 2 * 1024 * 1024");
+  });
 });
 
 describe("generateRules: hela filen ur manifesten (#130)", () => {
@@ -347,7 +465,17 @@ describe("generateRules: hela filen ur manifesten (#130)", () => {
   it("genererar formvalidering ur fältlistan, och utelämnar raden utan den", () => {
     const med = generateRules([modul("liv", [{ namn: "matningar", falt: ["id", "groupId"] }])]);
     expect(med).toContain('keys().hasOnly(["id", "groupId"])');
-    expect(generateRules([modul("liv", ["matningar"])])).not.toContain("hasOnly");
+
+    /*
+     * ⛔ #156: "INGENSTANS I HELA FILEN" HÖLL INTE LÄNGRE. Ramverkets EGET
+     * users-block bär numera alltid en hasOnly (regler.js, #156), så en
+     * kontroll mot HELA texten hade blivit falskt röd för varje generering,
+     * oavsett vad modulens egen samling gör. Det som provas är att just
+     * matningar-blocket, utan egen fältlista, inte fått en hasOnly på köpet.
+     */
+    const utanFalt = generateRules([modul("liv", ["matningar"])]);
+    const matningarBlock = utanFalt.split(/match \/matningar\/\{id\} \{/)[1]?.split(/\n {4}match \//)[0] ?? "";
+    expect(matningarBlock).not.toContain("hasOnly");
   });
 
   it("kräver ägare för skrivning när samlingen säger det", () => {

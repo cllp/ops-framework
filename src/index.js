@@ -86,10 +86,12 @@ export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
 export { createDataSource, applyQuery, OPERATIONS } from "./data/contract.js";
-export { createMemorySource, createJsonSource } from "./data/adapters.js";
+export { createMemorySource, createJsonSource, createMemoryStorage } from "./data/adapters.js";
+export { createStorageSource, STORAGE_OPERATIONS } from "./data/storage.js";
 export { createRoutingSource } from "./data/routing.js";
 export { OpsDataProvider, useDataSource, useCollection, useLiveCollection, useDocument } from "./data/useData.jsx";
 export { createFirestoreSource } from "./data/firestore.js";
+export { createFirebaseStorageSource } from "./data/firebaseStorage.js";
 export { createPostgresSource } from "./data/postgres.js";
 export { createHttpSource } from "./data/http.js";
 
@@ -170,8 +172,8 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som
  * körs utan skärm, och reglerna genereras av ett skript.
  */
-export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
-export { regelfragment, gruppadSamling, generateRules } from "./lib/regler.js";
+export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment } from "./lib/regler.js";
 
 /*
  * ⛔ GRUPPLÄGET OCH SAMMANSLAGNINGEN (#139). Besluten är rena funktioner och

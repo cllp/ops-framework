@@ -118,6 +118,41 @@ if (!regelfragment().includes("opsArMedlem") || !regelfragment().includes("exist
   brott.push("regelfragmentet saknar opsArMedlem eller exists(). Då mäter resten av vakten ingenting.");
 }
 
+// ── 3. users-regelns hasOnly täcker varje fält i ANVANDARFALT (#156) ───────
+//
+// ⛔ VARFÖR DEN HÄR VAKTEN FINNS. ANVANDARFALT (src/lib/grupp.js) och
+// hasOnly-listan i `regelfragment()`s users-block är två handskrivna
+// listor som RÅKAR säga samma sak i dag. Två handskrivna sanningar glider
+// isär förr eller senare (arbetsreglernas punkt 2), och den dagen ett fält
+// läggs till i modellen men glöms i regeln sparas det inte: skrivningen
+// avvisas av `keys().hasOnly`, och det syns bara som "Missing or
+// insufficient permissions" hos personen som försökte spara sin profil.
+//
+// ⛔ BÅDA RIKTNINGARNA MÄTS. Provet i `scripts/test-guards.mjs` lägger till
+// ett fält i en kopias ANVANDARFALT utan att röra regler.js, och kräver att
+// DET HÄR blocket fäller det.
+{
+  const anvandarfaltLista = listor.find((l) => l.lista === "ANVANDARFALT");
+  if (!anvandarfaltLista) {
+    brott.push("ANVANDARFALT hittades inte bland fältlistorna. Utan den går det inte att kontrollera att users-regeln täcker alla fält.");
+  } else {
+    const [, usersBlock] = regelfragment().split(/match \/users\/\{uid\} \{/);
+    if (!usersBlock) {
+      brott.push("regelfragmentet saknar ett block för users. Formvalideringen går då inte att kontrollera.");
+    } else {
+      // ⛔ Klipp vid nästa match-block, inte hela resten av filen: annars
+      // matchar ett fältnamn som råkar förekomma i EN ANNAN samlings hasOnly
+      // och vakten mäter fel block.
+      const block = usersBlock.split(/\n {4}match \//)[0];
+      for (const falt of anvandarfaltLista.falt) {
+        if (!block.includes(`"${falt}"`)) {
+          brott.push(`regelfragmentets users-block saknar fältet "${falt}" i sin hasOnly. ANVANDARFALT (grupp.js) och regeln (regler.js) har glidit isär.`);
+        }
+      }
+    }
+  }
+}
+
 if (brott.length === 0) {
   const falt = listor.reduce((n, l) => n + l.falt.length, 0);
   console.log(`check-gruppnyckel: ${listor.length} fältlistor och ${falt} fält, plus ${regeltexter.length} regeltexter. Exakt en gruppnyckel, och den heter ${ENDA}.`);

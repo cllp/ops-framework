@@ -1312,6 +1312,16 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     "mäter resten av vakten ingenting",
   );
 
+  // ⛔ #156: ANVANDARFALT OCH REGELNS hasOnly ÄR TVÅ HANDSKRIVNA LISTOR.
+  // Lägger man till ett fält i den ena utan att röra den andra ska det synas,
+  // annars sparas fältet aldrig, och felet syns bara som "Missing or
+  // insufficient permissions" hos den som försökte spara sin profil.
+  kravRott(
+    "gruppnyckel: ett fält i ANVANDARFALT saknas i users-regelns hasOnly",
+    [nyckelvakt, libkopia("gn4", (k) => k.replace('"presentation", "lankar", "bildSokvag"]', '"presentation", "lankar", "bildSokvag", "webbplats"]'))],
+    'saknar fältet "webbplats"',
+  );
+
   kravRott("gruppnyckel golv: fel sökväg", [nyckelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");
 }
 
