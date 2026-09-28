@@ -1147,6 +1147,8 @@ const register = skapaKallregister([liv]);
 | `widgets` | `{ id, titel: { sv, en }, vy }` | Översikt, [#142](https://github.com/cllp/ops-framework/issues/142) |
 | `kataloger` | `{ id, namn: { sv, en }, kategorier }` | `OpsModulKataloger` |
 
+⛔ **`OpsModulKataloger` skriver en "Används i"-rad ovanför varje katalogsektion (#164), härledd ur registret och aldrig handskriven.** Modulens visningsnamn kommer ur den nya `register.modulNamn(modulId)`, och listan över vilka moduler som delar en katalog byggs av vilka rader ur `kataloger` som bär samma `id`, oavsett vilken modul som lämnade dem. Registrerar två moduler samma katalog-id visas båda namnen på raden, hos båda. Tomhet är ett svar (arbetsreglernas punkt 5): hittar registret ingen modul skrivs raden ut ändå, som "Används inte av någon modul just nu."
+
 ⛔ **`KALLTYPER` bär alla sex även innan ytorna finns.** En modul ska kunna
 deklarera en sökkälla i dag och få den ritad den dag Sök byggs, utan att skriva
 om sitt manifest.
