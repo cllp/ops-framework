@@ -39,6 +39,7 @@ import { ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
  * @property {string} [grupper] Förval `groups`.
  * @property {string} [medlemskap] Förval `memberships`.
  * @property {string} [inbjudningar] Förval `invitations`.
+ * @property {string} [vitlista] Förval `vitlista`. #161.
  */
 
 /** Ett samlingsnamn får inte bära snedstreck: det är ett namn, inte en sökväg. */
@@ -74,6 +75,7 @@ export function regelfragment(namn = {}) {
   const grupper = kontrolleraNamn(namn.grupper ?? "groups", "grupper");
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const inbjudningar = kontrolleraNamn(namn.inbjudningar ?? "invitations", "inbjudningar");
+  const vitlista = kontrolleraNamn(namn.vitlista ?? "vitlista", "vitlista");
 
   return `    // ══ Ramverkets grupper och medlemskap. GENERERAD, ändra inte för hand ══
     //
@@ -163,6 +165,16 @@ export function regelfragment(namn = {}) {
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.roll == resource.data.roll;
       allow delete: if false;
+    }
+
+    // ⛔ VITLISTAN, ALDRIG EN KLIENT (#160, #161). Dokumentets id är
+    // e-postadressen, gemener. \`skapaGrupp\` (node-sidan) kontrollerar den
+    // med Admin SDK, som går förbi den här regeln, precis som memberships.
+    // Läser en klient samlingen ser den varje adress som är värd att gissa
+    // lösenord för, och det är hela skälet att den inte ens går att LÄSA
+    // härifrån, till skillnad från gruppen och inbjudan.
+    match /${vitlista}/{epost} {
+      allow read, write: if false;
     }
 `;
 }

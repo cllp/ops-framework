@@ -686,11 +686,77 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 | | |
 |---|---|
 | `OpsMedlemmar` | listan per grupp: bjud in, ändra roll, ta bort. ⛔ **Aldrig sig själv**: den som tar bort sitt eget ägarskap låser ut sig ur sin egen grupp, och `migUid` är obligatorisk just därför. Utan den vet vyn inte vilken rad som är ens egen, och skyddet blir en gissning |
-| `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto |
+| `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto. Sedan #161: med `props.onSkapaGrupp` ritas i stället en "Skapa din första grupp"-form (ett namnfält, `skapaEtikett`), för den som ÄR vitlistad men bara saknar en grupp än. Utan `onSkapaGrupp` är sidan oförändrad: kontakt plus utloggning |
 
 ⛔ **`kanAndra` i `OpsMedlemmar` är en artighet, inte ett skydd.** Samma not som i `OpsKatalogInstallning`: den som vill skriva ändå öppnar konsolen. Det riktiga låset är att `memberships` inte går att skriva från en klient alls, och att callablen kontrollerar ägarskapet själv.
 
 ⛔ **INGEN MEJLUTSKICK HÄR.** Mailmodulen ([#101](https://github.com/cllp/ops-framework/issues/101)) tar det när den finns. Tills dess säger inställningsvyn "be personen logga in".
+
+#### Vitlistan och den första gruppen
+
+[#161](https://github.com/cllp/ops-framework/issues/161), CP-beslut 2026-09-28
+i [#160](https://github.com/cllp/ops-framework/issues/160): en vitlista av
+e-postadresser styr vem som får logga in, och den som är vitlistad får skapa
+sin FÖRSTA grupp från ett namn.
+
+| Samling | Innehåll | Skrivs av |
+|---|---|---|
+| `vitlista/{epost}` | `byggVitlisterad`: `epost` (samma som dokumentets id, gemener), `tillagdAv`, `tid` | ⛔ **bara serversidan**, och ALDRIG ens LÄST av en klient |
+
+⛔ **VARFÖR EN VITLISTA OCH INTE EN REGELGREN PÅ `groups`.** Ett `allow create`
+för en grupp kollar normalt ägarskap, men den FÖRSTA gruppen har per
+definition ingen ägare än: `opsArAgare(gid)` slår upp ett medlemskap som inte
+finns förrän gruppen gör det. Frågan "får den här personen skapa NÅGOT alls"
+måste alltså besvaras innan frågan om en gruppspecifik roll ens går att
+ställa, och det är precis vad vitlistan svarar på.
+
+⛔ **DOKUMENTETS ID ÄR E-POSTEN, GEMENER.** Samma skäl som överallt annars i
+den här modellen: `CP@Staiger.se` och `cp@staiger.se` är samma brevlåda och
+två strängar, och ett härlett id gör unikheten till en egenskap hos nyckeln.
+
+⛔ **`vitlista` GÅR INTE ENS ATT LÄSA FRÅN EN KLIENT** (`regelfragment()`:
+`allow read, write: if false`), till skillnad från `groups` och `invitations`
+som en medlem respektive en ägare FÅR läsa. Läste en klient listan såg den
+varje adress som någonsin bjudits in att skapa en grupp, alltså en lista över
+precis vilka adresser det är värt att gissa lösenord för.
+
+```js
+import { createGroupService } from "@staiger/ops-framework/node";
+
+const tjanst = createGroupService({ kalla });
+const grupp = await tjanst.skapaGrupp({ uid, epost, namn: "Mitt bolag" });
+```
+
+`skapaGrupp({ uid, epost, namn, skapadAv? })`:
+
+1. Läser `vitlista/{epost}` (gemener). Finns raden inte kastas det, med skälet.
+2. Listar den inloggades AKTIVA medlemskap. Finns redan ett kastas det:
+   ⛔ **EN GRUPP PER PERSON, TILLS [#162](https://github.com/cllp/ops-framework/issues/162) ÄR KLAR.** Delning mellan
+   grupper finns inte än, och att låta någon skapa en andra grupp i dag hade
+   skrivit in ett tillstånd appen ännu inte har någon yta för.
+3. Härleder ett grupp-id ur namnet (en slug plus en kort svans, så "Bolaget"
+   och "Bolaget" inte krockar och den ena tyst ersätter den andra, se
+   `DataSource.create`), bygger gruppen med `byggGrupp` och skriver den.
+4. Skriver ägarens medlemskap med `byggMedlemskap`, roll `agare`.
+
+⛔ **"SAMMA BATCH" ÄR SEKVENSIELLA ANROP, INTE EN TRANSAKTION.** Datalagrets
+kontrakt har ingen batch- eller transaktionsoperation. `skapaGrupp` skriver
+gruppen och sedan medlemskapet, i den ordningen, precis som
+`uppdateraProfil` skriver `users` och sedan `memberships` "i samma steg". Ett
+riktigt skydd mot en krasch mitt emellan de två skrivningarna finns inte i den
+här versionen.
+
+⛔ **BARA NODSIDAN, SAMMA SKÄL SOM `createInvitationService`.** En callable
+kör med Admin SDK, förbi reglerna, och kontrollen ligger i FUNKTIONEN och inte
+bara i regeln: `vitlista` har ingen regelgren att kontrollera mot över huvud
+taget.
+
+`OpsUtanMedlemskap props.onSkapaGrupp` (namnet, se ovan) kopplas till den här
+funktionen via appens egen callable, precis som `OpsMedlemmar props.onBjudIn`
+kopplas till `bjudIn`. `byggVitlisterad` och `medlemskapsId` är återexporterade
+ur `@staiger/ops-framework/node` för den som skriver appens EGEN vitlista-yta
+(en administratörssida läggs till i #162): att skriva raden är fortfarande
+appens Admin SDK, inte ramverkets, precis som inbjudan.
 
 #### ⛔ E-posten lämnar aldrig `users`, och medlemslistan visar namn och bild
 
