@@ -54,12 +54,16 @@ import { ChevronNedIkon } from "./icons.jsx";
 
 /**
  * ⛔ Klassnamnen står som hela strängar i en tabell och byggs ALDRIG ihop av
- * `fill-series-${n}`. Tailwind läser källkod som text: en klass som bara finns
+ * `fill-chart-${n}`. Tailwind läser källkod som text: en klass som bara finns
  * som en sammansatt sträng genereras inte, och resultatet är ett diagram som
  * ritas helt utan färg i bygget medan det ser rätt ut i utvecklingsläge.
+ *
+ * ⛔ #167: HETTE `stroke-series-*`/`bg-series-*`. `--color-series-*` döptes om
+ * till `--color-chart-*` i `tokens/tokens.css` (se den filens "Diagram"-not),
+ * samma sex redan validerade hexvärden.
  */
-const STRECK = ["stroke-series-1", "stroke-series-2", "stroke-series-3", "stroke-series-4", "stroke-series-5", "stroke-series-6"];
-const PRICK = ["bg-series-1", "bg-series-2", "bg-series-3", "bg-series-4", "bg-series-5", "bg-series-6"];
+const STRECK = ["stroke-chart-1", "stroke-chart-2", "stroke-chart-3", "stroke-chart-4", "stroke-chart-5", "stroke-chart-6"];
+const PRICK = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5", "bg-chart-6"];
 
 const MAX_BITAR = STRECK.length;
 
