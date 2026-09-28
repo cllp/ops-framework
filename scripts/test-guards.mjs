@@ -1503,6 +1503,25 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     path.join(varumarkemapp, "ut-helt.js"),
   ]);
 
+  // Rött: en av filerna har tappat sin alfakanal (bit 28 i VP8L-huvudet
+  // nollad, samma fil i övrigt). Det är det fel som gav en svart rektangel
+  // bakom loggan 2026-09-28: en opak bild som ser rätt ut i ett verktyg med
+  // vit bakgrund.
+  {
+    const opakFil = path.join(varumarkemapp, "ops-hub-ikon-mork.webp");
+    const original = fs.readFileSync(opakFil);
+    const opak = Buffer.from(original);
+    if (opak.toString("latin1", 12, 16) !== "VP8L") throw new Error("test-guards: varumarke-fallet förutsätter VP8L-kodning, kontrollera filen");
+    opak[24] &= ~0x10;
+    fs.writeFileSync(opakFil, opak);
+    kravRott(
+      "varumarke: en bild utan alfakanal är röd",
+      [varumarkevakt, varumarkemapp, path.join(varumarkemapp, "ut-opak.js")],
+      "saknar alfakanal",
+    );
+    fs.writeFileSync(opakFil, original);
+  }
+
   // Rött: exakt EN av de fyra filerna saknas.
   fs.rmSync(path.join(varumarkemapp, "ops-hub-ikon-ljus.webp"));
   kravRott(

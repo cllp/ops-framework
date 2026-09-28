@@ -81,12 +81,18 @@ const MARKEN = {
  *   BRED vy (och alltid när `ikon` saknas).
  * @param {{ ljus: string, mork: string }} [props.ikon] Ikonen som bild, ÖVERRIDER OPS Hub-förvalet. Ritas i SMAL vy
  *   när `ordmarke` också finns.
- * @param {string} [props.ordmarkeMaxWidth] Tailwind-bredd på ordmärkets bild, t.ex. `"max-w-[330px]"` (OpsInloggning).
- *   Förval `"max-w-40"`, rätt mått för en topprad.
+ * @param {string} [props.ordmarkeHojd] Tailwind-HÖJD på ordmärkets bild. Förval `"h-10"` (40 px), SessionStudios
+ *   topprad (`AppHeader.jsx:191`, `sm:h-10`). `OpsInloggning` skickar `"h-20"` (80 px): SessionStudios
+ *   inloggningslogga är 4:1 och `max-w-[330px]` (`LoginScreen.jsx:224`), alltså 82 px hög.
+ *
+ *   ⛔ HÖJD, ALDRIG BREDD (CP 2026-09-28 23:50: "Login alldeles för stor"). Propen hette `ordmarkeMaxWidth`
+ *   och bar SessionStudios 330 px rakt av. Men OPS Hub-ordmärket är 2,6:1 där SessionStudios är 4:1, så
+ *   samma bredd gav 128 px höjd i stället för 82. Det ögat läser som "storlek" på en logga är höjden;
+ *   bredden följer av bildens proportion. Därför är måttet en höjd, och bredden `w-auto`.
  * @param {boolean} [props.endastOrdmarke] Ritar BARA ordmärket, aldrig ikonen, oavsett skärmbredd (`OpsInloggning`,
  *   #164). En helskärmsvy är inte `OpsAppShell`s responsiva topprad: smal/bred-växlingen (punkt 9) hör dit, inte hit.
  */
-export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40", endastOrdmarke = false }) {
+export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeHojd = "h-10", endastOrdmarke = false }) {
   if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i, och är undertexten under bilden.");
 
   if (!(mark in MARKEN)) {
@@ -111,7 +117,7 @@ export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordma
   const visadIkon = endastOrdmarke ? undefined : appenOverridar ? ikon : (mark === "none" ? undefined : OPS_HUB_VARUMARKE.ikon);
 
   return visadOrdmarke || visadIkon ? (
-    <OpsBrandBild title={title} ordmarke={visadOrdmarke} ikon={visadIkon} ordmarkeMaxWidth={ordmarkeMaxWidth} />
+    <OpsBrandBild title={title} ordmarke={visadOrdmarke} ikon={visadIkon} ordmarkeHojd={ordmarkeHojd} />
   ) : (
     <OpsBrandText title={title} subtitle={subtitle} mark={mark} />
   );
@@ -141,9 +147,9 @@ function OpsBrandText({ title, subtitle, mark }) {
 }
 
 /**
- * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeMaxWidth: string }} props
+ * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeHojd: string }} props
  */
-function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
+function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd }) {
   // ⛔ `useResolvedTheme()` SVARAR "light"/"dark" (samma `Temalage`-typ som
   // resten av `theme.js`). Bildernas nycklar är "ljus"/"mork", KORTFORMEN CP
   // gav i uppdraget, skild från `TEMAN` (grupp.js: "ljust"/"morkt"). Kartan
@@ -163,8 +169,8 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
     return (
       <span className="inline-flex flex-col items-center">
         <span className="inline-flex items-center">
-          <img src={ikon[tema]} alt="" className="block h-8 w-auto md:hidden" />
-          <img src={ordmarke[tema]} alt="" className={cx("hidden md:block object-contain", ordmarkeMaxWidth)} />
+          <img src={ikon[tema]} alt="" className="block h-8 w-8 object-contain md:hidden" />
+          <img src={ordmarke[tema]} alt="" className={cx("hidden md:block w-auto object-contain", ordmarkeHojd)} />
         </span>
         {undertext}
       </span>
@@ -178,7 +184,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
           synlig och uppläst textrad (`undertext`). Två uppläsningar av samma
           namn, en på bilden och en under den, hade sagt "Bolag Ops, Bolag
           Ops" för en skärmläsare. */}
-      <img src={kalla[tema]} alt="" className={cx("block object-contain", ordmarke ? ordmarkeMaxWidth : "h-8 w-auto")} />
+      <img src={kalla[tema]} alt="" className={cx("block object-contain", ordmarke ? cx("w-auto", ordmarkeHojd) : "h-8 w-8")} />
       {undertext}
     </span>
   );
