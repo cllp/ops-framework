@@ -264,3 +264,43 @@ describe("⛔ gruppens egen katalog (#162): isolering mot samma minneskälla, i 
     expect(svar.kategorier.every((k) => k.groupId === "miranda-ab")).toBe(true);
   });
 });
+
+describe("⛔ ogrupperat läge, groupId: null uttryckligen (0.29.0, övergången i cllp/bolag-ops#447)", () => {
+  it("null läser hela samlingen med id:n orörda och seedar rader utan groupId, som före #162", async () => {
+    const source = createMemorySource();
+    const kalla = createCatalogSource({ source, collection: "kataloger", groupId: null, standard: STANDARD, ikoner: IKONER });
+    const seed = await kalla.seeda();
+    expect(seed).toEqual({ seedade: true, antal: 2 });
+    const rader = await source.list("kataloger", {});
+    expect(rader.map((r) => r.id).sort()).toEqual(["paminnelse", "uppgift"]);
+    expect(rader.every((r) => r.groupId == null)).toBe(true);
+    const svar = await kalla.las();
+    expect(svar.kalla).toBe("databas");
+    expect(svar.kategorier.map((k) => k.id).sort()).toEqual(["paminnelse", "uppgift"]);
+  });
+
+  it("null ser raderna från före #162 (rena id:n) men inte en grupps rader (nyckel groupId|id), och gruppen ser inte de ogrupperade", async () => {
+    const source = createMemorySource();
+    await source.create("kataloger", { ...STANDARD[0], groupId: null });
+    await createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: [STANDARD[1]], ikoner: IKONER }).seeda();
+    const ogrupperat = await createCatalogSource({ source, collection: "kataloger", groupId: null, standard: [], ikoner: IKONER }).las();
+    expect(ogrupperat.kalla).toBe("databas");
+    expect(ogrupperat.kategorier.map((k) => k.id)).toEqual(["uppgift"]);
+    const gruppen = await createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: [], ikoner: IKONER }).las();
+    expect(gruppen.kalla).toBe("databas");
+    expect(gruppen.kategorier.map((k) => k.id)).toEqual(["paminnelse"]);
+  });
+
+  it("reserven i ogrupperat läge bär inget groupId", async () => {
+    const kalla = createCatalogSource({ source: trasigKalla(), collection: "kataloger", groupId: null, standard: STANDARD, ikoner: IKONER });
+    const svar = await kalla.las();
+    expect(svar.kalla).toBe("reserv");
+    expect(svar.kategorier.every((k) => k.groupId == null)).toBe(true);
+  });
+
+  it("⛔ ett utelämnat groupId är fortfarande rött, och felet pekar på null", () => {
+    const source = createMemorySource();
+    expect(() => createCatalogSource({ source, collection: "kataloger", standard: STANDARD })).toThrow(/groupId: null uttryckligen/);
+    expect(() => createCatalogSource({ source, collection: "kataloger", groupId: undefined, standard: STANDARD })).toThrow(/groupId krävs/);
+  });
+});

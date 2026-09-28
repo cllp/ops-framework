@@ -75,6 +75,16 @@ heter nu `ordmarkeHojd`: `h-10` i toppraden (`AppHeader.jsx:191`), `h-20` i
 inloggningen (SessionStudios 4:1-logga vid 330 px är 82 px hög,
 `LoginScreen.jsx:224`). OPS Hub-ordmärket är 2,6:1, så samma bredd gav 128 px.
 
+### `createCatalogSource({ groupId: null })`, det ogrupperade övergångsläget
+
+Mätt i appens ompinning: functions i bolag-ops läser hela katalogsamlingen
+tills serversidan har gruppmodellen (cllp/bolag-ops#447), och #162 gjorde
+`groupId` obligatoriskt, så 11 av 101 functions-prov föll och appen kunde
+varken pinna om functions eller köra bakfyllnadens första steg. Bokstavligt
+`null` betyder nu "ogrupperad, hela samlingen, som före #162": läser utan
+`where`, hoppar över rader med en grupps nyckel, lämnar id:n orörda, seedar
+utan groupId. Ett utelämnat groupId är fortfarande rött.
+
 ### Menyns undervy är levande (mätt i appens ompinning till 0.28.0)
 
 `OpsAppShell` sparade hela menyraden i state när en undervy öppnades, alltså

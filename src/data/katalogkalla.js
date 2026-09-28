@@ -121,7 +121,7 @@ function egetId(groupId, lagrad) {
  */
 
 /**
- * @param {{ source: any, collection: string, groupId: string, standard?: readonly unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} config
+ * @param {{ source: any, collection: string, groupId: string | null, standard?: readonly unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} config
  */
 export function createCatalogSource(config) {
   /*
@@ -145,10 +145,25 @@ export function createCatalogSource(config) {
    * samlingen", alltså exakt den läckan som gör att miranda ab ser cps-ab:s
    * kategorier i sin rullgardin.
    */
+  /*
+   * ⛔ `groupId: null` ÄR ETT UTTRYCKLIGT VAL, `undefined` ÄR ETT FEL (0.29.0,
+   * mätt i bolag-ops ompinning). #162 gjorde groupId obligatoriskt, och
+   * functions i bolag-ops (`lasKatalogen`, som läser hela samlingen eftersom
+   * appen ännu inte har gruppmodellen på serversidan, cllp/bolag-ops#447)
+   * föll med 11 av 101 prov. Appen kunde då varken pinna om functions eller
+   * göra det bakfyllnadssteg #447 börjar med, "bakfyll groupId med reglerna
+   * oförändrade", eftersom det steget kräver en källa som läser raderna utan
+   * grupp. Ett bortglömt groupId ska fortfarande vara rött: därför är det bara
+   * det bokstavliga `null` som betyder "ogrupperad, hela samlingen, som före
+   * #162", inte ett utelämnat fält. Ogrupperat läge läser utan `where`, lämnar
+   * id:n orörda och skriver rader utan groupId. Det är övergångsläget, inte
+   * målet: en grupp per rad är fortfarande det ramverket bygger för.
+   */
+  const ogrupperad = groupIdIn === null;
   const groupId = typeof groupIdIn === "string" ? groupIdIn.trim() : "";
-  if (!groupId) {
+  if (!ogrupperad && !groupId) {
     throw new Error(
-      "createCatalogSource: groupId krävs. Katalogen är en grupps egen (#162): en källa utan grupp hade läst och skrivit mot HELA samlingen, alltså mot varje grupps kategorier på en gång.",
+      "createCatalogSource: groupId krävs. Katalogen är en grupps egen (#162): en källa utan grupp hade läst och skrivit mot HELA samlingen, alltså mot varje grupps kategorier på en gång. Är samlingen ännu inte grupperad (bakfyllnad pågår, cllp/bolag-ops#447): skicka groupId: null uttryckligen.",
     );
   }
 
@@ -170,7 +185,11 @@ export function createCatalogSource(config) {
    * anropet: `las()` och `seeda()` skriver eller läser mot DEN HÄR källans
    * `groupId`, aldrig ett annat.
    */
-  const gruppadKonfig = { ikoner, textnycklar, faser, farger, katalog: namn, grupp: /** @type {const} */ (true) };
+  const gruppadKonfig = ogrupperad
+    ? { ikoner, textnycklar, faser, farger, katalog: namn }
+    : { ikoner, textnycklar, faser, farger, katalog: namn, grupp: /** @type {const} */ (true) };
+  /** Frågan mot samlingen: gruppens rader, eller (ogrupperat) alla. */
+  const fraga = ogrupperad ? {} : { where: { groupId } };
 
   return {
     /** Vad samlingen heter hos den här appen. För vyer som visar sin källa. */
@@ -193,16 +212,23 @@ export function createCatalogSource(config) {
      */
     async las() {
       try {
-        const rader = await source.list(collection, { where: { groupId } });
+        const rader = await source.list(collection, fraga);
         /*
          * ⛔ PACKAS UPP HÄR, INNAN VALIDERINGEN. Den lagrade nyckeln
          * (`lagradId`) är `groupId|id`, och `ID_FORM` (alltså `byggKategori`)
          * skulle kasta på pipe-tecknet. Se filhuvudets not om varför nyckeln
          * ens finns.
          */
-        const uppackade = (Array.isArray(rader) ? rader : []).map((rad) =>
-          rad && typeof rad === "object" ? { ...rad, id: egetId(groupId, /** @type {any} */ (rad).id) } : rad,
-        );
+        const uppackade = (Array.isArray(rader) ? rader : [])
+          /*
+           * ⛔ OGRUPPERAT: RADER MED EN GRUPPS NYCKEL (`groupId|id`) HOPPAS
+           * ÖVER. De är en grupps egna (skrivna av en gruppad källa) och hör
+           * inte till den ogrupperade läsningen; att ta med dem hade fällt
+           * hela läsningen till reserven på pipe-tecknet i id:t. Kvar är
+           * raderna från före #162, alltså precis de bakfyllnaden ska nå.
+           */
+          .filter((rad) => !ogrupperad || !(rad && typeof rad === "object" && String(/** @type {any} */ (rad).id ?? "").includes(RADAVGRANSARE)))
+          .map((rad) => (rad && typeof rad === "object" && !ogrupperad ? { ...rad, id: egetId(groupId, /** @type {any} */ (rad).id) } : rad));
         const kategorier = validateKatalog(uppackade, gruppadKonfig);
         // ⛔ En TOM samling är inte ett fel och inte heller reserven: det är
         // läget före seedningen, och `saknas` nedan är frågan man ställer då.
@@ -214,7 +240,7 @@ export function createCatalogSource(config) {
          * datan för den som just läser den, i stället för det den är: samma
          * mall som skulle seedats, ritad medan databasen inte svarar.
          */
-        return { kategorier: reserv.map((k) => ({ ...k, groupId })), kalla: "reserv", fel: fel instanceof Error ? fel : new Error(String(fel)) };
+        return { kategorier: ogrupperad ? reserv : reserv.map((k) => ({ ...k, groupId })), kalla: "reserv", fel: fel instanceof Error ? fel : new Error(String(fel)) };
       }
     },
 
@@ -241,7 +267,7 @@ export function createCatalogSource(config) {
      * @returns {Promise<{ seedade: boolean, antal: number, orsak?: string }>}
      */
     async seeda() {
-      const rader = await source.list(collection, { where: { groupId } });
+      const rader = await source.list(collection, fraga);
       if (Array.isArray(rader) && rader.length > 0) {
         return { seedade: false, antal: rader.length, orsak: "samlingen har redan värden för den här gruppen" };
       }
@@ -257,7 +283,7 @@ export function createCatalogSource(config) {
          * `uppdateraProfil` bygger via `byggAnvandare` i stället för att peta
          * fält direkt i ett patch-objekt.
          */
-        const kategori = byggKategori({ ...mall, groupId }, gruppadKonfig);
+        const kategori = ogrupperad ? byggKategori(mall, gruppadKonfig) : byggKategori({ ...mall, groupId }, gruppadKonfig);
         /*
          * ⛔ SKRIVEN MED `lagradId`, INTE MED `kategori.id`. Samlingen är delad
          * (#162): utan den sammansatta nyckeln skriver en andra grupps
@@ -265,7 +291,7 @@ export function createCatalogSource(config) {
          * med id väljer set i stället för add, så en omkörning FÖR SAMMA GRUPP
          * skriver samma dokument i stället för ett till, precis som innan.
          */
-        await source.create(collection, { ...kategori, id: lagradId(groupId, kategori.id) });
+        await source.create(collection, ogrupperad ? kategori : { ...kategori, id: lagradId(groupId, kategori.id) });
       }
       return { seedade: true, antal: reserv.length };
     },
