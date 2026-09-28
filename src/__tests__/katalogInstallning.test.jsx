@@ -332,8 +332,15 @@ describe("en katalog utan färger i inställningsvyn", () => {
   it("⛔ ritar ingen prick, i stället för en grå", () => {
     // `slagPrick` kastar på en plats som inte finns, och en grå prick hade sagt
     // att kategorin har en färg som inte laddat klart.
+    //
+    // ⛔ `.size-2.rounded-full`, INTE BARA `.rounded-full` (#164, CP-beslut
+    // 2026-09-28 18:20): sedan OpsButton fick piller som förval för
+    // textknappar bär VARJE knapp i vyn också `.rounded-full`, och den bredare
+    // frågan träffade dem i stället för att mäta pricken. `size-2` är
+    // prickens EGNA, unika mått (`OpsKatalogInstallning.jsx`), ingen knapp
+    // delar det.
     const { container } = vy();
-    expect(container.querySelectorAll(".rounded-full")).toHaveLength(0);
+    expect(container.querySelectorAll(".size-2.rounded-full")).toHaveLength(0);
     expect(screen.getByText("Kvitto")).toBeInTheDocument();
   });
 

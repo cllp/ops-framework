@@ -8,6 +8,22 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * Saknas något: lägg till en variant här, lappa inte på anropsstället. Det är
  * den enda regeln som håller ihop resten, och den är vaktad av
  * `scripts/check-closed-api.mjs`.
+ *
+ * ══ ⛔ #164, CP-BESLUT 2026-09-28 18:20: "KNAPPARNA BLIR PILLER SOM
+ * SESSIONSTUDIO." ═══════════════════════════════════════════════════════
+ *
+ * Textknappar (allt utom `iconOnly`) fick tidigare `rounded-md`, samma
+ * skala som kort och paneler. Mätt mot SessionStudios EGEN knappklass,
+ * `v7PrimaryButtonClass` i `apps/web/src/components/LoginScreen.jsx`:
+ * `rounded-full`, en piller, inte ett kort med rundade hörn. CP:s ord är
+ * beslutet, inte en tolkning av en skärmbild: knappen ÄR nu en piller.
+ *
+ * Ikonknappar (`iconOnly`) ändras INTE. De var redan `rounded-md` (en
+ * kvadratisk träffyta med skarpare hörn, t.ex. "Ta bort länken"-krysset i
+ * `OpsProfil`), och en ikonknapp som plötsligt blir en cirkel utan att någon
+ * bad om det hade sett ut som en ny sorts kontroll mitt i en rad knappar som
+ * inte ändrats. `round` (kräver `iconOnly`) gav redan cirkeln, för
+ * Huvudatgard-knappen i bottenraden, och gör det fortfarande.
  */
 
 const VARIANTER = {
@@ -118,7 +134,16 @@ export function OpsButton({
 
   const klass = cx(
     BAS,
-    round ? "rounded-full" : "rounded-md",
+    // ⛔ #164, CP-BESLUT 2026-09-28 18:20: "KNAPPARNA BLIR PILLER SOM
+    // SESSIONSTUDIO." Mätt mot `v7PrimaryButtonClass` i SessionStudios
+    // `apps/web/src/components/LoginScreen.jsx`: `rounded-full`, inte
+    // `rounded-md`. En TEXTKNAPP (`!iconOnly`) är sedan detta beslut ALLTID
+    // en piller, oavsett variant, förvalet är inte längre valfritt. En
+    // IKONKNAPP ändras INTE: den var redan `rounded-md` (kvadratisk träffyta,
+    // t.ex. Ta bort-krysset i `OpsProfil`), och `round` ger fortfarande
+    // cirkeln (Huvudatgard-knappen). Provet i `piller.test.jsx` är rött om
+    // `rounded-md` kommer tillbaka på en textknapp.
+    round || !iconOnly ? "rounded-full" : "rounded-md",
     variantKlass,
     storlekKlass,
     fullWidth && "w-full",
