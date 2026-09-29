@@ -87,6 +87,7 @@ before(async () => {
     await setDoc(doc(db, "invitations/inb-1"), { epost: "ny@example.com", groupId: VAR, roll: "medlem", status: "vantar" });
     await setDoc(doc(db, `users/${MEDLEM}`), { namn: "Medlem", epost: "medlem@example.com" });
     await setDoc(doc(db, "hemligt/rad"), { x: 1 });
+    await setDoc(doc(db, "vitlista/vitlistad@example.com"), { epost: "vitlistad@example.com", tillagdAv: {}, tid: "2026-09-28T00:00:00.000Z" });
   });
 });
 
@@ -240,6 +241,20 @@ describe("⛔ inbjudan: bara gruppens ägare, den bär en adress", () => {
 
   it("ägaren får ändra statusen, alltså återkalla", async () => {
     await assertSucceeds(updateDoc(doc(som(AGARE), "invitations/inb-1"), { status: "aterkallad" }));
+  });
+});
+
+describe("⛔ vitlistan: ingen klient läser eller skriver den, inte ens ägaren (#161)", () => {
+  it("en inloggad ägare läser inte vitlistan", async () => {
+    await assertFails(getDoc(doc(som(AGARE), "vitlista/vitlistad@example.com")));
+  });
+
+  it("en person kan inte skriva in sin egen adress", async () => {
+    await assertFails(setDoc(doc(som(UTANFOR), "vitlista/utanfor@example.com"), { epost: "utanfor@example.com", tillagdAv: {}, tid: "x" }));
+  });
+
+  it("utan inloggning läser ingen vitlistan", async () => {
+    await assertFails(getDoc(doc(utanInloggning(), "vitlista/vitlistad@example.com")));
   });
 });
 

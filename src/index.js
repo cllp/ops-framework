@@ -179,7 +179,7 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * körs utan skärm, och reglerna genereras av ett skript.
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment } from "./lib/regler.js";
 
 /*
  * ⛔ GRUPPLÄGET OCH SAMMANSLAGNINGEN (#139). Besluten är rena funktioner och
@@ -195,6 +195,7 @@ export { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "./data/gru
 export { OpsGruppvaljare } from "./components/OpsGruppvaljare.jsx";
 export { OpsGruppfilter } from "./components/OpsGruppfilter.jsx";
 export { OpsGruppmarke } from "./components/OpsGruppmarke.jsx";
+export { OpsGruppanel, OpsGruppvaxlare } from "./components/OpsGruppanel.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";

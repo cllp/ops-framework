@@ -22,7 +22,8 @@
  *
  * ══ EN SANNING PER FAKTUM ═══════════════════════════════════════════════
  *
- * Källan är `varumarke/*.webp` (fyra filer, 44 KB totalt, mätt). Den här
+ * Källan är `varumarke/*.webp` (fyra filer, 74 KB totalt, mätt 2026-09-28
+ * efter att de gjordes genomskinliga, se nedan). Den här
  * filen läser dem och skriver EN genererad modul med bilderna inbäddade som
  * `data:image/webp;base64,...`. Ingen handskriven kopia av bilddatan finns i
  * repot: den genererade filen är git-ignorerad (som
@@ -30,9 +31,22 @@
  * pre-steg (`prebuild`, `pretest`, `precheck:types`) så en färsk checkout
  * aldrig råkar bygga eller testa mot en utebliven eller gammal modul.
  *
- * ⛔ DATA-URL:ER VÄXER BUNDELN, MEN 44 KB ÄR INTE DET PROBLEMET DEN FILEN
- * SKULLE VARA VID FLERA MEGABYTE. Bilderna är redan beskurna webp på under
- * 14 KB styck (mätt: ikon ~2,4 KB, ordmärke ~14 KB). En data-URL i JS-bundeln
+ * ⛔ DATA-URL:ER VÄXER BUNDELN, MEN 74 KB ÄR INTE DET PROBLEMET DEN FILEN
+ * SKULLE VARA VID FLERA MEGABYTE. Bilderna är beskurna, förlustfria webp på
+ * under 33 KB styck (mätt: ikon ~6 KB, ordmärke ~30 KB).
+ *
+ * ⛔ BAKGRUNDEN UTANFÖR HÅRLINJERAMEN ÄR GENOMSKINLIG, OCH DET VAKTAS HÄR.
+ * CP 2026-09-28 23:50: "bilden ser inte rätt ut i det infällda läget". Mätt:
+ * originalfilerna hade OPAK bakgrund (vit i ljus, #020202 i mörk) ända ut
+ * till kanten, 3 px utanför märkets rundade hårlinjeram. På canvasfärgerna
+ * (#fdf8ef ljust, #181c18 mörkt) blev det en vit respektive svart rektangel
+ * runt märket, med fyrkantiga hörn utanför ramens rundning, och i 32 px
+ * infällt läge en suddig kant runt en mindre ruta. Området utanför ramen är
+ * nu alfa 0 i alla fyra filer. En fil utan alfakanal alls kan inte bära det,
+ * så generatorn läser webp-huvudet och vägrar: VP8L sätter alpha_is_used i
+ * bit 28 av de fyra byten efter signaturen 0x2f, VP8X sätter flaggan 0x10 i
+ * byte 20. En bild som ser rätt ut i ett verktyg som ritar vit bakgrund och
+ * fel i appen är exakt det fel en vakt ska fånga före CP. En data-URL i JS-bundeln
  * undviker dessutom en EXTRA nätverksrundtripp per bild i konsumentens app,
  * vilket en separat asset-fil hade krävt.
  *
@@ -67,6 +81,20 @@ const BILDER = {
   ikon: { ljus: "ops-hub-ikon-ljus.webp", mork: "ops-hub-ikon-mork.webp" },
 };
 
+/**
+ * Läser ur webp-huvudet om bilden bär en alfakanal. Ingen bildavkodare behövs:
+ * RIFF-behållaren säger vilken kodning som används och båda kodningarna
+ * flaggar alfa i huvudet.
+ * @param {Buffer} b
+ */
+export function harAlfakanal(b) {
+  if (b.length < 30 || b.toString("latin1", 0, 4) !== "RIFF" || b.toString("latin1", 8, 12) !== "WEBP") return false;
+  const kodning = b.toString("latin1", 12, 16);
+  if (kodning === "VP8X") return (b[20] & 0x10) !== 0;
+  if (kodning === "VP8L") return b[20] === 0x2f && (b[24] & 0x10) !== 0;
+  return false;
+}
+
 /** @param {string} fil @returns {string} */
 function dataUrl(fil) {
   const full = path.join(kalla, fil);
@@ -76,6 +104,11 @@ function dataUrl(fil) {
     );
   }
   const buffer = fs.readFileSync(full);
+  if (!harAlfakanal(buffer)) {
+    throw new Error(
+      `generate-varumarke: "${fil}" saknar alfakanal. Märkets bakgrund utanför hårlinjeramen ska vara genomskinlig (se filhuvudet); en opak fil ritar en vit eller svart rektangel runt loggan på appens canvas.`,
+    );
+  }
   return `data:image/webp;base64,${buffer.toString("base64")}`;
 }
 

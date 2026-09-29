@@ -1405,6 +1405,23 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   );
 
   kravRott("gruppnyckel golv: fel sökväg", [nyckelvakt, path.join(gruppmapp, "finns-inte")], "hittar inte");
+
+  // ⛔ #162, cllp/bolag-ops#447: KATEGORIFALT SAKNADE groupId HELT, alltså
+  // NOLL träffar för steg 1 (som bara fäller fel FORM) att fälla. Steg 4
+  // (KATEGORIFALT bär groupId) finns för att fånga just det: en lista som
+  // saknar fältet, inte en som har det i fel form.
+  kravRott(
+    "gruppnyckel: KATEGORIFALT saknar groupId helt",
+    [
+      nyckelvakt,
+      libkopia(
+        "gn5",
+        (k) => k.replace('"id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter", "groupId"', '"id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter"'),
+        "katalog.js",
+      ),
+    ],
+    "KATEGORIFALT saknar",
+  );
 }
 
 // ── Gruppfrågan: groupId är ett KRAV i typen, inte en konvention (#139) ────
@@ -1502,6 +1519,25 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     varumarkemapp,
     path.join(varumarkemapp, "ut-helt.js"),
   ]);
+
+  // Rött: en av filerna har tappat sin alfakanal (bit 28 i VP8L-huvudet
+  // nollad, samma fil i övrigt). Det är det fel som gav en svart rektangel
+  // bakom loggan 2026-09-28: en opak bild som ser rätt ut i ett verktyg med
+  // vit bakgrund.
+  {
+    const opakFil = path.join(varumarkemapp, "ops-hub-ikon-mork.webp");
+    const original = fs.readFileSync(opakFil);
+    const opak = Buffer.from(original);
+    if (opak.toString("latin1", 12, 16) !== "VP8L") throw new Error("test-guards: varumarke-fallet förutsätter VP8L-kodning, kontrollera filen");
+    opak[24] &= ~0x10;
+    fs.writeFileSync(opakFil, opak);
+    kravRott(
+      "varumarke: en bild utan alfakanal är röd",
+      [varumarkevakt, varumarkemapp, path.join(varumarkemapp, "ut-opak.js")],
+      "saknar alfakanal",
+    );
+    fs.writeFileSync(opakFil, original);
+  }
 
   // Rött: exakt EN av de fyra filerna saknas.
   fs.rmSync(path.join(varumarkemapp, "ops-hub-ikon-ljus.webp"));

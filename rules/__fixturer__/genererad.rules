@@ -91,6 +91,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ⛔ VITLISTAN, ALDRIG EN KLIENT (#160, #161). Dokumentets id är
+    // e-postadressen, gemener. `skapaGrupp` (node-sidan) kontrollerar den
+    // med Admin SDK, som går förbi den här regeln, precis som memberships.
+    // Läser en klient samlingen ser den varje adress som är värd att gissa
+    // lösenord för, och det är hela skälet att den inte ens går att LÄSA
+    // härifrån, till skillnad från gruppen och inbjudan.
+    match /vitlista/{epost} {
+      allow read, write: if false;
+    }
+
     match /fakturor/{id} {
       allow read: if opsArMedlem(resource.data.groupId);
       allow create: if opsArMedlem(request.resource.data.groupId)

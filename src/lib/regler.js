@@ -32,6 +32,7 @@
  */
 
 import { ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
+import { KATEGORIFALT } from "./katalog.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -39,6 +40,7 @@ import { ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
  * @property {string} [grupper] Förval `groups`.
  * @property {string} [medlemskap] Förval `memberships`.
  * @property {string} [inbjudningar] Förval `invitations`.
+ * @property {string} [vitlista] Förval `vitlista`. #161.
  */
 
 /** Ett samlingsnamn får inte bära snedstreck: det är ett namn, inte en sökväg. */
@@ -74,6 +76,7 @@ export function regelfragment(namn = {}) {
   const grupper = kontrolleraNamn(namn.grupper ?? "groups", "grupper");
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const inbjudningar = kontrolleraNamn(namn.inbjudningar ?? "invitations", "inbjudningar");
+  const vitlista = kontrolleraNamn(namn.vitlista ?? "vitlista", "vitlista");
 
   return `    // ══ Ramverkets grupper och medlemskap. GENERERAD, ändra inte för hand ══
     //
@@ -163,6 +166,16 @@ export function regelfragment(namn = {}) {
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.roll == resource.data.roll;
       allow delete: if false;
+    }
+
+    // ⛔ VITLISTAN, ALDRIG EN KLIENT (#160, #161). Dokumentets id är
+    // e-postadressen, gemener. \`skapaGrupp\` (node-sidan) kontrollerar den
+    // med Admin SDK, som går förbi den här regeln, precis som memberships.
+    // Läser en klient samlingen ser den varje adress som är värd att gissa
+    // lösenord för, och det är hela skälet att den inte ens går att LÄSA
+    // härifrån, till skillnad från gruppen och inbjudan.
+    match /${vitlista}/{epost} {
+      allow read, write: if false;
     }
 `;
 }
@@ -370,4 +383,64 @@ ${block.join("")}${config.extra ? `${config.extra.replace(/\n*$/, "")}\n\n` : ""
   }
 }
 `;
+}
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════
+ * ⛔ EGET, AVGRÄNSAT BLOCK: KATALOGENS REGELFRAGMENT (#162). Tillagt
+ * 2026-09-28. Rör INGET ovanför den här linjen. Ändras katalogens fält
+ * (`KATEGORIFALT`, `src/lib/katalog.js`) eller mönstret för en gruppad
+ * samling (`gruppadSamling` ovan): ändra där, den här funktionen ärver det
+ * automatiskt eftersom den bara binder ihop de två.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Regelfragmentet för katalogens delade samling(ar): medlem läser, ägare
+ * skriver, uppslag på radens `groupId`.
+ *
+ * ══ ⛔ VARFÖR EN NAMNGIVEN GENVÄG OCH INTE BARA `gruppadSamling` (#162) ═
+ *
+ * Ärendet, väg C i cllp/ops-framework#160: katalogerna blir gruppens egna.
+ * `gruppadSamling` gör redan precis det en gruppad samling behöver, så den
+ * här funktionen inför INGET nytt mönster. Den finns för att binda ihop TVÅ
+ * saker som annars är två handskrivna sanningar om samma fält (arbetsreglernas
+ * punkt 2): katalogens fältlista `KATEGORIFALT` (`katalog.js`, som
+ * `byggKategori` redan vaktar) och regelns `hasOnly`. Utan bindningen hade en
+ * app som lade till ett fält i `KATEGORIFALT` behövt komma ihåg att lägga
+ * till det HÄR också, och glömde den det syns först som "Missing or
+ * insufficient permissions" på nästa kategori som sparas med det nya fältet,
+ * exakt den bugklassen #136:s filhuvud beskriver.
+ *
+ * ⛔ ÄGARE SKRIVER, INTE MEDLEM. Katalogen ÄR gruppens konfiguration: en
+ * inställningsvy som lägger till eller arkiverar en kategori ändrar vad ALLA i
+ * gruppen ser i sina rullgardiner. Samma gräns som `groups`-samlingen redan
+ * drar i `regelfragment()` ovan.
+ *
+ * ⛔ FLERA SAMLINGSNAMN I ETT ANROP, EFTERSOM EN APP KAN HA FLER ÄN EN DELAD
+ * KATALOG (händelsetyper, statusar, sorter, ...). De delar mönster och fält,
+ * inte samlingsnamn. Samma form som `generateRules`, som tar en LISTA moduler
+ * i stället för en åt gången.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET/-NAMNEN, av samma skäl som överallt
+ * annars här: appen väljer, så en kund senare kan bli ett eget Firebase-
+ * projekt utan att den här funktionen ändras.
+ *
+ * @param {string | readonly string[]} namn Ett eller flera samlingsnamn för katalogens delade samling(ar).
+ * @returns {string}
+ */
+export function katalogregelfragment(namn) {
+  const samlingar = (Array.isArray(namn) ? namn : [namn]).map((n) => (typeof n === "string" ? n : ""));
+  if (samlingar.length === 0 || samlingar.some((s) => !s.trim())) {
+    throw new Error(
+      "katalogregelfragment: minst ett samlingsnamn krävs, och inget får vara tomt. Ramverket känner aldrig samlingsnamnet självt, det är appens val.",
+    );
+  }
+  /*
+   * ⛔ `[...KATEGORIFALT]`, EN KOPIA. `gruppadSamling` muterar inte sitt
+   * `falt`-argument, men en importerad `const`-array som råkar delas rakt av
+   * med en framtida anropare som muterar den vore en bugg som visar sig i en
+   * helt annan fil. En spridd kopia kostar ingenting och stänger den dörren.
+   */
+  return samlingar.map((s) => gruppadSamling(s, { agareKravsForSkrivning: true, falt: [...KATEGORIFALT] })).join("");
 }

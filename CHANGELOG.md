@@ -9,6 +9,99 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.29.0
+
+⛔ **Gruppanelen och gruppväxlaren som SessionStudio, katalogerna per grupp,
+vitlistan och den första gruppen, märket rättat.** CP 2026-09-28: "OCH
+GRUPPVÄLJARE? Var fins det?" och senare "Titta noga på uppdelningen av header
+logo och hur grupppanelen vecklas ut. Kolla i SessionStudio. Det är inte så du
+angett nu. Det skall vara exakt." Måtten i den här versionen är lästa ur
+SessionStudios källa med fil och rad, inte ur minnet: första utkastet hade
+288/72 px, förebilden har 184/44. Ärendena är
+[#160](https://github.com/cllp/ops-framework/issues/160),
+[#161](https://github.com/cllp/ops-framework/issues/161) och
+[#162](https://github.com/cllp/ops-framework/issues/162).
+
+### Gruppanelen och gruppväxlaren (#161)
+
+**`OpsAppShell` tar `grupper`** (`{ lista, aktiv, onValj, onSkapa, infalld,
+onInfalld, ... }`). Från `lg` ritas `OpsGruppanel` som en kolumn UNDER
+toppraden, bredvid innehållet (SessionStudio `App.jsx:1364`): utfälld 184 px
+med "Alla arbetsytor", ett kort per grupp (märke 20 px, glob/info/penna,
+namn, medlemsantal, runda bibliotek- och chattknappar med badge, avatarer
+20 px, max fyra och "+N") och "Skapa grupp" streckad; infälld 44 px med
+40 px-knappar och gruppmärke, chevronen överst i panelen. Bredden byter
+direkt, utan transition (`AppSidebar.jsx:13-16`). Under `lg` ersätts panelen
+av `OpsGruppvaxlare` i toppraden, ett ark med samma rader. Bredderna är
+tokens: `--panel-bredd` 184 px, `--panel-bredd-infalld` 44 px, `--logo-bredd`
+180 px, `--logo-bredd-infalld` 40 px (4 px skillnad som i förebilden, asidets
+`px-0.5`).
+
+**Loggan följer panelen.** `OpsBrand` tar `panelInfalld`: ordmärket (40 px
+högt) när panelen är utfälld, ikonen (32 px) när den är infälld, båda alltid
+monterade och crossfadade med opacity på 200 ms (`AppHeader.jsx:174-193`).
+
+**`--radius-base` 12 px** läggs till fixturen: SessionStudios `--radius`
+(`index.css:215`), det steg kort, knappar och gruppmärke ritas med. Det
+saknades i 0.28.0. `OpsIdentity` får `size="xs"` (20 px).
+
+### Vitlistan och den första gruppen (#160, #161)
+
+**`createGroupService({ kalla, samlingar, kataloger })` på nodsidan** ger
+`skapaGrupp({ uid, epost, namn })`: kontrollerar vitlistan först, en grupp per
+person, skriver gruppen, sedan ägarens medlemskap, sedan gruppens kataloger.
+`byggVitlisterad` och `VITLISTEFALT` med regelfragment. `OpsUtanMedlemskap`
+tar `onSkapaGrupp` och visar "Skapa din första grupp" för den vitlistade.
+
+### Katalogerna per grupp (#162)
+
+**En kategori bär `groupId`.** `createCatalogSource` kräver `groupId` och
+lagrar nyckeln `groupId|id` så två gruppers "uppgift" inte krockar i samma
+samling. `OpsKatalogInstallning` och `OpsModulKataloger` tar `groupId`.
+`katalogregelfragment(namn)` ger regelblocket. `seedaKataloger({ kalla,
+groupId, standardvarden })` seedar en ny grupps kataloger och anropas av
+`skapaGrupp` när appen anger `kataloger`. `check-gruppnyckel` blir rött om
+`KATEGORIFALT` saknar `groupId`. Befintliga kategorier utan `groupId` fylls på
+av appen (README, punkt 5), inte av ramverket.
+
+### Märket (CP 23:50: "Login alldeles för stor. Och bilden ser inte rätt ut")
+
+**Genomskinligt utanför hårlinjeramen.** Alla fyra `varumarke/*.webp` var
+opaka ända ut till kanten, 3 px utanför den rundade ramen: på canvas en vit
+eller svart rektangel med fyrkantiga hörn, i 32 px en suddig kant. Området är
+nu alfa 0, och `generate-varumarke` vägrar en fil utan alfakanal (bevisat rött
+mot originalfilen). **Storleken sätts i höjd, inte bredd.** `ordmarkeMaxWidth`
+heter nu `ordmarkeHojd`: `h-10` i toppraden (`AppHeader.jsx:191`), `h-20` i
+inloggningen (SessionStudios 4:1-logga vid 330 px är 82 px hög,
+`LoginScreen.jsx:224`). OPS Hub-ordmärket är 2,6:1, så samma bredd gav 128 px.
+
+### `createCatalogSource({ groupId: null })`, det ogrupperade övergångsläget
+
+Mätt i appens ompinning: functions i bolag-ops läser hela katalogsamlingen
+tills serversidan har gruppmodellen (cllp/bolag-ops#447), och #162 gjorde
+`groupId` obligatoriskt, så 11 av 101 functions-prov föll och appen kunde
+varken pinna om functions eller köra bakfyllnadens första steg. Bokstavligt
+`null` betyder nu "ogrupperad, hela samlingen, som före #162": läser utan
+`where`, hoppar över rader med en grupps nyckel, lämnar id:n orörda, seedar
+utan groupId. Ett utelämnat groupId är fortfarande rött.
+
+### Menyns undervy är levande (mätt i appens ompinning till 0.28.0)
+
+`OpsAppShell` sparade hela menyraden i state när en undervy öppnades, alltså
+även `undervy`-noden som den såg ut vid klicket. Appens nästa render nådde
+aldrig panelen: en `OpsSwitch` bunden till appens state såg ut att inte
+reagera förrän menyn stängts och öppnats igen, och appen tog bort
+aktivitetsfiltret hellre än att visa en knapp som ljuger. Nu lagras radens
+`key` och raden slås upp ur `meny.sektioner` vid varje render. Prov: en
+räknare i undervyn ökar vid tryck, rött med den gamla koden och grönt med
+den nya.
+
+### Deploy (appen)
+
+Nya samlingar: `vitlista` och katalogerna med `groupId`. **Reglerna deployas
+före klienthalvan** (bolag-ops CLAUDE.md), och funktionerna som anropar
+`skapaGrupp` och `seedaKataloger` deployas före den vy som anropar dem.
+
 ## 0.28.0
 
 ⛔ **Utseendet som SessionStudio, den här gången mätt och inte tyckt.** CP

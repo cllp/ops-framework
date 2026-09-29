@@ -601,3 +601,56 @@ export function byggInbjudan(d) {
     skapadAv: byggSkapare(somObjekt(rad.skapadAv)),
   });
 }
+
+/**
+ * @typedef {object} Vitlisterad En rad i vitlistan, id är e-postadressen (#160).
+ * @property {string} epost Gemener. Samma nyckel som dokumentets id.
+ * @property {import("./skapare.js").Skapare} tillagdAv
+ * @property {string} tid ISO 8601, när raden lades till.
+ */
+
+/**
+ * Vitlistans fält. Ett dokument per e-postadress (#160, CP-beslut 2026-09-28
+ * i #161).
+ *
+ * ══ ⛔ VARFÖR EN VITLISTA OCH INTE EN ROLL PÅ users (#160) ═══════════════
+ *
+ * "Vem får logga in" är en fråga som måste besvaras INNAN någon har ett
+ * `users`-dokument: raden kontrolleras vid `skapaGrupp`, av samma serversida
+ * som `memberships`, och en klient som ännu inte finns i `users` kan ändå
+ * behöva veta att den är avvisad. En vitlista är därför sin egen samling, inte
+ * ett fält på en rad som förutsätter att raden redan finns.
+ *
+ * ⛔ DOKUMENTETS ID ÄR E-POSTEN, GEMENER, AV SAMMA SKÄL SOM ÖVERALLT ANNARS I
+ * DEN HÄR FILEN: `CP@Staiger.se` och `cp@staiger.se` är samma brevlåda och två
+ * strängar. Ett id som ID:T ger unikheten som en egenskap hos nyckeln
+ * (arbetsreglernas punkt 2), inte som en kontroll `skapaGrupp` måste komma
+ * ihåg att göra rätt varje gång.
+ *
+ * ⛔ BARA SERVERSIDAN LÄSER DEN, ALDRIG KLIENTEN. Läser klienten vitlistan kan
+ * vem som helst se varje adress som någonsin bjudits in att skapa en grupp,
+ * alltså en lista över precis vem det är värt att gissa lösenord för. Samma
+ * `allow read, write: if false` som `memberships`, se `regelfragment()`.
+ */
+export const VITLISTEFALT = ["epost", "tillagdAv", "tid"];
+
+/**
+ * Bygger en vitlisterad, eller kastar med skälet. Flödet hör till #161/#162.
+ *
+ * @param {Record<string, any>} d
+ * @returns {Vitlisterad}
+ */
+export function byggVitlisterad(d) {
+  const rad = somObjekt(d);
+  const epost = rensa(rad.epost).toLowerCase();
+  if (!epost) throw new Error("vitlista: epost krävs. Dokumentets id ÄR e-postadressen, gemener.");
+  avvisaOkanda("vitlista", rad, VITLISTEFALT, epost);
+
+  const tid = rensa(rad.tid) || new Date().toISOString();
+
+  return Object.freeze({
+    epost,
+    tillagdAv: byggSkapare(somObjekt(rad.tillagdAv)),
+    tid,
+  });
+}

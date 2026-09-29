@@ -31,6 +31,8 @@ const TONKLASSER = {
 };
 
 const STORLEKAR = {
+  /** 20px: SessionStudios gruppmärke i kortet (GroupCard.jsx:71) och avatarraden (Avatar size 5). #161. */
+  xs: "size-5 text-[10px]",
   sm: "size-6 text-xs",
   md: "size-9 text-base",
   lg: "size-12 text-md",
@@ -41,7 +43,7 @@ const STORLEKAR = {
  * @param {string} props.name Visningsnamn. Används för initialer och som alternativtext.
  * @param {string} props.seed Stabilt id som bestämmer tonen NÄR `tone` inte skickas in. Aldrig namnet.
  * @param {string} [props.imageUrl]
- * @param {"sm"|"md"|"lg"} [props.size]
+ * @param {"xs"|"sm"|"md"|"lg"} [props.size]
  * @param {import("react").ComponentType<{size?: number}>} [props.icon] En egen ikon i stället för initialer,
  *   ritad bara när `imageUrl` saknas (#164, korrigering C: "standardikon plus färg kräver ingen Storage").
  *   Ramverket känner inte till vilka ikoner som finns, appen skickar in komponenten (se `src/lib/profilikoner.js`

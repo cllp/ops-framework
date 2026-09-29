@@ -13,6 +13,8 @@ import {
   medlemskapsId,
   MEDLEMSKAPSAVGRANSARE,
   MEDLEMSKAPSFALT,
+  byggVitlisterad,
+  VITLISTEFALT,
 } from "../lib/grupp.js";
 import { generateRules, gruppadSamling, lagringsregelfragment, regelfragment } from "../lib/regler.js";
 import { defineModule } from "../lib/modul.js";
@@ -398,11 +400,46 @@ describe("inbjudan", () => {
   });
 });
 
+describe("vitlistan (#160, #161)", () => {
+  it("byggs, och e-posten blir gemener", () => {
+    const rad = byggVitlisterad({ epost: "Vitlistad@Example.com", tillagdAv: {}, tid: "2026-09-28T00:00:00.000Z" });
+    expect(rad.epost).toBe("vitlistad@example.com");
+    expect(rad.tid).toBe("2026-09-28T00:00:00.000Z");
+  });
+
+  it("epost krävs", () => {
+    expect(() => byggVitlisterad({ tillagdAv: {} })).toThrow(/vitlista: epost krävs/);
+  });
+
+  it("utan tid sätts en, den är inte tom", () => {
+    const { tid } = byggVitlisterad({ epost: "x@example.com", tillagdAv: {} });
+    expect(typeof tid).toBe("string");
+    expect(tid.length).toBeGreaterThan(0);
+  });
+
+  it("⛔ ett okänt fält avvisas, precis som de andra samlingarna", () => {
+    expect(() => byggVitlisterad({ epost: "x@example.com", tillagdAv: {}, roll: "agare" })).toThrow(/vitlista: fälten roll för "x@example.com" känns inte igen/);
+  });
+
+  it("VITLISTEFALT är exakt de tre fälten, inget grupp-id ibland dem", () => {
+    expect(VITLISTEFALT).toEqual(["epost", "tillagdAv", "tid"]);
+  });
+});
+
 describe("regelfragmentet: formen, inte beteendet", () => {
   it("tar emot appens samlingsnamn", () => {
     const text = regelfragment({ medlemskap: "medlemskap", grupper: "bolag" });
     expect(text).toContain("match /bolag/{gid}");
     expect(text).toContain("documents/medlemskap/$(request.auth.uid");
+  });
+
+  it("⛔ vitlistan nekar en klient allt, både läsning och skrivning (#161)", () => {
+    const text = regelfragment();
+    expect(text).toContain("match /vitlista/{epost} {\n      allow read, write: if false;\n    }");
+  });
+
+  it("vitlistans samlingsnamn går att döpa om, precis som de andra", () => {
+    expect(regelfragment({ vitlista: "allowlist" })).toContain("match /allowlist/{epost}");
   });
 
   it("⛔ ett samlingsnamn med snedstreck avvisas, det är en sökväg", () => {

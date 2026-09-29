@@ -266,7 +266,7 @@ if (fs.existsSync(fixturVag2)) {
   const GOLV_PER_GRUPP = {
     "farger.ljus": 12,
     "farger.mork": 12,
-    "radier": 5,
+    "radier": 6,
     "diagram.presets": 8,
     "diagram.chart.ljus": 6,
     "diagram.chart.mork": 6,

@@ -71,6 +71,7 @@ export function byggThemeBlock(f) {
     `  --color-accent: ${farger.ljus.accent.varde};`,
     `  --color-accent-hover: ${farger.ljus.accent_hover.varde};`,
     ``,
+    `  --radius-base: ${radier.bas};`,
     `  --radius-sm: ${radier.sm};`,
     `  --radius-md: ${radier.md};`,
     `  --radius-lg: ${radier.lg};`,

@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**86 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**88 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -726,11 +726,77 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 | | |
 |---|---|
 | `OpsMedlemmar` | listan per grupp: bjud in, ändra roll, ta bort. ⛔ **Aldrig sig själv**: den som tar bort sitt eget ägarskap låser ut sig ur sin egen grupp, och `migUid` är obligatorisk just därför. Utan den vet vyn inte vilken rad som är ens egen, och skyddet blir en gissning |
-| `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto |
+| `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto. Sedan #161: med `props.onSkapaGrupp` ritas i stället en "Skapa din första grupp"-form (ett namnfält, `skapaEtikett`), för den som ÄR vitlistad men bara saknar en grupp än. Utan `onSkapaGrupp` är sidan oförändrad: kontakt plus utloggning |
 
 ⛔ **`kanAndra` i `OpsMedlemmar` är en artighet, inte ett skydd.** Samma not som i `OpsKatalogInstallning`: den som vill skriva ändå öppnar konsolen. Det riktiga låset är att `memberships` inte går att skriva från en klient alls, och att callablen kontrollerar ägarskapet själv.
 
 ⛔ **INGEN MEJLUTSKICK HÄR.** Mailmodulen ([#101](https://github.com/cllp/ops-framework/issues/101)) tar det när den finns. Tills dess säger inställningsvyn "be personen logga in".
+
+#### Vitlistan och den första gruppen
+
+[#161](https://github.com/cllp/ops-framework/issues/161), CP-beslut 2026-09-28
+i [#160](https://github.com/cllp/ops-framework/issues/160): en vitlista av
+e-postadresser styr vem som får logga in, och den som är vitlistad får skapa
+sin FÖRSTA grupp från ett namn.
+
+| Samling | Innehåll | Skrivs av |
+|---|---|---|
+| `vitlista/{epost}` | `byggVitlisterad`: `epost` (samma som dokumentets id, gemener), `tillagdAv`, `tid` | ⛔ **bara serversidan**, och ALDRIG ens LÄST av en klient |
+
+⛔ **VARFÖR EN VITLISTA OCH INTE EN REGELGREN PÅ `groups`.** Ett `allow create`
+för en grupp kollar normalt ägarskap, men den FÖRSTA gruppen har per
+definition ingen ägare än: `opsArAgare(gid)` slår upp ett medlemskap som inte
+finns förrän gruppen gör det. Frågan "får den här personen skapa NÅGOT alls"
+måste alltså besvaras innan frågan om en gruppspecifik roll ens går att
+ställa, och det är precis vad vitlistan svarar på.
+
+⛔ **DOKUMENTETS ID ÄR E-POSTEN, GEMENER.** Samma skäl som överallt annars i
+den här modellen: `CP@Staiger.se` och `cp@staiger.se` är samma brevlåda och
+två strängar, och ett härlett id gör unikheten till en egenskap hos nyckeln.
+
+⛔ **`vitlista` GÅR INTE ENS ATT LÄSA FRÅN EN KLIENT** (`regelfragment()`:
+`allow read, write: if false`), till skillnad från `groups` och `invitations`
+som en medlem respektive en ägare FÅR läsa. Läste en klient listan såg den
+varje adress som någonsin bjudits in att skapa en grupp, alltså en lista över
+precis vilka adresser det är värt att gissa lösenord för.
+
+```js
+import { createGroupService } from "@staiger/ops-framework/node";
+
+const tjanst = createGroupService({ kalla });
+const grupp = await tjanst.skapaGrupp({ uid, epost, namn: "Mitt bolag" });
+```
+
+`skapaGrupp({ uid, epost, namn, skapadAv? })`:
+
+1. Läser `vitlista/{epost}` (gemener). Finns raden inte kastas det, med skälet.
+2. Listar den inloggades AKTIVA medlemskap. Finns redan ett kastas det:
+   ⛔ **EN GRUPP PER PERSON, TILLS [#162](https://github.com/cllp/ops-framework/issues/162) ÄR KLAR.** Delning mellan
+   grupper finns inte än, och att låta någon skapa en andra grupp i dag hade
+   skrivit in ett tillstånd appen ännu inte har någon yta för.
+3. Härleder ett grupp-id ur namnet (en slug plus en kort svans, så "Bolaget"
+   och "Bolaget" inte krockar och den ena tyst ersätter den andra, se
+   `DataSource.create`), bygger gruppen med `byggGrupp` och skriver den.
+4. Skriver ägarens medlemskap med `byggMedlemskap`, roll `agare`.
+
+⛔ **"SAMMA BATCH" ÄR SEKVENSIELLA ANROP, INTE EN TRANSAKTION.** Datalagrets
+kontrakt har ingen batch- eller transaktionsoperation. `skapaGrupp` skriver
+gruppen och sedan medlemskapet, i den ordningen, precis som
+`uppdateraProfil` skriver `users` och sedan `memberships` "i samma steg". Ett
+riktigt skydd mot en krasch mitt emellan de två skrivningarna finns inte i den
+här versionen.
+
+⛔ **BARA NODSIDAN, SAMMA SKÄL SOM `createInvitationService`.** En callable
+kör med Admin SDK, förbi reglerna, och kontrollen ligger i FUNKTIONEN och inte
+bara i regeln: `vitlista` har ingen regelgren att kontrollera mot över huvud
+taget.
+
+`OpsUtanMedlemskap props.onSkapaGrupp` (namnet, se ovan) kopplas till den här
+funktionen via appens egen callable, precis som `OpsMedlemmar props.onBjudIn`
+kopplas till `bjudIn`. `byggVitlisterad` och `medlemskapsId` är återexporterade
+ur `@staiger/ops-framework/node` för den som skriver appens EGEN vitlista-yta
+(en administratörssida läggs till i #162): att skriva raden är fortfarande
+appens Admin SDK, inte ramverkets, precis som inbjudan.
 
 #### ⛔ E-posten lämnar aldrig `users`, och medlemslistan visar namn och bild
 
@@ -980,6 +1046,151 @@ väg tillbaka till en som fungerar. Appen visar dem, som `KatalogLarm`.
 driva med `fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut
 inget prov kan mäta. Väljaren och filtret är vanliga knappar, och proven trycker
 på dem.
+
+### Grupp-panelen och gruppväxlaren
+
+[#161](https://github.com/cllp/ops-framework/issues/161), CP 2026-09-28, med
+skärmbilder av SessionStudios `AppSidebar.jsx`: "OCH GRUPPVÄLJARE? Var finns
+det?" `OpsGruppvaljare` (ovan) svarar på en annan fråga, menyraden i #139.
+Sidopanelen är en egen, bredare yta.
+
+`OpsAppShell props.grupper` (utelämnad: ingen kolumn, ingen växlare, skalet
+oförändrat):
+
+```js
+<OpsAppShell
+  grupper={{
+    lista: minaGrupperMedRader, // { id, namn, medlemsantal?, roll?, bild?, atgarder?, knappar?, avatarer? }[]
+    aktiv: valtLage(lasAktivGrupp(uid, localStorage), mina),
+    onValj: (id) => { sparaAktivGrupp(uid, localStorage, id); setAktiv(id); },
+    onSkapa: () => setVisaSkapaGruppDialog(true),
+    infalld: panelInfalld,
+    onInfalld: setPanelInfalld,
+  }}
+  ...
+/>
+```
+
+| Bredd | Vad |
+|---|---|
+| **1024 px och uppåt (`lg`)** | `OpsGruppanel`, en vänsterkolumn med "Alla mina grupper" överst, ett kort per grupp, "Skapa grupp" sist. Kollapsbar till en smal remsa med bara märkena |
+| **Under 1024 px** | Ingen kolumn. I stället en `OpsGruppvaxlare`-knapp i headern (märke plus den aktiva gruppens namn), som öppnar SAMMA lista i `OpsPanel`s ark/rullgardin, i en enklare form (namn, medlemsantal, rollpill, ingen åtgärd/knapp/avatarrad) |
+
+**Varje grupp i `lista`** (`GruppanelGrupp`, samma form `OpsGruppanel` och
+`OpsGruppvaxlare` tar direkt): `id`, `namn` (`{ sv, en }`), och sedan
+UTELÄMNBARA fält appen härleder själv, ramverket räknar och känner till
+INGET av dem:
+
+| Fält | Utelämnad ritas | Ur CP:s bild |
+|---|---|---|
+| `medlemsantal` | ingen siffra (aldrig "0" som gissning, arbetsreglernas punkt 5) | personikon plus tal |
+| `roll` (`"agare"`\|`"medlem"`) | ingen rollpill | (inte i bilden, samma fält som `OpsMedlemmar`) |
+| `bild` | initialer/ikon ur `OpsIdentity` | gruppens märke, uppe till vänster |
+| `atgarder` (`{ icon, label, onClick }[]`) | inga knappar | glob (publik sida), info, penna, uppe till höger |
+| `knappar` (`{ icon, label, badge?, onClick }[]`) | ingen rad | biblioteksknappen med räknare, chattknappen |
+| `avatarer` (`{ id, namn, bild? }[]`) | ingen rad | avatarstapeln, max fyra plus "+N" |
+
+⛔ **RÄTTAD 2026-09-28: KORTET ÄR HANDBYGGT, INTE `OpsCard`, OCH MÅTTEN ÄR
+MÄTTA UR SESSIONSTUDIO, INTE GISSADE.** En första version gissade panelens
+bredd (288/72px), avatarerna (32px) och byggde kortet på `OpsCard`
+(`rounding="bubbla"`, `--card-padding` ~20px). CP: "Det ska vara EXAKT som
+SessionStudio", och en genomläsning av
+`sessions-platform/apps/web/src/components/AppSidebar.jsx`/`GroupCard.jsx`/
+`AppHeader.jsx` gav andra tal. `OpsCard` är ramverkets EGNA kortform
+(`--card-padding`, ingen kant som förval), medan SessionStudios `GroupCard`
+är `p-3` (12px) MED en 1px kant som förval och `rounded-[var(--radius)]`
+(12px, sedan 0.29.0 ramverkets `--radius-base` ur fixturen, inte
+`--radius-card` 24px): att pressa de talen genom `OpsCard`s
+stängda API (`check-closed-api`) hade antingen krävt att öppna det för
+padding/kant, eller gett ett kort som SER UT som `OpsCard` med fel siffror.
+Kortet är därför handbyggt, med SessionStudios egna klasser.
+
+⛔ **INGEN NÄSTLAD `<button>`, OCH DET ÄR DÄRFÖR KORTET ÄR EN `<li
+role="button">`, INTE EN `<button>`.** SessionStudios `GroupCard.jsx`
+(rad 59-66) är en `<div onClick>` som omsluter riktiga knappar (glob, info,
+penna, bibliotek, chatt), var och en med `e.stopPropagation()` så ett tryck
+på en ikon inte också väljer kortet. En `<button>` FÅR INTE innehålla en
+`<button>` (webbläsaren bryter isär trädet), så "hela raden är en enda
+knapp" är inte möjligt när raden också bär riktiga knappar. Ramverket lägger
+till `role="button"`, `tabIndex={0}` och `onKeyDown` (Enter/Space) på raden,
+något SessionStudios egen `<div>` INTE har: en förbättring över förlagan,
+inte en genväg runt husets linje mot `<div role="button">`-attrapper (se
+`OpsRadioGroup`s filhuvud) eftersom den här HAR fullt tangentbordsstöd.
+
+⛔ **VALD GRUPP: ACCENTRAM PLUS EN SVAG ACCENT-TONAD BAKGRUND, PÅ KORTET
+SJÄLVT, INTE GRUPPENS EGEN FÄRG.** CP, efter att ha mätt mot
+`AppSidebar.jsx`/`GroupCard.jsx`: markeringen ska vara kraftigare än en
+vanlig 1px-kant. SessionStudio målar med `group.color` (en fri hexsträng per
+grupp, plus en alfa-suffix). `GruppanelGrupp` har inget färgfält: `OpsIdentity`
+härleder sin ton ur `seed` genom en fast palett, aldrig en fri hexsträng
+(samma arkitekturbeslut som `OpsIdentity`s eget filhuvud, "identitet bärs
+aldrig av en färgad prick"). Vald grupp använder därför `border-accent` +
+`bg-accent/10` direkt på kortet, inte gruppens egen färg. En app som vill ha
+SessionStudios per-grupp-färgade markering bygger ett eget lager ovanpå
+`onValj`, ramverket erbjuder inte hex-in.
+
+⛔ **PANELENS BREDD ÄR TVÅ TOKEN, `--panel-bredd` (184px) OCH
+`--panel-bredd-infalld` (44px), MÄTTA UR `AppSidebar.jsx` RAD 43-49
+(`md:w-[184px]` / `w-11`), INTE 288/72 OCH INTE EN TAILWIND-LITERAL PER
+FIL.** `OpsGruppanel` (kolumnens egen bredd) läser tokenet direkt.
+Toppradens logoruta är en EGEN, mindre ruta (`--logo-bredd` 180px /
+`--logo-bredd-infalld` 44px→40px, mätt ur `AppHeader.jsx` rad 174, se
+`OpsBrand` nedan): 180 mot 184 och 40 mot 44 är samma 4px-differens, av
+samma skäl (asidet har `px-0.5`, logorutan har det inte), alltså TVÅ
+tokenpar och inte ett gemensamt. Ett prov läser varje fil ur sitt eget par
+(`gruppanel.test.jsx`): det extraherar VILKA `w-(--namn...)`-klasser filen
+faktiskt använder, inte bara att ordet nämns någonstans (en bar textträff
+hade även fångat en förklarande kommentar, och missat att en verklig
+regression ändå gjorde provet grönt).
+
+⛔ **KOLLAPS ÄGS AV APPEN, PRECIS SOM VALET.** `grupper.infalld`/`onInfalld`
+styr BÅDE panelens läge OCH brandets ikon/ordmärke-val (se nedan). Utan dem
+sköter `OpsGruppanel` kollapset själv (internt `useState`, samma styrd/ostyrd
+mönster som `OpsPanel`s `open`), men brandet följer då bara skärmbredden som
+förut: en fristående `OpsGruppanel` UTANFÖR skalet fungerar alltså fint utan
+dem, det är bara kopplingen till logotypen som kräver den styrda formen.
+
+#### ⛔ Logotypen följer panelens läge, inte bara skärmbredden
+
+CP 2026-09-28: "Var noga med utfällt och infällt läge och vad som händer med
+logotypen... Skalet äger alltså både panelens läge och brandens form; koppla
+dem i OpsAppShell." `OpsBrand` fick därför en ny prop, `panelInfalld`
+(boolean, utelämnad: brandet följer bara skärmbredden som förut, oförändrat
+för appar som inte använder `grupper`).
+
+⛔ **RÄTTAD 2026-09-28: BÅDA BILDERNA ÄR ALLTID MONTERADE, VÄXLING ÄR
+`OPACITY`, ALDRIG MOUNT/UNMOUNT.** Mätt ur `AppHeader.jsx` rad 174-193: en
+`relative`-ruta med BÅDA `<img>`-taggarna hela tiden i DOM, `transition-
+opacity duration-200`. En första version av `panelInfalld` (då `tvingaIkon`)
+tog bort ordmärket helt och ritade bara ikonen, vilket INTE är samma sak:
+det ger ett hopp i stället för en tondämpning, och det är precis den sortens
+flimmer `AppSidebar.jsx` rad 13-16 redan dokumenterar som ett löst fel
+(bredd-transition borttagen av samma skäl, 2026-04-22).
+
+⛔ **RUTAN HAR EN FAST BREDD UR `--logo-bredd`/`--logo-bredd-infalld`
+(180px/40px, `AppHeader.jsx` rad 174), INTE `--panel-bredd`.** Se
+föregående avsnitts not om varför logorutan och panelen är två olika tal
+trots att de ser lika ut på en skärmbild.
+
+`OpsAppShell` sätter `panelInfalld={grupper.infalld}` på brandet när
+`grupper` är given: en sträng-`brand` blir ett nytt `OpsBrand` med propen på
+raka rör, ett FÄRDIGT `<OpsBrand .../>`-element KLONAS med `cloneElement`,
+och ett GODTYCKLIGT `brand`-nod (egen logga, ren text) lämnas orört,
+eftersom det inte har en `panelInfalld`-prop att klona in.
+
+#### ⛔ Under 1024 px är ett ark, inte alltid ETT ark (#161)
+
+`OpsGruppvaxlare` ÅTERANVÄNDER `OpsPanel`, ramverkets befintliga ark/rullgardin
+(samma yta som appens meny och notiser), i stället för att uppfinna en egen
+brytpunktsmaskin. `OpsPanel` byter yta vid Tailwinds `md` (768 px), INTE vid
+1024. Mellan 768 och 1024 blir växlaren alltså en rullgardin i headern, inte
+en bottensheet, medan panelen ändå är dold (den tänder först vid `lg`).
+
+Det är en MEDVETEN avvikelse och inte en glömd detalj: att duplicera
+`OpsPanel`s brytpunktsmaskin (`matchMedia`, lyssnare, Safari-reserv `addListener`)
+för EN till konsument hade brutit mot arbetsreglernas punkt 2, en sanning per
+faktum. Två sätt att avgöra "är skärmen smal" i samma app glider isär den dag
+bara det ena rättas.
 
 ### Felrapportering
 
@@ -1340,8 +1551,39 @@ varje gång något annat ska ändras.
 
 | `kopplaBeteenden`, `beteendet` | katalogen, hanterarna | **gränsen för det dynamiska, väg A** (beslut CP 2026-09-26, #111): katalogen bär DATA, koden bär BETEENDE, och kopplingen vaktas åt BÅDA håll vid uppstart. ⛔ En kategori utan hanterare ritas, går att välja och gör sedan ingenting: exakt felet i cllp/bolag-ops#144, där sorten `bugg` aldrig blev ett ärende och ingenting blev rött. ⛔ En hanterare utan kategori är död kod som ser levande ut. ⛔ En ARKIVERAD kategori kräver också en hanterare: gamla rader ska ritas och räknas som förut. ⛔ Samlar alla fel i ett meddelande, till skillnad från `validateKatalog` som kastar på det första: här är felet en lista mot en annan lista. ⛔ `beteendet` svarar `null` och kastar aldrig, eftersom den körs i en vy |
 | `createConfigLog`, `byggKonfigandring`, `beskrivKonfigandring`, `KONFIGHANDELSER` | `append` | **ändringsloggen för konfiguration.** ⛔ Egen logg och inte aktivitetsloggen: den senare säger vad ett JOBB gjorde, den här vad en MÄNNISKA gjorde i en vy, och de två frågorna ställs vid olika tillfällen. ⛔ `fore` KRÄVS för allt utom en nytillagd: en rad utan det svarar inte på vad som stod förut, och då är loggen en notis och inte ett spår. ⛔ `skriv` kastar aldrig, den svarar `{ ok, fel, orsak }`, och `orsak` skiljer `utkast` (programfel) från `skrivning` (drift). En logg som kan sänka det den loggar är värre än ingen logg. ⛔ `beskrivKonfigandring` bygger meningen ur RADEN och inte ur dagens katalog, annars skriver den om historien: "Ärenden döptes om till Ärenden" |
-| `OpsKatalogInstallning` | `kategorier`, `ikoner`, `onSpara`, `onArkivera` | **inställningsvyn för en katalog.** ⛔ ARKIVERAR, RADERAR ALDRIG: en raderad kategori lämnar varje rad som pekar på den utan kategori, och de raderna blir omöjliga att filtrera och räkna långt efter att någon tryckt. Arkiverad går att ta fram igen, alltså är det det enda ångrbara alternativet. ⛔ `kanAndra` kommer ur rollerna, och vyn SÄGER att den inte är låset: den som vill skriva ändå öppnar konsolen, det riktiga låset är Firestore-reglerna. ⛔ Nyckeln går inte att ändra på en befintlig kategori, och formuläret säger att en omdöpning behåller kopplingen, annars vågar ingen döpa om något. ⛔ Färgen väljs som PLATS och det finns ingen ruta att skriva en hex i. ⛔ Vyn skriver inte själv: `onSpara` och `onArkivera` kommer utifrån, som datakällan |
-| `createCatalogSource` | `source`, `collection` | **Firestore är sanningen, repot bär standardvärdena.** ⛔ `collection` kommer utifrån: det är raden som gör en framtida kund till ett eget projekt utan att datamodellen ändras. ⛔ `las()` KASTAR ALDRIG, den svarar `{ kategorier, kalla, fel }`: en vy som får ett kastat fel ritar en tom lista, och en tom lista är samma sak som "det finns inga kategorier". `kalla` skiljer `databas` från `reserv`, så en banderoll går att visa. ⛔ En TOM samling är `databas` och inte `reserv`: det är läget före seedningen. ⛔ `seeda()` rör aldrig en samling som har värden, annars kommer en arkiverad kategori tillbaka vid nästa driftsättning och ser ut som ett spöke. Den svarar med VAD som hände, så "skrev fem" och "gjorde inget" går att skilja åt i en logg. ⛔ Standardvärdena valideras vid UPPSTART: ett fel i repots egna värden är ett programfel, och upptäckt först vid seedning är det ett fel i produktion hos den första kunden |
+| `OpsKatalogInstallning` | `kategorier`, `ikoner`, `onSpara`, `onArkivera` | **inställningsvyn för en katalog.** ⛔ ARKIVERAR, RADERAR ALDRIG: en raderad kategori lämnar varje rad som pekar på den utan kategori, och de raderna blir omöjliga att filtrera och räkna långt efter att någon tryckt. Arkiverad går att ta fram igen, alltså är det det enda ångrbara alternativet. ⛔ `kanAndra` kommer ur rollerna, och vyn SÄGER att den inte är låset: den som vill skriva ändå öppnar konsolen, det riktiga låset är Firestore-reglerna. ⛔ Nyckeln går inte att ändra på en befintlig kategori, och formuläret säger att en omdöpning behåller kopplingen, annars vågar ingen döpa om något. ⛔ Färgen väljs som PLATS och det finns ingen ruta att skriva en hex i. ⛔ Vyn skriver inte själv: `onSpara` och `onArkivera` kommer utifrån, som datakällan. ⛔ `groupId` (#162, valfri): satt byggs en ny eller ändrad kategori med `grupp: true` och det groupId:t, alltså gruppens egen; outelämnad är beteendet oförändrat från innan #162 |
+| `createCatalogSource` | `source`, `collection`, `groupId` | **Firestore är sanningen, repot bär standardvärdena.** ⛔ `collection` kommer utifrån: det är raden som gör en framtida kund till ett eget projekt utan att datamodellen ändras. ⛔ `groupId` KRÄVS (#162, väg C i [#160](https://github.com/cllp/ops-framework/issues/160)): katalogen är EN GRUPPS EGEN, samma mönster som `gruppkalla.js`, och en källa utan grupp hade läst och skrivit mot hela den delade samlingen. ⛔ `groupId: null` UTTRYCKLIGEN är det ogrupperade övergångsläget (0.29.0, mätt i bolag-ops ompinning: functions läser hela samlingen tills serversidan har gruppmodellen, cllp/bolag-ops#447): läser utan `where`, hoppar över rader med en grupps nyckel, lämnar id:n orörda och seedar utan groupId, som före #162. Ett UTELÄMNAT groupId är fortfarande rött, och felet pekar på `null`. ⛔ `las()` KASTAR ALDRIG, den svarar `{ kategorier, kalla, fel }`: en vy som får ett kastat fel ritar en tom lista, och en tom lista är samma sak som "det finns inga kategorier". `kalla` skiljer `databas` från `reserv`, så en banderoll går att visa, och reserven bär källans `groupId`. ⛔ En TOM samling är `databas` och inte `reserv`: det är läget före seedningen, FÖR DEN HÄR GRUPPEN. ⛔ `seeda()` rör aldrig en samling som har värden FÖR DEN HÄR GRUPPEN, annars kommer en arkiverad kategori tillbaka vid nästa driftsättning och ser ut som ett spöke. Den svarar med VAD som hände, så "skrev fem" och "gjorde inget" går att skilja åt i en logg. ⛔ Standardvärdena (`standard`) HAR INGET groupId och valideras utan det: de är mallen, gruppen äger sin kopia först efter seedning. ⛔ Skriver internt med en HÄRLEDD lagrad nyckel (`groupId` plus kategorins `id`, samma mönster som `medlemskapsId`), eftersom samlingen är delad och kategorins `id` bara är unikt inom en grupps egen katalog: två grupper med samma maskinnyckel ("uppgift") ska inte kunna skriva över varandras rad |
+| `katalogregelfragment` | ett eller flera samlingsnamn | **regelfragmentet för katalogens delade samling(ar) (#162).** Tunn namngiven genväg till `gruppadSamling(namn, { agareKravsForSkrivning: true, falt: KATEGORIFALT })`, så katalogens fältlista och regelns `hasOnly` inte kan glida isär: ägare skriver (katalogen är gruppens konfiguration), medlem läser, uppslag på radens `groupId`, ingen radering |
+
+⛔ **Bakfyllnaden av en befintlig katalog (#162) är APPENS eget skript, inte
+ramverkets.** Ramverket vet inte vilka kategorier som redan finns i en app som
+byggdes innan `groupId` blev obligatoriskt (`grupp: true`), bara hur en
+kategori med `groupId` ser ut. `cllp/bolag-ops`s befintliga kategorier hör i
+dag till `cps-ab`, och bakfyllnaden är ett vanligt Node-skript i APPENS repo
+(inte här), byggt av samma tre delar som varje annat skript i den familjen
+(jämför `scripts/skriv-provregler.mjs`, `scripts/gh-full-debt-bodies` i
+`bolag-ops`):
+
+1. **Läs** varje rad i samlingen `source.list(collection)` som SAKNAR
+   `groupId` (`Array.isArray(rad.groupId)` finns inte, `typeof rad.groupId !==
+   "string"`, eller en tom sträng).
+2. **Torrkörning FÖRVAL.** Skriptet skriver ut vad det SKULLE göra (`N
+   kategorier saknar groupId, sätter "cps-ab"`) och rör ingenting, om det inte
+   får en uttrycklig flagga (`--apply` eller liknande). Samma regel som varje
+   annan destruktiv operation i `bolag-ops` (se `purge:*`-skripten i
+   `scripts/README.md`): ett skript som skriver på riktigt utan att någon bad
+   om det är hur en drifthändelse börjar.
+3. **Skriv** `groupId: "cps-ab"` på varje rad som saknade det, en `update` per
+   rad (aldrig `create`, som hade ersatt kategorins övriga fält). Kör EN gång:
+   en andra körning hittar noll rader utan `groupId` och gör ingenting, precis
+   som `createCatalogSource.seeda()` gör mot en fylld samling.
+
+⛔ **VARFÖR INTE `byggKategori`/`validateKatalog` HÄR.** Ett bakfyllnadsskript
+skriver bara ETT fält (`groupId`) på en rad som redan finns och redan är
+giltig i övrigt; att köra hela raden genom `byggKategori` igen hade krävt att
+skriptet kände appens fulla katalogkonfiguration (`ikoner`, `textnycklar`)
+bara för att sätta ett fält den redan vet värdet på.
+
 | `saknadeSprak`, `arGammalNamn`, `SPRAK`, `RESERVSPRAK` | ett objekt med namn i | **toleransen får inte vara tyst.** `saknadeSprak` räknar upp varje namn som saknar `en`, som SÖKVÄGAR och inte som en siffra: "fyra namn saknar engelska" går inte att åtgärda utan att leta, `kategorier.1.namn` går det. ⛔ En sträng räknas som saknad, annars visar vakten noll så länge ingenting migrerats, alltså är den som grönast när läget är sämst. ⛔ Räknar också varje text i katalogens `texter` (#117): inkorgens sorter bär nio texter var, alltså vida fler ord än namnen, och en vakt som bara tittade på nyckeln `namn` hade visat noll medan merparten av ytorna var enspråkiga |
 | `createActivityLog` | `kinds` | |
 | `createActivityWriter` (nodsidan) | `model`, `append` | `kalla`, `nu` |
@@ -1377,6 +1619,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `createActivityLog` | **samma funktion som i huvudingången, återexporterad här**, och det är en mätning och inte en bekvämlighet. `createActivityWriter` kräver en modell ur den, så ett Cloud Function som ville skriva en rad tvingades importera hela webbuntlen. Mätt (Node 20, ur den utgivna tarbollen): `@staiger/ops-framework/node` tar **8 ms**, `@staiger/ops-framework` tar **1946 ms**. Nästan två sekunder per kallstart för att en funktion som skriver ETT dokument skulle ladda React, Radix och en kalender. ⛔ `check-node-side` kräver att nodsidan inte når React eller en komponent, varken direkt eller genom en mellanfil, annars är mätningen osann inom en månad |
 | `createCaseMirror` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ owner, repo, label }` som konfiguration, plus `summary` och `extraFields` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `load` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
 | `uppdateraProfil({ kalla, uid, andring })` | #156. Den ENDA platsen som skriver `namn`/`bild` i `users` OCH i ALLA medlemskap för `uid` i samma steg, byggda genom `byggMedlemskap` så en trasig rad i databasen upptäcks i stället för att tystas in i ett rått patch-objekt. Bara `namn` och `bild` tas emot: de är de enda fälten som är denormaliserade i `memberships` (#138). Klienten kan inte göra det här själv, `memberships` har `allow write: if false` |
+| `seedaKataloger({ kalla, groupId, standardvarden })` | #161, #162. Seedar en NYSKAPAD grupps kataloger, anropad av `skapaGrupp` sedan gruppen och dess första medlemskap skrivits. `standardvarden` är ett objekt, en nyckel per katalog (samlingens namn): värdet är antingen en lista rader (genväg för `{ standard: rader }`) eller katalogens fulla `createCatalogSource`-konfiguration (`standard`, `ikoner`, `textnycklar`, `faser`, `farger`). Bygger EN `createCatalogSource` per katalog, med `groupId` inbakat, och kör dess `.seeda()`. Svarar `{ [namn]: { seedade, antal, orsak? } }`, en rad per katalog, aldrig en sammanslagen bool. Katalogerna seedas i turordning, inte parallellt |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
 `src/index.js` buntas för webbläsaren, alltså hamnar i varje besökares JS-fil.

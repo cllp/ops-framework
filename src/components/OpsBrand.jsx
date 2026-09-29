@@ -81,12 +81,23 @@ const MARKEN = {
  *   BRED vy (och alltid när `ikon` saknas).
  * @param {{ ljus: string, mork: string }} [props.ikon] Ikonen som bild, ÖVERRIDER OPS Hub-förvalet. Ritas i SMAL vy
  *   när `ordmarke` också finns.
- * @param {string} [props.ordmarkeMaxWidth] Tailwind-bredd på ordmärkets bild, t.ex. `"max-w-[330px]"` (OpsInloggning).
- *   Förval `"max-w-40"`, rätt mått för en topprad.
+ * @param {string} [props.ordmarkeHojd] Tailwind-HÖJD på ordmärkets bild. Förval `"h-10"` (40 px), SessionStudios
+ *   topprad (`AppHeader.jsx:191`, `sm:h-10`). `OpsInloggning` skickar `"h-20"` (80 px): SessionStudios
+ *   inloggningslogga är 4:1 och `max-w-[330px]` (`LoginScreen.jsx:224`), alltså 82 px hög.
+ *
+ *   ⛔ HÖJD, ALDRIG BREDD (CP 2026-09-28 23:50: "Login alldeles för stor"). Propen hette `ordmarkeMaxWidth`
+ *   och bar SessionStudios 330 px rakt av. Men OPS Hub-ordmärket är 2,6:1 där SessionStudios är 4:1, så
+ *   samma bredd gav 128 px höjd i stället för 82. Det ögat läser som "storlek" på en logga är höjden;
+ *   bredden följer av bildens proportion. Därför är måttet en höjd, och bredden `w-auto`.
  * @param {boolean} [props.endastOrdmarke] Ritar BARA ordmärket, aldrig ikonen, oavsett skärmbredd (`OpsInloggning`,
  *   #164). En helskärmsvy är inte `OpsAppShell`s responsiva topprad: smal/bred-växlingen (punkt 9) hör dit, inte hit.
+ * @param {boolean} [props.panelInfalld] Grupp-panelens läge (#161), NÄR `OpsAppShell`s `grupper`-panel finns.
+ *   Mätt ur SessionStudios `AppHeader.jsx` (rad 174-193), inte gissat: BÅDA bilderna monteras alltid, växlingen
+ *   sker med `opacity` (aldrig mount/unmount, annars flimrar det, samma lärdom som `AppSidebar.jsx` rad 13-16),
+ *   och rutan har en FAST bredd ur `--logo-bredd`/`--logo-bredd-infalld` (`tokens.css`), inte `OpsAppShell`s
+ *   vanliga `md:hidden`/`md:block`-brytpunkt. Utelämnad: brandet följer bara skärmbredden, som förut.
  */
-export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeMaxWidth = "max-w-40", endastOrdmarke = false }) {
+export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeHojd = "h-10", endastOrdmarke = false, panelInfalld }) {
   if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i, och är undertexten under bilden.");
 
   if (!(mark in MARKEN)) {
@@ -111,7 +122,13 @@ export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordma
   const visadIkon = endastOrdmarke ? undefined : appenOverridar ? ikon : (mark === "none" ? undefined : OPS_HUB_VARUMARKE.ikon);
 
   return visadOrdmarke || visadIkon ? (
-    <OpsBrandBild title={title} ordmarke={visadOrdmarke} ikon={visadIkon} ordmarkeMaxWidth={ordmarkeMaxWidth} />
+    <OpsBrandBild
+      title={title}
+      ordmarke={visadOrdmarke}
+      ikon={visadIkon}
+      ordmarkeHojd={ordmarkeHojd}
+      panelInfalld={panelInfalld}
+    />
   ) : (
     <OpsBrandText title={title} subtitle={subtitle} mark={mark} />
   );
@@ -141,9 +158,9 @@ function OpsBrandText({ title, subtitle, mark }) {
 }
 
 /**
- * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeMaxWidth: string }} props
+ * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeHojd: string, panelInfalld?: boolean }} props
  */
-function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
+function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
   // ⛔ `useResolvedTheme()` SVARAR "light"/"dark" (samma `Temalage`-typ som
   // resten av `theme.js`). Bildernas nycklar är "ljus"/"mork", KORTFORMEN CP
   // gav i uppdraget, skild från `TEMAN` (grupp.js: "ljust"/"morkt"). Kartan
@@ -157,14 +174,53 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
   const undertext = <span className="mt-1 block text-center text-[11px] font-medium uppercase tracking-[0.22em] text-accent">{title}</span>;
 
   if (ordmarke && ikon) {
+    // ⛔ #161: `panelInfalld` GIVEN (BOOLEAN, INTE `undefined`) ÄR EN ANNAN
+    // RUTA ÄN DEN VANLIGA SMAL/BRED-VÄXLINGEN NEDANFÖR. Mätt ur
+    // SessionStudios `AppHeader.jsx` rad 174-193, inte gissat: en FAST
+    // bredd ur `--logo-bredd`/`--logo-bredd-infalld` (`tokens.css`), och
+    // BÅDA bilderna ALLTID monterade med `opacity`-crossfade, aldrig
+    // `hidden`/mount-unmount. Samma lärdom som `AppSidebar.jsx` rad 13-16
+    // (bort med bredd-`transition`, flimrade): en bild som kommer och går
+    // ur DOM:en trasslar layouten i samma tick som opaciteten hade kunnat
+    // sköta ensam.
+    if (typeof panelInfalld === "boolean") {
+      return (
+        <span
+          className={cx(
+            "relative flex shrink-0 items-center overflow-hidden",
+            panelInfalld ? "w-(--logo-bredd-infalld) justify-center" : "w-(--logo-bredd) justify-start",
+          )}
+        >
+          <img
+            src={ikon[tema]}
+            alt=""
+            aria-hidden={!panelInfalld}
+            className={cx(
+              "absolute inset-0 m-auto size-8 object-contain object-center transition-opacity duration-200 ease-out",
+              panelInfalld ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+          />
+          <img
+            src={ordmarke[tema]}
+            alt=""
+            aria-hidden={panelInfalld}
+            className={cx(
+              "h-10 w-full object-contain object-left transition-opacity duration-200 ease-out",
+              panelInfalld ? "pointer-events-none opacity-0" : "opacity-100",
+            )}
+          />
+        </span>
+      );
+    }
+
     // ⛔ IKONEN I SMAL VY, ORDMÄRKET I BRED (#164 punkt 9). `hidden md:block` /
     // `md:hidden` är samma brytpunkt `OpsAppShell` redan använder för sin egen
     // topprad, inte ett nytt tal påhittat här.
     return (
       <span className="inline-flex flex-col items-center">
         <span className="inline-flex items-center">
-          <img src={ikon[tema]} alt="" className="block h-8 w-auto md:hidden" />
-          <img src={ordmarke[tema]} alt="" className={cx("hidden md:block object-contain", ordmarkeMaxWidth)} />
+          <img src={ikon[tema]} alt="" className="block h-8 w-8 object-contain md:hidden" />
+          <img src={ordmarke[tema]} alt="" className={cx("hidden md:block w-auto object-contain", ordmarkeHojd)} />
         </span>
         {undertext}
       </span>
@@ -178,7 +234,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeMaxWidth }) {
           synlig och uppläst textrad (`undertext`). Två uppläsningar av samma
           namn, en på bilden och en under den, hade sagt "Bolag Ops, Bolag
           Ops" för en skärmläsare. */}
-      <img src={kalla[tema]} alt="" className={cx("block object-contain", ordmarke ? ordmarkeMaxWidth : "h-8 w-auto")} />
+      <img src={kalla[tema]} alt="" className={cx("block object-contain", ordmarke ? cx("w-auto", ordmarkeHojd) : "h-8 w-8")} />
       {undertext}
     </span>
   );
