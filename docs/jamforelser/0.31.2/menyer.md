@@ -9,7 +9,7 @@ Raden bor på ETT ställe: `radKlass` (menyer, dropdowns), `ValRad` (valbar rad,
 
 | # | Yta (komponent) | SS-motsvarighet (fil:rad, klasser) | Före: text / vikt / luft / vald | Efter: text / vikt / luft / höjd / vald | Ändrad |
 |---|---|---|---|---|---|
-| 1 | Filter, en ikon per grupp, "Slag" (`OpsFilterPanel` ikoner) | `ThemedDropdown.jsx:122` `px-3 py-1.5 text-xs font-medium`, vald `gold-overlay-subtle` + `Check` 12 px | 16 px / 600 / 12x0 / 2 px accentkontur | 12 px / 400 / 12x6 / **28 px** (44 under md) / tonad yta + bock, ingen ram | ja |
+| 1 | Filter, en ikon per grupp, "Slag" (`OpsFilterPanel` ikoner) | `ThemedDropdown.jsx:122` `px-3 py-1.5 text-xs font-medium`, vald `gold-overlay-subtle` + `Check` 12 px | 16 px / 600 / 12x0 / 2 px accentkontur | 12 px / 500 / 12x6 / **28 px** (44 under md) / tonad yta + bock, ingen ram | ja |
 | 2 | Filter, sorteringsikonen | samma | 16 px / 600 / 12x0 / 2 px kontur | 12 px / 400 / 12x6 / 28 px (44 under md) | ja |
 | 3 | Filter, samlad panel (`OpsFilterPanel`) | samma | 16 px / 600 / 12x0 / 2 px kontur | 12 px / 400 / 12x6 / 28 px (44 under md) | ja |
 | 4 | `OpsFilterChip` (ikon och textpiller) | samma | 16 px / 600 / 12x0 / 2 px kontur | 12 px / 400 / 12x6 / 28 px (44 under md) | ja |
