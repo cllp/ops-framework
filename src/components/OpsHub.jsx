@@ -133,11 +133,16 @@ export function OpsHubModul({
   const barn = modul.children ?? [];
   return (
     <div>
-      {/* ⛔ `top-[calc(var(--safe-top)+var(--topbar-height))]`: under toppraden, som panelen. `z-(--z-sticky)` ligger
+      {/* ⛔ 0.31.0 (CP: raden "‹ Hub / Ekonomi" ritades över den infällda gruppanelen): RADEN HÅLLS I INNEHÅLLSKOLUMNEN.
+          Före 0.31.0 hade den `-mx-4 px-4`, alltså en negativ marginal som drog ut den 16 px åt vänster, in över
+          panelens kolumn, och åt höger utanför kolumnen (roten även till horisontell överflödning när appen inte lade
+          `px-4` runt). Ingen negativ marginal, ingen fullbredd, och panelen ligger över raden i z-led
+          (`--z-sticky-header` i skalet mot radens `--z-sticky`). Mäts i check-skalyta, avsnitt 12.
+          ⛔ `top-[calc(var(--safe-top)+var(--topbar-height))]`: under toppraden, som panelen. `z-(--z-sticky)` ligger
           UNDER `--z-chrome` (toppraden), så raden går in under den och inte över. */}
       <nav
         aria-label={brodsmulaEtikett}
-        className="sticky top-[calc(var(--safe-top)+var(--topbar-height))] z-(--z-sticky) -mx-4 mb-3 flex items-center gap-1 border-b border-line bg-canvas px-4"
+        className="sticky top-[calc(var(--safe-top)+var(--topbar-height))] z-(--z-sticky) mb-3 flex items-center gap-1 border-b border-line bg-canvas"
       >
         <a
           href={hubHref}

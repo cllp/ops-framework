@@ -1251,7 +1251,7 @@ export function OpsAppShell({
           kant och märket i den centrerade toppraden: 157 px isär vid 1600. */}
       <div className={cx(grupper && "mx-auto max-w-7xl lg:flex")}>
         {grupper ? (
-          <div className="hidden shrink-0 lg:sticky lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--topbar-height))] lg:pl-4 lg:pt-5">
+          <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--topbar-height))] lg:pl-4 lg:pt-5">
             <OpsGruppanel
               grupper={grupper.lista}
               aktiv={grupper.aktiv}

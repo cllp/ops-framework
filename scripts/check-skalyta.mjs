@@ -845,6 +845,45 @@ for (const bredd of [900, 1280, 1600]) {
   await context.close();
 }
 
+// ══ 12. MODULSIDANS TILLBAKA-RAD HÅLLS I INNEHÅLLSKOLUMNEN (0.31.0, avsnitt 10) ═
+// CP: raden "‹ Hub / Ekonomi" ritades över den infällda gruppanelen. Radens ruta får aldrig korsa panelens, panelen
+// ligger över raden i z-led, raden är inte bredare än kortens rutnät och har ingen negativ marginal.
+for (const bredd of [1280, 1600]) {
+  for (const lage of /** @type {const} */ (["utfälld", "infälld"])) {
+    const { page, context } = await oppna("hubmodul", { width: bredd, height: 900 });
+    if (lage === "infälld") {
+      await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+      await page.waitForTimeout(350);
+    }
+    const m = await page.evaluate(() => {
+      const rad = document.querySelector('nav[aria-label="Var du är"]');
+      const panel = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const rutnat = document.querySelector("main ul[aria-label]");
+      if (!rad || !panel || !rutnat) return null;
+      const r = rad.getBoundingClientRect();
+      const p = panel.getBoundingClientRect();
+      const u = rutnat.getBoundingClientRect();
+      const kol = /** @type {HTMLElement} */ (panel.parentElement && panel.parentElement.parentElement);
+      return {
+        radL: r.left, radR: r.right, panelR: p.right, rutL: u.left, rutR: u.right,
+        marginL: parseFloat(getComputedStyle(rad).marginLeft), marginR: parseFloat(getComputedStyle(rad).marginRight),
+        zRad: parseInt(getComputedStyle(rad).zIndex, 10),
+        zPanel: parseInt(getComputedStyle(/** @type {HTMLElement} */ (panel.closest(".lg\\:sticky, [class*='lg:sticky']"))).zIndex, 10),
+        kolL: kol ? kol.getBoundingClientRect().right : null,
+      };
+    });
+    krav(m !== null, `tillbaka-raden ${bredd} px ${lage}: raden, panelen eller rutnätet hittades inte.`);
+    if (m) {
+      matt.push(`tillbaka-raden ${bredd} px ${lage}: rad ${m.radL.toFixed(1)}..${m.radR.toFixed(1)}, panelens högerkant ${m.panelR.toFixed(1)}, rutnät ${m.rutL.toFixed(1)}..${m.rutR.toFixed(1)}, z rad ${m.zRad} panel ${m.zPanel}, marginaler ${m.marginL}/${m.marginR}`);
+      krav(m.radL >= m.panelR - 0.5, `tillbaka-raden ${bredd} px ${lage}: radens vänsterkant ${m.radL.toFixed(1)} ligger till vänster om panelens högerkant ${m.panelR.toFixed(1)}: raden korsar panelen.`);
+      krav(m.marginL >= 0 && m.marginR >= 0, `tillbaka-raden ${bredd} px ${lage}: negativ marginal (${m.marginL}/${m.marginR}).`);
+      krav(Math.abs(m.radL - m.rutL) <= 1 && Math.abs(m.radR - m.rutR) <= 1, `tillbaka-raden ${bredd} px ${lage}: raden ${m.radL.toFixed(1)}..${m.radR.toFixed(1)} är inte lika bred som kortens rutnät ${m.rutL.toFixed(1)}..${m.rutR.toFixed(1)}: den hålls inte i innehållskolumnen.`);
+      krav(Number.isFinite(m.zRad) && Number.isFinite(m.zPanel) && m.zPanel > m.zRad, `tillbaka-raden ${bredd} px ${lage}: panelens z-index (${m.zPanel}) är inte över radens (${m.zRad}).`);
+    }
+    await context.close();
+  }
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);
