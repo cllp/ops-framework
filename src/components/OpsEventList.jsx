@@ -244,7 +244,7 @@ export function OpsEventList({
                     skulle ta bort vakten. */}
                 {h.status ? <OpsStatusDot status={h.status} label={statusWords[h.status] || ""} /> : null}
 
-                {h.role ? <span className="shrink-0 text-etikett">{h.role}</span> : null}
+                {h.role ? <span className="shrink-0 text-meta sm:text-etikett">{h.role}</span> : null}
 
                 {marke ? (
                   <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-meta font-semibold", TONER[state])}>{marke}</span>
@@ -269,7 +269,7 @@ export function OpsEventList({
                     Samma ton som kortets kant och kalenderns prick, ur
                     `lib/slag.js`. Skiljer de sig säger vyn emot sig själv. */}
                 {h.kind ? (
-                  <span className="flex min-w-0 shrink-0 items-center gap-1 text-etikett text-ink-muted">
+                  <span className="flex min-w-0 shrink-0 items-center gap-1 text-meta sm:text-etikett text-ink-muted">
                     {h.kindIcon ? (
                       <span aria-hidden="true" className={cx("flex shrink-0 items-center", slagfarg)}>
                         {h.kindIcon}
@@ -305,7 +305,7 @@ export function OpsEventList({
                     den kompakta raden (CP: uppdaterad top-right, ärendenummer
                     i stället för "Öppna"). */}
                 {h.when || h.deadline || h.updatedAt || url ? (
-                  <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-etikett tabular-nums text-ink-secondary">
+                  <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-meta sm:text-etikett tabular-nums text-ink-secondary">
                     {h.when ? <span>{h.when}</span> : null}
                     {/* ⛔ Dämpad, inte framhävd. Deadline är ett faktum man skriver
                         in i en kalender, inte ett larm: brådskan är redan sagd av
@@ -320,7 +320,7 @@ export function OpsEventList({
                         target={onNavigate ? undefined : "_blank"}
                         rel={onNavigate ? undefined : "noopener noreferrer"}
                         className={cx(
-                          "shrink-0 rounded-sm text-etikett text-accent underline underline-offset-2 hover:no-underline",
+                          "shrink-0 rounded-sm text-meta sm:text-etikett text-accent underline underline-offset-2 hover:no-underline",
                           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                         )}
                       >
@@ -356,7 +356,8 @@ export function OpsEventList({
                   brytpunkt: en titel som får halva bredden på en smal skärm och
                   hela på en bred är samma komponent med två utseenden, och det är
                   den sortens skillnad som gör att bara den ena blir provad. */}
-              <span className="text-titel text-ink">{h.title}</span>
+              {/* ⛔ 0.31.2: SS `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 px under sm, 20 px från sm (`titel` och `sida`). Metaraden ovanför är SS `text-xs sm:text-sm` (`:83/86`): 12 px under sm, 14 px från sm. */}
+              <span className="text-titel sm:text-sida text-ink">{h.title}</span>
 
               {/* ⛔ VEM OCH NÄR, OM BÅDA FINNS (0.30.0, #173, CP 2026-09-29: "vem
                   som skapade"). Under titeln och inte i detaljraden ovanför: det
