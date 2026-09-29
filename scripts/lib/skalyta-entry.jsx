@@ -309,14 +309,23 @@ function Scen() {
   if (s === "hub") {
     return (
       <Full>
-        <div className="px-4 py-4">
-          <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
-        </div>
+        <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
       </Full>
     );
   }
-  // 0.31.0 (fynd 1 i #475): utan `px-4` runt. Appen får lägga vilken padding den vill, och Hub får inte kräva en: raden hade
-  // `-mx-4`, som ger horisontell överflödning i en kolumn utan egen padding.
+  // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
+  if (s === "idag") {
+    const { OpsView } = Ops;
+    return (
+      <Full>
+        <OpsView>
+          <p data-idag-forst="">Idag</p>
+        </OpsView>
+      </Full>
+    );
+  }
+  // 0.31.0 (fynd 1 i #475): utan `px-4` runt. 0.31.2: Hub äger sin egen ram (`OpsView`), så "naken" är nu samma sak som "hub"
+  // (före 0.31.2 hade appen INGEN sidomarginal och inget avstånd under toppraden, se CHANGELOG). Scenerna behålls som alias.
   if (s === "hubnaken") {
     return (
       <Full>
@@ -345,9 +354,7 @@ function Scen() {
   if (s === "hubmodul") {
     return (
       <Full>
-        <div className="px-4 pb-4">
-          <OpsHubModul modul={hubModuler[1]} hubHref="/hub" activeHref="/ekonomi" onNavigate={gaTill} />
-        </div>
+        <OpsHubModul modul={hubModuler[1]} hubHref="/hub" activeHref="/ekonomi" onNavigate={gaTill} />
       </Full>
     );
   }
