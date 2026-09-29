@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { huvudknappKlass } from "../lib/radKlass.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { OpsTooltip } from "./OpsTooltip.jsx";
 
 /**
  * En destination som en ikon, för åtgärdsklustret längst till höger i toppraden.
@@ -55,7 +56,7 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
 
   const count = typeof badge === "number" && badge > 0 ? badge : 0;
 
-  return (
+  const lank = (
     <a
       href={href}
       onClick={(e) => {
@@ -86,5 +87,14 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
       <span aria-hidden="true" className="inline-flex">{avatar && isValidElement(icon) && icon.type === OpsIdentity ? cloneElement(/** @type {any} */ (icon), { size: "avatar" }) : icon}</span>
       {count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" /> : null}
     </a>
+  );
+
+  // ⛔ 0.31.0 (fynd 5 i cllp/bolag-ops#475): EN IKONKNAPP I HUVUDET HAR ETT SYNLIGT NAMN VID HOVER OCH FOKUS, som SS (`title` på
+  // varje knapp i `AppHeader.jsx`). `aria-label` ovan är namnet för den som lyssnar; tooltipen är samma ord för den som ser. En
+  // pekskärm har ingen hover, och där är namnet menyraden (Fråga och andra flyttade åtgärder står med etikett i menyn).
+  return (
+    <OpsTooltip content={label} side="bottom">
+      {lank}
+    </OpsTooltip>
   );
 }

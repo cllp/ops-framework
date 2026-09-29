@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { OpsInloggning } from "../components/OpsInloggning.jsx";
-import { OpsEmpty } from "../components/OpsEmpty.jsx";
+import { OpsLaddaSkelett } from "../components/OpsLaddaSkelett.jsx";
 import { OpsView, OpsViewHeader } from "../components/OpsView.jsx";
 
 /**
@@ -328,7 +328,7 @@ export function useOpsAuth() {
  * @param {object} props
  * @param {string[]} [props.allowedRoles] Tom eller utelämnad betyder "vem som helst som är inloggad".
  * @param {string} [props.title] Skärmläsarrubriken över kortet ("Kontrollerar inloggning"-läget) OCH `OpsInloggning`s rubrik.
- * @param {string} [props.description] Historisk, ritas bara i "kontrollerar"-läget (laddar).
+ * @param {string} [props.description] Används inte längre (0.31.0): laddningsläget är ett skelett, inte en text. Kvar i typen så att ingen app går sönder.
  * @param {import("../components/OpsBrand.jsx").MarkeNamn} [props.namn] `OpsInloggning props.namn`, märkets rad 1 (förval "OPS HUB").
  * @param {string} [props.etikett] `OpsInloggning props.etikett`, appens namn som märkets rad 2.
  * @param {string} [props.viskning] `OpsInloggning props.viskning`.
@@ -338,12 +338,15 @@ export function useOpsAuth() {
  * @param {(sprak: "sv"|"en") => void} [props.onSprak]
  * @param {string} [props.deniedTitle]
  * @param {string} [props.deniedText]
+ * @param {number} [props.laddaLangsamMs] (0.31.0) Efter så här många ms visas raden med "Försök igen" i laddningsläget. Förval 8000.
+ * @param {string} [props.laddaLangsamText]
+ * @param {string} [props.forsokIgenEtikett]
+ * @param {() => void} [props.onForsokIgen] Vad "Försök igen" gör. Förval: ladda om sidan.
  * @param {import("react").ReactNode} props.children
  */
 export function OpsAuthGate({
   allowedRoles,
   title = "Logga in",
-  description = "Den här plattformen kräver inloggning.",
   namn,
   etikett,
   viskning,
@@ -353,16 +356,18 @@ export function OpsAuthGate({
   onSprak,
   deniedTitle = "Du har inte tillgång",
   deniedText = "Ditt konto är inloggat men saknar behörighet här. Be den som förvaltar plattformen lägga till dig.",
+  laddaLangsamMs,
+  laddaLangsamText,
+  forsokIgenEtikett,
+  onForsokIgen,
   children,
 }) {
   const { user, loading, error, auth, clearError } = useOpsAuth();
 
   if (loading) {
-    return (
-      <OpsView width="narrow">
-        <OpsEmpty busy title={title} description={description} busyLabel="Kontrollerar inloggning" />
-      </OpsView>
-    );
+    // ⛔ 0.31.0: ETT SKELETT AV HUVUDET OCH INNEHÅLLET, inte en text på en tom sida, och efter en tidsgräns en rad med
+    // "Försök igen". Se `OpsLaddaSkelett`.
+    return <OpsLaddaSkelett langsamEfterMs={laddaLangsamMs} langsamText={laddaLangsamText} forsokIgenEtikett={forsokIgenEtikett} onForsokIgen={onForsokIgen} />;
   }
 
   if (!user) {

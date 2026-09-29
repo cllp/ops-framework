@@ -1154,6 +1154,110 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   await context.close();
 }
 
+// ══ 16. DESIGN-QA cllp/bolag-ops#475, RAMVERKETS DEL (0.31.0, avsnitt 8) ══════
+// Fynd 1: ingen horisontell överflödning på Hub eller modulsidan, varken med eller utan appens egen padding, vid 390, 768 och
+// 1280 px. Fynd 2: samma modell överallt (panel från lg, annars en växlare i huvudet som visar den aktiva gruppen, aldrig en
+// ensam chevron). Fynd 3: en sida under modulen bär samma tillbaka-rad. Fynd 4: barnkorten är samma kort som Hubs, med ikon och
+// info. Fynd 5: Fråga står med namn i mobilmenyn, och ikonknapparna i huvudet har aria-label och tooltip. Fynd 8: infon i
+// `ink-secondary`, "Inget nytt" i en egen statusstil.
+for (const scen of ["hub", "hubmodul", "hubnaken", "hubmodulnaken"]) {
+  for (const bredd of [390, 768, 1280]) {
+    const { page, context } = await oppna(scen, { width: bredd, height: 900 });
+    const o = await page.evaluate(() => {
+      const d = document.documentElement;
+      const bredaste = [...document.querySelectorAll("main *")].reduce((m, el) => Math.max(m, el.getBoundingClientRect().right), 0);
+      return { sw: d.scrollWidth, cw: d.clientWidth, bredaste: Math.round(bredaste) };
+    });
+    krav(o.sw <= o.cw, `${scen} ${bredd} px: horisontell överflödning (scrollWidth ${o.sw} mot clientWidth ${o.cw}, bredaste element i main slutar ${o.bredaste}).`);
+    await context.close();
+  }
+}
+// Fynd 2: samma modell överallt.
+for (const scen of ["hub", "hubmodul"]) {
+  for (const bredd of [390, 900, 1280]) {
+    const { page, context } = await oppna(scen, { width: bredd, height: 900 });
+    const g = await page.evaluate(() => {
+      const syns = (/** @type {Element | null} */ el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+      const panel = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const vaxlare = document.querySelector('header button[aria-label^="Byt grupp"]');
+      const vr = vaxlare ? vaxlare.getBoundingClientRect() : null;
+      const namn = vaxlare ? [...vaxlare.querySelectorAll("span")].map((x) => x.textContent || "").join("|") : "";
+      const markW = vaxlare && vaxlare.firstElementChild ? vaxlare.firstElementChild.getBoundingClientRect().width : 0;
+      const synligText = vaxlare ? [...vaxlare.querySelectorAll("span")].filter((x) => x.getBoundingClientRect().width > 0 && (x.textContent || "").trim().length > 3).map((x) => (x.textContent || "").trim()) : [];
+      return { panel: syns(panel), vaxlare: syns(vaxlare), namn, markW, synligText, vr: vr ? { w: vr.width, h: vr.height } : null };
+    });
+    matt.push(`gruppmodellen ${scen} ${bredd} px: panel ${g.panel}, växlare ${g.vaxlare}${g.vr ? ` ${g.vr.w.toFixed(0)}x${g.vr.h.toFixed(0)}` : ""}, märke ${g.markW} px, synlig text ${JSON.stringify(g.synligText)}`);
+    if (bredd >= 1024) {
+      krav(g.panel && !g.vaxlare, `gruppmodellen ${scen} ${bredd} px: panel ${g.panel} och växlare ${g.vaxlare}. Väntat panel och ingen växlare från lg.`);
+    } else {
+      krav(!g.panel && g.vaxlare, `gruppmodellen ${scen} ${bredd} px: panel ${g.panel} och växlare ${g.vaxlare}. Väntat en växlare i huvudet och ingen panel under lg.`);
+      krav(g.markW >= 20, `gruppmodellen ${scen} ${bredd} px: växlaren har inget märke (${g.markW} px): en ensam chevron utan grupp.`);
+      if (bredd >= 768) krav(g.synligText.some((/** @type {string} */ t) => t.startsWith("Claes Philip Staiger Konsulting")), `gruppmodellen ${scen} ${bredd} px: växlaren visar inte den aktiva gruppens namn (${JSON.stringify(g.synligText)}).`);
+    }
+    await context.close();
+  }
+}
+// Fynd 3: en sida under modulen bär samma tillbaka-rad.
+{
+  const { page, context } = await oppna("hubbarn", { width: 1280, height: 900 });
+  const r = await page.evaluate(() => {
+    const n = document.querySelector('nav[aria-label="Var du är"]');
+    if (!n) return null;
+    return { text: (n.textContent || "").replace(/\s+/g, " ").trim(), lankar: [...n.querySelectorAll("a")].map((a) => a.getAttribute("href")), aktuell: (n.querySelector('[aria-current="page"]') || {}).textContent, sticky: getComputedStyle(n).position };
+  });
+  krav(r !== null, "sidan under modulen: tillbaka-raden saknas. Varje sida under Hub ska ha den (OpsView tillbaka).");
+  if (r) {
+    matt.push(`sidan under modulen: "${r.text}", länkar ${JSON.stringify(r.lankar)}`);
+    krav(r.text === "Hub/Ekonomi/Inkomster" && JSON.stringify(r.lankar) === '["/hub","/ekonomi"]' && r.aktuell === "Inkomster" && r.sticky === "sticky", `sidan under modulen: raden är "${r.text}" med länkar ${JSON.stringify(r.lankar)}, nuvarande "${r.aktuell}", position ${r.sticky}. Väntat "Hub/Ekonomi/Inkomster" (snedstrecken är dekor), /hub och /ekonomi, sticky.`);
+  }
+  await context.close();
+}
+// Fynd 4 och 8: barnkorten är samma kort som Hubs, och infon är läsbar.
+{
+  const { page, context } = await oppna("hubmodul", { width: 1280, height: 900 });
+  const k = await page.evaluate(() => {
+    const kort = (/** @type {Element} */ a) => {
+      const cs = getComputedStyle(a);
+      const ikon = a.querySelector("span svg");
+      return { radie: cs.borderTopLeftRadius, padding: cs.padding, bg: cs.backgroundColor, ikon: !!ikon, ikonStorlek: ikon ? ikon.getBoundingClientRect().width : 0, text: (a.textContent || "").trim() };
+    };
+    const barn = [...document.querySelectorAll("main ul[aria-label] > li > a")].map(kort);
+    const p = document.createElement("div");
+    p.style.color = "var(--color-ink-secondary)";
+    document.body.appendChild(p);
+    const sek = getComputedStyle(p).color;
+    p.remove();
+    const infoFarger = [...document.querySelectorAll("main ul[aria-label] > li > a > span:not(:first-child)")].map((e) => ({ text: (e.textContent || "").trim(), farg: getComputedStyle(e).color, status: e.getAttribute("data-status") }));
+    return { barn, sek, infoFarger };
+  });
+  krav(k.barn.length === 6 && k.barn.every((b) => b.ikon && Math.abs(b.ikonStorlek - 20) < 0.6), `barnkorten: ${k.barn.filter((b) => b.ikon).length} av ${k.barn.length} har ikon på 20 px (väntat alla, samma som Hubs kort).`);
+  krav(k.barn.every((b) => b.radie === k.barn[0].radie && b.padding === k.barn[0].padding && b.bg === k.barn[0].bg), `barnkorten: rundning, padding eller yta skiljer sig mellan korten.`);
+  const inkomster = k.infoFarger.filter((i) => i.text.length > 0);
+  krav(inkomster.length >= 2 && inkomster.every((i) => i.farg === k.sek), `infon: färgerna är ${JSON.stringify(inkomster.map((i) => i.farg))}, väntat ink-secondary ${k.sek}.`);
+  krav(inkomster.some((i) => i.status === "inget-nytt" && i.text === "Inget nytt") && inkomster.some((i) => i.status === null && i.text.startsWith("Ny faktura")), `"Inget nytt" har inte en egen statusstil skild från infon (${JSON.stringify(inkomster)}).`);
+  await context.close();
+}
+// Fynd 5: Fråga står med namn i mobilmenyn, och ikonknapparna i huvudet har aria-label och en synlig tooltip.
+{
+  const { page, context } = await oppna("full", { width: 390, height: 844 });
+  await page.getByRole("button", { name: "Meny" }).last().click();
+  const dlg = page.locator('[role="dialog"]');
+  await dlg.waitFor({ timeout: 3000 }).catch(() => {});
+  const fraga = await dlg.locator("a, button").filter({ hasText: "Fråga" }).count().catch(() => 0);
+  krav(fraga === 1, `mobilmenyn: ${fraga} rader med namnet Fråga, väntat 1 (åtgärden som flyttats till menyn måste heta något där).`);
+  await context.close();
+}
+{
+  const { page, context } = await oppna("full", { width: 1280, height: 800 });
+  const lankar = await page.evaluate(() => [...document.querySelectorAll("header a[aria-label]")].map((a) => a.getAttribute("aria-label")));
+  krav(["Inkorg", "Sök", "Fråga", "Min profil"].every((n) => lankar.includes(n)), `huvudets ikonknappar: aria-label ${JSON.stringify(lankar)}, väntat Inkorg, Sök, Fråga och Min profil.`);
+  await page.locator('header a[aria-label="Sök"]').hover();
+  const tip = await page.getByRole("tooltip").first().waitFor({ timeout: 2500 }).then(() => page.getByRole("tooltip").first().textContent()).catch(() => null);
+  matt.push(`huvudets tooltip vid hover på Sök: ${JSON.stringify(tip)}`);
+  krav(tip !== null && tip.includes("Sök"), `huvudets ikonknappar: hover på Sök gav ingen synlig tooltip med namnet (${JSON.stringify(tip)}).`);
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

@@ -168,6 +168,13 @@ export const PAR = [
   { vad: "märkets orange i toppraden", text: "marke-accent", yta: "surface", niva: STOR },
   { vad: "märkets orange i inloggningen", text: "marke-accent", yta: "canvas", niva: STOR },
   { vad: "märkets ljusgrå (ink) i toppraden", text: "ink", yta: "surface", niva: BROD },
+  /*
+   * ⛔ HUBKORTETS INFO-RAD OCH "INGET NYTT" (0.31.0, fynd 8 i cllp/bolag-ops#475: "svag kontrast i info-rad och Inget nytt").
+   * Raden stod i `ink-muted` (12 px, normalstil, alltså BROD 4,5:1), och `ink-muted` når det inte mot kortets yta i ljust läge.
+   * Den är nu `ink-secondary`. Paret mot `raised` är kortets hover.
+   */
+  { vad: "hubkortets info-rad", text: "ink-secondary", yta: "surface", niva: BROD },
+  { vad: "hubkortets info-rad, hover", text: "ink-secondary", yta: "raised", niva: BROD },
 ];
 
 /**

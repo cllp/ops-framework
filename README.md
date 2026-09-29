@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**92 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**93 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -181,7 +181,7 @@ något godtyckligt.
 |---|---|
 | `OpsButton` | `variant` primary \| secondary \| ghost \| danger, `size` sm \| md, `type`, `disabled`, `busy`, `fullWidth`, `iconOnly`, `href`, `newTab`, `ariaLabel`, `title`, `id`, `onClick`, `children` |
 | `OpsCard` | `rounding` (`"kort"` 24 px, förval, eller `"bubbla"` 28 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. Båda talen är MÄTTA mot SessionStudios `.rounded-app` (ops-framework#164): `kort` är `--radius-card` (24 px, ett namngivet token), `bubbla` är `--radius-3xl` (28 px, SessionStudios `--radius-bubble`). Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `kant` (förval `false`, #167), `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children`. ⛔ Inre padding är `--card-padding` (20px, #157, mätt mot SessionStudios `p-5`), ett token och inte en klass: `p-4` satt förut hårdkodat i komponenten, så en justering hade krävt en ändring per primitiv i stället för en rad i `tokens/tokens.css`. ⛔ **#167: `kant` förvalt `false`.** Kortet satte tidigare `border` ovillkorligt; SessionStudio skiljer ett kort från sidan med `tone` (tonskillnad), aldrig med en synlig kant. Sätt `kant` när en yta ändå behöver en, t.ex. mot en likfärgad granne |
-| `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
+| `OpsView` | `width` narrow \| normal \| wide \| full, `tillbaka` (0.31.0: `OpsHubTillbaka`s props, raden "‹ Hub / Sida" överst), `children`. Se [Sidchrome och sidnavigering](#sidchrome-och-sidnavigering-0310). |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `oppet`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
 | `OpsDisclosure` | `summary` (krävs), `defaultOpen`, `oppet`, `onOpenChange`, `storageKey`, `badge`, `id`, `children` |
@@ -254,6 +254,7 @@ något godtyckligt.
 | `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `moreNav`, `activeHref`, `onNavigate`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. ⛔ Med `primaryAction` ritas en rund knapp MITT i raden och en flik flyttas till menyn: mätt ryms inte fyra flikar plus Meny plus en knapp på 56 px i 390 px. Knappen är en åtgärd och hamnar aldrig i menyn. Renderas av `OpsAppShell` men kan användas fristående |
 | `OpsHub` | `moduler` [samma form som `nav`, en nivå barn, plus `info?`], `activeHref`, `onNavigate`, `ariaLabel`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.0, #173; 0.30.1 modulkort) Appens moduler som ett rutnät av kort (`rounded-card`), varje kort EN länk med ikon, namn, räknare (`badge`, bara när den är större än noll) och en `info`-rad. Sidan Hub leder till; skalet ritar Hub-posten och dropdownen. ⛔ Tom lista visar text och aldrig en tom yta. Se [Hub och modulkort](#hub-och-modulkort) |
 | `OpsHubModul` | `modul` (med `children`), `hubHref` (krävs), `hubEtikett`, `activeHref`, `onNavigate`, `brodsmulaEtikett`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.1) En moduls egen sida i Hub: en fast tillbaka-rad ("‹ Hub / Ekonomi") och modulens barn som kort. Ritas av appen på modulens `href`. ⛔ Kastar utan `hubHref`; en modul utan barn visar text. Se [Hub och modulkort](#hub-och-modulkort) |
+| `OpsHubTillbaka` | `hubHref` (krävs), `etikett` (krävs, nuvarande sida), `steg` [{href, label}] (mellanliggande länkar), `hubEtikett`, `onNavigate`, `brodsmulaEtikett`. Raden "‹ Hub / Modul" som EN komponent (0.31.0): `OpsHubModul` ritar den, och VARJE sida under Hub ska rita den, via `OpsView tillbaka` eller direkt. ⛔ Kopiera aldrig markupen: bolag-ops gjorde det i `UnderHub.jsx`, och kopian glida isär. |
 | `OpsBrand` | ⛔ **0.31.0: märket är TEXT, inga bilder** (CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray Orange"). `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått = `ink`, resten gråorange = `marke-accent`; eller `{ forsta, andra }`), `undertext` (rad 2: appens eller gruppens namn; tom = bara rad 1, centrerad lodrätt), `monogram` (förval första bokstaven i varje ord, "OH"), `storlek` (`"topp"` | `"stor"`, den senare är inloggningens). Typsnittet ligger i ramverket (`fonts/glacial-indifference/`, SIL OFL med licensfil), storlekar och spärrning är tokens (`--marke-*`, mätta i CP:s bild). I `OpsAppShell` är `brand` (sträng) märkets `namn` och rad 2 den AKTIVA GRUPPENS namn i versaler; i läget Alla mina grupper används `undertext` på appens egen `<OpsBrand undertext="..." />`. Borta sedan 0.30: `title`, `subtitle`, `mark`, `ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `OPS_HUB_VARUMARKE` |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll.  ⛔ `icon` på ett läge ritar ikonen I STÄLLET för ordet, med ordet kvar som `sr-only`: en ikon utan namn är en knapp som inte går att höra. ANTINGEN ALLA LÄGEN ELLER INGET, annars kastar den — en ikon bredvid ett ord ser ut som ett fel |
@@ -1668,6 +1669,29 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 Speglingen kräver en token. Gränsen upprätthålls av `check-node-side` och inte av en
 kommentar, eftersom ett löfte om att en hemlighet inte läcker är värt exakt vad den
 som råkar bryta det råkar minnas.
+
+### Sidchrome och sidnavigering (0.31.0)
+
+Design-QA på live 0.30.1 (cllp/bolag-ops#475, ramverkets del):
+
+- ⛔ **Varje sida under Hub har raden "‹ Hub / Sida".** `OpsHubModul` ritar den på modulsidan; sidorna modulens kort leder till ger
+  `OpsView` propen `tillbaka={{ hubHref, etikett, steg }}` (eller ritar `OpsHubTillbaka` direkt). En sida två nivåer ned ger
+  `steg={[{ href: "/ekonomi", label: "Ekonomi" }]}` och blir "‹ Hub / Ekonomi / Inkomster". Raden kopieras aldrig.
+- **Sidchrome ligger i tokens, inte i sidan.** `OpsView` ger max-bredd (`narrow`, `normal`, `wide`, `full`), sidomarginal (16 px),
+  vertikal rytm (`gap-4`) och `--safe-bottom`; `OpsViewHeader` ger rubriken (rollen `rubrik`, `OpsHelp` bakom frågetecknet); kort och
+  paneler har rundningen `--radius-card` (24 px) och raderna `--radius-base` (12 px). En app som ritar sin egen sida ärver dem genom
+  att ligga i en `OpsView`, och skriver aldrig egna `max-w-*`, `px-*` eller `rounded-*` runt innehållet.
+- **Gruppmodellen är densamma överallt:** från `lg` gruppanelen (utfälld eller infälld), under `lg` en gruppväxlare i huvudet som visar den
+  aktiva gruppens märke (och från `md` dess namn) och öppnar listan. Aldrig en ensam chevron utan grupp. Mäts vid 390, 900 och 1280 px på
+  Hub och modulsidan.
+- **Hub och modulsidan flödar aldrig över.** Raden hade `-mx-4` och gav horisontell överflödning i en kolumn utan egen padding; den hålls nu i
+  innehållskolumnen. Barnkorten under en modul är samma kort som Hubs (ikon, namn, räknare, info).
+- **Info-raden i ett Hubkort** är `ink-secondary` (7,65:1 mot kortet i ljust läge; `ink-muted` gav 3,76:1) och "Inget nytt" har en egen tyst
+  statusstil (en punkt före texten). Paren står i check-kontrast.
+- **Ikonknapparna i huvudet** har `aria-label` OCH en synlig tooltip med namnet vid hover och fokus. Åtgärder som flyttas till menyn under `md`
+  (Fråga) står där med sitt namn.
+- **Inloggningskontrollen är ett skelett**, inte en text: huvudet och innehållet som grå block, och efter `laddaLangsamMs` (8 s) en rad med
+  "Försök igen" (`onForsokIgen`, förval: ladda om).
 
 ### Navigationen
 

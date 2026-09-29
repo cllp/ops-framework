@@ -1,5 +1,6 @@
 import { cx } from "../lib/cx.js";
 import { OpsHelp } from "./OpsHelp.jsx";
+import { OpsHubTillbaka } from "./OpsHub.jsx";
 
 /**
  * Vyskalet. Varje sida i en ops-app ligger i en av dessa.
@@ -23,9 +24,11 @@ const BREDDER = {
 /**
  * @param {object} props
  * @param {"narrow"|"normal"|"wide"|"full"} [props.width]
+ * @param {import("react").ComponentProps<typeof OpsHubTillbaka>} [props.tillbaka] (0.31.0) Tillbaka-raden "‹ Hub / Sida" överst i vyn,
+ *   samma komponent som `OpsHubModul` (`OpsHubTillbaka`). ⛔ Varje sida under Hub bär den: ge den här propen i stället för att rita raden själv.
  * @param {import("react").ReactNode} props.children
  */
-export function OpsView({ width = "normal", children }) {
+export function OpsView({ width = "normal", tillbaka, children }) {
   const breddKlass = BREDDER[width];
   if (!breddKlass) {
     throw new Error(`OpsView: okänd width "${width}". Giltiga: ${Object.keys(BREDDER).join(", ")}.`);
@@ -48,6 +51,7 @@ export function OpsView({ width = "normal", children }) {
         breddKlass,
       )}
     >
+      {tillbaka ? <OpsHubTillbaka {...tillbaka} /> : null}
       {children}
     </div>
   );

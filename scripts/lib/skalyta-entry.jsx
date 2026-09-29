@@ -83,9 +83,9 @@ const hubModuler = [
     badge: 2,
     info: { sv: "Skatten förfaller 12 oktober" },
     children: [
-      { href: "/inkomster", label: "Inkomster", badge: 1, info: "Ny faktura i går" },
-      { href: "/kostnader", label: "Kostnader", info: null },
-      ...["Pension", "Skatt", "Moms", "Bokslut"].map((n) => ({ href: `/${n.toLowerCase()}`, label: n })),
+      { href: "/inkomster", label: "Inkomster", icon: <Wallet size={IKON} />, badge: 1, info: "Ny faktura i går" },
+      { href: "/kostnader", label: "Kostnader", icon: <Inbox size={IKON} />, info: null },
+      ...["Pension", "Skatt", "Moms", "Bokslut"].map((n) => ({ href: `/${n.toLowerCase()}`, label: n, icon: <Settings size={IKON} /> })),
     ],
   },
   { href: "/schema", label: "Schema", icon: <Calendar size={IKON} />, badge: 0, info: null },
@@ -213,6 +213,33 @@ function Scen() {
         <div className="px-4 py-4">
           <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
         </div>
+      </Full>
+    );
+  }
+  // 0.31.0 (fynd 1 i #475): utan `px-4` runt. Appen får lägga vilken padding den vill, och Hub får inte kräva en: raden hade
+  // `-mx-4`, som ger horisontell överflödning i en kolumn utan egen padding.
+  if (s === "hubnaken") {
+    return (
+      <Full>
+        <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
+      </Full>
+    );
+  }
+  if (s === "hubmodulnaken") {
+    return (
+      <Full>
+        <OpsHubModul modul={hubModuler[1]} hubHref="/hub" activeHref="/ekonomi" onNavigate={gaTill} />
+      </Full>
+    );
+  }
+  // Fynd 3: en sida UNDER modulen bär samma tillbaka-rad, via `OpsView tillbaka`.
+  if (s === "hubbarn") {
+    const { OpsView } = Ops;
+    return (
+      <Full>
+        <OpsView tillbaka={{ hubHref: "/hub", etikett: "Inkomster", steg: [{ href: "/ekonomi", label: "Ekonomi" }], onNavigate: gaTill }}>
+          <p data-barnsida="">Inkomster</p>
+        </OpsView>
       </Full>
     );
   }
