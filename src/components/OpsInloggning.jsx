@@ -204,16 +204,16 @@ export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = 
         className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-accent-faint to-transparent"
       />
 
-      <div className="relative z-10 flex w-full max-w-[360px] flex-col items-stretch gap-2">
+      <div className="relative flex w-full max-w-[360px] flex-col items-stretch gap-2">
         <div className="mb-3 flex flex-col items-center text-center">
           {ordmarke ? (
             // ⛔ 0.31.1: appens BILDLOGGA på inloggningen (CP 2026-09-29 18:40: "INloggningen den nya loggan"). Två bilder,
-            // en per tema, där `.ops-ordmarke-*` (tokens.css) döljer den som inte hör till temat. Den ljusa bilden ritas med `mix-blend-multiply` så att dess vita bakgrund blir sidans papper. Höjden styrs med en klass,
+            // en per tema, där `.ops-ordmarke-*` (tokens.css) döljer den som inte hör till temat. Den ljusa bilden ritas med `mix-blend-multiply` så att dess vita bakgrund blir sidans papper (kolumnen har därför inget `z-index`: ett eget staplingssammanhang hade isolerat blandningen från sidan). `clip-path` skär bort luften som `-my-10` tagit ur layouten. Höjden styrs med en klass,
             // aldrig `max-width`: mästerbilderna är fyrkantiga med luft runt märket. Headern rörs inte, den behåller textmärket.
             <span data-marke="bild" className="flex w-full justify-center">
               {[["ljus", ordmarke.ljus, "mix-blend-multiply"], ["mork", ordmarke.mork, ""]].map(([tema, src, extra]) => (
                 // Båda har alt: den som `display:none` döljer läses inte upp, och den som syns MÅSTE ha ett namn i båda teman.
-                <img key={tema} src={src} alt={bildAlt} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "-my-10 w-auto max-w-full object-contain", extra, ordmarkeHojd)} />
+                <img key={tema} src={src} alt={bildAlt} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "-my-10 w-auto max-w-full object-contain [clip-path:inset(2.5rem_0)]", extra, ordmarkeHojd)} />
               ))}
             </span>
           ) : (

@@ -872,6 +872,32 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
     krav(!m.text, `${id}: textmärket ritas också. Väntat bara bilden.`);
     krav(m.alt === "Bolag Ops", `${id}: alt-texten är "${m.alt}", väntat appens namn "Bolag Ops".`);
     krav(!m.overflow, `${id}: horisontell överflödning.`);
+    // Den ljusa bildens VITA botten ska bli sidans papper (mix-blend-multiply), inte en vit ruta på krämfärgad sida. Mäts på pixlarna:
+    // bildens övre vänstra hörn (inom clip-path) mot en punkt på sidan strax utanför bilden. Provet kräver att blandningen inte isoleras
+    // av ett staplingssammanhang (t.ex. `z-10` på kolumnen), vilket är exakt det som gjorde den verkningslös första gången.
+    if (tema === "light") {
+      const box = await page.evaluate(() => {
+        const i = [...document.querySelectorAll('[data-marke="bild"] img')].find((x) => x.getBoundingClientRect().width > 0);
+        const r = /** @type {Element} */ (i).getBoundingClientRect();
+        return { x: r.x, y: r.y + 42, w: r.width };
+      });
+      const png = await page.screenshot({ clip: { x: Math.max(0, box.x - 6), y: box.y, width: 12, height: 1 } });
+      const px = await page.evaluate(async (b64) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${b64}`;
+        await img.decode();
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const g = /** @type {CanvasRenderingContext2D} */ (c.getContext("2d"));
+        g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, img.width, 1).data;
+        return { fora: [d[0], d[1], d[2]], inne: [d[(img.width - 1) * 4], d[(img.width - 1) * 4 + 1], d[(img.width - 1) * 4 + 2]] };
+      }, png.toString("base64"));
+      const diff = Math.max(...px.fora.map((v, k) => Math.abs(v - px.inne[k])));
+      matt.push(`${id}: pixel strax utanför bilden ${px.fora.join(",")}, inne i bildens hörn ${px.inne.join(",")}`);
+      krav(diff <= 3, `${id}: bildens vita botten syns som en ruta mot sidan (utanför ${px.fora.join(",")}, inne ${px.inne.join(",")}). Väntat samma färg (mix-blend-multiply utan isolerande staplingssammanhang).`);
+    }
     if (bildmapp && tema === "light") await page.screenshot({ path: path.join(bildmapp, `inloggning-bild-${vp.width}.png`) });
     await context.close();
   }
