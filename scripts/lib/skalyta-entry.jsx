@@ -14,7 +14,7 @@ import { useState } from "react";
 import * as Ops from "OPS_DIST";
 import { Bell, Calendar, CalendarDays, CheckSquare, FileText, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
+const { OpsEventList, OpsAttributes, OpsFact, OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
 
@@ -291,7 +291,7 @@ function Scen() {
   if (s === "full") {
     return (
       <Full>
-        <p className="px-4">innehåll</p>
+        <p className="px-4 text-brod">innehåll</p>
       </Full>
     );
   }
@@ -310,6 +310,61 @@ function Scen() {
     return (
       <Full>
         <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
+      </Full>
+    );
+  }
+  // 0.31.2 (uppgift 5): Idag med ett utfällt kort och en faktalista, byggd av ramverkets egna komponenter. Typvakten (avsnitt 20) mäter
+  // varje synligt textelement här och i de andra sidorna.
+  if (s === "idagkort") {
+    const { OpsView } = Ops;
+    const [vy, setVy] = useState("idag");
+    const handelser = [
+      {
+        id: "e1",
+        title: "Kundfaktura 119223 Adavo AB, skickad, väntar betalning, 158 400 kr inkl moms",
+        daysLeft: -19,
+        role: "Du",
+        kind: "Faktura",
+        when: "För 19 dagar sedan",
+        updatedAt: "Senast 10 sep",
+        deadline: "Förfaller 2026-09-10",
+        slag: 1,
+        slagLabel: "Faktura",
+        status: "vantar",
+        skapadAv: { namn: "Wint", typ: "agent" },
+        skapad: "2026-09-10T09:12:00Z",
+        atgard: <OpsButton size="sm" variant="secondary">Bocka av</OpsButton>,
+        details: (
+          <OpsAttributes
+            rows={[
+              { label: "Belopp inkl moms", value: "158 400 kr" },
+              { label: "Exkl moms", value: "126 720 kr" },
+              { label: "Period", value: "2026-07" },
+              { label: "Underlag", value: "144 h x 880 kr" },
+              { label: "Status", value: "sent" },
+              { label: "Hämtad från", value: "Wint" },
+              { label: "Försvinner", value: "Försvinner när underlaget ändras, inte när du gör något." },
+            ]}
+          />
+        ),
+      },
+      { id: "e2", title: "Attest större leverantörsfakturor", daysLeft: 3, role: "Agent", kind: "Uppgift", when: "Om 3 dagar", slag: 2, slagLabel: "Uppgift" },
+    ];
+    return (
+      <Full>
+        <OpsView>
+          <OpsSegmented ariaLabel="Idag eller kommande" value={vy} onChange={setVy} options={[{ value: "idag", label: "Idag", badge: 3 }, { value: "kommande", label: "Kommande", badge: 76 }]} />
+          <OpsEventList
+            events={handelser}
+            actionHint="Bara påminnelser går att bocka av, och bara för den här gången."
+            statusWords={{ vantar: "Väntar" }}
+            labels={{ forsenat: "Försenat" }}
+          />
+          <div className="flex gap-2">
+            <OpsFact kind="uppskattat" value="1 200 kr" />
+            <OpsTag label="Etikett" />
+          </div>
+        </OpsView>
       </Full>
     );
   }
@@ -369,7 +424,7 @@ function Scen() {
         skapa={{ handelse: <p>Formulär</p> }}
         meny={meny}
       >
-        <p>innehåll</p>
+        <p className="text-brod">innehåll</p>
       </OpsAppShell>
     );
   }
@@ -384,7 +439,7 @@ function Scen() {
   }
   return (
     <Skal>
-      <p className="px-4">innehåll</p>
+      <p className="px-4 text-brod">innehåll</p>
     </Skal>
   );
 }

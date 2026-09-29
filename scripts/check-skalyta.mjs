@@ -1657,6 +1657,7 @@ for (const [bredd, hojd] of /** @type {const} */ ([[1280, 800], [390, 844]])) {
   await page.waitForSelector('[role="dialog"]');
   const h = () => page.evaluate(() => { const r = document.querySelector('[role="dialog"]').getBoundingClientRect(); return { h: r.height, y: r.top, bottom: r.bottom }; });
   const rot = await h();
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `meny-rot-hojd-${bredd}.png`) });
   await page.getByRole("button", { name: /Aktivitet/ }).click();
   await page.waitForTimeout(200);
   const akt = await h();
@@ -1667,6 +1668,97 @@ for (const [bredd, hojd] of /** @type {const} */ ([[1280, 800], [390, 844]])) {
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `meny-aktivitet-hojd-${bredd}.png`) });
   await context.close();
 }
+
+// ══ 20. TEXTSTORLEK: EN SKALA, HÄMTAD FRÅN ROLLERNA (0.31.2, uppgift 5) ═══════
+// CP 2026-09-29 21:00, med en bild av Idag (390 px, ett utfällt kort): "Fortfarande jävla diffar i textstorlek på olika håll. Kan det
+// bli enhetligt och läsa från samma klasser." På bilden hade Idag/Kommande-pillret, hjälptexten, kortets chips, kortets meta,
+// kortets titel, faktatabellens etiketter och värden, och bottenraden alla olika storlekar: komponenterna skrev `text-sm`,
+// `text-xs`, `text-base` och `text-lg` rakt av, och det som saknade storlek ärvde 16 px från body.
+// Mått (samma element på båda bredderna jämförs inom `main`, eftersom skalets krom byter form vid brytpunkten): varje synligt textelement på fixtursidorna vid 390 och 1280 (a) bär en roll (klassen självt eller en förälder), (b) har en
+// storlek ur rollmängden, (c) har SS-värdet för sin roll, (d) har samma storlek på mobil och dator, och (e) ingen komponent
+// skriver `text-xs/sm/base/md/lg/xl` längre. Golv: minst 60 textelement.
+/** SS-värdena (px) per roll, avlästa ur SessionStudio: se `tokens/sessionstudio-profil.json` typografi.roller. */
+const ROLLER = { mikro: 8, liten: 10, hjalp: 11, meta: 12, sektion: 12, etikett: 14, brod: 16, rubrik: 16, titel: 18, sida: 20 };
+const ROLLMANGD = new Set(Object.values(ROLLER));
+const TYPSIDOR = /** @type {const} */ ([
+  ["idagkort", async (/** @type {any} */ p) => { await p.locator("main ul button[aria-expanded]").first().click(); }],
+  ["hub", async (/** @type {any} */ p) => { await p.locator("main ul[aria-label] button[aria-expanded]").first().click(); }],
+  ["hubmodul", async () => {}],
+  ["installning", async () => {}],
+  ["full", async (/** @type {any} */ p) => { const v = p.viewportSize(); await (v && v.width < 800 ? p.getByRole("button", { name: "Meny" }).last() : p.getByRole("button", { name: /Meny, fler/ })).click(); }],
+]);
+/** @type {Map<string, number>} */
+const storlekPerText = new Map();
+let textMatta = 0;
+/** @type {string[]} */
+const avvikelser = [];
+const listor = argv.includes("--storlekar");
+for (const bredd of [390, 1280]) {
+  for (const [scen, oppnaSida] of TYPSIDOR) {
+    const { page, context } = await oppna(scen, { width: bredd, height: bredd < 800 ? 844 : 900 });
+    try { await oppnaSida(page); await page.waitForTimeout(250); } catch { /* sidan saknar det som ska öppnas: mätningen nedan räknar det */ }
+    const m = await page.evaluate((roller) => {
+      /** @type {{ text: string, px: number, vikt: number, lh: string, roll: string | null, klass: string, gammal: string[], tag: string, iMain: boolean }[]} */
+      const ut = [];
+      const rollRe = new RegExp(`(?:^|\\s)(?:[a-z]+:)*text-(${Object.keys(roller).join("|")})(?:\\s|$)`);
+      const gammalRe = /(?:^|\s)(?:[a-z]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?:\s|$)/;
+      for (const el of document.querySelectorAll("body *")) {
+        if (["SCRIPT", "STYLE", "SVG", "PATH"].includes(el.tagName.toUpperCase())) continue;
+        // Märket (loggan) är text ritad som bild och mäts i avsnitt 10, inte här.
+        if (el.closest("[data-marke]")) continue;
+        const egen = [...el.childNodes].filter((n) => n.nodeType === 3 && (n.textContent || "").trim()).map((n) => (n.textContent || "").trim()).join(" ");
+        if (!egen) continue;
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        if (r.width <= 1 || r.height <= 1 || cs.visibility === "hidden" || cs.display === "none") continue;
+        let roll = null;
+        for (let e = /** @type {Element | null} */ (el); e && e !== document.body; e = e.parentElement) {
+          const k = typeof e.className === "string" ? e.className : "";
+          const mm = rollRe.exec(k);
+          if (mm) { roll = mm[1]; break; }
+        }
+        const klass = typeof el.className === "string" ? el.className : "";
+        ut.push({ text: egen.slice(0, 30), px: parseFloat(cs.fontSize), vikt: parseInt(cs.fontWeight, 10), lh: cs.lineHeight, roll, klass, gammal: gammalRe.test(klass) ? klass.split(/\s+/).filter((c) => /text-(xs|sm|base|md|lg|xl|2xl|3xl)$/.test(c)) : [], tag: el.tagName.toLowerCase(), iMain: !!el.closest("main") });
+      }
+      return ut;
+    }, ROLLER);
+    textMatta += m.length;
+    /** @type {Map<string, number>} */
+    const antalPerText = new Map();
+    const dist = [...new Set(m.map((e) => e.px))].sort((a, b) => a - b);
+    matt.push(`textstorlek ${scen} ${bredd} px: ${m.length} textelement, storlekar ${dist.join("/")} px${listor ? ` [${dist.map((d) => `${d}: ${[...new Set(m.filter((e) => e.px === d).map((e) => e.text))].slice(0, 6).join(" | ")}`).join(" ;; ")}]` : ""}`);
+    for (const e of m) {
+      const id = `${scen} ${bredd} px "${e.text}"`;
+      if (!ROLLMANGD.has(e.px)) avvikelser.push(`${id}: ${e.px} px är ingen roll (rollmängd ${[...ROLLMANGD].join("/")}).`);
+      if (e.gammal.length) avvikelser.push(`${id}: bär ${e.gammal.join(" ")} i stället för en roll.`);
+      if (e.roll === null) avvikelser.push(`${id}: ingen roll (varken elementet eller en förälder bär text-<roll>), storleken ${e.px} px är ärvd.`);
+      else if (e.px !== ROLLER[/** @type {keyof typeof ROLLER} */ (e.roll)]) avvikelser.push(`${id}: rollen ${e.roll} ger ${e.px} px, SS-värdet är ${ROLLER[/** @type {keyof typeof ROLLER} */ (e.roll)]}.`);
+      if (!e.iMain) continue;
+      const nte = (antalPerText.get(`${e.text}|${e.tag}`) ?? 0) + 1;
+      antalPerText.set(`${e.text}|${e.tag}`, nte);
+      const nyckel = `${scen}|${e.text}|${e.tag}|${nte}`;
+      const forra = storlekPerText.get(nyckel);
+      if (bredd === 390) storlekPerText.set(nyckel, e.px);
+      else if (forra !== undefined && forra !== e.px) avvikelser.push(`${id}: ${forra} px på mobil och ${e.px} px på dator (samma element, samma roll ska ge samma storlek).`);
+    }
+    // Idag-kortet: rollerna per innehåll (uppgift 5, bild från CP).
+    if (scen === "idagkort") {
+      /** @param {string} t */
+      const px = (t) => m.filter((e) => e.iMain && e.text.startsWith(t)).map((e) => e.px);
+      /** @type {[string, number][]} */
+      const vantat = [["Kundfaktura 119223", 18], ["Bara påminnelser", 14], ["Idag", 14], ["Kommande", 14], ["Belopp inkl moms", 14], ["158 400 kr", 14], ["För 19 dagar", 14], ["Faktura", 14], ["Försenat", 12], ["Menu", 0]].filter(([, v]) => v !== 0);
+      for (const [t, v] of vantat) {
+        const funna = px(t);
+        krav(funna.length > 0 && funna.every((f) => f === v), `Idag-kortet ${bredd} px: "${t}" är ${funna.length ? funna.join("/") : "inte hittad"} px, väntat ${v} (SS).`);
+      }
+    }
+    if (bildmapp && scen === "idagkort") await page.screenshot({ path: path.join(bildmapp, `idagkort-${bredd}.png`), fullPage: true });
+    await context.close();
+  }
+}
+krav(textMatta >= 60, `textstorlek: bara ${textMatta} textelement mätta, väntat minst 60. Golv (en vakt som mäter inget är grön av att inte ha tittat).`);
+krav(avvikelser.length === 0, `textstorlek: ${avvikelser.length} avvikelser från rollskalan. Första tio:\n    ${avvikelser.slice(0, listor ? 500 : 10).join("\n    ")}`);
+matt.push(`textstorlek: ${textMatta} textelement mätta, ${avvikelser.length} avvikelser`);
 
 await browser.close();
 
