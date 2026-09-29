@@ -112,6 +112,24 @@ eller skicka `<OpsBrand undertext="Bolag Ops" />` för en rad 2 i läget Alla mi
 
 ---
 
+### Accenten är SessionStudios bruna (avsnitt 7)
+CP 2026-09-29: "OPS HUB är grön i mörkt läge. Sessionstudio är brun, vilken färg är det?" Det är tonen **Brun** i
+grön-profilen: webben väljer ton med attributet `data-hsl-preset` (`apps/web/src/constants/themes.js:105-109`
+`applyHslPreset`, `main.jsx:73-75`, `localStorage sp_hsl_preset`, swatch "Brun" `packages/shared/designTokens.js:249`).
+Värdena står i `index.css:690-704` (ljust) och `index.css:767-781` (mörkt). Mobilens `theme.js:100` hue -30 är en annan väg
+och ger olivgrönt, alltså inte det CP ser.
+
+| | accent | hover (`accent-light`) |
+|---|---|---|
+| mörkt | `#9e8a6e` (index.css:768) | `#ae9a7e` (index.css:769) |
+| ljust | `#8E7A4E` (index.css:691) | `#9e8a5e` (index.css:692) |
+
+CP:s bild visar ungefär `#a8987a`, det vill säga tonen efter komprimering. Märkets gråorange `#a9925e` ligger nära den mörka
+accenten: skillnad 11, 8 och 16 i R, G och B. `accent-subtle` och `-faint` härleds nu ur accentens hex (`rgbaAv` i
+generate-tokens) i stället för att vara egna rgba-tal, för de olivgröna literalerna hade blivit kvar. Kontrast mätt av
+check-kontrast: mörk primärknapp 4,56:1 (hover 5,58:1). Ljus `accent-contrast` blev `#000000` (5,04:1), eftersom `#1a1a1a` gav
+4,18:1 på SessionStudios ljusa brun. En vakt fäller en handskriven genomskinlig ton.
+
 ## 0.30.1
 
 ⛔ **Mobilhuvudet, gruppanelen och loggan, och Hub, som SessionStudio.** CP

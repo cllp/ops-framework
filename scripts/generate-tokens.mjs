@@ -72,6 +72,19 @@ export function byggTypografiroller(typografi) {
   return rader;
 }
 
+/**
+ * Accentens genomskinliga toner (`accent-subtle`, `accent-faint`) HÄRLEDS ur accentens hex i stället för att
+ * skrivas som egna rgba-tal (0.31.0). Före det stod de som literaler i tokens.css, och när accenten byttes
+ * från oliv till SessionStudios bruna fick de stå kvar olivgröna: två sanningar om samma färg. Alfa 0,12 och
+ * 0,06 är oförändrade sedan #167 (SS `--color-gold-overlay-subtle` och `-faint`).
+ * @param {string} hex `#rrggbb` @param {number} alfa
+ */
+export function rgbaAv(hex, alfa) {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) throw new Error(`generate-tokens: accenten ${hex} är inte #rrggbb, så en genomskinlig ton kan inte härledas.`);
+  return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${alfa})`;
+}
+
 /** @param {object} f Fixturen, redan JSON.parse:ad. */
 export function byggThemeBlock(f) {
   const { farger, radier, typografi, diagram } = f;
@@ -91,6 +104,8 @@ export function byggThemeBlock(f) {
     ``,
     `  --color-accent: ${farger.ljus.accent.varde};`,
     `  --color-accent-hover: ${farger.ljus.accent_hover.varde};`,
+    `  --color-accent-subtle: ${rgbaAv(farger.ljus.accent.varde, 0.12)};`,
+    `  --color-accent-faint: ${rgbaAv(farger.ljus.accent.varde, 0.06)};`,
     ``,
     `  --color-marke-accent: ${f.marke.accent.ljus.varde};`,
     ``,
@@ -142,6 +157,8 @@ export function byggDarkBlock(f) {
     ``,
     `  --dark-accent: ${farger.mork.accent.varde};`,
     `  --dark-accent-hover: ${farger.mork.accent_hover.varde};`,
+    `  --dark-accent-subtle: ${rgbaAv(farger.mork.accent.varde, 0.12)};`,
+    `  --dark-accent-faint: ${rgbaAv(farger.mork.accent.varde, 0.06)};`,
     ``,
     `  --dark-marke-accent: ${f.marke.accent.mork.varde};`,
     ``,

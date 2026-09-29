@@ -151,12 +151,17 @@ kravRott(
 // matchar vad generatorn skulle skrivit.
 kravRott(
   "tokens 8/9a: ljus accent redigerad för hand i det genererade blocket",
-  [tokenvakt, tokenkopia("r8a", (s) => s.replace("--color-accent: #6B8E4E;", "--color-accent: #a0a0a0;"))],
+  [tokenvakt, tokenkopia("r8a", (s) => s.replace("--color-accent: #8E7A4E;", "--color-accent: #a0a0a0;"))],
   "genererat block",
 );
 kravRott(
   "tokens 8/9b: mörk accent redigerad för hand i det genererade blocket",
-  [tokenvakt, tokenkopia("r8b", (s) => s.replace("--dark-accent: #7a9e5e;", "--dark-accent: #c9a84c;"))],
+  [tokenvakt, tokenkopia("r8b", (s) => s.replace("--dark-accent: #9e8a6e;", "--dark-accent: #c9a84c;"))],
+  "genererat block",
+);
+kravRott(
+  "tokens 0.31.0: accentens genomskinliga ton skriven som eget rgba-tal (olivgrön kvar efter bytet)",
+  [tokenvakt, tokenkopia("r8d", (s) => s.replace("--color-accent-subtle: rgba(142, 122, 78, 0.12);", "--color-accent-subtle: rgba(107, 142, 78, 0.12);"))],
   "genererat block",
 );
 kravRott(

@@ -16,8 +16,8 @@
       "ink_secondary": { "varde": "#5a5048", "_kalla": "index.css:488 --color-text-secondary" },
       "ink_muted": { "varde": "#8a8078", "_kalla": "index.css:489 --color-text-muted" },
       "line": { "varde": "#E8E2DA", "_kalla": "index.css:522 --color-border-default" },
-      "accent": { "varde": "#6B8E4E", "_kalla": "index.css:497 --color-accent. Oliv, inte det gråbruna ramverksvärdet. AVSIKTLIGT: CP:s uttryckliga förebild (main.jsx:65, green är förvalet för alla)." },
-      "accent_hover": { "varde": "#7a9e5e", "_kalla": "index.css:498 --color-accent-light, SS:s egen ljusare/hover-ton av accenten" }
+      "accent": { "varde": "#8E7A4E", "_kalla": "index.css:691 --color-accent, green-profilen med tonen Brun (`[data-profile=\"green\"][data-theme=\"light\"][data-hsl-preset=\"brown\"]`, index.css:690-704). 0.31.0, CP 2026-09-29: 'OPS HUB är grön i mörkt läge. Sessionstudio är brun.' Tonen väljs med attributet data-hsl-preset (constants/themes.js:105-109 applyHslPreset, main.jsx:73-75, localStorage sp_hsl_preset) och swatchen heter Brun (packages/shared/designTokens.js:249). Före 0.31.0 var accenten grön-profilens egen (#6B8E4E, index.css:497)." },
+      "accent_hover": { "varde": "#9e8a5e", "_kalla": "index.css:692 --color-accent-light, Brun, ljust läge." }
     },
     "mork": {
       "canvas": { "varde": "#181c18", "_kalla": "index.css:567 --color-bg-primary" },
@@ -30,8 +30,8 @@
       "ink_secondary": { "varde": "#b0b8ac", "_kalla": "index.css:577 --color-text-secondary. Tillägg 2026-09-28: klart ljusare än ramverkets tidigare #948f89, mätt och inte gissat, se 'avvikelser'." },
       "ink_muted": { "varde": "#8a9482", "_kalla": "index.css:578 --color-text-muted" },
       "line": { "varde": "rgba(255,255,255,0.06)", "_kalla": "index.css:592 --color-border-default" },
-      "accent": { "varde": "#7a9e5e", "_kalla": "index.css:586 --color-accent" },
-      "accent_hover": { "varde": "#8aae6e", "_kalla": "index.css:587 --color-accent-light. Tillägg 2026-09-28, samma skäl." }
+      "accent": { "varde": "#9e8a6e", "_kalla": "index.css:768 --color-accent, green-profilen med tonen Brun i mörkt läge (`[data-profile=\"green\"]:not([data-theme=\"light\"])[data-hsl-preset=\"brown\"]`, index.css:767-781). SS ritar plussets rader med `text-[var(--color-accent)]` (AppHeader.jsx:396-399), och det är den tan-färg CP ser (ungefär #a8987a i hans skärmbild, efter komprimering och kantutjämning). Före 0.31.0 var den grön-profilens egen (#7a9e5e, index.css:586)." },
+      "accent_hover": { "varde": "#ae9a7e", "_kalla": "index.css:769 --color-accent-light, Brun, mörkt läge." }
     },
     "avvikelser": [
       "Ramverkets ink-inverse, danger/danger-hover/warning/success/info/badge/laborera/identity/slag/fact/human/agent/auto ligger UTANFÖR fixturen. De är ramverkets egna, mätta mot ramverkets ytor i tokens/check-kontrast.mjs och SS har ingen direkt motsvarighet för flera av dem (t.ex. 'blocked', 'fact-*'). Att tvinga in dem hade varit att gissa en SS-mening som inte finns.",

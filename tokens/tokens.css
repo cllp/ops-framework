@@ -117,8 +117,10 @@
 
   --color-line: #E8E2DA;
 
-  --color-accent: #6B8E4E;
-  --color-accent-hover: #7a9e5e;
+  --color-accent: #8E7A4E;
+  --color-accent-hover: #9e8a5e;
+  --color-accent-subtle: rgba(142, 122, 78, 0.12);
+  --color-accent-faint: rgba(142, 122, 78, 0.06);
 
   --color-marke-accent: #a38c57;
 
@@ -213,16 +215,16 @@
    * i stället för sämre, vilket inte var givet i förväg:
    *
    *                        på accent    på accent-hover
-   *   ljust (#6B8E4E)        4,64:1         5,70:1        båda över AA 4,5:1
-   *   mörkt (#7a9e5e)        4,97:1         6,04:1        båda över AA 4,5:1
+   *   (olivgrön, #167; ersatt av SessionStudios bruna 0.31.0, mätt av check-kontrast)
    *
    * Mörkt läge använder `--dark-accent-contrast` (#2a2520, se `:root`
    * nedanför), oförändrat sedan tidigare mätning. */
-  --color-accent-contrast: #1a1a1a;
-  /* rgba(107, 142, 78, …) är den nya accentens (#6B8E4E) egna RGB-tal, samma
-   * mönster som SessionStudios egna `--color-gold-overlay-*` (index.css:534). */
-  --color-accent-subtle: rgba(107, 142, 78, 0.12);
-  --color-accent-faint: rgba(107, 142, 78, 0.06);
+  /* 0.31.0: SessionStudios bruna ljusa accent (#8E7A4E) ger bara 4,18:1 med #1a1a1a. Ren svart ger 5,04:1
+   * på accent och 5,18:1 (#1a1a1a) respektive högre på hover, alltså över AA 4,5:1. Ett mätt val, inte en gissning. */
+  --color-accent-contrast: #000000;
+  /* `--color-accent-subtle` och `-faint` genereras nu ur fixturens accent (se
+   * `rgbaAv` i scripts/generate-tokens.mjs): de var literala olivgröna rgba-tal
+   * och blev kvar efter bytet till SessionStudios bruna accent (0.31.0). */
 
   /* ─── Tillstånd ──────────────────────────────────────────────────────────
    * Namngivna efter BETYDELSE, aldrig efter färg. `danger` täcker både en
@@ -691,8 +693,10 @@
 
   --dark-line: rgba(255,255,255,0.06);
 
-  --dark-accent: #7a9e5e;
-  --dark-accent-hover: #8aae6e;
+  --dark-accent: #9e8a6e;
+  --dark-accent-hover: #ae9a7e;
+  --dark-accent-subtle: rgba(158, 138, 110, 0.12);
+  --dark-accent-faint: rgba(158, 138, 110, 0.06);
 
   --dark-marke-accent: #a9925e;
 
@@ -725,14 +729,11 @@
   --dark-line-strong: rgba(255, 255, 255, 0.07);
   --dark-divider: rgba(255, 255, 255, 0.06);
 
-  /* ⛔ #167: MÄTT PÅ NYTT MOT DEN NYA OLIVGRÖNA ACCENTEN (svart-på-accent-
+  /* ⛔ #167: MÄTT PÅ NYTT MOT ACCENTEN (svart-på-accent-
    * resonemanget står vid `--color-accent-contrast` i `@theme` ovan). Mörkt
-   * `accent-contrast` är oförändrat: #2a2520 på #7a9e5e ger 4,97:1. */
+   * `accent-contrast` är oförändrat: #2a2520 på #9e8a6e ger 4,56:1 (0.31.0, den bruna accenten). */
   --dark-accent-contrast: #2a2520;
-  /* rgba(122, 158, 94, …) är nya mörka accentens (#7a9e5e) egna RGB-tal,
-   * samma mönster som SessionStudios `--color-gold-overlay-*` (index.css:601). */
-  --dark-accent-subtle: rgba(122, 158, 94, 0.12);
-  --dark-accent-faint: rgba(122, 158, 94, 0.06);
+  /* `--dark-accent-subtle` och `-faint` genereras ur fixturens accent (`rgbaAv`). */
 
   --dark-success: #6fae85;
   --dark-success-bg: rgba(111, 174, 133, 0.14);
