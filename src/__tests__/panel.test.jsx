@@ -199,7 +199,7 @@ describe("⛔ understrecket på fliken med chevron (#90)", () => {
 
   it("låter ytterlådan behålla sin egen py, annars sitter strecket för högt", () => {
     // ⛔ Felet byter bara tecken om man tar bort `py-2` i stället.
-    expect(chevronGrenen).toMatch(/cx\(classes, "gap-0 px-0"\)/);
+    expect(chevronGrenen).toMatch(/cx\(classes, "gap-0"\)/);
   });
 });
 

@@ -234,6 +234,9 @@ class OpsFelgrans extends Component {
  * @param {string} props.classes
  * @param {string} props.submenuLabel Verb för chevronens namn, följt av postens etikett.
  */
+/** Flikens sidoluft. Ligger för sig (0.31.0) så att en flik med chevron kan fördela den: vänster på länken, höger på chevronen. */
+const FLIK_LUFT = "px-3 lg:px-4";
+
 function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel }) {
   const [oppen, setOppen] = useState(false);
   const childEntries = /** @type {any[]} */ (Array.isArray(entry.children) ? entry.children : []);
@@ -267,7 +270,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 
   if (!childEntries.length) {
     return (
-      <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={classes}>
+      <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={cx(classes, FLIK_LUFT)}>
         {entry.label}
         {counter}
       </a>
@@ -276,6 +279,13 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 
 
   /*
+   * ⛔ CHEVRONEN LIGGER INNE I FLIKEN, DIREKT EFTER ORDET (0.31.0, CP 2026-09-29: "Hub ⌄ står längre bort än Idag och
+   * Kalender"). Före 0.31.0 hade länken `px-3` på BÅDA sidor och chevronen `pr-2`, så ordet och chevronen låg 12 px isär
+   * och flikens högra luft var 8 px, mot 12 (lg: 16) hos en vanlig flik. SessionStudios Bibliotek ⌄ är en enda flik med
+   * chevronen `ml-0.5` efter ordet (`AppHeader.jsx:217-230`). Här är länken och chevronen fortfarande två kontroller
+   * (etiketten navigerar, chevronen öppnar), men flikens luft är den vanliga: vänster på länken, höger på chevronen,
+   * och 2 px mellan ordet och chevronen. Mäts i check-skalyta, avsnitt 11.
+   *
    * ⛔ ORDET EN GÅNG, INTE TVÅ. Första versionen lade föräldern som första rad i
    * menyn, så att sidan skulle gå att nå från raden. CP 2026-09-22, med bild:
    * "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första
@@ -309,12 +319,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
    * bara tecken.
    */
   return (
-    <span className={cx(classes, "gap-0 px-0")}>
+    <span className={cx(classes, "gap-0")}>
       <a
         href={entry.href}
         onClick={(e) => onActivate(entry.href, e)}
         aria-current={active ? "page" : undefined}
-        className="inline-flex items-center self-stretch rounded-l-md px-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
+        className="inline-flex items-center self-stretch rounded-l-md pl-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
       >
         {entry.label}
         {counter}
@@ -323,7 +333,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
         <Popover.Trigger
           aria-label={`${submenuLabel} ${entry.label}`}
           className={cx(
-            "relative inline-flex cursor-pointer items-center self-stretch rounded-r-md pr-2 pl-0.5",
+            "relative inline-flex cursor-pointer items-center self-stretch rounded-r-md pr-3 pl-0.5 lg:pr-4",
             // ⛔ Träffytan, 44 px, utanför flödet. `inset-x-0` täcker chevronens
             // bredd och `-translate-y-1/2` centrerar den kring raden.
             "after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 after:content-['']",
@@ -874,7 +884,7 @@ export function OpsAppShell({
    */
   const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ state) =>
     cx(
-      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium lg:px-4",
+      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 py-2 text-sm font-medium",
       "transition-all duration-(--duration-fast) ease-standard",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       state === "pa" && "border-ink text-ink",

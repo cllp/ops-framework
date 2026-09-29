@@ -806,6 +806,45 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
   await context.close();
 }
 
+// ══ 11. TOPPRADENS FLIKAR: CHEVRONEN LIGGER INNE I FLIKEN (0.31.0, avsnitt 9) ═
+// CP 2026-09-29: "Hub ⌄ står längre bort än Idag och Kalender". SS `AppHeader.jsx:217-230`: en flik, chevronen `ml-0.5` efter ordet.
+// Mått: ordet och chevronen högst 4 px isär, flikens luft efter chevronen = luften före ordet = en vanlig flik (±1 px).
+for (const bredd of [900, 1280, 1600]) {
+  const { page, context } = await oppna("full", { width: bredd, height: 800 });
+  const t = await page.evaluate(() => {
+    const lankar = [...document.querySelectorAll("header a")];
+    /** @param {string} etikett */
+    const mat = (etikett) => {
+      const a = lankar.find((x) => (x.textContent || "").trim() === etikett);
+      if (!a) return null;
+      const box = a.parentElement && a.parentElement.tagName === "SPAN" && a.parentElement.querySelector("button") ? a.parentElement : a;
+      const rg = document.createRange();
+      rg.selectNodeContents(a);
+      const ord = rg.getBoundingClientRect();
+      const chev = box.querySelector("svg");
+      const br = box.getBoundingClientRect();
+      const cr = chev ? chev.getBoundingClientRect() : null;
+      return { boxL: br.left, boxR: br.right, ordL: ord.left, ordR: ord.right, chevL: cr ? cr.left : null, chevR: cr ? cr.right : null };
+    };
+    return { idag: mat("Idag"), kalender: mat("Kalender"), hub: mat("Hub") };
+  });
+  const ok = !!t.idag && !!t.kalender && !!t.hub && t.hub.chevL !== null;
+  krav(ok, `flikarna ${bredd} px: Idag, Kalender eller Hub med chevron hittades inte.`);
+  if (ok) {
+    const h = /** @type {any} */ (t.hub);
+    const luftFore = (/** @type {any} */ x) => x.ordL - x.boxL;
+    const luftEfter = (/** @type {any} */ x) => x.boxR - (x.chevR ?? x.ordR);
+    const vanlig = luftFore(t.idag);
+    matt.push(`flikarna ${bredd} px: luft före ordet Idag ${vanlig.toFixed(1)}, Kalender ${luftFore(t.kalender).toFixed(1)}, Hub ${luftFore(h).toFixed(1)}; efter Hub-chevronen ${luftEfter(h).toFixed(1)}; ord till chevron ${(h.chevL - h.ordR).toFixed(1)} px; avstånd Idag till Kalender ${(t.kalender.ordL - t.idag.ordR).toFixed(1)}, Kalender till Hub ${(h.ordL - t.kalender.ordR).toFixed(1)}`);
+    krav(h.chevL - h.ordR <= 6, `flikarna ${bredd} px: chevronen står ${(h.chevL - h.ordR).toFixed(1)} px efter ordet Hub, väntat högst 6 (SS ml-0.5 plus ikonens egen marginal): den ligger inte inne i fliken.`);
+    krav(Math.abs(luftEfter(h) - vanlig) <= 1, `flikarna ${bredd} px: luften efter Hub-chevronen är ${luftEfter(h).toFixed(1)} px mot en vanlig fliks ${vanlig.toFixed(1)} (±1).`);
+    const gap1 = t.kalender.ordL - t.idag.ordR;
+    const gap2 = h.ordL - t.kalender.ordR;
+    krav(Math.abs(gap1 - gap2) <= 1, `flikarna ${bredd} px: avståndet Idag till Kalender är ${gap1.toFixed(1)} px, Kalender till Hub ${gap2.toFixed(1)} (±1).`);
+  }
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);
