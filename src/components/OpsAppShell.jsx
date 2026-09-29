@@ -449,6 +449,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [medlemmarEtikett]
  * @property {string} [flerAvatarerEtikett]
  * @property {string} [etikett] Skärmläsarnamn på `OpsGruppvaxlare`s ark (smal skärm).
+ * @property {string} [nuEtikett] (0.31.1) Ordet före det aktiva namnet i växlarknappens skärmläsarnamn ("Byt grupp, nu: Alfa AB"). Förval "nu".
  */
 
 /**
@@ -1159,10 +1160,13 @@ export function OpsAppShell({
                 (SS `AppHeader.jsx:173`, loggan i en ruta utan egen luft), och 4 px
                 padding på länken flyttade den 4 px in. Fokusringen ritas ändå
                 utanför med `outline-offset-2`. */}
+            {/* ⛔ 0.31.1: UNDER `md` RITAS MÄRKET INTE ALLS när `grupper` finns. Gruppväxlaren (ikonen) står längst till vänster i
+                stället (CP 2026-09-29 18:40: "Header i mobil skall vi ta bort texten helt"). Startsidan nås ur bottenraden.
+                Utan `grupper` finns ingen växlare att ersätta märket med, och monogrammet står kvar som förut. */}
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className="block shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:block" : "block")}
             >
               {varumarke}
             </a>
@@ -1186,6 +1190,7 @@ export function OpsAppShell({
                   tomText={grupper.tomText}
                   rollNamn={grupper.rollNamn}
                   etikett={grupper.etikett}
+                  nuEtikett={grupper.nuEtikett}
                 />
               </div>
             ) : null}

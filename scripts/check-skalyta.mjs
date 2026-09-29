@@ -372,9 +372,20 @@ if (!utanFasta) {
         return { namn, x: r.x, y: r.y, w: r.width, h: r.height, r: r.right, b: r.bottom };
       })
       .filter((p) => p.w > 0 && p.h > 0);
-    const gruppText = [...document.querySelectorAll("header button")].find((b) => b.getAttribute("aria-label") === "Byt grupp");
+    const gruppText = [...document.querySelectorAll("header button")].find((b) => (b.getAttribute("aria-label") || "").startsWith("Byt grupp"));
     const namnSpan = gruppText ? [...gruppText.querySelectorAll("span")].find((sp) => (sp.textContent || "").includes("Staiger")) : null;
+    const gr = gruppText ? gruppText.getBoundingClientRect() : null;
+    const gm = gruppText ? gruppText.querySelector("[data-gruppmarke]") : null;
+    const gmr = gm ? gm.getBoundingClientRect() : null;
+    // Ingen SYNLIG text "OPS HUB" (eller märkets rader) någonstans i huvudet, och märkeslänken till startsidan ritas inte alls.
+    const ordmarke = [...document.querySelectorAll("header [data-marke], header a[href='/']")].filter((el) => el.getBoundingClientRect().width > 0);
+    const synligText = [...document.querySelectorAll("header *")].filter((el) => el.children.length === 0 && /OPS\s*HUB/i.test(el.textContent || "") && el.getBoundingClientRect().width > 0 && !el.classList.contains("sr-only"));
     return {
+      forsta: poster.length ? poster.reduce((a, b) => (b.x < a.x ? b : a)).namn : null,
+      grupp: gr ? { x: gr.x, w: gr.width, h: gr.height } : null,
+      marke: gmr ? { w: gmr.width, h: gmr.height } : null,
+      ordmarke: ordmarke.length,
+      synligText: synligText.length,
       poster,
       scroll: dok.scrollWidth,
       klient: dok.clientWidth,
@@ -382,7 +393,12 @@ if (!utanFasta) {
       fraga: [...document.querySelectorAll("header a")].some((a) => a.getAttribute("aria-label") === "Fråga" && a.getBoundingClientRect().width > 0),
     };
   });
-  krav(m.poster.length >= 6, `mobilhuvudet: bara ${m.poster.length} kontroller lästa i huvudet, väntat minst 6 (märke, gruppväxlare, tema, inkorg, sök, avatar). Fel scenario.`);
+  krav(m.poster.length >= 5, `mobilhuvudet: bara ${m.poster.length} kontroller lästa i huvudet, väntat minst 5 (gruppväxlare, tema, inkorg, sök, avatar). Fel scenario.`);
+  // 0.31.1 (CP 2026-09-29 18:40: "Header i mobil skall vi ta bort texten helt. VI behöver en bra Grupp-väljare-ikon i mobil istället för logga"):
+  krav(m.ordmarke === 0 && m.synligText === 0, `mobilhuvudet 390 px: märket ritas (${m.ordmarke} märkeselement, ${m.synligText} synliga "OPS HUB"). Väntat inget märke och ingen text i mobilhuvudet.`);
+  krav(m.grupp !== null && m.forsta !== null && m.forsta.startsWith("Byt grupp"), `mobilhuvudet 390 px: längst till vänster står "${m.forsta}", väntat gruppväxlaren.`);
+  krav(m.grupp !== null && Math.abs(m.grupp.w - 44) < 0.5 && Math.abs(m.grupp.h - 44) < 0.5, `mobilhuvudet 390 px: gruppväxlarens träffyta är ${m.grupp?.w}x${m.grupp?.h} px, väntat 44x44.`);
+  krav(m.marke !== null && m.marke.w > 0 && m.marke.h > 0, `mobilhuvudet 390 px: gruppmärket syns inte i gruppväxlaren.`);
   matt.push(`mobilhuvudet 390 px: ${m.poster.map((p) => `${p.namn}@${p.x.toFixed(0)}+${p.w.toFixed(0)}`).join(" ")}`);
   /** @type {string[]} */
   const over = [];
@@ -399,6 +415,7 @@ if (!utanFasta) {
   krav(m.scroll <= m.klient, `mobilhuvudet 390 px: horisontell överflödning, scrollWidth ${m.scroll} > clientWidth ${m.klient}.`);
   const ut = m.poster.filter((p) => p.r > 390.5 || p.x < -0.5);
   krav(ut.length === 0, `mobilhuvudet 390 px: ${ut.map((p) => p.namn).join(", ")} ligger utanför skärmen.`);
+  matt.push(`mobilhuvudet 390 px: märkeselement ${m.ordmarke}, "OPS HUB" synligt ${m.synligText}, först "${m.forsta}", växlare ${m.grupp?.w}x${m.grupp?.h}, gruppmärke ${m.marke?.w}x${m.marke?.h}`);
   krav(m.gruppNamnSynligt === false, "mobilhuvudet 390 px: gruppväxlaren visar gruppnamnet i klartext. Under md visas bara märket (SS har ingen namnrad i mobilhuvudet).");
   krav(m.fraga === false, "mobilhuvudet 390 px: Fråga ligger kvar i huvudet. Väntat: åtgärder utöver de tre som ryms flyttar till menyn under md.");
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "mobilhuvud-390.png"), clip: { x: 0, y: 0, width: 390, height: 140 } });
@@ -751,15 +768,24 @@ if (bildmapp) {
   await context.close();
 }
 
-// 390 px: monogramrutan i mobilens huvud, vänsterställd, exakt 40 px, och ordmärket syns inte.
+// 390 px: märket ritas inte i mobilens huvud (0.31.1). Före 0.31.1 stod monogramrutan här, 40 px och vänsterställd; nu är det
+// gruppväxlarens märke som står på den platsen (avsnitt 7 mäter det), och varken monogram eller ordmärke syns.
 {
   const { page, context } = await oppna("full", { width: 390, height: 844 }, standardtema, 1, "g3");
   await page.evaluate(() => document.fonts.ready);
-  const m = await matMarke(page);
-  krav(m.ruta !== null && Math.abs(m.ruta.w - 40) < 0.5 && Math.abs(m.ruta.h - 40) < 0.5, `märket 390 px: monogramrutan är ${m.ruta?.w}x${m.ruta?.h} px, väntat 40x40.`);
-  krav(m.ruta !== null && Math.abs(m.ruta.x - 16) <= 1, `märket 390 px: monogramrutan börjar på x ${m.ruta?.x.toFixed(1)}, väntat 16 (huvudets vänsterkant, vänsterställd som SS).`);
-  krav((m.monoOpacity ?? 0) === 1 && (m.ordOpacity ?? 1) === 0, `märket 390 px: monogrammets opacity ${m.monoOpacity} och ordmärkets ${m.ordOpacity}, väntat 1 och 0.`);
-  krav(m.bilder === 0, `märket 390 px: ${m.bilder} <img> i märket.`);
+  const m = await page.evaluate(() => {
+    const syns = (/** @type {Element | null} */ el) => (el ? el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== "hidden" : false);
+    const lank = document.querySelector('header a[href="/"]');
+    const g = document.querySelector("header [data-gruppmarke]");
+    const r = g ? g.getBoundingClientRect() : null;
+    return {
+      lankSyns: syns(lank),
+      monogramSyns: syns(document.querySelector('header [data-marke="ruta"]')),
+      gruppmarke: r ? { x: r.x, w: r.width, h: r.height } : null,
+    };
+  });
+  krav(!m.lankSyns && !m.monogramSyns, `märket 390 px: märkeslänken (${m.lankSyns}) eller monogrammet (${m.monogramSyns}) syns. Väntat inget märke i mobilhuvudet.`);
+  krav(m.gruppmarke !== null && Math.abs(m.gruppmarke.w - 40) < 0.5 && Math.abs(m.gruppmarke.h - 40) < 0.5, `märket 390 px: gruppmärket är ${m.gruppmarke?.w}x${m.gruppmarke?.h} px, väntat 40x40.`);
   await context.close();
 }
 
@@ -1250,7 +1276,9 @@ for (const scen of ["hub", "hubmodul"]) {
       const vaxlare = document.querySelector('header button[aria-label^="Byt grupp"]');
       const vr = vaxlare ? vaxlare.getBoundingClientRect() : null;
       const namn = vaxlare ? [...vaxlare.querySelectorAll("span")].map((x) => x.textContent || "").join("|") : "";
-      const markW = vaxlare && vaxlare.firstElementChild ? vaxlare.firstElementChild.getBoundingClientRect().width : 0;
+      // 0.31.1: knappen har två former (mobilens gruppmärke `md:hidden`, från md märke + namn). Märket är det första SYNLIGA barnets första barn.
+      const synligtBarn = vaxlare ? [...vaxlare.children].find((c) => c.getBoundingClientRect().width > 0) : null;
+      const markW = synligtBarn ? (synligtBarn.hasAttribute("data-gruppmarke") ? synligtBarn : synligtBarn.firstElementChild ?? synligtBarn).getBoundingClientRect().width : 0;
       const synligText = vaxlare ? [...vaxlare.querySelectorAll("span")].filter((x) => x.getBoundingClientRect().width > 0 && (x.textContent || "").trim().length > 3).map((x) => (x.textContent || "").trim()) : [];
       return { panel: syns(panel), vaxlare: syns(vaxlare), namn, markW, synligText, vr: vr ? { w: vr.width, h: vr.height } : null };
     });

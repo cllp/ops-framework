@@ -618,6 +618,7 @@ export function OpsGruppanel({
  * @param {string} [props.tomText]
  * @param {Record<string, string>} [props.rollNamn]
  * @param {string} [props.etikett] Skärmläsarnamn på hela växlaren/arket.
+ * @param {string} [props.nuEtikett] (0.31.1) Ordet före det aktiva namnet i knappens skärmläsarnamn: "Byt grupp, nu: Alfa AB". Förval "nu".
  */
 export function OpsGruppvaxlare({
   grupper,
@@ -630,6 +631,7 @@ export function OpsGruppvaxlare({
   tomText = "Du är inte medlem i någon grupp.",
   rollNamn = { agare: "Ägare", medlem: "Medlem" },
   etikett = "Byt grupp",
+  nuEtikett = "nu",
 }) {
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppvaxlare: onValj krävs. En växlare som inte kan välja är en lista som ser ut som en kontroll.");
@@ -654,9 +656,22 @@ export function OpsGruppvaxlare({
         // Namnet står kvar i knappens `aria-label` (etiketten) och i arket som öppnas, och
         // synligt från `md`, där det finns plats. SS har ingen gruppväxlare med namn i mobilhuvudet
         // (`AppHeaderMobileToolbar.jsx`: tema, sök, plus, avatar).
-        <button type="button" aria-label={etikett} className="flex min-h-11 items-center gap-0 rounded-md px-1 text-sm font-semibold text-ink hover:bg-sunken md:max-w-40 md:gap-2 md:px-2">
-          {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="sm" />}
-          <span className="hidden min-w-0 truncate md:inline">{aktivtNamn}</span>
+        <button
+          type="button"
+          aria-label={`${etikett}, ${nuEtikett}: ${aktivtNamn}`}
+          className="flex size-11 shrink-0 items-center justify-center rounded-md text-sm font-semibold text-ink md:size-auto md:min-h-11 md:max-w-40 md:justify-start md:gap-2 md:px-2 md:hover:bg-sunken"
+        >
+          {/* ⛔ 0.31.1: UNDER `md` ÄR KNAPPEN GRUPPMÄRKET OCH INGET ANNAT, på loggans plats längst till vänster (CP 2026-09-29 18:40:
+              "VI behöver en bra Grupp-väljare-ikon i mobil istället för logga"). Samma ruta som remsan (`gruppRutaKlass`, 40 px) med
+              samma märke (`OpsIdentity rail`), och i läget "Alla mina grupper" samma `PersonIkon` som panelens och remsans rad. 44 px
+              träffyta runt en 40 px ruta. Från `md` är det märket + namnet som förut. */}
+          <span data-gruppmarke="" className={cx(gruppRutaKlass({ vald: aktiv !== ALLA_GRUPPER, interaktiv: false }), "md:hidden")}>
+            {aktiv === ALLA_GRUPPER ? <PersonIkon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="rail" />}
+          </span>
+          <span className="hidden items-center gap-2 md:flex">
+            {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="sm" />}
+            <span className="min-w-0 truncate">{aktivtNamn}</span>
+          </span>
         </button>
       }
     >
