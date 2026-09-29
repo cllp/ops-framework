@@ -810,6 +810,47 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
   await context.close();
 }
 
+// Inloggningen med appens BILDLOGGA (0.31.1): syns, centrerad över kortet, högst 40 procent av vyhöjden, och rätt bild för temat.
+// CP 2026-09-29 18:40: "INloggningen den nya loggan."
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+  for (const tema of /** @type {const} */ (["light", "dark"])) {
+    const { page, context } = await oppna("inloggningbild", vp, tema);
+    const m = await page.evaluate(() => {
+      const dok = document.documentElement;
+      const bilder = [...document.querySelectorAll('[data-marke="bild"] img')];
+      const synliga = bilder.filter((i) => i.getBoundingClientRect().width > 0);
+      const i = /** @type {HTMLElement | undefined} */ (synliga[0]);
+      const r = i ? i.getBoundingClientRect() : null;
+      const kort = document.querySelector("h2")?.closest("div.relative, [class*='rounded']");
+      const kr = kort ? kort.getBoundingClientRect() : null;
+      return {
+        antal: bilder.length,
+        synliga: synliga.length,
+        vald: i ? decodeURIComponent(/** @type {HTMLImageElement} */ (i).src).includes('fill="#ffffff"') ? "ljus" : "mork" : null,
+        hojd: r ? r.height : 0,
+        mittX: r ? r.x + r.width / 2 : null,
+        kortMittX: kr ? kr.x + kr.width / 2 : null,
+        inom: r ? r.x >= 0 && r.right <= dok.clientWidth && r.y >= 0 : false,
+        text: document.querySelector('[data-marke="rad1"]') !== null,
+        alt: i ? /** @type {HTMLImageElement} */ (i).alt : null,
+        overflow: dok.scrollWidth > dok.clientWidth,
+      };
+    });
+    const id = `inloggning med bildlogga ${vp.width} px, tema ${tema}`;
+    matt.push(`${id}: ${m.synliga} av ${m.antal} bilder synliga (${m.vald}), höjd ${m.hojd.toFixed(0)} px (${((m.hojd / vp.height) * 100).toFixed(0)} % av vyn), mitt ${m.mittX?.toFixed(1)} mot kortets ${m.kortMittX?.toFixed(1)}`);
+    krav(m.antal === 2 && m.synliga === 1, `${id}: ${m.synliga} av ${m.antal} bilder syns. Väntat exakt en (en per tema).`);
+    krav(m.vald === (tema === "dark" ? "mork" : "ljus"), `${id}: bilden som syns är "${m.vald}", väntat "${tema === "dark" ? "mork" : "ljus"}".`);
+    krav(m.hojd > 40 && m.hojd <= vp.height * 0.4, `${id}: bildens höjd ${m.hojd.toFixed(0)} px, väntat mellan 40 px och 40 procent av vyn (${(vp.height * 0.4).toFixed(0)} px).`);
+    krav(m.inom, `${id}: bilden ligger inte helt inom vyn.`);
+    krav(m.kortMittX !== null && m.mittX !== null && Math.abs(m.mittX - m.kortMittX) <= 1, `${id}: bildens mittlinje ${m.mittX?.toFixed(1)} mot kortets ${m.kortMittX?.toFixed(1)}. Väntat centrerad (högst 1 px).`);
+    krav(!m.text, `${id}: textmärket ritas också. Väntat bara bilden.`);
+    krav(m.alt === "Bolag Ops", `${id}: alt-texten är "${m.alt}", väntat appens namn "Bolag Ops".`);
+    krav(!m.overflow, `${id}: horisontell överflödning.`);
+    if (bildmapp && tema === "light") await page.screenshot({ path: path.join(bildmapp, `inloggning-bild-${vp.width}.png`) });
+    await context.close();
+  }
+}
+
 // ══ 11. TOPPRADENS FLIKAR: CHEVRONEN LIGGER INNE I FLIKEN (0.31.0, avsnitt 9) ═
 // CP 2026-09-29: "Hub ⌄ står längre bort än Idag och Kalender". SS `AppHeader.jsx:217-230`: en flik, chevronen `ml-0.5` efter ordet.
 // Mått: ordet och chevronen högst 4 px isär, flikens luft efter chevronen = luften före ordet = en vanlig flik (±1 px).

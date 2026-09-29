@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
-import { OpsBrand } from "./OpsBrand.jsx";
+import { OpsBrand, delaNamn } from "./OpsBrand.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsCard } from "./OpsCard.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -142,6 +142,8 @@ function AppleIkon() {
  *   loggan i stället för sitt eget namn. #164-rättningen gör undertexten enbart en fråga om `etikett`, aldrig
  *   `rubrik`. Propen tas fortfarande emot (så `OpsAuthGate` kan skicka den oförändrad), men läses inte här.
  * @param {import("./OpsBrand.jsx").MarkeNamn} [props.namn] Märkets rad 1 (0.31.0), samma form som `OpsBrand namn`. Förval "OPS HUB".
+ * @param {{ ljus: string, mork: string }} [props.ordmarke] (0.31.1) Appens bildlogga som två URL:er. Given: bilden ritas i stället för textmärket, `ljus` i ljust tema och `mork` i mörkt (via temat, `data-theme` och systemet, samma tre tillstånd som tokens). Utelämnad: textmärket från 0.31.0.
+ * @param {string} [props.ordmarkeHojd] (0.31.1) Tailwind-höjdklass på bilden. Förval `h-56` (224 px, med `-my-10` som beskär mästerbildens luft uppe och nere). Höjd och inte bredd: appens mästerbilder är fyrkantiga med mycket luft, så bredden säger ingenting om hur stort märket blir.
  * @param {string} [props.etikett] Appens namn. Ritas som märkets rad 2 (versal, spärrad), under rad 1. Saknas den ritas bara rad 1, ALDRIG `rubrik`.
  * @param {string} [props.viskning] Under etiketten, en rad ren text.
  * @param {{ label: string, href: string }[]} [props.lankar] Sidfoten. Tom lista: ingen sidfot alls.
@@ -151,7 +153,7 @@ function AppleIkon() {
  * @param {string} [props.fel]
  * @param {() => void} [props.onRensaFel]
  */
-export function OpsInloggning({ auth, namn: markeNamn, etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel }) {
+export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = "h-56", etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel }) {
   if (!auth) throw new Error("OpsInloggning: auth krävs. Utan den vet vyn inte vilka förmågor som finns.");
   const t = COPY[sprak] ?? COPY.sv;
 
@@ -162,6 +164,7 @@ export function OpsInloggning({ auth, namn: markeNamn, etikett, viskning, lankar
   const [losenord, setLosenord] = useState("");
   const [bekraftaLosenord, setBekraftaLosenord] = useState("");
   const [namn, setNamn] = useState("");
+  const bildAlt = etikett ?? [delaNamn(markeNamn ?? "OPS HUB").forsta, delaNamn(markeNamn ?? "OPS HUB").andra].filter(Boolean).join(" ");
   const [visaGlomt, setVisaGlomt] = useState(false);
   const [aterstallningSkickad, setAterstallningSkickad] = useState(false);
   const [epostlankSkickadTill, setEpostlankSkickadTill] = useState("");
@@ -203,7 +206,19 @@ export function OpsInloggning({ auth, namn: markeNamn, etikett, viskning, lankar
 
       <div className="relative z-10 flex w-full max-w-[360px] flex-col items-stretch gap-2">
         <div className="mb-3 flex flex-col items-center text-center">
-          <OpsBrand storlek="stor" namn={markeNamn} undertext={etikett} />
+          {ordmarke ? (
+            // ⛔ 0.31.1: appens BILDLOGGA på inloggningen (CP 2026-09-29 18:40: "INloggningen den nya loggan"). Två bilder,
+            // en per tema, där `.ops-ordmarke-*` (tokens.css) döljer den som inte hör till temat. Den ljusa bilden ritas med `mix-blend-multiply` så att dess vita bakgrund blir sidans papper. Höjden styrs med en klass,
+            // aldrig `max-width`: mästerbilderna är fyrkantiga med luft runt märket. Headern rörs inte, den behåller textmärket.
+            <span data-marke="bild" className="flex w-full justify-center">
+              {[["ljus", ordmarke.ljus, "mix-blend-multiply"], ["mork", ordmarke.mork, ""]].map(([tema, src, extra]) => (
+                // Båda har alt: den som `display:none` döljer läses inte upp, och den som syns MÅSTE ha ett namn i båda teman.
+                <img key={tema} src={src} alt={bildAlt} className={cx(tema === "ljus" ? "ops-ordmarke-ljus" : "ops-ordmarke-mork", "-my-10 w-auto max-w-full object-contain", extra, ordmarkeHojd)} />
+              ))}
+            </span>
+          ) : (
+            <OpsBrand storlek="stor" namn={markeNamn} undertext={etikett} />
+          )}
           {viskning ? <p className="mt-2 px-1 text-sm leading-snug text-ink-soft">{viskning}</p> : null}
         </div>
 

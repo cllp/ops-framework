@@ -190,3 +190,43 @@ describe("OpsInloggning: e-postlänkflödet, fejkad sdk (skickar och bekräftar)
     expect(sdk.signInWithEmailLink).not.toHaveBeenCalled();
   });
 });
+
+describe("OpsInloggning: appens bildlogga (0.31.1)", () => {
+  const ordmarke = { ljus: "/brand/ljus.png", mork: "/brand/mork.png" };
+
+  it("med `ordmarke` ritas två bilder (ljus och mörk) och inget textmärke, alt = appens namn", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} etikett="Bolag Ops" ordmarke={ordmarke} />);
+    const bilder = [...container.querySelectorAll('[data-marke="bild"] img')];
+    expect(bilder.map((i) => i.getAttribute("src"))).toEqual(["/brand/ljus.png", "/brand/mork.png"]);
+    expect(bilder[0].getAttribute("alt")).toBe("Bolag Ops");
+    expect(bilder[1].getAttribute("alt")).toBe("Bolag Ops");
+    expect(container.querySelector('[data-marke="rad1"]')).toBeNull();
+  });
+
+  it("höjden styrs av `ordmarkeHojd`, med `h-56` som förval", () => {
+    const { container, rerender } = render(<OpsInloggning auth={enkelAuth()} ordmarke={ordmarke} />);
+    expect(container.querySelector("img")?.className).toContain("h-56");
+    rerender(<OpsInloggning auth={enkelAuth()} ordmarke={ordmarke} ordmarkeHojd="h-40" />);
+    expect(container.querySelector("img")?.className).toContain("h-40");
+    expect(container.querySelector("img")?.className).not.toContain("h-56");
+  });
+
+  it("utan `ordmarke` ritas textmärket som förut", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} etikett="Bolag Ops" />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('[data-marke="rad1"]')?.textContent).toBe("OPS HUB");
+  });
+
+  it("OpsAuthGate skickar `ordmarke` vidare till inloggningen", async () => {
+    const { OpsAuthGate, OpsAuthProvider } = await import("../auth/auth.jsx");
+    const { container } = render(
+      <OpsAuthProvider authentication={createAuth({ subscribe: (/** @type {any} */ cb) => { cb(null); return () => {}; }, signOut: async () => {} })}>
+        <OpsAuthGate etikett="Bolag Ops" ordmarke={ordmarke}>
+          <p>inne</p>
+        </OpsAuthGate>
+      </OpsAuthProvider>,
+    );
+    await waitFor(() => expect(container.querySelector('[data-marke="bild"] img')).not.toBeNull());
+    expect(container.querySelector('[data-marke="bild"] img')?.getAttribute("src")).toBe("/brand/ljus.png");
+  });
+});
