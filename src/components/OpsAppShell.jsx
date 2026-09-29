@@ -406,7 +406,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {import("react").ReactNode | HandelseSkapare} [handelse] Ramverkets egen rad "Ny händelse". `null`/utelämnad döljer raden.
  *   Ett färdigt `ReactNode` (som förut) eller, från 0.30.0 (#173), ett `HandelseSkapare`: ett formulär OCH en katalog
  *   med händelsetyper, så typvalet och `{ groupId, typ, onKlar }` fungerar precis som för en moduls registrering.
- * @property {import("react").ReactNode} [arende] Ramverkets egen rad "Nytt ärende".
+ * @property {import("react").ReactNode | ((arg: { formId: string, mal: { sektion: string, id: string } | null }) => import("react").ReactNode)} [arende] Ramverkets egen rad "Nytt ärende".
+ *   Ett färdigt `ReactNode` (som förut) eller, från 0.31.1, en FUNKTION `({ formId, mal }) => nod`: appen sätter `id={formId}` på sitt
+ *   `<form>` och panelens `sparaEtikett` ritar då den gemensamma Spara-knappen. En färdig nod har ingen `formId` att ta emot, och för
+ *   den ritas ingen Spara (annars en död knapp).
  * @property {ReadonlyArray<import("../lib/modul.js").Skaparregistrering & { modulId: string }>} [registreringar] Ur `skaparFor` (#150).
  * @property {string | null} [lage] Aktivt gruppläge, se `skapalaget`.
  * @property {ReadonlyArray<{ id: string, kategorier?: ReadonlyArray<any> }>} [kataloger]
@@ -447,6 +450,15 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [flerAvatarerEtikett]
  * @property {string} [etikett] Skärmläsarnamn på `OpsGruppvaxlare`s ark (smal skärm).
  */
+
+/**
+ * Ritar `skapa.arende` när det är en funktion (0.31.1). Som en EGEN komponent och inte ett direktanrop i skalets render: en app
+ * som använder hooks i sin funktion får då dem på en stabil plats, i stället för i skalets villkorliga gren.
+ * @param {{ rita: (arg: { formId: string, mal: any }) => import("react").ReactNode, formId: string, mal: any }} props
+ */
+function ArendeRitare({ rita, formId, mal }) {
+  return <>{rita({ formId, mal })}</>;
+}
 
 /**
  * @param {object} props
@@ -781,18 +793,25 @@ export function OpsAppShell({
   let skapaModalTitel = "";
   /** @type {import("react").ReactNode} */
   let skapaModalInnehall = null;
+  /** Får det som ritas i panelen `formId`? Bara då är panelens Spara en knapp med något att skicka, annars är den död. */
+  let skapaHarFormKonsument = false;
   if (skapaForm?.kind === "handelse") {
     skapaModalTitel = nyHandelseEtikett;
     skapaModalInnehall = /** @type {import("react").ReactNode} */ (skapa?.handelse);
   } else if (skapaForm?.kind === "arende") {
     skapaModalTitel = nyttArendeEtikett;
-    skapaModalInnehall = skapa?.arende;
+    // ⛔ 0.31.1: `arende` FÅR VARA EN FUNKTION `({ formId, mal }) => nod`, så appen kan ge sitt `<form id={formId}>` och använda
+    // panelens gemensamma Spara (`sparaEtikett`). En färdig nod fungerar som förut. En nod har ingen `formId` att ta emot, och
+    // därför ritas Spara inte för den (se `skapaHarFormKonsument`): en knapp som pekar på ett id ingen känner är en död knapp.
+    skapaModalInnehall = typeof skapa?.arende === "function" ? <ArendeRitare rita={skapa.arende} formId={skapaFormId} mal={skapaMal} /> : skapa?.arende;
+    skapaHarFormKonsument = typeof skapa?.arende === "function";
   } else if (skapaForm?.kind === "modul") {
     const r = skapaForm.registrering;
     const typer = typerAttValja(r.katalog, skapa?.kataloger ?? []);
     const skapaSprak = skapa?.sprak ?? "sv";
     const vald = skapaTyp[r.id] ?? typer[0]?.id ?? null;
     const Form = /** @type {any} */ (r.form);
+    skapaHarFormKonsument = true;
     skapaModalTitel = text(r.namn, skapaSprak);
     skapaModalInnehall = (
       <div className="flex flex-col gap-3">
@@ -1416,7 +1435,7 @@ export function OpsAppShell({
             skapasI={skapaHarVaxlare ? skapaMalNamn : null}
             onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
             avbrytEtikett={skapa?.avbrytEtikett}
-            sparaEtikett={skapa?.sparaEtikett}
+            sparaEtikett={skapaHarFormKonsument ? skapa?.sparaEtikett : undefined}
             formId={skapaFormId}
           >
             {skapaModalInnehall}

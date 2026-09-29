@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
@@ -171,5 +172,57 @@ describe("OpsSkapaI", () => {
     expect(within(dialog).getByRole("button", { name: /Alfa AB/ }).getAttribute("aria-pressed")).toBe("false");
     rerender(<OpsSkapaI open onOpenChange={() => {}} grupper={[]} onValj={vi.fn()} />);
     expect(screen.getByText("Inga destinationer tillgängliga.")).toBeTruthy();
+  });
+});
+
+describe("skapa.arende: nod eller funktion (0.31.1)", () => {
+  /** @param {object} skapa */
+  const skalArende = (skapa) =>
+    render(
+      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" grupper={{ lista: grupper, aktiv: "g1", onValj: () => {} }} skapa={{ lage: "g1", ...skapa }}>
+        <p>appens vy</p>
+      </OpsAppShell>,
+    );
+  const oppnaArende = () => {
+    fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nytt ärende" }));
+  };
+
+  it("en funktion får `formId` och `mal`, och panelens Spara pekar på samma formulär", () => {
+    skalArende({
+      arende: ({ formId, mal }) => (
+        <form id={formId} data-testid="arendeform">
+          <p>{`mal=${mal === null ? "inget" : mal.id}`}</p>
+        </form>
+      ),
+      sparaEtikett: "Skicka in",
+    });
+    oppnaArende();
+    const form = screen.getByTestId("arendeform");
+    expect(form.id).toBeTruthy();
+    const spara = screen.getByRole("button", { name: "Skicka in" });
+    expect(spara.getAttribute("type")).toBe("submit");
+    expect(spara.getAttribute("form")).toBe(form.id);
+    expect(screen.getByRole("region", { name: "Nytt ärende" })).toBeTruthy();
+    expect(screen.getByText("mal=inget")).toBeTruthy();
+  });
+
+  it("en funktion får använda hooks", () => {
+    skalArende({
+      arende: ({ formId }) => {
+        const [v] = useState("hook-ok");
+        return <form id={formId}>{v}</form>;
+      },
+    });
+    oppnaArende();
+    expect(screen.getByText("hook-ok")).toBeTruthy();
+  });
+
+  it("en färdig nod fungerar som förut, men utan död Spara (noden kan inte få `formId`)", () => {
+    skalArende({ arende: <form data-testid="nodform">nod</form>, sparaEtikett: "Skicka in" });
+    oppnaArende();
+    expect(screen.getByTestId("nodform")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Skicka in" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Avbryt" })).toBeTruthy();
   });
 });
