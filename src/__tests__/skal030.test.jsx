@@ -137,13 +137,14 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     expect(within(botten).queryByRole("button", { name: "Skapa" })).toBeNull();
   });
 
-  it("OpsHub: ett kort per modul, varje kort en länk, och det aktiva markerat (0.30.1)", () => {
+  it("OpsHub: ett kort per modul, ett kort utan barn en länk och ett med barn en utfällbar knapp, och det aktiva markerat (0.30.1, 0.31.2)", () => {
     render(<OpsHub moduler={moduler} activeHref="/inkomster" />);
     const lista = screen.getByRole("list", { name: "Moduler" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
-    // Undersidorna bor på modulens EGEN sida (`OpsHubModul`), inte som rader i kortet.
-    const kort = within(lista).getByRole("link", { name: /Ekonomi/ });
-    expect(within(lista).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["/oversikt", "/ekonomi"]);
+    // 0.31.2: kortet med barn fälls ut på plats (knapp), och den aktiva sidan är ett av barnen så kortet börjar utfällt.
+    const knapp = within(lista).getByRole("button", { name: /Ekonomi/ });
+    expect(knapp.getAttribute("aria-expanded")).toBe("true");
+    const kort = /** @type {HTMLElement} */ (knapp.parentElement);
     expect(kort.className).toContain("rounded-card");
     expect(kort.className).toContain("ring-accent");
     expect(within(lista).getByRole("link", { name: /Översikt/ }).className).not.toContain("ring-accent");
