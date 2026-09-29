@@ -49,6 +49,7 @@ const AGARE = "uid-agare";
 const MEDLEM = "uid-medlem";
 const AVSLUTAD = "uid-avslutad";
 const UTANFOR = "uid-utanfor";
+const ADMIN = "uid-admin";
 
 const VAR = "grupp-var";
 const ANNAN = "grupp-annan";
@@ -77,14 +78,19 @@ before(async () => {
     await setDoc(doc(db, `memberships/${medlemskapsId(MEDLEM, VAR)}`), { userId: MEDLEM, groupId: VAR, roll: "medlem", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `memberships/${medlemskapsId(AVSLUTAD, VAR)}`), { userId: AVSLUTAD, groupId: VAR, roll: "medlem", typ: "person", status: "avslutad" });
     await setDoc(doc(db, `memberships/${medlemskapsId(UTANFOR, ANNAN)}`), { userId: UTANFOR, groupId: ANNAN, roll: "agare", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(ADMIN, VAR)}`), { userId: ADMIN, groupId: VAR, roll: "admin", typ: "person", status: "aktiv" });
 
-    await setDoc(doc(db, `groups/${VAR}`), { namn: { sv: "Vår grupp" }, moduler: ["ekonomi"], arkiverad: false });
+    await setDoc(doc(db, `groups/${VAR}`), {
+      id: VAR, namn: { sv: "Vår grupp" }, moduler: ["ekonomi"], arkiverad: false, skapadAv: { uid: AGARE, namn: "Ägaren" },
+      farg: "", ikon: "", bild: "", beskrivning: "", ort: "", epostsprak: "sv",
+    });
     await setDoc(doc(db, `groups/${ANNAN}`), { namn: { sv: "Annan grupp" }, moduler: [], arkiverad: false });
 
     await setDoc(doc(db, "handelser/var-rad"), { groupId: VAR, titel: "Vår" });
     await setDoc(doc(db, "handelser/annan-rad"), { groupId: ANNAN, titel: "Annan" });
     await setDoc(doc(db, "konfig/var-konfig"), { groupId: VAR, varde: 1 });
-    await setDoc(doc(db, "invitations/inb-1"), { epost: "ny@example.com", groupId: VAR, roll: "medlem", status: "vantar" });
+    await setDoc(doc(db, "invitations/inb-1"), { epost: "ny@example.com", groupId: VAR, roll: "medlem", status: "vantar", tokenHash: "", giltigTill: "2026-10-30T00:00:00.000Z", skickad: "", antalSkickade: 0 });
+    await setDoc(doc(db, "invitations/inb-annan"), { epost: "ny@example.com", groupId: ANNAN, roll: "medlem", status: "vantar", tokenHash: "", giltigTill: "2026-10-30T00:00:00.000Z", skickad: "", antalSkickade: 0 });
     await setDoc(doc(db, `users/${MEDLEM}`), { namn: "Medlem", epost: "medlem@example.com" });
     await setDoc(doc(db, "hemligt/rad"), { x: 1 });
     await setDoc(doc(db, "vitlista/vitlistad@example.com"), { epost: "vitlistad@example.com", tillagdAv: {}, tid: "2026-09-28T00:00:00.000Z" });
@@ -209,6 +215,61 @@ describe("⛔ gruppen: medlem läser, ägare skriver, ingen raderar", () => {
   });
 });
 
+describe("⛔ gruppen: admin ändrar utseende och uppgifter men inte mer (0.32.0, #180)", () => {
+  it("⛔ en admin ändrar gruppens namn, färg, ikon och beskrivning", async () => {
+    await assertSucceeds(
+      updateDoc(doc(som(ADMIN), `groups/${VAR}`), { namn: { sv: "Nytt namn" }, farg: "3", ikon: "portfolj", beskrivning: "Kort text", ort: "Visby", epostsprak: "en" }),
+    );
+  });
+
+  it("⛔ en admin raderar inte gruppen", async () => {
+    await assertFails(deleteDoc(doc(som(ADMIN), `groups/${VAR}`)));
+  });
+
+  it("⛔ en admin ändrar inte modulerna, det är ägarens", async () => {
+    await assertFails(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["allt"] }));
+  });
+
+  it("⛔ en admin arkiverar inte gruppen, det är ägarens", async () => {
+    await assertFails(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { arkiverad: true }));
+  });
+
+  it("⛔ ingen ändrar vem som skapade gruppen, inte ens ägaren", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), `groups/${VAR}`), { skapadAv: { uid: AGARE, namn: "Någon annan" } }));
+  });
+
+  it("⛔ en medlem ändrar inte ens utseendet", async () => {
+    await assertFails(updateDoc(doc(som(MEDLEM), `groups/${VAR}`), { farg: "2" }));
+  });
+
+  it("⛔ en admin i en ANNAN grupp ändrar inte den här", async () => {
+    await assertFails(updateDoc(doc(som(UTANFOR), `groups/${VAR}`), { farg: "2" }));
+  });
+
+  it("ägaren ändrar utseendet OCH arkiverar", async () => {
+    await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { farg: "4", arkiverad: true }));
+  });
+});
+
+describe("⛔ medlemmarna: en medlem ser sina medkamrater, inte en annan grupps (0.32.0, #180)", () => {
+  it("⛔ en medlem läser en medkamrats medlemskap i samma grupp", async () => {
+    await assertSucceeds(getDoc(doc(som(MEDLEM), `memberships/${medlemskapsId(ADMIN, VAR)}`)));
+  });
+
+  it("⛔ en medlem läser INTE en annan grupps medlemskap", async () => {
+    await assertFails(getDoc(doc(som(MEDLEM), `memberships/${medlemskapsId(UTANFOR, ANNAN)}`)));
+  });
+
+  it("en avslutad medlem läser inte medkamraternas medlemskap", async () => {
+    await assertFails(getDoc(doc(som(AVSLUTAD), `memberships/${medlemskapsId(AGARE, VAR)}`)));
+  });
+
+  it("⛔ en admin skriver inget medlemskap från klienten, inte ens en medlem i sin egen grupp", async () => {
+    await assertFails(setDoc(doc(som(ADMIN), `memberships/${medlemskapsId("uid-ny", VAR)}`), { userId: "uid-ny", groupId: VAR, roll: "medlem", typ: "person", status: "aktiv" }));
+    await assertFails(updateDoc(doc(som(ADMIN), `memberships/${medlemskapsId(MEDLEM, VAR)}`), { roll: "admin" }));
+  });
+});
+
 describe("⛔ inbjudan: bara gruppens ägare, den bär en adress", () => {
   it("ägaren läser inbjudan", async () => {
     await assertSucceeds(getDoc(doc(som(AGARE), "invitations/inb-1")));
@@ -218,12 +279,41 @@ describe("⛔ inbjudan: bara gruppens ägare, den bär en adress", () => {
     await assertFails(getDoc(doc(som(MEDLEM), "invitations/inb-1")));
   });
 
-  it("ägaren skapar en inbjudan", async () => {
-    await assertSucceeds(setDoc(doc(som(AGARE), "invitations/inb-2"), { epost: "ny2@example.com", groupId: VAR, roll: "medlem", status: "vantar" }));
+  /*
+   * ⛔ INGEN KLIENT SKAPAR EN INBJUDAN (0.32.0, #180). Raden bär tokenHash och giltigTill, och de sätts av
+   * `bjudIn` på serversidan. Före 0.32.0 fick ägaren skriva raden själv, och med rollen admin hade en
+   * klientskriven inbjudan kunnat bära rollen agare.
+   */
+  it("⛔ inte ens ägaren skapar en inbjudan från klienten, det gör bjudIn", async () => {
+    await assertFails(setDoc(doc(som(AGARE), "invitations/inb-2"), { epost: "ny2@example.com", groupId: VAR, roll: "medlem", status: "vantar" }));
+  });
+
+  it("⛔ en admin skapar inte en inbjudan med rollen agare från klienten", async () => {
+    await assertFails(setDoc(doc(som(ADMIN), "invitations/inb-2"), { epost: "ny2@example.com", groupId: VAR, roll: "agare", status: "vantar" }));
   });
 
   it("medlemmen skapar inte en inbjudan", async () => {
     await assertFails(setDoc(doc(som(MEDLEM), "invitations/inb-3"), { epost: "ny3@example.com", groupId: VAR, roll: "medlem", status: "vantar" }));
+  });
+
+  it("en admin läser inbjudan", async () => {
+    await assertSucceeds(getDoc(doc(som(ADMIN), "invitations/inb-1")));
+  });
+
+  it("en admin läser INTE en annan grupps inbjudan", async () => {
+    await assertFails(getDoc(doc(som(ADMIN), "invitations/inb-annan")));
+  });
+
+  it("en admin får återkalla en inbjudan", async () => {
+    await assertSucceeds(updateDoc(doc(som(ADMIN), "invitations/inb-1"), { status: "aterkallad" }));
+  });
+
+  it("⛔ tokenHash går inte att skriva från en klient, inte ens av ägaren", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-1"), { tokenHash: "a".repeat(64) }));
+  });
+
+  it("⛔ giltigTill går inte att förlänga från en klient, inte ens av ägaren", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-1"), { giltigTill: "2099-01-01T00:00:00.000Z" }));
   });
 
   it("⛔ en inbjudan kan inte flyttas till en annan grupp", async () => {

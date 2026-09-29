@@ -37,15 +37,19 @@ import { byggNamn } from "./sprak.js";
 import { SPRAK } from "./sprak.js";
 
 /**
- * Rollerna i en grupp. Två, och fler kräver en ändring här och i reglerna.
+ * Rollerna i en grupp. Tre, och fler kräver en ändring här och i reglerna.
  *
- * ⛔ TVÅ OCH INTE FYRA. En roll finns för att STOPPA något, och i dag finns
- * exakt en sådan gräns: vem som får ändra gruppens konfiguration och dess
- * medlemmar. En "läsare" som inte får skriva rader vore en tredje, men ingen
- * yta i appen skiljer på det ännu, och en roll utan en regel bakom sig är ett
- * löfte i en rullgardin.
+ * ⛔ TRE OCH INTE FYRA (0.32.0, #180, CP 2026-09-29 23:30: "Skapa grupp och bjuda in till
+ * grupp finns inte ännu. Skapa grupp i web skall ha samma funktion som i SessionStudio").
+ * Före 0.32.0 var de två, `agare` och `medlem`, med skälet att en roll finns för att STOPPA
+ * något. `admin` stoppar något nytt: en admin får ändra gruppens utseende och uppgifter och
+ * bjuda in, men aldrig arkivera gruppen, ändra dess moduler eller göra någon till ägare.
+ * Det är SS `isGroupAdmin` (ägare eller admin) mot ägarens egna rättigheter, och gränsen
+ * står i `regelfragment()` (`opsArAdmin` mot `opsArAgare`) och i `bjudIn`, inte här.
+ *
+ * ⛔ EN LÄSARE finns fortfarande inte: ingen yta skiljer på att få läsa och få skriva rader.
  */
-export const ROLLER = /** @type {const} */ (["agare", "medlem"]);
+export const ROLLER = /** @type {const} */ (["agare", "admin", "medlem"]);
 
 /**
  * Vad en medlem ÄR. Samma delning som `SKAPARTYPER` men utan `okand`: ett
@@ -97,6 +101,31 @@ export const PROFILIKONER = /** @type {const} */ (["person", "stjarna", "hjarta"
 export const PROFILFARGER = /** @type {const} */ (["1", "2", "3", "4", "5", "6"]);
 
 /**
+ * Standardikoner för en GRUPPS märke (0.32.0, #180), utan Storage, samma tanke som `PROFILIKONER`.
+ *
+ * ⛔ EGNA ID:N OCH EN EGEN LISTA, INTE `PROFILIKONER`. En profil är en person (person, leende), en
+ * grupp är en verksamhet (grupp, portfölj, byggnad, hus, bok, jordglob), och att låta en grupp
+ * bära "leende" hade sparat ett id vars mening är en annan. Ikonerna ritas ur
+ * `src/lib/gruppikoner.js`, och en sparad grupp bär id:t, aldrig ett Lucide-namn.
+ *
+ * ⛔ SS-GRUPPERNAS IKONER ÄR MUSIKALISKA (`groupDefaults.js`: gitarr, mikrofon, piano ...). Det är
+ * SessionStudios domän, inte ramverkets, och en ops-plattform för bolag ska inte bära den.
+ * Formen är densamma: ett ikon-id, eller initialer.
+ */
+export const GRUPPIKONER = /** @type {const} */ (["grupp", "portfolj", "byggnad", "hus", "bok", "jordglob", "stjarna", "hjarta", "blixt", "krona"]);
+
+/**
+ * En grupps märke kan vara initialer i stället för en ikon: `initialer:AB` (1 till 3 tecken).
+ * Formen är SS `GROUP_ICON_INITIALS_ID` plus `initialsOverride` i ETT fält, så en grupp har en
+ * sanning om sitt märke och inte två fält som kan säga emot varandra.
+ */
+export const GRUPPINITIALER_FORM = /^initialer:([A-Za-zÅÄÖåäö0-9]{1,3})$/;
+
+/** Tak för gruppens beskrivning och ort (SS `groupDesc`/`groupCityLabel`, här med tak som en rad i en regel kan hålla). */
+export const MAX_GRUPPBESKRIVNING = 280;
+export const MAX_GRUPPORT = 80;
+
+/**
  * @typedef {object} Anvandare
  * @property {string} id Firebase Auth-uid.
  * @property {string} namn Ur inloggningen, sedan #156 redigerbar av personen själv.
@@ -137,6 +166,12 @@ export const MAX_PRESENTATION = 500;
  * @property {ReadonlyArray<string>} moduler Modul-id, samma form som `defineModule`.
  * @property {boolean} arkiverad
  * @property {import("./skapare.js").Skapare} skapadAv
+ * @property {string} farg Ett id ur `PROFILFARGER`, eller tom sträng (då väljer märket tonen ur `id`). 0.32.0.
+ * @property {string} ikon Ett id ur `GRUPPIKONER`, `initialer:<1-3 tecken>`, eller tom sträng (initialer ur namnet). 0.32.0.
+ * @property {string} bild Lagringssökvägen till gruppens bild, eller tom sträng. Sökvägen och inte en URL, av samma skäl som `Anvandare.bildSokvag`. 0.32.0.
+ * @property {string} beskrivning Högst `MAX_GRUPPBESKRIVNING` tecken, eller tom sträng. 0.32.0.
+ * @property {string} ort Högst `MAX_GRUPPORT` tecken, eller tom sträng. 0.32.0.
+ * @property {"sv"|"en"} epostsprak Språket gruppens utskick skrivs på (inbjudningar). Förval `sv`. 0.32.0.
  */
 
 /**
@@ -144,7 +179,7 @@ export const MAX_PRESENTATION = 500;
  * @property {string} id `${userId}|${groupId}`, alltså userId, MEDLEMSKAPSAVGRANSARE, groupId. Härledd, aldrig skriven för hand.
  * @property {string} userId
  * @property {string} groupId
- * @property {"agare"|"medlem"} roll
+ * @property {"agare"|"admin"|"medlem"} roll
  * @property {"person"|"agent"} typ
  * @property {"aktiv"|"avslutad"} status
  * @property {string} namn Denormaliserat ur `users`, se noten vid MEDLEMSKAPSFALT.
@@ -156,10 +191,17 @@ export const MAX_PRESENTATION = 500;
  * @property {string} id
  * @property {string} epost Gemener. Se noten i `byggInbjudan`.
  * @property {string} groupId
- * @property {"agare"|"medlem"} roll
+ * @property {"agare"|"admin"|"medlem"} roll
  * @property {"vantar"|"accepterad"|"aterkallad"} status
  * @property {import("./skapare.js").Skapare} skapadAv
+ * @property {string} tokenHash SHA-256 (hex) av inbjudans engångskod, eller tom sträng när ingen kod skapats än. Koden själv lagras aldrig. 0.32.0.
+ * @property {string} giltigTill ISO 8601. Förval 30 dagar efter att raden byggdes. 0.32.0.
+ * @property {string} skickad ISO 8601 för senaste utskicket, eller tom sträng (aldrig skickad). 0.32.0.
+ * @property {number} antalSkickade Hur många gånger inbjudan skickats, 0 eller fler. 0.32.0.
  */
+
+/** Hur länge en inbjudan gäller (0.32.0, #180). Ett tal på ETT ställe: raden bär ett slutdatum, inte ett antal dagar. */
+export const INBJUDNING_GILTIGHET_DAGAR = 30;
 
 /** @param {unknown} v @returns {string} */
 const rensa = (v) => (typeof v === "string" ? v.trim() : "");
@@ -173,7 +215,18 @@ const rensa = (v) => (typeof v === "string" ? v.trim() : "");
  * hål och inte en förenkling.
  */
 export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"];
-export const GRUPPFALT = ["id", "namn", "moduler", "arkiverad", "skapadAv"];
+
+/*
+ * ⛔ TVÅ LISTOR FÖR VAD EN KLIENT FÅR ÄNDRA PÅ EN GRUPP, OCH `GRUPPFALT` HÄRLEDS UR DEM (0.32.0, #180).
+ * Reglerna (`regelfragment()`) läser samma två, så modellen och `hasOnly` inte kan glida isär, samma
+ * beslut som `ANVANDARFALT` (#156). `ADMINGRUPPFALT` är det en admin får ändra: utseende och
+ * uppgifter. `AGARGRUPPFALT` är det ägaren får ändra: det ovan plus `moduler` och `arkiverad`.
+ * `id` och `skapadAv` står i ingen av dem: vem som skapade gruppen och vad den heter i databasen
+ * ändras aldrig.
+ */
+export const ADMINGRUPPFALT = ["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"];
+export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "arkiverad"];
+export const GRUPPFALT = ["id", ...AGARGRUPPFALT, "skapadAv"];
 /*
  * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT
  * SKÄL (#138, architect 2026-09-27).
@@ -195,7 +248,7 @@ export const GRUPPFALT = ["id", "namn", "moduler", "arkiverad", "skapadAv"];
  * ett nätverksanrop per vy (väg B) eller en läsbar e-post (väg C).
  */
 export const MEDLEMSKAPSFALT = ["id", "userId", "groupId", "roll", "typ", "status", "namn", "bild"];
-export const INBJUDNINGSFALT = ["id", "epost", "groupId", "roll", "status", "skapadAv"];
+export const INBJUDNINGSFALT = ["id", "epost", "groupId", "roll", "status", "skapadAv", "tokenHash", "giltigTill", "skickad", "antalSkickade"];
 
 /**
  * @param {string} samling
@@ -436,12 +489,48 @@ export function byggGrupp(d, kandaModuler) {
     }
   }
 
+  const farg = rensa(rad.farg);
+  if (farg && !(/** @type {readonly string[]} */ (PROFILFARGER).includes(farg))) {
+    throw new Error(`groups: färgen "${farg}" för "${id}" finns inte. Giltiga: ${PROFILFARGER.join(", ")}, eller tom sträng.`);
+  }
+
+  const ikon = rensa(rad.ikon);
+  if (ikon && !(/** @type {readonly string[]} */ (GRUPPIKONER).includes(ikon)) && !GRUPPINITIALER_FORM.test(ikon)) {
+    throw new Error(
+      `groups: ikonen "${ikon}" för "${id}" finns inte. Giltiga: ${GRUPPIKONER.join(", ")}, initialer:<1-3 tecken>, eller tom sträng.`,
+    );
+  }
+
+  const beskrivning = rensa(rad.beskrivning);
+  if (beskrivning.length > MAX_GRUPPBESKRIVNING) {
+    throw new Error(`groups: beskrivningen för "${id}" är ${beskrivning.length} tecken. Taket är ${MAX_GRUPPBESKRIVNING}.`);
+  }
+  const ort = rensa(rad.ort);
+  if (ort.length > MAX_GRUPPORT) {
+    throw new Error(`groups: orten för "${id}" är ${ort.length} tecken. Taket är ${MAX_GRUPPORT}.`);
+  }
+
+  const epostsprak = rensa(rad.epostsprak) || "sv";
+  if (!(/** @type {readonly string[]} */ (SPRAK).includes(epostsprak))) {
+    throw new Error(`groups: e-postspråket "${epostsprak}" för "${id}" finns inte. Giltiga: ${SPRAK.join(", ")}.`);
+  }
+
+  /*
+   * ⛔ TOMMA STRÄNGAR OCH INTE UTELÄMNADE FÄLT (arbetsreglernas punkt 5), och en rad skriven före
+   * 0.32.0 läses med dem: ingen migrering, ingen vy som måste veta om raden är gammal.
+   */
   return Object.freeze({
     id,
     namn,
     moduler: Object.freeze(moduler),
     arkiverad: rad.arkiverad === true,
     skapadAv: byggSkapare(somObjekt(rad.skapadAv)),
+    farg,
+    ikon,
+    bild: rensa(rad.bild),
+    beskrivning,
+    ort,
+    epostsprak: /** @type {Grupp["epostsprak"]} */ (epostsprak),
   });
 }
 
@@ -567,7 +656,7 @@ export function byggMedlemskap(d) {
 }
 
 /**
- * Bygger en inbjudan, eller kastar med skälet. Flödet hör till #137.
+ * Bygger en inbjudan, eller kastar med skälet. Flödet hör till #137, koden och utskicket till #180.
  *
  * @param {Record<string, any>} d
  * @returns {Inbjudan}
@@ -592,6 +681,34 @@ export function byggInbjudan(d) {
     throw new Error(`invitations: statusen "${status}" för "${id}" finns inte. Giltiga: ${INBJUDNINGSSTATUS.join(", ")}.`);
   }
 
+  /*
+   * ⛔ KODEN LAGRAS ALDRIG, BARA DESS SHA-256. Den som kan läsa `invitations` (en admin) ska inte
+   * kunna acceptera någon annans inbjudan genom att läsa koden ur raden. Tom sträng betyder "ingen
+   * kod skapad än" och matchar aldrig något: den som jämför måste avvisa ett tomt värde först.
+   */
+  const tokenHash = rensa(rad.tokenHash).toLowerCase();
+  if (tokenHash && !/^[0-9a-f]{64}$/.test(tokenHash)) {
+    throw new Error(`invitations: tokenHash för "${id}" är inte en SHA-256 i hex (64 tecken). En kod lagras aldrig i klartext.`);
+  }
+
+  /*
+   * ⛔ SLUTDATUMET ÄR EN TID PÅ RADEN OCH INTE ETT ANTAL DAGAR, och en rad utan ett sätts till 30
+   * dagar framåt när den byggs. En gammal rad utan fältet får då ett slutdatum räknat från när den
+   * först läses, vilket är ett generöst svar på en fråga ingen ställde: `bjudIn` skriver alltid fältet.
+   */
+  const giltigTill = rensa(rad.giltigTill) || new Date(Date.now() + INBJUDNING_GILTIGHET_DAGAR * 86_400_000).toISOString();
+  if (Number.isNaN(Date.parse(giltigTill))) {
+    throw new Error(`invitations: giltigTill "${giltigTill}" för "${id}" är inte en tid (ISO 8601).`);
+  }
+  const skickad = rensa(rad.skickad);
+  if (skickad && Number.isNaN(Date.parse(skickad))) {
+    throw new Error(`invitations: skickad "${skickad}" för "${id}" är inte en tid (ISO 8601), eller tom sträng.`);
+  }
+  const antalSkickade = rad.antalSkickade === undefined ? 0 : rad.antalSkickade;
+  if (!Number.isInteger(antalSkickade) || antalSkickade < 0) {
+    throw new Error(`invitations: antalSkickade för "${id}" måste vara ett heltal 0 eller större, inte ${JSON.stringify(antalSkickade)}.`);
+  }
+
   return Object.freeze({
     id,
     epost,
@@ -599,6 +716,10 @@ export function byggInbjudan(d) {
     roll: /** @type {Inbjudan["roll"]} */ (roll),
     status: /** @type {Inbjudan["status"]} */ (status),
     skapadAv: byggSkapare(somObjekt(rad.skapadAv)),
+    tokenHash,
+    giltigTill,
+    skickad,
+    antalSkickade,
   });
 }
 

@@ -31,7 +31,7 @@
  * kan bli ett eget projekt utan att datamodellen ändras.
  */
 
-import { ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
+import { ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
 import { KATEGORIFALT } from "./katalog.js";
 
 /**
@@ -108,6 +108,14 @@ export function regelfragment(namn = {}) {
       return opsArMedlem(gid) && opsMedlemskapet(gid).data.roll == 'agare';
     }
 
+    // ⛔ ADMIN ÄR ÄGARE ELLER ADMIN (0.32.0, #180), SS \`isGroupAdmin\`. Det är den som får ändra
+    // gruppens utseende och uppgifter och se inbjudningarna. Det som kräver ÄGARE (moduler, arkivering,
+    // roller) står kvar på opsArAgare: en admin är en delegerad förvaltare, inte en andra ägare.
+    function opsArAdmin(gid) {
+      return opsArMedlem(gid)
+        && (opsMedlemskapet(gid).data.roll == 'agare' || opsMedlemskapet(gid).data.roll == 'admin');
+    }
+
     // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
     //
     // ⛔ #156, RÄTTAT EFTER GRANSKNING: hasOnly-LISTAN ÄR HÄRLEDD UR
@@ -134,11 +142,23 @@ export function regelfragment(namn = {}) {
         && request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}]);
     }
 
-    // Gruppen. Medlem läser, ägare skriver. Aldrig radering: arkivering finns
-    // för att svaret på "varför försvann den" alltid efterfrågas i efterhand.
+    // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler och arkivering.
+    // Aldrig radering: arkivering finns för att svaret på "varför försvann den" alltid efterfrågas i
+    // efterhand.
+    //
+    // ⛔ diff().affectedKeys().hasOnly(...) OCH INTE keys().hasOnly(...) (0.32.0, #180). keys() på det
+    // nya dokumentet är ALLA fält, också de oförändrade, så en lista av redigerbara fält hade avvisat
+    // varje uppdatering av en grupp som bär \`id\` och \`skapadAv\`. affectedKeys() är bara det som
+    // ÄNDRADES, och \`id\` och \`skapadAv\` står i ingen av listorna: ingen klient ändrar vem som skapade
+    // gruppen. Listorna är härledda ur ADMINGRUPPFALT/AGARGRUPPFALT (src/lib/grupp.js), inte en
+    // handskriven kopia.
     match /${grupper}/{gid} {
       allow read: if opsArMedlem(gid);
-      allow create, update: if opsArAgare(gid);
+      allow create: if opsArAgare(gid);
+      allow update: if (opsArAgare(gid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${AGARGRUPPFALT.map((f) => `"${f}"`).join(", ")}]))
+        || (opsArAdmin(gid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${ADMINGRUPPFALT.map((f) => `"${f}"`).join(", ")}]));
       allow delete: if false;
     }
 
@@ -146,25 +166,35 @@ export function regelfragment(namn = {}) {
     // medlemskap kan ge sig själv rollen ägare i vilken grupp som helst vars id
     // hen gissar. Serversidan skriver, med Admin SDK, och den går förbi de här
     // reglerna. Samma beslut som SessionStudio ADR-019.
+    //
+    // ⛔ EN MEDLEM LÄSER GRUPPENS ÖVRIGA MEDLEMSKAP (0.32.0, #180), inte bara sitt eget. Medlemslistan
+    // är en yta varje medlem ser (SS visar den), och den bär namn och bild, aldrig e-post (se
+    // MEDLEMSKAPSFALT). Läsningen är fortfarande ETT uppslag mot radens egen grupp: en medlem i en
+    // ANNAN grupp läser inte den här, och en avslutad medlem gör det inte heller.
     match /${medlemskap}/{mid} {
       allow read: if opsInloggad()
-        && (resource.data.userId == request.auth.uid || opsArAgare(resource.data.groupId));
+        && (resource.data.userId == request.auth.uid || opsArMedlem(resource.data.groupId));
       allow write: if false;
     }
 
-    // Inbjudan. Bara gruppens ägare ser och skriver den, eftersom den bär en
-    // e-postadress till någon som ännu inte är med.
+    // Inbjudan. Gruppens ägare och admin ser den, eftersom den bär en e-postadress till någon som
+    // ännu inte är med.
+    //
+    // ⛔ ALDRIG SKAPAD AV EN KLIENT (0.32.0, #180). \`bjudIn\` (node-sidan) skriver raden, med Admin SDK,
+    // eftersom raden bär \`tokenHash\` och \`giltigTill\` och ingen av dem får sättas av den som ska
+    // bjudas in eller av den som bjuder. Vore \`create\` öppen kunde en admin skriva en inbjudan med
+    // rollen agare, och därmed göra vem som helst till ägare via en accept. Klienten bjuder in genom
+    // en callable, aldrig genom att skriva raden.
     match /${inbjudningar}/{iid} {
-      allow read: if opsArAgare(resource.data.groupId);
-      allow create: if opsArAgare(request.resource.data.groupId);
-      // ⛔ VARKEN GRUPPEN ELLER ROLLEN GÅR ATT ÄNDRA (#137). Gruppen av samma
-      // skäl som på en vanlig rad. Rollen eftersom en inbjudan är ett löfte
-      // som någon redan fått: höjs den i efterhand blir en accepterad inbjudan
-      // till medlem plötsligt ett ägarskap, utan att den som accepterade såg
-      // det. Ska rollen ändras återkallas inbjudan och en ny skrivs.
-      allow update: if opsArAgare(resource.data.groupId)
-        && request.resource.data.groupId == resource.data.groupId
-        && request.resource.data.roll == resource.data.roll;
+      allow read: if opsArAdmin(resource.data.groupId);
+      allow create: if false;
+      // ⛔ BARA STATUS GÅR ATT ÄNDRA FRÅN EN KLIENT, alltså återkalla. Gruppen av samma skäl som på en
+      // vanlig rad. Rollen eftersom en inbjudan är ett löfte som någon redan fått: höjs den i efterhand
+      // blir en accepterad inbjudan till medlem plötsligt ett ägarskap, utan att den som accepterade såg
+      // det. tokenHash och giltigTill av skälet ovan: en klient som kan förlänga eller byta koden kan
+      // hålla en inbjudan vid liv i evighet. Ska något annat ändras återkallas inbjudan och en ny skrivs.
+      allow update: if opsArAdmin(resource.data.groupId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]);
       allow delete: if false;
     }
 
