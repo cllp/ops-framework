@@ -122,6 +122,11 @@ jobs:
       # `check-scaffold` inte ett bevis, och då vill jag veta det först.
       - run: npm run check:viewport-guard
       - run: npm run check:scaffold
+      # ⛔ Skalets yta (0.30.0, #173) är också CSS som ingen jsdom-svit ser: en linje för mycket i menyn, en knapp som
+      # sitter en pixel för högt, en inställningsvy som flödar ut vid 390 px. Kräver en byggd `dist` och en webbläsare,
+      # alltså hör den hemma här och inte i `check`.
+      - run: npm run build
+      - run: npm run check:skalyta
 
   # ⛔ PACKNINGEN MÅSTE PROVAS PÅ VARJE PR, INTE FÖRST VID TAGGEN.
   #

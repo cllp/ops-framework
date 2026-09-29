@@ -120,7 +120,7 @@ function serveraDist(distmapp) {
 }
 
 /** @returns {Promise<{ browser: any, varifran: string }>} */
-async function startaWebblasare() {
+export async function startaWebblasare() {
   /** @type {any} */
   let chromium;
   try {
