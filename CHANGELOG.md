@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.29.1
+
+⛔ **Rättelse: en kategori utan grupp bär ingen `groupId`-nyckel alls.**
+0.29.0 skrev `groupId: null` på varje kategori som byggts utan `grupp: true`,
+alltså på varje rad i en app som ännu inte grupperat sina kataloger
+(övergången i cllp/bolag-ops#447). Mätt i bolag-ops ompinning till 0.29.0:
+regelproven föll 10 av 151 med `PERMISSION_DENIED` på varje kategoriskrivning,
+eftersom appens `hasOnly`-regler för `kategorier`, `typer` och `status` inte
+känner `groupId` och inte ska göra det förrän #447 är gjort. En rad utan grupp
+är nu byte för byte samma rad som i 0.28.0, och `groupId` finns på raden bara
+när `grupp: true` sattes. `standardvarden()`, `las()` i ogrupperat läge och
+`OpsKatalogInstallning` utan `groupId`-prop följer med. Proven är röda på
+0.29.0 (5 av 90 i katalogsviten) och gröna med rättelsen. Ingen ändring för
+grupperade kataloger, ingen regeländring.
+
+
 ## 0.29.0
 
 ⛔ **Gruppanelen och gruppväxlaren som SessionStudio, katalogerna per grupp,
