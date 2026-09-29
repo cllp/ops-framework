@@ -53,6 +53,10 @@ const argv = process.argv.slice(2);
 const distI = argv.indexOf("--dist");
 const dist = distI >= 0 ? path.resolve(argv[distI + 1]) : path.join(rot, "dist", "index.js");
 const utanFasta = argv.includes("--utan-fasta");
+// `--tokens <fil>`: bygg CSS:en ur en ANNAN tokens.css (0.31.0). Ett lager (`--z-dropdown`) ligger i tokens, inte i dist,
+// så röd-beviset mot origin/main kräver båda: `--dist ../base/dist/index.js --tokens ../base/tokens/tokens.css`.
+const tokI = argv.indexOf("--tokens");
+const tokensFil = tokI >= 0 ? path.resolve(argv[tokI + 1]) : path.join(rot, "tokens", "tokens.css");
 const temaI = argv.indexOf("--tema");
 const standardtema = temaI >= 0 && argv[temaI + 1] === "dark" ? "dark" : "light";
 const bildI = argv.indexOf("--bilder");
@@ -90,7 +94,7 @@ const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
 fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
 const cssRatt = (
   await postcss([tailwind()]).process(
-    `@import "tailwindcss" source(none);\n@import "${path.join(rot, "tokens", "tokens.css").replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,
+    `@import "tailwindcss" source(none);\n@import "${tokensFil.replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,
     { from: path.join(arbetsmapp, "app.css") },
   )
 ).css;
@@ -100,7 +104,7 @@ const cssRatt = (
 // data-URL, så att `document.fonts.check` mäter det verkliga typsnittet och inte reservtypsnittet.
 const fontData = fs.readFileSync(path.join(rot, "fonts", "glacial-indifference", "glacial-indifference-400.woff2")).toString("base64");
 const css = cssRatt.replace(/url\(["']?[^)"']*glacial-indifference-400\.woff2["']?\)/g, `url(data:font/woff2;base64,${fontData})`);
-if (css === cssRatt) throw new Error("check-skalyta: @font-face för Glacial Indifference hittades inte i den byggda CSS:en. Märket hade mätts i reservtypsnittet.");
+if (css === cssRatt && tokI < 0) throw new Error("check-skalyta: @font-face för Glacial Indifference hittades inte i den byggda CSS:en. Märket hade mätts i reservtypsnittet.");
 
 /** @param {string} scen @param {string | null} [aktiv] Vilken grupp som är vald i `full`. @returns {string} */
 const sida = (scen, aktiv = null) =>
@@ -923,6 +927,96 @@ for (const bredd of [1280, 1600]) {
   }
   krav((await page.getByRole("button", { name: "Tillbaka till menyn" }).count()) === 1, "menyn 1280 px: Aktivitet har ingen tillbaka-pil i rubriken.");
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "meny-aktivitet-1280.png"), clip: { x: 800, y: 0, width: 480, height: 500 } });
+  await context.close();
+}
+
+// ══ 14. TYP, DATUM OCH TID GÅR ATT VÄLJA INUTI EN MODAL (0.31.0, avsnitt 11) ══
+// CP: "Ny händelse: datum går inte att välja, och det finns ingen tidsväljare", "Går heller inte att välja typ i dropdown".
+// Rotorsak: listorna ritades på `--z-dropdown` (200) och modalen på `--z-modal` (400), alltså bakom modalen; och
+// `OpsDatePicker` gav react-day-picker en STYRD månad, så pilarna dog när ett datum var valt. Mått: listan syns, ligger
+// inom vyn, det som ligger överst i mittpunkten av ett val ÄR listan (inte modalen), valet når värdet, Escape stänger bara listan.
+for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height: 844 }], ["1280 px", { width: 1280, height: 800 }]])) {
+  const { page, context } = await oppna("modal", vp);
+  let vantat = 0;
+  /** @type {any} */
+  let typVal = {};
+  /** @type {any} */
+  let dag = {};
+  let varde = async () => ({});
+  try {
+  vantat = await page.locator("[data-saknas]").count();
+  krav(vantat === 0, `modalen ${namn}: OpsTimePicker finns inte i den här versionen (ingen tidsväljare).`);
+  /** @param {string} valjare @param {string} text */
+  const overst = (valjare, text) =>
+    page.evaluate(
+      ([v, t]) => {
+        const el = [...document.querySelectorAll(v)].find((e) => (e.textContent || "").trim() === t);
+        if (!el) return { finns: false };
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        const y = r.top + r.height / 2;
+        const top = document.elementFromPoint(x, y);
+        return { finns: true, iVyn: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, overst: !!top && (el === top || el.contains(top) || top.contains(el)) };
+      },
+      [valjare, text],
+    );
+  varde = async () => JSON.parse((await page.locator("[data-varde]").textContent()) || "{}");
+
+  // Typ
+  await page.getByRole("combobox", { name: "Typ" }).click();
+  const typLista = await page.locator('[role="listbox"]').count();
+  krav(typLista === 1, `modalen ${namn}: typlistan öppnades inte (${typLista} listor).`);
+  typVal = await overst('[role="option"]', "Deadline");
+  krav(typVal.finns === true && typVal.iVyn === true && typVal.overst === true, `modalen ${namn}: typlistans val "Deadline" ${JSON.stringify(typVal)}: väntat synligt, inom vyn och överst (ej bakom modalen).`);
+  if (typVal.finns) {
+    await page.getByRole("option", { name: "Deadline" }).click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: "Deadline" gick inte att klicka (något ligger över listan).`));
+    krav((await varde()).typ === "deadline", `modalen ${namn}: valet nådde inte formulärets typ (${JSON.stringify(await varde())}).`);
+  }
+
+  // Datum (en typlista som blev kvar öppen stängs först, så att resten av provet kan mäta sitt)
+  if ((await page.locator('[role="listbox"]').count()) > 0) await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Datum", exact: true }).click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: datumknappen gick inte att trycka på.`));
+  dag = await overst('[role="gridcell"] button', "15");
+  krav(dag.finns === true && dag.iVyn === true && dag.overst === true, `modalen ${namn}: kalenderns dag 15 ${JSON.stringify(dag)}: väntat synlig, inom vyn och överst.`);
+  if (dag.finns) {
+    await page.locator('[role="gridcell"] button:not([disabled])', { hasText: /^15$/ }).first().click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: dag 15 gick inte att klicka (något ligger över kalendern).`));
+    krav(/-15$/.test((await varde()).datum || ""), `modalen ${namn}: dag 15 nådde inte formulärets datum (${JSON.stringify(await varde())}).`);
+    // Månadsnavigering efter ett valt datum (rotorsaken: styrd månad).
+    await page.getByRole("button", { name: "Datum", exact: true }).click();
+    const rubrikFore = await page.locator('[role="grid"]').first().evaluate((g) => g.closest("[data-radix-popper-content-wrapper]")?.textContent?.slice(0, 40) ?? "");
+    await page.getByRole("button", { name: /next|nästa|Go to the Next Month/i }).first().click();
+    const rubrikEfter = await page.locator('[role="grid"]').first().evaluate((g) => g.closest("[data-radix-popper-content-wrapper]")?.textContent?.slice(0, 40) ?? "");
+    krav(rubrikFore !== rubrikEfter, `modalen ${namn}: månadspilen gjorde ingenting med ett valt datum (${rubrikFore} / ${rubrikEfter}).`);
+    // Escape stänger kalendern men inte modalen.
+    await page.keyboard.press("Escape");
+    krav((await page.locator('[role="grid"]').count()) === 0, `modalen ${namn}: Escape stängde inte kalendern.`);
+    krav((await page.locator('[role="dialog"]').count()) >= 1, `modalen ${namn}: Escape stängde hela modalen i stället för bara kalendern.`);
+  }
+
+  // Tid
+  if (vantat === 0) {
+    await page.getByRole("combobox", { name: "Timme" }).click();
+    const tim = await overst('[role="option"]', "01");
+    krav(tim.finns === true && tim.iVyn === true && tim.overst === true, `modalen ${namn}: timlistans val "01" ${JSON.stringify(tim)}: väntat synligt, inom vyn och överst.`);
+    await page.getByRole("option", { name: "01" }).click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: timme 01 gick inte att klicka.`));
+    await page.getByRole("combobox", { name: "Minut" }).click({ timeout: 3000 }).catch(() => {});
+    await page.getByRole("option", { name: "30", exact: true }).click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: minut 30 gick inte att klicka.`));
+    krav((await varde()).tid === "01:30", `modalen ${namn}: tiden blev ${JSON.stringify((await varde()).tid)}, väntat "01:30".`);
+    // Tangentbord: fokusera timknappen, öppna med Enter, välj med pilar och Enter.
+    await page.getByRole("combobox", { name: "Timme" }).focus();
+    await page.keyboard.press("Enter");
+    await page.waitForSelector('[role="listbox"]');
+    await page.waitForTimeout(100);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    const efterTangent = (await varde()).tid;
+    krav(efterTangent === "02:30", `modalen ${namn}: tangentbordsval (Enter, pil ned, Enter) av timme gav ${JSON.stringify(efterTangent)}, väntat "02:30".`);
+  }
+  } catch (e) {
+    krav(false, `modalen ${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}): något i kedjan gick inte att göra.`);
+  }
+  matt.push(`modalen ${namn}: typ ${JSON.stringify(typVal)}, dag 15 ${JSON.stringify(dag)}, värde ${JSON.stringify(await varde())}`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `modal-${vp.width}.png`) });
   await context.close();
 }
 

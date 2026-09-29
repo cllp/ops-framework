@@ -120,3 +120,23 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
     vald ? "border-accent bg-accent/10 shadow-sm" : cx("border-line bg-surface", interaktiv && "hover:border-line-strong"),
   );
 }
+
+/**
+ * Klasserna för en fältknapp som öppnar en lista eller en kalender (`OpsSelect`, `OpsDatePicker`, `OpsTimePicker`) och för
+ * ytan de öppnar (0.31.0). Före 0.31.0 stod trigger-strängen skriven i varje komponent, och popover-lagret
+ * (`--z-dropdown`) låg UNDER modalen (`--z-modal`), så en lista som öppnades inuti en `OpsModal` ritades bakom den.
+ * @param {{ invalid?: boolean, filled?: boolean }} [val]
+ * @returns {string}
+ */
+export function faltTriggerKlass({ invalid = false, filled = true } = {}) {
+  return cx(
+    "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11 text-md md:text-base",
+    filled ? "text-ink" : "text-ink-muted",
+    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+    "disabled:opacity-55 disabled:cursor-not-allowed",
+    invalid ? "border-danger" : "border-line",
+  );
+}
+
+/** Ytan en fältknapp öppnar: ovanför modalen (se `--z-dropdown`), samma kant och skugga överallt. */
+export const faltYtaKlass = "z-(--z-dropdown) rounded-md border border-line bg-raised shadow-md";

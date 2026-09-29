@@ -1,5 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { cx } from "../lib/cx.js";
+import { faltTriggerKlass, faltYtaKlass } from "../lib/radKlass.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { BockIkon, ChevronNedIkon } from "./icons.jsx";
 
@@ -35,13 +36,7 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
     <Select.Root value={value} onValueChange={onChange} disabled={disabled} required={f.required || undefined}>
       <Select.Trigger
         id={f.id}
-        className={cx(
-          "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11",
-          "text-md md:text-base text-ink data-[placeholder]:text-ink-muted",
-          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-          "disabled:opacity-55 disabled:cursor-not-allowed",
-          f.invalid ? "border-danger" : "border-line",
-        )}
+        className={cx(faltTriggerKlass({ invalid: f.invalid }), "data-[placeholder]:text-ink-muted")}
         aria-label={ariaLabel}
         aria-invalid={f.invalid || undefined}
         aria-describedby={f.describedBy}
@@ -58,7 +53,7 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
         <Select.Content
           position="popper"
           sideOffset={4}
-          className="z-(--z-dropdown) overflow-hidden rounded-md border border-line bg-raised shadow-md"
+          className={cx(faltYtaKlass, "overflow-hidden")}
         >
           <Select.Viewport className="max-h-72 p-1">
             {options.map((o) => (

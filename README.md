@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**90 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**91 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -194,7 +194,8 @@ något godtyckligt.
 | `OpsInput` | `value`, `onChange`, `type` text \| email \| search \| tel \| url \| password \| number, `placeholder`, `name`, `autoComplete`, `disabled`, `readOnly`, `maxLength`, `ariaLabel` |
 | `OpsTextarea` | `value`, `onChange`, `placeholder`, `name`, `rows`, `disabled`, `maxLength`, `ariaLabel` |
 | `OpsSelect` | `options` [{value, label, disabled}], `value`, `onChange`, `placeholder`, `disabled`, `ariaLabel` |
-| `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel` |
+| `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel`. Öppnar en kalender som går att bläddra i även med ett valt datum, och ritas ovanför en `OpsModal` (`--z-dropdown` ligger över `--z-modal` sedan 0.31.0). |
+| `OpsTimePicker` | `value` `"HH:MM"` (24 h), `onChange`, `disabled`, `allowEmpty`, `timAriaLabel`, `minutAriaLabel`. Timme och minut i två listor med ett kolon emellan, som SessionStudios `ThemedTimeSelect.jsx`. ⛔ **Formulär får aldrig använda rå `<input type="date">` eller `type="time">`**: de ritas av operativsystemet, ser olika ut överallt och går inte att sätta tokens på. Datum är `OpsDatePicker`, tid är `OpsTimePicker`, båda med ett värde som är en sträng och inte ett `Date`. |
 | `OpsCheckbox` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 | `OpsToggleRow` | `label`, `value`, `on`, `onChange`, `offLabel`, `control`, `trailing`. Rad som tonas ned i stället för att bockas ur. ⛔ Ett filter, inte ett påstående: kryssrutan frågar "är det sant?", den här frågar "ska det räknas?". ⛔ `control` lägger en kontroll UNDER knappen; `trailing` lägger en kompakt kontroll LÄNGST TILL HÖGER på samma rad (t.ex. `OpsSimulatePopover` eller `OpsKnob`). Båda ligger UTANFÖR knappen: ett reglage inuti en `<button>` är ogiltig HTML, och draget hade bubblat upp och tonat ned posten man just simulerade. Ramen bor därför på ett omslag. Utan båda ritas ingen extra behållare. |
 | `OpsFilePicker` | `value`, `onChange`, `maxChars`, `accept`, `paste`, `ariaLabel`, `labels` {valj, byt, taBort, klistra}. Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag. Ger `{dataUrl, name, kind, chars, width?, height?}`. ⛔ Heter inte OpsImagePicker: en bildväljare som får ett kontoutdrag tvingar fram en skärmbild av ett dokument man redan har. Bilder krymps i steg, andra filer ryms eller avvisas med besked om vad man ska göra. ⛔ Lyssnar på inklistring i DOKUMENTET, för man klistrar in där blicken är, inte där fokus råkar ligga; två monterade väljare tar därför emot samma inklistring, och det är vad `paste={false}` finns till för. |

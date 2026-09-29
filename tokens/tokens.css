@@ -852,6 +852,10 @@
    *   --z-chrome          appskalet: headern och bottenraden. Ligger över allt
    *                       innehåll, eftersom kroms hela uppgift är att finnas
    *                       kvar när innehållet rör sig.
+   *   --z-dropdown        allt som öppnas UR en kontroll (lista, kalender, meny, tooltip). ⛔ ÖVER modalen sedan
+   *                       0.31.0: en `OpsSelect` inuti en `OpsModal` öppnade sin lista på 200, bakom modalen på 400,
+   *                       och ingen kunde välja typ eller datum i "Ny händelse" (CP 2026-09-29). En lista som öppnas
+   *                       ur en kontroll i en modal hör hemma ovanför den; under toasten (500) ligger den ändå.
    * ──────────────────────────────────────────────────────────────────────── */
   --z-base: 0;
   --z-sticky: 100;
@@ -860,9 +864,9 @@
      innehåll, under kromet, så headern och bottenraden inte dämpas. */
   --z-scrim: 140;
   --z-chrome: 150;
-  --z-dropdown: 200;
   --z-overlay: 300;
   --z-modal: 400;
+  --z-dropdown: 450;
   --z-toast: 500;
 
   /* ─── Varaktighet. Används som `duration-(--duration-fast)`.

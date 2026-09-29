@@ -29,6 +29,7 @@ export { OpsChip } from "./components/OpsChip.jsx";
 export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
 export { OpsSelect } from "./components/OpsSelect.jsx";
 export { OpsDatePicker } from "./components/OpsDatePicker.jsx";
+export { OpsTimePicker } from "./components/OpsTimePicker.jsx";
 export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
 export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
 export { OpsRadioGroup } from "./components/OpsRadioGroup.jsx";

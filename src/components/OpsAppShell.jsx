@@ -199,6 +199,9 @@ class OpsFelgrans extends Component {
   }
 }
 
+/** Flikens sidoluft. Ligger för sig (0.31.0) så att en flik med chevron kan fördela den: vänster på länken, höger på chevronen. */
+const FLIK_LUFT = "px-3 lg:px-4";
+
 /**
  * En post i toppraden. Med `children` en riktig meny, utan dem en länk.
  *
@@ -234,9 +237,6 @@ class OpsFelgrans extends Component {
  * @param {string} props.classes
  * @param {string} props.submenuLabel Verb för chevronens namn, följt av postens etikett.
  */
-/** Flikens sidoluft. Ligger för sig (0.31.0) så att en flik med chevron kan fördela den: vänster på länken, höger på chevronen. */
-const FLIK_LUFT = "px-3 lg:px-4";
-
 function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel }) {
   const [oppen, setOppen] = useState(false);
   const childEntries = /** @type {any[]} */ (Array.isArray(entry.children) ? entry.children : []);

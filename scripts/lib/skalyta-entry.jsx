@@ -14,7 +14,9 @@ import { useState } from "react";
 import * as Ops from "OPS_DIST";
 import { Calendar, CalendarDays, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsThemeToggle } = Ops;
+const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsModal, OpsSelect, OpsThemeToggle } = Ops;
+// `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
+const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
 
 const IKON = 20;
 const nav = [
@@ -128,8 +130,32 @@ function Full({ children }) {
   );
 }
 
+/** 0.31.0: ett formulär i en OpsModal med typlista, datum och tid, som "Ny händelse". */
+function ModalForm() {
+  const [typ, setTyp] = useState(undefined);
+  const [datum, setDatum] = useState(undefined);
+  const [tid, setTid] = useState(undefined);
+  return (
+    <OpsModal open onOpenChange={() => {}} title="Ny händelse" footer={<OpsButton>Spara</OpsButton>}>
+      <div className="flex flex-col gap-3 pb-4">
+        <OpsField label="Typ">
+          <OpsSelect ariaLabel="Typ" value={typ} onChange={setTyp} options={["Möte", "Deadline", "Påminnelse", "Resa"].map((n) => ({ value: n.toLowerCase(), label: n }))} />
+        </OpsField>
+        <OpsField label="Datum">
+          <OpsDatePicker value={datum} onChange={setDatum} />
+        </OpsField>
+        <OpsField label="Tid">
+          <OpsTimePicker value={tid} onChange={setTid} />
+        </OpsField>
+        <output data-varde="">{JSON.stringify({ typ, datum, tid })}</output>
+      </div>
+    </OpsModal>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
+  if (s === "modal") return <ModalForm />;
   if (s === "full") {
     return (
       <Full>
