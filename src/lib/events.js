@@ -61,6 +61,11 @@
  * @property {string} [edgeLabel] Vad kanten betyder, i ord. ⛔ KRÄVS när `edge` finns:
  *   en färg utan ord säger ingenting till den som inte lärt sig koden, går inte att läsa
  *   upp, och är osynlig för var tjugonde man. `OpsCard` kastar hellre än att rita den.
+ * @property {{ namn: string, typ?: "manniska" | "agent" | "okand" } | string} [skapadAv] (0.30.0, #173) Vem som skapade
+ *   posten: `{ namn }` (eller `laesSkapare`s form, se `lib/skapare.js`). Tillsammans med `skapad` ritas raden
+ *   "Skapad av Namn, 29 sep 09:12" under titeln. ⛔ Den visas BARA när båda finns: ett namn utan tid eller en tid utan
+ *   namn är en halv rad, och en halv rad läses som att resten inte laddat klart.
+ * @property {string} [skapad] När posten skapades, ISO-8601. Visas i lokal tid, se `formatDagOchKlockslag`.
  * @property {string} [updatedAt] Senast ändrad (t.ex. "2026-09-18"), höger i kompakta raden.
  * @property {import("react").ReactNode} [atgard] Appens egen kontroll för raden, till exempel
  *   en knapp som bockar av den. ⛔ RAMVERKET RITAR DEN, TOLKAR DEN ALDRIG: vad en åtgärd

@@ -151,6 +151,31 @@ export function formatDateTime(value, choice = {}) {
 }
 
 /**
+ * Dag, månad och klockslag i lokal tid: "29 sep 09:12" (sv) eller "29 Sep 09:12" (en).
+ *
+ * ⛔ SAMMANSATT UR `formatToParts` OCH INTE UR `format()` (0.30.0, #173). Svenska
+ * `Intl` skriver "29 sep. 09:12" med punkt efter månaden, engelska "29 Sept" i
+ * vissa ICU-versioner, och exakt vilket beror på ICU-versionen, alltså på vilken
+ * Node som råkar köra (samma lärdom som `NUMBER_SPACE`). Delarna sätts ihop här
+ * så raden ser likadan ut överallt och ett test inte går sönder vid en
+ * runtime-uppgradering.
+ *
+ * ⛔ LOKAL TIDSZON, MED FLIT. Ingen `timeZone` sätts: en händelse som skapades
+ * 09:12 hos den som ser den ska stå 09:12 hos den som ser den. Ett värde utan
+ * tidszon (`2026-09-29T09:12`) tolkas redan som lokal tid av `Date`.
+ * @param {Date | number | string | null | undefined} value
+ * @param {{ locale?: string }} [choice]
+ * @returns {string}
+ */
+export function formatDagOchKlockslag(value, choice = {}) {
+  const d = toDate(value);
+  if (!d) return MISSING;
+  const delar = new Intl.DateTimeFormat(choice.locale ?? LANGUAGE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d);
+  const del = (/** @type {string} */ typ) => (delar.find((p) => p.type === typ)?.value ?? "").replace(/\.$/, "");
+  return `${del("day")} ${del("month")} ${del("hour")}:${del("minute")}`;
+}
+
+/**
  * Bara klockslaget: "11:57".
  *
  * ⛔ FINNS FÖR ATT SLIPPA SÄGA DAGEN TVÅ GÅNGER. CP 2026-09-25, om
