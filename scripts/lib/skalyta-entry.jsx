@@ -287,6 +287,26 @@ function Scen() {
       </Full>
     );
   }
+  // 0.32.0 (#180): "Ny grupp". Saknas `OpsGruppFormular` i den byggda versionen (0.31.x) finns ingen `skapa.grupp` och raden "Ny grupp" ritas
+  // inte: vakten (avsnitt 22) blir röd på rätt sak i stället för att sidan kastar.
+  if (s === "nygrupp") {
+    const GruppForm = Ops.OpsGruppFormular;
+    const grupp = GruppForm
+      ? ({ formId, onKlar }) => (
+          <GruppForm
+            formId={formId}
+            onKlar={onKlar}
+            onSkapa={async () => ({ groupId: "ny-grupp", tillagda: [], inbjudna: [], fel: [] })}
+            onSkapad={() => { window.__skapad = (window.__skapad ?? 0) + 1; }}
+          />
+        )
+      : undefined;
+    return (
+      <Full skapa={{ sparaEtikett: "Spara", ...(grupp ? { grupp } : { handelse: <p>Formulär</p> }) }}>
+        <p className="px-4" data-appvy="">appens vy</p>
+      </Full>
+    );
+  }
   if (s === "modal") return <ModalForm />;
   if (s === "full") {
     return (

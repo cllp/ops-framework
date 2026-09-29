@@ -185,5 +185,45 @@ export function createFirestoreSource(config) {
     async remove(collectionName, id) {
       await deleteDoc(doc(db, collectionName, id));
     },
+
+    /*
+     * ⛔ `batch` FINNS BARA OM SDK:N HAR `writeBatch` (kontraktets regel 6: frivillig, allt eller inget).
+     * Den läggs INTE till som en tyst slinga över de enskilda skrivningarna när den saknas: en batch
+     * som inte är atomär är en `create` följt av en `create` med ett vackrare namn. Saknas
+     * `writeBatch` saknas `batch`, och den som behöver den får det sagt av `createGroupService`.
+     */
+    ...(typeof sdk.writeBatch === "function"
+      ? {
+          /** @param {ReadonlyArray<import("./contract.js").BatchOp<any>>} ops */
+          async batch(/** @type {any} */ ops) {
+            if (!Array.isArray(ops) || ops.length === 0) {
+              throw new Error("firestore.batch: en lista med minst en skrivning krävs. En tom batch är en batch som ser ut att ha lyckats.");
+            }
+            const b = sdk.writeBatch(db);
+            /** @type {Array<any>} */
+            const svar = [];
+            for (const o of ops) {
+              if (o.op === "create") {
+                const { id, ...field } = /** @type {any} */ (o.data);
+                // Samma val som `create` ovan: eget id ger `set` (ersätter), inget id ett nytt dokument.
+                const ref = id ? doc(db, o.collection, id) : doc(collection(db, o.collection));
+                b.set(ref, field);
+                svar.push({ id: ref.id, ...field });
+              } else if (o.op === "update") {
+                const { id: _ignored, ...field } = /** @type {any} */ (o.data);
+                b.update(doc(db, o.collection, o.id), field);
+                svar.push({ id: o.id, ...field });
+              } else if (o.op === "remove") {
+                b.delete(doc(db, o.collection, o.id));
+                svar.push(null);
+              } else {
+                throw new Error(`firestore.batch: okänd skrivning "${o.op}". Giltiga: create, update, remove.`);
+              }
+            }
+            await b.commit();
+            return svar;
+          },
+        }
+      : {}),
   });
 }

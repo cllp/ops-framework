@@ -9,6 +9,7 @@ import { OpsPill } from "./OpsPill.jsx";
 import { ChevronVansterIkon, ChevronHogerIkon, PersonIkon, PlusIkon } from "./icons.jsx";
 import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { text } from "../lib/sprak.js";
+import { gruppmarkeProps } from "../lib/gruppikoner.js";
 
 /**
  * Grupp-panelen: SessionStudios arbetsytor, MÄTTA ur källan (#161).
@@ -131,6 +132,8 @@ const RADIE = "rounded-base";
  * @property {string} id
  * @property {import("../lib/sprak.js").Namn} namn
  * @property {string} [bild] Gruppens egen bild till märket. Utelämnad: ikon eller initialer (`OpsIdentity`).
+ * @property {string} [farg] (0.32.0, #180) Gruppens valda färg, ett id ur `PROFILFARGER`. Utelämnad eller tom: tonen härleds ur `id`, som förut.
+ * @property {string} [ikon] (0.32.0, #180) Gruppens valda ikon (`GRUPPIKONER`) eller `initialer:AB`. Utelämnad eller tom: initialer ur namnet, som förut.
  * @property {number} [medlemsantal] Utelämnad: ingen siffra ritas, aldrig "0" som gissning.
  * @property {"agare"|"medlem"} [roll] Utelämnad: ingen rollpill.
  * @property {ReadonlyArray<GruppanelKnapp>} [atgarder] Uppe till höger på kortet (glob/info/penna, `GroupCard.jsx` rad 71-107). Utelämnad: inga.
@@ -228,7 +231,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
           >
             {/* Rad 1: märke + åtgärder. GroupCard.jsx rad 70-107, sizePx=20. */}
             <div className="mb-1.5 flex items-center justify-between">
-              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="xs" />
+              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} {...gruppmarkeProps(g)} size="xs" />
               {g.atgarder && g.atgarder.length > 0 ? (
                 <div className="flex shrink-0 items-center gap-0.5">
                   {g.atgarder.map((a, i) => (
@@ -387,7 +390,7 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
                 vald ? "border-accent bg-accent/10" : "border-transparent hover:bg-sunken",
               )}
             >
-              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="sm" />
+              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} {...gruppmarkeProps(g)} size="sm" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-etikett font-semibold text-ink">{namn}</span>
                 {typeof g.medlemsantal === "number" ? (
@@ -455,7 +458,7 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               )}
             >
-              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="rail" />
+              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} {...gruppmarkeProps(g)} size="rail" />
             </button>
           </li>
         );
@@ -666,10 +669,10 @@ export function OpsGruppvaxlare({
               samma märke (`OpsIdentity rail`), och i läget "Alla mina grupper" samma `PersonIkon` som panelens och remsans rad. 44 px
               träffyta runt en 40 px ruta. Från `md` är det märket + namnet som förut. */}
           <span data-gruppmarke="" className={cx(gruppRutaKlass({ vald: aktiv !== ALLA_GRUPPER, interaktiv: false }), "md:hidden")}>
-            {aktiv === ALLA_GRUPPER ? <PersonIkon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="rail" />}
+            {aktiv === ALLA_GRUPPER ? <PersonIkon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="rail" />}
           </span>
           <span className="hidden items-center gap-2 md:flex">
-            {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="sm" />}
+            {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
             <span className="min-w-0 truncate">{aktivtNamn}</span>
           </span>
         </button>

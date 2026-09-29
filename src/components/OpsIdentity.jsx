@@ -52,11 +52,13 @@ const STORLEKAR = {
  *   ritad bara när `imageUrl` saknas (#164, korrigering C: "standardikon plus färg kräver ingen Storage").
  *   Ramverket känner inte till vilka ikoner som finns, appen skickar in komponenten (se `src/lib/profilikoner.js`
  *   för profilvyns karta).
+ * @param {string} [props.initialer] Egna initialer (1 till 3 tecken) i stället för de som härleds ur `name` (0.32.0, #180: en grupps `initialer:AB`).
+ *   Ritas bara när varken `imageUrl` eller `icon` finns. En ikon väger tyngre: den är ett uttryckligt val av samma slag.
  * @param {boolean} [props.rund] Rund i stället för rundad ruta. Förval falskt, utom för `size="avatar"` som alltid är rund (SS avatar är en cirkel, en grupp är en rundad ruta: formen säger vilket).
  * @param {1|2|3|4|5|6} [props.tone] Åsidosätter tonen `identityTone(seed)` annars härleder. Ett UTTRYCKLIGT val,
  *   t.ex. personens sparade `farg` (#164), väger tyngre än det härledda.
  */
-export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone, rund = false }) {
+export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone, initialer, rund = false }) {
   const storlekKlass = STORLEKAR[size];
   if (!storlekKlass) {
     throw new Error(`OpsIdentity: okänd size "${size}". Giltiga: ${Object.keys(STORLEKAR).join(", ")}.`);
@@ -81,7 +83,7 @@ export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, ton
 
   return (
     <span className={cx(base, TONKLASSER[vaildTone], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
-      <span aria-hidden="true">{Icon ? <Icon size={size === "lg" ? 24 : size === "sm" || size === "avatar" ? 12 : 18} /> : initials(name)}</span>
+      <span aria-hidden="true">{Icon ? <Icon size={size === "lg" ? 24 : size === "xs" || size === "sm" || size === "avatar" ? 12 : 18} /> : initialer || initials(name)}</span>
     </span>
   );
 }

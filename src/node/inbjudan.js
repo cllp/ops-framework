@@ -10,7 +10,7 @@
  *
  * ══ ⛔ TVÅ STEG, OCH DET ANDRA ÄR DET SOM GÖR DET TILL ETT FLÖDE ══════
  *
- * 1. Ägaren bjuder in med e-post. Finns personen redan skrivs medlemskapet
+ * 1. Ägaren (eller en admin, 0.32.0) bjuder in med e-post. Finns personen redan skrivs medlemskapet
  *    direkt. Annars skrivs en rad i `invitations`.
  * 2. Vid inloggning anropar klienten en gång "acceptera mina inbjudningar".
  *    Serversidan matchar den inloggades e-post mot väntande inbjudningar och
@@ -76,24 +76,33 @@ export function createInvitationService(konfig) {
   const INBJUDNINGAR = samlingar.inbjudningar ?? "invitations";
 
   /**
-   * ⛔ ÄGARSKAPET KONTROLLERAS HÄR OCH INTE BARA I REGLERNA. En callable kör med
+   * ⛔ BEHÖRIGHETEN KONTROLLERAS HÄR OCH INTE BARA I REGLERNA. En callable kör med
    * Admin SDK, alltså FÖRBI reglerna. Vore kontrollen bara i `firestore.rules`
    * vore den här funktionen en väg runt dem, och det är den vanligaste
    * säkerhetsluckan i ett callable-baserat system.
    *
+   * ⛔ ÄGARE ELLER ADMIN FÅR BJUDA IN (0.32.0, #180, SS `isGroupAdmin`), MEN BARA EN ÄGARE FÅR BJUDA
+   * IN TILL ROLLEN ÄGARE. Utan den andra halvan kan en admin göra vem som helst till ägare genom att
+   * bjuda in hen som agare, och gränsen `regelfragment()` drar mellan `opsArAdmin` och `opsArAgare` är
+   * då en dörr med ett fönster bredvid.
+   *
    * @param {string} uid
    * @param {string} groupId
+   * @param {string} roll Rollen som bjuds in till.
    */
-  async function kravAgare(uid, groupId) {
+  async function kravBehorighet(uid, groupId, roll) {
     const rad = await kalla.read(MEDLEMSKAP, medlemskapsId(uid, groupId));
-    if (!rad || rad.status !== "aktiv" || rad.roll !== "agare") {
-      throw new Error(`bjudIn: ${uid} är inte aktiv ägare i gruppen "${groupId}" och får inte bjuda in.`);
+    if (!rad || rad.status !== "aktiv" || (rad.roll !== "agare" && rad.roll !== "admin")) {
+      throw new Error(`bjudIn: ${uid} är inte aktiv ägare eller admin i gruppen "${groupId}" och får inte bjuda in.`);
+    }
+    if (roll === "agare" && rad.roll !== "agare") {
+      throw new Error(`bjudIn: ${uid} är admin i gruppen "${groupId}" och får inte bjuda in till rollen agare. Bara en ägare gör någon till ägare.`);
     }
   }
 
   return {
     /**
-     * Ägaren bjuder in en e-postadress till en grupp.
+     * Ägaren eller en admin bjuder in en e-postadress till en grupp.
      *
      * @param {{ avUid: string, groupId: string, epost: string, roll?: string, typ?: string, skapadAv?: any }} b
      * @returns {Promise<{ resultat: "medlemskap" | "inbjudan" | "fanns", id: string }>}
@@ -106,9 +115,9 @@ export function createInvitationService(konfig) {
       if (!groupId) throw new Error("bjudIn: groupId krävs.");
       if (!epost) throw new Error("bjudIn: epost krävs. Det är det enda en inbjudan har att matcha på innan personen finns.");
 
-      await kravAgare(avUid, groupId);
-
       const roll = b.roll ?? "medlem";
+      await kravBehorighet(avUid, groupId, roll);
+
       const typ = b.typ ?? "person";
 
       /*

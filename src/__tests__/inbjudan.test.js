@@ -32,7 +32,7 @@ describe("⛔ ägarskapet kontrolleras i funktionen, inte bara i reglerna", () =
     const { tjanst, kalla } = bygg();
     await kalla.create("memberships", { id: medlemskapsId(MEDLEM, GRUPP), userId: MEDLEM, groupId: GRUPP, roll: "medlem", typ: "person", status: "aktiv" });
     await expect(tjanst.bjudIn({ avUid: MEDLEM, groupId: GRUPP, epost: "ny@x.se" })).rejects.toThrow(
-      /uid-medlem är inte aktiv ägare i gruppen "bolaget"/,
+      /uid-medlem är inte aktiv ägare eller admin i gruppen "bolaget"/,
     );
   });
 
@@ -46,6 +46,20 @@ describe("⛔ ägarskapet kontrolleras i funktionen, inte bara i reglerna", () =
       memberships: [{ id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "avslutad" }],
     });
     await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" })).rejects.toThrow(/inte aktiv ägare/);
+  });
+
+  it("⛔ en admin får bjuda in till medlem och admin (0.32.0, #180)", async () => {
+    const { tjanst, kalla } = bygg();
+    await kalla.create("memberships", { id: medlemskapsId("uid-admin", GRUPP), userId: "uid-admin", groupId: GRUPP, roll: "admin", typ: "person", status: "aktiv" });
+    expect((await tjanst.bjudIn({ avUid: "uid-admin", groupId: GRUPP, epost: "a@x.se" })).resultat).toBe("inbjudan");
+    expect((await tjanst.bjudIn({ avUid: "uid-admin", groupId: GRUPP, epost: "b@x.se", roll: "admin" })).resultat).toBe("inbjudan");
+  });
+
+  it("⛔ en admin får INTE bjuda in till rollen agare, och inget skrivs", async () => {
+    const { tjanst, kalla } = bygg();
+    await kalla.create("memberships", { id: medlemskapsId("uid-admin", GRUPP), userId: "uid-admin", groupId: GRUPP, roll: "admin", typ: "person", status: "aktiv" });
+    await expect(tjanst.bjudIn({ avUid: "uid-admin", groupId: GRUPP, epost: "c@x.se", roll: "agare" })).rejects.toThrow(/får inte bjuda in till rollen agare/);
+    expect(await kalla.list("invitations", {})).toHaveLength(0);
   });
 
   it("ägaren får", async () => {

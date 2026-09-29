@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, Bell, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Heart, Inbox, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Heart, Home, Inbox, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -202,6 +202,35 @@ export function LeendeIkon({ size = 20 }) {
 /** @param {{ size?: number }} props */
 export function KronaIkon({ size = 20 }) {
   return <Crown size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Tio standardikoner för en GRUPPS märke (0.32.0, #180). Se `GRUPPIKONER` i `src/lib/grupp.js` för id:na och
+ * skälet. Stjärna, hjärta, blixt och krona är samma ikoner som profilens (ovan), de behöver inga nya.
+ * @param {{ size?: number }} props
+ */
+export function GruppIkon({ size = 20 }) {
+  return <Users size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** @param {{ size?: number }} props */
+export function PortfoljIkon({ size = 20 }) {
+  return <Briefcase size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** @param {{ size?: number }} props */
+export function ByggnadIkon({ size = 20 }) {
+  return <Building2 size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** @param {{ size?: number }} props */
+export function HusIkon({ size = 20 }) {
+  return <Home size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** @param {{ size?: number }} props */
+export function BokIkon({ size = 20 }) {
+  return <BookOpen size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** @param {{ size?: number }} props */
+export function JordglobIkon({ size = 20 }) {
+  return <Globe size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**
