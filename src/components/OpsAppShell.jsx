@@ -1124,9 +1124,12 @@ export function OpsAppShell({
 
   return (
     <div className="min-h-dvh bg-canvas">
-      {/* `top-(--safe-top)` och inte `top-0`: utan säker yta hamnar raden under
-          statusfältet på en telefon, och det syns bara på riktig hårdvara. */}
-      <header className="sticky top-(--safe-top) z-(--z-chrome) border-b border-line bg-surface">
+      {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
+          BÖRJAR VID SKÄRMENS ÖVERKANT OCH BÄR SJÄLV DEN SÄKRA ZONEN SOM PADDING (`top-0`, `pt-(--safe-top)`). Före 0.31.2 var den
+          `top-(--safe-top)` utan padding: den satt 47 px NED, och remsan ovanför, statusfältets höjd, var otäckt, så sidan
+          rullade förbi bakom klockan och headern såg ut att flyta. `check-skalyta` avsnitt 21 emulerar zonerna (`--safe-top: 47px`)
+          och mäter att headern börjar vid y = 0. Övriga fasta ytor räknar redan `safe-top + topbar-height`, det är headerns nya höjd. */}
+      <header className="sticky top-0 z-(--z-chrome) border-b border-line bg-surface pt-(--safe-top)">
         {/*
           ⛔ TRE KOLUMNER PÅ md+, TVÅ UNDER.
 

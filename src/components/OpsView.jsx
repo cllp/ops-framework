@@ -37,8 +37,10 @@ export function OpsView({ width = "normal", tillbaka, children }) {
     <div
       className={cx(
         "mx-auto w-full px-4 pt-6",
-        // Minst 16 px sidomarginal vid varje bredd, och säker yta i botten.
-        "pb-[calc(--spacing(6)+var(--safe-bottom))]",
+        // Minst 16 px sidomarginal vid varje bredd. ⛔ 0.31.2: den säkra ytan i botten räknas här BARA från `md` (iPad). Under `md` äger
+        // skalets `main` den (`pb` = bottenradens höjd + `--safe-bottom`), och räknades den också här stod sista kortet 34 px för högt
+        // över bottenraden på en telefon med hemindikator (emulerat i check-skalyta avsnitt 21: 57 px tomt mot 24).
+        "pb-6 md:pb-[calc(--spacing(6)+var(--safe-bottom))]",
         // ⛔ VYN GER SINA BARN VERTIKAL RYTM. Utan den här raden lägger sig två
         // kort kant mot kant och bildar en dubbel linje: de ser ihopsvetsade ut.
         //
