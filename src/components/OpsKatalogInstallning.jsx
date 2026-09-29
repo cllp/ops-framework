@@ -237,8 +237,9 @@ export function OpsKatalogInstallning({
           ord är långa) kunde inte krympa under sitt längsta ord: raden blev
           bredare än sitt kort och vyn fick horisontell scroll på en 390 px
           bred telefon (mätt, se `check-skalyta`). */}
-      <div className="flex w-full items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
+        {/* ⛔ Under `sm` STAPLAS raden: texten på egen full rad, knapparna under, så ett ord aldrig trycks ihop till en smal kolumn (CP: texterna får inte plats i mobil). */}
+        <div className="flex min-w-0 flex-1 basis-full flex-wrap items-center gap-x-3 gap-y-1 sm:basis-auto">
           {/* ⛔ Ordet skickas med: `slagPrick` vägrar en prick utan det, eftersom en färg utan ord inte går att läsa upp och betyder ingenting för den som inte lärt sig koden.
               ⛔ Och ingen prick alls i en katalog utan färger: `slagPrick` kastar på en plats som inte finns, och en grå prick hade sagt att kategorin har en färg som inte laddat. */}
           {kategori.farg ? (
@@ -254,7 +255,7 @@ export function OpsKatalogInstallning({
           // en knapp utan text är snabbare att rita men går inte att skanna i
           // en lista med tio rader, man måste läsa varje glyf. Ordet står kvar,
           // ikonen är en genväg för ögat och inte en ersättning för texten.
-          <span className="flex shrink-0 gap-2">
+          <span className="flex shrink-0 gap-2 sm:ms-auto">
             <OpsButton variant="ghost" onClick={() => oppna(kategori)}>
               <AndraIkon />
               Ändra
