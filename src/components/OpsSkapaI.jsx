@@ -2,7 +2,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { text } from "../lib/sprak.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
-import { PersonIkon } from "./icons.jsx";
+import { BockIkon, PersonIkon } from "./icons.jsx";
+import { radKlass } from "../lib/radKlass.js";
 
 /**
  * "Skapa i": var det som skapas ska hamna (0.31.0).
@@ -138,17 +139,13 @@ function Rubrik({ children }) {
 /** @param {{ vald: boolean, onClick: () => void, children: import("react").ReactNode }} props */
 function Rad({ vald, onClick, children }) {
   return (
-    <button
-      type="button"
-      aria-pressed={vald}
-      onClick={onClick}
-      className={cx(
-        "flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors duration-(--duration-fast) ease-standard",
-        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        vald ? "border-accent bg-accent-faint" : "border-transparent hover:bg-accent-faint",
-      )}
-    >
+    <button type="button" aria-pressed={vald} onClick={onClick} className={radKlass({ vald, stor: true })}>
       {children}
+      {vald ? (
+        <span aria-hidden="true" className="shrink-0 text-accent">
+          <BockIkon size={14} />
+        </span>
+      ) : null}
     </button>
   );
 }

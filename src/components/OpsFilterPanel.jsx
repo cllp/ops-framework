@@ -1,8 +1,10 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, KryssIkon, ReglageIkon, SortIcon } from "./icons.jsx";
+import { KryssIkon, ReglageIkon, SortIcon } from "./icons.jsx";
 import { Counter } from "./counter.jsx";
+import { ValRad } from "./ValRad.jsx";
+import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
 
 /**
  * Filter i flera dimensioner, bakom EN knapp, plus sortering.
@@ -255,9 +257,9 @@ export function OpsFilterPanel({
                 <Popover.Content
                   align="start"
                   sideOffset={6}
-                  className="z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
+                  className={cx("z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto p-1", radBehallare())}
                 >
-                  <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.label}</p>
+                  <p className={radRubrikKlass}>{g.label}</p>
                   <div className="flex flex-col">{groupRows(g)}</div>
                 </Popover.Content>
               </Popover.Portal>
@@ -288,9 +290,9 @@ export function OpsFilterPanel({
               <Popover.Content
                 align="start"
                 sideOffset={6}
-                className="z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
+                className={cx("z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto p-1", radBehallare())}
               >
-                <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                <p className={radRubrikKlass}>
                   {sorting.label}
                 </p>
                 <div className="flex flex-col">{sortRows()}</div>
@@ -373,19 +375,19 @@ export function OpsFilterPanel({
         <Popover.Content
           align="end"
           sideOffset={6}
-          className="z-(--z-dropdown) max-h-[70vh] w-72 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-md"
+          className={cx("z-(--z-dropdown) max-h-[70vh] w-72 overflow-y-auto p-1", radBehallare())}
         >
           <div className="flex flex-col gap-3">
             {groups.map((g) => (
               <div key={g.id} className="flex flex-col">
-                <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{g.label}</p>
+                <p className={radRubrikKlass}>{g.label}</p>
                 {groupRows(g)}
               </div>
             ))}
 
             {sorting ? (
               <div className="flex flex-col border-t border-line pt-2">
-                <p className="m-0 px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                <p className={radRubrikKlass}>
                   {sorting.label}
                 </p>
                 {sortRows()}
@@ -395,19 +397,18 @@ export function OpsFilterPanel({
             {/* ⛔ Rensa syns bara när det finns något att rensa. En alltid
                 synlig knapp som inte gör något lär en att den inte gör något. */}
             {aktiva.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  rensa();
-                  setOppen(false);
-                }}
-                className={cx(
-                  "min-h-11 cursor-pointer rounded-sm border-t border-line px-3 text-left text-sm font-semibold text-accent",
-                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent hover:bg-accent-faint",
-                )}
-              >
-                {clearLabel}
-              </button>
+              <div className="border-t border-line pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    rensa();
+                    setOppen(false);
+                  }}
+                  className={cx(radKlass({ accentFarg: true }), "font-semibold")}
+                >
+                  {clearLabel}
+                </button>
+              </div>
             ) : null}
           </div>
         </Popover.Content>
@@ -417,33 +418,15 @@ export function OpsFilterPanel({
 }
 
 /**
- * En rad i panelen.
- *
- * ⛔ EGEN KOMPONENT OCH INTE TRE KOPIOR. Grupperna, sorteringen och
- * "alla"-raden ritas likadant, och tre kopior av samma fjorton klasser hade
- * glidit isär första gången någon ändrade höjden på en av dem.
+ * En rad i panelen: `ValRad`, samma rad som alla andra valmenyer (0.31.2). Grupperna, sorteringen och "alla"-raden
+ * ritas likadant, och en rad skrivs på ETT ställe.
  *
  * @param {{ chosen: boolean, onClick: () => void, text: string, ikon?: import("react").ReactNode }} props
  */
 function Row({ chosen, onClick, text, ikon }) {
   return (
-    <button
-      type="button"
-      aria-pressed={chosen}
-      onClick={onClick}
-      className={cx(
-        "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base",
-        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        chosen ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-      )}
-    >
-      {ikon ? <span className="shrink-0 text-ink-secondary">{ikon}</span> : null}
-      <span className="flex-1">{text}</span>
-      {chosen ? (
-        <span aria-hidden="true" className="shrink-0 text-accent">
-          <BockIkon />
-        </span>
-      ) : null}
-    </button>
+    <ValRad chosen={chosen} onClick={onClick} ikon={ikon}>
+      {text}
+    </ValRad>
   );
 }

@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { cx } from "../lib/cx.js";
-import { faltTriggerKlass, faltYtaKlass } from "../lib/radKlass.js";
+import { faltTriggerKlass, faltYtaKlass, valjAlternativKlass } from "../lib/radKlass.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { BockIkon, ChevronNedIkon } from "./icons.jsx";
 
@@ -84,20 +84,16 @@ export function OpsTimePicker({ value, onChange, disabled = false, allowEmpty = 
         <Select.Content position="popper" sideOffset={4} className={cx(faltYtaKlass, "overflow-hidden")}>
           <Select.Viewport className="max-h-52 overscroll-contain p-1">
             {allowEmpty ? (
-              <Select.Item value={TOM} className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-2 pl-8 pr-3 text-base text-ink-muted data-[highlighted]:bg-accent-faint data-[highlighted]:outline-none">
+              <Select.Item value={TOM} className={valjAlternativKlass({ dampad: true })}>
                 <Select.ItemText>--</Select.ItemText>
               </Select.Item>
             ) : null}
             {varden.map((v) => (
-              <Select.Item
-                key={v}
-                value={v}
-                className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-2 pl-8 pr-3 text-base tabular-nums text-ink data-[highlighted]:bg-accent-faint data-[highlighted]:outline-none"
-              >
-                <Select.ItemIndicator className="absolute left-2 text-accent">
-                  <BockIkon />
-                </Select.ItemIndicator>
+              <Select.Item key={v} value={v} className={cx(valjAlternativKlass(), "tabular-nums")}>
                 <Select.ItemText>{v}</Select.ItemText>
+                <Select.ItemIndicator className="ml-auto shrink-0 text-accent">
+                  <BockIkon size={14} />
+                </Select.ItemIndicator>
               </Select.Item>
             ))}
           </Select.Viewport>

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, ChevronNedIkon, ReglageIkon } from "./icons.jsx";
+import { ChevronNedIkon, ReglageIkon } from "./icons.jsx";
+import { ValRad } from "./ValRad.jsx";
+import { radBehallare } from "../lib/radKlass.js";
 
 /**
  * Pillerformat filter: visar vad som är valt, öppnar resten.
@@ -88,36 +90,22 @@ export function OpsFilterChip({ options, value, onChange, ariaLabel, allLabel = 
         <Popover.Content
           align={variant === "icon" ? "end" : "start"}
           sideOffset={4}
-          className="z-(--z-dropdown) min-w-52 rounded-md border border-line bg-raised p-1 shadow-md"
+          className={cx("z-(--z-dropdown) min-w-52 p-1", radBehallare())}
         >
           <div role="group" aria-label={ariaLabel} className="flex flex-col">
-            {options.map((o) => {
-              const chosen = o.value === value;
-              return (
-                <button
-                  key={o.value ?? "__alla"}
-                  type="button"
-                  aria-pressed={chosen}
-                  onClick={() => {
-                    onChange(o.value);
-                    setOppen(false);
-                  }}
-                  className={cx(
-                    "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base",
-                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    chosen ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-                  )}
-                >
-                  {o.icon ? <span className="shrink-0 text-ink-secondary">{o.icon}</span> : null}
-                  <span className="flex-1">{o.label}</span>
-                  {chosen ? (
-                    <span aria-hidden="true" className="shrink-0 text-accent">
-                      <BockIkon />
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
+            {options.map((o) => (
+              <ValRad
+                key={o.value ?? "__alla"}
+                chosen={o.value === value}
+                ikon={o.icon}
+                onClick={() => {
+                  onChange(o.value);
+                  setOppen(false);
+                }}
+              >
+                {o.label}
+              </ValRad>
+            ))}
           </div>
         </Popover.Content>
       </Popover.Portal>

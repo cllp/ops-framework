@@ -1,8 +1,8 @@
-import { cx } from "../lib/cx.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { BockIkon } from "./icons.jsx";
 import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { text } from "../lib/sprak.js";
+import { radKlass } from "../lib/radKlass.js";
 
 /**
  * Gruppväljaren i sidopanelen.
@@ -66,16 +66,11 @@ export function OpsGruppvaljare({ grupper, aktiv, onValj, sprak, rubrik = "Grupp
                  * upplysningen får inte bara finnas som en bakgrundsnyans.
                  */
                 aria-current={vald ? "true" : undefined}
-                className={cx(
-                  "flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-sm",
-                  "transition-colors duration-(--duration-fast) ease-standard",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                  vald ? "bg-sunken font-semibold text-ink" : "text-ink-secondary hover:bg-sunken hover:text-ink",
-                )}
+                className={radKlass({ vald })}
               >
                 {rad.id === ALLA_GRUPPER ? <span className="size-6 shrink-0" aria-hidden="true" /> : <OpsIdentity name={rad.etikett} seed={rad.id} size="sm" />}
                 <span className="grow truncate">{rad.etikett}</span>
-                {vald ? <BockIkon /> : null}
+                {vald ? <BockIkon size={14} /> : null}
               </button>
             </li>
           );

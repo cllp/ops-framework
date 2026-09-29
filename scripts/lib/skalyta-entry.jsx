@@ -12,9 +12,9 @@
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
 import * as Ops from "OPS_DIST";
-import { Calendar, CalendarDays, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
+import { Bell, Calendar, CalendarDays, CheckSquare, FileText, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip } = Ops;
+const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
 
@@ -235,8 +235,50 @@ function Galleri() {
   );
 }
 
+/**
+ * 0.31.2: ALLA valmenyer på en sida, för mätningen i check-skalyta avsnitt 18. CP:s bild var filtrets "Slag"-dropdown
+ * (Alla slag, Fakta, Påminnelser, Uppgifter), så den finns med i alla tre former (en ikon per grupp, samlad panel, chip).
+ * Varje yta bor i en `data-m`-ruta; de öppnas av vakten, en i taget.
+ */
+function Menyer() {
+  const [f, setF] = useState({ slag: null });
+  const [sort, setSort] = useState("nyast");
+  const [chip, setChip] = useState(null);
+  const [chipIkon, setChipIkon] = useState(null);
+  const [seg, setSeg] = useState("kommande");
+  const [typ, setTyp] = useState("moete");
+  const [tid, setTid] = useState("09:30");
+  const [dat, setDat] = useState("2026-10-12");
+  const [gr, setGr] = useState("g1");
+  const slagIkon = { fakta: <FileText size={16} />, paminnelser: <Bell size={16} />, uppgifter: <CheckSquare size={16} /> };
+  const slagOpt = [
+    { value: "fakta", label: "Fakta", icon: slagIkon.fakta },
+    { value: "paminnelser", label: "Påminnelser", icon: slagIkon.paminnelser },
+    { value: "uppgifter", label: "Uppgifter", icon: slagIkon.uppgifter },
+  ];
+  const grupp = { id: "slag", label: "Slag", allLabel: "Alla slag", options: slagOpt };
+  const sorting = { label: "Sortera", value: sort, fallback: "nyast", onChange: setSort, options: [{ value: "nyast", label: "Nyast först" }, { value: "aldst", label: "Äldst först" }] };
+  const ruta = (/** @type {string} */ id, /** @type {any} */ barn) => <div data-m={id} className="flex min-h-11 items-center gap-2">{barn}</div>;
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-3 p-4" data-menyer="">
+      {ruta("filter-ikoner", <OpsFilterPanel layout="ikoner" ariaLabel="Filter" groups={[grupp]} value={f} onChange={setF} sorting={sorting} />)}
+      {ruta("filter-samlad", <OpsFilterPanel ariaLabel="Filter och sortering" groups={[grupp]} value={f} onChange={setF} sorting={sorting} />)}
+      {ruta("chip-ikon", <OpsFilterChip variant="icon" ariaLabel="Slag" allLabel="Alla slag" options={[{ value: null, label: "Alla slag" }, ...slagOpt]} value={chipIkon} onChange={setChipIkon} />)}
+      {ruta("chip-text", <OpsFilterChip ariaLabel="Slag" allLabel="Alla slag" options={[{ value: null, label: "Alla slag" }, ...slagOpt]} value={chip} onChange={setChip} />)}
+      {ruta("tema", <OpsThemeToggle />)}
+      {ruta("status", <OpsSegmented ariaLabel="Vy" value={seg} onChange={setSeg} options={[{ value: "idag", label: "Idag" }, { value: "kommande", label: "Kommande", menu: { items: [{ value: "kommande", label: "Alla" }, { value: "planerad", label: "Planerade" }, { value: "klar", label: "Klara" }] } }]} />)}
+      {ruta("select", <div className="w-56"><OpsSelect ariaLabel="Typ" value={typ} onChange={setTyp} options={["moete:Möte", "deadline:Deadline", "paminnelse:Påminnelse"].map((x) => ({ value: x.split(":")[0], label: x.split(":")[1] }))} /></div>)}
+      {ruta("tid", <div className="w-56"><OpsTimePicker value={tid} onChange={setTid} /></div>)}
+      {ruta("datum", <div className="w-56"><OpsDatePicker value={dat} onChange={setDat} /></div>)}
+      {ruta("aktivitet", <OpsActivityListActions filter={<p className="m-0 text-xs">Filter</p>} onClear={() => {}} />)}
+      {ruta("gruppvaljare", <div className="w-72"><OpsGruppvaljare grupper={grupperLista} aktiv={gr} onValj={setGr} rubrik="Grupper" allaEtikett="Alla mina grupper" /></div>)}
+    </div>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
+  if (s === "menyer") return <Menyer />;
   if (s === "galleri") return <Galleri />;
   if (s === "skapa") {
     return (

@@ -4,6 +4,7 @@ import { cx } from "../lib/cx.js";
 import { activityId, activityWindow, groupByDay, unread, unreadRows } from "../lib/aktivitet.js";
 import { formatDateTime, formatRelativeDate, formatTime } from "../lib/format.js";
 import { text } from "../lib/sprak.js";
+import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { slagKant } from "../lib/slag.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
@@ -409,7 +410,7 @@ export function OpsActivityListActions({ filter, filterLabel = "Filter", onClear
             <ReglageIkon size={18} />
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content align="end" sideOffset={4} className="z-(--z-dropdown) min-w-52 rounded-md border border-line bg-raised p-2 shadow-md">
+            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-52 p-2", radBehallare())}>
               {filter}
             </Popover.Content>
           </Popover.Portal>
@@ -421,14 +422,14 @@ export function OpsActivityListActions({ filter, filterLabel = "Filter", onClear
             <MerIkon size={18} />
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content align="end" sideOffset={4} className="z-(--z-dropdown) min-w-40 rounded-md border border-line bg-raised p-1 shadow-md">
+            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-40 p-1", radBehallare())}>
               <button
                 type="button"
                 onClick={() => {
                   setMenyOppen(false);
                   onClear();
                 }}
-                className="flex min-h-9 w-full cursor-pointer items-center rounded-sm px-3 text-left text-sm text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                className={radKlass()}
               >
                 {clearLabel}
               </button>

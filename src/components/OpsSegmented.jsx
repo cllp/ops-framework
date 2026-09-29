@@ -1,7 +1,9 @@
 import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
-import { BockIkon, ChevronNedIkon } from "./icons.jsx";
+import { ChevronNedIkon } from "./icons.jsx";
+import { ValRad } from "./ValRad.jsx";
+import { radBehallare } from "../lib/radKlass.js";
 
 /**
  * Segmenterad väljare: två eller tre lägen som delar en yta, där ett är valt.
@@ -188,40 +190,24 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
               <Popover.Content
                 align="center"
                 sideOffset={8}
-                className="z-(--z-dropdown) min-w-52 overflow-hidden rounded-xl border border-line bg-raised py-1 shadow-md"
+                className={cx("z-(--z-dropdown) min-w-52 overflow-hidden p-1", radBehallare())}
                 onCloseAutoFocus={(e) => e.preventDefault()}
               >
                 <div role="menu" aria-label={o.label} className="flex flex-col">
-                  {menuItems.map((item) => {
-                    const active = item.value === value;
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={active}
-                        onClick={() => {
-                          onChange(item.value);
-                          setMenuFor(null);
-                        }}
-                        className={cx(
-                          "flex min-h-11 w-full cursor-pointer items-center gap-3 px-3 text-left text-sm",
-                          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                          active
-                            ? "bg-accent-subtle font-semibold text-ink"
-                            : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-                        )}
-                      >
-                        {item.icon ? <span className="shrink-0 text-ink-secondary">{item.icon}</span> : null}
-                        <span className="flex-1">{item.label}</span>
-                        {active ? (
-                          <span aria-hidden="true" className="shrink-0 text-accent">
-                            <BockIkon size={14} />
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
+                  {menuItems.map((item) => (
+                    <ValRad
+                      key={item.value}
+                      radio
+                      chosen={item.value === value}
+                      ikon={item.icon}
+                      onClick={() => {
+                        onChange(item.value);
+                        setMenuFor(null);
+                      }}
+                    >
+                      {item.label}
+                    </ValRad>
+                  ))}
                 </div>
               </Popover.Content>
             </Popover.Portal>
