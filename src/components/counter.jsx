@@ -55,7 +55,7 @@ export function OpsCountBadge({ count, text = "", placement = "corner", max = 99
       data-ops-count-badge=""
       className={cx(
         "flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-0.5",
-        "bg-badge text-[8px] font-bold tabular-nums text-badge-contrast",
+        "bg-badge text-mikro tabular-nums text-badge-contrast",
         plats,
       )}
     >

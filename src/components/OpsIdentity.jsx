@@ -32,7 +32,7 @@ const TONKLASSER = {
 
 const STORLEKAR = {
   /** 20px: SessionStudios gruppmärke i kortet (GroupCard.jsx:71) och avatarraden (Avatar size 5). #161. */
-  xs: "size-5 text-[10px]",
+  xs: "size-5 text-liten",
   sm: "size-6 text-xs",
   md: "size-9 text-base",
   lg: "size-12 text-md",

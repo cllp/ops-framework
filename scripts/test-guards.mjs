@@ -1502,6 +1502,45 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("handritade ikoner golv: fel sökväg", [ikonvakt, path.join(ikonmapp, "finns-inte")], "finns inte");
 }
 
+// ── Vakten mot egna storlekar och typsnitt (#173) ───────────────────────────
+//
+// ⛔ Samma skäl som ikonvakten ovan: en vakt ingen sett faila är en förhoppning.
+// Tre fall som skulle tysta den i det tysta: regexen slutar matcha `text-[Npx]`,
+// kommentarsstrippen börjar svälja kod, eller golvet försvinner så att en tom
+// katalog blir grön.
+{
+  const typvakt = "scripts/check-typografi.mjs";
+  const typmapp = path.join(arbetsmapp, "typografi");
+
+  kravGront("typografi: den riktiga src/components är grön", [typvakt]);
+
+  fs.cpSync(path.join(rot, "src", "components"), path.join(typmapp, "smutsig"), { recursive: true });
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <span className="text-[13px] text-ink">x</span>;\n}\n',
+  );
+  kravRott("typografi: en injicerad text-[13px]", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"], "literal storlek");
+
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export const s = { fontSize: 1 };\nexport const c = ".x { font-family: serif; }";\n',
+  );
+  kravRott("typografi: en injicerad font-family", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"], "font-family");
+
+  // Grönt: en kommentar som citerar det gamla värdet är inte ett brott.
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    '/** Förr `text-[13px]`, nu en roll. */\nexport function OpsProvstorlek() {\n  return <span className="text-liten text-[var(--x)]">x</span>;\n}\n',
+  );
+  kravGront("typografi: en kommentar och text-[var(--x)] är inga brott", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"]);
+
+  const tunn = path.join(typmapp, "tunn");
+  fs.mkdirSync(tunn, { recursive: true });
+  fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return null; }\n");
+  kravRott("typografi golv: för få filer lästa", [typvakt, tunn], "väntat minst");
+  kravRott("typografi golv: fel sökväg", [typvakt, path.join(typmapp, "finns-inte")], "finns inte");
+}
+
 // ⛔ #164, ANDRA VARVET: OPS Hub-bilderna kommer som data-URL:er ur
 // `scripts/generate-varumarke.mjs`, inte längre `new URL(..., import.meta.url)`
 // (se filhuvudet i `src/lib/varumarke.js`). En generator som TYST hoppar

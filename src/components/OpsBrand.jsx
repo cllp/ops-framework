@@ -171,7 +171,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
   // SessionStudios "MADE IN SWEDEN"-stil. Samma rad oavsett om en eller två
   // bilder ritas ovanför, för det är bildväxlingen (ikon/ordmärke) som skiljer
   // sig med bredden, inte appens namn.
-  const undertext = <span className="mt-1 block text-center text-[11px] font-medium uppercase tracking-[0.22em] text-accent">{title}</span>;
+  const undertext = <span className="mt-1 block text-center text-hjalp font-medium uppercase tracking-[0.22em] text-accent">{title}</span>;
 
   if (ordmarke && ikon) {
     // ⛔ #161: `panelInfalld` GIVEN (BOOLEAN, INTE `undefined`) ÄR EN ANNAN

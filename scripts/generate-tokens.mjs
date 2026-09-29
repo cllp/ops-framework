@@ -51,6 +51,27 @@ export const MARKORER = /** @type {const} */ ({
   },
 });
 
+/**
+ * Radhöjderna och typografirollerna (#173) som tokens: `--leading-*` och
+ * `--text-<roll>` med sina `--text-<roll>--line-height`, `--font-weight` och
+ * `--letter-spacing` (Tailwinds sammansatta form, som gör `text-sektion` till
+ * storlek, radhöjd, vikt och spärrning i ett svep).
+ * @param {any} typografi
+ * @returns {string[]}
+ */
+export function byggTypografiroller(typografi) {
+  const rader = Object.entries(typografi.radhojd)
+    .filter(([namn]) => !namn.startsWith("_"))
+    .map(([namn, varde]) => `  --leading-${namn}: ${varde};`);
+  for (const [namn, roll] of Object.entries(typografi.roller)) {
+    if (namn.startsWith("_")) continue;
+    const r = /** @type {any} */ (roll);
+    rader.push(``, `  --text-${namn}: ${r.storlek};`, `  --text-${namn}--line-height: var(--leading-${r.radhojd});`, `  --text-${namn}--font-weight: ${r.vikt};`);
+    if (r.sparrning) rader.push(`  --text-${namn}--letter-spacing: ${r.sparrning};`);
+  }
+  return rader;
+}
+
 /** @param {object} f Fixturen, redan JSON.parse:ad. */
 export function byggThemeBlock(f) {
   const { farger, radier, typografi, diagram } = f;
@@ -80,6 +101,8 @@ export function byggThemeBlock(f) {
     ``,
     `  --text-sm: ${typografi.skala.sm};`,
     `  --text-base: ${typografi.skala.base};`,
+    ``,
+    ...byggTypografiroller(typografi),
     ``,
     `  --shadow-sm: ${f.skuggor.ljus.sm.varde};`,
     `  --shadow-md: ${f.skuggor.ljus.md.varde};`,
