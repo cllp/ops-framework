@@ -434,6 +434,27 @@ for (const bredd of [1280, 1600]) {
     const in_ = await mata("infalld");
     krav(in_ !== null, `panelen ${bredd} px: märkesrutan eller panelen hittades inte efter infällning.`);
     if (in_) {
+      // ⛔ Den infällda remsan (0.30.1, SS `AppSidebar.jsx:54,77,89`): varje post är en 40x40-ruta med kant, märket 34 px
+      // inuti, och den aktiva gruppen har accentkant. Före 0.30.1 var växlaren en naken chevron och märkena fyllde rutan.
+      const rem = await page.evaluate(() => {
+        const nav = document.querySelector('nav[aria-label="Alla mina grupper"]');
+        const rut = (/** @type {Element} */ el) => {
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          const barn = el.firstElementChild ? el.firstElementChild.getBoundingClientRect() : null;
+          return { namn: el.getAttribute("aria-label") || "", w: r.width, h: r.height, kant: parseFloat(cs.borderTopWidth), kantFarg: cs.borderTopColor, markeW: barn ? barn.width : 0 };
+        };
+        const accent = (() => { const p = document.createElement("div"); p.style.borderTop = "1px solid var(--color-accent)"; document.body.appendChild(p); const c = getComputedStyle(p).borderTopColor; p.remove(); return c; })();
+        return { poster: nav ? [...nav.querySelectorAll(":scope > button, ul button")].map(rut) : [], accent };
+      });
+      krav(rem.poster.length >= 4, `remsan ${bredd} px: bara ${rem.poster.length} poster lästa, väntat minst 4 (växlare, alla, två grupper, skapa).`);
+      for (const p of rem.poster) {
+        krav(Math.abs(p.w - 40) < 0.5 && Math.abs(p.h - 40) < 0.5 && p.kant >= 1, `remsan ${bredd} px: "${p.namn}" är ${p.w}x${p.h} px med kant ${p.kant}, väntat 40x40 med kant.`);
+      }
+      const gm = rem.poster.filter((p) => p.markeW > 0 && p.namn && !/^(Alla|Fäll|Skapa)/.test(p.namn));
+      krav(gm.length >= 2 && gm.every((p) => Math.abs(p.markeW - 34) < 0.5), `remsan ${bredd} px: gruppmärkena är ${gm.map((p) => p.markeW).join(", ")} px, väntat 34 (SS GroupMark sizePx=34).`);
+      const aktivRad = rem.poster.find((p) => p.namn.startsWith("Claes"));
+      krav(!!aktivRad && aktivRad.kantFarg === rem.accent, `remsan ${bredd} px: aktiv grupp har kantfärg ${aktivRad?.kantFarg}, väntat accent (${rem.accent}).`);
       for (const [lage, v] of /** @type {const} */ ([["utfälld", ut], ["infälld", in_]])) {
         matt.push(`panelen ${bredd} px ${lage}: logo x ${v.logoX.toFixed(1)} bredd ${v.logoW.toFixed(1)}, panel x ${v.panelX.toFixed(1)} innerbredd ${v.panelInnerW.toFixed(1)}, första barn ${v.forstTagg} ${v.forstW.toFixed(0)} px`);
         krav(Math.abs(v.logoX - v.panelX) <= 1, `panelen ${bredd} px ${lage}: märkesrutans vänsterkant ${v.logoX.toFixed(1)} mot panelens ${v.panelX.toFixed(1)}. Väntat högst 1 px skillnad (SS \`AppHeader.jsx:174\`).`);

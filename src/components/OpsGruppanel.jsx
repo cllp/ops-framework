@@ -456,7 +456,7 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
                 vald ? "border-accent bg-accent/10 shadow-sm" : "border-line bg-surface hover:border-line-strong",
               )}
             >
-              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="md" />
+              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="rail" />
             </button>
           </li>
         );
@@ -537,7 +537,14 @@ export function OpsGruppanel({
         type="button"
         onClick={vaxlaInfalld}
         aria-label={kollapsad ? fallUtEtikett : kollapsaEtikett}
-        className={cx("flex w-full items-center justify-center p-1.5 text-ink-secondary hover:bg-sunken hover:text-ink", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+        // ⛔ 0.30.1: INFÄLLD ÄR KNAPPEN SAMMA 40 PX-RUTA MED KANT SOM REMSANS ÖVRIGA POSTER (CP:s inspelning,
+        // SS infällda ram: en ruta med chevron, inte en naken pil). Utfälld är den full bredd överst (`AppSidebar.jsx:51-59`).
+        className={cx(
+          "flex items-center justify-center text-ink-secondary",
+          kollapsad ? "size-10 border border-line bg-surface hover:border-line-strong hover:text-ink" : "w-full p-1.5 hover:bg-sunken hover:text-ink",
+          RADIE,
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        )}
       >
         {kollapsad ? <ChevronHogerIkon size={14} /> : <ChevronVansterIkon size={14} />}
       </button>

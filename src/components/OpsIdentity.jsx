@@ -35,6 +35,8 @@ const STORLEKAR = {
   xs: "size-5 text-liten",
   sm: "size-6 text-xs",
   md: "size-9 text-base",
+  /** 34 px (0.30.1): SessionStudios märke i den infällda remsan, `AppSidebar.jsx:95` `GroupMark sizePx={34}` i en 40 px ruta med kant. */
+  rail: "size-8.5 text-base",
   lg: "size-12 text-md",
   /** 28 px (0.30.0, #173): SessionStudios avatar i toppraden, `AppHeader.jsx:463`. Alltid rund, se `rund`. */
   avatar: "size-7 text-liten",
@@ -45,7 +47,7 @@ const STORLEKAR = {
  * @param {string} props.name Visningsnamn. Används för initialer och som alternativtext.
  * @param {string} props.seed Stabilt id som bestämmer tonen NÄR `tone` inte skickas in. Aldrig namnet.
  * @param {string} [props.imageUrl]
- * @param {"xs"|"sm"|"md"|"lg"|"avatar"} [props.size]
+ * @param {"xs"|"sm"|"md"|"rail"|"lg"|"avatar"} [props.size]
  * @param {import("react").ComponentType<{size?: number}>} [props.icon] En egen ikon i stället för initialer,
  *   ritad bara när `imageUrl` saknas (#164, korrigering C: "standardikon plus färg kräver ingen Storage").
  *   Ramverket känner inte till vilka ikoner som finns, appen skickar in komponenten (se `src/lib/profilikoner.js`
