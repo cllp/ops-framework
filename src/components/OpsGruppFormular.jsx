@@ -498,7 +498,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
                         const v = e.target.value.replace(/[^a-zA-ZÅÄÖåäö0-9]/g, "").toUpperCase().slice(0, 3);
                         setIkon(v ? `initialer:${v}` : "");
                       }}
-                      className="min-h-11 w-24 rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-rubrik uppercase text-ink placeholder:normal-case placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent md:text-brod"
+                      className="min-h-11 w-24 rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod uppercase text-ink placeholder:normal-case placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
                     />
                     {egnaInitialer ? (
                       <button

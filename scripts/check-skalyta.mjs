@@ -1915,6 +1915,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         stjarna: !!namnLabel && (namnLabel.textContent || "").includes("*"),
         sektion: scs ? { fs: scs.fontSize, tt: scs.textTransform } : null,
         etikett: lcs ? { fs: lcs.fontSize, fw: lcs.fontWeight } : null,
+        falt: [...panel.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=hidden]), textarea')].map((e) => { const c = getComputedStyle(e); return { fs: c.fontSize, fw: c.fontWeight }; }),
         kolW: kol.width,
         knappar: { top: kn.top, bottom: kn.bottom },
         spara: !!spara,
@@ -1934,6 +1935,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     );
     krav(m.obligatoriskt && m.stjarna, `ny grupp ${namn}: namnfältet är inte markerat som obligatoriskt (required ${m.obligatoriskt}, stjärna ${m.stjarna}).`);
     krav(m.etikett !== null && m.etikett.fs === "14px" && m.etikett.fw === "500", `ny grupp ${namn}: fältets etikett är ${JSON.stringify(m.etikett)}, väntat 14 px och 500 (SS text-sm font-medium, ManageGroupModal.jsx:590).`);
+    krav(
+      m.falt.length >= 3 && m.falt.every((f) => f.fs === "16px" && f.fw === "400"),
+      `ny grupp ${namn}: textfälten ska vara 16 px och vikt 400 (SS text-base i fält, 16 px hindrar iOS zoom), mätt ${JSON.stringify(m.falt)}.`,
+    );
     krav(m.sektion !== null && m.sektion.fs === "12px" && m.sektion.tt === "uppercase", `ny grupp ${namn}: raden "Visuell identitet" är ${JSON.stringify(m.sektion)}, väntat 12 px versaler (SS text-xs uppercase, ManageGroupModalGroupImages.jsx:32).`);
     krav(m.spara, `ny grupp ${namn}: skalets fasta Spara saknas.`);
     krav(m.knappar.bottom >= m.vh - 1 && m.knappar.bottom <= m.vh + 0.5, `ny grupp ${namn}: knappraden vilar inte längst ned (${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)} av ${m.vh}).`);

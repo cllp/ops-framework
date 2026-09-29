@@ -15,6 +15,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 CP 2026-09-29 23:30: *"Skapa grupp och bjuda in till grupp finns inte ännu. Skapa grupp i web skall ha samma funktion som i SessionStudio. Gruppkortet skall ha lite mer info i sig som i SessionStudio."*
 Epiken är cllp/ops-framework#180. **Det här passet är G0 (modell och regler), G1 (skapa grupp) och G2 (gruppkortet, detaljsidan och redigering).** Inbjudans kod och utskick (G3) är INTE gjorda.
 
+### Rättelse: textfälten är 16 px och vikt 400 på telefon
+- `faltKlass` skrev `text-rubrik md:text-brod` i 0.31.2. Rollen `rubrik` bär vikt 700, så varje textfält under 768 px skrev fet text (CP 19:50: "Stor text"). Nu `text-brod` på alla bredder, som SS fält.
+- Vakten: `check-skalyta` mäter varje textfält i Ny grupp vid 390 och 1280 px. Rött mot bygget utan fixen (`16px/700` i fyra fält), grönt med den (882 kontroller).
+
 ### G0. Modell och regler
 - **Gruppen bär utseende och uppgifter:** `farg` (ett id ur `PROFILFARGER`, samma sex identitetstoner som profilen: ingen ny färgskala), `ikon` (`GRUPPIKONER`, tio generiska id, eller
   `initialer:AB`), `bild` (lagringssökväg), `beskrivning` (högst 280), `ort` (högst 80) och `epostsprak` (`sv` eller `en`). Tomma strängar och inte utelämnade fält, så en rad från före
