@@ -9,6 +9,214 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.31.0
+
+⛔ **Märket är text, inte bilder. BREAKING: appar måste pinna om.** CP 2026-09-29:
+"Viktigt. Logotyp. Vi gör såhär. Vi tar bort bilder, kör med text. Font: Glacial
+Indifference Regular. Colors: Light Gray och Gray Orange. Ha detta både på
+inloggning och inne i appen. Följ detta exakt." Och därefter, "kör allt, och bort
+med loggorna".
+
+### Märket (avsnitt 1 till 6 och 15)
+
+**Bort, helt:** `varumarke/*.webp` (fyra bilder), `scripts/generate-varumarke.mjs`,
+`src/lib/varumarke.js` med `OPS_HUB_VARUMARKE`, bildläget i `OpsBrand`
+(`ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `title`, `subtitle`, `mark`),
+PH.ST-märkets fyra bilder i `assets/` och tokens `--logo-phst*`, samt vakterna
+och proven som stod över dem (test-guards "varumarke", `varumarke.test.js`,
+PH.ST-kontrollen i `check-scaffold`). Ingen död fil kvar: `grep` efter `varumarke`,
+`OPS_HUB_VARUMARKE` och `phst` ger noll träffar utanför den här texten.
+
+**Nytt:** `OpsBrand` är två textrader och ett monogram.
+
+| Prop | Betyder |
+|---|---|
+| `namn` | Rad 1. Förval `"OPS HUB"`. Första ordet ljusgrått (`ink`), resten gråorange (`marke-accent`). Eller `{ forsta, andra }`. |
+| `undertext` | Rad 2, appens eller gruppens namn. Tom: bara rad 1, centrerad lodrätt. |
+| `monogram` | Tecknen i rutan. Förval: första bokstaven i varje ord, "OH". |
+| `storlek` | `"topp"` (förval) eller `"stor"` (inloggningen). |
+| `panelInfalld` | Sätts av skalet. |
+
+I `OpsAppShell` är `brand` (sträng) märkets `namn`, och **rad 2 är den aktiva
+gruppens namn i versaler** när `grupper` finns och en grupp är vald (i läget
+"Alla mina grupper" används appens `undertext`, annars ritas bara rad 1).
+`OpsInloggning` får `namn` (nytt) och `etikett` (blir rad 2); `mark` och
+`ordmarke` är borta.
+
+**Typsnittet:** Glacial Indifference Regular (SIL OFL 1.1) ligger i
+`fonts/glacial-indifference/` med `LICENSE.txt` bredvid, `@font-face` med
+`font-display: swap` i `tokens/tokens.css`, token `--font-marke`. Bara märket
+använder det. `check-fonts` godtar nu ett självvärdat typsnitt med licensfil och
+fäller ett utan (fil som saknas, licens som saknas, ingen `@font-face` alls), och
+`check-scaffold` mäter att filen faktiskt följer med genom ett konsumentbygge.
+
+**Mätt i CP:s bild, inte gissat.** `cp-utfalld.webp` är 2000 px bred; panelens kort
+är 411 bildpixlar och 180 CSS-pixlar, alltså skala 2,283. Bokstävernas startlägen
+och versalhöjder är avlästa pixel för pixel mot bakgrunden #202521 och anpassade med
+minsta kvadrat mot typsnittets egna breddtabell (typsnittets versalhöjd är 0,67 em):
+
+| | Rad 1 "OPS HUB" | Rad 2 undertexten |
+|---|---|---|
+| Versalhöjd i bilden | 21 px (O med översvängning) | 15 px |
+| Typsnittsstorlek | **13 px** (`--marke-storlek`) | **9,5 px** (`--marke-undertext`) |
+| Spärrning | **0,23 em** = 2,99 px (`--marke-sparrning`), 0,34 av versalhöjden | **0,26 em** (`--marke-undertext-sparrning`), 0,39 av versalhöjden |
+| Bredd i bilden / här | 157 / 156 bildpixlar | 360 / 362 bildpixlar |
+| Baslinjeavstånd | 31 bildpixlar = 13,6 CSS-px (`--marke-radavstand` 3,5 px) | |
+
+Monogrammet "OH": 14 px, spärrning 0,04 em. Inloggningen: rad 1 32 px, rad 2 12
+px (23 px hade blivit bredare än kortet). Toppradens rutor ryms i 56 px: ordmärket
+är 40 px högt.
+
+**Färger, mätta:** ljusgrått är bokstävernas toppvärde (230, 235, 231) och
+ramverkets mörka `ink` är (232, 236, 230): skillnad 2, 1, 1, alltså under gränsen 4,
+och därför ingen ny färg, märket använder `ink`. Gråorange är H:ets toppvärde
+(169, 146, 94) = **#a9925e** = `--color-marke-accent` (mörkt), i fixturen
+`tokens/sessionstudio-profil.json` under `marke` med `_kalla` mot CP:s bilder.
+**Ljust tema:** ljusgrått syns inte på ljus yta, så `ink` (#3C2F2F, 12,5:1) bär "OPS" och
+monogrammets O. #a9925e klarar inte 3:1 mot ljus yta (**2,94:1** mot `surface`,
+**2,85:1** mot `canvas`), så ljust läge har en mörkare ton av samma kulör (H 41,6, S 30 procent,
+ljushet 51,6 till 49,2 procent): **#a38c57**, **3,18:1** mot `surface` och **3,08:1**
+mot `canvas`. Mörkt: 5,22:1 mot `surface`. `check-kontrast` har fyra nya rader
+(orange mot yta och canvas, båda teman; `ink` mot yta) och är grön.
+
+**Placering och rörelse, som SessionStudio och som CP skärpte den.**
+
+- Ordmärkets två rader står **över kortens bredd** i gruppanelen, inte över panelens
+  ytterkant: mittlinjen mäts till 107,99 mot kortens 108,00 vid 1280 px och 260,49
+  mot 260,50 vid 1600 (högst 1 px tillåtet, båda raderna). Spärrningen lägger ett
+  tomt avstånd efter sista bokstaven, så varje rad bär lika mycket `padding-left`
+  som den har spärrning: annars sitter texten en halv spärrning till vänster.
+  Panelens sidopadding är nu ett token (`--panel-kant`, 2 px) som både panelen och
+  märkesrutan läser. (`check-skalyta` mätte förut mot panelens ytterkant och
+  godkände därför 2 px fel; det jämför nu mot innehållet.)
+- **Infälld:** monogrammet står i **samma ruta som remsans grupper**: `gruppRutaKlass`
+  (ny, `src/lib/radKlass.js`) är EN definition som remsan, chevronknappen och
+  monogrammet använder. Mätt med `getComputedStyle`: bredd, höjd, rundning (12 px),
+  kantfärg, kantbredd (1 px) och yta är lika med en icke-aktiv grupprutas, och
+  mittlinjerna är lika (38,00 mot 38,00 vid 1280).
+- Båda formerna är alltid monterade och växlar med en opacity-crossfade på 200 ms.
+  Under `md`, eller i en app utan grupper: monogramrutan, vänsterställd på x 16.
+- Namnet står en gång som `sr-only`; formerna är `aria-hidden`.
+
+**Prov (alla röda mot origin/main 0.30.1, gröna här):** `check-skalyta` sektion 10
+(1280 och 1600 utfälld och infälld, långt gruppnamn, läget Alla, 390 px, inloggning
+390 och 1280: typsnittet laddat med `document.fonts.check`, färger beräknade lika med
+tokens, inga `<img>`, `scrollWidth <= clientWidth`, höjd <= 56); `src/__tests__/marke.test.jsx`
+(props, förval, monogram, undertext från gruppen); `test-guards` typsnitt 4 till 7.
+
+**Appen måste:** pinna om till 0.31.0 och ta bort `title`, `subtitle`, `mark`, `ordmarke`,
+`ikon`, `ordmarkeHojd`, `endastOrdmarke` ur varje `OpsBrand`/`OpsInloggning`-anrop;
+`brand="Bolag Ops"` blir nu märket "BOLAG OPS", så utelämna `brand` (förval OPS HUB)
+eller skicka `<OpsBrand undertext="Bolag Ops" />` för en rad 2 i läget Alla mina grupper.
+`OPS_HUB_VARUMARKE` finns inte längre.
+
+---
+
+### Accenten är SessionStudios bruna (avsnitt 7)
+CP 2026-09-29: "OPS HUB är grön i mörkt läge. Sessionstudio är brun, vilken färg är det?" Det är tonen **Brun** i
+grön-profilen: webben väljer ton med attributet `data-hsl-preset` (`apps/web/src/constants/themes.js:105-109`
+`applyHslPreset`, `main.jsx:73-75`, `localStorage sp_hsl_preset`, swatch "Brun" `packages/shared/designTokens.js:249`).
+Värdena står i `index.css:690-704` (ljust) och `index.css:767-781` (mörkt). Mobilens `theme.js:100` hue -30 är en annan väg
+och ger olivgrönt, alltså inte det CP ser.
+
+| | accent | hover (`accent-light`) |
+|---|---|---|
+| mörkt | `#9e8a6e` (index.css:768) | `#ae9a7e` (index.css:769) |
+| ljust | `#8E7A4E` (index.css:691) | `#9e8a5e` (index.css:692) |
+
+CP:s bild visar ungefär `#a8987a`, det vill säga tonen efter komprimering. Märkets gråorange `#a9925e` ligger nära den mörka
+accenten: skillnad 11, 8 och 16 i R, G och B. `accent-subtle` och `-faint` härleds nu ur accentens hex (`rgbaAv` i
+generate-tokens) i stället för att vara egna rgba-tal, för de olivgröna literalerna hade blivit kvar. Kontrast mätt av
+check-kontrast: mörk primärknapp 4,56:1 (hover 5,58:1). Ljus `accent-contrast` blev `#000000` (5,04:1), eftersom `#1a1a1a` gav
+4,18:1 på SessionStudios ljusa brun. En vakt fäller en handskriven genomskinlig ton.
+
+### Chevronen ligger inne i fliken (avsnitt 9)
+CP: "Hub ⌄ står längre bort än Idag och Kalender." Länken hade `px-3` på båda sidor och chevronen `pr-2`, så ordet och
+chevronen låg 18 px isär och flikens högra luft var 8 px (mätt 900/1280/1600 px, 0.30.1: 18,0 px ord till chevron, luft efter
+chevron 20/24 mot en vanlig fliks 12/16). SS `AppHeader.jsx:217-230` är en flik med chevronen `ml-0.5`. Nu ligger luften
+vänster på länken och höger på chevronen (`FLIK_LUFT`), 2 px mellan ordet och chevronen. Mätt efter: ord till chevron 6,0 px
+(2 px marginal plus ikonens egen), luft före och efter 12 (900) respektive 16 px (1280, 1600) på alla tre flikarna, avstånd
+Idag till Kalender och Kalender till Hub lika (28 respektive 36 px). check-skalyta avsnitt 11, rött mot 0.30.1.
+
+### Tillbaka-raden hålls i innehållskolumnen (avsnitt 10, och roten till fynd 1 i #475)
+CP: raden "‹ Hub / Ekonomi" ritades över den infällda gruppanelen. Raden hade `-mx-4 px-4`: en negativ marginal som drog
+ut den 16 px åt vänster, in över panelens kolumn, och 16 px åt höger utanför kolumnen. Mätt på 0.30.1 (1280 px): raden
+200..1265 mot kortens rutnät 216..1249, marginaler -16/-16, och panelen utan z-index. Det är också rotorsaken till den
+horisontella överflödningen på modulsidan när appen inte lägger `px-4` runt. Nu: ingen negativ marginal, raden är exakt
+rutnätets bredd (216..1249 vid 1280 utfälld, 76..1249 infälld, 368,5..1416,5 och 228,5..1416,5 vid 1600), panelens kolumn
+har `--z-sticky-header` (110) över radens `--z-sticky` (100). check-skalyta avsnitt 12, rött mot 0.30.1.
+
+### Menyn har en bredd, och raden utan ikon linjerar (avsnitt 13)
+CP: "Aktivitet ... Modalen blir superbred. Skall vara samma som i dropdown så det inte känns hackigt." Rullgardinen var
+`min-w-52` och växte med det bredaste som ritades. Mätt på 0.30.1 (1280 px, en undervy med en lång rad): 208 px före och
+1256 px efter att Aktivitet öppnats, och ytan flyttade sig från x 1041 till 0. Nu `w-80` med `meny` (SS `AppHeader.jsx:514`),
+undervyn i SAMMA ruta med tillbaka-pil: 320,0 px före och efter, samma position och rundning. Utan `meny` är den rena
+överflödsmenyn fortfarande innehållsstyrd. Raden "Primitiver" utan ikon får en tom 16 px-plats när någon annan rad i
+appens sektion har ikon (i stället för att kräva en ikon): mätt x 972,0 för båda, mot 1058 respektive 1084 på 0.30.1.
+check-skalyta avsnitt 13, rött mot 0.30.1.
+
+### Typ, datum och tid går att välja i en modal (avsnitt 11)
+CP: "Ny händelse: datum går inte att välja, och det finns ingen tidsväljare", "Går heller inte att välja typ i dropdown".
+Två rotorsaker, båda mätta i Chromium på 0.30.1 (390 och 1280 px): (1) listorna ritades på `--z-dropdown` (200) och
+modalen på `--z-modal` (400), så typlistans val och kalenderns dag låg BAKOM modalen (`elementFromPoint` gav modalen, inte
+valet, och klicket avbröts); (2) `OpsDatePicker` gav react-day-picker en STYRD månad (`month={chosen}`), så månadspilarna
+gjorde ingenting så fort ett datum var valt. Rättat: `--z-dropdown` är 450, över modalen och under toasten (450 mot 400), och
+`defaultMonth`. Ny `OpsTimePicker` (timme och minut i två listor med kolon emellan, `"HH:MM"`, 24 h) efter SS
+`ThemedTimeSelect.jsx`. Trigger och yta delar nu `faltTriggerKlass`/`faltYtaKlass` (radKlass.js) i stället för tre
+skrivna strängar. check-skalyta avsnitt 14 väljer typ, datum och tid inuti en `OpsModal` vid 390 och 1280 px (listan
+överst och inom vyn, valet når värdet, Escape stänger bara listan, tangentbord), rött mot 0.30.1 (`--dist` och nya
+`--tokens` mot origin/main). Vitest `tidval.test.jsx`: rött på 0.30.1 för månadsnavigeringen och lagrens ordning. README:
+formulär får inte använda rå `input type=date/time`. **Appen:** `skapa.handelse` får datum- och tidsfält med
+`OpsDatePicker` och `OpsTimePicker`, och `skapa.kataloger` måste innehålla `handelsetyper` för att typlistan ska ha val
+(ramverket ritar typvalet ur den, `typerAttValja`).
+
+### Skapa är en panel, "Skapa i" som SS, och tätare valkort (avsnitt 16 och 12)
+CP: "Skapa nytt i ramverket. Låt det vara paneler istället för modaler precis som i sessionstudio", och om "Nytt ärende" på 390 px:
+arket täckte hela huvudet, nästa fält klipptes utan knapprad, valkorten var höga. SS-förlagor: `GroupEditRouteView.jsx:36-47`
+(rad "‹ Tillbaka"), `ManageGroupModal.jsx:454,479,640` (rubrikrad, kropp som rullar, knapprad med `border-t`) och
+`CalendarCreateDestinationSheet.jsx:53-135` ("Skapa i"). Före 0.31.0 öppnade plusset en `OpsModal`. Nu öppnar det en panel
+(`OpsSkapaPanel`): på dator en sida i innehållskolumnen (kolumn 880 px, centrerad, huvudet och gruppanelen kvar, fast knapprad
+längst ned till höger med `Avbryt` som textknapp och `Spara` fylld; mätt vid 1280 px: panel 200..1265, knapprad 731..800 av 800), på
+telefon helskärm med egen rubrikrad (mätt 390x844: 0,0 mot hela sidbredden, knapprad 775..844, alla fyra valkort och knappraden
+samtidigt, valkort 58 px höga; med fönstret krympt till 500 px, som med tangentbord: panelen 500 px, knapprad 431..500, fältet
+ovanför den). Ingen `role="dialog"` för formuläret. Appens vy hålls monterad men dold, så Tillbaka återställer den, och
+`?skapa=handelse` ligger i adressen (`skapa.adress: false` stänger av). Ny exporterad `OpsSkapaI` (grupper med 34 px märke och
+medlemsantal, vald rad med accentkant, appens egen sektion via `skapa.skapaISektioner`, `Avbryt`): med en vald grupp visar
+panelen "Skapas i: <grupp> ⌄" som öppnar den, och i läget Alla mina grupper visas den FÖRST. Formuläret får `{ groupId, typ, mal,
+formId, onKlar }`; med `skapa.sparaEtikett` ritas `Spara` som `type="submit" form={formId}` (`OpsButton` fick `form`).
+`OpsRadioGroup` och `OpsSegmented` är tätare: `px-3 py-2` (var `px-4 py-3`), titel i rollen `etikett`, beskrivning i `hjalp`,
+`min-h-11` kvar för tummen. Prov: Vitest `skapapanel.test.jsx` (rött på 0.30.1: 11 av 12 fäller) och check-skalyta avsnitt 15
+(rött mot 0.30.1: panelen öppnas aldrig). **Appen (bolag-ops):** ge händelse- och ärendeformulären `id={formId}`, skicka
+`skapa.sparaEtikett`, och ta bort formulärets egna Spara och Avbryt om det ska bo i den fasta raden; för "Mina kalendrar"
+skicka `skapa.skapaISektioner`.
+
+### Design-QA cllp/bolag-ops#475, ramverkets del (avsnitt 8)
+Åtta fynd på live 0.30.1. Ramverkets, och klara: **1** horisontell överflödning på modulsidan (rotorsak: `-mx-4` på tillbaka-raden, mätt
+med Hub utan appens `px-4`: scrollWidth 391 mot 390, 769 mot 768, 1281 mot 1280; nu ingen överflödning vid 390, 768 och 1280 för Hub och
+modulsida, med och utan padding); **2** gruppmodellen är densamma överallt och nu mätt (panel från lg, annars en växlare med märke, och
+från md gruppens namn; 390, 900, 1280 på Hub och modulsida); **3** `OpsHubTillbaka` exporteras och `OpsView` fick `tillbaka`, så varje sida
+under Hub kan ha "‹ Hub / Ekonomi / Inkomster" (README: varje sida under Hub bär raden); **4** barnkorten är samma kort som Hubs (ikon,
+namn, räknare, info: samma rundning, padding och yta, mätt); **5** Fråga står med namn i mobilmenyn (mätt) och ikonknapparna i huvudet har
+`aria-label` och en synlig tooltip (`OpsIconLink` via `OpsTooltip`; på 0.30.1 kom ingen tooltip); **6** sidchrome är dokumenterat som tokens
+i README; **7** `OpsAuthGate` ritar ett skelett av huvud och innehåll och efter 8 s en rad med "Försök igen" (`OpsLaddaSkelett`, Vitest
+`laddar.test.jsx` med fördröjd auth); **8** info-raden i `ink-secondary` (7,65:1 ljust och 7,72:1 mörkt mot kortet, var `ink-muted` 3,76:1
+ljust) och "Inget nytt" i en egen statusstil. Inget ärende stängs. **Appens del** (kvar i bolag-ops): ersätt den kopierade raden i
+`UnderHub.jsx` med `OpsView tillbaka` eller `OpsHubTillbaka`, och ge varje modulsida raden.
+
+### Primitiverna mot SessionStudio (avsnitt 14)
+Alla 93 exporterade komponenter är genomgångna; tabellen med SS-förlaga (fil:rad), avvikelse och åtgärd står i
+`docs/jamforelser/0.31.0/primitiver.md`. Rättat genom gemensamma klasser: fälten (`faltKlass`: 12 px, 1,5 px kant, `bg-surface`, kontur inåt,
+hover; var 10 px, 1 px, `bg-canvas`, kontur utåt, skrivet på fem ställen), `OpsModal` (448/672/1024 px och 12 px, var 384/512/768 och 16),
+liten knapp (12 px text), kryssruta (18 px), valkort och segmenterad (tätare). Kvar med skäl: pillformen på knappar (CP-beslut
+2026-09-28), `OpsSwitch` (kontrast), `OpsCard` 24 px. Vakt: check-skalyta avsnitt 17 mäter ett galleri i ljust och mörkt läge (fjorton
+primitiver, golv 14), rött mot 0.30.1 (fält 10 px, liten knapp 14 px). Montage i `docs/jamforelser/0.31.0/`.
+
+### Att göra i appen vid ompinning till 0.31.0
+Märket: ta bort `title`, `subtitle`, `mark`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `OPS_HUB_VARUMARKE`; utelämna `brand` (eller `namn`/`undertext`).
+Skapa: formulär med `id={formId}` och `skapa.sparaEtikett`, ta bort formulärets egna Spara/Avbryt, `skapa.skapaISektioner` för kalendrar,
+`skapa.kataloger` med `handelsetyper`, datum/tid med `OpsDatePicker`/`OpsTimePicker`. Hub: ersätt `UnderHub.jsx`s kopierade rad med
+`OpsView tillbaka`. `OpsAuthGate` `description` används inte längre. Ramverkets `--z-dropdown` är 450.
+
 ## 0.30.1
 
 ⛔ **Mobilhuvudet, gruppanelen och loggan, och Hub, som SessionStudio.** CP

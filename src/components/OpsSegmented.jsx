@@ -130,13 +130,13 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
               }
             }}
             className={cx(
-              "inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full py-2 text-sm font-medium",
+              "inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full py-1.5 text-etikett font-medium",
               "transition-all duration-(--duration-fast) ease-standard",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               // ⛔ Ikonsegmentet är kvadratiskt och inte ett smalare piller.
               // `px-5` runt en 16 px ikon ger en yta som är bredare än hög och
               // läses som ett ord som råkat sakna text.
-              baraIkoner ? "justify-center px-2.5" : "px-5",
+              baraIkoner ? "justify-center px-2.5" : "px-4",
               chosen ? "bg-ink text-canvas shadow-sm" : "text-ink-muted hover:text-ink-secondary",
             )}
           >

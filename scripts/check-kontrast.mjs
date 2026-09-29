@@ -156,6 +156,25 @@ export const PAR = [
    */
   { vad: "primärknappens text", text: "accent-contrast", yta: "accent", niva: BROD },
   { vad: "primärknappens text, hover", text: "accent-contrast", yta: "accent-hover", niva: BROD },
+  /*
+   * ⛔ MÄRKETS ORANGE (0.31.0). "HUB" i toppraden och i inloggningen är stor text
+   * (13 respektive 32 px, spärrad) och ska nå 3:1, det som WCAG kräver av
+   * storstil. CP:s orange (#a9925e) klarar det mot mörk yta (5,22:1) men inte
+   * mot ljus (2,94:1 mot yta, 2,85:1 mot canvas): därför har ljust läge en
+   * mörkare ton av samma kulör, se `marke` i tokens/sessionstudio-profil.json.
+   * Paret mot canvas är inloggningens (märket står direkt på sidan), paret mot
+   * surface är toppradens.
+   */
+  { vad: "märkets orange i toppraden", text: "marke-accent", yta: "surface", niva: STOR },
+  { vad: "märkets orange i inloggningen", text: "marke-accent", yta: "canvas", niva: STOR },
+  { vad: "märkets ljusgrå (ink) i toppraden", text: "ink", yta: "surface", niva: BROD },
+  /*
+   * ⛔ HUBKORTETS INFO-RAD OCH "INGET NYTT" (0.31.0, fynd 8 i cllp/bolag-ops#475: "svag kontrast i info-rad och Inget nytt").
+   * Raden stod i `ink-muted` (12 px, normalstil, alltså BROD 4,5:1), och `ink-muted` når det inte mot kortets yta i ljust läge.
+   * Den är nu `ink-secondary`. Paret mot `raised` är kortets hover.
+   */
+  { vad: "hubkortets info-rad", text: "ink-secondary", yta: "surface", niva: BROD },
+  { vad: "hubkortets info-rad, hover", text: "ink-secondary", yta: "raised", niva: BROD },
 ];
 
 /**

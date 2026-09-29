@@ -1,4 +1,4 @@
-import { Children, cloneElement, Component, Fragment, isValidElement, useId, useState } from "react";
+import { Children, cloneElement, Component, Fragment, isValidElement, useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
@@ -14,11 +14,13 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
-import { OpsModal } from "./OpsModal.jsx";
+import { OpsSkapaI } from "./OpsSkapaI.jsx";
+import { OpsSkapaPanel } from "./OpsSkapaPanel.jsx";
 import { OpsSkapa } from "./OpsSkapa.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { text } from "../lib/sprak.js";
+import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 
@@ -198,6 +200,9 @@ class OpsFelgrans extends Component {
   }
 }
 
+/** Flikens sidoluft. Ligger för sig (0.31.0) så att en flik med chevron kan fördela den: vänster på länken, höger på chevronen. */
+const FLIK_LUFT = "px-3 lg:px-4";
+
 /**
  * En post i toppraden. Med `children` en riktig meny, utan dem en länk.
  *
@@ -266,7 +271,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 
   if (!childEntries.length) {
     return (
-      <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={classes}>
+      <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={cx(classes, FLIK_LUFT)}>
         {entry.label}
         {counter}
       </a>
@@ -275,6 +280,13 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 
 
   /*
+   * ⛔ CHEVRONEN LIGGER INNE I FLIKEN, DIREKT EFTER ORDET (0.31.0, CP 2026-09-29: "Hub ⌄ står längre bort än Idag och
+   * Kalender"). Före 0.31.0 hade länken `px-3` på BÅDA sidor och chevronen `pr-2`, så ordet och chevronen låg 12 px isär
+   * och flikens högra luft var 8 px, mot 12 (lg: 16) hos en vanlig flik. SessionStudios Bibliotek ⌄ är en enda flik med
+   * chevronen `ml-0.5` efter ordet (`AppHeader.jsx:217-230`). Här är länken och chevronen fortfarande två kontroller
+   * (etiketten navigerar, chevronen öppnar), men flikens luft är den vanliga: vänster på länken, höger på chevronen,
+   * och 2 px mellan ordet och chevronen. Mäts i check-skalyta, avsnitt 11.
+   *
    * ⛔ ORDET EN GÅNG, INTE TVÅ. Första versionen lade föräldern som första rad i
    * menyn, så att sidan skulle gå att nå från raden. CP 2026-09-22, med bild:
    * "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första
@@ -308,12 +320,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
    * bara tecken.
    */
   return (
-    <span className={cx(classes, "gap-0 px-0")}>
+    <span className={cx(classes, "gap-0")}>
       <a
         href={entry.href}
         onClick={(e) => onActivate(entry.href, e)}
         aria-current={active ? "page" : undefined}
-        className="inline-flex items-center self-stretch rounded-l-md px-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
+        className="inline-flex items-center self-stretch rounded-l-md pl-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
       >
         {entry.label}
         {counter}
@@ -322,7 +334,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
         <Popover.Trigger
           aria-label={`${submenuLabel} ${entry.label}`}
           className={cx(
-            "relative inline-flex cursor-pointer items-center self-stretch rounded-r-md pr-2 pl-0.5",
+            "relative inline-flex cursor-pointer items-center self-stretch rounded-r-md pr-3 pl-0.5 lg:pr-4",
             // ⛔ Träffytan, 44 px, utanför flödet. `inset-x-0` täcker chevronens
             // bredd och `-translate-y-1/2` centrerar den kring raden.
             "after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 after:content-['']",
@@ -401,6 +413,16 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {(namn: string) => import("react").ReactNode} [ikonRitare]
  * @property {string} [sprak]
  * @property {(arg: { registrering: string, typ: string | null }) => void} [onKlar] Anropas när en MODULENS formulär är klart.
+ * @property {string} [sparaEtikett] (0.31.0) Ritar en fast `Spara`-knapp längst ned i panelen, kopplad till formuläret med `formId`
+ *   (appens `<form id={formId}>`). Utelämnad: formuläret har en egen knapp, och bara `Avbryt` är skalets.
+ * @property {string} [avbrytEtikett] Förval "Avbryt".
+ * @property {string} [tillbakaEtikett] Förval "Tillbaka".
+ * @property {string} [skapasIEtikett] Etiketten före målet i panelens översta rad. Förval "Skapas i".
+ * @property {string} [skapaIRubrik] Väljarens rubrik. Förval "Skapa i".
+ * @property {ReadonlyArray<{ id: string, rubrik: string, poster: ReadonlyArray<{ id: string, namn: string, ikon?: import("react").ReactNode }> }>} [skapaISektioner]
+ *   Appens egna mål i väljaren, t.ex. "Mina kalendrar". Formuläret får det valda som `mal: { sektion, id }`.
+ * @property {boolean} [adress] Skalet lägger `?skapa=<vad>` i adressen när panelen öppnas, så att Tillbaka i webbläsaren fungerar och
+ *   panelen går att länka till. Förval sant; `false` för en app vars router inte tål att någon annan skriver i historiken.
  *
  * `props.grupper`s form (#161). Samma fältnamn som `OpsGruppanel`/
  * `OpsGruppvaxlare` tar direkt, plus `lista` (skickas som `grupper` till båda)
@@ -428,7 +450,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 
 /**
  * @param {object} props
- * @param {import("react").ReactNode} props.brand Appens namn som sträng, eller en egen `OpsBrand`. Länkar till startsidan.
+ * @param {import("react").ReactNode} [props.brand] Märket (0.31.0: TEXT, inga bilder). En sträng blir märkets `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått och resten gråorange); en egen `<OpsBrand namn undertext monogram />` används som den är, med panelläget inklonat. Rad 2 är den aktiva gruppens namn när `grupper` finns och en grupp är vald, annars `undertext` på appens egen `OpsBrand`. Länkar till startsidan. ⛔ Före 0.31.0 var `brand` appens namn och ritades under en bild; nu är den märket självt, så en app som vill ha "OPS HUB" utelämnar propen.
  * @param {import("../lib/nav.js").NavPost[]} [props.nav] Toppdestinationer, den GAMLA modellen. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg. ⛔ Krävs när `fasta` saknas, och FÅR INTE skickas tillsammans med `fasta` (två modeller för samma rad är två sanningar, skalet kastar).
  * @param {import("./fasta.jsx").FastaKonfiguration} [props.fasta] (0.30.0, #173) NYA modellen: de tre fasta posterna
  *   `{ idag: { href }, kalender: { href }, hub: { href } }`. Ramverket äger ordning (Idag, Kalender, Hub), namn
@@ -626,7 +648,7 @@ export function OpsAppShell({
   // en liten BESKRIVNING av vad modalen ska visa (aldrig ett färdigrenderat
   // ReactNode i state, se `skapaTyp` nedan för skälet).
   const [skapaOppen, setSkapaOppen] = useState(false);
-  const [skapaForm, setSkapaForm] = useState(
+  const [skapaForm, setSkapaFormRaw] = useState(
     /** @type {{ kind: "handelse" | "arende" } | { kind: "modul", registrering: any } | null} */ (null),
   );
   // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
@@ -634,6 +656,90 @@ export function OpsAppShell({
   // hade behövt skriva om ett redan monterat ReactNode i state, vilket inte
   // går. Typen läses i stället ur `skapaTyp` VARJE RENDERING, se nedan.
   const [skapaTyp, setSkapaTyp] = useState(/** @type {Record<string, string>} */ ({}));
+  // ══ ⛔ SKAPA ÄR EN PANEL, INTE EN MODAL (0.31.0, CP 2026-09-29) ═══════════════════
+  //
+  // "Låt det vara paneler istället för modaler precis som i sessionstudio." Se `OpsSkapaPanel`. `skapaMal` är det valda
+  // MÅLET (en grupp eller en app-sektions post) ur `OpsSkapaI`; `skapaVaxlare` öppnar väljaren igen från raden "Skapas i".
+  const [skapaMal, setSkapaMal] = useState(/** @type {{ id: string, sektion: string } | null} */ (null));
+  const [skapaVaxlare, setSkapaVaxlare] = useState(false);
+  const skapaAdress = skapa?.adress !== false;
+  const skapaPushad = useRef(false);
+  const skapaRullning = useRef(0);
+  /** @param {any} form @returns {string} */
+  const skapaNyckel = (form) => (form.kind === "modul" ? String(form.registrering.id) : form.kind);
+  /** Återskapar ett formulär ur adressens `?skapa=`, eller `null`. */
+  const skapaUrAdress = () => {
+    if (!skapaAdress || typeof window === "undefined" || !skapa) return null;
+    const v = new URL(window.location.href).searchParams.get("skapa");
+    if (!v) return null;
+    if (v === "handelse" && skapa.handelse) {
+      return typeof skapa.handelse === "object" && !isValidElement(skapa.handelse) && typeof (/** @type {any} */ (skapa.handelse)).form === "function"
+        ? { kind: "modul", registrering: { id: "handelse", namn: nyHandelseEtikett, katalog: /** @type {any} */ (skapa.handelse).katalog === undefined ? "handelsetyper" : /** @type {any} */ (skapa.handelse).katalog, form: /** @type {any} */ (skapa.handelse).form } }
+        : { kind: "handelse" };
+    }
+    if (v === "arende" && skapa.arende) return { kind: "arende" };
+    const reg = (skapa.registreringar ?? []).find((r) => r.id === v);
+    return reg ? { kind: "modul", registrering: reg } : null;
+  };
+  const skapaFormId = useId();
+  /** @param {any} form */
+  const oppnaSkapa = (form) => {
+    if (typeof window !== "undefined") skapaRullning.current = window.scrollY;
+    setSkapaMal(null);
+    setSkapaVaxlare(false);
+    setSkapaFormRaw(form);
+    if (skapaAdress && typeof window !== "undefined") {
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.set("skapa", skapaNyckel(form));
+        window.history.pushState(window.history.state, "", u);
+        skapaPushad.current = true;
+      } catch {
+        // En adress som inte går att skriva (t.ex. en sandlåda) gör inte panelen sämre: den är ändå ett tillstånd.
+      }
+    }
+  };
+  const stangSkapa = () => {
+    setSkapaFormRaw(null);
+    setSkapaMal(null);
+    setSkapaVaxlare(false);
+    if (skapaAdress && typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has("skapa")) {
+        if (skapaPushad.current) {
+          skapaPushad.current = false;
+          window.history.back();
+        } else {
+          u.searchParams.delete("skapa");
+          window.history.replaceState(window.history.state, "", u);
+        }
+      }
+    }
+    // Tillbaka återställer vyn man kom från, också rullpositionen.
+    if (typeof window !== "undefined" && skapaRullning.current > 0) {
+      const y = skapaRullning.current;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  };
+  // Adressen öppnar panelen vid inläsning, och webbläsarens Tillbaka stänger den.
+  useEffect(() => {
+    const fran = skapaUrAdress();
+    if (fran) setSkapaFormRaw(/** @type {any} */ (fran));
+    if (typeof window === "undefined") return undefined;
+    const lyssna = () => {
+      const finns = new URL(window.location.href).searchParams.has("skapa");
+      if (!finns) {
+        skapaPushad.current = false;
+        setSkapaFormRaw(null);
+        setSkapaMal(null);
+        setSkapaVaxlare(false);
+      }
+    };
+    window.addEventListener("popstate", lyssna);
+    return () => window.removeEventListener("popstate", lyssna);
+    // Bara vid montering: adressen är en ingång, inte något som ska skriva över ett pågående val.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
   const skapaModulerRedo = skapaLaget?.tillstand === "redo";
@@ -651,6 +757,25 @@ export function OpsAppShell({
       ? skapa.handelse
       : null
   );
+
+  // ⛔ MÅLET: en vald grupp skapas i, annars den aktiva gruppen. I läget "Alla mina grupper" finns ingen aktiv grupp, och då visas
+  // väljaren FÖRST (SS bild b) och panelen först efter ett val. Bara ett formulär som tar emot en grupp (en moduls registrering)
+  // har ett mål; `handelse`/`arende` som färdiga noder har inget att skicka det till.
+  const skapaGrupperLista = grupper?.lista ?? [];
+  const skapaSektioner = skapa?.skapaISektioner ?? [];
+  const skapaHarVaxlare = skapaForm?.kind === "modul" && (skapaGrupperLista.length > 0 || skapaSektioner.length > 0);
+  const skapaValdGrupp = skapaMal && skapaMal.sektion === "grupper" ? skapaMal.id : null;
+  const skapaEffektivGrupp = skapaValdGrupp ?? skapaLaget?.grupp ?? null;
+  const skapaBehovVal = skapaHarVaxlare && !skapaMal && !skapaLaget?.grupp;
+  const skapaPanelSyns = Boolean(skapaForm) && !skapaBehovVal;
+  const skapaMalNamn = (() => {
+    const sprakSkapa = skapa?.sprak ?? "sv";
+    if (skapaMal && skapaMal.sektion !== "grupper") {
+      return skapaSektioner.find((x) => x.id === skapaMal.sektion)?.poster.find((x) => x.id === skapaMal.id)?.namn ?? null;
+    }
+    const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
+    return g ? text(g.namn, sprakSkapa) : null;
+  })();
 
   /** @type {string} */
   let skapaModalTitel = "";
@@ -685,7 +810,7 @@ export function OpsAppShell({
             (samma skäl som gamla `OpsSkapa`): i "redo"-läget är de samma
             värde, men beslutet om vad "aktiv grupp" betyder ligger på ETT
             ställe. */}
-        <Form groupId={skapaLaget?.grupp ?? null} typ={vald} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); setSkapaForm(null); }} />
+        <Form groupId={skapaEffektivGrupp} typ={vald} mal={skapaMal} formId={skapaFormId} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
       </div>
     );
   }
@@ -776,14 +901,15 @@ export function OpsAppShell({
     </>
   );
 
-  // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
-  // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
-  // får man PH.ST-märket och namnet, utan att behöva veta att `OpsBrand` finns.
+  // ⛔ En sträng blir ett riktigt märke, inte fet text. Skälet är att det
+  // vanliga fallet ska vara det rätta fallet: skriver man `brand="OPS HUB"`
+  // får man märket med rätt typsnitt och färger, utan att behöva veta att
+  // `OpsBrand` finns.
   //
   // ⛔ #161: BRANDET FÖLJER PANELENS LÄGE, INTE BARA SKÄRMBREDDEN. CP 2026-
   // 09-28: "Skalet äger alltså både panelens läge och brandens form; koppla
   // dem i OpsAppShell." Är `grupper` given SKICKAS `panelInfalld` med, satt
-  // till `grupper.infalld`: `OpsBrand` crossfadar då ikon/ordmärke i en fast
+  // till `grupper.infalld`: `OpsBrand` crossfadar då monogram/ordmärke i en fast
   // ruta ur `--logo-bredd`/`--logo-bredd-infalld` (se `OpsBrand`s filhuvud
   // och `tokens.css`), i stället för sitt vanliga smal/bred-beteende. En
   // sträng blir ett nytt `OpsBrand` med propen på raka rör; ett FÄRDIGT
@@ -793,15 +919,20 @@ export function OpsAppShell({
   // (en egen logga, ren text) har ingen `panelInfalld`-prop att klona in, och
   // en blind `cloneElement` hade skickat en prop till en komponent som inte
   // frågat efter den.
-  const varumarke = grupper
-    ? typeof brand === "string"
-      ? <OpsBrand title={brand} panelInfalld={Boolean(grupper.infalld)} />
+  //
+  // ⛔ 0.31.0: MÄRKET ÄR TEXT, OCH UNDERTEXTEN ÄR DEN AKTIVA GRUPPEN. `brand` som sträng är
+  // märkets `namn` (rad 1, "OPS HUB" när den utelämnas). Rad 2 är den aktiva gruppens namn
+  // när `grupper` finns och en grupp är vald; i läget "Alla mina grupper" (eller utan
+  // grupper) används `undertext` på appens egen `OpsBrand`, annars ritas bara rad 1.
+  const aktivGrupp = grupper && grupper.aktiv !== ALLA_GRUPPER ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
+  const gruppUndertext = aktivGrupp ? text(aktivGrupp.namn, grupper?.sprak ?? sprak).toLocaleUpperCase(grupper?.sprak ?? sprak) : undefined;
+  const panelProp = grupper ? { panelInfalld: Boolean(grupper.infalld) } : {};
+  const varumarke =
+    brand === undefined || typeof brand === "string"
+      ? <OpsBrand {...(brand === undefined ? {} : { namn: brand })} {...(gruppUndertext ? { undertext: gruppUndertext } : {})} {...panelProp} />
       : isValidElement(brand) && brand.type === OpsBrand
-        ? cloneElement(/** @type {any} */ (brand), { panelInfalld: Boolean(grupper.infalld) })
-        : brand
-    : typeof brand === "string"
-      ? <OpsBrand title={brand} />
-      : brand;
+        ? cloneElement(/** @type {any} */ (brand), { ...(gruppUndertext ? { undertext: gruppUndertext } : {}), ...panelProp })
+        : brand;
 
   /** @param {string} href @param {any} e */
   const onActivate = (href, e) => {
@@ -867,7 +998,7 @@ export function OpsAppShell({
    */
   const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ state) =>
     cx(
-      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium lg:px-4",
+      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 py-2 text-sm font-medium",
       "transition-all duration-(--duration-fast) ease-standard",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       state === "pa" && "border-ink text-ink",
@@ -1012,7 +1143,7 @@ export function OpsAppShell({
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className="shrink-0 rounded-md py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="block shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               {varumarke}
             </a>
@@ -1131,7 +1262,7 @@ export function OpsAppShell({
                   >
                     {renderSkapaLista((form) => {
                       setSkapaOppen(false);
-                      setSkapaForm(form);
+                      oppnaSkapa(form);
                     })}
                   </Popover.Content>
                 </Popover.Portal>
@@ -1177,7 +1308,16 @@ export function OpsAppShell({
                   <Popover.Content
                     align="end"
                     sideOffset={4}
-                    className={cx("z-(--z-dropdown) min-w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden", radBehallare())}
+                    className={cx(
+                      // ⛔ 0.31.0 (CP: "Aktivitet ... modalen blir superbred. Skall vara samma som i dropdown så det inte
+                      // känns hackigt"): MENYN HAR EN BREDD, INTE EN INNEHÅLLSBREDD. Före 0.31.0 var den `min-w-52` och
+                      // växte med det bredaste som ritades, så en undervy med en lång rad gjorde ytan till en bred ruta.
+                      // SS `AppHeader.jsx:514` är `w-80` (320 px), och undervyn ritas i samma ruta. Utan `meny` är det
+                      // fortfarande den rena överflödsmenyn, som är innehållsstyrd.
+                      "z-(--z-dropdown) max-w-[calc(100vw-1.5rem)] overflow-hidden",
+                      meny ? "w-80" : "min-w-52",
+                      radBehallare(),
+                    )}
                   >
                     {/* ⛔ RUBRIKEN STÅR EN GÅNG, ÖVERST, SAMMA FORM SOM GAMLA
                         `OpsMeny` (mätt i SessionStudio: ett `<h2>` med "Meny",
@@ -1234,7 +1374,7 @@ export function OpsAppShell({
           kant och märket i den centrerade toppraden: 157 px isär vid 1600. */}
       <div className={cx(grupper && "mx-auto max-w-7xl lg:flex")}>
         {grupper ? (
-          <div className="hidden shrink-0 lg:sticky lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--topbar-height))] lg:pl-4 lg:pt-5">
+          <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--topbar-height))] lg:pl-4 lg:pt-5">
             <OpsGruppanel
               grupper={grupper.lista}
               aktiv={grupper.aktiv}
@@ -1263,8 +1403,25 @@ export function OpsAppShell({
       <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
-          {children}
+          {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
+              från (filter, rullning, ifyllda fält) i stället för att appen ritar om den från noll. */}
+          <div hidden={skapaPanelSyns}>{children}</div>
         </OpsFelgrans>
+        {skapaPanelSyns ? (
+          <OpsSkapaPanel
+            titel={skapaModalTitel || skapaLabel}
+            onTillbaka={stangSkapa}
+            tillbakaEtikett={skapa?.tillbakaEtikett}
+            skapasIEtikett={skapa?.skapasIEtikett}
+            skapasI={skapaHarVaxlare ? skapaMalNamn : null}
+            onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
+            avbrytEtikett={skapa?.avbrytEtikett}
+            sparaEtikett={skapa?.sparaEtikett}
+            formId={skapaFormId}
+          >
+            {skapaModalInnehall}
+          </OpsSkapaPanel>
+        ) : null}
       </main>
         </div>
       </div>
@@ -1312,7 +1469,7 @@ export function OpsAppShell({
               <div className="min-h-0 flex-1 overflow-auto py-1.5">
                 {renderSkapaLista((form) => {
                   setSkapaBottenOppen(false);
-                  setTimeout(() => setSkapaForm(form), 0);
+                  setTimeout(() => oppnaSkapa(form), 0);
                 })}
               </div>
             </Dialog.Content>
@@ -1320,14 +1477,28 @@ export function OpsAppShell({
         </Dialog.Root>
       ) : null}
 
-      {/* ⛔ #168: MODALEN ÄR ÉN, DELAD MELLAN RAMVERKETS RADER OCH MODULERNAS.
-          Monteras bara medan `skapaForm` finns (se filhuvudets note vid
-          `OpsModal`: en `title`-lös modal kastar, så den ska inte finnas i
-          DOM:en när det inte finns något att visa). */}
-      {skapaForm ? (
-        <OpsModal open onOpenChange={(v) => { if (!v) setSkapaForm(null); }} title={skapaModalTitel || skapaLabel}>
-          {skapaModalInnehall}
-        </OpsModal>
+      {/* ⛔ 0.31.0: "SKAPA I" ÄR EN DIALOG (SS bild b), PANELEN ÄR EN SIDA. Väljaren öppnas FÖRST i läget "Alla mina grupper" (det finns
+          ingen aktiv grupp att skapa i) och därefter från raden "Skapas i" i panelen. Avbryt i väljaren, när den öppnades
+          först, avbryter hela skapandet: ett formulär utan mål är inget man kan skriva. */}
+      {skapaForm && skapaHarVaxlare ? (
+        <OpsSkapaI
+          open={skapaBehovVal || skapaVaxlare}
+          onOpenChange={(v) => {
+            if (v) return;
+            if (skapaBehovVal) stangSkapa();
+            else setSkapaVaxlare(false);
+          }}
+          grupper={skapaGrupperLista}
+          vald={skapaMal?.id ?? skapaEffektivGrupp}
+          onValj={(id, sektion) => {
+            setSkapaMal({ id, sektion });
+            setSkapaVaxlare(false);
+          }}
+          sektioner={skapaSektioner}
+          sprak={skapa?.sprak}
+          rubrik={skapa?.skapaIRubrik}
+          avbrytEtikett={skapa?.avbrytEtikett}
+        />
       ) : null}
     </div>
   );

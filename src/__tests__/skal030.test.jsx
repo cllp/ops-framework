@@ -293,12 +293,12 @@ describe("F: skapa händelse med typ och vem som skapade (#173)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
     fireEvent.click(screen.getByRole("button", { name: "Ny händelse" }));
-    const modal = screen.getByRole("dialog", { name: "Ny händelse" });
+    const modal = screen.getByRole("region", { name: "Ny händelse" });
     expect(within(modal).getByText("Typ")).toBeTruthy();
     expect(within(modal).getByTestId("props").textContent).toBe("groupId=bolaget typ=moete");
     fireEvent.click(within(modal).getByRole("button", { name: "Klar" }));
     expect(onKlar).toHaveBeenCalledWith({ registrering: "handelse", typ: "moete" });
-    expect(screen.queryByRole("dialog", { name: "Ny händelse" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Ny händelse" })).toBeNull();
   });
 
   it("katalog: null ger ingen typväljare, men formuläret får ändå groupId", () => {
@@ -309,7 +309,7 @@ describe("F: skapa händelse med typ och vem som skapade (#173)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
     fireEvent.click(screen.getByRole("button", { name: "Ny händelse" }));
-    const modal = screen.getByRole("dialog", { name: "Ny händelse" });
+    const modal = screen.getByRole("region", { name: "Ny händelse" });
     expect(within(modal).queryByText("Typ")).toBeNull();
     expect(within(modal).getByTestId("props").textContent).toBe("groupId=bolaget typ=null");
   });

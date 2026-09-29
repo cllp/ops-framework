@@ -126,14 +126,14 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
     expect(namn.className).toContain("md:inline");
   });
 
-  it("märket är ikonen under md, ordmärket från md, även med panelen utfälld i state", () => {
-    const { container } = render(<OpsBrand title="Ops" panelInfalld={false} />);
+  it("märket är monogrammet under md, ordmärket från md, även med panelen utfälld i state", () => {
+    const { container } = render(<OpsBrand panelInfalld={false} />);
     const ruta = container.querySelector("span");
     expect(ruta?.className).toContain("w-(--logo-bredd-infalld)");
     expect(ruta?.className).toContain("md:w-(--logo-bredd)");
-    const bilder = container.querySelectorAll("img");
-    expect(bilder[0].className).toContain("max-md:opacity-100");
-    expect(bilder[1].className).toContain("max-md:opacity-0");
+    expect(container.querySelector('[data-marke="monogram"]')?.className).toContain("max-md:opacity-100");
+    expect(container.querySelector('[data-marke="ordmarke"]')?.className).toContain("max-md:opacity-0");
+    expect(container.querySelectorAll("img")).toHaveLength(0);
   });
 });
 

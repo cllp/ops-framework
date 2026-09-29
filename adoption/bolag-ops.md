@@ -280,13 +280,14 @@ en egen palett igen, och då är vi tillbaka i de tjugofem `.tag-pill--*`-klasse
 ### 5. Toppraden
 
 ```jsx
-<OpsAppShell brand={<OpsBrand title="OPS Hub" subtitle="CPS AB" />} ... />
+<OpsAppShell /* brand utelämnad: märket är "OPS HUB" */ grupper={...} ... />
 ```
 
-Märket, produktnamnet och ägarraden finns i ramverket och byter automatiskt
-mellan mörkt och ljust utförande. ⛔ Kopiera inte in en egen logotypfil i
-bolag-ops. Det är så två original uppstår, och SessionStudio har redan en
-handritad `phst-logo.svg` som föreställer fel märke som bevis på hur det slutar.
+Märket är text i Glacial Indifference (0.31.0, CP 2026-09-29: "kör med text"): "OPS" ljusgrått,
+"HUB" gråorange, och under det den aktiva gruppens namn. Det finns i ramverket och byter ton med
+temat. ⛔ Lägg ingen egen logotypfil i bolag-ops, och skicka inte appens namn som `brand`: `brand`
+är märkets namn, inte appens. Vill appen ha en rad 2 i läget Alla mina grupper:
+`brand={<OpsBrand undertext="Bolag Ops" />}`.
 
 ### Vad som INTE får göras för att behålla utseendet
 

@@ -226,21 +226,22 @@ describe("OpsAppShell: grupper-propen (#161)", () => {
     expect(screen.getAllByText("Alla mina grupper").length).toBeGreaterThan(0);
   });
 
-  it("ett eget OpsBrand-element klonas med panelInfalld (två bilder, crossfade, inte ett bortplockat)", () => {
+  it("ett eget OpsBrand-element klonas med panelInfalld (båda formerna monterade, crossfade, inte ett bortplockat)", () => {
     const { container } = render(
       <OpsAppShell
         nav={NAV}
         activeHref="/"
-        brand={<OpsBrand title="Bolag Ops" />}
+        brand={<OpsBrand namn="OPS HUB" />}
         grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: true }}
       >
         <p>Innehåll</p>
       </OpsAppShell>,
     );
-    // ⛔ RÄTTAD 2026-09-28: SessionStudios `AppHeader.jsx` monterar BÅDA
-    // bilderna alltid och crossfadar med opacity (rad 174-193), aldrig
-    // mount/unmount av en av dem. Se nästa `describe`-block för fler prov.
-    expect(container.querySelectorAll("header img").length).toBe(2);
+    // ⛔ SessionStudios `AppHeader.jsx` monterar BÅDA formerna alltid och crossfadar med opacity
+    // (rad 174-193), aldrig mount/unmount av en av dem. Sedan 0.31.0 är formerna text, inte bilder.
+    expect(container.querySelectorAll('header [data-marke="ordmarke"]').length).toBe(1);
+    expect(container.querySelectorAll('header [data-marke="monogram"]').length).toBe(1);
+    expect(container.querySelectorAll("header img").length).toBe(0);
   });
 });
 
@@ -301,14 +302,14 @@ describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissa
     infalld.unmount();
   });
 
-  it("logotyprutan bär sin klass i DOM, per läge, med båda bilderna alltid monterade", () => {
+  it("logotyprutan bär sin klass i DOM, per läge, med båda formerna alltid monterade", () => {
     const utfalld = render(
       <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: false }}>
         <p>Innehåll</p>
       </OpsAppShell>,
     );
     expect(utfalld.container.querySelector("header [class*=\"md:w-(--logo-bredd)\"]")).toBeTruthy();
-    expect(utfalld.container.querySelectorAll("header img").length).toBe(2);
+    expect(utfalld.container.querySelectorAll("header [data-marke]").length).toBeGreaterThanOrEqual(2);
     utfalld.unmount();
 
     const infalld = render(
@@ -317,7 +318,7 @@ describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissa
       </OpsAppShell>,
     );
     expect(infalld.container.querySelector("header .w-\\(--logo-bredd-infalld\\)")).toBeTruthy();
-    expect(infalld.container.querySelectorAll("header img").length).toBe(2);
+    expect(infalld.container.querySelectorAll("header [data-marke]").length).toBeGreaterThanOrEqual(2);
     infalld.unmount();
   });
 });

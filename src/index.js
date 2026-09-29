@@ -12,7 +12,7 @@
 // ── Skal ───────────────────────────────────────────────────────────────────
 export { OpsAppShell } from "./components/OpsAppShell.jsx";
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
-export { OpsHub, OpsHubModul } from "./components/OpsHub.jsx";
+export { OpsHub, OpsHubModul, OpsHubTillbaka } from "./components/OpsHub.jsx";
 export { OpsBrand } from "./components/OpsBrand.jsx";
 
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────
@@ -29,6 +29,7 @@ export { OpsChip } from "./components/OpsChip.jsx";
 export { OpsField, OpsInput, OpsTextarea } from "./components/OpsField.jsx";
 export { OpsSelect } from "./components/OpsSelect.jsx";
 export { OpsDatePicker } from "./components/OpsDatePicker.jsx";
+export { OpsTimePicker } from "./components/OpsTimePicker.jsx";
 export { OpsCheckbox, OpsSwitch } from "./components/OpsToggle.jsx";
 export { OpsToggleRow } from "./components/OpsToggleRow.jsx";
 export { OpsRadioGroup } from "./components/OpsRadioGroup.jsx";
@@ -171,6 +172,7 @@ export { OpsOversikt, iOrdning } from "./components/OpsOversikt.jsx";
  * mäta utan att en Radix-flikrad ritas i jsdom.
  */
 export { OpsSkapa } from "./components/OpsSkapa.jsx";
+export { OpsSkapaI } from "./components/OpsSkapaI.jsx";
 export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "./lib/skapa.js";
 
 /*

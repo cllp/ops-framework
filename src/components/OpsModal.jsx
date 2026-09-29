@@ -16,10 +16,12 @@ import { KryssIkon } from "./icons.jsx";
  * inte vad.
  */
 
+// ⛔ 0.31.0: SS `ui/ModalShell.jsx:13-15`: `sm` max-w-md (448), `md` max-w-2xl (672), `lg` max-w-5xl (1024). Före 0.31.0 var det
+// 384, 512 och 768 px: samma tre namn, mindre rutor. Rundningen är SS `--radius` (`ModalShell.jsx:40`, 12 px), inte 16.
 const STORLEKAR = {
-  sm: "max-w-sm",
-  md: "max-w-lg",
-  lg: "max-w-3xl",
+  sm: "max-w-md",
+  md: "max-w-2xl",
+  lg: "max-w-5xl",
 };
 
 /**
@@ -59,7 +61,7 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
             "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[calc(100dvh-var(--safe-top))] w-full flex-col",
             "rounded-t-lg border border-line bg-raised pb-(--safe-bottom) shadow-lg",
             "md:inset-x-auto md:bottom-auto md:left-1/2 md:top-1/2 md:w-[calc(100vw---spacing(8))]",
-            "md:max-h-[calc(100dvh---spacing(8))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg md:pb-0",
+            "md:max-h-[calc(100dvh---spacing(8))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-base md:pb-0",
             storlekKlass,
           )}
         >

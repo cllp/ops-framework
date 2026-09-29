@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { DayPicker } from "react-day-picker";
+import { faltTriggerKlass, faltYtaKlass } from "../lib/radKlass.js";
 import { cx } from "../lib/cx.js";
 import { DEFAULT_LOCALE } from "../lib/calendar.js";
 import { formatDate } from "../lib/format.js";
@@ -98,13 +99,7 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
         aria-label={ariaLabel}
         aria-invalid={f.invalid || undefined}
         aria-describedby={f.describedBy}
-        className={cx(
-          "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11 text-md md:text-base",
-          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-          "disabled:opacity-55 disabled:cursor-not-allowed",
-          f.invalid ? "border-danger" : "border-line",
-          chosen ? "text-ink" : "text-ink-muted",
-        )}
+        className={faltTriggerKlass({ invalid: f.invalid, filled: Boolean(chosen) })}
       >
         {chosen ? formatDate(value, { locale }) : placeholder}
         <ChevronNedIkon />
@@ -113,7 +108,7 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
       <Popover.Portal>
         <Popover.Content
           sideOffset={4}
-          className="z-(--z-dropdown) max-w-[calc(100vw---spacing(6))] rounded-md border border-line bg-raised p-3 shadow-md"
+          className={cx(faltYtaKlass, "max-w-[calc(100vw---spacing(6))] p-3")}
         >
           <DayPicker
             mode="single"
@@ -127,7 +122,10 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
             }}
             showOutsideDays
             selected={chosen}
-            month={chosen}
+            // ⛔ 0.31.0: `defaultMonth`, inte `month`. `month` gör månaden STYRD, och en styrd månad utan
+            // `onMonthChange` går inte att bläddra i: pilarna gör ingenting så fort ett datum är valt (CP 2026-09-29:
+            // "datum går inte att välja"). Popovern monteras om vid varje öppning, så `defaultMonth` startar på det valda.
+            defaultMonth={chosen}
             onSelect={(d) => {
               onChange(d ? tillIso(d) : undefined);
               setOppen(false);

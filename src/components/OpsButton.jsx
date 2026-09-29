@@ -54,7 +54,8 @@ const VARIANTER = {
  * mycket.
  */
 const STORLEKAR = {
-  sm: "gap-1.5 px-3 py-1 text-sm min-h-8",
+  // ⛔ 0.31.0: SS `ui/PrimaryButton.jsx:44-47`: `sm` är `px-3 py-1.5 text-xs`, `md` `px-4 py-2 text-sm`. `sm` var `py-1 text-sm`.
+  sm: "gap-1.5 px-3 py-1.5 text-xs min-h-8",
   // ⛔ text-sm, INTE text-base (#164, mätt av en annan agent mot
   // SessionStudios `ProfileView.jsx` rad ~604, Spara-knappen): 14 px, inte
   // 16 px. Höjden (min-h-11, 44 px träffyta) är ORÖRD: den är ett mått för
@@ -101,6 +102,7 @@ const BAS =
  * @param {string} [props.ariaLabel]
  * @param {string} [props.title]
  * @param {string} [props.id]
+ * @param {string} [props.form] Id på det `<form>` en `type="submit"` hör till, när knappen står UTANFÖR formuläret (0.31.0: skapa-panelens fasta knapprad).
  * @param {(event: any) => void} [props.onClick]
  * @param {import("react").ReactNode} props.children
  */
@@ -118,6 +120,7 @@ export function OpsButton({
   ariaLabel,
   title,
   id,
+  form,
   onClick,
   children,
 }) {
@@ -217,6 +220,7 @@ export function OpsButton({
   return (
     <button
       id={id}
+      form={form}
       className={klass}
       type={type}
       disabled={blocked}

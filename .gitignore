@@ -8,6 +8,3 @@ rules/provregler.rules
 
 # Genererad av scripts/generate-framework-version.mjs ur package.json. Se filhuvudet.
 src/lib/frameworkVersion.generated.js
-
-# Genererad av scripts/generate-varumarke.mjs ur varumarke/*.webp. Se filhuvudet.
-src/lib/varumarke.generated.js

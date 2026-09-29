@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { cx } from "../lib/cx.js";
 import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
@@ -133,33 +134,76 @@ export function OpsHubModul({
   const barn = modul.children ?? [];
   return (
     <div>
-      {/* ⛔ `top-[calc(var(--safe-top)+var(--topbar-height))]`: under toppraden, som panelen. `z-(--z-sticky)` ligger
-          UNDER `--z-chrome` (toppraden), så raden går in under den och inte över. */}
-      <nav
-        aria-label={brodsmulaEtikett}
-        className="sticky top-[calc(var(--safe-top)+var(--topbar-height))] z-(--z-sticky) -mx-4 mb-3 flex items-center gap-1 border-b border-line bg-canvas px-4"
-      >
-        <a
-          href={hubHref}
-          onClick={(e) => onNavigate?.(hubHref, e)}
-          className="-ml-2 inline-flex min-h-11 items-center gap-1 rounded-base px-2 text-sm text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-        >
-          <ChevronVansterIkon size={16} />
-          {hubEtikett}
-        </a>
-        <span aria-hidden="true" className="text-ink-muted">
-          /
-        </span>
-        <span aria-current="page" className="min-w-0 truncate text-sm font-semibold text-ink">
-          {modul.label}
-        </span>
-      </nav>
+      <OpsHubTillbaka hubHref={hubHref} hubEtikett={hubEtikett} etikett={modul.label} onNavigate={onNavigate} brodsmulaEtikett={brodsmulaEtikett} />
       {barn.length === 0 ? (
         <OpsEmpty title={tomRubrik} description={tomText} />
       ) : (
         <KortRutnat poster={barn} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={modul.label} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
       )}
     </div>
+  );
+}
+
+/**
+ * Tillbaka-raden "‹ Hub / Modul": EN komponent, för VARJE sida under Hub (0.31.0, fynd 3 i cllp/bolag-ops#475).
+ *
+ * ══ ⛔ SAMMA SIDNAVIGERING PÅ ALLA HUB-BARN ═══════════════════════════════
+ *
+ * CP:s design-QA på live 0.30.1: modulsidan (`OpsHubModul`) hade raden "‹ Hub / Ekonomi", men de sidor modulens kort leder till
+ * (Inkomster, Kostnader) hade den inte, eftersom bolag-ops kopierade raden ur `OpsHubModul`s markup i `UnderHub.jsx` i stället för
+ * att ramverket exporterade den. En kopia glider isär, och nu gjorde den det. Raden är därför en egen export, och regeln är:
+ * ⛔ **varje sida under Hub bär den**, från modulsidan och neråt. Appen ritar `<OpsHubTillbaka hubHref etikett />` (eller ger
+ * `OpsView` propen `tillbaka`) överst på varje sådan sida, och kopierar aldrig markupen.
+ *
+ * ⛔ `steg` är de mellanliggande stegen på vägen, för en sida två nivåer ned: `steg={[{ href: "/ekonomi", label: "Ekonomi" }]}` och
+ * `etikett="Inkomster"` ger "‹ Hub / Ekonomi / Inkomster", där "Ekonomi" är en länk och "Inkomster" är nuvarande sida.
+ *
+ * ⛔ RADEN HÅLLS I INNEHÅLLSKOLUMNEN (0.31.0): ingen negativ marginal, ingen fullbredd, och gruppanelen ligger över den i z-led
+ * (`--z-sticky-header` mot radens `--z-sticky`). Den är `sticky` under toppraden och en `<nav>` med `aria-current="page"` på
+ * det nuvarande namnet.
+ *
+ * @param {object} props
+ * @param {string} props.hubHref Hubbens `href`: "‹ Hub" leder dit.
+ * @param {string} props.etikett Den nuvarande sidans namn (sista steget, ingen länk).
+ * @param {ReadonlyArray<{ href: string, label: string }>} [props.steg] Mellanliggande länkar mellan Hub och den nuvarande sidan.
+ * @param {string} [props.hubEtikett] Förval "Hub".
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {string} [props.brodsmulaEtikett] Skärmläsarnamn på raden. Förval "Var du är".
+ */
+export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Hub", onNavigate, brodsmulaEtikett = "Var du är" }) {
+  if (typeof hubHref !== "string" || hubHref === "") {
+    throw new Error("OpsHubTillbaka: hubHref krävs. Tillbaka-raden är ett steg upp till Hub, och en rad som inte vet vart den leder är en knapp som inte gör något.");
+  }
+  if (typeof etikett !== "string" || etikett === "") {
+    throw new Error("OpsHubTillbaka: etikett krävs, den nuvarande sidans namn. Raden utan det säger inte var man är.");
+  }
+  const lank = "inline-flex min-h-11 items-center gap-1 rounded-base px-2 text-sm text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent";
+  return (
+    <nav
+      aria-label={brodsmulaEtikett}
+      className="sticky top-[calc(var(--safe-top)+var(--topbar-height))] z-(--z-sticky) mb-3 flex flex-wrap items-center gap-1 border-b border-line bg-canvas"
+    >
+      <a href={hubHref} onClick={(e) => onNavigate?.(hubHref, e)} className={cx(lank, "-ml-2")}>
+        <ChevronVansterIkon size={16} />
+        {hubEtikett}
+      </a>
+      {steg.map((x) => (
+        <Fragment key={x.href}>
+          <span aria-hidden="true" className="text-ink-muted">
+            /
+          </span>
+          <a href={x.href} onClick={(e) => onNavigate?.(x.href, e)} className={lank}>
+            {x.label}
+          </a>
+        </Fragment>
+      ))}
+      <span aria-hidden="true" className="text-ink-muted">
+        /
+      </span>
+      <span aria-current="page" className="min-w-0 truncate text-sm font-semibold text-ink">
+        {etikett}
+      </span>
+    </nav>
   );
 }
 
@@ -201,6 +245,7 @@ function ModulKort({ post, activeHref, onNavigate, badgeText, sprak, ingetNyttEt
   const ingetNytt = ingetNyttEtikett ?? (sprak === "en" ? "Nothing new" : "Inget nytt");
   /** @type {string | null} */
   const infoText = post.info === undefined ? null : post.info === null ? ingetNytt : text(post.info, sprak);
+  const ingetNyttRad = post.info === null;
   const harBadge = typeof post.badge === "number" && post.badge > 0;
   return (
     <a
@@ -227,7 +272,19 @@ function ModulKort({ post, activeHref, onNavigate, badgeText, sprak, ingetNyttEt
           </span>
         ) : null}
       </span>
-      {infoText ? <span className="block truncate text-xs text-ink-muted">{infoText}</span> : null}
+      {/* ⛔ 0.31.0 (fynd 8 i cllp/bolag-ops#475, "svag kontrast i info-rad och Inget nytt"): infon står i `ink-secondary` (7,65:1
+          mot kortet i ljust läge, `ink-muted` gav 3,76:1) och "Inget nytt" har en EGEN tyst statusstil: en liten punkt före
+          texten, så att den skiljs från metadata utan att bli svagare. Se paren i check-kontrast. */}
+      {infoText ? (
+        ingetNyttRad ? (
+          <span data-status="inget-nytt" className="flex items-center gap-1.5 truncate text-xs text-ink-secondary">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-line-strong" />
+            <span className="truncate">{infoText}</span>
+          </span>
+        ) : (
+          <span className="block truncate text-xs text-ink-secondary">{infoText}</span>
+        )
+      ) : null}
     </a>
   );
 }

@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**90 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**93 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -181,7 +181,7 @@ något godtyckligt.
 |---|---|
 | `OpsButton` | `variant` primary \| secondary \| ghost \| danger, `size` sm \| md, `type`, `disabled`, `busy`, `fullWidth`, `iconOnly`, `href`, `newTab`, `ariaLabel`, `title`, `id`, `onClick`, `children` |
 | `OpsCard` | `rounding` (`"kort"` 24 px, förval, eller `"bubbla"` 28 px). ⛔ TVÅ RADIER OCH INTE EN SKALA: `kort` för allt som är en RUTA (en panel, en sektion, en tabell), `bubbla` för det som är ett OBJEKT i en ström (en händelse, ett kort man bläddrar förbi). Skillnaden ska gå att se utan att jämföra, och ett tredje steg emellan gör att ingen av dem längre betyder något. Båda talen är MÄTTA mot SessionStudios `.rounded-app` (ops-framework#164): `kort` är `--radius-card` (24 px, ett namngivet token), `bubbla` är `--radius-3xl` (28 px, SessionStudios `--radius-bubble`). Kastar på en okänd rundning, eftersom en tyst reserv gör `"bubla"` till ett kort som ser nästan rätt ut. `tone` raised \| sunken \| plain, `kant` (förval `false`, #167), `elevated`, `flush`, `edge` 1-6, `edgeLabel`, `id`, `children`. ⛔ Inre padding är `--card-padding` (20px, #157, mätt mot SessionStudios `p-5`), ett token och inte en klass: `p-4` satt förut hårdkodat i komponenten, så en justering hade krävt en ändring per primitiv i stället för en rad i `tokens/tokens.css`. ⛔ **#167: `kant` förvalt `false`.** Kortet satte tidigare `border` ovillkorligt; SessionStudio skiljer ett kort från sidan med `tone` (tonskillnad), aldrig med en synlig kant. Sätt `kant` när en yta ändå behöver en, t.ex. mot en likfärgad granne |
-| `OpsView` | `width` narrow \| normal \| wide \| full, `children` |
+| `OpsView` | `width` narrow \| normal \| wide \| full, `tillbaka` (0.31.0: `OpsHubTillbaka`s props, raden "‹ Hub / Sida" överst), `children`. Se [Sidchrome och sidnavigering](#sidchrome-och-sidnavigering-0310). |
 | `OpsViewHeader` | `title`, `description`, `actions` |
 | `OpsModal` | `oppet`, `onOpenChange`, `title` (krävs), `description`, `size` sm \| md \| lg, `footer`, `closeLabel`, `children` |
 | `OpsDisclosure` | `summary` (krävs), `defaultOpen`, `oppet`, `onOpenChange`, `storageKey`, `badge`, `id`, `children` |
@@ -194,7 +194,8 @@ något godtyckligt.
 | `OpsInput` | `value`, `onChange`, `type` text \| email \| search \| tel \| url \| password \| number, `placeholder`, `name`, `autoComplete`, `disabled`, `readOnly`, `maxLength`, `ariaLabel` |
 | `OpsTextarea` | `value`, `onChange`, `placeholder`, `name`, `rows`, `disabled`, `maxLength`, `ariaLabel` |
 | `OpsSelect` | `options` [{value, label, disabled}], `value`, `onChange`, `placeholder`, `disabled`, `ariaLabel` |
-| `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel` |
+| `OpsDatePicker` | `value` ISO-datum, `onChange`, `placeholder`, `disabled`, `ariaLabel`, `clearLabel`. Öppnar en kalender som går att bläddra i även med ett valt datum, och ritas ovanför en `OpsModal` (`--z-dropdown` ligger över `--z-modal` sedan 0.31.0). |
+| `OpsTimePicker` | `value` `"HH:MM"` (24 h), `onChange`, `disabled`, `allowEmpty`, `timAriaLabel`, `minutAriaLabel`. Timme och minut i två listor med ett kolon emellan, som SessionStudios `ThemedTimeSelect.jsx`. ⛔ **Formulär får aldrig använda rå `<input type="date">` eller `type="time">`**: de ritas av operativsystemet, ser olika ut överallt och går inte att sätta tokens på. Datum är `OpsDatePicker`, tid är `OpsTimePicker`, båda med ett värde som är en sträng och inte ett `Date`. |
 | `OpsCheckbox` | `label`, `checked`, `onChange`, `disabled`, `hint` |
 | `OpsToggleRow` | `label`, `value`, `on`, `onChange`, `offLabel`, `control`, `trailing`. Rad som tonas ned i stället för att bockas ur. ⛔ Ett filter, inte ett påstående: kryssrutan frågar "är det sant?", den här frågar "ska det räknas?". ⛔ `control` lägger en kontroll UNDER knappen; `trailing` lägger en kompakt kontroll LÄNGST TILL HÖGER på samma rad (t.ex. `OpsSimulatePopover` eller `OpsKnob`). Båda ligger UTANFÖR knappen: ett reglage inuti en `<button>` är ogiltig HTML, och draget hade bubblat upp och tonat ned posten man just simulerade. Ramen bor därför på ett omslag. Utan båda ritas ingen extra behållare. |
 | `OpsFilePicker` | `value`, `onChange`, `maxChars`, `accept`, `paste`, `ariaLabel`, `labels` {valj, byt, taBort, klistra}. Välj en fil att bifoga: bild, PDF, kalkylark, kontoutdrag. Ger `{dataUrl, name, kind, chars, width?, height?}`. ⛔ Heter inte OpsImagePicker: en bildväljare som får ett kontoutdrag tvingar fram en skärmbild av ett dokument man redan har. Bilder krymps i steg, andra filer ryms eller avvisas med besked om vad man ska göra. ⛔ Lyssnar på inklistring i DOKUMENTET, för man klistrar in där blicken är, inte där fokus råkar ligga; två monterade väljare tar därför emot samma inklistring, och det är vad `paste={false}` finns till för. |
@@ -249,11 +250,12 @@ något godtyckligt.
 
 | Komponent | Props |
 |---|---|
-| `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label, icon?, badge?, children?}] (den GAMLA modellen), `fasta` { idag: {href}, kalender: {href}, hub: {href} } och `moduler` [samma form som `nav`] (den NYA, 0.30.0, #173: se [Navigationen](#navigationen)), `sprak`, `closeLabel`. ⛔ `nav` och `fasta` får inte ges ihop och `moduler` kräver `fasta` (skalet kastar). Med `fasta` är toppraden Idag, Kalender, Hub (Hub med chevron-dropdown över modulerna) och bottenraden Idag, Kalender, ETT STORT PLUS, Hub, Meny; `primaryAction` får då inte ges (plusset är skalets). ⛔ EN POST MED `children` ÄR EN RIKTIG MENY I TOPPRADEN sedan 2026-09-22, inte en länk med en pil. CP: "Ekonomi är ingen dropdown. Sublänkar saknas." Raden ritade en chevron så fort posten hade barn, men posten var en naken `<a href>`: ett tryck gick till föräldersidan och menyn fanns inte. Barnen ritades bara i MOBILENS Mer-ark, så på en dator gick de bara att nå genom att först besöka föräldersidan. Det är samma regel som kalenderkortets chevron fick, tillämpad på navet: en pil som öppnar ingenting är värre än ingen pil, för den lär den som ser den att pilar i appen inte betyder något. ⛔ ETIKETTEN ÄR LÄNKEN OCH CHEVRONEN ÄR KNAPPEN, alltså två kontroller som gör var sin sak. Första versionen lade föräldern som första RAD i menyn så att sidan skulle gå att nå, och CP såg genast varför det var fel: "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första rad sa Ekonomi, tjugo pixlar isär. ⛔ Att posten inte får vara EN länk som också öppnar står kvar och är ett annat skäl: då är trycket tvetydigt, navigerade jag eller öppnade jag. Här ger platsen svaret. ⛔ `submenuLabel` namnger chevronen ("Visa sidorna under Ekonomi"), för en pil utan ord är en knapp som inte går att höra. ⛔ Raden finns bara från 768 px; chevronens träffyta är ändå 44 px, för en surfplatta är en tumme, `activeHref`, `onNavigate`, `actions`, `anvandare`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `meny`, `menuLabel`, `navLabel`, `maxTopNav`, `maxTopNavSmal`, `children`. ⛔ `primaryAction` blir den runda knappen i bottenraden på telefon. På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en topprad det inte äger. ⛔ `menuExtras` (tema/helskärm m.m.) landar i Mer-menyn, inte i åtgärdsklustret. ⛔ **`meny`** (#164, ANDRA GRANSKNINGEN: EN hamburgare, inte två) `{ sektioner?, onLoggaUt, appVersion?, rubrik?, loggaUtEtikett? }`: appens EGEN meny, ritad i SKALETS EGEN hamburgare (samma knapp som navigeringens överflöd, inte en andra bredvid avataren i `anvandare`-facket). Med `meny` ritas hamburgaren ALLTID, inte bara vid överflöd. Ordningen i panelen: `meny.sektioner` (appens rader, `MenyRad[][]`: `key`, `etikett`, `ikon`, `onClick`, `href`, `chevron`, `badge`, `badgeText`, ritade med `OpsPanelRow`), sedan navigeringens överflödsrader i en egen sektion, sedan `menuExtras`, sedan Logga ut, sist TVÅ dämpade versionsrader (appens `appVersion` och ramverkets, var sin rad, aldrig hopslagna med en punkt). Botten-Meny-arket (`OpsBottomNav`) ritar samma `meny`-innehåll i samma ordning. Utan `meny`: skalet fungerar som förut, bara överflöd och `menuExtras`. ⛔ **`skapa`** (#168, plusset som i SessionStudio) `SkapaKonfiguration { handelse?, arende?, registreringar?, lage?, kataloger?, ikonRitare?, sprak?, onKlar? }`, plus `skapaLabel`, `nyHandelseEtikett`, `nyttArendeEtikett`, `skapaTypEtikett`: en plusknapp mellan `actions` och `anvandare` som öppnar en POPOVER med en platt lista, aldrig en yta i sidan. `handelse`/`arende` är RAMVERKETS egna rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler) och ritas FÖRST; modulernas `registreringar` (samma kontrakt som `OpsSkapa`, #150/#153) ritas därefter, med en avdelare mellan de två grupperna. Ett tryck på en rad öppnar en RIKTIG `OpsModal` (stängbar med X/Escape/klick utanför), aldrig en andra vy inuti popovern. Utan `skapa`, eller utan något den kan visa, ritas inget plus alls |
+| `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label, icon?, badge?, children?}] (den GAMLA modellen), `fasta` { idag: {href}, kalender: {href}, hub: {href} } och `moduler` [samma form som `nav`] (den NYA, 0.30.0, #173: se [Navigationen](#navigationen)), `sprak`, `closeLabel`. ⛔ `nav` och `fasta` får inte ges ihop och `moduler` kräver `fasta` (skalet kastar). Med `fasta` är toppraden Idag, Kalender, Hub (Hub med chevron-dropdown över modulerna) och bottenraden Idag, Kalender, ETT STORT PLUS, Hub, Meny; `primaryAction` får då inte ges (plusset är skalets). ⛔ EN POST MED `children` ÄR EN RIKTIG MENY I TOPPRADEN sedan 2026-09-22, inte en länk med en pil. CP: "Ekonomi är ingen dropdown. Sublänkar saknas." Raden ritade en chevron så fort posten hade barn, men posten var en naken `<a href>`: ett tryck gick till föräldersidan och menyn fanns inte. Barnen ritades bara i MOBILENS Mer-ark, så på en dator gick de bara att nå genom att först besöka föräldersidan. Det är samma regel som kalenderkortets chevron fick, tillämpad på navet: en pil som öppnar ingenting är värre än ingen pil, för den lär den som ser den att pilar i appen inte betyder något. ⛔ ETIKETTEN ÄR LÄNKEN OCH CHEVRONEN ÄR KNAPPEN, alltså två kontroller som gör var sin sak. Första versionen lade föräldern som första RAD i menyn så att sidan skulle gå att nå, och CP såg genast varför det var fel: "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första rad sa Ekonomi, tjugo pixlar isär. ⛔ Att posten inte får vara EN länk som också öppnar står kvar och är ett annat skäl: då är trycket tvetydigt, navigerade jag eller öppnade jag. Här ger platsen svaret. ⛔ `submenuLabel` namnger chevronen ("Visa sidorna under Ekonomi"), för en pil utan ord är en knapp som inte går att höra. ⛔ Raden finns bara från 768 px; chevronens träffyta är ändå 44 px, för en surfplatta är en tumme, `activeHref`, `onNavigate`, `actions`, `anvandare`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `meny`, `menuLabel`, `navLabel`, `maxTopNav`, `maxTopNavSmal`, `children`. ⛔ `primaryAction` blir den runda knappen i bottenraden på telefon. På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en topprad det inte äger. ⛔ `menuExtras` (tema/helskärm m.m.) landar i Mer-menyn, inte i åtgärdsklustret. ⛔ **`meny`** (#164, ANDRA GRANSKNINGEN: EN hamburgare, inte två) `{ sektioner?, onLoggaUt, appVersion?, rubrik?, loggaUtEtikett? }`: appens EGEN meny, ritad i SKALETS EGEN hamburgare (samma knapp som navigeringens överflöd, inte en andra bredvid avataren i `anvandare`-facket). Med `meny` ritas hamburgaren ALLTID, inte bara vid överflöd. Ordningen i panelen: `meny.sektioner` (appens rader, `MenyRad[][]`: `key`, `etikett`, `ikon`, `onClick`, `href`, `chevron`, `badge`, `badgeText`, ritade med `OpsPanelRow`), sedan navigeringens överflödsrader i en egen sektion, sedan `menuExtras`, sedan Logga ut, sist TVÅ dämpade versionsrader (appens `appVersion` och ramverkets, var sin rad, aldrig hopslagna med en punkt). Botten-Meny-arket (`OpsBottomNav`) ritar samma `meny`-innehåll i samma ordning. Utan `meny`: skalet fungerar som förut, bara överflöd och `menuExtras`. ⛔ **`skapa`** (#168, plusset som i SessionStudio) `SkapaKonfiguration { handelse?, arende?, registreringar?, lage?, kataloger?, ikonRitare?, sprak?, onKlar? }`, plus `skapaLabel`, `nyHandelseEtikett`, `nyttArendeEtikett`, `skapaTypEtikett`: en plusknapp mellan `actions` och `anvandare` som öppnar en POPOVER med en platt lista, aldrig en yta i sidan. `handelse`/`arende` är RAMVERKETS egna rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler) och ritas FÖRST; modulernas `registreringar` (samma kontrakt som `OpsSkapa`, #150/#153) ritas därefter, med en avdelare mellan de två grupperna. Ett tryck på en rad öppnar en PANEL i innehållskolumnen (0.31.0: se [Skapa är en panel](#skapa-är-en-panel-0310)), aldrig en modal och aldrig en andra vy inuti popovern. Utan `skapa`, eller utan något den kan visa, ritas inget plus alls |
 | `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `moreNav`, `activeHref`, `onNavigate`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. ⛔ Med `primaryAction` ritas en rund knapp MITT i raden och en flik flyttas till menyn: mätt ryms inte fyra flikar plus Meny plus en knapp på 56 px i 390 px. Knappen är en åtgärd och hamnar aldrig i menyn. Renderas av `OpsAppShell` men kan användas fristående |
 | `OpsHub` | `moduler` [samma form som `nav`, en nivå barn, plus `info?`], `activeHref`, `onNavigate`, `ariaLabel`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.0, #173; 0.30.1 modulkort) Appens moduler som ett rutnät av kort (`rounded-card`), varje kort EN länk med ikon, namn, räknare (`badge`, bara när den är större än noll) och en `info`-rad. Sidan Hub leder till; skalet ritar Hub-posten och dropdownen. ⛔ Tom lista visar text och aldrig en tom yta. Se [Hub och modulkort](#hub-och-modulkort) |
 | `OpsHubModul` | `modul` (med `children`), `hubHref` (krävs), `hubEtikett`, `activeHref`, `onNavigate`, `brodsmulaEtikett`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.1) En moduls egen sida i Hub: en fast tillbaka-rad ("‹ Hub / Ekonomi") och modulens barn som kort. Ritas av appen på modulens `href`. ⛔ Kastar utan `hubHref`; en modul utan barn visar text. Se [Hub och modulkort](#hub-och-modulkort) |
-| `OpsBrand` | `title` (krävs, appens namn; i bildläget bildens `alt`), `undertext` (0.30.0: ritar namnet som text UNDER bilden, förval falskt, toppraden ritar den aldrig, inloggningen gör), `subtitle` (textläget), `mark` phst \| phst-estd \| none, `ordmarke`/`ikon` ({ljus, mork} URL:er). ⛔ **#164, CP-beslut 2026-09-28 19:00: FÖRVALET ÄR RAMVERKETS EGET MÄRKE, OPS HUB**, inte text. Utan `ordmarke`/`ikon` ritas `OPS_HUB_VARUMARKE` (`src/lib/varumarke.js`, fyra PNG:er i `varumarke/`, paketets "files"). En app som skickar in EGNA `ordmarke`/`ikon` (allt-eller-inget, se filhuvudet) OVERRIDER förvalet med sin egen bild; `mark="none"` utan bild-props ger ren text som förut (och tar bort PH.ST-badgen). CP 19:10: bilden bär SITT märke (OPS Hub eller appens egen), `title` (appens namn, t.ex. "Bolag Ops") ritas som en dämpad, versal, spärrad undertext UNDER bilden, aldrig i bildens alt-text (som är tom, bilden är dekor) |
+| `OpsHubTillbaka` | `hubHref` (krävs), `etikett` (krävs, nuvarande sida), `steg` [{href, label}] (mellanliggande länkar), `hubEtikett`, `onNavigate`, `brodsmulaEtikett`. Raden "‹ Hub / Modul" som EN komponent (0.31.0): `OpsHubModul` ritar den, och VARJE sida under Hub ska rita den, via `OpsView tillbaka` eller direkt. ⛔ Kopiera aldrig markupen: bolag-ops gjorde det i `UnderHub.jsx`, och kopian glida isär. |
+| `OpsBrand` | ⛔ **0.31.0: märket är TEXT, inga bilder** (CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray Orange"). `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått = `ink`, resten gråorange = `marke-accent`; eller `{ forsta, andra }`), `undertext` (rad 2: appens eller gruppens namn; tom = bara rad 1, centrerad lodrätt), `monogram` (förval första bokstaven i varje ord, "OH"), `storlek` (`"topp"` | `"stor"`, den senare är inloggningens). Typsnittet ligger i ramverket (`fonts/glacial-indifference/`, SIL OFL med licensfil), storlekar och spärrning är tokens (`--marke-*`, mätta i CP:s bild). I `OpsAppShell` är `brand` (sträng) märkets `namn` och rad 2 den AKTIVA GRUPPENS namn i versaler; i läget Alla mina grupper används `undertext` på appens egen `<OpsBrand undertext="..." />`. Borta sedan 0.30: `title`, `subtitle`, `mark`, `ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `OPS_HUB_VARUMARKE` |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll.  ⛔ `icon` på ett läge ritar ikonen I STÄLLET för ordet, med ordet kvar som `sr-only`: en ikon utan namn är en knapp som inte går att höra. ANTINGEN ALLA LÄGEN ELLER INGET, annars kastar den — en ikon bredvid ett ord ser ut som ett fel |
 | `OpsFilterChip` | `options` [{value, label}], `value`, `onChange`, `ariaLabel` (krävs), `allLabel`. Pillerformat filter bredvid en lista. ⛔ Valt värde står i pillret, annars läser man en beskuren lista i tron att den är komplett. |
@@ -290,7 +292,7 @@ något godtyckligt.
 | `OpsSpinner` | EN väntesymbol, som annonserar för skärmläsare utan att göra det två gånger |
 | `OpsDataView` | de tre datatillstånden som kod i stället för som kommentar, så en vakt kan se skillnad på en vy som följer regeln och en som glömde den |
 | `OpsTag` | härleder tonen ur etiketten, så ny kategori kräver ingen kod |
-| `OpsBrand` | byter märke med temat, inte med systemets inställning |
+| `OpsBrand` | märket är text i två färger som byter ton med temat (ljust tema: `ink` och en mörkare orange som klarar 3:1), i stället för en bild per tema |
 | `OpsThemeToggle` | tre lägen, så "följ systemet" inte försvinner, i en 44 px ikonknapp i stället för en 140 px textdropdown |
 | `OpsCard` | vägrar rita en färgad kant utan ett ord som säger vad färgen betyder |
 | `OpsIdentity` | initialer som inte klipper mitt i ett tecken |
@@ -466,7 +468,7 @@ importerar ingen auth-SDK**, appen skickar in den.
 | `createAuth(adapter)` | för en egen inloggning. Normaliserar en adapter till FÖRMÅGOR: `signOut`+`subscribe` krävs, resten (`signInWithGoogle`, där `signIn` fungerar fortfarande bakåtkompatibelt, `signInWithApple`, `sendEmailLink`, `completeEmailLink`, `signInWithPassword`, `createAccount`, `resetPassword`) är valfria funktioner |
 | `OpsAuthProvider`, `useOpsAuth` | inloggat konto: `user`, `loading`, `error`, `auth` (den normaliserade förmågelistan), `signOut`, `clearError` |
 | `OpsAuthGate` | ritar `OpsInloggning` (se nedan) i utloggat läge, sitt innehåll för den som är inloggad och har rätt roll |
-| `OpsInloggning` | `auth` (krävs, från `createAuth`/`createGoogleAuth`), `rubrik`, `etikett`, `viskning`, `lankar` [{label, href}], `appVersion`, `sprak`, `onSprak`, `fel`, `onRensaFel`. ⛔ **#164, KORRIGERING B, EXAKT FORM UR EN SKÄRMBILD AV SESSIONSTUDIO**: helskärm, `OpsBrand` (OPS Hub-förvalet eller appens egen logga) med `etikett` och `viskning` under, ett kort (`--radius-card`) med en Swe/Eng-pill, EN leverantörsrad per förmåga `auth` faktiskt har (ingen gissning, ingen rad utan sin förmåga), en "ELLER"-avdelare bara när det finns fler än en väg in, en primär pill till lösenordsformuläret, en sekundär pill "Skapa konto" (bara med `createAccount`), en textlänk till e-postlänksflödet (bara med `sendEmailLink`), och en sidfot med `lankar` + `appVersion` på samma rad |
+| `OpsInloggning` | `auth` (krävs, från `createAuth`/`createGoogleAuth`), `namn` (0.31.0, märkets rad 1, förval "OPS HUB"), `rubrik`, `etikett`, `viskning`, `lankar` [{label, href}], `appVersion`, `sprak`, `onSprak`, `fel`, `onRensaFel`. ⛔ **#164, KORRIGERING B, EXAKT FORM UR EN SKÄRMBILD AV SESSIONSTUDIO**: helskärm, `OpsBrand storlek="stor"` (0.31.0: text, rad 1 32 px) med `etikett` som rad 2 och `viskning` under, ett kort (`--radius-card`) med en Swe/Eng-pill, EN leverantörsrad per förmåga `auth` faktiskt har (ingen gissning, ingen rad utan sin förmåga), en "ELLER"-avdelare bara när det finns fler än en väg in, en primär pill till lösenordsformuläret, en sekundär pill "Skapa konto" (bara med `createAccount`), en textlänk till e-postlänksflödet (bara med `sendEmailLink`), och en sidfot med `lankar` + `appVersion` på samma rad |
 
 Rollen kommer **aldrig** från Google. Google svarar på vem någon är, inte på vad
 hen får göra. Rollen läses ur appens egen användarlista, alltså ett dokument per
@@ -530,7 +532,7 @@ den inte har, och rättades. Facket bär bara identiteten:
 
 ```jsx
 <OpsAppShell
-  brand="Bolag Ops"
+  brand={<OpsBrand undertext="Bolag Ops" />}
   nav={nav}
   activeHref={activeHref}
   anvandare={
@@ -1136,7 +1138,7 @@ SessionStudios per-grupp-färgade markering bygger ett eget lager ovanpå
 (`md:w-[184px]` / `w-11`), INTE 288/72 OCH INTE EN TAILWIND-LITERAL PER
 FIL.** `OpsGruppanel` (kolumnens egen bredd) läser tokenet direkt.
 Toppradens logoruta är en EGEN, mindre ruta (`--logo-bredd` 180px /
-`--logo-bredd-infalld` 44px→40px, mätt ur `AppHeader.jsx` rad 174, se
+`--logo-bredd-infalld` 40px, mätt ur `AppHeader.jsx` rad 174, se
 `OpsBrand` nedan): 180 mot 184 och 40 mot 44 är samma 4px-differens, av
 samma skäl (asidet har `px-0.5`, logorutan har det inte), alltså TVÅ
 tokenpar och inte ett gemensamt. Ett prov läser varje fil ur sitt eget par
@@ -1146,39 +1148,48 @@ hade även fångat en förklarande kommentar, och missat att en verklig
 regression ändå gjorde provet grönt).
 
 ⛔ **KOLLAPS ÄGS AV APPEN, PRECIS SOM VALET.** `grupper.infalld`/`onInfalld`
-styr BÅDE panelens läge OCH brandets ikon/ordmärke-val (se nedan). Utan dem
+styr BÅDE panelens läge OCH märkets monogram/ordmärke-val (se nedan). Utan dem
 sköter `OpsGruppanel` kollapset själv (internt `useState`, samma styrd/ostyrd
 mönster som `OpsPanel`s `open`), men brandet följer då bara skärmbredden som
 förut: en fristående `OpsGruppanel` UTANFÖR skalet fungerar alltså fint utan
 dem, det är bara kopplingen till logotypen som kräver den styrda formen.
 
-#### ⛔ Logotypen följer panelens läge, inte bara skärmbredden
+#### ⛔ Märket är text och följer panelens läge (0.31.0)
 
-CP 2026-09-28: "Var noga med utfällt och infällt läge och vad som händer med
-logotypen... Skalet äger alltså både panelens läge och brandens form; koppla
-dem i OpsAppShell." `OpsBrand` fick därför en ny prop, `panelInfalld`
-(boolean, utelämnad: brandet följer bara skärmbredden som förut, oförändrat
-för appar som inte använder `grupper`).
+CP 2026-09-29: "Vi tar bort bilder, kör med text." Före 0.31.0 var märket fyra
+webp-bilder. Nu är det `OpsBrand`: två rader text (`OPS HUB` med "OPS" ljusgrått och
+"HUB" gråorange, under den appens eller gruppens namn) i Glacial Indifference, versaler,
+spärrade. Storlekar och spärrning är mätta i CP:s bild och bor som tokens (`--marke-*`
+i `tokens/tokens.css`, med mätningen i CHANGELOG 0.31.0), aldrig som literaler i en
+komponent.
 
-⛔ **RÄTTAD 2026-09-28: BÅDA BILDERNA ÄR ALLTID MONTERADE, VÄXLING ÄR
-`OPACITY`, ALDRIG MOUNT/UNMOUNT.** Mätt ur `AppHeader.jsx` rad 174-193: en
-`relative`-ruta med BÅDA `<img>`-taggarna hela tiden i DOM, `transition-
-opacity duration-200`. En första version av `panelInfalld` (då `tvingaIkon`)
-tog bort ordmärket helt och ritade bara ikonen, vilket INTE är samma sak:
-det ger ett hopp i stället för en tondämpning, och det är precis den sortens
-flimmer `AppSidebar.jsx` rad 13-16 redan dokumenterar som ett löst fel
-(bredd-transition borttagen av samma skäl, 2026-04-22).
+**Placering (mätt, `check-skalyta` sektion 10):**
 
-⛔ **RUTAN HAR EN FAST BREDD UR `--logo-bredd`/`--logo-bredd-infalld`
-(180px/40px, `AppHeader.jsx` rad 174), INTE `--panel-bredd`.** Se
-föregående avsnitts not om varför logorutan och panelen är två olika tal
-trots att de ser lika ut på en skärmbild.
+- **Utfälld:** de två raderna är centrerade över kortens bredd i gruppanelen, samma
+  mittlinje som korten (högst 1 px). Rutan är 180 px (`--logo-bredd`) och börjar
+  `--panel-kant` (2 px) in från panelens kant, eftersom panelens innehåll gör det.
+- **Infälld:** monogrammet "OH" står i EXAKT samma ruta som gruppernas i remsan
+  (`gruppRutaKlass`, en funktion som remsan, chevronknappen och monogrammet delar):
+  40 px, samma rundning, kantfärg, kantbredd och yta, samma mittlinje.
+- **Rörelsen** är SessionStudios (`AppHeader.jsx:174-193`): båda formerna är alltid
+  monterade och växlar med en opacity-crossfade på 200 ms, aldrig mount/unmount.
+- **Utan gruppanel** (mobil, eller en app utan `grupper`): monogramrutan under `md`,
+  vänsterställd; ordmärket från `md`.
 
-`OpsAppShell` sätter `panelInfalld={grupper.infalld}` på brandet när
-`grupper` är given: en sträng-`brand` blir ett nytt `OpsBrand` med propen på
-raka rör, ett FÄRDIGT `<OpsBrand .../>`-element KLONAS med `cloneElement`,
-och ett GODTYCKLIGT `brand`-nod (egen logga, ren text) lämnas orört,
-eftersom det inte har en `panelInfalld`-prop att klona in.
+**Undertexten:** med `grupper` och en vald grupp är rad 2 gruppens namn i versaler.
+I läget "Alla mina grupper" (eller utan grupper) används `undertext` på appens egen
+`<OpsBrand undertext="Bolag Ops" />`; saknas den ritas bara rad 1, centrerad lodrätt.
+Ett långt gruppnamn kapas med ellipsis, rutan växer aldrig.
+
+`OpsAppShell` sätter `panelInfalld` (och undertexten) på märket när `grupper` är given:
+en sträng-`brand` blir märkets `namn`, ett FÄRDIGT `<OpsBrand .../>`-element KLONAS med
+`cloneElement`, och ett GODTYCKLIGT `brand`-nod (ren text, egen komponent) lämnas orört.
+`brand` utelämnad ger förvalet "OPS HUB". **Använd inte `brand` för appens namn** (det var
+den gamla betydelsen): märket är ramverkets, appens namn är `undertext`.
+
+**Typsnittet** (`fonts/glacial-indifference/`) är SIL Open Font License 1.1 och paketeras
+med sin licensfil; `check-fonts` fäller ett paketerat typsnitt utan licens. Bara märket
+använder det (`font-marke`); resten är Plus Jakarta Sans.
 
 #### ⛔ Under 1024 px är ett ark, inte alltid ETT ark (#161)
 
@@ -1496,6 +1507,36 @@ och modalen hör hemma i `OpsAppShell props.skapa`, som är den yta som äger
 plusknappen. Modulkontraktet är OFÖRÄNDRAT (#150/#153): modulen registrerar
 fortfarande vad den kan skapa.
 
+### Skapa är en panel, inte en modal (0.31.0)
+
+CP 2026-09-29: "Skapa nytt i ramverket. Låt det vara paneler istället för modaler precis som i sessionstudio." Och, med en
+skärmbild från telefonen (390 px, "Nytt ärende"): arket började direkt under statusraden och täckte hela appens huvud, nästa
+fält klipptes utan synlig knapprad, och valkorten var höga med stor text och mycket luft. Före 0.31.0 öppnade en rad i plusset en
+`OpsModal`; nu öppnar den `OpsSkapaPanel` (en intern komponent, ingen export), som SS "Ny grupp" (`GroupEditRouteView.jsx:36-47`,
+`ManageGroupModal.jsx:454,479,640`).
+
+| Del | Beteende |
+|---|---|
+| Dator (från `md`) | En sida i innehållskolumnen. Huvudet och gruppanelen står kvar. "‹ Tillbaka" överst, rubrik, formuläret i en kolumn (högst 880 px, centrerad) och en FAST knapprad längst ned till höger: `Avbryt` som textknapp, `Spara` som fylld accentknapp. |
+| Telefon (under `md`) | Helskärm (`fixed`, 0,0 mot hela vyn) med en egen rubrikrad (Tillbaka och titel), en kropp som rullar och en knapprad som ligger kvar inom `--safe-bottom`. Bottenraden täcks. Höjden följer `visualViewport`, så med tangentbordet uppe ligger både det aktiva fältet och knappraden ovanför det. |
+| Adress | `?skapa=<handelse\|arende\|registreringens id>` läggs i adressen vid öppning, så webbläsarens Tillbaka fungerar och panelen går att länka till. `skapa.adress: false` stänger av det för en app vars router inte tål att någon annan skriver i historiken. |
+| Tillbaka | Appens vy är kvar i DOM:en, dold, medan panelen visas: Tillbaka återställer exakt den vy och rullposition man kom från. |
+| Roll | Panelen är en region med rubrik, aldrig `role="dialog"`: den är en del av sidan, inte ett lager över den. |
+
+⛔ **KNAPPRADEN ÄR SKALETS, FORMULÄRET ÄR APPENS.** Ett moduls- eller händelseformulär får `{ groupId, typ, mal, formId, onKlar }`. Ger
+formuläret sitt `<form>` `id={formId}` och skickar appen `skapa.sparaEtikett`, ritar skalet `Spara` som `type="submit" form={formId}` i den
+fasta knappraden. Utan `sparaEtikett` har formuläret en egen knapp och bara `Avbryt` är skalets. Övriga etiketter: `avbrytEtikett`,
+`tillbakaEtikett`, `skapasIEtikett`, `skapaIRubrik`. `OpsButton` fick propen `form` för det här.
+
+⛔ **"SKAPA I" (SS `CalendarCreateDestinationSheet.jsx`).** Med en vald grupp skapas det i den, och panelens översta rad visar
+"Skapas i: <grupp> ⌄" som öppnar väljaren. I läget "Alla mina grupper" visas väljaren FÖRST (en centrerad dialog på dator, ett ark på
+telefon: rubrik, sektionen GRUPPER med ett 34 px märke, namn och medlemsantal per rad, vald rad med accentkant, en valfri andra sektion
+som appen fyller via `skapa.skapaISektioner`, t.ex. "Mina kalendrar", och `Avbryt` längst ned), och panelen först efter ett val.
+Väljaren är den exporterade komponenten `OpsSkapaI`. Ett val i appens egen sektion når formuläret som `mal: { sektion, id }` och
+`groupId` är då `null`.
+
+⛔ **Formulär får aldrig använda rå `<input type="date">` eller `type="time">`**: `OpsDatePicker` och `OpsTimePicker`.
+
 ⛔ **RAMVERKETS EGNA RADER FÖRST, MODULERNAS SEDAN (#168, CP:s rättelse
 23:35).** Idag/kalendern och Inkorgen är inte moduler, de är ramverkets egna
 vyer, och deras "Ny händelse"/"Nytt ärende"-rader hör därför inte till
@@ -1629,6 +1670,29 @@ Speglingen kräver en token. Gränsen upprätthålls av `check-node-side` och in
 kommentar, eftersom ett löfte om att en hemlighet inte läcker är värt exakt vad den
 som råkar bryta det råkar minnas.
 
+### Sidchrome och sidnavigering (0.31.0)
+
+Design-QA på live 0.30.1 (cllp/bolag-ops#475, ramverkets del):
+
+- ⛔ **Varje sida under Hub har raden "‹ Hub / Sida".** `OpsHubModul` ritar den på modulsidan; sidorna modulens kort leder till ger
+  `OpsView` propen `tillbaka={{ hubHref, etikett, steg }}` (eller ritar `OpsHubTillbaka` direkt). En sida två nivåer ned ger
+  `steg={[{ href: "/ekonomi", label: "Ekonomi" }]}` och blir "‹ Hub / Ekonomi / Inkomster". Raden kopieras aldrig.
+- **Sidchrome ligger i tokens, inte i sidan.** `OpsView` ger max-bredd (`narrow`, `normal`, `wide`, `full`), sidomarginal (16 px),
+  vertikal rytm (`gap-4`) och `--safe-bottom`; `OpsViewHeader` ger rubriken (rollen `rubrik`, `OpsHelp` bakom frågetecknet); kort och
+  paneler har rundningen `--radius-card` (24 px) och raderna `--radius-base` (12 px). En app som ritar sin egen sida ärver dem genom
+  att ligga i en `OpsView`, och skriver aldrig egna `max-w-*`, `px-*` eller `rounded-*` runt innehållet.
+- **Gruppmodellen är densamma överallt:** från `lg` gruppanelen (utfälld eller infälld), under `lg` en gruppväxlare i huvudet som visar den
+  aktiva gruppens märke (och från `md` dess namn) och öppnar listan. Aldrig en ensam chevron utan grupp. Mäts vid 390, 900 och 1280 px på
+  Hub och modulsidan.
+- **Hub och modulsidan flödar aldrig över.** Raden hade `-mx-4` och gav horisontell överflödning i en kolumn utan egen padding; den hålls nu i
+  innehållskolumnen. Barnkorten under en modul är samma kort som Hubs (ikon, namn, räknare, info).
+- **Info-raden i ett Hubkort** är `ink-secondary` (7,65:1 mot kortet i ljust läge; `ink-muted` gav 3,76:1) och "Inget nytt" har en egen tyst
+  statusstil (en punkt före texten). Paren står i check-kontrast.
+- **Ikonknapparna i huvudet** har `aria-label` OCH en synlig tooltip med namnet vid hover och fokus. Åtgärder som flyttas till menyn under `md`
+  (Fråga) står där med sitt namn.
+- **Inloggningskontrollen är ett skelett**, inte en text: huvudet och innehållet som grå block, och efter `laddaLangsamMs` (8 s) en rad med
+  "Försök igen" (`onForsokIgen`, förval: ladda om).
+
 ### Navigationen
 
 [#173](https://github.com/cllp/ops-framework/issues/173), CP 2026-09-29. Skalet har
@@ -1638,7 +1702,7 @@ två modeller för sin navigering, och en app väljer EN.
 
 ```jsx
 <OpsAppShell
-  brand="Bolag Ops"
+  brand={<OpsBrand undertext="Bolag Ops" />}
   fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
   moduler={[{ href: "/ekonomi", label: "Ekonomi", icon: <Wallet />, children: [{ href: "/inkomster", label: "Inkomster" }] }]}
   activeHref={pathname}
