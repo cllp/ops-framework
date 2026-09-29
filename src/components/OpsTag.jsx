@@ -60,7 +60,7 @@ export function OpsTag({ label, tone, onRemove, removeLabel }) {
   }
 
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full py-1 text-xs font-semibold leading-tight", tonKlass, onRemove ? "pl-3 pr-1" : "px-3")}>
+    <span className={cx("inline-flex items-center gap-1 rounded-full py-1 text-meta font-semibold leading-tight", tonKlass, onRemove ? "pl-3 pr-1" : "px-3")}>
       {label}
       {onRemove ? (
         <button

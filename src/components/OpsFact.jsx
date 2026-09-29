@@ -70,7 +70,7 @@ export function OpsFact({ kind, label, value }) {
   const text = label ?? s.text;
 
   return (
-    <span className={cx("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold leading-tight", s.klass)}>
+    <span className={cx("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-meta font-semibold leading-tight", s.klass)}>
       {value != null && value !== "" ? (
         <>
           <span className="tabular-nums">{value}</span>

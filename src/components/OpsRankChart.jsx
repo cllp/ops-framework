@@ -76,9 +76,9 @@ export function OpsRankChart({ rows, ariaLabel, max, empty = null }) {
         return (
           <li key={r.id} className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="min-w-0 truncate text-sm text-ink">{r.label}</span>
+              <span className="min-w-0 truncate text-etikett text-ink">{r.label}</span>
               {r.text === undefined || r.text === null ? null : (
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{r.text}</span>
+                <span className="shrink-0 text-etikett font-semibold tabular-nums text-ink">{r.text}</span>
               )}
             </div>
 
@@ -98,7 +98,7 @@ export function OpsRankChart({ rows, ariaLabel, max, empty = null }) {
               />
             </div>
 
-            {r.note ? <span className="text-sm text-ink-muted">{r.note}</span> : null}
+            {r.note ? <span className="text-etikett text-ink-muted">{r.note}</span> : null}
           </li>
         );
       })}

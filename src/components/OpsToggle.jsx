@@ -40,7 +40,7 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
     <div className="flex flex-col gap-1">
       <label
         htmlFor={id}
-        className={cx("flex min-h-11 cursor-pointer items-center gap-2 text-base text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
+        className={cx("flex min-h-11 cursor-pointer items-center gap-2 text-brod text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
       >
         <input
           id={id}
@@ -65,7 +65,7 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
         {label}
       </label>
       {hint ? (
-        <p id={hintId} className="pl-7 text-sm text-ink-muted">
+        <p id={hintId} className="pl-7 text-etikett text-ink-muted">
           {hint}
         </p>
       ) : null}
@@ -81,7 +81,7 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) 
     <div className="flex flex-col gap-1">
       <label
         htmlFor={id}
-        className={cx("flex min-h-11 cursor-pointer items-center gap-3 text-base text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
+        className={cx("flex min-h-11 cursor-pointer items-center gap-3 text-brod text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
       >
         <input
           id={id}
@@ -148,7 +148,7 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) 
         {label}
       </label>
       {hint ? (
-        <p id={hintId} className="pl-13 text-sm text-ink-muted">
+        <p id={hintId} className="pl-13 text-etikett text-ink-muted">
           {hint}
         </p>
       ) : null}

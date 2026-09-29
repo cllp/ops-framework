@@ -230,7 +230,7 @@ describe("C: hover och rundning (#173)", () => {
     render(Skal());
     fireEvent.click(screen.getByRole("button", { name: /Meny, fler åtgärder/ }));
     const rad = within(screen.getByRole("dialog")).getByRole("button", { name: "Aktivitet" });
-    for (const k of ["rounded-base", "hover:bg-raised", "px-3", "py-2.5", "text-xs"]) expect(rad.className).toContain(k);
+    for (const k of ["rounded-base", "hover:bg-raised", "px-3", "py-2.5", "text-meta"]) expect(rad.className).toContain(k);
     expect(rad.className).not.toContain("rounded-sm");
   });
 
@@ -372,7 +372,7 @@ describe("D: typografin på ETT ställe (#173)", () => {
     const css = fs.readFileSync(pathMod.resolve(process.cwd(), "tokens", "tokens.css"), "utf8");
     const fixtur = JSON.parse(fs.readFileSync(pathMod.resolve(process.cwd(), "tokens", "sessionstudio-profil.json"), "utf8"));
     const roller = Object.keys(fixtur.typografi.roller).filter((n) => !n.startsWith("_"));
-    expect(roller.sort()).toEqual(["etikett", "hjalp", "liten", "mikro", "rubrik", "sektion"]);
+    expect(roller.sort()).toEqual(["brod", "etikett", "hjalp", "liten", "meta", "mikro", "rubrik", "sektion", "sida", "titel"]);
     for (const r of roller) {
       expect(css).toContain(`--text-${r}: ${fixtur.typografi.roller[r].storlek};`);
       expect(css).toContain(`--text-${r}--font-weight: ${fixtur.typografi.roller[r].vikt};`);

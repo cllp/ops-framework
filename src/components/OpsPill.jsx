@@ -31,7 +31,7 @@ export function OpsPill({ tone = "neutral", children }) {
     throw new Error(`OpsPill: okänd tone "${tone}". Giltiga: ${Object.keys(TONER).join(", ")}.`);
   }
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold leading-tight", tonKlass)}>
+    <span className={cx("inline-flex items-center gap-1 rounded-full px-3 py-1 text-meta font-semibold leading-tight", tonKlass)}>
       {children}
     </span>
   );

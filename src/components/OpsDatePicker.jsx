@@ -131,8 +131,8 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
               setOppen(false);
             }}
             classNames={{
-              months: "text-xs text-ink",
-              month_caption: "flex items-center justify-center py-1 text-xs font-semibold text-ink",
+              months: "text-meta text-ink",
+              month_caption: "flex items-center justify-center py-1 text-meta font-semibold text-ink",
               nav: "flex items-center justify-between",
               // 44px träffyta på telefon (size-11), tätare på desktop (md:size-9).
               button_previous: "inline-flex size-11 md:size-9 items-center justify-center rounded-md text-ink-secondary hover:bg-accent-faint",
@@ -140,7 +140,7 @@ export function OpsDatePicker({ value, onChange, placeholder = "Välj datum", di
               weekday: "text-liten font-medium text-ink-muted",
               day: "p-0",
               day_button:
-                "inline-flex size-11 md:size-9 items-center justify-center rounded-base text-xs text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                "inline-flex size-11 md:size-9 items-center justify-center rounded-base text-meta text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
               selected: "[&_button]:bg-accent [&_button]:text-accent-contrast",
               today: "[&_button]:font-bold [&_button]:text-accent",
               outside: "[&_button]:text-ink-muted",

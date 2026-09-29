@@ -333,7 +333,7 @@ export function MenyRubrikRad({ rubrik, onBack, backLabel = "Tillbaka till menyn
   return (
     <div className={cx("flex items-center gap-1", className)}>
       <MenyTillbakaKnapp onBack={onBack} backLabel={backLabel} />
-      <h2 className="m-0 min-w-0 flex-1 truncate text-base font-semibold text-ink">{rubrik}</h2>
+      <h2 className="m-0 min-w-0 flex-1 truncate text-brod font-semibold text-ink">{rubrik}</h2>
       {action ? <div className="flex shrink-0 items-center gap-0.5">{action}</div> : null}
     </div>
   );
@@ -392,8 +392,8 @@ export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", appVersion, ko
       key: "versioner",
       innehall: (
         <div className="flex flex-col gap-0.5 px-3 py-1.5">
-          {appVersion ? <span className="text-xs text-ink-muted">{appVersion}</span> : null}
-          <span className="text-xs text-ink-muted">{`ops-framework v${OPS_FRAMEWORK_VERSION}`}</span>
+          {appVersion ? <span className="text-meta text-ink-muted">{appVersion}</span> : null}
+          <span className="text-meta text-ink-muted">{`ops-framework v${OPS_FRAMEWORK_VERSION}`}</span>
         </div>
       ),
     },

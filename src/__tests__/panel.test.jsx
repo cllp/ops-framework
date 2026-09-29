@@ -117,11 +117,11 @@ describe("OpsPanelRow", () => {
    * `text-xs`. `text-base` var en tredjedel större än förlagan på en yta
    * filhuvudet redan påstod var densamma.
    */
-  it("⛔ radens text är text-xs, samma som SessionStudios menyrader (#164)", () => {
+  it("⛔ radens text är text-meta (12 px), samma som SessionStudios menyrader (#164)", () => {
     const { container } = render(<OpsPanelRow label="Rad" />);
     const knapp = container.querySelector("button, a");
-    expect(knapp.className).toContain("text-xs");
-    expect(knapp.className).not.toContain("text-base");
+    expect(knapp.className).toContain("text-meta");
+    expect(knapp.className).not.toContain("text-brod");
   });
 
   /*
@@ -389,21 +389,21 @@ describe("OpsPanel på smal skärm", () => {
 });
 
 describe("OpsPanelRow accent (#168, mätt ur SessionStudios create-meny)", () => {
-  it("⛔ en accent-rad bär ramverkets mätta mått: px-4 py-2.5, gap-3, text-sm font-medium, text-accent", () => {
+  it("⛔ en accent-rad bär ramverkets mätta mått: px-4 py-2.5, gap-3, text-etikett font-medium, text-accent", () => {
     render(<OpsPanelRow label="Ny händelse" accent onClick={() => {}} />);
     const rad = screen.getByRole("button", { name: "Ny händelse" });
-    for (const klass of ["px-4", "py-2.5", "gap-3", "text-sm", "font-medium", "text-accent"]) {
+    for (const klass of ["px-4", "py-2.5", "gap-3", "text-etikett", "font-medium", "text-accent"]) {
       expect(rad.className).toContain(klass);
     }
     // ⛔ INTE den vanliga menyradens mått på samma gång: de två är olika rader.
-    expect(rad.className).not.toContain("text-xs");
+    expect(rad.className).not.toContain("text-meta");
     expect(rad.className).not.toContain("px-3");
   });
 
-  it("utan accent är raden oförändrad: text-xs, px-3, ingen text-accent", () => {
+  it("utan accent är raden oförändrad: text-meta, px-3, ingen text-accent", () => {
     render(<OpsPanelRow label="Inställningar" onClick={() => {}} />);
     const rad = screen.getByRole("button", { name: "Inställningar" });
-    expect(rad.className).toContain("text-xs");
+    expect(rad.className).toContain("text-meta");
     expect(rad.className).toContain("px-3");
     expect(rad.className).not.toContain("text-accent");
   });

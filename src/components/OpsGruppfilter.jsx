@@ -54,7 +54,7 @@ export function OpsGruppfilter({ grupper, bortkryssade, onAndra, antal, sprak, a
             aria-pressed={med}
             onClick={() => onAndra(med ? [...bort, g.id] : [...bort].filter((x) => x !== g.id))}
             className={cx(
-              "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-sm",
+              "inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-etikett",
               "transition-colors duration-(--duration-fast) ease-standard",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               /*
@@ -70,7 +70,7 @@ export function OpsGruppfilter({ grupper, bortkryssade, onAndra, antal, sprak, a
             <span className="truncate">{namn}</span>
             {/* ⛔ Siffran skrivs ut även när den är noll: en grupp utan rader
                 och en grupp som inte räknats ser annars likadana ut. */}
-            {typeof n === "number" ? <span className="text-xs text-ink-secondary">{n}</span> : null}
+            {typeof n === "number" ? <span className="text-meta text-ink-secondary">{n}</span> : null}
           </button>
         );
       })}

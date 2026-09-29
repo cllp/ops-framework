@@ -361,7 +361,7 @@ export function OpsProfil({
                     när appen skickar en, eftersom rollens ORD är appens (t.ex. "Studio Admin"). */}
                 {roll ? <OpsPill tone="neutral">{roll}</OpsPill> : null}
               </div>
-              <p className="truncate text-sm text-ink-secondary">
+              <p className="truncate text-etikett text-ink-secondary">
                 <span className="sr-only">{epostEtikett}: </span>
                 {anvandare.epost}
               </p>
@@ -372,7 +372,7 @@ export function OpsProfil({
               från uppladdningsraden nedanför. Två strängar i `users/{uid}`, inga filer. */}
           <div className="mt-3 flex flex-col gap-2">
             <div>
-              <p className="mb-1 text-xs text-ink-secondary">{valjIkonEtikett}</p>
+              <p className="mb-1 text-meta text-ink-secondary">{valjIkonEtikett}</p>
               <div role="group" aria-label={valjIkonEtikett} className="flex flex-wrap gap-2">
                 {PROFILIKONER.map((id) => {
                   const Ikon = PROFILIKON_KOMPONENT[id];
@@ -394,7 +394,7 @@ export function OpsProfil({
               </div>
             </div>
             <div>
-              <p className="mb-1 text-xs text-ink-secondary">{fargEtikett}</p>
+              <p className="mb-1 text-meta text-ink-secondary">{fargEtikett}</p>
               <div role="group" aria-label={fargEtikett} className="flex flex-wrap gap-2">
                 {PROFILFARGER.map((id) => {
                   const vald = anvandare.farg === id;
@@ -462,7 +462,7 @@ export function OpsProfil({
             ) : null}
           </div>
           {bildFel ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <p role="alert" className="mt-2 text-etikett text-danger">
               {bildFel}
             </p>
           ) : null}
@@ -499,7 +499,7 @@ export function OpsProfil({
               // identitet innan den sparats (ingen id, ingen unik url ännu),
               // och radernas ANTAL och ORDNING är det enda listan känner till.
               <div key={i} className="flex items-center gap-2">
-                <span className="w-28 shrink-0 truncate text-sm text-ink-secondary">
+                <span className="w-28 shrink-0 truncate text-etikett text-ink-secondary">
                   {plattformar.find((p) => p.id === rad.plattform)?.label || rad.plattform}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -526,7 +526,7 @@ export function OpsProfil({
         ) : null}
         {obeskrivnaPlattformar.length > 0 ? (
           <div>
-            <p className="mb-1 text-xs text-ink-secondary">{laggTillLankEtikett}</p>
+            <p className="mb-1 text-meta text-ink-secondary">{laggTillLankEtikett}</p>
             <div className="flex flex-wrap gap-2">
               {obeskrivnaPlattformar.map((p) => (
                 <OpsChip key={p.id} onClick={() => setLankar([...lankar, { plattform: p.id, url: "" }])}>
@@ -567,7 +567,7 @@ export function OpsProfil({
 
       {/* ⛔ TOMHET ÄR ETT SVAR. En person utan grupper ser en mening om det,
           aldrig en rubrik med ingenting under. Arbetsreglernas punkt 5. */}
-      <p className="text-sm font-semibold uppercase tracking-wide text-ink-secondary">{grupperEtikett}</p>
+      <p className="text-etikett font-semibold uppercase tracking-wide text-ink-secondary">{grupperEtikett}</p>
       <OpsList ariaLabel={grupperEtikett}>
         {grupper.length === 0 ? (
           <OpsListRow>

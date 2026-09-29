@@ -128,10 +128,10 @@ export function OpsSlider({
           namn, till exempel `OpsToggleRow`. Utan den står namnet två gånger på
           samma rad, och den andra gången lär ingen läsa. */}
       <div className={cx("flex items-baseline gap-3", hiddenLabel ? "justify-end" : "justify-between")}>
-        <label htmlFor={id} className={cx("text-sm font-medium text-ink", hiddenLabel && "sr-only")}>
+        <label htmlFor={id} className={cx("text-etikett font-medium text-ink", hiddenLabel && "sr-only")}>
           {label}
         </label>
-        <span className={cx("text-sm tabular-nums", vidNoll ? "text-ink-secondary" : "text-accent")}>{text}</span>
+        <span className={cx("text-etikett tabular-nums", vidNoll ? "text-ink-secondary" : "text-accent")}>{text}</span>
       </div>
 
       <div className="flex items-center gap-3">
@@ -165,7 +165,7 @@ export function OpsSlider({
           disabled={vidNoll}
           onClick={() => onChange(zero)}
           className={cx(
-            "shrink-0 rounded-md border px-3 py-2 text-sm",
+            "shrink-0 rounded-md border px-3 py-2 text-etikett",
             "transition-colors duration-(--duration-fast) ease-standard",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
             vidNoll

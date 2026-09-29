@@ -275,7 +275,7 @@ function DayBox({ day, dayKey, entries, isToday, chosen, onSelect }) {
       aria-label={label}
       onClick={() => onSelect(dayKey)}
       className={cx(
-        "flex min-h-14 flex-col items-center gap-1 rounded-md px-1 pt-1.5 pb-1 text-sm transition-colors duration-(--duration-fast) ease-standard",
+        "flex min-h-14 flex-col items-center gap-1 rounded-md px-1 pt-1.5 pb-1 text-etikett transition-colors duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
         count === 0 ? "cursor-default text-ink-muted" : "cursor-pointer text-ink hover:bg-accent-faint",
         chosen && "bg-accent-subtle",
@@ -290,7 +290,7 @@ function DayBox({ day, dayKey, entries, isToday, chosen, onSelect }) {
         {entries.slice(0, visade).map((p) => (
           <Slagmarke key={p.id} entry={p} />
         ))}
-        {count > visade ? <span className="text-xs tabular-nums text-ink-muted">+{count - visade}</span> : null}
+        {count > visade ? <span className="text-meta tabular-nums text-ink-muted">+{count - visade}</span> : null}
       </span>
     </button>
   );
@@ -318,7 +318,7 @@ function Datumpiller({ dayKey, kanTasBort, onTaBort, order, locale }) {
   return (
     <span
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
-      className="ops-contrast-panel inline-flex animate-svep items-center gap-1.5 rounded-full bg-contrast-panel py-1 pr-2 pl-2.5 text-xs font-semibold text-ink shadow-md"
+      className="ops-contrast-panel inline-flex animate-svep items-center gap-1.5 rounded-full bg-contrast-panel py-1 pr-2 pl-2.5 text-meta font-semibold text-ink shadow-md"
     >
       {text}
       {kanTasBort ? (
@@ -430,7 +430,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
               medveten avvägning: kortet blir läsbart som en rad, och adressen
               står där den kan bära sitt eget ord. */}
           <span className="font-semibold text-ink">{entry.title}</span>
-          <p className="m-0 text-xs text-ink-secondary">{meta}</p>
+          <p className="m-0 text-meta text-ink-secondary">{meta}</p>
         </div>
 
         {harDetaljer ? (
@@ -457,7 +457,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
       </div>
 
       {harDetaljer ? (
-        <div id={panelId} hidden={!oppen} className="mt-2 flex flex-col gap-1 border-t border-line pt-2 text-sm">
+        <div id={panelId} hidden={!oppen} className="mt-2 flex flex-col gap-1 border-t border-line pt-2 text-etikett">
           {/* ⛔ STATUS SOM ORD, inte som färg. Pricken ovanför är samma faktum
               för den som ser den; här står det så det går att läsa upp. */}
           {statusord ? (
@@ -763,13 +763,13 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
             betydelse borta, och man räknar sig fram i stället för att läsa. */}
         <div ref={huvudRef} className="sticky top-0 z-(--z-sticky) grid grid-cols-7 gap-1 bg-canvas pt-1 pb-2">
           {weekdayNames(locale).map((d) => (
-            <span key={d} className="text-center text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            <span key={d} className="text-center text-meta font-semibold uppercase tracking-wide text-ink-muted">
               {d}
             </span>
           ))}
         </div>
 
-        {!harPoster && emptyText ? <p className="m-0 pb-3 text-sm text-ink-muted">{emptyText}</p> : null}
+        {!harPoster && emptyText ? <p className="m-0 pb-3 text-etikett text-ink-muted">{emptyText}</p> : null}
 
         <div className="flex flex-col gap-6 pb-4">
           {list.map(({ ar, month }) => {
@@ -778,7 +778,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
 
             return (
               <div key={`${ar}-${month}`} ref={isCurrentMonth ? todayRef : null}>
-                <h3 className="m-0 mb-2 text-lg font-bold capitalize text-ink font-display">
+                <h3 className="m-0 mb-2 text-titel font-bold capitalize text-ink font-display">
                   {monthNames(locale)[month]} {ar}
                 </h3>
 
@@ -816,7 +816,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
           type="button"
           onClick={() => toToday("smooth")}
           className={cx(
-            "absolute right-4 bottom-4 min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-4 text-sm font-semibold text-ink shadow-md",
+            "absolute right-4 bottom-4 min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-4 text-etikett font-semibold text-ink shadow-md",
             "hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             /* ⛔ PÅ TELEFON VIKER DEN FÖR DAGSPANELEN. Sedan rullytan går ända
                ner bottnar båda på samma linje, och två flytande kontroller ovanpå
@@ -869,7 +869,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
               rad om vad den är till för kostar ingenting. På telefon finns ingen
               kolumn att förklara, och en ruta längst ner som säger «tryck på en
               dag» hade legat i vägen för dagarna man ska trycka på. */
-          <p className="m-0 hidden rounded-md border border-dashed border-line p-3 text-sm text-ink-muted lg:block">
+          <p className="m-0 hidden rounded-md border border-dashed border-line p-3 text-etikett text-ink-muted lg:block">
             Tryck på en dag för att se vad som ligger där. Tryck på fler för att samla dem.
           </p>
         )}

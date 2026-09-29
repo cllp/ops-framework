@@ -64,7 +64,7 @@ export function OpsLaddaSkelett({
       </div>
       {langsam ? (
         <div className="mx-auto mt-6 flex w-full max-w-5xl flex-col items-start gap-3 px-4">
-          <p className="m-0 text-base text-ink-secondary">{langsamText}</p>
+          <p className="m-0 text-brod text-ink-secondary">{langsamText}</p>
           <OpsButton variant="secondary" onClick={onForsokIgen ?? (() => globalThis.location?.reload())}>
             {forsokIgenEtikett}
           </OpsButton>

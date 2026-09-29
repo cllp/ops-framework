@@ -38,7 +38,7 @@ export function OpsTooltip({ content, side = "top", children }) {
             sideOffset={6}
             className={cx(
               "z-(--z-dropdown) max-w-xs rounded-md border border-line bg-raised px-3 py-2",
-              "text-sm text-ink shadow-md",
+              "text-etikett text-ink shadow-md",
             )}
           >
             {content}

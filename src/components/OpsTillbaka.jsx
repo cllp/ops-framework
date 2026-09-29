@@ -45,7 +45,7 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Hub"
           onClick={(e) => onNavigate?.(mal.href, e)}
           aria-label={`${tillbakaTillEtikett} ${mal.label}`}
           className={cx(
-            "inline-flex min-h-11 items-center gap-2 rounded-base text-sm text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
+            "inline-flex min-h-11 items-center gap-2 rounded-base text-etikett text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           )}
         >
@@ -53,7 +53,7 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Hub"
           <span>{tillbakaEtikett}</span>
         </a>
       </nav>
-      {rubrik ? <h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{etikett}</h1> : null}
+      {rubrik ? <h1 className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">{etikett}</h1> : null}
     </div>
   );
 }

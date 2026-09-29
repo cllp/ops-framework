@@ -60,9 +60,9 @@ export function OpsToastProvider({ children, closeLabel = "Stäng" }) {
             className={cx("flex items-start gap-3 rounded-md border p-3 shadow-md", TONER[p.tone] ?? TONER.info)}
           >
             <div className="min-w-0 flex-1">
-              <Toast.Title className="m-0 text-base font-semibold">{p.title}</Toast.Title>
+              <Toast.Title className="m-0 text-brod font-semibold">{p.title}</Toast.Title>
               {p.description ? (
-                <Toast.Description className="m-0 mt-1 text-base text-ink-secondary">{p.description}</Toast.Description>
+                <Toast.Description className="m-0 mt-1 text-brod text-ink-secondary">{p.description}</Toast.Description>
               ) : null}
             </div>
             <Toast.Close

@@ -209,7 +209,7 @@ function KortInnehall({ post, badgeText, sprak, ingetNyttEtikett, slut }) {
   const harBadge = typeof post.badge === "number" && post.badge > 0;
   return (
     <>
-      <span className="flex min-h-11 items-center gap-2.5 text-sm font-medium">
+      <span className="flex min-h-11 items-center gap-2.5 text-etikett font-medium">
         {post.icon ? (
           <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-5">
             {post.icon}
@@ -224,12 +224,12 @@ function KortInnehall({ post, badgeText, sprak, ingetNyttEtikett, slut }) {
           texten, så att den skiljs från metadata utan att bli svagare. Se paren i check-kontrast. */}
       {infoText ? (
         ingetNyttRad ? (
-          <span data-status="inget-nytt" className="flex items-center gap-1.5 truncate text-xs text-ink-secondary">
+          <span data-status="inget-nytt" className="flex items-center gap-1.5 truncate text-meta text-ink-secondary">
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-line-strong" />
             <span className="truncate">{infoText}</span>
           </span>
         ) : (
-          <span className="block truncate text-xs text-ink-secondary">{infoText}</span>
+          <span className="block truncate text-meta text-ink-secondary">{infoText}</span>
         )
       ) : null}
     </>
@@ -333,7 +333,7 @@ function UtfallbartKort({ post, activeHref, onNavigate, badgeText, sprak, ingetN
             ) : null}
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate">{c.label}</span>
-              {c.info !== undefined ? <span className="truncate text-xs text-ink-muted">{c.info === null ? ingetNytt : text(c.info, sprak)}</span> : null}
+              {c.info !== undefined ? <span className="truncate text-meta text-ink-muted">{c.info === null ? ingetNytt : text(c.info, sprak)}</span> : null}
             </span>
             {typeof c.badge === "number" && c.badge > 0 ? <OpsCountBadge count={c.badge} text={badgeText} placement="inline" /> : null}
           </a>

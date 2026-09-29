@@ -187,9 +187,9 @@ class OpsFelgrans extends Component {
       const id = /** @type {any} */ (this.state).id;
       return (
         <div role="alert" className="flex min-h-svh flex-col items-center justify-center gap-3 bg-canvas p-6 text-center">
-          <p className="m-0 text-lg font-semibold text-ink">{this.props.rubrik}</p>
+          <p className="m-0 text-titel font-semibold text-ink">{this.props.rubrik}</p>
           <p className="m-0 max-w-prose text-ink-secondary">{this.props.beskrivning}</p>
-          <p className="m-0 font-mono text-sm text-ink-muted">{id}</p>
+          <p className="m-0 font-mono text-etikett text-ink-muted">{id}</p>
           <OpsButton variant="primary" onClick={() => globalThis.location?.reload()}>
             {this.props.laddaOmEtikett}
           </OpsButton>
@@ -1018,7 +1018,7 @@ export function OpsAppShell({
    */
   const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ state) =>
     cx(
-      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 py-2 text-sm font-medium",
+      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 py-2 text-etikett font-medium",
       "transition-all duration-(--duration-fast) ease-standard",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       state === "pa" && "border-ink text-ink",
@@ -1491,7 +1491,7 @@ export function OpsAppShell({
               className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom) md:hidden", radBehallare({ ark: true }))}
             >
               <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
-                <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-md font-bold text-ink">{skapaLabel}</Dialog.Title>
+                <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-rubrik font-bold text-ink">{skapaLabel}</Dialog.Title>
                 <Dialog.Close
                   aria-label={closeLabel}
                   className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"

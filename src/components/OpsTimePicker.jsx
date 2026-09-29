@@ -105,7 +105,7 @@ export function OpsTimePicker({ value, onChange, disabled = false, allowEmpty = 
   return (
     <div role="group" className="flex w-full min-w-0 items-center gap-1">
       {lista("timme", TIMMAR, timme, timAriaLabel, f.id)}
-      <span aria-hidden="true" className="shrink-0 px-0.5 text-xs text-ink-muted">
+      <span aria-hidden="true" className="shrink-0 px-0.5 text-meta text-ink-muted">
         :
       </span>
       {lista("minut", MINUTER, minut, minutAriaLabel, undefined)}

@@ -30,7 +30,7 @@ export function OpsGruppmarke({ gruppmarke, sprak }) {
   }
   const namn = text(gruppmarke.namn, sprak);
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-ink-secondary">
+    <span className="inline-flex items-center gap-1.5 text-meta text-ink-secondary">
       <OpsIdentity name={namn} seed={gruppmarke.id} size="sm" />
       {namn}
     </span>

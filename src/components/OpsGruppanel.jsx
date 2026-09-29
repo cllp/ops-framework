@@ -185,7 +185,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
           onClick={() => onValj(ALLA_GRUPPER)}
           aria-current={aktiv === ALLA_GRUPPER ? "true" : undefined}
           className={cx(
-            "flex w-full items-center gap-2 border p-2.5 text-left text-xs font-medium transition-all",
+            "flex w-full items-center gap-2 border p-2.5 text-left text-meta font-medium transition-all",
             RADIE,
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             aktiv === ALLA_GRUPPER ? "border-accent bg-accent/10 text-accent" : "border-line bg-surface text-ink-secondary hover:border-line-strong",
@@ -196,7 +196,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
         </button>
       </li>
 
-      {mina.length === 0 && tomText ? <li className="px-2.5 py-1 text-sm text-ink-secondary">{tomText}</li> : null}
+      {mina.length === 0 && tomText ? <li className="px-2.5 py-1 text-etikett text-ink-secondary">{tomText}</li> : null}
 
       {mina.map((g) => {
         const namn = text(g.namn, sprak);
@@ -254,7 +254,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
             </div>
 
             {/* Rad 2: namn. GroupCard.jsx rad 111-113. */}
-            <p className="mb-1 truncate text-xs leading-tight font-semibold text-ink">{namn}</p>
+            <p className="mb-1 truncate text-meta leading-tight font-semibold text-ink">{namn}</p>
 
             {g.roll ? (
               <p className="mb-1">
@@ -355,7 +355,7 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
           onClick={() => valj(ALLA_GRUPPER)}
           aria-current={aktiv === ALLA_GRUPPER ? "true" : undefined}
           className={cx(
-            "flex min-h-11 w-full items-center gap-2 border px-3 py-2 text-left text-sm font-semibold",
+            "flex min-h-11 w-full items-center gap-2 border px-3 py-2 text-left text-etikett font-semibold",
             RADIE,
             "transition-colors duration-(--duration-fast) ease-standard",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -367,7 +367,7 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
         </button>
       </li>
 
-      {mina.length === 0 && tomText ? <li className="px-3 py-1 text-sm text-ink-secondary">{tomText}</li> : null}
+      {mina.length === 0 && tomText ? <li className="px-3 py-1 text-etikett text-ink-secondary">{tomText}</li> : null}
 
       {mina.map((g) => {
         const namn = text(g.namn, sprak);
@@ -389,9 +389,9 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
             >
               <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="sm" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-ink">{namn}</span>
+                <span className="block truncate text-etikett font-semibold text-ink">{namn}</span>
                 {typeof g.medlemsantal === "number" ? (
-                  <span className="block truncate text-xs text-ink-secondary">
+                  <span className="block truncate text-meta text-ink-secondary">
                     {g.medlemsantal} {g.medlemsantal === 1 ? "medlem" : "medlemmar"}
                   </span>
                 ) : null}
@@ -589,7 +589,7 @@ export function OpsGruppanel({
           <button
             type="button"
             onClick={onSkapa}
-            className={cx("flex w-full items-center justify-center gap-1.5 border border-dashed border-accent/15 p-3 text-sm font-medium text-accent hover:border-accent hover:bg-accent/5", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+            className={cx("flex w-full items-center justify-center gap-1.5 border border-dashed border-accent/15 p-3 text-etikett font-medium text-accent hover:border-accent hover:bg-accent/5", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
           >
             <PlusIkon size={16} />
             {skapaEtikett}
@@ -659,7 +659,7 @@ export function OpsGruppvaxlare({
         <button
           type="button"
           aria-label={`${etikett}, ${nuEtikett}: ${aktivtNamn}`}
-          className="flex size-11 shrink-0 items-center justify-center rounded-md text-sm font-semibold text-ink md:size-auto md:min-h-11 md:max-w-40 md:justify-start md:gap-2 md:px-2 md:hover:bg-sunken"
+          className="flex size-11 shrink-0 items-center justify-center rounded-md text-etikett font-semibold text-ink md:size-auto md:min-h-11 md:max-w-40 md:justify-start md:gap-2 md:px-2 md:hover:bg-sunken"
         >
           {/* ⛔ 0.31.1: UNDER `md` ÄR KNAPPEN GRUPPMÄRKET OCH INGET ANNAT, på loggans plats längst till vänster (CP 2026-09-29 18:40:
               "VI behöver en bra Grupp-väljare-ikon i mobil istället för logga"). Samma ruta som remsan (`gruppRutaKlass`, 40 px) med

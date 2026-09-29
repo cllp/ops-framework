@@ -244,10 +244,10 @@ export function OpsEventList({
                     skulle ta bort vakten. */}
                 {h.status ? <OpsStatusDot status={h.status} label={statusWords[h.status] || ""} /> : null}
 
-                {h.role ? <span className="shrink-0">{h.role}</span> : null}
+                {h.role ? <span className="shrink-0 text-etikett">{h.role}</span> : null}
 
                 {marke ? (
-                  <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold", TONER[state])}>{marke}</span>
+                  <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-meta font-semibold", TONER[state])}>{marke}</span>
                 ) : null}
 
                 {/* ⛔ SLAGET ÄR TEXT, INTE ETT TREDJE FÄRGAT MÄRKE.
@@ -269,7 +269,7 @@ export function OpsEventList({
                     Samma ton som kortets kant och kalenderns prick, ur
                     `lib/slag.js`. Skiljer de sig säger vyn emot sig själv. */}
                 {h.kind ? (
-                  <span className="flex min-w-0 shrink-0 items-center gap-1 text-sm text-ink-muted">
+                  <span className="flex min-w-0 shrink-0 items-center gap-1 text-etikett text-ink-muted">
                     {h.kindIcon ? (
                       <span aria-hidden="true" className={cx("flex shrink-0 items-center", slagfarg)}>
                         {h.kindIcon}
@@ -305,7 +305,7 @@ export function OpsEventList({
                     den kompakta raden (CP: uppdaterad top-right, ärendenummer
                     i stället för "Öppna"). */}
                 {h.when || h.deadline || h.updatedAt || url ? (
-                  <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-sm tabular-nums text-ink-secondary">
+                  <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-etikett tabular-nums text-ink-secondary">
                     {h.when ? <span>{h.when}</span> : null}
                     {/* ⛔ Dämpad, inte framhävd. Deadline är ett faktum man skriver
                         in i en kalender, inte ett larm: brådskan är redan sagd av
@@ -320,7 +320,7 @@ export function OpsEventList({
                         target={onNavigate ? undefined : "_blank"}
                         rel={onNavigate ? undefined : "noopener noreferrer"}
                         className={cx(
-                          "shrink-0 rounded-sm text-sm text-accent underline underline-offset-2 hover:no-underline",
+                          "shrink-0 rounded-sm text-etikett text-accent underline underline-offset-2 hover:no-underline",
                           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                         )}
                       >
@@ -356,7 +356,7 @@ export function OpsEventList({
                   brytpunkt: en titel som får halva bredden på en smal skärm och
                   hela på en bred är samma komponent med två utseenden, och det är
                   den sortens skillnad som gör att bara den ena blir provad. */}
-              <span className="text-ink">{h.title}</span>
+              <span className="text-titel text-ink">{h.title}</span>
 
               {/* ⛔ VEM OCH NÄR, OM BÅDA FINNS (0.30.0, #173, CP 2026-09-29: "vem
                   som skapade"). Under titeln och inte i detaljraden ovanför: det
@@ -413,7 +413,7 @@ export function OpsEventList({
             {/* ⛔ PANELEN under raden, full bredd. Chevron står till HÖGER (CP),
                 så ingen pl-12-indrag från vänsterkolumn. */}
             {harDetaljer ? (
-              <div id={panelId} hidden={!oppen} className="mt-2 text-sm text-ink-secondary">
+              <div id={panelId} hidden={!oppen} className="mt-2 text-etikett text-ink-secondary">
                 {h.details}
               </div>
             ) : null}
@@ -433,7 +433,7 @@ export function OpsEventList({
    */
   return (
     <div className="flex flex-col gap-2">
-      <p className="m-0 text-sm text-ink-muted">{actionHint}</p>
+      <p className="m-0 text-etikett text-ink-muted">{actionHint}</p>
       {list}
     </div>
   );

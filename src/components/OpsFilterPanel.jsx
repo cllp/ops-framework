@@ -359,7 +359,7 @@ export function OpsFilterPanel({
           // exakt det felet som mättes bort ur bubblan i #242.
           "min-h-11",
           aktiva.length > 0
-            ? "rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink"
+            ? "rounded-full border border-line bg-surface px-4 text-etikett font-semibold text-ink"
             : "min-w-11 rounded-xl text-ink-secondary hover:bg-accent-faint hover:text-ink",
         )}
       >

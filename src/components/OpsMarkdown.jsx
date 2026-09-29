@@ -56,7 +56,7 @@ function inline(pieces, blockKey) {
     }
     if (b.kind === "code") {
       return (
-        <code key={k} className="rounded-sm bg-sunken px-1 py-0.5 font-mono text-xs text-ink">
+        <code key={k} className="rounded-sm bg-sunken px-1 py-0.5 font-mono text-meta text-ink">
           {b.value}
         </code>
       );
@@ -83,12 +83,12 @@ function inline(pieces, blockKey) {
 // så ett interpolerat klassnamn genererar ingen CSS alls.
 /** @type {Record<number, string>} */
 const TITLE_SIZE = {
-  1: "text-base font-semibold",
-  2: "text-base font-semibold",
-  3: "text-sm font-semibold",
-  4: "text-sm font-semibold",
-  5: "text-sm font-semibold",
-  6: "text-sm font-semibold",
+  1: "text-brod font-semibold",
+  2: "text-brod font-semibold",
+  3: "text-etikett font-semibold",
+  4: "text-etikett font-semibold",
+  5: "text-etikett font-semibold",
+  6: "text-etikett font-semibold",
 };
 
 /**
@@ -103,7 +103,7 @@ export function OpsMarkdown({ text }) {
     /* ⛔ `break-words`: issue-texter bär URL:er och tabellrader utan
        mellanslag, och utan den skjuter de ut behållarens högerkant och tar med
        sig hela sidan på en telefon. Mätt i bolag-ops Idag. */
-    <div className="flex flex-col gap-2 break-words text-sm text-ink-secondary">
+    <div className="flex flex-col gap-2 break-words text-etikett text-ink-secondary">
       {block.map((b, i) => {
         const k = `b${i}`;
         if (b.kind === "heading") {
@@ -125,7 +125,7 @@ export function OpsMarkdown({ text }) {
         }
         if (b.kind === "code") {
           return (
-            <pre key={k} className="m-0 overflow-x-auto rounded-md bg-sunken p-3 font-mono text-xs text-ink">
+            <pre key={k} className="m-0 overflow-x-auto rounded-md bg-sunken p-3 font-mono text-meta text-ink">
               {b.text}
             </pre>
           );
@@ -138,7 +138,7 @@ export function OpsMarkdown({ text }) {
                markdowntabell har inget schema: den har celler. Att trycka in
                den ena i den andra hade krävt ett påhittat id per rad. */
             <div key={k} className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
+              <table className="w-full border-collapse text-left text-etikett">
                 <thead>
                   <tr>
                     {b.header.map((cell, ci) => (

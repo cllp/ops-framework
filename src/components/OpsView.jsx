@@ -84,7 +84,7 @@ export function OpsViewHeader({ title, description, actions }) {
         rör typografin.
       */}
       <OpsHelp
-        title={<h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>}
+        title={<h1 className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">{title}</h1>}
       >
         {description}
       </OpsHelp>

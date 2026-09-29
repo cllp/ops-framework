@@ -226,16 +226,16 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
           const innehall = (
             <>
               <span aria-hidden="true" className={cx("size-2.5 shrink-0 translate-y-px rounded-full", PRICK[b.i])} />
-              <span className="min-w-0 flex-1 truncate text-left text-sm text-ink">{b.label}</span>
+              <span className="min-w-0 flex-1 truncate text-left text-etikett text-ink">{b.label}</span>
               {b.text === undefined || b.text === null ? null : (
-                <span className="shrink-0 text-sm tabular-nums text-ink-secondary">{b.text}</span>
+                <span className="shrink-0 text-etikett tabular-nums text-ink-secondary">{b.text}</span>
               )}
               {/* Svansen: andel och chevron i ETT block med den bredd panelen
                   nedanför håller fri. Andelen räknas här och inte av appen: den
                   följer direkt av geometrin, och två uträkningar av samma tal
                   glider isär. */}
               <span className={cx("flex shrink-0 items-center justify-end gap-2", nagonHarDetaljer ? SVANS : "w-11")}>
-                <span className="text-right text-sm tabular-nums text-ink-muted">{Math.round(b.share * 100)} %</span>
+                <span className="text-right text-etikett tabular-nums text-ink-muted">{Math.round(b.share * 100)} %</span>
                 {nagonHarDetaljer ? (
                   harDetaljer ? (
                     <span
@@ -299,7 +299,7 @@ export function OpsShareChart({ segments, ariaLabel, empty = null }) {
                 <div
                   id={panelId}
                   hidden={!oppen}
-                  className={cx("mt-1 mb-2 ml-3 border-l-2 border-line pl-3 text-sm text-ink-secondary", SVANS_MARGINAL)}
+                  className={cx("mt-1 mb-2 ml-3 border-l-2 border-line pl-3 text-etikett text-ink-secondary", SVANS_MARGINAL)}
                 >
                   {b.details}
                 </div>

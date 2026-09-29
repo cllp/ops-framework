@@ -1588,6 +1588,19 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   );
   kravGront("typografi: en kommentar och text-[var(--x)] är inga brott", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"]);
 
+  // 0.31.2: ramverkets regel att ingen komponent skriver en Tailwind-storlek (text-xs/sm/base/md/lg/xl), bara en roll.
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <span className="md:text-sm text-ink">x</span>;\n}\n',
+  );
+  kravRott("typografi: en injicerad text-sm i ramverksläge", [typvakt, path.join(typmapp, "smutsig"), "--golv=60", "--ramverksregler"], "Tailwind-storlek");
+  kravGront("typografi: samma text-sm är inget brott i en app (utan --ramverksregler)", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"]);
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <span className="text-etikett md:text-meta text-ink">x</span>;\n}\n',
+  );
+  kravGront("typografi: en roll är ingen Tailwind-storlek, också i ramverksläge", [typvakt, path.join(typmapp, "smutsig"), "--golv=60", "--ramverksregler"]);
+
   const tunn = path.join(typmapp, "tunn");
   fs.mkdirSync(tunn, { recursive: true });
   fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return null; }\n");

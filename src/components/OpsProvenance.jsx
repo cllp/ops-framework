@@ -32,7 +32,7 @@ export function OpsProvenance({ kind, label }) {
     throw new Error(`OpsProvenance: okänt kind "${kind}". Giltiga: ${Object.keys(SLAG).join(", ")}.`);
   }
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold leading-tight", s.klass)}>
+    <span className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-meta font-semibold leading-tight", s.klass)}>
       {label ?? s.text}
     </span>
   );

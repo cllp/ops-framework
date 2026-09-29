@@ -50,8 +50,8 @@ export function OpsGruppvaljare({ grupper, aktiv, onValj, sprak, rubrik = "Grupp
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="px-2 text-xs font-semibold uppercase tracking-wide text-ink-secondary">{rubrik}</p>
-      {mina.length === 0 ? <p className="px-2 py-1 text-sm text-ink-secondary">{tomText}</p> : null}
+      <p className="px-2 text-meta font-semibold uppercase tracking-wide text-ink-secondary">{rubrik}</p>
+      {mina.length === 0 ? <p className="px-2 py-1 text-etikett text-ink-secondary">{tomText}</p> : null}
       <ul className="flex flex-col gap-0.5" aria-label={rubrik}>
         {rader.map((rad) => {
           const vald = rad.id === aktiv;

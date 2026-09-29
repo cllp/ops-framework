@@ -230,7 +230,7 @@ describe("OpsAppShell skapa (#168)", () => {
     // Ikonen finns i raden (aria-hidden, hittas via querySelector eftersom
     // den är dekorativ).
     expect(rad.querySelector("svg")).toBeTruthy();
-    for (const klass of ["text-sm", "font-medium", "px-4", "py-2.5", "gap-3", "text-accent"]) {
+    for (const klass of ["text-etikett", "font-medium", "px-4", "py-2.5", "gap-3", "text-accent"]) {
       expect(rad.className).toContain(klass);
     }
   });
@@ -249,6 +249,6 @@ describe("OpsAppShell skapa (#168)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
     const rad = screen.getByRole("button", { name: "kvitto" });
     expect(rad.className).toContain("text-accent");
-    expect(rad.className).toContain("text-sm");
+    expect(rad.className).toContain("text-etikett");
   });
 });

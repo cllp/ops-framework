@@ -86,10 +86,10 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
           man veta svaret först och sedan varifrån det kommer. En summa i foten
           tvingar en att läsa hela listan för att få veta vad den blev. */}
       <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-3">
-        <span className="text-sm font-semibold text-ink-secondary">{total.label}</span>
-        <span className="text-lg font-bold tabular-nums text-ink">{total.value}</span>
+        <span className="text-etikett font-semibold text-ink-secondary">{total.label}</span>
+        <span className="text-titel font-bold tabular-nums text-ink">{total.value}</span>
       </div>
-      {total.hint ? <p className="mt-1 mb-0 text-sm text-ink-muted">{total.hint}</p> : null}
+      {total.hint ? <p className="mt-1 mb-0 text-etikett text-ink-muted">{total.hint}</p> : null}
 
       <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
         {groups.map((g) => {
@@ -107,7 +107,7 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
                     label={
                       <>
                         {g.label}
-                        {typeof g.count === "number" ? <span className="ml-2 text-sm font-normal tabular-nums text-ink-muted">{g.count}</span> : null}
+                        {typeof g.count === "number" ? <span className="ml-2 text-etikett font-normal tabular-nums text-ink-muted">{g.count}</span> : null}
                       </>
                     }
                     value={g.value}
@@ -140,19 +140,19 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
                 )}
               </div>
 
-              {g.note ? <p className="mt-1 mb-0 text-sm text-ink-muted">{g.note}</p> : null}
+              {g.note ? <p className="mt-1 mb-0 text-etikett text-ink-muted">{g.note}</p> : null}
 
               {harPoster ? (
                 <div id={panelId} hidden={!oppen}>
                   <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
                     {(g.entries ?? []).map((p) => (
                       <li key={p.id} className="flex items-baseline justify-between gap-3">
-                        <span className="min-w-0 text-sm text-ink-secondary">
+                        <span className="min-w-0 text-etikett text-ink-secondary">
                           {p.label}
-                          {p.hint ? <span className="block text-sm text-ink-muted">{p.hint}</span> : null}
+                          {p.hint ? <span className="block text-etikett text-ink-muted">{p.hint}</span> : null}
                         </span>
                         {p.value === undefined || p.value === null ? null : (
-                          <span className="shrink-0 text-sm tabular-nums text-ink-secondary">{p.value}</span>
+                          <span className="shrink-0 text-etikett tabular-nums text-ink-secondary">{p.value}</span>
                         )}
                       </li>
                     ))}

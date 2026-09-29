@@ -158,7 +158,7 @@ export function OpsPrompt({
       </div>
 
       {answerError ? (
-        <p className="m-0 rounded-md bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
+        <p className="m-0 rounded-md bg-danger-bg px-3 py-2 text-etikett text-danger" role="alert">
           {answerError}
         </p>
       ) : null}

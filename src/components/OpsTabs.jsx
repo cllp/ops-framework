@@ -43,7 +43,7 @@ export function OpsTabs({ tabs, value, onChange, ariaLabel, children }) {
             value={f.id}
             disabled={f.disabled}
             className={cx(
-              "shrink-0 whitespace-nowrap rounded-t-md px-4 py-2 text-base font-semibold",
+              "shrink-0 whitespace-nowrap rounded-t-md px-4 py-2 text-brod font-semibold",
               "border-b-2 border-transparent text-ink-secondary",
               "transition-colors duration-(--duration-fast) ease-standard",
               "hover:bg-accent-faint hover:text-ink",

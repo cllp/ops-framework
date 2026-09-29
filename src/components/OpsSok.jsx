@@ -92,7 +92,7 @@ export function OpsSok({
               <OpsListRow key={`${modulId}-${t.id}`} interactive={Boolean(t.href && onOppna)} onClick={t.href && onOppna ? () => onOppna(t.href) : undefined}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-ink">{t.titel}</span>
-                  {t.text ? <span className="block truncate text-sm text-ink-secondary">{t.text}</span> : null}
+                  {t.text ? <span className="block truncate text-etikett text-ink-secondary">{t.text}</span> : null}
                 </span>
                 <OpsPill tone="neutral">{modulnamn[modulId] ?? modulId}</OpsPill>
               </OpsListRow>

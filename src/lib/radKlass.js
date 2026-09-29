@@ -41,7 +41,7 @@ export function radKlass({ accent = false, active = false, klickbar = true, acce
   const luft = PY[py] ?? PY[2.5];
   return cx(
     "flex min-h-11 md:min-h-0 w-full items-center rounded-base text-left transition-colors duration-(--duration-fast) ease-standard",
-    accent ? "gap-3 px-4 py-2.5 text-sm leading-5 font-medium text-accent hover:bg-raised" : stor ? cx("gap-3 px-3 text-sm leading-5", luft) : cx("gap-2.5 px-3 text-xs leading-4", luft, py === 1.5 && "font-medium"),
+    accent ? "gap-3 px-4 py-2.5 text-etikett leading-5 font-medium text-accent hover:bg-raised" : stor ? cx("gap-3 px-3 text-etikett leading-5", luft) : cx("gap-2.5 px-3 text-meta leading-4", luft, py === 1.5 && "font-medium"),
     !accent && vald !== undefined && (vald ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-hover hover:text-ink"),
     !accent && vald === undefined && (active ? "bg-raised text-accent" : accentFarg ? "text-accent hover:bg-raised" : "text-ink-secondary hover:bg-raised hover:text-ink"),
     // ⛔ 0.31.2: FOKUS ÄR EN YTA, INTE EN RAM. Radix flyttar fokus in i en öppnad meny, och första raden
@@ -57,7 +57,7 @@ export function radKlass({ accent = false, active = false, klickbar = true, acce
  * Rubriken över en grupp rader i en meny eller dropdown ("SLAG", "SORTERA"). EN definition (0.31.2): `px-3`, som raderna under den,
  * så att rubrik och rader står i samma kolumn. Före 0.31.2 var den `px-2` och stod 4 px till vänster om sina egna rader.
  */
-export const radRubrikKlass = "m-0 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted";
+export const radRubrikKlass = "m-0 px-3 pb-1 text-meta font-semibold uppercase tracking-wide text-ink-muted";
 
 /**
  * Behållaren en rad ritas i: meny, dropdown, popover, ark.
@@ -159,7 +159,7 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
  */
 export function faltKlass({ invalid = false, filled = true, trigger = false, kant = "falt" } = {}) {
   return cx(
-    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-md md:text-base transition-colors duration-(--duration-fast) ease-standard",
+    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-rubrik md:text-brod transition-colors duration-(--duration-fast) ease-standard",
     trigger && "inline-flex items-center justify-between gap-2",
     kant === "falt" ? "border-[1.5px]" : "border",
     filled ? "text-ink" : "text-ink-muted",
@@ -194,7 +194,7 @@ export const faltYtaKlass = "z-(--z-dropdown) rounded-base border border-line bg
  */
 export function valjAlternativKlass({ dampad = false } = {}) {
   return cx(
-    "relative flex min-h-11 md:min-h-0 w-full cursor-pointer select-none items-center gap-1.5 rounded-base px-3 py-2 text-left text-sm leading-5",
+    "relative flex min-h-11 md:min-h-0 w-full cursor-pointer select-none items-center gap-1.5 rounded-base px-3 py-2 text-left text-etikett leading-5",
     dampad ? "text-ink-muted" : "text-ink",
     "data-[highlighted]:bg-hover data-[highlighted]:outline-none data-[state=checked]:bg-accent-subtle",
     "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-55",

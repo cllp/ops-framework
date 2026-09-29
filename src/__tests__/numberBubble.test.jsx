@@ -46,9 +46,9 @@ describe("OpsFloatingSummary", () => {
     expect(nulaget.compareDocumentPosition(talet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // Litet överst, stort och tonat under.
-    expect(String(nulaget.className).split(/\s+/)).toContain("text-sm");
+    expect(String(nulaget.className).split(/\s+/)).toContain("text-etikett");
     const talklasser = String(talet.className).split(/\s+/);
-    expect(talklasser).toContain("text-lg");
+    expect(talklasser).toContain("text-titel");
     expect(talklasser).toContain("font-bold");
     expect(talklasser).toContain("text-success");
 
