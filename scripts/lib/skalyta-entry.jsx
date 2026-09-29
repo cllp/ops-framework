@@ -14,7 +14,7 @@ import { useState } from "react";
 import * as Ops from "OPS_DIST";
 import { Calendar, CalendarDays, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle } = Ops;
+const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
 
@@ -186,8 +186,58 @@ const skapaProp = () => ({
   skapaISektioner: [{ id: "kalendrar", rubrik: "Mina kalendrar", poster: [{ id: "k1", namn: "Semester" }] }],
 });
 
+/** 0.31.0: en sida med ett urval av primitiverna, för mätningen (check-skalyta avsnitt 17) och galleriet i montaget. */
+function Galleri() {
+  const [seg, setSeg] = useState("a");
+  const [sort, setSort] = useState("b");
+  const [dat, setDat] = useState("2026-10-12");
+  const [tid, setTid] = useState("09:30");
+  const [typ, setTyp] = useState("moete");
+  const [cb, setCb] = useState(true);
+  const [sw, setSw] = useState(true);
+  const rubrik = (t) => <p className="m-0 mt-4 mb-1 text-sektion font-semibold uppercase text-accent">{t}</p>;
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-2 p-4" data-galleri="">
+      {rubrik("Knappar")}
+      <div className="flex flex-wrap items-center gap-2">
+        <span data-p="knapp-primary"><OpsButton variant="primary">Spara</OpsButton></span>
+        <span data-p="knapp-secondary"><OpsButton variant="secondary">Avbryt</OpsButton></span>
+        <span data-p="knapp-ghost"><OpsButton variant="ghost">Mer</OpsButton></span>
+        <span data-p="knapp-sm"><OpsButton variant="primary" size="sm">Liten</OpsButton></span>
+      </div>
+      {rubrik("Fält")}
+      <div className="flex flex-col gap-2">
+        <div data-p="falt"><OpsField label="Rubrik"><OpsInput value="" onChange={() => {}} placeholder="Vad gäller det?" /></OpsField></div>
+        <div data-p="select"><OpsField label="Typ"><OpsSelect value={typ} onChange={setTyp} options={[{ value: "moete", label: "Möte" }, { value: "resa", label: "Resa" }]} /></OpsField></div>
+        <div data-p="datum"><OpsField label="Datum"><OpsDatePicker value={dat} onChange={setDat} /></OpsField></div>
+        <div data-p="tid"><OpsField label="Tid"><OpsTimePicker value={tid} onChange={setTid} /></OpsField></div>
+      </div>
+      {rubrik("Val")}
+      <div className="flex flex-col gap-2">
+        <div data-p="segment"><OpsSegmented ariaLabel="Vy" value={seg} onChange={setSeg} options={[{ value: "a", label: "Lista" }, { value: "b", label: "Kalender" }, { value: "c", label: "Karta" }]} /></div>
+        <div data-p="radio"><OpsRadioGroup ariaLabel="Sort" value={sort} onChange={setSort} options={[{ value: "a", label: "Ärende", hint: "Något som ska göras." }, { value: "b", label: "Kvitto", hint: "Ett underlag." }, { value: "c", label: "Fråga" }]} /></div>
+        <div className="flex flex-wrap gap-4">
+          <span data-p="checkbox"><OpsCheckbox label="Skicka kopia" checked={cb} onChange={setCb} /></span>
+          <span data-p="switch"><OpsSwitch label="Aktiv" checked={sw} onChange={setSw} /></span>
+        </div>
+      </div>
+      {rubrik("Ytor")}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div data-p="kort"><OpsCard><p className="m-0 text-base">Ett kort</p></OpsCard></div>
+        <div data-p="rad" className="rounded-base border border-line bg-surface p-1"><OpsPanelRow label="En rad" onClick={() => {}} /></div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span data-p="pill"><OpsPill tone="success">Klar</OpsPill></span>
+        <span data-p="tag"><OpsTag label="Etikett" /></span>
+        <span data-p="chip"><OpsChip selected={false} onClick={() => {}}>Filter</OpsChip></span>
+      </div>
+    </div>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
+  if (s === "galleri") return <Galleri />;
   if (s === "skapa") {
     return (
       <Full skapa={skapaProp()}>

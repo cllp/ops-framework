@@ -90,20 +90,20 @@ export function OpsSkapaPanel({ titel, onTillbaka, tillbakaEtikett = "Tillbaka",
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 md:overflow-visible">
           {skapasI ? (
-            <div className="mb-4 flex items-center gap-2 text-sm text-ink-secondary">
-              <span>{skapasIEtikett}:</span>
+            <div className="mb-4 flex min-w-0 items-center gap-2 text-sm text-ink-secondary">
+              <span className="shrink-0 whitespace-nowrap">{skapasIEtikett}:</span>
               {onByt ? (
                 <button
                   type="button"
                   onClick={onByt}
                   aria-label={`${skapasIEtikett}: ${skapasI}`}
-                  className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-base px-2 font-semibold text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                  className="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1 rounded-base px-2 font-semibold text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
                 >
-                  {skapasI}
+                  <span className="truncate">{skapasI}</span>
                   <ChevronNedIkon size={14} />
                 </button>
               ) : (
-                <span className="font-semibold text-ink">{skapasI}</span>
+                <span className="min-w-0 truncate font-semibold text-ink">{skapasI}</span>
               )}
             </div>
           ) : null}

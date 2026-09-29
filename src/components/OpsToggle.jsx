@@ -54,7 +54,8 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
         <span
           aria-hidden="true"
           className={cx(
-            "inline-flex size-5 shrink-0 items-center justify-center rounded-sm border border-line-strong bg-canvas text-accent-contrast",
+            // ⛔ 0.31.0: 18 px och 1,5 px kant, SS `forms/Checkbox.jsx:47` (`w-[18px] h-[18px] border-[1.5px]`). Var 20 px och 1 px.
+            "inline-flex size-4.5 shrink-0 items-center justify-center rounded-sm border-[1.5px] border-line-strong bg-surface text-accent-contrast",
             "peer-checked:border-accent peer-checked:bg-accent",
             "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent",
           )}

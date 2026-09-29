@@ -945,6 +945,12 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
   let varde = async () => ({});
   try {
   vantat = await page.locator("[data-saknas]").count();
+  // Modalens mått är SS `ModalShell`: `md` max-w-2xl (672 px) och rundningen `--radius` (12 px), från md.
+  if (vp.width >= 800) {
+    const dm = await page.evaluate(() => { const d = /** @type {HTMLElement} */ (document.querySelector('[role="dialog"]')); const r = d.getBoundingClientRect(); return { w: r.width, radie: parseFloat(getComputedStyle(d).borderTopLeftRadius) }; });
+    matt.push(`modalen ${namn}: ${dm.w.toFixed(0)} px bred, rundning ${dm.radie} px`);
+    krav(Math.abs(dm.w - 672) <= 1 && dm.radie === 12, `modalen ${namn}: ${dm.w.toFixed(0)} px bred och rundning ${dm.radie}, väntat 672 och 12 (SS ModalShell size md, --radius).`);
+  }
   krav(vantat === 0, `modalen ${namn}: OpsTimePicker finns inte i den här versionen (ingen tidsväljare).`);
   /** @param {string} valjare @param {string} text */
   const overst = (valjare, text) =>
@@ -1005,9 +1011,14 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
     // Tangentbord: fokusera timknappen, öppna med Enter, välj med pilar och Enter.
     await page.getByRole("combobox", { name: "Timme" }).focus();
     await page.keyboard.press("Enter");
-    await page.waitForSelector('[role="listbox"]');
-    await page.waitForTimeout(100);
-    await page.keyboard.press("ArrowDown");
+    await page.waitForSelector('[role="option"][data-highlighted]');
+    await page.waitForTimeout(150);
+    // Radix flyttar fokus till det valda valet först efter en ram: pila tills nästa val är markerat (högst tre gånger).
+    for (let i = 0; i < 3; i += 1) {
+      await page.keyboard.press("ArrowDown");
+      await page.waitForTimeout(60);
+      if ((await page.locator('[role="option"][data-highlighted]').first().textContent().catch(() => "")) === "02") break;
+    }
     await page.keyboard.press("Enter");
     const efterTangent = (await varde()).tid;
     krav(efterTangent === "02:30", `modalen ${namn}: tangentbordsval (Enter, pil ned, Enter) av timme gav ${JSON.stringify(efterTangent)}, väntat "02:30".`);
@@ -1119,6 +1130,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(efter.panel === 0 && efter.vy > 0, `skapa-panelen ${namn}: efter Tillbaka finns ${efter.panel} paneler och appens vy har höjd ${efter.vy}. Väntat 0 och synlig.`);
   } catch (e) {
     krav(false, `skapa-panelen ${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}): panelen öppnades inte.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `skapa-panel-${vp.width}-avbrott.png`) }).catch(() => {});
   }
   await context.close();
 }
@@ -1134,9 +1146,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       const rader = [...el.querySelectorAll("section")].map((s) => ({ namn: s.getAttribute("aria-label"), antal: s.querySelectorAll("button").length }));
       const mark = el.querySelector("section button span");
       const mr = mark ? mark.getBoundingClientRect() : null;
-      return { x: r.x, w: r.width, top: r.top, bottom: r.bottom, vw: (document.querySelector('header') || document.documentElement).getBoundingClientRect().width, vh: innerHeight, rader, markW: mr ? mr.width : 0, avbryt: [...el.querySelectorAll("button")].some((b) => (b.textContent || "").trim() === "Avbryt"), panelBakom: document.querySelectorAll("[data-skapa-panel]").length };
+      return { x: r.x, w: r.width, top: r.top, bottom: r.bottom, vw: (document.querySelector('header') || document.documentElement).getBoundingClientRect().width, vh: innerHeight, rader, markW: mr ? mr.width : 0, radie: parseFloat(getComputedStyle(el).borderTopLeftRadius), avbryt: [...el.querySelectorAll("button")].some((b) => (b.textContent || "").trim() === "Avbryt"), panelBakom: document.querySelectorAll("[data-skapa-panel]").length };
     });
     matt.push(`skapa i ${namn}: dialog ${d.w.toFixed(0)} px bred, sektioner ${JSON.stringify(d.rader)}, märke ${d.markW} px, panelen bakom ${d.panelBakom}`);
+    krav(vp.width < 640 ? true : d.radie === 24, `skapa i ${namn}: dialogen har rundning ${d.radie}, väntat 24 (SS rounded-2xl).`);
     krav(d.panelBakom === 0, `skapa i ${namn}: panelen ritades före valet (${d.panelBakom}). Väntat väljaren först i läget Alla.`);
     krav(d.rader.length === 2 && d.rader[0].namn === "Grupper" && d.rader[1].namn === "Mina kalendrar", `skapa i ${namn}: sektionerna är ${JSON.stringify(d.rader)}, väntat Grupper och Mina kalendrar.`);
     krav(Math.abs(d.markW - 34) < 0.6, `skapa i ${namn}: gruppmärket är ${d.markW} px, väntat 34.`);
@@ -1255,6 +1268,76 @@ for (const scen of ["hub", "hubmodul"]) {
   const tip = await page.getByRole("tooltip").first().waitFor({ timeout: 2500 }).then(() => page.getByRole("tooltip").first().textContent()).catch(() => null);
   matt.push(`huvudets tooltip vid hover på Sök: ${JSON.stringify(tip)}`);
   krav(tip !== null && tip.includes("Sök"), `huvudets ikonknappar: hover på Sök gav ingen synlig tooltip med namnet (${JSON.stringify(tip)}).`);
+  await context.close();
+}
+
+// ══ 17. PRIMITIVERNA MOT SS OCH TOKENS (0.31.0, avsnitt 14) ═════════════════
+// CP: "Dubbelkolla alla primitiver så att det blir enhetligt med sessionstudio nu." Ett urval mäts i BÅDA teman: knapp, fält,
+// väljare, datum, tid, segmenterad, kort, rad, pill och tagg: rundning, höjd, kantbredd, yta och hover mot tokens (SS-förlagorna
+// står i docs/jamforelser/0.31.0/primitiver.md). Värdena är SS egna: fält `rounded` 12 px och 1,5 px kant (`TextInput.jsx:102`),
+// väljare 1 px (`themedSelectShared.js:72`), knapp `md` 44 px hög och `sm` 12 px text (`PrimaryButton.jsx:44-47`).
+for (const tema of /** @type {const} */ (["light", "dark"])) {
+  const { page, context } = await oppna("galleri", { width: 1280, height: 1600 }, tema, 2);
+  await page.evaluate(() => document.fonts.ready);
+  const g = await page.evaluate(() => {
+    /** @param {string} v */
+    const tok = (v) => { const p = document.createElement("div"); p.style.cssText = `border-radius:var(${v});background:var(${v})`; document.body.appendChild(p); const cs = getComputedStyle(p); const r = { radie: cs.borderTopLeftRadius, farg: cs.backgroundColor }; p.remove(); return r; };
+    /** @param {string} v */
+    const farg = (v) => { const p = document.createElement("div"); p.style.backgroundColor = `var(${v})`; document.body.appendChild(p); const c = getComputedStyle(p).backgroundColor; p.remove(); return c; };
+    /** @param {string} p */
+    const mat = (p) => {
+      const el = /** @type {HTMLElement | null} */ (document.querySelector(`[data-p="${p}"]`));
+      if (!el) return null;
+      const valjare = { falt: "input", select: "button", datum: "button", tid: "button", segment: "[role='tablist']", radio: "[role='radiogroup'] label", kort: ":scope > *", checkbox: "label span[aria-hidden]", pill: "span", tag: "span", chip: "button" };
+      const t = /** @type {HTMLElement} */ (el.matches("button, input, textarea, a") ? el : el.querySelector(/** @type {any} */ (valjare)[p] || "button, span") || el);
+      const cs = getComputedStyle(t);
+      const r = t.getBoundingClientRect();
+      // ⛔ Chromium (headless) AVRUNDAR en 1,5 px kant till 1 px i det BERÄKNADE värdet även vid skala 2 (mätt: `border: 1.5px solid` ger
+      // "1px" i `getComputedStyle`), så kantbredden läses ur stilmallens regel för klassen, det som författaren skrev och webbläsaren ritar
+      // på en riktig skärm. Klassen måste också sitta på elementet.
+      /** @param {any} lista @returns {any} */
+      const finn = (lista) => { for (const r of lista) { if (r.selectorText === ".border-\\[1\\.5px\\]") return r; if (r.cssRules) { const x = finn(r.cssRules); if (x) return x; } } return null; };
+      const regel = finn([...document.styleSheets].flatMap((ss) => [...ss.cssRules]));
+      return { klass: t.className, kantRegel: regel ? /** @type {any} */ (regel).style.borderWidth : null, dpr: devicePixelRatio, tagg: t.tagName, radie: parseFloat(cs.borderTopLeftRadius), kant: parseFloat(cs.borderTopWidth), bg: cs.backgroundColor, h: r.height, font: parseFloat(cs.fontSize) };
+    };
+    const ut = { base: parseFloat(tok("--radius-base").radie), card: parseFloat(tok("--radius-card").radie), surface: farg("--color-surface"), raised: farg("--color-raised") };
+    /** @type {Record<string, any>} */
+    const m = {};
+    for (const p of ["knapp-primary", "knapp-secondary", "knapp-ghost", "knapp-sm", "falt", "select", "datum", "tid", "segment", "kort", "pill", "tag", "chip", "checkbox"]) m[p] = mat(p);
+    return { ...ut, m };
+  });
+  const m = g.m;
+  const finns = Object.entries(m).filter(([, v]) => v === null).map(([k]) => k);
+  krav(finns.length === 0, `primitiverna ${tema}: ${finns.join(", ")} hittades inte i galleriet (golv: alla fjorton).`);
+  if (finns.length === 0) {
+    matt.push(`primitiverna ${tema}: fält ${m.falt.radie}px/${m.falt.kant}px/${m.falt.h.toFixed(0)}px, väljare ${m.select.radie}px/${m.select.kant}px, datum ${m.datum.radie}px, tid ${m.tid.radie}px, knapp ${m["knapp-primary"].h.toFixed(0)}px hög, liten ${m["knapp-sm"].font}px text, kort ${m.kort.radie}px (bas ${g.base}px, kort ${g.card}px)`);
+    for (const k of ["knapp-primary", "knapp-secondary", "knapp-ghost"]) {
+      krav(m[k].h >= 43.5 && m[k].radie >= m[k].h / 2, `primitiverna ${tema}: ${k} är ${m[k].h.toFixed(0)} px hög med rundning ${m[k].radie}: väntat 44 och piller (CP 2026-09-28).`);
+    }
+    krav(m["knapp-sm"].font === 12 && m["knapp-sm"].h >= 31.5, `primitiverna ${tema}: liten knapp har text ${m["knapp-sm"].font} px och höjd ${m["knapp-sm"].h.toFixed(0)}, väntat 12 px och minst 32 (SS PrimaryButton sm).`);
+    krav(m.falt.radie === g.base && m.falt.klass.split(/\s+/).includes("border-[1.5px]") && m.falt.kantRegel === "1.5px" && m.falt.bg === g.surface && m.falt.h >= 43.5, `primitiverna ${tema}: textfältet är ${m.falt.radie}px, kantregel ${m.falt.kantRegel}, yta ${m.falt.bg}, höjd ${m.falt.h.toFixed(0)}. Väntat ${g.base}px, 1,5px, ${g.surface}, minst 44 (SS TextInput).`);
+    for (const k of ["select", "datum", "tid"]) {
+      krav(m[k].radie === g.base && Math.abs(m[k].kant - 1) < 0.05 && m[k].bg === g.surface && m[k].h >= 43.5, `primitiverna ${tema}: ${k} är ${m[k].radie}px, kant ${m[k].kant}px, yta ${m[k].bg}, höjd ${m[k].h.toFixed(0)}. Väntat ${g.base}px, 1px, ${g.surface}, minst 44 (SS väljare).`);
+    }
+    krav(m.segment.radie >= 100, `primitiverna ${tema}: den segmenterade väljaren har rundning ${m.segment.radie}, väntat piller.`);
+    krav(m.kort.radie === g.card, `primitiverna ${tema}: kortet har rundning ${m.kort.radie}, väntat kortets ${g.card} (SS rounded-2xl).`);
+    for (const k of ["pill", "tag", "chip"]) krav(m[k].radie >= 8 && m[k].radie >= m[k].h / 2 - 0.5, `primitiverna ${tema}: ${k} har rundning ${m[k].radie} vid höjd ${m[k].h.toFixed(0)}, väntat piller.`);
+  }
+  // Hover på en rad: bakgrunden blir tokenets `raised` (SS `hover:bg-card`).
+  await page.locator('[data-p="rad"] button, [data-p="rad"] a').first().hover();
+  await page.waitForTimeout(400); // hover-övergången (`--duration-fast`) ska ha gått klart
+  const hov = await page.evaluate(() => {
+    const el = document.querySelector('[data-p="rad"] button, [data-p="rad"] a');
+    const p = document.createElement("div");
+    p.style.backgroundColor = "var(--color-raised)";
+    document.body.appendChild(p);
+    const raised = getComputedStyle(p).backgroundColor;
+    p.remove();
+    return { bg: el ? getComputedStyle(el).backgroundColor : null, raised, radie: el ? parseFloat(getComputedStyle(el).borderTopLeftRadius) : null };
+  });
+  krav(hov.bg === hov.raised, `primitiverna ${tema}: hover på en rad ger ${hov.bg}, väntat raised ${hov.raised} (SS hover:bg-card).`);
+  krav(hov.radie === g.base, `primitiverna ${tema}: raden har rundning ${hov.radie}, väntat ${g.base} (SS --radius).`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `galleri-${tema}.png`), fullPage: true });
   await context.close();
 }
 

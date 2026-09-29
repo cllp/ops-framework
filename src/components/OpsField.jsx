@@ -1,5 +1,6 @@
 import { createContext, useContext, useId } from "react";
 import { cx } from "../lib/cx.js";
+import { faltKlass } from "../lib/radKlass.js";
 
 /**
  * Fält, etikett, hjälptext och fel.
@@ -77,10 +78,8 @@ export function useFieldBinding() {
 // ⛔ `text-md` (16px) på telefon, `md:text-base` (14px) på desktop. Under 16px
 // zoomar iOS Safari in fältet vid fokus och lämnar användaren utzoomad efteråt.
 // Densiteten på desktop är oförändrad.
-const KONTROLL_BAS =
-  "w-full rounded-md border bg-canvas px-3 py-2 text-md md:text-base text-ink placeholder:text-ink-muted " +
-  "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent " +
-  "disabled:opacity-55 disabled:cursor-not-allowed";
+// 0.31.0: fältets klasser bor i `faltKlass` (radKlass.js), en gång för alla fält.
+
 
 /**
  * ⛔ `date`, `time`, `datetime-local`, `month`, `week` och `color` saknas
@@ -125,7 +124,7 @@ export function OpsInput({
   return (
     <input
       id={f.id}
-      className={cx(KONTROLL_BAS, f.invalid ? "border-danger" : "border-line")}
+      className={faltKlass({ invalid: f.invalid })}
       type={type}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
@@ -178,7 +177,7 @@ export function OpsTextarea({ value, onChange, placeholder, name, rows = 4, disa
           : undefined
       }
       id={f.id}
-      className={cx(KONTROLL_BAS, "resize-y", f.invalid ? "border-danger" : "border-line")}
+      className={cx(faltKlass({ invalid: f.invalid }), "resize-y")}
       value={value}
       onChange={onChange ? (e) => onChange(e.target.value) : undefined}
       placeholder={placeholder}

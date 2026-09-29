@@ -63,7 +63,7 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
                 disabled={o.disabled}
                 className={cx(
                   "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-2 pl-8 pr-3 text-base text-ink",
-                  "data-[highlighted]:bg-accent-faint data-[highlighted]:outline-none",
+                  "data-[highlighted]:bg-accent-faint data-[highlighted]:outline-none data-[state=checked]:bg-accent-subtle",
                   "data-[disabled]:opacity-55 data-[disabled]:cursor-not-allowed",
                 )}
               >

@@ -122,21 +122,38 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
 }
 
 /**
- * Klasserna för en fältknapp som öppnar en lista eller en kalender (`OpsSelect`, `OpsDatePicker`, `OpsTimePicker`) och för
- * ytan de öppnar (0.31.0). Före 0.31.0 stod trigger-strängen skriven i varje komponent, och popover-lagret
- * (`--z-dropdown`) låg UNDER modalen (`--z-modal`), så en lista som öppnades inuti en `OpsModal` ritades bakom den.
- * @param {{ invalid?: boolean, filled?: boolean }} [val]
+ * Fältets utseende: ETT ställe för `OpsInput`, `OpsTextarea`, `OpsSelect`, `OpsDatePicker` och `OpsTimePicker` (0.31.0).
+ *
+ * ══ ⛔ SESSIONSTUDIOS FÄLT, MÄTT (CP 2026-09-29: "dubbelkolla alla primitiver så att det blir enhetligt med sessionstudio") ═══
+ *
+ * SS `forms/TextInput.jsx:102`: `py-2 px-3 rounded border-[1.5px] bg-surface`, där `rounded` är SS `--radius` (12 px, `index.css:215`,
+ * `.rounded-app .rounded`) och ytan är `--color-surface`; fokus `.ss-field:focus-visible` (`index.css:1424-1428`): 2 px accentkontur
+ * `outline-offset: -2px` och accentkant. `dropdown/themedSelectShared.js:71-75` (väljaren i ett formulär): samma radie, kant 1 px,
+ * `hover:border-hover`. Före 0.31.0 var fälten `rounded-md` (10 px), kant 1 px, `bg-canvas` och konturen UTANFÖR kanten
+ * (`outline-offset-1`), alltså tre skillnader mot SS i samma kontroll, skrivna på fem ställen.
+ *
+ * ⛔ TEXTFÄLT HAR 1,5 PX KANT (`kant: "falt"`), VÄLJARE 1 PX (`kant: "val"`), SOM SS. Talet är SS egna och inte en gissning.
+ *
+ * @param {{ invalid?: boolean, filled?: boolean, trigger?: boolean, kant?: "falt" | "val" }} [val]
  * @returns {string}
  */
-export function faltTriggerKlass({ invalid = false, filled = true } = {}) {
+export function faltKlass({ invalid = false, filled = true, trigger = false, kant = "falt" } = {}) {
   return cx(
-    "inline-flex w-full items-center justify-between gap-2 rounded-md border bg-canvas px-3 py-2 min-h-11 text-md md:text-base",
+    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-md md:text-base transition-colors duration-(--duration-fast) ease-standard",
+    trigger && "inline-flex items-center justify-between gap-2",
+    kant === "falt" ? "border-[1.5px]" : "border",
     filled ? "text-ink" : "text-ink-muted",
-    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+    "placeholder:text-ink-muted",
+    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent focus-visible:border-accent",
     "disabled:opacity-55 disabled:cursor-not-allowed",
-    invalid ? "border-danger" : "border-line",
+    invalid ? "border-danger" : "border-line hover:border-line-strong",
   );
 }
 
-/** Ytan en fältknapp öppnar: ovanför modalen (se `--z-dropdown`), samma kant och skugga överallt. */
-export const faltYtaKlass = "z-(--z-dropdown) rounded-md border border-line bg-raised shadow-md";
+/** Fältknapp som öppnar en lista eller kalender (`OpsSelect`, `OpsDatePicker`, `OpsTimePicker`): 1 px kant som SS väljare. */
+export function faltTriggerKlass({ invalid = false, filled = true } = {}) {
+  return faltKlass({ invalid, filled, trigger: true, kant: "val" });
+}
+
+/** Ytan en fältknapp öppnar: ovanför modalen (se `--z-dropdown`), samma radie, kant och skugga överallt. SS `themedSelectShared.js:76-79`: `--radius`, kant, skugga. */
+export const faltYtaKlass = "z-(--z-dropdown) rounded-base border border-line bg-raised shadow-md";

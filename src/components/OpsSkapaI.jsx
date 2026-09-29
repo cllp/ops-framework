@@ -14,7 +14,8 @@ import { PersonIkon } from "./icons.jsx";
  * `CalendarCreateDestinationSheet.jsx:53-135`: `ModalShell size="sm" align="bottom"` (ett ark nerifrån på telefon, en
  * centrerad ruta från `sm`), sektionsrubrik `text-[10px] font-semibold uppercase tracking-wider text-muted` (`:75-77`),
  * raden `px-3 py-2.5 rounded-xl`, märket 36 px (`:88-95`; här 34 px som gruppanelens `rail`, SS `AppSidebar.jsx:95`) och
- * `UsersRound` till höger (`:97`). En vald rad har accentkant.
+ * `UsersRound` till höger (`:97`). En vald rad har accentkant. Rundningen är SS egen: arket `rounded-t-2xl` och rutan `sm:rounded-2xl`
+ * (`panelClassName`, `:53`, alltså `--radius-card`, 24 px) och raden `rounded-xl` (`:83`, 20 px).
  *
  * ⛔ SEKTIONERNA ÄR TVÅ, OCH DEN ANDRA ÄR APPENS. Grupper är ramverkets (`grupper`, samma form som `OpsGruppanel`).
  * `sektioner` är appens egna (t.ex. "Mina kalendrar"): `{ id, rubrik, poster: [{ id, namn, ikon? }] }`. Ramverket vet inte
@@ -58,8 +59,8 @@ export function OpsSkapaI({
         <Dialog.Content
           aria-describedby={undefined}
           className={cx(
-            "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] w-full flex-col rounded-t-lg border border-line bg-raised pb-(--safe-bottom) shadow-lg",
-            "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100vw---spacing(8))] sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:pb-0",
+            "fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] w-full flex-col rounded-t-card border border-line bg-raised pb-(--safe-bottom) shadow-lg",
+            "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100vw---spacing(8))] sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-card sm:pb-0",
           )}
         >
           <div className="border-b border-line px-4 py-3">
@@ -142,7 +143,7 @@ function Rad({ vald, onClick, children }) {
       aria-pressed={vald}
       onClick={onClick}
       className={cx(
-        "flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors duration-(--duration-fast) ease-standard",
+        "flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
         vald ? "border-accent bg-accent-faint" : "border-transparent hover:bg-accent-faint",
       )}
