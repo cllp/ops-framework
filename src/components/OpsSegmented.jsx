@@ -198,6 +198,7 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
                     <ValRad
                       key={item.value}
                       radio
+                      stor
                       chosen={item.value === value}
                       ikon={item.icon}
                       onClick={() => {

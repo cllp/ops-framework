@@ -66,7 +66,7 @@ export function OpsGruppvaljare({ grupper, aktiv, onValj, sprak, rubrik = "Grupp
                  * upplysningen får inte bara finnas som en bakgrundsnyans.
                  */
                 aria-current={vald ? "true" : undefined}
-                className={radKlass({ vald })}
+                className={radKlass({ vald, py: 2 })}
               >
                 {rad.id === ALLA_GRUPPER ? <span className="size-6 shrink-0" aria-hidden="true" /> : <OpsIdentity name={rad.etikett} seed={rad.id} size="sm" />}
                 <span className="grow truncate">{rad.etikett}</span>

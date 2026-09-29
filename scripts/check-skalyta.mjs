@@ -1463,25 +1463,25 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
 //
 // ⛔ GOLV: minst så många rader som ytan har, annars är mätningen tom. Och minst 12 ytor mättes (ytorna i tabellen).
 const FAMILJ = "Plus Jakarta Sans";
-/** @typedef {{ id: string, namn: string, scen?: string, aktiv?: string | null, bredd?: number[], oppna: (page: import("playwright").Page) => Promise<void>, rader: string, valt?: string | null, font: number, vikt?: number, padX?: number | null, padY?: number | null, hojdMin?: number, bock?: boolean, minRader: number, dialog?: boolean, viktUndantag?: number }} MenyYta */
+/** @typedef {{ id: string, namn: string, scen?: string, aktiv?: string | null, bredd?: number[], oppna: (page: import("playwright").Page) => Promise<void>, rader: string, valt?: string | null, font: number, vikt?: number, padX?: number | null, padY?: number | null, hojdMin?: number, bock?: boolean, minRader: number, dialog?: boolean, viktUndantag?: number, hojd?: number }} MenyYta */
 /** @type {MenyYta[]} */
 const MENYYTOR = [
-  { id: "filter-slag", namn: "Filter, en ikon per grupp (Slag)", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-ikoner"] button[aria-label^="Slag"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 4 },
-  { id: "filter-sortering", namn: "Filter, sorteringsikonen", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-ikoner"] button[aria-label^="Sortera"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 2 },
-  { id: "filter-samlad", namn: "Filter, samlad panel", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-samlad"] button[aria-label="Filter och sortering"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 6 },
-  { id: "chip-ikon", namn: "OpsFilterChip, ikon", scen: "menyer", oppna: (p) => p.locator('[data-m="chip-ikon"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 4 },
-  { id: "chip-text", namn: "OpsFilterChip, textpiller", scen: "menyer", oppna: (p) => p.locator('[data-m="chip-text"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 4 },
-  { id: "tema", namn: "Temaväljaren", scen: "menyer", oppna: (p) => p.locator('[data-m="tema"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 3 },
-  { id: "status", namn: "Idag/Kommande, statusmenyn", scen: "menyer", oppna: (p) => p.locator('[data-m="status"] [role="tab"]').last().click(), rader: '[role="menuitemradio"]', valt: '[aria-checked="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 3 },
-  { id: "select", namn: "OpsSelect", scen: "menyer", oppna: (p) => p.locator('[data-m="select"] button').press("Enter"), rader: '[role="option"]', valt: '[role="option"][data-state="checked"]', font: 14, padX: 12, padY: 8, bock: true, minRader: 3 },
-  { id: "tid", namn: "OpsTimePicker", scen: "menyer", oppna: (p) => p.locator('[data-m="tid"] button').first().press("Enter"), rader: '[role="option"]', valt: '[role="option"][data-state="checked"]', font: 14, padX: 12, padY: 8, bock: true, minRader: 10 },
+  { id: "filter-slag", namn: "Filter, en ikon per grupp (Slag)", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-ikoner"] button[aria-label^="Slag"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, hojd: 28, bock: true, minRader: 4 },
+  { id: "filter-sortering", namn: "Filter, sorteringsikonen", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-ikoner"] button[aria-label^="Sortera"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, hojd: 28, bock: true, minRader: 2 },
+  { id: "filter-samlad", namn: "Filter, samlad panel", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-samlad"] button[aria-label="Filter och sortering"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, hojd: 28, bock: true, minRader: 6 },
+  { id: "chip-ikon", namn: "OpsFilterChip, ikon", scen: "menyer", oppna: (p) => p.locator('[data-m="chip-ikon"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, hojd: 28, bock: true, minRader: 4 },
+  { id: "chip-text", namn: "OpsFilterChip, textpiller", scen: "menyer", oppna: (p) => p.locator('[data-m="chip-text"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, hojd: 28, bock: true, minRader: 4 },
+  { id: "tema", namn: "Temaväljaren", scen: "menyer", oppna: (p) => p.locator('[data-m="tema"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, hojd: 28, bock: true, minRader: 3 },
+  { id: "status", namn: "Idag/Kommande, statusmenyn", scen: "menyer", oppna: (p) => p.locator('[data-m="status"] [role="tab"]').last().click(), rader: '[role="menuitemradio"]', valt: '[aria-checked="true"]', font: 14, padX: 12, padY: 10, hojd: 40, bock: true, minRader: 3 },
+  { id: "select", namn: "OpsSelect", scen: "menyer", oppna: (p) => p.locator('[data-m="select"] button').press("Enter"), rader: '[role="option"]', valt: '[role="option"][data-state="checked"]', font: 14, padX: 12, padY: 8, hojd: 36, bock: true, minRader: 3 },
+  { id: "tid", namn: "OpsTimePicker", scen: "menyer", oppna: (p) => p.locator('[data-m="tid"] button').first().press("Enter"), rader: '[role="option"]', valt: '[role="option"][data-state="checked"]', font: 14, padX: 12, padY: 8, hojd: 36, bock: true, minRader: 10 },
   { id: "datum", namn: "OpsDatePicker, dagarna", scen: "menyer", oppna: (p) => p.locator('[data-m="datum"] button').press("Enter"), rader: '[role="grid"] button', valt: null, font: 12, padX: null, padY: null, minRader: 28, dialog: true, viktUndantag: 1 },
-  { id: "aktivitet", namn: "Aktivitet, Mer-menyn", scen: "menyer", oppna: (p) => p.locator('[data-m="aktivitet"] button[aria-label="Mer"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button', valt: null, font: 12, padX: 12, padY: 10, minRader: 1 },
-  { id: "gruppvaljare", namn: "OpsGruppvaljare", scen: "menyer", oppna: async () => {}, rader: '[data-m="gruppvaljare"] ul button', valt: '[aria-current="true"]', font: 12, padX: 12, padY: 10, bock: true, minRader: 4 },
+  { id: "aktivitet", namn: "Aktivitet, Mer-menyn", scen: "menyer", oppna: (p) => p.locator('[data-m="aktivitet"] button[aria-label="Mer"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button', valt: null, font: 12, padX: 12, padY: 10, hojd: 36, minRader: 1 },
+  { id: "gruppvaljare", namn: "OpsGruppvaljare", scen: "menyer", oppna: async () => {}, rader: '[data-m="gruppvaljare"] ul button', valt: '[aria-current="true"]', font: 12, padX: 12, padY: 8, bock: true, minRader: 4 },
   { id: "header-meny", namn: "Huvudets meny", scen: "full", oppna: async (p) => { const v = p.viewportSize(); if (v && v.width < 800) await p.getByRole("button", { name: "Meny" }).last().click(); else await p.getByRole("button", { name: /Meny, fler/ }).click(); }, rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 12, padX: 12, padY: 10, minRader: 3, dialog: true },
   { id: "skapa-dropdown", namn: "Skapa-menyn (plus)", scen: "skapa", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Skapa", exact: true }).last().click(), rader: '[role="dialog"] button[class*="min-h-11"]', valt: null, font: 14, vikt: 500, padX: 16, padY: 10, minRader: 1, dialog: true },
   { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Hub" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
-  { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "alla", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 10, minRader: 3, dialog: true },
+  { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "alla", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 12, minRader: 3, dialog: true },
 ];
 let ytorMatta = 0;
 for (const y of MENYYTOR) {
@@ -1506,11 +1506,16 @@ for (const y of MENYYTOR) {
           /** @type {Element | null} */
           let b = el.parentElement;
           while (b && !opak(getComputedStyle(b).backgroundColor)) b = b.parentElement;
-          return { font: parseFloat(cs.fontSize), vikt: parseInt(cs.fontWeight, 10), familj: cs.fontFamily, lh: cs.lineHeight, h: r.height, w: r.width, padX: parseFloat(cs.paddingLeft), padY: parseFloat(cs.paddingTop), kant, kontur, bg: cs.backgroundColor, behallare: b ? getComputedStyle(b).backgroundColor : "", bockar: el.querySelectorAll("svg").length, fokus: el === document.activeElement || el.matches(":focus-visible"), text: (el.textContent || "").trim().slice(0, 24) };
+          return { font: parseFloat(cs.fontSize), vikt: parseInt(cs.fontWeight, 10), familj: cs.fontFamily, lh: cs.lineHeight, h: r.height, w: r.width, padX: parseFloat(cs.paddingLeft), padY: parseFloat(cs.paddingTop), kant, kontur, farg: cs.color, bg: cs.backgroundColor, behallare: b ? getComputedStyle(b).backgroundColor : "", bockar: el.querySelectorAll("svg").length, fokus: el === document.activeElement || el.matches(":focus-visible"), text: (el.textContent || "").trim().slice(0, 24) };
         };
         const rader = [...document.querySelectorAll(raderSel)].filter((e) => e.getBoundingClientRect().height > 0).map(rad);
         const valt = valtSel ? [...document.querySelectorAll(raderSel)].filter((e) => e.matches(valtSel) && e.getBoundingClientRect().height > 0).map(rad) : [];
-        return { rader, valt, aktivt: document.activeElement ? (document.activeElement.textContent || "").trim().slice(0, 20) : "" };
+        const inkEl = document.createElement("div");
+        inkEl.style.color = "var(--color-ink)";
+        document.body.appendChild(inkEl);
+        const ink = getComputedStyle(inkEl).color;
+        inkEl.remove();
+        return { ink, rader, valt, aktivt: document.activeElement ? (document.activeElement.textContent || "").trim().slice(0, 20) : "" };
       }, { raderSel: y.rader, valtSel: y.valt ?? null });
       ytorMatta += 1;
       krav(m.rader.length >= y.minRader, `${etikett}: ${m.rader.length} rader lästa, väntat minst ${y.minRader}. Ytan öppnades inte eller raderna har ett annat namn (mätningen får inte bli grön av att inget hittades).`);
@@ -1523,14 +1528,16 @@ for (const y of MENYYTOR) {
         krav(m.rader.every((r) => r.familj.includes(FAMILJ)), `${etikett}: typsnittet är ${r0.familj}, väntat ${FAMILJ} (tokenets --font-sans).`);
         krav(m.rader.filter((r) => r.vikt !== (y.vikt ?? 400)).length <= (y.viktUndantag ?? 0), `${etikett}: vikten är ${[...new Set(m.rader.map((r) => r.vikt))].join("/")}, väntat ${y.vikt ?? 400}.`);
         if (y.padX !== null && y.padX !== undefined) krav(m.rader.every((r) => r.padX === y.padX && r.padY === y.padY), `${etikett}: luften är ${r0.padX}/${r0.padY} px, väntat ${y.padX}/${y.padY} (SS px-${y.padX / 4} py-${y.padY / 4}).`);
-        krav(m.rader.every((r) => r.h >= (y.hojdMin ?? 36) - 0.5), `${etikett}: en rad är ${Math.min(...m.rader.map((r) => r.h)).toFixed(1)} px hög, väntat minst ${y.hojdMin ?? 36}.`);
-        if (y.padX !== null && y.padX !== undefined) krav(m.rader.every((r) => r.h >= 43.5), `${etikett}: en rad är ${Math.min(...m.rader.map((r) => r.h)).toFixed(1)} px hög, väntat minst 44 (tumkravet).`);
+        // Höjden: SS egen på dator (radhöjd = radens text 16 eller 20 px + 2 x luften), 44 px träffyta under md (koordinatorn: "CP vill exakt SS").
+        if (bredd < 800) krav(m.rader.every((r) => r.h >= 43.5), `${etikett}: en rad är ${Math.min(...m.rader.map((r) => r.h)).toFixed(1)} px hög, väntat minst 44 (tumkravet under md).`);
+        else if (y.hojd !== undefined) krav(m.rader.every((r) => Math.abs(r.h - /** @type {number} */ (y.hojd)) <= 0.5), `${etikett}: raderna är ${[...new Set(m.rader.map((r) => r.h))].join("/")} px höga, väntat ${y.hojd} (SS: ${y.hojd - 2 * /** @type {number} */ (y.padY)} px text + 2 x ${y.padY} px).`);
         if (y.valt !== null && y.valt !== undefined) {
           krav(m.valt.length >= 1, `${etikett}: ingen vald rad hittades (${y.valt}). Golv: minst en.`);
           const v = m.valt[0];
           if (v) {
             krav(v.kant === 0, `${etikett}: den valda raden har en kant på ${v.kant} px, väntat ingen (SS: tonad yta och bock, ingen ram).`);
             krav(v.kontur === 0, `${etikett}: den valda raden har en konturram på ${v.kontur} px efter att ytan öppnats med tangentbordet, väntat ingen. Det är den tjocka accentramen i CP:s bild (Radix flyttar fokus till första raden).`);
+            krav(v.farg === m.ink, `${etikett}: den valda radens text är ${v.farg}, väntat inkfärgen ${m.ink} (SS ThemedDropdown: text-primary, inte accentfärgad text).`);
             krav(v.bg !== v.behallare, `${etikett}: den valda raden har samma yta (${v.bg}) som behållaren, så valet syns inte.`);
             if (y.bock) krav(v.bockar >= 1, `${etikett}: den valda raden har ingen bock.`);
           }

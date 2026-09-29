@@ -139,7 +139,7 @@ function Rubrik({ children }) {
 /** @param {{ vald: boolean, onClick: () => void, children: import("react").ReactNode }} props */
 function Rad({ vald, onClick, children }) {
   return (
-    <button type="button" aria-pressed={vald} onClick={onClick} className={radKlass({ vald, stor: true })}>
+    <button type="button" aria-pressed={vald} onClick={onClick} className={radKlass({ vald, stor: true, py: 3 })}>
       {children}
       {vald ? (
         <span aria-hidden="true" className="shrink-0 text-accent">

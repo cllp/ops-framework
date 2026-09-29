@@ -19,16 +19,17 @@ import { radKlass } from "../lib/radKlass.js";
  * @param {boolean} props.chosen
  * @param {() => void} props.onClick
  * @param {import("react").ReactNode} [props.ikon]
+ * @param {boolean} [props.stor] `text-sm`, `py-2.5`: SS `TodayView.jsx:294` (statusmenyn). Utan: `text-xs`, `py-1.5`, SS `ThemedDropdown.jsx:122`.
  * @param {boolean} [props.radio] `role="menuitemradio"` och `aria-checked` i stället för `aria-pressed` (rader i en `role="menu"`).
  * @param {import("react").ReactNode} props.children
  */
-export function ValRad({ chosen, onClick, ikon, radio = false, children }) {
+export function ValRad({ chosen, onClick, ikon, radio = false, stor = false, children }) {
   return (
     <button
       type="button"
       {...(radio ? { role: "menuitemradio", "aria-checked": chosen } : { "aria-pressed": chosen })}
       onClick={onClick}
-      className={radKlass({ vald: chosen })}
+      className={radKlass(stor ? { vald: chosen, stor: true } : { vald: chosen, py: 1.5 })}
     >
       {ikon ? (
         <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">

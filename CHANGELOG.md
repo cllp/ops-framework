@@ -24,8 +24,8 @@ Orsaken var att samma rad skrevs i fyra filer (`OpsFilterPanel`, `OpsFilterChip`
 (tabell med SS fil:rad, före och efter: `docs/jamforelser/0.31.2/menyer.md`). Också ändrat: datumväljarens text (16 till 12 px, SS `ThemedDatePicker`),
 Aktivitets Mer-meny (14 till 12 px), grupplistan och "Skapa i" (vald rad = tonad yta och bock, ingen ram), rubriken över raderna står i radernas kolumn.
 ⛔ Den valda raden syntes inte i ljust tema: `raised` är samma färg som `surface` där, och behållarna var `bg-raised`. Nu `bg-surface` och valt `bg-accent-subtle`.
-Fokus på en menyrad är en yta (`bg-hover`), inte en ram. Vakt: check-skalyta avsnitt 18 öppnar 16 ytor i 1280 och 390 px (30 mätningar, golv 28) med
-tangentbordet och mäter radens text, vikt, typsnitt, luft, höjd samt den valda radens kant, kontur, bock och yta. **Rött mot 0.31.1: 84 brott** (16 px, 600,
+Raderna har SS höjd på dator (28 px för ThemedDropdown-raderna, 36 för AppHeader-raderna, 40 för statusmenyn som är `text-sm` som SS `TodayView.jsx:294`) och 44 px träffyta under `md`; vald rads text är `text-ink` som SS. Fokus på en menyrad är en yta (`bg-hover`), inte en ram. Vakt: check-skalyta avsnitt 18 öppnar 16 ytor i 1280 och 390 px (30 mätningar, golv 28) med
+tangentbordet och mäter radens text, vikt, typsnitt, luft, höjd samt den valda radens kant, kontur, bock och yta. **Rött mot 0.31.1: 84 brott, och mot första 0.31.2-versionen 28 (radhöjden 44 mot SS 28)** (16 px, 600,
 konturen 2 px, 32x8 i listorna), **grönt nu: 726 kontroller, inga brott.**
 
 ### B. Appens stilrot får inte omforma skalet (`check:tokens`)

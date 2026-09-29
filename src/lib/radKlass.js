@@ -1,5 +1,8 @@
 import { cx } from "./cx.js";
 
+/** @type {Record<number, string>} */
+const PY = { 1.5: "py-1.5", 2: "py-2", 2.5: "py-2.5", 3: "py-3" };
+
 /**
  * Klasserna för EN rad i en meny, en dropdown, ett ark eller plussets lista.
  *
@@ -28,14 +31,16 @@ import { cx } from "./cx.js";
  * @param {boolean} [val.active] "Du är här": `bg-raised text-accent`.
  * @param {boolean} [val.klickbar] Ger pekaren. Förval sant.
  * @param {boolean} [val.vald] Raden är ETT VAL i en lista (`true` = det valda, `false` = ett av de andra), inte en destination. Valt: `bg-accent-subtle text-ink` och en accentbock (SS `--color-gold-overlay-subtle`, `text-primary`, `ThemedDropdown.jsx:122`); övriga hovrar i `bg-hover` (SS `themedSelectShared.js:82`, `FormDropdown`). ⛔ `raised` går inte att använda här: i ljust läge är den SAMMA färg som behållarens `surface`, så en vald rad syntes inte alls.
+ * @param {1.5 | 2 | 2.5 | 3} [val.py] Radens lodräta luft. ⛔ 0.31.2 (koordinatorn: "CP vill exakt SS"): `2.5` är AppHeaderns menyrad (`AppHeader.jsx:514`, `py-2.5`, förval); `1.5` är ThemedDropdown-motsvarigheterna (`ThemedDropdown.jsx:122`, `py-1.5`, filter, chip, tema); `2` formulärlistor och gruppfiltret; `3` `InviteGroupPickerDialog`. Höjden är SS egen från `md` (`md:min-h-0`, radhöjd = 16 eller 20 px text + 2 x luften), och 44 px träffyta under `md`.
  * @param {boolean} [val.stor] Raden bär mer än en textrad (märke, namn, antal): `text-sm`, `gap-3`. SS `InviteGroupPickerDialog.jsx:33-36` (`gap-3`, `text-sm`) och `EventStatusDropdown.jsx:34` (`px-3 py-2`, `text-sm`).
  * @param {boolean} [val.accentFarg] Raden är en åtgärd i accentfärg ('Rensa'), inte ett val och inte plussets stora rad.
  * @returns {string}
  */
-export function radKlass({ accent = false, active = false, klickbar = true, accentFarg = false, stor = false, vald } = {}) {
+export function radKlass({ accent = false, active = false, klickbar = true, accentFarg = false, stor = false, vald, py = 2.5 } = {}) {
+  const luft = PY[py] ?? PY[2.5];
   return cx(
-    "flex min-h-11 w-full items-center rounded-base text-left transition-colors duration-(--duration-fast) ease-standard",
-    accent ? "gap-3 px-4 py-2.5 text-sm font-medium text-accent hover:bg-raised" : stor ? "gap-3 px-3 py-2.5 text-sm" : "gap-2.5 px-3 py-2.5 text-xs",
+    "flex min-h-11 md:min-h-0 w-full items-center rounded-base text-left transition-colors duration-(--duration-fast) ease-standard",
+    accent ? "gap-3 px-4 py-2.5 text-sm leading-5 font-medium text-accent hover:bg-raised" : stor ? cx("gap-3 px-3 text-sm leading-5", luft) : cx("gap-2.5 px-3 text-xs leading-4", luft),
     !accent && vald !== undefined && (vald ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-hover hover:text-ink"),
     !accent && vald === undefined && (active ? "bg-raised text-accent" : accentFarg ? "text-accent hover:bg-raised" : "text-ink-secondary hover:bg-raised hover:text-ink"),
     // ⛔ 0.31.2: FOKUS ÄR EN YTA, INTE EN RAM. Radix flyttar fokus in i en öppnad meny, och första raden
@@ -188,7 +193,7 @@ export const faltYtaKlass = "z-(--z-dropdown) rounded-base border border-line bg
  */
 export function valjAlternativKlass({ dampad = false } = {}) {
   return cx(
-    "relative flex min-h-11 w-full cursor-pointer select-none items-center gap-1.5 rounded-base px-3 py-2 text-left text-sm",
+    "relative flex min-h-11 md:min-h-0 w-full cursor-pointer select-none items-center gap-1.5 rounded-base px-3 py-2 text-left text-sm leading-5",
     dampad ? "text-ink-muted" : "text-ink",
     "data-[highlighted]:bg-hover data-[highlighted]:outline-none data-[state=checked]:bg-accent-subtle",
     "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-55",
