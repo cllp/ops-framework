@@ -123,7 +123,11 @@ describe("OpsBrand", () => {
         <p>innehåll</p>
       </OpsAppShell>,
     );
-    expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
+    // ⛔ 0.30.0 (#173): märket i toppraden har ingen undertext, namnet är bildens `alt`
+    // (och därmed länkens namn). Före 0.30.0 stod det som text under bilden.
+    // (Båda bilderna bär alt i jsdom, som inte kör CSS: i en webbläsare döljer `md:hidden` den ena.)
+    expect(screen.getByRole("link", { name: /Bolag Ops/ })).toBeInTheDocument();
+    expect(screen.queryByText("Bolag Ops")).toBeNull();
   });
 
   // ══ #164, korrigering B / punkt 9: OPS Hub-bilder som förval ═══════════
@@ -159,13 +163,22 @@ describe("OpsBrand", () => {
       expect(bild.src).not.toContain("ops-hub");
     });
 
-    it("⛔ 19:10: title ritas som synlig, uppläst UNDERTEXT under bilden, bilden själv är dekor (alt=\"\")", () => {
-      const { container: c1 } = render(<OpsBrand title="Bolag Ops" ordmarke={{ ljus: "/ord-ljus.png", mork: "/ord-mork.png" }} />);
+    it("⛔ 0.30.0 (#173): UTAN `undertext` ritas ingen text under bilden, och title är bildens alt (loggan utan text under)", () => {
+      const { container } = render(<OpsBrand title="Bolag Ops" ordmarke={{ ljus: "/ord-ljus.png", mork: "/ord-mork.png" }} />);
+      const bild = /** @type {HTMLImageElement} */ (container.querySelector("img"));
+      expect(bild.alt).toBe("Bolag Ops");
+      expect(within(container).queryByText("Bolag Ops")).toBeNull();
+      // Ingenting efter bilden: märket är EN bild hög, inte en kolumn.
+      expect(bild.nextElementSibling).toBeNull();
+    });
+
+    it("⛔ 19:10 (kvar som VAL sedan 0.30.0): med `undertext` ritas title som synlig, uppläst text under bilden, bilden själv är dekor (alt=\"\")", () => {
+      const { container: c1 } = render(<OpsBrand title="Bolag Ops" undertext ordmarke={{ ljus: "/ord-ljus.png", mork: "/ord-mork.png" }} />);
       expect(within(c1).getByText("Bolag Ops")).toBeInTheDocument();
       const bild = /** @type {HTMLImageElement} */ (c1.querySelector("img"));
       expect(bild.alt).toBe("");
       // ⛔ subtitle ritas ALDRIG i bildläget: title äger undertextplatsen.
-      const { container: c2 } = render(<OpsBrand title="X" subtitle="CPS AB" ordmarke={{ ljus: "/o.png", mork: "/o.png" }} />);
+      const { container: c2 } = render(<OpsBrand title="X" subtitle="CPS AB" undertext ordmarke={{ ljus: "/o.png", mork: "/o.png" }} />);
       expect(within(c2).queryByText("CPS AB")).toBeNull();
     });
 
