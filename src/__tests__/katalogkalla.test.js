@@ -186,7 +186,7 @@ describe("uppsättningen", () => {
   it("standardvärdena går att läsa ut, som kopior, och utan groupId eftersom de är mallen och inte en grupps rad", () => {
     const katalog = createCatalogSource({ source: createMemorySource({ kataloger: [] }), collection: "kataloger", groupId: CPS_AB, standard: STANDARD, ikoner: IKONER });
     const ett = katalog.standardvarden();
-    expect(ett[0].groupId).toBeNull();
+    expect(Object.hasOwn(ett[0], "groupId")).toBe(false);
     ett[0].id = "ändrad";
     // ⛔ Kopior och inte referenser: en anropare som råkar ändra i svaret ska
     // inte kunna ändra vad nästa seedning skriver.
@@ -273,7 +273,7 @@ describe("⛔ ogrupperat läge, groupId: null uttryckligen (0.29.0, övergången
     expect(seed).toEqual({ seedade: true, antal: 2 });
     const rader = await source.list("kataloger", {});
     expect(rader.map((r) => r.id).sort()).toEqual(["paminnelse", "uppgift"]);
-    expect(rader.every((r) => r.groupId == null)).toBe(true);
+    expect(rader.every((r) => !Object.hasOwn(r, "groupId"))).toBe(true);
     const svar = await kalla.las();
     expect(svar.kalla).toBe("databas");
     expect(svar.kategorier.map((k) => k.id).sort()).toEqual(["paminnelse", "uppgift"]);
@@ -295,7 +295,7 @@ describe("⛔ ogrupperat läge, groupId: null uttryckligen (0.29.0, övergången
     const kalla = createCatalogSource({ source: trasigKalla(), collection: "kataloger", groupId: null, standard: STANDARD, ikoner: IKONER });
     const svar = await kalla.las();
     expect(svar.kalla).toBe("reserv");
-    expect(svar.kategorier.every((k) => k.groupId == null)).toBe(true);
+    expect(svar.kategorier.every((k) => !Object.hasOwn(k, "groupId"))).toBe(true);
   });
 
   it("⛔ ett utelämnat groupId är fortfarande rött, och felet pekar på null", () => {

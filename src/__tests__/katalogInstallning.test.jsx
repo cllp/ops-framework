@@ -385,7 +385,10 @@ describe("⛔ groupId (#162): satt eller inte, avgör om kategorin blir gruppens
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
 
     expect(onSpara).toHaveBeenCalledTimes(1);
-    expect(onSpara.mock.calls[0][0].groupId).toBeNull();
+    // ⛔ "Utan fältet" betyder utan NYCKELN (0.29.1). 0.29.0 skickade `groupId: null`,
+    // och det föll på bolag-ops `hasOnly`-regler som inte känner groupId: 10 röda
+    // regelprov, PERMISSION_DENIED på varje kategoriskrivning i Inställningar.
+    expect(Object.hasOwn(onSpara.mock.calls[0][0], "groupId")).toBe(false);
   });
 
   it("groupId satt: en ny kategori bär den, byggd med grupp: true", () => {

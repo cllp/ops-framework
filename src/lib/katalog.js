@@ -114,8 +114,9 @@ export const AVSLUTADE_FASER = /** @type {const} */ (["klar", "avskriven"]);
  * @property {number} ordning Lägre först.
  * @property {boolean} arkiverad Går inte att välja för nya poster.
  * @property {Record<string, import("./sprak.js").Namn>} texter Fria, namngivna texter. Se nedan.
- * @property {string | null} groupId Gruppen katalogen hör till (#162), eller `null` i en
- *   katalog som är byggd utan `grupp: true`, alltså delad av alla som använder den.
+ * @property {string} [groupId] Gruppen katalogen hör till (#162). Nyckeln FINNS BARA när
+ *   kategorin byggts med `grupp: true`. I en katalog utan grupp saknas den helt (0.29.1):
+ *   ett `groupId: null` föll på konsumenters `hasOnly`-regler utan groupId.
  */
 
 /**
@@ -335,7 +336,12 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     ordning: Number.isFinite(Number(d.ordning)) ? Number(d.ordning) : 0,
     arkiverad: d.arkiverad === true,
     texter,
-    groupId: grupp ? groupId : null,
+    // ⛔ Nyckeln finns bara i grupperat läge. 0.29.0 skrev `groupId: null` i
+    // ogrupperat läge, och det gjorde varje konsuments `hasOnly`-regel utan
+    // groupId röd: bolag-ops regelprov föll 10 av 151 (PERMISSION_DENIED på
+    // varje kategoriskrivning). En rad utan grupp ska vara byte för byte samma
+    // rad som före #162, annars är övergången i #447 inte frivillig.
+    ...(grupp ? { groupId } : {}),
   };
 }
 
