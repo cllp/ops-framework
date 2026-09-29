@@ -456,7 +456,7 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
                 vald ? "border-accent bg-accent/10 shadow-sm" : "border-line bg-surface hover:border-line-strong",
               )}
             >
-              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="md" />
+              <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="rail" />
             </button>
           </li>
         );
@@ -537,7 +537,14 @@ export function OpsGruppanel({
         type="button"
         onClick={vaxlaInfalld}
         aria-label={kollapsad ? fallUtEtikett : kollapsaEtikett}
-        className={cx("flex w-full items-center justify-center p-1.5 text-ink-secondary hover:bg-sunken hover:text-ink", RADIE, "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent")}
+        // ⛔ 0.30.1: INFÄLLD ÄR KNAPPEN SAMMA 40 PX-RUTA MED KANT SOM REMSANS ÖVRIGA POSTER (CP:s inspelning,
+        // SS infällda ram: en ruta med chevron, inte en naken pil). Utfälld är den full bredd överst (`AppSidebar.jsx:51-59`).
+        className={cx(
+          "flex items-center justify-center text-ink-secondary",
+          kollapsad ? "size-10 border border-line bg-surface hover:border-line-strong hover:text-ink" : "w-full p-1.5 hover:bg-sunken hover:text-ink",
+          RADIE,
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        )}
       >
         {kollapsad ? <ChevronHogerIkon size={14} /> : <ChevronVansterIkon size={14} />}
       </button>
@@ -644,9 +651,14 @@ export function OpsGruppvaxlare({
         // ⛔ EN RIKTIG <button>, INTE EN <span>. `OpsPanel`s `trigger` monteras
         // med Radix `asChild`, som SÄTTER a11y-attributen på elementet man ger
         // den men inte GÖR om det till en knapp.
-        <button type="button" aria-label={etikett} className="flex min-h-11 max-w-40 items-center gap-2 rounded-md px-2 text-sm font-semibold text-ink hover:bg-sunken">
+        // ⛔ 0.30.1: UNDER `md` VISAS BARA MÄRKET, INTE NAMNET. CP 2026-09-29 13:44, med bild från
+        // telefonen: "Claes Philip St..." i klartext låg ovanpå inkorg, sök och avatar i 390 px.
+        // Namnet står kvar i knappens `aria-label` (etiketten) och i arket som öppnas, och
+        // synligt från `md`, där det finns plats. SS har ingen gruppväxlare med namn i mobilhuvudet
+        // (`AppHeaderMobileToolbar.jsx`: tema, sök, plus, avatar).
+        <button type="button" aria-label={etikett} className="flex min-h-11 items-center gap-0 rounded-md px-1 text-sm font-semibold text-ink hover:bg-sunken md:max-w-40 md:gap-2 md:px-2">
           {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="sm" />}
-          <span className="min-w-0 truncate">{aktivtNamn}</span>
+          <span className="hidden min-w-0 truncate md:inline">{aktivtNamn}</span>
         </button>
       }
     >

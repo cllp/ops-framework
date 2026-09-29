@@ -12,9 +12,9 @@
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
 import * as Ops from "OPS_DIST";
-import { Calendar, CalendarDays, Inbox, LayoutGrid, Settings, Wallet } from "lucide-react";
+import { Calendar, CalendarDays, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsIconLink, OpsIdentity, OpsKatalogInstallning } = Ops;
+const { OpsAppShell, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsKatalogInstallning, OpsThemeToggle } = Ops;
 
 const IKON = 20;
 const nav = [
@@ -66,8 +66,89 @@ function Skal({ children, extra = {} }) {
   );
 }
 
+/** Appens verkliga uppsättning (0.30.1): tema, inkorg med räknare, sök, fråga, avatar och en gruppväxlare med ett långt gruppnamn. */
+const hubModuler = [
+  { href: "/oversikt", label: "Översikt", icon: <LayoutGrid size={IKON} />, info: "3 saker att göra" },
+  {
+    href: "/ekonomi",
+    label: "Ekonomi",
+    icon: <Wallet size={IKON} />,
+    badge: 2,
+    info: { sv: "Skatten förfaller 12 oktober" },
+    children: [
+      { href: "/inkomster", label: "Inkomster", badge: 1, info: "Ny faktura i går" },
+      { href: "/kostnader", label: "Kostnader", info: null },
+      ...["Pension", "Skatt", "Moms", "Bokslut"].map((n) => ({ href: `/${n.toLowerCase()}`, label: n })),
+    ],
+  },
+  { href: "/schema", label: "Schema", icon: <Calendar size={IKON} />, badge: 0, info: null },
+  { href: "/cutover", label: "Cutover", icon: <Settings size={IKON} /> },
+];
+/** Vart appen har navigerat: kortet är en riktig länk, och sidan får inte laddas om i provet. */
+window.__gick = [];
+const gaTill = (href, e) => {
+  e.preventDefault();
+  window.__gick.push(href);
+};
+const grupperLista = [
+  { id: "g1", namn: { sv: "Claes Philip Staiger Konsulting och Förvaltning AB" }, medlemsantal: 2, roll: "agare" },
+  { id: "g2", namn: { sv: "Testgruppen" }, medlemsantal: 3 },
+];
+
+function Full({ children }) {
+  const [infalld, setInfalld] = useState(false);
+  const [aktiv, setAktiv] = useState("g1");
+  return (
+    <OpsAppShell
+      brand="Bolag Ops"
+      fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
+      moduler={hubModuler}
+      activeHref="/"
+      actions={
+        <>
+          <OpsThemeToggle />
+          <OpsIconLink href="/inkorg" icon={<Inbox size={IKON} />} label="Inkorg" badge={3} />
+          <OpsIconLink href="/sok" icon={<Search size={IKON} />} label="Sök" />
+          <OpsIconLink href="/fraga" icon={<Sparkles size={IKON} />} label="Fråga" />
+        </>
+      }
+      anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
+      skapa={{ handelse: <p>Formulär</p> }}
+      meny={meny}
+      grupper={{ lista: grupperLista, aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {} }}
+    >
+      {children}
+    </OpsAppShell>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
+  if (s === "full") {
+    return (
+      <Full>
+        <p className="px-4">innehåll</p>
+      </Full>
+    );
+  }
+  if (s === "hub") {
+    return (
+      <Full>
+        <div className="px-4 py-4">
+          <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
+        </div>
+      </Full>
+    );
+  }
+  if (s === "hubmodul") {
+    return (
+      <Full>
+        <div className="px-4 pb-4">
+          <OpsHubModul modul={hubModuler[1]} hubHref="/hub" activeHref="/ekonomi" onNavigate={gaTill} />
+        </div>
+      </Full>
+    );
+  }
   if (s === "fasta") {
     return (
       <OpsAppShell

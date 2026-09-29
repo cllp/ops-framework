@@ -42,10 +42,16 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     expect(within(rad).getAllByRole("link").map((a) => a.textContent)).toEqual(["Today", "Calendar", "Hub"]);
   });
 
-  it("Hub har en chevron som öppnar modulerna, med modulernas undersidor indragna under", () => {
+  it("Hub har en chevron som öppnar modulerna, och en modul med undersidor har en egen chevron (0.30.1)", () => {
     render(Skal());
     fireEvent.click(screen.getByRole("button", { name: "Visa sidorna under Hub" }));
     const dropdown = screen.getByRole("dialog");
+    // Ekonomis barn är infällda tills dess egen chevron trycks: en rad med chevron, inte en lista som alltid syns.
+    expect(within(dropdown).getAllByRole("link").map((a) => a.textContent)).toEqual(["Översikt", "Ekonomi"]);
+    const chevron = within(dropdown).getByRole("button", { name: "Visa sidorna under Ekonomi" });
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(chevron);
+    expect(chevron.getAttribute("aria-expanded")).toBe("true");
     expect(within(dropdown).getAllByRole("link").map((a) => a.textContent)).toEqual(["Översikt", "Ekonomi", "Inkomster", "Kostnader"]);
   });
 
@@ -131,15 +137,16 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     expect(within(botten).queryByRole("button", { name: "Skapa" })).toBeNull();
   });
 
-  it("OpsHub: ett kort per modul med undersidorna som länkar, och den aktiva markerad", () => {
+  it("OpsHub: ett kort per modul, varje kort en länk, och det aktiva markerat (0.30.1)", () => {
     render(<OpsHub moduler={moduler} activeHref="/inkomster" />);
     const lista = screen.getByRole("list", { name: "Moduler" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
-    const kort = within(lista).getByRole("region", { name: "Ekonomi" });
-    expect(within(kort).getAllByRole("link").map((a) => a.textContent)).toEqual(["Ekonomi", "Inkomster", "Kostnader"]);
+    // Undersidorna bor på modulens EGEN sida (`OpsHubModul`), inte som rader i kortet.
+    const kort = within(lista).getByRole("link", { name: /Ekonomi/ });
+    expect(within(lista).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["/oversikt", "/ekonomi"]);
     expect(kort.className).toContain("rounded-card");
     expect(kort.className).toContain("ring-accent");
-    expect(within(lista).getByRole("region", { name: "Översikt" }).className).not.toContain("ring-accent");
+    expect(within(lista).getByRole("link", { name: /Översikt/ }).className).not.toContain("ring-accent");
   });
 
   it("OpsHub: en tom lista visar text, aldrig en tom yta", () => {

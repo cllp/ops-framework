@@ -9,6 +9,96 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.30.1
+
+⛔ **Mobilhuvudet, gruppanelen och loggan, och Hub, som SessionStudio.** CP
+2026-09-29 13:44, efter att ha provat 0.30.0 i telefonen och på datorn: "Kolla
+UI problem, både i hub med ekonomi (ekonomi skall vara expanderbar). Vidare hur
+headern inte får plats med ikoner. Sedan kolla hur gruppväljaren funkar i web.
+Jag vill att det funkar exakt som i sessionstudio. Se hur header-logo följer
+med." Tre punkter, och alla tre mäts nu i en riktig webbläsare (`check-skalyta`,
+avsnitt 7 till 9b): varje mätning var röd på 0.30.0 (16 brott) och är grön här.
+
+### A. Mobilhuvudet flödar aldrig över
+
+**Händelsen:** CP:s skärmbild från telefonen visade märket, temaväljaren,
+gruppväxlarens märke och namn ("Claes Philip St..." i klartext), inkorg, sök,
+fråga och avataren ovanpå varandra i 390 px. Ramverket lät appen lägga så många
+ikoner den ville i `actions`, och en topprad har en bredd.
+
+SessionStudios mobilhuvud är ikonen (`AppHeader.jsx:173`, `w-10`), en flexibel
+lucka (`AppHeader.jsx:299`) och en klunga om fyra saker: tema, sök, plus, avatar
+(`AppHeaderMobileToolbar.jsx:34-90`, monterad `AppHeader.jsx:301`). Ingen
+gruppväxlare med namn, ingen inkorg, inget fråga. Ramverket gör samma sak under `md`:
+
+- **Märket är ikonen under `md`** (`OpsBrand`, med `panelInfalld` givet). Före
+  0.30.1 var ordmärket 180 px brett även på en telefon, eftersom panelen är
+  "utfälld" i state fast den inte ritas under 1024 px.
+- **Gruppväxlaren visar bara märket under `md`.** Namnet står kvar i arket och i
+  knappens innehåll, och syns från `md`.
+- **De tre första åtgärderna i `actions` stannar, resten flyttar till menyn**
+  (`ATGARDER_SMAL`). En `OpsIconLink` utöver de tre göms under `md` och blir en
+  rad i bottenradens Meny (först i appens sektion). Bara med `meny`: utan den har
+  en flyttad åtgärd inget hem, och en åtgärd som försvinner tyst är värre än en som
+  ligger kvar. Siffran bor i skalet och inte i appen, så en åttonde ikon kan inte
+  ge ett överlappande huvud igen.
+- **Prov:** 390 px, appens verkliga uppsättning (tema, inkorg med räknare, sök,
+  fråga, avatar, gruppväxlare med ett långt namn): inga av huvudets kontroller
+  överlappar (`boundingBox`), ingen horisontell överflödning, inget utanför skärmen.
+
+### B. Gruppanelen och loggan på dator
+
+**Händelsen:** "Se hur header-logo följer med." Loggan följde inte panelen: märket
+stod 4 px in från panelens vänsterkant (`px-1` på länken), och vid 1600 px stod
+panelen vid fönstrets kant medan märket stod i den centrerade toppraden, 157 px
+isär. Toppradens flikar låg mitt på sidan och rörde sig aldrig när panelen fälldes.
+
+- **Samma behållare som toppraden.** Panelen och innehållet ligger i
+  `mx-auto max-w-7xl` när `grupper` finns, som SS `App.jsx:1364`. Märkesrutans
+  vänsterkant är panelens, båda lägena, båda bredderna.
+- **Märkesrutan är lika bred som panelens innehåll**: 180 px mot panelens 184 minus
+  dess `px-0.5`, 40 mot 44. SS gör samma sak (`AppHeader.jsx:173` `md:w-[180px]`,
+  `AppSidebar.jsx:43` `md:w-[184px]`), så de fyra pixlarna är panelens padding.
+- **Toppraden är en flexrad, inte ett grid** (`AppHeader.jsx:194`, `flex-1
+  justify-center`): flikarna ligger mitt i det som är kvar efter loggan och följer
+  med när loggan går från 180 till 40 px.
+- Knappen överst i panelen (SS `AppSidebar.jsx:51-59`) var redan panelens första
+  barn i full bredd. Det är nu ett prov, inte ett antagande.
+- **Prov:** märkesrutans vänsterkant och bredd mot panelens, högst 1 px, vid 1280 och
+  1600 px, utfälld och infälld; första barnet är knappen i full bredd; flikarna
+  flyttar sig minst 20 px när panelen fälls in.
+
+### C. Hub: modulkort och modulsida
+
+**Händelsen:** "ekonomi skall vara expanderbar". Ekonomis sex undersidor stod
+uppradade under namnet, och ett kort med sex rader stod bredvid kort med noll:
+fyra kort, tre höjder. CP ändrade sedan lösningen samma dag från "kortet fälls ut
+på plats" till modulkort med räknare och infolinje och en egen sida per modul med barn.
+
+- **Varje modul är ett kort som är en länk** (`OpsHub`): ikon, namn, `badge`
+  (bara när den är större än noll) och en ny `info`-rad. `info` utelämnad ritar
+  ingenting; `info: null` skriver "Inget nytt" / "Nothing new" (tomhet är ett
+  svar, punkt 5). `info` valideras i `validateNav`: en tom sträng kastar.
+- **Ny `OpsHubModul`**: en modul med barn har en egen sida med en fast
+  tillbaka-rad ("‹ Hub / Ekonomi", `sticky` under toppraden, 44 px hög) och barnen
+  som mindre kort med samma `badge` och `info`. Varje steg har en egen `href`, så
+  webbläsarens och telefonens bakåt fungerar.
+- **Rullgardinen i toppraden**: Ekonomi är en rad med chevron (`aria-expanded`)
+  som fäller ut barnen; de är infällda från början.
+- **Kort i en rad är lika höga** (`h-full`), och ingen text flödar ut ur ett kort
+  (mätt vid 390 och 1280 px).
+- **Rättat vid genomgången:** de infällda korten stod på två höjder (76 mot 354 px)
+  före ändringen; nu 98 mot 76 bara mellan kort med och utan `info`, aldrig inom en rad.
+
+### Vad appen behöver ändra
+
+Ingenting för A och B: allt gäller det skalet redan får (`actions`, `grupper`).
+Appen kan skicka `info` och `badge` på sina `moduler` och rita `OpsHubModul` på
+modulens `href` (se README, "Hub och modulkort"). Ompinning till 0.30.1 krävs för
+att få något av detta.
+
+---
+
 ## 0.30.0
 
 ⛔ **Navigationen, menyn, hover, loggan, typografin och händelsen som

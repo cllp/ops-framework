@@ -425,18 +425,22 @@ describe("OpsAppShell efter mobilomställningen", () => {
     expect(within(sheet).getByRole("button", { name: "Utseende" })).toBeInTheDocument();
   });
 
-  it("använder två header-kolumner under md så actions inte landar i mitten", () => {
-    // ⛔ När nav är display:none försvinner den ur griden. Tre kolumner
-    // (`1fr auto 1fr`) placerade då actions i mitten-auto. Kontraktet är
-    // `1fr auto` under md, tre kolumner från md.
+  it("toppraden är en flex-rad där flikarna tar luckan mellan loggan och åtgärderna (0.30.1, SS `AppHeader.jsx:194`)", () => {
+    // ⛔ Tidigare ett grid (`1fr auto 1fr`) som höll flikarna mitt på SIDAN. Nu `flex-1 justify-center` som SS:
+    // flikarna ligger mitt i det som är kvar efter loggan och följer med när loggan krymper. Under md är nav
+    // `display:none`; åtgärderna ligger till höger genom `ml-auto`, inte genom en tom gridkolumn.
     const { container } = render(
       <OpsAppShell brand="X" nav={NAV} activeHref="/">
         <p>x</p>
       </OpsAppShell>,
     );
     const row = container.querySelector("header > div");
-    expect(row?.className).toMatch(/grid-cols-\[1fr_auto\]/);
-    expect(row?.className).toMatch(/md:grid-cols-\[1fr_auto_1fr\]/);
+    expect(row?.className).toMatch(/\bflex\b/);
+    expect(row?.className).not.toMatch(/grid/);
+    const nav = container.querySelector('header nav[aria-label="Huvudnavigering"]');
+    expect(nav?.className).toMatch(/\bflex-1\b/);
+    expect(nav?.className).toMatch(/hidden/);
+    expect(nav?.className).toMatch(/md:flex/);
   });
 
   it("döljer header-hamburgaren under md utan inline-flex-krock", () => {

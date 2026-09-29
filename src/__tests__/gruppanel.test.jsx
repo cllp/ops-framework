@@ -307,7 +307,7 @@ describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissa
         <p>Innehåll</p>
       </OpsAppShell>,
     );
-    expect(utfalld.container.querySelector("header .w-\\(--logo-bredd\\)")).toBeTruthy();
+    expect(utfalld.container.querySelector("header [class*=\"md:w-(--logo-bredd)\"]")).toBeTruthy();
     expect(utfalld.container.querySelectorAll("header img").length).toBe(2);
     utfalld.unmount();
 

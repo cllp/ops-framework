@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**89 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**90 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -251,7 +251,8 @@ något godtyckligt.
 |---|---|
 | `OpsAppShell` | `brand` (sträng eller `OpsBrand`), `nav` [{href, label, icon?, badge?, children?}] (den GAMLA modellen), `fasta` { idag: {href}, kalender: {href}, hub: {href} } och `moduler` [samma form som `nav`] (den NYA, 0.30.0, #173: se [Navigationen](#navigationen)), `sprak`, `closeLabel`. ⛔ `nav` och `fasta` får inte ges ihop och `moduler` kräver `fasta` (skalet kastar). Med `fasta` är toppraden Idag, Kalender, Hub (Hub med chevron-dropdown över modulerna) och bottenraden Idag, Kalender, ETT STORT PLUS, Hub, Meny; `primaryAction` får då inte ges (plusset är skalets). ⛔ EN POST MED `children` ÄR EN RIKTIG MENY I TOPPRADEN sedan 2026-09-22, inte en länk med en pil. CP: "Ekonomi är ingen dropdown. Sublänkar saknas." Raden ritade en chevron så fort posten hade barn, men posten var en naken `<a href>`: ett tryck gick till föräldersidan och menyn fanns inte. Barnen ritades bara i MOBILENS Mer-ark, så på en dator gick de bara att nå genom att först besöka föräldersidan. Det är samma regel som kalenderkortets chevron fick, tillämpad på navet: en pil som öppnar ingenting är värre än ingen pil, för den lär den som ser den att pilar i appen inte betyder något. ⛔ ETIKETTEN ÄR LÄNKEN OCH CHEVRONEN ÄR KNAPPEN, alltså två kontroller som gör var sin sak. Första versionen lade föräldern som första RAD i menyn så att sidan skulle gå att nå, och CP såg genast varför det var fel: "Men varför står Ekonomi två gånger?" Knappen sa Ekonomi och menyns första rad sa Ekonomi, tjugo pixlar isär. ⛔ Att posten inte får vara EN länk som också öppnar står kvar och är ett annat skäl: då är trycket tvetydigt, navigerade jag eller öppnade jag. Här ger platsen svaret. ⛔ `submenuLabel` namnger chevronen ("Visa sidorna under Ekonomi"), för en pil utan ord är en knapp som inte går att höra. ⛔ Raden finns bara från 768 px; chevronens träffyta är ändå 44 px, för en surfplatta är en tumme, `activeHref`, `onNavigate`, `actions`, `anvandare`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `meny`, `menuLabel`, `navLabel`, `maxTopNav`, `maxTopNavSmal`, `children`. ⛔ `primaryAction` blir den runda knappen i bottenraden på telefon. På bred skärm finns ingen bottenrad, så appen sätter samma åtgärd i `actions` själv: skalet gissar inte var en knapp hör hemma i en topprad det inte äger. ⛔ `menuExtras` (tema/helskärm m.m.) landar i Mer-menyn, inte i åtgärdsklustret. ⛔ **`meny`** (#164, ANDRA GRANSKNINGEN: EN hamburgare, inte två) `{ sektioner?, onLoggaUt, appVersion?, rubrik?, loggaUtEtikett? }`: appens EGEN meny, ritad i SKALETS EGEN hamburgare (samma knapp som navigeringens överflöd, inte en andra bredvid avataren i `anvandare`-facket). Med `meny` ritas hamburgaren ALLTID, inte bara vid överflöd. Ordningen i panelen: `meny.sektioner` (appens rader, `MenyRad[][]`: `key`, `etikett`, `ikon`, `onClick`, `href`, `chevron`, `badge`, `badgeText`, ritade med `OpsPanelRow`), sedan navigeringens överflödsrader i en egen sektion, sedan `menuExtras`, sedan Logga ut, sist TVÅ dämpade versionsrader (appens `appVersion` och ramverkets, var sin rad, aldrig hopslagna med en punkt). Botten-Meny-arket (`OpsBottomNav`) ritar samma `meny`-innehåll i samma ordning. Utan `meny`: skalet fungerar som förut, bara överflöd och `menuExtras`. ⛔ **`skapa`** (#168, plusset som i SessionStudio) `SkapaKonfiguration { handelse?, arende?, registreringar?, lage?, kataloger?, ikonRitare?, sprak?, onKlar? }`, plus `skapaLabel`, `nyHandelseEtikett`, `nyttArendeEtikett`, `skapaTypEtikett`: en plusknapp mellan `actions` och `anvandare` som öppnar en POPOVER med en platt lista, aldrig en yta i sidan. `handelse`/`arende` är RAMVERKETS egna rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler) och ritas FÖRST; modulernas `registreringar` (samma kontrakt som `OpsSkapa`, #150/#153) ritas därefter, med en avdelare mellan de två grupperna. Ett tryck på en rad öppnar en RIKTIG `OpsModal` (stängbar med X/Escape/klick utanför), aldrig en andra vy inuti popovern. Utan `skapa`, eller utan något den kan visa, ritas inget plus alls |
 | `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `moreNav`, `activeHref`, `onNavigate`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. ⛔ Med `primaryAction` ritas en rund knapp MITT i raden och en flik flyttas till menyn: mätt ryms inte fyra flikar plus Meny plus en knapp på 56 px i 390 px. Knappen är en åtgärd och hamnar aldrig i menyn. Renderas av `OpsAppShell` men kan användas fristående |
-| `OpsHub` | `moduler` [samma form som `nav`, en nivå barn], `activeHref`, `onNavigate`, `ariaLabel`, `tomRubrik`, `tomText`, `badgeText`. (0.30.0, #173) Appens moduler som ett rutnät av kort (`rounded-card`), ikon, namn och modulens undersidor som länkar under. Sidan Hub leder till; skalet ritar Hub-posten och dropdownen. ⛔ Tom lista visar text och aldrig en tom yta. Se [Navigationen](#navigationen) |
+| `OpsHub` | `moduler` [samma form som `nav`, en nivå barn, plus `info?`], `activeHref`, `onNavigate`, `ariaLabel`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.0, #173; 0.30.1 modulkort) Appens moduler som ett rutnät av kort (`rounded-card`), varje kort EN länk med ikon, namn, räknare (`badge`, bara när den är större än noll) och en `info`-rad. Sidan Hub leder till; skalet ritar Hub-posten och dropdownen. ⛔ Tom lista visar text och aldrig en tom yta. Se [Hub och modulkort](#hub-och-modulkort) |
+| `OpsHubModul` | `modul` (med `children`), `hubHref` (krävs), `hubEtikett`, `activeHref`, `onNavigate`, `brodsmulaEtikett`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.1) En moduls egen sida i Hub: en fast tillbaka-rad ("‹ Hub / Ekonomi") och modulens barn som kort. Ritas av appen på modulens `href`. ⛔ Kastar utan `hubHref`; en modul utan barn visar text. Se [Hub och modulkort](#hub-och-modulkort) |
 | `OpsBrand` | `title` (krävs, appens namn; i bildläget bildens `alt`), `undertext` (0.30.0: ritar namnet som text UNDER bilden, förval falskt, toppraden ritar den aldrig, inloggningen gör), `subtitle` (textläget), `mark` phst \| phst-estd \| none, `ordmarke`/`ikon` ({ljus, mork} URL:er). ⛔ **#164, CP-beslut 2026-09-28 19:00: FÖRVALET ÄR RAMVERKETS EGET MÄRKE, OPS HUB**, inte text. Utan `ordmarke`/`ikon` ritas `OPS_HUB_VARUMARKE` (`src/lib/varumarke.js`, fyra PNG:er i `varumarke/`, paketets "files"). En app som skickar in EGNA `ordmarke`/`ikon` (allt-eller-inget, se filhuvudet) OVERRIDER förvalet med sin egen bild; `mark="none"` utan bild-props ger ren text som förut (och tar bort PH.ST-badgen). CP 19:10: bilden bär SITT märke (OPS Hub eller appens egen), `title` (appens namn, t.ex. "Bolag Ops") ritas som en dämpad, versal, spärrad undertext UNDER bilden, aldrig i bildens alt-text (som är tom, bilden är dekor) |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll.  ⛔ `icon` på ett läge ritar ikonen I STÄLLET för ordet, med ordet kvar som `sr-only`: en ikon utan namn är en knapp som inte går att höra. ANTINGEN ALLA LÄGEN ELLER INGET, annars kastar den — en ikon bredvid ett ord ser ut som ett fel |
@@ -1667,6 +1668,42 @@ två modeller för sin navigering, och en app väljer EN.
 avataren en 28 px cirkel i en 32 px knapp med ring. Mätt i `check-skalyta`, inte antaget.
 Observerat vid mätningen: i ljust tema är `--color-raised` och `--color-surface` samma tal
 (`#fefcf6`, SessionStudios `bg-card` och `bg-surface`), så hovern syns inte mot ytan där; i mörkt tema gör den det.
+
+### Hub och modulkort
+
+CP 2026-09-29 13:44 (0.30.1). Hub är sidan `fasta.hub.href` leder till, och
+varje modul är ett kort på den. Ett kort är EN länk: ikon, namn, en räknare och en rad om vad som hänt.
+
+Kontraktet är fält på modulens post i `moduler` (samma post som `OpsAppShell` får):
+
+| Fält | Betydelse |
+|---|---|
+| `badge` | Räknare (vad som väntar). Ritas BARA när den är större än noll: "0" på varje kort är brus. |
+| `info` | EN kort rad under namnet, dämpad och avkortad. Sträng eller `{ sv, en? }`. **Utelämnad: ingenting ritas** (appen har inget att säga). **`null`: ramverket skriver "Inget nytt" / "Nothing new"** (modulen har en källa och den är tom). Tomhet är ett svar (arbetsreglernas punkt 5), och en tom rad kan inte visa vilket av de två det är. En tom sträng kastar. |
+| `children` | Undersidor (en nivå). En modul med barn har en egen sida, `OpsHubModul`. Barnen bär samma `badge` och `info`. |
+
+```jsx
+const moduler = [
+  { href: "/oversikt", label: "Översikt", icon: <LayoutGrid />, info: "3 saker att göra" },
+  {
+    href: "/ekonomi", label: "Ekonomi", icon: <Wallet />, badge: unhandled,
+    info: { sv: "Skatten förfaller 12 oktober", en: "Tax is due 12 October" },
+    children: [
+      { href: "/ekonomi/inkomster", label: "Inkomster", badge: 1, info: "Ny faktura i går" },
+      { href: "/ekonomi/kostnader", label: "Kostnader", info: null }, // "Inget nytt"
+    ],
+  },
+];
+
+// /hub
+<OpsHub moduler={moduler} activeHref={pathname} onNavigate={navigera} />
+
+// /ekonomi: en egen sida, med tillbaka-raden "‹ Hub / Ekonomi" fast under toppraden
+<OpsHubModul modul={moduler[1]} hubHref="/hub" activeHref={pathname} onNavigate={navigera} />
+```
+
+Varje steg har en egen `href`, så webbläsarens och telefonens bakåt fungerar. I rullgardinen i toppraden är
+en modul med barn en rad med chevron (`aria-expanded`) som fäller ut barnen, infällda från början.
 
 ### Typografin
 
