@@ -115,10 +115,10 @@ describe("OpsRullyta", () => {
      * alltså en remsa tomhet som ingen kan förklara.
      */
     expect(FULL_HEIGHT_CLASSES).toContain(
-      "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom))]",
+      "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom)_-_1.5rem)]",
     );
     expect(FULL_HEIGHT_CLASSES).toContain(
-      "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom))]",
+      "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom)_-_1.5rem)]",
     );
     // ⛔ Golv, för den dag ytan hamnar långt ner på en kort sida: utan det kan
     // uttrycket bli noll och innehållet försvinna helt.

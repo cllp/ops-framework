@@ -53,11 +53,11 @@ describe("OpsButton: piller (#164)", () => {
     expect(knapp.className).not.toContain("font-semibold");
   });
 
-  it("⛔ size=\"md\" är text-sm (14px, som SessionStudios Spara-knapp), inte text-base (16px)", () => {
+  it("⛔ size=\"md\" är text-etikett (14px, som SessionStudios Spara-knapp), inte text-brod (16px)", () => {
     render(<OpsButton size="md">Spara</OpsButton>);
     const knapp = screen.getByRole("button", { name: "Spara" });
-    expect(knapp.className).toContain("text-sm");
-    expect(knapp.className).not.toContain("text-base");
+    expect(knapp.className).toContain("text-etikett");
+    expect(knapp.className).not.toContain("text-brod");
   });
 
   it("min-h-11 (44px träffyta) är ORÖRD av storleksrättningen", () => {

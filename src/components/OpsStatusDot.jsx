@@ -81,7 +81,7 @@ export function OpsStatusDot({ status, label }) {
           att säga något till skärmläsaren. */}
       <span aria-hidden="true" title={label} className={cx("size-2 shrink-0 rounded-full", tonKlass)} />
       {status === "akut" ? (
-        <span className="text-xs font-semibold text-danger">{label}</span>
+        <span className="text-meta font-semibold text-danger">{label}</span>
       ) : (
         <span className="sr-only">{label}</span>
       )}

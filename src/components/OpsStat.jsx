@@ -85,11 +85,11 @@ export function OpsStat({
             (t.ex. AppHeader.jsx, AdminDevDashboardPanel.jsx): semibold är
             reserverat för rubriker på ink/text-primary, en sekundärfärgad
             etikett är där alltid font-medium. */}
-        <p className="m-0 text-sm font-medium text-ink-secondary">{label}</p>
+        <p className="m-0 text-etikett font-medium text-ink-secondary">{label}</p>
         {badge ? <div className="shrink-0">{badge}</div> : null}
       </div>
-      <p className={cx("m-0 mt-1 text-xl font-bold leading-tight tabular-nums", tonKlass)}>{value}</p>
-      {hint ? <p className="m-0 mt-1 text-sm text-ink-muted">{hint}</p> : null}
+      <p className={cx("m-0 mt-1 text-sida font-bold leading-tight tabular-nums", tonKlass)}>{value}</p>
+      {hint ? <p className="m-0 mt-1 text-etikett text-ink-muted">{hint}</p> : null}
 
       {fact ? (
         <div className="mt-2">
@@ -101,7 +101,7 @@ export function OpsStat({
           fråga, "kan jag lita på det här", och delas de upp läses den ena som
           viktigare än den andra. */}
       {source || updatedAt ? (
-        <p className="m-0 mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-muted">
+        <p className="m-0 mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-meta text-ink-muted">
           {source ? <span>{source}</span> : null}
           {source && updatedAt ? (
             <span aria-hidden="true" className="opacity-50">

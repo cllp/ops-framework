@@ -93,7 +93,7 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
       >
         <div className="min-w-0 flex-1">{summary}</div>
         {badge && badge > 0 ? (
-          <span className="shrink-0 rounded-full bg-accent-subtle px-2 py-0.5 text-xs font-semibold tabular-nums text-ink">{badge}</span>
+          <span className="shrink-0 rounded-full bg-accent-subtle px-2 py-0.5 text-meta font-semibold tabular-nums text-ink">{badge}</span>
         ) : null}
         <span
           aria-hidden="true"

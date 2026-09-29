@@ -147,8 +147,24 @@
   --text-sektion--letter-spacing: 0.05em;
 
   --text-etikett: 0.875rem;
-  --text-etikett--line-height: var(--leading-normal);
+  --text-etikett--line-height: 1.25rem;
   --text-etikett--font-weight: 400;
+
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1rem;
+  --text-meta--font-weight: 400;
+
+  --text-brod: 1rem;
+  --text-brod--line-height: 1.5rem;
+  --text-brod--font-weight: 400;
+
+  --text-titel: 1.125rem;
+  --text-titel--line-height: 1.75rem;
+  --text-titel--font-weight: 700;
+
+  --text-sida: 1.25rem;
+  --text-sida--line-height: 1.75rem;
+  --text-sida--font-weight: 700;
 
   --text-hjalp: 0.6875rem;
   --text-hjalp--line-height: var(--leading-normal);

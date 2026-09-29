@@ -39,8 +39,8 @@ export function OpsBanner({ tone = "info", title, children, action, onDismiss, d
   return (
     <div role={t.role} className={cx("flex items-start gap-3 rounded-md border p-3", t.yta)}>
       <div className="min-w-0 flex-1">
-        <p className={cx("m-0 text-base font-semibold", t.text)}>{title}</p>
-        {children ? <div className="mt-1 text-base text-ink-secondary">{children}</div> : null}
+        <p className={cx("m-0 text-brod font-semibold", t.text)}>{title}</p>
+        {children ? <div className="mt-1 text-brod text-ink-secondary">{children}</div> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
       {onDismiss ? (

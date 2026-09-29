@@ -66,7 +66,7 @@ export function byggTypografiroller(typografi) {
   for (const [namn, roll] of Object.entries(typografi.roller)) {
     if (namn.startsWith("_")) continue;
     const r = /** @type {any} */ (roll);
-    rader.push(``, `  --text-${namn}: ${r.storlek};`, `  --text-${namn}--line-height: var(--leading-${r.radhojd});`, `  --text-${namn}--font-weight: ${r.vikt};`);
+    rader.push(``, `  --text-${namn}: ${r.storlek};`, `  --text-${namn}--line-height: ${r.radhojd in typografi.radhojd ? `var(--leading-${r.radhojd})` : r.radhojd};`, `  --text-${namn}--font-weight: ${r.vikt};`);
     if (r.sparrning) rader.push(`  --text-${namn}--letter-spacing: ${r.sparrning};`);
   }
   return rader;

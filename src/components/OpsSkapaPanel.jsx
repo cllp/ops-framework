@@ -78,19 +78,19 @@ export function OpsSkapaPanel({ titel, onTillbaka, tillbakaEtikett = "Tillbaka",
           <button
             type="button"
             onClick={onTillbaka}
-            className="-ml-2 inline-flex min-h-11 cursor-pointer items-center gap-1.5 self-start rounded-base px-2 text-sm text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            className="-ml-2 inline-flex min-h-11 cursor-pointer items-center gap-1.5 self-start rounded-base px-2 text-etikett text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
           >
             <ChevronVansterIkon size={20} />
             <span>{tillbakaEtikett}</span>
           </button>
           {/* ⛔ EN rubrik: i raden bredvid Tillbaka under md (helskärm), under Tillbaka från md (som SS `GroupEditRouteView`). */}
-          <h2 id={rubrikId} className="m-0 mt-1 mb-3 min-w-0 truncate text-xl font-bold leading-tight text-ink max-md:mt-0 max-md:mb-0 max-md:flex-1 max-md:pr-16 max-md:text-center max-md:text-base">
+          <h2 id={rubrikId} className="m-0 mt-1 mb-3 min-w-0 truncate text-sida font-bold leading-tight text-ink max-md:mt-0 max-md:mb-0 max-md:flex-1 max-md:pr-16 max-md:text-center max-md:text-brod">
             {titel}
           </h2>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 md:overflow-visible">
           {skapasI ? (
-            <div className="mb-4 flex min-w-0 items-center gap-2 text-sm text-ink-secondary">
+            <div className="mb-4 flex min-w-0 items-center gap-2 text-etikett text-ink-secondary">
               <span className="shrink-0 whitespace-nowrap">{skapasIEtikett}:</span>
               {onByt ? (
                 <button

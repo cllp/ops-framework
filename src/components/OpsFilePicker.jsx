@@ -140,7 +140,7 @@ export function OpsFilePicker({
             smalare än `sm` i liggande läge ibland, och en funktion som fungerar
             ska inte stängas av för att texten om den är gömd. */}
         {paste && !value ? (
-          <span className="hidden items-center gap-1 text-sm text-ink-muted sm:inline-flex">
+          <span className="hidden items-center gap-1 text-etikett text-ink-muted sm:inline-flex">
             <GemIkon />
             {labels.klistra ?? "eller klistra in en skärmbild"}
           </span>
@@ -150,7 +150,7 @@ export function OpsFilePicker({
       {/* ⛔ `role="alert"` så orsaken LÄSES UPP. En röd rad som bara syns lämnar
           den som inte ser skärmen med en knapp som inte gjorde något. */}
       {error ? (
-        <p id={errorId} role="alert" className="m-0 text-sm text-danger">
+        <p id={errorId} role="alert" className="m-0 text-etikett text-danger">
           {error}
         </p>
       ) : null}
@@ -171,7 +171,7 @@ export function OpsFilePicker({
               <span className="min-w-0 truncate">{value.namn}</span>
             </div>
           )}
-          <figcaption className="mt-1 text-sm text-ink-muted">
+          <figcaption className="mt-1 text-etikett text-ink-muted">
             {isImage && value.bredd ? `${value.bredd} × ${value.hojd} px · ` : ""}
             {attachmentSize(value.tecken)}
           </figcaption>

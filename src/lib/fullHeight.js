@@ -40,14 +40,19 @@ import { useEffect, useState } from "react";
  * är `md:hidden`. Drogs den bort på båda skulle ytan sluta 56 px för tidigt på
  * en dator, alltså en remsa tomhet som ingen kan förklara.
  *
+ * ⛔ 0.31.2 (CP 2026-09-29 22:33, "Den scrollar liksom upp"): HÖJDEN RÄKNAR OCKSÅ BORT `OpsView`s EGEN BOTTENPADDING (1,5 rem). Sidan är ytan
+ * plus `OpsView` `pb-6` plus `main`s `pb` (bottenradens höjd + säker yta). Höjden drog bort raden och den säkra ytan men inte
+ * `pb-6`, och `OpsView` räknade dessutom den säkra ytan en andra gång: sidan blev högre än fönstret, dokumentet rullade 58 px
+ * OVANPÅ ytans egen rullning, och en tom remsa i canvasfärg stod mellan ytan och raden. Nu är sidan exakt fönstrets höjd.
+ *
  * ⛔ ETT GOLV PÅ `min-h-60`, för den dag ytan hamnar långt ner på en kort sida.
  * Utan det kan uttrycket bli noll eller negativt, och då försvinner innehållet
  * helt i stället för att bli obekvämt litet.
  */
 export const FULL_HEIGHT_CLASSES = [
   "overflow-y-auto overscroll-contain",
-  "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom))]",
-  "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom))]",
+  "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom)_-_1.5rem)]",
+  "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom)_-_1.5rem)]",
   "min-h-60",
 ].join(" ");
 

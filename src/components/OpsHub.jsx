@@ -1,9 +1,14 @@
-import { Fragment } from "react";
+import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { ChevronHogerIkon, ChevronVansterIkon } from "./icons.jsx";
+import { ChevronHogerIkon, ChevronNedIkon } from "./icons.jsx";
+import { OpsView } from "./OpsView.jsx";
+import { radKlass } from "../lib/radKlass.js";
+import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
+
+export { OpsHubTillbaka };
 import { text } from "../lib/sprak.js";
 
 /**
@@ -69,6 +74,8 @@ import { text } from "../lib/sprak.js";
  * @param {string} [props.badgeText] Skärmläsarord efter en räknare, t.ex. "nya".
  * @param {string} [props.sprak] Språket `info` och ramverkets egna ord skrivs på. Förval `sv`.
  * @param {string} [props.ingetNyttEtikett] Texten när en modul har `info: null`. Förval "Inget nytt" (sv), "Nothing new" (en).
+ * @param {string} [props.visaEtikett] Ordet före modulens namn på raden som öppnar modulens egen sida ("Visa Ekonomi"). Förval "Visa" (sv), "Show" (en).
+ * @param {boolean} [props.ram] (0.31.2) Sidan ritas i `OpsView` (sidomarginal, avstånd under toppraden, bredd). Förval sant. Sätt falskt bara om appen redan lindat Hub i en `OpsView`.
  */
 export function OpsHub({
   moduler,
@@ -80,10 +87,17 @@ export function OpsHub({
   badgeText = "nya",
   sprak = "sv",
   ingetNyttEtikett,
+  visaEtikett,
+  ram = true,
 }) {
   validateNav(moduler, "OpsHub: moduler");
-  if (moduler.length === 0) return <OpsEmpty title={tomRubrik} description={tomText} />;
-  return <KortRutnat poster={moduler} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={ariaLabel} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />;
+  const innehall =
+    moduler.length === 0 ? (
+      <OpsEmpty title={tomRubrik} description={tomText} />
+    ) : (
+      <KortRutnat poster={moduler} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={ariaLabel} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} visaEtikett={visaEtikett} />
+    );
+  return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
 
 /**
@@ -110,6 +124,7 @@ export function OpsHub({
  * @param {string} [props.badgeText]
  * @param {string} [props.sprak]
  * @param {string} [props.ingetNyttEtikett]
+ * @param {boolean} [props.ram] (0.31.2) Som `OpsHub`: ritas i `OpsView`. Förval sant.
  */
 export function OpsHubModul({
   modul,
@@ -123,6 +138,7 @@ export function OpsHubModul({
   badgeText = "nya",
   sprak = "sv",
   ingetNyttEtikett,
+  ram = true,
 }) {
   if (!modul || typeof modul.href !== "string" || typeof modul.label !== "string") {
     throw new Error("OpsHubModul: modul krävs och måste vara { href, label, children? }.");
@@ -132,79 +148,17 @@ export function OpsHubModul({
   }
   validateNav([modul], "OpsHubModul: modul");
   const barn = modul.children ?? [];
-  return (
-    <div>
-      <OpsHubTillbaka hubHref={hubHref} hubEtikett={hubEtikett} etikett={modul.label} onNavigate={onNavigate} brodsmulaEtikett={brodsmulaEtikett} />
+  const innehall = (
+    <>
+      <OpsHubTillbaka hubHref={hubHref} hubEtikett={hubEtikett} etikett={modul.label} onNavigate={onNavigate} brodsmulaEtikett={brodsmulaEtikett} rubrik />
       {barn.length === 0 ? (
         <OpsEmpty title={tomRubrik} description={tomText} />
       ) : (
         <KortRutnat poster={barn} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={modul.label} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
       )}
-    </div>
+    </>
   );
-}
-
-/**
- * Tillbaka-raden "‹ Hub / Modul": EN komponent, för VARJE sida under Hub (0.31.0, fynd 3 i cllp/bolag-ops#475).
- *
- * ══ ⛔ SAMMA SIDNAVIGERING PÅ ALLA HUB-BARN ═══════════════════════════════
- *
- * CP:s design-QA på live 0.30.1: modulsidan (`OpsHubModul`) hade raden "‹ Hub / Ekonomi", men de sidor modulens kort leder till
- * (Inkomster, Kostnader) hade den inte, eftersom bolag-ops kopierade raden ur `OpsHubModul`s markup i `UnderHub.jsx` i stället för
- * att ramverket exporterade den. En kopia glider isär, och nu gjorde den det. Raden är därför en egen export, och regeln är:
- * ⛔ **varje sida under Hub bär den**, från modulsidan och neråt. Appen ritar `<OpsHubTillbaka hubHref etikett />` (eller ger
- * `OpsView` propen `tillbaka`) överst på varje sådan sida, och kopierar aldrig markupen.
- *
- * ⛔ `steg` är de mellanliggande stegen på vägen, för en sida två nivåer ned: `steg={[{ href: "/ekonomi", label: "Ekonomi" }]}` och
- * `etikett="Inkomster"` ger "‹ Hub / Ekonomi / Inkomster", där "Ekonomi" är en länk och "Inkomster" är nuvarande sida.
- *
- * ⛔ RADEN HÅLLS I INNEHÅLLSKOLUMNEN (0.31.0): ingen negativ marginal, ingen fullbredd, och gruppanelen ligger över den i z-led
- * (`--z-sticky-header` mot radens `--z-sticky`). Den är `sticky` under toppraden och en `<nav>` med `aria-current="page"` på
- * det nuvarande namnet.
- *
- * @param {object} props
- * @param {string} props.hubHref Hubbens `href`: "‹ Hub" leder dit.
- * @param {string} props.etikett Den nuvarande sidans namn (sista steget, ingen länk).
- * @param {ReadonlyArray<{ href: string, label: string }>} [props.steg] Mellanliggande länkar mellan Hub och den nuvarande sidan.
- * @param {string} [props.hubEtikett] Förval "Hub".
- * @param {(href: string, event: any) => void} [props.onNavigate]
- * @param {string} [props.brodsmulaEtikett] Skärmläsarnamn på raden. Förval "Var du är".
- */
-export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Hub", onNavigate, brodsmulaEtikett = "Var du är" }) {
-  if (typeof hubHref !== "string" || hubHref === "") {
-    throw new Error("OpsHubTillbaka: hubHref krävs. Tillbaka-raden är ett steg upp till Hub, och en rad som inte vet vart den leder är en knapp som inte gör något.");
-  }
-  if (typeof etikett !== "string" || etikett === "") {
-    throw new Error("OpsHubTillbaka: etikett krävs, den nuvarande sidans namn. Raden utan det säger inte var man är.");
-  }
-  const lank = "inline-flex min-h-11 items-center gap-1 rounded-base px-2 text-sm text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent";
-  return (
-    <nav
-      aria-label={brodsmulaEtikett}
-      className="sticky top-[calc(var(--safe-top)+var(--topbar-height))] z-(--z-sticky) mb-3 flex flex-wrap items-center gap-1 border-b border-line bg-canvas"
-    >
-      <a href={hubHref} onClick={(e) => onNavigate?.(hubHref, e)} className={cx(lank, "-ml-2")}>
-        <ChevronVansterIkon size={16} />
-        {hubEtikett}
-      </a>
-      {steg.map((x) => (
-        <Fragment key={x.href}>
-          <span aria-hidden="true" className="text-ink-muted">
-            /
-          </span>
-          <a href={x.href} onClick={(e) => onNavigate?.(x.href, e)} className={lank}>
-            {x.label}
-          </a>
-        </Fragment>
-      ))}
-      <span aria-hidden="true" className="text-ink-muted">
-        /
-      </span>
-      <span aria-current="page" className="min-w-0 truncate text-sm font-semibold text-ink">
-        {etikett}
-      </span>
-    </nav>
-  );
+  return ram ? <OpsView>{innehall}</OpsView> : <div className="flex flex-col gap-4">{innehall}</div>;
 }
 
 /**
@@ -216,21 +170,74 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Hub"
  * @param {string} props.badgeText
  * @param {string} props.sprak
  * @param {string} [props.ingetNyttEtikett]
+ * @param {string} [props.visaEtikett]
  */
-function KortRutnat({ poster, activeHref, onNavigate, ariaLabel, badgeText, sprak, ingetNyttEtikett }) {
+function KortRutnat({ poster, activeHref, onNavigate, ariaLabel, badgeText, sprak, ingetNyttEtikett, visaEtikett }) {
   return (
     <ul aria-label={ariaLabel} className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
       {poster.map((m) => (
         <li key={m.href} className="min-w-0">
-          <ModulKort post={m} activeHref={activeHref} onNavigate={onNavigate} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
+          {(m.children ?? []).length > 0 ? (
+            <UtfallbartKort post={m} activeHref={activeHref} onNavigate={onNavigate} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} visaEtikett={visaEtikett} />
+          ) : (
+            <ModulKort post={m} activeHref={activeHref} onNavigate={onNavigate} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
+          )}
         </li>
       ))}
     </ul>
   );
 }
 
+const KORT = "rounded-card bg-surface text-ink transition-colors duration-(--duration-fast) ease-standard";
+const KORT_FOKUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
 /**
- * Ett kort: ikon, namn, räknare, och en rad `info`. Hela kortet är länken.
+ * Kortets innehåll: ikon, namn, räknare, tomt slutstycke (chevron), och en rad `info`. Delas av länkkortet och det utfällbara
+ * kortets rubrik, så att de två aldrig ser olika ut (en sanning per faktum).
+ * @param {object} props
+ * @param {any} props.post
+ * @param {string} props.badgeText
+ * @param {string} props.sprak
+ * @param {string} [props.ingetNyttEtikett]
+ * @param {import("react").ReactNode} [props.slut] Sista platsen på namnraden (chevronen).
+ */
+function KortInnehall({ post, badgeText, sprak, ingetNyttEtikett, slut }) {
+  const ingetNytt = ingetNyttEtikett ?? (sprak === "en" ? "Nothing new" : "Inget nytt");
+  /** @type {string | null} */
+  const infoText = post.info === undefined ? null : post.info === null ? ingetNytt : text(post.info, sprak);
+  const ingetNyttRad = post.info === null;
+  const harBadge = typeof post.badge === "number" && post.badge > 0;
+  return (
+    <>
+      <span className="flex min-h-11 items-center gap-2.5 text-etikett font-medium">
+        {post.icon ? (
+          <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-5">
+            {post.icon}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1 truncate">{post.label}</span>
+        {harBadge ? <OpsCountBadge count={post.badge} text={badgeText} placement="inline" /> : null}
+        {slut}
+      </span>
+      {/* ⛔ 0.31.0 (fynd 8 i cllp/bolag-ops#475, "svag kontrast i info-rad och Inget nytt"): infon står i `ink-secondary` (7,65:1
+          mot kortet i ljust läge, `ink-muted` gav 3,76:1) och "Inget nytt" har en EGEN tyst statusstil: en liten punkt före
+          texten, så att den skiljs från metadata utan att bli svagare. Se paren i check-kontrast. */}
+      {infoText ? (
+        ingetNyttRad ? (
+          <span data-status="inget-nytt" className="flex items-center gap-1.5 truncate text-meta text-ink-secondary">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-line-strong" />
+            <span className="truncate">{infoText}</span>
+          </span>
+        ) : (
+          <span className="block truncate text-meta text-ink-secondary">{infoText}</span>
+        )
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Ett kort utan barn: hela kortet är länken.
  * @param {object} props
  * @param {any} props.post
  * @param {string} props.activeHref
@@ -240,51 +247,98 @@ function KortRutnat({ poster, activeHref, onNavigate, ariaLabel, badgeText, spra
  * @param {string} [props.ingetNyttEtikett]
  */
 function ModulKort({ post, activeHref, onNavigate, badgeText, sprak, ingetNyttEtikett }) {
-  const barn = post.children ?? [];
-  const aktiv = post.href === activeHref || barn.some((/** @type {any} */ c) => c.href === activeHref);
-  const ingetNytt = ingetNyttEtikett ?? (sprak === "en" ? "Nothing new" : "Inget nytt");
-  /** @type {string | null} */
-  const infoText = post.info === undefined ? null : post.info === null ? ingetNytt : text(post.info, sprak);
-  const ingetNyttRad = post.info === null;
-  const harBadge = typeof post.badge === "number" && post.badge > 0;
   return (
     <a
       href={post.href}
       onClick={(e) => onNavigate?.(post.href, e)}
       aria-current={post.href === activeHref ? "page" : undefined}
-      className={cx(
-        "flex h-full flex-col gap-1 rounded-card bg-surface p-4 text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-raised",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        aktiv && "ring-2 ring-accent",
-      )}
+      className={cx("flex h-full flex-col gap-1 p-4 hover:bg-raised", KORT, KORT_FOKUS, post.href === activeHref && "ring-2 ring-accent")}
     >
-      <span className="flex min-h-11 items-center gap-2.5 text-sm font-medium">
-        {post.icon ? (
-          <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-5">
-            {post.icon}
-          </span>
-        ) : null}
-        <span className="min-w-0 flex-1 truncate">{post.label}</span>
-        {harBadge ? <OpsCountBadge count={post.badge} text={badgeText} placement="inline" /> : null}
-        {barn.length > 0 ? (
+      <KortInnehall post={post} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
+    </a>
+  );
+}
+
+/**
+ * Ett kort med barn (0.31.2): FÄLLS UT PÅ PLATS på Hub-sidan i stället för att bara navigera (CP 2026-09-29 20:57: "Ekonomi
+ * fäller inte ut submenyer"). Rubriken är en knapp (`aria-expanded`, `aria-controls`, chevron som vrids), och under den ligger
+ * modulens undersidor som rader, med en första rad "Visa Ekonomi" som leder till modulens egen sida.
+ *
+ * ⛔ SAMMA MÖNSTER SOM RAMVERKETS EGEN RULLGARDIN (`HubModulRad` i `OpsAppShell`): en knapp som fäller ut och in, undersidorna
+ * som länkar under, en chevron som vrids. SessionStudio har ingen utfällbar korthög, men dess utfällning är alltid en
+ * `<button aria-expanded aria-controls>` med en chevron som vrids 180 grader (`MoreSettingsDisclosure.jsx:66-80`), och det är formen här.
+ * ⛔ MODULENS EGEN SIDA ÄR KVAR (0.30.1: varje steg har en `href`): raden "Visa Ekonomi" öppnar den, och `OpsHubModul` ritar den.
+ * Kortet börjar utfällt när en av dess sidor är den aktiva.
+ *
+ * @param {object} props
+ * @param {any} props.post
+ * @param {string} props.activeHref
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {string} props.badgeText
+ * @param {string} props.sprak
+ * @param {string} [props.ingetNyttEtikett]
+ * @param {string} [props.visaEtikett]
+ */
+function UtfallbartKort({ post, activeHref, onNavigate, badgeText, sprak, ingetNyttEtikett, visaEtikett }) {
+  const barn = /** @type {any[]} */ (post.children ?? []);
+  const [ut, setUt] = useState(barn.some((c) => c.href === activeHref));
+  const listId = useId();
+  const visa = visaEtikett ?? (sprak === "en" ? "Show" : "Visa");
+  const ingetNytt = ingetNyttEtikett ?? (sprak === "en" ? "Nothing new" : "Inget nytt");
+  return (
+    <div className={cx("h-full", KORT, (post.href === activeHref || barn.some((c) => c.href === activeHref)) && "ring-2 ring-accent")}>
+      <button
+        type="button"
+        onClick={() => setUt((v) => !v)}
+        aria-expanded={ut}
+        aria-controls={listId}
+        className={cx("flex w-full cursor-pointer flex-col gap-1 rounded-card p-4 text-left hover:bg-raised", KORT_FOKUS)}
+      >
+        <KortInnehall
+          post={post}
+          badgeText={badgeText}
+          sprak={sprak}
+          ingetNyttEtikett={ingetNyttEtikett}
+          slut={
+            <span aria-hidden="true" className={cx("flex shrink-0 items-center text-ink-muted transition-transform duration-(--duration-fast) ease-standard", ut && "rotate-180")}>
+              <ChevronNedIkon size={16} />
+            </span>
+          }
+        />
+      </button>
+      <div id={listId} hidden={!ut} className="flex flex-col gap-0.5 px-2 pb-2">
+        <a
+          href={post.href}
+          onClick={(e) => onNavigate?.(post.href, e)}
+          aria-current={post.href === activeHref ? "page" : undefined}
+          className={cx(radKlass({ stor: true, active: post.href === activeHref }), "font-medium")}
+        >
+          <span className="min-w-0 flex-1 truncate">{`${visa} ${post.label}`}</span>
           <span aria-hidden="true" className="flex shrink-0 items-center text-ink-muted">
             <ChevronHogerIkon size={16} />
           </span>
-        ) : null}
-      </span>
-      {/* ⛔ 0.31.0 (fynd 8 i cllp/bolag-ops#475, "svag kontrast i info-rad och Inget nytt"): infon står i `ink-secondary` (7,65:1
-          mot kortet i ljust läge, `ink-muted` gav 3,76:1) och "Inget nytt" har en EGEN tyst statusstil: en liten punkt före
-          texten, så att den skiljs från metadata utan att bli svagare. Se paren i check-kontrast. */}
-      {infoText ? (
-        ingetNyttRad ? (
-          <span data-status="inget-nytt" className="flex items-center gap-1.5 truncate text-xs text-ink-secondary">
-            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-line-strong" />
-            <span className="truncate">{infoText}</span>
-          </span>
-        ) : (
-          <span className="block truncate text-xs text-ink-secondary">{infoText}</span>
-        )
-      ) : null}
-    </a>
+        </a>
+        {barn.map((c) => (
+          <a
+            key={c.href}
+            href={c.href}
+            onClick={(e) => onNavigate?.(c.href, e)}
+            aria-current={c.href === activeHref ? "page" : undefined}
+            className={radKlass({ stor: true, active: c.href === activeHref })}
+          >
+            {c.icon ? (
+              <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+                {c.icon}
+              </span>
+            ) : null}
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate">{c.label}</span>
+              {c.info !== undefined ? <span className="truncate text-meta text-ink-muted">{c.info === null ? ingetNytt : text(c.info, sprak)}</span> : null}
+            </span>
+            {typeof c.badge === "number" && c.badge > 0 ? <OpsCountBadge count={c.badge} text={badgeText} placement="inline" /> : null}
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -380,6 +380,25 @@ kravRott(
   "eget mörkerblock",
 );
 
+// 0.31.2 (bolag-ops #240): reglern som smalnade skalets toppruta. Vakten var GRÖN på den, eftersom den bara läste custom properties.
+kravRott(
+  "overrides 5: en regel som stilar ramverkets skal (bolag-ops #240)",
+  [overridevakt, appkopia("ao5", `${GILTIG_APPCSS}\nheader.sticky > div.max-w-7xl {\n  max-width: 64rem;\n}\n`)],
+  'regeln "header.sticky > div.max-w-7xl" stilar ett element',
+);
+
+kravRott(
+  "overrides 6: en klassregel och ett @media i appens stilrot",
+  [overridevakt, appkopia("ao6", `${GILTIG_APPCSS}\n.max-w-7xl { max-width: 64rem; }\n`)],
+  "stilar en klass",
+);
+
+kravRott(
+  "overrides 7: :root med en vanlig deklaration i stället för ett token",
+  [overridevakt, appkopia("ao7", `${GILTIG_APPCSS}\n:root { font-size: 20px; }\n`)],
+  "som inte är ett token",
+);
+
 kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "finns-inte.css")], "hittar inte");
 
 // ── Exportvakten ───────────────────────────────────────────────────────────
@@ -1568,6 +1587,19 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     '/** Förr `text-[13px]`, nu en roll. */\nexport function OpsProvstorlek() {\n  return <span className="text-liten text-[var(--x)]">x</span>;\n}\n',
   );
   kravGront("typografi: en kommentar och text-[var(--x)] är inga brott", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"]);
+
+  // 0.31.2: ramverkets regel att ingen komponent skriver en Tailwind-storlek (text-xs/sm/base/md/lg/xl), bara en roll.
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <span className="md:text-sm text-ink">x</span>;\n}\n',
+  );
+  kravRott("typografi: en injicerad text-sm i ramverksläge", [typvakt, path.join(typmapp, "smutsig"), "--golv=60", "--ramverksregler"], "Tailwind-storlek");
+  kravGront("typografi: samma text-sm är inget brott i en app (utan --ramverksregler)", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"]);
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <span className="text-etikett md:text-meta text-ink">x</span>;\n}\n',
+  );
+  kravGront("typografi: en roll är ingen Tailwind-storlek, också i ramverksläge", [typvakt, path.join(typmapp, "smutsig"), "--golv=60", "--ramverksregler"]);
 
   const tunn = path.join(typmapp, "tunn");
   fs.mkdirSync(tunn, { recursive: true });

@@ -137,13 +137,14 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     expect(within(botten).queryByRole("button", { name: "Skapa" })).toBeNull();
   });
 
-  it("OpsHub: ett kort per modul, varje kort en länk, och det aktiva markerat (0.30.1)", () => {
+  it("OpsHub: ett kort per modul, ett kort utan barn en länk och ett med barn en utfällbar knapp, och det aktiva markerat (0.30.1, 0.31.2)", () => {
     render(<OpsHub moduler={moduler} activeHref="/inkomster" />);
     const lista = screen.getByRole("list", { name: "Moduler" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
-    // Undersidorna bor på modulens EGEN sida (`OpsHubModul`), inte som rader i kortet.
-    const kort = within(lista).getByRole("link", { name: /Ekonomi/ });
-    expect(within(lista).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual(["/oversikt", "/ekonomi"]);
+    // 0.31.2: kortet med barn fälls ut på plats (knapp), och den aktiva sidan är ett av barnen så kortet börjar utfällt.
+    const knapp = within(lista).getByRole("button", { name: /Ekonomi/ });
+    expect(knapp.getAttribute("aria-expanded")).toBe("true");
+    const kort = /** @type {HTMLElement} */ (knapp.parentElement);
     expect(kort.className).toContain("rounded-card");
     expect(kort.className).toContain("ring-accent");
     expect(within(lista).getByRole("link", { name: /Översikt/ }).className).not.toContain("ring-accent");
@@ -229,7 +230,7 @@ describe("C: hover och rundning (#173)", () => {
     render(Skal());
     fireEvent.click(screen.getByRole("button", { name: /Meny, fler åtgärder/ }));
     const rad = within(screen.getByRole("dialog")).getByRole("button", { name: "Aktivitet" });
-    for (const k of ["rounded-base", "hover:bg-raised", "px-3", "py-2.5", "text-xs"]) expect(rad.className).toContain(k);
+    for (const k of ["rounded-base", "hover:bg-raised", "px-3", "py-2.5", "text-meta"]) expect(rad.className).toContain(k);
     expect(rad.className).not.toContain("rounded-sm");
   });
 
@@ -371,7 +372,7 @@ describe("D: typografin på ETT ställe (#173)", () => {
     const css = fs.readFileSync(pathMod.resolve(process.cwd(), "tokens", "tokens.css"), "utf8");
     const fixtur = JSON.parse(fs.readFileSync(pathMod.resolve(process.cwd(), "tokens", "sessionstudio-profil.json"), "utf8"));
     const roller = Object.keys(fixtur.typografi.roller).filter((n) => !n.startsWith("_"));
-    expect(roller.sort()).toEqual(["etikett", "hjalp", "liten", "mikro", "rubrik", "sektion"]);
+    expect(roller.sort()).toEqual(["brod", "etikett", "hjalp", "liten", "meta", "mikro", "rubrik", "sektion", "sida", "titel"]);
     for (const r of roller) {
       expect(css).toContain(`--text-${r}: ${fixtur.typografi.roller[r].storlek};`);
       expect(css).toContain(`--text-${r}--font-weight: ${fixtur.typografi.roller[r].vikt};`);

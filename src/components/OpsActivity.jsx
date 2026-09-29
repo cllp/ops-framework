@@ -4,6 +4,7 @@ import { cx } from "../lib/cx.js";
 import { activityId, activityWindow, groupByDay, unread, unreadRows } from "../lib/aktivitet.js";
 import { formatDateTime, formatRelativeDate, formatTime } from "../lib/format.js";
 import { text } from "../lib/sprak.js";
+import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { slagKant } from "../lib/slag.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
@@ -151,14 +152,14 @@ function Rad({ handelse, slagord, slagIkon, ny, onOpen }) {
         ) : null}
         {/* ⛔ ORDET OCH INTE BARA EN FÄRG. Ett misslyckande som bara syns som en
             röd ton går inte att läsa upp och är osynligt för var tjugonde man. */}
-        {trasig ? <span className="text-xs font-semibold text-danger">Gick fel</span> : null}
-        <span className="text-sm font-semibold text-ink">{handelse.rubrik}</span>
+        {trasig ? <span className="text-meta font-semibold text-danger">Gick fel</span> : null}
+        <span className="text-etikett font-semibold text-ink">{handelse.rubrik}</span>
       </span>
 
-      {handelse.detalj ? <span className="text-sm text-ink-secondary">{handelse.detalj}</span> : null}
-      {trasig && handelse.fel ? <span className="text-sm text-danger">{handelse.fel}</span> : null}
+      {handelse.detalj ? <span className="text-etikett text-ink-secondary">{handelse.detalj}</span> : null}
+      {trasig && handelse.fel ? <span className="text-etikett text-danger">{handelse.fel}</span> : null}
 
-      <span className="flex flex-wrap items-center gap-x-2 text-xs text-ink-secondary">
+      <span className="flex flex-wrap items-center gap-x-2 text-meta text-ink-secondary">
         {/* ⛔ GRUPPEN SOM `OpsIdentity`, INTE SOM RÅ TEXT (#158). SessionStudios
             metarad bär en GroupMark bredvid gruppnamnet; `OpsIdentity` är
             ramverkets motsvarighet och redan använd för precis den rollen i
@@ -264,8 +265,8 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        {trasig ? <span className="text-sm font-semibold text-danger">Gick fel</span> : null}
-        <span className="text-lg font-semibold text-ink">{h.rubrik}</span>
+        {trasig ? <span className="text-etikett font-semibold text-danger">Gick fel</span> : null}
+        <span className="text-titel font-semibold text-ink">{h.rubrik}</span>
         {h.detalj ? <span className="text-ink-secondary">{h.detalj}</span> : null}
       </div>
 
@@ -274,10 +275,10 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
            ett API eller ett undantag, och den som ska söka på den behöver den
            oförvanskad. Kapad i en lista är den en ledtråd; hel här är den ett
            svar. */
-        <pre className="m-0 overflow-x-auto rounded-md bg-sunken p-3 text-sm whitespace-pre-wrap text-danger">{h.fel}</pre>
+        <pre className="m-0 overflow-x-auto rounded-md bg-sunken p-3 text-etikett whitespace-pre-wrap text-danger">{h.fel}</pre>
       ) : null}
 
-      <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+      <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-etikett">
         {fakta.map(([namn, varde]) => (
           <div key={namn} className="contents">
             <dt className="text-ink-secondary">{namn}</dt>
@@ -343,7 +344,7 @@ export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, 
         <section key={a.value}>
           {/* ⛔ EN RIKTIG RUBRIK OCH INTE EN FET RAD. Den som hoppar mellan
               rubriker i en skärmläsare ska kunna gå till "Idag" direkt. */}
-          <h3 className="mb-2 text-sm font-semibold text-ink-secondary">{text(a.label, sprak)}</h3>
+          <h3 className="mb-2 text-etikett font-semibold text-ink-secondary">{text(a.label, sprak)}</h3>
           <ul className="m-0 flex list-none flex-col p-0">
             {a.rader.map((h) => (
               <Rad
@@ -409,7 +410,7 @@ export function OpsActivityListActions({ filter, filterLabel = "Filter", onClear
             <ReglageIkon size={18} />
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content align="end" sideOffset={4} className="z-(--z-dropdown) min-w-52 rounded-md border border-line bg-raised p-2 shadow-md">
+            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-52 p-2", radBehallare())}>
               {filter}
             </Popover.Content>
           </Popover.Portal>
@@ -421,14 +422,14 @@ export function OpsActivityListActions({ filter, filterLabel = "Filter", onClear
             <MerIkon size={18} />
           </Popover.Trigger>
           <Popover.Portal>
-            <Popover.Content align="end" sideOffset={4} className="z-(--z-dropdown) min-w-40 rounded-md border border-line bg-raised p-1 shadow-md">
+            <Popover.Content align="end" sideOffset={4} className={cx("z-(--z-dropdown) min-w-40 p-1", radBehallare())}>
               <button
                 type="button"
                 onClick={() => {
                   setMenyOppen(false);
                   onClear();
                 }}
-                className="flex min-h-9 w-full cursor-pointer items-center rounded-sm px-3 text-left text-sm text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                className={radKlass()}
               >
                 {clearLabel}
               </button>

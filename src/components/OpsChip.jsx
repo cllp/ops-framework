@@ -39,7 +39,7 @@ export function OpsChip({ icon, children, selected = false, onClick, disabled = 
       disabled={disabled}
       onClick={onClick}
       className={cx(
-        "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs",
+        "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-meta",
         "transition-colors duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         "disabled:pointer-events-none disabled:opacity-50",

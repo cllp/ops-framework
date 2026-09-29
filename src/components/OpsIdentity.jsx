@@ -33,11 +33,11 @@ const TONKLASSER = {
 const STORLEKAR = {
   /** 20px: SessionStudios gruppmärke i kortet (GroupCard.jsx:71) och avatarraden (Avatar size 5). #161. */
   xs: "size-5 text-liten",
-  sm: "size-6 text-xs",
-  md: "size-9 text-base",
+  sm: "size-6 text-meta",
+  md: "size-9 text-brod",
   /** 34 px (0.30.1): SessionStudios märke i den infällda remsan, `AppSidebar.jsx:95` `GroupMark sizePx={34}` i en 40 px ruta med kant. */
-  rail: "size-8.5 text-base",
-  lg: "size-12 text-md",
+  rail: "size-8.5 text-brod",
+  lg: "size-12 text-brod",
   /** 28 px (0.30.0, #173): SessionStudios avatar i toppraden, `AppHeader.jsx:463`. Alltid rund, se `rund`. */
   avatar: "size-7 text-liten",
 };

@@ -1,6 +1,6 @@
 import * as Select from "@radix-ui/react-select";
 import { cx } from "../lib/cx.js";
-import { faltTriggerKlass, faltYtaKlass } from "../lib/radKlass.js";
+import { faltTriggerKlass, faltYtaKlass, valjAlternativKlass } from "../lib/radKlass.js";
 import { useFieldBinding } from "./OpsField.jsx";
 import { BockIkon, ChevronNedIkon } from "./icons.jsx";
 
@@ -57,20 +57,11 @@ export function OpsSelect({ options, value, onChange, placeholder = "Välj", dis
         >
           <Select.Viewport className="max-h-72 p-1">
             {options.map((o) => (
-              <Select.Item
-                key={o.value}
-                value={o.value}
-                disabled={o.disabled}
-                className={cx(
-                  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-2 pl-8 pr-3 text-base text-ink",
-                  "data-[highlighted]:bg-accent-faint data-[highlighted]:outline-none data-[state=checked]:bg-accent-subtle",
-                  "data-[disabled]:opacity-55 data-[disabled]:cursor-not-allowed",
-                )}
-              >
-                <Select.ItemIndicator className="absolute left-2 text-accent">
-                  <BockIkon />
-                </Select.ItemIndicator>
+              <Select.Item key={o.value} value={o.value} disabled={o.disabled} className={valjAlternativKlass()}>
                 <Select.ItemText>{o.label}</Select.ItemText>
+                <Select.ItemIndicator className="ml-auto shrink-0 text-accent">
+                  <BockIkon size={14} />
+                </Select.ItemIndicator>
               </Select.Item>
             ))}
           </Select.Viewport>

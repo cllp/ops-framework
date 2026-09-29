@@ -1,6 +1,6 @@
 import { cx } from "../lib/cx.js";
 import { OpsHelp } from "./OpsHelp.jsx";
-import { OpsHubTillbaka } from "./OpsHub.jsx";
+import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 
 /**
  * Vyskalet. Varje sida i en ops-app ligger i en av dessa.
@@ -24,7 +24,7 @@ const BREDDER = {
 /**
  * @param {object} props
  * @param {"narrow"|"normal"|"wide"|"full"} [props.width]
- * @param {import("react").ComponentProps<typeof OpsHubTillbaka>} [props.tillbaka] (0.31.0) Tillbaka-raden "‹ Hub / Sida" överst i vyn,
+ * @param {import("react").ComponentProps<typeof OpsHubTillbaka>} [props.tillbaka] (0.31.0; 0.31.2: textlänk med chevron, SS-formen) Tillbaka-raden "‹ Tillbaka" överst i vyn,
  *   samma komponent som `OpsHubModul` (`OpsHubTillbaka`). ⛔ Varje sida under Hub bär den: ge den här propen i stället för att rita raden själv.
  * @param {import("react").ReactNode} props.children
  */
@@ -37,8 +37,10 @@ export function OpsView({ width = "normal", tillbaka, children }) {
     <div
       className={cx(
         "mx-auto w-full px-4 pt-6",
-        // Minst 16 px sidomarginal vid varje bredd, och säker yta i botten.
-        "pb-[calc(--spacing(6)+var(--safe-bottom))]",
+        // Minst 16 px sidomarginal vid varje bredd. ⛔ 0.31.2: den säkra ytan i botten räknas här BARA från `md` (iPad). Under `md` äger
+        // skalets `main` den (`pb` = bottenradens höjd + `--safe-bottom`), och räknades den också här stod sista kortet 34 px för högt
+        // över bottenraden på en telefon med hemindikator (emulerat i check-skalyta avsnitt 21: 57 px tomt mot 24).
+        "pb-6 md:pb-[calc(--spacing(6)+var(--safe-bottom))]",
         // ⛔ VYN GER SINA BARN VERTIKAL RYTM. Utan den här raden lägger sig två
         // kort kant mot kant och bildar en dubbel linje: de ser ihopsvetsade ut.
         //
@@ -84,7 +86,7 @@ export function OpsViewHeader({ title, description, actions }) {
         rör typografin.
       */}
       <OpsHelp
-        title={<h1 className="m-0 font-display text-xl font-bold leading-tight tracking-tight text-ink">{title}</h1>}
+        title={<h1 className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">{title}</h1>}
       >
         {description}
       </OpsHelp>

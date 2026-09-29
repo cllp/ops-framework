@@ -55,12 +55,12 @@ const VARIANTER = {
  */
 const STORLEKAR = {
   // ⛔ 0.31.0: SS `ui/PrimaryButton.jsx:44-47`: `sm` är `px-3 py-1.5 text-xs`, `md` `px-4 py-2 text-sm`. `sm` var `py-1 text-sm`.
-  sm: "gap-1.5 px-3 py-1.5 text-xs min-h-8",
+  sm: "gap-1.5 px-3 py-1.5 text-meta min-h-8",
   // ⛔ text-sm, INTE text-base (#164, mätt av en annan agent mot
   // SessionStudios `ProfileView.jsx` rad ~604, Spara-knappen): 14 px, inte
   // 16 px. Höjden (min-h-11, 44 px träffyta) är ORÖRD: den är ett mått för
   // tummen, inte för texten, och de två frågorna svarar inte på varandra.
-  md: "gap-2 px-4 py-2 text-sm min-h-11",
+  md: "gap-2 px-4 py-2 text-etikett min-h-11",
 };
 
 const IKONSTORLEKAR = {

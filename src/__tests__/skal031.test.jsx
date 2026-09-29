@@ -38,7 +38,7 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
   it("räknaren ritas bara när den är större än noll, och info bara när appen har något att säga", () => {
     render(<OpsHub moduler={moduler} />);
     const lista = screen.getByRole("list", { name: "Moduler" });
-    const ekonomi = within(lista).getByRole("link", { name: /Ekonomi/ });
+    const ekonomi = within(lista).getByRole("button", { name: /Ekonomi/ });
     expect(ekonomi.textContent).toContain("2");
     expect(ekonomi.textContent).toContain("Skatten förfaller");
     // badge 0: ingen räknare. Det finns inget "0" i kortet.
@@ -56,7 +56,9 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
   it("språket styr både info och ramverkets egen text", () => {
     render(<OpsHub moduler={moduler} sprak="en" />);
     expect(screen.getByText("Tax is due")).toBeTruthy();
-    expect(screen.getByText("Nothing new")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Ekonomi/ }));
+    expect(screen.getByRole("link", { name: "Show Ekonomi" })).toBeTruthy();
+    expect(screen.getAllByText("Nothing new").length).toBeGreaterThan(0);
   });
 
   it("⛔ info valideras: en tom sträng och fel form kastar, null och utelämnad godtas", () => {
@@ -67,21 +69,25 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
     expect(() => validateNav([{ href: "/a", label: "A", info: null }, { href: "/b", label: "B" }, { href: "/c", label: "C", info: { sv: "x" } }], "T")).not.toThrow();
   });
 
-  it("ett klick på kortet går till modulens href (kortet är en riktig länk)", () => {
+  it("ett klick på ett kort utan barn går till modulens href, ett på Ekonomi fäller ut och 'Visa Ekonomi' går dit (0.31.2)", () => {
     const gick = [];
     render(<OpsHub moduler={moduler} onNavigate={(href, e) => { e.preventDefault(); gick.push(href); }} />);
-    fireEvent.click(screen.getByRole("link", { name: /Ekonomi/ }));
-    expect(gick).toEqual(["/ekonomi"]);
+    fireEvent.click(screen.getByRole("link", { name: /Schema/ }));
+    expect(gick).toEqual(["/schema"]);
+    fireEvent.click(screen.getByRole("button", { name: /Ekonomi/ }));
+    expect(gick).toEqual(["/schema"]);
+    fireEvent.click(screen.getByRole("link", { name: "Visa Ekonomi" }));
+    expect(gick).toEqual(["/schema", "/ekonomi"]);
   });
 
-  it("modulsidan: tillbaka-raden leder till Hub, modulens namn är aktuell sida och barnen är kort", () => {
+  it("modulsidan: tillbaka-länken leder till Hub, modulens namn är rubriken och barnen är kort (0.31.2)", () => {
     const gick = [];
     render(<OpsHubModul modul={moduler[1]} hubHref="/hub" onNavigate={(href, e) => { e.preventDefault(); gick.push(href); }} />);
     const rad = screen.getByRole("navigation", { name: "Var du är" });
-    const tillbaka = within(rad).getByRole("link", { name: "Hub" });
+    const tillbaka = within(rad).getByRole("link", { name: "Tillbaka till Hub" });
     expect(tillbaka.getAttribute("href")).toBe("/hub");
-    expect(within(rad).getByText("Ekonomi").getAttribute("aria-current")).toBe("page");
-    expect(rad.className).toContain("sticky");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Ekonomi");
+    expect(rad.className).not.toContain("sticky");
     fireEvent.click(tillbaka);
     expect(gick).toEqual(["/hub"]);
     const barn = within(screen.getByRole("list", { name: "Ekonomi" })).getAllByRole("link");

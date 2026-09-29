@@ -86,7 +86,7 @@ export function OpsNotiser({ register, fraga, lasta = [], onLast, onOppna, ariaL
             <OpsStatusDot status={n.prio === "hog" ? "akut" : n.prio === "lag" ? "vantar" : "oppet"} label={prioord[n.prio] ?? prioord.normal} />
             <span className="min-w-0 flex-1">
               <span className={`block truncate ${oläst ? "font-semibold text-ink" : "text-ink-secondary"}`}>{n.titel}</span>
-              {n.text ? <span className="block truncate text-sm text-ink-secondary">{n.text}</span> : null}
+              {n.text ? <span className="block truncate text-etikett text-ink-secondary">{n.text}</span> : null}
             </span>
           </OpsListRow>
         );

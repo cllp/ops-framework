@@ -9,18 +9,30 @@ import { OpsIconLink } from "../components/OpsIconLink.jsx";
  * Att raden hålls i kolumnen, att inget flödar över och att korten ser lika ut mäts i Chromium (check-skalyta avsnitt 12 och 16).
  */
 describe("OpsHubTillbaka", () => {
-  it("ritar Hub, mellansteg och nuvarande sida, med aria-current på den sista", () => {
-    render(<OpsHubTillbaka hubHref="/hub" etikett="Inkomster" steg={[{ href: "/ekonomi", label: "Ekonomi" }]} />);
+  it("är en textlänk 'Tillbaka' med chevron, till Hub, och ritar ingen rubrik som standard", () => {
+    render(<OpsHubTillbaka hubHref="/hub" etikett="Inkomster" />);
     const rad = screen.getByRole("navigation", { name: "Var du är" });
-    expect(within(rad).getByRole("link", { name: "Hub" }).getAttribute("href")).toBe("/hub");
-    expect(within(rad).getByRole("link", { name: "Ekonomi" }).getAttribute("href")).toBe("/ekonomi");
-    expect(rad.querySelector('[aria-current="page"]')?.textContent).toBe("Inkomster");
+    const lank = within(rad).getByRole("link", { name: "Tillbaka till Hub" });
+    expect(lank.getAttribute("href")).toBe("/hub");
+    expect(lank.textContent).toBe("Tillbaka");
+    expect(lank.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("leder ett steg upp: den sista mellanliggande sidan, annars Hub", () => {
+    render(<OpsHubTillbaka hubHref="/hub" etikett="Inkomster" steg={[{ href: "/ekonomi", label: "Ekonomi" }]} />);
+    expect(screen.getByRole("link", { name: "Tillbaka till Ekonomi" }).getAttribute("href")).toBe("/ekonomi");
+  });
+
+  it("med rubrik ritas sidans namn som h1 under länken", () => {
+    render(<OpsHubTillbaka hubHref="/hub" etikett="Ekonomi" rubrik />);
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Ekonomi");
   });
 
   it("anropar onNavigate med länkens href", () => {
     const onNavigate = vi.fn();
     render(<OpsHubTillbaka hubHref="/hub" etikett="Ekonomi" onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole("link", { name: "Hub" }));
+    fireEvent.click(screen.getByRole("link", { name: "Tillbaka till Hub" }));
     expect(onNavigate).toHaveBeenCalledWith("/hub", expect.anything());
   });
 
@@ -29,22 +41,57 @@ describe("OpsHubTillbaka", () => {
     expect(() => render(<OpsHubTillbaka hubHref="/hub" />)).toThrow(/etikett/);
   });
 
-  it("har ingen negativ marginal: den hålls i innehållskolumnen", () => {
+  it("är inget band: ingen sticky, ingen ram, ingen bakgrund, ingen negativ marginal", () => {
     render(<OpsHubTillbaka hubHref="/hub" etikett="Ekonomi" />);
     const rad = screen.getByRole("navigation", { name: "Var du är" });
-    expect(rad.className).not.toMatch(/(^|\s)-m[xlr]-/);
+    expect(rad.className).not.toMatch(/sticky|border|bg-|(^|\s)-m[xlr]-/);
+    expect(rad.parentElement?.className ?? "").not.toMatch(/sticky|border|bg-/);
   });
 
-  it("OpsView tillbaka ritar samma rad överst, OpsHubModul använder den", () => {
+  it("OpsView tillbaka ritar samma rad överst, OpsHubModul använder den och ger sidan en rubrik", () => {
     const { unmount } = render(
       <OpsView tillbaka={{ hubHref: "/hub", etikett: "Inkomster", steg: [{ href: "/ekonomi", label: "Ekonomi" }] }}>
         <p>sidan</p>
       </OpsView>,
     );
-    expect(screen.getByRole("navigation", { name: "Var du är" }).textContent).toContain("Inkomster");
+    expect(screen.getByRole("link", { name: "Tillbaka till Ekonomi" })).toBeTruthy();
     unmount();
     render(<OpsHubModul modul={{ href: "/ekonomi", label: "Ekonomi", children: [{ href: "/inkomster", label: "Inkomster" }] }} hubHref="/hub" />);
-    expect(screen.getByRole("navigation", { name: "Var du är" }).textContent).toContain("Ekonomi");
+    expect(screen.getByRole("link", { name: "Tillbaka till Hub" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Ekonomi");
+  });
+});
+
+describe("Hub: ett kort med barn fälls ut på plats", () => {
+  const moduler = [
+    { href: "/a", label: "Utan barn" },
+    { href: "/ekonomi", label: "Ekonomi", children: [{ href: "/inkomster", label: "Inkomster", info: "Ny faktura" }, { href: "/kostnader", label: "Kostnader" }] },
+  ];
+  it("knappen bär aria-expanded, barnen syns efter klick, och 'Visa Ekonomi' leder till modulens sida", () => {
+    const onNavigate = vi.fn();
+    render(<OpsHub moduler={moduler} onNavigate={onNavigate} />);
+    const knapp = screen.getByRole("button", { name: /Ekonomi/ });
+    expect(knapp.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("link", { name: /Inkomster/ })).toBeNull();
+    fireEvent.click(knapp);
+    expect(knapp.getAttribute("aria-expanded")).toBe("true");
+    expect(document.getElementById(knapp.getAttribute("aria-controls") ?? "")).not.toBeNull();
+    expect(screen.getByRole("link", { name: /Inkomster/ }).getAttribute("href")).toBe("/inkomster");
+    fireEvent.click(screen.getByRole("link", { name: "Visa Ekonomi" }));
+    expect(onNavigate).toHaveBeenCalledWith("/ekonomi", expect.anything());
+    fireEvent.click(knapp);
+    expect(knapp.getAttribute("aria-expanded")).toBe("false");
+  });
+  it("börjar utfälld när en av barnens sidor är aktiv, och en modul utan barn är en vanlig länk", () => {
+    render(<OpsHub moduler={moduler} activeHref="/kostnader" />);
+    expect(screen.getByRole("button", { name: /Ekonomi/ }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("link", { name: "Utan barn" }).getAttribute("href")).toBe("/a");
+  });
+  it("ritas i OpsView (sidomarginal) som standard, och utan ram med ram={false}", () => {
+    const { container, rerender } = render(<OpsHub moduler={moduler} />);
+    expect(container.firstElementChild?.className).toContain("px-4");
+    rerender(<OpsHub moduler={moduler} ram={false} />);
+    expect(container.firstElementChild?.className ?? "").not.toContain("px-4");
   });
 });
 

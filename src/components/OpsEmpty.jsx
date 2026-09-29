@@ -40,8 +40,8 @@ export function OpsEmpty({ title, description, action, busy = false, busyLabel =
           som inte går att skilja från ett tomt tillstånd förrän man läst den,
           och det är precis den förväxlingen den här komponenten finns för. */}
       {busy ? <OpsSpinner size="lg" tone="accent" decorative /> : null}
-      <p className="m-0 text-base font-semibold text-ink">{busy ? busyLabel : title}</p>
-      {!busy && description ? <p className="m-0 max-w-prose text-base text-ink-secondary">{description}</p> : null}
+      <p className="m-0 text-brod font-semibold text-ink">{busy ? busyLabel : title}</p>
+      {!busy && description ? <p className="m-0 max-w-prose text-brod text-ink-secondary">{description}</p> : null}
       {!busy && action ? <div className="mt-2">{action}</div> : null}
     </div>
   );

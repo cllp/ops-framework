@@ -93,7 +93,7 @@ export function OpsUtanMedlemskap({
         <div className="flex max-w-sm flex-col gap-3">
           <div>
             <p className="m-0 font-semibold text-ink">{skapaRubrik}</p>
-            <p className="m-0 text-sm text-ink-secondary">{skapaText}</p>
+            <p className="m-0 text-etikett text-ink-secondary">{skapaText}</p>
           </div>
           <OpsField label={namnEtikett}>
             <OpsInput value={namn} onChange={setNamn} placeholder="Mitt bolag" />
@@ -106,14 +106,14 @@ export function OpsUtanMedlemskap({
         </div>
       ) : null}
 
-      {onSkapaGrupp ? <p className="m-0 text-sm font-semibold uppercase tracking-wide text-ink-muted">{eller}</p> : null}
+      {onSkapaGrupp ? <p className="m-0 text-etikett font-semibold uppercase tracking-wide text-ink-muted">{eller}</p> : null}
 
       <p className="max-w-prose text-ink-secondary">{text}</p>
 
       {/* ⛔ Vem man är inloggad som står här, eftersom fel konto är det
           vanligaste skälet att hamna på den här sidan. */}
       {inloggadSom ? (
-        <p className="text-sm text-ink-muted">
+        <p className="text-etikett text-ink-muted">
           {inloggadSomEtikett}: <span className="text-ink">{inloggadSom}</span>
         </p>
       ) : null}

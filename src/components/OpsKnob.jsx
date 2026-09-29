@@ -92,7 +92,7 @@ export function OpsKnob({
 
   return (
     <div className="ops-ratt" title="Dubbelklick = återställ" onDoubleClick={aterstall}>
-      <label htmlFor={id} className={cx("text-sm font-medium text-ink", hiddenLabel ? "sr-only" : "mb-1 block")}>
+      <label htmlFor={id} className={cx("text-etikett font-medium text-ink", hiddenLabel ? "sr-only" : "mb-1 block")}>
         {label}
       </label>
 

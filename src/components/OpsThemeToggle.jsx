@@ -2,7 +2,9 @@ import { useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { getTheme, setTheme } from "../lib/theme.js";
-import { BockIkon, ManeIkon, SkarmIkon, SolIkon } from "./icons.jsx";
+import { ManeIkon, SkarmIkon, SolIkon } from "./icons.jsx";
+import { ValRad } from "./ValRad.jsx";
+import { radBehallare } from "../lib/radKlass.js";
 
 /**
  * Växlare för ljust, mörkt och följ systemet.
@@ -71,38 +73,24 @@ export function OpsThemeToggle({ ariaLabel = "Utseende", labels = {} }) {
         <Popover.Content
           align="end"
           sideOffset={4}
-          className="z-(--z-dropdown) min-w-44 rounded-md border border-line bg-raised p-1 shadow-md"
+          className={cx("z-(--z-dropdown) min-w-44 p-1", radBehallare())}
         >
           <div role="group" aria-label={ariaLabel} className="flex flex-col">
             {choice.map((v) => {
               const Ikon = v.Ikon;
-              const chosen = v.value === state;
               return (
-                <button
+                <ValRad
                   key={v.value}
-                  type="button"
-                  aria-pressed={chosen}
+                  chosen={v.value === state}
+                  ikon={<Ikon size={16} />}
                   onClick={() => {
                     setTheme(/** @type {any} */ (v.value));
                     setLage(/** @type {any} */ (v.value));
                     setOppen(false);
                   }}
-                  className={cx(
-                    "flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base",
-                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    chosen ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-                  )}
                 >
-                  <span aria-hidden="true" className="shrink-0 text-ink-muted">
-                    <Ikon size={16} />
-                  </span>
-                  <span className="flex-1">{v.label}</span>
-                  {chosen ? (
-                    <span aria-hidden="true" className="shrink-0 text-accent">
-                      <BockIkon />
-                    </span>
-                  ) : null}
-                </button>
+                  {v.label}
+                </ValRad>
               );
             })}
           </div>

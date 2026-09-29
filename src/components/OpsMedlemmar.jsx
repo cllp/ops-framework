@@ -108,7 +108,7 @@ export function OpsMedlemmar({
 
   return (
     <>
-      <p className="text-sm font-semibold uppercase tracking-wide text-ink-secondary">{rubrik}</p>
+      <p className="text-etikett font-semibold uppercase tracking-wide text-ink-secondary">{rubrik}</p>
 
       {medlemmar.length === 0 ? (
         <OpsEmpty title={ingaText} />

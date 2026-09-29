@@ -2,7 +2,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { text } from "../lib/sprak.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
-import { PersonIkon } from "./icons.jsx";
+import { BockIkon, PersonIkon } from "./icons.jsx";
+import { radKlass } from "../lib/radKlass.js";
 
 /**
  * "Skapa i": var det som skapas ska hamna (0.31.0).
@@ -64,7 +65,7 @@ export function OpsSkapaI({
           )}
         >
           <div className="border-b border-line px-4 py-3">
-            <Dialog.Title className="m-0 text-base font-semibold text-ink">{rubrik}</Dialog.Title>
+            <Dialog.Title className="m-0 text-brod font-semibold text-ink">{rubrik}</Dialog.Title>
           </div>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-2 py-2">
             {grupper.length > 0 ? (
@@ -77,9 +78,9 @@ export function OpsSkapaI({
                       <li key={g.id}>
                         <Rad vald={vald === g.id} onClick={() => onValj(g.id, "grupper")}>
                           <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="rail" />
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{namn}</span>
+                          <span className="min-w-0 flex-1 truncate text-etikett font-medium text-ink">{namn}</span>
                           {typeof g.medlemsantal === "number" ? (
-                            <span className="flex shrink-0 items-center gap-1 text-xs text-ink-muted">
+                            <span className="flex shrink-0 items-center gap-1 text-meta text-ink-muted">
                               <PersonIkon size={16} />
                               <span>
                                 {g.medlemsantal}
@@ -110,17 +111,17 @@ export function OpsSkapaI({
                             {p.ikon}
                           </span>
                         ) : null}
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{p.namn}</span>
+                        <span className="min-w-0 flex-1 truncate text-etikett font-medium text-ink">{p.namn}</span>
                       </Rad>
                     </li>
                   ))}
                 </ul>
               </section>
             ))}
-            {tom ? <p className="m-0 px-3 py-6 text-center text-sm text-ink-muted">{tomText}</p> : null}
+            {tom ? <p className="m-0 px-3 py-6 text-center text-etikett text-ink-muted">{tomText}</p> : null}
           </div>
           <div className="flex justify-end border-t border-line px-2 py-2">
-            <Dialog.Close className="inline-flex min-h-11 cursor-pointer items-center rounded-base px-4 text-sm font-medium text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
+            <Dialog.Close className="inline-flex min-h-11 cursor-pointer items-center rounded-base px-4 text-etikett font-medium text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent">
               {avbrytEtikett}
             </Dialog.Close>
           </div>
@@ -138,17 +139,13 @@ function Rubrik({ children }) {
 /** @param {{ vald: boolean, onClick: () => void, children: import("react").ReactNode }} props */
 function Rad({ vald, onClick, children }) {
   return (
-    <button
-      type="button"
-      aria-pressed={vald}
-      onClick={onClick}
-      className={cx(
-        "flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-left transition-colors duration-(--duration-fast) ease-standard",
-        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        vald ? "border-accent bg-accent-faint" : "border-transparent hover:bg-accent-faint",
-      )}
-    >
+    <button type="button" aria-pressed={vald} onClick={onClick} className={radKlass({ vald, stor: true, py: 3 })}>
       {children}
+      {vald ? (
+        <span aria-hidden="true" className="shrink-0 text-accent">
+          <BockIkon size={14} />
+        </span>
+      ) : null}
     </button>
   );
 }

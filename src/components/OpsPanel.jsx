@@ -228,7 +228,7 @@ export function OpsPanelHeader({ title, onBack, backLabel = "Tillbaka", action }
       )}
       {/* ⛔ EN RIKTIG RUBRIK. Panelen byter innehåll utan att sidan byts, så
           utan rubrikelement har den som lyssnar inget att hoppa till. */}
-      <h2 className="m-0 min-w-0 flex-1 truncate text-sm font-semibold text-ink">{title}</h2>
+      <h2 className="m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink">{title}</h2>
       {action ? <div className="flex shrink-0 items-center">{action}</div> : null}
     </div>
   );
@@ -397,7 +397,7 @@ export function OpsPanel({
               tillbakapil bredvid sig.
             */}
             <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
-              <Dialog.Title className="m-0 text-md font-bold text-ink">{label}</Dialog.Title>
+              <Dialog.Title className="m-0 text-rubrik font-bold text-ink">{label}</Dialog.Title>
               <div className="flex shrink-0 items-center gap-0.5">
                 {/* ⛔ ROTENS `action` HAMNAR HÄR PÅ SMAL SKÄRM, se noten ovanför
                     `OpsPanelHeader`-villkoret: roten har ingen egen rubrikrad

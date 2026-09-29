@@ -102,7 +102,7 @@ export function OpsHelp({ title, children, label = "Visa förklaring" }) {
           aria-hidden="true"
           className={cx(
             "inline-flex size-6 shrink-0 items-center justify-center rounded-full",
-            "border border-ink-secondary text-sm font-bold text-ink-secondary",
+            "border border-ink-secondary text-etikett font-bold text-ink-secondary",
             "transition-colors duration-(--duration-fast) ease-standard",
             "group-open:border-accent group-open:text-accent",
           )}
@@ -111,7 +111,7 @@ export function OpsHelp({ title, children, label = "Visa förklaring" }) {
         </span>
         <span className="sr-only">{label}</span>
       </summary>
-      <div className="mt-1 text-base text-ink-secondary">{children}</div>
+      <div className="mt-1 text-brod text-ink-secondary">{children}</div>
     </details>
   );
 }

@@ -1,5 +1,8 @@
 import { cx } from "./cx.js";
 
+/** @type {Record<number, string>} */
+const PY = { 1.5: "py-1.5", 2: "py-2", 2.5: "py-2.5", 3: "py-3" };
+
 /**
  * Klasserna för EN rad i en meny, en dropdown, ett ark eller plussets lista.
  *
@@ -27,17 +30,34 @@ import { cx } from "./cx.js";
  * @param {boolean} [val.accent] Plussets rad: större, accentfärgad, alltid.
  * @param {boolean} [val.active] "Du är här": `bg-raised text-accent`.
  * @param {boolean} [val.klickbar] Ger pekaren. Förval sant.
+ * @param {boolean} [val.vald] Raden är ETT VAL i en lista (`true` = det valda, `false` = ett av de andra), inte en destination. Valt: `bg-accent-subtle text-ink` och en accentbock (SS `--color-gold-overlay-subtle`, `text-primary`, `ThemedDropdown.jsx:122`); övriga hovrar i `bg-hover` (SS `themedSelectShared.js:82`, `FormDropdown`). ⛔ `raised` går inte att använda här: i ljust läge är den SAMMA färg som behållarens `surface`, så en vald rad syntes inte alls.
+ * @param {1.5 | 2 | 2.5 | 3} [val.py] Radens lodräta luft. ⛔ 0.31.2 (koordinatorn: "CP vill exakt SS"): `2.5` är AppHeaderns menyrad (`AppHeader.jsx:514`, `py-2.5`, förval); `1.5` är ThemedDropdown-motsvarigheterna (`ThemedDropdown.jsx:122`, `py-1.5`, filter, chip, tema); `2` formulärlistor och gruppfiltret; `3` `InviteGroupPickerDialog`. Höjden är SS egen från `md` (`md:min-h-0`, radhöjd = 16 eller 20 px text + 2 x luften), och 44 px träffyta under `md`.
+ * ⛔ `py: 1.5` ger OCKSÅ `font-medium` (500): ThemedDropdown-raden är `font-medium` (`ThemedDropdown.jsx:122`), mätt i skalyta avsnitt 18.
+ * @param {boolean} [val.stor] Raden bär mer än en textrad (märke, namn, antal): `text-sm`, `gap-3`. SS `InviteGroupPickerDialog.jsx:33-36` (`gap-3`, `text-sm`) och `EventStatusDropdown.jsx:34` (`px-3 py-2`, `text-sm`).
+ * @param {boolean} [val.accentFarg] Raden är en åtgärd i accentfärg ('Rensa'), inte ett val och inte plussets stora rad.
  * @returns {string}
  */
-export function radKlass({ accent = false, active = false, klickbar = true } = {}) {
+export function radKlass({ accent = false, active = false, klickbar = true, accentFarg = false, stor = false, vald, py = 2.5 } = {}) {
+  const luft = PY[py] ?? PY[2.5];
   return cx(
-    "flex min-h-11 w-full items-center rounded-base text-left transition-colors duration-(--duration-fast) ease-standard",
-    accent ? "gap-3 px-4 py-2.5 text-sm font-medium text-accent hover:bg-raised" : "gap-2.5 px-3 py-2.5 text-xs",
-    !accent && (active ? "bg-raised text-accent" : "text-ink-secondary hover:bg-raised hover:text-ink"),
-    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+    "flex min-h-11 md:min-h-0 w-full items-center rounded-base text-left transition-colors duration-(--duration-fast) ease-standard",
+    accent ? "gap-3 px-4 py-2.5 text-etikett leading-5 font-medium text-accent hover:bg-raised" : stor ? cx("gap-3 px-3 text-etikett leading-5", luft) : cx("gap-2.5 px-3 text-meta leading-4", luft, py === 1.5 && "font-medium"),
+    !accent && vald !== undefined && (vald ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-hover hover:text-ink"),
+    !accent && vald === undefined && (active ? "bg-raised text-accent" : accentFarg ? "text-accent hover:bg-raised" : "text-ink-secondary hover:bg-raised hover:text-ink"),
+    // ⛔ 0.31.2: FOKUS ÄR EN YTA, INTE EN RAM. Radix flyttar fokus in i en öppnad meny, och första raden
+    // ("Alla slag", också den valda) fick då en tjock accentram runt sig, som såg ut som ett tredje tillstånd bredvid "vald".
+    // SS-raderna har ingen egen fokusram alls (webbläsarens, bara vid tangentbord). Fokuserad rad får `bg-hover`; den valda raden behåller sin tonade yta (fokus syns när piltangenten flyttar det till nästa rad).
+    "focus-visible:outline-none",
+    !(vald === true || active) && "focus-visible:bg-hover",
     klickbar && "cursor-pointer",
   );
 }
+
+/**
+ * Rubriken över en grupp rader i en meny eller dropdown ("SLAG", "SORTERA"). EN definition (0.31.2): `px-3`, som raderna under den,
+ * så att rubrik och rader står i samma kolumn. Före 0.31.2 var den `px-2` och stod 4 px till vänster om sina egna rader.
+ */
+export const radRubrikKlass = "m-0 px-3 pb-1 text-meta font-semibold uppercase tracking-wide text-ink-muted";
 
 /**
  * Behållaren en rad ritas i: meny, dropdown, popover, ark.
@@ -139,7 +159,7 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
  */
 export function faltKlass({ invalid = false, filled = true, trigger = false, kant = "falt" } = {}) {
   return cx(
-    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-md md:text-base transition-colors duration-(--duration-fast) ease-standard",
+    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-rubrik md:text-brod transition-colors duration-(--duration-fast) ease-standard",
     trigger && "inline-flex items-center justify-between gap-2",
     kant === "falt" ? "border-[1.5px]" : "border",
     filled ? "text-ink" : "text-ink-muted",
@@ -155,5 +175,28 @@ export function faltTriggerKlass({ invalid = false, filled = true } = {}) {
   return faltKlass({ invalid, filled, trigger: true, kant: "val" });
 }
 
-/** Ytan en fältknapp öppnar: ovanför modalen (se `--z-dropdown`), samma radie, kant och skugga överallt. SS `themedSelectShared.js:76-79`: `--radius`, kant, skugga. */
-export const faltYtaKlass = "z-(--z-dropdown) rounded-base border border-line bg-raised shadow-md";
+/** Ytan en fältknapp öppnar: ovanför modalen (se `--z-dropdown`), samma radie, kant och skugga överallt. SS `themedSelectShared.js:76-79`: `--radius`, kant, skugga.
+ * ⛔ 0.31.2: `bg-surface` och `shadow-lg` som `radBehallare` (SS `listboxBase`: `bg-surface`, `shadow-lg`). Var `bg-raised`, samma färg som den valda raden, så valet syntes inte. */
+export const faltYtaKlass = "z-(--z-dropdown) rounded-base border border-line bg-surface shadow-lg";
+
+/**
+ * Ett alternativ i en LISTA I ETT FORMULÄR (`OpsSelect`, `OpsTimePicker`): Radix `Select.Item`. 0.31.2.
+ *
+ * ══ ⛔ SS FORMULÄRLISTA, MÄTT (CP 2026-09-29 19:50: "Typsnitten är inte syncade. Stor text ... Har ni verkligen gått igenom allt?") ═══
+ *
+ * SS `dropdown/themedSelectShared.js:81-86` (`ThemedSelectListbox.jsx:44-48`): `w-full flex items-center gap-1.5 text-left text-primary
+ * hover:bg-hover`, `optionSizeForm`: `px-3 py-2 text-sm`, vald rad tonad och en bock `w-3 h-3` accent SIST i raden. Före 0.31.2 var
+ * alternativen `text-base` (16 px) med bocken FÖRE texten och `pl-8`, alltså både större och åt fel håll.
+ * Markeringen är Radix `data-highlighted` (piltangenter och hover), valet `data-state=checked`.
+ *
+ * @param {{ dampad?: boolean }} [val] `dampad`: platshållarens rad ('--'), dämpad text.
+ * @returns {string}
+ */
+export function valjAlternativKlass({ dampad = false } = {}) {
+  return cx(
+    "relative flex min-h-11 md:min-h-0 w-full cursor-pointer select-none items-center gap-1.5 rounded-base px-3 py-2 text-left text-etikett leading-5",
+    dampad ? "text-ink-muted" : "text-ink",
+    "data-[highlighted]:bg-hover data-[highlighted]:outline-none data-[state=checked]:bg-accent-subtle",
+    "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-55",
+  );
+}

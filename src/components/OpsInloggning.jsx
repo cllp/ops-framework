@@ -219,12 +219,12 @@ export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = 
           ) : (
             <OpsBrand storlek="stor" namn={markeNamn} undertext={etikett} />
           )}
-          {viskning ? <p className="mt-2 px-1 text-sm leading-snug text-ink-soft">{viskning}</p> : null}
+          {viskning ? <p className="mt-2 px-1 text-etikett leading-snug text-ink-soft">{viskning}</p> : null}
         </div>
 
         <OpsCard rounding="bubbla" elevated>
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="m-0 text-base font-semibold text-ink">{skapaKonto ? t.createAccountHeading : t.logInHeading}</h2>
+            <h2 className="m-0 text-brod font-semibold text-ink">{skapaKonto ? t.createAccountHeading : t.logInHeading}</h2>
             {onSprak ? (
               <div role="group" aria-label={sprak === "sv" ? "Språk" : "Language"} className="flex shrink-0 rounded-full border border-line-strong bg-sunken p-0.5">
                 <button
@@ -313,7 +313,7 @@ export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = 
                 <button
                   type="button"
                   onClick={() => setLage("epostlank")}
-                  className="mt-2 w-full py-1 text-center text-xs font-medium text-ink-muted transition-colors hover:text-accent"
+                  className="mt-2 w-full py-1 text-center text-meta font-medium text-ink-muted transition-colors hover:text-accent"
                 >
                   {t.signInWithEmailLink}
                 </button>
@@ -321,12 +321,12 @@ export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = 
             </>
           ) : lage === "losenord" ? (
             <>
-              <button type="button" onClick={tillbaka} className="mb-3 flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-accent">
+              <button type="button" onClick={tillbaka} className="mb-3 flex items-center gap-1 text-meta font-medium text-ink-muted hover:text-accent">
                 ← {t.back}
               </button>
               {visaGlomt ? (
                 aterstallningSkickad ? (
-                  <div className="rounded-md border border-line bg-sunken p-3 text-xs text-ink-secondary">{t.resetSent}</div>
+                  <div className="rounded-md border border-line bg-sunken p-3 text-meta text-ink-secondary">{t.resetSent}</div>
                 ) : (
                   <form
                     className="flex flex-col gap-3"
@@ -381,7 +381,7 @@ export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = 
                     {skapaKonto ? t.createAccount : t.signIn}
                   </OpsButton>
                   {!skapaKonto && auth.resetPassword ? (
-                    <button type="button" onClick={() => setVisaGlomt(true)} className="text-center text-xs font-medium text-ink-muted hover:text-accent">
+                    <button type="button" onClick={() => setVisaGlomt(true)} className="text-center text-meta font-medium text-ink-muted hover:text-accent">
                       {t.forgotPassword}
                     </button>
                   ) : null}
@@ -390,12 +390,12 @@ export function OpsInloggning({ auth, namn: markeNamn, ordmarke, ordmarkeHojd = 
             </>
           ) : (
             <>
-              <button type="button" onClick={tillbaka} className="mb-3 flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-accent">
+              <button type="button" onClick={tillbaka} className="mb-3 flex items-center gap-1 text-meta font-medium text-ink-muted hover:text-accent">
                 ← {t.back}
               </button>
               {epostlankSkickadTill ? (
                 <div className="flex flex-col gap-3">
-                  <div className="rounded-md border border-line bg-sunken p-3 text-xs text-ink-secondary">
+                  <div className="rounded-md border border-line bg-sunken p-3 text-meta text-ink-secondary">
                     <p className="font-medium break-all">{emailLinkSentTo(sprak, epostlankSkickadTill)}</p>
                     <p className="mt-2">{t.emailLinkSent}</p>
                   </div>

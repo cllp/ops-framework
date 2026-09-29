@@ -12,9 +12,9 @@
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
 import * as Ops from "OPS_DIST";
-import { Calendar, CalendarDays, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
+import { Bell, Calendar, CalendarDays, CheckSquare, FileText, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip } = Ops;
+const { OpsEventList, OpsAttributes, OpsFact, OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
 
@@ -235,8 +235,50 @@ function Galleri() {
   );
 }
 
+/**
+ * 0.31.2: ALLA valmenyer på en sida, för mätningen i check-skalyta avsnitt 18. CP:s bild var filtrets "Slag"-dropdown
+ * (Alla slag, Fakta, Påminnelser, Uppgifter), så den finns med i alla tre former (en ikon per grupp, samlad panel, chip).
+ * Varje yta bor i en `data-m`-ruta; de öppnas av vakten, en i taget.
+ */
+function Menyer() {
+  const [f, setF] = useState({ slag: null });
+  const [sort, setSort] = useState("nyast");
+  const [chip, setChip] = useState(null);
+  const [chipIkon, setChipIkon] = useState(null);
+  const [seg, setSeg] = useState("kommande");
+  const [typ, setTyp] = useState("moete");
+  const [tid, setTid] = useState("09:30");
+  const [dat, setDat] = useState("2026-10-12");
+  const [gr, setGr] = useState("g1");
+  const slagIkon = { fakta: <FileText size={16} />, paminnelser: <Bell size={16} />, uppgifter: <CheckSquare size={16} /> };
+  const slagOpt = [
+    { value: "fakta", label: "Fakta", icon: slagIkon.fakta },
+    { value: "paminnelser", label: "Påminnelser", icon: slagIkon.paminnelser },
+    { value: "uppgifter", label: "Uppgifter", icon: slagIkon.uppgifter },
+  ];
+  const grupp = { id: "slag", label: "Slag", allLabel: "Alla slag", options: slagOpt };
+  const sorting = { label: "Sortera", value: sort, fallback: "nyast", onChange: setSort, options: [{ value: "nyast", label: "Nyast först" }, { value: "aldst", label: "Äldst först" }] };
+  const ruta = (/** @type {string} */ id, /** @type {any} */ barn) => <div data-m={id} className="flex min-h-11 items-center gap-2">{barn}</div>;
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-3 p-4" data-menyer="">
+      {ruta("filter-ikoner", <OpsFilterPanel layout="ikoner" ariaLabel="Filter" groups={[grupp]} value={f} onChange={setF} sorting={sorting} />)}
+      {ruta("filter-samlad", <OpsFilterPanel ariaLabel="Filter och sortering" groups={[grupp]} value={f} onChange={setF} sorting={sorting} />)}
+      {ruta("chip-ikon", <OpsFilterChip variant="icon" ariaLabel="Slag" allLabel="Alla slag" options={[{ value: null, label: "Alla slag" }, ...slagOpt]} value={chipIkon} onChange={setChipIkon} />)}
+      {ruta("chip-text", <OpsFilterChip ariaLabel="Slag" allLabel="Alla slag" options={[{ value: null, label: "Alla slag" }, ...slagOpt]} value={chip} onChange={setChip} />)}
+      {ruta("tema", <OpsThemeToggle />)}
+      {ruta("status", <OpsSegmented ariaLabel="Vy" value={seg} onChange={setSeg} options={[{ value: "idag", label: "Idag" }, { value: "kommande", label: "Kommande", menu: { items: [{ value: "kommande", label: "Alla" }, { value: "planerad", label: "Planerade" }, { value: "klar", label: "Klara" }] } }]} />)}
+      {ruta("select", <div className="w-56"><OpsSelect ariaLabel="Typ" value={typ} onChange={setTyp} options={["moete:Möte", "deadline:Deadline", "paminnelse:Påminnelse"].map((x) => ({ value: x.split(":")[0], label: x.split(":")[1] }))} /></div>)}
+      {ruta("tid", <div className="w-56"><OpsTimePicker value={tid} onChange={setTid} /></div>)}
+      {ruta("datum", <div className="w-56"><OpsDatePicker value={dat} onChange={setDat} /></div>)}
+      {ruta("aktivitet", <OpsActivityListActions filter={<p className="m-0 text-xs">Filter</p>} onClear={() => {}} />)}
+      {ruta("gruppvaljare", <div className="w-72"><OpsGruppvaljare grupper={grupperLista} aktiv={gr} onValj={setGr} rubrik="Grupper" allaEtikett="Alla mina grupper" /></div>)}
+    </div>
+  );
+}
+
 function Scen() {
   const s = window.__skal;
+  if (s === "menyer") return <Menyer />;
   if (s === "galleri") return <Galleri />;
   if (s === "skapa") {
     return (
@@ -249,7 +291,7 @@ function Scen() {
   if (s === "full") {
     return (
       <Full>
-        <p className="px-4">innehåll</p>
+        <p className="px-4 text-brod">innehåll</p>
       </Full>
     );
   }
@@ -267,14 +309,105 @@ function Scen() {
   if (s === "hub") {
     return (
       <Full>
-        <div className="px-4 py-4">
-          <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
-        </div>
+        <OpsHub moduler={hubModuler} activeHref="/hub" onNavigate={gaTill} />
       </Full>
     );
   }
-  // 0.31.0 (fynd 1 i #475): utan `px-4` runt. Appen får lägga vilken padding den vill, och Hub får inte kräva en: raden hade
-  // `-mx-4`, som ger horisontell överflödning i en kolumn utan egen padding.
+  // 0.31.2 (uppgift 5): Idag med ett utfällt kort och en faktalista, byggd av ramverkets egna komponenter. Typvakten (avsnitt 20) mäter
+  // varje synligt textelement här och i de andra sidorna.
+  if (s === "idagkort") {
+    const { OpsView } = Ops;
+    const [vy, setVy] = useState("idag");
+    const handelser = [
+      {
+        id: "e1",
+        title: "Kundfaktura 119223 Adavo AB, skickad, väntar betalning, 158 400 kr inkl moms",
+        daysLeft: -19,
+        role: "Du",
+        kind: "Faktura",
+        when: "För 19 dagar sedan",
+        updatedAt: "Senast 10 sep",
+        deadline: "Förfaller 2026-09-10",
+        slag: 1,
+        slagLabel: "Faktura",
+        status: "vantar",
+        skapadAv: { namn: "Wint", typ: "agent" },
+        skapad: "2026-09-10T09:12:00Z",
+        atgard: <OpsButton size="sm" variant="secondary">Bocka av</OpsButton>,
+        details: (
+          <OpsAttributes
+            rows={[
+              { label: "Belopp inkl moms", value: "158 400 kr" },
+              { label: "Exkl moms", value: "126 720 kr" },
+              { label: "Period", value: "2026-07" },
+              { label: "Underlag", value: "144 h x 880 kr" },
+              { label: "Status", value: "sent" },
+              { label: "Hämtad från", value: "Wint" },
+              { label: "Försvinner", value: "Försvinner när underlaget ändras, inte när du gör något." },
+            ]}
+          />
+        ),
+      },
+      { id: "e2", title: "Attest större leverantörsfakturor", daysLeft: 3, role: "Agent", kind: "Uppgift", when: "Om 3 dagar", slag: 2, slagLabel: "Uppgift" },
+    ];
+    return (
+      <Full>
+        <OpsView>
+          <OpsSegmented ariaLabel="Idag eller kommande" value={vy} onChange={setVy} options={[{ value: "idag", label: "Idag", badge: 3 }, { value: "kommande", label: "Kommande", badge: 76 }]} />
+          <OpsEventList
+            events={handelser}
+            actionHint="Bara påminnelser går att bocka av, och bara för den här gången."
+            statusWords={{ vantar: "Väntar" }}
+            labels={{ forsenat: "Försenat" }}
+          />
+          <div className="flex gap-2">
+            <OpsFact kind="uppskattat" value="1 200 kr" />
+            <OpsTag label="Etikett" />
+          </div>
+        </OpsView>
+      </Full>
+    );
+  }
+  // 0.31.2 (uppgift 6): en lång sida i skalet med bottenrad, för att emulera en hemskärmsapp (iOS standalone) med säkra zoner.
+  if (s === "lang") {
+    const { OpsView } = Ops;
+    const handelser = Array.from({ length: 12 }, (_, i) => ({ id: `l${i}`, title: `Händelse nummer ${i + 1}`, daysLeft: i - 3, role: "Du", kind: "Uppgift", when: `Om ${i} dagar`, slag: 2, slagLabel: "Uppgift" }));
+    return (
+      <Full>
+        <OpsView>
+          <OpsEventList events={handelser} />
+        </OpsView>
+      </Full>
+    );
+  }
+  // Samma sida med listan i `OpsScrollArea` (som bolag-ops Idag): ytan rullar i sig själv och dokumentet ska INTE rulla.
+  if (s === "langarea") {
+    const { OpsView, OpsScrollArea } = Ops;
+    const handelser = Array.from({ length: 12 }, (_, i) => ({ id: `l${i}`, title: `Händelse nummer ${i + 1}`, daysLeft: i - 3, role: "Du", kind: "Uppgift", when: `Om ${i} dagar`, slag: 2, slagLabel: "Uppgift" }));
+    return (
+      <Full>
+        <OpsView>
+          <p>Filter</p>
+          <OpsScrollArea>
+            <OpsEventList events={handelser} />
+          </OpsScrollArea>
+        </OpsView>
+      </Full>
+    );
+  }
+  // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
+  if (s === "idag") {
+    const { OpsView } = Ops;
+    return (
+      <Full>
+        <OpsView>
+          <p data-idag-forst="">Idag</p>
+        </OpsView>
+      </Full>
+    );
+  }
+  // 0.31.0 (fynd 1 i #475): utan `px-4` runt. 0.31.2: Hub äger sin egen ram (`OpsView`), så "naken" är nu samma sak som "hub"
+  // (före 0.31.2 hade appen INGEN sidomarginal och inget avstånd under toppraden, se CHANGELOG). Scenerna behålls som alias.
   if (s === "hubnaken") {
     return (
       <Full>
@@ -303,9 +436,7 @@ function Scen() {
   if (s === "hubmodul") {
     return (
       <Full>
-        <div className="px-4 pb-4">
-          <OpsHubModul modul={hubModuler[1]} hubHref="/hub" activeHref="/ekonomi" onNavigate={gaTill} />
-        </div>
+        <OpsHubModul modul={hubModuler[1]} hubHref="/hub" activeHref="/ekonomi" onNavigate={gaTill} />
       </Full>
     );
   }
@@ -320,7 +451,7 @@ function Scen() {
         skapa={{ handelse: <p>Formulär</p> }}
         meny={meny}
       >
-        <p>innehåll</p>
+        <p className="text-brod">innehåll</p>
       </OpsAppShell>
     );
   }
@@ -335,7 +466,7 @@ function Scen() {
   }
   return (
     <Skal>
-      <p className="px-4">innehåll</p>
+      <p className="px-4 text-brod">innehåll</p>
     </Skal>
   );
 }

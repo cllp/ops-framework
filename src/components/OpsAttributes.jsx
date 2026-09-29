@@ -76,8 +76,8 @@ export function OpsAttributes({ rows, ariaLabel }) {
         // ett rutnät blev "Försäkringsgivare" till "Försäk..." så fort värdet
         // var en firmanamnsrad med organisationsnummer.
         <div key={r.label} className="flex flex-wrap gap-x-3 py-1">
-          <dt className="min-w-32 text-sm text-ink-secondary">{r.label}</dt>
-          <dd className="m-0 text-sm text-ink">{r.value}</dd>
+          <dt className="min-w-32 text-etikett text-ink-secondary">{r.label}</dt>
+          <dd className="m-0 text-etikett text-ink">{r.value}</dd>
         </div>
       ))}
     </dl>

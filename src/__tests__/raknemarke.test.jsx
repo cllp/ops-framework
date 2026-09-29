@@ -25,7 +25,7 @@ describe("OpsCountBadge (#97)", () => {
     // `typografi.roller.mikro`: 0.5rem, 700), inte en literal i komponenten.
     expect(inkorg.className).not.toMatch(/text-\[\d/);
     // Aldrig accenten (kräm i mörkt tema) och aldrig den stora siffran eller ringen.
-    expect(inkorg.className).not.toMatch(/bg-accent|text-on-accent|text-xs|ring-/);
+    expect(inkorg.className).not.toMatch(/bg-accent|text-on-accent|text-meta|ring-/);
   });
 
   it("kapar vid 99+ och läser upp det riktiga talet", () => {

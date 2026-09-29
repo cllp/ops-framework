@@ -130,6 +130,8 @@ function krav(ok, text) {
 async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = null) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: skala });
   const page = await context.newPage();
+  // 0.31.2: en kort tidsgräns, så att ett saknat element (röd mot en äldre dist) blir ett brott och inte 30 sekunders väntan.
+  page.setDefaultTimeout(4000);
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: tema === "dark" ? "dark" : "light" });
@@ -519,15 +521,15 @@ if (bildmapp) {
 // modulsida med tillbaka-rad och barnen som mindre kort. Rullgardinen i toppraden har en chevron som fäller ut barnen.
 for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 900 }], ["390 px", { width: 390, height: 844 }]])) {
   const { page, context } = await oppna("hub", vp);
-  const kort = page.locator("main ul[aria-label] > li > a");
+  const kort = page.locator("main ul[aria-label] > li > *");
   const antal = await kort.count();
   krav(antal === 4, `Hub ${namn}: ${antal} modulkort ritades, väntat 4 (fyra moduler, varje kort en länk).`);
   if (antal === 4) {
     const k = await page.evaluate(() =>
-      [...document.querySelectorAll("main ul[aria-label] > li > a")].map((a) => {
+      [...document.querySelectorAll("main ul[aria-label] > li > *")].map((a) => {
         const r = a.getBoundingClientRect();
         const rader = [...a.querySelectorAll("span")].map((sp) => (sp.textContent || "").trim());
-        return { text: (a.textContent || "").trim(), x: r.x, y: Math.round(r.y), w: r.width, h: Math.round(r.height), flodar: a.scrollWidth > a.clientWidth + 1, rader };
+        return { text: /** @type {HTMLElement} */ (a).innerText.replace(/\s+/g, " ").trim(), x: r.x, y: Math.round(r.y), w: r.width, h: Math.round(r.height), flodar: a.scrollWidth > a.clientWidth + 1, rader };
       }),
     );
     matt.push(`Hub ${namn}: ${k.map((c) => `${c.text.slice(0, 22)} ${c.w.toFixed(0)}x${c.h}`).join(" | ")}`);
@@ -545,10 +547,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(olika.length === 0, `Hub ${namn}: kort i samma rad har olika höjd (${olika.map(([y, hs]) => `y=${y}: ${hs.join(", ")}`).join("; ")}).`);
     krav(k.every((c) => !c.flodar), `Hub ${namn}: text flödar ut ur ett kort (${k.filter((c) => c.flodar).map((c) => c.text.slice(0, 12)).join(", ")}).`);
     krav(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `Hub ${namn}: sidan flödar i sidled.`);
-    // Ett klick öppnar modulen: kortet är en riktig länk och appen får ett `onNavigate`.
-    await kort.filter({ hasText: "Ekonomi" }).click();
+    // Ett klick öppnar modulen: ett kort utan barn är en riktig länk och appen får ett `onNavigate`. (0.31.2: Ekonomi, som har barn, fälls ut i stället, se avsnitt 19.)
+    await kort.filter({ hasText: "Schema" }).click();
     const gick = await page.evaluate(() => window.__gick);
-    krav(gick.length === 1 && gick[0] === "/ekonomi", `Hub ${namn}: klick på Ekonomi-kortet navigerade till ${JSON.stringify(gick)}, väntat ["/ekonomi"].`);
+    krav(gick.length === 1 && gick[0] === "/schema", `Hub ${namn}: klick på Schema-kortet navigerade till ${JSON.stringify(gick)}, väntat ["/schema"].`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `hub-${vp.width}.png`), fullPage: true });
   }
   if (vp.width > 800) {
@@ -584,24 +586,13 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     matt.push(`Modulsidan ${namn}: ${barn.length} barnkort (${barn.join(" | ")})`);
     krav(barn.length === 6, `Modulsidan ${namn}: ${barn.length} barnkort, väntat 6.`);
     krav(barn[0]?.includes("1") && barn[0]?.includes("Ny faktura i går") && barn[1]?.includes("Inget nytt"), `Modulsidan ${namn}: barnkorten bär inte räknare och info ("${barn[0]}", "${barn[1]}").`);
-    const tillbaka = rad.getByRole("link", { name: "Hub" });
-    krav((await tillbaka.getAttribute("href")) === "/hub", `Modulsidan ${namn}: tillbaka-raden leder inte till /hub.`);
-    krav((await rad.locator('[aria-current="page"]').textContent()) === "Ekonomi", `Modulsidan ${namn}: modulens namn saknas i tillbaka-raden.`);
-    // ⛔ Sidan görs kort (240 px hög) så att den rullar: raden ligger fast så länge modulens lista syns, och en
-    // sida som ryms utan rullning kan inte visa om raden är fast eller bara ligger överst.
-    await page.setViewportSize({ width: vp.width, height: 240 });
-    const fast = await page.evaluate(() => {
-      let rullar = false;
-      const n = document.querySelector('nav[aria-label="Var du är"]');
-      window.scrollTo(0, 40);
-      rullar = document.documentElement.scrollHeight > window.innerHeight;
-      const r = n.getBoundingClientRect();
-      return { rullar, position: getComputedStyle(n).position, top: r.top, topbar: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--topbar-height")) || 56, hojd: r.height };
-    });
-    krav(fast.rullar, `Modulsidan ${namn}: sidan rullar inte i det låga fönstret, så "fast" går inte att mäta.`);
-    krav(fast.position === "sticky" && Math.abs(fast.top - fast.topbar) <= 1, `Modulsidan ${namn}: tillbaka-raden ligger inte fast under toppraden efter rullning (position ${fast.position}, top ${fast.top}, väntat ${fast.topbar}).`);
-    krav(fast.hojd >= 44, `Modulsidan ${namn}: tillbaka-raden är ${fast.hojd} px hög, väntat minst 44 (tumme).`);
-    await page.evaluate(() => window.scrollTo(0, 0));
+    const tillbaka = rad.getByRole("link", { name: "Tillbaka till Hub" });
+    const harTillbaka = (await tillbaka.count()) === 1;
+    krav(harTillbaka, `Modulsidan ${namn}: länken "Tillbaka till Hub" hittades inte (0.31.2: en textlänk, inte "‹ Hub / Ekonomi").`);
+    if (!harTillbaka) { await context.close(); continue; }
+    krav((await tillbaka.getAttribute("href")) === "/hub", `Modulsidan ${namn}: tillbaka-länken leder inte till /hub.`);
+    krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulsidan ${namn}: modulens namn saknas som rubrik under tillbaka-länken.`);
+    krav(((await tillbaka.boundingBox())?.height ?? 0) >= 44, `Modulsidan ${namn}: tillbaka-länken är under 44 px hög (tumme).`);
     await tillbaka.click();
     const gick = await page.evaluate(() => window.__gick);
     krav(gick.length === 1 && gick[0] === "/hub", `Modulsidan ${namn}: tillbaka gick till ${JSON.stringify(gick)}, väntat ["/hub"].`);
@@ -964,18 +955,17 @@ for (const bredd of [1280, 1600]) {
       return {
         radL: r.left, radR: r.right, panelR: p.right, rutL: u.left, rutR: u.right,
         marginL: parseFloat(getComputedStyle(rad).marginLeft), marginR: parseFloat(getComputedStyle(rad).marginRight),
-        zRad: parseInt(getComputedStyle(rad).zIndex, 10),
-        zPanel: parseInt(getComputedStyle(/** @type {HTMLElement} */ (panel.closest(".lg\\:sticky, [class*='lg:sticky']"))).zIndex, 10),
+        posRad: getComputedStyle(rad).position,
         kolL: kol ? kol.getBoundingClientRect().right : null,
       };
     });
     krav(m !== null, `tillbaka-raden ${bredd} px ${lage}: raden, panelen eller rutnätet hittades inte.`);
     if (m) {
-      matt.push(`tillbaka-raden ${bredd} px ${lage}: rad ${m.radL.toFixed(1)}..${m.radR.toFixed(1)}, panelens högerkant ${m.panelR.toFixed(1)}, rutnät ${m.rutL.toFixed(1)}..${m.rutR.toFixed(1)}, z rad ${m.zRad} panel ${m.zPanel}, marginaler ${m.marginL}/${m.marginR}`);
+      matt.push(`tillbaka-raden ${bredd} px ${lage}: rad ${m.radL.toFixed(1)}..${m.radR.toFixed(1)}, panelens högerkant ${m.panelR.toFixed(1)}, rutnät ${m.rutL.toFixed(1)}..${m.rutR.toFixed(1)}, position ${m.posRad}, marginaler ${m.marginL}/${m.marginR}`);
       krav(m.radL >= m.panelR - 0.5, `tillbaka-raden ${bredd} px ${lage}: radens vänsterkant ${m.radL.toFixed(1)} ligger till vänster om panelens högerkant ${m.panelR.toFixed(1)}: raden korsar panelen.`);
       krav(m.marginL >= 0 && m.marginR >= 0, `tillbaka-raden ${bredd} px ${lage}: negativ marginal (${m.marginL}/${m.marginR}).`);
       krav(Math.abs(m.radL - m.rutL) <= 1 && Math.abs(m.radR - m.rutR) <= 1, `tillbaka-raden ${bredd} px ${lage}: raden ${m.radL.toFixed(1)}..${m.radR.toFixed(1)} är inte lika bred som kortens rutnät ${m.rutL.toFixed(1)}..${m.rutR.toFixed(1)}: den hålls inte i innehållskolumnen.`);
-      krav(Number.isFinite(m.zRad) && Number.isFinite(m.zPanel) && m.zPanel > m.zRad, `tillbaka-raden ${bredd} px ${lage}: panelens z-index (${m.zPanel}) är inte över radens (${m.zRad}).`);
+      krav(m.posRad !== "sticky" && m.posRad !== "fixed", `tillbaka-raden ${bredd} px ${lage}: raden är ${m.posRad}: den ska ligga i flödet (0.31.2), ingen fast rad som kan hamna över panelen eller över första kortet.`);
     }
     await context.close();
   }
@@ -1319,18 +1309,18 @@ for (const scen of ["hub", "hubmodul"]) {
     await context.close();
   }
 }
-// Fynd 3: en sida under modulen bär samma tillbaka-rad.
+// Fynd 3: en sida under modulen bär samma tillbaka-rad (0.31.2: en textlänk "Tillbaka" till ETT steg upp, se avsnitt 19).
 {
   const { page, context } = await oppna("hubbarn", { width: 1280, height: 900 });
   const r = await page.evaluate(() => {
     const n = document.querySelector('nav[aria-label="Var du är"]');
     if (!n) return null;
-    return { text: (n.textContent || "").replace(/\s+/g, " ").trim(), lankar: [...n.querySelectorAll("a")].map((a) => a.getAttribute("href")), aktuell: (n.querySelector('[aria-current="page"]') || {}).textContent, sticky: getComputedStyle(n).position };
+    return { text: (n.textContent || "").replace(/\s+/g, " ").trim(), lankar: [...n.querySelectorAll("a")].map((a) => a.getAttribute("href")) };
   });
   krav(r !== null, "sidan under modulen: tillbaka-raden saknas. Varje sida under Hub ska ha den (OpsView tillbaka).");
   if (r) {
     matt.push(`sidan under modulen: "${r.text}", länkar ${JSON.stringify(r.lankar)}`);
-    krav(r.text === "Hub/Ekonomi/Inkomster" && JSON.stringify(r.lankar) === '["/hub","/ekonomi"]' && r.aktuell === "Inkomster" && r.sticky === "sticky", `sidan under modulen: raden är "${r.text}" med länkar ${JSON.stringify(r.lankar)}, nuvarande "${r.aktuell}", position ${r.sticky}. Väntat "Hub/Ekonomi/Inkomster" (snedstrecken är dekor), /hub och /ekonomi, sticky.`);
+    krav(r.text === "Tillbaka" && JSON.stringify(r.lankar) === '["/ekonomi"]', `sidan under modulen: raden är "${r.text}" med länkar ${JSON.stringify(r.lankar)}. Väntat "Tillbaka" med en länk till /ekonomi (ett steg upp).`);
   }
   await context.close();
 }
@@ -1447,6 +1437,436 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
   krav(hov.bg === hov.raised, `primitiverna ${tema}: hover på en rad ger ${hov.bg}, väntat raised ${hov.raised} (SS hover:bg-card).`);
   krav(hov.radie === g.base, `primitiverna ${tema}: raden har rundning ${hov.radie}, väntat ${g.base} (SS --radius).`);
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `galleri-${tema}.png`), fullPage: true });
+  await context.close();
+}
+
+// ══ 18. VARJE VALMENY: RADENS TEXT, HÖJD OCH VALDA TILLSTÅND MOT SS (0.31.2) ═════════════════════
+// CP 2026-09-29 19:50, med en skärmbild av filtrets "Slag"-dropdown: "Typsnitten är inte syncade. Stor text och kanske inte rätt typsnitt?
+// Har ni verkligen gått igenom allt? Kolla olika 'slag'". Raderna var 16 px (SS: 12), hade rundning 8 px och en tjock accentram runt den
+// valda raden (Radix flyttar fokus in i menyn). Fyra kopior av samma rad i fyra filer, och menyns egen rad (`radKlass`) hade rättats i
+// 0.30.0 utan att valraderna följde med. Tabellen med varje yta och dess SS-förlaga står i docs/jamforelser/0.31.2/menyer.md.
+//
+// Mäts per yta i BÅDA bredderna (1280 och 390), efter att ytan öppnats med TANGENTBORDET (så att Radix fokus i menyn syns som det gör för
+// den som använder tangentbord): radens textstorlek, vikt och typsnitt, vänster- och övre luft, höjd (minst 44 px: tumkravet, SS är 38),
+// och på den VALDA raden: ingen kant, ingen konturram, en bock (utom aktiv menyrad, som är färgad som SS) och en yta som skiljer sig
+// från behållaren.
+//
+// ⛔ GOLV: minst så många rader som ytan har, annars är mätningen tom. Och minst 12 ytor mättes (ytorna i tabellen).
+const FAMILJ = "Plus Jakarta Sans";
+/** @typedef {{ id: string, namn: string, scen?: string, aktiv?: string | null, bredd?: number[], oppna: (page: import("playwright").Page) => Promise<void>, rader: string, valt?: string | null, font: number, vikt?: number, padX?: number | null, padY?: number | null, hojdMin?: number, bock?: boolean, minRader: number, dialog?: boolean, viktUndantag?: number, hojd?: number }} MenyYta */
+/** @type {MenyYta[]} */
+const MENYYTOR = [
+  { id: "filter-slag", namn: "Filter, en ikon per grupp (Slag)", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-ikoner"] button[aria-label^="Slag"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, vikt: 500, hojd: 28, bock: true, minRader: 4 },
+  { id: "filter-sortering", namn: "Filter, sorteringsikonen", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-ikoner"] button[aria-label^="Sortera"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, vikt: 500, hojd: 28, bock: true, minRader: 2 },
+  { id: "filter-samlad", namn: "Filter, samlad panel", scen: "menyer", oppna: (p) => p.locator('[data-m="filter-samlad"] button[aria-label="Filter och sortering"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, vikt: 500, hojd: 28, bock: true, minRader: 6 },
+  { id: "chip-ikon", namn: "OpsFilterChip, ikon", scen: "menyer", oppna: (p) => p.locator('[data-m="chip-ikon"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, vikt: 500, hojd: 28, bock: true, minRader: 4 },
+  { id: "chip-text", namn: "OpsFilterChip, textpiller", scen: "menyer", oppna: (p) => p.locator('[data-m="chip-text"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, vikt: 500, hojd: 28, bock: true, minRader: 4 },
+  { id: "tema", namn: "Temaväljaren", scen: "menyer", oppna: (p) => p.locator('[data-m="tema"] button').press("Enter"), rader: '[data-radix-popper-content-wrapper] button[aria-pressed]', valt: '[aria-pressed="true"]', font: 12, padX: 12, padY: 6, vikt: 500, hojd: 28, bock: true, minRader: 3 },
+  { id: "status", namn: "Idag/Kommande, statusmenyn", scen: "menyer", oppna: (p) => p.locator('[data-m="status"] [role="tab"]').last().click(), rader: '[role="menuitemradio"]', valt: '[aria-checked="true"]', font: 14, padX: 12, padY: 10, hojd: 40, bock: true, minRader: 3 },
+  { id: "select", namn: "OpsSelect", scen: "menyer", oppna: (p) => p.locator('[data-m="select"] button').press("Enter"), rader: '[role="option"]', valt: '[role="option"][data-state="checked"]', font: 14, padX: 12, padY: 8, hojd: 36, bock: true, minRader: 3 },
+  { id: "tid", namn: "OpsTimePicker", scen: "menyer", oppna: (p) => p.locator('[data-m="tid"] button').first().press("Enter"), rader: '[role="option"]', valt: '[role="option"][data-state="checked"]', font: 14, padX: 12, padY: 8, hojd: 36, bock: true, minRader: 10 },
+  { id: "datum", namn: "OpsDatePicker, dagarna", scen: "menyer", oppna: (p) => p.locator('[data-m="datum"] button').press("Enter"), rader: '[role="grid"] button', valt: null, font: 12, padX: null, padY: null, minRader: 28, dialog: true, viktUndantag: 1 },
+  { id: "aktivitet", namn: "Aktivitet, Mer-menyn", scen: "menyer", oppna: (p) => p.locator('[data-m="aktivitet"] button[aria-label="Mer"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button', valt: null, font: 12, padX: 12, padY: 10, hojd: 36, minRader: 1 },
+  { id: "gruppvaljare", namn: "OpsGruppvaljare", scen: "menyer", oppna: async () => {}, rader: '[data-m="gruppvaljare"] ul button', valt: '[aria-current="true"]', font: 12, padX: 12, padY: 8, bock: true, minRader: 4 },
+  { id: "header-meny", namn: "Huvudets meny", scen: "full", oppna: async (p) => { const v = p.viewportSize(); if (v && v.width < 800) await p.getByRole("button", { name: "Meny" }).last().click(); else await p.getByRole("button", { name: /Meny, fler/ }).click(); }, rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 12, padX: 12, padY: 10, minRader: 3, dialog: true },
+  { id: "skapa-dropdown", namn: "Skapa-menyn (plus)", scen: "skapa", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Skapa", exact: true }).last().click(), rader: '[role="dialog"] button[class*="min-h-11"]', valt: null, font: 14, vikt: 500, padX: 16, padY: 10, minRader: 1, dialog: true },
+  { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Hub" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
+  { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "alla", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 12, minRader: 3, dialog: true },
+];
+let ytorMatta = 0;
+for (const y of MENYYTOR) {
+  for (const bredd of y.bredd ?? [1280, 390]) {
+    const vp = { width: bredd, height: bredd < 800 ? 844 : 800 };
+    const etikett = `${y.namn} (${bredd} px)`;
+    const { page, context } = await oppna(y.scen ?? "menyer", vp, standardtema, 1, y.aktiv ?? null);
+    try {
+      await page.evaluate(() => document.fonts.ready);
+      await y.oppna(page);
+      await page.waitForSelector(y.rader.split(",")[0].trim(), { timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(250);
+      const m = await page.evaluate(({ raderSel, valtSel }) => {
+        /** @param {string} c */
+        const opak = (c) => !/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)/.test(c) && c !== "transparent";
+        /** @param {Element} el */
+        const rad = (el) => {
+          const cs = getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          const kant = Math.max(...["Top", "Right", "Bottom", "Left"].map((k) => parseFloat(/** @type {any} */ (cs)[`border${k}Width`]) || 0));
+          const kontur = cs.outlineStyle !== "none" ? parseFloat(cs.outlineWidth) || 0 : 0;
+          /** @type {Element | null} */
+          let b = el.parentElement;
+          while (b && !opak(getComputedStyle(b).backgroundColor)) b = b.parentElement;
+          return { font: parseFloat(cs.fontSize), vikt: parseInt(cs.fontWeight, 10), familj: cs.fontFamily, lh: cs.lineHeight, h: r.height, w: r.width, padX: parseFloat(cs.paddingLeft), padY: parseFloat(cs.paddingTop), kant, kontur, farg: cs.color, bg: cs.backgroundColor, behallare: b ? getComputedStyle(b).backgroundColor : "", bockar: el.querySelectorAll("svg").length, fokus: el === document.activeElement || el.matches(":focus-visible"), text: (el.textContent || "").trim().slice(0, 24) };
+        };
+        const rader = [...document.querySelectorAll(raderSel)].filter((e) => e.getBoundingClientRect().height > 0).map(rad);
+        const valt = valtSel ? [...document.querySelectorAll(raderSel)].filter((e) => e.matches(valtSel) && e.getBoundingClientRect().height > 0).map(rad) : [];
+        const inkEl = document.createElement("div");
+        inkEl.style.color = "var(--color-ink)";
+        document.body.appendChild(inkEl);
+        const ink = getComputedStyle(inkEl).color;
+        inkEl.remove();
+        return { ink, rader, valt, aktivt: document.activeElement ? (document.activeElement.textContent || "").trim().slice(0, 20) : "" };
+      }, { raderSel: y.rader, valtSel: y.valt ?? null });
+      ytorMatta += 1;
+      krav(m.rader.length >= y.minRader, `${etikett}: ${m.rader.length} rader lästa, väntat minst ${y.minRader}. Ytan öppnades inte eller raderna har ett annat namn (mätningen får inte bli grön av att inget hittades).`);
+      const r0 = m.rader[0];
+      if (r0) {
+        const fonts = [...new Set(m.rader.map((r) => r.font))];
+        const hojder = [...new Set(m.rader.map((r) => Math.round(r.h)))];
+        matt.push(`valmeny ${etikett}: ${m.rader.length} rader, text ${fonts.join("/")} px vikt ${r0.vikt} ${r0.familj.split(",")[0].replace(/"/g, "")}, luft ${r0.padX}/${r0.padY} px, höjd ${hojder.join("/")} px, vald ${m.valt.length ? `kant ${m.valt[0].kant} kontur ${m.valt[0].kontur} bockar ${m.valt[0].bockar} yta ${m.valt[0].bg === m.valt[0].behallare ? "lika som behållaren" : "skild"}` : "ingen"}`);
+        krav(m.rader.every((r) => r.font === y.font), `${etikett}: textstorlek ${fonts.join("/")} px, väntat ${y.font} px (SS: ${y.font === 12 ? "text-xs" : y.font === 14 ? "text-sm" : "text-base"}). CP 2026-09-29: "Stor text".`);
+        krav(m.rader.every((r) => r.familj.includes(FAMILJ)), `${etikett}: typsnittet är ${r0.familj}, väntat ${FAMILJ} (tokenets --font-sans).`);
+        krav(m.rader.filter((r) => r.vikt !== (y.vikt ?? 400)).length <= (y.viktUndantag ?? 0), `${etikett}: vikten är ${[...new Set(m.rader.map((r) => r.vikt))].join("/")}, väntat ${y.vikt ?? 400}.`);
+        if (y.padX !== null && y.padX !== undefined) krav(m.rader.every((r) => r.padX === y.padX && r.padY === y.padY), `${etikett}: luften är ${r0.padX}/${r0.padY} px, väntat ${y.padX}/${y.padY} (SS px-${y.padX / 4} py-${y.padY / 4}).`);
+        // Höjden: SS egen på dator (radhöjd = radens text 16 eller 20 px + 2 x luften), 44 px träffyta under md (koordinatorn: "CP vill exakt SS").
+        if (bredd < 800) krav(m.rader.every((r) => r.h >= 43.5), `${etikett}: en rad är ${Math.min(...m.rader.map((r) => r.h)).toFixed(1)} px hög, väntat minst 44 (tumkravet under md).`);
+        else if (y.hojd !== undefined) krav(m.rader.every((r) => Math.abs(r.h - /** @type {number} */ (y.hojd)) <= 0.5), `${etikett}: raderna är ${[...new Set(m.rader.map((r) => r.h))].join("/")} px höga, väntat ${y.hojd} (SS: ${y.hojd - 2 * /** @type {number} */ (y.padY)} px text + 2 x ${y.padY} px).`);
+        if (y.valt !== null && y.valt !== undefined) {
+          krav(m.valt.length >= 1, `${etikett}: ingen vald rad hittades (${y.valt}). Golv: minst en.`);
+          const v = m.valt[0];
+          if (v) {
+            krav(v.kant === 0, `${etikett}: den valda raden har en kant på ${v.kant} px, väntat ingen (SS: tonad yta och bock, ingen ram).`);
+            krav(v.kontur === 0, `${etikett}: den valda raden har en konturram på ${v.kontur} px efter att ytan öppnats med tangentbordet, väntat ingen. Det är den tjocka accentramen i CP:s bild (Radix flyttar fokus till första raden).`);
+            krav(v.farg === m.ink, `${etikett}: den valda radens text är ${v.farg}, väntat inkfärgen ${m.ink} (SS ThemedDropdown: text-primary, inte accentfärgad text).`);
+            krav(v.bg !== v.behallare, `${etikett}: den valda raden har samma yta (${v.bg}) som behållaren, så valet syns inte.`);
+            if (y.bock) krav(v.bockar >= 1, `${etikett}: den valda raden har ingen bock.`);
+          }
+        }
+      }
+      if (bildmapp && (y.id === "filter-slag" || y.id === "filter-samlad")) await page.screenshot({ path: path.join(bildmapp, `meny-${y.id}-${bredd}.png`) });
+    } catch (e) {
+      krav(false, `${etikett}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+krav(ytorMatta >= 28, `valmenyerna: bara ${ytorMatta} ytor mätta, väntat minst 28 (14 ytor i två bredder, 2 i en). Golv.`);
+
+// ══ 19. HUB, TILLBAKA-RAD OCH MENYHÖJD (0.31.2, CP 2026-09-29 20:57) ══════════
+// CP, med två bilder från telefonen (bolag-ops, mörkt, 390 px): "Hubbens kort måste få lite distans från headern. Ekonomi fäller
+// inte ut submenyer. Navigeringen tillbaka ser inget bra ut. Gör samma som SessionStudio och aktivitet. Se till att
+// aktivitetspanelen blir lika hög som menyn så den inte hoppar. Kanske att meny skall vara en standardhöjd."
+// 19a: avståndet under toppraden och sidomarginalen är Idags (OpsView), ingen horisontell överflödning.
+// 19b: ett kort med barn fälls ut på plats (aria-expanded, tangentbord), modulens egen sida nås via "Visa Ekonomi".
+// 19c: tillbaka-raden är SS textlänk (chevron 20 px, gap 8, text 14 px), inget band, rubriken under, första kortet fritt.
+// 19d: menyns rullgardin (1280) och ark (390) har SAMMA höjd i roten och i Aktivitet.
+for (const bredd of [390, 768, 1280]) {
+  const mat = async (/** @type {string} */ scen, /** @type {string} */ forst) => {
+    const { page, context } = await oppna(scen, { width: bredd, height: 900 });
+    const m = await page.evaluate((sel) => {
+      const h = document.querySelector("header");
+      const el = document.querySelector(sel);
+      if (!h || !el) return null;
+      const d = document.documentElement;
+      return { gap: el.getBoundingClientRect().top - h.getBoundingClientRect().bottom, left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right, sw: d.scrollWidth, cw: d.clientWidth };
+    }, forst);
+    await context.close();
+    return m;
+  };
+  const idag = await mat("idag", "[data-idag-forst]");
+  const hub = await mat("hub", "main ul[aria-label]");
+  krav(idag !== null && hub !== null, `hub ${bredd} px: Idag-referensen eller Hub-rutnätet hittades inte.`);
+  if (idag && hub) {
+    matt.push(`hub ${bredd} px: avstånd under toppraden ${hub.gap.toFixed(1)} px (Idag ${idag.gap.toFixed(1)}), vänster ${hub.left.toFixed(1)} (Idag ${idag.left.toFixed(1)}), höger ${hub.right.toFixed(1)} av ${hub.cw}, scrollWidth ${hub.sw}`);
+    krav(idag.gap >= 20, `hub ${bredd} px: Idag-referensen har bara ${idag.gap.toFixed(1)} px under toppraden, golv 20.`);
+    krav(Math.abs(hub.gap - idag.gap) <= 1, `hub ${bredd} px: Hubbens första kort börjar ${hub.gap.toFixed(1)} px under toppraden, Idags första innehåll ${idag.gap.toFixed(1)}. CP: "Hubbens kort måste få lite distans från headern".`);
+    krav(Math.abs(hub.left - idag.left) <= 1 && hub.left >= 16 - 0.5 - (bredd >= 1024 ? 16 : 0), `hub ${bredd} px: rutnätets vänsterkant ${hub.left.toFixed(1)} px, Idags ${idag.left.toFixed(1)}. Väntat samma sidomarginal (Hub äger sin ram).`);
+    krav(hub.right <= hub.cw - 16 + 0.5 && Math.abs(hub.right - idag.right) <= 1, `hub ${bredd} px: rutnätets högerkant ${hub.right.toFixed(1)} av ${hub.cw} px, Idags ${idag.right.toFixed(1)}. Väntat samma marginal åt höger: korten går inte ut i kanten.`);
+    krav(hub.sw <= hub.cw, `hub ${bredd} px: horisontell överflödning (scrollWidth ${hub.sw} mot ${hub.cw}).`);
+  }
+}
+// 19b
+for (const bredd of [390, 1280]) {
+  const { page, context } = await oppna("hub", { width: bredd, height: 900 });
+  const knappar = page.locator("main ul[aria-label] button[aria-expanded]");
+  krav((await knappar.count()) === 1, `hub ${bredd} px: ${await knappar.count()} utfällbara kort, väntat 1 (Ekonomi, den enda modulen med barn).`);
+  if ((await knappar.count()) === 1) {
+    const knapp = knappar.first();
+    const synliga = () => page.evaluate(() => [...document.querySelectorAll("main ul[aria-label] a")].filter((a) => a.getBoundingClientRect().height > 0).map((a) => (a.textContent || "").trim().replace(/\s+/g, " ")));
+    const fore = await synliga();
+    krav((await knapp.getAttribute("aria-expanded")) === "false" && !fore.some((t) => t.startsWith("Inkomster")), `hub ${bredd} px: Ekonomi ska börja hopfälld (aria-expanded false, inga barn synliga), var ${await knapp.getAttribute("aria-expanded")} med ${fore.join(" | ")}.`);
+    await knapp.focus();
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(300);
+    const efter = await synliga();
+    const rot = await page.evaluate(() => {
+      const b = document.querySelector("main ul[aria-label] button[aria-expanded] > span > span:last-child");
+      return b ? `${getComputedStyle(b).rotate} ${getComputedStyle(b).transform}`.trim() : "saknas";
+    });
+    matt.push(`hub ${bredd} px: Ekonomi utfälld med Enter: ${efter.filter((t) => !fore.includes(t)).join(" | ")}; chevron ${rot}`);
+    krav((await knapp.getAttribute("aria-expanded")) === "true", `hub ${bredd} px: aria-expanded är inte true efter Enter på Ekonomi.`);
+    krav(efter.some((t) => t.startsWith("Visa Ekonomi")) && efter.some((t) => t.startsWith("Inkomster")) && efter.some((t) => t.startsWith("Bokslut")), `hub ${bredd} px: efter utfällning saknas "Visa Ekonomi", Inkomster eller Bokslut (${efter.join(" | ")}).`);
+    krav(/180deg|matrix\(-1/.test(rot), `hub ${bredd} px: chevronen vrids inte när kortet är utfällt (transform ${rot}).`);
+    krav(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `hub ${bredd} px: utfällt kort flödar i sidled.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `hub-utfalld-${bredd}.png`), fullPage: true });
+    await page.getByRole("link", { name: "Visa Ekonomi" }).click();
+    krav(JSON.stringify(await page.evaluate(() => window.__gick)) === '["/ekonomi"]', `hub ${bredd} px: "Visa Ekonomi" navigerade inte till /ekonomi.`);
+    await knapp.focus();
+    await page.keyboard.press("Space");
+    krav((await knapp.getAttribute("aria-expanded")) === "false" && !(await synliga()).some((t) => t.startsWith("Inkomster")), `hub ${bredd} px: Space på Ekonomi fäller inte ihop kortet.`);
+  }
+  await context.close();
+}
+// 19c
+for (const [scen, bredd] of /** @type {const} */ ([["hubmodul", 390], ["hubmodul", 1280], ["hubbarn", 390]])) {
+  const { page, context } = await oppna(scen, { width: bredd, height: 900 });
+  const m = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label="Var du är"]');
+    if (!nav) return null;
+    const lank = nav.querySelector("a");
+    const svg = lank && lank.querySelector("svg");
+    const ord = lank && lank.querySelector("span");
+    const kant = (/** @type {Element} */ e) => Math.max(...["Top", "Right", "Bottom", "Left"].map((k) => parseFloat(/** @type {any} */ (getComputedStyle(e))[`border${k}Width`]) || 0));
+    /** @type {string[]} */
+    const fasta = [];
+    for (let e = /** @type {Element | null} */ (nav); e && e !== document.body; e = e.parentElement) if (["sticky", "fixed"].includes(getComputedStyle(e).position)) fasta.push(e.tagName);
+    const h1 = document.querySelector("main h1");
+    const rutnat = document.querySelector("main ul[aria-label]");
+    const lr = lank ? lank.getBoundingClientRect() : null;
+    return {
+      kant: kant(nav), kantForalder: nav.parentElement ? kant(nav.parentElement) : 0,
+      bg: getComputedStyle(nav).backgroundColor, bgForalder: nav.parentElement ? getComputedStyle(nav.parentElement).backgroundColor : "",
+      fasta, text: lank ? (lank.textContent || "").trim() : "", font: ord ? parseFloat(getComputedStyle(ord).fontSize) : 0,
+      svgW: svg ? svg.getBoundingClientRect().width : 0, gap: svg && ord ? ord.getBoundingClientRect().left - svg.getBoundingClientRect().right : -1,
+      lankBottom: lr ? lr.bottom : 0, lankH: lr ? lr.height : 0, lankLeft: lr ? lr.left : 0,
+      h1Top: h1 ? h1.getBoundingClientRect().top : null, h1Bottom: h1 ? h1.getBoundingClientRect().bottom : null, h1Font: h1 ? parseFloat(getComputedStyle(h1).fontSize) : 0,
+      rutTop: rutnat ? rutnat.getBoundingClientRect().top : null, rutLeft: rutnat ? rutnat.getBoundingClientRect().left : null,
+    };
+  });
+  krav(m !== null, `tillbaka-raden ${scen} ${bredd} px: raden hittades inte.`);
+  if (m) {
+    matt.push(`tillbaka-raden ${scen} ${bredd} px: "${m.text}", ram ${m.kant}/${m.kantForalder} px, bakgrund ${m.bg}, fast ${JSON.stringify(m.fasta)}, chevron ${m.svgW} px, glapp ${m.gap.toFixed(1)}, text ${m.font} px, rubrik ${m.h1Top === null ? "ingen" : `${m.h1Font} px, ${(m.h1Top - m.lankBottom).toFixed(1)} px under länken`}`);
+    krav(m.kant === 0 && m.kantForalder === 0, `tillbaka-raden ${scen} ${bredd} px: raden har en ram (${m.kant}/${m.kantForalder} px). CP: inget band med linje under, en textlänk som SessionStudio.`);
+    krav(/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)|transparent/.test(m.bg) && /rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)|transparent/.test(m.bgForalder), `tillbaka-raden ${scen} ${bredd} px: raden har en bakgrundsyta (${m.bg} / ${m.bgForalder}), väntat ingen (inget band).`);
+    krav(m.fasta.length === 0, `tillbaka-raden ${scen} ${bredd} px: raden eller en förälder är sticky/fixed (${m.fasta.join(", ")}). Ett fast band täckte första kortet i CP:s bild.`);
+    krav(m.text === "Tillbaka" && m.svgW === 20 && Math.abs(m.gap - 8) <= 0.5 && m.font === 14, `tillbaka-raden ${scen} ${bredd} px: "${m.text}", chevron ${m.svgW} px, glapp ${m.gap.toFixed(1)}, text ${m.font} px. Väntat SS: "Tillbaka", ChevronLeft w-5 (20), gap-2 (8), text-sm (14) (GroupEditRouteView.jsx:41-47).`);
+    krav(m.lankH >= 44, `tillbaka-raden ${scen} ${bredd} px: länken är ${m.lankH} px hög, väntat minst 44 (tumme).`);
+    if (scen === "hubmodul") {
+      krav(m.h1Top !== null && m.h1Top >= m.lankBottom - 1 && m.h1Top - m.lankBottom <= 12, `tillbaka-raden ${scen} ${bredd} px: rubriken ska stå direkt under länken (${m.h1Top === null ? "saknas" : (m.h1Top - m.lankBottom).toFixed(1)} px under).`);
+      krav(m.rutTop !== null && m.h1Bottom !== null && m.rutTop - m.h1Bottom >= 12, `tillbaka-raden ${scen} ${bredd} px: första kortet börjar ${m.rutTop === null || m.h1Bottom === null ? "?" : (m.rutTop - m.h1Bottom).toFixed(1)} px under rubriken, väntat minst 12 (CP: "första kortets överkant" låg under raden).`);
+      krav(m.rutLeft !== null && Math.abs(m.rutLeft - m.lankLeft) <= 1, `tillbaka-raden ${scen} ${bredd} px: länkens vänsterkant ${m.lankLeft.toFixed(1)} är inte kortens ${m.rutLeft}.`);
+    }
+  }
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `tillbaka-${scen}-${bredd}.png`), clip: { x: 0, y: 0, width: bredd, height: 420 } });
+  await context.close();
+}
+// 19d
+for (const [bredd, hojd] of /** @type {const} */ ([[1280, 800], [390, 844]])) {
+  const { page, context } = await oppna("meny", { width: bredd, height: hojd });
+  await (bredd < 800 ? page.getByRole("button", { name: "Meny" }).last() : page.getByRole("button", { name: /Meny, fler/ })).click();
+  await page.waitForSelector('[role="dialog"]');
+  const h = () => page.evaluate(() => { const r = document.querySelector('[role="dialog"]').getBoundingClientRect(); return { h: r.height, y: r.top, bottom: r.bottom }; });
+  const rot = await h();
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `meny-rot-hojd-${bredd}.png`) });
+  await page.getByRole("button", { name: /Aktivitet/ }).click();
+  await page.waitForTimeout(200);
+  const akt = await h();
+  krav(rot.h > 200, `menyn ${bredd} px: rutan är bara ${rot.h.toFixed(1)} px hög, väntat en standardhöjd (över 200).`);
+  matt.push(`menyn ${bredd} px: höjd ${rot.h.toFixed(1)} i roten och ${akt.h.toFixed(1)} i Aktivitet, överkant ${rot.y.toFixed(1)}/${akt.y.toFixed(1)}`);
+  krav(Math.abs(rot.h - akt.h) <= 1, `menyn ${bredd} px: höjden är ${rot.h.toFixed(1)} i roten och ${akt.h.toFixed(1)} i Aktivitet. CP: "Se till att aktivitetspanelen blir lika hög som menyn så den inte hoppar."`);
+  krav(akt.bottom <= hojd + 0.5 && akt.y >= 0, `menyn ${bredd} px: rutan ligger utanför fönstret (${akt.y.toFixed(1)}..${akt.bottom.toFixed(1)} av ${hojd}).`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `meny-aktivitet-hojd-${bredd}.png`) });
+  await context.close();
+}
+
+// ══ 20. TEXTSTORLEK: EN SKALA, HÄMTAD FRÅN ROLLERNA (0.31.2, uppgift 5) ═══════
+// CP 2026-09-29 21:00, med en bild av Idag (390 px, ett utfällt kort): "Fortfarande jävla diffar i textstorlek på olika håll. Kan det
+// bli enhetligt och läsa från samma klasser." På bilden hade Idag/Kommande-pillret, hjälptexten, kortets chips, kortets meta,
+// kortets titel, faktatabellens etiketter och värden, och bottenraden alla olika storlekar: komponenterna skrev `text-sm`,
+// `text-xs`, `text-base` och `text-lg` rakt av, och det som saknade storlek ärvde 16 px från body.
+// Mått (samma element på båda bredderna jämförs inom `main`, eftersom skalets krom byter form vid brytpunkten): varje synligt textelement på fixtursidorna vid 390 och 1280 (a) bär en roll (klassen självt eller en förälder), (b) har en
+// storlek ur rollmängden, (c) har SS-värdet för sin roll PER BRYTPUNKT (`sm:text-<roll>`: basrollen under 640 px, den andra från), (d) har samma storlek på mobil och dator utom där SS själv har en `sm:`-variant, och (e) ingen komponent
+// skriver `text-xs/sm/base/md/lg/xl` längre. Golv: minst 60 textelement.
+/** SS-värdena (px) per roll, avlästa ur SessionStudio: se `tokens/sessionstudio-profil.json` typografi.roller. */
+const ROLLER = { mikro: 8, liten: 10, hjalp: 11, meta: 12, sektion: 12, etikett: 14, brod: 16, rubrik: 16, titel: 18, sida: 20 };
+const ROLLMANGD = new Set(Object.values(ROLLER));
+const TYPSIDOR = /** @type {const} */ ([
+  ["idagkort", async (/** @type {any} */ p) => { await p.locator("main ul button[aria-expanded]").first().click(); }],
+  ["hub", async (/** @type {any} */ p) => { await p.locator("main ul[aria-label] button[aria-expanded]").first().click(); }],
+  ["hubmodul", async () => {}],
+  ["installning", async () => {}],
+  ["full", async (/** @type {any} */ p) => { const v = p.viewportSize(); await (v && v.width < 800 ? p.getByRole("button", { name: "Meny" }).last() : p.getByRole("button", { name: /Meny, fler/ })).click(); }],
+]);
+/** @type {Map<string, number>} */
+const storlekPerText = new Map();
+let textMatta = 0;
+/** @type {string[]} */
+const avvikelser = [];
+const listor = argv.includes("--storlekar");
+for (const bredd of [390, 1280]) {
+  for (const [scen, oppnaSida] of TYPSIDOR) {
+    const { page, context } = await oppna(scen, { width: bredd, height: bredd < 800 ? 844 : 900 });
+    try { await oppnaSida(page); await page.waitForTimeout(250); } catch { /* sidan saknar det som ska öppnas: mätningen nedan räknar det */ }
+    const m = await page.evaluate((roller) => {
+      /** @type {{ text: string, px: number, vikt: number, lh: string, roll: string | null, klass: string, gammal: string[], tag: string, iMain: boolean, smRoll: string | null }[]} */
+      const ut = [];
+      const namn = Object.keys(roller).join("|");
+      const rollRe = new RegExp(`(?:^|\\s)text-(${namn})(?:\\s|$)`);
+      const smRe = new RegExp(`(?:^|\\s)sm:text-(${namn})(?:\\s|$)`);
+      const gammalRe = /(?:^|\s)(?:[a-z]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?:\s|$)/;
+      for (const el of document.querySelectorAll("body *")) {
+        if (["SCRIPT", "STYLE", "SVG", "PATH"].includes(el.tagName.toUpperCase())) continue;
+        // Märket (loggan) är text ritad som bild och mäts i avsnitt 10, inte här.
+        if (el.closest("[data-marke]")) continue;
+        const egen = [...el.childNodes].filter((n) => n.nodeType === 3 && (n.textContent || "").trim()).map((n) => (n.textContent || "").trim()).join(" ");
+        if (!egen) continue;
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        if (r.width <= 1 || r.height <= 1 || cs.visibility === "hidden" || cs.display === "none") continue;
+        let roll = null;
+        let smRoll = null;
+        for (let e = /** @type {Element | null} */ (el); e && e !== document.body; e = e.parentElement) {
+          const k = typeof e.className === "string" ? e.className : "";
+          const mm = rollRe.exec(k);
+          const sv = smRe.exec(k);
+          if (mm || sv) { roll = mm ? mm[1] : sv ? sv[1] : null; smRoll = sv ? sv[1] : null; break; }
+        }
+        const klass = typeof el.className === "string" ? el.className : "";
+        ut.push({ text: egen.slice(0, 30), px: parseFloat(cs.fontSize), vikt: parseInt(cs.fontWeight, 10), lh: cs.lineHeight, roll, klass, gammal: gammalRe.test(klass) ? klass.split(/\s+/).filter((c) => /text-(xs|sm|base|md|lg|xl|2xl|3xl)$/.test(c)) : [], tag: el.tagName.toLowerCase(), iMain: !!el.closest("main"), smRoll });
+      }
+      return ut;
+    }, ROLLER);
+    textMatta += m.length;
+    /** @type {Map<string, number>} */
+    const antalPerText = new Map();
+    const dist = [...new Set(m.map((e) => e.px))].sort((a, b) => a - b);
+    matt.push(`textstorlek ${scen} ${bredd} px: ${m.length} textelement, storlekar ${dist.join("/")} px${listor ? ` [${dist.map((d) => `${d}: ${[...new Set(m.filter((e) => e.px === d).map((e) => e.text))].slice(0, 6).join(" | ")}`).join(" ;; ")}]` : ""}`);
+    for (const e of m) {
+      const id = `${scen} ${bredd} px "${e.text}"`;
+      if (!ROLLMANGD.has(e.px)) avvikelser.push(`${id}: ${e.px} px är ingen roll (rollmängd ${[...ROLLMANGD].join("/")}).`);
+      if (e.gammal.length) avvikelser.push(`${id}: bär ${e.gammal.join(" ")} i stället för en roll.`);
+      if (e.roll === null) avvikelser.push(`${id}: ingen roll (varken elementet eller en förälder bär text-<roll>), storleken ${e.px} px är ärvd.`);
+      else {
+        // ⛔ SS-värdet PER BRYTPUNKT: en roll med `sm:text-<roll>` är basrollen under 640 px och den andra från 640 px (SS `text-xs sm:text-sm`).
+        const vantatPx = bredd >= 640 && e.smRoll ? ROLLER[/** @type {keyof typeof ROLLER} */ (e.smRoll)] : ROLLER[/** @type {keyof typeof ROLLER} */ (e.roll)];
+        if (e.px !== vantatPx) avvikelser.push(`${id}: rollen ${e.smRoll && bredd >= 640 ? e.smRoll : e.roll} ger ${e.px} px, SS-värdet vid ${bredd} px är ${vantatPx}.`);
+      }
+      if (!e.iMain) continue;
+      const nte = (antalPerText.get(`${e.text}|${e.tag}`) ?? 0) + 1;
+      antalPerText.set(`${e.text}|${e.tag}`, nte);
+      const nyckel = `${scen}|${e.text}|${e.tag}|${nte}`;
+      const forra = storlekPerText.get(nyckel);
+      if (e.smRoll) continue;
+      if (bredd === 390) storlekPerText.set(nyckel, e.px);
+      else if (forra !== undefined && forra !== e.px) avvikelser.push(`${id}: ${forra} px på mobil och ${e.px} px på dator (samma element, samma roll ska ge samma storlek).`);
+    }
+    // Idag-kortet: rollerna per innehåll (uppgift 5, bild från CP).
+    if (scen === "idagkort") {
+      /** @param {string} t */
+      const px = (t) => m.filter((e) => e.iMain && e.text.startsWith(t)).map((e) => e.px);
+      /** @type {[string, number][]} */
+      // SS per brytpunkt: titel `text-lg sm:text-xl` (18/20, `TodayView.jsx:89`), metaraden `text-xs sm:text-sm` (12/14, `:83/86`), övrigt `text-sm` (`:258/438/544`).
+      const bp = bredd >= 640;
+      const vantat = [["Kundfaktura 119223", bp ? 20 : 18], ["Bara påminnelser", 14], ["Idag", 14], ["Kommande", 14], ["Belopp inkl moms", 14], ["158 400 kr", 14], ["För 19 dagar", bp ? 14 : 12], ["Faktura", bp ? 14 : 12], ["Du", bp ? 14 : 12], ["Försenat", 12]];
+      for (const [t, v] of vantat) {
+        const funna = px(t);
+        krav(funna.length > 0 && funna.every((f) => f === v), `Idag-kortet ${bredd} px: "${t}" är ${funna.length ? funna.join("/") : "inte hittad"} px, väntat ${v} (SS).`);
+      }
+    }
+    if (bildmapp && scen === "idagkort") await page.screenshot({ path: path.join(bildmapp, `idagkort-${bredd}.png`), fullPage: true });
+    await context.close();
+  }
+}
+krav(textMatta >= 60, `textstorlek: bara ${textMatta} textelement mätta, väntat minst 60. Golv (en vakt som mäter inget är grön av att inte ha tittat).`);
+krav(avvikelser.length === 0, `textstorlek: ${avvikelser.length} avvikelser från rollskalan. Första tio:\n    ${avvikelser.slice(0, listor ? 500 : 10).join("\n    ")}`);
+matt.push(`textstorlek: ${textMatta} textelement mätta, ${avvikelser.length} avvikelser`);
+
+// ══ 21. HEMSKÄRMSAPP (iOS STANDALONE): SÄKRA ZONER, INGET KLIPPS, DOKUMENTET SCROLLAR (0.31.2, uppgift 6) ═════
+// CP 2026-09-29 22:33, bolag-ops på hemskärmen (viewport-fit=cover, status-bar black-translucent): "Ser ut att scrollningen blir fel. Den scrollar
+// liksom upp." På bilden: en mörk remsa ovanför headern (statusfältets höjd, headern nedanför den) och nederst korten klippta ovanför bottenraden.
+// Emulering: `--safe-top: 47px` och `--safe-bottom: 34px` som inline style på :root (samma tokens som `env(safe-area-inset-*)` fyller), 390x844.
+// Mått: (a) headerns yta börjar vid y = 0 och täcker statusfältet, före och efter rullning, (b) sista kortets underkant ligger ovanför bottenradens
+// överkant och inget element med bakgrund som inte är kortet eller raden ligger över innehållet i bandet ovanför raden, (c) dokumentet rullar, ingen inre behållare.
+{
+  const { page, context } = await oppna("lang", { width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.style.setProperty("--safe-top", "47px"); document.documentElement.style.setProperty("--safe-bottom", "34px"); });
+  await page.waitForTimeout(150);
+  /** @param {number} y */
+  const matHuvud = async (y) => {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(150);
+    return page.evaluate(() => {
+      const h = document.querySelector("header");
+      const r = h ? h.getBoundingClientRect() : null;
+      const bg = h ? getComputedStyle(h).backgroundColor : "";
+      // Vad ligger överst i skärmens allra översta pixelrad, mitt på sidan?
+      const topEl = document.elementFromPoint(195, 2);
+      return { top: r ? r.top : null, bottom: r ? r.bottom : null, bg, hojd: r ? r.height : 0, ovanEl: topEl ? (topEl.closest("header") ? "header" : topEl.tagName.toLowerCase()) : "inget", sy: window.scrollY };
+    });
+  };
+  const h0 = await matHuvud(0);
+  const h1 = await matHuvud(300);
+  matt.push(`hemskärm 390 px (säker zon 47/34): headern ${h0.top}..${h0.bottom} (${h0.hojd.toFixed(1)} px) i toppläget, ${h1.top}..${h1.bottom} efter rullning ${h1.sy}, översta pixelraden tillhör ${h1.ovanEl}`);
+  krav(h0.top !== null && Math.abs(h0.top) <= 0.5 && h1.top !== null && Math.abs(h1.top) <= 0.5, `hemskärm: headerns ovankant är ${h0.top} (toppläge) och ${h1.top} (rullad), väntat 0. En sticky header med top = säker zon lämnar en otäckt remsa på ${h1.top} px ovanför sig där innehållet rullar förbi statusfältet.`);
+  krav(h1.ovanEl === "header", `hemskärm: det som ligger överst på skärmen efter rullning är ${h1.ovanEl}, väntat headern (den ska täcka statusfältet).`);
+  krav(h0.hojd >= 47 + 56 - 0.5, `hemskärm: headern är ${h0.hojd.toFixed(1)} px hög, väntat minst 103 (säker zon 47 + toppraden 56).`);
+  // Rulla till botten.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(200);
+  const b = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label="Snabbnavigering"]') || document.querySelector("nav.fixed");
+    const kort = [...document.querySelectorAll("main ul > li")];
+    const sista = kort[kort.length - 1];
+    const nr = nav ? nav.getBoundingClientRect() : null;
+    const sr = sista ? sista.getBoundingClientRect() : null;
+    /** @type {string[]} */
+    const tacker = [];
+    if (nr && sr) {
+      // Punkter i bandet från sista kortets överkant ned till bottenradens överkant: det som ligger överst där ska höra till kortet, main eller sidan.
+      for (const y of [sr.top + 8, sr.top + sr.height / 2, sr.bottom - 4]) {
+        if (y >= nr.top - 1) continue;
+        const el = document.elementFromPoint(195, y);
+        if (!el) continue;
+        const inne = !!el.closest("main");
+        const bgEl = (() => { for (let e = /** @type {Element | null} */ (el); e && e !== document.body; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor; if (!/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)|transparent/.test(c)) return e; } return null; })();
+        if (!inne && bgEl && bgEl !== document.documentElement) tacker.push(`${el.tagName.toLowerCase()}.${String(/** @type {any} */ (bgEl).className).split(" ").slice(0, 3).join(".")} vid y=${Math.round(y)}`);
+      }
+    }
+    const de = document.documentElement;
+    /** @type {string[]} */
+    const inre = [];
+    for (const e of document.querySelectorAll("body *")) {
+      const cs = getComputedStyle(e);
+      if (/(auto|scroll)/.test(cs.overflowY) && e.scrollHeight > e.clientHeight + 1 && e.clientHeight > 200 && !e.closest('[role="dialog"]')) inre.push(`${e.tagName.toLowerCase()}.${String(e.className).split(" ").slice(0, 3).join(".")}`);
+    }
+    return { navTop: nr ? nr.top : null, kortBottom: sr ? sr.bottom : null, tacker, sy: window.scrollY, max: de.scrollHeight - window.innerHeight, inre, antalKort: kort.length };
+  });
+  matt.push(`hemskärm 390 px: rullad till botten (scrollY ${b.sy} av ${b.max}), sista kortets underkant ${b.kortBottom} mot bottenradens överkant ${b.navTop}, täckande ytor ${JSON.stringify(b.tacker)}, inre rullbehållare ${JSON.stringify(b.inre)}`);
+  krav(b.antalKort >= 12, `hemskärm: bara ${b.antalKort} kort ritades, väntat 12 (golv: sidan måste rulla).`);
+  krav(b.sy > 100, `hemskärm: dokumentet rullade inte (scrollY ${b.sy}). Rullar en inre behållare i stället? ${JSON.stringify(b.inre)}`);
+  krav(b.inre.length === 0, `hemskärm: en inre behållare rullar i stället för dokumentet (${b.inre.join(", ")}).`);
+  krav(b.kortBottom !== null && b.navTop !== null && b.kortBottom <= b.navTop + 0.5, `hemskärm: sista kortets underkant ${b.kortBottom} ligger under bottenradens överkant ${b.navTop}: kortet klipps.`);
+  krav(b.tacker.length === 0, `hemskärm: en yta med bakgrund ligger över innehållet ovanför bottenraden (${b.tacker.join("; ")}).`);
+  krav(b.kortBottom !== null && b.navTop !== null && b.navTop - b.kortBottom <= 25, `hemskärm: ${(b.navTop - b.kortBottom).toFixed(1)} px tom yta mellan sista kortet och bottenraden, väntat högst 25 (OpsView pb-6 = 24, säker yta räknas två gånger om mer).`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "hemskarm-botten-390.png") });
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await page.waitForTimeout(150);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "hemskarm-rullad-390.png") });
+  await context.close();
+}
+
+// 21b: samma emulering med listan i `OpsScrollArea` (bolag-ops Idag): ytan rullar i sig själv och DOKUMENTET ska inte rulla ovanpå (CP: "Den scrollar liksom upp").
+{
+  const { page, context } = await oppna("langarea", { width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.style.setProperty("--safe-top", "47px"); document.documentElement.style.setProperty("--safe-bottom", "34px"); });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  await page.waitForTimeout(200);
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await page.waitForTimeout(150);
+  const a = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label="Snabbnavigering"]') || document.querySelector("nav.fixed");
+    const yta = [...document.querySelectorAll("main div")].find((d) => getComputedStyle(d).overflowY === "auto" && d.scrollHeight > d.clientHeight + 1);
+    const de = document.documentElement;
+    const yr = yta ? yta.getBoundingClientRect() : null;
+    const nr = nav ? nav.getBoundingClientRect() : null;
+    return { dokHojd: de.scrollHeight, fonster: window.innerHeight, sy: window.scrollY, ytaBottom: yr ? yr.bottom : null, ytaTop: yr ? yr.top : null, navTop: nr ? nr.top : null, ytaRullar: !!yta };
+  });
+  matt.push(`hemskärm 390 px, lista i OpsScrollArea: dokumentet ${a.dokHojd} px i ett fönster på ${a.fonster}, scrollY ${a.sy}, ytan ${a.ytaTop}..${a.ytaBottom}, bottenradens överkant ${a.navTop}`);
+  krav(a.ytaRullar, "hemskärm (OpsScrollArea): ytan rullar inte i sig själv (ingen behållare med overflow-y auto och mer innehåll än höjd).");
+  krav(a.dokHojd <= a.fonster + 1 && a.sy === 0, `hemskärm (OpsScrollArea): dokumentet är ${a.dokHojd} px i ett fönster på ${a.fonster} (scrollY ${a.sy}): sidan rullar ${a.dokHojd - a.fonster} px OVANPÅ ytans egen rullning. CP: "Den scrollar liksom upp."`);
+  krav(a.ytaBottom !== null && a.navTop !== null && a.ytaBottom <= a.navTop + 0.5 && a.navTop - a.ytaBottom <= 25, `hemskärm (OpsScrollArea): ytans underkant ${a.ytaBottom} mot bottenradens överkant ${a.navTop}, väntat 0 till 25 px ovanför.`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "hemskarm-lista-390.png") });
   await context.close();
 }
 

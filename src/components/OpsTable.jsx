@@ -63,8 +63,8 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
 
   return (
     <div className="w-full overflow-x-auto">
-      <table className="w-full border-collapse text-base">
-        <caption className={cx("text-left text-sm text-ink-muted", hideCaption ? "sr-only" : "pb-2")}>{caption}</caption>
+      <table className="w-full border-collapse text-brod">
+        <caption className={cx("text-left text-etikett text-ink-muted", hideCaption ? "sr-only" : "pb-2")}>{caption}</caption>
         <thead>
           <tr className="border-b border-line">
             {columns.map((k, i) => (
@@ -75,7 +75,7 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
                   // ⛔ #167: font-medium, inte font-semibold. Samma mätning
                   // som OpsStat: semibold är för rubriker på ink, inte för en
                   // sekundärfärgad etikett (SessionStudio, se OpsStat.jsx).
-                  "px-3 py-2 text-sm font-medium text-ink-secondary",
+                  "px-3 py-2 text-etikett font-medium text-ink-secondary",
                   k.numeric ? "text-right" : "text-left",
                   k.tight && "w-px whitespace-nowrap",
                   // ⛔ Första kolumnen låses vid vänsterkanten så radrubriken syns

@@ -187,9 +187,9 @@ class OpsFelgrans extends Component {
       const id = /** @type {any} */ (this.state).id;
       return (
         <div role="alert" className="flex min-h-svh flex-col items-center justify-center gap-3 bg-canvas p-6 text-center">
-          <p className="m-0 text-lg font-semibold text-ink">{this.props.rubrik}</p>
+          <p className="m-0 text-titel font-semibold text-ink">{this.props.rubrik}</p>
           <p className="m-0 max-w-prose text-ink-secondary">{this.props.beskrivning}</p>
-          <p className="m-0 font-mono text-sm text-ink-muted">{id}</p>
+          <p className="m-0 font-mono text-etikett text-ink-muted">{id}</p>
           <OpsButton variant="primary" onClick={() => globalThis.location?.reload()}>
             {this.props.laddaOmEtikett}
           </OpsButton>
@@ -1018,7 +1018,7 @@ export function OpsAppShell({
    */
   const lankKlass = (/** @type {"av"|"pa"|"pa-under-lg"} */ state) =>
     cx(
-      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 py-2 text-sm font-medium",
+      "relative shrink-0 items-center gap-1 whitespace-nowrap border-b-2 py-2 text-etikett font-medium",
       "transition-all duration-(--duration-fast) ease-standard",
       "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
       state === "pa" && "border-ink text-ink",
@@ -1124,9 +1124,12 @@ export function OpsAppShell({
 
   return (
     <div className="min-h-dvh bg-canvas">
-      {/* `top-(--safe-top)` och inte `top-0`: utan säker yta hamnar raden under
-          statusfältet på en telefon, och det syns bara på riktig hårdvara. */}
-      <header className="sticky top-(--safe-top) z-(--z-chrome) border-b border-line bg-surface">
+      {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
+          BÖRJAR VID SKÄRMENS ÖVERKANT OCH BÄR SJÄLV DEN SÄKRA ZONEN SOM PADDING (`top-0`, `pt-(--safe-top)`). Före 0.31.2 var den
+          `top-(--safe-top)` utan padding: den satt 47 px NED, och remsan ovanför, statusfältets höjd, var otäckt, så sidan
+          rullade förbi bakom klockan och headern såg ut att flyta. `check-skalyta` avsnitt 21 emulerar zonerna (`--safe-top: 47px`)
+          och mäter att headern börjar vid y = 0. Övriga fasta ytor räknar redan `safe-top + topbar-height`, det är headerns nya höjd. */}
+      <header className="sticky top-0 z-(--z-chrome) border-b border-line bg-surface pt-(--safe-top)">
         {/*
           ⛔ TRE KOLUMNER PÅ md+, TVÅ UNDER.
 
@@ -1339,7 +1342,12 @@ export function OpsAppShell({
                       // SS `AppHeader.jsx:514` är `w-80` (320 px), och undervyn ritas i samma ruta. Utan `meny` är det
                       // fortfarande den rena överflödsmenyn, som är innehållsstyrd.
                       "z-(--z-dropdown) max-w-[calc(100vw-1.5rem)] overflow-hidden",
-                      meny ? "w-80" : "min-w-52",
+                      // ⛔ 0.31.2 (CP 2026-09-29 20:57: "Se till att aktivitetspanelen blir lika hög som menyn så den inte
+                      // hoppar. Kanske att meny skall vara en standardhöjd."): MED `meny` HAR RULLGARDINEN EN HÖJD, INTE
+                      // EN INNEHÅLLSHÖJD. Roten var innehållsstyrd (ingen höjdgräns alls) och undervyn Aktivitet hade eget
+                      // tak, så ytan hoppade i höjd när man växlade. Nu är höjden densamma i båda lägena
+                      // (fönstrets höjd minus toppraden, tak 32 rem) och innehållet rullar inuti.
+                      meny ? "flex h-[min(32rem,calc(100dvh-var(--safe-top)-var(--topbar-height)-1.5rem))] w-80 flex-col" : "min-w-52",
                       radBehallare(),
                     )}
                   >
@@ -1365,14 +1373,18 @@ export function OpsAppShell({
                       // ⛔ UNDERVYNS INNEHÅLL ERSÄTTER RESTEN AV MENYN (#166):
                       // sektioner, nav-överflöd, menuExtras och Logga ut hör
                       // till ROTEN, inte till en undervy man just öppnat.
-                      <div className="max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain px-2 pt-1 pb-2">
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pt-1 pb-2">
                         {aktivUndervy.undervy}
                       </div>
                     ) : null}
                     {/* ⛔ 0.30.0: ALLT I ROTEN GÅR GENOM `MenyAvdelningar`, som
                         ritar EN avgränsare mellan varje par och ingen före den
                         första. Se dess filhuvud för felet (två linjer på varandra). */}
-                    {!aktivUndervy ? <MenyAvdelningar avdelningar={rotAvdelningar} /> : null}
+                    {!aktivUndervy ? (
+                      <div className={cx(meny && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}>
+                        <MenyAvdelningar avdelningar={rotAvdelningar} />
+                      </div>
+                    ) : null}
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
@@ -1482,7 +1494,7 @@ export function OpsAppShell({
               className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom) md:hidden", radBehallare({ ark: true }))}
             >
               <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
-                <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-md font-bold text-ink">{skapaLabel}</Dialog.Title>
+                <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-rubrik font-bold text-ink">{skapaLabel}</Dialog.Title>
                 <Dialog.Close
                   aria-label={closeLabel}
                   className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
