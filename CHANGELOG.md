@@ -35,9 +35,36 @@ inte ommätt här). Vakten gick grön, för den läste bara custom properties. `
 `@font-face`, `@theme` och `:root`/`.dark`/`[data-theme]` med `--*`-rader; allt som stilar ett element eller en klass är rött med väljaren i meddelandet och
 uppmaningen att be ramverket. Prov i `check:guards`: rött med exakt regeln ovan, en klassregel och en vanlig deklaration i `:root`; grönt utan dem (121 vaktregler, 30 grönkontroller).
 
+### C. Hub, tillbaka-raden och menyhöjden (CP 2026-09-29 20:57, två bilder av bolag-ops på telefon)
+CP: *"Hubbens kort måste få lite distans från headern. Ekonomi fäller inte ut submenyer. Navigeringen tillbaka ser inget bra ut. Gör samma som SessionStudio
+och aktivitet. Se till att aktivitetspanelen blir lika hög som menyn så den inte hoppar. Kanske att meny skall vara en standardhöjd."**
+**Inte breaking**, men Hub ändrar form: se "Att göra i appen".
+- **Hubben äger sin ram.** Korten låg kant i kant under toppraden (0 px avstånd, 0 px marginal) eftersom `OpsHub` var ett bart rutnät och appen inte lindat det i `OpsView`;
+  fixturens scen gjorde det åt den och dolde felet. `OpsHub` och `OpsHubModul` ritas nu i `OpsView` (24 px under toppraden och 16 px sidomarginal som Idag, mätt 390/768/1280), `ram={false}` för en app som redan lindat.
+- **Ekonomi fälls ut på plats.** Ett kort med barn är en knapp (`aria-expanded`, chevron vrids) som visar "Visa Ekonomi" (modulens egen sida) och barnen som rader; kort utan barn är oförändrat länkar.
+- **Tillbaka-raden är SS textlänk** (`OpsTillbaka`, ny fil): "‹ Tillbaka" (chevron 20 px, `gap-2`, 14 px) ett steg upp och rubriken under, inget band, ingen ram, inte `sticky` (`GroupDetailView.jsx:83-95`). Samma komponent i `OpsView tillbaka` och `OpsHubModul`; nya props `rubrik`, `tillbakaEtikett`, `tillbakaTillEtikett`. `OpsHubTillbaka` exporteras som förut.
+- **Menyn har en standardhöjd.** Rullgardinen (1280) och arket (390) är lika höga i roten och i Aktivitet (512 / 512 px och 576 / 576 px, före 378,5 / 402,0 och 470,5 / 374,0), innehållet rullar inuti.
+Mått: `check-skalyta` avsnitt 19. **Rött mot HEAD 37272d5: 38 brott** (avstånd 0 px mot 24, marginal 0 mot 16, inga utfällbara kort, band med ram och `sticky`, menyhöjd 378,5/402,0 och 470,5/374,0), **grönt nu**. Före/efter: `docs/jamforelser/0.31.2/hub-tillbaka-meny-text.md`.
+
+### D. Textstorleken har EN skala (CP 2026-09-29 21:00, en bild av Idag med ett utfällt kort)
+CP: *"Fortfarande jävla diffar i textstorlek på olika håll. Kan det bli enhetligt och läsa från samma klasser."* På bilden hade pillret, hjälptexten, kortets chips, meta, titel,
+faktatabellen och bottenraden olika storlekar. Orsaken: komponenterna skrev `text-xs`, `text-sm`, `text-base`, `text-md`, `text-lg` och `text-xl` rakt av (**168 ställen i 61 filer**)
+och det som saknade storlek ärvde 16 px från body. Nu finns tio roller i `tokens/sessionstudio-profil.json` med SS fil och rad (nya: `meta` 12 px, `brod` 16 px, `titel` 18 px, `sida` 20 px;
+`etikett` fick SS radhöjd 1,25 rem) och **ingen ramverkskomponent skriver en Tailwind-storlek**: kortets titel är `titel`, metaraden och faktarader `etikett`, chips `meta`.
+⛔ Ändrat värde: **sidrubrikerna (`text-xl`) går från 24 till 20 px**, som SS `GroupDetailView.jsx:95` (ramverkets `text-xl` var ett eget mellansteg). Kortets titel går från 16 till 18 px.
+⛔ Kvarvarande skillnader mot SS, medvetna: metaraden är 14 px på telefon (SS 12 px, `text-xs sm:text-sm`) och korttiteln 18 px på alla bredder (SS 20 px från sm); ramverket har en storlek per roll.
+`check-typografi` fäller nu `text-xs/sm/base/md/lg/xl` i `src/components` och `src/lib` (rött i `check:guards`, grönt för en roll; en app utan `--ramverksregler` berörs inte).
+`check-skalyta` avsnitt 20 mäter varje synligt textelement på fem fixtursidor vid 390 och 1280 (296 i `main`, golv 60): roll finns, storleken ur rollmängden och lika med SS-värdet,
+samma storlek på båda bredder, Idag-kortets element mot SS. **Rött mot HEAD: 300 avvikelser (278 textelement), grönt nu: 0.** Tokens `--text-sm/base/xs/md/lg/xl` finns kvar för appar som ännu inte flyttat.
+
 ### Att göra i appen vid ompinning till 0.31.2
-**Ta bort regeln `header.sticky > div.max-w-7xl { ... }` ur `web/src/index.css` (#240).** Toppen är då åter lika bred som panelen. Behövs en smalare topp är det
-en fråga till ramverket. Inget annat krävs.
+1. **Ta bort regeln `header.sticky > div.max-w-7xl { ... }` ur `web/src/index.css` (#240).** Toppen är då åter lika bred som panelen. Behövs en smalare topp är det
+en fråga till ramverket.
+2. **Ta bort appens egen ram runt `OpsHub` och `OpsHubModul`** (t.ex. `px-4 py-4`), annars dubbel marginal, eller ge `ram={false}`. Sidor under Hub ger `OpsView` propen `tillbaka` (`OpsHubTillbaka` ritar inte längre ett spår "Hub / Ekonomi").
+3. **Egna textstorlekar i appen.** Ramverket skriver inga `text-xs/sm/base/lg/xl` längre, men appens egna gör det fortfarande och ser då annorlunda ut än ramverkets rader. Mätt i bolag-ops `web/src` (inget ändrat där):
+   **170 förekomster i 22 filer**: CostsView 29, LivView 18, InboxView 16, InsuranceView 13, IncomeView 12, ScheduleView 10, PensionView 8, SubscriptionsView 7, ProcessView 7, ComparisonView 7,
+   OverviewView 6, HelpView 6, AssetsView 6, PrimitivesView 4, EventsView 4, NewCaseModal 3, EconomyView 3, ContactsView 3, BusinessView 3, SearchView 2, `overview-view.test.jsx` 2, AskView 1, samt ett `text-[..]`.
+   Byt dem mot rollerna (`text-etikett` 14, `text-meta` 12, `text-brod` 16, `text-titel` 18, `text-sida` 20, `text-rubrik`, `text-hjalp`, `text-liten`). Text utan storlek ärver 16 px: ge den en roll.
 
 ## 0.31.1
 
