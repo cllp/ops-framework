@@ -59,9 +59,9 @@ Ett Idag-kort byggt av ramverkets komponenter (`OpsSegmented`, `OpsEventList` me
 
 | Element | Före | Efter | SS |
 |---|---|---|---|
-| Kortets titel | 16 px / 400 (ärvd från body) | 18 px / 700 (`titel`) | `text-lg font-bold`, 18 px (20 från sm) |
+| Kortets titel | 16 px / 400 (ärvd från body) | 18 px under 640 px, 20 px från (`text-titel sm:text-sida`, 700) | `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 / 20 |
 | Rollen ("Du", "Agent") | 16 px (ärvd) | 14 px (`etikett`) | `text-sm` |
-| Kortets meta, kind, when | 14 px (`text-sm` rakt av) | 14 px (`etikett`) | `text-xs sm:text-sm`: 12 px på telefon, 14 från sm |
+| Kortets metarad (roll, kind, when, deadline) | 14 px (`text-sm` rakt av) | 12 px under 640 px, 14 px från (`text-meta sm:text-etikett`) | `text-xs sm:text-sm` (`TodayView.jsx:83/86`): 12 / 14 |
 | Faktarader: etikett och värde | 14 px | 14 px (`etikett`) | `text-sm` |
 | Chips, märken | 12 px (`text-xs`) | 12 px (`meta`) | `text-xs` |
 | Hjälptext ("Bara påminnelser ...") | 14 px | 14 px (`etikett`) | `text-sm` (`TodayView.jsx:438`) |
@@ -72,4 +72,23 @@ Distinkta storlekar i ramverkets Idag-kort: före 12/14/16, efter 12/14/18. I al
 storlekar ur rollmängden 8/10/11/12/14/16/18/20, ingen skillnad mellan 390 och 1280. Före: **300 avvikelser** (278 textelement), efter: **0**.
 Största bytet i ramverket: `text-xs/sm/base/md/lg/xl` skrivna rakt av på **168 ställen i 61 filer** är nu roller, och rollerna `meta`, `brod`, `titel`
 och `sida` är nya (`etikett` fick SS radhöjd 1,25 rem i stället för 1,5).
-⛔ Kvarvarande skillnader mot SS: metaraden är 14 px överallt (SS 12 px på telefon), korttiteln 18 px överallt (SS 20 px från sm).
+Metaraden och korttiteln följer SS per brytpunkt (sm = 640 px): 390 px 12 / 18, 1280 px 14 / 20, mätt mot SS-värdet per bredd i check-skalyta avsnitt 20.
+Rött mot c896fb3 (metaraden 14 px på 390, titeln 18 px på 1280): 4 brott; grönt efter: 796 kontroller. Inga kända skillnader mot SS kvar i Idag-kortet;
+⛔ vikten på `sida` är 700 (SS h1 600), som för tillbaka-raden ovan.
+
+## 6. Hemskärmsapp (iOS standalone), `hemskarm-fore-efter.png`
+
+CP 2026-09-29 22:33: "Lade till appen på hemskärmen. Ser ut att scrollningen blir fel. Den scrollar liksom upp." Emulerat med `--safe-top: 47px` och `--safe-bottom: 34px`
+på :root, 390x844 (check-skalyta avsnitt 21). Två orsaker, båda mätta:
+
+| Mått (px) | Före | Efter |
+|---|---|---|
+| Headerns ovankant (toppläge och rullad) | 47 (`sticky top-(--safe-top)`: otäckt remsa ovanför) | 0 (`top-0`, `pt-(--safe-top)`) |
+| Headerns höjd | 57 | 104 (47 + 56 + linje) |
+| Det som ligger överst på skärmen efter rullning | sidans innehåll | headern |
+| Vanlig sida: sista kortet till bottenraden | 57 tomt (OpsView räknade säker yta en andra gång) | 23 (`pb-6`) |
+| Lista i `OpsScrollArea` (Idag): dokumentet mot fönstret | 902 mot 844, sidan rullar 58 px ovanpå ytans egen rullning | 844 mot 844, scrollY 0 |
+| Ytans underkant mot bottenradens överkant | 696 mot 753 | 730 mot 753 (1,5 rem luft) |
+
+"Scrollar upp" var alltså sidan som flyttade sig 58 px medan listan rullade i sig själv, och tomrummet mellan ytan och raden var samma 58 px. Bottenpaddingen
+i `OpsView` räknade `--safe-bottom` som `main` redan räknar (nu bara från md), och `OpsScrollArea`/`OpsCalendar` drog inte bort `OpsView`s `pb-6` (nu 1,5 rem borträknat).

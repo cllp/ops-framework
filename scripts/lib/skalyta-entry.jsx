@@ -368,6 +368,33 @@ function Scen() {
       </Full>
     );
   }
+  // 0.31.2 (uppgift 6): en lång sida i skalet med bottenrad, för att emulera en hemskärmsapp (iOS standalone) med säkra zoner.
+  if (s === "lang") {
+    const { OpsView } = Ops;
+    const handelser = Array.from({ length: 12 }, (_, i) => ({ id: `l${i}`, title: `Händelse nummer ${i + 1}`, daysLeft: i - 3, role: "Du", kind: "Uppgift", when: `Om ${i} dagar`, slag: 2, slagLabel: "Uppgift" }));
+    return (
+      <Full>
+        <OpsView>
+          <OpsEventList events={handelser} />
+        </OpsView>
+      </Full>
+    );
+  }
+  // Samma sida med listan i `OpsScrollArea` (som bolag-ops Idag): ytan rullar i sig själv och dokumentet ska INTE rulla.
+  if (s === "langarea") {
+    const { OpsView, OpsScrollArea } = Ops;
+    const handelser = Array.from({ length: 12 }, (_, i) => ({ id: `l${i}`, title: `Händelse nummer ${i + 1}`, daysLeft: i - 3, role: "Du", kind: "Uppgift", when: `Om ${i} dagar`, slag: 2, slagLabel: "Uppgift" }));
+    return (
+      <Full>
+        <OpsView>
+          <p>Filter</p>
+          <OpsScrollArea>
+            <OpsEventList events={handelser} />
+          </OpsScrollArea>
+        </OpsView>
+      </Full>
+    );
+  }
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;

@@ -1675,7 +1675,7 @@ for (const [bredd, hojd] of /** @type {const} */ ([[1280, 800], [390, 844]])) {
 // kortets titel, faktatabellens etiketter och värden, och bottenraden alla olika storlekar: komponenterna skrev `text-sm`,
 // `text-xs`, `text-base` och `text-lg` rakt av, och det som saknade storlek ärvde 16 px från body.
 // Mått (samma element på båda bredderna jämförs inom `main`, eftersom skalets krom byter form vid brytpunkten): varje synligt textelement på fixtursidorna vid 390 och 1280 (a) bär en roll (klassen självt eller en förälder), (b) har en
-// storlek ur rollmängden, (c) har SS-värdet för sin roll, (d) har samma storlek på mobil och dator, och (e) ingen komponent
+// storlek ur rollmängden, (c) har SS-värdet för sin roll PER BRYTPUNKT (`sm:text-<roll>`: basrollen under 640 px, den andra från), (d) har samma storlek på mobil och dator utom där SS själv har en `sm:`-variant, och (e) ingen komponent
 // skriver `text-xs/sm/base/md/lg/xl` längre. Golv: minst 60 textelement.
 /** SS-värdena (px) per roll, avlästa ur SessionStudio: se `tokens/sessionstudio-profil.json` typografi.roller. */
 const ROLLER = { mikro: 8, liten: 10, hjalp: 11, meta: 12, sektion: 12, etikett: 14, brod: 16, rubrik: 16, titel: 18, sida: 20 };
@@ -1698,9 +1698,11 @@ for (const bredd of [390, 1280]) {
     const { page, context } = await oppna(scen, { width: bredd, height: bredd < 800 ? 844 : 900 });
     try { await oppnaSida(page); await page.waitForTimeout(250); } catch { /* sidan saknar det som ska öppnas: mätningen nedan räknar det */ }
     const m = await page.evaluate((roller) => {
-      /** @type {{ text: string, px: number, vikt: number, lh: string, roll: string | null, klass: string, gammal: string[], tag: string, iMain: boolean }[]} */
+      /** @type {{ text: string, px: number, vikt: number, lh: string, roll: string | null, klass: string, gammal: string[], tag: string, iMain: boolean, smRoll: string | null }[]} */
       const ut = [];
-      const rollRe = new RegExp(`(?:^|\\s)(?:[a-z]+:)*text-(${Object.keys(roller).join("|")})(?:\\s|$)`);
+      const namn = Object.keys(roller).join("|");
+      const rollRe = new RegExp(`(?:^|\\s)text-(${namn})(?:\\s|$)`);
+      const smRe = new RegExp(`(?:^|\\s)sm:text-(${namn})(?:\\s|$)`);
       const gammalRe = /(?:^|\s)(?:[a-z]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?:\s|$)/;
       for (const el of document.querySelectorAll("body *")) {
         if (["SCRIPT", "STYLE", "SVG", "PATH"].includes(el.tagName.toUpperCase())) continue;
@@ -1712,13 +1714,15 @@ for (const bredd of [390, 1280]) {
         const cs = getComputedStyle(el);
         if (r.width <= 1 || r.height <= 1 || cs.visibility === "hidden" || cs.display === "none") continue;
         let roll = null;
+        let smRoll = null;
         for (let e = /** @type {Element | null} */ (el); e && e !== document.body; e = e.parentElement) {
           const k = typeof e.className === "string" ? e.className : "";
           const mm = rollRe.exec(k);
-          if (mm) { roll = mm[1]; break; }
+          const sv = smRe.exec(k);
+          if (mm || sv) { roll = mm ? mm[1] : sv ? sv[1] : null; smRoll = sv ? sv[1] : null; break; }
         }
         const klass = typeof el.className === "string" ? el.className : "";
-        ut.push({ text: egen.slice(0, 30), px: parseFloat(cs.fontSize), vikt: parseInt(cs.fontWeight, 10), lh: cs.lineHeight, roll, klass, gammal: gammalRe.test(klass) ? klass.split(/\s+/).filter((c) => /text-(xs|sm|base|md|lg|xl|2xl|3xl)$/.test(c)) : [], tag: el.tagName.toLowerCase(), iMain: !!el.closest("main") });
+        ut.push({ text: egen.slice(0, 30), px: parseFloat(cs.fontSize), vikt: parseInt(cs.fontWeight, 10), lh: cs.lineHeight, roll, klass, gammal: gammalRe.test(klass) ? klass.split(/\s+/).filter((c) => /text-(xs|sm|base|md|lg|xl|2xl|3xl)$/.test(c)) : [], tag: el.tagName.toLowerCase(), iMain: !!el.closest("main"), smRoll });
       }
       return ut;
     }, ROLLER);
@@ -1732,12 +1736,17 @@ for (const bredd of [390, 1280]) {
       if (!ROLLMANGD.has(e.px)) avvikelser.push(`${id}: ${e.px} px är ingen roll (rollmängd ${[...ROLLMANGD].join("/")}).`);
       if (e.gammal.length) avvikelser.push(`${id}: bär ${e.gammal.join(" ")} i stället för en roll.`);
       if (e.roll === null) avvikelser.push(`${id}: ingen roll (varken elementet eller en förälder bär text-<roll>), storleken ${e.px} px är ärvd.`);
-      else if (e.px !== ROLLER[/** @type {keyof typeof ROLLER} */ (e.roll)]) avvikelser.push(`${id}: rollen ${e.roll} ger ${e.px} px, SS-värdet är ${ROLLER[/** @type {keyof typeof ROLLER} */ (e.roll)]}.`);
+      else {
+        // ⛔ SS-värdet PER BRYTPUNKT: en roll med `sm:text-<roll>` är basrollen under 640 px och den andra från 640 px (SS `text-xs sm:text-sm`).
+        const vantatPx = bredd >= 640 && e.smRoll ? ROLLER[/** @type {keyof typeof ROLLER} */ (e.smRoll)] : ROLLER[/** @type {keyof typeof ROLLER} */ (e.roll)];
+        if (e.px !== vantatPx) avvikelser.push(`${id}: rollen ${e.smRoll && bredd >= 640 ? e.smRoll : e.roll} ger ${e.px} px, SS-värdet vid ${bredd} px är ${vantatPx}.`);
+      }
       if (!e.iMain) continue;
       const nte = (antalPerText.get(`${e.text}|${e.tag}`) ?? 0) + 1;
       antalPerText.set(`${e.text}|${e.tag}`, nte);
       const nyckel = `${scen}|${e.text}|${e.tag}|${nte}`;
       const forra = storlekPerText.get(nyckel);
+      if (e.smRoll) continue;
       if (bredd === 390) storlekPerText.set(nyckel, e.px);
       else if (forra !== undefined && forra !== e.px) avvikelser.push(`${id}: ${forra} px på mobil och ${e.px} px på dator (samma element, samma roll ska ge samma storlek).`);
     }
@@ -1746,7 +1755,9 @@ for (const bredd of [390, 1280]) {
       /** @param {string} t */
       const px = (t) => m.filter((e) => e.iMain && e.text.startsWith(t)).map((e) => e.px);
       /** @type {[string, number][]} */
-      const vantat = [["Kundfaktura 119223", 18], ["Bara påminnelser", 14], ["Idag", 14], ["Kommande", 14], ["Belopp inkl moms", 14], ["158 400 kr", 14], ["För 19 dagar", 14], ["Faktura", 14], ["Försenat", 12], ["Menu", 0]].filter(([, v]) => v !== 0);
+      // SS per brytpunkt: titel `text-lg sm:text-xl` (18/20, `TodayView.jsx:89`), metaraden `text-xs sm:text-sm` (12/14, `:83/86`), övrigt `text-sm` (`:258/438/544`).
+      const bp = bredd >= 640;
+      const vantat = [["Kundfaktura 119223", bp ? 20 : 18], ["Bara påminnelser", 14], ["Idag", 14], ["Kommande", 14], ["Belopp inkl moms", 14], ["158 400 kr", 14], ["För 19 dagar", bp ? 14 : 12], ["Faktura", bp ? 14 : 12], ["Du", bp ? 14 : 12], ["Försenat", 12]];
       for (const [t, v] of vantat) {
         const funna = px(t);
         krav(funna.length > 0 && funna.every((f) => f === v), `Idag-kortet ${bredd} px: "${t}" är ${funna.length ? funna.join("/") : "inte hittad"} px, väntat ${v} (SS).`);
@@ -1759,6 +1770,105 @@ for (const bredd of [390, 1280]) {
 krav(textMatta >= 60, `textstorlek: bara ${textMatta} textelement mätta, väntat minst 60. Golv (en vakt som mäter inget är grön av att inte ha tittat).`);
 krav(avvikelser.length === 0, `textstorlek: ${avvikelser.length} avvikelser från rollskalan. Första tio:\n    ${avvikelser.slice(0, listor ? 500 : 10).join("\n    ")}`);
 matt.push(`textstorlek: ${textMatta} textelement mätta, ${avvikelser.length} avvikelser`);
+
+// ══ 21. HEMSKÄRMSAPP (iOS STANDALONE): SÄKRA ZONER, INGET KLIPPS, DOKUMENTET SCROLLAR (0.31.2, uppgift 6) ═════
+// CP 2026-09-29 22:33, bolag-ops på hemskärmen (viewport-fit=cover, status-bar black-translucent): "Ser ut att scrollningen blir fel. Den scrollar
+// liksom upp." På bilden: en mörk remsa ovanför headern (statusfältets höjd, headern nedanför den) och nederst korten klippta ovanför bottenraden.
+// Emulering: `--safe-top: 47px` och `--safe-bottom: 34px` som inline style på :root (samma tokens som `env(safe-area-inset-*)` fyller), 390x844.
+// Mått: (a) headerns yta börjar vid y = 0 och täcker statusfältet, före och efter rullning, (b) sista kortets underkant ligger ovanför bottenradens
+// överkant och inget element med bakgrund som inte är kortet eller raden ligger över innehållet i bandet ovanför raden, (c) dokumentet rullar, ingen inre behållare.
+{
+  const { page, context } = await oppna("lang", { width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.style.setProperty("--safe-top", "47px"); document.documentElement.style.setProperty("--safe-bottom", "34px"); });
+  await page.waitForTimeout(150);
+  /** @param {number} y */
+  const matHuvud = async (y) => {
+    await page.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page.waitForTimeout(150);
+    return page.evaluate(() => {
+      const h = document.querySelector("header");
+      const r = h ? h.getBoundingClientRect() : null;
+      const bg = h ? getComputedStyle(h).backgroundColor : "";
+      // Vad ligger överst i skärmens allra översta pixelrad, mitt på sidan?
+      const topEl = document.elementFromPoint(195, 2);
+      return { top: r ? r.top : null, bottom: r ? r.bottom : null, bg, hojd: r ? r.height : 0, ovanEl: topEl ? (topEl.closest("header") ? "header" : topEl.tagName.toLowerCase()) : "inget", sy: window.scrollY };
+    });
+  };
+  const h0 = await matHuvud(0);
+  const h1 = await matHuvud(300);
+  matt.push(`hemskärm 390 px (säker zon 47/34): headern ${h0.top}..${h0.bottom} (${h0.hojd.toFixed(1)} px) i toppläget, ${h1.top}..${h1.bottom} efter rullning ${h1.sy}, översta pixelraden tillhör ${h1.ovanEl}`);
+  krav(h0.top !== null && Math.abs(h0.top) <= 0.5 && h1.top !== null && Math.abs(h1.top) <= 0.5, `hemskärm: headerns ovankant är ${h0.top} (toppläge) och ${h1.top} (rullad), väntat 0. En sticky header med top = säker zon lämnar en otäckt remsa på ${h1.top} px ovanför sig där innehållet rullar förbi statusfältet.`);
+  krav(h1.ovanEl === "header", `hemskärm: det som ligger överst på skärmen efter rullning är ${h1.ovanEl}, väntat headern (den ska täcka statusfältet).`);
+  krav(h0.hojd >= 47 + 56 - 0.5, `hemskärm: headern är ${h0.hojd.toFixed(1)} px hög, väntat minst 103 (säker zon 47 + toppraden 56).`);
+  // Rulla till botten.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.waitForTimeout(200);
+  const b = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label="Snabbnavigering"]') || document.querySelector("nav.fixed");
+    const kort = [...document.querySelectorAll("main ul > li")];
+    const sista = kort[kort.length - 1];
+    const nr = nav ? nav.getBoundingClientRect() : null;
+    const sr = sista ? sista.getBoundingClientRect() : null;
+    /** @type {string[]} */
+    const tacker = [];
+    if (nr && sr) {
+      // Punkter i bandet från sista kortets överkant ned till bottenradens överkant: det som ligger överst där ska höra till kortet, main eller sidan.
+      for (const y of [sr.top + 8, sr.top + sr.height / 2, sr.bottom - 4]) {
+        if (y >= nr.top - 1) continue;
+        const el = document.elementFromPoint(195, y);
+        if (!el) continue;
+        const inne = !!el.closest("main");
+        const bgEl = (() => { for (let e = /** @type {Element | null} */ (el); e && e !== document.body; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor; if (!/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)|transparent/.test(c)) return e; } return null; })();
+        if (!inne && bgEl && bgEl !== document.documentElement) tacker.push(`${el.tagName.toLowerCase()}.${String(/** @type {any} */ (bgEl).className).split(" ").slice(0, 3).join(".")} vid y=${Math.round(y)}`);
+      }
+    }
+    const de = document.documentElement;
+    /** @type {string[]} */
+    const inre = [];
+    for (const e of document.querySelectorAll("body *")) {
+      const cs = getComputedStyle(e);
+      if (/(auto|scroll)/.test(cs.overflowY) && e.scrollHeight > e.clientHeight + 1 && e.clientHeight > 200 && !e.closest('[role="dialog"]')) inre.push(`${e.tagName.toLowerCase()}.${String(e.className).split(" ").slice(0, 3).join(".")}`);
+    }
+    return { navTop: nr ? nr.top : null, kortBottom: sr ? sr.bottom : null, tacker, sy: window.scrollY, max: de.scrollHeight - window.innerHeight, inre, antalKort: kort.length };
+  });
+  matt.push(`hemskärm 390 px: rullad till botten (scrollY ${b.sy} av ${b.max}), sista kortets underkant ${b.kortBottom} mot bottenradens överkant ${b.navTop}, täckande ytor ${JSON.stringify(b.tacker)}, inre rullbehållare ${JSON.stringify(b.inre)}`);
+  krav(b.antalKort >= 12, `hemskärm: bara ${b.antalKort} kort ritades, väntat 12 (golv: sidan måste rulla).`);
+  krav(b.sy > 100, `hemskärm: dokumentet rullade inte (scrollY ${b.sy}). Rullar en inre behållare i stället? ${JSON.stringify(b.inre)}`);
+  krav(b.inre.length === 0, `hemskärm: en inre behållare rullar i stället för dokumentet (${b.inre.join(", ")}).`);
+  krav(b.kortBottom !== null && b.navTop !== null && b.kortBottom <= b.navTop + 0.5, `hemskärm: sista kortets underkant ${b.kortBottom} ligger under bottenradens överkant ${b.navTop}: kortet klipps.`);
+  krav(b.tacker.length === 0, `hemskärm: en yta med bakgrund ligger över innehållet ovanför bottenraden (${b.tacker.join("; ")}).`);
+  krav(b.kortBottom !== null && b.navTop !== null && b.navTop - b.kortBottom <= 25, `hemskärm: ${(b.navTop - b.kortBottom).toFixed(1)} px tom yta mellan sista kortet och bottenraden, väntat högst 25 (OpsView pb-6 = 24, säker yta räknas två gånger om mer).`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "hemskarm-botten-390.png") });
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await page.waitForTimeout(150);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "hemskarm-rullad-390.png") });
+  await context.close();
+}
+
+// 21b: samma emulering med listan i `OpsScrollArea` (bolag-ops Idag): ytan rullar i sig själv och DOKUMENTET ska inte rulla ovanpå (CP: "Den scrollar liksom upp").
+{
+  const { page, context } = await oppna("langarea", { width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.style.setProperty("--safe-top", "47px"); document.documentElement.style.setProperty("--safe-bottom", "34px"); });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  await page.waitForTimeout(200);
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await page.waitForTimeout(150);
+  const a = await page.evaluate(() => {
+    const nav = document.querySelector('nav[aria-label="Snabbnavigering"]') || document.querySelector("nav.fixed");
+    const yta = [...document.querySelectorAll("main div")].find((d) => getComputedStyle(d).overflowY === "auto" && d.scrollHeight > d.clientHeight + 1);
+    const de = document.documentElement;
+    const yr = yta ? yta.getBoundingClientRect() : null;
+    const nr = nav ? nav.getBoundingClientRect() : null;
+    return { dokHojd: de.scrollHeight, fonster: window.innerHeight, sy: window.scrollY, ytaBottom: yr ? yr.bottom : null, ytaTop: yr ? yr.top : null, navTop: nr ? nr.top : null, ytaRullar: !!yta };
+  });
+  matt.push(`hemskärm 390 px, lista i OpsScrollArea: dokumentet ${a.dokHojd} px i ett fönster på ${a.fonster}, scrollY ${a.sy}, ytan ${a.ytaTop}..${a.ytaBottom}, bottenradens överkant ${a.navTop}`);
+  krav(a.ytaRullar, "hemskärm (OpsScrollArea): ytan rullar inte i sig själv (ingen behållare med overflow-y auto och mer innehåll än höjd).");
+  krav(a.dokHojd <= a.fonster + 1 && a.sy === 0, `hemskärm (OpsScrollArea): dokumentet är ${a.dokHojd} px i ett fönster på ${a.fonster} (scrollY ${a.sy}): sidan rullar ${a.dokHojd - a.fonster} px OVANPÅ ytans egen rullning. CP: "Den scrollar liksom upp."`);
+  krav(a.ytaBottom !== null && a.navTop !== null && a.ytaBottom <= a.navTop + 0.5 && a.navTop - a.ytaBottom <= 25, `hemskärm (OpsScrollArea): ytans underkant ${a.ytaBottom} mot bottenradens överkant ${a.navTop}, väntat 0 till 25 px ovanför.`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "hemskarm-lista-390.png") });
+  await context.close();
+}
 
 await browser.close();
 

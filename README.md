@@ -1791,8 +1791,7 @@ Storlek, radhöjd, vikt och spärrning bor på ETT ställe: `typografi.roller` i
 | `text-liten` | 0,625 rem (10 px) | bottenradens etikett, flikar, avataretikett (`MobileTabBar.jsx:87`) |
 | `text-mikro` | 0,5 rem (8 px), fet | räknemärkets siffra (`AppHeader.jsx:222`) |
 
-Samma storlek på mobil och dator: SS `text-xs sm:text-sm` (metarad) och `text-lg sm:text-xl` (korttitel) är
-`etikett` och `titel` på alla bredder här. Text utan roll ärver 16 px från `body`, och det är det som gav "diffar
+SS har två responsiva par och ramverket följer dem exakt: kortets metarad `text-meta sm:text-etikett` (12 px under 640 px, 14 från; SS `text-xs sm:text-sm`, `TodayView.jsx:83`) och korttiteln `text-titel sm:text-sida` (18 / 20 px; SS `text-lg sm:text-xl`, `:89`). Allt annat är en storlek på alla bredder. Text utan roll ärver 16 px från `body`, och det är det som gav "diffar
 i textstorlek" på Idag (0.31.1): ge alltid elementet en roll.
 
 Radhöjderna är `--leading-tight` (1,25) och `--leading-normal` (1,5). **`check-typografi`**
