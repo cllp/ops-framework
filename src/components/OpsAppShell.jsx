@@ -1478,6 +1478,7 @@ export function OpsAppShell({
         </OpsFelgrans>
         {skapaPanelSyns ? (
           <OpsSkapaPanel
+            kolumn={skapaForm?.kind === "grupp" ? "smal" : "bred"}
             titel={skapaModalTitel || skapaLabel}
             onTillbaka={stangSkapa}
             tillbakaEtikett={skapa?.tillbakaEtikett}

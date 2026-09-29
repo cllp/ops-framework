@@ -1131,7 +1131,7 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
 // ══ 15. SKAPA ÄR EN PANEL, INTE EN MODAL, OCH "SKAPA I" ÄR EN DIALOG (0.31.0, avsnitt 16 och 12) ═
 // CP: "Låt det vara paneler istället för modaler precis som i sessionstudio", och (15:01, 390 px): arket täckte hela huvudet, nästa
 // fält klipptes utan knapprad, och valkorten var höga med stor text. Mått: ingen role=dialog för formuläret, panelen i
-// innehållskolumnen på dator (max 880 px, centrerad, huvudet och gruppanelen kvar, fast knapprad längst ned till höger) och helskärm
+// innehållskolumnen på dator (896 px som SS EventEditRouteView, centrerad, huvudet och gruppanelen kvar, fast knapprad längst ned till höger) och helskärm
 // på telefon (rubrikrad, minst tre valkort och knappraden samtidigt, ingen överflödning, tangentbord simulerat med 500 px höjd).
 /** @param {import("playwright").Page} page @param {boolean} mobil */
 async function oppnaSkapaPanel(page, mobil) {
@@ -1216,7 +1216,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     } else {
       krav(m.headerSyns && m.headerTop !== null && m.headerTop <= 0.5, `skapa-panelen ${namn}: huvudet syns inte (top ${m.headerTop}).`);
       krav(m.gruppPanelSyns, `skapa-panelen ${namn}: gruppanelen syns inte medan panelen visas.`);
-      krav(m.kolW <= 880.5 && m.kolW >= 700, `skapa-panelen ${namn}: kolumnen är ${m.kolW.toFixed(0)} px bred, väntat högst 880 (SS-panelens kolumn).`);
+      krav(Math.abs(m.kolW - 896) <= 1, `skapa-panelen ${namn}: kolumnen är ${m.kolW.toFixed(0)} px bred, väntat 896 (SS EventEditRouteView.jsx:145 max-w-4xl).`);
       krav(Math.abs(m.kolMitt - m.panelMitt) <= 1, `skapa-panelen ${namn}: kolumnen är inte centrerad i innehållskolumnen (${m.kolMitt.toFixed(1)} mot ${m.panelMitt.toFixed(1)}).`);
       krav(m.appvy === 0, `skapa-panelen ${namn}: appens vy är inte dold medan panelen visas (höjd ${m.appvy}).`);
     }
@@ -1939,7 +1939,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(m.knappar.bottom >= m.vh - 1 && m.knappar.bottom <= m.vh + 0.5, `ny grupp ${namn}: knappraden vilar inte längst ned (${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)} av ${m.vh}).`);
     krav(!m.overflow, `ny grupp ${namn}: horisontell överflödning.`);
     if (!mobil) {
-      krav(m.kolW <= 880.5 && m.kolW >= 700, `ny grupp ${namn}: kolumnen är ${m.kolW.toFixed(0)} px, väntat högst 880 (SS-panelens kolumn).`);
+      krav(Math.abs(m.kolW - 672) <= 1, `ny grupp ${namn}: kolumnen är ${m.kolW.toFixed(0)} px, väntat 672 (SS GroupEditRouteView.jsx:40 max-w-2xl).`);
       krav(m.headerTop !== null && m.headerTop <= 0.5 && m.appvy === 0, `ny grupp ${namn}: huvudet ska stå kvar (top ${m.headerTop}) och appens vy vara dold (höjd ${m.appvy}).`);
     }
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-${vp.width}.png`) });

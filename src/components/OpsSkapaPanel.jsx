@@ -12,7 +12,7 @@ import { OpsButton } from "./OpsButton.jsx";
  * `GroupEditRouteView.jsx:36-47` är en rad "‹ Tillbaka" (`text-sm text-muted`, `ChevronLeft w-5`), och under den formuläret
  * (`ManageGroupModal inline`, `:454` rubrikraden, `:479` kroppen som rullar, `:640` knappraden längst ned med
  * `border-t`). Huvudet och gruppanelen står kvar. Här ritas samma delar: Tillbaka, rubrik, en rad "Skapas i", formuläret i en
- * kolumn (`max-w-[55rem]`, 880 px, centrerad) och en FAST knapprad längst ned till höger (Avbryt som textknapp, Spara som
+ * kolumn (SS bredd per formulär, se `kolumn`, centrerad) och en FAST knapprad längst ned till höger (Avbryt som textknapp, Spara som
  * fylld accentknapp).
  *
  * ⛔ TILLBAKA GÅR TILLBAKA DIT MAN VAR. Skalet håller appens vy monterad men dold medan panelen visas, så ett tryck på
@@ -31,6 +31,12 @@ import { OpsButton } from "./OpsButton.jsx";
  * för att formuläret har en egen knapp, och då är bara `Avbryt` skalets.
  *
  * @param {object} props
+ * ══ ⛔ KOLUMNBREDDEN ÄR SS, PER FORMULÄR (0.32.0, #180) ═══════════════════════════════════════════════════════════
+ *
+ * Före 0.32.0 var kolumnen 880 px (`max-w-[55rem]`) för ALLA formulär. SS har olika bredd per formulär: `GroupEditRouteView.jsx:40` är
+ * `max-w-2xl` (672 px) och `EventEditRouteView.jsx:145` är `max-w-4xl` (896 px). Bredden är därför en prop, `kolumn`: `"smal"` (672, grupp) och
+ * `"bred"` (896, händelse, ärende och en moduls formulär). Båda breddarna inkluderar sidomarginalen `px-4`, som SS `box-border`. Skalet väljer.
+ *
  * @param {string} props.titel
  * @param {() => void} props.onTillbaka
  * @param {string} [props.tillbakaEtikett] Förval "Tillbaka".
@@ -40,9 +46,10 @@ import { OpsButton } from "./OpsButton.jsx";
  * @param {string} [props.avbrytEtikett] Förval "Avbryt".
  * @param {string} [props.sparaEtikett] Ritar en `Spara`-knapp kopplad till `formId`.
  * @param {string} [props.formId]
+ * @param {"smal"|"bred"} [props.kolumn] `smal` = 672 px (SS `max-w-2xl`, grupp), `bred` = 896 px (SS `max-w-4xl`, händelse). Förval `bred`.
  * @param {import("react").ReactNode} props.children
  */
-export function OpsSkapaPanel({ titel, onTillbaka, tillbakaEtikett = "Tillbaka", skapasIEtikett = "Skapas i", skapasI = null, onByt, avbrytEtikett = "Avbryt", sparaEtikett, formId, children }) {
+export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtikett = "Tillbaka", skapasIEtikett = "Skapas i", skapasI = null, onByt, avbrytEtikett = "Avbryt", sparaEtikett, formId, children }) {
   const ref = useRef(/** @type {HTMLElement | null} */ (null));
   const [hojd, setHojd] = useState(/** @type {number | null} */ (null));
 
@@ -73,7 +80,7 @@ export function OpsSkapaPanel({ titel, onTillbaka, tillbakaEtikett = "Tillbaka",
         "md:min-h-[calc(100dvh-var(--safe-top)-var(--topbar-height))]",
       )}
     >
-      <div className="mx-auto flex w-full max-w-[55rem] min-h-0 flex-1 flex-col px-4 max-md:pt-(--safe-top) md:pt-4">
+      <div className={cx("mx-auto flex w-full min-h-0 flex-1 flex-col px-4 max-md:pt-(--safe-top) md:pt-4", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
         <div className="flex shrink-0 flex-col max-md:min-h-14 max-md:flex-row max-md:items-center max-md:gap-1 max-md:border-b max-md:border-line">
           <button
             type="button"
@@ -114,7 +121,7 @@ export function OpsSkapaPanel({ titel, onTillbaka, tillbakaEtikett = "Tillbaka",
         data-skapa-knappar=""
         className="sticky bottom-0 shrink-0 border-t border-line bg-canvas pb-(--safe-bottom)"
       >
-        <div className="mx-auto flex w-full max-w-[55rem] items-center justify-end gap-2 px-4 py-3">
+        <div className={cx("mx-auto flex w-full items-center justify-end gap-2 px-4 py-3", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
           <OpsButton variant="ghost" onClick={onTillbaka}>
             {avbrytEtikett}
           </OpsButton>
