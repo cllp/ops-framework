@@ -41,7 +41,9 @@ export function OpsField({ label, hint, error, required = false, children }) {
   return (
     <FieldContext.Provider value={{ id, describedBy, invalid: Boolean(error), required: required }}>
       <div className="flex flex-col gap-1">
-        <label htmlFor={id} className="text-sm font-semibold text-ink-secondary">
+        {/* ⛔ #167: font-medium, inte font-semibold. Samma mätning som
+            OpsStat/OpsTable, se OpsStat.jsx. */}
+        <label htmlFor={id} className="text-sm font-medium text-ink-secondary">
           {label}
           {required ? (
             <span className="text-danger" aria-hidden="true">

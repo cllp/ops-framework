@@ -372,16 +372,22 @@ export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, 
 /**
  * Filter- och mer-knapparna i panelens huvud.
  *
- * ⛔ EN EGEN LITEN KOMPONENT, INTE EXPORTERAD. #158: "Filtren flyttar in bakom
- * filterknappen i högerkanten, som en meny [...] 'Rensa' flyttar till
- * trepunktsmenyn." Båda är popovrar av samma sort som `OpsFilterChip` redan
- * använder, bara utan pillrets text: knapparna sitter i ett panelhuvud, inte
- * bredvid en lista, och ska vara lika kompakta som huvudets övriga ikoner.
+ * ⛔ #158: "Filtren flyttar in bakom filterknappen i högerkanten, som en meny
+ * [...] 'Rensa' flyttar till trepunktsmenyn." Båda är popovrar av samma sort
+ * som `OpsFilterChip` redan använder, bara utan pillrets text: knapparna
+ * sitter i ett panelhuvud, inte bredvid en lista, och ska vara lika kompakta
+ * som huvudets övriga ikoner.
  *
  * ⛔ RAMVERKET KÄNNER INTE APPENS FILTER. `filter` är fortfarande appens egen
  * `ReactNode` (grupp, slag, period, "visa systemhändelser", vad appen nu vill),
  * ramverket bestämmer bara VAR den dyker upp: bakom knappen, aldrig synlig
  * förrän man tryckt.
+ *
+ * ⛔ EXPORTERAD (#166), TIDIGARE PRIVAT. `OpsActivityButton` byggde den här och
+ * la den som `action` på `OpsPanel`. Öppnar en app aktiviteten via en
+ * `undervy`-rad i skalets meny i stället (`OpsActivityList` direkt, utan
+ * `OpsActivityButton`) finns ingen `OpsPanel` som gör det åt den: appen sätter
+ * samma knappar själv som `MenyRad.undervyAction`, med SAMMA komponent.
  *
  * @param {object} props
  * @param {import("react").ReactNode} [props.filter]
@@ -389,7 +395,7 @@ export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, 
  * @param {() => void} [props.onClear]
  * @param {string} [props.clearLabel]
  */
-function Huvudatgarder({ filter, filterLabel = "Filter", onClear, clearLabel = "Rensa" }) {
+export function OpsActivityListActions({ filter, filterLabel = "Filter", onClear, clearLabel = "Rensa" }) {
   const [filterOppen, setFilterOppen] = useState(false);
   const [menyOppen, setMenyOppen] = useState(false);
 
@@ -632,7 +638,7 @@ export function OpsActivityButton({
       onOpenChange={oppna}
       action={
         filter || (onClear && visade.length > 0) ? (
-          <Huvudatgarder filter={filter} filterLabel={filterLabel} onClear={onClear && visade.length > 0 ? onClear : undefined} />
+          <OpsActivityListActions filter={filter} filterLabel={filterLabel} onClear={onClear && visade.length > 0 ? onClear : undefined} />
         ) : null
       }
     >

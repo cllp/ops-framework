@@ -17,8 +17,20 @@ const TONER = {
 };
 
 /**
+ * ⛔ #167: FÖRVAL UTAN SYNLIG KANT, MÄTT MOT SESSIONSTUDIO.
+ * `tokens/sessionstudio-profil.json` "kort": SessionStudios kort skiljer sig
+ * från sidan med en TONSKILLNAD (`bg-card` mot `bg-primary`), aldrig med en
+ * kant. `OpsCard` satte tidigare `border` ovillkorligt på alla fyra
+ * varianter. `kant` är nu ett eget val, förvalt `false`. Ytan (`tone`) bär
+ * fortfarande skillnaden mot bakgrunden, kanten är ett extra val däröver.
+ */
+
+/**
  * @param {object} props
  * @param {"raised"|"sunken"|"plain"} [props.tone]
+ * @param {boolean} [props.kant] Synlig kant (`border`). Förval `false`: SessionStudio skiljer
+ *   kortet från sidan med `tone` (tonskillnad), aldrig med en kant. Sätt `true`
+ *   för ytor som behöver en synlig avgränsning ändå (t.ex. mot en likfärgad granne).
  * @param {boolean} [props.elevated] Skugga. Används för det som ligger ÖVER sidan, inte för att lyfta fram.
  * @param {boolean} [props.flush] Ingen inre padding. För kort som bär en lista kant i kant.
  * @param {"kort"|"bubbla"} [props.rounding] Hur mjukt hörnet är. `kort` (8 px) är
@@ -35,7 +47,7 @@ const TONER = {
  * @param {string} [props.id]
  * @param {import("react").ReactNode} props.children
  */
-export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, flush = false, edge, edgeLabel, slag, slagLabel, id, children }) {
+export function OpsCard({ tone = "raised", rounding = "kort", kant = false, elevated = false, flush = false, edge, edgeLabel, slag, slagLabel, id, children }) {
   const tonKlass = TONER[tone];
   if (!tonKlass) {
     throw new Error(`OpsCard: okänd tone "${tone}". Giltiga: ${Object.keys(TONER).join(", ")}.`);
@@ -68,7 +80,7 @@ export function OpsCard({ tone = "raised", rounding = "kort", elevated = false, 
       id={id}
       className={cx(
         rundningKlass,
-        "border",
+        kant && "border",
         tonKlass,
         // Kanten ritas som en tjockare vänsterram i stället för ett extra
         // element, så den följer radien och inte kan hamna utanför kortet.

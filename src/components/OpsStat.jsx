@@ -81,7 +81,11 @@ export function OpsStat({
   const innehall = (
     <>
       <div className="flex items-start justify-between gap-2">
-        <p className="m-0 text-sm font-semibold text-ink-secondary">{label}</p>
+        {/* ⛔ #167: font-medium, inte font-semibold. Mätt mot SessionStudio
+            (t.ex. AppHeader.jsx, AdminDevDashboardPanel.jsx): semibold är
+            reserverat för rubriker på ink/text-primary, en sekundärfärgad
+            etikett är där alltid font-medium. */}
+        <p className="m-0 text-sm font-medium text-ink-secondary">{label}</p>
         {badge ? <div className="shrink-0">{badge}</div> : null}
       </div>
       <p className={cx("m-0 mt-1 text-xl font-bold leading-tight tabular-nums", tonKlass)}>{value}</p>

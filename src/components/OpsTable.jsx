@@ -72,7 +72,10 @@ export function OpsTable({ columns, rows, caption, hideCaption = false, stickyHe
                 key={k.key}
                 scope="col"
                 className={cx(
-                  "px-3 py-2 text-sm font-semibold text-ink-secondary",
+                  // ⛔ #167: font-medium, inte font-semibold. Samma mätning
+                  // som OpsStat: semibold är för rubriker på ink, inte för en
+                  // sekundärfärgad etikett (SessionStudio, se OpsStat.jsx).
+                  "px-3 py-2 text-sm font-medium text-ink-secondary",
                   k.numeric ? "text-right" : "text-left",
                   k.tight && "w-px whitespace-nowrap",
                   // ⛔ Första kolumnen låses vid vänsterkanten så radrubriken syns

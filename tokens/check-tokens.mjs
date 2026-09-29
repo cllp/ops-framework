@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const file = process.argv[2] || path.join(process.cwd(), "tokens", "tokens.css");
 if (!fs.existsSync(file)) {
@@ -197,85 +198,94 @@ if (!media || !attr) {
   }
 }
 
-// ── Regel 8: paletten är SessionStudios, tecken för tecken ──────────────────
-// #157, CP:s tillägg 2026-09-28: "Se hur färgschemat från SessionStudio är i
-// mörkt och ljust läge. Väldigt snyggt. Går det att få till detta." Mätt svar:
-// paletten var redan densamma, delad med flit sedan den skrevs. Den här regeln
-// är taket som håller den delningen sann framåt: värdena nedan är avlästa ur
-// SessionStudios `apps/web/src/index.css` (`:root` för mörkt, den ljusa
-// temablocket för ljust) samma dag som ärendet skrevs, inte gissade. Glider en
-// av de två filerna, blir vakten röd oavsett vilken sida som ändrades.
-const SESSIONSTUDIO_LJUST = {
-  "--color-canvas": "#f8f7f4",
-  "--color-surface": "#ffffff",
-  "--color-sunken": "#f0ede8",
-  "--color-ink": "#1a1a1a",
-  "--color-ink-secondary": "#4a4540",
-  "--color-accent": "#9a9588",
-  "--color-line": "rgba(0, 0, 0, 0.08)",
-};
-const SESSIONSTUDIO_MORKT = {
-  "--dark-canvas": "#121218",
-  "--dark-surface": "#16161c",
-  "--dark-raised": "#1f1f28",
-  "--dark-ink": "#e8e4df",
-  "--dark-ink-muted": "#6a6560",
-  "--dark-accent": "#e8e0d0",
-  "--dark-line": "rgba(255, 255, 255, 0.05)",
-};
-
-if (tema) {
-  const temaVarden = deklarationerI(tema.body);
-  for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_LJUST)) {
-    const faktiskt = temaVarden[namn];
-    if (faktiskt !== forvantat) {
+// ── Regel 8+9, ersatta av #167: ett genererat block, inte en handskriven lista ──
+// #157/#164 skrev in SessionStudios palett och rundningsskala som två listor
+// HÄR, i vakten själv. Det höll rent tekniskt (vakten blev röd om en av
+// filerna glömdes), men det var ändå ett andra original: samma tal stod en
+// gång i `tokens.css` och en gång i den här filens `SESSIONSTUDIO_LJUST`
+// /`_MORKT`/`_RUNDNING`-objekt, och en agent som bytte det ena utan att veta
+// om det andra fick ett kryptiskt diff-fel i stället för en tydlig fixtur att
+// ändra.
+//
+// #167 gör SessionStudios utseende till EN fixtur,
+// `tokens/sessionstudio-profil.json`, och `scripts/generate-tokens.mjs`
+// skriver ur den in i de markerade blocken i `tokens.css`. Regel 8/9 blir då
+// EN regel: är det som faktiskt står mellan markörerna BYTE FÖR BYTE det
+// generatorn skulle skrivit just nu? Är det inte det, har någon antingen
+// redigerat det genererade blocket för hand (förbjudet, se filhuvudet i
+// `tokens.css`) eller ändrat fixturen utan att köra om generatorn.
+//
+// ⛔ INGEN NY LISTA MED FÖRVÄNTADE VÄRDEN HÄR. Just det var problemet: en lista
+// i vakten är sin egen lilla kopia. Genom att importera generatorns EGNA
+// funktion och köra den mot fixturen just nu, finns bara ETT ställe som vet
+// vad SessionStudios tal är.
+//
+// ⛔ "npm run check" NORMALISERAR FÖRST. `npm run build` (som `check` kör
+// innan den här vakten) har `prebuild: ... && npm run generate:tokens`, precis
+// som versionskonstanten. Är fixturen och tokens.css redan i takt gör det
+// ingenting; har någon redigerat det genererade blocket för hand skrivs det
+// tyst tillbaka INNAN den här vakten hinner se det, och `git status`/`git
+// diff` efter bygget visar rättningen. Vakten biter alltså skarpast när den
+// körs FRISTÅENDE (`node tokens/check-tokens.mjs`, t.ex. i en snabb
+// pre-commit-hook utan fullt bygge), precis som `check-kanon.mjs` i bolag-ops.
+const generatorVag = path.join(path.dirname(file), "..", "scripts", "generate-tokens.mjs");
+if (fs.existsSync(generatorVag)) {
+  try {
+    const { generera, skrivMellanMarkorer, MARKORER } = await import(pathToFileURL(generatorVag).href);
+    const { block } = generera();
+    let forvantat = kalla;
+    for (const namn of /** @type {const} */ (["theme", "dark", "ikonlager"])) {
+      forvantat = skrivMellanMarkorer(forvantat, MARKORER[namn], block[namn]);
+    }
+    if (forvantat !== kalla) {
       brott.push({
-        rule: "8. SessionStudios palett",
-        detail: `${namn} är "${faktiskt ?? "saknas"}" i ${file}, SessionStudio har "${forvantat}". Paletten är delad med flit (#157, se comment 2026-09-28): en glidning syns annars inte förrän någon lägger skärmbilderna sida vid sida.`,
+        rule: "8/9. genererat block matchar inte fixturen",
+        detail: `${file} skiljer sig från vad scripts/generate-tokens.mjs skulle skriva ur tokens/sessionstudio-profil.json just nu. Antingen är det genererade blocket redigerat för hand (förbjudet), eller så har fixturen ändrats utan att "node scripts/generate-tokens.mjs" körts om. Kör den och committa resultatet.`,
+      });
+    }
+  } catch (e) {
+    brott.push({
+      rule: "8/9. genererat block matchar inte fixturen",
+      detail: `Kunde inte köra generatorn för att jämföra: ${e instanceof Error ? e.message : String(e)}`,
+    });
+  }
+} else {
+  brott.push({
+    rule: "8/9. genererat block matchar inte fixturen",
+    detail: `Hittar inte ${generatorVag}. Utan generatorn går det inte att veta om det genererade blocket i ${file} fortfarande stämmer med fixturen.`,
+  });
+}
+
+// ── Regel 11: fixturens golv ─────────────────────────────────────────────────
+// Samma skäl som Regel 4 nedan: ett prov som blir grönt av en tom eller
+// halvskriven fixtur mäter ingenting. Minsta antal nycklar per grupp, satt
+// till vad #167 faktiskt levererade, inte till noll.
+const fixturVag2 = path.join(path.dirname(file), "sessionstudio-profil.json");
+if (fs.existsSync(fixturVag2)) {
+  const fixtur = JSON.parse(fs.readFileSync(fixturVag2, "utf8"));
+  const GOLV_PER_GRUPP = {
+    "farger.ljus": 12,
+    "farger.mork": 12,
+    "radier": 5,
+    "diagram.presets": 8,
+    "diagram.chart.ljus": 6,
+    "diagram.chart.mork": 6,
+  };
+  for (const [sokvag, minst] of Object.entries(GOLV_PER_GRUPP)) {
+    const varde = sokvag.split(".").reduce((v, k) => v?.[k], fixtur);
+    const antal = Array.isArray(varde) ? varde.length : Object.keys(varde ?? {}).length;
+    if (antal < minst) {
+      brott.push({
+        rule: "11. fixturens golv",
+        detail: `tokens/sessionstudio-profil.json: gruppen "${sokvag}" har ${antal} poster, golvet är ${minst}. Antingen lästes fel fil, eller så har någon tömt fixturen.`,
       });
     }
   }
-}
-
-for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_MORKT)) {
-  // ⛔ SISTA deklarationen, inte första: samma `--dark-*`-namn kan i teorin stå
-  // flera gånger, och den som gäller är den en senare rad skrev sist.
-  const traffar = alla.filter((d) => d.namn === namn);
-  const faktiskt = traffar.length > 0 ? traffar[traffar.length - 1].varde : undefined;
-  if (faktiskt !== forvantat) {
-    brott.push({
-      rule: "8. SessionStudios palett",
-      detail: `${namn} är "${faktiskt ?? "saknas"}" i ${file}, SessionStudio har "${forvantat}".`,
-    });
-  }
-}
-
-// ── Regel 9: rundningsskalan är SessionStudios, tal för tal ─────────────────
-// ops-framework#164, CP lade bolag-ops (kör ramverket) bredvid SessionStudio
-// och sade att allt ser bulligare ut och att rundningarna skiljer sig. Mätt i
-// SessionStudios `apps/web/src/index.css`, `.rounded-app`, samma dag ärendet
-// skrevs: sm 8px, md 10px, lg 16px, xl 20px, card 24px (`--radius-card`,
-// dit `rounded-2xl` mappas). Talen är inte gissade, de är avlästa. Precis som
-// Regel 8 ovan: glider en av de två filerna, blir vakten röd oavsett vilken
-// sida som ändrades, för annars syns glidningen inte förrän någon lägger
-// skärmdumparna sida vid sida, vilket är hela skälet CP hörde av sig.
-const SESSIONSTUDIO_RUNDNING = {
-  "--radius-sm": "8px",
-  "--radius-md": "10px",
-  "--radius-lg": "16px",
-  "--radius-xl": "20px",
-  "--radius-card": "24px",
-};
-
-for (const [namn, forvantat] of Object.entries(SESSIONSTUDIO_RUNDNING)) {
-  const traffar = alla.filter((d) => d.namn === namn);
-  const faktiskt = traffar.length > 0 ? traffar[traffar.length - 1].varde : undefined;
-  if (faktiskt !== forvantat) {
-    brott.push({
-      rule: "9. SessionStudios rundningsskala",
-      detail: `${namn} är "${faktiskt ?? "saknas"}" i ${file}, SessionStudio (.rounded-app) har "${forvantat}" (#164).`,
-    });
-  }
+} else {
+  brott.push({
+    rule: "11. fixturens golv",
+    detail: `Hittar inte ${fixturVag2}. Utan fixturen kan det genererade blocket inte kontrolleras alls.`,
+  });
 }
 
 // ── Regel 10: ett radie-literal som matchar ett token är ett andra original ─
@@ -324,7 +334,7 @@ if (alla.length < GOLV) {
 }
 
 if (brott.length === 0) {
-  console.log(`check-tokens: ${alla.length} tokens, alla tio regler gröna (${file})`);
+  console.log(`check-tokens: ${alla.length} tokens, alla elva regler gröna (${file})`);
   process.exit(0);
 }
 

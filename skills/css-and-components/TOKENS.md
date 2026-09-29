@@ -2,8 +2,16 @@
 
 > Strukturen i `tokens/tokens.css` är kanon. Värdena är din profil.
 > Filen ÄR Tailwind-temat, inte en parallell sanning bredvid det.
-> Vakten är `tokens/check-tokens.mjs`. Reglerna nedan är de sju den kontrollerar,
+> Vakten är `tokens/check-tokens.mjs`. Reglerna nedan är de elva den kontrollerar,
 > plus tre den inte kan kontrollera och som därför är på ditt ansvar.
+>
+> ⛔ **#167: en del av `tokens.css` är inte längre handskriven.** SessionStudios
+> utseende (färger, radier, typografiskala, ikonlinjebredd, kortets kant,
+> diagramfärger, rörelsetider, topprad) ligger som EN fixtur,
+> `tokens/sessionstudio-profil.json`, mätt ur `/home/user/sessions-platform`
+> med fil och rad för varje värde. `scripts/generate-tokens.mjs` skriver ur den
+> in i `tokens.css` mellan `/* ── GENERERAT UR sessionstudio-profil.json,
+> RÖR INTE ── */` … `/* ── SLUT GENERERAT ── */`. Se Regel 8/9 nedan.
 
 ---
 
@@ -102,6 +110,38 @@ av någon som råkar titta i mörkt läge.
 Sätter mörkerblocken ett token som inte står i `@theme` saknar ljust läge sitt
 grundvärde, och Tailwind genererar ingen utility alls för det.
 
+## Regel 8/9. Det genererade blocket matchar fixturen, byte för byte
+
+**#157/#164 skrev SessionStudios palett och rundningsskala som två listor
+INUTI vakten** (`SESSIONSTUDIO_LJUST`/`_MORKT`/`_RUNDNING`). Det höll tekniskt,
+men det var ett andra original: samma tal stod en gång i `tokens.css` och en
+gång i vaktens egna objekt.
+
+**#167 gör SessionStudios utseende till EN fixtur**,
+`tokens/sessionstudio-profil.json`. `scripts/generate-tokens.mjs` läser den och
+skriver ur den in i de markerade blocken i `tokens.css`. Regel 8/9 kör
+generatorns EGNA funktion mot fixturen just nu och jämför byte för byte med vad
+som faktiskt står i filen. Skiljer de sig: antingen har någon redigerat det
+genererade blocket för hand (förbjudet), eller så har fixturen ändrats utan att
+`node scripts/generate-tokens.mjs` körts om.
+
+`npm run build` (och därmed `npm run check`) kör `generate:tokens` i
+`prebuild`, precis som versionskonstanten. Vakten biter alltså skarpast
+FRISTÅENDE (`node tokens/check-tokens.mjs`), eftersom ett fullt bygge redan
+normaliserat filen innan vakten hinner se den.
+
+## Regel 10. Ett radie-literal som matchar ett token är ett andra original
+
+Ett handskrivet `border-radius: 999px` utanför `@theme static`, när
+`--radius-full` redan är `999px`, är Regel 2 ("en sanning per faktum") i sin
+renaste form. Ändras skalan glider literalet isär utan att något blir rött.
+
+## Regel 11. Fixturens golv
+
+Samma skäl som Regel 4, applicerat på fixturen: `tokens/sessionstudio-profil.json`
+har ett minsta antal poster per grupp (färger, radier, diagramfärger). En tömd
+eller halvskriven fixtur ska fälla, inte tigas ihjäl.
+
 ---
 
 ## Tre regler vakten inte kan kontrollera
@@ -124,17 +164,21 @@ gång någon behöver något "mittemellan".
 
 | Grupp | Vad den svarar på |
 |---|---|
-| `canvas`, `surface`, `raised`, `sunken`, `scrim` | vilken yta står detta på |
+| `canvas`, `surface`, `raised`, `elevated`, `hover`, `sunken`, `scrim` | vilken yta står detta på. `elevated` är det som ligger ÖVER ett kort (popover, meny), `hover` ett radhover-tillstånd. Båda nya i #167, fixturägda |
 | `ink-*` | fyra nivåer. En femte blir alltid "ungefär som muted" |
 | `line`, `line-strong`, `divider` | var slutar en yta |
-| `accent-*` | vad är produktens hand |
+| `accent-*` | vad är produktens hand. #167: SessionStudios green-profil (olivgrönt), se `sessionstudio-profil.json` |
 | `success`, `warning`, `danger`, `info` (+ `-bg`) | vad betyder det här för användaren |
 | `identity-1..6` | vem hör detta till |
+| `chart-1..6` | en kategorisk diagramfärg (hette `series-1..6` före #167) |
+| `scale-1..3` | en ordnad diagramskala, låg till hög. Egen validator, egna toner: byts INTE ut mot `chart-*` |
 | `--spacing` | rytmen, som Tailwind multiplicerar |
 | `radius-*` | hur mjuk är formen |
 | `shadow-*` | hur högt ligger den |
 | `font-*`, `text-*` | hur läses texten |
-| `ease-*`, `--duration-*` | hur snabbt sker det |
+| `ease-*`, `--duration-*` | hur snabbt sker det. #167: 150/200/300 ms, SessionStudios tal |
+| `--icon-stroke-width` | linjebredden på en lucide-ikon (1.5, `.lucide` i `@layer base`) |
+| `--card-padding`, `--topbar-height` | mått ur SessionStudio, fixturägda |
 | `--z-*` | vad ligger över vad |
 | `--safe-*` | var får innehåll inte hamna |
 

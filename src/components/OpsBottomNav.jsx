@@ -4,7 +4,7 @@ import { cx } from "../lib/cx.js";
 import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
-import { kordarePafunktion, MenyFooter, MenySektioner, validateMenySektioner } from "./OpsMeny.jsx";
+import { kordarePafunktion, MenyFooter, MenySektioner, MenyTillbakaKnapp, validateMenySektioner } from "./OpsMeny.jsx";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -90,7 +90,15 @@ export function OpsBottomNav({
     validateMenySektioner(meny.sektioner ?? [], "OpsBottomNav: meny.sektioner");
   }
   const [oppen, setOppen] = useState(false);
-  const kor = kordarePafunktion(() => setOppen(false));
+  // ⛔ #166: SAMMA UNDERVY-VÄXLING SOM `OpsAppShell`s header-popover, se dess
+  // filhuvud. Sheeten är den SMALA skärmens yta för samma meny, och den ska
+  // byta innehåll på plats precis som popovern, inte öppna en egen dialog.
+  const [aktivUndervy, setAktivUndervy] = useState(/** @type {import("./OpsMeny.jsx").MenyRad | null} */ (null));
+  const stangArket = (/** @type {boolean} */ nasta) => {
+    setOppen(nasta);
+    if (!nasta) setAktivUndervy(null);
+  };
+  const kor = kordarePafunktion(() => stangArket(false));
 
   if (primaryAction && (typeof primaryAction.label !== "string" || typeof primaryAction.onClick !== "function")) {
     throw new Error(
@@ -153,7 +161,7 @@ export function OpsBottomNav({
           />
         ))}
 
-        <Dialog.Root open={oppen} onOpenChange={setOppen}>
+        <Dialog.Root open={oppen} onOpenChange={stangArket}>
           <Dialog.Trigger asChild>
             <button type="button" className={platsKlass(false)}>
               <MenuIcon size={22} />
@@ -171,39 +179,63 @@ export function OpsBottomNav({
               <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
                 {/* ⛔ #164, andra granskningen: MED `meny` styr `meny.rubrik`
                     rubriken (samma form som header-hamburgarens h2), annars
-                    oförändrat `sheetLabel`. Samma rad, samma prioritet. */}
-                <Dialog.Title className="m-0 text-md font-bold text-ink">{meny?.rubrik ?? sheetLabel}</Dialog.Title>
-                <Dialog.Close
-                  aria-label={closeLabel}
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <KryssIkon size={20} />
-                </Dialog.Close>
+                    oförändrat `sheetLabel`. Samma rad, samma prioritet.
+                    ⛔ #166: I EN UNDERVY BÄR `Dialog.Title` SJÄLV radens etikett
+                    och en tillbakapil framför sig, i stället för `sheetLabel`.
+                    Det är fortfarande EN `Dialog.Title` (Radix kräver exakt en),
+                    bara omrenderad, inte en ny dialog. Stäng-krysset ligger kvar
+                    till höger: det stänger HELA arket, tillbakapilen bara ett
+                    steg. */}
+                <div className="flex min-w-0 flex-1 items-center gap-1">
+                  <MenyTillbakaKnapp onBack={aktivUndervy ? () => setAktivUndervy(null) : undefined} />
+                  {/* ⛔ EN `Dialog.Title`, ALLTID (Radix kräver exakt en per
+                      dialog): INNEHÅLLET byts, elementet gör det inte. */}
+                  <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-md font-bold text-ink">
+                    {aktivUndervy ? aktivUndervy.etikett : (meny?.rubrik ?? sheetLabel)}
+                  </Dialog.Title>
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  {aktivUndervy?.undervyAction ?? null}
+                  <Dialog.Close
+                    aria-label={closeLabel}
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  >
+                    <KryssIkon size={20} />
+                  </Dialog.Close>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
-                {/* ⛔ SAMMA ORDNING SOM HEADER-HAMBURGAREN (`OpsAppShell`):
-                    appens sektioner, sedan navigeringens överflödsrader i en
-                    egen sektion, sedan `menuExtras`, sedan Logga ut, sist
-                    versionerna. Bara med `meny`; utan den är sheeten oförändrad. */}
-                {meny ? <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} /> : null}
-                <div className={cx(meny && (meny.sektioner ?? []).length ? "mt-1 border-t border-line pt-1" : null)}>
-                  {inMenu.map((entry) => (
-                    <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
-                  ))}
-                  {menuExtras ? (
-                    <>
-                      {inMenu.length ? (
-                        <div role="separator" className="my-2 border-t border-line" />
+                {/* ⛔ #166: EN UNDERVY ERSÄTTER RESTEN AV ARKET, precis som i
+                    header-popovern, se `OpsAppShell.jsx`. */}
+                {aktivUndervy ? (
+                  <div>{aktivUndervy.undervy}</div>
+                ) : (
+                  <>
+                    {/* ⛔ SAMMA ORDNING SOM HEADER-HAMBURGAREN (`OpsAppShell`):
+                        appens sektioner, sedan navigeringens överflödsrader i en
+                        egen sektion, sedan `menuExtras`, sedan Logga ut, sist
+                        versionerna. Bara med `meny`; utan den är sheeten oförändrad. */}
+                    {meny ? <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} visaUndervy={setAktivUndervy} /> : null}
+                    <div className={cx(meny && (meny.sektioner ?? []).length ? "mt-1 border-t border-line pt-1" : null)}>
+                      {inMenu.map((entry) => (
+                        <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
+                      ))}
+                      {menuExtras ? (
+                        <>
+                          {inMenu.length ? (
+                            <div role="separator" className="my-2 border-t border-line" />
+                          ) : null}
+                          <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
+                        </>
                       ) : null}
-                      <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
-                    </>
-                  ) : null}
-                </div>
-                {meny ? (
-                  <div className="-mx-2 -mb-2">
-                    <MenyFooter onLoggaUt={meny.onLoggaUt} loggaUtEtikett={meny.loggaUtEtikett} appVersion={meny.appVersion} kor={kor} />
-                  </div>
-                ) : null}
+                    </div>
+                    {meny ? (
+                      <div className="-mx-2 -mb-2">
+                        <MenyFooter onLoggaUt={meny.onLoggaUt} loggaUtEtikett={meny.loggaUtEtikett} appVersion={meny.appVersion} kor={kor} />
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             </Dialog.Content>
           </Dialog.Portal>
