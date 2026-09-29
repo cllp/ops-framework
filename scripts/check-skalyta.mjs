@@ -967,6 +967,20 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
       [valjare, text],
     );
   varde = async () => JSON.parse((await page.locator("[data-varde]").textContent()) || "{}");
+  // ⛔ Ett val skrivs till formuläret när React har renderat om, inte i samma ögonblick som
+  // klicket. Att läsa värdet direkt gav {} på CI:s långsammare maskin i PR 176 fast valet
+  // landade (slutmätningen visade typ "deadline"). Vänta därför på värdet, högst 3 s, och
+  // döm det sista som lästes: ett val som aldrig når formuläret är fortfarande rött.
+  /** @param {(v: any) => boolean} villkor */
+  const vantaPaVarde = async (villkor) => {
+    const slut = Date.now() + 3000;
+    let v = await varde();
+    while (!villkor(v) && Date.now() < slut) {
+      await page.waitForTimeout(50);
+      v = await varde();
+    }
+    return v;
+  };
 
   // Typ
   await page.getByRole("combobox", { name: "Typ" }).click();
@@ -976,7 +990,7 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
   krav(typVal.finns === true && typVal.iVyn === true && typVal.overst === true, `modalen ${namn}: typlistans val "Deadline" ${JSON.stringify(typVal)}: väntat synligt, inom vyn och överst (ej bakom modalen).`);
   if (typVal.finns) {
     await page.getByRole("option", { name: "Deadline" }).click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: "Deadline" gick inte att klicka (något ligger över listan).`));
-    krav((await varde()).typ === "deadline", `modalen ${namn}: valet nådde inte formulärets typ (${JSON.stringify(await varde())}).`);
+    { const v = await vantaPaVarde((x) => x.typ === "deadline"); krav(v.typ === "deadline", `modalen ${namn}: valet nådde inte formulärets typ (${JSON.stringify(v)}).`); }
   }
 
   // Datum (en typlista som blev kvar öppen stängs först, så att resten av provet kan mäta sitt)
@@ -986,7 +1000,7 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
   krav(dag.finns === true && dag.iVyn === true && dag.overst === true, `modalen ${namn}: kalenderns dag 15 ${JSON.stringify(dag)}: väntat synlig, inom vyn och överst.`);
   if (dag.finns) {
     await page.locator('[role="gridcell"] button:not([disabled])', { hasText: /^15$/ }).first().click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: dag 15 gick inte att klicka (något ligger över kalendern).`));
-    krav(/-15$/.test((await varde()).datum || ""), `modalen ${namn}: dag 15 nådde inte formulärets datum (${JSON.stringify(await varde())}).`);
+    { const v = await vantaPaVarde((x) => /-15$/.test(x.datum || "")); krav(/-15$/.test(v.datum || ""), `modalen ${namn}: dag 15 nådde inte formulärets datum (${JSON.stringify(v)}).`); }
     // Månadsnavigering efter ett valt datum (rotorsaken: styrd månad).
     await page.getByRole("button", { name: "Datum", exact: true }).click();
     const rubrikFore = await page.locator('[role="grid"]').first().evaluate((g) => g.closest("[data-radix-popper-content-wrapper]")?.textContent?.slice(0, 40) ?? "");
@@ -1007,7 +1021,7 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
     await page.getByRole("option", { name: "01" }).click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: timme 01 gick inte att klicka.`));
     await page.getByRole("combobox", { name: "Minut" }).click({ timeout: 3000 }).catch(() => {});
     await page.getByRole("option", { name: "30", exact: true }).click({ timeout: 3000 }).catch(() => krav(false, `modalen ${namn}: minut 30 gick inte att klicka.`));
-    krav((await varde()).tid === "01:30", `modalen ${namn}: tiden blev ${JSON.stringify((await varde()).tid)}, väntat "01:30".`);
+    { const v = await vantaPaVarde((x) => x.tid === "01:30"); krav(v.tid === "01:30", `modalen ${namn}: tiden blev ${JSON.stringify(v.tid)}, väntat "01:30".`); }
     // Tangentbord: fokusera timknappen, öppna med Enter, välj med pilar och Enter.
     await page.getByRole("combobox", { name: "Timme" }).focus();
     await page.keyboard.press("Enter");
@@ -1020,7 +1034,7 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
       if ((await page.locator('[role="option"][data-highlighted]').first().textContent().catch(() => "")) === "02") break;
     }
     await page.keyboard.press("Enter");
-    const efterTangent = (await varde()).tid;
+    const efterTangent = (await vantaPaVarde((x) => x.tid === "02:30")).tid;
     krav(efterTangent === "02:30", `modalen ${namn}: tangentbordsval (Enter, pil ned, Enter) av timme gav ${JSON.stringify(efterTangent)}, väntat "02:30".`);
   }
   } catch (e) {
