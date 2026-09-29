@@ -113,12 +113,25 @@ if (!/wght@400;500;600;700/.test(mall)) {
 //
 // ⛔ GOLV: minst en `@font-face`. En vakt som blir grön av att ingen regel hittades
 // har inte mätt något (arbetsreglernas punkt 4, "tomt underlag").
-const tokenDir = path.dirname(tokenfil);
-const fontRegler = [...tokenUtanKommentarer.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => m[1]);
-if (fontRegler.length < 1) {
-  fel.push(`${path.relative(rot, tokenfil)} har ingen @font-face. Märket (font-marke) hade ritats i reservtypsnittet. Väntat minst 1 regel, hittade ${fontRegler.length}.`);
+//
+// ⛔ EN APP BÄR INGEN EGEN @font-face, DEN ÄRVER RAMVERKETS. Appens stilrot
+// (`create-ops-app`-mallen, bolag-ops) har bara `@import "@staiger/ops-framework/tokens.css"`,
+// och det är där regeln står. Att kräva den i appens egen fil fällde scaffold-jobbet
+// i PR 176 på en app som ritade märket rätt. Vakten följer därför importen till
+// ramverkets tokens.css och mäter regeln där den faktiskt bor, och golvet gäller
+// summan: en app som varken har en egen regel eller importerar ramverkets fälls.
+const kallor = [{ fil: tokenfil, text: tokenUtanKommentarer }];
+if (tokenfil !== path.join(rot, "tokens", "tokens.css") && /@import\s+["']@staiger\/ops-framework\/tokens\.css["']/.test(tokenUtanKommentarer)) {
+  const ramverkets = path.join(rot, "tokens", "tokens.css");
+  kallor.push({ fil: ramverkets, text: fs.readFileSync(ramverkets, "utf8").replace(/\/\*[\s\S]*?\*\//g, "") });
 }
-for (const regel of fontRegler) {
+const fontRegler = kallor.flatMap(({ fil, text }) =>
+  [...text.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => ({ regel: m[1], dir: path.dirname(fil) })),
+);
+if (fontRegler.length < 1) {
+  fel.push(`${path.relative(rot, tokenfil)} har ingen @font-face och importerar inte ramverkets tokens.css. Märket (font-marke) hade ritats i reservtypsnittet. Väntat minst 1 regel, hittade ${fontRegler.length}.`);
+}
+for (const { regel, dir: tokenDir } of fontRegler) {
   const familj = regel.match(/font-family:\s*['"]?([^'";]+)['"]?/)?.[1]?.trim() ?? "(okänd familj)";
   const url = regel.match(/url\(\s*["']?([^"')]+)["']?\s*\)/)?.[1];
   if (!url) {

@@ -192,7 +192,7 @@ if (brott.length > 0) {
 
 console.log(
   `\ncheck-scaffold: appen skapades, installerades, klarade sin egen grind, fick ${Math.round(css.length / 1024)} kB CSS ` +
-    `med ramverkets utilities i sig, skrev ut alla ${MARKEN.length} marken och klarade ${vyport.matningar} layoutmatningar ` +
+    `med ramverkets utilities i sig och klarade ${vyport.matningar} layoutmatningar ` +
     `plus ${vyport.temamatningar} temamatningar med ${vyport.reglage} reglage fotograferade ` +
     `i en riktig webblasare (${vyport.varifran})`,
 );
