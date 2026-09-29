@@ -9,6 +9,47 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.31.1
+
+⛔ **Inloggningen tar appens bildlogga, mobilhuvudet har ingen text och gruppväxlaren tar loggans plats. Inte breaking: allt är nya valfria props.**
+CP 2026-09-29 18:40: "INloggningen den nya loggan. Header i mobil skall vi ta bort texten helt. VI behöver en bra Grupp-väljare-ikon i mobil
+istället för logga. I Web skall vi ha texten som jag angav 0.31.0."
+
+### A. Inloggningen tar en bildlogga från appen
+`OpsAuthGate` och `OpsInloggning` tar `ordmarke={{ ljus, mork }}` (två URL:er) och `ordmarkeHojd` (Tailwind-höjdklass, förval `h-56`).
+Med `ordmarke` ritas bilden i stället för textmärket, `ljus` i ljust tema och `mork` i mörkt via temat (`data-theme` och systemet, samma
+tre tillstånd som tokens: klasserna `.ops-ordmarke-*` i `tokens.css`), alt-text är appens namn (`etikett`) i BÅDA temana. Utan `ordmarke`
+ritas textmärket från 0.31.0 som förut. **Headern (webb) påverkas inte, textmärket står kvar där.** Höjd och inte bredd, eftersom appens
+mästerbilder är fyrkantiga (3750 px) med mycket luft: bilden beskärs med `-my-10`. Den ljusa bilden ritas med `mix-blend-multiply`
+så att dess vita botten blir sidans papper. ⛔ `ordmarkeHojd` kom tillbaka på `OpsInloggning`, inte på `OpsBrand` (där den togs bort i 0.31.0).
+⛔ Klassen måste finnas i appens Tailwind-skanning för att den ska få effekt; förvalet `h-56` finns i ramverket och behöver inget.
+Mätt (check-skalyta, Chromium): 224 px hög, 27 procent av vyn vid 390 px och 28 procent vid 1280 px (gräns 40), centrerad inom 1 px, en bild
+synlig per tema. Vakten hittade en riktig miss under bygget: den mörka bilden hade först `aria-hidden` och `alt=""`, så loggan hade
+inget namn i mörkt tema.
+
+### B. Mobilhuvudet utan text, gruppväxlaren som ikonknapp
+Under `md` ritas märket inte alls när `grupper` finns (ordmärke, monogram och undertext). Längst till vänster står i stället gruppväxlaren
+som en ikonknapp med 44x44 träffyta: den aktiva gruppens märke i samma 40 px ruta som remsan (`gruppRutaKlass`, `OpsIdentity rail`), och
+i läget "Alla mina grupper" samma `PersonIkon` som panelens och remsans rad. Ingen text bredvid. `aria-label` är "Byt grupp, nu: <namn>"
+(`grupper.nuEtikett` byter ordet "nu"). Från `md` är växlaren märke + namn som förut, och webbhuvudet är oförändrat. Utan `grupper` finns
+ingen växlare att ersätta märket med, och monogrammet står kvar under `md`. Startsidan nås ur bottenraden.
+⛔ SS har ingen gruppväxlare i mobilhuvudet (`AppHeader.jsx:173`: en 40 px loggeikon, `AppHeaderMobileToolbar.jsx`: tema, sök, plus,
+avatar). Det här är CP:s beslut och inte SS-paritet, och montaget visar det ärligt.
+Vakt: check-skalyta avsnitt 7 kräver nu inget märke och ingen "OPS HUB"-text i mobilhuvudet, gruppväxlaren först, 44x44 och gruppmärket
+40x40. Rött mot 0.31.0 (märket ritades, växlaren 32x44, inget gruppmärke), grönt med ändringen.
+
+### C. `skapa.arende` tar formulärets id
+`skapa.arende` får vara en funktion `({ formId, mal }) => nod`, så appen sätter `id={formId}` på sitt `<form>` och kan använda panelens
+gemensamma Spara (`skapa.sparaEtikett`). Funktionen ritas som en egen komponent, så hooks fungerar i den. En färdig nod fungerar som förut.
+⛔ **Ändrat beteende, en död knapp borta:** för en färdig nod (`arende` eller `handelse` som nod) kan formuläret inte få `formId`, och
+panelens Spara pekade då på ett id ingen känner. Den ritas nu inte för noder. Modulformulär och `HandelseSkapare` får `formId` som förut.
+
+### Att göra i appen vid ompinning till 0.31.1
+Inloggning: `<OpsAuthGate ordmarke={{ ljus: "/brand/ops-hub-wordmark-light-640.png", mork: "/brand/ops-hub-wordmark-dark-640.png" }} etikett="Bolag Ops">`
+(640-varianterna räcker, 224 px högt). Ärende: byt `skapa.arende={<Formular />}` mot `skapa.arende={({ formId }) => <Formular formId={formId} />}`
+och ta bort formulärets egen Spara till förmån för `sparaEtikett`. Inget annat krävs. ⛔ Appens PNG:er har opak bakgrund: den mörka
+(`#202420`) är 8 nivåer ljusare än mörkt tema (`#181c18`) och syns som en svag ruta. Genomskinliga varianter, eller `#181c18` som botten, tar bort den.
+
 ## 0.31.0
 
 ⛔ **Märket är text, inte bilder. BREAKING: appar måste pinna om.** CP 2026-09-29:

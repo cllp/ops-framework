@@ -289,6 +289,10 @@ temat. ⛔ Lägg ingen egen logotypfil i bolag-ops, och skicka inte appens namn 
 är märkets namn, inte appens. Vill appen ha en rad 2 i läget Alla mina grupper:
 `brand={<OpsBrand undertext="Bolag Ops" />}`.
 
+Från 0.31.1: under `md` ritas märket inte alls när `grupper` finns. Gruppväxlaren (gruppmärket, 44x44) står längst till vänster i
+mobilhuvudet, och inloggningen tar appens bildlogga med `<OpsAuthGate ordmarke={{ ljus, mork }} />` (se CHANGELOG 0.31.1). Headern på
+webb behåller textmärket.
+
 ### Vad som INTE får göras för att behålla utseendet
 
 - Egen CSS-fil med `.bolag-*`-klasser
