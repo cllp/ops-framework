@@ -131,7 +131,10 @@ describe("OpsPanelRow", () => {
   it("⛔ en aktiv rad byter färg, inte vikt (#164)", () => {
     const { container } = render(<OpsPanelRow label="Rad" active />);
     const knapp = container.querySelector("button, a");
-    expect(knapp.className).toContain("bg-accent-subtle");
+    // ⛔ 0.30.0 (#173): SS aktiva rad är `bg-card text-accent` (MobileHamburgerMenu.jsx:346),
+    // alltså `bg-raised text-accent`, inte `bg-accent-subtle`.
+    expect(knapp.className).toContain("bg-raised");
+    expect(knapp.className).toContain("text-accent");
     expect(knapp.className).not.toContain("font-semibold");
   });
 });
@@ -328,7 +331,7 @@ describe("OpsPanel på smal skärm", () => {
       const { container } = render(<Prov />);
       fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
       const sheet = screen.getByRole("dialog", { name: "Meny" });
-      for (const klass of ["fixed", "inset-x-0", "bottom-0", "max-h-[85dvh]", "rounded-t-xl", "bg-raised", "pb-(--safe-bottom)"]) {
+      for (const klass of ["fixed", "inset-x-0", "bottom-0", "max-h-[85dvh]", "rounded-t-card", "bg-surface", "pb-(--safe-bottom)"]) {
         expect(sheet.className, `sheeten saknar "${klass}"`).toContain(klass);
       }
       expect(container).toBeTruthy();

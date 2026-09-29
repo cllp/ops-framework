@@ -12,6 +12,7 @@
 // ── Skal ───────────────────────────────────────────────────────────────────
 export { OpsAppShell } from "./components/OpsAppShell.jsx";
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
+export { OpsHub } from "./components/OpsHub.jsx";
 export { OpsBrand } from "./components/OpsBrand.jsx";
 
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────

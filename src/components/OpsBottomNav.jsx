@@ -4,7 +4,8 @@ import { cx } from "../lib/cx.js";
 import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
-import { kordarePafunktion, MenyFooter, MenySektioner, MenyTillbakaKnapp, validateMenySektioner } from "./OpsMeny.jsx";
+import { radBehallare, radKlass } from "../lib/radKlass.js";
+import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, menySektioner, MenyTillbakaKnapp, validateMeny } from "./OpsMeny.jsx";
 
 /**
  * Bottennavigering för smal skärm (under `md`). Renderas av `OpsAppShell` men
@@ -83,12 +84,7 @@ export function OpsBottomNav({
   meny,
 }) {
   validateNav(nav, "OpsBottomNav");
-  if (meny) {
-    if (typeof meny.onLoggaUt !== "function") {
-      throw new Error("OpsBottomNav: meny.onLoggaUt krävs (en funktion) när \"meny\" skickas in. Utan den kan ingen logga ut från sheeten.");
-    }
-    validateMenySektioner(meny.sektioner ?? [], "OpsBottomNav: meny.sektioner");
-  }
+  if (meny) validateMeny(meny, "OpsBottomNav");
   const [oppen, setOppen] = useState(false);
   // ⛔ #166: SAMMA UNDERVY-VÄXLING SOM `OpsAppShell`s header-popover, se dess
   // filhuvud. Sheeten är den SMALA skärmens yta för samma meny, och den ska
@@ -131,6 +127,27 @@ export function OpsBottomNav({
     if (onNavigate) onNavigate(href, e);
   };
 
+  // ⛔ SAMMA ORDNING SOM HEADER-HAMBURGAREN (`OpsAppShell`), och SAMMA
+  // avgränsarlogik (0.30.0, se `MenyAvdelningar`): ramverkets sektioner,
+  // appens egna länkar, navigeringens överflödsrader, `menuExtras`, Logga ut,
+  // sist versionerna. Bara med `meny`; utan den är sheeten det gamla
+  // överflödet och `menuExtras`.
+  /** @type {import("./OpsMeny.jsx").MenyAvdelning[]} */
+  const avdelningar = [];
+  if (meny) avdelningar.push(...menySektioner({ sektioner: meny.sektioner ?? [], kor, visaUndervy: setAktivUndervy }));
+  if (meny) {
+    const app = menyAppAvdelning({ meny, activeHref, onNavigate, stang: () => stangArket(false), badgeText });
+    if (app) avdelningar.push(app);
+  }
+  if (inMenu.length > 0) {
+    avdelningar.push({
+      key: "nav",
+      innehall: inMenu.map((entry) => <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />),
+    });
+  }
+  if (menuExtras) avdelningar.push({ key: "extras", innehall: <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div> });
+  if (meny) avdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, appVersion: meny.appVersion, kor }));
+
   return (
     // `pb-(--safe-bottom)`: utan säker yta hamnar knapparna under hemindikatorn
     // på en iPhone, och det syns bara på riktig hårdvara.
@@ -164,8 +181,10 @@ export function OpsBottomNav({
         <Dialog.Root open={oppen} onOpenChange={stangArket}>
           <Dialog.Trigger asChild>
             <button type="button" className={platsKlass(false)}>
-              <MenuIcon size={22} />
-              <span className="mt-0.5 max-w-full truncate text-xs font-medium">{menuLabel}</span>
+              <span className="inline-flex [&_svg]:size-5">
+                <MenuIcon size={20} />
+              </span>
+              <span className="max-w-full truncate text-liten">{menuLabel}</span>
             </button>
           </Dialog.Trigger>
           <Dialog.Portal>
@@ -173,7 +192,7 @@ export function OpsBottomNav({
             {/* `max-h` i `dvh` och inte `vh`: Safaris verktygsrad ändrar höjd, och
                 100vh räknar med den största så innehållet hamnar under kanten. */}
             <Dialog.Content
-              className="fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col rounded-t-xl border-t border-line bg-raised pb-(--safe-bottom) md:hidden"
+              className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom) md:hidden", radBehallare({ ark: true }))}
               aria-describedby={undefined}
             >
               <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
@@ -198,7 +217,7 @@ export function OpsBottomNav({
                   {aktivUndervy?.undervyAction ?? null}
                   <Dialog.Close
                     aria-label={closeLabel}
-                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
                     <KryssIkon size={20} />
                   </Dialog.Close>
@@ -210,31 +229,7 @@ export function OpsBottomNav({
                 {aktivUndervy ? (
                   <div>{aktivUndervy.undervy}</div>
                 ) : (
-                  <>
-                    {/* ⛔ SAMMA ORDNING SOM HEADER-HAMBURGAREN (`OpsAppShell`):
-                        appens sektioner, sedan navigeringens överflödsrader i en
-                        egen sektion, sedan `menuExtras`, sedan Logga ut, sist
-                        versionerna. Bara med `meny`; utan den är sheeten oförändrad. */}
-                    {meny ? <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} visaUndervy={setAktivUndervy} /> : null}
-                    <div className={cx(meny && (meny.sektioner ?? []).length ? "mt-1 border-t border-line pt-1" : null)}>
-                      {inMenu.map((entry) => (
-                        <SheetPost key={entry.href} entry={entry} activeHref={activeHref} onNavigate={klick} badgeText={badgeText} />
-                      ))}
-                      {menuExtras ? (
-                        <>
-                          {inMenu.length ? (
-                            <div role="separator" className="my-2 border-t border-line" />
-                          ) : null}
-                          <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
-                        </>
-                      ) : null}
-                    </div>
-                    {meny ? (
-                      <div className="-mx-2 -mb-2">
-                        <MenyFooter onLoggaUt={meny.onLoggaUt} loggaUtEtikett={meny.loggaUtEtikett} appVersion={meny.appVersion} kor={kor} />
-                      </div>
-                    ) : null}
-                  </>
+                  <MenyAvdelningar avdelningar={avdelningar} />
                 )}
               </div>
             </Dialog.Content>
@@ -278,13 +273,22 @@ function Huvudatgard({ atgard }) {
   );
 }
 
-/** @param {boolean} active @returns {string} */
+/**
+ * En plats i bottenraden. Mätt ur SessionStudios `MobileTabBar.jsx:73-87`:
+ * ikon 20 px (`w-5 h-5`), etikett 10 px med `leading-tight` (rollen `liten`),
+ * aktiv accent, inaktiv dämpad (`text-muted`), `gap-0.5`, raden `h-14`.
+ *
+ * ⛔ 0.30.0 (#173): FÖRE VAR IKONEN 22 PX, ETIKETTEN 12 PX OCH INAKTIV FÄRG
+ * `ink-secondary`. Tre tal som alla var lite för stora och en färg som var lite
+ * för mörk, och tillsammans gjorde de att raden lät högre än förebilden.
+ * @param {boolean} active @returns {string}
+ */
 function platsKlass(active) {
   return cx(
-    "relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0 px-1 py-1.5",
+    "relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5",
     "text-center transition-colors duration-(--duration-fast) ease-standard",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-    active ? "text-accent" : "text-ink-secondary hover:text-ink",
+    active ? "text-accent" : "text-ink-muted hover:text-ink-secondary",
   );
 }
 
@@ -299,11 +303,11 @@ function BottomLank({ entry, active, onClick, badgeText }) {
       aria-current={active ? "page" : undefined}
       className={platsKlass(active)}
     >
-      <span className="relative inline-flex">
-        {entry.icon ?? <span className="inline-block h-[22px] w-[22px] rounded-full border-2 border-current" aria-hidden="true" />}
+      <span className="relative inline-flex [&_svg]:size-5">
+        {entry.icon ?? <span className="inline-block size-5 rounded-full border-2 border-current" aria-hidden="true" />}
         {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </span>
-      <span className="mt-0.5 max-w-full truncate text-xs font-medium">{entry.label}</span>
+      <span className="max-w-full truncate text-liten">{entry.label}</span>
     </a>
   );
 }
@@ -314,28 +318,28 @@ function BottomLank({ entry, active, onClick, badgeText }) {
 function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
   const hasChildren = Array.isArray(entry.children) && entry.children.length > 0;
   return (
-    <div className="mb-1">
+    <div className="flex flex-col gap-0.5">
       <a
         href={entry.href}
         onClick={(e) => onNavigate(entry.href, e)}
         aria-current={entry.href === activeHref ? "page" : undefined}
-        className={sheetLankKlass(entry.href === activeHref, hasChildren)}
+        className={cx(radKlass({ active: entry.href === activeHref }), "justify-between", hasChildren && "font-semibold")}
       >
-        <span className="flex min-w-0 items-center gap-3">
-          {entry.icon ? <span className="shrink-0">{entry.icon}</span> : null}
+        <span className="flex min-w-0 items-center gap-2.5">
+          {entry.icon ? <span className="shrink-0 [&_svg]:size-4">{entry.icon}</span> : null}
           <span className="truncate">{entry.label}</span>
         </span>
         {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </a>
       {hasChildren ? (
-        <div className="mt-0.5 flex flex-col gap-0.5 pl-4">
+        <div className="flex flex-col gap-0.5 pl-4">
           {(entry.children ?? []).map((childEntries) => (
             <a
               key={childEntries.href}
               href={childEntries.href}
               onClick={(e) => onNavigate(childEntries.href, e)}
               aria-current={childEntries.href === activeHref ? "page" : undefined}
-              className={sheetLankKlass(childEntries.href === activeHref, false)}
+              className={radKlass({ active: childEntries.href === activeHref })}
             >
               <span className="truncate">{childEntries.label}</span>
             </a>
@@ -345,15 +349,3 @@ function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
     </div>
   );
 }
-
-/** @param {boolean} active @param {boolean} title @returns {string} */
-function sheetLankKlass(active, title) {
-  return cx(
-    "flex min-h-11 items-center justify-between gap-3 rounded-md px-3 py-2",
-    "transition-colors duration-(--duration-fast) ease-standard",
-    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-    title ? "font-semibold" : "text-base",
-    active ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-  );
-}
-
