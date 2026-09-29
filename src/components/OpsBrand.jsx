@@ -202,7 +202,11 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, undertext: medUnder
         <span
           className={cx(
             "relative flex shrink-0 items-center overflow-hidden",
-            panelInfalld ? "w-(--logo-bredd-infalld) justify-center" : "w-(--logo-bredd) justify-start",
+            // ⛔ 0.30.1: UNDER `md` ÄR RUTAN ALLTID IKONENS. SS `AppHeader.jsx:173`:
+            // `usePhoneLayout || sidebarCollapsed ? "w-10 justify-center" : "md:w-[180px]"`.
+            // Före 0.30.1 var ordmärket 180 px brett även på en telefon (panelen
+            // är då utfälld i state men inte ritad), och tog hälften av 390 px.
+            panelInfalld ? "w-(--logo-bredd-infalld) justify-center" : "w-(--logo-bredd-infalld) justify-center md:w-(--logo-bredd) md:justify-start",
           )}
         >
           <img
@@ -211,7 +215,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, undertext: medUnder
             aria-hidden={!panelInfalld}
             className={cx(
               "absolute inset-0 m-auto size-8 object-contain object-center transition-opacity duration-200 ease-out",
-              panelInfalld ? "opacity-100" : "pointer-events-none opacity-0",
+              panelInfalld ? "opacity-100" : "pointer-events-none opacity-0 max-md:pointer-events-auto max-md:opacity-100",
             )}
           />
           <img
@@ -220,7 +224,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, undertext: medUnder
             aria-hidden={panelInfalld}
             className={cx(
               "h-10 w-full object-contain object-left transition-opacity duration-200 ease-out",
-              panelInfalld ? "pointer-events-none opacity-0" : "opacity-100",
+              panelInfalld ? "pointer-events-none opacity-0" : "opacity-100 max-md:pointer-events-none max-md:opacity-0",
             )}
           />
         </span>

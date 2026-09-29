@@ -644,9 +644,14 @@ export function OpsGruppvaxlare({
         // ⛔ EN RIKTIG <button>, INTE EN <span>. `OpsPanel`s `trigger` monteras
         // med Radix `asChild`, som SÄTTER a11y-attributen på elementet man ger
         // den men inte GÖR om det till en knapp.
-        <button type="button" aria-label={etikett} className="flex min-h-11 max-w-40 items-center gap-2 rounded-md px-2 text-sm font-semibold text-ink hover:bg-sunken">
+        // ⛔ 0.30.1: UNDER `md` VISAS BARA MÄRKET, INTE NAMNET. CP 2026-09-29 13:44, med bild från
+        // telefonen: "Claes Philip St..." i klartext låg ovanpå inkorg, sök och avatar i 390 px.
+        // Namnet står kvar i knappens `aria-label` (etiketten) och i arket som öppnas, och
+        // synligt från `md`, där det finns plats. SS har ingen gruppväxlare med namn i mobilhuvudet
+        // (`AppHeaderMobileToolbar.jsx`: tema, sök, plus, avatar).
+        <button type="button" aria-label={etikett} className="flex min-h-11 items-center gap-0 rounded-md px-1 text-sm font-semibold text-ink hover:bg-sunken md:max-w-40 md:gap-2 md:px-2">
           {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} size="sm" />}
-          <span className="min-w-0 truncate">{aktivtNamn}</span>
+          <span className="hidden min-w-0 truncate md:inline">{aktivtNamn}</span>
         </button>
       }
     >

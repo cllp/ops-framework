@@ -1,4 +1,4 @@
-import { cloneElement, Component, isValidElement, useState } from "react";
+import { Children, cloneElement, Component, Fragment, isValidElement, useId, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
@@ -12,6 +12,7 @@ import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
+import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSkapa } from "./OpsSkapa.jsx";
@@ -20,6 +21,116 @@ import { OpsSelect } from "./OpsSelect.jsx";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
+
+/**
+ * En rad i en rullgardin: en modul (Hubs barn) med egna undersidor som fälls ut och in (0.30.1).
+ *
+ * ⛔ SAMMA REGEL SOM `OpsHub`s KORT (CP 2026-09-29 13:44: "ekonomi skall vara expanderbar"). Före 0.30.1 stod
+ * Ekonomis sex undersidor uppradade under namnet varje gång rullgardinen öppnades, och Hub-listan blev tretton
+ * rader lång. Namnet är en länk, chevronen en knapp med `aria-expanded`. En rad utan barn har ingen chevron.
+ *
+ * @param {object} props
+ * @param {any} props.b
+ * @param {string} props.activeHref
+ * @param {(href: string, e: any) => void} props.onActivate
+ * @param {() => void} props.stang Stänger rullgardinen innan navigeringen körs.
+ * @param {string} props.submenuLabel
+ */
+function HubModulRad({ b, activeHref, onActivate, stang, submenuLabel }) {
+  const barn = /** @type {any[]} */ (b.children ?? []);
+  const [ut, setUt] = useState(barn.some((c) => c.href === activeHref));
+  const listId = useId();
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center">
+        <a
+          href={b.href}
+          onClick={(e) => {
+            stang();
+            onActivate(b.href, e);
+          }}
+          aria-current={b.href === activeHref ? "page" : undefined}
+          className={cx(radKlass({ active: b.href === activeHref }), "min-w-0 flex-1 w-auto")}
+        >
+          {b.icon ? (
+            <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+              {b.icon}
+            </span>
+          ) : null}
+          <span className="min-w-0 flex-1 truncate">{b.label}</span>
+        </a>
+        {barn.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setUt((v) => !v)}
+            aria-expanded={ut}
+            aria-controls={listId}
+            aria-label={`${submenuLabel} ${b.label}`}
+            className="inline-flex min-h-11 min-w-9 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+          >
+            <span aria-hidden="true" className={cx("inline-flex transition-transform duration-(--duration-fast) ease-standard", ut && "rotate-180")}>
+              <ChevronNedIkon size={14} />
+            </span>
+          </button>
+        ) : null}
+      </div>
+      {barn.length > 0 ? (
+        <div id={listId} hidden={!ut} className="flex flex-col gap-0.5">
+          {barn.map((c) => (
+            <a
+              key={c.href}
+              href={c.href}
+              onClick={(e) => {
+                stang();
+                onActivate(c.href, e);
+              }}
+              aria-current={c.href === activeHref ? "page" : undefined}
+              className={cx(radKlass({ active: c.href === activeHref }), "ml-6 w-auto")}
+            >
+              <span className="min-w-0 flex-1 truncate">{c.label}</span>
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Hur många åtgärder huvudet bär under `md` (0.30.1).
+ *
+ * ══ ⛔ HUVUDET FLÖDAR ALDRIG ÖVER (CP 2026-09-29 13:44, med bild från telefonen) ══
+ *
+ * Märket, temaväljaren, gruppväxlarens namn, inkorg, sök, fråga och avataren låg
+ * ovanpå varandra i 390 px. Ramverket lät appen lägga så många ikoner den ville i
+ * `actions`, och en topprad har en bredd. SessionStudios mobilhuvud
+ * (`AppHeaderMobileToolbar.jsx:34-90`, monterad i `AppHeader.jsx:301`) är ikonen
+ * (`AppHeader.jsx:173`, `w-10`), en flexibel lucka (`AppHeader.jsx:299`) och en
+ * klunga om FYRA saker: temaknapp, sök, plus, avatar. Ingen gruppväxlare med namn,
+ * ingen inkorg (den är en flik i bottenraden), inget fråga.
+ *
+ * Ramverkets motsvarighet: de TRE första åtgärderna stannar, resten flyttar till
+ * menyn (bottenradens Meny) under `md`. Tre plus skalets plus (som bottenraden
+ * tagit över i mobil) plus avataren är fyra: SS:s antal. Siffran bor här och inte
+ * i appen, så en app som lägger en åttonde ikon inte kan ge ett överlappande huvud.
+ */
+const ATGARDER_SMAL = 3;
+
+/**
+ * `actions` som en platt lista, fragment uppvikta. En app skickar ofta
+ * `<>...</>`, och skalet måste se varje ikon för sig för att kunna flytta den.
+ * @param {import("react").ReactNode} nod
+ * @returns {import("react").ReactElement[]}
+ */
+function plattaAtgarder(nod) {
+  /** @type {import("react").ReactElement[]} */
+  const ut = [];
+  for (const c of Children.toArray(nod)) {
+    if (isValidElement(c) && c.type === Fragment) ut.push(...plattaAtgarder(/** @type {any} */ (c.props).children));
+    else if (isValidElement(c)) ut.push(c);
+  }
+  return ut;
+}
 
 /**
  * Felgränsen: alltid på, och en app kan inte stänga av den (#159).
@@ -233,38 +344,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
                 under sin förälder: en nivå djupare än `nav`, och exakt så djupt
                 som Hub behöver. */}
             {childEntries.map((b) => (
-              <div key={b.href} className="flex flex-col gap-0.5">
-                <a
-                  href={b.href}
-                  onClick={(e) => {
-                    setOppen(false);
-                    onActivate(b.href, e);
-                  }}
-                  aria-current={b.href === activeHref ? "page" : undefined}
-                  className={radKlass({ active: b.href === activeHref })}
-                >
-                  {b.icon ? (
-                    <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
-                      {b.icon}
-                    </span>
-                  ) : null}
-                  <span className="min-w-0 flex-1 truncate">{b.label}</span>
-                </a>
-                {(b.children ?? []).map((/** @type {any} */ c) => (
-                  <a
-                    key={c.href}
-                    href={c.href}
-                    onClick={(e) => {
-                      setOppen(false);
-                      onActivate(c.href, e);
-                    }}
-                    aria-current={c.href === activeHref ? "page" : undefined}
-                    className={cx(radKlass({ active: c.href === activeHref }), "ml-6 w-auto")}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{c.label}</span>
-                  </a>
-                ))}
-              </div>
+              <HubModulRad key={b.href} b={b} activeHref={activeHref} onActivate={onActivate} stang={() => setOppen(false)} submenuLabel={submenuLabel} />
             ))}
           </Popover.Content>
         </Popover.Portal>
@@ -617,6 +697,30 @@ export function OpsAppShell({
   // Huvudets plus göms då under `md`: två plus på samma skärm är två ställen
   // att fråga "vad skapar den här", och de skulle glida isär.
   const bottenPlus = harFasta && visaSkapaKnapp;
+
+  // ══ ⛔ ÅTGÄRDER SOM INTE RYMS UNDER `md` FLYTTAR TILL MENYN (0.30.1) ═══════
+  //
+  // Se `ATGARDER_SMAL`. Bara `OpsIconLink` kan flyttas (href, etikett, ikon och
+  // räknare är data ramverket kan rita som en menyrad), och bara när det FINNS en
+  // meny att flytta till: utan `meny` har en flyttad åtgärd inget hem, och en
+  // åtgärd som försvinner tyst är värre än en som ligger kvar (punkt 5).
+  const atgardsLista = plattaAtgarder(actions);
+  const flyttbara = meny ? atgardsLista.slice(ATGARDER_SMAL).filter((a) => a.type === OpsIconLink) : [];
+  /** @type {import("../lib/nav.js").NavPost[]} */
+  const flyttadeRader = flyttbara.map((a) => {
+    const p = /** @type {any} */ (a.props);
+    return { href: p.href, label: p.label, icon: p.icon, ...(typeof p.badge === "number" ? { badge: p.badge } : {}) };
+  });
+  const atgarderIHuvud = atgardsLista.map((a, i) =>
+    i >= ATGARDER_SMAL && flyttbara.includes(a) ? (
+      // ⛔ `contents`, inte `inline-flex`: omslaget får inte bli en egen ruta i klungan.
+      <span key={a.key ?? i} className="hidden md:contents">
+        {a}
+      </span>
+    ) : (
+      a
+    ),
+  );
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
 
   /**
@@ -891,7 +995,7 @@ export function OpsAppShell({
           innehållsstyrd. Talet bor i tokens.css `--topbar-height`
           (`tokens/sessionstudio-profil.json` "topprad"), inte här.
         */}
-        <div className="mx-auto grid h-(--topbar-height) max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-4 md:grid-cols-[1fr_auto_1fr]">
+        <div className="mx-auto flex h-(--topbar-height) max-w-7xl items-center gap-3 px-4">
           {/*
             ⛔ #161: INGEN BREDD HÄR. `OpsBrand` sätter SIN EGEN bredd ur
             `--logo-bredd`/`--logo-bredd-infalld` när `panelInfalld` är
@@ -900,11 +1004,15 @@ export function OpsAppShell({
             synka mot `--panel-bredd`/`--panel-bredd-infalld`, den panelen
             själv redan äger (`OpsGruppanel`). Cellen är bara en flex-rad.
           */}
-          <div className="flex min-w-0 items-center gap-2 justify-self-start">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {/* ⛔ 0.30.1: INGEN `px-1`. Märkesrutan ska stå på panelens vänsterkant
+                (SS `AppHeader.jsx:173`, loggan i en ruta utan egen luft), och 4 px
+                padding på länken flyttade den 4 px in. Fokusringen ritas ändå
+                utanför med `outline-offset-2`. */}
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className="shrink-0 rounded-md px-1 py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="shrink-0 rounded-md py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               {varumarke}
             </a>
@@ -934,7 +1042,11 @@ export function OpsAppShell({
           </div>
 
           {/* Bred skärm: länkarna centrerade. Smal: bottenraden nedan. */}
-          <nav aria-label={navLabel} className="hidden items-center gap-1 justify-self-center md:flex">
+          {/* ⛔ 0.30.1: FLEX OCH INTE GRID, SOM SS (`AppHeader.jsx:194`, `flex-1 justify-center`).
+              Med `1fr auto 1fr` stod flikarna mitt på SIDAN och rörde sig aldrig; i SS ligger de mitt i
+              det som är kvar EFTER loggan, så de följer med när loggan går från 180 till 40 px.
+              Under `md` tar luckan (`flex-1`) den plats flikarna lämnar, så åtgärderna hamnar till höger. */}
+          <nav aria-label={navLabel} className="hidden min-w-0 flex-1 items-center justify-center gap-1 md:flex">
             {inRow.map((s, i) => (
               <RowEntry
                 key={s.href}
@@ -963,8 +1075,8 @@ export function OpsAppShell({
             ⛔ gap-0.5, inte gap-1/gap-2. Klustret är 44 px-ikonknappar;
             CP ville dem tätare än gap-1 på desktop (bolag-ops header polish).
           */}
-          <div className="flex shrink-0 items-center justify-self-end gap-0.5">
-            {actions}
+          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+            {atgarderIHuvud}
             {/* ⛔ #168: PLUSSET LIGGER EFTER actions OCH FÖRE avataren, SOM I
                 SESSIONSTUDIO (`ss-skapa-meny.png`: växlare, expandera, sök,
                 PLUS, avatar, hamburgare). Ett tryck öppnar en popover med
@@ -1117,7 +1229,10 @@ export function OpsAppShell({
         `--panel-bredd*`), samma 4 px-skillnad som i förebilden.
         Panelen är sticky under toppraden och tar viewportens resterande höjd.
       */}
-      <div className={cx(grupper && "lg:flex")}>
+      {/* ⛔ 0.30.1: SAMMA BEHÅLLARE SOM TOPPRADEN (`mx-auto max-w-7xl`) NÄR PANELEN FINNS. SS `App.jsx:1364`:
+          headern och panelen ligger i samma `max-w-[1400px] mx-auto`. Utan den låg panelen vid fönstrets
+          kant och märket i den centrerade toppraden: 157 px isär vid 1600. */}
+      <div className={cx(grupper && "mx-auto max-w-7xl lg:flex")}>
         {grupper ? (
           <div className="hidden shrink-0 lg:sticky lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--topbar-height))] lg:pl-4 lg:pt-5">
             <OpsGruppanel
@@ -1167,7 +1282,7 @@ export function OpsAppShell({
         navLabel={bottomNavLabel}
         badgeText={badgeText}
         menuExtras={menuExtras}
-        meny={meny ? { sprak, ...meny } : meny}
+        meny={meny ? { sprak, ...meny, app: [...flyttadeRader, ...(meny.app ?? [])] } : meny}
       />
 
       {/* ⛔ BOTTENRADENS PLUS ÖPPNAR ETT ARK MED SAMMA LISTA SOM HUVUDETS PLUS

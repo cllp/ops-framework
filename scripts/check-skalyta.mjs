@@ -113,8 +113,8 @@ function krav(ok, text) {
 /**
  * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema]
  */
-async function oppna(scen, viewport, tema = standardtema) {
-  const context = await browser.newContext({ viewport });
+async function oppna(scen, viewport, tema = standardtema, skala = 1) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: skala });
   const page = await context.newPage();
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
@@ -342,6 +342,222 @@ if (!utanFasta) {
     await page.waitForSelector('[role="dialog"]');
     await page.waitForTimeout(250);
     await page.screenshot({ path: path.join(bildmapp, "bottenrad-meny-mobil.png") });
+  }
+  await context.close();
+}
+
+// ══ 7. MOBILHUVUDET FÅR ALDRIG FLÖDA ÖVER (0.30.1) ═══════════════════════════
+// CP 2026-09-29 13:44, med bild från telefonen: märket, temaväljaren, gruppväxlarens namn, inkorg, sök, fråga och
+// avataren låg ovanpå varandra i 390 px. Provet är appens VERKLIGA uppsättning med ett långt gruppnamn.
+{
+  const { page, context } = await oppna("full", { width: 390, height: 844 }, standardtema, 2);
+  const m = await page.evaluate(() => {
+    const dok = document.documentElement;
+    const poster = [...document.querySelectorAll("header a, header button")]
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        const namn = (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 30);
+        return { namn, x: r.x, y: r.y, w: r.width, h: r.height, r: r.right, b: r.bottom };
+      })
+      .filter((p) => p.w > 0 && p.h > 0);
+    const gruppText = [...document.querySelectorAll("header button")].find((b) => b.getAttribute("aria-label") === "Byt grupp");
+    const namnSpan = gruppText ? [...gruppText.querySelectorAll("span")].find((sp) => (sp.textContent || "").includes("Staiger")) : null;
+    return {
+      poster,
+      scroll: dok.scrollWidth,
+      klient: dok.clientWidth,
+      gruppNamnSynligt: namnSpan ? namnSpan.getBoundingClientRect().width > 0 : null,
+      fraga: [...document.querySelectorAll("header a")].some((a) => a.getAttribute("aria-label") === "Fråga" && a.getBoundingClientRect().width > 0),
+    };
+  });
+  krav(m.poster.length >= 6, `mobilhuvudet: bara ${m.poster.length} kontroller lästa i huvudet, väntat minst 6 (märke, gruppväxlare, tema, inkorg, sök, avatar). Fel scenario.`);
+  matt.push(`mobilhuvudet 390 px: ${m.poster.map((p) => `${p.namn}@${p.x.toFixed(0)}+${p.w.toFixed(0)}`).join(" ")}`);
+  /** @type {string[]} */
+  const over = [];
+  for (let i = 0; i < m.poster.length; i += 1) {
+    for (let j = i + 1; j < m.poster.length; j += 1) {
+      const a = m.poster[i];
+      const b = m.poster[j];
+      const dx = Math.min(a.r, b.r) - Math.max(a.x, b.x);
+      const dy = Math.min(a.b, b.b) - Math.max(a.y, b.y);
+      if (dx > 0.5 && dy > 0.5) over.push(`"${a.namn}" och "${b.namn}" överlappar ${dx.toFixed(0)} px`);
+    }
+  }
+  krav(over.length === 0, `mobilhuvudet 390 px: barn i huvudet ligger ovanpå varandra: ${over.join("; ")}.`);
+  krav(m.scroll <= m.klient, `mobilhuvudet 390 px: horisontell överflödning, scrollWidth ${m.scroll} > clientWidth ${m.klient}.`);
+  const ut = m.poster.filter((p) => p.r > 390.5 || p.x < -0.5);
+  krav(ut.length === 0, `mobilhuvudet 390 px: ${ut.map((p) => p.namn).join(", ")} ligger utanför skärmen.`);
+  krav(m.gruppNamnSynligt === false, "mobilhuvudet 390 px: gruppväxlaren visar gruppnamnet i klartext. Under md visas bara märket (SS har ingen namnrad i mobilhuvudet).");
+  krav(m.fraga === false, "mobilhuvudet 390 px: Fråga ligger kvar i huvudet. Väntat: åtgärder utöver de tre som ryms flyttar till menyn under md.");
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "mobilhuvud-390.png"), clip: { x: 0, y: 0, width: 390, height: 140 } });
+  await context.close();
+}
+
+// ══ 8. GRUPPPANELEN OCH LOGGAN PÅ DATOR, EXAKT SOM SS (0.30.1) ═══════════════
+// SS `AppSidebar.jsx:51-59` (knappen överst i panelen) och `AppHeader.jsx:174-193` (loggan i en ruta lika bred som
+// panelens innehåll, märkets vänsterkant på panelens). Panelen är 184/44 px BREDD men bär `px-0.5`, så dess innehåll är
+// 180/40 px: exakt loggrutan (`--logo-bredd`/`--logo-bredd-infalld`).
+for (const bredd of [1280, 1600]) {
+  const { page, context } = await oppna("full", { width: bredd, height: 900 });
+  /** @param {"utfalld"|"infalld"} lage */
+  const mata = async (lage) =>
+    page.evaluate(() => {
+      const q = (/** @type {string} */ sel) => document.querySelector(sel);
+      const box = q('header a[href="/"] > span');
+      const panel = q('nav[aria-label="Alla mina grupper"]');
+      const flik = q('header nav[aria-label="Huvudnavigering"] a');
+      if (!box || !panel) return null;
+      const b = box.getBoundingClientRect();
+      const p = panel.getBoundingClientRect();
+      const cs = getComputedStyle(panel);
+      const forst = /** @type {HTMLElement | null} */ (panel.firstElementChild);
+      const fr = forst ? forst.getBoundingClientRect() : null;
+      return {
+        logoX: b.x,
+        logoW: b.width,
+        logoR: b.right,
+        panelX: p.x,
+        panelY: p.y,
+        panelInnerW: p.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        forstTagg: forst ? forst.tagName : null,
+        forstLabel: forst ? forst.getAttribute("aria-label") : null,
+        forstW: fr ? fr.width : 0,
+        forstTop: fr ? fr.y : 0,
+        flikX: flik ? flik.getBoundingClientRect().x : null,
+      };
+    });
+  const ut = await mata("utfalld");
+  krav(ut !== null, `panelen ${bredd} px: märkesrutan eller panelen hittades inte. Fel scenario.`);
+  if (ut) {
+    await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+    await page.waitForTimeout(350);
+    const in_ = await mata("infalld");
+    krav(in_ !== null, `panelen ${bredd} px: märkesrutan eller panelen hittades inte efter infällning.`);
+    if (in_) {
+      for (const [lage, v] of /** @type {const} */ ([["utfälld", ut], ["infälld", in_]])) {
+        matt.push(`panelen ${bredd} px ${lage}: logo x ${v.logoX.toFixed(1)} bredd ${v.logoW.toFixed(1)}, panel x ${v.panelX.toFixed(1)} innerbredd ${v.panelInnerW.toFixed(1)}, första barn ${v.forstTagg} ${v.forstW.toFixed(0)} px`);
+        krav(Math.abs(v.logoX - v.panelX) <= 1, `panelen ${bredd} px ${lage}: märkesrutans vänsterkant ${v.logoX.toFixed(1)} mot panelens ${v.panelX.toFixed(1)}. Väntat högst 1 px skillnad (SS \`AppHeader.jsx:174\`).`);
+        krav(Math.abs(v.logoW - v.panelInnerW) <= 1, `panelen ${bredd} px ${lage}: märkesrutan är ${v.logoW.toFixed(1)} px bred mot panelens innehåll ${v.panelInnerW.toFixed(1)}. Väntat högst 1 px.`);
+        krav(v.forstTagg === "BUTTON", `panelen ${bredd} px ${lage}: panelens första barn är ${v.forstTagg}, väntat knappen för in- och utfällning (SS \`AppSidebar.jsx:51\`).`);
+        krav(Math.abs(v.forstW - v.panelInnerW) <= 1, `panelen ${bredd} px ${lage}: knappen överst är ${v.forstW.toFixed(1)} px bred, väntat full bredd (${v.panelInnerW.toFixed(1)}).`);
+        krav(Math.abs(v.forstTop - v.panelY) <= 1, `panelen ${bredd} px ${lage}: knappen överst börjar ${(v.forstTop - v.panelY).toFixed(1)} px under panelens överkant, väntat 0.`);
+        krav(v.flikX !== null && v.flikX >= v.logoR - 0.5, `panelen ${bredd} px ${lage}: toppradens första flik (x ${v.flikX}) börjar före märkesrutans högerkant (${v.logoR.toFixed(1)}).`);
+      }
+      krav(ut.flikX !== null && in_.flikX !== null && ut.flikX - in_.flikX >= 20, `panelen ${bredd} px: toppradens flikar flyttade sig ${ut.flikX !== null && in_.flikX !== null ? (ut.flikX - in_.flikX).toFixed(0) : "?"} px när panelen fälldes in, väntat minst 20 (de börjar efter märkesrutan, SS \`AppHeader.jsx:194\`).`);
+    }
+  }
+  await context.close();
+}
+
+// Bilderna till montaget (regel 12): 1024 px bredd i skala 2, alltså samma skala och beskärning som SS-bildrutorna (1600 px = 800 CSS-px).
+if (bildmapp) {
+  const { page, context } = await oppna("full", { width: 1024, height: 460 }, standardtema, 2);
+  for (const lage of ["utfalld", "infalld"]) {
+    if (lage === "infalld") {
+      await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+      await page.waitForTimeout(350);
+    }
+    await page.screenshot({ path: path.join(bildmapp, `panel-${lage}-skala2.png`), clip: { x: 0, y: 0, width: 800, height: 450 } });
+  }
+  await context.close();
+}
+
+// ══ 9. HUB: VARJE MODUL ÄR ETT KORT, EN MODUL MED BARN HAR EN EGEN SIDA (0.30.1) ═
+// CP 2026-09-29 13:44: "ekonomi skall vara expanderbar", ändrat samma dag till modulkort med räknare och infolinje, en
+// modulsida med tillbaka-rad och barnen som mindre kort. Rullgardinen i toppraden har en chevron som fäller ut barnen.
+for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 900 }], ["390 px", { width: 390, height: 844 }]])) {
+  const { page, context } = await oppna("hub", vp);
+  const kort = page.locator("main ul[aria-label] > li > a");
+  const antal = await kort.count();
+  krav(antal === 4, `Hub ${namn}: ${antal} modulkort ritades, väntat 4 (fyra moduler, varje kort en länk).`);
+  if (antal === 4) {
+    const k = await page.evaluate(() =>
+      [...document.querySelectorAll("main ul[aria-label] > li > a")].map((a) => {
+        const r = a.getBoundingClientRect();
+        const rader = [...a.querySelectorAll("span")].map((sp) => (sp.textContent || "").trim());
+        return { text: (a.textContent || "").trim(), x: r.x, y: Math.round(r.y), w: r.width, h: Math.round(r.height), flodar: a.scrollWidth > a.clientWidth + 1, rader };
+      }),
+    );
+    matt.push(`Hub ${namn}: ${k.map((c) => `${c.text.slice(0, 22)} ${c.w.toFixed(0)}x${c.h}`).join(" | ")}`);
+    const ekonomi = k.find((c) => c.text.startsWith("Ekonomi"));
+    const schema = k.find((c) => c.text.startsWith("Schema"));
+    const cutover = k.find((c) => c.text.startsWith("Cutover"));
+    krav(!!ekonomi && ekonomi.text.includes("2") && ekonomi.text.includes("Skatten förfaller 12 oktober"), `Hub ${namn}: Ekonomi-kortet saknar räknaren 2 eller infolinjen ("${ekonomi?.text}").`);
+    krav(!!schema && schema.text.includes("Inget nytt") && !/\b0\b/.test(schema.text), `Hub ${namn}: Schema med info null ska säga "Inget nytt" och ingen räknare ("${schema?.text}"), badge 0 ritas aldrig.`);
+    krav(!!cutover && cutover.text === "Cutover", `Hub ${namn}: Cutover utan info och räknare ska bara bära namnet ("${cutover?.text}"): utelämnad info ritar ingenting.`);
+    // Alla kort i en rad är lika höga.
+    /** @type {Record<number, number[]>} */
+    const rader = {};
+    for (const c of k) (rader[c.y] ??= []).push(c.h);
+    const olika = Object.entries(rader).filter(([, hs]) => Math.max(...hs) - Math.min(...hs) > 1);
+    krav(olika.length === 0, `Hub ${namn}: kort i samma rad har olika höjd (${olika.map(([y, hs]) => `y=${y}: ${hs.join(", ")}`).join("; ")}).`);
+    krav(k.every((c) => !c.flodar), `Hub ${namn}: text flödar ut ur ett kort (${k.filter((c) => c.flodar).map((c) => c.text.slice(0, 12)).join(", ")}).`);
+    krav(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `Hub ${namn}: sidan flödar i sidled.`);
+    // Ett klick öppnar modulen: kortet är en riktig länk och appen får ett `onNavigate`.
+    await kort.filter({ hasText: "Ekonomi" }).click();
+    const gick = await page.evaluate(() => window.__gick);
+    krav(gick.length === 1 && gick[0] === "/ekonomi", `Hub ${namn}: klick på Ekonomi-kortet navigerade till ${JSON.stringify(gick)}, väntat ["/ekonomi"].`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `hub-${vp.width}.png`), fullPage: true });
+  }
+  if (vp.width > 800) {
+    // Hub-rullgardinen i toppraden: Ekonomi är en rad med chevron, barnen infällda tills den trycks.
+    await page.getByRole("button", { name: "Visa sidorna under Hub" }).click();
+    const dd = page.locator('[role="dialog"]');
+    await dd.waitFor();
+    const rad = dd.getByRole("button", { name: /Ekonomi/ });
+    const harRad = (await rad.count()) === 1;
+    krav(harRad, "Hub-rullgardinen: Ekonomi har ingen chevronknapp.");
+    const lankar = () => dd.evaluate((el) => [...el.querySelectorAll("a")].filter((a) => a.getBoundingClientRect().height > 0).map((a) => a.textContent));
+    const l0 = await lankar();
+    krav(!l0.includes("Inkomster"), `Hub-rullgardinen: Ekonomis barn syns från början (${l0.join(", ")}), väntat infällt.`);
+    krav(harRad && (await rad.getAttribute("aria-expanded")) === "false", 'Hub-rullgardinen: chevronen bär inte aria-expanded="false" från början.');
+    if (harRad) {
+      await rad.click();
+      const l1 = await lankar();
+      krav(l1.includes("Inkomster") && l1.includes("Bokslut"), `Hub-rullgardinen: barnen syns inte efter klick på chevronen (${l1.join(", ")}).`);
+      krav((await rad.getAttribute("aria-expanded")) === "true", 'Hub-rullgardinen: chevronen bär inte aria-expanded="true" efter klick.');
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "hub-dropdown-utfalld.png"), clip: { x: 300, y: 0, width: 700, height: 520 } });
+    }
+  }
+  await context.close();
+}
+
+// ══ 9b. MODULSIDAN: TILLBAKA-RAD OCH BARNEN SOM KORT (0.30.1) ════════════════
+for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 900 }], ["390 px", { width: 390, height: 844 }]])) {
+  const { page, context } = await oppna("hubmodul", vp);
+  const rad = page.locator('nav[aria-label="Var du är"]');
+  krav((await rad.count()) === 1, `Modulsidan ${namn}: tillbaka-raden hittades inte.`);
+  if ((await rad.count()) === 1) {
+    const barn = await page.locator("main ul[aria-label] > li > a").evaluateAll((els) => els.map((a) => (a.textContent || "").trim()));
+    matt.push(`Modulsidan ${namn}: ${barn.length} barnkort (${barn.join(" | ")})`);
+    krav(barn.length === 6, `Modulsidan ${namn}: ${barn.length} barnkort, väntat 6.`);
+    krav(barn[0]?.includes("1") && barn[0]?.includes("Ny faktura i går") && barn[1]?.includes("Inget nytt"), `Modulsidan ${namn}: barnkorten bär inte räknare och info ("${barn[0]}", "${barn[1]}").`);
+    const tillbaka = rad.getByRole("link", { name: "Hub" });
+    krav((await tillbaka.getAttribute("href")) === "/hub", `Modulsidan ${namn}: tillbaka-raden leder inte till /hub.`);
+    krav((await rad.locator('[aria-current="page"]').textContent()) === "Ekonomi", `Modulsidan ${namn}: modulens namn saknas i tillbaka-raden.`);
+    // ⛔ Sidan görs kort (240 px hög) så att den rullar: raden ligger fast så länge modulens lista syns, och en
+    // sida som ryms utan rullning kan inte visa om raden är fast eller bara ligger överst.
+    await page.setViewportSize({ width: vp.width, height: 240 });
+    const fast = await page.evaluate(() => {
+      let rullar = false;
+      const n = document.querySelector('nav[aria-label="Var du är"]');
+      window.scrollTo(0, 40);
+      rullar = document.documentElement.scrollHeight > window.innerHeight;
+      const r = n.getBoundingClientRect();
+      return { rullar, position: getComputedStyle(n).position, top: r.top, topbar: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--topbar-height")) || 56, hojd: r.height };
+    });
+    krav(fast.rullar, `Modulsidan ${namn}: sidan rullar inte i det låga fönstret, så "fast" går inte att mäta.`);
+    krav(fast.position === "sticky" && Math.abs(fast.top - fast.topbar) <= 1, `Modulsidan ${namn}: tillbaka-raden ligger inte fast under toppraden efter rullning (position ${fast.position}, top ${fast.top}, väntat ${fast.topbar}).`);
+    krav(fast.hojd >= 44, `Modulsidan ${namn}: tillbaka-raden är ${fast.hojd} px hög, väntat minst 44 (tumme).`);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await tillbaka.click();
+    const gick = await page.evaluate(() => window.__gick);
+    krav(gick.length === 1 && gick[0] === "/hub", `Modulsidan ${namn}: tillbaka gick till ${JSON.stringify(gick)}, väntat ["/hub"].`);
+    if (bildmapp) {
+      await page.setViewportSize(vp);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: path.join(bildmapp, `hubmodul-${vp.width}.png`), clip: { x: 0, y: 0, width: vp.width, height: vp.width > 800 ? 560 : 844 } });
+    }
   }
   await context.close();
 }
