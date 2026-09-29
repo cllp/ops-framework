@@ -257,6 +257,13 @@ function Scen() {
     // 0.31.0: inloggningens märke. Ingen av förmågorna anropas, sidan ska bara ritas.
     return <OpsInloggning auth={{ signInWithGoogle: () => {} }} etikett="Bolag Ops" />;
   }
+  if (s === "inloggningbild") {
+    // 0.31.1: inloggningen med appens BILDLOGGA. Fyrkantiga mästare som appens (3750 px, mycket luft), här som SVG-data-URL:er:
+    // ljus = vit bakgrund, mörk = kolgrå, så att "rätt bild för temat" går att läsa av på pixlarna.
+    const svg = (/** @type {string} */ bg, /** @type {string} */ fg) =>
+      `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><rect width="640" height="640" fill="${bg}"/><rect x="70" y="210" width="260" height="220" rx="14" fill="${fg}"/><rect x="360" y="290" width="175" height="60" fill="${fg}"/></svg>`)}`;
+    return <OpsInloggning auth={{ signInWithGoogle: () => {} }} etikett="Bolag Ops" ordmarke={{ ljus: svg("#ffffff", "#242c27"), mork: svg("#202420", "#e8e4dc") }} />;
+  }
   if (s === "hub") {
     return (
       <Full>

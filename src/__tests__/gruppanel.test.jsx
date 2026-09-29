@@ -180,17 +180,17 @@ describe("OpsGruppvaxlare", () => {
 
   it("triggern visar den aktiva gruppens namn", () => {
     render(<OpsGruppvaxlare grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
-    expect(screen.getByRole("button", { name: "Byt grupp" })).toHaveTextContent("Bolaget");
+    expect(screen.getByRole("button", { name: "Byt grupp, nu: Bolaget" })).toHaveTextContent("Bolaget");
   });
 
   it("triggern visar Alla mina grupper när det är läget", () => {
     render(<OpsGruppvaxlare grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
-    expect(screen.getByRole("button", { name: "Byt grupp" })).toHaveTextContent("Alla mina grupper");
+    expect(screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" })).toHaveTextContent("Alla mina grupper");
   });
 
   it("⛔ ett tryck öppnar arket med raderna, i enkel form", async () => {
     render(<OpsGruppvaxlare grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Byt grupp" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" }));
     expect(screen.getByRole("button", { name: "Klubben" })).toBeInTheDocument();
   });
 
@@ -198,7 +198,7 @@ describe("OpsGruppvaxlare", () => {
     const onValj = vi.fn();
     render(<OpsGruppvaxlare grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={onValj} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Byt grupp" }));
+    await user.click(screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" }));
     await user.click(screen.getByRole("button", { name: "Klubben" }));
     expect(onValj).toHaveBeenCalledWith("klubben");
     expect(screen.queryByRole("button", { name: "Klubben" })).not.toBeInTheDocument();

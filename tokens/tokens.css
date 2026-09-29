@@ -1207,6 +1207,36 @@
 
 @layer components {
   /*
+   * Inloggningens bildlogga, en bild per tema (0.31.1, `OpsInloggning ordmarke`). Samma tre tillstånd som färgerna
+   * ovan: systemets val när inget är valt, och ett uttryckligt `data-theme` vinner i båda riktningarna. En
+   * `<picture media>` hade följt systemet och aldrig temaväxlaren.
+   */
+  .ops-ordmarke-mork {
+    display: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .ops-ordmarke-ljus {
+      display: none;
+    }
+    :root:not([data-theme="light"]) .ops-ordmarke-mork {
+      display: block;
+    }
+  }
+
+  :root[data-theme="dark"] .ops-ordmarke-ljus {
+    display: none;
+  }
+  :root[data-theme="dark"] .ops-ordmarke-mork {
+    display: block;
+  }
+  :root[data-theme="light"] .ops-ordmarke-ljus {
+    display: block;
+  }
+  :root[data-theme="light"] .ops-ordmarke-mork {
+    display: none;
+  }
+  /*
    * Inverterad panel: soft charcoal på ljus sida, varmt papper på mörk.
    * Remappar semantik-tokens för ättlingar (`text-ink`, `bg-raised`, accent,
    * success/danger) så OpsSlider och bubblan håller kontrast utan egna hex.

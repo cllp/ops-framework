@@ -330,6 +330,8 @@ export function useOpsAuth() {
  * @param {string} [props.title] Skärmläsarrubriken över kortet ("Kontrollerar inloggning"-läget) OCH `OpsInloggning`s rubrik.
  * @param {string} [props.description] Används inte längre (0.31.0): laddningsläget är ett skelett, inte en text. Kvar i typen så att ingen app går sönder.
  * @param {import("../components/OpsBrand.jsx").MarkeNamn} [props.namn] `OpsInloggning props.namn`, märkets rad 1 (förval "OPS HUB").
+ * @param {{ ljus: string, mork: string }} [props.ordmarke] (0.31.1) `OpsInloggning props.ordmarke`, appens bildlogga (ljus och mörk URL). Given: bilden ersätter textmärket på inloggningen. Headern påverkas inte.
+ * @param {string} [props.ordmarkeHojd] (0.31.1) `OpsInloggning props.ordmarkeHojd`, Tailwind-höjdklass (förval `h-56`).
  * @param {string} [props.etikett] `OpsInloggning props.etikett`, appens namn som märkets rad 2.
  * @param {string} [props.viskning] `OpsInloggning props.viskning`.
  * @param {{ label: string, href: string }[]} [props.lankar] `OpsInloggning props.lankar`.
@@ -348,6 +350,8 @@ export function OpsAuthGate({
   allowedRoles,
   title = "Logga in",
   namn,
+  ordmarke,
+  ordmarkeHojd,
   etikett,
   viskning,
   lankar,
@@ -376,6 +380,8 @@ export function OpsAuthGate({
         auth={auth}
         rubrik={title}
         namn={namn}
+        ordmarke={ordmarke}
+        ordmarkeHojd={ordmarkeHojd}
         etikett={etikett}
         viskning={viskning}
         lankar={lankar}

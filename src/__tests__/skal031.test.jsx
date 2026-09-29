@@ -118,12 +118,39 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
     expect(fraga.parentElement?.className ?? "").not.toContain("hidden");
   });
 
-  it("gruppväxlaren visar bara märket under md: namnet är dolt men kvar i knappens innehåll, arket och etiketten", () => {
+  it("gruppväxlaren är bara gruppmärket under md: 44 px träffyta, namnet dolt men kvar i knappens skärmläsarnamn (0.31.1)", () => {
     render(<OpsGruppvaxlare grupper={[{ id: "g", namn: { sv: "Claes Philip Staiger Konsulting" } }]} aktiv="g" onValj={() => {}} />);
-    const knapp = screen.getByRole("button", { name: "Byt grupp" });
+    const knapp = screen.getByRole("button", { name: "Byt grupp, nu: Claes Philip Staiger Konsulting" });
+    expect(knapp.className).toContain("size-11");
+    expect(knapp.className).toContain("md:size-auto");
+    const marke = knapp.querySelector("[data-gruppmarke]");
+    expect(marke?.className).toContain("md:hidden");
     const namn = within(knapp).getByText("Claes Philip Staiger Konsulting");
-    expect(namn.className).toContain("hidden");
-    expect(namn.className).toContain("md:inline");
+    expect(namn.parentElement?.className).toContain("hidden");
+    expect(namn.parentElement?.className).toContain("md:flex");
+  });
+
+  it("gruppväxlaren i läget Alla mina grupper ritar PersonIkon (samma som panelens rad), inte initialer (0.31.1)", () => {
+    render(<OpsGruppvaxlare grupper={[{ id: "g", namn: { sv: "Alfa AB" } }]} aktiv="alla" onValj={() => {}} />);
+    const marke = screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" }).querySelector("[data-gruppmarke]");
+    expect(marke?.querySelector("svg")).not.toBeNull();
+    expect(marke?.textContent).toBe("");
+  });
+
+  it("skalet ritar inte märket under md när grupper finns, men behåller det utan grupper (0.31.1)", () => {
+    const med = render(
+      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" grupper={{ lista: [], aktiv: "alla", onValj: () => {} }}>
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    expect(med.container.querySelector('header a[href="/"]')?.className).toContain("hidden md:block");
+    med.unmount();
+    const utan = render(
+      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/">
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    expect(utan.container.querySelector('header a[href="/"]')?.className).not.toContain("hidden");
   });
 
   it("märket är monogrammet under md, ordmärket från md, även med panelen utfälld i state", () => {
