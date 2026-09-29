@@ -1,4 +1,4 @@
-import { Children, cloneElement, Component, Fragment, isValidElement, useId, useState } from "react";
+import { Children, cloneElement, Component, Fragment, isValidElement, useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
@@ -14,7 +14,8 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
-import { OpsModal } from "./OpsModal.jsx";
+import { OpsSkapaI } from "./OpsSkapaI.jsx";
+import { OpsSkapaPanel } from "./OpsSkapaPanel.jsx";
 import { OpsSkapa } from "./OpsSkapa.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
@@ -412,6 +413,16 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {(namn: string) => import("react").ReactNode} [ikonRitare]
  * @property {string} [sprak]
  * @property {(arg: { registrering: string, typ: string | null }) => void} [onKlar] Anropas när en MODULENS formulär är klart.
+ * @property {string} [sparaEtikett] (0.31.0) Ritar en fast `Spara`-knapp längst ned i panelen, kopplad till formuläret med `formId`
+ *   (appens `<form id={formId}>`). Utelämnad: formuläret har en egen knapp, och bara `Avbryt` är skalets.
+ * @property {string} [avbrytEtikett] Förval "Avbryt".
+ * @property {string} [tillbakaEtikett] Förval "Tillbaka".
+ * @property {string} [skapasIEtikett] Etiketten före målet i panelens översta rad. Förval "Skapas i".
+ * @property {string} [skapaIRubrik] Väljarens rubrik. Förval "Skapa i".
+ * @property {ReadonlyArray<{ id: string, rubrik: string, poster: ReadonlyArray<{ id: string, namn: string, ikon?: import("react").ReactNode }> }>} [skapaISektioner]
+ *   Appens egna mål i väljaren, t.ex. "Mina kalendrar". Formuläret får det valda som `mal: { sektion, id }`.
+ * @property {boolean} [adress] Skalet lägger `?skapa=<vad>` i adressen när panelen öppnas, så att Tillbaka i webbläsaren fungerar och
+ *   panelen går att länka till. Förval sant; `false` för en app vars router inte tål att någon annan skriver i historiken.
  *
  * `props.grupper`s form (#161). Samma fältnamn som `OpsGruppanel`/
  * `OpsGruppvaxlare` tar direkt, plus `lista` (skickas som `grupper` till båda)
@@ -637,7 +648,7 @@ export function OpsAppShell({
   // en liten BESKRIVNING av vad modalen ska visa (aldrig ett färdigrenderat
   // ReactNode i state, se `skapaTyp` nedan för skälet).
   const [skapaOppen, setSkapaOppen] = useState(false);
-  const [skapaForm, setSkapaForm] = useState(
+  const [skapaForm, setSkapaFormRaw] = useState(
     /** @type {{ kind: "handelse" | "arende" } | { kind: "modul", registrering: any } | null} */ (null),
   );
   // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
@@ -645,6 +656,90 @@ export function OpsAppShell({
   // hade behövt skriva om ett redan monterat ReactNode i state, vilket inte
   // går. Typen läses i stället ur `skapaTyp` VARJE RENDERING, se nedan.
   const [skapaTyp, setSkapaTyp] = useState(/** @type {Record<string, string>} */ ({}));
+  // ══ ⛔ SKAPA ÄR EN PANEL, INTE EN MODAL (0.31.0, CP 2026-09-29) ═══════════════════
+  //
+  // "Låt det vara paneler istället för modaler precis som i sessionstudio." Se `OpsSkapaPanel`. `skapaMal` är det valda
+  // MÅLET (en grupp eller en app-sektions post) ur `OpsSkapaI`; `skapaVaxlare` öppnar väljaren igen från raden "Skapas i".
+  const [skapaMal, setSkapaMal] = useState(/** @type {{ id: string, sektion: string } | null} */ (null));
+  const [skapaVaxlare, setSkapaVaxlare] = useState(false);
+  const skapaAdress = skapa?.adress !== false;
+  const skapaPushad = useRef(false);
+  const skapaRullning = useRef(0);
+  /** @param {any} form @returns {string} */
+  const skapaNyckel = (form) => (form.kind === "modul" ? String(form.registrering.id) : form.kind);
+  /** Återskapar ett formulär ur adressens `?skapa=`, eller `null`. */
+  const skapaUrAdress = () => {
+    if (!skapaAdress || typeof window === "undefined" || !skapa) return null;
+    const v = new URL(window.location.href).searchParams.get("skapa");
+    if (!v) return null;
+    if (v === "handelse" && skapa.handelse) {
+      return typeof skapa.handelse === "object" && !isValidElement(skapa.handelse) && typeof (/** @type {any} */ (skapa.handelse)).form === "function"
+        ? { kind: "modul", registrering: { id: "handelse", namn: nyHandelseEtikett, katalog: /** @type {any} */ (skapa.handelse).katalog === undefined ? "handelsetyper" : /** @type {any} */ (skapa.handelse).katalog, form: /** @type {any} */ (skapa.handelse).form } }
+        : { kind: "handelse" };
+    }
+    if (v === "arende" && skapa.arende) return { kind: "arende" };
+    const reg = (skapa.registreringar ?? []).find((r) => r.id === v);
+    return reg ? { kind: "modul", registrering: reg } : null;
+  };
+  const skapaFormId = useId();
+  /** @param {any} form */
+  const oppnaSkapa = (form) => {
+    if (typeof window !== "undefined") skapaRullning.current = window.scrollY;
+    setSkapaMal(null);
+    setSkapaVaxlare(false);
+    setSkapaFormRaw(form);
+    if (skapaAdress && typeof window !== "undefined") {
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.set("skapa", skapaNyckel(form));
+        window.history.pushState(window.history.state, "", u);
+        skapaPushad.current = true;
+      } catch {
+        // En adress som inte går att skriva (t.ex. en sandlåda) gör inte panelen sämre: den är ändå ett tillstånd.
+      }
+    }
+  };
+  const stangSkapa = () => {
+    setSkapaFormRaw(null);
+    setSkapaMal(null);
+    setSkapaVaxlare(false);
+    if (skapaAdress && typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has("skapa")) {
+        if (skapaPushad.current) {
+          skapaPushad.current = false;
+          window.history.back();
+        } else {
+          u.searchParams.delete("skapa");
+          window.history.replaceState(window.history.state, "", u);
+        }
+      }
+    }
+    // Tillbaka återställer vyn man kom från, också rullpositionen.
+    if (typeof window !== "undefined" && skapaRullning.current > 0) {
+      const y = skapaRullning.current;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  };
+  // Adressen öppnar panelen vid inläsning, och webbläsarens Tillbaka stänger den.
+  useEffect(() => {
+    const fran = skapaUrAdress();
+    if (fran) setSkapaFormRaw(/** @type {any} */ (fran));
+    if (typeof window === "undefined") return undefined;
+    const lyssna = () => {
+      const finns = new URL(window.location.href).searchParams.has("skapa");
+      if (!finns) {
+        skapaPushad.current = false;
+        setSkapaFormRaw(null);
+        setSkapaMal(null);
+        setSkapaVaxlare(false);
+      }
+    };
+    window.addEventListener("popstate", lyssna);
+    return () => window.removeEventListener("popstate", lyssna);
+    // Bara vid montering: adressen är en ingång, inte något som ska skriva över ett pågående val.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
   const skapaModulerRedo = skapaLaget?.tillstand === "redo";
@@ -662,6 +757,25 @@ export function OpsAppShell({
       ? skapa.handelse
       : null
   );
+
+  // ⛔ MÅLET: en vald grupp skapas i, annars den aktiva gruppen. I läget "Alla mina grupper" finns ingen aktiv grupp, och då visas
+  // väljaren FÖRST (SS bild b) och panelen först efter ett val. Bara ett formulär som tar emot en grupp (en moduls registrering)
+  // har ett mål; `handelse`/`arende` som färdiga noder har inget att skicka det till.
+  const skapaGrupperLista = grupper?.lista ?? [];
+  const skapaSektioner = skapa?.skapaISektioner ?? [];
+  const skapaHarVaxlare = skapaForm?.kind === "modul" && (skapaGrupperLista.length > 0 || skapaSektioner.length > 0);
+  const skapaValdGrupp = skapaMal && skapaMal.sektion === "grupper" ? skapaMal.id : null;
+  const skapaEffektivGrupp = skapaValdGrupp ?? skapaLaget?.grupp ?? null;
+  const skapaBehovVal = skapaHarVaxlare && !skapaMal && !skapaLaget?.grupp;
+  const skapaPanelSyns = Boolean(skapaForm) && !skapaBehovVal;
+  const skapaMalNamn = (() => {
+    const sprakSkapa = skapa?.sprak ?? "sv";
+    if (skapaMal && skapaMal.sektion !== "grupper") {
+      return skapaSektioner.find((x) => x.id === skapaMal.sektion)?.poster.find((x) => x.id === skapaMal.id)?.namn ?? null;
+    }
+    const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
+    return g ? text(g.namn, sprakSkapa) : null;
+  })();
 
   /** @type {string} */
   let skapaModalTitel = "";
@@ -696,7 +810,7 @@ export function OpsAppShell({
             (samma skäl som gamla `OpsSkapa`): i "redo"-läget är de samma
             värde, men beslutet om vad "aktiv grupp" betyder ligger på ETT
             ställe. */}
-        <Form groupId={skapaLaget?.grupp ?? null} typ={vald} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); setSkapaForm(null); }} />
+        <Form groupId={skapaEffektivGrupp} typ={vald} mal={skapaMal} formId={skapaFormId} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
       </div>
     );
   }
@@ -1148,7 +1262,7 @@ export function OpsAppShell({
                   >
                     {renderSkapaLista((form) => {
                       setSkapaOppen(false);
-                      setSkapaForm(form);
+                      oppnaSkapa(form);
                     })}
                   </Popover.Content>
                 </Popover.Portal>
@@ -1289,8 +1403,25 @@ export function OpsAppShell({
       <main className="pb-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:pb-0">
         {/* ⛔ #159: ALLTID PÅ, se OpsFelgrans filhuvud. Ingen prop stänger av den. */}
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
-          {children}
+          {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
+              från (filter, rullning, ifyllda fält) i stället för att appen ritar om den från noll. */}
+          <div hidden={skapaPanelSyns}>{children}</div>
         </OpsFelgrans>
+        {skapaPanelSyns ? (
+          <OpsSkapaPanel
+            titel={skapaModalTitel || skapaLabel}
+            onTillbaka={stangSkapa}
+            tillbakaEtikett={skapa?.tillbakaEtikett}
+            skapasIEtikett={skapa?.skapasIEtikett}
+            skapasI={skapaHarVaxlare ? skapaMalNamn : null}
+            onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
+            avbrytEtikett={skapa?.avbrytEtikett}
+            sparaEtikett={skapa?.sparaEtikett}
+            formId={skapaFormId}
+          >
+            {skapaModalInnehall}
+          </OpsSkapaPanel>
+        ) : null}
       </main>
         </div>
       </div>
@@ -1338,7 +1469,7 @@ export function OpsAppShell({
               <div className="min-h-0 flex-1 overflow-auto py-1.5">
                 {renderSkapaLista((form) => {
                   setSkapaBottenOppen(false);
-                  setTimeout(() => setSkapaForm(form), 0);
+                  setTimeout(() => oppnaSkapa(form), 0);
                 })}
               </div>
             </Dialog.Content>
@@ -1346,14 +1477,28 @@ export function OpsAppShell({
         </Dialog.Root>
       ) : null}
 
-      {/* ⛔ #168: MODALEN ÄR ÉN, DELAD MELLAN RAMVERKETS RADER OCH MODULERNAS.
-          Monteras bara medan `skapaForm` finns (se filhuvudets note vid
-          `OpsModal`: en `title`-lös modal kastar, så den ska inte finnas i
-          DOM:en när det inte finns något att visa). */}
-      {skapaForm ? (
-        <OpsModal open onOpenChange={(v) => { if (!v) setSkapaForm(null); }} title={skapaModalTitel || skapaLabel}>
-          {skapaModalInnehall}
-        </OpsModal>
+      {/* ⛔ 0.31.0: "SKAPA I" ÄR EN DIALOG (SS bild b), PANELEN ÄR EN SIDA. Väljaren öppnas FÖRST i läget "Alla mina grupper" (det finns
+          ingen aktiv grupp att skapa i) och därefter från raden "Skapas i" i panelen. Avbryt i väljaren, när den öppnades
+          först, avbryter hela skapandet: ett formulär utan mål är inget man kan skriva. */}
+      {skapaForm && skapaHarVaxlare ? (
+        <OpsSkapaI
+          open={skapaBehovVal || skapaVaxlare}
+          onOpenChange={(v) => {
+            if (v) return;
+            if (skapaBehovVal) stangSkapa();
+            else setSkapaVaxlare(false);
+          }}
+          grupper={skapaGrupperLista}
+          vald={skapaMal?.id ?? skapaEffektivGrupp}
+          onValj={(id, sektion) => {
+            setSkapaMal({ id, sektion });
+            setSkapaVaxlare(false);
+          }}
+          sektioner={skapaSektioner}
+          sprak={skapa?.sprak}
+          rubrik={skapa?.skapaIRubrik}
+          avbrytEtikett={skapa?.avbrytEtikett}
+        />
       ) : null}
     </div>
   );

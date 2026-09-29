@@ -101,6 +101,7 @@ const BAS =
  * @param {string} [props.ariaLabel]
  * @param {string} [props.title]
  * @param {string} [props.id]
+ * @param {string} [props.form] Id på det `<form>` en `type="submit"` hör till, när knappen står UTANFÖR formuläret (0.31.0: skapa-panelens fasta knapprad).
  * @param {(event: any) => void} [props.onClick]
  * @param {import("react").ReactNode} props.children
  */
@@ -118,6 +119,7 @@ export function OpsButton({
   ariaLabel,
   title,
   id,
+  form,
   onClick,
   children,
 }) {
@@ -217,6 +219,7 @@ export function OpsButton({
   return (
     <button
       id={id}
+      form={form}
       className={klass}
       type={type}
       disabled={blocked}

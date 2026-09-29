@@ -170,6 +170,26 @@ formulär får inte använda rå `input type=date/time`. **Appen:** `skapa.hande
 `OpsDatePicker` och `OpsTimePicker`, och `skapa.kataloger` måste innehålla `handelsetyper` för att typlistan ska ha val
 (ramverket ritar typvalet ur den, `typerAttValja`).
 
+### Skapa är en panel, "Skapa i" som SS, och tätare valkort (avsnitt 16 och 12)
+CP: "Skapa nytt i ramverket. Låt det vara paneler istället för modaler precis som i sessionstudio", och om "Nytt ärende" på 390 px:
+arket täckte hela huvudet, nästa fält klipptes utan knapprad, valkorten var höga. SS-förlagor: `GroupEditRouteView.jsx:36-47`
+(rad "‹ Tillbaka"), `ManageGroupModal.jsx:454,479,640` (rubrikrad, kropp som rullar, knapprad med `border-t`) och
+`CalendarCreateDestinationSheet.jsx:53-135` ("Skapa i"). Före 0.31.0 öppnade plusset en `OpsModal`. Nu öppnar det en panel
+(`OpsSkapaPanel`): på dator en sida i innehållskolumnen (kolumn 880 px, centrerad, huvudet och gruppanelen kvar, fast knapprad
+längst ned till höger med `Avbryt` som textknapp och `Spara` fylld; mätt vid 1280 px: panel 200..1265, knapprad 731..800 av 800), på
+telefon helskärm med egen rubrikrad (mätt 390x844: 0,0 mot hela sidbredden, knapprad 775..844, alla fyra valkort och knappraden
+samtidigt, valkort 58 px höga; med fönstret krympt till 500 px, som med tangentbord: panelen 500 px, knapprad 431..500, fältet
+ovanför den). Ingen `role="dialog"` för formuläret. Appens vy hålls monterad men dold, så Tillbaka återställer den, och
+`?skapa=handelse` ligger i adressen (`skapa.adress: false` stänger av). Ny exporterad `OpsSkapaI` (grupper med 34 px märke och
+medlemsantal, vald rad med accentkant, appens egen sektion via `skapa.skapaISektioner`, `Avbryt`): med en vald grupp visar
+panelen "Skapas i: <grupp> ⌄" som öppnar den, och i läget Alla mina grupper visas den FÖRST. Formuläret får `{ groupId, typ, mal,
+formId, onKlar }`; med `skapa.sparaEtikett` ritas `Spara` som `type="submit" form={formId}` (`OpsButton` fick `form`).
+`OpsRadioGroup` och `OpsSegmented` är tätare: `px-3 py-2` (var `px-4 py-3`), titel i rollen `etikett`, beskrivning i `hjalp`,
+`min-h-11` kvar för tummen. Prov: Vitest `skapapanel.test.jsx` (rött på 0.30.1: 11 av 12 fäller) och check-skalyta avsnitt 15
+(rött mot 0.30.1: panelen öppnas aldrig). **Appen (bolag-ops):** ge händelse- och ärendeformulären `id={formId}`, skicka
+`skapa.sparaEtikett`, och ta bort formulärets egna Spara och Avbryt om det ska bo i den fasta raden; för "Mina kalendrar"
+skicka `skapa.skapaISektioner`.
+
 ## 0.30.1
 
 ⛔ **Mobilhuvudet, gruppanelen och loggan, och Hub, som SessionStudio.** CP

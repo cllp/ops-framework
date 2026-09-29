@@ -14,7 +14,7 @@ import { useState } from "react";
 import * as Ops from "OPS_DIST";
 import { Calendar, CalendarDays, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsModal, OpsSelect, OpsThemeToggle } = Ops;
+const { OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
 
@@ -104,7 +104,7 @@ const grupperLista = [
   { id: "g3", namn: { sv: "Claes Philip Staiger AB" }, medlemsantal: 1, roll: "agare" },
 ];
 
-function Full({ children }) {
+function Full({ children, skapa = { handelse: <p>Formulär</p> } }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(window.__aktiv ?? "g1");
   return (
@@ -121,7 +121,7 @@ function Full({ children }) {
         </>
       }
       anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
-      skapa={{ handelse: <p>Formulär</p> }}
+      skapa={skapa}
       meny={meny}
       grupper={{ lista: grupperLista, aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {} }}
     >
@@ -153,8 +153,48 @@ function ModalForm() {
   );
 }
 
+/** 0.31.0: som "Nytt ärende" i CP:s skärmbild: rubrik, ett val med fyra kort och en beskrivning. */
+function SkapaForm({ groupId, formId }) {
+  const [sort, setSort] = useState("arende");
+  return (
+    <form id={formId} className="flex flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
+      <p data-grupp="">{`groupId=${groupId}`}</p>
+      <OpsField label="Rubrik">
+        <OpsInput value="" onChange={() => {}} placeholder="Vad gäller det?" />
+      </OpsField>
+      <OpsRadioGroup
+        ariaLabel="Vad gäller det"
+        value={sort}
+        onChange={setSort}
+        options={[
+          { value: "arende", label: "Ärende", hint: "Något som ska göras." },
+          { value: "kvitto", label: "Kvitto", hint: "Ett underlag till bokföringen." },
+          { value: "fraga", label: "Fråga", hint: "Något du vill ha svar på." },
+          { value: "ovrigt", label: "Övrigt", hint: "Allt annat." },
+        ]}
+      />
+      <OpsField label="Beskrivning">
+        <textarea data-beskrivning="" rows={4} className="w-full rounded-md border border-line bg-canvas p-2" aria-label="Beskrivning" />
+      </OpsField>
+    </form>
+  );
+}
+const skapaProp = () => ({
+  handelse: { form: SkapaForm, katalog: null },
+  lage: window.__aktiv ?? "g1",
+  sparaEtikett: "Skicka in",
+  skapaISektioner: [{ id: "kalendrar", rubrik: "Mina kalendrar", poster: [{ id: "k1", namn: "Semester" }] }],
+});
+
 function Scen() {
   const s = window.__skal;
+  if (s === "skapa") {
+    return (
+      <Full skapa={skapaProp()}>
+        <p className="px-4" data-appvy="">appens vy</p>
+      </Full>
+    );
+  }
   if (s === "modal") return <ModalForm />;
   if (s === "full") {
     return (

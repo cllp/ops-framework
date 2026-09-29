@@ -53,7 +53,7 @@ describe("OpsAppShell skapa (#168)", () => {
     expect(screen.getByRole("button", { name: "Skapa" })).toBeTruthy();
   });
 
-  it("en rad öppnar en RIKTIG modal, med registreringens namn som rubrik", () => {
+  it("en rad öppnar en PANEL, med registreringens namn som rubrik", () => {
     render(
       <OpsAppShell
         brand="Ops"
@@ -67,9 +67,10 @@ describe("OpsAppShell skapa (#168)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
     fireEvent.click(screen.getByRole("button", { name: "arende" }));
 
-    // ⛔ EN RIKTIG DIALOG, INTE EN ANDRA VY I POPOVERN: `role="dialog"` med
-    // rubriken som `Dialog.Title`, och popoverns lista är stängd (borta ur DOM:en).
-    expect(screen.getByRole("dialog", { name: "arende" })).toBeTruthy();
+    // ⛔ 0.31.0: EN PANEL, INTE EN DIALOG. Regionen bär rubriken, ingen `role="dialog"` finns för formuläret, och popoverns
+    // lista är stängd (borta ur DOM:en).
+    expect(screen.getByRole("region", { name: "arende" })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("button", { name: "arende" })).toBeNull();
   });
 
@@ -164,7 +165,7 @@ describe("OpsAppShell skapa (#168)", () => {
     expect(screen.getAllByRole("separator")).toHaveLength(1);
   });
 
-  it("⛔ Ny händelse öppnar skapa.handelse i en modal med den etiketten som rubrik", () => {
+  it("⛔ Ny händelse öppnar skapa.handelse i en panel med den etiketten som rubrik", () => {
     render(
       <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ handelse: <p data-testid="handelseform">Formulär</p> }}>
         <p>innehåll</p>
@@ -172,11 +173,11 @@ describe("OpsAppShell skapa (#168)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
     fireEvent.click(screen.getByRole("button", { name: "Ny händelse" }));
-    expect(screen.getByRole("dialog", { name: "Ny händelse" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Ny händelse" })).toBeTruthy();
     expect(screen.getByTestId("handelseform")).toBeTruthy();
   });
 
-  it("⛔ Nytt ärende öppnar skapa.arende i en modal med den etiketten som rubrik", () => {
+  it("⛔ Nytt ärende öppnar skapa.arende i en panel med den etiketten som rubrik", () => {
     render(
       <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ arende: <p data-testid="arendeform">Formulär</p> }}>
         <p>innehåll</p>
@@ -184,7 +185,7 @@ describe("OpsAppShell skapa (#168)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Skapa" }));
     fireEvent.click(screen.getByRole("button", { name: "Nytt ärende" }));
-    expect(screen.getByRole("dialog", { name: "Nytt ärende" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Nytt ärende" })).toBeTruthy();
     expect(screen.getByTestId("arendeform")).toBeTruthy();
   });
 

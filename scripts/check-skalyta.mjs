@@ -1020,6 +1020,140 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
   await context.close();
 }
 
+// ══ 15. SKAPA ÄR EN PANEL, INTE EN MODAL, OCH "SKAPA I" ÄR EN DIALOG (0.31.0, avsnitt 16 och 12) ═
+// CP: "Låt det vara paneler istället för modaler precis som i sessionstudio", och (15:01, 390 px): arket täckte hela huvudet, nästa
+// fält klipptes utan knapprad, och valkorten var höga med stor text. Mått: ingen role=dialog för formuläret, panelen i
+// innehållskolumnen på dator (max 880 px, centrerad, huvudet och gruppanelen kvar, fast knapprad längst ned till höger) och helskärm
+// på telefon (rubrikrad, minst tre valkort och knappraden samtidigt, ingen överflödning, tangentbord simulerat med 500 px höjd).
+/** @param {import("playwright").Page} page @param {boolean} mobil */
+async function oppnaSkapaPanel(page, mobil) {
+  await page.getByRole("button", { name: "Skapa", exact: true }).last().click();
+  await page.getByRole("button", { name: "Ny händelse" }).click();
+}
+for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 800 }], ["390 px", { width: 390, height: 844 }]])) {
+  const mobil = vp.width < 800;
+  const { page, context } = await oppna("skapa", vp);
+  try {
+    await oppnaSkapaPanel(page, mobil);
+    await page.waitForSelector("[data-skapa-panel]", { timeout: 3000 });
+    const m = await page.evaluate(() => {
+      const panel = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-panel]"));
+      const r = panel.getBoundingClientRect();
+      const kol = panel.firstElementChild ? panel.firstElementChild.getBoundingClientRect() : r;
+      const knappar = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-knappar]"));
+      const kr = knappar.getBoundingClientRect();
+      const h2 = panel.querySelector("h2");
+      const hr = h2 ? h2.getBoundingClientRect() : null;
+      const tillbaka = [...panel.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Tillbaka");
+      const tr = tillbaka ? tillbaka.getBoundingClientRect() : null;
+      const kort = [...panel.querySelectorAll('[role="radiogroup"] label')].map((l) => l.getBoundingClientRect());
+      const spara = [...panel.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Skicka in");
+      const avbryt = [...panel.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Avbryt");
+      const sr = spara ? spara.getBoundingClientRect() : null;
+      const header = document.querySelector("header");
+      const gruppPanel = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const inHeader = header ? header.getBoundingClientRect() : null;
+      const inner = /** @type {HTMLElement} */ (panel.querySelector("[data-skapa-panel] > div"));
+      const ir = inner ? inner.getBoundingClientRect() : kol;
+      return {
+        panel: { x: r.x, y: r.y, w: r.width, h: r.height },
+        kolW: ir.width, kolMitt: ir.x + ir.width / 2, panelMitt: r.x + r.width / 2,
+        dialoger: document.querySelectorAll('[role="dialog"]').length,
+        knappar: { top: kr.top, bottom: kr.bottom },
+        rubrik: hr ? { top: hr.top, bottom: hr.bottom, x: hr.x, w: hr.width } : null,
+        tillbaka: tr ? { top: tr.top, bottom: tr.bottom, x: tr.x } : null,
+        kortAntal: kort.length,
+        kortSynliga: kort.filter((k) => k.top >= 0 && k.bottom <= innerHeight).length,
+        kortHojd: kort.map((k) => Math.round(k.height)),
+        sparaR: sr ? sr.right : null,
+        sparaBg: spara ? getComputedStyle(spara).backgroundColor : null,
+        avbrytBg: avbryt ? getComputedStyle(avbryt).backgroundColor : null,
+        knappraden: knappar.querySelector("div") ? knappar.querySelector("div").getBoundingClientRect().right : null,
+        headerSyns: !!inHeader && inHeader.height > 0 && inHeader.bottom > 0 && getComputedStyle(header).visibility !== "hidden",
+        headerTop: inHeader ? inHeader.top : null,
+        gruppPanelSyns: !!gruppPanel && gruppPanel.getBoundingClientRect().width > 0 && getComputedStyle(gruppPanel.closest("div.hidden, div") || gruppPanel).display !== "none",
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        appvy: (() => { const a = document.querySelector("[data-appvy]"); return a ? a.getBoundingClientRect().height : -1; })(),
+        vh: innerHeight,
+        cw: header ? header.getBoundingClientRect().width : document.documentElement.clientWidth,
+      };
+    });
+    matt.push(`skapa-panelen ${namn}: panel ${JSON.stringify(m.panel)}, kolumn ${m.kolW.toFixed(0)} px, dialoger ${m.dialoger}, knapprad ${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)} av ${m.vh}, valkort ${m.kortSynliga}/${m.kortAntal} synliga (höjd ${m.kortHojd.join(",")}), Spara höger ${m.sparaR} mot knapprad ${m.knappraden}`);
+    krav(m.dialoger === 0, `skapa-panelen ${namn}: ${m.dialoger} role=dialog medan formuläret visas. Väntat 0: skapa är en panel, inte en modal.`);
+    krav(m.knappar.bottom <= m.vh + 0.5 && m.knappar.top >= 0, `skapa-panelen ${namn}: knappraden ligger utanför vyn (${m.knappar.top.toFixed(0)}..${m.knappar.bottom.toFixed(0)} av ${m.vh}).`);
+    krav(m.knappar.bottom >= m.vh - 1, `skapa-panelen ${namn}: knappraden vilar inte längst ned (slutar ${m.knappar.bottom.toFixed(0)} av ${m.vh}).`);
+    krav(m.sparaR !== null && m.knappraden !== null && Math.abs(m.sparaR - (m.knappraden - 16)) <= 1.5, `skapa-panelen ${namn}: Spara slutar ${m.sparaR} men knappradens innerkant är ${m.knappraden === null ? "?" : m.knappraden - 16}. Väntat längst till höger.`);
+    krav(m.sparaBg !== null && m.sparaBg !== "rgba(0, 0, 0, 0)" && m.avbrytBg === "rgba(0, 0, 0, 0)", `skapa-panelen ${namn}: Spara har bakgrund ${m.sparaBg} och Avbryt ${m.avbrytBg}. Väntat en fylld Spara och en Avbryt som textknapp.`);
+    krav(!m.overflow, `skapa-panelen ${namn}: horisontell överflödning.`);
+    krav(m.tillbaka !== null && m.rubrik !== null && (mobil ? Math.abs(m.tillbaka.top - m.rubrik.top) < 40 : m.tillbaka.bottom <= m.rubrik.top + 1), `skapa-panelen ${namn}: Tillbaka och rubriken ligger inte som väntat (${JSON.stringify(m.tillbaka)} ${JSON.stringify(m.rubrik)}).`);
+    krav(m.kortSynliga >= 3, `skapa-panelen ${namn}: ${m.kortSynliga} av ${m.kortAntal} valkort syns samtidigt med rubrikraden och knappraden, väntat minst 3.`);
+    if (mobil) {
+      krav(Math.abs(m.panel.x) < 0.5 && Math.abs(m.panel.y) < 0.5 && Math.abs(m.panel.w - m.cw) < 0.5 && Math.abs(m.panel.h - vp.height) < 1, `skapa-panelen ${namn}: panelen är ${JSON.stringify(m.panel)}, väntat helskärm 0,0 ${m.cw}x${vp.height} (sidans bredd, scrollbar-gutter stable tar en rullningslist).`);
+      krav(m.kortHojd.every((h) => h <= 60), `skapa-panelen ${namn}: valkorten är ${m.kortHojd.join(", ")} px höga, väntat högst 60 (tätt, som SS).`);
+      // Tangentbord: fönstret krymper till 500 px. Aktivt fält och knapprad ska båda synas.
+      await page.setViewportSize({ width: vp.width, height: 500 });
+      await page.waitForTimeout(150);
+      await page.locator("[data-beskrivning]").focus();
+      await page.locator("[data-beskrivning]").scrollIntoViewIfNeeded();
+      const t = await page.evaluate(() => {
+        const b = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-knappar]")).getBoundingClientRect();
+        const f = /** @type {HTMLElement} */ (document.querySelector("[data-beskrivning]")).getBoundingClientRect();
+        const p = /** @type {HTMLElement} */ (document.querySelector("[data-skapa-panel]")).getBoundingClientRect();
+        return { knTop: b.top, knBottom: b.bottom, fBottom: f.bottom, fTop: f.top, pH: p.height, vh: innerHeight };
+      });
+      matt.push(`skapa-panelen ${namn} med tangentbord (500 px): panel ${t.pH.toFixed(0)} px hög, knapprad ${t.knTop.toFixed(0)}..${t.knBottom.toFixed(0)}, fältet ${t.fTop.toFixed(0)}..${t.fBottom.toFixed(0)}`);
+      krav(t.pH <= 500.5 && t.knBottom <= 500.5 && t.knTop >= 0, `skapa-panelen ${namn} med tangentbord: panelen ${t.pH.toFixed(0)} px och knappraden ${t.knTop.toFixed(0)}..${t.knBottom.toFixed(0)} ryms inte i 500 px.`);
+      krav(t.fBottom <= t.knTop + 0.5 && t.fTop >= 0, `skapa-panelen ${namn} med tangentbord: aktivt fält ${t.fTop.toFixed(0)}..${t.fBottom.toFixed(0)} ligger under knappraden (${t.knTop.toFixed(0)}) eller utanför vyn.`);
+      await page.setViewportSize(vp);
+    } else {
+      krav(m.headerSyns && m.headerTop !== null && m.headerTop <= 0.5, `skapa-panelen ${namn}: huvudet syns inte (top ${m.headerTop}).`);
+      krav(m.gruppPanelSyns, `skapa-panelen ${namn}: gruppanelen syns inte medan panelen visas.`);
+      krav(m.kolW <= 880.5 && m.kolW >= 700, `skapa-panelen ${namn}: kolumnen är ${m.kolW.toFixed(0)} px bred, väntat högst 880 (SS-panelens kolumn).`);
+      krav(Math.abs(m.kolMitt - m.panelMitt) <= 1, `skapa-panelen ${namn}: kolumnen är inte centrerad i innehållskolumnen (${m.kolMitt.toFixed(1)} mot ${m.panelMitt.toFixed(1)}).`);
+      krav(m.appvy === 0, `skapa-panelen ${namn}: appens vy är inte dold medan panelen visas (höjd ${m.appvy}).`);
+    }
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `skapa-panel-${vp.width}.png`) });
+    // Tillbaka: appens vy tillbaka, panelen borta.
+    await page.getByRole("button", { name: "Tillbaka" }).click();
+    const efter = await page.evaluate(() => ({ panel: document.querySelectorAll("[data-skapa-panel]").length, vy: (() => { const a = document.querySelector("[data-appvy]"); return a ? a.getBoundingClientRect().height : -1; })() }));
+    krav(efter.panel === 0 && efter.vy > 0, `skapa-panelen ${namn}: efter Tillbaka finns ${efter.panel} paneler och appens vy har höjd ${efter.vy}. Väntat 0 och synlig.`);
+  } catch (e) {
+    krav(false, `skapa-panelen ${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}): panelen öppnades inte.`);
+  }
+  await context.close();
+}
+// "Skapa i": läget Alla frågar först (som SS bild b), med grupper och appens egen sektion; en vald grupp visar "Skapas i".
+for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 800 }], ["390 px", { width: 390, height: 844 }]])) {
+  const { page, context } = await oppna("skapa", vp, standardtema, 1, "alla");
+  try {
+    await oppnaSkapaPanel(page, vp.width < 800);
+    const dlg = page.getByRole("dialog", { name: "Skapa i" });
+    await dlg.waitFor({ timeout: 3000 });
+    const d = await dlg.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const rader = [...el.querySelectorAll("section")].map((s) => ({ namn: s.getAttribute("aria-label"), antal: s.querySelectorAll("button").length }));
+      const mark = el.querySelector("section button span");
+      const mr = mark ? mark.getBoundingClientRect() : null;
+      return { x: r.x, w: r.width, top: r.top, bottom: r.bottom, vw: (document.querySelector('header') || document.documentElement).getBoundingClientRect().width, vh: innerHeight, rader, markW: mr ? mr.width : 0, avbryt: [...el.querySelectorAll("button")].some((b) => (b.textContent || "").trim() === "Avbryt"), panelBakom: document.querySelectorAll("[data-skapa-panel]").length };
+    });
+    matt.push(`skapa i ${namn}: dialog ${d.w.toFixed(0)} px bred, sektioner ${JSON.stringify(d.rader)}, märke ${d.markW} px, panelen bakom ${d.panelBakom}`);
+    krav(d.panelBakom === 0, `skapa i ${namn}: panelen ritades före valet (${d.panelBakom}). Väntat väljaren först i läget Alla.`);
+    krav(d.rader.length === 2 && d.rader[0].namn === "Grupper" && d.rader[1].namn === "Mina kalendrar", `skapa i ${namn}: sektionerna är ${JSON.stringify(d.rader)}, väntat Grupper och Mina kalendrar.`);
+    krav(Math.abs(d.markW - 34) < 0.6, `skapa i ${namn}: gruppmärket är ${d.markW} px, väntat 34.`);
+    krav(d.avbryt && d.x >= 0 && d.x + d.w <= d.vw + 0.5 && d.bottom <= d.vh + 0.5, `skapa i ${namn}: Avbryt saknas eller dialogen ligger utanför vyn.`);
+    krav(vp.width < 800 ? Math.abs(d.w - d.vw) < 1 : d.w <= 384.5, `skapa i ${namn}: dialogen är ${d.w.toFixed(0)} px bred (väntat helbredd som ark på telefon, högst 384 centrerad på dator).`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `skapa-i-${vp.width}.png`) });
+    await dlg.getByRole("button", { name: /Testgruppen/ }).click();
+    await page.waitForSelector("[data-skapa-panel]", { timeout: 3000 });
+    const efter = await page.evaluate(() => ({ grupp: (document.querySelector("[data-grupp]") || {}).textContent, rad: [...document.querySelectorAll("[data-skapa-panel] button")].map((b) => b.getAttribute("aria-label")).filter(Boolean) }));
+    krav(efter.grupp === "groupId=g2", `skapa i ${namn}: formuläret fick ${efter.grupp}, väntat groupId=g2 (Testgruppen).`);
+    krav(efter.rad.includes("Skapas i: Testgruppen"), `skapa i ${namn}: raden "Skapas i: Testgruppen" saknas (${efter.rad.join(", ")}).`);
+  } catch (e) {
+    krav(false, `skapa i ${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

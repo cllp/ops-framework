@@ -172,6 +172,7 @@ export { OpsOversikt, iOrdning } from "./components/OpsOversikt.jsx";
  * mäta utan att en Radix-flikrad ritas i jsdom.
  */
 export { OpsSkapa } from "./components/OpsSkapa.jsx";
+export { OpsSkapaI } from "./components/OpsSkapaI.jsx";
 export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "./lib/skapa.js";
 
 /*

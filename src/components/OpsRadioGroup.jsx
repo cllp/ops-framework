@@ -77,7 +77,7 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={cx("grid gap-2", columns === 2 && "sm:grid-cols-2")}
+      className={cx("grid gap-1.5", columns === 2 && "sm:grid-cols-2")}
     >
       {options.map((o) => {
         const chosen = o.value === value;
@@ -85,7 +85,10 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
           <label
             key={o.value}
             className={cx(
-              "flex cursor-pointer flex-col gap-0.5 rounded-lg border px-4 py-3",
+              // ⛔ 0.31.0 (CP 2026-09-29 15:01, "valkorten är höga med stor text och mycket luft"): `px-3 py-2` (SS `Radio.jsx:35`, `min-h-[24px]`
+              // och `text-sm`) i stället för `px-4 py-3`, titeln i rollen `etikett` och beskrivningen i `hjalp`. `min-h-11` (44 px) står kvar:
+              // det är ett tumkrav, inte luft.
+              "flex min-h-11 cursor-pointer flex-col justify-center gap-0.5 rounded-lg border px-3 py-2",
               "transition-colors duration-(--duration-fast) ease-standard",
               // ⛔ Fokusringen sitter på ETIKETTEN och inte på den dolda inputen,
               // eftersom det är etiketten man ser. Utan `focus-within` syns inte
@@ -97,7 +100,7 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
                 : "border-line bg-sunken text-ink-secondary hover:border-line-strong",
             )}
           >
-            <span className="flex items-center gap-3">
+            <span className="flex items-center gap-2.5">
               <input
                 type="radio"
                 name={groupName}
@@ -116,9 +119,9 @@ export function OpsRadioGroup({ options, value, onChange, ariaLabel, name, colum
               >
                 {chosen ? <span className="size-2 rounded-full bg-accent" /> : null}
               </span>
-              <span className="min-w-0 font-semibold">{o.label}</span>
+              <span className="min-w-0 text-etikett font-medium">{o.label}</span>
             </span>
-            {o.hint ? <span className="pl-7 text-sm text-ink-muted">{o.hint}</span> : null}
+            {o.hint ? <span className="pl-6.5 text-hjalp text-ink-muted">{o.hint}</span> : null}
           </label>
         );
       })}
