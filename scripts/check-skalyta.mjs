@@ -32,6 +32,7 @@
  * hoppa över tyst gör vakten grön av att inte ha tittat.
  *
  * Kör:  npm run build && node scripts/check-skalyta.mjs
+ *       node scripts/check-skalyta.mjs --dist <fil>       mät en annan byggd version (röd-beviset mot origin/main)
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
@@ -47,8 +48,10 @@ import tailwind from "@tailwindcss/postcss";
 import { startaWebblasare } from "./lib/matVyport.mjs";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const dist = path.join(rot, "dist", "index.js");
 const argv = process.argv.slice(2);
+// `--dist <fil>`: mät en ANNAN byggd version (t.ex. origin/main), för att bevisa att ett prov är rött utan sin fix.
+const distI = argv.indexOf("--dist");
+const dist = distI >= 0 ? path.resolve(argv[distI + 1]) : path.join(rot, "dist", "index.js");
 const utanFasta = argv.includes("--utan-fasta");
 const temaI = argv.indexOf("--tema");
 const standardtema = temaI >= 0 && argv[temaI + 1] === "dark" ? "dark" : "light";
@@ -85,16 +88,23 @@ const skript = js.outputFiles[0].text;
 // klasser i ett filhuvud är inte vår kod och ska inte generera regler.
 const distSkannad = path.join(arbetsmapp, "dist-skannad.js");
 fs.writeFileSync(distSkannad, fs.readFileSync(dist, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/[^\n]*$/gm, " "));
-const css = (
+const cssRatt = (
   await postcss([tailwind()]).process(
     `@import "tailwindcss" source(none);\n@import "${path.join(rot, "tokens", "tokens.css").replace(/\\/g, "/")}";\n@source "${distSkannad.replace(/\\/g, "/")}";\n@source "${entryFil.replace(/\\/g, "/")}";\n`,
     { from: path.join(arbetsmapp, "app.css") },
   )
 ).css;
 
-/** @param {string} scen @returns {string} */
-const sida = (scen) =>
-  `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body class="bg-canvas text-ink font-sans"><div id="root"></div><script>window.__skal=${JSON.stringify(scen)};</script><script>${skript.replace(/<\/script>/g, "<\\/script>")}</script></body></html>`;
+// ⛔ Sidan laddas med `setContent` och har därför ingen adress att lösa `url("../fonts/...")` mot. I en riktig app
+// skriver byggverktyget om sökvägen och kopierar ut filen (det mäter `check-scaffold`). Här bäddas SAMMA fil in som
+// data-URL, så att `document.fonts.check` mäter det verkliga typsnittet och inte reservtypsnittet.
+const fontData = fs.readFileSync(path.join(rot, "fonts", "glacial-indifference", "glacial-indifference-400.woff2")).toString("base64");
+const css = cssRatt.replace(/url\(["']?[^)"']*glacial-indifference-400\.woff2["']?\)/g, `url(data:font/woff2;base64,${fontData})`);
+if (css === cssRatt) throw new Error("check-skalyta: @font-face för Glacial Indifference hittades inte i den byggda CSS:en. Märket hade mätts i reservtypsnittet.");
+
+/** @param {string} scen @param {string | null} [aktiv] Vilken grupp som är vald i `full`. @returns {string} */
+const sida = (scen, aktiv = null) =>
+  `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body class="bg-canvas text-ink font-sans"><div id="root"></div><script>window.__skal=${JSON.stringify(scen)};window.__aktiv=${JSON.stringify(aktiv)};</script><script>${skript.replace(/<\/script>/g, "<\\/script>")}</script></body></html>`;
 
 const { browser, varifran } = await startaWebblasare();
 
@@ -111,15 +121,15 @@ function krav(ok, text) {
 }
 
 /**
- * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema]
+ * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema] @param {number} [skala] @param {string | null} [aktiv]
  */
-async function oppna(scen, viewport, tema = standardtema, skala = 1) {
+async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = null) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: skala });
   const page = await context.newPage();
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: tema === "dark" ? "dark" : "light" });
-  await page.setContent(sida(scen));
+  await page.setContent(sida(scen, aktiv));
   await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
   if (fel.length) throw new Error(`sidan "${scen}" kastade: ${fel[0]}`);
   return { page, context };
@@ -195,7 +205,6 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
       // underkant (`border-b`), och 56 px är radens höjd, inte kantens.
       header: rut(header ? header.firstElementChild : null),
       brand: rut(brand),
-      brandText: brand ? brand.textContent.trim() : null,
       topbar: parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--topbar-height")) || 56,
     };
   });
@@ -215,12 +224,11 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
     krav(m.avatarBild !== null && Math.abs(m.avatarBild.w - 28) < 0.5 && m.avatarBild.radie >= 14, `huvudet: avataren är ${m.avatarBild ? `${m.avatarBild.w} px, rundning ${m.avatarBild.radie}` : "inte hittad"}, väntat en 28 px cirkel.`);
     krav(m.avatar.efterBredd >= 44, `huvudet: avatarens träffyta är ${m.avatar.efterBredd} px, väntat minst 44.`);
   }
-  // Loggan
+  // Loggan: höjden (texten mäts i sektion 10, märket är text sedan 0.31.0)
   krav(m.brand !== null && m.header !== null, "loggan: märket eller toppraden hittades inte.");
   if (m.brand && m.header) {
-    matt.push(`loggan: toppraden ${m.header.h} px, märket ${m.brand.h} px, text "${m.brandText}"`);
+    matt.push(`loggan: toppraden ${m.header.h} px, märket ${m.brand.h} px`);
     krav(Math.abs(m.header.h - m.topbar) < 0.5, `loggan: toppraden är ${m.header.h} px, väntat --topbar-height (${m.topbar}).`);
-    krav(m.brandText === "", `loggan: märket bär texten "${m.brandText}". Väntat ingen text under bilden i toppraden (bildläge: title är alt).`);
     krav(m.brand.h <= m.topbar, `loggan: märket är ${m.brand.h} px högt i en topprad på ${m.topbar} px.`);
   }
   // Raden: rundning och hover i den öppnade menyn
@@ -417,6 +425,7 @@ for (const bredd of [1280, 1600]) {
         logoW: b.width,
         logoR: b.right,
         panelX: p.x,
+        panelInnerX: p.x + parseFloat(cs.paddingLeft),
         panelY: p.y,
         panelInnerW: p.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
         forstTagg: forst ? forst.tagName : null,
@@ -457,7 +466,8 @@ for (const bredd of [1280, 1600]) {
       krav(!!aktivRad && aktivRad.kantFarg === rem.accent, `remsan ${bredd} px: aktiv grupp har kantfärg ${aktivRad?.kantFarg}, väntat accent (${rem.accent}).`);
       for (const [lage, v] of /** @type {const} */ ([["utfälld", ut], ["infälld", in_]])) {
         matt.push(`panelen ${bredd} px ${lage}: logo x ${v.logoX.toFixed(1)} bredd ${v.logoW.toFixed(1)}, panel x ${v.panelX.toFixed(1)} innerbredd ${v.panelInnerW.toFixed(1)}, första barn ${v.forstTagg} ${v.forstW.toFixed(0)} px`);
-        krav(Math.abs(v.logoX - v.panelX) <= 1, `panelen ${bredd} px ${lage}: märkesrutans vänsterkant ${v.logoX.toFixed(1)} mot panelens ${v.panelX.toFixed(1)}. Väntat högst 1 px skillnad (SS \`AppHeader.jsx:174\`).`);
+        // ⛔ 0.31.0: MOT PANELENS INNEHÅLL, inte dess ytterkant. CP: "centrerad över gruppmenyn": loggan står över kortens bredd, som börjar `--panel-kant` (2 px) in.
+        krav(Math.abs(v.logoX - v.panelInnerX) <= 1, `panelen ${bredd} px ${lage}: märkesrutans vänsterkant ${v.logoX.toFixed(1)} mot panelinnehållets ${v.panelInnerX.toFixed(1)}. Väntat högst 1 px skillnad (SS \`AppHeader.jsx:174\`, CP 2026-09-29).`);
         krav(Math.abs(v.logoW - v.panelInnerW) <= 1, `panelen ${bredd} px ${lage}: märkesrutan är ${v.logoW.toFixed(1)} px bred mot panelens innehåll ${v.panelInnerW.toFixed(1)}. Väntat högst 1 px.`);
         krav(v.forstTagg === "BUTTON", `panelen ${bredd} px ${lage}: panelens första barn är ${v.forstTagg}, väntat knappen för in- och utfällning (SS \`AppSidebar.jsx:51\`).`);
         krav(Math.abs(v.forstW - v.panelInnerW) <= 1, `panelen ${bredd} px ${lage}: knappen överst är ${v.forstW.toFixed(1)} px bred, väntat full bredd (${v.panelInnerW.toFixed(1)}).`);
@@ -580,6 +590,219 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       await page.screenshot({ path: path.join(bildmapp, `hubmodul-${vp.width}.png`), clip: { x: 0, y: 0, width: vp.width, height: vp.width > 800 ? 560 : 844 } });
     }
   }
+  await context.close();
+}
+
+// ══ 10. MÄRKET ÄR TEXT, I RÄTT TYPSNITT OCH RÄTT FÄRG, CENTRERAT ÖVER PANELEN (0.31.0) ═
+// CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray
+// Orange", och: "Logotext måste vara centrerad över gruppmenyn i båda lägen. Beakta ringen att den skall vara samma
+// som för grupperna runt texten i infällt läge." Alla mått i en riktig webbläsare, aldrig jsdom (regel 12).
+/** @param {import("playwright").Page} page */
+const matMarke = (page) =>
+  page.evaluate(() => {
+    const q = (/** @type {string} */ sel) => document.querySelector(sel);
+    const hex = (/** @type {string} */ token) => {
+      const p = document.createElement("div");
+      p.style.color = `var(${token})`;
+      document.body.appendChild(p);
+      const c = getComputedStyle(p).color;
+      p.remove();
+      return c;
+    };
+    const box = q('header a[href="/"] > span');
+    const ord = q('header a[href="/"] [data-marke="ordmarke"]');
+    const mono = q('header a[href="/"] [data-marke="monogram"]');
+    const ruta = q('header a[href="/"] [data-marke="ruta"]');
+    const rad1 = q('header a[href="/"] [data-marke="rad1"]');
+    const rad2 = q('header a[href="/"] [data-marke="rad2"]');
+    const panel = q('nav[aria-label="Alla mina grupper"]');
+    const kort = panel ? panel.querySelector("ul > li") : null;
+    const remsGrupp = [...document.querySelectorAll('nav[aria-label="Alla mina grupper"] ul button')].find((b) => b.getAttribute("aria-label") === "Testgruppen");
+    /** Textens synliga mittlinje: raden minus den tomma spärrningen efter sista bokstaven. */
+    const inkMitt = (/** @type {Element | null} */ el) => {
+      if (!el) return null;
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      const b = r.getBoundingClientRect();
+      const ls = parseFloat(getComputedStyle(el).letterSpacing) || 0;
+      return (b.left + b.right - ls) / 2;
+    };
+    const stil = (/** @type {Element | null} */ el) => {
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return { w: r.width, h: r.height, x: r.x, mittX: r.x + r.width / 2, radie: cs.borderTopLeftRadius, kantFarg: cs.borderTopColor, kantBredd: cs.borderTopWidth, bg: cs.backgroundColor };
+    };
+    const forsta = rad1 ? rad1.querySelector("span:first-child") : null;
+    const andra = rad1 ? rad1.querySelector("span:nth-child(2)") : null;
+    return {
+      finns: { box: !!box, ord: !!ord, mono: !!mono, ruta: !!ruta, rad1: !!rad1, panel: !!panel },
+      bilder: box ? box.querySelectorAll("img").length : -1,
+      bakgrundsbild: box ? [...box.querySelectorAll("*")].filter((e) => getComputedStyle(e).backgroundImage !== "none").length : -1,
+      ordOpacity: ord ? parseFloat(getComputedStyle(ord).opacity) : null,
+      monoOpacity: mono ? parseFloat(getComputedStyle(mono).opacity) : null,
+      tid: ord ? getComputedStyle(ord).transitionDuration : null,
+      tidMono: mono ? getComputedStyle(mono).transitionDuration : null,
+      rad1Text: rad1 ? rad1.textContent : null,
+      rad2Text: rad2 ? rad2.textContent : null,
+      rad1Storlek: rad1 ? parseFloat(getComputedStyle(rad1).fontSize) : null,
+      rad1Sparrning: rad1 ? parseFloat(getComputedStyle(rad1).letterSpacing) : null,
+      rad2Storlek: rad2 ? parseFloat(getComputedStyle(rad2).fontSize) : null,
+      familj: rad1 ? getComputedStyle(rad1).fontFamily : null,
+      transform: rad1 ? getComputedStyle(rad1).textTransform : null,
+      fontLaddad: document.fonts.check('16px "Glacial Indifference"'),
+      fontStatus: [...document.fonts].filter((f) => f.family.includes("Glacial")).map((f) => f.status),
+      passar: [rad1, rad2].filter(Boolean).map((el) => ({ sw: /** @type {HTMLElement} */ (el).scrollWidth, cw: /** @type {HTMLElement} */ (el).clientWidth })),
+      hojd: ord ? ord.getBoundingClientRect().height : null,
+      boxRut: stil(box),
+      farg: { ink: hex("--color-ink"), marke: hex("--color-marke-accent") },
+      rad1Farg: forsta ? getComputedStyle(forsta).color : null,
+      rad1AndraFarg: andra ? getComputedStyle(andra).color : null,
+      rad2Farg: rad2 ? getComputedStyle(rad2).color : null,
+      textMitt: inkMitt(rad1),
+      text2Mitt: inkMitt(rad2),
+      kortMitt: kort ? kort.getBoundingClientRect().x + kort.getBoundingClientRect().width / 2 : null,
+      ruta: stil(ruta),
+      remsa: stil(remsGrupp ?? null),
+    };
+  });
+
+for (const bredd of [1280, 1600]) {
+  const { page, context } = await oppna("full", { width: bredd, height: 900 }, standardtema, 1, "g3");
+  await page.evaluate(() => document.fonts.ready);
+  const ut = await matMarke(page);
+  krav(ut.finns.box && ut.finns.ord && ut.finns.rad1 && ut.finns.mono && ut.finns.ruta && ut.finns.panel, `märket ${bredd} px: delar saknas i DOM (${JSON.stringify(ut.finns)}). Väntat ordmärke, monogram och ruta.`);
+  if (ut.finns.rad1 && ut.finns.mono) {
+    matt.push(`märket ${bredd} px utfälld: rad 1 "${ut.rad1Text}" ${ut.rad1Storlek} px spärrning ${ut.rad1Sparrning} px, rad 2 "${ut.rad2Text}" ${ut.rad2Storlek} px, typsnitt ${ut.familj}, ordmärkets höjd ${ut.hojd} px, textens mitt ${ut.textMitt?.toFixed(2)} / ${ut.text2Mitt?.toFixed(2)} mot kortens ${ut.kortMitt?.toFixed(2)}`);
+    krav(ut.bilder === 0 && ut.bakgrundsbild === 0, `märket ${bredd} px: ${ut.bilder} <img> och ${ut.bakgrundsbild} bakgrundsbilder i märket. Väntat 0: märket är text sedan 0.31.0.`);
+    krav(ut.fontLaddad === true && ut.fontStatus.length >= 1 && ut.fontStatus.every((/** @type {string} */ x) => x === "loaded"), `märket ${bredd} px: Glacial Indifference är inte laddad (document.fonts.check ${ut.fontLaddad}, status ${JSON.stringify(ut.fontStatus)}). Märket ritas då i reservtypsnittet.`);
+    krav(/Glacial Indifference/.test(ut.familj ?? ""), `märket ${bredd} px: raden ritas i "${ut.familj}", väntat Glacial Indifference först (--font-marke).`);
+    krav(ut.transform === "uppercase", `märket ${bredd} px: rad 1 har text-transform ${ut.transform}, väntat versaler (uppercase).`);
+    krav(ut.rad1Text === "OPS HUB" && ut.rad2Text === "CLAES PHILIP STAIGER AB", `märket ${bredd} px: raderna är "${ut.rad1Text}" och "${ut.rad2Text}", väntat "OPS HUB" och den aktiva gruppens namn i versaler.`);
+    krav(Math.abs((ut.rad1Storlek ?? 0) - 13) < 0.1 && Math.abs((ut.rad2Storlek ?? 0) - 9.5) < 0.1, `märket ${bredd} px: storlekarna är ${ut.rad1Storlek} och ${ut.rad2Storlek} px, väntat 13 och 9,5 (mätta i CP:s bild).`);
+    krav(ut.passar.length === 2 && ut.passar.every((/** @type {{ sw: number, cw: number }} */ x) => x.sw <= x.cw), `märket ${bredd} px: texten ryms inte i sin ruta (${JSON.stringify(ut.passar)}). Väntat scrollWidth <= clientWidth på båda raderna.`);
+    krav((ut.hojd ?? 999) <= 56, `märket ${bredd} px: ordmärket är ${ut.hojd} px högt, väntat högst toppradens 56.`);
+    krav(ut.rad1Farg === ut.farg.ink && ut.rad2Farg === ut.farg.ink, `märket ${bredd} px: OPS och undertexten är ${ut.rad1Farg} / ${ut.rad2Farg}, väntat ink (${ut.farg.ink}).`);
+    krav(ut.rad1AndraFarg === ut.farg.marke, `märket ${bredd} px: HUB är ${ut.rad1AndraFarg}, väntat --color-marke-accent (${ut.farg.marke}).`);
+    krav((ut.ordOpacity ?? 0) === 1 && (ut.monoOpacity ?? 1) === 0, `märket ${bredd} px utfälld: ordmärkets opacity ${ut.ordOpacity} och monogrammets ${ut.monoOpacity}, väntat 1 och 0.`);
+    krav(ut.tid === "0.2s" && ut.tidMono === "0.2s", `märket ${bredd} px: crossfaden är ${ut.tid} / ${ut.tidMono}, väntat 0.2s (SS \`AppHeader.jsx:174-193\`, 200 ms).`);
+    krav(ut.textMitt !== null && ut.kortMitt !== null && Math.abs(ut.textMitt - ut.kortMitt) <= 1, `märket ${bredd} px utfälld: rad 1 har mittlinje ${ut.textMitt?.toFixed(2)} mot kortens ${ut.kortMitt?.toFixed(2)}. Väntat högst 1 px (CP: centrerad över gruppmenyn).`);
+    krav(ut.text2Mitt !== null && ut.kortMitt !== null && Math.abs(ut.text2Mitt - ut.kortMitt) <= 1, `märket ${bredd} px utfälld: rad 2 har mittlinje ${ut.text2Mitt?.toFixed(2)} mot kortens ${ut.kortMitt?.toFixed(2)}. Väntat högst 1 px.`);
+  }
+
+  await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+  await page.waitForTimeout(350);
+  const in_ = await matMarke(page);
+  matt.push(`märket ${bredd} px infälld: ruta ${JSON.stringify(in_.ruta)} mot remsans ${JSON.stringify(in_.remsa)}`);
+  krav(in_.ruta !== null && in_.remsa !== null, `märket ${bredd} px infälld: monogramrutan eller remsans grupprutor hittades inte.`);
+  if (in_.ruta && in_.remsa) {
+    for (const f of /** @type {const} */ (["w", "h", "radie", "kantFarg", "kantBredd", "bg"])) {
+      krav(in_.ruta[f] === in_.remsa[f], `märket ${bredd} px infälld: monogramrutans ${f} är ${in_.ruta[f]}, remsans ${in_.remsa[f]}. CP: exakt samma ruta som grupperna (storlek, rundning, kant, yta).`);
+    }
+    krav(Math.abs(in_.ruta.mittX - in_.remsa.mittX) <= 1, `märket ${bredd} px infälld: monogrammets mittlinje ${in_.ruta.mittX.toFixed(2)} mot remsans ${in_.remsa.mittX.toFixed(2)}. Väntat högst 1 px.`);
+    krav(Math.abs(in_.ruta.w - 40) < 0.5, `märket ${bredd} px infälld: rutan är ${in_.ruta.w} px bred, väntat 40.`);
+  }
+  krav((in_.monoOpacity ?? 0) === 1 && (in_.ordOpacity ?? 1) === 0, `märket ${bredd} px infälld: monogrammets opacity ${in_.monoOpacity} och ordmärkets ${in_.ordOpacity}, väntat 1 och 0.`);
+  krav(in_.bilder === 0, `märket ${bredd} px infälld: ${in_.bilder} <img> i märket.`);
+  await context.close();
+}
+
+// Bilderna till montaget (0.31.0): skala 2,283, alltså samma skala som CP:s förlagor (panelens kort är 411 bildpixlar mot 180 CSS-pixlar).
+if (bildmapp) {
+  const { page, context } = await oppna("full", { width: 1024, height: 460 }, standardtema, 2.283, "g3");
+  await page.evaluate(() => document.fonts.ready);
+  for (const lage of ["utfalld", "infalld"]) {
+    if (lage === "infalld") {
+      await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+      await page.waitForTimeout(350);
+    }
+    await page.screenshot({ path: path.join(bildmapp, `marke-${lage}-${standardtema}.png`), clip: { x: 0, y: 0, width: 800, height: 300 } });
+  }
+  await context.close();
+}
+
+// Ett långt gruppnamn får inte vidga märkesrutan: raden kapas med ellipsis och rutan är fortfarande 180 px.
+{
+  const { page, context } = await oppna("full", { width: 1280, height: 900 }, standardtema, 1, "g1");
+  await page.evaluate(() => document.fonts.ready);
+  const m = await matMarke(page);
+  krav(m.boxRut !== null && Math.abs(m.boxRut.w - 180) < 0.5 && (m.hojd ?? 999) <= 56, `märket med långt gruppnamn: rutan är ${m.boxRut?.w} px bred och ${m.hojd} px hög, väntat 180 och högst 56 (namnet kapas, rutan växer inte).`);
+  await context.close();
+}
+
+// Utan vald grupp ("Alla mina grupper") och utan undertext: bara rad 1, centrerad lodrätt i rutan.
+{
+  const { page, context } = await oppna("full", { width: 1280, height: 900 }, standardtema, 1, "alla");
+  await page.evaluate(() => document.fonts.ready);
+  const m = await page.evaluate(() => {
+    const rad1 = document.querySelector('header a[href="/"] [data-marke="rad1"]');
+    const box = document.querySelector('header a[href="/"] > span');
+    if (!rad1 || !box) return null;
+    const r = rad1.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    return { rad2: !!document.querySelector('header a[href="/"] [data-marke="rad2"]'), mittY: r.y + r.height / 2, boxMittY: b.y + b.height / 2 };
+  });
+  krav(m !== null && m.rad2 === false, "märket i läget Alla mina grupper: rad 2 ritas trots att ingen grupp är vald och ingen undertext finns. Väntat bara rad 1.");
+  krav(m !== null && Math.abs(m.mittY - m.boxMittY) <= 1, `märket utan undertext: rad 1 mitt ${m?.mittY.toFixed(1)} mot rutans ${m?.boxMittY.toFixed(1)}. Väntat lodrätt centrerad (högst 1 px).`);
+  await context.close();
+}
+
+// 390 px: monogramrutan i mobilens huvud, vänsterställd, exakt 40 px, och ordmärket syns inte.
+{
+  const { page, context } = await oppna("full", { width: 390, height: 844 }, standardtema, 1, "g3");
+  await page.evaluate(() => document.fonts.ready);
+  const m = await matMarke(page);
+  krav(m.ruta !== null && Math.abs(m.ruta.w - 40) < 0.5 && Math.abs(m.ruta.h - 40) < 0.5, `märket 390 px: monogramrutan är ${m.ruta?.w}x${m.ruta?.h} px, väntat 40x40.`);
+  krav(m.ruta !== null && Math.abs(m.ruta.x - 16) <= 1, `märket 390 px: monogramrutan börjar på x ${m.ruta?.x.toFixed(1)}, väntat 16 (huvudets vänsterkant, vänsterställd som SS).`);
+  krav((m.monoOpacity ?? 0) === 1 && (m.ordOpacity ?? 1) === 0, `märket 390 px: monogrammets opacity ${m.monoOpacity} och ordmärkets ${m.ordOpacity}, väntat 1 och 0.`);
+  krav(m.bilder === 0, `märket 390 px: ${m.bilder} <img> i märket.`);
+  await context.close();
+}
+
+// Inloggningen: samma märke, större, centrerat, inga bilder.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+  const { page, context } = await oppna("inloggning", vp);
+  await page.evaluate(() => document.fonts.ready);
+  const m = await page.evaluate(() => {
+    const rad1 = document.querySelector('[data-marke="rad1"]');
+    const rad2 = document.querySelector('[data-marke="rad2"]');
+    if (!rad1) return null;
+    const r = rad1.getBoundingClientRect();
+    const dok = document.documentElement;
+    // Kortet är kolumnens bredd (max 360 px, centrerad i sidan): sidans mittlinje är kortets.
+    const kort = document.querySelector("h2")?.closest("div.relative, [class*='rounded']");
+    const kr = kort ? kort.getBoundingClientRect() : null;
+    const rg = document.createRange();
+    rg.selectNodeContents(rad1);
+    const b = rg.getBoundingClientRect();
+    return {
+      text: rad1.textContent,
+      under: rad2 ? rad2.textContent : null,
+      storlek: parseFloat(getComputedStyle(rad1).fontSize),
+      understorlek: rad2 ? parseFloat(getComputedStyle(rad2).fontSize) : null,
+      familj: getComputedStyle(rad1).fontFamily,
+      synlig: r.width > 0 && r.height > 0 && r.x >= 0 && r.right <= dok.clientWidth,
+      bilder: document.querySelectorAll("img").length,
+      fontLaddad: document.fonts.check('16px "Glacial Indifference"'),
+      passar: [rad1, rad2].filter(Boolean).map((el) => ({ sw: /** @type {HTMLElement} */ (el).scrollWidth, cw: /** @type {HTMLElement} */ (el).clientWidth })),
+      mittX: (b.left + b.right - (parseFloat(getComputedStyle(rad1).letterSpacing) || 0)) / 2,
+      kortMittX: kr ? kr.x + kr.width / 2 : null,
+      overflow: dok.scrollWidth > dok.clientWidth,
+    };
+  });
+  krav(m !== null, `inloggningen ${vp.width} px: ingen märkestext ritades (data-marke=rad1 saknas).`);
+  if (m) {
+    matt.push(`inloggningen ${vp.width} px: rad 1 "${m.text}" ${m.storlek} px, rad 2 "${m.under}" ${m.understorlek} px, mitt ${m.mittX.toFixed(1)} mot kortets ${m.kortMittX?.toFixed(1)}`);
+    krav(m.text === "OPS HUB" && m.under === "Bolag Ops", `inloggningen ${vp.width} px: raderna är "${m.text}" och "${m.under}", väntat "OPS HUB" och appens namn.`);
+    krav(Math.abs(m.storlek - 32) < 0.1, `inloggningen ${vp.width} px: rad 1 är ${m.storlek} px, väntat 32.`);
+    krav(m.synlig, `inloggningen ${vp.width} px: märket syns inte helt i vyn.`);
+    krav(m.bilder === 0, `inloggningen ${vp.width} px: ${m.bilder} <img> på sidan. Väntat 0: inga bilder.`);
+    krav(m.fontLaddad === true && /Glacial Indifference/.test(m.familj), `inloggningen ${vp.width} px: typsnittet är inte Glacial Indifference (${m.familj}, laddad ${m.fontLaddad}).`);
+    krav(m.passar.every((/** @type {{ sw: number, cw: number }} */ x) => x.sw <= x.cw), `inloggningen ${vp.width} px: texten ryms inte (${JSON.stringify(m.passar)}).`);
+    krav(m.kortMittX !== null && Math.abs(m.mittX - m.kortMittX) <= 1, `inloggningen ${vp.width} px: märkets mittlinje ${m.mittX.toFixed(1)} mot kortets ${m.kortMittX?.toFixed(1)}. Väntat centrerat (högst 1 px).`);
+    krav(!m.overflow, `inloggningen ${vp.width} px: horisontell överflödning.`);
+  }
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `inloggning-${vp.width}.png`) });
   await context.close();
 }
 

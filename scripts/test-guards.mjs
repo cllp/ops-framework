@@ -814,6 +814,36 @@ kravRott(
   );
 }
 
+// ── Typsnitt som paketeras (0.31.0): filen och licensen måste följa med ───────
+{
+  const typsnittsvakt = "scripts/check-fonts.mjs";
+  const mallsokvag = "create-ops-app/template/index.html";
+  /** En fristående kopia av tokenfilen och typsnittsmappen, så relativa sökvägar löser som i paketet. */
+  const paket = (/** @type {string} */ namn) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.mkdirSync(path.join(mapp, "tokens"), { recursive: true });
+    fs.cpSync(path.join(rot, "fonts"), path.join(mapp, "fonts"), { recursive: true });
+    fs.copyFileSync(tokenfil, path.join(mapp, "tokens", "tokens.css"));
+    return mapp;
+  };
+
+  const ok = paket("font-ok");
+  kravGront("typsnitt 4: ett självvärdat typsnitt med fil och licens är grönt", [typsnittsvakt, path.join(ok, "tokens", "tokens.css"), mallsokvag]);
+
+  const utanLicens = paket("font-utan-licens");
+  fs.rmSync(path.join(utanLicens, "fonts", "glacial-indifference", "LICENSE.txt"));
+  kravRott("typsnitt 5: typsnittet saknar licensfil", [typsnittsvakt, path.join(utanLicens, "tokens", "tokens.css"), mallsokvag], "saknar licensfil");
+
+  const utanFil = paket("font-utan-fil");
+  fs.rmSync(path.join(utanFil, "fonts", "glacial-indifference", "glacial-indifference-400.woff2"));
+  kravRott("typsnitt 6: @font-face pekar på en fil som saknas", [typsnittsvakt, path.join(utanFil, "tokens", "tokens.css"), mallsokvag], "finns inte");
+
+  const utanRegel = paket("font-utan-regel");
+  const tf = path.join(utanRegel, "tokens", "tokens.css");
+  fs.writeFileSync(tf, fs.readFileSync(tf, "utf8").replace(/@font-face\s*\{[^}]*\}/, ""));
+  kravRott("typsnitt 7 golv: ingen @font-face alls", [typsnittsvakt, tf, mallsokvag], "Väntat minst 1 regel");
+}
+
 // ── Diagramfärgvakten ───────────────────────────────────────────────────────
 // ⛔ Den enda vakten i repot vars regel inte går att bedöma med ögat. En palett
 // kan se utmärkt ut och ändå ha två serier som är identiska för var tjugonde
@@ -1539,52 +1569,6 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return null; }\n");
   kravRott("typografi golv: för få filer lästa", [typvakt, tunn], "väntat minst");
   kravRott("typografi golv: fel sökväg", [typvakt, path.join(typmapp, "finns-inte")], "finns inte");
-}
-
-// ⛔ #164, ANDRA VARVET: OPS Hub-bilderna kommer som data-URL:er ur
-// `scripts/generate-varumarke.mjs`, inte längre `new URL(..., import.meta.url)`
-// (se filhuvudet i `src/lib/varumarke.js`). En generator som TYST hoppar
-// över en saknad bildfil skickar ett skal utan logga till varje konsument,
-// utan att bygget säger varför. Detta bevisar att den inte gör det.
-{
-  const varumarkevakt = "scripts/generate-varumarke.mjs";
-  const varumarkemapp = path.join(arbetsmapp, "varumarke");
-  fs.mkdirSync(varumarkemapp, { recursive: true });
-  fs.cpSync(path.join(rot, "varumarke"), varumarkemapp, { recursive: true });
-
-  // Grönt mot en fullständig kopia av de riktiga fyra filerna.
-  kravGront("varumarke: en fullständig katalog med alla fyra filer är grön", [
-    varumarkevakt,
-    varumarkemapp,
-    path.join(varumarkemapp, "ut-helt.js"),
-  ]);
-
-  // Rött: en av filerna har tappat sin alfakanal (bit 28 i VP8L-huvudet
-  // nollad, samma fil i övrigt). Det är det fel som gav en svart rektangel
-  // bakom loggan 2026-09-28: en opak bild som ser rätt ut i ett verktyg med
-  // vit bakgrund.
-  {
-    const opakFil = path.join(varumarkemapp, "ops-hub-ikon-mork.webp");
-    const original = fs.readFileSync(opakFil);
-    const opak = Buffer.from(original);
-    if (opak.toString("latin1", 12, 16) !== "VP8L") throw new Error("test-guards: varumarke-fallet förutsätter VP8L-kodning, kontrollera filen");
-    opak[24] &= ~0x10;
-    fs.writeFileSync(opakFil, opak);
-    kravRott(
-      "varumarke: en bild utan alfakanal är röd",
-      [varumarkevakt, varumarkemapp, path.join(varumarkemapp, "ut-opak.js")],
-      "saknar alfakanal",
-    );
-    fs.writeFileSync(opakFil, original);
-  }
-
-  // Rött: exakt EN av de fyra filerna saknas.
-  fs.rmSync(path.join(varumarkemapp, "ops-hub-ikon-ljus.webp"));
-  kravRott(
-    "varumarke golv: en av de fyra bildfilerna saknas",
-    [varumarkevakt, varumarkemapp, path.join(varumarkemapp, "ut-golv.js")],
-    "ops-hub-ikon-ljus.webp",
-  );
 }
 
 fs.rmSync(arbetsmapp, { recursive: true, force: true });

@@ -96,3 +96,27 @@ export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {})
     "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
   );
 }
+
+/**
+ * En 40 px ruta med kant: en post i den infällda gruppremsan, chevronknappen där, och
+ * loggans monogram (0.31.0). EN definition, för att de tre ska vara samma ruta.
+ *
+ * ══ ⛔ VARFÖR MONOGRAMMET HÄMTAR SIN RUTA HÄR (CP 2026-09-29) ════════════════
+ *
+ * "Infällt: monogrammet OH centreras i en ruta som är EXAKT samma som gruppernas
+ * rutor i remsan: samma storlek, rundning, kantfärg och kantbredd, samma yta."
+ * Skrivs rutan två gånger (en i `OpsGruppanel`, en i `OpsBrand`) glider den isär
+ * första gången någon rättar den ena, och märket står då snett mot remsan under
+ * sig. Mätt förlaga: SS `AppSidebar.jsx:54,77,89` (`w-10 h-10 ... rounded-[var(--radius)] border`).
+ *
+ * @param {object} [val]
+ * @param {boolean} [val.vald] Vald grupp: accentkant och tonad yta.
+ * @param {boolean} [val.interaktiv] Hover på kanten. Förval sant; monogrammet är ingen knapp och sätter falskt.
+ * @returns {string}
+ */
+export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
+  return cx(
+    "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-base border p-0.5 transition-all",
+    vald ? "border-accent bg-accent/10 shadow-sm" : cx("border-line bg-surface", interaktiv && "hover:border-line-strong"),
+  );
+}

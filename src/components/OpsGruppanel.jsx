@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { cx } from "../lib/cx.js";
+import { gruppRutaKlass } from "../lib/radKlass.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsCountBadge } from "./counter.jsx";
@@ -450,10 +451,8 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
               aria-label={namn}
               title={namn}
               className={cx(
-                "flex size-10 items-center justify-center overflow-hidden border p-0.5 transition-all",
-                RADIE,
+                gruppRutaKlass({ vald }),
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                vald ? "border-accent bg-accent/10 shadow-sm" : "border-line bg-surface hover:border-line-strong",
               )}
             >
               <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="rail" />
@@ -525,7 +524,7 @@ export function OpsGruppanel({
       // togs bort medvetet 2026-04-22, den gav flimmer mellan bredd och
       // `hidden`/`md:flex`-innehållet. Bredden byter direkt här också.
       className={cx(
-        "flex h-full flex-col gap-1.5 overflow-y-auto px-0.5",
+        "flex h-full flex-col gap-1.5 overflow-y-auto px-(--panel-kant)",
         kollapsad ? "w-(--panel-bredd-infalld)" : "w-(--panel-bredd)",
       )}
     >
@@ -541,8 +540,7 @@ export function OpsGruppanel({
         // SS infällda ram: en ruta med chevron, inte en naken pil). Utfälld är den full bredd överst (`AppSidebar.jsx:51-59`).
         className={cx(
           "flex items-center justify-center text-ink-secondary",
-          kollapsad ? "size-10 border border-line bg-surface hover:border-line-strong hover:text-ink" : "w-full p-1.5 hover:bg-sunken hover:text-ink",
-          RADIE,
+          kollapsad ? cx(gruppRutaKlass(), "hover:text-ink") : "w-full rounded-base p-1.5 hover:bg-sunken hover:text-ink",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         )}
       >

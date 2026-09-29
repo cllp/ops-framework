@@ -253,7 +253,7 @@ något godtyckligt.
 | `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `moreNav`, `activeHref`, `onNavigate`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. ⛔ Med `primaryAction` ritas en rund knapp MITT i raden och en flik flyttas till menyn: mätt ryms inte fyra flikar plus Meny plus en knapp på 56 px i 390 px. Knappen är en åtgärd och hamnar aldrig i menyn. Renderas av `OpsAppShell` men kan användas fristående |
 | `OpsHub` | `moduler` [samma form som `nav`, en nivå barn, plus `info?`], `activeHref`, `onNavigate`, `ariaLabel`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.0, #173; 0.30.1 modulkort) Appens moduler som ett rutnät av kort (`rounded-card`), varje kort EN länk med ikon, namn, räknare (`badge`, bara när den är större än noll) och en `info`-rad. Sidan Hub leder till; skalet ritar Hub-posten och dropdownen. ⛔ Tom lista visar text och aldrig en tom yta. Se [Hub och modulkort](#hub-och-modulkort) |
 | `OpsHubModul` | `modul` (med `children`), `hubHref` (krävs), `hubEtikett`, `activeHref`, `onNavigate`, `brodsmulaEtikett`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.1) En moduls egen sida i Hub: en fast tillbaka-rad ("‹ Hub / Ekonomi") och modulens barn som kort. Ritas av appen på modulens `href`. ⛔ Kastar utan `hubHref`; en modul utan barn visar text. Se [Hub och modulkort](#hub-och-modulkort) |
-| `OpsBrand` | `title` (krävs, appens namn; i bildläget bildens `alt`), `undertext` (0.30.0: ritar namnet som text UNDER bilden, förval falskt, toppraden ritar den aldrig, inloggningen gör), `subtitle` (textläget), `mark` phst \| phst-estd \| none, `ordmarke`/`ikon` ({ljus, mork} URL:er). ⛔ **#164, CP-beslut 2026-09-28 19:00: FÖRVALET ÄR RAMVERKETS EGET MÄRKE, OPS HUB**, inte text. Utan `ordmarke`/`ikon` ritas `OPS_HUB_VARUMARKE` (`src/lib/varumarke.js`, fyra PNG:er i `varumarke/`, paketets "files"). En app som skickar in EGNA `ordmarke`/`ikon` (allt-eller-inget, se filhuvudet) OVERRIDER förvalet med sin egen bild; `mark="none"` utan bild-props ger ren text som förut (och tar bort PH.ST-badgen). CP 19:10: bilden bär SITT märke (OPS Hub eller appens egen), `title` (appens namn, t.ex. "Bolag Ops") ritas som en dämpad, versal, spärrad undertext UNDER bilden, aldrig i bildens alt-text (som är tom, bilden är dekor) |
+| `OpsBrand` | ⛔ **0.31.0: märket är TEXT, inga bilder** (CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray Orange"). `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått = `ink`, resten gråorange = `marke-accent`; eller `{ forsta, andra }`), `undertext` (rad 2: appens eller gruppens namn; tom = bara rad 1, centrerad lodrätt), `monogram` (förval första bokstaven i varje ord, "OH"), `storlek` (`"topp"` | `"stor"`, den senare är inloggningens). Typsnittet ligger i ramverket (`fonts/glacial-indifference/`, SIL OFL med licensfil), storlekar och spärrning är tokens (`--marke-*`, mätta i CP:s bild). I `OpsAppShell` är `brand` (sträng) märkets `namn` och rad 2 den AKTIVA GRUPPENS namn i versaler; i läget Alla mina grupper används `undertext` på appens egen `<OpsBrand undertext="..." />`. Borta sedan 0.30: `title`, `subtitle`, `mark`, `ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `OPS_HUB_VARUMARKE` |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll.  ⛔ `icon` på ett läge ritar ikonen I STÄLLET för ordet, med ordet kvar som `sr-only`: en ikon utan namn är en knapp som inte går att höra. ANTINGEN ALLA LÄGEN ELLER INGET, annars kastar den — en ikon bredvid ett ord ser ut som ett fel |
 | `OpsFilterChip` | `options` [{value, label}], `value`, `onChange`, `ariaLabel` (krävs), `allLabel`. Pillerformat filter bredvid en lista. ⛔ Valt värde står i pillret, annars läser man en beskuren lista i tron att den är komplett. |
@@ -290,7 +290,7 @@ något godtyckligt.
 | `OpsSpinner` | EN väntesymbol, som annonserar för skärmläsare utan att göra det två gånger |
 | `OpsDataView` | de tre datatillstånden som kod i stället för som kommentar, så en vakt kan se skillnad på en vy som följer regeln och en som glömde den |
 | `OpsTag` | härleder tonen ur etiketten, så ny kategori kräver ingen kod |
-| `OpsBrand` | byter märke med temat, inte med systemets inställning |
+| `OpsBrand` | märket är text i två färger som byter ton med temat (ljust tema: `ink` och en mörkare orange som klarar 3:1), i stället för en bild per tema |
 | `OpsThemeToggle` | tre lägen, så "följ systemet" inte försvinner, i en 44 px ikonknapp i stället för en 140 px textdropdown |
 | `OpsCard` | vägrar rita en färgad kant utan ett ord som säger vad färgen betyder |
 | `OpsIdentity` | initialer som inte klipper mitt i ett tecken |
@@ -466,7 +466,7 @@ importerar ingen auth-SDK**, appen skickar in den.
 | `createAuth(adapter)` | för en egen inloggning. Normaliserar en adapter till FÖRMÅGOR: `signOut`+`subscribe` krävs, resten (`signInWithGoogle`, där `signIn` fungerar fortfarande bakåtkompatibelt, `signInWithApple`, `sendEmailLink`, `completeEmailLink`, `signInWithPassword`, `createAccount`, `resetPassword`) är valfria funktioner |
 | `OpsAuthProvider`, `useOpsAuth` | inloggat konto: `user`, `loading`, `error`, `auth` (den normaliserade förmågelistan), `signOut`, `clearError` |
 | `OpsAuthGate` | ritar `OpsInloggning` (se nedan) i utloggat läge, sitt innehåll för den som är inloggad och har rätt roll |
-| `OpsInloggning` | `auth` (krävs, från `createAuth`/`createGoogleAuth`), `rubrik`, `etikett`, `viskning`, `lankar` [{label, href}], `appVersion`, `sprak`, `onSprak`, `fel`, `onRensaFel`. ⛔ **#164, KORRIGERING B, EXAKT FORM UR EN SKÄRMBILD AV SESSIONSTUDIO**: helskärm, `OpsBrand` (OPS Hub-förvalet eller appens egen logga) med `etikett` och `viskning` under, ett kort (`--radius-card`) med en Swe/Eng-pill, EN leverantörsrad per förmåga `auth` faktiskt har (ingen gissning, ingen rad utan sin förmåga), en "ELLER"-avdelare bara när det finns fler än en väg in, en primär pill till lösenordsformuläret, en sekundär pill "Skapa konto" (bara med `createAccount`), en textlänk till e-postlänksflödet (bara med `sendEmailLink`), och en sidfot med `lankar` + `appVersion` på samma rad |
+| `OpsInloggning` | `auth` (krävs, från `createAuth`/`createGoogleAuth`), `namn` (0.31.0, märkets rad 1, förval "OPS HUB"), `rubrik`, `etikett`, `viskning`, `lankar` [{label, href}], `appVersion`, `sprak`, `onSprak`, `fel`, `onRensaFel`. ⛔ **#164, KORRIGERING B, EXAKT FORM UR EN SKÄRMBILD AV SESSIONSTUDIO**: helskärm, `OpsBrand storlek="stor"` (0.31.0: text, rad 1 32 px) med `etikett` som rad 2 och `viskning` under, ett kort (`--radius-card`) med en Swe/Eng-pill, EN leverantörsrad per förmåga `auth` faktiskt har (ingen gissning, ingen rad utan sin förmåga), en "ELLER"-avdelare bara när det finns fler än en väg in, en primär pill till lösenordsformuläret, en sekundär pill "Skapa konto" (bara med `createAccount`), en textlänk till e-postlänksflödet (bara med `sendEmailLink`), och en sidfot med `lankar` + `appVersion` på samma rad |
 
 Rollen kommer **aldrig** från Google. Google svarar på vem någon är, inte på vad
 hen får göra. Rollen läses ur appens egen användarlista, alltså ett dokument per
@@ -530,7 +530,7 @@ den inte har, och rättades. Facket bär bara identiteten:
 
 ```jsx
 <OpsAppShell
-  brand="Bolag Ops"
+  brand={<OpsBrand undertext="Bolag Ops" />}
   nav={nav}
   activeHref={activeHref}
   anvandare={
@@ -1136,7 +1136,7 @@ SessionStudios per-grupp-färgade markering bygger ett eget lager ovanpå
 (`md:w-[184px]` / `w-11`), INTE 288/72 OCH INTE EN TAILWIND-LITERAL PER
 FIL.** `OpsGruppanel` (kolumnens egen bredd) läser tokenet direkt.
 Toppradens logoruta är en EGEN, mindre ruta (`--logo-bredd` 180px /
-`--logo-bredd-infalld` 44px→40px, mätt ur `AppHeader.jsx` rad 174, se
+`--logo-bredd-infalld` 40px, mätt ur `AppHeader.jsx` rad 174, se
 `OpsBrand` nedan): 180 mot 184 och 40 mot 44 är samma 4px-differens, av
 samma skäl (asidet har `px-0.5`, logorutan har det inte), alltså TVÅ
 tokenpar och inte ett gemensamt. Ett prov läser varje fil ur sitt eget par
@@ -1146,39 +1146,48 @@ hade även fångat en förklarande kommentar, och missat att en verklig
 regression ändå gjorde provet grönt).
 
 ⛔ **KOLLAPS ÄGS AV APPEN, PRECIS SOM VALET.** `grupper.infalld`/`onInfalld`
-styr BÅDE panelens läge OCH brandets ikon/ordmärke-val (se nedan). Utan dem
+styr BÅDE panelens läge OCH märkets monogram/ordmärke-val (se nedan). Utan dem
 sköter `OpsGruppanel` kollapset själv (internt `useState`, samma styrd/ostyrd
 mönster som `OpsPanel`s `open`), men brandet följer då bara skärmbredden som
 förut: en fristående `OpsGruppanel` UTANFÖR skalet fungerar alltså fint utan
 dem, det är bara kopplingen till logotypen som kräver den styrda formen.
 
-#### ⛔ Logotypen följer panelens läge, inte bara skärmbredden
+#### ⛔ Märket är text och följer panelens läge (0.31.0)
 
-CP 2026-09-28: "Var noga med utfällt och infällt läge och vad som händer med
-logotypen... Skalet äger alltså både panelens läge och brandens form; koppla
-dem i OpsAppShell." `OpsBrand` fick därför en ny prop, `panelInfalld`
-(boolean, utelämnad: brandet följer bara skärmbredden som förut, oförändrat
-för appar som inte använder `grupper`).
+CP 2026-09-29: "Vi tar bort bilder, kör med text." Före 0.31.0 var märket fyra
+webp-bilder. Nu är det `OpsBrand`: två rader text (`OPS HUB` med "OPS" ljusgrått och
+"HUB" gråorange, under den appens eller gruppens namn) i Glacial Indifference, versaler,
+spärrade. Storlekar och spärrning är mätta i CP:s bild och bor som tokens (`--marke-*`
+i `tokens/tokens.css`, med mätningen i CHANGELOG 0.31.0), aldrig som literaler i en
+komponent.
 
-⛔ **RÄTTAD 2026-09-28: BÅDA BILDERNA ÄR ALLTID MONTERADE, VÄXLING ÄR
-`OPACITY`, ALDRIG MOUNT/UNMOUNT.** Mätt ur `AppHeader.jsx` rad 174-193: en
-`relative`-ruta med BÅDA `<img>`-taggarna hela tiden i DOM, `transition-
-opacity duration-200`. En första version av `panelInfalld` (då `tvingaIkon`)
-tog bort ordmärket helt och ritade bara ikonen, vilket INTE är samma sak:
-det ger ett hopp i stället för en tondämpning, och det är precis den sortens
-flimmer `AppSidebar.jsx` rad 13-16 redan dokumenterar som ett löst fel
-(bredd-transition borttagen av samma skäl, 2026-04-22).
+**Placering (mätt, `check-skalyta` sektion 10):**
 
-⛔ **RUTAN HAR EN FAST BREDD UR `--logo-bredd`/`--logo-bredd-infalld`
-(180px/40px, `AppHeader.jsx` rad 174), INTE `--panel-bredd`.** Se
-föregående avsnitts not om varför logorutan och panelen är två olika tal
-trots att de ser lika ut på en skärmbild.
+- **Utfälld:** de två raderna är centrerade över kortens bredd i gruppanelen, samma
+  mittlinje som korten (högst 1 px). Rutan är 180 px (`--logo-bredd`) och börjar
+  `--panel-kant` (2 px) in från panelens kant, eftersom panelens innehåll gör det.
+- **Infälld:** monogrammet "OH" står i EXAKT samma ruta som gruppernas i remsan
+  (`gruppRutaKlass`, en funktion som remsan, chevronknappen och monogrammet delar):
+  40 px, samma rundning, kantfärg, kantbredd och yta, samma mittlinje.
+- **Rörelsen** är SessionStudios (`AppHeader.jsx:174-193`): båda formerna är alltid
+  monterade och växlar med en opacity-crossfade på 200 ms, aldrig mount/unmount.
+- **Utan gruppanel** (mobil, eller en app utan `grupper`): monogramrutan under `md`,
+  vänsterställd; ordmärket från `md`.
 
-`OpsAppShell` sätter `panelInfalld={grupper.infalld}` på brandet när
-`grupper` är given: en sträng-`brand` blir ett nytt `OpsBrand` med propen på
-raka rör, ett FÄRDIGT `<OpsBrand .../>`-element KLONAS med `cloneElement`,
-och ett GODTYCKLIGT `brand`-nod (egen logga, ren text) lämnas orört,
-eftersom det inte har en `panelInfalld`-prop att klona in.
+**Undertexten:** med `grupper` och en vald grupp är rad 2 gruppens namn i versaler.
+I läget "Alla mina grupper" (eller utan grupper) används `undertext` på appens egen
+`<OpsBrand undertext="Bolag Ops" />`; saknas den ritas bara rad 1, centrerad lodrätt.
+Ett långt gruppnamn kapas med ellipsis, rutan växer aldrig.
+
+`OpsAppShell` sätter `panelInfalld` (och undertexten) på märket när `grupper` är given:
+en sträng-`brand` blir märkets `namn`, ett FÄRDIGT `<OpsBrand .../>`-element KLONAS med
+`cloneElement`, och ett GODTYCKLIGT `brand`-nod (ren text, egen komponent) lämnas orört.
+`brand` utelämnad ger förvalet "OPS HUB". **Använd inte `brand` för appens namn** (det var
+den gamla betydelsen): märket är ramverkets, appens namn är `undertext`.
+
+**Typsnittet** (`fonts/glacial-indifference/`) är SIL Open Font License 1.1 och paketeras
+med sin licensfil; `check-fonts` fäller ett paketerat typsnitt utan licens. Bara märket
+använder det (`font-marke`); resten är Plus Jakarta Sans.
 
 #### ⛔ Under 1024 px är ett ark, inte alltid ETT ark (#161)
 
@@ -1638,7 +1647,7 @@ två modeller för sin navigering, och en app väljer EN.
 
 ```jsx
 <OpsAppShell
-  brand="Bolag Ops"
+  brand={<OpsBrand undertext="Bolag Ops" />}
   fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
   moduler={[{ href: "/ekonomi", label: "Ekonomi", icon: <Wallet />, children: [{ href: "/inkomster", label: "Inkomster" }] }]}
   activeHref={pathname}

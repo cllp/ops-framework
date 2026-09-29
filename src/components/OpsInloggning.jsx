@@ -12,10 +12,9 @@ import { OpsBanner } from "./OpsBanner.jsx";
  * ══ ⛔ #164, KORRIGERING B, EXAKT FORM UR CP:S SKÄRMBILD 2026-09-28 ═══════
  *
  * Helskärm, centrerad kolumn `max-w-[360px]`, bakgrund `bg-canvas` med en
- * dämpad gradient nedtill. Ordmärket som bild (`OpsBrand`, OPS Hub-förvalet
- * eller appens egen), under det en dämpad, versal, spärrad etikett i
- * accentfärg ("Made in Sweden" i SessionStudio, appens EGET ord här), sedan
- * en viskning i dämpad text. Under det ett kort med `--radius-card`, `p-5`,
+ * dämpad gradient nedtill. Märket som TEXT (0.31.0, `OpsBrand storlek="stor"`,
+ * rad 1 32 px, inga bilder), under det appens namn som rad 2 ("Made in Sweden"
+ * i SessionStudio, appens EGET ord här), sedan en viskning i dämpad text. Under det ett kort med `--radius-card`, `p-5`,
  * `backdrop-blur`, synlig kant och skugga: rubrik ("Logga in") och en
  * Swe/Eng-växlare som en pill med `aria-pressed`, leverantörsrader i FULL
  * kortbredd med fast ikonkolumn, en avdelare ("ELLER"), en hopfällbar
@@ -142,8 +141,8 @@ function AppleIkon() {
  *   som bara satte `title` på `OpsAuthGate` (skärmläsarrubriken, samma värde som `rubrik` här) fick DEN texten under
  *   loggan i stället för sitt eget namn. #164-rättningen gör undertexten enbart en fråga om `etikett`, aldrig
  *   `rubrik`. Propen tas fortfarande emot (så `OpsAuthGate` kan skicka den oförändrad), men läses inte här.
- * @param {string} [props.etikett] Appens namn. Ritas som en dämpad, versal, spärrad undertext under ordmärket
- *   (SessionStudios "MADE IN SWEDEN"-stil). Saknas den: "OPS Hub", ALDRIG `rubrik`.
+ * @param {import("./OpsBrand.jsx").MarkeNamn} [props.namn] Märkets rad 1 (0.31.0), samma form som `OpsBrand namn`. Förval "OPS HUB".
+ * @param {string} [props.etikett] Appens namn. Ritas som märkets rad 2 (versal, spärrad), under rad 1. Saknas den ritas bara rad 1, ALDRIG `rubrik`.
  * @param {string} [props.viskning] Under etiketten, en rad ren text.
  * @param {{ label: string, href: string }[]} [props.lankar] Sidfoten. Tom lista: ingen sidfot alls.
  * @param {string} [props.appVersion] Appens version, sista på sidfotsraden (t.ex. "v1.4.2").
@@ -151,11 +150,8 @@ function AppleIkon() {
  * @param {(sprak: "sv"|"en") => void} [props.onSprak]
  * @param {string} [props.fel]
  * @param {() => void} [props.onRensaFel]
- * @param {"phst"|"phst-estd"|"none"} [props.mark] Vidarebefordras till `OpsBrand`. `"none"` stänger av BÅDE
- *   OPS Hub-förvalet och PH.ST-badgen: appen som vill ha ren text (`etikett`) i stället för en bild sätter denna.
- * @param {{ ljus: string, mork: string }} [props.ordmarke] Vidarebefordras till `OpsBrand`: appens EGEN logga, överrider OPS Hub-förvalet.
  */
-export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel, mark, ordmarke }) {
+export function OpsInloggning({ auth, namn: markeNamn, etikett, viskning, lankar = [], appVersion, sprak = "sv", onSprak, fel, onRensaFel }) {
   if (!auth) throw new Error("OpsInloggning: auth krävs. Utan den vet vyn inte vilka förmågor som finns.");
   const t = COPY[sprak] ?? COPY.sv;
 
@@ -207,7 +203,7 @@ export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion
 
       <div className="relative z-10 flex w-full max-w-[360px] flex-col items-stretch gap-2">
         <div className="mb-3 flex flex-col items-center text-center">
-          <OpsBrand title={etikett || "OPS Hub"} ordmarkeHojd="h-20" endastOrdmarke undertext mark={mark} ordmarke={ordmarke} />
+          <OpsBrand storlek="stor" namn={markeNamn} undertext={etikett} />
           {viskning ? <p className="mt-2 px-1 text-sm leading-snug text-ink-soft">{viskning}</p> : null}
         </div>
 

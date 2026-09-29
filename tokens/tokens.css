@@ -48,6 +48,27 @@
  * Vikterna är fyra och inte alla nio: 400/500/600/700 är vad komponenterna
  * faktiskt använder. Varje extra vikt är en nedladdning för något ingen ritar. */
 
+/* ─── Märkets typsnitt (0.31.0) ─────────────────────────────────────────────
+ * Glacial Indifference Regular, SIL Open Font License 1.1, ur npm-paketet
+ * typeface-glacial-indifference 1.1.14. Licensfilen ligger bredvid
+ * (`fonts/glacial-indifference/LICENSE.txt`) och FÅR INTE tas bort: OFL kräver
+ * att licensen följer med varje kopia. Bara märket använder typsnittet
+ * (`font-marke`), resten av appen är Plus Jakarta Sans.
+ *
+ * ⛔ `@font-face` och inte en `@import`: en `@font-face` är en vanlig regel och
+ * flyttas inte ur funktion av att den inte står först (se rutan nedan om
+ * Inter). `font-display: swap` visar märket i reservtypsnittet under
+ * inläsningen i stället för en tom rad. Sökvägen är relativ tokenfilen;
+ * konsumentens byggverktyg skriver om den och kopierar ut filen
+ * (`scripts/check-scaffold.mjs` mäter att den faktiskt kommer med). */
+@font-face {
+  font-family: 'Glacial Indifference';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/glacial-indifference/glacial-indifference-400.woff2") format("woff2");
+}
+
 @theme static {
   /* ─────────────────────────────────────────────────────────────────────────
    * Vi nollar Tailwinds egna paletter innan våra egna sätts.
@@ -98,6 +119,8 @@
 
   --color-accent: #6B8E4E;
   --color-accent-hover: #7a9e5e;
+
+  --color-marke-accent: #a38c57;
 
   --radius-base: 12px;
   --radius-sm: 8px;
@@ -604,24 +627,35 @@
     }
   }
 
-  /* ─── Logotyp ────────────────────────────────────────────────────────────
-   * PH.ST-märket, som en bild-token precis som en färg är en färg-token.
+  /* ─── Märket som text (0.31.0) ───────────────────────────────────────────
+   * CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial
+   * Indifference Regular. Colors: Light Gray och Gray Orange." Före 0.31.0
+   * var märket fyra bilder (OPS Hub) plus PH.ST-märket i fyra utföranden. De
+   * är borta, med sina generatorer och vakter. Märket är två textrader ur
+   * `OpsBrand`, och allt det behöver för att se ut som CP:s förlaga är
+   * tokens: typsnittet, storlekarna, spärrningen och orangen.
    *
-   * ⛔ Skälet till att den ligger HÄR och inte som ett `src` i komponenten är
-   * temaväxlingen. Märket finns i två utföranden, mörkt bläck och gräddvitt,
-   * och rätt utförande ska följa samma tre lägen som allt annat: systemets val
-   * när användaren inte valt, användarens val när hen valt. Ett `<picture>`
-   * med `prefers-color-scheme` hade bara klarat systemets val, och därmed gett
-   * ett gräddvitt märke på vit botten för den som kör mörk telefon men valt
-   * ljust läge i appen. Som token ärver märket hela maskineriet gratis, och
-   * bara den variant som faktiskt visas laddas ner.
-   *
-   * Filerna är beskurna till bläcket och nedskalade från originalens
-   * 4000x4000 till drygt 440 px höjd, alltså 6 kB i stället för 160. Se
-   * `assets/README.md` för var originalen bor.
-   * ──────────────────────────────────────────────────────────────────────── */
-  --logo-phst: url("../assets/phst-light.png");
-  --logo-phst-estd: url("../assets/phst-estd-light.png");
+   * ⛔ STORLEK OCH SPÄRRNING ÄR MÄTTA I CP:S BILD (`cp-utfalld.webp`, 2000 px
+   * bred, skala 2,283 mot CSS-pixlar eftersom panelens kort är 411 bildpixlar
+   * och 180 CSS-pixlar). Rad 1 har versalhöjd 21 bildpixlar, alltså 13 px
+   * typsnitt; rad 2 har 15, alltså 9,5 px. Spärrningen är anpassad med minsta
+   * kvadrat mot bokstävernas startlägen (fel under 0,5 bildpixel): 0,23 em på
+   * rad 1 och 0,26 em på rad 2. Relativt versalhöjden (0,67 em i typsnittet)
+   * är det 0,34 respektive 0,39. Se CHANGELOG 0.31.0 för hela mätningen. */
+  --font-marke: 'Glacial Indifference', var(--font-sans);
+  --marke-storlek: 13px;
+  --marke-undertext: 9.5px;
+  --marke-sparrning: 0.23em;
+  --marke-undertext-sparrning: 0.26em;
+  /* Inloggningens större skala: rad 1 32 px. Rad 2 följer inte samma
+   * proportion (23 px vore bredare än kortet), den är 12 px. */
+  /* Avståndet mellan raderna, mätt så att baslinjerna ligger 13,6 px isär som i bilden (mätt 31 bildpixlar). */
+  --marke-radavstand: 3.5px;
+  /* Monogrammet "OH" (`cp-infalld.webp`): versalhöjd 19 bildpixlar i skala 1,9, alltså 14 px typsnitt. */
+  --marke-monogram: 14px;
+  --marke-monogram-sparrning: 0.04em;
+  --marke-storlek-stor: 32px;
+  --marke-undertext-stor: 12px;
 }
 
 /**
@@ -659,6 +693,8 @@
 
   --dark-accent: #7a9e5e;
   --dark-accent-hover: #8aae6e;
+
+  --dark-marke-accent: #a9925e;
 
   --dark-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --dark-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -794,10 +830,6 @@
   --dark-scale-2: #2a78d6;
   --dark-scale-3: #86b6ef;
 
-  /* Märket i gräddvitt bläck, för mörk botten. */
-  --dark-logo-phst: url("../assets/phst-dark.png");
-  --dark-logo-phst-estd: url("../assets/phst-estd-dark.png");
-
   /* ─── Lager. Tailwind har ingen z-namnrymd, så dessa är vanliga variabler
    * och används som `z-(--z-modal)`. ⛔ Aldrig en fallback i var(): två
    * gissningar i olika komponenter blir en modal bakom en dropdown.
@@ -879,6 +911,9 @@
    * (4px) horisontell padding på ASIDE:t, `40 + 4 = 44`. */
   --panel-bredd: 184px;
   --panel-bredd-infalld: 44px;
+  /* Panelens egen sidopadding (`px-0.5`). Kortens innerkant, och därmed loggrutans vänsterkant (0.31.0, CP: "centrerad över
+   * gruppmenyn"): loggan står över kortens bredd, inte över panelens. */
+  --panel-kant: 2px;
 
   /* ─── Toppradens logoruta (#161). EGNA TOKEN, INTE SAMMA SOM PANELEN.
    * Mätt ur sessions-platform/apps/web/src/components/AppHeader.jsx rad 174:
@@ -928,6 +963,7 @@
     --color-accent-contrast: var(--dark-accent-contrast);
     --color-accent-subtle: var(--dark-accent-subtle);
     --color-accent-faint: var(--dark-accent-faint);
+    --color-marke-accent: var(--dark-marke-accent);
 
     --color-success: var(--dark-success);
     --color-success-bg: var(--dark-success-bg);
@@ -987,9 +1023,6 @@
     --shadow-sm: var(--dark-shadow-sm);
     --shadow-md: var(--dark-shadow-md);
     --shadow-lg: var(--dark-shadow-lg);
-
-    --logo-phst: var(--dark-logo-phst);
-    --logo-phst-estd: var(--dark-logo-phst-estd);
   }
 }
 
@@ -1019,6 +1052,7 @@
   --color-accent-contrast: var(--dark-accent-contrast);
   --color-accent-subtle: var(--dark-accent-subtle);
   --color-accent-faint: var(--dark-accent-faint);
+  --color-marke-accent: var(--dark-marke-accent);
 
   --color-success: var(--dark-success);
   --color-success-bg: var(--dark-success-bg);
@@ -1078,9 +1112,6 @@
   --shadow-sm: var(--dark-shadow-sm);
   --shadow-md: var(--dark-shadow-md);
   --shadow-lg: var(--dark-shadow-lg);
-
-  --logo-phst: var(--dark-logo-phst);
-  --logo-phst-estd: var(--dark-logo-phst-estd);
 }
 
 /**

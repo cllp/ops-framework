@@ -19,6 +19,7 @@ import { OpsSkapa } from "./OpsSkapa.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { text } from "../lib/sprak.js";
+import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 
@@ -428,7 +429,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 
 /**
  * @param {object} props
- * @param {import("react").ReactNode} props.brand Appens namn som sträng, eller en egen `OpsBrand`. Länkar till startsidan.
+ * @param {import("react").ReactNode} [props.brand] Märket (0.31.0: TEXT, inga bilder). En sträng blir märkets `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått och resten gråorange); en egen `<OpsBrand namn undertext monogram />` används som den är, med panelläget inklonat. Rad 2 är den aktiva gruppens namn när `grupper` finns och en grupp är vald, annars `undertext` på appens egen `OpsBrand`. Länkar till startsidan. ⛔ Före 0.31.0 var `brand` appens namn och ritades under en bild; nu är den märket självt, så en app som vill ha "OPS HUB" utelämnar propen.
  * @param {import("../lib/nav.js").NavPost[]} [props.nav] Toppdestinationer, den GAMLA modellen. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg. ⛔ Krävs när `fasta` saknas, och FÅR INTE skickas tillsammans med `fasta` (två modeller för samma rad är två sanningar, skalet kastar).
  * @param {import("./fasta.jsx").FastaKonfiguration} [props.fasta] (0.30.0, #173) NYA modellen: de tre fasta posterna
  *   `{ idag: { href }, kalender: { href }, hub: { href } }`. Ramverket äger ordning (Idag, Kalender, Hub), namn
@@ -776,14 +777,15 @@ export function OpsAppShell({
     </>
   );
 
-  // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
-  // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
-  // får man PH.ST-märket och namnet, utan att behöva veta att `OpsBrand` finns.
+  // ⛔ En sträng blir ett riktigt märke, inte fet text. Skälet är att det
+  // vanliga fallet ska vara det rätta fallet: skriver man `brand="OPS HUB"`
+  // får man märket med rätt typsnitt och färger, utan att behöva veta att
+  // `OpsBrand` finns.
   //
   // ⛔ #161: BRANDET FÖLJER PANELENS LÄGE, INTE BARA SKÄRMBREDDEN. CP 2026-
   // 09-28: "Skalet äger alltså både panelens läge och brandens form; koppla
   // dem i OpsAppShell." Är `grupper` given SKICKAS `panelInfalld` med, satt
-  // till `grupper.infalld`: `OpsBrand` crossfadar då ikon/ordmärke i en fast
+  // till `grupper.infalld`: `OpsBrand` crossfadar då monogram/ordmärke i en fast
   // ruta ur `--logo-bredd`/`--logo-bredd-infalld` (se `OpsBrand`s filhuvud
   // och `tokens.css`), i stället för sitt vanliga smal/bred-beteende. En
   // sträng blir ett nytt `OpsBrand` med propen på raka rör; ett FÄRDIGT
@@ -793,15 +795,20 @@ export function OpsAppShell({
   // (en egen logga, ren text) har ingen `panelInfalld`-prop att klona in, och
   // en blind `cloneElement` hade skickat en prop till en komponent som inte
   // frågat efter den.
-  const varumarke = grupper
-    ? typeof brand === "string"
-      ? <OpsBrand title={brand} panelInfalld={Boolean(grupper.infalld)} />
+  //
+  // ⛔ 0.31.0: MÄRKET ÄR TEXT, OCH UNDERTEXTEN ÄR DEN AKTIVA GRUPPEN. `brand` som sträng är
+  // märkets `namn` (rad 1, "OPS HUB" när den utelämnas). Rad 2 är den aktiva gruppens namn
+  // när `grupper` finns och en grupp är vald; i läget "Alla mina grupper" (eller utan
+  // grupper) används `undertext` på appens egen `OpsBrand`, annars ritas bara rad 1.
+  const aktivGrupp = grupper && grupper.aktiv !== ALLA_GRUPPER ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
+  const gruppUndertext = aktivGrupp ? text(aktivGrupp.namn, grupper?.sprak ?? sprak).toLocaleUpperCase(grupper?.sprak ?? sprak) : undefined;
+  const panelProp = grupper ? { panelInfalld: Boolean(grupper.infalld) } : {};
+  const varumarke =
+    brand === undefined || typeof brand === "string"
+      ? <OpsBrand {...(brand === undefined ? {} : { namn: brand })} {...(gruppUndertext ? { undertext: gruppUndertext } : {})} {...panelProp} />
       : isValidElement(brand) && brand.type === OpsBrand
-        ? cloneElement(/** @type {any} */ (brand), { panelInfalld: Boolean(grupper.infalld) })
-        : brand
-    : typeof brand === "string"
-      ? <OpsBrand title={brand} />
-      : brand;
+        ? cloneElement(/** @type {any} */ (brand), { ...(gruppUndertext ? { undertext: gruppUndertext } : {}), ...panelProp })
+        : brand;
 
   /** @param {string} href @param {any} e */
   const onActivate = (href, e) => {
@@ -1012,7 +1019,7 @@ export function OpsAppShell({
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className="shrink-0 rounded-md py-1 text-md font-bold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="block shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               {varumarke}
             </a>

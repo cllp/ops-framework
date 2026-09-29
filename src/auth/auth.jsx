@@ -329,7 +329,8 @@ export function useOpsAuth() {
  * @param {string[]} [props.allowedRoles] Tom eller utelämnad betyder "vem som helst som är inloggad".
  * @param {string} [props.title] Skärmläsarrubriken över kortet ("Kontrollerar inloggning"-läget) OCH `OpsInloggning`s rubrik.
  * @param {string} [props.description] Historisk, ritas bara i "kontrollerar"-läget (laddar).
- * @param {string} [props.etikett] `OpsInloggning props.etikett`, appens namn under ordmärket.
+ * @param {import("../components/OpsBrand.jsx").MarkeNamn} [props.namn] `OpsInloggning props.namn`, märkets rad 1 (förval "OPS HUB").
+ * @param {string} [props.etikett] `OpsInloggning props.etikett`, appens namn som märkets rad 2.
  * @param {string} [props.viskning] `OpsInloggning props.viskning`.
  * @param {{ label: string, href: string }[]} [props.lankar] `OpsInloggning props.lankar`.
  * @param {string} [props.appVersion] `OpsInloggning props.appVersion`.
@@ -343,6 +344,7 @@ export function OpsAuthGate({
   allowedRoles,
   title = "Logga in",
   description = "Den här plattformen kräver inloggning.",
+  namn,
   etikett,
   viskning,
   lankar,
@@ -368,6 +370,7 @@ export function OpsAuthGate({
       <OpsInloggning
         auth={auth}
         rubrik={title}
+        namn={namn}
         etikett={etikett}
         viskning={viskning}
         lankar={lankar}

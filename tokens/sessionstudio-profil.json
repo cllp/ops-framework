@@ -123,6 +123,14 @@
     "ease": "ease"
   },
 
+  "marke": {
+    "_kalla": "0.31.0, CP:s bilder scratchpad/logo/cp-utfalld.webp och cp-infalld.webp (2026-09-29), mätta pixel för pixel mot bakgrunden #202521. Märket är text: 'OPS' och undertexten i ljusgrått, 'HUB' i gråorange. Ljusgrått är INTE ett eget token, det är ramverkets ink: bokstävernas toppvärde är (230, 235, 231) och mörk ink är (232, 236, 230), alltså skillnad 2, 1, 1, under gränsen 4 i varje kanal. Ett eget token för en färg som redan finns vore två sanningar.",
+    "accent": {
+      "mork": { "varde": "#a9925e", "_kalla": "cp-utfalld.webp, bokstaven H i 'HUB': toppvärde (169, 146, 94) = #a9925e, upprepat i cp-infalld.webp (H i monogrammet). CP kallar den Gray Orange." },
+      "ljus": { "varde": "#a38c57", "_kalla": "Härledd, inte mätt i en bild (CP:s bilder är mörka). #a9925e ger 2,94:1 mot ljus yta (#fefcf6) och 2,85:1 mot canvas (#fdf8ef), under 3:1 för storstil. Samma kulör (H 41,6, S 30 procent) med ljusheten sänkt från 51,6 till 49,2 procent: 3,18:1 mot yta och 3,08:1 mot canvas. Raden i tokens/check-kontrast.mjs bevisar det." }
+    }
+  },
+
   "topprad": {
     "hojd": "56px",
     "_kalla": "apps/web/src/components/AppHeader.jsx:169, 'h-14 sm:h-14' (14 × 4px = 56px). Ramverkets header-rad var innehållsstyrd (py-2, ingen fast höjd)."

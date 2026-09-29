@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { OpsAppShell, OpsDataProvider, OpsThemeToggle, OpsToastProvider, createMemorySource } from "@staiger/ops-framework";
+import { OpsAppShell, OpsBrand, OpsDataProvider, OpsThemeToggle, OpsToastProvider, createMemorySource } from "@staiger/ops-framework";
 // ⛔ #159: felgränsen är ramverkets, inte appens. `OpsAppShell` fångar och
 // visar varje fel som når den, ALLTID, utan en prop som slår av den. Innan
 // #159 löste varje app det här själv (se `lib/ErrorBoundary.jsx` i äldre
@@ -38,7 +38,7 @@ function Skal({ children }) {
 
   return (
     <OpsAppShell
-      brand="__APP_NAME__"
+      brand={<OpsBrand undertext="__APP_NAME__" />}
       nav={SIDOR}
       activeHref={pathname}
       // Riktiga länkar i markup, routern tar över klicket. Då fungerar

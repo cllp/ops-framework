@@ -18,47 +18,25 @@ const enkelAuth = () =>
     signOut: async () => {},
   });
 
-describe("OpsInloggning: mark/ordmarke vidarebefordras till OpsBrand", () => {
-  it('mark="none" stänger av OPS Hub-förvalets bild, ren text i stället', () => {
-    const { container } = render(<OpsInloggning auth={enkelAuth()} etikett="Bolag Ops" mark="none" />);
+describe("OpsInloggning: märket är text (0.31.0), inga bilder", () => {
+  it("ritar OPS HUB som rad 1 och appens namn som rad 2, utan någon <img>", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} etikett="Bolag Ops" />);
     expect(container.querySelector("img")).toBeNull();
-    expect(screen.getByText("Bolag Ops")).toBeInTheDocument();
+    expect(container.querySelector('[data-marke="rad1"]')?.textContent).toBe("OPS HUB");
+    expect(container.querySelector('[data-marke="rad2"]')?.textContent).toBe("Bolag Ops");
   });
 
-  it("egen ordmarke överrider OPS Hub-förvalet", () => {
-    const { container } = render(<OpsInloggning auth={enkelAuth()} etikett="Bolag Ops" ordmarke={{ ljus: "/eget.png", mork: "/eget.png" }} />);
-    const bild = /** @type {HTMLImageElement} */ (container.querySelector("img"));
-    expect(bild.src).toContain("/eget.png");
+  it("`namn` byter rad 1, med första ordet och resten som två spann", () => {
+    const { container } = render(<OpsInloggning auth={enkelAuth()} namn="TAM STUDIO" />);
+    const rad1 = container.querySelector('[data-marke="rad1"]');
+    expect(rad1?.textContent).toBe("TAM STUDIO");
+    expect(rad1?.querySelectorAll("span")).toHaveLength(2);
   });
-});
 
-describe("OpsInloggning: undertexten under bilden är appens namn, aldrig 'Logga in' (#164 arkitektgranskning)", () => {
-  // ⛔ BUGGEN: `title={etikett || rubrik || "OPS Hub"}` gjorde att en app som
-  // bara satte `rubrik` (t.ex. `OpsAuthGate`s `title`, förvalt "Logga in")
-  // fick DEN texten som undertext under loggan, i stället för sitt eget namn.
-  // `OpsAuthGate` skickar ALLTID en `rubrik` (den har ett default-värde), så
-  // en app som glömde `etikett` fick permanent "Logga in" under bilden.
-  // ⛔ KORTETS RUBRIK ÄR ALLTID "Logga in" (hårdkodad `COPY`-text, se
-  // filhuvudet), OAVSETT `rubrik`-propen. `screen.getByText("Logga in")`
-  // hade alltså alltid hittat något, bugfri eller inte: det som avgör är
-  // vad som står i UNDERTEXTEN under bilden, den span:en som är bildens
-  // syskon (`OpsBrandBild` i `OpsBrand.jsx`), inte kortets h2.
-  /** @param {HTMLElement} container */
-  const undertext = (container) => /** @type {HTMLElement} */ (container.querySelector("img")).nextElementSibling;
-
-  it("etikett saknas OCH rubrik satt: undertexten är 'OPS Hub', ALDRIG rubrikens text", () => {
+  it("utan etikett ritas bara rad 1 (ALDRIG rubrikens text som rad 2)", () => {
     const { container } = render(<OpsInloggning auth={enkelAuth()} rubrik="Logga in" />);
-    expect(undertext(container).textContent).toBe("OPS Hub");
-  });
-
-  it("etikett satt: undertexten är etikett, oavsett vad rubrik säger", () => {
-    const { container } = render(<OpsInloggning auth={enkelAuth()} rubrik="Logga in" etikett="Bolag Ops" />);
-    expect(undertext(container).textContent).toBe("Bolag Ops");
-  });
-
-  it("varken etikett eller rubrik: undertexten är 'OPS Hub'", () => {
-    const { container } = render(<OpsInloggning auth={enkelAuth()} />);
-    expect(undertext(container).textContent).toBe("OPS Hub");
+    expect(container.querySelector('[data-marke="rad2"]')).toBeNull();
+    expect(container.querySelector('[data-marke="rad1"]')?.textContent).toBe("OPS HUB");
   });
 });
 

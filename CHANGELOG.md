@@ -9,6 +9,109 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.31.0
+
+⛔ **Märket är text, inte bilder. BREAKING: appar måste pinna om.** CP 2026-09-29:
+"Viktigt. Logotyp. Vi gör såhär. Vi tar bort bilder, kör med text. Font: Glacial
+Indifference Regular. Colors: Light Gray och Gray Orange. Ha detta både på
+inloggning och inne i appen. Följ detta exakt." Och därefter, "kör allt, och bort
+med loggorna".
+
+### Märket (avsnitt 1 till 6 och 15)
+
+**Bort, helt:** `varumarke/*.webp` (fyra bilder), `scripts/generate-varumarke.mjs`,
+`src/lib/varumarke.js` med `OPS_HUB_VARUMARKE`, bildläget i `OpsBrand`
+(`ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `title`, `subtitle`, `mark`),
+PH.ST-märkets fyra bilder i `assets/` och tokens `--logo-phst*`, samt vakterna
+och proven som stod över dem (test-guards "varumarke", `varumarke.test.js`,
+PH.ST-kontrollen i `check-scaffold`). Ingen död fil kvar: `grep` efter `varumarke`,
+`OPS_HUB_VARUMARKE` och `phst` ger noll träffar utanför den här texten.
+
+**Nytt:** `OpsBrand` är två textrader och ett monogram.
+
+| Prop | Betyder |
+|---|---|
+| `namn` | Rad 1. Förval `"OPS HUB"`. Första ordet ljusgrått (`ink`), resten gråorange (`marke-accent`). Eller `{ forsta, andra }`. |
+| `undertext` | Rad 2, appens eller gruppens namn. Tom: bara rad 1, centrerad lodrätt. |
+| `monogram` | Tecknen i rutan. Förval: första bokstaven i varje ord, "OH". |
+| `storlek` | `"topp"` (förval) eller `"stor"` (inloggningen). |
+| `panelInfalld` | Sätts av skalet. |
+
+I `OpsAppShell` är `brand` (sträng) märkets `namn`, och **rad 2 är den aktiva
+gruppens namn i versaler** när `grupper` finns och en grupp är vald (i läget
+"Alla mina grupper" används appens `undertext`, annars ritas bara rad 1).
+`OpsInloggning` får `namn` (nytt) och `etikett` (blir rad 2); `mark` och
+`ordmarke` är borta.
+
+**Typsnittet:** Glacial Indifference Regular (SIL OFL 1.1) ligger i
+`fonts/glacial-indifference/` med `LICENSE.txt` bredvid, `@font-face` med
+`font-display: swap` i `tokens/tokens.css`, token `--font-marke`. Bara märket
+använder det. `check-fonts` godtar nu ett självvärdat typsnitt med licensfil och
+fäller ett utan (fil som saknas, licens som saknas, ingen `@font-face` alls), och
+`check-scaffold` mäter att filen faktiskt följer med genom ett konsumentbygge.
+
+**Mätt i CP:s bild, inte gissat.** `cp-utfalld.webp` är 2000 px bred; panelens kort
+är 411 bildpixlar och 180 CSS-pixlar, alltså skala 2,283. Bokstävernas startlägen
+och versalhöjder är avlästa pixel för pixel mot bakgrunden #202521 och anpassade med
+minsta kvadrat mot typsnittets egna breddtabell (typsnittets versalhöjd är 0,67 em):
+
+| | Rad 1 "OPS HUB" | Rad 2 undertexten |
+|---|---|---|
+| Versalhöjd i bilden | 21 px (O med översvängning) | 15 px |
+| Typsnittsstorlek | **13 px** (`--marke-storlek`) | **9,5 px** (`--marke-undertext`) |
+| Spärrning | **0,23 em** = 2,99 px (`--marke-sparrning`), 0,34 av versalhöjden | **0,26 em** (`--marke-undertext-sparrning`), 0,39 av versalhöjden |
+| Bredd i bilden / här | 157 / 156 bildpixlar | 360 / 362 bildpixlar |
+| Baslinjeavstånd | 31 bildpixlar = 13,6 CSS-px (`--marke-radavstand` 3,5 px) | |
+
+Monogrammet "OH": 14 px, spärrning 0,04 em. Inloggningen: rad 1 32 px, rad 2 12
+px (23 px hade blivit bredare än kortet). Toppradens rutor ryms i 56 px: ordmärket
+är 40 px högt.
+
+**Färger, mätta:** ljusgrått är bokstävernas toppvärde (230, 235, 231) och
+ramverkets mörka `ink` är (232, 236, 230): skillnad 2, 1, 1, alltså under gränsen 4,
+och därför ingen ny färg, märket använder `ink`. Gråorange är H:ets toppvärde
+(169, 146, 94) = **#a9925e** = `--color-marke-accent` (mörkt), i fixturen
+`tokens/sessionstudio-profil.json` under `marke` med `_kalla` mot CP:s bilder.
+**Ljust tema:** ljusgrått syns inte på ljus yta, så `ink` (#3C2F2F, 12,5:1) bär "OPS" och
+monogrammets O. #a9925e klarar inte 3:1 mot ljus yta (**2,94:1** mot `surface`,
+**2,85:1** mot `canvas`), så ljust läge har en mörkare ton av samma kulör (H 41,6, S 30 procent,
+ljushet 51,6 till 49,2 procent): **#a38c57**, **3,18:1** mot `surface` och **3,08:1**
+mot `canvas`. Mörkt: 5,22:1 mot `surface`. `check-kontrast` har fyra nya rader
+(orange mot yta och canvas, båda teman; `ink` mot yta) och är grön.
+
+**Placering och rörelse, som SessionStudio och som CP skärpte den.**
+
+- Ordmärkets två rader står **över kortens bredd** i gruppanelen, inte över panelens
+  ytterkant: mittlinjen mäts till 107,99 mot kortens 108,00 vid 1280 px och 260,49
+  mot 260,50 vid 1600 (högst 1 px tillåtet, båda raderna). Spärrningen lägger ett
+  tomt avstånd efter sista bokstaven, så varje rad bär lika mycket `padding-left`
+  som den har spärrning: annars sitter texten en halv spärrning till vänster.
+  Panelens sidopadding är nu ett token (`--panel-kant`, 2 px) som både panelen och
+  märkesrutan läser. (`check-skalyta` mätte förut mot panelens ytterkant och
+  godkände därför 2 px fel; det jämför nu mot innehållet.)
+- **Infälld:** monogrammet står i **samma ruta som remsans grupper**: `gruppRutaKlass`
+  (ny, `src/lib/radKlass.js`) är EN definition som remsan, chevronknappen och
+  monogrammet använder. Mätt med `getComputedStyle`: bredd, höjd, rundning (12 px),
+  kantfärg, kantbredd (1 px) och yta är lika med en icke-aktiv grupprutas, och
+  mittlinjerna är lika (38,00 mot 38,00 vid 1280).
+- Båda formerna är alltid monterade och växlar med en opacity-crossfade på 200 ms.
+  Under `md`, eller i en app utan grupper: monogramrutan, vänsterställd på x 16.
+- Namnet står en gång som `sr-only`; formerna är `aria-hidden`.
+
+**Prov (alla röda mot origin/main 0.30.1, gröna här):** `check-skalyta` sektion 10
+(1280 och 1600 utfälld och infälld, långt gruppnamn, läget Alla, 390 px, inloggning
+390 och 1280: typsnittet laddat med `document.fonts.check`, färger beräknade lika med
+tokens, inga `<img>`, `scrollWidth <= clientWidth`, höjd <= 56); `src/__tests__/marke.test.jsx`
+(props, förval, monogram, undertext från gruppen); `test-guards` typsnitt 4 till 7.
+
+**Appen måste:** pinna om till 0.31.0 och ta bort `title`, `subtitle`, `mark`, `ordmarke`,
+`ikon`, `ordmarkeHojd`, `endastOrdmarke` ur varje `OpsBrand`/`OpsInloggning`-anrop;
+`brand="Bolag Ops"` blir nu märket "BOLAG OPS", så utelämna `brand` (förval OPS HUB)
+eller skicka `<OpsBrand undertext="Bolag Ops" />` för en rad 2 i läget Alla mina grupper.
+`OPS_HUB_VARUMARKE` finns inte längre.
+
+---
+
 ## 0.30.1
 
 ⛔ **Mobilhuvudet, gruppanelen och loggan, och Hub, som SessionStudio.** CP

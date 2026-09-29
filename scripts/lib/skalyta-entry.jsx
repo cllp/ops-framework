@@ -14,7 +14,7 @@ import { useState } from "react";
 import * as Ops from "OPS_DIST";
 import { Calendar, CalendarDays, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
-const { OpsAppShell, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsKatalogInstallning, OpsThemeToggle } = Ops;
+const { OpsAppShell, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsThemeToggle } = Ops;
 
 const IKON = 20;
 const nav = [
@@ -52,7 +52,6 @@ function Skal({ children, extra = {} }) {
   const [aktiv] = useState("/");
   return (
     <OpsAppShell
-      brand="Bolag Ops"
       nav={nav}
       activeHref={aktiv}
       actions={<OpsIconLink href="/inkorg" icon={<Inbox size={IKON} />} label="Inkorg" badge={3} />}
@@ -93,14 +92,15 @@ const gaTill = (href, e) => {
 const grupperLista = [
   { id: "g1", namn: { sv: "Claes Philip Staiger Konsulting och Förvaltning AB" }, medlemsantal: 2, roll: "agare" },
   { id: "g2", namn: { sv: "Testgruppen" }, medlemsantal: 3 },
+  // CP:s egen grupp, den som märkets andra rad visar i hans bild (0.31.0). Kort nog att rymmas utan förkortning.
+  { id: "g3", namn: { sv: "Claes Philip Staiger AB" }, medlemsantal: 1, roll: "agare" },
 ];
 
 function Full({ children }) {
   const [infalld, setInfalld] = useState(false);
-  const [aktiv, setAktiv] = useState("g1");
+  const [aktiv, setAktiv] = useState(window.__aktiv ?? "g1");
   return (
     <OpsAppShell
-      brand="Bolag Ops"
       fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
       moduler={hubModuler}
       activeHref="/"
@@ -131,6 +131,10 @@ function Scen() {
       </Full>
     );
   }
+  if (s === "inloggning") {
+    // 0.31.0: inloggningens märke. Ingen av förmågorna anropas, sidan ska bara ritas.
+    return <OpsInloggning auth={{ signInWithGoogle: () => {} }} etikett="Bolag Ops" />;
+  }
   if (s === "hub") {
     return (
       <Full>
@@ -152,8 +156,7 @@ function Scen() {
   if (s === "fasta") {
     return (
       <OpsAppShell
-        brand="Bolag Ops"
-        fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
+          fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
         moduler={moduler}
         activeHref="/"
         actions={<OpsIconLink href="/inkorg" icon={<Inbox size={IKON} />} label="Inkorg" badge={3} />}

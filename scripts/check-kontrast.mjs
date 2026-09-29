@@ -156,6 +156,18 @@ export const PAR = [
    */
   { vad: "primärknappens text", text: "accent-contrast", yta: "accent", niva: BROD },
   { vad: "primärknappens text, hover", text: "accent-contrast", yta: "accent-hover", niva: BROD },
+  /*
+   * ⛔ MÄRKETS ORANGE (0.31.0). "HUB" i toppraden och i inloggningen är stor text
+   * (13 respektive 32 px, spärrad) och ska nå 3:1, det som WCAG kräver av
+   * storstil. CP:s orange (#a9925e) klarar det mot mörk yta (5,22:1) men inte
+   * mot ljus (2,94:1 mot yta, 2,85:1 mot canvas): därför har ljust läge en
+   * mörkare ton av samma kulör, se `marke` i tokens/sessionstudio-profil.json.
+   * Paret mot canvas är inloggningens (märket står direkt på sidan), paret mot
+   * surface är toppradens.
+   */
+  { vad: "märkets orange i toppraden", text: "marke-accent", yta: "surface", niva: STOR },
+  { vad: "märkets orange i inloggningen", text: "marke-accent", yta: "canvas", niva: STOR },
+  { vad: "märkets ljusgrå (ink) i toppraden", text: "ink", yta: "surface", niva: BROD },
 ];
 
 /**

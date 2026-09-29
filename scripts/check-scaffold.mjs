@@ -123,34 +123,26 @@ if (css.includes(".bg-red-500")) {
   brott.push(".bg-red-500 finns i appens byggda CSS. Nollningen av Tailwinds palett nådde inte hela vägen genom en riktig installation.");
 }
 
-// ── Logotypen måste överleva vägen genom paketet ─────────────────────────────
+// ── Märkets typsnitt måste överleva vägen genom paketet (0.31.0) ─────────────
 //
 // ⛔ Det här är den enda kontroll som kan fånga felet, och felet är tyst.
-// `--logo-phst` är en `url()` skriven relativt `tokens/tokens.css` INNE i
+// `@font-face` i `tokens/tokens.css` pekar med en `url()` relativt filen INNE i
 // node_modules. Att den pekar rätt bygger på att byggverktyget skriver om
 // sökvägen när filen importeras från appens `src/index.css` och kopierar ut
-// bilden. Gör det inte det blir det ingen varning, ingen röd rad och inget
-// byggfel, bara ett varumärke som är en tom ruta hos användaren.
+// typsnittet. Gör det inte det blir det ingen varning, ingen röd rad och inget
+// byggfel, bara ett märke som ritas i systemets typsnitt hos användaren.
+// (Före 0.31.0 stod samma vakt över PH.ST-bilderna. Bilderna är borta, vakten
+// gäller nu det enda märket är gjort av: typsnittet.)
 //
-// ⛔ ALLA fyra kontrolleras, inte den första som råkar matcha. Första versionen
-// av den här kontrollen läste bara `css.match(...)`, alltså en enda träff.
-// Provkörning med `--logo-phst` pekad på en fil som inte finns gav GRÖNT, för
-// att träffen blev `phst-estd-light` i stället. En vakt som svarar på fel fråga
-// är farligare än ingen vakt, eftersom den får en att sluta titta.
-const MARKEN = ["phst-light", "phst-dark", "phst-estd-light", "phst-estd-dark"];
-const urler = [...css.matchAll(/url\(([^)]*phst[^)]*)\)/g)].map((m) => m[1].replace(/["']/g, "").trim());
-
-for (const marke of MARKEN) {
-  // Byggverktyget lägger på en innehållshash, så namnet matchas som prefix.
-  const traff = urler.find((u) => path.basename(u).startsWith(`${marke}-`) || path.basename(u) === `${marke}.png`);
-  if (!traff) {
-    brott.push(
-      `${marke}.png finns inte som url() i appens byggda CSS. Tokenet nådde inte hela vägen genom paketet, och märket blir en tom ruta i det temat.`,
-    );
-    continue;
-  }
-  if (!fs.existsSync(path.join(appmapp, "dist", traff.replace(/^\//, "")))) {
-    brott.push(`Appens CSS pekar på ${traff}, men filen finns inte i dist. Bilden skrevs aldrig ut, alltså trasigt märke utan felmeddelande.`);
+// ⛔ Alla träffar kontrolleras, inte den första som råkar matcha (samma lärdom
+// som den gamla bildvakten: en träff på fel fil gav grönt).
+const fontUrler = [...css.matchAll(/url\(([^)]*glacial-indifference[^)]*\.woff2[^)]*)\)/g)].map((m) => m[1].replace(/["']/g, "").trim());
+if (fontUrler.length === 0) {
+  brott.push("Glacial Indifference finns inte som url() i appens byggda CSS. @font-face nådde inte hela vägen genom paketet, och märket ritas i systemets typsnitt.");
+}
+for (const u of fontUrler) {
+  if (!fs.existsSync(path.join(appmapp, "dist", u.replace(/^\//, "")))) {
+    brott.push(`Appens CSS pekar på ${u}, men filen finns inte i dist. Typsnittet skrevs aldrig ut, alltså fel typsnitt i märket utan felmeddelande.`);
   }
 }
 

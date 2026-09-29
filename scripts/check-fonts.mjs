@@ -99,10 +99,52 @@ if (!/wght@400;500;600;700/.test(mall)) {
   fel.push(`${mallRad} hämtar andra vikter än 400;500;600;700, som är de komponenterna använder.`);
 }
 
+// ── 4. Ett SJÄLVVÄRDAT typsnitt (0.31.0): filen finns och licensen följer med ──
+//
+// ⛔ Märket ritas i Glacial Indifference, som paketeras i ramverket
+// (`fonts/glacial-indifference/`, SIL Open Font License 1.1). OFL tillåter det på
+// ett villkor: licenstexten ska följa med varje kopia. Två saker kan därför gå
+// tyst fel, och båda är kontrollerade här:
+//   a. `@font-face` pekar på en fil som inte finns. Bygget säger inget, märket
+//      ritas i reservtypsnittet och ser nästan rätt ut.
+//   b. Filen finns men licensen har försvunnit ur mappen. Ramverket distribuerar
+//      då ett typsnitt utan sin licens, vilket OFL inte medger.
+// Ett typsnitt utan licensfil fälls alltså, ett med licensfil godtas.
+//
+// ⛔ GOLV: minst en `@font-face`. En vakt som blir grön av att ingen regel hittades
+// har inte mätt något (arbetsreglernas punkt 4, "tomt underlag").
+const tokenDir = path.dirname(tokenfil);
+const fontRegler = [...tokenUtanKommentarer.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => m[1]);
+if (fontRegler.length < 1) {
+  fel.push(`${path.relative(rot, tokenfil)} har ingen @font-face. Märket (font-marke) hade ritats i reservtypsnittet. Väntat minst 1 regel, hittade ${fontRegler.length}.`);
+}
+for (const regel of fontRegler) {
+  const familj = regel.match(/font-family:\s*['"]?([^'";]+)['"]?/)?.[1]?.trim() ?? "(okänd familj)";
+  const url = regel.match(/url\(\s*["']?([^"')]+)["']?\s*\)/)?.[1];
+  if (!url) {
+    fel.push(`@font-face för ${familj} saknar url(). Ett typsnitt utan fil är ett namn utan innehåll.`);
+    continue;
+  }
+  if (/^https?:|^data:/.test(url)) continue;
+  const fil = path.resolve(tokenDir, url);
+  if (!fs.existsSync(fil)) {
+    fel.push(`@font-face för ${familj} pekar på ${url}, men filen finns inte (${path.relative(rot, fil)}). Märket ritas i reservtypsnittet utan felmeddelande.`);
+    continue;
+  }
+  const mapp = path.dirname(fil);
+  const licens = fs.readdirSync(mapp).filter((f) => /^(licen[sc]e|ofl|copying)/i.test(f) && fs.statSync(path.join(mapp, f)).size > 500);
+  if (licens.length === 0) {
+    fel.push(
+      `${familj} (${path.relative(rot, fil)}) saknar licensfil i sin mapp. Ett typsnitt som paketeras måste ha sin licens bredvid sig ` +
+        "(SIL Open Font License kräver det). Lägg LICENSE.txt i samma mapp, tas den bort fälls bygget.",
+    );
+  }
+}
+
 if (fel.length > 0) {
   console.error("check-fonts: FEL\n");
   for (const f of fel) console.error(`  - ${f}\n`);
   process.exit(1);
 }
 
-console.log("check-fonts: typsnittet hämtas med <link> i mallen, inte med en @import som ignoreras.");
+console.log(`check-fonts: Plus Jakarta Sans hämtas med <link> i mallen (ingen @import som ignoreras), och ${fontRegler.length} självvärdat typsnitt har sin fil och sin licens.`);

@@ -139,9 +139,9 @@ const MASTE_FINNAS = [
   ".sr-only",
   ".animate-spin",
   ".motion-reduce\\:animate-spin-slow",
-  // Markets bildtoken. Genereras den inte star varumarket som en tom ruta i
-  // topraden, och det ar det forsta anvandaren ser.
-  ".bg-\\(image\\:--logo-phst\\)",
+  // Markets typsnitt (0.31.0). Genereras inte klassen ritas markets text i
+  // sidans typsnitt, och det ar det forsta anvandaren ser.
+  ".font-marke",
 ];
 for (const v of MASTE_FINNAS) {
   if (!css.includes(v)) {
