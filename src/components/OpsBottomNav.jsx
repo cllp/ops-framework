@@ -192,7 +192,13 @@ export function OpsBottomNav({
             {/* `max-h` i `dvh` och inte `vh`: Safaris verktygsrad ändrar höjd, och
                 100vh räknar med den största så innehållet hamnar under kanten. */}
             <Dialog.Content
-              className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom) md:hidden", radBehallare({ ark: true }))}
+              className={cx(
+                "fixed inset-x-0 bottom-0 z-(--z-modal) flex flex-col pb-(--safe-bottom) md:hidden",
+                // ⛔ 0.31.2: ARKET HAR EN HÖJD, INTE EN INNEHÅLLSHÖJD (CP: "Se till att aktivitetspanelen blir lika hög som
+                // menyn så den inte hoppar"). Roten och undervyn (Aktivitet) ritas i samma ruta med samma höjd: `min(85dvh, 36rem)`.
+                meny ? "h-[min(85dvh,36rem)]" : "max-h-[85dvh]",
+                radBehallare({ ark: true }),
+              )}
               aria-describedby={undefined}
             >
               <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">

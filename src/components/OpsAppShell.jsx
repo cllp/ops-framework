@@ -1339,7 +1339,12 @@ export function OpsAppShell({
                       // SS `AppHeader.jsx:514` är `w-80` (320 px), och undervyn ritas i samma ruta. Utan `meny` är det
                       // fortfarande den rena överflödsmenyn, som är innehållsstyrd.
                       "z-(--z-dropdown) max-w-[calc(100vw-1.5rem)] overflow-hidden",
-                      meny ? "w-80" : "min-w-52",
+                      // ⛔ 0.31.2 (CP 2026-09-29 20:57: "Se till att aktivitetspanelen blir lika hög som menyn så den inte
+                      // hoppar. Kanske att meny skall vara en standardhöjd."): MED `meny` HAR RULLGARDINEN EN HÖJD, INTE
+                      // EN INNEHÅLLSHÖJD. Roten var innehållsstyrd (ingen höjdgräns alls) och undervyn Aktivitet hade eget
+                      // tak, så ytan hoppade i höjd när man växlade. Nu är höjden densamma i båda lägena
+                      // (fönstrets höjd minus toppraden, tak 32 rem) och innehållet rullar inuti.
+                      meny ? "flex h-[min(32rem,calc(100dvh-var(--safe-top)-var(--topbar-height)-1.5rem))] w-80 flex-col" : "min-w-52",
                       radBehallare(),
                     )}
                   >
@@ -1365,14 +1370,18 @@ export function OpsAppShell({
                       // ⛔ UNDERVYNS INNEHÅLL ERSÄTTER RESTEN AV MENYN (#166):
                       // sektioner, nav-överflöd, menuExtras och Logga ut hör
                       // till ROTEN, inte till en undervy man just öppnat.
-                      <div className="max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain px-2 pt-1 pb-2">
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pt-1 pb-2">
                         {aktivUndervy.undervy}
                       </div>
                     ) : null}
                     {/* ⛔ 0.30.0: ALLT I ROTEN GÅR GENOM `MenyAvdelningar`, som
                         ritar EN avgränsare mellan varje par och ingen före den
                         första. Se dess filhuvud för felet (två linjer på varandra). */}
-                    {!aktivUndervy ? <MenyAvdelningar avdelningar={rotAvdelningar} /> : null}
+                    {!aktivUndervy ? (
+                      <div className={cx(meny && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}>
+                        <MenyAvdelningar avdelningar={rotAvdelningar} />
+                      </div>
+                    ) : null}
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
