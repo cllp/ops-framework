@@ -1194,7 +1194,16 @@ export function OpsAppShell({
                   <Popover.Content
                     align="end"
                     sideOffset={4}
-                    className={cx("z-(--z-dropdown) min-w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden", radBehallare())}
+                    className={cx(
+                      // ⛔ 0.31.0 (CP: "Aktivitet ... modalen blir superbred. Skall vara samma som i dropdown så det inte
+                      // känns hackigt"): MENYN HAR EN BREDD, INTE EN INNEHÅLLSBREDD. Före 0.31.0 var den `min-w-52` och
+                      // växte med det bredaste som ritades, så en undervy med en lång rad gjorde ytan till en bred ruta.
+                      // SS `AppHeader.jsx:514` är `w-80` (320 px), och undervyn ritas i samma ruta. Utan `meny` är det
+                      // fortfarande den rena överflödsmenyn, som är innehållsstyrd.
+                      "z-(--z-dropdown) max-w-[calc(100vw-1.5rem)] overflow-hidden",
+                      meny ? "w-80" : "min-w-52",
+                      radBehallare(),
+                    )}
                   >
                     {/* ⛔ RUBRIKEN STÅR EN GÅNG, ÖVERST, SAMMA FORM SOM GAMLA
                         `OpsMeny` (mätt i SessionStudio: ett `<h2>` med "Meny",

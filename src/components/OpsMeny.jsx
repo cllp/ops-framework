@@ -236,6 +236,10 @@ export function MenyAvdelningar({ avdelningar }) {
  * @param {string} [props.badgeText]
  */
 export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText = "nya" }) {
+  // ⛔ 0.31.0 (CP: raden "Primitiver" hade ingen ikon och låg därför inte i linje med raderna ovanför): en rad utan ikon
+  // får en TOM 16 px-plats när någon av de andra raderna har en, så etiketterna står i samma kolumn. Har ingen rad en
+  // ikon reserveras ingen plats. Alternativet, att kräva ikon, hade tvingat appen att hitta på en bild åt "Primitiver".
+  const nagonIkon = poster.some((p) => Boolean(/** @type {any} */ (p).icon));
   /** @param {import("../lib/nav.js").NavPost | { href: string, label: string }} p @param {boolean} [barn] */
   const rad = (p, barn = false) => {
     const aktiv = p.href === activeHref;
@@ -256,6 +260,8 @@ export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText
           <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
             {ikon}
           </span>
+        ) : nagonIkon && !barn ? (
+          <span aria-hidden="true" data-ikonplats="" className="size-4 shrink-0" />
         ) : null}
         <span className="min-w-0 flex-1 truncate">{p.label}</span>
         {typeof badge === "number" ? <OpsCountBadge count={badge} text={badgeText} placement="inline" /> : null}

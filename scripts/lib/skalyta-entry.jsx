@@ -27,7 +27,13 @@ const moduler = [
   { href: "/ekonomi", label: "Ekonomi", icon: <Wallet size={IKON} />, children: [{ href: "/inkomster", label: "Inkomster" }, { href: "/kostnader", label: "Kostnader" }] },
 ];
 
-const aktivitetsvy = <p>Aktivitetslistan</p>;
+// 0.31.0: en undervy med en LÅNG rad, som en riktig aktivitetslista. Före 0.31.0 växte menyn med den till nästan hela bredden.
+const aktivitetsvy = (
+  <div>
+    <p>Aktivitetslistan</p>
+    <p>{"Claes Philip Staiger lade till en ny händelse i gruppen Claes Philip Staiger Konsulting och Förvaltning AB och bjöd in alla medlemmar att svara före fredag klockan tolv. ".repeat(3)}</p>
+  </div>
+);
 const meny = {
   sektioner: [
     [
@@ -36,7 +42,7 @@ const meny = {
     ],
     [{ key: "installningar", etikett: "Inställningar", ikon: <Settings size={16} />, onClick: () => {} }],
   ],
-  app: [{ href: "/appsida", label: "Appens egen sida", icon: <Settings size={16} /> }],
+  app: [{ href: "/appsida", label: "Appens egen sida", icon: <Settings size={16} /> }, { href: "/primitiver", label: "Primitiver" }],
   onLoggaUt: () => {},
   appVersion: "app v1",
 };

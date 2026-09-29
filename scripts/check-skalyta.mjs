@@ -884,6 +884,48 @@ for (const bredd of [1280, 1600]) {
   }
 }
 
+// ══ 13. MENYN HAR EN BREDD: AKTIVITET ÖPPNAS I SAMMA RULLGARDIN (0.31.0, avsnitt 13) ═
+// CP: "Aktivitet ... Modalen blir superbred. Skall vara samma som i dropdown så det inte känns hackigt." SS `AppHeader.jsx:514` `w-80`.
+// Mått: rullgardinens bredd, position och rundning före och efter att Aktivitet öppnats (högst 1 px), tillbaka-pil i rubriken,
+// och raden utan ikon ("Primitiver") står i samma kolumn som raderna med.
+{
+  const { page, context } = await oppna("meny", { width: 1280, height: 800 });
+  await page.getByRole("button", { name: /Meny, fler/ }).click();
+  await page.waitForSelector('[role="dialog"]');
+  const yta = () =>
+    page.evaluate(() => {
+      const d = document.querySelector('[role="dialog"]');
+      if (!d) return null;
+      const r = d.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height, radie: getComputedStyle(d).borderTopLeftRadius, right: r.right };
+    });
+  const kol = await page.evaluate(() => {
+    const d = document.querySelector('[role="dialog"]');
+    const x = (/** @type {string} */ t) => {
+      const el = [...(d ? d.querySelectorAll("a, button") : [])].find((e) => (e.textContent || "").includes(t));
+      const span = el ? [...el.querySelectorAll("span")].find((s) => (s.textContent || "").trim() === t) : null;
+      return span ? span.getBoundingClientRect().left : null;
+    };
+    return { sida: x("Appens egen sida"), primitiver: x("Primitiver") };
+  });
+  krav(kol.sida !== null && kol.primitiver !== null && Math.abs(kol.sida - kol.primitiver) <= 1, `menyn 1280 px: raden utan ikon börjar på x ${kol.primitiver} mot raden med ikon på ${kol.sida}. Väntat samma kolumn (±1 px).`);
+  const fore = await yta();
+  await page.getByRole("button", { name: /Aktivitet/ }).click();
+  await page.waitForTimeout(150);
+  const efter = await yta();
+  krav(fore !== null && efter !== null, "menyn 1280 px: rullgardinen hittades inte före eller efter Aktivitet.");
+  if (fore && efter) {
+    matt.push(`menyn 1280 px: bredd ${fore.w.toFixed(1)} före och ${efter.w.toFixed(1)} efter Aktivitet, x ${fore.x.toFixed(1)}/${efter.x.toFixed(1)}, y ${fore.y.toFixed(1)}/${efter.y.toFixed(1)}, rundning ${fore.radie}/${efter.radie}; rad utan ikon x ${kol.primitiver?.toFixed(1)} mot ${kol.sida?.toFixed(1)}`);
+    krav(Math.abs(fore.w - efter.w) <= 1, `menyn 1280 px: bredden ${fore.w.toFixed(1)} före och ${efter.w.toFixed(1)} efter att Aktivitet öppnats. Väntat högst 1 px skillnad: undervyn ritas i samma ruta.`);
+    krav(Math.abs(fore.right - efter.right) <= 1 && Math.abs(fore.y - efter.y) <= 1, `menyn 1280 px: ytan flyttade sig när Aktivitet öppnades (höger ${fore.right.toFixed(1)} till ${efter.right.toFixed(1)}, y ${fore.y.toFixed(1)} till ${efter.y.toFixed(1)}).`);
+    krav(fore.radie === efter.radie, `menyn 1280 px: rundningen ändrades (${fore.radie} till ${efter.radie}).`);
+    krav(fore.w >= 300 && fore.w <= 340, `menyn 1280 px: bredden är ${fore.w.toFixed(1)}, väntat cirka 320 (SS w-80).`);
+  }
+  krav((await page.getByRole("button", { name: "Tillbaka till menyn" }).count()) === 1, "menyn 1280 px: Aktivitet har ingen tillbaka-pil i rubriken.");
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "meny-aktivitet-1280.png"), clip: { x: 800, y: 0, width: 480, height: 500 } });
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);
