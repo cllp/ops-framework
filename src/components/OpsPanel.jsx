@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { ChevronHogerIkon, ChevronVansterIkon, ExternLankIkon, KryssIkon } from "./icons.jsx";
 import { OpsCountBadge } from "./counter.jsx";
+import { radBehallare, radKlass } from "../lib/radKlass.js";
 
 /**
  * En panel med vyer i en stack: rot, undervy, detalj.
@@ -142,18 +143,14 @@ export function OpsPanelRow({ icon, label, badge, badgeText = "", chevron, onCli
      samma primitiv. Mätt nu, i SAMMA fil, raden precis under: `px-4 py-2.5`,
      `gap-3`, ikon `w-4.5 h-4.5` (18 px), `text-sm font-medium`, `text-[var(--color-accent)]`
      på BÅDE ikonen och ordet, alltid, inte bara vid hover eller aktiv. */
-  const klass = cx(
-    "flex min-h-11 w-full items-center rounded-sm text-left",
-    accent ? "gap-3 px-4 py-2.5 text-sm font-medium" : "gap-2 px-3 text-xs",
-    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-    accent ? "text-accent hover:bg-accent-faint" : active ? "bg-accent-subtle text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-    (onClick || href) && "cursor-pointer",
-  );
+  // ⛔ 0.30.0 (#173): raden är `radKlass`, en funktion för alla fyra ytor som
+  // ritar den. Se dess filhuvud för mätningen ur SessionStudio.
+  const klass = radKlass({ accent, active, klickbar: Boolean(onClick || href) });
 
   const inre = (
     <>
       {icon ? (
-        <span aria-hidden="true" className="flex shrink-0 items-center">
+        <span aria-hidden="true" className={cx("flex shrink-0 items-center", accent ? "[&_svg]:size-4.5" : "[&_svg]:size-4")}>
           {icon}
         </span>
       ) : null}
@@ -385,7 +382,7 @@ export function OpsPanel({
           <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
           <Dialog.Content
             aria-label={label}
-            className="fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col rounded-t-xl border-t border-line bg-raised pb-(--safe-bottom)"
+            className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom)", radBehallare({ ark: true }))}
             aria-describedby={undefined}
           >
             {/*
@@ -467,7 +464,8 @@ export function OpsPanel({
              (ett märke med `absolute`, en rullande lista) kan hamna utanför
              eller under dess kant. `bg-raised` är ogenomskinlig i båda teman. */
           className={cx(
-            "isolate z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-md border border-line bg-raised p-1 shadow-lg",
+            "isolate z-(--z-dropdown) w-88 max-w-[calc(100vw-1.5rem)] overflow-hidden p-1",
+            radBehallare(),
           )}
         >
           {innehall}

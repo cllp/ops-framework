@@ -1,6 +1,10 @@
 import { OpsPanelRow } from "./OpsPanel.jsx";
 import { ChevronVansterIkon, LoggaUtIkon } from "./icons.jsx";
+import { OpsCountBadge } from "./counter.jsx";
 import { cx } from "../lib/cx.js";
+import { validateNav } from "../lib/nav.js";
+import { radKlass } from "../lib/radKlass.js";
+import { text } from "../lib/sprak.js";
 import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
 
 /**
@@ -63,7 +67,13 @@ import { OPS_FRAMEWORK_VERSION } from "../lib/frameworkVersion.generated.js";
  * Skalets `meny`-prop, samma form på `OpsAppShell` och `OpsBottomNav` (#164,
  * andra granskningen). En typ, ett ställe: annars glider de två isär.
  * @typedef {object} MenyKonfiguration
- * @property {MenyRad[][]} [sektioner] Appens rader, i sina sektioner.
+ * @property {MenyRad[][]} [sektioner] RAMVERKETS rader, i sina sektioner: Aktivitet, Inställningar, Hjälp, Notiser
+ *   när de finns. (Namnet är äldre än uppdelningen i 0.30.0 och står kvar så att ingen app går sönder.)
+ * @property {import("../lib/nav.js").NavPost[]} [app] (0.30.0, #173) APPENS egna länkar, i en EGEN sektion med
+ *   rubrik (`appRubrik`). ⛔ ALDRIG appens moduler: de bor i Hub. Menyn är det som gäller kontot och
+ *   ramverket, Hub är det som gäller arbetet. Se README "Navigationen".
+ * @property {string | { sv: string, en?: string }} [appRubrik] Rubriken över `app`. Förval `{ sv: "Appen", en: "App" }`.
+ * @property {string} [sprak] Språket för `appRubrik` ("sv" eller "en"). Förval "sv".
  * @property {() => void} onLoggaUt
  * @property {string} [appVersion]
  * @property {string} [rubrik]
@@ -108,6 +118,19 @@ export function validateMenySektioner(sektioner, vem) {
 }
 
 /**
+ * Hela menykonfigurationen, en kontroll för header-popovern OCH botten-arket.
+ * @param {MenyKonfiguration} meny
+ * @param {string} vem T.ex. "OpsAppShell".
+ */
+export function validateMeny(meny, vem) {
+  if (typeof meny.onLoggaUt !== "function") {
+    throw new Error(`${vem}: meny.onLoggaUt krävs (en funktion) när "meny" skickas in. Utan den kan ingen logga ut från menyn.`);
+  }
+  validateMenySektioner(meny.sektioner ?? [], `${vem}: meny.sektioner`);
+  if (meny.app !== undefined) validateNav(meny.app, `${vem}: meny.app`);
+}
+
+/**
  * Stänger den behållare (Popover/Dialog) menyn ritas i INNAN appens egen
  * handling körs.
  *
@@ -132,7 +155,7 @@ export function kordarePafunktion(onStang) {
 }
 
 /**
- * Appens rader, i sina sektioner. Delad mellan header-popovern och
+ * Ramverkets rader, i sina sektioner. Delad mellan header-popovern och
  * botten-arket, se filhuvudet.
  *
  * ⛔ #166: EN RAD MED `undervy` STÄNGER INTE MENYN. Den byter innehållet i
@@ -140,16 +163,26 @@ export function kordarePafunktion(onStang) {
  * stänger hela Popover/Dialog innan appens `onClick` körs. Stänger man i
  * stället för att byta försvinner exakt det #166 ville rätta: en chevron-rad
  * som öppnar sin egen, lösa yta i stället för att stanna i menyn.
+ *
+ * ⛔ 0.30.0: RETURNERAR AVDELNINGAR, INTE FÄRDIGA BLOCK MED EGEN KANT. Före
+ * 0.30.0 ritade varje sektion sin egen `border-t`, arkets rubrik sin egen
+ * `border-b` och nav-blocket ovanför sin `mt-1 border-t pt-1`, så linjerna
+ * lades på varandra: två streck med åtta pixlar emellan under rubriken i
+ * mobilens meny (mätt i Chromium, se `check-skalyta`). Rotorsaken var att
+ * ingen ägde frågan "var går en linje", alla svarade "ovanför mig".
+ * `MenyAvdelningar` äger den nu och ritar EN avgränsare mellan varje par.
  * @param {object} props
  * @param {MenyRad[][]} props.sektioner
  * @param {(fn?: () => void) => () => void} props.kor
  * @param {(rad: MenyRad) => void} [props.visaUndervy] Krävs om någon rad har `undervy`.
+ * @returns {MenyAvdelning[]}
  */
-export function MenySektioner({ sektioner, kor, visaUndervy }) {
-  return sektioner.map((sektion, i) => (
-    // eslint-disable-next-line react/no-array-index-key -- ⛔ Sektioner har ingen egen identitet utöver sin plats: appen skickar en NY array varje render, och ett index som byter plats med sina rader byter plats med flit.
-    <div key={i} className="flex flex-col gap-0.5 border-t border-line p-1">
-      {sektion.map((rad) => (
+export function menySektioner({ sektioner, kor, visaUndervy }) {
+  return sektioner
+    .filter((sektion) => sektion.length > 0)
+    .map((sektion, i) => ({
+      key: `sektion-${i}`,
+      innehall: sektion.map((rad) => (
         <OpsPanelRow
           key={rad.key}
           icon={rad.ikon}
@@ -160,9 +193,115 @@ export function MenySektioner({ sektioner, kor, visaUndervy }) {
           badgeText={rad.badgeText}
           onClick={rad.undervy ? () => visaUndervy?.(rad) : kor(rad.onClick)}
         />
-      ))}
+      )),
+    }));
+}
+
+/**
+ * @typedef {object} MenyAvdelning
+ * @property {string} key
+ * @property {import("react").ReactNode} innehall
+ */
+
+/**
+ * Menyns avdelningar med EN avgränsare mellan varje par, ingen före den första
+ * och ingen efter den sista. Delad mellan header-popovern och botten-arket, så
+ * de två aldrig kan glida isär igen.
+ *
+ * ⛔ TOMMA AVDELNINGAR RITAS INTE, och de får aldrig lämna en linje efter sig.
+ * Filtret sker FÖRE räkningen: en tom avdelning i mitten hade annars gett två
+ * streck (ett före den, ett efter), och det var just den formen felet hade.
+ * @param {{ avdelningar: (MenyAvdelning | null | false | undefined)[] }} props
+ */
+export function MenyAvdelningar({ avdelningar }) {
+  const synliga = /** @type {MenyAvdelning[]} */ (avdelningar.filter((a) => a && a.innehall));
+  return synliga.map((a, i) => (
+    <div key={a.key} data-meny-avdelning={a.key} className={cx("flex flex-col gap-0.5 p-1", i > 0 && "border-t border-line")}>
+      {a.innehall}
     </div>
   ));
+}
+
+/**
+ * Appens egna länkar (`meny.app`), som INTERNA länkar med samma rad som resten av
+ * menyn. Barn (en nivå) ritas indragna under sin förälder.
+ *
+ * ⛔ `<a href>` OCH INTE `OpsPanelRow href`: den senare är en EXTERN länk
+ * (`target="_blank"` och en extern-länk-ikon). Appens egna sidor lämnar inte appen.
+ * @param {object} props
+ * @param {import("../lib/nav.js").NavPost[]} props.poster
+ * @param {string} props.activeHref
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {() => void} props.stang Stänger menyn innan navigeringen körs.
+ * @param {string} [props.badgeText]
+ */
+export function MenyAppPoster({ poster, activeHref, onNavigate, stang, badgeText = "nya" }) {
+  /** @param {import("../lib/nav.js").NavPost | { href: string, label: string }} p @param {boolean} [barn] */
+  const rad = (p, barn = false) => {
+    const aktiv = p.href === activeHref;
+    const badge = /** @type {any} */ (p).badge;
+    const ikon = /** @type {any} */ (p).icon;
+    return (
+      <a
+        key={p.href}
+        href={p.href}
+        aria-current={aktiv ? "page" : undefined}
+        onClick={(e) => {
+          stang();
+          onNavigate?.(p.href, e);
+        }}
+        className={cx(radKlass({ active: aktiv }), barn && "ml-6 w-auto")}
+      >
+        {ikon ? (
+          <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+            {ikon}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1 truncate">{p.label}</span>
+        {typeof badge === "number" ? <OpsCountBadge count={badge} text={badgeText} placement="inline" /> : null}
+      </a>
+    );
+  };
+  return poster.map((p) => (
+    <div key={p.href} className="flex flex-col gap-0.5">
+      {rad(p)}
+      {(p.children ?? []).map((c) => rad(c, true))}
+    </div>
+  ));
+}
+
+/**
+ * Sektionsrubriken över appens egna länkar. Typografirollen `liten` med versaler
+ * och spärrning, som SessionStudios (`MobileHamburgerMenu.jsx:314`, `text-[10px]
+ * uppercase tracking-wider text-muted font-medium`).
+ * @param {{ children: import("react").ReactNode }} props
+ */
+export function MenySektionsrubrik({ children }) {
+  return <p className="m-0 px-3 pt-1.5 pb-0.5 text-liten uppercase tracking-wider text-ink-muted">{children}</p>;
+}
+
+/**
+ * Appens sektion i menyn, med rubrik. `null` när appen inte skickat några länkar.
+ * @param {object} props
+ * @param {MenyKonfiguration} props.meny
+ * @param {string} props.activeHref
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {() => void} props.stang
+ * @param {string} [props.badgeText]
+ * @returns {MenyAvdelning | null}
+ */
+export function menyAppAvdelning({ meny, activeHref, onNavigate, stang, badgeText }) {
+  if (!meny.app || meny.app.length === 0) return null;
+  const rubrik = text(meny.appRubrik ?? { sv: "Appen", en: "App" }, meny.sprak ?? "sv");
+  return {
+    key: "app",
+    innehall: (
+      <>
+        <MenySektionsrubrik>{rubrik}</MenySektionsrubrik>
+        <MenyAppPoster poster={meny.app} activeHref={activeHref} onNavigate={onNavigate} stang={stang} badgeText={badgeText} />
+      </>
+    ),
+  };
 }
 
 /**
@@ -223,8 +362,10 @@ export function MenyTillbakaKnapp({ onBack, backLabel = "Tillbaka till menyn" })
 }
 
 /**
- * Menyns SISTA två block, alltid i den ordningen: Logga ut, sedan
- * versionsraderna. Delad mellan header-popovern och botten-arket.
+ * Menyns SISTA två avdelningar, alltid i den ordningen: Logga ut, sedan
+ * versionsraderna. Delad mellan header-popovern och botten-arket. Returneras
+ * som avdelningar (se `MenyAvdelningar`), så avgränsaren mellan dem och allt
+ * ovanför ägs av EN funktion.
  * @param {object} props
  * @param {() => void} props.onLoggaUt
  * @param {string} [props.loggaUtEtikett]
@@ -232,21 +373,23 @@ export function MenyTillbakaKnapp({ onBack, backLabel = "Tillbaka till menyn" })
  *   ⛔ SAKNAS DEN skrivs raden ändå, med ramverkets ensam: tomhet är ett svar,
  *   inte en utelämnad rad (arbetsreglernas punkt 5).
  * @param {(fn?: () => void) => () => void} props.kor
+ * @returns {MenyAvdelning[]}
  */
-export function MenyFooter({ onLoggaUt, loggaUtEtikett = "Logga ut", appVersion, kor }) {
-  return (
-    <>
-      <div className="border-t border-line p-1">
-        <OpsPanelRow icon={<LoggaUtIkon />} label={loggaUtEtikett} onClick={kor(onLoggaUt)} />
-      </div>
-      {/* ⛔ TVÅ RADER, INTE EN. Ramverkets rad kommer ur en konstant som
-          skrivs vid bygget ur package.json, ALDRIG en handskriven kopia här:
-          se `scripts/generate-framework-version.mjs` och provet i
-          `versionsrad.test.jsx` som är rött om de går isär. */}
-      <div className="flex flex-col gap-0.5 border-t border-line px-3 pt-2 pb-3">
-        {appVersion ? <span className="text-xs text-ink-muted">{appVersion}</span> : null}
-        <span className="text-xs text-ink-muted">{`ops-framework v${OPS_FRAMEWORK_VERSION}`}</span>
-      </div>
-    </>
-  );
+export function menyFot({ onLoggaUt, loggaUtEtikett = "Logga ut", appVersion, kor }) {
+  return [
+    { key: "loggaut", innehall: <OpsPanelRow icon={<LoggaUtIkon />} label={loggaUtEtikett} onClick={kor(onLoggaUt)} /> },
+    {
+      // ⛔ TVÅ RADER, INTE EN. Ramverkets rad kommer ur en konstant som
+      // skrivs vid bygget ur package.json, ALDRIG en handskriven kopia här:
+      // se `scripts/generate-framework-version.mjs` och provet i
+      // `versionsrad.test.jsx` som är rött om de går isär.
+      key: "versioner",
+      innehall: (
+        <div className="flex flex-col gap-0.5 px-3 py-1.5">
+          {appVersion ? <span className="text-xs text-ink-muted">{appVersion}</span> : null}
+          <span className="text-xs text-ink-muted">{`ops-framework v${OPS_FRAMEWORK_VERSION}`}</span>
+        </div>
+      ),
+    },
+  ];
 }

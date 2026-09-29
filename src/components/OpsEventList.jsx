@@ -2,8 +2,11 @@ import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { slagText } from "../lib/slag.js";
 import { urgency } from "../lib/events.js";
+import { formatDagOchKlockslag } from "../lib/format.js";
+import { laesSkapare } from "../lib/skapare.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsCard } from "./OpsCard.jsx";
+import { OpsProvenance } from "./OpsProvenance.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 /**
@@ -91,6 +94,8 @@ const TONER = {
  * @param {string} [props.expandLabel] Verb för utfällningsknappens namn, följt av radens titel.
  * @param {import("react").ReactNode} [props.actionHint] En mening om VILKA rader som går
  *   att göra något åt. ⛔ KRÄVS så snart någon rad har en `atgard` och någon annan inte har det.
+ * @param {string} [props.skapadAvEtikett] (0.30.0, #173) Orden före namnet i "Skapad av Namn, 29 sep 09:12". Förval "Skapad av".
+ * @param {string} [props.sprak] Språket för månadsnamnet i den raden ("sv" eller "en"). Förval "sv".
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords]
  *   Orden för de fem statuslägena. ⛔ KRÄVS för varje status som faktiskt förekommer: en prick
  *   utan ord är en färg som bär betydelsen ensam, och det är osynligt för skärmläsaren och för
@@ -105,6 +110,8 @@ export function OpsEventList({
   empty = null,
   expandLabel = "Visa detaljer för",
   actionHint = null,
+  skapadAvEtikett = "Skapad av",
+  sprak = "sv",
   statusWords = {},
 }) {
   // ⛔ BARA FÖRSENAT FÅR ETT ORD SOM STANDARD, och det följer direkt av
@@ -351,6 +358,17 @@ export function OpsEventList({
                   den sortens skillnad som gör att bara den ena blir provad. */}
               <span className="text-ink">{h.title}</span>
 
+              {/* ⛔ VEM OCH NÄR, OM BÅDA FINNS (0.30.0, #173, CP 2026-09-29: "vem
+                  som skapade"). Under titeln och inte i detaljraden ovanför: det
+                  är inte ett tillstånd (brådska, status) utan ett faktum om
+                  posten, och det ska stå kvar även när kortet är hoppfällt.
+                  ⛔ EN MÄNNISKA OCH EN AGENT SER OLIKA UT, med orden (`OpsProvenance`
+                  skriver ut dem): "Skapad av" följt av ett namn läses annars som
+                  en människa, och en agent som skapat 40 poster i natt är just det
+                  man vill kunna se på en gång. En okänd sorts skapare (`okand`,
+                  äldre rader) är vanlig text, inte en påhittad roll. */}
+              {skapadRad(h, skapadAvEtikett, sprak)}
+
               {/* ⛔ EGEN RAD UNDER TITELN, INTE BREDVID DEN. Samma mätning som
                   titeln bygger på: vid 390 px finns ~280 px kvar efter
                   chevronkolumnen (höger), och en knapp på 90 px hade lämnat 190 px åt
@@ -419,4 +437,26 @@ export function OpsEventList({
       {list}
     </div>
   );
+}
+
+
+/**
+ * Raden "Skapad av Namn, 29 sep 09:12", eller `null` när posten saknar någon av delarna.
+ * @param {import("../lib/events.js").OpsEvent} h
+ * @param {string} etikett
+ * @param {string} sprak
+ */
+function skapadRad(h, etikett, sprak) {
+  if (!h.skapadAv || !h.skapad) return null;
+  const skapare = laesSkapare(h.skapadAv);
+  if (!skapare.namn) return null;
+  const rad = `${etikett} ${skapare.namn}, ${formatDagOchKlockslag(h.skapad, { locale: sprak })}`;
+  if (skapare.typ === "manniska" || skapare.typ === "agent") {
+    return (
+      <span className="mt-0.5 flex">
+        <OpsProvenance kind={skapare.typ === "agent" ? "agent" : "human"} label={rad} />
+      </span>
+    );
+  }
+  return <span className="text-hjalp text-ink-muted">{rad}</span>;
 }

@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, Bell, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Heart, Inbox, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Bell, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Heart, Inbox, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -277,4 +277,27 @@ export function HandelsePlusIkon({ size = 18 }) {
  */
 export function ArendePlusIkon({ size = 18 }) {
   return <Inbox size={size} aria-hidden="true" />;
+}
+
+/**
+ * Fasta poster (0.30.0, #173): Idag, Kalender och Hub äger ramverket, och deras
+ * ikoner med dem. Idag är SessionStudios `today` (`MobileTabBar.jsx:23`,
+ * `Calendar`), Kalender är `CalendarDays` (`:24`), och Hub är `LayoutGrid`, samma
+ * ikon bolag-ops hade för sin Översikt (`web/src/app/App.jsx:121`) innan den
+ * blev Hub. Storleken sätts av raden som ritar dem (20 px i bottenraden, 16 px i
+ * menyn), inte här.
+ * @param {{ size?: number }} props
+ */
+export function IdagIkon({ size = 20 }) {
+  return <Calendar size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** @param {{ size?: number }} props */
+export function KalenderIkon({ size = 20 }) {
+  return <CalendarDays size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** @param {{ size?: number }} props */
+export function HubIkon({ size = 20 }) {
+  return <LayoutGrid size={size} aria-hidden="true" strokeWidth={1.5} />;
 }

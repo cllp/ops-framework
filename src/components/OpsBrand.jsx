@@ -91,13 +91,18 @@ const MARKEN = {
  *   bredden följer av bildens proportion. Därför är måttet en höjd, och bredden `w-auto`.
  * @param {boolean} [props.endastOrdmarke] Ritar BARA ordmärket, aldrig ikonen, oavsett skärmbredd (`OpsInloggning`,
  *   #164). En helskärmsvy är inte `OpsAppShell`s responsiva topprad: smal/bred-växlingen (punkt 9) hör dit, inte hit.
+ * @param {boolean} [props.undertext] (0.30.0, #173) Ritar appens namn som dämpad undertext UNDER bilden. Förval FALSKT.
+ *   ⛔ Toppraden ritar aldrig undertexten: CP 2026-09-29 "loggan utan text under", och SessionStudios topprad har bara
+ *   bilden (`AppHeader.jsx:174-193`). Undertexten (19:10-beslutet) hör till en yta där märket står ENSAMT och appen
+ *   annars inte syns: inloggningen sätter den. I bildläget bär `title` i stället bilderna som `alt`, så namnet
+ *   finns kvar för skärmläsare och som länktext utan att ta en rad av toppradens 56 px.
  * @param {boolean} [props.panelInfalld] Grupp-panelens läge (#161), NÄR `OpsAppShell`s `grupper`-panel finns.
  *   Mätt ur SessionStudios `AppHeader.jsx` (rad 174-193), inte gissat: BÅDA bilderna monteras alltid, växlingen
  *   sker med `opacity` (aldrig mount/unmount, annars flimrar det, samma lärdom som `AppSidebar.jsx` rad 13-16),
  *   och rutan har en FAST bredd ur `--logo-bredd`/`--logo-bredd-infalld` (`tokens.css`), inte `OpsAppShell`s
  *   vanliga `md:hidden`/`md:block`-brytpunkt. Utelämnad: brandet följer bara skärmbredden, som förut.
  */
-export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeHojd = "h-10", endastOrdmarke = false, panelInfalld }) {
+export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordmarkeHojd = "h-10", endastOrdmarke = false, undertext = false, panelInfalld }) {
   if (!title) throw new Error("OpsBrand: title krävs. Ett märke utan namn säger inte vilken app man är i, och är undertexten under bilden.");
 
   if (!(mark in MARKEN)) {
@@ -127,6 +132,7 @@ export function OpsBrand({ title, subtitle, mark = "phst", ordmarke, ikon, ordma
       ordmarke={visadOrdmarke}
       ikon={visadIkon}
       ordmarkeHojd={ordmarkeHojd}
+      undertext={undertext}
       panelInfalld={panelInfalld}
     />
   ) : (
@@ -158,9 +164,9 @@ function OpsBrandText({ title, subtitle, mark }) {
 }
 
 /**
- * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeHojd: string, panelInfalld?: boolean }} props
+ * @param {{ title: string, ordmarke?: { ljus: string, mork: string }, ikon?: { ljus: string, mork: string }, ordmarkeHojd: string, undertext: boolean, panelInfalld?: boolean }} props
  */
-function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
+function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, undertext: medUndertext, panelInfalld }) {
   // ⛔ `useResolvedTheme()` SVARAR "light"/"dark" (samma `Temalage`-typ som
   // resten av `theme.js`). Bildernas nycklar är "ljus"/"mork", KORTFORMEN CP
   // gav i uppdraget, skild från `TEMAN` (grupp.js: "ljust"/"morkt"). Kartan
@@ -171,7 +177,15 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
   // SessionStudios "MADE IN SWEDEN"-stil. Samma rad oavsett om en eller två
   // bilder ritas ovanför, för det är bildväxlingen (ikon/ordmärke) som skiljer
   // sig med bredden, inte appens namn.
-  const undertext = <span className="mt-1 block text-center text-[11px] font-medium uppercase tracking-[0.22em] text-accent">{title}</span>;
+  // ⛔ 0.30.0: BARA NÄR YTAN BAD OM DEN (`undertext`). Toppraden gör det aldrig.
+  //
+  // Före 0.30.0 ritades den ALLTID, och märket blev en kolumn: 40 px bild plus
+  // en 11 px rad med marginal, omkring 60 px i en topprad som är 56. CP: "loggan
+  // utan text under". Namnet försvinner inte: bilderna bär det som `alt`, och
+  // med en `<a>` runt märket blir det länkens namn. Utan undertext är `alt`
+  // det ENDA stället namnet står på, så den är `title` och aldrig tom.
+  const undertext = medUndertext ? <span className="mt-1 block text-center text-hjalp font-medium uppercase tracking-[0.22em] text-accent">{title}</span> : null;
+  const alt = medUndertext ? "" : title;
 
   if (ordmarke && ikon) {
     // ⛔ #161: `panelInfalld` GIVEN (BOOLEAN, INTE `undefined`) ÄR EN ANNAN
@@ -193,7 +207,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
         >
           <img
             src={ikon[tema]}
-            alt=""
+            alt={alt}
             aria-hidden={!panelInfalld}
             className={cx(
               "absolute inset-0 m-auto size-8 object-contain object-center transition-opacity duration-200 ease-out",
@@ -202,7 +216,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
           />
           <img
             src={ordmarke[tema]}
-            alt=""
+            alt={alt}
             aria-hidden={panelInfalld}
             className={cx(
               "h-10 w-full object-contain object-left transition-opacity duration-200 ease-out",
@@ -219,8 +233,8 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
     return (
       <span className="inline-flex flex-col items-center">
         <span className="inline-flex items-center">
-          <img src={ikon[tema]} alt="" className="block h-8 w-8 object-contain md:hidden" />
-          <img src={ordmarke[tema]} alt="" className={cx("hidden md:block w-auto object-contain", ordmarkeHojd)} />
+          <img src={ikon[tema]} alt={alt} className="block h-8 w-8 object-contain md:hidden" />
+          <img src={ordmarke[tema]} alt={alt} className={cx("hidden md:block w-auto object-contain", ordmarkeHojd)} />
         </span>
         {undertext}
       </span>
@@ -234,7 +248,7 @@ function OpsBrandBild({ title, ordmarke, ikon, ordmarkeHojd, panelInfalld }) {
           synlig och uppläst textrad (`undertext`). Två uppläsningar av samma
           namn, en på bilden och en under den, hade sagt "Bolag Ops, Bolag
           Ops" för en skärmläsare. */}
-      <img src={kalla[tema]} alt="" className={cx("block object-contain", ordmarke ? cx("w-auto", ordmarkeHojd) : "h-8 w-8")} />
+      <img src={kalla[tema]} alt={alt} className={cx("block object-contain", ordmarke ? cx("w-auto", ordmarkeHojd) : "h-8 w-8")} />
       {undertext}
     </span>
   );

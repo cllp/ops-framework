@@ -8,7 +8,7 @@ describe("OpsCountBadge (#97)", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("⛔ inkorgens gamla märke, samma på klockan: 16 px, 8 px-siffra, samma hörn", () => {
+  it("⛔ inkorgens gamla märke, samma på klockan: 16 px, 8 px-siffra (rollen mikro), samma hörn", () => {
     // Förlagan är Counter i 414c56d (CP 18:10: "Du skulle ta den som var på inkorg innan").
     const { container } = render(
       <>
@@ -18,9 +18,12 @@ describe("OpsCountBadge (#97)", () => {
     );
     const [inkorg, klocka] = container.querySelectorAll("[data-ops-count-badge]");
     expect(inkorg.className).toBe(klocka.className);
-    for (const k of ["-top-0.5", "-right-0.5", "h-4", "min-w-4", "px-0.5", "text-[8px]", "font-bold", "tabular-nums", "bg-badge", "text-badge-contrast"]) {
+    for (const k of ["-top-0.5", "-right-0.5", "h-4", "min-w-4", "px-0.5", "text-mikro", "tabular-nums", "bg-badge", "text-badge-contrast"]) {
       expect(inkorg.className.split(/\s+/)).toContain(k);
     }
+    // ⛔ 0.30.0 (#173): 8 px-siffran och dess vikt är nu rollen `mikro` (fixturen
+    // `typografi.roller.mikro`: 0.5rem, 700), inte en literal i komponenten.
+    expect(inkorg.className).not.toMatch(/text-\[\d/);
     // Aldrig accenten (kräm i mörkt tema) och aldrig den stora siffran eller ringen.
     expect(inkorg.className).not.toMatch(/bg-accent|text-on-accent|text-xs|ring-/);
   });

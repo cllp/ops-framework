@@ -109,6 +109,34 @@
   --text-sm: 0.875rem;
   --text-base: 1rem;
 
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+
+  --text-rubrik: 1rem;
+  --text-rubrik--line-height: var(--leading-tight);
+  --text-rubrik--font-weight: 700;
+
+  --text-sektion: 0.75rem;
+  --text-sektion--line-height: var(--leading-normal);
+  --text-sektion--font-weight: 600;
+  --text-sektion--letter-spacing: 0.05em;
+
+  --text-etikett: 0.875rem;
+  --text-etikett--line-height: var(--leading-normal);
+  --text-etikett--font-weight: 400;
+
+  --text-hjalp: 0.6875rem;
+  --text-hjalp--line-height: var(--leading-normal);
+  --text-hjalp--font-weight: 400;
+
+  --text-liten: 0.625rem;
+  --text-liten--line-height: var(--leading-tight);
+  --text-liten--font-weight: 500;
+
+  --text-mikro: 0.5rem;
+  --text-mikro--line-height: var(--leading-tight);
+  --text-mikro--font-weight: 700;
+
   --shadow-sm: 0 1px 2px rgba(60, 47, 47, 0.06);
   --shadow-md: 0 2px 8px rgba(60, 47, 47, 0.08);
   --shadow-lg: 0 4px 16px rgba(60, 47, 47, 0.10);

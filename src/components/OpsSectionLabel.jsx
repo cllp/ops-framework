@@ -23,5 +23,5 @@
  * @param {import("react").ReactNode} props.children
  */
 export function OpsSectionLabel({ children }) {
-  return <p className="m-0 text-xs font-bold uppercase tracking-wider text-accent">{children}</p>;
+  return <p className="m-0 text-sektion uppercase text-accent">{children}</p>;
 }

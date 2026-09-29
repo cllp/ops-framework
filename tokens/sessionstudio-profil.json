@@ -69,6 +69,20 @@
       "sm": "0.875rem",
       "base": "1rem"
     },
+    "radhojd": {
+      "_kalla": "Tailwinds inbyggda leading-steg, som SessionStudio använder rakt av (samma sak som med text-sm/text-base ovan). tight: MobileTabBar.jsx:87 'text-[10px] leading-tight'. normal: index.css:424 --line-height-normal.",
+      "tight": "1.25",
+      "normal": "1.5"
+    },
+    "roller": {
+      "_kalla": "0.30.0 (#173): typografin på ETT ställe. Varje roll är avläst ur SessionStudios SettingsView, som är den enda vy där alla fem förekommer sida vid sida. Komponenterna skriver `text-rubrik`, `text-sektion` och så vidare, aldrig `text-[10px]`; scripts/check-typografi.mjs fäller det senare. Färg och versaler ligger UTANFÖR rollen (en roll är storlek, radhöjd, vikt och spärrning), så `sektion` används som `text-sektion uppercase text-accent`.",
+      "rubrik": { "storlek": "1rem", "vikt": "700", "radhojd": "tight", "_kalla": "apps/web/src/views/SettingsView.jsx:161 '<h3 className=\"font-bold ...\">': ingen egen storlek, alltså Tailwinds bas 1rem, fet." },
+      "sektion": { "storlek": "0.75rem", "vikt": "600", "sparrning": "0.05em", "radhojd": "normal", "_kalla": "apps/web/src/views/SettingsView.jsx:174 'text-xs font-semibold ... uppercase tracking-wider' (tracking-wider är 0.05em). Versalerna och accentfärgen sätts där rollen används." },
+      "etikett": { "storlek": "0.875rem", "vikt": "400", "radhojd": "normal", "_kalla": "apps/web/src/views/SettingsView.jsx:228 '<span className=\"text-sm ...\">', radens etikett." },
+      "hjalp": { "storlek": "0.6875rem", "vikt": "400", "radhojd": "normal", "_kalla": "apps/web/src/views/SettingsView.jsx:276 '<p className=\"text-[11px] ...\">', hjälptexten under en rad." },
+      "liten": { "storlek": "0.625rem", "vikt": "500", "radhojd": "tight", "_kalla": "apps/web/src/components/MobileTabBar.jsx:87 'text-[10px] leading-tight', bottenradens etikett. Samma tal är SS:s badge-, flik- och avataretikett (LoginScreen.jsx:240, Avatar.jsx:25)." },
+      "mikro": { "storlek": "0.5rem", "vikt": "700", "radhojd": "tight", "_kalla": "apps/web/src/components/AppHeader.jsx:222 'text-[8px] font-bold', räknemärkets siffra. Redan ramverkets värde i counter.jsx sedan 0.26.0 (CP: ändra inte mot typskalan utan en bild), nu bara ett namn." }
+    },
     "word_spacing_normal": { "varde": "0.06em", "_kalla": "index.css:418 --word-spacing-normal, kompenserar Plus Jakarta Sans smala mellanslag (#2501)" },
     "line_height_normal": { "varde": "1.5", "_kalla": "index.css:424 --line-height-normal" },
     "antialiasing": { "webkit": "antialiased", "moz": "grayscale", "_kalla": "index.css:1015-1016, satt på body" },

@@ -1,12 +1,15 @@
 import { cloneElement, Component, isValidElement, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsGruppanel, OpsGruppvaxlare } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
-import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, MenuIcon, PlusIkon } from "./icons.jsx";
+import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
+import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
+import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
@@ -16,7 +19,7 @@ import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
-import { kordarePafunktion, MenyFooter, MenyRubrikRad, MenySektioner, validateMenySektioner } from "./OpsMeny.jsx";
+import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 
 /**
  * Felgränsen: alltid på, och en app kan inte stänga av den (#159).
@@ -121,7 +124,7 @@ class OpsFelgrans extends Component {
  */
 function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel }) {
   const [oppen, setOppen] = useState(false);
-  const childEntries = Array.isArray(entry.children) ? entry.children : [];
+  const childEntries = /** @type {any[]} */ (Array.isArray(entry.children) ? entry.children : []);
 
   const counter = typeof entry.badge === "number" && entry.badge > 0 ? <Counter count={entry.badge} text={badgeText} /> : null;
 
@@ -223,27 +226,45 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
           <Popover.Content
             align="start"
             sideOffset={6}
-            className="z-(--z-dropdown) flex w-56 flex-col rounded-md border border-line bg-raised p-2 shadow-md"
+            className={cx("z-(--z-dropdown) flex max-h-[min(70vh,32rem)] w-56 flex-col gap-0.5 overflow-y-auto p-1", radBehallare())}
           >
+            {/* ⛔ 0.30.0 (#173): RADEN ÄR `radKlass`, som menyn och plussets rader.
+                Barn i barnen (Hubs moduler har egna undersidor) ritas indragna
+                under sin förälder: en nivå djupare än `nav`, och exakt så djupt
+                som Hub behöver. */}
             {childEntries.map((b) => (
-              <a
-                key={b.href}
-                href={b.href}
-                onClick={(e) => {
-                  setOppen(false);
-                  onActivate(b.href, e);
-                }}
-                aria-current={b.href === activeHref ? "page" : undefined}
-                className={cx(
-                  "flex min-h-11 items-center rounded-sm px-3 text-sm",
-                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                  b.href === activeHref
-                    ? "bg-accent-subtle font-semibold text-ink"
-                    : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-                )}
-              >
-                {b.label}
-              </a>
+              <div key={b.href} className="flex flex-col gap-0.5">
+                <a
+                  href={b.href}
+                  onClick={(e) => {
+                    setOppen(false);
+                    onActivate(b.href, e);
+                  }}
+                  aria-current={b.href === activeHref ? "page" : undefined}
+                  className={radKlass({ active: b.href === activeHref })}
+                >
+                  {b.icon ? (
+                    <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+                      {b.icon}
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate">{b.label}</span>
+                </a>
+                {(b.children ?? []).map((/** @type {any} */ c) => (
+                  <a
+                    key={c.href}
+                    href={c.href}
+                    onClick={(e) => {
+                      setOppen(false);
+                      onActivate(c.href, e);
+                    }}
+                    aria-current={c.href === activeHref ? "page" : undefined}
+                    className={cx(radKlass({ active: c.href === activeHref }), "ml-6 w-auto")}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                  </a>
+                ))}
+              </div>
             ))}
           </Popover.Content>
         </Popover.Portal>
@@ -273,9 +294,26 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  */
 
 /**
+ * Ny händelse med typ (0.30.0, #173). ⛔ DATUMFÄLTEN ÄR FORMULÄRETS, INTE RAMVERKETS:
+ * ramverket äger raden, typvalet ur katalogen och vem-skapade-det, appen äger vad
+ * som fylls i.
+ *
+ * Händelse har varit ett färdigt `ReactNode` sedan #168, och ett färdigt
+ * `ReactNode` kan varken få en `groupId` eller en vald typ: formuläret är redan
+ * skapat när skalet frågar. CP 2026-09-29 (#173): "skapa händelse med typ och vem
+ * som skapade". Registreringarna (#150) hade redan formen, en komponent som tar
+ * `{ groupId, typ, onKlar }`, och händelsen får nu samma.
+ * @typedef {object} HandelseSkapare
+ * @property {import("react").ComponentType<{ groupId: string | null, typ: string | null, onKlar: () => void }>} form
+ * @property {string | null} [katalog] Katalogens id, förval `"handelsetyper"`. `null` = ingen typ att välja.
+ */
+
+/**
  * Skalets `skapa`-prop (#168), plusset i toppraden.
  * @typedef {object} SkapaKonfiguration
- * @property {import("react").ReactNode} [handelse] Ramverkets egen rad "Ny händelse". `null`/utelämnad döljer raden.
+ * @property {import("react").ReactNode | HandelseSkapare} [handelse] Ramverkets egen rad "Ny händelse". `null`/utelämnad döljer raden.
+ *   Ett färdigt `ReactNode` (som förut) eller, från 0.30.0 (#173), ett `HandelseSkapare`: ett formulär OCH en katalog
+ *   med händelsetyper, så typvalet och `{ groupId, typ, onKlar }` fungerar precis som för en moduls registrering.
  * @property {import("react").ReactNode} [arende] Ramverkets egen rad "Nytt ärende".
  * @property {ReadonlyArray<import("../lib/modul.js").Skaparregistrering & { modulId: string }>} [registreringar] Ur `skaparFor` (#150).
  * @property {string | null} [lage] Aktivt gruppläge, se `skapalaget`.
@@ -311,7 +349,14 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 /**
  * @param {object} props
  * @param {import("react").ReactNode} props.brand Appens namn som sträng, eller en egen `OpsBrand`. Länkar till startsidan.
- * @param {import("../lib/nav.js").NavPost[]} props.nav Toppdestinationer. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg.
+ * @param {import("../lib/nav.js").NavPost[]} [props.nav] Toppdestinationer, den GAMLA modellen. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg. ⛔ Krävs när `fasta` saknas, och FÅR INTE skickas tillsammans med `fasta` (två modeller för samma rad är två sanningar, skalet kastar).
+ * @param {import("./fasta.jsx").FastaKonfiguration} [props.fasta] (0.30.0, #173) NYA modellen: de tre fasta posterna
+ *   `{ idag: { href }, kalender: { href }, hub: { href } }`. Ramverket äger ordning (Idag, Kalender, Hub), namn
+ *   (sv och en) och ikoner; appen säger bara vart var och en leder. Toppraden visar de tre (Hub som en post med
+ *   chevron-dropdown över modulerna), bottenraden visar Idag, Kalender, ETT STORT PLUS, Hub, Meny.
+ * @param {import("../lib/nav.js").NavPost[]} [props.moduler] (0.30.0) Appens moduler, samma form som `nav` (en nivå
+ *   barn). ⛔ De visas i Hub och ALDRIG i menyn, och kräver `fasta`. Se `OpsHub` för kortrutnätet.
+ * @param {string} [props.sprak] Språket för de fasta namnen och menyns appsektion ("sv" eller "en"). Förval "sv".
  * @param {string} props.activeHref Vilken sida som visas nu.
  * @param {(href: string, event: any) => void} [props.onNavigate] Anropas i stället för webbläsarens navigering.
  * @param {import("react").ReactNode} [props.actions] Temaväxlare, konto, sök. Ligger till höger.
@@ -373,6 +418,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `valjGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
+ * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
  * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
@@ -381,6 +427,9 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 export function OpsAppShell({
   brand,
   nav,
+  fasta,
+  moduler,
+  sprak = "sv",
   activeHref,
   onNavigate,
   actions,
@@ -406,13 +455,41 @@ export function OpsAppShell({
   nyHandelseEtikett = "Ny händelse",
   nyttArendeEtikett = "Nytt ärende",
   skapaTypEtikett = "Typ",
+  closeLabel = "Stäng",
   felmottagare,
   felRubrik = "Något gick fel",
   felBeskrivning = "Sidan gick sönder. Ladda om för att försöka igen.",
   laddaOmEtikett = "Ladda om",
   children,
 }) {
-  validateNav(nav, "OpsAppShell");
+  // ══ ⛔ TVÅ MODELLER, ALDRIG BÅDA (0.30.0, #173) ══════════════════════════
+  //
+  // `fasta` är den nya modellen (Idag, Kalender, Hub plus moduler i Hub), `nav`
+  // den gamla (en fri lista). En app som skickar BÅDA har inte bestämt sig, och
+  // skalet skulle behöva gissa vilken som gäller: den ena skulle tyst tystas.
+  // Samma skäl som `maxTopNavSmal`s kast nedan, och som punkt 5 i arbetsreglerna:
+  // en tyst nedsläppsväg är värre än ett fel.
+  const harFasta = fasta !== undefined;
+  if (harFasta) {
+    validateFasta(fasta, "OpsAppShell");
+    if (Array.isArray(nav) && nav.length > 0) {
+      throw new Error(
+        "OpsAppShell: både \"fasta\" och \"nav\" är skickade. De är två modeller för samma rad: med fasta är toppraden Idag, Kalender, Hub och appens övriga sidor är MODULER (\"moduler\"), som bor i Hub. Skicka moduler i stället för nav.",
+      );
+    }
+    if (primaryAction) {
+      throw new Error(
+        "OpsAppShell: \"primaryAction\" tillsammans med \"fasta\". Med fasta äger skalet plusset i mitten av bottenraden och det öppnar samma skapa-meny som plusset i huvudet (\"skapa\"). Ta bort primaryAction.",
+      );
+    }
+  } else {
+    validateNav(nav, "OpsAppShell");
+    if (moduler !== undefined) {
+      throw new Error("OpsAppShell: \"moduler\" utan \"fasta\". Moduler visas i Hub, och Hub finns bara i den nya modellen. Skicka fasta, eller behåll nav.");
+    }
+  }
+  const fastaPoster = harFasta ? byggFasta(fasta, moduler ?? [], sprak) : [];
+  const navLista = harFasta ? fastaPoster : /** @type {import("../lib/nav.js").NavPost[]} */ (nav);
   // ⛔ Kastar hellre än att rendera en rad som tyst tappar destinationer:
   // vore taket på smal skärm högre skulle poster mellan talen ligga i raden på
   // smal skärm och ingenstans alls på bred.
@@ -425,16 +502,12 @@ export function OpsAppShell({
   // granskningen). Menyn är nu en av skalets egna ytor, så dess krav på
   // `onLoggaUt` och på att varje rad har `key`+`etikett` hör hemma här, inte
   // i en separat komponent en app kunde glömma att validera mot.
-  if (meny) {
-    if (typeof meny.onLoggaUt !== "function") {
-      throw new Error("OpsAppShell: meny.onLoggaUt krävs (en funktion) när \"meny\" skickas in. Utan den kan ingen logga ut från menyn.");
-    }
-    validateMenySektioner(meny.sektioner ?? [], "OpsAppShell: meny.sektioner");
-  }
+  if (meny) validateMeny(meny, "OpsAppShell");
   // Standardvärdet HÄRLEDS och står inte i signaturen. En app som säger
   // `maxTopNav={2}` har sagt allt som behövs, och ska inte behöva känna till
   // ett andra tal för att slippa ett undantag.
-  const smaltTak = maxTopNavSmal ?? Math.min(3, maxTopNav);
+  // ⛔ MED `fasta` FINNS INGET TAK: tre poster får alltid plats (Hub bär resten).
+  const smaltTak = harFasta ? 3 : (maxTopNavSmal ?? Math.min(3, maxTopNav));
   const [merOppen, setMerOppen] = useState(false);
   // ⛔ #166: VILKEN RADS `undervy` SOM VISAS I STÄLLET FÖR ROTEN, ELLER `null`
   // (roten). En chevron-rad med `undervy` (t.ex. Aktivitet) byter INTE till en
@@ -490,13 +563,22 @@ export function OpsAppShell({
   // som trycker att plusset i den här appen inte gör något.
   const visaSkapaKnapp = Boolean(skapa) && (harRamverksrader || skapaModulerRedo);
 
+  // ⛔ ETT FORMULÄR MED TYP (0.30.0), INTE ETT FÄRDIGT NOD: se `HandelseSkapare`.
+  // En React-nod har `$$typeof`; ett `{ form }` har det inte. Skiljer man inte
+  // dem åt renderas objektet som barn och React kastar ett kryptiskt fel.
+  const handelseSkapare = /** @type {import("react").ComponentProps<any> | null} */ (
+    skapa?.handelse && typeof skapa.handelse === "object" && !isValidElement(skapa.handelse) && typeof (/** @type {any} */ (skapa.handelse)).form === "function"
+      ? skapa.handelse
+      : null
+  );
+
   /** @type {string} */
   let skapaModalTitel = "";
   /** @type {import("react").ReactNode} */
   let skapaModalInnehall = null;
   if (skapaForm?.kind === "handelse") {
     skapaModalTitel = nyHandelseEtikett;
-    skapaModalInnehall = skapa?.handelse;
+    skapaModalInnehall = /** @type {import("react").ReactNode} */ (skapa?.handelse);
   } else if (skapaForm?.kind === "arende") {
     skapaModalTitel = nyttArendeEtikett;
     skapaModalInnehall = skapa?.arende;
@@ -527,6 +609,68 @@ export function OpsAppShell({
       </div>
     );
   }
+
+  // ══ ⛔ ETT PLUS PER YTA (0.30.0, #173) ═══════════════════════════════════
+  //
+  // Med `fasta` har bottenraden ett stort plus i mitten, och det öppnar SAMMA
+  // lista som huvudets plus (`renderSkapaLista`, en funktion, inte en kopia).
+  // Huvudets plus göms då under `md`: två plus på samma skärm är två ställen
+  // att fråga "vad skapar den här", och de skulle glida isär.
+  const bottenPlus = harFasta && visaSkapaKnapp;
+  const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
+
+  /**
+   * Plussets lista: ramverkets rader, en avdelare, modulernas rader. EN
+   * definition för header-popovern och bottenradens ark, se ovan.
+   * @param {(form: any) => void} oppna Stänger den yta listan ritas i och öppnar modalen. ⛔ Yta och modal i SAMMA tick gick bra för en popover men inte för ett ark: därför äger anropsstället ordningen.
+   */
+  const renderSkapaLista = (oppna) => (
+    <>
+      {/* ⛔ RAMVERKETS EGNA RADER FÖRST (#168, CP:s rättelse 23:35): Idag/kalendern
+          och Inkorgen är ramverkets vyer, inte moduler, och deras "Ny …"-rader
+          hör därför hit, inte till `OpsSkapa`s modul-lista. */}
+      {harRamverksrader ? (
+        <div className="flex flex-col gap-0.5 px-1">
+          {skapa?.handelse ? (
+            <OpsPanelRow
+              icon={<HandelsePlusIkon size={18} />}
+              label={nyHandelseEtikett}
+              accent
+              onClick={() =>
+                oppna(
+                  handelseSkapare
+                    ? { kind: "modul", registrering: { id: "handelse", namn: nyHandelseEtikett, katalog: handelseSkapare.katalog === undefined ? "handelsetyper" : handelseSkapare.katalog, form: handelseSkapare.form } }
+                    : { kind: "handelse" },
+                )
+              }
+            />
+          ) : null}
+          {skapa?.arende ? (
+            <OpsPanelRow
+              icon={<ArendePlusIkon size={18} />}
+              label={nyttArendeEtikett}
+              accent
+              onClick={() => oppna({ kind: "arende" })}
+            />
+          ) : null}
+        </div>
+      ) : null}
+      {/* ⛔ EN AVDELARE MELLAN RAMVERKETS RADER OCH MODULERNAS, bara när BÅDA finns. */}
+      {harRamverksrader && skapaModulerRedo ? <div role="separator" className="my-0.5 border-t border-line" /> : null}
+      {skapaModulerRedo ? (
+        <div className="px-1">
+          <OpsSkapa
+            registreringar={skapa?.registreringar ?? []}
+            lage={skapa?.lage ?? null}
+            sprak={skapa?.sprak}
+            ikonRitare={skapa?.ikonRitare}
+            ariaLabel={skapaLabel}
+            onValj={(r) => oppna({ kind: "modul", registrering: r })}
+          />
+        </div>
+      ) : null}
+    </>
+  );
 
   // ⛔ En sträng blir ett riktigt varumärke, inte fet text. Skälet är att det
   // vanliga fallet ska vara det rätta fallet: skriver man `brand="Bolag Ops"`
@@ -650,9 +794,11 @@ export function OpsAppShell({
   // ResizeObserver hade gett samma utseende och tre nya problem: ett hopp
   // första renderingen, en rad som inte finns i markup förrän JS kört, och ett
   // test som måste låtsas ha en layout. CSS vet redan hur bred skärmen är.
-  const inRow = nav.slice(0, maxTopNav);
-  const inMenu = nav.slice(smaltTak);
-  const aktivIndex = nav.findIndex((s) => entryActive(s, activeHref));
+  // ⛔ MED `fasta` ÄR ALLA TRE I RADEN OCH INGET LIGGER I MENYN. Hub bär det som
+  // annars hade blivit överflöd. Utan `fasta` är raden och överflödet som förut.
+  const inRow = harFasta ? navLista : navLista.slice(0, maxTopNav);
+  const inMenu = harFasta ? [] : navLista.slice(smaltTak);
+  const aktivIndex = harFasta ? -1 : navLista.findIndex((s) => entryActive(s, activeHref));
 
   // Ligger den aktiva posten i menyn på BÅDA bredderna, eller bara på den
   // smala? Utan den skillnaden är ingenting markerat mellan 768 och 1024, och
@@ -665,6 +811,61 @@ export function OpsAppShell({
   // oavsett om navigeringen råkar rymmas. Utan `meny` är villkoret oförändrat:
   // bara nav-överflöd eller menuExtras tvingar fram knappen.
   const visaHamburgare = Boolean(meny) || inMenu.length > 0 || Boolean(menuExtras);
+
+  // ⛔ MENYNS ORDNING, en lista och inte en JSX-trädgren per yta: ramverkets
+  // sektioner (Aktivitet, Inställningar, Hjälp, Notiser), appens egna länkar
+  // (`meny.app`, egen rubrik), navigeringens överflödsrader (bara den gamla
+  // `nav`-modellen: med `fasta` ligger modulerna i Hub och ALDRIG här),
+  // `menuExtras`, Logga ut, sist versionerna. Bottenraden bygger SAMMA lista i
+  // `OpsBottomNav`, så de två ytorna inte kan glida isär.
+  /** @type {import("./OpsMeny.jsx").MenyAvdelning[]} */
+  const rotAvdelningar = [];
+  if (meny) rotAvdelningar.push(...menySektioner({ sektioner: meny.sektioner ?? [], kor, visaUndervy: setAktivUndervy }));
+  if (meny) {
+    const app = menyAppAvdelning({ meny: { sprak, ...meny }, activeHref, onNavigate: onActivate, stang: () => stangMenyn(false), badgeText });
+    if (app) rotAvdelningar.push(app);
+  }
+  if (inMenu.length > 0) {
+    rotAvdelningar.push({
+      key: "nav",
+      innehall: (
+        // ⛔ Egen nav med eget namn. Menyn är en lista destinationer, alltså
+        // navigering, och utan namn blir den en tredje anonym `<nav>`.
+        <nav aria-label={moreLabel} className="flex flex-col gap-0.5">
+          {inMenu.map((s, i) => (
+            <a
+              key={s.href}
+              href={s.href}
+              onClick={(e) => {
+                stangMenyn(false);
+                onActivate(s.href, e);
+              }}
+              aria-current={entryActive(s, activeHref) ? "page" : undefined}
+              // Ligger i raden vid `lg`, alltså inte också här.
+              className={cx(radKlass({ active: entryActive(s, activeHref) }), smaltTak + i < maxTopNav && "lg:hidden")}
+            >
+              {s.icon ? (
+                <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+                  {s.icon}
+                </span>
+              ) : null}
+              {s.label}
+            </a>
+          ))}
+        </nav>
+      ),
+    });
+  }
+  if (menuExtras) rotAvdelningar.push({ key: "extras", innehall: <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div> });
+  if (meny) rotAvdelningar.push(...menyFot({ onLoggaUt: meny.onLoggaUt, loggaUtEtikett: meny.loggaUtEtikett, appVersion: meny.appVersion, kor }));
+
+  // ⛔ BOTTENRADENS TRE FASTA POSTER, med Hubs barn PLATTA. `OpsBottomNav` validerar
+  // `nav` med EN nivå barn, och Hub bär moduler som själva har barn. Raden ritar
+  // aldrig barnen (de finns i Hub), men `entryActive` läser dem: därför platta
+  // ut dem hit, så Hub lyser även när man står på en moduls undersida.
+  const bottenNav = harFasta
+    ? navLista.map((p, i) => (i === 2 ? { ...p, children: (moduler ?? []).flatMap((m) => [{ href: m.href, label: m.label }, ...(m.children ?? [])]) } : p))
+    : navLista;
 
   return (
     <div className="min-h-dvh bg-canvas">
@@ -738,13 +939,13 @@ export function OpsAppShell({
               <RowEntry
                 key={s.href}
                 entry={s}
-                active={entryActive(s, activeHref)}
+                active={harFasta ? djupAktiv(s, activeHref) : entryActive(s, activeHref)}
                 activeHref={activeHref}
                 onActivate={onActivate}
                 badgeText={badgeText}
                 submenuLabel={submenuLabel}
                 classes={cx(
-                  lankKlass(entryActive(s, activeHref) ? "pa" : "av"),
+                  lankKlass((harFasta ? djupAktiv(s, activeHref) : entryActive(s, activeHref)) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,
                   // och `display:none` tar bort den ur uppläsningen också, så
                   // ingen möter samma destination två gånger.
@@ -772,34 +973,29 @@ export function OpsAppShell({
             {visaSkapaKnapp ? (
               <Popover.Root open={skapaOppen} onOpenChange={setSkapaOppen}>
                 {/*
+                  ⛔ EN CIRKEL SOM SESSIONSTUDIOS (0.30.0, #173), INTE EN
+                  ACCENTFYLLD KNAPP. SS `AppHeader.jsx:376`: `p-2 rounded-full`,
+                  dämpad ikon, `hover:bg-card`, och `bg-card text-accent` medan
+                  menyn är öppen. Före 0.30.0 var plusset en 32 px accentfylld
+                  cirkel (samma klasser som `OpsButton variant="primary" round
+                  iconOnly`), alltså det enda i klustret som skrek, och tre
+                  olika höjder i samma rad. Accentfärgen är bottenradens stora
+                  plus, som är den enda ytan där plusset ÄR huvudsaken.
+
                   ⛔ INTE `asChild` RUNT `OpsButton` (#168, andra granskningen).
                   `OpsButton` är en vanlig funktionskomponent utan `forwardRef`
-                  (den är ett STÄNGT API med flit, se dess filhuvud), och Radix
-                  `asChild` klonar barnet och behöver dess `ref` för att
-                  POSITIONERA popovern mot rätt element. En `ref` till en
-                  funktionskomponent blir `null`; popovern hade då antingen
-                  varnat i konsolen eller positionerat sig fel, och felet
-                  hade varit osynligt tills någon råkade se var rutan hamnade.
-                  Klasserna nedan är ORDAGRANT desamma som `OpsButton
-                  variant="primary" round iconOnly size="md"` bygger (se dess
-                  `VARIANTER.primary`, `RUND_IKONSTORLEKAR.md`, `BAS`,
-                  `"rounded-full"`): en riktig `Popover.Trigger` (utan
-                  `asChild`, Radix ritar sitt EGET `<button>`) med SAMMA form.
-                  `piller.test.jsx` bevisar redan `OpsButton`s klasser; ett
-                  eget prov här bevisar att de INTE glidit isär.
+                  (den är ett STÄNGT API med flit), och Radix `asChild` behöver
+                  barnets `ref` för att POSITIONERA popovern. Trigger ritar sitt
+                  EGET `<button>`.
+
+                  ⛔ GÖMD I MOBIL NÄR BOTTENRADENS PLUS FINNS: ett plus per yta.
+                  `hidden md:inline-flex`, aldrig `inline-flex` ovanpå `hidden`
+                  (se `huvudknappKlass`).
                 */}
                 <Popover.Trigger
                   aria-label={skapaLabel}
-                  className={cx(
-                    "inline-flex items-center justify-center border font-medium leading-tight",
-                    "transition-colors duration-(--duration-fast) ease-standard",
-                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                    "rounded-full border-transparent bg-accent text-accent-contrast hover:bg-accent-hover",
-                    "size-8 p-0",
-                  )}
+                  className={huvudknappKlass({ visning: bottenPlus ? "hidden md:inline-flex" : "inline-flex", aktiv: skapaOppen })}
                 >
-                  {/* ⛔ 20 px, SAMMA GLYFSKALA SOM RUND_IKONSTORLEKARs egen
-                      kommentar redan föreskriver för just den här knappen. */}
                   <PlusIkon size={20} />
                 </Popover.Trigger>
                 <Popover.Portal>
@@ -808,70 +1004,23 @@ export function OpsAppShell({
                     gissat: `apps/web/src/components/AppHeader.jsx`, create-
                     menyns rader ("Ny session" m.fl.):
                       - Popoverns bredd: `w-56` (14rem, 224 px)
-                      - Popoverns padding: `py-1.5` (6 px topp/botten), ingen
-                        egen horisontell padding (raderna bär sin egen)
+                      - Popoverns padding: `py-1.5` (6 px topp/botten)
                       - Radens padding: `px-4 py-2.5` (16 px / 10 px)
-                      - Avstånd ikon–ord: `gap-3` (12 px)
-                      - Ikon: `w-4.5 h-4.5` (18 px), `text-[var(--color-accent)]`
-                      - Ord: `text-sm font-medium` (14 px / 500), samma accentfärg
-                      - Yta: `rounded-[var(--radius)]`, `shadow-xl`,
-                        `border border-[var(--color-border-hover)]`
-                    Se `OpsPanelRow props.accent` för hur ikon+ord-färgen och
-                    måtten flyttades dit (`text-accent` ärvs av ikonens
-                    `currentColor`, ingen egen ikonfärgklass här).
+                      - Avstånd ikon-ord: `gap-3` (12 px)
+                      - Ikon: `w-4.5 h-4.5` (18 px), accent
+                      - Ord: `text-sm font-medium`, accent
+                      - Yta: `bg-surface`, `rounded-[var(--radius)]`, skugga,
+                        `border` (0.30.0: `radBehallare`, se dess filhuvud)
                   */}
                   <Popover.Content
                     align="end"
                     sideOffset={4}
-                    className="z-(--z-dropdown) w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-md border border-line bg-raised py-1.5 shadow-md"
+                    className={cx("z-(--z-dropdown) w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden py-1.5", radBehallare())}
                   >
-                    {/* ⛔ RAMVERKETS EGNA RADER FÖRST (#168, CP:s rättelse
-                        23:35): Idag/kalendern och Inkorgen är ramverkets vyer,
-                        inte moduler, och deras "Ny …"-rader hör därför hit,
-                        inte till `OpsSkapa`s modul-lista. */}
-                    {harRamverksrader ? (
-                      <div className="flex flex-col gap-0.5">
-                        {skapa?.handelse ? (
-                          <OpsPanelRow
-                            icon={<HandelsePlusIkon size={18} />}
-                            label={nyHandelseEtikett}
-                            accent
-                            onClick={() => {
-                              setSkapaOppen(false);
-                              setSkapaForm({ kind: "handelse" });
-                            }}
-                          />
-                        ) : null}
-                        {skapa?.arende ? (
-                          <OpsPanelRow
-                            icon={<ArendePlusIkon size={18} />}
-                            label={nyttArendeEtikett}
-                            accent
-                            onClick={() => {
-                              setSkapaOppen(false);
-                              setSkapaForm({ kind: "arende" });
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {/* ⛔ EN AVDELARE MELLAN RAMVERKETS RADER OCH MODULERNAS,
-                        bara när BÅDA finns (samma "tunn avdelare"-mönster som
-                        `OpsSkapa` nu använder mellan moduler, se dess filhuvud). */}
-                    {harRamverksrader && skapaModulerRedo ? <div role="separator" className="my-0.5 border-t border-line" /> : null}
-                    {skapaModulerRedo ? (
-                      <OpsSkapa
-                        registreringar={skapa?.registreringar ?? []}
-                        lage={skapa?.lage ?? null}
-                        sprak={skapa?.sprak}
-                        ikonRitare={skapa?.ikonRitare}
-                        ariaLabel={skapaLabel}
-                        onValj={(r) => {
-                          setSkapaOppen(false);
-                          setSkapaForm({ kind: "modul", registrering: r });
-                        }}
-                      />
-                    ) : null}
+                    {renderSkapaLista((form) => {
+                      setSkapaOppen(false);
+                      setSkapaForm(form);
+                    })}
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
@@ -890,18 +1039,16 @@ export function OpsAppShell({
                     // före `.inline-flex` i CSS:et, så när båda sitter på
                     // knappen vinner den senare och hamburgaren syns PÅ MOBIL
                     // parallellt med bottenradens Meny (bolag-ops). Display
-                    // ägs av `hidden md:inline-flex` ensam — samma mönster som
-                    // flikarna i raden.
-                    "hidden min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-md md:inline-flex",
-                    "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
-                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                    merLage === "pa" && "text-ink",
-                    merLage === "pa-under-lg" && "text-ink lg:text-ink-secondary",
-                    merLage === "av" && "text-ink-secondary",
-                    // Ryms allt i raden vid `lg` finns ingen meny att öppna där —
-                    // utom när menuExtras eller meny tvingar fram den (menyn
-                    // finns oavsett om navigeringen råkar rymmas).
-                    nav.length <= maxTopNav && !menuExtras && !meny && "lg:hidden",
+                    // ägs av `hidden md:inline-flex` ensam.
+                    // ⛔ 0.30.0: EN CIRKEL, 36 px synlig och 44 px träffyta, som
+                    // SessionStudio (`AppHeader.jsx:494`), se `huvudknappKlass`.
+                    huvudknappKlass({ visning: "hidden md:inline-flex", aktiv: merOppen }),
+                    // "Du är här" på en överflödespost: mörkare ikon, ingen platta.
+                    !merOppen && merLage === "pa" && "text-ink",
+                    !merOppen && merLage === "pa-under-lg" && "text-ink lg:text-ink-muted",
+                    // Ryms allt i raden vid `lg` finns ingen meny att öppna där,
+                    // utom när menuExtras eller meny tvingar fram den.
+                    navLista.length <= maxTopNav && !menuExtras && !meny && "lg:hidden",
                   )}
                   // ⛔ Ingen siffra i namnet. Antalet bakom knappen beror på
                   // skärmbredden, och ett tal som bara stämmer ibland är värre
@@ -918,15 +1065,7 @@ export function OpsAppShell({
                   <Popover.Content
                     align="end"
                     sideOffset={4}
-                    className={cx(
-                      "z-(--z-dropdown) min-w-52 max-w-[calc(100vw-1.5rem)] rounded-md border border-line bg-raised shadow-md",
-                      // ⛔ Utan `meny` behåller poppovern sin gamla enkla form:
-                      // ett enda `p-1` runt bara nav+extras (ingen rubrik, inga
-                      // sektioner, ingen Logga ut). MED `meny` sköter varje
-                      // block sin egen kant (rubrik, `MenySektioner`, nav,
-                      // `menuExtras`, `MenyFooter`), som gamla `OpsMeny` gjorde.
-                      meny ? "overflow-hidden" : "p-1",
-                    )}
+                    className={cx("z-(--z-dropdown) min-w-52 max-w-[calc(100vw-1.5rem)] overflow-hidden", radBehallare())}
                   >
                     {/* ⛔ RUBRIKEN STÅR EN GÅNG, ÖVERST, SAMMA FORM SOM GAMLA
                         `OpsMeny` (mätt i SessionStudio: ett `<h2>` med "Meny",
@@ -954,54 +1093,10 @@ export function OpsAppShell({
                         {aktivUndervy.undervy}
                       </div>
                     ) : null}
-                    {meny && !aktivUndervy ? (
-                      <MenySektioner sektioner={meny.sektioner ?? []} kor={kor} visaUndervy={setAktivUndervy} />
-                    ) : null}
-                    {!aktivUndervy && (inMenu.length || menuExtras) ? (
-                      <div className={cx(meny ? "border-t border-line p-1" : null)}>
-                        {/* ⛔ Egen nav med eget namn. Menyn är en lista destinationer,
-                            alltså navigering, och utan namn blir den en tredje
-                            anonym `<nav>` i dokumentet. */}
-                        <nav aria-label={moreLabel} className="flex flex-col">
-                          {inMenu.map((s, i) => (
-                            <a
-                              key={s.href}
-                              href={s.href}
-                              onClick={(e) => {
-                                stangMenyn(false);
-                                onActivate(s.href, e);
-                              }}
-                              aria-current={entryActive(s, activeHref) ? "page" : undefined}
-                              className={cx(
-                                "flex min-h-11 items-center gap-2 rounded-sm px-3 text-base",
-                                // Ligger i raden vid `lg`, alltså inte också här.
-                                smaltTak + i < maxTopNav && "lg:hidden",
-                                "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                                entryActive(s, activeHref) ? "bg-accent-subtle font-semibold text-ink" : "text-ink-secondary hover:bg-accent-faint hover:text-ink",
-                              )}
-                            >
-                              {s.icon ? (
-                                <span aria-hidden="true" className="shrink-0">
-                                  {s.icon}
-                                </span>
-                              ) : null}
-                              {s.label}
-                            </a>
-                          ))}
-                          {menuExtras ? (
-                            <>
-                              {inMenu.length ? (
-                                <div role="separator" className="my-1 border-t border-line" />
-                              ) : null}
-                              <div className="flex items-center gap-0.5 px-1 py-0.5">{menuExtras}</div>
-                            </>
-                          ) : null}
-                        </nav>
-                      </div>
-                    ) : null}
-                    {meny && !aktivUndervy ? (
-                      <MenyFooter onLoggaUt={meny.onLoggaUt} loggaUtEtikett={meny.loggaUtEtikett} appVersion={meny.appVersion} kor={kor} />
-                    ) : null}
+                    {/* ⛔ 0.30.0: ALLT I ROTEN GÅR GENOM `MenyAvdelningar`, som
+                        ritar EN avgränsare mellan varje par och ingen före den
+                        första. Se dess filhuvud för felet (två linjer på varandra). */}
+                    {!aktivUndervy ? <MenyAvdelningar avdelningar={rotAvdelningar} /> : null}
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
@@ -1063,17 +1158,52 @@ export function OpsAppShell({
           tak. Med primaryAction rymmer baren 3 (OpsBottomNav); om smaltTak är 4
           skulle slice(smaltTak) hoppa över index 3 och göra den oåtkomlig under md. */}
       <OpsBottomNav
-        nav={nav}
-        moreNav={nav.slice(Math.min(smaltTak, primaryAction ? 3 : 4))}
+        nav={bottenNav}
+        moreNav={harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))}
         activeHref={activeHref}
         onNavigate={onNavigate}
-        primaryAction={primaryAction}
+        primaryAction={harFasta ? (visaSkapaKnapp ? { label: skapaLabel, onClick: () => setSkapaBottenOppen(true) } : undefined) : primaryAction}
         menuLabel={menuLabel}
         navLabel={bottomNavLabel}
         badgeText={badgeText}
         menuExtras={menuExtras}
-        meny={meny}
+        meny={meny ? { sprak, ...meny } : meny}
       />
+
+      {/* ⛔ BOTTENRADENS PLUS ÖPPNAR ETT ARK MED SAMMA LISTA SOM HUVUDETS PLUS
+          (0.30.0, #173, `renderSkapaLista`). Ett ark och inte en popover: en
+          popover kräver ett synligt ankare i dokumentflödet, och bottenradens
+          plus är en `fixed` knapp i en annan komponent. Arket är också det som
+          en tumme når, och det som Meny redan är. Ordningen (stäng arket, öppna
+          modalen ett tick senare) är `kordarePafunktion`s lärdom (#158): två
+          Radix-dialoger som byter plats i samma händelse låser sidan. */}
+      {bottenPlus ? (
+        <Dialog.Root open={skapaBottenOppen} onOpenChange={setSkapaBottenOppen}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim md:hidden" />
+            <Dialog.Content
+              aria-describedby={undefined}
+              className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom) md:hidden", radBehallare({ ark: true }))}
+            >
+              <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
+                <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-md font-bold text-ink">{skapaLabel}</Dialog.Title>
+                <Dialog.Close
+                  aria-label={closeLabel}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <KryssIkon size={20} />
+                </Dialog.Close>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto py-1.5">
+                {renderSkapaLista((form) => {
+                  setSkapaBottenOppen(false);
+                  setTimeout(() => setSkapaForm(form), 0);
+                })}
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      ) : null}
 
       {/* ⛔ #168: MODALEN ÄR ÉN, DELAD MELLAN RAMVERKETS RADER OCH MODULERNAS.
           Monteras bara medan `skapaForm` finns (se filhuvudets note vid

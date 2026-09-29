@@ -264,7 +264,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
             {/* Rad 3: medlemsantal + knappar. GroupCard.jsx rad 116-168. */}
             <div className="mt-1.5 flex items-center justify-between">
               {typeof g.medlemsantal === "number" ? (
-                <span className="flex items-center gap-1 text-[10px] text-ink-muted">
+                <span className="flex items-center gap-1 text-liten text-ink-muted">
                   <PersonIkon size={10} />
                   {g.medlemsantal}
                   <span className="sr-only"> {medlemmarEtikett}</span>
@@ -310,7 +310,7 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
                   </span>
                 ))}
                 {resten > 0 ? (
-                  <span className="ml-0.5 text-[9px] text-ink-muted">
+                  <span className="ml-0.5 text-liten text-ink-muted">
                     +{resten}
                     <span className="sr-only"> {flerAvatarerEtikett}</span>
                   </span>

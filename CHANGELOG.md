@@ -9,6 +9,117 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.30.0
+
+⛔ **Navigationen, menyn, hover, loggan, typografin och händelsen som
+SessionStudio.** CP 2026-09-29, efter att ha använt 0.29.x i telefonen:
+sex saker som alla var "lite fel" och som tillsammans gjorde att appen inte
+kändes som förebilden. Ärendet är
+[#173](https://github.com/cllp/ops-framework/issues/173). Måtten är lästa ur
+SessionStudios källa med fil och rad (i koden och i fixturen), och de som beror
+på pixlar mäts nu i en riktig webbläsare (`check-skalyta`), eftersom fem av de
+sex gick grönt genom hela provsviten: jsdom kör ingen CSS.
+
+### A. Fasta poster och moduler i Hub
+
+**Händelsen:** bolag-ops hade tretton poster i navigeringen (Händelser,
+Översikt, Ekonomi med fem barn, och så vidare). De fick inte plats i toppraden,
+hamnade under "Meny", och menyn blev en andra navigering bredvid den första.
+Ordningen, namnen och ikonerna var appens, alltså olika i varje app. CP: menyn
+ska bara ha ramverkets saker, appens moduler ska ligga i Hub.
+
+`OpsAppShell` tar `fasta` (`{ idag, kalender, hub }`, var och en `{ href }`)
+och `moduler` (samma form som `nav`). Ramverket äger ordning (Idag, Kalender,
+Hub), namn (sv och en) och ikoner. Toppraden visar de tre, Hub som en post med
+chevron-dropdown över modulerna; bottenraden på telefon är Idag, Kalender, ETT
+STORT PLUS, Hub, Meny (ikon 20 px, etikett 10 px, raden 56 px, som
+`MobileTabBar.jsx:73-87`). Plusset öppnar samma lista som plusset i huvudet,
+och huvudets plus göms i mobil: ett plus per yta. Ny **`OpsHub`** är sidan Hub
+leder till, ett kort per modul (`rounded-card`). `nav` och `fasta` får inte
+ges ihop, `moduler` kräver `fasta`, och `primaryAction` får inte ges med `fasta`:
+skalet kastar hellre än att gissa. Utan `fasta` är allt som förut.
+
+### B. Menyn: appens länkar i en egen sektion, en avgränsare mellan sektioner
+
+**Händelsen:** mätt i Chromium, 390 px: i mobilens meny låg två streck 5 px
+från varandra under arkets rubrik. Arkets rubrik hade `border-b`, första
+sektionen `border-t`, och nav-blocket ovanför sitt eget `mt-1 border-t pt-1`:
+ingen ägde frågan var en linje går, alla svarade "ovanför mig".
+
+`MenyAvdelningar` äger den nu och ritar EN avgränsare mellan varje par, ingen
+före den första; tomma avdelningar filtreras bort FÖRE räkningen. Menyn har två
+sorters innehåll: ramverkets (`meny.sektioner`: Aktivitet, Inställningar,
+Hjälp, Notiser) och appens egna länkar, `meny.app`, med egen rubrik
+(`meny.appRubrik`, förval Appen/App). Menyn innehåller aldrig moduler. Radstil
+som `MobileHamburgerMenu.jsx:288/346`, sektionsrubrik i rollen `liten`.
+
+### C. Hover och rundning som SessionStudio
+
+**Händelsen:** CP: hover och rundning "ska vara som SS". Raderna hade
+`rounded-sm` och `hover:bg-accent-faint`, ikonknapparna var 44 px rundade rutor
+utom plusset som var en 32 px accentfylld cirkel: tre former och tre höjder i
+samma rad, och avataren hade ingen ring.
+
+`radKlass`, `radBehallare` och `huvudknappKlass` (`src/lib/radKlass.js`) är EN
+definition för fyra ytor som förut ritade raden var för sig. Raden är 12 px
+(`rounded-base`) med `hover:bg-raised`, aktiv `bg-raised text-accent`;
+behållaren `bg-surface` (annars syns inte hovern), `rounded-base`, `border-line`,
+`shadow-lg` (ramverkets skuggskala har tre steg, SS `shadow-xl` finns inte).
+Ikonknapparna är 36 px cirklar med 44 px träffyta som osynlig `after:`-yta;
+avataren en 28 px cirkel (`OpsIdentity size="avatar"`) i en 32 px knapp med
+`hover:ring-2`, aktiv `ring-accent` (`OpsIconLink avatar`). Mätt: mittlinjerna
+för plus, ikonlänk, avatar och hamburgare skiljer 0 px. **Observerat:** i ljust
+tema är `--color-raised` och `--color-surface` samma tal (`#fefcf6`), så hovern
+syns inte mot behållaren där; i mörkt tema gör den det. Fixturen är oförändrad.
+
+### D. Typografin på ett ställe, och inställningsvyn
+
+**Händelsen:** 0.29.1 hade tio `text-[Npx]` i fem komponenter (8, 9, 10 och 11
+px, var och en med sin egen vikt). Bottenradens etikett var 12 px där
+SessionStudios är 10, ingen av de tio hade ett namn att peka på, och CP såg det
+som "allt är lite fel".
+
+Fixturen får `typografi.roller` (rubrik, sektion, etikett, hjalp, liten, mikro,
+var och en med `_kalla` fil:rad) och `typografi.radhojd`; `generate-tokens`
+skriver dem som `--text-<roll>` med sammansatta radhöjd, vikt och spärrning, och
+`--leading-tight/normal`. De tio literalerna är ersatta. **`check-typografi`**
+fäller `text-[..px]`, `text-[..rem]`, `font-size:` och `font-family:` (golv 60
+filer, planterat fel i `test-guards`) och kan köras av en app mot sin källkatalog.
+`OpsKatalogInstallning`, `OpsModulKataloger` och `OpsField` följer
+SessionStudios `SettingsView`: sektionsrubrik, etikett och hjälptext som roller,
+kort `rounded-base border p-5`, `gap-3`, rader `flex items-center
+justify-between gap-3` med vänsterdelen `min-w-0 flex-1`. **Mätt:** ett
+kategorinamn på 49 tecken (svenska sammansatta ord) gav `scrollWidth` 397 mot
+`clientWidth` 390 vid 390 px; nu bryts det. Räknemärkets 8 px och vikt är rollen
+`mikro`, samma värde som förut.
+
+### E. Loggan utan text under
+
+**Händelsen:** CP: "loggan utan text under". Märket i toppraden ritade appens
+namn som undertext under bilden, alltså en kolumn på 68 px i en topprad på 56
+(mätt). `OpsBrand` ritar inte längre undertexten i bildläget; `title` är bildens
+`alt` och därmed länkens namn. Inloggningen behåller undertexten via ny prop
+`undertext`. Toppradens höjd är oförändrat `--topbar-height`.
+
+### F. Skapa händelse med typ och vem som skapade
+
+**Händelsen:** CP: "skapa händelse med typ och vem som skapade". `skapa.handelse`
+var ett färdigt `ReactNode`, och ett färdigt nod kan varken få en `groupId` eller
+en vald typ. Det kan nu vara `{ form, katalog? }` (katalogen `"handelsetyper"`,
+`katalog: null` = ingen typ) och formuläret får `{ groupId, typ, onKlar }` som en
+moduls registrering. Datumfälten är formulärets. `OpsEventList` ritar "Skapad av
+Namn, 29 sep 09:12" under titeln när både `skapadAv` och `skapad` finns, i lokal
+tid och med orden på valt språk (`formatDagOchKlockslag`); en agent och en
+människa skrivs ut med orden via `OpsProvenance`; en halv rad ritas aldrig.
+
+### Vakter och prov
+
+`check-skalyta` (Chromium, fail-closed, körs i CI-jobbet som redan har en
+webbläsare) och `check-typografi` är nya. `check-docs` kräver nu avsnitten
+"Navigationen" och "Typografin". Varje nytt prov är visat rött mot 0.29.1 och
+grönt mot 0.30.0, se pull-texten.
+
+
 ## 0.29.1
 
 ⛔ **Rättelse: en kategori utan grupp bär ingen `groupId`-nyckel alls.**

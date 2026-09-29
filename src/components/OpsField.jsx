@@ -43,7 +43,7 @@ export function OpsField({ label, hint, error, required = false, children }) {
       <div className="flex flex-col gap-1">
         {/* ⛔ #167: font-medium, inte font-semibold. Samma mätning som
             OpsStat/OpsTable, se OpsStat.jsx. */}
-        <label htmlFor={id} className="text-sm font-medium text-ink-secondary">
+        <label htmlFor={id} className="text-etikett font-medium text-ink-secondary">
           {label}
           {required ? (
             <span className="text-danger" aria-hidden="true">
@@ -53,14 +53,14 @@ export function OpsField({ label, hint, error, required = false, children }) {
         </label>
         {children}
         {hint ? (
-          <p id={hintId} className="text-sm text-ink-muted">
+          <p id={hintId} className="text-hjalp text-ink-muted">
             {hint}
           </p>
         ) : null}
         {error ? (
           // role="alert" gör att felet läses upp när det dyker upp, inte bara
           // när någon råkar navigera förbi det.
-          <p id={errorId} role="alert" className="text-sm text-danger">
+          <p id={errorId} role="alert" className="text-hjalp text-danger">
             {error}
           </p>
         ) : null}

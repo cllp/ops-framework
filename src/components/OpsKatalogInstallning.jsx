@@ -229,22 +229,33 @@ export function OpsKatalogInstallning({
 
   const rad = (/** @type {import("../lib/katalog.js").Kategori} */ kategori) => (
     <OpsListRow key={kategori.id}>
-      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1">
-        {/* ⛔ Ordet skickas med: `slagPrick` vägrar en prick utan det, eftersom en färg utan ord inte går att läsa upp och betyder ingenting för den som inte lärt sig koden.
-            ⛔ Och ingen prick alls i en katalog utan färger: `slagPrick` kastar på en plats som inte finns, och en grå prick hade sagt att kategorin har en färg som inte laddat. */}
-        {kategori.farg ? (
-          <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
-        ) : null}
-        <span className="font-medium text-ink">{text(kategori.namn, sprak)}</span>
-        <span className="text-sm text-ink-muted">{ikonRitare ? ikonRitare(kategori.ikon) : kategori.ikon}</span>
-        {kategori.fas ? <OpsPill tone="neutral">{kategori.fas}</OpsPill> : null}
-        {kategori.arkiverad ? <OpsPill tone="warning">Arkiverad</OpsPill> : null}
+      {/* ⛔ 0.30.0 (#173): SOM SESSIONSSTUDIOS INSTÄLLNINGSRAD (`SettingsView.jsx`,
+          `flex items-center justify-between`): vänsterdelen får ta `min-w-0
+          flex-1` och BRYTA sin text, högerdelen (knapparna) behåller sin
+          storlek. Före 0.30.0 var raden en enda `flex-wrap` med knapparna som
+          `ms-auto` i samma rad, och ett långt kategorinamn (svenska sammansatta
+          ord är långa) kunde inte krympa under sitt längsta ord: raden blev
+          bredare än sitt kort och vyn fick horisontell scroll på en 390 px
+          bred telefon (mätt, se `check-skalyta`). */}
+      <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2">
+        {/* ⛔ Under `sm` STAPLAS raden: texten på egen full rad, knapparna under, så ett ord aldrig trycks ihop till en smal kolumn (CP: texterna får inte plats i mobil). */}
+        <div className="flex min-w-0 flex-1 basis-full flex-wrap items-center gap-x-3 gap-y-1 sm:basis-auto">
+          {/* ⛔ Ordet skickas med: `slagPrick` vägrar en prick utan det, eftersom en färg utan ord inte går att läsa upp och betyder ingenting för den som inte lärt sig koden.
+              ⛔ Och ingen prick alls i en katalog utan färger: `slagPrick` kastar på en plats som inte finns, och en grå prick hade sagt att kategorin har en färg som inte laddat. */}
+          {kategori.farg ? (
+            <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
+          ) : null}
+          <span className="min-w-0 break-words text-etikett font-medium text-ink">{text(kategori.namn, sprak)}</span>
+          <span className="min-w-0 break-all text-etikett text-ink-muted">{ikonRitare ? ikonRitare(kategori.ikon) : kategori.ikon}</span>
+          {kategori.fas ? <OpsPill tone="neutral">{kategori.fas}</OpsPill> : null}
+          {kategori.arkiverad ? <OpsPill tone="warning">Arkiverad</OpsPill> : null}
+        </div>
         {kanAndra ? (
           // ⛔ IKON PLUS ORD, INTE IKONEN ENSAM (#164). Mätt mot SessionStudio:
           // en knapp utan text är snabbare att rita men går inte att skanna i
           // en lista med tio rader, man måste läsa varje glyf. Ordet står kvar,
           // ikonen är en genväg för ögat och inte en ersättning för texten.
-          <span className="ms-auto flex gap-2">
+          <span className="flex shrink-0 gap-2 sm:ms-auto">
             <OpsButton variant="ghost" onClick={() => oppna(kategori)}>
               <AndraIkon />
               Ändra
@@ -260,7 +271,7 @@ export function OpsKatalogInstallning({
   );
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-3">
       {!kanAndra ? (
         <OpsBanner tone="info" title="Du kan läsa katalogen, inte ändra den">
           Konfigurationen ändras av ägaren, eftersom en ändring här ändrar vad alla andra ser. Låset sitter i databasens regler, inte i den här vyn.
@@ -271,7 +282,7 @@ export function OpsKatalogInstallning({
 
       {arkiverade.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="m-0 text-sm text-ink-muted">Arkiverade</h3>
+          <h3 className="m-0 text-sektion uppercase text-accent">Arkiverade</h3>
           <OpsList divided ariaLabel="Arkiverade kategorier">{arkiverade.map(rad)}</OpsList>
         </div>
       ) : null}
@@ -281,10 +292,10 @@ export function OpsKatalogInstallning({
           varför en kategori ser annorlunda ut än i går. */}
       {logg.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="m-0 text-sm text-ink-muted">Senaste ändringarna</h3>
+          <h3 className="m-0 text-sektion uppercase text-accent">Senaste ändringarna</h3>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {logg.slice(0, 5).map((rad) => (
-              <li key={`${rad.id}-${rad.nar}`} className="flex flex-wrap items-baseline gap-x-2 text-sm text-ink-muted">
+              <li key={`${rad.id}-${rad.nar}`} className="flex flex-wrap items-baseline gap-x-2 text-hjalp text-ink-muted">
                 <span className="tabular-nums">{String(rad.nar || "").slice(0, 16).replace("T", " ")}</span>
                 <span className="text-ink">{beskrivKonfigandring(rad, sprak)}</span>
                 {/* ⛔ Vem, när det finns. Utan namnet är loggen en lista över
@@ -305,7 +316,7 @@ export function OpsKatalogInstallning({
       ) : null}
 
       {kanAndra && redigerar !== null ? (
-        <div className="flex flex-col gap-3 rounded-md border border-divider p-4">
+        <div className="flex flex-col gap-3 rounded-base border border-line p-5">
           {fel ? <OpsBanner tone="danger" title="Det gick inte att spara">{fel}</OpsBanner> : null}
 
           <OpsField label="Nyckel" hint="Ändras aldrig. Varje rad i databasen pekar på den, så en omdöpning senare byter bara namnet och behåller kopplingen." required>
@@ -353,7 +364,7 @@ export function OpsKatalogInstallning({
               {/* ⛔ Rubriken säger vad de ÄR och inte bara att de finns. Utan
                   den meningen ser arton fält ut som administration, och då
                   fylls de i med ett ord var. */}
-              <h3 className="m-0 text-sm text-ink-muted">Texter, alltså det som gör formuläret begripligt</h3>
+              <h3 className="m-0 text-sektion uppercase text-accent">Texter, alltså det som gör formuläret begripligt</h3>
               {textraderna(textnycklar, utkast.texter).map((t) => (
                 <div key={t.nyckel} className="flex flex-col gap-2">
                   <OpsField label={`${text(t.etikett, sprak) || t.nyckel}, svenska`} hint={t.hjalp} required>
@@ -376,7 +387,7 @@ export function OpsKatalogInstallning({
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <h3 className="m-0 text-sm text-ink-muted">Så här kommer den att se ut</h3>
+            <h3 className="m-0 text-sektion uppercase text-accent">Så här kommer den att se ut</h3>
             <div className="flex items-center gap-3">
               {farger ? (
                 <span
@@ -384,7 +395,7 @@ export function OpsKatalogInstallning({
                   aria-hidden="true"
                 />
               ) : null}
-              <span className="font-medium text-ink">{rensa(sprak === "en" ? utkast.en || utkast.sv : utkast.sv) || "Utan namn"}</span>
+              <span className="min-w-0 break-words text-etikett font-medium text-ink">{rensa(sprak === "en" ? utkast.en || utkast.sv : utkast.sv) || "Utan namn"}</span>
               {faser ? <OpsPill tone="neutral">{utkast.fas}</OpsPill> : null}
             </div>
           </div>

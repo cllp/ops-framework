@@ -189,25 +189,23 @@ describe("OpsAppShell skapa (#168)", () => {
   });
 
   // ══ #168, ANDRA GRANSKNINGEN: MÄTT MOT SESSIONSTUDIOS AppHeader.jsx ══════
-  it("⛔ plussets EGEN knapp bär SAMMA klasser som OpsButton variant=\"primary\" round iconOnly", () => {
-    // ⛔ INTE `asChild` (se OpsAppShell.jsx filhuvud vid triggern): en
-    // funktionskomponent utan forwardRef kan inte vara Radix asChild-barn
-    // utan att förlora sin ref. Provet bevisar i stället att formen är
-    // IDENTISK, inte att komponenten återanvänds rakt av.
-    render(<OpsButton variant="primary" round iconOnly ariaLabel="Jamforelse" onClick={() => {}}>x</OpsButton>);
-    const jamforelse = screen.getByRole("button", { name: "Jamforelse" });
-
+  it("⛔ plussets knapp är en CIRKEL som SessionStudios, samma form som hamburgaren och ikonlänken (0.30.0)", () => {
+    // ⛔ Före 0.30.0 var plusset en 32 px accentfylld cirkel med `OpsButton`s klasser,
+    // det enda i klustret som skrek. SS `AppHeader.jsx:376`: `p-2 rounded-full`,
+    // dämpad ikon, `hover:bg-card`. Provet bevisar formen, inte färgen på pixeln
+    // (den mäts i `check-skalyta`, jsdom ritar ingen CSS).
     render(
-      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ handelse: <p>x</p> }}>
+      <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ handelse: <p>x</p> }} meny={{ onLoggaUt: () => {} }}>
         <p>innehåll</p>
       </OpsAppShell>,
     );
     const plus = screen.getByRole("button", { name: "Skapa" });
-
-    for (const klass of ["rounded-full", "bg-accent", "text-accent-contrast", "size-8", "p-0"]) {
-      expect(jamforelse.className).toContain(klass);
-      expect(plus.className).toContain(klass);
+    const hamburgare = screen.getByRole("button", { name: /Meny, fler åtgärder/ });
+    for (const klass of ["rounded-full", "size-9", "p-2", "hover:bg-raised", "after:size-11"]) {
+      expect(plus.className, `plusset saknar ${klass}`).toContain(klass);
+      expect(hamburgare.className, `hamburgaren saknar ${klass}`).toContain(klass);
     }
+    expect(plus.className).not.toContain("bg-accent");
   });
 
   it("⛔ popovern mäter w-56 (14rem, 224 px, mätt ur SessionStudios create-meny)", () => {

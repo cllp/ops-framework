@@ -92,8 +92,8 @@ export function OpsModulKataloger({ register, fraga, ikoner, onSpara, onArkivera
                 `rubrik`-propen: `OpsKatalogInstallning` använder `rubrik` som
                 listans skärmläsarnamn, och en app som lägger modulnamnet där
                 hade dubblerat det på varje läsning. */}
-            <h3 className="m-0 text-sm font-semibold text-ink-secondary">{egnaModulnamn}</h3>
-            <p className="m-0 text-xs text-ink-muted">
+            <h3 className="m-0 text-sektion uppercase text-accent">{egnaModulnamn}</h3>
+            <p className="m-0 text-hjalp text-ink-muted">
               {/* ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5): en katalog utan
                   en modul bakom sig skriver ut det, i stället för att raden
                   bara försvinner. */}

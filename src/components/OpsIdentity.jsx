@@ -32,10 +32,12 @@ const TONKLASSER = {
 
 const STORLEKAR = {
   /** 20px: SessionStudios gruppmärke i kortet (GroupCard.jsx:71) och avatarraden (Avatar size 5). #161. */
-  xs: "size-5 text-[10px]",
+  xs: "size-5 text-liten",
   sm: "size-6 text-xs",
   md: "size-9 text-base",
   lg: "size-12 text-md",
+  /** 28 px (0.30.0, #173): SessionStudios avatar i toppraden, `AppHeader.jsx:463`. Alltid rund, se `rund`. */
+  avatar: "size-7 text-liten",
 };
 
 /**
@@ -43,15 +45,16 @@ const STORLEKAR = {
  * @param {string} props.name Visningsnamn. Används för initialer och som alternativtext.
  * @param {string} props.seed Stabilt id som bestämmer tonen NÄR `tone` inte skickas in. Aldrig namnet.
  * @param {string} [props.imageUrl]
- * @param {"xs"|"sm"|"md"|"lg"} [props.size]
+ * @param {"xs"|"sm"|"md"|"lg"|"avatar"} [props.size]
  * @param {import("react").ComponentType<{size?: number}>} [props.icon] En egen ikon i stället för initialer,
  *   ritad bara när `imageUrl` saknas (#164, korrigering C: "standardikon plus färg kräver ingen Storage").
  *   Ramverket känner inte till vilka ikoner som finns, appen skickar in komponenten (se `src/lib/profilikoner.js`
  *   för profilvyns karta).
+ * @param {boolean} [props.rund] Rund i stället för rundad ruta. Förval falskt, utom för `size="avatar"` som alltid är rund (SS avatar är en cirkel, en grupp är en rundad ruta: formen säger vilket).
  * @param {1|2|3|4|5|6} [props.tone] Åsidosätter tonen `identityTone(seed)` annars härleder. Ett UTTRYCKLIGT val,
  *   t.ex. personens sparade `farg` (#164), väger tyngre än det härledda.
  */
-export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone }) {
+export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone, rund = false }) {
   const storlekKlass = STORLEKAR[size];
   if (!storlekKlass) {
     throw new Error(`OpsIdentity: okänd size "${size}". Giltiga: ${Object.keys(STORLEKAR).join(", ")}.`);
@@ -60,7 +63,7 @@ export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, ton
     throw new Error("OpsIdentity: seed krävs och ska vara ett stabilt id. Utan den blir tonen slumpad, och då byter samma grupp färg mellan två renderingar.");
   }
 
-  const base = cx("inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md", storlekKlass);
+  const base = cx("inline-flex shrink-0 items-center justify-center overflow-hidden", rund || size === "avatar" ? "rounded-full" : "rounded-md", storlekKlass);
 
   if (imageUrl) {
     // Bilden har alt="" och märket bär namnet, annars läses namnet upp två
@@ -76,7 +79,7 @@ export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, ton
 
   return (
     <span className={cx(base, TONKLASSER[vaildTone], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
-      <span aria-hidden="true">{Icon ? <Icon size={size === "lg" ? 24 : size === "sm" ? 12 : 18} /> : initials(name)}</span>
+      <span aria-hidden="true">{Icon ? <Icon size={size === "lg" ? 24 : size === "sm" || size === "avatar" ? 12 : 18} /> : initials(name)}</span>
     </span>
   );
 }

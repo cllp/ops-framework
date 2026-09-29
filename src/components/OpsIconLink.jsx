@@ -1,5 +1,8 @@
+import { cloneElement, isValidElement } from "react";
 import { cx } from "../lib/cx.js";
+import { huvudknappKlass } from "../lib/radKlass.js";
 import { OpsCountBadge } from "./counter.jsx";
+import { OpsIdentity } from "./OpsIdentity.jsx";
 
 /**
  * En destination som en ikon, för åtgärdsklustret längst till höger i toppraden.
@@ -38,8 +41,12 @@ import { OpsCountBadge } from "./counter.jsx";
  * @param {number} [props.badge] Antal. ⛔ 0 ritar ingen räknare: en nolla i en cirkel är en notis om att det inte finns någon notis.
  * @param {string} [props.badgeText] Substantivet efter siffran, t.ex. "nya". Appen bestämmer vad den räknar.
  * @param {boolean} [props.active] Står man på sidan just nu.
+ * @param {boolean} [props.avatar] (0.30.0, #173) Identiteten i toppraden: en 32 px rund knapp med en 28 px rund avatar
+ *   i, ingen platta utan en RING vid hover (`ring-line-strong`) och i accent när man står på sidan. Mätt ur SessionStudio
+ *   (`AppHeader.jsx:463`: `p-0.5 rounded-full`, `hover:ring-2 hover:ring-border-hover`, aktiv `ring-2 ring-accent`).
+ *   Är `icon` en `OpsIdentity` görs den till `size="avatar"` åt dig, så appen inte behöver känna till måttet.
  */
-export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", active = false }) {
+export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", active = false, avatar = false }) {
   if (!label) {
     throw new Error(
       "OpsIconLink: label krävs. En ikonlänk utan namn läses upp som sin adress, alltså \"/inkorg\", och det är inte ett namn på något.",
@@ -58,17 +65,25 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
       // ⛔ Namnet innehåller INTE antalet. Räknaren har sin egen uppläsning, och
       // vore talet också i namnet skulle "Inkorg, 3 nya, 3 nya" läsas upp.
       aria-label={label}
-      className={cx(
-        "relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-md",
-        "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        // ⛔ Aktiv är MÖRKARE BLÄCK och ingen ifylld platta. En platta i
-        // åtgärdsklustret ser ut som ett påslaget läge, alltså som att man tryckt
-        // på en växlare, inte som "du är här".
-        active ? "text-ink" : "text-ink-secondary",
-      )}
+      className={
+        avatar
+          ? cx(
+              // ⛔ 32 px knapp, 28 px avatar, ring vid hover. 44 px träffyta som en osynlig `after:`, som övriga knappar i klustret.
+              "relative inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full p-0.5",
+              "transition-all duration-(--duration-fast) ease-standard",
+              active ? "ring-2 ring-accent" : "hover:ring-2 hover:ring-line-strong",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
+            )
+          : cx(
+              // ⛔ Aktiv är MÖRKARE BLÄCK och ingen ifylld platta. En platta i
+              // åtgärdsklustret ser ut som ett påslaget läge, alltså som att man
+              // tryckt på en växlare, inte som "du är här".
+              huvudknappKlass({ aktiv: active ? "mork" : false }),
+            )
+      }
     >
-      <span aria-hidden="true">{icon}</span>
+      <span aria-hidden="true" className="inline-flex">{avatar && isValidElement(icon) && icon.type === OpsIdentity ? cloneElement(/** @type {any} */ (icon), { size: "avatar" }) : icon}</span>
       {count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" /> : null}
     </a>
   );

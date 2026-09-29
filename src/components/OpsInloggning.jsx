@@ -207,7 +207,7 @@ export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion
 
       <div className="relative z-10 flex w-full max-w-[360px] flex-col items-stretch gap-2">
         <div className="mb-3 flex flex-col items-center text-center">
-          <OpsBrand title={etikett || "OPS Hub"} ordmarkeHojd="h-20" endastOrdmarke mark={mark} ordmarke={ordmarke} />
+          <OpsBrand title={etikett || "OPS Hub"} ordmarkeHojd="h-20" endastOrdmarke undertext mark={mark} ordmarke={ordmarke} />
           {viskning ? <p className="mt-2 px-1 text-sm leading-snug text-ink-soft">{viskning}</p> : null}
         </div>
 
@@ -221,7 +221,7 @@ export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion
                   onClick={() => onSprak("sv")}
                   aria-pressed={sprak === "sv"}
                   className={cx(
-                    "rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
+                    "rounded-full px-2 py-0.5 text-liten transition-colors",
                     sprak === "sv" ? "bg-accent text-accent-contrast" : "text-ink-muted hover:text-ink",
                   )}
                 >
@@ -232,7 +232,7 @@ export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion
                   onClick={() => onSprak("en")}
                   aria-pressed={sprak === "en"}
                   className={cx(
-                    "rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
+                    "rounded-full px-2 py-0.5 text-liten transition-colors",
                     sprak === "en" ? "bg-accent text-accent-contrast" : "text-ink-muted hover:text-ink",
                   )}
                 >
@@ -265,7 +265,7 @@ export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion
               </div>
 
               {(auth.signInWithGoogle || auth.signInWithApple) && (auth.signInWithPassword || auth.createAccount || auth.sendEmailLink) ? (
-                <p className="my-3 text-center text-[10px] font-medium uppercase tracking-widest text-ink-muted" aria-hidden="true">
+                <p className="my-3 text-center text-liten uppercase tracking-widest text-ink-muted" aria-hidden="true">
                   {t.or}
                 </p>
               ) : null}
@@ -429,7 +429,7 @@ export function OpsInloggning({ auth, etikett, viskning, lankar = [], appVersion
         </OpsCard>
 
         {lankar.length > 0 || appVersion ? (
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[10px] text-ink-muted">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-liten text-ink-muted">
             {lankar.map((l, i) => (
               // eslint-disable-next-line react/no-array-index-key -- ⛔ sidfotslänkar har ingen egen identitet, appen skickar en ny lista varje render.
               <span key={i} className="flex items-center gap-2">
