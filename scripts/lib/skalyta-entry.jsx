@@ -104,6 +104,13 @@ const grupperLista = [
   { id: "g3", namn: { sv: "Claes Philip Staiger AB" }, medlemsantal: 1, roll: "agare" },
 ];
 
+/** 0.32.0 (#180 G2): grupper med roll, färg, ikon, medlemsantal och avatarer, för gruppkortets mätning (avsnitt 23). Bara scenen "gruppkort" använder den. */
+const g2Lista = [
+  { id: "g1", namn: { sv: "Alfa AB" }, roll: "agare", farg: "3", medlemsantal: 6, avatarer: ["A", "B", "C", "D", "E", "F"].map((n) => ({ id: `u${n}`, namn: `${n} Person` })) },
+  { id: "g2", namn: { sv: "Beta AB" }, roll: "medlem", medlemsantal: 2, avatarer: [{ id: "uA", namn: "A Person" }, { id: "uB", namn: "B Person" }] },
+  { id: "g3", namn: { sv: "Gamma AB" }, roll: "admin", farg: "5", ikon: "hus", medlemsantal: 3 },
+];
+
 function Full({ children, skapa = { handelse: <p>Formulär</p> } }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(window.__aktiv ?? "g1");
@@ -123,7 +130,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> } }) {
       anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
       skapa={skapa}
       meny={meny}
-      grupper={{ lista: grupperLista, aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {} }}
+      grupper={{ lista: window.__skal === "gruppkort" ? g2Lista : grupperLista, aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
     >
       {children}
     </OpsAppShell>
@@ -304,6 +311,33 @@ function Scen() {
     return (
       <Full skapa={{ sparaEtikett: "Spara", ...(grupp ? { grupp } : { handelse: <p>Formulär</p> }) }}>
         <p className="px-4" data-appvy="">appens vy</p>
+      </Full>
+    );
+  }
+  if (s === "gruppkort") {
+    return (
+      <Full>
+        <p className="px-4" data-appvy="">appens vy</p>
+      </Full>
+    );
+  }
+  // 0.32.0 (#180 G2): detaljsidan. Saknas `OpsGruppSida` (0.31.x) ritas en markör och vakten blir röd på rätt sak.
+  if (s === "gruppsida") {
+    const Sida = Ops.OpsGruppSida ?? (() => <span data-saknas="OpsGruppSida">OpsGruppSida saknas</span>);
+    const m = ["Dan Ägare", "Bo Admin", "Ann Medlem"].map((namn, i) => ({ id: `u${i}`, namn, bild: "", roll: ["agare", "admin", "medlem"][i] }));
+    return (
+      <Full>
+        <Sida
+          grupp={{ id: "g1", namn: { sv: "Alfa AB" }, beskrivning: "Vi arbetar med trädgårdar och uteplatser på Gotland.", ort: "Visby", roll: "agare", farg: "3" }}
+          medlemmar={m}
+          snabbval={[
+            { icon: <Calendar size={20} />, label: "Kalender", onClick: () => {} },
+            { icon: <FileText size={20} />, label: "Bibliotek", onClick: () => {} },
+            { icon: <Inbox size={20} />, label: "Chatt", onClick: () => {} },
+          ]}
+          onTillbaka={() => {}}
+          onRedigera={() => {}}
+        />
       </Full>
     );
   }

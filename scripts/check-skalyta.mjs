@@ -2058,6 +2058,119 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   await context.close();
 }
 
+// ══ 23. GRUPPKORTET OCH GRUPPENS DETALJSIDA MOT SS (0.32.0, #180 G2) ══════════════════════════════════════════════
+// CP 2026-09-29 23:30: "Gruppkortet skall ha lite mer info i sig som i SessionStudio." Kortet (SS `GroupCard.jsx`) mäts på dator, där gruppanelen finns (från 1024 px):
+// (i) för alla, penna bara för ägare och admin, knappen 26 px (p-1.5 + 14), namn 12 px/600, antal 10 px, fyra avatarer om 20 px plus "+N", valt kort i gruppens färg
+// (kant och en yta vid ca 6 procent), märket 20 px i gruppens färg eller ikon. Detaljsidan (SS `GroupDetailView.jsx`) mäts vid 390 och 1280 px: kolumn 768, märke 56,
+// rubrik 20 px/600, beskrivning 14, ort 12, tre snabbval i en rad (p-3, ikon 20, text 12/500), medlemsrubrik 12 px versaler, avatar 32, etikett 10 px versaler.
+{
+  const { page, context } = await oppna("gruppkort", { width: 1280, height: 800 }, standardtema, 1, "g1");
+  try {
+    const k = await page.evaluate(() => {
+      const nav = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const kort = (/** @type {string} */ n) => /** @type {HTMLElement | null} */ ([...nav.querySelectorAll("li[role=button]")].find((l) => l.getAttribute("aria-label") === n) ?? null);
+      const sonda = (/** @type {string} */ klass, /** @type {string} */ prop) => { const e = document.createElement("span"); e.className = klass; document.body.append(e); const v = getComputedStyle(e)[prop]; e.remove(); return v; };
+      const knapp = (/** @type {HTMLElement | null} */ li, /** @type {string} */ n) => li ? /** @type {HTMLElement | null} */ (li.querySelector(`button[aria-label="${n}"]`)) : null;
+      const a = kort("Alfa AB"), b = kort("Beta AB"), c = kort("Gamma AB");
+      const cs = (/** @type {Element | null} */ e) => (e ? getComputedStyle(e) : null);
+      const info = knapp(a, "Visa grupp");
+      const ir = info ? info.getBoundingClientRect() : null;
+      const namn = a ? a.querySelector("p") : null;
+      const antal = a ? [...a.querySelectorAll("span")].find((x) => /^\s*6\s/.test(x.textContent || "") || (x.textContent || "").trim().startsWith("6")) : null;
+      const avatarer = a ? [...a.querySelectorAll("span[role=img]")].slice(1) : [];
+      const marke = a ? /** @type {HTMLElement} */ (a.querySelector("span[role=img]")) : null;
+      const mg = c ? /** @type {HTMLElement} */ (c.querySelector("span[role=img]")) : null;
+      const alfa = a ? getComputedStyle(a) : null;
+      return {
+        harKort: !!(a && b && c),
+        infoAlla: !!(knapp(a, "Visa grupp") && knapp(b, "Visa grupp") && knapp(c, "Visa grupp")),
+        pennaAlfa: !!knapp(a, "Redigera grupp"), pennaGamma: !!knapp(c, "Redigera grupp"), pennaBeta: !!knapp(b, "Redigera grupp"),
+        knapp: ir ? { w: ir.width, h: ir.height } : null,
+        ikon: info && info.querySelector("svg") ? info.querySelector("svg").getBoundingClientRect().width : null,
+        namn: namn ? { fs: cs(namn).fontSize, fw: cs(namn).fontWeight } : null,
+        antalFs: antal ? cs(antal).fontSize : null,
+        avatarAntal: avatarer.length, avatarPx: avatarer[0] ? avatarer[0].getBoundingClientRect().width : null,
+        plusN: a ? [...a.querySelectorAll("span")].some((x) => (x.textContent || "").trim().startsWith("+2")) : false,
+        markePx: marke ? marke.getBoundingClientRect().width : null,
+        markeBg: marke ? getComputedStyle(marke).backgroundColor : null, ton3: sonda("bg-identity-3", "backgroundColor"),
+        gammaIkon: !!(mg && mg.querySelector("svg")), gammaBg: mg ? getComputedStyle(mg).backgroundColor : null, ton5: sonda("bg-identity-5", "backgroundColor"),
+        kant: alfa ? alfa.borderTopColor : null, kantVantad: sonda("border-identity-3", "borderTopColor"),
+        yta: alfa ? alfa.backgroundColor : null, betaKant: b ? getComputedStyle(b).borderTopColor : null,
+      };
+    });
+    matt.push(`gruppkort 1280 px: ${JSON.stringify(k)}`);
+    krav(k.harKort, "gruppkort: tre kort saknas.");
+    krav(k.infoAlla, "gruppkort: (i) saknas på något kort. SS visar Info för alla (GroupCard.jsx:88-99).");
+    krav(k.pennaAlfa && k.pennaGamma && !k.pennaBeta, `gruppkort: pennan ska finnas för ägare och admin och inte för medlem (ägare ${k.pennaAlfa}, admin ${k.pennaGamma}, medlem ${k.pennaBeta}). SS canEditGroup.`);
+    krav(k.knapp !== null && Math.abs(k.knapp.w - 26) <= 0.6 && Math.abs(k.knapp.h - 26) <= 0.6 && k.ikon === 14, `gruppkort: (i) är ${JSON.stringify(k.knapp)} med ikon ${k.ikon} px, väntat 26x26 och 14 (SS p-1.5 w-3.5).`);
+    krav(k.namn !== null && k.namn.fs === "12px" && k.namn.fw === "600", `gruppkort: namnet är ${JSON.stringify(k.namn)}, väntat 12 px och 600 (SS text-xs font-semibold).`);
+    krav(k.antalFs === "10px", `gruppkort: medlemsantalet är ${k.antalFs}, väntat 10px (SS text-[10px]).`);
+    krav(k.avatarAntal === 4 && Math.abs((k.avatarPx ?? 0) - 20) < 0.6 && k.plusN, `gruppkort: ${k.avatarAntal} avatarer om ${k.avatarPx} px och "+2" ${k.plusN}, väntat 4, 20 och "+2" (SS slice(0,4), Avatar size=5).`);
+    krav(k.markePx !== null && Math.abs(k.markePx - 20) < 0.6 && k.markeBg === k.ton3, `gruppkort: märket är ${k.markePx} px med bakgrund ${k.markeBg}, väntat 20 och identitetston 3 (${k.ton3}).`);
+    krav(k.gammaIkon && k.gammaBg === k.ton5, `gruppkort: Gamma ska ha ikon i identitetston 5 (ikon ${k.gammaIkon}, bakgrund ${k.gammaBg}, väntat ${k.ton5}).`);
+    krav(k.kant === k.kantVantad && k.kant !== k.betaKant, `gruppkort: det valda kortets kant är ${k.kant}, väntat gruppens färg ${k.kantVantad} (och inte ovalda ${k.betaKant}). SS GroupCard.jsx:60-65.`);
+    const alfa = /\/\s*([0-9.]+)\)|,\s*([0-9.]+)\)\s*$/.exec(k.yta ?? "");
+    krav(!!alfa && Number(alfa[1] ?? alfa[2]) >= 0.05 && Number(alfa[1] ?? alfa[2]) <= 0.075, `gruppkort: det valda kortets yta är ${k.yta}, väntat gruppens färg vid ca 6 procent (SS \`${"${group.color}"}10\`).`);
+    if (bildmapp) await page.locator('nav[aria-label="Alla mina grupper"]').screenshot({ path: path.join(bildmapp, "gruppkort-1280.png") });
+  } catch (e) {
+    krav(false, `gruppkort: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 800 }], ["390 px", { width: 390, height: 844 }]])) {
+  const { page, context } = await oppna("gruppsida", vp);
+  try {
+    await page.waitForSelector("[data-gruppsida]", { timeout: 3000 });
+    const d = await page.evaluate(() => {
+      const rot = /** @type {HTMLElement} */ (document.querySelector("[data-gruppsida]"));
+      const cs = (/** @type {Element | null} */ e) => (e ? getComputedStyle(e) : null);
+      const h1 = rot.querySelector("h1");
+      const beskr = h1 ? h1.nextElementSibling : null;
+      const ort = beskr ? beskr.nextElementSibling : null;
+      const marke = rot.querySelector("[data-gruppsida-rubrik] span[role=img]");
+      const sn = [...rot.querySelectorAll("[data-gruppsida-snabbval] > button")];
+      const snR = sn.map((b) => b.getBoundingClientRect());
+      const snText = sn[0] ? sn[0].querySelector("span:last-child") : null;
+      const snIkon = sn[0] ? sn[0].querySelector("svg") : null;
+      const rub = rot.querySelector("[data-gruppsida-medlemmar] h2");
+      const rader = [...rot.querySelectorAll("[data-gruppsida-medlemmar] li")];
+      const av = rader[0] ? rader[0].querySelector("span[role=img]") : null;
+      const etikett = rader[0] ? [...rader[0].querySelectorAll("span")].find((x) => (x.textContent || "").trim() === "Ägare") : null;
+      const sonda = (/** @type {string} */ k) => { const e = document.createElement("span"); e.className = k; document.body.append(e); const v = getComputedStyle(e).backgroundColor; e.remove(); return v; };
+      const redigera = [...rot.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Redigera grupp");
+      return {
+        kolW: rot.getBoundingClientRect().width,
+        marke: marke ? marke.getBoundingClientRect().width : null, markeBg: marke ? cs(marke).backgroundColor : null, ton3: sonda("bg-identity-3"),
+        h1: h1 ? { fs: cs(h1).fontSize, fw: cs(h1).fontWeight } : null,
+        beskr: beskr ? cs(beskr).fontSize : null, ort: ort ? cs(ort).fontSize : null,
+        snAntal: sn.length, snEnRad: snR.length === 3 && snR.every((r) => Math.abs(r.top - snR[0].top) < 1),
+        snPad: sn[0] ? cs(sn[0]).paddingTop : null, snText: snText ? { fs: cs(snText).fontSize, fw: cs(snText).fontWeight } : null, snIkon: snIkon ? snIkon.getBoundingClientRect().width : null,
+        rub: rub ? { fs: cs(rub).fontSize, tt: cs(rub).textTransform } : null,
+        rader: rader.length, av: av ? av.getBoundingClientRect().width : null,
+        etikett: etikett ? { fs: cs(etikett).fontSize, tt: cs(etikett).textTransform } : null,
+        redigera: !!redigera, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        vw: (document.querySelector("header") || document.documentElement).getBoundingClientRect().width,
+      };
+    });
+    matt.push(`gruppsida ${namn}: ${JSON.stringify(d)}`);
+    krav(Math.abs(d.kolW - Math.min(768, d.vw)) <= 1, `gruppsida ${namn}: kolumnen är ${d.kolW} px, väntat ${Math.min(768, d.vw)} (SS GroupDetailView.jsx:79 max-w-3xl).`);
+    krav(d.marke !== null && Math.abs(d.marke - 56) < 0.6 && d.markeBg === d.ton3, `gruppsida ${namn}: märket är ${d.marke} px med bakgrund ${d.markeBg}, väntat 56 och identitetston 3 (${d.ton3}).`);
+    krav(d.h1 !== null && d.h1.fs === "20px" && d.h1.fw === "600", `gruppsida ${namn}: rubriken är ${JSON.stringify(d.h1)}, väntat 20 px och 600 (SS text-xl font-semibold).`);
+    krav(d.beskr === "14px" && d.ort === "12px", `gruppsida ${namn}: beskrivning ${d.beskr} och ort ${d.ort}, väntat 14px och 12px (SS text-sm, text-xs).`);
+    krav(d.snAntal === 3 && d.snEnRad, `gruppsida ${namn}: ${d.snAntal} snabbval, i en rad ${d.snEnRad}, väntat 3 i en rad (SS grid-cols-3).`);
+    krav(d.snPad === "12px" && d.snIkon === 20 && d.snText !== null && d.snText.fs === "12px" && d.snText.fw === "500", `gruppsida ${namn}: snabbvalet har luft ${d.snPad}, ikon ${d.snIkon} och text ${JSON.stringify(d.snText)}, väntat 12px, 20, 12px/500 (SS p-3, w-5, text-xs font-medium).`);
+    krav(d.rub !== null && d.rub.fs === "12px" && d.rub.tt === "uppercase", `gruppsida ${namn}: medlemsrubriken är ${JSON.stringify(d.rub)}, väntat 12 px versaler.`);
+    krav(d.rader === 3 && d.av !== null && Math.abs(d.av - 32) < 0.6, `gruppsida ${namn}: ${d.rader} medlemsrader med avatar ${d.av} px, väntat 3 och 32 (SS Avatar size={8}).`);
+    krav(d.etikett !== null && d.etikett.fs === "10px" && d.etikett.tt === "uppercase", `gruppsida ${namn}: Ägare-etiketten är ${JSON.stringify(d.etikett)}, väntat 10 px versaler (SS text-[10px] uppercase).`);
+    krav(d.redigera, `gruppsida ${namn}: Redigera saknas för ägaren.`);
+    krav(!d.overflow, `gruppsida ${namn}: horisontell överflödning.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gruppsida-${vp.width}.png`) });
+  } catch (e) {
+    krav(false, `gruppsida ${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}): OpsGruppSida ritades inte.`);
+  }
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

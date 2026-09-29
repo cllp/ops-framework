@@ -182,7 +182,7 @@ export function OpsProfil({
   taBortLankEtikett = "Ta bort länken",
   sprakNamn = { sv: "Svenska", en: "Engelska" },
   temaNamn = { system: "Följ enheten", ljust: "Ljust", morkt: "Mörkt" },
-  rollNamn = { agare: "Ägare", medlem: "Medlem" },
+  rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
   children,
 }) {
   const [valtSprak, setValtSprak] = useState(anvandare.sprak);

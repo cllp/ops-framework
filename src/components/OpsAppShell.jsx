@@ -415,6 +415,9 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen och i växlarens ark till samma panel: `grupper.onSkapa` behövs då inte,
  *   och om båda finns vinner `skapa.grupp` (en väg att skapa en grupp är en sanning, två är två). `onKlar` stänger panelen UTAN att gå bakåt i
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
+ * @property {(arg: { formId: string, groupId: string, onKlar: () => void }) => import("react").ReactNode} [redigeraGrupp] (0.32.0, #180 G2) Formuläret i REDIGERINGSLÄGE
+ *   (`OpsGruppFormular grupp={...}`), öppnat av pennan på gruppkortet i gruppanelen. Med den ritar skalet pennan och öppnar samma panel-form som "Ny grupp"
+ *   (`?skapa=redigera-grupp&grupp=<id>`, smal kolumn). Utan den anropas `grupper.onRedigera` i stället, om appen gav en.
  * @property {ReadonlyArray<import("../lib/modul.js").Skaparregistrering & { modulId: string }>} [registreringar] Ur `skaparFor` (#150).
  * @property {string | null} [lage] Aktivt gruppläge, se `skapalaget`.
  * @property {ReadonlyArray<{ id: string, kategorier?: ReadonlyArray<any> }>} [kataloger]
@@ -442,6 +445,8 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} aktiv
  * @property {(id: string) => void} onValj
  * @property {() => void} [onSkapa]
+ * @property {(id: string) => void} [onInfo] (0.32.0, G2) Info-knappen på gruppkortet: appen öppnar gruppens detaljsida (`OpsGruppSida`). Utelämnad: ingen knapp.
+ * @property {(id: string) => void} [onRedigera] (0.32.0, G2) Pennan på gruppkortet, bara för `roll` `agare` eller `admin`. `skapa.redigeraGrupp` går före den.
  * @property {boolean} [infalld]
  * @property {(infalld: boolean) => void} [onInfalld]
  * @property {string} [sprak]
@@ -549,6 +554,7 @@ function GruppRitare({ rita, formId, onKlar }) {
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
+ * @param {string} [props.redigeraGruppEtikett] Panelens rubrik för `skapa.redigeraGrupp`. Förval "Redigera grupp".
  * @param {string} [props.nyGruppEtikett] Ramverkets rad för `skapa.grupp`, och panelens rubrik. Förval "Ny grupp".
  * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
  * @param {import("react").ReactNode} props.children
@@ -584,6 +590,7 @@ export function OpsAppShell({
   nyHandelseEtikett = "Ny händelse",
   nyttArendeEtikett = "Nytt ärende",
   nyGruppEtikett = "Ny grupp",
+  redigeraGruppEtikett = "Redigera grupp",
   skapaTypEtikett = "Typ",
   closeLabel = "Stäng",
   felmottagare,
@@ -677,7 +684,7 @@ export function OpsAppShell({
   // ReactNode i state, se `skapaTyp` nedan för skälet).
   const [skapaOppen, setSkapaOppen] = useState(false);
   const [skapaForm, setSkapaFormRaw] = useState(
-    /** @type {{ kind: "handelse" | "arende" | "grupp" } | { kind: "modul", registrering: any } | null} */ (null),
+    /** @type {{ kind: "handelse" | "arende" | "grupp" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any } | null} */ (null),
   );
   // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
   // `skapaForm` vid öppningstillfället är fruset: `OpsSelect`s `onChange`
@@ -694,7 +701,7 @@ export function OpsAppShell({
   const skapaPushad = useRef(false);
   const skapaRullning = useRef(0);
   /** @param {any} form @returns {string} */
-  const skapaNyckel = (form) => (form.kind === "modul" ? String(form.registrering.id) : form.kind);
+  const skapaNyckel = (form) => (form.kind === "modul" ? String(form.registrering.id) : form.kind === "redigeragrupp" ? "redigera-grupp" : form.kind);
   /** Återskapar ett formulär ur adressens `?skapa=`, eller `null`. */
   const skapaUrAdress = () => {
     if (!skapaAdress || typeof window === "undefined" || !skapa) return null;
@@ -707,6 +714,9 @@ export function OpsAppShell({
     }
     if (v === "arende" && skapa.arende) return { kind: "arende" };
     if (v === "grupp" && skapa.grupp) return { kind: "grupp" };
+    // ⛔ Redigera grupp bär gruppens id i adressen (`&grupp=`), annars går panelen inte att länka till eller ladda om.
+    const gid = new URL(window.location.href).searchParams.get("grupp");
+    if (v === "redigera-grupp" && typeof skapa.redigeraGrupp === "function" && gid) return { kind: "redigeragrupp", groupId: gid };
     const reg = (skapa.registreringar ?? []).find((r) => r.id === v);
     return reg ? { kind: "modul", registrering: reg } : null;
   };
@@ -721,6 +731,7 @@ export function OpsAppShell({
       try {
         const u = new URL(window.location.href);
         u.searchParams.set("skapa", skapaNyckel(form));
+        if (form.kind === "redigeragrupp") u.searchParams.set("grupp", form.groupId);
         window.history.pushState(window.history.state, "", u);
         skapaPushad.current = true;
       } catch {
@@ -746,6 +757,7 @@ export function OpsAppShell({
         } else {
           skapaPushad.current = false;
           u.searchParams.delete("skapa");
+          u.searchParams.delete("grupp");
           window.history.replaceState(window.history.state, "", u);
         }
       }
@@ -785,6 +797,7 @@ export function OpsAppShell({
   const visaSkapaKnapp = Boolean(skapa) && (harRamverksrader || skapaModulerRedo);
   // ⛔ EN VÄG ATT SKAPA EN GRUPP (0.32.0, #180): finns `skapa.grupp` öppnar "Skapa grupp" i panelen, i växlarens ark och plusset SAMMA
   // formulär, och appens `grupper.onSkapa` används inte. Utan `skapa.grupp` är `grupper.onSkapa` som förut.
+  const grupperOnRedigera = typeof skapa?.redigeraGrupp === "function" ? (/** @type {string} */ id) => oppnaSkapa({ kind: "redigeragrupp", groupId: id }) : grupper?.onRedigera;
   const grupperOnSkapa = typeof skapa?.grupp === "function" ? () => oppnaSkapa({ kind: "grupp" }) : grupper?.onSkapa;
 
   // ⛔ ETT FORMULÄR MED TYP (0.30.0), INTE ETT FÄRDIGT NOD: se `HandelseSkapare`.
@@ -834,6 +847,10 @@ export function OpsAppShell({
   } else if (skapaForm?.kind === "grupp" && typeof skapa?.grupp === "function") {
     skapaModalTitel = nyGruppEtikett;
     skapaModalInnehall = <GruppRitare rita={skapa.grupp} formId={skapaFormId} onKlar={() => stangSkapa(true)} />;
+    skapaHarFormKonsument = true;
+  } else if (skapaForm?.kind === "redigeragrupp" && typeof skapa?.redigeraGrupp === "function") {
+    skapaModalTitel = redigeraGruppEtikett;
+    skapaModalInnehall = <GruppRitare rita={(a) => /** @type {NonNullable<typeof skapa.redigeraGrupp>} */ (skapa.redigeraGrupp)({ ...a, groupId: /** @type {any} */ (skapaForm).groupId })} formId={skapaFormId} onKlar={() => stangSkapa(true)} />;
     skapaHarFormKonsument = true;
   } else if (skapaForm?.kind === "modul") {
     const r = skapaForm.registrering;
@@ -1449,6 +1466,8 @@ export function OpsAppShell({
               aktiv={grupper.aktiv}
               onValj={grupper.onValj}
               onSkapa={grupperOnSkapa}
+              onInfo={grupper.onInfo}
+              onRedigera={grupperOnRedigera}
               infalld={grupper.infalld}
               onInfalld={grupper.onInfalld}
               sprak={grupper.sprak}
@@ -1478,7 +1497,7 @@ export function OpsAppShell({
         </OpsFelgrans>
         {skapaPanelSyns ? (
           <OpsSkapaPanel
-            kolumn={skapaForm?.kind === "grupp" ? "smal" : "bred"}
+            kolumn={skapaForm?.kind === "grupp" || skapaForm?.kind === "redigeragrupp" ? "smal" : "bred"}
             titel={skapaModalTitel || skapaLabel}
             onTillbaka={stangSkapa}
             tillbakaEtikett={skapa?.tillbakaEtikett}

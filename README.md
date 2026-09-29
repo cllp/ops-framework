@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**94 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**95 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -730,6 +730,7 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 | | |
 |---|---|
 | `OpsMedlemmar` | listan per grupp: bjud in, ändra roll, ta bort. ⛔ **Aldrig sig själv**: den som tar bort sitt eget ägarskap låser ut sig ur sin egen grupp, och `migUid` är obligatorisk just därför. Utan den vet vyn inte vilken rad som är ens egen, och skyddet blir en gissning |
+| `OpsGruppSida` | 0.32.0, #180 G2: gruppens detaljsida (SS `GroupDetailView`), se [Gruppkortet, detaljsidan och redigering](#gruppkortet-detaljsidan-och-redigering-0320-180-g2). `grupp`, `medlemmar` (ur `medlemsinfo`), `snabbval`, `onTillbaka`, `onRedigera`, `onVisaMedlem`, `children` |
 | `OpsGruppFormular` | 0.32.0, #180: formuläret "Ny grupp" i skapa-panelen (`skapa.grupp`), se [Ny grupp](#ny-grupp-0320-180). `onSkapa` är appens anrop av `skapaGrupp`, `onSkapad(groupId, svar)` ger id:t att navigera med |
 | `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto. Sedan #161: med `props.onSkapaGrupp` ritas i stället en "Skapa din första grupp"-form (ett namnfält, `skapaEtikett`), för den som ÄR vitlistad men bara saknar en grupp än. Utan `onSkapaGrupp` är sidan oförändrad: kontakt plus utloggning |
 
@@ -1557,6 +1558,15 @@ Med `skapa.grupp` får plusset raden "Ny grupp" (efter Ny händelse och Nytt är
 ⛔ **BILDEN LADDAS UPP FÖRST NÄR GRUPPEN FINNS**, som i SS (`!isNew && form.id`): en lagringssökväg bär gruppens id. Formuläret säger det, och `onSkapad(groupId, svar)` ger appen id:t att navigera till gruppens sida med. ⛔ **Faller en inbjudan visas det:** panelen stängs inte utan visar vilka adresser som inte blev av och varför. ⛔ **Stängningen går inte bakåt i historiken** (`onKlar` gör `replaceState`, inte `history.back()`), så appens navigering efter `onSkapad` inte ångras av ett sent `back`.
 
 ⛔ **Färg och ikon i märket ritas överallt** (`OpsGruppanel`, `OpsGruppvaxlare`): `GruppanelGrupp` tar `farg` och `ikon`, `gruppmarkeProps(grupp)` gör dem till det `OpsIdentity` behöver (`tone`, `icon`, `initialer`). Färgen är en av de sex identitetstonerna (`PROFILFARGER`), inte en hex: en fri färg följer inte med när mörkt läge kommer. Ikonerna är `GRUPPIKONER` (grupp, portfölj, byggnad, hus, bok, jordglob, stjärna, hjärta, blixt, krona), ramverkets egna id och inte Lucide-namn. `GRUPPINITIALER_FORM` är formen `initialer:AB`.
+
+#### Gruppkortet, detaljsidan och redigering (0.32.0, #180 G2)
+
+Kolumnbredden är SS per formulär: `OpsSkapaPanel` tar `kolumn`, `"smal"` (672 px, SS `GroupEditRouteView`, gäller Ny grupp och Redigera grupp) och `"bred"` (896 px, SS `EventEditRouteView`, gäller händelse, ärende och moduler). Skalet väljer.
+
+- **Kortet i `OpsGruppanel`** har (i) (`onInfo(id)`, appen öppnar `OpsGruppSida`) och en penna (`onRedigera(id)`), båda uppe till höger efter appens egna `atgarder`. ⛔ **Pennan ritas bara för `roll` `agare` eller `admin`**, som SS `canEditGroup` (#2705): en roll som saknas ger ingen penna. Medlemsantal och avatarrad (fyra plus "+N") fanns redan som `medlemsantal` och `avatarer`. Det valda kortet har gruppens `farg` som kant och ljus bakgrund (SS `GroupCard.jsx:60-65`), märket bär `farg` och `ikon` (`GruppanelGrupp`), också i den infällda remsan. Med `skapa.redigeraGrupp` i skalet öppnar pennan samma panel som Ny grupp, i redigeringsläge (`?skapa=redigera-grupp&grupp=<id>`), annars anropas `grupper.onRedigera`.
+- **`medlemsinfo(medlemskap, groupId?)`** härleder `{ medlemsantal, avatarer, medlemmar }` ur en grupps rader i `memberships` (aktiva, ägare före admin före medlem, sedan namn). ⛔ **Ingen spegelkolumn:** antalet lagras aldrig, appen listar medlemskapen (en medlem får läsa dem sedan 0.32.0) och ramverket räknar. Finns i båda ingångarna (ren fil).
+- **`OpsGruppSida`** är detaljsidan (SS `GroupDetailView`): tillbaka-rad, stort märke (56 px), namn, beskrivning, ort, Redigera (bara `agare`/`admin` och bara med `onRedigera`), appens `snabbval` (`{ icon, label, onClick }`, en rad om tre), och medlemslistan med en Ägare- eller Admin-etikett. `children` är appens egna sektioner under listan. SS har också discipliner, publik sida, arrangörspanel och kommande sessioner: det är SS domän eller appens.
+- **`OpsGruppFormular` i redigeringsläge:** `grupp={...}` (befintlig grupp), `onSpara({ grupp })`, och bilden: `onLaddaUppBild(fil) => { sokvag, url }`, `onTaBortBild()` och `bildUrl`. Uppladdningen är appens (sökvägen bär gruppens id). Ingen medlemssektion i redigeringsläget.
 
 ⛔ **"SKAPA I" (SS `CalendarCreateDestinationSheet.jsx`).** Med en vald grupp skapas det i den, och panelens översta rad visar
 "Skapas i: <grupp> ⌄" som öppnar väljaren. I läget "Alla mina grupper" visas väljaren FÖRST (en centrerad dialog på dator, ett ark på

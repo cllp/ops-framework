@@ -6,7 +6,7 @@ import { OpsButton } from "./OpsButton.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
 import { OpsPill } from "./OpsPill.jsx";
-import { ChevronVansterIkon, ChevronHogerIkon, PersonIkon, PlusIkon } from "./icons.jsx";
+import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
 import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { text } from "../lib/sprak.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
@@ -135,11 +135,28 @@ const RADIE = "rounded-base";
  * @property {string} [farg] (0.32.0, #180) Gruppens valda färg, ett id ur `PROFILFARGER`. Utelämnad eller tom: tonen härleds ur `id`, som förut.
  * @property {string} [ikon] (0.32.0, #180) Gruppens valda ikon (`GRUPPIKONER`) eller `initialer:AB`. Utelämnad eller tom: initialer ur namnet, som förut.
  * @property {number} [medlemsantal] Utelämnad: ingen siffra ritas, aldrig "0" som gissning.
- * @property {"agare"|"medlem"} [roll] Utelämnad: ingen rollpill.
+ * @property {"agare"|"admin"|"medlem"} [roll] Utelämnad: ingen rollpill, och ingen penna.
  * @property {ReadonlyArray<GruppanelKnapp>} [atgarder] Uppe till höger på kortet (glob/info/penna, `GroupCard.jsx` rad 71-107). Utelämnad: inga.
  * @property {ReadonlyArray<GruppanelKnapp>} [knappar] Runda knappar på tredje raden (bibliotek/chatt, `GroupCard.jsx` rad 128-166). Utelämnad: inga.
  * @property {ReadonlyArray<GruppanelAvatar>} [avatarer] Avatarraden längst ner, max fyra, sedan "+N" (`GroupCard.jsx` rad 176-191). Utelämnad: ingen rad.
  */
+
+/**
+ * Kortets kant och ljusa bakgrund när det är valt, i GRUPPENS färg (0.32.0, #180 G2, SS `GroupCard.jsx:60-65`:
+ * `borderColor: group.color; backgroundColor: ${group.color}10`, alltså färgen vid ca 6 procents täckning).
+ *
+ * ⛔ KLASSERNA STÅR UTSKRIVNA, INTE BYGGDA (`border-identity-${n}`): Tailwind läser källkoden som text. Färgen är en av de sex identitetstonerna
+ * (`PROFILFARGER`), aldrig en hex, samma beslut som i `OpsIdentity`. En grupp utan vald färg använder accenten som förut.
+ * @type {Record<string, string>}
+ */
+const VALD_FARG = {
+  1: "border-identity-1 bg-identity-1/6 shadow-sm",
+  2: "border-identity-2 bg-identity-2/6 shadow-sm",
+  3: "border-identity-3 bg-identity-3/6 shadow-sm",
+  4: "border-identity-4 bg-identity-4/6 shadow-sm",
+  5: "border-identity-5 bg-identity-5/6 shadow-sm",
+  6: "border-identity-6 bg-identity-6/6 shadow-sm",
+};
 
 /** Hur många avatarer som ritas innan resten blir en "+N" (`GroupCard.jsx` rad 178: `.slice(0, 4)`). */
 const MAX_AVATARER = 4;
@@ -174,8 +191,12 @@ function tangentbordsVal(valj) {
  * @param {Record<string, string>} props.rollNamn
  * @param {string} props.medlemmarEtikett
  * @param {string} props.flerAvatarerEtikett
+ * @param {(id: string) => void} [props.onInfo]
+ * @param {(id: string) => void} [props.onRedigera]
+ * @param {string} props.infoEtikett
+ * @param {string} props.redigeraEtikett
  */
-function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, rollNamn, medlemmarEtikett, flerAvatarerEtikett }) {
+function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, rollNamn, medlemmarEtikett, flerAvatarerEtikett, onInfo, onRedigera, infoEtikett, redigeraEtikett }) {
   const mina = grupper ?? [];
 
   return (
@@ -208,6 +229,18 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
         const synligaAvatarer = avatarer.slice(0, MAX_AVATARER);
         const resten = avatarer.length - synligaAvatarer.length;
         const valj = () => onValj(g.id);
+        /*
+         * ⛔ (i) OCH PENNA ÄR RAMVERKETS, DE ANDRA ÅTGÄRDERNA APPENS (0.32.0, #180 G2, SS `GroupCard.jsx:88-113`: glob, info, penna i den ordningen).
+         * Pennan ritas BARA för `roll` agare eller admin: SS `canEditGroup` (#2705) döljer den för den som inte får, och en roll som saknas ger
+         * ingen penna, ramverket gissar aldrig "får nog". (i) är inte rollgatad: en medlem har sin väg in via den.
+         */
+        const kanRedigera = typeof onRedigera === "function" && (g.roll === "agare" || g.roll === "admin");
+        /** @type {GruppanelKnapp[]} */
+        const alla = [
+          ...(g.atgarder ?? []),
+          ...(onInfo ? [{ icon: <InfoIkon size={14} />, label: infoEtikett, onClick: () => onInfo(g.id) }] : []),
+          ...(kanRedigera ? [{ icon: <AndraIkon size={14} />, label: redigeraEtikett, onClick: () => onRedigera?.(g.id) }] : []),
+        ];
 
         return (
           // ⛔ `GroupCard.jsx` rad 59-66: `<div onClick>`, INTE en `<button>`.
@@ -226,15 +259,15 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
               "flex w-full cursor-pointer flex-col overflow-hidden border p-3 text-left transition-all hover:shadow-md",
               RADIE,
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              vald ? "border-accent bg-accent/10 shadow-sm" : "border-line bg-surface hover:border-line-strong",
+              vald ? (VALD_FARG[g.farg ?? ""] ?? "border-accent bg-accent/10 shadow-sm") : "border-line bg-surface hover:border-line-strong",
             )}
           >
             {/* Rad 1: märke + åtgärder. GroupCard.jsx rad 70-107, sizePx=20. */}
             <div className="mb-1.5 flex items-center justify-between">
               <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} {...gruppmarkeProps(g)} size="xs" />
-              {g.atgarder && g.atgarder.length > 0 ? (
+              {alla.length > 0 ? (
                 <div className="flex shrink-0 items-center gap-0.5">
-                  {g.atgarder.map((a, i) => (
+                  {alla.map((a, i) => (
                     <button
                       // eslint-disable-next-line react/no-array-index-key -- ⛔ ÅTGÄRDER HAR INGET EGET ID. Appen skickar en lista ikoner, index räcker eftersom listan inte sorteras om under komponentens liv.
                       key={i}
@@ -475,6 +508,10 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
  * @param {string} props.aktiv `ALLA_GRUPPER` eller ett grupp-id.
  * @param {(id: string) => void} props.onValj
  * @param {() => void} [props.onSkapa] Utelämnad: ingen "Skapa grupp"-knapp.
+ * @param {(id: string) => void} [props.onInfo] (0.32.0, G2) (i) på kortet: appen öppnar gruppens detaljsida (`OpsGruppSida`). Utelämnad: ingen knapp.
+ * @param {(id: string) => void} [props.onRedigera] (0.32.0, G2) Pennan på kortet. Ritas bara för grupper med `roll` `agare` eller `admin`.
+ * @param {string} [props.infoEtikett] Förval "Visa grupp".
+ * @param {string} [props.redigeraEtikett] Förval "Redigera grupp".
  * @param {boolean} [props.infalld] Styrd. Utelämnad: panelen sköter läget själv.
  * @param {(infalld: boolean) => void} [props.onInfalld]
  * @param {string} [props.sprak]
@@ -492,6 +529,10 @@ export function OpsGruppanel({
   aktiv,
   onValj,
   onSkapa,
+  onInfo,
+  onRedigera,
+  infoEtikett = "Visa grupp",
+  redigeraEtikett = "Redigera grupp",
   infalld,
   onInfalld,
   sprak,
@@ -500,7 +541,7 @@ export function OpsGruppanel({
   tomText = "Du är inte medlem i någon grupp.",
   kollapsaEtikett = "Fäll ihop grupplistan",
   fallUtEtikett = "Fäll ut grupplistan",
-  rollNamn = { agare: "Ägare", medlem: "Medlem" },
+  rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
   medlemmarEtikett = "medlemmar",
   flerAvatarerEtikett = "fler",
 }) {
@@ -571,6 +612,10 @@ export function OpsGruppanel({
             rollNamn={rollNamn}
             medlemmarEtikett={medlemmarEtikett}
             flerAvatarerEtikett={flerAvatarerEtikett}
+            onInfo={onInfo}
+            onRedigera={onRedigera}
+            infoEtikett={infoEtikett}
+            redigeraEtikett={redigeraEtikett}
           />
         )}
       </div>
@@ -632,7 +677,7 @@ export function OpsGruppvaxlare({
   allaEtikett = "Alla mina grupper",
   skapaEtikett = "Skapa grupp",
   tomText = "Du är inte medlem i någon grupp.",
-  rollNamn = { agare: "Ägare", medlem: "Medlem" },
+  rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
   etikett = "Byt grupp",
   nuEtikett = "nu",
 }) {

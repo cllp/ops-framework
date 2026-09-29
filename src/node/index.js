@@ -107,3 +107,9 @@ export { createCatalogSource } from "../data/katalogkalla.js";
  * ett användningsexempel.
  */
 export { seedaKataloger } from "./katalog.js";
+
+/*
+ * ⛔ `medlemsinfo` LIGGER I BÅDA INGÅNGARNA (0.32.0, #180 G2), av samma skäl som `createActivityLog`: kortets antal och avatarer härleds
+ * ur medlemskapen, och det som svarar med dem utan skärm ska inte dra in React. Filen är ren.
+ */
+export { medlemsinfo } from "../lib/gruppmedlemmar.js";

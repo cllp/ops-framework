@@ -8,8 +8,10 @@ import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsPill } from "./OpsPill.jsx";
+import { text as namnText } from "../lib/sprak.js";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
+import { OpsSpinner } from "./OpsSpinner.jsx";
 
 /**
  * Formuläret "Ny grupp": SessionStudios `ManageGroupModal` i sin `inline`-form, som en PANEL (0.32.0, #180).
@@ -48,6 +50,20 @@ import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
  *
  * ⛔ FALLER NÅGON INBJUDAN VISAS DET. Gruppen finns då, och panelen visar vilka adresser som inte blev av och varför i stället för att
  * stängas: en tyst nedsläppsväg är värre än ett fel (arbetsreglernas punkt 5). Ett tryck på Spara eller "Öppna gruppen" går vidare, och först då får appen `onSkapad`.
+ *
+ * ══ ⛔ REDIGERINGSLÄGE: SAMMA FORMULÄR, INTE ETT ANDRA (0.32.0, #180 G2) ═════════════════════════════════════════
+ *
+ * Ges `grupp` är formuläret i redigeringsläge: fälten förifyllda, `onSpara({ grupp })` i stället för `onSkapa`, och ingen medlemssektion
+ * (medlemmarna hanteras av `OpsMedlemmar`, och en inbjudan efter skapandet är ett eget anrop, inte en del av att spara utseendet).
+ * SS `ManageGroupModal` är också ETT formulär för båda lägena (`isNew`).
+ *
+ * ⛔ BILDEN FÅR LADDAS UPP NU, NÄR GRUPPEN FINNS (SS `!isNew && form.id`). Appen ger `onLaddaUppBild(fil) => { sokvag, url }` (uppladdningen är appens: sökvägen
+ * bär gruppens id och lagringen är appens beslut, ramverket importerar aldrig en lagrings-SDK) och valfritt `onTaBortBild()`. `bildUrl` är bilden som visas nu.
+ * Sökvägen skickas med i `onSpara` som `bild`. ⛔ En bild som laddats upp men inte sparats blir kvar i lagringen om man går ifrån: appens uppladdning bör vara
+ * idempotent på sökvägen, precis som SS `uploadGroupImage(groupId, file, "icon")` skriver över samma plats.
+ *
+ * ⛔ NAMNET ÄR ETT `Namn` PÅ RADEN OCH EN STRÄNG I FÄLTET. Ändras det inte skickas raden tillbaka orörd (en engelsk översättning tappas inte);
+ * ändras det sätts båda språken till den nya texten när de var lika, annars bara visningsspråket.
  *
  * ⛔ TYPSNITT ÄR RAMVERKETS ROLLER (`text-etikett`, `text-sektion`, `text-hjalp`), aldrig en rå storlek (`check-typografi`).
  */
@@ -91,6 +107,13 @@ import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
  * @property {string} [skapadText]
  * @property {string} [oppnaGruppen]
  * @property {string} [felTitel] Rubriken när gruppen inte kunde skapas.
+ * @property {string} [laddaUpp] Knappen som väljer en bild (redigeringsläge).
+ * @property {string} [bytBild]
+ * @property {string} [taBortBild]
+ * @property {string} [bildFel] Felet när uppladdningen föll.
+ * @property {string} [bildForStor]
+ * @property {string} [bildHintRedigera] Vad som gäller för bilden när gruppen finns.
+ * @property {string} [sparaFelTitel] Rubriken när ändringarna inte kunde sparas.
  */
 
 /** @type {Record<"sv"|"en", Required<GruppFormularEtiketter>>} */
@@ -131,6 +154,13 @@ const STANDARD = {
     skapadText: "Du kan bjuda in dem igen från gruppens sida.",
     oppnaGruppen: "Öppna gruppen",
     felTitel: "Gruppen kunde inte skapas",
+    laddaUpp: "Ladda upp bild",
+    bytBild: "Byt bild",
+    taBortBild: "Ta bort bilden",
+    bildFel: "Bilden kunde inte laddas upp.",
+    bildForStor: "Bilden är för stor. Högst 2 MB.",
+    bildHintRedigera: "PNG, WebP eller JPEG, högst 2 MB. Bilden ersätter ikonen och initialerna.",
+    sparaFelTitel: "Ändringarna kunde inte sparas",
   },
   en: {
     visuellIdentitet: "Visual identity",
@@ -168,6 +198,13 @@ const STANDARD = {
     skapadText: "You can invite them again from the group's page.",
     oppnaGruppen: "Open the group",
     felTitel: "The group could not be created",
+    laddaUpp: "Upload image",
+    bytBild: "Change image",
+    taBortBild: "Remove image",
+    bildFel: "The image could not be uploaded.",
+    bildForStor: "The image is too large. 2 MB at most.",
+    bildHintRedigera: "PNG, WebP or JPEG, 2 MB at most. The image replaces the icon and initials.",
+    sparaFelTitel: "The changes could not be saved",
   },
 };
 
@@ -197,19 +234,31 @@ const PRICKKLASS = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3",
  * @param {() => void} [props.onKlar] Stänger panelen (skalet skickar den).
  * @param {"sv"|"en"} [props.sprak] Språket på etiketterna och förvalet för gruppens e-postspråk.
  * @param {GruppFormularEtiketter} [props.etiketter] Enskilda texter att byta ut.
+ * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en" }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
+ * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en" } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
+ * @param {string} [props.bildUrl] Gruppens nuvarande bild att visa (URL). Bara redigeringsläge.
+ * @param {(fil: File) => Promise<{ sokvag: string, url: string }>} [props.onLaddaUppBild] Appens uppladdning. Utan den finns ingen bildväljare.
+ * @param {() => Promise<void>} [props.onTaBortBild] Appens borttagning av bilden. Utan den finns ingen Ta bort-knapp.
  */
-export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "sv", etiketter }) {
-  if (typeof onSkapa !== "function") {
+export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "sv", etiketter, grupp: befintlig, onSpara, bildUrl = "", onLaddaUppBild, onTaBortBild }) {
+  const redigerar = Boolean(befintlig);
+  if (!redigerar && typeof onSkapa !== "function") {
     throw new Error("OpsGruppFormular: onSkapa krävs, appens anrop av skapaGrupp. Ett formulär som inte kan skapa något är en ruta som ser ut som en grupp.");
+  }
+  if (redigerar && typeof onSpara !== "function") {
+    throw new Error("OpsGruppFormular: onSpara krävs i redigeringsläge (grupp angiven). Ett formulär som inte kan spara är en ruta som ser ut som en redigering.");
   }
   const t = { ...STANDARD[sprak === "en" ? "en" : "sv"], ...(etiketter ?? {}) };
 
-  const [namn, setNamn] = useState("");
-  const [beskrivning, setBeskrivning] = useState("");
-  const [ort, setOrt] = useState("");
-  const [farg, setFarg] = useState("");
-  const [ikon, setIkon] = useState("");
-  const [epostsprak, setEpostsprak] = useState(/** @type {"sv"|"en"} */ (sprak === "en" ? "en" : "sv"));
+  const [namn, setNamn] = useState(befintlig ? namnText(befintlig.namn, sprak) : "");
+  const [beskrivning, setBeskrivning] = useState(befintlig?.beskrivning ?? "");
+  const [ort, setOrt] = useState(befintlig?.ort ?? "");
+  const [farg, setFarg] = useState(befintlig?.farg ?? "");
+  const [ikon, setIkon] = useState(befintlig?.ikon ?? "");
+  const [epostsprak, setEpostsprak] = useState(/** @type {"sv"|"en"} */ (befintlig?.epostsprak ?? (sprak === "en" ? "en" : "sv")));
+  const [bild, setBild] = useState(/** @type {{ sokvag: string, url: string }} */ ({ sokvag: befintlig?.bild ?? "", url: bildUrl }));
+  const [bildArbete, setBildArbete] = useState(false);
+  const [bildFel, setBildFel] = useState("");
   const [identitetOppen, setIdentitetOppen] = useState(false);
   const [merOppet, setMerOppet] = useState(false);
   const [inbjudna, setInbjudna] = useState(/** @type {Array<{ epost: string, roll: "admin"|"medlem" }>} */ ([]));
@@ -272,6 +321,22 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
     setNamnFel("");
     setFelmeddelande("");
     setUpptagen(true);
+    if (befintlig && onSpara) {
+      try {
+        const nyttNamn = namn.trim();
+        const fore = namnText(befintlig.namn, sprak);
+        const orig = /** @type {Namn} */ (befintlig.namn && typeof befintlig.namn === "object" ? befintlig.namn : { sv: fore });
+        /** @type {string | Namn} */
+        const namnUt = nyttNamn === fore ? befintlig.namn : orig.en === undefined || orig.en === orig.sv ? { sv: nyttNamn, en: nyttNamn } : { ...orig, [sprak === "en" ? "en" : "sv"]: nyttNamn };
+        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak } });
+        klar({ groupId: befintlig.id });
+      } catch (fel) {
+        setFelmeddelande(fel instanceof Error ? fel.message : String(fel));
+      } finally {
+        setUpptagen(false);
+      }
+      return;
+    }
     try {
       /*
        * ⛔ EN ADRESS SOM STÅR KVAR I FÄLTET NÄR MAN TRYCKER SPARA ÄR EN ADRESS MAN MENADE. Utan det här skulle
@@ -285,7 +350,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
         setUpptagen(false);
         return;
       }
-      const svar = await onSkapa({
+      const svar = await /** @type {NonNullable<typeof onSkapa>} */ (onSkapa)({
         grupp: { namn: namn.trim(), farg, ikon, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak },
         inbjudningar: ut,
       });
@@ -327,7 +392,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
   return (
     <form id={formId} onSubmit={skicka} noValidate className="flex flex-col gap-4 pb-8" data-gruppformular="">
       {felmeddelande ? (
-        <OpsBanner tone="danger" title={t.felTitel} onDismiss={() => setFelmeddelande("")}>
+        <OpsBanner tone="danger" title={redigerar ? t.sparaFelTitel : t.felTitel} onDismiss={() => setFelmeddelande("")}>
           {felmeddelande}
         </OpsBanner>
       ) : null}
@@ -345,7 +410,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
           {/* ⛔ FÖRHANDSVISNINGEN ÄR DEKORATION FÖR SKÄRMLÄSAREN: knappens text säger vad raden är, och märket har inget eget namn att läsa upp
               (gruppen är inte skapad än, och en "Gruppnamn"-bild bredvid fältet med samma namn är två saker med samma etikett). */}
           <span aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent-faint p-1">
-            <OpsIdentity name={namn.trim()} seed="ny-grupp" size="lg" rund {...marke} />
+            <OpsIdentity name={namn.trim()} seed={befintlig?.id ?? "ny-grupp"} imageUrl={bild.url || undefined} size="lg" rund {...marke} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-etikett font-semibold text-ink">{t.fargOchIkon}</span>
@@ -447,7 +512,71 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
                   </div>
                 </div>
               ) : null}
-              <p className="m-0 mt-2 text-hjalp text-ink-muted">{t.bildHint}</p>
+              {redigerar && onLaddaUppBild ? (
+                <div className="mt-3 flex flex-col gap-1" data-gruppbild="">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="relative inline-flex">
+                      <span className="sr-only">{bild.url ? t.bytBild : t.laddaUpp}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/webp,image/jpeg"
+                        disabled={bildArbete || upptagen}
+                        className="peer absolute inset-0 size-full cursor-pointer opacity-0"
+                        aria-label={bild.url ? t.bytBild : t.laddaUpp}
+                        onChange={async (e) => {
+                          const fil = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!fil) return;
+                          setBildFel("");
+                          if (fil.size > 2 * 1024 * 1024) {
+                            setBildFel(t.bildForStor);
+                            return;
+                          }
+                          setBildArbete(true);
+                          try {
+                            const svar = await onLaddaUppBild(fil);
+                            setBild({ sokvag: svar.sokvag, url: svar.url });
+                          } catch {
+                            setBildFel(t.bildFel);
+                          } finally {
+                            setBildArbete(false);
+                          }
+                        }}
+                      />
+                      <span className="pointer-events-none inline-flex min-h-11 items-center gap-2 rounded-base border border-line-strong bg-surface px-3 text-etikett font-medium text-ink peer-hover:border-accent peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">
+                        {bildArbete ? <OpsSpinner size="sm" decorative /> : null}
+                        {bild.url ? t.bytBild : t.laddaUpp}
+                      </span>
+                    </label>
+                    {bild.url && onTaBortBild ? (
+                      <OpsButton
+                        variant="ghost"
+                        disabled={bildArbete || upptagen}
+                        onClick={async () => {
+                          setBildFel("");
+                          setBildArbete(true);
+                          try {
+                            await onTaBortBild();
+                            setBild({ sokvag: "", url: "" });
+                          } catch {
+                            setBildFel(t.bildFel);
+                          } finally {
+                            setBildArbete(false);
+                          }
+                        }}
+                      >
+                        {t.taBortBild}
+                      </OpsButton>
+                    ) : null}
+                  </div>
+                  {bildFel ? (
+                    <p role="alert" className="m-0 text-hjalp text-danger">
+                      {bildFel}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              <p className="m-0 mt-2 text-hjalp text-ink-muted">{redigerar && onLaddaUppBild ? t.bildHintRedigera : redigerar ? "" : t.bildHint}</p>
             </div>
           </div>
         ) : null}
@@ -465,6 +594,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
       </OpsField>
 
       {/* ── 3. Medlemmar: inbjudningar samlas före spara (SS ManageGroupModalMembersSection) ──────────── */}
+      {!redigerar ? (
       <section aria-label={t.medlemmar} data-gruppmedlemmar="" className="flex flex-col gap-2">
         <h3 className="m-0 text-etikett font-medium text-ink-secondary">{`${t.medlemmar} (${inbjudna.length})`}</h3>
         <p className="m-0 text-hjalp text-ink-muted">{t.medlemmarHint}</p>
@@ -518,6 +648,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
           </ul>
         ) : null}
       </section>
+      ) : null}
 
       {/* ── 4. Mer inställningar (SS MoreSettingsDisclosure.jsx:56-100), hopfälld ────────────────────── */}
       <div data-mer-installningar="">

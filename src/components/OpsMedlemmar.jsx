@@ -75,7 +75,7 @@ export function OpsMedlemmar({
   duEtikett = "Du",
   ingaText = "Gruppen har inga medlemmar än.",
   mejlNot = "Inget mejl skickas. Be personen logga in, så blir inbjudan ett medlemskap.",
-  rollNamn = { agare: "Ägare", medlem: "Medlem" },
+  rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
 }) {
   if (typeof migUid !== "string" || !migUid) {
     throw new Error("OpsMedlemmar: migUid krävs. Utan den vet vyn inte vilken rad som är ens egen, och skyddet mot att ta bort sig själv blir en gissning.");

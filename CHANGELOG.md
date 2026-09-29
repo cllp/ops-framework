@@ -13,8 +13,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ⛔ **Skapa grupp och bjud in, som i SessionStudio. Delvis breaking för appens skapa-grupp-callable och admin-adapter, se "Att göra i appen".**
 CP 2026-09-29 23:30: *"Skapa grupp och bjuda in till grupp finns inte ännu. Skapa grupp i web skall ha samma funktion som i SessionStudio. Gruppkortet skall ha lite mer info i sig som i SessionStudio."*
-Epiken är cllp/ops-framework#180. **Det här passet är G0 (modell och regler) och G1 (skapa grupp).** Gruppkortets extra info, redigera-gruppen och inbjudans
-kod och utskick (G2 och G3) är INTE gjorda här: märket (färg och ikon) ritas redan i kortet, men beskrivning, ort och medlemmar på kortet återstår.
+Epiken är cllp/ops-framework#180. **Det här passet är G0 (modell och regler), G1 (skapa grupp) och G2 (gruppkortet, detaljsidan och redigering).** Inbjudans kod och utskick (G3) är INTE gjorda.
 
 ### G0. Modell och regler
 - **Gruppen bär utseende och uppgifter:** `farg` (ett id ur `PROFILFARGER`, samma sex identitetstoner som profilen: ingen ny färgskala), `ikon` (`GRUPPIKONER`, tio generiska id, eller
@@ -48,12 +47,22 @@ kod och utskick (G2 och G3) är INTE gjorda här: märket (färg och ikon) ritas
   gruppanelen inte kopplad och resultatvyns Spara skapar en till är röda var för sig, och skapandet utan `batch` (två anrop) lämnar en grupp utan ägare (röd).
 - Före/efter mot SS och en ärlig lista över vad som skiljer: `docs/jamforelser/0.32.0/jamforelse.md`, montage `ny-grupp-390-ramverk-ss.png` och `ny-grupp-1280-ramverk-ss.png` (SS-sidan är renderad ur SS-källan, inte SS-appen).
 
+### G2. Gruppkortet, detaljsidan och redigering
+- **Skapa-panelens kolumn har SS bredd per formulär** (`OpsSkapaPanel kolumn`): 672 px för grupp (SS `GroupEditRouteView.jsx:40`, `max-w-2xl`) och 896 px för händelse, ärende och moduler (`EventEditRouteView.jsx:145`, `max-w-4xl`). Före var den 880 för alla. `check-skalyta` mäter bredden mot SS-värdet vid 1280: röd före (880), grön efter.
+- **Kortet i `OpsGruppanel`:** (i) (`onInfo(id)`) för alla och penna (`onRedigera(id)`) bara för `roll` agare eller admin, 26 px med ikon 14 som SS; valt kort i gruppens `farg` (kant och ca 6 procents yta, SS `GroupCard.jsx:60-65`); märket i gruppens färg och ikon, också infällt. Medlemsantal och avatarrad (4 plus "+N") fanns redan som data.
+- **`medlemsinfo(medlemskap, groupId?)`** härleder antal, avatarer och medlemslista ur en grupps rader i `memberships` (aktiva, ägare före admin före medlem): ingen spegelkolumn, appen listar bara medlemskapen. I båda ingångarna.
+- **`OpsGruppSida`** (ny): detaljsidan som SS `GroupDetailView` (märke 56, namn, beskrivning, ort, Redigera för ägare och admin, appens snabbval, medlemslista med Ägare- och Admin-etikett, `children` för appens sektioner).
+- **`OpsGruppFormular` i redigeringsläge** (`grupp`, `onSpara`, `bildUrl`, `onLaddaUppBild`, `onTaBortBild`): samma formulär, förifyllt, utan medlemssektion, med bilduppladdning nu när gruppen finns. `skapa.redigeraGrupp` gör pennan till samma panel (`?skapa=redigera-grupp&grupp=<id>`). Oförändrat namn skickas tillbaka orört, så en engelsk översättning inte tappas.
+- **Vakt:** `check-skalyta` avsnitt 23 mäter kortets delar (26 px knapp, 12/600 namn, 10 px antal, 4 avatarer om 20, kantfärg och 6 procents yta, märkets ton och ikon) på dator och detaljsidan vid 390 och 1280 (kolumn 768, märke 56, 20/600, 14, 12, tre snabbval, p-3, 12/500, avatar 32, etikett 10 px). **Rött mot förra committen 05278f5: 9 brott** (880 mot 896, 880 mot 672, inga (i) och pennor, kant och yta i accent, ingen `OpsGruppSida`), **grönt nu: 880 kontroller.**
+  Komponentprov (`gruppg2.test.jsx`, 29): pennan för alla, vald färg ignorerad, avslutade som medlemmar, Redigera för alla och namnet alltid omskrivet är röda var för sig. Före/efter mot SS: `docs/jamforelser/0.32.0/` (`gruppkort-ramverk-ss.png`, `gruppsida-*-ramverk-ss.png`, `jamforelse.md` med en ärlig lista på vad som skiljer).
+
 ### Att göra i appen (ompinningen)
 1. **Regeldeployen FÖRE klienten.** Reglerna ändras (admin, medlemmars läsning, `invitations.create` nekas, `groups.update` begränsas till fältlistor): generera om fragmentet, granska diffen och deploya reglerna till produktion INNAN klienthalvan mergas. En regel i main är inte en regel i produktion.
 2. **Callablen `skapaGrupp` får ny signatur:** `{ uid, epost, grupp: { namn, farg?, ikon?, beskrivning?, ort?, epostsprak? }, inbjudningar?: [{ epost, roll? }] }` och svarar `{ groupId, tillagda, inbjudna, fel }`. Den gamla `{ namn }` finns inte kvar; `OpsUtanMedlemskap props.onSkapaGrupp` anropar den med `grupp: { namn }`.
 3. **Admin-adaptern i functions måste ha `batch(ops)`** (`db.batch()` med `set`/`update`/`delete` och `commit()`), annars kastar `createGroupService` när den byggs.
 4. **`skapa.grupp`** i `OpsAppShell` ersätter `grupper.onSkapa`: `grupp: ({ formId, onKlar }) => <OpsGruppFormular formId={formId} onKlar={onKlar} onSkapa={...callable} onSkapad={(id) => navigate(...)} />`, och `skapa.sparaEtikett` ritar den fasta Spara.
-5. Ingen klient skapar längre en `invitations`-rad direkt: bjud in via `bjudIn`-callablen. Rollen `admin` finns nu i `ROLLER`.
+5. **G2:** lista `memberships` per grupp (en medlem får läsa dem) och ge kortet `medlemsinfo(rader, gruppId)`: `medlemsantal` och `avatarer` (`{ id, namn, bild }`) på `GruppanelGrupp`, plus `roll`, `farg` och `ikon` ur gruppen. `grupper.onInfo(id)` öppnar appens sida med `OpsGruppSida` (`medlemmar` ur samma `medlemsinfo`, `snabbval` appens egna länkar). Pennan: `skapa.redigeraGrupp: ({ formId, groupId, onKlar }) => <OpsGruppFormular grupp={...} onSpara={...} onLaddaUppBild={...} />`, annars `grupper.onRedigera(id)`. Uppladdningen (sökväg med gruppens id) är appens, och storage-reglerna för gruppbilder likaså.
+6. Ingen klient skapar längre en `invitations`-rad direkt: bjud in via `bjudIn`-callablen. Rollen `admin` finns nu i `ROLLER`.
 
 ---
 

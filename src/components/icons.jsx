@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Heart, Home, Inbox, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Heart, Home, Inbox, Info, LayoutGrid, LogOut, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -209,6 +209,14 @@ export function KronaIkon({ size = 20 }) {
  * skälet. Stjärna, hjärta, blixt och krona är samma ikoner som profilens (ovan), de behöver inga nya.
  * @param {{ size?: number }} props
  */
+export function InfoIkon({ size = 14 }) {
+  return <Info size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** @param {{ size?: number }} props */
+export function PlatsIkon({ size = 14 }) {
+  return <MapPin size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** @param {{ size?: number }} props */
 export function GruppIkon({ size = 20 }) {
   return <Users size={size} aria-hidden="true" strokeWidth={1.5} />;
 }

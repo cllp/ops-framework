@@ -183,6 +183,8 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, INBJUDNING_GILTIGHET_DAGAR, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
 export { gruppmarkeProps } from "./lib/gruppikoner.js";
+export { medlemsinfo } from "./lib/gruppmedlemmar.js";
+export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
 export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment } from "./lib/regler.js";
 
 /*

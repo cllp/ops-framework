@@ -37,7 +37,11 @@ const STORLEKAR = {
   md: "size-9 text-brod",
   /** 34 px (0.30.1): SessionStudios märke i den infällda remsan, `AppSidebar.jsx:95` `GroupMark sizePx={34}` i en 40 px ruta med kant. */
   rail: "size-8.5 text-brod",
+  /** 32 px (0.32.0, #180 G2): SS `Avatar size={8}` i detaljsidans medlemslista, `GroupDetailView.jsx`. */
+  medlem: "size-8 text-meta",
   lg: "size-12 text-brod",
+  /** 56 px (0.32.0, #180 G2): SS `GroupMark sizePx={56}` i detaljsidans rubrik. */
+  xl: "size-14 text-titel",
   /** 28 px (0.30.0, #173): SessionStudios avatar i toppraden, `AppHeader.jsx:463`. Alltid rund, se `rund`. */
   avatar: "size-7 text-liten",
 };
@@ -47,7 +51,7 @@ const STORLEKAR = {
  * @param {string} props.name Visningsnamn. Används för initialer och som alternativtext.
  * @param {string} props.seed Stabilt id som bestämmer tonen NÄR `tone` inte skickas in. Aldrig namnet.
  * @param {string} [props.imageUrl]
- * @param {"xs"|"sm"|"md"|"rail"|"lg"|"avatar"} [props.size]
+ * @param {"xs"|"sm"|"md"|"rail"|"medlem"|"lg"|"xl"|"avatar"} [props.size]
  * @param {import("react").ComponentType<{size?: number}>} [props.icon] En egen ikon i stället för initialer,
  *   ritad bara när `imageUrl` saknas (#164, korrigering C: "standardikon plus färg kräver ingen Storage").
  *   Ramverket känner inte till vilka ikoner som finns, appen skickar in komponenten (se `src/lib/profilikoner.js`
@@ -83,7 +87,7 @@ export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, ton
 
   return (
     <span className={cx(base, TONKLASSER[vaildTone], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
-      <span aria-hidden="true">{Icon ? <Icon size={size === "lg" ? 24 : size === "xs" || size === "sm" || size === "avatar" ? 12 : 18} /> : initialer || initials(name)}</span>
+      <span aria-hidden="true">{Icon ? <Icon size={size === "xl" ? 28 : size === "lg" ? 24 : size === "xs" || size === "sm" || size === "avatar" ? 12 : 18} /> : initialer || initials(name)}</span>
     </span>
   );
 }
