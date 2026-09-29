@@ -57,7 +57,7 @@ function Skal({ children, extra = {} }) {
       activeHref={aktiv}
       actions={<OpsIconLink href="/inkorg" icon={<Inbox size={IKON} />} label="Inkorg" badge={3} />}
       anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
-      skapa={{ handelse: <p>Formulär</p> }}
+      skapa={{ handelse: <p>Formulär</p>, arende: <p>Ärende</p> }}
       meny={meny}
       {...extra}
     >

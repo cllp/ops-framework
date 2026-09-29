@@ -34,6 +34,7 @@
  * Kör:  npm run build && node scripts/check-skalyta.mjs
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
+ *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
 
 import fs from "node:fs";
@@ -49,6 +50,8 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(rot, "dist", "index.js");
 const argv = process.argv.slice(2);
 const utanFasta = argv.includes("--utan-fasta");
+const temaI = argv.indexOf("--tema");
+const standardtema = temaI >= 0 && argv[temaI + 1] === "dark" ? "dark" : "light";
 const bildI = argv.indexOf("--bilder");
 const bildmapp = bildI >= 0 ? path.resolve(argv[bildI + 1]) : null;
 if (bildmapp) fs.mkdirSync(bildmapp, { recursive: true });
@@ -110,7 +113,7 @@ function krav(ok, text) {
 /**
  * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema]
  */
-async function oppna(scen, viewport, tema = "light") {
+async function oppna(scen, viewport, tema = standardtema) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   const fel = /** @type {string[]} */ ([]);
@@ -240,7 +243,18 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
   matt.push(`raden: rundning ${radie} px, hover ${hover}, raised ${raised}, behållarens yta ${yta}${hover === yta ? " (OBS: hover syns INTE mot ytan i det här temat)" : ""}`);
   krav(radie === 12, `raden: rundning ${radie} px, väntat 12 (--radius-base, SS \`--radius\`).`);
   krav(hover === raised, `raden: hover-färgen är ${hover}, väntat --color-raised (${raised}).`);
-  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "huvud-desktop.png"), clip: { x: 0, y: 0, width: 1280, height: 420 } });
+  if (bildmapp) {
+    await page.keyboard.press("Escape");
+    // Escape lämnar fokus på hamburgaren (Radix återställer det), och dess fokusring ska inte hamna i bilden av avatarens hover.
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.activeElement)?.blur());
+    await page.locator('a[aria-label="Min profil"]').hover();
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: path.join(bildmapp, "huvud-avatar-hover.png"), clip: { x: 640, y: 0, width: 640, height: 130 } });
+    await page.getByRole("button", { name: "Skapa" }).click();
+    await page.waitForSelector('[role="dialog"]');
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: path.join(bildmapp, "huvud-plus-meny.png"), clip: { x: 640, y: 0, width: 640, height: 340 } });
+  }
   await context.close();
 }
 
