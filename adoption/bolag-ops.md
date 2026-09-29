@@ -296,6 +296,7 @@ webb behåller textmärket.
 ### Vad som INTE får göras för att behålla utseendet
 
 - Egen CSS-fil med `.bolag-*`-klasser
+- En regel i `index.css` som stilar ett element eller en klass i skalet (`header.sticky > ...`). Från 0.31.2 är `check:tokens` röd på den (bolag-ops #240 smalnade toppen och flyttade märket 120 px)
 - `className` in i en primitiv. Går inte, vaktat, och det är meningen
 - En lokal kopia av `OpsViewHeader` eller `OpsCard`
 

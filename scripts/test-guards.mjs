@@ -380,6 +380,25 @@ kravRott(
   "eget mörkerblock",
 );
 
+// 0.31.2 (bolag-ops #240): reglern som smalnade skalets toppruta. Vakten var GRÖN på den, eftersom den bara läste custom properties.
+kravRott(
+  "overrides 5: en regel som stilar ramverkets skal (bolag-ops #240)",
+  [overridevakt, appkopia("ao5", `${GILTIG_APPCSS}\nheader.sticky > div.max-w-7xl {\n  max-width: 64rem;\n}\n`)],
+  'regeln "header.sticky > div.max-w-7xl" stilar ett element',
+);
+
+kravRott(
+  "overrides 6: en klassregel och ett @media i appens stilrot",
+  [overridevakt, appkopia("ao6", `${GILTIG_APPCSS}\n.max-w-7xl { max-width: 64rem; }\n`)],
+  "stilar en klass",
+);
+
+kravRott(
+  "overrides 7: :root med en vanlig deklaration i stället för ett token",
+  [overridevakt, appkopia("ao7", `${GILTIG_APPCSS}\n:root { font-size: 20px; }\n`)],
+  "som inte är ett token",
+);
+
 kravRott("overrides golv: fel sökväg", [overridevakt, path.join(arbetsmapp, "finns-inte.css")], "hittar inte");
 
 // ── Exportvakten ───────────────────────────────────────────────────────────
