@@ -26,6 +26,8 @@ import {
   valjVecka,
   valjIntervall,
   traffar,
+  filtreraPoster,
+  forvaldKalenderId,
 } from "../lib/calendar.js";
 import { ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, VeckonummerIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
@@ -896,19 +898,18 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
                 <p className={radRubrikKlass}>Mina kalendrar</p>
                 {mina.length > 0 ? mina.map(rad) : <p className="m-0 px-3 py-1.5 text-meta text-ink-muted">Du har inga egna kalendrar ännu.</p>}
               </div>
-              <div className="mt-2 border-t border-line pt-1">
-                {/* ⛔ PLATSEN FINNS, OCH DEN SÄGER VAD DEN ÄR (punkt 5). "Hantera kalendrar" byggs i fas F2 (#179). En knapp
-                    som inte gör något hade lärt att knappen inte gör något; en tom plats hade sett ut som ett fel. */}
-                {onHanteraKalendrar ? (
-                  <button type="button" onClick={onHanteraKalendrar} className={radKlass({ accentFarg: true })}>
-                    Hantera kalendrar
-                  </button>
-                ) : (
-                  <p data-hantera-kommer="" className="m-0 px-3 py-2 text-meta text-ink-muted">
-                    Hantera kalendrar kommer i nästa steg (#179 F2).
-                  </p>
-                )}
-              </div>
+              {/* ⛔ 0.37.0 (#179 F2): "Hantera kalendrar" ÖPPNAR `OpsKalendrar`, och raden som sade att den kom i nästa steg
+                  är borta. Utan `onHanteraKalendrar` ritas ingen rad alls: en kontroll finns bara när den gör något, och
+                  en app som inte låter någon hantera kalendrar här har inget löfte att ge. */}
+              {onHanteraKalendrar ? (
+                <div className="mt-2 border-t border-line pt-1">
+                  <Popover.Close asChild>
+                    <button type="button" data-hantera-kalendrar="" onClick={onHanteraKalendrar} className={radKlass({ accentFarg: true })}>
+                      Hantera kalendrar
+                    </button>
+                  </Popover.Close>
+                </div>
+              ) : null}
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>
@@ -1041,8 +1042,8 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  * @param {{ id: string, namn: string }[]} [props.typer] Typerna i typfiltret. Jämförs med postens `typ`.
  * @param {(datum: string[]) => void} [props.onSkapa] "+" i verktygsraden och skapa-rutan i dagpanelen. Får de valda
  *   dagarna, eller idag när ingen är vald.
- * @param {() => void} [props.onHanteraKalendrar] Raden längst ned i kalenderväljaren. Utan den står en rad som säger
- *   att det kommer (#179 F2).
+ * @param {() => void} [props.onHanteraKalendrar] Raden "Hantera kalendrar" längst ned i kalenderväljaren (0.37.0, #179 F2):
+ *   appen visar `OpsKalendrar`. Utan den ritas ingen rad (till 0.36.0 en rad som sade att den kom i F2).
  * @param {{ getItem: (n: string) => string | null, setItem: (n: string, v: string) => void }} [props.lagring] Var
  *   veckonummervalet sparas, per enhet. Förval `window.localStorage` när den finns.
  */
@@ -1114,20 +1115,8 @@ export function OpsCalendar({
    * ⛔ FILTRET AVGÖR VAD SOM RITAS, INTE VAD SOM FINNS. `synliga` är det rutnätet, banden och dagpanelen ritar, och
    * snabbtitten visar resten märkt "Dold".
    */
-  const forvaldId = useMemo(() => {
-    const g = (kalendrar || []).filter((k) => k.grupp);
-    return ((g.find((k) => k.forvald) || g[0] || (kalendrar || []).find((k) => k.forvald)) || { id: "" }).id;
-  }, [kalendrar]);
-  const synligaPoster = useMemo(
-    () =>
-      entries.filter((e) => {
-        if (valdaKalendrar && !valdaKalendrar.includes(e.kalender ? e.kalender.id : forvaldId)) return false;
-        if (typ !== "alla" && e.typ !== typ) return false;
-        if (status !== "alla" && e.status !== status) return false;
-        return true;
-      }),
-    [entries, valdaKalendrar, forvaldId, typ, status],
-  );
+  const forvaldId = useMemo(() => forvaldKalenderId(kalendrar), [kalendrar]);
+  const synligaPoster = useMemo(() => filtreraPoster(entries, { valdaKalendrar, forvaldId, typ, status }), [entries, valdaKalendrar, forvaldId, typ, status]);
   const synligaId = useMemo(() => new Set(synligaPoster.map((e) => e.id)), [synligaPoster]);
   const byKey = useMemo(() => perDay(synligaPoster), [synligaPoster]);
   const allaPerDag = useMemo(() => perDay(entries), [entries]);

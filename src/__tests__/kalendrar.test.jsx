@@ -230,10 +230,19 @@ describe("OpsCalendar som SS (F1)", () => {
     expect(idagsSiffra()).toEqual(["6"]);
   });
 
-  it("säger var Hantera kalendrar hör hemma när appen inte gett en väg dit (punkt 5)", async () => {
+  // ⛔ 0.37.0 (#179 F2): raden som sade att Hantera kalendrar kom i nästa steg är borta. Med `onHanteraKalendrar` är den en
+  // knapp som öppnar hanteringen, utan den finns ingen rad (en kontroll finns bara när den gör något).
+  it("Hantera kalendrar är en knapp med onHanteraKalendrar, och ingen rad utan den", async () => {
+    let oppnad = 0;
+    const { unmount } = kal({ onHanteraKalendrar: () => { oppnad += 1; } });
+    fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hantera kalendrar" }));
+    expect(oppnad).toBe(1);
+    unmount();
     kal();
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    expect(await screen.findByText(/Hantera kalendrar kommer i nästa steg/)).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Styrelsen" });
+    expect(screen.queryByText(/Hantera kalendrar/)).toBeNull();
   });
 
   it("filtrerar på typ och status i samma meny", async () => {
