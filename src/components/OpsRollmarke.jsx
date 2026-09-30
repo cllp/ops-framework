@@ -21,8 +21,13 @@ import { cx } from "../lib/cx.js";
  * färgad ruta utan ord bär betydelsen i färgen ensam.
  */
 
-/** Måtten som rollmärket och brådskemärket ("Försenat") delar: 12 px, 600, px-2 py-0.5, helt rundat. */
-export const ROLLMARKE_MATT = "shrink-0 rounded-full px-2 py-0.5 text-meta font-semibold";
+/**
+ * Måtten som rollmärket och brådskemärket ("Försenat") delar: 10 px, 500, px-1.5 py-0.5, helt rundat (0.33.1).
+ * ⛔ 0.33.1: BESLUTET ÄNDRAT. Före 0.33.1 var det 12 px, 600, px-2 py-0.5 (`text-meta font-semibold`). CP 2026-09-30 i #187 bad om att
+ * händelsernas text ska matcha inkorgen, där typpillret är `OpsPill size="liten"` (10/500, `px-1.5 py-0.5`). Märkena står bredvid
+ * pillren i samma rad och ska ha samma storlek.
+ */
+export const ROLLMARKE_MATT = "shrink-0 rounded-full px-1.5 py-0.5 text-liten font-medium";
 
 const KIND = {
   human: "bg-human-bg text-human",

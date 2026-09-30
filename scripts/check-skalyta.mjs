@@ -1771,11 +1771,13 @@ for (const bredd of [390, 1280]) {
       /** @param {string} t */
       const px = (t) => m.filter((e) => e.iMain && e.text.startsWith(t)).map((e) => e.px);
       /** @type {[string, number][]} */
-      // SS per brytpunkt: titel `text-lg sm:text-xl` (18/20, `TodayView.jsx:89`), metaraden `text-xs sm:text-sm` (12/14, `:83/86`), övrigt `text-sm` (`:258/438/544`).
+      // 0.33.1: händelsekortet följer inkorgens skala (titel 14, meta 12, pill 10) i alla bredder, CP 2026-09-30 #187. Historik, SS per brytpunkt: titel `text-lg sm:text-xl` (18/20, `TodayView.jsx:89`), metaraden `text-xs sm:text-sm` (12/14, `:83/86`), övrigt `text-sm` (`:258/438/544`).
       const bp = bredd >= 640;
-      const vantat = [["Kundfaktura 119223", bp ? 20 : 18], ["Bara påminnelser", 14], ["Idag", 14], ["Kommande", 14], ["Belopp inkl moms", 14], ["158 400 kr", 14], ["För 19 dagar", bp ? 14 : 12], ["Faktura", bp ? 14 : 12], ["Du", bp ? 14 : 12], ["Försenat", 12]];
+      const vantat = [["Kundfaktura 119223", 14], ["Bara påminnelser", 14], ["Idag", 14], ["Kommande", 14], ["Belopp inkl moms", 14], ["158 400 kr", 14], ["För 19 dagar", 12], ["Faktura", 12], ["Du", 10], ["Försenat", 10]];
       for (const [t, v] of vantat) {
         const funna = px(t);
+        // "Du" är här en ROLLTEXT i omslaget (12, text-meta) eller ett rollmärke (10). Rollmärkets 10/500 mäts i avsnitt 25 (0.33.1).
+        if (t === "Du") { krav(funna.length > 0 && funna.every((f) => f === 10 || f === 12), `Idag-kortet ${bredd} px: "Du" är ${funna.join("/") || "inte hittad"} px, väntat 12 (rolltext, text-meta) eller 10 (rollmärket).`); continue; }
         krav(funna.length > 0 && funna.every((f) => f === v), `Idag-kortet ${bredd} px: "${t}" är ${funna.length ? funna.join("/") : "inte hittad"} px, väntat ${v} (SS).`);
       }
     }
@@ -2332,7 +2334,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 // SS (`--radius-card`, SS `index.css:228`), där `bubbla` hade blivit 28.
 // Krav: titeln minst 95 procent av kortets innerbredd, datumradens vänsterkant lika med titelns (+-1), radien 24 +- 0,5,
 // rollmärket samma storlek, vikt, luft och höjd som "Försenat", summary utan klass 14 px, `OpsPill size="liten"` 10 px.
-// Golv: minst 2 kort mätta.
+// ⛔ 0.33.1 (CP 2026-09-30, #187): "Textstorlek och typsnitt på händelserna ska matcha det inkorgen har nu." CP:s önskan gick före SS-förebilden
+// (TodayView 18/700) som 0.32.1 följde. Nu: titel 14/500, datumrad 12, Försenat och rollmärke 10/500 (inkorgens skala). Raderna ovan
+// står kvar som historik. Golv: minst 2 kort mätta.
 {
   const { page, context } = await oppna("handelsekort", { width: 390, height: 844 });
   const m = await page.evaluate(() => {
@@ -2344,7 +2348,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       const nar = [...k.querySelectorAll("span")].find((e) => /^(För 20 dagar sedan|Om 3 dagar)$/.test((e.textContent || "").trim()));
       const tr = titel ? titel.getBoundingClientRect() : null;
       const nr = nar ? nar.getBoundingClientRect() : null;
-      return { inner, titelW: tr ? tr.width : null, titelX: tr ? tr.left : null, narX: nr ? nr.left : null, narOvanTitel: tr && nr ? nr.bottom <= tr.top + 0.5 : null, radie: parseFloat(cs.borderTopRightRadius) };
+      return { titelFs: titel ? getComputedStyle(titel).fontSize : null, titelFw: titel ? getComputedStyle(titel).fontWeight : null, narFs: nar ? getComputedStyle(nar).fontSize : null, inner, titelW: tr ? tr.width : null, titelX: tr ? tr.left : null, narX: nr ? nr.left : null, narOvanTitel: tr && nr ? nr.bottom <= tr.top + 0.5 : null, radie: parseFloat(cs.borderTopRightRadius) };
     });
     const forsenat = [...document.querySelectorAll("[data-handelser] span")].find((e) => (e.textContent || "").trim() === "Försenat" && e.children.length === 0);
     const du = [...document.querySelectorAll("[data-handelser] span")].find((e) => (e.textContent || "").trim() === "Du" && e.children.length === 0);
@@ -2365,13 +2369,19 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(r.titelW !== null && r.titelW >= 0.95 * r.inner, `händelsekort ${i + 1}: titeln är ${r.titelW?.toFixed(1)} px av kortets innerbredd ${r.inner.toFixed(1)} (${r.titelW !== null ? Math.round((100 * r.titelW) / r.inner) : "?"} procent), väntat minst 95. En kolumn bredvid titeln tar bredden (SS 301 px).`);
     krav(r.narX !== null && r.titelX !== null && Math.abs(r.narX - r.titelX) <= 1, `händelsekort ${i + 1}: datumradens vänsterkant ${r.narX?.toFixed(1)} mot titelns ${r.titelX?.toFixed(1)}, väntat samma (+-1). SS: datumraden vänsterställd direkt ovanför titeln (TodayView.jsx:527).`);
     krav(r.narOvanTitel === true, `händelsekort ${i + 1}: datumraden ligger inte ovanför titeln.`);
+    // 0.33.1: inkorgens skala (bolag-ops `check-inkorgstypografi`, SS `ChatInboxPanel.jsx:735-745`): titel 14/500, datum 12.
+    krav(r.titelFs === "14px" && r.titelFw === "500", `händelsekort ${i + 1}: titeln är ${r.titelFs}/${r.titelFw}, väntat 14px/500 som inkorgens rader (text-etikett font-medium). CP 2026-09-30, #187: "inte ett eget större/tyngre utseende".`);
+    krav(r.narFs === "12px", `händelsekort ${i + 1}: datumraden är ${r.narFs}, väntat 12px (text-meta, som inkorgens datum).`);
     krav(Math.abs(r.radie - 24) <= 0.5, `händelsekort ${i + 1}: radien är ${r.radie} px, väntat 24 (CP 2026-09-30 valde SS --radius-card).`);
   }
   matt.push(`rollmärket ${JSON.stringify(m.du)} mot Försenat ${JSON.stringify(m.forsenat)}, summary utan klass ${m.summary}, OpsPill liten ${JSON.stringify(m.liten)}`);
+  krav(!!m.forsenat && m.forsenat.fs === "10px" && m.forsenat.fw === "500", `Försenat: ${JSON.stringify(m.forsenat)}, väntat 10px/500 (0.33.1, samma som inkorgens typpill).`);
+  krav(!!m.du && m.du.fs === "10px" && m.du.fw === "500", `rollmärket: ${JSON.stringify(m.du)}, väntat 10px/500 (0.33.1, samma som inkorgens typpill).`);
   krav(!!m.du && !m.du.saknas && !!m.forsenat && m.du.fs === m.forsenat.fs && m.du.fw === m.forsenat.fw && m.du.pad === m.forsenat.pad && Math.abs(m.du.h - m.forsenat.h) <= 0.5, `rollmärket: ${JSON.stringify(m.du)} mot Försenat ${JSON.stringify(m.forsenat)}, väntat samma storlek, vikt, luft och höjd (OpsRollmarke).`);
   krav(m.summary === "14px", `inkorgsraden: en summary utan egen klass är ${m.summary}, väntat 14px (text-etikett, SS text-sm).`);
   krav(!!m.liten && m.liten.fs === "10px" && m.liten.fw === "500", `OpsPill size="liten": ${JSON.stringify(m.liten)}, väntat 10px och 500 (SS typbadge 9/500, närmaste roll).`);
   if (bildmapp) await page.locator("[data-handelser]").screenshot({ path: path.join(bildmapp, "handelsekort-390.png") });
+  if (bildmapp) await page.locator("[data-inkorgsrad]").screenshot({ path: path.join(bildmapp, "inkorgsrad-390.png") });
   await context.close();
 }
 

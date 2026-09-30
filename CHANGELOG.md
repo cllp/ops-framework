@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.33.1
 
-⛔ **Idag och Kalender möter bottenraden med 0 px. Luften under sista kortet ligger nu inuti rullytan och inte som en remsa canvas utanför den. Inte breaking.**
+⛔ **Idag och Kalender möter bottenraden med 0 px, luften ligger inuti rullytan, och händelsekortets text har inkorgens skala (titel 14/500, datum 12, pill 10/500). Inte breaking.**
 Händelsen: CP 2026-09-30 cirka 11:50 i [#187](https://github.com/cllp/ops-framework/issues/187), efter 0.32.1 och en hårduppdatering på telefonen: *"glappet är mindre men kvar"*. En beige remsa mellan listans innehåll och raden (Idag / Kalender / + / Hub / Meny).
 
 ### Rotorsaken, mätt
@@ -29,6 +29,16 @@ Hypoteserna i ärendet, mätta och uteslutna: `--safe-bottom` är INTE dubbelrä
 - Mot 0.33.0 (`--dist` och `--tokens` mot ett bygge av origin/main): **RÖD**, 6 brott (2 vyer x 3 lägen), gap 24.0 px överallt.
 - Mot 0.33.1: **GRÖN**, gap 0.0 px i alla sex, sista elementet 24 px över raden (Idag) och 24 px (Kalender).
 - Före/efter vid 390 px: `docs/jamforelser/0.33.1/`.
+
+### Händelsekortets text som inkorgens rader (tillägget i #187)
+CP 2026-09-30 09:52 i samma ärende: *"Textstorlek och typsnitt på händelserna (listkort) ska matcha det inkorgen har nu, inte ett eget större/tyngre utseende."*
+⛔ **Beslutet ändrat, och varför:** 0.31.2 och 0.32.1 följde SS `TodayView.jsx:89` (titel 18/700). CP:s önskan går före den förebilden, eftersom det är inkorgen han jämför med i telefonen. De gamla raderna står kvar i koden och i avsnitten som historik, med en ny rad ovanför som säger att de inte längre gäller.
+- **`OpsEventList`:** titeln är `text-etikett font-medium` (14/500) i alla bredder (var `text-titel sm:text-sida`, 18/20 och 700). Datumraden och rollen/slaget är `text-meta` (12) i alla bredder (var `text-meta sm:text-etikett`, 14 från 640 px). Titelns fulla bredd, datumraden först och radien 24 är orörda.
+- **`ROLLMARKE_MATT`** (rollmärket `OpsRollmarke` och brådskemärket "Försenat", som delar mått): 10/500 med `px-1.5 py-0.5` (var 12/600, `px-2`). Samma storlek som `OpsPill size="liten"`, alltså inkorgens typpill.
+- Kalenderns dagpanel använder inte händelsekortet (`OpsCalendar` har inget `OpsEventList`), så den är orörd.
+- Mätt mot inkorgen i bolag-ops main (`InboxView.jsx:646-680` och `web/scripts/lib/inkorgstypografi.mjs`, SS `ChatInboxPanel.jsx:735-745`): datum 12, titel 14/500, `OpsPill size="liten"`. Skalan är densamma.
+- **`check-skalyta` avsnitt 25** kräver titel 14/500, datumrad 12, "Försenat" och rollmärket 10/500. **Avsnitt 20** (Idag-kortet per element) väntar samma skala i alla bredder. Mot 0.33.0 (18/700, 12/600): **RÖD, 17 brott av 975**: 11 är typografin (titeln 18px/700 på båda korten, Försenat och rollmärket 12/600, Idag-kortet per element) och 6 är gapet 24 px från första delen. Mot 0.33.1: **GRÖN, 975 kontroller.**
+- Montage vid 390 px, före och efter med en inkorgsrad bredvid: `docs/jamforelser/0.33.1/handelsekort-fore-efter-inkorg-390.png`. Inkorgsraden i montaget är en kopia med bolag-ops klasser, alltså en bild och inte ett prov.
 
 ### Att göra i appen (bolag-ops)
 - Pinna om till 0.33.1. Inget annat.

@@ -254,7 +254,7 @@ export function OpsEventList({
                     skulle ta bort vakten. */}
                 {h.status ? <OpsStatusDot status={h.status} label={statusWords[h.status] || ""} /> : null}
 
-                {h.role ? <span className="shrink-0 text-meta sm:text-etikett">{h.role}</span> : null}
+                {h.role ? <span className="shrink-0 text-meta">{h.role}</span> : null}
 
                 {/* ⛔ BRÅDSKAN HAR SAMMA MÅTT SOM ROLLMÄRKET (`ROLLMARKE_MATT`, 0.32.1): de står bredvid varandra. */}
                 {marke ? <span className={cx(ROLLMARKE_MATT, TONER[state])}>{marke}</span> : null}
@@ -278,7 +278,7 @@ export function OpsEventList({
                     Samma ton som kortets kant och kalenderns prick, ur
                     `lib/slag.js`. Skiljer de sig säger vyn emot sig själv. */}
                 {h.kind ? (
-                  <span className="flex min-w-0 shrink-0 items-center gap-1 text-meta sm:text-etikett text-ink-muted">
+                  <span className="flex min-w-0 shrink-0 items-center gap-1 text-meta text-ink-muted">
                     {h.kindIcon ? (
                       <span aria-hidden="true" className={cx("flex shrink-0 items-center", slagfarg)}>
                         {h.kindIcon}
@@ -300,7 +300,7 @@ export function OpsEventList({
 
                   ⛔ Lös aldrig trängsel med `flex-nowrap` och trunkering: text får plats eller får en rad till. */}
               {h.when || h.deadline || h.updatedAt || url ? (
-                <div className={cx("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-meta sm:text-etikett tabular-nums text-ink-muted", harChevron && !harPillrad && "pr-9")} data-datumrad="">
+                <div className={cx("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-meta tabular-nums text-ink-muted", harChevron && !harPillrad && "pr-9")} data-datumrad="">
                   {h.when ? <span>{h.when}</span> : null}
                   {h.deadline ? <span>{h.deadline}</span> : null}
                   {h.updatedAt ? <span>{h.updatedAt}</span> : null}
@@ -311,7 +311,7 @@ export function OpsEventList({
                         target={onNavigate ? undefined : "_blank"}
                         rel={onNavigate ? undefined : "noopener noreferrer"}
                         className={cx(
-                          "shrink-0 rounded-sm text-meta sm:text-etikett text-accent underline underline-offset-2 hover:no-underline",
+                          "shrink-0 rounded-sm text-meta text-accent underline underline-offset-2 hover:no-underline",
                           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                         )}
                       >
@@ -346,9 +346,15 @@ export function OpsEventList({
                   brytpunkt: en titel som får halva bredden på en smal skärm och
                   hela på en bred är samma komponent med två utseenden, och det är
                   den sortens skillnad som gör att bara den ena blir provad. */}
+              {/* ⛔ 0.33.1: BESLUTET ÄNDRAT, OCH VARFÖR. CP 2026-09-30 i #187: "Textstorlek och typsnitt på händelserna ska matcha det inkorgen
+                  har nu, inte ett eget större/tyngre utseende." Titeln var 18/700 (SS `TodayView.jsx:89`, 0.31.2 och 0.32.1) och är nu 14/500
+                  (`text-etikett font-medium`), datumraden 12 (`text-meta`) i alla bredder, pillren 10/500 (`OpsPill size="liten"`, `ROLLMARKE_MATT`).
+                  Det är inkorgsradens skala (bolag-ops `InboxView.jsx`, SS `ChatInboxPanel.jsx:735-745`). CP:s önskan går före SS-förebilden
+                  i den här punkten; raderna nedanför står kvar som historik (metaregeln), men gäller inte längre. Titelns fulla bredd,
+                  datumraden först och radien 24 är oförändrade. */}
               {/* ⛔ 0.31.2: SS `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 px under sm, 20 px från sm (`titel` och `sida`). Metaraden ovanför är SS `text-xs sm:text-sm` (`:83/86`): 12 px under sm, 14 px från sm. */}
               {/* ⛔ 0.31.2: SS `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 px under sm, 20 px från sm (`titel` och `sida`). */}
-              <span className={cx("text-titel sm:text-sida text-ink", harChevron && !harPillrad && !harDatumrad && "pr-9")} data-titel="">{h.title}</span>
+              <span className={cx("text-etikett font-medium text-ink", harChevron && !harPillrad && !harDatumrad && "pr-9")} data-titel="">{h.title}</span>
 
               {/* ⛔ VEM OCH NÄR, OM BÅDA FINNS (0.30.0, #173, CP 2026-09-29: "vem
                   som skapade"). Under titeln och inte i detaljraden ovanför: det
