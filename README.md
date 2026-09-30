@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**99 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**103 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -1697,7 +1697,31 @@ CP 2026-09-29, epiken cllp/ops-framework#179: flera namngivna **gruppkalendrar**
 | `kalenderfonster` | `{ fran, till }` för de månader `OpsCalendar` ritar (förval 12 bakåt och 12 framåt). Appens läsväg för `/kalender` ska använda den, så att det som ritas och det som läses är samma fönster |
 | `isoVecka`, `datumOmfang`, `bandIVecka` | ISO-veckonumret, alla dagar mellan två datum (i valfri ordning), och banden i en veckorad med fil per överlapp (SS `getSpanSegmentsForWeekRow`) |
 
-⛔ **Inte i 0.36.0:** flödestoken och import (F4, F5), hantering av kalendrar (F2) och händelsernas `kalenderId` (F3).
+⛔ **Inte i 0.36.0:** flödestoken och import (F4, F5), hantering av kalendrar (F2) och händelsernas `kalenderId` (F3). F2 och F3 kom i 0.37.0, se nästa avsnitt.
+
+### Hantera kalendrar och händelsemodellen (0.37.0, #179 F2 och F3)
+
+CP 2026-09-30 i #179: "man skall kunna välja att skapa en händelse i olika kalendrar [...] om det är i gruppens kalender så skall vi kunna välja att händelsen skall kräva medlemmars bekräftelse". Appens händelser är appens data; ramverket äger kontraktet för fälten det läser, svaren och deras regler.
+
+| Namn | Vad |
+|---|---|
+| `OpsKalendrar` | **Hantera kalendrar**, som SS `PersonalCalendarsInlineSection`: ett kort för gruppens kalendrar och ett för mina, med skapa, byta namn, färg, ikon, ordning (upp och ned), förvald och arkivera (arkiverade under en egen rubrik med "Ta fram"). `{ gruppens, mina, groupId, kanAndraGruppens, onSparaGruppens(rader), onSparaMina(rader), gruppNamn?, sprak? }`. ⛔ Skickar bara de rader som ändrats; att byta förvald är två. Utan `kanAndraGruppens` ritas gruppens lista utan knappar och med raden "Bara gruppens ägare och admin ändrar gruppens kalendrar." "Tas med i flödet" visas inte förrän flödet (F4) finns |
+| `kalenderIdUrNamn`, `nastaOrdning`, `ORDNINGSSTEG`, `flyttaKalender`, `valjForvald`, `arkiveraKalender` | De rena funktionerna bakom hanteringen. `flyttaKalender` numrerar om (två kalendrar med samma `ordning` byter annars inte plats), `valjForvald` svarar med den nya och den gamla förvalda, och en arkiverad kalender är aldrig förvald |
+| `kalenderval` | Gruppens och mina kalendrar som val (`{ id, namn, farg, ikon, grupp, forvald }`), bara valbara, i ordning, med den härledda förvalda. Samma lista matar `OpsCalendar kalendrar` och "Skapa i" |
+| `filtreraPoster`, `forvaldKalenderId` | Kalenderfiltret som ren funktion: en post i en bortvald kalender syns inte och syns igen när kalendern väljs; en post utan `kalender` hör till gruppens förvalda |
+| `createKalenderkalla({ kalla, anvandare?, gruppkalendrar?, minaKalendrar?, kalenderposter? })` | Läser och skriver kalendrarna: `gruppens`, `sparaGruppens`, `mina`, `sparaMina`, `poster`, `sparaPost`, `taBortPost`. Flera rader skrivs i en batch när källan kan, annars säger svaret `atomar: false` |
+| `HANDELSEKONTRAKT`, `handelsefel`, `handelsensKalenderId`, `handelsensDagar` | Fälten ramverket läser på appens händelse (`kalenderId`, `datum`, `slutDatum`, `tid`, `slutTid`, `heldag`, `kravSvar`), felen som meningar, kalendern (⛔ utan `kalenderId` gäller gruppens förvalda: ingen bakfyllnad) och datum, slutdatum och heldag som kalenderns fält |
+| `SVARSVAL`, `SVARSFALT`, `byggSvar`, `sammanstallSvar` | Svaren Kommer och Kommer inte, en rad per person och händelse i `<handelser>/{händelse}/<svar>/{uid}` (nyckeln är personen, unikheten kommer ur sökvägen). `sammanstallSvar` skriver "3 kommer, 1 kommer inte, 2 har inte svarat", alltid alla tre delarna, och räknar bara medlemmarnas svar |
+| `createSvarskalla({ kalla, handelser?, svar? })` | `lista(händelse)`, `mina(händelser, uid)` och `svara(händelse, uid, svar)` |
+| `svarsrader`, `harPasserat` | Inkorgens rader, **härledda och inte skrivna**: händelser som kräver svar, som personen inte svarat på och som inte passerat. Raden försvinner när svaret skrivs, utan server och utan en post per medlem |
+| `OpsSvar`, `OpsSvarsknappar`, `OpsSvarsrad` | Sammanställningen med en rad per medlem (bara min har knappar), knapparna Kommer / Kommer inte, och inkorgens rad |
+| `handelseregelfragment` | `{ handelser, svar, gruppkalendrar }`. Svaren: bara personen själv skriver sitt, bara en aktiv medlem i händelsens grupp, bara när händelsen har `kravSvar == true`; medlemmar läser; ingen radering. Och `opsHandelsefaltGiltiga(ny, fore)`, som appen anropar i sitt eget händelseblock (`{}` vid create, `resource.data` vid update): `kalenderId` en av gruppens kalendrar och inte arkiverad (prövas bara när den ändras), `kravSvar` bool, `slutDatum` efter `datum`. Kräver `regelfragment()` ovanför |
+
+**Ny händelse (`OpsAppShell skapa.handelse.kalendrar`):** med `{ gruppens, mina }` står **Kalender** överst i formuläret (raden öppnar "Skapa i" med gruppens kalendrar och "Mina kalendrar", den aktiva gruppens förvalda förvald). I en gruppkalender visar skalet **Kräv svar** (av från början), i en av mina **Blockerar tillgänglighet** och inget typval. Formuläret får `kalender: { id, slag }`, `kravSvar`, `blockerar` och `datum`. ⛔ "Skicka mejl" visas inte: avsändarbeslutet (#180 G3) saknas.
+
+**Dagen till formuläret (#206):** `useOppnaSkapa()("handelse", { datum: "2026-10-12" })` öppnar "Ny händelse" med formulärets prop `datum`, och adressen bär `&datum=` så att en omladdning ger samma dag. Ett datum som inte finns kastar.
+
+⛔ **Inte i 0.37.0:** upprepning av händelser (ej beslutat av CP), "Skicka mejl" (#180 G3), flödet och importen (F4, F5).
 
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 

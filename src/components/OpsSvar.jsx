@@ -51,7 +51,7 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar" }) {
               {jag ? (
                 <OpsSvarsknappar vald={s} onSvara={onSvara} namn={m.namn} />
               ) : (
-                <span className="shrink-0 text-meta text-ink-muted">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
+                <span className="shrink-0 text-meta text-ink-secondary">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
               )}
             </li>
           );
