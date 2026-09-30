@@ -52,7 +52,8 @@
 import { byggGrupp, byggMedlemskap, byggVitlisterad, medlemskapsId } from "../lib/grupp.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { createInvitationService } from "./inbjudan.js";
-import { seedaKataloger } from "./katalog.js";
+import { seedoperationer } from "../data/katalogkalla.js";
+import { somKatalogStandard } from "./katalog.js";
 
 /** @param {unknown} v @returns {string} */
 const epostform = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
@@ -135,9 +136,10 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param {import("../data/contract.js").DataSource<any>} konfig.kalla Måste ha `batch` (kontraktets regel 6).
  * @param {Samlingar} [konfig.samlingar]
  * @param {Record<string, ReadonlyArray<unknown> | import("./katalog.js").KatalogStandard>} [konfig.kataloger]
- *   Appens katalogstandardvärden, en nyckel per samling (#162). Anges de seedas
- *   de för den nya gruppen direkt efter ägarens medlemskap, via `seedaKataloger`.
- *   Utelämnade: ingen seedning, och ingen tyst tom sådan heller.
+ *   Appens katalogstandardvärden, en nyckel per samling (#162). Anges de skrivs
+ *   de som den nya gruppens kataloger I SAMMA BATCH som gruppen och ägarens
+ *   medlemskap (0.33.0). Utelämnade: ingen seedning, och ingen tyst tom sådan heller.
+ *   Ramverket ändrar dem aldrig i efterhand: de är startpunkten, gruppen äger sin kopia.
  * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any }) => Promise<SkapaGruppSvar> }}
  */
 export function createGroupService(konfig) {
@@ -149,6 +151,20 @@ export function createGroupService(konfig) {
     throw new Error(
       "createGroupService: datakällan saknar batch. Gruppen och ägarens medlemskap skrivs allt eller inget, och en källa som bara kan skriva ett dokument i taget lämnar en grupp utan ägare om det andra skrivandet faller. Lägg till batch i adaptern (db.batch() med Admin SDK), se datakontraktets regel 6.",
     );
+  }
+  /*
+   * ⛔ KATALOGERNA PRÖVAS NÄR TJÄNSTEN BYGGS, INTE FÖRST NÄR NÅGON SKAPAR EN GRUPP. En trasig
+   * standardkategori i appens repo är ett programfel, och det ska synas när functions startar, inte som
+   * ett fel i knäet på den första som trycker Skapa grupp. Samma validering som i `skapaGrupp` nedan.
+   */
+  if (kataloger !== undefined) {
+    if (!kataloger || typeof kataloger !== "object" || Array.isArray(kataloger) || Object.keys(kataloger).length === 0) {
+      throw new Error("createGroupService: kataloger måste vara ett objekt med minst en samling. Utelämna det helt om appen inte har några kataloger.");
+    }
+    for (const samling of Object.keys(kataloger)) {
+      const { standard, ikoner, textnycklar, faser, farger } = somKatalogStandard(kataloger[samling], samling);
+      seedoperationer({ collection: samling, groupId: "provgrupp", standard, ikoner, textnycklar, faser, farger, namn: samling });
+    }
   }
   const GRUPPER = samlingar.grupper ?? "groups";
   const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
@@ -252,6 +268,22 @@ export function createGroupService(konfig) {
       });
 
       /*
+       * ⛔ KATALOGERNA BYGGS FÖRE BATCHEN OCH SKRIVS I DEN (0.33.0, #162). Före 0.33.0 seedades de
+       * EFTER commit, med en skrivning per kategori. Föll en av dem fanns gruppen och ägaren, men
+       * katalogen var halv, och en halv katalog är värre än ingen: den ser färdig ut. Dessutom kunde
+       * första vyn ritas före sista skrivningen. Nu byggs varje rad här, med samma validering som
+       * läsvägen (en trasig standardkategori kastar innan något är skrivet), och går med i batchen.
+       */
+      /** @type {any[]} */
+      const katalogOps = [];
+      if (kataloger) {
+        for (const samling of Object.keys(kataloger)) {
+          const { standard, ikoner, textnycklar, faser, farger } = somKatalogStandard(kataloger[samling], samling);
+          katalogOps.push(...seedoperationer({ collection: samling, groupId: id, standard, ikoner, textnycklar, faser, farger, namn: samling }));
+        }
+      }
+
+      /*
        * ⛔ EN BATCH, ALLT ELLER INGET, OCH GRUPPEN FÖRE MEDLEMSKAPET I LISTAN. Ordningen spelar ingen
        * roll för atomiciteten men den spelar roll för den som läser en logg: gruppen finns först,
        * ägaren pekar på den. Faller batchen finns ingen av dem.
@@ -260,16 +292,8 @@ export function createGroupService(konfig) {
       await /** @type {NonNullable<typeof kalla.batch>} */ (kalla.batch).call(kalla, [
         { op: "create", collection: GRUPPER, data: grupp },
         { op: "create", collection: MEDLEMSKAP, data: medlemskap },
+        ...katalogOps,
       ]);
-
-      /*
-       * ⛔ KATALOGERNA SEEDAS EFTER COMMIT (#162). En grupp utan sina standardkategorier är en grupp där
-       * varje formulär står tomt, så det hör till skapandet och inte till ett senare steg någon ska
-       * komma ihåg. Faller seedningen finns gruppen och ägaren redan, och felet säger vilken katalog.
-       */
-      if (kataloger) {
-        await seedaKataloger({ kalla, groupId: id, standardvarden: kataloger });
-      }
 
       /** @type {string[]} */
       const tillagda = [];
