@@ -64,6 +64,12 @@ Titeln var redan 18/700 som SS. Felet låg i kompositionen:
 - Montage och en ärlig jämförelse (vad som matchar, vad som skiljer: kortets luft 24 mot 20, den färgade vänsterkanten, pillraden som SS saknar):
   `docs/jamforelser/0.32.1/idag-kort-fore-efter-ss-390.png` och `jamforelse.md`.
 
+### Luft mellan skapa-panelens huvud och första raden
+CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende" vid 390 px: *"Vidare är det skönt om det är lite luft mellan första raden och headern."*
+Formulärets första rad låg direkt under huvudets linje (0 px). `OpsSkapaPanel`s innehållsbehållare har nu `pt-4`, 16 px, SS värde i båda inline-formulären
+(`ManageGroupModal.jsx:479` `py-4`, `eventModal/sizeClasses.js:7` `formPad: "py-4 ..."`). Luften bor i panelen och inte i varje formulär.
+Vakt: `check-skalyta` avsnitt 26 mäter huvudets underkant mot första raden. **Rött mot 0.32.0: 0 px vid 390 (1 brott). Grönt nu: 16 px** (1280 px: 0 före, 16 efter, utskrivet men inte krävt).
+
 ### Att göra i appen vid ompinning till 0.32.1
 Pinna om. ⛔ Byt sedan appens tre handskrivna rollpiller (`Rolletikett` i `EventsView.jsx`, `Rolltegner` i `ProcessView.jsx` och
 `ScheduleView.jsx`) mot `<OpsRollmarke kind={role} label={roleLabel(role)} />`, och inkorgens typbadge mot `<OpsPill size="liten">`. Inget av det

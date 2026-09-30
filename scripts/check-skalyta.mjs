@@ -2332,6 +2332,37 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   await context.close();
 }
 
+// ══ 26. LUFT MELLAN SKAPA-PANELENS HUVUD OCH FÖRSTA RADEN (0.32.1) ══════════════════════════════════════════════════════
+// CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende" vid 390 px: "Vidare är det skönt om det är lite luft mellan första raden
+// och headern." Första raden låg direkt under huvudets linje. SS har 16 px (`py-4`) i båda inline-formulären (ManageGroupModal.jsx:479,
+// eventModal/sizeClasses.js:7). Krav vid 390: 16 +- 1 px från huvudets underkant (linjen) till innehållets första rad. 1280 mäts och skrivs ut.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+  const { page, context } = await oppna("skapa", vp);
+  try {
+    await oppnaSkapaPanel(page, vp.width < 768);
+    await page.waitForSelector("[data-skapa-panel]");
+    await page.waitForTimeout(200);
+    const d = await page.evaluate(() => {
+      const kol = document.querySelector("[data-skapa-panel] > div");
+      const huvud = kol ? kol.children[0] : null;
+      const inne = kol ? kol.children[1] : null;
+      const forsta = inne ? inne.firstElementChild : null;
+      if (!huvud || !forsta) return null;
+      return { huvudBotten: huvud.getBoundingClientRect().bottom, forstaTopp: forsta.getBoundingClientRect().top, linje: getComputedStyle(huvud).borderBottomWidth, text: (forsta.textContent || "").trim().slice(0, 30) };
+    });
+    if (!d) {
+      krav(false, `skapa-panelen ${vp.width}: huvudet eller första raden hittades inte.`);
+    } else {
+      const luft = d.forstaTopp - d.huvudBotten;
+      matt.push(`skapa-panelen ${vp.width} px: ${luft.toFixed(1)} px från huvudets underkant (linje ${d.linje}) till första raden ("${d.text}")`);
+      if (vp.width < 768) krav(Math.abs(luft - 16) <= 1, `skapa-panelen ${vp.width}: ${luft.toFixed(1)} px mellan huvudets linje och första raden, väntat 16 (SS py-4). CP 2026-09-30 08:12: "lite luft mellan första raden och headern".`);
+    }
+  } catch (e) {
+    krav(false, `skapa-panelen ${vp.width}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

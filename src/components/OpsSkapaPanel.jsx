@@ -95,7 +95,12 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
             {titel}
           </h2>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 md:overflow-visible">
+        {/* ⛔ `pt-4`: LUFT MELLAN HUVUDET OCH FÖRSTA RADEN (0.32.1). CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende"
+            vid 390 px: "Vidare är det skönt om det är lite luft mellan första raden och headern." Formulärets första rad låg
+            direkt under huvudets linje. SS har 16 px där i båda sina inline-formulär: `ManageGroupModal` (`py-4` på kroppen,
+            `ManageGroupModal.jsx:479`) och `EventModal` (`formPad: "py-4 ..."`, `eventModal/sizeClasses.js:7`). Luften bor här
+            i panelens innehållsbehållare och inte i varje formulär, så att inget formulär kan glömma den. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-4 pb-4 md:overflow-visible">
           {skapasI ? (
             <div className="mb-4 flex min-w-0 items-center gap-2 text-etikett text-ink-secondary">
               <span className="shrink-0 whitespace-nowrap">{skapasIEtikett}:</span>
