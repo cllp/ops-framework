@@ -25,6 +25,7 @@ const LIV = () => ({
   samlingar: ["matningar"],
   kallor: {},
   skapar: [],
+  hubb: null,
 });
 
 describe("modulmanifestet tas emot", () => {

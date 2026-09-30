@@ -52,7 +52,21 @@ import { byggNamn } from "./sprak.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar"];
+const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb"];
+
+/**
+ * Fälten modulens kort i hubben får bära (0.38.0, #184).
+ *
+ * ⛔ `hubb` KRÄVS ÄVEN NÄR MODULEN INTE HAR NÅGOT KORT, och då är den `null`.
+ * Samma skäl som `katalog: null` i en skapa-registrering: en modul som GLÖMT
+ * sitt kort och en modul som inte ska ha något ser likadana ut om fältet är
+ * valfritt, och den första är ett fel som syns först när ägaren letar efter
+ * modulen i gruppens inställningar och inte hittar den.
+ */
+const HUBBFALT = ["ikon", "rutt", "startsida", "delar"];
+
+/** Fälten en del av modulens insida får bära. */
+const DELFALT = ["id", "namn", "ikon", "rutt"];
 
 /** Fälten en route får bära. */
 const ROUTEFALT = ["path", "vy"];
@@ -103,6 +117,23 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {ReadonlyArray<Samling>} samlingar Samlingarna modulen äger. ⛔ Alltid i utskriven form, även när manifestet skrev en sträng.
  * @property {Readonly<Record<string, Function>>} kallor Ytor modulen fyller, en funktion per yta.
  * @property {ReadonlyArray<Skaparregistrering>} skapar Vad modulen kan skapa, det plusset erbjuder.
+ * @property {Hubbkort | null} hubb (0.38.0) Modulens kort i hubben och dess insida, eller `null` när modulen inte är ett kort.
+ */
+
+/**
+ * @typedef {object} Hubbkort
+ * @property {unknown} ikon Ett React-element, till exempel `<Wallet size={20} />`. En referens, se filhuvudet om väg A.
+ * @property {string} rutt Modulens adress, till exempel `/ekonomi`. Kortet leder hit, och adressen visar startsidan.
+ * @property {string} startsida Id på den del som visas när modulen öppnas.
+ * @property {ReadonlyArray<Moduldel>} delar Modulens insida, i den ordning navigationen visar dem. Minst en.
+ */
+
+/**
+ * @typedef {object} Moduldel
+ * @property {string} id Maskinnyckeln. Unik inom modulen.
+ * @property {import("./sprak.js").Namn} namn Det som står i modulens navigation.
+ * @property {unknown} ikon Ett React-element.
+ * @property {string} rutt Delens adress. Ligger alltid under modulens: `${rutt}/...`.
  */
 
 /**
@@ -376,6 +407,8 @@ export function defineModule(manifest) {
     skapar.push(Object.freeze({ id: sid, namn: snamn, ikon: sikon, katalog: skatalog, form: rad.form }));
   });
 
+  const hubb = byggHubb(d, var_);
+
   /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
@@ -393,7 +426,119 @@ export function defineModule(manifest) {
     samlingar: Object.freeze(samlingar),
     kallor: Object.freeze(kallor),
     skapar: Object.freeze(skapar),
+    hubb,
   });
+}
+
+/**
+ * Ett React-element och inte en komponent, en sträng eller ingenting.
+ *
+ * ⛔ UTAN ATT IMPORTERA REACT. Manifestet läses av regelgeneratorn i ett vanligt
+ * Node-skript (se `skapar[].form`), och `isValidElement` hade gjort den här
+ * filen beroende av att React finns där. Ett element är ett objekt med
+ * `$$typeof` OCH `props`; `memo` och `lazy` har det första men inte det andra,
+ * och de är komponenter, inte något som går att rita som det är.
+ *
+ * @param {unknown} v
+ */
+const arElement = (v) => typeof v === "object" && v !== null && "$$typeof" in v && "props" in v;
+
+/**
+ * En adress: börjar med snedstreck, slutar inte med ett, och har inget
+ * frågetecken eller brädgård. `/` ensam är hubbens eller Idags, aldrig en moduls.
+ * @param {string} r
+ */
+const arRutt = (r) => /^\/[^?#\s]*[^/?#\s]$/.test(r);
+
+/**
+ * Bygger modulens kort i hubben, eller kastar med skälet (0.38.0, #184).
+ *
+ * ══ ⛔ VARFÖR KORTET BOR I MANIFESTET OCH INTE I ETT EGET REGISTER ═════
+ *
+ * `groups.moduler` pekar på modul-id i samma form som `defineModule` (se
+ * `byggGrupp`). Ett andra register med egna id för hubbens kort hade gett två
+ * listor över vilka moduler som finns, och den dag de glider isär väljer ägaren
+ * en modul som hubben inte kan rita (arbetsreglernas punkt 2).
+ *
+ * ⛔ DELARNAS ADRESSER LIGGER UNDER MODULENS. `/ekonomi/inkomster` och aldrig
+ * `/inkomster`: en del som inte bär sin moduls adress går inte att härleda
+ * tillbaka till modulen, och då vet navigationen inte vilken flik som är aktiv
+ * eller vart tillbaka-länken ska. De gamla adresserna lever vidare som
+ * omdirigeringar (`byggOmdirigeringar`), inte som delar.
+ *
+ * ⛔ STARTSIDAN ÄR EN AV DELARNA OCH INTE EN EGEN SIDA. CP 2026-09-30 om
+ * Ekonomi: "ekonomi-översikt är det som är översikten i den modulen". En
+ * startsida som inte står i navigationen är en sida man bara når en gång.
+ *
+ * @param {Record<string, any>} d
+ * @param {(falt: string, skal: string) => Error} var_
+ * @returns {Hubbkort | null}
+ */
+function byggHubb(d, var_) {
+  if (!("hubb" in d)) {
+    throw var_("hubb", "krävs. Skriv modulens kort i hubben ({ ikon, rutt, startsida, delar }), eller null när modulen inte är ett kort. Se HUBBFALT om varför null och inte ingenting.");
+  }
+  const h = d.hubb;
+  if (h === null) return null;
+  if (!h || typeof h !== "object" || Array.isArray(h)) {
+    throw var_("hubb", `måste vara ett objekt { ${HUBBFALT.join(", ")} } eller null, inte ${Array.isArray(h) ? "en lista" : typeof h}.`);
+  }
+  const okanda = Object.keys(h).filter((n) => !HUBBFALT.includes(n));
+  if (okanda.length > 0) {
+    throw var_(`fälten ${okanda.join(", ")} i hubb`, `känns inte igen. Kortet bär ${HUBBFALT.join(", ")}.`);
+  }
+  if (!arElement(h.ikon)) {
+    throw var_("hubb.ikon", "måste vara ett React-element, till exempel <Wallet size={20} />. Ett namn eller en komponent går inte att rita som det är.");
+  }
+  const rutt = rensa(h.rutt);
+  if (!arRutt(rutt)) {
+    throw var_(`hubb.rutt ${JSON.stringify(h.rutt)}`, "måste vara en adress som börjar med snedstreck och inte slutar med ett, till exempel /ekonomi. Kortet leder dit.");
+  }
+  if (!Array.isArray(h.delar) || h.delar.length === 0) {
+    throw var_("hubb.delar", "krävs och måste ha minst en del. Startsidan är en av delarna, och en modul utan delar har ingen insida att öppna.");
+  }
+  /** @type {Moduldel[]} */
+  const delar = [];
+  h.delar.forEach((/** @type {any} */ del, /** @type {number} */ i) => {
+    if (!del || typeof del !== "object" || Array.isArray(del)) {
+      throw var_(`hubb.delar[${i}]`, `måste vara ett objekt { ${DELFALT.join(", ")} }.`);
+    }
+    const okandaDel = Object.keys(del).filter((n) => !DELFALT.includes(n));
+    if (okandaDel.length > 0) {
+      throw var_(`hubb.delar[${i}]`, `bär fälten ${okandaDel.join(", ")} som inte känns igen. En del bär ${DELFALT.join(", ")}.`);
+    }
+    const did = rensa(del.id);
+    if (!did || !ID_FORM.test(did)) {
+      throw var_(`hubb.delar[${i}].id ${JSON.stringify(del.id)}`, "måste vara ett id med små bokstäver, siffror, bindestreck och understreck. Omdirigeringarna och startsidan pekar på det.");
+    }
+    if (delar.some((x) => x.id === did)) throw var_(`hubb.delar[${i}].id "${did}"`, "står två gånger.");
+    if (typeof del.namn === "string") {
+      throw var_(`hubb.delar[${i}].namn för "${did}"`, 'är en sträng. Ett namn är { sv, en }, som modulens eget namn.');
+    }
+    let dnamn;
+    try {
+      dnamn = byggNamn(del.namn && typeof del.namn === "object" ? del.namn : {});
+    } catch (fel) {
+      throw var_(`hubb.delar[${i}].namn för "${did}"`, fel instanceof Error ? fel.message.replace(/^byggNamn: /, "") : String(fel));
+    }
+    if (!arElement(del.ikon)) {
+      throw var_(`hubb.delar[${i}].ikon för "${did}"`, "måste vara ett React-element. Navigationen ritar en ikon per del, och ett hål i raden ser ut som en del som inte laddat.");
+    }
+    const drutt = rensa(del.rutt);
+    if (!arRutt(drutt) || !drutt.startsWith(`${rutt}/`)) {
+      throw var_(
+        `hubb.delar[${i}].rutt ${JSON.stringify(del.rutt)} för "${did}"`,
+        `måste ligga under modulens adress, alltså börja med ${rutt}/. En del som inte bär sin moduls adress går inte att härleda tillbaka till modulen. En gammal adress blir en omdirigering, inte en del.`,
+      );
+    }
+    if (delar.some((x) => x.rutt === drutt)) throw var_(`hubb.delar[${i}].rutt "${drutt}"`, "står två gånger. Vilken flik som är aktiv avgjordes då av ordningen.");
+    delar.push(Object.freeze({ id: did, namn: dnamn, ikon: del.ikon, rutt: drutt }));
+  });
+  const startsida = rensa(h.startsida);
+  if (!delar.some((x) => x.id === startsida)) {
+    throw var_(`hubb.startsida ${JSON.stringify(h.startsida)}`, `måste vara en av delarna (${delar.map((x) => x.id).join(", ")}). Startsidan är den del modulen öppnas på, och en startsida utanför navigationen når man bara en gång.`);
+  }
+  return Object.freeze({ ikon: h.ikon, rutt, startsida, delar: Object.freeze(delar) });
 }
 
 /**
@@ -423,6 +568,8 @@ export function validateModuler(manifest) {
   const idn = new Set();
   /** @type {Map<string, string>} */
   const skaparAgare = new Map();
+  /** @type {Map<string, string>} */
+  const hubbAgare = new Map();
 
   for (const modul of moduler) {
     if (idn.has(modul.id)) {
@@ -469,6 +616,36 @@ export function validateModuler(manifest) {
         );
       }
       skaparAgare.set(reg.id, modul.id);
+    }
+
+    /*
+     * ⛔ HUBBENS ADRESSER ÄR UNIKA ÖVER HELA LISTAN (0.38.0). Två moduler vars
+     * kort leder till samma adress, eller vars delar gör det, ger en navigation
+     * där "vilken modul är jag i" avgörs av registreringsordningen. Samma felform
+     * som två moduler på samma route.
+     */
+    if (modul.hubb) {
+      for (const r of [modul.hubb.rutt, ...modul.hubb.delar.map((x) => x.rutt)]) {
+        const agare = hubbAgare.get(r);
+        if (agare) {
+          throw new Error(`validateModuler: modulerna "${agare}" och "${modul.id}" gör båda anspråk på adressen "${r}" i hubben. Vilken modul som är aktiv skulle avgöras av registreringsordningen.`);
+        }
+        hubbAgare.set(r, modul.id);
+      }
+    }
+  }
+
+  /*
+   * ⛔ OCH INGEN MODUL LIGGER INUTI EN ANNAN. `/ekonomi/resor` som en egen
+   * modul under `/ekonomi` är inte samma adress, så kontrollen ovan släpper
+   * igenom den, men `modulLage` hade då kunnat svara båda för samma sida.
+   */
+  const med = moduler.filter((m) => m.hubb);
+  for (const a of med) {
+    for (const b of med) {
+      if (a !== b && /** @type {Hubbkort} */ (b.hubb).rutt.startsWith(`${/** @type {Hubbkort} */ (a.hubb).rutt}/`)) {
+        throw new Error(`validateModuler: modulen "${b.id}" (${/** @type {Hubbkort} */ (b.hubb).rutt}) ligger inuti modulen "${a.id}" (${/** @type {Hubbkort} */ (a.hubb).rutt}). En sida under båda hade hört till två moduler.`);
+      }
     }
   }
 

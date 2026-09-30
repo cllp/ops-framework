@@ -12,7 +12,8 @@
 // ── Skal ───────────────────────────────────────────────────────────────────
 export { OpsAppShell, useOppnaSkapa } from "./components/OpsAppShell.jsx";
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
-export { OpsHub, OpsHubModul, OpsHubTillbaka } from "./components/OpsHub.jsx";
+export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
+export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsBrand } from "./components/OpsBrand.jsx";
 
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────
@@ -140,6 +141,7 @@ export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
  * gå att validera av det som körs utan skärm.
  */
 export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
+export { hubbForGrupp, valbaraModuler, hubbPoster, modulLage, byggOmdirigeringar, omdirigera, kontrolleraOmdirigeringar } from "./lib/hubb.js";
 
 /*
  * ⛔ KÄLLKONTRAKTET (#129). Registret och granskarna är data in och data ut,

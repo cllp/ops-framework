@@ -337,6 +337,34 @@ const hubModuler = [
   { href: "/schema", label: "Schema", icon: <Calendar size={IKON} />, badge: 0, info: null },
   { href: "/cutover", label: "Cutover", icon: <Settings size={IKON} /> },
 ];
+/*
+ * 0.38.0 (#184): Ekonomi som EN modul med bolag-ops fjorton delar, registrerad med `defineModule`. Kastar den (en dist utan
+ * `hubb`) blir svaret `null` och scenen ritar en markör.
+ */
+const EKONOMIDELAR = [
+  ["oversikt", "Översikt"], ["inkomster", "Inkomster"], ["kostnader", "Kostnader"], ["abonnemang", "Abonnemang"], ["tillgangar", "Tillgångar"],
+  ["pension", "Pension"], ["forsakringar", "Försäkringar"], ["liv", "Liv"], ["schema", "Schema"], ["cutover", "Cutover"],
+  ["bolaget", "Bolaget"], ["kontakter", "Kontakter"], ["lankar", "Länkar"], ["jamforelse", "Jämförelse"],
+];
+const HUBBGRUPPER = { g3: ["ekonomi"], g2: [], g1: ["ekonomi", "bokning"] };
+let hubbCache;
+function hubbLage() {
+  if (hubbCache !== undefined) return hubbCache;
+  try {
+    hubbCache = Ops.OpsGruppHubb && Ops.OpsModulSida
+      ? Ops.validateModuler([
+          {
+            id: "ekonomi", namn: { sv: "Ekonomi" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [],
+            hubb: { ikon: <Wallet size={IKON} />, rutt: "/ekonomi", startsida: "oversikt", delar: EKONOMIDELAR.map(([id, sv]) => ({ id, namn: { sv }, ikon: <Settings size={16} />, rutt: `/ekonomi/${id}` })) },
+          },
+        ])
+      : null;
+  } catch {
+    hubbCache = null;
+  }
+  return hubbCache;
+}
+
 /** Vart appen har navigerat: kortet är en riktig länk, och sidan får inte laddas om i provet. */
 window.__gick = [];
 const gaTill = (href, e) => {
@@ -364,13 +392,13 @@ const g2Lista = [
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null }) {
+function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(aktivIScenen());
   return (
     <OpsAppShell
       fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
-      moduler={hubModuler}
+      moduler={skaletsModuler}
       activeHref="/"
       actions={
         <>
@@ -671,6 +699,30 @@ function Scen() {
     const svg = (/** @type {string} */ bg, /** @type {string} */ fg) =>
       `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><rect width="640" height="640" fill="${bg}"/><rect x="70" y="210" width="260" height="220" rx="14" fill="${fg}"/><rect x="360" y="290" width="175" height="60" fill="${fg}"/></svg>`)}`;
     return <OpsInloggning auth={{ signInWithGoogle: () => {} }} etikett="Bolag Ops" ordmarke={{ ljus: svg("#ffffff", "#242c27"), mork: svg("#202420", "#e8e4dc") }} />;
+  }
+  // 0.38.0 (#184): hubben för den aktiva gruppen och modulens insida. Grupperna: g3 har Ekonomi, g2 har inga moduler, g1 har
+  // Ekonomi och en modul appen inte registrerat. Saknas `OpsGruppHubb` (0.37.0 och äldre) ritas en markör, och avsnitt 9c blir
+  // rött på det i stället för att sidan kastar.
+  // "modulsida|/ekonomi/jamforelse": adressen efter strecket är den som visas.
+  if (s === "grupphubb" || s.startsWith("modulsida")) {
+    const lage = hubbLage();
+    if (!lage) return <Full><p data-saknas="OpsGruppHubb">OpsGruppHubb saknas</p></Full>;
+    const grupp = { ...grupperLista.find((g) => g.id === aktivIScenen()), moduler: HUBBGRUPPER[aktivIScenen()] ?? [] };
+    const poster = Ops.hubbPoster(Ops.hubbForGrupp({ grupp, moduler: lage }).kort, { info: { ekonomi: "Skatten förfaller 12 oktober" } });
+    if (s === "grupphubb") {
+      return (
+        <Full moduler={poster}>
+          <Ops.OpsGruppHubb grupp={grupp} moduler={lage} activeHref="/hub" onNavigate={gaTill} info={{ ekonomi: "Skatten förfaller 12 oktober" }} />
+        </Full>
+      );
+    }
+    return (
+      <Full moduler={poster}>
+        <Ops.OpsModulSida modul={lage[0]} activeHref={s.split("|")[1] ?? "/ekonomi/inkomster"} hubHref="/hub" onNavigate={gaTill}>
+          <p data-moduldel-innehall="">Delens innehåll</p>
+        </Ops.OpsModulSida>
+      </Full>
+    );
   }
   if (s === "hub") {
     return (
