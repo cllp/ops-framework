@@ -43,6 +43,7 @@ fel som regel 12 finns för, en nivå upp: en jämförelse mot fel förebild bev
 | Prickar för endagsposter, streck för flerdagsposter i varje ruta, två rader, "+N" | `markorlayout` porterad ur `calendarDayMarkerLayout.js` | prickar 6 x 6, streck 10 x 4; konferensens streck den 5, 6 och 7 oktober och inte den 4:e eller 8:e; semesterns 9 till 13 oktober över veckogränsen; inga band vid 390 |
 | Inga ikoner i rutan | samma (hörnmärkena är F6:s plats, inte postens ikon) | 0 ikoner i dagsrutorna |
 | Verktygsraden: rena ikoner till vänster, kalenderpillret till höger | samma, 44 px träffyta | Sök, Veckonummer, Typ och status utan kant och yta, ikoner 22 px; pillret sist, en kapsel med text |
+| Den valda veckan rullas upp ovanför panelen | samma: rutans underkant mäts mot panelens topp och det som saknas rullas (bara under 1024 px) | vald ruta 12 oktober: underkant 484,9, panelens topp 493 (röd utan rättelsen: 556,9) |
 | Dagpanelen flyter över rutnätet | samma, utan egen yta | panelen börjar 294 px över rullytans underkant, rullytan lika hög med panelen öppen (654 px) |
 | Datumpiller med var sitt kryss, stäng-krysset till höger | samma | tre piller, tre kryss |
 | En bubbla med posterna, GRUPP och MINA som rubriker, tak 140 px | samma | rullytan 140 px med 312 px innehåll, rubrikerna Grupp och Mina |
@@ -54,9 +55,6 @@ fel som regel 12 finns för, en nivå upp: en jämförelse mot fel förebild bev
 
 - ⛔ **Märkenas färg är CP:s tillägg, inte SS.** SS-appen ritar alla prickar och streck i samma grå. CP bad om "rätt färg för
   kategori", så ramverket färgar dem efter slag, annars kalender. Formatet är SS rakt av, färgen är vår.
-- ⛔ **Den valda dagen hamnar under pillerraden.** I SS-appen står den valda veckan ovanför pillret (25 juli syns över
-  "25 juli"), eftersom rutnätet rullar dagen upp ovanför panelen. Hos oss rullas inget när en dag väljs, så pillret "12 oktober"
-  täcker den valda rutan den 12:e i bilden. Den största kvarvarande skillnaden på telefon, och den är inte åtgärdad i 0.37.0.
 - **Postraden.** SS har en högerpil (öppnar sessionen) och en rad med tid och grupp; ramverket har en chevron som fäller ut
   raden och dagen under titeln, eftersom posten öppnas i panelen och inte i en egen sida.
 - **Kalenderpillrets ikon.** SS har filterikonen (reglage) i pillret och gruppens namn som text; ramverket har kalenderikonen,
@@ -85,7 +83,7 @@ fel som regel 12 finns för, en nivå upp: en jämförelse mot fel förebild bev
 | Redigeraren: namn, färg, ikon, Standard, Avbryt och Skapa lika breda | samma, sex färger och åtta ikoner | Avbryt och Skapa lika breda; Skapa går inte att trycka utan namn |
 | "Skapa i": grupper och Mina kalendrar (`CalendarCreateDestinationSheet`) | raden Kalender öppnar samma sorts väljare, gruppens förvalda vald | ark nerifrån på telefon, centrerad ruta på dator |
 | Personlig post: välj kalender, påverkar tillgänglighet (`PersonalCalendarEntryModal`) | i en av mina: Blockerar tillgänglighet, ingen typ, ingen Kräv svar | formuläret fick kalendern `{ slag: "mina" }` och ingen typ |
-| Tillgänglighet: en rad per medlem, räknare, "Ej svarat" | `OpsSvar`: "0 kommer, 1 kommer inte, 2 har inte svarat", bara min rad har knappar | alla tre delarna också vid noll |
+| Tillgänglighet: en rad per medlem, räknare, "Ej svarat" | `OpsSvar`: "0 kommer, 1 kommer inte, 2 har inte svarat", bara min rad har knappar; vid 390 ligger knapparna under namnet | alla tre delarna också vid noll; egna namnet "Anna Ek (du)" avkortat 0 px vid 390 (röd utan rättelsen: 37 px) |
 
 ## Hantera kalendrar, Ny händelse och svaren: vad som skiljer sig
 
@@ -96,8 +94,7 @@ fel som regel 12 finns för, en nivå upp: en jämförelse mot fel förebild bev
 - **Ny händelse:** SS har datum och tid som små kapslar och typen som knappar; ramverket har appens egna fält (typ som
   rullgardin, datum och tid som fält) och raden Kalender överst. Kräv svar finns inte i SS (SS har ett eget RSVP-flöde).
 - **Svaren:** SS har tre svar (Ja, Nej, Kanske); ramverket två (Kommer, Kommer inte), som CP bad om. SS har en klocka för
-  påminnelse på den som inte svarat; ramverket har ingen påminnelse. ⛔ **Vid 390 px trycks mitt namn ihop till "Ann…"** av
-  mina två knappar. Det är en brist, inte ett val, och den är inte åtgärdad i 0.37.0.
+  påminnelse på den som inte svarat; ramverket har ingen påminnelse.
 - **Skicka mejl** visas inte (avsändarbeslutet #180 G3 saknas), och **upprepning** ingår inte (CP har inte beslutat).
 
 ## Gruppväxlaren

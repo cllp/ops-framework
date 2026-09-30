@@ -3066,6 +3066,20 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       const rulleFore = await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector("[data-kalender-rulle]")).getBoundingClientRect().height);
       // ⛔ Den 12 oktober läggs till, så att panelen får fler kort än bubblans tak rymmer: annars mäts taket aldrig.
       await page.locator('[data-cal-day="2026-10-12"]').scrollIntoViewIfNeeded();
+      // ⛔ 0.37.0: rutan läggs så att dess MITT ligger strax ovanför panelens topp och underkanten under den. Då går den att
+      // trycka på (Playwright rullar annars själv en täckt ruta fri, och provet blev grönt utan rättelsen: mätt), men en tredjedel
+      // av den täcks av panelen, som i CP:s bild. Utan rullningen efter valet står den kvar så.
+      if (telefon) {
+        await page.evaluate(() => {
+          const r = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-rulle]"));
+          const c = /** @type {HTMLElement} */ (document.querySelector('[data-cal-day="2026-10-12"]'));
+          const pl = document.querySelector("[data-dagpanel-plats]");
+          const grans = pl ? pl.getBoundingClientRect().top : r.getBoundingClientRect().bottom;
+          const cr = c.getBoundingClientRect();
+          r.scrollTop += cr.top + cr.height * 0.6 - grans;
+        });
+        await page.waitForTimeout(150);
+      }
       await page.locator('[data-cal-day="2026-10-12"]').click();
       await page.waitForTimeout(300);
       const p = await page.evaluate(() => {
@@ -3103,6 +3117,17 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
           krav(genom(p.platsYta) && genom(p.sekYta), `${namn}: panelens yta ${JSON.stringify(p.platsYta)} och ${JSON.stringify(p.sekYta)}, väntat genomskinlig och utan kant: bubblorna flyter över rutnätet (CP 2026-09-30, SS-appen).`);
           krav(p.plats.y < p.rulle.bottom - 40, `${namn}: panelen börjar ${p.plats.y}, rullytan slutar ${p.rulle.bottom}: panelen ska ligga ÖVER rutnätets nedre del, inte under det (0.36.0 staplade den under).`);
           krav(Math.abs(p.rulle.h - rulleFore) <= 1, `${namn}: rullytan var ${rulleFore} px och är ${p.rulle.h} med panelen öppen, väntat samma: panelen flyter och tar ingen plats från rutnätet.`);
+          // ⛔ 0.37.0 (CP 2026-09-30, SS-appen, `ss-dagpanel-en-dag-390-cp.png`): den valda veckan rullas upp OVANFÖR panelen. Före
+          // rättelsen hamnade den valda rutan under chipraden. Rullningen är mjuk, så vi väntar in den. Mäts mot panelens toppkant.
+          await page.waitForTimeout(900);
+          const ovan = await page.evaluate(() => {
+            const v = document.querySelector('[data-cal-day="2026-10-12"]');
+            const pl = document.querySelector("[data-dagpanel-plats]");
+            if (!v || !pl) return null;
+            return { rutansUnderkant: v.getBoundingClientRect().bottom, rutansTopp: v.getBoundingClientRect().top, panelensTopp: pl.getBoundingClientRect().top };
+          });
+          matt.push(`${namn}: vald ruta ${JSON.stringify(ovan)}`);
+          krav(!!ovan && ovan.rutansUnderkant <= ovan.panelensTopp + 0.5 && ovan.rutansTopp >= 0, `${namn}: den valda rutans underkant är ${ovan && ovan.rutansUnderkant} och panelens topp ${ovan && ovan.panelensTopp}, väntat rutan helt ovanför panelen (SS-appen rullar den valda veckan upp ovanför panelen).`);
           krav(p.plats.h <= p.yta * 0.45 + 1.5, `${namn}: panelen är ${p.plats.h} px, taket är 45 procent av ${p.yta} = ${(p.yta * 0.45).toFixed(0)} (SS max-h-[45%]).`);
           krav(!!p.postrulle && p.postrulle.ch <= 140.5 && p.postrulle.sh > p.postrulle.ch, `${namn}: bubblans rullyta ${JSON.stringify(p.postrulle)}, väntat högst 140 px hög och rullbar (SS abEventsScroll maxHeight 140). Golv: fyra poster ska inte rymmas.`);
           // Bubblan rullar, kalendern bakom står still.
@@ -3513,6 +3538,19 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const vantad = vp.width < 768 ? 44 : 32;
     const anna = f.rader.find((r) => r.uid === "anna");
     krav(!!anna && anna.knappar.length === 2 && anna.knappar.every((k) => Math.abs(k.h - vantad) < 0.6 && k.hoger <= anna.hoger + 0.5), `${namn}: Annas knappar ${JSON.stringify(anna && anna.knappar)}, väntat två på ${vantad} px inom raden.`);
+    // ⛔ 0.37.0 (CP 2026-09-30): det egna namnet trycktes ihop till "Ann..." av knapparna vid 390. Namnet får aldrig vara avkortat
+    // (scrollWidth över clientWidth på en truncate-ruta), och vid 390 ligger knapparna under namnet.
+    const namnMatt = await page.evaluate(() => {
+      const r = document.querySelector('[data-svarsrad="anna"]');
+      if (!r) return null;
+      const n = /** @type {HTMLElement | null} */ (r.querySelector("span.truncate"));
+      const k = r.querySelector("[data-svarsknappar]");
+      if (!n || !k) return null;
+      return { avkortat: n.scrollWidth - n.clientWidth, namnUnderkant: n.getBoundingClientRect().bottom, knapparTopp: k.getBoundingClientRect().top, text: (n.textContent || "").trim() };
+    });
+    matt.push(`${namn}: egna namnet ${JSON.stringify(namnMatt)}`);
+    krav(!!namnMatt && namnMatt.avkortat <= 0, `${namn}: det egna namnet är avkortat ${namnMatt && namnMatt.avkortat} px (${JSON.stringify(namnMatt)}), väntat hela namnet synligt.`);
+    if (vp.width < 768) krav(!!namnMatt && namnMatt.knapparTopp >= namnMatt.namnUnderkant - 0.5, `${namn}: knapparnas topp ${namnMatt && namnMatt.knapparTopp} ligger inte under namnets underkant ${namnMatt && namnMatt.namnUnderkant}, väntat knapparna under namnet på smal bredd.`);
     krav(f.rader.filter((r) => r.uid !== "anna").every((r) => r.knappar.length === 0), `${namn}: en annan medlems rad har knappar, men bara personen själv svarar.`);
     krav(!!f.inkorg && JSON.stringify(f.inkorg.knappar) === JSON.stringify(["Kommer", "Kommer inte"]) && f.inkorg.hoger <= f.vw + 0.5, `${namn}: inkorgens rad ${JSON.stringify(f.inkorg)}, väntat Kommer och Kommer inte inom fönstret.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `svar-${vp.width}.png`) });

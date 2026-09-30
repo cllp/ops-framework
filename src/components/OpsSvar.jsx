@@ -15,6 +15,10 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
  *
  * ⛔ SAMMANSTÄLLNINGEN STÅR ALLTID MED ALLA TRE DELARNA, också när de är noll (`sammanstallSvar`, punkt 5).
  *
+ * ⛔ PÅ SMAL BREDD LIGGER KNAPPARNA UNDER NAMNET (0.37.0). CP 2026-09-30: det egna namnet trycktes ihop till "Ann..." av två
+ * knappar på 44 px bredvid sig vid 390. Knapparna får en egen rad under 768 px (`w-full`), och namnet får hela raden vid
+ * avataren. Från 768 px står de bredvid, som förut. Mäts i skalytan, avsnitt 33.
+ *
  * ⛔ BARA MIN RAD HAR KNAPPAR. Regeln låter bara personen själv skriva sitt svar, och en knapp på någon annans rad hade
  * varit en knapp regeln nekar.
  *
@@ -49,7 +53,7 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar" }) {
                 {jag ? " (du)" : ""}
               </span>
               {jag ? (
-                <OpsSvarsknappar vald={s} onSvara={onSvara} namn={m.namn} />
+                <OpsSvarsknappar vald={s} onSvara={onSvara} namn={m.namn} className="w-full items-start md:w-auto md:items-end" />
               ) : (
                 <span className="shrink-0 text-meta text-ink-secondary">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
               )}
@@ -67,9 +71,9 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar" }) {
  * ⛔ KNAPPEN SPÄRRAS MEDAN SVARET SKRIVS, OCH ETT FEL STÅR UTSKRIVET. Ett tryck som inte gick fram och inte säger det ser ut
  * som ett svar, och då står frågan kvar i någon annans sammanställning som "har inte svarat" utan att någon vet varför.
  *
- * @param {{ vald?: string, onSvara: (val: "kommer" | "kommerInte") => Promise<unknown> | void, namn?: string }} props
+ * @param {{ vald?: string, onSvara: (val: "kommer" | "kommerInte") => Promise<unknown> | void, namn?: string, className?: string }} props
  */
-export function OpsSvarsknappar({ vald, onSvara, namn }) {
+export function OpsSvarsknappar({ vald, onSvara, namn, className }) {
   const [skriver, setSkriver] = useState(/** @type {null | "kommer" | "kommerInte"} */ (null));
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   /** @param {"kommer" | "kommerInte"} v */
@@ -101,7 +105,7 @@ export function OpsSvarsknappar({ vald, onSvara, namn }) {
     </button>
   );
   return (
-    <span className="flex shrink-0 flex-col items-end gap-1">
+    <span className={cx("flex shrink-0 flex-col items-end gap-1", className)}>
       <span data-svarsknappar="" className="flex gap-1.5">
         {knapp("kommer", "Kommer")}
         {knapp("kommerInte", "Kommer inte")}

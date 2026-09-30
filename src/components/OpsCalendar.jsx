@@ -1021,6 +1021,27 @@ export function OpsCalendar({
   }, [panelOppen]);
 
   /*
+   * ⛔ VALD DAG RULLAS UPP OVANFÖR PANELEN PÅ TELEFON (0.37.0), som SS-appen. CP 2026-09-30, med en skärmbild ur SS-appen
+   * bredvid vår: den valda veckan ligger kvar ovanför den flytande panelen, och hos oss hamnade den valda rutan UNDER den.
+   * Panelen flyter över rutnätets nedre del under 1024 px, så en ruta långt ner täcks. Här mäts rutans underkant mot
+   * panelens överkant (inga egna tal; luften är rutans egen radavstånd) och rullas bara det som saknas, uppåt. `scrollBy`
+   * på rullbehållaren och inte `scrollIntoView`, av samma skäl som `toToday`. Från 1024 px ligger panelen i en egen
+   * kolumn och ingenting täcks. Den översta valda dagen räknas: vid ett intervall är det dess rad som ska synas.
+   */
+  const forstaValda = chosen.length > 0 ? [...chosen].sort()[0] : null;
+  useEffect(() => {
+    const rulle = rulleRef.current;
+    const panel = panelRef.current;
+    if (!forstaValda || !rulle || !panel || panelHojd <= 0) return;
+    if (typeof window.matchMedia === "function" && !window.matchMedia("(max-width: 1023.98px)").matches) return;
+    const ruta = /** @type {HTMLElement | null} */ (rulle.querySelector(`[data-cal-day="${forstaValda}"]`));
+    if (!ruta) return;
+    const luft = parseFloat(getComputedStyle(rulle.querySelector("[data-cal-day]") || ruta).rowGap || "0") || 8;
+    const saknas = ruta.getBoundingClientRect().bottom + luft - panel.getBoundingClientRect().top;
+    if (saknas > 0) rulle.scrollBy({ top: saknas, behavior: "smooth" });
+  }, [forstaValda, panelHojd]);
+
+  /*
    * ══ DRA-MARKERING OCH LÅNGTRYCK (SS `MonthGrid.jsx:69-148`) ═══════════════
    *
    * ⛔ 12 PX INNAN ETT DRAG ÄR ETT DRAG. Under det är det ett tryck med en darrande tumme, och ett tryck ska välja en
