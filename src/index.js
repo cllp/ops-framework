@@ -10,7 +10,7 @@
  */
 
 // ── Skal ───────────────────────────────────────────────────────────────────
-export { OpsAppShell } from "./components/OpsAppShell.jsx";
+export { OpsAppShell, useOppnaSkapa } from "./components/OpsAppShell.jsx";
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
 export { OpsHub, OpsHubModul, OpsHubTillbaka } from "./components/OpsHub.jsx";
 export { OpsBrand } from "./components/OpsBrand.jsx";
