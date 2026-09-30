@@ -34,6 +34,36 @@ export function createMemorySource(seed = {}) {
   /** @param {string} collectionName */
   const load = (collectionName) => (store[collectionName] ??= []);
 
+  /*
+   * ⛔ TRE SYNKRONA KÄRNOR, EN FÖR VARJE SKRIVNING, SOM BÅDE DE ENSKILDA ANROPEN OCH `batch` ANVÄNDER.
+   * Skrev `batch` sin egen kopia av "ett eget id ersätter" och "update av något som saknas är ett fel"
+   * kunde de två gå isär, och provsviten hade mätt en `batch` som inte är den enskilda skrivningen.
+   */
+  /** @param {string} collectionName @param {Partial<T>} data @returns {T} */
+  const skapa = (collectionName, data) => {
+    const entry = /** @type {T} */ ({ ...data, id: /** @type {any} */ (data).id ?? newId() });
+    const rows = load(collectionName);
+    const i = rows.findIndex((r) => r.id === entry.id);
+    if (i === -1) rows.push(entry);
+    else rows[i] = entry;
+    return { ...entry };
+  };
+  /** @param {string} collectionName @param {string} id @param {Partial<T>} data @returns {T} */
+  const uppdatera = (collectionName, id, data) => {
+    const rows = load(collectionName);
+    const i = rows.findIndex((r) => r.id === id);
+    if (i === -1) throw new Error(`minne: ${collectionName}/${id} finns inte. En uppdatering av något som saknas är ett fel, inte en tyst skapelse.`);
+    rows[i] = { ...rows[i], ...data, id };
+    return { ...rows[i] };
+  };
+  /** @param {string} collectionName @param {string} id */
+  const tabort = (collectionName, id) => {
+    const rows = load(collectionName);
+    const i = rows.findIndex((r) => r.id === id);
+    if (i === -1) throw new Error(`minne: ${collectionName}/${id} finns inte.`);
+    rows.splice(i, 1);
+  };
+
   return createDataSource({
     name: "minne",
 
@@ -68,27 +98,47 @@ export function createMemorySource(seed = {}) {
      * `addDoc`. Det är den andra halvan av samma kontrakt.
      */
     async create(collectionName, data) {
-      const entry = /** @type {T} */ ({ ...data, id: /** @type {any} */ (data).id ?? newId() });
-      const rows = load(collectionName);
-      const i = rows.findIndex((r) => r.id === entry.id);
-      if (i === -1) rows.push(entry);
-      else rows[i] = entry;
-      return { ...entry };
+      return skapa(collectionName, data);
     },
 
     async update(collectionName, id, data) {
-      const rows = load(collectionName);
-      const i = rows.findIndex((r) => r.id === id);
-      if (i === -1) throw new Error(`minne: ${collectionName}/${id} finns inte. En uppdatering av något som saknas är ett fel, inte en tyst skapelse.`);
-      rows[i] = { ...rows[i], ...data, id };
-      return { ...rows[i] };
+      return uppdatera(collectionName, id, data);
     },
 
     async remove(collectionName, id) {
-      const rows = load(collectionName);
-      const i = rows.findIndex((r) => r.id === id);
-      if (i === -1) throw new Error(`minne: ${collectionName}/${id} finns inte.`);
-      rows.splice(i, 1);
+      tabort(collectionName, id);
+    },
+
+    /**
+     * Allt eller inget (kontraktets regel 6). Skrivningarna görs mot minnet i tur och ordning, och kastar
+     * en av dem sätts HELA lagret tillbaka till hur det var före anropet innan felet går vidare.
+     *
+     * ⛔ ÅTERSTÄLLNINGEN ÄR EN KOPIA TAGEN FÖRE, INTE EN ÅNGRING EFTER. En ångring per skrivning hade
+     * behövt veta vad varje `create` ersatte, och en `remove` vilken rad den tog bort: den kopian är
+     * exakt det en databas gör, fast här i ett par rader.
+     */
+    async batch(ops) {
+      if (!Array.isArray(ops) || ops.length === 0) {
+        throw new Error("minne.batch: en lista med minst en skrivning krävs. En tom batch är en batch som ser ut att ha lyckats.");
+      }
+      /** @type {Record<string, T[]>} */
+      const fore = {};
+      for (const [k, v] of Object.entries(store)) fore[k] = v.map((r) => ({ ...r }));
+      try {
+        return ops.map((o) => {
+          if (o.op === "create") return skapa(o.collection, o.data);
+          if (o.op === "update") return uppdatera(o.collection, o.id, o.data);
+          if (o.op === "remove") {
+            tabort(o.collection, o.id);
+            return null;
+          }
+          throw new Error(`minne.batch: okänd skrivning "${/** @type {any} */ (o).op}". Giltiga: create, update, remove.`);
+        });
+      } catch (fel) {
+        for (const k of Object.keys(store)) delete store[k];
+        Object.assign(store, fore);
+        throw fel;
+      }
     },
   });
 }

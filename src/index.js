@@ -181,7 +181,10 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som
  * körs utan skärm, och reglerna genereras av ett skript.
  */
-export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
+export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, INBJUDNING_GILTIGHET_DAGAR, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
+export { gruppmarkeProps } from "./lib/gruppikoner.js";
+export { medlemsinfo } from "./lib/gruppmedlemmar.js";
+export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
 export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment } from "./lib/regler.js";
 
 /*
@@ -199,6 +202,7 @@ export { OpsGruppvaljare } from "./components/OpsGruppvaljare.jsx";
 export { OpsGruppfilter } from "./components/OpsGruppfilter.jsx";
 export { OpsGruppmarke } from "./components/OpsGruppmarke.jsx";
 export { OpsGruppanel, OpsGruppvaxlare } from "./components/OpsGruppanel.jsx";
+export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";

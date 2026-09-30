@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  ADMINGRUPPFALT,
+  AGARGRUPPFALT,
+  GRUPPFALT,
+  GRUPPIKONER,
+  INBJUDNING_GILTIGHET_DAGAR,
+  MAX_GRUPPBESKRIVNING,
+  MAX_GRUPPORT,
   ANVANDARFALT,
   INBJUDNINGSSTATUS,
   MEDLEMSSTATUS,
@@ -226,6 +233,60 @@ describe("gruppen", () => {
   });
 });
 
+describe("gruppens utseende och uppgifter (0.32.0, #180)", () => {
+  it("⛔ en rad utan de nya fälten läses med tomma strängar och svenska, ingen migrering", () => {
+    const g = byggGrupp(GRUPP());
+    expect({ farg: g.farg, ikon: g.ikon, bild: g.bild, beskrivning: g.beskrivning, ort: g.ort, epostsprak: g.epostsprak }).toEqual({
+      farg: "", ikon: "", bild: "", beskrivning: "", ort: "", epostsprak: "sv",
+    });
+  });
+
+  it("fälten byggs och trimmas", () => {
+    const g = byggGrupp({ ...GRUPP(), farg: "3", ikon: "portfolj", bild: " grupper/x/logga.png ", beskrivning: " Kort ", ort: " Visby ", epostsprak: "en" });
+    expect(g).toMatchObject({ farg: "3", ikon: "portfolj", bild: "grupper/x/logga.png", beskrivning: "Kort", ort: "Visby", epostsprak: "en" });
+  });
+
+  it("⛔ en färg utanför paletten avvisas", () => {
+    expect(() => byggGrupp({ ...GRUPP(), farg: "7" })).toThrow(/groups: färgen "7" för "bolaget" finns inte/);
+    expect(() => byggGrupp({ ...GRUPP(), farg: "#c9a84c" })).toThrow(/groups: färgen/);
+  });
+
+  it("⛔ en ikon utanför listan avvisas, initialer tas emot i formen initialer:AB", () => {
+    expect(() => byggGrupp({ ...GRUPP(), ikon: "gitarr" })).toThrow(/groups: ikonen "gitarr" för "bolaget" finns inte/);
+    expect(byggGrupp({ ...GRUPP(), ikon: "initialer:ÅB" }).ikon).toBe("initialer:ÅB");
+    expect(byggGrupp({ ...GRUPP(), ikon: "initialer:A" }).ikon).toBe("initialer:A");
+    expect(() => byggGrupp({ ...GRUPP(), ikon: "initialer:ABCD" })).toThrow(/groups: ikonen/);
+    expect(() => byggGrupp({ ...GRUPP(), ikon: "initialer:" })).toThrow(/groups: ikonen/);
+    for (const i of GRUPPIKONER) expect(byggGrupp({ ...GRUPP(), ikon: i }).ikon).toBe(i);
+    expect(GRUPPIKONER.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("⛔ beskrivningen och orten har tak", () => {
+    expect(() => byggGrupp({ ...GRUPP(), beskrivning: "x".repeat(MAX_GRUPPBESKRIVNING + 1) })).toThrow(/groups: beskrivningen för "bolaget" är 281 tecken. Taket är 280/);
+    expect(byggGrupp({ ...GRUPP(), beskrivning: "x".repeat(MAX_GRUPPBESKRIVNING) }).beskrivning).toHaveLength(280);
+    expect(() => byggGrupp({ ...GRUPP(), ort: "x".repeat(MAX_GRUPPORT + 1) })).toThrow(/groups: orten för "bolaget" är 81 tecken. Taket är 80/);
+  });
+
+  it("e-postspråket är sv eller en", () => {
+    expect(() => byggGrupp({ ...GRUPP(), epostsprak: "de" })).toThrow(/groups: e-postspråket "de" för "bolaget" finns inte/);
+  });
+
+  it("⛔ ett okänt fält avvisas fortfarande", () => {
+    expect(() => byggGrupp({ ...GRUPP(), color: "#fff" })).toThrow(/groups: fälten color för "bolaget" känns inte igen/);
+  });
+
+  it("⛔ GRUPPFALT är härledd ur de två redigerbara listorna, id och skapadAv står i ingen", () => {
+    expect([...GRUPPFALT].sort()).toEqual(["id", ...AGARGRUPPFALT, "skapadAv"].sort());
+    expect(ADMINGRUPPFALT).not.toContain("moduler");
+    expect(ADMINGRUPPFALT).not.toContain("arkiverad");
+    expect(AGARGRUPPFALT).toEqual(expect.arrayContaining([...ADMINGRUPPFALT, "moduler", "arkiverad"]));
+    for (const f of ["id", "skapadAv"]) {
+      expect(ADMINGRUPPFALT).not.toContain(f);
+      expect(AGARGRUPPFALT).not.toContain(f);
+    }
+  });
+});
+
 describe("gruppens moduler mot de registrerade", () => {
   /*
    * ⛔ CP 2026-09-27: "Ett påhittat modul-id går att spara." Formen var rätt
@@ -328,8 +389,12 @@ describe("medlemskapet", () => {
   });
 
   it("en okänd roll avvisas", () => {
-    expect(() => byggMedlemskap({ ...MEDLEM(), roll: "admin" })).toThrow(/memberships: rollen "admin" för "uid-1\\|bolaget" finns inte/);
-    expect(ROLLER).toEqual(["agare", "medlem"]);
+    expect(() => byggMedlemskap({ ...MEDLEM(), roll: "gast" })).toThrow(/memberships: rollen "gast" för "uid-1\\|bolaget" finns inte/);
+    expect(ROLLER).toEqual(["agare", "admin", "medlem"]);
+  });
+
+  it("rollen admin är giltig (0.32.0, #180)", () => {
+    expect(byggMedlemskap({ ...MEDLEM(), roll: "admin" }).roll).toBe("admin");
   });
 
   it("en okänd typ avvisas", () => {
@@ -400,6 +465,40 @@ describe("inbjudan", () => {
   });
 });
 
+describe("inbjudans kod, giltighet och utskick (0.32.0, #180)", () => {
+  it("⛔ en rad utan de nya fälten får ingen kod, 30 dagars giltighet och noll utskick", () => {
+    const fore = Date.now();
+    const i = byggInbjudan(INBJUDAN());
+    expect(i.tokenHash).toBe("");
+    expect(i.skickad).toBe("");
+    expect(i.antalSkickade).toBe(0);
+    const dagar = (Date.parse(i.giltigTill) - fore) / 86_400_000;
+    expect(INBJUDNING_GILTIGHET_DAGAR).toBe(30);
+    expect(dagar).toBeGreaterThan(29.99);
+    expect(dagar).toBeLessThan(30.01);
+  });
+
+  it("⛔ koden lagras bara som en SHA-256 i hex, aldrig i klartext", () => {
+    const hash = "a".repeat(64);
+    expect(byggInbjudan({ ...INBJUDAN(), tokenHash: hash.toUpperCase() }).tokenHash).toBe(hash);
+    expect(() => byggInbjudan({ ...INBJUDAN(), tokenHash: "hemlig-kod" })).toThrow(/invitations: tokenHash för "inb-1" är inte en SHA-256/);
+  });
+
+  it("giltigTill och skickad måste vara tider, antalSkickade ett heltal", () => {
+    expect(byggInbjudan({ ...INBJUDAN(), giltigTill: "2026-12-01T00:00:00.000Z", skickad: "2026-10-01T10:00:00.000Z", antalSkickade: 2 })).toMatchObject({
+      giltigTill: "2026-12-01T00:00:00.000Z", skickad: "2026-10-01T10:00:00.000Z", antalSkickade: 2,
+    });
+    expect(() => byggInbjudan({ ...INBJUDAN(), giltigTill: "snart" })).toThrow(/giltigTill "snart"/);
+    expect(() => byggInbjudan({ ...INBJUDAN(), skickad: "igår" })).toThrow(/skickad "igår"/);
+    expect(() => byggInbjudan({ ...INBJUDAN(), antalSkickade: -1 })).toThrow(/antalSkickade/);
+    expect(() => byggInbjudan({ ...INBJUDAN(), antalSkickade: 1.5 })).toThrow(/antalSkickade/);
+  });
+
+  it("rollen admin går att bjuda in till", () => {
+    expect(byggInbjudan({ ...INBJUDAN(), roll: "admin" }).roll).toBe("admin");
+  });
+});
+
 describe("vitlistan (#160, #161)", () => {
   it("byggs, och e-posten blir gemener", () => {
     const rad = byggVitlisterad({ epost: "Vitlistad@Example.com", tillagdAv: {}, tid: "2026-09-28T00:00:00.000Z" });
@@ -456,6 +555,14 @@ describe("regelfragmentet: formen, inte beteendet", () => {
   it("ägarkravet går att slå på per samling", () => {
     expect(gruppadSamling("konfig", { agareKravsForSkrivning: true })).toContain("opsArAgare(request.resource.data.groupId)");
     expect(gruppadSamling("handelser")).not.toContain("opsArAgare(request.resource.data.groupId)");
+  });
+
+  it("⛔ admin ändrar utseende, ägare även moduler: hasOnly härleds ur samma listor som modellen (0.32.0, #180)", () => {
+    const text = regelfragment();
+    expect(text).toContain("function opsArAdmin(gid)");
+    expect(text).toContain(`hasOnly([${AGARGRUPPFALT.map((f) => `"${f}"`).join(", ")}])`);
+    expect(text).toContain(`hasOnly([${ADMINGRUPPFALT.map((f) => `"${f}"`).join(", ")}])`);
+    expect(text).toContain("match /invitations/{iid} {\n      allow read: if opsArAdmin(resource.data.groupId);\n      allow create: if false;");
   });
 
   // ══ #156: users har fått en hasOnly, splittad från read/delete ═══════════

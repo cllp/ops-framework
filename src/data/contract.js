@@ -51,7 +51,26 @@
  * realtid och inte har det ser exakt likadan ut som en som har det, ända tills
  * någon undrar varför en post inte dök upp. Det felet går inte att se, bara att
  * misstänka.
- */
+ *
+ * ⛔ 6. `batch` ÄR FRIVILLIG PÅ SAMMA SÄTT, OCH DEN ÄR ALLT ELLER INGET (0.32.0, #180).
+ *
+ * `skapaGrupp` skriver gruppen OCH ägarens medlemskap, och före 0.32.0 var det två anrop efter
+ * varandra: föll det andra låg en grupp utan ägare kvar, en rad ingen kan läsa (`groups` läses av
+ * medlemmar) och ingen kan städa (`delete: if false`). Kostnaden var känd och stod utskriven i
+ * filhuvudet, "ska inte låtsas göra det". Nu finns operationen, och det är en ANNAN sak än fem nya
+ * anrop: `batch(ops)` skriver alla eller ingen, och kastar utan att ha skrivit något om en av dem
+ * inte går.
+ *
+ * Den står INTE i `OPERATIONS` av samma skäl som `subscribe`: en JSON-fil i repot kan inte skriva
+ * alls, och att kräva metoden hade tvingat den adaptern att ljuga med en loop som ser atomär ut.
+ * Den som behöver den frågar källan (`typeof kalla.batch === "function"`) och får ett ärligt nej.
+ * Svaret är en lista i samma ordning som `ops`: den skapade eller uppdaterade posten, `null` för en
+ * `remove`.
+ *
+ * ⛔ EN APPS ADMIN-ADAPTER HAR SAMMA SKYLDIGHET. Ramverket importerar aldrig Admin SDK, så adaptern
+ * bor i appens functions, och med Admin SDK är `batch` en `db.batch()` med `set`/`update`/`delete`
+ * och en `commit()`. Se README, avsnittet om `createGroupService`.
+  */
 
 /**
  * @template T
@@ -63,6 +82,16 @@
  * @property {(collectionName: string, id: string) => Promise<void>} remove
  * @property {(collectionName: string, query: Query | undefined, listener: Listener<T>) => Unsubscribe} [subscribe]
  *   ⛔ FRIVILLIG. Se regel 5 nedan.
+ * @property {(ops: ReadonlyArray<BatchOp<T>>) => Promise<Array<T | null>>} [batch]
+ *   ⛔ FRIVILLIG, OCH ALLT ELLER INGET. Se regel 6 nedan.
+ */
+
+/**
+ * En skrivning i en `batch`. Samma betydelse som `create`, `update` och `remove` var för sig.
+ * @template T
+ * @typedef {{ op: "create", collection: string, data: Partial<T> }
+ *   | { op: "update", collection: string, id: string, data: Partial<T> }
+ *   | { op: "remove", collection: string, id: string }} BatchOp
  */
 
 /**

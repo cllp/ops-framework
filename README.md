@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**93 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**95 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -653,9 +653,9 @@ datamodellen ändras.
 | Samling | Innehåll | Skrivs av |
 |---|---|---|
 | `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN`, och sedan #156: `telefon` (E.164 eller tom), `stad`, `presentation` (max `MAX_PRESENTATION`), `lankar` (`{ plattform, url }[]`, url https, plattform ur appens lista), `bildSokvag` | personen själv, bara sin egen rad |
-| `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv` | ägare i gruppen. Aldrig radering, arkivering |
-| `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER`, `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS`, plus `namn` och `bild` | ⛔ **bara serversidan** |
-| `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv` | ägare i gruppen. Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137) |
+| `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv`, och sedan 0.32.0 (#180) `farg` (ur `PROFILFARGER`), `ikon` (ur `GRUPPIKONER` eller `initialer:AB`), `bild` (lagringssökväg), `beskrivning` (max `MAX_GRUPPBESKRIVNING`), `ort` (max `MAX_GRUPPORT`), `epostsprak` (`sv`\|`en`). Tomma strängar och inte utelämnade fält | ⛔ **admin** ändrar utseende och uppgifter (`ADMINGRUPPFALT`), **ägare** även `moduler` och `arkiverad` (`AGARGRUPPFALT`), `id` och `skapadAv` ändrar ingen. Aldrig radering, arkivering |
+| `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER` (`agare`, `admin`, `medlem`), `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS`, plus `namn` och `bild` | ⛔ **bara serversidan**. Sedan 0.32.0 LÄSER en aktiv medlem gruppens övriga medlemskap (medlemslistan), aldrig en annan grupps |
+| `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv`, och sedan 0.32.0 (#180) `tokenHash` (SHA-256 i hex av engångskoden, eller tom sträng: koden lagras aldrig), `giltigTill` (ISO, `INBJUDNING_GILTIGHET_DAGAR` = 30 dagar), `skickad` (ISO eller tom) och `antalSkickade` | ⛔ **skapas bara av serversidan** (`bjudIn`), ägare och admin läser och kan återkalla (bara `status`). Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137), koden och utskicket i #180 (G3) |
 
 ⛔ **EXAKT EN GRUPPNYCKEL PER RAD.** Varje rad bär `groupId`, ett värde, aldrig
 en lista. Läsregeln blir ETT uppslag: finns `memberships/{uid}_{groupId}` med
@@ -730,6 +730,8 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 | | |
 |---|---|
 | `OpsMedlemmar` | listan per grupp: bjud in, ändra roll, ta bort. ⛔ **Aldrig sig själv**: den som tar bort sitt eget ägarskap låser ut sig ur sin egen grupp, och `migUid` är obligatorisk just därför. Utan den vet vyn inte vilken rad som är ens egen, och skyddet blir en gissning |
+| `OpsGruppSida` | 0.32.0, #180 G2: gruppens detaljsida (SS `GroupDetailView`), se [Gruppkortet, detaljsidan och redigering](#gruppkortet-detaljsidan-och-redigering-0320-180-g2). `grupp`, `medlemmar` (ur `medlemsinfo`), `snabbval`, `onTillbaka`, `onRedigera`, `onVisaMedlem`, `children` |
+| `OpsGruppFormular` | 0.32.0, #180: formuläret "Ny grupp" i skapa-panelen (`skapa.grupp`), se [Ny grupp](#ny-grupp-0320-180). `onSkapa` är appens anrop av `skapaGrupp`, `onSkapad(groupId, svar)` ger id:t att navigera med |
 | `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto. Sedan #161: med `props.onSkapaGrupp` ritas i stället en "Skapa din första grupp"-form (ett namnfält, `skapaEtikett`), för den som ÄR vitlistad men bara saknar en grupp än. Utan `onSkapaGrupp` är sidan oförändrad: kontakt plus utloggning |
 
 ⛔ **`kanAndra` i `OpsMedlemmar` är en artighet, inte ett skydd.** Samma not som i `OpsKatalogInstallning`: den som vill skriva ändå öppnar konsolen. Det riktiga låset är att `memberships` inte går att skriva från en klient alls, och att callablen kontrollerar ägarskapet själv.
@@ -767,28 +769,28 @@ precis vilka adresser det är värt att gissa lösenord för.
 ```js
 import { createGroupService } from "@staiger/ops-framework/node";
 
-const tjanst = createGroupService({ kalla });
-const grupp = await tjanst.skapaGrupp({ uid, epost, namn: "Mitt bolag" });
+const tjanst = createGroupService({ kalla }); // kalla MÅSTE ha batch
+const svar = await tjanst.skapaGrupp({
+  uid,
+  epost,
+  grupp: { namn: "Mitt bolag", farg: "3", ikon: "portfolj", beskrivning: "", ort: "Visby", epostsprak: "sv" },
+  inbjudningar: [{ epost: "kollega@exempel.se", roll: "admin" }, { epost: "ny@exempel.se" }],
+});
+// svar: { groupId, tillagda: [...], inbjudna: [...], fel: [{ epost, fel }] }
 ```
 
-`skapaGrupp({ uid, epost, namn, skapadAv? })`:
+`skapaGrupp({ uid, epost, grupp, inbjudningar?, skapadAv? })` (0.32.0, #180: `namn` är ersatt av `grupp`, ett objekt med `namn` och de valfria `farg`, `ikon`, `bild`, `beskrivning`, `ort`, `epostsprak`):
 
 1. Läser `vitlista/{epost}` (gemener). Finns raden inte kastas det, med skälet.
-2. Listar den inloggades AKTIVA medlemskap. Finns redan ett kastas det:
-   ⛔ **EN GRUPP PER PERSON, TILLS [#162](https://github.com/cllp/ops-framework/issues/162) ÄR KLAR.** Delning mellan
-   grupper finns inte än, och att låta någon skapa en andra grupp i dag hade
-   skrivit in ett tillstånd appen ännu inte har någon yta för.
-3. Härleder ett grupp-id ur namnet (en slug plus en kort svans, så "Bolaget"
-   och "Bolaget" inte krockar och den ena tyst ersätter den andra, se
-   `DataSource.create`), bygger gruppen med `byggGrupp` och skriver den.
-4. Skriver ägarens medlemskap med `byggMedlemskap`, roll `agare`.
+2. Validerar `inbjudningar` och `grupp` (`byggGrupp`) INNAN något skrivs. En adress som inte är en adress, eller rollen `agare`, kastar med "Inget har skrivits". Skaparens egen adress och dubbletter tas bort tyst.
+3. Härleder ett grupp-id ur namnet (en slug plus en kort svans, så "Bolaget" och "Bolaget" inte krockar och den ena tyst ersätter den andra, se `DataSource.create`).
+4. Skriver gruppen OCH ägarens medlemskap (roll `agare`, personens `namn` och `bild` ur `users`) i EN `kalla.batch`, allt eller inget.
+5. Seedar katalogerna (`kataloger`), om appen angav dem.
+6. Bjuder in var och en via `bjudIn`, EFTER commit och best effort: en adress med konto blir ett medlemskap direkt (`tillagda`), annars en väntande inbjudan (`inbjudna`). En inbjudan som faller hamnar i `fel` med skälet och gör inte att gruppen faller. ⛔ **Tomhet är ett svar:** utan inbjudningar är alla tre listorna tomma, aldrig utelämnade.
 
-⛔ **"SAMMA BATCH" ÄR SEKVENSIELLA ANROP, INTE EN TRANSAKTION.** Datalagrets
-kontrakt har ingen batch- eller transaktionsoperation. `skapaGrupp` skriver
-gruppen och sedan medlemskapet, i den ordningen, precis som
-`uppdateraProfil` skriver `users` och sedan `memberships` "i samma steg". Ett
-riktigt skydd mot en krasch mitt emellan de två skrivningarna finns inte i den
-här versionen.
+⛔ **EN PERSON KAN SKAPA FLERA GRUPPER (0.32.0).** Spärren "en grupp per person, tills [#162](https://github.com/cllp/ops-framework/issues/162)" är borttagen: gruppanelen, växlaren och plusset har ytan för fler än en. Vitlistan är fortfarande grinden.
+
+⛔ **`kalla.batch` KRÄVS, OCH DET ÄR EN BRYTANDE ÄNDRING FÖR APPENS ADMIN-ADAPTER.** Före 0.32.0 var "samma batch" två sekventiella anrop, och ett fel mitt emellan lämnade en grupp utan ägare: en rad ingen kan läsa och ingen kan ta bort (`delete: if false`). Datakontraktet har nu en FRIVILLIG `batch(ops)` (`src/data/contract.js`, regel 6) med `ops` som `{ op: "create", collection, data }`, `{ op: "update", collection, id, data }` eller `{ op: "remove", collection, id }`, och svaret är en lista i samma ordning (posten, `null` för en `remove`). `createGroupService` avvisar en källa utan `batch` när tjänsten byggs. `createMemorySource` har den (återställer hela lagret vid fel), `createFirestoreSource` har den när SDK:n har `writeBatch`. En Admin SDK-adapter (i appens functions, ramverket importerar aldrig Admin SDK) skriver den som `db.batch()` med `set`/`update`/`delete` och `commit()`.
 
 ⛔ **BARA NODSIDAN, SAMMA SKÄL SOM `createInvitationService`.** En callable
 kör med Admin SDK, förbi reglerna, och kontrollen ligger i FUNKTIONEN och inte
@@ -796,7 +798,7 @@ bara i regeln: `vitlista` har ingen regelgren att kontrollera mot över huvud
 taget.
 
 `OpsUtanMedlemskap props.onSkapaGrupp` (namnet, se ovan) kopplas till den här
-funktionen via appens egen callable, precis som `OpsMedlemmar props.onBjudIn`
+funktionen via appens egen callable (den anropar `skapaGrupp` med `grupp: { namn }`), precis som `OpsMedlemmar props.onBjudIn`
 kopplas till `bjudIn`. `byggVitlisterad` och `medlemskapsId` är återexporterade
 ur `@staiger/ops-framework/node` för den som skriver appens EGEN vitlista-yta
 (en administratörssida läggs till i #162): att skriva raden är fortfarande
@@ -1527,6 +1529,44 @@ fält klipptes utan synlig knapprad, och valkorten var höga med stor text och m
 formuläret sitt `<form>` `id={formId}` och skickar appen `skapa.sparaEtikett`, ritar skalet `Spara` som `type="submit" form={formId}` i den
 fasta knappraden. Utan `sparaEtikett` har formuläret en egen knapp och bara `Avbryt` är skalets. Övriga etiketter: `avbrytEtikett`,
 `tillbakaEtikett`, `skapasIEtikett`, `skapaIRubrik`. `OpsButton` fick propen `form` för det här.
+
+#### Ny grupp (0.32.0, #180)
+
+CP 2026-09-29 23:30: "Skapa grupp och bjuda in till grupp finns inte ännu. Skapa grupp i web skall ha samma funktion som i SessionStudio."
+`skapa.grupp` är en FUNKTION `({ formId, onKlar }) => nod` som ritar formuläret, normalt `OpsGruppFormular`:
+
+```jsx
+<OpsAppShell
+  skapa={{
+    grupp: ({ formId, onKlar }) => (
+      <OpsGruppFormular
+        formId={formId}
+        onKlar={onKlar}
+        onSkapa={({ grupp, inbjudningar }) => skapaGruppCallable({ grupp, inbjudningar })} // svarar { groupId, tillagda, inbjudna, fel }
+        onSkapad={(groupId) => navigate(`/grupp/${groupId}`)}
+      />
+    ),
+    sparaEtikett: "Spara",
+  }}
+/>
+```
+
+Med `skapa.grupp` får plusset raden "Ny grupp" (efter Ny händelse och Nytt ärende, som SS plusmeny), och "Skapa grupp" i gruppanelen (utfälld och infälld) och i "Byt grupp"-arket öppnar SAMMA panel. `grupper.onSkapa` behövs då inte, och om båda finns vinner `skapa.grupp`: en väg att skapa en grupp är en sanning. Adressen är `?skapa=grupp`. `nyGruppEtikett` byter radens namn och panelens rubrik.
+
+`OpsGruppFormular` (props `formId`, `onSkapa`, `onSkapad`, `onKlar`, `sprak`, `etiketter`) har SS `ManageGroupModal`s ordning: en hopfälld rad **Visuell identitet** (märket i vald färg som förhandsvisning, sex färgprickar, ikonrutor med en "Aa"-ruta för initialer och ett fält för egna initialer, 1 till 3 tecken), **Gruppnamn** (krävs), **Beskrivning**, **Ort**, **Medlemmar** (e-post, roll Admin eller Medlem, Lägg till, listan före spara) och **Mer inställningar** (hopfälld, med E-postspråk).
+
+⛔ **BILDEN LADDAS UPP FÖRST NÄR GRUPPEN FINNS**, som i SS (`!isNew && form.id`): en lagringssökväg bär gruppens id. Formuläret säger det, och `onSkapad(groupId, svar)` ger appen id:t att navigera till gruppens sida med. ⛔ **Faller en inbjudan visas det:** panelen stängs inte utan visar vilka adresser som inte blev av och varför. ⛔ **Stängningen går inte bakåt i historiken** (`onKlar` gör `replaceState`, inte `history.back()`), så appens navigering efter `onSkapad` inte ångras av ett sent `back`.
+
+⛔ **Färg och ikon i märket ritas överallt** (`OpsGruppanel`, `OpsGruppvaxlare`): `GruppanelGrupp` tar `farg` och `ikon`, `gruppmarkeProps(grupp)` gör dem till det `OpsIdentity` behöver (`tone`, `icon`, `initialer`). Färgen är en av de sex identitetstonerna (`PROFILFARGER`), inte en hex: en fri färg följer inte med när mörkt läge kommer. Ikonerna är `GRUPPIKONER` (grupp, portfölj, byggnad, hus, bok, jordglob, stjärna, hjärta, blixt, krona), ramverkets egna id och inte Lucide-namn. `GRUPPINITIALER_FORM` är formen `initialer:AB`.
+
+#### Gruppkortet, detaljsidan och redigering (0.32.0, #180 G2)
+
+Kolumnbredden är SS per formulär: `OpsSkapaPanel` tar `kolumn`, `"smal"` (672 px, SS `GroupEditRouteView`, gäller Ny grupp och Redigera grupp) och `"bred"` (896 px, SS `EventEditRouteView`, gäller händelse, ärende och moduler). Skalet väljer.
+
+- **Kortet i `OpsGruppanel`** har (i) (`onInfo(id)`, appen öppnar `OpsGruppSida`) och en penna (`onRedigera(id)`), båda uppe till höger efter appens egna `atgarder`. ⛔ **Pennan ritas bara för `roll` `agare` eller `admin`**, som SS `canEditGroup` (#2705): en roll som saknas ger ingen penna. Medlemsantal och avatarrad (fyra plus "+N") fanns redan som `medlemsantal` och `avatarer`. Det valda kortet har gruppens `farg` som kant och ljus bakgrund (SS `GroupCard.jsx:60-65`), märket bär `farg` och `ikon` (`GruppanelGrupp`), också i den infällda remsan. Med `skapa.redigeraGrupp` i skalet öppnar pennan samma panel som Ny grupp, i redigeringsläge (`?skapa=redigera-grupp&grupp=<id>`), annars anropas `grupper.onRedigera`.
+- **`medlemsinfo(medlemskap, groupId?)`** härleder `{ medlemsantal, avatarer, medlemmar }` ur en grupps rader i `memberships` (aktiva, ägare före admin före medlem, sedan namn). ⛔ **Ingen spegelkolumn:** antalet lagras aldrig, appen listar medlemskapen (en medlem får läsa dem sedan 0.32.0) och ramverket räknar. Finns i båda ingångarna (ren fil).
+- **`OpsGruppSida`** är detaljsidan (SS `GroupDetailView`): tillbaka-rad, stort märke (56 px), namn, beskrivning, ort, Redigera (bara `agare`/`admin` och bara med `onRedigera`), appens `snabbval` (`{ icon, label, onClick }`, en rad om tre), och medlemslistan med en Ägare- eller Admin-etikett. `children` är appens egna sektioner under listan. SS har också discipliner, publik sida, arrangörspanel och kommande sessioner: det är SS domän eller appens.
+- **`OpsGruppFormular` i redigeringsläge:** `grupp={...}` (befintlig grupp), `onSpara({ grupp })`, och bilden: `onLaddaUppBild(fil) => { sokvag, url }`, `onTaBortBild()` och `bildUrl`. Uppladdningen är appens (sökvägen bär gruppens id). Ingen medlemssektion i redigeringsläget.
 
 ⛔ **"SKAPA I" (SS `CalendarCreateDestinationSheet.jsx`).** Med en vald grupp skapas det i den, och panelens översta rad visar
 "Skapas i: <grupp> ⌄" som öppnar väljaren. I läget "Alla mina grupper" visas väljaren FÖRST (en centrerad dialog på dator, ett ark på

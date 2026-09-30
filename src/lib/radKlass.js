@@ -152,6 +152,9 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
  * `hover:border-hover`. Före 0.31.0 var fälten `rounded-md` (10 px), kant 1 px, `bg-canvas` och konturen UTANFÖR kanten
  * (`outline-offset-1`), alltså tre skillnader mot SS i samma kontroll, skrivna på fem ställen.
  *
+ * ⛔ 0.32.0: FÄLTETS TEXT ÄR `text-brod` (16 px, 400) PÅ ALLA BREDDER. 0.31.2 skrev `text-rubrik md:text-brod`, och rollen `rubrik` bär
+ * vikt 700, så varje fält under 768 px skrev fet text (mätt 16 px/700 i `ny grupp 390`, CP 19:50 "Stor text"). 16 px hindrar iOS zoom.
+ *
  * ⛔ TEXTFÄLT HAR 1,5 PX KANT (`kant: "falt"`), VÄLJARE 1 PX (`kant: "val"`), SOM SS. Talet är SS egna och inte en gissning.
  *
  * @param {{ invalid?: boolean, filled?: boolean, trigger?: boolean, kant?: "falt" | "val" }} [val]
@@ -159,7 +162,7 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
  */
 export function faltKlass({ invalid = false, filled = true, trigger = false, kant = "falt" } = {}) {
   return cx(
-    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-rubrik md:text-brod transition-colors duration-(--duration-fast) ease-standard",
+    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-brod transition-colors duration-(--duration-fast) ease-standard",
     trigger && "inline-flex items-center justify-between gap-2",
     kant === "falt" ? "border-[1.5px]" : "border",
     filled ? "text-ink" : "text-ink-muted",
