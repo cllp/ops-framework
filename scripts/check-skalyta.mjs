@@ -2176,6 +2176,111 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   await context.close();
 }
 
+// ══ 24. IDAG OCH KALENDERN NÅR BOTTENRADEN, OCKSÅ NÄR FÖNSTRET ÄNDRAS EFTER MOUNT (0.32.1) ══════════════════════════════
+// CP 2026-09-30, två skärmbilder från telefonen: "Kalender och idag går inte ända ner utan huggs av i botten." Innehållet slutade
+// långt ovanför bottenraden: ett kort i Idag klipptes rakt av och veckoraden i Kalender klipptes horisontellt. Rotorsaken var
+// `useFullHeight` (src/lib/fullHeight.js): höjden räknades ur `100svh`, men raden är `fixed bottom-0` och följer den verkliga
+// kanten, och toppen mättes bara vid mount och resize.
+//
+// ⛔ VARFÖR 21 OCH 21b VAR GRÖNA GENOM HELA FELET (tomt underlag av annat slag): i en skrivbords-Chromium är `100svh` ALLTID
+// lika med fönstrets höjd, eftersom det inte finns något verktygsfält som fälls in. Säkra zoner sattes som tokens och inte som
+// en skillnad mellan `svh` och den synliga höjden, fönstret ändrades aldrig efter mount, och ingenting ovanför ytan försvann.
+// Alla tre sakerna som skiljer en iPhone från skrivbordet saknades, så uttrycket mättes bara i det enda läge där det råkar stämma.
+//
+// Här mäts `navTop - ytaBottom` vid 390x844, med `--safe-top: 47px` och `--safe-bottom: 34px` satta FÖRE mount, i tre lägen:
+//   (a) Safaris verktygsfält fälls in EFTER mount: fönstret växer från 844 till 928. Chromium har inget verktygsfält, och
+//       dess `100svh` följer med när fönstret växer (mätt nedan), så `svh` modelleras som det Safari gör: fast vid höjden
+//       vid mount. `100svh` i höjduttrycken skrivs om till `844px` i den genererade CSS:en, och skillnaden mot den synliga
+//       höjden mäts efteråt.
+//   (b) Hemskärmsläget, där `svh` skiljer sig från den synliga höjden med de säkra zonerna: `100svh` blir `calc(100dvh - 81px)`.
+//   (c) En rad på 170 px står ovanför ytan vid mount och tas bort efteråt, utan resize.
+// Krav: gapet är 23 +- 2 px i alla lägen (samma luft som `OpsView`s `pb-6`). Golv: minst 2 vyer och 3 lägen mätta.
+{
+  const safeCss = ":root{--safe-top:47px!important;--safe-bottom:34px!important}";
+  /**
+   * Skriver om `100svh` i HÖJDUTTRYCKEN (efter `calc(`) och aldrig i väljarna, där parentesen är escapad (`calc\(100svh`).
+   * @param {string} c @param {string} till @returns {{ css: string, antal: number }}
+   */
+  const svhTill = (c, till) => {
+    let antal = 0;
+    const ny = c.replace(/(?<!\\)\(100svh/g, () => { antal += 1; return `(${till}`; });
+    return { css: ny, antal };
+  };
+  /** @type {Set<string>} */
+  const vyerMatta = new Set();
+  /** @type {Set<string>} */
+  const lagenMatta = new Set();
+  for (const vy of /** @type {const} */ (["idag", "kalender"])) {
+    for (const lage of /** @type {const} */ (["a", "b", "c"])) {
+      const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      const page = await context.newPage();
+      page.setDefaultTimeout(4000);
+      const fel = /** @type {string[]} */ ([]);
+      page.on("pageerror", (e) => fel.push(e.message));
+      await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
+      const om = lage === "a" ? svhTill(css, "844px") : lage === "b" ? svhTill(css, "calc(100dvh - 81px)") : { css, antal: 0 };
+      const html = sida(`fullyta-${vy}`).replace(css, () => om.css);
+      await page.addInitScript(({ regel, banner }) => {
+        const sh = new CSSStyleSheet();
+        sh.replaceSync(regel);
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sh];
+        /** @type {any} */ (window).__banner = banner;
+      }, { regel: safeCss, banner: lage === "c" });
+      await page.route("http://skalyta.test/**", (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+      await page.goto("http://skalyta.test/");
+      await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      const mat = () => page.evaluate(() => {
+        const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+        const yta = /** @type {HTMLElement | null} */ (document.querySelector('main [style*="--fullhojd"]'));
+        const probe = (h) => { const d = document.createElement("div"); d.style.cssText = `position:fixed;visibility:hidden;width:1px;height:${h}`; document.body.append(d); const v = d.getBoundingClientRect().height; d.remove(); return v; };
+        const cs = getComputedStyle(document.documentElement);
+        return {
+          navTop: nav ? nav.getBoundingClientRect().top : null,
+          ytaBottom: yta ? yta.getBoundingClientRect().bottom : null,
+          ytaTop: yta ? yta.getBoundingClientRect().top : null,
+          fonster: window.innerHeight, svhRiktig: probe("100svh"), safeTop: cs.getPropertyValue("--safe-top").trim(), safeBottom: cs.getPropertyValue("--safe-bottom").trim(),
+          dok: document.documentElement.scrollHeight, banner: !!document.querySelector("[data-banner]"),
+        };
+      });
+      const fore = await mat();
+      /** @type {string} */
+      let skillnad = "";
+      if (lage === "a") {
+        await page.setViewportSize({ width: 390, height: 928 });
+        await page.waitForTimeout(400);
+        const f = await page.evaluate(() => window.innerHeight);
+        // Skillnaden mellan den modellerade `svh` (844, fast vid mount) och den synliga höjden efter att fältet fällts in.
+        skillnad = `synlig ${f} mot modellerad svh 844 (${f - 844} px), Chromiums egen 100svh följde med till ${await page.evaluate(() => { const d = document.createElement("div"); d.style.cssText = "position:fixed;height:100svh"; document.body.append(d); const v = d.getBoundingClientRect().height; d.remove(); return v; })}`;
+        krav(f - 844 >= 50, `fullyta ${vy} (a): fönstret växte bara till ${f}, ingen skillnad mot den modellerade svh 844 uppstod. Läget mäter då ingenting.`);
+      } else if (lage === "b") {
+        skillnad = `synlig ${fore.fonster} mot modellerad svh ${fore.fonster - 81}`;
+      } else {
+        krav(fore.banner, `fullyta ${vy} (c): raden på 170 px ovanför ytan ritades inte vid mount.`);
+        await page.evaluate(() => /** @type {any} */ (window).__tabortBanner());
+        await page.waitForTimeout(400);
+      }
+      const e = await mat();
+      if (fel.length) krav(false, `fullyta ${vy} (${lage}): sidan kastade: ${fel[0]}`);
+      krav(e.safeTop === "47px" && e.safeBottom === "34px", `fullyta ${vy} (${lage}): säkra zoner ${e.safeTop}/${e.safeBottom}, väntat 47px/34px före mount.`);
+      if (e.navTop === null || e.ytaBottom === null) {
+        krav(false, `fullyta ${vy} (${lage}): ${e.navTop === null ? "bottenraden" : "ytan"} hittades inte, inget att mäta.`);
+      } else {
+        vyerMatta.add(vy);
+        lagenMatta.add(lage);
+        const gap = e.navTop - e.ytaBottom;
+        matt.push(`fullyta ${vy} (${lage}): ytan ${e.ytaTop}..${e.ytaBottom}, bottenraden ${e.navTop}, gap ${gap.toFixed(1)} px, fönster ${e.fonster}, dokument ${e.dok}, svh omskrivet ${om.antal} gånger${skillnad ? `, ${skillnad}` : ""}${lage === "c" ? `, raden ovanför borta: ${!e.banner}` : ""}`);
+        krav(Math.abs(gap - 23) <= 2, `fullyta ${vy} (${lage}): ${gap.toFixed(1)} px mellan ytans underkant och bottenradens överkant, väntat 23 +- 2. ${gap > 25 ? "Ytan slutar för tidigt: CP 2026-09-30, \"huggs av i botten\"." : "Ytan går in under bottenraden."}`);
+        if (lage === "c") krav(!e.banner, `fullyta ${vy} (c): raden ovanför ytan togs inte bort.`);
+      }
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `fullyta-${vy}-${lage}-390.png`) });
+      await context.close();
+    }
+  }
+  matt.push(`fullyta: ${vyerMatta.size} vyer och ${lagenMatta.size} lägen mätta`);
+  krav(vyerMatta.size >= 2 && lagenMatta.size >= 3, `fullyta: bara ${vyerMatta.size} vyer och ${lagenMatta.size} lägen mätta, väntat minst 2 och 3 (golv: ett gap som inte mättes är inte grönt).`);
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

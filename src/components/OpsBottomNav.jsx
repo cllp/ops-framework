@@ -151,8 +151,10 @@ export function OpsBottomNav({
   return (
     // `pb-(--safe-bottom)`: utan säker yta hamnar knapparna under hemindikatorn
     // på en iPhone, och det syns bara på riktig hårdvara.
+    // `data-ops-bottenrad`: `useFullHeight` mäter radens övre kant här (0.32.1), och ett attribut är stabilare än ett aria-namn appen kan byta.
     <nav
       aria-label={navLabel}
+      data-ops-bottenrad=""
       className="fixed inset-x-0 bottom-0 z-(--z-chrome) border-t border-line bg-surface pb-(--safe-bottom) md:hidden"
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">

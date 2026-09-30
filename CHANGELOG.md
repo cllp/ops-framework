@@ -9,6 +9,46 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.32.1
+
+⛔ **Idag och Kalender når bottenraden igen, också när Safaris verktygsfält fälls in och när något ovanför ytan försvinner. Inte breaking.**
+CP 2026-09-30, två skärmbilder från telefonen: *"Kalender och idag går inte ända ner utan huggs av i botten."* Innehållet slutade långt ovanför
+bottenraden. Ett kort i Idag klipptes rakt av, och veckoraden i Kalender klipptes horisontellt.
+
+### Rotorsaken
+`useFullHeight` (`src/lib/fullHeight.js`), som både `OpsScrollArea` och `OpsCalendar` använder, räknade höjden som
+`calc(100svh - var(--fullhojd-topp) - var(--bottom-nav-h) - var(--safe-bottom) - 1.5rem)`. Två antaganden i samma uttryck:
+- **`svh` är den minsta vyhöjden, men bottenraden är `fixed bottom-0` och följer den verkliga kanten.** När Safaris verktygsfält fälls in växer den
+  synliga ytan och raden flyttar ner, medan `100svh` står still. I hemskärmsläget kan `svh` dessutom skilja sig från den synliga höjden med de säkra zonerna.
+- **Toppen mättes bara vid mount och vid `resize`.** Försvann en rad ovanför ytan (en banner, ett filter) låg talet kvar för högt och ytan slutade lika mycket för tidigt.
+
+### Fixen
+- Ingen viewport-enhet i höjden. Hooken mäter båda kanterna och lägger dem i `--fullhojd-topp` (ytans avstånd till dokumentets topp, som förut) och
+  `--fullhojd-botten` (bottenradens övre kant om raden syns, annars fönstrets höjd minus den säkra ytan). Klassen är nu
+  `h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_1.5rem)]` plus `min-h-60` som golv. `md:`-varianten behövs inte längre: på en dator är
+  bottenraden `md:hidden` och räknas som frånvarande, så botten blir fönstret minus den säkra ytan, samma sak som `md:`-raden räknade.
+- Ommätning vid `resize`, `orientationchange`, `visualViewport` `resize` och `scroll`, och med en `ResizeObserver` på föräldern, `offsetParent`, `main`,
+  dokumentets kropp och syskonen ovanför ytan. En mätning per bildruta (`requestAnimationFrame`), lyssnarna rensas vid unmount.
+- `OpsBottomNav` bär `data-ops-bottenrad`, som hooken letar efter.
+- SSR och jsdom: startvärdet är `innerHeight` (eller 800 utan fönster), och utan `ResizeObserver` eller `requestAnimationFrame` mäts det direkt.
+- `FULL_HEIGHT_CLASSES` och `useFullHeight` har samma namn och signatur. Ingen av dem exporteras ur paketets `index.js`, så inget i appen berörs.
+
+### Vakten
+`check-skalyta` avsnitt 24 mäter `navTop - ytaBottom` för en Idag-lik `OpsScrollArea` och `OpsCalendar` vid 390x844, med `--safe-top: 47px` och
+`--safe-bottom: 34px` satta före mount, i tre lägen: (a) verktygsfältet fälls in efter mount (fönstret 844 till 928, med `svh` modellerad som Safari:
+fast vid höjden vid mount, eftersom Chromiums egen `100svh` följer med och alltså aldrig kan visa felet; skillnaden 84 px mäts), (b) hemskärmsläget
+(`100svh` blir `calc(100dvh - 81px)`), (c) en rad på 170 px ovanför ytan tas bort efter mount. Krav 23 +- 2 px, golv 2 vyer och 3 lägen.
+- **Rött mot 0.32.0 (`--dist` och `--tokens` ur origin/main):** 6 brott av 901. Idag och Kalender: (a) 107 px, (b) 104 px, (c) 209 px.
+- **Grönt med fixen:** 901 kontroller, inga brott. Alla sex lägen 24 px.
+- Avsnitt 21 och 21b var gröna genom hela felet: i en skrivbords-Chromium är `100svh` alltid fönstrets höjd, fönstret ändrades aldrig efter mount och
+  ingenting ovanför ytan försvann, så uttrycket mättes bara i det enda läge där det råkar stämma. Skälet står nu i koden vid avsnitt 24.
+- Enhetsprov (`scrollArea.test.jsx`): tre nya prov (bottenradens kant, ingen synlig rad, ommätning när något ovanför ändrar storlek) är röda mot 0.32.0:s hook och gröna nu.
+- Före och efter vid 390: `docs/jamforelser/0.32.1/fullyta-c-fore-efter-390.png` och `fullyta-a-fore-efter-390.png`. Felet citerar ingen SessionStudio-bild, så det finns ingen förebild att ställa bredvid.
+
+### Att göra i appen vid ompinning till 0.32.1
+Pinna om. Inget annat krävs. ⛔ Har appen en egen bottenrad i stället för `OpsBottomNav` hittar hooken den inte, och då slutar ytan vid fönstret minus
+den säkra ytan i stället för vid raden. Sätt i så fall `data-ops-bottenrad` på appens `<nav>`.
+
 ## 0.32.0
 
 ⛔ **Skapa grupp och bjud in, som i SessionStudio. Delvis breaking för appens skapa-grupp-callable och admin-adapter, se "Att göra i appen".**

@@ -56,6 +56,38 @@ const kategorier = [
   { id: "c", namn: { sv: "Övrigt" }, farg: 3, ikon: "wallet", fas: "aktiv", ordning: 2, texter: {} },
 ];
 
+// Fasta, så att kalendern inte räknar om sina månader vid varje rendering.
+const FULLYTA_IDAG = new Date(2026, 8, 30);
+const FULLYTA_POSTER = Array.from({ length: 10 }, (_, i) => ({ id: `k${i}`, date: `2026-09-${String(3 + i * 2).padStart(2, "0")}`, title: `Post ${i + 1}` }));
+
+/**
+ * 0.32.1 (CP 2026-09-30, "Kalender och idag går inte ända ner utan huggs av i botten"): en yta som ska nå bottenraden,
+ * som bolag-ops Idag (`OpsScrollArea` med en lista) och Kalender (`OpsCalendar`). Ovanför ytan står en rad på 170 px när
+ * `window.__banner` är satt, och `window.__tabortBanner()` tar bort den EFTER mount: en banner som försvinner ovanför ytan.
+ * @param {{ vy: "idag" | "kalender" }} props
+ */
+function FullYta({ vy }) {
+  const [banner, setBanner] = useState(!!window.__banner);
+  window.__tabortBanner = () => setBanner(false);
+  const { OpsView, OpsScrollArea, OpsCalendar } = Ops;
+  const handelser = Array.from({ length: 14 }, (_, i) => ({ id: `f${i}`, title: `Händelse nummer ${i + 1}`, daysLeft: i - 3, role: "Du", kind: "Uppgift", when: `Om ${i} dagar`, slag: 2, slagLabel: "Uppgift" }));
+  return (
+    <Full>
+      <OpsView>
+        {banner ? <div data-banner="" style={{ height: 170 }} className="bg-raised">Banner</div> : null}
+        <p data-filter="">Filter</p>
+        {vy === "idag" ? (
+          <OpsScrollArea>
+            <OpsEventList events={handelser} />
+          </OpsScrollArea>
+        ) : (
+          <OpsCalendar ariaLabel="Kalender" entries={FULLYTA_POSTER} today={FULLYTA_IDAG} />
+        )}
+      </OpsView>
+    </Full>
+  );
+}
+
 function Skal({ children, extra = {} }) {
   const [aktiv] = useState("/");
   return (
@@ -449,6 +481,9 @@ function Scen() {
       </Full>
     );
   }
+  // 0.32.1: ytor som ska nå bottenraden, se `FullYta`.
+  if (s === "fullyta-idag") return <FullYta vy="idag" />;
+  if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;

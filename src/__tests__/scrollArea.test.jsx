@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { OpsScrollArea } from "../components/OpsScrollArea.jsx";
 import { FULL_HEIGHT_CLASSES } from "../lib/fullHeight.js";
@@ -17,9 +17,15 @@ import { FULL_HEIGHT_CLASSES } from "../lib/fullHeight.js";
 
 const orgRect = Element.prototype.getBoundingClientRect;
 
-/** Låtsas att ytan börjar `top` px ner i FÖNSTRET. */
-function laggYtanVid(top) {
+/**
+ * Låtsas att ytan börjar `top` px ner i FÖNSTRET. En bottenrad (`nav[data-ops-bottenrad]`)
+ * får `radTopp` som överkant och 90 px höjd om talet ges, annars ingen yta alls (som `md:hidden`).
+ */
+function laggYtanVid(top, radTopp = null) {
   Element.prototype.getBoundingClientRect = function () {
+    if (radTopp !== null && this.matches?.("nav[data-ops-bottenrad]")) {
+      return /** @type {DOMRect} */ ({ top: radTopp, bottom: radTopp + 90, left: 0, right: 390, width: 390, height: 90, x: 0, y: radTopp, toJSON() {} });
+    }
     return /** @type {DOMRect} */ ({
       ...orgRect.call(this).toJSON?.(),
       top: top,
@@ -83,7 +89,7 @@ describe("OpsRullyta", () => {
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("312px");
   });
 
-  it("mäter om när fönstret ändrar storlek", () => {
+  it("mäter om när fönstret ändrar storlek", async () => {
     /*
      * ⛔ RESIZE ÄR OCKSÅ EN VRIDEN TELEFON. Utan ommätningen bär ytan kvar
      * stående lägets tal i liggande, och då slutar den på fel ställe ända tills
@@ -94,7 +100,11 @@ describe("OpsRullyta", () => {
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("212px");
 
     laggYtanVid(96);
-    fireEvent(window, new Event("resize"));
+    // 0.32.1: ommätningen sker i nästa bildruta (`requestAnimationFrame`), se hooken.
+    await act(async () => {
+      fireEvent(window, new Event("resize"));
+      await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    });
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("96px");
   });
 
@@ -108,21 +118,79 @@ describe("OpsRullyta", () => {
     expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("0px");
   });
 
-  it("drar bort bottenraden bara under 768 px", () => {
+  it("slutar vid bottenradens övre kant när raden syns (0.32.1)", () => {
     /*
-     * ⛔ `OpsBottomNav` ÄR `md:hidden`. Drogs `--bottom-nav-h` bort på båda
-     * brytpunkterna skulle ytan sluta en bottenradshöjd för tidigt på en dator,
-     * alltså en remsa tomhet som ingen kan förklara.
+     * ⛔ CP 2026-09-30: "Kalender och idag går inte ända ner utan huggs av i
+     * botten." Höjden räknades ur `100svh`, men raden är `fixed bottom-0` och
+     * följer den verkliga kanten. Nu mäts radens kant direkt och läggs i
+     * `--fullhojd-botten`, och klassen drar bara bort toppen och `OpsView`s
+     * `pb-6` (1,5 rem).
      */
-    expect(FULL_HEIGHT_CLASSES).toContain(
-      "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom)_-_1.5rem)]",
+    laggYtanVid(212, 700);
+    render(
+      <>
+        <nav data-ops-bottenrad="" />
+        <OpsScrollArea><span>innehåll</span></OpsScrollArea>
+      </>,
     );
-    expect(FULL_HEIGHT_CLASSES).toContain(
-      "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom)_-_1.5rem)]",
-    );
+    expect(ytan().style.getPropertyValue("--fullhojd-botten")).toBe("700px");
+    expect(FULL_HEIGHT_CLASSES).toContain("h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_1.5rem)]");
+    // ⛔ Ingen viewport-enhet får komma tillbaka i höjden: det var den som följde fel kant.
+    expect(FULL_HEIGHT_CLASSES).not.toMatch(/\d+(s|l|d)?vh/);
     // ⛔ Golv, för den dag ytan hamnar långt ner på en kort sida: utan det kan
     // uttrycket bli noll och innehållet försvinna helt.
     expect(FULL_HEIGHT_CLASSES).toContain("min-h-60");
+  });
+
+  it("utan synlig bottenrad (dator, `md:hidden`) slutar den vid fönstrets kant", () => {
+    /*
+     * ⛔ `OpsBottomNav` ÄR `md:hidden`. Räknades radens höjd bort även där skulle
+     * ytan sluta en radhöjd för tidigt på en dator. En rad utan yta är ingen rad.
+     */
+    laggYtanVid(212);
+    render(
+      <>
+        <nav data-ops-bottenrad="" />
+        <OpsScrollArea><span>innehåll</span></OpsScrollArea>
+      </>,
+    );
+    expect(ytan().style.getPropertyValue("--fullhojd-botten")).toBe(`${window.innerHeight}px`);
+  });
+
+  it("mäter om när något ovanför ytan ändrar storlek, utan resize (0.32.1)", async () => {
+    /*
+     * ⛔ Försvinner en banner ovanför ytan flyttar ytan upp utan att fönstret
+     * ändras. Utan observatören låg toppen kvar 170 px för högt, och ytan slutade
+     * lika mycket för tidigt (diagnosen mätte 209 px tomt mot raden).
+     */
+    /** @type {(() => void)[]} */
+    const svar = [];
+    const org = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = /** @type {any} */ (class {
+      /** @param {() => void} cb */
+      constructor(cb) { svar.push(cb); }
+      observe() {}
+      disconnect() {}
+    });
+    try {
+      laggYtanVid(382, 700);
+      render(
+        <>
+          <nav data-ops-bottenrad="" />
+          <OpsScrollArea><span>innehåll</span></OpsScrollArea>
+        </>,
+      );
+      expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("382px");
+      laggYtanVid(212, 700);
+      await act(async () => {
+        for (const cb of svar) cb();
+        await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+      });
+      expect(svar.length).toBeGreaterThan(0);
+      expect(ytan().style.getPropertyValue("--fullhojd-topp")).toBe("212px");
+    } finally {
+      globalThis.ResizeObserver = org;
+    }
   });
 
   it("är ingen låda: ingen ram, ingen rundning, ingen egen bakgrund", () => {
