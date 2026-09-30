@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Heart, Home, Inbox, Info, LayoutGrid, LogOut, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -337,4 +337,33 @@ export function KalenderIkon({ size = 20 }) {
 /** @param {{ size?: number }} props */
 export function HubIkon({ size = 20 }) {
   return <LayoutGrid size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Meddelanden (0.34.0, #182). SS använder `MessageSquare` i inkorgen (`ChatInboxPanel.jsx:962`), i samtalets huvud
+ * (`ChatPanelHeader.jsx:34`) och på "Nytt meddelande" (`DMPanel.jsx:214`). Samma ikon här, i plusset och på ingången.
+ * @param {{ size?: number }} props
+ */
+export function MeddelandeIkon({ size = 18 }) {
+  return <MessageSquare size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Skicka i samtalets skrivfält. @param {{ size?: number }} props */
+export function SkickaIkon({ size = 18 }) {
+  return <SendHorizontal size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Hänglåset på raden "Bara ni två ser det här" (0.34.0). @param {{ size?: number }} props */
+export function LasIkon({ size = 14 }) {
+  return <Lock size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Sökfältet i inkorgen (SS `Search w-3 h-3`, `ChatInboxPanel.jsx:1067`). @param {{ size?: number }} props */
+export function SokIkon({ size = 14 }) {
+  return <SokLucide size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Agenten som mottagare och deltagare (0.34.0, plats för #185). @param {{ size?: number }} props */
+export function AgentIkon({ size = 18 }) {
+  return <Bot size={size} aria-hidden="true" strokeWidth={1.5} />;
 }

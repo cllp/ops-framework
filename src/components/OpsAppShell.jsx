@@ -7,7 +7,7 @@ import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsGruppanel, OpsGruppvaxlare } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
-import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MenuIcon, PlusIkon, GruppIkon } from "./icons.jsx";
+import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -415,6 +415,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen och i växlarens ark till samma panel: `grupper.onSkapa` behövs då inte,
  *   och om båda finns vinner `skapa.grupp` (en väg att skapa en grupp är en sanning, två är två). `onKlar` stänger panelen UTAN att gå bakåt i
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
+ * @property {(arg: { formId: string, groupId: string | null, onKlar: () => void }) => import("react").ReactNode} [meddelande] (0.34.0, #182) Ramverkets egen rad
+ *   "Nytt meddelande", normalt `({ formId, groupId, onKlar }) => <OpsNyttMeddelande formId={formId} groupId={groupId} ... onKlar={(id) => { onKlar(); gaTill(id); }} />`.
+ *   `groupId` är den aktiva gruppen; i läget "Alla mina grupper" visas gruppväljaren först, som för en moduls formulär (ett meddelande
+ *   hör alltid till en grupp). Panelens knapp heter `skickaEtikett` ("Skicka"), inte Spara. `onKlar` stänger utan att gå bakåt.
  * @property {(arg: { formId: string, groupId: string, onKlar: () => void }) => import("react").ReactNode} [redigeraGrupp] (0.32.0, #180 G2) Formuläret i REDIGERINGSLÄGE
  *   (`OpsGruppFormular grupp={...}`), öppnat av pennan på gruppkortet i gruppanelen. Med den ritar skalet pennan och öppnar samma panel-form som "Ny grupp"
  *   (`?skapa=redigera-grupp&grupp=<id>`, smal kolumn). Utan den anropas `grupper.onRedigera` i stället, om appen gav en.
@@ -477,6 +481,14 @@ function ArendeRitare({ rita, formId, mal }) {
  */
 function GruppRitare({ rita, formId, onKlar }) {
   return <>{rita({ formId, onKlar })}</>;
+}
+
+/**
+ * Ritar `skapa.meddelande` (0.34.0). Samma skäl som `GruppRitare`.
+ * @param {{ rita: (arg: { formId: string, groupId: string | null, onKlar: () => void }) => import("react").ReactNode, formId: string, groupId: string | null, onKlar: () => void }} props
+ */
+function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
+  return <>{rita({ formId, groupId, onKlar })}</>;
 }
 
 /**
@@ -556,6 +568,8 @@ function GruppRitare({ rita, formId, onKlar }) {
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
  * @param {string} [props.redigeraGruppEtikett] Panelens rubrik för `skapa.redigeraGrupp`. Förval "Redigera grupp".
  * @param {string} [props.nyGruppEtikett] Ramverkets rad för `skapa.grupp`, och panelens rubrik. Förval "Ny grupp".
+ * @param {string} [props.nyttMeddelandeEtikett] (0.34.0) Ramverkets rad för `skapa.meddelande`, och panelens rubrik. Förval "Nytt meddelande".
+ * @param {string} [props.skickaEtikett] (0.34.0) Panelens knapp för `skapa.meddelande`. Förval "Skicka".
  * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
  * @param {import("react").ReactNode} props.children
  */
@@ -590,6 +604,8 @@ export function OpsAppShell({
   nyHandelseEtikett = "Ny händelse",
   nyttArendeEtikett = "Nytt ärende",
   nyGruppEtikett = "Ny grupp",
+  nyttMeddelandeEtikett = "Nytt meddelande",
+  skickaEtikett = "Skicka",
   redigeraGruppEtikett = "Redigera grupp",
   skapaTypEtikett = "Typ",
   closeLabel = "Stäng",
@@ -684,7 +700,7 @@ export function OpsAppShell({
   // ReactNode i state, se `skapaTyp` nedan för skälet).
   const [skapaOppen, setSkapaOppen] = useState(false);
   const [skapaForm, setSkapaFormRaw] = useState(
-    /** @type {{ kind: "handelse" | "arende" | "grupp" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any } | null} */ (null),
+    /** @type {{ kind: "handelse" | "arende" | "grupp" | "meddelande" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any } | null} */ (null),
   );
   // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
   // `skapaForm` vid öppningstillfället är fruset: `OpsSelect`s `onChange`
@@ -714,6 +730,7 @@ export function OpsAppShell({
     }
     if (v === "arende" && skapa.arende) return { kind: "arende" };
     if (v === "grupp" && skapa.grupp) return { kind: "grupp" };
+    if (v === "meddelande" && typeof skapa.meddelande === "function") return { kind: "meddelande" };
     // ⛔ Redigera grupp bär gruppens id i adressen (`&grupp=`), annars går panelen inte att länka till eller ladda om.
     const gid = new URL(window.location.href).searchParams.get("grupp");
     if (v === "redigera-grupp" && typeof skapa.redigeraGrupp === "function" && gid) return { kind: "redigeragrupp", groupId: gid };
@@ -790,7 +807,7 @@ export function OpsAppShell({
 
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
   const skapaModulerRedo = skapaLaget?.tillstand === "redo";
-  const harRamverksrader = Boolean(skapa?.handelse) || Boolean(skapa?.arende) || typeof skapa?.grupp === "function";
+  const harRamverksrader = Boolean(skapa?.handelse) || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.meddelande === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
@@ -814,7 +831,10 @@ export function OpsAppShell({
   // har ett mål; `handelse`/`arende` som färdiga noder har inget att skicka det till.
   const skapaGrupperLista = grupper?.lista ?? [];
   const skapaSektioner = skapa?.skapaISektioner ?? [];
-  const skapaHarVaxlare = skapaForm?.kind === "modul" && (skapaGrupperLista.length > 0 || skapaSektioner.length > 0);
+  // ⛔ 0.34.0: ETT MEDDELANDE HÖR TILL EN GRUPP, så "Nytt meddelande" får gruppväljaren som en moduls formulär, men bara grupperna
+  // (appens egna sektioner är inga platser ett samtal kan ligga i).
+  const skapaHarVaxlare =
+    (skapaForm?.kind === "modul" && (skapaGrupperLista.length > 0 || skapaSektioner.length > 0)) || (skapaForm?.kind === "meddelande" && skapaGrupperLista.length > 0);
   const skapaValdGrupp = skapaMal && skapaMal.sektion === "grupper" ? skapaMal.id : null;
   const skapaEffektivGrupp = skapaValdGrupp ?? skapaLaget?.grupp ?? null;
   const skapaBehovVal = skapaHarVaxlare && !skapaMal && !skapaLaget?.grupp;
@@ -847,6 +867,10 @@ export function OpsAppShell({
   } else if (skapaForm?.kind === "grupp" && typeof skapa?.grupp === "function") {
     skapaModalTitel = nyGruppEtikett;
     skapaModalInnehall = <GruppRitare rita={skapa.grupp} formId={skapaFormId} onKlar={() => stangSkapa(true)} />;
+    skapaHarFormKonsument = true;
+  } else if (skapaForm?.kind === "meddelande" && typeof skapa?.meddelande === "function") {
+    skapaModalTitel = nyttMeddelandeEtikett;
+    skapaModalInnehall = <MeddelandeRitare rita={skapa.meddelande} formId={skapaFormId} groupId={skapaEffektivGrupp} onKlar={() => stangSkapa(true)} />;
     skapaHarFormKonsument = true;
   } else if (skapaForm?.kind === "redigeragrupp" && typeof skapa?.redigeraGrupp === "function") {
     skapaModalTitel = redigeraGruppEtikett;
@@ -947,6 +971,10 @@ export function OpsAppShell({
               accent
               onClick={() => oppna({ kind: "arende" })}
             />
+          ) : null}
+          {/* ⛔ 0.34.0, #182: "Nytt meddelande" efter ärendet och före gruppen. Ett meddelande är en post som ärendet, gruppen är en plats. */}
+          {typeof skapa?.meddelande === "function" ? (
+            <OpsPanelRow icon={<MeddelandeIkon size={18} />} label={nyttMeddelandeEtikett} accent onClick={() => oppna({ kind: "meddelande" })} />
           ) : null}
           {/* ⛔ 0.32.0, #180: "Ny grupp" EFTER händelse och ärende, som SS plusmeny (`AppHeader.jsx:398-425`: kalender, session, grupp). */}
           {typeof skapa?.grupp === "function" ? (
@@ -1497,7 +1525,7 @@ export function OpsAppShell({
         </OpsFelgrans>
         {skapaPanelSyns ? (
           <OpsSkapaPanel
-            kolumn={skapaForm?.kind === "grupp" || skapaForm?.kind === "redigeragrupp" ? "smal" : "bred"}
+            kolumn={skapaForm?.kind === "grupp" || skapaForm?.kind === "redigeragrupp" || skapaForm?.kind === "meddelande" ? "smal" : "bred"}
             titel={skapaModalTitel || skapaLabel}
             onTillbaka={stangSkapa}
             tillbakaEtikett={skapa?.tillbakaEtikett}
@@ -1505,7 +1533,7 @@ export function OpsAppShell({
             skapasI={skapaHarVaxlare ? skapaMalNamn : null}
             onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
             avbrytEtikett={skapa?.avbrytEtikett}
-            sparaEtikett={skapaHarFormKonsument ? skapa?.sparaEtikett : undefined}
+            sparaEtikett={skapaForm?.kind === "meddelande" ? skickaEtikett : skapaHarFormKonsument ? skapa?.sparaEtikett : undefined}
             formId={skapaFormId}
           >
             {skapaModalInnehall}
@@ -1583,7 +1611,7 @@ export function OpsAppShell({
             setSkapaMal({ id, sektion });
             setSkapaVaxlare(false);
           }}
-          sektioner={skapaSektioner}
+          sektioner={skapaForm.kind === "meddelande" ? [] : skapaSektioner}
           sprak={skapa?.sprak}
           rubrik={skapa?.skapaIRubrik}
           avbrytEtikett={skapa?.avbrytEtikett}
