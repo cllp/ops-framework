@@ -12,8 +12,12 @@
  *   avslutad medlem läser                      nej
  *   utan inloggning                            nej
  *   ägare skriver en kategori i sin grupp      ja
+ *   admin skriver en kategori i sin grupp      ja       <- 0.33.0, rollmodellen ur 0.32.0
  *   medlem skriver (lägger till/ändrar)        nej      <- katalogen är gruppens KONFIG
- *   ägare skriver i en ANNAN grupp             nej
+ *   ägare/admin skriver i en ANNAN grupp       nej
+ *   nyckel som inte börjar på radens grupp     nej      <- 0.33.0, kapning av en annan grupps nyckel
+ *   fråga mot en annan grupps rader            nej
+ *   fråga utan grupp (hela samlingen)          nej
  *   flytta en kategori till en annan grupp     nej
  *   skapa en kategori utan groupId             nej
  *   ägaren raderar en kategori                 nej      <- arkivering, aldrig radering
@@ -34,7 +38,7 @@ import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import * as firestoreSdk from "firebase/firestore";
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, deleteDoc, where } from "firebase/firestore";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +48,8 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..
 const CPS_AGARE = "uid-cps-agare";
 const CPS_MEDLEM = "uid-cps-medlem";
 const CPS_AVSLUTAD = "uid-cps-avslutad";
+const CPS_ADMIN = "uid-cps-admin";
+const MIRANDA_ADMIN = "uid-miranda-admin";
 const MIRANDA_AGARE = "uid-miranda-agare";
 
 const CPS_AB = "cps-ab";
@@ -84,6 +90,8 @@ before(async () => {
     await setDoc(doc(db, `memberships/${medlemskapsId(CPS_MEDLEM, CPS_AB)}`), { userId: CPS_MEDLEM, groupId: CPS_AB, roll: "medlem", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `memberships/${medlemskapsId(CPS_AVSLUTAD, CPS_AB)}`), { userId: CPS_AVSLUTAD, groupId: CPS_AB, roll: "medlem", typ: "person", status: "avslutad" });
     await setDoc(doc(db, `memberships/${medlemskapsId(MIRANDA_AGARE, MIRANDA_AB)}`), { userId: MIRANDA_AGARE, groupId: MIRANDA_AB, roll: "agare", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(CPS_ADMIN, CPS_AB)}`), { userId: CPS_ADMIN, groupId: CPS_AB, roll: "admin", typ: "person", status: "aktiv" });
+    await setDoc(doc(db, `memberships/${medlemskapsId(MIRANDA_ADMIN, MIRANDA_AB)}`), { userId: MIRANDA_ADMIN, groupId: MIRANDA_AB, roll: "admin", typ: "person", status: "aktiv" });
 
     // ⛔ TVÅ GRUPPER, OLIKA "HÄNDELSETYPER" (kategorier), SAMMA MASKINNYCKEL
     // "rep". Det är precis det scenariot #162 ska stoppa: gemensam katalog =
@@ -126,13 +134,13 @@ describe("⛔ katalogen (#162): medlemskap i radens grupp avgör, båda riktning
   });
 });
 
-describe("⛔ katalogen är gruppens KONFIG: ägaren skriver, medlemmen inte", () => {
+describe("⛔ katalogen är gruppens KONFIG: ägaren och admin skriver, medlemmen inte", () => {
   it("ägaren lägger till en kategori i sin egen grupp", async () => {
-    await assertSucceeds(setDoc(doc(som(CPS_AGARE), "kataloger/cps-ny"), kategori({ id: "ny", groupId: CPS_AB })));
+    await assertSucceeds(setDoc(doc(som(CPS_AGARE), "kataloger/cps-ab|ny"), kategori({ id: "ny", groupId: CPS_AB })));
   });
 
   it("⛔ en medlem lägger inte till en kategori, inställningsvyn är ägarens", async () => {
-    await assertFails(setDoc(doc(som(CPS_MEDLEM), "kataloger/cps-medlemsforsok"), kategori({ id: "medlemsforsok", groupId: CPS_AB })));
+    await assertFails(setDoc(doc(som(CPS_MEDLEM), "kataloger/cps-ab|medlemsforsok"), kategori({ id: "medlemsforsok", groupId: CPS_AB })));
   });
 
   it("⛔ en medlem ändrar inte heller en befintlig kategori (t.ex. arkiverar den)", async () => {
@@ -140,7 +148,7 @@ describe("⛔ katalogen är gruppens KONFIG: ägaren skriver, medlemmen inte", (
   });
 
   it("⛔ en ägare skriver inte i en ANNAN grupps katalog", async () => {
-    await assertFails(setDoc(doc(som(CPS_AGARE), "kataloger/kapad"), kategori({ id: "kapad", groupId: MIRANDA_AB })));
+    await assertFails(setDoc(doc(som(CPS_AGARE), "kataloger/miranda-ab|kapad"), kategori({ id: "kapad", groupId: MIRANDA_AB })));
   });
 
   it("⛔ en kategori kan inte FLYTTAS till en annan grupp", async () => {
@@ -150,7 +158,7 @@ describe("⛔ katalogen är gruppens KONFIG: ägaren skriver, medlemmen inte", (
   it("⛔ en kategori kan inte skapas utan groupId", async () => {
     const utanGrupp = kategori({ id: "hemlos" });
     delete utanGrupp.groupId;
-    await assertFails(setDoc(doc(som(CPS_AGARE), "kataloger/hemlos"), utanGrupp));
+    await assertFails(setDoc(doc(som(CPS_AGARE), "kataloger/cps-ab|hemlos"), utanGrupp));
   });
 
   it("⛔ ägaren raderar inte en kategori, den arkiveras", async () => {
@@ -162,7 +170,52 @@ describe("⛔ katalogen är gruppens KONFIG: ägaren skriver, medlemmen inte", (
   });
 
   it("⛔ ett fält utanför KATEGORIFALT avvisas av hasOnly", async () => {
-    await assertFails(setDoc(doc(som(CPS_AGARE), "kataloger/med-okant-falt"), kategori({ id: "med-okant-falt", lofte: "Ett fält som inte finns i schemat." })));
+    await assertFails(setDoc(doc(som(CPS_AGARE), "kataloger/cps-ab|med-okant-falt"), kategori({ id: "med-okant-falt", lofte: "Ett fält som inte finns i schemat." })));
+  });
+});
+
+describe("⛔ 0.33.0: admin skriver i sin egen grupp, nyckeln hör till radens grupp, frågor är skopade", () => {
+  it("admin lägger till en kategori i sin egen grupp (rollmodellen ur 0.32.0, opsArAdmin)", async () => {
+    await assertSucceeds(setDoc(doc(som(CPS_ADMIN), "kataloger/cps-ab|admins"), kategori({ id: "admins", groupId: CPS_AB })));
+  });
+
+  it("admin ändrar och arkiverar en befintlig kategori i sin egen grupp", async () => {
+    await assertSucceeds(updateDoc(doc(som(CPS_ADMIN), "kataloger/cps-rep"), { namn: { sv: "Repetition (admin)" } }));
+  });
+
+  it("⛔ admin i cps ab skriver inte i miranda ab:s katalog, varken ny rad eller ändring", async () => {
+    await assertFails(setDoc(doc(som(CPS_ADMIN), "kataloger/miranda-ab|admintest"), kategori({ id: "admintest", groupId: MIRANDA_AB })));
+    await assertFails(updateDoc(doc(som(CPS_ADMIN), "kataloger/miranda-rep"), { arkiverad: true }));
+  });
+
+  it("⛔ och tvärtom: miranda ab:s admin skriver inte i cps ab:s katalog", async () => {
+    await assertFails(setDoc(doc(som(MIRANDA_ADMIN), "kataloger/cps-ab|admintest"), kategori({ id: "admintest", groupId: CPS_AB })));
+    await assertFails(updateDoc(doc(som(MIRANDA_ADMIN), "kataloger/cps-rep"), { arkiverad: true }));
+  });
+
+  it("⛔ KAPNING: en admin i miranda ab kan inte skapa nyckeln cps-ab|x med sin egen grupp på raden", async () => {
+    // Utan nyckellåset släpps skapelsen in (miranda är adminens grupp), och cps ab kan sedan aldrig
+    // spara "x": deras skrivning blir en uppdatering av en rad vars groupId är miranda-ab.
+    await assertFails(setDoc(doc(som(MIRANDA_ADMIN), "kataloger/cps-ab|kapning"), kategori({ id: "kapning", groupId: MIRANDA_AB })));
+    await assertFails(setDoc(doc(som(MIRANDA_ADMIN), "kataloger/kapning"), kategori({ id: "kapning", groupId: MIRANDA_AB })));
+    // Rätt nyckel för sin egen grupp går.
+    await assertSucceeds(setDoc(doc(som(MIRANDA_ADMIN), "kataloger/miranda-ab|kapning"), kategori({ id: "kapning", groupId: MIRANDA_AB })));
+  });
+
+  it("⛔ två grupper, olika händelsetyper: en fråga på den egna gruppen ger bara den egna, en fråga på den andra nekas", async () => {
+    const cps = await assertSucceeds(getDocs(query(collection(som(CPS_MEDLEM), "kataloger"), where("groupId", "==", CPS_AB))));
+    const namn = cps.docs.map((d) => d.data().namn.sv);
+    assert.ok(namn.length >= 1, "golv: minst en kategori lästes");
+    assert.ok(cps.docs.every((d) => d.data().groupId === CPS_AB));
+    assert.ok(!namn.includes("Répétition (miranda)"));
+    await assertFails(getDocs(query(collection(som(CPS_MEDLEM), "kataloger"), where("groupId", "==", MIRANDA_AB))));
+    await assertFails(getDocs(query(collection(som(MIRANDA_AGARE), "kataloger"), where("groupId", "==", CPS_AB))));
+  });
+
+  it("⛔ en fråga utan grupp, alltså hela samlingen, nekas också den som är medlem", async () => {
+    // Det är därför övergången (overgang: true, hela samlingen) måste vara borta ur klienten
+    // innan de här reglerna deployas. Ordningen står i CHANGELOG 0.33.0.
+    await assertFails(getDocs(collection(som(CPS_AGARE), "kataloger")));
   });
 });
 

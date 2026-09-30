@@ -56,6 +56,46 @@ const kategorier = [
   { id: "c", namn: { sv: "Övrigt" }, farg: 3, ikon: "wallet", fas: "aktiv", ordning: 2, texter: {} },
 ];
 
+/*
+ * 0.33.0 (#162): två grupper med OLIKA händelsetyper, och en inställningsvy som byter katalog när gruppen byts.
+ * Knapparna står för appens gruppväxlare. `window.__sparat` samlar vad vyn skickade till onSpara.
+ */
+const GRUPPKATALOGER = {
+  "cps-ab": [
+    { id: "mote", namn: { sv: "Styrelsemöte" }, farg: 1, ikon: "wallet", fas: "aktiv", ordning: 0, texter: {}, groupId: "cps-ab" },
+    { id: "deklaration", namn: { sv: "Deklaration" }, farg: 2, ikon: "inbox", fas: "aktiv", ordning: 1, texter: {}, groupId: "cps-ab" },
+  ],
+  "miranda-ab": [
+    { id: "turne", namn: { sv: "Turné" }, farg: 3, ikon: "wallet", fas: "aktiv", ordning: 0, texter: {}, groupId: "miranda-ab" },
+    { id: "repetition", namn: { sv: "Repetition" }, farg: 1, ikon: "inbox", fas: "aktiv", ordning: 1, texter: {}, groupId: "miranda-ab" },
+  ],
+};
+/** @type {any[]} */
+window.__sparat = [];
+function InstallningTvaGrupper() {
+  const [aktiv, setAktiv] = useState("cps-ab");
+  return (
+    <div className="px-4 py-4 flex flex-col gap-3">
+      <div className="flex gap-2" data-gruppbyte="">
+        {Object.keys(GRUPPKATALOGER).map((g) => (
+          <OpsButton key={g} variant={g === aktiv ? "primary" : "ghost"} onClick={() => setAktiv(g)}>
+            {g}
+          </OpsButton>
+        ))}
+      </div>
+      <OpsKatalogInstallning
+        kategorier={GRUPPKATALOGER[/** @type {"cps-ab"} */ (aktiv)]}
+        ikoner={["wallet", "inbox"]}
+        kanAndra
+        onSpara={(k) => window.__sparat.push(k)}
+        onArkivera={() => {}}
+        rubrik="Händelsetyper"
+        groupId={aktiv}
+      />
+    </div>
+  );
+}
+
 // Fasta, så att kalendern inte räknar om sina månader vid varje rendering.
 const FULLYTA_IDAG = new Date(2026, 8, 30);
 const FULLYTA_POSTER = Array.from({ length: 10 }, (_, i) => ({ id: `k${i}`, date: `2026-09-${String(3 + i * 2).padStart(2, "0")}`, title: `Post ${i + 1}` }));
@@ -592,8 +632,15 @@ function Scen() {
     return (
       <Skal>
         <div className="px-4 py-4">
-          <OpsKatalogInstallning kategorier={kategorier} ikoner={["wallet", "inbox"]} kanAndra onSpara={() => {}} onArkivera={() => {}} rubrik="Kategorier" />
+          <OpsKatalogInstallning kategorier={kategorier} ikoner={["wallet", "inbox"]} kanAndra onSpara={() => {}} onArkivera={() => {}} rubrik="Kategorier" groupId="cps-ab" />
         </div>
+      </Skal>
+    );
+  }
+  if (s === "installning-grupper") {
+    return (
+      <Skal>
+        <InstallningTvaGrupper />
       </Skal>
     );
   }

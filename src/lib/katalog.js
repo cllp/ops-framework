@@ -65,15 +65,18 @@ import { byggNamn, text } from "./sprak.js";
  * en kategori för att skilja miranda ab:s händelsetyper från cps-ab:s, och
  * fick tillbaka "fälten groupId ... känns inte igen".
  *
- * Fältet är BARA tillåtet, det är inte obligatoriskt av sig självt: en katalog
- * som byggs med `grupp: true` (se `byggKategori`) kräver det som varje annat
- * fält, en katalog utan (förvalet, oförändrat för varje befintlig anropare)
- * avvisar det precis som `farg`/`fas` avvisas i en katalog utan färger eller
- * faser. Skälet till att det INTE är obligatoriskt för alla är
- * `examples/paminnelser/index.js`: en moduls egen klassificering (`SORTER`)
- * är kod, delad likadan av varje grupp som installerar modulen, och har ingen
- * databasgrupp att peka på. Det är GRUPPENS EGNA, Firestore-lagrade kataloger
- * (`createCatalogSource`) som sätter `grupp: true`.
+ * ⛔ OCH SEDAN 0.33.0 ÄR DET OBLIGATORISKT, INTE BARA TILLÅTET. I 0.29.0 till
+ * 0.32.1 krävdes det bara när anroparen kom ihåg `grupp: true`, och förvalet
+ * var att släppa igenom en kategori utan grupp. Det betydde att varje ny väg
+ * som läste eller skrev en katalog var ogrupperad tills någon tänkte på det,
+ * alltså att isoleringen hängde på en flagga man kunde glömma. Nu är det
+ * tvärtom: `byggKategori` kräver `groupId` om inte anroparen UTTRYCKLIGEN
+ * säger `grupp: false`, och det gör bara två sorters anropare, båda utan en
+ * databasgrupp att peka på: en MALL (appens standardvärden, som ännu inte
+ * seedats in i någon grupp) och en MODULS EGEN KLASSIFICERING i kod
+ * (`examples/paminnelser/index.js`, `kallor.js`), som delas likadan av varje
+ * grupp som installerar modulen. `check-gruppnyckel` bevisar förvalet genom
+ * att bygga en kategori utan groupId och kräva ett kast.
  */
 export const KATEGORIFALT = ["id", "namn", "farg", "ikon", "fas", "ordning", "arkiverad", "texter", "groupId"];
 
@@ -114,9 +117,9 @@ export const AVSLUTADE_FASER = /** @type {const} */ (["klar", "avskriven"]);
  * @property {number} ordning Lägre först.
  * @property {boolean} arkiverad Går inte att välja för nya poster.
  * @property {Record<string, import("./sprak.js").Namn>} texter Fria, namngivna texter. Se nedan.
- * @property {string} [groupId] Gruppen katalogen hör till (#162). Nyckeln FINNS BARA när
- *   kategorin byggts med `grupp: true`. I en katalog utan grupp saknas den helt (0.29.1):
- *   ett `groupId: null` föll på konsumenters `hasOnly`-regler utan groupId.
+ * @property {string} [groupId] Gruppen katalogen hör till (#162). Finns på varje kategori som byggts
+ *   med förvalet (0.33.0). Saknas helt, aldrig `null`, i en mall eller en moduls kodkatalog (`grupp: false`):
+ *   ett `groupId: null` föll på konsumenters `hasOnly`-regler utan groupId (0.29.1).
  */
 
 /**
@@ -171,11 +174,12 @@ export const ID_FORM = /^[a-z0-9][a-z0-9_-]*$/;
  *
  * @param {Record<string, any>} d
  * @param {{ ikoner?: readonly string[], platser?: readonly number[], katalog?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean, grupp?: boolean }} [config]
- *   `grupp` (#162, förval `false`): sant för en katalog som är gruppens egen. Se noten vid
- *   `groupId` nedan för vad det ändrar.
+ *   `grupp` (#162, förval `true` sedan 0.33.0): kategorin är en grupps egen och kräver `groupId`.
+ *   `false` bara för en mall (standardvärden före seedningen) eller en moduls kodkatalog. Se noten
+ *   vid `KATEGORIFALT`.
  * @returns {Kategori}
  */
-export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true, farger = true, grupp = false } = {}) {
+export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "katalog", textnycklar, faser = true, farger = true, grupp = true } = {}) {
   const var_ = (/** @type {string} */ falt, /** @type {string} */ skal) =>
     new Error(`${katalog}: ${falt} ${skal}`);
 
@@ -287,10 +291,10 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
    * ══ ⛔ GRUPPEN, NÄR KATALOGEN ÄR GRUPPENS EGEN (#162) ═════════════════
    *
    * Samma mönster som `farg`/`fas` precis ovan: KONFIGURATIONEN avgör, inte
-   * raden. En katalog utan `grupp: true` (förvalet, alltså varje befintlig
-   * anropare) tillåter inte fältet alls, av samma skäl som en katalog utan
-   * färger inte tillåter `farg`: ett värde som ändå skulle skickas in vore en
-   * grupp ingen kod läser, alltså ett löfte om isolering som inte infrias.
+   * raden. En mall eller kodkatalog (`grupp: false`) tillåter inte fältet
+   * alls, av samma skäl som en katalog utan färger inte tillåter `farg`: ett
+   * värde som ändå skulle skickas in vore en grupp ingen kod läser, alltså ett
+   * löfte om isolering som inte infrias.
    *
    * ⛔ OCH EN GRUPPAD KATALOG KRÄVER DET, PRECIS SOM `id`. Väg C (#160,
    * CP-beslut i cllp/bolag-ops#359) är att kategorierna ÄR gruppens data: utan
@@ -306,7 +310,7 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     if (d.groupId !== undefined && d.groupId !== null) {
       throw var_(
         `groupId för "${id}"`,
-        "hör inte hemma i den här katalogen. Den är byggd utan grupp: true, alltså delad av alla som använder den. Ska katalogen vara en grupps egen, sätt grupp: true.",
+        "hör inte hemma i den här katalogen. Den är byggd med grupp: false, alltså en mall eller en moduls kodkatalog som delas av alla. Ska katalogen vara en grupps egen, ta bort grupp: false.",
       );
     }
   }
@@ -315,7 +319,7 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
   if (grupp && !groupId) {
     throw var_(
       `groupId för "${id}"`,
-      'krävs. Katalogen är en grupps egen (#162): utan ett groupId på raden kan en annan grupp se eller ändra den här kategorin.',
+      'krävs. En kategori är en grupps egen (#162, obligatoriskt sedan 0.33.0): utan ett groupId på raden kan en annan grupp se eller ändra den. Är det här en mall (standardvärden) eller en moduls kodkatalog, bygg den med grupp: false.',
     );
   }
   if (grupp && !ID_FORM.test(groupId)) {
@@ -339,8 +343,7 @@ export function byggKategori(d, { ikoner, platser = SLAGPLATSER, katalog = "kata
     // ⛔ Nyckeln finns bara i grupperat läge. 0.29.0 skrev `groupId: null` i
     // ogrupperat läge, och det gjorde varje konsuments `hasOnly`-regel utan
     // groupId röd: bolag-ops regelprov föll 10 av 151 (PERMISSION_DENIED på
-    // varje kategoriskrivning). En rad utan grupp ska vara byte för byte samma
-    // rad som före #162, annars är övergången i #447 inte frivillig.
+    // varje kategoriskrivning). En mall bär alltså ingen nyckel alls.
     ...(grupp ? { groupId } : {}),
   };
 }
@@ -511,3 +514,110 @@ export function kategorin(kategorier, id) {
  * @param {unknown} fas @returns {boolean}
  */
 export const arAvslutad = (fas) => /** @type {readonly string[]} */ (AVSLUTADE_FASER).includes(rensa(fas));
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════
+ * ⛔ LAGRINGSNYCKELN OCH GRUPPENS RADER (0.33.0, #162)
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Avgränsaren i en lagrad katalognyckel. Olaglig i ett `id` (`ID_FORM`), giltig
+ * i ett Firestore-dokument-id, samma val som `medlemskapsId` i `grupp.js`.
+ */
+export const KATALOGAVGRANSARE = "|";
+
+/**
+ * Dokumentets nyckel i en katalogsamling: `groupId|id`.
+ *
+ * ⛔ VARFÖR INTE BARA `id`. Samlingen är delad av alla grupper (#162), och
+ * kategorins `id` är bara unikt inom en grupps katalog. Med `id` som
+ * dokumentnyckel pekar två gruppers "uppgift" på SAMMA dokument, och den som
+ * sparar sist skriver över den andra. Det hände i det första provet som seedade
+ * två grupper mot samma minneskälla: fyra kategorier seedade, två kvar.
+ *
+ * ⛔ EXPORTERAD SEDAN 0.33.0, FÖR ATT FLER ÄN EN SKRIVVÄG FINNS. Katalogkällan,
+ * `skapaGrupp`, bakfyllnaden och appens egen skrivväg i klienten måste härleda
+ * SAMMA nyckel. Fyra kopior av en mall-sträng är fyra ställen den kan bli olika
+ * (arbetsreglernas punkt 2), och regelfragmentet (`katalogregelfragment`) låser
+ * dessutom formen: ett dokument vars nyckel inte börjar på radens egen grupp
+ * avvisas.
+ *
+ * @param {string} groupId @param {string} id @returns {string}
+ */
+export function katalognyckel(groupId, id) {
+  const g = rensa(groupId);
+  const i = rensa(id);
+  if (!ID_FORM.test(g) || !ID_FORM.test(i)) {
+    throw new Error(`katalognyckel: både groupId och id måste ha id-formen (små bokstäver, siffror, - och _). Fick groupId "${g}" och id "${i}".`);
+  }
+  return `${g}${KATALOGAVGRANSARE}${i}`;
+}
+
+/**
+ * En grupps rader ur en katalogsamling, klara för `validateKatalog`.
+ *
+ * ⛔ REN FUNKTION, OCH DEN ENDA PLATSEN SOM TOLKAR EN LAGRAD RAD. Katalogkällan
+ * (`createCatalogSource`) och en app som prenumererar själv (bolag-ops läser
+ * med `useLiveCollection`) ska svara likadant på samma rader, annars ser
+ * functions och klienten olika kataloger. Därför ligger tolkningen här och
+ * inte i källan.
+ *
+ * Vad den gör med varje rad:
+ *
+ *   rad med DEN HÄR gruppens groupId   med, nyckeln packas upp till `id`
+ *   rad med en ANNAN grupps groupId     bort. Den är en annan grupps data
+ *   rad utan groupId, `overgang`        med, stämplad med den här gruppen
+ *   rad utan groupId, utan `overgang`   med OFÖRÄNDRAD, så att valideringen
+ *                                       kastar "groupId krävs" och felet syns
+ *
+ * ══ ⛔ `overgang` ÄR ÖVERGÅNGEN I EN APP SOM HADE KATALOGER FÖRE #162 ══
+ *
+ * bolag-ops har katalograder utan `groupId`, skrivna innan katalogerna blev
+ * gruppernas. Ramverket vet inte vems de är, men APPEN vet: den hade en enda
+ * grupp när de skrevs. `overgang: true` är appens uttryckliga påstående att
+ * raderna utan grupp är den här gruppens, och det gäller bara tills
+ * bakfyllnaden (`bakfyllKatalogGrupp`) har gett dem `groupId`. Ordningen står i
+ * CHANGELOG 0.33.0.
+ *
+ * ⛔ OCH ANTALET SVARAS ALLTID, också när det är noll. `utanGrupp` är hur man ser
+ * att övergången är klar: noll rader utan grupp betyder att `overgang` kan tas
+ * bort. En räknare som bara fanns när den var större än noll hade gjort "klar"
+ * och "inte mätt" omöjliga att skilja åt (arbetsreglernas punkt 5).
+ *
+ * @param {unknown} rader Råa rader ur databasen, med dokumentnyckeln som `id`.
+ * @param {{ groupId: string, overgang?: boolean }} config
+ * @returns {{ rader: Record<string, any>[], utanGrupp: number, andraGrupper: number }}
+ */
+export function gruppensRader(rader, config) {
+  const groupId = rensa(config && config.groupId);
+  if (!ID_FORM.test(groupId)) {
+    throw new Error(`gruppensRader: groupId krävs och måste ha id-formen. Fick "${groupId}". Katalogerna är gruppernas egna (#162), och en läsning utan grupp är en läsning av allas.`);
+  }
+  const overgang = Boolean(config && config.overgang);
+  const prefix = `${groupId}${KATALOGAVGRANSARE}`;
+  /** @type {Record<string, any>[]} */
+  const ut = [];
+  let utanGrupp = 0;
+  let andraGrupper = 0;
+  for (const rad of Array.isArray(rader) ? rader : []) {
+    if (!rad || typeof rad !== "object") {
+      ut.push(/** @type {any} */ (rad));
+      continue;
+    }
+    const r = /** @type {Record<string, any>} */ (rad);
+    const radensGrupp = rensa(r.groupId);
+    const nyckel = typeof r.id === "string" ? r.id : "";
+    if (radensGrupp) {
+      if (radensGrupp !== groupId) {
+        andraGrupper += 1;
+        continue;
+      }
+      ut.push({ ...r, id: nyckel.startsWith(prefix) ? nyckel.slice(prefix.length) : nyckel });
+      continue;
+    }
+    utanGrupp += 1;
+    ut.push(overgang ? { ...r, groupId } : r);
+  }
+  return { rader: ut, utanGrupp, andraGrupper };
+}

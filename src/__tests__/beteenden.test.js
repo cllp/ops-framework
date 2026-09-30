@@ -17,7 +17,7 @@ const KATALOG = validateKatalog(
     { id: "uppgift", namn: { sv: "Uppgifter" }, farg: 1, ikon: "check", fas: "aktiv" },
     { id: "bugg", namn: { sv: "Buggar" }, farg: 2, ikon: "bell", fas: "ny" },
   ],
-  { ikoner: IKONER },
+  { ikoner: IKONER, grupp: false },
 );
 
 describe("kopplingen katalog till kod", () => {
@@ -64,6 +64,7 @@ describe("kopplingen katalog till kod", () => {
      */
     const medArkiverad = validateKatalog([...KATALOG, { id: "gammal", namn: { sv: "Gammal" }, farg: 1, ikon: "check", fas: "klar", arkiverad: true }], {
       ikoner: IKONER,
+      grupp: false,
     });
     expect(() => kopplaBeteenden(medArkiverad, { uppgift: {}, bugg: {} })).toThrow(/gammal/);
     expect(() => kopplaBeteenden(medArkiverad, { uppgift: {}, bugg: {}, gammal: {} })).not.toThrow();

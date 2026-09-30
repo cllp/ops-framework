@@ -9,6 +9,68 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.33.0
+
+⛔ **Katalogerna är gruppens: `groupId` obligatoriskt, seedning i samma batch som gruppen, regelfragmentet med admin och nyckellås, och bakfyllnaden. Breaking för appens katalogkod, se "Att göra i appen". Ordningen där är inte valfri.**
+Händelsen: CP 2026-09-28 i [#160](https://github.com/cllp/ops-framework/issues/160), "väg C": *"Katalogerna är gruppens (väg C), seedade med appens standardvärden när gruppen skapas. Inställningsvyn är gruppens. Inget delas mellan grupper."* Ärendet är [#162](https://github.com/cllp/ops-framework/issues/162), epiken [#92](https://github.com/cllp/ops-framework/issues/92).
+0.29.0 gjorde `groupId` TILLÅTET på en kategori och 0.32.0 tog bort spärren mot en andra grupp. Det som saknades var att det också blev KRAV, att en ny grupp fick sina kataloger allt eller inget, att admin fick skriva dem och att bolag-ops raderna utan grupp fick en väg in.
+
+### Vad som ändrades
+- **`byggKategori` kräver `groupId` som förval.** `grupp` är förvalt `true`, och en kategori utan grupp kastar ("groupId krävs"). Bara en MALL (appens standardvärden innan de seedats in i en grupp) och en MODULS kodkatalog säger `grupp: false`, och då avvisas `groupId`. Före 0.33.0 var det tvärtom: varje ny väg var ogrupperad tills någon kom ihåg flaggan. `kallor.js` och `examples/paminnelser` säger nu `grupp: false`.
+- **`createCatalogSource`:** `groupId: null` (0.29.0, "hela samlingen, rader utan grupp") är borttaget. Ersättaren är `overgang: true` TILLSAMMANS med appens `groupId`: läser hela samlingen, raderna utan grupp räknas som den gruppens, andra gruppers rader faller bort, skrivning och seedning vägras. `las()` svarar nu också `utanGrupp`, alltid, också 0. Ny **`spara(kategori)`**, den enda skrivvägen: bygger med källans `groupId` och skriver med `katalognyckel(groupId, id)`. En kategori med en annan grupps `groupId` kastar i stället för att flyttas tyst.
+- **`katalognyckel(groupId, id)` och `gruppensRader(rader, { groupId, overgang })`** (nya, i båda ingångarna): nyckeln `groupId|id`, och den enda tolkningen av en lagrad rad. En app som prenumererar själv kör sina rader genom `gruppensRader`, så klienten och functions ser samma katalog.
+- **`createGroupService.skapaGrupp`** skriver gruppens kataloger ur appens `kataloger` i SAMMA batch som gruppen och ägarens medlemskap. Före 0.33.0 seedades de efter commit med en skrivning i taget. `kataloger` prövas när tjänsten byggs. Ramverket ändrar aldrig standardvärdena eller en grupps kopia i efterhand.
+- **`bakfyllKatalogGrupp({ kalla, samlingar, groupId, torr = true, grupper = "groups" })`** (ny, nodsidan): ger rader utan grupp `groupId` och nyckeln `groupId|id`, tar bort den gamla raden, och seedar varje grupp i `groups` som saknar en katalog. Allt i en batch. Fel, konflikter (nyckeln finns redan) och en batch över 500 skrivningar stoppar allt. Svarar `{ torr, flyttade, seedade, kvarUtanGrupp, fel, skrivningar }`, varje nyckel alltid med.
+- **`katalogregelfragment`:** skrivvillkoret är `opsArAdmin` (ägare eller admin) i stället för `opsArAgare`, och en ny rads dokumentnyckel måste vara `<radens groupId>|<id>`. Valet av admin: katalogen är samma sorts konfiguration som gruppens utseende och uppgifter, som admin får ändra sedan 0.32.0 (`ADMINGRUPPFALT`). Det ägaren ensam behöll i 0.32.0 är det strukturella: `moduler` och att arkivera gruppen. En kategori är namn, färg, ikon och ordning, arkiveras och tas fram och står i ändringsloggen. `opsArAgare` här skrevs i 0.29.0, innan rollen admin fanns. Nyckellåset: utan det kunde en admin i grupp A skapa `B|uppgift` med sin egen grupp på raden, och grupp B kunde sedan aldrig spara "uppgift".
+- **`OpsKatalogInstallning`:** `groupId` KRÄVS, och ett öppet utkast stängs i samma rendering som `groupId` byts. Före 0.33.0 stod den förra gruppens kategori kvar i formuläret efter ett gruppbyte, och Spara byggde den med den nya gruppens `groupId`.
+- **`check-gruppnyckel` steg 5** mäter beteende, inte närvaro: bygger en kategori utan groupId med förvalet, en katalogkälla utan grupp och med `groupId: null`, och läser katalogregelns create. Alla måste säga nej.
+- **Fjärde villkoret i #161 (vägra en andra grupp):** borta sedan 0.32.0 och kontrollerat nu. Ingen spärr finns i `src/node/grupp.js` eller någon annanstans (sökt efter spärren och dess meddelanden i `src`, `scripts`, `rules`), och provet "en andra grupp får sina EGNA kataloger bredvid den förstas, i samma samling" är nytt i `grupp-skapa.test.js`.
+- **Den incheckade symlänken `node_modules`** (21e8a83, 0.31.0) är borttagen, och `.gitignore` säger `node_modules` utan snedstreck, så att en symlänk med samma namn inte släpps igenom igen.
+
+### Röd utan fixen, grön med den
+- **Regelprov mot emulatorn:** 78 av 78 gröna. Mot 0.32.1:s fragment är 3 av 24 katalogprov röda (admin lägger till, admin ändrar, kapningen). Mutationer, en i taget, varje gång röd: nyckellåset borta (1), `opsArAdmin` till `opsArAgare` (3), skrivning som medlem (2), läsning utan grupp (6), flytt mellan grupper tillåten (4, varav följdfel), `hasOnly` borta (2), radering tillåten (3).
+- **Enhetsprov mot 0.32.1:s `src`:** 11 av de nya proven i `katalogkalla`, `katalogInstallning` och `grupp-skapa` röda (bland dem `spara`, `overgang`, `groupId` krävs i vyn, utkastet vid gruppbyte, katalogerna i samma batch, allt eller inget), och `katalog.test.js` röd redan vid import.
+- Provet "en nyskapad grupp har standardvärdena på plats innan första vyn ritas" är grönt också mot 0.32.1: seedningen var klar innan `skapaGrupp` svarade. Det nya är att det sker i samma batch, och det mäts av "i samma batch" och "allt eller inget", som båda är röda mot 0.32.1.
+- **`check-skalyta` avsnitt 28** (inställningsvyn med två grupper vid 390 och 1280): **röd mot 0.32.1, 2 brott** (utkastet "Styrelsemöte" och Spara kvar efter bytet till miranda-ab, båda bredderna). **Grön nu, 951 kontroller.**
+- **`check-gruppnyckel`:** tre nya planterade fel i `test-guards` (förvalet `grupp = false`, nyckellåset borta, katalogkällan utan grupp), alla röda.
+
+### Att göra i appen (bolag-ops), och ordningen
+⛔ **Ordningen är hela ändringen.** Två steg i fel ordning ger den röda banderollen hos alla:
+- Bakfyllnaden före steg 1: 0.32.1 kastar på en rad med `groupId` (`byggKategori` utan `grupp: true`) och på en nyckel med `|` (`ID_FORM`). Både klienten och functions faller till reserven.
+- Regeldeployen före steg 3: de nya reglerna nekar en fråga utan `where: { groupId }`, och övergångsklienten frågar efter hela samlingen.
+
+Varje steg nedan tål både det före och det efter.
+
+**Steg 1 (app, ompinning till 0.33.0, klient och functions i samma PR): övergångsläget.**
+- functions: `createCatalogSource({ ..., groupId: APPENS_GRUPP, overgang: true })` i stället för `groupId: null`.
+- webben: läs som i dag (hela samlingen), men kör raderna genom `gruppensRader(rader, { groupId: APPENS_GRUPP, overgang: true }).rader` före `validateKatalog`. Validera standardvärdena (reserven) med `grupp: false` och databasraderna med förvalet.
+- `OpsKatalogInstallning` får `groupId={APPENS_GRUPP}` och `kanAndra={false}`, plus en banderoll som säger att katalogerna flyttas in i gruppen. Katalogerna går inte att ändra från nu till steg 5.
+- `createGroupService({ kalla, samlingar, kataloger })` får appens standardvärden, så en grupp som skapas från nu har sina kataloger.
+- Reglerna rörs inte.
+- *Mellan steg 1 och 2:* samma kategorier som före. Raderna utan grupp stämplas med `cps-ab` i minnet, och en annan grupps rader faller bort i stället för att fälla valideringen. Gamla regler släpper igenom frågan på hela samlingen, eftersom läsregeln (`opsArMedlem(appensGrupp())`) inte beror på raden. Inga katalogskrivningar sker.
+
+**Steg 2 (CP, skript i appen): bakfyllnaden.**
+- Skriptet anropar `bakfyllKatalogGrupp({ kalla, samlingar: KATALOGER, groupId: "cps-ab", torr })`, med samma `KATALOGER` som `createGroupService`.
+- Kör först torrt och granska `flyttade`, `seedade` och `fel`. Kör sedan `--skarpt`. Kör torrt igen: `kvarUtanGrupp` ska vara 0 i varje samling och `fel` tom. Annars stannar ordningen här.
+- *Mellan steg 2 och 3:* raderna bär `groupId: "cps-ab"` och nyckeln `cps-ab|id`. Övergångsklienten packar upp nyckeln och ser samma kategorier. Grupper som skapats med 0.32.x har fått standardvärdena. Admin SDK går förbi reglerna, alltså spelar de gamla reglerna ingen roll för skriptet.
+
+**Steg 3 (app): övergången bort.**
+- functions: `createCatalogSource` utan `overgang`.
+- webben: prenumerera med `where: { groupId: aktivGrupp }` och kör raderna genom `gruppensRader(rader, { groupId: aktivGrupp })`.
+- Skrivvägen blir katalogkällans `spara`, eller `source.create(samling, { ...kategori, id: katalognyckel(groupId, kategori.id) })`, aldrig `source.create(samling, kategori)`.
+- Inställningsvyn är fortfarande låst (`kanAndra={false}`).
+- *Mellan steg 3 och 4:* de gamla reglerna släpper igenom frågan med `where: { groupId }`, eftersom läsregeln inte beror på raden. Inga skrivningar.
+
+**Steg 4 (CP, regeldeploy):**
+- Appens handskrivna block för `handelsetyper`, `sorter`, `prioriteringar` och `slag` ersätts av `katalogregelfragment(["handelsetyper", "sorter", "prioriteringar", "slag"])`. Granska diffen och deploya reglerna. Regeldeployen har ingen automat, se appens `CLAUDE.md`.
+- *Mellan steg 4 och 5:* läsningen är gruppens och tillåts för en aktiv medlem av radens grupp. Vyn är fortfarande låst.
+
+**Steg 5 (app): inställningsvyn låses upp.** `kanAndra` följer rollen, ägare eller admin (`opsArAdmin`), och `OpsKatalogInstallning` får den aktiva gruppens id.
+
+### Övrigt breaking
+- En Admin-adapter som används av `bakfyllKatalogGrupp` måste ha `remove` i sin `batch`. bolag-ops `gruppKalla` har det.
+- Anrop av `byggKategori`/`validateKatalog` på data utan grupp (standardvärden, provfixturer) behöver `grupp: false`.
+
 ## 0.32.1
 
 ⛔ **Idag och Kalender når bottenraden igen, också när Safaris verktygsfält fälls in och när något ovanför ytan försvinner. Händelsekortet, inkorgsraden och profilen som SS. Inte breaking.**

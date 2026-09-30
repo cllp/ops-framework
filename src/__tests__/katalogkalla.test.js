@@ -265,42 +265,79 @@ describe("⛔ gruppens egen katalog (#162): isolering mot samma minneskälla, i 
   });
 });
 
-describe("⛔ ogrupperat läge, groupId: null uttryckligen (0.29.0, övergången i cllp/bolag-ops#447)", () => {
-  it("null läser hela samlingen med id:n orörda och seedar rader utan groupId, som före #162", async () => {
+describe("⛔ groupId: null finns inte längre (0.33.0), övergången är overgang: true med ett groupId", () => {
+  it("⛔ null är rött, och felet pekar på overgang och bakfyllnaden", () => {
+    // Röd mot 0.32.1: där betydde null "hela samlingen, rader utan grupp".
     const source = createMemorySource();
-    const kalla = createCatalogSource({ source, collection: "kataloger", groupId: null, standard: STANDARD, ikoner: IKONER });
-    const seed = await kalla.seeda();
-    expect(seed).toEqual({ seedade: true, antal: 2 });
-    const rader = await source.list("kataloger", {});
-    expect(rader.map((r) => r.id).sort()).toEqual(["paminnelse", "uppgift"]);
-    expect(rader.every((r) => !Object.hasOwn(r, "groupId"))).toBe(true);
-    const svar = await kalla.las();
+    expect(() => createCatalogSource({ source, collection: "kataloger", groupId: /** @type {any} */ (null), standard: STANDARD })).toThrow(/overgang: true/);
+    expect(() => createCatalogSource({ source, collection: "kataloger", standard: STANDARD })).toThrow(/groupId krävs/);
+  });
+
+  it("övergången läser raderna utan grupp som den här gruppens, inte en annan grupps, och räknar dem", async () => {
+    const source = createMemorySource();
+    await source.create("kataloger", { ...STANDARD[0] }); // rad från före #162: id "uppgift", ingen grupp
+    await source.create("kataloger", { ...STANDARD[1], id: "miranda-ab|paminnelse", groupId: "miranda-ab" });
+
+    const svar = await createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, overgang: true, standard: STANDARD, ikoner: IKONER }).las();
     expect(svar.kalla).toBe("databas");
-    expect(svar.kategorier.map((k) => k.id).sort()).toEqual(["paminnelse", "uppgift"]);
+    expect(svar.kategorier.map((k) => [k.id, k.groupId])).toEqual([["uppgift", CPS_AB]]);
+    expect(svar.utanGrupp).toBe(1);
   });
 
-  it("null ser raderna från före #162 (rena id:n) men inte en grupps rader (nyckel groupId|id), och gruppen ser inte de ogrupperade", async () => {
+  it("⛔ UTAN övergång blir en rad utan grupp reserven, med felet utskrivet, inte en tyst rad i fel grupp", async () => {
     const source = createMemorySource();
-    await source.create("kataloger", { ...STANDARD[0], groupId: null });
-    await createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: [STANDARD[1]], ikoner: IKONER }).seeda();
-    const ogrupperat = await createCatalogSource({ source, collection: "kataloger", groupId: null, standard: [], ikoner: IKONER }).las();
-    expect(ogrupperat.kalla).toBe("databas");
-    expect(ogrupperat.kategorier.map((k) => k.id)).toEqual(["uppgift"]);
-    const gruppen = await createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: [], ikoner: IKONER }).las();
-    expect(gruppen.kalla).toBe("databas");
-    expect(gruppen.kategorier.map((k) => k.id)).toEqual(["paminnelse"]);
-  });
-
-  it("reserven i ogrupperat läge bär inget groupId", async () => {
-    const kalla = createCatalogSource({ source: trasigKalla(), collection: "kataloger", groupId: null, standard: STANDARD, ikoner: IKONER });
-    const svar = await kalla.las();
+    await source.create("kataloger", { ...STANDARD[0] });
+    // Minneskällans `where` släpper inte igenom raden, precis som Firestore. Frågan provas därför mot en källa som svarar med allt.
+    const alltid = { ...source, list: async () => [{ ...STANDARD[0] }] };
+    const svar = await createCatalogSource({ source: alltid, collection: "kataloger", groupId: CPS_AB, standard: STANDARD, ikoner: IKONER }).las();
     expect(svar.kalla).toBe("reserv");
-    expect(svar.kategorier.every((k) => !Object.hasOwn(k, "groupId"))).toBe(true);
+    expect(svar.fel?.message).toMatch(/groupId för "uppgift" krävs/);
   });
 
-  it("⛔ ett utelämnat groupId är fortfarande rött, och felet pekar på null", () => {
+  it("⛔ under övergången vägras skrivning och seedning, med skälet", async () => {
     const source = createMemorySource();
-    expect(() => createCatalogSource({ source, collection: "kataloger", standard: STANDARD })).toThrow(/groupId: null uttryckligen/);
-    expect(() => createCatalogSource({ source, collection: "kataloger", groupId: undefined, standard: STANDARD })).toThrow(/groupId krävs/);
+    const kalla = createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, overgang: true, standard: STANDARD, ikoner: IKONER });
+    await expect(kalla.spara({ ...STANDARD[0] })).rejects.toThrow(/pausad/);
+    expect((await kalla.seeda()).seedade).toBe(false);
+    expect(await source.list("kataloger")).toEqual([]);
+  });
+
+  it("svaret bär utanGrupp: 0 när allt har grupp, inte en utelämnad nyckel", async () => {
+    const source = createMemorySource();
+    const kalla = createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: STANDARD, ikoner: IKONER });
+    await kalla.seeda();
+    const svar = await kalla.las();
+    expect(svar.utanGrupp).toBe(0);
+    expect(Object.hasOwn(svar, "utanGrupp")).toBe(true);
+  });
+});
+
+describe("⛔ spara: den enda skrivvägen, i den aktiva gruppens katalog (0.33.0)", () => {
+  it("skriver med nyckeln groupId|id och gruppens groupId, och läses tillbaka med rent id", async () => {
+    const source = createMemorySource();
+    const cps = createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, standard: STANDARD, ikoner: IKONER });
+    const sparad = await cps.spara({ id: "resa", namn: { sv: "Resor" }, farg: 1, ikon: "check", fas: "aktiv" });
+    expect(sparad.groupId).toBe(CPS_AB);
+    const lagrade = await source.list("kataloger");
+    expect(lagrade.map((r) => r.id)).toEqual(["cps-ab|resa"]);
+    expect((await cps.las()).kategorier.map((k) => k.id)).toEqual(["resa"]);
+  });
+
+  it("⛔ två grupper sparar samma id utan att skriva över varandra", async () => {
+    // Röd mot appens egen skrivväg före 0.33.0 (`source.create(samling, kategori)`, nyckel = id).
+    const source = createMemorySource();
+    const ny = { id: "uppgift", namn: { sv: "Uppgifter" }, farg: 1, ikon: "check", fas: "aktiv" };
+    await createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, ikoner: IKONER }).spara(ny);
+    await createCatalogSource({ source, collection: "kataloger", groupId: "miranda-ab", ikoner: IKONER }).spara({ ...ny, namn: { sv: "Miranda" } });
+    expect((await source.list("kataloger")).length).toBe(2);
+    const cps = await createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, ikoner: IKONER }).las();
+    expect(cps.kategorier.map((k) => k.namn.sv)).toEqual(["Uppgifter"]);
+  });
+
+  it("⛔ en kategori ur en annan grupp sparas inte in i den här, den flyttas aldrig tyst", async () => {
+    const source = createMemorySource();
+    const cps = createCatalogSource({ source, collection: "kataloger", groupId: CPS_AB, ikoner: IKONER });
+    await expect(cps.spara({ ...STANDARD[0], groupId: "miranda-ab" })).rejects.toThrow(/flyttas inte/);
+    expect(await source.list("kataloger")).toEqual([]);
   });
 });

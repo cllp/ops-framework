@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createMemorySource } from "../data/adapters.js";
 import { createGroupService } from "../node/grupp.js";
+import { createCatalogSource } from "../data/katalogkalla.js";
 import { medlemskapsId } from "../lib/grupp.js";
 
 /**
@@ -294,18 +295,75 @@ describe("⛔ kraven på indata", () => {
   });
 });
 
-describe("⛔ katalogerna seedas för den nya gruppen, efter commit, bara när appen anger dem (#162)", () => {
-  it("skriver gruppens kategorier med groupId efter gruppen och ägaren", async () => {
+describe("⛔ katalogerna seedas I SAMMA BATCH som gruppen, bara när appen anger dem (#162, 0.33.0)", () => {
+  const HANDELSETYPER = [
+    { id: "mote", namn: { sv: "Möte", en: "Meeting" }, farg: 1, ikon: "check", fas: "aktiv", ordning: 0 },
+    { id: "resa", namn: { sv: "Resa", en: "Trip" }, farg: 2, ikon: "check", fas: "aktiv", ordning: 1 },
+  ];
+  const SORTER = { standard: [{ id: "kvitto", namn: { sv: "Kvitto" }, ikon: "check" }], faser: false, farger: false };
+
+  it("skriver gruppens kategorier med groupId, i samma batch som gruppen och ägaren", async () => {
     const { kalla } = bygg();
-    const tjanst = createGroupService({
-      kalla,
-      kataloger: { handelsetyper: [{ id: "mote", namn: { sv: "Möte", en: "Meeting" }, farg: 1, ikon: "check", fas: "aktiv", ordning: 0 }] },
-    });
+    /** @type {any[][]} */
+    const batcher = [];
+    const raknande = /** @type {any} */ ({ ...kalla, batch: async (/** @type {any[]} */ ops) => { batcher.push(ops); return kalla.batch?.(ops); } });
+    const tjanst = createGroupService({ kalla: raknande, kataloger: { handelsetyper: HANDELSETYPER, sorter: SORTER } });
     const svar = await skapa(tjanst);
     const rader = await kalla.list("handelsetyper", {});
-    expect(rader).toHaveLength(1);
-    expect(rader[0].groupId).toBe(svar.groupId);
-    expect(rader[0].id).toBe(`${svar.groupId}|mote`); // den lagrade nyckeln, `groupId|id` (#162), inte ett andra id-fält
+    expect(rader).toHaveLength(2);
+    expect(rader.every((r) => r.groupId === svar.groupId)).toBe(true);
+    expect(rader.map((r) => r.id).sort()).toEqual([`${svar.groupId}|mote`, `${svar.groupId}|resa`]);
+    // ⛔ EN batch med allt: grupp, medlemskap, två händelsetyper och en sort. Röd mot 0.32.1, där
+    // katalogerna skrevs med create, en i taget, efter att batchen redan gått igenom.
+    expect(batcher).toHaveLength(1);
+    expect(batcher[0].map((o) => o.collection)).toEqual(["groups", "memberships", "handelsetyper", "handelsetyper", "sorter"]);
+  });
+
+  it("⛔ en nyskapad grupp har standardvärdena på plats innan första vyn ritas: katalogkällan läser dem ur databasen, inte ur reserven", async () => {
+    const { kalla } = bygg();
+    const tjanst = createGroupService({ kalla, kataloger: { handelsetyper: HANDELSETYPER } });
+    const svar = await skapa(tjanst);
+    // Den väg en vy läser med, direkt efter att skapaGrupp svarat. "databas" och inte "reserv" eller tom.
+    const las = await createCatalogSource({ source: kalla, collection: "handelsetyper", groupId: svar.groupId, standard: HANDELSETYPER }).las();
+    expect(las.kalla).toBe("databas");
+    expect(las.kategorier.map((k) => k.id)).toEqual(["mote", "resa"]);
+  });
+
+  it("⛔ ALLT ELLER INGET: faller batchen finns varken grupp, ägare eller en enda kategori", async () => {
+    const minne = createMemorySource({ vitlista: [{ id: EPOST, epost: EPOST, tillagdAv: {}, tid: "x" }], memberships: [], groups: [], users: [], invitations: [] });
+    // Varje skrivning till katalogen faller, vare sig den går i batchen eller som en egen create. Minnesadapterns
+    // batch återställer då hela lagret. Röd mot 0.32.1: där gick batchen (grupp, ägare) igenom FÖRST, och
+    // seedningen efteråt föll, så gruppen stod kvar utan kataloger.
+    const trasigKatalog = (/** @type {any} */ o) => (o.collection === "handelsetyper" ? { op: "update", collection: "handelsetyper", id: "finns-inte", data: {} } : o);
+    const kalla = /** @type {any} */ ({
+      ...minne,
+      create: async (/** @type {string} */ c, /** @type {any} */ d) => {
+        if (c === "handelsetyper") throw new Error("skrivningen av katalogen föll");
+        return minne.create(c, d);
+      },
+      batch: async (/** @type {any[]} */ ops) => minne.batch?.(ops.map(trasigKatalog)),
+    });
+    const tjanst = createGroupService({ kalla, kataloger: { handelsetyper: HANDELSETYPER } });
+    await expect(skapa(tjanst)).rejects.toThrow();
+    expect(await minne.list("groups")).toEqual([]);
+    expect(await minne.list("memberships")).toEqual([]);
+    expect(await minne.list("handelsetyper")).toEqual([]);
+  });
+
+  it("⛔ en trasig standardkategori stoppar tjänsten när den BYGGS, inte när någon skapar en grupp", () => {
+    const { kalla } = bygg();
+    expect(() => createGroupService({ kalla, kataloger: { handelsetyper: [{ id: "Trasig Nyckel", namn: { sv: "X" }, farg: 1, ikon: "check", fas: "aktiv" }] } })).toThrow(/små bokstäver/);
+  });
+
+  it("en andra grupp får sina EGNA kataloger bredvid den förstas, i samma samling", async () => {
+    const { kalla } = bygg();
+    const tjanst = createGroupService({ kalla, kataloger: { handelsetyper: HANDELSETYPER } });
+    const a = await skapa(tjanst, {}, { namn: "Första" });
+    const b = await skapa(tjanst, {}, { namn: "Andra" });
+    const rader = await kalla.list("handelsetyper", {});
+    expect(rader).toHaveLength(4);
+    expect(rader.filter((r) => r.groupId === a.groupId)).toHaveLength(2);
+    expect(rader.filter((r) => r.groupId === b.groupId)).toHaveLength(2);
   });
 
   it("utan kataloger seedas ingenting, och ingen tom samling skapas", async () => {

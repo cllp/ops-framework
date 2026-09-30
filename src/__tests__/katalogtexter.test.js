@@ -13,7 +13,7 @@ import { saknadeSprak } from "../lib/sprak.js";
 
 const IKONER = ["check", "bell"];
 const GRUND = { id: "kvitto", namn: { sv: "Kvitto" }, farg: 1, ikon: "check", fas: "ny" };
-const bygg = (extra = {}, config = {}) => byggKategori({ ...GRUND, ...extra }, { ikoner: IKONER, ...config });
+const bygg = (extra = {}, config = {}) => byggKategori({ ...GRUND, ...extra }, { grupp: false, ikoner: IKONER, ...config });
 
 describe("textpåsen", () => {
   it("bär namngivna texter på båda språken", () => {
@@ -108,8 +108,8 @@ describe("kravet på texter", () => {
       { ...GRUND, texter: { row: "Kvitto", lofte: "Bokförs." } },
       { id: "resa", namn: { sv: "Resa" }, farg: 2, ikon: "bell", fas: "ny", texter: { row: "Resa" } },
     ];
-    expect(() => validateKatalog(katalog, { ikoner: IKONER, textnycklar: KRAVDA })).toThrow(/lofte/);
-    expect(() => validateKatalog(katalog, { ikoner: IKONER, textnycklar: KRAVDA })).toThrow(/"resa"/);
+    expect(() => validateKatalog(katalog, { grupp: false, ikoner: IKONER, textnycklar: KRAVDA })).toThrow(/lofte/);
+    expect(() => validateKatalog(katalog, { grupp: false, ikoner: IKONER, textnycklar: KRAVDA })).toThrow(/"resa"/);
   });
 
   it("en extra text utöver de krävda är tillåten", () => {
@@ -170,7 +170,7 @@ describe("sortkatalogen, alltså en katalog utan faser", () => {
   it("bygger utan fas, och fältet blir null och inte tom sträng", () => {
     // null säger "den här katalogen har inga faser". En tom sträng hade sett
     // ut som en fas någon glömt fylla i.
-    const k = byggKategori(SORT, { ikoner: IKONER, faser: false });
+    const k = byggKategori(SORT, { grupp: false, ikoner: IKONER, faser: false });
     expect(k.fas).toBeNull();
   });
 
@@ -180,7 +180,7 @@ describe("sortkatalogen, alltså en katalog utan faser", () => {
      * och då kan ingen vy lita på svaret. Det är katalogen som avgör, inte
      * raden.
      */
-    const fel = () => byggKategori({ ...SORT, fas: "aktiv" }, { ikoner: IKONER, faser: false });
+    const fel = () => byggKategori({ ...SORT, fas: "aktiv" }, { grupp: false, ikoner: IKONER, faser: false });
     expect(fel).toThrow(/hör inte hemma i den här katalogen/);
     expect(fel).toThrow(/sortkatalog/);
   });
@@ -188,16 +188,16 @@ describe("sortkatalogen, alltså en katalog utan faser", () => {
   it("⛔ och en statuskatalog kräver fortfarande sin fas", () => {
     // Förvalet är oförändrat. Hade det bytt hade varje befintlig katalog tyst
     // slutat kräva fasen.
-    expect(() => byggKategori(SORT, { ikoner: IKONER })).toThrow(/fas/);
+    expect(() => byggKategori(SORT, { grupp: false, ikoner: IKONER })).toThrow(/fas/);
   });
 
   it("arAvslutad svarar falskt på en sortkategori i stället för att kasta", () => {
-    const k = byggKategori(SORT, { ikoner: IKONER, faser: false });
+    const k = byggKategori(SORT, { grupp: false, ikoner: IKONER, faser: false });
     expect(arAvslutad(k.fas)).toBe(false);
   });
 
   it("hela katalogen går igenom utan faser", () => {
-    const katalog = validateKatalog([SORT, { id: "resa", namn: { sv: "Resa" }, farg: 2, ikon: "bell" }], { ikoner: IKONER, faser: false });
+    const katalog = validateKatalog([SORT, { id: "resa", namn: { sv: "Resa" }, farg: 2, ikon: "bell" }], { grupp: false, ikoner: IKONER, faser: false });
     expect(katalog.map((k) => k.fas)).toEqual([null, null]);
   });
 });
@@ -214,13 +214,13 @@ describe("en katalog utan färger", () => {
   const SORT = { id: "kvitto", namn: { sv: "Kvitto" }, ikon: "check" };
 
   it("bygger utan färg, och fältet blir null", () => {
-    const k = byggKategori(SORT, { ikoner: IKONER, faser: false, farger: false });
+    const k = byggKategori(SORT, { grupp: false, ikoner: IKONER, faser: false, farger: false });
     expect(k.farg).toBeNull();
     expect(k.ikon).toBe("check");
   });
 
   it("⛔ en färg som ändå skickas in AVVISAS", () => {
-    const fel = () => byggKategori({ ...SORT, farg: 1 }, { ikoner: IKONER, faser: false, farger: false });
+    const fel = () => byggKategori({ ...SORT, farg: 1 }, { grupp: false, ikoner: IKONER, faser: false, farger: false });
     expect(fel).toThrow(/hör inte hemma i den här katalogen/);
     expect(fel).toThrow(/skiljs kategorierna åt med ikon/);
   });
@@ -228,18 +228,18 @@ describe("en katalog utan färger", () => {
   it("⛔ och en katalog MED färger kräver fortfarande sin palettplats", () => {
     // Förvalet är oförändrat. Hade det bytt hade varje befintlig katalog tyst
     // slutat kräva färgen, och då ritas korten utan kant.
-    expect(() => byggKategori(SORT, { ikoner: IKONER, faser: false })).toThrow(/måste vara en palettplats/);
+    expect(() => byggKategori(SORT, { grupp: false, ikoner: IKONER, faser: false })).toThrow(/måste vara en palettplats/);
   });
 
   it("⛔ ikonen krävs fortfarande, för den är det enda som skiljer dem åt", () => {
     // Utan färg bär ikonen hela igenkänningen. En kategori utan ikon vore då
     // omöjlig att skilja från nästa.
-    expect(() => byggKategori({ id: "x", namn: { sv: "X" } }, { ikoner: IKONER, faser: false, farger: false })).toThrow(/ikon/);
+    expect(() => byggKategori({ id: "x", namn: { sv: "X" } }, { grupp: false, ikoner: IKONER, faser: false, farger: false })).toThrow(/ikon/);
   });
 
   it("sex kategorier går igenom, vilket tre palettplatser aldrig tillåtit", () => {
     const sex = ["ekonomi", "kvitto", "arende", "forbattring", "bugg", "ovrigt"].map((id) => ({ id, namn: { sv: id }, ikon: "check" }));
-    const katalog = validateKatalog(sex, { ikoner: IKONER, faser: false, farger: false });
+    const katalog = validateKatalog(sex, { grupp: false, ikoner: IKONER, faser: false, farger: false });
     expect(katalog).toHaveLength(6);
     expect(katalog.every((k) => k.farg === null)).toBe(true);
   });

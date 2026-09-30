@@ -231,9 +231,12 @@ const GRANSKARE = {
      * ⛔ KATEGORIERNA GRANSKAS AV `validateKatalog` OCH INTE AV EN KOPIA HÄR.
      * Katalogmotorn äger den formen sedan #111, och två uppsättningar krav på
      * samma rad glider isär.
+     *
+     * ⛔ `grupp: false` (0.33.0): modulens kategorier här är KOD, inte en
+     * grupps rader i databasen, se noten vid `KATEGORIFALT`.
      */
     try {
-      validateKatalog(rad.kategorier, { katalog: `modulen "${modulId}": katalogen "${id}"` });
+      validateKatalog(rad.kategorier, { katalog: `modulen "${modulId}": katalogen "${id}"`, grupp: false });
     } catch (fel) {
       throw radfel(modulId, "kataloger", i, `bär kategorier som inte håller: ${fel instanceof Error ? fel.message : String(fel)}`);
     }

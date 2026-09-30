@@ -1476,6 +1476,28 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     ],
     "KATEGORIFALT saknar",
   );
+
+  // ⛔ 0.33.0: FÖRVALET ÄR DET SOM GÖR groupId OBLIGATORISKT. Planterat: förvalet tillbaka till 0.32.1:s
+  // `grupp = false`. KATEGORIFALT bär fortfarande groupId, alltså är steg 4 grönt, och bara beteendet fäller.
+  kravRott(
+    "gruppnyckel: en kategori utan groupId byggs med förvalet (grupp = false)",
+    [nyckelvakt, libkopia("gn6", (k) => k.replace("farger = true, grupp = true } = {}) {", "farger = true, grupp = false } = {}) {"), "katalog.js")],
+    "byggKategori byggde en kategori utan groupId",
+  );
+
+  // ⛔ 0.33.0: nyckellåset i katalogregeln borttaget.
+  kravRott(
+    "gruppnyckel: katalogregelns nyckellås borta",
+    [nyckelvakt, libkopia("gn7", (k) => k.replace("const nyckelrad = config.nyckelMedGrupp", "const nyckelrad = false && config.nyckelMedGrupp"), "regler.js")],
+    "låser inte dokumentnyckeln",
+  );
+
+  // ⛔ 0.33.0: 0.29.0:s `groupId: null` tillbaka i katalogkällan (kravet borttaget).
+  kravRott(
+    "gruppnyckel: katalogkällan byggs utan grupp",
+    [nyckelvakt, libkopia("gn8", (k) => k.replace("  if (!groupId) {\n    throw new Error(\n      \"createCatalogSource: groupId krävs.", "  if (false) {\n    throw new Error(\n      \"createCatalogSource: groupId krävs."), path.join("..", "data", "katalogkalla.js"))],
+    "createCatalogSource gick att bygga",
+  );
 }
 
 // ── Gruppfrågan: groupId är ett KRAV i typen, inte en konvention (#139) ────

@@ -27,7 +27,7 @@ const KATEGORIER = validateKatalog(
     },
     { id: "gammal", namn: { sv: "Gammal sort" }, farg: 2, ikon: "bell", fas: "klar", ordning: 1, arkiverad: true, texter: { lofte: "Står kvar." } },
   ],
-  { ikoner: IKONER, textnycklar: ["lofte"] },
+  { ikoner: IKONER, textnycklar: ["lofte"], grupp: false },
 );
 
 const rita = (props = {}) =>
@@ -38,6 +38,7 @@ const rita = (props = {}) =>
       kanAndra
       onSpara={() => {}}
       onArkivera={() => {}}
+      groupId="cps-ab"
       {...props}
     />,
   );
@@ -175,7 +176,7 @@ describe("inställningsvyn", () => {
   it("⛔ vägrar monteras utan tillåtelselista, i stället för att tillåta vad som helst", () => {
     // Utan lista går det att spara en ikon som inte finns, och den blir en tom
     // ruta i varje vy.
-    expect(() => render(<OpsKatalogInstallning kategorier={[]} ikoner={[]} onSpara={() => {}} onArkivera={() => {}} />)).toThrow(/ikoner krävs/);
+    expect(() => render(<OpsKatalogInstallning kategorier={[]} ikoner={[]} groupId="cps-ab" onSpara={() => {}} onArkivera={() => {}} />)).toThrow(/ikoner krävs/);
   });
 
   it("⛔ visar ändringsloggen i samma vy, inte i en egen", () => {
@@ -283,14 +284,14 @@ describe("texterna i inställningsvyn", () => {
   it("utan deklarerade texter och utan burna ritas ingen tom rubrik", () => {
     // Tomhet är ett svar, men en rubrik utan innehåll ser ut som något som inte
     // laddat klart.
-    rita({ kategorier: validateKatalog([{ id: "x", namn: { sv: "X" }, farg: 1, ikon: "check", fas: "ny" }], { ikoner: IKONER }) });
+    rita({ kategorier: validateKatalog([{ id: "x", namn: { sv: "X" }, farg: 1, ikon: "check", fas: "ny" }], { ikoner: IKONER, grupp: false }) });
     fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
     expect(screen.queryByText(/Texter, alltså/)).toBeNull();
   });
 });
 
 describe("sortkatalogen i inställningsvyn", () => {
-  const SORTER = validateKatalog([{ id: "kvitto", namn: { sv: "Kvitto" }, farg: 1, ikon: "check" }], { ikoner: IKONER, faser: false });
+  const SORTER = validateKatalog([{ id: "kvitto", namn: { sv: "Kvitto" }, farg: 1, ikon: "check" }], { ikoner: IKONER, faser: false, grupp: false });
   const sortvy = (props = {}) => rita({ kategorier: SORTER, faser: false, ...props });
 
   it("⛔ ritar ingen fasväljare, eftersom fältet inte finns på kategorin", () => {
@@ -329,7 +330,7 @@ describe("sortkatalogen i inställningsvyn", () => {
 });
 
 describe("en katalog utan färger i inställningsvyn", () => {
-  const UTAN = validateKatalog([{ id: "kvitto", namn: { sv: "Kvitto" }, ikon: "check" }], { ikoner: IKONER, faser: false, farger: false });
+  const UTAN = validateKatalog([{ id: "kvitto", namn: { sv: "Kvitto" }, ikon: "check" }], { ikoner: IKONER, faser: false, farger: false, grupp: false });
   const vy = (props = {}) => rita({ kategorier: UTAN, faser: false, farger: false, ...props });
 
   it("⛔ ritar ingen färgväljare och ingen ruta att skriva en hex i", () => {
@@ -373,25 +374,15 @@ describe("en katalog utan färger i inställningsvyn", () => {
   });
 });
 
-describe("⛔ groupId (#162): satt eller inte, avgör om kategorin blir gruppens egen", () => {
-  it("ingen groupId-prop: kategorin byggs precis som innan #162, utan fältet", () => {
-    // ⛔ Oförändrat beteende. Det här är beviset på att en app som inte satt
-    // `groupId` inte märker att #162 hände.
-    const onSpara = vi.fn();
-    rita({ onSpara });
-    fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
-    fireEvent.change(screen.getByLabelText(/Nyckel/), { target: { value: "resa" } });
-    fireEvent.change(screen.getByLabelText(/Namn på svenska/), { target: { value: "Resor" } });
-    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
-
-    expect(onSpara).toHaveBeenCalledTimes(1);
-    // ⛔ "Utan fältet" betyder utan NYCKELN (0.29.1). 0.29.0 skickade `groupId: null`,
-    // och det föll på bolag-ops `hasOnly`-regler som inte känner groupId: 10 röda
-    // regelprov, PERMISSION_DENIED på varje kategoriskrivning i Inställningar.
-    expect(Object.hasOwn(onSpara.mock.calls[0][0], "groupId")).toBe(false);
+describe("⛔ groupId (#162, krävs sedan 0.33.0): vyn skriver i den aktiva gruppens katalog", () => {
+  it("⛔ vägrar monteras utan groupId, i stället för att spara kategorier utan grupp", () => {
+    // Före 0.33.0 byggdes en kategori utan grupp när propen saknades, alltså en rad som
+    // delas av varje grupp i samlingen. Röd mot 0.32.1: där monterades vyn utan klagan.
+    expect(() => render(<OpsKatalogInstallning kategorier={KATEGORIER} ikoner={IKONER} onSpara={() => {}} onArkivera={() => {}} />)).toThrow(/groupId krävs/);
+    expect(() => render(<OpsKatalogInstallning kategorier={KATEGORIER} ikoner={IKONER} groupId="  " onSpara={() => {}} onArkivera={() => {}} />)).toThrow(/groupId krävs/);
   });
 
-  it("groupId satt: en ny kategori bär den, byggd med grupp: true", () => {
+  it("en ny kategori bär den aktiva gruppens groupId", () => {
     const onSpara = vi.fn();
     rita({ onSpara, groupId: "cps-ab" });
     fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
@@ -403,7 +394,7 @@ describe("⛔ groupId (#162): satt eller inte, avgör om kategorin blir gruppens
     expect(onSpara.mock.calls[0][0].groupId).toBe("cps-ab");
   });
 
-  it("groupId satt: en ÄNDRAD kategori bär den också, inte bara en nyskapad", () => {
+  it("en ÄNDRAD kategori bär den också, inte bara en nyskapad", () => {
     const onSpara = vi.fn();
     rita({ onSpara, groupId: "cps-ab" });
     fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
@@ -411,5 +402,27 @@ describe("⛔ groupId (#162): satt eller inte, avgör om kategorin blir gruppens
 
     expect(onSpara).toHaveBeenCalledTimes(1);
     expect(onSpara.mock.calls[0][0].groupId).toBe("cps-ab");
+  });
+
+  it("⛔ ett öppet utkast stängs när gruppen byts, och kan inte sparas in i den nya gruppen", () => {
+    /*
+     * Röd mot 0.32.1: där låg `redigerar` och `utkast` kvar över bytet, formuläret visade grupp A:s
+     * "Uppgifter" under grupp B:s lista, och Spara gav onSpara en kopia av A:s kategori med groupId B.
+     */
+    const onSpara = vi.fn();
+    const MIRANDA = validateKatalog([{ id: "turne", namn: { sv: "Turné" }, farg: 2, ikon: "bell", fas: "aktiv" }], { ikoner: IKONER, grupp: false });
+    const vy = (/** @type {string} */ groupId, /** @type {any} */ kategorier) => (
+      <OpsKatalogInstallning kategorier={kategorier} ikoner={IKONER} kanAndra textnycklar={TEXTNYCKLAR} onSpara={onSpara} onArkivera={() => {}} groupId={groupId} />
+    );
+    const { rerender } = render(vy("cps-ab", KATEGORIER));
+    fireEvent.click(screen.getAllByRole("button", { name: "Ändra" })[0]);
+    expect(screen.getByLabelText(/Namn på svenska/)).toHaveValue("Uppgifter");
+
+    rerender(vy("miranda-ab", MIRANDA));
+    expect(screen.getByText("Turné")).toBeInTheDocument();
+    expect(screen.queryByText("Uppgifter")).toBeNull();
+    expect(screen.queryByLabelText(/Namn på svenska/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(onSpara).not.toHaveBeenCalled();
   });
 });

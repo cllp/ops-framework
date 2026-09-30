@@ -49,15 +49,19 @@ const PaminnelserForm = lazy(() => import("./PaminnelserForm.jsx"));
  * ⛔ KATEGORIERNA BYGGS MED RAMVERKETS `byggKategori`, inte som råa objekt. Då
  * gäller samma validering för modulens katalog som för appens, och en modul
  * kan inte smyga in en kategori med en fas som inte finns.
+ *
+ * ⛔ MED `grupp: false` (0.33.0). En kategori kräver annars `groupId`, eftersom
+ * en katalog i databasen är en grupps egen. Den här är KOD: samma lista för
+ * varje grupp som installerar modulen, och den har ingen databasgrupp att peka på.
  */
 export const SORTER = [
   byggKategori(
     { id: "rakning", namn: { sv: "Räkning", en: "Bill" }, ikon: "gem", farg: 1, fas: "aktiv" },
-    { ikoner: ["gem", "fil"], katalog: "paminnelser" },
+    { ikoner: ["gem", "fil"], katalog: "paminnelser", grupp: false },
   ),
   byggKategori(
     { id: "avtal", namn: { sv: "Avtal", en: "Contract" }, ikon: "fil", farg: 2, fas: "aktiv" },
-    { ikoner: ["gem", "fil"], katalog: "paminnelser" },
+    { ikoner: ["gem", "fil"], katalog: "paminnelser", grupp: false },
   ),
 ];
 

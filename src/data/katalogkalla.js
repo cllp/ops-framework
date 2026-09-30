@@ -29,9 +29,10 @@
  *
  * ⛔ STANDARDVÄRDENA HAR INGET groupId, OCH SKA INTE HA DET. De är mallen som
  * skickas in av appen (samma `standard` som innan #162), och en mall har ingen
- * grupp förrän den seedas in i en. Därför valideras `standard` HÄR utan
- * `grupp: true`, medan varje rad som faktiskt LÄSES eller SKRIVS mot samlingen
- * (`las`, `seeda`) valideras MED det, med den här källans `groupId` inbakat.
+ * grupp förrän den seedas in i en. Därför valideras `standard` HÄR med
+ * `grupp: false`, medan varje rad som faktiskt LÄSES eller SKRIVS mot samlingen
+ * (`las`, `seeda`, `spara`) valideras med förvalet, alltså med den här källans
+ * `groupId` som krav.
  *
  * ══ ⛔ TRE FRÅGOR SOM MÅSTE HA SITT SVAR I KODEN ══════════════════════
  *
@@ -46,9 +47,10 @@
  *    CLAUDE.md regel 1 och 5: en fallback som döljer en trasig konfiguration är
  *    samma sak som en tystad `try/catch`.
  *
- * 3. VEM FÅR SKRIVA? Ägaren, enligt rollerna i Fas 1. Den kontrollen bor i
- *    Firestore-reglerna och inte här, eftersom en kontroll i klienten bara är
- *    en artighet: den som vill skriva ändå öppnar konsolen.
+ * 3. VEM FÅR SKRIVA? Ägaren och admin (0.33.0, samma rollmodell som gruppens
+ *    utseende i 0.32.0). Den kontrollen bor i Firestore-reglerna
+ *    (`katalogregelfragment`) och inte här, eftersom en kontroll i klienten
+ *    bara är en artighet: den som vill skriva ändå öppnar konsolen.
  *
  * ══ ⛔ VAD DEN HÄR MODULEN INTE GÖR ═══════════════════════════════════
  *
@@ -58,70 +60,20 @@
  * prova utan en databas och att köra på nodsidan (cllp/bolag-ops#385).
  */
 
-import { byggKategori, validateKatalog } from "../lib/katalog.js";
-
-/**
- * ══ ⛔ DOKUMENTETS NYCKEL I DEN DELADE SAMLINGEN, OCH VARFÖR DEN INTE ÄR
- * KATEGORINS EGNA `id` (#162, mutationsfynd) ═══════════════════════════
- *
- * Kategorins `id` är en liten, läsbar maskinnyckel ("uppgift"), och
- * `katalog.js` är tydlig med att den bara är unik INOM en grupps egen katalog.
- * Samlingen den lagras i är sedan #162 DELAD av alla grupper. Skrivs dokumentet
- * med bara `id` som Firestore-nyckel pekar miranda ab:s "uppgift" och cps
- * ab:s "uppgift" på SAMMA dokument, och den som seedar eller sparar sist
- * skriver över den andra.
- *
- * ⛔ DET HÄNDE, I DET FÖRSTA PROVET SOM SEEDADE TVÅ GRUPPER MOT SAMMA
- * minneskälla: fyra kategorier seedade, två kvar. Beviset står i
- * `src/__tests__/katalogkalla.test.js`.
- *
- * Lösningen är samma som `medlemskapsId` i `lib/grupp.js` (#152): en HÄRLEDD,
- * sammansatt nyckel för LAGRINGEN, `groupId` plus avgränsare plus kategorins
- * `id`. Den logiska `id` som varje vy, varje jämförelse och varje annan rads
- * `kategori: "uppgift"`-referens använder förblir den enkla, korta strängen:
- * `las()` packar upp den sammansatta nyckeln innan raden lämnar den här filen,
- * så resten av ramverket och appen aldrig ser den.
- *
- * `|` av samma skäl som i `medlemskapsId`: olagligt i ett `id` (`ID_FORM`),
- * giltigt i ett Firestore-dokument-id.
- *
- * ⛔ SKRIVER APPEN EGNA RADER TILL SAMMA SAMLING (t.ex. `OpsKatalogInstallning`s
- * `onSpara`, som ramverket inte skriver åt appen), måste den härleda SAMMA
- * nyckel, annars kolliderar en ny kategori appen sparar med en annan grupps
- * på precis samma sätt. Håll den logiken här, och håll den EN gång: appen
- * ska ANROPA den här filens skrivväg, aldrig bygga en egen `doc(...)`-nyckel
- * för samlingen.
- */
-const RADAVGRANSARE = "|";
-
-/** @param {string} groupId @param {string} id @returns {string} */
-function lagradId(groupId, id) {
-  return `${groupId}${RADAVGRANSARE}${id}`;
-}
-
-/**
- * Motsatsen till `lagradId`. Kastar aldrig: en lagrad nyckel som inte bär
- * DEN HÄR källans prefix (en rad skriven innan #162, eller ett provfixtur som
- * satte `id` för hand) lämnas orörd. `validateKatalog` fångar en trasig `id`
- * med ett bättre meddelande än ett kast här skulle ge.
- *
- * @param {string} groupId @param {unknown} lagrad @returns {string}
- */
-function egetId(groupId, lagrad) {
-  const rad = typeof lagrad === "string" ? lagrad : "";
-  const prefix = `${groupId}${RADAVGRANSARE}`;
-  return rad.startsWith(prefix) ? rad.slice(prefix.length) : rad;
-}
+import { byggKategori, gruppensRader, katalognyckel, validateKatalog } from "../lib/katalog.js";
 
 /**
  * @typedef {object} Katalogsvar
  * @property {import("../lib/katalog.js").Kategori[]} kategorier
  * @property {"databas" | "reserv"} kalla Var värdena kom ifrån.
  * @property {Error | null} fel Sant fel när `kalla` är "reserv", annars null.
+ * @property {number} utanGrupp Rader utan `groupId` i det som lästes. Alltid med, också när det är 0:
+ *   noll är beskedet att övergången är klar (se `gruppensRader`). Utan `overgang` gör en sådan rad
+ *   läsningen till reserven, eftersom `groupId` är obligatoriskt.
  */
 
 /**
- * @param {{ source: any, collection: string, groupId: string | null, standard?: readonly unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} config
+ * @param {{ source: any, collection: string, groupId: string, overgang?: boolean, standard?: readonly unknown[], ikoner?: readonly string[], namn?: string, textnycklar?: readonly string[], faser?: boolean, farger?: boolean }} config
  */
 export function createCatalogSource(config) {
   /*
@@ -129,7 +81,7 @@ export function createCatalogSource(config) {
    * med `({ x })` i signaturen kraschar ett anrop utan argument på destrukturen
    * med ett fel som nämner en variabel inne i ramverket, inte vad appen glömde.
    */
-  const { source, collection, groupId: groupIdIn, standard = [], ikoner, namn = "katalog", textnycklar, faser, farger } = config ?? /** @type {any} */ ({});
+  const { source, collection, groupId: groupIdIn, overgang = false, standard = [], ikoner, namn = "katalog", textnycklar, faser, farger } = config ?? /** @type {any} */ ({});
 
   if (!source || typeof source.list !== "function" || typeof source.create !== "function") {
     throw new Error("createCatalogSource: source krävs och måste vara en datakälla ur createDataSource.");
@@ -144,26 +96,21 @@ export function createCatalogSource(config) {
    * egen (väg C, #160): en källa utan groupId hade fått frågan "läs hela
    * samlingen", alltså exakt den läckan som gör att miranda ab ser cps-ab:s
    * kategorier i sin rullgardin.
+   *
+   * ⛔ `groupId: null` FINNS INTE LÄNGRE (0.33.0). 0.29.0 lade till det som
+   * "ogrupperad, hela samlingen", för att functions i bolag-ops skulle kunna
+   * läsa rader utan grupp medan bakfyllnaden väntade. Det läget läste ALLAS
+   * rader och skrev rader utan grupp, alltså precis det #162 finns för att
+   * stoppa, och det hade inget slut inbyggt. Dess ersättare är `overgang: true`
+   * TILLSAMMANS MED ett groupId: raderna utan grupp räknas som DEN HÄR gruppens
+   * (appens påstående, inte ramverkets gissning), andra gruppers rader faller
+   * bort, skrivningar vägras, och antalet rader utan grupp står i varje svar så
+   * att det syns när övergången är klar.
    */
-  /*
-   * ⛔ `groupId: null` ÄR ETT UTTRYCKLIGT VAL, `undefined` ÄR ETT FEL (0.29.0,
-   * mätt i bolag-ops ompinning). #162 gjorde groupId obligatoriskt, och
-   * functions i bolag-ops (`lasKatalogen`, som läser hela samlingen eftersom
-   * appen ännu inte har gruppmodellen på serversidan, cllp/bolag-ops#447)
-   * föll med 11 av 101 prov. Appen kunde då varken pinna om functions eller
-   * göra det bakfyllnadssteg #447 börjar med, "bakfyll groupId med reglerna
-   * oförändrade", eftersom det steget kräver en källa som läser raderna utan
-   * grupp. Ett bortglömt groupId ska fortfarande vara rött: därför är det bara
-   * det bokstavliga `null` som betyder "ogrupperad, hela samlingen, som före
-   * #162", inte ett utelämnat fält. Ogrupperat läge läser utan `where`, lämnar
-   * id:n orörda och skriver rader utan groupId. Det är övergångsläget, inte
-   * målet: en grupp per rad är fortfarande det ramverket bygger för.
-   */
-  const ogrupperad = groupIdIn === null;
   const groupId = typeof groupIdIn === "string" ? groupIdIn.trim() : "";
-  if (!ogrupperad && !groupId) {
+  if (!groupId) {
     throw new Error(
-      "createCatalogSource: groupId krävs. Katalogen är en grupps egen (#162): en källa utan grupp hade läst och skrivit mot HELA samlingen, alltså mot varje grupps kategorier på en gång. Är samlingen ännu inte grupperad (bakfyllnad pågår, cllp/bolag-ops#447): skicka groupId: null uttryckligen.",
+      "createCatalogSource: groupId krävs. Katalogen är en grupps egen (#162): en källa utan grupp hade läst och skrivit mot HELA samlingen, alltså mot varje grupps kategorier på en gång. groupId: null (0.29.0) finns inte sedan 0.33.0. Har samlingen rader från före #162, skicka appens grupp plus overgang: true tills bakfyllnaden är körd.",
     );
   }
 
@@ -173,66 +120,55 @@ export function createCatalogSource(config) {
    * och inte första gången någon råkar köra mot en tom databas. Det senare är
    * ett fel i produktion hos den första kunden.
    *
-   * ⛔ UTAN `grupp: true`. Standardvärdena är MALLEN appen skickar in (samma
+   * ⛔ MED `grupp: false`. Standardvärdena är MALLEN appen skickar in (samma
    * `standard` som innan #162), och en mall har ingen grupp förrän den seedas
    * in i en: se filhuvudet.
    */
-  const reserv = validateKatalog(standard, { ikoner, textnycklar, faser, farger, katalog: `${namn} (standardvärden)` });
+  const reserv = validateKatalog(standard, { ikoner, textnycklar, faser, farger, katalog: `${namn} (standardvärden)`, grupp: false });
 
+  /** Varje rad som faktiskt är en grupps: förvalet, alltså groupId obligatoriskt. */
+  const gruppadKonfig = { ikoner, textnycklar, faser, farger, katalog: namn };
   /*
-   * ⛔ OCH VARJE RAD SOM FAKTISKT ÄR EN GRUPPS, MED `grupp: true`. En helt
-   * egen konfigurationsvariabel, inte reserv-varianten ovan pluss ett fält på
-   * anropet: `las()` och `seeda()` skriver eller läser mot DEN HÄR källans
-   * `groupId`, aldrig ett annat.
+   * ⛔ FRÅGAN: gruppens rader, ELLER (övergången) hela samlingen. En rad utan
+   * groupId går inte att fråga efter i Firestore (ett fält som saknas matchar
+   * ingen `where`), så övergången måste läsa allt och sortera här, med
+   * `gruppensRader`. Det är också därför övergången slutar fungera när
+   * katalogreglerna är ute: de släpper inte igenom en fråga utan grupp. Se
+   * ordningen i CHANGELOG 0.33.0.
    */
-  const gruppadKonfig = ogrupperad
-    ? { ikoner, textnycklar, faser, farger, katalog: namn }
-    : { ikoner, textnycklar, faser, farger, katalog: namn, grupp: /** @type {const} */ (true) };
-  /** Frågan mot samlingen: gruppens rader, eller (ogrupperat) alla. */
-  const fraga = ogrupperad ? {} : { where: { groupId } };
+  const fraga = overgang ? {} : { where: { groupId } };
+
+  /** @returns {Promise<{ kategorier: import("../lib/katalog.js").Kategori[], utanGrupp: number }>} */
+  async function lasRader() {
+    const rader = await source.list(collection, fraga);
+    const { rader: egna, utanGrupp } = gruppensRader(rader, { groupId, overgang });
+    return { kategorier: validateKatalog(egna, gruppadKonfig), utanGrupp };
+  }
 
   return {
     /** Vad samlingen heter hos den här appen. För vyer som visar sin källa. */
     collection,
 
+    /** Gruppen den här källan är en vy av. */
+    groupId,
+
     /**
      * Läser katalogen.
      *
-     * ⛔ KASTAR ALDRIG. Svarar med `{ kategorier, kalla, fel }`, och det är
-     * skillnaden mot att låta anroparen hantera det: en vy som får ett kastat
-     * fel ritar antingen ingenting eller en tom lista, och en tom lista är
-     * samma sak som "det finns inga kategorier". Här går det alltid att skilja
-     * "läst ur databasen" från "det här är reserven, och här är varför".
-     *
-     * ⛔ `where: { groupId }`, SAMMA MÖNSTER SOM `gruppLista` I `gruppkalla.js`.
-     * En fråga utan villkoret hade läst hela samlingen, alltså varenda grupps
-     * kategorier i en enda lista.
+     * ⛔ KASTAR ALDRIG. Svarar med `{ kategorier, kalla, fel, utanGrupp }`, och
+     * det är skillnaden mot att låta anroparen hantera det: en vy som får ett
+     * kastat fel ritar antingen ingenting eller en tom lista, och en tom lista
+     * är samma sak som "det finns inga kategorier". Här går det alltid att
+     * skilja "läst ur databasen" från "det här är reserven, och här är varför".
      *
      * @returns {Promise<Katalogsvar>}
      */
     async las() {
       try {
-        const rader = await source.list(collection, fraga);
-        /*
-         * ⛔ PACKAS UPP HÄR, INNAN VALIDERINGEN. Den lagrade nyckeln
-         * (`lagradId`) är `groupId|id`, och `ID_FORM` (alltså `byggKategori`)
-         * skulle kasta på pipe-tecknet. Se filhuvudets not om varför nyckeln
-         * ens finns.
-         */
-        const uppackade = (Array.isArray(rader) ? rader : [])
-          /*
-           * ⛔ OGRUPPERAT: RADER MED EN GRUPPS NYCKEL (`groupId|id`) HOPPAS
-           * ÖVER. De är en grupps egna (skrivna av en gruppad källa) och hör
-           * inte till den ogrupperade läsningen; att ta med dem hade fällt
-           * hela läsningen till reserven på pipe-tecknet i id:t. Kvar är
-           * raderna från före #162, alltså precis de bakfyllnaden ska nå.
-           */
-          .filter((rad) => !ogrupperad || !(rad && typeof rad === "object" && String(/** @type {any} */ (rad).id ?? "").includes(RADAVGRANSARE)))
-          .map((rad) => (rad && typeof rad === "object" && !ogrupperad ? { ...rad, id: egetId(groupId, /** @type {any} */ (rad).id) } : rad));
-        const kategorier = validateKatalog(uppackade, gruppadKonfig);
+        const { kategorier, utanGrupp } = await lasRader();
         // ⛔ En TOM samling är inte ett fel och inte heller reserven: det är
         // läget före seedningen, och `saknas` nedan är frågan man ställer då.
-        return { kategorier, kalla: "databas", fel: null };
+        return { kategorier, kalla: "databas", fel: null, utanGrupp };
       } catch (fel) {
         /*
          * ⛔ RESERVEN FÅR DEN HÄR KÄLLANS groupId, INTE `null`. En banderoll
@@ -240,7 +176,7 @@ export function createCatalogSource(config) {
          * datan för den som just läser den, i stället för det den är: samma
          * mall som skulle seedats, ritad medan databasen inte svarar.
          */
-        return { kategorier: ogrupperad ? reserv : reserv.map((k) => ({ ...k, groupId })), kalla: "reserv", fel: fel instanceof Error ? fel : new Error(String(fel)) };
+        return { kategorier: reserv.map((k) => ({ ...k, groupId })), kalla: "reserv", fel: fel instanceof Error ? fel : new Error(String(fel)), utanGrupp: 0 };
       }
     },
 
@@ -249,51 +185,74 @@ export function createCatalogSource(config) {
      *
      * ⛔ SVARAR MED VAD SOM HÄNDE OCH INTE MED INGENTING. `{ seedade, antal }`,
      * så den som kör det ser skillnaden mellan "skrev fem" och "gjorde inget
-     * för att det redan fanns värden". Ett tyst `return` hade gjort de två
-     * utfallen omöjliga att skilja åt i en logg, och det är precis den
-     * skillnaden man vill ha när en kategori dyker upp igen.
+     * för att det redan fanns värden".
      *
      * ⛔ LÄSER FÖRST OCH SKRIVER SEDAN, VILKET INTE ÄR ATOMÄRT. Två samtidiga
-     * seedningar kan båda se en tom samling. Det är medvetet och ofarligt här:
-     * seedningen körs en gång vid uppsättning, och posterna har bestämda id, så
-     * en dubbelkörning skriver samma dokument två gånger i stället för att
-     * skapa dubbletter. Vore id:na autogenererade hade det behövts en
-     * transaktion.
+     * seedningar kan båda se en tom samling. Det är ofarligt här: posterna har
+     * bestämda nycklar, så en dubbelkörning skriver samma dokument två gånger i
+     * stället för att skapa dubbletter. `skapaGrupp` seedar inte härigenom
+     * utan i sin egen batch (0.33.0), där frågan inte uppstår.
      *
-     * ⛔ TOMHETEN KONTROLLERAS OCKSÅ MED `where: { groupId }`. Utan det hade en
+     * ⛔ TOMHETEN AVGÖRS AV GRUPPENS RADER, inte av samlingen. Utan det hade en
      * grupp som seedas EFTER en annan sett den andras rader och trott sig
      * redan ha värden, och stått kvar utan en enda kategori.
      *
      * @returns {Promise<{ seedade: boolean, antal: number, orsak?: string }>}
      */
     async seeda() {
+      if (overgang) {
+        return { seedade: false, antal: 0, orsak: "övergången pågår: bakfyllnaden (bakfyllKatalogGrupp) seedar, inte källan" };
+      }
       const rader = await source.list(collection, fraga);
-      if (Array.isArray(rader) && rader.length > 0) {
-        return { seedade: false, antal: rader.length, orsak: "samlingen har redan värden för den här gruppen" };
+      const egna = gruppensRader(rader, { groupId }).rader;
+      if (egna.length > 0) {
+        return { seedade: false, antal: egna.length, orsak: "samlingen har redan värden för den här gruppen" };
       }
       if (reserv.length === 0) {
         return { seedade: false, antal: 0, orsak: "inga standardvärden att skriva" };
       }
-      for (const mall of reserv) {
-        /*
-         * ⛔ BYGGD PÅ NYTT MED groupId, INTE ETT RÅTT `{ ...mall, groupId }`.
-         * Mallen validerades utan `grupp: true` ovan (den hade inget groupId
-         * att pröva formen på), så den skrivna raden ska gå genom samma
-         * validering som allt annat som hamnar i samlingen: samma skäl som att
-         * `uppdateraProfil` bygger via `byggAnvandare` i stället för att peta
-         * fält direkt i ett patch-objekt.
-         */
-        const kategori = ogrupperad ? byggKategori(mall, gruppadKonfig) : byggKategori({ ...mall, groupId }, gruppadKonfig);
-        /*
-         * ⛔ SKRIVEN MED `lagradId`, INTE MED `kategori.id`. Samlingen är delad
-         * (#162): utan den sammansatta nyckeln skriver en andra grupps
-         * seedning över den här gruppens rad med samma maskinnyckel. `create`
-         * med id väljer set i stället för add, så en omkörning FÖR SAMMA GRUPP
-         * skriver samma dokument i stället för ett till, precis som innan.
-         */
-        await source.create(collection, ogrupperad ? kategori : { ...kategori, id: lagradId(groupId, kategori.id) });
+      for (const op of seedoperationer({ collection, groupId, standard: reserv, ikoner, textnycklar, faser, farger, namn })) {
+        await source.create(collection, op.data);
       }
       return { seedade: true, antal: reserv.length };
+    },
+
+    /**
+     * Sparar en kategori i DEN HÄR gruppens katalog: ny, ändrad eller arkiverad.
+     *
+     * ⛔ DEN ENDA SKRIVVÄGEN, OCH DET ÄR POÄNGEN (0.33.0). Före 0.33.0 fanns
+     * ingen, och appen skrev `source.create(samling, kategori)` själv, alltså
+     * med kategorins `id` som dokumentnyckel. I en delad samling är det exakt
+     * krocken `katalognyckel` finns för: två gruppers "uppgift" blir ett
+     * dokument. Här byggs raden med källans `groupId` och skrivs med
+     * `katalognyckel`, så inställningsvyn skriver i den aktiva gruppens katalog
+     * och ingen annans.
+     *
+     * ⛔ ETT ANNAT groupId PÅ KATEGORIN ÄR ETT FEL, INTE NÅGOT SOM RÄTTAS TYST.
+     * En kategori ur grupp A som sparas genom grupp B:s källa är ett programfel
+     * (ett utkast som överlevde ett gruppbyte, se `OpsKatalogInstallning`), och
+     * att skriva om gruppen hade flyttat kategorin utan att någon bett om det.
+     *
+     * ⛔ VÄGRAS UNDER ÖVERGÅNGEN. Då ligger raderna fortfarande utan grupp, och
+     * en skrivning med `groupId` hade fått reglerna i en app som inte bytt dem
+     * än att säga nej, eller skapat en andra rad bredvid den gamla.
+     *
+     * @param {Record<string, any>} kategori
+     * @returns {Promise<import("../lib/katalog.js").Kategori>}
+     */
+    async spara(kategori) {
+      if (overgang) {
+        throw new Error(
+          `${namn}: skrivningen är pausad medan katalogen flyttas in i gruppen (overgang: true). Kör bakfyllnaden, byt regler och ta bort overgang, se CHANGELOG 0.33.0.`,
+        );
+      }
+      const angiven = kategori && typeof kategori === "object" ? rensaGrupp(kategori.groupId) : "";
+      if (angiven && angiven !== groupId) {
+        throw new Error(`${namn}: kategorin "${kategori.id}" hör till gruppen "${angiven}" och sparas inte i "${groupId}". En kategori flyttas inte mellan grupper.`);
+      }
+      const byggd = byggKategori({ ...kategori, groupId }, gruppadKonfig);
+      await source.create(collection, { ...byggd, id: katalognyckel(groupId, byggd.id) });
+      return byggd;
     },
 
     /**
@@ -306,4 +265,29 @@ export function createCatalogSource(config) {
       return reserv.map((k) => ({ ...k }));
     },
   };
+}
+
+/** @param {unknown} v @returns {string} */
+const rensaGrupp = (v) => (typeof v === "string" ? v.trim() : "");
+
+/**
+ * Skrivningarna som seedar en grupps katalog ur standardvärdena, som batchoperationer.
+ *
+ * ⛔ EN FUNKTION FÖR TRE ANROPARE: `seeda()` ovan, `skapaGrupp` (som lägger dem
+ * i SAMMA batch som gruppen, 0.33.0) och bakfyllnaden (som seedar grupper som
+ * saknar kataloger). Tre egna byggen av samma rad hade kunnat bli tre olika rader.
+ *
+ * ⛔ VARJE RAD BYGGS PÅ NYTT MED groupId, INTE SOM ETT RÅTT `{ ...mall, groupId }`.
+ * Mallen validerades med `grupp: false` (den hade inget groupId att pröva), så
+ * den skrivna raden går genom samma validering som allt annat i samlingen.
+ *
+ * @param {{ collection: string, groupId: string, standard: readonly unknown[], ikoner?: readonly string[], textnycklar?: readonly string[], faser?: boolean, farger?: boolean, namn?: string }} b
+ * @returns {{ op: "create", collection: string, data: Record<string, any> }[]}
+ */
+export function seedoperationer({ collection, groupId, standard, ikoner, textnycklar, faser, farger, namn = collection }) {
+  const mallar = validateKatalog(standard, { ikoner, textnycklar, faser, farger, katalog: `${namn} (standardvärden)`, grupp: false });
+  return mallar.map((mall) => {
+    const kategori = byggKategori({ ...mall, groupId }, { ikoner, textnycklar, faser, farger, katalog: namn });
+    return { op: /** @type {const} */ ("create"), collection, data: { ...kategori, id: katalognyckel(groupId, kategori.id) } };
+  });
 }
