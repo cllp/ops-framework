@@ -277,7 +277,7 @@ describe("⛔ pennan öppnar samma panel i redigeringsläge (skapa.redigeraGrupp
 
   it("pennan på ett kort öppnar panelen Redigera grupp med gruppens id i adressen", async () => {
     skal();
-    const nav = screen.getAllByRole("navigation", { name: "Alla mina grupper" })[0];
+    const nav = screen.getAllByRole("navigation", { name: "Mina grupper" })[0];
     await userEvent.setup().click(within(nav).getByRole("button", { name: "Redigera grupp" }));
     expect(screen.getByRole("region", { name: "Redigera grupp" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -290,7 +290,7 @@ describe("⛔ pennan öppnar samma panel i redigeringsläge (skapa.redigeraGrupp
   it("⛔ medlemmens kort har ingen penna, och Spara stänger utan history.back och rensar båda parametrarna", async () => {
     const back = vi.spyOn(window.history, "back");
     skal();
-    const nav = screen.getAllByRole("navigation", { name: "Alla mina grupper" })[0];
+    const nav = screen.getAllByRole("navigation", { name: "Mina grupper" })[0];
     expect(within(nav).getAllByRole("button", { name: "Redigera grupp" })).toHaveLength(1);
     const user = userEvent.setup();
     await user.click(within(nav).getByRole("button", { name: "Redigera grupp" }));
@@ -304,7 +304,7 @@ describe("⛔ pennan öppnar samma panel i redigeringsläge (skapa.redigeraGrupp
   it("utan skapa.redigeraGrupp anropas grupper.onRedigera", async () => {
     const onRedigera = vi.fn();
     skal({ redigeraGrupp: undefined }, { onRedigera });
-    const nav = screen.getAllByRole("navigation", { name: "Alla mina grupper" })[0];
+    const nav = screen.getAllByRole("navigation", { name: "Mina grupper" })[0];
     await userEvent.setup().click(within(nav).getByRole("button", { name: "Redigera grupp" }));
     expect(onRedigera).toHaveBeenCalledWith("g1");
   });

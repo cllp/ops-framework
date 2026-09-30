@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { OpsBrand, delaNamn, standardMonogram } from "../components/OpsBrand.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
-import { ALLA_GRUPPER } from "../lib/grupplage.js";
 
 /**
  * 0.31.0: märket är text. Provet mäter det som går att mäta utan CSS: vilka rader som ritas, vilken text de
@@ -130,15 +129,15 @@ describe("OpsAppShell: märkets undertext är den aktiva gruppen", () => {
     expect(rad2(container)?.textContent).toBe("CLAES PHILIP STAIGER AB");
   });
 
-  it("Alla mina grupper utan undertext ritar bara rad 1", () => {
-    const { container } = skal({ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {} }, undefined);
+  it("utan grupp (0.35.0: personen är inte med i någon) och utan undertext ritas bara rad 1", () => {
+    const { container } = skal({ lista: [], aktiv: "", onValj: () => {} }, undefined);
     expect(rad2(container)).toBeNull();
   });
 
-  it("Alla mina grupper faller tillbaka på appens undertext, och en vald grupp vinner över den", () => {
-    const alla = skal({ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {} }, <OpsBrand undertext="Bolag Ops" />);
-    expect(rad2(alla.container)?.textContent).toBe("Bolag Ops");
-    alla.unmount();
+  it("utan grupp faller märket tillbaka på appens undertext, och en aktiv grupp vinner över den", () => {
+    const ingen = skal({ lista: [], aktiv: "", onValj: () => {} }, <OpsBrand undertext="Bolag Ops" />);
+    expect(rad2(ingen.container)?.textContent).toBe("Bolag Ops");
+    ingen.unmount();
     const vald = skal({ lista: GRUPPER, aktiv: "g2", onValj: () => {} }, <OpsBrand undertext="Bolag Ops" />);
     expect(rad2(vald.container)?.textContent).toBe("TESTGRUPPEN");
   });

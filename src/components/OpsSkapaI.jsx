@@ -1,58 +1,50 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
-import { text } from "../lib/sprak.js";
-import { OpsIdentity } from "./OpsIdentity.jsx";
-import { BockIkon, PersonIkon } from "./icons.jsx";
+import { BockIkon } from "./icons.jsx";
 import { radKlass } from "../lib/radKlass.js";
 
 /**
- * "Skapa i": var det som skapas ska hamna (0.31.0).
+ * "Skapa i": appens egna mål för det som skapas (0.31.0; utan grupper sedan 0.35.0).
  *
  * ══ ⛔ SESSIONSTUDIOS VÄLJARE, INTE EN EGEN ═══════════════════════════════
  *
- * CP 2026-09-29, skärmbild (b) ur SS: en centrerad dialog med rubriken "Skapa i", sektionen GRUPPER (en rad per grupp:
- * märke, namn, medlemsikon till höger, vald rad med accentkant), sektionen MINA KALENDRAR och "Avbryt" längst ned. SS
- * `CalendarCreateDestinationSheet.jsx:53-135`: `ModalShell size="sm" align="bottom"` (ett ark nerifrån på telefon, en
+ * CP 2026-09-29, skärmbild (b) ur SS: en centrerad dialog med rubriken "Skapa i", en sektion per mål och "Avbryt" längst ned.
+ * SS `CalendarCreateDestinationSheet.jsx:53-135`: `ModalShell size="sm" align="bottom"` (ett ark nerifrån på telefon, en
  * centrerad ruta från `sm`), sektionsrubrik `text-[10px] font-semibold uppercase tracking-wider text-muted` (`:75-77`),
- * raden `px-3 py-2.5 rounded-xl`, märket 36 px (`:88-95`; här 34 px som gruppanelens `rail`, SS `AppSidebar.jsx:95`) och
- * `UsersRound` till höger (`:97`). En vald rad har accentkant. Rundningen är SS egen: arket `rounded-t-2xl` och rutan `sm:rounded-2xl`
- * (`panelClassName`, `:53`, alltså `--radius-card`, 24 px) och raden `rounded-xl` (`:83`, 20 px).
+ * raden `px-3 py-2.5 rounded-xl`. En vald rad har accentkant. Rundningen är SS egen: arket `rounded-t-2xl` och rutan
+ * `sm:rounded-2xl` (`panelClassName`, `:53`, alltså `--radius-card`, 24 px) och raden `rounded-xl` (`:83`, 20 px).
  *
- * ⛔ SEKTIONERNA ÄR TVÅ, OCH DEN ANDRA ÄR APPENS. Grupper är ramverkets (`grupper`, samma form som `OpsGruppanel`).
- * `sektioner` är appens egna (t.ex. "Mina kalendrar"): `{ id, rubrik, poster: [{ id, namn, ikon? }] }`. Ramverket vet inte
- * vad en kalender är; det ritar raden och säger vilken som valdes.
+ * ══ ⛔ GRUPPERNA ÄR BORTA UR VÄLJAREN (0.35.0, #190) ════════════════════════
+ *
+ * CP 2026-09-30: "Ja, frågan om alla grupper: Ta bort det." Allt som skapas hamnar i den AKTIVA gruppen, utan gruppväljare.
+ * Sektionen GRUPPER fanns för läget "Alla mina grupper", där det inte fanns någon aktiv grupp att skapa i, och för att byta
+ * grupp mitt i ett formulär. Båda är borta med läget. Kvar är appens EGNA mål (t.ex. "Mina kalendrar"):
+ * `{ id, rubrik, poster: [{ id, namn, ikon? }] }`. Ramverket vet inte vad en kalender är; det ritar raden och säger vilken
+ * som valdes. Posten skapas fortfarande i den aktiva gruppen, och målet är ett fält i formuläret (`mal`).
  *
  * ⛔ ETT ID ÄR ETT ID. `vald` och `onValj(id, sektionId)` går på id, så ett id får inte förekomma i två sektioner.
  *
  * @param {object} props
  * @param {boolean} props.open
  * @param {(open: boolean) => void} props.onOpenChange
- * @param {ReadonlyArray<import("./OpsGruppanel.jsx").GruppanelGrupp>} [props.grupper]
- * @param {string | null} [props.vald] Id på den vald raden.
- * @param {(id: string, sektionId: string) => void} props.onValj `sektionId` är `"grupper"` för en grupp.
+ * @param {string | null} [props.vald] Id på den valda raden.
+ * @param {(id: string, sektionId: string) => void} props.onValj
  * @param {ReadonlyArray<{ id: string, rubrik: string, poster: ReadonlyArray<{ id: string, namn: string, ikon?: import("react").ReactNode }> }>} [props.sektioner]
- * @param {string} [props.sprak]
  * @param {string} [props.rubrik] Förval "Skapa i".
- * @param {string} [props.grupperRubrik] Förval "Grupper".
  * @param {string} [props.avbrytEtikett] Förval "Avbryt".
  * @param {string} [props.tomText]
- * @param {string} [props.medlemmarEtikett] Skärmläsarord efter antalet, förval "medlemmar".
  */
 export function OpsSkapaI({
   open,
   onOpenChange,
-  grupper = [],
   vald = null,
   onValj,
   sektioner = [],
-  sprak = "sv",
   rubrik = "Skapa i",
-  grupperRubrik = "Grupper",
   avbrytEtikett = "Avbryt",
   tomText = "Inga destinationer tillgängliga.",
-  medlemmarEtikett = "medlemmar",
 }) {
-  const tom = grupper.length === 0 && sektioner.every((s) => s.poster.length === 0);
+  const tom = sektioner.every((s) => s.poster.length === 0);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -68,37 +60,6 @@ export function OpsSkapaI({
             <Dialog.Title className="m-0 text-brod font-semibold text-ink">{rubrik}</Dialog.Title>
           </div>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-2 py-2">
-            {grupper.length > 0 ? (
-              <section aria-label={grupperRubrik}>
-                <Rubrik>{grupperRubrik}</Rubrik>
-                <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-                  {grupper.map((g) => {
-                    const namn = text(g.namn, sprak);
-                    return (
-                      <li key={g.id}>
-                        <Rad vald={vald === g.id} onClick={() => onValj(g.id, "grupper")}>
-                          <OpsIdentity name={namn} seed={g.id} imageUrl={g.bild || undefined} size="rail" />
-                          <span className="min-w-0 flex-1 truncate text-etikett font-medium text-ink">{namn}</span>
-                          {typeof g.medlemsantal === "number" ? (
-                            <span className="flex shrink-0 items-center gap-1 text-meta text-ink-muted">
-                              <PersonIkon size={16} />
-                              <span>
-                                {g.medlemsantal}
-                                <span className="sr-only"> {medlemmarEtikett}</span>
-                              </span>
-                            </span>
-                          ) : (
-                            <span aria-hidden="true" className="shrink-0 text-ink-muted">
-                              <PersonIkon size={16} />
-                            </span>
-                          )}
-                        </Rad>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ) : null}
             {sektioner.map((s) => (
               <section key={s.id} aria-label={s.rubrik}>
                 <Rubrik>{s.rubrik}</Rubrik>

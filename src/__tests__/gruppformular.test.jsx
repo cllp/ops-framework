@@ -349,7 +349,7 @@ describe("⛔ tre ingångar öppnar SAMMA panel (skapa.grupp i skalet)", () => {
 
   it("⛔ gruppanelen: Skapa grupp öppnar samma panel, och appens egen onSkapa anropas inte", async () => {
     render(<Skal medOnSkapa />);
-    const nav = screen.getAllByRole("navigation", { name: "Alla mina grupper" })[0];
+    const nav = screen.getAllByRole("navigation", { name: "Mina grupper" })[0];
     await userEvent.setup().click(within(nav).getByRole("button", { name: "Skapa grupp" }));
     expect(screen.getByRole("region", { name: "Ny grupp" })).toBeInTheDocument();
   });
@@ -398,7 +398,7 @@ describe("⛔ tre ingångar öppnar SAMMA panel (skapa.grupp i skalet)", () => {
     await user.click(screen.getByRole("button", { name: "Skapa" }));
     expect(screen.queryByRole("button", { name: "Ny grupp" })).toBeNull();
     await user.keyboard("{Escape}");
-    const nav = screen.getAllByRole("navigation", { name: "Alla mina grupper" })[0];
+    const nav = screen.getAllByRole("navigation", { name: "Mina grupper" })[0];
     await user.click(within(nav).getByRole("button", { name: "Skapa grupp" }));
     expect(onSkapa).toHaveBeenCalledTimes(1);
   });

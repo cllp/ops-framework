@@ -50,6 +50,19 @@ describe("varje anrop bär exakt en grupp", () => {
     await skapaKallregister([modul({ handelser })]).handelser({ groupId: "bolaget", sedan: "2026-01-01" });
     expect(handelser).toHaveBeenCalledWith({ groupId: "bolaget", sedan: "2026-01-01" });
   });
+
+  /*
+   * ⛔ 0.35.0 (#190): EN MODUL SOM SVARAR MED EN ANNAN GRUPPS RAD HAR LÄST FÖRBI
+   * DEN AKTIVA. Frågan gällde en grupp, och en rad som säger sig tillhöra en
+   * annan visas inte. Provet visar först att raden går igenom när gruppen
+   * stämmer, så att det röda utfallet inte är ett formfel av annat slag.
+   */
+  it("⛔ en rad som bär en annan grupp än frågans kastar, och felet namnger modulen", async () => {
+    const rad = (/** @type {string} */ groupId) => ({ id: "h1", title: "Attest", daysLeft: 1, groupId });
+    const ratt = await skapaKallregister([modul({ handelser: async () => [rad("bolaget")] })]).handelser(GRUPP);
+    expect(ratt.map((x) => x.id)).toEqual(["h1"]);
+    await expect(skapaKallregister([modul({ handelser: async () => [rad("privat")] })]).handelser(GRUPP)).rejects.toThrow(/modulen "liv".*groupId "privat"/);
+  });
 });
 
 describe("raderna granskas när de kommer, och felet namnger modulen", () => {

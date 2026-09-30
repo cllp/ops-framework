@@ -424,7 +424,7 @@ function byggLankar(varde, id, tillatnaPlattformar) {
  * annars sparas ett skrivfel som en flik ingen hittar. Den som LÄSER en gammal
  * rad måste tåla att en modul avinstallerats sedan raden skrevs, för annars
  * ligger appen nere för den gruppen utan väg till en som fungerar. Läsvägens
- * svar är `navForLage`, som skriver ut `saknade`.
+ * svar är `navForGrupp`, som skriver ut `saknade`.
  *
  * ⛔ SKRIVVÄGEN SKICKAR ALLTID IN LISTAN. Står det `byggGrupp(rad)` i något som
  * sparar är det ett hål, och det är hela skälet att argumentet finns.
