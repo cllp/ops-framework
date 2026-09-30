@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -366,4 +366,12 @@ export function SokIkon({ size = 14 }) {
 /** Agenten som mottagare och deltagare (0.34.0, plats för #185). @param {{ size?: number }} props */
 export function AgentIkon({ size = 18 }) {
   return <Bot size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Veckonummer (0.36.0, #179 F1). SS `CalendarViewToolbar.jsx` ritar knappen med `Hash`.
+ * @param {{ size?: number }} props
+ */
+export function VeckonummerIkon({ size = 14 }) {
+  return <Hash size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
