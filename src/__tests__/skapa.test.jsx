@@ -17,7 +17,7 @@ const REG = (/** @type {string} */ id, /** @type {string | null} */ katalog = nu
 });
 
 const modul = (/** @type {string} */ id, /** @type {any[]} */ skapar) =>
-  defineModule({ id, namn: { sv: id }, nav: [], routes: [], samlingar: [], kallor: {}, skapar });
+  defineModule({ id, namn: { sv: id }, nav: [], routes: [], samlingar: [], kallor: {}, skapar, hubb: null });
 
 describe("manifestets sjunde del", () => {
   it("tar emot en registrering och fryser den", () => {
@@ -66,8 +66,8 @@ describe("manifestets sjunde del", () => {
   it("⛔ två MODULER som registrerar samma id avvisas av validateModuler", () => {
     // Var för sig giltiga, tillsammans en flik vars innehåll avgörs av
     // registreringsordningen. Samma felform som två moduler på samma route.
-    const a = { id: "inkorg", namn: { sv: "a" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [REG("arende")] };
-    const b = { id: "liv", namn: { sv: "b" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [REG("arende")] };
+    const a = { id: "inkorg", namn: { sv: "a" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [REG("arende")], hubb: null };
+    const b = { id: "liv", namn: { sv: "b" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [REG("arende")], hubb: null };
     expect(() => validateModuler([a, b])).toThrow(/registrerar båda att de skapar "arende"/);
   });
 });

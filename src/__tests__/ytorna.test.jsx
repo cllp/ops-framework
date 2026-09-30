@@ -12,7 +12,7 @@ import { OpsOversikt, iOrdning } from "../components/OpsOversikt.jsx";
 
 const GRUPP = { groupId: "bolaget" };
 const modul = (/** @type {Record<string, Function>} */ kallor, /** @type {string} */ id) =>
-  defineModule({ id, namn: { sv: id }, nav: [], routes: [], samlingar: [], kallor, skapar: [] });
+  defineModule({ id, namn: { sv: id }, nav: [], routes: [], samlingar: [], kallor, skapar: [], hubb: null });
 
 describe("Sök", () => {
   const tva = () =>
