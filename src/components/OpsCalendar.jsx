@@ -771,7 +771,7 @@ export function OpsCalendar({ entries = [], ariaLabel, statusWords = {}, monthsB
 
         {!harPoster && emptyText ? <p className="m-0 pb-3 text-etikett text-ink-muted">{emptyText}</p> : null}
 
-        <div className="flex flex-col gap-6 pb-4">
+        <div className="flex flex-col gap-6 pb-6">
           {list.map(({ ar, month }) => {
             const isCurrentMonth = ar === nu.getFullYear() && month === nu.getMonth();
             const rows = monthGrid(ar, month);

@@ -9,6 +9,33 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.33.1
+
+⛔ **Idag och Kalender möter bottenraden med 0 px. Luften under sista kortet ligger nu inuti rullytan och inte som en remsa canvas utanför den. Inte breaking.**
+Händelsen: CP 2026-09-30 cirka 11:50 i [#187](https://github.com/cllp/ops-framework/issues/187), efter 0.32.1 och en hårduppdatering på telefonen: *"glappet är mindre men kvar"*. En beige remsa mellan listans innehåll och raden (Idag / Kalender / + / Hub / Meny).
+
+### Rotorsaken, mätt
+Remsan är exakt 24 px, i båda vyerna och i alla tre lägena i skalytans avsnitt 24 (verktygsfältet infällt, hemskärm, rad borta). Den är `- 1.5rem` i höjduttrycket i `FULL_HEIGHT_CLASSES` (`src/lib/fullHeight.js`).
+⛔ **Det var arkitektens miss i 0.32.1.** Arkitekten bad om att "behålla 24 px luft som i dag" mellan ytans underkant och bottenraden, och avsnitt 24 fick kravet "gapet är 23 +- 2 px". Luft UTANFÖR en rullyta är canvas mellan innehållet och raden, och det är precis det CP ser. Kravet skrevs för att bevara en siffra och inte för att beskriva vad en användare ser.
+Hypoteserna i ärendet, mätta och uteslutna: `--safe-bottom` är INTE dubbelräknad (gapet var 24 med en säker yta på 34 px), appen har ingen egen wrapper under `OpsScrollArea` i labbet (gapet är identiskt med enbart ramverkets kod), och `visualViewport` ger samma tal som fönstret i alla tre lägen. Kvar var bara uttrycket självt.
+
+### Fixen
+- `FULL_HEIGHT_CLASSES`: höjden är `botten - topp` utan `- 1.5rem`, och `-mb-6` tar tillbaka samma 1,5 rem ur sidans höjd. `OpsView` har sin egen `pb-6` (0.31.2, "Den scrollar liksom upp"), så summan är oförändrad: dokumentet är lika högt som fönstret och rullar inte ovanpå ytan. Ytan möter raden.
+- Luften flyttad in i rullytan: `OpsScrollArea` har redan `pb-6`, och kalenderns månadslista gick från `pb-4` till `pb-6`. Sista kortet kan rullas upp ovanför raden men ligger aldrig mot den i vila.
+- 0.32.1:s arkitektur (mätning mot `data-ops-bottenrad`, ommätning vid visualViewport och ResizeObserver) är orörd.
+
+### Röd utan fixen, grön med den
+- **`check-skalyta` avsnitt 24** kräver nu gap 0 +- 1 mellan ytan och raden, och att innehållets sista element har minst 16 px luft över radens överkant när ytan är rullad till botten (innehållets underkant, inte lådans). Golv: minst 5 element mätta i ytan, och ytan måste gå att rulla.
+- Mot 0.33.0 (`--dist` och `--tokens` mot ett bygge av origin/main): **RÖD**, 6 brott (2 vyer x 3 lägen), gap 24.0 px överallt.
+- Mot 0.33.1: **GRÖN**, gap 0.0 px i alla sex, sista elementet 24 px över raden (Idag) och 24 px (Kalender).
+- Före/efter vid 390 px: `docs/jamforelser/0.33.1/`.
+
+### Att göra i appen (bolag-ops)
+- Pinna om till 0.33.1. Inget annat.
+- Har appen egen padding eller en wrapper under `OpsScrollArea`/`OpsCalendar` syns den som en remsa igen. Mät då mot `data-ops-bottenrad`, och lägg luften inuti ytan.
+
+---
+
 ## 0.33.0
 
 ⛔ **Katalogerna är gruppens: `groupId` obligatoriskt, seedning i samma batch som gruppen, regelfragmentet med admin och nyckellås, och bakfyllnaden. Breaking för appens katalogkod, se "Att göra i appen". Ordningen där är inte valfri.**

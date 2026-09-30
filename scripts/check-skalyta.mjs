@@ -2210,7 +2210,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 //       höjden mäts efteråt.
 //   (b) Hemskärmsläget, där `svh` skiljer sig från den synliga höjden med de säkra zonerna: `100svh` blir `calc(100dvh - 81px)`.
 //   (c) En rad på 170 px står ovanför ytan vid mount och tas bort efteråt, utan resize.
-// Krav: gapet är 23 +- 2 px i alla lägen (samma luft som `OpsView`s `pb-6`). Golv: minst 2 vyer och 3 lägen mätta.
+// Krav (0.33.1): gapet är 0 +- 1 px i alla lägen, och rullad till botten har sista elementet minst 16 px luft över radens överkant.
+// ⛔ 0.32.1 KRÄVDE 23 +- 2 ("24 px luft som i dag"). Det var arkitektens miss: 24 px var en remsa canvas UTANFÖR ytan, och den remsan är det
+// CP ser på telefonen (2026-09-30 11:50). Luften hör hemma inuti rullytan. Golv: minst 2 vyer och 3 lägen mätta.
 {
   const safeCss = ":root{--safe-top:47px!important;--safe-bottom:34px!important}";
   /**
@@ -2286,7 +2288,32 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         lagenMatta.add(lage);
         const gap = e.navTop - e.ytaBottom;
         matt.push(`fullyta ${vy} (${lage}): ytan ${e.ytaTop}..${e.ytaBottom}, bottenraden ${e.navTop}, gap ${gap.toFixed(1)} px, fönster ${e.fonster}, dokument ${e.dok}, svh omskrivet ${om.antal} gånger${skillnad ? `, ${skillnad}` : ""}${lage === "c" ? `, raden ovanför borta: ${!e.banner}` : ""}`);
-        krav(Math.abs(gap - 23) <= 2, `fullyta ${vy} (${lage}): ${gap.toFixed(1)} px mellan ytans underkant och bottenradens överkant, väntat 23 +- 2. ${gap > 25 ? "Ytan slutar för tidigt: CP 2026-09-30, \"huggs av i botten\"." : "Ytan går in under bottenraden."}`);
+        krav(Math.abs(gap) <= 1, `fullyta ${vy} (${lage}): ${gap.toFixed(1)} px mellan ytans underkant och bottenradens överkant, väntat 0 +- 1. ${gap > 1 ? "Ytan slutar för tidigt och lämnar en remsa canvas över raden: CP 2026-09-30 11:50 (0.33.1) efter 0.32.1, \"glappet är mindre men kvar\"." : "Ytan går in under bottenraden."}`);
+        // 0.33.1: luften hör hemma INUTI rullytan. Rullad till botten ska innehållets sista element ha minst 16 px över radens kant.
+        const luft = await page.evaluate(() => {
+          const yta = /** @type {HTMLElement | null} */ (document.querySelector('main [style*="--fullhojd"]'));
+          const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+          if (!yta || !nav) return null;
+          yta.scrollTop = yta.scrollHeight;
+          let botten = -Infinity;
+          let antal = 0;
+          for (const el of yta.querySelectorAll("*")) {
+            const r = el.getBoundingClientRect();
+            if (r.height > 0 && r.width > 0) {
+              // Innehållets underkant, inte lådans: en behållare med `pb-6` når annars ytans kant och ser ut som att sista elementet gör det.
+              const cs = getComputedStyle(el);
+              antal += 1;
+              botten = Math.max(botten, r.bottom - parseFloat(cs.paddingBottom || "0") - parseFloat(cs.borderBottomWidth || "0"));
+            }
+          }
+          return { luft: nav.getBoundingClientRect().top - botten, antal, rullat: yta.scrollTop > 0 };
+        });
+        krav(luft !== null && luft.antal >= 5, `fullyta ${vy} (${lage}): bara ${luft ? luft.antal : 0} element i ytan, väntat minst 5 (golv: sista elementet måste ha mätts).`);
+        if (luft) {
+          matt.push(`fullyta ${vy} (${lage}): rullad till botten, sista elementet ${luft.luft.toFixed(1)} px över bottenradens överkant (${luft.antal} element, rullat ${luft.rullat})`);
+          krav(luft.rullat, `fullyta ${vy} (${lage}): ytan gick inte att rulla, luften under sista elementet kan inte mätas.`);
+          krav(luft.luft >= 16, `fullyta ${vy} (${lage}): sista elementet ligger ${luft.luft.toFixed(1)} px över bottenraden när ytan är rullad till botten, väntat minst 16. Luften ska ligga inuti rullytan (pb-6).`);
+        }
         if (lage === "c") krav(!e.banner, `fullyta ${vy} (c): raden ovanför ytan togs inte bort.`);
       }
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `fullyta-${vy}-${lage}-390.png`) });
