@@ -32,7 +32,7 @@
  */
 
 import { ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
-import { KATEGORIFALT } from "./katalog.js";
+import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -296,8 +296,24 @@ export function lagringsregelfragment(konfig = {}) {
  * @returns {string}
  */
 export function gruppadSamling(samling, config = {}) {
+  return gruppadSamlingBlock(samling, {
+    skrivvillkor: config.agareKravsForSkrivning ? "opsArAgare" : "opsArMedlem",
+    falt: config.falt,
+    nyckelMedGrupp: false,
+  });
+}
+
+/**
+ * Blocket bakom `gruppadSamling` och `katalogregelfragment`. Internt: skrivrollen och nyckelformen är
+ * ramverkets val per samling, inte något ett manifest ska kunna ställa in.
+ *
+ * @param {string} samling
+ * @param {{ skrivvillkor: "opsArMedlem" | "opsArAdmin" | "opsArAgare", falt?: ReadonlyArray<string> | null, nyckelMedGrupp: boolean }} config
+ * @returns {string}
+ */
+function gruppadSamlingBlock(samling, config) {
   const namn = kontrolleraNamn(samling, "samling");
-  const skrivvillkor = config.agareKravsForSkrivning ? "opsArAgare" : "opsArMedlem";
+  const skrivvillkor = config.skrivvillkor;
 
   /*
    * ⛔ FORMVALIDERINGEN ÄR EN EGEN RAD OCH INTE EN DEL AV VILLKORET, så att en
@@ -312,10 +328,22 @@ export function gruppadSamling(samling, config = {}) {
     );
   }
   const formrad = falt ? `\n        && request.resource.data.keys().hasOnly([${falt.map((f) => `"${f}"`).join(", ")}])` : "";
+  /*
+   * ⛔ NYCKELN BÖRJAR PÅ RADENS EGEN GRUPP (0.33.0, katalogerna). Utan den här raden kunde en admin i
+   * grupp A skapa dokumentet `B|uppgift` med `groupId: "A"`: skapelsen släpps in (A är hens grupp),
+   * och när grupp B:s admin sedan sparar sin "uppgift" är det en UPPDATERING av en rad vars groupId är
+   * A, alltså ett nej. Grupp B kan då aldrig spara den kategorin, och det enda som syns är "Missing or
+   * insufficient permissions". Med raden måste nyckeln vara `<radens groupId>|<id>`, samma form som
+   * `katalognyckel` bygger. Gruppens id har `ID_FORM` (a-z, 0-9, - och _), och inget av de tecknen
+   * betyder något i ett reguljärt uttryck utanför en teckenklass.
+   */
+  const nyckelrad = config.nyckelMedGrupp
+    ? `\n        && id.matches(request.resource.data.groupId + '[${KATALOGAVGRANSARE}][a-z0-9][a-z0-9_-]*')`
+    : "";
 
   return `    match /${namn}/{id} {
       allow read: if opsArMedlem(resource.data.groupId);
-      allow create: if ${skrivvillkor}(request.resource.data.groupId)${formrad};
+      allow create: if ${skrivvillkor}(request.resource.data.groupId)${formrad}${nyckelrad};
       allow update: if ${skrivvillkor}(resource.data.groupId)
         && request.resource.data.groupId == resource.data.groupId${formrad};
       allow delete: if false;
@@ -426,8 +454,8 @@ ${block.join("")}${config.extra ? `${config.extra.replace(/\n*$/, "")}\n\n` : ""
  */
 
 /**
- * Regelfragmentet för katalogens delade samling(ar): medlem läser, ägare
- * skriver, uppslag på radens `groupId`.
+ * Regelfragmentet för katalogens delade samling(ar): medlem läser, ägare och
+ * admin skriver, uppslag på radens `groupId`, nyckeln `groupId|id`.
  *
  * ══ ⛔ VARFÖR EN NAMNGIVEN GENVÄG OCH INTE BARA `gruppadSamling` (#162) ═
  *
@@ -442,10 +470,21 @@ ${block.join("")}${config.extra ? `${config.extra.replace(/\n*$/, "")}\n\n` : ""
  * insufficient permissions" på nästa kategori som sparas med det nya fältet,
  * exakt den bugklassen #136:s filhuvud beskriver.
  *
- * ⛔ ÄGARE SKRIVER, INTE MEDLEM. Katalogen ÄR gruppens konfiguration: en
- * inställningsvy som lägger till eller arkiverar en kategori ändrar vad ALLA i
- * gruppen ser i sina rullgardiner. Samma gräns som `groups`-samlingen redan
- * drar i `regelfragment()` ovan.
+ * ⛔ ÄGARE OCH ADMIN SKRIVER, INTE MEDLEM (0.33.0, rollmodellen ur 0.32.0).
+ * Katalogen ÄR gruppens konfiguration: en inställningsvy som lägger till eller
+ * arkiverar en kategori ändrar vad ALLA i gruppen ser i sina rullgardiner, så en
+ * medlem skriver inte. Men den är samma SORTS konfiguration som gruppens
+ * utseende och uppgifter (`ADMINGRUPPFALT`), som admin redan får ändra sedan
+ * 0.32.0: namn, färg, ikon, ordning, och arkivering som går att ångra och står
+ * i ändringsloggen. Det som 0.32.0 lämnade åt ägaren ensam är det STRUKTURELLA,
+ * `moduler` (vilka moduler, alltså vilka samlingar och regler som finns) och att
+ * arkivera hela gruppen. En kategori är inte strukturell i den meningen: en
+ * sort som saknar beteende i koden ritas som reserv tills koden finns (se
+ * appens inställningsvy). Före 0.33.0 stod `opsArAgare` här, skrivet innan
+ * rollen admin fanns (0.29.0), och det hade gjort admin till en förvaltare som
+ * får byta gruppens färg men inte döpa om en händelsetyp.
+ *
+ * ⛔ NYCKELN LÅSES TILL `groupId|id` VID SKAPELSE, se `gruppadSamlingBlock`.
  *
  * ⛔ FLERA SAMLINGSNAMN I ETT ANROP, EFTERSOM EN APP KAN HA FLER ÄN EN DELAD
  * KATALOG (händelsetyper, statusar, sorter, ...). De delar mönster och fält,
@@ -472,5 +511,5 @@ export function katalogregelfragment(namn) {
    * med en framtida anropare som muterar den vore en bugg som visar sig i en
    * helt annan fil. En spridd kopia kostar ingenting och stänger den dörren.
    */
-  return samlingar.map((s) => gruppadSamling(s, { agareKravsForSkrivning: true, falt: [...KATEGORIFALT] })).join("");
+  return samlingar.map((s) => gruppadSamlingBlock(s, { skrivvillkor: "opsArAdmin", falt: [...KATEGORIFALT], nyckelMedGrupp: true })).join("");
 }

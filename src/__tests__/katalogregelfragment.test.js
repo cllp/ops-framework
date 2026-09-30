@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { katalogregelfragment } from "../lib/regler.js";
+import { katalogregelfragment, regelfragment } from "../lib/regler.js";
 import { KATEGORIFALT } from "../lib/katalog.js";
 
 /**
  * `katalogregelfragment()` (#162): katalogens delade samling, medlem läser,
- * ägare skriver, uppslag på radens groupId.
+ * ägare och admin skriver (0.33.0), uppslag på radens groupId, nyckeln groupId|id.
  *
  * ⛔ DEN RIKTIGA SÄKERHETSMÄTNINGEN LIGGER I `rules/__tests__` MOT EMULATORN.
  * Det här är den lilla, ren-funktions-halvan: att fragmentet faktiskt binder
@@ -19,12 +19,20 @@ describe("katalogregelfragment", () => {
     expect(() => katalogregelfragment(["kategorier", "  "])).toThrow(/minst ett samlingsnamn/);
   });
 
-  it("bygger ett block för samlingen, ägare skriver och medlem läser", () => {
+  it("bygger ett block för samlingen, ägare och admin skriver (opsArAdmin), medlem läser", () => {
     const text = katalogregelfragment("kategorier");
     expect(text).toContain("match /kategorier/{id}");
     expect(text).toContain("allow read: if opsArMedlem(resource.data.groupId);");
-    expect(text).toContain("allow create: if opsArAgare(request.resource.data.groupId)");
+    expect(text).toContain("allow create: if opsArAdmin(request.resource.data.groupId)");
+    expect(text).toContain("allow update: if opsArAdmin(resource.data.groupId)");
+    expect(text).not.toContain("opsArAgare");
     expect(text).toContain("allow delete: if false;");
+  });
+
+  it("⛔ nyckeln låses till radens grupp vid skapelse, samma form som katalognyckel", () => {
+    // Beteendet (att en kapad nyckel nekas) mäts mot emulatorn i rules/__tests__/kataloger.test.mjs.
+    const text = katalogregelfragment("kategorier");
+    expect(text).toContain("id.matches(request.resource.data.groupId + '[|][a-z0-9][a-z0-9_-]*')");
   });
 
   it("⛔ ingen radering, samma beslut som groups och de andra samlingarna (#136)", () => {
@@ -63,11 +71,12 @@ describe("katalogregelfragment", () => {
 
   it("⛔ katalogregelfragment kan limmas in tillsammans med regelfragment(), utan krock", () => {
     // ⛔ Samma sammansättning som en app faktiskt gör i sin firestore.rules:
-    // regelfragment() ger opsArMedlem/opsArAgare, katalogregelfragment()
+    // regelfragment() ger opsArMedlem/opsArAdmin, katalogregelfragment()
     // ANVÄNDER dem. Ordningen spelar roll: fragmentets funktioner måste stå
     // före blocket som anropar dem.
     const text = katalogregelfragment("kategorier");
     expect(text).toContain("opsArMedlem");
-    expect(text).toContain("opsArAgare");
+    expect(text).toContain("opsArAdmin");
+    expect(regelfragment()).toContain("function opsArAdmin(gid)");
   });
 });
