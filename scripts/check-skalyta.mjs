@@ -1036,7 +1036,11 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
   }
   krav(vantat === 0, `modalen ${namn}: OpsTimePicker finns inte i den här versionen (ingen tidsväljare).`);
   /** @param {string} valjare @param {string} text */
-  const overst = (valjare, text) =>
+  // ⛔ En lista eller kalender i en popover placeras och animeras EFTER klicket (Radix mäter sin position i nästa
+  // bildruta). Att mäta i samma ögonblick gav "överst false" på CI:s långsammare maskin i PR 183 fast lokalt grönt,
+  // samma felform som värdet i PR 176. Vänta därför högst 3 s på att elementet ligger överst, och döm det sista som
+  // mättes: något som fortfarande ligger över efter 3 s är ett riktigt fel, och `ovanpa` säger då vad det är.
+  const overstNu = (valjare, text) =>
     page.evaluate(
       ([v, t]) => {
         const el = [...document.querySelectorAll(v)].find((e) => (e.textContent || "").trim() === t);
@@ -1045,10 +1049,22 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
         const x = r.left + r.width / 2;
         const y = r.top + r.height / 2;
         const top = document.elementFromPoint(x, y);
-        return { finns: true, iVyn: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, overst: !!top && (el === top || el.contains(top) || top.contains(el)) };
+        const arOverst = !!top && (el === top || el.contains(top) || top.contains(el));
+        const ovanpa = arOverst || !top ? null : `${top.tagName.toLowerCase()}.${String(top.className).split(/\s+/).slice(0, 4).join(".")}`;
+        return { finns: true, iVyn: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, overst: arOverst, ovanpa };
       },
       [valjare, text],
     );
+  /** @param {string} valjare @param {string} text */
+  const overst = async (valjare, text) => {
+    const slut = Date.now() + 3000;
+    let m = await overstNu(valjare, text);
+    while (!(m.finns && m.iVyn && m.overst) && Date.now() < slut) {
+      await page.waitForTimeout(50);
+      m = await overstNu(valjare, text);
+    }
+    return m;
+  };
   varde = async () => JSON.parse((await page.locator("[data-varde]").textContent()) || "{}");
   // ⛔ Ett val skrivs till formuläret när React har renderat om, inte i samma ögonblick som
   // klicket. Att läsa värdet direkt gav {} på CI:s långsammare maskin i PR 176 fast valet
