@@ -43,7 +43,9 @@ if (!fs.existsSync(libmapp)) {
   process.exit(1);
 }
 
-const { gruppadSamling, regelfragment } = await import(pathToFileURL(path.join(libmapp, "regler.js")).href);
+const { gruppadSamling, katalogregelfragment, regelfragment } = await import(pathToFileURL(path.join(libmapp, "regler.js")).href);
+const { byggKategori } = await import(pathToFileURL(path.join(libmapp, "katalog.js")).href);
+const { createCatalogSource } = await import(pathToFileURL(path.join(kalltrad, "data", "katalogkalla.js")).href);
 
 /** Den enda tillåtna gruppnyckeln. */
 const ENDA = "groupId";
@@ -96,7 +98,7 @@ for (const { lista, falt, fil } of listor) {
 // ⛔ OCH REGLERNA, INTE BARA FORMEN. En rad kan bära ett enda `groupId` medan
 // regeln ändå frågar "är du med i NÅGON av de här", och då är hålet lika stort.
 // `array-contains` och `in` över en grupplista är hur det skulle se ut.
-const regeltexter = [regelfragment(), gruppadSamling("provsamling"), gruppadSamling("provkonfig", { agareKravsForSkrivning: true })];
+const regeltexter = [regelfragment(), gruppadSamling("provsamling"), gruppadSamling("provkonfig", { agareKravsForSkrivning: true }), katalogregelfragment("provkatalog")];
 const FORBJUDET = [
   ["array-contains", "en fråga mot en lista grupper på raden"],
   ["groupIds", "en gruppnyckel i plural"],
@@ -176,6 +178,52 @@ if (!regelfragment().includes("opsArMedlem") || !regelfragment().includes("exist
     brott.push(
       `${kategorifaltLista.fil}: KATEGORIFALT saknar "${ENDA}". En kategori utan grupp delas av alla grupper som använder katalogen, exakt det väg C (#160) skulle stoppa.`,
     );
+  }
+}
+
+// ── 5. En kategori UTAN groupId är röd, i modellen, i källan och i regeln (0.33.0, #162) ─
+//
+// ⛔ STEG 4 MÄTER EN LISTA, DET HÄR MÄTER BETEENDE. Att `groupId` står i KATEGORIFALT betyder bara att
+// fältet är TILLÅTET, och i 0.29.0 till 0.32.1 var det precis det det var: tillåtet, men en kategori utan
+// grupp byggdes utan klagan så länge ingen satte `grupp: true`. Ett närvarogrep efter "groupId" i källan
+// hade stått grönt genom hela den perioden (arbetsreglernas punkt 4). Här BYGGS en kategori utan groupId,
+// en katalogkälla utan grupp, och regeltexten för katalogen läses, och alla tre måste säga nej.
+{
+  const utanGrupp = { id: "provkategori", namn: { sv: "Prov" }, farg: 1, ikon: "check", fas: "aktiv" };
+  let kastade = null;
+  try {
+    byggKategori(utanGrupp);
+  } catch (e) {
+    kastade = e instanceof Error ? e.message : String(e);
+  }
+  if (!kastade || !kastade.includes("groupId")) {
+    brott.push(
+      `byggKategori byggde en kategori utan groupId med förvalet${kastade ? ` (kastade, men inte om groupId: ${kastade})` : ""}. En kategori är en grupps egen (#162), och bara en mall eller en moduls kodkatalog får säga grupp: false uttryckligen.`,
+    );
+  }
+
+  for (const [vad, konfig] of [
+    ["utan groupId", {}],
+    ["med groupId: null", { groupId: null }],
+  ]) {
+    let kalla = null;
+    try {
+      kalla = createCatalogSource({ source: { list: async () => [], create: async () => ({}) }, collection: "provkatalog", ...konfig });
+    } catch {
+      // Rätt: en katalogkälla utan grupp går inte att bygga.
+    }
+    if (kalla) {
+      brott.push(`createCatalogSource gick att bygga ${vad}. En källa utan grupp läser och skriver mot varje grupps kategorier på en gång.`);
+    }
+  }
+
+  const katalogregel = katalogregelfragment("provkatalog");
+  const skapa = (katalogregel.match(/allow create: if ([\s\S]*?);/) || [])[1] || "";
+  if (!skapa.includes("(request.resource.data.groupId)")) {
+    brott.push("katalogregelfragmentets create slår inte upp radens groupId. En kategori utan grupp hade kunnat skapas.");
+  }
+  if (!skapa.includes("id.matches(request.resource.data.groupId")) {
+    brott.push("katalogregelfragmentets create låser inte dokumentnyckeln till radens grupp (groupId|id). En admin i en grupp kan då kapa en annan grupps nyckel.");
   }
 }
 

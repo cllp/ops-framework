@@ -2421,6 +2421,44 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+// ══ 28. INSTÄLLNINGSVYN MED TVÅ GRUPPER: KATALOGEN BYTS NÄR GRUPPEN BYTS (0.33.0, #162) ══════════════════════════════
+// Väg C (CP 2026-09-28 i #160): katalogerna är gruppens. Vyn får två grupper med OLIKA händelsetyper och en växlare. Mätt vid
+// 390 och 1280: (a) listan visar bara den aktiva gruppens kategorier, före och efter bytet; (b) ett utkast som öppnats med
+// "Ändra" i den ena gruppen står INTE kvar efter bytet (före 0.33.0 gjorde det, och Spara skrev då den förra gruppens kategori
+// in i den nya gruppens katalog); (c) ingen horisontell överflödning. Golv: minst 2 rader per grupp, och utkastet måste ha
+// synts före bytet, annars mäter (b) ingenting.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const { page, context } = await oppna("installning-grupper", vp);
+  try {
+    /** @returns {Promise<{ namn: string[], utkast: string | null, spara: boolean, over: number }>} */
+    const las = () =>
+      page.evaluate(() => {
+        const lista = document.querySelector('[aria-label="Händelsetyper"]');
+        const namn = lista ? [...lista.querySelectorAll("li")].map((li) => (li.querySelector("span.font-medium")?.textContent || "").trim()).filter(Boolean) : [];
+        const sv = /** @type {HTMLInputElement | null} */ (document.querySelector('input[name="sv"]'));
+        const spara = [...document.querySelectorAll("button")].some((b) => (b.textContent || "").trim() === "Spara");
+        return { namn, utkast: sv ? sv.value : null, spara, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+      });
+    const fore = await las();
+    await page.getByRole("button", { name: "Ändra" }).first().click();
+    const oppnat = await las();
+    await page.getByRole("button", { name: "miranda-ab", exact: true }).click();
+    await page.waitForTimeout(100);
+    const efter = await las();
+    matt.push(`inställningsvyn två grupper ${vp.width} px: cps-ab ${JSON.stringify(fore.namn)}, utkast "${oppnat.utkast}", efter bytet miranda-ab ${JSON.stringify(efter.namn)}, utkast ${efter.utkast === null ? "stängt" : `"${efter.utkast}"`}, Spara ${efter.spara ? "synlig" : "borta"}, överflöde ${efter.over} px`);
+    krav(fore.namn.length >= 2 && efter.namn.length >= 2, `inställningsvyn två grupper ${vp.width}: ${fore.namn.length} och ${efter.namn.length} rader, väntat minst 2 per grupp (golv).`);
+    krav(oppnat.utkast === "Styrelsemöte", `inställningsvyn två grupper ${vp.width}: utkastet visade "${oppnat.utkast}" före bytet, väntat "Styrelsemöte" (golv: annars mäter bytet ingenting).`);
+    krav(fore.namn.every((n) => ["Styrelsemöte", "Deklaration"].includes(n)), `inställningsvyn två grupper ${vp.width}: cps-ab visar ${JSON.stringify(fore.namn)}, en annan grupps kategori syns.`);
+    krav(efter.namn.every((n) => ["Turné", "Repetition"].includes(n)), `inställningsvyn två grupper ${vp.width}: efter bytet visar miranda-ab ${JSON.stringify(efter.namn)}, en annan grupps kategori syns.`);
+    krav(efter.utkast === null && !efter.spara, `inställningsvyn två grupper ${vp.width}: efter bytet till miranda-ab står cps-ab:s utkast kvar ("${efter.utkast}", Spara ${efter.spara ? "synlig" : "borta"}). Spara skriver då cps-ab:s kategori in i miranda-ab:s katalog.`);
+    krav(efter.over <= 0 && fore.over <= 0, `inställningsvyn två grupper ${vp.width}: sidan flödar över ${Math.max(fore.over, efter.over)} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `installning-grupper-${vp.width}.png`), fullPage: true });
+  } catch (e) {
+    krav(false, `inställningsvyn två grupper ${vp.width}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);
