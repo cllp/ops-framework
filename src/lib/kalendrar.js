@@ -389,3 +389,125 @@ export function idagI(tidszon = STANDARD_TIDSZON, nu = new Date()) {
   const del = (t) => (delar.find((p) => p.type === t) || { value: "" }).value;
   return `${del("year")}-${del("month")}-${del("day")}`;
 }
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════
+ * ⛔ HANTERA KALENDRAR (0.37.0, #179 F2). Skapa, byta namn, färg, ikon, ordning, förvald och arkivera.
+ *
+ * Varje funktion nedan är REN och svarar med de rader som ska skrivas, aldrig med hela listan. Skälet är att en
+ * ändring av förvald eller ordning rör MER än en rad (den nya förvalda och den gamla, två grannar som byter plats), och
+ * att "skriv hela listan" hade gjort varje klick till lika många skrivningar som kalendrar, varav de flesta skriver
+ * samma sak igen. Vem som skriver (ägaren för mina, ägare och admin för gruppens) avgör reglerna, inte de här.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/** Steget mellan två kalendrars `ordning` när listan numreras om. Luft, så att en ny kalender kan läggas sist. */
+export const ORDNINGSSTEG = 10;
+
+/**
+ * Ett id ur ett namn: små bokstäver, å/ä till a, ö till o, allt annat till bindestreck, och unikt i listan.
+ *
+ * ⛔ UNIKT GENOM LISTAN OCH NYCKELN, INTE GENOM EN FRÅGA FÖRE SKRIVNINGEN. Listan är den som redan är läst, och krockar
+ * två som skapar samtidigt är det regeln (`create` på en nyckel som finns är en uppdatering) och inte den här funktionen
+ * som avgör. Här undviks bara den krock man själv kan se.
+ *
+ * @param {string} namn @param {ReadonlyArray<{ id: string }>} lista @returns {string}
+ */
+export function kalenderIdUrNamn(namn, lista) {
+  const bas =
+    rensa(namn)
+      .toLowerCase()
+      .replace(/[åä]/g, "a")
+      .replace(/ö/g, "o")
+      .replace(/é/g, "e")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "kalender";
+  const tagna = new Set(lista.map((k) => k.id));
+  if (!tagna.has(bas)) return bas;
+  for (let n = 2; ; n += 1) if (!tagna.has(`${bas}-${n}`)) return `${bas}-${n}`;
+}
+
+/**
+ * Nästa lediga `ordning`: efter den sista, med `ORDNINGSSTEG` emellan.
+ * @param {ReadonlyArray<{ ordning: number }>} lista @returns {number}
+ */
+export function nastaOrdning(lista) {
+  return lista.reduce((m, k) => Math.max(m, k.ordning), -ORDNINGSSTEG) + ORDNINGSSTEG;
+}
+
+/**
+ * Flyttar en kalender ett steg upp (-1) eller ned (+1) bland de valbara, och svarar med raderna vars `ordning` ändrats.
+ *
+ * ⛔ LISTAN NUMRERAS OM, I STÄLLET FÖR ATT TVÅ TAL BYTER PLATS. Två kalendrar med samma `ordning` (båda 0, som när de
+ * skapats utan ordning) byter inte plats av att deras tal byts: de är fortfarande lika, och namnet avgör. Omnumreringen
+ * ger varje kalender ett eget tal, och bara de som faktiskt fått ett nytt skrivs.
+ *
+ * ⛔ ARKIVERADE RÖRS INTE. De syns inte i listan man flyttar i, och deras plats är ingenting någon ser.
+ *
+ * @template {{ id: string, ordning: number, arkiverad: boolean, namn: any }} K
+ * @param {ReadonlyArray<K>} lista @param {string} id @param {-1 | 1} steg @param {string} [sprak]
+ * @returns {K[]} Tom när kalendern redan står först (eller sist) eller inte finns.
+ */
+export function flyttaKalender(lista, id, steg, sprak = "sv") {
+  const ordnade = /** @type {K[]} */ (/** @type {unknown} */ (valjbara(/** @type {any} */ (lista), sprak)));
+  const i = ordnade.findIndex((k) => k.id === id);
+  const j = i + steg;
+  if (i < 0 || j < 0 || j >= ordnade.length) return [];
+  const ny = ordnade.slice();
+  [ny[i], ny[j]] = [ny[j], ny[i]];
+  return ny.map((k, n) => ({ ...k, ordning: n * ORDNINGSSTEG })).filter((k, n) => ordnade.find((x) => x.id === k.id)?.ordning !== n * ORDNINGSSTEG);
+}
+
+/**
+ * Gör en kalender förvald: den nya får `forvald: true`, den som var förvald får `false`. Svarar med de rader som ändrats.
+ *
+ * ⛔ TVÅ RADER, OCH DE SKA SKRIVAS I SAMMA BATCH. Skrivs den nya först och den gamla misslyckas finns två förvalda, och
+ * `validateGruppkalendrar` kastar vid nästa läsning. Därför svarar funktionen med båda, och källan skriver dem ihop.
+ *
+ * @template {{ id: string, forvald: boolean, arkiverad: boolean }} K
+ * @param {ReadonlyArray<K>} lista @param {string} id @returns {K[]}
+ */
+export function valjForvald(lista, id) {
+  const mal = lista.find((k) => k.id === id);
+  if (!mal) throw new Error(`valjForvald: kalendern "${id}" finns inte.`);
+  if (mal.arkiverad) throw new Error(`valjForvald: kalendern "${id}" är arkiverad. En arkiverad kalender kan inte vara förvald.`);
+  return lista.filter((k) => (k.id === id ? !k.forvald : k.forvald)).map((k) => ({ ...k, forvald: k.id === id }));
+}
+
+/**
+ * Arkiverar en kalender, eller tar tillbaka den (`arkiverad: false`). Svarar med raden.
+ *
+ * ⛔ EN ARKIVERAD KALENDER ÄR INTE FÖRVALD. Den som arkiverar den förvalda får alltså ingen förvald markerad, och då
+ * gäller den första valbara (`forvaldKalender`), som det står i filhuvudet: den härleds, den seedas inte.
+ *
+ * ⛔ POSTERNA I EN ARKIVERAD KALENDER FINNS KVAR. De ritas med kalenderns namn så länge de visas, men nya poster kan inte
+ * läggas där (regeln och `byggKalenderpost`).
+ *
+ * @template {{ id: string, forvald: boolean, arkiverad: boolean }} K
+ * @param {ReadonlyArray<K>} lista @param {string} id @param {boolean} [arkiverad] @returns {K}
+ */
+export function arkiveraKalender(lista, id, arkiverad = true) {
+  const k = lista.find((x) => x.id === id);
+  if (!k) throw new Error(`arkiveraKalender: kalendern "${id}" finns inte.`);
+  return { ...k, arkiverad, forvald: arkiverad ? false : k.forvald };
+}
+
+/**
+ * En kalender som ett val i filtret och i "Skapa i": `{ id, namn, farg, ikon, grupp, forvald }`.
+ *
+ * ⛔ BARA DE VALBARA, I SIN ORDNING, OCH `forvald` ÄR DEN HÄRLEDDA. En arkiverad kalender går inte att välja, och den
+ * förvalda är den markerade eller annars den första (`forvaldKalender`). Samma lista matar kalenderns filter och "Skapa i",
+ * så att de två aldrig visar olika kalendrar eller olika förval.
+ *
+ * @param {{ gruppens?: ReadonlyArray<Gruppkalender>, mina?: ReadonlyArray<MinKalender>, sprak?: string }} arg
+ * @returns {Array<{ id: string, namn: string, farg: 1|2|3|4|5|6, ikon: string, grupp: boolean, forvald: boolean }>}
+ */
+export function kalenderval({ gruppens = [], mina = [], sprak = "sv" }) {
+  const fg = forvaldKalender(gruppens);
+  const fm = forvaldKalender(mina);
+  return [
+    ...valjbara(/** @type {any} */ (gruppens), sprak).map((/** @type {any} */ k) => ({ id: k.id, namn: text(k.namn, sprak), farg: k.farg, ikon: k.ikon, grupp: true, forvald: !!fg && fg.id === k.id })),
+    ...valjbara(/** @type {any} */ (mina), sprak).map((/** @type {any} */ k) => ({ id: k.id, namn: text(k.namn, sprak), farg: k.farg, ikon: k.ikon, grupp: false, forvald: !!fm && fm.id === k.id })),
+  ];
+}

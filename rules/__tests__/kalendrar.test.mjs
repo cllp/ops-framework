@@ -19,7 +19,7 @@
  *     ägaren skapar och läser                               ja
  *     en annan inloggad läser                               nej      <- hela poängen
  *     en annan inloggad skriver i ägarens samling           nej
- *     färg utanför de sex, tomt namn, okänt fält, fel id    nej
+ *     färg utanför de sex, tomt namn, okänt fält, ett id-fält   nej   (0.37.0: nyckeln står i sökvägen)
  *     radering                                              nej      <- arkiveras
  *
  *   POSTER I MINA KALENDRAR
@@ -59,8 +59,11 @@ const H = "kal-hb";
 
 // ⛔ Raderna byggs med ramverkets egna byggare, så att provet mäter det en app faktiskt skriver och inte en handskriven form.
 const gruppkal = (extra = {}) => byggGruppkalender({ id: "styrelse", namn: { sv: "Styrelsen" }, farg: 4, ikon: "kalender", ordning: 0, groupId: G, forvald: true, ...extra });
-const minKal = (extra = {}) => byggMinKalender({ id: "privat", namn: "Privat", farg: 2, ikon: "hjarta", ...extra });
-const post = (extra = {}) => byggKalenderpost({ id: "tandlakare", kalenderId: "privat", titel: "Tandläkaren", start: "2026-10-05T09:00", slut: "2026-10-05T10:00", ...extra });
+// ⛔ 0.37.0: `id` lagras inte på raden. Nyckeln står i sökvägen, och adaptern (`create` i src/data/firestore.js) tar `id` ur
+// datan. Raderna här har alltså den form adaptern skriver, se `kalenderregelfragment`.
+const utanId = (/** @type {Record<string, any>} */ { id: _id, ...r }) => r;
+const minKal = (extra = {}) => utanId(byggMinKalender({ id: "privat", namn: "Privat", farg: 2, ikon: "hjarta", ...extra }));
+const post = (extra = {}) => utanId(byggKalenderpost({ id: "tandlakare", kalenderId: "privat", titel: "Tandläkaren", start: "2026-10-05T09:00", slut: "2026-10-05T10:00", ...extra }));
 
 /** @type {import("@firebase/rules-unit-testing").RulesTestEnvironment} */
 let miljo;
@@ -132,11 +135,13 @@ describe("⛔ mina kalendrar: bara ägaren", () => {
   it("⛔ en annan skriver inte i ägarens samling", async () => {
     await assertFails(setDoc(doc(som(ANNAN), `users/${AGARE}/minaKalendrar/planterad`), minKal({ id: "planterad" })));
   });
-  it("⛔ färg utanför de sex, tomt namn, okänt fält och fel id avvisas", async () => {
+  it("⛔ färg utanför de sex, tomt namn, okänt fält och ett id-fält på raden avvisas", async () => {
     await assertFails(setDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/f`), { ...minKal({ id: "f" }), farg: 7 }));
     await assertFails(setDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/t`), { ...minKal({ id: "t" }), namn: "" }));
     await assertFails(setDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/o`), { ...minKal({ id: "o" }), groupId: G }));
-    await assertFails(setDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/x`), minKal({ id: "y" })));
+    // ⛔ 0.37.0: ett `id` på raden är nyckeln en gång till, och en kopia som kan säga något annat än nyckeln (här "y" i "x").
+    await assertFails(setDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/x`), { ...minKal({ id: "x" }), id: "y" }));
+    await assertFails(setDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/x`), { ...minKal({ id: "x" }), id: "x" }));
   });
   it("⛔ ägaren raderar inte en kalender, den arkiveras", async () => {
     await assertFails(deleteDoc(doc(som(AGARE), `users/${AGARE}/minaKalendrar/privat`)));

@@ -10,6 +10,7 @@ import {
   monthGrid,
   perDay,
   scrollDirection,
+  markorlayout,
 } from "../lib/calendar.js";
 
 /**
@@ -354,34 +355,34 @@ describe("OpsKalender", () => {
     expect(within(panelen).getByText("Löneutbetalning")).toBeInTheDocument();
   });
 
-  it("ger varje post ett EGET kort, inte rader i ett gemensamt", () => {
+  it("⛔ lägger posterna som rader i EN bubbla, med en linje mellan raderna och tak med invändig rullning (0.37.0)", () => {
     /*
-     * ⛔ CP 2026-09-22, med bild ur SessionStudio: "Det finns ingen separator med
-     * flera händelser i bubblan."
-     *
-     * Första versionen la posterna som rader i EN panel, och fem påminnelser i
-     * rad blev en vägg av fet text utan något som skiljer dem åt. Förebilden
-     * lägger varje post i ett eget kort med egen skugga och luft omkring, och
-     * luften ÄR avdelaren.
-     *
-     * ⛔ PROVET FRÅGAR EFTER TVÅ SKILDA KORT och inte efter en klass. Ett
-     * påstående om `rounded-xl` hade varit grönt även om båda posterna låg i
-     * samma ruta, alltså grönt för exakt det fel som skulle bort.
+     * ⛔ ERSÄTTER PROVET "ett EGET kort per post" (0.26.0 till 0.36.0). CP 2026-09-30, med skärmbilder ur SS-appen: "I
+     * SessionStudio, ser du att man scrollar i bubblan här om den blir för stor?" SS-appen har en bubbla med raderna och en
+     * hårfin linje överst på varje (`abEventRow`), och rullytan har taket 140 px (`abEventsScroll`). CP:s klagomål 2026-09-22
+     * ("ingen separator") gällde rader UTAN avdelare; här är linjen avdelaren.
      */
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    const bubblor = panelen().querySelectorAll("[data-postbubbla]");
+    expect(bubblor.length).toBe(1);
+    const rader = bubblor[0].querySelectorAll("[data-postrad]");
+    expect(rader.length).toBe(2);
+    expect(String(/** @type {HTMLElement} */ (rader[0].parentElement).className)).toContain("divide-y");
+    const rulle = /** @type {HTMLElement} */ (bubblor[0].querySelector("[data-postrulle]"));
+    expect(rulle.className).toContain("max-h-35");
+    expect(rulle.className).toContain("overflow-y-auto");
+  });
 
-    const kortFor = (title) => within(panelen()).getByText(title).closest(".ops-contrast-panel");
-    const ett = kortFor("Arbetsgivardeklaration");
-    const two = kortFor("#249 stängdes");
-
-    expect(ett).not.toBeNull();
-    expect(two).not.toBeNull();
-    expect(ett).not.toBe(two);
-    // ⛔ Och det ena är inte det andras förälder: två kort som är syskon, inte en
-    // låda med en låda i.
-    expect(ett.contains(two)).toBe(false);
-    expect(two.contains(ett)).toBe(false);
+  it("delar raderna under Grupp och Mina bara när båda slagen finns", () => {
+    const kalendrar = [{ id: "styrelse", namn: "Styrelsen", farg: 4, grupp: true, forvald: true }, { id: "privat", namn: "Privat", farg: 5 }];
+    rendera({ kalendrar, entries: [{ id: "m", date: "2026-10-12", title: "Möte" }, { id: "t", date: "2026-10-12", title: "Tandläkaren", kalender: { id: "privat", namn: "Privat", farg: 5 } }] });
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    expect([...panelen().querySelectorAll("[data-postrubrik]")].map((x) => x.textContent)).toEqual(["Grupp", "Mina"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Stäng/ }));
+    rendera({ kalendrar, entries: [{ id: "m", date: "2026-10-13", title: "Möte" }] });
+    fireEvent.click(screen.getAllByRole("button", { name: "13, 1 post" }).at(-1));
+    expect(panelen().querySelectorAll("[data-postrubrik]").length).toBe(0);
   });
 
   it("skriver datumet både som piller överst och på varje kort", () => {
@@ -436,7 +437,7 @@ describe("OpsKalender", () => {
     expect(order).toEqual(["12 oktober", "25 oktober"]);
   });
 
-  it("ger varje piller ett kryss när flera dagar är valda, och inget när en är det", () => {
+  it("ger varje piller ett kryss, och krysset tar bort just den dagen", () => {
     /*
      * ⛔ PILLRET ÄR BÅDE UPPLYSNINGEN OCH KONTROLLEN, precis som i förebilden:
      * krysset i pillret plockar bort just den dagen ur urvalet.
@@ -448,7 +449,8 @@ describe("OpsKalender", () => {
      */
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
-    expect(screen.queryByRole("button", { name: "Ta bort 12 oktober" })).toBeNull();
+    // ⛔ 0.37.0: krysset finns också med en dag vald, som i SS-appen (`DayDetailPanel.js`), se `Datumpiller`.
+    expect(screen.getByRole("button", { name: "Ta bort 12 oktober" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
     fireEvent.click(screen.getByRole("button", { name: "Ta bort 25 oktober" }));
@@ -459,27 +461,24 @@ describe("OpsKalender", () => {
     expect(screen.getByRole("button", { name: "25, 1 post" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("staplar panelen UNDER rutnätet på telefon, med tak, egen rullning och avdrag från rullytan (0.36.0)", () => {
+  it("⛔ panelen flyter över rutnätet på telefon utan egen yta, med tak och egen rullning, och rutnätet får luft under sig (0.37.0)", () => {
     /*
-     * ⛔ SS `CalendarView.jsx:208`: `shrink-0 max-h-[45%] overflow-y-auto`, UNDER rutnätet, och rutnätet krymper.
-     * Till 0.35.0 låg panelen `fixed` ovanpå rutnätet och dolde dagarna man ville trycka på härnäst.
-     *
-     * ⛔ VAD PROVET BEVISAR OCH VAD DET INTE GÖR. jsdom räknar ingen layout. Det som mäts är att taket, rullningen och
-     * avdraget sitter där de ska och bara under 1024 px. Höjderna mäts i Chromium i `check-skalyta` avsnitt 30.
+     * ⛔ CP 2026-09-30 22:30, med en skärmbild ur SS-appen: "Inget transparent bakom, de kommer fram på fel sätt med
+     * scrollning." 0.36.0 staplade panelen under rutnätet på en ogenomskinlig yta (`max-lg:bg-surface`, `border-t`) och
+     * krympte rullytan; det provet är ersatt av det här. jsdom räknar ingen layout: klasserna mäts här, höjderna och att
+     * rutnätet syns runt korten i Chromium i `check-skalyta` avsnitt 30.
      */
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
-
-    const plats = document.querySelector("[data-dagpanel-plats]");
+    const plats = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel-plats]"));
     expect(plats.contains(panelen())).toBe(true);
     const k = String(plats.className).split(/\s+/);
-    expect(k).toContain("max-lg:max-h-(--ops-dagpanel-max)");
-    expect(k).toContain("max-lg:overflow-y-auto");
-    expect(k).toContain("max-lg:overscroll-contain");
-    // ⛔ Och rullytan drar av panelens höjd, annars hade panelen hamnat under bottenraden.
-    expect(rullbehallaren().className).toContain("max-lg:h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_var(--ops-dagpanel))]");
-    // ⛔ Panelen ligger efter rutnätets kolumn i trädet, alltså under det när raden är en spalt.
-    expect(rullbehallaren().compareDocumentPosition(plats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    for (const c of ["max-lg:absolute", "max-lg:-bottom-6", "max-lg:max-h-(--ops-dagpanel-max)", "max-lg:overflow-y-auto"]) expect(k).toContain(c);
+    // ⛔ Ingen egen yta och ingen kant bakom panelen.
+    expect(k.some((c) => /bg-|border-t/.test(c))).toBe(false);
+    // ⛔ Rullytan krymper inte, den får luft under sista månaden.
+    expect(rullbehallaren().className).not.toContain("--ops-dagpanel");
+    expect(rullbehallaren().querySelector("[data-panelluft]")).not.toBeNull();
   });
 
   it("reserverar sidokolumnen även när ingen dag är vald", () => {
@@ -616,7 +615,7 @@ describe("OpsKalender", () => {
   ];
 
   /** @param {string} title */
-  const kortFor = (title) => within(panelen()).getByText(title).closest(".ops-contrast-panel");
+  const kortFor = (title) => within(panelen()).getByText(title).closest("[data-postrad]");
 
   it("målar kanten i slagets färg, och lämnar kortet utan slag orört", () => {
     rendera({ entries: MED_KANT });
@@ -705,136 +704,82 @@ describe("OpsKalender", () => {
     expect(klasser).not.toContain("border-l-identity-4");
   });
 
-  it("ritar slagets ikon i stället för pricken, färgad ur samma palett", () => {
-    /*
-     * ⛔ CP 2026-09-24: "Går det att ha en färgad liten ikon (väldigt liten)?"
-     *
-     * Och det är inte bara en smaksak. Paletten bär en varning som står kvar med
-     * flit: slag-1 mot slag-2 ligger på delta E 6,9 vid rödgrönblindhet, vilket
-     * är tillåtet BARA med en andra kodning. På raden är ordet den kodningen; i
-     * rutnätet fanns ingen. Formen är den.
-     *
-     * ⛔ PROVET KRÄVER BÅDA HALVORNA: att bilden är med, OCH att den bär slagets
-     * textfärg. En ikon utan färg hade varit grön här om provet bara letat efter
-     * en svg, och då hade två slag sett likadana ut igen.
-     */
+  /*
+   * ⛔ 0.37.0: RUTAN PÅ TELEFON HAR SS FORMAT RAKT AV, PRICKAR OCH STRECK I KATEGORINS FÄRG (CP 2026-09-30, med en skärmbild
+   * ur SS-appen: "Vi kanske skall ta SessionStudios format rakt av och ha prickar och streck istället med rätt färg för
+   * kategori?"). De fem proven om ikoner i rutan (0.26.0) är ersatta av proven nedan; beslutet och skälet står i
+   * `OpsCalendarDagruta.jsx`. Ikonen finns kvar på raden i `OpsEventList`.
+   */
+  const marken = (/** @type {string} */ namn) => /** @type {HTMLElement} */ (screen.getByRole("button", { name: namn }).querySelector("[data-kalender-marken]"));
+
+  it("en endagspost är en prick i slagets färg, och ingen ikon ritas i rutan", () => {
     rendera({
       entries: [
         { id: "a", date: "2026-10-12", title: "En uppgift", slag: 1, slagLabel: "Uppgift", kindIcon: <svg data-prov="uppgift" /> },
-        { id: "b", date: "2026-10-12", title: "En påminnelse", slag: 2, slagLabel: "Påminnelse", kindIcon: <svg data-prov="paminnelse" /> },
+        { id: "b", date: "2026-10-12", title: "En påminnelse", slag: 2, slagLabel: "Påminnelse" },
       ],
     });
-
-    const ruta = screen.getByRole("button", { name: "12, 2 poster" });
-    // ⛔ Ingen prick kvar. Ritades båda vore rutan dubbelt så bred som mätt.
-    expect(ruta.querySelectorAll("span.rounded-full").length).toBe(0);
-
-    const marken = [...ruta.querySelectorAll("svg[data-prov]")];
-    expect(marken.map((m) => m.dataset.prov)).toEqual(["uppgift", "paminnelse"]);
-
-    const farger = marken.map((m) => String(m.parentElement.className).split(/\s+/).find((k) => k.startsWith("text-slag-")));
-    expect(farger).toEqual(["text-slag-1", "text-slag-2"]);
+    const m = marken("12, 2 poster");
+    expect(screen.getByRole("button", { name: "12, 2 poster" }).querySelectorAll("svg[data-prov]").length).toBe(0);
+    const farger = [...m.querySelectorAll("[data-prick]")].map((x) => String(x.className).split(/\s+/).find((k) => k.startsWith("bg-slag-")));
+    expect(farger).toEqual(["bg-slag-1", "bg-slag-2"]);
   });
 
-  it("tvingar ikonens storlek i rutan, oavsett vad appen skickar", () => {
-    /*
-     * ⛔ RAMVERKET ÄGER STORLEKEN HÄR. Samma `kindIcon` ritas 16 px på raden i
-     * `OpsEventList`, eftersom en rad har plats. Vid 390 px är en dagsruta 47,7
-     * px bred och dess innehållsyta 39,7 px: tre märken på 10 px med `gap-0.5`
-     * blir 34 px och ryms, tre på 12 px blir 40 px och gör inte det. Skickade
-     * appen storleken skulle en radikon spränga rutnätet på en telefon, och det
-     * felet syns först hos användaren.
-     */
-    rendera({
-      entries: [{ id: "a", date: "2026-10-12", title: "Stor ikon", slag: 1, slagLabel: "Uppgift", kindIcon: <svg data-prov="stor" width="16" height="16" /> }],
-    });
-
-    const omslag = screen.getByRole("button", { name: "12, 1 post" }).querySelector("svg[data-prov]").parentElement;
-    const klasser = String(omslag.className).split(/\s+/);
-    expect(klasser).toContain("[&>svg]:size-2.5");
-    // ⛔ Och strecket tjocknar. Lucides `stroke-width: 2` i en 24-enheters
-    // viewBox blir 0,83 px vid 10 px, alltså tunnare än en bildpunkt.
-    expect(klasser).toContain("[&>svg]:[stroke-width:2.75]");
+  it("en flerdagspost är ett streck i varje ruta den täcker, och ingen prick där", () => {
+    rendera({ entries: [{ id: "k", date: "2026-10-05", endDate: "2026-10-07", title: "Konferens", slag: 3, slagLabel: "Resa" }] });
+    for (const d of ["5", "6", "7"]) {
+      const m = marken(`${d}, 1 post`);
+      expect(m.querySelectorAll('[data-streck="k"]').length).toBe(1);
+      expect(m.querySelectorAll("[data-prick]").length).toBe(0);
+      expect(String(/** @type {HTMLElement} */ (m.querySelector("[data-streck]")).className)).toContain("bg-slag-3");
+    }
+    expect(/** @type {HTMLElement} */ (document.querySelector(`[data-cal-day="2026-10-08"]`)).querySelectorAll("[data-streck]").length).toBe(0);
   });
 
-  it("behåller pricken för en post utan ikon, så en app utan bilder inte blir tom", () => {
-    rendera({
-      entries: [
-        { id: "a", date: "2026-10-12", title: "Med ikon", slag: 1, slagLabel: "Uppgift", kindIcon: <svg data-prov="med" /> },
-        { id: "b", date: "2026-10-12", title: "Utan ikon", slag: 2, slagLabel: "Påminnelse" },
-      ],
-    });
-
-    const ruta = screen.getByRole("button", { name: "12, 2 poster" });
-    expect(ruta.querySelectorAll("svg[data-prov]").length).toBe(1);
-    const prick = ruta.querySelector("span.rounded-full");
-    expect(String(prick.className).split(/\s+/)).toContain("bg-slag-2");
+  it("⛔ som SS: tre prickar överst, två under, sedan +N, och antalet tappas aldrig", () => {
+    const sex = [1, 2, 3, 4, 5, 6].map((n) => ({ id: `p${n}`, date: "2026-10-12", title: `Post ${n}`, slag: 1, slagLabel: "Uppgift" }));
+    rendera({ entries: sex });
+    const m = marken("12, 6 poster");
+    const rader = [...m.children].map((r) => r.querySelectorAll("[data-prick]").length);
+    expect(rader).toEqual([3, 2]);
+    expect(/** @type {HTMLElement} */ (m.querySelector("[data-plus]")).textContent).toBe("+1");
+    rendera({ entries: sex.slice(0, 5) });
+    expect(marken("12, 5 poster").querySelector("[data-plus]")).toBeNull();
   });
 
-  it("lämnar plats åt räknaren genom att visa ett märke mindre", () => {
-    /*
-     * ⛔ MÄTT I CHROMIUM VID 390 PX, och det var mätningen som hittade felet:
-     * rutan är 45,6 px och innehållsytan 37,6 px efter `px-1`. Tre ikoner på
-     * 10 px ryms (34 px). Tre ikoner OCH ett "+2" blir 49,7 px, alltså 12 px
-     * utanför rutan.
-     *
-     * ⛔ jsdom KAN INTE SE DET. Där finns ingen layoutmotor, så provet bevakar
-     * REGELN och inte bredden: en ruta som räknar visar två märken, inte tre.
-     * Bredden är mätt en gång i en riktig webbläsare, och siffrorna står ovan.
-     *
-     * ⛔ OCH REGELN GÄLLER PRICKARNA OCKSÅ, fast de klarade sig på 35,7 px. Två
-     * regler för samma rad hade varit en rad som byter bredd beroende på vad
-     * appen skickar, alltså ett spill bara vissa appar ser.
-     */
-    const fyra = [1, 2, 3, 4].map((n) => ({
-      id: `p${n}`,
-      date: "2026-10-12",
-      title: `Post ${n}`,
-      slag: 1,
-      slagLabel: "Uppgift",
-      kindIcon: <svg data-prov={`p${n}`} />,
-    }));
-    rendera({ entries: fyra });
-
-    // ⛔ Märkesraden och inte hela rutan: från 0.36.0 står också pillren med titel i rutan (från 640 px), med sin
-    // egen räknare, och deras "+N" säger ingenting om märkenas plats.
-    const ruta = screen.getByRole("button", { name: "12, 4 poster" }).querySelector("[data-kalender-marken]");
-    expect(ruta.querySelectorAll("svg[data-prov]").length).toBe(2);
-    expect(ruta.textContent).toContain("+2");
-
-    // ⛔ Och EXAKT tre när ingen räknare behövs. Utan den här halvan hade
-    // "visa alltid två" varit grönt, alltså ett märke bortkastat varje dag.
-    rendera({ entries: fyra.slice(0, 3) });
-    const tre = screen.getByRole("button", { name: "12, 3 poster" }).querySelector("[data-kalender-marken]");
-    expect(tre.querySelectorAll("svg[data-prov]").length).toBe(3);
-    expect(tre.textContent).not.toContain("+");
+  it("två streck överst och prickarna under, och fler flerdagsposter räknas in i +N", () => {
+    const spann = [1, 2, 3].map((n) => ({ id: `s${n}`, date: "2026-10-11", endDate: "2026-10-13", title: `Spann ${n}`, slag: 2, slagLabel: "Påminnelse" }));
+    rendera({ entries: [...spann, { id: "e", date: "2026-10-12", title: "En", slag: 1, slagLabel: "Uppgift" }] });
+    const m = marken("12, 4 poster");
+    expect(m.children[0].querySelectorAll("[data-streck]").length).toBe(2);
+    expect(m.children[0].querySelectorAll("[data-prick]").length).toBe(0);
+    // En prick under, och ett "+1" för det tredje strecket: 2 + 1 + 1 = 4.
+    expect(m.children[1].querySelectorAll("[data-prick]").length).toBe(1);
+    expect(/** @type {HTMLElement} */ (m.querySelector("[data-plus]")).textContent).toBe("+1");
   });
 
-  it("ger räknaren hela raden när talet blir tresiffrigt", () => {
-    /*
-     * ⛔ MÄTT: ett märke och "+139" blir 39,0 px i en yta på 37,6, alltså
-     * utanför rutan. Noll märken och "+140" blir 27,0 px.
-     *
-     * ⛔ OCH DET ÄR RÄTT ÄVEN UTAN MÅTTET. En dag med hundrafyrtio poster har
-     * inget att säga med en färg: den säger "för mycket", och det säger talet
-     * bättre än en ensam grön ikon bredvid.
-     */
-    const manga = Array.from({ length: 140 }, (_, n) => ({
-      id: `p${n}`,
-      date: "2026-10-12",
-      title: `Post ${n}`,
-      slag: 1,
-      slagLabel: "Uppgift",
-      kindIcon: <svg data-prov={`p${n}`} />,
-    }));
-    rendera({ entries: manga });
-
-    const ruta = screen.getByRole("button", { name: "12, 140 poster" });
-    expect(ruta.querySelectorAll("svg[data-prov]").length).toBe(0);
-    expect(ruta.textContent).toContain("+140");
+  it("dagdekor: en ton och ett hörnmärke ritas i rutan, och märkets ord står i knappens namn (plats för F6)", () => {
+    rendera({ dagdekor: (/** @type {string} */ d) => (d === "2026-10-12" ? { ton: 2, hornmarken: [{ id: "lager", etikett: "1 lager", innehall: <svg data-prov="lager" /> }] } : undefined) });
+    const ruta = screen.getByRole("button", { name: /^12, .*1 lager$/ });
+    expect(/** @type {HTMLElement} */ (ruta.querySelector("[data-dagton]")).className).toContain("bg-identity-2/15");
+    expect(ruta.querySelector('[data-hornmarke="lager"] svg[data-prov="lager"]')).not.toBeNull();
+    expect(/** @type {HTMLElement} */ (document.querySelector(`[data-cal-day="2026-10-13"]`)).querySelector("[data-hornmarken]")).toBeNull();
   });
 
-  it("kräver ordet även när märket är en ikon", () => {
+  it("daglager: lagrens egen bubbla ritas bara när den har innehåll, och får de valda dagarna (plats för F6)", () => {
+    const forsta = rendera();
+    fireEvent.click(/** @type {HTMLElement} */ (document.querySelector('[data-cal-day="2026-10-13"]')));
+    expect(panelen().querySelector("[data-lagerbubbla]")).toBeNull();
+    forsta.unmount();
+    /** @type {string[][]} */
+    const fick = [];
+    rendera({ daglager: (/** @type {string[]} */ d) => { fick.push(d); return d.includes("2026-10-13") ? <p>1 kalenderlager</p> : null; } });
+    fireEvent.click(/** @type {HTMLElement} */ (document.querySelector('[data-cal-day="2026-10-13"]')));
+    expect(/** @type {HTMLElement} */ (panelen().querySelector("[data-lagerbubbla]")).textContent).toBe("1 kalenderlager");
+    expect(fick.at(-1)).toEqual(["2026-10-13"]);
+  });
+
+  it("kräver ordet även när posten har en ikon", () => {
     // ⛔ Ikonen är en andra kodning, inte en ersättning för ordet: den som
     // lyssnar hör varken färg eller form. Kastet ska komma här också, annars
     // vore ikonen en väg runt kravet.
@@ -862,5 +807,24 @@ describe("OpsKalender", () => {
   it("kastar på en plats som inte finns i paletten", () => {
     rendera({ entries: [{ id: "x", date: "2026-10-12", title: "Plats nio", edge: 9, edgeLabel: "Nio" }] });
     expect(() => fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }))).toThrow(/okänd edge/);
+  });
+});
+
+describe("markorlayout: SS-appens märken i rutan (0.37.0)", () => {
+  // SS `apps/mobile/lib/calendarDayMarkerLayout.js`, talen därifrån. Summan av det ritade och +N är alltid antalet.
+  const n = (/** @type {number} */ k, /** @type {string} */ p) => Array.from({ length: k }, (_, i) => `${p}${i}`);
+  const summa = (/** @type {any} */ l) => l.streck.length + l.ovre.length + l.nedre.length + l.plus;
+  it.each([
+    [0, 3, { streck: 0, ovre: 3, nedre: 0, plus: 0 }],
+    [0, 5, { streck: 0, ovre: 3, nedre: 2, plus: 0 }],
+    [0, 6, { streck: 0, ovre: 3, nedre: 2, plus: 1 }],
+    [1, 4, { streck: 1, ovre: 1, nedre: 3, plus: 0 }],
+    [1, 5, { streck: 1, ovre: 1, nedre: 2, plus: 2 }],
+    [2, 3, { streck: 2, ovre: 0, nedre: 3, plus: 0 }],
+    [3, 1, { streck: 2, ovre: 0, nedre: 1, plus: 1 }],
+  ])("%i flerdag och %i endag", (sp, en, vantat) => {
+    const l = markorlayout(n(sp, "s"), n(en, "e"));
+    expect({ streck: l.streck.length, ovre: l.ovre.length, nedre: l.nedre.length, plus: l.plus }).toEqual(vantat);
+    expect(summa(l)).toBe(sp + en);
   });
 });

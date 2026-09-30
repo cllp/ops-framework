@@ -19,7 +19,7 @@ const GRUPP = { groupId: "bolaget" };
 
 /** @param {Record<string, Function>} kallor @param {string} [id] */
 const modul = (kallor, id = "liv") =>
-  defineModule({ id, namn: { sv: "Liv" }, nav: [], routes: [], samlingar: [], kallor, skapar: [] });
+  defineModule({ id, namn: { sv: "Liv" }, nav: [], routes: [], samlingar: [], kallor, skapar: [], hubb: null });
 
 describe("registret byggs bara av byggda moduler", () => {
   it("avvisar ett rått manifest, eftersom det inte gått genom valideringen", () => {
@@ -255,8 +255,8 @@ describe("Katalogerna i inställningsvyn läser ur registret", () => {
    */
   it("⛔ en katalog två moduler deklarerar visar båda namnen i Används i (#164)", async () => {
     const delad = { id: "prioritet", namn: { sv: "Prioritet" }, kategorier: [{ id: "hog", namn: { sv: "Hög" }, ikon: "gem", farg: 1, fas: "aktiv" }] };
-    const handelser = defineModule({ id: "handelser", namn: { sv: "Händelser" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [delad] }, skapar: [] });
-    const inkorg = defineModule({ id: "inkorg", namn: { sv: "Inkorg" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [delad] }, skapar: [] });
+    const handelser = defineModule({ id: "handelser", namn: { sv: "Händelser" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [delad] }, skapar: [], hubb: null });
+    const inkorg = defineModule({ id: "inkorg", namn: { sv: "Inkorg" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [delad] }, skapar: [], hubb: null });
     const r = skapaKallregister([handelser, inkorg]);
     render(<OpsModulKataloger register={r} fraga={GRUPP} ikoner={["gem"]} onSpara={() => {}} onArkivera={() => {}} />);
     await waitFor(() => expect(screen.getAllByText(/Används i:/)).toHaveLength(2));
@@ -275,7 +275,7 @@ describe("Katalogerna i inställningsvyn läser ur registret", () => {
    */
   it("skriver modulens namn ovanför katalogen, inte modulens id", async () => {
     const katalog = { id: "sorter", namn: { sv: "Sorter" }, kategorier: [{ id: "a", namn: { sv: "A" }, ikon: "gem", farg: 1, fas: "aktiv" }] };
-    const r = skapaKallregister([defineModule({ id: "ekonomi-modulen", namn: { sv: "Ekonomi" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [katalog] }, skapar: [] })]);
+    const r = skapaKallregister([defineModule({ id: "ekonomi-modulen", namn: { sv: "Ekonomi" }, nav: [], routes: [], samlingar: [], kallor: { kataloger: async () => [katalog] }, skapar: [], hubb: null })]);
     render(<OpsModulKataloger register={r} fraga={GRUPP} ikoner={["gem"]} onSpara={() => {}} onArkivera={() => {}} />);
     await waitFor(() => expect(screen.getByText("Ekonomi")).toBeTruthy());
     expect(screen.queryByText("ekonomi-modulen")).toBeNull();

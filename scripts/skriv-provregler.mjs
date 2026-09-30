@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { gruppadSamling, kalenderregelfragment, katalogregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -36,6 +36,10 @@ const ut = path.join(rot, "rules", "provregler.rules");
  *
  * ⛔ KALENDRARNA MED FÖRVALDA NAMN (0.36.0, #179 F0): `kalenderregelfragment()`, alltså `gruppkalendrar`,
  * `users/{uid}/minaKalendrar` och `users/{uid}/kalenderposter`.
+ *
+ * ⛔ HÄNDELSEMODELLEN MED FÖRVALDA NAMN (0.37.0, #179 F3): `handelseregelfragment()`, alltså svaren under
+ * `handelser/{hid}/svar/{uid}`. `kalhandelser` är en påhittad APP-samling vars block är skrivet som en app skriver sitt:
+ * handskrivet, med ramverkets `opsHandelsefaltGiltiga` anropad. Det är den funktionen provet mäter, inte blocket runt den.
  */
 const text = `rules_version = '2';
 
@@ -48,6 +52,17 @@ ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 ${katalogregelfragment("kataloger")}
 ${samtalsregelfragment()}
 ${kalenderregelfragment()}
+${handelseregelfragment()}
+    // Påhittad app-samling (se filhuvudet): appens eget block, med ramverkets fält prövade av opsHandelsefaltGiltiga.
+    match /kalhandelser/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArMedlem(request.resource.data.groupId)
+        && opsHandelsefaltGiltiga(request.resource.data, {});
+      allow update: if opsArMedlem(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId
+        && opsHandelsefaltGiltiga(request.resource.data, resource.data);
+      allow delete: if false;
+    }
     // ⛔ Catch-all sist, och den nekar. En samling utan block ska falla här och
     // inte råka ärva någon annans villkor.
     match /{document=**} {

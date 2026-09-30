@@ -513,3 +513,80 @@ export function traffar(e, fraga) {
   if (!f) return true;
   return [e.title, e.not, e.kalender && e.kalender.namn].some((t) => typeof t === "string" && t.toLocaleLowerCase("sv").includes(f));
 }
+
+/**
+ * Kalendern en post utan `kalender` hör till: gruppens förvalda, annars gruppens första, annars en förvald av mina.
+ *
+ * ⛔ GRUPPENS FÖRST. En post utan kalender är en av appens händelser skriven före 0.36.0, och en händelse ligger alltid i
+ * gruppen, aldrig i någons egen kalender (`handelsensKalenderId`).
+ *
+ * @param {ReadonlyArray<{ id: string, grupp?: boolean, forvald?: boolean }> | undefined} kalendrar @returns {string}
+ */
+export function forvaldKalenderId(kalendrar) {
+  const alla = kalendrar || [];
+  const g = alla.filter((k) => k.grupp);
+  return ((g.find((k) => k.forvald) || g[0] || alla.find((k) => k.forvald)) || { id: "" }).id;
+}
+
+/**
+ * Posterna som syns med ett filter: valda kalendrar, typ och status (0.37.0, utbruten ur `OpsCalendar`, #179 F2).
+ *
+ * ⛔ REN FUNKTION, SÅ ATT KLARKRITERIET GÅR ATT PROVA DIREKT: "en post i en bortvald kalender syns inte, och syns igen när
+ * kalendern väljs". Filtret avgör vad som RITAS, inte vad som finns: snabbtitten visar resten märkt "Dold".
+ *
+ * ⛔ `valdaKalendrar: null` ÄR ALLA, OCH ETT TOMT URVAL BLIR ALDRIG "INGA" (verktygsraden gör det till `null`).
+ *
+ * @param {ReadonlyArray<CalendarEntry>} entries
+ * @param {{ valdaKalendrar: ReadonlyArray<string> | null, forvaldId: string, typ?: string, status?: string }} filter
+ * @returns {CalendarEntry[]}
+ */
+export function filtreraPoster(entries, { valdaKalendrar, forvaldId, typ = "alla", status = "alla" }) {
+  return entries.filter((e) => {
+    if (valdaKalendrar && !valdaKalendrar.includes(e.kalender ? e.kalender.id : forvaldId)) return false;
+    if (typ !== "alla" && e.typ !== typ) return false;
+    if (status !== "alla" && e.status !== status) return false;
+    return true;
+  });
+}
+
+/**
+ * Märkena i en dagsruta på telefon: streck för flerdagsposter och prickar för endagsposter, i två rader (0.37.0).
+ *
+ * ══ ⛔ SESSIONSTUDIOS FORMAT RAKT AV (CP 2026-09-30) ══════════════════════════
+ *
+ * CP, med en skärmbild ur SS-appen på telefonen: "Vi kanske skall ta SessionStudios format rakt av och ha prickar och
+ * streck istället med rätt färg för kategori?" Förebilden är SS `apps/mobile/lib/calendarDayMarkerLayout.js` (CP spec
+ * 2026-06-28), talen är dess:
+ *   - Ett streck tar två prickars plats, och en rad har tre prickplatser.
+ *   - Bara endagsposter: upp till 3 prickar överst och 2 under (högst 5), sedan "+N" i nedre raden.
+ *   - Ett streck: strecket och högst 1 prick överst; resten under (högst 3), vid överflöd 2 prickar och "+N".
+ *   - Två streck: båda överst, inga prickar bredvid; endagsposterna under (högst 3), vid överflöd 2 och "+N".
+ *   - Fler än två flerdagsposter räknas in i "+N".
+ * Varje ruta reserverar två rader, så att alla rutor har samma höjd och strecken alltid står på samma höjd.
+ *
+ * ⛔ INGET TAPPAS TYST: det som inte ryms står i `plus` (arbetsreglernas punkt 5). Summan av det ritade och `plus` är
+ * alltid antalet poster.
+ *
+ * ⛔ SS:s "källtäckning" (en grupppost och en personlig post ska båda synas före överflödet) är inte med: färgen här är
+ * kategorins, inte källans, och en sortering efter källa hade flyttat posterna ur sin ordning utan att någon valt det.
+ *
+ * @template T
+ * @param {ReadonlyArray<T>} spann Flerdagsposter som täcker dagen.
+ * @param {ReadonlyArray<T>} enkla Endagsposter.
+ * @returns {{ streck: T[], ovre: T[], nedre: T[], plus: number }}
+ */
+export function markorlayout(spann, enkla) {
+  const streck = spann.slice(0, 2);
+  const extraSpann = Math.max(0, spann.length - streck.length);
+  if (streck.length === 0) {
+    const ovre = enkla.slice(0, 3);
+    const rest = enkla.slice(3);
+    const nedre = rest.slice(0, 2);
+    return { streck: [], ovre, nedre, plus: rest.length - nedre.length };
+  }
+  const ovre = enkla.slice(0, streck.length === 1 ? 1 : 0);
+  const rest = enkla.slice(ovre.length);
+  if (rest.length <= 3 && extraSpann === 0) return { streck, ovre, nedre: rest.slice(), plus: 0 };
+  const nedre = rest.slice(0, 2);
+  return { streck, ovre, nedre, plus: rest.length - nedre.length + extraSpann };
+}

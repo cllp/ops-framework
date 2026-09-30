@@ -114,6 +114,10 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [bildForStor]
  * @property {string} [bildHintRedigera] Vad som gäller för bilden när gruppen finns.
  * @property {string} [sparaFelTitel] Rubriken när ändringarna inte kunde sparas.
+ * @property {string} [modulerRubrik] "Moduler" (0.38.0).
+ * @property {string} [modulerHint]
+ * @property {string} [modulerTomt] Texten när appen inte registrerat någon modul med ett kort.
+ * @property {string} [modulOkand] Raden för en modul gruppen har men appen inte registrerat. `{id}` byts mot id:t.
  */
 
 /** @type {Record<"sv"|"en", Required<GruppFormularEtiketter>>} */
@@ -161,6 +165,10 @@ const STANDARD = {
     bildForStor: "Bilden är för stor. Högst 2 MB.",
     bildHintRedigera: "PNG, WebP eller JPEG, högst 2 MB. Bilden ersätter ikonen och initialerna.",
     sparaFelTitel: "Ändringarna kunde inte sparas",
+    modulerRubrik: "Moduler",
+    modulerHint: "Varje vald modul blir ett kort i gruppens hubb, i den ordning du väljer dem. Kalendern, chatten och inkorgen har gruppen alltid.",
+    modulerTomt: "Appen har inga moduler att välja.",
+    modulOkand: "{id} finns inte i appen och ligger kvar i gruppen. Den visas inte i hubben.",
   },
   en: {
     visuellIdentitet: "Visual identity",
@@ -205,6 +213,10 @@ const STANDARD = {
     bildForStor: "The image is too large. 2 MB at most.",
     bildHintRedigera: "PNG, WebP or JPEG, 2 MB at most. The image replaces the icon and initials.",
     sparaFelTitel: "The changes could not be saved",
+    modulerRubrik: "Modules",
+    modulerHint: "Each chosen module becomes a card in the group's hub, in the order you choose them. The group always has its calendar, chat and inbox.",
+    modulerTomt: "The app has no modules to choose.",
+    modulOkand: "{id} is not in the app and stays in the group. It is not shown in the hub.",
   },
 };
 
@@ -234,13 +246,16 @@ const PRICKKLASS = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3",
  * @param {() => void} [props.onKlar] Stänger panelen (skalet skickar den).
  * @param {"sv"|"en"} [props.sprak] Språket på etiketterna och förvalet för gruppens e-postspråk.
  * @param {GruppFormularEtiketter} [props.etiketter] Enskilda texter att byta ut.
- * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en" }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
- * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en" } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
+ * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en", moduler?: ReadonlyArray<string> }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
+ * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en", moduler?: string[] } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
+ *   ⛔ `moduler` finns med BARA när modulvalet visades (ägaren, se `moduler`). En admin skickar aldrig fältet, eftersom reglerna avvisar hela uppdateringen om det ändras.
+ * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, agare: boolean }} [props.moduler] (0.38.0, #184) Modulvalet i redigeringsläge: `valbara` ur
+ *   `valbaraModuler(registrerade)`, `agare` sant bara när den inloggade är gruppens ägare. Utan det, eller för en admin, ritas inget modulval.
  * @param {string} [props.bildUrl] Gruppens nuvarande bild att visa (URL). Bara redigeringsläge.
  * @param {(fil: File) => Promise<{ sokvag: string, url: string }>} [props.onLaddaUppBild] Appens uppladdning. Utan den finns ingen bildväljare.
  * @param {() => Promise<void>} [props.onTaBortBild] Appens borttagning av bilden. Utan den finns ingen Ta bort-knapp.
  */
-export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "sv", etiketter, grupp: befintlig, onSpara, bildUrl = "", onLaddaUppBild, onTaBortBild }) {
+export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "sv", etiketter, grupp: befintlig, onSpara, bildUrl = "", onLaddaUppBild, onTaBortBild, moduler: modulval }) {
   const redigerar = Boolean(befintlig);
   if (!redigerar && typeof onSkapa !== "function") {
     throw new Error("OpsGruppFormular: onSkapa krävs, appens anrop av skapaGrupp. Ett formulär som inte kan skapa något är en ruta som ser ut som en grupp.");
@@ -269,6 +284,15 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
   const [upptagen, setUpptagen] = useState(false);
   const [felmeddelande, setFelmeddelande] = useState("");
   const [resultat, setResultat] = useState(/** @type {GruppFormularSvar | null} */ (null));
+  /*
+   * ⛔ MODULVALET VISAS BARA FÖR ÄGAREN, I REDIGERINGSLÄGE (0.38.0, #184). `moduler` är ägarens fält
+   * (`AGARGRUPPFALT`), och en admin som skickade med det fick hela sparningen avvisad av reglerna, inte bara modulerna.
+   * ⛔ ORDNINGEN ÄR VALORDNINGEN: en modul som väljs hamnar sist, och hubben ritar korten i den ordningen.
+   * ⛔ ETT ID SOM INTE ÄR VALBART LIGGER KVAR, och en rad säger det. Att tyst tappa det vid nästa sparning vore
+   * en ändring ägaren aldrig gjorde (arbetsreglernas punkt 5).
+   */
+  const visaModulval = redigerar && modulval?.agare === true && Array.isArray(modulval.valbara);
+  const [valdaModuler, setValdaModuler] = useState(/** @type {string[]} */ ([...(befintlig?.moduler ?? [])]));
 
   const identitetId = useId();
   const merId = useId();
@@ -328,7 +352,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
         const orig = /** @type {Namn} */ (befintlig.namn && typeof befintlig.namn === "object" ? befintlig.namn : { sv: fore });
         /** @type {string | Namn} */
         const namnUt = nyttNamn === fore ? befintlig.namn : orig.en === undefined || orig.en === orig.sv ? { sv: nyttNamn, en: nyttNamn } : { ...orig, [sprak === "en" ? "en" : "sv"]: nyttNamn };
-        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak } });
+        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak, ...(visaModulval ? { moduler: [...valdaModuler] } : {}) } });
         klar({ groupId: befintlig.id });
       } catch (fel) {
         setFelmeddelande(fel instanceof Error ? fel.message : String(fel));
@@ -592,6 +616,56 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
       <OpsField label={t.ort}>
         <OpsInput value={ort} onChange={setOrt} placeholder={t.ortPlatshallare} disabled={upptagen} maxLength={MAX_GRUPPORT} />
       </OpsField>
+
+      {/* ── 2b. Moduler: bara ägaren, bara redigeringsläge (0.38.0, #184) ─────────────────────────────── */}
+      {visaModulval && modulval ? (
+        <section aria-label={t.modulerRubrik} data-gruppmoduler="" className="flex flex-col gap-2">
+          <h3 className="m-0 text-etikett font-medium text-ink-secondary">{t.modulerRubrik}</h3>
+          <p className="m-0 text-hjalp text-ink-muted">{t.modulerHint}</p>
+          {modulval.valbara.length === 0 ? (
+            <p className="m-0 text-etikett text-ink-secondary" data-moduler-tomt="">
+              {t.modulerTomt}
+            </p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-1 p-0">
+              {modulval.valbara.map((m) => {
+                const vald = valdaModuler.includes(m.id);
+                return (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      aria-pressed={vald}
+                      data-modul={m.id}
+                      disabled={upptagen}
+                      onClick={() => setValdaModuler((l) => (l.includes(m.id) ? l.filter((x) => x !== m.id) : [...l, m.id]))}
+                      className={cx(
+                        "flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-base border px-3 py-2 text-left text-etikett transition-colors duration-(--duration-fast) ease-standard",
+                        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-55",
+                        vald ? "border-accent bg-accent-subtle text-ink" : "border-line bg-surface text-ink-secondary hover:border-line-strong hover:text-ink",
+                      )}
+                    >
+                      <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-5">
+                        {/** @type {import("react").ReactNode} */ (m.hubb?.ikon)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{namnText(m.namn, sprak)}</span>
+                      <span aria-hidden="true" className={cx("flex size-5 shrink-0 items-center justify-center text-accent", !vald && "invisible")}>
+                        <BockIkon size={16} />
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {valdaModuler
+            .filter((id) => !modulval.valbara.some((m) => m.id === id))
+            .map((id) => (
+              <p key={id} data-modul-okand={id} className="m-0 text-hjalp text-ink-secondary">
+                {t.modulOkand.replace("{id}", id)}
+              </p>
+            ))}
+        </section>
+      ) : null}
 
       {/* ── 3. Medlemmar: inbjudningar samlas före spara (SS ManageGroupModalMembersSection) ──────────── */}
       {!redigerar ? (

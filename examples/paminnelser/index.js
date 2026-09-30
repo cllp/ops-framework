@@ -21,7 +21,8 @@
  * namn och innehåll, behåll formen.
  */
 
-import { lazy } from "react";
+import { createElement, lazy } from "react";
+import { Bell, List } from "lucide-react";
 import { defineModule, byggKategori } from "@staiger/ops-framework";
 
 /**
@@ -85,7 +86,10 @@ export const paminnelser = defineModule({
 
   nav: [{ href: "/paminnelser", label: "Påminnelser" }],
 
-  routes: [{ path: "/paminnelser", vy: PaminnelserVy }],
+  routes: [
+    { path: "/paminnelser", vy: PaminnelserVy },
+    { path: "/paminnelser/lista", vy: PaminnelserVy },
+  ],
 
   /*
    * ⛔ SAMLINGEN NAMNGES RELATIVT OCH BÄR SINA FÄLT. Appen skickar in roten, se
@@ -169,4 +173,23 @@ export const paminnelser = defineModule({
       form: PaminnelserForm,
     },
   ],
+
+  /*
+   * ⛔ MODULENS KORT I HUBBEN OCH DESS INSIDA (0.38.0, #184). Kortet leder till
+   * `rutt`, som visar startsidan, och delarna är modulens egen navigation.
+   * Ägaren väljer modulen i gruppens inställningar, och hubben ritar kortet
+   * bara i grupper som har den i `moduler`.
+   *
+   * ⛔ IKONERNA ÄR ELEMENT, SKRIVNA MED `createElement` OCH INTE JSX, av samma
+   * skäl som vyn laddas lat: manifestet läses av ett vanligt Node-skript.
+   *
+   * ⛔ DELENS ADRESS LIGGER UNDER MODULENS. En modul utan kort skriver
+   * `hubb: null`, aldrig ingenting.
+   */
+  hubb: {
+    ikon: createElement(Bell, { size: 20 }),
+    rutt: "/paminnelser",
+    startsida: "lista",
+    delar: [{ id: "lista", namn: { sv: "Alla påminnelser", en: "All reminders" }, ikon: createElement(List, { size: 16 }), rutt: "/paminnelser/lista" }],
+  },
 });

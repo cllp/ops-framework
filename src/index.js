@@ -12,7 +12,8 @@
 // ── Skal ───────────────────────────────────────────────────────────────────
 export { OpsAppShell, useOppnaSkapa } from "./components/OpsAppShell.jsx";
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
-export { OpsHub, OpsHubModul, OpsHubTillbaka } from "./components/OpsHub.jsx";
+export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
+export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsBrand } from "./components/OpsBrand.jsx";
 
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, IDENTITY_TONE_COUNT } from "./lib/identity.js";
 export { urgency, splitTodayUpcoming, daysBetween, daysUntil, collectEvents } from "./lib/events.js";
-export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka } from "./lib/calendar.js";
+export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka, filtreraPoster, forvaldKalenderId } from "./lib/calendar.js";
 export { readCaseFlow } from "./lib/caseFlow.js";
 export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
@@ -140,6 +141,7 @@ export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
  * gå att validera av det som körs utan skärm.
  */
 export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
+export { hubbForGrupp, valbaraModuler, hubbPoster, modulLage, byggOmdirigeringar, omdirigera, kontrolleraOmdirigeringar } from "./lib/hubb.js";
 
 /*
  * ⛔ KÄLLKONTRAKTET (#129). Registret och granskarna är data in och data ut,
@@ -186,12 +188,21 @@ export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSK
 export { gruppmarkeProps } from "./lib/gruppikoner.js";
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, samtalsregelfragment, kalenderregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment } from "./lib/regler.js";
 /*
  * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
  * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
  */
-export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, kontrolleraTidszon, idagI } from "./lib/kalendrar.js";
+export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
+/*
+ * ⛔ HANTERA KALENDRAR OCH HÄNDELSEMODELLEN (0.37.0, #179 F2 och F3): hanteringen (`OpsKalendrar`), källan som läser och
+ * skriver kalendrarna, kontraktet för en händelse i en kalender, och svaren Kommer / Kommer inte med inkorgens rader
+ * härledda ur händelserna och svaren.
+ */
+export { OpsKalendrar } from "./components/OpsKalendrar.jsx";
+export { OpsSvar, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx";
+export { createKalenderkalla, createSvarskalla } from "./data/kalenderkalla.js";
+export { HANDELSEKONTRAKT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader } from "./lib/handelsemodell.js";
 
 /*
  * ⛔ GRUPPLÄGET (#139, #190). Besluten är rena funktioner och ligger därför här:

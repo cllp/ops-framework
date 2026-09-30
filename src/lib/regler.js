@@ -34,6 +34,7 @@
 import { ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
+import { SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT } from "./samtal.js";
 
 /**
@@ -697,8 +698,17 @@ export function kalenderregelfragment(namn = {}) {
   const lista = (/** @type {readonly (string|number)[]} */ f) => f.map((x) => (typeof x === "number" ? String(x) : `"${x}"`)).join(", ");
   const datum = regeluttryck(DATUMFORM);
   const tidpunkt = regeluttryck(TIDPUNKTSFORM);
+  /*
+   * ⛔ `id` LAGRAS INTE PÅ RADEN (rättat 0.37.0). 0.36.0 krävde `request.resource.data.id == kid`, alltså att nyckeln
+   * också stod som ett fält. Det är samma uppgift två gånger (arbetsreglernas punkt 2), och det gick dessutom inte att
+   * skriva: ramverkets egen Firestore-adapter tar `id` ur datan och gör det till dokumentets nyckel (`create`,
+   * `src/data/firestore.js`), så varje skrivning genom `createKalenderkalla` hade nekats. Det syntes inte i 0.36.0
+   * eftersom regelproven skrev med `setDoc` direkt och ingen klient skrev ännu. Mätt i `rules/__tests__/kalenderhantering.test.mjs`,
+   * som skriver genom adaptern och är röd mot 0.36.0:s regel.
+   */
+  const utanId = (/** @type {readonly string[]} */ f) => f.filter((x) => x !== "id");
 
-  return `    // ══ Ramverkets kalendrar (0.36.0). GENERERAD, ändra inte för hand ══
+  return `    // ══ Ramverkets kalendrar (0.37.0). GENERERAD, ändra inte för hand ══
     //
     // Källa: @staiger/ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
@@ -710,8 +720,7 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
     match /${anvandare}/{uid}/${minaKalendrar}/{kid} {
       allow read: if opsInloggad() && request.auth.uid == uid;
       allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([${lista(MINKALENDERFALT)}])
-        && request.resource.data.id == kid
+        && request.resource.data.keys().hasOnly([${lista(utanId(MINKALENDERFALT))}])
         && request.resource.data.namn is string
         && request.resource.data.namn.size() > 0
         && request.resource.data.namn.size() <= ${MAX_KALENDERNAMN}
@@ -722,8 +731,7 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
     match /${anvandare}/{uid}/${kalenderposter}/{pid} {
       allow read, delete: if opsInloggad() && request.auth.uid == uid;
       allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([${lista(KALENDERPOSTFALT)}])
-        && request.resource.data.id == pid
+        && request.resource.data.keys().hasOnly([${lista(utanId(KALENDERPOSTFALT))}])
         && request.resource.data.kalenderId is string
         && exists(opsMinKalender(uid, request.resource.data.kalenderId))
         && get(opsMinKalender(uid, request.resource.data.kalenderId)).data.get('arkiverad', false) != true
@@ -742,6 +750,84 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
             && request.resource.data.start.matches('${tidpunkt}')
             && request.resource.data.slut.matches('${tidpunkt}')))
         && request.resource.data.slut >= request.resource.data.start;
+    }
+`;
+}
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════
+ * ⛔ EGET, AVGRÄNSAT BLOCK: HÄNDELSEMODELLENS REGELFRAGMENT (0.37.0, #179 F3).
+ * Svaren och fälten ramverket läser på appens händelser kommer ur `src/lib/handelsemodell.js`. Ändras modellen: ändra där.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Regelfragmentet för händelsemodellen: svaren Kommer / Kommer inte, och en funktion appen anropar i sitt eget
+ * händelseblock för ramverkets fält (`kalenderId`, `slutDatum`, `kravSvar`).
+ *
+ * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
+ *
+ *   - SVAR, LÄSA: aktiv medlem i händelsens grupp. Sammanställningen "3 kommer, 1 kommer inte" är gruppens, och vem som
+ *     svarat vad är inte hemligt för den som ska planera efter det.
+ *   - SVAR, SKRIVA: BARA PERSONEN SJÄLV (`{uid}` i sökvägen är den inloggade), bara en aktiv medlem i händelsens grupp,
+ *     och bara när händelsen kräver svar (`kravSvar == true`). Ett svar på en händelse som inte frågar är ett svar ingen
+ *     läser, och en admin som svarar åt någon annan är precis det "bara personen själv" finns för.
+ *   - SVAR, ÄNDRA: samma villkor. Man får ändra sig.
+ *   - SVAR, RADERA: aldrig. "Har inte svarat" och "svarade men tog tillbaka" är olika saker, och en radering gör dem lika.
+ *   - `opsHandelsefaltGiltiga(ny, fore)`: appen anropar den i sitt `create` (med `{}` som `fore`) och sitt `update` (med
+ *     `resource.data`). `kalenderId` ska vara en av GRUPPENS kalendrar, i samma grupp som händelsen, och inte arkiverad.
+ *     ⛔ KALENDERN PRÖVAS BARA NÄR `kalenderId` ÄNDRAS. Annars hade en kalender som arkiveras efteråt gjort varje gammal
+ *     händelse i den omöjlig att arkivera eller rätta, samma fälla som #481 beskrev för appens egna fält.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. `handelser` är APPENS samling, `svar` är undersamlingens namn, och
+ * `gruppkalendrar` måste vara samma namn som till `kalenderregelfragment()`. Fragmentet använder `opsInloggad` och
+ * `opsArMedlem` ur `regelfragment()`, alltså ska det limmas in efter det.
+ *
+ * @param {{ handelser?: string, svar?: string, gruppkalendrar?: string }} [namn]
+ * @returns {string}
+ */
+export function handelseregelfragment(namn = {}) {
+  const handelser = kontrolleraNamn(namn.handelser ?? "handelser", "handelser");
+  const svar = kontrolleraNamn(namn.svar ?? "svar", "svar");
+  const gruppkalendrar = kontrolleraNamn(namn.gruppkalendrar ?? "gruppkalendrar", "gruppkalendrar");
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const datum = regeluttryck(DATUMFORM);
+
+  return `    // ══ Ramverkets händelsemodell (0.37.0). GENERERAD, ändra inte för hand ══
+    //
+    // Källa: @staiger/ops-framework, handelseregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+    function opsGruppkalendern(gid, kid) {
+      return /databases/$(database)/documents/${gruppkalendrar}/$(gid + '${KATALOGAVGRANSARE}' + kid);
+    }
+
+    // Ramverkets fält på en av appens händelser. Appen anropar den i sitt eget block: create med {} som fore,
+    // update med resource.data. Kalendern prövas bara när kalenderId ändras.
+    function opsHandelsefaltGiltiga(d, fore) {
+      return (!('kalenderId' in d)
+          || (d.kalenderId is string
+            && (fore.get('kalenderId', null) == d.kalenderId
+              || (exists(opsGruppkalendern(d.groupId, d.kalenderId))
+                && get(opsGruppkalendern(d.groupId, d.kalenderId)).data.get('arkiverad', false) != true))))
+        && (!('kravSvar' in d) || d.kravSvar is bool)
+        && (!('slutDatum' in d)
+          || (d.slutDatum is string && d.slutDatum.matches('${datum}') && d.datum is string && d.slutDatum > d.datum));
+    }
+
+    function opsHandelsen(hid) {
+      return /databases/$(database)/documents/${handelser}/$(hid);
+    }
+
+    match /${handelser}/{hid}/${svar}/{uid} {
+      allow read: if opsInloggad() && exists(opsHandelsen(hid))
+        && opsArMedlem(get(opsHandelsen(hid)).data.groupId);
+      allow create, update: if opsInloggad() && request.auth.uid == uid
+        && exists(opsHandelsen(hid))
+        && get(opsHandelsen(hid)).data.get('kravSvar', false) == true
+        && opsArMedlem(get(opsHandelsen(hid)).data.groupId)
+        && request.resource.data.keys().hasOnly([${lista(SVARSFALT)}])
+        && request.resource.data.svar in [${lista(SVARSVAL)}];
+      allow delete: if false;
     }
 `;
 }

@@ -19,6 +19,9 @@ import { OpsSkapaPanel } from "./OpsSkapaPanel.jsx";
 import { OpsSkapa } from "./OpsSkapa.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
+import { OpsSwitch } from "./OpsToggle.jsx";
+import { giltigtDatum, kalenderval } from "../lib/kalendrar.js";
+import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
@@ -395,8 +398,29 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * som skapade". Registreringarna (#150) hade redan formen, en komponent som tar
  * `{ groupId, typ, onKlar }`, och händelsen får nu samma.
  * @typedef {object} HandelseSkapare
- * @property {import("react").ComponentType<{ groupId: string | null, typ: string | null, onKlar: () => void }>} form
+ * @property {import("react").ComponentType<HandelseFormProps>} form
  * @property {string | null} [katalog] Katalogens id, förval `"handelsetyper"`. `null` = ingen typ att välja.
+ * @property {{ gruppens: ReadonlyArray<import("../lib/kalendrar.js").Gruppkalender>, mina: ReadonlyArray<import("../lib/kalendrar.js").MinKalender> }} [kalendrar]
+ *   (0.37.0, #179 F2 och F3) Den aktiva gruppens kalendrar och mina. Med dem står "Kalender" överst i formuläret (raden som
+ *   öppnar "Skapa i", med gruppens kalendrar och "Mina kalendrar", den aktiva gruppens förvalda förvald), och formuläret får
+ *   `kalender`. I en gruppkalender visar skalet "Kräv svar" (av från början), i en av mina "Blockerar tillgänglighet".
+ *   ⛔ "Skicka mejl" visas inte: avsändarbeslutet (#180 G3) saknas, och ett val som inte gör något är värre än inget.
+ *   ⛔ För händelsen ersätter kalendrarna `skapaISektioner`: två listor i samma väljare hade varit två svar på "var hamnar den".
+ */
+
+/**
+ * Det formuläret för en ny händelse får (0.37.0). Appen skriver händelsen (gruppkalender) eller posten (min kalender).
+ * @typedef {object} HandelseFormProps
+ * @property {string | null} groupId Den aktiva gruppen.
+ * @property {string | null} typ Vald typ. `null` i en av mina kalendrar: en egen post har ingen typ.
+ * @property {() => void} onKlar
+ * @property {string} [formId]
+ * @property {{ sektion: string, id: string } | null} [mal]
+ * @property {string | null} [datum] (0.37.0, #206) Dagen formuläret öppnades för (`useOppnaSkapa()("handelse", { datum })`, adressens
+ *   `&datum=`), `YYYY-MM-DD`, eller `null`. Formuläret fyller i den; utan den väljer man själv.
+ * @property {{ id: string, slag: "grupp" | "mina" } | null} [kalender] (0.37.0) Vald kalender. `null` utan `kalendrar`.
+ * @property {boolean} [kravSvar] (0.37.0) "Kräv svar" är på. Alltid `false` i en av mina kalendrar.
+ * @property {boolean} [blockerar] (0.37.0) "Blockerar tillgänglighet" är på. Alltid `false` i en gruppkalender.
  */
 
 /**
@@ -411,7 +435,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   den ritas ingen Spara (annars en död knapp).
  * @property {(arg: { formId: string, onKlar: () => void }) => import("react").ReactNode} [grupp] (0.32.0, #180) Ramverkets egen rad "Ny grupp".
  *   En FUNKTION som ritar formuläret, normalt `({ formId, onKlar }) => <OpsGruppFormular formId={formId} onKlar={onKlar} onSkapa={...} onSkapad={...} />`.
- *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen och i växlarens ark till samma panel: `grupper.onSkapa` behövs då inte,
+ *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen till samma panel (växlarens ark på telefon har ingen sedan 0.37.0): `grupper.onSkapa` behövs då inte,
  *   och om båda finns vinner `skapa.grupp` (en väg att skapa en grupp är en sanning, två är två). `onKlar` stänger panelen UTAN att gå bakåt i
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
  * @property {(arg: { formId: string, groupId: string | null, onKlar: () => void }) => import("react").ReactNode} [meddelande] (0.34.0, #182) Ramverkets egen rad
@@ -501,14 +525,17 @@ function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
  *
  * @param {any} skapa Skalets `skapa`-prop.
  * @param {string} nyckel
- * @param {{ groupId?: string | null, nyHandelseEtikett?: string }} [extra]
+ * @param {{ groupId?: string | null, nyHandelseEtikett?: string, datum?: string | null }} [extra]
  * @returns {any} Formulärbeskrivningen, eller `null`.
  */
 function skapaFormFranNyckel(skapa, nyckel, extra = {}) {
   if (!skapa || !nyckel) return null;
   if (nyckel === "handelse" && skapa.handelse) {
+    // ⛔ 0.37.0 (#206): DAGEN FÖLJER MED I BESKRIVNINGEN, INTE I EN GLOBAL. Formuläret får den som prop (`datum`), och
+    // adressen bär den som `&datum=`, så att en omladdning ger samma dag. Appens brygga `forifylldDag.js` (en modulvariabel
+    // som gällde i två sekunder) behövs då inte.
     return typeof skapa.handelse === "object" && !isValidElement(skapa.handelse) && typeof (/** @type {any} */ (skapa.handelse)).form === "function"
-      ? { kind: "modul", registrering: { id: "handelse", namn: extra.nyHandelseEtikett ?? "Ny händelse", katalog: /** @type {any} */ (skapa.handelse).katalog === undefined ? "handelsetyper" : /** @type {any} */ (skapa.handelse).katalog, form: /** @type {any} */ (skapa.handelse).form } }
+      ? { kind: "modul", registrering: { id: "handelse", namn: extra.nyHandelseEtikett ?? "Ny händelse", katalog: /** @type {any} */ (skapa.handelse).katalog === undefined ? "handelsetyper" : /** @type {any} */ (skapa.handelse).katalog, form: /** @type {any} */ (skapa.handelse).form }, datum: extra.datum ?? null }
       : { kind: "handelse" };
   }
   if (nyckel === "arende" && skapa.arende) return { kind: "arende" };
@@ -519,19 +546,29 @@ function skapaFormFranNyckel(skapa, nyckel, extra = {}) {
   return reg ? { kind: "modul", registrering: reg } : null;
 }
 
+/**
+ * Om `skapa.handelse` är ett formulär (`HandelseSkapare`) och inte en färdig nod.
+ * @param {any} skapa @returns {boolean}
+ */
+function handelseSkapareFinns(skapa) {
+  return Boolean(skapa && skapa.handelse && typeof skapa.handelse === "object" && !isValidElement(skapa.handelse) && typeof skapa.handelse.form === "function");
+}
+
 /** Skalets `oppnaSkapa`, åtkomlig för appens komponenter under skalet. `null` utanför skalet. */
-const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { groupId?: string }) => void) | null} */ (null));
+const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { groupId?: string, datum?: string }) => void) | null} */ (null));
 
 /**
  * ⛔ Öppnar skalets skapa-panel från appen (0.34.1). Ersätter `window.location.assign(pathname + "?skapa=meddelande")`,
  * som laddade om hela sidan och bara fungerade om posten fanns vid monteringen.
  *
  * `oppna("meddelande")`, `oppna("redigera-grupp", { groupId })`, `oppna(<en modulregistrerings id>)`. Samma nycklar som adressen.
+ * `oppna("handelse", { datum: "2026-10-12" })` (0.37.0, #206) öppnar "Ny händelse" på den dagen: formuläret får `datum`, och adressen
+ * bär `&datum=`. Ett datum som inte finns (31 februari, fel form) kastar, och ett datum till något annat än händelsen kastar också.
  * Använder skalets egen `oppnaSkapa`, så adressen (`?skapa=`) och webbläsarens Tillbaka fungerar som när panelen öppnas ur plusset.
  * Är posten inte tillgänglig (`skapa.meddelande` saknas, okänd nyckel) kastas ett fel: ingenting sker aldrig tyst.
  * Utanför `OpsAppShell` kastas ett fel direkt när hooken anropas.
  *
- * @returns {(nyckel: string, extra?: { groupId?: string }) => void}
+ * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string }) => void}
  */
 export function useOppnaSkapa() {
   const oppna = useContext(OppnaSkapaKontext);
@@ -748,7 +785,7 @@ export function OpsAppShell({
   // ReactNode i state, se `skapaTyp` nedan för skälet).
   const [skapaOppen, setSkapaOppen] = useState(false);
   const [skapaForm, setSkapaFormRaw] = useState(
-    /** @type {{ kind: "handelse" | "arende" | "grupp" | "meddelande" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any } | null} */ (null),
+    /** @type {{ kind: "handelse" | "arende" | "grupp" | "meddelande" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any, datum?: string | null } | null} */ (null),
   );
   // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
   // `skapaForm` vid öppningstillfället är fruset: `OpsSelect`s `onChange`
@@ -761,6 +798,9 @@ export function OpsAppShell({
   // MÅLET (en grupp eller en app-sektions post) ur `OpsSkapaI`; `skapaVaxlare` öppnar väljaren igen från raden "Skapas i".
   const [skapaMal, setSkapaMal] = useState(/** @type {{ id: string, sektion: string } | null} */ (null));
   const [skapaVaxlare, setSkapaVaxlare] = useState(false);
+  // ⛔ 0.37.0 (#179 F3): "Kräv svar" och "Blockerar tillgänglighet" är AV från början, varje gång panelen öppnas.
+  const [skapaKravSvar, setSkapaKravSvar] = useState(false);
+  const [skapaBlockerar, setSkapaBlockerar] = useState(false);
   const skapaAdress = skapa?.adress !== false;
   const skapaPushad = useRef(false);
   const skapaRullning = useRef(0);
@@ -773,7 +813,13 @@ export function OpsAppShell({
     const v = u.searchParams.get("skapa");
     if (!v) return null;
     // ⛔ Redigera grupp bär gruppens id i adressen (`&grupp=`), annars går panelen inte att länka till eller ladda om.
-    return skapaFormFranNyckel(skapa, v, { groupId: u.searchParams.get("grupp"), nyHandelseEtikett });
+    // ⛔ 0.37.0 (#206): "Ny händelse" bär dagen (`&datum=`) på samma sätt. Ett datum som inte finns i adressen (handskrivet,
+    // eller trasigt) öppnar formuläret utan dag, och det rapporteras: panelen ska inte vägra öppna för en adress, men felet
+    // ska inte heller försvinna tyst.
+    const dag = u.searchParams.get("datum");
+    const datum = dag && giltigtDatum(dag) ? dag : null;
+    if (dag && !datum) rapporteraFel(new Error(`skapa: datum "${dag}" i adressen finns inte, formuläret öppnas utan dag.`), { yta: "OpsAppShell", steg: "läsa datum ur adressen" });
+    return skapaFormFranNyckel(skapa, v, { groupId: u.searchParams.get("grupp"), nyHandelseEtikett, datum });
   };
   const skapaFormId = useId();
   /** @param {any} form */
@@ -781,12 +827,16 @@ export function OpsAppShell({
     if (typeof window !== "undefined") skapaRullning.current = window.scrollY;
     setSkapaMal(null);
     setSkapaVaxlare(false);
+    setSkapaKravSvar(false);
+    setSkapaBlockerar(false);
     setSkapaFormRaw(form);
     if (skapaAdress && typeof window !== "undefined") {
       try {
         const u = new URL(window.location.href);
         u.searchParams.set("skapa", skapaNyckel(form));
         if (form.kind === "redigeragrupp") u.searchParams.set("grupp", form.groupId);
+        if (form.datum) u.searchParams.set("datum", form.datum);
+        else u.searchParams.delete("datum");
         window.history.pushState(window.history.state, "", u);
         skapaPushad.current = true;
       } catch {
@@ -813,6 +863,7 @@ export function OpsAppShell({
           skapaPushad.current = false;
           u.searchParams.delete("skapa");
           u.searchParams.delete("grupp");
+          u.searchParams.delete("datum");
           window.history.replaceState(window.history.state, "", u);
         }
       }
@@ -855,9 +906,17 @@ export function OpsAppShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skapaNycklar]);
 
-  /** @type {(nyckel: string, extra?: { groupId?: string }) => void} */
+  /** @type {(nyckel: string, extra?: { groupId?: string, datum?: string }) => void} */
   const oppnaFranApp = (nyckel, extra) => {
-    const form = skapaFormFranNyckel(skapa, nyckel, { groupId: extra?.groupId, nyHandelseEtikett });
+    const datum = extra?.datum;
+    if (datum !== undefined && datum !== null) {
+      // ⛔ KASTAR I STÄLLET FÖR ATT TYST ÖPPNA UTAN DAG. Ett datum från appen är ett programvärde, och ett som inte finns är
+      // ett fel i appen, inte något användaren kan rätta.
+      if (nyckel !== "handelse") throw new Error(`useOppnaSkapa: datum gäller bara "handelse", inte "${nyckel}".`);
+      if (typeof datum !== "string" || !giltigtDatum(datum)) throw new Error(`useOppnaSkapa: datum "${String(datum)}" finns inte. Formen är YYYY-MM-DD.`);
+      if (!handelseSkapareFinns(skapa)) throw new Error("useOppnaSkapa: datum kräver att skapa.handelse är ett formulär ({ form }), inte en färdig nod som inte kan ta emot dagen.");
+    }
+    const form = skapaFormFranNyckel(skapa, nyckel, { groupId: extra?.groupId, nyHandelseEtikett, datum: datum ?? null });
     if (!form) throw new Error(`useOppnaSkapa: skalets \`skapa\` har ingen post för "${nyckel}"${nyckel === "redigera-grupp" ? " med groupId" : ""}.`);
     oppnaSkapa(form);
   };
@@ -869,7 +928,7 @@ export function OpsAppShell({
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
   const visaSkapaKnapp = Boolean(skapa) && (harRamverksrader || skapaModulerRedo);
-  // ⛔ EN VÄG ATT SKAPA EN GRUPP (0.32.0, #180): finns `skapa.grupp` öppnar "Skapa grupp" i panelen, i växlarens ark och plusset SAMMA
+  // ⛔ EN VÄG ATT SKAPA EN GRUPP (0.32.0, #180): finns `skapa.grupp` öppnar "Skapa grupp" i panelen och plusset SAMMA
   // formulär, och appens `grupper.onSkapa` används inte. Utan `skapa.grupp` är `grupper.onSkapa` som förut.
   const grupperOnRedigera = typeof skapa?.redigeraGrupp === "function" ? (/** @type {string} */ id) => oppnaSkapa({ kind: "redigeragrupp", groupId: id }) : grupper?.onRedigera;
   const grupperOnSkapa = typeof skapa?.grupp === "function" ? () => oppnaSkapa({ kind: "grupp" }) : grupper?.onSkapa;
@@ -888,15 +947,46 @@ export function OpsAppShell({
   // t.ex. "Mina kalendrar"). Den öppnas bara från raden "Skapas i" och bara för en moduls formulär, eftersom bara det tar emot `mal`.
   // Ett meddelande hör till en grupp och har inga andra mål, så det får ingen väljare.
   const skapaGrupperLista = grupper?.lista ?? [];
-  const skapaSektioner = skapa?.skapaISektioner ?? [];
-  const skapaHarVaxlare = skapaForm?.kind === "modul" && skapaSektioner.some((x) => x.poster.length > 0);
   const skapaEffektivGrupp = skapaLaget?.grupp ?? null;
+  // ══ ⛔ 0.37.0 (#179 F2, F3): "SKAPA I" FÖR EN HÄNDELSE ÄR KALENDRARNA ════════════════════════════════════════════
+  //
+  // CP 2026-09-30: "man skall kunna välja att skapa en händelse i olika kalendrar". Med `skapa.handelse.kalendrar` är väljarens
+  // sektioner den aktiva gruppens kalendrar och "Mina kalendrar", ur `kalenderval` (samma lista som kalenderns filter), och målet
+  // från början är gruppens förvalda. Raden överst i formuläret heter då "Kalender".
+  const handelseMedKalendrar = skapaForm?.kind === "modul" && skapaForm.registrering?.id === "handelse" && handelseSkapareFinns(skapa) && Boolean(/** @type {any} */ (skapa)?.handelse?.kalendrar);
+  const skapaKalenderval = handelseMedKalendrar
+    ? kalenderval({ gruppens: /** @type {any} */ (skapa)?.handelse?.kalendrar?.gruppens ?? [], mina: /** @type {any} */ (skapa)?.handelse?.kalendrar?.mina ?? [], sprak: skapa?.sprak ?? "sv" })
+    : [];
+  const skapaSektioner = handelseMedKalendrar
+    ? (() => {
+        const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
+        const ikon = (/** @type {string} */ id) => {
+          const I = KALENDERIKON_KOMPONENT[/** @type {keyof typeof KALENDERIKON_KOMPONENT} */ (id)];
+          return I ? <I size={18} /> : undefined;
+        };
+        return [
+          { id: "gruppkalendrar", rubrik: g ? `${text(g.namn, skapa?.sprak ?? "sv")}: kalendrar` : "Gruppens kalendrar", poster: skapaKalenderval.filter((k) => k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) })) },
+          { id: "minaKalendrar", rubrik: "Mina kalendrar", poster: skapaKalenderval.filter((k) => !k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) })) },
+        ];
+      })()
+    : (skapa?.skapaISektioner ?? []);
+  // Målet från början: gruppens förvalda, annars min förvalda. Inget mål alls när det inte finns någon kalender (då säger raden det).
+  const skapaStandardMal = (() => {
+    if (!handelseMedKalendrar) return null;
+    const k = skapaKalenderval.find((x) => x.grupp && x.forvald) || skapaKalenderval.find((x) => !x.grupp && x.forvald) || null;
+    return k ? { id: k.id, sektion: k.grupp ? "gruppkalendrar" : "minaKalendrar" } : null;
+  })();
+  const skapaEffektivtMal = skapaMal ?? skapaStandardMal;
+  const skapaKalender = handelseMedKalendrar && skapaEffektivtMal ? { id: skapaEffektivtMal.id, slag: /** @type {"grupp" | "mina"} */ (skapaEffektivtMal.sektion === "minaKalendrar" ? "mina" : "grupp") } : null;
+  const skapaHarVaxlare = skapaForm?.kind === "modul" && skapaSektioner.some((x) => x.poster.length > 0);
   const skapaPanelSyns = Boolean(skapaForm);
   const skapaMalNamn = (() => {
     const sprakSkapa = skapa?.sprak ?? "sv";
-    if (skapaMal) {
-      return skapaSektioner.find((x) => x.id === skapaMal.sektion)?.poster.find((x) => x.id === skapaMal.id)?.namn ?? null;
+    if (skapaEffektivtMal) {
+      return skapaSektioner.find((x) => x.id === skapaEffektivtMal.sektion)?.poster.find((x) => x.id === skapaEffektivtMal.id)?.namn ?? null;
     }
+    // ⛔ Tomhet är ett svar (punkt 5): utan en enda kalender säger raden det, i stället för att visa gruppens namn som om det vore en kalender.
+    if (handelseMedKalendrar) return "Ingen kalender ännu";
     const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
     return g ? text(g.namn, sprakSkapa) : null;
   })();
@@ -933,13 +1023,16 @@ export function OpsAppShell({
     const r = skapaForm.registrering;
     const typer = typerAttValja(r.katalog, skapa?.kataloger ?? []);
     const skapaSprak = skapa?.sprak ?? "sv";
-    const vald = skapaTyp[r.id] ?? typer[0]?.id ?? null;
+    // ⛔ 0.37.0: EN POST I EN AV MINA KALENDRAR HAR INGEN TYP (`KALENDERPOSTFALT`), så typvalet ritas inte och `typ` är `null`.
+    const egenPost = skapaKalender?.slag === "mina";
+    const vald = egenPost ? null : (skapaTyp[r.id] ?? typer[0]?.id ?? null);
     const Form = /** @type {any} */ (r.form);
     skapaHarFormKonsument = true;
     skapaModalTitel = text(r.namn, skapaSprak);
+    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && skapaKravSvar, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
     skapaModalInnehall = (
       <div className="flex flex-col gap-3">
-        {r.katalog !== null ? (
+        {r.katalog !== null && !egenPost ? (
           <OpsField label={skapaTypEtikett}>
             <OpsSelect
               ariaLabel={`${skapaTypEtikett}, ${skapaModalTitel}`}
@@ -953,7 +1046,20 @@ export function OpsAppShell({
             (samma skäl som gamla `OpsSkapa`): i "redo"-läget är de samma
             värde, men beslutet om vad "aktiv grupp" betyder ligger på ETT
             ställe. */}
-        <Form groupId={skapaEffektivGrupp} typ={vald} mal={skapaMal} formId={skapaFormId} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
+        <Form groupId={skapaEffektivGrupp} typ={vald} mal={skapaEffektivtMal} formId={skapaFormId} {...kalenderProps} onKlar={() => { skapa?.onKlar?.({ registrering: r.id, typ: vald }); stangSkapa(); }} />
+        {/* ⛔ 0.37.0 (#179 F3): VALEN SOM HÖR TILL KALENDERN, EFTER APPENS FÄLT. "Kräv svar" bara i en gruppkalender, "Blockerar
+            tillgänglighet" bara i en av mina: i en egen kalender finns inga svar, och gruppens händelser blockerar inte någons
+            tillgänglighet. "Skicka mejl" visas inte, se `HandelseSkapare.kalendrar`. */}
+        {skapaKalender?.slag === "grupp" ? (
+          <div data-krav-svar="">
+            <OpsSwitch label="Kräv svar" hint="Varje medlem svarar Kommer eller Kommer inte, och frågan står i var och ens inkorg tills de svarat." checked={skapaKravSvar} onChange={setSkapaKravSvar} />
+          </div>
+        ) : null}
+        {skapaKalender?.slag === "mina" ? (
+          <div data-blockerar="">
+            <OpsSwitch label="Blockerar tillgänglighet" hint="Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör." checked={skapaBlockerar} onChange={setSkapaBlockerar} />
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -1318,11 +1424,9 @@ export function OpsAppShell({
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
                   onValj={grupper.onValj}
-                  onSkapa={grupperOnSkapa}
                   sprak={grupper.sprak}
                   listEtikett={grupper.listEtikett}
                   ingenGruppEtikett={grupper.ingenGruppEtikett}
-                  skapaEtikett={grupper.skapaEtikett}
                   tomText={grupper.tomText}
                   rollNamn={grupper.rollNamn}
                   etikett={grupper.etikett}
@@ -1587,7 +1691,7 @@ export function OpsAppShell({
             titel={skapaModalTitel || skapaLabel}
             onTillbaka={stangSkapa}
             tillbakaEtikett={skapa?.tillbakaEtikett}
-            skapasIEtikett={skapa?.skapasIEtikett}
+            skapasIEtikett={handelseMedKalendrar ? "Kalender" : skapa?.skapasIEtikett}
             skapasI={skapaForm?.kind === "modul" || skapaForm?.kind === "meddelande" ? skapaMalNamn : null}
             onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
             avbrytEtikett={skapa?.avbrytEtikett}
@@ -1660,14 +1764,16 @@ export function OpsAppShell({
           onOpenChange={(v) => {
             if (!v) setSkapaVaxlare(false);
           }}
-          vald={skapaMal?.id ?? null}
+          vald={skapaEffektivtMal?.id ?? null}
+          valdSektion={skapaEffektivtMal?.sektion ?? null}
           onValj={(id, sektion) => {
             setSkapaMal({ id, sektion });
             setSkapaVaxlare(false);
           }}
           sektioner={skapaSektioner}
-          rubrik={skapa?.skapaIRubrik}
+          rubrik={handelseMedKalendrar ? "Kalender" : skapa?.skapaIRubrik}
           avbrytEtikett={skapa?.avbrytEtikett}
+          tomText={handelseMedKalendrar ? "Gruppen har inga kalendrar och du har inga egna. Skapa en under Hantera kalendrar." : undefined}
         />
       ) : null}
     </div>

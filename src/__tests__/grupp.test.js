@@ -609,7 +609,7 @@ describe("lagringsregelfragment: Storage, bara sin egen bild (#156)", () => {
 
 describe("generateRules: hela filen ur manifesten (#130)", () => {
   const modul = (/** @type {string} */ id, /** @type {any[]} */ samlingar) =>
-    defineModule({ id, namn: { sv: id }, nav: [], routes: [], kallor: {}, samlingar, skapar: [] });
+    defineModule({ id, namn: { sv: id }, nav: [], routes: [], kallor: {}, samlingar, skapar: [], hubb: null });
 
   it("ger en komplett fil med ramverkets fragment, modulens block och catch-allen", () => {
     const t = generateRules([modul("liv", ["matningar"])]);

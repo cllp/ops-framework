@@ -31,6 +31,9 @@
  *   inbjudan, ägare                          ja
  *   inbjudan, medlem                         nej
  *   samling utan block                       nej
+ *   hubben: medlem/admin läser modulerna     ja       (0.38.0, #184)
+ *   hubben: avslutad, utomstående, utan      nej
+ *   hubben: fråga alla grupper med en modul  nej
  *
  * Kör: npm run test:rules
  */
@@ -38,7 +41,7 @@
 import { medlemskapsId } from "../../src/lib/grupp.js";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, deleteDoc, where } from "firebase/firestore";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -190,6 +193,41 @@ describe("⛔ profilen: bara sin egen", () => {
 
   it("jag skriver inte någon annans profil", async () => {
     await assertFails(setDoc(doc(som(UTANFOR), `users/${MEDLEM}`), { namn: "Kapad" }));
+  });
+});
+
+/*
+ * ⛔ HUBBENS LÄSNING (0.38.0, #184). Hubben ritar den aktiva gruppens `moduler`, och det enda den läser är gruppens egen
+ * rad. Proven mäter att fältet faktiskt NÅR en medlem (inte bara att raden gör det: `moduler` står i raden, och ett
+ * framtida fältfilter hade tömt hubben utan ett fel) och att ingen annan når det, inte heller genom en fråga över alla
+ * grupper som har en viss modul. En sådan fråga hade varit den enkla vägen att bygga "vilka grupper har Ekonomi", och
+ * den läser andras grupper.
+ */
+describe("⛔ hubbens läsning: gruppens moduler, bara för dess medlemmar (0.38.0, #184)", () => {
+  it("⛔ en medlem läser gruppens moduler", async () => {
+    const snap = await assertSucceeds(getDoc(doc(som(MEDLEM), `groups/${VAR}`)));
+    if (!snap.data()?.moduler?.includes("ekonomi")) throw new Error(`moduler nådde inte medlemmen: ${JSON.stringify(snap.data()?.moduler)}`);
+  });
+
+  it("⛔ en admin läser gruppens moduler (fast hen inte får ändra dem)", async () => {
+    const snap = await assertSucceeds(getDoc(doc(som(ADMIN), `groups/${VAR}`)));
+    if (!Array.isArray(snap.data()?.moduler)) throw new Error("moduler nådde inte admin.");
+  });
+
+  it("⛔ en avslutad medlem läser inte modulerna", async () => {
+    await assertFails(getDoc(doc(som(AVSLUTAD), `groups/${VAR}`)));
+  });
+
+  it("⛔ ägaren av en ANNAN grupp läser inte den här gruppens moduler", async () => {
+    await assertFails(getDoc(doc(som(UTANFOR), `groups/${VAR}`)));
+  });
+
+  it("⛔ utan inloggning läses inga moduler", async () => {
+    await assertFails(getDoc(doc(utanInloggning(), `groups/${VAR}`)));
+  });
+
+  it("⛔ en fråga över alla grupper som har en modul avvisas, även för en medlem", async () => {
+    await assertFails(getDocs(query(collection(som(MEDLEM), "groups"), where("moduler", "array-contains", "ekonomi"))));
   });
 });
 

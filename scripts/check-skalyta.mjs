@@ -607,6 +607,141 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   await context.close();
 }
 
+// ══ 9c. HUBBEN PER GRUPP OCH MODULENS INSIDA (0.38.0, #184) ════════════════════
+// CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Hubben visar den aktiva gruppens moduler och inget
+// annat, och en modul har en egen insida med sin egen navigation. Mått vid 390 och 1280:
+//   (a) en grupp med Ekonomi: ETT kort, en länk till /ekonomi, inga delar i hubben, minst 44 px högt, klick navigerar;
+//       på dator listar toppradens rullgardin bara modulen (inga chevronrader, inga delar).
+//   (b) en grupp utan moduler: rubriken och en rad med gruppens namn, inga kort, ingen tom yta.
+//   (c) en grupp med en modul appen inte registrerat: kortet för Ekonomi OCH en synlig rad som säger vilken som inte visas.
+//   (d) modulens insida: tillbaka till /hub, rubriken, fjorton länkar i en rad, EN öppen del med en synlig accentlinje under,
+//       varje länk minst 44 px hög, raden rullar i sidled i stället för sidan, och den öppna delen syns också när den är den sista.
+// Ingen horisontell överflödning någonstans. ⛔ GOLV: varje delmätning kräver att det den mäter fanns.
+for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 900 }], ["390 px", { width: 390, height: 844 }]])) {
+  const over = async (/** @type {import("playwright").Page} */ p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  // (a)
+  {
+    const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g3");
+    try {
+      const lista = page.locator('main ul[aria-label="Moduler i Claes Philip Staiger AB"]');
+      const kort = lista.locator(":scope > li > a");
+      const antal = await kort.count();
+      krav(antal === 1, `Hubben per grupp ${namn} (a): ${antal} kort ritades i gruppen med Ekonomi, väntat 1.`);
+      if (antal === 1) {
+        const k = await kort.evaluate((a) => ({ href: a.getAttribute("href"), text: /** @type {HTMLElement} */ (a).innerText.replace(/\s+/g, " ").trim(), h: a.getBoundingClientRect().height }));
+        matt.push(`Hubben per grupp ${namn} (a): ${JSON.stringify(k)}`);
+        krav(k.href === "/ekonomi" && k.text.startsWith("Ekonomi") && k.text.includes("Skatten förfaller 12 oktober"), `Hubben per grupp ${namn} (a): kortet ${JSON.stringify(k)}, väntat Ekonomi med infolinjen och länken /ekonomi.`);
+        krav(k.h >= 44, `Hubben per grupp ${namn} (a): kortet är ${k.h} px högt, under tumkravet 44.`);
+        krav(!(await page.locator("main").innerText()).includes("Inkomster"), `Hubben per grupp ${namn} (a): en del av Ekonomi står i hubben.`);
+        await kort.click();
+        const gick = await page.evaluate(() => window.__gick);
+        krav(gick.length === 1 && gick[0] === "/ekonomi", `Hubben per grupp ${namn} (a): klick på kortet gick till ${JSON.stringify(gick)}, väntat ["/ekonomi"].`);
+      }
+      krav((await over(page)) <= 0, `Hubben per grupp ${namn} (a): sidan flödar ${await over(page)} px i sidled.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-ekonomi-${vp.width}.png`) });
+      if (vp.width > 800) {
+        await page.getByRole("button", { name: "Visa sidorna under Hub" }).click();
+        const dd = page.locator('[role="dialog"]');
+        await dd.waitFor();
+        const rader = await dd.evaluate((el) => ({
+          lankar: [...el.querySelectorAll("a")].filter((a) => a.getBoundingClientRect().height > 0).map((a) => (a.textContent || "").trim()),
+          knappar: [...el.querySelectorAll("button[aria-expanded]")].length,
+        }));
+        matt.push(`Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}`);
+        krav(rader.lankar.length === 1 && rader.lankar[0].startsWith("Ekonomi") && rader.knappar === 0, `Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}, väntat bara Ekonomi och inga utfällbara rader.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "grupphubb-rullgardin-1280.png"), clip: { x: 300, y: 0, width: 700, height: 360 } });
+      }
+    } catch (e) {
+      krav(false, `Hubben per grupp ${namn} (a): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+  // (b)
+  {
+    const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g2");
+    try {
+      const main = page.locator("main");
+      const rubrik = main.getByText("Inga moduler i gruppen", { exact: true });
+      const rad = main.getByText(/Testgruppen har inga moduler/);
+      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Inga moduler i gruppen" syns inte i gruppen utan moduler.`);
+      krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
+      const lankar = await main.locator("a").count();
+      krav(lankar === 0, `Hubben per grupp ${namn} (b): ${lankar} länkar i hubben för en grupp utan moduler.`);
+      krav((await over(page)) <= 0, `Hubben per grupp ${namn} (b): sidan flödar i sidled.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-tom-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `Hubben per grupp ${namn} (b): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+  // (c)
+  {
+    const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g1");
+    try {
+      const kort = await page.locator("main ul[aria-label] > li > a").count();
+      const rad = page.locator('[data-saknad="inte-registrerad"]');
+      const syns = (await rad.count()) === 1 && (await rad.isVisible());
+      const r = syns ? await rad.evaluate((el) => ({ text: (el.textContent || "").trim(), h: el.getBoundingClientRect().height, flodar: el.scrollWidth > el.clientWidth + 1 })) : null;
+      matt.push(`Hubben per grupp ${namn} (c): ${kort} kort, raden ${JSON.stringify(r)}`);
+      krav(kort === 1, `Hubben per grupp ${namn} (c): ${kort} kort, väntat 1 (Ekonomi; "bokning" är inte registrerad).`);
+      krav(!!r && r.text.includes('"bokning"') && r.h > 0 && !r.flodar, `Hubben per grupp ${namn} (c): raden om modulen som inte visas ${JSON.stringify(r)}, väntat synlig och med id:t.`);
+      krav((await over(page)) <= 0, `Hubben per grupp ${namn} (c): sidan flödar i sidled.`);
+    } catch (e) {
+      krav(false, `Hubben per grupp ${namn} (c): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+  // (d)
+  for (const href of ["/ekonomi/inkomster", "/ekonomi/jamforelse"]) {
+    const { page, context } = await oppna(`modulsida|${href}`, vp);
+    try {
+      const nav = page.locator('nav[aria-label="Ekonomi: delar"]');
+      krav((await nav.count()) === 1, `Modulens insida ${namn} ${href}: navigationen "Ekonomi: delar" hittades inte.`);
+      if ((await nav.count()) === 1) {
+        const m = await nav.evaluate((n) => {
+          const ul = /** @type {HTMLElement} */ (n.querySelector("ul"));
+          const lankar = [...n.querySelectorAll("a")];
+          const oppna = lankar.filter((a) => a.getAttribute("aria-current") === "page");
+          const o = oppna[0];
+          const cs = o ? getComputedStyle(o) : null;
+          const ro = o ? o.getBoundingClientRect() : null;
+          return {
+            antal: lankar.length,
+            oppna: oppna.map((a) => (a.textContent || "").trim()),
+            minH: Math.min(...lankar.map((a) => a.getBoundingClientRect().height)),
+            linje: cs ? { bredd: parseFloat(cs.borderBottomWidth), farg: cs.borderBottomColor } : null,
+            ovriga: lankar.filter((a) => a !== o).map((a) => getComputedStyle(a).borderBottomColor),
+            rullar: ul.scrollWidth > ul.clientWidth,
+            synlig: ro ? ro.left >= 0 && ro.right <= window.innerWidth : false,
+          };
+        });
+        matt.push(`Modulens insida ${namn} ${href}: ${JSON.stringify({ ...m, ovriga: [...new Set(m.ovriga)] })}`);
+        const vantad = href.endsWith("jamforelse") ? "Jämförelse" : "Inkomster";
+        krav(m.antal === 14, `Modulens insida ${namn} ${href}: ${m.antal} länkar i navigationen, väntat 14.`);
+        krav(m.oppna.length === 1 && m.oppna[0] === vantad, `Modulens insida ${namn} ${href}: öppen del ${JSON.stringify(m.oppna)}, väntat ["${vantad}"].`);
+        krav(m.minH >= 44, `Modulens insida ${namn} ${href}: en länk är ${m.minH} px hög, under tumkravet 44.`);
+        krav(!!m.linje && m.linje.bredd >= 2 && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(m.linje.farg) && !m.ovriga.includes(m.linje.farg), `Modulens insida ${namn} ${href}: den öppna delen har ingen egen synlig linje under sig (${JSON.stringify(m.linje)}).`);
+        krav(m.synlig, `Modulens insida ${namn} ${href}: den öppna delen ligger utanför skärmen.`);
+        if (vp.width < 800) krav(m.rullar, `Modulens insida ${namn} ${href}: fjorton delar ryms på 390 px utan att raden rullar, alltså mäter provet inte rullningen.`);
+        const tillbaka = page.getByRole("link", { name: "Tillbaka till Hub" });
+        krav((await tillbaka.count()) === 1 && (await tillbaka.getAttribute("href")) === "/hub", `Modulens insida ${namn} ${href}: tillbaka-länken till /hub saknas.`);
+        krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulens insida ${namn} ${href}: rubriken "Ekonomi" saknas.`);
+        krav((await page.locator("[data-moduldel-innehall]").count()) === 1, `Modulens insida ${namn} ${href}: delens innehåll ritades inte.`);
+        krav((await over(page)) <= 0, `Modulens insida ${namn} ${href}: sidan flödar ${await over(page)} px i sidled.`);
+        if (href.endsWith("inkomster")) {
+          await nav.getByRole("link", { name: "Kostnader" }).click();
+          const gick = await page.evaluate(() => window.__gick);
+          krav(gick.length === 1 && gick[0] === "/ekonomi/kostnader", `Modulens insida ${namn}: klick på Kostnader gick till ${JSON.stringify(gick)}.`);
+        }
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `modulsida-${href.split("/").pop()}-${vp.width}.png`) });
+      }
+    } catch (e) {
+      krav(false, `Modulens insida ${namn} ${href}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
 // ══ 10. MÄRKET ÄR TEXT, I RÄTT TYPSNITT OCH RÄTT FÄRG, CENTRERAT ÖVER PANELEN (0.31.0) ═
 // CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray
 // Orange", och: "Logotext måste vara centrerad över gruppmenyn i båda lägen. Beakta ringen att den skall vara samma
@@ -1898,8 +2033,8 @@ matt.push(`textstorlek: ${textMatta} textelement mätta, ${avvikelser.length} av
 // CP 2026-09-29 23:30: "Skapa grupp och bjuda in till grupp finns inte ännu. Skapa grupp i web skall ha samma funktion som i SessionStudio."
 // SS `ManageGroupModal.jsx:479-640` (inline, ritad i `GroupEditRouteView`): Visuell identitet, Namn, Beskrivning, Ort, Medlemmar, Mer inställningar.
 // Mått vid 390 och 1280 px: en panel och ingen dialog, fälten i SS ordning och alla synliga, namnet obligatoriskt, panelens fasta Spara, ingen
-// horisontell överflödning, identitetsrutorna har 44 px träffyta och märket ritas i den valda färgen, samt att ALLA TRE ingångarna (plusset,
-// gruppanelen på dator, växlarens ark på telefon) öppnar samma panel. Golv: minst 6 färgprickar och 11 ikonrutor.
+// horisontell överflödning, identitetsrutorna har 44 px träffyta och märket ritas i den valda färgen, samt att båda ingångarna (plusset,
+// gruppanelen på dator) öppnar samma panel. Växlarens ark på telefon är ingen ingång från 0.37.0. Golv: minst 6 färgprickar och 11 ikonrutor.
 for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 800 }], ["390 px", { width: 390, height: 844 }]])) {
   const mobil = vp.width < 800;
   const { page, context } = await oppna("nygrupp", vp);
@@ -2056,7 +2191,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   await context.close();
 }
-// De två andra ingångarna öppnar SAMMA panel: "Skapa grupp" i gruppanelen (dator) och i växlarens ark (telefon).
+// Gruppanelens "Skapa grupp" på dator öppnar SAMMA panel. (Växlarens ark på telefon hade samma knapp till 0.36.0, se nedan.)
 {
   const { page, context } = await oppna("nygrupp", { width: 1280, height: 800 });
   try {
@@ -2070,19 +2205,29 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   await context.close();
 }
+// ⛔ 0.37.0: VÄXLARENS ARK PÅ TELEFON HAR INGEN "Skapa grupp" LÄNGRE. CP 2026-09-30: knappen i arket "Byt grupp" var en
+// tredje väg till samma panel, och på telefonen finns redan plusset med "Ny grupp" (mätt i avsnitt 22 vid 390 px). Arket
+// ska bara byta grupp. Gruppanelen på dator behåller sin knapp (mätt ovan). Golv: arket har minst två grupprader.
 {
   const { page, context } = await oppna("nygrupp", { width: 390, height: 844 });
   try {
     await page.getByRole("button", { name: /^Byt grupp, nu:/ }).click({ timeout: 3000 });
-    await page.getByRole("dialog").getByRole("button", { name: "Skapa grupp" }).click({ timeout: 3000 });
-    await page.waitForSelector("[data-gruppformular]", { timeout: 3000 });
-    // Arket är stängt och sidan går att röra: Tillbaka ska gå att trycka (en kvarlämnad Radix-låsning ger pointer-events: none).
-    await page.getByRole("button", { name: "Tillbaka" }).click({ timeout: 3000 });
-    const d = await page.evaluate(() => ({ paneler: document.querySelectorAll("[data-skapa-panel]").length, dialoger: document.querySelectorAll('[role="dialog"]').length, pe: getComputedStyle(document.body).pointerEvents }));
-    matt.push(`ny grupp via växlarens ark 390 px: efter Tillbaka paneler ${d.paneler}, dialoger ${d.dialoger}, body pointer-events ${d.pe}`);
-    krav(d.paneler === 0 && d.dialoger === 0 && d.pe !== "none", `ny grupp via växlarens ark: efter Tillbaka paneler ${d.paneler}, dialoger ${d.dialoger}, pointer-events ${d.pe}. Väntat 0, 0 och inte none.`);
+    await page.getByRole("dialog").waitFor({ timeout: 3000 });
+    await page.waitForTimeout(200);
+    const d = await page.evaluate(() => {
+      const ark = /** @type {HTMLElement} */ (document.querySelector('[role="dialog"]'));
+      const knappar = [...ark.querySelectorAll("button")].map((x) => (x.getAttribute("aria-label") || x.textContent || "").trim());
+      return { knappar, skapa: knappar.filter((k) => /Skapa grupp/i.test(k)).length, rader: ark.querySelectorAll('[role="option"], [aria-pressed], [aria-current]').length };
+    });
+    matt.push(`växlarens ark 390 px: knapparna ${JSON.stringify(d.knappar)}`);
+    krav(d.knappar.length >= 3, `växlarens ark 390 px: ${d.knappar.length} knappar, väntat minst 3 (golv: två grupper och stäng).`);
+    krav(d.skapa === 0, `växlarens ark 390 px: "Skapa grupp" står ${d.skapa} gång(er) i arket, väntat 0 (CP 2026-09-30, plusset har "Ny grupp").`);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Skapa", exact: true }).last().click({ timeout: 3000 });
+    const ny = await page.getByRole("button", { name: "Ny grupp" }).count();
+    krav(ny >= 1, `växlarens ark 390 px: plusset saknar "Ny grupp" (${ny}), så telefonen har ingen väg till en ny grupp.`);
   } catch (e) {
-    krav(false, `ny grupp via växlarens ark: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}): "Skapa grupp" i arket öppnade inte panelen, eller sidan var låst.`);
+    krav(false, `växlarens ark 390 px: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }
   await context.close();
 }
@@ -2665,20 +2810,31 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 // `calendarSpanLayout.js`, `CalendarView.jsx` och `CalendarViewToolbar.jsx`. Scenen `kalender`: idag är onsdag 30 september 2026.
 // Krav, varje del för sig:
 //   (a) 25 månader, september 2025 till september 2027, och innevarande månad rullad upp under veckodagsraden. Måndag först.
-//   (b) Verktygsraden: Kalendrar, Veckonummer, Typ och status, Sök, Skapa i den ordningen, inom fönstret, 44 px under 768 och 32 från.
-//   (c) Rutan: ett kort (rundning minst 12, en kant), idag som fyllt piller runt siffran, prickar på telefon och piller med
-//       titel från 640 px, det som varit nedtonat.
-//   (d) Band: flerdagsposten 5-7 oktober är ETT band över tre kolumner, semestern 9-13 oktober två (ett per vecka), heldagen
-//       1 oktober ett band över en kolumn, och banden ligger under dagsiffrorna.
+//   (b) Verktygsraden. Från 768 px: Kalendrar, Veckonummer, Typ och status, Sök, Skapa i den ordningen, 32 px. Under 768
+//       (0.37.0, CP 2026-09-30 mot SS-appen): Sök, Veckonummer, Typ och status som RENA ikoner till vänster (ingen kant, ingen
+//       yta), kalenderpillret med text längst till höger, Skapa inte i raden (plusset finns), och allt med 44 px träffyta.
+//   (c) Rutan: rundningen är tokens 12 px (vald 16), en kant. På telefon (0.37.0, SS-appen `DayCell`): siffran centrerad,
+//       idag en mörk cirkel på 28 px, märkena prickar och streck i kategorins färg och INGA ikoner i rutan. Från 640 px:
+//       idag ett fyllt piller, piller med titel. Det som varit nedtonat.
+//   (d) Band från 640 px: flerdagsposten 5-7 oktober är ETT band över tre kolumner, semestern 9-13 oktober två (ett per
+//       vecka), heldagen 1 oktober ett band över en kolumn, under dagsiffrorna. På telefon inga band: ett streck i VARJE
+//       ruta posten täcker, och inte i rutan före eller efter.
 //   (e) Idag-knappen: syns när månaden rullat ur bild, pilen pekar ned när idag ligger under och upp när den ligger över.
 //   (f) Veckonummer: av från början, på efter ett tryck, sparat i enhetens minne, och "Välj vecka 41" väljer sju dagar.
 //   (g) Dra-markering: ett drag från den 14:e till den 16:e oktober väljer tre dagar, tre piller med var sitt kryss; ett kryss tar bort en.
-//   (h) Dagpanelen: på dator en kolumn till höger om rutnätet, 360 px vid 1280; på telefon UNDER rutnätet, högst 45 procent av
-//       ytan, och rutnät plus panel slutar vid bottenraden. Antalet och skapa-rutan finns, och skapa ger de valda dagarna.
-//   (i) Kalenderfiltret: Alla kalendrar, gruppens och mina, och raden om att Hantera kalendrar kommer; en vald kalender ändrar
+//   (h) Dagpanelen: på dator en kolumn till höger om rutnätet, 360 px vid 1280. På telefon (0.37.0, CP 2026-09-30 med SS-appens
+//       skärmbilder) FLYTER den över rutnätet: ingen egen yta eller kant, rullytan behåller sin höjd, högst 45 procent av ytan.
+//       Den valda rutan är mörk med ljus text och rundning 16. Posterna står i EN bubbla med tak 140 px (SS `abEventsScroll`)
+//       som rullar invändigt medan kalendern bakom står still, med rubrikerna Grupp och Mina när båda slagen finns. Antalet och
+//       skapa-rutan finns, skapa ger de valda dagarna, och lagrens bubbla ritas inte utan innehåll.
+//   (i) Kalenderfiltret: Alla kalendrar, gruppens och mina, och knappen Hantera kalendrar (0.37.0; till 0.36.0 en rad om att
+//       den kommer); en vald kalender ändrar
 //       rutnätet, och snabbtitten (högerklick, eller långtryck på telefon) visar det dolda märkt "Dold".
 //   (j) Sök tonar ned dagar utan träff och skriver ut antalet.
-// Ingen horisontell överflödning. Golv: minst 25 månader, 5 verktyg, 3 bandbitar och 7 dagar i veckan mätta.
+//   (k) Plats för F6 (0.37.0): den 14 oktober har en ton och två hörnmärken, ritade inom rutan (hörnmärkena högst 6 px utanför,
+//       som SS `top: -6, right: -6`), och märkenas ord står i rutans namn.
+// Ingen horisontell överflödning. Golv: minst 25 månader, 4 synliga verktyg, 3 bandbitar (dator) eller 8 streck (telefon), 4 märken
+// den 12 oktober, 2 hörnmärken och 7 dagar i veckan mätta.
 for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   const { page, context } = await oppna("kalender", vp);
   const namn = `kalendern ${vp.width}`;
@@ -2711,14 +2867,31 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 
     // (b) verktygsraden
     try {
-      const verktyg = await page.evaluate(() => [...document.querySelectorAll("[data-kalender-verktyg] > button")].map((x) => { const r = x.getBoundingClientRect(); return { namn: x.getAttribute("aria-label") || "", h: r.height, w: r.width, h2: r.right }; }));
-      matt.push(`${namn}: verktygen ${verktyg.map((v) => `${v.namn.split(":")[0]} ${v.h}x${v.w}`).join(", ")}`);
-      krav(verktyg.length >= 5, `${namn}: ${verktyg.length} verktyg, väntat minst 5 (golv).`);
-      const ordning = verktyg.map((v) => v.namn.split(":")[0]);
-      krav(JSON.stringify(ordning) === JSON.stringify(["Kalendrar", "Veckonummer", "Typ och status", "Sök i kalendern", "Skapa"]), `${namn}: verktygens ordning är ${JSON.stringify(ordning)}, väntat Kalendrar, Veckonummer, Typ och status, Sök, Skapa (SS CalendarViewToolbar).`);
+      const verktyg = await page.evaluate(() => [...document.querySelectorAll("[data-kalender-verktyg] > button")].map((x) => {
+        const r = x.getBoundingClientRect();
+        const cs = getComputedStyle(x);
+        const svg = x.querySelector("svg");
+        return { namn: (x.getAttribute("aria-label") || "").split(":")[0], x: r.x, h: r.height, w: r.width, h2: r.right, syns: cs.display !== "none" && r.width > 0, kant: cs.borderTopColor, kantB: parseFloat(cs.borderTopWidth), bg: cs.backgroundColor, radie: parseFloat(cs.borderTopLeftRadius), text: (x.textContent || "").trim(), ikon: svg ? svg.getBoundingClientRect().width : 0 };
+      }));
+      const synliga = verktyg.filter((v) => v.syns).sort((p, q) => p.x - q.x);
+      matt.push(`${namn}: verktygen ${synliga.map((v) => `${v.namn} ${v.h}x${v.w} kant ${v.kant}/${v.kantB} yta ${v.bg} ikon ${v.ikon}`).join(", ")}`);
+      krav(synliga.length >= 4, `${namn}: ${synliga.length} synliga verktyg, väntat minst 4 (golv).`);
+      const ordning = synliga.map((v) => v.namn);
+      const genom = (/** @type {string} */ c) => /^rgba\([^)]*,\s*0\)$/.test(c) || c === "transparent";
+      if (telefon) {
+        krav(JSON.stringify(ordning) === JSON.stringify(["Sök i kalendern", "Veckonummer", "Typ och status", "Kalendrar"]), `${namn}: verktygen står ${JSON.stringify(ordning)} från vänster, väntat Sök, Veckonummer, Typ och status och sist kalenderpillret (SS-appens rad; Skapa är plusset).`);
+        const ikoner = synliga.slice(0, 3);
+        krav(ikoner.every((v) => (genom(v.kant) || v.kantB === 0) && genom(v.bg)), `${namn}: ikonerna har kant ${JSON.stringify(ikoner.map((v) => v.kant))} och yta ${JSON.stringify(ikoner.map((v) => v.bg))}, väntat rena ikoner utan ruta (CP 2026-09-30 mot SS-appen).`);
+        krav(ikoner.every((v) => v.ikon >= 20), `${namn}: ikonerna är ${JSON.stringify(ikoner.map((v) => v.ikon))} px, väntat minst 20 (SS-appen ritar dem stora, utan ruta).`);
+        const pill = synliga[synliga.length - 1];
+        const radensHoger = await page.evaluate(() => { const r = document.querySelector("[data-kalender-verktyg]"); return r ? r.getBoundingClientRect().right : 0; });
+        krav(!!pill && pill.namn === "Kalendrar" && pill.radie >= pill.h / 2 - 0.5 && /kalend/i.test(pill.text) && !genom(pill.kant) && pill.h2 >= radensHoger - 1, `${namn}: kalenderpillret ${JSON.stringify(pill)}, väntat en kapsel med text och kant som slutar vid radens högerkant ${radensHoger} (SS-appens "Musikkollektive..."-piller).`);
+      } else {
+        krav(JSON.stringify(ordning) === JSON.stringify(["Kalendrar", "Veckonummer", "Typ och status", "Sök i kalendern", "Skapa"]), `${namn}: verktygens ordning är ${JSON.stringify(ordning)}, väntat Kalendrar, Veckonummer, Typ och status, Sök, Skapa (SS CalendarViewToolbar).`);
+      }
       const vantadH = telefon ? 44 : 32;
-      krav(verktyg.every((v) => Math.abs(v.h - vantadH) < 0.6), `${namn}: verktygens höjder ${JSON.stringify(verktyg.map((v) => v.h))}, väntat ${vantadH} (SS w-8 h-8 från 768 px, 44 px träffyta under).`);
-      krav(verktyg.every((v) => v.h2 <= vp.width + 0.5), `${namn}: ett verktyg slutar utanför fönstret (${JSON.stringify(verktyg.map((v) => v.h2))}).`);
+      krav(synliga.every((v) => Math.abs(v.h - vantadH) < 0.6), `${namn}: verktygens höjder ${JSON.stringify(synliga.map((v) => v.h))}, väntat ${vantadH} (SS w-8 h-8 från 768 px, 44 px träffyta under).`);
+      krav(synliga.every((v) => v.h2 <= vp.width + 0.5), `${namn}: ett verktyg slutar utanför fönstret (${JSON.stringify(synliga.map((v) => v.h2))}).`);
 
     } catch (e) {
       krav(false, `${namn} (b): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
@@ -2732,28 +2905,52 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         const idag = r("2026-09-30");
         const forbi = r("2026-09-14");
         const tolfte = r("2026-10-12");
-        const cs = idag ? getComputedStyle(idag) : null;
+        const vanlig = r("2026-10-15");
+        const cs = vanlig ? getComputedStyle(vanlig) : null;
         const siffra = idag ? /** @type {HTMLElement} */ (idag.querySelector("[data-dagnummer]")) : null;
         const syns = (/** @type {Element | null} */ e) => !!e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().height > 0;
+        const mitt = (/** @type {Element} */ e) => { const b = e.getBoundingClientRect(); return b.x + b.width / 2; };
+        const vs = vanlig ? /** @type {HTMLElement} */ (vanlig.querySelector("[data-dagnummer]")) : null;
+        const ljus = (/** @type {string} */ c) => { const m = c.match(/[\d.]+/g); return m ? (0.2126 * +m[0] + 0.7152 * +m[1] + 0.0722 * +m[2]) / 255 : 1; };
+        const markeFarg = tolfte ? [...tolfte.querySelectorAll("[data-prick], [data-streck]")].map((x) => ({ id: x.getAttribute("data-prick") || x.getAttribute("data-streck"), slag: x.hasAttribute("data-streck") ? "streck" : "prick", bg: getComputedStyle(x).backgroundColor, w: x.getBoundingClientRect().width, h: x.getBoundingClientRect().height })) : [];
+        const ikonerIRutor = [...document.querySelectorAll("[data-cal-day] svg")].filter((x) => !x.closest("[data-hornmarken]") && x.getBoundingClientRect().width > 0).length;
+        const siffraRuta = siffra ? siffra.getBoundingClientRect() : null;
         return {
           radie: cs ? parseFloat(cs.borderTopLeftRadius) : 0,
           kant: cs ? parseFloat(cs.borderTopWidth) : 0,
           siffraBg: siffra ? getComputedStyle(siffra).backgroundColor : "",
+          siffraLjus: siffra ? ljus(getComputedStyle(siffra).backgroundColor) : 1,
           siffraRadie: siffra ? parseFloat(getComputedStyle(siffra).borderTopLeftRadius) : 0,
+          siffraMatt: siffraRuta ? [siffraRuta.width, siffraRuta.height] : null,
+          centrerad: vanlig && vs ? Math.abs(mitt(vanlig) - mitt(vs)) : 99,
           forbiNedtonad: !!forbi && !!forbi.querySelector('[data-nedtonad="forbi"]'),
           idagNedtonad: !!idag && !!idag.querySelector("[data-nedtonad]"),
           prickar: syns(tolfte && tolfte.querySelector("[data-kalender-marken]")),
           piller: syns(tolfte && tolfte.querySelector("[data-kalender-piller]")),
           pillerText: tolfte ? [...tolfte.querySelectorAll("[data-kalender-piller] > span")].map((x) => (x.textContent || "").trim()) : [],
           markenSpill: tolfte ? (() => { const m = tolfte.querySelector("[data-kalender-marken]"); return m ? m.scrollWidth - m.clientWidth : 0; })() : 0,
+          markeFarg,
+          ikonerIRutor,
         };
       });
-      matt.push(`${namn}: rutan rundning ${ruta.radie}, kant ${ruta.kant}, idag ${ruta.siffraBg} med rundning ${ruta.siffraRadie}, förbi nedtonad ${ruta.forbiNedtonad}, prickar ${ruta.prickar}, piller ${ruta.piller} ${JSON.stringify(ruta.pillerText)}`);
-      krav(ruta.radie >= 12 && ruta.kant >= 1, `${namn}: rutan har rundning ${ruta.radie} och kant ${ruta.kant}, väntat ett kort med minst 12 och en kant (SS rounded-xl border).`);
-      krav(!/rgba\(0, 0, 0, 0\)|transparent/.test(ruta.siffraBg) && ruta.siffraRadie >= 8, `${namn}: idags siffra har bakgrunden ${ruta.siffraBg} och rundning ${ruta.siffraRadie}, väntat ett fyllt piller (SS :450).`);
+      matt.push(`${namn}: rutan rundning ${ruta.radie}, kant ${ruta.kant}, siffran ${ruta.centrerad.toFixed(1)} px från mitten, idag ${ruta.siffraBg} ${JSON.stringify(ruta.siffraMatt)} rundning ${ruta.siffraRadie}, förbi nedtonad ${ruta.forbiNedtonad}, prickar ${ruta.prickar}, piller ${ruta.piller} ${JSON.stringify(ruta.pillerText)}, märkena den 12:e ${JSON.stringify(ruta.markeFarg)}, ikoner i rutor ${ruta.ikonerIRutor}`);
+      krav(Math.abs(ruta.radie - 12) < 0.5 && ruta.kant >= 1, `${namn}: rutan har rundning ${ruta.radie} och kant ${ruta.kant}, väntat 12 (--radius-base, SS-appens radius.md och SS webb rounded-xl) och en kant. CP 2026-09-30: "Rundningen i cellerna är fel."`);
       krav(ruta.forbiNedtonad && !ruta.idagNedtonad, `${namn}: den 14 september är ${ruta.forbiNedtonad ? "" : "inte "}nedtonad och idag ${ruta.idagNedtonad ? "är" : "är inte"} det, väntat det som varit nedtonat och idag inte (SS :413).`);
-      if (vp.width < 640) krav(ruta.prickar && !ruta.piller, `${namn}: den 12 oktober visar prickar ${ruta.prickar} och piller ${ruta.piller}, väntat prickar och inga piller under 640 px (SS sm:hidden).`);
-      else krav(!ruta.prickar && ruta.piller && ruta.pillerText.includes("Styrelsemöte") && ruta.pillerText.some((t) => t.startsWith("+")), `${namn}: den 12 oktober visar prickar ${ruta.prickar} och piller ${JSON.stringify(ruta.pillerText)}, väntat piller med titel och "+N" från 640 px (SS :579).`);
+      if (vp.width < 640) {
+        krav(ruta.centrerad <= 1, `${namn}: siffran står ${ruta.centrerad.toFixed(1)} px från rutans mitt, väntat centrerad (SS-appen dayNumberContainer).`);
+        krav(!!ruta.siffraMatt && Math.abs(ruta.siffraMatt[0] - 28) < 0.6 && Math.abs(ruta.siffraMatt[1] - 28) < 0.6 && ruta.siffraRadie >= 13.5 && ruta.siffraLjus < 0.35, `${namn}: idags siffra är ${JSON.stringify(ruta.siffraMatt)} px, rundning ${ruta.siffraRadie}, bakgrund ${ruta.siffraBg}, väntat en mörk cirkel på 28 px (SS-appen todayCircle).`);
+        krav(ruta.prickar && !ruta.piller, `${namn}: den 12 oktober visar märken ${ruta.prickar} och piller ${ruta.piller}, väntat märken och inga piller under 640 px (SS sm:hidden).`);
+        const prickar = ruta.markeFarg.filter((m) => m.slag === "prick");
+        const streck = ruta.markeFarg.filter((m) => m.slag === "streck");
+        krav(prickar.length >= 3 && streck.length >= 1, `${namn}: den 12 oktober har ${prickar.length} prickar och ${streck.length} streck, väntat minst 3 prickar (möte, lön, tåg) och ett streck (semestern 9-13 oktober). Golv.`);
+        krav(prickar.every((m) => Math.abs(m.w - 6) < 0.6 && Math.abs(m.h - 6) < 0.6) && streck.every((m) => Math.abs(m.w - 10) < 0.6 && Math.abs(m.h - 4) < 0.6), `${namn}: märkenas mått ${JSON.stringify(ruta.markeFarg.map((m) => [m.slag, m.w, m.h]))}, väntat prickar 6x6 och streck 10x4 (SS-appen eventDot, eventDash).`);
+        const farger = new Set(ruta.markeFarg.map((m) => m.bg));
+        krav(ruta.markeFarg.every((m) => !/^rgba\([^)]*,\s*0\)$/.test(m.bg)) && farger.size >= 3, `${namn}: märkenas färger ${JSON.stringify(ruta.markeFarg.map((m) => [m.id, m.bg]))}, väntat varje märke i sin kategoris färg, minst 3 olika för fyra poster i fyra kategorier (CP 2026-09-30: "prickar och streck istället med rätt färg för kategori").`);
+        krav(ruta.ikonerIRutor === 0, `${namn}: ${ruta.ikonerIRutor} ikoner ritas i dagsrutorna, väntat 0 (CP 2026-09-30: SS format rakt av, ikonerna finns i panelens kort och i snabbtitten).`);
+      } else {
+        krav(!/rgba\(0, 0, 0, 0\)|transparent/.test(ruta.siffraBg) && ruta.siffraRadie >= 8, `${namn}: idags siffra har bakgrunden ${ruta.siffraBg} och rundning ${ruta.siffraRadie}, väntat ett fyllt piller (SS :450).`);
+        krav(!ruta.prickar && ruta.piller && ruta.pillerText.includes("Styrelsemöte") && ruta.pillerText.some((t) => t.startsWith("+")), `${namn}: den 12 oktober visar märken ${ruta.prickar} och piller ${JSON.stringify(ruta.pillerText)}, väntat piller med titel och "+N" från 640 px (SS :579).`);
+      }
       krav(ruta.markenSpill <= 0, `${namn}: märkesraden spiller ${ruta.markenSpill} px ur rutan.`);
 
     } catch (e) {
@@ -2761,21 +2958,28 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       await page.keyboard.press("Escape").catch(() => {});
     }
 
-    // (d) banden
+    // (d) banden (från 640 px) och strecken (telefon)
     try {
       const band = await page.evaluate(() => {
-        const bitar = (/** @type {string} */ id) => [...document.querySelectorAll(`[data-bandbit="${id}"]`)].map((x) => { const r = x.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+        const bitar = (/** @type {string} */ id) => [...document.querySelectorAll(`[data-bandbit="${id}"]`)].filter((x) => x.getBoundingClientRect().width > 0).map((x) => { const r = x.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
         const cell = (/** @type {string} */ d) => { const e = document.querySelector(`[data-cal-day="${d}"]`); return e ? e.getBoundingClientRect() : null; };
         const siffra = (/** @type {string} */ d) => { const e = document.querySelector(`[data-cal-day="${d}"] [data-dagnummer]`); return e ? e.getBoundingClientRect().bottom : null; };
+        const strecket = (/** @type {string} */ id) => [...document.querySelectorAll(`[data-streck="${id}"]`)].filter((x) => x.getBoundingClientRect().width > 0).map((x) => (x.closest("[data-cal-day]") || { getAttribute: () => "" }).getAttribute("data-cal-day"));
         const c5 = cell("2026-10-05"), c7 = cell("2026-10-07");
-        return { konferens: bitar("konferens"), semester: bitar("semester"), heldag: bitar("stamma"), c5: c5 && { x: c5.x, r: c5.right }, c7: c7 && { r: c7.right }, siffra5: siffra("2026-10-05") };
+        return { konferens: bitar("konferens"), semester: bitar("semester"), heldag: bitar("stamma"), c5: c5 && { x: c5.x, r: c5.right }, c7: c7 && { r: c7.right }, siffra5: siffra("2026-10-05"), streckKonferens: strecket("konferens"), streckSemester: strecket("semester") };
       });
-      matt.push(`${namn}: band konferens ${JSON.stringify(band.konferens)}, semester ${band.semester.length} bitar, heldag ${JSON.stringify(band.heldag)}`);
-      krav(band.konferens.length + band.semester.length + band.heldag.length >= 3, `${namn}: ${band.konferens.length + band.semester.length + band.heldag.length} bandbitar, väntat minst 3 (golv).`);
-      krav(band.konferens.length === 1 && !!band.c5 && !!band.c7 && Math.abs(band.konferens[0].x - band.c5.x) < 2 && Math.abs(band.konferens[0].x + band.konferens[0].w - band.c7.r) < 2, `${namn}: konferensen 5-7 oktober är ${band.konferens.length} bitar ${JSON.stringify(band.konferens)}, väntat ETT band från den 5:e till den 7:e (${JSON.stringify(band.c5)}, ${JSON.stringify(band.c7)}).`);
-      krav(band.semester.length === 2, `${namn}: semestern 9-13 oktober är ${band.semester.length} bitar, väntat 2 (en per vecka, SS getSpanSegmentsForWeekRow).`);
-      krav(band.heldag.length === 1, `${namn}: heldagen 1 oktober är ${band.heldag.length} bitar, väntat 1 (heldag ritas som band).`);
-      krav(band.konferens.length === 1 && band.siffra5 !== null && band.konferens[0].y >= band.siffra5 - 0.5, `${namn}: bandet börjar på y=${band.konferens[0] && band.konferens[0].y}, siffran slutar ${band.siffra5}: bandet ska ligga under siffran (SS #999).`);
+      matt.push(`${namn}: band konferens ${JSON.stringify(band.konferens)}, semester ${band.semester.length} bitar, heldag ${JSON.stringify(band.heldag)}, streck konferens ${JSON.stringify(band.streckKonferens)}, semester ${JSON.stringify(band.streckSemester)}`);
+      if (vp.width < 640) {
+        krav(band.konferens.length + band.semester.length + band.heldag.length === 0, `${namn}: ${band.konferens.length + band.semester.length + band.heldag.length} bandbitar syns, väntat inga band på telefon (SS-appen ritar ett streck per ruta).`);
+        krav(JSON.stringify(band.streckKonferens) === JSON.stringify(["2026-10-05", "2026-10-06", "2026-10-07"]), `${namn}: konferensens streck står i ${JSON.stringify(band.streckKonferens)}, väntat den 5, 6 och 7 oktober och inte den 4:e eller 8:e.`);
+        krav(JSON.stringify(band.streckSemester) === JSON.stringify(["2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13"]), `${namn}: semesterns streck står i ${JSON.stringify(band.streckSemester)}, väntat den 9 till 13 oktober, över veckogränsen.`);
+      } else {
+        krav(band.konferens.length + band.semester.length + band.heldag.length >= 3, `${namn}: ${band.konferens.length + band.semester.length + band.heldag.length} bandbitar, väntat minst 3 (golv).`);
+        krav(band.konferens.length === 1 && !!band.c5 && !!band.c7 && Math.abs(band.konferens[0].x - band.c5.x) < 2 && Math.abs(band.konferens[0].x + band.konferens[0].w - band.c7.r) < 2, `${namn}: konferensen 5-7 oktober är ${band.konferens.length} bitar ${JSON.stringify(band.konferens)}, väntat ETT band från den 5:e till den 7:e (${JSON.stringify(band.c5)}, ${JSON.stringify(band.c7)}).`);
+        krav(band.semester.length === 2, `${namn}: semestern 9-13 oktober är ${band.semester.length} bitar, väntat 2 (en per vecka, SS getSpanSegmentsForWeekRow).`);
+        krav(band.heldag.length === 1, `${namn}: heldagen 1 oktober är ${band.heldag.length} bitar, väntat 1 (heldag ritas som band).`);
+        krav(band.konferens.length === 1 && band.siffra5 !== null && band.konferens[0].y >= band.siffra5 - 0.5, `${namn}: bandet börjar på y=${band.konferens[0] && band.konferens[0].y}, siffran slutar ${band.siffra5}: bandet ska ligga under siffran (SS #999).`);
+      }
 
     } catch (e) {
       krav(false, `${namn} (d): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
@@ -2788,6 +2992,17 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       await page.evaluate(() => { /** @type {HTMLElement} */ (document.querySelector("[data-kalender-rulle]")).scrollTop = 0; });
       await page.waitForTimeout(250);
       const uppe = await idagKnapp();
+      // ⛔ 0.37.0: knappen står MITT över rutnätet och är mörk, som SS-appens "Idag"-piller (0.36.0: nere till höger).
+      const idagLage = await page.evaluate(() => {
+        const k = document.querySelector("[data-idagknapp]");
+        const rulle = document.querySelector("[data-kalender-rulle]");
+        if (!k || !rulle) return null;
+        const a = k.getBoundingClientRect(), r = rulle.getBoundingClientRect();
+        const m = getComputedStyle(k).backgroundColor.match(/[\d.]+/g);
+        return { fran: Math.abs(a.x + a.width / 2 - (r.x + r.width / 2)), ljus: m ? (0.2126 * +m[0] + 0.7152 * +m[1] + 0.0722 * +m[2]) / 255 : 1 };
+      });
+      matt.push(`${namn}: Idag-knappen ${JSON.stringify(idagLage)}`);
+      krav(!!idagLage && idagLage.fran <= 1 && idagLage.ljus < 0.35, `${namn}: Idag-knappen ${JSON.stringify(idagLage)}, väntat mörk och centrerad över rutnätet (SS-appen; 0.36.0 hade den i hörnet).`);
       await page.evaluate(() => { const r = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-rulle]")); r.scrollTop = r.scrollHeight; });
       await page.waitForTimeout(250);
       const nere = await idagKnapp();
@@ -2848,34 +3063,96 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 
     // (h) dagpanelen
     try {
-      // ⛔ Den 12 oktober läggs till, så att panelen får fler kort än 45 procent av ytan rymmer: annars mäts taket aldrig
-      // (mutationen "panelen utan tak" var grön innan, eftersom två tomma dagar ryms under taket).
+      const rulleFore = await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector("[data-kalender-rulle]")).getBoundingClientRect().height);
+      // ⛔ Den 12 oktober läggs till, så att panelen får fler kort än bubblans tak rymmer: annars mäts taket aldrig.
       await page.locator('[data-cal-day="2026-10-12"]').scrollIntoViewIfNeeded();
+      // ⛔ 0.37.0: rutan läggs så att dess MITT ligger strax ovanför panelens topp och underkanten under den. Då går den att
+      // trycka på (Playwright rullar annars själv en täckt ruta fri, och provet blev grönt utan rättelsen: mätt), men en tredjedel
+      // av den täcks av panelen, som i CP:s bild. Utan rullningen efter valet står den kvar så.
+      if (telefon) {
+        await page.evaluate(() => {
+          const r = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-rulle]"));
+          const c = /** @type {HTMLElement} */ (document.querySelector('[data-cal-day="2026-10-12"]'));
+          const pl = document.querySelector("[data-dagpanel-plats]");
+          const grans = pl ? pl.getBoundingClientRect().top : r.getBoundingClientRect().bottom;
+          const cr = c.getBoundingClientRect();
+          r.scrollTop += cr.top + cr.height * 0.6 - grans;
+        });
+        await page.waitForTimeout(150);
+      }
       await page.locator('[data-cal-day="2026-10-12"]').click();
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(300);
       const p = await page.evaluate(() => {
         const r = (/** @type {string} */ v) => { const e = document.querySelector(v); if (!e) return null; const x = e.getBoundingClientRect(); return { x: x.x, y: x.y, w: x.width, h: x.height, bottom: x.bottom, right: x.right }; };
         const rulle = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-rulle]"));
         const st = getComputedStyle(rulle);
-        const pl = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel-plats]"));
-      return { rullar: pl ? pl.scrollHeight - pl.clientHeight : 0, rulle: r("[data-kalender-rulle]"), plats: r("[data-dagpanel-plats]"), nav: r('nav[aria-label="Snabbnavigering"]'), antal: r("[data-dagantal]"), skapa: !!document.querySelector('[data-dagpanel] button[aria-label^="Skapa"]'), yta: parseFloat(st.getPropertyValue("--fullhojd-botten")) - parseFloat(st.getPropertyValue("--fullhojd-topp")), vh: innerHeight };
+        const pl = /** @type {HTMLElement | null} */ (document.querySelector("[data-dagpanel-plats]"));
+        const sek = /** @type {HTMLElement | null} */ (document.querySelector("[data-dagpanel]"));
+        const pr = /** @type {HTMLElement | null} */ (document.querySelector("[data-postrulle]"));
+        const vald = /** @type {HTMLElement | null} */ (document.querySelector('[data-cal-day="2026-10-12"]'));
+        const ljus = (/** @type {string} */ c) => { const m = c.match(/[\d.]+/g); return m ? (0.2126 * +m[0] + 0.7152 * +m[1] + 0.0722 * +m[2]) / 255 : 1; };
+        const vs = vald ? getComputedStyle(vald) : null;
+        const vn = vald ? vald.querySelector("[data-dagnummer]") : null;
+        return {
+          rulle: r("[data-kalender-rulle]"), plats: r("[data-dagpanel-plats]"), nav: r('nav[aria-label="Snabbnavigering"]'), antal: r("[data-dagantal]"),
+          skapa: !!document.querySelector('[data-dagpanel] button[aria-label^="Skapa"]'),
+          yta: parseFloat(st.getPropertyValue("--fullhojd-botten")) - parseFloat(st.getPropertyValue("--fullhojd-topp")),
+          platsYta: pl ? [getComputedStyle(pl).backgroundColor, getComputedStyle(pl).borderTopWidth] : null,
+          sekYta: sek ? [getComputedStyle(sek).backgroundColor, getComputedStyle(sek).borderTopWidth] : null,
+          bubblor: document.querySelectorAll("[data-postbubbla]").length,
+          postrulle: pr ? { ch: pr.clientHeight, sh: pr.scrollHeight } : null,
+          rubriker: [...document.querySelectorAll("[data-postrubrik]")].map((x) => x.getAttribute("data-postrubrik")),
+          lager: document.querySelectorAll("[data-lagerbubbla]").length,
+          vald: vs && vn ? { radie: parseFloat(vs.borderTopLeftRadius), bg: ljus(vs.backgroundColor), text: ljus(getComputedStyle(vn).color) } : null,
+        };
       });
-      matt.push(`${namn}: rullytan ${JSON.stringify(p.rulle)}, panelen ${JSON.stringify(p.plats)}, bottenraden ${p.nav && p.nav.y}, ytan ${p.yta}`);
+      matt.push(`${namn}: rullytan ${JSON.stringify(p.rulle)} (före ${rulleFore}), panelen ${JSON.stringify(p.plats)} yta ${JSON.stringify(p.platsYta)}, bubblan ${JSON.stringify(p.postrulle)}, rubriker ${JSON.stringify(p.rubriker)}, vald ${JSON.stringify(p.vald)}, bottenraden ${p.nav && p.nav.y}, ytan ${p.yta}`);
       krav(!!p.antal && p.skapa, `${namn}: dagpanelen saknar ${p.antal ? "" : "antalet "}${p.skapa ? "" : "skapa-rutan"} (SS CalendarView :302-321).`);
+      krav(!!p.vald && Math.abs(p.vald.radie - 16) < 0.5 && p.vald.bg < 0.35 && p.vald.text > 0.6, `${namn}: den valda rutan ${JSON.stringify(p.vald)}, väntat rundning 16 (--radius-lg, SS radius.lg), mörk yta och ljus siffra (CP 2026-09-30 mot SS-appen).`);
+      krav(p.bubblor === 1 && !!p.postrulle && p.rubriker.join() === "Grupp,Mina", `${namn}: ${p.bubblor} postbubblor med rubrikerna ${JSON.stringify(p.rubriker)}, väntat EN bubbla med Grupp och Mina (SS-appen, båda slagen finns de valda dagarna).`);
+      krav(p.lager === 0, `${namn}: lagrens bubbla ritas (${p.lager}) fast inget lager skickades, väntat ingen (plats för F6, ritas bara med innehåll).`);
       if (p.rulle && p.plats) {
         if (telefon) {
-          krav(p.plats.y >= p.rulle.bottom - 1, `${namn}: panelen börjar ${p.plats.y}, rullytan slutar ${p.rulle.bottom}: panelen ska ligga UNDER rutnätet (SS CalendarView :208).`);
+          const genom = (/** @type {string[] | null} */ y) => !!y && (/^rgba\([^)]*,\s*0\)$/.test(y[0]) || y[0] === "transparent") && parseFloat(y[1]) === 0;
+          krav(genom(p.platsYta) && genom(p.sekYta), `${namn}: panelens yta ${JSON.stringify(p.platsYta)} och ${JSON.stringify(p.sekYta)}, väntat genomskinlig och utan kant: bubblorna flyter över rutnätet (CP 2026-09-30, SS-appen).`);
+          krav(p.plats.y < p.rulle.bottom - 40, `${namn}: panelen börjar ${p.plats.y}, rullytan slutar ${p.rulle.bottom}: panelen ska ligga ÖVER rutnätets nedre del, inte under det (0.36.0 staplade den under).`);
+          krav(Math.abs(p.rulle.h - rulleFore) <= 1, `${namn}: rullytan var ${rulleFore} px och är ${p.rulle.h} med panelen öppen, väntat samma: panelen flyter och tar ingen plats från rutnätet.`);
+          // ⛔ 0.37.0 (CP 2026-09-30, SS-appen, `ss-dagpanel-en-dag-390-cp.png`): den valda veckan rullas upp OVANFÖR panelen. Före
+          // rättelsen hamnade den valda rutan under chipraden. Rullningen är mjuk, så vi väntar in den. Mäts mot panelens toppkant.
+          await page.waitForTimeout(900);
+          const ovan = await page.evaluate(() => {
+            const v = document.querySelector('[data-cal-day="2026-10-12"]');
+            const pl = document.querySelector("[data-dagpanel-plats]");
+            if (!v || !pl) return null;
+            return { rutansUnderkant: v.getBoundingClientRect().bottom, rutansTopp: v.getBoundingClientRect().top, panelensTopp: pl.getBoundingClientRect().top };
+          });
+          matt.push(`${namn}: vald ruta ${JSON.stringify(ovan)}`);
+          krav(!!ovan && ovan.rutansUnderkant <= ovan.panelensTopp + 0.5 && ovan.rutansTopp >= 0, `${namn}: den valda rutans underkant är ${ovan && ovan.rutansUnderkant} och panelens topp ${ovan && ovan.panelensTopp}, väntat rutan helt ovanför panelen (SS-appen rullar den valda veckan upp ovanför panelen).`);
           krav(p.plats.h <= p.yta * 0.45 + 1.5, `${namn}: panelen är ${p.plats.h} px, taket är 45 procent av ${p.yta} = ${(p.yta * 0.45).toFixed(0)} (SS max-h-[45%]).`);
-          krav(p.rullar > 0, `${namn}: panelens innehåll ryms (${p.rullar} px över), så taket mättes inte. Golv: tre valda dagar med fyra kort ska rulla inuti panelen.`);
-          krav(!!p.nav && Math.abs(p.plats.bottom - p.nav.y) <= 1, `${namn}: panelen slutar ${p.plats.bottom}, bottenraden börjar ${p.nav && p.nav.y}: rutnät och panel ska sluta vid raden, inte under den.`);
+          krav(!!p.postrulle && p.postrulle.ch <= 140.5 && p.postrulle.sh > p.postrulle.ch, `${namn}: bubblans rullyta ${JSON.stringify(p.postrulle)}, väntat högst 140 px hög och rullbar (SS abEventsScroll maxHeight 140). Golv: fyra poster ska inte rymmas.`);
+          // Bubblan rullar, kalendern bakom står still.
+          // ⛔ "Sidan bakom" är varje rullyta utom bubblan: kalenderns rulle, dagpanelens plats och dokumentet. Bara rullen hade
+          // missat en kedja till dokumentet, eftersom rullen inte är bubblans förälder.
+          const rullat = () => page.evaluate(() => [...document.querySelectorAll("*")].filter((x) => !x.hasAttribute("data-postrulle")).reduce((n, x) => n + x.scrollTop, 0) + scrollY);
+          const fore = await rullat();
+          const pb = await b("[data-postrulle]");
+          if (pb) {
+            await page.mouse.move(pb.x + pb.w / 2, pb.y + pb.h / 2);
+            for (let i = 0; i < 4; i += 1) { await page.mouse.wheel(0, 200); await page.waitForTimeout(80); }
+            await page.waitForTimeout(250);
+          }
+          const efter = { kal: await rullat(), bubbla: await page.evaluate(() => (/** @type {HTMLElement | null} */ (document.querySelector("[data-postrulle]")) || { scrollTop: 0 }).scrollTop) };
+          matt.push(`${namn}: hjulet i bubblan: bubblan ${efter.bubbla} px, övriga rullytor ${fore} till ${efter.kal}`);
+          krav(efter.bubbla > 0 && Math.abs(efter.kal - fore) < 1, `${namn}: efter hjulet i bubblan rullade bubblan ${efter.bubbla} px och sidan bakom (alla andra rullytor) från ${fore} till ${efter.kal}, väntat att bara bubblan rullar (overscroll-contain).`);
+          if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-bubbla-${vp.width}.png`) });
         } else {
           krav(p.plats.x >= p.rulle.right - 0.5 && Math.abs(p.plats.w - 360) < 1, `${namn}: panelen ${JSON.stringify(p.plats)} ska vara en kolumn på 360 px till höger om rutnätet (${p.rulle.right}).`);
         }
       }
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-panel-${vp.width}.png`) });
       await page.locator('[data-dagpanel] button[aria-label^="Skapa"]').click();
       const skapat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__skapat.at(-1)));
       krav(skapat === JSON.stringify(["2026-10-12", "2026-10-14", "2026-10-16"]), `${namn}: skapa-rutan gav ${skapat}, väntat de valda dagarna ["2026-10-12","2026-10-14","2026-10-16"].`);
-      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-panel-${vp.width}.png`) });
       await page.getByRole("button", { name: /^Stäng 3 dagar/ }).click();
 
     } catch (e) {
@@ -2887,7 +3164,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     try {
       await page.getByRole("button", { name: /^Kalendrar:/ }).click();
       const meny = await page.evaluate(() => (document.querySelector("[data-radix-popper-content-wrapper]") || { textContent: "" }).textContent || "");
-      krav(/Alla kalendrar/.test(meny) && /Gruppens kalendrar/.test(meny) && /Styrelsen/.test(meny) && /Mina kalendrar/.test(meny) && /Privat/.test(meny) && /Hantera kalendrar kommer/.test(meny), `${namn}: kalendermenyn säger "${meny.slice(0, 160)}", väntat Alla kalendrar, gruppens (Styrelsen), mina (Privat) och raden om Hantera kalendrar.`);
+      // ⛔ 0.37.0 (#179 F2): raden "Hantera kalendrar kommer i nästa steg" är ersatt av en knapp. Att den öppnar hanteringen
+      // mäts i avsnitt 31 (g), här bara att den står i menyn och att löftet om nästa steg är borta.
+      const hanteraKnapp = await page.evaluate(() => [...document.querySelectorAll("[data-radix-popper-content-wrapper] button")].some((b) => (b.textContent || "").trim() === "Hantera kalendrar"));
+      krav(/Alla kalendrar/.test(meny) && /Gruppens kalendrar/.test(meny) && /Styrelsen/.test(meny) && /Mina kalendrar/.test(meny) && /Privat/.test(meny) && hanteraKnapp && !/kommer i nästa steg/.test(meny), `${namn}: kalendermenyn säger "${meny.slice(0, 160)}" (knappen Hantera kalendrar ${hanteraKnapp ? "finns" : "saknas"}), väntat Alla kalendrar, gruppens (Styrelsen), mina (Privat) och knappen Hantera kalendrar, utan "kommer i nästa steg".`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-kalendrar-${vp.width}.png`) });
       await page.locator("[data-radix-popper-content-wrapper] button", { hasText: "Styrelsen" }).click();
       await page.keyboard.press("Escape");
@@ -2941,7 +3221,346 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       await page.keyboard.press("Escape").catch(() => {});
     }
 
+    // (k) plats för F6: ton och hörnmärken den 14 oktober
+    try {
+      await page.locator('[data-cal-day="2026-10-14"]').scrollIntoViewIfNeeded();
+      const d = await page.evaluate(() => {
+        const c = /** @type {HTMLElement | null} */ (document.querySelector('[data-cal-day="2026-10-14"]'));
+        if (!c) return null;
+        const r = c.getBoundingClientRect();
+        const ton = c.querySelector("[data-dagton]");
+        return {
+          namn: c.getAttribute("aria-label"),
+          ton: ton ? getComputedStyle(ton).backgroundColor : null,
+          marken: [...c.querySelectorAll("[data-hornmarke]")].map((m) => { const x = m.getBoundingClientRect(); return { id: m.getAttribute("data-hornmarke"), topp: x.top - r.top, hoger: x.right - r.right, vanster: x.left - r.left, botten: x.bottom - r.bottom, w: x.width }; }),
+        };
+      });
+      matt.push(`${namn}: den 14 oktober ${JSON.stringify(d)}`);
+      krav(!!d && d.marken.length === 2, `${namn}: den 14 oktober har ${d ? d.marken.length : 0} hörnmärken, väntat 2 (golv).`);
+      krav(!!d && !!d.ton && !/^rgba\([^)]*,\s*0\)$/.test(d.ton), `${namn}: den 14 oktober har tonen ${d && d.ton}, väntat en synlig ton (SS lagrets tint).`);
+      krav(!!d && d.marken.every((m) => m.topp >= -6.5 && m.hoger <= 6.5 && m.vanster >= 0 && m.botten <= 0), `${namn}: hörnmärkena ${JSON.stringify(d && d.marken)}, väntat inom rutan och högst 6 px utanför dess övre högra hörn (SS top: -6, right: -6).`);
+      krav(!!d && /2 borta/.test(d.namn || "") && /1 lager/.test(d.namn || ""), `${namn}: rutans namn är "${d && d.namn}", väntat att märkenas ord (2 borta, 1 lager) läses upp.`);
+    } catch (e) {
+      krav(false, `${namn} (k): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+
     krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// ══ 31. HANTERA KALENDRAR MOT SS PersonalCalendarsInlineSection VID 390 OCH 1280 PX (0.37.0, #179 F2) ═══════════════════
+// CP 2026-09-29 i #179: "Vidare kunna skapa olika kalendrar". Förebilden är SS `components/PersonalCalendarsInlineSection.jsx` i
+// kalenderhubben: ett kort per sektion, rubrik och hjälptext, en rad per kalender med märke, namn och "Förvald" under, och
+// "+ Ny kalender" som fäller ut redigeraren med namn, färg, ikon, Förvald och två lika breda knappar. Scenen `kalendrar`.
+// Krav, varje del för sig:
+//   (a) Två kort, gruppens och mina, med rundning minst 12 och en kant; en rad per valbar kalender med märket 24 px,
+//       knapparna 44 px under 768 och 32 från, allt inom kortet.
+//   (b) "Förvald" under den förvalda i båda korten, och arkiverade under en egen rubrik.
+//   (c) Ny kalender: redigeraren har namn, sex färger, åtta ikoner och Förvald; Skapa är avstängd utan namn; Avbryt och Skapa
+//       är lika breda; efter Skapa står den nya kalendern i listan och sparningen fick id ur namnet.
+//   (d) Flytta upp: Resor står först efteråt, och sparningen fick två rader.
+//   (e) Arkivera: kalendern försvinner ur listan och räknas under Arkiverade.
+//   (f) Ingen horisontell överflödning.
+//   (g) I kalendern (scenen `kalender`) öppnar "Hantera kalendrar" hanteringen.
+// Golv: minst 4 valbara rader, 6 färger och 8 ikoner mätta.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `hantera kalendrar ${vp.width}`;
+  const telefon = vp.width < 768;
+  const { page, context } = await oppna("kalendrar", vp);
+  try {
+    await page.waitForSelector("[data-ops-kalendrar]", { timeout: 4000 });
+    const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    // (a)
+    try {
+      const a = await page.evaluate(() => {
+        const kort = [...document.querySelectorAll("[data-kalendersektion]")].map((k) => {
+          const cs = getComputedStyle(k);
+          const r = k.getBoundingClientRect();
+          const rader = [...k.querySelectorAll("[data-kalenderrad]")].map((rad) => {
+            const rr = rad.getBoundingClientRect();
+            const marke = /** @type {HTMLElement} */ (rad.firstElementChild).getBoundingClientRect();
+            const knappar = [...rad.querySelectorAll("button")].map((b) => { const br = b.getBoundingClientRect(); return { h: br.height, w: br.width, hoger: br.right }; });
+            return { marke: Math.round(marke.width), knappar, hoger: rr.right };
+          });
+          return { slag: k.getAttribute("data-kalendersektion"), rubrik: (k.querySelector("h3") || { textContent: "" }).textContent, radie: parseFloat(cs.borderTopLeftRadius), kant: parseFloat(cs.borderTopWidth), hoger: r.right, rader };
+        });
+        return kort;
+      });
+      const rader = a.flatMap((k) => k.rader);
+      matt.push(`${namn}: korten ${a.map((k) => `${k.rubrik} (${k.rader.length} rader, rundning ${k.radie}, kant ${k.kant})`).join(", ")}, knapparna ${JSON.stringify([...new Set(rader.flatMap((r) => r.knappar.map((b) => b.h)))])}`);
+      krav(a.length === 2 && a[0].slag === "grupp" && a[1].slag === "mina", `${namn}: korten är ${JSON.stringify(a.map((k) => k.slag))}, väntat gruppens och sedan mina.`);
+      krav(rader.length >= 4, `${namn}: ${rader.length} valbara rader, väntat minst 4 (golv).`);
+      krav(a.every((k) => k.radie >= 12 && k.kant >= 1), `${namn}: korten har rundning ${a.map((k) => k.radie)} och kant ${a.map((k) => k.kant)}, väntat minst 12 och en kant (SS rounded border p-5).`);
+      krav(rader.every((r) => r.marke === 24), `${namn}: märkena är ${JSON.stringify(rader.map((r) => r.marke))} px, väntat 24 (SS CalendarMark sizePx={24}).`);
+      const vantad = telefon ? 44 : 32;
+      krav(rader.every((r) => r.knappar.length === 4 && r.knappar.every((b) => Math.abs(b.h - vantad) < 0.6)), `${namn}: radernas knappar ${JSON.stringify(rader.map((r) => r.knappar.map((b) => b.h)))}, väntat fyra per rad på ${vantad} px.`);
+      krav(a.every((k) => k.rader.every((r) => r.hoger <= k.hoger + 0.5 && r.knappar.every((b) => b.hoger <= r.hoger + 0.5))), `${namn}: en rad eller knapp slutar utanför sitt kort.`);
+    } catch (e) {
+      krav(false, `${namn} (a): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (b)
+    try {
+      const b = await page.evaluate(() => ({
+        forvalda: [...document.querySelectorAll("[data-kalenderrad]")].filter((r) => /Förvald/.test(r.textContent || "")).map((r) => r.getAttribute("data-kalenderrad")),
+        arkiverade: (document.querySelector('[data-kalendersektion="grupp"] [data-arkiverade] summary') || { textContent: "" }).textContent,
+      }));
+      matt.push(`${namn}: förvalda ${JSON.stringify(b.forvalda)}, ${b.arkiverade}`);
+      krav(JSON.stringify(b.forvalda) === JSON.stringify(["styrelse", "privat"]), `${namn}: "Förvald" står under ${JSON.stringify(b.forvalda)}, väntat Styrelsen och Privat.`);
+      krav(b.arkiverade === "Arkiverade (1)", `${namn}: gruppens arkiverade heter "${b.arkiverade}", väntat "Arkiverade (1)".`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalendrar-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn} (b): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (c)
+    try {
+      const mina = page.locator('[data-kalendersektion="mina"]');
+      await mina.getByRole("button", { name: "Ny kalender" }).click();
+      await page.waitForTimeout(150);
+      const red = await page.evaluate(() => {
+        const r = document.querySelector('[data-kalendersektion="mina"] [data-kalenderredigerare]');
+        if (!r) return null;
+        const knapp = (/** @type {string} */ t) => [...r.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === t);
+        const avbryt = knapp("Avbryt"), skapa = knapp("Skapa kalender");
+        return { falt: !!r.querySelector("input"), farger: r.querySelectorAll('[aria-label="Färg"] button').length, ikoner: r.querySelectorAll('[aria-label="Ikon"] button').length, forvald: !!r.querySelector('[role="checkbox"], input[type="checkbox"]'), skapaAv: !!skapa && /** @type {HTMLButtonElement} */ (skapa).disabled, bredder: [avbryt, skapa].map((b) => (b ? Math.round(b.getBoundingClientRect().width) : 0)) };
+      });
+      matt.push(`${namn}: redigeraren ${JSON.stringify(red)}`);
+      krav(!!red && red.falt && red.farger === 6 && red.ikoner === 8 && red.forvald, `${namn}: redigeraren ${JSON.stringify(red)}, väntat namnfält, 6 färger, 8 ikoner och Förvald (SS :181-288; golv).`);
+      krav(!!red && red.skapaAv, `${namn}: Skapa kalender går att trycka utan namn.`);
+      krav(!!red && red.bredder[0] > 0 && Math.abs(red.bredder[0] - red.bredder[1]) <= 1, `${namn}: Avbryt och Skapa är ${JSON.stringify(red && red.bredder)} px breda, väntat lika (SS flex-1 på båda).`);
+      await mina.getByRole("textbox").fill("Resor privat");
+      await mina.getByRole("button", { name: "Färg 6" }).click();
+      await mina.getByRole("button", { name: "Bok" }).click();
+      if (bildmapp) {
+        await mina.locator("[data-kalenderredigerare]").scrollIntoViewIfNeeded();
+        await page.screenshot({ path: path.join(bildmapp, `kalendrar-ny-${vp.width}.png`) });
+      }
+      await mina.getByRole("button", { name: "Skapa kalender" }).click();
+      await page.waitForTimeout(150);
+      const efter = await page.evaluate(() => ({ rader: [...document.querySelectorAll('[data-kalendersektion="mina"] [data-kalenderrad]')].map((r) => r.getAttribute("data-kalenderrad")), sparat: JSON.stringify(/** @type {any} */ (window).__sparat.at(-1)) }));
+      matt.push(`${namn}: efter Skapa ${JSON.stringify(efter.rader)}, sparat ${efter.sparat}`);
+      krav(efter.rader.includes("resor-privat") && /"id":"resor-privat".*"farg":6.*"ikon":"bok"/.test(efter.sparat), `${namn}: efter Skapa står ${JSON.stringify(efter.rader)} och sparningen var ${efter.sparat}, väntat resor-privat med färg 6 och ikonen bok.`);
+    } catch (e) {
+      krav(false, `${namn} (c): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (d)
+    try {
+      await page.locator('[data-kalendersektion="grupp"]').getByRole("button", { name: "Flytta upp Resor" }).click();
+      await page.waitForTimeout(150);
+      const d = await page.evaluate(() => ({ forst: (document.querySelector('[data-kalendersektion="grupp"] [data-kalenderrad]') || { getAttribute: () => null }).getAttribute("data-kalenderrad"), sparat: /** @type {any} */ (window).__sparat.at(-1).map((/** @type {any} */ k) => `${k.id}:${k.ordning}`) }));
+      matt.push(`${namn}: efter Flytta upp ${d.forst} först, sparat ${JSON.stringify(d.sparat)}`);
+      krav(d.forst === "resor" && d.sparat.length === 2, `${namn}: efter Flytta upp står ${d.forst} först och sparningen var ${JSON.stringify(d.sparat)}, väntat Resor först och två rader.`);
+    } catch (e) {
+      krav(false, `${namn} (d): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (e)
+    try {
+      await page.locator('[data-kalendersektion="mina"]').getByRole("button", { name: "Arkivera Träning" }).click();
+      await page.waitForTimeout(150);
+      const e2 = await page.evaluate(() => ({ rader: [...document.querySelectorAll('[data-kalendersektion="mina"] [data-kalenderrad]')].map((r) => r.getAttribute("data-kalenderrad")), ark: (document.querySelector('[data-kalendersektion="mina"] [data-arkiverade] summary') || { textContent: "" }).textContent }));
+      matt.push(`${namn}: efter Arkivera ${JSON.stringify(e2)}`);
+      krav(!e2.rader.includes("traning") && e2.ark === "Arkiverade (1)", `${namn}: efter Arkivera ${JSON.stringify(e2)}, väntat Träning borta ur listan och "Arkiverade (1)".`);
+    } catch (e) {
+      krav(false, `${namn} (e): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+  // (g)
+  const k = await oppna("kalender", vp);
+  try {
+    await k.page.waitForSelector('section[aria-label="Kalender"]', { timeout: 4000 });
+    await k.page.getByRole("button", { name: /^Kalendrar:/ }).click();
+    await k.page.getByRole("button", { name: "Hantera kalendrar" }).click({ timeout: 2000 });
+    await k.page.waitForTimeout(200);
+    const g = await k.page.evaluate(() => ({ oppnad: !!document.querySelector("[data-ops-kalendrar]"), anrop: /** @type {any} */ (window).__hantera }));
+    matt.push(`${namn}: Hantera kalendrar i kalendern ${JSON.stringify(g)}`);
+    krav(g.oppnad && g.anrop === 1, `${namn}: Hantera kalendrar i kalendern gav ${JSON.stringify(g)}, väntat hanteringen öppen efter ett anrop.`);
+  } catch (e) {
+    krav(false, `${namn} (g): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await k.context.close();
+}
+
+// ══ 32. NY HÄNDELSE MED KALENDER, KRÄV SVAR OCH DAGEN, MOT SS EventModal VID 390 OCH 1280 PX (0.37.0, #179 F3, #206) ════════
+// CP 2026-09-30 i #179: "Skapa händelse, man skall kunna välja att skapa en händelse i olika kalendrar [...] om det är i
+// gruppens kalender så skall vi kunna välja att händelsen skall kräva medlemmars bekräftelse". Förebilder: SS `EventModal`
+// (rubrikraden och formuläret) och `PersonalCalendarEntryModal` (kalendern överst i en egen post, "blockerar tillgänglighet").
+// Scenen `ny-handelse` öppnar panelen med `useOppnaSkapa()("handelse", { datum: "2026-10-12" })`, som appens kalender gör.
+// Krav, varje del för sig:
+//   (a) Raden "Kalender: Styrelsen" står överst i panelens innehåll, ovanför Typ och appens fält.
+//   (b) #206: formuläret fick dagen, och datumfältet visar 2026-10-12.
+//   (c) "Kräv svar" är en brytare, av, med 44 px träffyta under 768; ingenting om mejl står i panelen.
+//   (d) Väljaren heter Kalender och har gruppens kalendrar och Mina kalendrar, Styrelsen vald, inom fönstret, och på telefon ett
+//       ark som slutar vid fönstrets botten.
+//   (e) Mina kalendrar: efter Privat står "Kalender: Privat", Kräv svar och Typ är borta och "Blockerar tillgänglighet" finns.
+//   (f) Ingen horisontell överflödning.
+// Golv: minst 3 rader i väljaren och 4 fält i formuläret mätta.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `ny händelse ${vp.width}`;
+  const telefon = vp.width < 768;
+  const { page, context } = await oppna("ny-handelse", vp, standardtema, 1, "g3");
+  try {
+    await page.waitForSelector('section[data-skapa-panel]', { timeout: 4000 });
+    await page.waitForTimeout(300);
+    const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    // (a)
+    try {
+      const a = await page.evaluate(() => {
+        const panel = /** @type {HTMLElement} */ (document.querySelector("section[data-skapa-panel]"));
+        const kal = [...panel.querySelectorAll("button")].find((b) => /^Kalender:/.test(b.getAttribute("aria-label") || ""));
+        const etiketter = [...panel.querySelectorAll("label")].map((l) => ({ t: (l.textContent || "").trim(), y: l.getBoundingClientRect().top }));
+        return { kal: kal ? { namn: kal.getAttribute("aria-label"), y: kal.getBoundingClientRect().top } : null, etiketter };
+      });
+      matt.push(`${namn}: ${a.kal ? `"${a.kal.namn}" på y=${Math.round(a.kal.y)}` : "ingen kalenderrad"}, fälten ${a.etiketter.map((e) => `${e.t}@${Math.round(e.y)}`).join(", ")}`);
+      krav(a.etiketter.length >= 4, `${namn}: ${a.etiketter.length} fält i formuläret, väntat minst 4 (golv).`);
+      krav(!!a.kal && a.kal.namn === "Kalender: Styrelsen", `${namn}: kalenderraden är ${JSON.stringify(a.kal)}, väntat "Kalender: Styrelsen" (gruppens förvalda).`);
+      krav(!!a.kal && a.etiketter.length > 0 && a.etiketter.every((e) => e.y > a.kal.y), `${namn}: kalenderraden står inte överst (${JSON.stringify(a.kal)} mot ${JSON.stringify(a.etiketter)}).`);
+    } catch (e) {
+      krav(false, `${namn} (a): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (b)
+    try {
+      const b = await page.evaluate(() => ({ props: /** @type {any} */ (window).__formProps, falt: [...document.querySelectorAll("section[data-skapa-panel] button, section[data-skapa-panel] input")].some((x) => /2026-10-12/.test(x.textContent || "") || /** @type {HTMLInputElement} */ (x).value === "2026-10-12") }));
+      matt.push(`${namn}: formuläret fick ${JSON.stringify(b.props)}, datumfältet visar dagen ${b.falt}`);
+      krav(!!b.props && b.props.datum === "2026-10-12" && b.falt, `${namn}: formuläret fick datum ${JSON.stringify(b.props && b.props.datum)} och fältet visar dagen ${b.falt}, väntat 2026-10-12 (#206).`);
+    } catch (e) {
+      krav(false, `${namn} (b): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (c)
+    try {
+      const c = await page.evaluate(() => {
+        const panel = /** @type {HTMLElement} */ (document.querySelector("section[data-skapa-panel]"));
+        const bry = [...panel.querySelectorAll('[role="switch"]')].map((x) => ({ namn: x.getAttribute("aria-label") || (x.closest("label") || x.parentElement || { textContent: "" }).textContent || "", pa: x.getAttribute("aria-checked") ?? String(/** @type {HTMLInputElement} */ (x).checked), h: Math.max(x.getBoundingClientRect().height, (x.closest("label") || x).getBoundingClientRect().height) }));
+        return { bry, mejl: /mejl|e-post/i.test(panel.textContent || "") };
+      });
+      matt.push(`${namn}: brytarna ${JSON.stringify(c.bry)}, mejl i panelen ${c.mejl}`);
+      const krav1 = c.bry.find((x) => /Kräv svar/.test(x.namn));
+      krav(!!krav1 && krav1.pa === "false", `${namn}: Kräv svar är ${JSON.stringify(krav1)}, väntat en brytare som är av.`);
+      if (telefon) krav(!!krav1 && krav1.h >= 44, `${namn}: Kräv svar har träffytan ${krav1 && krav1.h} px, väntat minst 44.`);
+      krav(!c.mejl, `${namn}: panelen nämner mejl, men Skicka mejl ska inte visas förrän avsändaren finns (#180 G3).`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn} (c): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (d)
+    try {
+      await page.getByRole("button", { name: /^Kalender:/ }).click({ timeout: 2000 });
+      await page.waitForTimeout(250);
+      const d = await page.evaluate(() => {
+        const dlg = document.querySelector('[role="dialog"]');
+        if (!dlg) return null;
+        const r = dlg.getBoundingClientRect();
+        return {
+          rubrik: (dlg.querySelector("h2") || { textContent: "" }).textContent,
+          sektioner: [...dlg.querySelectorAll("section")].map((x) => ({ namn: x.getAttribute("aria-label"), rader: [...x.querySelectorAll("button")].map((b) => ({ t: (b.textContent || "").trim(), vald: b.getAttribute("aria-pressed") })) })),
+          box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+          vh: innerHeight,
+          vw: innerWidth,
+        };
+      });
+      matt.push(`${namn}: väljaren ${JSON.stringify(d)}`);
+      const rader = d ? d.sektioner.flatMap((x) => x.rader) : [];
+      krav(!!d && d.rubrik === "Kalender", `${namn}: väljarens rubrik är ${JSON.stringify(d && d.rubrik)}, väntat "Kalender".`);
+      krav(rader.length >= 3, `${namn}: ${rader.length} rader i väljaren, väntat minst 3 (golv).`);
+      krav(!!d && JSON.stringify(d.sektioner.map((x) => x.namn)) === JSON.stringify(["Claes Philip Staiger AB: kalendrar", "Mina kalendrar"]), `${namn}: väljarens sektioner ${JSON.stringify(d && d.sektioner.map((x) => x.namn))}, väntat gruppens kalendrar och Mina kalendrar.`);
+      krav(rader.filter((x) => x.vald === "true").map((x) => x.t).join() === "Styrelsen", `${namn}: vald i väljaren ${JSON.stringify(rader.filter((x) => x.vald === "true"))}, väntat Styrelsen.`);
+      if (d) {
+        krav(d.box.left >= -0.5 && d.box.right <= d.vw + 0.5 && d.box.top >= -0.5 && d.box.bottom <= d.vh + 0.5, `${namn}: väljaren ${JSON.stringify(d.box)} ligger utanför fönstret.`);
+        if (telefon) krav(Math.abs(d.box.bottom - d.vh) <= 1, `${namn}: väljaren slutar ${d.box.bottom}, fönstret ${d.vh}: på telefon ett ark nerifrån (SS align="bottom").`);
+      }
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-valjare-${vp.width}.png`) });
+      await page.locator('[role="dialog"] section[aria-label="Mina kalendrar"] button', { hasText: "Privat" }).click({ timeout: 2000 });
+      await page.waitForTimeout(250);
+    } catch (e) {
+      krav(false, `${namn} (d): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      await page.keyboard.press("Escape").catch(() => {});
+    }
+    // (e)
+    try {
+      const e2 = await page.evaluate(() => {
+        const panel = /** @type {HTMLElement} */ (document.querySelector("section[data-skapa-panel]"));
+        const kal = [...panel.querySelectorAll("button")].find((b) => /^Kalender:/.test(b.getAttribute("aria-label") || ""));
+        return {
+          kal: kal ? kal.getAttribute("aria-label") : null,
+          dialog: !!document.querySelector('[role="dialog"]'),
+          krav: /Kräv svar/.test(panel.textContent || ""),
+          blockerar: [...panel.querySelectorAll('[role="switch"]')].some((x) => /Blockerar tillgänglighet/.test((x.closest("label") || x.parentElement || { textContent: "" }).textContent || "") || /Blockerar/.test(x.getAttribute("aria-label") || "")),
+          typ: [...panel.querySelectorAll("label")].some((l) => (l.textContent || "").trim() === "Typ"),
+          props: /** @type {any} */ (window).__formProps,
+        };
+      });
+      matt.push(`${namn}: efter Privat ${JSON.stringify(e2)}`);
+      krav(e2.kal === "Kalender: Privat" && !e2.dialog, `${namn}: efter Privat är raden ${JSON.stringify(e2.kal)} och väljaren ${e2.dialog ? "öppen" : "stängd"}, väntat "Kalender: Privat" och stängd.`);
+      krav(!e2.krav && e2.blockerar && !e2.typ, `${namn}: i Privat står Kräv svar ${e2.krav}, Blockerar ${e2.blockerar}, Typ ${e2.typ}, väntat bara Blockerar tillgänglighet (i en egen kalender finns inga svar och ingen typ).`);
+      krav(!!e2.props && e2.props.kalender && e2.props.kalender.slag === "mina" && e2.props.typ === null, `${namn}: formuläret fick ${JSON.stringify(e2.props)}, väntat kalendern Privat (mina) och ingen typ.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-mina-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn} (e): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// ══ 33. SVAREN OCH INKORGENS RAD MOT SS EventDetailAvailabilityListInline VID 390 OCH 1280 PX (0.37.0, #179 F3) ══════════
+// Scenen `svar`: Anna tittar, Bo har svarat Kommer inte, Cecilia inget. Krav:
+//   (a) Sammanställningen skriver ut alla tre delarna, också nollan: "0 kommer, 1 kommer inte, 2 har inte svarat".
+//   (b) Bara Annas rad har knappar, två, 44 px under 768 och 32 från, inom raden.
+//   (c) Ett tryck på Kommer ändrar sammanställningen till "1 kommer, 1 kommer inte, 1 har inte svarat" och markerar knappen.
+//   (d) Inkorgens rad har Kommer och Kommer inte och ligger inom fönstret.
+// Ingen horisontell överflödning. Golv: tre medlemsrader.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `svaren ${vp.width}`;
+  const { page, context } = await oppna("svar", vp);
+  try {
+    await page.waitForSelector("[data-ops-svar]", { timeout: 4000 });
+    const las = () => page.evaluate(() => {
+      const s = /** @type {HTMLElement} */ (document.querySelector("[data-ops-svar]"));
+      const rader = [...s.querySelectorAll("[data-svarsrad]")].map((r) => {
+        const rr = r.getBoundingClientRect();
+        return { uid: r.getAttribute("data-svarsrad"), knappar: [...r.querySelectorAll("button")].map((b) => { const br = b.getBoundingClientRect(); return { t: (b.textContent || "").trim(), h: br.height, hoger: br.right, vald: b.getAttribute("aria-pressed") }; }), hoger: rr.right };
+      });
+      const rad = document.querySelector("[data-ops-svarsrad]");
+      const radR = rad ? rad.getBoundingClientRect() : null;
+      return { summa: (s.querySelector("[data-sammanstallning]") || { textContent: "" }).textContent, rader, inkorg: rad ? { knappar: [...rad.querySelectorAll("button")].map((b) => (b.textContent || "").trim()), hoger: radR && radR.right } : null, vw: innerWidth };
+    });
+    const f = await las();
+    matt.push(`${namn}: "${f.summa}", rader ${JSON.stringify(f.rader.map((r) => `${r.uid}:${r.knappar.map((k) => `${k.t} ${k.h}`).join("/")}`))}, inkorgens rad ${JSON.stringify(f.inkorg)}`);
+    krav(f.rader.length >= 3, `${namn}: ${f.rader.length} medlemsrader, väntat minst 3 (golv).`);
+    krav(f.summa === "0 kommer, 1 kommer inte, 2 har inte svarat", `${namn}: sammanställningen är "${f.summa}", väntat "0 kommer, 1 kommer inte, 2 har inte svarat" (nollan utskriven).`);
+    const vantad = vp.width < 768 ? 44 : 32;
+    const anna = f.rader.find((r) => r.uid === "anna");
+    krav(!!anna && anna.knappar.length === 2 && anna.knappar.every((k) => Math.abs(k.h - vantad) < 0.6 && k.hoger <= anna.hoger + 0.5), `${namn}: Annas knappar ${JSON.stringify(anna && anna.knappar)}, väntat två på ${vantad} px inom raden.`);
+    // ⛔ 0.37.0 (CP 2026-09-30): det egna namnet trycktes ihop till "Ann..." av knapparna vid 390. Namnet får aldrig vara avkortat
+    // (scrollWidth över clientWidth på en truncate-ruta), och vid 390 ligger knapparna under namnet.
+    const namnMatt = await page.evaluate(() => {
+      const r = document.querySelector('[data-svarsrad="anna"]');
+      if (!r) return null;
+      const n = /** @type {HTMLElement | null} */ (r.querySelector("span.truncate"));
+      const k = r.querySelector("[data-svarsknappar]");
+      if (!n || !k) return null;
+      return { avkortat: n.scrollWidth - n.clientWidth, namnUnderkant: n.getBoundingClientRect().bottom, knapparTopp: k.getBoundingClientRect().top, text: (n.textContent || "").trim() };
+    });
+    matt.push(`${namn}: egna namnet ${JSON.stringify(namnMatt)}`);
+    krav(!!namnMatt && namnMatt.avkortat <= 0, `${namn}: det egna namnet är avkortat ${namnMatt && namnMatt.avkortat} px (${JSON.stringify(namnMatt)}), väntat hela namnet synligt.`);
+    if (vp.width < 768) krav(!!namnMatt && namnMatt.knapparTopp >= namnMatt.namnUnderkant - 0.5, `${namn}: knapparnas topp ${namnMatt && namnMatt.knapparTopp} ligger inte under namnets underkant ${namnMatt && namnMatt.namnUnderkant}, väntat knapparna under namnet på smal bredd.`);
+    krav(f.rader.filter((r) => r.uid !== "anna").every((r) => r.knappar.length === 0), `${namn}: en annan medlems rad har knappar, men bara personen själv svarar.`);
+    krav(!!f.inkorg && JSON.stringify(f.inkorg.knappar) === JSON.stringify(["Kommer", "Kommer inte"]) && f.inkorg.hoger <= f.vw + 0.5, `${namn}: inkorgens rad ${JSON.stringify(f.inkorg)}, väntat Kommer och Kommer inte inom fönstret.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `svar-${vp.width}.png`) });
+    await page.locator('[data-svarsrad="anna"] button', { hasText: /^Kommer$/ }).click();
+    await page.waitForTimeout(150);
+    const e = await las();
+    const annaEfter = e.rader.find((r) => r.uid === "anna");
+    krav(e.summa === "1 kommer, 1 kommer inte, 1 har inte svarat" && !!annaEfter && annaEfter.knappar[0].vald === "true", `${namn}: efter Kommer är sammanställningen "${e.summa}" och knappen ${annaEfter && annaEfter.knappar[0].vald}, väntat "1 kommer, 1 kommer inte, 1 har inte svarat" och vald.`);
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    krav(over <= 0, `${namn}: sidan flödar över ${over} px horisontellt.`);
   } catch (e) {
     krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }

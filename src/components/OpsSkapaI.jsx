@@ -22,12 +22,15 @@ import { radKlass } from "../lib/radKlass.js";
  * `{ id, rubrik, poster: [{ id, namn, ikon? }] }`. Ramverket vet inte vad en kalender är; det ritar raden och säger vilken
  * som valdes. Posten skapas fortfarande i den aktiva gruppen, och målet är ett fält i formuläret (`mal`).
  *
- * ⛔ ETT ID ÄR ETT ID. `vald` och `onValj(id, sektionId)` går på id, så ett id får inte förekomma i två sektioner.
+ * ⛔ ETT ID ÄR ETT ID. `vald` och `onValj(id, sektionId)` går på id, så ett id får inte förekomma i två sektioner, UTOM när
+ * `valdSektion` skickas (0.37.0): då är raden vald bara i sin egen sektion. Gruppens kalendrar och mina kalendrar är två
+ * listor med var sina id, och en grupps "privat" och min "privat" är två kalendrar.
  *
  * @param {object} props
  * @param {boolean} props.open
  * @param {(open: boolean) => void} props.onOpenChange
  * @param {string | null} [props.vald] Id på den valda raden.
+ * @param {string | null} [props.valdSektion] (0.37.0) Sektionen den valda raden står i. Utelämnad: bara id jämförs, som förut.
  * @param {(id: string, sektionId: string) => void} props.onValj
  * @param {ReadonlyArray<{ id: string, rubrik: string, poster: ReadonlyArray<{ id: string, namn: string, ikon?: import("react").ReactNode }> }>} [props.sektioner]
  * @param {string} [props.rubrik] Förval "Skapa i".
@@ -38,6 +41,7 @@ export function OpsSkapaI({
   open,
   onOpenChange,
   vald = null,
+  valdSektion,
   onValj,
   sektioner = [],
   rubrik = "Skapa i",
@@ -66,7 +70,7 @@ export function OpsSkapaI({
                 <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                   {s.poster.map((p) => (
                     <li key={p.id}>
-                      <Rad vald={vald === p.id} onClick={() => onValj(p.id, s.id)}>
+                      <Rad vald={vald === p.id && (valdSektion == null || valdSektion === s.id)} onClick={() => onValj(p.id, s.id)}>
                         {p.ikon ? (
                           <span aria-hidden="true" className="flex size-8.5 shrink-0 items-center justify-center rounded-md bg-accent-faint text-accent [&_svg]:size-5">
                             {p.ikon}

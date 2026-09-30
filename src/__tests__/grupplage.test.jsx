@@ -130,6 +130,7 @@ describe("navet", () => {
     samlingar: [],
     kallor: {},
     skapar: [],
+    hubb: null,
   });
 
   it("visar bara ramverkets ytor när jag inte har någon grupp", () => {
