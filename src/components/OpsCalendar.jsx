@@ -2,11 +2,13 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { kantKlass } from "../lib/kant.js";
-import { slagKant, slagPrick, slagText } from "../lib/slag.js";
+import { slagKant } from "../lib/slag.js";
 import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
+import { KALENDERPRICK, postklasser } from "../lib/kalenderfarg.js";
+import { Dagruta } from "./OpsCalendarDagruta.jsx";
 import {
   DEFAULT_LOCALE,
   monthNames,
@@ -114,13 +116,16 @@ import { ValRad } from "./ValRad.jsx";
  * det fälls ut: CP 2026-09-30, "Kalender och idag går inte ända ner utan huggs av
  * i botten". Nu mäts bottenradens kant direkt, se `useFullHeight`.
  *
- * ══ ⛔ DAGPANELEN STAPLAS UNDER RUTNÄTET PÅ PEKSKÄRM (0.36.0) ═════════════
+ * ══ ⛔ DAGPANELEN FLYTER ÖVER RUTNÄTET PÅ PEKSKÄRM, UTAN EGEN YTA (0.37.0) ═════════════
  *
- * Till 0.35.0 låg dagen i en flytande, inverterad bubbla `fixed` nära nederkanten, ovanpå rutnätet. SS gör det inte:
- * `CalendarView.jsx` lägger panelen UNDER rutnätet, `shrink-0 max-h-[45%]`, och rutnätet krymper i stället för att
- * täckas. Skälet syns i bruk: en bubbla över rutnätet döljer precis de dagar man vill trycka på härnäst, och med
- * flerdagsval och dra-markering är det de dagarna man arbetar med. Rullytan får därför dra av panelens uppmätta höjd
- * (`--ops-dagpanel`), och panelen har tak på 45 procent av ytan.
+ * 0.36.0 staplade panelen UNDER rutnätet på en ogenomskinlig yta med en kant tvärs över, efter SS webb
+ * (`CalendarView.jsx`, `shrink-0 max-h-[45%]`), och rutnätet krympte. CP 2026-09-30 22:30, med en skärmbild ur SS-appen på
+ * telefonen bredvid vår: "Bubblorna är lite förstörda. Inget transparent bakom, de kommer fram på fel sätt med scrollning.
+ * [...] Det var bättre innan." I SS-appen flyter datumchipet, korten och rutorna för antal och Skapa fritt över rutnätet,
+ * var och en med sin egen mörka yta, och rutnätet syns runt dem. Nu likadant: platsen är `absolute` i kalenderns nederkant
+ * utan bakgrund, högst 45 procent av ytan, och rullytan har luft under sista månaden lika hög som panelen, så att varje dag
+ * går att rulla fram ovanför den. 0.36.0:s montage jämförde mot en SS-sida renderad ur webbkällan och missade detta;
+ * förebilden är nu en skärmbild av SS-appen.
  *
  * ⛔ INVERTERADE KORT MED `ops-contrast-panel`, alltså samma yta som laborera-popovern
  * och sifferbubblan. Den klassen remappar bläck, linjer och accent, så korten
@@ -132,21 +137,6 @@ import { ValRad } from "./ValRad.jsx";
  * i varje språk. Se `weekdayNames` i `src/lib/calendar.js` för varför raden är
  * måndagsbaserad oavsett vad språket själv tycker (cllp/ops-framework#95).
  */
-
-/**
- * Hur många märken en ruta ritar innan den börjar räkna i stället.
- *
- * ⛔ TRE, OCH TALET ÄR MÄTT MOT RUTANS BREDD OCH INTE VALT. Vid 390 px är en
- * ruta 47,7 px bred och dess innehållsyta 39,7 px efter `px-1`. Tre märken på
- * 10 px med `gap-0.5` blir 34 px och ryms; tre på 12 px blir 40 px och gör inte
- * det. Skulle talet höjas måste märket krympa, och ett märke under 10 px är en
- * fläck.
- *
- * ⛔ HETTE `MAX_PRICKAR`. Namnet bytte när märket kunde bli en ikon: ett tal som
- * heter "prickar" och styr ikoner är det slags namn någon senare läser som att
- * det bara gäller det ena.
- */
-const MAX_MARKEN = 3;
 
 /**
  * Millisekunder mellan två svepande element i dagspanelen.
@@ -178,235 +168,6 @@ const SVEPSTEG = 40;
  */
 
 /**
- * Märket i rutnätet: slagets ikon om posten har en, annars en prick.
- *
- * ══ ⛔ VARFÖR EN IKON OCH INTE BARA EN FÄRG ════════════════════════════
- *
- * CP 2026-09-24: "Går det att ha en färgad liten ikon (väldigt liten)?"
- *
- * Det är inte bara en smaksak, det är den andra kodningen paletten KRÄVER.
- * Validatorn lämnade en varning som står kvar med flit: slag-1 mot slag-2
- * ligger på delta E 6,9 vid rödgrönblindhet, vilket är tillåtet BARA med en
- * andra kodning. På raden är ordet den kodningen. I rutnätet fanns ingen: en
- * prick har inget ord bredvid sig, och rutans knappnamn säger antalet men inte
- * slaget. Formen är därför det enda som kan skilja två märken åt för den som
- * inte ser färgskillnaden.
- *
- * ── ⛔ RAMVERKET ÄGER STORLEKEN, APPEN ÄGER BILDEN ──────────────────────
- *
- * `[&>svg]:size-2.5`, alltså 10 px, och den tvingas HÄR. Samma `kindIcon` ritas
- * 16 px på raden i `OpsEventList`, eftersom en rad har plats. En ruta har inte
- * det, och appen kan inte veta hur bred rutan är hos den som tittar. Skickade
- * appen storleken skulle en 16 px ikon spränga rutnätet på en telefon, och det
- * felet syns först hos användaren.
- *
- * ⛔ CSS VINNER ÖVER SVG:NS EGNA `width` OCH `height`, så en ikon som kommer hit
- * med sitt radmått krymper i stället för att klippas.
- *
- * ⛔ STRECKET BLIR TJOCKARE, och det är räknat. Lucide ritar `stroke-width: 2` i
- * en 24-enheters viewBox. Skalat till 10 px blir det 2 gånger 10/24 = 0,83
- * enhetspixlar, alltså tunnare än en bildpunkt: bilden bleknar och formen går
- * förlorad precis när den behövs som mest. 2,75 ger 1,15 px, alltså ett helt
- * streck.
- *
- * ⛔ PRICKEN FINNS KVAR som fall tillbaka, och det är inte en rest. En post utan
- * `kindIcon` ska synas i rutnätet, och en appyta som inte har ikoner ska inte
- * bli tom av att den här möjligheten tillkom.
- *
- * ⛔ UTAN SLAG FÅR PRICKEN KALENDERNS FÄRG (0.36.0), och först därefter accenten. Pricken svarar fortfarande på "vad
- * är det": slaget vinner, kalendern är andrahandssvaret.
- *
- * @param {{ entry: import("../lib/calendar.js").CalendarEntry, vald?: boolean }} props
- */
-function Slagmarke({ entry, vald = false }) {
-  if (entry.kindIcon) {
-    return (
-      <span
-        className={cx(
-          "flex shrink-0 items-center [&>svg]:size-2.5 [&>svg]:[stroke-width:2.75]",
-          slagText(entry.slag, entry.slagLabel, "OpsCalendar") || "text-accent",
-        )}
-      >
-        {entry.kindIcon}
-      </span>
-    );
-  }
-  return (
-    <span
-      className={cx(
-        "size-1.5 shrink-0 rounded-full",
-        slagPrick(entry.slag, entry.slagLabel, "OpsCalendar") || (entry.kalender && KALENDERPRICK[entry.kalender.farg]) || (vald ? "bg-canvas" : "bg-accent"),
-      )}
-    />
-  );
-}
-
-/**
- * Kalenderns färg som klass, utskriven (Tailwind läser källan som text, `bg-identity-${n}` ger ingen CSS).
- * Identitetspalettens sex toner, samma som `KALENDERFARGER` i `lib/kalendrar.js`.
- * @type {Record<number, string>}
- */
-const KALENDERPRICK = {
-  1: "bg-identity-1",
-  2: "bg-identity-2",
-  3: "bg-identity-3",
-  4: "bg-identity-4",
-  5: "bg-identity-5",
-  6: "bg-identity-6",
-};
-
-/** Bandens ton: färgen med 20 procents täckning, utskriven (SS `color-mix(... 22%, transparent)`, `MonthGrid.jsx:218`). */
-const KALENDERTON = {
-  1: "bg-identity-1/20",
-  2: "bg-identity-2/20",
-  3: "bg-identity-3/20",
-  4: "bg-identity-4/20",
-  5: "bg-identity-5/20",
-  6: "bg-identity-6/20",
-};
-/** @type {Record<number, string>} */
-const SLAGTON = { 1: "bg-slag-1/20", 2: "bg-slag-2/20", 3: "bg-slag-3/20" };
-
-/**
- * En posts färg som klasser: prick, vänsterkant och ton. Slaget om posten har ett, annars kalendern, annars accenten.
- *
- * ⛔ SAMMA ORDNING PÅ ALLA YTOR, så att pricken, pillret, bandet och kortets kant aldrig säger olika saker om samma post.
- * ⛔ KLASSER OCH ALDRIG EN INLINE-FÄRG (`check-closed-api` punkt 3): en färg i `style` går förbi tokenkontraktet och
- * mörkt läge.
- *
- * @param {import("../lib/calendar.js").CalendarEntry} e
- * @returns {{ prick: string, kant: string, ton: string }}
- */
-function postklasser(e) {
-  const slagPrickKlass = slagPrick(e.slag, e.slagLabel, "OpsCalendar");
-  if (slagPrickKlass) return { prick: slagPrickKlass, kant: /** @type {string} */ (slagKant(e.slag, e.slagLabel, "OpsCalendar")), ton: SLAGTON[/** @type {number} */ (e.slag)] };
-  if (e.kalender && KALENDERPRICK[e.kalender.farg]) {
-    return { prick: KALENDERPRICK[e.kalender.farg], kant: /** @type {string} */ (kantKlass(e.kalender.farg, e.kalender.namn, "OpsCalendar")), ton: /** @type {Record<number, string>} */ (KALENDERTON)[e.kalender.farg] };
-  }
-  return { prick: "bg-accent", kant: "border-l-accent", ton: "bg-accent/20" };
-}
-
-/**
- * En dagsruta, som SessionStudios (`MonthGrid.jsx`): ett kort med datumet uppe till vänster, prickar på telefon och
- * piller med titel från 640 px.
- *
- * ⛔ EN `<button>` OCH INTE EN `<div onClick>`. SS har en div med en knapp i (`data-cal-day-press-band`, #2760) för att
- * pillren där är egna knappar. Här är pillren text: posten öppnas i dagpanelen, ett tryck bort. Då är hela rutan EN
- * knapp och inget är nästlat.
- *
- * ⛔ OCKSÅ EN TOM DAG ÄR TRYCKBAR (0.36.0). Till 0.35.0 var den `disabled`, med skälet att en knapp som öppnar en tom
- * lista lär en att knappar inte gör något. Med dagpanelens skapa-ruta och flerdagsval är en tom dag inte längre tom på
- * handling: det är just den dagen man väljer för att lägga något på den. Panelen säger "Inga poster" (punkt 5).
- *
- * ⛔ TRÄFFYTAN ÄR HELA RUTAN. En siffra är några pixlar bred, och en kalender man
- * missar med tummen är en kalender man slutar öppna.
- *
- * ⛔ INGEN MINSTA HÖJD UNDER 640 PX, fast SS har `min-h-[52px]`. Mätt i `check-skalyta` avsnitt 30: `aspect-[1/1.1]`
- * för över en minsta höjd till en minsta BREDD (52 / 1,1 = 47,3 px), och vid 390 px ryms bara 44,4 px per ruta i
- * rullytan. Sju rutor sköt ut 20 px ur raden, rullytan fick en vågrät rullning och banden slutade 3 px före sin sista
- * ruta. Proportionen ensam ger 49 px höjd, alltså samma höjd som SS utan överflödningen.
- *
- * @param {{ day: number, dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[], markerade: import("../lib/calendar.js").CalendarEntry[], isToday: boolean, forbi: boolean, chosen: boolean, forhand: boolean, sok: "" | "traff" | "miss", bandhojd: number, pekare: Record<string, any> }} props
- */
-function DagRuta({ day, dayKey, entries, markerade, isToday, forbi, chosen, forhand, sok, bandhojd, pekare }) {
-  const count = entries.length;
-  const label = count === 0 ? `${day}` : `${day}, ${count} ${count === 1 ? "post" : "poster"}`;
-  const vald = chosen || forhand;
-
-  /*
-   * ⛔ RÄKNAREN TAR MÄRKENS PLATS, OCH BÅDA TALEN ÄR MÄTTA OCH INTE ANTAGNA (0.26.0, före 0.36.0 i en ruta på
-   * 45,6 px). Mätt i Chromium vid 390 px: ett märke är 10 px, en siffra i räknaren 5,8 px.
-   *
-   *   tre märken, ingen räknare      34,0 px    ryms
-   *   tre märken och "+2"            49,7 px    12 px UTANFÖR rutan
-   *   två märken och "+2"            37,7 px    ryms
-   *   ett märke och "+139"           39,0 px    UTANFÖR rutan
-   *   inget märke och "+140"         27,0 px    ryms
-   *
-   * ⛔ DÄRFÖR RÄKNAS PLATSEN UR SIFFRORNA och sätts inte till ett fast tal. Ett "visa alltid två" hade varit grönt på
-   * "+2" och rött igen på "+11". Rutan är sedan 0.36.0 ett kort med `p-1.5`, alltså smalare inuti, och `check-skalyta`
-   * avsnitt 30 mäter att märkesraden inte spiller vid 390 px.
-   *
-   * ⛔ BANDEN RÄKNAS INTE HÄR. En flerdagspost är ett band över rutan, inte ett märke i den: `markerade` är dagens
-   * poster utan band. Räknaren i knappens namn räknar alla.
-   */
-  const antal = markerade.length;
-  const visade = antal > MAX_MARKEN ? Math.max(0, MAX_MARKEN - String(antal).length) : MAX_MARKEN;
-  // ⛔ SS `MonthGrid.jsx:579` och `:700`: två piller, sedan "+N" för resten.
-  const pillerVisade = 2;
-
-  return (
-    <button
-      type="button"
-      data-cal-day={dayKey}
-      aria-pressed={chosen}
-      aria-label={label}
-      {...pekare}
-      className={cx(
-        "relative flex aspect-[1/1.1] min-w-0 cursor-pointer select-none flex-col items-stretch rounded-xl border p-1.5 text-left sm:min-h-20 sm:p-2",
-        "transition-[background-color,border-color,transform] duration-(--duration-fast) ease-standard",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        // ⛔ SS `MonthGrid.jsx:381-392`, i ramverkets tokens: vald är en fylld accentyta som lyfts, en sökträff en tonad
-        // ring, idag en tonad yta med en tunn ring, resten kort på ytan.
-        vald
-          ? "z-10 scale-[1.04] border-accent bg-accent text-canvas shadow-lg"
-          : sok === "traff"
-            ? "border-accent/40 bg-accent-faint ring-1 ring-accent/50"
-            : isToday
-              ? "border-line bg-accent-faint ring-1 ring-accent/30"
-              : "border-line bg-surface hover:bg-raised",
-      )}
-    >
-      {/* ⛔ FÖRBI ÄR NEDTONAT, OCH UNDER EN SÖKNING ÄR DET MISSEN SOM TONAS. SS `MonthGrid.jsx:413`: en halvgenomskinlig
-          yta över rutan, 50 procent för det som varit, 70 för det sökningen inte träffar. */}
-      {!vald && (sok === "miss" || (sok === "" && forbi)) ? (
-        <span aria-hidden="true" data-nedtonad={sok === "miss" ? "sok" : "forbi"} className={cx("pointer-events-none absolute inset-0 z-1 rounded-xl bg-canvas", sok === "miss" ? "opacity-70" : "opacity-50")} />
-      ) : null}
-      <span className="relative z-2 flex min-h-5 items-start sm:min-h-6">
-        {/* ⛔ IDAG ÄR ETT FYLLT PILLER RUNT SIFFRAN (SS `:450`), inte en ring runt hela rutan. Ringen krockade med
-            markeringen, och en fylld siffra är det ögat hittar först i en månad. */}
-        <span
-          data-dagnummer=""
-          className={cx(
-            "shrink-0 text-meta font-semibold leading-none tabular-nums sm:text-etikett sm:leading-none",
-            isToday ? (vald ? "rounded-full bg-canvas px-1.5 py-px font-bold text-accent" : "rounded-full bg-accent px-1.5 py-px text-canvas") : vald ? "font-bold text-canvas" : "text-ink",
-          )}
-        >
-          {day}
-        </span>
-      </span>
-      {/* ⛔ PLATS FÖR BANDEN under siffran, en rad per fil (SS `:547`). Banden ritas ovanpå veckoraden, och utan
-          platsen hade märkena hamnat under dem. */}
-      {bandhojd > 0 ? <span aria-hidden="true" data-bandplats="" style={{ height: bandhojd }} className="block shrink-0" /> : null}
-      {/* ⛔ Dekor, och läses inte upp: antalet står redan i knappens namn. Prickar på telefon (SS `:552`). */}
-      <span aria-hidden="true" data-kalender-marken="" className="mt-1 flex min-h-2 items-center justify-center gap-0.5 sm:hidden">
-        {markerade.slice(0, visade).map((p) => (
-          <Slagmarke key={p.id} entry={p} vald={vald} />
-        ))}
-        {antal > visade ? <span className={cx("text-mikro tabular-nums", vald ? "text-canvas" : "text-ink-muted")}>+{antal - visade}</span> : null}
-      </span>
-      {/* ⛔ PILLER MED TITEL FRÅN 640 PX (SS `:579`), två och sedan ett "+N". Vänsterkanten i postens färg, samma färg
-          som pricken, och ingen ikon: märket i ikonform finns på telefonen, och ett piller bär titeln i stället. */}
-      <span aria-hidden="true" data-kalender-piller="" className="mt-1 hidden min-w-0 flex-col gap-0.5 sm:flex">
-        {markerade.slice(0, pillerVisade).map((p) => (
-          <span
-            key={p.id}
-            className={cx(
-              "block min-w-0 truncate rounded-md py-px pr-1 pl-1 text-liten",
-              vald ? "bg-canvas/15 text-canvas" : cx("border-l-3 bg-ink-secondary/15 text-ink-secondary", postklasser(p).kant),
-            )}
-          >
-            {p.title}
-          </span>
-        ))}
-        {antal > pillerVisade ? <span className={cx("pl-1 text-liten tabular-nums", vald ? "text-canvas" : "text-ink-muted")}>+{antal - pillerVisade}</span> : null}
-      </span>
-    </button>
-  );
-}
-
-
-/**
  * Ett piller per vald dag.
  *
  * ⛔ DATUMET STÅR HÄR, ÖVER KORTEN, OCH INTE SOM EN RUBRIK INUTI PANELEN.
@@ -420,42 +181,44 @@ function DagRuta({ day, dayKey, entries, markerade, isToday, forbi, chosen, forh
  * stängkryss två centimeter till höger, och två knappar med samma verkan får
  * läsaren att leta efter skillnaden.
  *
- * @param {{ dayKey: string, kanTasBort: boolean, onTaBort: (dayKey: string) => void, order: number, locale: string }} props
+ * @param {{ dayKey: string, onTaBort: (dayKey: string) => void, order: number, locale: string }} props
  */
-function Datumpiller({ dayKey, kanTasBort, onTaBort, order, locale }) {
+function Datumpiller({ dayKey, onTaBort, order, locale }) {
   const text = dateText(dayKey, locale);
   return (
     <span
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
-      className="ops-contrast-panel inline-flex animate-svep items-center gap-1.5 rounded-full bg-contrast-panel py-1 pr-2 pl-2.5 text-meta font-semibold text-ink shadow-md"
+      className="ops-contrast-panel relative inline-flex animate-svep items-center rounded-full bg-contrast-panel px-3.5 py-1.5 text-etikett font-semibold text-ink shadow-md"
     >
       {text}
-      {kanTasBort ? (
-        <button
-          type="button"
-          onClick={() => onTaBort(dayKey)}
-          aria-label={`Ta bort ${text}`}
-          className="flex cursor-pointer items-center text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
+      {/* ⛔ KRYSSET ÄR ETT RUNT MÄRKE I PILLRETS HÖRN, PÅ VARJE PILLER (0.37.0), som SS-appen (`DayDetailPanel.js`, top -8,
+          right -8, 20 px). 0.36.0 hade krysset bara när flera dagar var valda, med skälet att det annars gör samma sak som
+          panelens stängkryss; SS-appen har det ändå, och CP:s förebild är SS-appen. 44 px träffyta runt märket. */}
+      <button
+        type="button"
+        onClick={() => onTaBort(dayKey)}
+        aria-label={`Ta bort ${text}`}
+        className="absolute -top-3.5 -right-3.5 flex size-11 cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <span aria-hidden="true" className="flex size-5 items-center justify-center rounded-full bg-contrast-panel text-ink ring-2 ring-canvas">
           <KryssIkon size={10} />
-        </button>
-      ) : null}
+        </span>
+      </button>
     </span>
   );
 }
 
 /**
- * En post, som ett eget kort.
+ * En post, som en rad i dagpanelens bubbla.
  *
- * ══ ⛔ ETT KORT PER POST, INTE EN LISTA I ETT KORT ══════════════════════
+ * ══ ⛔ EN BUBBLA MED RADER OCH AVDELARE, SOM SS-APPEN (0.37.0) ══════════════
  *
- * CP 2026-09-22, med bild ur SessionStudio: "Det finns ingen separator med flera
- * händelser i bubblan."
- *
- * Första versionen la posterna som rader i EN bubbla, och fyra påminnelser i rad
- * blev då en vägg av fet text utan något som skiljer dem åt. Förebilden gör
- * tvärtom: varje post är ett eget `rounded-xl`-kort med egen skugga, staplade
- * med luft emellan. Luften ÄR avdelaren, och den behöver därför ingen linje.
+ * CP 2026-09-22, med bild ur SessionStudio: "Det finns ingen separator med flera händelser i bubblan." Första versionen
+ * hade rader utan avdelare i en bubbla, och 0.26.0 till 0.36.0 gjorde därför ett eget kort per post. CP 2026-09-30, med
+ * skärmbilder ur SS-appen: "I SessionStudio, ser du att man scrollar i bubblan här om den blir för stor?" SS-appen
+ * (`DayDetailPanel.js`, `abCardLeft`, `abEventsScroll`, `abEventRow`) har EN bubbla, `radius.xl` och `padding 12`, med en
+ * rullyta på högst 140 px och en hårfin linje överst på varje rad, och posterna under rubrikerna GRUPP och MINA. Avdelaren
+ * är alltså linjen och postens färgade vänsterkant, inte luft mellan kort, och det svarar på båda klagomålen.
  *
  * ⛔ DATUMET ÅTERKOMMER PÅ KORTET, under titeln, och det är inte en upprepning
  * av pillret ovanför. Pillren säger vilka dagar urvalet består av; kortets rad
@@ -520,10 +283,8 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
   return (
     <div
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
-      className={cx(
-        "ops-contrast-panel animate-svep rounded-xl bg-contrast-panel p-2.5 shadow-md",
-        kanten && cx("border-l-4", kanten),
-      )}
+      data-postrad=""
+      className={cx("animate-svep py-2 pr-1 pl-2.5", kanten && cx("border-l-4", kanten))}
     >
       {/* ⛔ ORDET FÖRST I KORTET, precis som i `OpsCard`. Den som lyssnar ska
           höra vad kanten betyder innan titeln, inte efter den. */}
@@ -637,9 +398,9 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
  *
  * ⛔ TOMT ÄR ETT SVAR (punkt 5). En vald dag utan poster säger "Inga poster", och antalet står som noll.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode }} props
  */
-function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale }) {
+function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager }) {
   const flera = days.length > 1;
   const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
@@ -665,11 +426,20 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale }) {
     return () => window.removeEventListener("keydown", vid);
   }, [onClose]);
 
+  /*
+   * ⛔ GRUPP OCH MINA SOM RUBRIKER, BARA NÄR BÅDA FINNS (SS-appen: en dag med bara gruppens poster har ingen rubrik). En post
+   * utan kalender är gruppens (en händelse ligger alltid i gruppen).
+   */
+  const rader = kort.flatMap((d) => d.entries.map((p) => ({ dayKey: d.dayKey, p })));
+  const mina = rader.filter((r) => arMin(r.p));
+  const gruppens = rader.filter((r) => !arMin(r.p));
+  const avsnitt = mina.length > 0 && gruppens.length > 0 ? [{ rubrik: "Grupp", rader: gruppens }, { rubrik: "Mina", rader: mina }] : [{ rubrik: "", rader }];
+
   return (
     <section aria-label={name} data-dagpanel="" className="flex w-full flex-col gap-2 p-3 lg:p-0">
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 pt-1.5">
         {days.map((d, i) => (
-          <Datumpiller key={d.dayKey} dayKey={d.dayKey} kanTasBort={flera} onTaBort={onTaBort} order={i} locale={locale} />
+          <Datumpiller key={d.dayKey} dayKey={d.dayKey} onTaBort={onTaBort} order={i} locale={locale} />
         ))}
         {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad som
             stängs för den som lyssnar sig igenom sidan. */}
@@ -678,7 +448,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale }) {
           onClick={onClose}
           aria-label={`Stäng ${title}`}
           className={cx(
-            "ops-contrast-panel ml-auto flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-contrast-panel text-ink shadow-md",
+            "ops-contrast-panel ml-auto flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-contrast-panel text-ink shadow-md",
             "hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           )}
         >
@@ -686,43 +456,60 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale }) {
         </button>
       </div>
 
+      {/* ⛔ SS-appens rad: bubblan med posterna till vänster (flex 3) och antalet och Skapa till höger (flex 1). */}
       <div className="flex gap-2">
-        <div className="flex min-w-0 flex-3 flex-col gap-2">
-          {antal === 0 ? <p className="m-0 py-2 text-meta text-ink-muted">Inga poster {flera ? "de valda dagarna" : "den här dagen"}.</p> : null}
-          {/* ⛔ TRAPPAN RÄKNAS ÖVER HELA PANELEN och inte per dag. Räknades den om
-              för varje dag skulle första kortet under varje datum svepa in
-              samtidigt, och det som ska läsas som en rörelse blir tre. */}
-          {kort.flatMap((d, di) =>
-            d.entries.map((p, pi) => (
-              <Postkort
-                key={`${d.dayKey}-${p.id}`}
-                dayKey={d.dayKey}
-                entry={p}
-                statusWords={statusWords}
-                order={days.length + kort.slice(0, di).reduce((n, x) => n + x.entries.length, 0) + pi}
-                locale={locale}
-              />
-            )),
+        <div data-postbubbla="" className="ops-contrast-panel flex min-h-30 min-w-0 flex-3 flex-col justify-center rounded-xl bg-contrast-panel p-3 text-ink shadow-md">
+          {antal === 0 ? (
+            <p className="m-0 py-2 text-meta text-ink-muted">Inga poster {flera ? "de valda dagarna" : "den här dagen"}.</p>
+          ) : (
+            // ⛔ TAKET ÄR SS-APPENS 140 PX (`abEventsScroll`), och bubblan rullar invändigt, inte kalendern bakom.
+            <div data-postrulle="" className="max-h-35 overflow-y-auto overscroll-contain">
+              {avsnitt.map((a, ai) => (
+                <div key={a.rubrik || "alla"}>
+                  {a.rubrik ? <p data-postrubrik={a.rubrik} className="m-0 pt-1 pb-1 text-mikro font-semibold uppercase tracking-wider text-ink-muted">{a.rubrik}</p> : null}
+                  <div className="flex flex-col divide-y divide-line">
+                    {/* ⛔ TRAPPAN RÄKNAS ÖVER HELA PANELEN och inte per dag, så att det som ska läsas som en rörelse inte blir tre. */}
+                    {a.rader.map((r, i) => (
+                      <Postkort
+                        key={`${r.dayKey}-${r.p.id}`}
+                        dayKey={r.dayKey}
+                        entry={r.p}
+                        statusWords={statusWords}
+                        order={days.length + avsnitt.slice(0, ai).reduce((n, x) => n + x.rader.length, 0) + i}
+                        locale={locale}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-        <div className="flex w-14 shrink-0 flex-col gap-2 lg:w-auto lg:flex-1">
-          <div data-dagantal="" className="ops-contrast-panel flex aspect-square flex-col items-center justify-center rounded-xl bg-contrast-panel text-ink shadow-md">
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div data-dagantal="" className="ops-contrast-panel flex min-h-24 flex-1 flex-col items-center justify-center rounded-xl bg-contrast-panel text-ink shadow-md">
             <span className="text-titel font-bold leading-none tabular-nums">{antal}</span>
-            <span className="mt-0.5 text-mikro uppercase tracking-wide text-ink-secondary">{antal === 1 ? "post" : "poster"}</span>
+            <span className="mt-1 text-mikro uppercase tracking-wide text-ink-secondary">{antal === 1 ? "post" : "poster"}</span>
           </div>
           {onSkapa ? (
             <button
               type="button"
               onClick={onSkapa}
               aria-label={flera ? `Skapa för ${days.length} valda dagar` : `Skapa den ${title}`}
-              className="ops-contrast-panel flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl bg-contrast-panel text-ink shadow-md hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className="ops-contrast-panel flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-xl bg-contrast-panel text-ink shadow-md hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              <PlusIkon size={18} />
+              <PlusIkon size={20} />
               <span className="mt-0.5 text-mikro uppercase tracking-wide">Skapa</span>
             </button>
           ) : null}
         </div>
       </div>
+      {/* ⛔ LAGRENS BUBBLA, EN EGEN UNDER RADEN (plats för F6). CP 2026-09-30: "Och det är en separat bubbla för lager." Den
+          ritas bara när den har innehåll. */}
+      {lager ? (
+        <div data-lagerbubbla="" className="ops-contrast-panel rounded-xl bg-contrast-panel p-3 text-ink shadow-md">
+          {lager}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -804,10 +591,17 @@ function Snabbtitt({ ankare, alla, synliga, onClose, locale }) {
   );
 }
 
-/** Klassen för en ikonknapp i verktygsraden: SS `w-8 h-8` från 768 px, 44 px träffyta under. */
-const VERKTYG = "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base border transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:size-8";
+/**
+ * Klassen för en ikonknapp i verktygsraden.
+ *
+ * ⛔ UNDER 768 PX EN REN IKON, FRÅN 768 EN KANTAD RUTA (0.37.0). CP 2026-09-30 22:30, med en skärmbild ur SS-appen: SS-appen
+ * har ikonerna utan ruta till vänster och kalenderväljaren som ett piller till höger; vår 0.36.0 hade fyra kantade rutor
+ * till höger. Träffytan är fortfarande 44 px (osynlig), det SYNLIGA är ikonen på 22 px (SS `iconSize.md`). Från 768 px är det
+ * SS webb (`CalendarViewToolbar.jsx`, `w-8 h-8` med kant).
+ */
+const VERKTYG = "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base border border-transparent transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:size-8 [&_svg]:size-5.5 md:[&_svg]:size-3.5";
 /** @param {boolean} aktiv */
-const verktygsklass = (aktiv) => cx(VERKTYG, aktiv ? "border-accent/40 bg-accent-subtle text-accent" : "border-line bg-surface text-ink-muted hover:text-ink-secondary");
+const verktygsklass = (aktiv) => cx(VERKTYG, aktiv ? "text-accent md:border-accent/40 md:bg-accent-subtle" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface");
 
 /**
  * @typedef {object} KalenderVal
@@ -867,16 +661,18 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
   );
 
   return (
-    <div role="toolbar" aria-label="Kalenderverktyg" data-kalender-verktyg="" className="flex shrink-0 items-center justify-end gap-1.5 pb-2">
+    <div role="toolbar" aria-label="Kalenderverktyg" data-kalender-verktyg="" className="flex shrink-0 items-center gap-1.5 pb-2 max-md:gap-0 md:justify-end">
       {kalendrar ? (
         <Popover.Root>
           <Popover.Trigger
             aria-label={`Kalendrar: ${etikett}`}
             data-kalenderval=""
             className={cx(
-              "inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1.5 rounded-base border px-2 text-meta font-medium text-ink md:min-h-8",
+              // ⛔ Under 768 px SS-appens piller till höger (rundat helt, text och ikon), från 768 SS webb.
+              "inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-1.5 border px-2 text-meta font-medium text-ink md:min-h-8 md:rounded-base",
+              "max-md:order-last max-md:ml-auto max-md:rounded-full max-md:px-3.5 max-md:text-etikett",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              valdaKalendrar ? "border-accent/40 bg-accent-subtle" : "border-line bg-surface hover:border-line-strong",
+              valdaKalendrar ? "border-accent/40 bg-accent-subtle" : "border-line-strong bg-raised hover:border-ink-muted md:border-line md:bg-surface md:hover:border-line-strong",
             )}
           >
             <span aria-hidden="true" className="flex text-ink-muted">
@@ -957,12 +753,13 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
         </Popover.Root>
       ) : null}
 
-      <button type="button" aria-expanded={sokOppen} aria-label="Sök i kalendern" onClick={onSok} className={verktygsklass(sokOppen)}>
+      <button type="button" aria-expanded={sokOppen} aria-label="Sök i kalendern" onClick={onSok} className={cx(verktygsklass(sokOppen), "max-md:order-first")}>
         <SokIkon size={14} />
       </button>
 
       {onSkapa ? (
-        <button type="button" aria-label="Skapa" onClick={onSkapa} className={cx(VERKTYG, "border-line bg-surface text-accent hover:bg-accent-faint")}>
+        // ⛔ Inget "+" i raden under 768 px, som SS-appen: där finns skalets plus i bottenraden och dagpanelens Skapa.
+        <button type="button" aria-label="Skapa" onClick={onSkapa} className={cx(VERKTYG, "text-accent hover:bg-accent-faint max-md:hidden md:border-line md:bg-surface")}>
           <PlusIkon size={16} />
         </button>
       ) : null}
@@ -992,7 +789,7 @@ function Band({ bitar, veckonummer }) {
     <div
       aria-hidden="true"
       data-band=""
-      className={cx("pointer-events-none absolute inset-x-0 z-20 grid gap-1 sm:gap-1.5", veckonummer ? "grid-cols-[2rem_repeat(7,minmax(0,1fr))]" : "grid-cols-7")}
+      className={cx("pointer-events-none absolute inset-x-0 z-20 hidden sm:grid gap-1 sm:gap-1.5", veckonummer ? "grid-cols-[2rem_repeat(7,minmax(0,1fr))]" : "grid-cols-7")}
       style={{ top: "var(--ops-bandtopp)" }}
     >
       {veckonummer ? <div /> : null}
@@ -1044,6 +841,10 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   dagarna, eller idag när ingen är vald.
  * @param {() => void} [props.onHanteraKalendrar] Raden "Hantera kalendrar" längst ned i kalenderväljaren (0.37.0, #179 F2):
  *   appen visar `OpsKalendrar`. Utan den ritas ingen rad (till 0.36.0 en rad som sade att den kom i F2).
+ * @param {(dayKey: string) => import("./OpsCalendarDagruta.jsx").Dagdekor | undefined} [props.dagdekor] (0.37.0) En ton och runda
+ *   hörnmärken per dag, som SS lager och tillgänglighet. Platsen för fas F6; ramverket har ingen lagerlogik än.
+ * @param {(dayKeys: string[]) => import("react").ReactNode} [props.daglager] (0.37.0) Innehållet i dagpanelens egen lagerbubbla
+ *   under posterna (SS-appen). `null` ritar ingen bubbla. Platsen för F6.
  * @param {{ getItem: (n: string) => string | null, setItem: (n: string, v: string) => void }} [props.lagring] Var
  *   veckonummervalet sparas, per enhet. Förval `window.localStorage` när den finns.
  */
@@ -1061,6 +862,8 @@ export function OpsCalendar({
   typer = [],
   onSkapa,
   onHanteraKalendrar,
+  dagdekor,
+  daglager,
   lagring,
 }) {
   if (!ariaLabel) {
@@ -1116,6 +919,8 @@ export function OpsCalendar({
    * snabbtitten visar resten märkt "Dold".
    */
   const forvaldId = useMemo(() => forvaldKalenderId(kalendrar), [kalendrar]);
+  const minaId = useMemo(() => new Set((kalendrar || []).filter((k) => !k.grupp).map((k) => k.id)), [kalendrar]);
+  const arMin = useCallback((/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => !!e.kalender && minaId.has(e.kalender.id), [minaId]);
   const synligaPoster = useMemo(() => filtreraPoster(entries, { valdaKalendrar, forvaldId, typ, status }), [entries, valdaKalendrar, forvaldId, typ, status]);
   const synligaId = useMemo(() => new Set(synligaPoster.map((e) => e.id)), [synligaPoster]);
   const byKey = useMemo(() => perDay(synligaPoster), [synligaPoster]);
@@ -1169,8 +974,8 @@ export function OpsCalendar({
   const fullhojd = useFullHeight(rulleRef);
 
   /*
-   * ⛔ DAGPANELENS HÖJD MÄTS OCH DRAS AV RULLYTAN UNDER 1024 PX (0.36.0). Panelen ligger under rutnätet, och rullytan
-   * når annars bottenraden ändå: panelen hade hamnat under den. Taket är 45 procent av ytan (SS `max-h-[45%]`).
+   * ⛔ DAGPANELENS HÖJD MÄTS UNDER 1024 PX, för luften under sista månaden (0.37.0; i 0.36.0 drogs den av rullytan). Taket
+   * är 45 procent av ytan (SS `max-h-[45%]`).
    */
   const [panelHojd, setPanelHojd] = useState(0);
   const matt = /** @type {Record<string, string>} */ (/** @type {unknown} */ (fullhojd));
@@ -1336,7 +1141,7 @@ export function OpsCalendar({
      * under det staplas de UNDER. Panelen är SAMMA nod i båda lägena, bara flexriktningen byts: två renderingar av
      * samma panel hade betytt två ställen att rätta.
      */
-    <section aria-label={ariaLabel} data-ops-kalender="" className="flex flex-col lg:flex-row lg:items-start lg:gap-4">
+    <section aria-label={ariaLabel} data-ops-kalender="" className="relative flex flex-col lg:flex-row lg:items-start lg:gap-4">
       <div className="relative flex min-w-0 flex-1 flex-col">
         <Verktygsrad
           kalendrar={kalendrar}
@@ -1399,13 +1204,8 @@ export function OpsCalendar({
             if (!m) return;
             setDirection(scrollDirection(m.getBoundingClientRect(), e.currentTarget.getBoundingClientRect()));
           }}
-          style={/** @type {import("react").CSSProperties} */ ({ ...fullhojd, "--ops-dagpanel": `${panelHojd}px` })}
-          className={cx(
-            "relative bg-canvas px-1",
-            FULL_HEIGHT_CLASSES,
-            // ⛔ Under 1024 px drar rullytan av dagpanelen, som då ligger under den. Negativa marginalen flyttar med.
-            panelOppen && "max-lg:mb-0 max-lg:h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_var(--ops-dagpanel))]",
-          )}
+          style={fullhojd}
+          className={cx("relative bg-canvas px-1", FULL_HEIGHT_CLASSES)}
         >
           {/* ⛔ Klistrad veckodagsrad, med veckonumrets kolumn när den är på (SS `CalView.jsx:124-138`). */}
           <div ref={huvudRef} className={cx("sticky top-0 z-(--z-sticky) grid gap-1 bg-canvas pt-1 pb-2 sm:gap-1.5", gridKlass)}>
@@ -1467,12 +1267,14 @@ export function OpsCalendar({
                             const dayKey = dateKey(ar, month, day);
                             const pa = byKey.get(dayKey) || [];
                             return (
-                              <DagRuta
+                              <Dagruta
                                 key={dayKey}
                                 day={day}
                                 dayKey={dayKey}
                                 entries={pa}
                                 markerade={pa.filter((e) => !arBand(e))}
+                                spann={pa.filter((e) => typeof e.endDate === "string" && e.endDate > e.date)}
+                                enkla={pa.filter((e) => !(typeof e.endDate === "string" && e.endDate > e.date))}
                                 isToday={dayKey === todayDayKey}
                                 forbi={dayKey < todayDayKey}
                                 chosen={chosen.includes(dayKey)}
@@ -1480,6 +1282,7 @@ export function OpsCalendar({
                                 sok={traffDagar ? (traffDagar.has(dayKey) ? "traff" : "miss") : ""}
                                 bandhojd={bandhojd}
                                 pekare={pekareFor(dayKey)}
+                                dekor={dagdekor ? dagdekor(dayKey) : undefined}
                               />
                             );
                           })}
@@ -1491,17 +1294,24 @@ export function OpsCalendar({
               );
             })}
           </div>
+          {/* ⛔ LUFT UNDER SISTA MÅNADEN SÅ HÖG SOM DAGPANELEN, BARA UNDER 1024 PX: panelen flyter över rutnätet, och utan
+              luften går de sista raderna inte att rulla fram ovanför den (SS-appen `paddingBottom: DAY_PANEL_HEIGHT`). */}
+          {panelOppen ? <div aria-hidden="true" data-panelluft="" style={{ height: panelHojd }} className="lg:hidden" /> : null}
         </div>
 
         {/* ⛔ `absolute` I KOLUMNENS HÖRN, inte `sticky` i flödet: knappen hör till rutnätet och ska stå still medan det
             rullar under den. Pilen pekar åt det håll idag ligger (SS `CalView.jsx:176-194`). */}
+        {/* ⛔ MITT ÖVER RUTNÄTET, MÖRK, OCH OVANFÖR DAGPANELEN NÄR DEN ÄR ÖPPEN (0.37.0), som SS-appen: pillret "Idag" med pil
+            flyter centrerat över rutnätet. 0.36.0 hade det i hörnet nere till höger, där det hamnade ovanpå korten. */}
         {showBack ? (
           <button
             type="button"
+            data-idagknapp=""
             onClick={() => toToday("smooth")}
+            style={{ bottom: panelOppen && panelHojd > 0 ? panelHojd - 16 : 16 }}
             className={cx(
-              "absolute right-4 bottom-4 z-(--z-sticky) flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-raised px-4 text-etikett font-semibold text-ink shadow-md",
-              "hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              "ops-contrast-panel absolute left-1/2 z-(--z-sticky) flex min-h-11 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full bg-contrast-panel px-4 text-etikett font-semibold text-ink shadow-md lg:bottom-4!",
+              "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             )}
           >
             <span aria-hidden="true">{direction === "upp" ? "↑" : "↓"}</span>
@@ -1511,8 +1321,9 @@ export function OpsCalendar({
       </div>
 
       {/*
-        ⛔ SAMMA NOD I BÅDA LÄGENA. Under 1024 px: under rutnätet, högst 45 procent av ytan, med egen rullning och den
-        negativa marginal rullytan annars har (den når bottenraden). Från 1024 px: en kolumn på 300 px, 360 från 1280.
+        ⛔ SAMMA NOD I BÅDA LÄGENA. Under 1024 px: FLYTER ÖVER rutnätets nedre del (0.37.0, se huvudet), utan egen bakgrund,
+        högst 45 procent av ytan och med egen rullning; rullytan får lika mycket luft i botten så att sista raden går att nå.
+        Från 1024 px: en kolumn på 300 px, 360 från 1280.
       */}
       <div
         ref={panelRef}
@@ -1520,11 +1331,20 @@ export function OpsCalendar({
         style={/** @type {import("react").CSSProperties} */ ({ "--ops-dagpanel-max": `${Math.round(ytan * 0.45)}px` })}
         className={cx(
           "shrink-0 lg:w-75 lg:overflow-visible xl:w-90",
-          panelOppen && "max-lg:-mb-6 max-lg:max-h-(--ops-dagpanel-max) max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:border-t max-lg:border-line max-lg:bg-surface",
+          panelOppen && "max-lg:absolute max-lg:inset-x-0 max-lg:-bottom-6 max-lg:z-(--z-sticky) max-lg:max-h-(--ops-dagpanel-max) max-lg:overflow-y-auto max-lg:overscroll-contain",
         )}
       >
         {panelOppen ? (
-          <DayPanel days={days} statusWords={statusWords} onClose={() => setValda([])} onTaBort={(n) => setValda((f) => f.filter((x) => x !== n))} onSkapa={skapa} locale={locale} />
+          <DayPanel
+            days={days}
+            statusWords={statusWords}
+            onClose={() => setValda([])}
+            onTaBort={(n) => setValda((f) => f.filter((x) => x !== n))}
+            onSkapa={skapa}
+            locale={locale}
+            arMin={arMin}
+            lager={daglager ? daglager(days.map((d) => d.dayKey)) : null}
+          />
         ) : (
           /* ⛔ BARA PÅ BREDA SKÄRMAR. Kolumnen finns redan där och är tom, så en rad om vad den är till för kostar
               ingenting. På telefon finns ingen kolumn att förklara. */

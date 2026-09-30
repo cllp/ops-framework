@@ -145,8 +145,8 @@ const KAL_POSTER = [
   { id: "stamma", date: "2026-10-01", allDay: true, title: "Deklarationsdag", typ: "deadline", status: "oppet" },
   { id: "konferens", date: "2026-10-05", endDate: "2026-10-07", title: "Konferens i Visby", kalender: kk("resor"), typ: "resa", status: "oppet" },
   { id: "semester", date: "2026-10-09", endDate: "2026-10-13", allDay: true, title: "Semester", kalender: kk("privat"), typ: "ledig", status: "klart" },
-  { id: "mote", date: "2026-10-12", title: "Styrelsemöte", typ: "mote", status: "oppet" },
-  { id: "lon", date: "2026-10-12", title: "Löneutbetalning", typ: "deadline", status: "vantar" },
+  { id: "mote", date: "2026-10-12", title: "Styrelsemöte", typ: "mote", status: "oppet", slag: 1, slagLabel: "Möte", kindIcon: <Calendar size={16} /> },
+  { id: "lon", date: "2026-10-12", title: "Löneutbetalning", typ: "deadline", status: "vantar", slag: 2, slagLabel: "Deadline", kindIcon: <FileText size={16} /> },
   { id: "tag", date: "2026-10-12", title: "Tåg till Malmö", kalender: kk("resor"), typ: "resa", status: "klart" },
   { id: "moms", date: "2026-09-14", title: "Momsdeklaration", typ: "deadline", status: "klart" },
   { id: "tandlakare", date: "2026-10-20", title: "Tandläkaren", not: "09:00-10:00", kalender: kk("privat"), typ: "ledig", status: "oppet" },
@@ -164,6 +164,8 @@ function KalenderScen() {
       <OpsView>
         <OpsCalendar
           onHanteraKalendrar={() => { window.__hantera += 1; setHantera(true); }}
+          // 0.37.0: platsen för F6 (lager och tillgänglighet), med en ton och två hörnmärken den 14 oktober.
+          dagdekor={(d) => (d === "2026-10-14" ? { ton: 5, hornmarken: [{ id: "borta", etikett: "2 borta", innehall: <Bell size={12} /> }, { id: "lager", etikett: "1 lager", innehall: <LayoutGrid size={12} /> }] } : undefined)}
           ariaLabel="Kalender"
           entries={KAL_POSTER}
           today={KAL_IDAG}
