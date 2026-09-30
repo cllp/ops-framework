@@ -9,6 +9,68 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ekonomimodulen (#184)
+
+⛔ **Del 1 i [#184](https://github.com/cllp/ops-framework/issues/184): hubben visar den aktiva gruppens moduler, och en modul har en egen insida. BRYTANDE för varje `defineModule`: fältet `hubb` krävs, även som `null`. Inga exporter försvinner, och `OpsHub`/`OpsHubModul` fungerar som förut.**
+Händelsen: CP 2026-09-30, med en bild av hubbens meny (Översikt, Ekonomi, Liv, Schema, Cutover, Bolaget, Kontakter, Länkar, Jämförelse): *"Ekonomi är EN modul. Inte massa moduler med komponenter."* Samma dag: det finns alltid exakt en aktiv grupp (0.35.0, [#190](https://github.com/cllp/ops-framework/issues/190)), så punkt 1 i #184 om "Alla mina grupper" utgår; Ekonomi är EN modul i gruppen bolaget, med privatekonomin i samma grupp; modulens startsida är översikten med flikarna Privat, Företag och Samlat (cllp/bolag-ops#486).
+
+### Registret är manifestet
+- **`defineModule` får fältet `hubb`**: `{ ikon, rutt, startsida, delar: [{ id, namn, ikon, rutt }] }` eller `null`. Det bor i manifestet och inte i ett eget register, eftersom `groups.moduler` redan pekar på `defineModule`-id: två listor över vilka moduler som finns hade glidit isär (regel 2). Ramverket vet aldrig vad Ekonomi är.
+- ⛔ **`hubb` krävs även som `null`**, av samma skäl som `katalog: null` i en skapa-registrering: en modul som glömt sitt kort och en som inte ska ha något ser annars likadana ut (regel 5).
+- Validering vid uppstart: ikonen är ett React-element (kontrollerat utan att importera React, eftersom regelgeneratorn läser manifestet i Node), modulens adress börjar med snedstreck och slutar inte med ett, minst en del, **varje dels adress ligger under modulens** (`/ekonomi/inkomster`, aldrig `/inkomster`), inga dubbletter, startsidan är en av delarna. `validateModuler` kastar på två moduler med samma adress i hubben och på en modul inuti en annan.
+
+### Hubben per grupp, modulens insida, gamla adresser
+- **`OpsGruppHubb`**: ett kort per id i `grupp.moduler`, i gruppens ordning. En modul appen inte registrerat, eller en med `hubb: null`, ritas inte, och **en rad under korten säger vilken och varför**. En grupp utan moduler säger det med sitt namn ("Kalendern, chatten och inkorgen har gruppen ändå"). Pekar gruppen bara på moduler som inte kan ritas står det, inte "inga moduler". Beslutet bor i **`hubbForGrupp`**.
+- **`hubbPoster`** ger samma kort som nav-poster, EN per modul och **inga barn**: det appen skickar som `moduler` till `OpsAppShell`, så att toppradens rullgardin bara listar moduler (#184 punkt 2).
+- **`OpsModulSida`**: "Tillbaka" till hubben, modulens namn som rubrik och en rad **länkar**, en per del, med den öppna delen understruken i accent. Länkar och inte flikar: varje del har en egen adress, så bakåt, bokmärken och länkar i Inkorgen fungerar. Raden rullar i sidled när den inte får plats, och den öppna delen rullas in i raden. **`modulLage`** avgör vilken del som är öppen: modulens egen adress är startsidan, en undersida till en del markerar delen.
+- **Gamla adresser:** **`byggOmdirigeringar(lista, moduler)`** tar `{ fran, till: { modul, del } }` och härleder måladressen ur manifestet, så ett id som inte finns kastar vid uppstart. `del: null` är modulens egen adress (startsidan) och skrivs ut; en utelämnad `del` kastar. En gammal adress får inte ligga i en modul eller ovanför en. **`omdirigera(href, omdirigeringar)`** tar med `?`, `#` och undersidor (`/kontakter/anna` blir `/ekonomi/kontakter/anna`). **`kontrolleraOmdirigeringar({ gamla, omdirigeringar, moduler })`** är appens prov: det jämför mot adresserna som FANNS, inte mot omdirigeringarna själva (regel 4, tautologisk lista), och har ett golv på en adress.
+- **Välja moduler:** `OpsGruppFormular` får propen `moduler: { valbara, agare }` (`valbara` ur **`valbaraModuler`**). Bara i redigeringsläge och bara när `agare` är sant visas sektionen "Moduler": en knapp per registrerad modul med kort (`aria-pressed`), valordningen blir hubbens ordning, ett id gruppen har men appen inte registrerat ligger kvar med en rad som säger det. `onSpara` får `moduler` **bara** när sektionen visades; en admin skickar aldrig fältet, eftersom reglerna då avvisar hela sparningen.
+- **Regler:** oförändrade (`moduler` är ägarens sedan 0.32.0). Nya regelprov för hubbens läsning, se nedan.
+
+### Röd utan fixen, grön med den
+- **Enhetsprov:** nya `src/__tests__/hubb.test.jsx`, 49 prov, bland dem **provet över bolag-ops faktiska lista**: de 16 adresser hubben ledde till vid cllp/bolag-ops@94aec4d leder alla till en del, varje del nås, och en glömd adress (`/process`) blir röd med namnet utskrivet. **Mot 0.36.0 faller filen vid import** (`lib/hubb.js` finns inte). **31 mutationer, en i taget, alla röda:** 6 i manifestets validering (`hubb` valfri, dels adress utanför modulens, startsida utanför delarna, ikon som sträng eller komponent, modul inuti modul, två delar på samma adress), 15 i `hubb.js` (saknad utan skäl i båda fallen, registrets ordning i stället för gruppens, startsidan inte öppen, undersida utan del, `/ekonomisk` inne i `/ekonomi`, `?#` tappas, undersidor följer inte med, utelämnad `del` släpps, levande adress och adress ovanför en modul släpps, golvet borta, levande adress räknas utan att vara en del, mål utan del räknas, barn i hubbens poster), 6 i komponenterna (modulval för admin och i skapa-läge, `moduler` skickas alltid, valordningen omvänd, okänt id försvinner, `aria-current` borta, raden om saknade moduler borta) och 4 i `check-skalyta` (nedan). Hela sviten: **87 filer, 1732 prov, gröna**.
+- **Regelprov** (`rules/__tests__/grupper.test.mjs`, 6 nya): en medlem och en admin läser gruppens `moduler`, en avslutad medlem, ägaren av en annan grupp och en utan inloggning gör det inte, och **en fråga över alla grupper som har en viss modul avvisas** även för en medlem. Gröna, 154 av 154 med kalendrar, kataloger och samtal. **Mutationer i `regler.js`:** gruppen läsbar för alla inloggade: 3 av de nya röda (avslutad, annan grupp, frågan); läsbar bara för ägaren: 2 av de nya röda (medlem, admin).
+- **`check-skalyta` avsnitt 9c** (hubben per grupp och modulens insida vid 390 och 1280): (a) gruppen med Ekonomi har ETT kort som leder till `/ekonomi`, inga delar i hubben, klick navigerar, och toppradens rullgardin listar bara Ekonomi utan utfällbara rader; (b) gruppen utan moduler säger det med sitt namn och har inga länkar; (c) en oregistrerad modul ger en synlig rad med id:t; (d) insidan: 14 länkar, EN öppen del med egen accentlinje, varje länk minst 44 px, raden rullar i sidled och sidan gör det inte, den öppna delen syns också när den är den sista (Jämförelse), tillbaka till `/hub`, rubriken. Grön: 1186 kontroller, inga brott. **Mot 0.36.0:s bygge: 15 brott.** **Mutationer i bygget, alla röda:** ingen inrullning av den öppna delen (2), accentlinjen genomskinlig (4), länkarna 32 px höga (4), raden bryts i stället för att rulla (2).
+- **Regel 12:** det finns **ingen SessionStudio-förlaga** för en hubb med moduler per grupp eller för en moduls insida (SS har inga moduler), så inget montage. Närmast i SS är tillbaka-raden (`GroupDetailView.jsx:83`), som `OpsModulSida` återanvänder via `OpsHubTillbaka`, och flikraden (`OpsTabs`), vars utseende länkraden följer.
+
+### Att göra i appen (bolag-ops), cllp/bolag-ops#486
+Mätt i cllp/bolag-ops@94aec4d. **Hubbens rader i dag** (`web/src/app/navigering.jsx`, `byggModuler`) och rutterna i `App.jsx:694-728`:
+
+| Rad i hubben | Adress i dag | Blir delen |
+|---|---|---|
+| Översikt | `/oversikt` | `oversikt` (startsidan, flikarna Privat, Företag, Samlat) |
+| Ekonomi (modulsida) | `/hub/ekonomi` | modulens egen adress, `del: null` |
+| Ekonomi / Ekonomiöversikt | `/ekonomi` | ⛔ krockar: `/ekonomi` blir modulens adress, se nedan |
+| Ekonomi / Inkomster | `/inkomster` | `inkomster` |
+| Ekonomi / Kostnader | `/kostnader` | `kostnader` |
+| Ekonomi / Abonnemang | `/abonnemang` | `abonnemang` |
+| Ekonomi / Tillgångar | `/tillgangar` | `tillgangar` |
+| Ekonomi / Pension | `/pension` | `pension` |
+| Ekonomi / Försäkringar | `/forsakringar` | `forsakringar` |
+| Liv | `/liv` | `liv` |
+| Schema | `/schema` | `schema` |
+| Cutover | `/process` | `cutover` (eller `process`, appens val) |
+| Bolaget | `/bolaget` | `bolaget` |
+| Kontakter | `/kontakter` | `kontakter` |
+| Länkar | `/lankar` | `lankar` |
+| Jämförelse | `/jamforelse` | `jamforelse` |
+
+Övriga rutter, som inte är moduler och ska stå kvar: `/`, `/kalender`, `/hub`, `/inkorg`, `/meddelanden`, `/fraga`, `/sok`, `/hjalp`, `/primitiver`, `/installningar`, `/profil`, `/grupp/:id`, `/hem` (till `/`), `*`.
+⛔ **Mätt avvikelse mot #486:** ärendet räknar upp Skatt, Moms och Bokslut som delar. De finns inte i appens hubb i dag (bara i ramverkets provfixtur); appen har Abonnemang, Tillgångar och Försäkringar i stället. Listan ovan är den mätta.
+
+1. **Pinna om** och lägg `hubb: null` på appens egen `defineModule` (`web/src/data/samtal.jsx`, modulen `meddelanden`). Utan det kastar appen vid uppstart: `modul "meddelanden": hubb krävs`.
+2. **Registrera modulen `ekonomi`** med `defineModule({ id: "ekonomi", namn: { sv: "Ekonomi", en: "Finance" }, ..., hubb: { ikon, rutt: "/ekonomi", startsida: "oversikt", delar: [...] } })`, med delarna i tabellen och adresserna `/ekonomi/<del>`. ⛔ **Ekonomiöversikten (`/ekonomi`, `EconomyView`) och Översikt (`/oversikt`, `OverviewView`) blir EN översikt** (CP: "Inne i modulen blir det en enda översikt, och det är den med de tre flikarna"); vilken vy som bär flikarna, och vad som händer med den andra, avgörs i appens PR och mäts före.
+3. **Hubben:** `/hub` ritar `<OpsGruppHubb grupp={aktivGrupp} moduler={registrerade} info={...} />`, och skalet får `moduler={hubbPoster(hubbForGrupp({ grupp, moduler }).kort, { info })}`. `HubView`, `HubModulView`, `byggModuler`, `EKONOMI_HUB` och `hubPlats` ersätts. `modulinfo.js` nycklas på modul-id i stället för adress.
+4. **Insidan:** en rutt per del under `/ekonomi/...`, var och en lindad i `<OpsModulSida modul={ekonomi} activeHref={pathname} hubHref="/hub" onNavigate={...}>`. `Sida`s egen tillbaka-rad ritas inte där (sidan har redan en).
+5. **Omdirigeringar:** `byggOmdirigeringar` med en rad per gammal adress i tabellen (`/hub/ekonomi` till `del: null`), en `<Route>` per rad som gör `<Navigate to={omdirigera(location, OMDIRIGERINGAR)} replace />`, och ett prov som kör `kontrolleraOmdirigeringar` över **listan i tabellen ovan, skriven ut ur dagens `App.jsx`**, inte ur omdirigeringarna. Länkar i Inkorgen och i ärenden (`href: "/kostnader"` och liknande i `data/`) leder då rätt utan att skrivas om, men bör ändå pekas om i samma PR.
+6. **Välja moduler:** ge `OpsGruppFormular` i `redigeraGrupp` propen `moduler={{ valbara: valbaraModuler(registrerade), agare: g.roll === "agare" }}`, och låt `gruppandring` (`web/src/data/minaGrupper.js`) ta med `moduler` **när det finns**. I dag släpper den bara de sju admin-fälten, och kommentaren där om att `moduler` nekas "även för en ägare" stämmer inte: reglerna kontrollerar det som ändrades, och `moduler` är ägarens fält.
+7. ⛔ **`moduler: ["ekonomi"]` på bolagets grupp sätts av CP**, som ägare, i gruppens inställningar i appen. Inte av ett skript och inte av en agent: det är Firestore-data. Tills det är gjort visar hubben i bolagets grupp "Inga moduler i gruppen", och Ekonomis delar nås via omdirigeringarna.
+
+### Ordningen
+1. Ramverket mergas, taggas och publiceras (det här släppet).
+2. Appens ompinning med punkt 1 till 6 ovan, i samma pass (regel 11). Inga nya samlingar och inga regeländringar, så ingen regeldeploy behövs först.
+3. CP sätter Ekonomi på bolagets grupp i gruppens inställningar.
+
 ## 0.36.0
 
 ⛔ **Kalendrarna (#179 F0) och månadsvyn som SessionStudios (#179 F1), i ett släpp. Nya samlingar med nya regler: reglerna deployas FÖRE klienten, se "Att göra i appen". `OpsCalendar` byter utseende och förval, inga exporter försvinner.**

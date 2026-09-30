@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**99 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**101 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -255,6 +255,8 @@ något godtyckligt.
 | `OpsBottomNav` | `nav` [{href, label, icon?, badge?, children?}], `moreNav`, `activeHref`, `onNavigate`, `primaryAction` {label, onClick, icon?}, `menuExtras`, `menuLabel`, `navLabel`, `sheetLabel`, `closeLabel`, `badgeText`. Fast bottenrad under `md`, högst fem platser, Meny sist öppnar en sheet. ⛔ Med `primaryAction` ritas en rund knapp MITT i raden och en flik flyttas till menyn: mätt ryms inte fyra flikar plus Meny plus en knapp på 56 px i 390 px. Knappen är en åtgärd och hamnar aldrig i menyn. Renderas av `OpsAppShell` men kan användas fristående |
 | `OpsHub` | `moduler` [samma form som `nav`, en nivå barn, plus `info?`], `activeHref`, `onNavigate`, `ariaLabel`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`, `visaEtikett`, `ram`. (0.30.0, #173; 0.30.1 modulkort; 0.31.2: ritas i `OpsView`, `ram={false}` om appen redan lindat den) Appens moduler som ett rutnät av kort (`rounded-card`), ett kort utan barn EN länk med ikon, namn, räknare (`badge`, bara när den är större än noll) och en `info`-rad; ett kort med barn FÄLLS UT PÅ PLATS (knapp med `aria-expanded`, chevron som vrids, raden "Visa Ekonomi" till modulens egen sida och barnen som rader). Sidan Hub leder till; skalet ritar Hub-posten och dropdownen. ⛔ Tom lista visar text och aldrig en tom yta. Se [Hub och modulkort](#hub-och-modulkort) |
 | `OpsHubModul` | `modul` (med `children`), `hubHref` (krävs), `hubEtikett`, `activeHref`, `onNavigate`, `brodsmulaEtikett`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.1) En moduls egen sida i Hub: en fast tillbaka-rad ("‹ Hub / Ekonomi") och modulens barn som kort. Ritas av appen på modulens `href`. ⛔ Kastar utan `hubHref`; en modul utan barn visar text. Se [Hub och modulkort](#hub-och-modulkort) |
+| `OpsGruppHubb` | `grupp` (krävs, den aktiva), `moduler` (krävs, de registrerade), `activeHref`, `onNavigate`, `sprak`, `info`, `badge`, `badgeText`, `ram`. (0.38.0, #184) Hubben för den aktiva gruppen: ett kort per modul i `grupp.moduler`, i gruppens ordning. En modul som inte ritas får en rad som säger varför. Se [Hubben per grupp](#hubben-per-grupp-0380-184) |
+| `OpsModulSida` | `modul` (krävs, med `hubb`), `activeHref`, `hubHref`, `onNavigate`, `sprak`, `navEtikett`, `hubEtikett`, `children`. (0.38.0, #184) En moduls insida: tillbaka till hubben, modulens namn och en rad länkar, en per del. ⛔ Kastar för en modul utan `hubb`. Se [Hubben per grupp](#hubben-per-grupp-0380-184) |
 | `OpsHubTillbaka` | `hubHref` (krävs), `etikett` (krävs, nuvarande sida), `steg` [{href, label}] (mellanliggande länkar), `hubEtikett`, `onNavigate`, `brodsmulaEtikett`. Tillbaka-raden som EN komponent (0.31.0; 0.31.2: SS textlänk): en textlänk "‹ Tillbaka" (chevron 20 px, `gap-2`, 14 px, som SS `GroupDetailView.jsx:83`) ett steg upp, ingen ram, ingen bakgrund, inte sticky, med `rubrik` ritas sidans namn som `<h1>` under. `OpsHubModul` ritar den, och VARJE sida under Hub ska rita den, via `OpsView tillbaka` eller direkt. Nya props `rubrik`, `tillbakaEtikett`, `tillbakaTillEtikett`. ⛔ Kopiera aldrig markupen: bolag-ops gjorde det i `UnderHub.jsx`, och kopian glida isär. |
 | `OpsBrand` | ⛔ **0.31.0: märket är TEXT, inga bilder** (CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray Orange"). `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått = `ink`, resten gråorange = `marke-accent`; eller `{ forsta, andra }`), `undertext` (rad 2: appens eller gruppens namn; tom = bara rad 1, centrerad lodrätt), `monogram` (förval första bokstaven i varje ord, "OH"), `storlek` (`"topp"` | `"stor"`, den senare är inloggningens). Typsnittet ligger i ramverket (`fonts/glacial-indifference/`, SIL OFL med licensfil), storlekar och spärrning är tokens (`--marke-*`, mätta i CP:s bild). I `OpsAppShell` är `brand` (sträng) märkets `namn` och rad 2 den AKTIVA GRUPPENS namn i versaler; utan aktiv grupp (personen är inte med i någon) används `undertext` på appens egen `<OpsBrand undertext="..." />`. Borta sedan 0.30: `title`, `subtitle`, `mark`, `ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `OPS_HUB_VARUMARKE` |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
@@ -1292,6 +1294,7 @@ export const liv = defineModule({
   samlingar: ["matningar"],
   kallor: { handelser: livetsHandelser },
   skapar: [{ id: "matning", namn: { sv: "Mätning", en: "Measurement" }, ikon: "hjarta", katalog: "sorter", form: MatningForm }],
+  hubb: null, // eller { ikon, rutt, startsida, delar }, se Hubben per grupp
 });
 ```
 
@@ -1304,10 +1307,11 @@ export const liv = defineModule({
 | `samlingar` | vad modulen äger | `"namn"` eller `{ namn, falt, agareKravsForSkrivning }`. `falt` blir `keys().hasOnly` i de genererade reglerna (#130), och utelämnas den genereras ingen formvalidering. `agareKravsForSkrivning: true` ger ägarkrav i stället för medlemskrav. Relativa namn, aldrig sökvägar. ⛔ Ett snedstreck avvisas: modulen namnger relativt och **appen skickar in roten**, och det är den raden som gör att en kund senare kan bli ett eget Firebase-projekt utan att datamodellen ändras |
 | `kallor` | ytor modulen fyller | Nycklarna är `KALLTYPER`, alltså `handelser`, `sok`, `hjalp`, `notiser`, `widgets`, `kataloger`. Värdet är en funktion: ramverket anropar, modulen svarar |
 | `skapar` | vad plusset erbjuder | En lista `{ id, namn, ikon, katalog, form }`. Spegelbilden av `kallor`: källorna läser IN i ramverkets ytor, registreringarna skriver UT ur plusset. ⛔ `katalog` krävs **även när den är `null`**: ett kvitto har ingen typ att välja, och en registrering som glömt sin katalog ser likadan ut som en som inte har någon om fältet är valfritt. ⛔ `id` är unikt över **hela** modullistan, inte bara inom modulen: plusset ritar en flik per registrering |
+| `hubb` | modulens kort i hubben och dess insida (0.38.0) | `{ ikon, rutt, startsida, delar }` eller `null`. `ikon` är ett React-element, `rutt` modulens adress (kortet leder dit och den visar startsidan), `delar` en lista `{ id, namn, ikon, rutt }` i navigationens ordning, minst en, och `startsida` är id:t på en av dem. ⛔ Varje dels `rutt` ligger **under** modulens (`/ekonomi/inkomster`, aldrig `/inkomster`): en del som inte bär sin moduls adress går inte att härleda tillbaka till modulen. ⛔ Krävs **även när den är `null`**, av samma skäl som `katalog`. ⛔ `validateModuler` kastar på två moduler med samma adress och på en modul inuti en annan. Se [Hubben per grupp](#hubben-per-grupp-0380-184) |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`,
-en modul som inte fyller någon yta skriver `kallor: {}`, och en modul som inte
-kan skapa något skriver `skapar: []`. Skälet är
+en modul som inte fyller någon yta skriver `kallor: {}`, en modul som inte
+kan skapa något skriver `skapar: []`, och en modul utan kort i hubben skriver `hubb: null`. Skälet är
 arbetsreglernas punkt 5: tomhet är ett svar och inte en utelämnad rubrik. Vore
 fälten valfria såg en modul utan routes likadan ut som en modul som glömt sina,
 och den andra är ett fel.
@@ -1903,6 +1907,54 @@ Varje steg har en egen `href`, så webbläsarens och telefonens bakåt fungerar.
 en modul med barn en rad med chevron (`aria-expanded`) som fäller ut barnen, infällda från början. **På Hub-sidan är kortet själv den utfällbara**
 (0.31.2): tryck på Ekonomi, barnen visas under kortet, tryck igen så fälls det ihop; "Visa Ekonomi" leder till modulens sida.
 Menyns rullgardin och ark har **en standardhöjd** (`min(32rem, fönstret minus toppraden)` på dator, `min(85dvh, 36rem)` på telefon), så att Aktivitet inte hoppar.
+
+#### Hubben per grupp (0.38.0, #184)
+
+CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Tre nivåer: **instansen** (appen), **gruppen**
+(vilka som är med) och **modulen** (ett kort i hubben, inne i en grupp). Hubben visar den **aktiva gruppens** moduler, ett kort
+per id i `groups.moduler`, i den ordning ägaren satt, och **inget annat**. Det finns alltid exakt en aktiv grupp (0.35.0, #190).
+Kalendern, chatten och inkorgen är ramverkets grund och har alla grupper, utan att en modul väljs.
+
+- **Registret är manifestet.** En modul med ett kort har `hubb: { ikon, rutt, startsida, delar }` i `defineModule` (se
+  [Modulkontraktet](#modulkontraktet)). Ramverket vet aldrig vad Ekonomi är, bara att en modul med id `ekonomi` finns.
+- **`OpsGruppHubb`** ritar hubben för en grupp (`grupp`, `moduler`, `activeHref`, `onNavigate`, `sprak`, `info` och `badge`
+  per modul-id). ⛔ En modul som appen inte registrerat, eller en med `hubb: null`, ritas inte, och en rad under korten
+  säger vilken och varför. En grupp utan moduler säger det med gruppens namn. Beslutet bor i **`hubbForGrupp`**, så det går
+  att pröva utan att rita.
+- **`hubbPoster(kort, { sprak, info, badge })`** ger samma kort som nav-poster, EN per modul och inga barn: det är vad appen
+  skickar som `moduler` till `OpsAppShell`, så att toppradens rullgardin listar modulerna och bara dem.
+- **`OpsModulSida`** är modulens insida (`modul`, `activeHref`, `hubHref`, `onNavigate`, `sprak`, `children`): "‹ Tillbaka"
+  till hubben, modulens namn, och en rad **länkar**, en per del, med den öppna delen understruken. Raden rullar i sidled när
+  den inte får plats. `children` är delens vy; appens router väljer den. Vilken del som är öppen avgör **`modulLage`**:
+  modulens egen adress är startsidan, och en undersida till en del markerar delen.
+- **`valbaraModuler(moduler)`** är det ägaren väljer bland i `OpsGruppFormular` (prop `moduler: { valbara, agare }`,
+  bara redigeringsläge och bara ägaren; en admin ser inte fältet, och reglerna avvisar det ändå).
+
+**Gamla adresser.** Bokmärken och länkar i Inkorgen pekar på adresser som fanns före flytten. Appen skriver en lista, och
+**`byggOmdirigeringar`** validerar den vid uppstart:
+
+```js
+const OMDIRIGERINGAR = byggOmdirigeringar(
+  [
+    { fran: "/oversikt", till: { modul: "ekonomi", del: "oversikt" } },
+    { fran: "/inkomster", till: { modul: "ekonomi", del: "inkomster" } },
+    { fran: "/hub/ekonomi", till: { modul: "ekonomi", del: null } }, // null: modulens egen adress, alltså startsidan
+  ],
+  moduler,
+);
+omdirigera("/inkomster?ar=2026", OMDIRIGERINGAR); // "/ekonomi/inkomster?ar=2026"
+
+// Appens prov: adresserna som fanns före flytten, ur routern, inte ur listan ovan.
+kontrolleraOmdirigeringar({ gamla: ["/oversikt", "/inkomster", "/hub/ekonomi"], omdirigeringar: OMDIRIGERINGAR, moduler });
+```
+
+⛔ **Målet är ett id, inte en adress.** Adressen härleds ur manifestet, så en del som flyttar tar sina omdirigeringar med sig,
+och ett id som inte finns kastar vid uppstart. ⛔ `del: null` skrivs ut, en utelämnad `del` kastar. ⛔ En gammal adress får
+inte vara en adress som lever i en modul, och inte ligga ovanför en (undersidor följer med: `/kontakter/anna` blir
+`/ekonomi/kontakter/anna`, och `?` och `#` följer också med). ⛔ **`kontrolleraOmdirigeringar` jämför mot vad som FANNS**, inte
+mot omdirigeringarna själva: en lista jämförd med sin egen kopia kan inte bli röd (arbetsreglernas punkt 4). Golv: minst en adress.
+
+`OpsHub` och `OpsHubModul` finns kvar för appar som inte flyttat än. De ritar appens egen lista och vet inget om grupper.
 
 ### Typografin
 
