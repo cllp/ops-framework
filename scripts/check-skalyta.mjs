@@ -2675,7 +2675,8 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 //   (g) Dra-markering: ett drag från den 14:e till den 16:e oktober väljer tre dagar, tre piller med var sitt kryss; ett kryss tar bort en.
 //   (h) Dagpanelen: på dator en kolumn till höger om rutnätet, 360 px vid 1280; på telefon UNDER rutnätet, högst 45 procent av
 //       ytan, och rutnät plus panel slutar vid bottenraden. Antalet och skapa-rutan finns, och skapa ger de valda dagarna.
-//   (i) Kalenderfiltret: Alla kalendrar, gruppens och mina, och raden om att Hantera kalendrar kommer; en vald kalender ändrar
+//   (i) Kalenderfiltret: Alla kalendrar, gruppens och mina, och knappen Hantera kalendrar (0.37.0; till 0.36.0 en rad om att
+//       den kommer); en vald kalender ändrar
 //       rutnätet, och snabbtitten (högerklick, eller långtryck på telefon) visar det dolda märkt "Dold".
 //   (j) Sök tonar ned dagar utan träff och skriver ut antalet.
 // Ingen horisontell överflödning. Golv: minst 25 månader, 5 verktyg, 3 bandbitar och 7 dagar i veckan mätta.
@@ -2887,7 +2888,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     try {
       await page.getByRole("button", { name: /^Kalendrar:/ }).click();
       const meny = await page.evaluate(() => (document.querySelector("[data-radix-popper-content-wrapper]") || { textContent: "" }).textContent || "");
-      krav(/Alla kalendrar/.test(meny) && /Gruppens kalendrar/.test(meny) && /Styrelsen/.test(meny) && /Mina kalendrar/.test(meny) && /Privat/.test(meny) && /Hantera kalendrar kommer/.test(meny), `${namn}: kalendermenyn säger "${meny.slice(0, 160)}", väntat Alla kalendrar, gruppens (Styrelsen), mina (Privat) och raden om Hantera kalendrar.`);
+      // ⛔ 0.37.0 (#179 F2): raden "Hantera kalendrar kommer i nästa steg" är ersatt av en knapp. Att den öppnar hanteringen
+      // mäts i avsnitt 31 (g), här bara att den står i menyn och att löftet om nästa steg är borta.
+      const hanteraKnapp = await page.evaluate(() => [...document.querySelectorAll("[data-radix-popper-content-wrapper] button")].some((b) => (b.textContent || "").trim() === "Hantera kalendrar"));
+      krav(/Alla kalendrar/.test(meny) && /Gruppens kalendrar/.test(meny) && /Styrelsen/.test(meny) && /Mina kalendrar/.test(meny) && /Privat/.test(meny) && hanteraKnapp && !/kommer i nästa steg/.test(meny), `${namn}: kalendermenyn säger "${meny.slice(0, 160)}" (knappen Hantera kalendrar ${hanteraKnapp ? "finns" : "saknas"}), väntat Alla kalendrar, gruppens (Styrelsen), mina (Privat) och knappen Hantera kalendrar, utan "kommer i nästa steg".`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-kalendrar-${vp.width}.png`) });
       await page.locator("[data-radix-popper-content-wrapper] button", { hasText: "Styrelsen" }).click();
       await page.keyboard.press("Escape");
@@ -2942,6 +2946,306 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     }
 
     krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// ══ 31. HANTERA KALENDRAR MOT SS PersonalCalendarsInlineSection VID 390 OCH 1280 PX (0.37.0, #179 F2) ═══════════════════
+// CP 2026-09-29 i #179: "Vidare kunna skapa olika kalendrar". Förebilden är SS `components/PersonalCalendarsInlineSection.jsx` i
+// kalenderhubben: ett kort per sektion, rubrik och hjälptext, en rad per kalender med märke, namn och "Förvald" under, och
+// "+ Ny kalender" som fäller ut redigeraren med namn, färg, ikon, Förvald och två lika breda knappar. Scenen `kalendrar`.
+// Krav, varje del för sig:
+//   (a) Två kort, gruppens och mina, med rundning minst 12 och en kant; en rad per valbar kalender med märket 24 px,
+//       knapparna 44 px under 768 och 32 från, allt inom kortet.
+//   (b) "Förvald" under den förvalda i båda korten, och arkiverade under en egen rubrik.
+//   (c) Ny kalender: redigeraren har namn, sex färger, åtta ikoner och Förvald; Skapa är avstängd utan namn; Avbryt och Skapa
+//       är lika breda; efter Skapa står den nya kalendern i listan och sparningen fick id ur namnet.
+//   (d) Flytta upp: Resor står först efteråt, och sparningen fick två rader.
+//   (e) Arkivera: kalendern försvinner ur listan och räknas under Arkiverade.
+//   (f) Ingen horisontell överflödning.
+//   (g) I kalendern (scenen `kalender`) öppnar "Hantera kalendrar" hanteringen.
+// Golv: minst 4 valbara rader, 6 färger och 8 ikoner mätta.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `hantera kalendrar ${vp.width}`;
+  const telefon = vp.width < 768;
+  const { page, context } = await oppna("kalendrar", vp);
+  try {
+    await page.waitForSelector("[data-ops-kalendrar]", { timeout: 4000 });
+    const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    // (a)
+    try {
+      const a = await page.evaluate(() => {
+        const kort = [...document.querySelectorAll("[data-kalendersektion]")].map((k) => {
+          const cs = getComputedStyle(k);
+          const r = k.getBoundingClientRect();
+          const rader = [...k.querySelectorAll("[data-kalenderrad]")].map((rad) => {
+            const rr = rad.getBoundingClientRect();
+            const marke = /** @type {HTMLElement} */ (rad.firstElementChild).getBoundingClientRect();
+            const knappar = [...rad.querySelectorAll("button")].map((b) => { const br = b.getBoundingClientRect(); return { h: br.height, w: br.width, hoger: br.right }; });
+            return { marke: Math.round(marke.width), knappar, hoger: rr.right };
+          });
+          return { slag: k.getAttribute("data-kalendersektion"), rubrik: (k.querySelector("h3") || { textContent: "" }).textContent, radie: parseFloat(cs.borderTopLeftRadius), kant: parseFloat(cs.borderTopWidth), hoger: r.right, rader };
+        });
+        return kort;
+      });
+      const rader = a.flatMap((k) => k.rader);
+      matt.push(`${namn}: korten ${a.map((k) => `${k.rubrik} (${k.rader.length} rader, rundning ${k.radie}, kant ${k.kant})`).join(", ")}, knapparna ${JSON.stringify([...new Set(rader.flatMap((r) => r.knappar.map((b) => b.h)))])}`);
+      krav(a.length === 2 && a[0].slag === "grupp" && a[1].slag === "mina", `${namn}: korten är ${JSON.stringify(a.map((k) => k.slag))}, väntat gruppens och sedan mina.`);
+      krav(rader.length >= 4, `${namn}: ${rader.length} valbara rader, väntat minst 4 (golv).`);
+      krav(a.every((k) => k.radie >= 12 && k.kant >= 1), `${namn}: korten har rundning ${a.map((k) => k.radie)} och kant ${a.map((k) => k.kant)}, väntat minst 12 och en kant (SS rounded border p-5).`);
+      krav(rader.every((r) => r.marke === 24), `${namn}: märkena är ${JSON.stringify(rader.map((r) => r.marke))} px, väntat 24 (SS CalendarMark sizePx={24}).`);
+      const vantad = telefon ? 44 : 32;
+      krav(rader.every((r) => r.knappar.length === 4 && r.knappar.every((b) => Math.abs(b.h - vantad) < 0.6)), `${namn}: radernas knappar ${JSON.stringify(rader.map((r) => r.knappar.map((b) => b.h)))}, väntat fyra per rad på ${vantad} px.`);
+      krav(a.every((k) => k.rader.every((r) => r.hoger <= k.hoger + 0.5 && r.knappar.every((b) => b.hoger <= r.hoger + 0.5))), `${namn}: en rad eller knapp slutar utanför sitt kort.`);
+    } catch (e) {
+      krav(false, `${namn} (a): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (b)
+    try {
+      const b = await page.evaluate(() => ({
+        forvalda: [...document.querySelectorAll("[data-kalenderrad]")].filter((r) => /Förvald/.test(r.textContent || "")).map((r) => r.getAttribute("data-kalenderrad")),
+        arkiverade: (document.querySelector('[data-kalendersektion="grupp"] [data-arkiverade] summary') || { textContent: "" }).textContent,
+      }));
+      matt.push(`${namn}: förvalda ${JSON.stringify(b.forvalda)}, ${b.arkiverade}`);
+      krav(JSON.stringify(b.forvalda) === JSON.stringify(["styrelse", "privat"]), `${namn}: "Förvald" står under ${JSON.stringify(b.forvalda)}, väntat Styrelsen och Privat.`);
+      krav(b.arkiverade === "Arkiverade (1)", `${namn}: gruppens arkiverade heter "${b.arkiverade}", väntat "Arkiverade (1)".`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalendrar-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn} (b): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (c)
+    try {
+      const mina = page.locator('[data-kalendersektion="mina"]');
+      await mina.getByRole("button", { name: "Ny kalender" }).click();
+      await page.waitForTimeout(150);
+      const red = await page.evaluate(() => {
+        const r = document.querySelector('[data-kalendersektion="mina"] [data-kalenderredigerare]');
+        if (!r) return null;
+        const knapp = (/** @type {string} */ t) => [...r.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === t);
+        const avbryt = knapp("Avbryt"), skapa = knapp("Skapa kalender");
+        return { falt: !!r.querySelector("input"), farger: r.querySelectorAll('[aria-label="Färg"] button').length, ikoner: r.querySelectorAll('[aria-label="Ikon"] button').length, forvald: !!r.querySelector('[role="checkbox"], input[type="checkbox"]'), skapaAv: !!skapa && /** @type {HTMLButtonElement} */ (skapa).disabled, bredder: [avbryt, skapa].map((b) => (b ? Math.round(b.getBoundingClientRect().width) : 0)) };
+      });
+      matt.push(`${namn}: redigeraren ${JSON.stringify(red)}`);
+      krav(!!red && red.falt && red.farger === 6 && red.ikoner === 8 && red.forvald, `${namn}: redigeraren ${JSON.stringify(red)}, väntat namnfält, 6 färger, 8 ikoner och Förvald (SS :181-288; golv).`);
+      krav(!!red && red.skapaAv, `${namn}: Skapa kalender går att trycka utan namn.`);
+      krav(!!red && red.bredder[0] > 0 && Math.abs(red.bredder[0] - red.bredder[1]) <= 1, `${namn}: Avbryt och Skapa är ${JSON.stringify(red && red.bredder)} px breda, väntat lika (SS flex-1 på båda).`);
+      await mina.getByRole("textbox").fill("Resor privat");
+      await mina.getByRole("button", { name: "Färg 6" }).click();
+      await mina.getByRole("button", { name: "Bok" }).click();
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalendrar-ny-${vp.width}.png`) });
+      await mina.getByRole("button", { name: "Skapa kalender" }).click();
+      await page.waitForTimeout(150);
+      const efter = await page.evaluate(() => ({ rader: [...document.querySelectorAll('[data-kalendersektion="mina"] [data-kalenderrad]')].map((r) => r.getAttribute("data-kalenderrad")), sparat: JSON.stringify(/** @type {any} */ (window).__sparat.at(-1)) }));
+      matt.push(`${namn}: efter Skapa ${JSON.stringify(efter.rader)}, sparat ${efter.sparat}`);
+      krav(efter.rader.includes("resor-privat") && /"id":"resor-privat".*"farg":6.*"ikon":"bok"/.test(efter.sparat), `${namn}: efter Skapa står ${JSON.stringify(efter.rader)} och sparningen var ${efter.sparat}, väntat resor-privat med färg 6 och ikonen bok.`);
+    } catch (e) {
+      krav(false, `${namn} (c): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (d)
+    try {
+      await page.locator('[data-kalendersektion="grupp"]').getByRole("button", { name: "Flytta upp Resor" }).click();
+      await page.waitForTimeout(150);
+      const d = await page.evaluate(() => ({ forst: (document.querySelector('[data-kalendersektion="grupp"] [data-kalenderrad]') || { getAttribute: () => null }).getAttribute("data-kalenderrad"), sparat: /** @type {any} */ (window).__sparat.at(-1).map((/** @type {any} */ k) => `${k.id}:${k.ordning}`) }));
+      matt.push(`${namn}: efter Flytta upp ${d.forst} först, sparat ${JSON.stringify(d.sparat)}`);
+      krav(d.forst === "resor" && d.sparat.length === 2, `${namn}: efter Flytta upp står ${d.forst} först och sparningen var ${JSON.stringify(d.sparat)}, väntat Resor först och två rader.`);
+    } catch (e) {
+      krav(false, `${namn} (d): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (e)
+    try {
+      await page.locator('[data-kalendersektion="mina"]').getByRole("button", { name: "Arkivera Träning" }).click();
+      await page.waitForTimeout(150);
+      const e2 = await page.evaluate(() => ({ rader: [...document.querySelectorAll('[data-kalendersektion="mina"] [data-kalenderrad]')].map((r) => r.getAttribute("data-kalenderrad")), ark: (document.querySelector('[data-kalendersektion="mina"] [data-arkiverade] summary') || { textContent: "" }).textContent }));
+      matt.push(`${namn}: efter Arkivera ${JSON.stringify(e2)}`);
+      krav(!e2.rader.includes("traning") && e2.ark === "Arkiverade (1)", `${namn}: efter Arkivera ${JSON.stringify(e2)}, väntat Träning borta ur listan och "Arkiverade (1)".`);
+    } catch (e) {
+      krav(false, `${namn} (e): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+  // (g)
+  const k = await oppna("kalender", vp);
+  try {
+    await k.page.waitForSelector('section[aria-label="Kalender"]', { timeout: 4000 });
+    await k.page.getByRole("button", { name: /^Kalendrar:/ }).click();
+    await k.page.getByRole("button", { name: "Hantera kalendrar" }).click({ timeout: 2000 });
+    await k.page.waitForTimeout(200);
+    const g = await k.page.evaluate(() => ({ oppnad: !!document.querySelector("[data-ops-kalendrar]"), anrop: /** @type {any} */ (window).__hantera }));
+    matt.push(`${namn}: Hantera kalendrar i kalendern ${JSON.stringify(g)}`);
+    krav(g.oppnad && g.anrop === 1, `${namn}: Hantera kalendrar i kalendern gav ${JSON.stringify(g)}, väntat hanteringen öppen efter ett anrop.`);
+  } catch (e) {
+    krav(false, `${namn} (g): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await k.context.close();
+}
+
+// ══ 32. NY HÄNDELSE MED KALENDER, KRÄV SVAR OCH DAGEN, MOT SS EventModal VID 390 OCH 1280 PX (0.37.0, #179 F3, #206) ════════
+// CP 2026-09-30 i #179: "Skapa händelse, man skall kunna välja att skapa en händelse i olika kalendrar [...] om det är i
+// gruppens kalender så skall vi kunna välja att händelsen skall kräva medlemmars bekräftelse". Förebilder: SS `EventModal`
+// (rubrikraden och formuläret) och `PersonalCalendarEntryModal` (kalendern överst i en egen post, "blockerar tillgänglighet").
+// Scenen `ny-handelse` öppnar panelen med `useOppnaSkapa()("handelse", { datum: "2026-10-12" })`, som appens kalender gör.
+// Krav, varje del för sig:
+//   (a) Raden "Kalender: Styrelsen" står överst i panelens innehåll, ovanför Typ och appens fält.
+//   (b) #206: formuläret fick dagen, och datumfältet visar 2026-10-12.
+//   (c) "Kräv svar" är en brytare, av, med 44 px träffyta under 768; ingenting om mejl står i panelen.
+//   (d) Väljaren heter Kalender och har gruppens kalendrar och Mina kalendrar, Styrelsen vald, inom fönstret, och på telefon ett
+//       ark som slutar vid fönstrets botten.
+//   (e) Mina kalendrar: efter Privat står "Kalender: Privat", Kräv svar och Typ är borta och "Blockerar tillgänglighet" finns.
+//   (f) Ingen horisontell överflödning.
+// Golv: minst 3 rader i väljaren och 4 fält i formuläret mätta.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `ny händelse ${vp.width}`;
+  const telefon = vp.width < 768;
+  const { page, context } = await oppna("ny-handelse", vp, standardtema, 1, "g3");
+  try {
+    await page.waitForSelector('section[data-skapa-panel]', { timeout: 4000 });
+    await page.waitForTimeout(300);
+    const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    // (a)
+    try {
+      const a = await page.evaluate(() => {
+        const panel = /** @type {HTMLElement} */ (document.querySelector("section[data-skapa-panel]"));
+        const kal = [...panel.querySelectorAll("button")].find((b) => /^Kalender:/.test(b.getAttribute("aria-label") || ""));
+        const etiketter = [...panel.querySelectorAll("label")].map((l) => ({ t: (l.textContent || "").trim(), y: l.getBoundingClientRect().top }));
+        return { kal: kal ? { namn: kal.getAttribute("aria-label"), y: kal.getBoundingClientRect().top } : null, etiketter };
+      });
+      matt.push(`${namn}: ${a.kal ? `"${a.kal.namn}" på y=${Math.round(a.kal.y)}` : "ingen kalenderrad"}, fälten ${a.etiketter.map((e) => `${e.t}@${Math.round(e.y)}`).join(", ")}`);
+      krav(a.etiketter.length >= 4, `${namn}: ${a.etiketter.length} fält i formuläret, väntat minst 4 (golv).`);
+      krav(!!a.kal && a.kal.namn === "Kalender: Styrelsen", `${namn}: kalenderraden är ${JSON.stringify(a.kal)}, väntat "Kalender: Styrelsen" (gruppens förvalda).`);
+      krav(!!a.kal && a.etiketter.length > 0 && a.etiketter.every((e) => e.y > a.kal.y), `${namn}: kalenderraden står inte överst (${JSON.stringify(a.kal)} mot ${JSON.stringify(a.etiketter)}).`);
+    } catch (e) {
+      krav(false, `${namn} (a): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (b)
+    try {
+      const b = await page.evaluate(() => ({ props: /** @type {any} */ (window).__formProps, falt: [...document.querySelectorAll("section[data-skapa-panel] button, section[data-skapa-panel] input")].some((x) => /2026-10-12/.test(x.textContent || "") || /** @type {HTMLInputElement} */ (x).value === "2026-10-12") }));
+      matt.push(`${namn}: formuläret fick ${JSON.stringify(b.props)}, datumfältet visar dagen ${b.falt}`);
+      krav(!!b.props && b.props.datum === "2026-10-12" && b.falt, `${namn}: formuläret fick datum ${JSON.stringify(b.props && b.props.datum)} och fältet visar dagen ${b.falt}, väntat 2026-10-12 (#206).`);
+    } catch (e) {
+      krav(false, `${namn} (b): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (c)
+    try {
+      const c = await page.evaluate(() => {
+        const panel = /** @type {HTMLElement} */ (document.querySelector("section[data-skapa-panel]"));
+        const bry = [...panel.querySelectorAll('[role="switch"]')].map((x) => ({ namn: x.getAttribute("aria-label") || (x.closest("label") || x.parentElement || { textContent: "" }).textContent || "", pa: x.getAttribute("aria-checked") ?? String(/** @type {HTMLInputElement} */ (x).checked), h: Math.max(x.getBoundingClientRect().height, (x.closest("label") || x).getBoundingClientRect().height) }));
+        return { bry, mejl: /mejl|e-post/i.test(panel.textContent || "") };
+      });
+      matt.push(`${namn}: brytarna ${JSON.stringify(c.bry)}, mejl i panelen ${c.mejl}`);
+      const krav1 = c.bry.find((x) => /Kräv svar/.test(x.namn));
+      krav(!!krav1 && krav1.pa === "false", `${namn}: Kräv svar är ${JSON.stringify(krav1)}, väntat en brytare som är av.`);
+      if (telefon) krav(!!krav1 && krav1.h >= 44, `${namn}: Kräv svar har träffytan ${krav1 && krav1.h} px, väntat minst 44.`);
+      krav(!c.mejl, `${namn}: panelen nämner mejl, men Skicka mejl ska inte visas förrän avsändaren finns (#180 G3).`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn} (c): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    // (d)
+    try {
+      await page.getByRole("button", { name: /^Kalender:/ }).click({ timeout: 2000 });
+      await page.waitForTimeout(250);
+      const d = await page.evaluate(() => {
+        const dlg = document.querySelector('[role="dialog"]');
+        if (!dlg) return null;
+        const r = dlg.getBoundingClientRect();
+        return {
+          rubrik: (dlg.querySelector("h2") || { textContent: "" }).textContent,
+          sektioner: [...dlg.querySelectorAll("section")].map((x) => ({ namn: x.getAttribute("aria-label"), rader: [...x.querySelectorAll("button")].map((b) => ({ t: (b.textContent || "").trim(), vald: b.getAttribute("aria-pressed") })) })),
+          box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+          vh: innerHeight,
+          vw: innerWidth,
+        };
+      });
+      matt.push(`${namn}: väljaren ${JSON.stringify(d)}`);
+      const rader = d ? d.sektioner.flatMap((x) => x.rader) : [];
+      krav(!!d && d.rubrik === "Kalender", `${namn}: väljarens rubrik är ${JSON.stringify(d && d.rubrik)}, väntat "Kalender".`);
+      krav(rader.length >= 3, `${namn}: ${rader.length} rader i väljaren, väntat minst 3 (golv).`);
+      krav(!!d && JSON.stringify(d.sektioner.map((x) => x.namn)) === JSON.stringify(["Claes Philip Staiger AB: kalendrar", "Mina kalendrar"]), `${namn}: väljarens sektioner ${JSON.stringify(d && d.sektioner.map((x) => x.namn))}, väntat gruppens kalendrar och Mina kalendrar.`);
+      krav(rader.filter((x) => x.vald === "true").map((x) => x.t).join() === "Styrelsen", `${namn}: vald i väljaren ${JSON.stringify(rader.filter((x) => x.vald === "true"))}, väntat Styrelsen.`);
+      if (d) {
+        krav(d.box.left >= -0.5 && d.box.right <= d.vw + 0.5 && d.box.top >= -0.5 && d.box.bottom <= d.vh + 0.5, `${namn}: väljaren ${JSON.stringify(d.box)} ligger utanför fönstret.`);
+        if (telefon) krav(Math.abs(d.box.bottom - d.vh) <= 1, `${namn}: väljaren slutar ${d.box.bottom}, fönstret ${d.vh}: på telefon ett ark nerifrån (SS align="bottom").`);
+      }
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-valjare-${vp.width}.png`) });
+      await page.locator('[role="dialog"] section[aria-label="Mina kalendrar"] button', { hasText: "Privat" }).click({ timeout: 2000 });
+      await page.waitForTimeout(250);
+    } catch (e) {
+      krav(false, `${namn} (d): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      await page.keyboard.press("Escape").catch(() => {});
+    }
+    // (e)
+    try {
+      const e2 = await page.evaluate(() => {
+        const panel = /** @type {HTMLElement} */ (document.querySelector("section[data-skapa-panel]"));
+        const kal = [...panel.querySelectorAll("button")].find((b) => /^Kalender:/.test(b.getAttribute("aria-label") || ""));
+        return {
+          kal: kal ? kal.getAttribute("aria-label") : null,
+          dialog: !!document.querySelector('[role="dialog"]'),
+          krav: /Kräv svar/.test(panel.textContent || ""),
+          blockerar: [...panel.querySelectorAll('[role="switch"]')].some((x) => /Blockerar tillgänglighet/.test((x.closest("label") || x.parentElement || { textContent: "" }).textContent || "") || /Blockerar/.test(x.getAttribute("aria-label") || "")),
+          typ: [...panel.querySelectorAll("label")].some((l) => (l.textContent || "").trim() === "Typ"),
+          props: /** @type {any} */ (window).__formProps,
+        };
+      });
+      matt.push(`${namn}: efter Privat ${JSON.stringify(e2)}`);
+      krav(e2.kal === "Kalender: Privat" && !e2.dialog, `${namn}: efter Privat är raden ${JSON.stringify(e2.kal)} och väljaren ${e2.dialog ? "öppen" : "stängd"}, väntat "Kalender: Privat" och stängd.`);
+      krav(!e2.krav && e2.blockerar && !e2.typ, `${namn}: i Privat står Kräv svar ${e2.krav}, Blockerar ${e2.blockerar}, Typ ${e2.typ}, väntat bara Blockerar tillgänglighet (i en egen kalender finns inga svar och ingen typ).`);
+      krav(!!e2.props && e2.props.kalender && e2.props.kalender.slag === "mina" && e2.props.typ === null, `${namn}: formuläret fick ${JSON.stringify(e2.props)}, väntat kalendern Privat (mina) och ingen typ.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-handelse-mina-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `${namn} (e): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// ══ 33. SVAREN OCH INKORGENS RAD MOT SS EventDetailAvailabilityListInline VID 390 OCH 1280 PX (0.37.0, #179 F3) ══════════
+// Scenen `svar`: Anna tittar, Bo har svarat Kommer inte, Cecilia inget. Krav:
+//   (a) Sammanställningen skriver ut alla tre delarna, också nollan: "0 kommer, 1 kommer inte, 2 har inte svarat".
+//   (b) Bara Annas rad har knappar, två, 44 px under 768 och 32 från, inom raden.
+//   (c) Ett tryck på Kommer ändrar sammanställningen till "1 kommer, 1 kommer inte, 1 har inte svarat" och markerar knappen.
+//   (d) Inkorgens rad har Kommer och Kommer inte och ligger inom fönstret.
+// Ingen horisontell överflödning. Golv: tre medlemsrader.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `svaren ${vp.width}`;
+  const { page, context } = await oppna("svar", vp);
+  try {
+    await page.waitForSelector("[data-ops-svar]", { timeout: 4000 });
+    const las = () => page.evaluate(() => {
+      const s = /** @type {HTMLElement} */ (document.querySelector("[data-ops-svar]"));
+      const rader = [...s.querySelectorAll("[data-svarsrad]")].map((r) => {
+        const rr = r.getBoundingClientRect();
+        return { uid: r.getAttribute("data-svarsrad"), knappar: [...r.querySelectorAll("button")].map((b) => { const br = b.getBoundingClientRect(); return { t: (b.textContent || "").trim(), h: br.height, hoger: br.right, vald: b.getAttribute("aria-pressed") }; }), hoger: rr.right };
+      });
+      const rad = document.querySelector("[data-ops-svarsrad]");
+      const radR = rad ? rad.getBoundingClientRect() : null;
+      return { summa: (s.querySelector("[data-sammanstallning]") || { textContent: "" }).textContent, rader, inkorg: rad ? { knappar: [...rad.querySelectorAll("button")].map((b) => (b.textContent || "").trim()), hoger: radR && radR.right } : null, vw: innerWidth };
+    });
+    const f = await las();
+    matt.push(`${namn}: "${f.summa}", rader ${JSON.stringify(f.rader.map((r) => `${r.uid}:${r.knappar.map((k) => `${k.t} ${k.h}`).join("/")}`))}, inkorgens rad ${JSON.stringify(f.inkorg)}`);
+    krav(f.rader.length >= 3, `${namn}: ${f.rader.length} medlemsrader, väntat minst 3 (golv).`);
+    krav(f.summa === "0 kommer, 1 kommer inte, 2 har inte svarat", `${namn}: sammanställningen är "${f.summa}", väntat "0 kommer, 1 kommer inte, 2 har inte svarat" (nollan utskriven).`);
+    const vantad = vp.width < 768 ? 44 : 32;
+    const anna = f.rader.find((r) => r.uid === "anna");
+    krav(!!anna && anna.knappar.length === 2 && anna.knappar.every((k) => Math.abs(k.h - vantad) < 0.6 && k.hoger <= anna.hoger + 0.5), `${namn}: Annas knappar ${JSON.stringify(anna && anna.knappar)}, väntat två på ${vantad} px inom raden.`);
+    krav(f.rader.filter((r) => r.uid !== "anna").every((r) => r.knappar.length === 0), `${namn}: en annan medlems rad har knappar, men bara personen själv svarar.`);
+    krav(!!f.inkorg && JSON.stringify(f.inkorg.knappar) === JSON.stringify(["Kommer", "Kommer inte"]) && f.inkorg.hoger <= f.vw + 0.5, `${namn}: inkorgens rad ${JSON.stringify(f.inkorg)}, väntat Kommer och Kommer inte inom fönstret.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `svar-${vp.width}.png`) });
+    await page.locator('[data-svarsrad="anna"] button', { hasText: /^Kommer$/ }).click();
+    await page.waitForTimeout(150);
+    const e = await las();
+    const annaEfter = e.rader.find((r) => r.uid === "anna");
+    krav(e.summa === "1 kommer, 1 kommer inte, 1 har inte svarat" && !!annaEfter && annaEfter.knappar[0].vald === "true", `${namn}: efter Kommer är sammanställningen "${e.summa}" och knappen ${annaEfter && annaEfter.knappar[0].vald}, väntat "1 kommer, 1 kommer inte, 1 har inte svarat" och vald.`);
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    krav(over <= 0, `${namn}: sidan flödar över ${over} px horisontellt.`);
   } catch (e) {
     krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }

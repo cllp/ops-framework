@@ -10,7 +10,7 @@
  * bygget dör. Så kan SAMMA vakt köras mot en äldre `dist` och visa sig röd.
  */
 import { createRoot } from "react-dom/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as Ops from "OPS_DIST";
 import { Bell, Calendar, CalendarDays, CheckSquare, FileText, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
@@ -153,12 +153,17 @@ const KAL_POSTER = [
 ];
 window.__lagring = {};
 window.__skapat = [];
+window.__hantera = 0;
 function KalenderScen() {
   const { OpsView, OpsCalendar } = Ops;
+  // 0.37.0 (#179 F2): "Hantera kalendrar" i kalenderväljaren öppnar hanteringen, som en app gör (en egen vy).
+  const [hantera, setHantera] = useState(false);
+  if (hantera) return <KalendrarScen />;
   return (
     <Full>
       <OpsView>
         <OpsCalendar
+          onHanteraKalendrar={() => { window.__hantera += 1; setHantera(true); }}
           ariaLabel="Kalender"
           entries={KAL_POSTER}
           today={KAL_IDAG}
@@ -168,6 +173,128 @@ function KalenderScen() {
           onSkapa={(d) => window.__skapat.push(d)}
           lagring={{ getItem: (n) => window.__lagring[n] ?? null, setItem: (n, v) => { window.__lagring[n] = v; } }}
         />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
+ * 0.37.0 (#179 F2): Hantera kalendrar. Gruppens kalendrar (Styrelsen förvald, Resor, en arkiverad) och mina (Privat,
+ * Träning), med sparningar som skriver tillbaka i scenens tillstånd och i `window.__sparat`, som en app med en källa.
+ * Saknas `OpsKalendrar` i den byggda versionen (0.36.0) ritas en markör, och avsnitt 31 blir rött på det.
+ */
+const KH_G = "g1";
+window.__sparat = [];
+function KalendrarScen() {
+  const { OpsView } = Ops;
+  const [gruppens, setGruppens] = useState(() => [
+    { id: "styrelse", namn: { sv: "Styrelsen" }, farg: 4, ikon: "kalender", ordning: 0, arkiverad: false, texter: {}, groupId: KH_G, forvald: true, iFlodet: false },
+    { id: "resor", namn: { sv: "Resor" }, farg: 2, ikon: "portfolj", ordning: 10, arkiverad: false, texter: {}, groupId: KH_G, forvald: false, iFlodet: false },
+    { id: "gammal", namn: { sv: "Gamla möten" }, farg: 1, ikon: "bok", ordning: 20, arkiverad: true, texter: {}, groupId: KH_G, forvald: false, iFlodet: false },
+  ]);
+  const [mina, setMina] = useState(() => [
+    { id: "privat", namn: "Privat", farg: 5, ikon: "hjarta", ordning: 0, forvald: true, iFlodet: false, arkiverad: false },
+    { id: "traning", namn: "Träning", farg: 3, ikon: "blixt", ordning: 10, forvald: false, iFlodet: false, arkiverad: false },
+  ]);
+  const skriv = (/** @type {any} */ set) => (/** @type {any[]} */ rader) => {
+    window.__sparat.push(rader);
+    set((/** @type {any[]} */ nu) => [...nu.filter((k) => !rader.some((r) => r.id === k.id)), ...rader]);
+  };
+  if (!Ops.OpsKalendrar) return <Full><p data-saknas="OpsKalendrar">OpsKalendrar saknas</p></Full>;
+  return (
+    <Full>
+      <OpsView>
+        <Ops.OpsKalendrar groupId={KH_G} gruppNamn="Claes Philip Staiger AB" gruppens={gruppens} mina={mina} kanAndraGruppens onSparaGruppens={skriv(setGruppens)} onSparaMina={skriv(setMina)} />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
+ * 0.37.0 (#179 F3, #206): "Ny händelse" med kalender. Formuläret är appens (rubrik, datum, från och till, som bolag-ops),
+ * och skalet står för Kalender, Kräv svar och Blockerar. Panelen öppnas med `useOppnaSkapa()("handelse", { datum })`, som
+ * appens kalender gör när en dag är vald, och `window.__formProps` är vad formuläret fick senast.
+ */
+window.__formProps = null;
+function HandelseForm(/** @type {any} */ p) {
+  window.__formProps = { datum: p.datum ?? null, kalender: p.kalender ?? null, kravSvar: p.kravSvar ?? null, blockerar: p.blockerar ?? null, typ: p.typ ?? null };
+  const [rubrik, setRubrik] = useState("");
+  const [datum, setDatum] = useState(p.datum ?? undefined);
+  return (
+    <form id={p.formId} data-app-formular="" className="flex flex-col gap-3" onSubmit={(e) => e.preventDefault()}>
+      <OpsField label="Rubrik">
+        <OpsInput value={rubrik} onChange={setRubrik} placeholder="Till exempel Styrelsemöte" />
+      </OpsField>
+      <OpsField label="Datum">
+        <OpsDatePicker value={datum} onChange={setDatum} />
+      </OpsField>
+      <div className="grid grid-cols-2 gap-3">
+        <OpsField label="Från">
+          <OpsTimePicker value="18:00" onChange={() => {}} />
+        </OpsField>
+        <OpsField label="Till">
+          <OpsTimePicker value="20:00" onChange={() => {}} />
+        </OpsField>
+      </div>
+    </form>
+  );
+}
+function OppnaNyHandelse() {
+  const oppna = Ops.useOppnaSkapa();
+  useEffect(() => {
+    try {
+      oppna("handelse", { datum: "2026-10-12" });
+    } catch (e) {
+      // Mot en äldre dist finns inget `datum` att kasta på (0.36.0 ignorerar det): öppna ändå, så att resten mäts för sig.
+      window.__oppnaFel = String(e && e.message);
+      oppna("handelse");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return <p className="text-brod">Kalendern</p>;
+}
+function NyHandelseScen() {
+  const kalendrar = {
+    gruppens: [
+      { id: "styrelse", namn: { sv: "Styrelsen" }, farg: 4, ikon: "kalender", ordning: 0, arkiverad: false, texter: {}, groupId: "g3", forvald: true, iFlodet: false },
+      { id: "resor", namn: { sv: "Resor" }, farg: 2, ikon: "portfolj", ordning: 10, arkiverad: false, texter: {}, groupId: "g3", forvald: false, iFlodet: false },
+    ],
+    mina: [{ id: "privat", namn: "Privat", farg: 5, ikon: "hjarta", ordning: 0, forvald: true, iFlodet: false, arkiverad: false }],
+  };
+  return (
+    <Full
+      skapa={{
+        lage: "g3",
+        sparaEtikett: "Spara",
+        handelse: { form: HandelseForm, katalog: "handelsetyper", kalendrar },
+        kataloger: [{ id: "handelsetyper", kategorier: [{ id: "mote", namn: { sv: "Möte" }, ordning: 0 }, { id: "deadline", namn: { sv: "Deadline" }, ordning: 1 }] }],
+      }}
+    >
+      <OppnaNyHandelse />
+    </Full>
+  );
+}
+
+/*
+ * 0.37.0 (#179 F3): svaren på en händelse och inkorgens rad. Anna tittar; Bo har svarat Kommer inte, Cecilia inget.
+ * `window.__svar` är vad knapparna skickade. Saknas `OpsSvar` (0.36.0) ritas en markör.
+ */
+window.__svar = [];
+function SvarScen() {
+  const { OpsView } = Ops;
+  const [svar, setSvar] = useState([{ id: "bo", svar: "kommerInte" }]);
+  if (!Ops.OpsSvar) return <Full><p data-saknas="OpsSvar">OpsSvar saknas</p></Full>;
+  const svara = (/** @type {string} */ v) => {
+    window.__svar.push(v);
+    setSvar((nu) => [...nu.filter((x) => x.id !== "anna"), { id: "anna", svar: v }]);
+  };
+  return (
+    <Full>
+      <OpsView>
+        <div className="flex flex-col gap-6">
+          <Ops.OpsSvarsrad titel="Styrelsemöte" nar="Måndag 12 oktober, 18:00" onSvara={(v) => window.__svar.push(`rad:${v}`)} />
+          <Ops.OpsSvar svar={svar} uid="anna" onSvara={svara} medlemmar={[{ uid: "anna", namn: "Anna Ek" }, { uid: "bo", namn: "Bo Lind" }, { uid: "cecilia", namn: "Cecilia Berg" }]} />
+        </div>
       </OpsView>
     </Full>
   );
@@ -692,6 +819,9 @@ function Scen() {
   if (s === "fullyta-idag") return <FullYta vy="idag" />;
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   if (s === "kalender") return <KalenderScen />;
+  if (s === "kalendrar") return <KalendrarScen />;
+  if (s === "ny-handelse") return <NyHandelseScen />;
+  if (s === "svar") return <SvarScen />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;
