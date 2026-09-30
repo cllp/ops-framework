@@ -1,4 +1,4 @@
-import { Children, cloneElement, Component, Fragment, isValidElement, useEffect, useId, useRef, useState } from "react";
+import { Children, cloneElement, Component, createContext, Fragment, isValidElement, useContext, useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
@@ -492,6 +492,52 @@ function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
 }
 
 /**
+ * ⛔ EN SANNING FÖR NYCKEL TILL FORMULÄR (0.34.1). Adressens `?skapa=` och `useOppnaSkapa()` gör samma sak: en nyckel blir
+ * en beskrivning av vilket formulär panelen ska visa, eller `null` när skalets `skapa` inte har den posten (ännu).
+ * Nycklarna är adressens: "handelse", "arende", "grupp", "meddelande", "redigera-grupp" (med `groupId`) eller en
+ * modulregistrerings id.
+ *
+ * @param {any} skapa Skalets `skapa`-prop.
+ * @param {string} nyckel
+ * @param {{ groupId?: string | null, nyHandelseEtikett?: string }} [extra]
+ * @returns {any} Formulärbeskrivningen, eller `null`.
+ */
+function skapaFormFranNyckel(skapa, nyckel, extra = {}) {
+  if (!skapa || !nyckel) return null;
+  if (nyckel === "handelse" && skapa.handelse) {
+    return typeof skapa.handelse === "object" && !isValidElement(skapa.handelse) && typeof (/** @type {any} */ (skapa.handelse)).form === "function"
+      ? { kind: "modul", registrering: { id: "handelse", namn: extra.nyHandelseEtikett ?? "Ny händelse", katalog: /** @type {any} */ (skapa.handelse).katalog === undefined ? "handelsetyper" : /** @type {any} */ (skapa.handelse).katalog, form: /** @type {any} */ (skapa.handelse).form } }
+      : { kind: "handelse" };
+  }
+  if (nyckel === "arende" && skapa.arende) return { kind: "arende" };
+  if (nyckel === "grupp" && skapa.grupp) return { kind: "grupp" };
+  if (nyckel === "meddelande" && typeof skapa.meddelande === "function") return { kind: "meddelande" };
+  if (nyckel === "redigera-grupp" && typeof skapa.redigeraGrupp === "function" && extra.groupId) return { kind: "redigeragrupp", groupId: extra.groupId };
+  const reg = (skapa.registreringar ?? []).find((/** @type {any} */ r) => r.id === nyckel);
+  return reg ? { kind: "modul", registrering: reg } : null;
+}
+
+/** Skalets `oppnaSkapa`, åtkomlig för appens komponenter under skalet. `null` utanför skalet. */
+const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { groupId?: string }) => void) | null} */ (null));
+
+/**
+ * ⛔ Öppnar skalets skapa-panel från appen (0.34.1). Ersätter `window.location.assign(pathname + "?skapa=meddelande")`,
+ * som laddade om hela sidan och bara fungerade om posten fanns vid monteringen.
+ *
+ * `oppna("meddelande")`, `oppna("redigera-grupp", { groupId })`, `oppna(<en modulregistrerings id>)`. Samma nycklar som adressen.
+ * Använder skalets egen `oppnaSkapa`, så adressen (`?skapa=`) och webbläsarens Tillbaka fungerar som när panelen öppnas ur plusset.
+ * Är posten inte tillgänglig (`skapa.meddelande` saknas, okänd nyckel) kastas ett fel: ingenting sker aldrig tyst.
+ * Utanför `OpsAppShell` kastas ett fel direkt när hooken anropas.
+ *
+ * @returns {(nyckel: string, extra?: { groupId?: string }) => void}
+ */
+export function useOppnaSkapa() {
+  const oppna = useContext(OppnaSkapaKontext);
+  if (!oppna) throw new Error("useOppnaSkapa() används utanför OpsAppShell: hooken behöver skalet som förälder.");
+  return oppna;
+}
+
+/**
  * @param {object} props
  * @param {import("react").ReactNode} [props.brand] Märket (0.31.0: TEXT, inga bilder). En sträng blir märkets `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått och resten gråorange); en egen `<OpsBrand namn undertext monogram />` används som den är, med panelläget inklonat. Rad 2 är den aktiva gruppens namn när `grupper` finns och en grupp är vald, annars `undertext` på appens egen `OpsBrand`. Länkar till startsidan. ⛔ Före 0.31.0 var `brand` appens namn och ritades under en bild; nu är den märket självt, så en app som vill ha "OPS HUB" utelämnar propen.
  * @param {import("../lib/nav.js").NavPost[]} [props.nav] Toppdestinationer, den GAMLA modellen. `{ href, label }` räcker; `icon`, `badge` och `children` (en nivå) är valfria tillägg. ⛔ Krävs när `fasta` saknas, och FÅR INTE skickas tillsammans med `fasta` (två modeller för samma rad är två sanningar, skalet kastar).
@@ -721,21 +767,11 @@ export function OpsAppShell({
   /** Återskapar ett formulär ur adressens `?skapa=`, eller `null`. */
   const skapaUrAdress = () => {
     if (!skapaAdress || typeof window === "undefined" || !skapa) return null;
-    const v = new URL(window.location.href).searchParams.get("skapa");
+    const u = new URL(window.location.href);
+    const v = u.searchParams.get("skapa");
     if (!v) return null;
-    if (v === "handelse" && skapa.handelse) {
-      return typeof skapa.handelse === "object" && !isValidElement(skapa.handelse) && typeof (/** @type {any} */ (skapa.handelse)).form === "function"
-        ? { kind: "modul", registrering: { id: "handelse", namn: nyHandelseEtikett, katalog: /** @type {any} */ (skapa.handelse).katalog === undefined ? "handelsetyper" : /** @type {any} */ (skapa.handelse).katalog, form: /** @type {any} */ (skapa.handelse).form } }
-        : { kind: "handelse" };
-    }
-    if (v === "arende" && skapa.arende) return { kind: "arende" };
-    if (v === "grupp" && skapa.grupp) return { kind: "grupp" };
-    if (v === "meddelande" && typeof skapa.meddelande === "function") return { kind: "meddelande" };
     // ⛔ Redigera grupp bär gruppens id i adressen (`&grupp=`), annars går panelen inte att länka till eller ladda om.
-    const gid = new URL(window.location.href).searchParams.get("grupp");
-    if (v === "redigera-grupp" && typeof skapa.redigeraGrupp === "function" && gid) return { kind: "redigeragrupp", groupId: gid };
-    const reg = (skapa.registreringar ?? []).find((r) => r.id === v);
-    return reg ? { kind: "modul", registrering: reg } : null;
+    return skapaFormFranNyckel(skapa, v, { groupId: u.searchParams.get("grupp"), nyHandelseEtikett });
   };
   const skapaFormId = useId();
   /** @param {any} form */
@@ -804,6 +840,25 @@ export function OpsAppShell({
     // Bara vid montering: adressen är en ingång, inte något som ska skriva över ett pågående val.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // ⛔ 0.34.1: EN POST SOM KOMMER SENT. Appen skickar in t.ex. `skapa.meddelande` först när samtalskällan finns (efter inloggning och
+  // gruppval), alltså efter monteringen. Effekten ovan hann då inte se den och `?skapa=` ignorerades för alltid. Här härleds en sträng
+  // av vilka nycklar som finns; när den ändras öppnas panelen om adressen bär en `?skapa=` ingen panel är öppen för. Öppnar bara om
+  // inget formulär redan är öppet, och en stängd panel tar bort parametern ur adressen, så den kommer inte tillbaka. Ingen polling.
+  const skapaNycklar = skapa
+    ? [skapa.handelse ? "handelse" : "", skapa.arende ? "arende" : "", skapa.grupp ? "grupp" : "", typeof skapa.meddelande === "function" ? "meddelande" : "", typeof skapa.redigeraGrupp === "function" ? "redigera-grupp" : "", ...(skapa.registreringar ?? []).map((/** @type {any} */ r) => r.id)].join("|")
+    : "";
+  useEffect(() => {
+    const fran = skapaUrAdress();
+    if (fran) setSkapaFormRaw((/** @type {any} */ nu) => nu ?? fran);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skapaNycklar]);
+
+  /** @type {(nyckel: string, extra?: { groupId?: string }) => void} */
+  const oppnaFranApp = (nyckel, extra) => {
+    const form = skapaFormFranNyckel(skapa, nyckel, { groupId: extra?.groupId, nyHandelseEtikett });
+    if (!form) throw new Error(`useOppnaSkapa: skalets \`skapa\` har ingen post för "${nyckel}"${nyckel === "redigera-grupp" ? " med groupId" : ""}.`);
+    oppnaSkapa(form);
+  };
 
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
   const skapaModulerRedo = skapaLaget?.tillstand === "redo";
@@ -1201,6 +1256,7 @@ export function OpsAppShell({
     : navLista;
 
   return (
+    <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <div className="min-h-dvh bg-canvas">
       {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
           BÖRJAR VID SKÄRMENS ÖVERKANT OCH BÄR SJÄLV DEN SÄKRA ZONEN SOM PADDING (`top-0`, `pt-(--safe-top)`). Före 0.31.2 var den
@@ -1621,5 +1677,6 @@ export function OpsAppShell({
         />
       ) : null}
     </div>
+    </OppnaSkapaKontext.Provider>
   );
 }

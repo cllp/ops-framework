@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.34.1
+
+⛔ **`?skapa=` öppnar panelen även när posten kommer efter monteringen, och `useOppnaSkapa()` ersätter hård navigering. Inte breaking.**
+Händelsen: mätt i bolag-ops med ett byggt mätbygge: knappen "Nytt meddelande" i Meddelanden-vyn öppnade ingen panel. Appen gjorde `window.location.assign(pathname + "?skapa=meddelande")`, men skalet läste `?skapa=` bara EN gång, vid monteringen, och `skapa.meddelande` skickas in av appen först när samtalskällan finns (efter inloggning och gruppval). Vid monteringen fanns alltså inte raden, adressen ignorerades och panelen öppnades aldrig. Samma lucka gällde varje djuplänk eller omladdning med `?skapa=` till en post som dyker upp sent (`redigera-grupp`, modulregistreringar).
+
+### Rotorsaken
+- Skalet härleder en sträng av vilka `skapa`-nycklar som finns. När strängen ändras och adressen bär en `?skapa=` som ingen panel är öppen för, öppnas panelen. Deterministiskt, ingen polling, inga timeouts.
+- Öppnar bara om inget formulär redan är öppet, och en stängd panel tar bort parametern ur adressen: den som stängt panelen får den inte tillbaka.
+- Nyckel till formulär är EN funktion (`skapaFormFranNyckel`) som både adressen och hooken använder, inte två sanningar.
+
+### Nytt: `useOppnaSkapa()`
+`const oppna = useOppnaSkapa(); oppna("meddelande")`. Nycklarna är adressens: `"meddelande"`, `"arende"`, `"handelse"`, `"grupp"`, `"redigera-grupp"` (med `{ groupId }` som andra argument) eller en modulregistrerings id. Använder skalets egen `oppnaSkapa`, så `?skapa=` och Tillbaka fungerar som när panelen öppnas ur plusset. Saknar skalet posten kastas ett fel, och utanför `OpsAppShell` kastas ett fel: ingenting sker tyst.
+
+### Att göra i appen
+- Byt `window.location.assign(pathname + "?skapa=meddelande")` mot `useOppnaSkapa()("meddelande")` (hooken anropas i komponenten, funktionen i händelsehanteraren). Ingen sidladdning behövs längre.
+- Ompinna till 0.34.1. Ingen ny samling, inga nya regler.
+
 ## 0.34.0
 
 ⛔ **Meddelanden: gruppchatt, privata meddelanden och Assistent-tråden som EN modell, med regler, inkorg, "Nytt meddelande" och mottagarväljaren. Ny samling med nya regler: reglerna deployas FÖRE klienten, se "Att göra i appen".**

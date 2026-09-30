@@ -1615,6 +1615,12 @@ ut som en katalog någon glömt fylla.
 
 ### Samtal och meddelanden (0.34.0, #182, #185)
 
+**Öppna skapa-panelen från appen (0.34.1).** `useOppnaSkapa()` ger en funktion `oppna(nyckel, extra?)` med adressens nycklar
+(`"meddelande"`, `"arende"`, `"handelse"`, `"grupp"`, `"redigera-grupp"` med `{ groupId }`, eller en registrerings id). Den använder
+skalets `oppnaSkapa`, så `?skapa=` och Tillbaka fungerar som ur plusset. Använd den i stället för
+`window.location.assign(...?skapa=meddelande)`. Saknas posten i `skapa`, eller anropas hooken utanför `OpsAppShell`, kastas ett fel.
+Skalet öppnar också en `?skapa=` vars post kommer efter monteringen (t.ex. `skapa.meddelande` efter inloggning), så länkar och omladdning fungerar.
+
 CP 2026-09-30: ett meddelande till en person är **privat** (bara avsändaren och mottagaren ser det) och en standardfunktion i
 ramverket; ett ärende till en person syns för hela gruppen med mottagaren utskriven; mottagaren aviseras med en notis i appen
 (mejl är inte beslutat); och **chatt, meddelanden och Assistent-tråden är EN modell** (beslut 4, arkitektens second opinion på
