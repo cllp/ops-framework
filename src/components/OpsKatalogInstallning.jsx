@@ -31,7 +31,7 @@ import { OpsSelect } from "./OpsSelect.jsx";
  * ska inte veta var den här appens katalog bor, och en komponent som skriver
  * till en databas går inte att prova utan en.
  *
- * ══ ⛔ ÄGAREN ÄNDRAR, MEDLEMMEN LÄSER ══════════════════════════════════
+ * ══ ⛔ ÄGAREN OCH ADMIN ÄNDRAR, MEDLEMMEN LÄSER (0.33.0) ═════════════
  *
  * `kanAndra` kommer utifrån, ur rollerna i Fas 1. ⛔ OCH DEN HÄR KONTROLLEN ÄR
  * EN ARTIGHET, INTE ETT SKYDD: den som vill skriva ändå öppnar konsolen. Det
@@ -96,9 +96,9 @@ function textraderna(deklarerade, bar) {
  * @param {readonly {nyckel: string, etikett?: unknown, hjalp?: string}[]} [props.textnycklar] Texterna katalogen kräver. Appen äger listan, eftersom den beror på vad appens vyer ritar.
  * @param {boolean} [props.faser] Falskt för en sortkatalog. Då ritas ingen fasväljare, eftersom fältet inte finns på kategorin.
  * @param {boolean} [props.farger] Falskt när kategorierna skiljs åt med ikon. Då ritas ingen färgväljare och ingen prick.
- * @param {string} [props.groupId] Gruppens id (#162). Satt: en ny eller ändrad kategori byggs med `grupp: true`
- *   och det här `groupId`:t, precis som katalogen den kom ur. Utelämnad: katalogen är inte en grupps egen
- *   (`grupp: false`, förvalet i `byggKategori`), oförändrat beteende från innan #162.
+ * @param {string} props.groupId Den aktiva gruppens id (#162, KRÄVS sedan 0.33.0). En ny eller ändrad kategori
+ *   byggs med det här `groupId`:t, alltså i den aktiva gruppens katalog och ingen annans. Byts det stängs ett
+ *   öppet utkast, se noten vid `forGrupp`.
  */
 export function OpsKatalogInstallning({
   kategorier,
@@ -121,9 +121,36 @@ export function OpsKatalogInstallning({
     );
   }
 
+  /*
+   * ⛔ groupId KRÄVS (0.33.0). Före 0.33.0 var det valfritt, och utan det byggdes kategorin utan grupp,
+   * alltså en rad som delas av alla grupper i samlingen. Inställningsvyn skriver i den aktiva gruppens
+   * katalog, och en vy som inte vet vilken grupp det är kan inte göra det.
+   */
+  if (typeof groupId !== "string" || !groupId.trim()) {
+    throw new Error(
+      "OpsKatalogInstallning: groupId krävs. Katalogen är den aktiva gruppens (#162), och utan groupId hade en ny kategori sparats utan grupp, alltså synlig för alla grupper.",
+    );
+  }
+
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [utkast, setUtkast] = useState(TOMT);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
+
+  /*
+   * ⛔ ETT UTKAST HÖR TILL GRUPPEN DET ÖPPNADES I (0.33.0). Före 0.33.0 låg `redigerar` och `utkast`
+   * kvar när appen bytte grupp: listan byttes till den nya gruppens kategorier, men formuläret under
+   * den stod kvar med den förra gruppens kategori ifylld, och Spara byggde den med det NYA groupId:t.
+   * Resultatet var en kopia av grupp A:s kategori i grupp B:s katalog, sparad av någon som trodde sig
+   * ändra A. Mätt i `check-skalyta` avsnitt 28. Utkastet stängs därför i samma rendering som gruppen
+   * byts (Reacts mönster för att justera state vid en ny prop, ingen effekt som hinner rita det gamla).
+   */
+  const [forGrupp, setForGrupp] = useState(groupId);
+  if (forGrupp !== groupId) {
+    setForGrupp(groupId);
+    setRedigerar(null);
+    setUtkast(TOMT);
+    setFel(null);
+  }
 
   const alla = useMemo(() => (Array.isArray(kategorier) ? kategorier : []), [kategorier]);
   const aktiva = useMemo(() => valjbara(alla, sprak), [alla, sprak]);
@@ -197,11 +224,9 @@ export function OpsKatalogInstallning({
       }
 
       /*
-       * ⛔ #162: `groupId` OCH `grupp: true` FÖLJS ÅT. En prop som satts avgör
-       * om katalogen är en grupps egen, precis som `faser`/`farger` avgör om
-       * fasen/färgen ens hör hemma på raden: `byggKategori` avvisar `groupId`
-       * i en katalog som inte deklarerat `grupp: true`, så de två måste stämma
-       * överens eller kastet flyttar bara felet hit i stället för att lösa det.
+       * ⛔ #162: kategorin byggs i den aktiva gruppen, med förvalet i `byggKategori` som kräver
+       * `groupId` (0.33.0). Katalogkällans `spara` bygger den en gång till och skriver med
+       * `katalognyckel`, så appen skickar vidare det här objektet till `spara` och inget annat.
        */
       const kategori = byggKategori(
         {
@@ -212,9 +237,9 @@ export function OpsKatalogInstallning({
           ...(faser ? { fas: utkast.fas } : {}),
           ordning: utkast.ordning,
           texter,
-          ...(groupId ? { groupId } : {}),
+          groupId,
         },
-        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser, farger, grupp: Boolean(groupId) },
+        { ikoner, katalog: rubrik, textnycklar: textnycklar.map((t) => t.nyckel), faser, farger },
       );
       onSpara(kategori);
       setRedigerar(null);
@@ -274,7 +299,7 @@ export function OpsKatalogInstallning({
     <section className="flex flex-col gap-3">
       {!kanAndra ? (
         <OpsBanner tone="info" title="Du kan läsa katalogen, inte ändra den">
-          Konfigurationen ändras av ägaren, eftersom en ändring här ändrar vad alla andra ser. Låset sitter i databasens regler, inte i den här vyn.
+          Konfigurationen ändras av gruppens ägare och admin, eftersom en ändring här ändrar vad alla andra i gruppen ser. Låset sitter i databasens regler, inte i den här vyn.
         </OpsBanner>
       ) : null}
 
