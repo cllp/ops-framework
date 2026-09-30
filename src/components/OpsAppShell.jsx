@@ -435,7 +435,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   den ritas ingen Spara (annars en död knapp).
  * @property {(arg: { formId: string, onKlar: () => void }) => import("react").ReactNode} [grupp] (0.32.0, #180) Ramverkets egen rad "Ny grupp".
  *   En FUNKTION som ritar formuläret, normalt `({ formId, onKlar }) => <OpsGruppFormular formId={formId} onKlar={onKlar} onSkapa={...} onSkapad={...} />`.
- *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen och i växlarens ark till samma panel: `grupper.onSkapa` behövs då inte,
+ *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen till samma panel (växlarens ark på telefon har ingen sedan 0.37.0): `grupper.onSkapa` behövs då inte,
  *   och om båda finns vinner `skapa.grupp` (en väg att skapa en grupp är en sanning, två är två). `onKlar` stänger panelen UTAN att gå bakåt i
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
  * @property {(arg: { formId: string, groupId: string | null, onKlar: () => void }) => import("react").ReactNode} [meddelande] (0.34.0, #182) Ramverkets egen rad
@@ -928,7 +928,7 @@ export function OpsAppShell({
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
   const visaSkapaKnapp = Boolean(skapa) && (harRamverksrader || skapaModulerRedo);
-  // ⛔ EN VÄG ATT SKAPA EN GRUPP (0.32.0, #180): finns `skapa.grupp` öppnar "Skapa grupp" i panelen, i växlarens ark och plusset SAMMA
+  // ⛔ EN VÄG ATT SKAPA EN GRUPP (0.32.0, #180): finns `skapa.grupp` öppnar "Skapa grupp" i panelen och plusset SAMMA
   // formulär, och appens `grupper.onSkapa` används inte. Utan `skapa.grupp` är `grupper.onSkapa` som förut.
   const grupperOnRedigera = typeof skapa?.redigeraGrupp === "function" ? (/** @type {string} */ id) => oppnaSkapa({ kind: "redigeragrupp", groupId: id }) : grupper?.onRedigera;
   const grupperOnSkapa = typeof skapa?.grupp === "function" ? () => oppnaSkapa({ kind: "grupp" }) : grupper?.onSkapa;
@@ -1424,11 +1424,9 @@ export function OpsAppShell({
                   grupper={grupper.lista}
                   aktiv={grupper.aktiv}
                   onValj={grupper.onValj}
-                  onSkapa={grupperOnSkapa}
                   sprak={grupper.sprak}
                   listEtikett={grupper.listEtikett}
                   ingenGruppEtikett={grupper.ingenGruppEtikett}
-                  skapaEtikett={grupper.skapaEtikett}
                   tomText={grupper.tomText}
                   rollNamn={grupper.rollNamn}
                   etikett={grupper.etikett}

@@ -354,13 +354,21 @@ describe("⛔ tre ingångar öppnar SAMMA panel (skapa.grupp i skalet)", () => {
     expect(screen.getByRole("region", { name: "Ny grupp" })).toBeInTheDocument();
   });
 
-  it("⛔ växlarens ark (smal skärm): Skapa grupp öppnar samma panel", async () => {
+  // ⛔ 0.37.0: VÄXLARENS ARK HAR INGEN "SKAPA GRUPP" (CP 2026-09-30: "Ta bort skapa grupp från gruppväljaren. Vill att det
+  // skall vara rent där", och "Nej bara i mobil vy"). Provet som visade att arkets knapp öppnade panelen är ersatt av det här.
+  it("⛔ växlarens ark (smal skärm) har ingen Skapa grupp; plussets Ny grupp är vägen", async () => {
     render(<Skal />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /Byt grupp, nu: Alfa AB/ }));
     const ark = screen.getByRole("dialog");
-    await user.click(within(ark).getByRole("button", { name: "Skapa grupp" }));
-    expect(await screen.findByRole("region", { name: "Ny grupp" })).toBeInTheDocument();
+    expect(within(ark).queryByRole("button", { name: "Skapa grupp" })).toBeNull();
+    expect(within(ark).getByRole("button", { name: /Alfa AB/ })).toBeInTheDocument();
+  });
+
+  it("⛔ växlarens ark utan grupper säger det och pekar på plusset", async () => {
+    render(<OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" grupper={{ lista: [], aktiv: "", onValj: () => {} }}><p>vy</p></OpsAppShell>);
+    await userEvent.setup().click(screen.getByRole("button", { name: /Byt grupp, nu: Ingen grupp/ }));
+    expect(within(screen.getByRole("dialog")).getByText("Du är inte medlem i någon grupp än. Skapa en med plusset.")).toBeInTheDocument();
   });
 
   it("⛔ Spara i skalets knapprad skickar formuläret, och efter en lyckad skapelse är panelen borta OCH sidan gick inte bakåt", async () => {

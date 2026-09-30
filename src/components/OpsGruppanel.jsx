@@ -2,7 +2,6 @@ import { useState } from "react";
 import { cx } from "../lib/cx.js";
 import { gruppRutaKlass } from "../lib/radKlass.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
-import { OpsButton } from "./OpsButton.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
 import { OpsPill } from "./OpsPill.jsx";
@@ -604,6 +603,12 @@ export function OpsGruppanel({
  * Gruppväxlaren på smal skärm: knappen i headern plus ett ark med samma
  * grupper, i ENKEL FORM (se `EnkelGruppanelRader`s filhuvud).
  *
+ * ⛔ ARKET HAR INGEN "SKAPA GRUPP" (0.37.0). CP 2026-09-30, med en skärmbild av arket "Byt grupp" på telefonen: "Ta bort
+ * skapa grupp från gruppväljaren. Vill att det skall vara rent där. Finns ju andra ställen att skapa grupp ifrån", och
+ * rättelsen samma kväll: "Nej bara i mobil vy." Arket är för att BYTA grupp; en ny grupp skapas med plussets "Ny grupp"
+ * (`skapa.grupp`). Gruppanelen på dator har kvar sin knapp. Är personen inte med i någon grupp säger arket det och
+ * pekar på plusset (`tomText`), i stället för att vara tomt (arbetsreglernas punkt 5).
+ *
  * ⛔ SE `OpsGruppanel`s FILHUVUD om brytpunkten (`OpsPanel`s `md`, inte 1024)
  * och om varför det är en medveten avvikelse och inte en glömd detalj.
  *
@@ -611,12 +616,10 @@ export function OpsGruppanel({
  * @param {ReadonlyArray<GruppanelGrupp>} props.grupper
  * @param {string} props.aktiv
  * @param {(id: string) => void} props.onValj
- * @param {() => void} [props.onSkapa]
  * @param {string} [props.sprak]
  * @param {string} [props.listEtikett] Skärmläsarnamnet på listan. Förval "Mina grupper".
  * @param {string} [props.ingenGruppEtikett] Knappens namn när personen inte är med i någon grupp. Förval "Ingen grupp".
- * @param {string} [props.skapaEtikett]
- * @param {string} [props.tomText]
+ * @param {string} [props.tomText] Förval säger att personen inte är med i någon grupp och pekar på plusset.
  * @param {Record<string, string>} [props.rollNamn]
  * @param {string} [props.etikett] Skärmläsarnamn på hela växlaren/arket.
  * @param {string} [props.nuEtikett] (0.31.1) Ordet före det aktiva namnet i knappens skärmläsarnamn: "Byt grupp, nu: Alfa AB". Förval "nu".
@@ -625,12 +628,10 @@ export function OpsGruppvaxlare({
   grupper,
   aktiv,
   onValj,
-  onSkapa,
   sprak,
   listEtikett = "Mina grupper",
   ingenGruppEtikett = "Ingen grupp",
-  skapaEtikett = "Skapa grupp",
-  tomText = "Du är inte medlem i någon grupp.",
+  tomText = "Du är inte medlem i någon grupp än. Skapa en med plusset.",
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
   etikett = "Byt grupp",
   nuEtikett = "nu",
@@ -679,31 +680,16 @@ export function OpsGruppvaxlare({
       }
     >
       {() => (
-        <>
-          {onSkapa ? (
-            <div className="mb-2">
-              <OpsButton
-                variant="secondary"
-                onClick={() => {
-                  setOppet(false);
-                  onSkapa();
-                }}
-              >
-                {skapaEtikett}
-              </OpsButton>
-            </div>
-          ) : null}
-          <EnkelGruppanelRader
-            grupper={mina}
-            aktiv={aktiv}
-            onValj={onValj}
-            onValjOchStang={() => setOppet(false)}
-            sprak={sprak}
-            listEtikett={listEtikett}
-            tomText={tomText}
-            rollNamn={rollNamn}
-          />
-        </>
+        <EnkelGruppanelRader
+          grupper={mina}
+          aktiv={aktiv}
+          onValj={onValj}
+          onValjOchStang={() => setOppet(false)}
+          sprak={sprak}
+          listEtikett={listEtikett}
+          tomText={tomText}
+          rollNamn={rollNamn}
+        />
       )}
     </OpsPanel>
   );
