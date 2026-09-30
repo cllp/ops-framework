@@ -1,4 +1,4 @@
-import { createDataSource } from "./contract.js";
+import { createDataSource, innehallerVillkor } from "./contract.js";
 
 /**
  * Adapter mot ett eget API över HTTP, alltså REST.
@@ -167,6 +167,13 @@ export function createHttpSource(config) {
     },
 
     async list(collectionName, query) {
+      /*
+       * ⛔ 0.34.0: `innehaller` HAR INGEN FORM I EN QUERYSTRÄNG som varje server förstår likadant. Adaptern kastar hellre än
+       * att skicka frågan utan villkoret: en server som svarar med alla rader hade gett fler rader än frågan bad om.
+       */
+      if (innehallerVillkor(query?.innehaller)) {
+        throw new Error(`http: innehaller stöds inte av http-adaptern (${collectionName}). Filtrera på servern med ett eget uttryckligt fält.`);
+      }
       const p = new URLSearchParams();
       if (query?.where) {
         for (const [field, value] of Object.entries(query.where)) {

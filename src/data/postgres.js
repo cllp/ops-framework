@@ -1,4 +1,4 @@
-import { createDataSource } from "./contract.js";
+import { createDataSource, innehallerVillkor } from "./contract.js";
 
 /**
  * Adapter mot Postgres, till exempel Cloud SQL i Google Cloud.
@@ -91,6 +91,12 @@ export function createPostgresSource(config) {
           return `${identifier(field)} = $${params.length}`;
         });
         if (parts.length > 0) sql += ` WHERE ${parts.join(" AND ")}`;
+      }
+      // 0.34.0: `innehaller` är en Postgres-array som ska innehålla värdet, `$n = ANY(fält)`.
+      const innehaller = innehallerVillkor(queryArg?.innehaller);
+      if (innehaller) {
+        params.push(innehaller[1]);
+        sql += `${sql.includes(" WHERE ") ? " AND " : " WHERE "}$${params.length} = ANY(${identifier(innehaller[0])})`;
       }
 
       if (queryArg?.sortBy) {
