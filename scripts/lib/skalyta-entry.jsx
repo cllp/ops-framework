@@ -507,6 +507,24 @@ function Scen() {
       </Full>
     );
   }
+  // 0.32.1 (CP 2026-09-30, skärmbild av Profil på dator: "Typsnitten på profil är också fel. Storlek / typsnitt"): profilen som
+  // bolag-ops ritar den, med bild (så att Ta bort och Använd initialer syns), roll och en grupp.
+  if (s === "profil") {
+    const bild = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#8E7A4E"/></svg>');
+    return (
+      <Full>
+        <Ops.OpsProfil
+          anvandare={{ id: "u1", namn: "Claes Philip Staiger", epost: "claes-philip@staiger.se", bild, telefon: "+46701234567", stad: "Visby", presentation: "", lankar: [], sprak: "sv", tema: "system" }}
+          roll="Ägare"
+          grupper={[{ grupp: { id: "g1", namn: "Claes Philip Staiger AB" }, roll: "agare" }]}
+          onSpara={async () => {}}
+          onTema={() => {}}
+          onLoggaUt={() => {}}
+          inloggningsBild={bild}
+        />
+      </Full>
+    );
+  }
   // 0.32.1: ytor som ska nå bottenraden, se `FullYta`.
   if (s === "fullyta-idag") return <FullYta vy="idag" />;
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;

@@ -2363,6 +2363,48 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
   await context.close();
 }
 
+// ══ 27. PROFILEN MOT SS ProfileView VID 390 OCH 1280 PX (0.32.1) ══════════════════════════════════════════════════════
+// CP 2026-09-30, med en skärmbild av Profil på dator: "Typsnitten på profil är också fel. Storlek / typsnitt". Mätt mot SS `ProfileView.jsx`:
+// kolumnen `max-w-2xl` (672 px, :106), varje sektion ett kort med rubriken INUTI (`h3 text-xs font-bold text-[var(--color-accent)] uppercase
+// tracking-wider mb-3`, :122 och :242), fältetiketterna `text-[10px] text-[var(--color-text-muted)]` (:245). Förut var OpsProfil 1024 px bred,
+// rubrikerna 12/600 utanför korten, Personuppgifter utan kort och etiketterna 14/500.
+// Krav: rubrikerna 12 px, 700, versaler, accentfärg och inuti ett kort; etiketterna 10 px och 400; kolumnen högst 672 px vid 1280 och
+// ingen horisontell överflödning, inget kort utanför sidans marginal. Golv: minst 2 rubriker och 3 etiketter.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const { page, context } = await oppna("profil", vp);
+  const d = await page.evaluate(() => {
+    const accent = (() => { const e = document.createElement("span"); e.className = "text-accent"; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; })();
+    /** @param {Element} el */
+    const kortRunt = (el) => {
+      for (let e = el.parentElement, i = 0; e && i < 4; e = e.parentElement, i += 1) {
+        const cs = getComputedStyle(e);
+        if (parseFloat(cs.borderTopLeftRadius) >= 8 && !/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)|transparent/.test(cs.backgroundColor)) return e;
+      }
+      return null;
+    };
+    const rubriker = [...document.querySelectorAll("main p, main h2, main h3")].filter((e) => /^(profilbild|personuppgifter)$/i.test((e.textContent || "").trim()));
+    const r = rubriker.map((e) => { const cs = getComputedStyle(e); return { text: (e.textContent || "").trim(), fs: cs.fontSize, fw: cs.fontWeight, tt: cs.textTransform, farg: cs.color === accent, iKort: !!kortRunt(e) }; });
+    const etiketter = [...document.querySelectorAll("main label")].filter((e) => /^(Namn|Telefon|Stad)$/.test((e.textContent || "").trim()));
+    const et = etiketter.map((e) => ({ text: (e.textContent || "").trim(), fs: getComputedStyle(e).fontSize, fw: getComputedStyle(e).fontWeight }));
+    const kort = rubriker.map((e) => kortRunt(e)).filter(Boolean).map((k) => { const b = /** @type {Element} */ (k).getBoundingClientRect(); const cs = getComputedStyle(/** @type {Element} */ (k)); return { x: b.left, h: b.right, w: b.width, radie: cs.borderTopLeftRadius, pad: cs.paddingTop }; });
+    const falt = document.querySelector("main input");
+    const knappar = [...document.querySelectorAll("main button")].filter((b) => /^(Ta bort|Använd initialer)$/.test((b.textContent || "").trim())).map((b) => ({ text: (b.textContent || "").trim(), fs: getComputedStyle(b).fontSize, fw: getComputedStyle(b).fontWeight }));
+    const kolumn = (() => { for (let e = rubriker[0] ? rubriker[0].parentElement : null; e && e !== document.body; e = e.parentElement) { if (getComputedStyle(e).maxWidth !== "none") return e.getBoundingClientRect().width; } return null; })();
+    return { r, et, kort, kolumn, faltFs: falt ? getComputedStyle(falt).fontSize : null, knappar, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, vw: document.documentElement.clientWidth };
+  });
+  matt.push(`profil ${vp.width} px: rubriker ${JSON.stringify(d.r)}, etiketter ${JSON.stringify(d.et)}, kort ${JSON.stringify(d.kort)}, kolumn ${d.kolumn} px, fälttext ${d.faltFs}, knappar ${JSON.stringify(d.knappar)}, överflöde ${d.over} px`);
+  krav(d.r.length >= 2 && d.et.length >= 3, `profil ${vp.width}: ${d.r.length} rubriker och ${d.et.length} etiketter hittade, väntat minst 2 och 3 (golv).`);
+  for (const r of d.r) krav(r.fs === "12px" && r.fw === "700" && r.tt === "uppercase" && r.farg, `profil ${vp.width}: rubriken "${r.text}" är ${r.fs}/${r.fw} ${r.tt}${r.farg ? "" : ", inte accentfärg"}, väntat 12px/700 versaler i accentfärg (SS text-xs font-bold uppercase, ProfileView.jsx:122).`);
+  for (const r of d.r) krav(r.iKort, `profil ${vp.width}: rubriken "${r.text}" står utanför sitt kort. SS har rubriken inuti kortet (ProfileView.jsx:121-122).`);
+  for (const e of d.et) krav(e.fs === "10px" && e.fw === "400", `profil ${vp.width}: etiketten "${e.text}" är ${e.fs}/${e.fw}, väntat 10px/400 (SS text-[10px], ProfileView.jsx:245).`);
+  krav(d.over <= 0, `profil ${vp.width}: sidan flödar över ${d.over} px horisontellt.`);
+  for (const k of d.kort) krav(k.x >= 15.5 && k.h <= d.vw - 15.5, `profil ${vp.width}: ett kort går från ${k.x} till ${k.h} i en sida på ${d.vw}, utanför marginalen på 16 px.`);
+  if (vp.width >= 1024) krav(d.kolumn !== null && d.kolumn <= 672.5, `profil ${vp.width}: kolumnen är ${d.kolumn} px bred, väntat högst 672 (SS max-w-2xl, ProfileView.jsx:106).`);
+  if (vp.width >= 1024) for (const k of d.kort) krav(k.w <= 672.5, `profil ${vp.width}: kortet är ${k.w} px brett, väntat högst 672 (SS max-w-2xl, ProfileView.jsx:106).`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `profil-${vp.width}.png`), fullPage: true });
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

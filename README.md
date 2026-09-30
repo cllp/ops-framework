@@ -190,7 +190,7 @@ något godtyckligt.
 
 | Komponent | Props |
 |---|---|
-| `OpsField` | `label`, `hint`, `error`, `required`, `children` |
+| `OpsField` | `label`, `hint`, `error`, `required`, `labelSize` standard \| liten, `children`. ⛔ `liten` (0.32.1) är SS profilens etikett (10/400, dämpad, `ProfileView.jsx:245`); standard (14/500) är SS formulärens. |
 | `OpsInput` | `value`, `onChange`, `type` text \| email \| search \| tel \| url \| password \| number, `placeholder`, `name`, `autoComplete`, `disabled`, `readOnly`, `maxLength`, `ariaLabel` |
 | `OpsTextarea` | `value`, `onChange`, `placeholder`, `name`, `rows`, `disabled`, `maxLength`, `ariaLabel` |
 | `OpsSelect` | `options` [{value, label, disabled}], `value`, `onChange`, `placeholder`, `disabled`, `ariaLabel` |

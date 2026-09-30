@@ -338,13 +338,27 @@ export function OpsProfil({
 
   const obeskrivnaPlattformar = plattformar.filter((p) => !lankar.some((l) => l.plattform === p.id));
 
+  /*
+   * ══ ⛔ 0.32.1: SS FORM, MÄTT MOT `ProfileView.jsx` ═══════════════════
+   *
+   * CP 2026-09-30, med en skärmbild av Profil på dator: "Typsnitten på profil är också fel. Storlek / typsnitt".
+   *   - KOLUMNEN ÄR 672 px (`width="narrow"`), SS `max-w-2xl mx-auto` (`ProfileView.jsx:106`). Förut `normal` (1024).
+   *   - VARJE SEKTION ÄR ETT KORT MED RUBRIKEN INUTI, SS `rounded border p-5` med `h3 ... mb-3` först (`:121-122`, `:241-242`).
+   *     Förut stod rubriken ovanför, och Personuppgifter hade inget kort alls.
+   *   - FÄLTETIKETTERNA ÄR 10 px, 400, DÄMPADE (`labelSize="liten"`), SS `text-[10px] text-[var(--color-text-muted)]` (`:245`).
+   *     Förut 14/500, formulärens storlek, som i en profil med fyra fält läses som fyra rubriker.
+   *   - NAMN, TELEFON OCH STAD STÅR I TRE KOLUMNER FRÅN `sm`, SS `grid grid-cols-1 sm:grid-cols-3 gap-3` (`:243`).
+   * Vakten är check-skalyta avsnitt 27, vid 390 och 1280.
+   */
   return (
-    <OpsView>
+    <OpsView width="narrow">
       <OpsViewHeader title={rubrik} />
 
       <div className="flex flex-col gap-2">
-        <OpsSectionLabel>{profilbildEtikett}</OpsSectionLabel>
-        <OpsCard>
+        <OpsCard kant>
+          <div className="mb-3">
+            <OpsSectionLabel>{profilbildEtikett}</OpsSectionLabel>
+          </div>
           <div className="flex items-center gap-3">
             <OpsIdentity
               name={anvandare.namn || anvandare.epost}
@@ -469,29 +483,38 @@ export function OpsProfil({
         </OpsCard>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <OpsSectionLabel>{personuppgifterEtikett}</OpsSectionLabel>
-        <OpsField label={namnEtikett}>
-          <OpsInput value={namn} onChange={setNamn} />
-        </OpsField>
-        <OpsField label={telefonEtikett} hint="T.ex. +46701234567">
-          <OpsInput type="tel" value={telefon} onChange={setTelefon} />
-        </OpsField>
-        <OpsField label={stadEtikett}>
-          <OpsInput value={stad} onChange={setStad} />
-        </OpsField>
-        <OpsField label={presentationEtikett} hint={`${presentation.length}/${MAX_PRESENTATION}`}>
-          <OpsTextarea value={presentation} onChange={setPresentation} maxLength={MAX_PRESENTATION} />
-        </OpsField>
-      </div>
+      <OpsCard kant>
+        <div className="mb-3">
+          <OpsSectionLabel>{personuppgifterEtikett}</OpsSectionLabel>
+        </div>
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <OpsField label={namnEtikett} labelSize="liten">
+              <OpsInput value={namn} onChange={setNamn} />
+            </OpsField>
+            <OpsField label={telefonEtikett} hint="T.ex. +46701234567" labelSize="liten">
+              <OpsInput type="tel" value={telefon} onChange={setTelefon} />
+            </OpsField>
+            <OpsField label={stadEtikett} labelSize="liten">
+              <OpsInput value={stad} onChange={setStad} />
+            </OpsField>
+          </div>
+          <OpsField label={presentationEtikett} hint={`${presentation.length}/${MAX_PRESENTATION}`} labelSize="liten">
+            <OpsTextarea value={presentation} onChange={setPresentation} maxLength={MAX_PRESENTATION} />
+          </OpsField>
+        </div>
+      </OpsCard>
 
       {/* ⛔ LÄNKSEKTIONEN RITAS BARA NÄR APPEN HAR PLATTFORMAR. Utan `plattformar` finns
           inget att lägga till, och en rubrik "Länkar" över ingenting följdes av Språk
           och Utseende, som då såg ut att höra till länkarna (skärmbild #164, 2026-09-28).
           Tomheten är ett svar i appens beslut att inte skicka plattformar, inte en rad här. */}
       {plattformar.length > 0 || lankar.length > 0 ? (
-      <div className="flex flex-col gap-2">
-        <OpsSectionLabel>{lankarEtikett}</OpsSectionLabel>
+      <OpsCard kant>
+        <div className="mb-3">
+          <OpsSectionLabel>{lankarEtikett}</OpsSectionLabel>
+        </div>
+        <div className="flex flex-col gap-2">
         {lankar.length > 0 ? (
           <div className="flex flex-col gap-2">
             {lankar.map((rad, i) => (
@@ -536,23 +559,30 @@ export function OpsProfil({
             </div>
           </div>
         ) : null}
-      </div>
+        </div>
+      </OpsCard>
       ) : null}
 
       {children}
 
-      <OpsSectionLabel>{installningarEtikett}</OpsSectionLabel>
-      <OpsField label={sprakEtikett}>
-        <OpsSelect
-          options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))}
-          value={valtSprak}
-          onChange={(v) => setValtSprak(v)}
-        />
-      </OpsField>
+      <OpsCard kant>
+        <div className="mb-3">
+          <OpsSectionLabel>{installningarEtikett}</OpsSectionLabel>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <OpsField label={sprakEtikett} labelSize="liten">
+            <OpsSelect
+              options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))}
+              value={valtSprak}
+              onChange={(v) => setValtSprak(v)}
+            />
+          </OpsField>
 
-      <OpsField label={temaEtikett}>
-        <OpsSelect options={TEMAN.map((t) => ({ value: t, label: temaNamn[t] || t }))} value={valtTema} onChange={byteTema} />
-      </OpsField>
+          <OpsField label={temaEtikett} labelSize="liten">
+            <OpsSelect options={TEMAN.map((t) => ({ value: t, label: temaNamn[t] || t }))} value={valtTema} onChange={byteTema} />
+          </OpsField>
+        </div>
+      </OpsCard>
 
       <div className="flex flex-wrap gap-2">
         <OpsButton variant="primary" onClick={spara} disabled={!andrat} busy={sparar}>
@@ -567,7 +597,8 @@ export function OpsProfil({
 
       {/* ⛔ TOMHET ÄR ETT SVAR. En person utan grupper ser en mening om det,
           aldrig en rubrik med ingenting under. Arbetsreglernas punkt 5. */}
-      <p className="text-etikett font-semibold uppercase tracking-wide text-ink-secondary">{grupperEtikett}</p>
+      {/* ⛔ 0.32.1: samma sektionsrubrik som korten ovanför. Förut en egen `text-etikett font-semibold` i sekundärfärg. */}
+      <OpsSectionLabel>{grupperEtikett}</OpsSectionLabel>
       <OpsList ariaLabel={grupperEtikett}>
         {grupper.length === 0 ? (
           <OpsListRow>

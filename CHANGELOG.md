@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.32.1
 
-⛔ **Idag och Kalender når bottenraden igen, också när Safaris verktygsfält fälls in och när något ovanför ytan försvinner. Händelsekortet och inkorgsraden som SS. Inte breaking.**
+⛔ **Idag och Kalender når bottenraden igen, också när Safaris verktygsfält fälls in och när något ovanför ytan försvinner. Händelsekortet, inkorgsraden och profilen som SS. Inte breaking.**
 CP 2026-09-30, två skärmbilder från telefonen: *"Kalender och idag går inte ända ner utan huggs av i botten."* Innehållet slutade långt ovanför
 bottenraden. Ett kort i Idag klipptes rakt av, och veckoraden i Kalender klipptes horisontellt.
 
@@ -70,10 +70,21 @@ Formulärets första rad låg direkt under huvudets linje (0 px). `OpsSkapaPanel
 (`ManageGroupModal.jsx:479` `py-4`, `eventModal/sizeClasses.js:7` `formPad: "py-4 ..."`). Luften bor i panelen och inte i varje formulär.
 Vakt: `check-skalyta` avsnitt 26 mäter huvudets underkant mot första raden. **Rött mot 0.32.0: 0 px vid 390 (1 brott). Grönt nu: 16 px** (1280 px: 0 före, 16 efter, utskrivet men inte krävt).
 
+### Profilen som SS
+CP 2026-09-30, med en skärmbild av Profil på dator: *"Typsnitten på profil är också fel. Storlek / typsnitt"*. Mätt mot SS `ProfileView.jsx`:
+- **`OpsProfil`** har kolumnen 672 px (`width="narrow"`, SS `max-w-2xl`; förut 1024), varje sektion (Profilbild, Personuppgifter, Länkar, Inställningar) är ett kort med
+  1 px kant och rubriken INUTI, Namn, Telefon och Stad står i tre kolumner från `sm`, och Mina grupper har samma rubrik som korten.
+- **`OpsSectionLabel`** är 700 (`font-bold`), som filhuvudet alltid sagt (SS `text-xs font-bold`). Rollen `sektion` bär fortfarande 600 för de andra sektionsraderna.
+- **`OpsField labelSize="liten"`** (ny, valfri): 10 px, 400, dämpad, SS profilens etikett. Standard (14/500) är oförändrad; SS formulär har den.
+- **Vakt:** `check-skalyta` avsnitt 27 vid 390 och 1280 (rubrikerna 12/700 versaler accent och inuti kortet, etiketterna 10/400, kolumnen högst 672, inget överflöde,
+  inget kort utanför marginalen). **Rött mot 0.32.0: 15 brott. Grönt nu.** Inget horisontellt överflöde före eller efter: kortet på CP:s bild var beskuret, inte utanför.
+- Kvar och ärligt listat i `docs/jamforelser/0.32.1/jamforelse.md`: radie 24 mot 12, fälttext 16 mot 14, kort 640 mot 672, SS huvud ovanför korten, SS 11 px-knappar.
+
 ### Att göra i appen vid ompinning till 0.32.1
 Pinna om. ⛔ Byt sedan appens tre handskrivna rollpiller (`Rolletikett` i `EventsView.jsx`, `Rolltegner` i `ProcessView.jsx` och
 `ScheduleView.jsx`) mot `<OpsRollmarke kind={role} label={roleLabel(role)} />`, och inkorgens typbadge mot `<OpsPill size="liten">`. Inget av det
-krävs för att bygga. ⛔ Har appen en egen bottenrad i stället för `OpsBottomNav` hittar hooken den inte, och då slutar ytan vid fönstret minus
+krävs för att bygga. ⛔ Profilen: `ProfileView.jsx` lägger `OpsProfil` i en egen `<OpsView width="narrow">`, och `OpsProfil` har redan en egen
+(nu `narrow`, 0.32.1); ta bort den yttre, annars dubbleras sidomarginalen och bottenluften. ⛔ Har appen en egen bottenrad i stället för `OpsBottomNav` hittar hooken den inte, och då slutar ytan vid fönstret minus
 den säkra ytan i stället för vid raden. Sätt i så fall `data-ops-bottenrad` på appens `<nav>`.
 
 ## 0.32.0

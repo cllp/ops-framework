@@ -49,3 +49,18 @@ describe("OpsPill size", () => {
     expect(() => render(<OpsPill size={/** @type {any} */ ("stor")}>x</OpsPill>)).toThrow(/okänd size/);
   });
 });
+
+describe("OpsField labelSize (0.32.1)", async () => {
+  const { OpsField, OpsInput } = await import("../components/OpsField.jsx");
+  it("liten är 10 px-rollen, standard är oförändrad, okänd kastar", () => {
+    render(
+      <>
+        <OpsField label="Namn" labelSize="liten"><OpsInput value="" onChange={() => {}} /></OpsField>
+        <OpsField label="Rubrik"><OpsInput value="" onChange={() => {}} /></OpsField>
+      </>,
+    );
+    expect(screen.getByText("Namn").className).toMatch(/\btext-liten\b/);
+    expect(screen.getByText("Rubrik").className).toMatch(/\btext-etikett font-medium\b/);
+    expect(() => render(<OpsField label="x" labelSize={/** @type {any} */ ("stor")}><span /></OpsField>)).toThrow(/okänd labelSize/);
+  });
+});
