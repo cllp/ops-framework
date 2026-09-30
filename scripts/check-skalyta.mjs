@@ -2496,6 +2496,163 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+// ══ 29. MEDDELANDEN MOT SS ChatInboxPanel VID 390 OCH 1280 PX (0.34.0, #182) ══════════════════════════════════════════
+// CP 2026-09-30: ett meddelande till en person är PRIVAT och ska finnas i ramverket, med samma yta som SessionStudio. Förebilden är
+// SS `ChatInboxPanel.jsx`: på dator listan till vänster (35 procent, minst 220 px, högst 40, `:959`) och samtalet till höger (`:1194`),
+// båda kort med rundade hörn och 8 px mellanrum (`sm:gap-2 sm:p-2`, `:957`). På telefon är listan hela sidan och ett valt samtal
+// ersätter den (`:880-892`). Krav:
+//   (a) 1280: listan 35 till 40 procent av ytan och minst 220 px, samtalsytan bredvid, båda med rundning minst 12 och 8 px mellan;
+//       raden: märke 36 px, namn 14 px, tid och etikett 10 px, utdrag 12 px, räknaren i märkets hörn på det privata samtalet.
+//   (b) 1280, privat samtal valt: raden "Bara ni två ser det här" syns i huvudet, egna bubblor till höger och andras till vänster,
+//       bubblans text 14 px och rundning minst 16 och en bakgrund som skiljer sig från ytan (i det ljusa temat är `raised` samma
+//       färg som `surface`, och andras bubblor var osynliga tills montaget visade det), skrivfältet längst ned i samtalsytan.
+//   (c) 390: listan är hela bredden och samtalet dolt; efter ett tryck är listan dold, "Tillbaka" syns, och skrivfältet ligger
+//       ovanför bottenraden, inom fönstret.
+//   (d) Nytt meddelande (plusset): en region och ingen dialog, minst två personer att välja med 44 px träffyta, raden om att det är
+//       privat MELLAN väljaren och textrutan, knappen Skicka, kolumnen högst 672 px vid 1280.
+// Ingen horisontell överflödning någonstans. Golv: minst 2 rader i listan och minst 3 bubblor i samtalet.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const { page, context } = await oppna("meddelanden", vp);
+  const namn = `meddelanden ${vp.width}`;
+  try {
+    await page.waitForSelector("[data-samtalsrad]", { timeout: 4000 });
+    await page.waitForTimeout(150);
+    const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const lista = await page.evaluate(() => {
+      const yta = /** @type {HTMLElement} */ (document.querySelector("[data-ops-meddelanden]"));
+      const l = /** @type {HTMLElement} */ (document.querySelector("[data-samtalslista]"));
+      const s = /** @type {HTMLElement} */ (l.nextElementSibling);
+      const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+      const rader = [...document.querySelectorAll("[data-samtalsrad]")].map((r) => {
+        const marke = r.querySelector("[role=img]");
+        const namnEl = r.querySelector(".text-etikett");
+        const tid = r.querySelector("[data-tid]");
+        const etikett = r.querySelector("[data-slag]");
+        const utdrag = r.querySelector(".text-meta");
+        const badge = r.querySelector("[data-ops-count-badge]");
+        return {
+          slag: r.getAttribute("data-samtalsrad"),
+          marke: marke ? b(marke).width : null,
+          namn: namnEl ? getComputedStyle(namnEl).fontSize + "/" + getComputedStyle(namnEl).fontWeight : null,
+          tid: tid ? getComputedStyle(tid).fontSize : null,
+          etikett: etikett ? getComputedStyle(etikett).fontSize : null,
+          utdrag: utdrag ? getComputedStyle(utdrag).fontSize : null,
+          badgeIHorn: badge && marke ? Math.abs(b(badge).right - b(marke).right) < 6 && Math.abs(b(badge).top - b(marke).top) < 6 : false,
+        };
+      });
+      return {
+        yta: b(yta).width,
+        // ⛔ Dokumentets bredd och inte clientWidth: tokens.css har `scrollbar-gutter: stable`, så rullningslistens plats är alltid reserverad.
+        vw: document.documentElement.getBoundingClientRect().width,
+        rullar: document.documentElement.scrollHeight - window.innerHeight,
+        lista: { x: b(l).left, w: b(l).width, synlig: getComputedStyle(l).display !== "none", radie: parseFloat(getComputedStyle(l).borderTopLeftRadius) },
+        samtal: { x: b(s).left, w: b(s).width, synlig: getComputedStyle(s).display !== "none", radie: parseFloat(getComputedStyle(s).borderTopLeftRadius) },
+        rader,
+      };
+    });
+    matt.push(`${namn}: listan ${JSON.stringify(lista.lista)}, samtalsytan ${JSON.stringify(lista.samtal)}, ytan ${lista.yta} px, rader ${JSON.stringify(lista.rader)}`);
+    krav(lista.rullar <= 0, `${namn}: sidan är ${lista.rullar} px högre än fönstret. Meddelanden fyller fönstret, och listan och samtalet rullar var för sig.`);
+    krav(lista.rader.length >= 2, `${namn}: ${lista.rader.length} rader i listan, väntat minst 2 (gruppchatten och det privata samtalet). Golv.`);
+    for (const r of lista.rader) {
+      krav(r.marke !== null && Math.abs(r.marke - 36) < 0.5, `${namn}: raden (${r.slag}) har märket ${r.marke} px, väntat 36.`);
+      krav(r.namn === "14px/500", `${namn}: raden (${r.slag}) har namnet ${r.namn}, väntat 14px/500 (SS text-sm font-medium, :735).`);
+      krav(r.tid === "10px" && r.etikett === "10px", `${namn}: raden (${r.slag}) har tiden ${r.tid} och etiketten ${r.etikett}, väntat 10px (ramverkets minsta roll, SS 9px, :738 och :745).`);
+      krav(r.utdrag === "12px", `${namn}: raden (${r.slag}) har utdraget ${r.utdrag}, väntat 12px (SS text-xs, :755).`);
+    }
+    const privat = lista.rader.find((r) => r.slag === "personer");
+    krav(!!privat && privat.badgeIHorn, `${namn}: det privata samtalet med två olästa har ${privat ? "ingen räknare i märkets hörn" : "ingen rad"} (SS :727).`);
+    if (vp.width >= 1024) {
+      const andel = lista.lista.w / lista.yta;
+      krav(lista.lista.synlig && lista.samtal.synlig, `${namn}: listan (${lista.lista.synlig}) och samtalsytan (${lista.samtal.synlig}) ska synas samtidigt på dator.`);
+      krav(andel >= 0.33 && andel <= 0.41 && lista.lista.w >= 219.5, `${namn}: listan är ${lista.lista.w.toFixed(0)} px, ${(andel * 100).toFixed(1)} procent av ${lista.yta.toFixed(0)}, väntat 35 till 40 procent och minst 220 (SS :959).`);
+      krav(lista.lista.radie >= 12 && lista.samtal.radie >= 12, `${namn}: rundningen är ${lista.lista.radie} och ${lista.samtal.radie}, väntat minst 12 (SS rounded-xl).`);
+      const glapp = lista.samtal.x - (lista.lista.x + lista.lista.w);
+      krav(Math.abs(glapp - 8) < 1, `${namn}: ${glapp.toFixed(1)} px mellan listan och samtalet, väntat 8 (SS sm:gap-2).`);
+    } else {
+      krav(lista.lista.synlig && !lista.samtal.synlig && lista.lista.w >= lista.vw - 1, `${namn}: listan ska vara hela bredden (${lista.lista.w} av ${lista.vw}) och samtalet dolt (${lista.samtal.synlig ? "synligt" : "dolt"}) på telefon.`);
+    }
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `meddelanden-lista-${vp.width}.png`) });
+
+    await page.locator('[data-samtalsrad="personer"]').click();
+    await page.waitForSelector("[data-meddelande]", { timeout: 4000 });
+    await page.waitForTimeout(150);
+    const samtal = await page.evaluate(() => {
+      const vy = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal]"));
+      const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+      const logg = /** @type {HTMLElement} */ (vy.querySelector("[role=log]"));
+      const bubblor = [...vy.querySelectorAll("[data-meddelande]")].map((m) => {
+        const bubbla = /** @type {HTMLElement} */ (m.querySelector(".rounded-2xl"));
+        const cs = getComputedStyle(bubbla);
+        return { slag: m.getAttribute("data-meddelande"), v: b(bubbla).left - b(logg).left, h: b(logg).right - b(bubbla).right, fs: cs.fontSize, radie: parseFloat(cs.borderTopLeftRadius), bg: cs.backgroundColor, yta: getComputedStyle(/** @type {Element} */ (vy.closest("section"))).backgroundColor };
+      });
+      const rad = vy.querySelector("[data-privat-rad]");
+      const form = /** @type {HTMLElement} */ (vy.querySelector("form"));
+      const lista = /** @type {HTMLElement} */ (document.querySelector("[data-samtalslista]"));
+      const tillbaka = [...document.querySelectorAll("button")].find((x) => (x.textContent || "").trim() === "Tillbaka" && getComputedStyle(x).display !== "none");
+      return {
+        privatRad: rad ? (rad.textContent || "").trim() : null,
+        privatSynlig: rad ? b(rad).height > 0 : false,
+        bubblor,
+        formNederkant: b(form).bottom,
+        vyNederkant: b(vy).bottom,
+        listaSynlig: getComputedStyle(lista).display !== "none",
+        tillbaka: !!tillbaka,
+        vh: window.innerHeight,
+      };
+    });
+    const bottenrad = vp.width < 768 ? 56 : 0;
+    matt.push(`${namn}, privat samtal: rad "${samtal.privatRad}", bubblor ${JSON.stringify(samtal.bubblor)}, skrivfältets nederkant ${samtal.formNederkant} (ytans ${samtal.vyNederkant}, fönstret ${samtal.vh}), listan ${samtal.listaSynlig ? "synlig" : "dold"}, Tillbaka ${samtal.tillbaka ? "synlig" : "saknas"}`);
+    krav(samtal.privatRad === "Bara ni två ser det här" && samtal.privatSynlig, `${namn}: samtalets huvud säger "${samtal.privatRad}", väntat "Bara ni två ser det här" synligt (CP:s beslut 1).`);
+    krav(samtal.bubblor.length >= 3, `${namn}: ${samtal.bubblor.length} bubblor, väntat minst 3. Golv.`);
+    for (const bu of samtal.bubblor) {
+      krav(bu.bg !== bu.yta && !/rgba\(0, 0, 0, 0\)|transparent/.test(bu.bg), `${namn}: bubblan (${bu.slag}) har bakgrunden ${bu.bg} på ytan ${bu.yta}. En bubbla i samma färg som ytan är text utan bubbla (SS --color-chat-bubble-other-bg).`);
+      krav(bu.fs === "14px" && bu.radie >= 16, `${namn}: bubblan (${bu.slag}) har ${bu.fs} och rundning ${bu.radie}, väntat 14px och minst 16 (SS rounded-2xl, :145).`);
+      if (bu.slag === "eget") krav(bu.h < 16 && bu.v > bu.h, `${namn}: en egen bubbla ligger ${bu.v.toFixed(0)} px från vänster och ${bu.h.toFixed(0)} från höger, väntat till höger.`);
+      else krav(bu.v < 60 && bu.h > bu.v, `${namn}: en annans bubbla ligger ${bu.v.toFixed(0)} px från vänster och ${bu.h.toFixed(0)} från höger, väntat till vänster.`);
+    }
+    krav(Math.abs(samtal.formNederkant - samtal.vyNederkant) < 1.5, `${namn}: skrivfältet slutar ${samtal.formNederkant}, samtalsytan ${samtal.vyNederkant}. Det ska ligga längst ned.`);
+    krav(samtal.formNederkant <= samtal.vh - bottenrad + 0.5, `${namn}: skrivfältet slutar ${samtal.formNederkant}, under ${samtal.vh - bottenrad} (fönstret minus bottenraden).`);
+    if (vp.width < 768) krav(!samtal.listaSynlig && samtal.tillbaka, `${namn}: på telefon ska listan döljas (${samtal.listaSynlig ? "synlig" : "dold"}) och Tillbaka synas (${samtal.tillbaka}).`);
+    krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `meddelanden-samtal-${vp.width}.png`) });
+
+    // (d) Nytt meddelande ur plusset. På telefon är det bottenradens plus (ett ark), på dator huvudets.
+    if (vp.width < 768) await page.locator('nav button[aria-label="Skapa"]').last().click();
+    else await page.getByRole("button", { name: "Skapa" }).first().click();
+    await page.getByRole("button", { name: "Nytt meddelande" }).last().click();
+    const panel = page.getByRole("region", { name: "Nytt meddelande" });
+    await panel.waitFor({ timeout: 4000 });
+    const ny = await panel.evaluate((p) => {
+      const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+      const radio = [...p.querySelectorAll("[role=radio]")].map((r) => b(r).height);
+      const grupp = p.querySelector("[role=radiogroup]");
+      const rad = p.querySelector("[data-privat]");
+      const text = p.querySelector("textarea");
+      const kolumn = /** @type {HTMLElement} */ (p.querySelector(".max-w-2xl"));
+      const skicka = [...document.querySelectorAll("[data-skapa-knappar] button")].map((x) => (x.textContent || "").trim());
+      return {
+        radio,
+        ordning: grupp && rad && text ? b(grupp).bottom <= b(rad).top + 0.5 && b(rad).bottom <= b(text).top + 0.5 : false,
+        rad: rad ? (rad.textContent || "").trim() : null,
+        kolumn: kolumn ? b(kolumn).width : null,
+        skicka,
+        dialoger: document.querySelectorAll("[role=dialog]").length,
+      };
+    });
+    matt.push(`${namn}, Nytt meddelande: radioknappar ${JSON.stringify(ny.radio)}, rad "${ny.rad}", ordning ${ny.ordning}, kolumn ${ny.kolumn}, knappar ${JSON.stringify(ny.skicka)}, dialoger ${ny.dialoger}`);
+    krav(ny.dialoger === 0, `${namn}: Nytt meddelande öppnade ${ny.dialoger} dialoger, väntat en panel (0.31.0).`);
+    krav(ny.radio.length >= 2 && ny.radio.every((h) => h >= 43.5), `${namn}: ${ny.radio.length} personer att välja med höjderna ${JSON.stringify(ny.radio)}, väntat minst 2 och 44 px.`);
+    krav(ny.rad === "Bara ni två ser det här." && ny.ordning, `${namn}: raden om det privata ("${ny.rad}") ska stå mellan väljaren och textrutan (${ny.ordning}).`);
+    krav(ny.skicka.includes("Skicka") && !ny.skicka.includes("Spara"), `${namn}: panelens knappar är ${JSON.stringify(ny.skicka)}, väntat Skicka och ingen Spara.`);
+    if (vp.width >= 1024) krav(ny.kolumn !== null && ny.kolumn <= 672.5, `${namn}: Nytt meddelande är ${ny.kolumn} px brett, väntat högst 672 (smal kolumn som Ny grupp).`);
+    krav((await over()) <= 0, `${namn}, Nytt meddelande: sidan flödar över ${await over()} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `nytt-meddelande-${vp.width}.png`) });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

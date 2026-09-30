@@ -1487,8 +1487,11 @@ export function OpsAppShell({
           headern och panelen ligger i samma `max-w-[1400px] mx-auto`. Utan den låg panelen vid fönstrets
           kant och märket i den centrerade toppraden: 157 px isär vid 1600. */}
       <div className={cx(grupper && "mx-auto max-w-7xl lg:flex")}>
+        {/* ⛔ 0.34.0: PANELENS HÖJD ÄR FÖNSTRET MINUS HUVUDET, OCH HUVUDET ÄR SÄKER ZON PLUS 56 PLUS SIN KANT PÅ 1 PX. Före 0.34.0 drogs
+            bara 56 ifrån, så varje sida med gruppanelen var 1 px (plus den säkra zonen) högre än fönstret och rullade. Det syntes inte
+            på en lång sida, men på Meddelanden (som fyller fönstret) gav det en rullning och en rullningslist. Mätt i check-skalyta avsnitt 29. */}
         {grupper ? (
-          <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--topbar-height))] lg:pl-4 lg:pt-5">
+          <div className="hidden shrink-0 lg:sticky lg:z-(--z-sticky-header) lg:top-[calc(var(--safe-top)+var(--topbar-height))] lg:block lg:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] lg:pl-4 lg:pt-5">
             <OpsGruppanel
               grupper={grupper.lista}
               aktiv={grupper.aktiv}

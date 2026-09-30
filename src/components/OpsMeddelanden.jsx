@@ -25,6 +25,10 @@ import { AgentIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, Meddeland
  * 11 px (sökningen) blir `text-hjalp`, bubblans 13 px blir 14 (`text-etikett`). Jämförelsen står i
  * `docs/jamforelser/0.34.0/jamforelse.md`.
  *
+ * ⛔ ANDRAS BUBBLOR, DEN VALDA RADEN OCH ETIKETTEN GRUPP ÄR `bg-hover`, INTE `bg-raised`. I det ljusa temat är `raised` samma färg
+ * som `surface` (tokens.css), så en bubbla i `raised` på samtalets yta hade varit text utan bubbla. Upptäckt i montaget mot SS,
+ * där `--color-chat-bubble-other-bg` skiljer sig från ytan, och mätt i check-skalyta avsnitt 29.
+ *
  * ⛔ DET PRIVATA SYNS. Ett privat samtal bär etiketten "Privat" i listan och raden "Bara ni två ser det här" i huvudet.
  *
  * ⛔ ETT SAMTAL ÄR EN MODELL (CP:s beslut 4). Gruppchatten, ett privat samtal och ett agentsamtal ritas av samma vy;
@@ -104,6 +108,9 @@ function radtid(tid, nu, locale) {
   return d.toDateString() === n.toDateString() ? formatTime(tid, { locale }) : formatDate(tid, { locale });
 }
 
+/** "i dag" blir "I dag" i avdelaren, som SS (`ChatDateDivider.jsx`). @param {string} t */
+const forstaVersal = (t) => (t ? t.charAt(0).toLocaleUpperCase("sv") + t.slice(1) : t);
+
 /**
  * Ingången till meddelandena, med antalet olästa (0.34.0). En `OpsIconLink` med ramverkets ikon, för appens `actions`.
  *
@@ -179,9 +186,12 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNy
   const slagetFor = (r) => (r.samtal.slag === "grupp" ? t.grupp : r.samtal.slag === "agent" ? t.agent : t.privat);
 
   return (
+    /* ⛔ HÖJDEN ÄR FÖNSTRET MINUS SKALETS RAMAR (huvudet med sin kant på 1 px, och bottenraden under md), så att listan och
+       samtalet rullar var för sig och skrivfältet står kvar längst ned, som SS (`h-full`, `:957`). Mätt i check-skalyta
+       avsnitt 29: utan den enda pixeln för huvudets kant rullade hela sidan en pixel, och skrivfältet hamnade under bottenraden. */
     <div
       data-ops-meddelanden=""
-      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-var(--bottom-nav-h)-var(--safe-bottom))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height))] md:flex-row md:gap-2 md:p-2"
+      className="flex h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px-var(--bottom-nav-h)-var(--safe-bottom))] min-h-0 flex-col bg-canvas md:h-[calc(100dvh-var(--safe-top)-var(--topbar-height)-1px)] md:flex-row md:gap-2 md:p-2"
     >
       {/* ── Listan ─────────────────────────────────────────────────────────────────────────── */}
       <section
@@ -275,7 +285,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNy
                       onClick={() => valj(r.samtal.id)}
                       className={cx(
                         "flex w-full cursor-pointer items-center gap-3 rounded-card px-3 py-1.5 text-left transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                        aktiv ? "bg-raised" : "hover:bg-raised",
+                        aktiv ? "bg-hover" : "hover:bg-hover",
                       )}
                     >
                       <span className="relative shrink-0">
@@ -287,10 +297,10 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNy
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-2">
                           <span className={cx("min-w-0 flex-1 truncate text-etikett font-medium", r.olasta > 0 ? "text-ink" : "text-ink-secondary")}>{rubrikFor(r)}</span>
-                          {s ? <span className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(s.tid, nu, locale)}</span> : null}
+                          {s ? <span data-tid="" className="shrink-0 text-liten tabular-nums text-ink-muted">{radtid(s.tid, nu, locale)}</span> : null}
                         </span>
                         <span className="mt-0.5 flex items-center gap-1">
-                          <span data-slag="" className={cx("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-liten font-medium", r.samtal.slag === "grupp" ? "bg-raised text-ink-secondary" : "bg-accent-faint text-accent")}>
+                          <span data-slag="" className={cx("inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-liten font-medium", r.samtal.slag === "grupp" ? "bg-hover text-ink-secondary" : "bg-accent-faint text-accent")}>
                             {r.samtal.slag !== "grupp" ? <LasIkon size={10} /> : null}
                             {slagetFor(r)}
                           </span>
@@ -476,7 +486,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
             <div key={m.id}>
               {nyDag ? (
                 <div className="flex justify-center py-3">
-                  <span className="rounded-full bg-canvas px-3 py-1 text-liten font-medium text-ink-muted">{formatRelativeDate(m.tid, { locale })}</span>
+                  <span className="rounded-full bg-canvas px-3 py-1 text-liten font-medium text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
                 </div>
               ) : null}
               <div data-meddelande={egen ? "eget" : "annans"} className={cx("flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
@@ -486,7 +496,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
                   <div
                     className={cx(
                       "rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words whitespace-pre-wrap",
-                      egen ? "bg-accent text-accent-contrast" : "bg-raised text-ink",
+                      egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
                       fortsattning && egen ? "rounded-tr-lg" : "",
                       fortsattning && !egen ? "rounded-tl-lg" : "",
                     )}
