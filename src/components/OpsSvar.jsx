@@ -53,7 +53,7 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar" }) {
                 {jag ? " (du)" : ""}
               </span>
               {jag ? (
-                <OpsSvarsknappar vald={s} onSvara={onSvara} namn={m.namn} className="w-full items-start md:w-auto md:items-end" />
+                <OpsSvarsknappar vald={s} onSvara={onSvara} namn={m.namn} variant="egen-rad" />
               ) : (
                 <span className="shrink-0 text-meta text-ink-secondary">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
               )}
@@ -67,13 +67,14 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar" }) {
 
 /**
  * Kommer / Kommer inte, som två knappar. Används på den egna raden i `OpsSvar` och i inkorgens rad (`OpsSvarsrad`).
+ * `variant="egen-rad"` ger knapparna en egen rad under 768 px (raden i `OpsSvar`); förvalet `inline` står bredvid.
  *
  * ⛔ KNAPPEN SPÄRRAS MEDAN SVARET SKRIVS, OCH ETT FEL STÅR UTSKRIVET. Ett tryck som inte gick fram och inte säger det ser ut
  * som ett svar, och då står frågan kvar i någon annans sammanställning som "har inte svarat" utan att någon vet varför.
  *
- * @param {{ vald?: string, onSvara: (val: "kommer" | "kommerInte") => Promise<unknown> | void, namn?: string, className?: string }} props
+ * @param {{ vald?: string, onSvara: (val: "kommer" | "kommerInte") => Promise<unknown> | void, namn?: string, variant?: "inline" | "egen-rad" }} props
  */
-export function OpsSvarsknappar({ vald, onSvara, namn, className }) {
+export function OpsSvarsknappar({ vald, onSvara, namn, variant = "inline" }) {
   const [skriver, setSkriver] = useState(/** @type {null | "kommer" | "kommerInte"} */ (null));
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
   /** @param {"kommer" | "kommerInte"} v */
@@ -105,7 +106,7 @@ export function OpsSvarsknappar({ vald, onSvara, namn, className }) {
     </button>
   );
   return (
-    <span className={cx("flex shrink-0 flex-col items-end gap-1", className)}>
+    <span className={cx("flex shrink-0 flex-col gap-1", variant === "egen-rad" ? "w-full items-start md:w-auto md:items-end" : "items-end")}>
       <span data-svarsknappar="" className="flex gap-1.5">
         {knapp("kommer", "Kommer")}
         {knapp("kommerInte", "Kommer inte")}
