@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.32.1
 
-⛔ **Idag och Kalender når bottenraden igen, också när Safaris verktygsfält fälls in och när något ovanför ytan försvinner. Inte breaking.**
+⛔ **Idag och Kalender når bottenraden igen, också när Safaris verktygsfält fälls in och när något ovanför ytan försvinner. Händelsekortet och inkorgsraden som SS. Inte breaking.**
 CP 2026-09-30, två skärmbilder från telefonen: *"Kalender och idag går inte ända ner utan huggs av i botten."* Innehållet slutade långt ovanför
 bottenraden. Ett kort i Idag klipptes rakt av, och veckoraden i Kalender klipptes horisontellt.
 
@@ -45,8 +45,29 @@ fast vid höjden vid mount, eftersom Chromiums egen `100svh` följer med och all
 - Enhetsprov (`scrollArea.test.jsx`): tre nya prov (bottenradens kant, ingen synlig rad, ommätning när något ovanför ändrar storlek) är röda mot 0.32.0:s hook och gröna nu.
 - Före och efter vid 390: `docs/jamforelser/0.32.1/fullyta-c-fore-efter-390.png` och `fullyta-a-fore-efter-390.png`. Felet citerar ingen SessionStudio-bild, så det finns ingen förebild att ställa bredvid.
 
+### Händelsekortet och inkorgsraden som SS
+CP 2026-09-30 08:04: *"Kolla storleken och fint på texten i händelserna. Matchar inte det vi har i SessionStudio. Dubbelkolla även inkorgen."*
+Titeln var redan 18/700 som SS. Felet låg i kompositionen:
+- **Chevronen tar ingen kolumn längre.** Den låg i en egen kolumn på 44 px, så titeln fick 251 px mot kortets 299 och en rad extra. Nu är knappen
+  absolut i kortets övre högra hörn (samma 44 px träffyta), och bara kortets första rad ger plats åt den. Titeln har hela innerbredden.
+- **Datumraden står vänsterställd direkt ovanför titeln,** som SS (`TodayView.jsx:527`), 12 px (14 från `sm`) och dämpad. Förut var den en `ml-auto`-grupp i
+  pillraden som blev högerställd på en egen rad vid 390 px.
+- **Radien är 24 px som SS** (`--radius-card`, SS `index.css:228`): CP 2026-09-30 valde det. `OpsEventList` använder kortets förval i stället för `bubbla`
+  (28 px). `bubbla` finns kvar i `OpsCard` och används fortfarande av `OpsInloggning`.
+- **`OpsDisclosure`:** summary-behållaren har `text-etikett`, så innehåll utan egen klass är 14 px (SS `text-sm`) i stället för bodyns 16.
+- **`OpsPill size="liten"`** (ny, valfri): rollen `liten` (10/500) med `px-1.5 py-0.5`, för typbadgar (SS `ChatInboxPanel.jsx:743`, 9/500). Standard är oförändrad.
+- **`OpsRollmarke`** (ny, exporterad): rollpillret ("Du", "Förfaller", "Agent") med samma mått som "Försenat" (12/600, `px-2 py-0.5`), ur en konstant som
+  `OpsEventList` också använder för brådskemärket.
+- **Vakt:** `check-skalyta` avsnitt 25 vid 390 px, två kort: titeln minst 95 procent av innerbredden, datumradens vänsterkant lika med titelns (+-1), radien
+  24 +- 0,5, rollmärket lika stort som "Försenat", summary utan klass 14 px, liten `OpsPill` 10 px. **Rött mot 0.32.0: 9 brott** (titeln 251 av 299 i båda
+  korten, datumraden vid 101,5 och 152,9 mot titelns 40, radien 28 i båda, rollmärket saknas, summary 16 px, pillret 12/600). **Grönt nu.**
+- Montage och en ärlig jämförelse (vad som matchar, vad som skiljer: kortets luft 24 mot 20, den färgade vänsterkanten, pillraden som SS saknar):
+  `docs/jamforelser/0.32.1/idag-kort-fore-efter-ss-390.png` och `jamforelse.md`.
+
 ### Att göra i appen vid ompinning till 0.32.1
-Pinna om. Inget annat krävs. ⛔ Har appen en egen bottenrad i stället för `OpsBottomNav` hittar hooken den inte, och då slutar ytan vid fönstret minus
+Pinna om. ⛔ Byt sedan appens tre handskrivna rollpiller (`Rolletikett` i `EventsView.jsx`, `Rolltegner` i `ProcessView.jsx` och
+`ScheduleView.jsx`) mot `<OpsRollmarke kind={role} label={roleLabel(role)} />`, och inkorgens typbadge mot `<OpsPill size="liten">`. Inget av det
+krävs för att bygga. ⛔ Har appen en egen bottenrad i stället för `OpsBottomNav` hittar hooken den inte, och då slutar ytan vid fönstret minus
 den säkra ytan i stället för vid raden. Sätt i så fall `data-ops-bottenrad` på appens `<nav>`.
 
 ## 0.32.0

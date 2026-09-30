@@ -7,6 +7,7 @@ import { laesSkapare } from "../lib/skapare.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsCard } from "./OpsCard.jsx";
 import { OpsProvenance } from "./OpsProvenance.jsx";
+import { ROLLMARKE_MATT } from "./OpsRollmarke.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 
 /**
@@ -51,20 +52,17 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
  * En rad som säger samma sak som raden ovanför slutar läsas, och då är
  * förklaringen borta i praktiken fast den står där.
  *
- * ⛔ PLATSEN PÅ RADEN RESERVERAS BARA NÄR RADEN HAR EN ÅTGÄRD, exakt som
- * chevronkolumnen bara finns när någon rad kan fällas ut. En lista utan
+ * ⛔ PLATSEN PÅ RADEN RESERVERAS BARA NÄR RADEN HAR EN ÅTGÄRD. En lista utan
  * åtgärder ser ut precis som förut och betalar ingen höjd för en gest som inte
  * finns.
  *
- * ── ⛔ CHEVRONKOLUMNEN RESERVERAS BARA NÄR NÅGON RAD KAN FÄLLAS UT ────────
+ * ── ⛔ CHEVRONEN TAR INGEN KOLUMN (0.32.1) ───────────────────────────────
  *
- * Kolumnen är 44 px, alltså 11 procent av en 390 px bred telefon, och den tas
- * från titeln. Reserverades den alltid skulle varje lista utan utfällbara rader
- * betala för en gest som inte finns, och vi har redan en dyr läxa om exakt det:
- * titeln fick 178 px i samma komponent och blev oläslig.
- *
- * Därför frågar listan sina egna rader först. Har ingen `details` finns ingen
- * kolumn. Har någon det får alla den, för ojämna vänsterkanter läses som slarv.
+ * Fram till 0.32.0 låg chevronen i en egen kolumn på 44 px, 11 procent av en
+ * 390 px bred telefon, tagen från titeln: 251 px mot SessionStudios 301 och en
+ * rad extra i titeln (CP 2026-09-30 08:04, "Matchar inte det vi har i
+ * SessionStudio"). Nu ligger knappen absolut i kortets övre högra hörn, med
+ * samma 44 px träffyta, och bara kortets första rad ger plats åt den.
  *
  * ── ⛔ FÄRGEN BÄR INTE BETYDELSEN ────────────────────────────────────────
  *
@@ -139,11 +137,7 @@ export function OpsEventList({
   // listan är tom, och kasta första gången en lista fylls på.
   if (!events || events.length === 0) return empty;
 
-  // Frågar raderna själva i stället för att ta en prop: en app som glömmer
-  // flaggan men skickar `details` skulle annars få en pil som inte syns.
-  const nagonHarDetaljer = events.some((e) => Boolean(e && e.details));
-
-  // Samma fråga för åtgärder, och av samma skäl.
+  // Frågar raderna själva i stället för att ta en prop.
   const nagonHarAtgard = events.some((e) => Boolean(e && e.atgard));
 
   /*
@@ -204,6 +198,10 @@ export function OpsEventList({
         const oppen = open.indexOf(h.id) >= 0;
         const panelId = `${idBas}-${h.id}`;
         const harDetaljer = Boolean(h.details);
+        // 0.32.1: chevronen tar ingen kolumn längre, så en rad utan detaljer behöver ingen tom plats.
+        const harChevron = harDetaljer;
+        const harPillrad = Boolean(h.status || h.role || marke || h.kind);
+        const harDatumrad = Boolean(h.when || h.deadline || h.updatedAt || url);
         // ⛔ Samma ton som kortets kant och kalenderns prick, ur en källa.
         const slagfarg = slagText(h.slag, h.slagLabel, "OpsEventList");
 
@@ -215,19 +213,31 @@ export function OpsEventList({
               en ström, inte en panel på en sida, och 24 px mot 8 säger det utan
               ett ord.
 
+              ⛔ CP 2026-09-30 valde 24 px som SS. `bubbla` hade hunnit bli 28 px
+              (`rounded-3xl`) medan SS kort är `--radius-card`, 24 px (`.rounded-app
+              .rounded-2xl`, SS `index.css:228`), och kortets förval `kort` bär just
+              `--radius-card`. Därför inget `rounding` här längre. Radien mäts i
+              check-skalyta avsnitt 25 (24 +- 0,5).
+
               ⛔ KANTEN SLÄPPS IGENOM, DEN BYGGS INTE HÄR. `OpsCard` har haft en
               färgad vänsterkant hela tiden, med kravet på ett ord inbyggt.
               Listan gjorde den bara inte nåbar, så varje yta som ville visa
               slaget som en kant hade fått rita sin egen. Att lägga till två
               rader här är hela skillnaden.
             */}
-            <OpsCard rounding="bubbla" edge={h.edge} edgeLabel={h.edgeLabel} slag={h.slag} slagLabel={h.slagLabel}>
-            {/* ⛔ Chevron HÖGER, samma sida som OpsDisclosure/Inkorg (CP 2026-09-21). */}
-            <div className="flex items-start gap-1">
-              <div className="flex min-w-0 flex-1 flex-col gap-y-0.5">
-              {/* Detaljraden: vem, hur bråttom, när, och länken. Korta saker som
-                  tål att trängas. */}
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <OpsCard edge={h.edge} edgeLabel={h.edgeLabel} slag={h.slag} slagLabel={h.slagLabel}>
+            {/*
+              ⛔ 0.32.1: INGEN CHEVRONKOLUMN. CP 2026-09-30 08:04: "Kolla storleken och fint på texten i händelserna.
+              Matchar inte det vi har i SessionStudio." Titeln var redan 18/700 som SS, felet låg i kompositionen: en
+              44 px bred chevronkolumn till höger tog bredden från hela kortet, så titeln fick 251 px mot SS 301 vid
+              390 px och en rad extra. Nu ligger knappen absolut i kortets övre högra hörn (samma 44 px träffyta, men
+              ingen layoutbredd), och bara den första raden ger plats åt den (`pr-9`). Titeln har kortets hela innerbredd.
+            */}
+            <div className="relative flex min-w-0 flex-col gap-y-0.5">
+              {/* Pillraden: status, roll, brådska och slag. Korta märken som tål att trängas. SS har ingen sådan rad
+                  (ramverkets tillägg, se docs/jamforelser/0.32.1). */}
+              {harPillrad ? (
+              <div className={cx("flex flex-wrap items-center gap-x-2 gap-y-1", harChevron && "pr-9")}>
                 {/* ⛔ FÖRST I RADEN, OCH DEN SYNS ÄVEN NÄR KORTET ÄR IHOPFÄLLT.
                     CP (bolag-ops #249): status ska vara en färgprick i kortets
                     header. Ligger den i utfällningen svarar den bara den som
@@ -246,9 +256,8 @@ export function OpsEventList({
 
                 {h.role ? <span className="shrink-0 text-meta sm:text-etikett">{h.role}</span> : null}
 
-                {marke ? (
-                  <span className={cx("shrink-0 rounded-full px-2 py-0.5 text-meta font-semibold", TONER[state])}>{marke}</span>
-                ) : null}
+                {/* ⛔ BRÅDSKAN HAR SAMMA MÅTT SOM ROLLMÄRKET (`ROLLMARKE_MATT`, 0.32.1): de står bredvid varandra. */}
+                {marke ? <span className={cx(ROLLMARKE_MATT, TONER[state])}>{marke}</span> : null}
 
                 {/* ⛔ SLAGET ÄR TEXT, INTE ETT TREDJE FÄRGAT MÄRKE.
                     Raden bär redan en rollbadge och ibland ett brådskemärke. Ett
@@ -279,40 +288,22 @@ export function OpsEventList({
                   </span>
                 ) : null}
 
-                {/* ⛔ NÄR OCH DEADLINE HÅLLS IHOP I ETT ELEMENT, inte som två
-                    syskon i flexraden. De svarar på samma fråga ur två håll ("hur
-                    långt bort" och "vilken dag"), och skulle de wrappa var för sig
-                    hamnar datumet på en egen rad under rollbadgen där det läses som
-                    ett tredje, obesläktat fält.
+              </div>
+              ) : null}
 
-                    ⛔ `tabular-nums`: utan den hoppar datumkolumnen i sidled mellan
-                    rader, eftersom siffrorna har olika bredd i de flesta typsnitt.
-                    Det syns inte på en rad och är omöjligt att sluta se på tio.
+              {/* ⛔ DATUMRADEN FÖRE TITELN OCH VÄNSTERSTÄLLD, SOM SS (0.32.1, `TodayView.jsx:527`: `text-xs sm:text-sm`,
+                  dämpad, direkt ovanför titeln). Före 0.32.1 var den en `ml-auto`-grupp i pillraden, och när den bröt till
+                  en egen rad vid 390 px hamnade den högerställd och såg indragen ut. Den får aldrig vara högerställd.
 
-                    ⛔ KLUSTRET FÅR EN EGEN RAD PÅ SMALA SKÄRMAR, OCH DET ÄR RÄTT.
-                    Mätt i Chromium: vid 390 px har raden ~280 px efter
-                    chevronkolumnen (höger), och rollbadge plus slag plus "Om 4 veckor
-                    Senast 12 okt" kräver omkring 357. Fyra upplysningar ryms inte,
-                    punkt. Vid 768 px och uppåt ryms de och står på en rad.
+                  ⛔ NÄR OCH DEADLINE HÅLLS IHOP I ETT ELEMENT: de svarar på samma fråga ur två håll ("hur långt bort"
+                  och "vilken dag"). `tabular-nums` så att siffrorna inte hoppar i sidled mellan rader.
 
-                    ⛔ Lös det ALDRIG med `flex-nowrap` och trunkering. Räknat på
-                    samma mätning får slaget då 31 px, alltså två tecken plus
-                    ellips, och en etikett kapad till "Dr..." är sämre än en rad
-                    till. Samma avvägning som titeln nedan: text får plats eller får
-                    en egen rad, den kapas inte. */}
-                {/* ⛔ HÖGERKLUSTRET: när/deadline, uppdaterad, länk. Ett ml-auto
-                    för hela gruppen så datum och #183 landar uppe till höger i
-                    den kompakta raden (CP: uppdaterad top-right, ärendenummer
-                    i stället för "Öppna"). */}
-                {h.when || h.deadline || h.updatedAt || url ? (
-                  <span className="ml-auto flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-meta sm:text-etikett tabular-nums text-ink-secondary">
-                    {h.when ? <span>{h.when}</span> : null}
-                    {/* ⛔ Dämpad, inte framhävd. Deadline är ett faktum man skriver
-                        in i en kalender, inte ett larm: brådskan är redan sagd av
-                        märket till vänster, och skulle datumet också ta
-                        uppmärksamhet konkurrerar två fält om samma roll. */}
-                    {h.deadline ? <span className="text-ink-muted">{h.deadline}</span> : null}
-                    {h.updatedAt ? <span className="text-ink-muted">{h.updatedAt}</span> : null}
+                  ⛔ Lös aldrig trängsel med `flex-nowrap` och trunkering: text får plats eller får en rad till. */}
+              {h.when || h.deadline || h.updatedAt || url ? (
+                <div className={cx("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-meta sm:text-etikett tabular-nums text-ink-muted", harChevron && !harPillrad && "pr-9")} data-datumrad="">
+                  {h.when ? <span>{h.when}</span> : null}
+                  {h.deadline ? <span>{h.deadline}</span> : null}
+                  {h.updatedAt ? <span>{h.updatedAt}</span> : null}
                     {url ? (
                       <a
                         href={url}
@@ -333,9 +324,8 @@ export function OpsEventList({
                         </span>
                       </a>
                     ) : null}
-                  </span>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
 
               {/* ⛔ TITELN PÅ EGEN RAD, MED HELA BREDDEN. LÄS DET HÄR INNAN DU
                   LÄGGER TILLBAKA DEN I RADEN OVAN.
@@ -357,7 +347,8 @@ export function OpsEventList({
                   hela på en bred är samma komponent med två utseenden, och det är
                   den sortens skillnad som gör att bara den ena blir provad. */}
               {/* ⛔ 0.31.2: SS `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 px under sm, 20 px från sm (`titel` och `sida`). Metaraden ovanför är SS `text-xs sm:text-sm` (`:83/86`): 12 px under sm, 14 px från sm. */}
-              <span className="text-titel sm:text-sida text-ink">{h.title}</span>
+              {/* ⛔ 0.31.2: SS `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 px under sm, 20 px från sm (`titel` och `sida`). */}
+              <span className={cx("text-titel sm:text-sida text-ink", harChevron && !harPillrad && !harDatumrad && "pr-9")} data-titel="">{h.title}</span>
 
               {/* ⛔ VEM OCH NÄR, OM BÅDA FINNS (0.30.0, #173, CP 2026-09-29: "vem
                   som skapade"). Under titeln och inte i detaljraden ovanför: det
@@ -370,49 +361,40 @@ export function OpsEventList({
                   äldre rader) är vanlig text, inte en påhittad roll. */}
               {skapadRad(h, skapadAvEtikett, sprak)}
 
-              {/* ⛔ EGEN RAD UNDER TITELN, INTE BREDVID DEN. Samma mätning som
-                  titeln bygger på: vid 390 px finns ~280 px kvar efter
-                  chevronkolumnen (höger), och en knapp på 90 px hade lämnat 190 px åt
-                  titeln. Det var precis det felet titeln en gång flyttades ut ur.
+              {/* ⛔ EGEN RAD UNDER TITELN, INTE BREDVID DEN: en knapp på 90 px bredvid titeln tar bredden titeln en
+                  gång flyttades ut för att få.
 
-                  ⛔ HÖGERSTÄLLD, så att ögat hittar samma kolumn på varje rad
-                  som har en knapp.
+                  ⛔ HÖGERSTÄLLD, så att ögat hittar samma kolumn på varje rad som har en knapp.
 
-                  ⛔ VILLKORET ÄR RADENS EGEN `atgard` OCH INTE `nagonHarAtgard`.
-                  Frågade platsen listan skulle varje rad utan knapp rita en tom
-                  `div`, alltså betala marginal för något som aldrig syns. */}
+                  ⛔ VILLKORET ÄR RADENS EGEN `atgard` OCH INTE `nagonHarAtgard`. Frågade platsen listan skulle varje rad
+                  utan knapp rita en tom `div`, alltså betala marginal för något som aldrig syns. */}
               {h.atgard ? <div className="mt-1 flex justify-end">{h.atgard}</div> : null}
-              </div>
 
-              {nagonHarDetaljer ? (
-                harDetaljer ? (
-                  <button
-                    type="button"
-                    onClick={() => vaxlaOppen(h.id)}
-                    aria-expanded={oppen}
-                    aria-controls={panelId}
-                    className={cx(
-                      "flex min-h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-muted",
-                      "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
-                      "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    )}
-                  >
-                    <span className="sr-only">
-                      {expandLabel} {h.title}
-                    </span>
-                    <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
-                      <ChevronNedIkon size={16} />
-                    </span>
-                  </button>
-                ) : (
-                  // ⛔ Tom yta och INTE en utgråad pil (samma regel som vänster var).
-                  <span aria-hidden="true" className="w-11 shrink-0" />
-                )
+              {harChevron ? (
+                <button
+                  type="button"
+                  onClick={() => vaxlaOppen(h.id)}
+                  aria-expanded={oppen}
+                  aria-controls={panelId}
+                  className={cx(
+                    // ⛔ 44 px träffyta som förut, men absolut: den tar ingen bredd från titeln. Negativ förskjutning så
+                    // att ikonen (16 px) linjerar med pillradens högerkant och inte hamnar 14 px in i kortet.
+                    "absolute -top-3 -right-3 flex size-11 cursor-pointer items-center justify-center rounded-md text-ink-muted",
+                    "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
+                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                  )}
+                >
+                  <span className="sr-only">
+                    {expandLabel} {h.title}
+                  </span>
+                  <span aria-hidden="true" className={cx("transition-transform duration-(--duration-fast)", oppen && "rotate-180")}>
+                    <ChevronNedIkon size={16} />
+                  </span>
+                </button>
               ) : null}
             </div>
 
-            {/* ⛔ PANELEN under raden, full bredd. Chevron står till HÖGER (CP),
-                så ingen pl-12-indrag från vänsterkolumn. */}
+            {/* ⛔ PANELEN under raden, full bredd. */}
             {harDetaljer ? (
               <div id={panelId} hidden={!oppen} className="mt-2 text-etikett text-ink-secondary">
                 {h.details}

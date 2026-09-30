@@ -2281,6 +2281,57 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   krav(vyerMatta.size >= 2 && lagenMatta.size >= 3, `fullyta: bara ${vyerMatta.size} vyer och ${lagenMatta.size} lägen mätta, väntat minst 2 och 3 (golv: ett gap som inte mättes är inte grönt).`);
 }
 
+// ══ 25. HÄNDELSEKORTET OCH INKORGSRADEN MOT SS VID 390 PX (0.32.1) ══════════════════════════════════════════════════════
+// CP 2026-09-30 08:04: "Kolla storleken och fint på texten i händelserna. Matchar inte det vi har i SessionStudio. Dubbelkolla
+// även inkorgen." Titeln var redan 18/700 som SS (avsnitt 20 mäter det). Felet låg i kompositionen: chevronkolumnen (44 px)
+// tog bredd från titeln (251 px mot SS 301, en rad extra), tidsgruppen (`ml-auto`) blev högerställd på en egen rad, en
+// summary utan egen klass ärvde 16 px, och typbadgen hade pillrets 12/600 där SS har 9/500. CP valde samma dag 24 px radie som
+// SS (`--radius-card`, SS `index.css:228`), där `bubbla` hade blivit 28.
+// Krav: titeln minst 95 procent av kortets innerbredd, datumradens vänsterkant lika med titelns (+-1), radien 24 +- 0,5,
+// rollmärket samma storlek, vikt, luft och höjd som "Försenat", summary utan klass 14 px, `OpsPill size="liten"` 10 px.
+// Golv: minst 2 kort mätta.
+{
+  const { page, context } = await oppna("handelsekort", { width: 390, height: 844 });
+  const m = await page.evaluate(() => {
+    const kort = [...document.querySelectorAll("[data-handelser] ul > li > div")];
+    const rader = kort.map((k) => {
+      const cs = getComputedStyle(k);
+      const inner = k.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const titel = [...k.querySelectorAll("span")].find((e) => /^(Kundfaktura 119223|Attest större)/.test(e.textContent || "") && e.children.length === 0);
+      const nar = [...k.querySelectorAll("span")].find((e) => /^(För 20 dagar sedan|Om 3 dagar)$/.test((e.textContent || "").trim()));
+      const tr = titel ? titel.getBoundingClientRect() : null;
+      const nr = nar ? nar.getBoundingClientRect() : null;
+      return { inner, titelW: tr ? tr.width : null, titelX: tr ? tr.left : null, narX: nr ? nr.left : null, narOvanTitel: tr && nr ? nr.bottom <= tr.top + 0.5 : null, radie: parseFloat(cs.borderTopRightRadius) };
+    });
+    const forsenat = [...document.querySelectorAll("[data-handelser] span")].find((e) => (e.textContent || "").trim() === "Försenat" && e.children.length === 0);
+    const du = [...document.querySelectorAll("[data-handelser] span")].find((e) => (e.textContent || "").trim() === "Du" && e.children.length === 0);
+    /** @param {Element | undefined} e */
+    const matt = (e) => {
+      if (!e) return null;
+      const cs = getComputedStyle(e);
+      return { fs: cs.fontSize, fw: cs.fontWeight, pad: `${cs.paddingTop} ${cs.paddingRight}`, h: Math.round(e.getBoundingClientRect().height * 10) / 10, saknas: e.hasAttribute("data-saknas") };
+    };
+    const summary = document.querySelector("[data-summary-utan-klass]");
+    const liten = document.querySelector("[data-pill-liten] > span");
+    return { rader, forsenat: matt(forsenat), du: matt(du), summary: summary ? getComputedStyle(summary).fontSize : null, liten: liten ? { fs: getComputedStyle(liten).fontSize, fw: getComputedStyle(liten).fontWeight } : null };
+  });
+  const matda = m.rader.filter((r) => r.titelW !== null && r.titelX !== null && r.narX !== null);
+  krav(matda.length >= 2, `händelsekort: bara ${matda.length} kort med titel och datumrad mätta, väntat minst 2 (golv).`);
+  for (const [i, r] of m.rader.entries()) {
+    matt.push(`händelsekort ${i + 1} (390 px): titel ${r.titelW?.toFixed(1)} av innerbredd ${r.inner.toFixed(1)} px, datumradens vänsterkant ${r.narX?.toFixed(1)} mot titelns ${r.titelX?.toFixed(1)}, datumraden ovanför titeln ${r.narOvanTitel}, radie ${r.radie} px`);
+    krav(r.titelW !== null && r.titelW >= 0.95 * r.inner, `händelsekort ${i + 1}: titeln är ${r.titelW?.toFixed(1)} px av kortets innerbredd ${r.inner.toFixed(1)} (${r.titelW !== null ? Math.round((100 * r.titelW) / r.inner) : "?"} procent), väntat minst 95. En kolumn bredvid titeln tar bredden (SS 301 px).`);
+    krav(r.narX !== null && r.titelX !== null && Math.abs(r.narX - r.titelX) <= 1, `händelsekort ${i + 1}: datumradens vänsterkant ${r.narX?.toFixed(1)} mot titelns ${r.titelX?.toFixed(1)}, väntat samma (+-1). SS: datumraden vänsterställd direkt ovanför titeln (TodayView.jsx:527).`);
+    krav(r.narOvanTitel === true, `händelsekort ${i + 1}: datumraden ligger inte ovanför titeln.`);
+    krav(Math.abs(r.radie - 24) <= 0.5, `händelsekort ${i + 1}: radien är ${r.radie} px, väntat 24 (CP 2026-09-30 valde SS --radius-card).`);
+  }
+  matt.push(`rollmärket ${JSON.stringify(m.du)} mot Försenat ${JSON.stringify(m.forsenat)}, summary utan klass ${m.summary}, OpsPill liten ${JSON.stringify(m.liten)}`);
+  krav(!!m.du && !m.du.saknas && !!m.forsenat && m.du.fs === m.forsenat.fs && m.du.fw === m.forsenat.fw && m.du.pad === m.forsenat.pad && Math.abs(m.du.h - m.forsenat.h) <= 0.5, `rollmärket: ${JSON.stringify(m.du)} mot Försenat ${JSON.stringify(m.forsenat)}, väntat samma storlek, vikt, luft och höjd (OpsRollmarke).`);
+  krav(m.summary === "14px", `inkorgsraden: en summary utan egen klass är ${m.summary}, väntat 14px (text-etikett, SS text-sm).`);
+  krav(!!m.liten && m.liten.fs === "10px" && m.liten.fw === "500", `OpsPill size="liten": ${JSON.stringify(m.liten)}, väntat 10px och 500 (SS typbadge 9/500, närmaste roll).`);
+  if (bildmapp) await page.locator("[data-handelser]").screenshot({ path: path.join(bildmapp, "handelsekort-390.png") });
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);

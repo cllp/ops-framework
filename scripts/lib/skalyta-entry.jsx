@@ -481,6 +481,32 @@ function Scen() {
       </Full>
     );
   }
+  // 0.32.1 (CP 2026-09-30 08:04, "Kolla storleken och fint på texten i händelserna. Matchar inte det vi har i SessionStudio.
+  // Dubbelkolla även inkorgen."): två händelsekort som bolag-ops Idag, en inkorgsrad i `OpsDisclosure` med en summary utan
+  // egen klass, och en liten `OpsPill`. `OpsRollmarke` finns inte i 0.32.0: då ritas en markör och provet blir rött på rätt sak.
+  if (s === "handelsekort") {
+    const { OpsView, OpsDisclosure } = Ops;
+    const Roll = Ops.OpsRollmarke ?? (({ label }) => <span data-saknas="OpsRollmarke">{label}</span>);
+    const handelser = [
+      { id: "k1", title: "Kundfaktura 119223 Adavo AB, skickad, väntar betalning, 158 400 kr inkl moms", daysLeft: -20, role: <Roll kind="human" label="Du" />, kind: "Faktum", slag: 1, slagLabel: "Faktum", when: "För 20 dagar sedan", deadline: "Senast 10 sep", details: <p>Fakta om fakturan.</p> },
+      { id: "k2", title: "Attest större leverantörsfakturor", daysLeft: 3, role: <Roll kind="auto" label="Förfaller" />, kind: "Påminnelse", slag: 2, slagLabel: "Påminnelse", when: "Om 3 dagar", deadline: "Senast 3 okt", details: <p>Tre fakturor över 50 000 kr.</p> },
+    ];
+    return (
+      <Full>
+        <OpsView>
+          <div data-handelser="">
+            <OpsEventList events={handelser} />
+          </div>
+          <OpsDisclosure summary={<span data-summary-utan-klass="">Kundfaktura 119223 Adavo AB, skickad</span>}>
+            <p>Innehåll</p>
+          </OpsDisclosure>
+          <span data-pill-liten="">
+            <OpsPill size="liten">Ärende</OpsPill>
+          </span>
+        </OpsView>
+      </Full>
+    );
+  }
   // 0.32.1: ytor som ska nå bottenraden, se `FullYta`.
   if (s === "fullyta-idag") return <FullYta vy="idag" />;
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;

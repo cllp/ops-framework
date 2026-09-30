@@ -185,8 +185,13 @@ describe("OpsEventList", () => {
      * och ett prov som letar efter `.border` hade blivit grönt av tomhet.
      * `.rounded-3xl` mäter samma sak (ETT kort per händelse) utan att bero på
      * kant-valet.
+     *
+     * ⛔ 0.32.1: SELEKTORN BYTTE IGEN, TILL `ul > li > div`. CP 2026-09-30 valde 24 px
+     * som SS, så kortet är inte längre `rounded-3xl` (28 px). Radien är fortfarande
+     * inte kravet här (den mäts i check-skalyta avsnitt 25), så provet frågar nu
+     * efter kortet som `li`:s enda barn i stället för efter ett hörnvärde.
      */
-    const kort = container.querySelectorAll("ul > li > div.rounded-3xl");
+    const kort = container.querySelectorAll("ul > li > div");
     expect(kort).toHaveLength(2);
   });
 
@@ -203,8 +208,8 @@ describe("OpsEventList", () => {
     const { container } = render(
       <OpsEventList events={[h("a", 1, { when: "Idag", edge: 2, edgeLabel: "Påminnelse" })]} />,
     );
-    // ⛔ #167: `.rounded-3xl` i stället för `.border`, se noten i provet ovan.
-    const kortet = container.querySelector("ul > li > div.rounded-3xl");
+    // ⛔ #167 och 0.32.1: kortet som `li`:s barn, se noten i provet ovan.
+    const kortet = container.querySelector("ul > li > div");
     expect(kortet?.className).toMatch(/border-l-4/);
     // ⛔ Och ordet följer med. En färg utan ord säger ingenting till den som
     // inte lärt sig koden, och `OpsCard` kastar hellre än att rita den.
@@ -225,15 +230,19 @@ describe("OpsEventList", () => {
     }
   });
 
-  it("reserverar ingen chevronkolumn när ingen rad kan fällas ut", () => {
-    // ⛔ Kolumnen är 44 px av en 390 px bred telefon och tas från titeln. En
-    // lista helt utan utfällbara rader ska inte betala för en gest som inte
-    // finns: det var precis så titeln en gång kom ner till 178 px.
+  it("reserverar ingen chevronkolumn, inte ens när en rad kan fällas ut (0.32.1)", () => {
+    // ⛔ Kolumnen var 44 px av en 390 px bred telefon och togs från titeln: 251 px mot SS 301
+    // (CP 2026-09-30 08:04, "Matchar inte det vi har i SessionStudio"). Före 0.32.1 fanns den
+    // när någon rad hade detaljer. Nu är knappen absolut och tar ingen bredd. Bredden i sig
+    // mäts i en riktig webbläsare (check-skalyta avsnitt 25); här provas bara formen.
     const { container } = render(<OpsEventList events={[h("ett", 1), h("tva", 2)]} />);
     expect(container.querySelectorAll(".w-11")).toHaveLength(0);
 
     const { container: withDetails } = render(<OpsEventList events={[h("tre", 1, { details: <p>d</p> })]} />);
-    expect(withDetails.querySelectorAll(".w-11").length).toBeGreaterThan(0);
+    expect(withDetails.querySelectorAll(".w-11")).toHaveLength(0);
+    const knapp = withDetails.querySelector("button[aria-expanded]");
+    expect(knapp).not.toBeNull();
+    expect(knapp?.className).toContain("absolute");
   });
 
   it("skriver deadline som eget faktum, inte som en del av brådskan", () => {
@@ -294,8 +303,7 @@ describe("OpsEventList", () => {
 
   it("lämnar en lista utan åtgärder precis som förut", () => {
     /*
-     * ⛔ Platsen ritas bara när raden har något att lägga där, exakt som
-     * chevronkolumnen bara finns när någon rad kan fällas ut. Annars betalar
+     * ⛔ Platsen ritas bara när raden har något att lägga där. Annars betalar
      * varje befintlig lista marginal för en gest som inte finns, och det felet
      * har komponenten redan gjort en gång med titeln som fick 178 px.
      *

@@ -70,6 +70,7 @@ export { OpsPanel, OpsPanelHeader, OpsPanelRow } from "./components/OpsPanel.jsx
 export { OpsTag } from "./components/OpsTag.jsx";
 export { OpsIdentity } from "./components/OpsIdentity.jsx";
 export { OpsProvenance } from "./components/OpsProvenance.jsx";
+export { OpsRollmarke } from "./components/OpsRollmarke.jsx";
 export { OpsFact } from "./components/OpsFact.jsx";
 
 // ── Navigering och meddelanden ─────────────────────────────────────────────
