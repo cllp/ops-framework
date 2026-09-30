@@ -124,7 +124,7 @@ describe("OpsRullyta", () => {
      * botten." Höjden räknades ur `100svh`, men raden är `fixed bottom-0` och
      * följer den verkliga kanten. Nu mäts radens kant direkt och läggs i
      * `--fullhojd-botten`, och klassen drar bara bort toppen och `OpsView`s
-     * `pb-6` (1,5 rem).
+     * `pb-6` (1,5 rem). 0.33.1: inte ens det: ytan når raden.
      */
     laggYtanVid(212, 700);
     render(
@@ -134,7 +134,9 @@ describe("OpsRullyta", () => {
       </>,
     );
     expect(ytan().style.getPropertyValue("--fullhojd-botten")).toBe("700px");
-    expect(FULL_HEIGHT_CLASSES).toContain("h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_1.5rem)]");
+    // 0.33.1: ytan når raden (0 px), och OpsView:s `pb-6` tas tillbaka med `-mb-6`. Beteendet mäts i check-skalyta avsnitt 24.
+    expect(FULL_HEIGHT_CLASSES).toContain("h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp))]");
+    expect(FULL_HEIGHT_CLASSES).toContain("-mb-6");
     // ⛔ Ingen viewport-enhet får komma tillbaka i höjden: det var den som följde fel kant.
     expect(FULL_HEIGHT_CLASSES).not.toMatch(/\d+(s|l|d)?vh/);
     // ⛔ Golv, för den dag ytan hamnar långt ner på en kort sida: utan det kan

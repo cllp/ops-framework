@@ -537,6 +537,18 @@ function Scen() {
           <div data-handelser="">
             <OpsEventList events={handelser} />
           </div>
+          {/* 0.33.1: en inkorgsrad som REFERENS i montaget, med bolag-ops InboxView:s klasser (datum text-meta, titel text-etikett font-medium,
+              pill OpsPill liten). En kopia, så den mäter ingenting: den är bilden bredvid händelsekorten. */}
+          <div data-inkorgsrad="" className="flex items-baseline justify-between gap-3 rounded-card border border-line bg-raised px-3 py-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <span className="shrink-0 tabular-nums text-meta text-ink-muted">2026-09-30</span>
+                <span className="text-etikett font-medium text-ink">Kundfaktura 119223 Adavo AB, skickad, väntar</span>
+              </div>
+              <div className="mt-0.5 text-etikett text-ink-muted">Ärende</div>
+            </div>
+            <OpsPill size="liten" tone="warning">Hög</OpsPill>
+          </div>
           <OpsDisclosure summary={<span data-summary-utan-klass="">Kundfaktura 119223 Adavo AB, skickad</span>}>
             <p>Innehåll</p>
           </OpsDisclosure>

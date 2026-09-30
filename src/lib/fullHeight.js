@@ -59,10 +59,23 @@ import { useEffect, useState } from "react";
  * ingen `md:`-variant längre: på en dator finns ingen synlig rad, och då är
  * botten fönstrets kant minus den säkra ytan, precis det `md:`-raden räknade förut.
  *
- * ⛔ 1,5 rem ÄR `OpsView`s EGEN BOTTENPADDING (0.31.2, CP 2026-09-29 22:33, "Den
- * scrollar liksom upp"). Sidan är ytan plus `pb-6` plus `main`s `pb` (radens
- * höjd och den säkra ytan). Drogs `pb-6` inte bort blev sidan högre än fönstret
- * och dokumentet rullade OVANPÅ ytans egen rullning.
+ * ⛔ 0.33.1: YTAN MÖTER RADEN MED 0 PX, OCH LUFTEN LIGGER INUTI RULLYTAN.
+ * CP 2026-09-30 11:50, efter 0.32.1 och en hårduppdatering: "glappet är mindre men
+ * kvar", en beige remsa mellan listan och bottenraden. Mätt: exakt 24 px i alla
+ * tre lägen, i båda vyerna, och `--safe-bottom` var inte dubbelräknad (gapet var
+ * 24 med en säker yta på 34). Remsan var `- 1.5rem` i uttrycket, alltså luften
+ * som 0.32.1 bad om med avsikt ("24 px luft som i dag"). Det var arkitektens miss:
+ * en luft UTANFÖR ytan är canvas mellan innehållet och raden. Luften ska ligga
+ * INUTI ytan (`pb-6` i `OpsScrollArea`, `pb-6` i kalenderns lista), så att sista
+ * kortet kan rullas upp ovanför raden men aldrig ligger mot den i vila.
+ *
+ * ⛔ `-mb-6` ÄR DEN ANDRA HALVAN AV SAMMA UTTRYCK. `OpsView` har egen bottenpadding
+ * (0.31.2, CP 2026-09-29 22:33, "Den scrollar liksom upp"): sidan är ytan plus
+ * `pb-6` plus `main`s `pb` (radens höjd och den säkra ytan). Drogs `pb-6` inte
+ * bort blev sidan högre än fönstret och dokumentet rullade OVANPÅ ytans egen
+ * rullning. Förut drogs den bort ur höjden (och blev remsan). Nu tar ytan hela
+ * höjden ut till raden och en negativ marginal tar tillbaka samma 1,5 rem ur
+ * sidans höjd. Summan är oförändrad: dokumentet är lika högt som fönstret.
  *
  * ⛔ ETT GOLV PÅ `min-h-60`, för den dag ytan hamnar långt ner på en kort sida.
  * Utan det kan uttrycket bli noll eller negativt, och då försvinner innehållet
@@ -70,7 +83,8 @@ import { useEffect, useState } from "react";
  */
 export const FULL_HEIGHT_CLASSES = [
   "overflow-y-auto overscroll-contain",
-  "h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_1.5rem)]",
+  "h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp))]",
+  "-mb-6",
   "min-h-60",
 ].join(" ");
 

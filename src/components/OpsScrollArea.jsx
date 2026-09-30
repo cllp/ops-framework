@@ -20,6 +20,8 @@ import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
  *
  * ⛔ ÖVERSKOTTET I BOTTEN ÄR AVSIKTLIGT. `pb-6` gör att sista raden går att
  * rulla fram ovanför bottenradens kant i stället för att ligga tätt mot den.
+ * ⛔ 0.33.1: DET ÄR HÄR LUFTEN BOR, och ingen annanstans. Ytans underkant möter
+ * bottenraden med 0 px (`useFullHeight`); luften ligger inuti rullytan.
  *
  * @param {object} props
  * @param {import("react").ReactNode} props.children

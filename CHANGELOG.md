@@ -9,6 +9,43 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.33.1
+
+⛔ **Idag och Kalender möter bottenraden med 0 px, luften ligger inuti rullytan, och händelsekortets text har inkorgens skala (titel 14/500, datum 12, pill 10/500). Inte breaking.**
+Händelsen: CP 2026-09-30 cirka 11:50 i [#187](https://github.com/cllp/ops-framework/issues/187), efter 0.32.1 och en hårduppdatering på telefonen: *"glappet är mindre men kvar"*. En beige remsa mellan listans innehåll och raden (Idag / Kalender / + / Hub / Meny).
+
+### Rotorsaken, mätt
+Remsan är exakt 24 px, i båda vyerna och i alla tre lägena i skalytans avsnitt 24 (verktygsfältet infällt, hemskärm, rad borta). Den är `- 1.5rem` i höjduttrycket i `FULL_HEIGHT_CLASSES` (`src/lib/fullHeight.js`).
+⛔ **Det var arkitektens miss i 0.32.1.** Arkitekten bad om att "behålla 24 px luft som i dag" mellan ytans underkant och bottenraden, och avsnitt 24 fick kravet "gapet är 23 +- 2 px". Luft UTANFÖR en rullyta är canvas mellan innehållet och raden, och det är precis det CP ser. Kravet skrevs för att bevara en siffra och inte för att beskriva vad en användare ser.
+Hypoteserna i ärendet, mätta och uteslutna: `--safe-bottom` är INTE dubbelräknad (gapet var 24 med en säker yta på 34 px), appen har ingen egen wrapper under `OpsScrollArea` i labbet (gapet är identiskt med enbart ramverkets kod), och `visualViewport` ger samma tal som fönstret i alla tre lägen. Kvar var bara uttrycket självt.
+
+### Fixen
+- `FULL_HEIGHT_CLASSES`: höjden är `botten - topp` utan `- 1.5rem`, och `-mb-6` tar tillbaka samma 1,5 rem ur sidans höjd. `OpsView` har sin egen `pb-6` (0.31.2, "Den scrollar liksom upp"), så summan är oförändrad: dokumentet är lika högt som fönstret och rullar inte ovanpå ytan. Ytan möter raden.
+- Luften flyttad in i rullytan: `OpsScrollArea` har redan `pb-6`, och kalenderns månadslista gick från `pb-4` till `pb-6`. Sista kortet kan rullas upp ovanför raden men ligger aldrig mot den i vila.
+- 0.32.1:s arkitektur (mätning mot `data-ops-bottenrad`, ommätning vid visualViewport och ResizeObserver) är orörd.
+
+### Röd utan fixen, grön med den
+- **`check-skalyta` avsnitt 24** kräver nu gap 0 +- 1 mellan ytan och raden, och att innehållets sista element har minst 16 px luft över radens överkant när ytan är rullad till botten (innehållets underkant, inte lådans). Golv: minst 5 element mätta i ytan, och ytan måste gå att rulla.
+- Mot 0.33.0 (`--dist` och `--tokens` mot ett bygge av origin/main): **RÖD**, 6 brott (2 vyer x 3 lägen), gap 24.0 px överallt.
+- Mot 0.33.1: **GRÖN**, gap 0.0 px i alla sex, sista elementet 24 px över raden (Idag) och 24 px (Kalender).
+- Före/efter vid 390 px: `docs/jamforelser/0.33.1/`.
+
+### Händelsekortets text som inkorgens rader (tillägget i #187)
+CP 2026-09-30 09:52 i samma ärende: *"Textstorlek och typsnitt på händelserna (listkort) ska matcha det inkorgen har nu, inte ett eget större/tyngre utseende."*
+⛔ **Beslutet ändrat, och varför:** 0.31.2 och 0.32.1 följde SS `TodayView.jsx:89` (titel 18/700). CP:s önskan går före den förebilden, eftersom det är inkorgen han jämför med i telefonen. De gamla raderna står kvar i koden och i avsnitten som historik, med en ny rad ovanför som säger att de inte längre gäller.
+- **`OpsEventList`:** titeln är `text-etikett font-medium` (14/500) i alla bredder (var `text-titel sm:text-sida`, 18/20 och 700). Datumraden och rollen/slaget är `text-meta` (12) i alla bredder (var `text-meta sm:text-etikett`, 14 från 640 px). Titelns fulla bredd, datumraden först och radien 24 är orörda.
+- **`ROLLMARKE_MATT`** (rollmärket `OpsRollmarke` och brådskemärket "Försenat", som delar mått): 10/500 med `px-1.5 py-0.5` (var 12/600, `px-2`). Samma storlek som `OpsPill size="liten"`, alltså inkorgens typpill.
+- Kalenderns dagpanel använder inte händelsekortet (`OpsCalendar` har inget `OpsEventList`), så den är orörd.
+- Mätt mot inkorgen i bolag-ops main (`InboxView.jsx:646-680` och `web/scripts/lib/inkorgstypografi.mjs`, SS `ChatInboxPanel.jsx:735-745`): datum 12, titel 14/500, `OpsPill size="liten"`. Skalan är densamma.
+- **`check-skalyta` avsnitt 25** kräver titel 14/500, datumrad 12, "Försenat" och rollmärket 10/500. **Avsnitt 20** (Idag-kortet per element) väntar samma skala i alla bredder. Mot 0.33.0 (18/700, 12/600): **RÖD, 17 brott av 975**: 11 är typografin (titeln 18px/700 på båda korten, Försenat och rollmärket 12/600, Idag-kortet per element) och 6 är gapet 24 px från första delen. Mot 0.33.1: **GRÖN, 975 kontroller.**
+- Montage vid 390 px, före och efter med en inkorgsrad bredvid: `docs/jamforelser/0.33.1/handelsekort-fore-efter-inkorg-390.png`. Inkorgsraden i montaget är en kopia med bolag-ops klasser, alltså en bild och inte ett prov.
+
+### Att göra i appen (bolag-ops)
+- Pinna om till 0.33.1. Inget annat.
+- Har appen egen padding eller en wrapper under `OpsScrollArea`/`OpsCalendar` syns den som en remsa igen. Mät då mot `data-ops-bottenrad`, och lägg luften inuti ytan.
+
+---
+
 ## 0.33.0
 
 ⛔ **Katalogerna är gruppens: `groupId` obligatoriskt, seedning i samma batch som gruppen, regelfragmentet med admin och nyckellås, och bakfyllnaden. Breaking för appens katalogkod, se "Att göra i appen". Ordningen där är inte valfri.**
