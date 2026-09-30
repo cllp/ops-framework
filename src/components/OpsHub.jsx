@@ -10,6 +10,7 @@ import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 
 export { OpsHubTillbaka };
 import { text } from "../lib/sprak.js";
+import { hubbForGrupp, hubbPoster } from "../lib/hubb.js";
 
 /**
  * Hub: appens moduler som ett rutnät av kort (0.30.0, #173).
@@ -97,6 +98,89 @@ export function OpsHub({
     ) : (
       <KortRutnat poster={moduler} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={ariaLabel} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} visaEtikett={visaEtikett} />
     );
+  return ram ? <OpsView>{innehall}</OpsView> : innehall;
+}
+
+/** @type {Record<"sv"|"en", { tomRubrik: string, tomText: (namn: string) => string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
+const GRUPPHUBB_TEXT = {
+  sv: {
+    tomRubrik: "Inga moduler i gruppen",
+    tomText: (namn) => `${namn} har inga moduler. Kalendern, chatten och inkorgen har gruppen ändå. Ägaren väljer moduler i gruppens inställningar.`,
+    ingaRitbara: "Ingen av gruppens moduler kan visas",
+    ingaRitbaraText: "Gruppen pekar på moduler som inte kan visas. Skälet står under.",
+    saknadRubrik: "Visas inte",
+    interegistrerad: (id) => `Modulen "${id}" visas inte: appen har inte registrerat någon modul med det id:t.`,
+    ingetKort: (id) => `Modulen "${id}" visas inte: den har inget kort i hubben (hubb: null).`,
+    moduler: (namn) => `Moduler i ${namn}`,
+  },
+  en: {
+    tomRubrik: "No modules in the group",
+    tomText: (namn) => `${namn} has no modules. The group still has its calendar, chat and inbox. The owner chooses modules in the group's settings.`,
+    ingaRitbara: "None of the group's modules can be shown",
+    ingaRitbaraText: "The group points to modules that cannot be shown. The reason is below.",
+    saknadRubrik: "Not shown",
+    interegistrerad: (id) => `The module "${id}" is not shown: the app has not registered a module with that id.`,
+    ingetKort: (id) => `The module "${id}" is not shown: it has no card in the hub (hubb: null).`,
+    moduler: (namn) => `Modules in ${namn}`,
+  },
+};
+
+/**
+ * Hubben för den aktiva gruppen: ett kort per modul i `grupp.moduler`, i gruppens ordning (0.38.0, #184).
+ *
+ * ══ ⛔ GRUPPENS MODULER OCH INGET ANNAT ═══════════════════════════════════
+ *
+ * CP 2026-09-30: "Ekonomi är EN modul." Före 0.38.0 skickade appen sin egen lista till `OpsHub`, samma lista i varje grupp,
+ * och varje del av Ekonomi var ett eget kort. Nu ritar hubben det gruppens ägare valt (`groups.moduler`), och varje kort leder
+ * till modulens egen insida (`OpsModulSida`). Beslutet om vad som ritas bor i `hubbForGrupp`, så det går att pröva utan att rita.
+ *
+ * ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5), på tre sätt:
+ *   - en grupp utan moduler säger det, med gruppens namn och vad man gör åt det;
+ *   - en modul appen inte registrerat, eller en utan kort, ritas inte, och en rad under korten säger vilken och varför;
+ *   - pekar gruppen BARA på sådana står det också, i stället för rubriken "inga moduler", som vore osann.
+ *
+ * ⛔ INGA BARN PÅ KORTEN. Delarna är modulens egen navigation, inte kortets (`hubbPoster` ger inga `children`).
+ * Samma poster ges till skalet som `moduler`, så toppradens rullgardin listar samma moduler och bara dem.
+ *
+ * @param {object} props
+ * @param {{ id: string, namn: import("../lib/sprak.js").Namn, moduler: ReadonlyArray<string> }} props.grupp Den aktiva gruppen.
+ * @param {ReadonlyArray<import("../lib/modul.js").Modul>} props.moduler Appens registrerade moduler, ur `validateModuler`.
+ * @param {string} [props.activeHref]
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {"sv"|"en"} [props.sprak]
+ * @param {Readonly<Record<string, string | { sv: string, en?: string } | null>>} [props.info] Kortets infolinje per modul-id (se `OpsHub`).
+ * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id.
+ * @param {string} [props.badgeText]
+ * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
+ */
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak = "sv", info, badge, badgeText, ram = true }) {
+  const { kort, saknade } = hubbForGrupp({ grupp, moduler });
+  const t = GRUPPHUBB_TEXT[sprak === "en" ? "en" : "sv"];
+  const gruppnamn = text(grupp.namn, sprak);
+  const poster = hubbPoster(kort, { sprak, info, badge });
+  const innehall = (
+    <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
+      {poster.length > 0 ? (
+        <KortRutnat poster={poster} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={t.moduler(gruppnamn)} badgeText={badgeText ?? (sprak === "en" ? "new" : "nya")} sprak={sprak} />
+      ) : saknade.length > 0 ? (
+        <OpsEmpty title={t.ingaRitbara} description={t.ingaRitbaraText} />
+      ) : (
+        <OpsEmpty title={t.tomRubrik} description={t.tomText(gruppnamn)} />
+      )}
+      {saknade.length > 0 ? (
+        <section aria-label={t.saknadRubrik} data-hubb-saknade="" className="flex flex-col gap-1">
+          <ul className="m-0 flex list-none flex-col gap-1 p-0">
+            {saknade.map((s) => (
+              <li key={s.id} data-saknad={s.skal} className="flex items-start gap-2 text-meta text-ink-secondary">
+                <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-line-strong" />
+                <span>{s.skal === "inte-registrerad" ? t.interegistrerad(s.id) : t.ingetKort(s.id)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
   return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
 

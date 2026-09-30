@@ -607,6 +607,141 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   await context.close();
 }
 
+// ══ 9c. HUBBEN PER GRUPP OCH MODULENS INSIDA (0.38.0, #184) ════════════════════
+// CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Hubben visar den aktiva gruppens moduler och inget
+// annat, och en modul har en egen insida med sin egen navigation. Mått vid 390 och 1280:
+//   (a) en grupp med Ekonomi: ETT kort, en länk till /ekonomi, inga delar i hubben, minst 44 px högt, klick navigerar;
+//       på dator listar toppradens rullgardin bara modulen (inga chevronrader, inga delar).
+//   (b) en grupp utan moduler: rubriken och en rad med gruppens namn, inga kort, ingen tom yta.
+//   (c) en grupp med en modul appen inte registrerat: kortet för Ekonomi OCH en synlig rad som säger vilken som inte visas.
+//   (d) modulens insida: tillbaka till /hub, rubriken, fjorton länkar i en rad, EN öppen del med en synlig accentlinje under,
+//       varje länk minst 44 px hög, raden rullar i sidled i stället för sidan, och den öppna delen syns också när den är den sista.
+// Ingen horisontell överflödning någonstans. ⛔ GOLV: varje delmätning kräver att det den mäter fanns.
+for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 900 }], ["390 px", { width: 390, height: 844 }]])) {
+  const over = async (/** @type {import("playwright").Page} */ p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  // (a)
+  {
+    const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g3");
+    try {
+      const lista = page.locator('main ul[aria-label="Moduler i Claes Philip Staiger AB"]');
+      const kort = lista.locator(":scope > li > a");
+      const antal = await kort.count();
+      krav(antal === 1, `Hubben per grupp ${namn} (a): ${antal} kort ritades i gruppen med Ekonomi, väntat 1.`);
+      if (antal === 1) {
+        const k = await kort.evaluate((a) => ({ href: a.getAttribute("href"), text: /** @type {HTMLElement} */ (a).innerText.replace(/\s+/g, " ").trim(), h: a.getBoundingClientRect().height }));
+        matt.push(`Hubben per grupp ${namn} (a): ${JSON.stringify(k)}`);
+        krav(k.href === "/ekonomi" && k.text.startsWith("Ekonomi") && k.text.includes("Skatten förfaller 12 oktober"), `Hubben per grupp ${namn} (a): kortet ${JSON.stringify(k)}, väntat Ekonomi med infolinjen och länken /ekonomi.`);
+        krav(k.h >= 44, `Hubben per grupp ${namn} (a): kortet är ${k.h} px högt, under tumkravet 44.`);
+        krav(!(await page.locator("main").innerText()).includes("Inkomster"), `Hubben per grupp ${namn} (a): en del av Ekonomi står i hubben.`);
+        await kort.click();
+        const gick = await page.evaluate(() => window.__gick);
+        krav(gick.length === 1 && gick[0] === "/ekonomi", `Hubben per grupp ${namn} (a): klick på kortet gick till ${JSON.stringify(gick)}, väntat ["/ekonomi"].`);
+      }
+      krav((await over(page)) <= 0, `Hubben per grupp ${namn} (a): sidan flödar ${await over(page)} px i sidled.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-ekonomi-${vp.width}.png`) });
+      if (vp.width > 800) {
+        await page.getByRole("button", { name: "Visa sidorna under Hub" }).click();
+        const dd = page.locator('[role="dialog"]');
+        await dd.waitFor();
+        const rader = await dd.evaluate((el) => ({
+          lankar: [...el.querySelectorAll("a")].filter((a) => a.getBoundingClientRect().height > 0).map((a) => (a.textContent || "").trim()),
+          knappar: [...el.querySelectorAll("button[aria-expanded]")].length,
+        }));
+        matt.push(`Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}`);
+        krav(rader.lankar.length === 1 && rader.lankar[0].startsWith("Ekonomi") && rader.knappar === 0, `Hubben per grupp ${namn} (a): rullgardinen ${JSON.stringify(rader)}, väntat bara Ekonomi och inga utfällbara rader.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "grupphubb-rullgardin-1280.png"), clip: { x: 300, y: 0, width: 700, height: 360 } });
+      }
+    } catch (e) {
+      krav(false, `Hubben per grupp ${namn} (a): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+  // (b)
+  {
+    const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g2");
+    try {
+      const main = page.locator("main");
+      const rubrik = main.getByText("Inga moduler i gruppen", { exact: true });
+      const rad = main.getByText(/Testgruppen har inga moduler/);
+      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Inga moduler i gruppen" syns inte i gruppen utan moduler.`);
+      krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
+      const lankar = await main.locator("a").count();
+      krav(lankar === 0, `Hubben per grupp ${namn} (b): ${lankar} länkar i hubben för en grupp utan moduler.`);
+      krav((await over(page)) <= 0, `Hubben per grupp ${namn} (b): sidan flödar i sidled.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-tom-${vp.width}.png`) });
+    } catch (e) {
+      krav(false, `Hubben per grupp ${namn} (b): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+  // (c)
+  {
+    const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g1");
+    try {
+      const kort = await page.locator("main ul[aria-label] > li > a").count();
+      const rad = page.locator('[data-saknad="inte-registrerad"]');
+      const syns = (await rad.count()) === 1 && (await rad.isVisible());
+      const r = syns ? await rad.evaluate((el) => ({ text: (el.textContent || "").trim(), h: el.getBoundingClientRect().height, flodar: el.scrollWidth > el.clientWidth + 1 })) : null;
+      matt.push(`Hubben per grupp ${namn} (c): ${kort} kort, raden ${JSON.stringify(r)}`);
+      krav(kort === 1, `Hubben per grupp ${namn} (c): ${kort} kort, väntat 1 (Ekonomi; "bokning" är inte registrerad).`);
+      krav(!!r && r.text.includes('"bokning"') && r.h > 0 && !r.flodar, `Hubben per grupp ${namn} (c): raden om modulen som inte visas ${JSON.stringify(r)}, väntat synlig och med id:t.`);
+      krav((await over(page)) <= 0, `Hubben per grupp ${namn} (c): sidan flödar i sidled.`);
+    } catch (e) {
+      krav(false, `Hubben per grupp ${namn} (c): provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+  // (d)
+  for (const href of ["/ekonomi/inkomster", "/ekonomi/jamforelse"]) {
+    const { page, context } = await oppna(`modulsida|${href}`, vp);
+    try {
+      const nav = page.locator('nav[aria-label="Ekonomi: delar"]');
+      krav((await nav.count()) === 1, `Modulens insida ${namn} ${href}: navigationen "Ekonomi: delar" hittades inte.`);
+      if ((await nav.count()) === 1) {
+        const m = await nav.evaluate((n) => {
+          const ul = /** @type {HTMLElement} */ (n.querySelector("ul"));
+          const lankar = [...n.querySelectorAll("a")];
+          const oppna = lankar.filter((a) => a.getAttribute("aria-current") === "page");
+          const o = oppna[0];
+          const cs = o ? getComputedStyle(o) : null;
+          const ro = o ? o.getBoundingClientRect() : null;
+          return {
+            antal: lankar.length,
+            oppna: oppna.map((a) => (a.textContent || "").trim()),
+            minH: Math.min(...lankar.map((a) => a.getBoundingClientRect().height)),
+            linje: cs ? { bredd: parseFloat(cs.borderBottomWidth), farg: cs.borderBottomColor } : null,
+            ovriga: lankar.filter((a) => a !== o).map((a) => getComputedStyle(a).borderBottomColor),
+            rullar: ul.scrollWidth > ul.clientWidth,
+            synlig: ro ? ro.left >= 0 && ro.right <= window.innerWidth : false,
+          };
+        });
+        matt.push(`Modulens insida ${namn} ${href}: ${JSON.stringify({ ...m, ovriga: [...new Set(m.ovriga)] })}`);
+        const vantad = href.endsWith("jamforelse") ? "Jämförelse" : "Inkomster";
+        krav(m.antal === 14, `Modulens insida ${namn} ${href}: ${m.antal} länkar i navigationen, väntat 14.`);
+        krav(m.oppna.length === 1 && m.oppna[0] === vantad, `Modulens insida ${namn} ${href}: öppen del ${JSON.stringify(m.oppna)}, väntat ["${vantad}"].`);
+        krav(m.minH >= 44, `Modulens insida ${namn} ${href}: en länk är ${m.minH} px hög, under tumkravet 44.`);
+        krav(!!m.linje && m.linje.bredd >= 2 && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(m.linje.farg) && !m.ovriga.includes(m.linje.farg), `Modulens insida ${namn} ${href}: den öppna delen har ingen egen synlig linje under sig (${JSON.stringify(m.linje)}).`);
+        krav(m.synlig, `Modulens insida ${namn} ${href}: den öppna delen ligger utanför skärmen.`);
+        if (vp.width < 800) krav(m.rullar, `Modulens insida ${namn} ${href}: fjorton delar ryms på 390 px utan att raden rullar, alltså mäter provet inte rullningen.`);
+        const tillbaka = page.getByRole("link", { name: "Tillbaka till Hub" });
+        krav((await tillbaka.count()) === 1 && (await tillbaka.getAttribute("href")) === "/hub", `Modulens insida ${namn} ${href}: tillbaka-länken till /hub saknas.`);
+        krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulens insida ${namn} ${href}: rubriken "Ekonomi" saknas.`);
+        krav((await page.locator("[data-moduldel-innehall]").count()) === 1, `Modulens insida ${namn} ${href}: delens innehåll ritades inte.`);
+        krav((await over(page)) <= 0, `Modulens insida ${namn} ${href}: sidan flödar ${await over(page)} px i sidled.`);
+        if (href.endsWith("inkomster")) {
+          await nav.getByRole("link", { name: "Kostnader" }).click();
+          const gick = await page.evaluate(() => window.__gick);
+          krav(gick.length === 1 && gick[0] === "/ekonomi/kostnader", `Modulens insida ${namn}: klick på Kostnader gick till ${JSON.stringify(gick)}.`);
+        }
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `modulsida-${href.split("/").pop()}-${vp.width}.png`) });
+      }
+    } catch (e) {
+      krav(false, `Modulens insida ${namn} ${href}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
 // ══ 10. MÄRKET ÄR TEXT, I RÄTT TYPSNITT OCH RÄTT FÄRG, CENTRERAT ÖVER PANELEN (0.31.0) ═
 // CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray
 // Orange", och: "Logotext måste vara centrerad över gruppmenyn i båda lägen. Beakta ringen att den skall vara samma
