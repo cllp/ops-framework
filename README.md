@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**101 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**99 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -256,7 +256,7 @@ något godtyckligt.
 | `OpsHub` | `moduler` [samma form som `nav`, en nivå barn, plus `info?`], `activeHref`, `onNavigate`, `ariaLabel`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`, `visaEtikett`, `ram`. (0.30.0, #173; 0.30.1 modulkort; 0.31.2: ritas i `OpsView`, `ram={false}` om appen redan lindat den) Appens moduler som ett rutnät av kort (`rounded-card`), ett kort utan barn EN länk med ikon, namn, räknare (`badge`, bara när den är större än noll) och en `info`-rad; ett kort med barn FÄLLS UT PÅ PLATS (knapp med `aria-expanded`, chevron som vrids, raden "Visa Ekonomi" till modulens egen sida och barnen som rader). Sidan Hub leder till; skalet ritar Hub-posten och dropdownen. ⛔ Tom lista visar text och aldrig en tom yta. Se [Hub och modulkort](#hub-och-modulkort) |
 | `OpsHubModul` | `modul` (med `children`), `hubHref` (krävs), `hubEtikett`, `activeHref`, `onNavigate`, `brodsmulaEtikett`, `tomRubrik`, `tomText`, `badgeText`, `sprak`, `ingetNyttEtikett`. (0.30.1) En moduls egen sida i Hub: en fast tillbaka-rad ("‹ Hub / Ekonomi") och modulens barn som kort. Ritas av appen på modulens `href`. ⛔ Kastar utan `hubHref`; en modul utan barn visar text. Se [Hub och modulkort](#hub-och-modulkort) |
 | `OpsHubTillbaka` | `hubHref` (krävs), `etikett` (krävs, nuvarande sida), `steg` [{href, label}] (mellanliggande länkar), `hubEtikett`, `onNavigate`, `brodsmulaEtikett`. Tillbaka-raden som EN komponent (0.31.0; 0.31.2: SS textlänk): en textlänk "‹ Tillbaka" (chevron 20 px, `gap-2`, 14 px, som SS `GroupDetailView.jsx:83`) ett steg upp, ingen ram, ingen bakgrund, inte sticky, med `rubrik` ritas sidans namn som `<h1>` under. `OpsHubModul` ritar den, och VARJE sida under Hub ska rita den, via `OpsView tillbaka` eller direkt. Nya props `rubrik`, `tillbakaEtikett`, `tillbakaTillEtikett`. ⛔ Kopiera aldrig markupen: bolag-ops gjorde det i `UnderHub.jsx`, och kopian glida isär. |
-| `OpsBrand` | ⛔ **0.31.0: märket är TEXT, inga bilder** (CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray Orange"). `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått = `ink`, resten gråorange = `marke-accent`; eller `{ forsta, andra }`), `undertext` (rad 2: appens eller gruppens namn; tom = bara rad 1, centrerad lodrätt), `monogram` (förval första bokstaven i varje ord, "OH"), `storlek` (`"topp"` | `"stor"`, den senare är inloggningens). Typsnittet ligger i ramverket (`fonts/glacial-indifference/`, SIL OFL med licensfil), storlekar och spärrning är tokens (`--marke-*`, mätta i CP:s bild). I `OpsAppShell` är `brand` (sträng) märkets `namn` och rad 2 den AKTIVA GRUPPENS namn i versaler; i läget Alla mina grupper används `undertext` på appens egen `<OpsBrand undertext="..." />`. Borta sedan 0.30: `title`, `subtitle`, `mark`, `ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `OPS_HUB_VARUMARKE` |
+| `OpsBrand` | ⛔ **0.31.0: märket är TEXT, inga bilder** (CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray Orange"). `namn` (rad 1, förval "OPS HUB", första ordet ljusgrått = `ink`, resten gråorange = `marke-accent`; eller `{ forsta, andra }`), `undertext` (rad 2: appens eller gruppens namn; tom = bara rad 1, centrerad lodrätt), `monogram` (förval första bokstaven i varje ord, "OH"), `storlek` (`"topp"` | `"stor"`, den senare är inloggningens). Typsnittet ligger i ramverket (`fonts/glacial-indifference/`, SIL OFL med licensfil), storlekar och spärrning är tokens (`--marke-*`, mätta i CP:s bild). I `OpsAppShell` är `brand` (sträng) märkets `namn` och rad 2 den AKTIVA GRUPPENS namn i versaler; utan aktiv grupp (personen är inte med i någon) används `undertext` på appens egen `<OpsBrand undertext="..." />`. Borta sedan 0.30: `title`, `subtitle`, `mark`, `ordmarke`, `ikon`, `ordmarkeHojd`, `endastOrdmarke`, `OPS_HUB_VARUMARKE` |
 | `OpsTabs` | `tabs` [{id, label, disabled}], `value`, `onChange`, `ariaLabel` (krävs), `children` |
 | `OpsSegmented` | `options` [{value, label, badge}] (två eller tre), `value`, `onChange`, `ariaLabel` (krävs). Byter URVAL i samma lista, till skillnad från `OpsTabs` som byter innehåll.  ⛔ `icon` på ett läge ritar ikonen I STÄLLET för ordet, med ordet kvar som `sr-only`: en ikon utan namn är en knapp som inte går att höra. ANTINGEN ALLA LÄGEN ELLER INGET, annars kastar den — en ikon bredvid ett ord ser ut som ett fel |
 | `OpsFilterChip` | `options` [{value, label}], `value`, `onChange`, `ariaLabel` (krävs), `allLabel`. Pillerformat filter bredvid en lista. ⛔ Valt värde står i pillret, annars läser man en beskuren lista i tron att den är komplett. |
@@ -840,7 +840,7 @@ installerade. Utan den kontrollen sparas ett skrivfel som en flik ingen hittar.
 Den som SKRIVER en grupp måste avvisa ett påhittat id. Den som LÄSER en gammal
 rad måste tåla att en modul avinstallerats sedan raden skrevs, för annars ligger
 appen nere för den gruppen utan väg till en som fungerar. Läsvägens svar är
-`navForLage`, som skriver ut `saknade`. Står det `byggGrupp(rad)` i något som
+`navForGrupp`, som skriver ut `saknade`. Står det `byggGrupp(rad)` i något som
 sparar är det ett hål.
 
 #### Reglerna genereras, de skrivs inte per samling
@@ -972,87 +972,99 @@ samma regeltext glider isär i samma sekund som någon rättar den incheckade.
 kräver en emulator och en Java-körning, alltså minuter i stället för sekunder,
 och `check` ska svara medan man väntar. Samma uppdelning som `bolag-ops`.
 
-#### De två lägena: en grupp, eller alla
+#### En aktiv grupp, och varje läsväg gäller bara den
 
-[#139](https://github.com/cllp/ops-framework/issues/139). Gruppväljaren står i
-sidopanelen och har mina grupper plus **alla**. `minaGrupper` bygger listan ur
-mina medlemskap, inte ur grupplistan: en grupp jag kan läsa men inte är medlem i
-hade gett en tom vy och en fråga reglerna avvisar, alltså "Missing or
-insufficient permissions" i knäet på någon som bara bytte flik.
+[#190](https://github.com/cllp/ops-framework/issues/190), 0.35.0. **Det finns
+alltid exakt en aktiv grupp**, och list, subscribe och read ger bara den
+gruppens rader. CP 2026-09-30: "Ja, frågan om alla grupper: Ta bort det." Läget
+"Alla mina grupper" krävde en gruppväljare före varje skapa-flöde och två lägen i
+varje yta, och regeln för läsning blev "aktiv grupp, utom när alla är valda".
+Samma dag: "Det är ingen privat grupp. Jag har en grupp som heter bolaget, men
+jag måste ha privatekonomi där för att få en total översikt. Det är bara en
+grupp. Ekonomimodulen bor där." Privat, Företag och Samlat är alltså flikar över
+data i EN grupp, och det finns ingen läsning över flera grupper.
 
 ```js
-import { ALLA_GRUPPER, minaGrupper, valtLage, grupperAttFraga, navForLage, gruppenAttSkapaI } from "@staiger/ops-framework";
-import { grupplagetsNyckel, lasAktivGrupp, sparaAktivGrupp } from "@staiger/ops-framework";
-import { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "@staiger/ops-framework";
+import { minaGrupper, aktivGrupp, navForGrupp, lasAktivGrupp, sparaAktivGrupp, medAktivGrupp, OpsDataProvider } from "@staiger/ops-framework";
 
 const mina = minaGrupper(mittMedlemskap, grupper);
-const aktiv = valtLage(lasAktivGrupp(uid, localStorage), mina);
-const { nav, saknade } = navForLage({ lage: aktiv, ramnav, moduler, mina });
-const rader = await listaPerGrupp(kalla, "handelser", grupperAttFraga({ lage: aktiv, mina, bortkryssade }), { sortBy: "datum" });
+const aktiv = aktivGrupp(lasAktivGrupp(uid, localStorage), mina); // null bara när personen inte har någon grupp
+const { nav, saknade } = navForGrupp({ groupId: aktiv, ramnav, moduler, mina });
+
+// En NY källa per grupp: läscachen är nycklad på källan, och frågan bär inte groupId.
+const source = useMemo(() => medAktivGrupp(kalla, { groupId: aktiv, gruppade: ["ledger_items", "inkorg", "data"] }), [kalla, aktiv]);
+<OpsDataProvider source={source}>{/* appen */}</OpsDataProvider>
 ```
 
-| Läget | Navet | Frågorna | Att skapa |
-|---|---|---|---|
-| **en grupp** | ramverkets ytor **plus gruppens `moduler`** | en fråga, `gruppLista` | gruppen är given |
-| **alla** | bara ramverkets ytor | **en fråga per grupp**, `listaPerGrupp` | ⛔ kräver att en grupp väljs först |
+`minaGrupper` bygger listan ur mina medlemskap, inte ur grupplistan: en grupp jag
+kan läsa men inte är medlem i hade gett en tom vy och en fråga reglerna avvisar.
 
-⛔ **Sammanslagning är inte delning.** Varje rad tillhör fortfarande exakt en
-grupp, `slaIhopSvar` märker den med `gruppmarke` för `OpsGruppmarke`, och ingen
-rad och ingen regel ändras. En rad som redan bär ett `gruppmarke` avvisas: det
-är ett vyfält som smitit in i datan, och en sparad kopia kan peka på en annan
-grupp än raden gör.
+**`medAktivGrupp` är regeln, och den gäller varje läsväg.** Bara samlingarna appen
+pekar ut i `gruppade` berörs, och ramverket känner aldrig namnen (första ledet i
+sökvägen avgör, så `inkorg/<id>/kommentarer` följer `inkorg`).
+
+| Operation | Vad insvepningen gör |
+|---|---|
+| `list` | lägger på `where.groupId`. En annan grupp i frågan **kastar**. Varje rad i svaret prövas: saknat `groupId` kastar, en annan grupps rad kastar |
+| `subscribe` | samma som `list`, och ett brott går till `onError`, aldrig till `onData` |
+| `read` | en rad ur en annan grupp ger **`null`**, alltså "finns inte" i den aktiva gruppen (kontraktets regel 3). En rad **utan** `groupId` kastar |
+| `create` | sätter den aktiva gruppen. En annan grupp i posten kastar |
+| `update` | en ändring av `groupId` till en annan grupp kastar, i övrigt orörd |
+| `remove` | orörd |
+| `batch` | varje del som `create` och `update` |
+
+⛔ **Händelsen.** Gruppen Travel valdes och Idag visade fortfarande CPS AB:s rader.
+Appens egen insvepning filtrerade `list` och `subscribe`, men `read` av ett
+dokument gick orörd igenom, och reglerna frågar bara om personen är MEDLEM i
+radens grupp. För den som är med i båda grupperna kom grupp A:s dokument tillbaka
+när B var aktiv. Den aktiva gruppen är ett val i klienten, inte ett faktum i
+databasen, så reglerna kan inte ställa frågan: insvepningen måste.
+
+⛔ **`null` för en annan grupps dokument, ett fel för en rad utan grupp.** Sett från
+den aktiva gruppen finns dokumentet inte, och vyn ritar redan sitt tomma läge för
+`null`. Ett kast hade gjort varje vy som läser ett känt dokument-id till en röd
+banderoll i varje grupp utom en. En rad utan `groupId` är däremot en bakfyllnad
+som inte gjorts, och den sorteras inte bort tyst.
+
+⛔ **`update` och `remove` läser inte först.** En läsning före varje skrivning vore
+en läs-sedan-skriv-kontroll (arbetsreglernas punkt 2). Skrivvägarna till en rad
+går genom en rad som redan lästs genom källan, och reglerna vaktar resten:
+`gruppenOandrad()` hindrar flytt, och gruppade samlingar har `delete: if false`.
 
 ⛔ **`groupId` är ett krav i TYPEN, inte en konvention.** `gruppLista` och
-`gruppSkapa` är enda vägen in till en grupps rader, och `check-gruppfraga` kör
-tsc mot en fråga och ett skapande utan grupp och kräver ett typfel för var och
-en. En vakt som i stället letat efter raden `@property {string} groupId` i
-källan hade varit ett närvarogrep: raden kan stå kvar medan typen ändå släpper
-igenom. Gruppen läggs dessutom **sist** i `where`, så en anropare som skickar
-med ett eget `groupId` inte kan skriva över den.
-
-⛔ **`limit` gäller det ihopslagna, och skickas dessutom med nedåt.** Det
-avgörande taket är det sista: tio rader ur tre grupper är trettio, och tio av
-dem ska visas. Att varje delfråga också bär taket är en kostnadsfråga, och den
-är säker eftersom delfrågan bär samma sortering: en grupps tio översta
-innehåller allt den kan bidra med till de tio översta totalt. Sorteringen är
-`applyQuery`, alltså samma jämförelse som en enskild fråga, och utan den hade
-ordningen berott på vilket svar som kom först.
-
-⛔ **Den raden stod fel här först.** Noten påstod att ett tak per delfråga hade
-gett fel svar. Mutationssvepet visade motsatsen, eftersom sorteringen följer
-med, och ett skäl som inte stämmer är värre än inget skäl: nästa läsare tar det
-för mätt.
-
-⛔ **En fråga per grupp, ingen optimering.** Med en handfull grupper märks det
-inte, och med femtio är det en annan produkt. Gränsen står utskriven i ärendet.
+`gruppSkapa` kräver gruppen, och `check-gruppfraga` kör tsc mot en fråga och ett
+skapande utan grupp och kräver ett typfel för var och en. Gruppen läggs dessutom
+**sist** i `where`, så en anropare som skickar med ett eget `groupId` inte kan
+skriva över den.
 
 ⛔ **Valet sparas per person, i `grupplagetsNyckel(uid)`, och inte i
 `users`-raden.** Vilken grupp jag tittar i är en egenskap hos enheten: språk och
 tema följer med till telefonen, medan "jag tittar just nu i den här gruppen"
-inte gör det. `lasAktivGrupp` och `sparaAktivGrupp` tar lagringen som argument
-och fångar inga fel: `localStorage` kastar i privat läge, och en tyst
-nedsläppsväg hade sett ut som att appen glömt valet.
+inte gör det. `lasAktivGrupp` och `sparaAktivGrupp(uid, groupId, lagring)` tar
+lagringen som argument och fångar inga fel: `localStorage` kastar i privat läge,
+och en tyst nedsläppsväg hade sett ut som att appen glömt valet.
 
 ⛔ **Ett sparat val är ett tips och inte ett faktum.** Medlemskapet kan ha
-avslutats och gruppen kan ha arkiverats. `valtLage` faller då tillbaka till
-**alla**, så personen ser sina egna grupper i stället för en tom vy utan
-förklaring.
+avslutats, gruppen kan ha arkiverats, och strängen kan vara `"alla"` från en
+version före 0.35.0. `aktivGrupp` ger då den **första** av mina grupper, aldrig
+ett fel och aldrig ett tomt läge. `null` betyder en sak: personen har inga
+grupper, och appen visar `OpsUtanMedlemskap`.
 
-⛔ **`navForLage` skriver ut `saknade`.** En grupp som pekar på en modul appen
+⛔ **`navForGrupp` skriver ut `saknade`.** En grupp som pekar på en modul appen
 inte installerat är en halv utrullning, och den ser ut precis som en grupp med
 färre flikar. Ett kast vore fel svar: då ligger appen nere för den gruppen utan
 väg tillbaka till en som fungerar. Appen visar dem, som `KatalogLarm`.
 
+⛔ **Källregistret följer samma regel.** En modul som svarar med en rad vars
+`groupId` inte är frågans kastar, och felet namnger modulen.
+
 | Komponent | Vad |
 |---|---|
-| `OpsGruppvaljare` | listan i sidopanelen, med `aria-current` på den aktiva |
-| `OpsGruppfilter` | kryssar bort grupper ur en ihopslagen vy, med `raderPerGrupp` som siffra |
-| `OpsGruppmarke` | gruppens märke på en rad i läget alla: `OpsIdentity` plus namnet |
+| `OpsGruppvaljare` | listan i en meny, med `aria-current` på den aktiva. Ingen rad "alla" |
 
-⛔ **Ingen av dem använder Radix**, och det är mätt: en popover går inte att
-driva med `fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut
-inget prov kan mäta. Väljaren och filtret är vanliga knappar, och proven trycker
-på dem.
+⛔ **Den använder inte Radix**, och det är mätt: en popover går inte att driva med
+`fireEvent` i jsdom, alltså blir ett beslut som bor i den ett beslut inget prov
+kan mäta. Väljaren är vanliga knappar, och proven trycker på dem.
 
 ### Grupp-panelen och gruppväxlaren
 
@@ -1068,8 +1080,8 @@ oförändrat):
 <OpsAppShell
   grupper={{
     lista: minaGrupperMedRader, // { id, namn, medlemsantal?, roll?, bild?, atgarder?, knappar?, avatarer? }[]
-    aktiv: valtLage(lasAktivGrupp(uid, localStorage), mina),
-    onValj: (id) => { sparaAktivGrupp(uid, localStorage, id); setAktiv(id); },
+    aktiv: aktivGrupp(lasAktivGrupp(uid, localStorage), mina),
+    onValj: (id) => { sparaAktivGrupp(uid, id, localStorage); setAktiv(id); },
     onSkapa: () => setVisaSkapaGruppDialog(true),
     infalld: panelInfalld,
     onInfalld: setPanelInfalld,
@@ -1080,7 +1092,7 @@ oförändrat):
 
 | Bredd | Vad |
 |---|---|
-| **1024 px och uppåt (`lg`)** | `OpsGruppanel`, en vänsterkolumn med "Alla mina grupper" överst, ett kort per grupp, "Skapa grupp" sist. Kollapsbar till en smal remsa med bara märkena |
+| **1024 px och uppåt (`lg`)** | `OpsGruppanel`, en vänsterkolumn med ett kort per grupp och "Skapa grupp" sist. Ingen rad "Alla mina grupper" (0.35.0, #190). Kollapsbar till en smal remsa med bara märkena |
 | **Under 1024 px** | Ingen kolumn. I stället en `OpsGruppvaxlare`-knapp i headern (märke plus den aktiva gruppens namn), som öppnar SAMMA lista i `OpsPanel`s ark/rullgardin, i en enklare form (namn, medlemsantal, rollpill, ingen åtgärd/knapp/avatarrad) |
 
 **Varje grupp i `lista`** (`GruppanelGrupp`, samma form `OpsGruppanel` och
@@ -1179,8 +1191,8 @@ komponent.
 - **Utan gruppanel** (mobil, eller en app utan `grupper`): monogramrutan under `md`,
   vänsterställd; ordmärket från `md`.
 
-**Undertexten:** med `grupper` och en vald grupp är rad 2 gruppens namn i versaler.
-I läget "Alla mina grupper" (eller utan grupper) används `undertext` på appens egen
+**Undertexten:** med `grupper` och en aktiv grupp är rad 2 gruppens namn i versaler.
+Utan aktiv grupp (personen är inte med i någon, eller appen skickar inga `grupper`) används `undertext` på appens egen
 `<OpsBrand undertext="Bolag Ops" />`; saknas den ritas bara rad 1, centrerad lodrätt.
 Ett långt gruppnamn kapas med ellipsis, rutan växer aldrig.
 
@@ -1392,10 +1404,10 @@ modulen fyller dem. **Ramverket anropar, modulen svarar**, aldrig tvärtom: en
 modul som kunde skjuta in rader när den ville hade gjort ordningen på en yta
 till en fråga om vem som hann först.
 
-⛔ **Varje anrop bär exakt en grupp.** Frågan är `{ groupId }`, typen kräver
-det, och körtiden upprepar kravet. Ramverket avgör vilka grupper som frågas och
-slår ihop svaren (`grupperAttFraga`, `listaPerGrupp`), så modulen ser aldrig
-fler än en grupp per anrop och kan därför inte råka läsa fel.
+⛔ **Varje anrop bär exakt en grupp, den aktiva.** Frågan är `{ groupId }`, typen
+kräver det, och körtiden upprepar kravet. Modulen ser aldrig fler än en grupp per
+anrop, och en rad som bär ett annat `groupId` än frågans kastar med modulens namn
+i felet (0.35.0, #190).
 
 ```js
 import { defineModule, skapaKallregister } from "@staiger/ops-framework";
@@ -1569,12 +1581,11 @@ Kolumnbredden är SS per formulär: `OpsSkapaPanel` tar `kolumn`, `"smal"` (672 
 - **`OpsGruppSida`** är detaljsidan (SS `GroupDetailView`): tillbaka-rad, stort märke (56 px), namn, beskrivning, ort, Redigera (bara `agare`/`admin` och bara med `onRedigera`), appens `snabbval` (`{ icon, label, onClick }`, en rad om tre), och medlemslistan med en Ägare- eller Admin-etikett. `children` är appens egna sektioner under listan. SS har också discipliner, publik sida, arrangörspanel och kommande sessioner: det är SS domän eller appens.
 - **`OpsGruppFormular` i redigeringsläge:** `grupp={...}` (befintlig grupp), `onSpara({ grupp })`, och bilden: `onLaddaUppBild(fil) => { sokvag, url }`, `onTaBortBild()` och `bildUrl`. Uppladdningen är appens (sökvägen bär gruppens id). Ingen medlemssektion i redigeringsläget.
 
-⛔ **"SKAPA I" (SS `CalendarCreateDestinationSheet.jsx`).** Med en vald grupp skapas det i den, och panelens översta rad visar
-"Skapas i: <grupp> ⌄" som öppnar väljaren. I läget "Alla mina grupper" visas väljaren FÖRST (en centrerad dialog på dator, ett ark på
-telefon: rubrik, sektionen GRUPPER med ett 34 px märke, namn och medlemsantal per rad, vald rad med accentkant, en valfri andra sektion
-som appen fyller via `skapa.skapaISektioner`, t.ex. "Mina kalendrar", och `Avbryt` längst ned), och panelen först efter ett val.
-Väljaren är den exporterade komponenten `OpsSkapaI`. Ett val i appens egen sektion når formuläret som `mal: { sektion, id }` och
-`groupId` är då `null`.
+⛔ **"SKAPA I" (SS `CalendarCreateDestinationSheet.jsx`).** Allt som skapas hamnar i den AKTIVA gruppen, utan gruppväljare
+(0.35.0, #190), och panelens översta rad visar "Skapas i: <grupp>". Har appen egna mål i `skapa.skapaISektioner` (t.ex. "Mina
+kalendrar") är raden en knapp som öppnar väljaren (en centrerad dialog på dator, ett ark på telefon: rubrik, en sektion per mål, vald
+rad med accentkant, `Avbryt` längst ned). Väljaren har ingen sektion Grupper och öppnas aldrig före panelen. Den är den exporterade
+komponenten `OpsSkapaI`. Ett val når formuläret som `mal: { sektion, id }`, och `groupId` är fortfarande den aktiva gruppen.
 
 ⛔ **Formulär får aldrig använda rå `<input type="date">` eller `type="time">`**: `OpsDatePicker` och `OpsTimePicker`.
 
@@ -1599,8 +1610,9 @@ props.ikonRitare`.** `Skaparregistrering.ikon` är ett namn ur appens EGEN
 tillåtelselista; ramverket vet inte hur man ritar det. Utan `ikonRitare` ritas
 ingen ikon på raden, bara ordet.
 
-⛔ **Plusset skapar alltid i den AKTIVA gruppen.** I läget `alla` finns ingen
-grupp att skriva i. `skapalaget` ger tre utfall: `valjGrupp`, `tomt` och `redo`,
+⛔ **Plusset skapar alltid i den AKTIVA gruppen.** Det finns ingen gruppväljare
+(0.35.0, #190), och bara den som inte är med i någon grupp har ingen grupp att
+skriva i. `skapalaget` ger tre utfall: `ingenGrupp`, `tomt` och `redo`,
 och modulernas rader ritas bara i popovern när läget är `redo`. Har appen
 `handelse`/`arende` visas plusset ändå: de vet inget om grupplägen, de är
 appens egna, färdiga formulär. Finns varken ramverksrader eller ett `redo`-läge
@@ -1659,7 +1671,7 @@ alltså ska appens läsregel för ärenden INTE bero på `mottagare`.
 
 **Skalet:** `skapa.meddelande` är en funktion `({ formId, groupId, onKlar }) => nod`, normalt `OpsNyttMeddelande`. Med den står
 "Nytt meddelande" i plusset (efter Nytt ärende, före Ny grupp), panelen har den smala kolumnen och knappen **Skicka**
-(`skickaEtikett`), och i läget "Alla mina grupper" väljs gruppen först, bara bland grupperna. Etiketten är `nyttMeddelandeEtikett`.
+(`skickaEtikett`), och meddelandet skrivs i den aktiva gruppen utan gruppväljare. Etiketten är `nyttMeddelandeEtikett`.
 
 **Datakontraktet** fick `innehaller` (0.34.0): `{ innehaller: { deltagare: uid } }` är Firestores `array-contains`, ett fält per
 fråga. Minnesadaptern och Postgres (`= ANY`) stöder det; http-adaptern KASTAR hellre än att skicka frågan utan villkoret, eftersom
