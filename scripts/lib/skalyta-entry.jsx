@@ -183,9 +183,16 @@ const g2Lista = [
   { id: "g3", namn: { sv: "Gamma AB" }, roll: "admin", farg: "5", ikon: "hus", medlemsantal: 3 },
 ];
 
+/*
+ * 0.35.0 (#190): "ingen" är scenen där personen inte är med i någon grupp, det enda tillståndet utan aktiv grupp. Läget
+ * "Alla mina grupper" finns inte längre, och en scen med grupper har alltid en aktiv.
+ */
+const utanGrupp = () => window.__aktiv === "ingen";
+const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
+
 function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null }) {
   const [infalld, setInfalld] = useState(false);
-  const [aktiv, setAktiv] = useState(window.__aktiv ?? "g1");
+  const [aktiv, setAktiv] = useState(aktivIScenen());
   return (
     <OpsAppShell
       fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
@@ -203,7 +210,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions =
       anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
       skapa={skapa}
       meny={meny}
-      grupper={{ lista: window.__skal === "gruppkort" ? g2Lista : grupperLista, aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
+      grupper={{ lista: utanGrupp() ? [] : window.__skal === "gruppkort" ? g2Lista : grupperLista, aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
     >
       {children}
     </OpsAppShell>
@@ -319,9 +326,9 @@ function SkapaForm({ groupId, formId }) {
 }
 const skapaProp = () => ({
   handelse: { form: SkapaForm, katalog: null },
-  lage: window.__aktiv ?? "g1",
+  lage: aktivIScenen() || null,
   sparaEtikett: "Skicka in",
-  skapaISektioner: [{ id: "kalendrar", rubrik: "Mina kalendrar", poster: [{ id: "k1", namn: "Semester" }] }],
+  skapaISektioner: [{ id: "kalendrar", rubrik: "Mina kalendrar", poster: [{ id: "k1", namn: "Semester" }, { id: "k2", namn: "Jobb" }] }],
 });
 
 /** 0.31.0: en sida med ett urval av primitiverna, för mätningen (check-skalyta avsnitt 17) och galleriet i montaget. */
@@ -409,7 +416,7 @@ function Menyer() {
       {ruta("tid", <div className="w-56"><OpsTimePicker value={tid} onChange={setTid} /></div>)}
       {ruta("datum", <div className="w-56"><OpsDatePicker value={dat} onChange={setDat} /></div>)}
       {ruta("aktivitet", <OpsActivityListActions filter={<p className="m-0 text-xs">Filter</p>} onClear={() => {}} />)}
-      {ruta("gruppvaljare", <div className="w-72"><OpsGruppvaljare grupper={grupperLista} aktiv={gr} onValj={setGr} rubrik="Grupper" allaEtikett="Alla mina grupper" /></div>)}
+      {ruta("gruppvaljare", <div className="w-72"><OpsGruppvaljare grupper={grupperLista} aktiv={gr} onValj={setGr} rubrik="Grupper" /></div>)}
     </div>
   );
 }
