@@ -286,7 +286,7 @@ en egen palett igen, och då är vi tillbaka i de tjugofem `.tag-pill--*`-klasse
 Märket är text i Glacial Indifference (0.31.0, CP 2026-09-29: "kör med text"): "OPS" ljusgrått,
 "HUB" gråorange, och under det den aktiva gruppens namn. Det finns i ramverket och byter ton med
 temat. ⛔ Lägg ingen egen logotypfil i bolag-ops, och skicka inte appens namn som `brand`: `brand`
-är märkets namn, inte appens. Vill appen ha en rad 2 i läget Alla mina grupper:
+är märkets namn, inte appens. Vill appen ha en rad 2 när ingen grupp är aktiv (personen är inte med i någon):
 `brand={<OpsBrand undertext="Bolag Ops" />}`.
 
 Från 0.31.1: under `md` ritas märket inte alls när `grupper` finns. Gruppväxlaren (gruppmärket, 44x44) står längst till vänster i

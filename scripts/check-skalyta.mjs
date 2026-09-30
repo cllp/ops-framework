@@ -435,7 +435,7 @@ for (const bredd of [1280, 1600]) {
     page.evaluate(() => {
       const q = (/** @type {string} */ sel) => document.querySelector(sel);
       const box = q('header a[href="/"] > span');
-      const panel = q('nav[aria-label="Alla mina grupper"]');
+      const panel = q('nav[aria-label="Mina grupper"]');
       const flik = q('header nav[aria-label="Huvudnavigering"] a');
       if (!box || !panel) return null;
       const b = box.getBoundingClientRect();
@@ -461,7 +461,7 @@ for (const bredd of [1280, 1600]) {
   const ut = await mata("utfalld");
   krav(ut !== null, `panelen ${bredd} px: märkesrutan eller panelen hittades inte. Fel scenario.`);
   if (ut) {
-    await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+    await page.locator('nav[aria-label="Mina grupper"] > button').first().click();
     await page.waitForTimeout(350);
     const in_ = await mata("infalld");
     krav(in_ !== null, `panelen ${bredd} px: märkesrutan eller panelen hittades inte efter infällning.`);
@@ -469,7 +469,7 @@ for (const bredd of [1280, 1600]) {
       // ⛔ Den infällda remsan (0.30.1, SS `AppSidebar.jsx:54,77,89`): varje post är en 40x40-ruta med kant, märket 34 px
       // inuti, och den aktiva gruppen har accentkant. Före 0.30.1 var växlaren en naken chevron och märkena fyllde rutan.
       const rem = await page.evaluate(() => {
-        const nav = document.querySelector('nav[aria-label="Alla mina grupper"]');
+        const nav = document.querySelector('nav[aria-label="Mina grupper"]');
         const rut = (/** @type {Element} */ el) => {
           const r = el.getBoundingClientRect();
           const cs = getComputedStyle(el);
@@ -479,11 +479,13 @@ for (const bredd of [1280, 1600]) {
         const accent = (() => { const p = document.createElement("div"); p.style.borderTop = "1px solid var(--color-accent)"; document.body.appendChild(p); const c = getComputedStyle(p).borderTopColor; p.remove(); return c; })();
         return { poster: nav ? [...nav.querySelectorAll(":scope > button, ul button")].map(rut) : [], accent };
       });
-      krav(rem.poster.length >= 4, `remsan ${bredd} px: bara ${rem.poster.length} poster lästa, väntat minst 4 (växlare, alla, två grupper, skapa).`);
+      // ⛔ 0.35.0 (#190): ingen post "Alla mina grupper". Golvet är växlaren, scenens tre grupper och Skapa, alltså fem.
+      krav(rem.poster.length >= 5, `remsan ${bredd} px: bara ${rem.poster.length} poster lästa, väntat minst 5 (växlare, tre grupper, skapa).`);
+      krav(!rem.poster.some((p) => /^Alla/.test(p.namn)), `remsan ${bredd} px: en post heter ${JSON.stringify(rem.poster.filter((p) => /^Alla/.test(p.namn)).map((p) => p.namn))}. Läget "Alla mina grupper" är borttaget (0.35.0, #190).`);
       for (const p of rem.poster) {
         krav(Math.abs(p.w - 40) < 0.5 && Math.abs(p.h - 40) < 0.5 && p.kant >= 1, `remsan ${bredd} px: "${p.namn}" är ${p.w}x${p.h} px med kant ${p.kant}, väntat 40x40 med kant.`);
       }
-      const gm = rem.poster.filter((p) => p.markeW > 0 && p.namn && !/^(Alla|Fäll|Skapa)/.test(p.namn));
+      const gm = rem.poster.filter((p) => p.markeW > 0 && p.namn && !/^(Fäll|Skapa)/.test(p.namn));
       krav(gm.length >= 2 && gm.every((p) => Math.abs(p.markeW - 34) < 0.5), `remsan ${bredd} px: gruppmärkena är ${gm.map((p) => p.markeW).join(", ")} px, väntat 34 (SS GroupMark sizePx=34).`);
       const aktivRad = rem.poster.find((p) => p.namn.startsWith("Claes"));
       krav(!!aktivRad && aktivRad.kantFarg === rem.accent, `remsan ${bredd} px: aktiv grupp har kantfärg ${aktivRad?.kantFarg}, väntat accent (${rem.accent}).`);
@@ -508,7 +510,7 @@ if (bildmapp) {
   const { page, context } = await oppna("full", { width: 1024, height: 460 }, standardtema, 2);
   for (const lage of ["utfalld", "infalld"]) {
     if (lage === "infalld") {
-      await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+      await page.locator('nav[aria-label="Mina grupper"] > button').first().click();
       await page.waitForTimeout(350);
     }
     await page.screenshot({ path: path.join(bildmapp, `panel-${lage}-skala2.png`), clip: { x: 0, y: 0, width: 800, height: 450 } });
@@ -627,9 +629,9 @@ const matMarke = (page) =>
     const ruta = q('header a[href="/"] [data-marke="ruta"]');
     const rad1 = q('header a[href="/"] [data-marke="rad1"]');
     const rad2 = q('header a[href="/"] [data-marke="rad2"]');
-    const panel = q('nav[aria-label="Alla mina grupper"]');
+    const panel = q('nav[aria-label="Mina grupper"]');
     const kort = panel ? panel.querySelector("ul > li") : null;
-    const remsGrupp = [...document.querySelectorAll('nav[aria-label="Alla mina grupper"] ul button')].find((b) => b.getAttribute("aria-label") === "Testgruppen");
+    const remsGrupp = [...document.querySelectorAll('nav[aria-label="Mina grupper"] ul button')].find((b) => b.getAttribute("aria-label") === "Testgruppen");
     /** Textens synliga mittlinje: raden minus den tomma spärrningen efter sista bokstaven. */
     const inkMitt = (/** @type {Element | null} */ el) => {
       if (!el) return null;
@@ -702,7 +704,7 @@ for (const bredd of [1280, 1600]) {
     krav(ut.text2Mitt !== null && ut.kortMitt !== null && Math.abs(ut.text2Mitt - ut.kortMitt) <= 1, `märket ${bredd} px utfälld: rad 2 har mittlinje ${ut.text2Mitt?.toFixed(2)} mot kortens ${ut.kortMitt?.toFixed(2)}. Väntat högst 1 px.`);
   }
 
-  await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+  await page.locator('nav[aria-label="Mina grupper"] > button').first().click();
   await page.waitForTimeout(350);
   const in_ = await matMarke(page);
   matt.push(`märket ${bredd} px infälld: ruta ${JSON.stringify(in_.ruta)} mot remsans ${JSON.stringify(in_.remsa)}`);
@@ -725,7 +727,7 @@ if (bildmapp) {
   await page.evaluate(() => document.fonts.ready);
   for (const lage of ["utfalld", "infalld"]) {
     if (lage === "infalld") {
-      await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+      await page.locator('nav[aria-label="Mina grupper"] > button').first().click();
       await page.waitForTimeout(350);
     }
     await page.screenshot({ path: path.join(bildmapp, `marke-${lage}-${standardtema}.png`), clip: { x: 0, y: 0, width: 800, height: 300 } });
@@ -742,9 +744,10 @@ if (bildmapp) {
   await context.close();
 }
 
-// Utan vald grupp ("Alla mina grupper") och utan undertext: bara rad 1, centrerad lodrätt i rutan.
+// Utan grupp (0.35.0: personen är inte med i någon, det enda tillståndet utan aktiv grupp) och utan undertext: bara rad 1,
+// centrerad lodrätt i rutan.
 {
-  const { page, context } = await oppna("full", { width: 1280, height: 900 }, standardtema, 1, "alla");
+  const { page, context } = await oppna("full", { width: 1280, height: 900 }, standardtema, 1, "ingen");
   await page.evaluate(() => document.fonts.ready);
   const m = await page.evaluate(() => {
     const rad1 = document.querySelector('header a[href="/"] [data-marke="rad1"]');
@@ -754,7 +757,7 @@ if (bildmapp) {
     const b = box.getBoundingClientRect();
     return { rad2: !!document.querySelector('header a[href="/"] [data-marke="rad2"]'), mittY: r.y + r.height / 2, boxMittY: b.y + b.height / 2 };
   });
-  krav(m !== null && m.rad2 === false, "märket i läget Alla mina grupper: rad 2 ritas trots att ingen grupp är vald och ingen undertext finns. Väntat bara rad 1.");
+  krav(m !== null && m.rad2 === false, "märket utan grupp: rad 2 ritas trots att ingen grupp är aktiv och ingen undertext finns. Väntat bara rad 1.");
   krav(m !== null && Math.abs(m.mittY - m.boxMittY) <= 1, `märket utan undertext: rad 1 mitt ${m?.mittY.toFixed(1)} mot rutans ${m?.boxMittY.toFixed(1)}. Väntat lodrätt centrerad (högst 1 px).`);
   await context.close();
 }
@@ -940,12 +943,12 @@ for (const bredd of [1280, 1600]) {
   for (const lage of /** @type {const} */ (["utfälld", "infälld"])) {
     const { page, context } = await oppna("hubmodul", { width: bredd, height: 900 });
     if (lage === "infälld") {
-      await page.locator('nav[aria-label="Alla mina grupper"] > button').first().click();
+      await page.locator('nav[aria-label="Mina grupper"] > button').first().click();
       await page.waitForTimeout(350);
     }
     const m = await page.evaluate(() => {
       const rad = document.querySelector('nav[aria-label="Var du är"]');
-      const panel = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const panel = document.querySelector('nav[aria-label="Mina grupper"]');
       const rutnat = document.querySelector("main ul[aria-label]");
       if (!rad || !panel || !rutnat) return null;
       const r = rad.getBoundingClientRect();
@@ -1175,7 +1178,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       const avbryt = [...panel.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Avbryt");
       const sr = spara ? spara.getBoundingClientRect() : null;
       const header = document.querySelector("header");
-      const gruppPanel = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const gruppPanel = document.querySelector('nav[aria-label="Mina grupper"]');
       const inHeader = header ? header.getBoundingClientRect() : null;
       const inner = /** @type {HTMLElement} */ (panel.querySelector("[data-skapa-panel] > div"));
       const ir = inner ? inner.getBoundingClientRect() : kol;
@@ -1247,33 +1250,36 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   await context.close();
 }
-// "Skapa i": läget Alla frågar först (som SS bild b), med grupper och appens egen sektion; en vald grupp visar "Skapas i".
+// "Skapa i" (0.35.0, #190): ingen gruppväljare. Panelen öppnas direkt i den aktiva gruppen, och dialogen nås bara från raden
+// "Skapas i" och visar bara appens egna mål (Mina kalendrar), aldrig en sektion Grupper. Ett val där når formuläret som `mal`,
+// och posten skapas ändå i den aktiva gruppen.
 for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 800 }], ["390 px", { width: 390, height: 844 }]])) {
-  const { page, context } = await oppna("skapa", vp, standardtema, 1, "alla");
+  const { page, context } = await oppna("skapa", vp, standardtema, 1, "g2");
   try {
     await oppnaSkapaPanel(page, vp.width < 800);
+    await page.waitForSelector("[data-skapa-panel]", { timeout: 3000 });
+    const fore = await page.evaluate(() => ({ dialoger: document.querySelectorAll('[role="dialog"][aria-label="Skapa i"]').length, grupp: (document.querySelector("[data-grupp]") || {}).textContent }));
+    krav(fore.dialoger === 0, `skapa i ${namn}: väljaren "Skapa i" öppnades före panelen (${fore.dialoger}). Väntat panelen direkt, i den aktiva gruppen.`);
+    krav(fore.grupp === "groupId=g2", `skapa i ${namn}: formuläret fick ${fore.grupp}, väntat groupId=g2 (den aktiva gruppen).`);
+    await page.getByRole("button", { name: "Skapas i: Testgruppen" }).click();
     const dlg = page.getByRole("dialog", { name: "Skapa i" });
     await dlg.waitFor({ timeout: 3000 });
     const d = await dlg.evaluate((el) => {
       const r = el.getBoundingClientRect();
       const rader = [...el.querySelectorAll("section")].map((s) => ({ namn: s.getAttribute("aria-label"), antal: s.querySelectorAll("button").length }));
-      const mark = el.querySelector("section button span");
-      const mr = mark ? mark.getBoundingClientRect() : null;
-      return { x: r.x, w: r.width, top: r.top, bottom: r.bottom, vw: (document.querySelector('header') || document.documentElement).getBoundingClientRect().width, vh: innerHeight, rader, markW: mr ? mr.width : 0, radie: parseFloat(getComputedStyle(el).borderTopLeftRadius), avbryt: [...el.querySelectorAll("button")].some((b) => (b.textContent || "").trim() === "Avbryt"), panelBakom: document.querySelectorAll("[data-skapa-panel]").length };
+      return { x: r.x, w: r.width, top: r.top, bottom: r.bottom, vw: (document.querySelector('header') || document.documentElement).getBoundingClientRect().width, vh: innerHeight, rader, radie: parseFloat(getComputedStyle(el).borderTopLeftRadius), avbryt: [...el.querySelectorAll("button")].some((b) => (b.textContent || "").trim() === "Avbryt") };
     });
-    matt.push(`skapa i ${namn}: dialog ${d.w.toFixed(0)} px bred, sektioner ${JSON.stringify(d.rader)}, märke ${d.markW} px, panelen bakom ${d.panelBakom}`);
+    matt.push(`skapa i ${namn}: dialog ${d.w.toFixed(0)} px bred, sektioner ${JSON.stringify(d.rader)}`);
     krav(vp.width < 640 ? true : d.radie === 24, `skapa i ${namn}: dialogen har rundning ${d.radie}, väntat 24 (SS rounded-2xl).`);
-    krav(d.panelBakom === 0, `skapa i ${namn}: panelen ritades före valet (${d.panelBakom}). Väntat väljaren först i läget Alla.`);
-    krav(d.rader.length === 2 && d.rader[0].namn === "Grupper" && d.rader[1].namn === "Mina kalendrar", `skapa i ${namn}: sektionerna är ${JSON.stringify(d.rader)}, väntat Grupper och Mina kalendrar.`);
-    krav(Math.abs(d.markW - 34) < 0.6, `skapa i ${namn}: gruppmärket är ${d.markW} px, väntat 34.`);
+    krav(d.rader.length === 1 && d.rader[0].namn === "Mina kalendrar" && d.rader[0].antal === 2, `skapa i ${namn}: sektionerna är ${JSON.stringify(d.rader)}, väntat bara Mina kalendrar med två poster (ingen sektion Grupper sedan 0.35.0).`);
     krav(d.avbryt && d.x >= 0 && d.x + d.w <= d.vw + 0.5 && d.bottom <= d.vh + 0.5, `skapa i ${namn}: Avbryt saknas eller dialogen ligger utanför vyn.`);
     krav(vp.width < 800 ? Math.abs(d.w - d.vw) < 1 : d.w <= 384.5, `skapa i ${namn}: dialogen är ${d.w.toFixed(0)} px bred (väntat helbredd som ark på telefon, högst 384 centrerad på dator).`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `skapa-i-${vp.width}.png`) });
-    await dlg.getByRole("button", { name: /Testgruppen/ }).click();
+    await dlg.getByRole("button", { name: /Semester/ }).click();
     await page.waitForSelector("[data-skapa-panel]", { timeout: 3000 });
     const efter = await page.evaluate(() => ({ grupp: (document.querySelector("[data-grupp]") || {}).textContent, rad: [...document.querySelectorAll("[data-skapa-panel] button")].map((b) => b.getAttribute("aria-label")).filter(Boolean) }));
-    krav(efter.grupp === "groupId=g2", `skapa i ${namn}: formuläret fick ${efter.grupp}, väntat groupId=g2 (Testgruppen).`);
-    krav(efter.rad.includes("Skapas i: Testgruppen"), `skapa i ${namn}: raden "Skapas i: Testgruppen" saknas (${efter.rad.join(", ")}).`);
+    krav(efter.grupp === "groupId=g2", `skapa i ${namn}: formuläret fick ${efter.grupp} efter valet av kalender, väntat groupId=g2 (posten skapas i den aktiva gruppen).`);
+    krav(efter.rad.includes("Skapas i: Semester"), `skapa i ${namn}: raden "Skapas i: Semester" saknas (${efter.rad.join(", ")}).`);
   } catch (e) {
     krav(false, `skapa i ${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }
@@ -1304,7 +1310,7 @@ for (const scen of ["hub", "hubmodul"]) {
     const { page, context } = await oppna(scen, { width: bredd, height: 900 });
     const g = await page.evaluate(() => {
       const syns = (/** @type {Element | null} */ el) => !!el && getComputedStyle(el).display !== "none" && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
-      const panel = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const panel = document.querySelector('nav[aria-label="Mina grupper"]');
       const vaxlare = document.querySelector('header button[aria-label^="Byt grupp"]');
       const vr = vaxlare ? vaxlare.getBoundingClientRect() : null;
       const namn = vaxlare ? [...vaxlare.querySelectorAll("span")].map((x) => x.textContent || "").join("|") : "";
@@ -1483,11 +1489,11 @@ const MENYYTOR = [
   { id: "tid", namn: "OpsTimePicker", scen: "menyer", oppna: (p) => p.locator('[data-m="tid"] button').first().press("Enter"), rader: '[role="option"]', valt: '[role="option"][data-state="checked"]', font: 14, padX: 12, padY: 8, hojd: 36, bock: true, minRader: 10 },
   { id: "datum", namn: "OpsDatePicker, dagarna", scen: "menyer", oppna: (p) => p.locator('[data-m="datum"] button').press("Enter"), rader: '[role="grid"] button', valt: null, font: 12, padX: null, padY: null, minRader: 28, dialog: true, viktUndantag: 1 },
   { id: "aktivitet", namn: "Aktivitet, Mer-menyn", scen: "menyer", oppna: (p) => p.locator('[data-m="aktivitet"] button[aria-label="Mer"]').press("Enter"), rader: '[data-radix-popper-content-wrapper] button', valt: null, font: 12, padX: 12, padY: 10, hojd: 36, minRader: 1 },
-  { id: "gruppvaljare", namn: "OpsGruppvaljare", scen: "menyer", oppna: async () => {}, rader: '[data-m="gruppvaljare"] ul button', valt: '[aria-current="true"]', font: 12, padX: 12, padY: 8, bock: true, minRader: 4 },
+  { id: "gruppvaljare", namn: "OpsGruppvaljare", scen: "menyer", oppna: async () => {}, rader: '[data-m="gruppvaljare"] ul button', valt: '[aria-current="true"]', font: 12, padX: 12, padY: 8, bock: true, minRader: 3 },
   { id: "header-meny", namn: "Huvudets meny", scen: "full", oppna: async (p) => { const v = p.viewportSize(); if (v && v.width < 800) await p.getByRole("button", { name: "Meny" }).last().click(); else await p.getByRole("button", { name: /Meny, fler/ }).click(); }, rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 12, padX: 12, padY: 10, minRader: 3, dialog: true },
   { id: "skapa-dropdown", namn: "Skapa-menyn (plus)", scen: "skapa", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Skapa", exact: true }).last().click(), rader: '[role="dialog"] button[class*="min-h-11"]', valt: null, font: 14, vikt: 500, padX: 16, padY: 10, minRader: 1, dialog: true },
   { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Hub" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
-  { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "alla", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 12, minRader: 3, dialog: true },
+  { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "g1", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); await p.getByRole("button", { name: /^Skapas i:/ }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 12, minRader: 2, dialog: true },
 ];
 let ytorMatta = 0;
 for (const y of MENYYTOR) {
@@ -2054,7 +2060,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 {
   const { page, context } = await oppna("nygrupp", { width: 1280, height: 800 });
   try {
-    await page.locator('nav[aria-label="Alla mina grupper"]').getByRole("button", { name: "Skapa grupp" }).click({ timeout: 3000 });
+    await page.locator('nav[aria-label="Mina grupper"]').getByRole("button", { name: "Skapa grupp" }).click({ timeout: 3000 });
     await page.waitForSelector("[data-gruppformular]", { timeout: 3000 });
     const d = await page.evaluate(() => ({ rubrik: (document.querySelector("[data-skapa-panel] h2") || {}).textContent, dialoger: document.querySelectorAll('[role="dialog"]').length }));
     matt.push(`ny grupp via gruppanelen 1280 px: rubrik "${d.rubrik}", dialoger ${d.dialoger}`);
@@ -2090,7 +2096,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   const { page, context } = await oppna("gruppkort", { width: 1280, height: 800 }, standardtema, 1, "g1");
   try {
     const k = await page.evaluate(() => {
-      const nav = document.querySelector('nav[aria-label="Alla mina grupper"]');
+      const nav = document.querySelector('nav[aria-label="Mina grupper"]');
       const kort = (/** @type {string} */ n) => /** @type {HTMLElement | null} */ ([...nav.querySelectorAll("li[role=button]")].find((l) => l.getAttribute("aria-label") === n) ?? null);
       const sonda = (/** @type {string} */ klass, /** @type {string} */ prop) => { const e = document.createElement("span"); e.className = klass; document.body.append(e); const v = getComputedStyle(e)[prop]; e.remove(); return v; };
       const knapp = (/** @type {HTMLElement | null} */ li, /** @type {string} */ n) => li ? /** @type {HTMLElement | null} */ (li.querySelector(`button[aria-label="${n}"]`)) : null;
@@ -2134,7 +2140,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(k.kant === k.kantVantad && k.kant !== k.betaKant, `gruppkort: det valda kortets kant är ${k.kant}, väntat gruppens färg ${k.kantVantad} (och inte ovalda ${k.betaKant}). SS GroupCard.jsx:60-65.`);
     const alfa = /\/\s*([0-9.]+)\)|,\s*([0-9.]+)\)\s*$/.exec(k.yta ?? "");
     krav(!!alfa && Number(alfa[1] ?? alfa[2]) >= 0.05 && Number(alfa[1] ?? alfa[2]) <= 0.075, `gruppkort: det valda kortets yta är ${k.yta}, väntat gruppens färg vid ca 6 procent (SS \`${"${group.color}"}10\`).`);
-    if (bildmapp) await page.locator('nav[aria-label="Alla mina grupper"]').screenshot({ path: path.join(bildmapp, "gruppkort-1280.png") });
+    if (bildmapp) await page.locator('nav[aria-label="Mina grupper"]').screenshot({ path: path.join(bildmapp, "gruppkort-1280.png") });
   } catch (e) {
     krav(false, `gruppkort: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }

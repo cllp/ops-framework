@@ -136,16 +136,16 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
     expect(namn.parentElement?.className).toContain("md:flex");
   });
 
-  it("gruppväxlaren i läget Alla mina grupper ritar PersonIkon (samma som panelens rad), inte initialer (0.31.1)", () => {
-    render(<OpsGruppvaxlare grupper={[{ id: "g", namn: { sv: "Alfa AB" } }]} aktiv="alla" onValj={() => {}} />);
-    const marke = screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" }).querySelector("[data-gruppmarke]");
+  it("gruppväxlaren utan grupp (0.35.0: personen är inte med i någon) ritar PersonIkon, inte initialer", () => {
+    render(<OpsGruppvaxlare grupper={[]} aktiv="" onValj={() => {}} />);
+    const marke = screen.getByRole("button", { name: "Byt grupp, nu: Ingen grupp" }).querySelector("[data-gruppmarke]");
     expect(marke?.querySelector("svg")).not.toBeNull();
     expect(marke?.textContent).toBe("");
   });
 
   it("skalet ritar inte märket under md när grupper finns, men behåller det utan grupper (0.31.1)", () => {
     const med = render(
-      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" grupper={{ lista: [], aktiv: "alla", onValj: () => {} }}>
+      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" grupper={{ lista: [], aktiv: "", onValj: () => {} }}>
         <p>x</p>
       </OpsAppShell>,
     );
@@ -173,11 +173,11 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
 describe("C: loggan och panelen ligger i samma behållare (0.30.1)", () => {
   it("med panelen ligger den under toppraden i samma max-w-7xl-behållare, så märkets och panelens vänsterkant linjerar", () => {
     const { container } = render(
-      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" grupper={{ lista: [], aktiv: "alla", onValj: () => {} }}>
+      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" grupper={{ lista: [], aktiv: "", onValj: () => {} }}>
         <p>x</p>
       </OpsAppShell>,
     );
-    const panel = container.querySelector("nav[aria-label='Alla mina grupper']");
+    const panel = container.querySelector("nav[aria-label='Mina grupper']");
     const behallare = panel?.closest("div.lg\\:flex");
     expect(behallare?.className).toContain("max-w-7xl");
     expect(behallare?.className).toContain("mx-auto");

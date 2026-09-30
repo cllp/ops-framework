@@ -1,5 +1,5 @@
 /**
- * Frågor som alltid bär sin grupp, och sammanslagningen över flera.
+ * Frågor som alltid bär sin grupp.
  *
  * ══ ⛔ VARFÖR EN EGEN INGÅNG OCH INTE BARA EN KONVENTION (#139) ════════
  *
@@ -16,16 +16,15 @@
  * som inte alla typkontrollerar sin egen kod, och för dem är typen bara en
  * kommentar. Ett kast säger samma sak på den enda plats de läser.
  *
- * ══ ⛔ EN FRÅGA PER GRUPP ══════════════════════════════════════════════
+ * ══ ⛔ INGEN SAMMANSLAGNING ÖVER FLERA GRUPPER (0.35.0, #190) ═══════════
  *
- * `listaPerGrupp` frågar varje grupp för sig och lägger ihop svaren. Det är
- * INTE en optimeringsmiss, det är beslutet i #139: en rad tillhör en grupp,
- * regeln är ett uppslag, och en fråga som spände över flera grupper hade
- * krävt att raderna bar en lista. Se `check-gruppnyckel` för vad det kostade
- * senast någon gjorde det.
+ * Här stod `listaPerGrupp`, som frågade varje grupp för sig och lade ihop
+ * svaren för läget "Alla mina grupper". Läget är borttaget, och CP rättade
+ * samma dag premissen för en läsning över flera grupper: Privat, Företag och
+ * Samlat är flikar över data i EN grupp. Ingen konsument använde funktionen,
+ * så den togs bort i stället för att stå kvar som en väg förbi den aktiva
+ * gruppen. Den aktiva gruppen läggs på varje läsväg av `medAktivGrupp`.
  */
-
-import { slaIhopSvar } from "../lib/grupplage.js";
 
 /**
  * En fråga som bär sin grupp.
@@ -56,7 +55,7 @@ function kravGrupp(fraga, vem) {
   const g = fraga && typeof fraga.groupId === "string" ? fraga.groupId.trim() : "";
   if (!g) {
     throw new Error(
-      `${vem}: groupId krävs i frågan. En fråga utan grupp läser antingen någon annans rader eller inga alls, och båda ser ut som ett tomt svar. Ska flera grupper visas: använd listaPerGrupp, som frågar varje grupp för sig.`,
+      `${vem}: groupId krävs i frågan. En fråga utan grupp läser antingen någon annans rader eller inga alls, och båda ser ut som ett tomt svar. Det finns alltid exakt en aktiv grupp, och det är den frågan ska bära.`,
     );
   }
   return g;
@@ -85,10 +84,10 @@ export async function gruppLista(kalla, samling, fraga) {
 /**
  * Skapar en rad i en grupp.
  *
- * ⛔ ATT SKAPA KRÄVER EN VALD GRUPP, och det är ett klarkriterium i #139. I
- * läget "alla" ger `gruppenAttSkapaI` `null`, och då finns ingen rad att
- * skapa: en rad utan grupp finns inte i modellen, och reglerna hade avvisat
- * den ändå, fast med "insufficient permissions" i stället för ett svar.
+ * ⛔ ATT SKAPA KRÄVER EN GRUPP, och sedan 0.35.0 (#190) är det alltid den
+ * aktiva: det finns ingen gruppväljare före ett formulär. En rad utan grupp
+ * finns inte i modellen, och reglerna hade avvisat den ändå, fast med
+ * "insufficient permissions" i stället för ett svar.
  *
  * @template {{ id: string }} T
  * @param {import("./contract.js").DataSource<T>} kalla
@@ -99,64 +98,4 @@ export async function gruppLista(kalla, samling, fraga) {
 export async function gruppSkapa(kalla, samling, data) {
   const groupId = kravGrupp(/** @type {GruppFraga} */ (/** @type {unknown} */ (data)), "gruppSkapa");
   return kalla.create(samling, { ...data, groupId });
-}
-
-/**
- * Rader ur flera grupper: en fråga per grupp, ihopslaget och märkt.
- *
- * ⛔ `limit` GÄLLER DET IHOPSLAGNA, OCH SKICKAS DESSUTOM MED NEDÅT. Det
- * avgörande taket är det sista: tio rader ur tre grupper är trettio, och tio
- * av dem ska visas. Att varje delfråga OCKSÅ bär taket är en kostnadsfråga och
- * inte en korrekthetsfråga, och den är säker eftersom delfrågan bär samma
- * sortering: en grupps tio översta innehåller allt den kan bidra med till de
- * tio översta totalt.
- *
- * ⛔ OCH DEN RADEN STOD FEL HÄR TILL ATT BÖRJA MED. Först påstod noten att ett
- * tak per delfråga hade gett fel svar. Svepet visade motsatsen: mutationen som
- * la taket i delfrågan ändrade inget utfall, eftersom sorteringen följer med.
- * Ett skäl som inte stämmer är värre än inget skäl, för nästa läsare tar det
- * för mätt. Taket skickas nu med, och att det gör det provas på anropen.
- *
- * @template {{ id: string }} T
- * @param {import("./contract.js").DataSource<T>} kalla
- * @param {string} samling
- * @param {ReadonlyArray<import("../lib/grupp.js").Grupp>} grupper Ur `grupperAttFraga`.
- * @param {Omit<GruppFraga, "groupId">} [fraga]
- * @returns {Promise<(T & { gruppmarke: { id: string, namn: import("../lib/sprak.js").Namn } })[]>}
- */
-export async function listaPerGrupp(kalla, samling, grupper, fraga = {}) {
-  const lista = grupper ?? [];
-  const { limit, ...utanTak } = fraga;
-  const svar = await Promise.all(
-    lista.map(async (grupp) => ({
-      grupp,
-      rader: await gruppLista(kalla, samling, { ...utanTak, limit, groupId: grupp.id }),
-    })),
-  );
-  return slaIhopSvar(svar, { sortBy: fraga.sortBy, direction: fraga.direction, limit });
-}
-
-/**
- * Antalet rader per grupp, för märket i gruppfiltret.
- *
- * ⛔ RÄKNAS UR DET SOM REDAN HÄMTATS, inte med en egen fråga. En andra fråga
- * hade kunnat ge ett annat tal än listan visar, och två tal om samma sak är
- * arbetsreglernas punkt 2.
- *
- * ⛔ OCH VARJE GRUPP FÅR SIN RAD ÄVEN NÄR DEN ÄR NOLL. En grupp som saknas i
- * räkningen ser ut som en grupp som inte frågades (punkt 5).
- *
- * @param {ReadonlyArray<{ gruppmarke: { id: string } }>} rader
- * @param {ReadonlyArray<import("../lib/grupp.js").Grupp>} grupper
- * @returns {Record<string, number>}
- */
-export function raderPerGrupp(rader, grupper) {
-  /** @type {Record<string, number>} */
-  const ut = {};
-  for (const g of grupper ?? []) ut[g.id] = 0;
-  for (const rad of rader ?? []) {
-    const id = rad?.gruppmarke?.id;
-    if (id !== undefined && Object.prototype.hasOwnProperty.call(ut, id)) ut[id] += 1;
-  }
-  return ut;
 }

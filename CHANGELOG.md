@@ -9,6 +9,50 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.35.0
+
+⛔ **Exakt en aktiv grupp, och varje läsväg gäller bara den. Läget "Alla mina grupper" och läsningen över flera grupper är borttagna. Breaking: exporter försvinner, se "Att göra i appen".**
+Händelsen: CP 2026-09-30 i [#190](https://github.com/cllp/ops-framework/issues/190): gruppen Travel valdes, och Idag visade fortfarande CPS AB:s rader (Adavo, attest, bank). Appens insvepning filtrerade `list` och `subscribe` på gruppen, men `read` av ett dokument gick orörd igenom, och reglerna frågar bara om personen är MEDLEM i radens grupp. För den som är med i båda grupperna kom grupp A:s dokument tillbaka när B var aktiv. CP samma dag: *"det som ska gälla för alla (bolag-ops, SessionStudio, varje app på ramverket), en regel i ops-framework, inte per app."* Och om läget: *"Ja, frågan om alla grupper: Ta bort det."* (läget kostade en gruppväljare före varje skapa-flöde och två lägen i varje yta, mätt till cirka 365 rader i 11 filer i ramverket och 2 i appen). Sist, om premissen för en samlad vy: *"Det är ingen privat grupp. Jag har en grupp som heter bolaget, men jag måste ha privatekonomi där för att få en total översikt. Det är bara en grupp. Ekonomimodulen bor där."* Privat, Företag och Samlat är alltså flikar över data i EN grupp, och ingen konsument läser över flera grupper.
+
+### Regeln
+- **Det finns alltid exakt en aktiv grupp.** `aktivGrupp(sparat, mina)` ger det sparade valet om personen fortfarande är med i gruppen, annars den **första** av `minaGrupper` (sorterade på namn). Ett sparat `"alla"` från en tidigare version blir alltså den första gruppen, aldrig ett fel och aldrig ett tomt läge. `null` betyder bara att personen inte har någon grupp.
+- **`medAktivGrupp(kalla, { groupId, gruppade })` lägger den aktiva gruppen på varje läsväg.** Appen skickar in vilka samlingar som är gruppade (ramverket känner aldrig namnen; första ledet i sökvägen avgör).
+  - `list`: `where.groupId` läggs på, en annan grupp i frågan kastar, och varje rad i svaret prövas (saknat `groupId` kastar, en annan grupps rad kastar).
+  - `subscribe`: samma, och ett brott går till `onError`, aldrig till `onData`.
+  - `read`: en annan grupps dokument ger **`null`**, alltså "finns inte" i den aktiva gruppen (kontraktets regel 3). Ett dokument **utan** `groupId` i en gruppad samling kastar: det är en bakfyllnad som inte gjorts, och den sorteras inte bort tyst.
+  - `create` och `batch`: den aktiva gruppen sätts, en annan grupp i posten kastar. `update`: en ändring av `groupId` till en annan grupp kastar. `update` och `remove` läser inte först (det vore en läs-sedan-skriv-kontroll); reglerna vaktar flytt (`gruppenOandrad()`) och radering (`delete: if false`).
+  - Varför `null` och inte ett fel för en annan grupps dokument: vyn ritar redan sitt tomma läge för `null`, och ett kast hade gjort varje vy som läser ett känt dokument-id (`read("data", "kundfakturor")`) till en röd banderoll i varje grupp utom en.
+- **Källregistret** (`skapaKallregister`) kastar när en modul svarar med en rad vars `groupId` inte är frågans, och felet namnger modulen.
+- **Allt som skapas hamnar i den aktiva gruppen**, utan gruppväljare. `skapalaget` ger `ingenGrupp` | `tomt` | `redo` (tidigare `valjGrupp`). "Skapa i" (`OpsSkapaI`) visar bara appens egna mål (`skapa.skapaISektioner`, t.ex. "Mina kalendrar") och öppnas bara från raden "Skapas i", aldrig före panelen. Ett meddelande skrivs i den aktiva gruppen och har ingen väljare.
+
+### Borttaget
+- `ALLA_GRUPPER`, `valtLage` (ersatt av `aktivGrupp`), `navForLage` (ersatt av `navForGrupp({ groupId, ramnav, moduler, mina })`), `gruppenAttSkapaI` (utan ersättare: gruppen är den aktiva).
+- `grupperAttFraga`, `slaIhopSvar`, `listaPerGrupp`, `raderPerGrupp`, `OpsGruppfilter`, `OpsGruppmarke`. Ingen ersättare: ingen konsument läser över flera grupper (mätt i bolag-ops, se nedan).
+- Raden "Alla mina grupper" i `OpsGruppanel` (panelen och den infällda remsan), i `OpsGruppvaxlare`s ark och i `OpsGruppvaljare`. Propen `allaEtikett` är borta; listans skärmläsarnamn är `listEtikett` (förval "Mina grupper"), och växlarens namn utan grupp är `ingenGruppEtikett` (förval "Ingen grupp").
+- Sektionen Grupper i `OpsSkapaI` och dess props `grupper`, `sprak`, `grupperRubrik` och `medlemmarEtikett`. `OpsSkapa` tar `ingenGruppText` i stället för `valjGruppText`.
+- Kvar och oförändrade: `minaGrupper` (utan krocken mot id:t `"alla"`, som inte längre är ett läge), `grupplagetsNyckel`, `lasAktivGrupp`, `sparaAktivGrupp(uid, groupId, lagring)` (kastar på tomt), `gruppLista`, `gruppSkapa`.
+
+### Röd utan fixen, grön med den
+- **Enhetsprov:** nya `aktivgrupp.test.jsx` (22: list, subscribe och read var för sig, genom `useCollection`, `useLiveCollection` och `useDocument`, med underlaget mätt först så att inget prov blir grönt av tom indata), och omskrivna `grupplage`, `gruppanel`, `skapapanel`, `skapa`, `meddelanden`, `kallor`, `skal031`, `marke`, `gruppformular`, `gruppg2`. **Mot 0.34.1: 25 av 155 prov röda** i de sex omskrivna filer som bär regeln (grupplage, gruppanel, skapapanel, skapa, meddelanden, kallor), och `aktivgrupp.test.jsx` faller redan vid import. **Grön nu: 85 filer, 1653 prov.**
+- **11 mutationer, en i taget, alla röda:** `read` ger en annan grupps rad (2 prov), `read` utan `groupId` ger `null` (1), `list` utan gruppfilter (2), `list` prövar inte raderna (2), `subscribe` utan gruppfilter (3), källregistret släpper en annan grupps rad (1), ett sparat `"alla"` ger tomt läge (3), raden "Alla mina grupper" tillbaka i panelen (2), raden i remsan (1), gruppväljaren före panelen (1), exporten `ALLA_GRUPPER` tillbaka (1).
+- **`check-skalyta`:** grön, 1048 kontroller. Mot 0.34.1:s bygge röd (panelen heter inte "Mina grupper", avsnittet avbryts). Mutationer i bygget, en i taget: raden "Alla" i remsan (4 brott, bland annat `remsan 1280 px: en post heter ["Alla mina grupper"]`), väljaren öppen före panelen (8 brott). Remsans golv är nu fem poster (växlaren, tre grupper, Skapa).
+
+### Att göra i appen (bolag-ops)
+Mätt i cllp/bolag-ops `origin/main` (a0131db), `web/src` och `functions`:
+- `web/src/data/grupper.jsx` importerar `ALLA_GRUPPER`, `lasAktivGrupp`, `sparaAktivGrupp`. Ta bort `ALLA_GRUPPER` och grenarna `if (id === ALLA_GRUPPER) return;`: panelen skickar aldrig längre `"alla"`.
+- `web/src/data/minaGrupper.js` importerar `ALLA_GRUPPER`. `valdGrupp` kan ersättas av ramverkets `aktivGrupp`, eller behållas om appen vill föredra `cps-ab` före den första gruppen (ramverket väljer den första). Villkoret `sparat !== ALLA_GRUPPER` behövs inte: ett sparat `"alla"` matchar ingen grupp.
+- `web/src/data/grupp.js` (`medGrupp`, `medGruppIFragan`, `arGruppad`, `GRUPPADE_SAMLINGAR`) ersätts av `medAktivGrupp(kalla, { groupId, gruppade: GRUPPADE_SAMLINGAR })` i `GruppProvider`, `firebase.js` och `measurement.js`. ⛔ **Det är den här raden som täpper luckan:** appens `medGrupp` lämnar `read` orörd, och `data` är gruppad (`bakfyllnadsbeslut.mjs`). `useDocument("data", ...)` läses i `events.js` (Idag: `todos`, `kundfakturor`, `kostnader`, `forsakringar`), `overview.js`, `income.js`, `costs.js`, `insurance.js`, `pension.js`, `assets.js`, `subscriptions.js`, `tid.js`, `search.js`, `home.js`, `kontakter.js`, `modulinfo.js`, och `aktivitet.js` läser `ops/aktivitet-lasning`. Med Travel aktiv ger de `null` efter bytet.
+- ⛔ **Varje dokument i en gruppad samling måste bära `groupId`**, annars kastar `read` i stället för att visa det. Bakfyllnaden i #447 skulle ha satt fältet; mät det innan ompinningen mergas (appens `measurement.js`-fixtur lägger på `groupId` på gruppade samlingar och döljer alltså inte en lucka i produktion).
+- `App.jsx` rad 243 och 624: kommentarer om läget "Alla mina grupper" skrivs om. `skapa.lage: aktivGrupp` står kvar och betyder nu den aktiva gruppen, alltid.
+- Proven `web/src/data/__tests__/grupper.test.jsx` (valet `"alla"` ignoreras) och `grupp.test.js`, `samtal.test.jsx`, `handelse-form.test.jsx` (bygger på `medGrupp`) skrivs om mot `medAktivGrupp`.
+- ⛔ **`web/src/data/schedule.js` är statisk kod utan `groupId`** och läses av Idag (`events.js`) och `modulinfo.js`. Den går inte genom någon datakälla, så `medAktivGrupp` kan inte se den: appen måste avgöra i vilken grupp driftkalendern gäller (t.ex. bara `cps-ab`) eller flytta den till en gruppad samling.
+- Används inte i appen (mätt, noll träffar utanför kommentarer): `valtLage`, `navForLage`, `gruppenAttSkapaI`, `grupperAttFraga`, `slaIhopSvar`, `listaPerGrupp`, `raderPerGrupp`, `OpsGruppfilter`, `OpsGruppmarke`, `OpsGruppvaljare`, `allaEtikett`, `skapaISektioner`. `functions/` använder inget av det.
+- Ingen ny samling och inga nya regler: ingen regeldeploy.
+
+### Ordningen
+1. Ramverket mergas, taggas `v0.35.0` och publiceras.
+2. Appens ompinning till 0.35.0 med ändringarna ovan, i samma pass (arbetsreglernas punkt 11). Mergas efter ramverket.
+
 ## 0.34.1
 
 ⛔ **`?skapa=` öppnar panelen även när posten kommer efter monteringen, och `useOppnaSkapa()` ersätter hård navigering. Inte breaking.**

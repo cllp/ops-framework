@@ -6,12 +6,12 @@ import { fileURLToPath } from "node:url";
 import { OpsGruppanel, OpsGruppvaxlare } from "../components/OpsGruppanel.jsx";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsBrand } from "../components/OpsBrand.jsx";
-import { ALLA_GRUPPER } from "../lib/grupplage.js";
 
 /**
  * Grupp-panelen och gruppväxlaren (#161).
  *
- * ⛔ VAD SOM MÄTS: att "Alla mina grupper" alltid finns, att en grupp med
+ * ⛔ VAD SOM MÄTS: att raden "Alla mina grupper" INTE finns (0.35.0, #190: det
+ * finns alltid exakt en aktiv grupp), att en grupp med
  * medlemsantal/roll ritar dem och en utan inte gissar en siffra, att kollaps
  * bär om från kort till märken och tillbaka (styrt OCH ostyrt), att kortet
  * aldrig lägger en knapp inuti en annan (glob/info/penna, bibliotek/chatt
@@ -28,18 +28,23 @@ const GRUPPER = [
 
 describe("OpsGruppanel", () => {
   it("kräver onValj", () => {
-    expect(() => render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={undefined} />)).toThrow(/onValj krävs/);
+    expect(() => render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={undefined} />)).toThrow(/onValj krävs/);
   });
 
-  it("ritar Alla mina grupper och en rad per grupp", () => {
-    render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
-    expect(screen.getByText("Alla mina grupper")).toBeInTheDocument();
+  it("⛔ ritar en rad per grupp och ingen rad Alla mina grupper, i panelen OCH i remsan (0.35.0, #190)", () => {
+    const { rerender } = render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
     expect(screen.getByText("Bolaget")).toBeInTheDocument();
     expect(screen.getByText("Klubben")).toBeInTheDocument();
+    expect(screen.queryByText(/Alla mina grupper/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Alla/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Mina grupper" }).querySelectorAll(":scope > li")).toHaveLength(GRUPPER.length);
+    rerender(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} infalld />);
+    expect(screen.queryByRole("button", { name: /Alla/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Mina grupper" }).querySelectorAll(":scope > li")).toHaveLength(GRUPPER.length);
   });
 
   it("⛔ medlemsantal ritas bara när det finns, ingen gissad nolla", () => {
-    render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
     expect(screen.getByText("3")).toBeInTheDocument();
     // Klubben saknar medlemsantal: ingen rad med "0" för den gruppen.
     const klubbenKort = screen.getByText("Klubben").closest("li");
@@ -47,7 +52,7 @@ describe("OpsGruppanel", () => {
   });
 
   it("rollpillen ritas bara när roll finns", () => {
-    render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
     expect(screen.getByText("Ägare")).toBeInTheDocument();
   });
 
@@ -73,41 +78,41 @@ describe("OpsGruppanel", () => {
 
   it("tryck på en grupp anropar onValj med dess id", async () => {
     const onValj = vi.fn();
-    render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={onValj} />);
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={onValj} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Bolaget" }));
     expect(onValj).toHaveBeenCalledWith("bolaget");
   });
 
-  it("⛔ Alla mina grupper är ett eget val, med aria-current i sitt läge", () => {
-    render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
-    expect(screen.getByRole("button", { name: /Alla mina grupper/ })).toHaveAttribute("aria-current", "true");
+  it("⛔ det finns inget val utanför grupperna: exakt en rad bär aria-current", () => {
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="klubben" onValj={() => {}} />);
+    expect(screen.getAllByRole("button").filter((b) => b.getAttribute("aria-current") === "true").map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["Klubben"]);
   });
 
   it("tomText ritas när listan är tom", () => {
-    render(<OpsGruppanel grupper={[]} aktiv={ALLA_GRUPPER} onValj={() => {}} tomText="Inga grupper än." />);
+    render(<OpsGruppanel grupper={[]} aktiv="bolaget" onValj={() => {}} tomText="Inga grupper än." />);
     expect(screen.getByText("Inga grupper än.")).toBeInTheDocument();
   });
 
   it("ingen Skapa grupp-knapp utan onSkapa", () => {
-    render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
     expect(screen.queryByRole("button", { name: "Skapa grupp" })).not.toBeInTheDocument();
   });
 
   it("med onSkapa: en Skapa grupp-knapp som anropar den", async () => {
     const onSkapa = vi.fn();
-    render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} onSkapa={onSkapa} />);
+    render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} onSkapa={onSkapa} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Skapa grupp" }));
     expect(onSkapa).toHaveBeenCalledOnce();
   });
 
   describe("kollaps: ostyrt", () => {
     it("från start är kortvyn synlig (namnet syns)", () => {
-      render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+      render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
       expect(screen.getByText("Bolaget")).toBeInTheDocument();
     });
 
     it("⛔ ett tryck på chevronen byter till märken, namnet försvinner ur DOM", async () => {
-      render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+      render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
       await userEvent.setup().click(screen.getByRole("button", { name: "Fäll ihop grupplistan" }));
       expect(screen.queryByText("Bolaget")).not.toBeInTheDocument();
       // Märket finns kvar, som en knapp med gruppens namn som aria-label.
@@ -115,7 +120,7 @@ describe("OpsGruppanel", () => {
     });
 
     it("ett andra tryck fäller ut igen", async () => {
-      render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+      render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: "Fäll ihop grupplistan" }));
       await user.click(screen.getByRole("button", { name: "Fäll ut grupplistan" }));
@@ -125,13 +130,13 @@ describe("OpsGruppanel", () => {
 
   describe("kollaps: styrt", () => {
     it("infalld=true ritar märkesremsan direkt, utan eget klick", () => {
-      render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} infalld />);
+      render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} infalld />);
       expect(screen.queryByText("Bolaget")).not.toBeInTheDocument();
     });
 
     it("⛔ ett klick på chevronen ÄNDRAR INTE läget själv, bara onInfalld anropas", async () => {
       const onInfalld = vi.fn();
-      render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} infalld={false} onInfalld={onInfalld} />);
+      render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} infalld={false} onInfalld={onInfalld} />);
       await userEvent.setup().click(screen.getByRole("button", { name: "Fäll ihop grupplistan" }));
       expect(onInfalld).toHaveBeenCalledWith(true);
       // Fortfarande utfälld: appen bestämmer, inte klicket.
@@ -141,7 +146,7 @@ describe("OpsGruppanel", () => {
 
   describe("atgarder, knappar och avatarer: appens, aldrig gissade", () => {
     it("ingen av delarna ritas utan att appen skickar dem", () => {
-      render(<OpsGruppanel grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+      render(<OpsGruppanel grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
       expect(screen.queryByRole("button", { name: "Publik sida" })).not.toBeInTheDocument();
     });
 
@@ -149,7 +154,7 @@ describe("OpsGruppanel", () => {
       const onValj = vi.fn();
       const onAtgard = vi.fn();
       const grupper = [{ ...GRUPPER[0], atgarder: [{ icon: <span />, label: "Publik sida", onClick: onAtgard }] }];
-      render(<OpsGruppanel grupper={grupper} aktiv={ALLA_GRUPPER} onValj={onValj} />);
+      render(<OpsGruppanel grupper={grupper} aktiv="bolaget" onValj={onValj} />);
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: "Publik sida" }));
       expect(onAtgard).toHaveBeenCalledOnce();
@@ -160,14 +165,14 @@ describe("OpsGruppanel", () => {
 
     it("en knapp med räknare ritar badgen", () => {
       const grupper = [{ ...GRUPPER[0], knappar: [{ icon: <span />, label: "Bibliotek", badge: 18, onClick: () => {} }] }];
-      render(<OpsGruppanel grupper={grupper} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+      render(<OpsGruppanel grupper={grupper} aktiv="bolaget" onValj={() => {}} />);
       expect(screen.getByText("18")).toBeInTheDocument();
     });
 
     it("avatarer kapas vid fyra, resten blir +N", () => {
       const avatarer = ["A", "B", "C", "D", "E"].map((n) => ({ id: n, namn: n }));
       const grupper = [{ ...GRUPPER[0], avatarer }];
-      render(<OpsGruppanel grupper={grupper} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
+      render(<OpsGruppanel grupper={grupper} aktiv="bolaget" onValj={() => {}} />);
       expect(screen.getByText("+1")).toBeInTheDocument();
     });
   });
@@ -175,7 +180,7 @@ describe("OpsGruppanel", () => {
 
 describe("OpsGruppvaxlare", () => {
   it("kräver onValj", () => {
-    expect(() => render(<OpsGruppvaxlare grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={undefined} />)).toThrow(/onValj krävs/);
+    expect(() => render(<OpsGruppvaxlare grupper={GRUPPER} aktiv="bolaget" onValj={undefined} />)).toThrow(/onValj krävs/);
   });
 
   it("triggern visar den aktiva gruppens namn", () => {
@@ -183,22 +188,24 @@ describe("OpsGruppvaxlare", () => {
     expect(screen.getByRole("button", { name: "Byt grupp, nu: Bolaget" })).toHaveTextContent("Bolaget");
   });
 
-  it("triggern visar Alla mina grupper när det är läget", () => {
-    render(<OpsGruppvaxlare grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
-    expect(screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" })).toHaveTextContent("Alla mina grupper");
+  it("utan grupp (personen är inte med i någon) säger triggern Ingen grupp, aldrig Alla mina grupper", () => {
+    render(<OpsGruppvaxlare grupper={[]} aktiv="" onValj={() => {}} />);
+    expect(screen.getByRole("button", { name: "Byt grupp, nu: Ingen grupp" })).toHaveTextContent("Ingen grupp");
+    expect(screen.queryByText(/Alla mina grupper/)).not.toBeInTheDocument();
   });
 
-  it("⛔ ett tryck öppnar arket med raderna, i enkel form", async () => {
-    render(<OpsGruppvaxlare grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={() => {}} />);
-    await userEvent.setup().click(screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" }));
+  it("⛔ ett tryck öppnar arket med raderna, i enkel form, och utan rad för alla", async () => {
+    render(<OpsGruppvaxlare grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Byt grupp, nu: Bolaget" }));
     expect(screen.getByRole("button", { name: "Klubben" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Alla mina grupper/ })).not.toBeInTheDocument();
   });
 
   it("ett val i arket anropar onValj OCH stänger arket", async () => {
     const onValj = vi.fn();
-    render(<OpsGruppvaxlare grupper={GRUPPER} aktiv={ALLA_GRUPPER} onValj={onValj} />);
+    render(<OpsGruppvaxlare grupper={GRUPPER} aktiv="bolaget" onValj={onValj} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Byt grupp, nu: Alla mina grupper" }));
+    await user.click(screen.getByRole("button", { name: "Byt grupp, nu: Bolaget" }));
     await user.click(screen.getByRole("button", { name: "Klubben" }));
     expect(onValj).toHaveBeenCalledWith("klubben");
     expect(screen.queryByRole("button", { name: "Klubben" })).not.toBeInTheDocument();
@@ -212,18 +219,19 @@ describe("OpsAppShell: grupper-propen (#161)", () => {
         <p>Innehåll</p>
       </OpsAppShell>,
     );
-    expect(screen.queryByLabelText("Alla mina grupper")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mina grupper")).not.toBeInTheDocument();
   });
 
   it("med grupper: panelen OCH växlaren finns i DOM (bredden avgörs av CSS, inte av vad som monteras)", () => {
     render(
-      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {} }}>
+      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: "bolaget", onValj: () => {} }}>
         <p>Innehåll</p>
       </OpsAppShell>,
     );
-    // Panelen (nav) och växlaren (OpsPanel-trigger) delar samma aria-label
-    // "Alla mina grupper" eftersom båda listar samma rader; minst en instans.
-    expect(screen.getAllByText("Alla mina grupper").length).toBeGreaterThan(0);
+    // Panelen (nav) och växlarens ark delar namnet "Mina grupper" eftersom båda listar samma rader; minst en instans.
+    expect(screen.getAllByRole("navigation", { name: "Mina grupper" }).length).toBeGreaterThan(0);
+    // ⛔ 0.35.0: skalet visar ingen rad "Alla mina grupper", i någon form.
+    expect(screen.queryByText(/Alla mina grupper/)).not.toBeInTheDocument();
   });
 
   it("ett eget OpsBrand-element klonas med panelInfalld (båda formerna monterade, crossfade, inte ett bortplockat)", () => {
@@ -232,7 +240,7 @@ describe("OpsAppShell: grupper-propen (#161)", () => {
         nav={NAV}
         activeHref="/"
         brand={<OpsBrand namn="OPS HUB" />}
-        grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: true }}
+        grupper={{ lista: GRUPPER, aktiv: "bolaget", onValj: () => {}, infalld: true }}
       >
         <p>Innehåll</p>
       </OpsAppShell>,
@@ -285,7 +293,7 @@ describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissa
 
   it("panelen bär sin klass i DOM, per läge", () => {
     const utfalld = render(
-      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: false }}>
+      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: "bolaget", onValj: () => {}, infalld: false }}>
         <p>Innehåll</p>
       </OpsAppShell>,
     );
@@ -294,7 +302,7 @@ describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissa
     utfalld.unmount();
 
     const infalld = render(
-      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: true }}>
+      <OpsAppShell nav={NAV} activeHref="/" grupper={{ lista: GRUPPER, aktiv: "bolaget", onValj: () => {}, infalld: true }}>
         <p>Innehåll</p>
       </OpsAppShell>,
     );
@@ -304,7 +312,7 @@ describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissa
 
   it("logotyprutan bär sin klass i DOM, per läge, med båda formerna alltid monterade", () => {
     const utfalld = render(
-      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: false }}>
+      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: "bolaget", onValj: () => {}, infalld: false }}>
         <p>Innehåll</p>
       </OpsAppShell>,
     );
@@ -313,7 +321,7 @@ describe("⛔ panelens och logotypens bredd, mätta ur SessionStudio, inte gissa
     utfalld.unmount();
 
     const infalld = render(
-      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: ALLA_GRUPPER, onValj: () => {}, infalld: true }}>
+      <OpsAppShell nav={NAV} activeHref="/" brand="Bolag Ops" grupper={{ lista: GRUPPER, aktiv: "bolaget", onValj: () => {}, infalld: true }}>
         <p>Innehåll</p>
       </OpsAppShell>,
     );

@@ -15,9 +15,9 @@
  * ══ ⛔ VARJE ANROP BÄR EXAKT EN GRUPP ══════════════════════════════════
  *
  * Beslutet i #129:s tillägg efter Fas 2.5: en källa svarar alltid på "rader för
- * EN grupp". Ramverket bestämmer vilka grupper som frågas och slår ihop svaren
- * (#139), modulen ser aldrig fler än en per anrop och kan därför inte råka läsa
- * fel. Kravet ligger i typen och upprepas i körtid, av samma skäl som i
+ * EN grupp", och sedan 0.35.0 (#190) är det alltid den aktiva gruppen: läget
+ * "Alla mina grupper" finns inte längre. Modulen ser aldrig fler än en grupp
+ * per anrop och kan därför inte råka läsa fel. Kravet ligger i typen och upprepas i körtid, av samma skäl som i
  * `gruppkalla.js`: ramverket konsumeras av appar som inte alla typkontrollerar.
  *
  * ══ ⛔ FORMEN PRÖVAS NÄR RADEN KOMMER, INTE NÄR MODULEN REGISTRERAS ════
@@ -111,7 +111,7 @@ function kravGrupp(fraga, vem) {
   const g = fraga && typeof fraga === "object" ? rensa(/** @type {any} */ (fraga).groupId) : "";
   if (!g) {
     throw new Error(
-      `${vem}: groupId krävs i frågan. En källa svarar på rader för EN grupp, och ett anrop utan grupp läser antingen någon annans rader eller inga alls. Ramverket avgör vilka grupper som frågas, se grupperAttFraga.`,
+      `${vem}: groupId krävs i frågan. En källa svarar på rader för EN grupp, och ett anrop utan grupp läser antingen någon annans rader eller inga alls. Det är alltid den aktiva gruppen: det finns ingen läsning över flera grupper.`,
     );
   }
   return g;
@@ -271,7 +271,7 @@ export function skapaKallregister(moduler) {
    * @returns {(fraga: any) => Promise<Record<string, any>[]>}
    */
   const yta = (namnet) => async (/** @type {any} */ fraga) => {
-    kravGrupp(fraga, `kallregister.${namnet}`);
+    const groupId = kravGrupp(fraga, `kallregister.${namnet}`);
     /** @type {Record<string, any>[]} */
     const alla = [];
     /*
@@ -285,6 +285,20 @@ export function skapaKallregister(moduler) {
       const svar = somLista(await kalla(fraga), modul.id, namnet);
       svar.forEach((rad, i) => {
         const granskad = GRANSKARE[namnet](somRad(rad, modul.id, namnet, i), modul.id, i);
+        /*
+         * ⛔ EN RAD SOM BÄR EN ANNAN GRUPP KASTAR (0.35.0, #190). Frågan gällde
+         * EN grupp, den aktiva, och en modul som svarar med en annan grupps rad
+         * har läst förbi den. Raden visas inte, och felet namnger modulen.
+         *
+         * ⛔ EN RAD UTAN `groupId` GÅR DÄREMOT IGENOM HÄR. Källornas rader är
+         * modulens SVAR på en fråga om en grupp (`{ id, title, daysLeft }`),
+         * inte databasens rader, och de har aldrig burit fältet. Det är
+         * läsningen UNDER modulen som bär gruppen, och den går genom
+         * `medAktivGrupp`, där en rad utan `groupId` är ett fel.
+         */
+        if (granskad.groupId !== undefined && granskad.groupId !== groupId) {
+          throw radfel(modul.id, namnet, i, `bär groupId "${granskad.groupId}", men frågan gällde gruppen "${groupId}". En källa svarar bara för den grupp den frågades om.`);
+        }
         /*
          * ⛔ `modulId` STÄMPLAS AV REGISTRET, det tas inte från raden. En modul
          * som kunde sätta det själv kunde sätta någon annans, och ytans svar på

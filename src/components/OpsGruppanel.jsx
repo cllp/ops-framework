@@ -7,7 +7,6 @@ import { OpsCountBadge } from "./counter.jsx";
 import { OpsPanel } from "./OpsPanel.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
-import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { text } from "../lib/sprak.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
 
@@ -25,11 +24,18 @@ import { gruppmarkeProps } from "../lib/gruppikoner.js";
  *
  * ══ ⛔ VARFÖR EN NY KOMPONENT OCH INTE `OpsGruppvaljare` ═════════════════
  *
- * `OpsGruppvaljare` (#139) löser en annan fråga: raden i en meny, mellan
- * "alla mina grupper" och en enskild. Den bär varken medlemsantal, åtgärder
- * eller avatarer, och den kollapsar inte. `OpsGruppanel` är en egen, bredare
- * yta: den ÅTERANVÄNDER `OpsIdentity` och samma `ALLA_GRUPPER`-läge, men
+ * `OpsGruppvaljare` (#139) löser en annan fråga: raden i en meny. Den bär
+ * varken medlemsantal, åtgärder eller avatarer, och den kollapsar inte.
+ * `OpsGruppanel` är en egen, bredare yta: den ÅTERANVÄNDER `OpsIdentity`, men
  * bygger sin egen rad.
+ *
+ * ══ ⛔ INGEN RAD "ALLA MINA GRUPPER" (0.35.0, #190) ═══════════════════════
+ *
+ * CP 2026-09-30: "Ja, frågan om alla grupper: Ta bort det." Det finns alltid
+ * exakt en aktiv grupp, och listan består bara av grupperna. Raden som stod
+ * överst (SS "Alla arbetsytor", `AppSidebar.jsx` rad 74-88 och 119-133) är
+ * borttagen i alla tre formerna: panelen, remsan och växlarens ark. Det är en
+ * medveten avvikelse från förebilden, med beslutet ovan som skäl.
  *
  * ══ ⛔ ÅTGÄRDER OCH KNAPPAR ÄR APPENS, RAMVERKET GISSAR INGET ════════════
  *
@@ -186,7 +192,7 @@ function tangentbordsVal(valj) {
  * @param {string} props.aktiv
  * @param {(id: string) => void} props.onValj
  * @param {string} [props.sprak]
- * @param {string} props.allaEtikett
+ * @param {string} props.listEtikett
  * @param {string} [props.tomText]
  * @param {Record<string, string>} props.rollNamn
  * @param {string} props.medlemmarEtikett
@@ -196,30 +202,12 @@ function tangentbordsVal(valj) {
  * @param {string} props.infoEtikett
  * @param {string} props.redigeraEtikett
  */
-function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, rollNamn, medlemmarEtikett, flerAvatarerEtikett, onInfo, onRedigera, infoEtikett, redigeraEtikett }) {
+function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, rollNamn, medlemmarEtikett, flerAvatarerEtikett, onInfo, onRedigera, infoEtikett, redigeraEtikett }) {
   const mina = grupper ?? [];
 
   return (
     // ⛔ `gap-1.5` (AppSidebar.jsx rad 43), inte `gap-3`.
-    <ul className="flex flex-col gap-1.5" aria-label={allaEtikett}>
-      <li>
-        {/* "Alla arbetsytor", AppSidebar.jsx rad 119-133: p-2.5, text-xs font-medium. */}
-        <button
-          type="button"
-          onClick={() => onValj(ALLA_GRUPPER)}
-          aria-current={aktiv === ALLA_GRUPPER ? "true" : undefined}
-          className={cx(
-            "flex w-full items-center gap-2 border p-2.5 text-left text-meta font-medium transition-all",
-            RADIE,
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            aktiv === ALLA_GRUPPER ? "border-accent bg-accent/10 text-accent" : "border-line bg-surface text-ink-secondary hover:border-line-strong",
-          )}
-        >
-          <PersonIkon size={16} />
-          {allaEtikett}
-        </button>
-      </li>
-
+    <ul className="flex flex-col gap-1.5" aria-label={listEtikett}>
       {mina.length === 0 && tomText ? <li className="px-2.5 py-1 text-etikett text-ink-secondary">{tomText}</li> : null}
 
       {mina.map((g) => {
@@ -372,11 +360,11 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, allaEtikett, tomText, r
  * @param {(id: string) => void} props.onValj
  * @param {() => void} [props.onValjOchStang]
  * @param {string} [props.sprak]
- * @param {string} props.allaEtikett
+ * @param {string} props.listEtikett
  * @param {string} [props.tomText]
  * @param {Record<string, string>} props.rollNamn
  */
-function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, allaEtikett, tomText, rollNamn }) {
+function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, listEtikett, tomText, rollNamn }) {
   const mina = grupper ?? [];
   const valj = (/** @type {string} */ id) => {
     onValj(id);
@@ -384,25 +372,7 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
   };
 
   return (
-    <ul className="flex flex-col gap-1.5" aria-label={allaEtikett}>
-      <li>
-        <button
-          type="button"
-          onClick={() => valj(ALLA_GRUPPER)}
-          aria-current={aktiv === ALLA_GRUPPER ? "true" : undefined}
-          className={cx(
-            "flex min-h-11 w-full items-center gap-2 border px-3 py-2 text-left text-etikett font-semibold",
-            RADIE,
-            "transition-colors duration-(--duration-fast) ease-standard",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            aktiv === ALLA_GRUPPER ? "border-accent bg-accent/10 text-accent" : "border-transparent text-ink-secondary hover:bg-sunken hover:text-ink",
-          )}
-        >
-          <PersonIkon size={18} />
-          {allaEtikett}
-        </button>
-      </li>
-
+    <ul className="flex flex-col gap-1.5" aria-label={listEtikett}>
       {mina.length === 0 && tomText ? <li className="px-3 py-1 text-etikett text-ink-secondary">{tomText}</li> : null}
 
       {mina.map((g) => {
@@ -450,30 +420,12 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, al
  * @param {string} props.aktiv
  * @param {(id: string) => void} props.onValj
  * @param {string} [props.sprak]
- * @param {string} props.allaEtikett
+ * @param {string} props.listEtikett
  */
-function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
+function GruppanelRemsa({ grupper, aktiv, onValj, sprak, listEtikett }) {
   return (
     // ⛔ `gap-1.5`, `AppSidebar.jsx` rad 60/61.
-    <ul className="flex flex-col gap-1.5" aria-label={allaEtikett}>
-      <li>
-        {/* "Alla arbetsytor", rad 74-88: w-10 h-10 (40px). */}
-        <button
-          type="button"
-          onClick={() => onValj(ALLA_GRUPPER)}
-          aria-current={aktiv === ALLA_GRUPPER ? "true" : undefined}
-          aria-label={allaEtikett}
-          title={allaEtikett}
-          className={cx(
-            "flex size-10 items-center justify-center border transition-all",
-            RADIE,
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            aktiv === ALLA_GRUPPER ? "border-accent bg-accent/10" : "border-line bg-surface hover:border-line-strong",
-          )}
-        >
-          <PersonIkon size={16} />
-        </button>
-      </li>
+    <ul className="flex flex-col gap-1.5" aria-label={listEtikett}>
       {(grupper ?? []).map((g) => {
         const namn = text(g.namn, sprak);
         const vald = g.id === aktiv;
@@ -505,7 +457,7 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
  *
  * @param {object} props
  * @param {ReadonlyArray<GruppanelGrupp>} props.grupper Mina, plus `medlemsantal`/`roll`/`atgarder`/`knappar`/`avatarer` när appen har dem. Ramverket räknar och känner till ingenting av det.
- * @param {string} props.aktiv `ALLA_GRUPPER` eller ett grupp-id.
+ * @param {string} props.aktiv Den aktiva gruppens id, ur `aktivGrupp`.
  * @param {(id: string) => void} props.onValj
  * @param {() => void} [props.onSkapa] Utelämnad: ingen "Skapa grupp"-knapp.
  * @param {(id: string) => void} [props.onInfo] (0.32.0, G2) (i) på kortet: appen öppnar gruppens detaljsida (`OpsGruppSida`). Utelämnad: ingen knapp.
@@ -515,7 +467,7 @@ function GruppanelRemsa({ grupper, aktiv, onValj, sprak, allaEtikett }) {
  * @param {boolean} [props.infalld] Styrd. Utelämnad: panelen sköter läget själv.
  * @param {(infalld: boolean) => void} [props.onInfalld]
  * @param {string} [props.sprak]
- * @param {string} [props.allaEtikett]
+ * @param {string} [props.listEtikett] Skärmläsarnamnet på listan. Förval "Mina grupper".
  * @param {string} [props.skapaEtikett]
  * @param {string} [props.tomText]
  * @param {string} [props.kollapsaEtikett]
@@ -536,7 +488,7 @@ export function OpsGruppanel({
   infalld,
   onInfalld,
   sprak,
-  allaEtikett = "Alla mina grupper",
+  listEtikett = "Mina grupper",
   skapaEtikett = "Skapa grupp",
   tomText = "Du är inte medlem i någon grupp.",
   kollapsaEtikett = "Fäll ihop grupplistan",
@@ -560,7 +512,7 @@ export function OpsGruppanel({
 
   return (
     <nav
-      aria-label={allaEtikett}
+      aria-label={listEtikett}
       // ⛔ BREDDEN SITTER PÅ NAVEN, INTE PÅ SKALETS WRAPPER (se `OpsAppShell`).
       // ⛔ `w-(--panel-bredd)`/`w-(--panel-bredd-infalld)`: 184px/44px, MÄTTA
       // ur `AppSidebar.jsx` rad 43-49 (`md:w-[184px]` / `w-11`), inte 288/72.
@@ -600,14 +552,14 @@ export function OpsGruppanel({
        */}
       <div className="flex flex-col gap-1.5">
         {kollapsad ? (
-          <GruppanelRemsa grupper={grupper} aktiv={aktiv} onValj={onValj} sprak={sprak} allaEtikett={allaEtikett} />
+          <GruppanelRemsa grupper={grupper} aktiv={aktiv} onValj={onValj} sprak={sprak} listEtikett={listEtikett} />
         ) : (
           <GruppanelRader
             grupper={grupper}
             aktiv={aktiv}
             onValj={onValj}
             sprak={sprak}
-            allaEtikett={allaEtikett}
+            listEtikett={listEtikett}
             tomText={tomText}
             rollNamn={rollNamn}
             medlemmarEtikett={medlemmarEtikett}
@@ -661,7 +613,8 @@ export function OpsGruppanel({
  * @param {(id: string) => void} props.onValj
  * @param {() => void} [props.onSkapa]
  * @param {string} [props.sprak]
- * @param {string} [props.allaEtikett]
+ * @param {string} [props.listEtikett] Skärmläsarnamnet på listan. Förval "Mina grupper".
+ * @param {string} [props.ingenGruppEtikett] Knappens namn när personen inte är med i någon grupp. Förval "Ingen grupp".
  * @param {string} [props.skapaEtikett]
  * @param {string} [props.tomText]
  * @param {Record<string, string>} [props.rollNamn]
@@ -674,7 +627,8 @@ export function OpsGruppvaxlare({
   onValj,
   onSkapa,
   sprak,
-  allaEtikett = "Alla mina grupper",
+  listEtikett = "Mina grupper",
+  ingenGruppEtikett = "Ingen grupp",
   skapaEtikett = "Skapa grupp",
   tomText = "Du är inte medlem i någon grupp.",
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
@@ -686,7 +640,8 @@ export function OpsGruppvaxlare({
   }
   const mina = grupper ?? [];
   const aktivRad = mina.find((g) => g.id === aktiv);
-  const aktivtNamn = aktiv === ALLA_GRUPPER ? allaEtikett : aktivRad ? text(aktivRad.namn, sprak) : allaEtikett;
+  // ⛔ UTAN AKTIV RAD HAR PERSONEN INGEN GRUPP (0.35.0): det enda tillståndet utan aktiv grupp, och det får ett eget namn, inte ett läge.
+  const aktivtNamn = aktivRad ? text(aktivRad.namn, sprak) : ingenGruppEtikett;
   const [oppet, setOppet] = useState(false);
 
   return (
@@ -711,13 +666,13 @@ export function OpsGruppvaxlare({
         >
           {/* ⛔ 0.31.1: UNDER `md` ÄR KNAPPEN GRUPPMÄRKET OCH INGET ANNAT, på loggans plats längst till vänster (CP 2026-09-29 18:40:
               "VI behöver en bra Grupp-väljare-ikon i mobil istället för logga"). Samma ruta som remsan (`gruppRutaKlass`, 40 px) med
-              samma märke (`OpsIdentity rail`), och i läget "Alla mina grupper" samma `PersonIkon` som panelens och remsans rad. 44 px
+              samma märke (`OpsIdentity rail`), och utan grupp (0.35.0: personen är inte med i någon) den neutrala `PersonIkon`. 44 px
               träffyta runt en 40 px ruta. Från `md` är det märket + namnet som förut. */}
-          <span data-gruppmarke="" className={cx(gruppRutaKlass({ vald: aktiv !== ALLA_GRUPPER, interaktiv: false }), "md:hidden")}>
-            {aktiv === ALLA_GRUPPER ? <PersonIkon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="rail" />}
+          <span data-gruppmarke="" className={cx(gruppRutaKlass({ vald: Boolean(aktivRad), interaktiv: false }), "md:hidden")}>
+            {!aktivRad ? <PersonIkon size={16} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="rail" />}
           </span>
           <span className="hidden items-center gap-2 md:flex">
-            {aktiv === ALLA_GRUPPER ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
+            {!aktivRad ? <PersonIkon size={18} /> : <OpsIdentity name={aktivtNamn} seed={aktiv} imageUrl={aktivRad?.bild || undefined} {...gruppmarkeProps(aktivRad)} size="sm" />}
             <span className="min-w-0 truncate">{aktivtNamn}</span>
           </span>
         </button>
@@ -744,7 +699,7 @@ export function OpsGruppvaxlare({
             onValj={onValj}
             onValjOchStang={() => setOppet(false)}
             sprak={sprak}
-            allaEtikett={allaEtikett}
+            listEtikett={listEtikett}
             tomText={tomText}
             rollNamn={rollNamn}
           />

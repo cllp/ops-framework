@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { defineModule, validateModuler } from "../lib/modul.js";
 import { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "../lib/skapa.js";
-import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { OpsSkapa } from "../components/OpsSkapa.jsx";
 
 /**
@@ -141,23 +140,21 @@ describe("typerAttValja", () => {
 });
 
 describe("skapalaget", () => {
-  it("⛔ läget alla ber om ett gruppval, även när det finns registreringar", () => {
+  it("⛔ utan grupp (personen är inte med i någon) är svaret ingenGrupp, även när det finns registreringar", () => {
     // Gruppfrågan går först. Frågades tomheten först hade en grupplös
     // användare fått veta att det inte finns något att skapa, vilket är fel
     // svar på rätt fråga.
-    expect(skapalaget({ lage: ALLA_GRUPPER, registreringar: [{ id: "a" }] }).tillstand).toBe("valjGrupp");
+    expect(skapalaget({ lage: null, registreringar: [{ id: "a" }] }).tillstand).toBe("ingenGrupp");
   });
 
-  it("en grupp utan registreringar är tomt, inte valjGrupp", () => {
+  it("en grupp utan registreringar är tomt, inte ingenGrupp", () => {
     expect(skapalaget({ lage: "bolaget", registreringar: [] })).toEqual({ tillstand: "tomt", grupp: "bolaget" });
   });
 
-  it("⛔ läget alla OCH noll registreringar ger ändå valjGrupp", () => {
+  it("⛔ utan grupp OCH noll registreringar ger ändå ingenGrupp", () => {
     // Mutationsfynd: provet ovan hade registreringar, så båda ordningarna gav
     // samma svar och att byta dem överlevde svepet. Det är HÄR ordningen syns.
-    // Svarade panelen "inget att skapa" skulle användaren sluta leta, fastän
-    // det kan finnas gott om moduler i den grupp hen inte valt.
-    expect(skapalaget({ lage: ALLA_GRUPPER, registreringar: [] })).toEqual({ tillstand: "valjGrupp", grupp: null });
+    expect(skapalaget({ lage: null, registreringar: [] })).toEqual({ tillstand: "ingenGrupp", grupp: null });
   });
 
   it("en grupp med registreringar är redo, och bär gruppen", () => {
@@ -166,9 +163,9 @@ describe("skapalaget", () => {
 });
 
 describe("OpsSkapa (#168: bara listan, popovern och modalen hör till OpsAppShell)", () => {
-  it("⛔ läget alla säger välj grupp, inte att det är tomt", () => {
-    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage={ALLA_GRUPPER} />);
-    expect(screen.getByText(/Välj en grupp först/)).toBeTruthy();
+  it("⛔ utan grupp säger panelen att personen inte är med i någon grupp, inte att det är tomt", () => {
+    render(<OpsSkapa registreringar={[{ ...REG("arende", "sorter"), modulId: "inkorg" }]} lage={null} />);
+    expect(screen.getByText(/inte med i någon grupp/)).toBeTruthy();
   });
 
   it("⛔ en tom lista visar en text, aldrig ett tomt plus", () => {

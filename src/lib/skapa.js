@@ -23,8 +23,6 @@
  * ögonblick då en användare öppnar en flik vars typlista är tom.
  */
 
-import { ALLA_GRUPPER } from "./grupplage.js";
-
 /**
  * Registreringarna som ska ritas, i modulernas registreringsordning.
  *
@@ -101,25 +99,30 @@ export function typerAttValja(katalogId, kataloger) {
 }
 
 /**
- * Vad plusset ska göra i det aktuella gruppläget.
+ * Vad plusset ska göra för den aktiva gruppen.
  *
- * ⛔ TRE UTFALL OCH INTE TVÅ. "Välj grupp först" är inte samma sak som
- * "ingenting att skapa", och en panel som visar samma text för båda lär
+ * ⛔ TRE UTFALL OCH INTE TVÅ. "Du är inte med i någon grupp" är inte samma sak
+ * som "ingenting att skapa", och en panel som visar samma text för båda lär
  * användaren att plusset är trasigt.
  *
+ * ⛔ DET FINNS INGEN GRUPPVÄLJARE FÖRE FORMULÄRET (0.35.0, #190). Allt som
+ * skapas hamnar i den aktiva gruppen, och den enda gången det inte finns någon
+ * är när personen inte är med i någon grupp alls (`ingenGrupp`).
+ *
  * @param {object} arg
- * @param {string | null} arg.lage Aktivt gruppläge, eller ALLA_GRUPPER.
+ * @param {string | null} arg.lage Den aktiva gruppens id, eller `null` när personen inte har någon grupp.
  * @param {ReadonlyArray<{ id: string }>} arg.registreringar
- * @returns {{ tillstand: "valjGrupp" | "tomt" | "redo", grupp: string | null }}
+ * @returns {{ tillstand: "ingenGrupp" | "tomt" | "redo", grupp: string | null }}
  */
 export function skapalaget({ lage, registreringar }) {
   /*
-   * ⛔ GRUPPFRÅGAN GÅR FÖRST. I läget "alla" finns ingen grupp att skriva i, och
-   * det gäller oavsett hur många registreringar som finns. Frågades tomheten
-   * först hade en grupplös användare fått veta att det inte finns något att
-   * skapa, vilket är fel svar på rätt fråga.
+   * ⛔ GRUPPFRÅGAN GÅR FÖRST. Utan grupp finns ingen att skriva i, oavsett hur
+   * många registreringar som finns. Frågades tomheten först hade en grupplös
+   * användare fått veta att det inte finns något att skapa, vilket är fel svar
+   * på rätt fråga.
    */
-  if (!lage || lage === ALLA_GRUPPER) return { tillstand: "valjGrupp", grupp: null };
-  if ((registreringar ?? []).length === 0) return { tillstand: "tomt", grupp: lage };
-  return { tillstand: "redo", grupp: lage };
+  const grupp = typeof lage === "string" ? lage.trim() : "";
+  if (!grupp) return { tillstand: "ingenGrupp", grupp: null };
+  if ((registreringar ?? []).length === 0) return { tillstand: "tomt", grupp };
+  return { tillstand: "redo", grupp };
 }

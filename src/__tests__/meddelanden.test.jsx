@@ -169,7 +169,7 @@ describe("OpsNyttMeddelande", () => {
   });
   it("utan grupp säger formuläret det", () => {
     render(<OpsNyttMeddelande formId="f" groupId={null} uid="anna" medlemmar={[]} kalla={createSamtalskalla({ kalla: createMemorySource({}) })} />);
-    expect(screen.getByText(/Välj en grupp först/)).toBeInTheDocument();
+    expect(screen.getByText(/inte med i någon grupp/)).toBeInTheDocument();
   });
 });
 
@@ -223,16 +223,15 @@ describe("⛔ skalet: Nytt meddelande i plusset öppnar skapa-panelen med Skicka
     expect(screen.queryByRole("region", { name: "Nytt meddelande" })).toBeNull();
   });
 
-  it("⛔ i läget Alla mina grupper väljs gruppen först, och bara grupper (ett samtal ligger alltid i en grupp)", async () => {
+  it("⛔ ingen gruppväljare före panelen: meddelandet skrivs i den aktiva gruppen, också när appen har egna mål (0.35.0, #190)", async () => {
     const { samtal } = await underlag();
-    render(<Skal samtal={samtal} onGaTill={() => {}} start="alla" sektioner={[{ id: "appen", rubrik: "Appen", poster: [{ id: "x", namn: "Appens plats" }] }]} />);
+    render(<Skal samtal={samtal} onGaTill={() => {}} sektioner={[{ id: "appen", rubrik: "Appen", poster: [{ id: "x", namn: "Appens plats" }] }]} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Skapa" }));
     await user.click(screen.getByRole("button", { name: "Nytt meddelande" }));
-    const valjare = await screen.findByRole("dialog", { name: "Skapa i" });
-    expect(within(valjare).queryByText("Appens plats")).toBeNull();
-    await user.click(within(valjare).getByRole("button", { name: /Alfa AB/ }));
+    expect(screen.queryByRole("dialog", { name: "Skapa i" })).toBeNull();
     const panel = await screen.findByRole("region", { name: "Nytt meddelande" });
     expect(within(panel).getByRole("radio", { name: "Bo Lind" })).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Skapas i/ })).toBeNull();
   });
 });

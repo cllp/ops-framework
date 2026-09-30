@@ -45,7 +45,7 @@ export function OpsNyttMeddelande({
   tillEtikett = "Till",
   textEtikett = "Meddelande",
   privatText = "Bara ni två ser det här.",
-  utanGruppText = "Välj en grupp först. Ett meddelande går till en person i en grupp.",
+  utanGruppText = "Du är inte med i någon grupp än. Ett meddelande går till en person i en grupp.",
   valjPersonText = "Välj vem meddelandet ska till.",
   tomTextFel = "Skriv något först.",
   felRubrik = "Meddelandet kunde inte skickas",

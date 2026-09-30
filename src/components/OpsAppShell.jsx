@@ -20,7 +20,6 @@ import { OpsSkapa } from "./OpsSkapa.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { text } from "../lib/sprak.js";
-import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 
@@ -417,13 +416,13 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
  * @property {(arg: { formId: string, groupId: string | null, onKlar: () => void }) => import("react").ReactNode} [meddelande] (0.34.0, #182) Ramverkets egen rad
  *   "Nytt meddelande", normalt `({ formId, groupId, onKlar }) => <OpsNyttMeddelande formId={formId} groupId={groupId} ... onKlar={(id) => { onKlar(); gaTill(id); }} />`.
- *   `groupId` är den aktiva gruppen; i läget "Alla mina grupper" visas gruppväljaren först, som för en moduls formulär (ett meddelande
- *   hör alltid till en grupp). Panelens knapp heter `skickaEtikett` ("Skicka"), inte Spara. `onKlar` stänger utan att gå bakåt.
+ *   `groupId` är den aktiva gruppen (0.35.0: alltid, det finns ingen gruppväljare före formuläret; ett meddelande hör alltid till en
+ *   grupp). Panelens knapp heter `skickaEtikett` ("Skicka"), inte Spara. `onKlar` stänger utan att gå bakåt.
  * @property {(arg: { formId: string, groupId: string, onKlar: () => void }) => import("react").ReactNode} [redigeraGrupp] (0.32.0, #180 G2) Formuläret i REDIGERINGSLÄGE
  *   (`OpsGruppFormular grupp={...}`), öppnat av pennan på gruppkortet i gruppanelen. Med den ritar skalet pennan och öppnar samma panel-form som "Ny grupp"
  *   (`?skapa=redigera-grupp&grupp=<id>`, smal kolumn). Utan den anropas `grupper.onRedigera` i stället, om appen gav en.
  * @property {ReadonlyArray<import("../lib/modul.js").Skaparregistrering & { modulId: string }>} [registreringar] Ur `skaparFor` (#150).
- * @property {string | null} [lage] Aktivt gruppläge, se `skapalaget`.
+ * @property {string | null} [lage] Den aktiva gruppens id, se `skapalaget`. `null` bara när personen inte är med i någon grupp.
  * @property {ReadonlyArray<{ id: string, kategorier?: ReadonlyArray<any> }>} [kataloger]
  * @property {(namn: string) => import("react").ReactNode} [ikonRitare]
  * @property {string} [sprak]
@@ -435,7 +434,8 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {string} [skapasIEtikett] Etiketten före målet i panelens översta rad. Förval "Skapas i".
  * @property {string} [skapaIRubrik] Väljarens rubrik. Förval "Skapa i".
  * @property {ReadonlyArray<{ id: string, rubrik: string, poster: ReadonlyArray<{ id: string, namn: string, ikon?: import("react").ReactNode }> }>} [skapaISektioner]
- *   Appens egna mål i väljaren, t.ex. "Mina kalendrar". Formuläret får det valda som `mal: { sektion, id }`.
+ *   Appens egna mål i väljaren, t.ex. "Mina kalendrar". Formuläret får det valda som `mal: { sektion, id }`. ⛔ 0.35.0: väljaren har
+ *   inga grupper längre; posten skapas i den aktiva gruppen, och målet är ett fält i den.
  * @property {boolean} [adress] Skalet lägger `?skapa=<vad>` i adressen när panelen öppnas, så att Tillbaka i webbläsaren fungerar och
  *   panelen går att länka till. Förval sant; `false` för en app vars router inte tål att någon annan skriver i historiken.
  *
@@ -454,7 +454,9 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {boolean} [infalld]
  * @property {(infalld: boolean) => void} [onInfalld]
  * @property {string} [sprak]
- * @property {string} [allaEtikett]
+ * @property {string} [listEtikett] (0.35.0) Skärmläsarnamnet på grupplistan. Förval "Mina grupper". Ersätter `allaEtikett`, som var namnet
+ *   på raden "Alla mina grupper" (borttagen, #190).
+ * @property {string} [ingenGruppEtikett] (0.35.0) Växlarens namn när personen inte är med i någon grupp. Förval "Ingen grupp".
  * @property {string} [skapaEtikett]
  * @property {string} [tomText]
  * @property {string} [kollapsaEtikett]
@@ -575,10 +577,10 @@ export function useOppnaSkapa() {
  *   åtgärdsklustret i headern kan hållas till primära ikoner.
  * @param {OpsAppShellGrupper} [props.grupper] Grupp-panelen (#161), SessionStudios arbetsytor. Utelämnad: ingen kolumn, ingen
  *   växlare, skalet oförändrat. `lista` ([`GruppanelGrupp`](./OpsGruppanel.jsx), samma form `OpsGruppanel` tar),
- *   `aktiv` (`ALLA_GRUPPER` eller ett grupp-id), `onValj` (krävs), `onSkapa` (utelämnad: ingen "Skapa grupp"-knapp),
+ *   `aktiv` (den aktiva gruppens id, ur `aktivGrupp`), `onValj` (krävs), `onSkapa` (utelämnad: ingen "Skapa grupp"-knapp),
  *   `infalld`/`onInfalld` (styr BÅDE panelens läge och brandets ikon/ordmärke-val, se noten vid `varumarke`
  *   nedan; utelämnade: panelen sköter läget själv och brandet följer bara skärmbredden som förut), `sprak`, samt
- *   `allaEtikett`/`skapaEtikett`/`tomText`/`rollNamn`/`medlemmarEtikett`/`flerAvatarerEtikett`/`etikett`
+ *   `listEtikett`/`ingenGruppEtikett`/`skapaEtikett`/`tomText`/`rollNamn`/`medlemmarEtikett`/`flerAvatarerEtikett`/`etikett`
  *   (samma namn och förval som på `OpsGruppanel`/`OpsGruppvaxlare` direkt). Från 1024 px (`lg`) ritas
  *   `OpsGruppanel` som en vänsterkolumn. Under 1024 px ritas ingen kolumn: i stället en `OpsGruppvaxlare`-knapp i
  *   headern, som öppnar samma lista i `OpsPanel`s ark/rullgardin (se den komponentens filhuvud för brytpunkten).
@@ -606,7 +608,7 @@ export function useOppnaSkapa() {
  *   det flyttade hit. ⛔ `handelse`/`arende` ÄR FÄRDIGA `ReactNode`: skalet vet inget om deras fält och kan
  *   därför inte stänga modalen åt dem när de sparat, bara via X/Escape/klick-utanför (modalens egna vägar).
  *   En modul-registrerings formulär får `{ groupId, typ, onKlar }` som förut, och `onKlar` stänger modalen.
- *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `valjGrupp`/`tomt`-
+ *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
@@ -881,22 +883,18 @@ export function OpsAppShell({
       : null
   );
 
-  // ⛔ MÅLET: en vald grupp skapas i, annars den aktiva gruppen. I läget "Alla mina grupper" finns ingen aktiv grupp, och då visas
-  // väljaren FÖRST (SS bild b) och panelen först efter ett val. Bara ett formulär som tar emot en grupp (en moduls registrering)
-  // har ett mål; `handelse`/`arende` som färdiga noder har inget att skicka det till.
+  // ⛔ MÅLET ÄR ALLTID DEN AKTIVA GRUPPEN (0.35.0, #190). CP 2026-09-30: "Ta bort det", om läget "Alla mina grupper". Allt som
+  // skapas hamnar i den aktiva gruppen, utan gruppväljare, och väljaren "Skapa i" visar bara appens EGNA mål (`skapaISektioner`,
+  // t.ex. "Mina kalendrar"). Den öppnas bara från raden "Skapas i" och bara för en moduls formulär, eftersom bara det tar emot `mal`.
+  // Ett meddelande hör till en grupp och har inga andra mål, så det får ingen väljare.
   const skapaGrupperLista = grupper?.lista ?? [];
   const skapaSektioner = skapa?.skapaISektioner ?? [];
-  // ⛔ 0.34.0: ETT MEDDELANDE HÖR TILL EN GRUPP, så "Nytt meddelande" får gruppväljaren som en moduls formulär, men bara grupperna
-  // (appens egna sektioner är inga platser ett samtal kan ligga i).
-  const skapaHarVaxlare =
-    (skapaForm?.kind === "modul" && (skapaGrupperLista.length > 0 || skapaSektioner.length > 0)) || (skapaForm?.kind === "meddelande" && skapaGrupperLista.length > 0);
-  const skapaValdGrupp = skapaMal && skapaMal.sektion === "grupper" ? skapaMal.id : null;
-  const skapaEffektivGrupp = skapaValdGrupp ?? skapaLaget?.grupp ?? null;
-  const skapaBehovVal = skapaHarVaxlare && !skapaMal && !skapaLaget?.grupp;
-  const skapaPanelSyns = Boolean(skapaForm) && !skapaBehovVal;
+  const skapaHarVaxlare = skapaForm?.kind === "modul" && skapaSektioner.some((x) => x.poster.length > 0);
+  const skapaEffektivGrupp = skapaLaget?.grupp ?? null;
+  const skapaPanelSyns = Boolean(skapaForm);
   const skapaMalNamn = (() => {
     const sprakSkapa = skapa?.sprak ?? "sv";
-    if (skapaMal && skapaMal.sektion !== "grupper") {
+    if (skapaMal) {
       return skapaSektioner.find((x) => x.id === skapaMal.sektion)?.poster.find((x) => x.id === skapaMal.id)?.namn ?? null;
     }
     const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
@@ -1075,9 +1073,9 @@ export function OpsAppShell({
   //
   // ⛔ 0.31.0: MÄRKET ÄR TEXT, OCH UNDERTEXTEN ÄR DEN AKTIVA GRUPPEN. `brand` som sträng är
   // märkets `namn` (rad 1, "OPS HUB" när den utelämnas). Rad 2 är den aktiva gruppens namn
-  // när `grupper` finns och en grupp är vald; i läget "Alla mina grupper" (eller utan
-  // grupper) används `undertext` på appens egen `OpsBrand`, annars ritas bara rad 1.
-  const aktivGrupp = grupper && grupper.aktiv !== ALLA_GRUPPER ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
+  // när `grupper` finns och en grupp är aktiv; utan grupp (personen är inte med i någon, eller
+  // appen skickar inga `grupper`) används `undertext` på appens egen `OpsBrand`, annars ritas bara rad 1.
+  const aktivGrupp = grupper ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
   const gruppUndertext = aktivGrupp ? text(aktivGrupp.namn, grupper?.sprak ?? sprak).toLocaleUpperCase(grupper?.sprak ?? sprak) : undefined;
   const panelProp = grupper ? { panelInfalld: Boolean(grupper.infalld) } : {};
   const varumarke =
@@ -1322,7 +1320,8 @@ export function OpsAppShell({
                   onValj={grupper.onValj}
                   onSkapa={grupperOnSkapa}
                   sprak={grupper.sprak}
-                  allaEtikett={grupper.allaEtikett}
+                  listEtikett={grupper.listEtikett}
+                  ingenGruppEtikett={grupper.ingenGruppEtikett}
                   skapaEtikett={grupper.skapaEtikett}
                   tomText={grupper.tomText}
                   rollNamn={grupper.rollNamn}
@@ -1558,7 +1557,7 @@ export function OpsAppShell({
               infalld={grupper.infalld}
               onInfalld={grupper.onInfalld}
               sprak={grupper.sprak}
-              allaEtikett={grupper.allaEtikett}
+              listEtikett={grupper.listEtikett}
               skapaEtikett={grupper.skapaEtikett}
               tomText={grupper.tomText}
               kollapsaEtikett={grupper.kollapsaEtikett}
@@ -1589,7 +1588,7 @@ export function OpsAppShell({
             onTillbaka={stangSkapa}
             tillbakaEtikett={skapa?.tillbakaEtikett}
             skapasIEtikett={skapa?.skapasIEtikett}
-            skapasI={skapaHarVaxlare ? skapaMalNamn : null}
+            skapasI={skapaForm?.kind === "modul" || skapaForm?.kind === "meddelande" ? skapaMalNamn : null}
             onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
             avbrytEtikett={skapa?.avbrytEtikett}
             sparaEtikett={skapaForm?.kind === "meddelande" ? skickaEtikett : skapaHarFormKonsument ? skapa?.sparaEtikett : undefined}
@@ -1653,25 +1652,20 @@ export function OpsAppShell({
         </Dialog.Root>
       ) : null}
 
-      {/* ⛔ 0.31.0: "SKAPA I" ÄR EN DIALOG (SS bild b), PANELEN ÄR EN SIDA. Väljaren öppnas FÖRST i läget "Alla mina grupper" (det finns
-          ingen aktiv grupp att skapa i) och därefter från raden "Skapas i" i panelen. Avbryt i väljaren, när den öppnades
-          först, avbryter hela skapandet: ett formulär utan mål är inget man kan skriva. */}
+      {/* ⛔ 0.31.0: "SKAPA I" ÄR EN DIALOG (SS bild b), PANELEN ÄR EN SIDA. 0.35.0 (#190): den öppnas bara från raden "Skapas i" och
+          visar bara appens egna mål. Det finns ingen gruppväljare före formuläret, eftersom allt skapas i den aktiva gruppen. */}
       {skapaForm && skapaHarVaxlare ? (
         <OpsSkapaI
-          open={skapaBehovVal || skapaVaxlare}
+          open={skapaVaxlare}
           onOpenChange={(v) => {
-            if (v) return;
-            if (skapaBehovVal) stangSkapa();
-            else setSkapaVaxlare(false);
+            if (!v) setSkapaVaxlare(false);
           }}
-          grupper={skapaGrupperLista}
-          vald={skapaMal?.id ?? skapaEffektivGrupp}
+          vald={skapaMal?.id ?? null}
           onValj={(id, sektion) => {
             setSkapaMal({ id, sektion });
             setSkapaVaxlare(false);
           }}
-          sektioner={skapaForm.kind === "meddelande" ? [] : skapaSektioner}
-          sprak={skapa?.sprak}
+          sektioner={skapaSektioner}
           rubrik={skapa?.skapaIRubrik}
           avbrytEtikett={skapa?.avbrytEtikett}
         />

@@ -1,6 +1,5 @@
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { BockIkon } from "./icons.jsx";
-import { ALLA_GRUPPER } from "../lib/grupplage.js";
 import { text } from "../lib/sprak.js";
 import { radKlass } from "../lib/radKlass.js";
 
@@ -18,23 +17,21 @@ import { radKlass } from "../lib/radKlass.js";
  * driva med `fireEvent` i jsdom, alltså blir bytet av grupp något ett prov
  * inte kan mäta. Här är varje rad en knapp, och provet trycker på den.
  *
- * ⛔ "ALLA" LIGGER FÖRST OCH ÄR INTE ETT SPECIALFALL I RITNINGEN. Den är ett
- * läge bland lägena, och att rita den som en avvikande rad hade antytt att den
- * gör något annat än de andra. Det den gör är att fråga varje grupp en gång,
- * och det är inte synligt härifrån.
+ * ⛔ INGEN RAD "ALLA" (0.35.0, #190). CP 2026-09-30: "Ja, frågan om alla
+ * grupper: Ta bort det." Det finns alltid exakt en aktiv grupp, och listan är
+ * bara grupperna.
  */
 
 /**
  * @param {object} props
  * @param {ReadonlyArray<import("../lib/grupp.js").Grupp>} props.grupper Mina, ur `minaGrupper`.
- * @param {string} props.aktiv `ALLA_GRUPPER` eller ett grupp-id, ur `valtLage`.
- * @param {(lage: string) => void} props.onValj
+ * @param {string} props.aktiv Den aktiva gruppens id, ur `aktivGrupp`.
+ * @param {(groupId: string) => void} props.onValj
  * @param {string} [props.sprak]
  * @param {string} [props.rubrik]
- * @param {string} [props.allaEtikett]
  * @param {string} [props.tomText] Texten när jag inte är medlem i någon grupp.
  */
-export function OpsGruppvaljare({ grupper, aktiv, onValj, sprak, rubrik = "Grupp", allaEtikett = "Alla grupper", tomText = "Du är inte medlem i någon grupp." }) {
+export function OpsGruppvaljare({ grupper, aktiv, onValj, sprak, rubrik = "Grupp", tomText = "Du är inte medlem i någon grupp." }) {
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppvaljare: onValj krävs. En väljare som inte kan välja är en lista som ser ut som en kontroll.");
   }
@@ -46,7 +43,7 @@ export function OpsGruppvaljare({ grupper, aktiv, onValj, sprak, rubrik = "Grupp
    * slutsats. Sidan som tar hand om det fallet är `OpsUtanMedlemskap` i #137;
    * den här raden finns för att panelen inte ska ljuga under tiden.
    */
-  const rader = [{ id: ALLA_GRUPPER, etikett: allaEtikett }, ...mina.map((g) => ({ id: g.id, etikett: text(g.namn, sprak) }))];
+  const rader = mina.map((g) => ({ id: g.id, etikett: text(g.namn, sprak) }));
 
   return (
     <div className="flex flex-col gap-1">
@@ -68,7 +65,7 @@ export function OpsGruppvaljare({ grupper, aktiv, onValj, sprak, rubrik = "Grupp
                 aria-current={vald ? "true" : undefined}
                 className={radKlass({ vald, py: 2 })}
               >
-                {rad.id === ALLA_GRUPPER ? <span className="size-6 shrink-0" aria-hidden="true" /> : <OpsIdentity name={rad.etikett} seed={rad.id} size="sm" />}
+                <OpsIdentity name={rad.etikett} seed={rad.id} size="sm" />
                 <span className="grow truncate">{rad.etikett}</span>
                 {vald ? <BockIkon size={14} /> : null}
               </button>

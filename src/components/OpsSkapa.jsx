@@ -29,7 +29,7 @@ import { skapalaget } from "../lib/skapa.js";
  *
  * ══ ⛔ TRE TOMLÄGEN, INTE ETT ═════════════════════════════════════════
  *
- * "Välj en grupp först" och "inget att skapa här" är olika svar och kräver
+ * "Du är inte med i någon grupp" och "inget att skapa här" är olika svar och kräver
  * olika handlingar. Samma text för båda lär användaren att plusset är trasigt,
  * och den läxan sitter kvar efter att texten rättats. Beslutet ligger i
  * `skapalaget`, alltså i en ren funktion, av samma skäl som `iOrdning` i
@@ -51,12 +51,12 @@ import { skapalaget } from "../lib/skapa.js";
 /**
  * @param {object} props
  * @param {ReadonlyArray<import("../lib/modul.js").Skaparregistrering & { modulId: string }>} props.registreringar Ur `skaparFor`, i manifestets ordning.
- * @param {string | null} props.lage Aktivt gruppläge. `ALLA_GRUPPER` betyder att en grupp måste väljas först.
+ * @param {string | null} props.lage Den aktiva gruppens id. `null` när personen inte är med i någon grupp.
  * @param {string} [props.sprak]
  * @param {(registrering: import("../lib/modul.js").Skaparregistrering & { modulId: string }) => void} [props.onValj] Anropas när en rad trycks.
  * @param {(namn: string) => import("react").ReactNode} [props.ikonRitare] Registreringens `ikon`-namn till en ritad ikon. Utan den ritas ingen ikon.
  * @param {string} [props.ariaLabel]
- * @param {string} [props.valjGruppText]
+ * @param {string} [props.ingenGruppText]
  * @param {string} [props.tomText]
  */
 export function OpsSkapa({
@@ -66,12 +66,12 @@ export function OpsSkapa({
   onValj,
   ikonRitare,
   ariaLabel = "Skapa",
-  valjGruppText = "Välj en grupp först. Det som skapas hamnar i den gruppen, och när Alla är valt finns ingen att skriva i.",
+  ingenGruppText = "Du är inte med i någon grupp än. Det som skapas hamnar i den aktiva gruppen, och utan grupp finns ingen att skriva i.",
   tomText = "Ingen av gruppens moduler kan skapa något än.",
 }) {
   const laget = skapalaget({ lage, registreringar });
 
-  if (laget.tillstand === "valjGrupp") return <OpsEmpty title={ariaLabel} description={valjGruppText} />;
+  if (laget.tillstand === "ingenGrupp") return <OpsEmpty title={ariaLabel} description={ingenGruppText} />;
   if (laget.tillstand === "tomt") return <OpsEmpty title={ariaLabel} description={tomText} />;
 
   // ⛔ EN PLATT LISTA, INGEN RUBRIK, INGA FLIKAR (#164 korrigering D, kvar

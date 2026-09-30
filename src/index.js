@@ -189,19 +189,23 @@ export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
 export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, samtalsregelfragment } from "./lib/regler.js";
 
 /*
- * ⛔ GRUPPLÄGET OCH SAMMANSLAGNINGEN (#139). Besluten är rena funktioner och
- * ligger därför här: vilka grupper som frågas och hur svaren läggs ihop måste
- * gå att prova utan en skärm, och det är samma skäl som för katalogen.
+ * ⛔ GRUPPLÄGET (#139, #190). Besluten är rena funktioner och ligger därför här:
+ * vilken grupp som är aktiv och vad navet visar måste gå att prova utan en skärm.
  *
- * ⛔ `gruppLista` OCH `gruppSkapa` ÄR DEN ENDA VÄGEN IN till en grupps rader,
- * och att `groupId` krävs är ett typkrav som `check-gruppfraga` bevisar genom
- * att köra tsc mot en fråga utan grupp.
+ * ⛔ 0.35.0: DET FINNS ALLTID EXAKT EN AKTIV GRUPP, OCH VARJE LÄSVÄG GÄLLER BARA
+ * DEN. Läget "Alla mina grupper" och läsningen över flera grupper är borttagna
+ * (`ALLA_GRUPPER`, `valtLage`, `navForLage`, `gruppenAttSkapaI`, `grupperAttFraga`,
+ * `slaIhopSvar`, `listaPerGrupp`, `raderPerGrupp`, `OpsGruppfilter`,
+ * `OpsGruppmarke`). `medAktivGrupp` lägger den aktiva gruppen på list, subscribe
+ * och read.
+ *
+ * ⛔ `gruppLista` OCH `gruppSkapa` KRÄVER `groupId`, och det är ett typkrav som
+ * `check-gruppfraga` bevisar genom att köra tsc mot en fråga utan grupp.
  */
-export { ALLA_GRUPPER, minaGrupper, valtLage, grupperAttFraga, navForLage, gruppenAttSkapaI, slaIhopSvar, grupplagetsNyckel, lasAktivGrupp, sparaAktivGrupp } from "./lib/grupplage.js";
-export { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "./data/gruppkalla.js";
+export { minaGrupper, aktivGrupp, navForGrupp, grupplagetsNyckel, lasAktivGrupp, sparaAktivGrupp } from "./lib/grupplage.js";
+export { gruppLista, gruppSkapa } from "./data/gruppkalla.js";
+export { medAktivGrupp } from "./data/aktivgrupp.js";
 export { OpsGruppvaljare } from "./components/OpsGruppvaljare.jsx";
-export { OpsGruppfilter } from "./components/OpsGruppfilter.jsx";
-export { OpsGruppmarke } from "./components/OpsGruppmarke.jsx";
 export { OpsGruppanel, OpsGruppvaxlare } from "./components/OpsGruppanel.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";

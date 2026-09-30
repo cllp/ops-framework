@@ -1,31 +1,20 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import {
-  ALLA_GRUPPER,
-  grupperAttFraga,
-  gruppenAttSkapaI,
-  grupplagetsNyckel,
-  lasAktivGrupp,
-  minaGrupper,
-  navForLage,
-  slaIhopSvar,
-  sparaAktivGrupp,
-  valtLage,
-} from "../lib/grupplage.js";
-import { gruppLista, gruppSkapa, listaPerGrupp, raderPerGrupp } from "../data/gruppkalla.js";
+import { aktivGrupp, grupplagetsNyckel, lasAktivGrupp, minaGrupper, navForGrupp, sparaAktivGrupp } from "../lib/grupplage.js";
+import * as index from "../index.js";
+import { gruppLista, gruppSkapa } from "../data/gruppkalla.js";
 import { createMemorySource } from "../data/adapters.js";
 import { defineModule } from "../lib/modul.js";
 import { OpsGruppvaljare } from "../components/OpsGruppvaljare.jsx";
-import { OpsGruppfilter } from "../components/OpsGruppfilter.jsx";
-import { OpsGruppmarke } from "../components/OpsGruppmarke.jsx";
 
 /**
- * Fas 2.5 i epiken #92: gruppväljare, gruppfilter och sammanslagning (#139).
+ * Fas 2.5 i epiken #92 (#139), och sedan 0.35.0 (#190) utan läget "Alla mina grupper"
+ * och utan läsning över flera grupper.
  *
- * ⛔ BESLUTEN PROVAS DÄR DE BOR, ALLTSÅ I RENA FUNKTIONER. Dagens lärdom från
+ * ⛔ BESLUTEN PROVAS DÄR DE BOR, ALLTSÅ I RENA FUNKTIONER. Lärdomen från
  * #138: ett prov som trycker på en Radix-popover i jsdom blir grönt av att
- * ingenting hände. Väljaren och filtret är därför vanliga knappar, och proven
- * trycker på dem på riktigt.
+ * ingenting hände. Väljaren är därför vanliga knappar, och proven trycker på
+ * dem på riktigt.
  */
 
 const skapare = { uid: "uid-1", namn: "CP", typ: "manniska", kalla: "prov" };
@@ -52,8 +41,8 @@ describe("mina grupper", () => {
     expect(mina.map((g) => g.id)).toEqual(["a", "b"]);
   });
 
-  it("avvisar en grupp som heter alla, eftersom den krockar med att titta i allihop", () => {
-    expect(() => minaGrupper([medlem(ALLA_GRUPPER)], [grupp(ALLA_GRUPPER, "Alla")])).toThrow(/krockar/);
+  it("en grupp som heter alla är en grupp bland andra (0.35.0: det finns inget läge att krocka med)", () => {
+    expect(minaGrupper([medlem("alla")], [grupp("alla", "Alla")]).map((g) => g.id)).toEqual(["alla"]);
   });
 });
 
@@ -75,44 +64,59 @@ describe("det sparade valet", () => {
     expect(lasAktivGrupp("uid-2", lagring)).toBe(null);
   });
 
-  it("avvisar tomt, eftersom ALLA_GRUPPER är det utskrivna svaret", () => {
-    expect(() => sparaAktivGrupp("uid-1", "", { getItem: () => null, setItem: () => {} })).toThrow(/lage krävs/);
+  it("avvisar tomt, eftersom det alltid finns exakt en aktiv grupp", () => {
+    expect(() => sparaAktivGrupp("uid-1", "", { getItem: () => null, setItem: () => {} })).toThrow(/groupId krävs/);
   });
 });
 
-describe("vilket val som gäller i dag", () => {
+describe("den aktiva gruppen (0.35.0, #190)", () => {
   const mina = [BOLAGET, PRIVAT];
-
-  it("faller tillbaka till alla när medlemskapet tagit slut", () => {
-    expect(valtLage("gammalt", mina)).toBe(ALLA_GRUPPER);
-  });
-
-  it("faller tillbaka till alla när ingenting är sparat", () => {
-    expect(valtLage(null, mina)).toBe(ALLA_GRUPPER);
-  });
 
   it("behåller en grupp jag fortfarande är med i", () => {
-    expect(valtLage("privat", mina)).toBe("privat");
+    expect(aktivGrupp("privat", mina)).toBe("privat");
+  });
+
+  it("blir den första av mina grupper när medlemskapet tagit slut", () => {
+    expect(aktivGrupp("gammalt", mina)).toBe("bolaget");
+  });
+
+  it("blir den första av mina grupper när ingenting är sparat", () => {
+    expect(aktivGrupp(null, mina)).toBe("bolaget");
+    expect(aktivGrupp("  ", mina)).toBe("bolaget");
+  });
+
+  /*
+   * ⛔ ETT SPARAT "alla" FRÅN EN VERSION FÖRE 0.35.0. Det ligger i localStorage
+   * hos var och en som valde läget, och uppgraderingen får varken kasta eller ge
+   * ett tomt läge: den ger den första av personens grupper.
+   */
+  it("⛔ ett sparat \"alla\" från en tidigare version blir den första gruppen, inte ett fel och inte tomt", () => {
+    /** @type {Record<string, string>} */
+    const bak = { [grupplagetsNyckel("uid-1")]: "alla" };
+    const lagring = { getItem: (/** @type {string} */ n) => bak[n] ?? null, setItem: (/** @type {string} */ n, /** @type {string} */ v) => { bak[n] = v; } };
+    const sparat = lasAktivGrupp("uid-1", lagring);
+    expect(sparat).toBe("alla");
+    const aktiv = aktivGrupp(sparat, mina);
+    expect(aktiv).toBe("bolaget");
+    expect(aktiv).not.toBe(null);
+    expect(aktiv).not.toBe("");
+  });
+
+  it("är null bara när jag inte har någon grupp alls, och det är det enda tillståndet utan aktiv grupp", () => {
+    expect(aktivGrupp("alla", [])).toBe(null);
+    expect(aktivGrupp("bolaget", [])).toBe(null);
   });
 });
 
-describe("grupperna som frågas", () => {
-  const mina = [BOLAGET, PRIVAT];
-
-  it("är alla mina i läget alla", () => {
-    expect(grupperAttFraga({ lage: ALLA_GRUPPER, mina }).map((g) => g.id)).toEqual(["bolaget", "privat"]);
-  });
-
-  it("blir färre när filtret kryssat bort en", () => {
-    expect(grupperAttFraga({ lage: ALLA_GRUPPER, mina, bortkryssade: ["bolaget"] }).map((g) => g.id)).toEqual(["privat"]);
-  });
-
-  it("är bara den valda, och filtret gäller inte där", () => {
-    expect(grupperAttFraga({ lage: "bolaget", mina, bortkryssade: ["bolaget"] }).map((g) => g.id)).toEqual(["bolaget"]);
-  });
-
-  it("är tom när valet pekar på en grupp som inte längre är min", () => {
-    expect(grupperAttFraga({ lage: "gammalt", mina })).toEqual([]);
+describe("⛔ läget \"Alla mina grupper\" och läsningen över flera grupper finns inte i paketets yta (0.35.0, #190)", () => {
+  it("exporterna som bar läget är borta, och ersättarna finns", () => {
+    const yta = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (index));
+    for (const borta of ["ALLA_GRUPPER", "valtLage", "navForLage", "gruppenAttSkapaI", "raderPerGrupp", "OpsGruppfilter", "grupperAttFraga", "slaIhopSvar", "listaPerGrupp", "OpsGruppmarke"]) {
+      expect(yta[borta], borta).toBeUndefined();
+    }
+    for (const kvar of ["aktivGrupp", "navForGrupp", "medAktivGrupp", "gruppLista", "gruppSkapa"]) {
+      expect(typeof yta[kvar], kvar).toBe("function");
+    }
   });
 });
 
@@ -128,38 +132,30 @@ describe("navet", () => {
     skapar: [],
   });
 
-  it("visar bara ramverkets ytor i läget alla", () => {
-    const { nav, saknade } = navForLage({ lage: ALLA_GRUPPER, ramnav, moduler: [ekonomi], mina: [BOLAGET] });
+  it("visar bara ramverkets ytor när jag inte har någon grupp", () => {
+    const { nav, saknade } = navForGrupp({ groupId: null, ramnav, moduler: [ekonomi], mina: [] });
     expect(nav.map((p) => p.href)).toEqual(["/", "/sok"]);
     expect(saknade).toEqual([]);
   });
 
   it("lägger till gruppens moduler när en grupp är vald", () => {
-    const { nav } = navForLage({ lage: "bolaget", ramnav, moduler: [ekonomi], mina: [BOLAGET] });
+    const { nav } = navForGrupp({ groupId: "bolaget", ramnav, moduler: [ekonomi], mina: [BOLAGET] });
     expect(nav.map((p) => p.href)).toEqual(["/", "/sok", "/ekonomi"]);
   });
 
   it("skriver ut en modul gruppen pekar på men appen inte installerat", () => {
-    const { nav, saknade } = navForLage({ lage: "bolaget", ramnav, moduler: [], mina: [BOLAGET] });
+    const { nav, saknade } = navForGrupp({ groupId: "bolaget", ramnav, moduler: [], mina: [BOLAGET] });
     expect(saknade).toEqual(["ekonomi"]);
     expect(nav.map((p) => p.href)).toEqual(["/", "/sok"]);
   });
 
   it("rör inte listan anroparen skickade in", () => {
-    navForLage({ lage: "bolaget", ramnav, moduler: [ekonomi], mina: [BOLAGET] });
+    navForGrupp({ groupId: "bolaget", ramnav, moduler: [ekonomi], mina: [BOLAGET] });
     expect(ramnav.map((p) => p.href)).toEqual(["/", "/sok"]);
   });
 });
 
-describe("att skapa kräver en vald grupp", () => {
-  it("ger ingen grupp i läget alla", () => {
-    expect(gruppenAttSkapaI(ALLA_GRUPPER)).toBe(null);
-  });
-
-  it("ger gruppen när en är vald", () => {
-    expect(gruppenAttSkapaI("bolaget")).toBe("bolaget");
-  });
-
+describe("att skapa kräver en grupp", () => {
   it("avvisar ett skapande utan grupp, i körtid och inte bara i typen", async () => {
     const kalla = createMemorySource({ rader: [] });
     await expect(gruppSkapa(kalla, "rader", /** @type {any} */ ({ titel: "utan grupp" }))).rejects.toThrow(/groupId krävs/);
@@ -210,85 +206,31 @@ describe("frågan bär alltid sin grupp", () => {
   });
 });
 
-describe("sammanslagningen", () => {
-  const kalla = () =>
-    createMemorySource({
-      rader: [
-        { id: "a1", groupId: "bolaget", datum: "2026-09-01" },
-        { id: "a2", groupId: "bolaget", datum: "2026-09-03" },
-        { id: "b1", groupId: "privat", datum: "2026-09-02" },
-        { id: "c1", groupId: "tredje", datum: "2026-09-04" },
-      ],
-    });
-  const TREDJE = grupp("tredje", "Tredje");
-
-  it("frågar en gång per grupp, inte en gång för allihop", async () => {
-    const inre = kalla();
-    const list = vi.fn(inre.list);
-    await listaPerGrupp(/** @type {any} */ ({ ...inre, list }), "rader", [BOLAGET, PRIVAT, TREDJE]);
-    expect(list).toHaveBeenCalledTimes(3);
-    expect(list.mock.calls.map((c) => /** @type {any} */ (c[1]).where.groupId)).toEqual(["bolaget", "privat", "tredje"]);
-  });
-
-  it("skickar med taket i varje delfråga, så att tre grupper inte hämtar trettio rader för tio", async () => {
-    const inre = kalla();
-    const list = vi.fn(inre.list);
-    await listaPerGrupp(/** @type {any} */ ({ ...inre, list }), "rader", [BOLAGET, PRIVAT, TREDJE], { sortBy: "datum", limit: 2 });
-    expect(list.mock.calls.map((c) => /** @type {any} */ (c[1]).limit)).toEqual([2, 2, 2]);
-  });
-
-  it("slår ihop tre grupper och märker varje rad med sin", async () => {
-    const rader = await listaPerGrupp(kalla(), "rader", [BOLAGET, PRIVAT, TREDJE], { sortBy: "datum" });
-    expect(rader.map((r) => r.id)).toEqual(["a1", "b1", "a2", "c1"]);
-    expect(rader.map((r) => r.gruppmarke.id)).toEqual(["bolaget", "privat", "bolaget", "tredje"]);
-  });
-
-  it("tar bort en grupp ur vyn när filtret kryssat bort den", async () => {
-    const grupper = grupperAttFraga({ lage: ALLA_GRUPPER, mina: [BOLAGET, PRIVAT, TREDJE], bortkryssade: ["privat"] });
-    const rader = await listaPerGrupp(kalla(), "rader", grupper, { sortBy: "datum" });
-    expect(rader.map((r) => r.id)).toEqual(["a1", "a2", "c1"]);
-  });
-
-  it("lägger taket på det ihopslagna och inte på varje delfråga", async () => {
-    const rader = await listaPerGrupp(kalla(), "rader", [BOLAGET, PRIVAT, TREDJE], { sortBy: "datum", limit: 2 });
-    expect(rader.map((r) => r.id)).toEqual(["a1", "b1"]);
-  });
-
-  it("avvisar en rad som redan bär ett gruppmarke", () => {
-    expect(() => slaIhopSvar([{ grupp: BOLAGET, rader: [{ id: "x", gruppmarke: { id: "privat", namn: { sv: "Privat" } } }] }])).toThrow(/bär redan gruppmarke/);
-  });
-
-  it("räknar rader per grupp och skriver ut nollan", async () => {
-    const grupper = [BOLAGET, PRIVAT, TREDJE];
-    const rader = await listaPerGrupp(kalla(), "rader", grupperAttFraga({ lage: ALLA_GRUPPER, mina: grupper, bortkryssade: ["privat"] }), {});
-    expect(raderPerGrupp(rader, grupper)).toEqual({ bolaget: 2, privat: 0, tredje: 1 });
-  });
-});
-
 describe("gruppväljaren", () => {
   function rendera(extra = {}) {
     const onValj = vi.fn();
-    const ut = render(<OpsGruppvaljare grupper={[BOLAGET, PRIVAT]} aktiv={ALLA_GRUPPER} onValj={onValj} {...extra} />);
+    const ut = render(<OpsGruppvaljare grupper={[BOLAGET, PRIVAT]} aktiv="bolaget" onValj={onValj} {...extra} />);
     return { onValj, ...ut };
   }
 
-  it("visar alla mina grupper plus alla", () => {
+  it("visar mina grupper och ingen rad för alla (0.35.0)", () => {
     rendera();
-    expect(screen.getByRole("button", { name: /Alla grupper/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Bolaget/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Privat/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Alla/ })).toBe(null);
+    expect(screen.getAllByRole("button").length).toBe(2);
   });
 
   it("märker ut den aktiva med aria-current och inte bara med en färg", () => {
     rendera({ aktiv: "privat" });
     expect(screen.getByRole("button", { name: /Privat/ }).getAttribute("aria-current")).toBe("true");
-    expect(screen.getByRole("button", { name: /Alla grupper/ }).getAttribute("aria-current")).toBe(null);
+    expect(screen.getByRole("button", { name: /Bolaget/ }).getAttribute("aria-current")).toBe(null);
   });
 
   it("byter grupp när raden trycks", () => {
     const { onValj } = rendera();
-    fireEvent.click(screen.getByRole("button", { name: /Bolaget/ }));
-    expect(onValj).toHaveBeenCalledWith("bolaget");
+    fireEvent.click(screen.getByRole("button", { name: /Privat/ }));
+    expect(onValj).toHaveBeenCalledWith("privat");
   });
 
   it("skriver ut tomheten i stället för en rubrik utan rader", () => {
@@ -297,48 +239,6 @@ describe("gruppväljaren", () => {
   });
 
   it("kastar utan onValj, i stället för att rita en kontroll som inte gör något", () => {
-    expect(() => render(<OpsGruppvaljare grupper={[]} aktiv={ALLA_GRUPPER} onValj={/** @type {any} */ (undefined)} />)).toThrow(/onValj krävs/);
-  });
-});
-
-describe("gruppfiltret", () => {
-  function rendera(extra = {}) {
-    const onAndra = vi.fn();
-    const ut = render(<OpsGruppfilter grupper={[BOLAGET, PRIVAT]} bortkryssade={[]} onAndra={onAndra} {...extra} />);
-    return { onAndra, ...ut };
-  }
-
-  it("visar vilka som är med i vyn med aria-pressed", () => {
-    rendera({ bortkryssade: ["privat"] });
-    expect(screen.getByRole("button", { name: /Bolaget/ }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: /Privat/ }).getAttribute("aria-pressed")).toBe("false");
-  });
-
-  it("kryssar bort en grupp", () => {
-    const { onAndra } = rendera();
-    fireEvent.click(screen.getByRole("button", { name: /Bolaget/ }));
-    expect(onAndra).toHaveBeenCalledWith(["bolaget"]);
-  });
-
-  it("kryssar tillbaka en grupp", () => {
-    const { onAndra } = rendera({ bortkryssade: ["bolaget", "privat"] });
-    fireEvent.click(screen.getByRole("button", { name: /Privat/ }));
-    expect(onAndra).toHaveBeenCalledWith(["bolaget"]);
-  });
-
-  it("skriver ut antalet, också när det är noll", () => {
-    rendera({ antal: { bolaget: 2, privat: 0 } });
-    expect(screen.getByRole("button", { name: /Privat/ }).textContent).toContain("0");
-  });
-});
-
-describe("märket på raden", () => {
-  it("skriver ut gruppens namn och inte bara initialerna", () => {
-    render(<OpsGruppmarke gruppmarke={{ id: "bolaget", namn: { sv: "Bolaget" } }} />);
-    expect(screen.getAllByText("Bolaget").length).toBeGreaterThan(0);
-  });
-
-  it("kastar utan märke, eftersom en omärkt rad i läget alla är oläsbar", () => {
-    expect(() => render(<OpsGruppmarke gruppmarke={/** @type {any} */ (null)} />)).toThrow(/gruppmarke krävs/);
+    expect(() => render(<OpsGruppvaljare grupper={[]} aktiv="bolaget" onValj={/** @type {any} */ (undefined)} />)).toThrow(/onValj krävs/);
   });
 });
