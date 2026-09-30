@@ -195,6 +195,16 @@ function showTodayButton() {
   };
 }
 
+/**
+ * Dagpanelen. ⛔ SEDAN 0.36.0 STÅR TITLARNA OCKSÅ I RUTNÄTETS PILLER (SS `MonthGrid.jsx:579`, från 640 px), så ett osagt
+ * `getByText` på en titel träffar två noder. Frågor om kort ställs därför inne i panelen.
+ */
+const panelen = () => {
+  const p = document.querySelector("[data-dagpanel]");
+  if (!p) throw new Error("Ingen dagpanel är öppen");
+  return /** @type {HTMLElement} */ (p);
+};
+
 function rendera(extra = {}) {
   return render(
     <OpsCalendar entries={POSTER} ariaLabel="Kalender" today={TODAY} statusWords={STATUSORD} {...extra} />,
@@ -220,18 +230,22 @@ describe("OpsKalender", () => {
     expect(screen.getByRole("button", { name: "25, 1 post" })).toBeInTheDocument();
   });
 
-  it("gör en tom dag otryckbar i stället för att öppna ingenting", () => {
+  it("gör en tom dag tryckbar, och panelen säger att den är tom (0.36.0)", () => {
     /*
-     * ⛔ En knapp som öppnar en tom lista lär en att knappar inte gör något.
+     * ⛔ TILL 0.35.0 VAR EN TOM DAG `disabled`, med skälet att en knapp som öppnar en tom lista lär en att knappar inte
+     * gör något. Med skapa-rutan och flerdagsval (#179 F1, SS `useCalendarDaySelection`) är en tom dag den man väljer
+     * för att lägga något på den. Panelen säger då "Inga poster" och antalet noll (punkt 5), så trycket gör något.
      *
-     * ⛔ SCOPAT TILL OKTOBER, och det är inte prydnad: rutnätet ritar fyra
-     * månader, alltså finns det fyra knappar som heter "13". Ett osagt
-     * `getByRole` kastade på flera träffar, och det felet ser ut som en bugg i
-     * komponenten i stället för en tvetydig fråga i provet.
+     * ⛔ SCOPAT TILL OKTOBER: rutnätet ritar 25 månader, alltså finns det 25 knappar som heter "13".
      */
-    rendera();
+    rendera({ onSkapa: () => {} });
     const oktober = monthBox("oktober 2026");
-    expect(within(oktober).getByRole("button", { name: "13" })).toBeDisabled();
+    const tretton = within(oktober).getByRole("button", { name: "13" });
+    expect(tretton).not.toBeDisabled();
+    fireEvent.click(tretton);
+    expect(within(panelen()).getByText("Inga poster den här dagen.")).toBeInTheDocument();
+    expect(panelen().querySelector("[data-dagantal]").textContent).toBe("0poster");
+    expect(within(panelen()).getByRole("button", { name: "Skapa den 13 oktober" })).toBeInTheDocument();
   });
 
   it("öppnar dagen i en panel som ligger UTANFÖR rullbehållaren", () => {
@@ -357,7 +371,7 @@ describe("OpsKalender", () => {
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
 
-    const kortFor = (title) => screen.getByText(title).closest(".ops-contrast-panel");
+    const kortFor = (title) => within(panelen()).getByText(title).closest(".ops-contrast-panel");
     const ett = kortFor("Arbetsgivardeklaration");
     const two = kortFor("#249 stängdes");
 
@@ -440,29 +454,32 @@ describe("OpsKalender", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ta bort 25 oktober" }));
 
     expect(screen.getByRole("region", { name: "Poster den 12 oktober" })).toBeInTheDocument();
-    expect(screen.queryByText("Löneutbetalning")).toBeNull();
+    expect(within(panelen()).queryByText("Löneutbetalning")).toBeNull();
     // ⛔ Rutnätet vet om det: markeringen är släckt, inte bara dold.
     expect(screen.getByRole("button", { name: "25, 1 post" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("ger panelen ett tak och egen rullning på telefon", () => {
+  it("staplar panelen UNDER rutnätet på telefon, med tak, egen rullning och avdrag från rullytan (0.36.0)", () => {
     /*
-     * ⛔ EN DAG MED TOLV POSTER FÅR INTE VÄXA UT UR FÖNSTRET. Förebildens remsa
-     * har `max-h-[45%]` och `overflow-y-auto`, alltså samma sak: panelen tar en
-     * dryg tredjedel av skärmen och rullar inuti sig själv.
+     * ⛔ SS `CalendarView.jsx:208`: `shrink-0 max-h-[45%] overflow-y-auto`, UNDER rutnätet, och rutnätet krymper.
+     * Till 0.35.0 låg panelen `fixed` ovanpå rutnätet och dolde dagarna man ville trycka på härnäst.
      *
-     * ⛔ VAD PROVET BEVISAR OCH VAD DET INTE GÖR. jsdom räknar ingen layout, så
-     * den faktiska rullsträckan går inte att mäta här. Det som mäts är att taket
-     * och rullningen sitter på panelen, och att rullningen inte fortsätter ut i
-     * sidan när man nått botten.
+     * ⛔ VAD PROVET BEVISAR OCH VAD DET INTE GÖR. jsdom räknar ingen layout. Det som mäts är att taket, rullningen och
+     * avdraget sitter där de ska och bara under 1024 px. Höjderna mäts i Chromium i `check-skalyta` avsnitt 30.
      */
     rendera();
     fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
 
-    const panelen = screen.getByRole("region", { name: "Poster den 12 oktober" });
-    expect(panelen.className).toContain("max-h-[45svh]");
-    expect(panelen.className).toContain("overflow-y-auto");
-    expect(panelen.className).toContain("overscroll-contain");
+    const plats = document.querySelector("[data-dagpanel-plats]");
+    expect(plats.contains(panelen())).toBe(true);
+    const k = String(plats.className).split(/\s+/);
+    expect(k).toContain("max-lg:max-h-(--ops-dagpanel-max)");
+    expect(k).toContain("max-lg:overflow-y-auto");
+    expect(k).toContain("max-lg:overscroll-contain");
+    // ⛔ Och rullytan drar av panelens höjd, annars hade panelen hamnat under bottenraden.
+    expect(rullbehallaren().className).toContain("max-lg:h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_var(--ops-dagpanel))]");
+    // ⛔ Panelen ligger efter rutnätets kolumn i trädet, alltså under det när raden är en spalt.
+    expect(rullbehallaren().compareDocumentPosition(plats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("reserverar sidokolumnen även när ingen dag är vald", () => {
@@ -570,7 +587,7 @@ describe("OpsKalender", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "12, 1 post" }));
 
-    expect(screen.getByText("Utan status och utan länk")).toBeInTheDocument();
+    expect(within(panelen()).getByText("Utan status och utan länk")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Visa detaljer/ })).toBeNull();
   });
 
@@ -599,7 +616,7 @@ describe("OpsKalender", () => {
   ];
 
   /** @param {string} title */
-  const kortFor = (title) => screen.getByText(title).closest(".ops-contrast-panel");
+  const kortFor = (title) => within(panelen()).getByText(title).closest(".ops-contrast-panel");
 
   it("målar kanten i slagets färg, och lämnar kortet utan slag orört", () => {
     rendera({ entries: MED_KANT });
@@ -779,14 +796,16 @@ describe("OpsKalender", () => {
     }));
     rendera({ entries: fyra });
 
-    const ruta = screen.getByRole("button", { name: "12, 4 poster" });
+    // ⛔ Märkesraden och inte hela rutan: från 0.36.0 står också pillren med titel i rutan (från 640 px), med sin
+    // egen räknare, och deras "+N" säger ingenting om märkenas plats.
+    const ruta = screen.getByRole("button", { name: "12, 4 poster" }).querySelector("[data-kalender-marken]");
     expect(ruta.querySelectorAll("svg[data-prov]").length).toBe(2);
     expect(ruta.textContent).toContain("+2");
 
     // ⛔ Och EXAKT tre när ingen räknare behövs. Utan den här halvan hade
     // "visa alltid två" varit grönt, alltså ett märke bortkastat varje dag.
     rendera({ entries: fyra.slice(0, 3) });
-    const tre = screen.getByRole("button", { name: "12, 3 poster" });
+    const tre = screen.getByRole("button", { name: "12, 3 poster" }).querySelector("[data-kalender-marken]");
     expect(tre.querySelectorAll("svg[data-prov]").length).toBe(3);
     expect(tre.textContent).not.toContain("+");
   });

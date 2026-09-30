@@ -33,6 +33,7 @@
 
 import { ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
+import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT } from "./samtal.js";
 
 /**
@@ -646,6 +647,101 @@ export function samtalsregelfragment(namn = {}) {
           && request.resource.data.lastTill is int;
         allow delete: if false;
       }
+    }
+`;
+}
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════
+ * ⛔ EGET, AVGRÄNSAT BLOCK: KALENDRARNAS REGELFRAGMENT (0.36.0, #179 F0).
+ * Fälten, färgerna, taken och datumformerna kommer ur `src/lib/kalendrar.js`. Ändras modellen: ändra där.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Ett JavaScript-uttryck som ett regeluttryck: utan ankare (reglernas `matches` kräver alltid hela strängen) och med
+ * `[0-9]` i stället för `\d`. ⛔ HÄRLEDD UR SAMMA UTTRYCK SOM `byggKalenderpost` PRÖVAR MED, inte skrivet en gång till:
+ * två uttryck för "ett datum" hade glidit isär första gången det ena rättades (arbetsreglernas punkt 2).
+ * @param {RegExp} r @returns {string}
+ */
+const regeluttryck = (r) => r.source.replace(/^\^/, "").replace(/\$$/, "").replace(/\\d/g, "[0-9]");
+
+/**
+ * Regelfragmentet för kalendrarna: gruppens kalendrar, mina kalendrar och posterna i mina kalendrar.
+ *
+ * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
+ *
+ *   - GRUPPENS KALENDRAR: exakt katalogens block (medlem läser, ägare och admin skriver, nyckeln `groupId|id`, aldrig
+ *     radering), med kalenderns fält (`KALENDERFALT`). Samma motor som typerna, alltså samma regel.
+ *   - MINA KALENDRAR: bara ägaren läser och skriver, nyckeln är radens `id`, namnet är en sträng med tak och färgen en
+ *     av de sex. Aldrig radering: en kalender arkiveras, och posterna i den finns kvar och går att flytta.
+ *   - POSTERNA I MINA KALENDRAR: bara ägaren. Kalendern måste finnas bland ÄGARENS kalendrar och inte vara arkiverad,
+ *     titeln har tak, `heldag` avgör formen på `start` och `slut`, och `slut` är aldrig före `start`.
+ *     ⛔ EN POST FÅR RADERAS AV SIN ÄGARE, till skillnad från allt annat i ramverket. Skälet till "arkivering, aldrig
+ *     radering" är att någon annan frågar "varför försvann den" i efterhand. En privat post har ingen annan läsare.
+ *
+ * ⛔ INGEN ANNAN LÄSER NÅGON ANNANS KALENDER. Inte en gruppmedlem, inte en admin. Delning per post till en grupp är en
+ * senare fas, och då som en rad i gruppens scope: aldrig som en läsregel här som öppnar en annans hela samling.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. `anvandare` måste vara samma namn som skickas till `regelfragment()`, och
+ * fragmentet använder dess `opsInloggad` och `opsArAdmin`, alltså ska båda limmas in.
+ *
+ * @param {{ anvandare?: string, gruppkalendrar?: string, minaKalendrar?: string, kalenderposter?: string }} [namn]
+ * @returns {string}
+ */
+export function kalenderregelfragment(namn = {}) {
+  const anvandare = kontrolleraNamn(namn.anvandare ?? "users", "anvandare");
+  const gruppkalendrar = kontrolleraNamn(namn.gruppkalendrar ?? "gruppkalendrar", "gruppkalendrar");
+  const minaKalendrar = kontrolleraNamn(namn.minaKalendrar ?? "minaKalendrar", "minaKalendrar");
+  const kalenderposter = kontrolleraNamn(namn.kalenderposter ?? "kalenderposter", "kalenderposter");
+  const lista = (/** @type {readonly (string|number)[]} */ f) => f.map((x) => (typeof x === "number" ? String(x) : `"${x}"`)).join(", ");
+  const datum = regeluttryck(DATUMFORM);
+  const tidpunkt = regeluttryck(TIDPUNKTSFORM);
+
+  return `    // ══ Ramverkets kalendrar (0.36.0). GENERERAD, ändra inte för hand ══
+    //
+    // Källa: @staiger/ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KALENDERFALT], nyckelMedGrupp: true })}
+    function opsMinKalender(uid, kid) {
+      return /databases/$(database)/documents/${anvandare}/$(uid)/${minaKalendrar}/$(kid);
+    }
+
+    match /${anvandare}/{uid}/${minaKalendrar}/{kid} {
+      allow read: if opsInloggad() && request.auth.uid == uid;
+      allow create, update: if opsInloggad() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([${lista(MINKALENDERFALT)}])
+        && request.resource.data.id == kid
+        && request.resource.data.namn is string
+        && request.resource.data.namn.size() > 0
+        && request.resource.data.namn.size() <= ${MAX_KALENDERNAMN}
+        && request.resource.data.farg in [${lista(KALENDERFARGER)}];
+      allow delete: if false;
+    }
+
+    match /${anvandare}/{uid}/${kalenderposter}/{pid} {
+      allow read, delete: if opsInloggad() && request.auth.uid == uid;
+      allow create, update: if opsInloggad() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([${lista(KALENDERPOSTFALT)}])
+        && request.resource.data.id == pid
+        && request.resource.data.kalenderId is string
+        && exists(opsMinKalender(uid, request.resource.data.kalenderId))
+        && get(opsMinKalender(uid, request.resource.data.kalenderId)).data.get('arkiverad', false) != true
+        && request.resource.data.titel is string
+        && request.resource.data.titel.size() > 0
+        && request.resource.data.titel.size() <= ${MAX_POSTTITEL}
+        && request.resource.data.get('beskrivning', '').size() <= ${MAX_POSTBESKRIVNING}
+        && request.resource.data.get('plats', '').size() <= ${MAX_POSTPLATS}
+        && request.resource.data.heldag is bool
+        && request.resource.data.start is string
+        && request.resource.data.slut is string
+        && ((request.resource.data.heldag == true
+            && request.resource.data.start.matches('${datum}')
+            && request.resource.data.slut.matches('${datum}'))
+          || (request.resource.data.heldag == false
+            && request.resource.data.start.matches('${tidpunkt}')
+            && request.resource.data.slut.matches('${tidpunkt}')))
+        && request.resource.data.slut >= request.resource.data.start;
     }
 `;
 }

@@ -115,7 +115,7 @@ export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, IDENTITY_TONE_COUNT } from "./lib/identity.js";
 export { urgency, splitTodayUpcoming, daysBetween, daysUntil, collectEvents } from "./lib/events.js";
-export { dateKey, todayKey, months, monthGrid, perDay } from "./lib/calendar.js";
+export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka } from "./lib/calendar.js";
 export { readCaseFlow } from "./lib/caseFlow.js";
 export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
@@ -186,7 +186,12 @@ export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSK
 export { gruppmarkeProps } from "./lib/gruppikoner.js";
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, samtalsregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, samtalsregelfragment, kalenderregelfragment } from "./lib/regler.js";
+/*
+ * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
+ * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
+ */
+export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, kontrolleraTidszon, idagI } from "./lib/kalendrar.js";
 
 /*
  * ⛔ GRUPPLÄGET (#139, #190). Besluten är rena funktioner och ligger därför här:

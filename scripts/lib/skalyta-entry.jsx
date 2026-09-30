@@ -128,6 +128,51 @@ function FullYta({ vy }) {
   );
 }
 
+/*
+ * 0.36.0 (#179 F1): kalendern som SS, i skalet med bottenraden. Idag är onsdag 30 september 2026. Posterna täcker det
+ * avsnitt 30 mäter: en flerdagspost inom en vecka (5-7 okt), en över ett veckoskifte (9-13 okt), en heldag (1 okt), tre
+ * poster samma dag (12 okt, en i en annan kalender), och en typ och en status per post för filtret.
+ * `window.__lagring` är enhetens minne för veckonumren, `window.__skapat` vad "+" och skapa-rutan fick.
+ */
+const KAL_IDAG = new Date(2026, 8, 30, 12);
+const KAL_KALENDRAR = [
+  { id: "styrelse", namn: "Styrelsen", farg: 4, grupp: true, forvald: true },
+  { id: "resor", namn: "Resor", farg: 2, grupp: true },
+  { id: "privat", namn: "Privat", farg: 5 },
+];
+const kk = (id) => { const k = KAL_KALENDRAR.find((x) => x.id === id); return { id: k.id, namn: k.namn, farg: k.farg }; };
+const KAL_POSTER = [
+  { id: "stamma", date: "2026-10-01", allDay: true, title: "Deklarationsdag", typ: "deadline", status: "oppet" },
+  { id: "konferens", date: "2026-10-05", endDate: "2026-10-07", title: "Konferens i Visby", kalender: kk("resor"), typ: "resa", status: "oppet" },
+  { id: "semester", date: "2026-10-09", endDate: "2026-10-13", allDay: true, title: "Semester", kalender: kk("privat"), typ: "ledig", status: "klart" },
+  { id: "mote", date: "2026-10-12", title: "Styrelsemöte", typ: "mote", status: "oppet" },
+  { id: "lon", date: "2026-10-12", title: "Löneutbetalning", typ: "deadline", status: "vantar" },
+  { id: "tag", date: "2026-10-12", title: "Tåg till Malmö", kalender: kk("resor"), typ: "resa", status: "klart" },
+  { id: "moms", date: "2026-09-14", title: "Momsdeklaration", typ: "deadline", status: "klart" },
+  { id: "tandlakare", date: "2026-10-20", title: "Tandläkaren", not: "09:00-10:00", kalender: kk("privat"), typ: "ledig", status: "oppet" },
+];
+window.__lagring = {};
+window.__skapat = [];
+function KalenderScen() {
+  const { OpsView, OpsCalendar } = Ops;
+  return (
+    <Full>
+      <OpsView>
+        <OpsCalendar
+          ariaLabel="Kalender"
+          entries={KAL_POSTER}
+          today={KAL_IDAG}
+          kalendrar={KAL_KALENDRAR}
+          typer={[{ id: "mote", namn: "Möte" }, { id: "deadline", namn: "Deadline" }, { id: "resa", namn: "Resa" }, { id: "ledig", namn: "Ledig" }]}
+          statusWords={{ oppet: "Öppet", vantar: "Väntar", klart: "Klart" }}
+          onSkapa={(d) => window.__skapat.push(d)}
+          lagring={{ getItem: (n) => window.__lagring[n] ?? null, setItem: (n, v) => { window.__lagring[n] = v; } }}
+        />
+      </OpsView>
+    </Full>
+  );
+}
+
 function Skal({ children, extra = {} }) {
   const [aktiv] = useState("/");
   return (
@@ -646,6 +691,7 @@ function Scen() {
   // 0.32.1: ytor som ska nå bottenraden, se `FullYta`.
   if (s === "fullyta-idag") return <FullYta vy="idag" />;
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
+  if (s === "kalender") return <KalenderScen />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;

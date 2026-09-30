@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { gruppadSamling, katalogregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { gruppadSamling, kalenderregelfragment, katalogregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -33,6 +33,9 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * och provet ska mäta DEN, inte mönstret den råkar bygga på.
  *
  * ⛔ `samtal` MED FÖRVALDA NAMN (0.34.0): samma skäl, det är `samtalsregelfragment()` som provas.
+ *
+ * ⛔ KALENDRARNA MED FÖRVALDA NAMN (0.36.0, #179 F0): `kalenderregelfragment()`, alltså `gruppkalendrar`,
+ * `users/{uid}/minaKalendrar` och `users/{uid}/kalenderposter`.
  */
 const text = `rules_version = '2';
 
@@ -44,6 +47,7 @@ ${gruppadSamling("handelser")}
 ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 ${katalogregelfragment("kataloger")}
 ${samtalsregelfragment()}
+${kalenderregelfragment()}
     // ⛔ Catch-all sist, och den nekar. En samling utan block ska falla här och
     // inte råka ärva någon annans villkor.
     match /{document=**} {
