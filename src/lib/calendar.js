@@ -51,6 +51,15 @@
  *   ⛔ Ramverket bestämmer STORLEKEN i rutnätet och appen bestämmer BILDEN. En
  *   16 px ikon som passar en rad spränger en kalenderruta, och appen kan inte
  *   veta hur bred rutan är hos den som tittar.
+ * @property {string} [endDate] Sista dagen, `YYYY-MM-DD`, inklusive (0.36.0, #179 F1). Finns den och ligger efter
+ *   `date` ritas posten som ett BAND över dagarna, en rad per vecka, i stället för ett märke i varje ruta.
+ * @property {boolean} [allDay] Heldag (0.36.0). Ritas som ett band också när den är en enda dag, och kortet säger
+ *   "Heldag" i stället för ett klockslag.
+ * @property {{ id: string, namn: string, farg: 1|2|3|4|5|6 }} [kalender] Kalendern posten ligger i (0.36.0, #179 F0).
+ *   Färgen är en ton ur identitetspaletten och står ALDRIG ensam: namnet står bredvid den i kortet och i filtret.
+ *   ⛔ Saknas den hör posten till den förvalda kalendern i `OpsCalendar`s `kalendrar` (en händelse skriven före
+ *   0.36.0 har ingen kalender, och ska inte försvinna ur ett filter för det).
+ * @property {string} [typ] Typens id ur appens typkatalog (0.36.0). Det verktygsradens typfilter jämför med.
  */
 
 /**
@@ -161,11 +170,24 @@ export function months(today, back, ahead) {
 export function perDay(entries) {
   /** @type {Map<string, CalendarEntry[]>} */
   const byKey = new Map();
+  /** @param {string} dag @param {CalendarEntry} p */
+  const lagg = (dag, p) => {
+    const existed = byKey.get(dag);
+    if (existed) existed.push(p);
+    else byKey.set(dag, [p]);
+  };
   for (const p of entries || []) {
     if (!p || typeof p.date !== "string" || !p.date) continue;
-    const existed = byKey.get(p.date);
-    if (existed) existed.push(p);
-    else byKey.set(p.date, [p]);
+    /*
+     * ⛔ EN FLERDAGSPOST LIGGER PÅ VARJE DAG DEN TÄCKER (0.36.0). Dagpanelen och snabbtitten ska visa den oavsett vilken
+     * av dagarna man tryckte på, och räknaren i rutan ska räkna den. Taket (`MAX_SPANN`) finns för att en post med ett
+     * felskrivet slutår inte ska bli trettiotusen nycklar.
+     */
+    if (typeof p.endDate === "string" && p.endDate > p.date) {
+      for (const dag of datumOmfang(p.date, p.endDate).slice(0, MAX_SPANN)) lagg(dag, p);
+    } else {
+      lagg(p.date, p);
+    }
   }
   return byKey;
 }
@@ -314,4 +336,180 @@ export function dateText(key, locale = DEFAULT_LOCALE) {
 export function scrollDirection(theElement, theBox) {
   const boxTop = theBox ? theBox.top : 0;
   return theElement.top < boxTop ? "upp" : "ner";
+}
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════
+ * ⛔ 0.36.0 (#179 F1): MÅNADSVYN SOM SESSIONSTUDIO. Allt nedan är ren logik av samma skäl som filhuvudet: veckans
+ * nummer, ett band över tre veckor och vad ett andra tryck gör ska gå att prova utan att rendera något.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/** Tak för hur många dagar en post kan spänna över innan den kapas i rutnätet. Ett år och en dag. */
+export const MAX_SPANN = 367;
+
+/**
+ * Dagen efter, som sträng. Via UTC, så att en sommartidsövergång aldrig ger samma dag två gånger.
+ * @param {string} dag @param {number} [n] @returns {string}
+ */
+export function plusDagar(dag, n = 1) {
+  const [a, m, d] = dag.split("-").map(Number);
+  const dt = new Date(Date.UTC(a, m - 1, d + n));
+  return `${dt.getUTCFullYear()}-${two(dt.getUTCMonth() + 1)}-${two(dt.getUTCDate())}`;
+}
+
+/**
+ * Alla dagar från och med `fran` till och med `till`, i ordning. Omvänd ordning ger samma svar, eftersom en
+ * dra-markering kan gå bakåt.
+ * @param {string} fran @param {string} till @returns {string[]}
+ */
+export function datumOmfang(fran, till) {
+  const [a, b] = fran <= till ? [fran, till] : [till, fran];
+  const ut = [];
+  for (let d = a; d <= b && ut.length <= MAX_SPANN; d = plusDagar(d)) ut.push(d);
+  return ut;
+}
+
+/**
+ * ISO-veckonumret för en dag (måndag först, vecka 1 är den som innehåller årets första torsdag). SS `getISOWeek`.
+ * @param {number} ar @param {number} month 0-indexerad @param {number} day @returns {number}
+ */
+export function isoVecka(ar, month, day) {
+  const d = new Date(Date.UTC(ar, month, day));
+  const veckodag = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - veckodag + 3);
+  const forstaTorsdag = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((d.getTime() - forstaTorsdag.getTime()) / 86400000 - 3 + ((forstaTorsdag.getUTCDay() + 6) % 7)) / 7);
+}
+
+/**
+ * Fönstret kalendern ritar: första dagen i den tidigaste månaden till sista dagen i den senaste.
+ *
+ * ⛔ EN FUNKTION SOM BÅDE VYN OCH APPENS LÄSVÄG ANVÄNDER. `/kalender` läste Idags 60 dagar framåt och ingenting
+ * bakåt (cllp/bolag-ops `web/src/data/events.js`), så tolv månader historik ritades tomma. Ska appen läsa rätt fönster
+ * får den inte räkna fram det själv: två räkningar av samma fönster glider isär första gången standardvärdet ändras.
+ *
+ * @param {string | Date} idag `YYYY-MM-DD` eller ett datum.
+ * @param {number} [bakat] Förval 12, som SS `CalView.jsx` (`monthsBefore = 12`).
+ * @param {number} [framat] Förval 12, som SS `CalendarView.jsx` (`monthsToShow={12}`).
+ * @returns {{ fran: string, till: string }}
+ */
+export function kalenderfonster(idag, bakat = 12, framat = 12) {
+  const bas = typeof idag === "string" ? franNyckel(idag) : idag;
+  const lista = months(bas, bakat, framat);
+  const forsta = lista[0];
+  const sista = lista[lista.length - 1];
+  return { fran: dateKey(forsta.ar, forsta.month, 1), till: dateKey(sista.ar, sista.month, daysInMonth(sista.ar, sista.month)) };
+}
+
+/**
+ * Ett datum ur en nyckel, klockan tolv lokal tid (aldrig midnatt: då kan en sommartidsövergång flytta den en dag).
+ * @param {string} nyckel @returns {Date}
+ */
+export function franNyckel(nyckel) {
+  const [a, m, d] = nyckel.split("-").map(Number);
+  return new Date(a, m - 1, d, 12);
+}
+
+/**
+ * Ett band i en veckorad.
+ * @typedef {object} Bandbit
+ * @property {CalendarEntry} entry
+ * @property {number} startCol 0 till 6.
+ * @property {number} colSpan
+ * @property {boolean} borjar Posten börjar i den här veckan (bandets vänstra ände är rund, och titeln står där).
+ * @property {boolean} slutar Posten slutar i den här veckan.
+ * @property {number} fil Vilken rad bandet ligger i när flera överlappar.
+ */
+
+/**
+ * Banden i en veckorad: flerdagsposter och heldagsposter, med fil per överlapp (SS `getSpanSegmentsForWeekRow`).
+ *
+ * ⛔ FILERNA DELAS UT GIRIGT: varje bit i den lägsta fil vars senaste bit slutar före den här börjar. Samma regel som
+ * SS, och av samma skäl: två band som överlappar ska staplas och inte ritas ovanpå varandra.
+ *
+ * @param {(string | null)[]} rad Veckans sju nycklar, `null` för en tom ruta.
+ * @param {CalendarEntry[]} entries
+ * @returns {Bandbit[]}
+ */
+export function bandIVecka(rad, entries) {
+  /** @type {Bandbit[]} */
+  const bitar = [];
+  for (const e of entries || []) {
+    if (!e || typeof e.date !== "string") continue;
+    const slut = typeof e.endDate === "string" && e.endDate > e.date ? e.endDate : e.date;
+    if (!(slut > e.date || e.allDay)) continue;
+    let startCol = -1;
+    let endCol = -1;
+    rad.forEach((dag, col) => {
+      if (dag && dag >= e.date && dag <= slut) {
+        if (startCol < 0) startCol = col;
+        endCol = col;
+      }
+    });
+    if (startCol < 0) continue;
+    bitar.push({ entry: e, startCol, colSpan: endCol - startCol + 1, borjar: rad[startCol] === e.date, slutar: rad[endCol] === slut, fil: 0 });
+  }
+  bitar.sort((a, b) => a.startCol - b.startCol || b.colSpan - a.colSpan || String(a.entry.title).localeCompare(String(b.entry.title)));
+  /** @type {number[]} */
+  const filSlut = [];
+  for (const b of bitar) {
+    let fil = 0;
+    while (fil < filSlut.length && filSlut[fil] >= b.startCol) fil += 1;
+    b.fil = fil;
+    filSlut[fil] = b.startCol + b.colSpan - 1;
+  }
+  return bitar;
+}
+
+/**
+ * Om en post är ett band (flerdag eller heldag) och därför inte ett märke i rutan.
+ * @param {CalendarEntry} e @returns {boolean}
+ */
+export const arBand = (e) => Boolean(e && ((typeof e.endDate === "string" && e.endDate > e.date) || e.allDay));
+
+/**
+ * Ett tryck på en dag: med i urvalet om den inte var det, ur urvalet om den var det. Sorterat.
+ *
+ * ⛔ SAMMA SVAR SOM SS `handleCalDaySelect`, som skiljer på "en vald dag" och "flera valda" men gör samma sak i båda:
+ * ett andra tryck på en annan dag lägger till den, ett tryck på en vald dag tar bort den.
+ *
+ * @param {readonly string[]} valda @param {string} dag @returns {string[]}
+ */
+export function valjDag(valda, dag) {
+  return valda.includes(dag) ? valda.filter((d) => d !== dag) : [...valda, dag].sort();
+}
+
+/**
+ * Ett tryck på veckonumret: är hela veckan redan vald tas den bort, annars läggs den till (SS `handleCalWeekSelect`).
+ * @param {readonly string[]} valda @param {readonly string[]} vecka @returns {string[]}
+ */
+export function valjVecka(valda, vecka) {
+  const alla = vecka.length > 0 && vecka.every((d) => valda.includes(d));
+  const s = new Set(valda);
+  for (const d of vecka) {
+    if (alla) s.delete(d);
+    else s.add(d);
+  }
+  return [...s].sort();
+}
+
+/**
+ * En dra-markering: intervallet läggs till urvalet (SS `handleCalRangeSweepSelect`). Under två dagar är det ett tryck,
+ * inte ett drag, och urvalet lämnas orört.
+ * @param {readonly string[]} valda @param {readonly string[]} dagar @returns {string[]}
+ */
+export function valjIntervall(valda, dagar) {
+  if (dagar.length < 2) return [...valda];
+  return [...new Set([...valda, ...dagar])].sort();
+}
+
+/**
+ * Om en post träffar en sökning: titel, rad under titeln eller kalenderns namn, utan hänsyn till versaler.
+ * @param {CalendarEntry} e @param {string} fraga @returns {boolean}
+ */
+export function traffar(e, fraga) {
+  const f = fraga.trim().toLocaleLowerCase("sv");
+  if (!f) return true;
+  return [e.title, e.not, e.kalender && e.kalender.namn].some((t) => typeof t === "string" && t.toLocaleLowerCase("sv").includes(f));
 }
