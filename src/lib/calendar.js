@@ -513,3 +513,38 @@ export function traffar(e, fraga) {
   if (!f) return true;
   return [e.title, e.not, e.kalender && e.kalender.namn].some((t) => typeof t === "string" && t.toLocaleLowerCase("sv").includes(f));
 }
+
+/**
+ * Kalendern en post utan `kalender` hör till: gruppens förvalda, annars gruppens första, annars en förvald av mina.
+ *
+ * ⛔ GRUPPENS FÖRST. En post utan kalender är en av appens händelser skriven före 0.36.0, och en händelse ligger alltid i
+ * gruppen, aldrig i någons egen kalender (`handelsensKalenderId`).
+ *
+ * @param {ReadonlyArray<{ id: string, grupp?: boolean, forvald?: boolean }> | undefined} kalendrar @returns {string}
+ */
+export function forvaldKalenderId(kalendrar) {
+  const alla = kalendrar || [];
+  const g = alla.filter((k) => k.grupp);
+  return ((g.find((k) => k.forvald) || g[0] || alla.find((k) => k.forvald)) || { id: "" }).id;
+}
+
+/**
+ * Posterna som syns med ett filter: valda kalendrar, typ och status (0.37.0, utbruten ur `OpsCalendar`, #179 F2).
+ *
+ * ⛔ REN FUNKTION, SÅ ATT KLARKRITERIET GÅR ATT PROVA DIREKT: "en post i en bortvald kalender syns inte, och syns igen när
+ * kalendern väljs". Filtret avgör vad som RITAS, inte vad som finns: snabbtitten visar resten märkt "Dold".
+ *
+ * ⛔ `valdaKalendrar: null` ÄR ALLA, OCH ETT TOMT URVAL BLIR ALDRIG "INGA" (verktygsraden gör det till `null`).
+ *
+ * @param {ReadonlyArray<CalendarEntry>} entries
+ * @param {{ valdaKalendrar: ReadonlyArray<string> | null, forvaldId: string, typ?: string, status?: string }} filter
+ * @returns {CalendarEntry[]}
+ */
+export function filtreraPoster(entries, { valdaKalendrar, forvaldId, typ = "alla", status = "alla" }) {
+  return entries.filter((e) => {
+    if (valdaKalendrar && !valdaKalendrar.includes(e.kalender ? e.kalender.id : forvaldId)) return false;
+    if (typ !== "alla" && e.typ !== typ) return false;
+    if (status !== "alla" && e.status !== status) return false;
+    return true;
+  });
+}
