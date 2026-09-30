@@ -91,7 +91,9 @@ export function OpsDisclosure({ summary, children, defaultOpen = false, open, on
           "rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         )}
       >
-        <div className="min-w-0 flex-1">{summary}</div>
+        {/* ⛔ `text-etikett` (0.32.1, CP 2026-09-30 08:04, "Dubbelkolla även inkorgen"): utan en roll här ärvde innehåll
+            utan egen klass bodyns 16 px, alltså större än SS rader (`text-sm`, 14). Appens egna klasser vinner som förut. */}
+        <div className="min-w-0 flex-1 text-etikett">{summary}</div>
         {badge && badge > 0 ? (
           <span className="shrink-0 rounded-full bg-accent-subtle px-2 py-0.5 text-meta font-semibold tabular-nums text-ink">{badge}</span>
         ) : null}

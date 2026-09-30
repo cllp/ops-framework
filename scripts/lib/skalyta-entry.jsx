@@ -56,6 +56,38 @@ const kategorier = [
   { id: "c", namn: { sv: "Övrigt" }, farg: 3, ikon: "wallet", fas: "aktiv", ordning: 2, texter: {} },
 ];
 
+// Fasta, så att kalendern inte räknar om sina månader vid varje rendering.
+const FULLYTA_IDAG = new Date(2026, 8, 30);
+const FULLYTA_POSTER = Array.from({ length: 10 }, (_, i) => ({ id: `k${i}`, date: `2026-09-${String(3 + i * 2).padStart(2, "0")}`, title: `Post ${i + 1}` }));
+
+/**
+ * 0.32.1 (CP 2026-09-30, "Kalender och idag går inte ända ner utan huggs av i botten"): en yta som ska nå bottenraden,
+ * som bolag-ops Idag (`OpsScrollArea` med en lista) och Kalender (`OpsCalendar`). Ovanför ytan står en rad på 170 px när
+ * `window.__banner` är satt, och `window.__tabortBanner()` tar bort den EFTER mount: en banner som försvinner ovanför ytan.
+ * @param {{ vy: "idag" | "kalender" }} props
+ */
+function FullYta({ vy }) {
+  const [banner, setBanner] = useState(!!window.__banner);
+  window.__tabortBanner = () => setBanner(false);
+  const { OpsView, OpsScrollArea, OpsCalendar } = Ops;
+  const handelser = Array.from({ length: 14 }, (_, i) => ({ id: `f${i}`, title: `Händelse nummer ${i + 1}`, daysLeft: i - 3, role: "Du", kind: "Uppgift", when: `Om ${i} dagar`, slag: 2, slagLabel: "Uppgift" }));
+  return (
+    <Full>
+      <OpsView>
+        {banner ? <div data-banner="" style={{ height: 170 }} className="bg-raised">Banner</div> : null}
+        <p data-filter="">Filter</p>
+        {vy === "idag" ? (
+          <OpsScrollArea>
+            <OpsEventList events={handelser} />
+          </OpsScrollArea>
+        ) : (
+          <OpsCalendar ariaLabel="Kalender" entries={FULLYTA_POSTER} today={FULLYTA_IDAG} />
+        )}
+      </OpsView>
+    </Full>
+  );
+}
+
 function Skal({ children, extra = {} }) {
   const [aktiv] = useState("/");
   return (
@@ -449,6 +481,53 @@ function Scen() {
       </Full>
     );
   }
+  // 0.32.1 (CP 2026-09-30 08:04, "Kolla storleken och fint på texten i händelserna. Matchar inte det vi har i SessionStudio.
+  // Dubbelkolla även inkorgen."): två händelsekort som bolag-ops Idag, en inkorgsrad i `OpsDisclosure` med en summary utan
+  // egen klass, och en liten `OpsPill`. `OpsRollmarke` finns inte i 0.32.0: då ritas en markör och provet blir rött på rätt sak.
+  if (s === "handelsekort") {
+    const { OpsView, OpsDisclosure } = Ops;
+    const Roll = Ops.OpsRollmarke ?? (({ label }) => <span data-saknas="OpsRollmarke">{label}</span>);
+    const handelser = [
+      { id: "k1", title: "Kundfaktura 119223 Adavo AB, skickad, väntar betalning, 158 400 kr inkl moms", daysLeft: -20, role: <Roll kind="human" label="Du" />, kind: "Faktum", slag: 1, slagLabel: "Faktum", when: "För 20 dagar sedan", deadline: "Senast 10 sep", details: <p>Fakta om fakturan.</p> },
+      { id: "k2", title: "Attest större leverantörsfakturor", daysLeft: 3, role: <Roll kind="auto" label="Förfaller" />, kind: "Påminnelse", slag: 2, slagLabel: "Påminnelse", when: "Om 3 dagar", deadline: "Senast 3 okt", details: <p>Tre fakturor över 50 000 kr.</p> },
+    ];
+    return (
+      <Full>
+        <OpsView>
+          <div data-handelser="">
+            <OpsEventList events={handelser} />
+          </div>
+          <OpsDisclosure summary={<span data-summary-utan-klass="">Kundfaktura 119223 Adavo AB, skickad</span>}>
+            <p>Innehåll</p>
+          </OpsDisclosure>
+          <span data-pill-liten="">
+            <OpsPill size="liten">Ärende</OpsPill>
+          </span>
+        </OpsView>
+      </Full>
+    );
+  }
+  // 0.32.1 (CP 2026-09-30, skärmbild av Profil på dator: "Typsnitten på profil är också fel. Storlek / typsnitt"): profilen som
+  // bolag-ops ritar den, med bild (så att Ta bort och Använd initialer syns), roll och en grupp.
+  if (s === "profil") {
+    const bild = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#8E7A4E"/></svg>');
+    return (
+      <Full>
+        <Ops.OpsProfil
+          anvandare={{ id: "u1", namn: "Claes Philip Staiger", epost: "claes-philip@staiger.se", bild, telefon: "+46701234567", stad: "Visby", presentation: "", lankar: [], sprak: "sv", tema: "system" }}
+          roll="Ägare"
+          grupper={[{ grupp: { id: "g1", namn: "Claes Philip Staiger AB" }, roll: "agare" }]}
+          onSpara={async () => {}}
+          onTema={() => {}}
+          onLoggaUt={() => {}}
+          inloggningsBild={bild}
+        />
+      </Full>
+    );
+  }
+  // 0.32.1: ytor som ska nå bottenraden, se `FullYta`.
+  if (s === "fullyta-idag") return <FullYta vy="idag" />;
+  if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;

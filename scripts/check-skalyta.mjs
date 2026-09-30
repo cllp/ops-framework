@@ -1036,7 +1036,11 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
   }
   krav(vantat === 0, `modalen ${namn}: OpsTimePicker finns inte i den här versionen (ingen tidsväljare).`);
   /** @param {string} valjare @param {string} text */
-  const overst = (valjare, text) =>
+  // ⛔ En lista eller kalender i en popover placeras och animeras EFTER klicket (Radix mäter sin position i nästa
+  // bildruta). Att mäta i samma ögonblick gav "överst false" på CI:s långsammare maskin i PR 183 fast lokalt grönt,
+  // samma felform som värdet i PR 176. Vänta därför högst 3 s på att elementet ligger överst, och döm det sista som
+  // mättes: något som fortfarande ligger över efter 3 s är ett riktigt fel, och `ovanpa` säger då vad det är.
+  const overstNu = (valjare, text) =>
     page.evaluate(
       ([v, t]) => {
         const el = [...document.querySelectorAll(v)].find((e) => (e.textContent || "").trim() === t);
@@ -1045,10 +1049,22 @@ for (const [namn, vp] of /** @type {const} */ ([["390 px", { width: 390, height:
         const x = r.left + r.width / 2;
         const y = r.top + r.height / 2;
         const top = document.elementFromPoint(x, y);
-        return { finns: true, iVyn: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, overst: !!top && (el === top || el.contains(top) || top.contains(el)) };
+        const arOverst = !!top && (el === top || el.contains(top) || top.contains(el));
+        const ovanpa = arOverst || !top ? null : `${top.tagName.toLowerCase()}.${String(top.className).split(/\s+/).slice(0, 4).join(".")}`;
+        return { finns: true, iVyn: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, overst: arOverst, ovanpa };
       },
       [valjare, text],
     );
+  /** @param {string} valjare @param {string} text */
+  const overst = async (valjare, text) => {
+    const slut = Date.now() + 3000;
+    let m = await overstNu(valjare, text);
+    while (!(m.finns && m.iVyn && m.overst) && Date.now() < slut) {
+      await page.waitForTimeout(50);
+      m = await overstNu(valjare, text);
+    }
+    return m;
+  };
   varde = async () => JSON.parse((await page.locator("[data-varde]").textContent()) || "{}");
   // ⛔ Ett val skrivs till formuläret när React har renderat om, inte i samma ögonblick som
   // klicket. Att läsa värdet direkt gav {} på CI:s långsammare maskin i PR 176 fast valet
@@ -2173,6 +2189,235 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   } catch (e) {
     krav(false, `gruppsida ${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}): OpsGruppSida ritades inte.`);
   }
+  await context.close();
+}
+
+// ══ 24. IDAG OCH KALENDERN NÅR BOTTENRADEN, OCKSÅ NÄR FÖNSTRET ÄNDRAS EFTER MOUNT (0.32.1) ══════════════════════════════
+// CP 2026-09-30, två skärmbilder från telefonen: "Kalender och idag går inte ända ner utan huggs av i botten." Innehållet slutade
+// långt ovanför bottenraden: ett kort i Idag klipptes rakt av och veckoraden i Kalender klipptes horisontellt. Rotorsaken var
+// `useFullHeight` (src/lib/fullHeight.js): höjden räknades ur `100svh`, men raden är `fixed bottom-0` och följer den verkliga
+// kanten, och toppen mättes bara vid mount och resize.
+//
+// ⛔ VARFÖR 21 OCH 21b VAR GRÖNA GENOM HELA FELET (tomt underlag av annat slag): i en skrivbords-Chromium är `100svh` ALLTID
+// lika med fönstrets höjd, eftersom det inte finns något verktygsfält som fälls in. Säkra zoner sattes som tokens och inte som
+// en skillnad mellan `svh` och den synliga höjden, fönstret ändrades aldrig efter mount, och ingenting ovanför ytan försvann.
+// Alla tre sakerna som skiljer en iPhone från skrivbordet saknades, så uttrycket mättes bara i det enda läge där det råkar stämma.
+//
+// Här mäts `navTop - ytaBottom` vid 390x844, med `--safe-top: 47px` och `--safe-bottom: 34px` satta FÖRE mount, i tre lägen:
+//   (a) Safaris verktygsfält fälls in EFTER mount: fönstret växer från 844 till 928. Chromium har inget verktygsfält, och
+//       dess `100svh` följer med när fönstret växer (mätt nedan), så `svh` modelleras som det Safari gör: fast vid höjden
+//       vid mount. `100svh` i höjduttrycken skrivs om till `844px` i den genererade CSS:en, och skillnaden mot den synliga
+//       höjden mäts efteråt.
+//   (b) Hemskärmsläget, där `svh` skiljer sig från den synliga höjden med de säkra zonerna: `100svh` blir `calc(100dvh - 81px)`.
+//   (c) En rad på 170 px står ovanför ytan vid mount och tas bort efteråt, utan resize.
+// Krav: gapet är 23 +- 2 px i alla lägen (samma luft som `OpsView`s `pb-6`). Golv: minst 2 vyer och 3 lägen mätta.
+{
+  const safeCss = ":root{--safe-top:47px!important;--safe-bottom:34px!important}";
+  /**
+   * Skriver om `100svh` i HÖJDUTTRYCKEN (efter `calc(`) och aldrig i väljarna, där parentesen är escapad (`calc\(100svh`).
+   * @param {string} c @param {string} till @returns {{ css: string, antal: number }}
+   */
+  const svhTill = (c, till) => {
+    let antal = 0;
+    const ny = c.replace(/(?<!\\)\(100svh/g, () => { antal += 1; return `(${till}`; });
+    return { css: ny, antal };
+  };
+  /** @type {Set<string>} */
+  const vyerMatta = new Set();
+  /** @type {Set<string>} */
+  const lagenMatta = new Set();
+  for (const vy of /** @type {const} */ (["idag", "kalender"])) {
+    for (const lage of /** @type {const} */ (["a", "b", "c"])) {
+      const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      const page = await context.newPage();
+      page.setDefaultTimeout(4000);
+      const fel = /** @type {string[]} */ ([]);
+      page.on("pageerror", (e) => fel.push(e.message));
+      await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
+      const om = lage === "a" ? svhTill(css, "844px") : lage === "b" ? svhTill(css, "calc(100dvh - 81px)") : { css, antal: 0 };
+      const html = sida(`fullyta-${vy}`).replace(css, () => om.css);
+      await page.addInitScript(({ regel, banner }) => {
+        const sh = new CSSStyleSheet();
+        sh.replaceSync(regel);
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sh];
+        /** @type {any} */ (window).__banner = banner;
+      }, { regel: safeCss, banner: lage === "c" });
+      await page.route("http://skalyta.test/**", (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+      await page.goto("http://skalyta.test/");
+      await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      const mat = () => page.evaluate(() => {
+        const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+        const yta = /** @type {HTMLElement | null} */ (document.querySelector('main [style*="--fullhojd"]'));
+        const probe = (h) => { const d = document.createElement("div"); d.style.cssText = `position:fixed;visibility:hidden;width:1px;height:${h}`; document.body.append(d); const v = d.getBoundingClientRect().height; d.remove(); return v; };
+        const cs = getComputedStyle(document.documentElement);
+        return {
+          navTop: nav ? nav.getBoundingClientRect().top : null,
+          ytaBottom: yta ? yta.getBoundingClientRect().bottom : null,
+          ytaTop: yta ? yta.getBoundingClientRect().top : null,
+          fonster: window.innerHeight, svhRiktig: probe("100svh"), safeTop: cs.getPropertyValue("--safe-top").trim(), safeBottom: cs.getPropertyValue("--safe-bottom").trim(),
+          dok: document.documentElement.scrollHeight, banner: !!document.querySelector("[data-banner]"),
+        };
+      });
+      const fore = await mat();
+      /** @type {string} */
+      let skillnad = "";
+      if (lage === "a") {
+        await page.setViewportSize({ width: 390, height: 928 });
+        await page.waitForTimeout(400);
+        const f = await page.evaluate(() => window.innerHeight);
+        // Skillnaden mellan den modellerade `svh` (844, fast vid mount) och den synliga höjden efter att fältet fällts in.
+        skillnad = `synlig ${f} mot modellerad svh 844 (${f - 844} px), Chromiums egen 100svh följde med till ${await page.evaluate(() => { const d = document.createElement("div"); d.style.cssText = "position:fixed;height:100svh"; document.body.append(d); const v = d.getBoundingClientRect().height; d.remove(); return v; })}`;
+        krav(f - 844 >= 50, `fullyta ${vy} (a): fönstret växte bara till ${f}, ingen skillnad mot den modellerade svh 844 uppstod. Läget mäter då ingenting.`);
+      } else if (lage === "b") {
+        skillnad = `synlig ${fore.fonster} mot modellerad svh ${fore.fonster - 81}`;
+      } else {
+        krav(fore.banner, `fullyta ${vy} (c): raden på 170 px ovanför ytan ritades inte vid mount.`);
+        await page.evaluate(() => /** @type {any} */ (window).__tabortBanner());
+        await page.waitForTimeout(400);
+      }
+      const e = await mat();
+      if (fel.length) krav(false, `fullyta ${vy} (${lage}): sidan kastade: ${fel[0]}`);
+      krav(e.safeTop === "47px" && e.safeBottom === "34px", `fullyta ${vy} (${lage}): säkra zoner ${e.safeTop}/${e.safeBottom}, väntat 47px/34px före mount.`);
+      if (e.navTop === null || e.ytaBottom === null) {
+        krav(false, `fullyta ${vy} (${lage}): ${e.navTop === null ? "bottenraden" : "ytan"} hittades inte, inget att mäta.`);
+      } else {
+        vyerMatta.add(vy);
+        lagenMatta.add(lage);
+        const gap = e.navTop - e.ytaBottom;
+        matt.push(`fullyta ${vy} (${lage}): ytan ${e.ytaTop}..${e.ytaBottom}, bottenraden ${e.navTop}, gap ${gap.toFixed(1)} px, fönster ${e.fonster}, dokument ${e.dok}, svh omskrivet ${om.antal} gånger${skillnad ? `, ${skillnad}` : ""}${lage === "c" ? `, raden ovanför borta: ${!e.banner}` : ""}`);
+        krav(Math.abs(gap - 23) <= 2, `fullyta ${vy} (${lage}): ${gap.toFixed(1)} px mellan ytans underkant och bottenradens överkant, väntat 23 +- 2. ${gap > 25 ? "Ytan slutar för tidigt: CP 2026-09-30, \"huggs av i botten\"." : "Ytan går in under bottenraden."}`);
+        if (lage === "c") krav(!e.banner, `fullyta ${vy} (c): raden ovanför ytan togs inte bort.`);
+      }
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `fullyta-${vy}-${lage}-390.png`) });
+      await context.close();
+    }
+  }
+  matt.push(`fullyta: ${vyerMatta.size} vyer och ${lagenMatta.size} lägen mätta`);
+  krav(vyerMatta.size >= 2 && lagenMatta.size >= 3, `fullyta: bara ${vyerMatta.size} vyer och ${lagenMatta.size} lägen mätta, väntat minst 2 och 3 (golv: ett gap som inte mättes är inte grönt).`);
+}
+
+// ══ 25. HÄNDELSEKORTET OCH INKORGSRADEN MOT SS VID 390 PX (0.32.1) ══════════════════════════════════════════════════════
+// CP 2026-09-30 08:04: "Kolla storleken och fint på texten i händelserna. Matchar inte det vi har i SessionStudio. Dubbelkolla
+// även inkorgen." Titeln var redan 18/700 som SS (avsnitt 20 mäter det). Felet låg i kompositionen: chevronkolumnen (44 px)
+// tog bredd från titeln (251 px mot SS 301, en rad extra), tidsgruppen (`ml-auto`) blev högerställd på en egen rad, en
+// summary utan egen klass ärvde 16 px, och typbadgen hade pillrets 12/600 där SS har 9/500. CP valde samma dag 24 px radie som
+// SS (`--radius-card`, SS `index.css:228`), där `bubbla` hade blivit 28.
+// Krav: titeln minst 95 procent av kortets innerbredd, datumradens vänsterkant lika med titelns (+-1), radien 24 +- 0,5,
+// rollmärket samma storlek, vikt, luft och höjd som "Försenat", summary utan klass 14 px, `OpsPill size="liten"` 10 px.
+// Golv: minst 2 kort mätta.
+{
+  const { page, context } = await oppna("handelsekort", { width: 390, height: 844 });
+  const m = await page.evaluate(() => {
+    const kort = [...document.querySelectorAll("[data-handelser] ul > li > div")];
+    const rader = kort.map((k) => {
+      const cs = getComputedStyle(k);
+      const inner = k.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const titel = [...k.querySelectorAll("span")].find((e) => /^(Kundfaktura 119223|Attest större)/.test(e.textContent || "") && e.children.length === 0);
+      const nar = [...k.querySelectorAll("span")].find((e) => /^(För 20 dagar sedan|Om 3 dagar)$/.test((e.textContent || "").trim()));
+      const tr = titel ? titel.getBoundingClientRect() : null;
+      const nr = nar ? nar.getBoundingClientRect() : null;
+      return { inner, titelW: tr ? tr.width : null, titelX: tr ? tr.left : null, narX: nr ? nr.left : null, narOvanTitel: tr && nr ? nr.bottom <= tr.top + 0.5 : null, radie: parseFloat(cs.borderTopRightRadius) };
+    });
+    const forsenat = [...document.querySelectorAll("[data-handelser] span")].find((e) => (e.textContent || "").trim() === "Försenat" && e.children.length === 0);
+    const du = [...document.querySelectorAll("[data-handelser] span")].find((e) => (e.textContent || "").trim() === "Du" && e.children.length === 0);
+    /** @param {Element | undefined} e */
+    const matt = (e) => {
+      if (!e) return null;
+      const cs = getComputedStyle(e);
+      return { fs: cs.fontSize, fw: cs.fontWeight, pad: `${cs.paddingTop} ${cs.paddingRight}`, h: Math.round(e.getBoundingClientRect().height * 10) / 10, saknas: e.hasAttribute("data-saknas") };
+    };
+    const summary = document.querySelector("[data-summary-utan-klass]");
+    const liten = document.querySelector("[data-pill-liten] > span");
+    return { rader, forsenat: matt(forsenat), du: matt(du), summary: summary ? getComputedStyle(summary).fontSize : null, liten: liten ? { fs: getComputedStyle(liten).fontSize, fw: getComputedStyle(liten).fontWeight } : null };
+  });
+  const matda = m.rader.filter((r) => r.titelW !== null && r.titelX !== null && r.narX !== null);
+  krav(matda.length >= 2, `händelsekort: bara ${matda.length} kort med titel och datumrad mätta, väntat minst 2 (golv).`);
+  for (const [i, r] of m.rader.entries()) {
+    matt.push(`händelsekort ${i + 1} (390 px): titel ${r.titelW?.toFixed(1)} av innerbredd ${r.inner.toFixed(1)} px, datumradens vänsterkant ${r.narX?.toFixed(1)} mot titelns ${r.titelX?.toFixed(1)}, datumraden ovanför titeln ${r.narOvanTitel}, radie ${r.radie} px`);
+    krav(r.titelW !== null && r.titelW >= 0.95 * r.inner, `händelsekort ${i + 1}: titeln är ${r.titelW?.toFixed(1)} px av kortets innerbredd ${r.inner.toFixed(1)} (${r.titelW !== null ? Math.round((100 * r.titelW) / r.inner) : "?"} procent), väntat minst 95. En kolumn bredvid titeln tar bredden (SS 301 px).`);
+    krav(r.narX !== null && r.titelX !== null && Math.abs(r.narX - r.titelX) <= 1, `händelsekort ${i + 1}: datumradens vänsterkant ${r.narX?.toFixed(1)} mot titelns ${r.titelX?.toFixed(1)}, väntat samma (+-1). SS: datumraden vänsterställd direkt ovanför titeln (TodayView.jsx:527).`);
+    krav(r.narOvanTitel === true, `händelsekort ${i + 1}: datumraden ligger inte ovanför titeln.`);
+    krav(Math.abs(r.radie - 24) <= 0.5, `händelsekort ${i + 1}: radien är ${r.radie} px, väntat 24 (CP 2026-09-30 valde SS --radius-card).`);
+  }
+  matt.push(`rollmärket ${JSON.stringify(m.du)} mot Försenat ${JSON.stringify(m.forsenat)}, summary utan klass ${m.summary}, OpsPill liten ${JSON.stringify(m.liten)}`);
+  krav(!!m.du && !m.du.saknas && !!m.forsenat && m.du.fs === m.forsenat.fs && m.du.fw === m.forsenat.fw && m.du.pad === m.forsenat.pad && Math.abs(m.du.h - m.forsenat.h) <= 0.5, `rollmärket: ${JSON.stringify(m.du)} mot Försenat ${JSON.stringify(m.forsenat)}, väntat samma storlek, vikt, luft och höjd (OpsRollmarke).`);
+  krav(m.summary === "14px", `inkorgsraden: en summary utan egen klass är ${m.summary}, väntat 14px (text-etikett, SS text-sm).`);
+  krav(!!m.liten && m.liten.fs === "10px" && m.liten.fw === "500", `OpsPill size="liten": ${JSON.stringify(m.liten)}, väntat 10px och 500 (SS typbadge 9/500, närmaste roll).`);
+  if (bildmapp) await page.locator("[data-handelser]").screenshot({ path: path.join(bildmapp, "handelsekort-390.png") });
+  await context.close();
+}
+
+// ══ 26. LUFT MELLAN SKAPA-PANELENS HUVUD OCH FÖRSTA RADEN (0.32.1) ══════════════════════════════════════════════════════
+// CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende" vid 390 px: "Vidare är det skönt om det är lite luft mellan första raden
+// och headern." Första raden låg direkt under huvudets linje. SS har 16 px (`py-4`) i båda inline-formulären (ManageGroupModal.jsx:479,
+// eventModal/sizeClasses.js:7). Krav vid 390: 16 +- 1 px från huvudets underkant (linjen) till innehållets första rad. 1280 mäts och skrivs ut.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
+  const { page, context } = await oppna("skapa", vp);
+  try {
+    await oppnaSkapaPanel(page, vp.width < 768);
+    await page.waitForSelector("[data-skapa-panel]");
+    await page.waitForTimeout(200);
+    const d = await page.evaluate(() => {
+      const kol = document.querySelector("[data-skapa-panel] > div");
+      const huvud = kol ? kol.children[0] : null;
+      const inne = kol ? kol.children[1] : null;
+      const forsta = inne ? inne.firstElementChild : null;
+      if (!huvud || !forsta) return null;
+      return { huvudBotten: huvud.getBoundingClientRect().bottom, forstaTopp: forsta.getBoundingClientRect().top, linje: getComputedStyle(huvud).borderBottomWidth, text: (forsta.textContent || "").trim().slice(0, 30) };
+    });
+    if (!d) {
+      krav(false, `skapa-panelen ${vp.width}: huvudet eller första raden hittades inte.`);
+    } else {
+      const luft = d.forstaTopp - d.huvudBotten;
+      matt.push(`skapa-panelen ${vp.width} px: ${luft.toFixed(1)} px från huvudets underkant (linje ${d.linje}) till första raden ("${d.text}")`);
+      if (vp.width < 768) krav(Math.abs(luft - 16) <= 1, `skapa-panelen ${vp.width}: ${luft.toFixed(1)} px mellan huvudets linje och första raden, väntat 16 (SS py-4). CP 2026-09-30 08:12: "lite luft mellan första raden och headern".`);
+    }
+  } catch (e) {
+    krav(false, `skapa-panelen ${vp.width}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// ══ 27. PROFILEN MOT SS ProfileView VID 390 OCH 1280 PX (0.32.1) ══════════════════════════════════════════════════════
+// CP 2026-09-30, med en skärmbild av Profil på dator: "Typsnitten på profil är också fel. Storlek / typsnitt". Mätt mot SS `ProfileView.jsx`:
+// kolumnen `max-w-2xl` (672 px, :106), varje sektion ett kort med rubriken INUTI (`h3 text-xs font-bold text-[var(--color-accent)] uppercase
+// tracking-wider mb-3`, :122 och :242), fältetiketterna `text-[10px] text-[var(--color-text-muted)]` (:245). Förut var OpsProfil 1024 px bred,
+// rubrikerna 12/600 utanför korten, Personuppgifter utan kort och etiketterna 14/500.
+// Krav: rubrikerna 12 px, 700, versaler, accentfärg och inuti ett kort; etiketterna 10 px och 400; kolumnen högst 672 px vid 1280 och
+// ingen horisontell överflödning, inget kort utanför sidans marginal. Golv: minst 2 rubriker och 3 etiketter.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const { page, context } = await oppna("profil", vp);
+  const d = await page.evaluate(() => {
+    const accent = (() => { const e = document.createElement("span"); e.className = "text-accent"; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c; })();
+    /** @param {Element} el */
+    const kortRunt = (el) => {
+      for (let e = el.parentElement, i = 0; e && i < 4; e = e.parentElement, i += 1) {
+        const cs = getComputedStyle(e);
+        if (parseFloat(cs.borderTopLeftRadius) >= 8 && !/rgba?\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)|transparent/.test(cs.backgroundColor)) return e;
+      }
+      return null;
+    };
+    const rubriker = [...document.querySelectorAll("main p, main h2, main h3")].filter((e) => /^(profilbild|personuppgifter)$/i.test((e.textContent || "").trim()));
+    const r = rubriker.map((e) => { const cs = getComputedStyle(e); return { text: (e.textContent || "").trim(), fs: cs.fontSize, fw: cs.fontWeight, tt: cs.textTransform, farg: cs.color === accent, iKort: !!kortRunt(e) }; });
+    const etiketter = [...document.querySelectorAll("main label")].filter((e) => /^(Namn|Telefon|Stad)$/.test((e.textContent || "").trim()));
+    const et = etiketter.map((e) => ({ text: (e.textContent || "").trim(), fs: getComputedStyle(e).fontSize, fw: getComputedStyle(e).fontWeight }));
+    const kort = rubriker.map((e) => kortRunt(e)).filter(Boolean).map((k) => { const b = /** @type {Element} */ (k).getBoundingClientRect(); const cs = getComputedStyle(/** @type {Element} */ (k)); return { x: b.left, h: b.right, w: b.width, radie: cs.borderTopLeftRadius, pad: cs.paddingTop }; });
+    const falt = document.querySelector("main input");
+    const knappar = [...document.querySelectorAll("main button")].filter((b) => /^(Ta bort|Använd initialer)$/.test((b.textContent || "").trim())).map((b) => ({ text: (b.textContent || "").trim(), fs: getComputedStyle(b).fontSize, fw: getComputedStyle(b).fontWeight }));
+    const kolumn = (() => { for (let e = rubriker[0] ? rubriker[0].parentElement : null; e && e !== document.body; e = e.parentElement) { if (getComputedStyle(e).maxWidth !== "none") return e.getBoundingClientRect().width; } return null; })();
+    return { r, et, kort, kolumn, faltFs: falt ? getComputedStyle(falt).fontSize : null, knappar, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, vw: document.documentElement.clientWidth };
+  });
+  matt.push(`profil ${vp.width} px: rubriker ${JSON.stringify(d.r)}, etiketter ${JSON.stringify(d.et)}, kort ${JSON.stringify(d.kort)}, kolumn ${d.kolumn} px, fälttext ${d.faltFs}, knappar ${JSON.stringify(d.knappar)}, överflöde ${d.over} px`);
+  krav(d.r.length >= 2 && d.et.length >= 3, `profil ${vp.width}: ${d.r.length} rubriker och ${d.et.length} etiketter hittade, väntat minst 2 och 3 (golv).`);
+  for (const r of d.r) krav(r.fs === "12px" && r.fw === "700" && r.tt === "uppercase" && r.farg, `profil ${vp.width}: rubriken "${r.text}" är ${r.fs}/${r.fw} ${r.tt}${r.farg ? "" : ", inte accentfärg"}, väntat 12px/700 versaler i accentfärg (SS text-xs font-bold uppercase, ProfileView.jsx:122).`);
+  for (const r of d.r) krav(r.iKort, `profil ${vp.width}: rubriken "${r.text}" står utanför sitt kort. SS har rubriken inuti kortet (ProfileView.jsx:121-122).`);
+  for (const e of d.et) krav(e.fs === "10px" && e.fw === "400", `profil ${vp.width}: etiketten "${e.text}" är ${e.fs}/${e.fw}, väntat 10px/400 (SS text-[10px], ProfileView.jsx:245).`);
+  krav(d.over <= 0, `profil ${vp.width}: sidan flödar över ${d.over} px horisontellt.`);
+  for (const k of d.kort) krav(k.x >= 15.5 && k.h <= d.vw - 15.5, `profil ${vp.width}: ett kort går från ${k.x} till ${k.h} i en sida på ${d.vw}, utanför marginalen på 16 px.`);
+  if (vp.width >= 1024) krav(d.kolumn !== null && d.kolumn <= 672.5, `profil ${vp.width}: kolumnen är ${d.kolumn} px bred, väntat högst 672 (SS max-w-2xl, ProfileView.jsx:106).`);
+  if (vp.width >= 1024) for (const k of d.kort) krav(k.w <= 672.5, `profil ${vp.width}: kortet är ${k.w} px brett, väntat högst 672 (SS max-w-2xl, ProfileView.jsx:106).`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `profil-${vp.width}.png`), fullPage: true });
   await context.close();
 }
 

@@ -78,10 +78,10 @@ import { OpsStatusDot } from "./OpsStatusDot.jsx";
  * ut i sidan så fort man nått botten av kalendern, alltså exakt det som skulle
  * bort, fast en halv sekund senare.
  *
- * ⛔ TAKET ÄR `svh` OCH INTE `vh`. På en telefon krymper `vh` aldrig när
- * adressfältet fälls in, så en `vh`-höjd lägger kalenderns nederkant under
- * webbläsarens eget krom, och "Idag"-knappen hamnar under det man inte kan rulla
- * bort.
+ * ⛔ TAKET ÄR UPPMÄTT OCH INTE EN VIEWPORT-ENHET (0.32.1). `vh` krymper aldrig
+ * när adressfältet fälls in, och `svh` (som stod här till 0.32.0) växer aldrig när
+ * det fälls ut: CP 2026-09-30, "Kalender och idag går inte ända ner utan huggs av
+ * i botten". Nu mäts bottenradens kant direkt, se `useFullHeight`.
  *
  * ══ ⛔ DAGEN ÖPPNAS I EN FLYTANDE, INVERTERAD BUBBLA ═══════════════════
  *

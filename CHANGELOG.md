@@ -9,6 +9,84 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.32.1
+
+⛔ **Idag och Kalender når bottenraden igen, också när Safaris verktygsfält fälls in och när något ovanför ytan försvinner. Händelsekortet, inkorgsraden och profilen som SS. Inte breaking.**
+CP 2026-09-30, två skärmbilder från telefonen: *"Kalender och idag går inte ända ner utan huggs av i botten."* Innehållet slutade långt ovanför
+bottenraden. Ett kort i Idag klipptes rakt av, och veckoraden i Kalender klipptes horisontellt.
+
+### Rotorsaken
+`useFullHeight` (`src/lib/fullHeight.js`), som både `OpsScrollArea` och `OpsCalendar` använder, räknade höjden som
+`calc(100svh - var(--fullhojd-topp) - var(--bottom-nav-h) - var(--safe-bottom) - 1.5rem)`. Två antaganden i samma uttryck:
+- **`svh` är den minsta vyhöjden, men bottenraden är `fixed bottom-0` och följer den verkliga kanten.** När Safaris verktygsfält fälls in växer den
+  synliga ytan och raden flyttar ner, medan `100svh` står still. I hemskärmsläget kan `svh` dessutom skilja sig från den synliga höjden med de säkra zonerna.
+- **Toppen mättes bara vid mount och vid `resize`.** Försvann en rad ovanför ytan (en banner, ett filter) låg talet kvar för högt och ytan slutade lika mycket för tidigt.
+
+### Fixen
+- Ingen viewport-enhet i höjden. Hooken mäter båda kanterna och lägger dem i `--fullhojd-topp` (ytans avstånd till dokumentets topp, som förut) och
+  `--fullhojd-botten` (bottenradens övre kant om raden syns, annars fönstrets höjd minus den säkra ytan). Klassen är nu
+  `h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_1.5rem)]` plus `min-h-60` som golv. `md:`-varianten behövs inte längre: på en dator är
+  bottenraden `md:hidden` och räknas som frånvarande, så botten blir fönstret minus den säkra ytan, samma sak som `md:`-raden räknade.
+- Ommätning vid `resize`, `orientationchange`, `visualViewport` `resize` och `scroll`, och med en `ResizeObserver` på föräldern, `offsetParent`, `main`,
+  dokumentets kropp och syskonen ovanför ytan. En mätning per bildruta (`requestAnimationFrame`), lyssnarna rensas vid unmount.
+- `OpsBottomNav` bär `data-ops-bottenrad`, som hooken letar efter.
+- SSR och jsdom: startvärdet är `innerHeight` (eller 800 utan fönster), och utan `ResizeObserver` eller `requestAnimationFrame` mäts det direkt.
+- `FULL_HEIGHT_CLASSES` och `useFullHeight` har samma namn och signatur. Ingen av dem exporteras ur paketets `index.js`, så inget i appen berörs.
+
+### Vakten
+`check-skalyta` avsnitt 24 mäter `navTop - ytaBottom` för en Idag-lik `OpsScrollArea` och `OpsCalendar` vid 390x844, med `--safe-top: 47px` och
+`--safe-bottom: 34px` satta före mount, i tre lägen: (a) verktygsfältet fälls in efter mount (fönstret 844 till 928, med `svh` modellerad som Safari:
+fast vid höjden vid mount, eftersom Chromiums egen `100svh` följer med och alltså aldrig kan visa felet; skillnaden 84 px mäts), (b) hemskärmsläget
+(`100svh` blir `calc(100dvh - 81px)`), (c) en rad på 170 px ovanför ytan tas bort efter mount. Krav 23 +- 2 px, golv 2 vyer och 3 lägen.
+- **Rött mot 0.32.0 (`--dist` och `--tokens` ur origin/main):** 6 brott av 901. Idag och Kalender: (a) 107 px, (b) 104 px, (c) 209 px.
+- **Grönt med fixen:** 901 kontroller, inga brott. Alla sex lägen 24 px.
+- Avsnitt 21 och 21b var gröna genom hela felet: i en skrivbords-Chromium är `100svh` alltid fönstrets höjd, fönstret ändrades aldrig efter mount och
+  ingenting ovanför ytan försvann, så uttrycket mättes bara i det enda läge där det råkar stämma. Skälet står nu i koden vid avsnitt 24.
+- Enhetsprov (`scrollArea.test.jsx`): tre nya prov (bottenradens kant, ingen synlig rad, ommätning när något ovanför ändrar storlek) är röda mot 0.32.0:s hook och gröna nu.
+- Före och efter vid 390: `docs/jamforelser/0.32.1/fullyta-c-fore-efter-390.png` och `fullyta-a-fore-efter-390.png`. Felet citerar ingen SessionStudio-bild, så det finns ingen förebild att ställa bredvid.
+
+### Händelsekortet och inkorgsraden som SS
+CP 2026-09-30 08:04: *"Kolla storleken och fint på texten i händelserna. Matchar inte det vi har i SessionStudio. Dubbelkolla även inkorgen."*
+Titeln var redan 18/700 som SS. Felet låg i kompositionen:
+- **Chevronen tar ingen kolumn längre.** Den låg i en egen kolumn på 44 px, så titeln fick 251 px mot kortets 299 och en rad extra. Nu är knappen
+  absolut i kortets övre högra hörn (samma 44 px träffyta), och bara kortets första rad ger plats åt den. Titeln har hela innerbredden.
+- **Datumraden står vänsterställd direkt ovanför titeln,** som SS (`TodayView.jsx:527`), 12 px (14 från `sm`) och dämpad. Förut var den en `ml-auto`-grupp i
+  pillraden som blev högerställd på en egen rad vid 390 px.
+- **Radien är 24 px som SS** (`--radius-card`, SS `index.css:228`): CP 2026-09-30 valde det. `OpsEventList` använder kortets förval i stället för `bubbla`
+  (28 px). `bubbla` finns kvar i `OpsCard` och används fortfarande av `OpsInloggning`.
+- **`OpsDisclosure`:** summary-behållaren har `text-etikett`, så innehåll utan egen klass är 14 px (SS `text-sm`) i stället för bodyns 16.
+- **`OpsPill size="liten"`** (ny, valfri): rollen `liten` (10/500) med `px-1.5 py-0.5`, för typbadgar (SS `ChatInboxPanel.jsx:743`, 9/500). Standard är oförändrad.
+- **`OpsRollmarke`** (ny, exporterad): rollpillret ("Du", "Förfaller", "Agent") med samma mått som "Försenat" (12/600, `px-2 py-0.5`), ur en konstant som
+  `OpsEventList` också använder för brådskemärket.
+- **Vakt:** `check-skalyta` avsnitt 25 vid 390 px, två kort: titeln minst 95 procent av innerbredden, datumradens vänsterkant lika med titelns (+-1), radien
+  24 +- 0,5, rollmärket lika stort som "Försenat", summary utan klass 14 px, liten `OpsPill` 10 px. **Rött mot 0.32.0: 9 brott** (titeln 251 av 299 i båda
+  korten, datumraden vid 101,5 och 152,9 mot titelns 40, radien 28 i båda, rollmärket saknas, summary 16 px, pillret 12/600). **Grönt nu.**
+- Montage och en ärlig jämförelse (vad som matchar, vad som skiljer: kortets luft 24 mot 20, den färgade vänsterkanten, pillraden som SS saknar):
+  `docs/jamforelser/0.32.1/idag-kort-fore-efter-ss-390.png` och `jamforelse.md`.
+
+### Luft mellan skapa-panelens huvud och första raden
+CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende" vid 390 px: *"Vidare är det skönt om det är lite luft mellan första raden och headern."*
+Formulärets första rad låg direkt under huvudets linje (0 px). `OpsSkapaPanel`s innehållsbehållare har nu `pt-4`, 16 px, SS värde i båda inline-formulären
+(`ManageGroupModal.jsx:479` `py-4`, `eventModal/sizeClasses.js:7` `formPad: "py-4 ..."`). Luften bor i panelen och inte i varje formulär.
+Vakt: `check-skalyta` avsnitt 26 mäter huvudets underkant mot första raden. **Rött mot 0.32.0: 0 px vid 390 (1 brott). Grönt nu: 16 px** (1280 px: 0 före, 16 efter, utskrivet men inte krävt).
+
+### Profilen som SS
+CP 2026-09-30, med en skärmbild av Profil på dator: *"Typsnitten på profil är också fel. Storlek / typsnitt"*. Mätt mot SS `ProfileView.jsx`:
+- **`OpsProfil`** har kolumnen 672 px (`width="narrow"`, SS `max-w-2xl`; förut 1024), varje sektion (Profilbild, Personuppgifter, Länkar, Inställningar) är ett kort med
+  1 px kant och rubriken INUTI, Namn, Telefon och Stad står i tre kolumner från `sm`, och Mina grupper har samma rubrik som korten.
+- **`OpsSectionLabel`** är 700 (`font-bold`), som filhuvudet alltid sagt (SS `text-xs font-bold`). Rollen `sektion` bär fortfarande 600 för de andra sektionsraderna.
+- **`OpsField labelSize="liten"`** (ny, valfri): 10 px, 400, dämpad, SS profilens etikett. Standard (14/500) är oförändrad; SS formulär har den.
+- **Vakt:** `check-skalyta` avsnitt 27 vid 390 och 1280 (rubrikerna 12/700 versaler accent och inuti kortet, etiketterna 10/400, kolumnen högst 672, inget överflöde,
+  inget kort utanför marginalen). **Rött mot 0.32.0: 15 brott. Grönt nu.** Inget horisontellt överflöde före eller efter: kortet på CP:s bild var beskuret, inte utanför.
+- Kvar och ärligt listat i `docs/jamforelser/0.32.1/jamforelse.md`: radie 24 mot 12, fälttext 16 mot 14, kort 640 mot 672, SS huvud ovanför korten, SS 11 px-knappar.
+
+### Att göra i appen vid ompinning till 0.32.1
+Pinna om. ⛔ Byt sedan appens tre handskrivna rollpiller (`Rolletikett` i `EventsView.jsx`, `Rolltegner` i `ProcessView.jsx` och
+`ScheduleView.jsx`) mot `<OpsRollmarke kind={role} label={roleLabel(role)} />`, och inkorgens typbadge mot `<OpsPill size="liten">`. Inget av det
+krävs för att bygga. ⛔ Profilen: `ProfileView.jsx` lägger `OpsProfil` i en egen `<OpsView width="narrow">`, och `OpsProfil` har redan en egen
+(nu `narrow`, 0.32.1); ta bort den yttre, annars dubbleras sidomarginalen och bottenluften. ⛔ Har appen en egen bottenrad i stället för `OpsBottomNav` hittar hooken den inte, och då slutar ytan vid fönstret minus
+den säkra ytan i stället för vid raden. Sätt i så fall `data-ops-bottenrad` på appens `<nav>`.
+
 ## 0.32.0
 
 ⛔ **Skapa grupp och bjud in, som i SessionStudio. Delvis breaking för appens skapa-grupp-callable och admin-adapter, se "Att göra i appen".**

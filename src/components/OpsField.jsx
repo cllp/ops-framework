@@ -26,25 +26,45 @@ import { faltKlass } from "../lib/radKlass.js";
 const FieldContext = createContext(/** @type {FieldBinding | null} */ (null));
 
 /**
+ * ⛔ TVÅ ETIKETTSTORLEKAR, FÖR ATT SESSIONSTUDIO HAR TVÅ (0.32.1).
+ *
+ * CP 2026-09-30, med en skärmbild av Profil på dator: "Typsnitten på profil är också fel. Storlek / typsnitt". Mätt i SS:
+ * formulären (`ManageGroupModal.jsx:560`, `EventModal`) har `text-sm font-medium` (14/500), och det är ramverkets standard.
+ * Profilen (`ProfileView.jsx:245`) har `text-[10px] text-[var(--color-text-muted)]`, alltså 10 px, vikt 400, dämpad. Samma
+ * fält med två olika etiketter är SS eget val per yta, och en enda etikett i ramverket hade gjort den ena ytan fel.
+ * `liten` är rollen `liten` (10 px) med vikt 400 som SS.
+ */
+/** @type {Record<string, string>} */
+const ETIKETTER = {
+  standard: "text-etikett font-medium text-ink-secondary",
+  liten: "text-liten font-normal text-ink-muted",
+};
+
+/**
  * @param {object} props
  * @param {string} props.label
  * @param {string} [props.hint]
  * @param {string} [props.error] Sträng, inte boolean. Ett fält som bara vet ATT det är fel hjälper ingen.
  * @param {boolean} [props.required]
+ * @param {"standard"|"liten"} [props.labelSize] `liten` (0.32.1) är SS profilens etikett, se `ETIKETTER`.
  * @param {import("react").ReactNode} props.children
  */
-export function OpsField({ label, hint, error, required = false, children }) {
+export function OpsField({ label, hint, error, required = false, labelSize = "standard", children }) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-fel` : undefined;
   const describedBy = cx(hintId, errorId) || undefined;
+  const etikettKlass = ETIKETTER[labelSize];
+  if (!etikettKlass) {
+    throw new Error(`OpsField: okänd labelSize "${labelSize}". Giltiga: ${Object.keys(ETIKETTER).join(", ")}.`);
+  }
 
   return (
     <FieldContext.Provider value={{ id, describedBy, invalid: Boolean(error), required: required }}>
       <div className="flex flex-col gap-1">
         {/* ⛔ #167: font-medium, inte font-semibold. Samma mätning som
             OpsStat/OpsTable, se OpsStat.jsx. */}
-        <label htmlFor={id} className="text-etikett font-medium text-ink-secondary">
+        <label htmlFor={id} className={etikettKlass}>
           {label}
           {required ? (
             <span className="text-danger" aria-hidden="true">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * Höjden ut till skärmens underkant, mätt en gång och räknad i CSS.
+ * Höjden ut till bottenraden (eller skärmens underkant), mätt och räknad i CSS.
  *
  * ══ ⛔ VARFÖR DEN FINNS, OCH VARFÖR DEN INTE ÄR EN KLASS ════════════════
  *
@@ -11,18 +11,13 @@ import { useEffect, useState } from "react";
  * finns ingen sådan förälder: ytan sitter mitt på en sida och vet ingenting om
  * var den hamnade.
  *
- * ⛔ DÄRFÖR MÄTS AVSTÅNDET TILL FÖNSTRETS ÖVERKANT, en gång, och läggs i en
- * CSS-variabel. Höjden räknas sedan i klassen. Det är det enda sättet att få
- * BÅDE en mätning och en brytpunkt: en inline-stil kan inte ha en media-fråga,
- * och en klass kan inte veta var elementet hamnade.
+ * ⛔ DÄRFÖR MÄTS BÅDA KANTERNA, var ytan börjar och var den får sluta, och
+ * läggs i två CSS-variabler. Höjden räknas sedan i klassen, så att `min-h-60`
+ * fortfarande kan vara ett golv som en inline-höjd hade kört över.
  *
- * ⛔ DOKUMENTETS OFFSET OCH INTE RUTANS. `getBoundingClientRect().top` ensamt är
- * avståndet till fönstrets överkant PRECIS NU, alltså ett annat tal så fort
- * sidan rullats. Med `scrollY` adderat blir det avståndet vid sidans topp, ett
- * fast tal som inte ruttnar.
- *
- * ⛔ OMMÄTS VID RESIZE, alltså också när telefonen vrids. Utan det blir höjden
- * kvar från stående läge i liggande, och då sticker ytan ut under skärmen.
+ * ⛔ DE MÄTS OM NÄR NÅGON AV KANTERNA KAN HA FLYTTAT, inte bara vid mount. Varför
+ * står vid `useFullHeight`, och händelsen som gjorde det nödvändigt (0.32.1) står
+ * vid `FULL_HEIGHT_CLASSES`.
  *
  * ══ ⛔ EN DELAD HOOK OCH INTE TVÅ KOPIOR ═══════════════════════════════
  *
@@ -34,16 +29,40 @@ import { useEffect, useState } from "react";
  */
 
 /**
- * Klassraderna som räknar höjden ur variabeln.
+ * Klassraderna som räknar höjden ur de två uppmätta talen.
  *
- * ⛔ BOTTENRADEN DRAS BORT UNDER 768 px OCH INTE ÖVER, eftersom `OpsBottomNav`
- * är `md:hidden`. Drogs den bort på båda skulle ytan sluta 56 px för tidigt på
- * en dator, alltså en remsa tomhet som ingen kan förklara.
+ * ══ ⛔ 0.32.1: INGEN VIEWPORT-ENHET I HÖJDEN, OCH VARFÖR ════════════════
  *
- * ⛔ 0.31.2 (CP 2026-09-29 22:33, "Den scrollar liksom upp"): HÖJDEN RÄKNAR OCKSÅ BORT `OpsView`s EGEN BOTTENPADDING (1,5 rem). Sidan är ytan
- * plus `OpsView` `pb-6` plus `main`s `pb` (bottenradens höjd + säker yta). Höjden drog bort raden och den säkra ytan men inte
- * `pb-6`, och `OpsView` räknade dessutom den säkra ytan en andra gång: sidan blev högre än fönstret, dokumentet rullade 58 px
- * OVANPÅ ytans egen rullning, och en tom remsa i canvasfärg stod mellan ytan och raden. Nu är sidan exakt fönstrets höjd.
+ * CP 2026-09-30, två skärmbilder från telefonen: "Kalender och idag går inte
+ * ända ner utan huggs av i botten." Innehållet slutade långt ovanför
+ * bottenraden, ett kort i Idag klipptes rakt av och veckoraden i Kalender
+ * klipptes horisontellt.
+ *
+ * Rotorsaken var två antaganden i samma uttryck, `calc(100svh - topp - rad -
+ * säker yta - 1.5rem)`:
+ *
+ *   1. `svh` ÄR DEN MINSTA VYHÖJDEN, men bottenraden är `fixed bottom-0` och
+ *      följer den VERKLIGA kanten. När Safaris verktygsfält fälls in växer den
+ *      synliga ytan och raden flyttar ner, medan `100svh` står still: ytan
+ *      slutade för tidigt. I hemskärmsläget kan `svh` dessutom skilja sig från
+ *      den synliga höjden med de säkra zonerna. Mätt i diagnosen: 107 och 104 px
+ *      mellan ytan och raden i stället för 23.
+ *   2. TOPPEN MÄTTES BARA VID MOUNT OCH RESIZE. Försvann en rad ovanför ytan
+ *      (en banner, ett filter) låg talet kvar för högt. Mätt: 209 px.
+ *
+ * ⛔ NU RÄKNAS INGENTING UR EN ENHET SOM BESKRIVER FÖNSTRET. Det som mäts är
+ * precis det ytan ska nå: bottenradens övre kant om raden syns, annars fönstrets
+ * underkant minus den säkra ytan. Ingen enhet kan ha fel åsikt om var raden
+ * sitter när det är raden själv som mäts.
+ *
+ * ⛔ `--fullhojd-botten` ÄR REDAN BOTTENRADEN OCH DEN SÄKRA YTAN. Därför finns
+ * ingen `md:`-variant längre: på en dator finns ingen synlig rad, och då är
+ * botten fönstrets kant minus den säkra ytan, precis det `md:`-raden räknade förut.
+ *
+ * ⛔ 1,5 rem ÄR `OpsView`s EGEN BOTTENPADDING (0.31.2, CP 2026-09-29 22:33, "Den
+ * scrollar liksom upp"). Sidan är ytan plus `pb-6` plus `main`s `pb` (radens
+ * höjd och den säkra ytan). Drogs `pb-6` inte bort blev sidan högre än fönstret
+ * och dokumentet rullade OVANPÅ ytans egen rullning.
  *
  * ⛔ ETT GOLV PÅ `min-h-60`, för den dag ytan hamnar långt ner på en kort sida.
  * Utan det kan uttrycket bli noll eller negativt, och då försvinner innehållet
@@ -51,37 +70,123 @@ import { useEffect, useState } from "react";
  */
 export const FULL_HEIGHT_CLASSES = [
   "overflow-y-auto overscroll-contain",
-  "h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--bottom-nav-h)_-_var(--safe-bottom)_-_1.5rem)]",
-  "md:h-[calc(100svh_-_var(--fullhojd-topp)_-_var(--safe-bottom)_-_1.5rem)]",
+  "h-[calc(var(--fullhojd-botten)_-_var(--fullhojd-topp)_-_1.5rem)]",
   "min-h-60",
 ].join(" ");
 
+/** Reservvärde när inget går att mäta (SSR, jsdom före mount): en telefonhöjd, så att uttrycket aldrig blir tomt. */
+const RESERV_BOTTEN = 800;
+
 /**
- * Mäter ett elements avstånd till sidans topp och ger stilen som bär talet.
+ * Bottenraden, om den finns och SYNS. `OpsBottomNav` är `md:hidden`, så på en
+ * dator finns noden men har ingen yta: då räknas den som frånvarande.
+ * @returns {DOMRect | null}
+ */
+function synligBottenrad() {
+  const nav = document.querySelector("nav[data-ops-bottenrad]");
+  if (!nav) return null;
+  const r = nav.getBoundingClientRect();
+  return r.height > 0 && getComputedStyle(nav).display !== "none" ? r : null;
+}
+
+/**
+ * Den säkra ytan i botten i pixlar. `--safe-bottom` är `env(...)`, och ett
+ * `env()` i en egen egenskap går inte att läsa som ett tal ur
+ * `getComputedStyle`: därför mäts den som höjden på en osynlig låda.
+ * @returns {number}
+ */
+function sakerBotten() {
+  const d = document.createElement("div");
+  d.style.cssText = "position:fixed;visibility:hidden;pointer-events:none;width:0;height:var(--safe-bottom,0px)";
+  document.body.appendChild(d);
+  const h = d.getBoundingClientRect().height || 0;
+  d.remove();
+  return h;
+}
+
+/**
+ * Mäter var ytan börjar och var den får sluta, och ger stilen som bär talen.
+ *
+ * ⛔ TOPPEN ÄR DOKUMENTETS OFFSET OCH INTE RUTANS. `getBoundingClientRect().top`
+ * ensamt är avståndet till fönstrets överkant PRECIS NU, och en höjd räknad ur
+ * det växer med lika mycket som sidan rullas: då blir sidan längre, går att
+ * rulla längre, och ytan växer igen. Med `scrollY` adderat är talet detsamma
+ * oavsett när mätningen sker. Botten är bottenradens kant, som är `fixed` och
+ * alltså också oberoende av rullningen.
+ *
+ * ⛔ OMMÄTS VID ALLT SOM FLYTTAR NÅGON AV KANTERNA:
+ *   - `resize` och `orientationchange` (fönstret, en vriden telefon, Safaris
+ *     verktygsfält som fälls in eller ut),
+ *   - `visualViewport` `resize` och `scroll` (verktygsfältet och zoomen på iOS,
+ *     där fönstrets egen `resize` inte alltid kommer),
+ *   - en `ResizeObserver` på föräldern, `offsetParent`, `main`, dokumentets
+ *     kropp och syskonen ovanför. Det är den som fångar en banner eller ett
+ *     filter som försvinner OVANFÖR ytan (0.32.1: 209 px för högt utan den).
+ *
+ * ⛔ EN MÄTNING PER BILDRUTA (`requestAnimationFrame`). Ytans egen nya höjd
+ * ändrar kroppens höjd, och observatören svarar då med en mätning till. Den ger
+ * samma tal och därmed ingen ny rendering, men utan ramen kunde ett tal som
+ * pendlar en pixel bli en slinga inom samma bildruta.
  *
  * @param {{ current: HTMLElement | null }} ref Elementet som ska rulla.
  * @returns {import("react").CSSProperties} Sätts som `style` på samma element.
  */
 export function useFullHeight(ref) {
-  const [top, setTop] = useState(0);
+  const [mat, setMat] = useState(() => ({
+    topp: 0,
+    botten: typeof window !== "undefined" && window.innerHeight > 0 ? window.innerHeight : RESERV_BOTTEN,
+  }));
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return undefined;
+    if (!el || typeof window === "undefined") return undefined;
+
     const measure = () => {
       const rect = el.getBoundingClientRect();
-      setTop(Math.max(0, Math.round(rect.top + (window.scrollY || 0))));
+      const topp = Math.max(0, Math.round(rect.top + (window.scrollY || 0)));
+      const rad = synligBottenrad();
+      const fonster = window.innerHeight || window.visualViewport?.height || RESERV_BOTTEN;
+      const botten = Math.max(0, Math.round(rad ? rad.top : fonster - sakerBotten()));
+      setMat((f) => (f.topp === topp && f.botten === botten ? f : { topp, botten }));
     };
+
+    let ram = 0;
+    const planera = () => {
+      if (ram) return;
+      ram = typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => { ram = 0; measure(); }) : 0;
+      if (!ram) measure();
+    };
+
     measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    window.addEventListener("resize", planera);
+    window.addEventListener("orientationchange", planera);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", planera);
+    vv?.addEventListener("scroll", planera);
+
+    /** @type {ResizeObserver | null} */
+    let obs = null;
+    if (typeof ResizeObserver === "function") {
+      obs = new ResizeObserver(planera);
+      const bevakade = new Set(/** @type {(Element | null)[]} */ ([el.parentElement, el.offsetParent, el.closest("main"), document.body]));
+      for (let s = el.previousElementSibling; s; s = s.previousElementSibling) bevakade.add(s);
+      for (const b of bevakade) if (b) obs.observe(b);
+    }
+
+    return () => {
+      window.removeEventListener("resize", planera);
+      window.removeEventListener("orientationchange", planera);
+      vv?.removeEventListener("resize", planera);
+      vv?.removeEventListener("scroll", planera);
+      obs?.disconnect();
+      if (ram && typeof cancelAnimationFrame === "function") cancelAnimationFrame(ram);
+    };
   }, [ref]);
 
   /*
    * ⛔ Kastad till `CSSProperties`, eftersom TypeScript inte känner till egna
    * CSS-variabler i ett stilobjekt. Det är typsystemets lucka och inte en
-   * osäkerhet: webbläsaren tar emot `--fullhojd-top` som vilken deklaration
-   * som helst.
+   * osäkerhet: webbläsaren tar emot variablerna som vilken deklaration som helst.
    */
-  return /** @type {import("react").CSSProperties} */ ({ "--fullhojd-topp": `${top}px` });
+  return /** @type {import("react").CSSProperties} */ ({ "--fullhojd-topp": `${mat.topp}px`, "--fullhojd-botten": `${mat.botten}px` });
 }
