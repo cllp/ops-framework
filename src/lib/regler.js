@@ -33,6 +33,7 @@
 
 import { ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
+import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -512,4 +513,139 @@ export function katalogregelfragment(namn) {
    * helt annan fil. En spridd kopia kostar ingenting och stänger den dörren.
    */
   return samlingar.map((s) => gruppadSamlingBlock(s, { skrivvillkor: "opsArAdmin", falt: [...KATEGORIFALT], nyckelMedGrupp: true })).join("");
+}
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════
+ * ⛔ EGET, AVGRÄNSAT BLOCK: SAMTALENS REGELFRAGMENT (0.34.0, #182, #185).
+ * Fälten kommer ur `src/lib/samtal.js`. Ändras modellen: ändra där.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * Regelfragmentet för samtalen: gruppchatten, privata samtal och agentsamtal, med meddelanden och läst-status
+ * som undersamlingar.
+ *
+ * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
+ *
+ *   - LÄSA ett samtal och dess meddelanden: aktiv medlem i samtalets grupp, OCH för `personer` och `agent` en av
+ *     deltagarna. En borttagen medlem läser alltså inte ens sina egna privata samtal i gruppen: samtalet hör till
+ *     gruppen, och den som lämnat gruppen har lämnat dess samtal. Den andra deltagaren läser vidare.
+ *   - SKAPA ett samtal: nyckeln måste vara den härledda (se `samtalsnyckel`), skaparen är en aktiv medlem av typen
+ *     `person`, och i ett privat samtal är skaparen en av deltagarna och BÅDA är aktiva medlemmar i gruppen. I
+ *     `personer` är båda av typen `person`, i `agent` är den andra av typen `agent`.
+ *   - ÄNDRA eller RADERA ett samtal: aldrig. Deltagarna kan inte ändras i efterhand (då hade ett privat samtal
+ *     kunnat öppnas för en tredje person som läser allt som redan sagts), och `grupp`/`personer` kan inte bytas.
+ *   - SKRIVA ett meddelande: den som får läsa samtalet, `av` är den inloggade, och den inloggade är en medlem av
+ *     typen `person`. ⛔ EN KLIENT SKRIVER ALDRIG SOM AGENT: agentens svar (#185) skrivs av servern med Admin SDK,
+ *     som går förbi reglerna. Också den som skulle ha agentens inloggning nekas här.
+ *   - ÄNDRA eller RADERA ett meddelande: aldrig. Ett meddelande är vad som sades. Kan det skrivas om kan ett svar
+ *     i efterhand se ut att svara på något annat än det gjorde, och en radering lämnar inget svar på "vad stod
+ *     det?". Samma princip som arkivering i stället för radering överallt annars i ramverket.
+ *   - LÄST-STATUS: bara personen själv, och bara i ett samtal hen får läsa.
+ *
+ * ⛔ `tid` OCH `skapad` ÄR MILLISEKUNDER, OCH REGELN JÄMFÖR DEM MED SERVERNS KLOCKA (inom fem minuter). Annars kan
+ * en klient skriva ett meddelande "från i går" eller "i morgon", och ett meddelande daterat i framtiden räknas
+ * som oläst för alltid. Fem minuter räcker för en telefon vars klocka går fel.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. `medlemskap` måste vara samma namn som skickas till `regelfragment()`,
+ * och fragmentet använder dess `opsArMedlem`, alltså ska båda limmas in.
+ *
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, medlemskap?: string }} [namn]
+ * @returns {string}
+ */
+export function samtalsregelfragment(namn = {}) {
+  const samtal = kontrolleraNamn(namn.samtal ?? "samtal", "samtal");
+  const meddelanden = kontrolleraNamn(namn.meddelanden ?? "meddelanden", "meddelanden");
+  const last = kontrolleraNamn(namn.last ?? "last", "last");
+  const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
+  const A = SAMTALSAVGRANSARE;
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
+
+  return `    // ══ Ramverkets samtal (0.34.0). GENERERAD, ändra inte för hand ══
+    //
+    // Källa: @staiger/ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+    function opsMedlemskapFor(uid, gid) {
+      return /databases/$(database)/documents/${medlemskap}/$(uid + '${A}' + gid);
+    }
+
+    // Aktiv medlem av en viss typ (person eller agent). exists före get, samma skäl som opsHarMedlemskap.
+    function opsArAktivTyp(uid, gid, typ) {
+      return exists(opsMedlemskapFor(uid, gid))
+        && get(opsMedlemskapFor(uid, gid)).data.status == 'aktiv'
+        && get(opsMedlemskapFor(uid, gid)).data.typ == typ;
+    }
+
+    // Får den inloggade läsa samtalet s (dess data)?
+    function opsFarLasaSamtal(s) {
+      return opsArMedlem(s.groupId) && (s.slag == '${GRUPPSAMTAL}' || request.auth.uid in s.deltagare);
+    }
+
+    function opsSamtalet(sid) {
+      return /databases/$(database)/documents/${samtal}/$(sid);
+    }
+
+    function opsISamtal(sid) {
+      return opsInloggad() && exists(opsSamtalet(sid)) && opsFarLasaSamtal(get(opsSamtalet(sid)).data);
+    }
+
+    // En tid i millisekunder nära serverns klocka.
+    function opsNu(t) {
+      return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
+    }
+
+    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+    function opsNyttSamtal(sid, d) {
+      return opsInloggad()
+        && d.skapadAv == request.auth.uid
+        && d.groupId is string
+        && opsNu(d.skapad)
+        && opsArAktivTyp(request.auth.uid, d.groupId, 'person')
+        && (
+          (d.slag == '${GRUPPSAMTAL}'
+            && d.keys().hasOnly([${lista(utanDeltagare)}])
+            && sid == d.groupId + '${A}${GRUPPSAMTAL}')
+          || ((d.slag == 'personer' || d.slag == 'agent')
+            && d.keys().hasOnly([${lista(SAMTALSFALT)}])
+            && d.deltagare is list && d.deltagare.size() == 2
+            && d.deltagare[0] is string && d.deltagare[1] is string
+            && d.deltagare[0] < d.deltagare[1]
+            && !d.deltagare[0].matches('.*[${A}].*') && !d.deltagare[1].matches('.*[${A}].*')
+            && request.auth.uid in d.deltagare
+            && sid == d.groupId + '${A}' + d.deltagare[0] + '${A}' + d.deltagare[1]
+            && (d.slag == 'personer'
+              ? opsArAktivTyp(d.deltagare[0], d.groupId, 'person') && opsArAktivTyp(d.deltagare[1], d.groupId, 'person')
+              : opsArAktivTyp(d.deltagare[0], d.groupId, 'agent') || opsArAktivTyp(d.deltagare[1], d.groupId, 'agent')))
+        );
+    }
+
+    match /${samtal}/{sid} {
+      allow read: if opsInloggad() && opsFarLasaSamtal(resource.data);
+      allow create: if opsNyttSamtal(sid, request.resource.data);
+      allow update, delete: if false;
+
+      match /${meddelanden}/{mid} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && request.resource.data.keys().hasOnly([${lista(MEDDELANDEFALT)}])
+          && request.resource.data.av == request.auth.uid
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= ${MAX_MEDDELANDE}
+          && opsNu(request.resource.data.tid);
+        allow update, delete: if false;
+      }
+
+      match /${last}/{uid} {
+        allow read: if request.auth != null && request.auth.uid == uid && opsISamtal(sid);
+        allow create, update: if request.auth != null && request.auth.uid == uid && opsISamtal(sid)
+          && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
+          && request.resource.data.lastTill is int;
+        allow delete: if false;
+      }
+    }
+`;
 }

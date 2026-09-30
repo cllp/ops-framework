@@ -1,4 +1,4 @@
-import { createDataSource } from "./contract.js";
+import { createDataSource, innehallerVillkor } from "./contract.js";
 
 /**
  * Adapter mot Firestore.
@@ -110,6 +110,8 @@ export function createFirestoreSource(config) {
   function build(collectionName, q) {
     const conditions = [];
     if (q?.where) for (const [field, value] of Object.entries(q.where)) conditions.push(where(field, "==", value));
+    const innehaller = innehallerVillkor(q?.innehaller);
+    if (innehaller) conditions.push(where(innehaller[0], "array-contains", innehaller[1]));
     if (q?.sortBy) conditions.push(orderBy(q.sortBy, q.direction === "desc" ? "desc" : "asc"));
     if (typeof q?.limit === "number") conditions.push(limit(q.limit));
     return query(collection(db, collectionName), ...conditions);

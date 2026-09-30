@@ -106,6 +106,10 @@
 /**
  * @typedef {object} Query
  * @property {Record<string, unknown>} [where] Likhetsvillkor. `{ status: "oppen" }`.
+ * @property {Record<string, unknown>} [innehaller] (0.34.0) Listfält som ska INNEHÅLLA värdet. `{ deltagare: uid }`.
+ *   Högst ETT fält per fråga (Firestores `array-contains` tillåter ett). ⛔ En adapter som inte kan uttrycka villkoret
+ *   KASTAR, den ignorerar det aldrig: ett villkor som tyst faller bort ger fler rader än frågan bad om, och för
+ *   privata samtal är "fler rader" någon annans samtal.
  * @property {string} [sortBy] Fältnamn.
  * @property {"asc" | "desc"} [direction]
  * @property {number} [limit]
@@ -141,6 +145,25 @@ export function createDataSource(adapter) {
 }
 
 /**
+ * Det enda `innehaller`-villkoret i en fråga, eller `null` om det saknas. Kastar vid fler än ett (0.34.0).
+ *
+ * ⛔ EN DEFINITION FÖR ALLA ADAPTRAR. Firestore tillåter ett `array-contains` per fråga, och en minnesadapter som
+ * tålde två hade låtit ett prov gå grönt på en fråga som kraschar mot den riktiga databasen.
+ *
+ * @param {Record<string, unknown> | undefined} innehaller
+ * @returns {[string, unknown] | null}
+ */
+export function innehallerVillkor(innehaller) {
+  if (!innehaller) return null;
+  const par = Object.entries(innehaller);
+  if (par.length === 0) return null;
+  if (par.length > 1) {
+    throw new Error(`innehaller: högst ett fält per fråga, fick ${par.map(([f]) => f).join(", ")}. Firestore tillåter ett array-contains per fråga.`);
+  }
+  return /** @type {[string, unknown]} */ (par[0]);
+}
+
+/**
  * Filtrerar och sorterar en lista enligt en fråga.
  *
  * Delas av de adaptrar som håller allt i minnet (minne, JSON). En riktig databas
@@ -156,6 +179,14 @@ export function applyQuery(rows, query) {
   if (query.where) {
     const conditions = Object.entries(query.where);
     out = out.filter((r) => conditions.every(([f, v]) => /** @type {any} */ (r)[f] === v));
+  }
+
+  if (query.innehaller) {
+    const villkor = innehallerVillkor(query.innehaller);
+    if (villkor) {
+      const [f, v] = villkor;
+      out = out.filter((r) => Array.isArray(/** @type {any} */ (r)[f]) && /** @type {any} */ (r)[f].includes(v));
+    }
   }
 
   if (query.sortBy) {

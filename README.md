@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**96 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**101 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -403,7 +403,7 @@ Firestore i morgon, SQL bakom ett API sedan.
 | `createDataSource(adapter)` | tar en adapter, vägrar en som saknar en operation |
 | `createMemorySource(start)` | allt i minnet. Tester, utveckling, och innan källan bestämts |
 | `createJsonSource({ bas })` | läser JSON-filer över HTTP. Läsbar, inte skrivbar |
-| `applyQuery(rows, query)` | filtrering, sortering och gräns för adaptrar som håller allt i minnet |
+| `applyQuery(rows, query)` | filtrering, sortering och gräns för adaptrar som håller allt i minnet. `where` är likhet, `innehaller` (0.34.0) är ett listfält som innehåller värdet, högst ett per fråga |
 | `OPERATIONS` | `read`, `list`, `create`, `update`, `remove`. `subscribe` är frivillig och står inte här |
 | `createFirestoreSource({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
 | `createPostgresSource({ query })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
@@ -1562,7 +1562,7 @@ Med `skapa.grupp` får plusset raden "Ny grupp" (efter Ny händelse och Nytt är
 
 #### Gruppkortet, detaljsidan och redigering (0.32.0, #180 G2)
 
-Kolumnbredden är SS per formulär: `OpsSkapaPanel` tar `kolumn`, `"smal"` (672 px, SS `GroupEditRouteView`, gäller Ny grupp och Redigera grupp) och `"bred"` (896 px, SS `EventEditRouteView`, gäller händelse, ärende och moduler). Skalet väljer.
+Kolumnbredden är SS per formulär: `OpsSkapaPanel` tar `kolumn`, `"smal"` (672 px, SS `GroupEditRouteView`, gäller Ny grupp, Redigera grupp och Nytt meddelande) och `"bred"` (896 px, SS `EventEditRouteView`, gäller händelse, ärende och moduler). Skalet väljer.
 
 - **Kortet i `OpsGruppanel`** har (i) (`onInfo(id)`, appen öppnar `OpsGruppSida`) och en penna (`onRedigera(id)`), båda uppe till höger efter appens egna `atgarder`. ⛔ **Pennan ritas bara för `roll` `agare` eller `admin`**, som SS `canEditGroup` (#2705): en roll som saknas ger ingen penna. Medlemsantal och avatarrad (fyra plus "+N") fanns redan som `medlemsantal` och `avatarer`. Det valda kortet har gruppens `farg` som kant och ljus bakgrund (SS `GroupCard.jsx:60-65`), märket bär `farg` och `ikon` (`GruppanelGrupp`), också i den infällda remsan. Med `skapa.redigeraGrupp` i skalet öppnar pennan samma panel som Ny grupp, i redigeringsläge (`?skapa=redigera-grupp&grupp=<id>`), annars anropas `grupper.onRedigera`.
 - **`medlemsinfo(medlemskap, groupId?)`** härleder `{ medlemsantal, avatarer, medlemmar }` ur en grupps rader i `memberships` (aktiva, ägare före admin före medlem, sedan namn). ⛔ **Ingen spegelkolumn:** antalet lagras aldrig, appen listar medlemskapen (en medlem får läsa dem sedan 0.32.0) och ramverket räknar. Finns i båda ingångarna (ren fil).
@@ -1613,6 +1613,55 @@ frågats. `kontrolleraSkaparkataloger` körs därför så tidigt den kan: när g
 kataloger är lästa. Ett fel och inte en tom lista, eftersom en tom typväljare ser
 ut som en katalog någon glömt fylla.
 
+### Samtal och meddelanden (0.34.0, #182, #185)
+
+CP 2026-09-30: ett meddelande till en person är **privat** (bara avsändaren och mottagaren ser det) och en standardfunktion i
+ramverket; ett ärende till en person syns för hela gruppen med mottagaren utskriven; mottagaren aviseras med en notis i appen
+(mejl är inte beslutat); och **chatt, meddelanden och Assistent-tråden är EN modell** (beslut 4, arkitektens second opinion på
+#185 punkt 1). Assistenten (AI) byggs inte, men modellen rymmer den.
+
+**Modellen.** Ett samtal har ett `slag` ur `SAMTALSSLAG`: `grupp` (gruppens chatt, alla aktiva medlemmar), `personer` (privat,
+exakt två deltagare) eller `agent` (en person och en medlem av typen `agent`, platsen för #185). Fälten är `SAMTALSFALT`
+(`groupId`, `slag`, `deltagare`, `skapad`, `skapadAv`). Meddelanden (`MEDDELANDEFALT`: `text`, `av`, `tid`, högst `MAX_MEDDELANDE`
+tecken) och läst-status (`LASTFALT`: `lastTill`) är **undersamlingar** till samtalet, så att ingen deltagarlista kopieras till varje
+meddelande. Tider är millisekunder.
+
+- ⛔ **Nyckeln härleds, `samtalsnyckel`**: `<groupId>|grupp`, eller `<groupId>|<uid>|<uid>` med uid:na sorterade. Högst ett
+  samtal per par och grupp kommer ur nyckeln och regeln, aldrig ur en fråga före skrivningen. Två deltagare och inte N, eftersom
+  regelspråket saknar `join` och en nyckel regeln inte kan kontrollera är en unikhet bara klienten lovar.
+- ⛔ **Olästa räknas fram, `olastaI`**: andras meddelanden efter läsmärket. Ingen räknare lagras.
+- ⛔ **Inget `senast` på samtalet.** Det senaste meddelandet finns redan, och inkorgen läser meddelandena ändå för att räkna olästa.
+  Ett lagrat utdrag hade varit en andra sanning som vem som helst i gruppchatten kan skriva om. `utdrag` härleder det.
+- `byggSamtal`, `byggMeddelande` bygger eller kastar med skälet. `motpart(samtal, uid)` är den andra deltagaren.
+
+**Mottagaren på ett ärende**, `byggMottagare(m, medlemmar?)`: formen `{ slag, uid? }` med `slag` ur `MOTTAGARSLAG` (`grupp`,
+`person`, `agent`). Appens ärenden ligger i appens samling och appen skriver deras regler; ramverket ger formen, valideringen (med
+medlemmarna: personen är en aktiv `person`, agenten en aktiv `agent`) och väljaren. Ett ärende till en person syns för hela gruppen,
+alltså ska appens läsregel för ärenden INTE bero på `mottagare`.
+
+| | |
+|---|---|
+| `samtalsregelfragment({ samtal?, meddelanden?, last?, medlemskap? })` | **reglerna, ur modellens fältlistor.** Aktiv medlem läser gruppchatten, bara deltagarna läser ett privat samtal och dess meddelanden, en borttagen medlem läser inget. Ett samtal skapas med den härledda nyckeln, av en deltagare, och båda är aktiva medlemmar (`personer`: båda personer; `agent`: den andra är agent). Deltagarna ändras aldrig och samtalet raderas inte. Ett meddelande skrivs med `av == request.auth.uid` av en medlem av typen `person`, så **en klient skriver aldrig som agent** (agentens svar skrivs av servern med Admin SDK). Meddelanden ändras och raderas aldrig: ett meddelande är vad som sades. `tid` och `skapad` ligger inom fem minuter från serverns klocka. Läst-status är bara personens egen. Kräver `regelfragment()` (dess `opsArMedlem`), med samma `medlemskap`. Regelprov i `rules/__tests__/samtal.test.mjs` |
+| `createSamtalskalla({ kalla, samtal?, meddelanden?, last?, sida? })` | **läser och skriver samtalen genom en datakälla.** `lista`, `oversikt` (varje samtal med senaste meddelandet, olästa och läsmärket, nyast först), `oppnaGrupp`, `oppnaPrivat` (samma samtal för A till B som för B till A), `meddelanden`, `prenumerera` (om källan kan), `skicka`, `lastTill`, `markeraLast`. ⛔ `lista` är TVÅ frågor, gruppchatten på `slag` och de privata med `innehaller: { deltagare: uid }`: en fråga över hela gruppen hade tagit med andras privata samtal, och regeln nekar den |
+| `samtalsnotiser({ samtal, uid, namnFor, href? })` | **notiser för olästa privata meddelanden, som en källa för ytan `notiser`.** Inget nytt notissystem: notisen härleds ur samtalet och läsmärket när notiserna hämtas och försvinner när meddelandet läses. Id `<samtal>|<meddelande>`, titel "X skickade ett meddelande". Registreras som `kallor.notiser` i en av appens moduler |
+| `useSamtal({ kalla, groupId, uid })` | inkorgens rader och antalet olästa. Tre tillstånd (`laddar`, `fel`, `rader`), och `olasta` räknas ur raderna, så ingången och listan kan inte visa olika tal |
+| `OpsMeddelanden` | **inkorgen, som SS `ChatInboxPanel`.** Listan till vänster (35 procent, minst 220 px) och samtalet till höger på dator, listan som hela sidan och "‹ Tillbaka" på telefon. Filtret Alla / Olästa, sökning, räknare i samtalsrutans hörn, etiketten Grupp, Privat eller Agent. Props `kalla`, `uid`, `groupId`, `gruppNamn`, `medlemmar` (gruppens medlemskap), `onNytt`, `valt`/`onValj`, `onOlasta`, `sprak`, `texter` |
+| `OpsSamtal` | ett samtal: huvudet med raden om vem som ser det ("Bara ni två ser det här"), bubblorna och skrivfältet (Enter skickar, Skift plus Enter bryter raden). Samma vy för alla tre slagen. Flyttar läsmärket när samtalet är öppet |
+| `OpsNyttMeddelande` | **"Nytt meddelande"**: `OpsMottagare` i personläget och en text. Öppnar det privata samtalet och skickar i det, `onKlar(samtalId)`. Raden "Bara ni två ser det här." står under mottagaren. Ritas av skalets `skapa.meddelande` |
+| `OpsMottagare` | **en väljare för ärenden och meddelanden.** `lage="arende"`: Gruppen (förval), varje aktiv person (en själv märkt "du") och Agenten när gruppen har en agent. `lage="person"`: bara andra aktiva personer. En radiogrupp med avatarer, 44 px per rad |
+| `OpsMeddelandeLank` | ingången, en `OpsIconLink` med meddelandeikonen och antalet olästa, för appens `actions` |
+
+**Skalet:** `skapa.meddelande` är en funktion `({ formId, groupId, onKlar }) => nod`, normalt `OpsNyttMeddelande`. Med den står
+"Nytt meddelande" i plusset (efter Nytt ärende, före Ny grupp), panelen har den smala kolumnen och knappen **Skicka**
+(`skickaEtikett`), och i läget "Alla mina grupper" väljs gruppen först, bara bland grupperna. Etiketten är `nyttMeddelandeEtikett`.
+
+**Datakontraktet** fick `innehaller` (0.34.0): `{ innehaller: { deltagare: uid } }` är Firestores `array-contains`, ett fält per
+fråga. Minnesadaptern och Postgres (`= ANY`) stöder det; http-adaptern KASTAR hellre än att skicka frågan utan villkoret, eftersom
+en fråga som tappat villkoret ger fler rader än den bad om.
+
+**Avgränsat i 0.34.0:** ingen AI, inga mejl, inga bilagor, ingen realtidsnärvaro ("skriver nu"), inga reaktioner, trådar,
+fästa meddelanden eller redigering. Samtal med fler än två personer finns inte (modellen tål dem, regeln gör det inte än).
+
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 
 Det här är **produktlöftet**, och det står skrivet för att det annars blir ett
@@ -1639,6 +1688,7 @@ varje gång något annat ska ändras.
 | `createCatalogSource` | `source`, `collection`, `groupId` | **Firestore är sanningen, repot bär standardvärdena.** ⛔ `collection` kommer utifrån: det är raden som gör en framtida kund till ett eget projekt utan att datamodellen ändras. ⛔ `groupId` KRÄVS (#162, väg C i [#160](https://github.com/cllp/ops-framework/issues/160)): katalogen är EN GRUPPS EGEN, samma mönster som `gruppkalla.js`, och varje fråga är `where: { groupId }`. ⛔ `groupId: null` (0.29.0, "ogrupperad, hela samlingen") FINNS INTE sedan 0.33.0: det läste allas rader och skrev rader utan grupp, utan slut inbyggt. ⛔ **`overgang: true`** ersätter det, TILLSAMMANS med appens groupId, för en app vars samling har rader från före #162: hela samlingen läses (en rad utan fält går inte att fråga efter), raderna utan grupp räknas som den här gruppens, andra gruppers rader faller bort, `spara` vägras och `seeda` gör ingenting. Det slutar fungera när katalogreglerna är ute, eftersom de nekar en fråga utan grupp, och det är avsiktligt: ordningen står i CHANGELOG 0.33.0. ⛔ `las()` KASTAR ALDRIG, den svarar `{ kategorier, kalla, fel, utanGrupp }`. `kalla` skiljer `databas` från `reserv`, så en banderoll går att visa, och reserven bär källans `groupId`. `utanGrupp` är antalet rader utan grupp i det som lästes, ALLTID med och 0 när övergången är klar. Utan `overgang` gör en rad utan grupp läsningen till reserven, med felet "groupId krävs", i stället för att tyst hamna i någon grupp. ⛔ En TOM samling är `databas` och inte `reserv`: läget före seedningen, FÖR DEN HÄR GRUPPEN. ⛔ `seeda()` rör aldrig en samling som har värden FÖR DEN HÄR GRUPPEN, och svarar med VAD som hände. ⛔ **`spara(kategori)` (0.33.0) är den enda skrivvägen**: bygger raden med källans `groupId` och skriver med `katalognyckel(groupId, id)`. Före 0.33.0 fanns ingen, och appen skrev `source.create(samling, kategori)` med kategorins `id` som nyckel, alltså samma dokument för två gruppers "uppgift". En kategori som bär en ANNAN grupps groupId kastar i stället för att flyttas tyst. ⛔ Standardvärdena (`standard`) HAR INGET groupId och valideras med `grupp: false`: de är mallen, gruppen äger sin kopia först efter seedning |
 | `katalognyckel`, `gruppensRader` | `groupId`, `id` / råa rader, `{ groupId, overgang? }` | **nyckeln och tolkningen av en lagrad rad (0.33.0), i båda ingångarna.** `katalognyckel(groupId, id)` ger `groupId|id`, samma form som `medlemskapsId`, och kastar på en del som inte har id-formen. Katalogkällan, `skapaGrupp`, bakfyllnaden och en app som skriver själv använder samma funktion, och regelfragmentet låser formen. `gruppensRader(rader, { groupId, overgang })` är den ENDA platsen som tolkar en lagrad rad: den egna gruppens rader packas upp till rent `id`, en annan grupps faller bort, en rad utan grupp stämplas med gruppen under `overgang` och lämnas annars orörd så att valideringen säger "groupId krävs". Svarar `{ rader, utanGrupp, andraGrupper }`, räknarna alltid med. En app som prenumererar själv (bolag-ops läser med `useLiveCollection`) ska köra sina rader genom den, så att klienten och functions ser samma katalog |
 | `katalogregelfragment` | ett eller flera samlingsnamn | **regelfragmentet för katalogens delade samling(ar) (#162).** Samma block som `gruppadSamling`, med `hasOnly` härledd ur `KATEGORIFALT` så fältlistan och regeln inte kan glida isär. Medlem läser, uppslag på radens `groupId`, ingen radering. ⛔ **Ägare och admin skriver (`opsArAdmin`, 0.33.0)**, enligt 0.32.0:s rollmodell: katalogen är samma sorts konfiguration som gruppens utseende, som admin redan ändrar, medan ägaren ensam behåller det strukturella (`moduler`, att arkivera gruppen). Före 0.33.0 stod `opsArAgare` här, skrivet innan rollen admin fanns. ⛔ **Nyckeln låses vid skapelse** till `<radens groupId>|<id>`: annars kunde en admin i grupp A skapa `B|uppgift` med sin egen grupp på raden, och grupp B kunde sedan aldrig spara "uppgift" (en uppdatering av en rad som tillhör A). ⛔ En fråga utan `where: { groupId }` nekas, så övergångsläget (`overgang`) måste vara borta ur klienten innan fragmentet deployas |
+| `samtalsregelfragment` | `{ samtal, meddelanden, last, medlemskap }` | **samtalens regler (0.34.0, #182).** Se [Samtal och meddelanden](#samtal-och-meddelanden-0340-182-185) |
 
 ⛔ **Bakfyllnaden av en befintlig katalog (#162, 0.33.0): skriptet är APPENS,
 modellen är RAMVERKETS.** Skriptet CP kör bor i appen, med appens standardvärden

@@ -9,6 +9,67 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.34.0
+
+⛔ **Meddelanden: gruppchatt, privata meddelanden och Assistent-tråden som EN modell, med regler, inkorg, "Nytt meddelande" och mottagarväljaren. Ny samling med nya regler: reglerna deployas FÖRE klienten, se "Att göra i appen".**
+Händelsen: CP 2026-09-30 08:12 i [#182](https://github.com/cllp/ops-framework/issues/182), med en skärmbild av "Nytt ärende": *"Skall kunna välja i grupp och vem i gruppen (optional) den är adresserad till. [...] Då kan vi också ha en typ som är meddelande, så att man kan skicka ett enkelt 'meddelande' till en person i inboxen."* CP:s beslut samma dag:
+1. Ett meddelande till en person är **privat**, bara avsändaren och mottagaren ser det, och det är en standardfunktion i ramverket.
+2. Ett ärende till en person syns för hela gruppen, med mottagaren utskriven.
+3. Mottagaren aviseras med en notis i appen. Mejl är inte beslutat, så inget mejl byggs.
+4. Chatt, meddelanden och Assistent-tråden ([#185](https://github.com/cllp/ops-framework/issues/185)) är EN modell och byggs en gång. Assistenten byggs inte nu, men modellen rymmer den som en deltagare av typen `agent`. Skälet står i arkitektens [second opinion på #185](https://github.com/cllp/ops-framework/issues/185#issuecomment-5908278214), punkt 1: tre ytor för samma sak är två sanningar om vad ett meddelande är.
+
+### Modellen, och varför den blev som den blev
+- **Ett samtal** (`samtal`, namnet skickas in) har `groupId`, `slag` (`grupp`, `personer` eller `agent`), `deltagare` (bara `personer` och `agent`), `skapad` och `skapadAv`. **Meddelanden** (`text`, `av`, `tid`) och **läst-status** (`lastTill`) är undersamlingar till samtalet.
+- **Undersamlingar och inte egna samlingar:** ett meddelande i en egen samling hade behövt bära samtalets `groupId` och deltagare för att regeln ska kunna avgöra vem som läser det, alltså en kopia per meddelande (regel 2). Som undersamling slår regeln upp samtalet en gång.
+- **Nyckeln härleds** (`samtalsnyckel`): `<groupId>|grupp`, eller `<groupId>|<uid>|<uid>` med uid:na sorterade. Högst ett samtal per par och grupp kommer ur nyckeln och regeln, aldrig ur en läs-sedan-skriv-kontroll. `personer` och `agent` delar form utan att kunna krocka, eftersom parets typer avgör slaget.
+- **Två deltagare, inte N.** Regelspråket har ingen `join`, så en nyckel av N sorterade uid:n går inte att kontrollera i regeln. Deltagarna är ändå en lista, så att fler personer senare är en ändring av regeln, inte av datamodellen.
+- ⛔ **Avvikelse från förslaget: inget `senast` på samtalet.** Det senaste meddelandet finns redan i samtalet, och inkorgen måste läsa meddelandena ändå för att räkna olästa (räknaren lagras inte). Ett `senast` hade sparat noll läsningar, lagt till en skrivning per meddelande som kan misslyckas för sig, och varit ett fält vem som helst i gruppchatten kan skriva om med ett falskt utdrag. Utdraget härleds (`utdrag`). Växer volymen är rätt plats en server som skriver fältet, inte klienten.
+- **Olästa räknas fram** (`olastaI`): andras meddelanden efter läsmärket. Egna är aldrig olästa.
+- **Tider är millisekunder**, och regeln kräver dem inom fem minuter från serverns klocka. Annars kan ett meddelande dateras "i morgon" och vara oläst för alltid.
+- **Mottagaren på ett ärende** (`byggMottagare`): formen `{ slag: "grupp" | "person" | "agent", uid? }`. Appens ärenden ligger i appens samling och appen skriver deras regler; ramverket ger formen, valideringen och väljaren.
+
+### Vad som lades till
+- `src/lib/samtal.js`: `SAMTALSSLAG`, `SAMTALSFALT`, `MEDDELANDEFALT`, `LASTFALT`, `MAX_MEDDELANDE` (4000), `MOTTAGARSLAG`, `samtalsnyckel`, `byggSamtal`, `byggMeddelande`, `byggMottagare`, `olastaI`, `motpart`, `utdrag`.
+- `samtalsregelfragment({ samtal, meddelanden, last, medlemskap })`: aktiv medlem läser gruppchatten; bara deltagarna läser ett privat samtal och dess meddelanden; en borttagen medlem läser inget, inte ens sina egna privata samtal (samtalet hör till gruppen), medan den andra deltagaren läser vidare. Samtalet skapas med den härledda nyckeln av en deltagare, och båda är aktiva medlemmar (`personer`: två personer; `agent`: den andra är agent). Deltagarna kan inte ändras och samtalet raderas inte. Ett meddelande skrivs med `av == request.auth.uid` av en medlem av typen `person`: **en klient skriver aldrig som agent**, inte ens med agentens inloggning. Meddelanden ändras och raderas aldrig: ett meddelande är vad som sades, och ett svar ska inte i efterhand kunna se ut att svara på något annat. Läsmärket är bara personens eget.
+- `createSamtalskalla`: `lista` (två frågor: gruppchatten på `slag`, de privata på `deltagare`), `oversikt`, `oppnaGrupp`, `oppnaPrivat`, `meddelanden`, `prenumerera`, `skicka`, `lastTill`, `markeraLast`.
+- `samtalsnotiser`: notiser för olästa privata meddelanden, som en källa för ytan `notiser`. **Inget nytt notissystem** (mätt: ramverket har `OpsNotiser` och källkontraktets `notiser`, och aktivitetsloggen är jobbens logg, inte personers notiser). Notisen härleds ur samtalet och läsmärket och försvinner när meddelandet läses; en skriven notis hade varit en andra sanning om samma oläst, och hade krävt en server som skriver åt mottagaren.
+- `useSamtal`, `OpsMeddelanden` (inkorgen, SS `ChatInboxPanel`), `OpsSamtal`, `OpsNyttMeddelande`, `OpsMottagare`, `OpsMeddelandeLank`.
+- Skalet: `skapa.meddelande` ger "Nytt meddelande" i plusset (efter Nytt ärende, före Ny grupp), panelen med smal kolumn och knappen **Skicka** (`skickaEtikett`), och gruppväljaren först i läget "Alla mina grupper", bara bland grupperna. `nyttMeddelandeEtikett`.
+- Datakontraktet: `innehaller` (array-contains), högst ett fält per fråga. Minne, Firestore och Postgres (`= ANY`); http-adaptern kastar hellre än att tappa villkoret.
+- Ikoner: `MeddelandeIkon`, `SkickaIkon`, `LasIkon`, `SokIkon`, `AgentIkon` (Lucide).
+
+### Rättat i skalet
+- **Gruppanelens höjd var 1 px (plus den säkra zonen) för hög.** `lg:h-[calc(100dvh-var(--topbar-height))]` räknade inte huvudets kant eller den säkra zonen, så varje sida med gruppanelen var högre än fönstret och rullade. Det syntes inte på långa sidor. På Meddelanden, som fyller fönstret, gav det en rullning. Nu `100dvh - safe-top - topbar - 1px`.
+
+### Röd utan fixen, grön med den
+- **Regelprov (`rules/__tests__/samtal.test.mjs`) mot emulatorn:** 45 gröna, 123 av 123 med grupper och kataloger. Rollerna: en främling, en annan medlem, båda deltagarna, en borttagen medlem och en klient inloggad som agenten. **Mot 0.33.0:s regler (inget samtalsblock): 13 av 45 röda**, alla som ska släppas in. **17 mutationer, en i taget, alla röda:** läsning utan deltagarkontroll (6), läsning utan medlemskap (4), den andra deltagaren oprövad (4), osorterad deltagarlista (1), nyckeln oprövad (1), skaparen inte deltagare (1), samtalet uppdaterbart (7), agenten får skriva (1), `av` oprövad (1), meddelandet ändringsbart (1), `tid` oprövad (1), `skapad` oprövad (1), annans läsmärke (1), läsmärkets `hasOnly` borta (1), agentslaget utan agent (1), texttaket 100 000 (1). Blocket helt borta: 13.
+- **Enhetsprov:** `samtal.test.js` (22) och `meddelanden.test.jsx` (13). Röda mot 0.33.0 redan vid import. **12 mutationer, en i taget, alla röda:** osorterad nyckel (5 prov), egna meddelanden räknade som olästa (4), `lista` utan deltagarvillkor (4), `innehaller` ignorerat i minnesadaptern (5), notis för gruppchatten (1), mig själv i personläget (1), borttagen medlem i väljaren (2), läsmärket flyttas aldrig (1), raden om det privata borta i Nytt meddelande (1), inget krav på mottagare (1), raden i plusset borta (2), `byggMottagare` utan medlemskontroll (1).
+- **`check-skalyta` avsnitt 29** (meddelanden vid 390 och 1280): **röd mot 0.33.0** (avsnittet avbryts, komponenterna finns inte, 2 brott). Mutationer, en i taget, alla röda: gruppanelens höjd som i 0.33.0 (1 brott vid 1280, sidan 1 px för hög), inkorgens höjd utan huvudets kant (2 brott), mottagarraden utan 44 px (2), panelens knapp Spara i stället för Skicka (2), egna bubblor till vänster (2), listan halva bredden (1), inget mellanrum mellan listan och samtalet (1), utan raden om det privata (2), andras bubblor i `bg-raised` (6, se nedan). **Grön nu, 1048 kontroller (efter ombasering på 0.33.1, som lade till sina egna).**
+- **Fyndet i montaget:** andras bubblor var först `bg-raised`, som i det ljusa temat är samma färg som `surface`. Proven i jsdom var gröna och avsnitt 29 också, eftersom inget mätte bubblans yta mot samtalets. Montaget mot SS visade text utan bubbla. Bubblan, den valda raden och etiketten Grupp är nu `bg-hover`, och avsnitt 29 kräver att bubblans bakgrund skiljer sig från ytan (röd med `bg-raised`, 6 brott).
+- **Montage mot SS** i `docs/jamforelser/0.34.0/`, med en ärlig jämförelse i `jamforelse.md` (regel 12).
+
+### Att göra i appen (bolag-ops), och ordningen: regler före klient
+⛔ **En ny samling med nya regler.** Mergas klienten först faller varje läsning av `samtal` på catch-allen, och inkorgen visar "Missing or insufficient permissions" (samma händelse som `prioriteringar`, appens `CLAUDE.md`).
+
+**Steg 1 (app, ompinning till 0.34.0, bara regler): reglerna.** Lägg `samtalsregelfragment({ medlemskap: <samma namn som till regelfragment()> })` i appens `firestore.rules`, efter `regelfragment()`. Granska diffen.
+- *Mellan steg 1 och 2:* inget läser samtalen än. Ingen skillnad för användaren.
+
+**Steg 2 (CP, regeldeploy):** deploya reglerna. Kontrollera efteråt att `samtal` finns i produktionens regler.
+
+**Steg 3 (app): klienten.**
+- `createSamtalskalla({ kalla })` på appens Firestore-källa.
+- En sida för Meddelanden med `OpsMeddelanden` (gruppens medlemskap som `medlemmar`, den aktiva gruppens namn), och `OpsMeddelandeLank` med `olasta` i `actions`.
+- `skapa.meddelande: ({ formId, groupId, onKlar }) => <OpsNyttMeddelande ... onKlar={(id) => { onKlar(); gaTillSamtalet(id); }} />`.
+- `samtalsnotiser({ samtal, uid, namnFor, href })` som `kallor.notiser` i en av appens moduler.
+- Ärendeformuläret får `OpsMottagare lage="arende"`, och appens ärenden fältet `mottagare` (validera med `byggMottagare`). Appens läsregel för ärenden ska INTE bero på `mottagare`: ett ärende till en person syns för hela gruppen (beslut 2). Utlösaren för `inkorgTillArende` och rutten till agenten är F5 och kräver CP:s beslut.
+
+### Hoppat över, med flit
+- Ingen AI, inga mejl, inga bilagor, ingen realtidsnärvaro ("skriver nu"). Inga reaktioner, trådar, fästa meddelanden, redigering, arkivering eller favoriter (SS har dem).
+- Samtal med fler än två personer (regeln kan inte kontrollera nyckeln).
+- Sökfält i mottagarväljaren (SS DMPanel har det). En grupp har sällan fler än ett tjugotal, och listan visar alla.
+
+---
+
 ## 0.33.1
 
 ⛔ **Idag och Kalender möter bottenraden med 0 px, luften ligger inuti rullytan, och händelsekortets text har inkorgens skala (titel 14/500, datum 12, pill 10/500). Inte breaking.**

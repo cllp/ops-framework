@@ -183,7 +183,7 @@ const g2Lista = [
   { id: "g3", namn: { sv: "Gamma AB" }, roll: "admin", farg: "5", ikon: "hus", medlemsantal: 3 },
 ];
 
-function Full({ children, skapa = { handelse: <p>Formulär</p> } }) {
+function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(window.__aktiv ?? "g1");
   return (
@@ -195,6 +195,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> } }) {
         <>
           <OpsThemeToggle />
           <OpsIconLink href="/inkorg" icon={<Inbox size={IKON} />} label="Inkorg" badge={3} />
+          {extraActions}
           <OpsIconLink href="/sok" icon={<Search size={IKON} />} label="Sök" />
           <OpsIconLink href="/fraga" icon={<Sparkles size={IKON} />} label="Fråga" />
         </>
@@ -206,6 +207,64 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> } }) {
     >
       {children}
     </OpsAppShell>
+  );
+}
+
+/*
+ * 0.34.0 (#182): meddelanden. En samtalskälla mot minnesadaptern med gruppchatten, ett privat samtal med två olästa och
+ * ett samtal Anna inte deltar i. Saknas samtalen i den byggda versionen (0.33.0) ritas en markör, och avsnitt 29 blir rött
+ * på det i stället för att sidan kastar.
+ */
+const MEDLEMMAR_M = [
+  { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+  { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+  { userId: "cecilia", namn: "Cecilia Berg", typ: "person", status: "aktiv" },
+  { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+];
+let samtalskallan = null;
+async function byggSamtalskalla() {
+  if (!Ops.createSamtalskalla) return null;
+  let t = new Date(2026, 8, 30, 9, 0).getTime();
+  const s = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000) });
+  const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+  await s.skicka(g.id, { text: "Hej alla, styrelsemötet flyttas till fredag klockan tio.", av: "cecilia" });
+  const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+  await s.skicka(p.id, { text: "Hej Anna! Kan du titta på fakturan från Bokio innan fredag?", av: "bo" });
+  await s.skicka(p.id, { text: "Absolut, jag gör det i eftermiddag.", av: "anna" });
+  await s.skicka(p.id, { text: "Tack! Den ligger i inkorgen.", av: "bo" });
+  await s.skicka(p.id, { text: "Och en sak till: momsen för augusti.", av: "bo" });
+  const annat = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "cecilia" });
+  await s.skicka(annat.id, { text: "Det här får Anna aldrig se.", av: "bo" });
+  return s;
+}
+function MeddelandeScen() {
+  const [kalla, setKalla] = useState(samtalskallan);
+  const [olasta, setOlasta] = useState(0);
+  const [valt, setValt] = useState(null);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!kalla) {
+    byggSamtalskalla().then((k) => {
+      samtalskallan = k;
+      setKalla(k);
+    });
+  }
+  return (
+    <Full
+      extraActions={<Ops.OpsMeddelandeLank href="/meddelanden" olasta={olasta} />}
+      skapa={{
+        handelse: <p>Formulär</p>,
+        lage: "g1",
+        meddelande: ({ formId, groupId, onKlar }) => (
+          <Ops.OpsNyttMeddelande formId={formId} groupId={groupId} uid="anna" medlemmar={MEDLEMMAR_M} kalla={kalla} onKlar={(id) => { onKlar(); setValt(id); }} />
+        ),
+      }}
+    >
+      {kalla ? (
+        <Ops.OpsMeddelanden kalla={kalla} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger Konsulting och Förvaltning AB" medlemmar={MEDLEMMAR_M} onOlasta={setOlasta} valt={valt} onValj={setValt} onNytt={() => {}} />
+      ) : (
+        <p>Laddar</p>
+      )}
+    </Full>
   );
 }
 
@@ -649,6 +708,7 @@ function Scen() {
       </Skal>
     );
   }
+  if (s === "meddelanden") return <MeddelandeScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>
