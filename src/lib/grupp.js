@@ -32,6 +32,7 @@
  */
 
 import { ID_FORM } from "./katalog.js";
+import { byggTypavvikelser } from "./modultyper.js";
 import { byggSkapare } from "./skapare.js";
 import { byggNamn } from "./sprak.js";
 import { SPRAK } from "./sprak.js";
@@ -173,6 +174,7 @@ export const MAX_PRESENTATION = 500;
  * @property {string} ort Högst `MAX_GRUPPORT` tecken, eller tom sträng. 0.32.0.
  * @property {"sv"|"en"} epostsprak Språket gruppens utskick skrivs på (inbjudningar). Förval `sv`. 0.32.0.
  * @property {ReadonlyArray<ExternDatakalla>} externaDatakallor Externa datakällor gruppens ytor får hämta ur. Tom lista när inga. 0.41.0, #216.
+ * @property {ReadonlyArray<import("./modultyper.js").Typavvikelse>} typavvikelser Ägarens avvikelser från modulernas typbidrag (dolda eller omdöpta). Tom lista när inga. 0.42.0, #217.
  */
 
 /**
@@ -281,12 +283,13 @@ export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "te
  * Reglerna (`regelfragment()`) läser samma två, så modellen och `hasOnly` inte kan glida isär, samma
  * beslut som `ANVANDARFALT` (#156). `ADMINGRUPPFALT` är det en admin får ändra: utseende och
  * uppgifter. `AGARGRUPPFALT` är det ägaren får ändra: det ovan plus `moduler`, `arkiverad` och
- * `externaDatakallor` (0.41.0, #216).
+ * `externaDatakallor` (0.41.0, #216) och `typavvikelser` (0.42.0, #217: vilka modulbidrag gruppen dolt eller döpt om;
+ * vilka moduler som är påslagna är ägarens beslut, så vad de bidrar med är det också).
  * `id` och `skapadAv` står i ingen av dem: vem som skapade gruppen och vad den heter i databasen
  * ändras aldrig.
  */
 export const ADMINGRUPPFALT = ["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"];
-export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "arkiverad", "externaDatakallor"];
+export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "arkiverad", "externaDatakallor", "typavvikelser"];
 export const GRUPPFALT = ["id", ...AGARGRUPPFALT, "skapadAv"];
 /*
  * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT
@@ -648,6 +651,7 @@ export function byggGrupp(d, kandaModuler) {
     ort,
     epostsprak: /** @type {Grupp["epostsprak"]} */ (epostsprak),
     externaDatakallor: byggExternaDatakallor(rad.externaDatakallor, id),
+    typavvikelser: byggTypavvikelser(rad.typavvikelser, id, kandaModuler),
   });
 }
 

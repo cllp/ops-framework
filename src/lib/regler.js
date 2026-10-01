@@ -36,6 +36,7 @@ import {
   EXTERNTOKEN_FORM, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNHEMLIGHET, MAX_EXTERNLABEL, MAX_EXTERNREPO, MEDLEMSKAPSAVGRANSARE,
 } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
+import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { SVARSFALT, SVARSVAL } from "./handelsemodell.js";
@@ -126,6 +127,55 @@ function externaDatakallorRegler() {
 }
 
 /**
+ * Reglerna för `typavvikelser` (0.42.0, #217), ur samma listor och gränser som `byggTypavvikelser`.
+ * Firestore-regler har ingen loop, så giltigheten av varje post rullas ut till `MAX_TYPAVVIKELSER` poster.
+ *
+ * ⛔ REGLERNA KONTROLLERAR FORMEN OCH ANTALET, INTE ATT MODUL-ID:T FINNS. En regel kan inte slå upp
+ * modulernas manifest. Det är ingen lucka som släpper in något farligt: en avvikelse kan bara PEKA på ett
+ * bidrag, och sammanslagningen läser dem mot de bidrag modulerna faktiskt lämnat, så en avvikelse som pekar
+ * på ett påhittat modul-id döljer eller döper om ingenting. Skrivvägen (`byggGrupp` med modulerna) avvisar den.
+ *
+ * @returns {string}
+ */
+function typavvikelserRegler() {
+  const lista = (/** @type {readonly string[]} */ a) => a.map((f) => `'${f}'`).join(", ");
+  const poster = Array.from({ length: MAX_TYPAVVIKELSER }, (_, i) => `(l.size() <= ${i} || opsTypavvikelse(l[${i}]))`).join("\n        && ");
+  return `    // ⛔ Ägarens avvikelser från modulernas typbidrag (0.42.0, #217). Ägaren skriver, en admin gör det inte (fältet
+    // står i AGARGRUPPFALT och inte i ADMINGRUPPFALT). Formerna och gränserna är härledda ur src/lib/modultyper.js,
+    // samma som byggTypavvikelser kontrollerar i klienten. Ingen loop finns i reglerna, därför rullas posterna ut
+    // till MAX_TYPAVVIKELSER. Fältet saknas eller är [] när gruppen inte har någon avvikelse, och det är giltigt.
+    // Att id:t pekar på ett bidrag som finns kan en regel inte avgöra, se typavvikelserRegler().
+    //
+    // 'dold' som bool och 'namn' som map har ingen egen rad: 'p.dold || 'namn' in p' kastar ett utvärderingsfel
+    // på en icke-bool, och 'p.namn.keys()' kastar på en icke-map, och ett fel i en regel är ett nej. Det är provat
+    // ('dold som inte är bool', 'ett namn som inte är en map' i rules/__tests__/grupper.test.mjs). De två rader som
+    // först stod här ('is bool', 'is map') togs bort för att deras mutationer inte gick att slå röda: de var
+    // ekvivalenta med kontrollen som redan fanns, och en rad utan eget utfall är en rad som ser ut som en vakt.
+    function opsTypavvikelse(p) {
+      return p.keys().hasOnly([${lista(TYPAVVIKELSEFALT)}])
+        && p.yta in [${lista(TYPYTOR)}]
+        && p.id is string && p.id.size() <= ${MAX_TYPID}
+        && p.id.matches('${regelRegex(MODULTYPID_FORM)}')
+        && (!('namn' in p)
+          || (p.namn.keys().hasOnly(['sv', 'en'])
+            && p.namn.sv is string && p.namn.sv.size() > 0 && p.namn.sv.size() <= ${MAX_TYPNAMN}
+            && (!('en' in p.namn) || (p.namn.en is string && p.namn.en.size() <= ${MAX_TYPNAMN}))))
+        && (p.dold || 'namn' in p);
+    }
+
+    function opsTypavvikelserGiltiga(d) {
+      return !('typavvikelser' in d)
+        || (d.typavvikelser is list && opsTypavvikelserLista(d.typavvikelser));
+    }
+
+    function opsTypavvikelserLista(l) {
+      return l.size() <= ${MAX_TYPAVVIKELSER}
+        && ${poster};
+    }
+`;
+}
+
+/**
  * Hjälpfunktionerna plus de fyra samlingar ramverket äger, som text att limma
  * in i appens `firestore.rules`, inuti `match /databases/{database}/documents`.
  *
@@ -182,6 +232,7 @@ export function regelfragment(namn = {}) {
     }
 
 ${externaDatakallorRegler()}
+${typavvikelserRegler()}
     // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
     //
     // ⛔ #156, RÄTTAT EFTER GRANSKNING: hasOnly-LISTAN ÄR HÄRLEDD UR
@@ -220,8 +271,8 @@ ${externaDatakallorRegler()}
     // handskriven kopia.
     match /${grupper}/{gid} {
       allow read: if opsArMedlem(gid);
-      allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data);
-      allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data)
+      allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data);
+      allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${AGARGRUPPFALT.map((f) => `"${f}"`).join(", ")}]))
         || (opsArAdmin(gid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${ADMINGRUPPFALT.map((f) => `"${f}"`).join(", ")}]));
