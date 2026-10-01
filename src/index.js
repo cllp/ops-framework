@@ -145,7 +145,7 @@ export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
  * Modulernas bidrag till typer (0.42.0, #217): `typer` i `defineModule`, sammanslagningen `bas ∪ bidrag(påslagna)`
  * vid render, ägarens avvikelse (`typavvikelser` på gruppen) och märket «från <modul>».
  */
-export { TYPYTOR, MODULTYPAVGRANSARE, MAX_TYPAVVIKELSER, MAX_TYPNAMN, modultypId, delaModultypId, byggTypavvikelser, medAvvikelse, typerForGrupp, bidragForGrupp, typenForRad, typmarke, typerTillValg } from "./lib/modultyper.js";
+export { TYPYTOR, MODULTYPAVGRANSARE, MAX_TYPAVVIKELSER, MAX_TYPNAMN, modultypId, delaModultypId, byggTypavvikelser, medAvvikelse, typerForGrupp, bidragForGrupp, typenForRad, typmarke, typensUrsprung, typerTillValg } from "./lib/modultyper.js";
 export { hubbForGrupp, valbaraModuler, hubbPoster, modulLage, byggOmdirigeringar, omdirigera, kontrolleraOmdirigeringar } from "./lib/hubb.js";
 
 /*

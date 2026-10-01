@@ -565,6 +565,31 @@ export function typmarke(typ, sprak = "sv") {
 }
 
 /**
+ * Modulen en händelse hör hemma i, härledd ur dess typ (0.43.0, cllp/ops-framework#224), eller `null` för en typ ur
+ * gruppens egna kategorier: den kom inte från någon modul.
+ *
+ * ⛔ INGET EGET FÄLT PÅ HÄNDELSEN. Typen `ekonomi:kvitto` säger redan att händelsen kom från Ekonomi, och ett fält
+ * `ursprungsmodul` bredvid hade varit en andra kopia av samma faktum som kan glida isär från typen (arbetsreglernas
+ * punkt 2). Appen lägger svaret i händelsens `ursprung` när den ritar listan eller panelen, tillsammans med en länk
+ * tillbaka om det finns något att länka till (ett kvitto, en faktura): DEN är appens, inte typens.
+ *
+ * ⛔ EN MODUL SOM ÄR AV ELLER BORTA NÄMNS ÄNDÅ, med «arkiverad modul» efter namnet. En händelse vars ursprung
+ * försvann ur raden hade sett ut som en händelse någon skapat för hand.
+ *
+ * @param {Typval | null | undefined} typ Svaret ur `typenForRad`.
+ * @param {string} [sprak]
+ * @returns {{ modul: string } | null}
+ */
+export function typensUrsprung(typ, sprak = "sv") {
+  if (!typ || typ.kalla === "bas") return null;
+  const namn = text(typ.modulNamn, sprak) || typ.kalla.modul;
+  if (typ.tillstand === "modul-av" || typ.tillstand === "modul-okand") {
+    return Object.freeze({ modul: `${namn}, ${sprak === "en" ? "archived module" : "arkiverad modul"}` });
+  }
+  return Object.freeze({ modul: namn });
+}
+
+/**
  * Typerna som alternativ till `OpsRadioGroup` (och andra val): `value` är värdet raden bär, `label`
  * namnet, och `hint` märket för ett bidrag. Gruppens egna kategorier får ingen `hint`.
  *

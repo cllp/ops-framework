@@ -9,6 +9,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.43.0
+
+⛔ **Händelsens ursprung: vem skapade den och var den hör hemma, i listan och i händelsepanelen, med en länk tillbaka till modulens post (#224). En agents rad märks med en robot. Appen måste pinna om och lägga `ursprung` på sina händelser; inga regler ändras utöver en rättad stavning i en kommentar.**
+
+### #224: "händelsens ursprung"
+Händelsen: CP 2026-10-01, med en skärmbild av Nytt ärende: "Vidare är det ju bra om man kan se var vissa händelser hade sitt ursprung. Om det är från en modul t ex. Vem skapade händelsen och var hör den hemma." Svaren på ärendets tre frågor (CP samma kväll): ursprunget syns i listan OCH i panelen, med en länk tillbaka till posten, och fråga 3 (agentens märke) "går på rekommendation".
+
+**API:**
+- `typensUrsprung(typ, sprak?)`: modulen ur typen (`typenForRad`), `{ modul }` eller `null` för en egen kategori. En modul som är av eller borta ger `"Ekonomi, arkiverad modul"`.
+- `ursprung: { modul, url?, urlEtikett? }` på en rad i `OpsEventList` och på `handelse` i `OpsHandelsePanel`, som också tar `skapadAv` och `skapad`. Nya etiketter `iModulEtikett` ("i") och `franModulEtikett` ("Från"), och `onNavigate` på panelen för länken.
+
+#### Besluten, och varför
+- **Inget eget fält i datan.** Typen `ekonomi:kvitto` säger redan att händelsen kom från Ekonomi. Ett fält `ursprungsmodul` hade varit en andra kopia av samma faktum (arbetsreglernas punkt 2). Appen härleder det med `typensUrsprung` när den ritar. Länken tillbaka är däremot appens: bara appen vet var kvittot bor.
+- **En komponent för raden** (`Ursprungsrad`), som både listan och panelen ritar. Två ritningar av samma rad hade sagt olika saker efter första ändringen.
+- **Agentens robot är också en rättelse.** Före 0.43.0 ersatte namnet ordet "Agent" i `OpsProvenance`, så "Skapad av ops-agent" skiljde sig från en människas rad bara i färgen: precis felet komponentens filhuvud förbjuder. Nu bär en agent `AgentIkon` (Lucide `Bot`), och ordet läses upp för skärmläsaren även när `label` ersätter det synliga. Det gäller överallt där `OpsProvenance` ritas.
+- **Ett ursprung som inte går att rita kastar**: tomt `modul`, tom `url`, okända fält. En rad som säger "Från" och inget mer är sämre än ingen rad.
+
+**Prov, båda riktningarna (`src/__tests__/ursprung.test.jsx`, 14 prov):**
+
+| Mutation | Röda prov |
+|---|---|
+| Utan agentens robot | 3 |
+| Utan ordet för skärmläsaren | 3 |
+| Ursprunget ignoreras när skaparen saknas | 2 |
+| Panelen utan raden | 2 |
+| Utan kontrollen av ursprunget | 2 |
+| «arkiverad modul» tappas | 1 |
+| Länken anropar inte `onNavigate` | 1 |
+
+Rättat i förbigående: "döljt" till "dolt" i en regelkommentar från 0.42.1 (ingen ändring av regeln).
+
 ## 0.42.1
 
 ⛔ **Rättelse av regelbudgeten för gruppens två listor (#223). En ägare som dolt eller döpt om sex typer kunde inte längre koppla en enda extern datakälla, och `MAX_EXTERNA = 10` lovade fler poster än regeln klarar. Appen måste pinna om, regenerera sitt regelfragment, och CP måste deploya reglerna. Ingen ändring i klientens API utöver att taket sjunker från 10 till 5.**
