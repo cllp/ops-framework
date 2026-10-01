@@ -25,6 +25,21 @@ import { gruppRutaKlass } from "../lib/radKlass.js";
  * ljusgrå. Båda är versaler med spärrning mätt i CP:s bild (`cp-utfalld.webp`),
  * se CHANGELOG 0.31.0 och tokenkommentaren för hur.
  *
+ * ── ⛔ #203: OH OCH GRUPPEN, INTE OH ELLER GRUPPEN ─────────────────────────
+ *
+ * CP 2026-09-30: "OH kvarstår (plattformskoncept OPS HUB). Bredvid OH: aktivt
+ * gruppnamn (max ~20 tecken, truncate) så det är tydligt vilken grupp man
+ * jobbar i. Desktop infällt grupper-panel: OH | Travel (inte byta ut OH mot
+ * gruppbokstäver). [...] Appnamn (Bolag Ops) ≠ OH ≠ grupp, tre lager." Den
+ * infällda panelen visade bara monogrammet OH, så man såg inte vilken grupp
+ * man arbetade i förrän panelen fälldes ut. Nu står OH kvar OCH gruppens namn
+ * bredvid (`data-marke="gruppnamn"`), avkortat i CSS vid ungefär 20 tecken
+ * (`max-w-[calc(20ch+20*spärrningen)]`, `truncate`), med hela namnet i `title` och
+ * i skärmläsartexten. OH byts aldrig mot gruppens bokstäver: gruppens märke är
+ * remsans och gruppväxlarens, inte märkets. Utfälld och på telefon är det som
+ * förut (rad 2 respektive bara gruppmärket): tre rader som tävlar om 56 px är
+ * det CP bad oss undvika.
+ *
  * ── Rörelse och placering, som SessionStudio (`AppHeader.jsx:174-193`) ───
  *
  * Med `panelInfalld` (skalet skickar den när `grupper` finns) ritas BÅDA
@@ -184,6 +199,7 @@ export function OpsBrand({ namn = "OPS HUB", undertext, monogram, panelInfalld, 
 
   if (typeof panelInfalld === "boolean") {
     return (
+      <>
       <span
         className={cx(
           "relative block h-10 shrink-0 lg:ml-(--panel-kant)",
@@ -213,6 +229,28 @@ export function OpsBrand({ namn = "OPS HUB", undertext, monogram, panelInfalld, 
           {monogramRuta}
         </span>
       </span>
+      {/* ⛔ #203: INFÄLLD PANEL, DATOR: OH + DEN AKTIVA GRUPPENS NAMN. Se filhuvudet. Ett SYSKON till rutan och inte ett barn:
+          rutan (`a > span:first-child`) är fortfarande exakt 40 px över panelens innehållsbredd, och namnet tar sin egen
+          plats i raden så att flikarna flyttas undan i stället för att läggas under det. Utfälld syns namnet redan som
+          rad 2 i ordmärket, så här ritas det bara när panelen är infälld, och bara från `lg` (där panelen finns; under
+          `lg` bär gruppväxlaren namnet). Avkortningen är CSS, inte en `slice` av strängen, så hela namnet finns kvar för
+          `title` och skärmläsare. */}
+      {under ? (
+        <span
+          data-marke="gruppnamn"
+          aria-hidden="true"
+          title={under}
+          className={cx("hidden min-w-0 items-center gap-2 font-marke uppercase", panelInfalld && "lg:flex")}
+        >
+          <span className="h-4 w-px shrink-0 bg-line-strong" />
+          <span
+            className="block truncate text-ink text-(length:--marke-storlek) leading-none tracking-(--marke-undertext-sparrning) max-w-[calc(20ch+20*var(--marke-undertext-sparrning))]"
+          >
+            {under}
+          </span>
+        </span>
+      ) : null}
+      </>
     );
   }
 

@@ -499,7 +499,12 @@ for (const bredd of [1280, 1600]) {
         krav(Math.abs(v.forstTop - v.panelY) <= 1, `panelen ${bredd} px ${lage}: knappen överst börjar ${(v.forstTop - v.panelY).toFixed(1)} px under panelens överkant, väntat 0.`);
         krav(v.flikX !== null && v.flikX >= v.logoR - 0.5, `panelen ${bredd} px ${lage}: toppradens första flik (x ${v.flikX}) börjar före märkesrutans högerkant (${v.logoR.toFixed(1)}).`);
       }
-      krav(ut.flikX !== null && in_.flikX !== null && ut.flikX - in_.flikX >= 20, `panelen ${bredd} px: toppradens flikar flyttade sig ${ut.flikX !== null && in_.flikX !== null ? (ut.flikX - in_.flikX).toFixed(0) : "?"} px när panelen fälldes in, väntat minst 20 (de börjar efter märkesrutan, SS \`AppHeader.jsx:194\`).`);
+      // ⛔ 0.38.0 (#203): ÄNDRAT PROV. Hette "flyttade sig minst 20 (åt vänster)": märket krympte alltid från 180 till 40 px när panelen fälldes
+      // in, så flikarna gick åt vänster. Sedan 0.38.0 står gruppens namn bredvid OH i det infällda läget (CP 2026-09-30: "OH | Travel"),
+      // och OH + namn är bredare än det utfällda ordmärket, så flikarna går åt HÖGER. Det som provet skyddar är att flikarna FÖLJER märket
+      // och inte står fast (SS `AppHeader.jsx:194`): de ska flytta sig minst 20 px åt det håll märkets bredd ändrats, och inte ligga
+      // ovanpå det (raden över och märkesavsnittet mäter att de börjar efter namnet).
+      krav(ut.flikX !== null && in_.flikX !== null && Math.abs(ut.flikX - in_.flikX) >= 20, `panelen ${bredd} px: toppradens flikar flyttade sig ${ut.flikX !== null && in_.flikX !== null ? (ut.flikX - in_.flikX).toFixed(0) : "?"} px när panelen fälldes in, väntat minst 20 åt endera hållet (de följer märkets bredd och börjar efter det, SS \`AppHeader.jsx:194\`).`);
     }
   }
   await context.close();
@@ -853,6 +858,118 @@ for (const bredd of [1280, 1600]) {
   }
   krav((in_.monoOpacity ?? 0) === 1 && (in_.ordOpacity ?? 1) === 0, `märket ${bredd} px infälld: monogrammets opacity ${in_.monoOpacity} och ordmärkets ${in_.ordOpacity}, väntat 1 och 0.`);
   krav(in_.bilder === 0, `märket ${bredd} px infälld: ${in_.bilder} <img> i märket.`);
+
+  // ⛔ 0.38.0 (#203): infälld panel på dator visar OH OCH den aktiva gruppens namn. CP 2026-09-30: "Desktop infällt grupper-panel:
+  // OH | Travel (inte byta ut OH mot gruppbokstäver)." Mått: OH syns och är kvar (monogramrutan har texten OH, full opacitet),
+  // gruppnamnet syns, står på EN rad bredvid rutan, ryms i högst ungefär 20 tecken (kapat med CSS, inte rutan som växer), ligger
+  // inte ovanpå första fliklänken, och toppraden flödar inte över.
+  const gn = await page.evaluate(() => {
+    const lank = document.querySelector('header a[href="/"]');
+    const namn = lank ? lank.querySelector('[data-marke="gruppnamn"]') : null;
+    const ruta = lank ? lank.querySelector('[data-marke="ruta"]') : null;
+    const text = namn ? namn.querySelector(".truncate") : null;
+    const monoWrap = lank ? lank.querySelector('[data-marke="monogram"]') : null;
+    const nav = document.querySelector("header nav");
+    const forstaFlik = nav ? nav.querySelector("a") : null;
+    const syns = (/** @type {Element | null} */ el) => (el ? el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== "hidden" && getComputedStyle(el).display !== "none" : false);
+    const r = (/** @type {Element | null} */ el) => (el ? el.getBoundingClientRect() : null);
+    const nr = r(namn);
+    const rr = r(ruta);
+    const tr = r(text);
+    const fr = r(forstaFlik);
+    const header = document.querySelector("header");
+    return {
+      namnSyns: syns(namn),
+      rutaText: ruta ? ruta.textContent : null,
+      rutaSyns: syns(ruta),
+      monoOpacity: monoWrap ? parseFloat(getComputedStyle(monoWrap).opacity) : null,
+      text: text ? text.textContent : null,
+      titel: namn ? namn.getAttribute("title") : null,
+      kapad: text ? /** @type {HTMLElement} */ (text).scrollWidth > /** @type {HTMLElement} */ (text).clientWidth : null,
+      namnVanster: nr ? nr.left : null,
+      rutaHoger: rr ? rr.right : null,
+      namnHoger: nr ? nr.right : null,
+      namnBredd: nr ? nr.width : null,
+      textHojd: tr ? tr.height : null,
+      textFontPx: text ? parseFloat(getComputedStyle(text).fontSize) : null,
+      flikVanster: fr ? fr.left : null,
+      namnMittY: nr ? nr.y + nr.height / 2 : null,
+      rutaMittY: rr ? rr.y + rr.height / 2 : null,
+      over: header ? header.scrollWidth - header.clientWidth : null,
+    };
+  });
+  matt.push(`märket ${bredd} px infälld, gruppnamn: ${JSON.stringify(gn)}`);
+  krav(gn.rutaSyns && gn.rutaText === "OH" && (gn.monoOpacity ?? 0) === 1, `infälld panel ${bredd} px: OH syns inte kvar i monogramrutan (text ${JSON.stringify(gn.rutaText)}, opacity ${gn.monoOpacity}). OH får aldrig bytas mot gruppens bokstäver.`);
+  krav(gn.namnSyns && gn.text === "CLAES PHILIP STAIGER AB", `infälld panel ${bredd} px: gruppnamnet syns inte bredvid OH (syns ${gn.namnSyns}, text ${JSON.stringify(gn.text)}). Väntat den aktiva gruppens namn.`);
+  krav(gn.titel === "CLAES PHILIP STAIGER AB", `infälld panel ${bredd} px: hela namnet saknas i title (${JSON.stringify(gn.titel)}).`);
+  if (gn.namnVanster !== null && gn.rutaHoger !== null && gn.namnHoger !== null && gn.namnBredd !== null) {
+    krav(gn.namnVanster >= gn.rutaHoger - 0.5, `infälld panel ${bredd} px: gruppnamnet börjar ${gn.namnVanster.toFixed(1)} men OH-rutan slutar ${gn.rutaHoger.toFixed(1)}. Väntat bredvid, aldrig ovanpå.`);
+    // ~20 tecken: 20 ch plus spärrningen per tecken, i det mätta typsnittet. Taket är bredden på namnblocket, inte på texten.
+    const tak = 20 * (gn.textFontPx ?? 13) * 0.75 + 20 * 0.26 * (gn.textFontPx ?? 13) + 16 + 1;
+    krav(gn.namnBredd <= tak, `infälld panel ${bredd} px: gruppnamnets block är ${gn.namnBredd.toFixed(1)} px, taket för ungefär 20 tecken är ${tak.toFixed(0)}. Namnet ska kapas, inte vidga huvudet.`);
+    if (gn.flikVanster !== null) krav(gn.namnHoger <= gn.flikVanster + 0.5, `infälld panel ${bredd} px: gruppnamnet slutar ${gn.namnHoger.toFixed(1)} men första fliken börjar ${gn.flikVanster.toFixed(1)}. Namnet ligger ovanpå navigeringen.`);
+  }
+  krav(gn.textHojd !== null && gn.textHojd < 20, `infälld panel ${bredd} px: gruppnamnet är ${gn.textHojd} px högt, alltså på mer än en rad.`);
+  krav(gn.namnMittY !== null && gn.rutaMittY !== null && Math.abs(gn.namnMittY - gn.rutaMittY) <= 1.5, `infälld panel ${bredd} px: gruppnamnets mitt ${gn.namnMittY?.toFixed(1)} mot OH-rutans ${gn.rutaMittY?.toFixed(1)}. Väntat på samma linje.`);
+  krav(gn.kapad === true, `infälld panel ${bredd} px: det långa namnet "CLAES PHILIP STAIGER AB" kapas inte (scrollWidth <= clientWidth). Då mäter provet inte avkortningen (golv).`);
+  krav((gn.over ?? 1) <= 0, `infälld panel ${bredd} px: toppraden flödar ${gn.over} px i sidled med gruppnamnet.`);
+  if (bildmapp && bredd === 1280) await page.screenshot({ path: path.join(bildmapp, "header-infalld-1280.png"), clip: { x: 0, y: 0, width: 1280, height: 120 } });
+  await context.close();
+}
+
+// ⛔ 0.38.0 (#203): vid 1024 px (smalaste bredden med panel) får gruppnamnet inte trycka ut flikarna ur huvudet: ingen flik gömd av namnet,
+// ingen överlappning, inget överflöde. Mäts utfälld mot infälld så att en flik som försvinner av namnet syns som skillnad.
+{
+  const { page, context } = await oppna("full", { width: 1024, height: 700 }, standardtema, 1, "g3");
+  await page.evaluate(() => document.fonts.ready);
+  const flikar = () =>
+    page.evaluate(() => {
+      const nav = document.querySelector("header nav");
+      const syns = (/** @type {Element} */ el) => el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== "none";
+      const l = nav ? [...nav.querySelectorAll("a")].filter(syns) : [];
+      const namn = document.querySelector('header [data-marke="gruppnamn"]');
+      const nr = namn && namn.getBoundingClientRect().width > 0 ? namn.getBoundingClientRect() : null;
+      const header = document.querySelector("header");
+      return { antal: l.length, forstaX: l.length ? l[0].getBoundingClientRect().left : null, sistaRight: l.length ? l[l.length - 1].getBoundingClientRect().right : null, namnHoger: nr ? nr.right : null, over: header ? header.scrollWidth - header.clientWidth : null };
+    });
+  const ut = await flikar();
+  await page.locator('nav[aria-label="Mina grupper"] > button').first().click();
+  await page.waitForTimeout(350);
+  const in_ = await flikar();
+  matt.push(`huvudet 1024 px: utfälld ${JSON.stringify(ut)}, infälld ${JSON.stringify(in_)}`);
+  krav(ut.antal >= 3, `huvudet 1024 px: bara ${ut.antal} flikar synliga utfälld (golv 3).`);
+  krav(in_.antal === ut.antal, `huvudet 1024 px: ${in_.antal} flikar synliga infälld mot ${ut.antal} utfälld. Gruppnamnet får inte trycka bort en flik.`);
+  krav(in_.namnHoger !== null && in_.forstaX !== null && in_.namnHoger <= in_.forstaX + 0.5, `huvudet 1024 px infälld: namnet slutar ${in_.namnHoger} men första fliken börjar ${in_.forstaX}.`);
+  krav((in_.over ?? 1) <= 0 && (ut.over ?? 1) <= 0, `huvudet 1024 px: toppraden flödar ${in_.over} px (infälld) och ${ut.over} px (utfälld) i sidled.`);
+  await context.close();
+}
+
+// ⛔ 0.38.0 (#203): 390 px har ingen extra rad i huvudet. CP: "Mobil: gruppikon kan kompletteras med kort namn om headern tål det; undvik tre
+// konkurrerande rader." Beslut: telefonen behåller bara gruppmärket (inget namn bredvid, inget märke): huvudet är en rad, 56 px.
+{
+  const { page, context } = await oppna("full", { width: 390, height: 844 }, standardtema, 1, "g3");
+  await page.evaluate(() => document.fonts.ready);
+  const m = await page.evaluate(() => {
+    const header = document.querySelector("header");
+    const hr = header ? header.getBoundingClientRect() : null;
+    const syns = (/** @type {Element | null} */ el) => (el ? el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== "none" : false);
+    const barn = header ? [...header.querySelectorAll("a, button")].filter((e) => syns(e)).map((e) => e.getBoundingClientRect()) : [];
+    const ytor = barn.map((b) => Math.round(b.y + b.height / 2));
+    return {
+      hojd: hr ? hr.height : null,
+      namnSyns: syns(document.querySelector('header [data-marke="gruppnamn"]')),
+      antalKnappar: barn.length,
+      spridning: ytor.length ? Math.max(...ytor) - Math.min(...ytor) : null,
+      over: header ? header.scrollWidth - header.clientWidth : null,
+    };
+  });
+  matt.push(`huvudet 390 px: ${JSON.stringify(m)}`);
+  krav(m.antalKnappar >= 3, `huvudet 390 px: bara ${m.antalKnappar} synliga kontroller (golv 3).`);
+  krav(m.hojd !== null && m.hojd <= 57, `huvudet 390 px: ${m.hojd} px högt, väntat toppradens 56 (ingen extra rad).`);
+  krav(!m.namnSyns, `huvudet 390 px: ett gruppnamn ritas bredvid märket i mobilhuvudet. Väntat bara gruppmärket (tre konkurrerande rader undviks).`);
+  krav(m.spridning !== null && m.spridning <= 2, `huvudet 390 px: kontrollernas mittlinjer skiljer ${m.spridning} px i höjdled, alltså mer än en rad.`);
+  krav((m.over ?? 1) <= 0, `huvudet 390 px: flödar ${m.over} px i sidled.`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "header-390.png"), clip: { x: 0, y: 0, width: 390, height: 120 } });
   await context.close();
 }
 
