@@ -33,6 +33,7 @@
 
 import { ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
+import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT } from "./samtal.js";
@@ -515,6 +516,46 @@ export function katalogregelfragment(namn) {
    * helt annan fil. En spridd kopia kostar ingenting och stänger den dörren.
    */
   return samlingar.map((s) => gruppadSamlingBlock(s, { skrivvillkor: "opsArAdmin", falt: [...KATEGORIFALT], nyckelMedGrupp: true })).join("");
+}
+
+/**
+ * Regelfragmentet för konfigurationens ändringslogg (0.39.0, #188): vem ändrade vad i en grupps katalog.
+ *
+ * ══ ⛔ VAD SOM GÄLLER, OCH VARFÖR ═══════════════════════════════════════
+ *
+ *   - LÄSA en loggrad: aktiv medlem i RADENS grupp (`resource.data.groupId`), som katalogen själv.
+ *   - SKRIVA en loggrad: den som får ändra katalogen, alltså ägare eller admin i radens grupp (`opsArAdmin`,
+ *     samma som `katalogregelfragment`). ⛔ Det måste vara SAMMA villkor: en admin som sparar en kategori skriver
+ *     katalograden och loggraden i samma tryck, och ett strängare villkor på loggen låter sparningen gå igenom
+ *     medan spåret uteblir. Det var felet i #188: appens handskrivna regel frågade efter appens grupp, så en admin
+ *     i en ANNAN grupp fick katalogen ändrad och loggraden nekad.
+ *   - FORMEN: `hasOnly` härledd ur `KONFIGLOGGFALT`, och `handelse` ur `KONFIGHANDELSER`, aldrig handskrivna kopior.
+ *   - ÄNDRA eller RADERA: aldrig. En logg som går att skriva om är inte ett spår.
+ *
+ * ⛔ EN RAD UTAN `groupId` SKAPAS INTE. Regelns uppslag på radens grupp kan inte byggas utan fältet, och ett fel i
+ * en regel är ett nej. Det är avsiktligt: `byggKonfigandring` kastar utan grupp av samma skäl, så ett tyst förval
+ * aldrig skriver en rad åt fel grupp.
+ *
+ * ⛔ EN FRÅGA UTAN `where: { groupId }` NEKAS, som katalogens. Appens läsning måste filtrera på den aktiva gruppen.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Appen skickar in det (`konfiglogg` i bolag-ops). Fragmentet använder
+ * `opsArMedlem` och `opsArAdmin` ur `regelfragment()`, alltså ska det limmas in efter det.
+ *
+ * @param {string} namn Samlingsnamnet för ändringsloggen.
+ * @returns {string}
+ */
+export function konfigloggregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "konfiglogg");
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+
+  return `    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArAdmin(request.resource.data.groupId)
+        && request.resource.data.keys().hasOnly([${lista(KONFIGLOGGFALT)}])
+        && request.resource.data.handelse in [${lista(KONFIGHANDELSER)}];
+      allow update, delete: if false;
+    }
+`;
 }
 
 /*
