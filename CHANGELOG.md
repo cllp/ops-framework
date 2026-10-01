@@ -9,6 +9,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.42.1
+
+⛔ **Rättelse av regelbudgeten för gruppens två listor (#223). En ägare som dolt eller döpt om sex typer kunde inte längre koppla en enda extern datakälla, och `MAX_EXTERNA = 10` lovade fler poster än regeln klarar. Appen måste pinna om, regenerera sitt regelfragment, och CP måste deploya reglerna. Ingen ändring i klientens API utöver att taket sjunker från 10 till 5.**
+
+### #223: "Taket MAX_EXTERNA = 10 håller inte"
+Händelsen: mätt 2026-10-01 under #217. Taket för `externaDatakallor` var tio och provades bara med minimala poster. Ärendet bad om att sätta taket med marginal under det mätta talet. Mätningen visade att det inte räcker, och vad som faktiskt var fel.
+
+**Mätt i emulatorn, poster med både `label` och `credentialSecretId` (den dyraste formen; strängarnas längd spelar ingen roll, antalet poster med de valfria fälten gör det):**
+
+| Fall | Går igenom | Spräcker budgeten |
+|---|---|---|
+| `externaDatakallor` ensam, uppdatering | 6 | 7 |
+| Samma, med alla andra fält på gruppen ändrade samtidigt | 6 | 7 |
+| `externaDatakallor` ensam, ny grupp | 7 | (8 provades inte, taket var 7 i loopen) |
+| **Sex typavvikelser LAGRADE, skriv `externaDatakallor`** (0.42.0) | **0** | **1** |
+| Båda listorna i samma uppdatering, sex typavvikelser | 0 | 1 |
+| Båda listorna på en ny grupp, sex typavvikelser | 1 | 2 |
+
+**Ändringarna i `regelfragment()`:**
+- **`typavvikelser` valideras bara när den ändras**, som `externaDatakallor` sedan 0.42.0. ⛔ 0.42.0:s ändringslogg säger att den valideras alltid för att den är "billig nog att få plats", och att mutationen utan avgränsningen inte gick att slå röd. Det mättes mot minimala externa poster. Mot den dyraste formen är det fel: sex lagrade avvikelser och en extern datakälla spräckte budgeten. Raden ovan i 0.42.0 står kvar som den skrevs, och den här raden är rättelsen.
+- **De två listorna skrivs aldrig i samma anrop.** En uppdatering som ändrar båda nekas, och en ny grupp med poster i båda nekas, med ett eget billigt villkor (`opsHarPoster`) som utvärderas före valideringen. Inget tak på antalet löser kombinationen, eftersom det är summan som räknas. Ett tydligt nej är bättre än ett budgetfel som beror på hur långa listorna råkar vara. Ramverkets skrivvägar skriver alltid en lista åt gången (`OpsModulTyper` skriver bara `typavvikelser`).
+- **`MAX_EXTERNA` är 5**, en posts marginal under de sex som går igenom.
+
+**Prov, båda riktningarna (`rules/__tests__/grupper.test.mjs`), alla i den dyraste formen och med båda listorna tömda först, eftersom ett oförändrat värde inte räknas som en ändring (två av proven mätte först ingenting av just det skälet, och var gröna av fel anledning):**
+
+| Mutation | Röda prov |
+|---|---|
+| `typavvikelser` valideras alltid igen | 1 (lagrade avvikelser och en full lista) |
+| Utan villkoret mot båda i samma uppdatering | 1 |
+| Utan villkoret mot båda på en ny grupp | 1 |
+| Taket tillbaka till 10 | 4 |
+| Taket 6 | 0. Väntat: sex går igenom, marginalen är ett val och ingen vakt |
+
+⛔ **Ändrade befintliga prov (regel 9, den som skriver godkänner inte):** `precis taket går igenom` i enhetsprovet läser nu taket ur konstanten i stället för en skriven 10, och regelprovet "båda listorna fulla i SAMMA uppdatering går igenom när posterna är minimala" är ersatt av provet att kombinationen nekas.
+
 ## 0.42.0
 
 ⛔ **Moduler kan bidra med typer till inkorgen, kalendern och händelserna (#217). Nytt valfritt fält `typer` i `defineModule`, sammanslagningen `bas ∪ bidrag(påslagna)` vid render (`typerForGrupp`), ägarens avvikelse (`typavvikelser` på gruppen: dölja eller döpa om, aldrig skapa), en resolver som aldrig tappar en skriven rad (`typenForRad`, «arkiverad modul») och märket «från <modul>» (`typmarke`, `OpsModulTyper`). Appen måste pinna om, regenerera sitt regelfragment, och CP måste deploya reglerna efter mergen. Ett kontrakt och dess bevis, inte hela produkten: ingen migrering av gamla rader och ingen bindning mot Notion eller GitHub.**

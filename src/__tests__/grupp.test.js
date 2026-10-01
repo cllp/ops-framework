@@ -347,7 +347,7 @@ describe("⛔ externaDatakallor på en grupp (0.41.0, #216)", () => {
     ["credentialSecretId för långt", [{ ...post(), credentialSecretId: "a".repeat(MAX_EXTERNHEMLIGHET + 1) }], /inte är ett namn/],
     ["⛔ credentialSecretId som är en classic-token", [{ ...post(), credentialSecretId: `ghp_${"a".repeat(36)}` }], /ser ut som en GitHub-token/],
     ["⛔ credentialSecretId som är en fine-grained-token", [{ ...post(), credentialSecretId: `github_pat_${"a".repeat(30)}` }], /ser ut som en GitHub-token/],
-    ["för många poster", Array.from({ length: MAX_EXTERNA + 1 }, post), /Taket är 10/],
+    ["för många poster", Array.from({ length: MAX_EXTERNA + 1 }, post), new RegExp(`Taket är ${MAX_EXTERNA}`)],
   ]);
   for (const [namn, varde, mot] of avvisas) {
     it(`⛔ avvisar ${namn}`, () => {
@@ -378,7 +378,8 @@ describe("⛔ externaDatakallor på en grupp (0.41.0, #216)", () => {
     expect(text).toContain(`p.label.size() <= ${MAX_EXTERNLABEL}`);
     expect(text).toContain(`p.credentialSecretId.size() <= ${MAX_EXTERNHEMLIGHET}`);
     // 0.42.0 (#217): create validerar även typavvikelser, och update validerar externaDatakallor bara när den ändras (budgeten på 1000 uttryck delas).
-    expect(text).toContain("allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data);");
+    // 0.42.1 (#223): create nekar poster i båda listorna, med villkoret före valideringen.
+    expect(text).toMatch(/allow create: if opsArAgare\(gid\)\s*&& !\(opsHarPoster\(request\.resource\.data, 'externaDatakallor'\) && opsHarPoster\(request\.resource\.data, 'typavvikelser'\)\)\s*&& opsExternaGiltiga\(request\.resource\.data\) && opsTypavvikelserGiltiga\(request\.resource\.data\);/);
     expect(text).toContain("(!opsAndrad(request.resource.data, resource.data, 'externaDatakallor') || opsExternaGiltiga(request.resource.data))");
   });
 });

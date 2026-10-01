@@ -245,8 +245,16 @@ export const EXTERNTYPER = /** @type {const} */ (["github"]);
 /** Fälten en post får bära. `type`, `repo` och `enabled` krävs, de två övriga är valfria. */
 export const EXTERNPOSTFALT = ["type", "repo", "enabled", "label", "credentialSecretId"];
 export const EXTERNPOSTKRAVDA = ["type", "repo", "enabled"];
-/** Högst så många poster per grupp. */
-export const MAX_EXTERNA = 10;
+/**
+ * Högst så många poster per grupp.
+ *
+ * ⛔ 5 OCH INTE 10 (0.42.1, #223). Taket var 10 och provades bara med minimala poster. Mätt 2026-10-01 i
+ * emulatorn, poster med både `label` och `credentialSecretId`, listan skriven ensam: sex går igenom, sju
+ * spräcker regelbudgeten på 1000 uttryck. Längden på strängarna spelar ingen roll, antalet poster med de
+ * valfria fälten gör det. Fem lämnar en posts marginal. Proven i `rules/__tests__/grupper.test.mjs` skriver
+ * taket i den dyraste formen, så en ändring av regeln som gör den dyrare blir röd där och inte i produktion.
+ */
+export const MAX_EXTERNA = 5;
 export const MAX_EXTERNREPO = 140;
 export const MAX_EXTERNLABEL = 80;
 export const MAX_EXTERNHEMLIGHET = 64;

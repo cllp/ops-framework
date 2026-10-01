@@ -399,7 +399,7 @@ describe("reglerna härleds ur samma listor och gränser (inga handskrivna kopio
   const regler = regelfragment();
 
   it("⛔ ägaren, inte admin, får skriva fältet: AGARGRUPPFALT-listan i regeln bär det och ADMINGRUPPFALT-listan inte", () => {
-    const owner = regler.match(/opsTypavvikelserGiltiga\(request\.resource\.data\)\s*&& request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\)\.hasOnly\(\[([^\]]*)\]\)/);
+    const owner = regler.match(/opsTypavvikelserGiltiga\(request\.resource\.data\)\)\s*&& request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\)\.hasOnly\(\[([^\]]*)\]\)/);
     const admin = regler.match(/opsArAdmin\(gid\)\s*&& request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\)\.hasOnly\(\[([^\]]*)\]\)/);
     expect(owner?.[1]).toContain('"typavvikelser"');
     expect(admin?.[1]).toBeTruthy();
@@ -408,7 +408,8 @@ describe("reglerna härleds ur samma listor och gränser (inga handskrivna kopio
 
   it("⛔ create och update kräver båda valideringen, och update bär den i ägarens gren", () => {
     expect(regler).toMatch(/allow create: if opsArAgare\(gid\)[^;]*opsTypavvikelserGiltiga\(request\.resource\.data\);/);
-    expect(regler).toMatch(/allow update: if \(opsArAgare\(gid\)[\s\S]*?&& opsTypavvikelserGiltiga\(request\.resource\.data\)\s*&& request\.resource\.data\.diff/);
+    // 0.42.1 (#223): update validerar typavvikelser bara när den ändras, som externaDatakallor.
+    expect(regler).toMatch(/allow update: if \(opsArAgare\(gid\)[\s\S]*?&& \(!opsAndrad\(request\.resource\.data, resource\.data, 'typavvikelser'\) \|\| opsTypavvikelserGiltiga\(request\.resource\.data\)\)\s*&& request\.resource\.data\.diff/);
   });
 
   it("postens fält, ytorna, id-formen, id-taket och antalet utrullade poster kommer ur modulens konstanter", () => {
