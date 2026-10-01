@@ -2,15 +2,13 @@ import { useId, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { slagText } from "../lib/slag.js";
 import { urgency } from "../lib/events.js";
-import { formatDagOchKlockslag } from "../lib/format.js";
-import { laesSkapare } from "../lib/skapare.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { HandelseLank } from "./HandelseLank.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsCard } from "./OpsCard.jsx";
-import { OpsProvenance } from "./OpsProvenance.jsx";
 import { ROLLMARKE_MATT } from "./OpsRollmarke.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
+import { Ursprungsrad } from "./Ursprungsrad.jsx";
 
 /**
  * Lista över händelser: vem, vad, och hur bråttom.
@@ -95,6 +93,8 @@ const TONER = {
  * @param {import("react").ReactNode} [props.actionHint] En mening om VILKA rader som går
  *   att göra något åt. ⛔ KRÄVS så snart någon rad har en `atgard` och någon annan inte har det.
  * @param {string} [props.skapadAvEtikett] (0.30.0, #173) Orden före namnet i "Skapad av Namn, 29 sep 09:12". Förval "Skapad av".
+ * @param {string} [props.iModulEtikett] (0.43.0, #224) Ordet före modulen i "Skapad av Namn, 29 sep 09:12, i Ekonomi". Förval "i".
+ * @param {string} [props.franModulEtikett] (0.43.0, #224) Ordet före modulen när raden saknar skapare: "Från Ekonomi". Förval "Från".
  * @param {string} [props.sprak] Språket för månadsnamnet i den raden ("sv" eller "en"). Förval "sv".
  * @param {(id: string) => void} [props.onOppnaHandelse] (0.40.0, #214) Vad ett tryck på en rad med `handelseId` gör. Utelämnad: skalets
  *   händelsepanel (`OpsAppShell` `handelsepanel`) öppnas. ⛔ Finns varken propen eller ett skal med panel kastar listan för en rad med `handelseId`:
@@ -114,6 +114,8 @@ export function OpsEventList({
   expandLabel = "Visa detaljer för",
   actionHint = null,
   skapadAvEtikett = "Skapad av",
+  iModulEtikett = "i",
+  franModulEtikett = "Från",
   sprak = "sv",
   statusWords = {},
   onOppnaHandelse,
@@ -392,7 +394,17 @@ export function OpsEventList({
                   en människa, och en agent som skapat 40 poster i natt är just det
                   man vill kunna se på en gång. En okänd sorts skapare (`okand`,
                   äldre rader) är vanlig text, inte en påhittad roll. */}
-              {skapadRad(h, skapadAvEtikett, sprak)}
+              <Ursprungsrad
+                skapadAv={h.skapadAv}
+                skapad={h.skapad}
+                ursprung={h.ursprung}
+                skapadAvEtikett={skapadAvEtikett}
+                iModulEtikett={iModulEtikett}
+                franModulEtikett={franModulEtikett}
+                sprak={sprak}
+                onNavigate={onNavigate}
+                komponent="OpsEventList"
+              />
 
               {/* ⛔ EGEN RAD UNDER TITELN, INTE BREDVID DEN: en knapp på 90 px bredvid titeln tar bredden titeln en
                   gång flyttades ut för att få.
@@ -456,23 +468,3 @@ export function OpsEventList({
 }
 
 
-/**
- * Raden "Skapad av Namn, 29 sep 09:12", eller `null` när posten saknar någon av delarna.
- * @param {import("../lib/events.js").OpsEvent} h
- * @param {string} etikett
- * @param {string} sprak
- */
-function skapadRad(h, etikett, sprak) {
-  if (!h.skapadAv || !h.skapad) return null;
-  const skapare = laesSkapare(h.skapadAv);
-  if (!skapare.namn) return null;
-  const rad = `${etikett} ${skapare.namn}, ${formatDagOchKlockslag(h.skapad, { locale: sprak })}`;
-  if (skapare.typ === "manniska" || skapare.typ === "agent") {
-    return (
-      <span className="mt-0.5 flex">
-        <OpsProvenance kind={skapare.typ === "agent" ? "agent" : "human"} label={rad} />
-      </span>
-    );
-  }
-  return <span className="text-hjalp text-ink-muted">{rad}</span>;
-}

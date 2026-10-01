@@ -66,6 +66,9 @@
  *   "Skapad av Namn, 29 sep 09:12" under titeln. ⛔ Den visas BARA när båda finns: ett namn utan tid eller en tid utan
  *   namn är en halv rad, och en halv rad läses som att resten inte laddat klart.
  * @property {string} [skapad] När posten skapades, ISO-8601. Visas i lokal tid, se `formatDagOchKlockslag`.
+ * @property {import("../components/Ursprungsrad.jsx").Ursprung} [ursprung] (0.43.0, #224) Var posten hör hemma: modulen den kom från, och
+ *   valfritt en länk tillbaka till modulens post. Ritas "Skapad av Namn, 29 sep 09:12, i Ekonomi", eller "Från Ekonomi" utan skapare.
+ *   ⛔ HÄRLEDS UR TYPEN med `typensUrsprung(typenForRad(...))`, aldrig skrivet som ett eget fält i datan: typen säger det redan.
  * @property {string} [updatedAt] Senast ändrad (t.ex. "2026-09-18"), höger i kompakta raden.
  * @property {string} [handelseId] (0.40.0, #214) Raden ÄR en händelse med en egen panel (`OpsHandelsePanel`): ett tryck på kortet öppnar den. Id:t är appens, och
  *   det som skalets `handelsepanel.rita` får. ⛔ BARA PÅ DE POSTER SOM ÄR HÄNDELSER: en uppgift eller ett ärende i samma lista har ingen panel och

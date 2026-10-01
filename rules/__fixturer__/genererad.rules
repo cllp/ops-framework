@@ -86,7 +86,7 @@ service cloud.firestore {
     // sedan 0.42.1, #223). En regel får utvärdera högst 1000 uttryck. En lista som inte ändras är redan validerad den
     // gång den skrevs. Här stod förut att typavvikelser "är billiga nog att få plats" och därför valideras alltid. Mätt
     // 2026-10-01 var det fel: med sex lagrade typavvikelser nekades en skrivning av EN extern datakälla med "maximum
-    // of 1000 expressions", alltså kunde en ägare som döljt sex typer inte längre koppla ett repo.
+    // of 1000 expressions", alltså kunde en ägare som dolt sex typer inte längre koppla ett repo.
     //
     // ⛔ OCH DE TVÅ LISTORNA SKRIVS ALDRIG I SAMMA ANROP (0.42.1, #223). Mätt: sex typavvikelser och en extern
     // datakälla i samma uppdatering spräcker budgeten, och vid create två datakällor och sex avvikelser. Inget tak

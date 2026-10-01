@@ -7,6 +7,7 @@ import { AndraIkon, DatumIkon, KlockaIkon, PilHogerIkon, PlatsIkon } from "./ico
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
+import { Ursprungsrad } from "./Ursprungsrad.jsx";
 
 /**
  * Händelsepanelen: en händelse på en egen sida, med Tillbaka överst (0.40.0, #214).
@@ -59,6 +60,9 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  * @property {{ namn: string, farg: 1 | 2 | 3 | 4 | 5 | 6 }} [kalender] Kalendern händelsen ligger i. Färgen står aldrig ensam: namnet står bredvid.
  * @property {string} [grupp] Gruppens namn.
  * @property {string} [plats]
+ * @property {{ namn: string, typ?: "manniska" | "agent" | "okand" } | string} [skapadAv] (0.43.0, #224) Vem som skapade händelsen, i `laesSkapare`s form.
+ * @property {string} [skapad] (0.43.0, #224) När, ISO-8601. Raden "Skapad av Namn, 29 sep 09:12" ritas bara när båda finns, som i listan.
+ * @property {import("./Ursprungsrad.jsx").Ursprung} [ursprung] (0.43.0, #224) Var händelsen hör hemma: modulen, och valfritt en länk tillbaka.
  * @property {import("react").ReactNode} [beskrivning] Löptext, eller en färdig nod (en app som visar markdown skickar `<OpsMarkdown>`).
  * @property {boolean} [kravSvar] Gruppens medlemmar ombeds svara. Kräver `svar`.
  *
@@ -78,6 +82,10 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  * @param {string} [props.saknasTitel] Förval "Händelsen finns inte".
  * @param {string} [props.saknasText] Förval "Den kan ha tagits bort, eller så får du inte se den."
  * @param {string} [props.tillEtikett] Skärmläsarens ord mellan två datum. Förval "till".
+ * @param {string} [props.skapadAvEtikett] (0.43.0, #224) Förval "Skapad av".
+ * @param {string} [props.iModulEtikett] (0.43.0, #224) Ordet före modulen efter en skapare. Förval "i".
+ * @param {string} [props.franModulEtikett] (0.43.0, #224) Ordet före modulen utan skapare. Förval "Från".
+ * @param {(href: string, event: any) => void} [props.onNavigate] (0.43.0, #224) Anropas när länken tillbaka till modulens post trycks, i stället för webbläsarens navigering.
  */
 export function OpsHandelsePanel({
   handelse,
@@ -95,6 +103,10 @@ export function OpsHandelsePanel({
   saknasTitel = "Händelsen finns inte",
   saknasText = "Den kan ha tagits bort, eller så får du inte se den.",
   tillEtikett = "till",
+  skapadAvEtikett = "Skapad av",
+  iModulEtikett = "i",
+  franModulEtikett = "Från",
+  onNavigate,
 }) {
   const rubrikId = useId();
   const ref = useRef(/** @type {HTMLElement | null} */ (null));
@@ -199,6 +211,20 @@ export function OpsHandelsePanel({
           ) : null}
         </div>
       ) : null}
+
+      {/* ⛔ VEM OCH VAR (0.43.0, #224, CP 2026-10-01: "Vem skapade händelsen och var hör den hemma"). Samma rad som i listan, ur samma
+          komponent, under typen och gruppen: det är ett faktum om händelsen och inte en del av när den är. */}
+      <Ursprungsrad
+        skapadAv={handelse.skapadAv}
+        skapad={handelse.skapad}
+        ursprung={handelse.ursprung}
+        skapadAvEtikett={skapadAvEtikett}
+        iModulEtikett={iModulEtikett}
+        franModulEtikett={franModulEtikett}
+        sprak={sprak}
+        onNavigate={onNavigate}
+        komponent="OpsHandelsePanel"
+      />
 
       {/* ⛔ INFORMATIONSRUTAN (SS `EventDetailInfoTabInline.jsx:129`: `rounded border bg-card p-4 space-y-3`). Datumet är det stora, med en
           ikon i `w-5`; tiden under det i en tyngre vikt än brödtexten. En rad som händelsen inte har ritas inte (`handelsetid`). */}
