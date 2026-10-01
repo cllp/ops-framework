@@ -2,6 +2,7 @@ import { cx } from "../lib/cx.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
 import { text } from "../lib/sprak.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { usePersonnamn } from "./usePersonnamn.js";
 import { AndraIkon, ChevronVansterIkon, PersonIkon, PlatsIkon } from "./icons.jsx";
 
 /**
@@ -39,6 +40,7 @@ import { AndraIkon, ChevronVansterIkon, PersonIkon, PlatsIkon } from "./icons.js
  * @param {import("react").ReactNode} [props.children] Appens egna sektioner under medlemmarna.
  */
 export function OpsGruppSida({ grupp, medlemmar = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, sprak, etiketter, children }) {
+  const personnamn = usePersonnamn();
   if (!grupp || typeof grupp.id !== "string" || !grupp.id) {
     throw new Error("OpsGruppSida: grupp krävs, med id och namn. En detaljsida utan grupp är en tom sida.");
   }
@@ -113,11 +115,13 @@ export function OpsGruppSida({ grupp, medlemmar = [], snabbval = [], onTillbaka,
         ) : (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {medlemmar.map((m) => {
+              // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget, annars "Namn saknas".
+              const { text: visat, saknas } = personnamn(m.namn, m.id);
               const rad = (
                 <>
-                  <OpsIdentity name={m.namn || m.id} seed={m.id} imageUrl={m.bild || undefined} size="medlem" />
+                  <OpsIdentity name={visat} seed={m.id} imageUrl={m.bild || undefined} size="medlem" />
                   <span className="min-w-0 flex-1">
-                    <span className="text-etikett text-ink">{m.namn || m.id}</span>
+                    <span className="text-etikett text-ink" data-namn-saknas={saknas ? "" : undefined}>{visat}</span>
                     {m.roll === "agare" || m.roll === "admin" ? (
                       <span className="ml-2 text-liten uppercase tracking-wide text-ink-muted">{m.roll === "agare" ? t.agare : t.admin}</span>
                     ) : null}

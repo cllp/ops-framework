@@ -122,17 +122,17 @@ export function laesSkapare(varde) {
 /**
  * Det som ska stå i en vy.
  *
- * ⛔ FALLER TILLBAKA PÅ UID:T:S BÖRJAN OCH INTE PÅ HELA UID:T. Ett uid är 28
- * tecken utan mening för en människa, och ett sådant i en metarad ser ut som ett
- * fel. Åtta tecken räcker för att skilja två rader åt när namnet saknas, och
- * signalerar att det är en maskinnyckel och inte ett namn.
+ * ⛔ SVARAR MED EN TOM STRÄNG NÄR NAMNET SAKNAS, ALDRIG MED UID:T ELLER EN BIT AV DET
+ * (0.40.1, #218). Här föll den tidigare tillbaka på uid:ts åtta första tecken, med
+ * resonemanget att en bit signalerar "maskinnyckel". CP 2026-10-01: "Bra om
+ * användarnamnet inte är Guid." Ett id i en vy läses som ett fel i appen, hel eller
+ * halv. Den som ritar raden väljer själv sin text för "okänd" (`NAMN_SAKNAS`).
  *
  * @param {unknown} varde @returns {string}
  */
 export function skaparensNamn(varde) {
   const s = laesSkapare(varde);
   if (s.namn) return s.namn;
-  if (s.uid) return s.uid.slice(0, 8);
   return "";
 }
 

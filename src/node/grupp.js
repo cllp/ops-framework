@@ -140,7 +140,7 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  *   de som den nya gruppens kataloger I SAMMA BATCH som gruppen och ägarens
  *   medlemskap (0.33.0). Utelämnade: ingen seedning, och ingen tyst tom sådan heller.
  *   Ramverket ändrar dem aldrig i efterhand: de är startpunkten, gruppen äger sin kopia.
- * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any }) => Promise<SkapaGruppSvar> }}
+ * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }) => Promise<SkapaGruppSvar> }}
  */
 export function createGroupService(konfig) {
   const { kalla, samlingar = {}, kataloger } = konfig ?? {};
@@ -185,7 +185,9 @@ export function createGroupService(konfig) {
     /**
      * Skapar en grupp åt den inloggade, med hen som ägare, och bjuder in de angivna.
      *
-     * @param {{ uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any }} b
+     * @param {{ uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }} b
+     *   `namn`: den inloggades namn ur anropets inloggning (`request.auth.token.name`). Används BARA när profilraden saknar
+     *   namn, så att ägarens medlemskap inte skrivs utan namn fast det fanns ett (0.40.1, #218).
      * @returns {Promise<SkapaGruppSvar>}
      */
     async skapaGrupp(b) {
@@ -263,7 +265,12 @@ export function createGroupService(konfig) {
         roll: "agare",
         typ: "person",
         status: "aktiv",
-        namn: anvandaren?.namn ?? "",
+        /*
+         * ⛔ PROFILENS NAMN FÖRST, SEDAN INLOGGNINGENS, ALDRIG TOMT NÄR ETT FANNS (0.40.1, #218). Före 0.40.1 stod här
+         * `anvandaren?.namn ?? ""`: saknades profilraden, eller hade den fått tomt namn vid första inloggningen, skrevs
+         * ägarens medlemskap utan namn trots att inloggningen bar ett, och `OpsMottagare` ritade uid:t.
+         */
+        namn: anvandaren?.namn || rensa(b.namn),
         bild: anvandaren?.bild ?? "",
       });
 

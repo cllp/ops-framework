@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { sammanstallSvar } from "../lib/handelsemodell.js";
 import { BockIkon, KryssIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { usePersonnamn } from "./usePersonnamn.js";
 
 /**
  * Svaren på en händelse: hur det står, mitt eget svar och vem som svarat vad (0.37.0, #179 F3).
@@ -30,6 +31,8 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
  * @param {string} [props.rubrik] Förval "Svar".
  */
 export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar" }) {
+  // ⛔ ALDRIG TOMT ELLER ETT ID SOM NAMN (#218): en medlem utan namn ritades som en tom rad.
+  const personnamn = usePersonnamn();
   const summa = sammanstallSvar(svar, medlemmar.map((m) => m.uid));
   const per = new Map(svar.map((s) => [s.id, s.svar]));
   return (
@@ -45,15 +48,16 @@ export function OpsSvar({ svar, medlemmar, uid, onSvara, rubrik = "Svar" }) {
         {medlemmar.map((m) => {
           const s = per.get(m.uid);
           const jag = m.uid === uid;
+          const { text: visat, saknas } = personnamn(m.namn, m.uid);
           return (
             <li key={m.uid} data-svarsrad={m.uid} className={cx("flex min-w-0 flex-wrap items-center gap-3 rounded-base p-3", jag ? "border border-accent/30 bg-accent-subtle" : "bg-raised")}>
-              <OpsIdentity name={m.namn} seed={m.uid} size="avatar" />
-              <span className="min-w-0 flex-1 truncate text-etikett font-medium text-ink">
-                {m.namn}
+              <OpsIdentity name={visat} seed={m.uid} size="avatar" />
+              <span className="min-w-0 flex-1 truncate text-etikett font-medium text-ink" data-namn-saknas={saknas ? "" : undefined}>
+                {visat}
                 {jag ? " (du)" : ""}
               </span>
               {jag ? (
-                <OpsSvarsknappar vald={s} onSvara={onSvara} namn={m.namn} variant="egen-rad" />
+                <OpsSvarsknappar vald={s} onSvara={onSvara} namn={visat} variant="egen-rad" />
               ) : (
                 <span className="shrink-0 text-meta text-ink-secondary">{s === "kommer" ? "Kommer" : s === "kommerInte" ? "Kommer inte" : "Har inte svarat"}</span>
               )}

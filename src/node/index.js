@@ -47,7 +47,7 @@ export { createGroupService } from "./grupp.js";
  * klient, alltså är `uppdateraProfil` (Admin SDK, skriver users OCH
  * memberships i samma steg) bara meningsfull härifrån.
  */
-export { uppdateraProfil } from "./profil.js";
+export { uppdateraProfil, bakfyllMedlemsnamn } from "./profil.js";
 
 /*
  * ⛔ `createActivityLog` ÅTEREXPORTERAS HÄRIFRÅN, OCH DET ÄR EN MÄTNING OCH INTE
@@ -119,3 +119,4 @@ export { bakfyllKatalogGrupp } from "./katalog.js";
  * ur medlemskapen, och det som svarar med dem utan skärm ska inte dra in React. Filen är ren.
  */
 export { medlemsinfo } from "../lib/gruppmedlemmar.js";
+export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";

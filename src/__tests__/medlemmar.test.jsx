@@ -55,9 +55,10 @@ describe("namnet kommer ur medlemskapet (#138, beslut A)", () => {
     expect(container.querySelector("img")).toBe(null);
   });
 
-  it("faller tillbaka på uid när namnet saknas, alltså för en rad skriven före fältet fanns", () => {
-    render(<OpsMedlemmar medlemmar={[ur("uid-utan-namn", {})]} migUid="mig" />);
-    expect(screen.getByText("uid-utan-namn")).toBeTruthy();
+  it("⛔ ritar 'Namn saknas' och aldrig uid när namnet saknas, alltså för en rad skriven före fältet fanns (#218)", () => {
+    const { container } = render(<OpsMedlemmar medlemmar={[ur("uid-utan-namn", {})]} migUid="mig" />);
+    expect(screen.getByText("Namn saknas")).toBeTruthy();
+    expect(container.textContent).not.toContain("uid-utan-namn");
   });
 });
 

@@ -108,3 +108,91 @@ export async function uppdateraProfil(b) {
 
   return { anvandare: nasta, medlemskapUppdaterade };
 }
+
+/**
+ * @typedef {object} BakfyllnadSvar
+ * @property {boolean} skarpt Sant: raderna skrevs. Falskt: svaret är planen, ingenting skrevs.
+ * @property {number} lasta Medlemskap lästa, alla typer.
+ * @property {number} saknar Personmedlemskap utan namn (av `lasta`). Agenter räknas inte, de har inget namn hos Google.
+ * @property {number} attFylla Av `saknar`: de vars profilrad bär ett namn, alltså de som GÅR att fylla.
+ * @property {number} fyllda Medlemskap som fick ett namn. Alltid 0 vid torrkörning, och `attFylla` efter en skarp körning utan fel.
+ * @property {number} utanProfilnamn Av `saknar`: profilraden finns men har inget namn. Går inte att fylla, personen måste spara sitt namn.
+ * @property {number} utanAnvandare Av `saknar`: det finns ingen profilrad alls för personen.
+ * @property {Array<{ id: string, userId: string, skal: "utan-profilnamn" | "utan-anvandare" }>} kvar De som INTE gick att fylla, med skälet, så listan går att agera på.
+ * @property {string[]} fel Det som stoppade enskilda rader. Tom lista är svaret "inga fel", aldrig "inte kontrollerat".
+ */
+
+/**
+ * Bakfyllnaden: ger varje personmedlemskap som saknar `namn` det namn profilraden har (0.40.1, #218).
+ *
+ * ══ ⛔ VARFÖR DEN FINNS, OCH VARFÖR RAMVERKET SPECIFICERAR OCH APPEN KÖR ═══════════════════════════════
+ *
+ * CP 2026-10-01, med en skärmbild från telefonen: "Till" i "Nytt ärende" visade den inloggade som ett uid. Hens
+ * medlemskap saknade `namn`. Ramverket skriver nu alltid ett namn när det finns ett (`skapaGrupp`, `bjudIn`,
+ * `accepteraInbjudningar`, `uppdateraProfil`), men medlemskap som skrevs INNAN dess, eller av appens egna
+ * migreringsskript (`skapa-grupp.mjs --agare <uid>` skriver en rad utan namn), rättas inte av det. Den här gör det,
+ * en gång, ur samma källa som alla andra skrivningar: `users/{uid}.namn`.
+ *
+ * ⛔ BARA TOMMA NAMN FYLLS. Ett medlemskap som redan har ett namn rörs aldrig, också när det skiljer sig från
+ * profilens: det är `uppdateraProfil`s sak att rätta ett inaktuellt namn, och en bakfyllnad som skrev över vore den
+ * andra uppfattningen om vilket namn som gäller.
+ *
+ * ⛔ TORRKÖRNING ÄR FÖRVAL (`skarpt: false`). Den skriver bara med `skarpt: true`. En Admin-källa går förbi reglerna
+ * helt, så förvalet är det som inte kan göra skada.
+ *
+ * ⛔ SVARAR ALLTID MED ALLA RADERNA, också när de är 0 (arbetsreglernas punkt 5). "0 utan profilnamn" och "inte
+ * räknat" ska inte gå att förväxla. Omkörbar: en andra skarp körning ger `saknar` = `utanProfilnamn` + `utanAnvandare`.
+ *
+ * @param {object} b
+ * @param {import("../data/contract.js").DataSource<any>} b.kalla Med list, read och update.
+ * @param {boolean} [b.skarpt] Förval falskt.
+ * @param {Samlingar} [b.samlingar]
+ * @returns {Promise<BakfyllnadSvar>}
+ */
+export async function bakfyllMedlemsnamn(b) {
+  const { kalla, skarpt = false, samlingar = {} } = b ?? /** @type {any} */ ({});
+  if (!kalla || typeof kalla.read !== "function" || typeof kalla.update !== "function" || typeof kalla.list !== "function") {
+    throw new Error("bakfyllMedlemsnamn: en datakälla med read, update och list krävs. Ramverket känner ingen databas.");
+  }
+  const ANVANDARE = samlingar.anvandare ?? "users";
+  const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
+
+  const alla = await kalla.list(MEDLEMSKAP);
+  /** @type {BakfyllnadSvar} */
+  const svar = { skarpt: skarpt === true, lasta: alla.length, saknar: 0, attFylla: 0, fyllda: 0, utanProfilnamn: 0, utanAnvandare: 0, kvar: [], fel: [] };
+  /** @type {Map<string, string | null>} uid -> profilens namn, `null` om raden saknas. Varje profil läses en gång. */
+  const namnen = new Map();
+
+  for (const m of alla) {
+    if ((m?.typ ?? "person") !== "person") continue;
+    if (typeof m?.userId !== "string" || !m.userId) continue;
+    if (typeof m.namn === "string" && m.namn.trim()) continue;
+    svar.saknar += 1;
+    if (!namnen.has(m.userId)) {
+      const rad = await kalla.read(ANVANDARE, m.userId);
+      namnen.set(m.userId, rad ? (typeof rad.namn === "string" ? rad.namn.trim() : "") : null);
+    }
+    const namn = namnen.get(m.userId);
+    if (namn === null) {
+      svar.utanAnvandare += 1;
+      svar.kvar.push({ id: m.id, userId: m.userId, skal: "utan-anvandare" });
+      continue;
+    }
+    if (!namn) {
+      svar.utanProfilnamn += 1;
+      svar.kvar.push({ id: m.id, userId: m.userId, skal: "utan-profilnamn" });
+      continue;
+    }
+    svar.attFylla += 1;
+    if (!skarpt) continue;
+    try {
+      // Genom byggMedlemskap, som uppdateraProfil: en trasig rad stoppas här och blir ett fel i listan, inte ett tyst patch.
+      const byggd = byggMedlemskap({ ...m, namn });
+      await kalla.update(MEDLEMSKAP, byggd.id, { namn: byggd.namn });
+      svar.fyllda += 1;
+    } catch (fel) {
+      svar.fel.push(`${m.id}: ${fel instanceof Error ? fel.message : String(fel)}`);
+    }
+  }
+  return svar;
+}

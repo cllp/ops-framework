@@ -1,3 +1,4 @@
+import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { byggMeddelande, byggSamtal, motpart, olastaI, samtalsnyckel, utdrag } from "../lib/samtal.js";
 
 /**
@@ -215,7 +216,7 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
         const s = /** @type {NonNullable<typeof r.senaste>} */ (r.senaste);
         return {
           id: `${r.samtal.id}|${s.id}`,
-          titel: titel(namnFor(s.av) || s.av),
+          titel: titel(namnFor(s.av) || NAMN_SAKNAS),
           text: utdrag(s.text),
           prio: /** @type {const} */ ("normal"),
           ...(href ? { href: href(r.samtal.id) } : {}),

@@ -7,6 +7,7 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
+import { usePersonnamn } from "./usePersonnamn.js";
 
 /**
  * Medlemmarna i en grupp: lista, bjud in, ändra roll, ta bort.
@@ -81,6 +82,7 @@ export function OpsMedlemmar({
     throw new Error("OpsMedlemmar: migUid krävs. Utan den vet vyn inte vilken rad som är ens egen, och skyddet mot att ta bort sig själv blir en gissning.");
   }
 
+  const personnamn = usePersonnamn();
   const [epost, setEpost] = useState("");
   const [roll, setRoll] = useState("medlem");
 
@@ -125,14 +127,20 @@ export function OpsMedlemmar({
              *
              * ⛔ E-POSTEN RITAS INTE. Den lämnar aldrig `users`, och att
              * anroparen kan råka ha sin egen i handen gör den inte till något
-             * listan ska visa. Uid:t är sista utvägen och betyder "den här
-             * raden skrevs innan namnet fanns".
+             * listan ska visa.
+             *
+             * ⛔ UID:T VISAS ALDRIG (#218, CP 2026-10-01: "Bra om användarnamnet
+             * inte är Guid"). Sista utvägen är den inloggades eget namn, annars
+             * "Namn saknas", märkt med `data-namn-saknas`: "den här raden
+             * skrevs innan namnet fanns".
              */
-            const visningsnamn = medlemskap.namn || namn || medlemsEpost || medlemskap.userId;
+            const { text: visningsnamn, saknas } = personnamn(medlemskap.namn || namn || medlemsEpost, medlemskap.userId);
             return (
               <OpsListRow key={medlemskap.id}>
                 <OpsIdentity name={visningsnamn} seed={medlemskap.userId} imageUrl={medlemskap.bild || undefined} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-ink">{visningsnamn}</span>
+                <span className="min-w-0 flex-1 truncate text-ink" data-namn-saknas={saknas ? "" : undefined}>
+                  {visningsnamn}
+                </span>
                 {jag ? <OpsPill tone="neutral">{duEtikett}</OpsPill> : null}
                 {kanAndra && !jag && onAndraRoll ? (
                   <OpsSelect
