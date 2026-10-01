@@ -1,13 +1,13 @@
 /**
  * Hubben per grupp: vilka kort den aktiva gruppen visar, vilken modul och
- * vilken del en adress hör till, och vart en gammal adress leder (0.38.0, #184).
+ * vilken del en adress hör till, och vart en gammal adress leder (0.37.0, #184).
  *
  * ══ ⛔ TRE NIVÅER, OCH HUBBEN ÄR DEN MITTERSTA ═══════════════════════════
  *
  * CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter."
  * En INSTANS (appen) har GRUPPER, och en grupp har MODULER. Hubben visar den
  * aktiva gruppens moduler, ett kort per modul, och en modul har en egen insida
- * med sin egen navigation. Före 0.38.0 var varje del av Ekonomi en rad i
+ * med sin egen navigation. Före 0.37.0 var varje del av Ekonomi en rad i
  * hubbens meny (Översikt, Ekonomi, Liv, Schema, Cutover och så vidare), och
  * menyn var appens lista och inte gruppens.
  *

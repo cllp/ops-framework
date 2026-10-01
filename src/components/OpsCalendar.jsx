@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { kantKlass } from "../lib/kant.js";
-import { slagKant } from "../lib/slag.js";
+import { slagKant, slagText } from "../lib/slag.js";
 import { FULL_HEIGHT_CLASSES, useFullHeight } from "../lib/fullHeight.js";
 import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -308,7 +308,18 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
               ⛔ Det kostar ett tryck till för ett stängt ärende, och det är en
               medveten avvägning: kortet blir läsbart som en rad, och adressen
               står där den kan bära sitt eget ord. */}
-          <span className="font-semibold text-ink">{entry.title}</span>
+          {/* ⛔ SLAGETS IKON FÖRE TITELN (0.37.1). 0.37.0 lovade ikonen "i dagpanelens kort" men ritade den aldrig här, och CP
+              2026-09-30 sade "Jag gillar ikonerna för typerna hos oss". Samma storlekskonvention och samma färg som raden i
+              `OpsEventList` (slagets ton ur `lib/slag.js`), `aria-hidden` eftersom ordet redan läses ur kantordet ovanför.
+              Ikonen hör hemma HÄR och inte i dagrutan: rutan har prickar och streck, ett beslut från 0.37.0. */}
+          <span className="flex items-start gap-1.5">
+            {entry.kindIcon ? (
+              <span data-postikon="" aria-hidden="true" className={cx("mt-0.5 flex shrink-0 items-center", slagText(entry.slag, entry.slagLabel, "OpsCalendar") || "text-ink-secondary")}>
+                {entry.kindIcon}
+              </span>
+            ) : null}
+            <span className="min-w-0 font-semibold text-ink">{entry.title}</span>
+          </span>
           <p className="m-0 text-meta text-ink-secondary">{meta}</p>
           {/* ⛔ KALENDERNS NAMN BREDVID SIN FÄRG (0.36.0). Färgen ensam säger ingenting för den som inte lärt sig den,
               och i en panel med tre kalendrar är namnet det man letar efter. */}
@@ -577,7 +588,14 @@ function Snabbtitt({ ankare, alla, synliga, onClose, locale }) {
             <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", dold && "opacity-50")}>
               <span aria-hidden="true" className={cx("mt-1 size-2 shrink-0 rounded-full", postklasser(e).prick)} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-meta font-semibold">{e.title}</span>
+                <span className="flex items-center gap-1 text-meta font-semibold">
+                  {e.kindIcon ? (
+                    <span data-postikon="" aria-hidden="true" className={cx("flex shrink-0 items-center", slagText(e.slag, e.slagLabel, "OpsCalendar") || "text-ink-secondary")}>
+                      {e.kindIcon}
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 truncate">{e.title}</span>
+                </span>
                 {e.kalender || e.not || e.allDay ? (
                   <span className="block truncate text-liten text-ink-secondary">{[e.allDay ? "Heldag" : "", e.not || "", e.kalender ? e.kalender.namn : ""].filter(Boolean).join(" · ")}</span>
                 ) : null}

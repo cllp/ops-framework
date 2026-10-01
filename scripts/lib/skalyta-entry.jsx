@@ -338,7 +338,7 @@ const hubModuler = [
   { href: "/cutover", label: "Cutover", icon: <Settings size={IKON} /> },
 ];
 /*
- * 0.38.0 (#184): Ekonomi som EN modul med bolag-ops fjorton delar, registrerad med `defineModule`. Kastar den (en dist utan
+ * 0.37.0 (#184): Ekonomi som EN modul med bolag-ops fjorton delar, registrerad med `defineModule`. Kastar den (en dist utan
  * `hubb`) blir svaret `null` och scenen ritar en markör.
  */
 const EKONOMIDELAR = [
@@ -700,7 +700,7 @@ function Scen() {
       `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640"><rect width="640" height="640" fill="${bg}"/><rect x="70" y="210" width="260" height="220" rx="14" fill="${fg}"/><rect x="360" y="290" width="175" height="60" fill="${fg}"/></svg>`)}`;
     return <OpsInloggning auth={{ signInWithGoogle: () => {} }} etikett="Bolag Ops" ordmarke={{ ljus: svg("#ffffff", "#242c27"), mork: svg("#202420", "#e8e4dc") }} />;
   }
-  // 0.38.0 (#184): hubben för den aktiva gruppen och modulens insida. Grupperna: g3 har Ekonomi, g2 har inga moduler, g1 har
+  // 0.37.0 (#184): hubben för den aktiva gruppen och modulens insida. Grupperna: g3 har Ekonomi, g2 har inga moduler, g1 har
   // Ekonomi och en modul appen inte registrerat. Saknas `OpsGruppHubb` (0.37.0 och äldre) ritas en markör, och avsnitt 9c blir
   // rött på det i stället för att sidan kastar.
   // "modulsida|/ekonomi/jamforelse": adressen efter strecket är den som visas.

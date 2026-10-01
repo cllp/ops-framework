@@ -5,7 +5,7 @@ import { text } from "../lib/sprak.js";
 import { OpsView } from "./OpsView.jsx";
 
 /**
- * En moduls insida: tillbaka till hubben, modulens namn, modulens EGEN navigation, och delen som är öppen (0.38.0, #184).
+ * En moduls insida: tillbaka till hubben, modulens namn, modulens EGEN navigation, och delen som är öppen (0.37.0, #184).
  *
  * ══ ⛔ DELARNA ÄR MODULENS NAVIGATION, INTE HUBBENS ═══════════════════════
  *

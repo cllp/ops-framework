@@ -607,7 +607,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   await context.close();
 }
 
-// ══ 9c. HUBBEN PER GRUPP OCH MODULENS INSIDA (0.38.0, #184) ════════════════════
+// ══ 9c. HUBBEN PER GRUPP OCH MODULENS INSIDA (0.37.0, #184) ════════════════════
 // CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Hubben visar den aktiva gruppens moduler och inget
 // annat, och en modul har en egen insida med sin egen navigation. Mått vid 390 och 1280:
 //   (a) en grupp med Ekonomi: ETT kort, en länk till /ekonomi, inga delar i hubben, minst 44 px högt, klick navigerar;
@@ -3130,6 +3130,28 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
           krav(!!ovan && ovan.rutansUnderkant <= ovan.panelensTopp + 0.5 && ovan.rutansTopp >= 0, `${namn}: den valda rutans underkant är ${ovan && ovan.rutansUnderkant} och panelens topp ${ovan && ovan.panelensTopp}, väntat rutan helt ovanför panelen (SS-appen rullar den valda veckan upp ovanför panelen).`);
           krav(p.plats.h <= p.yta * 0.45 + 1.5, `${namn}: panelen är ${p.plats.h} px, taket är 45 procent av ${p.yta} = ${(p.yta * 0.45).toFixed(0)} (SS max-h-[45%]).`);
           krav(!!p.postrulle && p.postrulle.ch <= 140.5 && p.postrulle.sh > p.postrulle.ch, `${namn}: bubblans rullyta ${JSON.stringify(p.postrulle)}, väntat högst 140 px hög och rullbar (SS abEventsScroll maxHeight 140). Golv: fyra poster ska inte rymmas.`);
+          // ⛔ 0.37.1: SLAGETS IKON STÅR FÖRE TITELN PÅ BUBBLANS RAD. 0.37.0 lovade den i sin CHANGELOG men ritade den aldrig här
+          // (CP 2026-09-30: "Jag gillar ikonerna för typerna hos oss"). Mäts i den byggda appen: en svg i raden för Styrelsemöte,
+          // den står till vänster om titeln på samma rad, titeln är hel (inte trunkerad) och raden sticker inte ut ur bubblan.
+          const ikonrad = await page.evaluate(() => {
+            const rad = [...document.querySelectorAll("[data-postbubbla] [data-postrad]")].find((x) => (x.textContent || "").includes("Styrelsemöte"));
+            if (!rad) return null;
+            const ikon = rad.querySelector("[data-postikon]");
+            const svg = ikon ? ikon.querySelector("svg") : null;
+            const titel = [...rad.querySelectorAll("span")].find((x) => (x.textContent || "").trim() === "Styrelsemöte" && !x.querySelector("svg"));
+            if (!ikon || !svg || !titel) return { svg: !!svg, titel: !!titel };
+            const i = ikon.getBoundingClientRect();
+            const t = titel.getBoundingClientRect();
+            const bub = /** @type {Element} */ (document.querySelector("[data-postbubbla]")).getBoundingClientRect();
+            return { svg: true, titel: true, ikonB: i.width, ikonH: i.height, ikonRight: i.right, titelLeft: t.left, titelRight: t.right, titelH: t.height, ikonMittY: i.top + i.height / 2, titelTopp: t.top, titelBotten: t.bottom, trunkerad: /** @type {HTMLElement} */ (titel).scrollWidth > /** @type {HTMLElement} */ (titel).clientWidth + 1, bubblaRight: bub.right, dolt: ikon.getAttribute("aria-hidden") };
+          });
+          if (bildmapp) await page.locator("[data-postbubbla]").screenshot({ path: path.join(bildmapp, `kalender-bubbla-ikon-${vp.width}.png`) });
+          matt.push(`${namn}: bubblans rad Styrelsemöte med ikon ${JSON.stringify(ikonrad)}`);
+          krav(!!ikonrad && ikonrad.svg === true && ikonrad.titel === true, `${namn}: bubblans rad för Styrelsemöte har ${ikonrad && ikonrad.svg ? "" : "ingen ikon (svg) "}${ikonrad && ikonrad.titel ? "" : "ingen titel"} (${JSON.stringify(ikonrad)}), väntat slagets ikon före titeln (CP 2026-09-30: "Jag gillar ikonerna för typerna hos oss").`);
+          if (ikonrad && ikonrad.svg && ikonrad.titel) {
+            krav(ikonrad.ikonRight <= ikonrad.titelLeft + 0.5 && ikonrad.ikonMittY >= ikonrad.titelTopp - 0.5 && ikonrad.ikonMittY <= ikonrad.titelBotten + 0.5, `${namn}: ikonen slutar ${ikonrad.ikonRight} och titeln börjar ${ikonrad.titelLeft}, ikonens mitt ${ikonrad.ikonMittY} mot titelns ${ikonrad.titelTopp} till ${ikonrad.titelBotten}, väntat ikonen till vänster om titeln på samma rad.`);
+            krav(!ikonrad.trunkerad && ikonrad.titelH <= 26 && ikonrad.titelRight <= ikonrad.bubblaRight + 0.5 && ikonrad.ikonB >= 12 && ikonrad.ikonB <= 20 && ikonrad.dolt === "true", `${namn}: titeln är ${ikonrad.titelH} px hög, trunkerad ${ikonrad.trunkerad}, slutar ${ikonrad.titelRight} (bubblan ${ikonrad.bubblaRight}), ikonen ${ikonrad.ikonB} px bred och aria-hidden ${ikonrad.dolt}, väntat en rad utan trunkering, ikon 12 till 20 px och dold för läsaren.`);
+          }
           // Bubblan rullar, kalendern bakom står still.
           // ⛔ "Sidan bakom" är varje rullyta utom bubblan: kalenderns rulle, dagpanelens plats och dokumentet. Bara rullen hade
           // missat en kedja till dokumentet, eftersom rullen inte är bubblans förälder.

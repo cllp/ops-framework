@@ -114,7 +114,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [bildForStor]
  * @property {string} [bildHintRedigera] Vad som gäller för bilden när gruppen finns.
  * @property {string} [sparaFelTitel] Rubriken när ändringarna inte kunde sparas.
- * @property {string} [modulerRubrik] "Moduler" (0.38.0).
+ * @property {string} [modulerRubrik] "Moduler" (0.37.0).
  * @property {string} [modulerHint]
  * @property {string} [modulerTomt] Texten när appen inte registrerat någon modul med ett kort.
  * @property {string} [modulOkand] Raden för en modul gruppen har men appen inte registrerat. `{id}` byts mot id:t.
@@ -249,7 +249,7 @@ const PRICKKLASS = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3",
  * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en", moduler?: ReadonlyArray<string> }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
  * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en", moduler?: string[] } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
  *   ⛔ `moduler` finns med BARA när modulvalet visades (ägaren, se `moduler`). En admin skickar aldrig fältet, eftersom reglerna avvisar hela uppdateringen om det ändras.
- * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, agare: boolean }} [props.moduler] (0.38.0, #184) Modulvalet i redigeringsläge: `valbara` ur
+ * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, agare: boolean }} [props.moduler] (0.37.0, #184) Modulvalet i redigeringsläge: `valbara` ur
  *   `valbaraModuler(registrerade)`, `agare` sant bara när den inloggade är gruppens ägare. Utan det, eller för en admin, ritas inget modulval.
  * @param {string} [props.bildUrl] Gruppens nuvarande bild att visa (URL). Bara redigeringsläge.
  * @param {(fil: File) => Promise<{ sokvag: string, url: string }>} [props.onLaddaUppBild] Appens uppladdning. Utan den finns ingen bildväljare.
@@ -285,7 +285,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
   const [felmeddelande, setFelmeddelande] = useState("");
   const [resultat, setResultat] = useState(/** @type {GruppFormularSvar | null} */ (null));
   /*
-   * ⛔ MODULVALET VISAS BARA FÖR ÄGAREN, I REDIGERINGSLÄGE (0.38.0, #184). `moduler` är ägarens fält
+   * ⛔ MODULVALET VISAS BARA FÖR ÄGAREN, I REDIGERINGSLÄGE (0.37.0, #184). `moduler` är ägarens fält
    * (`AGARGRUPPFALT`), och en admin som skickade med det fick hela sparningen avvisad av reglerna, inte bara modulerna.
    * ⛔ ORDNINGEN ÄR VALORDNINGEN: en modul som väljs hamnar sist, och hubben ritar korten i den ordningen.
    * ⛔ ETT ID SOM INTE ÄR VALBART LIGGER KVAR, och en rad säger det. Att tyst tappa det vid nästa sparning vore
@@ -617,7 +617,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "s
         <OpsInput value={ort} onChange={setOrt} placeholder={t.ortPlatshallare} disabled={upptagen} maxLength={MAX_GRUPPORT} />
       </OpsField>
 
-      {/* ── 2b. Moduler: bara ägaren, bara redigeringsläge (0.38.0, #184) ─────────────────────────────── */}
+      {/* ── 2b. Moduler: bara ägaren, bara redigeringsläge (0.37.0, #184) ─────────────────────────────── */}
       {visaModulval && modulval ? (
         <section aria-label={t.modulerRubrik} data-gruppmoduler="" className="flex flex-col gap-2">
           <h3 className="m-0 text-etikett font-medium text-ink-secondary">{t.modulerRubrik}</h3>
