@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**106 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**107 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -661,7 +661,7 @@ datamodellen ändras.
 | Samling | Innehåll | Skrivs av |
 |---|---|---|
 | `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN`, och sedan #156: `telefon` (E.164 eller tom), `stad`, `presentation` (max `MAX_PRESENTATION`), `lankar` (`{ plattform, url }[]`, url https, plattform ur appens lista), `bildSokvag` | personen själv, bara sin egen rad |
-| `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv`, och sedan 0.32.0 (#180) `farg` (ur `PROFILFARGER`), `ikon` (ur `GRUPPIKONER` eller `initialer:AB`), `bild` (lagringssökväg), `beskrivning` (max `MAX_GRUPPBESKRIVNING`), `ort` (max `MAX_GRUPPORT`), `epostsprak` (`sv`\|`en`), och sedan 0.41.0 (#216) `externaDatakallor[]` (se nedan). Tomma strängar och inte utelämnade fält | ⛔ **admin** ändrar utseende och uppgifter (`ADMINGRUPPFALT`), **ägare** även `moduler`, `arkiverad` och `externaDatakallor` (`AGARGRUPPFALT`), `id` och `skapadAv` ändrar ingen. Aldrig radering, arkivering |
+| `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv`, och sedan 0.32.0 (#180) `farg` (ur `PROFILFARGER`), `ikon` (ur `GRUPPIKONER` eller `initialer:AB`), `bild` (lagringssökväg), `beskrivning` (max `MAX_GRUPPBESKRIVNING`), `ort` (max `MAX_GRUPPORT`), `epostsprak` (`sv`\|`en`), sedan 0.41.0 (#216) `externaDatakallor[]` (se nedan), och sedan 0.42.0 (#217) `typavvikelser[]` (ägarens dolda eller omdöpta modulbidrag, se [Modulernas typbidrag](#modulernas-typbidrag-0420-217)). Tomma strängar och inte utelämnade fält | ⛔ **admin** ändrar utseende och uppgifter (`ADMINGRUPPFALT`), **ägare** även `moduler`, `arkiverad`, `externaDatakallor` och `typavvikelser` (`AGARGRUPPFALT`), `id` och `skapadAv` ändrar ingen. Aldrig radering, arkivering |
 | `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER` (`agare`, `admin`, `medlem`), `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS`, plus `namn` och `bild` | ⛔ **bara serversidan**. Sedan 0.32.0 LÄSER en aktiv medlem gruppens övriga medlemskap (medlemslistan), aldrig en annan grupps |
 | `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv`, och sedan 0.32.0 (#180) `tokenHash` (SHA-256 i hex av engångskoden, eller tom sträng: koden lagras aldrig), `giltigTill` (ISO, `INBJUDNING_GILTIGHET_DAGAR` = 30 dagar), `skickad` (ISO eller tom) och `antalSkickade` | ⛔ **skapas bara av serversidan** (`bjudIn`), ägare och admin läser och kan återkalla (bara `status`). Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137), koden och utskicket i #180 (G3) |
 
@@ -1326,6 +1326,7 @@ export const liv = defineModule({
 | `kallor` | ytor modulen fyller | Nycklarna är `KALLTYPER`, alltså `handelser`, `sok`, `hjalp`, `notiser`, `widgets`, `kataloger`. Värdet är en funktion: ramverket anropar, modulen svarar |
 | `skapar` | vad plusset erbjuder | En lista `{ id, namn, ikon, katalog, form }`. Spegelbilden av `kallor`: källorna läser IN i ramverkets ytor, registreringarna skriver UT ur plusset. ⛔ `katalog` krävs **även när den är `null`**: ett kvitto har ingen typ att välja, och en registrering som glömt sin katalog ser likadan ut som en som inte har någon om fältet är valfritt. ⛔ `id` är unikt över **hela** modullistan, inte bara inom modulen: plusset ritar en flik per registrering |
 | `hubb` | modulens kort i hubben och dess insida (0.37.0) | `{ ikon, rutt, startsida, delar }` eller `null`. `ikon` är ett React-element, `rutt` modulens adress (kortet leder dit och den visar startsidan), `delar` en lista `{ id, namn, ikon, rutt }` i navigationens ordning, minst en, och `startsida` är id:t på en av dem. ⛔ Varje dels `rutt` ligger **under** modulens (`/ekonomi/inkomster`, aldrig `/inkomster`): en del som inte bär sin moduls adress går inte att härleda tillbaka till modulen. ⛔ Krävs **även när den är `null`**, av samma skäl som `katalog`. ⛔ `validateModuler` kastar på två moduler med samma adress och på en modul inuti en annan. Se [Hubben per grupp](#hubben-per-grupp-0380-184) |
+| `typer` | modulens bidrag till inkorgens, kalenderns och händelsernas typer (0.42.0, #217) | `{ inkorg: [...], kalender: [...], handelser: [...] }`, varje post `{ id, namn: { sv, en }, ikon?, farg? }`. ⛔ **Valfritt, till skillnad från alla andra fält**, och det är ett val med pris: ett krav hade fällt varje redan skriven modul på en minorversion. Den byggda modulen bär ändå alltid alla tre listorna (`[]` när inget bidrag), så ingen konsument frågar om en nyckel finns. Nycklarna är ASCII (`handelser`, inte `händelser`). Se [Modulernas typbidrag](#modulernas-typbidrag-0420-217) |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`,
 en modul som inte fyller någon yta skriver `kallor: {}`, en modul som inte
@@ -1647,6 +1648,54 @@ alltså ur en funktion som frågas per grupp, och ingen lista finns förrän den
 frågats. `kontrolleraSkaparkataloger` körs därför så tidigt den kan: när gruppens
 kataloger är lästa. Ett fel och inte en tom lista, eftersom en tom typväljare ser
 ut som en katalog någon glömt fylla.
+
+### Modulernas typbidrag (0.42.0, #217)
+
+CP 2026-10-01, med en skärmbild av "Nytt ärende" som listade Ärende, Bugg, Ekonomisk uppdatering, Förbättring, Kvitto/utlägg och Övrigt: "Vissa av dessa typer kommer ju med modulerna? Ekonomi t ex." Allt låg i en fast lista i appen, så en grupp utan Ekonomi såg ändå "Kvitto, utlägg". Modellen är **tre lager, och de blandas aldrig**:
+
+1. **Appens bas.** Gruppens egna kategorier (`kataloger`, `OpsKatalogInstallning`) gäller alltid.
+2. **Modulens bidrag.** `defineModule({ typer: { inkorg: [...], kalender: [...], handelser: [...] } })`. Har gruppen modulen PÅ läggs bidragen till listan **vid render**: `bas ∪ bidrag(påslagna)`. Inget synkjobb, ingen kopia i databasen: en kopia av en modul-typ i gruppens katalog är samma faktum två gånger (arbetsreglernas punkt 2), och den glider den dag modulen byter namn.
+3. **Gruppens avvikelse.** Ägaren kan **dölja** eller **döpa om** ett bidrag (`grupp.typavvikelser`), men inte skapa ett modul-id som modulen inte lämnat. Egna kategorier hör till lager 1.
+
+```js
+// Ekonomimodulen: typerna följer med modulen, ingen kryssar något i kategorivyn.
+export const ekonomi = defineModule({
+  id: "ekonomi", /* ... */
+  typer: {
+    inkorg: [
+      { id: "uppdatering", namn: { sv: "Ekonomisk uppdatering", en: "Financial update" } },
+      { id: "kvitto", namn: { sv: "Kvitto, utlägg", en: "Receipt, expense" }, ikon: "kvitto" },
+    ],
+    kalender: [{ id: "bokslut", namn: { sv: "Bokslut", en: "Closing" }, farg: 1 }],
+  },
+});
+
+// I Nytt ärende: valen för gruppen, märkta, direkt in i OpsRadioGroup.
+const ctx = { bas: inkorgstyper, moduler, modulerPa: grupp.moduler, avvikelser: grupp.typavvikelser };
+const val = typerTillValg(typerForGrupp("inkorg", ctx), sprak);   // [{ value, label, hint? }]
+
+// På en rad som redan är skriven: visa typen, också när modulen är av.
+const typ = typenForRad(arende.typ, "inkorg", ctx);
+const marke = typ ? typmarke(typ, sprak) : null;                  // «från Ekonomi», «arkiverad modul» eller null
+```
+
+| API | Vad |
+|---|---|
+| `typer` i `defineModule` | `{ inkorg, kalender, handelser }`, varje post `{ id, namn: { sv, en }, ikon?, farg? }`. `id` på `ID_FORM`, unikt inom ytan. `farg` en palettplats (`SLAGPLATSER`), `ikon` ett namn som appen kontrollerar mot sin tillåtelselista när det ritas. Inga faser: faserna är ramverkets och en modul kan inte påstå att den äger en. Okänt fält, okänd yta, strängnamn och dubblett-id kastar vid uppstart, med modul och fält i felet |
+| `modultypId(modul, id)`, `delaModultypId(värde)`, `MODULTYPAVGRANSARE` | Värdet en rad bär för ett bidrag är **`modul:id`** (`ekonomi:kvitto`). ⛔ **Kolonet är valet:** `ID_FORM` släpper inte kolon, så gruppens egna kategorier kan aldrig få samma värde som ett bidrag, och två moduler kan aldrig krocka, hur gruppen än döper sina. En rad med `ekonomi:kvitto` vet också vilken modul den kom från när modulen är borta (se `typenForRad`). `delaModultypId` ger `null` för ett omärkt id (en egen kategori) |
+| `typerForGrupp(yta, { bas, moduler, modulerPa, avvikelser, sprak? })` | Valen: gruppens egna (ej arkiverade, i sin `ordning`) följda av bidragen från **påslagna** moduler i modullistans ordning, minus de ägaren dolt, med ägarens eget namn där det finns. Varje rad bär `kalla` (`"bas"` eller `{ modul }`), `tillstand` och `modulNamn`. ⛔ **Alla fyra listorna krävs, även tomma:** en app som glömt `moduler` fick annars en lista utan bidrag och ingen anledning att undra |
+| `bidragForGrupp(yta, ctx)` | Bidragen en ägare kan hantera: de från påslagna moduler, både erbjudna (`aktiv`) och dolda (`dold`). Avstängda moduler räknas inte upp |
+| `typenForRad(värde, yta, ctx)` | Typen en SKRIVEN rad pekar på. ⛔ **Tappar aldrig en rad.** Egen kategori (arkiverad med) eller `null` för ett okänt omärkt id. Ett `modul:id`: `aktiv`, `dold` (ägaren dolde den, raden visar den ändå), `modul-av` (modulen är av i gruppen, namnet kvar) eller `modul-okand` (modulen eller typen finns inte längre, id-halvan visas som namn i stället för en tom etikett) |
+| `typmarke(typ, sprak?)` | Märket: «från Ekonomi», «från Ekonomi, dold», «arkiverad modul» (både `modul-av` och `modul-okand`), eller `null` för en egen kategori. ⛔ **Härlett, aldrig skrivet för hand:** en app som skriver «från Ekonomi» själv glömmer märket på nästa yta |
+| `typerTillValg(typer, sprak?)` | `[{ value, label, hint? }]` till `OpsRadioGroup`: `hint` är märket och saknas för en egen kategori |
+| `OpsModulTyper` | `bidrag` (ur `bidragForGrupp`), `yta`, `kanAndra`, `onAndra`, `sprak?`, `rubrik?`, `ikonRitare?`. Ägarens lista «Typer från moduler»: varje rad bär märket, knapparna Byt namn och Dölj/Visa. ⛔ **Det finns ingen knapp för att lägga till:** ett bidrag finns för att en modul lämnat det. `onAndra({ yta, id, dold, namn? })` får det önskade tillståndet för ETT bidrag, appen lägger det i gruppen med `medAvvikelse`. ⛔ `kanAndra` är en artighet och inte låset: det ligger i reglerna (se nedan). Tomhet är ett svar: en grupp utan bidrag får en rad som säger det |
+| `byggTypavvikelser(värde, gruppId, kandaModuler?)`, `medAvvikelse(lista, ny)`, `TYPYTOR`, `MAX_TYPAVVIKELSER`, `MAX_TYPNAMN` | Gruppens `typavvikelser: [{ yta, id: "modul:id", dold, namn? }]`. ⛔ **Skrivvägen skickar in modulerna** (`byggGrupp(rad, moduler)`) och avvisar då ett påhittat modul-id och en typ modulen inte lämnat. En avvikelse kan bara PEKA på ett bidrag, så läsvägen utan modulerna tål en gammal rad, och sammanslagningen ger en avvikelse utan bidrag bakom sig ingen effekt. En avvikelse som inte gör något (`dold: false`, inget namn) avvisas, och `medAvvikelse` tar bort den i stället för att skriva den |
+
+⛔ **Ägaren skriver, en admin gör det inte.** `typavvikelser` står i `AGARGRUPPFALT` och inte i `ADMINGRUPPFALT`, som `moduler`: vilka moduler som är på är ägarens beslut, alltså är vad de bidrar med det också. `regelfragment()` härleder `hasOnly` och valideringen ur samma listor och gränser som `byggTypavvikelser`, för `create` och `update`. Reglerna kan inte slå upp modulernas manifest, så de kontrollerar **formen och antalet**, inte att modul-id:t finns: det avgörs av skrivvägen, och en avvikelse som pekar på ett påhittat id döljer eller döper om ingenting.
+
+⛔ **Taket är tio, och det är mätt.** Reglerna har ingen loop, så varje post rullas ut, och en regel får utvärdera högst 1000 uttryck per skrivning. Med tjugo poster nekades en giltig skrivning i emulatorn ("maximum of 1000 expressions"), tio går igenom.
+
+⛔ **Gamla rader migreras inte här.** En rad som redan bär ett omärkt id (`kvitto` ur appens fasta lista) är en rad i basen tills appen flyttar den. `typenForRad` ger `null` för ett omärkt id som inte finns i basen, i stället för att gissa vilken modul det borde ha hört till. Bindningen mot Notion och GitHub hör till [#216](https://github.com/cllp/ops-framework/issues/216) och ingår inte.
 
 ### Samtal och meddelanden (0.34.0, #182, #185)
 
