@@ -9,6 +9,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.39.1
+
+⛔ **Gruppanelens nederkant på dator går nu att rulla fram helt (cllp/bolag-ops#497). Inga exporter, props eller komponenter ändras: tre klasser på panelens `nav` i `OpsGruppanel`, och kalenderns långtryck rensas när kalendern försvinner. Appen behöver bara pinna om.**
+
+### #497: "Bubblornas scroll kan gå ända ner, huggs av"
+Händelsen: CP 2026-09-30 16:58, med en skärmbild i appens inkorg: "Bubblornas scroll kan gå ända ner, huggs av. Scolla ända ner på sidan i web samma som kalendern bredvid." Bubblorna är gruppmärkena i den infällda gruppanelen på dator. Mätt i en riktig webbläsare (check-skalyta avsnitt 34) med tolv extra grupper, rullad till botten:
+- **Infälld, 1280x800 och 1024x768:** pluset sist i remsan var **18 px högt i stället för 40** och slutade exakt vid fönstrets kant (800,0 av 800 respektive 768,0 av 768). Halva pluset syntes. Panelen är en flexkolumn med fast höjd, och flexbarn krymper som standard: när listan inte rymdes tryckte flexen ihop knappen till sin minsta innehållshöjd i stället för att låta panelen rulla längre.
+- **Utfälld, båda storlekarna:** "Skapa grupp" ligger tätt mot fönstrets underkant (799,5 av 800, ingen luft), eftersom panelen saknade bottenpadding.
+- **Båda lägena:** dokumentet var **1665 px högt i ett fönster på 800** på en sida som bara har texten "innehåll". `sr-only`-spanen på varje kort är `position: absolute`, och närmaste positionerade förälder var skalets `sticky`-ruta UTANFÖR panelens rullyta. Spanen rullade därför inte med och klipptes inte, utan förlängde sidan med 865 px tomt.
+- **Mätt och friskförklarat, för att en annan tolkning inte ska behöva gissas om:** Meddelanden (samtalsloggen med 34 bubblor, rullad till botten: sista bubblan 669,75 till 723 i en logg som slutar 731, skrivfältet under; 1280, 1024 och 390) och Idag-listan på dator (sista elementet 24,5 px över fönstrets kant) klipper inte. Kalendern på dator har ingen egen rullyta, dokumentet rullar.
+
+Rotorsaken är alltså tre saker i en och samma `nav`, inte en känsla av att panelen är "nästan klar":
+- **`[&>*]:shrink-0`**: inget barn till panelen krymper, så panelen rullar i stället.
+- **`relative`**: `sr-only` blir positionerad mot panelen och rullar och klipps med den.
+- **`pb-5`**: luften i botten bor INUTI rullytan (samma lärdom som 0.33.1 för Idag och Kalender), 20 px som `lg:pt-5` ovanför.
+
+#### Röd utan fixen, grön med den (0.39.1)
+- **check-skalyta avsnitt 34** (nytt, fyra mätningar: utfälld och infälld, 1280x800 och 1024x768, med tolv extra grupper; golv: minst 12 grupper och en panel som rullar): mot 0.39.0:s dist **9 brott av 1358 kontroller, alla i avsnitt 34 och inga andra** (sista knappen 18,0 px hög mot väntat minst 40 i båda infällda lägena, luft 0 mot minst 16 i alla fyra, dokument 1665 mot fönster 800 respektive 768 i båda utfällda, och golvet röd i infälld 1280 där panelen inte ens rullade tillräckligt). Med fixen: **1358 kontroller, inga brott**, sista knappen 40,0 (infälld) och 46,0 px (utfälld) hög och 20 px över fönstrets kant, dokumentet lika högt som fönstret.
+- Telefon (390) mäts inte i avsnitt 34 med flit: gruppanelen är `hidden lg:block`, och där finns bara gruppväxlarens ark (avsnitt 8).
+- **Enhetsprov:** inget nytt. Klasserna `shrink-0`, `relative` och `pb-5` är bara strängar i jsdom, som inte kör CSS: ett prov som sökte efter dem hade varit ett närvarogrep (arbetsreglernas punkt 4). Beteendet mäts i webbläsaren.
+- **Ändrade befintliga prov (regel 9):** inga. `check-skalyta.mjs` och `skalyta-entry.jsx` fick en valfri parameter (`manga`, förval 0) som lägger till grupper och samtalsmeddelanden; alla andra avsnitt kör som förut.
+
+### Kalenderns långtryck rensas när kalendern försvinner
+Mätt 2026-10-01 i arbetet med #497: `npm run check` blev rött på ett fel efter att alla 1796 prov gått igenom ("window is not defined" i `OpsCalendar.jsx`, långtryckets timer, under `kalendrar.test.jsx`). Timern på 450 ms startas av ett tryck på en dag och rensades bara av släpp, lämna och avbryt, aldrig när kalendern togs bort. Nu rensas den också då.
+- **Prov** (`calendar.test.jsx`, nytt): ett tryck på en dag och sedan bort med kalendern. Utan fixen lever 1 timer kvar (rött), med fixen 0 (grönt).
+
+### Att göra i appen
+Pinna om till 0.39.1. Inget annat: ingen ny prop, ingen ändrad export.
+
+---
+
 ## 0.39.0
 
 ⛔ **Ändringsloggen för konfiguration bär en grupp, kategorin heter `kategori` i raden, och ramverket äger nu loggens regler (#188). `byggKonfigandring` kräver `groupId` och kastar utan det (i `createConfigLog.skriv`: `orsak: "utkast"`). Nytt: `konfigloggregelfragment(samlingsnamn)` och `KONFIGLOGGFALT`. Raden byter form (`groupId` in, `id` ut, `kategori` in), så en app som inte skickar `groupId` får `utkast`-fel på varje loggrad efter ompinningen. Inga komponenter ändras.**

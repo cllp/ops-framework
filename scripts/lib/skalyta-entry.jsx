@@ -411,6 +411,8 @@ const g2Lista = [
  * 0.35.0 (#190): "ingen" är scenen där personen inte är med i någon grupp, det enda tillståndet utan aktiv grupp. Läget
  * "Alla mina grupper" finns inte längre, och en scen med grupper har alltid en aktiv.
  */
+/** 0.39.1 (#497): `window.__manga` lägger till så många grupper att panelen måste rulla. Utan det finns ingen botten att nå. */
+const manyaGrupper = (lista) => [...lista, ...Array.from({ length: window.__manga ?? 0 }, (_, i) => ({ id: `x${i}`, namn: { sv: `Extragrupp nummer ${i + 1}` }, medlemsantal: 2 }))];
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
@@ -435,7 +437,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions =
       anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
       skapa={skapa}
       meny={meny}
-      grupper={{ lista: utanGrupp() ? [] : window.__skal === "gruppkort" ? g2Lista : grupperLista, aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
+      grupper={{ lista: utanGrupp() ? [] : window.__skal === "gruppkort" ? g2Lista : manyaGrupper(grupperLista), aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
     >
       {children}
     </OpsAppShell>
@@ -465,6 +467,8 @@ async function byggSamtalskalla() {
   await s.skicka(p.id, { text: "Absolut, jag gör det i eftermiddag.", av: "anna" });
   await s.skicka(p.id, { text: "Tack! Den ligger i inkorgen.", av: "bo" });
   await s.skicka(p.id, { text: "Och en sak till: momsen för augusti.", av: "bo" });
+  // 0.39.1 (#497): `window.__manga` fyller samtalet så att loggen måste rulla, annars finns ingen botten att nå.
+  for (let i = 0; i < (window.__manga ?? 0); i += 1) await s.skicka(p.id, { text: `Meddelande nummer ${i + 1} i ett långt samtal som måste rullas.`, av: i % 2 ? "bo" : "anna" });
   const annat = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "cecilia" });
   await s.skicka(annat.id, { text: "Det här får Anna aldrig se.", av: "bo" });
   return s;

@@ -518,8 +518,17 @@ export function OpsGruppanel({
       // ⛔ INGEN BREDD-TRANSITION. `AppSidebar.jsx` rad 13-16: transitionen
       // togs bort medvetet 2026-04-22, den gav flimmer mellan bredd och
       // `hidden`/`md:flex`-innehållet. Bredden byter direkt här också.
+      // ⛔ 0.39.1 (#497): `relative`, `[&>*]:shrink-0` OCH `pb-5`, och varje del har sin händelse i CHANGELOG 0.39.1.
+      //   - `[&>*]:shrink-0`: panelen är en flexkolumn med fast höjd, och flexbarn krymper som standard. När listan inte rymdes
+      //     tryckte flexen ihop knapparna i stället för att låta panelen rulla: "Skapa grupp" (size-10) blev 18 px hög i den
+      //     infällda remsan och halva plusset hamnade utanför fönstret. Ett barn som inte får krympa gör att panelen rullar.
+      //   - `relative`: `sr-only` är `position: absolute`, och utan en positionerad förälder inne i rullytan är den närmaste
+      //     förälder som är positionerad skalets `sticky`-ruta UTANFÖR panelen. Spanen rullade då inte med och klipptes inte:
+      //     dokumentet fick 865 px rullning under en panel med tolv grupper, på en sida som inte har något innehåll.
+      //   - `pb-5`: luften i botten bor INUTI rullytan (samma lärdom som 0.33.1), så att sista raden går att rulla fram
+      //     ovanför fönstrets kant i stället för att ligga tätt mot den. 20 px som `lg:pt-5` ovanför.
       className={cx(
-        "flex h-full flex-col gap-1.5 overflow-y-auto px-(--panel-kant)",
+        "relative flex h-full flex-col gap-1.5 overflow-y-auto px-(--panel-kant) pb-5 [&>*]:shrink-0",
         kollapsad ? "w-(--panel-bredd-infalld)" : "w-(--panel-bredd)",
       )}
     >

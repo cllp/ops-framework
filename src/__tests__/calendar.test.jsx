@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
 import {
   dateKey,
@@ -858,5 +858,29 @@ describe("markorlayout: SS-appens märken i rutan (0.37.0)", () => {
     const l = markorlayout(n(sp, "s"), n(en, "e"));
     expect({ streck: l.streck.length, ovre: l.ovre.length, nedre: l.nedre.length, plus: l.plus }).toEqual(vantat);
     expect(summa(l)).toBe(sp + en);
+  });
+});
+
+describe("OpsKalender: långtrycket överlever inte vyn", () => {
+  /*
+   * ⛔ 2026-10-01, i arbetet med bolag-ops#497: `npm run check` blev rött på ett fel EFTER att alla prov gått
+   * igenom ("window is not defined", `OpsCalendar.jsx` i långtryckets timer, under `kalendrar.test.jsx`).
+   * Timern på 450 ms startades av ett tryck på en dag och rensades bara av släpp, lämna och avbryt, aldrig när
+   * kalendern försvann. Den sköt alltså mot en vy som inte fanns, och i provmiljön mot ett fönster som redan rivits.
+   * Provet mäter att ingen timer lever kvar när kalendern tas bort mitt i ett tryck.
+   */
+  it("rensar långtryckets timer när kalendern tas bort", () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount } = rendera();
+      const dag = document.querySelector("[data-cal-day]");
+      if (!dag) throw new Error("Ingen dag i rutnätet");
+      fireEvent.pointerDown(dag, { pointerId: 1, clientX: 10, clientY: 10 });
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
