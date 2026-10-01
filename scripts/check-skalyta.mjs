@@ -106,9 +106,9 @@ const fontData = fs.readFileSync(path.join(rot, "fonts", "glacial-indifference",
 const css = cssRatt.replace(/url\(["']?[^)"']*glacial-indifference-400\.woff2["']?\)/g, `url(data:font/woff2;base64,${fontData})`);
 if (css === cssRatt && tokI < 0) throw new Error("check-skalyta: @font-face för Glacial Indifference hittades inte i den byggda CSS:en. Märket hade mätts i reservtypsnittet.");
 
-/** @param {string} scen @param {string | null} [aktiv] Vilken grupp som är vald i `full`. @returns {string} */
-const sida = (scen, aktiv = null) =>
-  `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body class="bg-canvas text-ink font-sans"><div id="root"></div><script>window.__skal=${JSON.stringify(scen)};window.__aktiv=${JSON.stringify(aktiv)};</script><script>${skript.replace(/<\/script>/g, "<\\/script>")}</script></body></html>`;
+/** @param {string} scen @param {string | null} [aktiv] Vilken grupp som är vald i `full`. @param {number} [manga] Så många extra grupper (och samtalsmeddelanden), så att en yta måste rulla (0.39.1). @returns {string} */
+const sida = (scen, aktiv = null, manga = 0) =>
+  `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css}</style></head><body class="bg-canvas text-ink font-sans"><div id="root"></div><script>window.__skal=${JSON.stringify(scen)};window.__aktiv=${JSON.stringify(aktiv)};window.__manga=${manga};</script><script>${skript.replace(/<\/script>/g, "<\\/script>")}</script></body></html>`;
 
 const { browser, varifran } = await startaWebblasare();
 
@@ -125,9 +125,9 @@ function krav(ok, text) {
 }
 
 /**
- * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema] @param {number} [skala] @param {string | null} [aktiv]
+ * @param {string} scen @param {{ width: number, height: number }} viewport @param {string} [tema] @param {number} [skala] @param {string | null} [aktiv] @param {number} [manga]
  */
-async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = null) {
+async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = null, manga = 0) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: skala });
   const page = await context.newPage();
   // 0.31.2: en kort tidsgräns, så att ett saknat element (röd mot en äldre dist) blir ett brott och inte 30 sekunders väntan.
@@ -135,7 +135,7 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: tema === "dark" ? "dark" : "light" });
-  await page.setContent(sida(scen, aktiv));
+  await page.setContent(sida(scen, aktiv, manga));
   await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
   if (fel.length) throw new Error(`sidan "${scen}" kastade: ${fel[0]}`);
   return { page, context };
@@ -3767,6 +3767,54 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 }
 
 // Bilderna för montaget: kalendern vid öppning och med den 12 oktober vald, utan annat tillstånd (regel 12).
+// ══ 34. GRUPPANELENS NEDERKANT: SISTA RADEN GÅR ATT RULLA FRAM HELT (0.39.1, cllp/bolag-ops#497) ═══════════════════════
+// CP 2026-09-30 16:58: "Bubblornas scroll kan gå ända ner, huggs av. Scolla ända ner på sidan i web samma som kalendern
+// bredvid." Bubblorna är gruppmärkena i den INFÄLLDA panelen. Mätt med tolv extra grupper vid 1280x800 och 1024x768, rullad till
+// botten: pluset sist i remsan var 16 px högt i stället för 40 (flexbarn krymper i en kolumn med fast höjd), och dokumentet
+// rullade 865 px över en sida utan innehåll, eftersom `sr-only`-spanen på varje kort är `position: absolute` och
+// panelen inte var positionerad. Krav, i båda lägena (utfälld och infälld) och båda storlekarna:
+//   (a) panelen rullar (golv: scrollHeight större än clientHeight, minst 12 grupper i listan),
+//   (b) rullad till botten: sista knappen har sin naturliga höjd (infälld 40 px, utfälld minst 40 px), ligger helt inom panelen
+//       och minst 16 px över fönstrets underkant,
+//   (c) dokumentet är inte högre än fönstret (panelen är `sticky`, sidan har inget innehåll att rulla).
+// Telefon (390) saknas med flit: gruppanelen är `hidden lg:block`, och där finns bara gruppväxlarens ark (avsnitt 8).
+{
+  const lage = /** @type {const} */ ([["utfälld", false], ["infälld", true]]);
+  for (const [lagenamn, infalld] of lage) {
+    for (const vp of [{ width: 1280, height: 800 }, { width: 1024, height: 768 }]) {
+      const namn = `gruppanelens nederkant ${lagenamn} ${vp.width}`;
+      const { page, context } = await oppna("full", vp, standardtema, 1, "g3", 12);
+      try {
+        await page.waitForSelector("nav[aria-label='Mina grupper']", { timeout: 4000 });
+        const panel = page.locator("nav[aria-label='Mina grupper']").first();
+        if (infalld) await panel.locator(":scope > button").first().click();
+        await page.waitForTimeout(250);
+        const m = await panel.evaluate((nav) => {
+          nav.scrollTop = nav.scrollHeight;
+          const nr = nav.getBoundingClientRect();
+          const sista = /** @type {HTMLElement} */ (nav.lastElementChild);
+          const sr = sista.getBoundingClientRect();
+          return {
+            grupper: nav.querySelectorAll("li").length,
+            scrollHeight: nav.scrollHeight, clientHeight: nav.clientHeight, scrollTop: nav.scrollTop,
+            sistaHojd: sr.height, sistaTop: sr.top, sistaBottom: sr.bottom, navBottom: nr.bottom,
+            vh: window.innerHeight, dok: document.documentElement.scrollHeight,
+          };
+        });
+        matt.push(`${namn}: ${m.grupper} grupper, panelen ${m.clientHeight}/${m.scrollHeight} px rullad ${m.scrollTop}, sista knappen ${m.sistaHojd.toFixed(1)} px hög ${m.sistaTop.toFixed(1)}..${m.sistaBottom.toFixed(1)} (panelens kant ${m.navBottom}, fönstret ${m.vh}), dokumentet ${m.dok}`);
+        krav(m.grupper >= 12 && m.scrollHeight > m.clientHeight + 40, `${namn}: ${m.grupper} grupper och scrollHeight ${m.scrollHeight} mot clientHeight ${m.clientHeight}. Panelen måste rulla för att botten ska kunna mätas (golv).`);
+        krav(m.sistaHojd >= 39.5, `${namn}: sista knappen är ${m.sistaHojd.toFixed(1)} px hög rullad till botten, väntat minst 40. Flexen har tryckt ihop den (CP 2026-09-30 16:58, "huggs av").`);
+        krav(m.sistaBottom <= m.navBottom - 16 + 0.5 && m.sistaBottom <= m.vh - 16 + 0.5, `${namn}: sista knappen slutar ${m.sistaBottom.toFixed(1)}, panelen ${m.navBottom} och fönstret ${m.vh}. Väntat minst 16 px luft ovanför fönstrets underkant.`);
+        krav(m.dok <= m.vh + 1, `${namn}: dokumentet är ${m.dok} px högt i ett fönster på ${m.vh}. Något i panelen (sr-only) ligger utanför dess rullyta och förlänger sidan.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupppanel-nederkant-${lagenamn}-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
 if (bildmapp) {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const { page, context } = await oppna("kalender", vp);
