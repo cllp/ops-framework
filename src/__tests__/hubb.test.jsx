@@ -7,7 +7,7 @@ import { OpsModulSida } from "../components/OpsModulSida.jsx";
 import { OpsGruppFormular } from "../components/OpsGruppFormular.jsx";
 
 /**
- * Hubben per grupp och modulens insida (0.38.0, #184).
+ * Hubben per grupp och modulens insida (0.37.0, #184).
  *
  * ⛔ PROVEN KRÄVER ETT STYCKE AV MEDDELANDET, inte bara att något kastades (samma skäl som modul.test.js): ett
  * `toThrow()` utan mönster är grönt även när manifestet föll på något helt annat än provet heter.

@@ -55,7 +55,7 @@ import { byggNamn } from "./sprak.js";
 const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb"];
 
 /**
- * Fälten modulens kort i hubben får bära (0.38.0, #184).
+ * Fälten modulens kort i hubben får bära (0.37.0, #184).
  *
  * ⛔ `hubb` KRÄVS ÄVEN NÄR MODULEN INTE HAR NÅGOT KORT, och då är den `null`.
  * Samma skäl som `katalog: null` i en skapa-registrering: en modul som GLÖMT
@@ -117,7 +117,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {ReadonlyArray<Samling>} samlingar Samlingarna modulen äger. ⛔ Alltid i utskriven form, även när manifestet skrev en sträng.
  * @property {Readonly<Record<string, Function>>} kallor Ytor modulen fyller, en funktion per yta.
  * @property {ReadonlyArray<Skaparregistrering>} skapar Vad modulen kan skapa, det plusset erbjuder.
- * @property {Hubbkort | null} hubb (0.38.0) Modulens kort i hubben och dess insida, eller `null` när modulen inte är ett kort.
+ * @property {Hubbkort | null} hubb (0.37.0) Modulens kort i hubben och dess insida, eller `null` när modulen inte är ett kort.
  */
 
 /**
@@ -451,7 +451,7 @@ const arElement = (v) => typeof v === "object" && v !== null && "$$typeof" in v 
 const arRutt = (r) => /^\/[^?#\s]*[^/?#\s]$/.test(r);
 
 /**
- * Bygger modulens kort i hubben, eller kastar med skälet (0.38.0, #184).
+ * Bygger modulens kort i hubben, eller kastar med skälet (0.37.0, #184).
  *
  * ══ ⛔ VARFÖR KORTET BOR I MANIFESTET OCH INTE I ETT EGET REGISTER ═════
  *
@@ -619,7 +619,7 @@ export function validateModuler(manifest) {
     }
 
     /*
-     * ⛔ HUBBENS ADRESSER ÄR UNIKA ÖVER HELA LISTAN (0.38.0). Två moduler vars
+     * ⛔ HUBBENS ADRESSER ÄR UNIKA ÖVER HELA LISTAN (0.37.0). Två moduler vars
      * kort leder till samma adress, eller vars delar gör det, ger en navigation
      * där "vilken modul är jag i" avgörs av registreringsordningen. Samma felform
      * som två moduler på samma route.

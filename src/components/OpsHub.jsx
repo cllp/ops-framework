@@ -126,11 +126,11 @@ const GRUPPHUBB_TEXT = {
 };
 
 /**
- * Hubben för den aktiva gruppen: ett kort per modul i `grupp.moduler`, i gruppens ordning (0.38.0, #184).
+ * Hubben för den aktiva gruppen: ett kort per modul i `grupp.moduler`, i gruppens ordning (0.37.0, #184).
  *
  * ══ ⛔ GRUPPENS MODULER OCH INGET ANNAT ═══════════════════════════════════
  *
- * CP 2026-09-30: "Ekonomi är EN modul." Före 0.38.0 skickade appen sin egen lista till `OpsHub`, samma lista i varje grupp,
+ * CP 2026-09-30: "Ekonomi är EN modul." Före 0.37.0 skickade appen sin egen lista till `OpsHub`, samma lista i varje grupp,
  * och varje del av Ekonomi var ett eget kort. Nu ritar hubben det gruppens ägare valt (`groups.moduler`), och varje kort leder
  * till modulens egen insida (`OpsModulSida`). Beslutet om vad som ritas bor i `hubbForGrupp`, så det går att pröva utan att rita.
  *

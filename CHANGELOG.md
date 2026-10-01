@@ -9,6 +9,21 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.37.1
+
+⛔ **Slagets ikon (`kindIcon`) ritas nu i dagpanelens rad och i snabbtitten, som 0.37.0 sade att den gjorde. Ren rättelse i `OpsCalendar`, inga nya props, inga regler, ingen ändring i dagrutan (den har fortfarande bara prickar och streck). Några kommentarer som sade 0.38.0 om hubben rättas till 0.37.0.**
+Händelsen: CP 2026-09-30: *"Jag gillar ikonerna för typerna hos oss."* 0.37.0:s avsnitt om kalendern sade att ikonerna "står kvar i dagpanelens kort, `OpsEventList` och snabbtitten". Det stämde för `OpsEventList` och inte för de två andra: en granskning i cllp/bolag-ops (en subagent, läst mot källan och sedan kontrollerad av mig i `OpsCalendar.jsx`) fann att `OpsCalendar` aldrig ritade `kindIcon` någonstans. Beslutet om dagrutan (prickar och streck, inga ikoner) var riktigt och är orört; det var panelen och titten som saknade ikonen. En anteckning om tillstånd ruttnar (regel 3): CHANGELOG-raden beskrev avsikten, inte koden.
+
+- **Dagpanelens rad** (telefonens bubbla och datorns kolumn är samma `Postkort`): `kindIcon` ritas före titeln, `aria-hidden` (ordet läses redan ur kantordet), i slagets färg ur `lib/slag.js` (`slagText`, samma som raden i `OpsEventList`), och `text-ink-secondary` när posten saknar slag. En post utan `kindIcon` får ingen ikonruta.
+- **Snabbtitten** ritar samma ikon före titeln (titeln trunkeras fortfarande på en rad).
+- **Kommentarer:** "0.38.0" i hubbens och modulernas kommentarer (`lib/hubb.js`, `lib/modul.js`, `OpsHub`, `OpsModulSida`, `OpsGruppFormular`, prov och skalytans skript) och i README betydde alltid släppet som blev 0.37.0. Rättade till 0.37.0.
+
+#### Röd utan fixen, grön med den (0.37.1)
+- **Enhetsprov** (`calendar.test.jsx`, nytt prov): ikonen finns i panelens rad efter att dagen valts, före titeln, `aria-hidden`, i slagets färg, saknas på posten utan ikon och finns inte i dagrutan. **Utan fixen (raden som ritar ikonen avstängd): 1 fel, 51 gröna av 52. Med fixen: 52 av 52.**
+- **`check-skalyta` avsnitt 30 (telefon 390)**: en ny kontroll mäter i den byggda appen att bubblans rad för Styrelsemöte har en svg, att den står till vänster om titeln på samma rad, att titeln inte trunkeras och att ikonen är 12 till 20 px och `aria-hidden`. **Mot den gamla dist (0.37.0): 1 brott av 1295 kontroller, "ingen ikon (svg)". Mot den nya: 0 brott.**
+
+---
+
 ## 0.37.0
 
 ⛔ **Hantera kalendrar (#179 F2), händelsemodellen med Kräv svar (#179 F3) och dagen till "Ny händelse" (#206), och Ekonomimodulen (#184 del 1: hubben per grupp, modulens insida, `hubb` krävs på varje `defineModule`), i ett släpp. En ny samling med nya regler (svaren) och ändrad text i kalenderfragmentet: reglerna deployas FÖRE klienten, se "Att göra i appen". `defineModule` kräver `hubb` (även som `null`), se Ekonomimodulen. Inga exporter försvinner.**
@@ -72,7 +87,7 @@ Händelsen: CP 2026-09-30, med en skärmbild av arket "Byt grupp": *"Ta bort ska
 - **`check-skalyta`**: avsnitt 30 omskrivet för telefonen (rundning 12 och 16, siffran centrerad, idag en 28 px cirkel, prickar och streck i kategorins färg, strecket i varje ruta, inga ikoner och inga band vid 390, verktygsraden, Idag-knappen, dagpanelen som flyter, bubblans tak och egen rullning, Grupp och Mina, ingen lagerbubbla utan innehåll, ton och hörnmärken), växlarens ark vid 390, och nya avsnitt 31 till 33 (Hantera kalendrar, Ny händelse med kalender och dagen, svaren, vid 390 och 1280): **1219 kontroller, inga brott. Mot 0.36.0:s bygge och tokens: 55 brott.** **36 mutationer, en i taget: 35 röda.** Den gröna tar bort `overscroll-contain` från bubblan och platsen: i Chromium finns ingen rullbar förälder ovanför bubblan (dokumentet är lika högt som fönstret), så inget kan kedja. Provet mäter kravet (ingen annan rullyta rör sig när bubblan rullas) och egenskapen står kvar för iOS studs; det har inte gått att mäta här.
 - **Montage mot SS** i `docs/jamforelser/0.37.0/`, med en ärlig jämförelse i `jamforelse.md` (regel 12).
 
-### Ekonomimodulen (#184)
+### Moduler per grupp (#184)
 
 ⛔ **Del 1 i [#184](https://github.com/cllp/ops-framework/issues/184): hubben visar den aktiva gruppens moduler, och en modul har en egen insida. BRYTANDE för varje `defineModule`: fältet `hubb` krävs, även som `null`. Inga exporter försvinner, och `OpsHub`/`OpsHubModul` fungerar som förut.**
 Händelsen: CP 2026-09-30, med en bild av hubbens meny (Översikt, Ekonomi, Liv, Schema, Cutover, Bolaget, Kontakter, Länkar, Jämförelse): *"Ekonomi är EN modul. Inte massa moduler med komponenter."* Samma dag: det finns alltid exakt en aktiv grupp (0.35.0, [#190](https://github.com/cllp/ops-framework/issues/190)), så punkt 1 i #184 om "Alla mina grupper" utgår; Ekonomi är EN modul i gruppen bolaget, med privatekonomin i samma grupp; modulens startsida är översikten med flikarna Privat, Företag och Samlat (cllp/bolag-ops#486).
@@ -90,7 +105,10 @@ Händelsen: CP 2026-09-30, med en bild av hubbens meny (Översikt, Ekonomi, Liv,
 - **Välja moduler:** `OpsGruppFormular` får propen `moduler: { valbara, agare }` (`valbara` ur **`valbaraModuler`**). Bara i redigeringsläge och bara när `agare` är sant visas sektionen "Moduler": en knapp per registrerad modul med kort (`aria-pressed`), valordningen blir hubbens ordning, ett id gruppen har men appen inte registrerat ligger kvar med en rad som säger det. `onSpara` får `moduler` **bara** när sektionen visades; en admin skickar aldrig fältet, eftersom reglerna då avvisar hela sparningen.
 - **Regler:** oförändrade (`moduler` är ägarens sedan 0.32.0). Nya regelprov för hubbens läsning, se nedan.
 
-#### Röd utan fixen, grön med den (Ekonomimodulen)
+#### Röd utan fixen, grön med den (moduler per grupp)
+
+Ekonomimodulen själv definieras i appen (cllp/bolag-ops), ramverket vet aldrig vad Ekonomi är (CP 2026-10-01: "Ekonomimodulen ligger i appen. Inte i ramverket").
+
 - **Enhetsprov:** nya `src/__tests__/hubb.test.jsx`, 49 prov, bland dem **provet över bolag-ops faktiska lista**: de 16 adresser hubben ledde till vid cllp/bolag-ops@94aec4d leder alla till en del, varje del nås, och en glömd adress (`/process`) blir röd med namnet utskrivet. **Mot 0.36.0 faller filen vid import** (`lib/hubb.js` finns inte). **31 mutationer, en i taget, alla röda:** 6 i manifestets validering (`hubb` valfri, dels adress utanför modulens, startsida utanför delarna, ikon som sträng eller komponent, modul inuti modul, två delar på samma adress), 15 i `hubb.js` (saknad utan skäl i båda fallen, registrets ordning i stället för gruppens, startsidan inte öppen, undersida utan del, `/ekonomisk` inne i `/ekonomi`, `?#` tappas, undersidor följer inte med, utelämnad `del` släpps, levande adress och adress ovanför en modul släpps, golvet borta, levande adress räknas utan att vara en del, mål utan del räknas, barn i hubbens poster), 6 i komponenterna (modulval för admin och i skapa-läge, `moduler` skickas alltid, valordningen omvänd, okänt id försvinner, `aria-current` borta, raden om saknade moduler borta) och 4 i `check-skalyta` (nedan). Hela sviten: **87 filer, 1732 prov, gröna**.
 - **Regelprov** (`rules/__tests__/grupper.test.mjs`, 6 nya): en medlem och en admin läser gruppens `moduler`, en avslutad medlem, ägaren av en annan grupp och en utan inloggning gör det inte, och **en fråga över alla grupper som har en viss modul avvisas** även för en medlem. Gröna, 154 av 154 med kalendrar, kataloger och samtal. **Mutationer i `regler.js`:** gruppen läsbar för alla inloggade: 3 av de nya röda (avslutad, annan grupp, frågan); läsbar bara för ägaren: 2 av de nya röda (medlem, admin).
 - **`check-skalyta` avsnitt 9c** (hubben per grupp och modulens insida vid 390 och 1280): (a) gruppen med Ekonomi har ETT kort som leder till `/ekonomi`, inga delar i hubben, klick navigerar, och toppradens rullgardin listar bara Ekonomi utan utfällbara rader; (b) gruppen utan moduler säger det med sitt namn och har inga länkar; (c) en oregistrerad modul ger en synlig rad med id:t; (d) insidan: 14 länkar, EN öppen del med egen accentlinje, varje länk minst 44 px, raden rullar i sidled och sidan gör det inte, den öppna delen syns också när den är den sista (Jämförelse), tillbaka till `/hub`, rubriken. Grön: 1186 kontroller, inga brott. **Mot 0.36.0:s bygge: 15 brott.** **Mutationer i bygget, alla röda:** ingen inrullning av den öppna delen (2), accentlinjen genomskinlig (4), länkarna 32 px höga (4), raden bryts i stället för att rulla (2).

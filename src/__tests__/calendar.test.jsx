@@ -725,6 +725,38 @@ describe("OpsKalender", () => {
     expect(farger).toEqual(["bg-slag-1", "bg-slag-2"]);
   });
 
+  it("⛔ slagets ikon ritas före titeln på dagpanelens rad, aria-hidden och i slagets färg, men aldrig i dagrutan (0.37.1)", () => {
+    /*
+     * ⛔ 0.37.0 lovade i sin CHANGELOG att ikonen "står kvar i dagpanelens kort", men `OpsCalendar` ritade den aldrig där. CP
+     * 2026-09-30: "Jag gillar ikonerna för typerna hos oss." Provet läser raden i panelen efter att dagen valts, och rutan
+     * före: ikonen hör hemma i panelen och inte i rutan (prickar och streck, beslutet från 0.37.0).
+     */
+    rendera({
+      entries: [
+        { id: "a", date: "2026-10-12", title: "En uppgift", slag: 1, slagLabel: "Uppgift", kindIcon: <svg data-prov="uppgift" /> },
+        { id: "b", date: "2026-10-12", title: "En påminnelse", slag: 2, slagLabel: "Påminnelse" },
+      ],
+    });
+    const dagknapp = screen.getByRole("button", { name: "12, 2 poster" });
+    expect(dagknapp.querySelectorAll("svg").length).toBe(0);
+    fireEvent.click(dagknapp);
+    const rader = [...panelen().querySelectorAll("[data-postrad]")];
+    expect(rader.length).toBe(2);
+    const medIkon = /** @type {HTMLElement} */ (rader.find((r) => (r.textContent || "").includes("En uppgift")));
+    const ikon = /** @type {HTMLElement} */ (medIkon.querySelector("[data-postikon]"));
+    expect(ikon.querySelector("svg[data-prov='uppgift']")).not.toBeNull();
+    expect(ikon.getAttribute("aria-hidden")).toBe("true");
+    expect(ikon.className).toMatch(/text-slag-1|slag-1/);
+    // Ikonen står FÖRE titeln i dokumentordning.
+    const titel = /** @type {HTMLElement} */ (within(medIkon).getByText("En uppgift"));
+    expect(ikon.compareDocumentPosition(titel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Posten utan ikon får ingen.
+    const utan = /** @type {HTMLElement} */ (rader.find((r) => (r.textContent || "").includes("En påminnelse")));
+    expect(utan.querySelector("[data-postikon]")).toBeNull();
+    // Och dagrutan har fortfarande ingen.
+    expect(screen.getAllByRole("button", { name: "12, 2 poster" })[0].querySelectorAll("svg[data-prov]").length).toBe(0);
+  });
+
   it("en flerdagspost är ett streck i varje ruta den täcker, och ingen prick där", () => {
     rendera({ entries: [{ id: "k", date: "2026-10-05", endDate: "2026-10-07", title: "Konferens", slag: 3, slagLabel: "Resa" }] });
     for (const d of ["5", "6", "7"]) {
