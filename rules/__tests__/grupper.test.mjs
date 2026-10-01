@@ -566,12 +566,12 @@ describe("⛔ gruppen: typavvikelser skriver bara ägaren, och bara giltiga post
   const satt = (/** @type {string} */ uid, /** @type {any} */ varde) => updateDoc(doc(som(uid), `groups/${VAR}`), { typavvikelser: varde });
   /** En ny grupp vars ägare har medlemskap men raden saknas: create och inte update. */
   let nr = 0;
-  const skapa = async (/** @type {any} */ varde) => {
+  const skapa = async (/** @type {any} */ varde, /** @type {Record<string, unknown>} */ ovrigt = {}) => {
     const gid = `typ-ny-${(nr += 1)}`;
     await miljo.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), `memberships/${medlemskapsId(AGARE, gid)}`), { userId: AGARE, groupId: gid, roll: "agare", typ: "person", status: "aktiv" });
     });
-    return setDoc(doc(som(AGARE), `groups/${gid}`), { id: gid, namn: { sv: "Ny" }, moduler: [], arkiverad: false, skapadAv: { uid: AGARE, namn: "Ägaren" }, ...(varde === undefined ? {} : { typavvikelser: varde }) });
+    return setDoc(doc(som(AGARE), `groups/${gid}`), { id: gid, namn: { sv: "Ny" }, moduler: [], arkiverad: false, skapadAv: { uid: AGARE, namn: "Ägaren" }, ...ovrigt, ...(varde === undefined ? {} : { typavvikelser: varde }) });
   };
 
   it("⛔ ägaren döljer ett bidrag, och döper om ett annat", async () => {
@@ -621,8 +621,52 @@ describe("⛔ gruppen: typavvikelser skriver bara ägaren, och bara giltiga post
       await assertFails(updateDoc(grupp(), { externaDatakallor: [{ type: "github", repo: "ingen-snedstreck", enabled: true }] }));
     });
 
-    it("⛔ båda listorna fulla i SAMMA uppdatering går igenom när posterna i externaDatakallor är minimala och avvikelserna i sin dyraste form", async () => {
-      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa(), typavvikelser: avvikelser() }));
+    /*
+     * ⛔ #223 (0.42.1). Proven nedan skriver externaDatakallor i sin DYRASTE form, båda valfria fälten på varje post.
+     * Före 0.42.1 provades taket bara med minimala poster, och då gick tio igenom medan sju fulla spräckte budgeten.
+     * Här stod också ett prov som sade att båda listorna fulla i SAMMA uppdatering går igenom: det gällde bara
+     * minimala poster, och kombinationen nekas nu med ett eget villkor (se regler.js vid opsHarPoster).
+     */
+    const dyr = () => Array.from({ length: MAX_EXTERNA }, (_, i) => ({
+      type: "github", repo: `cllp/repo-${i}`, enabled: true, label: "L".repeat(MAX_EXTERNLABEL), credentialSecretId: "h".repeat(MAX_EXTERNHEMLIGHET),
+    }));
+
+    /** Tomma listor först, en i taget. Ett oförändrat värde räknas inte som en ändring, och då hade provet mätt ingenting. */
+    const tomma = async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: [] }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: [] }));
+    };
+
+    it(`⛔ taket (${MAX_EXTERNA}) i den dyraste formen går igenom, skrivet ensamt`, async () => {
+      await tomma();
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: dyr() }));
+    });
+
+    it("⛔ #223: med fulla typavvikelser LAGRADE går en full lista externaDatakallor i dyraste formen igenom (före 0.42.1 nekades redan en post)", async () => {
+      await tomma();
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: avvikelser() }));
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: dyr() }));
+    });
+
+    it("⛔ med en full dyr lista externaDatakallor LAGRAD går fulla typavvikelser igenom", async () => {
+      await tomma();
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: dyr() }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: avvikelser() }));
+    });
+
+    it("⛔ #223: båda listorna i SAMMA uppdatering nekas, också när båda är små (ett villkor, inte budgeten)", async () => {
+      await tomma();
+      await assertFails(updateDoc(grupp(), { externaDatakallor: externa(), typavvikelser: avvikelser() }));
+      await assertFails(updateDoc(grupp(), { externaDatakallor: [{ type: "github", repo: "cllp/a", enabled: true }], typavvikelser: [giltig()] }));
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: [{ type: "github", repo: "cllp/a", enabled: true }] }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: [giltig()] }));
+    });
+
+    it("⛔ #223: en ny grupp bär högst en av listorna med poster, och var för sig går de igenom fulla", async () => {
+      await assertFails(skapa(avvikelser(), { externaDatakallor: [{ type: "github", repo: "cllp/a", enabled: true }] }));
+      await assertSucceeds(skapa(avvikelser(), { externaDatakallor: [] }));
+      await assertSucceeds(skapa(undefined, { externaDatakallor: dyr() }));
+      await assertSucceeds(skapa([], { externaDatakallor: dyr() }));
     });
   });
 

@@ -146,13 +146,23 @@ function typavvikelserRegler() {
     // till MAX_TYPAVVIKELSER. Fältet saknas eller är [] när gruppen inte har någon avvikelse, och det är giltigt.
     // Att id:t pekar på ett bidrag som finns kan en regel inte avgöra, se typavvikelserRegler().
     //
-    // ⛔ externaDatakallor VALIDERAS BARA NÄR DEN ÄNDRAS PÅ EN UPPDATERING (0.42.0, #217). En regel får utvärdera högst
-    // 1000 uttryck, och en full lista med externaDatakallor (tio poster) tar det mesta av budgeten ensam. Före 0.42.0
-    // utvärderades den vid varje uppdatering av gruppen, så en grupp med en full lista kunde inte skriva ens två
-    // typavvikelser: mätt, skrivningen nekades med "maximum of 1000 expressions". En lista som inte ändras
-    // är redan validerad den gång den skrevs (opsAndrad). typavvikelser valideras alltid: de är billiga nog att få plats.
+    // ⛔ VARJE LISTA VALIDERAS BARA NÄR DEN ÄNDRAS PÅ EN UPPDATERING (externaDatakallor sedan 0.42.0, typavvikelser
+    // sedan 0.42.1, #223). En regel får utvärdera högst 1000 uttryck. En lista som inte ändras är redan validerad den
+    // gång den skrevs. Här stod förut att typavvikelser "är billiga nog att få plats" och därför valideras alltid. Mätt
+    // 2026-10-01 var det fel: med sex lagrade typavvikelser nekades en skrivning av EN extern datakälla med "maximum
+    // of 1000 expressions", alltså kunde en ägare som döljt sex typer inte längre koppla ett repo.
+    //
+    // ⛔ OCH DE TVÅ LISTORNA SKRIVS ALDRIG I SAMMA ANROP (0.42.1, #223). Mätt: sex typavvikelser och en extern
+    // datakälla i samma uppdatering spräcker budgeten, och vid create två datakällor och sex avvikelser. Inget tak
+    // på antalet löser det, eftersom summan av båda är det som räknas. I stället nekas kombinationen med ett eget,
+    // billigt villkor som utvärderas FÖRE valideringen: ett tydligt nej i stället för ett budgetfel som beror på
+    // hur långa listorna råkar vara. Ramverkets skrivvägar skriver alltid en lista åt gången.
     function opsAndrad(d, r, f) {
       return d.diff(r).affectedKeys().hasAny([f]);
+    }
+
+    function opsHarPoster(d, f) {
+      return f in d && d[f] is list && d[f].size() > 0;
     }
     //
     // 'dold' som bool och 'namn' som map har ingen egen rad: 'p.dold || 'namn' in p' kastar ett utvärderingsfel
@@ -280,10 +290,13 @@ ${typavvikelserRegler()}
     // handskriven kopia.
     match /${grupper}/{gid} {
       allow read: if opsArMedlem(gid);
-      allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data);
+      allow create: if opsArAgare(gid)
+          && !(opsHarPoster(request.resource.data, 'externaDatakallor') && opsHarPoster(request.resource.data, 'typavvikelser'))
+          && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data);
       allow update: if (opsArAgare(gid)
+          && !(opsAndrad(request.resource.data, resource.data, 'externaDatakallor') && opsAndrad(request.resource.data, resource.data, 'typavvikelser'))
           && (!opsAndrad(request.resource.data, resource.data, 'externaDatakallor') || opsExternaGiltiga(request.resource.data))
-          && opsTypavvikelserGiltiga(request.resource.data)
+          && (!opsAndrad(request.resource.data, resource.data, 'typavvikelser') || opsTypavvikelserGiltiga(request.resource.data))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${AGARGRUPPFALT.map((f) => `"${f}"`).join(", ")}]))
         || (opsArAdmin(gid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${ADMINGRUPPFALT.map((f) => `"${f}"`).join(", ")}]));
