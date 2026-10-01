@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { cx } from "../lib/cx.js";
 import { handelsetid } from "../lib/handelsepanel.js";
 import { KALENDERPRICK } from "../lib/kalenderfarg.js";
@@ -93,6 +93,13 @@ export function OpsHandelsePanel({
   tillEtikett = "till",
 }) {
   const rubrikId = useId();
+  const ref = useRef(/** @type {HTMLElement | null} */ (null));
+  // ⛔ FOKUS FLYTTAS TILL PANELEN NÄR DEN ÖPPNAS. Länken man tryckte på ligger nu i en dold vy, och fokus som blir kvar där försvinner till `body`:
+  // tangentbords- och skärmläsaranvändaren börjar då om från sidans topp. Panelen får fokus (och läses upp med rubriken som namn), och skalet
+  // ger fokus tillbaka till länken vid Tillbaka.
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+  }, []);
   if (typeof onTillbaka !== "function") {
     throw new Error("OpsHandelsePanel: onTillbaka krävs. En panel utan väg tillbaka är en sida man inte kommer ut ur.");
   }
@@ -107,7 +114,7 @@ export function OpsHandelsePanel({
 
   if (!handelse) {
     return (
-      <section aria-label={laddar ? laddarEtikett : saknasTitel} data-handelsepanel="" className={kolumn}>
+      <section ref={ref} tabIndex={-1} aria-label={laddar ? laddarEtikett : saknasTitel} data-handelsepanel="" className={cx(kolumn, "outline-none")}>
         <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start" />
         <div className="mt-2">
           {laddar ? <OpsEmpty title={laddarEtikett} busy busyLabel={laddarEtikett} /> : <OpsEmpty title={saknasTitel} description={saknasText} />}
@@ -121,7 +128,7 @@ export function OpsHandelsePanel({
   const statusord = handelse.status ? (statusWords[handelse.status] ?? "") : "";
   const harMetarad = Boolean(handelse.typ || handelse.grupp || handelse.kalender);
   return (
-    <section aria-labelledby={rubrikId} data-handelsepanel="" className={kolumn}>
+    <section ref={ref} tabIndex={-1} aria-labelledby={rubrikId} data-handelsepanel="" className={cx(kolumn, "outline-none")}>
       {/* ⛔ SS `mb-2 sm:mb-4` under raden: luften bor i raden och inte i rubriken, så den följer med om raden byts. */}
       <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start md:mb-2" />
 

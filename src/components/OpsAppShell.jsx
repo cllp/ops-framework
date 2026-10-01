@@ -945,13 +945,19 @@ export function OpsAppShell({
   const [handelseId, setHandelseId] = useState(() => /** @type {string | null} */ (handelseAdress && typeof window !== "undefined" ? handelseIdUrAdress(window.location.href) : null));
   const handelsePushad = useRef(false);
   const handelseRullning = useRef(0);
+  // ⛔ Elementet som hade fokus när panelen öppnades (länken man tryckte på): Tillbaka ger fokus tillbaka dit, så att tangentbordet och skärmläsaren
+  // fortsätter där de var i stället för från sidans topp.
+  const handelseFokus = useRef(/** @type {HTMLElement | null} */ (null));
   /** @param {string} id */
   const oppnaHandelse = (id) => {
     if (typeof id !== "string" || id === "") throw new Error("useOppnaHandelse: id krävs, en sträng som inte är tom.");
     if (!handelsepanel) throw new Error("useOppnaHandelse: skalet saknar `handelsepanel`, så det finns ingen panel att öppna.");
     // Ett öppet skapa-formulär hör till vyn man lämnar: det stängs utan att röra historiken, som när man navigerar bort från det.
     if (skapaForm) setSkapaFormRaw(null);
-    if (handelseId === null && typeof window !== "undefined") handelseRullning.current = window.scrollY;
+    if (handelseId === null && typeof window !== "undefined") {
+      handelseRullning.current = window.scrollY;
+      handelseFokus.current = /** @type {HTMLElement | null} */ (document.activeElement);
+    }
     const redanOppen = handelseId !== null;
     setHandelseId(id);
     if (handelseAdress && typeof window !== "undefined") {
@@ -1007,6 +1013,12 @@ export function OpsAppShell({
   // En ny panel börjar överst: appens vy var dold och dess rullning är inte panelens.
   useEffect(() => {
     if (handelseId !== null && typeof window !== "undefined" && window.scrollY > 0) window.scrollTo(0, 0);
+    // Panelen stängdes: fokus tillbaka till det som hade det. Ett element som inte längre finns (vyn ritades om) eller som är dolt tar inte emot det.
+    if (handelseId === null && handelseFokus.current) {
+      const el = handelseFokus.current;
+      handelseFokus.current = null;
+      if (el.isConnected) el.focus({ preventScroll: true });
+    }
   }, [handelseId]);
 
   // ══ ⛔ ATT NAVIGERA STÄNGER PANELEN (0.38.0, #194) ═════════════════════════════════════════════════════════════════════

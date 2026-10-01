@@ -3970,7 +3970,14 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     krav(dagLankar >= 3, `${namn}: ${dagLankar} händelselänkar i dagpanelen den 12 oktober, väntat minst 3 (golv: mötet, löneutbetalningen och tåget).`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-kalender-dagpanel-${vp.width}.png`) });
     const rulle = () => page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); return { rulle: r ? Math.round(r.scrollTop) : -1, fonster: Math.round(window.scrollY) }; });
-    await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); if (r) r.scrollTop += 120; });
+    // ⛔ Låt dagpanelens egen rullning (`behavior: "smooth"`, uppåt över den flytande panelen) hinna klart INNAN något mäts: en mätning mitt i
+    // animeringen ger en skillnad som inte har med Tillbaka att göra (4832 mot 4847 i en körning som annars var grön).
+    await page.waitForTimeout(900);
+    // ⛔ Rulla kalendern UPPÅT så att den valda dagen hamnar UNDER den flytande dagpanelen (under 1024 px). Då är det som dagpanelens effekt vill rätta
+    // ("rulla dagen ovanför panelen") sant igen, och en effekt som körs en gång till när kalendern visas på nytt syns som en rullning efter Tillbaka.
+    // En dag som redan ligger ovanför panelen ger ingen rullning, och provet hade då varit grönt av sig självt.
+    await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); if (r) r.scrollTop = Math.max(0, r.scrollTop - 500); });
+    await page.waitForTimeout(150);
     const rFore = await rulle();
     const rad = page.locator("[data-dagpanel] [data-postrad]", { has: page.locator("[data-handelselank]") }).first();
     const rr = await rad.boundingBox();
@@ -3981,7 +3988,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     krav(!!mk && mk.klippta.length === 0 && mk.over <= 0 && !!mk.del.tillbaka && mk.del.tillbaka.height >= 43.5, `${namn}: panelen ur kalendern: ${mk ? `${mk.klippta.length} klippta, överflöd ${mk.over}, Tillbaka ${mk.del.tillbaka && mk.del.tillbaka.height.toFixed(0)} px` : "kunde inte mätas"}.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-fran-kalender-${vp.width}.png`) });
     await page.getByRole("button", { name: "Tillbaka" }).click();
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(1000);
     const rEfter = await rulle();
     const dagKvar = await page.locator('[data-cal-day="2026-10-12"]').getAttribute("aria-pressed");
     krav(!(await panelOppen()) && adress() === null && dagKvar === "true" && (await page.locator("[data-dagpanel]").count()) === 1, `${namn}: efter Tillbaka i kalendern: panel ${await panelOppen()}, adress ${adress()}, den valda dagen ${dagKvar}, dagpanelen ${await page.locator("[data-dagpanel]").count()}. Väntat stängd, ingen adress, dagen vald och dagpanelen kvar.`);

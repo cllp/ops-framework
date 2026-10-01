@@ -219,6 +219,17 @@ describe("Idag: en rad med handelseId öppnar panelen, Tillbaka kommer tillbaka 
     expect(/** @type {HTMLInputElement} */ (screen.getByLabelText("Anteckning")).value).toBe("Ring Anna");
   });
 
+  it("fokus flyttas till panelen när den öppnas och tillbaka till länken man tryckte på när man går tillbaka", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const lank = screen.getByRole("link", { name: "Styrelsemöte" });
+    await user.click(lank);
+    expect(document.activeElement).toBe(panelen());
+    await user.click(screen.getByRole("button", { name: "Tillbaka" }));
+    await waitFor(() => expect(panelen()).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Styrelsemöte" }));
+  });
+
   it("Tillbaka-knappen och webbläsarens bakåt är SAMMA gest: knappen går ett steg bakåt i historiken", async () => {
     const user = userEvent.setup();
     const spy = vi.spyOn(window.history, "back");
