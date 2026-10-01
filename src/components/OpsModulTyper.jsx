@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { slagPrick } from "../lib/slag.js";
 import { MAX_TYPNAMN, typmarke } from "../lib/modultyper.js";
 import { text } from "../lib/sprak.js";
@@ -45,6 +45,7 @@ const rensa = (/** @type {unknown} */ v) => (typeof v === "string" ? v.trim() : 
  * @param {(ikon: string) => import("react").ReactNode} [props.ikonRitare] Ritar ett ikonnamn. Utan den visas inget (ikonen är valfri).
  */
 export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak = "sv", rubrik = "Typer från moduler", ikonRitare }) {
+  const rubrikId = useId();
   if (!Array.isArray(bidrag)) {
     throw new Error("OpsModulTyper: bidrag krävs och måste vara en lista, även när den är tom. Skicka resultatet av bidragForGrupp.");
   }
@@ -112,8 +113,10 @@ export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak = 
   );
 
   return (
-    <section className="flex flex-col gap-3">
-      <h3 className="m-0 text-sektion uppercase text-accent">{rubrik}</h3>
+    <section aria-labelledby={rubrikId} className="flex flex-col gap-3">
+      {/* ⛔ NIVÅ 2, SOM KATALOGERNAS (0.44.0, bolag-ops#507): kortet står bredvid `OpsKatalogInstallning` i inställningarna, och två
+          kort på samma sida med olika rubriknivå hade gett skärmläsarens rubriklista en ordning som inte finns på skärmen. */}
+      <h2 id={rubrikId} className="m-0 text-sektion uppercase text-accent">{rubrik}</h2>
       {!kanAndra ? (
         <OpsBanner tone="info" title="Du kan läsa listan, inte ändra den">
           Det är gruppens ägare som döljer eller döper om typer från moduler. Låset sitter i databasens regler, inte i den här vyn.

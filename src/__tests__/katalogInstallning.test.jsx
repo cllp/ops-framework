@@ -426,3 +426,21 @@ describe("⛔ groupId (#162, krävs sedan 0.33.0): vyn skriver i den aktiva grup
     expect(onSpara).not.toHaveBeenCalled();
   });
 });
+
+describe("⛔ rubriken syns (0.44.0, bolag-ops#507)", () => {
+  it("katalogen har en synlig rubrik på nivå 2, och sektionen bär den som namn", () => {
+    rita({ rubrik: "Händelsetyper" });
+    expect(screen.getByRole("heading", { level: 2, name: "Händelsetyper" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Händelsetyper" })).toBeTruthy();
+  });
+
+  it("två kataloger på samma sida har var sin rubrik", () => {
+    render(
+      <>
+        <OpsKatalogInstallning kategorier={KATEGORIER} ikoner={IKONER} kanAndra onSpara={() => {}} onArkivera={() => {}} groupId="cps-ab" rubrik="Händelsetyper" />
+        <OpsKatalogInstallning kategorier={KATEGORIER} ikoner={IKONER} kanAndra onSpara={() => {}} onArkivera={() => {}} groupId="cps-ab" rubrik="Inkorgens sorter" />
+      </>,
+    );
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Händelsetyper", "Inkorgens sorter"]);
+  });
+});

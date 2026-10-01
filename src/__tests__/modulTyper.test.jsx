@@ -90,3 +90,11 @@ describe("valen i ett skapa-formulär", () => {
     expect(screen.getByRole("radio", { name: /^Ärende$/ })).toBeTruthy();
   });
 });
+
+describe("⛔ rubriken på samma nivå som katalogernas (0.44.0, bolag-ops#507)", () => {
+  it("nivå 2, och sektionen bär den som namn", () => {
+    rita({ rubrik: "Inkorgens typer från moduler" });
+    expect(screen.getByRole("heading", { level: 2, name: "Inkorgens typer från moduler" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Inkorgens typer från moduler" })).toBeTruthy();
+  });
+});

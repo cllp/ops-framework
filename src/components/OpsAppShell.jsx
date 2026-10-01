@@ -475,10 +475,13 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {import("react").ReactNode | HandelseSkapare} [handelse] Ramverkets egen rad "Ny händelse". `null`/utelämnad döljer raden.
  *   Ett färdigt `ReactNode` (som förut) eller, från 0.30.0 (#173), ett `HandelseSkapare`: ett formulär OCH en katalog
  *   med händelsetyper, så typvalet och `{ groupId, typ, onKlar }` fungerar precis som för en moduls registrering.
- * @property {import("react").ReactNode | ((arg: { formId: string, mal: { sektion: string, id: string } | null }) => import("react").ReactNode)} [arende] Ramverkets egen rad "Nytt ärende".
- *   Ett färdigt `ReactNode` (som förut) eller, från 0.31.1, en FUNKTION `({ formId, mal }) => nod`: appen sätter `id={formId}` på sitt
+ * @property {import("react").ReactNode | ((arg: { formId: string, mal: { sektion: string, id: string } | null, onKlar: () => void }) => import("react").ReactNode)} [arende] Ramverkets egen rad "Nytt ärende".
+ *   Ett färdigt `ReactNode` (som förut) eller, från 0.31.1, en FUNKTION `({ formId, mal, onKlar }) => nod`: appen sätter `id={formId}` på sitt
  *   `<form>` och panelens `sparaEtikett` ritar då den gemensamma Spara-knappen. En färdig nod har ingen `formId` att ta emot, och för
  *   den ritas ingen Spara (annars en död knapp).
+ *   ⛔ `onKlar` (0.44.0, bolag-ops#508) stänger panelen efter en lyckad skrivning, som för "Ny grupp" och "Nytt meddelande". Utan den
+ *   kunde formuläret visa sitt kvitto men inte stänga panelen, och skalets Spara stod kvar under kvittot och pekade på ett formulär som
+ *   inte fanns längre. CP: "Spara knappen kvar när man sparat ett ärende ... vet inte om det är sparat."
  * @property {(arg: { formId: string, onKlar: () => void }) => import("react").ReactNode} [grupp] (0.32.0, #180) Ramverkets egen rad "Ny grupp".
  *   En FUNKTION som ritar formuläret, normalt `({ formId, onKlar }) => <OpsGruppFormular formId={formId} onKlar={onKlar} onSkapa={...} onSkapad={...} />`.
  *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen till samma panel (växlarens ark på telefon har ingen sedan 0.37.0): `grupper.onSkapa` behövs då inte,
@@ -541,10 +544,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 /**
  * Ritar `skapa.arende` när det är en funktion (0.31.1). Som en EGEN komponent och inte ett direktanrop i skalets render: en app
  * som använder hooks i sin funktion får då dem på en stabil plats, i stället för i skalets villkorliga gren.
- * @param {{ rita: (arg: { formId: string, mal: any }) => import("react").ReactNode, formId: string, mal: any }} props
+ * @param {{ rita: (arg: { formId: string, mal: any, onKlar: () => void }) => import("react").ReactNode, formId: string, mal: any, onKlar: () => void }} props
  */
-function ArendeRitare({ rita, formId, mal }) {
-  return <>{rita({ formId, mal })}</>;
+function ArendeRitare({ rita, formId, mal, onKlar }) {
+  return <>{rita({ formId, mal, onKlar })}</>;
 }
 
 /**
@@ -1258,7 +1261,7 @@ export function OpsAppShell({
     // ⛔ 0.31.1: `arende` FÅR VARA EN FUNKTION `({ formId, mal }) => nod`, så appen kan ge sitt `<form id={formId}>` och använda
     // panelens gemensamma Spara (`sparaEtikett`). En färdig nod fungerar som förut. En nod har ingen `formId` att ta emot, och
     // därför ritas Spara inte för den (se `skapaHarFormKonsument`): en knapp som pekar på ett id ingen känner är en död knapp.
-    skapaModalInnehall = typeof skapa?.arende === "function" ? <ArendeRitare rita={skapa.arende} formId={skapaFormId} mal={skapaMal} /> : skapa?.arende;
+    skapaModalInnehall = typeof skapa?.arende === "function" ? <ArendeRitare rita={skapa.arende} formId={skapaFormId} mal={skapaMal} onKlar={() => stangSkapa(true)} /> : skapa?.arende;
     skapaHarFormKonsument = typeof skapa?.arende === "function";
   } else if (skapaForm?.kind === "grupp" && typeof skapa?.grupp === "function") {
     skapaModalTitel = nyGruppEtikett;
