@@ -141,6 +141,11 @@ export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
  * gå att validera av det som körs utan skärm.
  */
 export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
+/*
+ * Modulernas bidrag till typer (0.42.0, #217): `typer` i `defineModule`, sammanslagningen `bas ∪ bidrag(påslagna)`
+ * vid render, ägarens avvikelse (`typavvikelser` på gruppen) och märket «från <modul>».
+ */
+export { TYPYTOR, MODULTYPAVGRANSARE, MAX_TYPAVVIKELSER, MAX_TYPNAMN, modultypId, delaModultypId, byggTypavvikelser, medAvvikelse, typerForGrupp, bidragForGrupp, typenForRad, typmarke, typerTillValg } from "./lib/modultyper.js";
 export { hubbForGrupp, valbaraModuler, hubbPoster, modulLage, byggOmdirigeringar, omdirigera, kontrolleraOmdirigeringar } from "./lib/hubb.js";
 
 /*
@@ -235,6 +240,7 @@ export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
+export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
 /*
  * ⛔ SAMTALEN (0.34.0, #182, #185): gruppchatt, privata meddelanden och Assistent-tråden som EN modell. Formerna och
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.

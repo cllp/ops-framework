@@ -192,4 +192,14 @@ export const paminnelser = defineModule({
     startsida: "lista",
     delar: [{ id: "lista", namn: { sv: "Alla påminnelser", en: "All reminders" }, ikon: createElement(List, { size: 16 }), rutt: "/paminnelser/lista" }],
   },
+
+  /*
+   * ⛔ `typer` (0.42.0, #217): typer modulen bidrar med till inkorgen, kalendern och händelserna. Har gruppen modulen på
+   * läggs de till valen vid render och märks «från Påminnelser»; är modulen av försvinner de ur valen men raderna som
+   * redan bär dem visas som «arkiverad modul». Värdet en rad bär är `paminnelser:paminnelse` (modul:id), aldrig bara
+   * `paminnelse`. Valfritt, till skillnad från alla andra fält, och en modul utan bidrag utelämnar det.
+   */
+  typer: {
+    inkorg: [{ id: "paminnelse", namn: { sv: "Påminnelse", en: "Reminder" }, ikon: "gem" }],
+  },
 });

@@ -81,6 +81,53 @@ service cloud.firestore {
         && (l.size() <= 9 || opsExternPost(l[9]));
     }
 
+    // ⛔ Ägarens avvikelser från modulernas typbidrag (0.42.0, #217). Ägaren skriver, en admin gör det inte (fältet
+    // står i AGARGRUPPFALT och inte i ADMINGRUPPFALT). Formerna och gränserna är härledda ur src/lib/modultyper.js,
+    // samma som byggTypavvikelser kontrollerar i klienten. Ingen loop finns i reglerna, därför rullas posterna ut
+    // till MAX_TYPAVVIKELSER. Fältet saknas eller är [] när gruppen inte har någon avvikelse, och det är giltigt.
+    // Att id:t pekar på ett bidrag som finns kan en regel inte avgöra, se typavvikelserRegler().
+    //
+    // ⛔ externaDatakallor VALIDERAS BARA NÄR DEN ÄNDRAS PÅ EN UPPDATERING (0.42.0, #217). En regel får utvärdera högst
+    // 1000 uttryck, och en full lista med externaDatakallor (tio poster) tar det mesta av budgeten ensam. Före 0.42.0
+    // utvärderades den vid varje uppdatering av gruppen, så en grupp med en full lista kunde inte skriva ens två
+    // typavvikelser: mätt, skrivningen nekades med "maximum of 1000 expressions". En lista som inte ändras
+    // är redan validerad den gång den skrevs (opsAndrad). typavvikelser valideras alltid: de är billiga nog att få plats.
+    function opsAndrad(d, r, f) {
+      return d.diff(r).affectedKeys().hasAny([f]);
+    }
+    //
+    // 'dold' som bool och 'namn' som map har ingen egen rad: 'p.dold || 'namn' in p' kastar ett utvärderingsfel
+    // på en icke-bool, och 'p.namn.keys()' kastar på en icke-map, och ett fel i en regel är ett nej. Det är provat
+    // ('dold som inte är bool', 'ett namn som inte är en map' i rules/__tests__/grupper.test.mjs). De två rader som
+    // först stod här ('is bool', 'is map') togs bort för att deras mutationer inte gick att slå röda: de var
+    // ekvivalenta med kontrollen som redan fanns, och en rad utan eget utfall är en rad som ser ut som en vakt.
+    function opsTypavvikelse(p) {
+      return p.keys().hasOnly(['yta', 'id', 'dold', 'namn'])
+        && p.yta in ['inkorg', 'kalender', 'handelser']
+        && p.id is string && p.id.size() <= 100
+        && p.id.matches('[a-z0-9][a-z0-9_-]*:[a-z0-9][a-z0-9_-]*')
+        && (!('namn' in p)
+          || (p.namn.keys().hasOnly(['sv', 'en'])
+            && p.namn.sv is string && p.namn.sv.size() > 0 && p.namn.sv.size() <= 60
+            && (!('en' in p.namn) || (p.namn.en is string && p.namn.en.size() <= 60))))
+        && (p.dold || 'namn' in p);
+    }
+
+    function opsTypavvikelserGiltiga(d) {
+      return !('typavvikelser' in d)
+        || (d.typavvikelser is list && opsTypavvikelserLista(d.typavvikelser));
+    }
+
+    function opsTypavvikelserLista(l) {
+      return l.size() <= 6
+        && (l.size() <= 0 || opsTypavvikelse(l[0]))
+        && (l.size() <= 1 || opsTypavvikelse(l[1]))
+        && (l.size() <= 2 || opsTypavvikelse(l[2]))
+        && (l.size() <= 3 || opsTypavvikelse(l[3]))
+        && (l.size() <= 4 || opsTypavvikelse(l[4]))
+        && (l.size() <= 5 || opsTypavvikelse(l[5]));
+    }
+
     // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
     //
     // ⛔ #156, RÄTTAT EFTER GRANSKNING: hasOnly-LISTAN ÄR HÄRLEDD UR
@@ -119,9 +166,11 @@ service cloud.firestore {
     // handskriven kopia.
     match /groups/{gid} {
       allow read: if opsArMedlem(gid);
-      allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data);
-      allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "arkiverad", "externaDatakallor"]))
+      allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data);
+      allow update: if (opsArAgare(gid)
+          && (!opsAndrad(request.resource.data, resource.data, 'externaDatakallor') || opsExternaGiltiga(request.resource.data))
+          && opsTypavvikelserGiltiga(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "arkiverad", "externaDatakallor", "typavvikelser"]))
         || (opsArAdmin(gid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"]));
       allow delete: if false;

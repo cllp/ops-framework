@@ -39,6 +39,7 @@
  */
 
 import { EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNHEMLIGHET, MAX_EXTERNLABEL, MAX_EXTERNREPO, medlemskapsId } from "../../src/lib/grupp.js";
+import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN } from "../../src/lib/modultyper.js";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
@@ -557,5 +558,140 @@ describe("⛔ vitlistan: ingen klient läser eller skriver den, inte ens ägaren
 describe("⛔ catch-allen nekar", () => {
   it("en samling utan block går inte att läsa", async () => {
     await assertFails(getDoc(doc(som(AGARE), "hemligt/rad")));
+  });
+});
+
+describe("⛔ gruppen: typavvikelser skriver bara ägaren, och bara giltiga poster (0.42.0, #217)", () => {
+  const giltig = () => ({ yta: "inkorg", id: "ekonomi:kvitto", dold: true });
+  const satt = (/** @type {string} */ uid, /** @type {any} */ varde) => updateDoc(doc(som(uid), `groups/${VAR}`), { typavvikelser: varde });
+  /** En ny grupp vars ägare har medlemskap men raden saknas: create och inte update. */
+  let nr = 0;
+  const skapa = async (/** @type {any} */ varde) => {
+    const gid = `typ-ny-${(nr += 1)}`;
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `memberships/${medlemskapsId(AGARE, gid)}`), { userId: AGARE, groupId: gid, roll: "agare", typ: "person", status: "aktiv" });
+    });
+    return setDoc(doc(som(AGARE), `groups/${gid}`), { id: gid, namn: { sv: "Ny" }, moduler: [], arkiverad: false, skapadAv: { uid: AGARE, namn: "Ägaren" }, ...(varde === undefined ? {} : { typavvikelser: varde }) });
+  };
+
+  it("⛔ ägaren döljer ett bidrag, och döper om ett annat", async () => {
+    await assertSucceeds(satt(AGARE, [giltig()]));
+    await assertSucceeds(satt(AGARE, [giltig(), { yta: "kalender", id: "ekonomi:bokslut", dold: false, namn: { sv: "Bokslutet", en: "Closing" } }]));
+  });
+
+  it("ägaren tömmer listan med []", async () => {
+    await assertSucceeds(satt(AGARE, []));
+  });
+
+  it("⛔ en admin skriver inte fältet, och tömmer inte en befintlig lista", async () => {
+    await assertFails(satt(ADMIN, [giltig()]));
+    await assertSucceeds(satt(AGARE, [giltig()]));
+    await assertFails(satt(ADMIN, []));
+  });
+
+  it("en medlem skriver inte fältet", async () => {
+    await assertFails(satt(MEDLEM, [giltig()]));
+  });
+
+  it("⛔ ägaren ändrar andra fält på en grupp utan fältet (frånvarande fält är giltigt)", async () => {
+    await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { beskrivning: "Utan avvikelser" }));
+  });
+
+  describe("budgeten på 1000 uttryck delas med externaDatakallor (#216)", () => {
+    const externa = () => Array.from({ length: MAX_EXTERNA }, (_, i) => ({ type: "github", repo: `cllp/repo-${i}`, enabled: true }));
+    const avvikelser = () => Array.from({ length: MAX_TYPAVVIKELSER }, (_, i) => ({ yta: "inkorg", id: `ekonomi:t${i}`, dold: true, namn: { sv: "Eget namn", en: "Own name" } }));
+    const grupp = () => doc(som(AGARE), `groups/${VAR}`);
+
+    it("⛔ en full lista externaDatakallor stänger inte ute en skrivning av typavvikelser (före 0.42.0 nekades redan en skrivning av två poster)", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa() }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: [giltig()] }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: avvikelser() }));
+    });
+
+    it("⛔ båda listorna kan ligga FULLA på gruppen, och en annan ändring av gruppen går då igenom (ingen av dem valideras om)", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa() }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: avvikelser() }));
+      await assertSucceeds(updateDoc(grupp(), { beskrivning: "Båda listorna fulla" }));
+    });
+
+    it("⛔ en LISTA SOM ÄNDRAS valideras fortfarande, också när den andra är full", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa() }));
+      await assertFails(updateDoc(grupp(), { typavvikelser: [{ ...giltig(), id: "kvitto" }] }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: [] }));
+      await assertFails(updateDoc(grupp(), { externaDatakallor: [{ type: "github", repo: "ingen-snedstreck", enabled: true }] }));
+    });
+
+    it("⛔ båda listorna fulla i SAMMA uppdatering går igenom när posterna i externaDatakallor är minimala och avvikelserna i sin dyraste form", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa(), typavvikelser: avvikelser() }));
+    });
+  });
+
+  describe("avvisade poster, en avvikelse åt gången mot en giltig post", () => {
+    it("kontroll: den giltiga posten går igenom", async () => {
+      await assertSucceeds(satt(AGARE, [giltig()]));
+    });
+
+    const avvisade = /** @type {Array<[string, any]>} */ ([
+      ["ett okänt fält på posten", { ...giltig(), extra: 1 }],
+      ["en yta som inte finns", { ...giltig(), yta: "sok" }],
+      ["ytan med ä", { ...giltig(), yta: "händelser" }],
+      ["ett id utan kolon (en egen kategori, inte ett bidrag)", { ...giltig(), id: "kvitto" }],
+      ["ett id med versaler", { ...giltig(), id: "Ekonomi:kvitto" }],
+      ["ett id med två kolon", { ...giltig(), id: "a:b:c" }],
+      ["ett id som är längre än taket", { ...giltig(), id: `a:${"b".repeat(MAX_TYPID)}` }],
+      ["ett id som inte är en sträng", { ...giltig(), id: 7 }],
+      ["dold som inte är bool", { ...giltig(), dold: "ja" }],
+      ["en post utan dold", { yta: "inkorg", id: "ekonomi:kvitto" }],
+      ["en avvikelse som inte gör något", { yta: "inkorg", id: "ekonomi:kvitto", dold: false }],
+      ["ett namn som inte är en map", { ...giltig(), namn: "Underlag" }],
+      ["ett namn utan sv", { ...giltig(), namn: { en: "Receipt" } }],
+      ["ett tomt sv", { ...giltig(), namn: { sv: "" } }],
+      ["ett sv över taket", { ...giltig(), namn: { sv: "x".repeat(MAX_TYPNAMN + 1) } }],
+      ["ett en över taket", { ...giltig(), namn: { sv: "x", en: "x".repeat(MAX_TYPNAMN + 1) } }],
+      ["ett namn med ett tredje språk", { ...giltig(), namn: { sv: "x", fr: "x" } }],
+    ]);
+    for (const [namn, post] of avvisade) {
+      it(`⛔ ${namn}`, async () => {
+        await assertFails(satt(AGARE, [post]));
+      });
+    }
+
+    it("⛔ en post som inte är en map", async () => {
+      await assertFails(satt(AGARE, ["ekonomi:kvitto"]));
+    });
+
+    it("⛔ fältet är en sträng i stället för en lista, också en kort eller tom", async () => {
+      await assertFails(satt(AGARE, "ekonomi:kvitto"));
+      await assertFails(satt(AGARE, ""));
+      await assertFails(satt(AGARE, "x"));
+    });
+
+    it("⛔ fältet är en tom map i stället för en lista (size() är 0, så bara typkontrollen fäller den)", async () => {
+      await assertFails(satt(AGARE, {}));
+    });
+
+    it("⛔ en lista över taket nekas, en på taket går igenom", async () => {
+      const lista = (/** @type {number} */ n) => Array.from({ length: n }, (_, i) => ({ yta: "inkorg", id: `ekonomi:t${i}`, dold: true }));
+      await assertSucceeds(satt(AGARE, lista(MAX_TYPAVVIKELSER)));
+      await assertFails(satt(AGARE, lista(MAX_TYPAVVIKELSER + 1)));
+    });
+
+    it("⛔ den SISTA posten i en full lista valideras också", async () => {
+      const lista = Array.from({ length: MAX_TYPAVVIKELSER }, (_, i) => ({ yta: "inkorg", id: `ekonomi:t${i}`, dold: true }));
+      lista[MAX_TYPAVVIKELSER - 1] = /** @type {any} */ ({ ...lista[MAX_TYPAVVIKELSER - 1], dold: "ja" });
+      await assertFails(satt(AGARE, lista));
+    });
+  });
+
+  describe("skapa en grupp (create) kontrolleras lika", () => {
+    it("en grupp utan fältet och en med en giltig lista skapas", async () => {
+      await assertSucceeds(skapa(undefined));
+      await assertSucceeds(skapa([giltig()]));
+    });
+
+    it("⛔ en grupp med en ogiltig avvikelse skapas inte", async () => {
+      await assertFails(skapa([{ ...giltig(), id: "kvitto" }]));
+      await assertFails(skapa("x"));
+    });
   });
 });

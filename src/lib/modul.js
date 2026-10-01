@@ -42,6 +42,7 @@
  */
 
 import { ID_FORM } from "./katalog.js";
+import { byggModulTyper } from "./modultyper.js";
 import { validateNav } from "./nav.js";
 import { byggNamn } from "./sprak.js";
 
@@ -52,7 +53,7 @@ import { byggNamn } from "./sprak.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb"];
+const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer"];
 
 /**
  * Fälten modulens kort i hubben får bära (0.37.0, #184).
@@ -118,6 +119,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {Readonly<Record<string, Function>>} kallor Ytor modulen fyller, en funktion per yta.
  * @property {ReadonlyArray<Skaparregistrering>} skapar Vad modulen kan skapa, det plusset erbjuder.
  * @property {Hubbkort | null} hubb (0.37.0) Modulens kort i hubben och dess insida, eller `null` när modulen inte är ett kort.
+ * @property {Readonly<Record<import("./modultyper.js").Typyta, ReadonlyArray<import("./modultyper.js").Modultyp>>>} typer (0.42.0, #217) Typerna modulen bidrar med till inkorgen, kalendern och händelserna. ⛔ Alltid alla tre listorna i utskriven form, även när manifestet utelämnade fältet. Se `modultyper.js`.
  */
 
 /**
@@ -410,6 +412,14 @@ export function defineModule(manifest) {
   const hubb = byggHubb(d, var_);
 
   /*
+   * ⛔ TYPERNA ÄR ETT BIDRAG OCH SKRIVS UT I FULL FORM (0.42.0, #217). Fältet är valfritt i manifestet
+   * (ett krav hade fällt varje redan skriven modul på en minorversion) men den byggda modulen bär
+   * alltid tre listor. Formen, id-formen och varför ett bidrags värde är `modul:id` står i
+   * `modultyper.js`.
+   */
+  const typer = byggModulTyper(d.typer, var_);
+
+  /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
    */
@@ -427,6 +437,7 @@ export function defineModule(manifest) {
     kallor: Object.freeze(kallor),
     skapar: Object.freeze(skapar),
     hubb,
+    typer,
   });
 }
 

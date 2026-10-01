@@ -4148,6 +4148,63 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+// ══ 37. MODULERNAS TYPBIDRAG MÄRKS «från <modul>» VID 390 OCH 1280 PX (0.42.0, #217) ══════════════════════════════════════════
+// CP 2026-10-01 (en skärmbild av "Nytt ärende"): "Vissa av dessa typer kommer ju med modulerna? Ekonomi t ex." Ett bidrag från en modul får
+// inte se ut som en fri kategori. Scenen `modultyper` är valen som ett skapa-formulär ritar dem (OpsRadioGroup med `typerTillValg`) och ägarens
+// lista (`OpsModulTyper`). Krav, vid båda bredderna:
+//   (a) VALEN: de två egna typerna (Ärende, Bugg) saknar märke, de två bidragen bär «från Ekonomi» som hjälptext på sin rad, och märket är
+//       samma ord i listan under.
+//   (b) LISTAN: varje rad har en pill med «från Ekonomi», knapparna Byt namn och Dölj är minst 44 px höga.
+//   (c) DÖLJ: efter ett tryck på Dölj på första raden försvinner bidraget ur valen men står kvar i listan som «från Ekonomi, dold» med knappen Visa,
+//       och Visa ger tillbaka det.
+//   (d) INGEN horisontell överflödning, och det långa bidragsnamnet bryts inom fönstret.
+// Golv: minst 4 val, 2 listrader.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `modultyper ${vp.width}`;
+  const { page, context } = await oppna("modultyper", vp);
+  try {
+    await page.waitForSelector("[data-modultyp-val] label", { timeout: 4000 });
+    const las = () =>
+      page.evaluate(() => {
+        const val = [...document.querySelectorAll("[data-modultyp-val] label")].map((l) => ({
+          titel: (l.querySelector(".text-etikett")?.textContent || "").trim(),
+          hint: (l.querySelector(".text-hjalp")?.textContent || "").trim(),
+          rakt: l.getBoundingClientRect().right,
+        }));
+        const rader = [...document.querySelectorAll("[data-modultyp-lista] li")].map((li) => ({
+          namn: (li.querySelector("span.font-medium")?.textContent || "").trim(),
+          pill: (li.querySelector("span.rounded-full:not(.size-2)")?.textContent || "").trim(),
+          knappar: [...li.querySelectorAll("button")].map((b) => ({ text: (b.textContent || "").trim(), h: Math.round(b.getBoundingClientRect().height) })),
+          rakt: li.getBoundingClientRect().right,
+        }));
+        return { val, rader, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, bredd: window.innerWidth };
+      });
+    const fore = await las();
+    matt.push(`${namn}: val ${JSON.stringify(fore.val.map((v) => [v.titel, v.hint]))}, lista ${JSON.stringify(fore.rader.map((r) => [r.namn, r.pill]))}, knapphöjd ${fore.rader[0]?.knappar.map((k) => k.h).join("/")}, överflöde ${fore.over} px`);
+    krav(fore.val.length >= 4 && fore.rader.length >= 2, `${namn}: ${fore.val.length} val och ${fore.rader.length} listrader, väntat minst 4 och 2 (golv).`);
+    krav(fore.val.filter((v) => v.hint === "").map((v) => v.titel).join() === "Ärende,Bugg", `${namn}: valen utan märke är ${JSON.stringify(fore.val.filter((v) => v.hint === "").map((v) => v.titel))}, väntat bara de egna (Ärende, Bugg).`);
+    krav(fore.val.filter((v) => v.hint === "från Ekonomi").length === 2, `${namn}: ${fore.val.filter((v) => v.hint === "från Ekonomi").length} val bär «från Ekonomi», väntat 2.`);
+    krav(fore.rader.every((r) => r.pill === "från Ekonomi"), `${namn}: listradernas märke är ${JSON.stringify(fore.rader.map((r) => r.pill))}, väntat «från Ekonomi» på alla.`);
+    krav(fore.rader.every((r) => r.knappar.length === 2 && r.knappar.every((k) => k.h >= 44)), `${namn}: knapparna i listan är ${JSON.stringify(fore.rader.map((r) => r.knappar))}, väntat Byt namn och Dölj, minst 44 px höga.`);
+    krav(fore.over <= 0 && fore.val.every((v) => v.rakt <= fore.bredd) && fore.rader.every((r) => r.rakt <= fore.bredd), `${namn}: sidan flödar över ${fore.over} px horisontellt, eller en rad går utanför fönstret.`);
+
+    await page.locator("[data-modultyp-lista]").getByRole("button", { name: "Dölj" }).first().click();
+    await page.waitForTimeout(100);
+    const dold = await las();
+    matt.push(`${namn} efter Dölj: val ${JSON.stringify(dold.val.map((v) => v.titel))}, lista ${JSON.stringify(dold.rader.map((r) => [r.namn, r.pill]))}`);
+    krav(dold.val.length === fore.val.length - 1, `${namn}: efter Dölj är det ${dold.val.length} val, väntat ${fore.val.length - 1}.`);
+    krav(dold.rader.length === fore.rader.length && dold.rader[0].pill === "från Ekonomi, dold" && dold.rader[0].knappar.some((k) => k.text === "Visa"), `${namn}: efter Dölj visar första raden ${JSON.stringify(dold.rader[0])}, väntat «från Ekonomi, dold» med knappen Visa.`);
+    await page.locator("[data-modultyp-lista]").getByRole("button", { name: "Visa" }).first().click();
+    await page.waitForTimeout(100);
+    const igen = await las();
+    krav(igen.val.length === fore.val.length && igen.rader[0].pill === "från Ekonomi", `${namn}: efter Visa är det ${igen.val.length} val och första radens märke ${JSON.stringify(igen.rader[0]?.pill)}, väntat tillbaka som före.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `modultyper-${vp.width}.png`), fullPage: true });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 if (bildmapp) {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const { page, context } = await oppna("kalender", vp);
