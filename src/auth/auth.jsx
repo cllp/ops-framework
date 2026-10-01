@@ -313,6 +313,16 @@ export function useOpsAuth() {
 }
 
 /**
+ * Den inloggade, eller `null` om det inte finns någon provider eller ingen inloggad. Kastar aldrig, till skillnad från
+ * `useOpsAuth`: vyer som bara vill låna den inloggades NAMN (#218) ska inte kräva en provider för att ritas.
+ *
+ * @returns {User | null}
+ */
+export function useInloggad() {
+  return useContext(AuthContext)?.user ?? null;
+}
+
+/**
  * Visar sitt innehåll för den som är inloggad och godkänd.
  *
  * ⛔ Igen: det här styr RENDERING, inte åtkomst. `allowedRoles` här måste ha

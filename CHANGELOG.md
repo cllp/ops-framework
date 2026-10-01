@@ -9,6 +9,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.40.1
+
+⛔ **Ett uid visas aldrig för en människa, och ett medlemskap som kan få ett namn får det (#218). Rättelse, inget nytt API utom `personnamn`, `NAMN_SAKNAS`, `bakfyllMedlemsnamn` och två valfria indata (`namn` till `skapaGrupp` och `accepteraInbjudningar`). Appen måste pinna om OCH köra bakfyllnaden, se "Att göra i appen" nedan: utan bakfyllnaden ser CP:s rad ut som "Namn saknas" i stället för som ett uid, vilket är bättre men inte rätt.**
+
+### #218: "Bra om användarnamnet inte är Guid"
+Händelsen: CP 2026-10-01, med en skärmbild från telefonen av "Nytt ärende": under "Till" stod den inloggade som `eA2ILzNei5TQ2rcHy68aBZPpR1B3 (du)`. "Bra om användarnamnet inte är Guid." Raden ritades ur `p.namn || p.userId` i `OpsMottagare`, och hens medlemskap saknade `namn`.
+
+**Mätt innan något ändrades (regel 3):** `OpsMottagare` ritade `p.namn || p.userId`, och samma form fanns i `OpsMeddelanden` (`namn.get(id)?.namn || id`), `OpsGruppSida` (`m.namn || m.id`, två gånger), `OpsMedlemmar` (`... || medlemskap.userId`), `samtalsnotiser` (`namnFor(s.av) || s.av`) och `skaparensNamn` (uid:ts åtta första tecken). `OpsSvar` ritade `m.namn` rakt av, alltså en tom rad. Inget av dem visste vem som var inloggad.
+
+**Rotorsaken, per skrivväg (varje väg som skapar eller ändrar ett medlemskap, mätt i källan):**
+- **`skapaGrupp`, `bjudIn`, `accepteraInbjudningar`** skriver `namn` ur `users/{uid}.namn`: de tappar namnet bara när profilraden SAKNAR ett. `skapaGrupp` hade dessutom inget att falla tillbaka på: `anvandaren?.namn ?? ""`, så en profilrad som saknades eller var tom gav ett tomt namn fast inloggningen bar ett.
+- **`sakerstallAnvandare`** skapar profilraden vid första inloggningen med `namn: inloggad.namn ?? ""`. Hade inloggningen inget namn då (e-postlänk, lösenord utan visningsnamn) blev `users.namn` tomt, och den befintliga-raden-vägen fyllde det aldrig senare. Varje medlemskap som sedan skrevs ur raden bar ett tomt namn. **Det är den enda väg i ramverket som kunde skapa en tom rad trots att ett namn fanns.**
+- **`uppdateraProfil`** sprider redan ett namnbyte till ALLA personens medlemskap (#156). Den är inte felet, men den körs bara av en server-callable appen registrerar, och bara när namn eller bild faktiskt ändrats.
+- **Appens `scripts/skapa-grupp.mjs --agare <uid>`** skriver ägarens medlemskap UTAN namn (raden byggs ur `members/{uid}` eller bara av flaggan, och `namn` tas med bara om raden har ett). Det är sannolikt hur CP:s medlemskap fick sin form, men det är en mätning av skriptets källa och inte av produktionsraden: den läses av bakfyllnaden nedan, som skriver ut `kvar` med skäl.
+- **Reglerna:** `memberships` är `allow write: if false` (#136) och ska förbli det. Ingen regeländring behövs: namnbytet och bakfyllnaden körs båda med Admin SDK, som går förbi reglerna. Ingen regelgenerering eller regeldeploy ingår.
+
+**Det som ändrats:**
+- **`personnamn(namn, { id, inloggad })` och `NAMN_SAKNAS`** (båda ingångarna, ren fil) och hooken `usePersonnamn`: medlemskapets namn, annars den inloggades namn ur inloggningen om raden är hens (`useOpsAuth().user.namn`, vyn hämtar det själv via `useInloggad`, som inte kräver en provider), annars `"Namn saknas"`. Raden bär `data-namn-saknas` och en varning skrivs en gång per person i konsolen. Det är en synlig, räknebar reserv och inte ett giltigt namn.
+- **Fallbackerna som togs bort (alla `|| userId` / `|| id` som namn i `src`):** `OpsMottagare` (sorteringen, radens namn och märket), `OpsMeddelanden` (`namnFor`, alltså rubrik, sök, avsändare, senaste raden och notisen), `OpsGruppSida` (märket och namnet), `OpsMedlemmar` (`visningsnamn`), `OpsSvar` (tom rad), `samtalsnotiser` (titeln), `skaparensNamn` (uid:ts början). **Ändrat beteende:** `skaparensNamn` svarar nu med tom sträng i stället för åtta tecken ur uid:t.
+- **`sakerstallAnvandare`** fyller ett TOMT `users.namn` på en befintlig rad när inloggningen nu bär ett. Ett ifyllt namn skrivs aldrig över (filhuvudets beslut gäller).
+- **`skapaGrupp({ namn })` och `accepteraInbjudningar({ namn })`:** inloggningens namn som reserv när profilen saknar ett. Profilens namn vinner.
+- **`bakfyllMedlemsnamn({ kalla, skarpt?, samlingar? })`** (nodsidan) och `scripts/bakfyll-medlemsnamn.mjs`: fyller TOMMA medlemskapsnamn ur `users/{uid}.namn`. Torrkörning förval, rör aldrig ett ifyllt namn, omkörbar, skriver ut `lästa`, `saknar`, `att fylla`, `fyllda`, `utan profilnamn`, `utan användare` och `fel` också när de är 0, och listar de som inte gick att fylla med skäl.
+
+### Röd utan fixen, grön med den (0.40.1)
+- **Enhetsprov** (`personnamn.test.jsx`, nytt, 23 prov): **23 av 23 gröna**. Elva mutationer av koden, en i taget (en sparad logg per mutation), och varje en blir röd (underkända prov i parentes): `OpsMottagare` tillbaka till `p.namn || p.userId` (3), `OpsMedlemmar` (1), `OpsGruppSida` (1), `OpsSvar` (1), `OpsMeddelanden` (1), `samtalsnotiser` (1), `skapaGrupp` utan inloggningsreserv (1), `accepteraInbjudningar` utan reserv (1), `sakerstallAnvandare` utan fyllningen (1), `bakfyllMedlemsnamn` som skriver över ett ifyllt namn (2), `personnamn` utan den inloggades eget namn (2).
+- **Ändrade befintliga prov (regel 9, två):** `medlemmar.test.jsx` ("faller tillbaka på uid när namnet saknas") bar det gamla beteendet som förväntning och säger nu "Namn saknas", aldrig uid; `skapare.test.jsx` ("faller till uid:ts början") säger nu tom sträng. Båda bar uttryckligen den regel CP just upphävde. **Den som skrev ändringen granskar inte sig själv:** de två provändringarna ska läsas av någon annan.
+- **Bakfyllnadsskriptet mot Firestore-emulatorn** (projekt `regelprov`, aldrig ett riktigt projekt): fyra medlemskap, ett utan namn med profilnamn, ett vars profil saknar namn, ett utan profilrad och ett med eget namn. Torrt: `lästa 4, saknar 3, att fylla 1, fyllda 0, utan profilnamn 1, utan användare 1`. Skarpt: `fyllda 1`, och det ifyllda namnet orört. Omkörning: `att fylla 0, fyllda 0`.
+- **Gates (alla exit 0):** `npm run check` (94 testfiler, 1869 prov, `check:guards` 125 vaktregler röda av rätt anledning), `test:rules`, `check:paket`, `check:guards`, `check:scaffold`, `check:skalyta` (1487 kontroller, inga brott).
+
+### Att göra i appen (i den här ordningen)
+1. **Pinna om till 0.40.1** (release-URL:en till taggen ska stå i ompinnings-PR:en, regel 11). Efter ompinningen visar listorna redan "Namn saknas" i stället för uid, och CP:s egen rad bär hans namn ur inloggningen.
+2. **Skicka inloggningens namn till `skapaGrupp` och `accepteraInbjudningar`** i appens callables (`namn: request.auth?.token?.name`). Valfritt men det är det som hindrar nästa tomma medlemskap.
+3. **Kör bakfyllnaden, torrt först, sedan `--skarpt`**, från appens rot (`node web/node_modules/@staiger/ops-framework/scripts/bakfyll-medlemsnamn.mjs --projekt <projekt-id>`). Den som inte har ett profilnamn står i `kvar` och måste öppna Profil och spara sitt namn. Ingen regelgenerering, ingen regeldeploy och ingen Firestore-data rörs av något annat än bakfyllnaden.
+4. **Appens `skapa-grupp.mjs`:** låt `--agare` läsa namnet ur `users/{uid}` så nästa skapade grupp inte börjar utan.
+
 ## 0.40.0
 
 ⛔ **Händelsepanelen (#214): en händelse har en egen sida med Tillbaka, och man kommer dit från Idag och från kalendern, och den går att ändra (penna, skapa-panelen i redigeringsläge, `FALT_BORT`: se "Kolla med sessionstudio också" nedan). Nytt: `OpsHandelsePanel`, skalets `handelsepanel` och `useOppnaHandelse()`, och `handelseId` på `OpsEventList`s rader och `OpsCalendar`s poster. En post utan `handelseId` är oförändrad. En rad MED `handelseId` kastar tills skalet har `handelsepanel` (eller listan `onOppnaHandelse`): en rad som ser tryckbar ut och inte gör något är värre än ett fel. Dessutom en rättelse i `OpsCalendar`: kalendern rullade om sig själv när den visades igen efter en panel.**

@@ -2,6 +2,7 @@ import { useId } from "react";
 import { cx } from "../lib/cx.js";
 import { AgentIkon, BockIkon, GruppIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { usePersonnamn } from "./usePersonnamn.js";
 
 /**
  * Mottagarväljaren: Till gruppen, en person i gruppen eller agenten (0.34.0, #182 F1).
@@ -50,23 +51,29 @@ export function OpsMottagare({
   tomText = "Det finns ingen annan i gruppen att skriva till.",
 }) {
   const namnId = useId();
+  const personnamn = usePersonnamn();
   const aktiva = (medlemmar ?? []).filter((m) => m && m.userId && (m.status ?? "aktiv") === "aktiv");
   const personer = aktiva
     .filter((m) => (m.typ ?? "person") === "person" && (lage === "arende" || m.userId !== uid))
-    .sort((a, b) => (a.namn || a.userId).localeCompare(b.namn || b.userId, "sv"));
+    .sort((a, b) => personnamn(a.namn, a.userId).text.localeCompare(personnamn(b.namn, b.userId).text, "sv"));
   const agent = lage === "arende" ? aktiva.find((m) => m.typ === "agent") : undefined;
 
-  /** @type {Array<{ nyckel: string, varde: import("../lib/samtal.js").Mottagare, namn: string, ikon: import("react").ReactNode }>} */
+  /** @type {Array<{ nyckel: string, varde: import("../lib/samtal.js").Mottagare, namn: string, saknas?: boolean, ikon: import("react").ReactNode }>} */
   const rader = [];
   if (lage === "arende") {
     rader.push({ nyckel: "grupp", varde: { slag: "grupp" }, namn: gruppNamn, ikon: <OpsIdentity name={gruppNamn} seed="grupp" size="sm" icon={GruppIkon} /> });
   }
   for (const p of personer) {
-    const namn = p.namn || p.userId;
+    /*
+     * ⛔ ALDRIG ETT ID SOM NAMN (#218). CP 2026-10-01: raden stod som `eA2ILzNei5TQ2rcHy68aBZPpR1B3 (du)`. Medlemskapets namn
+     * först, den inloggades eget namn ur inloggningen om raden är hens, annars "Namn saknas" (märkt med `data-namn-saknas`).
+     */
+    const { text: namn, saknas } = personnamn(p.namn, p.userId);
     rader.push({
       nyckel: `person:${p.userId}`,
       varde: { slag: "person", uid: p.userId },
       namn: p.userId === uid ? `${namn} (${duEtikett})` : namn,
+      saknas,
       ikon: <OpsIdentity name={namn} seed={p.userId} imageUrl={p.bild || undefined} size="sm" rund />,
     });
   }
@@ -100,7 +107,9 @@ export function OpsMottagare({
             <span aria-hidden="true" className="inline-flex shrink-0">
               {r.ikon}
             </span>
-            <span className="min-w-0 flex-1 truncate">{r.namn}</span>
+            <span className="min-w-0 flex-1 truncate" data-namn-saknas={r.saknas ? "" : undefined}>
+              {r.namn}
+            </span>
             {ar ? (
               <span className="shrink-0 text-accent">
                 <BockIkon size={16} />

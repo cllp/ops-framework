@@ -177,7 +177,8 @@ export function createInvitationService(konfig) {
      * inloggning, och skillnaden mellan "inget väntade" och "två blev till
      * medlemskap" är det enda som avgör om vyn ska säga något.
      *
-     * @param {{ uid: string, epost: string }} b
+     * @param {{ uid: string, epost: string, namn?: string }} b
+     *   `namn`: den inloggades namn ur inloggningen. Används BARA när profilraden saknar namn (0.40.1, #218).
      * @returns {Promise<{ accepterade: string[] }>}
      */
     async accepteraInbjudningar(b) {
@@ -214,7 +215,8 @@ export function createInvitationService(konfig) {
               roll: inbjudan.roll,
               typ: "person",
               status: "aktiv",
-              namn: anvandaren?.namn ?? "",
+              // ⛔ Profilens namn, annars inloggningens, aldrig tomt när ett fanns (0.40.1, #218).
+              namn: anvandaren?.namn || (typeof b?.namn === "string" ? b.namn.trim() : ""),
               bild: anvandaren?.bild ?? "",
             }),
           );

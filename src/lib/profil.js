@@ -89,7 +89,20 @@ export async function sakerstallAnvandare({ kalla, inloggad, samling = "users" }
      * en äldre version, eller för hand, kan sakna tema eller bära ett språk som
      * inte finns, och då ska det synas här och inte som en tom rullgardin.
      */
-    return { anvandare: byggAnvandare({ ...fanns, id: uid }), skapad: false };
+    const lasta = byggAnvandare({ ...fanns, id: uid });
+    /*
+     * ⛔ ETT TOMT NAMN FYLLS, ETT ÅTERSTÄLLT RÖRS ALDRIG (0.40.1, #218). Raden skapades vid första inloggningen med
+     * `namn: inloggad.namn ?? ""`: hade inloggningen inget namn då (e-postlänk, lösenord utan visningsnamn) blev
+     * namnet tomt, och inget senare ledde till att det fylldes, så varje medlemskap som skrevs ur raden bar ett tomt
+     * namn och en lista ritade uid:t. Här fylls det när det är TOMT och inloggningen nu bär ett. Ett namn som finns
+     * skrivs aldrig över (se filhuvudet): fylla en lucka är inte samma sak som att inloggningen vinner över personen.
+     */
+    const inloggatNamn = typeof inloggad.namn === "string" ? inloggad.namn.trim() : "";
+    if (!lasta.namn && inloggatNamn && typeof kalla.update === "function") {
+      await kalla.update(samling, uid, { namn: inloggatNamn });
+      return { anvandare: byggAnvandare({ ...fanns, id: uid, namn: inloggatNamn }), skapad: false };
+    }
+    return { anvandare: lasta, skapad: false };
   }
 
   const ny = byggAnvandare({

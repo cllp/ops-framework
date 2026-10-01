@@ -93,10 +93,9 @@ describe("skaparensNamn", () => {
     expect(skaparensNamn("claes-philip@staiger.se")).toBe("claes-philip@staiger.se");
   });
 
-  it("⛔ faller till uid:ts början och aldrig till hela uid:t", () => {
-    // Ett uid är 28 tecken utan mening för en människa, och ett sådant i en
-    // metarad ser ut som ett fel.
-    expect(skaparensNamn({ uid: "eA2ILzNei5TQ2rcHy68aBZPpR1B3", typ: "manniska" })).toBe("eA2ILzNe");
+  it("⛔ ger tom sträng och aldrig uid:t eller en bit av det när namnet saknas (#218)", () => {
+    // CP 2026-10-01: "Bra om användarnamnet inte är Guid." Ett id i en vy läses som ett fel, hel eller halv.
+    expect(skaparensNamn({ uid: "eA2ILzNei5TQ2rcHy68aBZPpR1B3", typ: "manniska" })).toBe("");
   });
 
   it("ger tom sträng när ingenting finns, aldrig ordet okänd", () => {

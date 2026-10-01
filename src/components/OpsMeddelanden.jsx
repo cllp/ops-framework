@@ -5,6 +5,8 @@ import { MAX_MEDDELANDE, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { NAMN_SAKNAS } from "../lib/personnamn.js";
+import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { AgentIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon } from "./icons.jsx";
@@ -160,7 +162,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNy
     for (const r of medlemmar ?? []) if (r?.userId) m.set(r.userId, r);
     return m;
   }, [medlemmar]);
-  const namnFor = (/** @type {string} */ id) => namn.get(id)?.namn || id;
+  // ⛔ ALDRIG ETT ID SOM NAMN (#218): medlemskapets namn, den inloggades eget namn, annars "Namn saknas".
+  const personnamn = usePersonnamn();
+  const namnFor = (/** @type {string} */ id) => personnamn(namn.get(id)?.namn, id).text;
 
   const nu = Date.now();
   const visade = rader
@@ -307,7 +311,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNy
                         </span>
                         {s ? (
                           <span className={cx("mt-0.5 block truncate text-meta", r.olasta > 0 ? "text-ink-secondary" : "text-ink-muted")}>
-                            <span className="text-ink-muted">{s.av === uid ? t.du : namnFor(s.av)}: </span>
+                            <span className="text-ink-muted" data-namn-saknas={s.av !== uid && namnFor(s.av) === NAMN_SAKNAS ? "" : undefined}>{s.av === uid ? t.du : namnFor(s.av)}: </span>
                             {utdrag(s.text)}
                           </span>
                         ) : null}
@@ -492,7 +496,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
               <div data-meddelande={egen ? "eget" : "annans"} className={cx("flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
                 {!egen ? <span className="w-8 shrink-0">{!fortsattning ? <OpsIdentity name={namnFor(m.av)} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund /> : null}</span> : null}
                 <div className={cx("flex max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
-                  {!egen && !fortsattning && samtal.slag === "grupp" ? <span className="mb-0.5 ml-1 text-liten text-ink-muted">{namnFor(m.av)}</span> : null}
+                  {!egen && !fortsattning && samtal.slag === "grupp" ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
                   <div
                     className={cx(
                       "rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words whitespace-pre-wrap",
