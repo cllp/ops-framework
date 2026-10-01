@@ -862,8 +862,6 @@ function Scen() {
           roll="Ägare"
           grupper={[{ grupp: { id: "g1", namn: "Claes Philip Staiger AB" }, roll: "agare" }]}
           onSpara={async () => {}}
-          onTema={() => {}}
-          onLoggaUt={() => {}}
           inloggningsBild={bild}
         />
       </Full>
