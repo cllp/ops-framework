@@ -39,6 +39,48 @@ service cloud.firestore {
         && (opsMedlemskapet(gid).data.roll == 'agare' || opsMedlemskapet(gid).data.roll == 'admin');
     }
 
+    // ⛔ En extern datakälla på en grupp (0.41.0, #216). Ägaren skriver, en admin gör det inte (fältet står i
+    // AGARGRUPPFALT och inte i ADMINGRUPPFALT). Formerna och gränserna är härledda ur src/lib/grupp.js, samma
+    // som byggExternaDatakallor kontrollerar i klienten. Ingen loop finns i reglerna, därför rullas
+    // posterna ut till MAX_EXTERNA. Fältet saknas eller är [] när gruppen inte har någon datakälla, och det är giltigt.
+    //
+    // De krävda fälten (type, repo, enabled) och att posten är en map kräver ingen egen rad: varje kontroll
+    // nedan kastar ett utvärderingsfel när fältet saknas eller posten inte är en map, och ett fel i en regel
+    // är ett nej. Det är provat, se 'saknas' och 'posten är inte en map' i rules/__tests__/grupper.test.mjs.
+    function opsExternPost(p) {
+      return p.keys().hasOnly(['type', 'repo', 'enabled', 'label', 'credentialSecretId'])
+        && p.type in ['github']
+        && p.repo is string && p.repo.size() <= 140
+        && p.repo.matches('[A-Za-z0-9-]+/[A-Za-z0-9._-]+')
+        && !p.repo.matches('.*/[.]{1,2}')
+        && p.enabled is bool
+        && (!('label' in p) || (p.label is string && p.label.size() <= 80))
+        && (!('credentialSecretId' in p)
+          || (p.credentialSecretId is string && p.credentialSecretId.size() > 0
+            && p.credentialSecretId.size() <= 64
+            && p.credentialSecretId.matches('[A-Za-z0-9_-]+')
+            && !p.credentialSecretId.matches('((ghp|gho|ghu|ghs|ghr)_|github_pat_).*')));
+    }
+
+    function opsExternaGiltiga(d) {
+      return !('externaDatakallor' in d)
+        || (d.externaDatakallor is list && opsExternLista(d.externaDatakallor));
+    }
+
+    function opsExternLista(l) {
+      return l.size() <= 10
+        && (l.size() <= 0 || opsExternPost(l[0]))
+        && (l.size() <= 1 || opsExternPost(l[1]))
+        && (l.size() <= 2 || opsExternPost(l[2]))
+        && (l.size() <= 3 || opsExternPost(l[3]))
+        && (l.size() <= 4 || opsExternPost(l[4]))
+        && (l.size() <= 5 || opsExternPost(l[5]))
+        && (l.size() <= 6 || opsExternPost(l[6]))
+        && (l.size() <= 7 || opsExternPost(l[7]))
+        && (l.size() <= 8 || opsExternPost(l[8]))
+        && (l.size() <= 9 || opsExternPost(l[9]));
+    }
+
     // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
     //
     // ⛔ #156, RÄTTAT EFTER GRANSKNING: hasOnly-LISTAN ÄR HÄRLEDD UR
@@ -77,9 +119,9 @@ service cloud.firestore {
     // handskriven kopia.
     match /groups/{gid} {
       allow read: if opsArMedlem(gid);
-      allow create: if opsArAgare(gid);
-      allow update: if (opsArAgare(gid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "arkiverad"]))
+      allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data);
+      allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "arkiverad", "externaDatakallor"]))
         || (opsArAdmin(gid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"]));
       allow delete: if false;

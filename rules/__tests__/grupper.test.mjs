@@ -38,7 +38,8 @@
  * Kör: npm run test:rules
  */
 
-import { medlemskapsId } from "../../src/lib/grupp.js";
+import { EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNHEMLIGHET, MAX_EXTERNLABEL, MAX_EXTERNREPO, medlemskapsId } from "../../src/lib/grupp.js";
+import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, deleteDoc, where } from "firebase/firestore";
@@ -56,6 +57,8 @@ const ADMIN = "uid-admin";
 
 const VAR = "grupp-var";
 const ANNAN = "grupp-annan";
+/** Create-proven skriver en NY rad varje gång: en setDoc på en rad som finns är en update, och då provas fel regel. */
+const NYA = ["ny-1", "ny-2", "ny-3", "ny-4", "ny-5"];
 
 /** @type {import("@firebase/rules-unit-testing").RulesTestEnvironment} */
 let miljo;
@@ -82,6 +85,11 @@ before(async () => {
     await setDoc(doc(db, `memberships/${medlemskapsId(AVSLUTAD, VAR)}`), { userId: AVSLUTAD, groupId: VAR, roll: "medlem", typ: "person", status: "avslutad" });
     await setDoc(doc(db, `memberships/${medlemskapsId(UTANFOR, ANNAN)}`), { userId: UTANFOR, groupId: ANNAN, roll: "agare", typ: "person", status: "aktiv" });
     await setDoc(doc(db, `memberships/${medlemskapsId(ADMIN, VAR)}`), { userId: ADMIN, groupId: VAR, roll: "admin", typ: "person", status: "aktiv" });
+
+    // Gruppen som create-proven (#216) skapar: ägaren har medlemskap men raden saknas tills provet skriver den.
+    for (const nid of NYA) {
+      await setDoc(doc(db, `memberships/${medlemskapsId(AGARE, nid)}`), { userId: AGARE, groupId: nid, roll: "agare", typ: "person", status: "aktiv" });
+    }
 
     await setDoc(doc(db, `groups/${VAR}`), {
       id: VAR, namn: { sv: "Vår grupp" }, moduler: ["ekonomi"], arkiverad: false, skapadAv: { uid: AGARE, namn: "Ägaren" },
@@ -286,6 +294,166 @@ describe("⛔ gruppen: admin ändrar utseende och uppgifter men inte mer (0.32.0
 
   it("ägaren ändrar utseendet OCH arkiverar", async () => {
     await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { farg: "4", arkiverad: true }));
+  });
+});
+
+describe("⛔ gruppen: externaDatakallor skriver bara ägaren, och bara giltiga poster (0.41.0, #216)", () => {
+  const giltig = () => ({ type: "github", repo: "cllp/bolag-ops", enabled: true });
+  const sattExterna = (/** @type {string} */ uid, /** @type {any} */ varde) => updateDoc(doc(som(uid), `groups/${VAR}`), { externaDatakallor: varde });
+
+  it("⛔ ägaren sätter en github-datakälla", async () => {
+    await assertSucceeds(sattExterna(AGARE, [giltig()]));
+  });
+
+  it("ägaren uppdaterar listan med en post med label och credentialSecretId, och med två poster", async () => {
+    await assertSucceeds(sattExterna(AGARE, [{ ...giltig(), label: "Bolagets repo", credentialSecretId: "github-bolag" }, { type: "github", repo: "cllp/ops-framework", enabled: false }]));
+  });
+
+  it("ägaren tömmer listan med []", async () => {
+    await assertSucceeds(sattExterna(AGARE, []));
+  });
+
+  it("⛔ en admin skriver inte fältet", async () => {
+    await assertFails(sattExterna(ADMIN, [giltig()]));
+  });
+
+  it("⛔ en admin tömmer inte en befintlig lista (fältet är ägarens, inte bara värdet)", async () => {
+    await assertSucceeds(sattExterna(AGARE, [giltig()]));
+    await assertFails(sattExterna(ADMIN, []));
+  });
+
+  it("en medlem skriver inte fältet", async () => {
+    await assertFails(sattExterna(MEDLEM, [giltig()]));
+  });
+
+  it("⛔ en admin ändrar fortfarande utseendet, och ägaren fortfarande moduler: oförändrat beteende", async () => {
+    await assertSucceeds(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { ort: "Visby" }));
+    await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { moduler: ["ekonomi"] }));
+  });
+
+  it("⛔ ägaren ändrar andra fält på en grupp utan fältet (frånvarande fält är giltigt)", async () => {
+    await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { beskrivning: "Utan externa" }));
+  });
+
+  describe("avvisade poster, en avvikelse åt gången mot en giltig post", () => {
+    it("kontroll: den giltiga posten går igenom", async () => {
+      await assertSucceeds(sattExterna(AGARE, [giltig()]));
+    });
+    it("fel type", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), type: "notion" }]));
+    });
+    it("type saknas", async () => {
+      const { type: _t, ...utan } = giltig();
+      await assertFails(sattExterna(AGARE, [utan]));
+    });
+    it("repo saknas", async () => {
+      const { repo: _r, ...utan } = giltig();
+      await assertFails(sattExterna(AGARE, [utan]));
+    });
+    it("enabled saknas", async () => {
+      const { enabled: _e, ...utan } = giltig();
+      await assertFails(sattExterna(AGARE, [utan]));
+    });
+    for (const [namn, repo] of /** @type {[string, any][]} */ ([
+      ["repo utan snedstreck", "bolag-ops"],
+      ["repo med två snedstreck", "cllp/bolag/ops"],
+      ["repo med mellanslag", "cllp/bolag ops"],
+      ["repo med understreck i ägaren", "cl_lp/bolag-ops"],
+      ["repo med tom ägare", "/bolag-ops"],
+      ["repo med tomt namn", "cllp/"],
+      ["repo med punktnamn ..", "cllp/.."],
+      ["repo med punktnamn .", "cllp/."],
+      ["repo som är ett tal", 5],
+      ["repo som är en url", "https://github.com/cllp/bolag-ops"],
+      ["repo för långt", `cllp/${"a".repeat(MAX_EXTERNREPO)}`],
+    ])) {
+      it(namn, async () => {
+        await assertFails(sattExterna(AGARE, [{ ...giltig(), repo }]));
+      });
+    }
+    it("enabled är en sträng", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), enabled: "true" }]));
+    });
+    it("enabled är ett tal", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), enabled: 1 }]));
+    });
+    it("ett extra nyckelord i posten", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), token: "abc" }]));
+    });
+    it("label som inte är en sträng", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), label: 5 }]));
+    });
+    it("label för lång", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), label: "x".repeat(MAX_EXTERNLABEL + 1) }]));
+    });
+    it("label på precis taket går igenom", async () => {
+      await assertSucceeds(sattExterna(AGARE, [{ ...giltig(), label: "x".repeat(MAX_EXTERNLABEL) }]));
+    });
+    it("credentialSecretId med mellanslag", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), credentialSecretId: "mitt namn" }]));
+    });
+    it("credentialSecretId tomt", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), credentialSecretId: "" }]));
+    });
+    it("credentialSecretId för långt", async () => {
+      await assertFails(sattExterna(AGARE, [{ ...giltig(), credentialSecretId: "a".repeat(MAX_EXTERNHEMLIGHET + 1) }]));
+    });
+    for (const token of ["ghp_" + "a".repeat(36), "github_pat_" + "a".repeat(30), "gho_abc", "ghs_abc"]) {
+      it(`⛔ credentialSecretId som är en GitHub-token (${token.slice(0, 7)}...) nekas`, async () => {
+        await assertFails(sattExterna(AGARE, [{ ...giltig(), credentialSecretId: token }]));
+      });
+    }
+    it("posten är inte en map", async () => {
+      await assertFails(sattExterna(AGARE, ["cllp/bolag-ops"]));
+    });
+    it("fältet är en sträng och inte en lista", async () => {
+      await assertFails(sattExterna(AGARE, "cllp/bolag-ops"));
+    });
+    it("⛔ fältet är en TOM sträng och inte en lista (size() 0 går annars igenom posterna)", async () => {
+      await assertFails(sattExterna(AGARE, ""));
+    });
+    it("⛔ fältet är en TOM map och inte en lista", async () => {
+      await assertFails(sattExterna(AGARE, {}));
+    });
+    it("fältet är ett objekt och inte en lista", async () => {
+      await assertFails(sattExterna(AGARE, giltig()));
+    });
+    it(`för många poster (${MAX_EXTERNA + 1})`, async () => {
+      await assertFails(sattExterna(AGARE, Array.from({ length: MAX_EXTERNA + 1 }, giltig)));
+    });
+    it(`precis ${MAX_EXTERNA} poster går igenom`, async () => {
+      await assertSucceeds(sattExterna(AGARE, Array.from({ length: MAX_EXTERNA }, giltig)));
+    });
+    it("⛔ en ogiltig post SIST i en full lista nekas (varje index är validerat, inte bara de första)", async () => {
+      const lista = Array.from({ length: MAX_EXTERNA }, giltig);
+      lista[MAX_EXTERNA - 1] = { ...giltig(), type: "notion" };
+      await assertFails(sattExterna(AGARE, lista));
+    });
+    it("⛔ en ogiltig post i mitten nekas", async () => {
+      await assertFails(sattExterna(AGARE, [giltig(), { ...giltig(), enabled: "ja" }, giltig()]));
+    });
+    it("listan har bara de typer ramverket känner", () => {
+      assert.deepEqual([...EXTERNTYPER], ["github"]);
+    });
+  });
+
+  describe("create av gruppen (valideringen gäller också då)", () => {
+    const bas = (/** @type {string} */ nid) => ({ id: nid, namn: { sv: "Ny" }, moduler: [], arkiverad: false, skapadAv: { uid: AGARE, namn: "Ägaren" } });
+    it("⛔ create utan fältet går igenom (oförändrat)", async () => {
+      await assertSucceeds(setDoc(doc(som(AGARE), `groups/${NYA[0]}`), bas(NYA[0])));
+    });
+    it("create med en giltig datakälla går igenom", async () => {
+      await assertSucceeds(setDoc(doc(som(AGARE), `groups/${NYA[1]}`), { ...bas(NYA[1]), externaDatakallor: [giltig()] }));
+    });
+    it("create med [] går igenom", async () => {
+      await assertSucceeds(setDoc(doc(som(AGARE), `groups/${NYA[2]}`), { ...bas(NYA[2]), externaDatakallor: [] }));
+    });
+    it("⛔ create med en ogiltig datakälla nekas", async () => {
+      await assertFails(setDoc(doc(som(AGARE), `groups/${NYA[3]}`), { ...bas(NYA[3]), externaDatakallor: [{ ...giltig(), type: "notion" }] }));
+    });
+    it("⛔ create med för många poster nekas", async () => {
+      await assertFails(setDoc(doc(som(AGARE), `groups/${NYA[4]}`), { ...bas(NYA[4]), externaDatakallor: Array.from({ length: MAX_EXTERNA + 1 }, giltig) }));
+    });
   });
 });
 
