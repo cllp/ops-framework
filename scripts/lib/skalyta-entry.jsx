@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import * as Ops from "OPS_DIST";
 import { Bell, Calendar, CalendarDays, CheckSquare, FileText, Inbox, LayoutGrid, Search, Settings, Sparkles, Wallet } from "lucide-react";
 
+const { OpsModulTyper } = Ops;
 const { OpsEventList, OpsAttributes, OpsFact, OpsAppShell, OpsButton, OpsDatePicker, OpsField, OpsHub, OpsHubModul, OpsIconLink, OpsIdentity, OpsInloggning, OpsKatalogInstallning, OpsInput, OpsModal, OpsRadioGroup, OpsSelect, OpsThemeToggle, OpsCard, OpsPill, OpsPanelRow, OpsSegmented, OpsCheckbox, OpsSwitch, OpsTag, OpsChip, OpsFilterPanel, OpsFilterChip, OpsActivityListActions, OpsGruppvaljare } = Ops;
 // `OpsTimePicker` finns inte i 0.30.1. Saknas den ritas en markör, och provet blir rött på rätt sak i stället för att sidan kastar.
 const OpsTimePicker = Ops.OpsTimePicker ?? (() => <span data-saknas="OpsTimePicker">OpsTimePicker saknas</span>);
@@ -92,6 +93,40 @@ function InstallningTvaGrupper() {
         rubrik="Händelsetyper"
         groupId={aktiv}
       />
+    </div>
+  );
+}
+
+/**
+ * 0.42.0 (#217): modulernas typbidrag i en riktig webbläsare. Gruppen har två egna inkorgstyper och Ekonomi PÅ, som bidrar med två
+ * typer ("Ekonomisk uppdatering" och ett långt namn som måste få brytas). Överst valen som ett skapa-formulär ritar dem
+ * (`typerForGrupp` + `typerTillValg` i `OpsRadioGroup`), under dem ägarens lista (`OpsModulTyper`). `onAndra` går genom `medAvvikelse`,
+ * så ett tryck på Dölj visar sig i BÅDA vyerna på en gång. Allt hämtas ur dist, inte ur källan.
+ */
+const EKONOMI_TYPER = {
+  inkorg: [
+    { id: "uppdatering", namn: { sv: "Ekonomisk uppdatering", en: "Financial update" }, farg: 2, ikon: "wallet" },
+    { id: "kvitto", namn: { sv: "Kvitto, utlägg och andra underlag som ska bokföras" }, ikon: "inbox" },
+  ],
+};
+const MODULTYP_BAS = [
+  { id: "arende", namn: { sv: "Ärende" }, farg: 1, ikon: "inbox", fas: null, ordning: 0, arkiverad: false, texter: {}, groupId: "cps-ab" },
+  { id: "bugg", namn: { sv: "Bugg" }, farg: 3, ikon: "inbox", fas: null, ordning: 1, arkiverad: false, texter: {}, groupId: "cps-ab" },
+];
+function ModultyperScen() {
+  const ekonomi = Ops.defineModule({ id: "ekonomi", namn: { sv: "Ekonomi", en: "Economy" }, nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: null, typer: EKONOMI_TYPER });
+  const [avvikelser, setAvvikelser] = useState(/** @type {any[]} */ ([]));
+  const [valt, setValt] = useState("arende");
+  const ctx = { bas: MODULTYP_BAS, moduler: [ekonomi], modulerPa: ["ekonomi"], avvikelser };
+  const val = Ops.typerTillValg(Ops.typerForGrupp("inkorg", ctx));
+  return (
+    <div className="px-4 py-4 flex flex-col gap-4">
+      <div data-modultyp-val="">
+        <OpsRadioGroup options={val} value={valt} onChange={setValt} ariaLabel="Typ" />
+      </div>
+      <div data-modultyp-lista="">
+        <OpsModulTyper yta="inkorg" bidrag={Ops.bidragForGrupp("inkorg", ctx)} kanAndra onAndra={(a) => setAvvikelser(Ops.medAvvikelse(avvikelser, a))} />
+      </div>
     </div>
   );
 }
@@ -1138,6 +1173,13 @@ function Scen() {
         <div className="px-4 py-4">
           <OpsKatalogInstallning kategorier={kategorier} ikoner={["wallet", "inbox"]} kanAndra onSpara={() => {}} onArkivera={() => {}} rubrik="Kategorier" groupId="cps-ab" />
         </div>
+      </Skal>
+    );
+  }
+  if (s === "modultyper") {
+    return (
+      <Skal>
+        <ModultyperScen />
       </Skal>
     );
   }
