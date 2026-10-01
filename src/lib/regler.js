@@ -529,6 +529,13 @@ export function katalogregelfragment(namn) {
  *     katalograden och loggraden i samma tryck, och ett strängare villkor på loggen låter sparningen gå igenom
  *     medan spåret uteblir. Det var felet i #188: appens handskrivna regel frågade efter appens grupp, så en admin
  *     i en ANNAN grupp fick katalogen ändrad och loggraden nekad.
+ *   - VEM: raden bär `av` (skaparstämpeln, `{ uid, namn, typ, kalla }` ur `byggSkapare`), och `av.uid` måste vara den
+ *     inloggades uid (#211). ⛔ Loggen säger vem som gjorde en ändring, och utan det villkoret kunde en admin skriva en
+ *     rad i en annan persons namn: raden hade påstått något databasen inte kunde stå för. Samma villkor som
+ *     `skapadAv.uid == request.auth.uid` i appens övriga samlingar. ⛔ `av` SAKNAS INTE LÄNGRE: en rad utan `av`, med
+ *     `av: null` (vad `byggKonfigandring` skriver om anroparen glömmer det) eller med `av` utan uid skapas inte. Det är
+ *     ett beslut och inte ett förbiseende: en logg-rad som inte kan peka ut någon är en notis och inte ett spår. Gamla
+ *     rader med `av: null` läses vidare (regeln gäller bara `create`).
  *   - FORMEN: `hasOnly` härledd ur `KONFIGLOGGFALT`, och `handelse` ur `KONFIGHANDELSER`, aldrig handskrivna kopior.
  *   - ÄNDRA eller RADERA: aldrig. En logg som går att skriva om är inte ett spår.
  *
@@ -551,6 +558,8 @@ export function konfigloggregelfragment(namn) {
   return `    match /${samling}/{id} {
       allow read: if opsArMedlem(resource.data.groupId);
       allow create: if opsArAdmin(request.resource.data.groupId)
+        && request.resource.data.av is map
+        && request.resource.data.av.uid == request.auth.uid
         && request.resource.data.keys().hasOnly([${lista(KONFIGLOGGFALT)}])
         && request.resource.data.handelse in [${lista(KONFIGHANDELSER)}];
       allow update, delete: if false;

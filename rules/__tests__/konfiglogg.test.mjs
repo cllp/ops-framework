@@ -67,6 +67,7 @@ const KATEGORI = (groupId, extra = {}) => ({
 });
 
 /** En giltig loggrad, byggd av den riktiga byggaren så provet följer modellen och inte en kopia av den. */
+const egen = (uid) => ({ uid, namn: "Provet", typ: "manniska", kalla: "SettingsView" });
 const loggrad = (groupId, extra = {}) =>
   byggKonfigandring({ handelse: "tillagd", groupId, id: "uppgift", efter: { id: "uppgift", namn: { sv: "Uppgifter" } }, av: { uid: "u", namn: "T" }, nu: NU, ...extra });
 
@@ -130,9 +131,9 @@ describe("⛔ #188: en admin i en ANNAN grupp får både katalogen och loggraden
     const kallaA = createFirestoreSource({ db: som(A_ADMIN), sdk: firestoreSdk });
     const loggA = createConfigLog({ append: (rad) => kallaA.create("konfiglogg", rad), nu: NU });
 
-    const forsta = await loggB.skriv({ handelse: "tillagd", groupId: B, id: "dubbel", efter: KATEGORI(B, { id: "dubbel" }) });
-    const andra = await loggB.skriv({ handelse: "andrad", groupId: B, id: "dubbel", fore: KATEGORI(B, { id: "dubbel" }), efter: KATEGORI(B, { id: "dubbel", ordning: 1 }) });
-    const iA = await loggA.skriv({ handelse: "tillagd", groupId: A, id: "dubbel", efter: KATEGORI(A, { id: "dubbel" }) });
+    const forsta = await loggB.skriv({ handelse: "tillagd", groupId: B, id: "dubbel", efter: KATEGORI(B, { id: "dubbel" }), av: egen(B_ADMIN) });
+    const andra = await loggB.skriv({ handelse: "andrad", groupId: B, id: "dubbel", fore: KATEGORI(B, { id: "dubbel" }), efter: KATEGORI(B, { id: "dubbel", ordning: 1 }), av: egen(B_ADMIN) });
+    const iA = await loggA.skriv({ handelse: "tillagd", groupId: A, id: "dubbel", efter: KATEGORI(A, { id: "dubbel" }), av: egen(A_ADMIN) });
     assert.equal(forsta.ok, true, `första: ${forsta.fel?.message}`);
     assert.equal(andra.ok, true, `andra: ${andra.fel?.message}`);
     assert.equal(iA.ok, true, `samma kategori-id i grupp A: ${iA.fel?.message}`);
@@ -142,13 +143,13 @@ describe("⛔ #188: en admin i en ANNAN grupp får både katalogen och loggraden
   });
 
   it("ägaren i B skriver också", async () => {
-    await assertSucceeds(setDoc(doc(som(B_AGARE), "konfiglogg/agarens"), loggrad(B)));
+    await assertSucceeds(setDoc(doc(som(B_AGARE), "konfiglogg/agarens"), loggrad(B, { av: egen(B_AGARE) })));
   });
 
   it("⛔ skrivaren svarar `skrivning` och inte ok när regeln nekar, så ett nej syns i stället för att försvinna (regel 5)", async () => {
     const kalla = createFirestoreSource({ db: som(B_MEDLEM), sdk: firestoreSdk });
     const logg = createConfigLog({ append: (rad) => kalla.create("konfiglogg", rad), nu: NU });
-    const svar = await logg.skriv({ handelse: "tillagd", groupId: B, id: "nej", efter: {} });
+    const svar = await logg.skriv({ handelse: "tillagd", groupId: B, id: "nej", efter: {}, av: egen(B_MEDLEM) });
     assert.equal(svar.ok, false);
     assert.equal(svar.orsak, "skrivning");
     assert.match(String(svar.fel?.message), /permission/i);
@@ -157,38 +158,70 @@ describe("⛔ #188: en admin i en ANNAN grupp får både katalogen och loggraden
 
 describe("⛔ vem som får SKRIVA en loggrad", () => {
   it("⛔ admin i A skriver inte en loggrad som tillhör B", async () => {
-    await assertFails(setDoc(doc(som(A_ADMIN), "konfiglogg/kapad"), loggrad(B)));
+    await assertFails(setDoc(doc(som(A_ADMIN), "konfiglogg/kapad"), loggrad(B, { av: egen(A_ADMIN) })));
   });
 
   it("⛔ och tvärtom: admin i B skriver inte en rad som tillhör A", async () => {
-    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/kapad2"), loggrad(A)));
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/kapad2"), loggrad(A, { av: egen(B_ADMIN) })));
   });
 
   it("⛔ en medlem som inte är admin skriver inte, loggen följer katalogens skrivrätt", async () => {
-    await assertFails(setDoc(doc(som(B_MEDLEM), "konfiglogg/medlemmens"), loggrad(B)));
+    await assertFails(setDoc(doc(som(B_MEDLEM), "konfiglogg/medlemmens"), loggrad(B, { av: egen(B_MEDLEM) })));
   });
 
   it("⛔ en avslutad admin skriver inte", async () => {
-    await assertFails(setDoc(doc(som(B_AVSLUTAD_ADMIN), "konfiglogg/avslutad"), loggrad(B)));
+    await assertFails(setDoc(doc(som(B_AVSLUTAD_ADMIN), "konfiglogg/avslutad"), loggrad(B, { av: egen(B_AVSLUTAD_ADMIN) })));
   });
 
   it("⛔ den utan medlemskap och den utan inloggning skriver inte", async () => {
-    await assertFails(setDoc(doc(som(UTANFOR), "konfiglogg/utanfor"), loggrad(B)));
-    await assertFails(setDoc(doc(utanInloggning(), "konfiglogg/anonym"), loggrad(B)));
+    await assertFails(setDoc(doc(som(UTANFOR), "konfiglogg/utanfor"), loggrad(B, { av: egen(UTANFOR) })));
+    await assertFails(setDoc(doc(utanInloggning(), "konfiglogg/anonym"), loggrad(B, { av: egen(B_ADMIN) })));
   });
 
   it("⛔ en rad utan groupId skapas inte, inte ens av en admin", async () => {
-    const utanGrupp = loggrad(B);
+    const utanGrupp = loggrad(B, { av: egen(B_ADMIN) });
     delete utanGrupp.groupId;
     await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/hemlos"), utanGrupp));
   });
 
+  it("⛔ #211: en admin skriver inte en rad i någon annans namn", async () => {
+    // Samma grupp, rätt roll, men `av.uid` är en annan person: raden skulle påstå att A_MEDLEM ändrade katalogen.
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/falskt-namn"), loggrad(B, { av: { uid: B_MEDLEM, namn: "Någon annan", typ: "manniska", kalla: "SettingsView" } })));
+    // Och ägaren i samma grupp som låtsas vara adminen.
+    await assertFails(setDoc(doc(som(B_AGARE), "konfiglogg/falskt-namn-2"), loggrad(B, { av: { uid: B_ADMIN, namn: "B-admin" } })));
+  });
+
+  it("#211: en admin skriver i eget namn, med skaparens fulla form (uid, namn, typ, kalla)", async () => {
+    await assertSucceeds(setDoc(doc(som(B_ADMIN), "konfiglogg/eget-namn"), loggrad(B, { av: { uid: B_ADMIN, namn: "B-admin", typ: "manniska", kalla: "SettingsView" } })));
+  });
+
+  it("⛔ #211: en rad utan `av`, med `av: null` eller med `av` utan uid skapas inte", async () => {
+    // Beslutet: `av` är obligatoriskt i en rad som människor skriver. Loggen säger vem som ändrade, och en rad som inte
+    // kan peka ut någon är en notis. byggKonfigandring skriver `av: null` när anroparen glömmer det, och det nekas nu.
+    const utanAv = loggrad(B);
+    delete utanAv.av;
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/utan-av"), utanAv));
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/av-null"), loggrad(B, { av: null })));
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/av-utan-uid"), loggrad(B, { av: { namn: "B-admin", typ: "manniska" } })));
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/av-text"), loggrad(B, { av: B_ADMIN })));
+  });
+
+  it("⛔ #211: genom den riktiga skrivaren: egen stämpel går, en annans stämpel nekas som `skrivning`", async () => {
+    const kalla = createFirestoreSource({ db: som(B_ADMIN), sdk: firestoreSdk });
+    const logg = createConfigLog({ append: (rad) => kalla.create("konfiglogg", rad), nu: NU });
+    const egen = await logg.skriv({ handelse: "tillagd", groupId: B, id: "stampel", efter: {}, av: { uid: B_ADMIN, namn: "B-admin", typ: "manniska", kalla: "SettingsView" } });
+    assert.equal(egen.ok, true, `egen stämpel: ${egen.fel?.message}`);
+    const annans = await logg.skriv({ handelse: "tillagd", groupId: B, id: "stampel", efter: {}, av: { uid: B_MEDLEM, namn: "x", typ: "manniska", kalla: "SettingsView" } });
+    assert.equal(annans.ok, false);
+    assert.equal(annans.orsak, "skrivning");
+  });
+
   it("⛔ ett fält utanför KONFIGLOGGFALT avvisas av hasOnly", async () => {
-    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/okant"), { ...loggrad(B), lofte: "finns inte i schemat" }));
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/okant"), { ...loggrad(B, { av: egen(B_ADMIN) }), lofte: "finns inte i schemat" }));
   });
 
   it("⛔ en okänd händelse avvisas", async () => {
-    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/raderad"), { ...loggrad(B), handelse: "raderad" }));
+    await assertFails(setDoc(doc(som(B_ADMIN), "konfiglogg/raderad"), { ...loggrad(B, { av: egen(B_ADMIN) }), handelse: "raderad" }));
   });
 });
 
