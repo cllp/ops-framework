@@ -1637,6 +1637,13 @@ skalets `oppnaSkapa`, så `?skapa=` och Tillbaka fungerar som ur plusset. Använ
 `window.location.assign(...?skapa=meddelande)`. Saknas posten i `skapa`, eller anropas hooken utanför `OpsAppShell`, kastas ett fel.
 Skalet öppnar också en `?skapa=` vars post kommer efter monteringen (t.ex. `skapa.meddelande` efter inloggning), så länkar och omladdning fungerar.
 
+⛔ **Att navigera stänger panelen (0.38.0, #194).** Panelen hör till sidan den öppnades på. Ett klick på en länk skalet äger (flikarna,
+märket, menyns rader, hubbens moduler) stänger den, också när länken pekar på sidan man redan står på, och det gör även ett byte av
+`activeHref` medan panelen är öppen (en ikon i `actions`, avataren, webbläsarens navigering). `?skapa=` skrivs om utan parametern och
+rullpositionen återställs inte. På telefon är panelen helskärm och täcker huvudet och bottenraden med flit; vägen ut är Tillbaka
+överst till vänster (och Avbryt längst ned). **Navigera först, öppna sedan:** anropar appen `useOppnaSkapa()` och byter `activeHref`
+i samma tick stänger bytet panelen.
+
 CP 2026-09-30: ett meddelande till en person är **privat** (bara avsändaren och mottagaren ser det) och en standardfunktion i
 ramverket; ett ärende till en person syns för hela gruppen med mottagaren utskriven; mottagaren aviseras med en notis i appen
 (mejl är inte beslutat); och **chatt, meddelanden och Assistent-tråden är EN modell** (beslut 4, arkitektens second opinion på

@@ -3525,6 +3525,66 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await k.context.close();
 }
 
+// ══ 33. SKAPA-PANELEN LÅSER INTE NAVIGERINGEN (0.38.0, #194) ═══════════════════════════════════════════════════════════════
+// CP 2026-09-30: "Nytt ärende-panelen låser all annan navigering i appen. Samma sak med Ny händelse. Topnav (Idag/Kalender/Hub) och
+// övrigt går inte att använda medan panelen är uppe." Scenen `ny-handelse-nav` öppnar panelen och har en app som byter vy ur `activeHref`.
+// Krav, i en riktig webbläsare (jsdom ritar ingen yta och ser inte om något ligger ovanpå):
+//   1280: (a) panelen är öppen; (b) mitt i fliken Kalender ligger fliken själv (`elementFromPoint`), ingenting täcker den; (c) ett klick
+//         stänger panelen och appens vy är Kalender och SYNS (inte dold); (d) adressen har ingen `skapa` kvar.
+//   390:  panelen är helskärm och täcker huvudet och bottenraden med flit. Då måste vägen ut vara tydlig: Tillbaka sitter överst till
+//         vänster, minst 44 px hög, och ett tryck stänger panelen och visar vyn man kom från.
+// Golv: fliken Kalender finns i huvudet (1280), och Tillbaka finns (390).
+for (const vp of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+  const namn = `skapa-panelen låser inte navigeringen ${vp.width}`;
+  const telefon = vp.width < 768;
+  const { page, context } = await oppna("ny-handelse-nav", vp, standardtema, 1, "g3");
+  try {
+    await page.waitForSelector("section[data-skapa-panel]", { timeout: 4000 });
+    await page.waitForTimeout(300);
+    const tillstand = () =>
+      page.evaluate(() => {
+        const panel = document.querySelector("section[data-skapa-panel]");
+        const vy = document.querySelector("[data-vy]");
+        const vr = vy ? vy.getBoundingClientRect() : null;
+        return { panel: !!panel, vy: vy ? vy.getAttribute("data-vy") : null, vySyns: !!vr && vr.width > 0 && vr.height > 0, skapaIAdress: new URL(window.location.href).searchParams.has("skapa") };
+      });
+    const fore = await tillstand();
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `skapa-navigering-${vp.width}-fore.png`) });
+    krav(fore.panel, `${namn}: panelen var inte öppen före klicket (golv: annars mäter provet ingenting).`);
+    if (!telefon) {
+      const flik = page.locator('header nav a[href="/kalender"]');
+      krav((await flik.count()) === 1, `${namn}: fliken Kalender finns inte i huvudet (golv).`);
+      const ligger = await page.evaluate(() => {
+        const a = document.querySelector('header nav a[href="/kalender"]');
+        if (!a) return null;
+        const r = a.getBoundingClientRect();
+        const traff = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return { traffadeFliken: !!traff && (traff === a || a.contains(traff)), traff: traff ? `${traff.tagName}.${String(traff.className).slice(0, 40)}` : null };
+      });
+      matt.push(`${namn}: mitt på fliken Kalender ligger ${ligger?.traff}`);
+      krav(!!ligger && ligger.traffadeFliken, `${namn}: mitt på fliken Kalender ligger ${ligger?.traff}, väntat fliken själv. Något ligger över navigeringen.`);
+      await flik.click();
+    } else {
+      const tb = page.getByRole("button", { name: "Tillbaka" });
+      krav((await tb.count()) >= 1, `${namn}: knappen Tillbaka finns inte (golv).`);
+      const m = await tb.first().boundingBox();
+      matt.push(`${namn}: Tillbaka ${JSON.stringify(m)}`);
+      krav(!!m && m.height >= 44 && m.x < 60 && m.y < 120, `${namn}: Tillbaka är ${JSON.stringify(m)}, väntat minst 44 px hög och överst till vänster (den enda vägen ut i helskärm).`);
+      await tb.first().click();
+    }
+    await page.waitForTimeout(300);
+    const efter = await tillstand();
+    matt.push(`${namn}: före ${JSON.stringify(fore)}, efter ${JSON.stringify(efter)}`);
+    krav(!efter.panel, `${namn}: panelen står kvar efter ${telefon ? "Tillbaka" : "klicket på Kalender"}. Navigeringen är låst.`);
+    krav(efter.vy === (telefon ? "/" : "/kalender") && efter.vySyns, `${namn}: appens vy är ${JSON.stringify(efter.vy)} (synlig ${efter.vySyns}), väntat ${telefon ? "/" : "/kalender"} och synlig. Adressen byttes men skärmen stod still.`);
+    krav(!efter.skapaIAdress, `${namn}: ?skapa= står kvar i adressen, en omladdning öppnar panelen igen.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `skapa-navigering-${vp.width}-efter.png`) });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 // ══ 32. NY HÄNDELSE MED KALENDER, KRÄV SVAR OCH DAGEN, MOT SS EventModal VID 390 OCH 1280 PX (0.37.0, #179 F3, #206) ════════
 // CP 2026-09-30 i #179: "Skapa händelse, man skall kunna välja att skapa en händelse i olika kalendrar [...] om det är i
 // gruppens kalender så skall vi kunna välja att händelsen skall kräva medlemmars bekräftelse". Förebilder: SS `EventModal`
