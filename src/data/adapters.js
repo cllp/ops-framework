@@ -1,4 +1,4 @@
-import { createDataSource, applyQuery } from "./contract.js";
+import { createDataSource, applyQuery, faltAttTaBort } from "./contract.js";
 import { createStorageSource } from "./storage.js";
 
 /**
@@ -53,7 +53,10 @@ export function createMemorySource(seed = {}) {
     const rows = load(collectionName);
     const i = rows.findIndex((r) => r.id === id);
     if (i === -1) throw new Error(`minne: ${collectionName}/${id} finns inte. En uppdatering av något som saknas är ett fel, inte en tyst skapelse.`);
-    rows[i] = { ...rows[i], ...data, id };
+    // ⛔ `FALT_BORT` tar bort nyckeln (0.40.0), samma sak som Firestores `deleteField()`. Utan det hade ett tömt fält i minnet blivit kvar.
+    const nu = { ...rows[i], ...data, id };
+    for (const k of faltAttTaBort(data)) delete /** @type {any} */ (nu)[k];
+    rows[i] = nu;
     return { ...rows[i] };
   };
   /** @param {string} collectionName @param {string} id */

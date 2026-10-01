@@ -115,6 +115,28 @@
  * @property {number} [limit]
  */
 
+/**
+ * ══ ⛔ ATT TA BORT ETT FÄLT VID `update` (0.40.0, #214) ═══════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-01: "Kolla med sessionstudio också så att det går att editera en händelse." Att redigera en händelse betyder att man
+ * kan tömma ett fält: ta bort beskrivningen, klockslaget, slutdagen. Kontraktets `update(samling, id, data)` slår samman `data` i
+ * posten, och ett fält som utelämnas BLIR KVAR. Det fanns därför ingen väg att ta bort ett fält, och de två genvägarna är båda fel:
+ * `""` är ett annat värde än "saknas" (appens kontrakt utelämnar tomma fält, och en regel som kräver ett datum avvisar `""`), och
+ * `undefined` har Firestore ingen mening för (`updateDoc` kastar).
+ *
+ * `FALT_BORT` är ett värde som SÄGER "ta bort fältet": `update("handelser", id, { text: FALT_BORT })`. Varje adapter gör det på sitt
+ * sätt: Firestore med `deleteField()`, minnet tar bort nyckeln, Postgres sätter kolumnen till `NULL`, HTTP skickar `null`.
+ * ⛔ En adapter som inte kan uttrycka det KASTAR och ignorerar det aldrig: ett fält som tyst blir kvar säger "sparat" om något
+ * som inte sparades. En symbol och inte en sträng, så att ingen text som en användare skriver kan råka bli en borttagning.
+ */
+export const FALT_BORT = Symbol.for("ops.faltBort");
+
+/** Namnen på de fält i `data` som är `FALT_BORT`. @param {unknown} data @returns {string[]} */
+export function faltAttTaBort(data) {
+  if (!data || typeof data !== "object") return [];
+  return Object.entries(data).filter(([, v]) => v === FALT_BORT).map(([k]) => k);
+}
+
 /** De operationer varje adapter måste ha. */
 export const OPERATIONS = ["read", "list", "create", "update", "remove"];
 

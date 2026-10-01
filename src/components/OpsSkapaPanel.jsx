@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
-import { ChevronNedIkon, ChevronVansterIkon } from "./icons.jsx";
+import { ChevronNedIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
+import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
 /**
  * Skapa-panelen: en SIDA i innehållskolumnen, inte en dialog (0.31.0).
@@ -82,14 +83,7 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
     >
       <div className={cx("mx-auto flex w-full min-h-0 flex-1 flex-col px-4 max-md:pt-(--safe-top) md:pt-4", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
         <div className="flex shrink-0 flex-col max-md:min-h-14 max-md:flex-row max-md:items-center max-md:gap-1 max-md:border-b max-md:border-line">
-          <button
-            type="button"
-            onClick={onTillbaka}
-            className="-ml-2 inline-flex min-h-11 cursor-pointer items-center gap-1.5 self-start rounded-base px-2 text-etikett text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-          >
-            <ChevronVansterIkon size={20} />
-            <span>{tillbakaEtikett}</span>
-          </button>
+          <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start" />
           {/* ⛔ EN rubrik: i raden bredvid Tillbaka under md (helskärm), under Tillbaka från md (som SS `GroupEditRouteView`). */}
           <h2 id={rubrikId} className="m-0 mt-1 mb-3 min-w-0 truncate text-sida font-bold leading-tight text-ink max-md:mt-0 max-md:mb-0 max-md:flex-1 max-md:pr-16 max-md:text-center max-md:text-brod">
             {titel}

@@ -67,6 +67,10 @@
  *   namn är en halv rad, och en halv rad läses som att resten inte laddat klart.
  * @property {string} [skapad] När posten skapades, ISO-8601. Visas i lokal tid, se `formatDagOchKlockslag`.
  * @property {string} [updatedAt] Senast ändrad (t.ex. "2026-09-18"), höger i kompakta raden.
+ * @property {string} [handelseId] (0.40.0, #214) Raden ÄR en händelse med en egen panel (`OpsHandelsePanel`): ett tryck på kortet öppnar den. Id:t är appens, och
+ *   det som skalets `handelsepanel.rita` får. ⛔ BARA PÅ DE POSTER SOM ÄR HÄNDELSER: en uppgift eller ett ärende i samma lista har ingen panel och
+ *   bär inget `handelseId`. Raden är en riktig länk (`?handelse=<id>`), så den går att öppna i en ny flik. Kontrollerna på raden (åtgärden, utfällningen,
+ *   länken) ligger kvar ovanpå och tar sina egna tryck. Kräver `handelsepanel` på skalet eller `onOppnaHandelse` på listan: annars kastar listan.
  * @property {import("react").ReactNode} [atgard] Appens egen kontroll för raden, till exempel
  *   en knapp som bockar av den. ⛔ RAMVERKET RITAR DEN, TOLKAR DEN ALDRIG: vad en åtgärd
  *   gör är appens sak, var den hamnar och att den hamnar likadant på varje rad är vår.

@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**105 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**106 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -1735,6 +1735,22 @@ CP 2026-09-30 i #179: "man skall kunna välja att skapa en händelse i olika kal
 **Kalendern på telefon mot SS-appen (0.37.0):** CP jämförde 0.36.0 med en skärmbild ur SS-appen och fann rundningen, panelen, märkena, valet och verktygsraden fel. Förebilden är nu SS-appens `DayCell`, `DayDetailPanel` och `calendarDayMarkerLayout` (se `OpsCalendar` ovan). `dagdekor` och `daglager` är platserna för F6 (lager och tillgänglighet): en ton och hörnmärken i rutan, och en egen bubbla i dagpanelen. Vad som hamnar där avgör F6.
 
 ⛔ **Inte i 0.37.0:** upprepning av händelser (ej beslutat av CP), "Skicka mejl" (#180 G3), flödet och importen (F4, F5).
+
+### Händelsepanelen (0.40.0, #214)
+
+CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalender och från idag. Händelsepanelen skall ha en tillbaka knapp. Kolla SessionStudio." En händelse har en egen sida: `OpsHandelsePanel` ritar den i SS ordning (Tillbaka, titel med status, typrad, ruta med datum, tid och plats, beskrivning, svar), och skalet äger adressen och Tillbaka.
+
+| Namn | Vad |
+|---|---|
+| `OpsHandelsePanel` | `{ handelse, laddar?, onTillbaka, svar?, onRedigera?, redigeraEtikett?, atgarder?, statusWords, sprak? }`. `handelse` är `{ id, titel, datum, slutDatum?, tid?, slutTid?, heldag?, typ?: { namn, ikon?, slag? }, status?, kalender?: { namn, farg }, grupp?, plats?, beskrivning?, kravSvar? }`: de fält ramverket redan läser på en händelse plus det appen löst upp till ord. Bara det händelsen har ritas. `kravSvar` utan `svar` kastar. `handelse={null}` skriver "Händelsen finns inte" och `laddar` en väntan, båda med Tillbaka |
+| `OpsAppShell handelsepanel={{ rita, adress? }}` | `rita({ id, onTillbaka })` ritar panelen ur appens egen källa. Skalet lägger `?handelse=<id>` i adressen (`pushState`), håller appens vy monterad men dold, och Tillbaka (knappen och webbläsarens) återställer den: kalenderns månad och valda dagar, Idags flik, filter och rullning. En omladdning på adressen öppnar samma panel |
+| `handelseId` på `OpsEventList`s rader och `OpsCalendar`s poster | Raden är en länk till `?handelse=<id>` och ett tryck var som helst på kortet öppnar panelen, medan åtgärden, utfällningen och länken på kortet tar sina egna tryck. I kalendern gäller det dagpanelens rader och snabbtitten. Bara på de poster som ÄR händelser. Utan `handelsepanel` på skalet och utan `onOppnaHandelse` kastar listan och kalendern |
+| `onRedigera` på `OpsHandelsePanel` (0.40.0) | **Pennan, som SS.** En ikonknapp (Lucide `Pencil`, `aria-label` och `title` "Redigera", 44 px under `md`) i titelraden, till höger om titeln och statusen, före appens `atgarder`. Ritas **bara** när appen ger funktionen: appen avgör vem som får ändra, så den som inte får ser ingen knapp som nekas. Normalt `() => oppna("handelse", { id })` ur `useOppnaSkapa()`. En `onRedigera` som inte är en funktion kastar. Ramverket känner varken regeln eller datan |
+| `useOppnaSkapa()("handelse", { id })` och `skapa.handelse.redigera` (0.40.0) | **Skapa-panelen i redigeringsläge.** `redigera` är en HOOK `(id) => { laddar, finns, fel?, typ?, kalenderId?, kravSvar? }` som läser händelsen ur appens egen källa. Skalet anropar den i en egen komponent, väntar tills händelsen är läst (en väntan, ett läsfel med databasens text och "Händelsen finns inte" ser olika ut, alla med Tillbaka), fyller i sina EGNA val (typ, kalender, "Kräv svar") ur svaret och ritar DÄREFTER formuläret, som får `redigera: <id>` och själv läser och sparar. Rubriken är `redigeraHandelseEtikett` (förval "Redigera händelse"), adressen `?skapa=handelse&redigera=<id>` (en omladdning öppnar samma panel), Tillbaka och webbläsarens bakåt går tillbaka till det man kom från (händelsepanelen, som då visar den ändrade händelsen). Mina kalendrar erbjuds inte som mål: att flytta en händelse till en egen kalender gör den till en annan sorts rad. När formuläret väl ritats byts det aldrig ut, också om händelsen försvinner ur en levande läsning medan man skriver. Utan `redigera` kastar `oppna("handelse", { id })`, och ett `id` till något annat än händelsen eller tillsammans med `datum` kastar |
+| `FALT_BORT` (0.40.0) | Värdet som säger "ta bort fältet" i en `update`: `update("handelser", id, { text: FALT_BORT })`. Kontraktet slog bara samman, så ett utelämnat fält blev kvar och `""` är ett annat värde än "saknas" (appens regler avvisar `slutDatum: ""`). Firestore: `deleteField()` (kräver `deleteField` i den sdk som skickas in, annars kastar adaptern), minnet tar bort nyckeln, Postgres skriver `NULL`, HTTP skickar `null` i PATCH-kroppen. Också i `batch`. En symbol, så att ingen text en användare skriver kan bli en borttagning
+| `useOppnaHandelse()`, `handelseHref(id)`, `HANDELSEPARAM` | För en egen yta (en länk i inkorgen, ett sökresultat): `oppna(id)` gör samma sak som en rad, `handelseHref` ger adressen |
+
+⛔ **Appen skickar `handelseId` på händelserna och ritar `OpsSvar` som `svar`**, se "Att göra i appen" i CHANGELOG 0.40.0. Idag-radens utfällning (chevronen) finns kvar för en rad som fortfarande skickar `details`, men SS har ingen utfällning: skicka inte `details` för en händelse som har en panel.
 
 ### ⛔ Vad som går att ändra utan en release, och vad som inte gör det
 

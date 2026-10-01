@@ -8,7 +8,9 @@ import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
 import { KALENDERPRICK, postklasser } from "../lib/kalenderfarg.js";
+import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { Dagruta } from "./OpsCalendarDagruta.jsx";
+import { HandelseLank } from "./HandelseLank.jsx";
 import {
   DEFAULT_LOCALE,
   monthNames,
@@ -225,9 +227,14 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
  * säger vilken av dem just den här posten tillhör. Med tre dagar valda är det
  * enda som skiljer två likadana påminnelser åt.
  *
- * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string }} props
+ * ⛔ 0.40.0 (#214): EN POST MED `handelseId` ÄR HELA RADEN SOM EN LÄNK till händelsens panel (SS `DayDetailPanel`: raden öppnar händelsen). Titeln är
+ * länken (`HandelseLank`) och hela raden är dess yta, som SS-appens rad: ingen pil eller annat märke (en pil bredvid utfällningen tog 24 px av en titel i en bubbla som är 239 px bred vid 390, och "Löneutbetalning" gick in under den; en pil efter titeln hamnade ensam på en egen rad). Utfällningen
+ * (status, länk, detaljer) ligger kvar ovanpå med `z-10` och tar sina egna tryck.
+ *
+ * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string, oppna: ((id: string) => void) | null }} props
  */
-function Postkort({ dayKey, entry, statusWords, order, locale }) {
+function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
+  const oppnaId = entry.handelseId && oppna ? entry.handelseId : null;
   const [oppen, setOppen] = useState(false);
   const idBas = useId();
   const panelId = `${idBas}-detaljer`;
@@ -284,7 +291,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
     <div
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
       data-postrad=""
-      className={cx("animate-svep py-2 pr-1 pl-2.5", kanten && cx("border-l-4", kanten))}
+      className={cx("animate-svep py-2 pr-1 pl-2.5", oppnaId && "relative", kanten && cx("border-l-4", kanten))}
     >
       {/* ⛔ ORDET FÖRST I KORTET, precis som i `OpsCard`. Den som lyssnar ska
           höra vad kanten betyder innan titeln, inte efter den. */}
@@ -318,7 +325,15 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
                 {entry.kindIcon}
               </span>
             ) : null}
-            <span className="min-w-0 font-semibold text-ink">{entry.title}</span>
+            <span className="min-w-0 font-semibold text-ink">
+              {oppnaId && oppna ? (
+                <HandelseLank id={oppnaId} oppna={oppna} tacker="after:inset-0">
+                  {entry.title}
+                </HandelseLank>
+              ) : (
+                entry.title
+              )}
+            </span>
           </span>
           <p className="m-0 text-meta text-ink-secondary">{meta}</p>
           {/* ⛔ KALENDERNS NAMN BREDVID SIN FÄRG (0.36.0). Färgen ensam säger ingenting för den som inte lärt sig den,
@@ -338,7 +353,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
             aria-expanded={oppen}
             aria-controls={panelId}
             className={cx(
-              "-mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
+              "relative z-10 -mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-ink-secondary",
               "transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
               "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
             )}
@@ -355,7 +370,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
       </div>
 
       {harDetaljer ? (
-        <div id={panelId} hidden={!oppen} className="mt-2 flex flex-col gap-1 border-t border-line pt-2 text-etikett">
+        <div id={panelId} hidden={!oppen} className={cx("mt-2 flex flex-col gap-1 border-t border-line pt-2 text-etikett", oppnaId && "relative z-10")}>
           {/* ⛔ STATUS SOM ORD, inte som färg. Pricken ovanför är samma faktum
               för den som ser den; här står det så det går att läsa upp. */}
           {statusord ? (
@@ -409,9 +424,9 @@ function Postkort({ dayKey, entry, statusWords, order, locale }) {
  *
  * ⛔ TOMT ÄR ETT SVAR (punkt 5). En vald dag utan poster säger "Inga poster", och antalet står som noll.
  *
- * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode }} props
+ * @param {{ days: { dayKey: string, entries: import("../lib/calendar.js").CalendarEntry[] }[], statusWords: Record<string, string>, onClose: () => void, onTaBort: (dayKey: string) => void, onSkapa?: () => void, locale: string, arMin: (e: import("../lib/calendar.js").CalendarEntry) => boolean, lager?: import("react").ReactNode, oppna: ((id: string) => void) | null }} props
  */
-function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager }) {
+function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin, lager, oppna }) {
   const flera = days.length > 1;
   const title = flera ? `${days.length} dagar` : dateText(days[0].dayKey, locale);
   const name = flera ? `Poster för ${days.length} valda dagar` : `Poster den ${title}`;
@@ -486,6 +501,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
                         dayKey={r.dayKey}
                         entry={r.p}
                         statusWords={statusWords}
+                        oppna={oppna}
                         order={days.length + avsnitt.slice(0, ai).reduce((n, x) => n + x.rader.length, 0) + i}
                         locale={locale}
                       />
@@ -534,9 +550,9 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
  * ⛔ TRE VÄGAR UT: krysset, Escape och ett tryck utanför. Placeringen hålls inom fönstret (SS
  * `clampCalendarDayPeekPosition`), annars hamnar en titt på en söndag halvvägs utanför skärmen.
  *
- * @param {{ ankare: { dayKey: string, x: number, y: number }, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string }} props
+ * @param {{ ankare: { dayKey: string, x: number, y: number }, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null }} props
  */
-function Snabbtitt({ ankare, alla, synliga, onClose, locale }) {
+function Snabbtitt({ ankare, alla, synliga, onClose, locale, oppna }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   const rubrikId = useId();
   useEffect(() => {
@@ -585,7 +601,7 @@ function Snabbtitt({ ankare, alla, synliga, onClose, locale }) {
         {alla.map((e) => {
           const dold = !synliga.has(e.id);
           return (
-            <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", dold && "opacity-50")}>
+            <li key={e.id} data-titt-rad={dold ? "dold" : "synlig"} className={cx("flex items-start gap-2 rounded-md px-1 py-1", e.handelseId && oppna && "relative", dold && "opacity-50")}>
               <span aria-hidden="true" className={cx("mt-1 size-2 shrink-0 rounded-full", postklasser(e).prick)} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1 text-meta font-semibold">
@@ -594,7 +610,17 @@ function Snabbtitt({ ankare, alla, synliga, onClose, locale }) {
                       {e.kindIcon}
                     </span>
                   ) : null}
-                  <span className="min-w-0 truncate">{e.title}</span>
+                  <span className="min-w-0 truncate">
+                    {/* ⛔ 0.40.0 (#214): också snabbtittens rad öppnar händelsen. Stäng titten först: urvalet och månaden står kvar, men en titt som
+                        ligger öppen när man kommer tillbaka är en ruta man inte bad om. */}
+                    {e.handelseId && oppna ? (
+                      <HandelseLank id={e.handelseId} oppna={oppna} tacker="after:inset-0">
+                        {e.title}
+                      </HandelseLank>
+                    ) : (
+                      e.title
+                    )}
+                  </span>
                 </span>
                 {e.kalender || e.not || e.allDay ? (
                   <span className="block truncate text-liten text-ink-secondary">{[e.allDay ? "Heldag" : "", e.not || "", e.kalender ? e.kalender.namn : ""].filter(Boolean).join(" · ")}</span>
@@ -863,6 +889,10 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   hörnmärken per dag, som SS lager och tillgänglighet. Platsen för fas F6; ramverket har ingen lagerlogik än.
  * @param {(dayKeys: string[]) => import("react").ReactNode} [props.daglager] (0.37.0) Innehållet i dagpanelens egen lagerbubbla
  *   under posterna (SS-appen). `null` ritar ingen bubbla. Platsen för F6.
+ * @param {(id: string) => void} [props.onOppnaHandelse] (0.40.0, #214) Vad ett tryck på en post med `handelseId` gör, i dagpanelen och snabbtitten. Utelämnad:
+ *   skalets händelsepanel (`OpsAppShell` `handelsepanel`). ⛔ Finns varken propen eller ett skal med panel kastar kalendern för en post med `handelseId`.
+ *   Kalenderns urval (valda dagar), månaden och filtret ligger kvar i kalendern, som skalet håller monterad men dold medan panelen visas: Tillbaka
+ *   återställer dem.
  * @param {{ getItem: (n: string) => string | null, setItem: (n: string, v: string) => void }} [props.lagring] Var
  *   veckonummervalet sparas, per enhet. Förval `window.localStorage` när den finns.
  */
@@ -883,11 +913,18 @@ export function OpsCalendar({
   dagdekor,
   daglager,
   lagring,
+  onOppnaHandelse,
 }) {
   if (!ariaLabel) {
     throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
   }
   const zon = useMemo(() => kontrolleraTidszon(tidszon), [tidszon]);
+  const oppnaHandelse = useHandelseOppnare(onOppnaHandelse);
+  if (!oppnaHandelse && entries.some((e) => e && e.handelseId)) {
+    throw new Error(
+      "OpsCalendar: poster har handelseId men det finns ingenting som öppnar en händelse. Skicka `handelsepanel` till OpsAppShell, eller `onOppnaHandelse` till kalendern. En post som ser tryckbar ut och inte gör något lär den som tryckt att inget i dagpanelen gör något.",
+    );
+  }
 
   const nu = today || new Date();
   const todayDayKey = idagI(zon, nu);
@@ -1047,10 +1084,22 @@ export function OpsCalendar({
    * kolumn och ingenting täcks. Den översta valda dagen räknas: vid ett intervall är det dess rad som ska synas.
    */
   const forstaValda = chosen.length > 0 ? [...chosen].sort()[0] : null;
+  /*
+   * ⛔ 0.40.0 (#214): RULLNINGEN SKULDAS EN GÅNG PER VAL, INTE VID VARJE ÄNDRING AV PANELENS HÖJD. Effekten nedan hade `panelHojd` som beroende,
+   * eftersom panelens höjd är 0 när dagen väljs och mäts först efteråt. Men höjden går också till 0 och tillbaka när kalendern DÖLJS och visas, och
+   * det gör den när skalet visar en händelsepanel över den och man trycker Tillbaka. Då rullade effekten om kalendern +110 px (mätt i check-skalyta
+   * avsnitt 35 vid 390 px: 4814 före, 4924 efter Tillbaka), och man kom tillbaka till en annan månad än den man lämnade. `skuldRullning` sätts bara när
+   * den första valda dagen BYTS, och effekten kvitterar den när den har mätt panelen.
+   */
+  const skuldRullning = useRef(false);
+  useEffect(() => {
+    skuldRullning.current = true;
+  }, [forstaValda]);
   useEffect(() => {
     const rulle = rulleRef.current;
     const panel = panelRef.current;
-    if (!forstaValda || !rulle || !panel || panelHojd <= 0) return;
+    if (!skuldRullning.current || !forstaValda || !rulle || !panel || panelHojd <= 0) return;
+    skuldRullning.current = false;
     if (typeof window.matchMedia === "function" && !window.matchMedia("(max-width: 1023.98px)").matches) return;
     const ruta = /** @type {HTMLElement | null} */ (rulle.querySelector(`[data-cal-day="${forstaValda}"]`));
     if (!ruta) return;
@@ -1386,6 +1435,7 @@ export function OpsCalendar({
             onSkapa={skapa}
             locale={locale}
             arMin={arMin}
+            oppna={oppnaHandelse}
             lager={daglager ? daglager(days.map((d) => d.dayKey)) : null}
           />
         ) : (
@@ -1404,6 +1454,7 @@ export function OpsCalendar({
           synliga={synligaId}
           onClose={() => setTitt(null)}
           locale={locale}
+          oppna={oppnaHandelse ? (id) => { setTitt(null); oppnaHandelse(id); } : null}
         />
       ) : null}
     </section>

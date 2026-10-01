@@ -1,4 +1,4 @@
-import { createDataSource, innehallerVillkor } from "./contract.js";
+import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
 
 /**
  * Adapter mot ett eget API över HTTP, alltså REST.
@@ -133,7 +133,8 @@ export function createHttpSource(config) {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(headers ?? {}),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      // ⛔ `FALT_BORT` (0.40.0) är `null` i en PATCH: JSON har ingen symbol, och API:et ska läsa `null` som "ta bort fältet" (README).
+      ...(body === undefined ? {} : { body: JSON.stringify(body, (_k, v) => (v === FALT_BORT ? null : v)) }),
     });
   }
 

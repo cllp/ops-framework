@@ -17,10 +17,13 @@ import { OpsPanelRow } from "./OpsPanel.jsx";
 import { OpsSkapaI } from "./OpsSkapaI.jsx";
 import { OpsSkapaPanel } from "./OpsSkapaPanel.jsx";
 import { OpsSkapa } from "./OpsSkapa.jsx";
+import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { giltigtDatum, kalenderval } from "../lib/kalendrar.js";
+import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
+import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsepanel.js";
 import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
@@ -406,6 +409,24 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   `kalender`. I en gruppkalender visar skalet "Kräv svar" (av från början), i en av mina "Blockerar tillgänglighet".
  *   ⛔ "Skicka mejl" visas inte: avsändarbeslutet (#180 G3) saknas, och ett val som inte gör något är värre än inget.
  *   ⛔ För händelsen ersätter kalendrarna `skapaISektioner`: två listor i samma väljare hade varit två svar på "var hamnar den".
+ * @property {(id: string) => HandelseRedigering} [redigera] (0.40.0, #214) En HOOK som läser händelsen som ska ändras, ur appens egen
+ *   källa. Med den går panelen att öppna i REDIGERINGSLÄGE: `useOppnaSkapa()("handelse", { id })`, adressen `?skapa=handelse&redigera=<id>`.
+ *   Skalet anropar den i en egen komponent (så appens hooks får en stabil plats), väntar tills händelsen är läst, fyller i sina egna val
+ *   (typ, kalender, "Kräv svar") ur svaret och först DÄRETTER ritar formuläret, som får `redigera: <id>` och själv läser resten ur samma källa.
+ *   Rubriken är `redigeraHandelseEtikett`. Utan den kastar `oppna("handelse", { id })`, och ett `?skapa=handelse&redigera=` i adressen ignoreras.
+ *   ⛔ SKALET KÄNNER ALDRIG HÄNDELSENS DATA: det vet bara de tre val det ritar själv. Formulär och sparande är appens.
+ */
+
+/**
+ * Det hooken `HandelseSkapare.redigera` svarar med (0.40.0). Läsningen har tre lägen, och de ser inte likadana ut (punkt 5):
+ * `laddar` (väntan), `finns: false` ("Händelsen finns inte", med Tillbaka) och `finns: true` med de val skalet ska fylla i.
+ * @typedef {object} HandelseRedigering
+ * @property {boolean} laddar
+ * @property {boolean} finns
+ * @property {Error | null} [fel] Läsningen föll. Skrivs ut (med `message`), och är inte detsamma som `finns: false`: ett fel som ritades som "finns inte" hade sagt att en händelse är borta för att databasen nekade läsningen.
+ * @property {string | null} [typ] Händelsens typ, i skalets typval.
+ * @property {string | null} [kalenderId] Kalendern händelsen ligger i, i raden "Kalender". Det EFFEKTIVA värdet: en händelse utan `kalenderId` ligger i gruppens förvalda, och appen svarar med dess id.
+ * @property {boolean} [kravSvar] "Kräv svar" är på.
  */
 
 /**
@@ -420,7 +441,32 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   `&datum=`), `YYYY-MM-DD`, eller `null`. Formuläret fyller i den; utan den väljer man själv.
  * @property {{ id: string, slag: "grupp" | "mina" } | null} [kalender] (0.37.0) Vald kalender. `null` utan `kalendrar`.
  * @property {boolean} [kravSvar] (0.37.0) "Kräv svar" är på. Alltid `false` i en av mina kalendrar.
+ * @property {string} [redigera] (0.40.0, #214) Händelsens id när formuläret öppnats för att ÄNDRA den (`HandelseSkapare.redigera`). Formuläret läser
+ *   händelsen ur appens källa, fyller i fälten och sparar en ändring i stället för en ny rad. `typ`, `kalender` och `kravSvar` är redan ifyllda ur den.
  * @property {boolean} [blockerar] (0.37.0) "Blockerar tillgänglighet" är på. Alltid `false` i en gruppkalender.
+ */
+
+/**
+ * Skalets `handelsepanel`-prop (0.40.0, #214): händelsen på en egen sida, med Tillbaka.
+ *
+ * ══ ⛔ SKALET ÄGER ADRESSEN OCH TILLBAKA, APPEN ÄGER HÄNDELSEN ═══════════════════════════════════════════════════════
+ *
+ * CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalender och från idag. Händelsepanelen skall ha en tillbaka
+ * knapp." Panelen är en SIDA i innehållskolumnen och öppnas som skapa-panelen: `?handelse=<id>` skrivs i adressen med `pushState`, appens
+ * vy ligger kvar monterad men dold, och Tillbaka återställer den (kalenderns månad och valda dagar, Idags flik, filter och rullning).
+ * Webbläsarens bakåt och framåt gör samma sak, och en omladdning på adressen öppnar samma panel.
+ *
+ * ⛔ DE TVÅ INGÅNGARNA ÄR RADERNA SJÄLVA. En post med `handelseId` i `OpsEventList` (Idag) och `OpsCalendar` (dagpanel och snabbtitt)
+ * öppnar panelen utan att appen kopplar något: raderna frågar skalet. Appen skickar bara `handelseId` på de poster som ÄR händelser
+ * (en uppgift eller ett ärende i samma lista har ingen panel), och `rita` nedan.
+ *
+ * @typedef {object} HandelsepanelKonfiguration
+ * @property {(arg: { id: string, onTillbaka: () => void }) => import("react").ReactNode} rita Ritar panelen för ett id, normalt
+ *   `({ id, onTillbaka }) => <OpsHandelsePanel handelse={...} laddar={...} svar={<HandelseSvar handelseId={id} />} onTillbaka={onTillbaka} statusWords={...} />`.
+ *   En FUNKTION och inte en färdig nod: id:t kommer ur adressen, och appen slår upp händelsen ur sin egen källa med sina egna hooks.
+ *   Händelsen kan saknas (`handelse={null}`), eller läsas ännu (`laddar`): panelen har en väg tillbaka i båda.
+ * @property {boolean} [adress] Skalet lägger `?handelse=<id>` i adressen, så att Tillbaka i webbläsaren fungerar och panelen går att länka
+ *   till. Förval sant; `false` för en app vars router inte tål att någon annan skriver i historiken.
  */
 
 /**
@@ -518,6 +564,46 @@ function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
 }
 
 /**
+ * Grinden i redigeringsläget (0.40.0, #214): läser händelsen med appens hook, fyller i skalets val och släpper först då fram formuläret.
+ *
+ * ⛔ VARFÖR EN GRIND OCH INTE EN EFFEKT I SKALET. Skalets val (typ, kalender, "Kräv svar") är skalets state, men VÄRDENA finns i appens
+ * källa, och en hook kan bara anropas i en komponent. Formuläret börjar dessutom om från sina `useState`-förvärden vid varje montering,
+ * så det får inte monteras förrän valen finns: ett formulär som monterats med en tom typ och sedan fått den hade sparat fel typ.
+ * ⛔ TRE LÄGEN, OCH DE SER INTE LIKADANA UT (punkt 5): läses, finns inte, och klart. En händelse som inte finns får ett svar med
+ * panelens Tillbaka som utgång, aldrig ett tomt formulär som skulle spara en ny rad.
+ *
+ * @param {{ hook: (id: string) => HandelseRedigering, id: string, klar: boolean, onForifyllt: (f: HandelseRedigering) => void, children: import("react").ReactNode }} props
+ */
+function HandelseRedigeringsgrind({ hook, id, klar, onForifyllt, children }) {
+  const r = hook(id);
+  const redan = useRef(false);
+  useEffect(() => {
+    if (r.finns && !r.laddar && !redan.current) {
+      redan.current = true;
+      onForifyllt(r);
+    }
+    // Bara första gången händelsen finns: ett senare svar från en levande källa får inte skriva över valen man hunnit ändra.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r.finns, r.laddar]);
+  // ⛔ NÄR FORMULÄRET VÄL RITATS BYTS DET ALDRIG UT (0.40.0). En händelse som försvinner ur en levande läsning medan man skriver ska inte ta bort det
+  // man skrivit: formuläret (appen) säger själv att den inte längre finns när man sparar, och fälten står kvar.
+  if (klar) return <>{children}</>;
+  if (r.fel) return <OpsEmpty title="Händelsen kunde inte läsas" description={r.fel.message} />;
+  if (r.laddar) return <OpsEmpty title="Hämtar händelsen" busy busyLabel="Hämtar händelsen" />;
+  if (!r.finns) return <OpsEmpty title="Händelsen finns inte" description="Den kan ha tagits bort, eller så får du inte ändra den." />;
+  return null;
+}
+
+/**
+ * Ritar `handelsepanel.rita` (0.40.0, #214). Samma skäl som `ArendeRitare`: en egen komponent, så att appens hooks (händelsen ur appens
+ * källa, svaren) får en stabil plats i stället för skalets villkorliga gren. Nyckeln är händelsens id, så en annan händelse börjar om.
+ * @param {{ rita: (arg: { id: string, onTillbaka: () => void }) => import("react").ReactNode, id: string, onTillbaka: () => void }} props
+ */
+function HandelsepanelRitare({ rita, id, onTillbaka }) {
+  return <>{rita({ id, onTillbaka })}</>;
+}
+
+/**
  * ⛔ EN SANNING FÖR NYCKEL TILL FORMULÄR (0.34.1). Adressens `?skapa=` och `useOppnaSkapa()` gör samma sak: en nyckel blir
  * en beskrivning av vilket formulär panelen ska visa, eller `null` när skalets `skapa` inte har den posten (ännu).
  * Nycklarna är adressens: "handelse", "arende", "grupp", "meddelande", "redigera-grupp" (med `groupId`) eller en
@@ -525,12 +611,18 @@ function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
  *
  * @param {any} skapa Skalets `skapa`-prop.
  * @param {string} nyckel
- * @param {{ groupId?: string | null, nyHandelseEtikett?: string, datum?: string | null }} [extra]
+ * @param {{ groupId?: string | null, nyHandelseEtikett?: string, datum?: string | null, redigera?: string | null }} [extra]
  * @returns {any} Formulärbeskrivningen, eller `null`.
  */
 function skapaFormFranNyckel(skapa, nyckel, extra = {}) {
   if (!skapa || !nyckel) return null;
   if (nyckel === "handelse" && skapa.handelse) {
+    // ⛔ 0.40.0 (#214): REDIGERINGSLÄGE. `redigera` är händelsens id. Utan en hook som läser den (`HandelseSkapare.redigera`) finns inget läge
+    // att öppna, och beskrivningen blir `null` (adressen ignoreras, `oppna` kastar) i stället för ett formulär som skulle spara en ny rad.
+    if (extra.redigera) {
+      if (!handelseSkapareFinns(skapa) || typeof skapa.handelse.redigera !== "function") return null;
+      return { kind: "modul", registrering: { id: "handelse", namn: extra.nyHandelseEtikett ?? "Ny händelse", katalog: skapa.handelse.katalog === undefined ? "handelsetyper" : skapa.handelse.katalog, form: skapa.handelse.form }, datum: null, redigera: extra.redigera };
+    }
     // ⛔ 0.37.0 (#206): DAGEN FÖLJER MED I BESKRIVNINGEN, INTE I EN GLOBAL. Formuläret får den som prop (`datum`), och
     // adressen bär den som `&datum=`, så att en omladdning ger samma dag. Appens brygga `forifylldDag.js` (en modulvariabel
     // som gällde i två sekunder) behövs då inte.
@@ -555,7 +647,7 @@ function handelseSkapareFinns(skapa) {
 }
 
 /** Skalets `oppnaSkapa`, åtkomlig för appens komponenter under skalet. `null` utanför skalet. */
-const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { groupId?: string, datum?: string }) => void) | null} */ (null));
+const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { groupId?: string, datum?: string, id?: string }) => void) | null} */ (null));
 
 /**
  * ⛔ Öppnar skalets skapa-panel från appen (0.34.1). Ersätter `window.location.assign(pathname + "?skapa=meddelande")`,
@@ -564,15 +656,34 @@ const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { g
  * `oppna("meddelande")`, `oppna("redigera-grupp", { groupId })`, `oppna(<en modulregistrerings id>)`. Samma nycklar som adressen.
  * `oppna("handelse", { datum: "2026-10-12" })` (0.37.0, #206) öppnar "Ny händelse" på den dagen: formuläret får `datum`, och adressen
  * bär `&datum=`. Ett datum som inte finns (31 februari, fel form) kastar, och ett datum till något annat än händelsen kastar också.
+ * `oppna("handelse", { id: "h1" })` (0.40.0, #214) öppnar samma panel i REDIGERINGSLÄGE för händelsen h1 ("Redigera händelse", `?skapa=handelse&redigera=h1`).
+ * Tillbaka, och webbläsarens bakåt, går tillbaka till det man kom från (normalt händelsepanelen, som då visar den ändrade händelsen). Kräver att
+ * `skapa.handelse` är ett formulär med `redigera` (`HandelseSkapare`); annars kastas ett fel. `id` gäller bara händelsen.
  * Använder skalets egen `oppnaSkapa`, så adressen (`?skapa=`) och webbläsarens Tillbaka fungerar som när panelen öppnas ur plusset.
  * Är posten inte tillgänglig (`skapa.meddelande` saknas, okänd nyckel) kastas ett fel: ingenting sker aldrig tyst.
  * Utanför `OpsAppShell` kastas ett fel direkt när hooken anropas.
  *
- * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string }) => void}
+ * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string }) => void}
  */
 export function useOppnaSkapa() {
   const oppna = useContext(OppnaSkapaKontext);
   if (!oppna) throw new Error("useOppnaSkapa() används utanför OpsAppShell: hooken behöver skalet som förälder.");
+  return oppna;
+}
+
+/**
+ * ⛔ Öppnar händelsepanelen från appen (0.40.0, #214): `oppna("<händelsens id>")`. Samma väg som en rad i Idag och en post i kalenderns
+ * dagpanel tar när de har ett `handelseId`: adressen (`?handelse=<id>`) skrivs med `pushState`, appens vy ligger kvar dold, och
+ * Tillbaka (knappen och webbläsarens) för tillbaka till exakt det man lämnade. Behövs bara för en egen yta (en länk i inkorgen, ett
+ * sökresultat): raderna i `OpsEventList` och `OpsCalendar` gör det själva.
+ *
+ * Kastar utanför `OpsAppShell` och när skalet saknar `handelsepanel`: en knapp som inte öppnar något är värre än ett fel.
+ *
+ * @returns {(id: string) => void}
+ */
+export function useOppnaHandelse() {
+  const oppna = useContext(OppnaHandelseKontext);
+  if (!oppna) throw new Error("useOppnaHandelse() används utanför OpsAppShell, eller i ett skal utan `handelsepanel`: hooken behöver skalet och dess panel.");
   return oppna;
 }
 
@@ -636,6 +747,7 @@ export function useOppnaSkapa() {
  * @param {string} [props.felRubrik] Rubriken på felytan.
  * @param {string} [props.felBeskrivning]
  * @param {string} [props.laddaOmEtikett]
+ * @param {HandelsepanelKonfiguration} [props.handelsepanel] (0.40.0, #214) Händelsen på en egen sida med Tillbaka, öppnad av en rad i Idag eller en post i kalendern (`handelseId`) eller av `useOppnaHandelse()`. Se `HandelsepanelKonfiguration`.
  * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden, mellan `actions` och `anvandare`.
  *   Tryck öppnar en POPOVER med en platt lista (`ss-skapa-meny.png`), aldrig en yta i sidan: `handelse`
  *   och `arende` är ramverkets EGNA rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler),
@@ -652,6 +764,7 @@ export function useOppnaSkapa() {
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
  * @param {string} [props.redigeraGruppEtikett] Panelens rubrik för `skapa.redigeraGrupp`. Förval "Redigera grupp".
+ * @param {string} [props.redigeraHandelseEtikett] (0.40.0, #214) Panelens rubrik när en händelse ändras (`useOppnaSkapa()("handelse", { id })`). Förval "Redigera händelse".
  * @param {string} [props.nyGruppEtikett] Ramverkets rad för `skapa.grupp`, och panelens rubrik. Förval "Ny grupp".
  * @param {string} [props.nyttMeddelandeEtikett] (0.34.0) Ramverkets rad för `skapa.meddelande`, och panelens rubrik. Förval "Nytt meddelande".
  * @param {string} [props.skickaEtikett] (0.34.0) Panelens knapp för `skapa.meddelande`. Förval "Skicka".
@@ -685,6 +798,7 @@ export function OpsAppShell({
   grupper,
   meny,
   skapa,
+  handelsepanel,
   skapaLabel = "Skapa",
   nyHandelseEtikett = "Ny händelse",
   nyttArendeEtikett = "Nytt ärende",
@@ -692,6 +806,7 @@ export function OpsAppShell({
   nyttMeddelandeEtikett = "Nytt meddelande",
   skickaEtikett = "Skicka",
   redigeraGruppEtikett = "Redigera grupp",
+  redigeraHandelseEtikett = "Redigera händelse",
   skapaTypEtikett = "Typ",
   closeLabel = "Stäng",
   felmottagare,
@@ -785,7 +900,7 @@ export function OpsAppShell({
   // ReactNode i state, se `skapaTyp` nedan för skälet).
   const [skapaOppen, setSkapaOppen] = useState(false);
   const [skapaForm, setSkapaFormRaw] = useState(
-    /** @type {{ kind: "handelse" | "arende" | "grupp" | "meddelande" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any, datum?: string | null } | null} */ (null),
+    /** @type {{ kind: "handelse" | "arende" | "grupp" | "meddelande" } | { kind: "redigeragrupp", groupId: string } | { kind: "modul", registrering: any, datum?: string | null, redigera?: string } | null} */ (null),
   );
   // ⛔ VALD TYP PER REGISTRERING, INTE INUTI `skapaForm`. Ett värde sparat i
   // `skapaForm` vid öppningstillfället är fruset: `OpsSelect`s `onChange`
@@ -801,6 +916,9 @@ export function OpsAppShell({
   // ⛔ 0.37.0 (#179 F3): "Kräv svar" och "Blockerar tillgänglighet" är AV från början, varje gång panelen öppnas.
   const [skapaKravSvar, setSkapaKravSvar] = useState(false);
   const [skapaBlockerar, setSkapaBlockerar] = useState(false);
+  // ⛔ 0.40.0: REDIGERINGSLÄGET ÄR KLART först när skalets val är ifyllda ur händelsen (se `HandelseRedigeringsgrind`). Förr det ritas inget formulär
+  // och inte raden "Kalender": en rad som visar gruppens förvalda kalender i en halv sekund och sedan byter är en rad som ljuger.
+  const [redigeraKlar, setRedigeraKlar] = useState(false);
   const skapaAdress = skapa?.adress !== false;
   const skapaPushad = useRef(false);
   const skapaRullning = useRef(0);
@@ -819,7 +937,7 @@ export function OpsAppShell({
     const dag = u.searchParams.get("datum");
     const datum = dag && giltigtDatum(dag) ? dag : null;
     if (dag && !datum) rapporteraFel(new Error(`skapa: datum "${dag}" i adressen finns inte, formuläret öppnas utan dag.`), { yta: "OpsAppShell", steg: "läsa datum ur adressen" });
-    return skapaFormFranNyckel(skapa, v, { groupId: u.searchParams.get("grupp"), nyHandelseEtikett, datum });
+    return skapaFormFranNyckel(skapa, v, { groupId: u.searchParams.get("grupp"), nyHandelseEtikett, datum, redigera: u.searchParams.get("redigera") });
   };
   const skapaFormId = useId();
   /** @param {any} form */
@@ -829,6 +947,7 @@ export function OpsAppShell({
     setSkapaVaxlare(false);
     setSkapaKravSvar(false);
     setSkapaBlockerar(false);
+    setRedigeraKlar(false);
     setSkapaFormRaw(form);
     if (skapaAdress && typeof window !== "undefined") {
       try {
@@ -837,6 +956,8 @@ export function OpsAppShell({
         if (form.kind === "redigeragrupp") u.searchParams.set("grupp", form.groupId);
         if (form.datum) u.searchParams.set("datum", form.datum);
         else u.searchParams.delete("datum");
+        if (form.redigera) u.searchParams.set("redigera", form.redigera);
+        else u.searchParams.delete("redigera");
         window.history.pushState(window.history.state, "", u);
         skapaPushad.current = true;
       } catch {
@@ -866,6 +987,7 @@ export function OpsAppShell({
           u.searchParams.delete("skapa");
           u.searchParams.delete("grupp");
           u.searchParams.delete("datum");
+          u.searchParams.delete("redigera");
           window.history.replaceState(window.history.state, "", u);
         }
       }
@@ -876,6 +998,99 @@ export function OpsAppShell({
       requestAnimationFrame(() => window.scrollTo(0, y));
     }
   };
+  // ══ ⛔ HÄNDELSEPANELEN: `?handelse=<id>`, SAMMA MEKANIK SOM SKAPA-PANELEN (0.40.0, #214) ═════════════════════════════════════
+  //
+  // CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalender och från idag. Händelsepanelen skall ha en tillbaka
+  // knapp." Se `HandelsepanelKonfiguration`. Tre beslut, alla mätta mot hur skapa-panelen redan beter sig:
+  //
+  //   1. ADRESSEN BÄR ID:T (`?handelse=`), på sidan man står på, och `pushState` ger Tillbaka i webbläsaren ett steg att gå. Tillbaka-knappen
+  //      går samma väg (`history.back()`) när skalet själv pushade posten, så knappen och webbläsarens bakåt är SAMMA gest. Kom man in
+  //      på en adress (omladdning, en länk) finns inget steg att gå tillbaka till: då skrivs posten om utan parametern (`replaceState`)
+  //      och man står kvar på sidan under.
+  //   2. APPENS VY ÄR KVAR, DOLD. Det är därför kalenderns månad och valda dagar, Idags flik och filter finns kvar när man kommer
+  //      tillbaka. Rullningen är fönstrets, och den sparas vid öppning och återställs vid Tillbaka (som skapa).
+  //   3. WEBBLÄSARENS BAKÅT OCH FRAMÅT STYR PANELEN åt båda hållen (`popstate`): att gå bakåt stänger den, att gå framåt öppnar den igen.
+  //      Skapa-panelen lyssnar bara på stängningen, eftersom den inte går att öppna utan ett val; här räcker adressen.
+  const handelseAdress = handelsepanel?.adress !== false;
+  const [handelseId, setHandelseId] = useState(() => /** @type {string | null} */ (handelseAdress && typeof window !== "undefined" ? handelseIdUrAdress(window.location.href) : null));
+  const handelsePushad = useRef(false);
+  const handelseRullning = useRef(0);
+  // ⛔ Elementet som hade fokus när panelen öppnades (länken man tryckte på): Tillbaka ger fokus tillbaka dit, så att tangentbordet och skärmläsaren
+  // fortsätter där de var i stället för från sidans topp.
+  const handelseFokus = useRef(/** @type {HTMLElement | null} */ (null));
+  /** @param {string} id */
+  const oppnaHandelse = (id) => {
+    if (typeof id !== "string" || id === "") throw new Error("useOppnaHandelse: id krävs, en sträng som inte är tom.");
+    if (!handelsepanel) throw new Error("useOppnaHandelse: skalet saknar `handelsepanel`, så det finns ingen panel att öppna.");
+    // Ett öppet skapa-formulär hör till vyn man lämnar: det stängs utan att röra historiken, som när man navigerar bort från det.
+    if (skapaForm) setSkapaFormRaw(null);
+    if (handelseId === null && typeof window !== "undefined") {
+      handelseRullning.current = window.scrollY;
+      handelseFokus.current = /** @type {HTMLElement | null} */ (document.activeElement);
+    }
+    const redanOppen = handelseId !== null;
+    setHandelseId(id);
+    if (handelseAdress && typeof window !== "undefined") {
+      try {
+        const till = medHandelse(window.location.href, id);
+        // Byter man händelse medan panelen är öppen ersätts posten: två paneler i historiken hade krävt två Tillbaka för att nå sidan.
+        if (redanOppen) window.history.replaceState(window.history.state, "", till);
+        else {
+          window.history.pushState(window.history.state, "", till);
+          handelsePushad.current = true;
+        }
+      } catch {
+        // En adress som inte går att skriva (t.ex. en sandlåda) gör inte panelen sämre: den är ändå ett tillstånd.
+      }
+    }
+  };
+  /**
+   * @param {boolean} [klar] Sant när panelen stängs för att man LÄMNAR vyn (en länk i skalet, en ny `activeHref`): posten skrivs om utan
+   *   parametern, ingen `history.back()` (appen pushar sin egen post direkt efter, och ett sent back skulle ångra den).
+   * @param {boolean} [aterstallRullning] Förval sant: Tillbaka återställer rullpositionen man kom från. Falskt när man navigerar till en
+   *   ANNAN vy: den ska börja överst.
+   */
+  const stangHandelse = (klar = false, aterstallRullning = true) => {
+    setHandelseId(null);
+    if (handelseAdress && typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has(HANDELSEPARAM)) {
+        if (handelsePushad.current && klar !== true) {
+          handelsePushad.current = false;
+          window.history.back();
+        } else {
+          handelsePushad.current = false;
+          window.history.replaceState(window.history.state, "", medHandelse(window.location.href, null));
+        }
+      }
+    }
+    if (aterstallRullning && typeof window !== "undefined" && handelseRullning.current > 0) {
+      const y = handelseRullning.current;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  };
+  // Webbläsarens bakåt och framåt: adressen är sanningen, panelen följer den.
+  useEffect(() => {
+    if (!handelseAdress || typeof window === "undefined") return undefined;
+    const lyssna = () => {
+      const id = handelseIdUrAdress(window.location.href);
+      if (id === null) handelsePushad.current = false;
+      setHandelseId(id);
+    };
+    window.addEventListener("popstate", lyssna);
+    return () => window.removeEventListener("popstate", lyssna);
+  }, [handelseAdress]);
+  // En ny panel börjar överst: appens vy var dold och dess rullning är inte panelens.
+  useEffect(() => {
+    if (handelseId !== null && typeof window !== "undefined" && window.scrollY > 0) window.scrollTo(0, 0);
+    // Panelen stängdes: fokus tillbaka till det som hade det. Ett element som inte längre finns (vyn ritades om) eller som är dolt tar inte emot det.
+    if (handelseId === null && handelseFokus.current) {
+      const el = handelseFokus.current;
+      handelseFokus.current = null;
+      if (el.isConnected) el.focus({ preventScroll: true });
+    }
+  }, [handelseId]);
+
   // ══ ⛔ ATT NAVIGERA STÄNGER PANELEN (0.38.0, #194) ═════════════════════════════════════════════════════════════════════
   //
   // CP 2026-09-30: "Nytt ärende-panelen låser all annan navigering i appen. Samma sak med Ny händelse. Topnav (Idag/Kalender/Hub)
@@ -893,6 +1108,8 @@ export function OpsAppShell({
     if (foregaendeAktivHref.current === activeHref) return;
     foregaendeAktivHref.current = activeHref;
     if (skapaForm) stangSkapa(true, false);
+    // ⛔ 0.40.0 (#214): händelsepanelen hör också till sidan man öppnade den på.
+    if (handelseId !== null) stangHandelse(true, false);
     // `skapaForm` läses vid själva bytet; det är bytet av `activeHref` som är utlösaren, inte formuläret.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeHref]);
@@ -929,8 +1146,15 @@ export function OpsAppShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skapaNycklar]);
 
-  /** @type {(nyckel: string, extra?: { groupId?: string, datum?: string }) => void} */
+  /** @type {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string }) => void} */
   const oppnaFranApp = (nyckel, extra) => {
+    const redigeraId = extra?.id;
+    if (redigeraId !== undefined && redigeraId !== null) {
+      // ⛔ KASTAR HELLRE ÄN ÖPPNAR ETT TOMT "NY" (0.40.0). Ett id som inte är en text, eller till något annat än händelsen, är ett fel i appen.
+      if (nyckel !== "handelse") throw new Error(`useOppnaSkapa: id gäller bara "handelse", inte "${nyckel}".`);
+      if (typeof redigeraId !== "string" || redigeraId === "") throw new Error("useOppnaSkapa: id måste vara händelsens id, en text som inte är tom.");
+      if (extra?.datum !== undefined) throw new Error("useOppnaSkapa: id och datum hör inte ihop. Datumet gäller en ny händelse, och en ändring bär sitt eget.");
+    }
     const datum = extra?.datum;
     if (datum !== undefined && datum !== null) {
       // ⛔ KASTAR I STÄLLET FÖR ATT TYST ÖPPNA UTAN DAG. Ett datum från appen är ett programvärde, och ett som inte finns är
@@ -939,7 +1163,8 @@ export function OpsAppShell({
       if (typeof datum !== "string" || !giltigtDatum(datum)) throw new Error(`useOppnaSkapa: datum "${String(datum)}" finns inte. Formen är YYYY-MM-DD.`);
       if (!handelseSkapareFinns(skapa)) throw new Error("useOppnaSkapa: datum kräver att skapa.handelse är ett formulär ({ form }), inte en färdig nod som inte kan ta emot dagen.");
     }
-    const form = skapaFormFranNyckel(skapa, nyckel, { groupId: extra?.groupId, nyHandelseEtikett, datum: datum ?? null });
+    const form = skapaFormFranNyckel(skapa, nyckel, { groupId: extra?.groupId, nyHandelseEtikett, datum: datum ?? null, redigera: redigeraId ?? null });
+    if (!form && redigeraId) throw new Error("useOppnaSkapa: att ändra en händelse kräver `skapa.handelse` som ett formulär med `redigera` (en hook som läser händelsen). Utan den finns inget redigeringsläge.");
     if (!form) throw new Error(`useOppnaSkapa: skalets \`skapa\` har ingen post för "${nyckel}"${nyckel === "redigera-grupp" ? " med groupId" : ""}.`);
     oppnaSkapa(form);
   };
@@ -987,10 +1212,12 @@ export function OpsAppShell({
           const I = KALENDERIKON_KOMPONENT[/** @type {keyof typeof KALENDERIKON_KOMPONENT} */ (id)];
           return I ? <I size={18} /> : undefined;
         };
-        return [
+        return /** @type {Array<any>} */ ([
           { id: "gruppkalendrar", rubrik: g ? `${text(g.namn, skapa?.sprak ?? "sv")}: kalendrar` : "Gruppens kalendrar", poster: skapaKalenderval.filter((k) => k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) })) },
+          // ⛔ I REDIGERINGSLÄGE FINNS INGA "MINA KALENDRAR" (0.40.0). Att flytta en händelse till en egen kalender gör den till en post utan typ och utan
+          // svar, alltså en annan sorts rad i en annan samling: det är att skapa en ny och ta bort den gamla, inte att ändra den. Väljaren erbjuder det inte.
           { id: "minaKalendrar", rubrik: "Mina kalendrar", poster: skapaKalenderval.filter((k) => !k.grupp).map((k) => ({ id: k.id, namn: k.namn, ikon: ikon(k.ikon) })) },
-        ];
+        ]).filter((x) => !(skapaForm?.redigera && x.id === "minaKalendrar"));
       })()
     : (skapa?.skapaISektioner ?? []);
   // Målet från början: gruppens förvalda, annars min förvalda. Inget mål alls när det inte finns någon kalender (då säger raden det).
@@ -1003,10 +1230,13 @@ export function OpsAppShell({
   const skapaKalender = handelseMedKalendrar && skapaEffektivtMal ? { id: skapaEffektivtMal.id, slag: /** @type {"grupp" | "mina"} */ (skapaEffektivtMal.sektion === "minaKalendrar" ? "mina" : "grupp") } : null;
   const skapaHarVaxlare = skapaForm?.kind === "modul" && skapaSektioner.some((x) => x.poster.length > 0);
   const skapaPanelSyns = Boolean(skapaForm);
+  // ⛔ 0.40.0 (#214): ett öppet skapa-formulär vinner. Händelsepanelen visas bara när inget formulär är uppe, och saknas `handelsepanel`
+  // ritas ingenting för ett id i adressen: appens vy står kvar synlig, hellre än en tom sida.
+  const handelsePanelSyns = Boolean(handelseId !== null && handelsepanel) && !skapaPanelSyns;
   const skapaMalNamn = (() => {
     const sprakSkapa = skapa?.sprak ?? "sv";
     if (skapaEffektivtMal) {
-      return skapaSektioner.find((x) => x.id === skapaEffektivtMal.sektion)?.poster.find((x) => x.id === skapaEffektivtMal.id)?.namn ?? null;
+      return skapaSektioner.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.sektion)?.poster.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.id)?.namn ?? null;
     }
     // ⛔ Tomhet är ett svar (punkt 5): utan en enda kalender säger raden det, i stället för att visa gruppens namn som om det vore en kalender.
     if (handelseMedKalendrar) return "Ingen kalender ännu";
@@ -1051,8 +1281,8 @@ export function OpsAppShell({
     const vald = egenPost ? null : (skapaTyp[r.id] ?? typer[0]?.id ?? null);
     const Form = /** @type {any} */ (r.form);
     skapaHarFormKonsument = true;
-    skapaModalTitel = text(r.namn, skapaSprak);
-    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && skapaKravSvar, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
+    skapaModalTitel = skapaForm.redigera ? redigeraHandelseEtikett : text(r.namn, skapaSprak);
+    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : {}), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && skapaKravSvar, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
     skapaModalInnehall = (
       <div className="flex flex-col gap-3">
         {r.katalog !== null && !egenPost ? (
@@ -1085,6 +1315,26 @@ export function OpsAppShell({
         ) : null}
       </div>
     );
+    // ⛔ 0.40.0 (#214): I REDIGERINGSLÄGE RITAS INNEHÅLLET FÖRST NÄR SKALETS VAL ÄR IFYLLDA ur händelsen. Se `HandelseRedigeringsgrind`.
+    const redigeraHook = /** @type {any} */ (skapa?.handelse)?.redigera;
+    if (skapaForm.redigera && typeof redigeraHook === "function") {
+      skapaModalInnehall = (
+        <HandelseRedigeringsgrind
+          key={skapaForm.redigera}
+          hook={redigeraHook}
+          id={skapaForm.redigera}
+          klar={redigeraKlar}
+          onForifyllt={(f) => {
+            if (f.typ) setSkapaTyp((x) => ({ ...x, handelse: /** @type {string} */ (f.typ) }));
+            setSkapaMal(f.kalenderId ? { id: f.kalenderId, sektion: "gruppkalendrar" } : null);
+            setSkapaKravSvar(f.kravSvar === true);
+            setRedigeraKlar(true);
+          }}
+        >
+          {skapaModalInnehall}
+        </HandelseRedigeringsgrind>
+      );
+    }
   }
 
   // ══ ⛔ ETT PLUS PER YTA (0.30.0, #173) ═══════════════════════════════════
@@ -1218,6 +1468,7 @@ export function OpsAppShell({
   const onActivate = (href, e) => {
     // ⛔ 0.38.0 (#194): en öppen skapa-panel hör till sidan den öppnades på, se `foregaendeAktivHref` ovan.
     if (skapaForm) stangSkapa(true, false);
+    if (handelseId !== null) stangHandelse(true, false);
     if (onNavigate) onNavigate(href, e);
   };
 
@@ -1386,6 +1637,7 @@ export function OpsAppShell({
 
   return (
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
+    <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
     <div className="min-h-dvh bg-canvas">
       {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
           BÖRJAR VID SKÄRMENS ÖVERKANT OCH BÄR SJÄLV DEN SÄKRA ZONEN SOM PADDING (`top-0`, `pt-(--safe-top)`). Före 0.31.2 var den
@@ -1708,8 +1960,9 @@ export function OpsAppShell({
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
           {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
               från (filter, rullning, ifyllda fält) i stället för att appen ritar om den från noll. */}
-          <div hidden={skapaPanelSyns}>{children}</div>
+          <div hidden={skapaPanelSyns || handelsePanelSyns}>{children}</div>
         </OpsFelgrans>
+        {handelsePanelSyns && handelsepanel ? <HandelsepanelRitare key={handelseId} rita={handelsepanel.rita} id={/** @type {string} */ (handelseId)} onTillbaka={() => stangHandelse()} /> : null}
         {skapaPanelSyns ? (
           <OpsSkapaPanel
             kolumn={skapaForm?.kind === "grupp" || skapaForm?.kind === "redigeragrupp" || skapaForm?.kind === "meddelande" ? "smal" : "bred"}
@@ -1717,7 +1970,7 @@ export function OpsAppShell({
             onTillbaka={stangSkapa}
             tillbakaEtikett={skapa?.tillbakaEtikett}
             skapasIEtikett={handelseMedKalendrar ? "Kalender" : skapa?.skapasIEtikett}
-            skapasI={skapaForm?.kind === "modul" || skapaForm?.kind === "meddelande" ? skapaMalNamn : null}
+            skapasI={(skapaForm?.kind === "modul" && !(skapaForm.redigera && !redigeraKlar)) || skapaForm?.kind === "meddelande" ? skapaMalNamn : null}
             onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
             avbrytEtikett={skapa?.avbrytEtikett}
             sparaEtikett={skapaForm?.kind === "meddelande" ? skickaEtikett : skapaHarFormKonsument ? skapa?.sparaEtikett : undefined}
@@ -1802,6 +2055,7 @@ export function OpsAppShell({
         />
       ) : null}
     </div>
+    </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
   );
 }
