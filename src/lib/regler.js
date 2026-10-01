@@ -146,6 +146,15 @@ function typavvikelserRegler() {
     // till MAX_TYPAVVIKELSER. Fältet saknas eller är [] när gruppen inte har någon avvikelse, och det är giltigt.
     // Att id:t pekar på ett bidrag som finns kan en regel inte avgöra, se typavvikelserRegler().
     //
+    // ⛔ externaDatakallor VALIDERAS BARA NÄR DEN ÄNDRAS PÅ EN UPPDATERING (0.42.0, #217). En regel får utvärdera högst
+    // 1000 uttryck, och en full lista med externaDatakallor (tio poster) tar det mesta av budgeten ensam. Före 0.42.0
+    // utvärderades den vid varje uppdatering av gruppen, så en grupp med en full lista kunde inte skriva ens två
+    // typavvikelser: mätt, skrivningen nekades med "maximum of 1000 expressions". En lista som inte ändras
+    // är redan validerad den gång den skrevs (opsAndrad). typavvikelser valideras alltid: de är billiga nog att få plats.
+    function opsAndrad(d, r, f) {
+      return d.diff(r).affectedKeys().hasAny([f]);
+    }
+    //
     // 'dold' som bool och 'namn' som map har ingen egen rad: 'p.dold || 'namn' in p' kastar ett utvärderingsfel
     // på en icke-bool, och 'p.namn.keys()' kastar på en icke-map, och ett fel i en regel är ett nej. Det är provat
     // ('dold som inte är bool', 'ett namn som inte är en map' i rules/__tests__/grupper.test.mjs). De två rader som
@@ -272,7 +281,9 @@ ${typavvikelserRegler()}
     match /${grupper}/{gid} {
       allow read: if opsArMedlem(gid);
       allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data);
-      allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data)
+      allow update: if (opsArAgare(gid)
+          && (!opsAndrad(request.resource.data, resource.data, 'externaDatakallor') || opsExternaGiltiga(request.resource.data))
+          && opsTypavvikelserGiltiga(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${AGARGRUPPFALT.map((f) => `"${f}"`).join(", ")}]))
         || (opsArAdmin(gid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${ADMINGRUPPFALT.map((f) => `"${f}"`).join(", ")}]));

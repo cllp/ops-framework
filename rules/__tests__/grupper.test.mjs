@@ -597,6 +597,35 @@ describe("⛔ gruppen: typavvikelser skriver bara ägaren, och bara giltiga post
     await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { beskrivning: "Utan avvikelser" }));
   });
 
+  describe("budgeten på 1000 uttryck delas med externaDatakallor (#216)", () => {
+    const externa = () => Array.from({ length: MAX_EXTERNA }, (_, i) => ({ type: "github", repo: `cllp/repo-${i}`, enabled: true }));
+    const avvikelser = () => Array.from({ length: MAX_TYPAVVIKELSER }, (_, i) => ({ yta: "inkorg", id: `ekonomi:t${i}`, dold: true, namn: { sv: "Eget namn", en: "Own name" } }));
+    const grupp = () => doc(som(AGARE), `groups/${VAR}`);
+
+    it("⛔ en full lista externaDatakallor stänger inte ute en skrivning av typavvikelser (före 0.42.0 nekades redan en skrivning av två poster)", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa() }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: [giltig()] }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: avvikelser() }));
+    });
+
+    it("⛔ båda listorna kan ligga FULLA på gruppen, och en annan ändring av gruppen går då igenom (ingen av dem valideras om)", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa() }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: avvikelser() }));
+      await assertSucceeds(updateDoc(grupp(), { beskrivning: "Båda listorna fulla" }));
+    });
+
+    it("⛔ en LISTA SOM ÄNDRAS valideras fortfarande, också när den andra är full", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa() }));
+      await assertFails(updateDoc(grupp(), { typavvikelser: [{ ...giltig(), id: "kvitto" }] }));
+      await assertSucceeds(updateDoc(grupp(), { typavvikelser: [] }));
+      await assertFails(updateDoc(grupp(), { externaDatakallor: [{ type: "github", repo: "ingen-snedstreck", enabled: true }] }));
+    });
+
+    it("⛔ båda listorna fulla i SAMMA uppdatering går igenom när posterna i externaDatakallor är minimala och avvikelserna i sin dyraste form", async () => {
+      await assertSucceeds(updateDoc(grupp(), { externaDatakallor: externa(), typavvikelser: avvikelser() }));
+    });
+  });
+
   describe("avvisade poster, en avvikelse åt gången mot en giltig post", () => {
     it("kontroll: den giltiga posten går igenom", async () => {
       await assertSucceeds(satt(AGARE, [giltig()]));

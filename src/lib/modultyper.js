@@ -89,12 +89,13 @@ export const TYPAVVIKELSEKRAVDA = ["yta", "id", "dold"];
 /**
  * Högst så många avvikelser per grupp. Reglerna har ingen loop och rullar ut posterna till samma tal.
  *
- * ⛔ TIO, OCH TALET ÄR MÄTT: en regel får utvärdera högst 1000 uttryck per skrivning, och med tjugo utrullade
- * poster var gränsen nådd i emulatorn ("maximum of 1000 expressions to evaluate has been reached", ägarens
- * giltiga skrivning nekades). Tio går igenom. Ett tak som regeln inte klarar att utvärdera är sämre än ett lågt tak,
- * eftersom det nekar en giltig skrivning utan att säga varför.
+ * ⛔ SEX, OCH TALET ÄR MÄTT MOT DET VÄRSTA FALLET: en regel får utvärdera högst 1000 uttryck per skrivning, och en
+ * post med omdöpt namn på båda språken är den dyraste. I emulatorn nekades ägarens giltiga skrivning vid TJUGO poster
+ * ("maximum of 1000 expressions to evaluate has been reached"), och vid åtta av de dyraste; sju går igenom, sex är taket
+ * med en marginal. Ett tak som regeln inte klarar att utvärdera är sämre än ett lågt tak, eftersom det nekar en giltig
+ * skrivning utan att säga varför. Den första versionen hade tio och mättes bara mot billiga poster: det var fel.
  */
-export const MAX_TYPAVVIKELSER = 10;
+export const MAX_TYPAVVIKELSER = 6;
 /** Högst så många tecken i ett omdöpt namn, per språk. */
 export const MAX_TYPNAMN = 60;
 /** Högst så många tecken i ett bidrags värde (`modul:id`). */
