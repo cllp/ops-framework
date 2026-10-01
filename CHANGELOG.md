@@ -9,6 +9,32 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.39.2
+
+⛔ **Ändringsloggens regel kräver att `av.uid` är den inloggade (#211). Ingen ny export, prop eller komponent: en rad i `konfigloggregelfragment`. Appen måste regenerera sitt regelfragment, och CP måste deploya reglerna efter mergen.**
+
+### #211: "en admin kunde skriva en loggrad i någon annans namn"
+Händelsen: öppnad 2026-10-01 under #188 (PR 210). `konfigloggregelfragment` släppte in en `create` från ägare eller admin i radens grupp utan att titta på vem raden sade att den kom från. En admin kunde alltså skriva en rad där `av` var en annan person, och loggen, som finns för att säga vem som ändrade katalogen, hade påstått något databasen inte kunde stå för. Ingen regression: det var lika sant före 0.39.0, men #188 gjorde loggen ramverkets egen och därmed också dess hål.
+
+Mätt före ändringen:
+- **`av`s form:** `byggKonfigandring` skriver `av: d.av ?? null`, och appen skickar `useSkapare(...)`, alltså `byggSkapare`: `{ uid, namn, typ, kalla }`, där `uid` är `null` om det saknas. `av` kan alltså vara `null`, och `uid` kan vara `null`.
+- **Skrivvägar i ramverket:** en enda, `createConfigLog(...).skriv` (via `byggKonfigandring`). Ramverket skriver aldrig en loggrad själv: `av` kommer från anroparen, och ramverket sätter den inte ur den inloggade. Det är alltså inte en skrivväg som kringgår något; luckan var att regeln litade på vad anroparen skickade.
+- **Appen (cllp/bolag-ops, läst, inte ändrad):** båda skrivvägarna i `web/src/data/katalogen.jsx` (`useSparaKategori`, `useArkiveraKategori`) skickar `av: useSkapare("SettingsView")`, som bygger `uid` ur `useOpsAuth().user.id`, samma uid som `request.auth.uid`. Appens övriga regler kräver redan `skapadAv.uid == request.auth.uid` på samma stämpel.
+
+Beslutet, och varför regeln inte försvagas tyst: `av` är **obligatoriskt** i en rad som skrivs av en människa. Regeln kräver `av is map` och `av.uid == request.auth.uid`, så en rad utan `av`, med `av: null` eller med `av` utan uid skapas inte. En loggrad som inte kan peka ut någon är en notis och inte ett spår. Gamla rader med `av: null` läses vidare, eftersom regeln bara gäller `create`.
+
+#### Röd utan fixen, grön med den (0.39.2)
+- **`npm run test:rules`** (rules/__tests__/konfiglogg.test.mjs, fyra nya prov: admin i någon annans namn nekas, ägare som låtsas vara admin nekas, eget namn går, `av` saknas/`null`/utan uid/text nekas, och genom den riktiga skrivaren går egen stämpel och en annans stämpel svarar `skrivning`): utan det nya villkoret **3 av 194 rödas** (de tre nya proven som provar nej) och 191 gröna, med det **194 av 194 gröna**. Loggar: g211-rod.log och g211-gron.log.
+- **Ändrade befintliga prov (regel 9):** i `konfiglogg.test.mjs` bär nu varje befintlig skrivning den skrivandes egen stämpel (`egen(uid)`) i stället för den fasta `uid: "u"` och ingen stämpel alls. Utan det hade de positiva proven fallit av ett nytt skäl, och de negativa (admin i A skriver B:s rad, medlem, avslutad, utanför) hade fortsatt vara röda men för fel skäl: nu bär de en rätt stämpel och nekas av just gruppvillkoret eller rollen de provar. Ingen förväntan ändrades (samma ja och nej som förut). Inga andra provfiler ändrade.
+
+### Att göra i appen
+1. Pinna om till 0.39.2.
+2. Regenerera regelfragmentet: `check-regelfragment --skriv` (konfigloggblocket får två rader mer).
+3. **CP deployar reglerna efter mergen** (regeln gäller först då). Ordning: ramverket mergas först, ompinningen sedan.
+4. Skulle en gammal klient nekas? Bara om den skriver en loggrad utan `av` eller med en `av.uid` som inte är den inloggades. Appens nuvarande kod (`useSkapare`) skickar rätt stämpel, så ingen känd klient nekas. En klient där användaren saknar `id` (`uid: null`) skulle nekas, men det är en användare som inte kan vara admin i någon grupp.
+
+---
+
 ## 0.39.1
 
 ⛔ **Gruppanelens nederkant på dator går nu att rulla fram helt (cllp/bolag-ops#497). Inga exporter, props eller komponenter ändras: tre klasser på panelens `nav` i `OpsGruppanel`, och kalenderns långtryck rensas när kalendern försvinner. Appen behöver bara pinna om.**
