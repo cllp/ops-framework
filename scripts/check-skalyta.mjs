@@ -3815,6 +3815,193 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   }
 }
 
+// ══ 35. HÄNDELSEPANELEN MOT SS EventDetail VID 390 OCH 1280 PX (0.40.0, #214) ═══════════════════════════════════════════════
+// CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalender och från idag. Händelsepanelen skall ha en tillbaka
+// knapp. Kolla SessionStudio." Scenen `handelse` är en app med Idag (två flikar, tolv uppgifter och tre händelser) och Kalender, och skalets
+// `handelsepanel`. Krav, vid båda bredderna:
+//   (a) INGÅNGAR: en rad i Idag och en post i kalenderns dagpanel är länkar till `?handelse=<id>` och ett tryck var som helst på kortet (inte bara på
+//       titeln) öppnar panelen, medan åtgärden och utfällningen på samma kort tar sina egna tryck och inte öppnar den. Snabbtitten öppnar också.
+//   (b) TILLBAKA: knappen står överst längst till vänster, minst 44 px hög, och ligger ovanför titeln.
+//   (c) INNEHÅLL I SS ORDNING: Tillbaka, titel, typrad, informationsruta (datum, tid, plats), beskrivning, svar, uppifrån och ned, och bara det händelsen
+//       har (en händelse utan plats och beskrivning ritar ingen tom ruta). Inget klipps: ingen horisontell överflödning, ingen text bredare än fönstret,
+//       en mycket lång rubrik och ett långt ord bryts.
+//   (d) VÄGEN TILLBAKA: Tillbaka, webbläsarens bakåt och en omladdning på adressen. Idag står kvar på sin flik och på sin rullning, kalendern med sin
+//       valda dag, sin månad och utan snabbtitt. Framåt öppnar panelen igen.
+// Golv: minst två händelselänkar på fliken Idag, tre på Kommande och tre i dagpanelen, och minst nio mätta element i panelen.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const namn = `händelsepanelen ${vp.width}`;
+  const context = await browser.newContext({ viewport: vp });
+  const page = await context.newPage();
+  page.setDefaultTimeout(4000);
+  const fel = /** @type {string[]} */ ([]);
+  page.on("pageerror", (e) => fel.push(e.message));
+  await page.emulateMedia({ colorScheme: standardtema === "dark" ? "dark" : "light" });
+  const html = sida("handelse");
+  await page.route("http://skalyta.test/**", (r) => r.fulfill({ contentType: "text/html; charset=utf-8", body: html }));
+  /** @param {string} [sokvag] */
+  const ga = async (sokvag = "") => {
+    await page.goto(`http://skalyta.test/${sokvag}`);
+    await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(250);
+  };
+  const panelOppen = () => page.evaluate(() => { const p = document.querySelector("[data-handelsepanel]"); return !!p && p.getBoundingClientRect().width > 0; });
+  const adress = () => new URL(page.url()).searchParams.get("handelse");
+  /** Mäter panelen: ordning, Tillbaka, klippning. */
+  const matPanel = () => page.evaluate(() => {
+    const p = /** @type {HTMLElement} */ (document.querySelector("[data-handelsepanel]"));
+    const r = (/** @type {Element | null} */ e) => (e ? e.getBoundingClientRect() : null);
+    const tillbaka = /** @type {HTMLElement | null} */ (p.querySelector("button"));
+    const h1 = p.querySelector("h1");
+    const del = {
+      tillbaka: r(tillbaka), h1: r(h1), meta: r(p.querySelector("[data-handelsemeta]")), info: r(p.querySelector("[data-handelseinfo]")), datum: r(p.querySelector("[data-handelsedatum]")),
+      tid: r(p.querySelector("[data-handelsetid]")), plats: r(p.querySelector("[data-handelseplats]")), beskrivning: r(p.querySelector("[data-handelsebeskrivning]")), svar: r(p.querySelector("[data-handelsesvar]")),
+    };
+    /** @type {{ el: string, over: number }[]} */
+    const klippta = [];
+    let atMatt = 0;
+    for (const e of p.querySelectorAll("h1, [data-handelsedatum], [data-handelsetid], [data-handelseplats], [data-handelsebeskrivning], [data-handelsemeta] span, [data-ops-svar] span.truncate")) {
+      atMatt += 1;
+      const el = /** @type {HTMLElement} */ (e);
+      const b = el.getBoundingClientRect();
+      if (b.right > window.innerWidth + 0.5 || b.left < -0.5) klippta.push({ el: `${el.tagName}.${(el.getAttribute("data-handelsedatum") ?? el.getAttribute("data-handelseplats") ?? el.className).toString().slice(0, 30)} utanför fönstret ${b.left.toFixed(0)}..${b.right.toFixed(0)}`, over: 1 });
+      if (el.scrollWidth - el.clientWidth > 1 && getComputedStyle(el).overflow !== "visible") klippta.push({ el: `${el.tagName} scrollWidth ${el.scrollWidth} > clientWidth ${el.clientWidth}`, over: el.scrollWidth - el.clientWidth });
+    }
+    return {
+      del, klippta, atMatt, h1Text: h1 ? (h1.textContent || "").trim() : "", tillbakaText: tillbaka ? (tillbaka.textContent || "").trim() : "",
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth, vw: window.innerWidth, panelLeft: p.getBoundingClientRect().left,
+      harSvar: !!p.querySelector("[data-ops-svar]"), harPlats: !!p.querySelector("[data-handelseplats]"), harBeskrivning: !!p.querySelector("[data-handelsebeskrivning]"),
+    };
+  });
+  try {
+    await ga();
+    // ── (a) Idag ──────────────────────────────────────────────────────────────────────────────────────────────────
+    const lankarIdag = await page.locator("[data-handelselank]").count();
+    krav(lankarIdag >= 2, `${namn}: ${lankarIdag} händelselänkar på fliken Idag, väntat minst 2 (golv: styrelsemötet och löneutbetalningen). Panelen finns inte, eller raderna ritar ingen länk.`);
+    krav(await page.locator('a[data-handelselank][href="?handelse=mote"]').count() === 1, `${namn}: raden för styrelsemötet är ingen länk till ?handelse=mote.`);
+    krav(await page.locator("li", { hasText: "Uppgift nummer 1" }).locator("a[data-handelselank]").count() === 0, `${namn}: en uppgift utan handelseId har fått en länk.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-idag-${vp.width}.png`) });
+    // Ett tryck var som helst på kortet, inte bara på titeln: längst till höger i kortet, under datumraden.
+    const kort = page.locator("li", { has: page.locator('a[href="?handelse=mote"]') }).first();
+    const kr = await kort.boundingBox();
+    if (kr) await page.mouse.click(kr.x + kr.width - 28, kr.y + kr.height - 14);
+    await page.waitForTimeout(250);
+    krav(await panelOppen() && adress() === "mote", `${namn}: ett tryck i kortets nedre högra hörn öppnade ingen panel (adress ${adress()}). Länkens ::after täcker inte kortet.`);
+    // Tillbaka: rullning och flik. Först utan att öppna: åtgärden och utfällningen på ett kort öppnar inte panelen.
+    await ga();
+    await page.locator('[data-flik="kommande"]').click();
+    const lankar = await page.locator("[data-handelselank]").count();
+    krav(lankar >= 3, `${namn}: ${lankar} händelselänkar på fliken Kommande, väntat minst 3 (golv: mötet, löneutbetalningen och tåget).`);
+    await page.getByRole("button", { name: "Markera" }).click();
+    krav(!(await panelOppen()) && await page.evaluate(() => /** @type {any} */ (window).__atgard) === 1, `${namn}: ett tryck på åtgärden Markera öppnade panelen eller räknades inte (${await page.evaluate(() => /** @type {any} */ (window).__atgard)} anrop). Kontrollerna på kortet måste ligga över länken.`);
+    await page.getByRole("button", { name: /^Visa detaljer för Löneutbetalning/ }).click();
+    krav(!(await panelOppen()) && (await page.getByRole("button", { name: /^Visa detaljer för Löneutbetalning/ }).getAttribute("aria-expanded")) === "true", `${namn}: ett tryck på utfällningen öppnade panelen eller fällde inte ut.`);
+    const tag = page.locator("li", { has: page.locator('a[href="?handelse=tag"]') }).first();
+    await tag.scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, 40));
+    const yFore = await page.evaluate(() => Math.round(window.scrollY));
+    krav(yFore > 100, `${namn}: Idag rullade bara ${yFore} px, väntat mer än 100 (golv: annars mäter återställningen ingenting).`);
+    const tr = await tag.boundingBox();
+    if (tr) await page.mouse.click(tr.x + tr.width - 28, tr.y + tr.height / 2);
+    await page.waitForTimeout(300);
+    const m = await matPanel().catch(() => null);
+    krav(!!m && adress() === "tag", `${namn}: tåget öppnades inte (adress ${adress()}).`);
+    if (m) krav(m.harPlats === false && m.harBeskrivning === false && m.harSvar === false && m.over <= 0, `${namn}: tåget har varken plats, beskrivning eller svar, men panelen ritar plats ${m.harPlats}, beskrivning ${m.harBeskrivning}, svar ${m.harSvar} (överflöd ${m.over}). En tom ruta är inte ett svar.`);
+    krav(await page.evaluate(() => window.scrollY) === 0, `${namn}: panelen öppnades inte överst, rullningen är ${await page.evaluate(() => window.scrollY)}.`);
+    await page.getByRole("button", { name: "Tillbaka" }).click();
+    await page.waitForTimeout(300);
+    const yEfter = await page.evaluate(() => Math.round(window.scrollY));
+    krav(!(await panelOppen()) && adress() === null && await page.locator('[data-flik="kommande"]').getAttribute("aria-selected") === "true", `${namn}: efter Tillbaka står panelen ${await panelOppen() ? "kvar" : "borta"}, adressen är ${adress()} och fliken Kommande är ${await page.locator('[data-flik="kommande"]').getAttribute("aria-selected")}, väntat borta, ingen adress och vald.`);
+    krav(Math.abs(yEfter - yFore) <= 2, `${namn}: rullningen var ${yFore} före och är ${yEfter} efter Tillbaka, väntat samma plats i Idag.`);
+    krav(await page.getByRole("button", { name: /^Visa detaljer för Löneutbetalning/ }).getAttribute("aria-expanded") === "true", `${namn}: Löneutbetalningens utfällning är stängd efter Tillbaka, väntat kvar utfälld (vyn ska inte ha ritats om).`);
+
+    // ── (b), (c) panelen för styrelsemötet ───────────────────────────────────────────────────────────────────────
+    await ga("?handelse=mote");
+    krav(await panelOppen(), `${namn}: en omladdning på ?handelse=mote öppnade ingen panel.`);
+    const p = await matPanel();
+    const d = p.del;
+    matt.push(`${namn}: Tillbaka ${d.tillbaka && `${d.tillbaka.left.toFixed(0)},${d.tillbaka.top.toFixed(0)} ${d.tillbaka.width.toFixed(0)}x${d.tillbaka.height.toFixed(0)}`}, rubrik "${p.h1Text}" ${d.h1 && `${d.h1.left.toFixed(0)},${d.h1.top.toFixed(0)} ${d.h1.width.toFixed(0)}x${d.h1.height.toFixed(0)}`}, ruta ${d.info && `${d.info.top.toFixed(0)}..${d.info.bottom.toFixed(0)}`}, svar ${d.svar && d.svar.top.toFixed(0)}, ${p.atMatt} mätta element, ${p.klippta.length} klippta, överflöd ${p.over}`);
+    krav(p.atMatt >= 9, `${namn}: bara ${p.atMatt} element mätta i panelen, väntat minst 9 (golv).`);
+    krav(!!d.tillbaka && p.tillbakaText === "Tillbaka", `${namn}: ingen Tillbaka-knapp i panelen (${JSON.stringify(p.tillbakaText)}).`);
+    if (d.tillbaka && d.h1) {
+      krav(d.tillbaka.height >= 44 - 0.5, `${namn}: Tillbaka är ${d.tillbaka.height.toFixed(1)} px hög, väntat minst 44 (tumme).`);
+      krav(d.tillbaka.bottom <= d.h1.top + 4 && d.tillbaka.top < 160, `${namn}: Tillbaka ligger inte överst (${d.tillbaka.top.toFixed(0)}..${d.tillbaka.bottom.toFixed(0)}) ovanför rubriken (${d.h1.top.toFixed(0)}).`);
+      krav(d.tillbaka.left <= p.panelLeft + 24 && d.tillbaka.left >= p.panelLeft - 12 && Math.abs(d.tillbaka.left - d.h1.left) <= 12, `${namn}: Tillbaka står inte till vänster i kolumnen (vänsterkant ${d.tillbaka.left.toFixed(1)}, rubrikens ${d.h1.left.toFixed(1)}, panelens ${p.panelLeft.toFixed(1)}).`);
+    }
+    const ordning = [["Tillbaka", d.tillbaka], ["rubriken", d.h1], ["typraden", d.meta], ["informationsrutan", d.info], ["beskrivningen", d.beskrivning], ["svaren", d.svar]];
+    for (let i = 1; i < ordning.length; i += 1) {
+      const [a, ra] = /** @type {[string, DOMRect | null]} */ (ordning[i - 1]);
+      const [b, rb] = /** @type {[string, DOMRect | null]} */ (ordning[i]);
+      krav(!!ra && !!rb && rb.top >= ra.bottom - 1, `${namn}: ${b} (${rb && rb.top.toFixed(0)}) ligger inte under ${a} (${ra && ra.bottom.toFixed(0)}). Ordningen är SS: Tillbaka, titel, typrad, ruta, beskrivning, svar.`);
+    }
+    krav(!!d.datum && !!d.tid && !!d.plats && !!d.info && d.datum.bottom <= d.tid.top + 1 && d.tid.bottom <= d.plats.top + 1 && d.plats.bottom <= d.info.bottom, `${namn}: datum, tid och plats står inte i den ordningen inne i informationsrutan.`);
+    krav(p.klippta.length === 0, `${namn}: ${p.klippta.length} element klipps eller sticker ut: ${p.klippta.map((k) => k.el).slice(0, 3).join(" | ")}.`);
+    krav(p.over <= 0, `${namn}: sidan flödar över ${p.over} px horisontellt.`);
+    krav(p.harSvar, `${namn}: styrelsemötet kräver svar men panelen ritar inga svar.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-panel-${vp.width}.png`), fullPage: true });
+
+    // en mycket lång rubrik, ett långt ord och en lång plats bryts i stället för att klippas
+    await ga("?handelse=lang");
+    const l = await matPanel();
+    matt.push(`${namn}: lång rubrik ${l.del.h1 && `${l.del.h1.width.toFixed(0)}x${l.del.h1.height.toFixed(0)}`}, ${l.klippta.length} klippta, överflöd ${l.over}`);
+    krav(l.klippta.length === 0 && l.over <= 0, `${namn}: den långa rubriken, platsen eller det långa ordet klipps (${l.klippta.map((k) => k.el).slice(0, 2).join(" | ")}, överflöd ${l.over}).`);
+    if (vp.width < 768) krav(!!l.del.h1 && l.del.h1.height > 40, `${namn}: den långa rubriken är ${l.del.h1 && l.del.h1.height.toFixed(0)} px hög på en telefon, väntat flera rader (den ska brytas, inte trunkeras).`);
+    krav(await page.evaluate(() => /** @type {string} */ ((document.querySelector("[data-handelsedatum]") || { textContent: "" }).textContent).includes("onsdag 7 oktober 2026") && !!document.querySelector("[data-handelsedatum] .sr-only")), `${namn}: en händelse över flera dagar skriver inte båda datumen med pilen.`);
+
+    // ── (d) vägen tillbaka: webbläsarens bakåt och framåt, och ett id som inte finns ──────────────────────────────
+    await ga();
+    await page.locator('a[href="?handelse=mote"]').click();
+    await page.waitForTimeout(250);
+    await page.goBack();
+    await page.waitForTimeout(250);
+    krav(!(await panelOppen()) && adress() === null, `${namn}: webbläsarens bakåt stängde inte panelen (panelen ${await panelOppen()}, adress ${adress()}).`);
+    await page.goForward();
+    await page.waitForTimeout(250);
+    krav(await panelOppen() && adress() === "mote", `${namn}: webbläsarens framåt öppnade inte panelen igen (adress ${adress()}).`);
+    await ga("?handelse=finns-inte");
+    krav(await page.getByText("Händelsen finns inte").count() === 1 && await page.getByRole("button", { name: "Tillbaka" }).count() === 1, `${namn}: ett id som inte finns ger inte "Händelsen finns inte" med en Tillbaka-knapp.`);
+
+    // ── (a), (d) Kalendern: dagpanelens rad och snabbtitten ───────────────────────────────────────────────────────
+    await ga();
+    await page.locator('a[href="/kalender"]:visible').first().click();
+    await page.waitForSelector('[data-cal-day="2026-10-12"]');
+    await page.locator('[data-cal-day="2026-10-12"]').click();
+    await page.waitForSelector("[data-dagpanel]");
+    const dagLankar = await page.locator("[data-dagpanel] [data-handelselank]").count();
+    krav(dagLankar >= 3, `${namn}: ${dagLankar} händelselänkar i dagpanelen den 12 oktober, väntat minst 3 (golv: mötet, löneutbetalningen och tåget).`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-kalender-dagpanel-${vp.width}.png`) });
+    const rulle = () => page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); return { rulle: r ? Math.round(r.scrollTop) : -1, fonster: Math.round(window.scrollY) }; });
+    await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); if (r) r.scrollTop += 120; });
+    const rFore = await rulle();
+    const rad = page.locator("[data-dagpanel] [data-postrad]", { has: page.locator("[data-handelselank]") }).first();
+    const rr = await rad.boundingBox();
+    if (rr) await page.mouse.click(rr.x + rr.width - 60, rr.y + rr.height / 2);
+    await page.waitForTimeout(300);
+    krav(await panelOppen() && !!adress(), `${namn}: ett tryck på en rad i dagpanelen öppnade ingen panel (adress ${adress()}). Länkens ::after täcker inte raden.`);
+    const mk = await matPanel().catch(() => null);
+    krav(!!mk && mk.klippta.length === 0 && mk.over <= 0 && !!mk.del.tillbaka && mk.del.tillbaka.height >= 43.5, `${namn}: panelen ur kalendern: ${mk ? `${mk.klippta.length} klippta, överflöd ${mk.over}, Tillbaka ${mk.del.tillbaka && mk.del.tillbaka.height.toFixed(0)} px` : "kunde inte mätas"}.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-fran-kalender-${vp.width}.png`) });
+    await page.getByRole("button", { name: "Tillbaka" }).click();
+    await page.waitForTimeout(350);
+    const rEfter = await rulle();
+    const dagKvar = await page.locator('[data-cal-day="2026-10-12"]').getAttribute("aria-pressed");
+    krav(!(await panelOppen()) && adress() === null && dagKvar === "true" && (await page.locator("[data-dagpanel]").count()) === 1, `${namn}: efter Tillbaka i kalendern: panel ${await panelOppen()}, adress ${adress()}, den valda dagen ${dagKvar}, dagpanelen ${await page.locator("[data-dagpanel]").count()}. Väntat stängd, ingen adress, dagen vald och dagpanelen kvar.`);
+    krav(Math.abs(rEfter.rulle - rFore.rulle) <= 2 && Math.abs(rEfter.fonster - rFore.fonster) <= 2, `${namn}: kalenderns rullning var ${JSON.stringify(rFore)} före och är ${JSON.stringify(rEfter)} efter Tillbaka, väntat samma månad.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-kalender-efter-tillbaka-${vp.width}.png`) });
+    await page.locator('[data-cal-day="2026-10-12"]').click({ button: "right" });
+    await page.waitForSelector("[data-snabbtitt]");
+    await page.locator("[data-snabbtitt] [data-handelselank]").first().click();
+    await page.waitForTimeout(250);
+    krav(await panelOppen() && (await page.locator("[data-snabbtitt]").count()) === 0, `${namn}: raden i snabbtitten öppnade ingen panel, eller titten står kvar (${await page.locator("[data-snabbtitt]").count()}).`);
+    await page.getByRole("button", { name: "Tillbaka" }).click();
+    await page.waitForTimeout(300);
+    krav((await page.locator("[data-snabbtitt]").count()) === 0 && (await page.locator('[data-cal-day="2026-10-12"]').getAttribute("aria-pressed")) === "true", `${namn}: efter Tillbaka ur snabbtitten står titten kvar eller dagen har tappat sitt val.`);
+    krav(fel.length === 0, `${namn}: sidan kastade: ${fel[0]}`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 if (bildmapp) {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const { page, context } = await oppna("kalender", vp);

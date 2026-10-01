@@ -324,6 +324,73 @@ function SvarScen() {
   );
 }
 
+/*
+ * 0.40.0 (#214): händelsepanelen. En app med Idag och Kalender i skalet, där en post med `handelseId` öppnar panelen. Idag har två flikar (Idag och
+ * Kommande, tillståndet som ska finnas kvar efter Tillbaka) och tolv rader så att sidan rullar; kalendern är scenens `KAL_POSTER` med tre poster som är
+ * händelser. Appens källa är `HANDELSE_VY`, och `rita` slår upp id:t ur den, som en app gör med sin egen källa. Saknas `OpsHandelsePanel` i den byggda
+ * versionen (0.39.2) ritas en markör, och avsnitt 35 blir rött på det i stället för att sidan kastar. `window.__vy` är vilken vy appen står på.
+ */
+const HANDELSE_VY = {
+  mote: { id: "mote", titel: "Styrelsemöte", datum: "2026-10-12", tid: "18:00", slutTid: "20:00", typ: { namn: "Möte", ikon: <Calendar size={16} />, slag: 1 }, status: "oppet", grupp: "Claes Philip Staiger AB", kalender: { namn: "Styrelsen", farg: 4 }, plats: "Kontoret, Visby", beskrivning: "Vi går igenom budgeten för fjärde kvartalet och beslutar om utdelningen. Handlingarna skickas ut en vecka före mötet, och den som inte kan komma ger sina synpunkter i förväg.", kravSvar: true },
+  lon: { id: "lon", titel: "Löneutbetalning", datum: "2026-10-12", heldag: true, typ: { namn: "Deadline", ikon: <FileText size={16} />, slag: 2 }, status: "vantar", grupp: "Claes Philip Staiger AB" },
+  tag: { id: "tag", titel: "Tåg till Malmö", datum: "2026-10-12", tid: "07:15", kalender: { namn: "Resor", farg: 2 }, status: "klart" },
+  lang: { id: "lang", titel: "Konferens i Visby med en mycket lång rubrik som måste få bryta över flera rader på en smal skärm utan att klippas", datum: "2026-10-05", slutDatum: "2026-10-07", heldag: true, typ: { namn: "Resa", ikon: <FileText size={16} />, slag: 3 }, status: "oppet", plats: "Almedalsbiblioteket, Strandgatan 1, 621 56 Visby", beskrivning: "Ett långt ord som Sammanträdesprotokollsjusteringsförfarandet ska inte spränga kolumnen." },
+};
+const HANDELSE_RADER = [
+  { id: "e-mote", title: "Styrelsemöte", daysLeft: 0, role: "Du", kind: "Möte", when: "Idag 18:00", slag: 1, slagLabel: "Möte", handelseId: "mote" },
+  { id: "e-lon", title: "Löneutbetalning", daysLeft: 0, kind: "Deadline", when: "Idag", slag: 2, slagLabel: "Deadline", handelseId: "lon", atgard: <OpsButton variant="ghost" onClick={() => { window.__atgard = (window.__atgard ?? 0) + 1; }}>Markera</OpsButton>, details: <p>Tre löner.</p> },
+  ...Array.from({ length: 12 }, (_, i) => ({ id: `u${i}`, title: `Uppgift nummer ${i + 1}`, daysLeft: i + 1, kind: "Uppgift", when: `Om ${i + 1} dagar`, slag: 3, slagLabel: "Uppgift", atgard: <OpsButton variant="ghost">Klar</OpsButton> })),
+  // En händelse långt ner i listan: provet rullar dit, öppnar den och mäter att rullningen kommer tillbaka.
+  { id: "e-tag", title: "Tåg till Malmö", daysLeft: 14, kind: "Resa", when: "Om 14 dagar", slag: 3, slagLabel: "Resa", handelseId: "tag" },
+];
+window.__atgard = 0;
+function HandelseSvarSlot({ id }) {
+  const [svar, setSvar] = useState([{ id: "bo", svar: "kommerInte" }]);
+  const { OpsSvar } = Ops;
+  if (!OpsSvar) return <p data-saknas="OpsSvar">OpsSvar saknas</p>;
+  return <OpsSvar svar={svar} uid="anna" onSvara={(v) => setSvar((nu) => [...nu.filter((x) => x.id !== "anna"), { id: "anna", svar: v }])} medlemmar={[{ uid: "anna", namn: "Anna Ek" }, { uid: "bo", namn: "Bo Lind" }, { uid: "cecilia", namn: "Cecilia Berg" }]} />;
+}
+function HandelseScen() {
+  const { OpsView, OpsCalendar, OpsHandelsePanel } = Ops;
+  const [href, setHref] = useState("/");
+  const [flik, setFlik] = useState("idag");
+  window.__vy = href;
+  const posterMedId = KAL_POSTER.map((p) => (HANDELSE_VY[p.id] ? { ...p, handelseId: p.id } : p));
+  const panel = OpsHandelsePanel
+    ? {
+        rita: ({ id, onTillbaka }) => <OpsHandelsePanel handelse={HANDELSE_VY[id] ?? null} onTillbaka={onTillbaka} statusWords={{ oppet: "Öppet", vantar: "Väntar", klart: "Klart" }} svar={<HandelseSvarSlot id={id} />} />,
+      }
+    : undefined;
+  return (
+    <Full
+      aktivHref={href}
+      onNavigate={(h, e) => {
+        e.preventDefault();
+        setHref(h);
+      }}
+      handelsepanel={panel}
+    >
+      {OpsHandelsePanel ? null : <p data-saknas="OpsHandelsePanel">OpsHandelsePanel saknas</p>}
+      {href === "/kalender" ? (
+        <OpsView>
+          <OpsCalendar ariaLabel="Kalender" entries={posterMedId} today={KAL_IDAG} kalendrar={KAL_KALENDRAR} statusWords={{ oppet: "Öppet", vantar: "Väntar", klart: "Klart" }} />
+        </OpsView>
+      ) : (
+        <OpsView>
+          <div role="tablist" className="mb-3 flex gap-2">
+            {["idag", "kommande"].map((f) => (
+              <button key={f} role="tab" type="button" aria-selected={flik === f} data-flik={f} onClick={() => setFlik(f)} className="min-h-11 rounded-base border border-line px-3 text-etikett aria-selected:bg-accent-faint">
+                {f === "idag" ? "Idag" : "Kommande"}
+              </button>
+            ))}
+          </div>
+          <OpsEventList ariaLabel="Idag" events={flik === "idag" ? HANDELSE_RADER.slice(0, 8) : HANDELSE_RADER} actionHint="Bara uppgifter går att markera." />
+        </OpsView>
+      )}
+    </Full>
+  );
+}
+
 function Skal({ children, extra = {} }) {
   const [aktiv] = useState("/");
   return (
@@ -416,7 +483,7 @@ const manyaGrupper = (lista) => [...lista, ...Array.from({ length: window.__mang
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/" }) {
+function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(aktivIScenen());
   return (
@@ -436,6 +503,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions =
       }
       anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
       skapa={skapa}
+      handelsepanel={handelsepanel}
       meny={meny}
       grupper={{ lista: utanGrupp() ? [] : window.__skal === "gruppkort" ? g2Lista : manyaGrupper(grupperLista), aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
     >
@@ -902,6 +970,7 @@ function Scen() {
   if (s === "ny-handelse") return <NyHandelseScen />;
   if (s === "ny-handelse-nav") return <NavNyHandelseScen />;
   if (s === "svar") return <SvarScen />;
+  if (s === "handelse") return <HandelseScen />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;

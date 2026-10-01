@@ -268,6 +268,12 @@ describe("Idag: en rad med handelseId öppnar panelen, Tillbaka kommer tillbaka 
     expect(screen.getByLabelText("Anteckning")).toBeInTheDocument();
   });
 
+  it("ett vanligt tryck avbryter webbläsarens egen navigering, annars laddas sidan om på ?handelse=", () => {
+    render(<App />);
+    // `fireEvent` svarar false när någon anropat preventDefault.
+    expect(fireEvent.click(screen.getByRole("link", { name: "Styrelsemöte" }))).toBe(false);
+  });
+
   it("ett tryck med Ctrl lämnas åt webbläsaren (ny flik) och öppnar inte panelen", () => {
     render(<App />);
     // Webbläsaren navigerar när en länk inte avbryts; jsdom kan inte, så det avbryts här, EFTER att länkens egen hanterare har fått se klicket.

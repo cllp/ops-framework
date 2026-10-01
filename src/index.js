@@ -207,7 +207,7 @@ export { OpsSvar, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx"
  * panelen ur sin egen källa med `OpsHandelsePanel` och sätter `svar` till sitt `OpsSvar`.
  */
 export { OpsHandelsePanel } from "./components/OpsHandelsePanel.jsx";
-export { HANDELSEPARAM, handelseHref, handelseIdUrAdress, medHandelse, handelsetid, langtDatum } from "./lib/handelsepanel.js";
+export { HANDELSEPARAM, handelseHref } from "./lib/handelsepanel.js";
 export { createKalenderkalla, createSvarskalla } from "./data/kalenderkalla.js";
 export { HANDELSEKONTRAKT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader } from "./lib/handelsemodell.js";
 

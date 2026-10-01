@@ -210,8 +210,10 @@ export function OpsHandelsePanel({
         ) : null}
       </div>
 
+      {/* ⛔ SS `CollapsibleDescription.jsx`: `text-base` (16) med tre rader och "Visa hela beskrivningen". Texten här är HELA beskrivningen utan tak: panelen
+          är sidan där man läser den, och ett "visa mer" för tre rader på en egen sida är ett tryck för ingenting. Storleken är SS. */}
       {handelse.beskrivning ? (
-        <div data-handelsebeskrivning="" className="mt-4 rounded-base border border-line bg-sunken p-4 text-etikett text-ink-secondary whitespace-pre-line wrap-anywhere">
+        <div data-handelsebeskrivning="" className="mt-4 rounded-base border border-line bg-sunken p-4 text-brod leading-relaxed text-ink-secondary whitespace-pre-line wrap-anywhere">
           {handelse.beskrivning}
         </div>
       ) : null}

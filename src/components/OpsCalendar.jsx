@@ -1090,10 +1090,22 @@ export function OpsCalendar({
    * kolumn och ingenting täcks. Den översta valda dagen räknas: vid ett intervall är det dess rad som ska synas.
    */
   const forstaValda = chosen.length > 0 ? [...chosen].sort()[0] : null;
+  /*
+   * ⛔ 0.40.0 (#214): RULLNINGEN SKULDAS EN GÅNG PER VAL, INTE VID VARJE ÄNDRING AV PANELENS HÖJD. Effekten nedan hade `panelHojd` som beroende,
+   * eftersom panelens höjd är 0 när dagen väljs och mäts först efteråt. Men höjden går också till 0 och tillbaka när kalendern DÖLJS och visas, och
+   * det gör den när skalet visar en händelsepanel över den och man trycker Tillbaka. Då rullade effekten om kalendern +110 px (mätt i check-skalyta
+   * avsnitt 35 vid 390 px: 4814 före, 4924 efter Tillbaka), och man kom tillbaka till en annan månad än den man lämnade. `skuldRullning` sätts bara när
+   * den första valda dagen BYTS, och effekten kvitterar den när den har mätt panelen.
+   */
+  const skuldRullning = useRef(false);
+  useEffect(() => {
+    skuldRullning.current = true;
+  }, [forstaValda]);
   useEffect(() => {
     const rulle = rulleRef.current;
     const panel = panelRef.current;
-    if (!forstaValda || !rulle || !panel || panelHojd <= 0) return;
+    if (!skuldRullning.current || !forstaValda || !rulle || !panel || panelHojd <= 0) return;
+    skuldRullning.current = false;
     if (typeof window.matchMedia === "function" && !window.matchMedia("(max-width: 1023.98px)").matches) return;
     const ruta = /** @type {HTMLElement | null} */ (rulle.querySelector(`[data-cal-day="${forstaValda}"]`));
     if (!ruta) return;
