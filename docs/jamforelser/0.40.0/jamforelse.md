@@ -15,7 +15,7 @@ Ramverkets sida är Playwright mot den byggda `dist` (`check-skalyta --bilder`, 
 | `handelse-panel-390.png`, `handelse-panel-1280.png` | ramverkets panel ensam |
 | `ss-panel-390.png`, `ss-panel-1280.png` | SS-sidan ensam |
 | `handelse-idag-390.png`, `handelse-idag-1280.png` | Idag med händelsekorten som länkar |
-| `handelse-kalender-dagpanel-390.png`, `-1280.png` | kalenderns dagpanel med raderna som länkar och chevron |
+| `handelse-kalender-dagpanel-390.png`, `-1280.png` | kalenderns dagpanel med raderna som länkar |
 | `handelse-fran-kalender-390.png`, `-1280.png` | panelen öppnad ur dagpanelen |
 | `handelse-kalender-efter-tillbaka-390.png`, `-1280.png` | kalendern efter Tillbaka: dagen vald, dagpanelen kvar |
 
@@ -38,4 +38,4 @@ Ramverkets sida är Playwright mot den byggda `dist` (`check-skalyta --bilder`, 
 - **Deltagarna.** SS "Tillgänglighet" (rubrik, antal, "Kan: N", en rad per medlem med Ej svarat och en klocka) mot ramverkets `OpsSvar` ("Svar", antal, "0 kommer, 1 kommer inte, 2 har inte svarat", knapparna Kommer och Kommer inte direkt på den egna raden). Det är 0.37.0:s avvägning (#179 F3), mätt mot SS i avsnitt 33, och den ändras inte här.
 - **Flikarna, redigera och exportknapparna, serien, datumomröstningen och bokade resurser** finns inte. De är appens data och appens åtgärder. `atgarder` är platsen för knapparna; flikar och ett bibliotek hör till en senare leverans och ritas inte som döda flikar i väntan på den.
 - **Appens krom** (se ovan) saknas i SS-bilden: sidopanelen med grupperna syns vid 1280 i ramverkets bild, och bottenraden vid 390.
-- **Ingångarna.** SS har ingen visuell markering på Idag-kortet (kortet är tryckbart utan märke). Ramverket har ingen heller på Idag, men en chevron efter titeln på raden i kalenderns dagpanel, eftersom raderna där är tät text och inte ser tryckbara ut. Det är ramverkets tillägg, inte SS.
+- **Ingångarna.** SS markerar inte att Idag-kortet eller dagpanelens rad går att öppna, och det gör ramverket inte heller: raden är tryckbar över hela ytan, med understrykning av titeln vid hover och fokusring. På en telefon utan hover är det bara raden själv som säger det, precis som i SS-appen. En pil på raden prövades i dagpanelen och togs bort (se CHANGELOG 0.40.0): bubblan är för smal.
