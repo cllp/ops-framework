@@ -1,4 +1,4 @@
-import { createDataSource, innehallerVillkor } from "./contract.js";
+import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
 
 /**
  * Adapter mot Postgres, till exempel Cloud SQL i Google Cloud.
@@ -132,7 +132,8 @@ export function createPostgresSource(config) {
       if (entries.length === 0) throw new Error("postgres: uppdatera utan fält att ändra.");
 
       const assignments = entries.map(([k], i) => `${identifier(k)} = $${i + 1}`).join(", ");
-      const params = [...entries.map(([, v]) => v), id];
+      // ⛔ `FALT_BORT` (0.40.0) är `NULL` i en kolumn: en rad har inga fält som saknas, bara kolumner utan värde.
+      const params = [...entries.map(([, v]) => (v === FALT_BORT ? null : v)), id];
       const rows = await query(
         `UPDATE ${identifier(collectionName)} SET ${assignments} WHERE ${ID} = $${params.length} RETURNING *`,
         params,

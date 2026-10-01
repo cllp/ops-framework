@@ -3,7 +3,7 @@ import { cx } from "../lib/cx.js";
 import { handelsetid } from "../lib/handelsepanel.js";
 import { KALENDERPRICK } from "../lib/kalenderfarg.js";
 import { slagText } from "../lib/slag.js";
-import { DatumIkon, KlockaIkon, PilHogerIkon, PlatsIkon } from "./icons.jsx";
+import { AndraIkon, DatumIkon, KlockaIkon, PilHogerIkon, PlatsIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
@@ -67,7 +67,9 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  * @param {boolean} [props.laddar] Appen läser händelsen ännu. Visar en väntan i stället för "finns inte".
  * @param {() => void} props.onTillbaka
  * @param {import("react").ReactNode} [props.svar] Svaren. Ritas bara när `handelse.kravSvar` är sant.
- * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS redigera och export).
+ * @param {() => void} [props.onRedigera] (0.40.0) Pennan: SS redigera. Ritas BARA när appen ger den, så att en person som inte får ändra händelsen inte ser en knapp som nekas. Normalt `() => oppna("handelse", { id })` ur `useOppnaSkapa()`, som öppnar skalets skapa-panel i redigeringsläge. Ramverket känner varken regeln eller datan: appen avgör vem som får, och formuläret och sparandet är appens.
+ * @param {string} [props.redigeraEtikett] Pennans namn för skärmläsaren. Förval "Redigera".
+ * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords] KRÄVS för varje status som förekommer, som i `OpsEventList`.
  * @param {string} [props.sprak] Datumens språk, "sv" eller "en". Förval "sv".
  * @param {string} [props.tillbakaEtikett] Förval "Tillbaka".
@@ -83,6 +85,8 @@ export function OpsHandelsePanel({
   onTillbaka,
   svar,
   atgarder,
+  onRedigera,
+  redigeraEtikett = "Redigera",
   statusWords = {},
   sprak = "sv",
   tillbakaEtikett = "Tillbaka",
@@ -102,6 +106,9 @@ export function OpsHandelsePanel({
   }, []);
   if (typeof onTillbaka !== "function") {
     throw new Error("OpsHandelsePanel: onTillbaka krävs. En panel utan väg tillbaka är en sida man inte kommer ut ur.");
+  }
+  if (onRedigera !== undefined && typeof onRedigera !== "function") {
+    throw new Error("OpsHandelsePanel: onRedigera måste vara en funktion (eller utelämnas). En penna utan åtgärd är en död knapp.");
   }
   if (handelse && handelse.status && !statusWords[handelse.status]) {
     throw new Error(`OpsHandelsePanel: händelsen har status ${handelse.status} men statusWords saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`);
@@ -146,7 +153,25 @@ export function OpsHandelsePanel({
             {handelse.status !== "akut" ? <span aria-hidden="true">{statusord}</span> : null}
           </span>
         ) : null}
-        {atgarder ? <div className="flex shrink-0 items-center gap-1">{atgarder}</div> : null}
+        {/* ⛔ PENNAN STÅR I TITELRADEN, TILL HÖGER OM STATUSEN (SS `EventDetailInlinePanel.jsx:84-86`: `p-2`, `Edit w-5`, `title` och
+            `aria-label` "Redigera", bara när `onEdit` finns). Under md är träffytan 44 px (SS `p-2` ger 36); en ikon ensam har ett namn. */}
+        {onRedigera || atgarder ? (
+          <div className="flex shrink-0 items-center gap-1">
+            {onRedigera ? (
+              <button
+                type="button"
+                data-handelse-redigera=""
+                onClick={onRedigera}
+                aria-label={redigeraEtikett}
+                title={redigeraEtikett}
+                className="-my-1 inline-flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent md:size-9"
+              >
+                <AndraIkon size={20} />
+              </button>
+            ) : null}
+            {atgarder}
+          </div>
+        ) : null}
       </div>
 
       {harMetarad ? (

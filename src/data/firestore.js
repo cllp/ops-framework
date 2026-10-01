@@ -1,4 +1,4 @@
-import { createDataSource, innehallerVillkor } from "./contract.js";
+import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
 
 /**
  * Adapter mot Firestore.
@@ -85,6 +85,15 @@ export function createFirestoreSource(config) {
     );
   }
 
+  // ⛔ `FALT_BORT` (0.40.0) blir `deleteField()`. Saknar sdk:n den kastas det, och fältet blir aldrig kvar tyst: ett sparat formulär
+  // där ett tömt fält ändå står kvar är en positiv kvittens på något som inte hände. `deleteField` är inte obligatorisk vid uppstart,
+  // för en app som aldrig tar bort ett fält ska inte tvingas skicka den.
+  /** @param {Record<string, unknown>} falt */
+  const medBorttagning = (falt) => {
+    if (!Object.values(falt).includes(FALT_BORT)) return falt;
+    if (typeof sdk.deleteField !== "function") throw new Error("firestore: update med FALT_BORT kräver `deleteField` i sdk:n. Skicka in den (import { deleteField } från firebase/firestore) i stället för att låta fältet bli kvar.");
+    return Object.fromEntries(Object.entries(falt).map(([k, v]) => [k, v === FALT_BORT ? sdk.deleteField() : v]));
+  };
   const { collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } = sdk;
 
   /** @param {any} snap @returns {any} */
@@ -172,7 +181,8 @@ export function createFirestoreSource(config) {
     },
 
     async update(collectionName, id, data) {
-      const { id: _ignored, ...field } = /** @type {any} */ (data);
+      const { id: _ignored, ...falt } = /** @type {any} */ (data);
+      const field = medBorttagning(falt);
       const ref = doc(db, collectionName, id);
       await updateDoc(ref, field);
 
@@ -212,9 +222,9 @@ export function createFirestoreSource(config) {
                 b.set(ref, field);
                 svar.push({ id: ref.id, ...field });
               } else if (o.op === "update") {
-                const { id: _ignored, ...field } = /** @type {any} */ (o.data);
-                b.update(doc(db, o.collection, o.id), field);
-                svar.push({ id: o.id, ...field });
+                const { id: _ignored, ...falt } = /** @type {any} */ (o.data);
+                b.update(doc(db, o.collection, o.id), medBorttagning(falt));
+                svar.push({ id: o.id, ...Object.fromEntries(Object.entries(falt).filter(([, v]) => v !== FALT_BORT)) });
               } else if (o.op === "remove") {
                 b.delete(doc(db, o.collection, o.id));
                 svar.push(null);

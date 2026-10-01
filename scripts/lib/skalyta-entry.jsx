@@ -391,6 +391,106 @@ function HandelseScen() {
   );
 }
 
+/*
+ * 0.40.0 (#214): att ÄNDRA en händelse. Samma app som `handelse` men med pennan i panelen (`onRedigera`) och skalets redigeringsläge
+ * (`skapa.handelse.redigera`). Appens källa är `REDIGERA_RADER`, en liten butik som formuläret skriver i och panelen läser ur, som en
+ * app gör med sin databas. `?utanpenna=1` ritar panelen utan `onRedigera` (appen ger ingen penna till den som inte får ändra). Saknas
+ * `onRedigera` i den byggda versionen (0.39.2) ritas ingen penna, och avsnitt 36 blir rött på det i stället för att sidan kastar.
+ */
+const REDIGERA_RADER = { mote: { id: "mote", rubrik: "Styrelsemöte", datum: "2026-10-12", tid: "18:00", slutTid: "20:00", text: "Vi går igenom budgeten.", typ: "mote", kalenderId: "styrelse", kravSvar: true } };
+const REDIGERA_LYSSNARE = new Set();
+function useRedigeraRader() {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const l = () => tick((x) => x + 1);
+    REDIGERA_LYSSNARE.add(l);
+    return () => REDIGERA_LYSSNARE.delete(l);
+  }, []);
+  return REDIGERA_RADER;
+}
+window.__sparade = [];
+function useRedigeraHandelse(id) {
+  const rader = useRedigeraRader();
+  const r = rader[id];
+  return r ? { laddar: false, finns: true, typ: r.typ, kalenderId: r.kalenderId, kravSvar: r.kravSvar === true } : { laddar: false, finns: false };
+}
+function RedigeraForm(/** @type {any} */ p) {
+  const rader = useRedigeraRader();
+  const r = rader[p.redigera] ?? {};
+  window.__redigeraProps = { redigera: p.redigera ?? null, typ: p.typ ?? null, kalender: p.kalender ?? null, kravSvar: p.kravSvar ?? null };
+  const [rubrik, setRubrik] = useState(r.rubrik ?? "");
+  const [datum, setDatum] = useState(r.datum ?? undefined);
+  const [tid, setTid] = useState(r.tid ?? "");
+  const [slutTid, setSlutTid] = useState(r.slutTid ?? "");
+  return (
+    <form
+      id={p.formId}
+      data-app-formular=""
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        REDIGERA_RADER[p.redigera] = { ...rader[p.redigera], rubrik, datum, tid, slutTid, typ: p.typ, kalenderId: p.kalender?.id, kravSvar: p.kravSvar };
+        window.__sparade.push({ id: p.redigera, rubrik, kalenderId: p.kalender?.id, kravSvar: p.kravSvar });
+        REDIGERA_LYSSNARE.forEach((l) => l());
+        p.onKlar();
+      }}
+    >
+      <OpsField label="Rubrik">
+        <OpsInput value={rubrik} onChange={setRubrik} />
+      </OpsField>
+      <OpsField label="Datum">
+        <OpsDatePicker value={datum} onChange={setDatum} />
+      </OpsField>
+      <div className="grid grid-cols-2 gap-3">
+        <OpsField label="Från">
+          <OpsTimePicker value={tid} onChange={setTid} />
+        </OpsField>
+        <OpsField label="Till">
+          <OpsTimePicker value={slutTid} onChange={setSlutTid} />
+        </OpsField>
+      </div>
+    </form>
+  );
+}
+function RedigeraPanel({ id, onTillbaka }) {
+  const { OpsHandelsePanel } = Ops;
+  const oppna = Ops.useOppnaSkapa();
+  const rader = useRedigeraRader();
+  const r = rader[id];
+  const utanPenna = new URLSearchParams(window.location.search).get("utanpenna") === "1";
+  if (!OpsHandelsePanel) return <p data-saknas="OpsHandelsePanel">OpsHandelsePanel saknas</p>;
+  return (
+    <OpsHandelsePanel
+      handelse={r ? { id, titel: r.rubrik, datum: r.datum, tid: r.tid || undefined, slutTid: r.slutTid || undefined, typ: { namn: "Möte", ikon: <Calendar size={16} />, slag: 1 }, status: "oppet", grupp: "Claes Philip Staiger AB", kalender: { namn: "Styrelsen", farg: 4 }, beskrivning: r.text } : null}
+      onTillbaka={onTillbaka}
+      statusWords={{ oppet: "Öppet" }}
+      onRedigera={utanPenna ? undefined : () => oppna("handelse", { id })}
+    />
+  );
+}
+function HandelseRedigeraScen() {
+  const kalendrar = {
+    gruppens: [
+      { id: "styrelse", namn: { sv: "Styrelsen" }, farg: 4, ikon: "kalender", ordning: 0, arkiverad: false, texter: {}, groupId: "g3", forvald: true, iFlodet: false },
+      { id: "resor", namn: { sv: "Resor" }, farg: 2, ikon: "portfolj", ordning: 10, arkiverad: false, texter: {}, groupId: "g3", forvald: false, iFlodet: false },
+    ],
+    mina: [],
+  };
+  return (
+    <Full
+      skapa={{
+        lage: "g3",
+        sparaEtikett: "Spara",
+        handelse: { form: RedigeraForm, katalog: "handelsetyper", kalendrar, redigera: useRedigeraHandelse },
+        kataloger: [{ id: "handelsetyper", kategorier: [{ id: "mote", namn: { sv: "Möte" }, ordning: 0 }, { id: "deadline", namn: { sv: "Deadline" }, ordning: 1 }] }],
+      }}
+      handelsepanel={{ rita: ({ id, onTillbaka }) => <RedigeraPanel id={id} onTillbaka={onTillbaka} /> }}
+    >
+      <p data-vy="">Idag</p>
+    </Full>
+  );
+}
+
 function Skal({ children, extra = {} }) {
   const [aktiv] = useState("/");
   return (
@@ -971,6 +1071,7 @@ function Scen() {
   if (s === "ny-handelse-nav") return <NavNyHandelseScen />;
   if (s === "svar") return <SvarScen />;
   if (s === "handelse") return <HandelseScen />;
+  if (s === "handelse-redigera") return <HandelseRedigeraScen />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;
