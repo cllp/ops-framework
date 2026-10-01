@@ -228,7 +228,7 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
  * enda som skiljer två likadana påminnelser åt.
  *
  * ⛔ 0.40.0 (#214): EN POST MED `handelseId` ÄR HELA RADEN SOM EN LÄNK till händelsens panel (SS `DayDetailPanel`: raden öppnar händelsen). Titeln är
- * länken (`HandelseLank`), och en chevron åt höger säger att raden går att öppna, eftersom en rad med bara text inte ser tryckbar ut. Utfällningen
+ * länken (`HandelseLank`), och en chevron efter titeln säger att raden går att öppna, eftersom en rad med bara text inte ser tryckbar ut. Utfällningen
  * (status, länk, detaljer) ligger kvar ovanpå med `z-10` och tar sina egna tryck.
  *
  * @param {{ dayKey: string, entry: import("../lib/calendar.js").CalendarEntry, statusWords: Record<string, string>, order: number, locale: string, oppna: ((id: string) => void) | null }} props
@@ -329,6 +329,13 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
               {oppnaId && oppna ? (
                 <HandelseLank id={oppnaId} oppna={oppna} tacker="after:inset-0">
                   {entry.title}
+                  {/* ⛔ CHEVRONEN STÅR EFTER TITELN, I SAMMA TEXTFLÖDE, och inte i en egen kolumn bredvid utfällningen: dagpanelens bubbla är smal (en
+                      kolumn på 239 px vid 390), och en egen kolumn tog 24 px av titeln. Mätt i bilden: "Löneutbetalning" gick in under pilen. I textflödet kan
+                      den aldrig ligga över titeln, den följer med när titeln bryts, och den säger att raden går att öppna (en rad med bara text ser inte
+                      tryckbar ut). Dekor: länkens namn är titeln. */}
+                  <span data-oppna-cue="" aria-hidden="true" className="ml-0.5 inline-block align-[-0.15em] text-ink-secondary">
+                    <ChevronHogerIkon size={14} />
+                  </span>
                 </HandelseLank>
               ) : (
                 entry.title
@@ -345,12 +352,6 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
             </p>
           ) : null}
         </div>
-
-        {oppnaId ? (
-          <span data-oppna-cue="" aria-hidden="true" className="mt-0.5 flex shrink-0 items-center text-ink-secondary">
-            <ChevronHogerIkon size={16} />
-          </span>
-        ) : null}
 
         {harDetaljer ? (
           <button

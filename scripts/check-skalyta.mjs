@@ -3968,7 +3968,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     await page.waitForSelector("[data-dagpanel]");
     const dagLankar = await page.locator("[data-dagpanel] [data-handelselank]").count();
     krav(dagLankar >= 3, `${namn}: ${dagLankar} händelselänkar i dagpanelen den 12 oktober, väntat minst 3 (golv: mötet, löneutbetalningen och tåget).`);
-    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-kalender-dagpanel-${vp.width}.png`) });
+    if (bildmapp) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: path.join(bildmapp, `handelse-kalender-dagpanel-${vp.width}.png`) });
+    }
     const rulle = () => page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); return { rulle: r ? Math.round(r.scrollTop) : -1, fonster: Math.round(window.scrollY) }; });
     // ⛔ Låt dagpanelens egen rullning (`behavior: "smooth"`, uppåt över den flytande panelen) hinna klart INNAN något mäts: en mätning mitt i
     // animeringen ger en skillnad som inte har med Tillbaka att göra (4832 mot 4847 i en körning som annars var grön).
@@ -3979,6 +3982,24 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); if (r) r.scrollTop = Math.max(0, r.scrollTop - 500); });
     await page.waitForTimeout(150);
     const rFore = await rulle();
+    // ⛔ Titeln ligger aldrig över kontrollerna på samma rad: i den smala bubblan (239 px vid 390) gick "Löneutbetalning" in under en pil som stod i en
+    // egen kolumn bredvid utfällningen. Mäts på varje rad med en länk och en utfällning: titelns TEXT (en `Range` över textnoden, inte länkens ruta, som
+    // också bär pilen) slutar före en pil som står i en egen kolumn och före utfällningsknappen. En pil i själva länken (efter texten, i textflödet) kan inte
+    // ligga över titeln och mäts inte.
+    const kollision = await page.evaluate(() => [...document.querySelectorAll("[data-dagpanel] [data-postrad]")].flatMap((r) => {
+      const l = r.querySelector("[data-handelselank]");
+      const k = r.querySelector("button[aria-expanded]");
+      const t = l ? [...l.childNodes].find((n) => n.nodeType === 3 && (n.textContent || "").trim()) : null;
+      if (!l || !k || !t) return [];
+      const range = document.createRange();
+      range.selectNodeContents(t);
+      const slut = Math.max(...[...range.getClientRects()].map((x) => x.right));
+      const cue = r.querySelector("[data-oppna-cue]");
+      return [{ titel: (t.textContent || "").trim(), slut, knappStart: k.getBoundingClientRect().left, pilStart: cue && !l.contains(cue) ? cue.getBoundingClientRect().left : null }];
+    }));
+    matt.push(`${namn}: dagpanelens rader: ${JSON.stringify(kollision.map((k) => `${k.titel} slutar ${k.slut.toFixed(0)}, pilen ${k.pilStart === null ? "-" : k.pilStart.toFixed(0)}, utfällningen ${k.knappStart.toFixed(0)}`))}`);
+    krav(kollision.length >= 2, `${namn}: bara ${kollision.length} rader i dagpanelen har både en händelselänk och en utfällning, väntat minst 2 (golv).`);
+    krav(kollision.every((k) => k.slut <= k.knappStart + 0.5 && (k.pilStart === null || k.slut <= k.pilStart + 0.5)), `${namn}: titeln går in under pilen eller utfällningsknappen på ${kollision.filter((k) => k.slut > k.knappStart + 0.5 || (k.pilStart !== null && k.slut > k.pilStart + 0.5)).map((k) => `${k.titel} (slutar ${k.slut.toFixed(0)}, pilen ${k.pilStart}, utfällningen ${k.knappStart.toFixed(0)})`).join(", ")}.`);
     const rad = page.locator("[data-dagpanel] [data-postrad]", { has: page.locator("[data-handelselank]") }).first();
     const rr = await rad.boundingBox();
     if (rr) await page.mouse.click(rr.x + rr.width - 60, rr.y + rr.height / 2);
