@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.44.0
+
+⛔ **Två rättelser som CP rapporterade från inkorgen 2026-10-01: Spara stod kvar efter ett sparat ärende (bolag-ops#508), och inställningarnas kataloger saknade rubriker (bolag-ops#507). Appen måste pinna om och anropa `onKlar` i sitt ärendeformulär. Inga regler ändras.**
+
+### bolag-ops#508: "Spara knappen kvar när man sparat ett ärende"
+CP: "Spara knappen måste bort efter att man skapat ärende. Men vet inte om det är sparat."
+
+**Rotorsaken var i skalet.** `skapa.grupp`, `skapa.meddelande` och modulernas formulär fick en `onKlar` som stänger panelen, men `skapa.arende` fick bara `{ formId, mal }`. Formuläret kunde visa sitt kvitto men inte stänga panelen, och skalets fasta Spara stod kvar under kvittot och pekade på ett `<form>` som inte fanns längre: ett tryck gjorde ingenting, och ingenting sade om posten var sparad. **Nu:** `({ formId, mal, onKlar }) => nod`, och `onKlar` stänger panelen utan att gå bakåt i historiken, som för en grupp.
+
+### bolag-ops#507: "Inställningar skall vara per grupp ... samt att det är en rubrik på varje sektion"
+Katalogerna ÄR redan per grupp i datan sedan 0.33.0 (`groupId` krävs i `OpsKatalogInstallning`). Det som fattades var att det syntes: `rubrik` var bara listans namn för skärmläsaren, så fyra kataloger stod efter varandra utan rubriker, medan kortet från modulerna (`OpsModulTyper`) hade en. **Nu** ritar `OpsKatalogInstallning` `rubrik` som en synlig rubrik på nivå 2 och bär den som sektionens namn, och `OpsModulTyper`s rubrik är också nivå 2 (var 3): två kort på samma sida med olika nivå hade gett skärmläsarens rubriklista en ordning som inte syns. Att sidan säger VILKEN grupp inställningarna gäller är appens: den känner gruppens namn.
+
+**Prov, båda riktningarna:** 4 nya prov.
+
+| Mutation | Röda |
+|---|---|
+| Katalogen utan synlig rubrik | 2 |
+| Katalogens rubrik på nivå 3 | 2 |
+| `OpsModulTyper`s rubrik tillbaka på nivå 3 | 1 |
+| `onKlar` för ärendet gör ingenting | 1 |
+
 ## 0.43.0
 
 ⛔ **Händelsens ursprung: vem skapade den och var den hör hemma, i listan och i händelsepanelen, med en länk tillbaka till modulens post (#224). En agents rad märks med en robot. Appen måste pinna om och lägga `ursprung` på sina händelser; inga regler ändras utöver en rättad stavning i en kommentar.**

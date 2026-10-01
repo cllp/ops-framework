@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { byggKategori, FASER, valjbara } from "../lib/katalog.js";
 import { beskrivKonfigandring } from "../lib/konfiglogg.js";
@@ -132,6 +132,7 @@ export function OpsKatalogInstallning({
     );
   }
 
+  const rubrikId = useId();
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [utkast, setUtkast] = useState(TOMT);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
@@ -296,7 +297,11 @@ export function OpsKatalogInstallning({
   );
 
   return (
-    <section className="flex flex-col gap-3">
+    <section aria-labelledby={rubrikId} className="flex flex-col gap-3">
+      {/* ⛔ RUBRIKEN SYNS (0.44.0, bolag-ops#507). CP: "Bra om ... det är en rubrik på varje sektion." Före 0.44.0 bar `rubrik` bara
+          listans namn för skärmläsaren, så fyra kataloger på samma sida stod efter varandra utan att säga vad de var, medan kortet
+          från modulerna (`OpsModulTyper`) hade en. Nivå 2 under sidans rubrik; "Arkiverade" och "Senaste ändringarna" är nivå 3. */}
+      <h2 id={rubrikId} className="m-0 text-sektion uppercase text-accent">{rubrik}</h2>
       {!kanAndra ? (
         <OpsBanner tone="info" title="Du kan läsa katalogen, inte ändra den">
           Konfigurationen ändras av gruppens ägare och admin, eftersom en ändring här ändrar vad alla andra i gruppen ser. Låset sitter i databasens regler, inte i den här vyn.

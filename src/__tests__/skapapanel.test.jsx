@@ -210,6 +210,24 @@ describe("skapa.arende: nod eller funktion (0.31.1)", () => {
     expect(screen.getByText("hook-ok")).toBeTruthy();
   });
 
+  it("⛔ en funktion får `onKlar`, och efter den är panelen och dess Spara borta (0.44.0, bolag-ops#508)", () => {
+    skalArende({
+      arende: ({ formId, onKlar }) => (
+        <form id={formId}>
+          <button type="button" onClick={onKlar}>
+            Sparat, stäng
+          </button>
+        </form>
+      ),
+      sparaEtikett: "Skicka in",
+    });
+    oppnaArende();
+    expect(screen.getByRole("button", { name: "Skicka in" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Sparat, stäng" }));
+    expect(screen.queryByRole("region", { name: "Nytt ärende" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skicka in" })).toBeNull();
+  });
+
   it("en färdig nod fungerar som förut, men utan död Spara (noden kan inte få `formId`)", () => {
     skalArende({ arende: <form data-testid="nodform">nod</form>, sparaEtikett: "Skicka in" });
     oppnaArende();
