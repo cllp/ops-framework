@@ -377,8 +377,9 @@ describe("⛔ externaDatakallor på en grupp (0.41.0, #216)", () => {
     expect(text).toContain(`p.repo.size() <= ${MAX_EXTERNREPO}`);
     expect(text).toContain(`p.label.size() <= ${MAX_EXTERNLABEL}`);
     expect(text).toContain(`p.credentialSecretId.size() <= ${MAX_EXTERNHEMLIGHET}`);
-    expect(text).toContain("allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data);");
-    expect(text).toContain("allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data)");
+    // 0.42.0 (#217): create validerar även typavvikelser, och update validerar externaDatakallor bara när den ändras (budgeten på 1000 uttryck delas).
+    expect(text).toContain("allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data) && opsTypavvikelserGiltiga(request.resource.data);");
+    expect(text).toContain("(!opsAndrad(request.resource.data, resource.data, 'externaDatakallor') || opsExternaGiltiga(request.resource.data))");
   });
 });
 
