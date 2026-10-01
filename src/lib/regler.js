@@ -31,7 +31,10 @@
  * kan bli ett eget projekt utan att datamodellen ändras.
  */
 
-import { ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, MEDLEMSKAPSAVGRANSARE } from "./grupp.js";
+import {
+  ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, EXTERNHEMLIGHET_FORM, EXTERNPOSTFALT, EXTERNREPO_FORM, EXTERNREPO_PUNKTNAMN,
+  EXTERNTOKEN_FORM, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNHEMLIGHET, MAX_EXTERNLABEL, MAX_EXTERNREPO, MEDLEMSKAPSAVGRANSARE,
+} from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
@@ -62,6 +65,64 @@ function kontrolleraNamn(namn, falt) {
     );
   }
   return namn;
+}
+
+/**
+ * Ett RE2-uttryck för en regels `matches()` ur samma `RegExp` som klientbyggaren använder (#216): ankarna
+ * tas bort (`matches` kräver hel träff) och `\/` blir `/`. Ett uttryck med tecken som kräver mer
+ * översättning än så avvisas hellre än att tyst skrivas fel.
+ *
+ * @param {RegExp} re
+ * @returns {string}
+ */
+function regelRegex(re) {
+  const k = re.source.replace(/^\^/, "").replace(/\$$/, "").replace(/\\\//g, "/");
+  if (k.includes("\\") || k.includes("'")) throw new Error(`regelRegex: ${re} går inte att skriva som ett Firestore-matches() utan översättning.`);
+  return k;
+}
+
+/**
+ * Reglerna för \`externaDatakallor\` (0.41.0, #216), ur samma listor och gränser som \`byggExternaDatakallor\`.
+ * Firestore-regler har ingen loop, så giltigheten av varje post rullas ut till \`MAX_EXTERNA\` poster.
+ *
+ * @returns {string}
+ */
+function externaDatakallorRegler() {
+  const lista = (/** @type {readonly string[]} */ a) => a.map((f) => `'${f}'`).join(", ");
+  const poster = Array.from({ length: MAX_EXTERNA }, (_, i) => `(l.size() <= ${i} || opsExternPost(l[${i}]))`).join("\n        && ");
+  return `    // ⛔ En extern datakälla på en grupp (0.41.0, #216). Ägaren skriver, en admin gör det inte (fältet står i
+    // AGARGRUPPFALT och inte i ADMINGRUPPFALT). Formerna och gränserna är härledda ur src/lib/grupp.js, samma
+    // som byggExternaDatakallor kontrollerar i klienten. Ingen loop finns i reglerna, därför rullas
+    // posterna ut till MAX_EXTERNA. Fältet saknas eller är [] när gruppen inte har någon datakälla, och det är giltigt.
+    //
+    // De krävda fälten (type, repo, enabled) och att posten är en map kräver ingen egen rad: varje kontroll
+    // nedan kastar ett utvärderingsfel när fältet saknas eller posten inte är en map, och ett fel i en regel
+    // är ett nej. Det är provat, se 'saknas' och 'posten är inte en map' i rules/__tests__/grupper.test.mjs.
+    function opsExternPost(p) {
+      return p.keys().hasOnly([${lista(EXTERNPOSTFALT)}])
+        && p.type in [${lista(EXTERNTYPER)}]
+        && p.repo is string && p.repo.size() <= ${MAX_EXTERNREPO}
+        && p.repo.matches('${regelRegex(EXTERNREPO_FORM)}')
+        && !p.repo.matches('${regelRegex(EXTERNREPO_PUNKTNAMN)}')
+        && p.enabled is bool
+        && (!('label' in p) || (p.label is string && p.label.size() <= ${MAX_EXTERNLABEL}))
+        && (!('credentialSecretId' in p)
+          || (p.credentialSecretId is string && p.credentialSecretId.size() > 0
+            && p.credentialSecretId.size() <= ${MAX_EXTERNHEMLIGHET}
+            && p.credentialSecretId.matches('${regelRegex(EXTERNHEMLIGHET_FORM)}')
+            && !p.credentialSecretId.matches('${regelRegex(EXTERNTOKEN_FORM)}')));
+    }
+
+    function opsExternaGiltiga(d) {
+      return !('externaDatakallor' in d)
+        || (d.externaDatakallor is list && opsExternLista(d.externaDatakallor));
+    }
+
+    function opsExternLista(l) {
+      return l.size() <= ${MAX_EXTERNA}
+        && ${poster};
+    }
+`;
 }
 
 /**
@@ -120,6 +181,7 @@ export function regelfragment(namn = {}) {
         && (opsMedlemskapet(gid).data.roll == 'agare' || opsMedlemskapet(gid).data.roll == 'admin');
     }
 
+${externaDatakallorRegler()}
     // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
     //
     // ⛔ #156, RÄTTAT EFTER GRANSKNING: hasOnly-LISTAN ÄR HÄRLEDD UR
@@ -158,8 +220,8 @@ export function regelfragment(namn = {}) {
     // handskriven kopia.
     match /${grupper}/{gid} {
       allow read: if opsArMedlem(gid);
-      allow create: if opsArAgare(gid);
-      allow update: if (opsArAgare(gid)
+      allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data);
+      allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${AGARGRUPPFALT.map((f) => `"${f}"`).join(", ")}]))
         || (opsArAdmin(gid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([${ADMINGRUPPFALT.map((f) => `"${f}"`).join(", ")}]));

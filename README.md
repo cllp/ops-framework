@@ -661,9 +661,22 @@ datamodellen ändras.
 | Samling | Innehåll | Skrivs av |
 |---|---|---|
 | `users/{uid}` | `byggAnvandare`: namn, e-post, bild, `sprak` ur `SPRAK`, `tema` ur `TEMAN`, och sedan #156: `telefon` (E.164 eller tom), `stad`, `presentation` (max `MAX_PRESENTATION`), `lankar` (`{ plattform, url }[]`, url https, plattform ur appens lista), `bildSokvag` | personen själv, bara sin egen rad |
-| `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv`, och sedan 0.32.0 (#180) `farg` (ur `PROFILFARGER`), `ikon` (ur `GRUPPIKONER` eller `initialer:AB`), `bild` (lagringssökväg), `beskrivning` (max `MAX_GRUPPBESKRIVNING`), `ort` (max `MAX_GRUPPORT`), `epostsprak` (`sv`\|`en`). Tomma strängar och inte utelämnade fält | ⛔ **admin** ändrar utseende och uppgifter (`ADMINGRUPPFALT`), **ägare** även `moduler` och `arkiverad` (`AGARGRUPPFALT`), `id` och `skapadAv` ändrar ingen. Aldrig radering, arkivering |
+| `groups/{gid}` | `byggGrupp`: namn `{ sv, en }`, `moduler[]`, `arkiverad`, `skapadAv`, och sedan 0.32.0 (#180) `farg` (ur `PROFILFARGER`), `ikon` (ur `GRUPPIKONER` eller `initialer:AB`), `bild` (lagringssökväg), `beskrivning` (max `MAX_GRUPPBESKRIVNING`), `ort` (max `MAX_GRUPPORT`), `epostsprak` (`sv`\|`en`), och sedan 0.41.0 (#216) `externaDatakallor[]` (se nedan). Tomma strängar och inte utelämnade fält | ⛔ **admin** ändrar utseende och uppgifter (`ADMINGRUPPFALT`), **ägare** även `moduler`, `arkiverad` och `externaDatakallor` (`AGARGRUPPFALT`), `id` och `skapadAv` ändrar ingen. Aldrig radering, arkivering |
 | `memberships/{uid}_{gid}` | `byggMedlemskap`: `userId`, `groupId`, `roll` ur `ROLLER` (`agare`, `admin`, `medlem`), `typ` ur `MEDLEMSTYPER`, `status` ur `MEDLEMSSTATUS`, plus `namn` och `bild` | ⛔ **bara serversidan**. Sedan 0.32.0 LÄSER en aktiv medlem gruppens övriga medlemskap (medlemslistan), aldrig en annan grupps |
 | `invitations/{id}` | `byggInbjudan`: e-post, gruppen, rollen, `status` ur `INBJUDNINGSSTATUS`, `skapadAv`, och sedan 0.32.0 (#180) `tokenHash` (SHA-256 i hex av engångskoden, eller tom sträng: koden lagras aldrig), `giltigTill` (ISO, `INBJUDNING_GILTIGHET_DAGAR` = 30 dagar), `skickad` (ISO eller tom) och `antalSkickade` | ⛔ **skapas bara av serversidan** (`bjudIn`), ägare och admin läser och kan återkalla (bara `status`). Flödet tas i [#137](https://github.com/cllp/ops-framework/issues/137), koden och utskicket i #180 (G3) |
+
+⛔ **EXTERNA DATAKÄLLOR PÅ EN GRUPP (0.41.0, #216, design i #185).** `externaDatakallor` är en lista på gruppen: vilka externa tjänster gruppens ytor får hämta ur. I v1 bara GitHub. Ramverket läser ingenting ur den, den är konfigurationen en vy senare läser. Frånvarande eller `[]` är som förut.
+
+```js
+externaDatakallor: [
+  { type: "github", repo: "cllp/bolag-ops", enabled: true, label: "Bolagets repo", credentialSecretId: "github-bolag" },
+]
+```
+
+- **Posten:** `type` (ur `EXTERNTYPER`, i v1 `github`), `repo` (`ägare/namn`: bokstäver, siffror och `-` i ägaren, bokstäver, siffror, `.`, `_` och `-` i namnet, högst `MAX_EXTERNREPO` tecken, aldrig `.` eller `..` som namn), `enabled` (boolean), valfria `label` (högst `MAX_EXTERNLABEL` tecken) och `credentialSecretId` (1 till `MAX_EXTERNHEMLIGHET` tecken, bokstäver, siffror, `_` och `-`). Inga andra nycklar. Högst `MAX_EXTERNA` poster.
+- ⛔ **`credentialSecretId` är ett NAMN på en hemlighet serversidan slår upp, aldrig en token.** Fältet läses av klienten och är läsbart för varje medlem i gruppen. Ett värde som ser ut som en GitHub-token (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) avvisas av `byggExternaDatakallor` och av reglerna. Det är ett skyddsnät och ingen garanti: en token utan känt prefix går igenom, så ingen yta ska be om en token för att spara den här.
+- **Ägaren skriver, en admin gör det inte** (`AGARGRUPPFALT`, inte `ADMINGRUPPFALT`): en datakälla avgör vad gruppens ytor kommer åt, som `moduler`. Valideringen gäller både `create` och `update` av gruppen, och `regelfragment()` härleder den ur samma listor och gränser som `byggExternaDatakallor` (`EXTERNTYPER`, `MAX_EXTERNA` med flera). Regler har ingen loop, så varje post rullas ut till `MAX_EXTERNA`. Appen regenererar sitt fragment med `check-regelfragment --skriv`.
+- ⛔ **Namnet är ASCII med flit.** Ärendet bad om `externDatakällor`. Regelkompilatorn avvisar `data.externDatakällor` ("token recognition error at 'ä'") och `postgres.js` kräver ASCII-kolumnnamn, se 0.41.0 i `CHANGELOG.md`.
 
 ⛔ **EXAKT EN GRUPPNYCKEL PER RAD.** Varje rad bär `groupId`, ett värde, aldrig
 en lista. Läsregeln blir ETT uppslag: finns `memberships/{uid}_{groupId}` med

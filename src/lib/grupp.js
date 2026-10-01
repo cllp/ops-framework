@@ -172,6 +172,16 @@ export const MAX_PRESENTATION = 500;
  * @property {string} beskrivning Högst `MAX_GRUPPBESKRIVNING` tecken, eller tom sträng. 0.32.0.
  * @property {string} ort Högst `MAX_GRUPPORT` tecken, eller tom sträng. 0.32.0.
  * @property {"sv"|"en"} epostsprak Språket gruppens utskick skrivs på (inbjudningar). Förval `sv`. 0.32.0.
+ * @property {ReadonlyArray<ExternDatakalla>} externaDatakallor Externa datakällor gruppens ytor får hämta ur. Tom lista när inga. 0.41.0, #216.
+ */
+
+/**
+ * @typedef {object} ExternDatakalla
+ * @property {"github"} type
+ * @property {string} repo `ägare/namn`.
+ * @property {boolean} enabled
+ * @property {string} [label] Visningsnamn, högst `MAX_EXTERNLABEL` tecken.
+ * @property {string} [credentialSecretId] NAMNET på en hemlighet serversidan slår upp. Aldrig en token.
  */
 
 /**
@@ -200,6 +210,56 @@ export const MAX_PRESENTATION = 500;
  * @property {number} antalSkickade Hur många gånger inbjudan skickats, 0 eller fler. 0.32.0.
  */
 
+/*
+ * ══ ⛔ EXTERNA DATAKÄLLOR PÅ EN GRUPP (0.41.0, #216, design i #185) ═══════════════
+ *
+ * `externaDatakallor` är en lista på GRUPPEN: vilka externa tjänster gruppens ytor får hämta ur.
+ * I v1 bara GitHub (`type: "github"`, `repo: "ägare/namn"`). Ramverket läser inget här: fältet är
+ * konfigurationen en vy senare läser. Ägaren skriver den, en admin gör det inte (en datakälla är
+ * strukturell, som `moduler`: den avgör vad gruppens ytor kommer åt), alltså står den i
+ * `AGARGRUPPFALT` och inte i `ADMINGRUPPFALT`.
+ *
+ * ⛔ NAMNET ÄR ASCII, MÄTT OCH BESLUTAT AV CP 2026-10-01 ("Kör externaDatakallor, ASCII är bra").
+ * Ärendet bad om `externDatakällor`. Mätt i Firestore-emulatorn: regelkompilatorn avvisar
+ * `request.resource.data.externDatakällor` med "token recognition error at 'ä'" (en regelidentifierare
+ * är ASCII), och `postgres.js` `identifier()` kräver `^[A-Za-z_][A-Za-z0-9_]*$` för kolumnnamn.
+ * Strängformen `data['externDatakällor']` hade kompilerat, men gjort fältet till det enda i modellen
+ * som inte går att skriva med punktnotation och inte kan vara en Postgres-kolumn. Alla andra fält
+ * här är redan translittererade (`epostsprak`, `lankar`, `agare`).
+ *
+ * ⛔ EN TOKEN BOR ALDRIG HÄR. `credentialSecretId` är ett NAMN på en hemlighet som serversidan slår
+ * upp (Secret Manager eller motsvarande), aldrig själva hemligheten. Fältet läses av klienten, och
+ * allt klienten kan läsa är läsbart för varje medlem. Därför avvisas ett värde som ser ut som en
+ * GitHub-token (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`), i klientbyggaren OCH i
+ * reglerna. Det är ett säkerhetsnät mot klistrade tokens och ingen garanti: namn och token är båda
+ * bara tecken, och en token utan känt prefix går igenom. Den riktiga skyddslinjen är att ingen vy
+ * ska be om en token för att spara den här.
+ *
+ * ⛔ LISTAN, GRÄNSERNA OCH FORMERNA HÄR ÄR DE REGLERNA HÄRLEDS UR (`regelfragment()` i regler.js),
+ * inga handskrivna kopior. Reglerna har ingen loop, så giltigheten av varje post rullas ut till
+ * `MAX_EXTERNA` poster ur samma tal.
+ */
+export const EXTERNTYPER = /** @type {const} */ (["github"]);
+/** Fälten en post får bära. `type`, `repo` och `enabled` krävs, de två övriga är valfria. */
+export const EXTERNPOSTFALT = ["type", "repo", "enabled", "label", "credentialSecretId"];
+export const EXTERNPOSTKRAVDA = ["type", "repo", "enabled"];
+/** Högst så många poster per grupp. */
+export const MAX_EXTERNA = 10;
+export const MAX_EXTERNREPO = 140;
+export const MAX_EXTERNLABEL = 80;
+export const MAX_EXTERNHEMLIGHET = 64;
+/**
+ * `ägare/namn`. Ägare: bokstäver, siffror och bindestreck (GitHub: högst 39 tecken, inget
+ * inledande eller avslutande bindestreck, det senare kontrolleras inte här, GitHub avvisar det).
+ * Namn: bokstäver, siffror, `.`, `_` och `-` (högst 100). Samma uttryck skrivs i reglerna (RE2).
+ */
+export const EXTERNREPO_FORM = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
+/** `.` och `..` är lagliga tecken men inte lagliga reponamn. */
+export const EXTERNREPO_PUNKTNAMN = /^.*\/[.]{1,2}$/;
+export const EXTERNHEMLIGHET_FORM = /^[A-Za-z0-9_-]+$/;
+/** Ser ut som en GitHub-token. Avvisas som `credentialSecretId`. */
+export const EXTERNTOKEN_FORM = /^((ghp|gho|ghu|ghs|ghr)_|github_pat_).*$/;
+
 /** Hur länge en inbjudan gäller (0.32.0, #180). Ett tal på ETT ställe: raden bär ett slutdatum, inte ett antal dagar. */
 export const INBJUDNING_GILTIGHET_DAGAR = 30;
 
@@ -220,12 +280,13 @@ export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "te
  * ⛔ TVÅ LISTOR FÖR VAD EN KLIENT FÅR ÄNDRA PÅ EN GRUPP, OCH `GRUPPFALT` HÄRLEDS UR DEM (0.32.0, #180).
  * Reglerna (`regelfragment()`) läser samma två, så modellen och `hasOnly` inte kan glida isär, samma
  * beslut som `ANVANDARFALT` (#156). `ADMINGRUPPFALT` är det en admin får ändra: utseende och
- * uppgifter. `AGARGRUPPFALT` är det ägaren får ändra: det ovan plus `moduler` och `arkiverad`.
+ * uppgifter. `AGARGRUPPFALT` är det ägaren får ändra: det ovan plus `moduler`, `arkiverad` och
+ * `externaDatakallor` (0.41.0, #216).
  * `id` och `skapadAv` står i ingen av dem: vem som skapade gruppen och vad den heter i databasen
  * ändras aldrig.
  */
 export const ADMINGRUPPFALT = ["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"];
-export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "arkiverad"];
+export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "arkiverad", "externaDatakallor"];
 export const GRUPPFALT = ["id", ...AGARGRUPPFALT, "skapadAv"];
 /*
  * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT
@@ -413,6 +474,61 @@ function byggLankar(varde, id, tillatnaPlattformar) {
 }
 
 /**
+ * Bygger `externaDatakallor`, eller kastar med skälet. Frånvarande eller `[]` ger `[]`.
+ *
+ * @param {unknown} varde
+ * @param {string} id Gruppens id, för felmeddelandena.
+ * @returns {ReadonlyArray<ExternDatakalla>}
+ */
+export function byggExternaDatakallor(varde, id) {
+  if (varde === undefined) return Object.freeze([]);
+  if (!Array.isArray(varde)) {
+    throw new Error(`groups: externaDatakallor för "${id}" måste vara en lista, även när den är tom, inte ${typeof varde}.`);
+  }
+  if (varde.length > MAX_EXTERNA) {
+    throw new Error(`groups: externaDatakallor för "${id}" har ${varde.length} poster. Taket är ${MAX_EXTERNA}.`);
+  }
+  /** @type {ExternDatakalla[]} */
+  const ut = [];
+  varde.forEach((/** @type {any} */ p, /** @type {number} */ i) => {
+    const var_ = `groups: externaDatakallor[${i}] för "${id}"`;
+    if (p === null || typeof p !== "object" || Array.isArray(p)) throw new Error(`${var_} måste vara ett objekt.`);
+    const okanda = Object.keys(p).filter((n) => !EXTERNPOSTFALT.includes(n));
+    if (okanda.length > 0) throw new Error(`${var_} bär fälten ${okanda.join(", ")}. Tillåtna: ${EXTERNPOSTFALT.join(", ")}.`);
+    for (const k of EXTERNPOSTKRAVDA) {
+      if (!(k in p)) throw new Error(`${var_} saknar ${k}.`);
+    }
+    if (!(/** @type {readonly string[]} */ (EXTERNTYPER)).includes(p.type)) {
+      throw new Error(`${var_} har typen ${JSON.stringify(p.type)}. Giltiga: ${EXTERNTYPER.join(", ")}.`);
+    }
+    if (typeof p.repo !== "string" || p.repo.length > MAX_EXTERNREPO || !EXTERNREPO_FORM.test(p.repo) || EXTERNREPO_PUNKTNAMN.test(p.repo)) {
+      throw new Error(`${var_} har repot ${JSON.stringify(p.repo)}, som inte är på formen ägare/namn (bokstäver, siffror, - och, i namnet, . och _; högst ${MAX_EXTERNREPO} tecken).`);
+    }
+    if (typeof p.enabled !== "boolean") throw new Error(`${var_} har enabled ${JSON.stringify(p.enabled)}. Det måste vara true eller false.`);
+    /** @type {ExternDatakalla} */
+    const post = { type: p.type, repo: p.repo, enabled: p.enabled };
+    if (p.label !== undefined) {
+      if (typeof p.label !== "string" || p.label.length > MAX_EXTERNLABEL) {
+        throw new Error(`${var_} har en label som inte är en sträng på högst ${MAX_EXTERNLABEL} tecken.`);
+      }
+      post.label = p.label;
+    }
+    if (p.credentialSecretId !== undefined) {
+      const h = p.credentialSecretId;
+      if (typeof h !== "string" || h.length === 0 || h.length > MAX_EXTERNHEMLIGHET || !EXTERNHEMLIGHET_FORM.test(h)) {
+        throw new Error(`${var_} har ett credentialSecretId som inte är ett namn (bokstäver, siffror, _ och -, 1 till ${MAX_EXTERNHEMLIGHET} tecken).`);
+      }
+      if (EXTERNTOKEN_FORM.test(h)) {
+        throw new Error(`${var_} har ett credentialSecretId som ser ut som en GitHub-token. Fältet är ett NAMN på en hemlighet, och en token får aldrig lagras i en rad klienten läser.`);
+      }
+      post.credentialSecretId = h;
+    }
+    ut.push(Object.freeze(post));
+  });
+  return Object.freeze(ut);
+}
+
+/**
  * Bygger en grupp, eller kastar med skälet.
  *
  * ⛔ `moduler` ÄR MODUL-ID OCH INTE NAMN, samma form som `defineModule`. Det är
@@ -531,6 +647,7 @@ export function byggGrupp(d, kandaModuler) {
     beskrivning,
     ort,
     epostsprak: /** @type {Grupp["epostsprak"]} */ (epostsprak),
+    externaDatakallor: byggExternaDatakallor(rad.externaDatakallor, id),
   });
 }
 

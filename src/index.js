@@ -184,7 +184,7 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * samma skäl som katalogen: en grupp måste gå att bygga och validera av det som
  * körs utan skärm, och reglerna genereras av ett skript.
  */
-export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, INBJUDNING_GILTIGHET_DAGAR, byggAnvandare, byggGrupp, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
+export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNREPO, MAX_EXTERNLABEL, MAX_EXTERNHEMLIGHET, INBJUDNING_GILTIGHET_DAGAR, byggAnvandare, byggGrupp, byggExternaDatakallor, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
 export { gruppmarkeProps } from "./lib/gruppikoner.js";
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";

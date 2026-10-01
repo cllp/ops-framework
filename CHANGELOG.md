@@ -9,6 +9,52 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.41.0
+
+⛔ **En grupp kan bära externa datakällor, GitHub först (#216, design i #185). Nytt fält `externaDatakallor` på gruppen, ägarens att skriva och aldrig adminens, validerat i klienten (`byggExternaDatakallor`) och i reglerna. Appen måste pinna om, regenerera sitt regelfragment, och CP måste deploya reglerna efter mergen. Frånvarande eller `[]` beter sig som förut. Ingen vy, ingen läsning av GitHub och ingen token ingår: det här är bara konfigurationen och dess regler.**
+
+### #216: "externa datakällor på en grupp"
+Händelsen: CP 2026-10-01 bekräftade "GitHub först" i #185/#216: en grupp ska kunna peka ut vilka externa källor dess ytor får hämta ur, och data utan regler är data vem som helst får skriva (samma skäl som CLAUDE.md "Vad som inte är regler här"). Fältet är gruppens, inte appens, så det bor i ramverkets egen samling `groups`.
+
+**Formen:** `externaDatakallor?: Array<{ type: "github", repo: "ägare/namn", enabled: boolean, label?: string, credentialSecretId?: string }>`, högst `MAX_EXTERNA` (10) poster. `repo` följer `^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$` (GitHub: ägare med bokstäver, siffror och bindestreck, namn med dessutom `.` och `_`), högst 140 tecken, och aldrig `.` eller `..` som namn. `label` högst 80 tecken. `credentialSecretId` 1 till 64 tecken ur `[A-Za-z0-9_-]`. Posten bär inga andra nycklar. Fältet står i `AGARGRUPPFALT` och inte i `ADMINGRUPPFALT`: en datakälla avgör vad gruppens ytor kommer åt, som `moduler`. `GRUPPFALT` och reglernas `hasOnly` härleds ur listorna, ingen handskriven kopia.
+
+#### ⛔ Namnet är `externaDatakallor`, inte `externDatakällor`, och mätningen är skälet
+Ärendet bad om `externDatakällor`. Regel 3 (mät) och metaregeln gäller, så namnet mättes i Firestore-emulatorn (firebase-tools 14, emulator 1.19.8) innan något skrevs, och CP beslutade 2026-10-01 ("Kör externaDatakallor, ASCII är bra"):
+- **Punktnotation bryter.** `request.resource.data.externDatakällor is list` går inte att kompilera. Kompilatorn svarar `Error compiling rules: L4:56 Unexpected ')'. L4:96 Unexpected 'llor'. L4:145 token recognition error at: 'ä'` (HTTP 400). En regelidentifierare är ASCII. Allt i regler.js som skrivs `d.fält` (`d.groupId is string`, `d.deltagare.size()`) går alltså inte att skriva för det namnet.
+- **Strängformerna fungerar.** `keys().hasOnly(["externDatakällor"])`, `diff().affectedKeys().hasOnly([...])`, `'externDatakällor' in data`, `data['externDatakällor']` och klient-SDK:ts `setDoc`/`updateDoc` gav alla förväntat utfall i 13 prov (negativ kontroll med `hasOnly(["namn"])` nekade ändringen). Namnet hade alltså gått att använda med en bracket-regel.
+- **Men det hade gjort fältet till det enda i modellen som inte går att skriva med punktnotation i en regel**, och en andra brytpunkt hade funnits kvar: `src/data/postgres.js` `identifier()` kräver `^[A-Za-z_][A-Za-z0-9_]*$` för kolumnnamn och kastar annars (rad 40 till 43). Fältet hade därmed inte kunnat vara en kolumn via ramverkets Postgres-adapter. Unicode-normaliseringen var en tredje risk: en NFD-nyckel (a + U+0308, 17 tecken) är en annan nyckel än NFC (16 tecken) och nekades i provet, så en klient som normaliserar annorlunda hade skrivit ett annat fält.
+- Alla andra fält i modellen är redan translittererade (`epostsprak`, `lankar`, `agare`, `vantar`). Provet `namnet är ASCII` i `grupp.test.js` vaktar att inget fält i `GRUPPFALT` får bära ett icke-ASCII-tecken.
+- Inte mätt: Firestore-adaptern, memory-adaptern och Postgres-adaptern körda mot ett ä-fält. Postgres-skälet är läst i `identifier()`, inte körd.
+
+#### ⛔ En token bor aldrig här
+`credentialSecretId` är ett NAMN på en hemlighet som serversidan slår upp, aldrig själva hemligheten. Fältet läses av klienten och är läsbart för varje medlem i gruppen. Därför avvisas ett värde som ser ut som en GitHub-token (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) i `byggExternaDatakallor` och i reglerna. Det är ett skyddsnät och ingen garanti: en token utan känt prefix går igenom, så ingen yta ska be om en token för att spara den här. Tokens hålls aldrig klientsidigt (utanför ärendet, se nedan).
+
+#### Hur reglerna är skrivna
+- **Ingen loop i Firestore-regler**, så giltigheten av varje post rullas ut till `MAX_EXTERNA` poster ur samma tal (`opsExternLista`, genererad). Fullt utrullat med 10 giltiga poster går igenom i emulatorn, och en ogiltig post SIST i en full lista nekas (provat, se nedan).
+- **Valideringen gäller både `create` och `update`** av gruppen (`opsExternaGiltiga(request.resource.data)`). Före 0.41.0 hade `create` ingen fältvalidering alls, bara `opsArAgare`. Fältet frånvarande är giltigt, så en grupp utan det skapas och uppdateras som förut.
+- De krävda fälten och att posten är en map har ingen egen rad: varje kontroll kastar ett utvärderingsfel när fältet saknas eller posten inte är en map, och ett fel är ett nej. Det är provat (`saknas`, `posten är inte en map`), och de två rader som först stod där (`hasAll`, `is map`) togs bort för att deras mutationer inte gick att slå röda: de var ekvivalenta med den kontroll som redan fanns.
+- En admin skriver inte fältet: `AGARGRUPPFALT` och inte `ADMINGRUPPFALT`. En skrivning som inte ändrar värdet (admin skriver `[]` över en redan tom lista) är ingen ändring i `affectedKeys()` och går igenom, som för varje annat fält. Provet skriver därför först en icke-tom lista som ägare.
+
+#### Röd utan fixen, grön med den (0.41.0)
+Loggar i scratchpad (g216-*.log).
+- **`npm run test:rules`:** med fixen **246 av 246 gröna** (194 före, 52 nya prov). Utan reglerna (0.40.1:s `regler.js`, provfilen oförändrad) **37 av 246 röda**, 209 gröna.
+- **Mutationer av det genererade fragmentet och modellen, en i taget, mot `test:rules`** (röda av 246 vid varje): `externaDatakallor` utanför `AGARGRUPPFALT` 7, i `ADMINGRUPPFALT` 37, ingen validering på update 35, ingen på create 2, utan `hasOnly` på posten 1, utan typkontroll 4, utan repoform 7, utan punktnamn 2, utan repotak 1, utan `enabled is bool` 4, utan labeltak 1, utan hemlighetsform 1, utan hemlighetstak 1, utan tokenskydd 4, utan listtak 2, sista indexet i listan ovaliderat 1, utan `is list` 2. **Alla 17 slog minst ett prov rött.** Två mutationer överlevde först (`create` utan validering: proven skrev över en rad som redan fanns och provade alltså `update`; och `is list` utan `size()`-fall med tom sträng) och rättades med nya prov (egna grupp-id per create-prov, tom sträng och tom map som fältvärde) innan siffrorna ovan togs.
+- **Enhetsprov (`grupp.test.js`, vitest):** 141 av 141 gröna. Mutationer av `byggExternaDatakallor`/`byggGrupp`/`AGARGRUPPFALT`, en i taget, alla röda: utan tokenskydd 2, utan tak 1, utan punktnamn 2, utan `enabled`-kontroll 2, utan typkontroll 1, utan okända-nycklar-kontroll 1, `byggGrupp` ignorerar fältet 29, fältet utanför `AGARGRUPPFALT` 31.
+- **Genererad regel mot fält:** `rules/__fixturer__/genererad.rules` skrevs om (`check-regelgenerator --skriv`), och provet `reglerna härleds ur samma listor och gränser` jämför `hasOnly`, typlista, tak, antal utrullade poster och regex mot exporterade konstanter.
+- **Ändrade befintliga prov (regel 9):** inga förväntningar ändrades. I `rules/__tests__/grupper.test.mjs` lades ett grupp-id-konstant och seedade medlemskap för create-proven till i `before()`, och `node:assert` importerades. `grupp.test.js` fick bara nya importer och nya `describe`.
+
+### Att göra i appen
+1. Pinna om till 0.41.0.
+2. Regenerera regelfragmentet: `check-regelfragment --skriv` (grupp-blocket får `opsExternPost`, `opsExternaGiltiga` och `opsExternLista`, och `create`/`update` på gruppen kräver dem).
+3. **CP deployar reglerna efter mergen** (regeln gäller först då). Ordning: ramverket mergas först, ompinningen sedan, och reglerna deployas innan en klient som skriver fältet mergas (CLAUDE.md i bolag-ops: en regel i main är inte en regel i produktion).
+4. Appens ärenden cllp/bolag-ops#511, #512 och #513 kommer efter ompinningen och ingår inte här.
+5. Ingen datamigrering: en grupp utan fältet läses som `externaDatakallor: []` (`byggGrupp`), och en rad som `skapaGrupp` skriver bär från nu `externaDatakallor: []`.
+
+### Utanför ärendet
+Notion, SQL och register, BYOK, AI och chatt, en levande GitHub-flik, inkorgsrouting, tokens hållna i klienten och varje appändring. Ingen UI rördes, så `check:skalyta` kördes inte.
+
+---
+
 ## 0.40.1
 
 ⛔ **Ett uid visas aldrig för en människa, och ett medlemskap som kan få ett namn får det (#218). Rättelse, inget nytt API utom `personnamn`, `NAMN_SAKNAS`, `bakfyllMedlemsnamn` och två valfria indata (`namn` till `skapaGrupp` och `accepteraInbjudningar`). Appen måste pinna om OCH köra bakfyllnaden, se "Att göra i appen" nedan: utan bakfyllnaden ser CP:s rad ut som "Namn saknas" i stället för som ett uid, vilket är bättre men inte rätt.**

@@ -3,7 +3,14 @@ import {
   ADMINGRUPPFALT,
   AGARGRUPPFALT,
   GRUPPFALT,
+  EXTERNPOSTFALT,
+  EXTERNTYPER,
   GRUPPIKONER,
+  MAX_EXTERNA,
+  MAX_EXTERNHEMLIGHET,
+  MAX_EXTERNLABEL,
+  MAX_EXTERNREPO,
+  byggExternaDatakallor,
   INBJUDNING_GILTIGHET_DAGAR,
   MAX_GRUPPBESKRIVNING,
   MAX_GRUPPORT,
@@ -284,6 +291,94 @@ describe("gruppens utseende och uppgifter (0.32.0, #180)", () => {
       expect(ADMINGRUPPFALT).not.toContain(f);
       expect(AGARGRUPPFALT).not.toContain(f);
     }
+  });
+});
+
+describe("⛔ externaDatakallor på en grupp (0.41.0, #216)", () => {
+  const post = () => ({ type: "github", repo: "cllp/bolag-ops", enabled: true });
+
+  it("⛔ frånvarande och [] ger en tom lista: gruppen beter sig som förut", () => {
+    expect(byggGrupp(GRUPP()).externaDatakallor).toEqual([]);
+    expect(byggGrupp({ ...GRUPP(), externaDatakallor: [] }).externaDatakallor).toEqual([]);
+  });
+
+  it("en giltig post läses oförändrad, med och utan de valfria fälten", () => {
+    expect(byggGrupp({ ...GRUPP(), externaDatakallor: [post()] }).externaDatakallor).toEqual([post()]);
+    const full = { ...post(), label: "Bolagets repo", credentialSecretId: "github-bolag" };
+    expect(byggGrupp({ ...GRUPP(), externaDatakallor: [full] }).externaDatakallor).toEqual([full]);
+  });
+
+  it("⛔ listan är ägarens: fältet står i AGARGRUPPFALT och inte i ADMINGRUPPFALT, och GRUPPFALT härleds ur den", () => {
+    expect(AGARGRUPPFALT).toContain("externaDatakallor");
+    expect(ADMINGRUPPFALT).not.toContain("externaDatakallor");
+    expect(GRUPPFALT).toContain("externaDatakallor");
+  });
+
+  it("namnet är ASCII, för att det måste gå att skriva med punktnotation i en regel och vara en kolumn (CP 2026-10-01)", () => {
+    expect(/^[A-Za-z_][A-Za-z0-9_]*$/.test("externaDatakallor")).toBe(true);
+    expect(GRUPPFALT.filter((f) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(f))).toEqual([]);
+  });
+
+  const avvisas = /** @type {[string, any, RegExp][]} */ ([
+    ["en sträng i stället för en lista", "cllp/bolag-ops", /måste vara en lista/],
+    ["ett objekt i stället för en lista", post(), /måste vara en lista/],
+    ["null", null, /måste vara en lista/],
+    ["en post som är en sträng", ["cllp/bolag-ops"], /måste vara ett objekt/],
+    ["en post som är null", [null], /måste vara ett objekt/],
+    ["fel type", [{ ...post(), type: "notion" }], /har typen "notion"/],
+    ["type saknas", [{ repo: "a/b", enabled: true }], /saknar type/],
+    ["repo saknas", [{ type: "github", enabled: true }], /saknar repo/],
+    ["enabled saknas", [{ type: "github", repo: "a/b" }], /saknar enabled/],
+    ["repo utan snedstreck", [{ ...post(), repo: "bolag-ops" }], /ägare\/namn/],
+    ["repo med två snedstreck", [{ ...post(), repo: "a/b/c" }], /ägare\/namn/],
+    ["repo med mellanslag", [{ ...post(), repo: "a/b c" }], /ägare\/namn/],
+    ["repo med understreck i ägaren", [{ ...post(), repo: "a_b/c" }], /ägare\/namn/],
+    ["repo som punktnamn ..", [{ ...post(), repo: "a/.." }], /ägare\/namn/],
+    ["repo som punktnamn .", [{ ...post(), repo: "a/." }], /ägare\/namn/],
+    ["repo som inte är en sträng", [{ ...post(), repo: 5 }], /ägare\/namn/],
+    ["repo för långt", [{ ...post(), repo: `a/${"b".repeat(MAX_EXTERNREPO)}` }], /ägare\/namn/],
+    ["enabled som sträng", [{ ...post(), enabled: "true" }], /enabled "true"/],
+    ["enabled som tal", [{ ...post(), enabled: 1 }], /enabled 1/],
+    ["ett extra fält", [{ ...post(), token: "x" }], /bär fälten token/],
+    ["label som tal", [{ ...post(), label: 5 }], /label/],
+    ["label för lång", [{ ...post(), label: "x".repeat(MAX_EXTERNLABEL + 1) }], /label/],
+    ["credentialSecretId med mellanslag", [{ ...post(), credentialSecretId: "mitt namn" }], /inte är ett namn/],
+    ["credentialSecretId tomt", [{ ...post(), credentialSecretId: "" }], /inte är ett namn/],
+    ["credentialSecretId för långt", [{ ...post(), credentialSecretId: "a".repeat(MAX_EXTERNHEMLIGHET + 1) }], /inte är ett namn/],
+    ["⛔ credentialSecretId som är en classic-token", [{ ...post(), credentialSecretId: `ghp_${"a".repeat(36)}` }], /ser ut som en GitHub-token/],
+    ["⛔ credentialSecretId som är en fine-grained-token", [{ ...post(), credentialSecretId: `github_pat_${"a".repeat(30)}` }], /ser ut som en GitHub-token/],
+    ["för många poster", Array.from({ length: MAX_EXTERNA + 1 }, post), /Taket är 10/],
+  ]);
+  for (const [namn, varde, mot] of avvisas) {
+    it(`⛔ avvisar ${namn}`, () => {
+      expect(() => byggGrupp({ ...GRUPP(), externaDatakallor: varde })).toThrow(mot);
+    });
+  }
+
+  it("precis taket går igenom, och EXTERNTYPER är bara github i v1", () => {
+    expect(byggExternaDatakallor(Array.from({ length: MAX_EXTERNA }, post), "x")).toHaveLength(MAX_EXTERNA);
+    expect([...EXTERNTYPER]).toEqual(["github"]);
+    expect([...EXTERNPOSTFALT].sort()).toEqual(["credentialSecretId", "enabled", "label", "repo", "type"]);
+  });
+
+  it("⛔ byggaren släpper in samma poster som reglernas regex: ett giltigt namn med punkt, understreck och bindestreck", () => {
+    for (const repo of ["cllp/ops-framework", "a-b/c_d.e", "A1/.github", "x/y..z"]) {
+      expect(byggExternaDatakallor([{ ...post(), repo }], "x")[0].repo).toBe(repo);
+    }
+  });
+
+  it("⛔ reglerna härleds ur samma listor och gränser: hasOnly, taket och regexen är de byggaren använder", () => {
+    const text = regelfragment();
+    expect(text).toContain(`p.keys().hasOnly([${EXTERNPOSTFALT.map((f) => `'${f}'`).join(", ")}])`);
+    expect(text).toContain(`p.type in [${EXTERNTYPER.map((f) => `'${f}'`).join(", ")}]`);
+    expect(text).toContain(`l.size() <= ${MAX_EXTERNA}`);
+    expect(text.match(/opsExternPost\(l\[\d+\]\)/g)).toHaveLength(MAX_EXTERNA);
+    expect(text).toContain("p.repo.matches('[A-Za-z0-9-]+/[A-Za-z0-9._-]+')");
+    expect(text).toContain(`p.repo.size() <= ${MAX_EXTERNREPO}`);
+    expect(text).toContain(`p.label.size() <= ${MAX_EXTERNLABEL}`);
+    expect(text).toContain(`p.credentialSecretId.size() <= ${MAX_EXTERNHEMLIGHET}`);
+    expect(text).toContain("allow create: if opsArAgare(gid) && opsExternaGiltiga(request.resource.data);");
+    expect(text).toContain("allow update: if (opsArAgare(gid) && opsExternaGiltiga(request.resource.data)");
   });
 });
 
