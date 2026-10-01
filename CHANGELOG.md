@@ -9,6 +9,42 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.38.0
+
+⛔ **Profilen tappar Utseende och Logga ut (#202), headern visar OH och aktiva gruppens namn i infälld panel (#203), och skapa-panelen låser inte längre navigeringen (#194). Tre ärenden från CP 2026-09-30. #199 (VEM-filtret på Idag) ändras inte här: filtret ligger i appen, se nedan. Inga nya exporter, inga regler. Borttagna props på `OpsProfil`: `onTema`, `onLoggaUt`, `temaEtikett`, `temaNamn`, `loggaUtEtikett`.**
+
+### #202: Profil utan Utseende och Logga ut
+Händelsen: CP 2026-09-30: *"I Min profil: ta bort 1. Utseende (finns redan i headern, temaväljare) 2. Logga ut (finns redan under meny). Profilen ska inte duplicera kontroller som redan har en tydlig plats."* Mätt innan borttagning: Logga ut är menyns sista rad i skalet (`menyFot`, `meny.onLoggaUt`); temaväljaren är `OpsThemeToggle`, som appen lägger i skalets `actions` (skalet ritar den inte själv, bolag-ops har den i headern).
+- `OpsProfil` ritar bara Språk under Inställningar. `users/{uid}.tema` finns kvar i datamodellen och skickas orört med `andringen()`.
+
+### #203: OH och gruppens namn i headern
+Händelsen: CP 2026-09-30: *"OH kvarstår (plattformskoncept OPS HUB). Bredvid OH: aktivt gruppnamn (max ~20 tecken, truncate) [...] Desktop infällt grupper-panel: OH | Travel (inte byta ut OH mot gruppbokstäver) [...] Appnamn (Bolag Ops) != OH != grupp, tre lager."*
+- Infälld gruppanel på dator (från 1024): OH i rutan, en tunn avdelare och gruppens namn (`data-marke="gruppnamn"`). Avkortningen är CSS (`truncate`, ungefär 20 tecken i märkets typsnitt och spärrning), hela namnet finns i `title` och skärmläsartexten. Utfälld: som förut (namnet är rad 2). Telefon: som förut (bara gruppmärket), eftersom ett namn bredvid hade gett tre konkurrerande rader.
+- Flikarna går nu åt HÖGER när panelen fälls in (OH + namn är bredare än ordmärket), förut åt vänster.
+
+### #194: skapa-panelen låste navigeringen
+Händelsen: CP 2026-09-30: *"Nytt ärende-panelen låser all annan navigering i appen. Samma sak med Ny händelse. Topnav (Idag/Kalender/Hub) och övrigt går inte att använda medan panelen är uppe."*
+- Rotorsak (mätt): länkarna var klickbara men skalet höll panelen kvar och appens vy ligger dold medan den visas, så adressen bytte sida och skärmen stod still.
+- Nu hör panelen till sidan den öppnades på: ett klick på en länk skalet äger (flikar, märke, menyrader, hubbmoduler), också till samma sida, och ett byte av `activeHref` stänger den. `?skapa=` skrivs om utan `history.back()`, rullpositionen återställs inte.
+- Telefon: panelen är fortsatt helskärm och täcker huvudet och bottenraden med flit (CP 2026-09-29 15:01). Vägen ut är Tillbaka överst till vänster (44 px) och Avbryt längst ned. Mätt i `check-skalyta`.
+
+### #199: VEM-filtret på Idag, INTE ändrat här
+Filtret ligger i appen: `cllp/bolag-ops` `web/src/app/views/EventsView.jsx` (gruppen `id: "roll"`, `label: "Vem"`, `allLabel: "Alla roller"`, alternativ ur `web/src/data/roller.js`). Ramverkets `OpsFilterPanel` är generisk och känner inga roller.
+
+### Att göra i appen (bolag-ops vid ompinning till 0.38.0)
+- **#202:** sluta skicka `onTema`, `onLoggaUt`, `temaEtikett`, `temaNamn`, `loggaUtEtikett` till `OpsProfil`. Skriver appen temat till `users/{uid}` ur profilen måste temaknappen i headern göra det i stället, annars sparas inte temat längre per person.
+- **#194:** navigera först, öppna sedan: anropar appen `useOppnaSkapa()` och byter `activeHref` i samma tick stänger bytet panelen.
+- **#199:** VEM = medlemmar i aktiva gruppen. Alternativen byggs ur `medlemsinfo(medlemskap, groupId).medlemmar` (`{ id, namn }`, aktiva) plus "Jag" och "Alla" (`allLabel`). Ingen hårdkodad Agent-rad; en agent finns bara om den är medlem (`typ: "agent"`). Händelserna behöver ett fält för vem de gäller (appens data, `OpsEvent` har bara `role`, som är ett ritat märke). "Förfaller" flyttas till filtret När.
+
+#### Röd utan fixen, grön med den (0.38.0)
+- **#202** (`profilvy.test.jsx`, ändrat prov): utan fixen 1 fel, 51 av 52; med 52 av 52.
+- **#203** (`marke.test.jsx` +5): utan fixen 3 fel, 20 av 23 (`skal031` 14 av 14); med 23 av 23. `check-skalyta` mot dist 0.37.1: 11 brott i de nya kontrollerna (1280, 1600, 1024), med nya dist 0.
+- **#194** (`skapaNavigering.test.jsx`, nytt, 4 prov): utan fixen 3 fel, 1 grönt; med 4 av 4. `check-skalyta` avsnitt 33 mot dist 0.37.1: 3 brott (1280), med nya dist 0. Vid 390 är kontrollen grön på båda (Tillbaka fungerade redan), den är ett golv och inte ett fel som rättats.
+- **Ändrade befintliga prov (regel 9):** `profilvy` ("båda väljarna", krävde Utseende), `skal031` (länkens klass `hidden md:block` blev `hidden` + `md:flex`), `check-skalyta` (flikarnas rörelse vid infällning: minst 20 åt endera hållet, förut åt vänster).
+- `check-skalyta` helt grön med 0.38.0: 1338 kontroller, inga brott.
+
+---
+
 ## 0.37.1
 
 ⛔ **Slagets ikon (`kindIcon`) ritas nu i dagpanelens rad och i snabbtitten, som 0.37.0 sade att den gjorde. Ren rättelse i `OpsCalendar`, inga nya props, inga regler, ingen ändring i dagrutan (den har fortfarande bara prickar och streck). Några kommentarer som sade 0.38.0 om hubben rättas till 0.37.0.**
