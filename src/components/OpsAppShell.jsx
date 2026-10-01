@@ -21,6 +21,8 @@ import { OpsField } from "./OpsField.jsx";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { giltigtDatum, kalenderval } from "../lib/kalendrar.js";
+import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
+import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsepanel.js";
 import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
@@ -424,6 +426,29 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  */
 
 /**
+ * Skalets `handelsepanel`-prop (0.40.0, #214): händelsen på en egen sida, med Tillbaka.
+ *
+ * ══ ⛔ SKALET ÄGER ADRESSEN OCH TILLBAKA, APPEN ÄGER HÄNDELSEN ═══════════════════════════════════════════════════════
+ *
+ * CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalender och från idag. Händelsepanelen skall ha en tillbaka
+ * knapp." Panelen är en SIDA i innehållskolumnen och öppnas som skapa-panelen: `?handelse=<id>` skrivs i adressen med `pushState`, appens
+ * vy ligger kvar monterad men dold, och Tillbaka återställer den (kalenderns månad och valda dagar, Idags flik, filter och rullning).
+ * Webbläsarens bakåt och framåt gör samma sak, och en omladdning på adressen öppnar samma panel.
+ *
+ * ⛔ DE TVÅ INGÅNGARNA ÄR RADERNA SJÄLVA. En post med `handelseId` i `OpsEventList` (Idag) och `OpsCalendar` (dagpanel och snabbtitt)
+ * öppnar panelen utan att appen kopplar något: raderna frågar skalet. Appen skickar bara `handelseId` på de poster som ÄR händelser
+ * (en uppgift eller ett ärende i samma lista har ingen panel), och `rita` nedan.
+ *
+ * @typedef {object} HandelsepanelKonfiguration
+ * @property {(arg: { id: string, onTillbaka: () => void }) => import("react").ReactNode} rita Ritar panelen för ett id, normalt
+ *   `({ id, onTillbaka }) => <OpsHandelsePanel handelse={...} laddar={...} svar={<HandelseSvar handelseId={id} />} onTillbaka={onTillbaka} statusWords={...} />`.
+ *   En FUNKTION och inte en färdig nod: id:t kommer ur adressen, och appen slår upp händelsen ur sin egen källa med sina egna hooks.
+ *   Händelsen kan saknas (`handelse={null}`), eller läsas ännu (`laddar`): panelen har en väg tillbaka i båda.
+ * @property {boolean} [adress] Skalet lägger `?handelse=<id>` i adressen, så att Tillbaka i webbläsaren fungerar och panelen går att länka
+ *   till. Förval sant; `false` för en app vars router inte tål att någon annan skriver i historiken.
+ */
+
+/**
  * Skalets `skapa`-prop (#168), plusset i toppraden.
  * @typedef {object} SkapaKonfiguration
  * @property {import("react").ReactNode | HandelseSkapare} [handelse] Ramverkets egen rad "Ny händelse". `null`/utelämnad döljer raden.
@@ -518,6 +543,15 @@ function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
 }
 
 /**
+ * Ritar `handelsepanel.rita` (0.40.0, #214). Samma skäl som `ArendeRitare`: en egen komponent, så att appens hooks (händelsen ur appens
+ * källa, svaren) får en stabil plats i stället för skalets villkorliga gren. Nyckeln är händelsens id, så en annan händelse börjar om.
+ * @param {{ rita: (arg: { id: string, onTillbaka: () => void }) => import("react").ReactNode, id: string, onTillbaka: () => void }} props
+ */
+function HandelsepanelRitare({ rita, id, onTillbaka }) {
+  return <>{rita({ id, onTillbaka })}</>;
+}
+
+/**
  * ⛔ EN SANNING FÖR NYCKEL TILL FORMULÄR (0.34.1). Adressens `?skapa=` och `useOppnaSkapa()` gör samma sak: en nyckel blir
  * en beskrivning av vilket formulär panelen ska visa, eller `null` när skalets `skapa` inte har den posten (ännu).
  * Nycklarna är adressens: "handelse", "arende", "grupp", "meddelande", "redigera-grupp" (med `groupId`) eller en
@@ -573,6 +607,22 @@ const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { g
 export function useOppnaSkapa() {
   const oppna = useContext(OppnaSkapaKontext);
   if (!oppna) throw new Error("useOppnaSkapa() används utanför OpsAppShell: hooken behöver skalet som förälder.");
+  return oppna;
+}
+
+/**
+ * ⛔ Öppnar händelsepanelen från appen (0.40.0, #214): `oppna("<händelsens id>")`. Samma väg som en rad i Idag och en post i kalenderns
+ * dagpanel tar när de har ett `handelseId`: adressen (`?handelse=<id>`) skrivs med `pushState`, appens vy ligger kvar dold, och
+ * Tillbaka (knappen och webbläsarens) för tillbaka till exakt det man lämnade. Behövs bara för en egen yta (en länk i inkorgen, ett
+ * sökresultat): raderna i `OpsEventList` och `OpsCalendar` gör det själva.
+ *
+ * Kastar utanför `OpsAppShell` och när skalet saknar `handelsepanel`: en knapp som inte öppnar något är värre än ett fel.
+ *
+ * @returns {(id: string) => void}
+ */
+export function useOppnaHandelse() {
+  const oppna = useContext(OppnaHandelseKontext);
+  if (!oppna) throw new Error("useOppnaHandelse() används utanför OpsAppShell, eller i ett skal utan `handelsepanel`: hooken behöver skalet och dess panel.");
   return oppna;
 }
 
@@ -636,6 +686,7 @@ export function useOppnaSkapa() {
  * @param {string} [props.felRubrik] Rubriken på felytan.
  * @param {string} [props.felBeskrivning]
  * @param {string} [props.laddaOmEtikett]
+ * @param {HandelsepanelKonfiguration} [props.handelsepanel] (0.40.0, #214) Händelsen på en egen sida med Tillbaka, öppnad av en rad i Idag eller en post i kalendern (`handelseId`) eller av `useOppnaHandelse()`. Se `HandelsepanelKonfiguration`.
  * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden, mellan `actions` och `anvandare`.
  *   Tryck öppnar en POPOVER med en platt lista (`ss-skapa-meny.png`), aldrig en yta i sidan: `handelse`
  *   och `arende` är ramverkets EGNA rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler),
@@ -685,6 +736,7 @@ export function OpsAppShell({
   grupper,
   meny,
   skapa,
+  handelsepanel,
   skapaLabel = "Skapa",
   nyHandelseEtikett = "Ny händelse",
   nyttArendeEtikett = "Nytt ärende",
@@ -876,6 +928,87 @@ export function OpsAppShell({
       requestAnimationFrame(() => window.scrollTo(0, y));
     }
   };
+  // ══ ⛔ HÄNDELSEPANELEN: `?handelse=<id>`, SAMMA MEKANIK SOM SKAPA-PANELEN (0.40.0, #214) ═════════════════════════════════════
+  //
+  // CP 2026-10-01: "Vi behöver en händelsepanel. Så man navigerar dit från kalender och från idag. Händelsepanelen skall ha en tillbaka
+  // knapp." Se `HandelsepanelKonfiguration`. Tre beslut, alla mätta mot hur skapa-panelen redan beter sig:
+  //
+  //   1. ADRESSEN BÄR ID:T (`?handelse=`), på sidan man står på, och `pushState` ger Tillbaka i webbläsaren ett steg att gå. Tillbaka-knappen
+  //      går samma väg (`history.back()`) när skalet själv pushade posten, så knappen och webbläsarens bakåt är SAMMA gest. Kom man in
+  //      på en adress (omladdning, en länk) finns inget steg att gå tillbaka till: då skrivs posten om utan parametern (`replaceState`)
+  //      och man står kvar på sidan under.
+  //   2. APPENS VY ÄR KVAR, DOLD. Det är därför kalenderns månad och valda dagar, Idags flik och filter finns kvar när man kommer
+  //      tillbaka. Rullningen är fönstrets, och den sparas vid öppning och återställs vid Tillbaka (som skapa).
+  //   3. WEBBLÄSARENS BAKÅT OCH FRAMÅT STYR PANELEN åt båda hållen (`popstate`): att gå bakåt stänger den, att gå framåt öppnar den igen.
+  //      Skapa-panelen lyssnar bara på stängningen, eftersom den inte går att öppna utan ett val; här räcker adressen.
+  const handelseAdress = handelsepanel?.adress !== false;
+  const [handelseId, setHandelseId] = useState(() => /** @type {string | null} */ (handelseAdress && typeof window !== "undefined" ? handelseIdUrAdress(window.location.href) : null));
+  const handelsePushad = useRef(false);
+  const handelseRullning = useRef(0);
+  /** @param {string} id */
+  const oppnaHandelse = (id) => {
+    if (typeof id !== "string" || id === "") throw new Error("useOppnaHandelse: id krävs, en sträng som inte är tom.");
+    if (!handelsepanel) throw new Error("useOppnaHandelse: skalet saknar `handelsepanel`, så det finns ingen panel att öppna.");
+    // Ett öppet skapa-formulär hör till vyn man lämnar: det stängs utan att röra historiken, som när man navigerar bort från det.
+    if (skapaForm) setSkapaFormRaw(null);
+    if (handelseId === null && typeof window !== "undefined") handelseRullning.current = window.scrollY;
+    const redanOppen = handelseId !== null;
+    setHandelseId(id);
+    if (handelseAdress && typeof window !== "undefined") {
+      try {
+        const till = medHandelse(window.location.href, id);
+        // Byter man händelse medan panelen är öppen ersätts posten: två paneler i historiken hade krävt två Tillbaka för att nå sidan.
+        if (redanOppen) window.history.replaceState(window.history.state, "", till);
+        else {
+          window.history.pushState(window.history.state, "", till);
+          handelsePushad.current = true;
+        }
+      } catch {
+        // En adress som inte går att skriva (t.ex. en sandlåda) gör inte panelen sämre: den är ändå ett tillstånd.
+      }
+    }
+  };
+  /**
+   * @param {boolean} [klar] Sant när panelen stängs för att man LÄMNAR vyn (en länk i skalet, en ny `activeHref`): posten skrivs om utan
+   *   parametern, ingen `history.back()` (appen pushar sin egen post direkt efter, och ett sent back skulle ångra den).
+   * @param {boolean} [aterstallRullning] Förval sant: Tillbaka återställer rullpositionen man kom från. Falskt när man navigerar till en
+   *   ANNAN vy: den ska börja överst.
+   */
+  const stangHandelse = (klar = false, aterstallRullning = true) => {
+    setHandelseId(null);
+    if (handelseAdress && typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has(HANDELSEPARAM)) {
+        if (handelsePushad.current && klar !== true) {
+          handelsePushad.current = false;
+          window.history.back();
+        } else {
+          handelsePushad.current = false;
+          window.history.replaceState(window.history.state, "", medHandelse(window.location.href, null));
+        }
+      }
+    }
+    if (aterstallRullning && typeof window !== "undefined" && handelseRullning.current > 0) {
+      const y = handelseRullning.current;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  };
+  // Webbläsarens bakåt och framåt: adressen är sanningen, panelen följer den.
+  useEffect(() => {
+    if (!handelseAdress || typeof window === "undefined") return undefined;
+    const lyssna = () => {
+      const id = handelseIdUrAdress(window.location.href);
+      if (id === null) handelsePushad.current = false;
+      setHandelseId(id);
+    };
+    window.addEventListener("popstate", lyssna);
+    return () => window.removeEventListener("popstate", lyssna);
+  }, [handelseAdress]);
+  // En ny panel börjar överst: appens vy var dold och dess rullning är inte panelens.
+  useEffect(() => {
+    if (handelseId !== null && typeof window !== "undefined" && window.scrollY > 0) window.scrollTo(0, 0);
+  }, [handelseId]);
+
   // ══ ⛔ ATT NAVIGERA STÄNGER PANELEN (0.38.0, #194) ═════════════════════════════════════════════════════════════════════
   //
   // CP 2026-09-30: "Nytt ärende-panelen låser all annan navigering i appen. Samma sak med Ny händelse. Topnav (Idag/Kalender/Hub)
@@ -893,6 +1026,8 @@ export function OpsAppShell({
     if (foregaendeAktivHref.current === activeHref) return;
     foregaendeAktivHref.current = activeHref;
     if (skapaForm) stangSkapa(true, false);
+    // ⛔ 0.40.0 (#214): händelsepanelen hör också till sidan man öppnade den på.
+    if (handelseId !== null) stangHandelse(true, false);
     // `skapaForm` läses vid själva bytet; det är bytet av `activeHref` som är utlösaren, inte formuläret.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeHref]);
@@ -1003,6 +1138,9 @@ export function OpsAppShell({
   const skapaKalender = handelseMedKalendrar && skapaEffektivtMal ? { id: skapaEffektivtMal.id, slag: /** @type {"grupp" | "mina"} */ (skapaEffektivtMal.sektion === "minaKalendrar" ? "mina" : "grupp") } : null;
   const skapaHarVaxlare = skapaForm?.kind === "modul" && skapaSektioner.some((x) => x.poster.length > 0);
   const skapaPanelSyns = Boolean(skapaForm);
+  // ⛔ 0.40.0 (#214): ett öppet skapa-formulär vinner. Händelsepanelen visas bara när inget formulär är uppe, och saknas `handelsepanel`
+  // ritas ingenting för ett id i adressen: appens vy står kvar synlig, hellre än en tom sida.
+  const handelsePanelSyns = Boolean(handelseId !== null && handelsepanel) && !skapaPanelSyns;
   const skapaMalNamn = (() => {
     const sprakSkapa = skapa?.sprak ?? "sv";
     if (skapaEffektivtMal) {
@@ -1218,6 +1356,7 @@ export function OpsAppShell({
   const onActivate = (href, e) => {
     // ⛔ 0.38.0 (#194): en öppen skapa-panel hör till sidan den öppnades på, se `foregaendeAktivHref` ovan.
     if (skapaForm) stangSkapa(true, false);
+    if (handelseId !== null) stangHandelse(true, false);
     if (onNavigate) onNavigate(href, e);
   };
 
@@ -1386,6 +1525,7 @@ export function OpsAppShell({
 
   return (
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
+    <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
     <div className="min-h-dvh bg-canvas">
       {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
           BÖRJAR VID SKÄRMENS ÖVERKANT OCH BÄR SJÄLV DEN SÄKRA ZONEN SOM PADDING (`top-0`, `pt-(--safe-top)`). Före 0.31.2 var den
@@ -1708,8 +1848,9 @@ export function OpsAppShell({
         <OpsFelgrans felmottagare={felmottagare} rubrik={felRubrik} beskrivning={felBeskrivning} laddaOmEtikett={laddaOmEtikett}>
           {/* ⛔ 0.31.0: APPENS VY ÄR KVAR I DOM:EN, DOLD, medan skapa-panelen visas. Tillbaka återställer då exakt vyn man kom
               från (filter, rullning, ifyllda fält) i stället för att appen ritar om den från noll. */}
-          <div hidden={skapaPanelSyns}>{children}</div>
+          <div hidden={skapaPanelSyns || handelsePanelSyns}>{children}</div>
         </OpsFelgrans>
+        {handelsePanelSyns && handelsepanel ? <HandelsepanelRitare key={handelseId} rita={handelsepanel.rita} id={/** @type {string} */ (handelseId)} onTillbaka={() => stangHandelse()} /> : null}
         {skapaPanelSyns ? (
           <OpsSkapaPanel
             kolumn={skapaForm?.kind === "grupp" || skapaForm?.kind === "redigeragrupp" || skapaForm?.kind === "meddelande" ? "smal" : "bred"}
@@ -1802,6 +1943,7 @@ export function OpsAppShell({
         />
       ) : null}
     </div>
+    </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
   );
 }

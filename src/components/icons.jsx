@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -374,4 +374,24 @@ export function AgentIkon({ size = 18 }) {
  */
 export function VeckonummerIkon({ size = 14 }) {
   return <Hash size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Datumet och klockan i händelsepanelens informationsruta (0.40.0, #214). SS `EventDetailInfoTabInline.jsx:132-148` ritar `Calendar` (w-5)
+ * framför datumet och `Clock` (w-5) framför tiden. `IdagIkon` är samma `Calendar`, men ett namn som säger "Idag" framför ett datum är fel
+ * ord, så datumet har ett eget namn i stället för att låna ett.
+ * @param {{ size?: number }} props
+ */
+export function DatumIkon({ size = 20 }) {
+  return <Calendar size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** @param {{ size?: number }} props */
+export function KlockaIkon({ size = 20 }) {
+  return <Clock size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Pilen mellan två datum i en händelse över flera dagar (SS `EventDetail.jsx`, `ArrowRight`). @param {{ size?: number }} props */
+export function PilHogerIkon({ size = 16 }) {
+  return <ArrowRight size={size} aria-hidden="true" strokeWidth={1.5} />;
 }

@@ -4,6 +4,8 @@ import { slagText } from "../lib/slag.js";
 import { urgency } from "../lib/events.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
 import { laesSkapare } from "../lib/skapare.js";
+import { useHandelseOppnare } from "../lib/handelsekontext.js";
+import { HandelseLank } from "./HandelseLank.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsCard } from "./OpsCard.jsx";
 import { OpsProvenance } from "./OpsProvenance.jsx";
@@ -94,6 +96,9 @@ const TONER = {
  *   att göra något åt. ⛔ KRÄVS så snart någon rad har en `atgard` och någon annan inte har det.
  * @param {string} [props.skapadAvEtikett] (0.30.0, #173) Orden före namnet i "Skapad av Namn, 29 sep 09:12". Förval "Skapad av".
  * @param {string} [props.sprak] Språket för månadsnamnet i den raden ("sv" eller "en"). Förval "sv".
+ * @param {(id: string) => void} [props.onOppnaHandelse] (0.40.0, #214) Vad ett tryck på en rad med `handelseId` gör. Utelämnad: skalets
+ *   händelsepanel (`OpsAppShell` `handelsepanel`) öppnas. ⛔ Finns varken propen eller ett skal med panel kastar listan för en rad med `handelseId`:
+ *   en rad som ser tryckbar ut och inte gör något är värre än ett fel.
  * @param {{ oppet?: string, pagar?: string, vantar?: string, klart?: string, akut?: string }} [props.statusWords]
  *   Orden för de fem statuslägena. ⛔ KRÄVS för varje status som faktiskt förekommer: en prick
  *   utan ord är en färg som bär betydelsen ensam, och det är osynligt för skärmläsaren och för
@@ -111,6 +116,7 @@ export function OpsEventList({
   skapadAvEtikett = "Skapad av",
   sprak = "sv",
   statusWords = {},
+  onOppnaHandelse,
 }) {
   // ⛔ BARA FÖRSENAT FÅR ETT ORD SOM STANDARD, och det följer direkt av
   // TONER ovan: försenat är det enda läget som lånar larmfärgen, alltså det
@@ -131,6 +137,7 @@ export function OpsEventList({
 
   const [open, setOpen] = useState(/** @type {string[]} */ ([]));
   const idBas = useId();
+  const oppnaHandelse = useHandelseOppnare(onOppnaHandelse);
 
   // ⛔ FÖRE `events`-vakten, för hookar får inte hoppas över. Låg `useState`
   // efter den tidiga returen skulle React se olika många hookar beroende på om
@@ -176,6 +183,13 @@ export function OpsEventList({
   if (nagonHarAtgard && events.some((e) => e && !e.atgard) && !actionHint) {
     throw new Error(
       "OpsEventList: några rader har en action och andra inte, men listan saknar actionHint. En lista där vissa rader går att göra något åt och andra ser likadana ut lär den som läser att trycka på måfå.",
+    );
+  }
+
+  const utanOppnare = events.filter((e) => e && e.handelseId && !oppnaHandelse);
+  if (utanOppnare.length > 0) {
+    throw new Error(
+      `OpsEventList: ${utanOppnare.length} rad(er) har handelseId men det finns ingenting som öppnar en händelse. Skicka \`handelsepanel\` till OpsAppShell, eller \`onOppnaHandelse\` till listan. Raden ser tryckbar ut, och en rad som inte gör något lär den som tryckt att inget i listan gör något.`,
     );
   }
 
@@ -311,7 +325,7 @@ export function OpsEventList({
                         target={onNavigate ? undefined : "_blank"}
                         rel={onNavigate ? undefined : "noopener noreferrer"}
                         className={cx(
-                          "shrink-0 rounded-sm text-meta text-accent underline underline-offset-2 hover:no-underline",
+                          "relative z-10 shrink-0 rounded-sm text-meta text-accent underline underline-offset-2 hover:no-underline",
                           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
                         )}
                       >
@@ -354,7 +368,20 @@ export function OpsEventList({
                   datumraden först och radien 24 är oförändrade. */}
               {/* ⛔ 0.31.2: SS `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 px under sm, 20 px från sm (`titel` och `sida`). Metaraden ovanför är SS `text-xs sm:text-sm` (`:83/86`): 12 px under sm, 14 px från sm. */}
               {/* ⛔ 0.31.2: SS `text-lg sm:text-xl font-bold` (`TodayView.jsx:89`): 18 px under sm, 20 px från sm (`titel` och `sida`). */}
-              <span className={cx("text-etikett font-medium text-ink", harChevron && !harPillrad && !harDatumrad && "pr-9")} data-titel="">{h.title}</span>
+              {/* ⛔ 0.40.0 (#214): EN RAD SOM ÄR EN HÄNDELSE ÄR HELA KORTET SOM EN LÄNK, och länken är TITELN. Det är SS beteende (`TodayView.jsx`: kortet är
+                  tryckbart och öppnar händelsen) utan att kortet blir en knapp med knappar inuti: en länk i titeln har ett riktigt namn (titeln), en
+                  riktig adress (`?handelse=<id>`, går att öppna i en ny flik) och sin egen fokusring. Dess `::after` täcker hela kortet (`-inset` lika med
+                  kortets padding), så ett tryck var som helst på kortet öppnar. Kontrollerna på kortet (åtgärden, utfällningen, länken) har `z-10` och tar
+                  sina egna tryck. Utan `handelseId` är titeln text som förut. */}
+              <span className={cx("text-etikett font-medium text-ink", harChevron && !harPillrad && !harDatumrad && "pr-9")} data-titel="">
+                {h.handelseId && oppnaHandelse ? (
+                  <HandelseLank id={h.handelseId} oppna={oppnaHandelse} tacker="after:-inset-(--card-padding) after:rounded-[var(--radius-card)]">
+                    {h.title}
+                  </HandelseLank>
+                ) : (
+                  h.title
+                )}
+              </span>
 
               {/* ⛔ VEM OCH NÄR, OM BÅDA FINNS (0.30.0, #173, CP 2026-09-29: "vem
                   som skapade"). Under titeln och inte i detaljraden ovanför: det
@@ -374,7 +401,7 @@ export function OpsEventList({
 
                   ⛔ VILLKORET ÄR RADENS EGEN `atgard` OCH INTE `nagonHarAtgard`. Frågade platsen listan skulle varje rad
                   utan knapp rita en tom `div`, alltså betala marginal för något som aldrig syns. */}
-              {h.atgard ? <div className="mt-1 flex justify-end">{h.atgard}</div> : null}
+              {h.atgard ? <div className="relative z-10 mt-1 flex justify-end">{h.atgard}</div> : null}
 
               {harChevron ? (
                 <button
@@ -385,7 +412,7 @@ export function OpsEventList({
                   className={cx(
                     // ⛔ 44 px träffyta som förut, men absolut: den tar ingen bredd från titeln. Negativ förskjutning så
                     // att ikonen (16 px) linjerar med pillradens högerkant och inte hamnar 14 px in i kortet.
-                    "absolute -top-3 -right-3 flex size-11 cursor-pointer items-center justify-center rounded-md text-ink-muted",
+                    "absolute -top-3 -right-3 z-10 flex size-11 cursor-pointer items-center justify-center rounded-md text-ink-muted",
                     "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint hover:text-ink",
                     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
                   )}

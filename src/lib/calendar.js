@@ -59,6 +59,9 @@
  *   Färgen är en ton ur identitetspaletten och står ALDRIG ensam: namnet står bredvid den i kortet och i filtret.
  *   ⛔ Saknas den hör posten till den förvalda kalendern i `OpsCalendar`s `kalendrar` (en händelse skriven före
  *   0.36.0 har ingen kalender, och ska inte försvinna ur ett filter för det).
+ * @property {string} [handelseId] (0.40.0, #214) Posten ÄR en händelse med en egen panel (`OpsHandelsePanel`): ett tryck på raden i dagpanelen eller snabbtitten
+ *   öppnar den. Id:t är appens. ⛔ BARA PÅ DE POSTER SOM ÄR HÄNDELSER: en post i en egen kalender (`kalenderposter` ur `postTillRad`) har ingen panel och bär inget
+ *   `handelseId`. Kräver `handelsepanel` på skalet eller `onOppnaHandelse` på kalendern: annars kastar kalendern.
  * @property {string} [typ] Typens id ur appens typkatalog (0.36.0). Det verktygsradens typfilter jämför med.
  */
 

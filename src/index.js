@@ -10,7 +10,7 @@
  */
 
 // ── Skal ───────────────────────────────────────────────────────────────────
-export { OpsAppShell, useOppnaSkapa } from "./components/OpsAppShell.jsx";
+export { OpsAppShell, useOppnaSkapa, useOppnaHandelse } from "./components/OpsAppShell.jsx";
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
@@ -201,6 +201,13 @@ export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDER
  */
 export { OpsKalendrar } from "./components/OpsKalendrar.jsx";
 export { OpsSvar, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx";
+/*
+ * ⛔ HÄNDELSEPANELEN (0.40.0, #214): en händelse på en egen sida med Tillbaka, öppnad av en rad i Idag (`OpsEventList`) eller en post i kalenderns
+ * dagpanel (`OpsCalendar`) som bär `handelseId`. Skalet äger adressen (`?handelse=<id>`) och Tillbaka (`OpsAppShell` `handelsepanel`), appen ritar
+ * panelen ur sin egen källa med `OpsHandelsePanel` och sätter `svar` till sitt `OpsSvar`.
+ */
+export { OpsHandelsePanel } from "./components/OpsHandelsePanel.jsx";
+export { HANDELSEPARAM, handelseHref, handelseIdUrAdress, medHandelse, handelsetid, langtDatum } from "./lib/handelsepanel.js";
 export { createKalenderkalla, createSvarskalla } from "./data/kalenderkalla.js";
 export { HANDELSEKONTRAKT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader } from "./lib/handelsemodell.js";
 
