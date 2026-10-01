@@ -43,7 +43,7 @@ if (!fs.existsSync(libmapp)) {
   process.exit(1);
 }
 
-const { gruppadSamling, katalogregelfragment, regelfragment } = await import(pathToFileURL(path.join(libmapp, "regler.js")).href);
+const { gruppadSamling, katalogregelfragment, konfigloggregelfragment, regelfragment } = await import(pathToFileURL(path.join(libmapp, "regler.js")).href);
 const { byggKategori } = await import(pathToFileURL(path.join(libmapp, "katalog.js")).href);
 const { createCatalogSource } = await import(pathToFileURL(path.join(kalltrad, "data", "katalogkalla.js")).href);
 
@@ -98,7 +98,7 @@ for (const { lista, falt, fil } of listor) {
 // ⛔ OCH REGLERNA, INTE BARA FORMEN. En rad kan bära ett enda `groupId` medan
 // regeln ändå frågar "är du med i NÅGON av de här", och då är hålet lika stort.
 // `array-contains` och `in` över en grupplista är hur det skulle se ut.
-const regeltexter = [regelfragment(), gruppadSamling("provsamling"), gruppadSamling("provkonfig", { agareKravsForSkrivning: true }), katalogregelfragment("provkatalog")];
+const regeltexter = [regelfragment(), gruppadSamling("provsamling"), gruppadSamling("provkonfig", { agareKravsForSkrivning: true }), katalogregelfragment("provkatalog"), konfigloggregelfragment("provlogg")];
 const FORBJUDET = [
   ["array-contains", "en fråga mot en lista grupper på raden"],
   ["groupIds", "en gruppnyckel i plural"],

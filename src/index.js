@@ -132,7 +132,7 @@ export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } fr
  */
 export { FASER, AVSLUTADE_FASER, byggKategori, validateKatalog, valjbara, kategorin, arAvslutad, texten, katalognyckel, gruppensRader } from "./lib/katalog.js";
 export { SPRAK, RESERVSPRAK, byggNamn, text, arGammalNamn, saknadeSprak } from "./lib/sprak.js";
-export { KONFIGHANDELSER, byggKonfigandring, beskrivKonfigandring, createConfigLog } from "./lib/konfiglogg.js";
+export { KONFIGHANDELSER, KONFIGLOGGFALT, byggKonfigandring, beskrivKonfigandring, createConfigLog } from "./lib/konfiglogg.js";
 export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
 
 /*
@@ -188,7 +188,7 @@ export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, INBJUDNINGSSTATUS, TEMAN, MEDLEMSK
 export { gruppmarkeProps } from "./lib/gruppikoner.js";
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment } from "./lib/regler.js";
 /*
  * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
  * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
