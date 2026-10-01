@@ -1079,6 +1079,10 @@ export function OpsCalendar({
     langRef.current = null;
   }, []);
 
+  // ⛔ 0.39.1: långtryckets timer rensas också när kalendern försvinner. Förut rensades den bara av släpp, lämna
+  // och avbryt, och sköt då mot en vy som inte fanns (mätt 2026-10-01 som ett fel efter `kalendrar.test.jsx`).
+  useEffect(() => rensaLang, [rensaLang]);
+
   useEffect(() => {
     if (!svepar) return undefined;
     /** @param {PointerEvent} e */

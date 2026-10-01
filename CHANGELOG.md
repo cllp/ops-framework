@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.39.1
 
-⛔ **Gruppanelens nederkant på dator går nu att rulla fram helt (cllp/bolag-ops#497). Inga exporter, props eller komponenter ändras: tre klasser på panelens `nav` i `OpsGruppanel`. Appen behöver bara pinna om.**
+⛔ **Gruppanelens nederkant på dator går nu att rulla fram helt (cllp/bolag-ops#497). Inga exporter, props eller komponenter ändras: tre klasser på panelens `nav` i `OpsGruppanel`, och kalenderns långtryck rensas när kalendern försvinner. Appen behöver bara pinna om.**
 
 ### #497: "Bubblornas scroll kan gå ända ner, huggs av"
 Händelsen: CP 2026-09-30 16:58, med en skärmbild i appens inkorg: "Bubblornas scroll kan gå ända ner, huggs av. Scolla ända ner på sidan i web samma som kalendern bredvid." Bubblorna är gruppmärkena i den infällda gruppanelen på dator. Mätt i en riktig webbläsare (check-skalyta avsnitt 34) med tolv extra grupper, rullad till botten:
@@ -30,6 +30,10 @@ Rotorsaken är alltså tre saker i en och samma `nav`, inte en känsla av att pa
 - Telefon (390) mäts inte i avsnitt 34 med flit: gruppanelen är `hidden lg:block`, och där finns bara gruppväxlarens ark (avsnitt 8).
 - **Enhetsprov:** inget nytt. Klasserna `shrink-0`, `relative` och `pb-5` är bara strängar i jsdom, som inte kör CSS: ett prov som sökte efter dem hade varit ett närvarogrep (arbetsreglernas punkt 4). Beteendet mäts i webbläsaren.
 - **Ändrade befintliga prov (regel 9):** inga. `check-skalyta.mjs` och `skalyta-entry.jsx` fick en valfri parameter (`manga`, förval 0) som lägger till grupper och samtalsmeddelanden; alla andra avsnitt kör som förut.
+
+### Kalenderns långtryck rensas när kalendern försvinner
+Mätt 2026-10-01 i arbetet med #497: `npm run check` blev rött på ett fel efter att alla 1796 prov gått igenom ("window is not defined" i `OpsCalendar.jsx`, långtryckets timer, under `kalendrar.test.jsx`). Timern på 450 ms startas av ett tryck på en dag och rensades bara av släpp, lämna och avbryt, aldrig när kalendern togs bort. Nu rensas den också då.
+- **Prov** (`calendar.test.jsx`, nytt): ett tryck på en dag och sedan bort med kalendern. Utan fixen lever 1 timer kvar (rött), med fixen 0 (grönt).
 
 ### Att göra i appen
 Pinna om till 0.39.1. Inget annat: ingen ny prop, ingen ändrad export.

@@ -520,7 +520,7 @@ export function OpsGruppanel({
       // `hidden`/`md:flex`-innehållet. Bredden byter direkt här också.
       // ⛔ 0.39.1 (#497): `relative`, `[&>*]:shrink-0` OCH `pb-5`, och varje del har sin händelse i CHANGELOG 0.39.1.
       //   - `[&>*]:shrink-0`: panelen är en flexkolumn med fast höjd, och flexbarn krymper som standard. När listan inte rymdes
-      //     tryckte flexen ihop knapparna i stället för att låta panelen rulla: "Skapa grupp" (size-10) blev 16 px hög i den
+      //     tryckte flexen ihop knapparna i stället för att låta panelen rulla: "Skapa grupp" (size-10) blev 18 px hög i den
       //     infällda remsan och halva plusset hamnade utanför fönstret. Ett barn som inte får krympa gör att panelen rullar.
       //   - `relative`: `sr-only` är `position: absolute`, och utan en positionerad förälder inne i rullytan är den närmaste
       //     förälder som är positionerad skalets `sticky`-ruta UTANFÖR panelen. Spanen rullade då inte med och klipptes inte:
