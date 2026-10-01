@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef } from "react";
 import { cx } from "../lib/cx.js";
+import { attachmentSize, isImage } from "../lib/file.js";
 import { handelsetid } from "../lib/handelsepanel.js";
 import { KALENDERPRICK } from "../lib/kalenderfarg.js";
 import { slagText } from "../lib/slag.js";
-import { AndraIkon, DatumIkon, KlockaIkon, PilHogerIkon, PlatsIkon } from "./icons.jsx";
+import { AndraIkon, DatumIkon, FilIkon, KlockaIkon, PilHogerIkon, PlatsIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
@@ -65,6 +66,11 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @property {import("./Ursprungsrad.jsx").Ursprung} [ursprung] (0.43.0, #224) Var händelsen hör hemma: modulen, och valfritt en länk tillbaka.
  * @property {import("react").ReactNode} [beskrivning] Löptext, eller en färdig nod (en app som visar markdown skickar `<OpsMarkdown>`).
  * @property {boolean} [kravSvar] Gruppens medlemmar ombeds svara. Kräver `svar`.
+ * @property {import("../lib/file.js").Bilaga | null} [bilaga] (0.45.0, #221) En bild eller ett dokument, i SAMMA form som ett ärendes bilaga
+ *   (`OpsFilePicker` och `lib/file.js`): en data-URL i händelsens eget dokument. ⛔ LAGRINGEN OCH TAKET ÄR APPENS. Ramverket ritar bara det
+ *   appen skickar; hur stor bilagan får vara (`maxChars` på `OpsFilePicker`) följer av var appen lagrar den. I Firestore är dokumentets gräns
+ *   1 048 576 byte och dokumentet bär mer än bilagan, så taket ska ligga under den med marginal (bolag-ops: 700 000 tecken, samma som ärenden).
+ *   Ska bilagorna bli många, stora eller långlivade är svaret en fillagring och inte ett högre tak.
  *
  * @param {object} props
  * @param {HandelseVy | null} props.handelse `null`: händelsen finns inte (och `laddar` är inte sant).
@@ -82,6 +88,7 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {string} [props.saknasTitel] Förval "Händelsen finns inte".
  * @param {string} [props.saknasText] Förval "Den kan ha tagits bort, eller så får du inte se den."
  * @param {string} [props.tillEtikett] Skärmläsarens ord mellan två datum. Förval "till".
+ * @param {string} [props.bilagaEtikett] (0.45.0, #221) Rubriken över bilagan, och ordet i bildens alt-text. Förval "Bilaga".
  * @param {string} [props.skapadAvEtikett] (0.43.0, #224) Förval "Skapad av".
  * @param {string} [props.iModulEtikett] (0.43.0, #224) Ordet före modulen efter en skapare. Förval "i".
  * @param {string} [props.franModulEtikett] (0.43.0, #224) Ordet före modulen utan skapare. Förval "Från".
@@ -103,6 +110,7 @@ export function OpsHandelsePanel({
   saknasTitel = "Händelsen finns inte",
   saknasText = "Den kan ha tagits bort, eller så får du inte se den.",
   tillEtikett = "till",
+  bilagaEtikett = "Bilaga",
   skapadAvEtikett = "Skapad av",
   iModulEtikett = "i",
   franModulEtikett = "Från",
@@ -124,6 +132,9 @@ export function OpsHandelsePanel({
   }
   if (handelse && handelse.status && !statusWords[handelse.status]) {
     throw new Error(`OpsHandelsePanel: händelsen har status ${handelse.status} men statusWords saknar ordet. En färgad prick utan ord bär betydelsen ensam, och då är statusen osynlig för skärmläsaren.`);
+  }
+  if (handelse && handelse.bilaga != null && !(typeof handelse.bilaga === "object" && typeof handelse.bilaga.dataUrl === "string" && handelse.bilaga.dataUrl)) {
+    throw new Error("OpsHandelsePanel: handelse.bilaga saknar dataUrl. En bilaga som inte går att visa ritades förut inte alls, och då ser en händelse med en trasig bilaga ut som en händelse utan bilaga (#221). Skicka `null` när det inte finns någon.");
   }
   if (handelse && handelse.kravSvar === true && (svar === undefined || svar === null)) {
     throw new Error("OpsHandelsePanel: händelsen kräver svar (kravSvar) men panelen fick inget `svar`. Utan det visas en händelse som frågar utan frågan, och ingen kan svara.");
@@ -276,11 +287,55 @@ export function OpsHandelsePanel({
         </div>
       ) : null}
 
+      {/* ⛔ BILAGAN (0.45.0, #221), som ett ärendes i inkorgen: en bild visas, annat är en länk med namn och storlek. En inbäddad PDF
+          renderas olika i varje webbläsare och en ruta som ibland är tom ser ut som att filen inte kom fram; namnet och storleken svarar på
+          de två frågor man har. `download` med filnamnet, annars heter den nedladdade filen något i stil med "ab12cd" (källan är en data-URL). */}
+      {handelse.bilaga ? <HandelseBilaga bilaga={handelse.bilaga} titel={handelse.titel} etikett={bilagaEtikett} /> : null}
+
       {handelse.kravSvar === true ? (
         <div data-handelsesvar="" className="mt-6">
           {svar}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, titel: string, etikett: string }} props
+ */
+function HandelseBilaga({ bilaga, titel, etikett }) {
+  const namn = bilaga.namn || etikett;
+  const storlek = typeof bilaga.tecken === "number" && bilaga.tecken > 0 ? attachmentSize(bilaga.tecken) : "";
+  const rubrikId = useId();
+  const lank = "font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent wrap-anywhere";
+  return (
+    <section data-handelsebilaga="" aria-labelledby={rubrikId} className="mt-4 flex flex-col gap-2">
+      <h2 id={rubrikId} className="m-0 text-sektion uppercase text-ink-muted">{etikett}</h2>
+      {isImage(bilaga.typ) ? (
+        <figure className="m-0 flex flex-col gap-1.5">
+          {/* ⛔ Bilden är också en länk till sig själv i full storlek: på en telefon är rutan liten, och att kunna öppna bilden är skälet att den finns här (jfr #509). */}
+          <a href={bilaga.dataUrl} target="_blank" rel="noopener" className="block self-start overflow-hidden rounded-base border border-line bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+            <img src={bilaga.dataUrl} alt={`${etikett} till ${titel}: ${namn}`} className="block max-h-72 max-w-full" />
+          </a>
+          <figcaption className="text-meta text-ink-muted">
+            <a href={bilaga.dataUrl} download={bilaga.namn || "bilaga"} className={lank}>
+              {namn}
+            </a>
+            {storlek ? ` · ${storlek}` : ""}
+          </figcaption>
+        </figure>
+      ) : (
+        <p className="m-0 flex min-w-0 items-center gap-2 text-etikett text-ink-secondary">
+          <span className="flex shrink-0 items-center text-ink-muted">
+            <FilIkon size={20} />
+          </span>
+          <a href={bilaga.dataUrl} download={bilaga.namn || "bilaga"} className={lank}>
+            {namn}
+          </a>
+          {storlek ? <span className="shrink-0 text-ink-muted">· {storlek}</span> : null}
+        </p>
+      )}
     </section>
   );
 }

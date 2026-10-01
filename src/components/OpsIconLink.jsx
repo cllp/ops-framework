@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement } from "react";
 import { cx } from "../lib/cx.js";
 import { huvudknappKlass } from "../lib/radKlass.js";
-import { OpsCountBadge } from "./counter.jsx";
+import { OpsCountBadge, OpsFelBadge } from "./counter.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 
@@ -41,19 +41,26 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {number} [props.badge] Antal. ⛔ 0 ritar ingen räknare: en nolla i en cirkel är en notis om att det inte finns någon notis.
  * @param {string} [props.badgeText] Substantivet efter siffran, t.ex. "nya". Appen bestämmer vad den räknar.
+ * @param {string} [props.badgeFel] (0.45.0, cllp/bolag-ops#150) Räknaren kunde inte läsas, med orden som säger det, t.ex.
+ *   "kunde inte läsas". Ritar `OpsFelBadge` i stället för räknaren och lägger orden i tooltipen. ⛔ Går FÖRE `badge`: ett antal
+ *   från innan läsningen föll är ett gammalt antal, och en siffra som ser aktuell ut är precis den lögn märket finns för att undvika.
  * @param {boolean} [props.active] Står man på sidan just nu.
  * @param {boolean} [props.avatar] (0.30.0, #173) Identiteten i toppraden: en 32 px rund knapp med en 28 px rund avatar
  *   i, ingen platta utan en RING vid hover (`ring-line-strong`) och i accent när man står på sidan. Mätt ur SessionStudio
  *   (`AppHeader.jsx:463`: `p-0.5 rounded-full`, `hover:ring-2 hover:ring-border-hover`, aktiv `ring-2 ring-accent`).
  *   Är `icon` en `OpsIdentity` görs den till `size="avatar"` åt dig, så appen inte behöver känna till måttet.
  */
-export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", active = false, avatar = false }) {
+export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", badgeFel, active = false, avatar = false }) {
   if (!label) {
     throw new Error(
       "OpsIconLink: label krävs. En ikonlänk utan namn läses upp som sin adress, alltså \"/inkorg\", och det är inte ett namn på något.",
     );
   }
 
+  if (badgeFel !== undefined && badgeFel !== null && (typeof badgeFel !== "string" || !badgeFel.trim())) {
+    throw new Error("OpsIconLink: badgeFel måste vara orden som säger vad som gick fel (eller utelämnas). Ett felmärke utan ord är ett utropstecken ingen kan läsa upp.");
+  }
+  const fel = typeof badgeFel === "string" && badgeFel.trim() ? badgeFel : null;
   const count = typeof badge === "number" && badge > 0 ? badge : 0;
 
   const lank = (
@@ -85,7 +92,7 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
       }
     >
       <span aria-hidden="true" className="inline-flex">{avatar && isValidElement(icon) && icon.type === OpsIdentity ? cloneElement(/** @type {any} */ (icon), { size: "avatar" }) : icon}</span>
-      {count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" /> : null}
+      {fel ? <OpsFelBadge text={fel} placement="icon" /> : count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" /> : null}
     </a>
   );
 
@@ -93,7 +100,8 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
   // varje knapp i `AppHeader.jsx`). `aria-label` ovan är namnet för den som lyssnar; tooltipen är samma ord för den som ser. En
   // pekskärm har ingen hover, och där är namnet menyraden (Fråga och andra flyttade åtgärder står med etikett i menyn).
   return (
-    <OpsTooltip content={label} side="bottom">
+    // ⛔ Felet står i tooltipen också (#150): den som ser märket ska kunna läsa vad det betyder utan skärmläsare.
+    <OpsTooltip content={fel ? `${label}: ${fel}` : label} side="bottom">
       {lank}
     </OpsTooltip>
   );
