@@ -149,7 +149,11 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    expect(med.container.querySelector('header a[href="/"]')?.className).toContain("hidden md:block");
+    // ⛔ 0.38.0 (#203): ändrat prov (regel 9). Länken var `hidden md:block`; den är `hidden md:flex` sedan gruppens namn står bredvid OH
+    // i infälld panel (rutan och namnet är syskon i samma rad). Det provet skyddar, att den är dold under md, gäller oförändrat.
+    const klass = med.container.querySelector('header a[href="/"]')?.className ?? "";
+    expect(klass).toMatch(/(^| )hidden( |$)/);
+    expect(klass).toContain("md:flex");
     med.unmount();
     const utan = render(
       <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/">

@@ -158,3 +158,55 @@ describe("OpsAppShell: märkets undertext är den aktiva gruppen", () => {
     expect(container.querySelector('[data-marke="ordmarke"]')?.className).toContain("opacity-0");
   });
 });
+
+// ══ #203: infälld panel på dator visar OH OCH gruppens namn ═══════════════
+// CP 2026-09-30: "Desktop infällt grupper-panel: OH | Travel (inte byta ut OH mot gruppbokstäver)."
+// Hur namnet SER UT (avkortat vid ~20 tecken, inget överflöd, ingen extra rad) mäts i en riktig webbläsare av
+// check-skalyta; här mäts det som går att se utan CSS: att namnet finns, att OH finns kvar, att strängen inte kapas.
+describe("#203: OH och gruppens namn", () => {
+  const gruppnamn = (/** @type {HTMLElement} */ c) => c.querySelector('[data-marke="gruppnamn"]');
+
+  it("infälld: OH står kvar i rutan och gruppens namn ritas bredvid, visat från lg", () => {
+    const { container } = render(<OpsBrand panelInfalld undertext="Travel" />);
+    expect(container.querySelector('[data-marke="ruta"]')?.textContent).toBe("OH");
+    expect(gruppnamn(container)?.textContent).toBe("Travel");
+    expect(gruppnamn(container)?.className).toContain("lg:flex");
+  });
+
+  it("utfälld: namnet bor redan som rad 2 i ordmärket, så den extra raden ritas inte (aldrig tre lager på en gång)", () => {
+    const { container } = render(<OpsBrand panelInfalld={false} undertext="Travel" />);
+    expect(rad2(container)?.textContent).toBe("Travel");
+    expect(gruppnamn(container)?.className ?? "").not.toContain("lg:flex");
+  });
+
+  it("avkortningen är CSS: hela namnet finns kvar i texten och i title, och inget är kapat med slice", () => {
+    const langt = "Claes Philip Staiger Aktiebolag";
+    const { container } = render(<OpsBrand panelInfalld undertext={langt} />);
+    const el = gruppnamn(container);
+    expect(el?.textContent).toBe(langt);
+    expect(el?.getAttribute("title")).toBe(langt);
+    expect(el?.querySelector(".truncate")).not.toBeNull();
+    expect(container.querySelector(".sr-only")?.textContent).toBe(`OPS HUB, ${langt}`);
+  });
+
+  it("utan undertext (ingen aktiv grupp) ritas inget gruppnamn", () => {
+    const { container } = render(<OpsBrand panelInfalld />);
+    expect(gruppnamn(container)).toBeNull();
+  });
+
+  it("i skalet: infälld panel ger OH och den aktiva gruppens namn", () => {
+    const { container } = render(
+      <OpsAppShell
+        brand="OPS HUB"
+        nav={[{ href: "/", label: "Idag" }]}
+        activeHref="/"
+        grupper={{ lista: [{ id: "g1", namn: "Travel", roll: "agare" }], aktiv: "g1", onValj: () => {}, infalld: true, onInfalld: () => {} }}
+      >
+        <p>x</p>
+      </OpsAppShell>,
+    );
+    const lank = container.querySelector('header a[href="/"]');
+    expect(lank?.querySelector('[data-marke="ruta"]')?.textContent).toBe("OH");
+    expect(lank?.querySelector('[data-marke="gruppnamn"]')?.textContent).toBe("TRAVEL");
+  });
+});

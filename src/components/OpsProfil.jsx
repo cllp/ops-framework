@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { SPRAK, text } from "../lib/sprak.js";
-import { MAX_PRESENTATION, TEMAN, PROFILIKONER, PROFILFARGER } from "../lib/grupp.js";
+import { MAX_PRESENTATION, PROFILIKONER, PROFILFARGER } from "../lib/grupp.js";
 import { andringen } from "../lib/profil.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsCard } from "./OpsCard.jsx";
@@ -51,15 +51,17 @@ const FARGKLASSER = {
  * sist i den här vyn, samma snitt som mellan `regelfragment` och appens
  * `extra`.
  *
- * ══ ⛔ SPRÅK OCH TEMA SPARAS I DATABASEN, INTE BARA I WEBBLÄSAREN ═════
+ * ══ ⛔ #202: PROFILEN DUPLICERAR INTE KONTROLLER SOM REDAN HAR EN PLATS ═
  *
- * `localStorage` följer enheten, inte personen. Byter du till mörkt läge på
- * telefonen och öppnar datorn är den ljus, och det ser ut som att appen inte
- * minns. Raden i `users/{uid}` följer personen.
- *
- * ⛔ TEMAT SKRIVS ÄNDÅ TILL WEBBLÄSAREN FÖRST, via `onTema`. Väntar vyn på ett
- * svar från databasen innan färgen ändras känns knappen trasig, och en
- * inställning som svarar långsamt slutar man använda.
+ * CP 2026-09-30: "I Min profil: ta bort 1. Utseende (finns redan i headern,
+ * temaväljare) 2. Logga ut (finns redan under meny). Profilen ska inte
+ * duplicera kontroller som redan har en tydlig plats." Temaväljaren är en
+ * `OpsThemeToggle` i skalets `actions`, och Logga ut är menyns sista rad
+ * (`meny.onLoggaUt`). Vyn har därför varken `onTema`, `onLoggaUt`,
+ * `temaEtikett`, `temaNamn` eller `loggaUtEtikett` längre. Språk är kvar: det
+ * har ingen annan plats. `users/{uid}.tema` finns kvar i datamodellen och
+ * `andringen()` skickar med det sparade värdet orört; att temaknappen i
+ * headern ÄVEN skriver det till raden är appens val, inte vyns.
  *
  * ══ ⛔ VAD SOM FORTFARANDE INTE GÅR ATT ÄNDRA HÄR, OCH VARFÖR ═════════
  *
@@ -86,7 +88,7 @@ const FARGKLASSER = {
  * annorlunda: en uppladdning ÄR redan en färdig handling (filen ligger i
  * lagringen så fort valet är gjort), och en knapp till för att "spara" den
  * hade bara varit ett extra klick för något som redan hänt. Samma mönster
- * som `byteTema`: det som redan skett skickas direkt, resten väntar.
+ * som ikon och färg: det som redan skett skickas direkt, resten väntar.
  *
  * @param {object} props
  * @param {import("../lib/grupp.js").Anvandare} props.anvandare
@@ -96,8 +98,6 @@ const FARGKLASSER = {
  * @param {{ grupp: { id: string, namn: any }, roll: string }[]} [props.grupper] Mina grupper, med roll i var och en.
  * @param {(andring: Record<string, any>) => void | Promise<void>} props.onSpara Kallas med `andring` från
  *   `andringen()` när Spara trycks, OCH direkt (bara `{ bild, bildSokvag }`) vid en bilduppladdning/borttagning/återställning.
- * @param {(tema: string) => void} [props.onTema] Kallas direkt vid temabyte, innan sparandet. Se noten ovan.
- * @param {() => void} [props.onLoggaUt]
  * @param {import("../data/storage.js").StorageSource} [props.lagring] Fillagringen för profilbilder. Utan den
  *   döljs Ladda upp/Ta bort, och profilbilden går bara att se, aldrig ändra (ramverket fungerar utan Storage, #156).
  * @param {(uid: string, filnamn: string) => string} [props.bildSokvag] Bygger sökvägen `laddaUpp` skickar in. Förval
@@ -112,10 +112,8 @@ const FARGKLASSER = {
  * @param {string} [props.rubrik]
  * @param {string} [props.epostEtikett]
  * @param {string} [props.sprakEtikett]
- * @param {string} [props.temaEtikett]
  * @param {string} [props.grupperEtikett]
  * @param {string} [props.sparaEtikett]
- * @param {string} [props.loggaUtEtikett]
  * @param {string} [props.ingaGrupperText]
  * @param {string} [props.profilbildEtikett]
  * @param {string} [props.laddaUppEtikett] Knappen som öppnar filväljaren. #164: förval "Byt" (var "Ladda upp bild").
@@ -131,13 +129,12 @@ const FARGKLASSER = {
  * @param {string} [props.stadEtikett]
  * @param {string} [props.presentationEtikett]
  * @param {string} [props.lankarEtikett]
- * @param {string} [props.installningarEtikett] Rubriken över Språk och Utseende. Utan den låg de två fälten under
- *   närmast föregående rubrik, alltså under Länkar, och såg ut som länkinställningar.
+ * @param {string} [props.installningarEtikett] Rubriken över Språk. Utan den låg fältet under närmast föregående
+ *   rubrik, alltså under Länkar, och såg ut som en länkinställning.
  * @param {string} [props.laggTillLankEtikett]
  * @param {string} [props.urlEtikett]
  * @param {string} [props.taBortLankEtikett]
  * @param {Record<string, string>} [props.sprakNamn] Vad språken heter i väljaren.
- * @param {Record<string, string>} [props.temaNamn] Vad temana heter i väljaren.
  * @param {Record<string, string>} [props.rollNamn] Vad rollerna heter på raden.
  * @param {import("react").ReactNode} [props.children] Appens EGNA sektioner (t.ex. SessionStudios kreativa profil),
  *   ritade efter Länkar och före Spara/Logga ut. Ramverket bestämmer platsen, appen innehållet.
@@ -147,8 +144,6 @@ export function OpsProfil({
   roll,
   grupper = [],
   onSpara,
-  onTema,
-  onLoggaUt,
   lagring,
   bildSokvag = (uid, filnamn) => `profilbilder/${uid}/${Date.now()}-${filnamn}`,
   inloggningsBild,
@@ -157,10 +152,8 @@ export function OpsProfil({
   rubrik = "Profil",
   epostEtikett = "E-post",
   sprakEtikett = "Språk",
-  temaEtikett = "Utseende",
   grupperEtikett = "Mina grupper",
   sparaEtikett = "Spara",
-  loggaUtEtikett = "Logga ut",
   ingaGrupperText = "Du är inte med i någon grupp än.",
   profilbildEtikett = "Profilbild",
   laddaUppEtikett = "Byt",
@@ -181,12 +174,10 @@ export function OpsProfil({
   urlEtikett = "url",
   taBortLankEtikett = "Ta bort länken",
   sprakNamn = { sv: "Svenska", en: "Engelska" },
-  temaNamn = { system: "Följ enheten", ljust: "Ljust", morkt: "Mörkt" },
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
   children,
 }) {
   const [valtSprak, setValtSprak] = useState(anvandare.sprak);
-  const [valtTema, setValtTema] = useState(anvandare.tema);
   const [namn, setNamn] = useState(anvandare.namn);
   const [telefon, setTelefon] = useState(anvandare.telefon);
   const [stad, setStad] = useState(anvandare.stad);
@@ -200,13 +191,7 @@ export function OpsProfil({
   /* ⛔ Beslutet ligger i `andringen`, inte här. Skälet står i profil.js:
      Radix Select går inte att driva i jsdom, så logiken flyttades dit ett
      prov kan se den i stället för att få ett prov som inte kan faila. */
-  const { andrat, andring } = andringen(anvandare, { sprak: valtSprak, tema: valtTema, namn, telefon, stad, presentation, lankar });
-
-  const byteTema = (/** @type {string} */ v) => {
-    setValtTema(/** @type {any} */ (v));
-    // ⛔ Direkt, se noten i filhuvudet. Sparandet följer när man trycker Spara.
-    if (onTema) onTema(v);
-  };
+  const { andrat, andring } = andringen(anvandare, { sprak: valtSprak, namn, telefon, stad, presentation, lankar });
 
   const spara = async () => {
     setSparar(true);
@@ -569,30 +554,19 @@ export function OpsProfil({
         <div className="mb-3">
           <OpsSectionLabel>{installningarEtikett}</OpsSectionLabel>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <OpsField label={sprakEtikett} labelSize="liten">
-            <OpsSelect
-              options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))}
-              value={valtSprak}
-              onChange={(v) => setValtSprak(v)}
-            />
-          </OpsField>
-
-          <OpsField label={temaEtikett} labelSize="liten">
-            <OpsSelect options={TEMAN.map((t) => ({ value: t, label: temaNamn[t] || t }))} value={valtTema} onChange={byteTema} />
-          </OpsField>
-        </div>
+        <OpsField label={sprakEtikett} labelSize="liten">
+          <OpsSelect
+            options={SPRAK.map((s) => ({ value: s, label: sprakNamn[s] || s }))}
+            value={valtSprak}
+            onChange={(v) => setValtSprak(v)}
+          />
+        </OpsField>
       </OpsCard>
 
       <div className="flex flex-wrap gap-2">
         <OpsButton variant="primary" onClick={spara} disabled={!andrat} busy={sparar}>
           {sparaEtikett}
         </OpsButton>
-        {onLoggaUt ? (
-          <OpsButton variant="secondary" onClick={onLoggaUt}>
-            {loggaUtEtikett}
-          </OpsButton>
-        ) : null}
       </div>
 
       {/* ⛔ TOMHET ÄR ETT SVAR. En person utan grupper ser en mening om det,

@@ -848,8 +848,10 @@ export function OpsAppShell({
    * @param {boolean} [klar] Sant när formuläret är KLART (en grupp skapades): stäng utan att gå bakåt. `history.back()` är asynkron,
    *   och appen navigerar (pushState) direkt efter `onSkapad`. Ett sent back skulle då landa på panelens egen post (`?skapa=grupp`) och
    *   ångra appens navigering. Posten skrivs i stället om utan parametern.
+   * @param {boolean} [aterstallRullning] Förval sant: Tillbaka återställer rullpositionen man kom från. Falskt när panelen stängs
+   *   av att man navigerar till en ANNAN vy (0.38.0, #194): den vyn ska börja överst, inte där den förra stod.
    */
-  const stangSkapa = (klar = false) => {
+  const stangSkapa = (klar = false, aterstallRullning = true) => {
     setSkapaFormRaw(null);
     setSkapaMal(null);
     setSkapaVaxlare(false);
@@ -869,11 +871,32 @@ export function OpsAppShell({
       }
     }
     // Tillbaka återställer vyn man kom från, också rullpositionen.
-    if (typeof window !== "undefined" && skapaRullning.current > 0) {
+    if (aterstallRullning && typeof window !== "undefined" && skapaRullning.current > 0) {
       const y = skapaRullning.current;
       requestAnimationFrame(() => window.scrollTo(0, y));
     }
   };
+  // ══ ⛔ ATT NAVIGERA STÄNGER PANELEN (0.38.0, #194) ═════════════════════════════════════════════════════════════════════
+  //
+  // CP 2026-09-30: "Nytt ärende-panelen låser all annan navigering i appen. Samma sak med Ny händelse. Topnav (Idag/Kalender/Hub)
+  // och övrigt går inte att använda medan panelen är uppe." Panelen är ingen dialog och ingenting är `inert`: länkarna gick att
+  // klicka och appen navigerade. Men skalet höll `skapaForm` kvar, och appens vy ligger DOLD medan panelen visas, så adressen
+  // bytte sida och skärmen stod still. Panelen hör till sidan man öppnade den på. Två vägar stänger den, och båda behövs:
+  //   1. Ett klick på en länk skalet själv äger (flikarna, märket, menyns rader, hubbens moduler): `onActivate`. Det är den enda
+  //      vägen när man klickar på sidan man redan står på, där `activeHref` inte ändras.
+  //   2. Att appens `activeHref` byts medan panelen är öppen: täcker länkarna skalet inte hör (en ikon i `actions`, avataren)
+  //      och webbläsarens egen navigering.
+  // Stängningen är `stangSkapa(true, false)`: posten i adressen skrivs om UTAN `skapa` (ingen `history.back()`, appen pushar sin
+  // egen post direkt efter) och rullpositionen återställs inte, eftersom den nya vyn ska börja överst.
+  const foregaendeAktivHref = useRef(activeHref);
+  useEffect(() => {
+    if (foregaendeAktivHref.current === activeHref) return;
+    foregaendeAktivHref.current = activeHref;
+    if (skapaForm) stangSkapa(true, false);
+    // `skapaForm` läses vid själva bytet; det är bytet av `activeHref` som är utlösaren, inte formuläret.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeHref]);
+
   // Adressen öppnar panelen vid inläsning, och webbläsarens Tillbaka stänger den.
   useEffect(() => {
     const fran = skapaUrAdress();
@@ -1193,6 +1216,8 @@ export function OpsAppShell({
 
   /** @param {string} href @param {any} e */
   const onActivate = (href, e) => {
+    // ⛔ 0.38.0 (#194): en öppen skapa-panel hör till sidan den öppnades på, se `foregaendeAktivHref` ovan.
+    if (skapaForm) stangSkapa(true, false);
     if (onNavigate) onNavigate(href, e);
   };
 
@@ -1407,7 +1432,7 @@ export function OpsAppShell({
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:block" : "block")}
+              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:flex md:items-center md:gap-2" : "block")}
             >
               {varumarke}
             </a>

@@ -278,6 +278,28 @@ function NyHandelseScen() {
 }
 
 /*
+ * 0.38.0 (#194): "Ny händelse" öppen, och en app som byter vy ur `activeHref` som en riktig router. Appens vy visar vilken sida
+ * den står på (`data-vy`), så provet kan mäta att klicket på en flik både stänger panelen och visar den nya vyn.
+ */
+function NavNyHandelseScen() {
+  const [href, setHref] = useState("/");
+  return (
+    <Full
+      aktivHref={href}
+      onNavigate={(h, e) => {
+        e.preventDefault();
+        window.__gick.push(h);
+        setHref(h);
+      }}
+      skapa={{ lage: "g3", sparaEtikett: "Spara", handelse: { form: HandelseForm } }}
+    >
+      <p data-vy={href} className="text-brod">Vy: {href}</p>
+      {href === "/" ? <OppnaNyHandelse /> : null}
+    </Full>
+  );
+}
+
+/*
  * 0.37.0 (#179 F3): svaren på en händelse och inkorgens rad. Anna tittar; Bo har svarat Kommer inte, Cecilia inget.
  * `window.__svar` är vad knapparna skickade. Saknas `OpsSvar` (0.36.0) ritas en markör.
  */
@@ -392,14 +414,15 @@ const g2Lista = [
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler }) {
+function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/" }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(aktivIScenen());
   return (
     <OpsAppShell
       fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
       moduler={skaletsModuler}
-      activeHref="/"
+      activeHref={aktivHref}
+      onNavigate={onNavigate}
       actions={
         <>
           <OpsThemeToggle />
@@ -862,8 +885,6 @@ function Scen() {
           roll="Ägare"
           grupper={[{ grupp: { id: "g1", namn: "Claes Philip Staiger AB" }, roll: "agare" }]}
           onSpara={async () => {}}
-          onTema={() => {}}
-          onLoggaUt={() => {}}
           inloggningsBild={bild}
         />
       </Full>
@@ -875,6 +896,7 @@ function Scen() {
   if (s === "kalender") return <KalenderScen />;
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;
+  if (s === "ny-handelse-nav") return <NavNyHandelseScen />;
   if (s === "svar") return <SvarScen />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {

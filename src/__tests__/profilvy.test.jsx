@@ -61,10 +61,14 @@ describe("OpsProfil", () => {
    * här mäts bara det som faktiskt går att se: att väljarna finns med rätt
    * etikett, och att Spara är avstängd tills något ändrats.
    */
-  it("båda väljarna finns med sina etiketter", () => {
-    render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+  it("⛔ #202: Språk finns, men varken Utseende eller Logga ut (de har sin plats i headern och menyn)", () => {
+    // Ändrat prov (regel 9): hette "båda väljarna finns med sina etiketter" och krävde Utseende.
+    // CP 2026-09-30: "Profilen ska inte duplicera kontroller som redan har en tydlig plats."
+    render(<OpsProfil anvandare={ANV} onSpara={() => {}} onLoggaUt={() => {}} onTema={() => {}} />);
     expect(screen.getByLabelText("Språk")).toBeTruthy();
-    expect(screen.getByLabelText("Utseende")).toBeTruthy();
+    expect(screen.queryByLabelText("Utseende")).toBeNull();
+    expect(screen.queryByText("Utseende")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Logga ut" })).toBeNull();
   });
 
   it("Spara är på när utkastet skiljer sig från den sparade raden", () => {
