@@ -9,6 +9,47 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.48.0
+
+⛔ **Kommentarer på en händelse (#232, beslut 0002), med Inkorgens rad. REGLERNA ÄNDRAS: `handelseregelfragment()` får två nya block. Appen skriver om sitt regelfragment, DEPLOYAR REGLERNA FÖRST, och mergar sedan klienten som läser och skriver tråden.**
+
+### #232: CP 2026-10-02, "Ja och ja"
+På frågorna i beslut 0002: den som skrev en kommentar får ta bort den, och en ny kommentar syns i Inkorgen.
+
+**Nu:**
+- **Modellen** (`handelsemodell.js`): `byggKommentar`, exakt `{ text, skapad, skapadAv }`, 1 till 5 000 tecken (`MAX_HANDELSEKOMMENTAR`, samma tak som inkorgens kommentarer i bolag-ops). Tom text, text över taket och en skapare utan uid kastar med ett fel som säger vad, i stället för databasens "Missing or insufficient permissions".
+- **Inkorgens rad, härledd:** `kommentarsrader({ handelser, kommentarer, lastTill, uid })`. En rad per händelse där någon annan skrivit efter mitt läsmärke. Märket ligger i `<händelser>/{hid}/<läsmärken>/{uid}` och flyttas när händelsen öppnas. Ingen notis skrivs till någon.
+- **Källan:** `createKommentarkalla` med `lista`, `prenumerera`, `skriv`, `taBort`, `lastTill`, `markeraLast`.
+- **Gränssnittet:** `OpsKommentarer` (tråden), `OpsKommentarsrad` (inkorgens rad) och slotten `kommentarer` i `OpsHandelsePanel`. Svenska och engelska från början, så `check-sprak`s tak står kvar.
+- **Reglerna** (`handelseregelfragment`, nya namn `kommentarer` och `lasmarken`, förval just så): kommentarer läses av medlemmar, skrivs av en medlem i eget namn, ändras aldrig, raderas bara av den som skrev dem. Läsmärken läses och skrivs bara av personen själv. Två undersamlingar med samma namn kastar.
+
+⛔ **Priset för Inkorgens rad** (förslaget var nej, CP valde ja): en läsning av tråden och en av märket per händelse i appens fönster. Det står i beslut 0002.
+
+### Att göra i appen
+1. Ompinning och `check-regelfragment --skriv` (fragmentet får två nya block).
+2. **Regeldeploy** av de nya blocken.
+3. Först därefter: klienten (tråden i panelen, `markeraLast` när panelen öppnas, raderna i Inkorgen).
+
+**Prov, båda riktningarna:** 21 nya i `kommentarer.test.jsx`, 14 nya regelprov i emulatorn (`rules/__tests__/handelsekommentarer.test.mjs`). Inga befintliga prov ändrade.
+
+| Mutation | Röda |
+|---|---|
+| Egna kommentarer ger en rad | 3 |
+| Läsmärket ignoreras | 1 |
+| Inget tak i modellen | 1 |
+| "Ta bort" på allas rader | 2 |
+| Tråden oordnad | 1 |
+| `taBort` utan ägarkoll | 1 |
+| Rutan töms före skrivningen (texten försvinner vid fel) | 1 |
+| Panelen ritar inte tråden | 1 |
+| Läsfel ritas som tom tråd | 1 |
+| Regel: skriva i någon annans namn | 1 |
+| Regel: vem som helst raderar | 1 |
+| Regel: ändring tillåten | 1 |
+| Regel: inget tak | 1 |
+| Regel: läsmärken läses av alla | 1 |
+| Regel: kommentarer utan medlemskap | 1 |
+
 ## 0.47.0
 
 ⛔ **Kräv svar från början för en typ som appen pekar ut (bolag-ops#538), och beslutet om kommentarer och flera bilagor på en händelse (#232). Inga regler ändras. Appen pinnar om och skickar `kravSvarFor`.**

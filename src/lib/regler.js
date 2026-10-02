@@ -39,7 +39,7 @@ import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
-import { SVARSFALT, SVARSVAL } from "./handelsemodell.js";
+import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT } from "./samtal.js";
 
 /**
@@ -970,12 +970,26 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
  * `gruppkalendrar` måste vara samma namn som till `kalenderregelfragment()`. Fragmentet använder `opsInloggad` och
  * `opsArMedlem` ur `regelfragment()`, alltså ska det limmas in efter det.
  *
- * @param {{ handelser?: string, svar?: string, gruppkalendrar?: string }} [namn]
+ *   - KOMMENTARER (0.48.0, #232, beslut 0002), LÄSA: aktiv medlem i händelsens grupp, som svaren.
+ *   - KOMMENTARER, SKRIVA: aktiv medlem, bara i eget namn (`skapadAv.uid == request.auth.uid`), exakt fältlista
+ *     (`KOMMENTARFALT`), texten 1 till `MAX_HANDELSEKOMMENTAR` tecken och `skapad` en ISO-tid.
+ *   - KOMMENTARER, ÄNDRA: aldrig. Ett svar på en kommentar hade annars kunnat stå under en mening som inte längre finns.
+ *   - KOMMENTARER, RADERA: bara den som skrev den (CP 2026-10-02: "Ja"). Också efter att hen lämnat gruppen: det är hens text.
+ *   - LÄSMÄRKEN (`<händelser>/{hid}/<läsmärken>/{uid}`): bara personen själv läser och skriver sitt, bara som aktiv medlem,
+ *     exakt fältet `lastTill` som ISO-tid. Ingen radering: märket flyttas, det tas inte bort.
+ *
+ * @param {{ handelser?: string, svar?: string, gruppkalendrar?: string, kommentarer?: string, lasmarken?: string }} [namn]
  * @returns {string}
  */
 export function handelseregelfragment(namn = {}) {
   const handelser = kontrolleraNamn(namn.handelser ?? "handelser", "handelser");
   const svar = kontrolleraNamn(namn.svar ?? "svar", "svar");
+  const kommentarer = kontrolleraNamn(namn.kommentarer ?? "kommentarer", "kommentarer");
+  const lasmarken = kontrolleraNamn(namn.lasmarken ?? "lasmarken", "lasmarken");
+  if (new Set([svar, kommentarer, lasmarken]).size !== 3) {
+    throw new Error(`handelseregelfragment: svar, kommentarer och lasmarken måste ha olika namn (fick "${svar}", "${kommentarer}", "${lasmarken}"). Två undersamlingar med samma namn är samma samling, och då gäller den ena regeln för den andras rader.`);
+  }
+  const isotid = "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?Z";
   const gruppkalendrar = kontrolleraNamn(namn.gruppkalendrar ?? "gruppkalendrar", "gruppkalendrar");
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   const datum = regeluttryck(DATUMFORM);
@@ -1014,6 +1028,35 @@ export function handelseregelfragment(namn = {}) {
         && opsArMedlem(get(opsHandelsen(hid)).data.groupId)
         && request.resource.data.keys().hasOnly([${lista(SVARSFALT)}])
         && request.resource.data.svar in [${lista(SVARSVAL)}];
+      allow delete: if false;
+    }
+
+    match /${handelser}/{hid}/${kommentarer}/{kid} {
+      allow read: if opsInloggad() && exists(opsHandelsen(hid))
+        && opsArMedlem(get(opsHandelsen(hid)).data.groupId);
+      allow create: if opsInloggad() && exists(opsHandelsen(hid))
+        && opsArMedlem(get(opsHandelsen(hid)).data.groupId)
+        && request.resource.data.keys().hasOnly([${lista(KOMMENTARFALT)}])
+        && request.resource.data.keys().hasAll([${lista(KOMMENTARFALT)}])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= ${MAX_HANDELSEKOMMENTAR}
+        && request.resource.data.skapad is string
+        && request.resource.data.skapad.matches('${isotid}')
+        && request.resource.data.skapadAv is map
+        && request.resource.data.skapadAv.get('uid', null) == request.auth.uid;
+      allow update: if false;
+      allow delete: if opsInloggad() && resource.data.skapadAv.get('uid', null) == request.auth.uid;
+    }
+
+    match /${handelser}/{hid}/${lasmarken}/{uid} {
+      allow read: if opsInloggad() && request.auth.uid == uid;
+      allow create, update: if opsInloggad() && request.auth.uid == uid
+        && exists(opsHandelsen(hid))
+        && opsArMedlem(get(opsHandelsen(hid)).data.groupId)
+        && request.resource.data.keys().hasOnly([${lista(LASMARKESFALT)}])
+        && request.resource.data.lastTill is string
+        && request.resource.data.lastTill.matches('${isotid}');
       allow delete: if false;
     }
 `;
