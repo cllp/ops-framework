@@ -1,5 +1,5 @@
 import { Children, cloneElement, Component, createContext, Fragment, isValidElement, useContext, useEffect, useId, useRef, useState } from "react";
-import { definierade, forvalda } from "../lib/ord.js";
+import { definierade, forvalda, ordet } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -577,9 +577,9 @@ function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
  * ⛔ TRE LÄGEN, OCH DE SER INTE LIKADANA UT (punkt 5): läses, finns inte, och klart. En händelse som inte finns får ett svar med
  * panelens Tillbaka som utgång, aldrig ett tomt formulär som skulle spara en ny rad.
  *
- * @param {{ hook: (id: string) => HandelseRedigering, id: string, klar: boolean, onForifyllt: (f: HandelseRedigering) => void, children: import("react").ReactNode }} props
+ * @param {{ hook: (id: string) => HandelseRedigering, id: string, klar: boolean, onForifyllt: (f: HandelseRedigering) => void, sprak?: string, children: import("react").ReactNode }} props
  */
-function HandelseRedigeringsgrind({ hook, id, klar, onForifyllt, children }) {
+function HandelseRedigeringsgrind({ hook, id, klar, onForifyllt, sprak = "sv", children }) {
   const r = hook(id);
   const redan = useRef(false);
   useEffect(() => {
@@ -593,9 +593,9 @@ function HandelseRedigeringsgrind({ hook, id, klar, onForifyllt, children }) {
   // ⛔ NÄR FORMULÄRET VÄL RITATS BYTS DET ALDRIG UT (0.40.0). En händelse som försvinner ur en levande läsning medan man skriver ska inte ta bort det
   // man skrivit: formuläret (appen) säger själv att den inte längre finns när man sparar, och fälten står kvar.
   if (klar) return <>{children}</>;
-  if (r.fel) return <OpsEmpty title="Händelsen kunde inte läsas" description={r.fel.message} />;
-  if (r.laddar) return <OpsEmpty title="Hämtar händelsen" busy busyLabel="Hämtar händelsen" />;
-  if (!r.finns) return <OpsEmpty title="Händelsen finns inte" description="Den kan ha tagits bort, eller så får du inte ändra den." />;
+  if (r.fel) return <OpsEmpty title={ordet(TEXT_SKAL, "handelseFel", sprak)} description={r.fel.message} />;
+  if (r.laddar) return <OpsEmpty title={ordet(TEXT_SKAL, "handelseLaddar", sprak)} busy busyLabel={ordet(TEXT_SKAL, "handelseLaddar", sprak)} />;
+  if (!r.finns) return <OpsEmpty title={ordet(TEXT_SKAL, "handelseSaknas", sprak)} description={ordet(TEXT_SKAL, "handelseSaknasText", sprak)} />;
   return null;
 }
 
@@ -1244,7 +1244,7 @@ function OpsAppShellRitad({
       return skapaSektioner.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.sektion)?.poster.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.id)?.namn ?? null;
     }
     // ⛔ Tomhet är ett svar (punkt 5): utan en enda kalender säger raden det, i stället för att visa gruppens namn som om det vore en kalender.
-    if (handelseMedKalendrar) return "Ingen kalender ännu";
+    if (handelseMedKalendrar) return ordet(TEXT_SKAL, "ingenKalender", sprak);
     const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
     return g ? text(g.namn, sprakSkapa) : null;
   })();
@@ -1310,12 +1310,12 @@ function OpsAppShellRitad({
             tillgänglighet. "Skicka mejl" visas inte, se `HandelseSkapare.kalendrar`. */}
         {skapaKalender?.slag === "grupp" ? (
           <div data-krav-svar="">
-            <OpsSwitch label="Kräv svar" hint="Varje medlem svarar Kommer eller Kommer inte, och frågan står i var och ens inkorg tills de svarat." checked={skapaKravSvar} onChange={setSkapaKravSvar} />
+            <OpsSwitch label={ordet(TEXT_SKAL, "kravSvar", sprak)} hint={ordet(TEXT_SKAL, "kravSvarHint", sprak)} checked={skapaKravSvar} onChange={setSkapaKravSvar} />
           </div>
         ) : null}
         {skapaKalender?.slag === "mina" ? (
           <div data-blockerar="">
-            <OpsSwitch label="Blockerar tillgänglighet" hint="Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör." checked={skapaBlockerar} onChange={setSkapaBlockerar} />
+            <OpsSwitch label={ordet(TEXT_SKAL, "blockerar", sprak)} hint={ordet(TEXT_SKAL, "blockerarHint", sprak)} checked={skapaBlockerar} onChange={setSkapaBlockerar} />
           </div>
         ) : null}
       </div>
@@ -1325,6 +1325,7 @@ function OpsAppShellRitad({
     if (skapaForm.redigera && typeof redigeraHook === "function") {
       skapaModalInnehall = (
         <HandelseRedigeringsgrind
+          sprak={sprak}
           key={skapaForm.redigera}
           hook={redigeraHook}
           id={skapaForm.redigera}
@@ -1844,8 +1845,8 @@ function OpsAppShellRitad({
                   // än inget tal.
                   aria-label={
                     inMenu.length
-                      ? `${moreLabel}, fler destinationer`
-                      : `${moreLabel}, fler åtgärder`
+                      ? `${moreLabel}, ${ordet(TEXT_SKAL, "flerDestinationer", sprak)}`
+                      : `${moreLabel}, ${ordet(TEXT_SKAL, "flerAtgarder", sprak)}`
                   }
                 >
                   <MenuIcon size={20} />
@@ -2069,6 +2070,24 @@ function OpsAppShellRitad({
  * OpsAppShells förvalda texter (0.46.0, cllp/bolag-ops#528). Den enda källan till dem: den inre komponentens förval pekar hit.
  * @type {import("../lib/ord.js").Ordbok}
  */
+/**
+ * Text skalet ritar själv och som inte är ett förval appen byter (0.46.0, cllp/bolag-ops#528).
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const TEXT_SKAL = {
+  handelseFel: { sv: "Händelsen kunde inte läsas", en: "The event could not be read" },
+  handelseLaddar: { sv: "Hämtar händelsen", en: "Loading the event" },
+  handelseSaknas: { sv: "Händelsen finns inte", en: "The event does not exist" },
+  handelseSaknasText: { sv: "Den kan ha tagits bort, eller så får du inte ändra den.", en: "It may have been removed, or you may not be allowed to change it." },
+  ingenKalender: { sv: "Ingen kalender ännu", en: "No calendar yet" },
+  kravSvar: { sv: "Kräv svar", en: "Ask for replies" },
+  kravSvarHint: { sv: "Varje medlem svarar Kommer eller Kommer inte, och frågan står i var och ens inkorg tills de svarat.", en: "Every member answers Coming or Not coming, and the question stays in each inbox until they have answered." },
+  blockerar: { sv: "Blockerar tillgänglighet", en: "Blocks availability" },
+  blockerarHint: { sv: "Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör.", en: "Only visible to you. The group sees that you are busy, not what you are doing." },
+  flerDestinationer: { sv: "fler destinationer", en: "more destinations" },
+  flerAtgarder: { sv: "fler åtgärder", en: "more actions" },
+};
+
 export const ORD_OPSAPPSHELL = {
   menuLabel: { sv: "Meny", en: "Menu" },
   navLabel: { sv: "Huvudnavigering", en: "Main navigation" },

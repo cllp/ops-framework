@@ -4,10 +4,10 @@ import { OpsSprakProvider, useOpsSprak } from "../components/OpsSprak.jsx";
 import { OpsHandelsePanel, ORD_OPSHANDELSEPANEL } from "../components/OpsHandelsePanel.jsx";
 import { OpsProfil, ORD_OPSPROFIL } from "../components/OpsProfil.jsx";
 import { OpsBottomNav, ORD_OPSBOTTOMNAV } from "../components/OpsBottomNav.jsx";
-import { ORD_OPSAPPSHELL } from "../components/OpsAppShell.jsx";
+import { ORD_OPSAPPSHELL, TEXT_SKAL } from "../components/OpsAppShell.jsx";
 import { ORD_OPSEVENTLIST } from "../components/OpsEventList.jsx";
 import { ORD_OPSSKAPA } from "../components/OpsSkapa.jsx";
-import { forvalda } from "../lib/ord.js";
+import { forvalda, ordet } from "../lib/ord.js";
 import * as nod from "../node/index.js";
 
 /**
@@ -96,7 +96,7 @@ describe("⛔ OpsSprakProvider styr ramverkets egna texter (#528)", () => {
 });
 
 describe("⛔ ordböckerna är hela (#528)", () => {
-  const alla = { ORD_OPSAPPSHELL, ORD_OPSBOTTOMNAV, ORD_OPSHANDELSEPANEL, ORD_OPSPROFIL, ORD_OPSEVENTLIST, ORD_OPSSKAPA };
+  const alla = { TEXT_SKAL, ORD_OPSAPPSHELL, ORD_OPSBOTTOMNAV, ORD_OPSHANDELSEPANEL, ORD_OPSPROFIL, ORD_OPSEVENTLIST, ORD_OPSSKAPA };
   it("varje nyckel har svenska och engelska, och engelskan är inte en kopia av svenskan där ordet faktiskt skiljer sig", () => {
     let antal = 0;
     for (const [namn, ord] of Object.entries(alla)) {
@@ -106,8 +106,13 @@ describe("⛔ ordböckerna är hela (#528)", () => {
         expect(t.en, `${namn}.${k}.en`).toBeTruthy();
       }
     }
-    // GOLV: de sex komponenterna bär 65 förval. Färre betyder att något föll ur en ordbok (arbetsreglernas punkt 4).
-    expect(antal).toBeGreaterThanOrEqual(65);
+    // GOLV: de sex komponenterna bär 65 förval och skalet 11 egna texter. Färre betyder att något föll ur en ordbok (arbetsreglernas punkt 4).
+    expect(antal).toBeGreaterThanOrEqual(76);
+  });
+
+  it("⛔ ordet: en nyckel som saknas kastar, i stället för att rita en tom etikett", () => {
+    expect(() => ordet({ x: { sv: "Hej", en: "Hi" } }, "y", "en")).toThrow(/finns inte/);
+    expect(ordet({ x: { sv: "Hej", en: "Hi" } }, "x", "en")).toBe("Hi");
   });
 
   it("forvalda: ett språk utan ord i ordboken ger svenska", () => {

@@ -50,3 +50,17 @@ export function definierade(props) {
   for (const [k, v] of Object.entries(props)) if (v !== undefined) ut[k] = v;
   return /** @type {T} */ (ut);
 }
+
+/**
+ * Ett ord ur en ordbok på ett språk, för text som en komponent ritar SJÄLV och som inte är ett förval appen kan byta (en växlares
+ * etikett, ett laddningsläge). Samma reserv som `forvalda`: svenska.
+ *
+ * @param {Ordbok} ordbok
+ * @param {string} nyckel
+ * @param {string} sprak
+ */
+export function ordet(ordbok, nyckel, sprak) {
+  const t = ordbok[nyckel];
+  if (!t) throw new Error(`ordet: nyckeln ${JSON.stringify(nyckel)} finns inte i ordboken. Ett ord som saknas ska bli ett fel här, inte en tom etikett på skärmen.`);
+  return (/** @type {any} */ (t))[sprak] || t[RESERVSPRAK];
+}

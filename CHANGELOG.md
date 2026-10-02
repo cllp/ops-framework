@@ -19,6 +19,7 @@ CP 2026-10-01: "Har noterat att byta språk i profil inte byter språk. Se till 
 **Nu:**
 - `OpsSprakProvider` och `useOpsSprak`: appen sätter språket en gång. Komponenter utan eget `sprak` läser det därifrån.
 - En ordbok per komponent (`src/lib/ord.js`, `ORD_*`) för sex komponenter: skalet, bottenraden, händelsepanelen, profilen (även språkens namn), händelselistan och skapa-panelen. 65 texter på svenska och engelska. Komponentens svenska förval pekar på ordboken, så svenskan står på ett ställe.
+- Skalets egna texter (laddningslägen, "Kräv svar", "Blockerar tillgänglighet", menyknappens namn) i en egen ordbok, `TEXT_SKAL`, via `ordet()`.
 - Nio komponenter till läser `sprak` ur providern.
 - Appens egna etiketter vinner alltid. Utan provider är allt som förut.
 
@@ -27,7 +28,9 @@ CP 2026-10-01: "Har noterat att byta språk i profil inte byter språk. Se till 
 ### bolag-ops#512: externa datakällor på nodsidan
 `byggExternaDatakallor` och `MAX_EXTERNA` exporteras från `@staiger/ops-framework/node` (18 ms att importera, mot cirka två sekunder för hela paketet), så att appens funktion kan skicka ett ärende till gruppens kopplade repo med samma byggare som klienten och reglerna.
 
-**Prov, båda riktningarna:** 10 nya prov i `sprak.test.jsx`.
+**Två befintliga prov ändrade (regel 9):** `skal030.test.jsx` ritade skalet med `sprak: "en"` och väntade sig de svenska namnen "Huvudnavigering" och "Meny, fler åtgärder". De väntar sig nu "Main navigation" och "Menu, more actions": det gamla provet bekräftade precis den språkblandning ärendet handlar om.
+
+**Prov, båda riktningarna:** 11 nya prov i `sprak.test.jsx`.
 
 | Mutation | Röda |
 |---|---|
