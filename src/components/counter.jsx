@@ -73,6 +73,53 @@ const PLATS = {
 };
 
 /**
+ * Felmärket (0.45.0, cllp/bolag-ops#150): räknaren kunde inte läsas.
+ *
+ * ── ⛔ VARFÖR DET FINNS ─────────────────────────────────────────────────────
+ *
+ * En räknare som inte kunde läsas ritade förut INGET märke, och inget märke
+ * är exakt vad den ritar när inget väntar. "Klart" och "vet inte" såg alltså
+ * likadana ut i toppraden, och en siffra man ska agera på slutar man titta på
+ * så fort man vet att den kan ljuga (arbetsreglernas punkt 5: tomhet är ett
+ * svar, och en tyst nedsläppsväg är värre än ett fel).
+ *
+ * ⛔ ALDRIG EN SIFFRA, INTE ENS EN NOLLA. En siffra är ett påstående om datan,
+ * och vi vet inte hur många som väntar. Därför ett utropstecken.
+ *
+ * ⛔ EN ANNAN FORM OCH EN ANNAN TON ÄN RÄKNAREN. Räknaren är en fylld röd pill
+ * med vit siffra (`badge`). Felmärket är samma storlek men IHÅLIGT: ytans färg
+ * med en ring och ett tecken i `danger`. Hade det varit en fylld röd cirkel
+ * till hade ögat läst "något väntar" i stället för "något är trasigt", och
+ * det är de två läsningarna märket finns för att skilja på. Tonen är `danger`
+ * och inte `badge`: ett fel är ett fel (se kommentaren vid `--color-badge`).
+ *
+ * ⛔ TEXTEN BÄR BETYDELSEN, tecknet gör det inte. `text` läses upp och står i
+ * ikonlänkens tooltip, t.ex. "kunde inte läsas".
+ *
+ * @param {{ text: string, placement?: "icon" | "corner" | "inline" }} props
+ */
+export function OpsFelBadge({ text, placement = "corner" }) {
+  if (typeof text !== "string" || !text.trim()) {
+    throw new Error("OpsFelBadge: text krävs. Ett utropstecken utan ord säger att något är fel men inte vad, och för skärmläsaren säger det ingenting alls.");
+  }
+  const plats = PLATS[placement];
+  if (plats === undefined) throw new Error(`OpsFelBadge: okänd placement "${placement}". Giltiga: ${Object.keys(PLATS).join(", ")}.`);
+  return (
+    <span
+      data-ops-fel-badge=""
+      className={cx(
+        "flex size-4 shrink-0 items-center justify-center rounded-full",
+        "bg-surface text-mikro font-bold text-danger ring-1 ring-danger",
+        plats,
+      )}
+    >
+      <span aria-hidden="true">!</span>
+      <span className="sr-only">{` ${text}`}</span>
+    </span>
+  );
+}
+
+/**
  * Den gamla ingången, kvar för de interna anropen. Samma märke.
  * @param {{ count: number, text: string }} props
  */

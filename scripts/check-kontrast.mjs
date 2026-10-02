@@ -89,6 +89,10 @@ export const PAR = [
      KRAV PÅ GRAFIK och därför 3:1 och inte 4,5. */
   { vad: "märket mot panelen", text: "badge", yta: "raised", niva: GRAFIK },
   { vad: "Gick fel", text: "danger", yta: "raised", niva: BROD },
+  /* ⛔ FELMÄRKET, `OpsFelBadge` (0.45.0, bolag-ops#150): utropstecknet och ringen
+     i `danger` på ytans egen färg, på en ikonknapp i headern. Tecknet är 8 px,
+     alltså brödtextens krav och inte grafikens. */
+  { vad: "felmärkets utropstecken i headern", text: "danger", yta: "surface", niva: BROD },
   { vad: "tillbakapilen", text: "ink-secondary", yta: "raised", niva: BROD },
   { vad: "panelrad, vilande", text: "ink-secondary", yta: "raised", niva: BROD },
   { vad: "panelrad, aktiv", text: "ink", yta: "raised", niva: BROD },

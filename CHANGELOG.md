@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.45.0
+
+⛔ **Tre saker: ett felmärke på ikonlänken så att en räknare som inte kunde läsas inte ser ut som noll (bolag-ops#150), bilagan i händelsepanelen (#221), och ett designbeslut om vems AI-nyckel och vems räkning (#185). Inga regler ändras. Appen pinnar om och skickar `badgeFel` och `bilaga`; bilagans regler är appens (bolag-ops#519).**
+
+### bolag-ops#150: "Inkorgsräknaren visar noll både när allt är klart och när läsningen misslyckats"
+En räknare som inte kunde läsas ritade inget märke, och inget märke är vad den ritar när inget väntar. **Nu:** `OpsIconLink` tar `badgeFel` (orden, t.ex. "kunde inte läsas") och ritar `OpsFelBadge`: samma storlek som räknaren men ihåligt, utropstecken och ring i `danger`, aldrig en siffra. Orden läses upp och står i tooltipen. Felet går före ett antal. `OpsFelBadge` exporteras för appens egna räknare.
+
+### #221: bilaga på en händelse
+CP 2026-10-01: bilder och dokument på händelser, som på ärenden, utan Bibliotek. **Nu:** `handelse.bilaga` i `OpsHandelsePanel`, i samma form som `OpsFilePicker` ger. En bild visas (och öppnas i full storlek), annat är en nedladdningslänk med namn och storlek. En bilaga utan `dataUrl` kastar. Formuläret och lagringen är appens.
+
+### #185: beslut 0001, vems AI, vems nyckel, vems räkning
+`docs/beslut/0001-ai-nyckel-och-kostnad.md`: fem lägen (`av` förvalt, `mock`, `plattform`, `byok`, `agent`), upplösningen grupp före app enligt `groupPolicy` med `own_only` som förval, nyckeln bara som Secret Manager-hänvisning, och minsta API-yta i fyra steg. Ingen kod för AI i den här versionen.
+
+**Prov, båda riktningarna:** 10 nya prov.
+
+| Mutation | Röda |
+|---|---|
+| Felmärket ritas inte (`badgeFel` ignoreras) | 2 |
+| Antalet går före felet | 1 |
+| En nolla i stället för utropstecknet | 1 |
+| Bilagan ritas inte | 3 |
+| En bild visas som länk | 1 |
+| En bilaga utan `dataUrl` släpps tyst | 1 |
+| Dokumentets länk utan `download` | 1 |
+
 ## 0.44.0
 
 ⛔ **Två rättelser som CP rapporterade från inkorgen 2026-10-01: Spara stod kvar efter ett sparat ärende (bolag-ops#508), och inställningarnas kataloger saknade rubriker (bolag-ops#507). Appen måste pinna om och anropa `onKlar` i sitt ärendeformulär. Inga regler ändras.**
