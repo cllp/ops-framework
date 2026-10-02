@@ -189,8 +189,15 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
   const text = dateText(dayKey, locale);
   return (
     <span
+      data-datumpiller=""
       style={{ animationDelay: `${order * SVEPSTEG}ms` }}
-      className="ops-contrast-panel relative inline-flex animate-svep items-center rounded-full bg-contrast-panel px-3.5 py-1.5 text-etikett font-semibold text-ink shadow-md"
+      /*
+       * ⛔ shrink-0 OCH MARGINAL FÖR KRYSSET (bolag-ops#556). Pillren stod i samma flex-rad som
+       * stängkrysset med `ml-auto`, och utan `shrink-0` klämdes de ihop så att texten och de
+       * absolutplacerade kryssen överlappade varandra. Marginalen tar höjd för kryssets
+       * utstick (`-top-3.5 -right-3.5`, samma som SS `DayDetailPanel.js`).
+       */
+      className="ops-contrast-panel relative mr-2 mb-1 inline-flex shrink-0 animate-svep items-center rounded-full bg-contrast-panel px-3.5 py-1.5 text-etikett font-semibold text-ink shadow-md"
     >
       {text}
       {/* ⛔ KRYSSET ÄR ETT RUNT MÄRKE I PILLRETS HÖRN, PÅ VARJE PILLER (0.37.0), som SS-appen (`DayDetailPanel.js`, top -8,
@@ -463,10 +470,18 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
 
   return (
     <section aria-label={name} data-dagpanel="" className="flex w-full flex-col gap-2 p-3 lg:p-0">
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 pt-1.5">
-        {days.map((d, i) => (
-          <Datumpiller key={d.dayKey} dayKey={d.dayKey} onTaBort={onTaBort} order={i} locale={locale} />
-        ))}
+      {/*
+       * ⛔ PILLREN OCH STÄNGKRYSSET ÄR TVÅ YTOR (bolag-ops#556). Före det delade de en
+       * `flex-wrap`-rad där stängkrysset hade `ml-auto`: när flera dagar valdes klämdes
+       * pillren ihop i stället för att bryta rad, och CP:s bild visade överlappande bubblor.
+       * Pillren wrappas i sin egen behållare; stängkrysset står fast till höger.
+       */}
+      <div className="flex items-start gap-2 pt-3.5">
+        <div data-datumpiller-rad="" className="flex min-w-0 flex-1 flex-wrap content-start gap-x-1 gap-y-2">
+          {days.map((d, i) => (
+            <Datumpiller key={d.dayKey} dayKey={d.dayKey} onTaBort={onTaBort} order={i} locale={locale} />
+          ))}
+        </div>
         {/* ⛔ KRYSSET BÄR RUBRIKEN I SITT NAMN. "Stäng" ensamt säger inte vad som
             stängs för den som lyssnar sig igenom sidan. */}
         <button
@@ -474,7 +489,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
           onClick={onClose}
           aria-label={`Stäng ${title}`}
           className={cx(
-            "ops-contrast-panel ml-auto flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-contrast-panel text-ink shadow-md",
+            "ops-contrast-panel flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-contrast-panel text-ink shadow-md",
             "hover:text-ink-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
           )}
         >

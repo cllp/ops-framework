@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.49.1
+
+⛔ **Datumpillren i kalenderns dagpanel wrappas utan att klämmas ihop (bolag-ops#556). Inga regler ändras.**
+
+### bolag-ops#556: "bubblorna får inte plats när man väljer flera här"
+CP 2026-10-02, med skärmbild: tre valda dagar gav överlappande datumpiller där text och kryss låg ovanpå varandra.
+
+**Orsak:** pillren och stängkrysset delade en `flex-wrap`-rad där stängkrysset hade `ml-auto`. Utan `shrink-0` klämdes pillren ihop i stället för att bryta rad, och de absolutplacerade kryssen (SS `DayDetailPanel`, top/right −8) landade på grannen.
+
+**Nu:**
+- Pillren wrappas i en egen behållare (`data-datumpiller-rad`); stängkrysset står fast till höger.
+- Varje piller har `shrink-0` och marginal för kryssets utstick (`data-datumpiller`).
+- `pt-3.5` ger plats för krysset ovanför första raden.
+
+**Prov, båda riktningarna:** 1 nytt i `calendar.test.jsx` (strukturen och `shrink-0`; rött om pillren läggs tillbaka i samma rad som stängkrysset eller får krympa). Chromium: `check-skalyta` avsnitt 30 (g) mäter att tre piller efter dra-markering inte överlappar och inte är smalare än 72 px.
+
 ## 0.49.0
 
 ⛔ **Två tillägg som skulle ha följt med 0.48.0 och inte gjorde det: `href` på `OpsKommentarsrad` och `ordet` som export. Inga regler ändras.**
