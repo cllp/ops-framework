@@ -208,6 +208,7 @@ export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDER
  */
 export { OpsKalendrar } from "./components/OpsKalendrar.jsx";
 export { OpsSvar, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx";
+export { OpsKommentarer, OpsKommentarsrad, ORD_OPSKOMMENTARER, ORD_OPSKOMMENTARSRAD } from "./components/OpsKommentarer.jsx";
 /*
  * ⛔ HÄNDELSEPANELEN (0.40.0, #214): en händelse på en egen sida med Tillbaka, öppnad av en rad i Idag (`OpsEventList`) eller en post i kalenderns
  * dagpanel (`OpsCalendar`) som bär `handelseId`. Skalet äger adressen (`?handelse=<id>`) och Tillbaka (`OpsAppShell` `handelsepanel`), appen ritar
@@ -215,8 +216,8 @@ export { OpsSvar, OpsSvarsknappar, OpsSvarsrad } from "./components/OpsSvar.jsx"
  */
 export { OpsHandelsePanel } from "./components/OpsHandelsePanel.jsx";
 export { HANDELSEPARAM, handelseHref } from "./lib/handelsepanel.js";
-export { createKalenderkalla, createSvarskalla } from "./data/kalenderkalla.js";
-export { HANDELSEKONTRAKT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader } from "./lib/handelsemodell.js";
+export { createKalenderkalla, createSvarskalla, createKommentarkalla } from "./data/kalenderkalla.js";
+export { HANDELSEKONTRAKT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader, KOMMENTARFALT, MAX_HANDELSEKOMMENTAR, LASMARKESFALT, byggKommentar, kommentarsrader } from "./lib/handelsemodell.js";
 
 /*
  * ⛔ GRUPPLÄGET (#139, #190). Besluten är rena funktioner och ligger därför här:

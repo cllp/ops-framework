@@ -1,6 +1,6 @@
 # Beslut 0002: kommentarer och flera bilagor på en händelse
 
-Status: **föreslaget** (2026-10-02). Ärende: cllp/ops-framework#232. Appens halva: cllp/bolag-ops#539.
+Status: **beslutat** (2026-10-02, CP svarade "Ja och ja" på frågorna nedan). Kommentarerna byggda i 0.48.0; flera bilagor väntar på #192. Ärende: cllp/ops-framework#232. Appens halva: cllp/bolag-ops#539.
 Relaterat: #221 (en bilaga, 0.45.0), #192 (Bibliotek), cllp/bolag-ops#519 (appens bilaga), cllp/bolag-ops#538 (Sammankomst).
 Det här är ett designbeslut. Ingen kod i den här leveransen bygger kommentarerna eller bilagelistan; följdstegen längst ned gör det.
 
@@ -77,31 +77,37 @@ ingen GitHub-spegel**, och fält för en spegel som inte finns är fält som lju
 | read | Den som får läsa händelsen. |
 | create | Medlem i händelsens grupp, `skrevSigSjalv()`, exakt fältlista, textens längd. |
 | update | Stängd. En kommentar ändras inte i efterhand: ett svar på den hade annars kunnat stå under en mening som inte längre finns. |
-| delete | Bara den som skrev den. ⛔ **Öppen fråga till CP**, se nedan. |
+| delete | Bara den som skrev den, också efter att hen lämnat gruppen. CP 2026-10-02: "Ja". |
 
 ⛔ **Reglerna deployas före den klienthalva som skriver kommentarer** (bolag-ops `CLAUDE.md`). I #539 är ordningen alltså:
 ramverkets release med fragmentet, appens regeldeploy, och först därefter appens PR som kopplar in tråden.
 
 **Panelen:** `OpsHandelsePanel` får en slot `kommentarer` (en `ReactNode`, som `svar`), och ramverket en primitiv
-`OpsKommentarer` med listan och skrivrutan: `{ kommentarer, onSkriv, laddar, fel }`. Appen kopplar data, ramverket
+`OpsKommentarer` med listan och skrivrutan: `{ kommentarer, uid, onSkriv, onTaBort?, laddar, fel }`. Appen kopplar data, ramverket
 ritar. Tom tråd skrivs ut som "Inga kommentarer än" (punkt 5), aldrig som en tom yta.
 
 ### 3. Det som inte ingår
 
 - Ingen GitHub-spegel av händelsekommentarer.
-- Inga omnämnanden eller notiser per kommentar. Ska en kommentar synas i Inkorgen är det en egen härledning, som
-  `svarsrader`, och ett eget beslut.
+- Inga omnämnanden.
 - Ingen redigering av en skickad kommentar (se update ovan).
 
-## Öppna frågor till CP
+## CP:s svar (2026-10-02): "Ja och ja"
 
-1. **Får den som skrev en kommentar ta bort den?** Förslaget är ja (bara sin egen). Inkorgens kommentarer går inte att ta
+1. **Den som skrev en kommentar får ta bort den.** Bara sin egen, och regeln prövar det. Inkorgens kommentarer går inte att ta
    bort, men där är skälet GitHub-kopian, som inte finns här.
-2. **Ska en ny kommentar synas i Inkorgen** för gruppens medlemmar? Förslaget är nej i första leveransen.
+2. **En ny kommentar syns i Inkorgen.** Den skrivs inte till någon: raden härleds, som `svarsrader`. Varje person har ett
+   läsmärke per händelse (`<händelser>/{hid}/<läsmärken>/{uid}`, fältet `lastTill`), och `kommentarsrader` ger en rad per
+   händelse där någon annan skrivit efter märket. Appen flyttar märket när händelsen öppnas, och raden försvinner. Egna
+   kommentarer ger ingen rad. Utan märke är alla andras kommentarer olästa; vilka händelser som läses (fönstret) avgör appen,
+   samma som för svarsraderna, så gamla trådar fyller inte inkorgen.
+
+   ⛔ Förslaget var nej i första leveransen, av kostnadsskäl: raden kräver en läsning av tråden och en av märket per händelse i
+   fönstret. CP valde ja. Priset står här så att den som ser läsningarna växa vet varifrån de kommer.
 
 ## Följdsteg
 
-1. Ramverket: `OpsKommentarer`, slotten i `OpsHandelsePanel`, kommentarmodellen (`byggKommentar`, fältlistan, taket) och
-   regelfragmentet med emulatorprov. En minor-release.
+1. ~~Ramverket: `OpsKommentarer`, slotten i `OpsHandelsePanel`, kommentarmodellen och regelfragmentet.~~ Klart i 0.48.0, med
+   läsmärkena, `kommentarsrader` och `OpsKommentarsrad` för Inkorgen.
 2. bolag-ops#539: regeldeploy, sedan klienten och ompinningen.
 3. #192 (Bibliotek), därefter `bilagor` enligt kontraktet ovan och migreringen av `bilaga`.

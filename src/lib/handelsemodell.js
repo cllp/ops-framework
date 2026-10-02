@@ -45,6 +45,7 @@
  */
 
 import { DATUMFORM, forvaldKalender, giltigtDatum } from "./kalendrar.js";
+import { byggSkapare } from "./skapare.js";
 
 /** Fälten ramverket läser på en av appens händelser. Appens egna fält (`rubrik`, `typ`, ...) står inte här. */
 export const HANDELSEKONTRAKT = /** @type {const} */ (["groupId", "kalenderId", "datum", "slutDatum", "tid", "slutTid", "heldag", "kravSvar"]);
@@ -221,4 +222,92 @@ export function svarsrader({ handelser, mina, idag }) {
     .filter((h) => h && h.kravSvar === true && !har(h.id) && !harPasserat(h, idag))
     .slice()
     .sort((a, b) => a.datum.localeCompare(b.datum) || String(a.tid ?? "").localeCompare(String(b.tid ?? "")));
+}
+
+/*
+ * ══ ⛔ KOMMENTARER PÅ EN HÄNDELSE (0.48.0, #232, beslut 0002) ══════════════════════════════════════════════════════
+ *
+ * CP 2026-10-02, på frågorna i #232: "Ja och ja." Den som skrev en kommentar får ta bort den, och en ny kommentar syns i Inkorgen.
+ *
+ * ⛔ SÖKVÄGEN ÄR `<händelser>/{händelse}/<kommentarer>/{kommentar}`, och samlingsnamnen är appens (se `handelseregelfragment`).
+ * Fälten är en exakt lista (`KOMMENTARFALT`): texten, när och vem. Ingen `groupId`: gruppen står på händelsen ovanför, och en
+ * kopia här hade varit en andra sanning om samma sak (regel 2). Inga `synk`-fält: en händelse har ingen GitHub-spegel.
+ *
+ * ⛔ INKORGEN HÄRLEDS, SOM SVARSRADERNA. En kommentar skriver ingen rad till någon annan. Varje person har ett läsmärke per
+ * händelse (`<händelser>/{händelse}/<läsmärken>/{uid}`, fältet `lastTill`), och `kommentarsrader` räknar fram en rad per händelse
+ * där någon ANNAN skrivit efter märket. Raden försvinner i samma stund som märket flyttas, alltså när händelsen öppnas. En
+ * skriven notis hade krävt en server som skriver åt mottagaren (en klient får inte skriva i någon annans namn), och den hade
+ * stått kvar efter att kommentaren lästs tills någon mindes att ta bort den.
+ */
+
+/** Fälten på en kommentar, exakt. Samma lista står i regeln. */
+export const KOMMENTARFALT = /** @type {const} */ (["text", "skapad", "skapadAv"]);
+
+/**
+ * Tak för en kommentars längd, i tecken. Samma tal som inkorgens kommentarer i bolag-ops (`MAX_KOMMENTAR`), så att en mening som
+ * går att skriva på ett ställe går att skriva på det andra. Regeln prövar samma tal.
+ */
+export const MAX_HANDELSEKOMMENTAR = 5000;
+
+/** Fälten på ett läsmärke, exakt: när personen senast läste trådens kommentarer, ISO-tid. */
+export const LASMARKESFALT = /** @type {const} */ (["lastTill"]);
+
+const ISOFORM = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+/**
+ * Bygger en kommentar, eller kastar.
+ *
+ * ⛔ TOM TEXT OCH TEXT ÖVER TAKET KASTAR HÄR, INTE FÖRST I REGELN. Regeln nekar samma sak, men ett nekande från databasen är
+ * "Missing or insufficient permissions", som inte säger vad som var fel. Här står det.
+ *
+ * ⛔ UTAN `uid` PÅ SKAPAREN KASTAR DEN. Regeln kräver `skapadAv.uid == request.auth.uid`, och en kommentar utan uid hade nekats
+ * utan att säga varför.
+ *
+ * @param {unknown} text
+ * @param {{ skapare: { uid?: string | null, namn?: string, typ?: string, kalla?: string }, nu?: () => string }} arg
+ * @returns {{ text: string, skapad: string, skapadAv: import("./skapare.js").Skapare }}
+ */
+export function byggKommentar(text, { skapare, nu = () => new Date().toISOString() } = /** @type {any} */ ({})) {
+  const t = typeof text === "string" ? text.trim() : "";
+  if (!t) throw new Error("byggKommentar: kommentaren är tom.");
+  if (t.length > MAX_HANDELSEKOMMENTAR) throw new Error(`byggKommentar: kommentaren är ${t.length} tecken, taket är ${MAX_HANDELSEKOMMENTAR}.`);
+  const av = byggSkapare(skapare ?? {});
+  if (!av.uid) throw new Error("byggKommentar: skapare.uid krävs. Regeln släpper bara in en kommentar i den inloggades namn.");
+  const skapad = nu();
+  if (!ISOFORM.test(skapad)) throw new Error(`byggKommentar: skapad "${skapad}" är ingen ISO-tid.`);
+  return { text: t, skapad, skapadAv: av };
+}
+
+/**
+ * Inkorgens rader för kommentarer: en per händelse där någon annan skrivit efter mitt läsmärke, nyast först.
+ *
+ * ⛔ HÄRLEDDA, SE OVAN. ⛔ MINA EGNA KOMMENTARER RÄKNAS INTE: att få en rad om något man själv just skrivit är brus.
+ *
+ * ⛔ UTAN LÄSMÄRKE ÄR ALLA ANDRAS KOMMENTARER OLÄSTA. "Aldrig öppnad" är inte detsamma som "läst". Vilka händelser som läses
+ * avgör appen (samma fönster som svarsraderna), så gamla trådar fyller inte inkorgen.
+ *
+ * @template {{ id: string }} H
+ * @param {{
+ *   handelser: ReadonlyArray<H>,
+ *   kommentarer: ReadonlyMap<string, ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } }>>,
+ *   lastTill: ReadonlyMap<string, string>,
+ *   uid: string,
+ * }} arg
+ * @returns {Array<{ handelse: H, olasta: number, senaste: { id: string, text: string, skapad: string, namn: string, uid: string | null } }>}
+ */
+export function kommentarsrader({ handelser, kommentarer, lastTill, uid }) {
+  if (typeof uid !== "string" || !uid) throw new Error("kommentarsrader: uid krävs. Raderna är en persons, inte gruppens.");
+  if (!(kommentarer instanceof Map) || !(lastTill instanceof Map)) throw new Error("kommentarsrader: kommentarer och lastTill är kartor per händelse-id.");
+  /** @type {Array<{ handelse: H, olasta: number, senaste: { id: string, text: string, skapad: string, namn: string, uid: string | null } }>} */
+  const ut = [];
+  for (const h of handelser ?? []) {
+    const mark = lastTill.get(h.id) ?? "";
+    /** @type {ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } }>} */
+    const trad = kommentarer.get(h.id) ?? [];
+    const nya = trad.filter((k) => (k.skapadAv?.uid ?? null) !== uid && k.skapad > mark);
+    if (nya.length === 0) continue;
+    const s = nya.reduce((a, b) => (b.skapad > a.skapad ? b : a));
+    ut.push({ handelse: h, olasta: nya.length, senaste: { id: s.id, text: s.text, skapad: s.skapad, namn: s.skapadAv?.namn ?? "", uid: s.skapadAv?.uid ?? null } });
+  }
+  return ut.sort((a, b) => b.senaste.skapad.localeCompare(a.senaste.skapad));
 }

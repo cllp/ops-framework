@@ -79,6 +79,8 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {boolean} [props.laddar] Appen läser händelsen ännu. Visar en väntan i stället för "finns inte".
  * @param {() => void} props.onTillbaka
  * @param {import("react").ReactNode} [props.svar] Svaren. Ritas bara när `handelse.kravSvar` är sant.
+ * @param {import("react").ReactNode} [props.kommentarer] (0.48.0, #232) Tråden, normalt appens `<OpsKommentarer>` med sin källa. Ritas sist,
+ *   under svaren, för varje händelse som får den. Ramverket vet inte var kommentarerna ligger.
  * @param {() => void} [props.onRedigera] (0.40.0) Pennan: SS redigera. Ritas BARA när appen ger den, så att en person som inte får ändra händelsen inte ser en knapp som nekas. Normalt `() => oppna("handelse", { id })` ur `useOppnaSkapa()`, som öppnar skalets skapa-panel i redigeringsläge. Ramverket känner varken regeln eller datan: appen avgör vem som får, och formuläret och sparandet är appens.
  * @param {string} [props.redigeraEtikett] Pennans namn för skärmläsaren. Förval "Redigera".
  * @param {import("react").ReactNode} [props.atgarder] Appens egna knappar, högst upp till höger bredvid titeln (SS export m.fl.), efter pennan.
@@ -101,6 +103,7 @@ function OpsHandelsePanelRitad({
   laddar = false,
   onTillbaka,
   svar,
+  kommentarer,
   atgarder,
   onRedigera,
   redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
@@ -297,6 +300,12 @@ function OpsHandelsePanelRitad({
       {handelse.kravSvar === true ? (
         <div data-handelsesvar="" className="mt-6">
           {svar}
+        </div>
+      ) : null}
+
+      {kommentarer ? (
+        <div data-handelsekommentarer="" className="mt-6">
+          {kommentarer}
         </div>
       ) : null}
     </section>
