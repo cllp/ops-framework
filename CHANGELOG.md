@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.47.0
+
+⛔ **Kräv svar från början för en typ som appen pekar ut (bolag-ops#538), och beslutet om kommentarer och flera bilagor på en händelse (#232). Inga regler ändras. Appen pinnar om och skickar `kravSvarFor`.**
+
+### bolag-ops#538: Sammankomst ber om svar utan att någon måste minnas det
+CP 2026-10-02: en ny händelsetyp, Sammankomst, där "Kräv svar" är på som förval. Typerna är appens katalog och brytaren är skalets, så policyn kan bara ligga i appen och verkställas i skalet.
+
+**Nu:** `skapa.handelse.kravSvarFor?: (typ) => boolean`. Så länge ingen rört "Kräv svar" står brytaren som policyn säger för den valda typen och följer typvalet. När någon slagit om den gäller deras val, också om typen byts. I redigeringsläge gäller händelsens eget värde, aldrig policyn: en händelse som sparats utan svar ska inte börja be om svar för att någon öppnat den. Utan `kravSvarFor` är allt som förut.
+
+**Prov, båda riktningarna:** 4 nya prov (3 i `kalenderhantering.test.jsx`, 1 i `handelseredigering.test.jsx`). Inga befintliga prov ändrade.
+
+| Mutation | Röda |
+|---|---|
+| Policyn läses inte | 2 |
+| Policyn vinner över ett eget val | 2 |
+| Brytaren nollställs till av i stället för orörd vid öppning | 2 |
+| Redigeringsläget lämnar ett avslaget värde orört, så att policyn tar över | 1 |
+
+### #232: beslut 0002, kommentarer och flera bilagor
+`docs/beslut/0002-kommentarer-och-flera-bilagor-pa-handelse.md`. Flera bilagor går via Storage och Bibliotek (#192), inte som en lista av data-URL i dokumentet, och väntar därför på #192. Kommentarer blir en undersamling `<händelser>/{id}/kommentarer/{id}` med regler i ramverkets handelsefragment, en slot i `OpsHandelsePanel` och en primitiv `OpsKommentarer`. Två öppna frågor till CP står i dokumentet. Ingen kod för kommentarerna i den här versionen.
+
 ## 0.46.0
 
 ⛔ **Språket ur profilen (bolag-ops#528) och gruppens externa datakällor på nodsidan (bolag-ops#512). Inga regler ändras. Appen pinnar om och lägger `<OpsSprakProvider sprak={profil.sprak}>` runt sig.**
