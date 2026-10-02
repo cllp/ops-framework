@@ -195,25 +195,32 @@ export const ORD_OPSKOMMENTARER = {
  * @param {number} props.olasta
  * @param {string} props.namn Den som skrev den senaste.
  * @param {string} props.text Den senaste kommentaren.
- * @param {() => void} props.onOppna Öppnar händelsen (och appen flyttar läsmärket).
+ * @param {string} [props.href] Leder till händelsen, normalt `handelseHref(id)`, som `OpsSvarsrad`. Skalet öppnar panelen.
+ * @param {() => void} [props.onOppna] I stället för `href`: öppnar händelsen, t.ex. `useOppnaHandelse()(id)`. En av de två krävs.
  * @param {"sv" | "en"} [props.sprak]
  */
 export function OpsKommentarsrad(props) {
   const kontext = useOpsSprak();
   const sprak = props.sprak ?? kontext;
   const ord = forvalda(ORD_OPSKOMMENTARSRAD, sprak);
-  const { titel, olasta, namn, text, onOppna } = props;
-  if (typeof onOppna !== "function") throw new Error("OpsKommentarsrad: onOppna krävs. En rad om nya kommentarer som inte leder till dem är en rad man inte kan bli av med.");
+  const { titel, olasta, namn, text, href, onOppna } = props;
+  if (!href && typeof onOppna !== "function") throw new Error("OpsKommentarsrad: href eller onOppna krävs. En rad om nya kommentarer som inte leder till dem är en rad man inte kan bli av med.");
   const antal = olasta === 1 ? ord.enNy : `${olasta} ${ord.flerNya}`;
-  return (
-    <button
-      type="button"
-      data-ops-kommentarsrad=""
-      onClick={onOppna}
-      className="flex w-full min-w-0 cursor-pointer flex-col items-start gap-0.5 rounded-card border border-line bg-surface p-3 text-left transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-    >
+  const klass =
+    "flex w-full min-w-0 cursor-pointer flex-col items-start gap-0.5 rounded-card border border-line bg-surface p-3 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  const innehall = (
+    <>
       <span className="block w-full truncate text-etikett font-medium text-ink">{titel}</span>
       <span className="block w-full truncate text-meta text-ink-muted">{`${antal} · ${namn || ord.namnSaknas}: ${text}`}</span>
+    </>
+  );
+  return href ? (
+    <a href={href} data-ops-kommentarsrad="" className={klass}>
+      {innehall}
+    </a>
+  ) : (
+    <button type="button" data-ops-kommentarsrad="" onClick={onOppna} className={klass}>
+      {innehall}
     </button>
   );
 }
