@@ -63,6 +63,7 @@ export { OpsDataView } from "./components/OpsDataView.jsx";
 export { OpsPill } from "./components/OpsPill.jsx";
 export { OpsCountBadge, OpsFelBadge } from "./components/counter.jsx";
 export { OpsSprakProvider, useOpsSprak } from "./components/OpsSprak.jsx";
+export { ordet } from "./lib/ord.js";
 export { OpsCalendar } from "./components/OpsCalendar.jsx";
 export { OpsStatusDot } from "./components/OpsStatusDot.jsx";
 export { OpsMarkdown } from "./components/OpsMarkdown.jsx";

@@ -21,6 +21,7 @@ På frågorna i beslut 0002: den som skrev en kommentar får ta bort den, och en
 - **Inkorgens rad, härledd:** `kommentarsrader({ handelser, kommentarer, lastTill, uid })`. En rad per händelse där någon annan skrivit efter mitt läsmärke. Märket ligger i `<händelser>/{hid}/<läsmärken>/{uid}` och flyttas när händelsen öppnas. Ingen notis skrivs till någon.
 - **Källan:** `createKommentarkalla` med `lista`, `prenumerera`, `skriv`, `taBort`, `lastTill`, `markeraLast`.
 - **Gränssnittet:** `OpsKommentarer` (tråden), `OpsKommentarsrad` (inkorgens rad, med `href` som `OpsSvarsrad` eller `onOppna`) och slotten `kommentarer` i `OpsHandelsePanel`. Svenska och engelska från början, så `check-sprak`s tak står kvar.
+- **`ordet` exporteras**, så att appens vyer slår upp sina ord på samma sätt som ramverkets komponenter i stället för med ett eget uppslag.
 - **Reglerna** (`handelseregelfragment`, nya namn `kommentarer` och `lasmarken`, förval just så): kommentarer läses av medlemmar, skrivs av en medlem i eget namn, ändras aldrig, raderas bara av den som skrev dem. Läsmärken läses och skrivs bara av personen själv. Två undersamlingar med samma namn kastar.
 
 ⛔ **Priset för Inkorgens rad** (förslaget var nej, CP valde ja): en läsning av tråden och en av märket per händelse i appens fönster. Det står i beslut 0002.
