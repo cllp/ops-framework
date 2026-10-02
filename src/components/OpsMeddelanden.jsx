@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { MAX_MEDDELANDE, utdrag } from "../lib/samtal.js";
@@ -136,7 +137,10 @@ export function OpsMeddelandeLank({ href, olasta, etikett = "Meddelanden", olast
  * @param {string} [props.sprak] "sv" eller "en", för tiderna. Förval "sv".
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNytt, valt, onValj, onOlasta, sprak = "sv", texter = {} }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNytt, valt, onValj, onOlasta, sprak: sprakProp, texter = {} }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   const t = { ...TEXTER, ...texter };
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const { rader, laddar, fel, olasta, lasOm } = useSamtal({ kalla, groupId, uid });
@@ -388,7 +392,10 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, onNy
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, sprak = "sv", texter = {} }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, sprak: sprakProp, texter = {} }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   const t = { ...TEXTER, ...texter };
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));

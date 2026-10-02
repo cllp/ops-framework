@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { definierade, forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
@@ -69,17 +71,17 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  *   hamburgaren: appens sektioner, navigeringens överflödsrader, `menuExtras`, Logga ut, versionerna.
  *   `meny.rubrik` styr då även sheetens rubrikrad (annars `sheetLabel`).
  */
-export function OpsBottomNav({
+function OpsBottomNavRitad({
   nav,
   moreNav,
   activeHref,
   onNavigate,
   primaryAction,
-  menuLabel = "Meny",
-  navLabel = "Snabbnavigering",
-  sheetLabel = "Meny",
-  closeLabel = "Stäng",
-  badgeText = "nya",
+  menuLabel = ORD_OPSBOTTOMNAV.menuLabel.sv,
+  navLabel = ORD_OPSBOTTOMNAV.navLabel.sv,
+  sheetLabel = ORD_OPSBOTTOMNAV.sheetLabel.sv,
+  closeLabel = ORD_OPSBOTTOMNAV.closeLabel.sv,
+  badgeText = ORD_OPSBOTTOMNAV.badgeText.sv,
   menuExtras,
   meny,
 }) {
@@ -356,4 +358,25 @@ function SheetPost({ entry, activeHref, onNavigate, badgeText }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * OpsBottomNavs förvalda texter (0.46.0, cllp/bolag-ops#528). Den enda källan till dem: den inre komponentens förval pekar hit.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const ORD_OPSBOTTOMNAV = {
+  menuLabel: { sv: "Meny", en: "Menu" },
+  navLabel: { sv: "Snabbnavigering", en: "Quick navigation" },
+  sheetLabel: { sv: "Meny", en: "Menu" },
+  closeLabel: { sv: "Stäng", en: "Close" },
+  badgeText: { sv: "nya", en: "new" },
+};
+
+/**
+ * OpsBottomNav på det språk appen ritas på (`OpsSprakProvider`), med ordbokens texter där appen inte skickat egna.
+ * @param {Parameters<typeof OpsBottomNavRitad>[0]} props
+ */
+export function OpsBottomNav(props) {
+  const kontext = useOpsSprak();
+  return <OpsBottomNavRitad {...forvalda(ORD_OPSBOTTOMNAV, kontext)} {...definierade(props)} />;
 }

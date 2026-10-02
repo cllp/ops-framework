@@ -9,6 +9,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.46.0
+
+⛔ **Språket ur profilen (bolag-ops#528) och gruppens externa datakällor på nodsidan (bolag-ops#512). Inga regler ändras. Appen pinnar om och lägger `<OpsSprakProvider sprak={profil.sprak}>` runt sig.**
+
+### bolag-ops#528: "byta språk i profil byter inte språk"
+CP 2026-10-01: "Har noterat att byta språk i profil inte byter språk. Se till att allt är språkhanterat, svenska engelska." Mätt: profilen sparade valet i `users/{uid}.sprak` och ingenting läste det. Varje komponent hade sina etiketter som svenska förval i parameterlistan, och de som tog ett språk hade `sprak = "sv"`.
+
+**Nu:**
+- `OpsSprakProvider` och `useOpsSprak`: appen sätter språket en gång. Komponenter utan eget `sprak` läser det därifrån.
+- En ordbok per komponent (`src/lib/ord.js`, `ORD_*`) för sex komponenter: skalet, bottenraden, händelsepanelen, profilen (även språkens namn), händelselistan och skapa-panelen. 65 texter på svenska och engelska. Komponentens svenska förval pekar på ordboken, så svenskan står på ett ställe.
+- Nio komponenter till läser `sprak` ur providern.
+- Appens egna etiketter vinner alltid. Utan provider är allt som förut.
+
+**Vakt:** `check-sprak` räknar svenska förval i komponenternas parametrar (namn som slutar på Label, Etikett, Text, Rubrik, Titel, Beskrivning). 183 före, 118 efter. Taket är 118 och **får bara sjunka**: över taket är rött, och under taket är också rött tills taket sänks i samma PR.
+
+### bolag-ops#512: externa datakällor på nodsidan
+`byggExternaDatakallor` och `MAX_EXTERNA` exporteras från `@staiger/ops-framework/node` (18 ms att importera, mot cirka två sekunder för hela paketet), så att appens funktion kan skicka ett ärende till gruppens kopplade repo med samma byggare som klienten och reglerna.
+
+**Prov, båda riktningarna:** 10 nya prov i `sprak.test.jsx`.
+
+| Mutation | Röda |
+|---|---|
+| Kontexten läses inte | 3 |
+| Ordboken skriver över appens etikett | 1 |
+| Appens `sprak` ignoreras | 1 |
+| Språkens namn följer inte språket | 1 |
+| Ett okänt språk tigs | 1 |
+| Nodsidan saknar byggaren | 1 |
+| `check-sprak`: en komponent tillbaka till svenska förval | röd (129 över taket 118) |
+| `check-sprak`: taket 120 över mätvärdet 118 | röd (sänk taket) |
+
 ## 0.45.0
 
 ⛔ **Tre saker: ett felmärke på ikonlänken så att en räknare som inte kunde läsas inte ser ut som noll (bolag-ops#150), bilagan i händelsepanelen (#221), och ett designbeslut om vems AI-nyckel och vems räkning (#185). Inga regler ändras. Appen pinnar om och skickar `badgeFel` och `bilaga`; bilagans regler är appens (bolag-ops#519).**

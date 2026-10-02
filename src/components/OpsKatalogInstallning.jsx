@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { byggKategori, FASER, valjbara } from "../lib/katalog.js";
 import { beskrivKonfigandring } from "../lib/konfiglogg.js";
@@ -107,7 +108,7 @@ export function OpsKatalogInstallning({
   kanAndra = false,
   onSpara,
   onArkivera,
-  sprak = "sv",
+  sprak: sprakProp,
   rubrik = "Kategorier",
   logg = [],
   textnycklar = [],
@@ -115,6 +116,9 @@ export function OpsKatalogInstallning({
   farger = true,
   groupId,
 }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   if (!Array.isArray(ikoner) || ikoner.length === 0) {
     throw new Error(
       "OpsKatalogInstallning: ikoner krävs och måste ha minst ett namn. Utan tillåtelselista går det att spara en ikon som inte finns, och den blir en tom ruta i varje vy.",

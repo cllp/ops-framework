@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { slagPrick } from "../lib/slag.js";
 import { MAX_TYPNAMN, typmarke } from "../lib/modultyper.js";
 import { text } from "../lib/sprak.js";
@@ -44,7 +45,10 @@ const rensa = (/** @type {unknown} */ v) => (typeof v === "string" ? v.trim() : 
  * @param {string} [props.rubrik]
  * @param {(ikon: string) => import("react").ReactNode} [props.ikonRitare] Ritar ett ikonnamn. Utan den visas inget (ikonen är valfri).
  */
-export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak = "sv", rubrik = "Typer från moduler", ikonRitare }) {
+export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak: sprakProp, rubrik = "Typer från moduler", ikonRitare }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   const rubrikId = useId();
   if (!Array.isArray(bidrag)) {
     throw new Error("OpsModulTyper: bidrag krävs och måste vara en lista, även när den är tom. Skicka resultatet av bidragForGrupp.");

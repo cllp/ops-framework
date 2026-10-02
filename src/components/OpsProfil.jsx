@@ -1,4 +1,6 @@
 import { useRef, useState } from "react";
+import { definierade, forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { SPRAK, text } from "../lib/sprak.js";
 import { MAX_PRESENTATION, PROFILIKONER, PROFILFARGER } from "../lib/grupp.js";
@@ -139,7 +141,7 @@ const FARGKLASSER = {
  * @param {import("react").ReactNode} [props.children] Appens EGNA sektioner (t.ex. SessionStudios kreativa profil),
  *   ritade efter Länkar och före Spara/Logga ut. Ramverket bestämmer platsen, appen innehållet.
  */
-export function OpsProfil({
+function OpsProfilRitad({
   anvandare,
   roll,
   grupper = [],
@@ -149,30 +151,30 @@ export function OpsProfil({
   inloggningsBild,
   plattformar = [],
   sprak = "sv",
-  rubrik = "Profil",
-  epostEtikett = "E-post",
-  sprakEtikett = "Språk",
-  grupperEtikett = "Mina grupper",
-  sparaEtikett = "Spara",
-  ingaGrupperText = "Du är inte med i någon grupp än.",
-  profilbildEtikett = "Profilbild",
-  laddaUppEtikett = "Byt",
-  taBortEtikett = "Ta bort",
-  aterstallEtikett = "Återställ",
-  valjIkonEtikett = "Välj standardikon",
-  fargEtikett = "Färg",
-  anvandInitialerEtikett = "Använd initialer",
+  rubrik = ORD_OPSPROFIL.rubrik.sv,
+  epostEtikett = ORD_OPSPROFIL.epostEtikett.sv,
+  sprakEtikett = ORD_OPSPROFIL.sprakEtikett.sv,
+  grupperEtikett = ORD_OPSPROFIL.grupperEtikett.sv,
+  sparaEtikett = ORD_OPSPROFIL.sparaEtikett.sv,
+  ingaGrupperText = ORD_OPSPROFIL.ingaGrupperText.sv,
+  profilbildEtikett = ORD_OPSPROFIL.profilbildEtikett.sv,
+  laddaUppEtikett = ORD_OPSPROFIL.laddaUppEtikett.sv,
+  taBortEtikett = ORD_OPSPROFIL.taBortEtikett.sv,
+  aterstallEtikett = ORD_OPSPROFIL.aterstallEtikett.sv,
+  valjIkonEtikett = ORD_OPSPROFIL.valjIkonEtikett.sv,
+  fargEtikett = ORD_OPSPROFIL.fargEtikett.sv,
+  anvandInitialerEtikett = ORD_OPSPROFIL.anvandInitialerEtikett.sv,
   ikonNamn = { person: "Person", stjarna: "Stjärna", hjarta: "Hjärta", blixt: "Blixt", leende: "Leende", krona: "Krona" },
-  personuppgifterEtikett = "Personuppgifter",
-  namnEtikett = "Namn",
-  telefonEtikett = "Telefon",
-  stadEtikett = "Stad",
-  presentationEtikett = "Presentation",
-  lankarEtikett = "Länkar",
-  installningarEtikett = "Inställningar",
-  laggTillLankEtikett = "Lägg till länk",
-  urlEtikett = "url",
-  taBortLankEtikett = "Ta bort länken",
+  personuppgifterEtikett = ORD_OPSPROFIL.personuppgifterEtikett.sv,
+  namnEtikett = ORD_OPSPROFIL.namnEtikett.sv,
+  telefonEtikett = ORD_OPSPROFIL.telefonEtikett.sv,
+  stadEtikett = ORD_OPSPROFIL.stadEtikett.sv,
+  presentationEtikett = ORD_OPSPROFIL.presentationEtikett.sv,
+  lankarEtikett = ORD_OPSPROFIL.lankarEtikett.sv,
+  installningarEtikett = ORD_OPSPROFIL.installningarEtikett.sv,
+  laggTillLankEtikett = ORD_OPSPROFIL.laggTillLankEtikett.sv,
+  urlEtikett = ORD_OPSPROFIL.urlEtikett.sv,
+  taBortLankEtikett = ORD_OPSPROFIL.taBortLankEtikett.sv,
   sprakNamn = { sv: "Svenska", en: "Engelska" },
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
   children,
@@ -589,4 +591,49 @@ export function OpsProfil({
       </OpsList>
     </OpsView>
   );
+}
+
+/**
+ * OpsProfils förvalda texter (0.46.0, cllp/bolag-ops#528). Den enda källan till dem: den inre komponentens förval pekar hit.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+/** Vad språken heter i väljaren, på varje språk. */
+const SPRAKNAMN = { sv: { sv: "Svenska", en: "Engelska" }, en: { sv: "Swedish", en: "English" } };
+
+export const ORD_OPSPROFIL = {
+  rubrik: { sv: "Profil", en: "Profile" },
+  epostEtikett: { sv: "E-post", en: "Email" },
+  sprakEtikett: { sv: "Språk", en: "Language" },
+  grupperEtikett: { sv: "Mina grupper", en: "My groups" },
+  sparaEtikett: { sv: "Spara", en: "Save" },
+  ingaGrupperText: { sv: "Du är inte med i någon grupp än.", en: "You are not in any group yet." },
+  profilbildEtikett: { sv: "Profilbild", en: "Profile picture" },
+  laddaUppEtikett: { sv: "Byt", en: "Change" },
+  taBortEtikett: { sv: "Ta bort", en: "Remove" },
+  aterstallEtikett: { sv: "Återställ", en: "Reset" },
+  valjIkonEtikett: { sv: "Välj standardikon", en: "Choose a default icon" },
+  fargEtikett: { sv: "Färg", en: "Colour" },
+  anvandInitialerEtikett: { sv: "Använd initialer", en: "Use initials" },
+  personuppgifterEtikett: { sv: "Personuppgifter", en: "Personal details" },
+  namnEtikett: { sv: "Namn", en: "Name" },
+  telefonEtikett: { sv: "Telefon", en: "Phone" },
+  stadEtikett: { sv: "Stad", en: "City" },
+  presentationEtikett: { sv: "Presentation", en: "About" },
+  lankarEtikett: { sv: "Länkar", en: "Links" },
+  installningarEtikett: { sv: "Inställningar", en: "Settings" },
+  laggTillLankEtikett: { sv: "Lägg till länk", en: "Add link" },
+  urlEtikett: { sv: "url", en: "url" },
+  taBortLankEtikett: { sv: "Ta bort länken", en: "Remove the link" },
+};
+
+/**
+ * OpsProfil på det språk appen ritas på (`OpsSprakProvider`), med ordbokens texter där appen inte skickat egna.
+ * @param {Parameters<typeof OpsProfilRitad>[0]} props
+ */
+export function OpsProfil(props) {
+  const kontext = useOpsSprak();
+  const sprak = props.sprak ?? kontext;
+  // ⛔ Språkens namn i väljaren följer också språket: "Engelska" i en engelsk profil är ett ord den som bytte inte kan läsa.
+  const sprakNamn = props.sprakNamn ?? SPRAKNAMN[sprak === "en" ? "en" : "sv"];
+  return <OpsProfilRitad {...forvalda(ORD_OPSPROFIL, sprak)} {...definierade(props)} sprak={sprak} sprakNamn={sprakNamn} />;
 }

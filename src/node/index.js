@@ -50,6 +50,14 @@ export { createGroupService } from "./grupp.js";
 export { uppdateraProfil, bakfyllMedlemsnamn } from "./profil.js";
 
 /*
+ * ⛔ GRUPPENS EXTERNA DATAKÄLLOR PÅ NODSIDAN (0.46.0, cllp/bolag-ops#512). Appens funktion som skapar ett GitHub-ärende ska skicka det
+ * till gruppens kopplade repo, och den måste läsa listan med SAMMA byggare som klienten och reglerna, inte en egen tolkning av ett
+ * repo-namn. Ren funktion ur `lib/grupp.js`, som nodsidan redan importerar: inget nytt beroende, och `@staiger/ops-framework` (två
+ * sekunder vid kallstart) behövs inte för att läsa en lista.
+ */
+export { byggExternaDatakallor, MAX_EXTERNA } from "../lib/grupp.js";
+
+/*
  * ⛔ `createActivityLog` ÅTEREXPORTERAS HÄRIFRÅN, OCH DET ÄR EN MÄTNING OCH INTE
  * EN BEKVÄMLIGHET.
  *

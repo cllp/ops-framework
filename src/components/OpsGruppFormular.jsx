@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, PROFILFARGER } from "../lib/grupp.js";
 import { GRUPPIKON_KOMPONENT, gruppmarkeProps } from "../lib/gruppikoner.js";
@@ -255,7 +256,10 @@ const PRICKKLASS = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3",
  * @param {(fil: File) => Promise<{ sokvag: string, url: string }>} [props.onLaddaUppBild] Appens uppladdning. Utan den finns ingen bildväljare.
  * @param {() => Promise<void>} [props.onTaBortBild] Appens borttagning av bilden. Utan den finns ingen Ta bort-knapp.
  */
-export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak = "sv", etiketter, grupp: befintlig, onSpara, bildUrl = "", onLaddaUppBild, onTaBortBild, moduler: modulval }) {
+export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: sprakProp, etiketter, grupp: befintlig, onSpara, bildUrl = "", onLaddaUppBild, onTaBortBild, moduler: modulval }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   const redigerar = Boolean(befintlig);
   if (!redigerar && typeof onSkapa !== "function") {
     throw new Error("OpsGruppFormular: onSkapa krävs, appens anrop av skapaGrupp. Ett formulär som inte kan skapa något är en ruta som ser ut som en grupp.");
