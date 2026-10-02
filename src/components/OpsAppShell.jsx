@@ -1,4 +1,6 @@
 import { Children, cloneElement, Component, createContext, Fragment, isValidElement, useContext, useEffect, useId, useRef, useState } from "react";
+import { definierade, forvalda, ordet } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Popover from "@radix-ui/react-popover";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
@@ -575,9 +577,9 @@ function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
  * ⛔ TRE LÄGEN, OCH DE SER INTE LIKADANA UT (punkt 5): läses, finns inte, och klart. En händelse som inte finns får ett svar med
  * panelens Tillbaka som utgång, aldrig ett tomt formulär som skulle spara en ny rad.
  *
- * @param {{ hook: (id: string) => HandelseRedigering, id: string, klar: boolean, onForifyllt: (f: HandelseRedigering) => void, children: import("react").ReactNode }} props
+ * @param {{ hook: (id: string) => HandelseRedigering, id: string, klar: boolean, onForifyllt: (f: HandelseRedigering) => void, sprak?: string, children: import("react").ReactNode }} props
  */
-function HandelseRedigeringsgrind({ hook, id, klar, onForifyllt, children }) {
+function HandelseRedigeringsgrind({ hook, id, klar, onForifyllt, sprak = "sv", children }) {
   const r = hook(id);
   const redan = useRef(false);
   useEffect(() => {
@@ -591,9 +593,9 @@ function HandelseRedigeringsgrind({ hook, id, klar, onForifyllt, children }) {
   // ⛔ NÄR FORMULÄRET VÄL RITATS BYTS DET ALDRIG UT (0.40.0). En händelse som försvinner ur en levande läsning medan man skriver ska inte ta bort det
   // man skrivit: formuläret (appen) säger själv att den inte längre finns när man sparar, och fälten står kvar.
   if (klar) return <>{children}</>;
-  if (r.fel) return <OpsEmpty title="Händelsen kunde inte läsas" description={r.fel.message} />;
-  if (r.laddar) return <OpsEmpty title="Hämtar händelsen" busy busyLabel="Hämtar händelsen" />;
-  if (!r.finns) return <OpsEmpty title="Händelsen finns inte" description="Den kan ha tagits bort, eller så får du inte ändra den." />;
+  if (r.fel) return <OpsEmpty title={ordet(TEXT_SKAL, "handelseFel", sprak)} description={r.fel.message} />;
+  if (r.laddar) return <OpsEmpty title={ordet(TEXT_SKAL, "handelseLaddar", sprak)} busy busyLabel={ordet(TEXT_SKAL, "handelseLaddar", sprak)} />;
+  if (!r.finns) return <OpsEmpty title={ordet(TEXT_SKAL, "handelseSaknas", sprak)} description={ordet(TEXT_SKAL, "handelseSaknasText", sprak)} />;
   return null;
 }
 
@@ -774,7 +776,7 @@ export function useOppnaHandelse() {
  * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
  * @param {import("react").ReactNode} props.children
  */
-export function OpsAppShell({
+function OpsAppShellRitad({
   brand,
   nav,
   fasta,
@@ -785,37 +787,37 @@ export function OpsAppShell({
   actions,
   anvandare,
   primaryAction,
-  menuLabel = "Meny",
-  navLabel = "Huvudnavigering",
-  submenuLabel = "Visa sidorna under",
+  menuLabel = ORD_OPSAPPSHELL.menuLabel.sv,
+  navLabel = ORD_OPSAPPSHELL.navLabel.sv,
+  submenuLabel = ORD_OPSAPPSHELL.submenuLabel.sv,
   // ⛔ Fem, inte "så många som får plats". En mätning av tillgänglig bredd vid
   // varje rendering ger hopp när typsnittet laddar och gör ordningen beroende av
   // fönstret. Ett fast tak är förutsägbart, och appen styr vilka fem genom sin
   // ordning.
   maxTopNav = 5,
   maxTopNavSmal,
-  moreLabel = "Meny",
-  badgeText = "nya",
-  bottomNavLabel = "Snabbnavigering",
+  moreLabel = ORD_OPSAPPSHELL.moreLabel.sv,
+  badgeText = ORD_OPSAPPSHELL.badgeText.sv,
+  bottomNavLabel = ORD_OPSAPPSHELL.bottomNavLabel.sv,
   menuExtras,
   grupper,
   meny,
   skapa,
   handelsepanel,
-  skapaLabel = "Skapa",
-  nyHandelseEtikett = "Ny händelse",
-  nyttArendeEtikett = "Nytt ärende",
-  nyGruppEtikett = "Ny grupp",
-  nyttMeddelandeEtikett = "Nytt meddelande",
-  skickaEtikett = "Skicka",
-  redigeraGruppEtikett = "Redigera grupp",
-  redigeraHandelseEtikett = "Redigera händelse",
-  skapaTypEtikett = "Typ",
-  closeLabel = "Stäng",
+  skapaLabel = ORD_OPSAPPSHELL.skapaLabel.sv,
+  nyHandelseEtikett = ORD_OPSAPPSHELL.nyHandelseEtikett.sv,
+  nyttArendeEtikett = ORD_OPSAPPSHELL.nyttArendeEtikett.sv,
+  nyGruppEtikett = ORD_OPSAPPSHELL.nyGruppEtikett.sv,
+  nyttMeddelandeEtikett = ORD_OPSAPPSHELL.nyttMeddelandeEtikett.sv,
+  skickaEtikett = ORD_OPSAPPSHELL.skickaEtikett.sv,
+  redigeraGruppEtikett = ORD_OPSAPPSHELL.redigeraGruppEtikett.sv,
+  redigeraHandelseEtikett = ORD_OPSAPPSHELL.redigeraHandelseEtikett.sv,
+  skapaTypEtikett = ORD_OPSAPPSHELL.skapaTypEtikett.sv,
+  closeLabel = ORD_OPSAPPSHELL.closeLabel.sv,
   felmottagare,
-  felRubrik = "Något gick fel",
-  felBeskrivning = "Sidan gick sönder. Ladda om för att försöka igen.",
-  laddaOmEtikett = "Ladda om",
+  felRubrik = ORD_OPSAPPSHELL.felRubrik.sv,
+  felBeskrivning = ORD_OPSAPPSHELL.felBeskrivning.sv,
+  laddaOmEtikett = ORD_OPSAPPSHELL.laddaOmEtikett.sv,
   children,
 }) {
   // ══ ⛔ TVÅ MODELLER, ALDRIG BÅDA (0.30.0, #173) ══════════════════════════
@@ -1242,7 +1244,7 @@ export function OpsAppShell({
       return skapaSektioner.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.sektion)?.poster.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.id)?.namn ?? null;
     }
     // ⛔ Tomhet är ett svar (punkt 5): utan en enda kalender säger raden det, i stället för att visa gruppens namn som om det vore en kalender.
-    if (handelseMedKalendrar) return "Ingen kalender ännu";
+    if (handelseMedKalendrar) return ordet(TEXT_SKAL, "ingenKalender", sprak);
     const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
     return g ? text(g.namn, sprakSkapa) : null;
   })();
@@ -1308,12 +1310,12 @@ export function OpsAppShell({
             tillgänglighet. "Skicka mejl" visas inte, se `HandelseSkapare.kalendrar`. */}
         {skapaKalender?.slag === "grupp" ? (
           <div data-krav-svar="">
-            <OpsSwitch label="Kräv svar" hint="Varje medlem svarar Kommer eller Kommer inte, och frågan står i var och ens inkorg tills de svarat." checked={skapaKravSvar} onChange={setSkapaKravSvar} />
+            <OpsSwitch label={ordet(TEXT_SKAL, "kravSvar", sprak)} hint={ordet(TEXT_SKAL, "kravSvarHint", sprak)} checked={skapaKravSvar} onChange={setSkapaKravSvar} />
           </div>
         ) : null}
         {skapaKalender?.slag === "mina" ? (
           <div data-blockerar="">
-            <OpsSwitch label="Blockerar tillgänglighet" hint="Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör." checked={skapaBlockerar} onChange={setSkapaBlockerar} />
+            <OpsSwitch label={ordet(TEXT_SKAL, "blockerar", sprak)} hint={ordet(TEXT_SKAL, "blockerarHint", sprak)} checked={skapaBlockerar} onChange={setSkapaBlockerar} />
           </div>
         ) : null}
       </div>
@@ -1323,6 +1325,7 @@ export function OpsAppShell({
     if (skapaForm.redigera && typeof redigeraHook === "function") {
       skapaModalInnehall = (
         <HandelseRedigeringsgrind
+          sprak={sprak}
           key={skapaForm.redigera}
           hook={redigeraHook}
           id={skapaForm.redigera}
@@ -1842,8 +1845,8 @@ export function OpsAppShell({
                   // än inget tal.
                   aria-label={
                     inMenu.length
-                      ? `${moreLabel}, fler destinationer`
-                      : `${moreLabel}, fler åtgärder`
+                      ? `${moreLabel}, ${ordet(TEXT_SKAL, "flerDestinationer", sprak)}`
+                      : `${moreLabel}, ${ordet(TEXT_SKAL, "flerAtgarder", sprak)}`
                   }
                 >
                   <MenuIcon size={20} />
@@ -2061,4 +2064,58 @@ export function OpsAppShell({
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
   );
+}
+
+/**
+ * OpsAppShells förvalda texter (0.46.0, cllp/bolag-ops#528). Den enda källan till dem: den inre komponentens förval pekar hit.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+/**
+ * Text skalet ritar själv och som inte är ett förval appen byter (0.46.0, cllp/bolag-ops#528).
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const TEXT_SKAL = {
+  handelseFel: { sv: "Händelsen kunde inte läsas", en: "The event could not be read" },
+  handelseLaddar: { sv: "Hämtar händelsen", en: "Loading the event" },
+  handelseSaknas: { sv: "Händelsen finns inte", en: "The event does not exist" },
+  handelseSaknasText: { sv: "Den kan ha tagits bort, eller så får du inte ändra den.", en: "It may have been removed, or you may not be allowed to change it." },
+  ingenKalender: { sv: "Ingen kalender ännu", en: "No calendar yet" },
+  kravSvar: { sv: "Kräv svar", en: "Ask for replies" },
+  kravSvarHint: { sv: "Varje medlem svarar Kommer eller Kommer inte, och frågan står i var och ens inkorg tills de svarat.", en: "Every member answers Coming or Not coming, and the question stays in each inbox until they have answered." },
+  blockerar: { sv: "Blockerar tillgänglighet", en: "Blocks availability" },
+  blockerarHint: { sv: "Syns bara för dig. Gruppen ser att du är upptagen, inte vad du gör.", en: "Only visible to you. The group sees that you are busy, not what you are doing." },
+  flerDestinationer: { sv: "fler destinationer", en: "more destinations" },
+  flerAtgarder: { sv: "fler åtgärder", en: "more actions" },
+};
+
+export const ORD_OPSAPPSHELL = {
+  menuLabel: { sv: "Meny", en: "Menu" },
+  navLabel: { sv: "Huvudnavigering", en: "Main navigation" },
+  submenuLabel: { sv: "Visa sidorna under", en: "Show the pages under" },
+  moreLabel: { sv: "Meny", en: "Menu" },
+  badgeText: { sv: "nya", en: "new" },
+  bottomNavLabel: { sv: "Snabbnavigering", en: "Quick navigation" },
+  skapaLabel: { sv: "Skapa", en: "Create" },
+  nyHandelseEtikett: { sv: "Ny händelse", en: "New event" },
+  nyttArendeEtikett: { sv: "Nytt ärende", en: "New case" },
+  nyGruppEtikett: { sv: "Ny grupp", en: "New group" },
+  nyttMeddelandeEtikett: { sv: "Nytt meddelande", en: "New message" },
+  skickaEtikett: { sv: "Skicka", en: "Send" },
+  redigeraGruppEtikett: { sv: "Redigera grupp", en: "Edit group" },
+  redigeraHandelseEtikett: { sv: "Redigera händelse", en: "Edit event" },
+  skapaTypEtikett: { sv: "Typ", en: "Type" },
+  closeLabel: { sv: "Stäng", en: "Close" },
+  felRubrik: { sv: "Något gick fel", en: "Something went wrong" },
+  felBeskrivning: { sv: "Sidan gick sönder. Ladda om för att försöka igen.", en: "The page broke. Reload to try again." },
+  laddaOmEtikett: { sv: "Ladda om", en: "Reload" },
+};
+
+/**
+ * OpsAppShell på det språk appen ritas på (`OpsSprakProvider`), med ordbokens texter där appen inte skickat egna.
+ * @param {Parameters<typeof OpsAppShellRitad>[0]} props
+ */
+export function OpsAppShell(props) {
+  const kontext = useOpsSprak();
+  const sprak = props.sprak ?? kontext;
+  return <OpsAppShellRitad {...forvalda(ORD_OPSAPPSHELL, sprak)} {...definierade(props)} sprak={sprak} />;
 }

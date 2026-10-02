@@ -38,7 +38,9 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
 
   it("namnen finns på engelska, och de är ramverkets (appen skickar bara href)", () => {
     render(Skal({ sprak: "en" }));
-    const rad = screen.getByRole("navigation", { name: "Huvudnavigering" });
+    // ⛔ ÄNDRAT I 0.46.0 (bolag-ops#528): skalets egna etiketter följer språket också, så raden heter "Main navigation" på engelska.
+    // Provet väntade sig förut det svenska namnet i en engelsk app, alltså precis den blandning ärendet handlar om.
+    const rad = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(rad).getAllByRole("link").map((a) => a.textContent)).toEqual(["Today", "Calendar", "Hub"]);
   });
 
@@ -207,7 +209,8 @@ describe("B: menyn, en avgränsare mellan sektioner (#173)", () => {
     unmount();
 
     const en = render(Skal({ meny: konf, sprak: "en" }));
-    fireEvent.click(screen.getByRole("button", { name: /Meny, fler åtgärder/ }));
+    // ⛔ ÄNDRAT I 0.46.0 (bolag-ops#528): menyknappens namn är engelskt i en engelsk app ("Menu, more actions").
+    fireEvent.click(screen.getByRole("button", { name: /Menu, more actions/ }));
     expect(within(screen.getByRole("dialog")).getByText("App")).toBeTruthy();
     en.unmount();
 

@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
@@ -86,11 +87,14 @@ export function OpsHub({
   tomRubrik = "Inga moduler än",
   tomText = "Den här appen har inga moduler att visa. De läggs till av appens ägare.",
   badgeText = "nya",
-  sprak = "sv",
+  sprak: sprakProp,
   ingetNyttEtikett,
   visaEtikett,
   ram = true,
 }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   validateNav(moduler, "OpsHub: moduler");
   const innehall =
     moduler.length === 0 ? (
@@ -153,7 +157,10 @@ const GRUPPHUBB_TEXT = {
  * @param {string} [props.badgeText]
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
  */
-export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak = "sv", info, badge, badgeText, ram = true }) {
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   const { kort, saknade } = hubbForGrupp({ grupp, moduler });
   const t = GRUPPHUBB_TEXT[sprak === "en" ? "en" : "sv"];
   const gruppnamn = text(grupp.namn, sprak);
@@ -220,10 +227,13 @@ export function OpsHubModul({
   tomRubrik = "Inga undersidor än",
   tomText = "Den här modulen har inga undersidor att visa.",
   badgeText = "nya",
-  sprak = "sv",
+  sprak: sprakProp,
   ingetNyttEtikett,
   ram = true,
 }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   if (!modul || typeof modul.href !== "string" || typeof modul.label !== "string") {
     throw new Error("OpsHubModul: modul krävs och måste vara { href, label, children? }.");
   }

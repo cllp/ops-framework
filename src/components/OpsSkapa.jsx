@@ -1,4 +1,6 @@
 import { OpsEmpty } from "./OpsEmpty.jsx";
+import { definierade, forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsPanelRow } from "./OpsPanel.jsx";
 import { text } from "../lib/sprak.js";
 import { skapalaget } from "../lib/skapa.js";
@@ -59,15 +61,15 @@ import { skapalaget } from "../lib/skapa.js";
  * @param {string} [props.ingenGruppText]
  * @param {string} [props.tomText]
  */
-export function OpsSkapa({
+function OpsSkapaRitad({
   registreringar,
   lage,
   sprak = "sv",
   onValj,
   ikonRitare,
-  ariaLabel = "Skapa",
-  ingenGruppText = "Du är inte med i någon grupp än. Det som skapas hamnar i den aktiva gruppen, och utan grupp finns ingen att skriva i.",
-  tomText = "Ingen av gruppens moduler kan skapa något än.",
+  ariaLabel = ORD_OPSSKAPA.ariaLabel.sv,
+  ingenGruppText = ORD_OPSSKAPA.ingenGruppText.sv,
+  tomText = ORD_OPSSKAPA.tomText.sv,
 }) {
   const laget = skapalaget({ lage, registreringar });
 
@@ -95,4 +97,24 @@ export function OpsSkapa({
       ))}
     </div>
   );
+}
+
+/**
+ * OpsSkapas förvalda texter (0.46.0, cllp/bolag-ops#528). Den enda källan till dem: den inre komponentens förval pekar hit.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const ORD_OPSSKAPA = {
+  ariaLabel: { sv: "Skapa", en: "Create" },
+  ingenGruppText: { sv: "Du är inte med i någon grupp än. Det som skapas hamnar i den aktiva gruppen, och utan grupp finns ingen att skriva i.", en: "You are not in any group yet. What you create goes into the active group, and without a group there is nowhere to write it." },
+  tomText: { sv: "Ingen av gruppens moduler kan skapa något än.", en: "None of the group's modules can create anything yet." },
+};
+
+/**
+ * OpsSkapa på det språk appen ritas på (`OpsSprakProvider`), med ordbokens texter där appen inte skickat egna.
+ * @param {Parameters<typeof OpsSkapaRitad>[0]} props
+ */
+export function OpsSkapa(props) {
+  const kontext = useOpsSprak();
+  const sprak = props.sprak ?? kontext;
+  return <OpsSkapaRitad {...forvalda(ORD_OPSSKAPA, sprak)} {...definierade(props)} sprak={sprak} />;
 }

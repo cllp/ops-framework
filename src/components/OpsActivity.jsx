@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { activityId, activityWindow, groupByDay, unread, unreadRows } from "../lib/aktivitet.js";
@@ -326,7 +327,10 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
  *   avsnitt, och `text()` läser ut rätt språk. Standardar till svenska, precis
  *   som `text()` själv gör.
  */
-export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, onOpen, fler = 0, onMore, now, sprak = "sv" }) {
+export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, onOpen, fler = 0, onMore, now, sprak: sprakProp }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   const rader = entries || [];
 
   if (rader.length === 0) {
@@ -514,8 +518,11 @@ export function OpsActivityButton({
   onOpenChange,
   renderTrigger = true,
   now,
-  sprak = "sv",
+  sprak: sprakProp,
 }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   if (!renderTrigger && (typeof open !== "boolean" || !onOpenChange)) {
     throw new Error(
       "OpsActivityButton: renderTrigger={false} kräver open OCH onOpenChange. Utan en synlig klocka måste NÅGON annan yta (t.ex. en rad i OpsMeny) styra öppningen, annars går panelen inte att nå alls.",

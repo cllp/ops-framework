@@ -1,4 +1,6 @@
 import { useId, useState } from "react";
+import { definierade, forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { slagText } from "../lib/slag.js";
 import { urgency } from "../lib/events.js";
@@ -105,17 +107,17 @@ const TONER = {
  *   ungefär var tjugonde man. Orden är appens, eftersom bara den vet vad `waiting` betyder hos
  *   just den: "väntar på motpart" i ett ops-flöde och "väntar på granskning" i nästa.
  */
-export function OpsEventList({
+function OpsEventListRitad({
   events,
   onNavigate,
   ariaLabel,
   labels = {},
   empty = null,
-  expandLabel = "Visa detaljer för",
+  expandLabel = ORD_OPSEVENTLIST.expandLabel.sv,
   actionHint = null,
-  skapadAvEtikett = "Skapad av",
-  iModulEtikett = "i",
-  franModulEtikett = "Från",
+  skapadAvEtikett = ORD_OPSEVENTLIST.skapadAvEtikett.sv,
+  iModulEtikett = ORD_OPSEVENTLIST.iModulEtikett.sv,
+  franModulEtikett = ORD_OPSEVENTLIST.franModulEtikett.sv,
   sprak = "sv",
   statusWords = {},
   onOppnaHandelse,
@@ -468,3 +470,24 @@ export function OpsEventList({
 }
 
 
+
+/**
+ * OpsEventLists förvalda texter (0.46.0, cllp/bolag-ops#528). Den enda källan till dem: den inre komponentens förval pekar hit.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const ORD_OPSEVENTLIST = {
+  expandLabel: { sv: "Visa detaljer för", en: "Show details for" },
+  skapadAvEtikett: { sv: "Skapad av", en: "Created by" },
+  iModulEtikett: { sv: "i", en: "in" },
+  franModulEtikett: { sv: "Från", en: "From" },
+};
+
+/**
+ * OpsEventList på det språk appen ritas på (`OpsSprakProvider`), med ordbokens texter där appen inte skickat egna.
+ * @param {Parameters<typeof OpsEventListRitad>[0]} props
+ */
+export function OpsEventList(props) {
+  const kontext = useOpsSprak();
+  const sprak = props.sprak ?? kontext;
+  return <OpsEventListRitad {...forvalda(ORD_OPSEVENTLIST, sprak)} {...definierade(props)} sprak={sprak} />;
+}

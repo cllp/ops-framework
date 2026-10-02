@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { modulLage } from "../lib/hubb.js";
 import { text } from "../lib/sprak.js";
@@ -40,7 +41,10 @@ import { OpsView } from "./OpsView.jsx";
  * @param {string} [props.hubEtikett] Förval "Hub".
  * @param {import("react").ReactNode} props.children Den öppna delens vy.
  */
-export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak = "sv", navEtikett, hubEtikett = "Hub", children }) {
+export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Hub", children }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   if (!modul || !modul.hubb) {
     throw new Error(
       `OpsModulSida: modulen ${modul?.id ? `"${modul.id}" ` : ""}har inget kort i hubben (hubb saknas eller är null). Insidan är kortets, och en modul utan kort har ingen.`,

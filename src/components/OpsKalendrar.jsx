@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { text } from "../lib/sprak.js";
 import {
@@ -61,7 +62,10 @@ import { OpsCheckbox } from "./OpsToggle.jsx";
  * @param {string} [props.gruppNamn] Står i gruppsektionens rubrik ("Alfa AB:s kalendrar"). Utan den "Gruppens kalendrar".
  * @param {string} [props.sprak]
  */
-export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSparaGruppens, onSparaMina, gruppNamn, sprak = "sv" }) {
+export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSparaGruppens, onSparaMina, gruppNamn, sprak: sprakProp }) {
+  // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
   return (
     <div data-ops-kalendrar="" className="flex flex-col gap-5">
       <Sektion

@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef } from "react";
+import { definierade, forvalda } from "../lib/ord.js";
+import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { attachmentSize, isImage } from "../lib/file.js";
 import { handelsetid } from "../lib/handelsepanel.js";
@@ -94,26 +96,26 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {string} [props.franModulEtikett] (0.43.0, #224) Ordet före modulen utan skapare. Förval "Från".
  * @param {(href: string, event: any) => void} [props.onNavigate] (0.43.0, #224) Anropas när länken tillbaka till modulens post trycks, i stället för webbläsarens navigering.
  */
-export function OpsHandelsePanel({
+function OpsHandelsePanelRitad({
   handelse,
   laddar = false,
   onTillbaka,
   svar,
   atgarder,
   onRedigera,
-  redigeraEtikett = "Redigera",
+  redigeraEtikett = ORD_OPSHANDELSEPANEL.redigeraEtikett.sv,
   statusWords = {},
   sprak = "sv",
-  tillbakaEtikett = "Tillbaka",
-  gruppEtikett = "Grupp",
-  laddarEtikett = "Hämtar händelsen",
-  saknasTitel = "Händelsen finns inte",
-  saknasText = "Den kan ha tagits bort, eller så får du inte se den.",
-  tillEtikett = "till",
-  bilagaEtikett = "Bilaga",
-  skapadAvEtikett = "Skapad av",
-  iModulEtikett = "i",
-  franModulEtikett = "Från",
+  tillbakaEtikett = ORD_OPSHANDELSEPANEL.tillbakaEtikett.sv,
+  gruppEtikett = ORD_OPSHANDELSEPANEL.gruppEtikett.sv,
+  laddarEtikett = ORD_OPSHANDELSEPANEL.laddarEtikett.sv,
+  saknasTitel = ORD_OPSHANDELSEPANEL.saknasTitel.sv,
+  saknasText = ORD_OPSHANDELSEPANEL.saknasText.sv,
+  tillEtikett = ORD_OPSHANDELSEPANEL.tillEtikett.sv,
+  bilagaEtikett = ORD_OPSHANDELSEPANEL.bilagaEtikett.sv,
+  skapadAvEtikett = ORD_OPSHANDELSEPANEL.skapadAvEtikett.sv,
+  iModulEtikett = ORD_OPSHANDELSEPANEL.iModulEtikett.sv,
+  franModulEtikett = ORD_OPSHANDELSEPANEL.franModulEtikett.sv,
   onNavigate,
 }) {
   const rubrikId = useId();
@@ -338,4 +340,32 @@ function HandelseBilaga({ bilaga, titel, etikett }) {
       )}
     </section>
   );
+}
+
+/**
+ * OpsHandelsePanels förvalda texter (0.46.0, cllp/bolag-ops#528). Den enda källan till dem: den inre komponentens förval pekar hit.
+ * @type {import("../lib/ord.js").Ordbok}
+ */
+export const ORD_OPSHANDELSEPANEL = {
+  redigeraEtikett: { sv: "Redigera", en: "Edit" },
+  tillbakaEtikett: { sv: "Tillbaka", en: "Back" },
+  gruppEtikett: { sv: "Grupp", en: "Group" },
+  laddarEtikett: { sv: "Hämtar händelsen", en: "Loading the event" },
+  saknasTitel: { sv: "Händelsen finns inte", en: "The event does not exist" },
+  saknasText: { sv: "Den kan ha tagits bort, eller så får du inte se den.", en: "It may have been removed, or you may not have access to it." },
+  tillEtikett: { sv: "till", en: "to" },
+  bilagaEtikett: { sv: "Bilaga", en: "Attachment" },
+  skapadAvEtikett: { sv: "Skapad av", en: "Created by" },
+  iModulEtikett: { sv: "i", en: "in" },
+  franModulEtikett: { sv: "Från", en: "From" },
+};
+
+/**
+ * OpsHandelsePanel på det språk appen ritas på (`OpsSprakProvider`), med ordbokens texter där appen inte skickat egna.
+ * @param {Parameters<typeof OpsHandelsePanelRitad>[0]} props
+ */
+export function OpsHandelsePanel(props) {
+  const kontext = useOpsSprak();
+  const sprak = props.sprak ?? kontext;
+  return <OpsHandelsePanelRitad {...forvalda(ORD_OPSHANDELSEPANEL, sprak)} {...definierade(props)} sprak={sprak} />;
 }
