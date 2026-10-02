@@ -9,6 +9,29 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.49.2
+
+### bolag-ops#535: bekräftelserutan tog in bakgrundstext
+
+CP 2026-10-02 (inkorgsbild): toasten "Det ligger i inkorgen" läste in sidans
+text rakt genom den gröna rutan. Orsak: `bg-success-bg` (och motsvarande
+danger/info) är 10–14 % opacitet — rätt tint för piller/banderoller *inuti*
+en yta, fel för en portal-toast *över* sidan. Samma klass av fel som
+sticky-cellerna i `OpsTable`.
+
+**Nu:** `OpsToast` använder `bg-elevated` (opak yta för det som ligger över
+kortet). Tonen bärs av kant + rubrikfärg. Inga tokens ändrade; `OpsBanner`/
+`OpsPill` oförändrade.
+
+**Prov, båda riktningarna:** 2 nya i `toast-opak.test.jsx`.
+
+| Mutation | Röda |
+|---|---|
+| `bg-success-bg` tillbaka | 1 |
+| danger/info kvar på `*-bg` | 1 |
+
+---
+
 ## 0.49.1
 
 ⛔ **Datumpillren i kalenderns dagpanel wrappas utan att klämmas ihop (bolag-ops#556). Inga regler ändras.**
