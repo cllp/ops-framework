@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.49.0
+
+⛔ **Två tillägg som skulle ha följt med 0.48.0 och inte gjorde det: `href` på `OpsKommentarsrad` och `ordet` som export. Inga regler ändras.**
+
+### Varför de inte kom med i 0.48.0
+De pushades till PR 235 efter att den visat MERGA NU men innan svaret om mergen hunnit fram, och mergen tog det som stod då. Två commits stod alltså kvar på grenen utan att finnas i main eller i 0.48.0. Felet var avsändarens: en push till en PR som redan bär MERGA NU ska till en ny gren, och det står redan i bolag-ops `CLAUDE.md`.
+
+### Nu
+- **`OpsKommentarsrad` tar `href`**, som `OpsSvarsrad`: raden blir en länk till händelsen (`handelseHref(id)`), och skalet öppnar panelen. `onOppna` finns kvar som alternativ. En av de två krävs. Utan `href` hade appen behövt `useOppnaHandelse`, som kastar utanför skalet, och då går Inkorgen inte att rita i ett prov utan skal.
+- **`ordet(ordbok, nyckel, sprak)` exporteras**, så att appens vyer slår upp sina ord på samma sätt som ramverkets komponenter i stället för med ett eget uppslag (regel 2).
+
+**Prov, båda riktningarna:** 1 nytt i `kommentarer.test.jsx` (raden som länk, och att den kastar utan både `href` och `onOppna`). Röd när länkgrenen tas bort. Inga befintliga prov ändrade. `ordet` har redan sina prov i `sprak.test.jsx`.
+
 ## 0.48.0
 
 ⛔ **Kommentarer på en händelse (#232, beslut 0002), med Inkorgens rad. REGLERNA ÄNDRAS: `handelseregelfragment()` får två nya block. Appen skriver om sitt regelfragment, DEPLOYAR REGLERNA FÖRST, och mergar sedan klienten som läser och skriver tråden.**
@@ -20,8 +33,7 @@ På frågorna i beslut 0002: den som skrev en kommentar får ta bort den, och en
 - **Modellen** (`handelsemodell.js`): `byggKommentar`, exakt `{ text, skapad, skapadAv }`, 1 till 5 000 tecken (`MAX_HANDELSEKOMMENTAR`, samma tak som inkorgens kommentarer i bolag-ops). Tom text, text över taket och en skapare utan uid kastar med ett fel som säger vad, i stället för databasens "Missing or insufficient permissions".
 - **Inkorgens rad, härledd:** `kommentarsrader({ handelser, kommentarer, lastTill, uid })`. En rad per händelse där någon annan skrivit efter mitt läsmärke. Märket ligger i `<händelser>/{hid}/<läsmärken>/{uid}` och flyttas när händelsen öppnas. Ingen notis skrivs till någon.
 - **Källan:** `createKommentarkalla` med `lista`, `prenumerera`, `skriv`, `taBort`, `lastTill`, `markeraLast`.
-- **Gränssnittet:** `OpsKommentarer` (tråden), `OpsKommentarsrad` (inkorgens rad, med `href` som `OpsSvarsrad` eller `onOppna`) och slotten `kommentarer` i `OpsHandelsePanel`. Svenska och engelska från början, så `check-sprak`s tak står kvar.
-- **`ordet` exporteras**, så att appens vyer slår upp sina ord på samma sätt som ramverkets komponenter i stället för med ett eget uppslag.
+- **Gränssnittet:** `OpsKommentarer` (tråden), `OpsKommentarsrad` (inkorgens rad) och slotten `kommentarer` i `OpsHandelsePanel`. Svenska och engelska från början, så `check-sprak`s tak står kvar.
 - **Reglerna** (`handelseregelfragment`, nya namn `kommentarer` och `lasmarken`, förval just så): kommentarer läses av medlemmar, skrivs av en medlem i eget namn, ändras aldrig, raderas bara av den som skrev dem. Läsmärken läses och skrivs bara av personen själv. Två undersamlingar med samma namn kastar.
 
 ⛔ **Priset för Inkorgens rad** (förslaget var nej, CP valde ja): en läsning av tråden och en av märket per händelse i appens fönster. Det står i beslut 0002.
@@ -31,7 +43,7 @@ På frågorna i beslut 0002: den som skrev en kommentar får ta bort den, och en
 2. **Regeldeploy** av de nya blocken.
 3. Först därefter: klienten (tråden i panelen, `markeraLast` när panelen öppnas, raderna i Inkorgen).
 
-**Prov, båda riktningarna:** 22 nya i `kommentarer.test.jsx`, 14 nya regelprov i emulatorn (`rules/__tests__/handelsekommentarer.test.mjs`). Inga befintliga prov ändrade.
+**Prov, båda riktningarna:** 21 nya i `kommentarer.test.jsx`, 14 nya regelprov i emulatorn (`rules/__tests__/handelsekommentarer.test.mjs`). Inga befintliga prov ändrade.
 
 | Mutation | Röda |
 |---|---|
