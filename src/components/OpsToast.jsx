@@ -23,10 +23,17 @@ import { KryssIkon } from "./icons.jsx";
 /** @type {import("react").Context<{ show: (t: Omit<Toastpost, "id">) => void } | null>} */
 const ToastContext = createContext(/** @type {{ show: (t: Omit<Toastpost, "id">) => void } | null} */ (null));
 
+// ⛔ bolag-ops#535 (CP 2026-10-02, inkorgsbild): bekräftelserutan "tog in massa
+// bakgrund, text". `bg-success-bg` är 10–14 % opacitet (tokenkontraktet, tint
+// för piller/banderoller INUTI en yta). En toast ligger ÖVER sidan i en portal,
+// så den genomskinliga tinten läste in sidans text rakt genom rutan. Samma klass
+// av fel som sticky-cellerna i OpsTable: flytande yta kräver opak bakgrund.
+// `bg-elevated` är ytstegen för det som ligger över kortet (popover, meny).
+// Tonen bärs av kant + rubrikfärg, inte av genomskinlig fyllnad.
 const TONER = {
-  success: "border-success/30 bg-success-bg text-success",
-  danger: "border-danger/30 bg-danger-bg text-danger",
-  info: "border-info/30 bg-info-bg text-info",
+  success: "border-success/40 bg-elevated text-success",
+  danger: "border-danger/40 bg-elevated text-danger",
+  info: "border-info/40 bg-elevated text-info",
 };
 
 /**
