@@ -18,9 +18,10 @@ De pushades till PR 235 efter att den visat MERGA NU men innan svaret om mergen 
 
 ### Nu
 - **`OpsKommentarsrad` tar `href`**, som `OpsSvarsrad`: raden blir en länk till händelsen (`handelseHref(id)`), och skalet öppnar panelen. `onOppna` finns kvar: utan `href` öppnar den händelsen, och MED `href` anropas den vid klicket före navigeringen (t.ex. för att markera raden läst direkt). En av de två krävs. Utan `href` behöver appen `useOppnaHandelse`, som kastar utanför skalet, och då går Inkorgen inte att rita i ett prov utan skal: bolag-ops #551 gjorde så, och 43 av webbens prov blev röda.
+- **Inne i skalet öppnar raden panelen utan omladdning.** Med `href` till `?handelse=<id>` och ett skal med `handelsepanel` tar raden klicket själv och öppnar panelen som `useOppnaHandelse` gör, så att Inkorgen ligger kvar under den. Utanför skalet, och med Cmd, Ctrl eller Shift, är den en vanlig länk.
 - **`ordet(ordbok, nyckel, sprak)` exporteras**, så att appens vyer slår upp sina ord på samma sätt som ramverkets komponenter i stället för med ett eget uppslag (regel 2).
 
-**Prov, båda riktningarna:** 2 nya i `kommentarer.test.jsx`: raden som länk och att den kastar utan både `href` och `onOppna` (rött när länkgrenen tas bort), och `onOppna` anropat vid klicket på länken (rött när `onClick` tas bort från länken). Inga befintliga prov ändrade. `ordet` har redan sina prov i `sprak.test.jsx`.
+**Prov, båda riktningarna:** 3 nya i `kommentarer.test.jsx`: panelen öppnas i skalet utan omladdning och länken följs med Cmd (rött när skalgrenen tas bort), raden som länk och att den kastar utan både `href` och `onOppna` (rött när länkgrenen tas bort), och `onOppna` anropat vid klicket på länken (rött när `onClick` tas bort från länken). Inga befintliga prov ändrade. `ordet` har redan sina prov i `sprak.test.jsx`.
 
 ## 0.48.0
 

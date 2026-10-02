@@ -1,6 +1,8 @@
-import { useId, useState } from "react";
+import { useContext, useId, useState } from "react";
 import { MAX_HANDELSEKOMMENTAR } from "../lib/handelsemodell.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
+import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
+import { handelseIdUrAdress } from "../lib/handelsepanel.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
@@ -207,6 +209,10 @@ export function OpsKommentarsrad(props) {
   const sprak = props.sprak ?? kontext;
   const ord = forvalda(ORD_OPSKOMMENTARSRAD, sprak);
   const { titel, olasta, namn, text, href, onOppna } = props;
+  // ⛔ INNE I SKALET ÖPPNAS PANELEN UTAN OMLADDNING. En länk till `?handelse=<id>` laddar annars om hela appen, och då ligger inte
+  // Inkorgen kvar under panelen när man går tillbaka. Kontexten är `null` utanför skalet (och i ett skal utan panel), och då är raden
+  // en vanlig länk: den går att rita i ett prov utan skal, vilket `useOppnaHandelse` inte gör (den kastar).
+  const oppnaISkalet = useContext(OppnaHandelseKontext);
   if (!href && typeof onOppna !== "function") throw new Error("OpsKommentarsrad: href eller onOppna krävs. En rad om nya kommentarer som inte leder till dem är en rad man inte kan bli av med.");
   const antal = olasta === 1 ? ord.enNy : `${olasta} ${ord.flerNya}`;
   const klass =
@@ -218,7 +224,19 @@ export function OpsKommentarsrad(props) {
     </>
   );
   return href ? (
-    <a href={href} data-ops-kommentarsrad="" className={klass} onClick={typeof onOppna === "function" ? () => onOppna() : undefined}>
+    <a
+      href={href}
+      data-ops-kommentarsrad=""
+      className={klass}
+      onClick={(e) => {
+        if (typeof onOppna === "function") onOppna();
+        const id = handelseIdUrAdress(href);
+        if (oppnaISkalet && id && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) {
+          e.preventDefault();
+          oppnaISkalet(id);
+        }
+      }}
+    >
       {innehall}
     </a>
   ) : (
