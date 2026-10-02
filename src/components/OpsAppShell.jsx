@@ -417,6 +417,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   (typ, kalender, "Kräv svar") ur svaret och först DÄRETTER ritar formuläret, som får `redigera: <id>` och själv läser resten ur samma källa.
  *   Rubriken är `redigeraHandelseEtikett`. Utan den kastar `oppna("handelse", { id })`, och ett `?skapa=handelse&redigera=` i adressen ignoreras.
  *   ⛔ SKALET KÄNNER ALDRIG HÄNDELSENS DATA: det vet bara de tre val det ritar själv. Formulär och sparande är appens.
+ * @property {(typ: string) => boolean} [kravSvarFor] (0.47.0, bolag-ops#538) Appens policy för vilka typer som ber om svar från början.
+ *   Så länge ingen rört "Kräv svar" står brytaren som `kravSvarFor(valdTyp) === true` och följer typvalet; när någon slagit om den
+ *   gäller deras val, även om typen sedan byts. I redigeringsläge gäller händelsens eget värde, aldrig policyn.
+ *   ⛔ Typerna är appens katalog: skalet vet inte vad en Sammankomst är, bara att appen säger att den kräver svar.
  */
 
 /**
@@ -919,7 +923,11 @@ function OpsAppShellRitad({
   const [skapaMal, setSkapaMal] = useState(/** @type {{ id: string, sektion: string } | null} */ (null));
   const [skapaVaxlare, setSkapaVaxlare] = useState(false);
   // ⛔ 0.37.0 (#179 F3): "Kräv svar" och "Blockerar tillgänglighet" är AV från början, varje gång panelen öppnas.
-  const [skapaKravSvar, setSkapaKravSvar] = useState(false);
+  // ⛔ 0.47.0 (bolag-ops#538): "Kräv svar" är `null` tills någon RÖR brytaren. Så länge den är orörd följer den typen
+  // (`HandelseSkapare.kravSvarFor`), så att en Sammankomst ber om svar utan att någon måste minnas det. Ett eget val
+  // (eller värdet ur en händelse som ändras) vinner därefter över typen: en brytare som slog om bakom ryggen på den som
+  // just stängt av den hade varit en brytare som ljuger.
+  const [skapaKravSvar, setSkapaKravSvar] = useState(/** @type {boolean | null} */ (null));
   const [skapaBlockerar, setSkapaBlockerar] = useState(false);
   // ⛔ 0.40.0: REDIGERINGSLÄGET ÄR KLART först när skalets val är ifyllda ur händelsen (se `HandelseRedigeringsgrind`). Förr det ritas inget formulär
   // och inte raden "Kalender": en rad som visar gruppens förvalda kalender i en halv sekund och sedan byter är en rad som ljuger.
@@ -950,7 +958,7 @@ function OpsAppShellRitad({
     if (typeof window !== "undefined") skapaRullning.current = window.scrollY;
     setSkapaMal(null);
     setSkapaVaxlare(false);
-    setSkapaKravSvar(false);
+    setSkapaKravSvar(null);
     setSkapaBlockerar(false);
     setRedigeraKlar(false);
     setSkapaFormRaw(form);
@@ -1284,10 +1292,12 @@ function OpsAppShellRitad({
     // ⛔ 0.37.0: EN POST I EN AV MINA KALENDRAR HAR INGEN TYP (`KALENDERPOSTFALT`), så typvalet ritas inte och `typ` är `null`.
     const egenPost = skapaKalender?.slag === "mina";
     const vald = egenPost ? null : (skapaTyp[r.id] ?? typer[0]?.id ?? null);
+    const kravSvarFor = r.id === "handelse" ? /** @type {any} */ (skapa?.handelse)?.kravSvarFor : undefined;
+    const kravSvarPa = skapaKravSvar ?? (typeof kravSvarFor === "function" && vald !== null && kravSvarFor(vald) === true);
     const Form = /** @type {any} */ (r.form);
     skapaHarFormKonsument = true;
     skapaModalTitel = skapaForm.redigera ? redigeraHandelseEtikett : text(r.namn, skapaSprak);
-    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : {}), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && skapaKravSvar, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
+    const kalenderProps = r.id === "handelse" ? { datum: skapaForm.datum ?? null, ...(skapaForm.redigera ? { redigera: skapaForm.redigera } : {}), kalender: skapaKalender, kravSvar: skapaKalender?.slag === "grupp" && kravSvarPa, blockerar: skapaKalender?.slag === "mina" && skapaBlockerar } : {};
     skapaModalInnehall = (
       <div className="flex flex-col gap-3">
         {r.katalog !== null && !egenPost ? (
@@ -1310,7 +1320,7 @@ function OpsAppShellRitad({
             tillgänglighet. "Skicka mejl" visas inte, se `HandelseSkapare.kalendrar`. */}
         {skapaKalender?.slag === "grupp" ? (
           <div data-krav-svar="">
-            <OpsSwitch label={ordet(TEXT_SKAL, "kravSvar", sprak)} hint={ordet(TEXT_SKAL, "kravSvarHint", sprak)} checked={skapaKravSvar} onChange={setSkapaKravSvar} />
+            <OpsSwitch label={ordet(TEXT_SKAL, "kravSvar", sprak)} hint={ordet(TEXT_SKAL, "kravSvarHint", sprak)} checked={kravSvarPa} onChange={setSkapaKravSvar} />
           </div>
         ) : null}
         {skapaKalender?.slag === "mina" ? (

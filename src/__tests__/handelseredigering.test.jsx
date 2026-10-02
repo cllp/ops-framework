@@ -34,7 +34,7 @@ const kalendrar = {
  * och skalets val (typ, kalender, Kräv svar) kommer som props, så provet kan se att skalet fyllde i dem.
  * @param {{ start?: any[], tillat?: boolean, hook?: (id: string) => any, ladda?: boolean }} props
  */
-function App({ start, tillat = true, hook, extraSkapa = {} }) {
+function App({ start, tillat = true, hook, extraSkapa = {}, kravSvarFor }) {
   const [rader, setRader] = useState(
     start ?? [{ id: "h1", rubrik: "Styrelsemöte", datum: "2026-10-12", typ: "mote", kalenderId: "resor", kravSvar: true }],
   );
@@ -79,7 +79,7 @@ function App({ start, tillat = true, hook, extraSkapa = {} }) {
       skapa={{
         sparaEtikett: "Spara",
         lage: "g1",
-        handelse: { form: Form, katalog: "handelsetyper", kalendrar, redigera: hook ?? standardHook },
+        handelse: { form: Form, katalog: "handelsetyper", kalendrar, redigera: hook ?? standardHook, ...(kravSvarFor ? { kravSvarFor } : {}) },
         kataloger: [{ id: "handelsetyper", kategorier: [{ id: "mote", namn: { sv: "Möte" }, ordning: 0 }, { id: "resa", namn: { sv: "Resa" }, ordning: 1 }] }],
         ...extraSkapa,
       }}
@@ -122,6 +122,15 @@ describe("OpsHandelsePanel: pennan", () => {
 });
 
 describe("skalet: redigeringsläget i skapa-panelen", () => {
+  it("⛔ 0.47.0 (bolag-ops#538): händelsens eget Kräv svar gäller, inte typens policy", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/?handelse=h1");
+    render(<App start={[{ id: "h1", rubrik: "Middag", datum: "2026-10-12", typ: "resa", kalenderId: "resor", kravSvar: false }]} kravSvarFor={(t) => t === "resa"} />);
+    await user.click(await screen.findByRole("button", { name: "Redigera" }));
+    await waitFor(() => expect(document.querySelector("[data-vals]")?.textContent).toBe("resa|resor|false|h1"));
+    expect(screen.getByRole("switch", { name: /Kräv svar/ })).not.toBeChecked();
+  });
+
   async function oppnaPanelOchPenna() {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "/?handelse=h1");

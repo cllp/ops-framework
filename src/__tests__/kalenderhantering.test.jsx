@@ -333,7 +333,7 @@ describe("skalets Ny händelse: kalender, Kräv svar och dagen (F2, F3, #206)", 
     sparaEtikett: "Spara",
     lage: G,
     handelse: { form: Form, katalog: "handelsetyper", ...extra },
-    kataloger: [{ id: "handelsetyper", kategorier: [{ id: "mote", namn: { sv: "Möte" }, ordning: 0 }] }],
+    kataloger: [{ id: "handelsetyper", kategorier: [{ id: "mote", namn: { sv: "Möte" }, ordning: 0 }, { id: "sammankomst", namn: { sv: "Sammankomst" }, ordning: 1 }] }],
   });
   function Knapp({ datum }) {
     const oppna = useOppnaSkapa();
@@ -410,6 +410,58 @@ describe("skalets Ny händelse: kalender, Kräv svar och dagen (F2, F3, #206)", 
     expect(within(panel).queryByRole("switch", { name: /Kräv svar/ })).toBeNull();
     expect(within(panel).getByRole("switch", { name: /Blockerar tillgänglighet/ })).toBeInTheDocument();
     expect(within(panel).queryByRole("combobox", { name: /Typ/ })).toBeNull();
+  });
+
+  /** @param {any} user @param {HTMLElement} panel @param {string} namn */
+  const valjTyp = async (user, panel, namn) => {
+    await user.click(within(panel).getByRole("combobox", { name: /Typ/ }));
+    await user.click(await screen.findByRole("option", { name: namn }));
+  };
+  const kravSvarFor = (/** @type {string} */ typ) => typ === "sammankomst";
+
+  it("⛔ 0.47.0 (bolag-ops#538): Kräv svar följer typen så länge ingen rört brytaren", async () => {
+    mottaget = [];
+    render(<Skal extra={{ kalendrar, kravSvarFor }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Skapa på dagen" }));
+    const panel = await screen.findByRole("region", { name: "Ny händelse" });
+    const krav = () => within(panel).getByRole("switch", { name: /Kräv svar/ });
+    expect(krav()).not.toBeChecked();
+    expect(senast()).toMatchObject({ typ: "mote", kravSvar: false });
+    await valjTyp(user, panel, "Sammankomst");
+    await waitFor(() => expect(senast()).toMatchObject({ typ: "sammankomst", kravSvar: true }));
+    expect(krav()).toBeChecked();
+    await valjTyp(user, panel, "Möte");
+    await waitFor(() => expect(senast()).toMatchObject({ typ: "mote", kravSvar: false }));
+    expect(krav()).not.toBeChecked();
+  });
+
+  it("⛔ 0.47.0: ett eget val vinner över typen, även när typen byts fram och tillbaka", async () => {
+    mottaget = [];
+    render(<Skal extra={{ kalendrar, kravSvarFor }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Skapa på dagen" }));
+    const panel = await screen.findByRole("region", { name: "Ny händelse" });
+    await valjTyp(user, panel, "Sammankomst");
+    await waitFor(() => expect(senast().kravSvar).toBe(true));
+    fireEvent.click(within(panel).getByRole("switch", { name: /Kräv svar/ }));
+    await waitFor(() => expect(senast().kravSvar).toBe(false));
+    await valjTyp(user, panel, "Möte");
+    await valjTyp(user, panel, "Sammankomst");
+    await waitFor(() => expect(senast().typ).toBe("sammankomst"));
+    expect(senast().kravSvar).toBe(false);
+    expect(within(panel).getByRole("switch", { name: /Kräv svar/ })).not.toBeChecked();
+  });
+
+  it("⛔ 0.47.0: utan kravSvarFor är Kräv svar av för varje typ, som förut", async () => {
+    mottaget = [];
+    render(<Skal extra={{ kalendrar }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Skapa på dagen" }));
+    const panel = await screen.findByRole("region", { name: "Ny händelse" });
+    await valjTyp(user, panel, "Sammankomst");
+    await waitFor(() => expect(senast().typ).toBe("sammankomst"));
+    expect(senast().kravSvar).toBe(false);
   });
 
   it("utan kalendrar är formuläret som förut: ingen Kalender-rad och inga nya val", async () => {
