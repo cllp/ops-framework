@@ -17,10 +17,10 @@ anteckningar är en version ingen kan välja att hoppa över.
 De pushades till PR 235 efter att den visat MERGA NU men innan svaret om mergen hunnit fram, och mergen tog det som stod då. Två commits stod alltså kvar på grenen utan att finnas i main eller i 0.48.0. Felet var avsändarens: en push till en PR som redan bär MERGA NU ska till en ny gren, och det står redan i bolag-ops `CLAUDE.md`.
 
 ### Nu
-- **`OpsKommentarsrad` tar `href`**, som `OpsSvarsrad`: raden blir en länk till händelsen (`handelseHref(id)`), och skalet öppnar panelen. `onOppna` finns kvar som alternativ. En av de två krävs. Utan `href` hade appen behövt `useOppnaHandelse`, som kastar utanför skalet, och då går Inkorgen inte att rita i ett prov utan skal.
+- **`OpsKommentarsrad` tar `href`**, som `OpsSvarsrad`: raden blir en länk till händelsen (`handelseHref(id)`), och skalet öppnar panelen. `onOppna` finns kvar: utan `href` öppnar den händelsen, och MED `href` anropas den vid klicket före navigeringen (t.ex. för att markera raden läst direkt). En av de två krävs. Utan `href` behöver appen `useOppnaHandelse`, som kastar utanför skalet, och då går Inkorgen inte att rita i ett prov utan skal: bolag-ops #551 gjorde så, och 43 av webbens prov blev röda.
 - **`ordet(ordbok, nyckel, sprak)` exporteras**, så att appens vyer slår upp sina ord på samma sätt som ramverkets komponenter i stället för med ett eget uppslag (regel 2).
 
-**Prov, båda riktningarna:** 1 nytt i `kommentarer.test.jsx` (raden som länk, och att den kastar utan både `href` och `onOppna`). Röd när länkgrenen tas bort. Inga befintliga prov ändrade. `ordet` har redan sina prov i `sprak.test.jsx`.
+**Prov, båda riktningarna:** 2 nya i `kommentarer.test.jsx`: raden som länk och att den kastar utan både `href` och `onOppna` (rött när länkgrenen tas bort), och `onOppna` anropat vid klicket på länken (rött när `onClick` tas bort från länken). Inga befintliga prov ändrade. `ordet` har redan sina prov i `sprak.test.jsx`.
 
 ## 0.48.0
 

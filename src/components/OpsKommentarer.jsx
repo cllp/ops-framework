@@ -196,7 +196,10 @@ export const ORD_OPSKOMMENTARER = {
  * @param {string} props.namn Den som skrev den senaste.
  * @param {string} props.text Den senaste kommentaren.
  * @param {string} [props.href] Leder till händelsen, normalt `handelseHref(id)`, som `OpsSvarsrad`. Skalet öppnar panelen.
- * @param {() => void} [props.onOppna] I stället för `href`: öppnar händelsen, t.ex. `useOppnaHandelse()(id)`. En av de två krävs.
+ * @param {() => void} [props.onOppna] Utan `href`: öppnar händelsen, t.ex. `useOppnaHandelse()(id)`. MED `href`: anropas vid klicket,
+ *   före navigeringen, t.ex. för att markera raden läst direkt. En av de två krävs.
+ *   ⛔ `href` ÄR DEN SOM GÅR ATT RITA UTANFÖR SKALET. `useOppnaHandelse` kastar utan skal, och en inkorg som ritas i ett prov utan skal
+ *   föll då i varje prov (bolag-ops #551: 43 röda). Med `href` behövs ingen hook, och `onOppna` kan ändå göra sitt.
  * @param {"sv" | "en"} [props.sprak]
  */
 export function OpsKommentarsrad(props) {
@@ -215,7 +218,7 @@ export function OpsKommentarsrad(props) {
     </>
   );
   return href ? (
-    <a href={href} data-ops-kommentarsrad="" className={klass}>
+    <a href={href} data-ops-kommentarsrad="" className={klass} onClick={typeof onOppna === "function" ? () => onOppna() : undefined}>
       {innehall}
     </a>
   ) : (

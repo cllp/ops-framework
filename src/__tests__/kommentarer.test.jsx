@@ -173,6 +173,16 @@ describe("OpsKommentarsrad och panelens slot", () => {
     expect(() => render(<OpsKommentarsrad titel="X" olasta={1} namn="" text="" />)).toThrow(/href eller onOppna/);
     spy.mockRestore();
   });
+  it("med href OCH onOppna är raden en länk, och onOppna anropas vid klicket (för att markera läst)", () => {
+    const markera = vi.fn();
+    render(<OpsKommentarsrad titel="Höstfest" olasta={1} namn="Bo" text="Hej" href="#h1" onOppna={markera} />);
+    const lank = screen.getByRole("link", { name: /Höstfest/ });
+    expect(lank).toHaveAttribute("href", "#h1");
+    fireEvent.click(lank);
+    expect(markera).toHaveBeenCalledOnce();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    spy.mockRestore();
+  });
   it("panelen ritar tråden under händelsen när den får den, och inget utan", () => {
     const { unmount } = render(<OpsHandelsePanel handelse={{ id: "h1", titel: "Höstfest", datum: "2026-10-12" }} onTillbaka={() => {}} statusWords={{}} kommentarer={<p>Tråden</p>} />);
     expect(document.querySelector("[data-handelsekommentarer]")).toHaveTextContent("Tråden");
