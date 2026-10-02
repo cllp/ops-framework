@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { OpsKommentarer, OpsKommentarsrad } from "../components/OpsKommentarer.jsx";
 import { OpsHandelsePanel } from "../components/OpsHandelsePanel.jsx";
 import { OpsSprakProvider } from "../components/OpsSprak.jsx";
+import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { createMemorySource } from "../data/adapters.js";
 import { createKommentarkalla } from "../data/kalenderkalla.js";
 import { byggKommentar, kommentarsrader, MAX_HANDELSEKOMMENTAR } from "../lib/handelsemodell.js";
@@ -163,6 +164,38 @@ describe("OpsKommentarsrad och panelens slot", () => {
     expect(knapp).toHaveTextContent("2 nya kommentarer · Bo Lind: Jag tar med kaka");
     fireEvent.click(knapp);
     expect(oppna).toHaveBeenCalledOnce();
+  });
+  it("med href är raden en länk till händelsen; utan href och onOppna kastar den", () => {
+    render(<OpsKommentarsrad titel="Höstfest" olasta={1} namn="" text="Hej" href="?handelse=h1" />);
+    const lank = screen.getByRole("link", { name: /Höstfest/ });
+    expect(lank).toHaveAttribute("href", "?handelse=h1");
+    expect(lank).toHaveTextContent("1 ny kommentar · Namn saknas: Hej");
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => render(<OpsKommentarsrad titel="X" olasta={1} namn="" text="" />)).toThrow(/href eller onOppna/);
+    spy.mockRestore();
+  });
+  it("med href OCH onOppna är raden en länk, och onOppna anropas vid klicket (för att markera läst)", () => {
+    const markera = vi.fn();
+    render(<OpsKommentarsrad titel="Höstfest" olasta={1} namn="Bo" text="Hej" href="#h1" onOppna={markera} />);
+    const lank = screen.getByRole("link", { name: /Höstfest/ });
+    expect(lank).toHaveAttribute("href", "#h1");
+    fireEvent.click(lank);
+    expect(markera).toHaveBeenCalledOnce();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    spy.mockRestore();
+  });
+  it("⛔ inne i skalet öppnar länken panelen utan omladdning; med Cmd följer den länken som vanligt", () => {
+    const oppnade = /** @type {string[]} */ ([]);
+    render(
+      <OppnaHandelseKontext.Provider value={(id) => oppnade.push(id)}>
+        <OpsKommentarsrad titel="Höstfest" olasta={1} namn="Bo" text="Hej" href="?handelse=h1" />
+      </OppnaHandelseKontext.Provider>,
+    );
+    const lank = screen.getByRole("link", { name: /Höstfest/ });
+    expect(fireEvent.click(lank)).toBe(false);
+    expect(oppnade).toEqual(["h1"]);
+    expect(fireEvent.click(lank, { metaKey: true })).toBe(true);
+    expect(oppnade).toEqual(["h1"]);
   });
   it("panelen ritar tråden under händelsen när den får den, och inget utan", () => {
     const { unmount } = render(<OpsHandelsePanel handelse={{ id: "h1", titel: "Höstfest", datum: "2026-10-12" }} onTillbaka={() => {}} statusWords={{}} kommentarer={<p>Tråden</p>} />);
