@@ -3170,6 +3170,31 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       const drag = await page.evaluate(() => ({ region: (document.querySelector("[data-dagpanel]") || { getAttribute: () => null }).getAttribute("aria-label"), kryss: document.querySelectorAll('[data-dagpanel] button[aria-label^="Ta bort"]').length }));
       matt.push(`${namn}: drag 14 till 16 oktober gav "${drag.region}" med ${drag.kryss} kryss`);
       krav(drag.region === "Poster för 3 valda dagar" && drag.kryss === 3, `${namn}: draget gav "${drag.region}" med ${drag.kryss} kryss, väntat "Poster för 3 valda dagar" och 3 (SS 12 px tröskel, handleCalRangeSweepSelect).`);
+      /*
+       * ⛔ bolag-ops#556: pillernas BOXAR får inte överlappa. Kryssens absolutplacerade
+       * träffytor får sticka utanför (SS top/right -8), men själva bubblorna ska wrappa
+       * och behålla sin bredd (`shrink-0`). Mätt på den visuella ytan utan kryssknappen.
+       */
+      const overlap = await page.evaluate(() => {
+        const piller = [...document.querySelectorAll("[data-datumpiller]")].map((el) => {
+          const r = el.getBoundingClientRect();
+          return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width };
+        });
+        let par = 0;
+        for (let i = 0; i < piller.length; i += 1) {
+          for (let j = i + 1; j < piller.length; j += 1) {
+            const a = piller[i];
+            const b = piller[j];
+            const overlapX = a.l < b.r && a.r > b.l;
+            const overlapY = a.t < b.b && a.b > b.t;
+            if (overlapX && overlapY) par += 1;
+          }
+        }
+        const smal = piller.filter((p) => p.w < 72).length;
+        return { antal: piller.length, par, smal, bredder: piller.map((p) => Math.round(p.w)) };
+      });
+      matt.push(`${namn}: datumpiller overlap ${JSON.stringify(overlap)}`);
+      krav(overlap.antal === 3 && overlap.par === 0 && overlap.smal === 0, `${namn}: datumpiller ${JSON.stringify(overlap)}, väntat 3 utan överlapp och ingen smalare än 72 px (bolag-ops#556).`);
       await page.getByRole("button", { name: "Ta bort 15 oktober" }).click();
       krav((await page.evaluate(() => document.querySelectorAll('[data-dagpanel] button[aria-label^="Ta bort"]').length)) === 2, `${namn}: ett kryss tog inte bort en dag.`);
 

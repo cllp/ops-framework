@@ -437,6 +437,33 @@ describe("OpsKalender", () => {
     expect(order).toEqual(["12 oktober", "25 oktober"]);
   });
 
+  it("⛔ pillren wrappas utan att klämmas ihop när flera dagar valts (bolag-ops#556)", () => {
+    /*
+     * ⛔ CP 2026-10-02, med bild: "Gui bugg bubblorna får inte plats när man väljer flera här."
+     * Pillren stod i samma flex-rad som stängkrysset (`ml-auto`), och utan `shrink-0` klämdes
+     * bubblorna ihop så att text och kryss överlappade. Raden är nu en egen wrap-behållare, och
+     * varje piller vägrar att krympa. jsdom räknar ingen layout: klasserna och DOM-strukturen mäts
+     * här; att boxarna inte överlappar mäts i Chromium (`check-skalyta` avsnitt 30).
+     */
+    rendera();
+    fireEvent.click(screen.getByRole("button", { name: "12, 2 poster" }));
+    fireEvent.click(screen.getByRole("button", { name: "25, 1 post" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /^13/ }).at(-1));
+
+    const rad = /** @type {HTMLElement} */ (panelen().querySelector("[data-datumpiller-rad]"));
+    expect(rad).toBeTruthy();
+    expect(String(rad.className)).toContain("flex-wrap");
+    const piller = [...rad.querySelectorAll("[data-datumpiller]")];
+    expect(piller.length).toBe(3);
+    for (const p of piller) {
+      expect(String(p.className)).toContain("shrink-0");
+      expect(rad.contains(p)).toBe(true);
+    }
+    // ⛔ Stängkrysset står UTANFÖR pillerraden, så det inte tävlar om bredden.
+    const stang = within(panelen()).getByRole("button", { name: /^Stäng/ });
+    expect(rad.contains(stang)).toBe(false);
+  });
+
   it("ger varje piller ett kryss, och krysset tar bort just den dagen", () => {
     /*
      * ⛔ PILLRET ÄR BÅDE UPPLYSNINGEN OCH KONTROLLEN, precis som i förebilden:
