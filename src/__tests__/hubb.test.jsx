@@ -327,7 +327,7 @@ describe("OpsGruppHubb: ritad", () => {
   it("en grupp med Ekonomi har ETT kort, och det leder till modulen", () => {
     const nav = vi.fn((_h, e) => e.preventDefault());
     render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} onNavigate={nav} info={{ ekonomi: "Skatten förfaller 12 oktober" }} />);
-    const lista = screen.getByRole("list", { name: "Moduler i Claes Philip Staiger AB" });
+    const lista = screen.getByRole("list", { name: "Appar i Claes Philip Staiger AB" });
     const kort = within(lista).getAllByRole("link");
     expect(kort).toHaveLength(1);
     expect(kort[0].getAttribute("href")).toBe("/ekonomi");
@@ -340,22 +340,22 @@ describe("OpsGruppHubb: ritad", () => {
 
   it("⛔ en grupp utan moduler säger det, med sitt namn", () => {
     render(<OpsGruppHubb grupp={G([])} moduler={moduler()} />);
-    expect(screen.getByText("Inga moduler i gruppen")).toBeTruthy();
-    expect(screen.getByText(/Claes Philip Staiger AB har inga moduler/)).toBeTruthy();
+    expect(screen.getByText("Inga appar i gruppen")).toBeTruthy();
+    expect(screen.getByText(/Claes Philip Staiger AB har inga appar installerade/)).toBeTruthy();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("⛔ en modul som inte ritas får en rad som säger varför", () => {
     const { container } = render(<OpsGruppHubb grupp={G(["ekonomi", "bokning", "inkorg"])} moduler={moduler()} />);
     expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(container.querySelector('[data-saknad="inte-registrerad"]')?.textContent).toContain('Modulen "bokning" visas inte: appen har inte registrerat');
-    expect(container.querySelector('[data-saknad="inget-kort"]')?.textContent).toContain('Modulen "inkorg" visas inte: den har inget kort');
+    expect(container.querySelector('[data-saknad="inte-registrerad"]')?.textContent).toContain('Appen "bokning" visas inte: den finns inte här');
+    expect(container.querySelector('[data-saknad="inget-kort"]')?.textContent).toContain('Appen "inkorg" visas inte: den har inget kort');
   });
 
   it("⛔ pekar gruppen bara på moduler som inte ritas står det, inte 'inga moduler'", () => {
     render(<OpsGruppHubb grupp={G(["bokning"])} moduler={moduler()} />);
-    expect(screen.queryByText("Inga moduler i gruppen")).toBeNull();
-    expect(screen.getByText("Ingen av gruppens moduler kan visas")).toBeTruthy();
+    expect(screen.queryByText("Inga appar i gruppen")).toBeNull();
+    expect(screen.getByText("Ingen av gruppens appar kan visas")).toBeTruthy();
   });
 });
 
@@ -372,7 +372,7 @@ describe("OpsModulSida: modulens egen navigation", () => {
     expect(lankar.map((a) => a.getAttribute("href"))).toEqual(DELAR.map(([id]) => `/ekonomi/${id}`));
     expect(lankar.filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.textContent)).toEqual(["Översikt"]);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Ekonomi");
-    expect(screen.getByRole("link", { name: "Tillbaka till Hub" }).getAttribute("href")).toBe("/hub");
+    expect(screen.getByRole("link", { name: "Tillbaka till Appar" }).getAttribute("href")).toBe("/hub");
     expect(screen.getByText("översikten")).toBeTruthy();
   });
 
@@ -400,11 +400,11 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   it("⛔ ägaren ser valet, och det sparas i valordningen med ett okänt id kvar", async () => {
     const onSpara = vi.fn(async () => {});
     const { container } = render(<OpsGruppFormular formId="f" grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
-    const sektion = screen.getByRole("region", { name: "Moduler" });
+    const sektion = screen.getByRole("region", { name: "Appar" });
     const knappar = within(sektion).getAllByRole("button");
     expect(knappar.map((b) => b.textContent)).toEqual(["Ekonomi", "Resor"]);
     expect(knappar.every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
-    expect(container.querySelector('[data-modul-okand="gammal"]')?.textContent).toContain("gammal finns inte i appen och ligger kvar");
+    expect(container.querySelector('[data-modul-okand="gammal"]')?.textContent).toContain("gammal är installerad i gruppen men finns inte här");
     fireEvent.click(knappar[1]);
     fireEvent.click(knappar[0]);
     expect(knappar[0].getAttribute("aria-pressed")).toBe("true");
@@ -425,7 +425,7 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   it("⛔ en admin ser inget modulval och skickar aldrig fältet", async () => {
     const onSpara = vi.fn(async () => {});
     const { container } = render(<OpsGruppFormular grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: false }} />);
-    expect(screen.queryByRole("region", { name: "Moduler" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Appar" })).toBeNull();
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
     await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
     expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp).not.toHaveProperty("moduler");
@@ -433,11 +433,11 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
 
   it("⛔ när en ny grupp skapas finns inget modulval", () => {
     render(<OpsGruppFormular onSkapa={async () => ({ groupId: "x" })} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
-    expect(screen.queryByRole("region", { name: "Moduler" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Appar" })).toBeNull();
   });
 
   it("⛔ utan registrerade moduler säger valet det", () => {
     const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: [] }} onSpara={async () => {}} moduler={{ valbara: [], agare: true }} />);
-    expect(container.querySelector("[data-moduler-tomt]")?.textContent).toBe("Appen har inga moduler att välja.");
+    expect(container.querySelector("[data-moduler-tomt]")?.textContent).toBe("Det finns inga appar att installera.");
   });
 });

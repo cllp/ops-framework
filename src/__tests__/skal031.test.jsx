@@ -37,7 +37,7 @@ const Skal = (extra = {}) => (
 describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
   it("räknaren ritas bara när den är större än noll, och info bara när appen har något att säga", () => {
     render(<OpsHub moduler={moduler} />);
-    const lista = screen.getByRole("list", { name: "Moduler" });
+    const lista = screen.getByRole("list", { name: "Appar" });
     const ekonomi = within(lista).getByRole("button", { name: /Ekonomi/ });
     expect(ekonomi.textContent).toContain("2");
     expect(ekonomi.textContent).toContain("Skatten förfaller");
@@ -84,7 +84,7 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
     const gick = [];
     render(<OpsHubModul modul={moduler[1]} hubHref="/hub" onNavigate={(href, e) => { e.preventDefault(); gick.push(href); }} />);
     const rad = screen.getByRole("navigation", { name: "Var du är" });
-    const tillbaka = within(rad).getByRole("link", { name: "Tillbaka till Hub" });
+    const tillbaka = within(rad).getByRole("link", { name: "Tillbaka till Appar" });
     expect(tillbaka.getAttribute("href")).toBe("/hub");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Ekonomi");
     expect(rad.className).not.toContain("sticky");

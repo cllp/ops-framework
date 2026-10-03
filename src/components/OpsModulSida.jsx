@@ -38,10 +38,10 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {"sv"|"en"} [props.sprak]
  * @param {string} [props.navEtikett] Skärmläsarnamnet på delarnas rad. Förval "{Modul}: delar".
- * @param {string} [props.hubEtikett] Förval "Hub".
+ * @param {string} [props.hubEtikett] Förval "Appar" (0.50.0; tidigare "Hub").
  * @param {import("react").ReactNode} props.children Den öppna delens vy.
  */
-export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Hub", children }) {
+export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Appar", children }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;

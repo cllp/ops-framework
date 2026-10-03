@@ -26,7 +26,10 @@ import { text } from "../lib/sprak.js";
 export const FASTA_NAMN = /** @type {const} */ ({
   idag: { sv: "Idag", en: "Today" },
   kalender: { sv: "Kalender", en: "Calendar" },
-  hub: { sv: "Hub", en: "Hub" },
+  // ⛔ "Appar", INTE "Hub" (CP 2026-10-03): "Moduler som vi kallar det idag är egentligen appar som man installerar."
+  // Ordet "hub" betydde dessutom två saker: instansen på identity ("Dina hubbar") och listan med moduler här inne.
+  // Nyckeln `hub` står kvar: den är mekanik, och ett namnbyte i API:t är ett eget arbete i varje app.
+  hub: { sv: "Appar", en: "Apps" },
 });
 
 /** Ordningen är ramverkets och går inte att ändra. */
