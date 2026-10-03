@@ -341,7 +341,7 @@ if (!utanFasta) {
     const namn = m.poster.map((p) => p.namn);
     matt.push(`bottenraden x: ${m.poster.map((p) => `${p.namn}@${p.x.toFixed(0)}+${p.w.toFixed(0)}`).join(" ")}`);
     matt.push(`bottenraden: ${namn.join(" | ")}; höjd ${m.hojd} px, ikon ${m.ikon} px, etikett ${m.etikett} px, huvudets plus ${m.huvudPlusVisas ? "syns" : "gömt"}`);
-    krav(JSON.stringify(namn) === JSON.stringify(["Idag", "Kalender", "Skapa", "Hub", "Meny"]), `bottenraden: ordningen är ${namn.join(", ")}, väntat Idag, Kalender, Skapa (stort plus), Hub, Meny.`);
+    krav(JSON.stringify(namn) === JSON.stringify(["Idag", "Kalender", "Skapa", "Appar", "Meny"]), `bottenraden: ordningen är ${namn.join(", ")}, väntat Idag, Kalender, Skapa (stort plus), Appar, Meny.`);
     const plus = m.poster.find((p) => p.namn === "Skapa");
     krav(!!plus && Math.abs(plus.w - 56) < 0.5 && Math.abs(plus.h - 56) < 0.5, `bottenraden: plusset är ${plus?.w}x${plus?.h} px, väntat 56x56.`);
     krav(!!plus && Math.abs(plus.mitt - m.bredd / 2) <= 2, `bottenraden: plusset ligger på x=${plus?.mitt.toFixed(1)}, väntat mitt i raden (${m.bredd / 2}).`);
@@ -562,7 +562,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   if (vp.width > 800) {
     // Hub-rullgardinen i toppraden: Ekonomi är en rad med chevron, barnen infällda tills den trycks.
-    await page.getByRole("button", { name: "Visa sidorna under Hub" }).click();
+    await page.getByRole("button", { name: "Visa sidorna under Appar" }).click();
     const dd = page.locator('[role="dialog"]');
     await dd.waitFor();
     const rad = dd.getByRole("button", { name: /Ekonomi/ });
@@ -593,9 +593,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     matt.push(`Modulsidan ${namn}: ${barn.length} barnkort (${barn.join(" | ")})`);
     krav(barn.length === 6, `Modulsidan ${namn}: ${barn.length} barnkort, väntat 6.`);
     krav(barn[0]?.includes("1") && barn[0]?.includes("Ny faktura i går") && barn[1]?.includes("Inget nytt"), `Modulsidan ${namn}: barnkorten bär inte räknare och info ("${barn[0]}", "${barn[1]}").`);
-    const tillbaka = rad.getByRole("link", { name: "Tillbaka till Hub" });
+    const tillbaka = rad.getByRole("link", { name: "Tillbaka till Appar" });
     const harTillbaka = (await tillbaka.count()) === 1;
-    krav(harTillbaka, `Modulsidan ${namn}: länken "Tillbaka till Hub" hittades inte (0.31.2: en textlänk, inte "‹ Hub / Ekonomi").`);
+    krav(harTillbaka, `Modulsidan ${namn}: länken "Tillbaka till Appar" hittades inte (0.31.2: en textlänk, inte "‹ Hub / Ekonomi").`);
     if (!harTillbaka) { await context.close(); continue; }
     krav((await tillbaka.getAttribute("href")) === "/hub", `Modulsidan ${namn}: tillbaka-länken leder inte till /hub.`);
     krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulsidan ${namn}: modulens namn saknas som rubrik under tillbaka-länken.`);
@@ -628,7 +628,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   {
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g3");
     try {
-      const lista = page.locator('main ul[aria-label="Moduler i Claes Philip Staiger AB"]');
+      const lista = page.locator('main ul[aria-label="Appar i Claes Philip Staiger AB"]');
       const kort = lista.locator(":scope > li > a");
       const antal = await kort.count();
       krav(antal === 1, `Hubben per grupp ${namn} (a): ${antal} kort ritades i gruppen med Ekonomi, väntat 1.`);
@@ -645,7 +645,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       krav((await over(page)) <= 0, `Hubben per grupp ${namn} (a): sidan flödar ${await over(page)} px i sidled.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-ekonomi-${vp.width}.png`) });
       if (vp.width > 800) {
-        await page.getByRole("button", { name: "Visa sidorna under Hub" }).click();
+        await page.getByRole("button", { name: "Visa sidorna under Appar" }).click();
         const dd = page.locator('[role="dialog"]');
         await dd.waitFor();
         const rader = await dd.evaluate((el) => ({
@@ -666,9 +666,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g2");
     try {
       const main = page.locator("main");
-      const rubrik = main.getByText("Inga moduler i gruppen", { exact: true });
-      const rad = main.getByText(/Testgruppen har inga moduler/);
-      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Inga moduler i gruppen" syns inte i gruppen utan moduler.`);
+      const rubrik = main.getByText("Inga appar i gruppen", { exact: true });
+      const rad = main.getByText(/Testgruppen har inga appar installerade/);
+      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Inga appar i gruppen" syns inte i gruppen utan moduler.`);
       krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
       const lankar = await main.locator("a").count();
       krav(lankar === 0, `Hubben per grupp ${namn} (b): ${lankar} länkar i hubben för en grupp utan moduler.`);
@@ -728,7 +728,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         krav(!!m.linje && m.linje.bredd >= 2 && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(m.linje.farg) && !m.ovriga.includes(m.linje.farg), `Modulens insida ${namn} ${href}: den öppna delen har ingen egen synlig linje under sig (${JSON.stringify(m.linje)}).`);
         krav(m.synlig, `Modulens insida ${namn} ${href}: den öppna delen ligger utanför skärmen.`);
         if (vp.width < 800) krav(m.rullar, `Modulens insida ${namn} ${href}: fjorton delar ryms på 390 px utan att raden rullar, alltså mäter provet inte rullningen.`);
-        const tillbaka = page.getByRole("link", { name: "Tillbaka till Hub" });
+        const tillbaka = page.getByRole("link", { name: "Tillbaka till Appar" });
         krav((await tillbaka.count()) === 1 && (await tillbaka.getAttribute("href")) === "/hub", `Modulens insida ${namn} ${href}: tillbaka-länken till /hub saknas.`);
         krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulens insida ${namn} ${href}: rubriken "Ekonomi" saknas.`);
         krav((await page.locator("[data-moduldel-innehall]").count()) === 1, `Modulens insida ${namn} ${href}: delens innehåll ritades inte.`);
@@ -1169,7 +1169,7 @@ for (const bredd of [900, 1280, 1600]) {
       const cr = chev ? chev.getBoundingClientRect() : null;
       return { boxL: br.left, boxR: br.right, ordL: ord.left, ordR: ord.right, chevL: cr ? cr.left : null, chevR: cr ? cr.right : null };
     };
-    return { idag: mat("Idag"), kalender: mat("Kalender"), hub: mat("Hub") };
+    return { idag: mat("Idag"), kalender: mat("Kalender"), hub: mat("Appar") };
   });
   const ok = !!t.idag && !!t.kalender && !!t.hub && t.hub.chevL !== null;
   krav(ok, `flikarna ${bredd} px: Idag, Kalender eller Hub med chevron hittades inte.`);
@@ -1744,7 +1744,7 @@ const MENYYTOR = [
   { id: "gruppvaljare", namn: "OpsGruppvaljare", scen: "menyer", oppna: async () => {}, rader: '[data-m="gruppvaljare"] ul button', valt: '[aria-current="true"]', font: 12, padX: 12, padY: 8, bock: true, minRader: 3 },
   { id: "header-meny", namn: "Huvudets meny", scen: "full", oppna: async (p) => { const v = p.viewportSize(); if (v && v.width < 800) await p.getByRole("button", { name: "Meny" }).last().click(); else await p.getByRole("button", { name: /Meny, fler/ }).click(); }, rader: '[role="dialog"] a[href], [role="dialog"] button[class*="rounded-base"][class*="min-h-11"]', valt: null, font: 12, padX: 12, padY: 10, minRader: 3, dialog: true },
   { id: "skapa-dropdown", namn: "Skapa-menyn (plus)", scen: "skapa", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Skapa", exact: true }).last().click(), rader: '[role="dialog"] button[class*="min-h-11"]', valt: null, font: 14, vikt: 500, padX: 16, padY: 10, minRader: 1, dialog: true },
-  { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Hub" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
+  { id: "hub-dropdown", namn: "Hub-rullgardinen", scen: "full", bredd: [1280], oppna: (p) => p.getByRole("button", { name: "Visa sidorna under Appar" }).click(), rader: '[role="dialog"] a[href]', valt: null, font: 12, padX: 12, padY: 10, minRader: 2, dialog: true },
   { id: "skapa-i", namn: "Skapa i, dialogen", scen: "skapa", aktiv: "g1", oppna: async (p) => { await p.getByRole("button", { name: "Skapa", exact: true }).last().click(); await p.getByRole("button", { name: "Ny händelse" }).click(); await p.getByRole("button", { name: /^Skapas i:/ }).click(); }, rader: '[role="dialog"][aria-label="Skapa i"] section button, [role="dialog"] section button', valt: null, font: 14, padX: 12, padY: 12, minRader: 2, dialog: true },
 ];
 let ytorMatta = 0;
