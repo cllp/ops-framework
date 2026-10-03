@@ -12,7 +12,7 @@ describe("OpsHubTillbaka", () => {
   it("är en textlänk 'Tillbaka' med chevron, till Hub, och ritar ingen rubrik som standard", () => {
     render(<OpsHubTillbaka hubHref="/hub" etikett="Inkomster" />);
     const rad = screen.getByRole("navigation", { name: "Var du är" });
-    const lank = within(rad).getByRole("link", { name: "Tillbaka till Hub" });
+    const lank = within(rad).getByRole("link", { name: "Tillbaka till Appar" });
     expect(lank.getAttribute("href")).toBe("/hub");
     expect(lank.textContent).toBe("Tillbaka");
     expect(lank.querySelector("svg")).not.toBeNull();
@@ -32,7 +32,7 @@ describe("OpsHubTillbaka", () => {
   it("anropar onNavigate med länkens href", () => {
     const onNavigate = vi.fn();
     render(<OpsHubTillbaka hubHref="/hub" etikett="Ekonomi" onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByRole("link", { name: "Tillbaka till Hub" }));
+    fireEvent.click(screen.getByRole("link", { name: "Tillbaka till Appar" }));
     expect(onNavigate).toHaveBeenCalledWith("/hub", expect.anything());
   });
 
@@ -57,7 +57,7 @@ describe("OpsHubTillbaka", () => {
     expect(screen.getByRole("link", { name: "Tillbaka till Ekonomi" })).toBeTruthy();
     unmount();
     render(<OpsHubModul modul={{ href: "/ekonomi", label: "Ekonomi", children: [{ href: "/inkomster", label: "Inkomster" }] }} hubHref="/hub" />);
-    expect(screen.getByRole("link", { name: "Tillbaka till Hub" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Tillbaka till Appar" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Ekonomi");
   });
 });

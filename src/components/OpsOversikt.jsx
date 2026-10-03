@@ -59,7 +59,7 @@ export function iOrdning(widgets, ordning) {
  * @param {import("react").ReactNode} [props.tomAtgard] Vägen till inställningarna.
  * @param {string} [props.sprak]
  */
-export function OpsOversikt({ register, fraga, ordning, rubrik = "Översikt", tomText = "Inga moduler är påslagna för den här gruppen.", tomAtgard, sprak }) {
+export function OpsOversikt({ register, fraga, ordning, rubrik = "Översikt", tomText = "Inga appar är installerade i den här gruppen.", tomAtgard, sprak }) {
   const { rader, laddar, fel } = useKallor(register, "widgets", fraga);
 
   return (

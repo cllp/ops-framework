@@ -22,14 +22,14 @@ import { ChevronVansterIkon } from "./icons.jsx";
  * @param {string} props.hubHref Hubbens `href`: länkens mål när `steg` är tom.
  * @param {string} props.etikett Den nuvarande sidans namn. Rubriken när `rubrik` är sant.
  * @param {ReadonlyArray<{ href: string, label: string }>} [props.steg] Mellanliggande sidor mellan Hub och den nuvarande. Länken leder till den sista.
- * @param {string} [props.hubEtikett] Förval "Hub". Ingår i skärmläsarnamnet när länken leder till Hub.
+ * @param {string} [props.hubEtikett] Förval "Appar" (0.50.0; tidigare "Hub"). Ingår i skärmläsarnamnet när länken leder till Hub.
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {string} [props.brodsmulaEtikett] Skärmläsarnamn på raden. Förval "Var du är".
  * @param {string} [props.tillbakaEtikett] Ordet på länken. Förval "Tillbaka".
  * @param {string} [props.tillbakaTillEtikett] Skärmläsarens "Tillbaka till". Förval "Tillbaka till".
  * @param {boolean} [props.rubrik] Rita sidans rubrik under länken. Förval falskt.
  */
-export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Hub", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false }) {
+export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appar", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false }) {
   if (typeof hubHref !== "string" || hubHref === "") {
     throw new Error("OpsHubTillbaka: hubHref krävs. Tillbaka-raden är ett steg upp till Hub, och en rad som inte vet vart den leder är en knapp som inte gör något.");
   }

@@ -178,7 +178,7 @@ describe("Översikt", () => {
 
   it("säger varför den är tom och pekar vidare, i stället för ett tomt rutnät", async () => {
     render(<OpsOversikt register={skapaKallregister([])} fraga={GRUPP} tomAtgard={<a href="/installningar">Till inställningarna</a>} />);
-    await waitFor(() => expect(screen.getByText(/Inga moduler är påslagna/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Inga appar är installerade/)).toBeTruthy());
     expect(screen.getByText("Till inställningarna")).toBeTruthy();
   });
 

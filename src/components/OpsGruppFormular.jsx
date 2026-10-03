@@ -115,7 +115,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [bildForStor]
  * @property {string} [bildHintRedigera] Vad som gäller för bilden när gruppen finns.
  * @property {string} [sparaFelTitel] Rubriken när ändringarna inte kunde sparas.
- * @property {string} [modulerRubrik] "Moduler" (0.37.0).
+ * @property {string} [modulerRubrik] "Appar" (0.50.0; "Moduler" sedan 0.37.0).
  * @property {string} [modulerHint]
  * @property {string} [modulerTomt] Texten när appen inte registrerat någon modul med ett kort.
  * @property {string} [modulOkand] Raden för en modul gruppen har men appen inte registrerat. `{id}` byts mot id:t.
@@ -166,10 +166,10 @@ const STANDARD = {
     bildForStor: "Bilden är för stor. Högst 2 MB.",
     bildHintRedigera: "PNG, WebP eller JPEG, högst 2 MB. Bilden ersätter ikonen och initialerna.",
     sparaFelTitel: "Ändringarna kunde inte sparas",
-    modulerRubrik: "Moduler",
-    modulerHint: "Varje vald modul blir ett kort i gruppens hubb, i den ordning du väljer dem. Kalendern, chatten och inkorgen har gruppen alltid.",
-    modulerTomt: "Appen har inga moduler att välja.",
-    modulOkand: "{id} finns inte i appen och ligger kvar i gruppen. Den visas inte i hubben.",
+    modulerRubrik: "Appar",
+    modulerHint: "Varje installerad app blir ett kort under Appar, i den ordning du installerar dem. Kalendern, chatten och inkorgen har gruppen alltid.",
+    modulerTomt: "Det finns inga appar att installera.",
+    modulOkand: "{id} är installerad i gruppen men finns inte här. Den visas inte under Appar.",
   },
   en: {
     visuellIdentitet: "Visual identity",
@@ -214,10 +214,10 @@ const STANDARD = {
     bildForStor: "The image is too large. 2 MB at most.",
     bildHintRedigera: "PNG, WebP or JPEG, 2 MB at most. The image replaces the icon and initials.",
     sparaFelTitel: "The changes could not be saved",
-    modulerRubrik: "Modules",
-    modulerHint: "Each chosen module becomes a card in the group's hub, in the order you choose them. The group always has its calendar, chat and inbox.",
-    modulerTomt: "The app has no modules to choose.",
-    modulOkand: "{id} is not in the app and stays in the group. It is not shown in the hub.",
+    modulerRubrik: "Apps",
+    modulerHint: "Each installed app becomes a card under Apps, in the order you install them. The group always has its calendar, chat and inbox.",
+    modulerTomt: "There are no apps to install.",
+    modulOkand: "{id} is installed in the group but does not exist here. It is not shown under Apps.",
   },
 };
 

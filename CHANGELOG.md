@@ -9,6 +9,35 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.50.0
+
+### Hub heter Appar (CP 2026-10-03)
+
+CP: "Hub i app-instansen skall byta namn till appar. Moduler som vi kallar det idag är egentligen appar som man
+installerar." Ordet "hub" betydde dessutom två saker: instansen på identity ("Dina hubbar", "Öppna hub") och listan
+med moduler inne i instansen. Nu betyder det bara det första.
+
+**Vad som syns ändrat:**
+
+| Var | Förut | Nu |
+|---|---|---|
+| Den fasta posten i toppraden och bottenraden (`FASTA_NAMN.hub`) | Hub / Hub | Appar / Apps |
+| Tillbaka-raden (`OpsHubTillbaka`, `OpsModulSida`, `OpsHubModul`, förval `hubEtikett`) | Tillbaka till Hub | Tillbaka till Appar |
+| `OpsGruppHubb`, tomt och saknade | "Inga moduler i gruppen", "Modulen ... visas inte" | "Inga appar i gruppen", "Appen ... visas inte" |
+| `OpsHub`, förval | "Moduler", "Inga moduler än" | "Appar", "Inga appar än" |
+| `OpsGruppFormular`, valet | "Moduler", "Varje vald modul blir ett kort i gruppens hubb" | "Appar", "Varje installerad app blir ett kort under Appar" |
+| `OpsOversikt`, tomt | "Inga moduler är påslagna" | "Inga appar är installerade" |
+
+**Vad som INTE ändras, med flit:** API:t. Nyckeln `fasta.hub`, komponentnamnen (`OpsHub`, `OpsGruppHubb`,
+`OpsHubTillbaka`), manifestets `hubb` och gruppens fält `moduler` står kvar. De är mekanik, och ett namnbyte i dem är
+ett eget arbete i varje app och en datamigrering av `groups.moduler`. En app som skickar egna etiketter
+(`hubEtikett`, `ariaLabel`) får dem som förut.
+
+**Prov:** 10 befintliga prov i `hubb`, `hubsida`, `skal030`, `skal031` och `ytorna` väntade på de gamla orden och
+väntar nu på de nya. Med "Hub" tillbaka i `FASTA_NAMN` blir `skal030` rött.
+
+---
+
 ## 0.49.2
 
 ### bolag-ops#535: bekräftelserutan tog in bakgrundstext
