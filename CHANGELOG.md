@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.51.0
+
+### Den första egna gruppen, och apparna en ny grupp börjar med (cllp/lifehub.app#21)
+
+CP 2026-10-04: "Saknar man grupp ska man kunna skapa en egen, och den fungerar som en vanlig grupp. Första gruppen är
+gratis, utan prenumeration och utan paywall. Default-namnet är Mitt projekt." Med vitlistan som enda grind kunde en
+privatperson logga in och sedan inte göra något: hen stod inte på listan, och ingen grupp väntade.
+
+**Tillagt, och förvalet är oförändrat beteende:**
+
+| Var | Vad | Förval |
+|---|---|---|
+| `createGroupService({ forstaGruppenFri })` | Den som aldrig ägt en grupp skapar en utan vitlista och utan e-post. Grupp nummer två går genom vitlistan som förut. Ett avslutat ägarskap räknas | `false` |
+| `createGroupService({ moduler })` | Apparna (modul-id) en ny grupp börjar med. Prövas med `byggGrupp` när tjänsten byggs | `[]` |
+| `OpsUtanMedlemskap namnForval` | Namnet fältet börjar med, som ett värde och inte en platshållare: knappen går att trycka direkt, och namnet går att byta först | tomt |
+
+⛔ **`skapadAv.namn` på gruppen** tar nu inloggningens namn (`namn`) före e-posten när profilraden saknar namn, samma
+ordning som ägarens medlemskap redan hade (0.40.1, #218). Utan e-post hade fältet annars blivit tomt.
+
+**Prov, båda riktningarna:** 6 av de nya proven i `grupp-skapa.test.js` och 1 i `utanMedlemskap.test.jsx` var röda mot
+0.50.0 och är gröna nu. Motproven (utan valet nekas samma person, den andra gruppen kräver vitlistan, ett avslutat
+ägarskap räknas) är gröna i båda, och det är meningen: de mäter att dörren INTE står öppen.
+
+---
+
 ## 0.50.0
 
 ### Hub heter Appar (CP 2026-10-03)

@@ -29,6 +29,24 @@
  * påstående om en begränsning som inte längre finns. Vitlistan är fortfarande grinden: FÅR du skapa
  * grupper är en fråga om vem du är, inte om hur många du redan har.
  *
+ * ══ ⛔ DEN FÖRSTA EGNA GRUPPEN KAN VARA FRI (0.51.0, cllp/lifehub.app#21) ════════════════════
+ *
+ * CP 2026-10-04: "Saknar man grupp ska man kunna skapa en egen, och den fungerar som en vanlig grupp.
+ * Första gruppen är gratis, utan prenumeration och utan paywall." Med vitlistan som enda grind kunde en
+ * privatperson logga in och sedan inte göra någonting: hen stod inte på listan, och ingen grupp väntade.
+ *
+ * ⛔ `forstaGruppenFri` ÄR APPENS VAL OCH FÖRVALET ÄR AV. En app som inte säger något beter sig som förut,
+ * alltså öppnar ingen ny väg in av sig själv. Är valet på får den som ALDRIG har ägt en grupp skapa en,
+ * utan vitlista och utan e-post (en inloggning via custom token bär ingen adress). Den andra gruppen går
+ * genom vitlistan som förut: "FÅR du skapa grupper" är fortfarande frågan, bara inte för den första.
+ *
+ * ⛔ "ALDRIG ÄGT" OCH INTE "INGEN AKTIV". Ett avslutat ägarskap räknas, annars hade fri grupp nummer två
+ * bara varit att lämna den första. Raderna läses med `userId == uid`, samma fråga som `minaGrupper`.
+ *
+ * ⛔ `moduler` ÄR APPARNA EN NY GRUPP BÖRJAR MED (0.51.0). Utan dem fick varje ny grupp `moduler: []`, och
+ * en grupp vars hub är tom ser trasig ut och inte tom. Appen skickar in id:n, ramverket gissar inga, och
+ * listan prövas när tjänsten byggs med samma `byggGrupp` som skrivvägen.
+ *
  * ══ ⛔ GRUPPEN OCH ÄGARENS MEDLEMSKAP SKRIVS I EN BATCH, ALLT ELLER INGET (0.32.0, #180) ═════
  *
  * Före 0.32.0 stod här att "samma batch" var två sekventiella anrop och att det inte fanns något
@@ -140,10 +158,12 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  *   de som den nya gruppens kataloger I SAMMA BATCH som gruppen och ägarens
  *   medlemskap (0.33.0). Utelämnade: ingen seedning, och ingen tyst tom sådan heller.
  *   Ramverket ändrar dem aldrig i efterhand: de är startpunkten, gruppen äger sin kopia.
+ * @param {ReadonlyArray<string>} [konfig.moduler] Apparna (modul-id) en ny grupp börjar med (0.51.0). Utelämnade: `[]`, som förut.
+ * @param {boolean} [konfig.forstaGruppenFri] Den som aldrig ägt en grupp får skapa en utan vitlista och utan e-post (0.51.0). Förval av.
  * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }) => Promise<SkapaGruppSvar> }}
  */
 export function createGroupService(konfig) {
-  const { kalla, samlingar = {}, kataloger } = konfig ?? {};
+  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, forstaGruppenFri = false } = konfig ?? {};
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error("createGroupService: en datakälla med read, list och create krävs. Ramverket känner ingen databas.");
   }
@@ -166,6 +186,20 @@ export function createGroupService(konfig) {
       seedoperationer({ collection: samling, groupId: "provgrupp", standard, ikoner, textnycklar, faser, farger, namn: samling });
     }
   }
+  if (typeof forstaGruppenFri !== "boolean") {
+    throw new Error("createGroupService: forstaGruppenFri måste vara true eller false. Ett värde som råkar vara sant öppnar annars en väg in ingen valt.");
+  }
+  /*
+   * ⛔ APPARNA PRÖVAS NÄR TJÄNSTEN BYGGS, med samma `byggGrupp` som skrivvägen, av samma skäl som katalogerna ovan:
+   * ett felstavat modul-id i appens repo ska synas när functions startar, inte som en grupp ingen kan skapa.
+   */
+  /** @type {string[]} */
+  const startmoduler = forvaldaModuler === undefined ? [] : Array.isArray(forvaldaModuler) ? [...forvaldaModuler] : /** @type {any} */ (null);
+  if (startmoduler === null) {
+    throw new Error("createGroupService: moduler måste vara en lista modul-id. Utelämna den om en ny grupp ska börja utan appar.");
+  }
+  byggGrupp({ id: "provgrupp", namn: { sv: "Prov", en: "Prov" }, moduler: startmoduler, arkiverad: false, skapadAv: byggSkapare({ typ: "okand", kalla: "createGroupService" }) });
+
   const GRUPPER = samlingar.grupper ?? "groups";
   const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
   const VITLISTA = samlingar.vitlista ?? "vitlista";
@@ -195,7 +229,7 @@ export function createGroupService(konfig) {
       const epost = epostform(b?.epost);
       const uppgifter = b?.grupp && typeof b.grupp === "object" ? b.grupp : null;
       if (!uid) throw new Error("skapaGrupp: uid krävs.");
-      if (!epost) throw new Error("skapaGrupp: epost krävs. Det är den som kontrolleras mot vitlistan, inte uid.");
+      if (!epost && !forstaGruppenFri) throw new Error("skapaGrupp: epost krävs. Det är den som kontrolleras mot vitlistan, inte uid.");
       if (!uppgifter) throw new Error("skapaGrupp: grupp krävs, ett objekt med minst ett namn.");
 
       const namnSv = typeof uppgifter.namn === "string" ? rensa(uppgifter.namn) : rensa(/** @type {any} */ (uppgifter.namn)?.sv);
@@ -228,14 +262,22 @@ export function createGroupService(konfig) {
        * ⛔ VITLISTAN KONTROLLERAS FÖRST AV ALLT SOM RÖR DATABASEN. En person som inte
        * är vitlistad ska aldrig se hur långt resten av valideringen kommer.
        */
-      const vitlisterad = await kalla.read(VITLISTA, epost);
-      if (!vitlisterad) {
-        throw new Error(`skapaGrupp: "${epost}" står inte på vitlistan. Bara vitlistade adresser får skapa en grupp.`);
+      /*
+       * ⛔ DEN FÖRSTA EGNA GRUPPEN (0.51.0). Bara när appen slagit på det, och bara för den som aldrig ägt en
+       * grupp: ett avslutat ägarskap räknas. Annars, och för grupp nummer två, går vägen genom vitlistan.
+       */
+      const fri = forstaGruppenFri && !(await kalla.list(MEDLEMSKAP, { where: { userId: uid } })).some((m) => m && m.roll === "agare");
+      if (!fri) {
+        if (!epost) throw new Error("skapaGrupp: epost krävs. Du äger redan en grupp, och en grupp till kräver att adressen står på vitlistan.");
+        const vitlisterad = await kalla.read(VITLISTA, epost);
+        if (!vitlisterad) {
+          throw new Error(`skapaGrupp: "${epost}" står inte på vitlistan. Bara vitlistade adresser får skapa en grupp.`);
+        }
       }
 
       const id = grupp_id(namnSv);
       const anvandaren = await kalla.read(ANVANDARE, uid);
-      const skapare = byggSkapare({ uid, namn: anvandaren?.namn || epost, typ: "manniska", kalla: "skapaGrupp", ...(b.skapadAv ?? {}) });
+      const skapare = byggSkapare({ uid, namn: anvandaren?.namn || rensa(b.namn) || epost, typ: "manniska", kalla: "skapaGrupp", ...(b.skapadAv ?? {}) });
 
       /*
        * ⛔ `byggGrupp` KÖRS FÖRE BATCHEN, med samma validering som läsvägen: en färg utanför paletten
@@ -244,7 +286,7 @@ export function createGroupService(konfig) {
       const grupp = byggGrupp({
         id,
         namn: typeof uppgifter.namn === "string" ? { sv: namnSv, en: namnSv } : uppgifter.namn,
-        moduler: [],
+        moduler: startmoduler,
         arkiverad: false,
         skapadAv: skapare,
         farg: uppgifter.farg,

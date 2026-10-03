@@ -65,3 +65,25 @@ describe("⛔ med onSkapaGrupp: den vitlistade får en form", () => {
     expect(screen.getByText("Be om en inbjudan.")).toBeInTheDocument();
   });
 });
+
+describe("⛔ namnForval: fältet börjar med ett namn som går att byta (0.51.0, cllp/lifehub.app#21)", () => {
+  it("knappen går att trycka direkt, och förvalet är det som skickas", async () => {
+    const onSkapaGrupp = vi.fn();
+    render(<OpsUtanMedlemskap onSkapaGrupp={onSkapaGrupp} namnForval="Mitt projekt" />);
+    expect(screen.getByRole("textbox")).toHaveValue("Mitt projekt");
+    const knapp = screen.getByRole("button", { name: "Skapa grupp" });
+    expect(knapp).not.toBeDisabled();
+    await userEvent.click(knapp);
+    expect(onSkapaGrupp).toHaveBeenCalledWith({ namn: "Mitt projekt" });
+  });
+
+  it("namnet byts innan man skapar, och det nya namnet är det som skickas", async () => {
+    const onSkapaGrupp = vi.fn();
+    render(<OpsUtanMedlemskap onSkapaGrupp={onSkapaGrupp} namnForval="Mitt projekt" />);
+    const falt = screen.getByRole("textbox");
+    await userEvent.clear(falt);
+    await userEvent.type(falt, "Familjen");
+    await userEvent.click(screen.getByRole("button", { name: "Skapa grupp" }));
+    expect(onSkapaGrupp).toHaveBeenCalledWith({ namn: "Familjen" });
+  });
+});

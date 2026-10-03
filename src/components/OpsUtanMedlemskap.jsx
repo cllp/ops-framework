@@ -51,6 +51,8 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {string} [props.namnEtikett]
  * @param {string} [props.skapaEtikett]
  * @param {string} [props.eller] Ordet mellan "skapa"-formen och "be om en inbjudan"-texten, bara när båda syns.
+ * @param {string} [props.namnForval] (0.51.0) Namnet fältet börjar med, och som går att skriva över innan man skapar.
+ *   CP 2026-10-04: "Default-namnet är Mitt projekt ... namnet går att byta direkt." Utelämnat: tomt fält, som förut.
  */
 export function OpsUtanMedlemskap({
   rubrik = "Du är inte med i någon grupp",
@@ -66,8 +68,13 @@ export function OpsUtanMedlemskap({
   namnEtikett = "Gruppens namn",
   skapaEtikett = "Skapa grupp",
   eller = "Eller",
+  namnForval = "",
 }) {
-  const [namn, setNamn] = useState("");
+  /*
+   * ⛔ FÖRVALET ÄR ETT VÄRDE I FÄLTET OCH INTE EN PLATSHÅLLARE (0.51.0). En platshållare ser ut som ett namn men skickas
+   * aldrig, så knappen hade varit avstängd under ett fält som verkar ifyllt. Här går det att trycka direkt, eller byta först.
+   */
+  const [namn, setNamn] = useState(namnForval);
   const [skapar, setSkapar] = useState(false);
 
   const skapa = async () => {
