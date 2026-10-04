@@ -58,6 +58,13 @@ export { uppdateraProfil, bakfyllMedlemsnamn } from "./profil.js";
 export { byggExternaDatakallor, MAX_EXTERNA } from "../lib/grupp.js";
 
 /*
+ * ⛔ PERSONEN PÅ NODSIDAN (0.53.0, cllp/lifehub.app#32). LifeHubs Identity äger personen och sparar den i en funktion, och
+ * varje hubb speglar den vid inloggningen. Båda ska pröva den med SAMMA byggare som klienten läser med, annars glider
+ * Identitys "giltig" och hubbens "giltig" isär. Ren funktion ur `lib/grupp.js`, ingen React.
+ */
+export { byggAnvandare, PROFILIKONER, PROFILFARGER, MAX_PRESENTATION } from "../lib/grupp.js";
+
+/*
  * ⛔ `createActivityLog` ÅTEREXPORTERAS HÄRIFRÅN, OCH DET ÄR EN MÄTNING OCH INTE
  * EN BEKVÄMLIGHET.
  *

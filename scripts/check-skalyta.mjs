@@ -3270,7 +3270,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
           });
           matt.push(`${namn}: vald ruta ${JSON.stringify(ovan)}`);
           krav(!!ovan && ovan.rutansUnderkant <= ovan.panelensTopp + 0.5 && ovan.rutansTopp >= 0, `${namn}: den valda rutans underkant är ${ovan && ovan.rutansUnderkant} och panelens topp ${ovan && ovan.panelensTopp}, väntat rutan helt ovanför panelen (SS-appen rullar den valda veckan upp ovanför panelen).`);
-          krav(p.plats.h <= p.yta * 0.45 + 1.5, `${namn}: panelen är ${p.plats.h} px, taket är 45 procent av ${p.yta} = ${(p.yta * 0.45).toFixed(0)} (SS max-h-[45%]).`);
+          krav(p.plats.h <= p.yta * 0.75 + 1.5, `${namn}: panelen är ${p.plats.h} px, taket är 75 procent av ${p.yta} = ${(p.yta * 0.75).toFixed(0)} (0.53.0, var 45).`);
           krav(!!p.postrulle && p.postrulle.ch <= 140.5 && p.postrulle.sh > p.postrulle.ch, `${namn}: bubblans rullyta ${JSON.stringify(p.postrulle)}, väntat högst 140 px hög och rullbar (SS abEventsScroll maxHeight 140). Golv: fyra poster ska inte rymmas.`);
           // ⛔ 0.37.1: SLAGETS IKON STÅR FÖRE TITELN PÅ BUBBLANS RAD. 0.37.0 lovade den i sin CHANGELOG men ritade den aldrig här
           // (CP 2026-09-30: "Jag gillar ikonerna för typerna hos oss"). Mäts i den byggda appen: en svg i raden för Styrelsemöte,
@@ -3314,6 +3314,33 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         }
       }
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `kalender-panel-${vp.width}.png`) });
+      if (telefon) {
+        // ⛔ 0.53.0 (CP 2026-10-04, skärmbild från telefonen): "När datum bubblorna i kalendern blir två rader så får det inte
+        // plats i den allokerade rutan, storleken måste anpassas till vad som är i." Med tre valda dagar bryter pillren rad
+        // vid 390 px. Golvet är just det, två rader; utan det mäter kravet en panel som aldrig behövde växa.
+        const vaxer = await page.evaluate(() => {
+          const pl = /** @type {HTMLElement | null} */ (document.querySelector("[data-dagpanel-plats]"));
+          const rad = document.querySelector("[data-datumpiller-rad]");
+          const rader = rad ? new Set([...rad.children].map((c) => Math.round(c.getBoundingClientRect().top))).size : 0;
+          // Krysset får inte täcka datumet: textens högerkant mot märkets vänsterkant, för varje piller.
+          const tacker = [...document.querySelectorAll("[data-datumpiller]")].map((pill) => {
+            const t = [...pill.childNodes].find((n) => n.nodeType === 3);
+            const m = pill.querySelector("button > span");
+            if (!t || !m) return null;
+            const r = document.createRange();
+            r.selectNodeContents(t);
+            return Math.round(r.getBoundingClientRect().right - m.getBoundingClientRect().left);
+          });
+          return pl ? { rader, ch: pl.clientHeight, sh: pl.scrollHeight, tacker } : null;
+        });
+        matt.push(`${namn}: dagpanelen med tre dagar ${JSON.stringify(vaxer)}`);
+        if (vaxer && vaxer.rader >= 2) {
+          krav(vaxer.tacker.length >= 3 && vaxer.tacker.every((x) => x !== null && x <= 0), `${namn}: krysset täcker datumet i pillren, textens högerkant minus märkets vänsterkant ${JSON.stringify(vaxer.tacker)} px, väntat högst 0 i alla tre (CP:s skärmbild 2026-10-04, "12 oktobe").`);
+          krav(vaxer.sh <= vaxer.ch + 1, `${namn}: dagpanelen rullar invändigt (${vaxer.sh} px innehåll i ${vaxer.ch} px) med ${vaxer.rader} rader datumpiller, väntat att den växer med sitt innehåll (CP 2026-10-04).`);
+        } else if (vp.width <= 400) {
+          krav(false, `${namn}: datumpillren bröt inte rad (${JSON.stringify(vaxer)}), så kravet att panelen växer mäter ingenting här. Golvet är två rader vid 390 px.`);
+        }
+      }
       await page.locator('[data-dagpanel] button[aria-label^="Skapa"]').click();
       const skapat = await page.evaluate(() => JSON.stringify(/** @type {any} */ (window).__skapat.at(-1)));
       krav(skapat === JSON.stringify(["2026-10-12", "2026-10-14", "2026-10-16"]), `${namn}: skapa-rutan gav ${skapat}, väntat de valda dagarna ["2026-10-12","2026-10-14","2026-10-16"].`);

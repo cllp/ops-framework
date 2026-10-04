@@ -197,7 +197,9 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
        * absolutplacerade kryssen överlappade varandra. Marginalen tar höjd för kryssets
        * utstick (`-top-3.5 -right-3.5`, samma som SS `DayDetailPanel.js`).
        */
-      className="ops-contrast-panel relative mr-2 mb-1 inline-flex shrink-0 animate-svep items-center rounded-full bg-contrast-panel px-3.5 py-1.5 text-etikett font-semibold text-ink shadow-md"
+      // ⛔ pr-6 OCH INTE px-3.5 (0.53.0): krysset står i hörnet och täckte slutet av datumet ("12 oktobe"), syns på CP:s
+      // skärmbild 2026-10-04. Mätt i check-skalyta: textens högerkant ligger till vänster om märket.
+      className="ops-contrast-panel relative mr-2 mb-1 inline-flex shrink-0 animate-svep items-center rounded-full bg-contrast-panel py-1.5 pr-6 pl-3.5 text-etikett font-semibold text-ink shadow-md"
     >
       {text}
       {/* ⛔ KRYSSET ÄR ETT RUNT MÄRKE I PILLRETS HÖRN, PÅ VARJE PILLER (0.37.0), som SS-appen (`DayDetailPanel.js`, top -8,
@@ -410,6 +412,17 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
 }
 
 /**
+ * Dagpanelens tak under 1024 px, som andel av ytan (0.53.0, cllp/lifehub.app#32-passet).
+ *
+ * ⛔ 45 PROCENT RÄCKTE INTE. CP 2026-10-04, med en skärmbild från telefonen: "När datum bubblorna i kalendern blir två
+ * rader så får det inte plats i den allokerade rutan, storleken måste anpassas till vad som är i och behöver expandera."
+ * Med tre valda dagar bröt pillren rad, och panelen fick en egen rullning så att postbubblan klipptes nedtill. Panelen
+ * följer nu sitt innehåll och rullar bara när den skulle ta mer än tre fjärdedelar av ytan. Postlistan i bubblan har
+ * fortfarande sitt eget tak på 140 px, så det som kan växa är pillerraderna, och det är just dem CP såg klämmas.
+ */
+const DAGPANEL_TAK = 0.75;
+
+/**
  * De valda dagarnas poster: piller överst, korten till vänster, antalet och skapa-rutan till höger.
  *
  * ══ ⛔ VAR DEN LIGGER, OCH VARFÖR DET ÄR TVÅ OLIKA SVAR ════════════════
@@ -417,7 +430,7 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
  * CP 2026-09-22: "Se var bubblorna är i web där det finns utrymme och se var de
  * finns i mobil och hur det ser ut."
  *
- *   SMALT: UNDER rutnätet, högst 45 procent av ytan, och rutnätet krymper (SS `CalendarView.jsx:208`, `shrink-0
+ *   SMALT: UNDER rutnätet, högst `DAGPANEL_TAK` av ytan (45 procent till 0.53.0), och rutnätet krymper (SS `CalendarView.jsx:208`, `shrink-0
  *   max-h-[45%]`). Till 0.35.0 låg den ovanpå rutnätet, se filhuvudet.
  *   BRETT: en egen kolumn BREDVID rutnätet, i flödet, 300 px från 1024 px och 360 px från 1280 px.
  *
@@ -1429,13 +1442,13 @@ export function OpsCalendar({
 
       {/*
         ⛔ SAMMA NOD I BÅDA LÄGENA. Under 1024 px: FLYTER ÖVER rutnätets nedre del (0.37.0, se huvudet), utan egen bakgrund,
-        högst 45 procent av ytan och med egen rullning; rullytan får lika mycket luft i botten så att sista raden går att nå.
+        så hög som sitt innehåll, högst `DAGPANEL_TAK` av ytan och först då med egen rullning; rullytan får lika mycket luft i botten så att sista raden går att nå.
         Från 1024 px: en kolumn på 300 px, 360 från 1280.
       */}
       <div
         ref={panelRef}
         data-dagpanel-plats=""
-        style={/** @type {import("react").CSSProperties} */ ({ "--ops-dagpanel-max": `${Math.round(ytan * 0.45)}px` })}
+        style={/** @type {import("react").CSSProperties} */ ({ "--ops-dagpanel-max": `${Math.round(ytan * DAGPANEL_TAK)}px` })}
         className={cx(
           "shrink-0 lg:w-75 lg:overflow-visible xl:w-90",
           panelOppen && "max-lg:absolute max-lg:inset-x-0 max-lg:-bottom-6 max-lg:z-(--z-sticky) max-lg:max-h-(--ops-dagpanel-max) max-lg:overflow-y-auto max-lg:overscroll-contain",

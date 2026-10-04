@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.53.0
+
+### Tillagt
+
+- **`OpsProfil` i kontoläget** (cllp/lifehub.app#32). `konto={{ href }}` säger att personen ägs av ett konto utanför
+  appen, som LifeHubs Mitt konto. CP 2026-10-04: "Vi behöver fixa min profil så att man kommer till sitt
+  användarkonto och ställer in allt där."
+  - Personen ritas skrivskyddad: bild, namn, e-post och rollen, och en länk **Ändra i Mitt konto**.
+  - Inga fält, inga ikon- eller färgval, inget språk och ingen Spara. `onSpara` anropas aldrig.
+  - Grupperna och appens egna sektioner (`children`) står kvar.
+  - Utan `konto` är vyn som förut.
+- **`regelfragment(namn, { kontoAgerPersonen: true })`.** Då får klienten bara ändra `tema` i sin egen `users`-rad och
+  aldrig skapa den: raden är en spegel som appens server skriver ur kontot. Utan valet är fragmentet byte för byte
+  som förut.
+- **`byggAnvandare`, `PROFILIKONER`, `PROFILFARGER` och `MAX_PRESENTATION` på nodsidan.** Kontot som äger personen och
+  appen som speglar den prövar den med samma byggare som klienten.
+
+### Rättat
+
+- **Kalenderns dagpanel växer med sitt innehåll i telefonen.** CP 2026-10-04, med en skärmbild: "När datum bubblorna i
+  kalendern blir två rader så får det inte plats i den allokerade rutan." Taket var 45 procent av ytan, och med tre valda
+  dagar bröt pillren rad och panelen fick en egen rullning som klippte postbubblan. Taket är nu 75 procent
+  (`DAGPANEL_TAK`), och under det är panelen så hög som sitt innehåll. `check-skalyta` mäter det vid 390 px med tre
+  valda dagar: med rättningen 310 px innehåll i 310 px, utan den 310 i 294.
+
 ## 0.52.0
 
 ### Tillagt
