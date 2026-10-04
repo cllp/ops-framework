@@ -803,3 +803,51 @@ describe("⛔ skalets användarfack", () => {
     expect(within(header).queryByRole("button", { name: "Meny" })).toBeNull();
   });
 });
+
+/*
+ * ══ ⛔ 0.53.0: KONTOLÄGET (cllp/lifehub.app#32) ═══════════════════════════
+ *
+ * CP 2026-10-04: "så att man kommer till sitt användarkonto och ställer in allt där". Med `konto` ägs personen av
+ * ett konto utanför appen. Provet kräver att INGET fält finns kvar att fylla i, inte bara att länken finns: en
+ * profil med länken och fälten kvar hade varit två ställen att ändra samma person på.
+ */
+describe("OpsProfil i kontoläget", () => {
+  const MED_ROLL = { ...ANV, telefon: "+46701234567", stad: "Visby" };
+
+  it("visar personen och länken till kontot", () => {
+    render(<OpsProfil anvandare={MED_ROLL} roll="Ägare" konto={{ href: "https://konto.example/profile?hubb=my" }} />);
+    expect(screen.getByText("Claes Philip")).toBeTruthy();
+    expect(screen.getByText("Ägare")).toBeTruthy();
+    const lank = screen.getByRole("link", { name: "Ändra i Mitt konto" });
+    expect(lank.getAttribute("href")).toBe("https://konto.example/profile?hubb=my");
+  });
+
+  it("⛔ inga fält, ingen Spara, inga ikon- eller färgval", () => {
+    render(<OpsProfil anvandare={MED_ROLL} konto={{ href: "/x" }} />);
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Välj standardikon" })).toBeNull();
+    expect(screen.queryByText("Personuppgifter")).toBeNull();
+    expect(screen.queryByText("Inställningar")).toBeNull();
+  });
+
+  it("grupperna och appens egna sektioner står kvar", () => {
+    render(
+      <OpsProfil
+        anvandare={ANV}
+        konto={{ href: "/x" }}
+        grupper={[{ grupp: { id: "my", namn: "Mitt projekt" }, roll: "agare" }]}
+      >
+        <section aria-label="Notiser i hubben">notiser</section>
+      </OpsProfil>,
+    );
+    expect(screen.getByText("Mitt projekt")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Notiser i hubben" })).toBeTruthy();
+  });
+
+  it("utan konto ritas fälten som förut", () => {
+    render(<OpsProfil anvandare={ANV} onSpara={() => {}} />);
+    expect(screen.queryAllByRole("textbox").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("link", { name: "Ändra i Mitt konto" })).toBeNull();
+  });
+});

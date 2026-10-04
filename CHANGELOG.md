@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.53.0
+
+### Tillagt
+
+- **`OpsProfil` i kontoläget** (cllp/lifehub.app#32). `konto={{ href }}` säger att personen ägs av ett konto utanför
+  appen, som LifeHubs Mitt konto. CP 2026-10-04: "Vi behöver fixa min profil så att man kommer till sitt
+  användarkonto och ställer in allt där."
+  - Personen ritas skrivskyddad: bild, namn, e-post och rollen, och en länk **Ändra i Mitt konto**.
+  - Inga fält, inga ikon- eller färgval, inget språk och ingen Spara. `onSpara` anropas aldrig.
+  - Grupperna och appens egna sektioner (`children`) står kvar.
+  - Utan `konto` är vyn som förut.
+- **`byggAnvandare`, `PROFILIKONER`, `PROFILFARGER` och `MAX_PRESENTATION` på nodsidan.** Kontot som äger personen och
+  appen som speglar den prövar den med samma byggare som klienten.
+
 ## 0.52.0
 
 ### Tillagt

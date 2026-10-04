@@ -140,6 +140,11 @@ const FARGKLASSER = {
  * @param {Record<string, string>} [props.rollNamn] Vad rollerna heter på raden.
  * @param {import("react").ReactNode} [props.children] Appens EGNA sektioner (t.ex. SessionStudios kreativa profil),
  *   ritade efter Länkar och före Spara/Logga ut. Ramverket bestämmer platsen, appen innehållet.
+ * @param {{ href: string }} [props.konto] 0.53.0, cllp/lifehub.app#32: personen ägs av ett konto utanför appen
+ *   (LifeHubs Identity). Då ritas personen skrivskyddad, med en länk dit, och inga fält: inget namn, ingen
+ *   telefon, inget språk och ingen Spara. `onSpara` anropas aldrig. Grupperna och appens egna sektioner står kvar.
+ * @param {string} [props.kontoText]
+ * @param {string} [props.kontoLankEtikett]
  */
 function OpsProfilRitad({
   anvandare,
@@ -177,6 +182,9 @@ function OpsProfilRitad({
   taBortLankEtikett = ORD_OPSPROFIL.taBortLankEtikett.sv,
   sprakNamn = { sv: "Svenska", en: "Engelska" },
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
+  konto,
+  kontoText = ORD_OPSPROFIL.kontoText.sv,
+  kontoLankEtikett = ORD_OPSPROFIL.kontoLankEtikett.sv,
   children,
 }) {
   const [valtSprak, setValtSprak] = useState(anvandare.sprak);
@@ -337,6 +345,81 @@ function OpsProfilRitad({
    *   - NAMN, TELEFON OCH STAD STÅR I TRE KOLUMNER FRÅN `sm`, SS `grid grid-cols-1 sm:grid-cols-3 gap-3` (`:243`).
    * Vakten är check-skalyta avsnitt 27, vid 390 och 1280.
    */
+  const grupplistan = (
+    <>
+      {/* ⛔ TOMHET ÄR ETT SVAR. En person utan grupper ser en mening om det,
+          aldrig en rubrik med ingenting under. Arbetsreglernas punkt 5. */}
+      {/* ⛔ 0.32.1: samma sektionsrubrik som korten ovanför. Förut en egen `text-etikett font-semibold` i sekundärfärg. */}
+      <OpsSectionLabel>{grupperEtikett}</OpsSectionLabel>
+      <OpsList ariaLabel={grupperEtikett}>
+        {grupper.length === 0 ? (
+          <OpsListRow>
+            <span className="text-ink-secondary">{ingaGrupperText}</span>
+          </OpsListRow>
+        ) : (
+          grupper.map(({ grupp, roll }) => (
+            <OpsListRow key={grupp.id}>
+              <span className="min-w-0 flex-1 truncate text-ink">{text(grupp.namn, sprak) || grupp.id}</span>
+              <OpsPill tone={roll === "agare" ? "info" : "neutral"}>{rollNamn[roll] || roll}</OpsPill>
+            </OpsListRow>
+          ))
+        )}
+      </OpsList>
+    </>
+  );
+
+  const identitet = (
+    <div className="flex items-center gap-3">
+      <OpsIdentity
+        name={anvandare.namn || anvandare.epost}
+        seed={anvandare.id}
+        imageUrl={anvandare.bild}
+        icon={!anvandare.bild && anvandare.ikon ? PROFILIKON_KOMPONENT[/** @type {keyof typeof PROFILIKON_KOMPONENT} */ (anvandare.ikon)] : undefined}
+        tone={anvandare.farg ? /** @type {any} */ (Number(anvandare.farg)) : undefined}
+        size="lg"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate font-semibold text-ink">{anvandare.namn || anvandare.epost}</p>
+          {/* ⛔ #164, korrigering C: "rollen som en liten pill" bredvid namnet. Ritas bara
+              när appen skickar en, eftersom rollens ORD är appens (t.ex. "Studio Admin"). */}
+          {roll ? <OpsPill tone="neutral">{roll}</OpsPill> : null}
+        </div>
+        <p className="truncate text-etikett text-ink-secondary">
+          <span className="sr-only">{epostEtikett}: </span>
+          {anvandare.epost}
+        </p>
+      </div>
+    </div>
+  );
+
+  /*
+   * ══ ⛔ 0.53.0: KONTOLÄGET (cllp/lifehub.app#32) ════════════════════════
+   *
+   * CP 2026-10-04: "Vi behöver fixa min profil så att man kommer till sitt användarkonto och ställer in allt där."
+   * När personen ägs av ett konto utanför appen är varje fält här en andra kopia av samma person, och med två
+   * appar två kopior som glider isär. Därför inga fält alls i det här läget, och ingen Spara som kunde skriva
+   * förbi kontot: bara vem du är, en länk dit du ändrar det, grupperna och appens egna sektioner.
+   */
+  if (konto) {
+    return (
+      <OpsView width="narrow">
+        <OpsViewHeader title={rubrik} />
+        <OpsCard kant>
+          {identitet}
+          <p className="mt-3 text-etikett text-ink-secondary">{kontoText}</p>
+          <div className="mt-3">
+            <OpsButton variant="secondary" href={konto.href}>
+              {kontoLankEtikett}
+            </OpsButton>
+          </div>
+        </OpsCard>
+        {children}
+        {grupplistan}
+      </OpsView>
+    );
+  }
+
   return (
     <OpsView width="narrow">
       <OpsViewHeader title={rubrik} />
@@ -346,28 +429,7 @@ function OpsProfilRitad({
           <div className="mb-3">
             <OpsSectionLabel>{profilbildEtikett}</OpsSectionLabel>
           </div>
-          <div className="flex items-center gap-3">
-            <OpsIdentity
-              name={anvandare.namn || anvandare.epost}
-              seed={anvandare.id}
-              imageUrl={anvandare.bild}
-              icon={!anvandare.bild && anvandare.ikon ? PROFILIKON_KOMPONENT[/** @type {keyof typeof PROFILIKON_KOMPONENT} */ (anvandare.ikon)] : undefined}
-              tone={anvandare.farg ? /** @type {any} */ (Number(anvandare.farg)) : undefined}
-              size="lg"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate font-semibold text-ink">{anvandare.namn || anvandare.epost}</p>
-                {/* ⛔ #164, korrigering C: "rollen som en liten pill" bredvid namnet. Ritas bara
-                    när appen skickar en, eftersom rollens ORD är appens (t.ex. "Studio Admin"). */}
-                {roll ? <OpsPill tone="neutral">{roll}</OpsPill> : null}
-              </div>
-              <p className="truncate text-etikett text-ink-secondary">
-                <span className="sr-only">{epostEtikett}: </span>
-                {anvandare.epost}
-              </p>
-            </div>
-          </div>
+          {identitet}
 
           {/* ⛔ #164, korrigering C: IKON OCH FÄRG KRÄVER INGEN LAGRING, till skillnad
               från uppladdningsraden nedanför. Två strängar i `users/{uid}`, inga filer. */}
@@ -571,24 +633,7 @@ function OpsProfilRitad({
         </OpsButton>
       </div>
 
-      {/* ⛔ TOMHET ÄR ETT SVAR. En person utan grupper ser en mening om det,
-          aldrig en rubrik med ingenting under. Arbetsreglernas punkt 5. */}
-      {/* ⛔ 0.32.1: samma sektionsrubrik som korten ovanför. Förut en egen `text-etikett font-semibold` i sekundärfärg. */}
-      <OpsSectionLabel>{grupperEtikett}</OpsSectionLabel>
-      <OpsList ariaLabel={grupperEtikett}>
-        {grupper.length === 0 ? (
-          <OpsListRow>
-            <span className="text-ink-secondary">{ingaGrupperText}</span>
-          </OpsListRow>
-        ) : (
-          grupper.map(({ grupp, roll }) => (
-            <OpsListRow key={grupp.id}>
-              <span className="min-w-0 flex-1 truncate text-ink">{text(grupp.namn, sprak) || grupp.id}</span>
-              <OpsPill tone={roll === "agare" ? "info" : "neutral"}>{rollNamn[roll] || roll}</OpsPill>
-            </OpsListRow>
-          ))
-        )}
-      </OpsList>
+      {grupplistan}
     </OpsView>
   );
 }
@@ -624,6 +669,11 @@ export const ORD_OPSPROFIL = {
   laggTillLankEtikett: { sv: "Lägg till länk", en: "Add link" },
   urlEtikett: { sv: "url", en: "url" },
   taBortLankEtikett: { sv: "Ta bort länken", en: "Remove the link" },
+  kontoText: {
+    sv: "Namn, bild och dina uppgifter ändrar du i Mitt konto. De gäller i alla dina hubbar.",
+    en: "You change your name, picture and details in My account. They apply in all your hubs.",
+  },
+  kontoLankEtikett: { sv: "Ändra i Mitt konto", en: "Edit in My account" },
 };
 
 /**
