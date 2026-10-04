@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { cx } from "../lib/cx.js";
 import { kantKlass } from "../lib/kant.js";
@@ -32,6 +32,10 @@ import {
   traffar,
   filtreraPoster,
   forvaldKalenderId,
+  apparFor,
+  appForTyp,
+  appfilterNyckel,
+  lasDoldaAppar,
 } from "../lib/calendar.js";
 import { ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, VeckonummerIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
@@ -675,6 +679,155 @@ const VERKTYG = "inline-flex size-11 shrink-0 cursor-pointer items-center justif
 /** @param {boolean} aktiv */
 const verktygsklass = (aktiv) => cx(VERKTYG, aktiv ? "text-accent md:border-accent/40 md:bg-accent-subtle" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface");
 
+/** Högst så många appar står i raden innan resten fälls ihop under "Fler" (#244: "Efter fyra fälls resten ihop"). */
+export const APPRAD_SYNLIGA = 4;
+
+/** Avståndet mellan knapparna i raden, `gap-1.5`. Mätningen räknar med det. */
+const APPRAD_GAP = 6;
+
+const APPKNAPP =
+  "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-etikett font-medium md:min-h-8 md:px-3 md:text-meta focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+/** @param {boolean} synlig */
+const appknappKlass = (synlig) =>
+  cx(APPKNAPP, synlig ? "border-accent/40 bg-accent-subtle text-ink" : "border-line bg-surface text-ink-muted line-through decoration-ink-muted/60");
+const VISA_ALLA = "min-h-11 shrink-0 cursor-pointer whitespace-nowrap px-2 text-meta font-medium text-accent underline-offset-2 hover:underline md:min-h-8";
+
+/**
+ * Hur många appar som ryms i raden: så många som får plats, högst `APPRAD_SYNLIGA` och minst en, med Fler och Visa alla
+ * inräknade när de ska synas. Ren, så att räkningen går att prova utan webbläsare.
+ *
+ * @param {{ bredd: number, appar: number[], fler: number, visaAlla: number }} m Bredder i px. `visaAlla` är 0 när inget är dolt.
+ * @returns {number}
+ */
+export function appradRyms({ bredd, appar, fler, visaAlla }) {
+  const n = appar.length;
+  for (let k = Math.min(APPRAD_SYNLIGA, n); k >= 1; k -= 1) {
+    const delar = [...appar.slice(0, k), ...(k < n ? [fler] : []), ...(visaAlla > 0 ? [visaAlla] : [])];
+    const summa = delar.reduce((x, y) => x + y, 0) + APPRAD_GAP * (delar.length - 1);
+    if (summa <= bredd) return k;
+  }
+  return 1;
+}
+
+/**
+ * Appraden under verktygsraden (0.54.0, cllp/ops-framework#244 beslut B och C).
+ *
+ * ⛔ EN KNAPP PER APP, OCH TRYCKET VÄXLAR. Allt är synligt från början. En dold app står kvar i raden, överstruken, så att
+ * den går att få tillbaka med samma tryck och så att en tom dag aldrig kan läsas som "inga händelser" när den egentligen
+ * betyder "Ekonomi är dold" (punkt 5).
+ *
+ * ⛔ RADEN FINNS BARA MED MINST TVÅ APPAR. Med en enda finns inget att välja mellan.
+ *
+ * ⛔ SÅ MÅNGA SOM RYMS, HÖGST FYRA, RESTEN UNDER "FLER (n)", med en prick när något bland dem är dolt. Första versionen hade fyra fasta
+ * och en rad som rullade i sidled: på 390 px klipptes den fjärde knappen och Fler hamnade utanför skärmen, så de dolda
+ * apparna gick inte att nå och ingenting visade att raden rullade (`check-skalyta` avsnitt 38). Nu mäts knapparnas bredd i
+ * en osynlig kopia av raden och jämförs med radens bredd, och raden rullar aldrig.
+ *
+ * @param {object} props
+ * @param {{ id: string, namn: string }[]} props.appar
+ * @param {ReadonlySet<string>} props.dolda
+ * @param {(id: string) => void} props.onVaxla
+ * @param {() => void} props.onVisaAlla
+ */
+function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
+  const radRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const matRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [ryms, setRyms] = useState(Math.min(APPRAD_SYNLIGA, appar.length));
+  const [visaPlats, setVisaPlats] = useState(true);
+  const harDolda = dolda.size > 0;
+  useLayoutEffect(() => {
+    const rad = radRef.current;
+    const mat = matRef.current;
+    if (!rad || !mat) return undefined;
+    const rakna = () => {
+      const bredd = rad.clientWidth;
+      // ⛔ jsdom har ingen layout och svarar 0 överallt. Då står förvalet kvar i stället för att raden krymper till en.
+      if (bredd <= 0) return;
+      const w = (/** @type {Element | null} */ x) => (x ? x.getBoundingClientRect().width : 0);
+      const bredder = [...mat.querySelectorAll("[data-mat-app]")].map(w);
+      /*
+       * ⛔ RÄKNAS UTAN "VISA ALLA", SÅ ATT RADEN INTE BYTER INNEHÅLL NÄR NÅGON DÖLJER EN APP. Första mätningen tog med den,
+       * och på 390 px flyttade trycket på Ekonomi in Ekonomi under Fler: knappen man just tryckt på försvann ur raden.
+       * Visa alla står i raden bara när allt får plats även med den, annars överst under Fler.
+       */
+      const k = appradRyms({ bredd, appar: bredder, fler: w(mat.querySelector("[data-mat-fler]")), visaAlla: 0 });
+      setRyms(k);
+      const allt = bredder.reduce((x, y) => x + y, 0) + w(mat.querySelector("[data-mat-visa]")) + APPRAD_GAP * bredder.length;
+      setVisaPlats(k === bredder.length && allt <= bredd);
+    };
+    rakna();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(rakna);
+    ro.observe(rad);
+    return () => ro.disconnect();
+  }, [appar]);
+
+  const forsta = appar.slice(0, ryms);
+  const resten = appar.slice(ryms);
+  const doldaIResten = resten.filter((a) => dolda.has(a.id)).length;
+  /** @param {{ id: string, namn: string }} a */
+  const knapp = (a) => (
+    <button key={a.id} type="button" data-app={a.id} aria-pressed={!dolda.has(a.id)} onClick={() => onVaxla(a.id)} className={appknappKlass(!dolda.has(a.id))}>
+      {a.namn}
+    </button>
+  );
+  return (
+    <div ref={radRef} role="group" aria-label="Appar i kalendern" data-kalender-appar="" className="relative mb-2 flex shrink-0 items-center gap-1.5 overflow-hidden">
+      {/* Den osynliga kopian som mäts: alla appar, Fler i sin längsta form och Visa alla. Den tar ingen plats och läses inte upp. */}
+      <div ref={matRef} aria-hidden="true" className="pointer-events-none invisible absolute top-0 left-0 flex gap-1.5">
+        {appar.map((a) => (
+          <span key={a.id} data-mat-app="" className={appknappKlass(true)}>
+            {a.namn}
+          </span>
+        ))}
+        <span data-mat-fler="" className={appknappKlass(true)}>
+          <span className="size-1.5 rounded-full" />
+          Fler ({appar.length})
+          <ChevronNedIkon size={14} />
+        </span>
+        <span data-mat-visa="" className={VISA_ALLA}>
+          Visa alla
+        </span>
+      </div>
+      {forsta.map(knapp)}
+      {resten.length > 0 ? (
+        <Popover.Root>
+          <Popover.Trigger
+            data-appar-fler=""
+            aria-label={doldaIResten > 0 ? `Fler appar, ${doldaIResten} dolda` : "Fler appar"}
+            className={appknappKlass(true)}
+          >
+            {/* ⛔ PRICKEN SÄGER ATT NÅGOT HÄR ÄR DOLT. Texten hålls lika lång i båda lägena, så att raden inte tappar en app
+                när någon döljs bland de undangömda; skärmläsaren får antalet dolda i namnet. */}
+            {doldaIResten > 0 ? <span aria-hidden="true" data-fler-dold="" className="size-1.5 rounded-full bg-ink-muted" /> : null}
+            Fler ({resten.length})
+            <ChevronNedIkon size={14} />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content align="start" sideOffset={6} aria-label="Fler appar" className={cx("z-(--z-dropdown) max-h-[70vh] w-56 overflow-y-auto p-1", radBehallare())}>
+              {harDolda ? (
+                <button type="button" data-appar-visa-alla="" onClick={onVisaAlla} className={radKlass({ accentFarg: true })}>
+                  Visa alla
+                </button>
+              ) : null}
+              {resten.map((a) => (
+                <ValRad key={a.id} chosen={!dolda.has(a.id)} onClick={() => onVaxla(a.id)}>
+                  {a.namn}
+                </ValRad>
+              ))}
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+      ) : null}
+      {harDolda && resten.length === 0 && visaPlats ? (
+        <button type="button" data-appar-visa-alla="" onClick={onVisaAlla} className={VISA_ALLA}>
+          Visa alla
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * @typedef {object} KalenderVal
  * @property {string} id
@@ -908,7 +1061,9 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   ⛔ En inställning och inte en konstant (#179): en kund i en annan zon ska inte kräva en ny version.
  * @param {KalenderVal[]} [props.kalendrar] Den aktiva gruppens kalendrar (`grupp: true`) och mina. Finns listan finns
  *   kalenderväljaren. En post utan `kalender` hör till den förvalda.
- * @param {{ id: string, namn: string }[]} [props.typer] Typerna i typfiltret. Jämförs med postens `typ`.
+ * @param {{ id: string, namn: string, modulNamn?: string }[]} [props.typer] Typerna i typfiltret. Jämförs med postens `typ`.
+ *   `modulNamn` (0.54.0) är modulens namn för ett bidrag (`modul:id`), och blir appens namn i appraden. Utan den står
+ *   modulens id.
  * @param {(datum: string[]) => void} [props.onSkapa] "+" i verktygsraden och skapa-rutan i dagpanelen. Får de valda
  *   dagarna, eller idag när ingen är vald.
  * @param {() => void} [props.onHanteraKalendrar] Raden "Hantera kalendrar" längst ned i kalenderväljaren (0.37.0, #179 F2):
@@ -921,6 +1076,8 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   skalets händelsepanel (`OpsAppShell` `handelsepanel`). ⛔ Finns varken propen eller ett skal med panel kastar kalendern för en post med `handelseId`.
  *   Kalenderns urval (valda dagar), månaden och filtret ligger kvar i kalendern, som skalet håller monterad men dold medan panelen visas: Tillbaka
  *   återställer dem.
+ * @param {string} [props.filterMinne] (0.54.0, #244) Var personens dolda appar sparas, vanligen gruppens id: valet minns per
+ *   grupp. ⛔ Ramverket känner inte gruppen, så appen säger vad som skiljer. Utelämnad: valet gäller bara den här visningen.
  * @param {{ getItem: (n: string) => string | null, setItem: (n: string, v: string) => void }} [props.lagring] Var
  *   veckonummervalet sparas, per enhet. Förval `window.localStorage` när den finns.
  */
@@ -942,6 +1099,7 @@ export function OpsCalendar({
   daglager,
   lagring,
   onOppnaHandelse,
+  filterMinne,
 }) {
   if (!ariaLabel) {
     throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
@@ -976,6 +1134,61 @@ export function OpsCalendar({
   const [titt, setTitt] = useState(/** @type {{ dayKey: string, x: number, y: number } | null} */ (null));
 
   const lager = lagring || (typeof window !== "undefined" ? window.localStorage : undefined);
+  const minnesnyckel = filterMinne ? appfilterNyckel(filterMinne) : "";
+  const [doldaAppar, setDoldaAppar] = useState(() => {
+    if (!minnesnyckel || !lager) return /** @type {string[]} */ ([]);
+    try {
+      return lasDoldaAppar(lager.getItem(minnesnyckel));
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "OpsCalendar", steg: "läsa dolda appar" });
+      return [];
+    }
+  });
+  /*
+   * ⛔ BYTER APPEN GRUPP LÄSES VALET OM. `filterMinne` är gruppens id, och samma monterade kalender visar en annan grupp
+   * när personen byter. Utan omläsningen hade den förra gruppens dolda appar följt med.
+   */
+  const lastNyckel = useRef(minnesnyckel);
+  useEffect(() => {
+    if (lastNyckel.current === minnesnyckel) return;
+    lastNyckel.current = minnesnyckel;
+    try {
+      setDoldaAppar(minnesnyckel && lager ? lasDoldaAppar(lager.getItem(minnesnyckel)) : []);
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "OpsCalendar", steg: "läsa dolda appar" });
+      setDoldaAppar([]);
+    }
+  }, [minnesnyckel, lager]);
+  const sparaDolda = useCallback(
+    (/** @type {string[]} */ nasta) => {
+      setDoldaAppar(nasta);
+      if (!minnesnyckel) return;
+      try {
+        lager?.setItem(minnesnyckel, JSON.stringify(nasta));
+      } catch (fel) {
+        rapporteraFel(fel, { yta: "OpsCalendar", steg: "spara dolda appar" });
+      }
+    },
+    [lager, minnesnyckel],
+  );
+  const appar = useMemo(() => apparFor(typer, entries), [typer, entries]);
+  const doldaSet = useMemo(() => new Set(doldaAppar), [doldaAppar]);
+  /*
+   * ⛔ TYPLISTAN VISAR BARA DE SYNLIGA APPARNAS TYPER (beslut B: App är nivån ovanför typ). Och en vald typ vars app döljs
+   * släpps till "alla": annars hade filtret visat noll poster med en typ vald som inte längre syns i listan, och ingen
+   * hade kunnat se varför.
+   */
+  const synligaTyper = useMemo(() => typer.filter((t) => !doldaSet.has(appForTyp(t.id))), [typer, doldaSet]);
+  const vaxlaApp = useCallback(
+    (/** @type {string} */ id) => {
+      const dold = doldaSet.has(id);
+      const nasta = dold ? doldaAppar.filter((x) => x !== id) : [...doldaAppar, id];
+      if (!dold && typ !== "alla" && appForTyp(typ) === id) setTyp("alla");
+      sparaDolda(nasta);
+    },
+    [doldaSet, doldaAppar, sparaDolda, typ],
+  );
+
   const [veckonummer, setVeckonummer] = useState(() => {
     try {
       return lager ? lager.getItem(VECKONUMMER_NYCKEL) === "1" : false;
@@ -1004,7 +1217,7 @@ export function OpsCalendar({
   const forvaldId = useMemo(() => forvaldKalenderId(kalendrar), [kalendrar]);
   const minaId = useMemo(() => new Set((kalendrar || []).filter((k) => !k.grupp).map((k) => k.id)), [kalendrar]);
   const arMin = useCallback((/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => !!e.kalender && minaId.has(e.kalender.id), [minaId]);
-  const synligaPoster = useMemo(() => filtreraPoster(entries, { valdaKalendrar, forvaldId, typ, status }), [entries, valdaKalendrar, forvaldId, typ, status]);
+  const synligaPoster = useMemo(() => filtreraPoster(entries, { valdaKalendrar, forvaldId, typ, status, doldaAppar }), [entries, valdaKalendrar, forvaldId, typ, status, doldaAppar]);
   const synligaId = useMemo(() => new Set(synligaPoster.map((e) => e.id)), [synligaPoster]);
   const byKey = useMemo(() => perDay(synligaPoster), [synligaPoster]);
   const allaPerDag = useMemo(() => perDay(entries), [entries]);
@@ -1270,7 +1483,7 @@ export function OpsCalendar({
           onHanteraKalendrar={onHanteraKalendrar}
           veckonummer={veckonummer}
           onVeckonummer={vaxlaVeckonummer}
-          typer={typer}
+          typer={synligaTyper}
           statusWords={statusWords}
           typ={typ}
           onTyp={setTyp}
@@ -1283,6 +1496,7 @@ export function OpsCalendar({
           }}
           onSkapa={skapa}
         />
+        {appar.length >= 2 ? <Apprad appar={appar} dolda={doldaSet} onVaxla={vaxlaApp} onVisaAlla={() => sparaDolda([])} /> : null}
         {sokOppen ? (
           <div role="search" data-kalender-sok="" className="mb-2 flex shrink-0 items-center gap-2 rounded-base border border-line bg-surface px-3 py-1.5">
             <span aria-hidden="true" className="flex text-ink-muted">
