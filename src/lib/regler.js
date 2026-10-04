@@ -203,9 +203,12 @@ function typavvikelserRegler() {
  * bara syns när reglerna deployas, alltså i produktion.
  *
  * @param {Samlingsnamn} [namn]
+ * @param {{ kontoAgerPersonen?: boolean }} [val] 0.53.0, cllp/lifehub.app#32. `kontoAgerPersonen: true` när personen ägs
+ *   av ett konto utanför appen och speglas in av appens server: då får klienten bara ändra `tema` i sin egen rad, och
+ *   aldrig skapa den. Allt annat i raden är en spegel, och en spegel som klienten kan skriva är ett andra original.
  * @returns {string}
  */
-export function regelfragment(namn = {}) {
+export function regelfragment(namn = {}, val = {}) {
   const anvandare = kontrolleraNamn(namn.anvandare ?? "users", "anvandare");
   const grupper = kontrolleraNamn(namn.grupper ?? "groups", "grupper");
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
@@ -274,8 +277,16 @@ ${typavvikelserRegler()}
     // ärliga utgången av det är ett regelfel, inte ett nej.
     match /${anvandare}/{uid} {
       allow read, delete: if opsInloggad() && request.auth.uid == uid;
-      allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}]);
+${
+  val.kontoAgerPersonen
+    ? `      // ⛔ KONTOT ÄGER PERSONEN (0.53.0, lifehub.app#32). Raden skrivs av appens server ur kontot vid inloggningen.
+      // Klienten ändrar bara temat, som är appens eget val, och skapar aldrig raden.
+      allow create: if false;
+      allow update: if opsInloggad() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tema"]);`
+    : `      allow create, update: if opsInloggad() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}]);`
+}
     }
 
     // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler och arkivering.

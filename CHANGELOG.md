@@ -20,6 +20,9 @@ anteckningar är en version ingen kan välja att hoppa över.
   - Inga fält, inga ikon- eller färgval, inget språk och ingen Spara. `onSpara` anropas aldrig.
   - Grupperna och appens egna sektioner (`children`) står kvar.
   - Utan `konto` är vyn som förut.
+- **`regelfragment(namn, { kontoAgerPersonen: true })`.** Då får klienten bara ändra `tema` i sin egen `users`-rad och
+  aldrig skapa den: raden är en spegel som appens server skriver ur kontot. Utan valet är fragmentet byte för byte
+  som förut.
 - **`byggAnvandare`, `PROFILIKONER`, `PROFILFARGER` och `MAX_PRESENTATION` på nodsidan.** Kontot som äger personen och
   appen som speglar den prövar den med samma byggare som klienten.
 
