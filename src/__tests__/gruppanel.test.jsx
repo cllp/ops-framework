@@ -210,6 +210,36 @@ describe("OpsGruppvaxlare", () => {
     expect(onValj).toHaveBeenCalledWith("klubben");
     expect(screen.queryByRole("button", { name: "Klubben" })).not.toBeInTheDocument();
   });
+
+  it("⛔ pennan i arket bara för ägare och admin, och den väljer inte gruppen", async () => {
+    const onValj = vi.fn();
+    const onRedigera = vi.fn();
+    const grupper = [
+      { id: "bolaget", namn: { sv: "Bolaget" }, roll: "agare" },
+      { id: "styrelsen", namn: { sv: "Styrelsen" }, roll: "admin" },
+      { id: "klubben", namn: { sv: "Klubben" }, roll: "medlem" },
+      { id: "tom", namn: { sv: "Tom" } },
+    ];
+    render(<OpsGruppvaxlare grupper={grupper} aktiv="bolaget" onValj={onValj} onRedigera={onRedigera} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Byt grupp, nu: Bolaget" }));
+    const ark = screen.getByRole("dialog");
+    expect(within(ark).getByRole("button", { name: "Redigera grupp, Bolaget" })).toBeInTheDocument();
+    expect(within(ark).getByRole("button", { name: "Redigera grupp, Styrelsen" })).toBeInTheDocument();
+    expect(within(ark).queryByRole("button", { name: "Redigera grupp, Klubben" })).toBeNull();
+    expect(within(ark).queryByRole("button", { name: "Redigera grupp, Tom" })).toBeNull();
+    expect(within(ark).queryByRole("button", { name: "Skapa grupp" })).toBeNull();
+    await user.click(within(ark).getByRole("button", { name: "Redigera grupp, Bolaget" }));
+    expect(onRedigera).toHaveBeenCalledWith("bolaget");
+    expect(onValj).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("utan onRedigera ritas ingen penna i arket", async () => {
+    render(<OpsGruppvaxlare grupper={GRUPPER} aktiv="bolaget" onValj={() => {}} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Byt grupp, nu: Bolaget" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: /Redigera grupp/ })).toBeNull();
+  });
 });
 
 describe("OpsAppShell: grupper-propen (#161)", () => {

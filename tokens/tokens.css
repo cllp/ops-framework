@@ -895,6 +895,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+  /* Ark mot skärmens underkant. env() är 0 i en iframe (hubben i identity)
+     även med viewport-fit=cover, och då ligger sista raden under hemindikatorn.
+     34px är iPhones inset. max() ger golvet också när env redan är större. */
+  --safe-bottom-ark: max(env(safe-area-inset-bottom, 0px), 34px);
 
   /* ─── Bottenradens höjd (utan säker yta). Delas mellan OpsBottomNav och
    * `main`:s padding-bottom, så att sista kortet aldrig hamnar under baren.

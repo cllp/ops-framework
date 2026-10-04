@@ -308,4 +308,18 @@ describe("⛔ pennan öppnar samma panel i redigeringsläge (skapa.redigeraGrupp
     await userEvent.setup().click(within(nav).getByRole("button", { name: "Redigera grupp" }));
     expect(onRedigera).toHaveBeenCalledWith("g1");
   });
+
+  it("⛔ pennan i växlarens ark öppnar samma redigeringspanel, och medlemmens rad har ingen", async () => {
+    skal();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Byt grupp, nu: Alfa AB/ }));
+    const ark = screen.getByRole("dialog");
+    expect(within(ark).queryByRole("button", { name: "Skapa grupp" })).toBeNull();
+    expect(within(ark).queryByRole("button", { name: "Redigera grupp, Beta AB" })).toBeNull();
+    await user.click(within(ark).getByRole("button", { name: "Redigera grupp, Alfa AB" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("region", { name: "Redigera grupp" })).toBeInTheDocument();
+    expect(new URL(window.location.href).searchParams.get("skapa")).toBe("redigera-grupp");
+    expect(new URL(window.location.href).searchParams.get("grupp")).toBe("g1");
+  });
 });

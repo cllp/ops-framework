@@ -531,7 +531,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  * @property {(id: string) => void} onValj
  * @property {() => void} [onSkapa]
  * @property {(id: string) => void} [onInfo] (0.32.0, G2) Info-knappen på gruppkortet: appen öppnar gruppens detaljsida (`OpsGruppSida`). Utelämnad: ingen knapp.
- * @property {(id: string) => void} [onRedigera] (0.32.0, G2) Pennan på gruppkortet, bara för `roll` `agare` eller `admin`. `skapa.redigeraGrupp` går före den.
+ * @property {(id: string) => void} [onRedigera] (0.32.0, G2) Pennan på gruppkortet, bara för `roll` `agare` eller `admin`. `skapa.redigeraGrupp` går före den. Samma penna finns i växlarens ark (0.58.0).
  * @property {boolean} [infalld]
  * @property {(infalld: boolean) => void} [onInfalld]
  * @property {string} [sprak]
@@ -1783,6 +1783,7 @@ function OpsAppShellRitad({
                   etikett={grupper.etikett}
                   nuEtikett={grupper.nuEtikett}
                   hubbar={hubbar}
+                  onRedigera={grupperOnRedigera}
                 />
               </div>
             ) : null}
