@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.52.0
+
+### Tillagt
+
+- **Hubbar i skalet** (cllp/lifehub.app#27). `OpsAppShell` tar `hubbar`: instanserna personen får öppna, som
+  `{ aktiv, lista: [{ id, namn, href }], allaHref }`. CP 2026-10-04: "Var går jag ut och väljer fler hubbar", och om
+  mobilen: "där är det precis på samma plats som man switchar grupper, inte hubbar."
+  - **Mobil (under `lg`):** gruppväxlarens ark börjar med hubbarna, och grupperna står under rubriken
+    "Grupper i <hubb>". En knapp, två nivåer.
+  - **Dator (från `lg`):** märket heter den aktiva hubben, och en chevron bredvid öppnar samma lista.
+  - Den aktiva hubben är ingen länk. En annan hubb är en länk till appens `href`, och ramverket vet inte vart.
+  - En lista utan den aktiva hubben, en tom lista eller en hubb utan `href` stoppas med skälet.
+- `OpsHubblista` exporteras för en app som vill rita listan någon annanstans.
+
 ## 0.51.0
 
 ### Den första egna gruppen, och apparna en ny grupp börjar med (cllp/lifehub.app#21)

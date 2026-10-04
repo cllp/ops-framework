@@ -239,6 +239,7 @@ export { gruppLista, gruppSkapa } from "./data/gruppkalla.js";
 export { medAktivGrupp } from "./data/aktivgrupp.js";
 export { OpsGruppvaljare } from "./components/OpsGruppvaljare.jsx";
 export { OpsGruppanel, OpsGruppvaxlare } from "./components/OpsGruppanel.jsx";
+export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";

@@ -15,7 +15,8 @@ import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
-import { OpsPanelRow } from "./OpsPanel.jsx";
+import { OpsPanel, OpsPanelRow } from "./OpsPanel.jsx";
+import { OpsHubblista, aktivHubbNamn, provaHubbar } from "./OpsHubbar.jsx";
 import { OpsSkapaI } from "./OpsSkapaI.jsx";
 import { OpsSkapaPanel } from "./OpsSkapaPanel.jsx";
 import { OpsSkapa } from "./OpsSkapa.jsx";
@@ -775,6 +776,10 @@ export function useOppnaHandelse() {
  * @param {string} [props.redigeraGruppEtikett] Panelens rubrik för `skapa.redigeraGrupp`. Förval "Redigera grupp".
  * @param {string} [props.redigeraHandelseEtikett] (0.40.0, #214) Panelens rubrik när en händelse ändras (`useOppnaSkapa()("handelse", { id })`). Förval "Redigera händelse".
  * @param {string} [props.nyGruppEtikett] Ramverkets rad för `skapa.grupp`, och panelens rubrik. Förval "Ny grupp".
+ * @param {import("./OpsHubbar.jsx").OpsHubbarna} [props.hubbar] (0.52.0, cllp/lifehub.app#27) Hubbarna (instanserna) personen får öppna.
+ *   Given: märket heter den aktiva hubbens namn (om `brand` inte är satt), en chevron bredvid märket öppnar hubblistan (från `lg`,
+ *   och på alla bredder när `grupper` saknas), och gruppväxlarens ark börjar med hubbarna (under `lg`). Utelämnad: skalet som förut. Se `OpsHubbar.jsx`.
+ * @param {string} [props.hubbEtikett] (0.52.0) Skärmläsarnamnet på chevronen vid märket. Förval "Byt hubb".
  * @param {string} [props.nyttMeddelandeEtikett] (0.34.0) Ramverkets rad för `skapa.meddelande`, och panelens rubrik. Förval "Nytt meddelande".
  * @param {string} [props.skickaEtikett] (0.34.0) Panelens knapp för `skapa.meddelande`. Förval "Skicka".
  * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
@@ -805,6 +810,8 @@ function OpsAppShellRitad({
   bottomNavLabel = ORD_OPSAPPSHELL.bottomNavLabel.sv,
   menuExtras,
   grupper,
+  hubbar,
+  hubbEtikett = ORD_OPSAPPSHELL.hubbEtikett.sv,
   meny,
   skapa,
   handelsepanel,
@@ -1473,9 +1480,13 @@ function OpsAppShellRitad({
   const aktivGrupp = grupper ? grupper.lista.find((g) => g.id === grupper.aktiv) : undefined;
   const gruppUndertext = aktivGrupp ? text(aktivGrupp.namn, grupper?.sprak ?? sprak).toLocaleUpperCase(grupper?.sprak ?? sprak) : undefined;
   const panelProp = grupper ? { panelInfalld: Boolean(grupper.infalld) } : {};
+  // ⛔ 0.52.0: MED `hubbar` HETER MÄRKET DEN AKTIVA HUBBEN ("MY HUB"), om appen inte satt `brand`. Märket och listan säger då
+  // samma sak om var man är, ur en och samma uppgift.
+  if (hubbar) provaHubbar(hubbar);
+  const markesnamn = brand === undefined && hubbar ? aktivHubbNamn(hubbar) : brand;
   const varumarke =
-    brand === undefined || typeof brand === "string"
-      ? <OpsBrand {...(brand === undefined ? {} : { namn: brand })} {...(gruppUndertext ? { undertext: gruppUndertext } : {})} {...panelProp} />
+    markesnamn === undefined || typeof markesnamn === "string"
+      ? <OpsBrand {...(markesnamn === undefined ? {} : { namn: markesnamn })} {...(gruppUndertext ? { undertext: gruppUndertext } : {})} {...panelProp} />
       : isValidElement(brand) && brand.type === OpsBrand
         ? cloneElement(/** @type {any} */ (brand), { ...(gruppUndertext ? { undertext: gruppUndertext } : {}), ...panelProp })
         : brand;
@@ -1704,6 +1715,32 @@ function OpsAppShellRitad({
             >
               {varumarke}
             </a>
+            {/* ⛔ 0.52.0: HUBBMENYN VID MÄRKET, SAMMA BRYTPUNKT SOM GRUPPANELEN (`lg`). Under `lg` ligger hubbarna i gruppväxlarens ark
+                i stället, på samma knapp (CP 2026-10-04: mobilen har bara en plats). Två vägar på samma skärmbredd hade varit två
+                sanningar om var man byter. Utan `grupper` finns inget ark, och då står menyn kvar på alla bredder. */}
+            {hubbar ? (
+              <div className={grupper ? "hidden lg:block" : "block"}>
+                <OpsPanel
+                  label={hubbEtikett}
+                  align="start"
+                  trigger={
+                    <button
+                      type="button"
+                      aria-label={`${hubbEtikett}, nu: ${aktivHubbNamn(hubbar)}`}
+                      className="flex size-11 items-center justify-center rounded-md text-ink-secondary hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    >
+                      <ChevronNedIkon size={16} />
+                    </button>
+                  }
+                >
+                  {() => (
+                    <div className="p-3">
+                      <OpsHubblista hubbar={hubbar} />
+                    </div>
+                  )}
+                </OpsPanel>
+              </div>
+            ) : null}
             {/*
               ⛔ #161: GRUPPVÄXLAREN, UNDER 1024 PX. Från `lg` tar panelen över
               (kolumnen ovan), så knappen här döljs där i stället för att ge
@@ -1724,6 +1761,7 @@ function OpsAppShellRitad({
                   rollNamn={grupper.rollNamn}
                   etikett={grupper.etikett}
                   nuEtikett={grupper.nuEtikett}
+                  hubbar={hubbar}
                 />
               </div>
             ) : null}
@@ -2104,6 +2142,7 @@ export const ORD_OPSAPPSHELL = {
   submenuLabel: { sv: "Visa sidorna under", en: "Show the pages under" },
   moreLabel: { sv: "Meny", en: "Menu" },
   badgeText: { sv: "nya", en: "new" },
+  hubbEtikett: { sv: "Byt hubb", en: "Switch hub" },
   bottomNavLabel: { sv: "Snabbnavigering", en: "Quick navigation" },
   skapaLabel: { sv: "Skapa", en: "Create" },
   nyHandelseEtikett: { sv: "Ny händelse", en: "New event" },

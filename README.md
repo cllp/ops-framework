@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**111 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**112 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -1118,6 +1118,12 @@ oförändrat):
 |---|---|
 | **1024 px och uppåt (`lg`)** | `OpsGruppanel`, en vänsterkolumn med ett kort per grupp och "Skapa grupp" sist. Ingen rad "Alla mina grupper" (0.35.0, #190). Kollapsbar till en smal remsa med bara märkena |
 | **Under 1024 px** | Ingen kolumn. I stället en `OpsGruppvaxlare`-knapp i headern (märke plus den aktiva gruppens namn), som öppnar SAMMA lista i `OpsPanel`s ark/rullgardin, i en enklare form (namn, medlemsantal, rollpill, ingen åtgärd/knapp/avatarrad). ⛔ **Arket har ingen "Skapa grupp" (0.37.0, CP 2026-09-30)**: det är för att byta grupp, och en ny grupp skapas med plussets "Ny grupp". `OpsGruppvaxlare` tar inte längre `onSkapa` eller `skapaEtikett`; utan grupper säger arket det och pekar på plusset (`tomText`) |
+
+**Hubbar ovanför grupperna (0.52.0, cllp/lifehub.app#27).** `hubbar` på `OpsAppShell`, `{ aktiv, lista: [{ id, namn, href }], allaHref }`,
+är instanserna personen får öppna. Under 1024 px börjar gruppväxlarens ark med hubbarna och grupperna står under
+"Grupper i <hubb>"; från 1024 px heter märket den aktiva hubben och en chevron bredvid öppnar samma lista. Den aktiva
+hubben är ingen länk, en annan hubb är en länk till appens `href`. `OpsHubblista` ritar listan för en app som vill ha
+den någon annanstans. CP 2026-10-04: "där är det precis på samma plats som man switchar grupper, inte hubbar."
 
 **Varje grupp i `lista`** (`GruppanelGrupp`, samma form `OpsGruppanel` och
 `OpsGruppvaxlare` tar direkt): `id`, `namn` (`{ sv, en }`), och sedan
