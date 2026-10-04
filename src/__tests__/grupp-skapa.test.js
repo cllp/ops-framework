@@ -372,3 +372,92 @@ describe("⛔ katalogerna seedas I SAMMA BATCH som gruppen, bara när appen ange
     expect(await kalla.list("handelsetyper", {})).toHaveLength(0);
   });
 });
+
+/**
+ * ⛔ DEN FÖRSTA EGNA GRUPPEN OCH APPARNA EN NY GRUPP BÖRJAR MED (0.51.0, cllp/lifehub.app#21).
+ *
+ * CP 2026-10-04: "Saknar man grupp ska man kunna skapa en egen ... Första gruppen är gratis, utan prenumeration och utan
+ * paywall." Varje prov nedan som släpper igenom någon utan vitlista har ett motprov som visar att samma person nekas
+ * när valet är av eller när hen redan äger en grupp: annars mäter provet bara att en dörr står öppen.
+ */
+describe("⛔ forstaGruppenFri: den första egna gruppen utan vitlista (0.51.0)", () => {
+  const fri = (/** @type {any} */ seed = {}, /** @type {any} */ extra = {}) => {
+    const kalla = createMemorySource({ vitlista: [], memberships: seed.memberships ?? [], groups: [], users: seed.users ?? [], invitations: [] });
+    return { kalla, tjanst: createGroupService({ kalla, forstaGruppenFri: true, ...extra }) };
+  };
+
+  it("den som aldrig ägt en grupp skapar sin första, utan vitlista och utan e-post, och blir ägare", async () => {
+    const { kalla, tjanst } = fri();
+    const svar = await tjanst.skapaGrupp({ uid: UID, epost: "", namn: "Prov Person", grupp: { namn: "Mitt projekt" } });
+    const grupp = await kalla.read("groups", svar.groupId);
+    expect(grupp.namn).toEqual({ sv: "Mitt projekt", en: "Mitt projekt" });
+    const agare = await kalla.read("memberships", medlemskapsId(UID, svar.groupId));
+    expect(agare).toMatchObject({ roll: "agare", status: "aktiv", namn: "Prov Person" });
+    expect(grupp.skapadAv).toMatchObject({ uid: UID, namn: "Prov Person" });
+  });
+
+  it("⛔ motprov: samma person utan forstaGruppenFri nekas, och ingenting skrivs", async () => {
+    const kalla = createMemorySource({ vitlista: [], memberships: [], groups: [], users: [], invitations: [] });
+    const tjanst = createGroupService({ kalla });
+    await expect(tjanst.skapaGrupp({ uid: UID, epost: "privat@example.com", grupp: { namn: "Mitt projekt" } })).rejects.toThrow(/står inte på vitlistan/);
+    await expect(tjanst.skapaGrupp({ uid: UID, epost: "", grupp: { namn: "Mitt projekt" } })).rejects.toThrow(/epost krävs/);
+    expect(await kalla.list("groups")).toEqual([]);
+  });
+
+  it("⛔ den andra gruppen går genom vitlistan: den som äger en grupp nekas utan vitlistning", async () => {
+    const { kalla, tjanst } = fri();
+    await tjanst.skapaGrupp({ uid: UID, epost: "privat@example.com", grupp: { namn: "Mitt projekt" } });
+    await expect(tjanst.skapaGrupp({ uid: UID, epost: "privat@example.com", grupp: { namn: "Ett till" } })).rejects.toThrow(/står inte på vitlistan/);
+    await expect(tjanst.skapaGrupp({ uid: UID, epost: "", grupp: { namn: "Ett till" } })).rejects.toThrow(/epost krävs/);
+    expect((await kalla.list("groups")).length).toBe(1);
+  });
+
+  it("⛔ ett AVSLUTAT ägarskap räknas: den fria gruppen går inte att få två gånger genom att lämna den första", async () => {
+    const { tjanst } = fri({ memberships: [{ id: `${UID}|gammal`, userId: UID, groupId: "gammal", roll: "agare", typ: "person", status: "avslutad" }] });
+    await expect(tjanst.skapaGrupp({ uid: UID, epost: "", grupp: { namn: "Mitt projekt" } })).rejects.toThrow(/epost krävs/);
+  });
+
+  it("att vara MEDLEM i någon annans grupp hindrar inte den första egna", async () => {
+    const { tjanst } = fri({ memberships: [{ id: `${UID}|annan`, userId: UID, groupId: "annan", roll: "medlem", typ: "person", status: "aktiv" }] });
+    expect((await tjanst.skapaGrupp({ uid: UID, epost: "", grupp: { namn: "Mitt projekt" } })).groupId).toBeTruthy();
+  });
+
+  it("den vitlistade som redan äger grupper skapar fler, som förut", async () => {
+    const kalla = createMemorySource({
+      vitlista: [{ id: EPOST, epost: EPOST, tillagdAv: {}, tid: "x" }],
+      memberships: [{ id: `${UID}|bolaget`, userId: UID, groupId: "bolaget", roll: "agare", typ: "person", status: "aktiv" }],
+      groups: [],
+      users: [],
+      invitations: [],
+    });
+    const tjanst = createGroupService({ kalla, forstaGruppenFri: true });
+    expect((await tjanst.skapaGrupp({ uid: UID, epost: EPOST, grupp: { namn: "Andra" } })).groupId).toBeTruthy();
+  });
+
+  it("⛔ forstaGruppenFri som inte är true eller false avvisas när tjänsten byggs", () => {
+    const kalla = createMemorySource({});
+    expect(() => createGroupService({ kalla, forstaGruppenFri: /** @type {any} */ ("ja") })).toThrow(/forstaGruppenFri/);
+  });
+});
+
+describe("⛔ moduler: apparna en ny grupp börjar med (0.51.0)", () => {
+  it("en ny grupp får appens förvalda appar", async () => {
+    const { kalla } = bygg();
+    const tjanst = createGroupService({ kalla, moduler: ["ekonomi"] });
+    const svar = await tjanst.skapaGrupp({ uid: UID, epost: EPOST, grupp: { namn: "Mitt projekt" } });
+    expect((await kalla.read("groups", svar.groupId)).moduler).toEqual(["ekonomi"]);
+  });
+
+  it("utan moduler börjar gruppen tom, som förut", async () => {
+    const { kalla, tjanst } = bygg();
+    const svar = await tjanst.skapaGrupp({ uid: UID, epost: EPOST, grupp: { namn: "Tom" } });
+    expect((await kalla.read("groups", svar.groupId)).moduler).toEqual([]);
+  });
+
+  it("⛔ ett felstavat modul-id avvisas när tjänsten byggs, inte när någon skapar en grupp", () => {
+    const kalla = createMemorySource({});
+    const medBatch = { ...kalla, batch: async () => [] };
+    expect(() => createGroupService({ kalla: medBatch, moduler: ["Ekonomi!"] })).toThrow(/moduler\[0\]/);
+    expect(() => createGroupService({ kalla: medBatch, moduler: /** @type {any} */ ("ekonomi") })).toThrow(/moduler måste vara en lista/);
+  });
+});
