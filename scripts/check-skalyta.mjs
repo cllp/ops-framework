@@ -3322,10 +3322,20 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
           const pl = /** @type {HTMLElement | null} */ (document.querySelector("[data-dagpanel-plats]"));
           const rad = document.querySelector("[data-datumpiller-rad]");
           const rader = rad ? new Set([...rad.children].map((c) => Math.round(c.getBoundingClientRect().top))).size : 0;
-          return pl ? { rader, ch: pl.clientHeight, sh: pl.scrollHeight } : null;
+          // Krysset får inte täcka datumet: textens högerkant mot märkets vänsterkant, för varje piller.
+          const tacker = [...document.querySelectorAll("[data-datumpiller]")].map((pill) => {
+            const t = [...pill.childNodes].find((n) => n.nodeType === 3);
+            const m = pill.querySelector("button > span");
+            if (!t || !m) return null;
+            const r = document.createRange();
+            r.selectNodeContents(t);
+            return Math.round(r.getBoundingClientRect().right - m.getBoundingClientRect().left);
+          });
+          return pl ? { rader, ch: pl.clientHeight, sh: pl.scrollHeight, tacker } : null;
         });
         matt.push(`${namn}: dagpanelen med tre dagar ${JSON.stringify(vaxer)}`);
         if (vaxer && vaxer.rader >= 2) {
+          krav(vaxer.tacker.length >= 3 && vaxer.tacker.every((x) => x !== null && x <= 0), `${namn}: krysset täcker datumet i pillren, textens högerkant minus märkets vänsterkant ${JSON.stringify(vaxer.tacker)} px, väntat högst 0 i alla tre (CP:s skärmbild 2026-10-04, "12 oktobe").`);
           krav(vaxer.sh <= vaxer.ch + 1, `${namn}: dagpanelen rullar invändigt (${vaxer.sh} px innehåll i ${vaxer.ch} px) med ${vaxer.rader} rader datumpiller, väntat att den växer med sitt innehåll (CP 2026-10-04).`);
         } else if (vp.width <= 400) {
           krav(false, `${namn}: datumpillren bröt inte rad (${JSON.stringify(vaxer)}), så kravet att panelen växer mäter ingenting här. Golvet är två rader vid 390 px.`);

@@ -197,7 +197,9 @@ function Datumpiller({ dayKey, onTaBort, order, locale }) {
        * absolutplacerade kryssen överlappade varandra. Marginalen tar höjd för kryssets
        * utstick (`-top-3.5 -right-3.5`, samma som SS `DayDetailPanel.js`).
        */
-      className="ops-contrast-panel relative mr-2 mb-1 inline-flex shrink-0 animate-svep items-center rounded-full bg-contrast-panel px-3.5 py-1.5 text-etikett font-semibold text-ink shadow-md"
+      // ⛔ pr-6 OCH INTE px-3.5 (0.53.0): krysset står i hörnet och täckte slutet av datumet ("12 oktobe"), syns på CP:s
+      // skärmbild 2026-10-04. Mätt i check-skalyta: textens högerkant ligger till vänster om märket.
+      className="ops-contrast-panel relative mr-2 mb-1 inline-flex shrink-0 animate-svep items-center rounded-full bg-contrast-panel py-1.5 pr-6 pl-3.5 text-etikett font-semibold text-ink shadow-md"
     >
       {text}
       {/* ⛔ KRYSSET ÄR ETT RUNT MÄRKE I PILLRETS HÖRN, PÅ VARJE PILLER (0.37.0), som SS-appen (`DayDetailPanel.js`, top -8,
