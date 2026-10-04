@@ -19,6 +19,7 @@ anteckningar är en version ingen kan välja att hoppa över.
   - Händelser, sök och notiser frågas också för en grupp modulen inte har data för, och ska då ge noll rader.
   - Varje steg skrivs ut, också de godkända och de tomma. Kommandot avslutas med 1 när ett steg faller.
   - Exempelmodulen går igenom alla 16 steg.
+
 ## 0.55.0
 
 ### Tillagt
