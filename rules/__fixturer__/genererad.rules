@@ -108,7 +108,7 @@ service cloud.firestore {
     // ekvivalenta med kontrollen som redan fanns, och en rad utan eget utfall är en rad som ser ut som en vakt.
     function opsTypavvikelse(p) {
       return p.keys().hasOnly(['yta', 'id', 'dold', 'namn'])
-        && p.yta in ['inkorg', 'kalender', 'handelser']
+        && p.yta in ['inkorg', 'kalender', 'handelser', 'aktivitet']
         && p.id is string && p.id.size() <= 100
         && p.id.matches('[a-z0-9][a-z0-9_-]*:[a-z0-9][a-z0-9_-]*')
         && (!('namn' in p)

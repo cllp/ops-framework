@@ -14,7 +14,9 @@
  *
  * 1. **Appens bas.** Gruppens egna kategorier (`katalog.js`), redigerbara i
  *    gruppens inställningar, gäller alltid.
- * 2. **Modulens bidrag.** `defineModule({ typer: { inkorg: [...], kalender: [...], handelser: [...] } })`.
+ * 2. **Modulens bidrag.** `defineModule({ typer: { inkorg: [...], kalender: [...], handelser: [...], aktivitet: [...] } })`.
+ *    `aktivitet` (0.55.0, cllp/ops-framework#244 beslut A) är aktivitetsloggens slag: en körning modulen gör (`ekonomi:synk`)
+ *    märks «från Ekonomi» i flödet på samma sätt som ett typbidrag, och appen ger den samma ord som ett eget slag.
  *    När gruppen har modulen PÅ läggs bidragen till listan VID RENDER:
  *    `bas ∪ bidrag(påslagna moduler)`. Inget synkjobb och ingen kopia i
  *    databasen: en kopia av en modul-typ i gruppens katalog är samma faktum
@@ -74,7 +76,7 @@ import { byggNamn, text } from "./sprak.js";
  * Hänvisningen är nyckeln i `typer`, alltså ASCII (`handelser`, inte `händelser`):
  * samma skäl som `externaDatakallor` (#216), ett fältnamn i en regel är ASCII.
  */
-export const TYPYTOR = /** @type {const} */ (["inkorg", "kalender", "handelser"]);
+export const TYPYTOR = /** @type {const} */ (["inkorg", "kalender", "handelser", "aktivitet"]);
 
 /** Tecknet mellan modul och id i ett bidrags värde. Står inte i `ID_FORM`, se filhuvudet. */
 export const MODULTYPAVGRANSARE = ":";
@@ -108,7 +110,7 @@ export const MAX_TYPID = 100;
 export const MODULTYPID_FORM = new RegExp(`^${ID_FORM.source.replace(/^\^/, "").replace(/\$$/, "")}${MODULTYPAVGRANSARE}${ID_FORM.source.replace(/^\^/, "").replace(/\$$/, "")}$`);
 
 /**
- * @typedef {"inkorg" | "kalender" | "handelser"} Typyta
+ * @typedef {"inkorg" | "kalender" | "handelser" | "aktivitet"} Typyta
  */
 
 /**
@@ -191,7 +193,7 @@ export function delaModultypId(varde) {
  */
 export function byggModulTyper(varde, var_) {
   /** @type {Record<string, Modultyp[]>} */
-  const ut = { inkorg: [], kalender: [], handelser: [] };
+  const ut = Object.fromEntries(TYPYTOR.map((yta) => [yta, []]));
   if (varde === undefined) return frysTyper(ut);
   if (!arObjekt(varde)) {
     throw var_("typer", `måste vara ett objekt { ${TYPYTOR.join(", ")} } med en lista per yta, inte ${Array.isArray(varde) ? "en lista" : varde === null ? "null" : typeof varde}. Utelämna fältet helt när modulen inte bidrar med några typer.`);
@@ -253,11 +255,11 @@ export function byggModulTyper(varde, var_) {
 
 /** @param {Record<string, Modultyp[]>} ut */
 function frysTyper(ut) {
-  return Object.freeze({
-    inkorg: Object.freeze(ut.inkorg.map((t) => Object.freeze(t))),
-    kalender: Object.freeze(ut.kalender.map((t) => Object.freeze(t))),
-    handelser: Object.freeze(ut.handelser.map((t) => Object.freeze(t))),
-  });
+  // ⛔ HÄRLEDD UR `TYPYTOR` (0.55.0). Här stod de tre ytorna uppräknade för hand, och när `aktivitet` lades till i listan
+  // tappade varje byggd modul den fjärde: provet "en tom lista per yta" blev rött på just den raden.
+  return /** @type {Readonly<Record<Typyta, ReadonlyArray<Modultyp>>>} */ (
+    Object.freeze(Object.fromEntries(TYPYTOR.map((yta) => [yta, Object.freeze((ut[yta] || []).map((t) => Object.freeze(t)))])))
+  );
 }
 
 /**
