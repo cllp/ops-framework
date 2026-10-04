@@ -9,6 +9,7 @@ import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
 import { KALENDERPRICK, postklasser } from "../lib/kalenderfarg.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
+import { LANGTRYCK_MS } from "../lib/talk.js";
 import { Dagruta } from "./OpsCalendarDagruta.jsx";
 import { HandelseLank } from "./HandelseLank.jsx";
 import {
@@ -1450,7 +1451,7 @@ export function OpsCalendar({
         setSvepar(false);
         setSvep(null);
         oppnaTitt(dayKey, el);
-      }, 450);
+      }, LANGTRYCK_MS);
       svepRef.current = { pekare: e.pointerId, ankare: dayKey, x: e.clientX, y: e.clientY, aktiv: false, nu: dayKey };
       setSvepar(true);
     },

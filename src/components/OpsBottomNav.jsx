@@ -4,6 +4,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { KryssIkon, MenuIcon, PlusIkon } from "./icons.jsx";
+import { TALK_ORD } from "../lib/talk.js";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
@@ -63,7 +64,7 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  * @param {string} [props.sheetLabel] Rubrik i överflödes-sheeten (annonseras av skärmläsaren).
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i sheeten.
  * @param {string} [props.badgeText] Skärmläsarord efter siffran i en badge, t.ex. "olästa" eller "att göra". Appen bestämmer vad den räknar.
- * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode }} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
+ * @param {{ label: string, onClick: () => void, icon?: import("react").ReactNode, talk?: { lage: string, knapp: Record<string, any> } }} [props.primaryAction] Det man GÖR här, inte går till. Ritas som en rund knapp mitt i raden. `label` är knappens namn för skärmläsare och står aldrig som text: en rund knapp har ingen plats för ord.
  * @param {import("react").ReactNode} [props.menuExtras] Extra kontroller i Mer-sheeten (samma som header-hamburgaren), t.ex. tema och helskärm.
  * @param {import("./OpsMeny.jsx").MenyKonfiguration} [props.meny] Skalets meny (#164, andra granskningen), SAMMA `meny`-prop som
  *   `OpsAppShell` (`meny.sektioner`, `meny.onLoggaUt`, `meny.appVersion`, `meny.rubrik`,
@@ -261,23 +262,32 @@ function OpsBottomNavRitad({
  * etikett. En knapp på 56 px rymmer inget ord, och ett avhugget ord under den
  * ser ut som ett fel.
  *
- * @param {{ atgard: { label: string, onClick: () => void, icon?: import("react").ReactNode } }} props
+ * ⛔ MED `talk` (0.57.0, cllp/lifehub.app#2) är ett långtryck TALK och ett vanligt tryck `onClick` som förut. `talk`
+ * är vad `useTalk` lämnar, så den som äger kroken äger också fältet (`OpsTalk`) och raden i Skapa.
+ *
+ * @param {{ atgard: { label: string, onClick: () => void, icon?: import("react").ReactNode, talk?: { lage: string, knapp: Record<string, any> } } }} props
  */
 function Huvudatgard({ atgard }) {
+  const talk = atgard.talk;
+  // ⛔ MED TALK STYR KROKEN KLICKET (`useTalk`): ett långtryck följs av ett klick, och det får inte öppna Skapa.
+  const handelser = talk ? talk.knapp : { onClick: atgard.onClick };
+  const haller = talk?.lage === "haller";
   return (
     <div className="flex shrink-0 items-center justify-center px-1">
       <button
         type="button"
-        onClick={atgard.onClick}
-        aria-label={atgard.label}
+        {...handelser}
+        data-talk-knapp={talk ? talk.lage : undefined}
+        aria-label={haller ? TALK_ORD : atgard.label}
         className={cx(
-          "-translate-y-3 inline-flex size-14 cursor-pointer items-center justify-center rounded-full",
+          "-translate-y-3 inline-flex size-14 cursor-pointer touch-none items-center justify-center rounded-full select-none [-webkit-touch-callout:none]",
           "bg-accent text-accent-contrast ring-4 ring-surface",
           "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         )}
       >
-        {atgard.icon ?? <PlusIkon size={26} />}
+        {/* ⛔ CP 2026-10-04: "Den skall bara heta en sak. TALK medans man håller inne knappen." */}
+        {haller ? <span className="text-etikett font-bold tracking-wide">{TALK_ORD}</span> : (atgard.icon ?? <PlusIkon size={26} />)}
       </button>
     </div>
   );

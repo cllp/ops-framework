@@ -4307,6 +4307,64 @@ for (const [namn, vp] of /** @type {const} */ ([["apparaden 390 px", { width: 39
   await context.close();
 }
 
+// ══ 39. TALK VID 390 OCH 1280 PX (0.57.0, cllp/lifehub.app#2) ════════════════════════════════════════════════════════════════
+// CP 2026-10-04: långtryck på plusset visar bara TALK, ett fält kommer fram och ligger kvar när man släpper, mikrofonen
+// skickar. På telefon mäts hållet på riktigt (mus ned, vänta, mus upp). På dator finns ingen bottenrad, så fältet öppnas ur
+// raden "TALK, prata in" i huvudets plus. Mätt: fältet står helt inom skärmen och OVANFÖR bottenraden (ett fält under tummen
+// som täcker plusset hade gjort att man inte ser var man tryckte), knapparna är minst 44 px, och sidan flödar inte i sidled.
+for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, height: 844 }], ["TALK 1280 px", { width: 1280, height: 900 }]])) {
+  const { page, context } = await oppna("talk", vp);
+  try {
+    if (vp.width < 768) {
+      const plus = page.locator("[data-talk-knapp]");
+      await plus.waitFor({ timeout: 4000 });
+      const r = await plus.boundingBox();
+      if (!r) throw new Error("plusset har ingen yta");
+      await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(650);
+      const haller = await plus.evaluate((b) => ({ text: (b.textContent || "").trim(), lage: b.getAttribute("data-talk-knapp") }));
+      matt.push(`${namn}: medan fingret ligger kvar ${JSON.stringify(haller)}`);
+      krav(haller.text === "TALK" && haller.lage === "haller", `${namn}: plusset visar ${JSON.stringify(haller.text)} i läget ${haller.lage} under hållet, väntat bara TALK.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-haller-${vp.width}.png`) });
+      await page.mouse.up();
+    } else {
+      await page.locator("header").getByRole("button", { name: "Skapa" }).first().click();
+      const rad = page.getByRole("button", { name: "TALK, prata in" });
+      await rad.waitFor({ timeout: 4000 });
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-skapa-${vp.width}.png`), clip: { x: vp.width - 640, y: 0, width: 640, height: 360 } });
+      await rad.click();
+    }
+    await page.waitForSelector("[data-ops-talk]", { timeout: 4000 });
+    await page.waitForTimeout(400);
+    const m = await page.evaluate(() => {
+      const falt = /** @type {HTMLElement} */ (document.querySelector("[data-ops-talk]"));
+      const fr = falt.getBoundingClientRect();
+      const nav = [...document.querySelectorAll("nav")].find((n) => getComputedStyle(n).position === "fixed" && n.getBoundingClientRect().bottom >= window.innerHeight - 2 && getComputedStyle(n).display !== "none");
+      const knappar = [...falt.querySelectorAll("button")].filter((b) => !b.getAttribute("aria-label")?.startsWith("Fäll")).map((b) => { const r = b.getBoundingClientRect(); return { namn: b.getAttribute("aria-label"), w: r.width, h: r.height }; });
+      return { lage: falt.getAttribute("data-lage"), l: fr.left, r: fr.right, t: fr.top, b: fr.bottom, navTopp: nav ? nav.getBoundingClientRect().top : null, knappar, prickar: falt.querySelectorAll("[data-talk-prickar] > span").length, scroll: document.documentElement.scrollWidth, klient: document.documentElement.clientWidth };
+    });
+    matt.push(`${namn}: fältet ${m.lage} ${m.l.toFixed(0)}..${m.r.toFixed(0)} x ${m.t.toFixed(0)}..${m.b.toFixed(0)}, bottenraden från ${m.navTopp}, knappar ${JSON.stringify(m.knappar.map((k) => [k.namn, Math.round(k.w), Math.round(k.h)]))}, ${m.prickar} prickar`);
+    krav(m.lage === "lyssnar", `${namn}: fältet är i läget ${m.lage} efter släppet, väntat lyssnar (släppet avslutar inte).`);
+    krav(m.l >= 0 && m.r <= vp.width && m.b <= vp.height, `${namn}: fältet går utanför skärmen (${m.l.toFixed(0)}..${m.r.toFixed(0)}, botten ${m.b.toFixed(0)}).`);
+    if (m.navTopp !== null) krav(m.b <= m.navTopp, `${namn}: fältet slutar på ${m.b.toFixed(0)} och bottenraden börjar på ${m.navTopp.toFixed(0)}. Fältet ska stå ovanför.`);
+    if (vp.width < 768) krav(m.navTopp !== null, `${namn}: ingen bottenrad hittades på telefon.`);
+    krav(["Inställningar för TALK", "Skicka", "Avbryt"].every((n) => m.knappar.some((k) => k.namn === n)), `${namn}: knapparna är ${JSON.stringify(m.knappar.map((k) => k.namn))}, väntat kugghjul, Skicka och Avbryt.`);
+    krav(m.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5), `${namn}: en knapp i fältet är mindre än 44 px (${JSON.stringify(m.knappar)}).`);
+    krav(m.prickar >= 10, `${namn}: ${m.prickar} prickar, väntat minst 10.`);
+    krav(m.scroll <= m.klient, `${namn}: sidan flödar i sidled, scrollWidth ${m.scroll} > clientWidth ${m.klient}.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-falt-${vp.width}.png`) });
+    await page.getByRole("button", { name: "Skicka" }).click();
+    await page.waitForTimeout(250);
+    const skickat = await page.evaluate(() => ({ talk: window.__talk, kvar: !!document.querySelector("[data-ops-talk]") }));
+    krav(skickat.talk.length === 1 && skickat.talk[0].mimeType === "audio/webm", `${namn}: appen fick ${JSON.stringify(skickat.talk)}, väntat ett ljud.`);
+    krav(!skickat.kvar, `${namn}: fältet står kvar efter Skicka.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 if (bildmapp) {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const { page, context } = await oppna("kalender", vp);

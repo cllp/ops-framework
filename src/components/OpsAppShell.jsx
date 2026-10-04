@@ -9,7 +9,8 @@ import { OpsBottomNav } from "./OpsBottomNav.jsx";
 import { OpsGruppanel, OpsGruppvaxlare } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
-import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, PlusIkon, GruppIkon } from "./icons.jsx";
+import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
+import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -770,6 +771,9 @@ export function useOppnaHandelse() {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
+ * @param {import("./OpsTalk.jsx").TalkVal} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
+ *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. ⛔ Utan `talk` finns varken
+ *   långtrycket eller raden: en knapp som spelar in men inte har någon mottagare hade tappat det man sade.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
@@ -796,6 +800,7 @@ function OpsAppShellRitad({
   actions,
   anvandare,
   primaryAction,
+  talk,
   menuLabel = ORD_OPSAPPSHELL.menuLabel.sv,
   navLabel = ORD_OPSAPPSHELL.navLabel.sv,
   submenuLabel = ORD_OPSAPPSHELL.submenuLabel.sv,
@@ -839,6 +844,9 @@ function OpsAppShellRitad({
   // Samma skäl som `maxTopNavSmal`s kast nedan, och som punkt 5 i arbetsreglerna:
   // en tyst nedsläppsväg är värre än ett fel.
   const harFasta = fasta !== undefined;
+  if (talk !== undefined && (!talk || typeof talk.onTalk !== "function")) {
+    throw new Error("OpsAppShell: \"talk\" måste ha onTalk (funktion). Utan mottagare hade det man sade försvunnit tyst.");
+  }
   if (harFasta) {
     validateFasta(fasta, "OpsAppShell");
     if (Array.isArray(nav) && nav.length > 0) {
@@ -962,6 +970,11 @@ function OpsAppShellRitad({
   const skapaFormId = useId();
   /** @param {any} form */
   const oppnaSkapa = (form) => {
+    // ⛔ TALK-raden öppnar inget formulär, den öppnar fältet. Samma väg från båda plusen.
+    if (form?.kind === "talk") {
+      talkStyr.direkt();
+      return;
+    }
     if (typeof window !== "undefined") skapaRullning.current = window.scrollY;
     setSkapaMal(null);
     setSkapaVaxlare(false);
@@ -1191,11 +1204,11 @@ function OpsAppShellRitad({
 
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
   const skapaModulerRedo = skapaLaget?.tillstand === "redo";
-  const harRamverksrader = Boolean(skapa?.handelse) || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.meddelande === "function";
+  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.meddelande === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
-  const visaSkapaKnapp = Boolean(skapa) && (harRamverksrader || skapaModulerRedo);
+  const visaSkapaKnapp = (Boolean(skapa) || Boolean(talk)) && (harRamverksrader || skapaModulerRedo);
   // ⛔ EN VÄG ATT SKAPA EN GRUPP (0.32.0, #180): finns `skapa.grupp` öppnar "Skapa grupp" i panelen och plusset SAMMA
   // formulär, och appens `grupper.onSkapa` används inte. Utan `skapa.grupp` är `grupper.onSkapa` som förut.
   const grupperOnRedigera = typeof skapa?.redigeraGrupp === "function" ? (/** @type {string} */ id) => oppnaSkapa({ kind: "redigeragrupp", groupId: id }) : grupper?.onRedigera;
@@ -1392,6 +1405,12 @@ function OpsAppShellRitad({
     ),
   );
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
+  // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
+  const talkStyr = useTalk({
+    onTalk: (blob, meta) => talk?.onTalk(blob, meta),
+    onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
+    inspelare: talk?.inspelare,
+  });
 
   /**
    * Plussets lista: ramverkets rader, en avdelare, modulernas rader. EN
@@ -1405,6 +1424,8 @@ function OpsAppShellRitad({
           hör därför hit, inte till `OpsSkapa`s modul-lista. */}
       {harRamverksrader ? (
         <div className="flex flex-col gap-0.5 px-1">
+          {/* ⛔ TALK FÖRST (CP 2026-10-04): den snabbaste vägen in, och den enda som inte är en sort. */}
+          {talk ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label="TALK, prata in" accent onClick={() => oppna({ kind: "talk" })} /> : null}
           {skapa?.handelse ? (
             <OpsPanelRow
               icon={<HandelsePlusIkon size={18} />}
@@ -2045,13 +2066,28 @@ function OpsAppShellRitad({
         moreNav={harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))}
         activeHref={activeHref}
         onNavigate={onNavigate}
-        primaryAction={harFasta ? (visaSkapaKnapp ? { label: skapaLabel, onClick: () => setSkapaBottenOppen(true) } : undefined) : primaryAction}
+        primaryAction={(() => {
+          const pa = harFasta ? (visaSkapaKnapp ? { label: skapaLabel, onClick: () => setSkapaBottenOppen(true) } : undefined) : primaryAction;
+          return pa && talk ? { ...pa, talk: { lage: talkStyr.lage, knapp: talkStyr.knapp } } : pa;
+        })()}
         menuLabel={menuLabel}
         navLabel={bottomNavLabel}
         badgeText={badgeText}
         menuExtras={menuExtras}
         meny={meny ? { sprak, ...meny, app: [...flyttadeRader, ...(meny.app ?? [])] } : meny}
       />
+
+      {talk ? (
+        <OpsTalk
+          lage={talkStyr.lage}
+          fel={talkStyr.fel}
+          niva={talkStyr.niva}
+          onSkicka={talkStyr.skickaIn}
+          onAvbryt={talkStyr.avbryt}
+          onInstallningar={talk.onInstallningar}
+          marke={talk.marke}
+        />
+      ) : null}
 
       {/* ⛔ BOTTENRADENS PLUS ÖPPNAR ETT ARK MED SAMMA LISTA SOM HUVUDETS PLUS
           (0.30.0, #173, `renderSkapaLista`). Ett ark och inte en popover: en

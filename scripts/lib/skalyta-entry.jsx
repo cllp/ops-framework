@@ -258,6 +258,27 @@ function KalenderApparScen() {
 }
 
 /*
+ * 0.57.0 (cllp/lifehub.app#2): TALK. En inspelare utan mikrofon (nivån är en sinus så att prickarna rör sig), och det
+ * appen får lämnas i `window.__talk`. Saknas `talk` i den byggda versionen ritas skalet utan, och avsnitt 39 blir rött.
+ */
+function TalkScen() {
+  window.__talk = window.__talk || [];
+  const inspelare = {
+    starta: async () => {},
+    stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3.2 }),
+    kasta: () => {},
+    niva: () => 0.5 + 0.5 * Math.sin(Date.now() / 120),
+  };
+  return (
+    <Full talk={{ onTalk: (_b, meta) => window.__talk.push(meta), onInstallningar: () => {}, inspelare, marke: <span className="inline-flex size-8 items-center justify-center rounded-full bg-accent text-etikett font-bold text-accent-contrast">M</span> }}>
+      <Ops.OpsView>
+        <p>Idag</p>
+      </Ops.OpsView>
+    </Full>
+  );
+}
+
+/*
  * 0.37.0 (#179 F2): Hantera kalendrar. Gruppens kalendrar (Styrelsen förvald, Resor, en arkiverad) och mina (Privat,
  * Träning), med sparningar som skriver tillbaka i scenens tillstånd och i `window.__sparat`, som en app med en källa.
  * Saknas `OpsKalendrar` i den byggda versionen (0.36.0) ritas en markör, och avsnitt 31 blir rött på det.
@@ -660,7 +681,7 @@ const manyaGrupper = (lista) => [...lista, ...Array.from({ length: window.__mang
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined }) {
+function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(aktivIScenen());
   return (
@@ -681,6 +702,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions =
       anvandare={<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" size="md" />} />}
       skapa={skapa}
       handelsepanel={handelsepanel}
+      talk={talk}
       meny={meny}
       grupper={{ lista: utanGrupp() ? [] : window.__skal === "gruppkort" ? g2Lista : manyaGrupper(grupperLista), aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
     >
@@ -1144,6 +1166,7 @@ function Scen() {
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   if (s === "kalender") return <KalenderScen />;
   if (s === "kalender-appar") return <KalenderApparScen />;
+  if (s === "talk") return <TalkScen />;
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;
   if (s === "ny-handelse-nav") return <NavNyHandelseScen />;

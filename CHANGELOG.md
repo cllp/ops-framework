@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.57.0
+
+### Tillagt
+
+- **TALK: långtryck på plusset spelar in** (cllp/lifehub.app#2). CP 2026-10-04: medan man håller inne står det bara
+  en sak, TALK, och ett fält kommer fram så att man släpper och pratar vidare. `OpsAppShell talk={{ onTalk,
+  onInstallningar?, marke? }}`. Ett vanligt tryck är Skapa som förut. Mikrofonen skickar, det röda krysset kastar,
+  handtaget fäller ned fältet till en pill, kugghjulet ritas bara med `onInstallningar`. Ljudet lämnas till appen i
+  `onTalk(blob, { mimeType, sekunder })`, och vad det blir vet bara appen.
+- **Raden "TALK, prata in" först i Skapa**, i både huvudets och bottenradens plus. Den går rakt till fältet, så TALK
+  går att nå på en dator där bottenraden inte finns.
+- **`useTalk`, `OpsTalk`** och de rena delarna i `src/lib/talk.js` (`talkNasta`, `valjFormat`, `talkFeltext`,
+  `webblasarensInspelare`, `LANGTRYCK_MS`, `TALK_ORD`, `MAX_SEKUNDER`, `LJUDFORMAT`) för den som bygger en egen rad.
+  `OpsBottomNav` tar `primaryAction.talk`.
+- **check-skalyta avsnitt 39**: hållet mäts med mus ned och upp i Chromium vid 390 px, fältet öppnas ur Skapa vid
+  1280 px. Fältet ska stå inom skärmen och ovanför bottenraden, knapparna minst 44 px, och appen ska få ljudet.
+
+### Ändrat
+
+- **Kalenderns långtryck läser `LANGTRYCK_MS`** i stället för ett eget 450. En siffra, ett hem.
 ## 0.56.0
 
 ### Tillagt

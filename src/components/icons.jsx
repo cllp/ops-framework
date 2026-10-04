@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -58,6 +58,16 @@ export function FilIkon({ size = 20 }) {
 /** @param {{ size?: number }} props */
 export function ChevronNedIkon({ size = 16 }) {
   return <ChevronDown size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** TALK: mikrofonen i fältet, som skickar det som spelats in (0.57.0). @param {{ size?: number }} props */
+export function MikrofonIkon({ size = 20 }) {
+  return <Mic size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** TALK: inställningarna i fältet, vart det inspelade ska och vilken modell (0.57.0). @param {{ size?: number }} props */
+export function KugghjulIkon({ size = 20 }) {
+  return <Settings size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /** @param {{ size?: number }} props */
