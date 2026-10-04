@@ -350,9 +350,13 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, r
 }
 
 /**
- * Raderna i ENKEL FORM: namn, medlemsantal och rollpill, ingen åtgärd, ingen
- * knapp, ingen avatarstapel. Se `OpsGruppanel`s filhuvud för varför arket
- * inte återanvänder `GruppanelRader` rakt av (för smalt för hela kortet).
+ * Raderna i ENKEL FORM: namn, medlemsantal och rollpill, ingen info-knapp,
+ * ingen avatarstapel. Se `OpsGruppanel`s filhuvud för varför arket inte
+ * återanvänder `GruppanelRader` rakt av (för smalt för hela kortet).
+ *
+ * Pennan är samma väg som på kortet (`onRedigera`, bara `agare` eller `admin`).
+ * Den ligger BREVID raden, inte i den: raden är en `<button>`, och en knapp
+ * kan inte innehålla pennan. Ingen "Skapa grupp" (0.37.0).
  *
  * @param {object} props
  * @param {ReadonlyArray<GruppanelGrupp>} props.grupper
@@ -363,8 +367,10 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, r
  * @param {string} props.listEtikett
  * @param {string} [props.tomText]
  * @param {Record<string, string>} props.rollNamn
+ * @param {(id: string) => void} [props.onRedigera]
+ * @param {string} [props.redigeraEtikett]
  */
-function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, listEtikett, tomText, rollNamn }) {
+function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, listEtikett, tomText, rollNamn, onRedigera, redigeraEtikett }) {
   const mina = grupper ?? [];
   const valj = (/** @type {string} */ id) => {
     onValj(id);
@@ -378,15 +384,19 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, li
       {mina.map((g) => {
         const namn = text(g.namn, sprak);
         const vald = g.id === aktiv;
+        // Samma grind som `GruppanelRader`: pennan bara för ägare och admin, och bara när någon lyssnar.
+        const kanRedigera = typeof onRedigera === "function" && (g.roll === "agare" || g.roll === "admin");
+        // Samma förval som panelen. Inte ett parameterförval: check-sprak får inte stiga.
+        const pennNamn = redigeraEtikett || "Redigera grupp";
         return (
-          <li key={g.id}>
+          <li key={g.id} className="flex items-stretch gap-1">
             <button
               type="button"
               onClick={() => valj(g.id)}
               aria-current={vald ? "true" : undefined}
               aria-label={namn}
               className={cx(
-                "flex min-h-11 w-full items-center gap-2.5 border px-3 py-2 text-left",
+                "flex min-h-11 min-w-0 flex-1 items-center gap-2.5 border px-3 py-2 text-left",
                 RADIE,
                 "transition-colors duration-(--duration-fast) ease-standard",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -404,6 +414,21 @@ function EnkelGruppanelRader({ grupper, aktiv, onValj, onValjOchStang, sprak, li
               </span>
               {g.roll ? <OpsPill tone={g.roll === "agare" ? "info" : "neutral"}>{rollNamn[g.roll] || g.roll}</OpsPill> : null}
             </button>
+            {kanRedigera ? (
+              <button
+                type="button"
+                aria-label={`${pennNamn}, ${namn}`}
+                title={pennNamn}
+                onClick={() => onRedigera(g.id)}
+                className={cx(
+                  "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-ink-muted hover:bg-sunken hover:text-accent",
+                  RADIE,
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                )}
+              >
+                <AndraIkon size={16} />
+              </button>
+            ) : null}
           </li>
         );
       })}
@@ -619,6 +644,9 @@ export function OpsGruppanel({
  * (`skapa.grupp`). Gruppanelen på dator har kvar sin knapp. Är personen inte med i någon grupp säger arket det och
  * pekar på plusset (`tomText`), i stället för att vara tomt (arbetsreglernas punkt 5).
  *
+ * Pennan (0.58.0) är samma `onRedigera` som gruppanelen: ägare och admin, och
+ * samma formulär (`skapa.redigeraGrupp`). Ingen andra editor, och ingen "Skapa grupp".
+ *
  * ⛔ SE `OpsGruppanel`s FILHUVUD om brytpunkten (`OpsPanel`s `md`, inte 1024)
  * och om varför det är en medveten avvikelse och inte en glömd detalj.
  *
@@ -636,6 +664,8 @@ export function OpsGruppanel({
  * @param {import("./OpsHubbar.jsx").OpsHubbarna} [props.hubbar] (0.52.0, cllp/lifehub.app#27) Hubbarna personen får öppna. Given: arket
  *   börjar med hubbarna, och grupperna står under rubriken "Grupper i <hubb>" (`gruppRubrik`). Utelämnad: arket som förut.
  * @param {string} [props.gruppRubrik] (0.52.0) Rubriken över grupperna när `hubbar` är given. Förval "Grupper i <aktiv hubb>".
+ * @param {(id: string) => void} [props.onRedigera] (0.58.0) Pennan bredvid raden, bara för `roll` `agare` eller `admin`. Samma callback som `OpsGruppanel`.
+ * @param {string} [props.redigeraEtikett] Förval "Redigera grupp".
  */
 export function OpsGruppvaxlare({
   grupper,
@@ -650,6 +680,8 @@ export function OpsGruppvaxlare({
   nuEtikett = "nu",
   hubbar,
   gruppRubrik,
+  onRedigera,
+  redigeraEtikett,
 }) {
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppvaxlare: onValj krävs. En växlare som inte kan välja är en lista som ser ut som en kontroll.");
@@ -705,6 +737,8 @@ export function OpsGruppvaxlare({
             listEtikett={listEtikett}
             tomText={tomText}
             rollNamn={rollNamn}
+            onRedigera={typeof onRedigera === "function" ? (id) => { setOppet(false); onRedigera(id); } : undefined}
+            redigeraEtikett={redigeraEtikett}
           />
         );
         if (!hubbar) return rader;

@@ -9,6 +9,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.58.0
+
+### Rättat
+
+- **Gruppväljarens ark på telefon går att se hela vägen ned.** CP 2026-10-04, i lifehub-my inuti identity: sista gruppraden (PHST) klipptes av hemindikatorn. `env(safe-area-inset-bottom)` är 0 i den iframen även med `viewport-fit=cover`, så `pb-(--safe-bottom)` gjorde ingenting. Arkets padding är nu `--safe-bottom-ark`, `max(env(...), 34px)`. Listan rullar i arket, och sista raden går att rulla fram ovanför kanten.
+
+### Tillagt
+
+- **Ägare och admin kan redigera gruppen från växlarens ark.** Samma `onRedigera` som pennan i `OpsGruppanel` (och `skapa.redigeraGrupp` när skalet har den). Medlem, och en rad utan roll, får ingen penna. Ingen "Skapa grupp" i arket, det tog 0.37.0 bort.
+
 ## 0.57.0
 
 ### Tillagt

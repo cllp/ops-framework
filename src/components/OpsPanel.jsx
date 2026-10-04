@@ -367,12 +367,19 @@ export function OpsPanel({
   /*
    * ══ ⛔ SMAL SKÄRM: SAMMA SHEET SOM MENYN I BOTTENRADEN ══════════════════
    *
-   * Klasserna är avskrivna ur `OpsBottomNav` med flit, ned i `85dvh` och
-   * `--safe-bottom`. De två ska inte likna varandra, de ska vara samma yta:
-   * öppnar man Meny och sedan klockan ska ingenting röra sig.
+   * Klasserna är avskrivna ur `OpsBottomNav` med flit, ned i `85dvh`.
+   * Paddingen är `--safe-bottom-ark` och inte bara `--safe-bottom`: hubben
+   * kör i en iframe på identity, och där är `env(safe-area-inset-bottom)` 0
+   * även med `viewport-fit=cover`. Utan golvet (34px, hemindikatorn) ligger
+   * sista raden under kanten och går inte att rulla fram i sin helhet.
    *
    * ⛔ `dvh` OCH INTE `vh`. Safaris verktygsrad ändrar höjd, och `100vh` räknar
    * med den största, så underkanten hamnar utanför skärmen.
+   *
+   * ⛔ `overflow-hidden` PÅ ARKET, `min-h-0` OCH `overflow-y-auto` PÅ LISTAN.
+   * Ett `max-h` utan att klippa behållaren växer med innehållet och det som
+   * inte ryms hamnar under skärmen, utan rullning. Rubriken är `shrink-0` så
+   * flexen tar höjden från listan och inte från rubriken.
    */
   if (smal) {
     return (
@@ -382,7 +389,7 @@ export function OpsPanel({
           <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim" />
           <Dialog.Content
             aria-label={label}
-            className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom)", radBehallare({ ark: true }))}
+            className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col overflow-hidden pb-(--safe-bottom-ark)", radBehallare({ ark: true }))}
             aria-describedby={undefined}
           >
             {/*
@@ -396,7 +403,7 @@ export function OpsPanel({
               ny sheet. Vyns egen rubrik står i `OpsPanelHeader` inuti, med sin
               tillbakapil bredvid sig.
             */}
-            <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line px-4 py-3">
               <Dialog.Title className="m-0 text-rubrik font-bold text-ink">{label}</Dialog.Title>
               <div className="flex shrink-0 items-center gap-0.5">
                 {/* ⛔ ROTENS `action` HAMNAR HÄR PÅ SMAL SKÄRM, se noten ovanför
@@ -413,7 +420,7 @@ export function OpsPanel({
                 </Dialog.Close>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto p-1">{innehall}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pt-1 pb-3">{innehall}</div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>

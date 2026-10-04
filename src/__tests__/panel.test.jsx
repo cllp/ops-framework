@@ -321,23 +321,29 @@ describe("OpsPanel på smal skärm", () => {
 
   it("⛔ bär samma ytklasser som OpsBottomNavs sheet, inte bara liknande", () => {
     /*
-     * De två ska vara SAMMA yta: öppnar man Meny och sedan klockan ska
-     * ingenting röra sig. `85dvh` och `--safe-bottom` står här för att de är
-     * precis de två som är lätta att glömma, och båda syns bara på en riktig
-     * telefon: `dvh` för Safaris verktygsrad, `--safe-bottom` för hemknappen.
+     * `85dvh` syns bara på en riktig telefon (Safaris verktygsrad). Paddingen
+     * är `--safe-bottom-ark`: ett golv på 34px, inte bara env(), eftersom
+     * env är 0 i identity-iframe och sista raden annars ligger under hemindikatorn.
      */
     const stad = medBredd(true);
     try {
       const { container } = render(<Prov />);
       fireEvent.click(screen.getByRole("button", { name: "Öppna" }));
       const sheet = screen.getByRole("dialog", { name: "Meny" });
-      for (const klass of ["fixed", "inset-x-0", "bottom-0", "max-h-[85dvh]", "rounded-t-card", "bg-surface", "pb-(--safe-bottom)"]) {
+      for (const klass of ["fixed", "inset-x-0", "bottom-0", "max-h-[85dvh]", "overflow-hidden", "rounded-t-card", "bg-surface", "pb-(--safe-bottom-ark)"]) {
         expect(sheet.className, `sheeten saknar "${klass}"`).toContain(klass);
       }
+      const lista = sheet.querySelector(".overflow-y-auto");
+      expect(lista, "listan ska rulla inne i arket").toBeTruthy();
+      expect(lista.className).toContain("min-h-0");
       expect(container).toBeTruthy();
     } finally {
       stad();
     }
+  });
+
+  it("⛔ arkets botten har ett golv även när env(safe-area-inset-bottom) är 0", () => {
+    expect(tokensCss).toMatch(/--safe-bottom-ark:\s*max\(env\(safe-area-inset-bottom,\s*0px\),\s*34px\)/);
   });
 
   it("⛔ stacken fungerar likadant i sheeten, inklusive tillbakapilen", () => {
