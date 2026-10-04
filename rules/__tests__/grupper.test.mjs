@@ -583,6 +583,11 @@ describe("⛔ gruppen: typavvikelser skriver bara ägaren, och bara giltiga post
     await assertSucceeds(satt(AGARE, []));
   });
 
+  it("⛔ ytan aktivitet (0.55.0, #244 beslut A) går att dölja som de andra, en okänd yta nekas", async () => {
+    await assertSucceeds(satt(AGARE, [{ yta: "aktivitet", id: "ekonomi:synk", dold: true }]));
+    await assertFails(satt(AGARE, [{ yta: "loggen", id: "ekonomi:synk", dold: true }]));
+  });
+
   it("⛔ en admin skriver inte fältet, och tömmer inte en befintlig lista", async () => {
     await assertFails(satt(ADMIN, [giltig()]));
     await assertSucceeds(satt(AGARE, [giltig()]));

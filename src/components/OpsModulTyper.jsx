@@ -38,7 +38,7 @@ const rensa = (/** @type {unknown} */ v) => (typeof v === "string" ? v.trim() : 
  *
  * @param {object} props
  * @param {ReadonlyArray<import("../lib/modultyper.js").Typval>} props.bidrag Ur `bidragForGrupp(yta, ...)`: bidragen från påslagna moduler, dolda med.
- * @param {import("../lib/modultyper.js").Typyta} props.yta Ytan bidragen gäller (`inkorg`, `kalender`, `handelser`). Skickas tillbaka i `onAndra`.
+ * @param {import("../lib/modultyper.js").Typyta} props.yta Ytan bidragen gäller (`inkorg`, `kalender`, `handelser`, `aktivitet`). Skickas tillbaka i `onAndra`.
  * @param {(avvikelse: { yta: import("../lib/modultyper.js").Typyta, id: string, dold: boolean, namn?: { sv: string, en?: string } | null }) => void} [props.onAndra]
  * @param {boolean} [props.kanAndra] Sant för gruppens ägare.
  * @param {"sv" | "en"} [props.sprak]
@@ -54,7 +54,7 @@ export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak: s
     throw new Error("OpsModulTyper: bidrag krävs och måste vara en lista, även när den är tom. Skicka resultatet av bidragForGrupp.");
   }
   if (typeof yta !== "string" || !yta) {
-    throw new Error("OpsModulTyper: yta krävs (inkorg, kalender eller handelser). Den skickas tillbaka i onAndra, och en avvikelse utan yta vet inte vilken lista den gäller.");
+    throw new Error("OpsModulTyper: yta krävs (inkorg, kalender, handelser eller aktivitet). Den skickas tillbaka i onAndra, och en avvikelse utan yta vet inte vilken lista den gäller.");
   }
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [sv, setSv] = useState("");

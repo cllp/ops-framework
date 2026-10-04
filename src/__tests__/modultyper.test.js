@@ -62,12 +62,13 @@ const ctx = (over = {}) => ({ bas: BAS, moduler: [ekonomi()], modulerPa: ["ekono
 const idn = (/** @type {any[]} */ l) => l.map((t) => t.id);
 
 describe("typer i defineModule", () => {
-  it("⛔ en modul utan typer bär ändå tre tomma listor, och de är frysta", () => {
+  it("⛔ en modul utan typer bär ändå en tom lista per yta, också aktivitet, och de är frysta", () => {
     const m = defineModule(manifest());
     expect(Object.keys(m.typer).sort()).toEqual([...TYPYTOR].sort());
     for (const yta of TYPYTOR) expect(m.typer[yta]).toEqual([]);
     expect(Object.isFrozen(m.typer)).toBe(true);
     expect(Object.isFrozen(m.typer.inkorg)).toBe(true);
+    expect(TYPYTOR).toContain("aktivitet");
   });
 
   it("ett giltigt bidrag byggs med namn, ikon och färg, och saknade ikon och färg blir null", () => {

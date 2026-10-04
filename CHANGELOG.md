@@ -9,6 +9,28 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.55.0
+
+### Tillagt
+
+- **Ytan `aktivitet` i modulernas typbidrag** (cllp/ops-framework#244, beslut A). CP 2026-10-04: körningar hamnar i
+  aktivitetsflödet, märkta med appen. En modul bidrar med aktivitetsslag i `defineModule({ typer: { aktivitet: [...] } })`,
+  med värdet `modul:id` (`ekonomi:synk`), på samma sätt som med typer till Inkorgen och kalendern. `typerForGrupp`,
+  `typenForRad`, `typmarke`, ägarens avvikelser och regelfragmentet gäller ytan utan särfall, eftersom alla läser
+  `TYPYTOR`.
+- **`kindMarke` på `OpsActivityList` och `OpsActivityButton`.** Märket för en moduls slag, «från Ekonomi», ritas på raden
+  efter slagets ord och i detaljen ("Banksynk, från Ekonomi"). Appen härleder det med
+  `typmarke(typenForRad(slag, "aktivitet", ctx))`. Utan propen ritas inget märke, som förut.
+
+### Rättat
+
+- **`frysTyper` räknade upp ytorna för hand.** Den byggda modulen tappade varje yta som lades till i `TYPYTOR`. Nu
+  härleds den ur listan.
+
+### Regler
+
+- `typavvikelser[].yta` tillåter `aktivitet`. En app som döljer ett aktivitetsslag behöver de nya reglerna deployade
+  först.
 ## 0.54.0
 
 ### Tillagt
