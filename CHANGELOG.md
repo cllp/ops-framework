@@ -20,6 +20,12 @@ anteckningar är en version ingen kan välja att hoppa över.
   - Inga fält, inga ikon- eller färgval, inget språk och ingen Spara. `onSpara` anropas aldrig.
   - Grupperna och appens egna sektioner (`children`) står kvar.
   - Utan `konto` är vyn som förut.
+- **`regelfragment(namn, { kontoAgerPersonen: true })`.** Då får klienten bara ändra `tema` i sin egen `users`-rad och
+  aldrig skapa den: raden är en spegel som appens server skriver ur kontot. Utan valet är fragmentet byte för byte
+  som förut.
+- **`byggAnvandare`, `PROFILIKONER`, `PROFILFARGER` och `MAX_PRESENTATION` på nodsidan.** Kontot som äger personen och
+  appen som speglar den prövar den med samma byggare som klienten.
+
 ### Rättat
 
 - **Kalenderns dagpanel växer med sitt innehåll i telefonen.** CP 2026-10-04, med en skärmbild: "När datum bubblorna i
@@ -27,14 +33,6 @@ anteckningar är en version ingen kan välja att hoppa över.
   dagar bröt pillren rad och panelen fick en egen rullning som klippte postbubblan. Taket är nu 75 procent
   (`DAGPANEL_TAK`), och under det är panelen så hög som sitt innehåll. `check-skalyta` mäter det vid 390 px med tre
   valda dagar: med rättningen 310 px innehåll i 310 px, utan den 310 i 294.
-
-### Tillagt, forts.
-
-- **`regelfragment(namn, { kontoAgerPersonen: true })`.** Då får klienten bara ändra `tema` i sin egen `users`-rad och
-  aldrig skapa den: raden är en spegel som appens server skriver ur kontot. Utan valet är fragmentet byte för byte
-  som förut.
-- **`byggAnvandare`, `PROFILIKONER`, `PROFILFARGER` och `MAX_PRESENTATION` på nodsidan.** Kontot som äger personen och
-  appen som speglar den prövar den med samma byggare som klienten.
 
 ## 0.52.0
 
