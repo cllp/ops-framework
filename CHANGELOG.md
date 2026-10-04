@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.54.0
+
+### Tillagt
+
+- **Appfiltret i `OpsCalendar`** (cllp/ops-framework#244, beslut B och C). CP 2026-10-04: "Om man har många appar i en
+  grupp. Hur skall det då funka?"
+  - En rad med en knapp per app under verktygsraden: **Gruppens egna** och varje modul vars typer eller poster finns i
+    kalendern. Ett tryck döljer appens poster, ett till visar dem. Allt är synligt från början.
+  - Appen läses ut ur typens prefix (`ekonomi:kvitto` hör till Ekonomi). Inget nytt fält på posten. En post utan typ
+    hör till Gruppens egna.
+  - Typlistan i "Typ och status" visar bara de synliga apparnas typer. En vald typ vars app döljs släpps till Alla.
+  - Raden finns bara med minst två appar. Så många som ryms står i den, högst fyra, och resten under **Fler (n)**, med
+    en prick när något bland dem är dolt. Raden mäter sin bredd och rullar aldrig i sidled. **Visa alla** finns när
+    något är dolt.
+  - Nya props: `filterMinne` (vanligen gruppens id) gör valet personligt och sparat per grupp. Utan den gäller valet
+    bara den visningen. `typer[].modulNamn` blir appens namn i raden.
+- **`EGNA_APPEN`, `appForTyp` och `apparFor`** exporteras för appar som vill rita samma indelning någon annanstans.
+
 ## 0.53.0
 
 ### Tillagt

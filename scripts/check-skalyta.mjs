@@ -4257,6 +4257,56 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+// ══ 38. APPRADEN I KALENDERN VID 390 OCH 1280 PX (0.54.0, #244 beslut B och C) ═══════════════════════════════════════════════
+// CP 2026-10-04: "Om man har många appar i en grupp. Hur skall det då funka?" Sex appar: fyra i raden, två under Fler. Mätt:
+// raden är EN rad (alla knappar på samma höjd), knapparna är minst 44 px höga på telefon, sidan flödar inte i sidled, och ett
+// tryck på en app tar bort dess poster ur dagen och sparar valet under gruppen. jsdom kör ingen CSS, så höjd och radbrytning
+// går bara att se här.
+for (const [namn, vp] of /** @type {const} */ ([["apparaden 390 px", { width: 390, height: 844 }], ["apparaden 1280 px", { width: 1280, height: 900 }]])) {
+  const { page, context } = await oppna("kalender-appar", vp);
+  try {
+    await page.waitForSelector("[data-kalender-appar]", { timeout: 4000 });
+    const las = () => page.evaluate(() => {
+      const rad = /** @type {HTMLElement} */ (document.querySelector("[data-kalender-appar]"));
+      const knappar = [...rad.querySelectorAll("button")].map((b) => { const r = b.getBoundingClientRect(); return { text: (b.textContent || "").trim(), top: Math.round(r.top), h: r.height, r: r.right, pressed: b.getAttribute("aria-pressed") }; });
+      const dag = document.querySelector('[data-cal-day="2026-10-12"]');
+      return { knappar, radR: rad.getBoundingClientRect().right, scroll: document.documentElement.scrollWidth, klient: document.documentElement.clientWidth, dag: dag ? dag.getAttribute("aria-label") : null };
+    });
+    const fore = await las();
+    matt.push(`${namn}: ${JSON.stringify(fore.knappar.map((k) => [k.text, k.top, Math.round(k.h)]))}, dagen ${fore.dag}`);
+    const appknappar = fore.knappar.filter((k) => k.pressed !== null);
+    krav(appknappar.length >= 2 && appknappar.length <= 4, `${namn}: ${appknappar.length} appknappar i raden, väntat 2 till 4 (så många som ryms, resten under Fler).`);
+    if (vp.width >= 1024) krav(appknappar.length === 4, `${namn}: ${appknappar.length} appknappar på en bred skärm, väntat 4.`);
+    krav(fore.knappar.some((k) => /^Fler/.test(k.text)), `${namn}: ingen Fler-knapp med sex appar.`);
+    krav(new Set(fore.knappar.map((k) => k.top)).size === 1, `${namn}: knapparna står på ${new Set(fore.knappar.map((k) => k.top)).size} olika höjder, väntat en rad.`);
+    if (vp.width < 768) krav(fore.knappar.every((k) => k.h >= 43.5), `${namn}: en knapp är ${Math.min(...fore.knappar.map((k) => k.h))} px hög, väntat minst 44 på telefon.`);
+    krav(fore.scroll <= fore.klient, `${namn}: sidan flödar i sidled, scrollWidth ${fore.scroll} > clientWidth ${fore.klient}.`);
+    // ⛔ VARJE KNAPP HELT INOM SKÄRMEN. Första versionen klippte "Planering" och sköt Fler utanför 390 px, och raden rullade i
+    // sidled utan att det syntes. Höjd och radbrytning var gröna genom hela felet.
+    const utanfor = fore.knappar.filter((k) => k.r > vp.width - 15.5);
+    krav(utanfor.length === 0, `${namn}: ${utanfor.map((k) => `${k.text} slutar på ${k.r.toFixed(0)}`).join(", ")}, väntat inom ${vp.width - 16} px (sidans marginal).`);
+    krav(fore.knappar.some((k) => /^Fler/.test(k.text) && k.r <= vp.width - 15.5), `${namn}: Fler syns inte inom skärmen, så de dolda apparna går inte att nå.`);
+    await page.getByRole("button", { name: "Ekonomi", exact: true }).click();
+    await page.waitForTimeout(150);
+    const efter = await las();
+    const sparat = await page.evaluate(() => window.__lagring["ops-kalender-dolda-appar:g1"] ?? null);
+    matt.push(`${namn} efter Ekonomi: dagen ${efter.dag}, sparat ${sparat}`);
+    krav(efter.knappar.find((k) => k.text === "Ekonomi")?.pressed === "false", `${namn}: Ekonomi är inte markerad som dold efter trycket.`);
+    krav(efter.dag !== fore.dag, `${namn}: den 12 oktober säger samma sak före och efter att Ekonomi dolts (${efter.dag}). Kvittot ska inte räknas.`);
+    krav(sparat === '["ekonomi"]', `${namn}: valet sparades som ${sparat}, väntat ["ekonomi"] under gruppen g1.`);
+    // ⛔ RADEN BYTER INTE INNEHÅLL AV ETT TRYCK: samma appar i samma ordning före och efter (första mätningen flyttade Ekonomi
+    // in under Fler när Visa alla dök upp).
+    const appar = (/** @type {{ knappar: { text: string, pressed: string | null }[] }} */ x) => x.knappar.filter((k) => k.pressed !== null).map((k) => k.text);
+    krav(JSON.stringify(appar(efter)) === JSON.stringify(appar(fore)), `${namn}: raden bytte innehåll av trycket: ${JSON.stringify(appar(fore))} blev ${JSON.stringify(appar(efter))}.`);
+    const visaAlla = efter.knappar.some((k) => k.text === "Visa alla") || (await page.locator("[data-appar-fler]").count()) > 0;
+    krav(visaAlla, `${namn}: Visa alla går inte att nå när en app är dold (varken i raden eller under Fler).`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `apprad-${vp.width}.png`), clip: { x: 0, y: 0, width: vp.width, height: Math.min(vp.height, 420) } });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 if (bildmapp) {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const { page, context } = await oppna("kalender", vp);
