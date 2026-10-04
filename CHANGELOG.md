@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.59.0
+
+### Tillagt
+
+- **`createGroupService({ vitlistaKravs })`.** Förval `true`: vitlistan krävs som förut, och `forstaGruppenFri` betyder fortfarande bara den första egna gruppen. `false`: `skapaGrupp` läser inte vitlistan och kräver inte e-post, varken för den första gruppen eller för de följande. Samlingen, reglerna och `byggVitlisterad` står kvar. Appen slår av kravet tills betalning finns, och slår på det igen utan att funktionen tas bort.
+
 ## 0.58.0
 
 ### Rättat

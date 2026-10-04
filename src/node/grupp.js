@@ -43,6 +43,16 @@
  * ⛔ "ALDRIG ÄGT" OCH INTE "INGEN AKTIV". Ett avslutat ägarskap räknas, annars hade fri grupp nummer två
  * bara varit att lämna den första. Raderna läses med `userId == uid`, samma fråga som `minaGrupper`.
  *
+ * ══ ⛔ VITLISTAN GÅR ATT STÄNGA AV (0.59.0) ═════════════════════════════════
+ *
+ * `forstaGruppenFri` betyder fortfarande bara den första egna gruppen, och den frågan ställs bara när
+ * vitlistan krävs. Förvalet är att den krävs: en app som inte säger något beter sig som förut.
+ *
+ * ⛔ `vitlistaKravs: false` är appens val att inte rådfråga vitlistan alls, tills betalning finns och
+ * grinden ska på igen. Då krävs varken en rad i `vitlista` eller e-post på anropet, för den första
+ * gruppen och för varje grupp efter den. Samlingen, reglerna och `byggVitlisterad` står kvar. Funktionen
+ * tas inte bort: appen slår av kravet, och slår på det igen när betalningen finns.
+ *
  * ⛔ `moduler` ÄR APPARNA EN NY GRUPP BÖRJAR MED (0.51.0). Utan dem fick varje ny grupp `moduler: []`, och
  * en grupp vars hub är tom ser trasig ut och inte tom. Appen skickar in id:n, ramverket gissar inga, och
  * listan prövas när tjänsten byggs med samma `byggGrupp` som skrivvägen.
@@ -159,11 +169,12 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  *   medlemskap (0.33.0). Utelämnade: ingen seedning, och ingen tyst tom sådan heller.
  *   Ramverket ändrar dem aldrig i efterhand: de är startpunkten, gruppen äger sin kopia.
  * @param {ReadonlyArray<string>} [konfig.moduler] Apparna (modul-id) en ny grupp börjar med (0.51.0). Utelämnade: `[]`, som förut.
- * @param {boolean} [konfig.forstaGruppenFri] Den som aldrig ägt en grupp får skapa en utan vitlista och utan e-post (0.51.0). Förval av.
+ * @param {boolean} [konfig.forstaGruppenFri] Den som aldrig ägt en grupp får skapa en utan vitlista och utan e-post (0.51.0). Förval av. Gäller bara när vitlistan krävs.
+ * @param {boolean} [konfig.vitlistaKravs] Ska `skapaGrupp` läsa vitlistan (0.59.0). Förval `true`. `false`: ingen vitlista och ingen e-post, för första gruppen och för de följande, tills appen slår på kravet igen.
  * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }) => Promise<SkapaGruppSvar> }}
  */
 export function createGroupService(konfig) {
-  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, forstaGruppenFri = false } = konfig ?? {};
+  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, forstaGruppenFri = false, vitlistaKravs = true } = konfig ?? {};
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error("createGroupService: en datakälla med read, list och create krävs. Ramverket känner ingen databas.");
   }
@@ -188,6 +199,9 @@ export function createGroupService(konfig) {
   }
   if (typeof forstaGruppenFri !== "boolean") {
     throw new Error("createGroupService: forstaGruppenFri måste vara true eller false. Ett värde som råkar vara sant öppnar annars en väg in ingen valt.");
+  }
+  if (typeof vitlistaKravs !== "boolean") {
+    throw new Error("createGroupService: vitlistaKravs måste vara true eller false. Ett annat värde hade antingen släppt förbi vitlistan eller krävt den utan att någon valt.");
   }
   /*
    * ⛔ APPARNA PRÖVAS NÄR TJÄNSTEN BYGGS, med samma `byggGrupp` som skrivvägen, av samma skäl som katalogerna ovan:
@@ -229,7 +243,7 @@ export function createGroupService(konfig) {
       const epost = epostform(b?.epost);
       const uppgifter = b?.grupp && typeof b.grupp === "object" ? b.grupp : null;
       if (!uid) throw new Error("skapaGrupp: uid krävs.");
-      if (!epost && !forstaGruppenFri) throw new Error("skapaGrupp: epost krävs. Det är den som kontrolleras mot vitlistan, inte uid.");
+      if (vitlistaKravs && !epost && !forstaGruppenFri) throw new Error("skapaGrupp: epost krävs. Det är den som kontrolleras mot vitlistan, inte uid.");
       if (!uppgifter) throw new Error("skapaGrupp: grupp krävs, ett objekt med minst ett namn.");
 
       const namnSv = typeof uppgifter.namn === "string" ? rensa(uppgifter.namn) : rensa(/** @type {any} */ (uppgifter.namn)?.sv);
@@ -263,10 +277,15 @@ export function createGroupService(konfig) {
        * är vitlistad ska aldrig se hur långt resten av valideringen kommer.
        */
       /*
-       * ⛔ DEN FÖRSTA EGNA GRUPPEN (0.51.0). Bara när appen slagit på det, och bara för den som aldrig ägt en
-       * grupp: ett avslutat ägarskap räknas. Annars, och för grupp nummer två, går vägen genom vitlistan.
+       * ⛔ VITLISTAN (0.59.0). Krävs den inte läses den inte, och e-post krävs inte heller: första gruppen
+       * och varje grupp efter den. `forstaGruppenFri` gäller bara när vitlistan krävs, och betyder fortfarande
+       * bara den som aldrig ägt en grupp. Ett avslutat ägarskap räknas.
        */
-      const fri = forstaGruppenFri && !(await kalla.list(MEDLEMSKAP, { where: { userId: uid } })).some((m) => m && m.roll === "agare");
+      let fri = !vitlistaKravs;
+      if (!fri && forstaGruppenFri) {
+        const agt = (await kalla.list(MEDLEMSKAP, { where: { userId: uid } })).some((m) => m && m.roll === "agare");
+        fri = !agt;
+      }
       if (!fri) {
         if (!epost) throw new Error("skapaGrupp: epost krävs. Du äger redan en grupp, och en grupp till kräver att adressen står på vitlistan.");
         const vitlisterad = await kalla.read(VITLISTA, epost);
