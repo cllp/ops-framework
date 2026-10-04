@@ -29,6 +29,16 @@ anteckningar är en version ingen kan välja att hoppa över.
 ### Ändrat
 
 - **Kalenderns långtryck läser `LANGTRYCK_MS`** i stället för ett eget 450. En siffra, ett hem.
+## 0.56.0
+
+### Tillagt
+
+- **Modulens provsats** (cllp/ops-framework#244, klarkriteriet "en mall och en provsats som en agent kör").
+  `scripts/prova-modul.mjs <fil> --grupp <groupId>` och `provaModul(manifest, { groupId })`, med `provrapport(svar)`.
+  - Manifestet provas med `validateModuler`, och varje källa genom `skapaKallregister`, alltså samma vägar som appen.
+  - Händelser, sök och notiser frågas också för en grupp modulen inte har data för, och ska då ge noll rader.
+  - Varje steg skrivs ut, också de godkända och de tomma. Kommandot avslutas med 1 när ett steg faller.
+  - Exempelmodulen går igenom alla 16 steg.
 
 ## 0.55.0
 

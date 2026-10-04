@@ -1420,6 +1420,29 @@ ingen hittar; ett fält README lovar men exemplet inte visar är ett löfte utan
 täckning. Fältlistorna läses ur `src/lib/modul.js`, så vakten är inte en tredje
 sanning som själv kan glida isär.
 
+### Prova en modul innan den lämnas till granskning (0.56.0, #244)
+
+CP 2026-10-04: en agent ska kunna bygga en LifeHub-app, och den ska "falla in i ramverket". Koden granskas av någon annan
+än den som skrev (arbetsreglernas punkt 9), och granskaren ska inte behöva läsa modulen rad för rad för att veta att den
+håller kontraktet. Det svaret ger en körning:
+
+```
+node node_modules/@staiger/ops-framework/scripts/prova-modul.mjs src/moduler/ekonomi/index.js --grupp <en grupp med data>
+```
+
+Kommandot provar modulen genom samma vägar appen använder, inte genom egna regler:
+
+| Steg | Vad som provas |
+|---|---|
+| manifestet | `validateModuler` godkänner det |
+| källan `<yta>` | ytan anropas genom `skapaKallregister` för gruppen, och varje rad godkänns av registret. Noll rader är ett godkänt svar och skrivs ut som "0 rader" |
+| källan `<yta>`, en annan grupp | för händelser, sök och notiser (`GRUPPDATAYTOR`): en grupp modulen inte har data för (`PROV_FRAMMANDE_GRUPP`) ska ge noll rader. Annars filtrerar källan inte på gruppen den fick, och det är så en grupps data läcker till en annan |
+| typer för `<yta>` | modulens bidrag per yta, utskrivna |
+
+Varje steg skrivs ut, också de godkända, och kommandot avslutas med 1 när ett steg faller. `provaModul(manifest, { groupId })`
+och `provrapport(svar)` finns som funktioner för en app som vill köra samma sak i sina prov. Exempelmodulen går igenom alla
+16 steg.
+
 ⛔ **Manifestet importerar sin vy med `lazy`, och det är inte en
 prestandafråga.** Regelgeneratorn körs i ett Node-skript i appens CI, och Node
 kan inte läsa JSX. Med en direkt `import ... from "./Vy.jsx"` faller det

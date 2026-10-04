@@ -146,6 +146,7 @@ export { kopplaBeteenden, beteendet } from "./lib/beteenden.js";
  * gå att validera av det som körs utan skärm.
  */
 export { defineModule, validateModuler, KALLTYPER } from "./lib/modul.js";
+export { provaModul, provrapport, GRUPPDATAYTOR, PROV_FRAMMANDE_GRUPP } from "./lib/modulprov.js";
 /*
  * Modulernas bidrag till typer (0.42.0, #217): `typer` i `defineModule`, sammanslagningen `bas ∪ bidrag(påslagna)`
  * vid render, ägarens avvikelse (`typavvikelser` på gruppen) och märket «från <modul>».
