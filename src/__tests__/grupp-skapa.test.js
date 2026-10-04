@@ -440,6 +440,55 @@ describe("⛔ forstaGruppenFri: den första egna gruppen utan vitlista (0.51.0)"
   });
 });
 
+/**
+ * ⛔ VITLISTAN GÅR ATT STÄNGA AV (0.59.0). `forstaGruppenFri` betyder fortfarande bara den första egna gruppen
+ * när vitlistan krävs, och det är vad proven ovan låser. Här låses det andra: appen kan slå av kravet tills
+ * betalning finns, och då skapas både den första och de följande utan vitlista och utan e-post.
+ */
+describe("⛔ vitlistaKravs: vitlistan går att stänga av (0.59.0)", () => {
+  it("första och vidare grupper skapas utan vitlista och utan e-post, också efter ett avslutat ägarskap", async () => {
+    const kalla = createMemorySource({
+      vitlista: [],
+      memberships: [{ id: `${UID}|gammal`, userId: UID, groupId: "gammal", roll: "agare", typ: "person", status: "avslutad" }],
+      groups: [],
+      users: [],
+      invitations: [],
+    });
+    /** @type {string[]} */
+    const lasningar = [];
+    const original = kalla.read.bind(kalla);
+    kalla.read = async (samling, id) => {
+      lasningar.push(samling);
+      return original(samling, id);
+    };
+    const tjanst = createGroupService({ kalla, vitlistaKravs: false, forstaGruppenFri: true });
+    const a = await tjanst.skapaGrupp({ uid: UID, epost: "", grupp: { namn: "Travel" } });
+    const b = await tjanst.skapaGrupp({ uid: UID, epost: "", grupp: { namn: "Ett till" } });
+    expect(a.groupId).toBeTruthy();
+    expect(b.groupId).not.toBe(a.groupId);
+    expect((await kalla.list("groups")).length).toBe(2);
+    expect(lasningar).not.toContain("vitlista");
+  });
+
+  it("⛔ motprov: förvalet kräver fortfarande vitlistan för den som redan äger en grupp", async () => {
+    const kalla = createMemorySource({
+      vitlista: [],
+      memberships: [{ id: `${UID}|bolaget`, userId: UID, groupId: "bolaget", roll: "agare", typ: "person", status: "aktiv" }],
+      groups: [],
+      users: [],
+      invitations: [],
+    });
+    const tjanst = createGroupService({ kalla, forstaGruppenFri: true });
+    await expect(tjanst.skapaGrupp({ uid: UID, epost: "", grupp: { namn: "Ett till" } })).rejects.toThrow(/epost krävs/);
+    expect(await kalla.list("groups")).toEqual([]);
+  });
+
+  it("⛔ vitlistaKravs som inte är true eller false avvisas när tjänsten byggs", () => {
+    const kalla = createMemorySource({});
+    expect(() => createGroupService({ kalla, vitlistaKravs: /** @type {any} */ ("nej") })).toThrow(/vitlistaKravs/);
+  });
+});
+
 describe("⛔ moduler: apparna en ny grupp börjar med (0.51.0)", () => {
   it("en ny grupp får appens förvalda appar", async () => {
     const { kalla } = bygg();
