@@ -216,6 +216,48 @@ function KalenderScen() {
 }
 
 /*
+ * 0.54.0 (#244 beslut B och C): appraden. Samma kalender som `KalenderScen`, men med poster från fem moduler utöver
+ * gruppens egna, alltså sex appar: fyra i raden och två under "Fler". Valet sparas i `window.__lagring` under gruppen "g1".
+ */
+const APP_POSTER = [
+  ...KAL_POSTER,
+  { id: "kvitto", date: "2026-10-12", title: "Kvitto Clas Ohlson", typ: "ekonomi:kvitto", status: "oppet" },
+  { id: "lektion", date: "2026-10-12", title: "Matte, Elsa", typ: "skola:lektion", status: "oppet" },
+  { id: "prov", date: "2026-10-14", title: "Engelska prov, Olle", typ: "skola:prov", status: "oppet" },
+  { id: "sprint", date: "2026-10-12", title: "Sprintplanering", typ: "planering:mote", status: "oppet" },
+  { id: "pass", date: "2026-10-15", title: "Löpning", typ: "traning:pass", status: "klart" },
+  { id: "laxa", date: "2026-10-16", title: "Läxhjälp", typ: "familj:uppgift", status: "oppet" },
+];
+const APP_TYPER = [
+  { id: "mote", namn: "Möte" }, { id: "deadline", namn: "Deadline" }, { id: "resa", namn: "Resa" }, { id: "ledig", namn: "Ledig" },
+  { id: "ekonomi:kvitto", namn: "Kvitto", modulNamn: "Ekonomi" },
+  { id: "skola:lektion", namn: "Lektion", modulNamn: "Skola" }, { id: "skola:prov", namn: "Prov", modulNamn: "Skola" },
+  { id: "planering:mote", namn: "Möte", modulNamn: "Planering" },
+  { id: "traning:pass", namn: "Pass", modulNamn: "Träning" },
+  { id: "familj:uppgift", namn: "Uppgift", modulNamn: "Familj" },
+];
+function KalenderApparScen() {
+  const { OpsView, OpsCalendar } = Ops;
+  return (
+    <Full>
+      <OpsView>
+        <OpsCalendar
+          ariaLabel="Kalender"
+          entries={APP_POSTER}
+          today={KAL_IDAG}
+          kalendrar={KAL_KALENDRAR}
+          typer={APP_TYPER}
+          statusWords={{ oppet: "Öppet", vantar: "Väntar", klart: "Klart" }}
+          onSkapa={(d) => window.__skapat.push(d)}
+          filterMinne="g1"
+          lagring={{ getItem: (n) => window.__lagring[n] ?? null, setItem: (n, v) => { window.__lagring[n] = v; } }}
+        />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
  * 0.37.0 (#179 F2): Hantera kalendrar. Gruppens kalendrar (Styrelsen förvald, Resor, en arkiverad) och mina (Privat,
  * Träning), med sparningar som skriver tillbaka i scenens tillstånd och i `window.__sparat`, som en app med en källa.
  * Saknas `OpsKalendrar` i den byggda versionen (0.36.0) ritas en markör, och avsnitt 31 blir rött på det.
@@ -1101,6 +1143,7 @@ function Scen() {
   if (s === "fullyta-idag") return <FullYta vy="idag" />;
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   if (s === "kalender") return <KalenderScen />;
+  if (s === "kalender-appar") return <KalenderApparScen />;
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;
   if (s === "ny-handelse-nav") return <NavNyHandelseScen />;

@@ -11,8 +11,6 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.56.0
 
-⛔ Bygger på 0.54.0 och 0.55.0 (cllp/ops-framework#245, #246) och ges ut efter dem.
-
 ### Tillagt
 
 - **Modulens provsats** (cllp/ops-framework#244, klarkriteriet "en mall och en provsats som en agent kör").
@@ -21,6 +19,45 @@ anteckningar är en version ingen kan välja att hoppa över.
   - Händelser, sök och notiser frågas också för en grupp modulen inte har data för, och ska då ge noll rader.
   - Varje steg skrivs ut, också de godkända och de tomma. Kommandot avslutas med 1 när ett steg faller.
   - Exempelmodulen går igenom alla 16 steg.
+## 0.55.0
+
+### Tillagt
+
+- **Ytan `aktivitet` i modulernas typbidrag** (cllp/ops-framework#244, beslut A). CP 2026-10-04: körningar hamnar i
+  aktivitetsflödet, märkta med appen. En modul bidrar med aktivitetsslag i `defineModule({ typer: { aktivitet: [...] } })`,
+  med värdet `modul:id` (`ekonomi:synk`), på samma sätt som med typer till Inkorgen och kalendern. `typerForGrupp`,
+  `typenForRad`, `typmarke`, ägarens avvikelser och regelfragmentet gäller ytan utan särfall, eftersom alla läser
+  `TYPYTOR`.
+- **`kindMarke` på `OpsActivityList` och `OpsActivityButton`.** Märket för en moduls slag, «från Ekonomi», ritas på raden
+  efter slagets ord och i detaljen ("Banksynk, från Ekonomi"). Appen härleder det med
+  `typmarke(typenForRad(slag, "aktivitet", ctx))`. Utan propen ritas inget märke, som förut.
+
+### Rättat
+
+- **`frysTyper` räknade upp ytorna för hand.** Den byggda modulen tappade varje yta som lades till i `TYPYTOR`. Nu
+  härleds den ur listan.
+
+### Regler
+
+- `typavvikelser[].yta` tillåter `aktivitet`. En app som döljer ett aktivitetsslag behöver de nya reglerna deployade
+  först.
+## 0.54.0
+
+### Tillagt
+
+- **Appfiltret i `OpsCalendar`** (cllp/ops-framework#244, beslut B och C). CP 2026-10-04: "Om man har många appar i en
+  grupp. Hur skall det då funka?"
+  - En rad med en knapp per app under verktygsraden: **Gruppens egna** och varje modul vars typer eller poster finns i
+    kalendern. Ett tryck döljer appens poster, ett till visar dem. Allt är synligt från början.
+  - Appen läses ut ur typens prefix (`ekonomi:kvitto` hör till Ekonomi). Inget nytt fält på posten. En post utan typ
+    hör till Gruppens egna.
+  - Typlistan i "Typ och status" visar bara de synliga apparnas typer. En vald typ vars app döljs släpps till Alla.
+  - Raden finns bara med minst två appar. Så många som ryms står i den, högst fyra, och resten under **Fler (n)**, med
+    en prick när något bland dem är dolt. Raden mäter sin bredd och rullar aldrig i sidled. **Visa alla** finns när
+    något är dolt.
+  - Nya props: `filterMinne` (vanligen gruppens id) gör valet personligt och sparat per grupp. Utan den gäller valet
+    bara den visningen. `typer[].modulNamn` blir appens namn i raden.
+- **`EGNA_APPEN`, `appForTyp` och `apparFor`** exporteras för appar som vill rita samma indelning någon annanstans.
 
 ## 0.53.0
 

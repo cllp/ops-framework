@@ -118,7 +118,7 @@ export { OpsUtanMedlemskap } from "./components/OpsUtanMedlemskap.jsx";
 export { getTheme, setTheme, initTheme } from "./lib/theme.js";
 export { identityTone, initials, IDENTITY_TONE_COUNT } from "./lib/identity.js";
 export { urgency, splitTodayUpcoming, daysBetween, daysUntil, collectEvents } from "./lib/events.js";
-export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka, filtreraPoster, forvaldKalenderId } from "./lib/calendar.js";
+export { dateKey, todayKey, months, monthGrid, perDay, kalenderfonster, isoVecka, datumOmfang, bandIVecka, filtreraPoster, forvaldKalenderId, EGNA_APPEN, appForTyp, apparFor } from "./lib/calendar.js";
 export { readCaseFlow } from "./lib/caseFlow.js";
 export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";

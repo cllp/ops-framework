@@ -17,6 +17,8 @@
  * inte att ha.
  */
 
+import { delaModultypId } from "./modultyper.js";
+
 /**
  * @typedef {object} CalendarEntry
  * @property {string} id
@@ -540,16 +542,99 @@ export function forvaldKalenderId(kalendrar) {
  * ⛔ `valdaKalendrar: null` ÄR ALLA, OCH ETT TOMT URVAL BLIR ALDRIG "INGA" (verktygsraden gör det till `null`).
  *
  * @param {ReadonlyArray<CalendarEntry>} entries
- * @param {{ valdaKalendrar: ReadonlyArray<string> | null, forvaldId: string, typ?: string, status?: string }} filter
+ * ⛔ `doldaAppar` (0.54.0, cllp/ops-framework#244) är de appar PERSONEN dolt, inte de som visas. Därför syns en app som
+ * tillkommer efter att valet sparades, i stället för att vara dold av att den inte fanns när valet gjordes.
+ *
+ * @param {{ valdaKalendrar: ReadonlyArray<string> | null, forvaldId: string, typ?: string, status?: string, doldaAppar?: ReadonlyArray<string> }} filter
  * @returns {CalendarEntry[]}
  */
-export function filtreraPoster(entries, { valdaKalendrar, forvaldId, typ = "alla", status = "alla" }) {
+export function filtreraPoster(entries, { valdaKalendrar, forvaldId, typ = "alla", status = "alla", doldaAppar = [] }) {
+  const dolda = new Set(doldaAppar);
   return entries.filter((e) => {
+    if (dolda.size > 0 && dolda.has(appForTyp(e.typ))) return false;
     if (valdaKalendrar && !valdaKalendrar.includes(e.kalender ? e.kalender.id : forvaldId)) return false;
     if (typ !== "alla" && e.typ !== typ) return false;
     if (status !== "alla" && e.status !== status) return false;
     return true;
   });
+}
+
+/**
+ * ══ ⛔ APPFILTRET (0.54.0, cllp/ops-framework#244 beslut B och C) ════════════════════════════════════════════════════
+ *
+ * CP 2026-10-04: "Skall vi kunna filtrera här. Om man har många appar i en grupp. Hur skall det då funka?" Beslutet: App är
+ * en filternivå OVANFÖR typ, och valet är personens.
+ *
+ * ⛔ APPEN HÄRLEDS UR TYPENS PREFIX, ALDRIG UR ETT EGET FÄLT. `ekonomi:kvitto` säger redan att posten kom från Ekonomi
+ * (`delaModultypId`). Ett fält `app` på posten hade varit en andra kopia av samma faktum (arbetsreglernas punkt 2), och den
+ * dag en modul byter namn på en typ hade de två sagt olika saker.
+ *
+ * ⛔ GRUPPENS EGNA ÄR EN EGEN POST I FILTRET, och en post UTAN typ hör dit. Annars hade en post utan typ inte haft någon
+ * knapp alls, och den hade inte gått att dölja eller visa: den hade bara funnits (punkt 5).
+ */
+
+/** Appfiltrets id för gruppens egna kategorier. Kan aldrig krocka med en modul: ett modul-id följer `ID_FORM`, som inte har `*`. */
+export const EGNA_APPEN = "*egna";
+
+/**
+ * Appen en typ hör till: modulens id för ett bidrag, annars `EGNA_APPEN`.
+ * @param {unknown} typ @returns {string}
+ */
+export function appForTyp(typ) {
+  const delat = delaModultypId(typ);
+  return delat ? delat.modul : EGNA_APPEN;
+}
+
+/**
+ * Apparna i filtret: gruppens egna först, sedan modulerna i den ordning deras första typ står, och sist de moduler som
+ * bara finns på posterna (en modul som slagits av men vars rader finns kvar).
+ *
+ * ⛔ OCKSÅ POSTERNAS APPAR, INTE BARA TYPERNAS. En modul som slagits av bidrar inte med typer men dess rader finns kvar
+ * (`typenForRad`, "modul-av"). Räknades bara typerna hade de raderna inte haft någon knapp och inte gått att dölja.
+ *
+ * @param {ReadonlyArray<{ id: string, modulNamn?: string }>} typer Kalenderns typer. `modulNamn` är modulens namn för ett bidrag.
+ * @param {ReadonlyArray<{ typ?: string }>} entries
+ * @returns {{ id: string, namn: string }[]}
+ */
+export function apparFor(typer, entries) {
+  /** @type {Map<string, string>} */
+  const namn = new Map([[EGNA_APPEN, "Gruppens egna"]]);
+  for (const t of typer) {
+    const app = appForTyp(t.id);
+    if (!namn.has(app)) namn.set(app, (t.modulNamn && String(t.modulNamn).trim()) || app);
+  }
+  for (const e of entries) {
+    const app = appForTyp(e.typ);
+    if (!namn.has(app)) namn.set(app, app);
+  }
+  return [...namn].map(([id, n]) => ({ id, namn: n }));
+}
+
+/**
+ * Nyckeln personens dolda appar sparas under. `filterMinne` är appens val, vanligen gruppens id: ramverket känner inte
+ * gruppen och ska inte göra det.
+ * @param {string} filterMinne @returns {string}
+ */
+export function appfilterNyckel(filterMinne) {
+  return `ops-kalender-dolda-appar:${filterMinne}`;
+}
+
+/**
+ * Läser sparade dolda appar. En trasig eller saknad post ger tom lista, alltså allt synligt.
+ *
+ * ⛔ TOM LISTA OCH INTE ETT FEL VID TRASIG POST: värdet ligger i personens egen webbläsare, och det värsta en trasig post
+ * kan göra är att visa allt. Att kasta hade gjort kalendern oanvändbar för en sak som inte är ett fel i koden.
+ *
+ * @param {string | null | undefined} rad Det sparade värdet, eller null. @returns {string[]}
+ */
+export function lasDoldaAppar(rad) {
+  if (!rad) return [];
+  try {
+    const v = JSON.parse(rad);
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.length > 0) : [];
+  } catch {
+    return [];
+  }
 }
 
 /**

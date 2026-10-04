@@ -125,9 +125,9 @@ function sparaSedd(key, value) {
  * `OpsFilterChip` redan använder, så "öppen" ser likadant ut överallt i
  * ramverket.
  *
- * @param {{ handelse: any, slagord: string, slagIkon?: import("react").ReactNode, ny?: boolean, onOpen?: () => void }} props
+ * @param {{ handelse: any, slagord: string, marke?: string | null, slagIkon?: import("react").ReactNode, ny?: boolean, onOpen?: () => void }} props
  */
-function Rad({ handelse, slagord, slagIkon, ny, onOpen }) {
+function Rad({ handelse, slagord, marke, slagIkon, ny, onOpen }) {
   const [expanderad, setExpanderad] = useState(false);
   const trasig = handelse.resultat === "fel";
 
@@ -185,6 +185,15 @@ function Rad({ handelse, slagord, slagIkon, ny, onOpen }) {
             <span>{slagord}</span>
           </>
         ) : null}
+        {/* ⛔ MÄRKET FÖR EN MODULS SLAG (0.55.0, #244 beslut A): «från Ekonomi», så att en körning en modul gjort inte kan
+            förväxlas med ett av gruppens egna slag. Samma tydlighetsregel som typbidragen, och märket härleds av appen med
+            `typmarke`, aldrig skrivet för hand. */}
+        {marke ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <span data-aktivitet-marke="">{marke}</span>
+          </>
+        ) : null}
       </span>
     </>
   );
@@ -226,7 +235,7 @@ function Rad({ handelse, slagord, slagIkon, ny, onOpen }) {
       </div>
       {expanderad ? (
         <div className="border-t border-divider py-3 pr-1 pl-1">
-          <OpsActivityDetail handelse={handelse} slagord={slagord} />
+          <OpsActivityDetail handelse={handelse} slagord={slagord} marke={marke} />
         </div>
       ) : null}
     </li>
@@ -245,16 +254,16 @@ function Rad({ handelse, slagord, slagIkon, ny, onOpen }) {
  * eller GitHub-ärende." En rad utan `handelse.lank` visar sitt innehåll här och
  * lämnar ingenstans, och säger det inte heller: den ritar bara det den har.
  *
- * @param {{ handelse: any, slagord: string, nu?: Date | number }} props
+ * @param {{ handelse: any, slagord: string, marke?: string | null, nu?: Date | number }} props
  */
-export function OpsActivityDetail({ handelse, slagord, nu }) {
+export function OpsActivityDetail({ handelse, slagord, marke, nu }) {
   const h = handelse || {};
   const trasig = h.resultat === "fel";
 
   const fakta = [
     ["När", formatDateTime(h.nar)],
     ["Sedan dess", formatRelativeDate(h.nar, nu ? { now: nu } : undefined)],
-    ["Slag", slagord || h.slag || ""],
+    ["Slag", [slagord || h.slag || "", marke || ""].filter(Boolean).join(", ")],
     ["Jobb", h.kalla || ""],
     // ⛔ UTFALLET STÅR BARA NÄR DET GICK BRA. Ett misslyckande säger det redan
     // med rött ord överst och med feltexten i rutan; en tredje "Gick fel" i
@@ -313,6 +322,8 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
  * @param {object} props
  * @param {any[]} props.entries Nyast först. ⛔ Appen sorterar: den vet vilken klocka som gäller.
  * @param {(slag: string) => string} [props.kindLabel]
+ * @param {(slag: string) => string | null} [props.kindMarke] (0.55.0, #244) Märket för ett slag en modul bidragit med, «från Ekonomi».
+ *   `null` för gruppens egna slag. Appen härleder det med `typmarke(typenForRad(slag, "aktivitet", ctx))`.
  * @param {(slag: string) => import("react").ReactNode} [props.kindIcon] Ikonen i den runda plattan (#158).
  *   Saknas den för ett slag ritas ingen platta på just den raden.
  * @param {import("react").ReactNode} [props.empty]
@@ -327,7 +338,7 @@ export function OpsActivityDetail({ handelse, slagord, nu }) {
  *   avsnitt, och `text()` läser ut rätt språk. Standardar till svenska, precis
  *   som `text()` själv gör.
  */
-export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, onOpen, fler = 0, onMore, now, sprak: sprakProp }) {
+export function OpsActivityList({ entries, kindLabel, kindMarke, kindIcon, empty, lasning, onOpen, fler = 0, onMore, now, sprak: sprakProp }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -355,6 +366,7 @@ export function OpsActivityList({ entries, kindLabel, kindIcon, empty, lasning, 
                 key={activityId(h)}
                 handelse={h}
                 slagord={kindLabel ? kindLabel(h.slag) : ""}
+                marke={kindMarke ? kindMarke(h.slag) : null}
                 slagIkon={kindIcon ? kindIcon(h.slag) : null}
                 ny={lasning ? unread(h, lasning) : false}
                 onOpen={onOpen ? () => onOpen(h) : undefined}
@@ -475,6 +487,7 @@ export function OpsActivityListActions({ filter, filterLabel = "Filter", onClear
  * @param {object} props
  * @param {any[]} props.entries Nyast först.
  * @param {(slag: string) => string} [props.kindLabel]
+ * @param {(slag: string) => string | null} [props.kindMarke] Vidarebefordras till `OpsActivityList`.
  * @param {(slag: string) => import("react").ReactNode} [props.kindIcon]
  * @param {string} [props.title] Panelens rubrik.
  * @param {string} [props.label] Knappens namn för skärmläsare, utan antalet.
@@ -500,6 +513,7 @@ export function OpsActivityListActions({ filter, filterLabel = "Filter", onClear
 export function OpsActivityButton({
   entries,
   kindLabel,
+  kindMarke,
   kindIcon,
   title = "Aktivitet",
   label = "Aktivitet",
@@ -654,6 +668,7 @@ export function OpsActivityButton({
         <OpsActivityList
           entries={visade}
           kindLabel={kindLabel}
+          kindMarke={kindMarke}
           kindIcon={kindIcon}
           empty={empty}
           lasning={fryst}
