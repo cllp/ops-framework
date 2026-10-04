@@ -8,6 +8,7 @@ import { OpsPill } from "./OpsPill.jsx";
 import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
 import { text } from "../lib/sprak.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
+import { OpsHubblista, aktivHubbNamn } from "./OpsHubbar.jsx";
 
 /**
  * Grupp-panelen: SessionStudios arbetsytor, MÄTTA ur källan (#161).
@@ -632,6 +633,9 @@ export function OpsGruppanel({
  * @param {Record<string, string>} [props.rollNamn]
  * @param {string} [props.etikett] Skärmläsarnamn på hela växlaren/arket.
  * @param {string} [props.nuEtikett] (0.31.1) Ordet före det aktiva namnet i knappens skärmläsarnamn: "Byt grupp, nu: Alfa AB". Förval "nu".
+ * @param {import("./OpsHubbar.jsx").OpsHubbarna} [props.hubbar] (0.52.0, cllp/lifehub.app#27) Hubbarna personen får öppna. Given: arket
+ *   börjar med hubbarna, och grupperna står under rubriken "Grupper i <hubb>" (`gruppRubrik`). Utelämnad: arket som förut.
+ * @param {string} [props.gruppRubrik] (0.52.0) Rubriken över grupperna när `hubbar` är given. Förval "Grupper i <aktiv hubb>".
  */
 export function OpsGruppvaxlare({
   grupper,
@@ -644,6 +648,8 @@ export function OpsGruppvaxlare({
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
   etikett = "Byt grupp",
   nuEtikett = "nu",
+  hubbar,
+  gruppRubrik,
 }) {
   if (typeof onValj !== "function") {
     throw new Error("OpsGruppvaxlare: onValj krävs. En växlare som inte kan välja är en lista som ser ut som en kontroll.");
@@ -688,18 +694,34 @@ export function OpsGruppvaxlare({
         </button>
       }
     >
-      {() => (
-        <EnkelGruppanelRader
-          grupper={mina}
-          aktiv={aktiv}
-          onValj={onValj}
-          onValjOchStang={() => setOppet(false)}
-          sprak={sprak}
-          listEtikett={listEtikett}
-          tomText={tomText}
-          rollNamn={rollNamn}
-        />
-      )}
+      {() => {
+        const rader = (
+          <EnkelGruppanelRader
+            grupper={mina}
+            aktiv={aktiv}
+            onValj={onValj}
+            onValjOchStang={() => setOppet(false)}
+            sprak={sprak}
+            listEtikett={listEtikett}
+            tomText={tomText}
+            rollNamn={rollNamn}
+          />
+        );
+        if (!hubbar) return rader;
+        // ⛔ 0.52.0: HUBBARNA ÖVERST, GRUPPERNA UNDER EN RUBRIK SOM NÄMNER HUBBEN. Se `OpsHubbar.jsx`. Samma ark och samma knapp
+        // som förut, eftersom mobilen bara har en plats (CP 2026-10-04): hubben ligger en rad högre upp, inte på en egen knapp.
+        return (
+          <div className="flex flex-col gap-4">
+            <OpsHubblista hubbar={hubbar} />
+            <section aria-label={gruppRubrik ?? `Grupper i ${aktivHubbNamn(hubbar)}`}>
+              <h2 className="m-0 mb-2 text-meta font-semibold uppercase tracking-wide text-ink-secondary">
+                {gruppRubrik ?? `Grupper i ${aktivHubbNamn(hubbar)}`}
+              </h2>
+              {rader}
+            </section>
+          </div>
+        );
+      }}
     </OpsPanel>
   );
 }
