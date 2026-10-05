@@ -13,6 +13,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 Tre grenar samlade i en version (#253, #255 och #256), eftersom alla tre gjorde anspråk på 0.60.0 eller 0.61.0.
 
+### Plusset i toppraden är huvudåtgärden (CP 2026-10-05)
+
+#### Ändrat
+
+- **Plusset i toppraden är en fylld accentcirkel på dator, och ligger först i högerklustret.** CP 2026-10-05: "Kan man göra +et sådär framträdande som det är på mobil. Samma position men större och framträdande. Kanske skall ligga längst till vänster av ikonerna i topraden till höger?" Från `md` är plusset 40 px (`bg-accent text-accent-contrast`, `hover:bg-accent-hover`) med en 24 px ikon, fortfarande med 44 px träffyta, och står före `actions` (inkorgen och de andra ikonlänkarna), avataren och hamburgaren. Före 0.60.0 var det en dämpad 36 px cirkel sist bland `actions` och före avataren. Den dämpades i 0.30.0 (#168, #173) eftersom en fylld knapp bland likar "skrek"; förutsättningen är ändrad, plusset är huvudåtgärden och inte en ikon bland ikoner. Under `md` är allt som förut: gömt när bottenraden har ett eget plus, annars den dämpade 36 px cirkeln. Ny `huvudPlusKlass` i `radKlass.js`. `check-skalyta` mäter 40 px, accentbakgrund (mot `--color-accent`) och `plus.x < inkorg.x`.
+
 ### Nodsidan för TALK (cllp/lifehub.app#37, #253)
 
 #### Tillagt

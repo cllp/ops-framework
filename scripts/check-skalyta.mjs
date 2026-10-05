@@ -15,7 +15,8 @@
  *
  *   1. MENYN: ingen avgränsare närmare en annan än 24 px, i arket (390 px) och i
  *      rullgardinen (1280 px). Två streck 8 px från varandra under arkets rubrik.
- *   2. HUVUDETS KNAPPAR (1280 px): plus, ikonlänk och hamburgare är 36 px cirklar med 20 px ikon, avataren
+ *   2. HUVUDETS KNAPPAR (1280 px): ikonlänk och hamburgare är 36 px cirklar med 20 px ikon, PLUSSET (0.60.0, CP 2026-10-05) en fylld
+ *      40 px accentcirkel med 24 px ikon som ligger FÖRST i klustret (till vänster om inkorgen), avataren
  *      en 28 px cirkel i en 32 px knapp, alla med 44 px träffyta, och mittlinjerna
  *      skiljer högst 1 px.
  *   3. LOGGAN: märket i toppraden bär ingen text och är inte högre än toppraden (56 px).
@@ -198,12 +199,19 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
       const cs = getComputedStyle(el);
       const efter = getComputedStyle(el, "::after");
       const svg = el.querySelector("svg");
-      return { x: r.x, y: r.y, w: r.width, h: r.height, ikon: svg ? svg.getBoundingClientRect().width : 0, mitt: r.y + r.height / 2, radie: parseFloat(cs.borderTopLeftRadius) || 0, efterBredd: parseFloat(efter.width) || 0, efterHojd: parseFloat(efter.height) || 0 };
+      return { x: r.x, y: r.y, w: r.width, h: r.height, ikon: svg ? svg.getBoundingClientRect().width : 0, mitt: r.y + r.height / 2, radie: parseFloat(cs.borderTopLeftRadius) || 0, bakgrund: cs.backgroundColor, efterBredd: parseFloat(efter.width) || 0, efterHojd: parseFloat(efter.height) || 0 };
     };
     const q = (/** @type {string} */ s) => document.querySelector(s);
     const header = q("header");
     const brand = q('header a[href="/"]');
+    // Det BERÄKNADE värdet av --color-accent, i samma form som `backgroundColor` (rgb), via ett prov-element.
+    const accentProv = document.createElement("div");
+    accentProv.style.backgroundColor = "var(--color-accent)";
+    document.body.appendChild(accentProv);
+    const accent = getComputedStyle(accentProv).backgroundColor;
+    accentProv.remove();
     return {
+      accent,
       plus: rut(q('button[aria-label="Skapa"]')),
       inkorg: rut(q('a[aria-label="Inkorg"]')),
       avatar: rut(q('a[aria-label="Min profil"]')),
@@ -224,12 +232,23 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
     krav(Math.max(...mitt) - Math.min(...mitt) <= 1, `huvudet: mittlinjerna skiljer ${(Math.max(...mitt) - Math.min(...mitt)).toFixed(2)} px (${knappar.map((k, i) => `${k} ${mitt[i].toFixed(1)}`).join(", ")}). Väntat högst 1 px.`);
     for (const k of /** @type {const} */ (["plus", "inkorg", "hamburgare"])) {
       const r = m[k];
-      krav(Math.abs(r.w - 36) < 0.5 && Math.abs(r.h - 36) < 0.5, `huvudet: ${k} är ${r.w}x${r.h} px, väntat en 36 px cirkel.`);
-      // ⛔ 1280 px: SS 20 px står kvar. CP 2026-10-05: "563 är bara i mobil." Telefonens 24 px mäts i sektion 6.
-      krav(Math.abs(r.ikon - 20) < 0.5, `huvudet 1280: ${k} har en ${r.ikon} px ikon, väntat 20 (bolag-ops#563 gäller bara mobil).`);
+      // ⛔ 0.60.0, CP 2026-10-05: "Kan man göra +et sådär framträdande som det är på mobil. Samma position men större och
+      // framträdande. Kanske skall ligga längst till vänster av ikonerna i topraden till höger?" Plusset är en fylld 40 px
+      // accentcirkel med 24 px ikon (före 0.60.0 en dämpad 36 px cirkel som de andra, eftersom en fylld knapp bland likar "skrek").
+      const ar = k === "plus";
+      const sida = ar ? 40 : 36;
+      krav(Math.abs(r.w - sida) < 0.5 && Math.abs(r.h - sida) < 0.5, `huvudet: ${k} är ${r.w}x${r.h} px, väntat en ${sida} px cirkel.`);
+      // ⛔ 1280 px: SS 20 px står kvar för de dämpade. CP 2026-10-05: "563 är bara i mobil." Telefonens 24 px mäts i sektion 6.
+      const ikon = ar ? 24 : 20;
+      krav(Math.abs(r.ikon - ikon) < 0.5, `huvudet 1280: ${k} har en ${r.ikon} px ikon, väntat ${ikon}${ar ? " (plusset är huvudåtgärden)" : " (bolag-ops#563 gäller bara mobil)"}.`);
       krav(r.radie >= 18, `huvudet: ${k} har rundning ${r.radie} px, väntat en cirkel (minst 18 px).`);
       krav(r.efterBredd >= 44 && r.efterHojd >= 44, `huvudet: ${k} har träffyta ${r.efterBredd}x${r.efterHojd} px, väntat minst 44x44 som osynlig \`after:\`-yta.`);
     }
+    // Plusset är FYLLT med accent (jämfört mot det beräknade `--color-accent`, inte en hårdkodad färg) och ligger till vänster om inkorgen.
+    krav(m.accent !== "" && m.plus.bakgrund === m.accent, `huvudet: plussets bakgrund är ${m.plus.bakgrund}, väntat --color-accent (${m.accent}).`);
+    krav(m.inkorg.bakgrund !== m.accent, `huvudet: inkorgens bakgrund är ${m.inkorg.bakgrund}, den ska inte vara accentfylld (bara plusset är det).`);
+    krav(m.plus.x < m.inkorg.x, `huvudet: plusset står på x=${m.plus.x.toFixed(1)} och inkorgen på x=${m.inkorg.x.toFixed(1)}, väntat plusset FÖRST (längst till vänster) i högerklustret.`);
+    krav(m.inkorg.x < m.avatar.x && m.avatar.x < m.hamburgare.x, `huvudet: ordningen från vänster är inkorg ${m.inkorg.x.toFixed(0)}, avatar ${m.avatar.x.toFixed(0)}, hamburgare ${m.hamburgare.x.toFixed(0)}, väntat inkorg, avatar, hamburgare.`);
     krav(Math.abs(m.avatar.w - 32) < 0.5 && Math.abs(m.avatar.h - 32) < 0.5, `huvudet: avatarknappen är ${m.avatar.w}x${m.avatar.h} px, väntat 32x32.`);
     krav(m.avatarBild !== null && Math.abs(m.avatarBild.w - 28) < 0.5 && m.avatarBild.radie >= 14, `huvudet: avataren är ${m.avatarBild ? `${m.avatarBild.w} px, rundning ${m.avatarBild.radie}` : "inte hittad"}, väntat en 28 px cirkel.`);
     krav(m.avatar.efterBredd >= 44, `huvudet: avatarens träffyta är ${m.avatar.efterBredd} px, väntat minst 44.`);

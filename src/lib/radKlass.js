@@ -126,6 +126,42 @@ export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {})
 }
 
 /**
+ * Plusset i toppraden: en fylld accentcirkel på dator (0.60.0), den dämpade 36 px cirkeln kvar där ingen bottenrad har ett eget plus.
+ *
+ * ══ ⛔ VARFÖR PLUSSET INTE LÄNGRE ÄR DÄMPAT PÅ DATOR (CP 2026-10-05) ═════════
+ *
+ * Från 0.30.0 (#168, #173) var plusset en dämpad 36 px cirkel som de andra ikonerna i klustret, för att en accentfylld knapp
+ * i raden "skrek" bland likar. Det var rätt så länge plusset var en ikon bland ikoner. CP 2026-10-05: "Kan man göra +et sådär
+ * framträdande som det är på mobil. Samma position men större och framträdande. Kanske skall ligga längst till vänster av
+ * ikonerna i topraden till höger?" Plusset är huvudåtgärden, och på mobil är det redan den enda fyllda ytan i bottenraden.
+ * Därför från `md`: 40 px fylld accent (`bg-accent text-accent-contrast`), 24 px plus, först i klustret.
+ *
+ * ⛔ UNDER `md` ÄR ALLT SOM FÖRE. Finns ingen bottenrad med eget plus (`synligMobil`) står den dämpade 36 px cirkeln kvar, så
+ * bara datorn ändras. Med bottenraden är plusset gömt under `md` (ett plus per yta).
+ *
+ * ⛔ DISPLAY ÄGS AV EN KLASSTRÄNG: `inline-flex` eller `hidden md:inline-flex`, aldrig båda (se `huvudknappKlass`).
+ * ⛔ Träffytan är 44 px som en osynlig `after:`-yta, också på den 40 px stora cirkeln.
+ *
+ * @param {object} [val]
+ * @param {boolean} [val.synligMobil] Plusset syns under `md` (ingen bottenrad med eget plus). Förval sant.
+ * @param {boolean} [val.aktiv] Popovern är öppen.
+ * @returns {string}
+ */
+export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
+  return cx(
+    "relative size-9 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 [&_svg]:size-6 md:size-10 md:p-2",
+    synligMobil ? "inline-flex" : "hidden md:inline-flex",
+    "transition-colors duration-(--duration-fast) ease-standard",
+    // Under md: som toppradens övriga ikoner.
+    aktiv ? "bg-raised text-accent" : "text-ink-muted hover:bg-raised hover:text-ink-secondary",
+    // Från md: fylld accent, också när popovern är öppen och vid hover.
+    "md:bg-accent md:text-accent-contrast md:hover:bg-accent-hover md:hover:text-accent-contrast",
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+    "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
+  );
+}
+
+/**
  * En 40 px ruta med kant: en post i den infällda gruppremsan, chevronknappen där, och
  * loggans monogram (0.31.0). EN definition, för att de tre ska vara samma ruta.
  *

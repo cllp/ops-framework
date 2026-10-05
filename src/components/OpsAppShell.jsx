@@ -12,7 +12,7 @@ import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
-import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
+import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
@@ -766,7 +766,7 @@ export function useOppnaHandelse() {
  * @param {string} [props.felBeskrivning]
  * @param {string} [props.laddaOmEtikett]
  * @param {HandelsepanelKonfiguration} [props.handelsepanel] (0.40.0, #214) Händelsen på en egen sida med Tillbaka, öppnad av en rad i Idag eller en post i kalendern (`handelseId`) eller av `useOppnaHandelse()`. Se `HandelsepanelKonfiguration`.
- * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden, mellan `actions` och `anvandare`.
+ * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden. Från 0.60.0 först i högerklustret, före `actions`, `anvandare` och hamburgaren, och en fylld accentcirkel från `md`.
  *   Tryck öppnar en POPOVER med en platt lista (`ss-skapa-meny.png`), aldrig en yta i sidan: `handelse`
  *   och `arende` är ramverkets EGNA rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler),
  *   `registreringar`/`lage`/`kataloger`/`ikonRitare`/`sprak` är samma kontrakt som `OpsSkapa` redan hade
@@ -1849,23 +1849,36 @@ function OpsAppShellRitad({
             CP ville dem tätare än gap-1 på desktop (bolag-ops header polish).
           */}
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
-            {atgarderIHuvud}
-            {/* ⛔ #168: PLUSSET LIGGER EFTER actions OCH FÖRE avataren, SOM I
-                SESSIONSTUDIO (`ss-skapa-meny.png`: växlare, expandera, sök,
-                PLUS, avatar, hamburgare). Ett tryck öppnar en popover med
-                listan, aldrig en yta inuti sidan; en rad öppnar en RIKTIG
-                `OpsModal`, se filhuvudets ärende (#168). */}
+            {/* ⛔ 0.60.0: PLUSSET LIGGER FÖRST I KLUSTRET, FÖRE actions, avataren
+                och hamburgaren. CP 2026-10-05: "Kan man göra +et sådär
+                framträdande som det är på mobil. Samma position men större och
+                framträdande. Kanske skall ligga längst till vänster av ikonerna
+                i topraden till höger?"
+                Historik: #168 la det EFTER actions OCH FÖRE avataren, som i
+                SessionStudio (`ss-skapa-meny.png`: växlare, expandera, sök,
+                PLUS, avatar, hamburgare). Platsen byttes för att plusset är
+                huvudåtgärden och ska vara det första ögat möter i klustret.
+                Ett tryck öppnar en popover med listan, aldrig en yta inuti
+                sidan; en rad öppnar en RIKTIG `OpsModal`, se filhuvudets
+                ärende (#168). */}
             {visaSkapaKnapp ? (
               <Popover.Root open={skapaOppen} onOpenChange={setSkapaOppen}>
                 {/*
-                  ⛔ EN CIRKEL SOM SESSIONSTUDIOS (0.30.0, #173), INTE EN
-                  ACCENTFYLLD KNAPP. SS `AppHeader.jsx:376`: `p-2 rounded-full`,
-                  dämpad ikon, `hover:bg-card`, och `bg-card text-accent` medan
-                  menyn är öppen. Före 0.30.0 var plusset en 32 px accentfylld
-                  cirkel (samma klasser som `OpsButton variant="primary" round
-                  iconOnly`), alltså det enda i klustret som skrek, och tre
-                  olika höjder i samma rad. Accentfärgen är bottenradens stora
-                  plus, som är den enda ytan där plusset ÄR huvudsaken.
+                  ⛔ FRÅN 0.60.0 EN FYLLD ACCENTCIRKEL PÅ DATOR (md och uppåt),
+                  40 px med 24 px plus och 44 px träffyta (`huvudPlusKlass`).
+                  CP 2026-10-05: "Kan man göra +et sådär framträdande som det
+                  är på mobil. Samma position men större och framträdande."
+                  HISTORIK, BEHÅLLEN FÖR SKÄLETS SKULL: 0.30.0 (#173) gjorde
+                  plusset till en dämpad 36 px cirkel som SessionStudios
+                  (`AppHeader.jsx:376`: `p-2 rounded-full`, dämpad ikon,
+                  `hover:bg-card`, `bg-card text-accent` medan menyn är öppen).
+                  Före det var det en 32 px accentfylld cirkel, och den
+                  "skrek" bland likar och gav tre olika höjder i samma rad.
+                  Det som ändrats är inte slutsatsen utan förutsättningen:
+                  plusset är huvudåtgärden, inte en ikon bland ikoner, och
+                  CP vill att det syns som bottenradens plus gör på mobil.
+                  Under `md` är cirkeln den dämpade 36 px som förut, när ingen
+                  bottenrad har ett eget plus.
 
                   ⛔ INTE `asChild` RUNT `OpsButton` (#168, andra granskningen).
                   `OpsButton` är en vanlig funktionskomponent utan `forwardRef`
@@ -1879,7 +1892,7 @@ function OpsAppShellRitad({
                 */}
                 <Popover.Trigger
                   aria-label={skapaLabel}
-                  className={huvudknappKlass({ visning: bottenPlus ? "hidden md:inline-flex" : "inline-flex", aktiv: skapaOppen })}
+                  className={huvudPlusKlass({ synligMobil: !bottenPlus, aktiv: skapaOppen })}
                 >
                   <PlusIkon size={24} />
                 </Popover.Trigger>
@@ -1913,6 +1926,7 @@ function OpsAppShellRitad({
                 </Popover.Portal>
               </Popover.Root>
             ) : null}
+            {atgarderIHuvud}
             {/* ⛔ Efter actions och FÖRE hamburgaren. Kontot är personens egen
                 yta och hör ihop med appens åtgärder; hamburgaren är resten av
                 navigeringen och ligger ytterst. Se noten vid propen. */}
