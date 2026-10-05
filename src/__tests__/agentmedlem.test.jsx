@@ -156,7 +156,7 @@ describe("OpsGruppSida: agenten i medlemslistan", () => {
     const onVaxlaAgent = vi.fn();
     render(<OpsGruppSida grupp={G} medlemmar={MEDLEMMAR} agenter={AKTIV} onVaxlaAgent={onVaxlaAgent} />);
     const brytare = screen.getByRole("switch", { name: /Agenten är på/ });
-    expect(brytare.getAttribute("aria-checked")).toBe("true");
+    expect(/** @type {HTMLInputElement} */ (brytare).checked).toBe(true);
     fireEvent.click(brytare);
     expect(onVaxlaAgent).toHaveBeenCalledWith({ userId: "agent_g1", status: "avstangd" });
     expect(screen.queryByRole("button", { name: /Ta bort/ })).toBeNull();
@@ -203,9 +203,10 @@ describe("OpsMedlemmar: agenten har varken roll att ändra eller en Ta bort", ()
 });
 
 describe("Nytt meddelande: agenten går att välja, som en person", () => {
-  const MEDLEMSKAP = [RAD(UID, "agare", { namn: "Ägaren" }), RAD("uid-b", "medlem", { namn: "Bo" }), agentMedlemskap("g1")];
+  const medlemskap = () => [RAD(UID, "agare", { namn: "Ägaren" }), RAD("uid-b", "medlem", { namn: "Bo" }), agentMedlemskap("g1")];
 
   it("OpsMottagare i personläget har agenten, men inte en avstängd agent", () => {
+    const MEDLEMSKAP = medlemskap();
     const { rerender } = render(<OpsMottagare lage="person" medlemmar={MEDLEMSKAP} uid={UID} value={null} onChange={() => {}} />);
     expect(screen.getByRole("radio", { name: "Agent" })).toBeTruthy();
     rerender(<OpsMottagare lage="person" medlemmar={[MEDLEMSKAP[0], MEDLEMSKAP[1], { ...agentMedlemskap("g1"), status: "avstangd" }]} uid={UID} value={null} onChange={() => {}} />);
@@ -215,7 +216,7 @@ describe("Nytt meddelande: agenten går att välja, som en person", () => {
   it("med agenten vald öppnas ett agentsamtal, och raden säger vem som ser det", async () => {
     const kalla = { oppnaPrivat: vi.fn(async () => ({ id: "g1|agent_g1|uid-agare" })), skicka: vi.fn(async () => {}) };
     const onKlar = vi.fn();
-    render(<OpsNyttMeddelande formId="f" groupId="g1" uid={UID} medlemmar={MEDLEMSKAP} kalla={/** @type {any} */ (kalla)} onKlar={onKlar} />);
+    render(<OpsNyttMeddelande formId="f" groupId="g1" uid={UID} medlemmar={medlemskap()} kalla={/** @type {any} */ (kalla)} onKlar={onKlar} />);
     fireEvent.click(screen.getByRole("radio", { name: "Agent" }));
     expect(screen.getByText("Bara du och agenten ser det här.")).toBeTruthy();
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Hej agenten" } });

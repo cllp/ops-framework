@@ -126,10 +126,11 @@ describe("OpsMottagare", () => {
     expect(radio).toEqual(["Gruppen", "Anna Ek (du)", "Bo Lind", "Cecilia Berg", "Ops-agenten"]);
     expect(screen.getByRole("radio", { name: "Gruppen" })).toHaveAttribute("aria-checked", "true");
   });
-  it("⛔ personläget: bara andra aktiva personer, ingen grupp och ingen agent", async () => {
+  // lifehub.app#47: agenten går att skriva till privat, som en person. Före 0.61.0 stod den inte med här.
+  it("⛔ personläget: andra aktiva personer och den aktiva agenten, ingen grupp", async () => {
     const onChange = vi.fn();
     render(<OpsMottagare lage="person" medlemmar={MEDLEMMAR} uid="anna" value={null} onChange={onChange} />);
-    expect(screen.getAllByRole("radio").map((r) => r.querySelector(".truncate")?.textContent)).toEqual(["Bo Lind", "Cecilia Berg"]);
+    expect(screen.getAllByRole("radio").map((r) => r.querySelector(".truncate")?.textContent)).toEqual(["Bo Lind", "Cecilia Berg", "Ops-agenten"]);
     await userEvent.setup().click(screen.getByRole("radio", { name: "Bo Lind" }));
     expect(onChange).toHaveBeenCalledWith({ slag: "person", uid: "bo" });
   });
