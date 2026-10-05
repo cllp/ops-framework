@@ -127,3 +127,26 @@ describe("nodsidan läser gruppens externa datakällor (#512)", () => {
     expect(nod.byggExternaDatakallor([{ type: "github", repo: "cllp/travel", enabled: true }], "g")).toEqual([{ type: "github", repo: "cllp/travel", enabled: true }]);
   });
 });
+
+describe("nodsidan ger gruppens typer och TALK-taken (lifehub.app#37)", () => {
+  it("typerForGrupp på nodsidan ger samma lista som huvudingången, med modulens bidrag", async () => {
+    const huvud = await import("../lib/modultyper.js");
+    const sammanhang = {
+      bas: [{ id: "arende", namn: "Ärende" }],
+      moduler: [{ id: "kvitto", typer: { inkorg: [{ id: "kvitto", namn: "Kvitto" }] } }],
+      modulerPa: ["kvitto"],
+      avvikelser: [],
+    };
+    const lista = nod.typerForGrupp("inkorg", sammanhang);
+    expect(lista.map((t) => t.id)).toEqual(["arende", "kvitto:kvitto"]);
+    expect(lista).toEqual(huvud.typerForGrupp("inkorg", sammanhang));
+  });
+
+  it("TALK-taken på nodsidan är inspelarens", async () => {
+    const talk = await import("../lib/talk.js");
+    expect(nod.MAX_SEKUNDER).toBe(talk.MAX_SEKUNDER);
+    expect(nod.MAX_SEKUNDER).toBeGreaterThan(0);
+    expect(nod.LJUDFORMAT).toBe(talk.LJUDFORMAT);
+    expect(nod.LJUDFORMAT.length).toBeGreaterThanOrEqual(2);
+  });
+});

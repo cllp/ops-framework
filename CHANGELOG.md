@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.60.0
+
+### Tillagt
+
+- **`typerForGrupp`, `MAX_SEKUNDER` och `LJUDFORMAT` på nodsidan** (cllp/lifehub.app#37). Servern som gör TALK-ljud till ett förslag ger modellen gruppens sorter och prövar ljudets längd. Den importerade tidigare `src/lib/modultyper.js` förbi exports-kartan och skrev taket en gång till. Samma funktion och samma tak som i huvudingången, och båda filerna är rena.
+
 ## 0.59.1
 
 ### Ändrat
