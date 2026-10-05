@@ -94,6 +94,9 @@ export function radBehallare({ ark = false } = {}) {
  * Svårt att träffa dom med fingret." Cirkeln och träffytan står kvar, så raden och
  * klustrets mittlinjer rör sig inte; bara det man ser i cirkeln växer.
  *
+ * ⛔ BARA UNDER `md`. CP samma dag: "563 är bara i mobil." På dator står SS 20 px
+ * kvar (`md:p-2 md:[&_svg]:size-5`): klagomålet gällde fingret, inte musen.
+ *
  * ⛔ 44 PX TRÄFFYTA BEHÅLLS, MEN SOM EN OSYNLIG YTA. Storleken man SER är 36;
  * storleken man TRÄFFAR är 44 (`after:size-11`), utan att röra radens höjd.
  * Samma lösning som toppradens chevron redan hade (#90): en synlig storlek som
@@ -110,7 +113,7 @@ export function radBehallare({ ark = false } = {}) {
  */
 export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {}) {
   return cx(
-    "relative size-9 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 [&_svg]:size-6",
+    "relative size-9 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 [&_svg]:size-6 md:p-2 md:[&_svg]:size-5",
     visning,
     "transition-colors duration-(--duration-fast) ease-standard",
     aktiv === true && "bg-raised text-accent",
