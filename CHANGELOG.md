@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.60.0
+
+### Tillagt
+
+- **Tillägg på händelseytan** (#251, beslut 0003). Modulmanifestet får `tillagg: [{ plats, id, etikett: { sv, en }, komponent }]`. En app ändrar aldrig en ramverksyta, den pluggar bara in i platser ytan erbjuder. Två platser, exporterade som `HANDELSE_PLATSER`: `"handelse.sektion"` är en sektion i `OpsHandelsePanel` efter informationsrutan, med etiketten som rubrik, och `"handelse.atgard"` är en rad i plussets händelsedel direkt under Ny händelse. Komponenten får `{ handelse, grupp }` och inget annat (i plusset är `handelse` `null`).
+- **`OpsHandelsePanel moduler grupp`** och **`OpsAppShell skapa.moduler skapa.aktivGrupp`**. Ytan ritar bara tillägg från moduler som är påslagna i `grupp.moduler`; en avslagen moduls komponent anropas inte. `skapa.aktivGrupp.id` måste vara `skapa.lage`, annars kastar skalet.
+- **`tillaggFor`, `synsPa`, `synsPaText`, `PLATSER`, `PLATSYTOR`** för den som bygger en egen yta eller en egen lista.
+- **"Syns på" i gruppens inställningar.** Listan Appar i `OpsGruppFormular` visar alla appar, också de utan egen yta, och varje rad säger var appen syns: "Egen yta", ytornas namn ("Händelser"), eller båda. Härlett ur manifestet, aldrig ett handskrivet fält.
+
+### Ändrat
+
+- **`valbaraModuler` ger alla registrerade moduler**, inte bara de med ett kort. En modul med bara tillägg går nu att slå på och av per grupp. `hubbForGrupp` räknar inte en sådan modul som `inget-kort`.
+
+### Valideras vid uppstart
+
+- `validateModuler` avvisar ett tillägg med okänd plats, ett dubblerat `id` inom modulen, en etikett som saknar ett språk, och ett tillägg utan komponent. Felet bär modulens namn och fältet.
+
 ## 0.59.0
 
 ### Tillagt
