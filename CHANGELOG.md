@@ -9,6 +9,12 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.59.1
+
+### Ändrat
+
+- **Större ikoner i toppraden och bottenraden, och en högre bottenrad.** CP 2026-10-05 i cllp/bolag-ops#563: "Ikonerna i huvudmenyerna botten och toppen är lite väl små. Svårt att träffa dom med fingret" och "se till att bottensektionen blir några pixlar högre så ikonerna inte kommer så långt i nederkant." Bottenradens ikoner 20 → 24 px och raden 56 → 64 px (`--bottom-nav-h` 4rem). Toppradens ikoner i plus, ikonlänkar och hamburgare 20 → 24 px, i samma 36 px cirkel med samma 44 px träffyta. Den stora plusknappen lyfts 16 px i stället för 12, så att den sticker upp exakt lika mycket över raden som förut och `--bottom-nav-overhang` fortfarande stämmer. `check-skalyta` mäter de nya måtten.
+
 ## 0.59.0
 
 ### Tillagt

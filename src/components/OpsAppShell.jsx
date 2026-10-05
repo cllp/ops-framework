@@ -1856,7 +1856,7 @@ function OpsAppShellRitad({
                   aria-label={skapaLabel}
                   className={huvudknappKlass({ visning: bottenPlus ? "hidden md:inline-flex" : "inline-flex", aktiv: skapaOppen })}
                 >
-                  <PlusIkon size={20} />
+                  <PlusIkon size={24} />
                 </Popover.Trigger>
                 <Popover.Portal>
                   {/*
@@ -1919,7 +1919,7 @@ function OpsAppShellRitad({
                       : `${moreLabel}, ${ordet(TEXT_SKAL, "flerAtgarder", sprak)}`
                   }
                 >
-                  <MenuIcon size={20} />
+                  <MenuIcon size={24} />
                 </Popover.Trigger>
                 <Popover.Portal>
                   <Popover.Content

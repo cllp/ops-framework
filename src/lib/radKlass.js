@@ -89,6 +89,11 @@ export function radBehallare({ ark = false } = {}) {
  * var en 32 px accentfylld cirkel. Fyra knappar i samma rad med tre olika
  * former och tre olika höjder.
  *
+ * ⛔ 0.59.1: IKONEN ÄR 24 PX, CIRKELN FORTFARANDE 36 (6 + 24 + 6). CP 2026-10-05 i
+ * cllp/bolag-ops#563: "Ikonerna i huvudmenyerna botten och toppen är lite väl små.
+ * Svårt att träffa dom med fingret." Cirkeln och träffytan står kvar, så raden och
+ * klustrets mittlinjer rör sig inte; bara det man ser i cirkeln växer.
+ *
  * ⛔ 44 PX TRÄFFYTA BEHÅLLS, MEN SOM EN OSYNLIG YTA. Storleken man SER är 36;
  * storleken man TRÄFFAR är 44 (`after:size-11`), utan att röra radens höjd.
  * Samma lösning som toppradens chevron redan hade (#90): en synlig storlek som
@@ -105,7 +110,7 @@ export function radBehallare({ ark = false } = {}) {
  */
 export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {}) {
   return cx(
-    "relative size-9 shrink-0 cursor-pointer items-center justify-center rounded-full p-2 [&_svg]:size-5",
+    "relative size-9 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 [&_svg]:size-6",
     visning,
     "transition-colors duration-(--duration-fast) ease-standard",
     aktiv === true && "bg-raised text-accent",
