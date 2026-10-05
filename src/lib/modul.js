@@ -45,6 +45,7 @@ import { ID_FORM } from "./katalog.js";
 import { byggModulTyper } from "./modultyper.js";
 import { validateNav } from "./nav.js";
 import { byggNamn } from "./sprak.js";
+import { PLATSER } from "./tillagg.js";
 
 /**
  * Fälten ett manifest får bära. Allt annat avvisas.
@@ -53,7 +54,15 @@ import { byggNamn } from "./sprak.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer"];
+const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg"];
+
+/**
+ * Fälten ett tillägg får bära (0.60.0, #251). Allt annat avvisas, av samma skäl som `MODULFALT`.
+ *
+ * ⛔ INGA PROPS. Komponenten får `{ handelse, grupp }` av ytan och inget annat, och ett fält som lät manifestet skicka egna värden
+ * hade gjort tillägget till något ytan inte längre kan uttala sig om.
+ */
+const TILLAGGSFALT = ["plats", "id", "etikett", "komponent"];
 
 /**
  * Fälten modulens kort i hubben får bära (0.37.0, #184).
@@ -120,6 +129,15 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {ReadonlyArray<Skaparregistrering>} skapar Vad modulen kan skapa, det plusset erbjuder.
  * @property {Hubbkort | null} hubb (0.37.0) Modulens kort i hubben och dess insida, eller `null` när modulen inte är ett kort.
  * @property {Readonly<Record<import("./modultyper.js").Typyta, ReadonlyArray<import("./modultyper.js").Modultyp>>>} typer (0.42.0, #217) Typerna modulen bidrar med till inkorgen, kalendern och händelserna. ⛔ Alltid alla tre listorna i utskriven form, även när manifestet utelämnade fältet. Se `modultyper.js`.
+ * @property {ReadonlyArray<Tillagg>} tillagg (0.60.0, #251) Det modulen pluggar in på ramverkets ytor. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Se `tillagg.js`.
+ */
+
+/**
+ * @typedef {object} Tillagg
+ * @property {string} plats En av ramverkets platser (`HANDELSE_PLATSER`).
+ * @property {string} id Maskinnyckeln. Unik inom modulen.
+ * @property {{ sv: string, en: string }} etikett Det användaren ser: sektionens rubrik, åtgärdens namn. Båda språken krävs.
+ * @property {unknown} komponent Komponenten ytan ritar med `{ handelse, grupp }`. En referens, se filhuvudet om väg A.
  */
 
 /**
@@ -419,6 +437,8 @@ export function defineModule(manifest) {
    */
   const typer = byggModulTyper(d.typer, var_);
 
+  const tillagg = byggTillagg(d.tillagg, var_);
+
   /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
@@ -438,7 +458,67 @@ export function defineModule(manifest) {
     skapar: Object.freeze(skapar),
     hubb,
     typer,
+    tillagg,
   });
+}
+
+/**
+ * Bygger modulens tillägg, eller kastar med skälet (0.60.0, #251, beslut 0003).
+ *
+ * ⛔ VALFRITT I MANIFESTET, ALLTID EN LISTA I MODULEN. Samma avvägning som `typer`: ett krav hade fällt varje redan skriven modul på
+ * en minorversion, men den som läser modulen ska aldrig behöva fråga om fältet finns.
+ *
+ * ⛔ EN OKÄND PLATS AVVISAS. Platserna är ramverkets, och ett tillägg på en plats ingen yta ritar är ett tillägg som försvinner tyst.
+ *
+ * ⛔ ETIKETTEN KRÄVER BÅDA SPRÅKEN, strängare än `byggNamn`, som nöjer sig med svenska. Ett tillägg är nytt och har inga gamla manifest
+ * att tåla (filhuvudet), och en etikett som saknar engelska ritas på svenska i en engelsk app.
+ *
+ * @param {unknown} varde
+ * @param {(falt: string, skal: string) => Error} var_
+ * @returns {ReadonlyArray<Tillagg>}
+ */
+function byggTillagg(varde, var_) {
+  if (varde === undefined) return Object.freeze([]);
+  if (!Array.isArray(varde)) {
+    throw var_("tillagg", `måste vara en lista, inte ${varde === null ? "null" : typeof varde}. En modul utan tillägg utelämnar fältet eller skriver tillagg: [].`);
+  }
+  /** @type {Tillagg[]} */
+  const ut = [];
+  varde.forEach((/** @type {any} */ t, /** @type {number} */ i) => {
+    if (!t || typeof t !== "object" || Array.isArray(t)) {
+      throw var_(`tillagg[${i}]`, `måste vara ett objekt { ${TILLAGGSFALT.join(", ")} }.`);
+    }
+    const okanda = Object.keys(t).filter((n) => !TILLAGGSFALT.includes(n));
+    if (okanda.length > 0) {
+      throw var_(`tillagg[${i}]`, `bär fälten ${okanda.join(", ")} som inte känns igen. Ett tillägg bär ${TILLAGGSFALT.join(", ")}, och komponenten får { handelse, grupp } av ytan.`);
+    }
+    const plats = rensa(t.plats);
+    if (!PLATSER.includes(plats)) {
+      throw var_(
+        `tillagg[${i}].plats ${JSON.stringify(t.plats)}`,
+        `finns inte. Platserna är ramverkets och namnges av ramverket: ${PLATSER.join(", ")}. Saknas platsen öppnar ramverket den, en gång, för alla appar (beslut 0003).`,
+      );
+    }
+    const tid = rensa(t.id);
+    if (!tid || !ID_FORM.test(tid)) {
+      throw var_(`tillagg[${i}].id ${JSON.stringify(t.id)}`, "måste vara ett id med små bokstäver, siffror, bindestreck och understreck. Ytan ritar tillägget med det som nyckel.");
+    }
+    if (ut.some((x) => x.id === tid)) throw var_(`tillagg[${i}].id "${tid}"`, "står två gånger i samma modul. Två tillägg med samma nyckel ritas som ett, och vilket avgörs av ordningen.");
+    const e = t.etikett && typeof t.etikett === "object" && !Array.isArray(t.etikett) ? t.etikett : null;
+    const sv = rensa(e?.sv);
+    const en = rensa(e?.en);
+    if (!sv || !en) {
+      throw var_(
+        `tillagg[${i}].etikett för "${tid}"`,
+        `måste vara { sv, en } med båda språken, och ${!sv && !en ? "båda saknas" : !sv ? "sv saknas" : "en saknas"}. Ett tillägg är nytt och har ingen gammal form att tåla.`,
+      );
+    }
+    if (t.komponent === undefined || t.komponent === null) {
+      throw var_(`tillagg[${i}].komponent för "${tid}"`, "krävs. Ramverket äger platsen, modulen äger det som ritas i den, och ett tillägg utan komponent är en tom sektion.");
+    }
+    ut.push(Object.freeze({ plats, id: tid, etikett: Object.freeze({ sv, en }), komponent: t.komponent }));
+  });
+  return Object.freeze(ut);
 }
 
 /**

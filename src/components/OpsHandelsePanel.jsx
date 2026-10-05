@@ -6,6 +6,8 @@ import { attachmentSize, isImage } from "../lib/file.js";
 import { handelsetid } from "../lib/handelsepanel.js";
 import { KALENDERPRICK } from "../lib/kalenderfarg.js";
 import { slagText } from "../lib/slag.js";
+import { text } from "../lib/sprak.js";
+import { tillaggFor } from "../lib/tillagg.js";
 import { AndraIkon, DatumIkon, FilIkon, KlockaIkon, PilHogerIkon, PlatsIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
@@ -33,6 +35,8 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * och exportknappar, serie, datumomröstning och bokade resurser. Det är appens data och appens åtgärder, och ramverket känner inte
  * ett bibliotek eller en chatt. Det en app vill lägga till går in som `atgarder` (knapparna högst upp, som SS penna och export) och
  * som `svar`; flikar och bibliotek hör till en senare leverans och ritas inte som döda flikar i väntan på den.
+ * ⛔ 0.60.0 (#251, beslut 0003): en APP som vill lägga till en sektion gör det som ett tillägg på platsen `handelse.sektion` (`moduler`
+ * och `grupp` nedan), aldrig genom att ändra panelen.
  *
  * ══ ⛔ ALLTID EN VÄG TILLBAKA ═════════════════════════════════════════════════════════════════════════════════════════
  *
@@ -97,6 +101,10 @@ import { Ursprungsrad } from "./Ursprungsrad.jsx";
  * @param {string} [props.iModulEtikett] (0.43.0, #224) Ordet före modulen efter en skapare. Förval "i".
  * @param {string} [props.franModulEtikett] (0.43.0, #224) Ordet före modulen utan skapare. Förval "Från".
  * @param {(href: string, event: any) => void} [props.onNavigate] (0.43.0, #224) Anropas när länken tillbaka till modulens post trycks, i stället för webbläsarens navigering.
+ * @param {ReadonlyArray<import("../lib/modul.js").Modul>} [props.moduler] (0.60.0, #251) Appens moduler, ur `validateModuler`. Deras tillägg på platsen
+ *   `handelse.sektion` ritas som sektioner efter informationsrutan, med etiketten som rubrik och komponenten med `{ handelse, grupp }`.
+ * @param {{ id: string, moduler: ReadonlyArray<string> } & Record<string, unknown>} [props.grupp] (0.60.0, #251) Gruppen händelsen hör till. ⛔ Bara
+ *   moduler i dess `moduler` ritas; en avslagen moduls komponent anropas inte. Utan grupp ritas inga tillägg.
  */
 function OpsHandelsePanelRitad({
   handelse,
@@ -120,6 +128,8 @@ function OpsHandelsePanelRitad({
   iModulEtikett = ORD_OPSHANDELSEPANEL.iModulEtikett.sv,
   franModulEtikett = ORD_OPSHANDELSEPANEL.franModulEtikett.sv,
   onNavigate,
+  moduler,
+  grupp,
 }) {
   const rubrikId = useId();
   const ref = useRef(/** @type {HTMLElement | null} */ (null));
@@ -284,6 +294,12 @@ function OpsHandelsePanelRitad({
         ) : null}
       </div>
 
+      {/* ⛔ PLATSEN `handelse.sektion` (0.60.0, #251, beslut 0003): appens tillägg, efter informationsrutan. Ramverket äger platsen och
+          rubriken, modulen äger innehållet. Komponenten får `{ handelse, grupp }` och inget annat. */}
+      {tillaggFor({ moduler, grupp, plats: "handelse.sektion" }).map((t) => (
+        <HandelseTillagg key={`${t.modulId}:${t.id}`} tillagg={t} handelse={handelse} grupp={/** @type {any} */ (grupp)} sprak={sprak} />
+      ))}
+
       {/* ⛔ SS `CollapsibleDescription.jsx`: `text-base` (16) med tre rader och "Visa hela beskrivningen". Texten här är HELA beskrivningen utan tak: panelen
           är sidan där man läser den, och ett "visa mer" för tre rader på en egen sida är ett tryck för ingenting. Storleken är SS. */}
       {handelse.beskrivning ? (
@@ -308,6 +324,21 @@ function OpsHandelsePanelRitad({
           {kommentarer}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * Ett tillägg på platsen `handelse.sektion`, i samma form som bilagan: en rubrik i sektionsstil och innehållet under.
+ * @param {{ tillagg: import("../lib/modul.js").Tillagg & { modulId: string }, handelse: HandelseVy, grupp: any, sprak: string }} props
+ */
+function HandelseTillagg({ tillagg, handelse, grupp, sprak }) {
+  const rubrikId = useId();
+  const Komponent = /** @type {import("react").ComponentType<{ handelse: HandelseVy, grupp: any }>} */ (tillagg.komponent);
+  return (
+    <section data-tillagg={`${tillagg.modulId}:${tillagg.id}`} aria-labelledby={rubrikId} className="mt-4 flex flex-col gap-2">
+      <h2 id={rubrikId} className="m-0 text-sektion uppercase text-ink-muted">{text(tillagg.etikett, sprak)}</h2>
+      <Komponent handelse={handelse} grupp={grupp} />
     </section>
   );
 }

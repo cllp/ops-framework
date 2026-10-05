@@ -10,6 +10,7 @@ import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { text as namnText } from "../lib/sprak.js";
+import { synsPa, synsPaText } from "../lib/tillagg.js";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
@@ -119,6 +120,9 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [modulerHint]
  * @property {string} [modulerTomt] Texten när appen inte registrerat någon modul med ett kort.
  * @property {string} [modulOkand] Raden för en modul gruppen har men appen inte registrerat. `{id}` byts mot id:t.
+ * @property {string} [synsPa] (0.60.0, #251) Orden före listan på varje app: "Syns på".
+ * @property {string} [synsPaEgenYta] (0.60.0) Appen har en egen sida (nav eller kort i hubben): "Egen yta".
+ * @property {string} [synsPaIngenting] (0.60.0) Appen har varken egen yta eller tillägg. Skrivs ut, aldrig en tom rad (regel 5).
  */
 
 /** @type {Record<"sv"|"en", Required<GruppFormularEtiketter>>} */
@@ -167,9 +171,12 @@ const STANDARD = {
     bildHintRedigera: "PNG, WebP eller JPEG, högst 2 MB. Bilden ersätter ikonen och initialerna.",
     sparaFelTitel: "Ändringarna kunde inte sparas",
     modulerRubrik: "Appar",
-    modulerHint: "Varje installerad app blir ett kort under Appar, i den ordning du installerar dem. Kalendern, chatten och inkorgen har gruppen alltid.",
+    modulerHint: "En app med egen yta blir ett kort under Appar, i den ordning du installerar dem. En app utan egen yta syns där den gör tillägg. Kalendern, chatten och inkorgen har gruppen alltid.",
     modulerTomt: "Det finns inga appar att installera.",
     modulOkand: "{id} är installerad i gruppen men finns inte här. Den visas inte under Appar.",
+    synsPa: "Syns på",
+    synsPaEgenYta: "Egen yta",
+    synsPaIngenting: "ingen egen yta och inga tillägg",
   },
   en: {
     visuellIdentitet: "Visual identity",
@@ -215,9 +222,12 @@ const STANDARD = {
     bildHintRedigera: "PNG, WebP or JPEG, 2 MB at most. The image replaces the icon and initials.",
     sparaFelTitel: "The changes could not be saved",
     modulerRubrik: "Apps",
-    modulerHint: "Each installed app becomes a card under Apps, in the order you install them. The group always has its calendar, chat and inbox.",
+    modulerHint: "An app with its own page becomes a card under Apps, in the order you install them. An app without one shows up where it adds to other pages. The group always has its calendar, chat and inbox.",
     modulerTomt: "There are no apps to install.",
     modulOkand: "{id} is installed in the group but does not exist here. It is not shown under Apps.",
+    synsPa: "Visible in",
+    synsPaEgenYta: "Own page",
+    synsPaIngenting: "no own page and no add-ons",
   },
 };
 
@@ -300,6 +310,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
 
   const identitetId = useId();
   const merId = useId();
+  const idPrefix = useId();
 
   const initialerAktiva = ikon === "" || GRUPPINITIALER_FORM.test(ikon);
   const egnaInitialer = GRUPPINITIALER_FORM.exec(ikon)?.[1] ?? "";
@@ -634,11 +645,18 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
             <ul className="m-0 flex list-none flex-col gap-1 p-0">
               {modulval.valbara.map((m) => {
                 const vald = valdaModuler.includes(m.id);
+                const namnet = namnText(m.namn, sprak);
+                // ⛔ HÄRLETT UR MANIFESTET (0.60.0, #251, regel 2): nav eller kort ger "Egen yta", tillägg ger ytornas namn.
+                const syns = `${t.synsPa}: ${synsPaText(synsPa(m), { egenYta: t.synsPaEgenYta, ingenting: t.synsPaIngenting }, sprak)}`;
                 return (
                   <li key={m.id}>
+                    {/* ⛔ NAMNET ÄR KNAPPENS NAMN, "Syns på" ÄR DESS BESKRIVNING: en skärmläsare säger "Ekonomi, knapp, nedtryckt" och läser
+                        raden under som tillägg, i stället för att varje knapp heter något långt. */}
                     <button
                       type="button"
                       aria-pressed={vald}
+                      aria-label={namnet}
+                      aria-describedby={`${idPrefix}-syns-${m.id}`}
                       data-modul={m.id}
                       disabled={upptagen}
                       onClick={() => setValdaModuler((l) => (l.includes(m.id) ? l.filter((x) => x !== m.id) : [...l, m.id]))}
@@ -651,7 +669,12 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
                       <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-5">
                         {/** @type {import("react").ReactNode} */ (m.hubb?.ikon)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate">{namnText(m.namn, sprak)}</span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate">{namnet}</span>
+                        <span id={`${idPrefix}-syns-${m.id}`} data-syns-pa="" className="text-hjalp text-ink-muted">
+                          {syns}
+                        </span>
+                      </span>
                       <span aria-hidden="true" className={cx("flex size-5 shrink-0 items-center justify-center text-accent", !vald && "invisible")}>
                         <BockIkon size={16} />
                       </span>

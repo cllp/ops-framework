@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import * as modulApi from "../lib/modul.js";
+import * as tillaggApi from "../lib/tillagg.js";
 import { validateModuler } from "../lib/modul.js";
 import { hubbForGrupp, valbaraModuler } from "../lib/hubb.js";
 import { OpsHandelsePanel } from "../components/OpsHandelsePanel.jsx";
@@ -18,7 +18,7 @@ import { OpsGruppFormular } from "../components/OpsGruppFormular.jsx";
  * ⛔ jsdom kör ingen CSS, så hur sektionen och raden SER UT mäts i webbläsaren (check-skalyta, scenen `tillagg`).
  */
 
-const HANDELSE_PLATSER = /** @type {any} */ (modulApi).HANDELSE_PLATSER;
+const HANDELSE_PLATSER = /** @type {any} */ (tillaggApi).HANDELSE_PLATSER;
 
 /** @param {string} id @param {any[]} tillagg @param {Record<string, any>} [extra] */
 const MODUL = (id, tillagg, extra = {}) => ({
@@ -137,7 +137,7 @@ describe("plusmenyn: platsen handelse.atgard", () => {
       MODUL("annan", [TILLAGG({ plats: "handelse.atgard", id: "ny", etikett: { sv: "Avslagen", en: "Off" }, komponent: avslagen })]),
     ]);
     render(
-      <OpsAppShell brand="Ops" nav={nav} activeHref="/" skapa={{ handelse: <p>formulär</p>, lage: "bolaget", moduler, grupp }}>
+      <OpsAppShell brand="Ops" nav={nav} activeHref="/" skapa={{ handelse: <p>formulär</p>, lage: "bolaget", moduler, aktivGrupp: grupp }}>
         <p>innehåll</p>
       </OpsAppShell>,
     );
@@ -155,11 +155,11 @@ describe("plusmenyn: platsen handelse.atgard", () => {
     const moduler = validateModuler([MODUL("omrostning", [TILLAGG({ plats: "handelse.atgard" })])]);
     expect(() =>
       render(
-        <OpsAppShell brand="Ops" nav={nav} activeHref="/" skapa={{ handelse: <p>formulär</p>, lage: "bolaget", moduler, grupp: { id: "annan", moduler: ["omrostning"] } }}>
+        <OpsAppShell brand="Ops" nav={nav} activeHref="/" skapa={{ handelse: <p>formulär</p>, lage: "bolaget", moduler, aktivGrupp: { id: "annan", moduler: ["omrostning"] } }}>
           <p>innehåll</p>
         </OpsAppShell>,
       ),
-    ).toThrow(/skapa\.grupp/);
+    ).toThrow(/skapa\.aktivGrupp/);
   });
 });
 
