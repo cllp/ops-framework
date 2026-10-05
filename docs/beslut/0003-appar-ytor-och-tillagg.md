@@ -60,8 +60,13 @@ CP 2026-10-05: "Men den appen kommer inte synas under appar i menyn då den inte
 ⛔ **Bygg aldrig en tom yta för att en app ska få en menyrad.** Den leder till en sida utan innehåll, och användaren
 tror att något är trasigt.
 
-⛔ **Menyavsnittet som heter "Appar" byter etikett.** Det listar ytor och inte längre alla appar, och en etikett som
-lovar mer än listan innehåller är samma fel som en rapport som utelämnar en rad (regel 5). Förslaget är gruppens namn.
+⛔ **Fliken "Appar" i menyn behåller sitt namn.** CP 2026-10-05: "Det skall inte bytas."
+
+Det här stycket sade först att etiketten skulle bytas, eftersom fliken listar ytor och inte alla appar. Det var ett
+förslag som krockade med ett beslut som redan fanns: CP 2026-10-03, "Moduler som vi kallar det idag är egentligen appar
+som man installerar" (`src/components/fasta.jsx`). Ordet "Appar" på fliken är alltså CP:s, och skälet till det väger
+tyngre än skillnaden mellan ytor och appar. Den som undrar varför en app utan yta inte står under fliken hittar svaret i
+inställningarna, där varje app har raden "Syns på".
 
 ## Datumomröstningen: första appen utan egen yta
 
@@ -81,5 +86,5 @@ Skivorna står i #251:
 1. Platserna på händelseytan: sektion i detaljvyn, åtgärd i plusmenyn, läget "datum ej bestämt". Prov som visar att en
    app utan plats inte kan rita på ytan.
 2. Inställningar, Appar: alla appar med "Syns på", på och av per grupp.
-3. Menyetiketten "Appar" byts.
+3. ~~Menyetiketten "Appar" byts.~~ Utgår, CP 2026-10-05 (se ovan).
 4. Datumomröstningen som tillägg, med regler, regelprov och skärmbild sida vid sida med SessionStudio (regel 12).
