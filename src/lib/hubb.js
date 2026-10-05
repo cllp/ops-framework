@@ -77,23 +77,27 @@ export function hubbForGrupp({ grupp, moduler }) {
   for (const id of grupp.moduler) {
     const m = registrerade.get(id);
     if (!m) saknade.push(Object.freeze({ id, skal: /** @type {const} */ ("inte-registrerad") }));
-    else if (!m.hubb) saknade.push(Object.freeze({ id, skal: /** @type {const} */ ("inget-kort") }));
-    else kort.push(/** @type {Hubbmodul} */ (m));
+    else if (m.hubb) kort.push(/** @type {Hubbmodul} */ (m));
+    // ⛔ 0.60.0 (#251): en modul utan kort men med tillägg saknas inte. Den syns på sina ytor, och en rad om att den "inte ritas"
+    // hade varit fel besked om en app som gör precis det den ska.
+    else if ((m.tillagg ?? []).length === 0) saknade.push(Object.freeze({ id, skal: /** @type {const} */ ("inget-kort") }));
   }
   return Object.freeze({ kort: Object.freeze(kort), saknade: Object.freeze(saknade) });
 }
 
 /**
- * Modulerna som en ägare kan välja i gruppens inställningar: de registrerade som har ett kort.
+ * Modulerna som en ägare kan välja i gruppens inställningar: alla registrerade (0.60.0, #251).
  *
- * ⛔ EN MODUL MED `hubb: null` ÄR INTE ETT VAL. Den har inget kort att visa, och
- * en ägare som kryssar i den får en rad i hubben som säger att den inte ritas.
+ * ⛔ FÖRE 0.60.0 VAR EN MODUL MED `hubb: null` INTE ETT VAL, med skälet att en ägare som kryssade i den fick en rad i hubben om att
+ * den inte ritas. Beslut 0003 (CP 2026-10-05) gjorde det osant: en app kan ha noll egna ytor och ändå synas, som ett tillägg på
+ * händelserna. Inställningarna svarar på "vad har gruppen påslaget?" och visar därför alla appar, med raden "Syns på" (`synsPa`).
+ * Skälet till den gamla regeln står kvar i `hubbForGrupp`: en modul utan kort OCH utan tillägg är fortfarande en `inget-kort`-rad.
  *
  * @param {ReadonlyArray<import("./modul.js").Modul>} moduler
- * @returns {Hubbmodul[]}
+ * @returns {import("./modul.js").Modul[]}
  */
 export function valbaraModuler(moduler) {
-  return (moduler ?? []).filter((m) => m.hubb !== null && m.hubb !== undefined).map((m) => /** @type {Hubbmodul} */ (m));
+  return [...(moduler ?? [])];
 }
 
 /**

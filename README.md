@@ -1340,6 +1340,7 @@ export const liv = defineModule({
 | `skapar` | vad plusset erbjuder | En lista `{ id, namn, ikon, katalog, form }`. Spegelbilden av `kallor`: källorna läser IN i ramverkets ytor, registreringarna skriver UT ur plusset. ⛔ `katalog` krävs **även när den är `null`**: ett kvitto har ingen typ att välja, och en registrering som glömt sin katalog ser likadan ut som en som inte har någon om fältet är valfritt. ⛔ `id` är unikt över **hela** modullistan, inte bara inom modulen: plusset ritar en flik per registrering |
 | `hubb` | modulens kort i hubben och dess insida (0.37.0) | `{ ikon, rutt, startsida, delar }` eller `null`. `ikon` är ett React-element, `rutt` modulens adress (kortet leder dit och den visar startsidan), `delar` en lista `{ id, namn, ikon, rutt }` i navigationens ordning, minst en, och `startsida` är id:t på en av dem. ⛔ Varje dels `rutt` ligger **under** modulens (`/ekonomi/inkomster`, aldrig `/inkomster`): en del som inte bär sin moduls adress går inte att härleda tillbaka till modulen. ⛔ Krävs **även när den är `null`**, av samma skäl som `katalog`. ⛔ `validateModuler` kastar på två moduler med samma adress och på en modul inuti en annan. Se [Hubben per grupp](#hubben-per-grupp-0380-184) |
 | `typer` | modulens bidrag till inkorgens, kalenderns och händelsernas typer (0.42.0, #217) och aktivitetsloggens slag (0.55.0, #244) | `{ inkorg: [...], kalender: [...], handelser: [...], aktivitet: [...] }`, varje post `{ id, namn: { sv, en }, ikon?, farg? }`. ⛔ **Valfritt, till skillnad från alla andra fält**, och det är ett val med pris: ett krav hade fällt varje redan skriven modul på en minorversion. Den byggda modulen bär ändå alltid en lista per yta (`[]` när inget bidrag), så ingen konsument frågar om en nyckel finns. Nycklarna är ASCII (`handelser`, inte `händelser`). Se [Modulernas typbidrag](#modulernas-typbidrag-0420-217) |
+| `tillagg` | det modulen pluggar in på ramverkets ytor (0.60.0, #251) | En lista `{ plats, id, etikett, komponent }`. `plats` är en av ramverkets platser (`HANDELSE_PLATSER`: `handelse.sektion`, `handelse.atgard`), `id` är unikt inom modulen, `etikett` är `{ sv, en }` med **båda** språken, och `komponent` pekas ut som en route-vy. ⛔ **En plats som inte finns avvisas vid uppstart**, med modulens namn och fältet i felet: platserna är ramverkets, och en app ändrar aldrig en ramverksyta (beslut 0003). Valfritt som `typer`, och den byggda modulen bär alltid en lista. Se [Tillägg på ramverkets ytor](#tillägg-på-ramverkets-ytor-0600-251) |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`,
 en modul som inte fyller någon yta skriver `kallor: {}`, en modul som inte
@@ -1356,6 +1357,39 @@ att läsa, jämföra och validera, medan en funktion bara går att köra.
 ⛔ **VALIDERINGEN KÖRS VID UPPSTART**, i samma form och av samma skäl som
 `validateNav` och `validateKatalog`. En trasig modul som upptäcks vid första
 klicket är ett fel i knäet på användaren.
+
+#### Tillägg på ramverkets ytor (0.60.0, #251)
+
+⛔ **En app ändrar aldrig en ramverksyta. Den pluggar bara in där ytan har lämnat en plats**
+([beslut 0003](docs/beslut/0003-appar-ytor-och-tillagg.md)). Saknas platsen öppnar ramverket den, en gång, för alla appar.
+
+```js
+import { defineModule, HANDELSE_PLATSER } from "@staiger/ops-framework";
+
+export const omrostning = defineModule({
+  id: "omrostning",
+  namn: { sv: "Datumomröstning", en: "Date poll" },
+  nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: null,
+  tillagg: [
+    { plats: "handelse.sektion", id: "rostning", etikett: { sv: "Omröstning", en: "Poll" }, komponent: Rostning },
+    { plats: "handelse.atgard", id: "ny", etikett: { sv: "Ny datumomröstning", en: "New date poll" }, komponent: NyRostning },
+  ],
+});
+```
+
+| Plats | Var den ritas | Komponenten får |
+|---|---|---|
+| `handelse.sektion` | En sektion i `OpsHandelsePanel` efter informationsrutan, med `etikett` som rubrik | `{ handelse, grupp }` |
+| `handelse.atgard` | En rad i plusmenyns händelsedel, direkt efter "Ny händelse". Komponenten **är** raden (normalt en `OpsPanelRow`), och listan stängs när man trycker i den | `{ handelse: null, grupp }`: plusset öppnas utan en händelse |
+
+Ytorna ritar **bara tillägg från moduler som är påslagna i gruppen** (`grupp.moduler`), och en avslagen moduls
+komponent anropas inte. `OpsHandelsePanel` tar `moduler` (ur `validateModuler`) och `grupp` (gruppen händelsen hör till).
+Skalet tar `skapa.moduler` och `skapa.aktivGrupp` (den aktiva gruppen; `aktivGrupp.id` måste vara `skapa.lage`, annars
+kastar skalet). Filtret är **`tillaggFor({ moduler, grupp, plats })`**, så beslutet går att pröva utan att rita.
+
+**`synsPa(modul)`** härleder var en app syns: `{ egenYta, ytor }`, där egen yta är `nav` eller `hubb` och `ytor` är nycklar i
+**`PLATSYTOR`** (`handelse` heter "Händelser"). **`synsPaText`** gör raden av det, och skriver ut att appen inte syns någonstans
+i stället för en tom rad. `OpsGruppFormular` visar den på varje app. **`PLATSER`** är alla platser, härledd ur ytornas listor.
 
 ⛔ **`validateModuler` FÅNGAR DET SOM INTE SYNS I ETT MANIFEST.** Två moduler med
 samma `id`, samma route eller samma samling är var för sig giltiga och
@@ -2095,7 +2129,9 @@ Kalendern, chatten och inkorgen är ramverkets grund och har alla grupper, utan 
   den inte får plats. `children` är delens vy; appens router väljer den. Vilken del som är öppen avgör **`modulLage`**:
   modulens egen adress är startsidan, och en undersida till en del markerar delen.
 - **`valbaraModuler(moduler)`** är det ägaren väljer bland i `OpsGruppFormular` (prop `moduler: { valbara, agare }`,
-  bara redigeringsläge och bara ägaren; en admin ser inte fältet, och reglerna avvisar det ändå).
+  bara redigeringsläge och bara ägaren; en admin ser inte fältet, och reglerna avvisar det ändå). ⛔ Sedan 0.60.0 (#251)
+  är det **alla** registrerade moduler, också de utan kort, och varje rad bär "Syns på: ..." härlett ur manifestet
+  (`synsPa`). En modul utan kort men med tillägg är inte en saknad rad i `hubbForGrupp`; en utan kort och utan tillägg är det.
 
 **Gamla adresser.** Bokmärken och länkar i Inkorgen pekar på adresser som fanns före flytten. Appen skriver en lista, och
 **`byggOmdirigeringar`** validerar den vid uppstart:

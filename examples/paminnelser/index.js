@@ -44,6 +44,9 @@ const PaminnelserVy = lazy(() => import("./PaminnelserVy.jsx"));
 /** Samma skäl som vyn ovan: Node kan inte läsa JSX, manifestet måste gå att importera. */
 const PaminnelserForm = lazy(() => import("./PaminnelserForm.jsx"));
 
+/** Samma skäl som vyn ovan. */
+const PaminnelserTillagg = lazy(() => import("./PaminnelserTillagg.jsx"));
+
 /**
  * Modulens egen katalog: vad en påminnelse handlar om.
  *
@@ -202,4 +205,19 @@ export const paminnelser = defineModule({
   typer: {
     inkorg: [{ id: "paminnelse", namn: { sv: "Påminnelse", en: "Reminder" }, ikon: "gem" }],
   },
+
+  /*
+   * ⛔ `tillagg` (0.60.0, #251): det modulen pluggar in på ramverkets ytor, i en `plats` ramverket erbjuder
+   * (`HANDELSE_PLATSER`). En plats som inte finns avvisas vid uppstart. `etikett` krävs på båda språken och är
+   * sektionens rubrik, och `komponent` pekas ut och laddas lat, av samma skäl som vyn. Ytan ritar bara tillägget
+   * i grupper som har modulen påslagen. Valfritt som `typer`.
+   */
+  tillagg: [
+    {
+      plats: "handelse.sektion",
+      id: "kopplade",
+      etikett: { sv: "Påminnelser", en: "Reminders" },
+      komponent: PaminnelserTillagg,
+    },
+  ],
 });

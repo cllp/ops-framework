@@ -4372,6 +4372,95 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
   await context.close();
 }
 
+// ══ 40. TILLÄGG PÅ HÄNDELSEYTAN OCH "SYNS PÅ" I INSTÄLLNINGARNA (0.60.0, #251, beslut 0003) ═════════════════════════════════
+// En app pluggar in i platser ytan erbjuder och ändrar aldrig själva ytan. Mätt i byggd scen: den påslagna modulens sektion står
+// EFTER informationsrutan med sin rubrik, den avslagna modulens komponent anropas aldrig, plussets händelsedel bär åtgärden direkt
+// under Ny händelse och ett tryck stänger menyn, och inställningslistan visar alla appar med en härledd "Syns på"-rad. jsdom kör
+// ingen CSS, så ordningen på skärmen och att inget flödar i sidled går bara att se här.
+for (const [namn, vp] of /** @type {const} */ ([["tilläggen 390 px", { width: 390, height: 844 }], ["tilläggen 1280 px", { width: 1280, height: 900 }]])) {
+  const { page, context } = await oppna("tillagg", vp);
+  try {
+    const fel = /** @type {string[]} */ ([]);
+    page.on("pageerror", (e) => fel.push(String(e.message)));
+    await page.waitForSelector('[data-tillagg="omrostning:rostning"], [data-saknas="tillaggFor"]', { timeout: 4000 });
+    const s = await page.evaluate(() => {
+      const sek = /** @type {HTMLElement | null} */ (document.querySelector('section[data-tillagg="omrostning:rostning"]'));
+      const info = /** @type {HTMLElement | null} */ (document.querySelector("[data-handelseinfo]"));
+      const rubrik = sek ? sek.querySelector("h2") : null;
+      const prov = sek ? sek.querySelector("[data-provtillagg]") : null;
+      return {
+        saknas: !!document.querySelector('[data-saknas="tillaggFor"]'),
+        sek: sek ? { t: sek.getBoundingClientRect().top, r: sek.getBoundingClientRect().right } : null,
+        infoB: info ? info.getBoundingClientRect().bottom : null,
+        efterInfo: !!(sek && info && info.compareDocumentPosition(sek) & Node.DOCUMENT_POSITION_FOLLOWING),
+        rubrik: rubrik ? (rubrik.textContent || "").trim() : null,
+        namngiven: sek ? document.getElementById(sek.getAttribute("aria-labelledby") || "") === rubrik : false,
+        props: prov ? [prov.getAttribute("data-handelse"), prov.getAttribute("data-grupp")] : null,
+        rader: prov ? prov.children.length : 0,
+        avslagen: !!document.querySelector('[data-provtillagg="avslagen"]') || /** @type {any} */ (window).__avslagenAnropad === true,
+        over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    matt.push(`${namn}: sektionen ${JSON.stringify(s.sek)}, informationsrutan slutar ${s.infoB}, rubrik ${JSON.stringify(s.rubrik)}, props ${JSON.stringify(s.props)}`);
+    krav(!s.saknas, `${namn}: den byggda versionen saknar tillaggFor, så inga tillägg kan ritas.`);
+    krav(!!s.sek && s.efterInfo && s.infoB !== null && s.sek.t >= s.infoB, `${namn}: Omröstningens sektion ${s.sek ? `börjar ${s.sek.t.toFixed(0)}` : "saknas"}, informationsrutan slutar ${s.infoB}. Väntat sektionen efter rutan.`);
+    krav(s.rubrik === "Omröstning" && s.namngiven, `${namn}: sektionens rubrik är ${JSON.stringify(s.rubrik)}${s.namngiven ? "" : " och namnger inte sektionen"}, väntat Omröstning ur manifestets etikett.`);
+    krav(JSON.stringify(s.props) === '["mote","g1"]' && s.rader >= 2, `${namn}: komponenten fick ${JSON.stringify(s.props)} och ritade ${s.rader} rader, väntat händelsen mote och gruppen g1, minst 2 rader (golv).`);
+    krav(!s.avslagen, `${namn}: den avslagna modulen Anteckningar ritades eller anropades.`);
+    krav(s.over <= 0 && !!s.sek && s.sek.r <= vp.width, `${namn}: sidan flödar över ${s.over} px, eller sektionen går utanför fönstret.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `handelse-sektion-${vp.width}.png`), fullPage: true });
+
+    await page.getByRole("button", { name: "Skapa", exact: true }).last().click();
+    await page.waitForSelector('[data-tillagg="omrostning:ny"]', { timeout: 3000 }).catch(() => {});
+    const p = await page.evaluate(() => {
+      const knapp = (/** @type {string} */ t) => [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === t && b.getBoundingClientRect().height > 0);
+      const ny = knapp("Ny händelse");
+      const atg = knapp("Ny datumomröstning");
+      const r = (/** @type {Element | undefined} */ e) => (e ? { t: e.getBoundingClientRect().top, b: e.getBoundingClientRect().bottom, h: e.getBoundingClientRect().height, r: e.getBoundingClientRect().right } : null);
+      return { ny: r(ny), atg: r(atg), grupp: atg ? atg.closest("[data-tillagg]")?.getAttribute("aria-label") ?? null : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    matt.push(`${namn}, plusset: Ny händelse ${JSON.stringify(p.ny)}, Ny datumomröstning ${JSON.stringify(p.atg)}`);
+    krav(!!p.ny && !!p.atg && p.atg.t >= p.ny.b - 1 && p.atg.t - p.ny.b < 12, `${namn}: åtgärden ${p.atg ? `börjar ${p.atg.t.toFixed(0)}` : "saknas"} och Ny händelse ${p.ny ? `slutar ${p.ny.b.toFixed(0)}` : "saknas"}. Väntat raden direkt under Ny händelse.`);
+    // Telefonens ark kräver 44 px. Skrivbordets popover har 40 px rader, och åtgärden ska då vara lika hög som Ny händelse.
+    krav(!!p.atg && !!p.ny && p.atg.h >= (vp.width < 768 ? 43.5 : p.ny.h - 0.5) && p.atg.r <= vp.width, `${namn}: åtgärdens rad är ${p.atg ? `${p.atg.h.toFixed(0)} px hög och slutar ${p.atg.r.toFixed(0)}` : "borta"}, väntat ${vp.width < 768 ? "minst 44 px" : "lika hög som Ny händelse"} och inom skärmen.`);
+    krav(p.grupp === "Ny datumomröstning", `${namn}: åtgärdens grupp heter ${JSON.stringify(p.grupp)}, väntat manifestets etikett.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `plus-atgard-${vp.width}.png`) });
+    await page.getByRole("button", { name: "Ny datumomröstning" }).click();
+    await page.waitForTimeout(300);
+    const efter = await page.evaluate(() => ({ tryck: /** @type {any} */ (window).__nyRostning ?? 0, kvar: [...document.querySelectorAll('[data-tillagg="omrostning:ny"]')].some((e) => e.getBoundingClientRect().height > 0) }));
+    krav(efter.tryck === 1 && !efter.kvar, `${namn}: efter trycket anropades åtgärden ${efter.tryck} gånger${efter.kvar ? " och menyn står kvar" : ""}, väntat en gång och stängd meny.`);
+    krav(fel.length === 0, `${namn}: sidan kastade: ${fel[0]}`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390, height: 844 }], ["syns på 1280 px", { width: 1280, height: 900 }]])) {
+  const { page, context } = await oppna("tillagg-installning", vp);
+  try {
+    await page.waitForSelector("[data-gruppmoduler], [data-saknas]", { timeout: 4000 });
+    const l = await page.evaluate(() => [...document.querySelectorAll("[data-gruppmoduler] button[data-modul]")].map((b) => {
+      const r = b.getBoundingClientRect();
+      const syns = document.getElementById(b.getAttribute("aria-describedby") || "");
+      return { id: b.getAttribute("data-modul"), namn: b.getAttribute("aria-label"), syns: syns ? (syns.textContent || "").trim() : null, synsR: syns ? syns.getBoundingClientRect().right : 0, h: r.height, r: r.right, pa: b.getAttribute("aria-pressed") };
+    }));
+    matt.push(`${namn}: ${JSON.stringify(l.map((x) => [x.id, x.syns, x.pa]))}`);
+    krav(l.length >= 3, `${namn}: ${l.length} appar i listan, väntat alla tre (golv 2), också de utan egen yta.`);
+    const rad = (/** @type {string} */ id) => l.find((x) => x.id === id);
+    krav(rad("omrostning")?.syns === "Syns på: Händelser" && rad("omrostning")?.pa === "true", `${namn}: Datumomröstning säger ${JSON.stringify(rad("omrostning")?.syns)} (påslagen ${rad("omrostning")?.pa}), väntat Syns på: Händelser och påslagen.`);
+    krav(rad("anteckningar")?.syns === "Syns på: Händelser" && rad("anteckningar")?.pa === "false", `${namn}: Anteckningar säger ${JSON.stringify(rad("anteckningar")?.syns)} (påslagen ${rad("anteckningar")?.pa}), väntat Syns på: Händelser och avslagen.`);
+    krav(rad("ekonomi")?.syns === "Syns på: Egen yta", `${namn}: Ekonomi säger ${JSON.stringify(rad("ekonomi")?.syns)}, väntat Syns på: Egen yta.`);
+    krav(l.every((x) => x.h >= 43.5 && x.r <= vp.width && x.synsR <= x.r), `${namn}: en rad är lägre än 44 px eller går utanför skärmen (${JSON.stringify(l.map((x) => [x.id, Math.round(x.h), Math.round(x.r)]))}).`);
+    if (bildmapp) {
+      await page.locator("[data-gruppmoduler]").scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(bildmapp, `installning-appar-${vp.width}.png`) });
+    }
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 if (bildmapp) {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const { page, context } = await oppna("kalender", vp);

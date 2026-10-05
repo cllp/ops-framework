@@ -201,8 +201,12 @@ describe("hubbForGrupp: gruppens moduler och inget annat", () => {
     expect(() => hubbForGrupp({ grupp: { id: "g", moduler: [] }, moduler: /** @type {any} */ (undefined) })).toThrow(/hubbForGrupp: moduler krävs/);
   });
 
-  it("valbara är de registrerade med ett kort", () => {
-    expect(valbaraModuler(moduler()).map((m) => m.id)).toEqual(["ekonomi", "resor"]);
+  /*
+   * ⛔ ÄNDRAT I 0.60.0 (#251, beslut 0003). Provet hette "valbara är de registrerade med ett kort" och väntade sig ["ekonomi", "resor"].
+   * CP 2026-10-05: inställningarna ska visa alla appar, också de utan egen yta. Inkorg här har `hubb: null` och står nu med.
+   */
+  it("valbara är alla registrerade, också de utan kort", () => {
+    expect(valbaraModuler(moduler()).map((m) => m.id)).toEqual(["ekonomi", "resor", "inkorg"]);
   });
 
   it("⛔ hubbens meny listar bara moduler: inga barn", () => {
@@ -402,7 +406,8 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
     const { container } = render(<OpsGruppFormular formId="f" grupp={GRUPP} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
     const sektion = screen.getByRole("region", { name: "Appar" });
     const knappar = within(sektion).getAllByRole("button");
-    expect(knappar.map((b) => b.textContent)).toEqual(["Ekonomi", "Resor"]);
+    // ⛔ 0.60.0 (#251): namnet ur `aria-label`, eftersom raden "Syns på" nu står i knappen. Inkorg (utan kort) står med.
+    expect(knappar.map((b) => b.getAttribute("aria-label"))).toEqual(["Ekonomi", "Resor", "Inkorg"]);
     expect(knappar.every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
     expect(container.querySelector('[data-modul-okand="gammal"]')?.textContent).toContain("gammal är installerad i gruppen men finns inte här");
     fireEvent.click(knappar[1]);

@@ -1215,8 +1215,10 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     for (const f of fs.readdirSync(path.join(rot, "examples", "paminnelser"))) {
       fs.copyFileSync(path.join(rot, "examples", "paminnelser", f), path.join(mapp, "examples", "paminnelser", f));
     }
-    const mal = path.join(mapp, fil);
-    fs.writeFileSync(mal, mutera(fil, fs.readFileSync(mal, "utf8")));
+    for (const f of Array.isArray(fil) ? fil : [fil]) {
+      const mal = path.join(mapp, f);
+      fs.writeFileSync(mal, mutera(f, fs.readFileSync(mal, "utf8")));
+    }
     return mapp;
   };
 
@@ -1279,7 +1281,9 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
 
   kravRott(
     "exempelmodul golv: importmönstret matchar ingenting",
-    [exempelvakt, kopia("ex6", "examples/paminnelser/index.js", (_f, t) => t.split("import").join("importera"))],
+    // ⛔ HELA MAPPEN, INTE BARA index.js: med tilläggets fil (0.60.0) räckte de andra filernas importer till golvet, och provet
+    // blev grönt fast mönstret i index.js inte matchade något.
+    [exempelvakt, kopia("ex6", fs.readdirSync(path.join(rot, "examples", "paminnelser")).map((f) => `examples/paminnelser/${f}`), (_f, t) => t.split("import").join("importera"))],
     "golvet är 4",
   );
 
