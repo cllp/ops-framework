@@ -516,6 +516,13 @@ function byggTillagg(varde, var_) {
     if (t.komponent === undefined || t.komponent === null) {
       throw var_(`tillagg[${i}].komponent för "${tid}"`, "krävs. Ramverket äger platsen, modulen äger det som ritas i den, och ett tillägg utan komponent är en tom sektion.");
     }
+    /*
+     * ⛔ EN KOMPONENT ÄR EN FUNKTION ELLER ETT OBJEKT. React memo och forwardRef ger objekt, så objekt släpps in. En sträng eller ett tal
+     * hade klarat kontrollen ovan och först fallit när ytan försökte rita det, hos användaren i stället för vid uppstart (PR 258).
+     */
+    if (typeof t.komponent !== "function" && (typeof t.komponent !== "object" || Array.isArray(t.komponent))) {
+      throw var_(`tillagg[${i}].komponent för "${tid}"`, `måste vara en React-komponent, alltså en funktion eller ett objekt från memo eller forwardRef, och ${typeof t.komponent === "object" ? "en lista" : `en ${typeof t.komponent === "string" ? "sträng" : typeof t.komponent}`} går inte att rita.`);
+    }
     ut.push(Object.freeze({ plats, id: tid, etikett: Object.freeze({ sv, en }), komponent: t.komponent }));
   });
   return Object.freeze(ut);

@@ -27,6 +27,7 @@ Tre grenar samlade i en version (#253, #255 och #256), eftersom alla tre gjorde 
 - **`OpsHandelsePanel moduler grupp`** och **`OpsAppShell skapa.moduler skapa.aktivGrupp`**. Ytan ritar bara tillägg från moduler som är påslagna i `grupp.moduler`; en avslagen moduls komponent anropas inte. `skapa.aktivGrupp.id` måste vara `skapa.lage`, annars kastar skalet.
 - **`tillaggFor`, `synsPa`, `synsPaText`, `PLATSER`, `PLATSYTOR`** för den som bygger en egen yta eller en egen lista.
 - **"Syns på" i gruppens inställningar.** Listan Appar i `OpsGruppFormular` visar alla appar, också de utan egen yta, och varje rad säger var appen syns: "Egen yta", ytornas namn ("Händelser"), eller båda. Härlett ur manifestet, aldrig ett handskrivet fält.
+- **`defineModule` avvisar ett tillägg vars `komponent` inte är en funktion eller ett objekt** (PR 258). Före detta stoppade kontrollen bara `undefined` och `null`, så en sträng eller ett tal klarade uppstarten och föll först när ytan försökte rita det. Objekt släpps in, eftersom React memo och forwardRef ger objekt. Felet nämner modul, fält och skäl.
 
 #### Ändrat
 

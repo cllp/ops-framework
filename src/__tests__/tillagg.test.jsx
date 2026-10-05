@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createElement } from "react";
+import { createElement, memo, forwardRef } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import * as tillaggApi from "../lib/tillagg.js";
 import { validateModuler } from "../lib/modul.js";
@@ -73,6 +73,14 @@ describe("manifestets tillagg valideras vid uppstart", () => {
 
   it("⛔ ett tillägg utan komponent avvisas", () => {
     expect(() => validateModuler([MODUL("omrostning", [TILLAGG({ komponent: undefined })])])).toThrow(/modul "omrostning": tillagg\[0\]\.komponent för "rostning" krävs/);
+  });
+
+  it("⛔ en komponent som är en sträng eller ett tal avvisas vid uppstart, men memo och forwardRef släpps in", () => {
+    expect(() => validateModuler([MODUL("omrostning", [TILLAGG({ komponent: "RostPanel" })])])).toThrow(/modul "omrostning": tillagg\[0\]\.komponent för "rostning" måste vara en React-komponent/);
+    expect(() => validateModuler([MODUL("omrostning", [TILLAGG({ komponent: 42 })])])).toThrow(/tillagg\[0\]\.komponent för "rostning" måste vara en React-komponent/);
+    const medMemo = memo(() => null);
+    const medRef = forwardRef(() => null);
+    expect(() => validateModuler([MODUL("omrostning", [TILLAGG({ komponent: medMemo }), TILLAGG({ id: "andra", etikett: { sv: "Andra", en: "Second" }, komponent: medRef })])])).not.toThrow();
   });
 
   it("⛔ okända fält i ett tillägg avvisas", () => {

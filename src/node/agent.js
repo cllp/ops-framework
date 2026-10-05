@@ -9,6 +9,12 @@ import { agentId, agentMedlemskap, medlemskapsId } from "../lib/grupp.js";
  * ⛔ INGEN TA BORT. Agenten tas inte bort av någon i appen, den stängs av (`avstangd`). Ett borttaget medlemskap hade
  * kommit tillbaka med nästa engångssteg, och då hade ägarens val varit en tillfällighet.
  *
+ * ⛔ `avstangd` GÄLLER BARA NÄR ETT SAMTAL SKAPAS. Regeln `opsNyttSamtal` prövar agentens status en gång, vid skapandet, och ett samtal som
+ * redan finns fortsätter att ta emot meddelanden efter att ägaren stängt av agenten. Händelsen är granskningen av PR 258: en avstängd agent
+ * hade annars svarat i ett gammalt samtal, eftersom ingenting efter skapandet frågade om strömbrytaren. Servern som svarar som agenten
+ * måste därför läsa agentens medlemskap (`agentMedlemskap`) före VARJE svar, inte bara det första. Är agenten avstängd skriver servern en rad
+ * som säger att agenten är avstängd, och är inte tyst: ett uteblivet svar läses som ett fel, en rad som säger varför läses som ägarens val.
+ *
  * @param {object} konfig
  * @param {import("../data/contract.js").DataSource<any>} konfig.kalla Admin SDK-källan.
  * @param {{ medlemskap?: string }} [konfig.samlingar]
