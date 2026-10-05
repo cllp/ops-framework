@@ -844,6 +844,8 @@ Agenten är ett vanligt medlemskap: `typ: "agent"`, roll `medlem`, status `aktiv
 - **`OpsMedlemmar`**: en agents rad har märket AI (`aiEtikett`), ingen rollväljare och ingen Ta bort.
 - **`OpsMottagare lage="person"`** och därmed **`OpsNyttMeddelande`** har den aktiva agenten bland mottagarna. Vald öppnas ett samtal av slaget `agent` (`oppnaPrivat({ ..., slag: "agent" })`), och raden under säger `privatAgentText` ("Bara du och agenten ser det här."). En avstängd agent står inte med.
 
+`AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE` finns också på nodsidan (`@staiger/ops-framework/node`), så att servern som svarar bygger agentens id och meddelandet med samma funktioner som klienten, utan att dra in React.
+
 Svaret skrivs av appens server som ett vanligt meddelande med `av` = agentens id: `memberships` och meddelanden som agent går aldrig att skriva från en klient (`allow write: if false`, och `typ == 'person'` för den som skriver i ett samtal).
 
 #### ⛔ E-posten lämnar aldrig `users`, och medlemslistan visar namn och bild

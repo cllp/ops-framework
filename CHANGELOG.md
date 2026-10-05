@@ -16,6 +16,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 - **Gruppens agent är medlem** (cllp/lifehub.app#47, skiva 1 och 2, ramverkets del). `agentId(groupId)` ger det stabila id:t `agent_<groupId>`, `agentMedlemskap(groupId)` raden (typ `agent`, roll `medlem`, status `aktiv`, namnet `AGENT_NAMN`, "Agent").
 - **`createGroupService({ agent: true })`** skriver agentens medlemskap i samma batch som gruppen och ägaren. Förval `false`.
 - **`createAgentService`** på nodsidan: `satStatus` (ägaren slår av och på agenten, aldrig ta bort) och `sakerstall` för engångssteget som ger befintliga grupper sin agent (idempotent, torrt skriver inget).
+- **Nodsidan exporterar också `AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE`**, för servern som svarar som agenten.
 - **Statusen `avstangd`** i `MEDLEMSSTATUS`, bara för en agent. `byggMedlemskap` avvisar en person med den.
 - **`medlemsinfo(...).agenter`**, och **`OpsGruppSida agenter onVaxlaAgent onSkrivTillAgent`**: agenten i medlemslistan med märket AI, ägarens strömbrytare, och "Skriv till" för ett privat samtal.
 - **`OpsMedlemmar aiEtikett`**: en agents rad har märket AI och varken rollväljare eller Ta bort.
