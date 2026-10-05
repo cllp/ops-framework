@@ -248,7 +248,8 @@ describe("C: hover och rundning (#173)", () => {
   it("ikonlänken är en cirkel: rounded-full size-9 p-2, 44 px träffyta som osynlig after-yta", () => {
     render(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" />);
     const l = screen.getByRole("link", { name: "Inkorg" });
-    for (const k of ["rounded-full", "size-9", "p-2", "hover:bg-raised", "after:size-11"]) expect(l.className).toContain(k);
+    // ⛔ 0.59.1 (bolag-ops#563): `p-1.5` runt en 24 px ikon i samma 36 px cirkel, inte SS `p-2` runt 20; bara under md, CP: "563 är bara i mobil". Pixlarna mäts i `check-skalyta`.
+    for (const k of ["rounded-full", "size-9", "p-1.5", "[&_svg]:size-6", "md:p-2", "md:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) expect(l.className).toContain(k);
     expect(l.className).not.toContain("min-h-11");
   });
 

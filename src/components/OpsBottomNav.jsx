@@ -186,8 +186,8 @@ function OpsBottomNavRitad({
         <Dialog.Root open={oppen} onOpenChange={stangArket}>
           <Dialog.Trigger asChild>
             <button type="button" className={platsKlass(false)}>
-              <span className="inline-flex [&_svg]:size-5">
-                <MenuIcon size={20} />
+              <span className="inline-flex [&_svg]:size-6">
+                <MenuIcon size={24} />
               </span>
               <span className="max-w-full truncate text-liten">{menuLabel}</span>
             </button>
@@ -254,7 +254,11 @@ function OpsBottomNavRitad({
 /**
  * Den runda knappen mitt i raden.
  *
- * ⛔ Den STICKER UPP ur raden (`-translate-y-3`) och har en ring i ytans färg.
+ * ⛔ Den STICKER UPP ur raden (`-translate-y-4`) och har en ring i ytans färg.
+ *
+ * ⛔ 0.59.1 (bolag-ops#563): raden blev 8 px högre, och knappen är centrerad i den. Lyftet gick därför från 12 till 16
+ * px, så att knappen sticker upp exakt lika långt över radens överkant som förut och `--bottom-nav-overhang` (16 px)
+ * fortfarande stämmer. Med kvar `-translate-y-3` hade knappen sjunkit 4 px ned i raden.
  * Utan det blir den en cirkel bland fyra ikoner, alltså en femte flik som råkar
  * vara rund, och hela poängen med att skilja "gör" från "gå till" försvinner.
  *
@@ -280,7 +284,7 @@ function Huvudatgard({ atgard }) {
         data-talk-knapp={talk ? talk.lage : undefined}
         aria-label={haller ? TALK_ORD : atgard.label}
         className={cx(
-          "-translate-y-3 inline-flex size-14 cursor-pointer touch-none items-center justify-center rounded-full select-none [-webkit-touch-callout:none]",
+          "-translate-y-4 inline-flex size-14 cursor-pointer touch-none items-center justify-center rounded-full select-none [-webkit-touch-callout:none]",
           "bg-accent text-accent-contrast ring-4 ring-surface",
           "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -297,6 +301,10 @@ function Huvudatgard({ atgard }) {
  * En plats i bottenraden. Mätt ur SessionStudios `MobileTabBar.jsx:73-87`:
  * ikon 20 px (`w-5 h-5`), etikett 10 px med `leading-tight` (rollen `liten`),
  * aktiv accent, inaktiv dämpad (`text-muted`), `gap-0.5`, raden `h-14`.
+ *
+ * ⛔ 0.59.1: IKONEN ÄR 24 PX OCH RADEN 64, INTE FÖREBILDENS 20 OCH 56. CP 2026-10-05
+ * (cllp/bolag-ops#563): "Ikonerna i huvudmenyerna botten och toppen är lite väl
+ * små. Svårt att träffa dom med fingret." Etikett och färger står kvar som mätt.
  *
  * ⛔ 0.30.0 (#173): FÖRE VAR IKONEN 22 PX, ETIKETTEN 12 PX OCH INAKTIV FÄRG
  * `ink-secondary`. Tre tal som alla var lite för stora och en färg som var lite
@@ -323,8 +331,8 @@ function BottomLank({ entry, active, onClick, badgeText }) {
       aria-current={active ? "page" : undefined}
       className={platsKlass(active)}
     >
-      <span className="relative inline-flex [&_svg]:size-5">
-        {entry.icon ?? <span className="inline-block size-5 rounded-full border-2 border-current" aria-hidden="true" />}
+      <span className="relative inline-flex [&_svg]:size-6">
+        {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}
         {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
       </span>
       <span className="max-w-full truncate text-liten">{entry.label}</span>

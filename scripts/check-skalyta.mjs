@@ -15,14 +15,15 @@
  *
  *   1. MENYN: ingen avgränsare närmare en annan än 24 px, i arket (390 px) och i
  *      rullgardinen (1280 px). Två streck 8 px från varandra under arkets rubrik.
- *   2. HUVUDETS KNAPPAR: plus, ikonlänk och hamburgare är 36 px cirklar, avataren
+ *   2. HUVUDETS KNAPPAR (1280 px): plus, ikonlänk och hamburgare är 36 px cirklar med 20 px ikon, avataren
  *      en 28 px cirkel i en 32 px knapp, alla med 44 px träffyta, och mittlinjerna
  *      skiljer högst 1 px.
  *   3. LOGGAN: märket i toppraden bär ingen text och är inte högre än toppraden (56 px).
  *   4. RADEN: 12 px rundning och hover i `--color-raised`.
  *   5. INSTÄLLNINGSVYN vid 390 px: ingen horisontell överflödning.
  *   6. BOTTENRADEN med `fasta`: Idag, Kalender, STORT PLUS i mitten, Hub, Meny; ikon
- *      20 px, etikett 10 px, höjd 56 px; huvudets plus gömt i mobil.
+ *      24 px, etikett 10 px, höjd 64 px; huvudets plus gömt i mobil; huvudets ikonlänk 24 px. (0.59.1, bolag-ops#563:
+ *      SS mätte 20 och 56, men CP: "Svårt att träffa dom med fingret".)
  *
  * ⛔ GOLV: varje mätning kräver att det den mäter FANNS (minst så många rader, knappar
  * eller streck), annars är den röd. En mätning som blir grön av att inget hittades
@@ -196,7 +197,8 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
       const r = el.getBoundingClientRect();
       const cs = getComputedStyle(el);
       const efter = getComputedStyle(el, "::after");
-      return { x: r.x, y: r.y, w: r.width, h: r.height, mitt: r.y + r.height / 2, radie: parseFloat(cs.borderTopLeftRadius) || 0, efterBredd: parseFloat(efter.width) || 0, efterHojd: parseFloat(efter.height) || 0 };
+      const svg = el.querySelector("svg");
+      return { x: r.x, y: r.y, w: r.width, h: r.height, ikon: svg ? svg.getBoundingClientRect().width : 0, mitt: r.y + r.height / 2, radie: parseFloat(cs.borderTopLeftRadius) || 0, efterBredd: parseFloat(efter.width) || 0, efterHojd: parseFloat(efter.height) || 0 };
     };
     const q = (/** @type {string} */ s) => document.querySelector(s);
     const header = q("header");
@@ -222,7 +224,9 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
     krav(Math.max(...mitt) - Math.min(...mitt) <= 1, `huvudet: mittlinjerna skiljer ${(Math.max(...mitt) - Math.min(...mitt)).toFixed(2)} px (${knappar.map((k, i) => `${k} ${mitt[i].toFixed(1)}`).join(", ")}). Väntat högst 1 px.`);
     for (const k of /** @type {const} */ (["plus", "inkorg", "hamburgare"])) {
       const r = m[k];
-      krav(Math.abs(r.w - 36) < 0.5 && Math.abs(r.h - 36) < 0.5, `huvudet: ${k} är ${r.w}x${r.h} px, väntat en 36 px cirkel (SS \`p-2\` runt en 20 px ikon).`);
+      krav(Math.abs(r.w - 36) < 0.5 && Math.abs(r.h - 36) < 0.5, `huvudet: ${k} är ${r.w}x${r.h} px, väntat en 36 px cirkel.`);
+      // ⛔ 1280 px: SS 20 px står kvar. CP 2026-10-05: "563 är bara i mobil." Telefonens 24 px mäts i sektion 6.
+      krav(Math.abs(r.ikon - 20) < 0.5, `huvudet 1280: ${k} har en ${r.ikon} px ikon, väntat 20 (bolag-ops#563 gäller bara mobil).`);
       krav(r.radie >= 18, `huvudet: ${k} har rundning ${r.radie} px, väntat en cirkel (minst 18 px).`);
       krav(r.efterBredd >= 44 && r.efterHojd >= 44, `huvudet: ${k} har träffyta ${r.efterBredd}x${r.efterHojd} px, väntat minst 44x44 som osynlig \`after:\`-yta.`);
     }
@@ -325,11 +329,13 @@ if (!utanFasta) {
     const ikon = lank?.querySelector("svg");
     const etikett = lank?.querySelector("span:last-child");
     const huvudPlus = document.querySelector('header button[aria-label="Skapa"]');
+    const huvudIkon = document.querySelector('header a[aria-label="Inkorg"] svg');
     return {
       poster,
       hojd: nav.firstElementChild ? nav.firstElementChild.getBoundingClientRect().height : 0,
       ikon: ikon ? ikon.getBoundingClientRect().width : 0,
       etikett: etikett ? parseFloat(getComputedStyle(etikett).fontSize) : 0,
+      huvudIkon: huvudIkon ? huvudIkon.getBoundingClientRect().width : 0,
       huvudPlusVisas: huvudPlus ? getComputedStyle(huvudPlus).display !== "none" : null,
       // ⛔ RADENS EGEN BREDD och inte fönstrets: en klassisk rullningslist (Chromium utan touch-emulering,
       // `scrollbar-gutter: stable` i basskiktet) tar 15 px av raden, och "mitt i raden" är mitten av det som ritas.
@@ -345,8 +351,9 @@ if (!utanFasta) {
     const plus = m.poster.find((p) => p.namn === "Skapa");
     krav(!!plus && Math.abs(plus.w - 56) < 0.5 && Math.abs(plus.h - 56) < 0.5, `bottenraden: plusset är ${plus?.w}x${plus?.h} px, väntat 56x56.`);
     krav(!!plus && Math.abs(plus.mitt - m.bredd / 2) <= 2, `bottenraden: plusset ligger på x=${plus?.mitt.toFixed(1)}, väntat mitt i raden (${m.bredd / 2}).`);
-    krav(Math.abs(m.hojd - 56) < 0.5, `bottenraden: höjd ${m.hojd} px, väntat 56 (SS \`h-14\`).`);
-    krav(Math.abs(m.ikon - 20) < 0.5, `bottenraden: ikonen är ${m.ikon} px, väntat 20 (SS \`w-5 h-5\`).`);
+    krav(Math.abs(m.hojd - 64) < 0.5, `bottenraden: höjd ${m.hojd} px, väntat 64 (bolag-ops#563: "några pixlar högre så ikonerna inte kommer så långt i nederkant").`);
+    krav(Math.abs(m.ikon - 24) < 0.5, `bottenraden: ikonen är ${m.ikon} px, väntat 24 (bolag-ops#563: "Svårt att träffa dom med fingret").`);
+    krav(Math.abs(m.huvudIkon - 24) < 0.5, `huvudet 390: inkorgens ikon är ${m.huvudIkon} px, väntat 24 (bolag-ops#563: "Svårt att träffa dom med fingret").`);
     krav(Math.abs(m.etikett - 10) < 0.5, `bottenraden: etiketten är ${m.etikett} px, väntat 10 (SS \`text-[10px]\`).`);
     krav(m.huvudPlusVisas === false, "bottenraden: huvudets plus syns också i mobil. Väntat ETT plus per yta: det i huvudet gömt när bottenradens finns.");
   }
@@ -2868,7 +2875,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         vh: window.innerHeight,
       };
     });
-    const bottenrad = vp.width < 768 ? 56 : 0;
+    const bottenrad = vp.width < 768 ? 64 : 0;
     matt.push(`${namn}, privat samtal: rad "${samtal.privatRad}", bubblor ${JSON.stringify(samtal.bubblor)}, skrivfältets nederkant ${samtal.formNederkant} (ytans ${samtal.vyNederkant}, fönstret ${samtal.vh}), listan ${samtal.listaSynlig ? "synlig" : "dold"}, Tillbaka ${samtal.tillbaka ? "synlig" : "saknas"}`);
     krav(samtal.privatRad === "Bara ni två ser det här" && samtal.privatSynlig, `${namn}: samtalets huvud säger "${samtal.privatRad}", väntat "Bara ni två ser det här" synligt (CP:s beslut 1).`);
     krav(samtal.bubblor.length >= 3, `${namn}: ${samtal.bubblor.length} bubblor, väntat minst 3. Golv.`);

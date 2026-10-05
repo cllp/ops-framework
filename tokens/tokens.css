@@ -902,8 +902,15 @@
 
   /* ─── Bottenradens höjd (utan säker yta). Delas mellan OpsBottomNav och
    * `main`:s padding-bottom, så att sista kortet aldrig hamnar under baren.
-   * Höjden härleds ur träffytan (44px) plus luft. ──────────────────────── */
-  --bottom-nav-h: 3.5rem;
+   * Höjden härleds ur träffytan (44px) plus luft. ────────────────────────
+   *
+   * ⛔ 0.59.1: 56 → 64 PX. CP 2026-10-05 i cllp/bolag-ops#563: "Ikonerna i
+   * huvudmenyerna botten och toppen är lite väl små. Svårt att träffa dom med
+   * fingret" och "se till att bottensektionen blir några pixlar högre så
+   * ikonerna inte kommer så långt i nederkant." 56 px var SessionStudios
+   * `h-14`, mätt och riktigt, men förebilden användes på en telefon där
+   * ikonerna hamnade nere vid hemindikatorn. Tummen går före förebilden. */
+  --bottom-nav-h: 4rem;
 
   /* ─── Hur långt huvudåtgärden sticker upp OVANFÖR bottenraden. ─────────
    * OpsBottomNav lyfter sin runda knapp 12px och lägger en 4px ring runt
