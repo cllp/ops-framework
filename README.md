@@ -756,7 +756,7 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 | | |
 |---|---|
 | `OpsMedlemmar` | listan per grupp: bjud in, ändra roll, ta bort. ⛔ **Aldrig sig själv**: den som tar bort sitt eget ägarskap låser ut sig ur sin egen grupp, och `migUid` är obligatorisk just därför. Utan den vet vyn inte vilken rad som är ens egen, och skyddet blir en gissning |
-| `OpsGruppSida` | 0.32.0, #180 G2: gruppens detaljsida (SS `GroupDetailView`), se [Gruppkortet, detaljsidan och redigering](#gruppkortet-detaljsidan-och-redigering-0320-180-g2). `grupp`, `medlemmar` (ur `medlemsinfo`), `snabbval`, `onTillbaka`, `onRedigera`, `onVisaMedlem`, `children` |
+| `OpsGruppSida` | 0.32.0, #180 G2: gruppens detaljsida (SS `GroupDetailView`), se [Gruppkortet, detaljsidan och redigering](#gruppkortet-detaljsidan-och-redigering-0320-180-g2). `grupp`, `medlemmar` (ur `medlemsinfo`), `agenter` (0.61.0, ur `medlemsinfo`), `snabbval`, `onTillbaka`, `onRedigera`, `onVisaMedlem`, `onVaxlaAgent`, `onSkrivTillAgent`, `children` |
 | `OpsGruppFormular` | 0.32.0, #180: formuläret "Ny grupp" i skapa-panelen (`skapa.grupp`), se [Ny grupp](#ny-grupp-0320-180). `onSkapa` är appens anrop av `skapaGrupp`, `onSkapad(groupId, svar)` ger id:t att navigera med |
 | `OpsUtanMedlemskap` | sidan för den som är inloggad men inte med i någon grupp. ⛔ **Aldrig en tom app**: en tom vy läses som trasig, och den som möter den hör av sig om fel sak. Sidan säger också vem man frågar, och har en utloggning för den som loggat in med fel konto. Sedan #161: med `props.onSkapaGrupp` ritas i stället en "Skapa din första grupp"-form (ett namnfält, `skapaEtikett`), för den som ÄR vitlistad men bara saknar en grupp än. Utan `onSkapaGrupp` är sidan oförändrad: kontakt plus utloggning |
 
@@ -831,6 +831,20 @@ kopplas till `bjudIn`. `byggVitlisterad` och `medlemskapsId` är återexporterad
 ur `@staiger/ops-framework/node` för den som skriver appens EGEN vitlista-yta
 (en administratörssida läggs till i #162): att skriva raden är fortfarande
 appens Admin SDK, inte ramverkets, precis som inbjudan.
+
+#### Gruppens agent är medlem (0.61.0, cllp/lifehub.app#47)
+
+Agenten är ett vanligt medlemskap: `typ: "agent"`, roll `medlem`, status `aktiv`, namnet `AGENT_NAMN` ("Agent"). Id:t är härlett per grupp, `agentId(groupId)` = `agent_<groupId>`, så skapandet, engångssteget, strömbrytaren och servern som svarar som agenten träffar samma rad. `agentMedlemskap(groupId)` bygger raden. En BYO-agent ([#234](https://github.com/cllp/ops-framework/issues/234)) får ett eget suffix och krockar aldrig med den.
+
+- **`createGroupService({ agent: true })`** skriver agentens medlemskap i samma batch som gruppen och ägaren. Förval `false`, så en app som inte säger något beter sig som förut.
+- **`createAgentService({ kalla, samlingar? })`** på nodsidan: `satStatus({ uid, groupId, status })` slår av (`avstangd`) eller på (`aktiv`) agenten, bara för gruppens aktiva ägare, och `sakerstall({ groupId, skarpt })` ger en befintlig grupp sin agent. `sakerstall` är idempotent: en grupp som har agenten, aktiv eller avstängd, rörs inte, och torrt (`skarpt: false`) skrivs ingenting (svaret `saknas`). ⛔ **Ingen ta bort.** En borttagen agent kom tillbaka med nästa engångssteg, en avstängd står kvar som ägarens val.
+- ⛔ **`avstangd` finns bara för en agent** (`MEDLEMSSTATUS`). `byggMedlemskap` avvisar en person med den statusen: en person avslutas.
+- **`medlemsinfo(...).agenter`** är gruppens agenter, aktiva och avstängda, `{ id, namn, status }`. ⛔ Agenten är inte en av `medlemmar`, `avatarer` eller `medlemsantal`: kortets antal räknar människor.
+- **`OpsGruppSida agenter onVaxlaAgent onSkrivTillAgent`**: agenten står sist i medlemslistan med märket AI och räknas i rubrikens antal. Ägaren (och bara ägaren) får strömbrytaren "Agenten är på", som anropar `onVaxlaAgent({ userId, status })`. En aktiv agent har "Skriv till" (`onSkrivTillAgent(id)`), en avstängd säger "Avstängd". Ingen knapp tar bort den.
+- **`OpsMedlemmar`**: en agents rad har märket AI (`aiEtikett`), ingen rollväljare och ingen Ta bort.
+- **`OpsMottagare lage="person"`** och därmed **`OpsNyttMeddelande`** har den aktiva agenten bland mottagarna. Vald öppnas ett samtal av slaget `agent` (`oppnaPrivat({ ..., slag: "agent" })`), och raden under säger `privatAgentText` ("Bara du och agenten ser det här."). En avstängd agent står inte med.
+
+Svaret skrivs av appens server som ett vanligt meddelande med `av` = agentens id: `memberships` och meddelanden som agent går aldrig att skriva från en klient (`allow write: if false`, och `typ == 'person'` för den som skriver i ett samtal).
 
 #### ⛔ E-posten lämnar aldrig `users`, och medlemslistan visar namn och bild
 
@@ -1965,6 +1979,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `byggAnvandare`, `PROFILIKONER`, `PROFILFARGER`, `MAX_PRESENTATION` | 0.53.0, lifehub.app#32. **Samma byggare som i huvudingången**, för ett konto som äger personen utanför appen (LifeHubs Identity) och för appen som speglar personen vid inloggningen. Två prövningar av samma rad hade glidit isär |
 | `bakfyllMedlemsnamn({ kalla, skarpt?, samlingar? })` | 0.40.1, #218. Ger varje personmedlemskap som saknar `namn` det namn `users/{uid}` har. Torrkörning förval, rörs aldrig ett ifyllt namn, svarar med `lasta`, `saknar`, `attFylla`, `fyllda`, `utanProfilnamn`, `utanAnvandare`, `kvar` och `fel`, också när de är 0. Skriptet `scripts/bakfyll-medlemsnamn.mjs` är ett tunt omslag med Admin SDK. Se CHANGELOG 0.40.1 för ordningen |
 | `bakfyllKatalogGrupp({ kalla, samlingar, groupId, torr?, grupper? })` | 0.33.0, #162. Ger katalograder utan grupp appens `groupId` och nyckeln `groupId|id`, tar bort den gamla raden, och seedar grupper som saknar kataloger, ALLT i en batch. Torrkörning förval. Se bakfyllnaden under katalogtabellen ovan och ordningen i CHANGELOG 0.33.0 |
+| `createAgentService({ kalla, samlingar? })` | 0.61.0, cllp/lifehub.app#47. Gruppens agent: `satStatus({ uid, groupId, status })` (bara ägaren, `aktiv` eller `avstangd`, aldrig ta bort) och `sakerstall({ groupId, skarpt })` för engångssteget (idempotent, torrt skriver inget). Se [Gruppens agent är medlem](#gruppens-agent-är-medlem-0610-clllplifehubapp47) |
 | `seedaKataloger({ kalla, groupId, standardvarden })` | #161, #162. Seedar en befintlig grupps kataloger, en `createCatalogSource(...).seeda()` per katalog. ⛔ `skapaGrupp` anropar den inte längre (0.33.0): den skriver katalogerna i sin egen batch. `standardvarden` är ett objekt, en nyckel per katalog (samlingens namn): värdet är antingen en lista rader (genväg för `{ standard: rader }`) eller katalogens fulla `createCatalogSource`-konfiguration (`standard`, `ikoner`, `textnycklar`, `faser`, `farger`). Bygger EN `createCatalogSource` per katalog, med `groupId` inbakat, och kör dess `.seeda()`. Svarar `{ [namn]: { seedade, antal, orsak? } }`, en rad per katalog, aldrig en sammanslagen bool. Katalogerna seedas i turordning, inte parallellt |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
