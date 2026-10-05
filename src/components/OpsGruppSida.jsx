@@ -2,8 +2,9 @@ import { cx } from "../lib/cx.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
 import { text } from "../lib/sprak.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
+import { OpsSwitch } from "./OpsToggle.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
-import { AndraIkon, ChevronVansterIkon, PersonIkon, PlatsIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, ChevronVansterIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./icons.jsx";
 
 /**
  * Gruppens detaljsida: SessionStudios `GroupDetailView` (0.32.0, #180 G2).
@@ -28,25 +29,34 @@ import { AndraIkon, ChevronVansterIkon, PersonIkon, PlatsIkon } from "./icons.js
  * ⛔ MEDLEMMARNA LÄSES UR `memberships`, som en medlem får läsa sedan 0.32.0, via `medlemsinfo(rader).medlemmar`. Namn och bild är de denormaliserade (#138), aldrig e-post.
  * En etikett Ägare eller Admin står vid dem som förvaltar, inte vid vanliga medlemmar (SS `:263-267`).
  *
+ * ⛔ AGENTEN STÅR SIST, MED MÄRKET AI (lifehub.app#47). Ur `medlemsinfo(rader).agenter`. Den räknas i rubrikens antal, för den är en
+ * medlem, men den har ingen roll att ändra och ingen knapp som tar bort den: ägaren stänger av den med en strömbrytare
+ * (`onVaxlaAgent`), och bara ägaren ser strömbrytaren. Servern prövar ägarskapet igen (`createAgentService`). En aktiv
+ * agent har knappen "Skriv till" (`onSkrivTillAgent`) för vem som helst i gruppen. En avstängd säger det, och går inte att skriva till.
+ *
  * @param {object} props
  * @param {{ id: string, namn: import("../lib/sprak.js").Namn, beskrivning?: string, ort?: string, bild?: string, farg?: string, ikon?: string, roll?: "agare"|"admin"|"medlem" }} props.grupp
  * @param {ReadonlyArray<import("../lib/gruppmedlemmar.js").Gruppmedlem>} [props.medlemmar] Ur `medlemsinfo`.
+ * @param {ReadonlyArray<import("../lib/gruppmedlemmar.js").Gruppagent>} [props.agenter] Ur `medlemsinfo` (lifehub.app#47).
+ * @param {(b: { userId: string, status: "aktiv" | "avstangd" }) => void} [props.onVaxlaAgent] Ägarens strömbrytare. Ritas bara för `roll` agare.
+ * @param {(id: string) => void} [props.onSkrivTillAgent] Öppnar ett privat samtal med agenten. Utelämnad: ingen knapp.
  * @param {ReadonlyArray<{ icon: import("react").ReactNode, label: string, onClick: () => void }>} [props.snabbval] Appens egna genvägar, max tre per rad.
  * @param {() => void} [props.onTillbaka] Utelämnad: ingen tillbaka-rad.
  * @param {() => void} [props.onRedigera] Ritar Redigera-knappen, men bara för `roll` agare eller admin.
  * @param {(id: string) => void} [props.onVisaMedlem] Gör medlemsraden till en knapp. Utelämnad: raden är text.
  * @param {string} [props.sprak]
- * @param {{ tillbaka?: string, redigera?: string, redigeraGrupp?: string, medlemmar?: string, inga?: string, agare?: string, admin?: string, ort?: string }} [props.etiketter]
+ * @param {{ tillbaka?: string, redigera?: string, redigeraGrupp?: string, medlemmar?: string, inga?: string, agare?: string, admin?: string, ort?: string, ai?: string, avstangd?: string, agentPa?: string, agentPaHjalp?: string, skrivTill?: string }} [props.etiketter]
  * @param {import("react").ReactNode} [props.children] Appens egna sektioner under medlemmarna.
  */
-export function OpsGruppSida({ grupp, medlemmar = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, sprak, etiketter, children }) {
+export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, sprak, etiketter, children }) {
   const personnamn = usePersonnamn();
   if (!grupp || typeof grupp.id !== "string" || !grupp.id) {
     throw new Error("OpsGruppSida: grupp krävs, med id och namn. En detaljsida utan grupp är en tom sida.");
   }
-  const t = { tillbaka: "Tillbaka", redigera: "Redigera", redigeraGrupp: "Redigera grupp", medlemmar: "Medlemmar", inga: "Inga medlemmar", agare: "Ägare", admin: "Admin", ort: "Ort", ...(etiketter ?? {}) };
+  const t = { tillbaka: "Tillbaka", redigera: "Redigera", redigeraGrupp: "Redigera grupp", medlemmar: "Medlemmar", inga: "Inga medlemmar", agare: "Ägare", admin: "Admin", ort: "Ort", ai: "AI", avstangd: "Avstängd", agentPa: "Agenten är på", agentPaHjalp: "Avstängd svarar den inte, varken i gruppchatten eller privat.", skrivTill: "Skriv till", ...(etiketter ?? {}) };
   const namn = text(grupp.namn, sprak);
   const kanRedigera = typeof onRedigera === "function" && (grupp.roll === "agare" || grupp.roll === "admin");
+  const kanVaxlaAgent = typeof onVaxlaAgent === "function" && grupp.roll === "agare";
 
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col px-4 pt-6 pb-6 sm:px-5" data-gruppsida="">
@@ -108,9 +118,9 @@ export function OpsGruppSida({ grupp, medlemmar = [], snabbval = [], onTillbaka,
       <section className="mb-6" aria-labelledby="gruppsida-medlemmar" data-gruppsida-medlemmar="">
         <h2 id="gruppsida-medlemmar" className="m-0 mb-2 flex items-center gap-1.5 text-sektion uppercase text-ink-muted">
           <PersonIkon size={14} />
-          {`${t.medlemmar} (${medlemmar.length})`}
+          {`${t.medlemmar} (${medlemmar.length + agenter.length})`}
         </h2>
-        {medlemmar.length === 0 ? (
+        {medlemmar.length + agenter.length === 0 ? (
           <p className="m-0 text-etikett text-ink-muted">{t.inga}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
@@ -141,6 +151,38 @@ export function OpsGruppSida({ grupp, medlemmar = [], snabbval = [], onTillbaka,
                   ) : (
                     <div className="flex min-h-11 w-full items-center gap-3 rounded-base p-2">{rad}</div>
                   )}
+                </li>
+              );
+            })}
+            {agenter.map((a) => {
+              const namnet = a.namn || "Agent";
+              const aktiv = a.status === "aktiv";
+              return (
+                <li key={a.id} data-agentrad={a.status} className="flex flex-col gap-1">
+                  <div className="flex min-h-11 w-full items-center gap-3 rounded-base p-2">
+                    <OpsIdentity name={namnet} seed={a.id} icon={AgentIkon} size="medlem" rund />
+                    <span className={cx("min-w-0 flex-1", !aktiv && "text-ink-muted")}>
+                      <span className="text-etikett text-ink">{namnet}</span>
+                      <span className="ml-2 rounded-full bg-accent-subtle px-1.5 py-0.5 text-liten font-semibold uppercase tracking-wide text-accent">{t.ai}</span>
+                      {aktiv ? null : <span className="ml-2 text-liten uppercase tracking-wide text-ink-muted">{t.avstangd}</span>}
+                    </span>
+                    {aktiv && onSkrivTillAgent ? (
+                      <button
+                        type="button"
+                        onClick={() => onSkrivTillAgent(a.id)}
+                        aria-label={`${t.skrivTill} ${namnet}`}
+                        className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-base border border-line px-3 py-1.5 text-etikett text-ink-secondary transition-colors hover:bg-raised hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      >
+                        <MeddelandeIkon size={16} />
+                        <span className="max-sm:hidden">{t.skrivTill}</span>
+                      </button>
+                    ) : null}
+                  </div>
+                  {kanVaxlaAgent ? (
+                    <div className="pl-2">
+                      <OpsSwitch label={t.agentPa} hint={t.agentPaHjalp} checked={aktiv} onChange={(pa) => onVaxlaAgent({ userId: a.id, status: pa ? "aktiv" : "avstangd" })} />
+                    </div>
+                  ) : null}
                 </li>
               );
             })}

@@ -65,8 +65,16 @@ export const MEDLEMSTYPER = /** @type {const} */ (["person", "agent"]);
  * ⛔ `avslutad` OCH INTE RADERING. En raderad rad tar med sig svaret på varför
  * någon inte längre har åtkomst, och den frågan kommer alltid efteråt. Samma
  * skäl som `arkiverad` på en grupp.
+ *
+ * ⛔ `avstangd` FINNS BARA FÖR EN AGENT (lifehub.app#47). Ägaren stänger av gruppens
+ * agent i stället för att ta bort den: en borttagen agent kommer tillbaka med nästa
+ * engångssteg, en avstängd står kvar som ägarens val. En person stängs inte av, den
+ * avslutas, och `byggMedlemskap` avvisar kombinationen.
  */
-export const MEDLEMSSTATUS = /** @type {const} */ (["aktiv", "avslutad"]);
+export const MEDLEMSSTATUS = /** @type {const} */ (["aktiv", "avslutad", "avstangd"]);
+
+/** Gruppens egen agent heter så här i medlemslistan och i samtalen (lifehub.app#47). */
+export const AGENT_NAMN = "Agent";
 
 /** Inbjudans läge. Flödet som flyttar den hör till #137, formen hör hit. */
 export const INBJUDNINGSSTATUS = /** @type {const} */ (["vantar", "accepterad", "aterkallad"]);
@@ -193,7 +201,7 @@ export const MAX_PRESENTATION = 500;
  * @property {string} groupId
  * @property {"agare"|"admin"|"medlem"} roll
  * @property {"person"|"agent"} typ
- * @property {"aktiv"|"avslutad"} status
+ * @property {"aktiv"|"avslutad"|"avstangd"} status `avstangd` bara för en agent.
  * @property {string} namn Denormaliserat ur `users`, se noten vid MEDLEMSKAPSFALT.
  * @property {string} bild Denormaliserat ur `users`, eller tom sträng.
  */
@@ -765,6 +773,9 @@ export function byggMedlemskap(d) {
   if (!(/** @type {readonly string[]} */ (MEDLEMSSTATUS).includes(status))) {
     throw new Error(`memberships: statusen "${status}" för "${id}" finns inte. Giltiga: ${MEDLEMSSTATUS.join(", ")}.`);
   }
+  if (status === "avstangd" && typ !== "agent") {
+    throw new Error(`memberships: statusen avstangd för "${id}" finns bara för en agent. En person stängs inte av, den avslutas.`);
+  }
 
   return Object.freeze({
     id,
@@ -782,6 +793,32 @@ export function byggMedlemskap(d) {
     namn: rensa(rad.namn),
     bild: rensa(rad.bild),
   });
+}
+
+/**
+ * Gruppens agent har ett id per grupp, härlett ur gruppens (lifehub.app#47).
+ *
+ * ⛔ STABILT OCH HÄRLETT. Skapandet, engångssteget, strömbrytaren och servern som svarar som agenten måste alla
+ * träffa samma rad. Ett slumpat id hade krävt en uppslagning per grupp, och två skrivna samtidigt hade gett två agenter.
+ * En BYO-agent (#234) får ett eget suffix, `agent_<groupId>_<namn>`, och krockar därför aldrig med den här.
+ *
+ * @param {string} groupId
+ * @returns {string}
+ */
+export function agentId(groupId) {
+  const g = rensa(groupId);
+  if (!g) throw new Error("agentId: groupId krävs. Agenten finns per grupp, och utan grupp finns ingen agent.");
+  return `agent_${g}`;
+}
+
+/**
+ * Gruppens agent som medlemskap: typ `agent`, roll `medlem`, status `aktiv`, namnet `AGENT_NAMN` (lifehub.app#47).
+ *
+ * @param {string} groupId
+ * @returns {Medlemskap}
+ */
+export function agentMedlemskap(groupId) {
+  return byggMedlemskap({ userId: agentId(groupId), groupId, roll: "medlem", typ: "agent", status: "aktiv", namn: AGENT_NAMN, bild: "" });
 }
 
 /**

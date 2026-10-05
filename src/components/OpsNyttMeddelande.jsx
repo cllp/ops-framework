@@ -4,6 +4,11 @@ import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
 import { LasIkon } from "./icons.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
+import { useOpsSprak } from "./OpsSprak.jsx";
+import { ordet } from "../lib/ord.js";
+
+/** @type {import("../lib/ord.js").Ordbok} */
+const ORD = { privatAgent: { sv: "Bara du och agenten ser det här.", en: "Only you and the agent can see this." } };
 
 /**
  * "Nytt meddelande": en person i gruppen och en text (0.34.0, #182 F2).
@@ -29,6 +34,7 @@ import { OpsMottagare } from "./OpsMottagare.jsx";
  * @param {string} [props.tillEtikett] Förval "Till".
  * @param {string} [props.textEtikett] Förval "Meddelande".
  * @param {string} [props.privatText] Förval "Bara ni två ser det här."
+ * @param {string} [props.privatAgentText] När agenten är vald (lifehub.app#47). Förval ur ordboken, på appens språk.
  * @param {string} [props.utanGruppText]
  * @param {string} [props.valjPersonText] Felet när ingen person är vald.
  * @param {string} [props.tomTextFel] Felet när texten är tom.
@@ -45,6 +51,7 @@ export function OpsNyttMeddelande({
   tillEtikett = "Till",
   textEtikett = "Meddelande",
   privatText = "Bara ni två ser det här.",
+  privatAgentText,
   utanGruppText = "Du är inte med i någon grupp än. Ett meddelande går till en person i en grupp.",
   valjPersonText = "Välj vem meddelandet ska till.",
   tomTextFel = "Skriv något först.",
@@ -54,17 +61,20 @@ export function OpsNyttMeddelande({
   const [text, setText] = useState("");
   const [fel, setFel] = useState(/** @type {{ falt?: "till" | "text", text: string } | null} */ (null));
   const [skickar, setSkickar] = useState(false);
+  const sprak = useOpsSprak();
 
   if (!groupId) return <p className="m-0 text-etikett text-ink-secondary">{utanGruppText}</p>;
 
   const skicka = async () => {
     if (skickar) return;
-    if (!mottagare || mottagare.slag !== "person") return setFel({ falt: "till", text: valjPersonText });
+    // ⛔ AGENTEN ÄR ETT EGET SLAG AV SAMTAL (lifehub.app#47): samma nyckelform som två personer, men regeln kräver att den andra är en aktiv agent.
+    const annan = mottagare && (mottagare.slag === "person" || mottagare.slag === "agent") ? mottagare.uid : undefined;
+    if (!mottagare || !annan) return setFel({ falt: "till", text: valjPersonText });
     if (!text.trim()) return setFel({ falt: "text", text: tomTextFel });
     setFel(null);
     setSkickar(true);
     try {
-      const s = await kalla.oppnaPrivat({ groupId, uid, annan: mottagare.uid });
+      const s = await kalla.oppnaPrivat(mottagare.slag === "agent" ? { groupId, uid, annan, slag: "agent" } : { groupId, uid, annan });
       await kalla.skicka(s.id, { text, av: uid });
       setText("");
       onKlar?.(s.id);
@@ -93,7 +103,7 @@ export function OpsNyttMeddelande({
           {/* ⛔ Raden syns alltid, också innan någon är vald: det är innan man skriver som man behöver veta vem som läser. */}
           <p data-privat="" className="m-0 flex items-center gap-1.5 text-meta text-ink-secondary">
             <LasIkon size={14} />
-            <span>{privatText}</span>
+            <span>{mottagare?.slag === "agent" ? (privatAgentText ?? ordet(ORD, "privatAgent", sprak)) : privatText}</span>
           </p>
         </div>
       </OpsField>

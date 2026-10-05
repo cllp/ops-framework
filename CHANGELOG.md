@@ -11,21 +11,48 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.60.0
 
-### Tillagt
+Tre grenar samlade i en version (#253, #255 och #256), eftersom alla tre gjorde anspråk på 0.60.0 eller 0.61.0.
+
+### Nodsidan för TALK (cllp/lifehub.app#37, #253)
+
+#### Tillagt
 
 - **`typerForGrupp`, `MAX_SEKUNDER` och `LJUDFORMAT` på nodsidan** (cllp/lifehub.app#37). Servern som gör TALK-ljud till ett förslag ger modellen gruppens sorter och prövar ljudets längd. Den importerade tidigare `src/lib/modultyper.js` förbi exports-kartan och skrev taket en gång till. Samma funktion och samma tak som i huvudingången, och båda filerna är rena.
+
+### Tillägg på händelseytan och Syns på (#251, #255)
+
+#### Tillagt
+
 - **Tillägg på händelseytan** (#251, beslut 0003). Modulmanifestet får `tillagg: [{ plats, id, etikett: { sv, en }, komponent }]`. En app ändrar aldrig en ramverksyta, den pluggar bara in i platser ytan erbjuder. Två platser, exporterade som `HANDELSE_PLATSER`: `"handelse.sektion"` är en sektion i `OpsHandelsePanel` efter informationsrutan, med etiketten som rubrik, och `"handelse.atgard"` är en rad i plussets händelsedel direkt under Ny händelse. Komponenten får `{ handelse, grupp }` och inget annat (i plusset är `handelse` `null`).
 - **`OpsHandelsePanel moduler grupp`** och **`OpsAppShell skapa.moduler skapa.aktivGrupp`**. Ytan ritar bara tillägg från moduler som är påslagna i `grupp.moduler`; en avslagen moduls komponent anropas inte. `skapa.aktivGrupp.id` måste vara `skapa.lage`, annars kastar skalet.
 - **`tillaggFor`, `synsPa`, `synsPaText`, `PLATSER`, `PLATSYTOR`** för den som bygger en egen yta eller en egen lista.
 - **"Syns på" i gruppens inställningar.** Listan Appar i `OpsGruppFormular` visar alla appar, också de utan egen yta, och varje rad säger var appen syns: "Egen yta", ytornas namn ("Händelser"), eller båda. Härlett ur manifestet, aldrig ett handskrivet fält.
 
-### Ändrat
+#### Ändrat
 
 - **`valbaraModuler` ger alla registrerade moduler**, inte bara de med ett kort. En modul med bara tillägg går nu att slå på och av per grupp. `hubbForGrupp` räknar inte en sådan modul som `inget-kort`.
 
-### Valideras vid uppstart
+#### Valideras vid uppstart
 
 - `validateModuler` avvisar ett tillägg med okänd plats, ett dubblerat `id` inom modulen, en etikett som saknar ett språk, och ett tillägg utan komponent. Felet bär modulens namn och fältet.
+
+### Agenten är medlem (cllp/lifehub.app#47, #256)
+
+#### Tillagt
+
+- **Gruppens agent är medlem** (cllp/lifehub.app#47, skiva 1 och 2, ramverkets del). `agentId(groupId)` ger det stabila id:t `agent_<groupId>`, `agentMedlemskap(groupId)` raden (typ `agent`, roll `medlem`, status `aktiv`, namnet `AGENT_NAMN`, "Agent").
+- **`createGroupService({ agent: true })`** skriver agentens medlemskap i samma batch som gruppen och ägaren. Förval `false`.
+- **`createAgentService`** på nodsidan: `satStatus` (ägaren slår av och på agenten, aldrig ta bort) och `sakerstall` för engångssteget som ger befintliga grupper sin agent (idempotent, torrt skriver inget).
+- **Nodsidan exporterar också `AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE`**, för servern som svarar som agenten.
+- **Statusen `avstangd`** i `MEDLEMSSTATUS`, bara för en agent. `byggMedlemskap` avvisar en person med den.
+- **`medlemsinfo(...).agenter`**, och **`OpsGruppSida agenter onVaxlaAgent onSkrivTillAgent`**: agenten i medlemslistan med märket AI, ägarens strömbrytare, och "Skriv till" för ett privat samtal.
+- **`OpsMedlemmar aiEtikett`**: en agents rad har märket AI och varken rollväljare eller Ta bort.
+- **`OpsNyttMeddelande privatAgentText`**.
+
+#### Ändrat
+
+- **`OpsMottagare lage="person"` och "Nytt meddelande" har den aktiva agenten bland mottagarna**, och vald öppnas ett samtal av slaget `agent`. Före 0.60.0 stod den bara med i ärendeläget.
+- **`medlemsinfo(...).medlemmar`, `avatarer` och `medlemsantal` räknar inte en agent.** Före 0.60.0 räknades en aktiv agent som en medlem bland personerna. Den står nu i `agenter`.
 
 ## 0.59.1
 

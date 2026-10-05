@@ -35,6 +35,17 @@ export { createActivityWriter } from "./aktivitet.js";
  */
 export { createInvitationService } from "./inbjudan.js";
 
+/* Samma skäl som inbjudan: agentens medlemskap skrivs bara av servern (lifehub.app#47). */
+export { createAgentService } from "./agent.js";
+
+/*
+ * ⛔ AGENTENS ID OCH MEDDELANDETS FORM ÄVEN HÄR (lifehub.app#47). Servern som svarar som agenten skriver ett vanligt
+ * meddelande med `av` = agentens id. En kopia av `byggMeddelande` eller av id-formen i appens functions hade varit en
+ * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.
+ */
+export { AGENT_NAMN, agentId, agentMedlemskap } from "../lib/grupp.js";
+export { byggMeddelande, samtalsnyckel, MAX_MEDDELANDE } from "../lib/samtal.js";
+
 /*
  * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#161). Vitlistan nekar en klient allt
  * (`regelfragment()`, `allow read, write: if false`), så `skapaGrupp` MÅSTE

@@ -53,6 +53,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {string} [props.aterkallaEtikett]
  * @param {string} [props.vantarEtikett]
  * @param {string} [props.duEtikett]
+ * @param {string} [props.aiEtikett] Märket på en agents rad. Förval "AI", samma på båda språken.
  * @param {string} [props.ingaText]
  * @param {string} [props.mejlNot]
  * @param {Record<string, string>} [props.rollNamn]
@@ -74,6 +75,7 @@ export function OpsMedlemmar({
   aterkallaEtikett = "Återkalla",
   vantarEtikett = "Väntar",
   duEtikett = "Du",
+  aiEtikett,
   ingaText = "Gruppen har inga medlemmar än.",
   mejlNot = "Inget mejl skickas. Be personen logga in, så blir inbjudan ett medlemskap.",
   rollNamn = { agare: "Ägare", admin: "Admin", medlem: "Medlem" },
@@ -135,6 +137,11 @@ export function OpsMedlemmar({
              * skrevs innan namnet fanns".
              */
             const { text: visningsnamn, saknas } = personnamn(medlemskap.namn || namn || medlemsEpost, medlemskap.userId);
+            /*
+             * ⛔ EN AGENT HAR INGEN ROLL ATT ÄNDRA OCH INGEN TA BORT (lifehub.app#47). Den stängs av av ägaren
+             * (`createAgentService`), och ett borttaget medlemskap hade kommit tillbaka med nästa engångssteg.
+             */
+            const agent = medlemskap.typ === "agent";
             return (
               <OpsListRow key={medlemskap.id}>
                 <OpsIdentity name={visningsnamn} seed={medlemskap.userId} imageUrl={medlemskap.bild || undefined} size="sm" />
@@ -142,7 +149,9 @@ export function OpsMedlemmar({
                   {visningsnamn}
                 </span>
                 {jag ? <OpsPill tone="neutral">{duEtikett}</OpsPill> : null}
-                {kanAndra && !jag && onAndraRoll ? (
+                {agent ? (
+                  <OpsPill tone="info">{aiEtikett ?? "AI"}</OpsPill>
+                ) : kanAndra && !jag && onAndraRoll ? (
                   <OpsSelect
                     options={rollval}
                     value={medlemskap.roll}
@@ -153,7 +162,7 @@ export function OpsMedlemmar({
                   <OpsPill tone={medlemskap.roll === "agare" ? "info" : "neutral"}>{rollNamn[medlemskap.roll] || medlemskap.roll}</OpsPill>
                 )}
                 {/* ⛔ Ingen knapp på sin egen rad. Se noten i filhuvudet. */}
-                {kanAndra && !jag && onTaBort ? (
+                {kanAndra && !jag && !agent && onTaBort ? (
                   <OpsButton variant="ghost" size="sm" onClick={() => onTaBort({ userId: medlemskap.userId })}>
                     {taBortEtikett}
                   </OpsButton>

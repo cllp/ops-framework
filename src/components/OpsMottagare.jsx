@@ -15,8 +15,9 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * med två uppfattningar om vilka som går att välja. Här är det EN, med `lage`:
  *
  *   - `lage="arende"`: Gruppen (förval), varje aktiv person, och Agenten när gruppen har en medlem av typen `agent`.
- *   - `lage="person"`: bara aktiva personer, utom en själv. Det är meddelandets läge: ett privat samtal med sig själv
- *     finns inte, och ett med agenten är #185.
+ *   - `lage="person"`: aktiva personer utom en själv, och gruppens agent när den är aktiv (lifehub.app#47). Det är
+ *     meddelandets läge: ett privat samtal med sig själv finns inte, ett med agenten är ett samtal av slaget `agent`.
+ *     En avstängd agent står inte med, den svarar inte.
  *
  * ⛔ PERSONERNA KOMMER UR GRUPPENS MEDLEMSKAP, med namn och bild denormaliserade där (#138). Profilerna (`users`) läses
  * bara av personen själv, så en lista som byggde på dem hade varit tom för alla andra.
@@ -56,7 +57,7 @@ export function OpsMottagare({
   const personer = aktiva
     .filter((m) => (m.typ ?? "person") === "person" && (lage === "arende" || m.userId !== uid))
     .sort((a, b) => personnamn(a.namn, a.userId).text.localeCompare(personnamn(b.namn, b.userId).text, "sv"));
-  const agent = lage === "arende" ? aktiva.find((m) => m.typ === "agent") : undefined;
+  const agent = aktiva.find((m) => m.typ === "agent");
 
   /** @type {Array<{ nyckel: string, varde: import("../lib/samtal.js").Mottagare, namn: string, saknas?: boolean, ikon: import("react").ReactNode }>} */
   const rader = [];
