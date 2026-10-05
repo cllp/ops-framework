@@ -134,4 +134,12 @@ export { bakfyllKatalogGrupp } from "./katalog.js";
  * ur medlemskapen, och det som svarar med dem utan skärm ska inte dra in React. Filen är ren.
  */
 export { medlemsinfo } from "../lib/gruppmedlemmar.js";
+
+/*
+ * ⛔ GRUPPENS TYPER OCH TALK-TAKEN PÅ NODSIDAN (0.60.0, cllp/lifehub.app#37). Servern som gör ljud till ett förslag ska ge
+ * modellen samma sorter som Nytt ärende visar, och pröva ljudet mot samma tak som inspelaren stoppar vid. Utan exporten
+ * importerade lifehub `src/lib/modultyper.js` förbi exports-kartan, och skrev taket en gång till. Båda filerna är rena.
+ */
+export { typerForGrupp } from "../lib/modultyper.js";
+export { MAX_SEKUNDER, LJUDFORMAT } from "../lib/talk.js";
 export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";
