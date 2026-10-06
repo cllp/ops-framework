@@ -1779,6 +1779,79 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("gruppfärg golv: talen saknas", [fargvakt, fargfil("tom", (c) => c.replace(/--gruppmarke-ikon-l: [^;]+;/, ""))], "saknas i");
 }
 
+// ── Märket utan React (0.70.0, lifehub.identity#27): `ops-framework/gruppmarke` når aldrig ett paket ──
+//
+// ⛔ Kopian är det RIKTIGA trädet (src/gruppmarke, src/lib och README), så att den gröna kontrollen bevisar att vakten
+// släpper igenom ingången som den står, och varje röd att ett enda planterat steg räcker.
+{
+  const markevakt = "scripts/check-gruppmarke.mjs";
+  /** @param {string} namn @param {(rot: string) => void} [plantera] */
+  const markekopia = (namn, plantera) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.cpSync(path.join(rot, "src", "gruppmarke"), path.join(mapp, "src", "gruppmarke"), { recursive: true });
+    fs.cpSync(path.join(rot, "src", "lib"), path.join(mapp, "src", "lib"), { recursive: true });
+    fs.copyFileSync(path.join(rot, "README.md"), path.join(mapp, "README.md"));
+    plantera?.(mapp);
+    return mapp;
+  };
+  /** @param {string} mapp @param {string} rel @param {(t: string) => string} f */
+  const andra = (mapp, rel, f) => {
+    const fil = path.join(mapp, rel);
+    const fore = fs.readFileSync(fil, "utf8");
+    const efter = f(fore);
+    if (efter === fore) throw new Error(`test-guards: mutationen i ${rel} ändrade ingenting.`);
+    fs.writeFileSync(fil, efter);
+  };
+  kravGront("gruppmärke: ingången som den står", [markevakt, markekopia("m0")]);
+  kravRott(
+    "gruppmärke 1: en lib-fil i grafen importerar react",
+    [markevakt, markekopia("m1", (m) => andra(m, "src/lib/gruppikonsvg.js", (t) => `import "react";\n${t}`))],
+    'paketet "react"',
+  );
+  kravRott(
+    "gruppmärke 2: transitivt, lucide-react via gruppfarg.js",
+    [markevakt, markekopia("m2", (m) => andra(m, "src/lib/gruppfarg.js", (t) => `import { Music } from "lucide-react";\nexport const _m = Music;\n${t}`))],
+    'paketet "lucide-react"',
+  );
+  kravRott(
+    "gruppmärke 3: ingången återexporterar en komponent",
+    [
+      markevakt,
+      markekopia("m3", (m) => {
+        fs.mkdirSync(path.join(m, "src", "components"), { recursive: true });
+        fs.writeFileSync(path.join(m, "src", "components", "Knapp.jsx"), "export const Knapp = 1;\n");
+        andra(m, "src/gruppmarke/index.js", (t) => `${t}export { Knapp } from "../components/Knapp.jsx";\n`);
+      }),
+    ],
+    "utanför src/lib/",
+  );
+  kravRott(
+    "gruppmärke 4: en export saknas i README",
+    [markevakt, markekopia("m4", (m) => andra(m, "README.md", (t) => t.replaceAll("sparaSenasteGruppikon", "spara-senaste")))],
+    "sparaSenasteGruppikon saknas i README",
+  );
+  kravRott(
+    "gruppmärke 5: react importerat med mallsträng",
+    [markevakt, markekopia("m6", (m) => andra(m, "src/lib/gruppikonsvg.js", (t) => `${t}\nexport const ladda = () => import(\`react\`);\n`))],
+    'paketet "react"',
+  );
+  kravRott(
+    "gruppmärke 6: en dynamisk import med beräknat mål",
+    [markevakt, markekopia("m7", (m) => andra(m, "src/lib/gruppfarg.js", (t) => `${t}\nconst p = "re" + "act";\nexport const ladda = () => import(p);\n`))],
+    "inte är en bokstavlig sträng",
+  );
+  kravRott(
+    "gruppmärke 7: exporten står bara som del av ett längre ord i README",
+    [markevakt, markekopia("m8", (m) => andra(m, "README.md", (t) => t.replaceAll("narmasteKulornamn", "narmasteKulornamnet")))],
+    "narmasteKulornamn saknas i README",
+  );
+  kravRott(
+    "gruppmärke golv: ingången har nästan inga exporter",
+    [markevakt, markekopia("m5", (m) => fs.writeFileSync(path.join(m, "src", "gruppmarke", "index.js"), 'export { initials } from "../lib/identity.js";\n'))],
+    "filer i grafen",
+  );
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");

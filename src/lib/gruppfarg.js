@@ -94,7 +94,9 @@ export function fargTillKulor(farg) {
     const g = Number(m[1]);
     return g <= 359 ? g : null;
   }
-  if (varde in ARV_TON_KULOR) return ARV_TON_KULOR[/** @type {1|2|3|4|5|6} */ (Number(varde))];
+  // ⛔ `Object.hasOwn`, aldrig `in`: `in` når prototypkedjan, så "toString", "constructor" och "__proto__" godtogs som
+  // en äldre ton och sparades av `byggGrupp` och `byggAnvandare` (granskningen av PR 275).
+  if (Object.hasOwn(ARV_TON_KULOR, varde)) return ARV_TON_KULOR[/** @type {1|2|3|4|5|6} */ (Number(varde))];
   return null;
 }
 
