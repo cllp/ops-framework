@@ -9,7 +9,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.72.0: chattens nattskiva (#273 och chattanalysen)
+## 0.72.0
+
+Chattens nattskiva (#273 och chattanalysen). ⛔ **Mergas efter 0.71.0 (PR 280), som redan är mergad.** Cursors PR 277 blir 0.73.0.
 
 CP 2026-10-06 20:02 i LifeHubs agentsamtal: "jag skulle vilja ha en indikation medans du tänker och skriver i chatten", och agentens
 svar ritades med råa `**`. Samma kväll kom chattanalysen (SessionStudio mot ramverket), och CP:s beslut för natten: ett meddelande kan
