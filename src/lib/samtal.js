@@ -544,3 +544,115 @@ export function agentstatus(dok, nu) {
   if (nu - sedan > AGENTSTATUS_MAX_ALDER) return { fel: "gammal", lage: l, sedan };
   return { lage: l, sedan };
 }
+
+/*
+ * ══ ⛔ REAKTIONER (chattanalysen 3.1) ═══════════════════════════════════════════════════════════════════════════════════════
+ *
+ *   <samtal>/{sid}/<reaktioner>/{mid|uid|kod}                    { mid, av, kod, tid }
+ *   <samtal>/{sid}/<tradar>/{tid}/<reaktioner>/{mid|uid|kod}      samma, för trådens meddelanden
+ *
+ * SS lagrade reaktionerna som en karta `reactions: { "👍": [uid, ...] }` PÅ meddelandet, och hade tre fel som inte ska följa med:
+ * två samtidiga reaktioner skrev över varandra (läs, ändra, skriv utan transaktion), regeln lät vem som helst i chatten skriva om
+ * hela kartan och alltså ta bort eller förfalska andras reaktioner (SS `firestore.rules:1068-1070`), och nycklarna bytte form en
+ * gång, så att mobilen behövde en översättningstabell (`LEGACY_KEY_TO_EMOJI`).
+ *
+ * ⛔ EN RAD PER PERSON, MEDDELANDE OCH KOD, MED HÄRLEDD NYCKEL. Nyckeln `mid|uid|kod` bär unikheten: samma person kan inte reagera
+ * med samma kod två gånger på samma meddelande, utan transaktion och utan en fråga före. Regeln kräver att nyckeln är exakt
+ * sammansatt av fälten, samma form som samtalsnyckeln.
+ *
+ * ⛔ MEDDELANDET ÄNDRAS INTE. Reaktionen bor bredvid det, så `allow update: if false` står kvar på meddelandet.
+ *
+ * ⛔ SEX FASTA KODER, INGEN EMOJI I DATAN. Vyn mappar koden till en emoji. Byts tecknet en dag ändras en tabell i vyn, inte datan.
+ *
+ * ⛔ RADERA BARA SIN EGEN, ALDRIG UPPDATERA. Ramverkets andra raderingsväg efter kalenderposterna, med samma skäl: en reaktion har
+ * ingen annan ägare, och ingen annan ska kunna fråga "varför försvann den".
+ *
+ * ⛔ ANTALET RÄKNAS FRAM (`summeraReaktioner`), DET LAGRAS ALDRIG.
+ */
+
+/** Reaktionernas koder, i den ordning de visas. */
+export const REAKTIONSKODER = /** @type {const} */ (["tumme", "hjarta", "skratt", "eld", "klapp", "bock"]);
+
+/** Fälten en reaktion får bära. */
+export const REAKTIONSFALT = /** @type {const} */ (["mid", "av", "kod", "tid"]);
+
+/**
+ * Hur många av de senaste reaktionerna ett samtal läser. En lyssnare per samtal, inte en per meddelande.
+ * ⛔ (bedömning) Analysen föreslog samma gräns som meddelandena (50). Reaktioner är fler än meddelanden, och 50 hade tappat
+ * reaktionerna redan på de synliga meddelandena i en livlig grupp. Når läsningen taket säger vyn det (regel 5).
+ */
+export const REAKTIONSTAK = 500;
+
+/**
+ * @param {unknown} kod
+ * @param {string} vem
+ * @returns {(typeof REAKTIONSKODER)[number]}
+ */
+function kravKod(kod, vem) {
+  const k = rensa(kod);
+  if (!(/** @type {readonly string[]} */ (REAKTIONSKODER)).includes(k)) {
+    throw new Error(`${vem}: koden "${kod}" finns inte. Giltiga: ${REAKTIONSKODER.join(", ")}.`);
+  }
+  return /** @type {(typeof REAKTIONSKODER)[number]} */ (k);
+}
+
+/**
+ * @param {unknown} mid
+ * @param {string} vem
+ */
+function kravMid(mid, vem) {
+  const m = rensa(mid);
+  if (!m) throw new Error(`${vem}: mid krävs, meddelandets id.`);
+  if (m.includes("/") || m.includes(SAMTALSAVGRANSARE)) throw new Error(`${vem}: "${m}" är inget meddelandes id.`);
+  return m;
+}
+
+/**
+ * Reaktionens nyckel: `<mid>|<uid>|<kod>`.
+ * @param {{ mid: string, av: string, kod: string }} d
+ * @returns {string}
+ */
+export function reaktionsnyckel(d) {
+  return [kravMid(d?.mid, "reaktionsnyckel"), kravUid(d?.av, "reaktionsnyckel"), kravKod(d?.kod, "reaktionsnyckel")].join(SAMTALSAVGRANSARE);
+}
+
+/**
+ * Bygger en reaktion med sin nyckel som `id`, eller kastar med skälet.
+ * @param {{ mid: string, av: string, kod: string, tid?: number }} d
+ * @returns {{ id: string, mid: string, av: string, kod: (typeof REAKTIONSKODER)[number], tid: number }}
+ */
+export function byggReaktion(d) {
+  const mid = kravMid(d?.mid, "byggReaktion");
+  const av = kravUid(d?.av, "byggReaktion");
+  const kod = kravKod(d?.kod, "byggReaktion");
+  const tid = d.tid ?? Date.now();
+  if (!Number.isInteger(tid)) throw new Error("byggReaktion: tid är millisekunder, ett heltal.");
+  return Object.freeze({ id: [mid, av, kod].join(SAMTALSAVGRANSARE), mid, av, kod, tid });
+}
+
+/**
+ * Reaktionerna per meddelande, räknade: koderna i `REAKTIONSKODER`-ordning, med antal och om `uid` är en av dem.
+ * ⛔ Rader utan meddelande hoppas över, och en okänd kod kommer aldrig ut: utdatan byggs ur `REAKTIONSKODER`, så en kod vyn inte kan
+ * rita är ingen reaktion att visa.
+ *
+ * @param {ReadonlyArray<{ mid?: unknown, av?: unknown, kod?: unknown }>} rader
+ * @param {string} uid
+ * @returns {Map<string, Array<{ kod: (typeof REAKTIONSKODER)[number], antal: number, egen: boolean }>>}
+ */
+export function summeraReaktioner(rader, uid) {
+  /** @type {Map<string, Map<string, { antal: number, egen: boolean }>>} */
+  const per = new Map();
+  for (const r of rader ?? []) {
+    if (!r || typeof r.mid !== "string" || typeof r.av !== "string" || typeof r.kod !== "string") continue;
+    const m = per.get(r.mid) ?? new Map();
+    const k = m.get(/** @type {string} */ (r.kod)) ?? { antal: 0, egen: false };
+    k.antal += 1;
+    if (r.av === uid) k.egen = true;
+    m.set(/** @type {string} */ (r.kod), k);
+    per.set(r.mid, m);
+  }
+  /** @type {Map<string, Array<{ kod: (typeof REAKTIONSKODER)[number], antal: number, egen: boolean }>>} */
+  const ut = new Map();
+  for (const [mid, m] of per) ut.set(mid, REAKTIONSKODER.filter((k) => m.has(k)).map((k) => ({ kod: k, .../** @type {{ antal: number, egen: boolean }} */ (m.get(k)) })));
+  return ut;
+}

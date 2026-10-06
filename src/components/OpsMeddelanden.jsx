@@ -2,9 +2,9 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, agentstatus, delaSamtalsnyckel, samtalsnyckel, tradensNamn, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harStatus, harTradar } from "../data/samtalskalla.js";
+import { harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -13,7 +13,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -117,6 +117,13 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {string} [hamtarAldre] Förval "Hämtar äldre…".
  * @property {string} [ingaAldre] När samtalets början är nådd. Förval "Inga äldre meddelanden".
  * @property {string} [aldreFel] Förval "Äldre meddelanden kunde inte hämtas.".
+ * @property {string} [reagera] (chattens nattskiva) Knappen som öppnar reaktionerna. Förval "Reagera".
+ * @property {string} [valjReaktion] Gruppens namn för skärmläsaren. Förval "Välj en reaktion".
+ * @property {string} [duHarReagerat] Läggs till i en reaktions namn när den är din. Förval "du har reagerat".
+ * @property {string} [reaktionFel] Förval "Reaktionen kunde inte sparas.".
+ * @property {string} [reaktionerFel] Förval "Reaktionerna kunde inte hämtas.".
+ * @property {string} [reaktionerFler] När läsningen nådde sitt tak. Förval "Äldre reaktioner visas inte.".
+ * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren.
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
@@ -172,6 +179,13 @@ const TEXTER = {
   hamtarAldre: "Hämtar äldre…",
   ingaAldre: "Inga äldre meddelanden",
   aldreFel: "Äldre meddelanden kunde inte hämtas.",
+  reagera: "Reagera",
+  valjReaktion: "Välj en reaktion",
+  duHarReagerat: "du har reagerat",
+  reaktionFel: "Reaktionen kunde inte sparas.",
+  reaktionerFel: "Reaktionerna kunde inte hämtas.",
+  reaktionerFler: "Äldre reaktioner visas inte.",
+  reaktionsnamn: {},
   agentTanker: "Agenten tänker",
   agentSkriver: "Agenten skriver",
   agentFastnat: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.",
@@ -832,6 +846,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const loggRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, live: meddelanden, logg: loggRef });
   const alla = historik.alla;
+  const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, undefined, uid);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
 
@@ -926,6 +941,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           </p>
         ) : null}
         <VisaAldre historik={historik} texter={t} />
+        <Reaktionslage reakt={reakt} texter={t} />
         {meddelanden && meddelanden.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center py-16 text-center">
             <span className="text-ink-muted opacity-40">
@@ -937,6 +953,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         ) : null}
         <Meddelanderader
           meddelanden={alla}
+          reakt={reakt}
+          texter={t}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -1094,8 +1112,10 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  *   tiden under bubblan: trådens märke i gruppchatten.
  * @param {number} [props.forraTid] Tiden på meddelandet före det första, när listan fortsätter en annan (trådens svar efter
  *   roten). Samma dag ger då ingen ny avdelare: två "I dag" på rad är en avdelare som inte avdelar något.
+ * @param {ReturnType<typeof useReaktioner>} [props.reakt] (chattens nattskiva) Reaktionerna, när källan har dem.
+ * @param {Required<Meddelandetexter>} [props.texter]
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -1143,9 +1163,11 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                       bubblan: den egna är accentfärgad. */}
                   <OpsMarkdown text={m.text} chatt />
                 </div>
-                <span className={cx("mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
+                {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
+                <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
                   <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
                   {extra}
+                  {reakt?.pa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
                 </span>
               </div>
             </div>
@@ -1198,6 +1220,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const tradlogg = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
+  // ⛔ Trådens reaktioner bor under tråden (regeln följer tråden). Rotmeddelandets reaktioner står i gruppchatten.
+  const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, tid, uid);
   const namnId = useId();
   const dopKnapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   // ⛔ KAN 6: fokus stannar i rubriken när Döp om stängs (Spara, Avbryt eller Escape), i stället för att falla till dokumentet.
@@ -1370,7 +1394,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
           {historik.alla.length > 0 ? `${historik.alla.length}${historik.kanFinnasAldre ? "+" : ""} ${t.svar}` : t.ingaSvar}
         </p>
         <VisaAldre historik={historik} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <Reaktionslage reakt={reakt} texter={t} />
+        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
         <Agentrad kalla={kalla} sid={samtal.id} tid={tid} texter={t} />
         <div ref={slut} />
       </div>
@@ -1548,5 +1573,225 @@ function VisaAldre({ historik, texter: t }) {
         {historik.laddar ? t.hamtarAldre : t.visaAldre}
       </button>
     </div>
+  );
+}
+
+/** Reaktionernas tecken och namn. ⛔ Bara här: datan bär koden (`REAKTIONSKODER`), vyn tecknet. */
+const REAKTIONSVY = /** @type {Record<(typeof REAKTIONSKODER)[number], [string, string]>} */ ({
+  tumme: ["👍", "Tummen upp"],
+  hjarta: ["❤️", "Hjärta"],
+  skratt: ["😂", "Skratt"],
+  eld: ["🔥", "Eld"],
+  klapp: ["👏", "Applåd"],
+  bock: ["✅", "Klart"],
+});
+
+/**
+ * Reaktionerna i ett samtal eller en tråd: en lyssnare (eller en läsning), räknade per meddelande, och växlingen av den egna.
+ *
+ * ⛔ FEL SÄGS (regel 5): en läsning som föll och en växling som nekades blir var sin rad, aldrig en tyst knapp som inte gör något.
+ *
+ * @param {(ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> & import("../data/samtalskalla.js").Reaktionsfunktioner) | null} kalla
+ * @param {string} sid @param {string | undefined} trad @param {string} uid
+ */
+function useReaktioner(kalla, sid, trad, uid) {
+  const [lage, setLage] = useState(/** @type {{ rader: any[], fler: boolean, fel: Error | null, skrivfel: Error | null }} */ ({ rader: [], fler: false, fel: null, skrivfel: null }));
+  const lyssnar = useRef(false);
+  const val = trad === undefined ? {} : { trad };
+  const lasIn = async () => {
+    if (!kalla) return;
+    try {
+      const svar = await kalla.lasReaktioner(sid, val);
+      setLage((l) => ({ ...l, rader: svar.rader, fler: svar.fler, fel: null }));
+    } catch (e) {
+      setLage((l) => ({ ...l, fel: e instanceof Error ? e : new Error(String(e)) }));
+    }
+  };
+  useEffect(() => {
+    if (!kalla) return undefined;
+    let levande = true;
+    const stang = kalla.prenumereraReaktioner(
+      sid,
+      { onData: (svar) => levande && setLage((l) => ({ ...l, rader: svar.rader, fler: svar.fler, fel: null })), onError: (e) => levande && setLage((l) => ({ ...l, fel: e })) },
+      val,
+    );
+    lyssnar.current = Boolean(stang);
+    if (!stang) lasIn();
+    return () => {
+      levande = false;
+      stang?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, sid, trad]);
+  const sammanfattning = useMemo(() => summeraReaktioner(lage.rader, uid), [lage.rader, uid]);
+  /** @param {string} mid @param {(typeof REAKTIONSKODER)[number]} kod */
+  const vaxla = async (mid, kod) => {
+    if (!kalla) return;
+    const har = lage.rader.some((r) => r.mid === mid && r.kod === kod && r.av === uid);
+    try {
+      if (har) await kalla.taBortReaktion(sid, { mid, kod, av: uid }, val);
+      else await kalla.reagera(sid, { mid, kod, av: uid }, val);
+      setLage((l) => ({ ...l, skrivfel: null }));
+      if (!lyssnar.current) await lasIn();
+    } catch (e) {
+      setLage((l) => ({ ...l, skrivfel: e instanceof Error ? e : new Error(String(e)) }));
+    }
+  };
+  return { pa: Boolean(kalla), sammanfattning, vaxla, fler: lage.fler, fel: lage.fel, skrivfel: lage.skrivfel };
+}
+
+/**
+ * Raderna om reaktionerna som gäller hela loggen: läsningen föll, en växling nekades, eller taket nåddes.
+ * @param {{ reakt: ReturnType<typeof useReaktioner>, texter: Required<Meddelandetexter> }} props
+ */
+function Reaktionslage({ reakt, texter: t }) {
+  if (!reakt.pa) return null;
+  return (
+    <>
+      {reakt.fel ? (
+        <p data-reaktionsfel="lasa" role="alert" className="m-0 py-1 text-center text-liten text-danger">
+          {t.reaktionerFel}
+        </p>
+      ) : null}
+      {reakt.skrivfel ? (
+        <p data-reaktionsfel="skriva" role="alert" className="m-0 py-1 text-center text-liten text-danger">
+          {t.reaktionFel}
+        </p>
+      ) : null}
+      {reakt.fler ? (
+        <p data-reaktioner-fler="" role="status" className="m-0 py-1 text-center text-liten text-ink-muted">
+          {t.reaktionerFler}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** @param {(typeof REAKTIONSKODER)[number]} kod @param {Required<Meddelandetexter>} t */
+const reaktionsnamn = (kod, t) => t.reaktionsnamn?.[kod] ?? REAKTIONSVY[kod][1];
+
+/**
+ * Reaktionerna under en bubbla: en knapp per kod med antalet. ⛔ En tryckning växlar den EGNA reaktionen, och knappen säger om den
+ * är din (`aria-pressed`). Träffytan är 44 px utan att raden växer (negativa marginaler, samma grepp som trådens märke).
+ *
+ * @param {{ m: { id: string }, egen: boolean, reakt: ReturnType<typeof useReaktioner>, texter: Required<Meddelandetexter> }} props
+ */
+function Reaktionschips({ m, egen, reakt, texter: t }) {
+  const lista = reakt.sammanfattning.get(m.id);
+  if (!lista || lista.length === 0) return null;
+  return (
+    <div data-reaktioner={m.id} className={cx("mt-1 flex max-w-full flex-wrap gap-1", egen ? "justify-end" : "justify-start")}>
+      {lista.map((r) => (
+        <button
+          key={r.kod}
+          type="button"
+          data-reaktion={r.kod}
+          aria-pressed={r.egen}
+          aria-label={`${reaktionsnamn(r.kod, t)}, ${r.antal}${r.egen ? `, ${t.duHarReagerat}` : ""}`}
+          onClick={() => reakt.vaxla(m.id, r.kod)}
+          className="group/chip -my-1.5 inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center focus-visible:outline-none"
+        >
+          <span
+            aria-hidden="true"
+            className={cx(
+              "inline-flex h-7 items-center gap-1 rounded-full border px-2 text-meta tabular-nums transition-colors duration-(--duration-fast) ease-standard group-focus-visible/chip:outline-2 group-focus-visible/chip:outline-offset-1 group-focus-visible/chip:outline-accent",
+              r.egen ? "border-accent bg-accent-faint text-ink" : "border-line bg-surface text-ink-secondary group-hover/chip:bg-hover",
+            )}
+          >
+            <span>{REAKTIONSVY[r.kod][0]}</span>
+            <span>{r.antal}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * "Reagera" och väljaren med de sex reaktionerna.
+ *
+ * ⛔ TANGENTBORDET FÅR SAMMA VÄG SOM PEKAREN (SS #1701: en verktygsrad som bara syns vid hovring finns inte för tangentbordet).
+ * Knappen syns på dator vid hover och fokus, på telefon alltid. Väljaren tar fokus när den öppnas, pilarna flyttar mellan
+ * reaktionerna, Escape stänger och lämnar fokus på Reagera, och fokus som lämnar väljaren stänger den.
+ *
+ * @param {{ m: { id: string }, egen: boolean, reakt: ReturnType<typeof useReaktioner>, texter: Required<Meddelandetexter> }} props
+ */
+function ReageraKnapp({ m, egen, reakt, texter: t }) {
+  const [oppen, setOppen] = useState(false);
+  const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const panel = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const panelId = useId();
+  useEffect(() => {
+    if (oppen) /** @type {HTMLElement | null} */ (panel.current?.querySelector("button") ?? null)?.focus();
+  }, [oppen]);
+  const stang = () => {
+    setOppen(false);
+    knapp.current?.focus();
+  };
+  return (
+    <>
+      <button
+        ref={knapp}
+        type="button"
+        data-reagera={m.id}
+        aria-label={t.reagera}
+        aria-expanded={oppen}
+        aria-controls={oppen ? panelId : undefined}
+        onClick={() => setOppen((o) => !o)}
+        className={cx(
+          "-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+          oppen ? "text-ink" : "md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+        )}
+      >
+        <LeendeIkon size={16} />
+      </button>
+      {oppen ? (
+        <div
+          ref={panel}
+          id={panelId}
+          role="group"
+          aria-label={t.valjReaktion}
+          data-reaktionsvaljare={m.id}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              stang();
+              return;
+            }
+            if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+              e.preventDefault();
+              const knappar = /** @type {HTMLElement[]} */ ([...(panel.current?.querySelectorAll("button") ?? [])]);
+              const i = knappar.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+              const n = knappar.length;
+              knappar[(i + (e.key === "ArrowRight" ? 1 : n - 1)) % n]?.focus();
+            }
+          }}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(/** @type {Node | null} */ (e.relatedTarget)) && e.relatedTarget !== knapp.current) setOppen(false);
+          }}
+          className={cx(
+            "absolute bottom-full z-10 mb-1 flex gap-0.5 rounded-full border border-line bg-surface p-0.5 shadow-md",
+            egen ? "right-0" : "left-0",
+          )}
+        >
+          {REAKTIONSKODER.map((kod) => (
+            <button
+              key={kod}
+              type="button"
+              data-valj-reaktion={kod}
+              aria-label={reaktionsnamn(kod, t)}
+              onClick={() => {
+                reakt.vaxla(m.id, kod);
+                stang();
+              }}
+              className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-brod transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            >
+              <span aria-hidden="true">{REAKTIONSVY[kod][0]}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </>
   );
 }

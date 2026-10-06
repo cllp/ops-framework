@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_TRADNAMN, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_TRADNAMN, MEDDELANDEFALT, REAKTIONSFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -757,11 +757,14 @@ export function konfigloggregelfragment(namn) {
  *
  *   - AGENTENS STATUS (#273, med `status`): läsa som samtalet (i en tråd som tråden), skriva ALDRIG. Statusen skrivs av appens
  *     server med Admin SDK. En klient som kunde skriva den hade kunnat få agenten att se ut att arbeta.
+ *   - REAKTIONER (chattens nattskiva, med `reaktioner`): läsa som samtalet (i en tråd som tråden). Skapa: en aktiv person i
+ *     samtalet, som sig själv, med en kod ur `REAKTIONSKODER`, nyckeln exakt `mid|uid|kod` ur fälten (`REAKTIONSFALT`), och
+ *     meddelandet `mid` finns i samma samtal (i en tråd: i samma tråd). Radera: bara sin egen. Uppdatera: aldrig.
  *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -776,15 +779,43 @@ export function samtalsregelfragment(namn = {}) {
    */
   const tradar = namn.tradar === undefined ? null : kontrolleraNamn(namn.tradar, "tradar");
   const status = namn.status === undefined ? null : kontrolleraNamn(namn.status, "status");
+  const reaktioner = namn.reaktioner === undefined ? null : kontrolleraNamn(namn.reaktioner, "reaktioner");
   // ⛔ KAN 7: ett namn som är samma som en annan undersamling hade lagt två regler på samma väg. Samma prövning som källan gör.
-  undersamlingskrock({ meddelanden, last, tradar, status }, "samtalsregelfragment");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner }, "samtalsregelfragment");
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const A = SAMTALSAVGRANSARE;
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : [])].join(", ");
+  const R = SAMTALSAVGRANSARE;
+  const reaktionsfunktion = reaktioner
+    ? `    // En reaktion (chattens nattskiva): fälten, koden ur listan, som sig själv, nu, och nyckeln exakt mid|uid|kod ur fälten.
+    function opsGiltigReaktion(rid, d) {
+      return d.keys().hasOnly([${lista(REAKTIONSFALT)}])
+        && d.mid is string && d.av == request.auth.uid
+        && d.kod in [${lista(REAKTIONSKODER)}]
+        && rid == d.mid + '${R}' + d.av + '${R}' + d.kod
+        && opsNu(d.tid);
+    }
+
+`
+    : "";
+  const reaktionsblock = reaktioner
+    ? `
+
+      // Reaktioner (chattens nattskiva): en per person, meddelande och kod. Bara sin egen raderas, ingen uppdateras.
+      match /${reaktioner}/{rid} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && opsGiltigReaktion(rid, request.resource.data)
+          && exists(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(request.resource.data.mid));
+        allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;
+        allow update: if false;
+      }`
+    : "";
   const tradfunktioner = tradar
     ? `    // Gruppchatten s, och den inloggade får läsa den (0.68.0). Trådar finns bara här.
     function opsIGruppchatten(sid) {
@@ -812,6 +843,18 @@ export function samtalsregelfragment(namn = {}) {
         allow read: if opsISamtal(sid);
         allow write: if false;
       }`
+    : "";
+  const tradreaktioner = reaktioner && tradar
+    ? `
+
+        match /${reaktioner}/{rid} {
+          allow read: if opsIGruppchatten(sid);
+          allow create: if opsPersonIGruppchatten(sid)
+            && opsGiltigReaktion(rid, request.resource.data)
+            && exists(/databases/$(database)/documents/${samtal}/$(sid)/${tradar}/$(tid)/${meddelanden}/$(request.resource.data.mid));
+          allow delete: if opsIGruppchatten(sid) && resource.data.av == request.auth.uid;
+          allow update: if false;
+        }`
     : "";
   const tradstatus = status && tradar
     ? `
@@ -849,7 +892,7 @@ export function samtalsregelfragment(namn = {}) {
             && request.resource.data.text.size() <= ${MAX_MEDDELANDE}
             && opsNu(request.resource.data.tid);
           allow update, delete: if false;
-        }${tradstatus}
+        }${tradstatus}${tradreaktioner}
       }`
     : "";
 
@@ -886,7 +929,7 @@ export function samtalsregelfragment(namn = {}) {
       return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
     }
 
-${tradfunktioner}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+${tradfunktioner}${reaktionsfunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
@@ -935,7 +978,7 @@ ${tradfunktioner}    // Ett nytt samtal: nyckeln härledd, skaparen en person i 
           && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
           && request.resource.data.lastTill is int;
         allow delete: if false;
-      }${tradblock}${statusblock}
+      }${tradblock}${statusblock}${reaktionsblock}
     }
 `;
 }

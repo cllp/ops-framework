@@ -1877,6 +1877,17 @@ och felet. `oversikt` ger `olastaFler` per rad (sidan var full och dess äldsta 
 `onOlasta(antal, { fler })` har ett andra argument, och märket visar "50+": `OpsCountBadge fler`, `OpsIconLink badgeFler` och
 `OpsMeddelandeLank olastaFler`. Skärmläsaren hör "50 eller fler".
 
+**Reaktioner, med nyckeln `reaktioner`.** `<samtal>/{sid}/<reaktioner>/{mid|uid|kod}` och samma under en tråd, `{ mid, av, kod, tid }`
+(`REAKTIONSFALT`) med `kod` ur `REAKTIONSKODER` (`tumme`, `hjarta`, `skratt`, `eld`, `klapp`, `bock`); vyn ritar emoji, datan bär koden.
+Nyckeln (`reaktionsnyckel`, `byggReaktion`) bär unikheten: en reaktion per person, meddelande och kod, utan transaktion. Regeln: den som
+får läsa samtalet läser; en aktiv person skapar som sig själv, med nyckeln exakt ur fälten och meddelandet i samma samtal (i en tråd:
+samma tråd); **bara sin egen raderas, ingen uppdateras**; meddelandet förblir oföränderligt. `summeraReaktioner(rader, uid)` räknar fram
+antalet per meddelande, inget lagras. Källan: `lasReaktioner`, `prenumereraReaktioner` (EN lyssnare per samtal eller tråd, de senaste
+`REAKTIONSTAK`; når den taket sägs "Äldre reaktioner visas inte."), `reagera` och `taBortReaktion`, alla med `{ trad? }`, bara när
+`harReaktioner(kalla)`. Vyn: chips under bubblan med antal (`aria-pressed` för den egna) och "Reagera" med en väljare för de sex;
+44 px träffyta, pilarna flyttar, Escape stänger med fokus kvar. Rotmeddelandets reaktioner står i gruppchatten, trådens svar har sina i
+tråden.
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.

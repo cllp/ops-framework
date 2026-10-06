@@ -195,6 +195,8 @@ function avsluta() {
 //   (2) VISA ÄLDRE OCH 50+: i listan bär samtalet med 120 olästa märket "50+"; i samtalet står "Visa äldre" överst i loggen med
 //       44 px träffyta, och ett klick lägger 50 meddelanden till ovanför UTAN att det man läste flyttar sig (högst 2 px), och
 //       knappen står kvar eftersom det finns fler.
+//   (3) REAKTIONER: i gruppchatten står chippen under bubblan med antal (golv: 3 chips), varje chip och "Reagera" har minst 44 px
+//       träffyta, väljaren öppnas med sex knappar om 44 px helt inom fönstret, och Escape stänger den med fokus kvar på Reagera.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
 async function chattensNattskiva() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -232,6 +234,48 @@ async function chattensNattskiva() {
         krav(m.status !== null && m.status.punkter === 3 && m.status.underSista && m.status.inom, `${namn}: statusraden ska stå under sista bubblan, inom loggen, med tre punkter (${JSON.stringify(m.status)}).`);
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-1-markdown-status-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (3) reaktioner ────────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (3) reaktioner ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-ops-samtal] [data-reaktion]", { timeout: 6000 });
+        await page.waitForTimeout(200);
+        const chips = await page.evaluate(() => [...document.querySelectorAll("[data-ops-samtal] [data-reaktion]")].map((c) => {
+          const r = c.getBoundingClientRect();
+          return { namn: c.getAttribute("aria-label"), w: r.width, h: r.height, tryckt: c.getAttribute("aria-pressed") };
+        }));
+        matt.push(`${namn}: chips ${JSON.stringify(chips)}`);
+        krav(chips.length >= 3, `${namn}: ${chips.length} chips, väntat minst 3. Golv.`);
+        krav(chips.every((c) => c.w >= 43.5 && c.h >= 43.5), `${namn}: ett chip har mindre än 44 px träffyta (${JSON.stringify(chips)}).`);
+        krav(chips.some((c) => c.namn === "Tummen upp, 2, du har reagerat" && c.tryckt === "true"), `${namn}: Annas egen reaktion ska vara tryckt och säga det (${JSON.stringify(chips)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-3-reaktioner-chips-${vp.width}.png`) });
+        const rad = page.locator("[data-ops-samtal] [data-meddelande]").filter({ has: page.locator("[data-reaktion]") }).last();
+        await rad.hover();
+        const knapp = rad.locator("[data-reagera]");
+        const kb = await knapp.boundingBox();
+        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: Reagera har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
+        await knapp.focus();
+        await page.keyboard.press("Enter");
+        await page.waitForSelector("[data-reaktionsvaljare]", { timeout: 3000 });
+        const val = await page.evaluate(() => {
+          const v = /** @type {HTMLElement} */ (document.querySelector("[data-reaktionsvaljare]"));
+          const kn = [...v.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
+          return { antal: kn.length, minst: Math.min(...kn.map((r) => Math.min(r.width, r.height))), inom: kn.every((r) => r.left >= 0 && r.right <= window.innerWidth && r.top >= 0), fokus: document.activeElement?.getAttribute("data-valj-reaktion") ?? null };
+        });
+        matt.push(`${namn}: väljaren ${JSON.stringify(val)}`);
+        krav(val.antal === 6 && val.minst >= 43.5 && val.inom, `${namn}: väljaren ska ha sex knappar om 44 px inom fönstret (${JSON.stringify(val)}).`);
+        krav(val.fokus === "tumme", `${namn}: fokus ska stå på första reaktionen när väljaren öppnats (${val.fokus}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-3-reaktioner-valjare-${vp.width}.png`) });
+        await page.keyboard.press("Escape");
+        const efter = await page.evaluate(() => ({ oppen: Boolean(document.querySelector("[data-reaktionsvaljare]")), fokus: document.activeElement?.hasAttribute("data-reagera") ?? false }));
+        krav(!efter.oppen && efter.fokus, `${namn}: Escape ska stänga väljaren och lämna fokus på Reagera (${JSON.stringify(efter)}).`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
       }

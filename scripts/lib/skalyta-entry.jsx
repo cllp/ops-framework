@@ -985,7 +985,7 @@ async function byggChattkalla() {
   let t = new Date(2026, 9, 6, 9, 0).getTime();
   const kalla = Ops.createMemorySource({});
   // Varje nyckel som den byggda versionen känner till. En äldre version kastar inte på en okänd nyckel, den ignorerar den.
-  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", status: "status" });
+  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", status: "status", reaktioner: "reaktioner" });
   const ids = {};
   const a = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
   ids.agent = a.id;
@@ -1001,7 +1001,15 @@ async function byggChattkalla() {
   const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
   ids.grupp = g.id;
   await s.skicka(g.id, { text: "Hej alla, styrelsemötet flyttas till **fredag** klockan tio.", av: "cecilia" });
-  await s.skicka(g.id, { text: "Bra, då hinner jag läsa protokollet.", av: "bo" });
+  const g2 = await s.skicka(g.id, { text: "Bra, då hinner jag läsa protokollet.", av: "bo" });
+  // (3) Reaktioner: två på Bos meddelande (en av dem Annas egen) och en på Cecilias.
+  if (typeof s.reagera === "function") {
+    const gm = (await s.meddelanden(g.id))[0];
+    await s.reagera(g.id, { mid: g2.id, kod: "tumme", av: "cecilia" });
+    await s.reagera(g.id, { mid: g2.id, kod: "tumme", av: "anna" });
+    await s.reagera(g.id, { mid: g2.id, kod: "hjarta", av: "cecilia" });
+    await s.reagera(g.id, { mid: gm.id, kod: "bock", av: "bo" });
+  }
   const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
   ids.privat = p.id;
   await s.skicka(p.id, { text: "Hej Anna! Kan du titta på fakturan från Bokio innan fredag?", av: "bo" });

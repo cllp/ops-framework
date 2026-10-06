@@ -1,6 +1,6 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
-import { AGENTSTATUS_ID, byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, REAKTIONSTAK, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -30,22 +30,25 @@ import { AGENTSTATUS_ID, byggMeddelande, byggSamtal, byggTrad, kravTradnamn, mot
  * @param {string} [konfig.status] (#273) Samlingsnamnet för agentens status, `<samtal>/{sid}/<status>/agent` och samma under en
  *   tråd. ⛔ INGET FÖRVAL, samma skäl som `tradar`: utan det har källan inga statusfunktioner och vyn visar ingen statusrad.
  *   Samma namn som till `samtalsregelfragment({ status })`.
+ * @param {string} [konfig.reaktioner] (chattens nattskiva) Samlingsnamnet för reaktionerna, `<samtal>/{sid}/<reaktioner>/{mid|uid|kod}` och
+ *   samma under en tråd. ⛔ INGET FÖRVAL. Samma namn som till `samtalsregelfragment({ reaktioner })`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...(tradar === undefined ? {} : { tradar }), ...(status === undefined ? {} : { status }) })) {
+  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner }).filter(([, v]) => v !== undefined));
+  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...frivilliga })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
     }
   }
   // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
   // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
-  undersamlingskrock({ meddelanden, last, tradar, status }, "createSamtalskalla");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner }, "createSamtalskalla");
 
   /** @param {string} sid */
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
@@ -425,6 +428,64 @@ export function createSamtalskalla(konfig) {
 
   const statusfunktioner = status === undefined ? {} : { status, lasStatus, prenumereraStatus };
 
+  /*
+   * ══ ⛔ REAKTIONERNA (chattens nattskiva) ═════════════════════════════════════════════════════════════════════════════════
+   *
+   * Modellen och skälen står i `lib/samtal.js`. ⛔ EN LÄSNING PER SAMTAL (eller tråd), INTE EN PER MEDDELANDE: de senaste
+   * `REAKTIONSTAK` reaktionerna i tidsordning. Kontraktet har ingen `in`-fråga, och en lyssnare per synligt meddelande hade varit
+   * femtio öppna läsningar per samtal.
+   */
+
+  /** @param {string} sid @param {string | undefined} tid */
+  const reaktionsvag = (sid, tid) => {
+    if (tid !== undefined && tradar === undefined) throw new Error("samtalskalla: en tråds reaktioner kräver tradar.");
+    return tid === undefined ? `${samtal}/${sid}/${reaktioner}` : `${samtal}/${sid}/${tradar}/${tid}/${reaktioner}`;
+  };
+  const reaktionsfraga = /** @type {const} */ ({ sortBy: "tid", direction: "desc", limit: REAKTIONSTAK });
+
+  /**
+   * Reaktionerna i ett samtal eller en tråd. `fler`: taket nåddes, och äldre reaktioner finns som inte lästes.
+   * @param {string} sid @param {{ trad?: string }} [val]
+   * @returns {Promise<{ rader: any[], fler: boolean }>}
+   */
+  async function lasReaktioner(sid, val = {}) {
+    const rader = await kalla.list(reaktionsvag(sid, val.trad), reaktionsfraga);
+    return { rader, fler: rader.length >= REAKTIONSTAK };
+  }
+
+  /**
+   * Lyssnar på reaktionerna, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje egen ändring.
+   * @param {string} sid
+   * @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * @param {{ trad?: string }} [val]
+   * @returns {(() => void) | null}
+   */
+  function prenumereraReaktioner(sid, lyssnare, val = {}) {
+    const vag = reaktionsvag(sid, val.trad);
+    if (typeof kalla.subscribe !== "function") return null;
+    return kalla.subscribe(vag, reaktionsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= REAKTIONSTAK }), onError: lyssnare.onError });
+  }
+
+  /**
+   * Reagerar på ett meddelande. Nyckeln är härledd, så en andra likadan reaktion är samma dokument (och regeln nekar den).
+   * @param {string} sid @param {{ mid: string, kod: string, av: string }} d @param {{ trad?: string }} [val]
+   */
+  async function reagera(sid, { mid, kod, av }, val = {}) {
+    const r = byggReaktion({ mid, kod, av, tid: klocka() });
+    return kalla.create(reaktionsvag(sid, val.trad), { ...r });
+  }
+
+  /**
+   * Tar bort sin egen reaktion. Regeln släpper bara igenom den egna.
+   * @param {string} sid @param {{ mid: string, kod: string, av: string }} d @param {{ trad?: string }} [val]
+   */
+  async function taBortReaktion(sid, { mid, kod, av }, val = {}) {
+    const r = byggReaktion({ mid, kod, av, tid: 0 });
+    return kalla.remove(reaktionsvag(sid, val.trad), r.id);
+  }
+
+  const reaktionsfunktioner = reaktioner === undefined ? {} : { reaktioner, lasReaktioner, prenumereraReaktioner, reagera, taBortReaktion };
+
   return Object.freeze({
     lista,
     oppnaGrupp,
@@ -439,6 +500,7 @@ export function createSamtalskalla(konfig) {
     sida,
     ...tradfunktioner,
     ...statusfunktioner,
+    ...reaktionsfunktioner,
   });
 }
 
@@ -471,6 +533,25 @@ export function createSamtalskalla(konfig) {
  */
 export function harStatus(kalla) {
   return Boolean(kalla) && typeof (/** @type {any} */ (kalla).prenumereraStatus) === "function";
+}
+
+/**
+ * @typedef {object} Reaktionsfunktioner (chattens nattskiva) Det en samtalskälla har när appen skickat `reaktioner`.
+ * @property {string} reaktioner
+ * @property {(sid: string, val?: { trad?: string }) => Promise<{ rader: any[], fler: boolean }>} lasReaktioner
+ * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }, val?: { trad?: string }) => (() => void) | null} prenumereraReaktioner
+ * @property {(sid: string, d: { mid: string, kod: string, av: string }, val?: { trad?: string }) => Promise<any>} reagera
+ * @property {(sid: string, d: { mid: string, kod: string, av: string }, val?: { trad?: string }) => Promise<any>} taBortReaktion
+ */
+
+/**
+ * Har källan reaktioner, alltså har appen slagit på dem med `reaktioner`? Samma form som `harTradar`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Reaktionsfunktioner}
+ */
+export function harReaktioner(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).reagera) === "function";
 }
 
 /**

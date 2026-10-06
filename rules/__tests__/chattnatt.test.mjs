@@ -36,6 +36,17 @@ export const MUTATIONER = {
   "status-skrivbar": ["match /status/{dok} {\n        allow read: if opsISamtal(sid);\n        allow write: if false;", "match /status/{dok} {\n        allow read: if opsISamtal(sid);\n        allow write: if request.auth != null;"],
   "status-las-alla": ["match /status/{dok} {\n        allow read: if opsISamtal(sid);", "match /status/{dok} {\n        allow read: if request.auth != null;"],
   "tradstatus-skrivbar": ["match /status/{dok} {\n          allow read: if opsIGruppchatten(sid);\n          allow write: if false;", "match /status/{dok} {\n          allow read: if opsIGruppchatten(sid);\n          allow write: if request.auth != null;"],
+  "reaktion-las-alla": ["match /reaktioner/{rid} {\n        allow read: if opsISamtal(sid);", "match /reaktioner/{rid} {\n        allow read: if request.auth != null;"],
+  "reaktion-utan-persontyp": ["        allow create: if opsISamtal(sid)\n          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')\n          && opsGiltigReaktion", "        allow create: if opsISamtal(sid)\n          && opsGiltigReaktion"],
+  "reaktion-som-annan": ["&& d.mid is string && d.av == request.auth.uid\n", "&& d.mid is string\n"],
+  "reaktion-fri-kod": ["&& d.kod in [\"tumme\", \"hjarta\", \"skratt\", \"eld\", \"klapp\", \"bock\"]\n", ""],
+  "reaktion-fri-nyckel": ["&& rid == d.mid + '|' + d.av + '|' + d.kod\n", ""],
+  "reaktion-fria-falt": ["return d.keys().hasOnly([\"mid\", \"av\", \"kod\", \"tid\"])\n        && d.mid", "return d.mid"],
+  "reaktion-utan-meddelande": ["&& exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(request.resource.data.mid));", ";"],
+  "reaktion-radera-andras": ["allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;", "allow delete: if opsISamtal(sid);"],
+  "reaktion-uppdaterbar": ["        allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;\n        allow update: if false;", "        allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;\n        allow update: if opsISamtal(sid);"],
+  "tradreaktion-utan-meddelande": ["&& exists(/databases/$(database)/documents/samtal/$(sid)/tradar/$(tid)/meddelanden/$(request.resource.data.mid));", ";"],
+  "tradreaktion-radera-andras": ["allow delete: if opsIGruppchatten(sid) && resource.data.av == request.auth.uid;", "allow delete: if opsIGruppchatten(sid);"],
 };
 
 /** Provreglerna, eller (bara för bevisets röda riktning) provreglerna med ett skydd bortplockat. */
@@ -44,7 +55,7 @@ function regeltext() {
   if (!fs.existsSync(fil)) throw new Error("rules/provregler.rules saknas. Kör npm run test:rules.");
   const text = fs.readFileSync(fil, "utf8");
   // ⛔ GOLV: varje nytt block måste finnas, annars mäter provet regler utan det som ska provas.
-  for (const block of ["match /status/{dok} {"]) {
+  for (const block of ["match /status/{dok} {", "match /reaktioner/{rid} {", "function opsGiltigReaktion("]) {
     if (!text.includes(block)) throw new Error(`"${block}" saknas i provreglerna`);
   }
   const namn = process.env.CHATTPROV_MUTATION;
@@ -106,6 +117,9 @@ before(async () => {
     await setDoc(doc(db, `samtal/${grupp}/status/agent`), { lage: "tanker", sedan: nu() });
     await setDoc(doc(db, `samtal/${grupp}/tradar/${T}/status/agent`), { lage: "skriver", sedan: nu() });
     await setDoc(doc(db, `samtal/${annaBo}/status/agent`), { lage: "tanker", sedan: nu() });
+    // Reaktioner, skrivna förbi reglerna: Bos på M1, och Bos i tråden.
+    await setDoc(doc(db, `samtal/${grupp}/reaktioner/${M1}|${BO}|tumme`), { mid: M1, av: BO, kod: "tumme", tid: nu() });
+    await setDoc(doc(db, `samtal/${grupp}/tradar/${T}/reaktioner/${TM}|${BO}|eld`), { mid: TM, av: BO, kod: "eld", tid: nu() });
   });
 });
 
@@ -137,5 +151,46 @@ describe("⛔ agentens status (#273): medlemmar läser, ingen klient skriver", (
       await assertFails(deleteDoc(doc(som(u), `samtal/${grupp}/status/agent`)));
       await assertFails(setDoc(doc(som(u), `samtal/${grupp}/tradar/${T}/status/agent`), { lage: "tanker", sedan: nu() }));
     }
+  });
+});
+
+const reaktion = (/** @type {string} */ mid, /** @type {string} */ av, /** @type {string} */ kod, extra = {}) => ({ mid, av, kod, tid: nu(), ...extra });
+const rvag = (/** @type {string} */ sid, /** @type {string} */ mid, /** @type {string} */ av, /** @type {string} */ kod) => `samtal/${sid}/reaktioner/${mid}|${av}|${kod}`;
+
+describe("⛔ reaktioner: en per person, meddelande och kod, bara sin egen", () => {
+  it("en medlem reagerar och tar bort sin reaktion; en deltagare i ett privat samtal också", async () => {
+    await assertSucceeds(setDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "hjarta")), reaktion(M1, ANNA, "hjarta")));
+    await assertSucceeds(getDocs(collection(som(CECILIA), `samtal/${grupp}/reaktioner`)));
+    await assertSucceeds(deleteDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "hjarta"))));
+    await assertSucceeds(setDoc(doc(som(BO), rvag(annaBo, P1, BO, "bock")), reaktion(P1, BO, "bock")));
+  });
+  it("⛔ en främling, en borttagen, en tredje person och den som inte är inloggad läser inte", async () => {
+    for (const u of [FRAMLING, DAVID]) await assertFails(getDocs(collection(som(u), `samtal/${grupp}/reaktioner`)));
+    await assertFails(getDocs(collection(som(CECILIA), `samtal/${annaBo}/reaktioner`)));
+    await assertFails(getDocs(collection(utan(), `samtal/${grupp}/reaktioner`)));
+  });
+  it("⛔ inte som någon annan, och ingen klient som agenten", async () => {
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, M1, BO, "eld")), reaktion(M1, BO, "eld")));
+    await assertFails(setDoc(doc(som(AGENT), rvag(grupp, M1, AGENT, "eld")), reaktion(M1, AGENT, "eld")));
+    await assertFails(setDoc(doc(som(DAVID), rvag(grupp, M1, DAVID, "eld")), reaktion(M1, DAVID, "eld")));
+  });
+  it("⛔ bara de sex koderna, nyckeln ur fälten, inga andra fält, och meddelandet finns i samma samtal", async () => {
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "👍")), reaktion(M1, ANNA, "👍")));
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "skratt")), reaktion(M1, ANNA, "eld")));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/reaktioner/egen-nyckel`), reaktion(M1, ANNA, "eld")));
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "klapp")), reaktion(M1, ANNA, "klapp", { emoji: "👏" })));
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, "finns-inte", ANNA, "eld")), reaktion("finns-inte", ANNA, "eld")));
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, P1, ANNA, "eld")), reaktion(P1, ANNA, "eld")));
+  });
+  it("⛔ ingen tar bort någon annans reaktion, och ingen reaktion uppdateras", async () => {
+    await assertFails(deleteDoc(doc(som(ANNA), rvag(grupp, M1, BO, "tumme"))));
+    await assertFails(updateDoc(doc(som(BO), rvag(grupp, M1, BO, "tumme")), { tid: nu() }));
+  });
+  it("⛔ i tråden: på trådens meddelanden, och bara sin egen tas bort", async () => {
+    const tv = (/** @type {string} */ mid, /** @type {string} */ av, /** @type {string} */ kod) => `samtal/${grupp}/tradar/${T}/reaktioner/${mid}|${av}|${kod}`;
+    await assertSucceeds(setDoc(doc(som(ANNA), tv(TM, ANNA, "klapp")), reaktion(TM, ANNA, "klapp")));
+    await assertFails(setDoc(doc(som(ANNA), tv(M1, ANNA, "klapp")), reaktion(M1, ANNA, "klapp")));
+    await assertFails(deleteDoc(doc(som(ANNA), tv(TM, BO, "eld"))));
+    await assertFails(getDocs(collection(som(FRAMLING), `samtal/${grupp}/tradar/${T}/reaktioner`)));
   });
 });
