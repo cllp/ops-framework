@@ -426,3 +426,68 @@ describe("⛔ gruppbyte medan oppnaPrivat pågår (#263, granskningen, tredje va
     expect(document.querySelector('[data-ops-samtal="personer"] textarea')).toHaveValue("");
   });
 });
+
+/**
+ * Fjärde varvet av granskningen av PR 264: varje skydd i läget "nytt" har ett eget prov som blir rött utan just det skyddet.
+ */
+describe("⛔ skydden i läget nytt, ett prov per skydd (#263, granskningen, fjärde varvet)", () => {
+  const MED = [
+    { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+    { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+    { userId: "cecilia", namn: "Cecilia Berg", typ: "person", status: "aktiv" },
+  ];
+  /** En källa där `oppnaPrivat` väntar tills provet släpper den, och då lyckas eller kastar. */
+  function vantandeKalla() {
+    const kallan = createSamtalskalla({ kalla: createMemorySource({}) });
+    /** @type {{ slapp: () => void, kasta: (e: Error) => void }} */
+    const styr = { slapp: () => {}, kasta: () => {} };
+    const oppnaPrivat = vi.fn(async (/** @type {any} */ d) => {
+      await new Promise((r, f) => {
+        styr.slapp = () => r(undefined);
+        styr.kasta = f;
+      });
+      return kallan.oppnaPrivat(d);
+    });
+    return { kalla: { ...kallan, oppnaPrivat }, styr, oppnaPrivat };
+  }
+
+  it("monterad: Tillbaka medan samtalet öppnas, och svaret öppnar ingen tråd och väljer inget", async () => {
+    const { kalla, styr } = vantandeKalla();
+    const onValj = vi.fn();
+    render(<OpsMeddelanden kalla={/** @type {any} */ (kalla)} uid="anna" groupId="g" gruppNamn="X" medlemmar={MED} onValj={onValj} />);
+    await screen.findByText("Inga samtal än");
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
+    await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
+    await user.click(screen.getByRole("button", { name: "Tillbaka" }));
+    await act(async () => styr.slapp());
+    await act(async () => {});
+    expect(document.querySelector("[data-ops-samtal]")).toBeNull();
+    expect(onValj.mock.calls.filter(([id]) => typeof id === "string")).toEqual([]);
+  });
+
+  it("key per grupp: ett fel från oppnaPrivat i g som kommer efter bytet ger ingen banderoll i h, och mottagaren följer inte med", async () => {
+    const { kalla, styr } = vantandeKalla();
+    const props = { kalla: /** @type {any} */ (kalla), uid: "anna", gruppNamn: "X", medlemmar: MED, nytt: true, valt: null, onValj: () => {} };
+    const { rerender } = render(<OpsMeddelanden {...props} groupId="g" />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("radio", { name: "Bo Lind" }));
+    rerender(<OpsMeddelanden {...props} groupId="h" />);
+    await act(async () => styr.kasta(new Error("Nätet är nere")));
+    await act(async () => {});
+    expect(screen.queryByText("Nätet är nere")).toBeNull();
+    expect(screen.getByRole("radio", { name: "Bo Lind" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("spärren först: ett andra val medan det första öppnas byter inte mottagare och öppnar inget andra samtal", async () => {
+    const { kalla, styr, oppnaPrivat } = vantandeKalla();
+    render(<OpsMeddelanden kalla={/** @type {any} */ (kalla)} uid="anna" groupId="g" gruppNamn="X" medlemmar={MED} nytt />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("radio", { name: "Bo Lind" }));
+    await user.click(screen.getByRole("radio", { name: "Cecilia Berg" }));
+    expect(oppnaPrivat).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("radio", { name: "Bo Lind" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Cecilia Berg" })).toHaveAttribute("aria-checked", "false");
+    await act(async () => styr.slapp());
+  });
+});

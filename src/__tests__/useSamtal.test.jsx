@@ -83,4 +83,21 @@ describe("useSamtal.laggIn", () => {
     await act(async () => gamlaLasOm());
     expect(result.current.rader).toHaveLength(0);
   });
+
+  it("⛔ en gammal lasOm efter gruppbytet kastar inte den nya gruppens läsning som är på väg", async () => {
+    const hRad = { samtal: samtal("h", "h|grupp"), senaste: { id: "y", text: "Bara i h", av: "bo", tid: 6 }, olasta: 1, lastTill: 0, motpart: null };
+    /** @type {(v: any) => void} */
+    let hSvar = () => {};
+    const kalla = /** @type {any} */ ({ oversikt: vi.fn(async (/** @type {any} */ f) => (f.groupId === "g" ? [] : new Promise((r) => (hSvar = r)))) });
+    const { result, rerender } = renderHook(({ g }) => useSamtal({ kalla, groupId: g, uid: "anna" }), { initialProps: { g: "g" } });
+    await waitFor(() => expect(result.current.laddar).toBe(false));
+    const gamlaLasOm = result.current.lasOm;
+    rerender({ g: "h" });
+    await waitFor(() => expect(kalla.oversikt).toHaveBeenLastCalledWith({ groupId: "h", uid: "anna" }));
+    // h:s läsning är på väg. Den gamla lasOm körs (ett fokus ur en gammal stängning) innan h svarar.
+    await act(async () => gamlaLasOm());
+    await act(async () => hSvar([hRad]));
+    expect(result.current.laddar).toBe(false);
+    expect(result.current.rader.map((r) => r.samtal.id)).toEqual(["h|grupp"]);
+  });
 });

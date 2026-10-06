@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motpart } from "../lib/samtal.js";
 
 /** @typedef {Awaited<ReturnType<ReturnType<typeof import("./samtalskalla.js").createSamtalskalla>["oversikt"]>>} Rader */
@@ -73,17 +73,27 @@ export function useSamtal({ kalla, groupId, uid }) {
    * den nya gruppen, och den gamla `lasOm` kunde skriva in g:s hela översikt. Både `laggIn` och `lasOm` jämför därför med refen.
    */
   const gruppNu = useRef(groupId);
-  gruppNu.current = groupId;
+  // Skrivs när renderingen är på plats, inte under den: en rendering som React kastar får inte flytta refen.
+  useLayoutEffect(() => {
+    gruppNu.current = groupId;
+  }, [groupId]);
 
   const lasOm = useCallback(async () => {
     if (!kalla || !groupId || !uid) {
       setLage({ rader: [], laddar: !groupId || !uid ? false : true, fel: null });
       return;
     }
-    // ⛔ En `lasOm` ur en rendering för en annan grupp gör ingenting, och räknar inte upp `levande` för den aktuella.
+    /*
+     * ⛔ En `lasOm` ur en rendering för en annan grupp gör ingenting. Den får inte heller räkna upp `levande`: då hade den
+     * aktuella gruppens läsning som är på väg kastats som inaktuell, och inkorgen hade stått kvar på "laddar" eller tom.
+     * Det är den enda gruppkontrollen i `lasOm` som behövs. Ett sent svar för en grupp man lämnat fångas redan av numret:
+     * effektens städning räknar upp `levande` vid varje gruppbyte, så en läsning som började före bytet har aldrig det
+     * aktuella numret. En andra kontroll av gruppen på svaret stod här och var grön utan sig själv i varje prov, och togs
+     * bort i fjärde varvet av granskningen av PR 264 (regel 4: ett skydd som inte kan ses falla är ingen vakt).
+     */
     if (gruppNu.current !== groupId) return;
     const nr = ++levande.current;
-    const aktuell = () => nr === levande.current && gruppNu.current === groupId;
+    const aktuell = () => nr === levande.current;
     try {
       const rader = await kalla.oversikt({ groupId, uid });
       // ⛔ Ett sent svar för en grupp man redan lämnat skrivs inte in i den nya gruppens inkorg.

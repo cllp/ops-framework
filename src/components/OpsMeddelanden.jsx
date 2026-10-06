@@ -173,9 +173,6 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   // ⛔ Läget "nytt" vinner över ett valt samtal: det är det man senast bad om.
   const nyttLage = Boolean(groupId) && (nytt !== undefined ? nytt : egetNytt);
   const valdId = nyttLage ? null : valt !== undefined ? valt : egetVal;
-  // Gruppen som visas just nu, för svar som kommer efter ett byte. Se `useSamtal`.
-  const gruppNu = useRef(groupId);
-  gruppNu.current = groupId;
   /** @param {string | null} id @param {{ nytt: true }} [val] */
   const valj = (id, val) => {
     if (valt === undefined) setEgetVal(id);
@@ -409,6 +406,11 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
           </button>
         ) : null}
         {nyttLage && groupId ? (
+          /*
+           * ⛔ EN NY `NyttSamtal` PER GRUPP. Annars stod mottagaren och ett fel från `oppnaPrivat` i g kvar i h när appen
+           * styr läget och det överlever bytet. Utkastet följer med ut: det är avsett. Det skrevs till någon i g, och
+           * mottagarna i h är andra människor. Ett utkast som bytte grupp med en är ett meddelande till fel personer.
+           */
           <NyttSamtal
             key={groupId}
             kalla={kalla}
@@ -417,8 +419,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             medlemmar={medlemmar}
             texter={t}
             onOppnat={(s, text) => {
-              // ⛔ Ett samtal i en grupp som inte längre visas väljs inte och skrivs inte till appens adress (tredje varvet, PR 264).
-              if (s.groupId !== gruppNu.current) return;
+              // Ett samtal i en grupp som inte längre visas når aldrig hit: `NyttSamtal` monteras om per grupp (`key`), och en
+              // avmonterad gör ingenting med svaret (`monterad`). En egen gruppkontroll här var grön utan sig själv i varje prov
+              // och togs bort i fjärde varvet av granskningen av PR 264 (regel 4).
               utkast.current = { id: s.id, text };
               // ⛔ Som SS (`ChatInboxPanel.jsx:484-487`): filtret och sökningen nollas, annars döljer "Olästa" det nya samtalet.
               setFilter("alla");
@@ -498,7 +501,7 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
     setOppnar(true);
     try {
       const s = await kalla.oppnaPrivat(m.slag === "agent" ? { groupId, uid, annan: m.uid, slag: "agent" } : { groupId, uid, annan: m.uid });
-      // ⛔ Avmonterad (gruppen byttes, läget stängdes) under öppnandet: samtalet hör inte till det som visas nu.
+      // ⛔ Avmonterad under öppnandet, t.ex. för att man tryckte Tillbaka: tråden öppnas inte bakom ryggen på en som ångrade sig.
       if (!monterad.current) return;
       onOppnat(s, textNu.current);
     } catch (e) {
