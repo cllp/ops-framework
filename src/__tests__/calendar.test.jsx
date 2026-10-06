@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { LANGTRYCK_MS } from "../lib/talk.js";
 import { aterstallHornmarkenVarning } from "../components/OpsCalendarDagruta.jsx";
 import {
   dateKey,
@@ -1022,5 +1023,60 @@ describe("OpsKalender: långtrycket överlever inte vyn", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("OpsKalender: snabbvyn vid långtryck ligger överst i panelen (0.71.0, bolag-ops#568)", () => {
+  /*
+   * ⛔ CP 2026-10-06: "den bubblan med långpress i cellen (ej den vanliga). Att snabb vyn kan ligga längst upp i panelen
+   * centrerat." Provet mäter VAR titten ritas: första barnet i dagpanelens plats, utan `fixed` och utan koordinater. Hur
+   * den ser ut vid 390 och 1280 px mäts i Playwright (`docs/bilder/568`), eftersom jsdom inte kör CSS.
+   */
+  const ruta = (/** @type {string} */ dag) => {
+    const el = document.querySelector(`[data-cal-day="${dag}"]`);
+    if (!el) throw new Error(`Ingen ruta för ${dag}`);
+    return /** @type {HTMLElement} */ (el);
+  };
+
+  it("långtryck öppnar snabbvyn först i panelens plats, inte som en flytande bubbla, och väljer ingen dag", () => {
+    vi.useFakeTimers();
+    try {
+      rendera();
+      fireEvent.pointerDown(ruta("2026-10-12"), { pointerId: 1, clientX: 10, clientY: 10, button: 0 });
+      act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+      fireEvent.pointerUp(ruta("2026-10-12"), { pointerId: 1 });
+      fireEvent.click(ruta("2026-10-12"));
+
+      const titt = document.querySelector("[data-snabbtitt]");
+      const plats = document.querySelector("[data-dagpanel-plats]");
+      expect(titt).not.toBeNull();
+      expect(plats?.contains(titt)).toBe(true);
+      expect(plats?.firstElementChild?.matches("[data-snabbtitt-plats]")).toBe(true);
+      expect(titt?.parentElement?.className).toContain("justify-center");
+      expect(titt?.className).not.toMatch(/\bfixed\b/);
+      expect(/** @type {HTMLElement} */ (titt).style.left).toBe("");
+      expect(/** @type {HTMLElement} */ (titt).style.top).toBe("");
+      expect(within(/** @type {HTMLElement} */ (titt)).getByText("Arbetsgivardeklaration")).toBeInTheDocument();
+      // ⛔ Klicket efter långtrycket sväljs: titten ändrar inte urvalet.
+      expect(document.querySelector("[data-dagpanel]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ett vanligt tryck öppnar dagpanelen som förut, utan snabbvy", () => {
+    rendera();
+    fireEvent.click(ruta("2026-10-12"));
+    expect(document.querySelector("[data-dagpanel]")).not.toBeNull();
+    expect(document.querySelector("[data-snabbtitt]")).toBeNull();
+  });
+
+  it("med en dag vald ligger snabbvyn ovanför dagpanelen i samma plats", () => {
+    rendera();
+    fireEvent.click(ruta("2026-10-25"));
+    fireEvent.contextMenu(ruta("2026-10-12"));
+    const plats = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel-plats]"));
+    const barn = [...plats.children].map((c) => (c.matches("[data-snabbtitt-plats]") ? "titt" : c.matches("[data-dagpanel]") ? "panel" : "annat"));
+    expect(barn).toEqual(["titt", "panel"]);
   });
 });
