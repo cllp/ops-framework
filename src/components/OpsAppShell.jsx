@@ -1228,7 +1228,7 @@ function OpsAppShellRitad({
   // utan att byta till `skapa.nyttMeddelande` hade annars förlorat raden "Nytt meddelande" utan att någon märkte det (regel 5).
   if (skapa && "meddelande" in skapa && /** @type {any} */ (skapa).meddelande !== undefined) {
     throw new Error(
-      'OpsAppShell: skapa.meddelande är borttagen i 0.63.0 (#263). "Nytt meddelande" öppnar ingen panel längre: skicka skapa.nyttMeddelande, en funktion som leder till Meddelanden i läget "nytt" (OpsMeddelanden nytt).',
+      'OpsAppShell: skapa.meddelande är borttagen i 0.63.0 (#263). "Nytt meddelande" öppnar ingen panel längre: skicka skapa.nyttMeddelande, en funktion som leder till Meddelanden och öppnar "Nytt meddelande" där (OpsMeddelanden nytt).',
     );
   }
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
