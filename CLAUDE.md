@@ -197,10 +197,10 @@ fick se vad. Delade blockerade datum (`blockedDates`) fick i 0.9.328 en
 läsregel som prövade medlemskapet per grupp, och redan i 0.9.329 föll den på
 Firestores gräns för antal `exists()` (`subscribe_blocked_shared_error`) och
 fick backas till JWT-anspråken. I 0.9.398 (#113) fick samma läsning en
-tredje form, JWT eller medlemskap. Det övergripande beslutet om den sortens
-läsregler, och det SS kallar "permissions-träsket", är ADR-020. Att kopiera den
-modellen för att ytan ska se likadan ut hade varit att kopiera felet
-tillsammans med utseendet.
+tredje form, JWT eller medlemskap. Beslutet om den sortens läsregler, och det
+SS kallar "permissions-träsket", är ADR-020: beslutet om att läsregler inte ska
+avgöra synlighet. Att kopiera den modellen för att ytan ska se likadan ut hade
+varit att kopiera felet tillsammans med utseendet.
 
 **Regeln:** varje skiva som följer en förebild skriver ut tre listor i PR:en.
 Den första är det som tas som det är. Den andra är det som görs bättre, och
