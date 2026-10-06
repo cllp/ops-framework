@@ -970,6 +970,63 @@ function MeddelandeScen() {
 }
 
 /*
+ * Chattens nattskiva (#273 och chattanalysen), avsnitt 29g. En egen scen och inte `meddelanden`, så att avsnitt 29 till 29f mäter
+ * samma sak som förut. `window.__aktiv` väljer samtalet: "agent", "grupp" eller "privat". Varje del sås bara när den byggda
+ * versionen har den, så att samma avsnitt kan köras mot en äldre dist och bli rött på rätt sak i stället för att sidan kastar.
+ */
+const MEDLEMMAR_C = [
+  { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+  { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+  { userId: "cecilia", namn: "Cecilia Berg", typ: "person", status: "aktiv" },
+  { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+];
+async function byggChattkalla() {
+  if (!Ops.createSamtalskalla) return null;
+  let t = new Date(2026, 9, 6, 9, 0).getTime();
+  const kalla = Ops.createMemorySource({});
+  // Varje nyckel som den byggda versionen känner till. En äldre version kastar inte på en okänd nyckel, den ignorerar den.
+  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", status: "status" });
+  const ids = {};
+  const a = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
+  ids.agent = a.id;
+  await s.skicka(a.id, { text: "Vilka fakturor är obetalda?", av: "anna" });
+  // Agentens svar skrivs av servern; här förbi källan, som appens Admin SDK.
+  await kalla.create(`samtal/${a.id}/meddelanden`, {
+    text: "**Två fakturor** är obetalda:\n- *Bokio*, 1 250 kr, förföll 2026-10-01\n- Telia, 499 kr, förfaller i morgon\n\nSe https://exempel.se/fakturor för detaljer.",
+    av: "ops",
+    tid: (t += 60000),
+  });
+  await s.skicka(a.id, { text: "Tack. Kan du påminna mig på fredag?", av: "anna" });
+  if (typeof s.prenumereraStatus === "function") await kalla.create(`samtal/${a.id}/status`, { id: "agent", lage: "tanker", sedan: Date.now() });
+  const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+  ids.grupp = g.id;
+  await s.skicka(g.id, { text: "Hej alla, styrelsemötet flyttas till **fredag** klockan tio.", av: "cecilia" });
+  await s.skicka(g.id, { text: "Bra, då hinner jag läsa protokollet.", av: "bo" });
+  const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+  ids.privat = p.id;
+  await s.skicka(p.id, { text: "Hej Anna! Kan du titta på fakturan från Bokio innan fredag?", av: "bo" });
+  await s.skicka(p.id, { text: "Absolut, jag gör det i eftermiddag.", av: "anna" });
+  return { s, ids };
+}
+let chattkallan = null;
+function ChattNattScen() {
+  const [k, setK] = useState(chattkallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    byggChattkalla().then((x) => {
+      chattkallan = x;
+      setK(x);
+    });
+  }
+  const valt = k ? k.ids[window.__aktiv ?? "agent"] ?? k.ids.agent : null;
+  return (
+    <Full>
+      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={valt} onValj={() => {}} /> : <p>Laddar</p>}
+    </Full>
+  );
+}
+
+/*
  * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i sin grupp med en medlem och agenten: "Hur skriver jag ett
  * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f. Gruppen är g3 ur `grupperLista`,
  * vald i sidopanelen, så att panelen och chatten heter samma sak (omgranskningen av PR 268, A6).
@@ -1517,6 +1574,7 @@ function Scen() {
   }
   if (s === "meddelanden") return <MeddelandeScen />;
   if (s === "meddelanden-ny-grupp") return <MeddelandeNyGruppScen />;
+  if (s === "chattnatt") return <ChattNattScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>

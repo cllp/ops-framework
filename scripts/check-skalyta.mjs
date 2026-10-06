@@ -40,6 +40,7 @@
  *       node scripts/check-skalyta.mjs --dist <fil>       mät en annan byggd version (röd-beviset mot origin/main)
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
+ *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
 
@@ -173,6 +174,76 @@ async function linjer(page, valjare) {
 
 /** @param {number[]} ys @returns {number} minsta avstånd mellan två intilliggande linjer */
 const minGap = (ys) => ys.slice(1).reduce((m, y, i) => Math.min(m, y - ys[i]), Infinity);
+
+/** Skriver ut mätningarna och brotten och avslutar. Samma för hela körningen och för `--bara-chatt`. */
+function avsluta() {
+  for (const rad of matt) console.log(`  mätt: ${rad}`);
+  if (brott.length > 0) {
+    console.error(`\ncheck-skalyta: ${brott.length} brott av ${mattningar} kontroller (${varifran})\n`);
+    for (const b of brott) console.error(`  ${b}`);
+    process.exit(1);
+  }
+  console.log(`\ncheck-skalyta: ${mattningar} kontroller, inga brott (${varifran})`);
+}
+
+// ══ 29g. CHATTENS NATTSKIVA VID 390 OCH 1280 PX (#273 och chattanalysen) ═══════════════════════════════════════════════════
+// En funktion och inte ett block i flödet, så att `--bara-chatt` kan köra den ensam under arbetet. Hela körningen kör den också,
+// efter 29f. Scenen är `chattnatt` (skalyta-entry.jsx), med samtalet valt ur `window.__aktiv`. Delarna, en per etapp:
+//   (1) MARKDOWN OCH AGENTENS STATUS (#273): i agentsamtalet bär agentens svar fet text, kursiv, en punktlista med minst två
+//       rader och en klickbar https-länk, och inga råa `**`; raden "Agenten tänker" står i loggen under sista bubblan, med
+//       ikonen och tre punkter, och inom loggens bredd.
+// Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
+async function chattensNattskiva() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    // ── (1) markdown och agentens status ──────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "agent");
+      const namn = `chatt (1) agentsamtalet ${vp.width}`;
+      try {
+        await page.waitForSelector('[data-ops-samtal="agent"] [data-meddelande]', { timeout: 4000 });
+        await page.waitForTimeout(200);
+        const m = await page.evaluate(() => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const logg = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="agent"] [role=log]'));
+          const bubblor = [...logg.querySelectorAll("[data-bubbla]")];
+          const svar = bubblor.find((x) => x.querySelector("strong"));
+          const status = logg.querySelector("[data-agentstatus]");
+          return {
+            bubblor: bubblor.length,
+            fet: svar?.querySelector("strong")?.textContent ?? null,
+            kursiv: svar?.querySelector("em")?.textContent ?? null,
+            listrader: svar ? svar.querySelectorAll("li").length : 0,
+            lank: svar?.querySelector("a")?.getAttribute("href") ?? null,
+            ratecken: bubblor.some((x) => (x.textContent || "").includes("**")),
+            status: status ? { slag: status.getAttribute("data-agentstatus"), text: (status.textContent || "").trim(), roll: status.getAttribute("role"), punkter: status.querySelectorAll("[aria-hidden] > span").length, underSista: b(status).top >= b(bubblor[bubblor.length - 1]).bottom - 0.5, inom: b(status).right <= b(logg).right + 0.5 && b(status).left >= b(logg).left - 0.5 } : null,
+          };
+        });
+        matt.push(`${namn}: ${JSON.stringify(m)}`);
+        krav(m.bubblor >= 3, `${namn}: ${m.bubblor} bubblor, väntat minst 3. Golv.`);
+        krav(m.fet === "Två fakturor" && m.kursiv === "Bokio", `${namn}: agentens svar ska bära fet text och kursiv (fet "${m.fet}", kursiv "${m.kursiv}").`);
+        krav(m.listrader >= 2, `${namn}: punktlistan har ${m.listrader} rader, väntat minst 2.`);
+        krav(m.lank === "https://exempel.se/fakturor", `${namn}: länken i svaret är ${JSON.stringify(m.lank)}, väntat en klickbar https-adress.`);
+        krav(!m.ratecken, `${namn}: en bubbla visar råa ** (#273).`);
+        krav(m.status !== null && m.status.slag === "tanker" && m.status.text.startsWith("Agenten tänker") && m.status.roll === "status", `${namn}: raden "Agenten tänker" saknas eller är fel (${JSON.stringify(m.status)}).`);
+        krav(m.status !== null && m.status.punkter === 3 && m.status.underSista && m.status.inom, `${namn}: statusraden ska stå under sista bubblan, inom loggen, med tre punkter (${JSON.stringify(m.status)}).`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-1-markdown-status-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+// `--bara-chatt`: bara avsnitt 29g, för en snabb körning under arbetet med chatten. Hela körningen är den som gäller i kedjan.
+if (argv.includes("--bara-chatt")) {
+  await chattensNattskiva();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
 
 // ══ 1. MENYN: EN AVGRÄNSARE MELLAN SEKTIONER, ALDRIG TVÅ ═════════════════════
 for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
@@ -3424,6 +3495,8 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+await chattensNattskiva();
+
 // ══ 30. KALENDERN MOT SS CalView VID 390 OCH 1280 PX (0.36.0, #179 F1) ════════════════════════════════════════════════
 // CP 2026-09-29 i #179: "Kolla alla kalender inställningar och funktioner i SessionStudio. [...] Samma vill jag ha i ramverket."
 // Förebilderna: SS `CalView.jsx`, `calView/MonthGrid.jsx`, `useCalendarDaySelection.js`, `CalendarDayPeekPopover.jsx`,
@@ -5364,11 +5437,4 @@ for (const bredd of [390, 1280]) {
 }
 
 await browser.close();
-
-for (const rad of matt) console.log(`  mätt: ${rad}`);
-if (brott.length > 0) {
-  console.error(`\ncheck-skalyta: ${brott.length} brott av ${mattningar} kontroller (${varifran})\n`);
-  for (const b of brott) console.error(`  ${b}`);
-  process.exit(1);
-}
-console.log(`\ncheck-skalyta: ${mattningar} kontroller, inga brott (${varifran})`);
+avsluta();

@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_TRADNAMN, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT } from "./samtal.js";
+import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_TRADNAMN, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -755,7 +755,13 @@ export function konfigloggregelfragment(namn) {
  * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. `medlemskap` måste vara samma namn som skickas till `regelfragment()`,
  * och fragmentet använder dess `opsArMedlem`, alltså ska båda limmas in.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, medlemskap?: string }} [namn]
+ *   - AGENTENS STATUS (#273, med `status`): läsa som samtalet (i en tråd som tråden), skriva ALDRIG. Statusen skrivs av appens
+ *     server med Admin SDK. En klient som kunde skriva den hade kunnat få agenten att se ut att arbeta.
+ *
+ * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
+ * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
+ *
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -769,16 +775,16 @@ export function samtalsregelfragment(namn = {}) {
    * som ingen bad om.
    */
   const tradar = namn.tradar === undefined ? null : kontrolleraNamn(namn.tradar, "tradar");
-  // ⛔ KAN 7: ett trådnamn som är samma som en annan undersamling hade lagt två regler på samma väg.
-  if (tradar !== null && (tradar === meddelanden || tradar === last)) {
-    throw new Error(`samtalsregelfragment: tradar "${tradar}" krockar med ${tradar === meddelanden ? "meddelanden" : "last"}. Två undersamlingar med samma namn är samma väg, och reglerna hade lagts ihop.`);
-  }
+  const status = namn.status === undefined ? null : kontrolleraNamn(namn.status, "status");
+  // ⛔ KAN 7: ett namn som är samma som en annan undersamling hade lagt två regler på samma väg. Samma prövning som källan gör.
+  undersamlingskrock({ meddelanden, last, tradar, status }, "samtalsregelfragment");
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const A = SAMTALSAVGRANSARE;
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
-  const version = tradar ? "0.34.0, trådar 0.68.0" : "0.34.0";
+  // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : [])].join(", ");
   const tradfunktioner = tradar
     ? `    // Gruppchatten s, och den inloggade får läsa den (0.68.0). Trådar finns bara här.
     function opsIGruppchatten(sid) {
@@ -796,6 +802,24 @@ export function samtalsregelfragment(namn = {}) {
     }
 
 `
+    : "";
+  // Agentens status (#273): bara läsning, servern skriver. Under en tråd läser den som får läsa tråden.
+  const statusblock = status
+    ? `
+
+      // Agentens status (#273): bara servern skriver (Admin SDK).
+      match /${status}/{dok} {
+        allow read: if opsISamtal(sid);
+        allow write: if false;
+      }`
+    : "";
+  const tradstatus = status && tradar
+    ? `
+
+        match /${status}/{dok} {
+          allow read: if opsIGruppchatten(sid);
+          allow write: if false;
+        }`
     : "";
   const tradblock = tradar
     ? `
@@ -825,7 +849,7 @@ export function samtalsregelfragment(namn = {}) {
             && request.resource.data.text.size() <= ${MAX_MEDDELANDE}
             && opsNu(request.resource.data.tid);
           allow update, delete: if false;
-        }
+        }${tradstatus}
       }`
     : "";
 
@@ -911,7 +935,7 @@ ${tradfunktioner}    // Ett nytt samtal: nyckeln härledd, skaparen en person i 
           && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
           && request.resource.data.lastTill is int;
         allow delete: if false;
-      }${tradblock}
+      }${tradblock}${statusblock}
     }
 `;
 }

@@ -1844,6 +1844,28 @@ alltså ska appens läsregel för ärenden INTE bero på `mottagare`.
 | `OpsMottagare` | **en väljare för ärenden och meddelanden.** `lage="arende"`: Gruppen (förval), varje aktiv person (en själv märkt "du") och Agenten när gruppen har en agent. `lage="person"`: andra aktiva personer och den aktiva agenten, och med `helaGruppen` (0.68.0) en rad överst med det namnet och värdet `{ slag: "grupp" }`, med märket `gruppMarke` om det skickas. En radiogrupp med avatarer, 44 px per rad |
 | `OpsMeddelandeLank` | ingången, en `OpsIconLink` med meddelandeikonen och antalet olästa, för appens `actions` |
 
+#### Chattens nattskiva (#273 och chattanalysen, ej utgiven)
+
+⛔ **Varje ny undersamling och varje nytt meddelandefält är en NY NYCKEL, utan förval**, till både `createSamtalskalla` och
+`samtalsregelfragment`, precis som `tradar`. En app som inte skickar nyckeln får byte för byte samma regeltext som innan
+(prov mot `rules/__fixturer__/samtalsregelfragment-0.67.0.rules` och `-0.68.0-tradar.rules`), och vyn ritar ingenting nytt.
+`undersamlingskrock(namn, vem)` är det ENA stället som prövar att två undersamlingar inte har samma namn; källan och
+regelfragmentet anropar båda den. Regelprov med mutationstabell i `rules/__tests__/chattnatt.test.mjs`.
+
+**Markdown i bubblan (#273).** Varje meddelande ritas med `OpsMarkdown text chatt`: chattens delmängd av `splitMarkdown(text, { chatt: true })`,
+alltså fetstil (`**`), kursiv (`*` eller `_` vid ordgräns), punkt- och numrerade listor, radbrytningar som radbrytningar och klickbara
+länkar, bara http och https, i ny flik med `rel="noopener noreferrer"`. Ingen HTML, inga bilder; rubriker, tabeller, citat och kodblock
+står kvar som text. Färgen ärvs från bubblan.
+
+**Agentens status (#273), med nyckeln `status`.** `<samtal>/{sid}/<status>/agent` och samma under en tråd, `{ lage, sedan }` med
+`lage` ur `AGENTLAGEN` (`tanker`, `skriver`) och fälten `AGENTSTATUSFALT`. **Bara servern skriver** (`allow write: if false`); den som får
+läsa samtalet (eller tråden) läser. Appens agent bygger dokumentet med `byggAgentstatus({ lage, sedan? })` (också i
+`@staiger/ops-framework/node`, med `AGENTSTATUS_ID` och `AGENTSTATUS_MAX_ALDER`), skriver det med Admin SDK innan den börjar och tar
+bort det när svaret är skrivet eller felet visat. Vyn visar "Agenten tänker" eller "Agenten skriver" där svaret kommer, och
+`agentstatus(dok, nu)` avgör: en status äldre än `AGENTSTATUS_MAX_ALDER` (två minuter) visas inte, och då står en felrad i stället.
+En status som inte går att läsa är också en felrad. Källan: `lasStatus(sid, { tid? })` och `prenumereraStatus(sid, lyssnare, { tid? })`,
+bara när `harStatus(kalla)`.
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.

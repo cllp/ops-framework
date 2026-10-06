@@ -337,6 +337,27 @@ export function byggMottagare(m, medlemmar) {
  * tråden samma sak.
  */
 
+/**
+ * Kastar när två undersamlingar till samtalet har samma namn (KAN 7 i granskningen av PR 268, och varje frivillig undersamling
+ * sedan dess). ⛔ ETT HEM för prövningen: källan och regelfragmentet anropar samma funktion, så att en ny undersamling inte kan
+ * prövas på det ena stället och glömmas på det andra.
+ *
+ * @param {Record<string, string | null | undefined>} namn Undersamlingarna i den ordning de ska nämnas i felet. Utelämnade hoppas över.
+ * @param {string} vem
+ */
+export function undersamlingskrock(namn, vem) {
+  /** @type {Map<string, string>} */
+  const sedda = new Map();
+  for (const [nyckel, v] of Object.entries(namn)) {
+    if (v === undefined || v === null) continue;
+    const forra = sedda.get(v);
+    if (forra) {
+      throw new Error(`${vem}: ${nyckel} "${v}" krockar med ${forra}. Två undersamlingar med samma namn är samma väg, och reglerna och läsningarna hade lagts ihop.`);
+    }
+    sedda.set(v, nyckel);
+  }
+}
+
 /** Fälten en tråd får bära. `namn` bara när en person döpt om den. */
 export const TRADFALT = /** @type {const} */ (["skapad", "skapadAv", "namn"]);
 
@@ -448,4 +469,78 @@ export function kravTradnamn(namn, vem = "kravTradnamn") {
   if (!n) return null;
   if (n.length > MAX_TRADNAMN) throw new Error(`${vem}: namnet är ${n.length} tecken, taket är ${MAX_TRADNAMN}.`);
   return n;
+}
+
+/*
+ * ══ ⛔ AGENTENS STATUS: "TÄNKER" OCH "SKRIVER" (#273) ══════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-06 20:02, i LifeHubs agentsamtal: "jag skulle vilja ha en indikation medans du tänker och skriver i chatten. Alltså
+ * att det syns att du är på g...". Svaret tar sekunder, och under tiden såg samtalet ut som om ingenting hände.
+ *
+ *   <samtal>/{sid}/<status>/agent                       { lage: "tanker" | "skriver", sedan }
+ *   <samtal>/{sid}/<tradar>/{tid}/<status>/agent         samma, för en tråd
+ *
+ * ⛔ BARA SERVERN SKRIVER (regeln `allow write: if false`). Appens agent skriver med Admin SDK, som går förbi reglerna, och tar
+ * bort dokumentet när svaret är skrivet eller felet visat. En klient som kunde skriva statusen hade kunnat få agenten att se ut
+ * att arbeta i ett samtal där ingen bett om något.
+ *
+ * ⛔ ETT DOKUMENT PER SAMTAL OCH TRÅD, INTE PER MEDDELANDE. Agenten svarar på en sak åt gången i ett samtal, och ett dokument per
+ * meddelande hade varit en samling som växer med varje fråga och aldrig läses igen.
+ *
+ * ⛔ EN STATUS ÄLDRE ÄN TVÅ MINUTER VISAS INTE, OCH DÅ SÄGS DET I STÄLLET (regel 5). En agent som kraschade mitt i ett svar tar
+ * aldrig bort sin status. Utan taket hade "Agenten tänker" stått kvar för alltid, och det är en tyst nedsläppsväg som ser ut som
+ * arbete. Med taket blir den en synlig felrad.
+ */
+
+/** Dokumentets id under `<status>`. Ett per samtal och tråd. */
+export const AGENTSTATUS_ID = "agent";
+
+/** Agentens lägen, i den ordning de kommer. */
+export const AGENTLAGEN = /** @type {const} */ (["tanker", "skriver"]);
+
+/** Fälten statusdokumentet får bära. */
+export const AGENTSTATUSFALT = /** @type {const} */ (["lage", "sedan"]);
+
+/** Äldre än så är statusen ett fel och inte ett arbete, i millisekunder. */
+export const AGENTSTATUS_MAX_ALDER = 2 * 60 * 1000;
+
+/**
+ * Bygger statusdokumentet som appens server skriver, eller kastar med skälet. Samma form som vyn läser.
+ *
+ * @param {{ lage: string, sedan?: number }} d
+ * @returns {{ lage: "tanker" | "skriver", sedan: number }}
+ */
+export function byggAgentstatus(d) {
+  const lage = rensa(d?.lage);
+  if (!(/** @type {readonly string[]} */ (AGENTLAGEN)).includes(lage)) {
+    throw new Error(`byggAgentstatus: läget "${d?.lage}" finns inte. Giltiga: ${AGENTLAGEN.join(", ")}.`);
+  }
+  const sedan = d.sedan ?? Date.now();
+  if (!Number.isInteger(sedan)) throw new Error("byggAgentstatus: sedan är millisekunder, ett heltal.");
+  return Object.freeze({ lage: /** @type {"tanker" | "skriver"} */ (lage), sedan });
+}
+
+/**
+ * Vad vyn ska visa för ett statusdokument.
+ *
+ *   - `null`: ingen status, agenten arbetar inte;
+ *   - `{ lage, sedan }`: agenten arbetar;
+ *   - `{ fel: "gammal", ... }`: statusen är äldre än `AGENTSTATUS_MAX_ALDER`, och agenten har alltså fastnat;
+ *   - `{ fel: "ogiltig" }`: dokumentet finns men har inte statusens form. Också det sägs, i stället för att tigas ihjäl.
+ *
+ * @param {unknown} dok
+ * @param {number} nu
+ * @returns {null | { lage: "tanker" | "skriver", sedan: number } | { fel: "gammal", lage: "tanker" | "skriver", sedan: number } | { fel: "ogiltig" }}
+ */
+export function agentstatus(dok, nu) {
+  if (dok === null || dok === undefined) return null;
+  const d = /** @type {Record<string, unknown>} */ (typeof dok === "object" ? dok : {});
+  const lage = d.lage;
+  const sedan = d.sedan;
+  if (typeof lage !== "string" || !(/** @type {readonly string[]} */ (AGENTLAGEN)).includes(lage) || typeof sedan !== "number" || !Number.isFinite(sedan)) {
+    return { fel: "ogiltig" };
+  }
+  const l = /** @type {"tanker" | "skriver"} */ (lage);
+  if (nu - sedan > AGENTSTATUS_MAX_ALDER) return { fel: "gammal", lage: l, sedan };
+  return { lage: l, sedan };
 }

@@ -41,7 +41,7 @@
 const CLOSE = /[.,;:!?)\]]+$/;
 
 /**
- * @typedef {{ kind: "text" | "link" | "code" | "bold", value: string, url?: string }} Bit
+ * @typedef {{ kind: "text" | "link" | "code" | "bold" | "italic" | "break", value: string, url?: string }} Bit
  * @typedef {{ cross: boolean | null, inline: Bit[] }} ListEntry
  * @typedef {{ kind: "heading", level: number, inline: Bit[] }
  *   | { kind: "paragraph", inline: Bit[] }
@@ -55,8 +55,12 @@ const CLOSE = /[.,;:!?)\]]+$/;
 // ⛔ EN regex med alternativ, inte fyra svep. Fyra svep över samma sträng
 // betyder att svep två kan träffa inuti det svep ett redan tagit, alltså en
 // länk inuti en kodsnutt som plötsligt blir klickbar.
+//
+// ⛔ KURSIV (#273) ÄR EN STJÄRNA ELLER ETT UNDERSTRECK RUNT ORD, och understrecket bara vid ordgräns. CP 2026-10-06 såg
+// agentens svar med råa `*`. Understrecket kräver ordgräns på båda sidor, annars hade `snake_case_namn` i en issue-text blivit
+// kursivt mitt i ordet. Stjärnan får inte stå intill en annan stjärna, så att `**fet**` alltid är fet och aldrig kursiv i kursiv.
 const INLINE =
-  /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(https?:\/\/[^\s<>"'`]+)/g;
+  /`([^`\n]+)`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*\*([^*\n]+)\*\*|(https?:\/\/[^\s<>"'`]+)|(?<![*\p{L}\p{N}])\*(?![\s*])([^*\n]*[^\s*])\*(?![*\p{L}\p{N}])|(?<![\p{L}\p{N}_])_(?![\s_])([^_\n]*[^\s_])_(?![\p{L}\p{N}_])/gu;
 
 /** @param {string} url @returns {boolean} */
 function saker(url) {
@@ -90,6 +94,8 @@ export function splitInline(row) {
       // råa form. Den som skrev den ska se att den inte blev en länk.
       piece = saker(m[3]) ? { kind: "link", value: m[2], url: m[3] } : { kind: "text", value: m[0] };
     } else if (m[4] !== undefined) piece = { kind: "bold", value: m[4] };
+    else if (m[6] !== undefined) piece = { kind: "italic", value: m[6] };
+    else if (m[7] !== undefined) piece = { kind: "italic", value: m[7] };
     else if (m[5] !== undefined) {
       const url = m[5].replace(CLOSE, "");
       // Hela träffen var skiljetecken efter schemat: ingen adress att länka.
@@ -130,10 +136,23 @@ const isTableRule = (row) => /^\s*\|[\s:|-]+\|\s*$/.test(row) && row.includes("-
  * "en tom rad" ser annars likadana ut för den som renderar, och då ritas en
  * tom panel som ser ut som ett laddningsfel.
  *
- * @param {string | null | undefined} text @returns {Block[]}
+ * ══ ⛔ CHATTENS DELMÄNGD (`{ chatt: true }`, #273) ═══════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-06 20:02, i LifeHubs agentsamtal: agentens svar ritades med råa `**` och `*`. Ärendet ber om en SÄKER DELMÄNGD i
+ * chatten: fetstil, kursiv, punktlistor, numrerade listor, radbrytningar och länkar. Därför, med `chatt`:
+ *   - varje radbrytning är en radbrytning (`break`), inte ett mellanslag. I en chatt är raden det man skrev, och tre rader
+ *     ihopslagna till en är ett annat meddelande än det som skickades;
+ *   - rubriker, tabeller, citat, kodblock och avdelare känns INTE igen, och står kvar som den text de är. En `# ` först på en
+ *     rad i ett meddelande är nästan alltid ett nummer eller en tanke, och en rubrik mitt i en bubbla hade varit större än
+ *     samtalets eget huvud. Inget tappas (filhuvudet): bara tolkningen uteblir.
+ *
+ * @param {string | null | undefined} text
+ * @param {{ chatt?: boolean }} [val]
+ * @returns {Block[]}
  */
-export function splitMarkdown(text) {
+export function splitMarkdown(text, val = {}) {
   if (typeof text !== "string" || !text.trim()) return [];
+  const chatt = val.chatt === true;
 
   const rows = text.replace(/\r\n?/g, "\n").split("\n");
   /** @type {Block[]} */
@@ -146,7 +165,11 @@ export function splitMarkdown(text) {
     // ⛔ Mjuka radbrytningar blir mellanslag, som i markdown. Gjorde de inte
     // det skulle varje rad i ett stycke bli ett eget stycke, och texten få
     // luft mitt i en mening.
-    block.push({ kind: "paragraph", inline: splitInline(paragraph.join(" ")) });
+    // ⛔ I chatten är raden det som skrevs: en `break` mellan raderna i stället för ett mellanslag (se ovan).
+    const inline = chatt
+      ? paragraph.flatMap((rad, i) => (i === 0 ? splitInline(rad) : [/** @type {Bit} */ ({ kind: "break", value: "" }), ...splitInline(rad)]))
+      : splitInline(paragraph.join(" "));
+    block.push({ kind: "paragraph", inline });
     paragraph = [];
   };
 
@@ -154,7 +177,7 @@ export function splitMarkdown(text) {
     const row = rows[i];
 
     // ── Kodblock: allt mellan staketen är text, inte markdown ──────────────
-    const fence = row.match(/^\s*```(.*)$/);
+    const fence = chatt ? null : row.match(/^\s*```(.*)$/);
     if (fence) {
       closeParagraph();
       /** @type {string[]} */
@@ -176,21 +199,21 @@ export function splitMarkdown(text) {
       continue;
     }
 
-    const title = row.match(/^\s*(#{1,6})\s+(.*)$/);
+    const title = chatt ? null : row.match(/^\s*(#{1,6})\s+(.*)$/);
     if (title) {
       closeParagraph();
       block.push({ kind: "heading", level: title[1].length, inline: splitInline(title[2].trim()) });
       continue;
     }
 
-    if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(row)) {
+    if (!chatt && /^\s*([-*_])\s*(\1\s*){2,}$/.test(row)) {
       closeParagraph();
       block.push({ kind: "rule" });
       continue;
     }
 
     // ── Tabell: en radrad följd av ett streck. Utan strecket är det text ───
-    if (isTableRow(row) && i + 1 < rows.length && isTableRule(rows[i + 1])) {
+    if (!chatt && isTableRow(row) && i + 1 < rows.length && isTableRule(rows[i + 1])) {
       closeParagraph();
       const header = tableCells(row).map(splitInline);
       /** @type {Bit[][][]} */
@@ -228,7 +251,7 @@ export function splitMarkdown(text) {
       continue;
     }
 
-    const quote = row.match(/^\s*>\s?(.*)$/);
+    const quote = chatt ? null : row.match(/^\s*>\s?(.*)$/);
     if (quote) {
       closeParagraph();
       // ⛔ RÅ TEXT SAMLAS FÖRST, INLINE-DELNINGEN GÖRS EN GÅNG PÅ SLUTET. En

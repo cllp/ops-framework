@@ -1,6 +1,6 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
-import { byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -27,23 +27,25 @@ import { byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, s
  *   och `OpsMeddelanden` ritar inga trådar. Appen slår på trådarna genom att skicka samma namn som till
  *   `samtalsregelfragment({ tradar })`. Trådens meddelanden ligger under tråden med samma namn som samtalets (`meddelanden`),
  *   eftersom de har samma form och samma regel.
+ * @param {string} [konfig.status] (#273) Samlingsnamnet för agentens status, `<samtal>/{sid}/<status>/agent` och samma under en
+ *   tråd. ⛔ INGET FÖRVAL, samma skäl som `tradar`: utan det har källan inga statusfunktioner och vyn visar ingen statusrad.
+ *   Samma namn som till `samtalsregelfragment({ status })`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...(tradar === undefined ? {} : { tradar }) })) {
+  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...(tradar === undefined ? {} : { tradar }), ...(status === undefined ? {} : { status }) })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
     }
   }
   // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
-  if (tradar !== undefined && (tradar === meddelanden || tradar === last)) {
-    throw new Error(`createSamtalskalla: tradar "${tradar}" krockar med ${tradar === meddelanden ? "meddelanden" : "last"}.`);
-  }
+  // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
+  undersamlingskrock({ meddelanden, last, tradar, status }, "createSamtalskalla");
 
   /** @param {string} sid */
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
@@ -326,6 +328,52 @@ export function createSamtalskalla(konfig) {
 
   const tradfunktioner = tradar === undefined ? {} : { tradar, trad, oppnaTrad, tradarFor, antalSvar, tradmeddelanden, prenumereraTrad, skickaITrad, dopOm, rotmeddelande };
 
+  /*
+   * ══ ⛔ AGENTENS STATUS (#273) ═════════════════════════════════════════════════════════════════════════════════════════
+   *
+   * Modellen och skälen står i `lib/samtal.js`. Källan LÄSER bara: statusen skrivs av appens server med Admin SDK. Därför finns
+   * ingen skrivfunktion här, och regeln nekar varje klientskrivning.
+   */
+
+  /** @param {string} sid @param {string | undefined} tid */
+  const statusvag = (sid, tid) => (tid === undefined ? `${samtal}/${sid}/${status}` : `${samtal}/${sid}/${tradar}/${tid}/${status}`);
+
+  /**
+   * Kontrollerar att en tråds status bara efterfrågas när källan har trådar. Annars hade vägen innehållit `undefined`.
+   * @param {string | undefined} tid
+   */
+  const kravTradForStatus = (tid) => {
+    if (tid !== undefined && tradar === undefined) throw new Error("samtalskalla: en tråds status kräver tradar. Skicka samma namn som till samtalsregelfragment({ tradar }).");
+  };
+
+  /**
+   * Statusdokumentet som det står, eller `null`.
+   * @param {string} sid @param {{ tid?: string }} [val] `tid`: trådens, annars samtalets.
+   */
+  async function lasStatus(sid, val = {}) {
+    kravTradForStatus(val.tid);
+    return kalla.read(statusvag(sid, val.tid), AGENTSTATUS_ID);
+  }
+
+  /**
+   * Lyssnar på statusen, om källan kan prenumerera. Annars `null`, och vyn läser en gång (`lasStatus`).
+   * @param {string} sid
+   * @param {{ onData: (dok: any) => void, onError: (fel: Error) => void }} lyssnare `onData` får dokumentet, eller `null`.
+   * @param {{ tid?: string }} [val]
+   * @returns {(() => void) | null}
+   */
+  function prenumereraStatus(sid, lyssnare, val = {}) {
+    kravTradForStatus(val.tid);
+    if (typeof kalla.subscribe !== "function") return null;
+    // ⛔ Undersamlingen har bara dokumentet `agent`, så en lyssnare på samlingen är en läsning, inte en fråga över många.
+    return kalla.subscribe(statusvag(sid, val.tid), undefined, {
+      onData: (rader) => lyssnare.onData(rader.find((r) => r && r.id === AGENTSTATUS_ID) ?? null),
+      onError: lyssnare.onError,
+    });
+  }
+
+  const statusfunktioner = status === undefined ? {} : { status, lasStatus, prenumereraStatus };
+
   return Object.freeze({
     lista,
     oppnaGrupp,
@@ -338,6 +386,7 @@ export function createSamtalskalla(konfig) {
     oversikt,
     sida,
     ...tradfunktioner,
+    ...statusfunktioner,
   });
 }
 
@@ -354,6 +403,23 @@ export function createSamtalskalla(konfig) {
  * @property {(sid: string, tid: string, namn: string | null) => Promise<any>} dopOm
  * @property {(sid: string, tid: string) => Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>} rotmeddelande
  */
+
+/**
+ * @typedef {object} Statusfunktioner (#273) Det en samtalskälla har när appen skickat `status`.
+ * @property {string} status
+ * @property {(sid: string, val?: { tid?: string }) => Promise<any>} lasStatus
+ * @property {(sid: string, lyssnare: { onData: (dok: any) => void, onError: (fel: Error) => void }, val?: { tid?: string }) => (() => void) | null} prenumereraStatus
+ */
+
+/**
+ * Har källan agentens status, alltså har appen slagit på den med `status`? (#273) Samma form som `harTradar`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Statusfunktioner}
+ */
+export function harStatus(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).prenumereraStatus) === "function";
+}
 
 /**
  * Har källan trådar, alltså har appen slagit på dem med `tradar`? (0.68.0, granskningen av PR 268, BÖR 2.)

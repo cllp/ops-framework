@@ -2,9 +2,10 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
-import { MAX_MEDDELANDE, MAX_TRADNAMN, delaSamtalsnyckel, samtalsnyckel, tradensNamn, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, agentstatus, delaSamtalsnyckel, samtalsnyckel, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harTradar } from "../data/samtalskalla.js";
+import { harStatus, harTradar } from "../data/samtalskalla.js";
+import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
@@ -112,6 +113,10 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {string} [rotSaknas] (0.68.0) När meddelandet tråden startades ur inte går att läsa. Förval "Meddelandet tråden startades ur går inte att läsa.".
  * @property {string} [tradarFel] (0.68.0) En diskret rad när trådarnas märken inte kunde läsas. Förval "Trådarna kunde inte hämtas.".
  * @property {string} [svarPa] (0.68.0) Förled för skärmläsaren: vems meddelande "Svara i tråd" gäller. Förval "Meddelande från".
+ * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
+ * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
+ * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
+ * @property {string} [agentstatusFel] (#273) När statusen inte kunde läsas, eller inte har statusens form. Förval "Agentens status kunde inte läsas.".
  */
 
 /** @type {Required<Meddelandetexter>} */
@@ -159,6 +164,10 @@ const TEXTER = {
   rotSaknas: "Meddelandet tråden startades ur går inte att läsa.",
   tradarFel: "Trådarna kunde inte hämtas.",
   svarPa: "Meddelande från",
+  agentTanker: "Agenten tänker",
+  agentSkriver: "Agenten skriver",
+  agentFastnat: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.",
+  agentstatusFel: "Agentens status kunde inte läsas.",
 };
 
 /**
@@ -964,6 +973,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
               : undefined
           }
         />
+        <Agentrad kalla={kalla} sid={samtal.id} texter={t} />
         <div ref={slut} />
       </div>
 
@@ -1107,14 +1117,17 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
               <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
                 {!egen && !fortsattning && visaNamn ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
                 <div
+                  data-bubbla=""
                   className={cx(
-                    "rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words whitespace-pre-wrap",
+                    "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
                     egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
                     fortsattning && egen ? "rounded-tr-lg" : "",
                     fortsattning && !egen ? "rounded-tl-lg" : "",
                   )}
                 >
-                  {m.text}
+                  {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
+                      bubblan: den egna är accentfärgad. */}
+                  <OpsMarkdown text={m.text} chatt />
                 </div>
                 <span className={cx("mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
                   <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
@@ -1341,10 +1354,91 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
           {svar && svar.length > 0 ? `${svar.length} ${t.svar}` : t.ingaSvar}
         </p>
         <Meddelanderader meddelanden={svar ?? []} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <Agentrad kalla={kalla} sid={samtal.id} tid={tid} texter={t} />
         <div ref={slut} />
       </div>
 
       <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus />
     </div>
   );
+}
+
+/**
+ * Agentens status som en rad där svaret kommer (#273): "Agenten tänker" eller "Agenten skriver", eller en felrad.
+ *
+ * ⛔ BARA NÄR KÄLLAN HAR STATUS (`harStatus`). En app som inte skickat `status` får ingen rad och ingen läsning.
+ *
+ * ⛔ EN STATUS ÄLDRE ÄN TVÅ MINUTER VISAS INTE, OCH DÅ STÅR EN FELRAD I STÄLLET (ärendets krav, regel 5). En agent som kraschade
+ * tar aldrig bort sin status, och "tänker" för alltid hade varit en tyst nedsläppsväg som ser ut som arbete. Vyn räknar om när
+ * gränsen passeras, med en timer till exakt den tidpunkten, så att raden byts också när ingenting annat händer i samtalet.
+ *
+ * ⛔ EN LUGN ANIMATION, OCH INGEN ALLS FÖR DEN SOM BETT OM DET (`motion-safe:`). Raden är en `status` och läses upp en gång när
+ * den kommer, inte vid varje punkt som tänds.
+ *
+ * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, sid: string, tid?: string, texter: Required<Meddelandetexter> }} props
+ */
+function Agentrad({ kalla, sid, tid, texter: t }) {
+  const { dok, fel } = useAgentstatusdok(harStatus(kalla) ? kalla : null, sid, tid);
+  const [nu, setNu] = useState(() => Date.now());
+  const visning = agentstatus(dok, nu);
+  // Räkna om när statusen passerar sitt tak, också om inget nytt kommer.
+  useEffect(() => {
+    if (!visning || "fel" in visning) return undefined;
+    const kvar = visning.sedan + AGENTSTATUS_MAX_ALDER - Date.now() + 1;
+    const h = setTimeout(() => setNu(Date.now()), Math.max(0, kvar));
+    return () => clearTimeout(h);
+  }, [visning && "sedan" in visning ? visning.sedan : null, visning && "lage" in visning ? visning.lage : null]);
+  useEffect(() => {
+    setNu(Date.now());
+  }, [dok]);
+  if (fel || (visning && "fel" in visning)) {
+    const text = visning && "fel" in visning && visning.fel === "gammal" ? t.agentFastnat : t.agentstatusFel;
+    return (
+      <p data-agentstatus="fel" role="alert" className="m-0 mt-2 flex items-center gap-1.5 text-meta text-danger">
+        <AgentIkon size={14} />
+        <span>{text}</span>
+      </p>
+    );
+  }
+  if (!visning) return null;
+  return (
+    <p data-agentstatus={visning.lage} role="status" className="m-0 mt-2 flex items-center gap-2 text-meta text-ink-muted">
+      <span className="inline-flex size-8 shrink-0 items-center justify-center text-accent">
+        <AgentIkon size={16} />
+      </span>
+      <span>{visning.lage === "tanker" ? t.agentTanker : t.agentSkriver}</span>
+      <span aria-hidden="true" className="inline-flex gap-0.5">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="size-1 rounded-full bg-current motion-safe:animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+        ))}
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Statusdokumentet, med en lyssnare där källan kan, annars en läsning.
+ * @param {(ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> & import("../data/samtalskalla.js").Statusfunktioner) | null} kalla
+ * @param {string} sid @param {string | undefined} tid
+ * @returns {{ dok: any, fel: Error | null }}
+ */
+function useAgentstatusdok(kalla, sid, tid) {
+  const [lage, setLage] = useState(/** @type {{ dok: any, fel: Error | null }} */ ({ dok: null, fel: null }));
+  useEffect(() => {
+    if (!kalla) return undefined;
+    let levande = true;
+    const val = tid === undefined ? {} : { tid };
+    const stang = kalla.prenumereraStatus(sid, { onData: (dok) => levande && setLage({ dok, fel: null }), onError: (e) => levande && setLage({ dok: null, fel: e }) }, val);
+    if (!stang) {
+      kalla.lasStatus(sid, val).then(
+        (dok) => levande && setLage({ dok, fel: null }),
+        (e) => levande && setLage({ dok: null, fel: e instanceof Error ? e : new Error(String(e)) }),
+      );
+    }
+    return () => {
+      levande = false;
+      stang?.();
+    };
+  }, [kalla, sid, tid]);
+  return lage;
 }
