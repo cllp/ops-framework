@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, Pin, Reply, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, Camera, Folder, Image as BildLucide, Pin, Reply, Square, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -444,4 +444,29 @@ export function FastIkon({ size = 16 }) {
 /** Svara med citat i ett privat samtal (chattens nattskiva). @param {{ size?: number }} props */
 export function CiteraIkon({ size = 16 }) {
   return <Reply size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Röstinmatning i skrivfältet: en ljudvåg (chattens nattskiva). @param {{ size?: number }} props */
+export function LjudvagIkon({ size = 18 }) {
+  return <AudioLines size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Stoppa något som pågår, i skrivfältet (chattens nattskiva). @param {{ size?: number }} props */
+export function StoppIkon({ size = 14 }) {
+  return <Square size={size} aria-hidden="true" strokeWidth={1.5} fill="currentColor" />;
+}
+
+/** Bifoga bild (chattens nattskiva). @param {{ size?: number }} props */
+export function BildIkon({ size = 18 }) {
+  return <BildLucide size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Ta foto (chattens nattskiva). @param {{ size?: number }} props */
+export function KameraIkon({ size = 18 }) {
+  return <Camera size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/** Välj fil (chattens nattskiva). @param {{ size?: number }} props */
+export function MappIkon({ size = 18 }) {
+  return <Folder size={size} aria-hidden="true" strokeWidth={1.5} />;
 }

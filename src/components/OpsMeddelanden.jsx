@@ -14,7 +14,8 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { AgentIkon, AndraIkon, FastIkon, FilIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { useTalk } from "./OpsTalk.jsx";
+import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagIkon, MappIkon, StoppIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -143,6 +144,23 @@ import { AgentIkon, AndraIkon, FastIkon, FilIkon, ChevronHogerIkon, ChevronNedIk
  * @property {string} [fastaFel] Förval "Fästa meddelanden kunde inte hämtas.".
  * @property {string} [fastFel] Förval "Fästningen kunde inte sparas.".
  * @property {string} [fastaFler] Förval "Äldre fästningar visas inte.".
+ * @property {string} [skrivGrupp] (chattens nattskiva) Platstexten i gruppchatten. Förval "Skriv till gruppen".
+ * @property {string} [skrivAgent] Platstexten i agentsamtalet. Förval "Fråga agenten".
+ * @property {string} [skrivTrad] Platstexten i en tråd. Förval "Svara i tråden".
+ * @property {string} [bifoga] Plusknappen. Förval "Bifoga".
+ * @property {string} [bifogaBild] Förval "Bifoga bild".
+ * @property {string} [taFoto] Förval "Ta foto".
+ * @property {string} [valjFil] Förval "Välj fil".
+ * @property {string} [prataIn] Mikrofonen i vila. Förval "Prata in".
+ * @property {string} [skrivUt] Mikrofonen under inspelning: avsluta och skriv ut. Förval "Skriv ut det inspelade".
+ * @property {string} [stoppaInspelning] Förval "Avbryt inspelningen".
+ * @property {string} [stoppaAgenten] Förval "Stoppa agenten".
+ * @property {string} [spelarIn] Förval "Spelar in. Tryck på ljudvågen för att skriva ut det.".
+ * @property {string} [skriverUt] Förval "Skriver ut det inspelade…".
+ * @property {string} [transkriptionFel] Förval "Det inspelade kunde inte skrivas ut.".
+ * @property {string} [forsokIgen] Förval "Försök igen".
+ * @property {string} [kastaLjudet] Förval "Kasta ljudet".
+ * @property {string} [stang] Förval "Stäng".
  * @property {string} [postkortFel] (chattens nattskiva) När appens uppslag av en länk föll. Förval "Länken kunde inte slås upp.".
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
@@ -206,6 +224,23 @@ const TEXTER = {
   reaktionerFel: "Reaktionerna kunde inte hämtas.",
   reaktionerFler: "Äldre reaktioner visas inte.",
   reaktionsnamn: {},
+  skrivGrupp: "Skriv till gruppen",
+  skrivAgent: "Fråga agenten",
+  skrivTrad: "Svara i tråden",
+  bifoga: "Bifoga",
+  bifogaBild: "Bifoga bild",
+  taFoto: "Ta foto",
+  valjFil: "Välj fil",
+  prataIn: "Prata in",
+  skrivUt: "Skriv ut det inspelade",
+  stoppaInspelning: "Avbryt inspelningen",
+  stoppaAgenten: "Stoppa agenten",
+  spelarIn: "Spelar in. Tryck på ljudvågen för att skriva ut det.",
+  skriverUt: "Skriver ut det inspelade…",
+  transkriptionFel: "Det inspelade kunde inte skrivas ut.",
+  forsokIgen: "Försök igen",
+  kastaLjudet: "Kasta ljudet",
+  stang: "Stäng",
   postkortFel: "Länken kunde inte slås upp.",
   fast: "Fäst",
   lossa: "Lossa",
@@ -277,8 +312,13 @@ export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = 
  * @param {string} [props.sprak] "sv" eller "en", för tiderna. Förval "sv".
  * @param {Meddelandetexter} [props.texter]
  * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort under bubblan, se `Postkort`.
+ * @param {(blob: Blob) => Promise<string>} [props.onTranscribe] (chattens nattskiva) Appens transkribering. Med den ritas ljudvågen i
+ *   skrivfältet, och den inspelade texten hamnar i fältet utan att skickas. Utan den ingen ljudvåg.
+ * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
+ *   agenten arbetar. Utan den ingen sådan knapp.
+ * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -602,6 +642,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
           <OpsTrad
             key={`${vald.samtal.id}|${tradId}`}
             postkort={postkort}
+            onTranscribe={onTranscribe}
+            onStoppaAgent={onStoppaAgent}
+            inspelare={inspelare}
             kalla={kalla}
             uid={uid}
             samtal={vald.samtal}
@@ -622,6 +665,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
           <OpsSamtal
             key={vald.samtal.id}
             postkort={postkort}
+            onTranscribe={onTranscribe}
+            onStoppaAgent={onStoppaAgent}
+            inspelare={inspelare}
             // ⛔ Om källan har trådar avgör OpsSamtal själv (`harTradar`), en vakt och inte två (regel 4).
             onOppnaTrad={valjTrad}
             tradminne={tradminne.current}
@@ -812,9 +858,26 @@ const MAX_FORSLAG = 6;
  *
  * `fokusNyckel`: när den ändras (ett citat valdes) får fältet fokus. `onEscape`: Escape utan öppen lista (avbryter citatet).
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void }} props
+ * ══ ⛔ UTSEENDET (CP 2026-10-06, två skärmbilder från en annan app som förebild) ═══════════════════════════════════════════════
+ *
+ * Till vänster en rund plusknapp; till höger ett avlångt, rundat fält med platstexten ("Skriv till gruppen", "Fråga agenten"). Inne
+ * i fältets högra del en grå stoppknapp, bara när något pågår, och en framträdande ljudvåg för röstinmatning. Med text i fältet står
+ * Skicka där ljudvågen stod.
+ *
+ * ⛔ EN KNAPP FINNS BARA NÄR DEN GÖR NÅGOT (samma regel som TALK:s kugghjul):
+ *   - plus och dess meny bara med `onBifoga`. Menyns rader ("Bifoga bild", "Ta foto", "Välj fil") lämnar filerna till appen;
+ *     ⛔ bilagemodellen är INTE den här komponentens: den kommer ur bilagemodulen (ops-framework PR 277), och tills den finns
+ *     skickar `OpsMeddelanden` ingen `onBifoga`, och plus ritas inte;
+ *   - ljudvågen bara med `onTranscribe(blob) => Promise<text>`. Transkriberingen är appens: ramverket känner ingen tjänst;
+ *   - stopp under en inspelning (avbryter den), och när agenten arbetar bara med `onStoppaAgent`.
+ *
+ * ⛔ RÖSTEN GÅR IN I FÄLTET, DEN SKICKAS INTE. Den som pratat ska kunna läsa och rätta först. Inspelningen är TALK:s (`useTalk`): en
+ * inspelningsväg i ramverket, inte två. ⛔ LJUDET FÖRSVINNER ALDRIG TYST: faller transkriberingen står felet utskrivet, ljudet
+ * sparas, och "Försök igen" skickar samma ljud på nytt; bara "Kasta ljudet" tar bort det.
+ *
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, agentArbetar?: boolean, onStoppaAgent?: () => void }} props
  */
-function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape }) {
+function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, onBifoga, agentArbetar = false, onStoppaAgent }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
@@ -836,6 +899,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
   useEffect(() => {
     if (fokusNyckel) ruta.current?.focus({ preventScroll: true });
   }, [fokusNyckel]);
+  const rost = useRostinmatning({ onTranscribe, inspelare, text, setText, ruta });
   /** @param {string} v @param {number} markor */
   const las = (v, markor) => {
     if (!omnamnande) return setFraga(null);
@@ -862,14 +926,22 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
     // ⛔ "@alla" står ensamt (modellen): hela gruppen är redan alla.
     onSkicka(namner.length ? { namner: namner.includes("alla") ? ["alla"] : namner } : undefined);
   };
+  const spelar = rost.lage === "haller" || rost.lage === "lyssnar";
+  const visaStopp = spelar || (agentArbetar && Boolean(onStoppaAgent));
+  const visaMik = Boolean(onTranscribe) && (!text.trim() || spelar || rost.lage === "skickar");
   return (
+    <>
+    <Rostrad rost={rost} texter={t} />
     <form
+      data-skrivfalt=""
       className="relative flex shrink-0 items-end gap-2 border-t border-line px-3 py-2"
       onSubmit={(e) => {
         e.preventDefault();
         skicka();
       }}
     >
+      {onBifoga ? <Plusmeny onBifoga={onBifoga} texter={t} /> : null}
+      <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl border border-line bg-canvas focus-within:border-accent">
       {oppen ? (
         <ul id={listId} role="listbox" aria-label={t.namnForslag} data-omnamnande="" className="absolute bottom-full left-3 z-10 mb-1 max-w-[calc(100%-1.5rem)] min-w-56 list-none overflow-hidden rounded-card border border-line bg-surface p-1 shadow-md">
           {forslag.map((k, i) => (
@@ -929,22 +1001,277 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
         }}
         rows={1}
         maxLength={MAX_MEDDELANDE}
-        placeholder={t.skriv}
+        placeholder={platstext ?? t.skriv}
         aria-label={t.skriv}
         aria-controls={oppen ? listId : undefined}
         aria-activedescendant={oppen ? `${listId}-${aktiv}` : undefined}
         aria-autocomplete={omnamnande ? "list" : undefined}
-        className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-line bg-canvas px-3.5 py-2.5 text-etikett text-ink outline-none placeholder:text-ink-muted focus-visible:border-accent"
+        className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-3xl bg-transparent px-3.5 py-2.5 text-etikett text-ink outline-none placeholder:text-ink-muted"
       />
-      <button
-        type="submit"
-        aria-label={t.skicka}
-        disabled={skickar || !text.trim()}
-        className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover disabled:cursor-default disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        <SkickaIkon size={18} />
-      </button>
+      {visaStopp ? (
+        <button
+          type="button"
+          data-stopp={spelar ? "inspelning" : "agent"}
+          aria-label={spelar ? t.stoppaInspelning : t.stoppaAgenten}
+          onClick={() => (spelar ? rost.avbryt() : onStoppaAgent?.())}
+          className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none"
+        >
+          {/* ⛔ Träffytan är knappen, 44 px; cirkeln inuti är det man ser. */}
+          <span className="inline-flex size-9 items-center justify-center rounded-full bg-hover text-ink-secondary transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:text-ink group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
+            <StoppIkon size={12} />
+          </span>
+        </button>
+      ) : null}
+      {visaMik ? (
+        <button
+          type="button"
+          data-mikrofon={rost.lage}
+          aria-label={spelar ? t.skrivUt : t.prataIn}
+          aria-pressed={spelar}
+          disabled={rost.lage === "skickar"}
+          onClick={() => (spelar ? rost.skrivUt() : rost.starta())}
+          className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-60"
+        >
+          <span
+            className={cx(
+              "inline-flex size-9 items-center justify-center rounded-full border shadow-sm transition-colors duration-(--duration-fast) ease-standard group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent",
+              spelar ? "border-accent bg-accent text-accent-contrast motion-safe:animate-pulse" : "border-line bg-surface text-ink group-hover/knapp:bg-hover",
+            )}
+          >
+            <LjudvagIkon size={18} />
+          </span>
+        </button>
+      ) : (
+        <button
+          type="submit"
+          aria-label={t.skicka}
+          disabled={skickar || !text.trim()}
+          className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-40"
+        >
+          <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
+            <SkickaIkon size={16} />
+          </span>
+        </button>
+      )}
+      </div>
     </form>
+    </>
+  );
+}
+
+/**
+ * Röstinmatningen i skrivfältet: TALK:s inspelning (`useTalk`), appens transkribering, och texten in i fältet (chattens nattskiva).
+ *
+ * ⛔ LJUDET SPARAS NÄR TRANSKRIBERINGEN FALLER, så att "Försök igen" kan skicka samma ljud; bara "Kasta ljudet" tar bort det.
+ *
+ * @param {{ onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, text: string, setText: (t: string) => void, ruta: { current: HTMLTextAreaElement | null } }} p
+ */
+function useRostinmatning({ onTranscribe, inspelare, text, setText, ruta }) {
+  const sparat = useRef(/** @type {Blob | null} */ (null));
+  const textNu = useRef(text);
+  textNu.current = text;
+  const [forsoker, setForsoker] = useState(false);
+  const [omfel, setOmfel] = useState(/** @type {string | null} */ (null));
+  /** @param {string} ut */
+  const lagg = (ut) => {
+    const ren = String(ut ?? "").trim();
+    if (!ren) throw new Error("Inget hördes i det inspelade.");
+    const fore = textNu.current;
+    setText(fore && !/\s$/.test(fore) ? `${fore} ${ren}` : `${fore}${ren}`);
+    requestAnimationFrame(() => ruta.current?.focus());
+  };
+  const talk = useTalk({
+    inspelare,
+    onKlick: () => {},
+    onTalk: async (blob) => {
+      sparat.current = blob;
+      if (!onTranscribe) throw new Error("Ingen transkribering.");
+      lagg(await onTranscribe(blob));
+      sparat.current = null;
+    },
+  });
+  return {
+    lage: forsoker ? /** @type {const} */ ("skickar") : talk.lage,
+    fel: omfel ?? talk.fel,
+    harLjud: () => Boolean(sparat.current),
+    starta: () => {
+      setOmfel(null);
+      talk.direkt();
+    },
+    skrivUt: () => talk.skickaIn(),
+    avbryt: () => {
+      setOmfel(null);
+      talk.avbryt();
+    },
+    forsokIgen: async () => {
+      const blob = sparat.current;
+      if (!blob || !onTranscribe) return;
+      setForsoker(true);
+      try {
+        lagg(await onTranscribe(blob));
+        sparat.current = null;
+        setOmfel(null);
+        talk.avbryt();
+      } catch (e) {
+        setOmfel(e instanceof Error && e.message ? e.message : "");
+      } finally {
+        setForsoker(false);
+      }
+    },
+    kasta: () => {
+      sparat.current = null;
+      setOmfel(null);
+      talk.avbryt();
+    },
+  };
+}
+
+/**
+ * Raden ovanför skrivfältet medan rösten arbetar: inspelningen pågår, det inspelade skrivs ut, eller felet med "Försök igen" och
+ * "Kasta ljudet". ⛔ Inget av det är tyst (regel 5).
+ * @param {{ rost: ReturnType<typeof useRostinmatning>, texter: Required<Meddelandetexter> }} props
+ */
+function Rostrad({ rost, texter: t }) {
+  if (rost.lage === "haller" || rost.lage === "lyssnar") {
+    return (
+      <p data-rostlage="spelar" role="status" className="m-0 flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
+        <span aria-hidden="true" className="size-2 rounded-full bg-danger motion-safe:animate-pulse" />
+        {t.spelarIn}
+      </p>
+    );
+  }
+  if (rost.lage === "skickar") {
+    return (
+      <p data-rostlage="skriver" role="status" className="m-0 shrink-0 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
+        {t.skriverUt}
+      </p>
+    );
+  }
+  if (rost.lage !== "fel" && !rost.fel) return null;
+  return (
+    <div data-rostlage="fel" role="alert" className="flex shrink-0 flex-wrap items-center gap-x-2 border-t border-line px-3 pt-1 text-meta text-danger">
+      <span className="min-w-0 flex-1">
+        {t.transkriptionFel}
+        {rost.fel ? ` ${rost.fel}` : ""}
+      </span>
+      {rost.harLjud() ? (
+        <>
+          <button type="button" onClick={rost.forsokIgen} className="inline-flex min-h-11 cursor-pointer items-center rounded-base px-2 font-medium text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent">
+            {t.forsokIgen}
+          </button>
+          <button type="button" onClick={rost.kasta} className="inline-flex min-h-11 cursor-pointer items-center rounded-base px-2 text-ink-secondary hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent">
+            {t.kastaLjudet}
+          </button>
+        </>
+      ) : (
+        <button type="button" onClick={rost.avbryt} className="inline-flex min-h-11 cursor-pointer items-center rounded-base px-2 text-ink-secondary hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent">
+          {t.stang}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Plusknappen och menyn med tre rader. ⛔ Raderna lämnar FILERNA till appen (`onBifoga`); ingen bilagemodell här. "Ta foto" har
+ * `capture`, så att telefonen öppnar kameran. Menyn stängs med Escape, med fokus tillbaka på plus, och pilarna flyttar mellan raderna.
+ *
+ * ⛔ EXPORTERAD FRÅN FILEN FÖR PROVEN, INTE UR RAMVERKET (`src/index.js`). Ingen app ska koppla in den på egen hand: då hade
+ * den byggt en egen bilagemodell. Den kopplas in i skrivfältet när bilagemodulen i PR 277 finns.
+ *
+ * @param {{ onBifoga: (filer: File[], slag: "bild" | "foto" | "fil") => void, texter: Required<Meddelandetexter> }} props
+ */
+export function Plusmeny({ onBifoga, texter: t }) {
+  const [oppen, setOppen] = useState(false);
+  const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const meny = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const menyId = useId();
+  /** @type {Record<"bild" | "foto" | "fil", { current: HTMLInputElement | null }>} */
+  const val = { bild: useRef(null), foto: useRef(null), fil: useRef(null) };
+  useEffect(() => {
+    if (oppen) /** @type {HTMLElement | null} */ (meny.current?.querySelector("[role=menuitem]") ?? null)?.focus();
+  }, [oppen]);
+  const stang = () => {
+    setOppen(false);
+    knapp.current?.focus();
+  };
+  const rader = /** @type {const} */ ([
+    ["bild", t.bifogaBild, <BildIkon key="b" />],
+    ["foto", t.taFoto, <KameraIkon key="k" />],
+    ["fil", t.valjFil, <MappIkon key="m" />],
+  ]);
+  return (
+    <div className="relative shrink-0">
+      <button
+        ref={knapp}
+        type="button"
+        data-plus=""
+        aria-label={t.bifoga}
+        aria-haspopup="menu"
+        aria-expanded={oppen}
+        aria-controls={oppen ? menyId : undefined}
+        onClick={() => setOppen((o) => !o)}
+        className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full border border-line bg-surface text-ink transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <PlusIkon size={18} />
+      </button>
+      {oppen ? (
+        <div
+          ref={meny}
+          id={menyId}
+          role="menu"
+          aria-label={t.bifoga}
+          data-plusmeny=""
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              stang();
+            }
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              const r = /** @type {HTMLElement[]} */ ([...(meny.current?.querySelectorAll("[role=menuitem]") ?? [])]);
+              const i = r.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+              r[(i + (e.key === "ArrowDown" ? 1 : r.length - 1)) % r.length]?.focus();
+            }
+          }}
+          className="absolute bottom-full left-0 z-10 mb-2 flex min-w-52 flex-col rounded-card border border-line bg-surface p-1 shadow-md"
+        >
+          {rader.map(([slag, etikett, ikon]) => (
+            <button
+              key={slag}
+              type="button"
+              role="menuitem"
+              data-plusrad={slag}
+              onClick={() => val[slag].current?.click()}
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-base px-3 text-left text-etikett text-ink hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+            >
+              <span aria-hidden="true" className="inline-flex text-ink-secondary">{ikon}</span>
+              {etikett}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {rader.map(([slag]) => (
+        <input
+          key={slag}
+          ref={val[slag]}
+          type="file"
+          hidden
+          data-plusval={slag}
+          tabIndex={-1}
+          aria-hidden="true"
+          {...(slag === "fil" ? {} : { accept: "image/*" })}
+          {...(slag === "foto" ? { capture: "environment" } : {})}
+          {...(slag === "fil" ? { multiple: true } : {})}
+          onChange={(e) => {
+            const filer = [...(e.target.files ?? [])];
+            e.target.value = "";
+            if (filer.length) onBifoga(filer, slag);
+            stang();
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -993,8 +1320,13 @@ function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor) {
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort.
+ * @param {(blob: Blob) => Promise<string>} [props.onTranscribe] (chattens nattskiva) Appens transkribering. Med den ritas ljudvågen i
+ *   skrivfältet, och den inspelade texten hamnar i fältet utan att skickas. Utan den ingen ljudvåg.
+ * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
+ *   agenten arbetar. Utan den ingen sådan knapp.
+ * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -1017,6 +1349,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const citatuppslag = useCitatuppslag(medCitat || alla.some((m) => m.svarPa) ? kalla : null, samtal.id, alla);
   const sok = useSokISamtal(alla, loggRef);
   const fasta = useFasta(harFasta(kalla) ? kalla : null, samtal.id, uid);
+  const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, undefined);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
 
@@ -1064,7 +1397,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     knapp.focus();
     onFokuserad?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fokusRot, meddelanden, tradar]);
+  }, [fokusRot, meddelanden, alla, tradar]);
 
   /** @param {{ namner?: string[] }} [extra] */
   const skicka = async (extra) => {
@@ -1193,7 +1526,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
               : undefined
           }
         />
-        <Agentrad kalla={kalla} sid={samtal.id} texter={t} />
+        <Agentrad lage={agentlage} texter={t} />
         <div ref={slut} />
       </div>
 
@@ -1213,7 +1546,22 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           </button>
         </div>
       ) : null}
-      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus={utkast !== undefined} omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)} fokusNyckel={svarPa?.id} onEscape={svarPa ? () => setSvarPa(null) : undefined} />
+      <Skrivfalt
+        text={text}
+        setText={setText}
+        skickar={skickar}
+        onSkicka={skicka}
+        texter={t}
+        fokus={utkast !== undefined}
+        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
+        fokusNyckel={svarPa?.id}
+        onEscape={svarPa ? () => setSvarPa(null) : undefined}
+        platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
+        onTranscribe={onTranscribe}
+        inspelare={inspelare}
+        agentArbetar={agentArbetar(agentlage)}
+        onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id) : undefined}
+      />
     </div>
   );
 }
@@ -1438,10 +1786,15 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {() => void} [props.onSvarat] Anropas efter ett skickat svar, så att chattens märke kan räknas om.
  * @param {(namn: string | null) => void} [props.onDopt] Anropas efter en omdöpning, med namnet eller `null` för det härledda.
  * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort.
+ * @param {(blob: Blob) => Promise<string>} [props.onTranscribe] (chattens nattskiva) Appens transkribering. Med den ritas ljudvågen i
+ *   skrivfältet, och den inspelade texten hamnar i fältet utan att skickas. Utan den ingen ljudvåg.
+ * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
+ *   agenten arbetar. Utan den ingen sådan knapp.
+ * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -1462,6 +1815,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
   // ⛔ Trådens reaktioner bor under tråden (regeln följer tråden). Rotmeddelandets reaktioner står i gruppchatten.
   const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, tid, uid);
+  const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, tid);
   const namnId = useId();
   const dopKnapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   // ⛔ KAN 6: fokus stannar i rubriken när Döp om stängs (Spara, Avbryt eller Escape), i stället för att falla till dokumentet.
@@ -1637,11 +1991,24 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
         <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} postkort={postkort} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
-        <Agentrad kalla={kalla} sid={samtal.id} tid={tid} texter={t} />
+        <Agentrad lage={agentlage} texter={t} />
         <div ref={slut} />
       </div>
 
-      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)} />
+      <Skrivfalt
+        text={text}
+        setText={setText}
+        skickar={skickar}
+        onSkicka={skicka}
+        texter={t}
+        fokus
+        omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)}
+        platstext={t.skrivTrad}
+        onTranscribe={onTranscribe}
+        inspelare={inspelare}
+        agentArbetar={agentArbetar(agentlage)}
+        onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id, tid) : undefined}
+      />
     </div>
   );
 }
@@ -1658,10 +2025,11 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
  * ⛔ EN LUGN ANIMATION, OCH INGEN ALLS FÖR DEN SOM BETT OM DET (`motion-safe:`). Raden är en `status` och läses upp en gång när
  * den kommer, inte vid varje punkt som tänds.
  *
- * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, sid: string, tid?: string, texter: Required<Meddelandetexter> }} props
+ * @param {{ lage: ReturnType<typeof useAgentstatusdok>, texter: Required<Meddelandetexter> }} props `lage` ur `useAgentstatusdok`, som
+ *   samtalet också läser för skrivfältets stoppknapp: en lyssnare, två läsare.
  */
-function Agentrad({ kalla, sid, tid, texter: t }) {
-  const { dok, fel } = useAgentstatusdok(harStatus(kalla) ? kalla : null, sid, tid);
+function Agentrad({ lage, texter: t }) {
+  const { dok, fel } = lage;
   const [nu, setNu] = useState(() => Date.now());
   const visning = agentstatus(dok, nu);
   // Räkna om när statusen passerar sitt tak, också om inget nytt kommer.
@@ -2392,4 +2760,13 @@ function Postkortrad({ text, postkort, egen, texter: t }) {
       )}
     </div>
   );
+}
+
+/**
+ * Arbetar agenten just nu, enligt statusen? Samma prövning som raden (`agentstatus`): en status äldre än taket arbetar inte.
+ * @param {ReturnType<typeof useAgentstatusdok>} lage
+ */
+function agentArbetar(lage) {
+  const v = agentstatus(lage.dok, Date.now());
+  return Boolean(v && !("fel" in v));
 }

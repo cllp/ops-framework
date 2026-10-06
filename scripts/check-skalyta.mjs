@@ -206,6 +206,9 @@ function avsluta() {
 //       Lossa (44 px); knappen vid det fästa meddelandet är tryckt och har 44 px träffyta.
 //   (7) LÄNK SOM KORT: länken till appens post står som ett kort under bubblan, minst 44 px högt, inom loggen, med appens titel
 //       och undertitel; länken i texten står kvar.
+//   (8) SKRIVFÄLTET (CP:s förebild): ett rundat fält (rundning minst 20 px) med platstexten "Fråga agenten", och inne i fältets
+//       högra del ljudvågen med 44 px träffyta. Ett tryck spelar in: raden "Spelar in" syns, stopp och ljudvåg är 44 px och ligger
+//       i fältet; ett andra tryck skriver ut, och texten står i fältet, oskickad. Plus ritas inte förrän bilagemodulen finns.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
 async function chattensNattskiva() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -419,6 +422,50 @@ async function chattensNattskiva() {
         krav(k.length === 1, `${namn}: ${k.length} kort, väntat 1. Golv.`);
         krav(k.every((x) => x.text === "Moms augusti (#464)Ärende, öppet" && x.h >= 43.5 && x.inom && x.under && x.lankKvar), `${namn}: kortet ska stå under bubblan, inom loggen, 44 px högt, med appens titel, och länken stå kvar i texten (${JSON.stringify(k)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-7-postkort-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (8) skrivfältet och rösten ────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "agent");
+      const namn = `chatt (8) skrivfältet ${vp.width}`;
+      try {
+        await page.waitForSelector('[data-ops-samtal="agent"] [data-mikrofon]', { timeout: 6000 });
+        const m = (/** @type {string} */ lage) => page.evaluate((l) => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const ruta = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="agent"] [data-skrivruta]'));
+          const knappar = [...ruta.querySelectorAll("button")].map((k) => ({ namn: k.getAttribute("aria-label"), w: b(k).width, h: b(k).height, iFaltet: b(k).right <= b(ruta).right + 0.5 && b(k).left >= b(ruta).left - 0.5 }));
+          return {
+            lage: l,
+            radie: parseFloat(getComputedStyle(ruta).borderTopLeftRadius),
+            plats: /** @type {HTMLTextAreaElement} */ (ruta.querySelector("textarea")).placeholder,
+            text: /** @type {HTMLTextAreaElement} */ (ruta.querySelector("textarea")).value,
+            knappar,
+            plus: Boolean(document.querySelector('[data-ops-samtal="agent"] [data-plus]')),
+            rad: document.querySelector('[data-ops-samtal="agent"] [data-rostlage]')?.getAttribute("data-rostlage") ?? null,
+          };
+        }, lage);
+        const vila = await m("vila");
+        matt.push(`${namn}: ${JSON.stringify(vila)}`);
+        krav(vila.radie >= 20 && vila.plats === "Fråga agenten", `${namn}: fältet ska vara rundat med platstexten "Fråga agenten" (${JSON.stringify(vila)}).`);
+        krav(vila.knappar.length === 1 && vila.knappar[0].namn === "Prata in" && vila.knappar[0].w >= 43.5 && vila.knappar[0].h >= 43.5 && vila.knappar[0].iFaltet, `${namn}: i vila står bara ljudvågen i fältet, 44 px (${JSON.stringify(vila.knappar)}).`);
+        krav(!vila.plus, `${namn}: plus ritas inte förrän bilagemodulen finns.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-skrivfalt-${vp.width}.png`) });
+        await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
+        await page.waitForSelector('[data-rostlage="spelar"]', { timeout: 3000 });
+        const spelar = await m("spelar");
+        matt.push(`${namn}: ${JSON.stringify(spelar)}`);
+        krav(spelar.knappar.length === 2 && spelar.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5 && k.iFaltet) && spelar.knappar[0].namn === "Avbryt inspelningen", `${namn}: under inspelningen står stopp och ljudvåg i fältet, 44 px (${JSON.stringify(spelar.knappar)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-inspelning-${vp.width}.png`) });
+        await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
+        await page.waitForFunction(() => /** @type {HTMLTextAreaElement | null} */ (document.querySelector('[data-ops-samtal="agent"] textarea'))?.value.length > 0, null, { timeout: 4000 });
+        const klar = await m("klar");
+        matt.push(`${namn}: ${JSON.stringify(klar)}`);
+        krav(klar.text === "Påminn mig om momsen på fredag" && klar.rad === null && klar.knappar.some((k) => k.namn === "Skicka"), `${namn}: det utskrivna ska stå i fältet, oskickat, med Skicka (${JSON.stringify(klar)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-utskrivet-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);

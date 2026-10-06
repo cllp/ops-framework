@@ -1032,6 +1032,17 @@ const POSTKORT_C = {
     return m ? { titel: `Moms augusti (#${m[1]})`, undertitel: "Ärende, öppet", ikon: <FileText size={18} /> } : null;
   },
 };
+// (8) Röstinmatningen: en inspelare utan mikrofon och appens transkribering, som i ett prov. Ramverket känner ingen tjänst.
+const INSPELARE_C = {
+  starta: async () => {},
+  stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 }),
+  kasta: () => {},
+  niva: () => 0.4,
+};
+const TRANSKRIBERA_C = async () => {
+  await new Promise((r) => setTimeout(r, 150));
+  return "Påminn mig om momsen på fredag";
+};
 let chattkallan = null;
 function ChattNattScen() {
   const [k, setK] = useState(chattkallan);
@@ -1045,7 +1056,7 @@ function ChattNattScen() {
   const valt = k ? (window.__aktiv === "ingen" ? null : k.ids[window.__aktiv ?? "agent"] ?? k.ids.agent) : null;
   return (
     <Full>
-      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={valt} onValj={() => {}} postkort={POSTKORT_C} /> : <p>Laddar</p>}
+      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={valt} onValj={() => {}} postkort={POSTKORT_C} onTranscribe={TRANSKRIBERA_C} inspelare={INSPELARE_C} /> : <p>Laddar</p>}
     </Full>
   );
 }

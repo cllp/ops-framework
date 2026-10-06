@@ -1922,6 +1922,16 @@ poster. Ramverket känner inga posttyper och lagrar ingen titel i meddelandet (d
 gång per adress, för högst två länkar per meddelande. `onOppna(url, e)` är appens navigering. Ett uppslag som föll ger raden "Länken
 kunde inte slås upp.".
 
+**Skrivfältet och röstinmatningen (CP:s förebild 2026-10-06).** Ett rundat fält med platstexten efter samtalet ("Skriv till
+gruppen", "Fråga agenten", "Svara i tråden"), och inne i fältets högra del en ljudvåg för röstinmatning, en grå stoppknapp bara när
+något pågår, och Skicka när det finns text. Varje knapp har 44 px träffyta. **En knapp finns bara när den gör något:** ljudvågen
+kräver `onTranscribe(blob) => Promise<text>` på `OpsMeddelanden` (eller `OpsSamtal`, `OpsTrad`); transkriberingen är appens och
+ramverket känner ingen tjänst. Inspelningen är TALK:s (`useTalk`), en inspelningsväg. Den utskrivna texten hamnar i fältet och
+skickas INTE, så att den kan läsas och rättas. En misslyckad transkribering ger en felrad; ljudet sparas, "Försök igen" skickar samma
+ljud och bara "Kasta ljudet" tar bort det. Stopp avbryter en inspelning, och när agenten arbetar stoppar den agenten bara om appen gett
+`onStoppaAgent(sid, tid?)`. ⛔ **Plus och menyn "Bifoga bild", "Ta foto" (med `capture`) och "Välj fil" är byggda men inte inkopplade:**
+bilagemodellen är bilagemodulens (ops-framework PR 277), och tills den finns ritas inget plus.
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.
