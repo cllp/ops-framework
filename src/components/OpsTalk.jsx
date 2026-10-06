@@ -41,6 +41,13 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
   const timer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const tak = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const svalj = useRef(false);
+  /**
+   * ⛔ VILKET FÖRSÖK ETT SVAR HÖR TILL (#281). Varje start får ett nummer, och Avbryt, Skicka, ett fel och avmonteringen räknar
+   * upp det. Ett svar från `starta()` med ett gammalt nummer gör inget mer: förut jämfördes bara läget, så ett avbrutet försök
+   * vars mikrofon öppnades efteråt spelade in i bakgrunden, och efter avmonteringen skickades ljudet till appen efter 120 s.
+   */
+  const forsok = useRef(0);
+  const monterad = useRef(true);
   const insp = () => {
     if (!inspRef.current) inspRef.current = webblasarensInspelare();
     return inspRef.current;
@@ -52,6 +59,10 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
   const frigor = () => {
     if (mikrofonenUpptagenAv === inspRef) mikrofonenUpptagenAv = null;
   };
+  const rensaTak = () => {
+    if (tak.current) clearTimeout(tak.current);
+    tak.current = null;
+  };
 
   const skicka = useCallback(
     /** @param {import("../lib/talk.js").Talkhandelse} h */
@@ -61,7 +72,8 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
       setTillstand({ lage: nasta.lage, ...(nasta.fel ? { fel: nasta.fel } : {}) });
       if (nasta.gor === "klick") onKlick();
       if (nasta.gor === "kasta") {
-        if (tak.current) clearTimeout(tak.current);
+        forsok.current += 1;
+        rensaTak();
         try {
           insp().kasta();
         } catch (fel) {
@@ -75,25 +87,38 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
           return;
         }
         mikrofonenUpptagenAv = inspRef;
+        forsok.current += 1;
+        const mitt = forsok.current;
+        rensaTak();
         insp()
           .starta()
           .then(() => {
-            // ⛔ Krysset kan ha tryckts medan mikrofonen öppnades. Då ska den stängas igen, inte spela in i bakgrunden.
-            const l = lageRef.current.lage;
-            if (l !== "haller" && l !== "lyssnar") {
-              insp().kasta();
-              frigor();
+            if (mitt === forsok.current && monterad.current) {
+              tak.current = setTimeout(() => skicka({ typ: "tak" }), MAX_SEKUNDER * 1000);
               return;
             }
-            tak.current = setTimeout(() => skicka({ typ: "tak" }), MAX_SEKUNDER * 1000);
+            // ⛔ Ett avbrutet eller avmonterat försök vars mikrofon öppnades efteråt. Står ett nyare försök och spelar in rör vi
+            // inte inspelaren: webbläsarens inspelare stänger själv en ström som öppnats för ett avbrutet försök. Annars
+            // stängs den här, så att den inte spelar in i bakgrunden.
+            const l = lageRef.current.lage;
+            if (!monterad.current || (l !== "haller" && l !== "lyssnar")) {
+              try {
+                insp().kasta();
+              } catch (fel) {
+                rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta" });
+              }
+            }
           })
           .catch((fel) => {
-            frigor();
+            // Ett gammalt försök har redan släppt spärren och visat sitt. Ett nytt försök kan äga den nu.
+            // ⛔ Spärren släpps av felet självt: "fel" under håll eller lyssnar ger "kasta", och den grenen släpper den.
+            if (mitt !== forsok.current || !monterad.current) return;
             skicka({ typ: "fel", text: talkFeltext(fel) });
           });
       }
       if (nasta.gor === "skicka") {
-        if (tak.current) clearTimeout(tak.current);
+        forsok.current += 1;
+        rensaTak();
         insp()
           .stoppa()
           .finally(frigor)
@@ -108,11 +133,16 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
     [onKlick, onTalk],
   );
 
-  useEffect(() => () => {
-    rensa();
-    if (tak.current) clearTimeout(tak.current);
-    if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") inspRef.current?.kasta();
-    frigor();
+  useEffect(() => {
+    monterad.current = true;
+    return () => {
+      monterad.current = false;
+      forsok.current += 1;
+      rensa();
+      rensaTak();
+      if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") inspRef.current?.kasta();
+      frigor();
+    };
   }, []);
 
   /**
