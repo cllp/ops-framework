@@ -94,7 +94,7 @@ export { OpsFullscreenToggle } from "./components/OpsFullscreenToggle.jsx";
 export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
-export { createDataSource, applyQuery, OPERATIONS, FALT_BORT } from "./data/contract.js";
+export { createDataSource, applyQuery, OPERATIONS, FALT_BORT, foreVillkor } from "./data/contract.js";
 export { createMemorySource, createJsonSource, createMemoryStorage } from "./data/adapters.js";
 export { createStorageSource, STORAGE_OPERATIONS } from "./data/storage.js";
 export { createRoutingSource } from "./data/routing.js";

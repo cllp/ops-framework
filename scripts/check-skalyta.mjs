@@ -192,6 +192,9 @@ function avsluta() {
 //   (1) MARKDOWN OCH AGENTENS STATUS (#273): i agentsamtalet bär agentens svar fet text, kursiv, en punktlista med minst två
 //       rader och en klickbar https-länk, och inga råa `**`; raden "Agenten tänker" står i loggen under sista bubblan, med
 //       ikonen och tre punkter, och inom loggens bredd.
+//   (2) VISA ÄLDRE OCH 50+: i listan bär samtalet med 120 olästa märket "50+"; i samtalet står "Visa äldre" överst i loggen med
+//       44 px träffyta, och ett klick lägger 50 meddelanden till ovanför UTAN att det man läste flyttar sig (högst 2 px), och
+//       knappen står kvar eftersom det finns fler.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
 async function chattensNattskiva() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -229,6 +232,59 @@ async function chattensNattskiva() {
         krav(m.status !== null && m.status.punkter === 3 && m.status.underSista && m.status.inom, `${namn}: statusraden ska stå under sista bubblan, inom loggen, med tre punkter (${JSON.stringify(m.status)}).`);
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-1-markdown-status-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (2) Visa äldre och 50+ ───────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "ingen");
+      const namn = `chatt (2) listan ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-samtalsrad]", { timeout: 6000 });
+        await page.waitForTimeout(200);
+        const marken = await page.evaluate(() => [...document.querySelectorAll("[data-samtalsrad]")].map((r) => ({ text: (r.textContent || "").trim().slice(0, 40), marke: (r.querySelector("[data-ops-count-badge] [aria-hidden]")?.textContent || "").trim() })));
+        matt.push(`${namn}: ${JSON.stringify(marken)}`);
+        krav(marken.length >= 3, `${namn}: ${marken.length} rader, väntat minst 3. Golv.`);
+        krav(marken.some((m) => m.text.includes("Cecilia Berg") && m.marke === "50+"), `${namn}: samtalet med 120 olästa ska bära "50+" (${JSON.stringify(marken)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-2-lista-50plus-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "aldre");
+      const namn = `chatt (2) visa äldre ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-ops-samtal] [data-visa-aldre]", { timeout: 6000 });
+        const logg = page.locator("[data-ops-samtal] [role=log]");
+        await logg.evaluate((el) => { el.scrollTop = 0; });
+        await page.waitForTimeout(150);
+        const fore = await page.evaluate(() => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const l = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]"));
+          const knapp = /** @type {HTMLElement} */ (l.querySelector("[data-visa-aldre]"));
+          const forsta = /** @type {HTMLElement} */ (l.querySelector("[data-bubbla]"));
+          return { bubblor: l.querySelectorAll("[data-bubbla]").length, knapp: { h: b(knapp).height, overForsta: b(knapp).bottom <= b(forsta).top + 0.5, text: (knapp.textContent || "").trim() }, forstaText: forsta.textContent, forstaY: b(forsta).top };
+        });
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-2-visa-aldre-${vp.width}.png`) });
+        await page.locator("[data-ops-samtal] [data-visa-aldre]").click();
+        await page.waitForFunction((n) => document.querySelectorAll("[data-ops-samtal] [data-bubbla]").length > n, fore.bubblor, { timeout: 4000 });
+        await page.waitForTimeout(200);
+        const efter = await page.evaluate((text) => {
+          const l = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]"));
+          const samma = [...l.querySelectorAll("[data-bubbla]")].find((x) => x.textContent === text);
+          return { bubblor: l.querySelectorAll("[data-bubbla]").length, y: samma ? samma.getBoundingClientRect().top : null, knapp: Boolean(l.querySelector("[data-visa-aldre]")) };
+        }, fore.forstaText);
+        matt.push(`${namn}: före ${JSON.stringify(fore)}, efter ${JSON.stringify(efter)}`);
+        krav(fore.bubblor === 50, `${namn}: ${fore.bubblor} bubblor före klicket, väntat 50 (sidan). Golv.`);
+        krav(fore.knapp.text === "Visa äldre" && fore.knapp.h >= 43.5 && fore.knapp.overForsta, `${namn}: "Visa äldre" ska stå överst med 44 px träffyta (${JSON.stringify(fore.knapp)}).`);
+        krav(efter.bubblor === 100, `${namn}: ${efter.bubblor} bubblor efter klicket, väntat 100.`);
+        krav(efter.y !== null && Math.abs(efter.y - fore.forstaY) <= 2, `${namn}: meddelandet man läste flyttade sig från ${fore.forstaY} till ${efter.y} px när äldre lades in ovanför.`);
+        krav(efter.knapp, `${namn}: knappen ska stå kvar, det finns 20 meddelanden till.`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
       }

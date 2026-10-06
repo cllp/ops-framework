@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
@@ -113,6 +113,10 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {string} [rotSaknas] (0.68.0) När meddelandet tråden startades ur inte går att läsa. Förval "Meddelandet tråden startades ur går inte att läsa.".
  * @property {string} [tradarFel] (0.68.0) En diskret rad när trådarnas märken inte kunde läsas. Förval "Trådarna kunde inte hämtas.".
  * @property {string} [svarPa] (0.68.0) Förled för skärmläsaren: vems meddelande "Svara i tråd" gäller. Förval "Meddelande från".
+ * @property {string} [visaAldre] (chattens nattskiva) Knappen överst i loggen. Förval "Visa äldre".
+ * @property {string} [hamtarAldre] Förval "Hämtar äldre…".
+ * @property {string} [ingaAldre] När samtalets början är nådd. Förval "Inga äldre meddelanden".
+ * @property {string} [aldreFel] Förval "Äldre meddelanden kunde inte hämtas.".
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
@@ -164,6 +168,10 @@ const TEXTER = {
   rotSaknas: "Meddelandet tråden startades ur går inte att läsa.",
   tradarFel: "Trådarna kunde inte hämtas.",
   svarPa: "Meddelande från",
+  visaAldre: "Visa äldre",
+  hamtarAldre: "Hämtar äldre…",
+  ingaAldre: "Inga äldre meddelanden",
+  aldreFel: "Äldre meddelanden kunde inte hämtas.",
   agentTanker: "Agenten tänker",
   agentSkriver: "Agenten skriver",
   agentFastnat: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.",
@@ -186,10 +194,11 @@ const forstaVersal = (t) => (t ? t.charAt(0).toLocaleUpperCase("sv") + t.slice(1
 /**
  * Ingången till meddelandena, med antalet olästa (0.34.0). En `OpsIconLink` med ramverkets ikon, för appens `actions`.
  *
- * @param {{ href: string, olasta: number, etikett?: string, olastaText?: string, onNavigate?: (href: string, e: any) => void, active?: boolean }} props
+ * @param {{ href: string, olasta: number, olastaFler?: boolean, etikett?: string, olastaText?: string, onNavigate?: (href: string, e: any) => void, active?: boolean }} props
+ *   `olastaFler` (chattens nattskiva): antalet är ett golv, märket visar "50+". Ges av `onOlasta`:s andra argument.
  */
-export function OpsMeddelandeLank({ href, olasta, etikett = "Meddelanden", olastaText = "olästa", onNavigate, active }) {
-  return <OpsIconLink href={href} icon={<MeddelandeIkon size={20} />} label={etikett} badge={olasta} badgeText={olastaText} onNavigate={onNavigate} active={active} />;
+export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = "Meddelanden", olastaText = "olästa", onNavigate, active }) {
+  return <OpsIconLink href={href} icon={<MeddelandeIkon size={20} />} label={etikett} badge={olasta} badgeFler={olastaFler} badgeText={olastaText} onNavigate={onNavigate} active={active} />;
 }
 
 /**
@@ -206,7 +215,8 @@ export function OpsMeddelandeLank({ href, olasta, etikett = "Meddelanden", olast
  * @param {(samtalId: string | null, val?: { nytt: true }) => void} [props.onValj] Anropas med det valda samtalet, eller med
  *   `(null, { nytt: true })` när läget "nytt" öppnas. Ett anrop utan `val` betyder att läget "nytt" är stängt. EN signal för
  *   båda, så att en app som har dem i adressen skriver adressen en gång.
- * @param {(antal: number) => void} [props.onOlasta] Anropas med antalet olästa när det ändras, för ingångens räknare.
+ * @param {(antal: number, val: { fler: boolean }) => void} [props.onOlasta] Anropas med antalet olästa när det ändras, för ingångens räknare.
+ *   `val.fler` (chattens nattskiva): antalet är ett golv, eftersom en räkning nådde sidans storlek. Skicka det till `OpsMeddelandeLank olastaFler`.
  * @param {string | null} [props.valtTrad] (0.68.0) Vald tråd i gruppchatten, rotmeddelandets id, när appen styr det (t.ex. ur
  *   adressen, `?trad=`). Gäller bara när det valda samtalet är gruppchatten. Utelämnad: komponenten håller valet själv.
  * @param {(tid: string | null) => void} [props.onValjTrad] (0.68.0) Anropas med tråden som öppnas, eller `null` när man går
@@ -220,7 +230,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const sprak = sprakProp ?? sprakKontext;
   const t = { ...TEXTER, ...texter };
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
-  const { rader, laddar, fel, olasta, lasOm, laggIn } = useSamtal({ kalla, groupId, uid });
+  const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid });
   const [egetVal, setEgetVal] = useState(/** @type {string | null} */ (null));
   const [egetNytt, setEgetNytt] = useState(false);
   // ⛔ Läget "nytt" vinner över ett valt samtal: det är det man senast bad om.
@@ -238,9 +248,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const [sok, setSok] = useState("");
 
   useEffect(() => {
-    onOlasta?.(olasta);
+    onOlasta?.(olasta, { fler: olastaFler });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [olasta]);
+  }, [olasta, olastaFler]);
 
   // Ett nytt val nollar sökningen i samtalet, inte i listan. Byts gruppen stängs samtalet: det hör till den förra gruppen.
   useEffect(() => {
@@ -401,7 +411,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
                 )}
               >
                 {f === "alla" ? t.alla : t.olasta}
-                {f === "olasta" ? <OpsCountBadge count={olasta} text={t.olastaText} placement="corner" /> : null}
+                {f === "olasta" ? <OpsCountBadge count={olasta} fler={olastaFler} text={t.olastaText} placement="corner" /> : null}
               </button>
             ))}
           </div>
@@ -461,7 +471,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
                         <span aria-hidden="true" className="inline-flex">
                           {markeFor(r, "md")}
                         </span>
-                        <OpsCountBadge count={r.olasta} text={t.olastaText} placement="corner" />
+                        <OpsCountBadge count={r.olasta} fler={r.olastaFler === true} text={t.olastaText} placement="corner" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-2">
@@ -819,8 +829,10 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const markt = useRef(lastTill);
   const lyssnar = useRef(false);
   const medTradar = Boolean(onOppnaTrad) && samtal.slag === "grupp" && harTradar(kalla);
-  const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden, minne: tradminne });
   const loggRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const historik = useHistorik({ kalla, sid: samtal.id, live: meddelanden, logg: loggRef });
+  const alla = historik.alla;
+  const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   const lasIn = async () => {
@@ -854,6 +866,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
       markt.current = senast;
       kalla.markeraLast(samtal.id, uid, senast).then(() => onLast?.(), () => {});
     }
+    // ⛔ Bara när något NYTT kommit: en sida bakåt ("Visa äldre") ändrar inte `meddelanden` och ska inte rulla till slutet.
     slut.current?.scrollIntoView?.({ block: "end" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meddelanden]);
@@ -912,6 +925,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
             {t.tradarFel}
           </p>
         ) : null}
+        <VisaAldre historik={historik} texter={t} />
         {meddelanden && meddelanden.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center py-16 text-center">
             <span className="text-ink-muted opacity-40">
@@ -922,7 +936,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           </div>
         ) : null}
         <Meddelanderader
-          meddelanden={meddelanden ?? []}
+          meddelanden={alla}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -1182,6 +1196,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const [utkastNamn, setUtkastNamn] = useState("");
   const lyssnar = useRef(false);
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const tradlogg = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
   const namnId = useId();
   const dopKnapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   // ⛔ KAN 6: fokus stannar i rubriken när Döp om stängs (Spara, Avbryt eller Escape), i stället för att falla till dokumentet.
@@ -1226,7 +1242,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
     slut.current?.scrollIntoView?.({ block: "end" });
   }, [svar]);
 
-  const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...(svar ?? [])]);
+  const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
 
   const skicka = async () => {
     if (skickar || !text.trim()) return;
@@ -1337,7 +1353,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         )}
       </header>
 
-      <div role="log" aria-label={namn} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div ref={tradlogg} role="log" aria-label={namn} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
           <OpsBanner tone="danger" title={t.tradFel}>
             {fel.message}
@@ -1351,9 +1367,10 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
           ) : null}
         </div>
         <p data-antal-svar="" className="m-0 py-2 text-liten font-medium text-ink-muted">
-          {svar && svar.length > 0 ? `${svar.length} ${t.svar}` : t.ingaSvar}
+          {historik.alla.length > 0 ? `${historik.alla.length}${historik.kanFinnasAldre ? "+" : ""} ${t.svar}` : t.ingaSvar}
         </p>
-        <Meddelanderader meddelanden={svar ?? []} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <VisaAldre historik={historik} texter={t} />
+        <Meddelanderader meddelanden={historik.alla} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
         <Agentrad kalla={kalla} sid={samtal.id} tid={tid} texter={t} />
         <div ref={slut} />
       </div>
@@ -1441,4 +1458,95 @@ function useAgentstatusdok(kalla, sid, tid) {
     };
   }, [kalla, sid, tid]);
   return lage;
+}
+
+/**
+ * Loggens meddelanden: det senaste urvalet (`live`) plus allt som redan setts, och "Visa äldre" (chattens nattskiva).
+ *
+ * ⛔ DET SOM SETTS STANNAR. Prenumerationen ger de senaste `sida` meddelandena, och när ett nytt kommer faller det äldsta ur urvalet.
+ * Hade loggen ritat bara urvalet hade en sida som hämtats bakåt fått ett hål mot urvalet så snart någon skrev. Meddelanden ändras
+ * och raderas aldrig (regeln), så att samla det som setts är aldrig fel.
+ *
+ * ⛔ RULLNINGEN STÅR KVAR NÄR EN SIDA LÄGGS IN ÖVERST. Den som läser bakåt ska se samma meddelande efter klicket, inte hamna högst
+ * upp i en sida hen aldrig bad om.
+ *
+ * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, sid: string, trad?: string, live: ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }> | null, logg: { current: HTMLElement | null } }} p
+ */
+function useHistorik({ kalla, sid, trad, live, logg }) {
+  const [sedda, setSedda] = useState(/** @type {Map<string, import("../lib/samtal.js").Meddelande & { id: string }>} */ (new Map()));
+  const [lage, setLage] = useState(/** @type {{ laddar: boolean, fel: Error | null, bladdrat: boolean, fler: boolean | null }} */ ({ laddar: false, fel: null, bladdrat: false, fler: null }));
+  const fore = useRef(/** @type {{ hojd: number, topp: number } | null} */ (null));
+  useEffect(() => {
+    if (!live) return;
+    setSedda((m) => {
+      const ny = new Map(m);
+      for (const r of live) ny.set(r.id, r);
+      return ny;
+    });
+  }, [live]);
+  const alla = useMemo(() => [...sedda.values()].sort((a, b) => a.tid - b.tid || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)), [sedda]);
+  // Innan någon bläddrat: en full första sida betyder att det kan finnas mer. Efter: det senaste svaret avgör.
+  const kanFinnasAldre = lage.bladdrat ? lage.fler === true : Boolean(live && live.length >= kalla.sida);
+  useLayoutEffect(() => {
+    const f = fore.current;
+    const el = logg.current;
+    if (!f || !el) return;
+    fore.current = null;
+    el.scrollTop = el.scrollHeight - f.hojd + f.topp;
+  }, [alla, logg]);
+  const hamta = async () => {
+    if (lage.laddar || alla.length === 0) return;
+    setLage((l) => ({ ...l, laddar: true, fel: null }));
+    try {
+      const svar = await kalla.aldreMeddelanden(sid, { tid: alla[0].tid, kanda: alla.map((m) => m.id), ...(trad === undefined ? {} : { trad }) });
+      const el = logg.current;
+      if (el) fore.current = { hojd: el.scrollHeight, topp: el.scrollTop };
+      setSedda((m) => {
+        const ny = new Map(m);
+        for (const r of svar.rader) ny.set(r.id, r);
+        return ny;
+      });
+      setLage({ laddar: false, fel: null, bladdrat: true, fler: svar.fler });
+    } catch (e) {
+      setLage((l) => ({ ...l, laddar: false, fel: e instanceof Error ? e : new Error(String(e)) }));
+    }
+  };
+  return { alla, kanFinnasAldre, laddar: lage.laddar, fel: lage.fel, slut: lage.bladdrat && lage.fler === false, hamta };
+}
+
+/**
+ * "Visa äldre" överst i loggen, och vad som hände (chattens nattskiva). ⛔ Varje utfall står utskrivet: hämtar, fel (med knappen kvar
+ * för ett nytt försök) och "Inga äldre meddelanden" när början är nådd. En knapp som försvann utan ett ord hade inte sagt om
+ * historiken tog slut eller om hämtningen föll (regel 5).
+ *
+ * @param {{ historik: ReturnType<typeof useHistorik>, texter: Required<Meddelandetexter> }} props
+ */
+function VisaAldre({ historik, texter: t }) {
+  if (historik.slut) {
+    return (
+      <p data-aldre-slut="" className="m-0 py-2 text-center text-liten text-ink-muted">
+        {t.ingaAldre}
+      </p>
+    );
+  }
+  if (!historik.kanFinnasAldre) return null;
+  return (
+    <div className="flex flex-col items-center gap-1 py-2">
+      {historik.fel ? (
+        <p data-aldre-fel="" role="alert" className="m-0 text-liten text-danger">
+          {t.aldreFel}
+        </p>
+      ) : null}
+      <button
+        type="button"
+        data-visa-aldre=""
+        aria-busy={historik.laddar || undefined}
+        disabled={historik.laddar}
+        onClick={historik.hamta}
+        className="inline-flex min-h-11 cursor-pointer items-center rounded-full px-4 text-meta font-medium text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint disabled:cursor-default disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {historik.laddar ? t.hamtarAldre : t.visaAldre}
+      </button>
+    </div>
+  );
 }

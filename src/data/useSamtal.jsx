@@ -142,5 +142,7 @@ export function useSamtal({ kalla, groupId, uid }) {
   );
 
   const olasta = lage.rader.reduce((n, r) => n + r.olasta, 0);
-  return { ...lage, olasta, lasOm, laggIn };
+  // ⛔ Summan är ett golv så snart en rad är det (chattens nattskiva): räkningen i den raden nådde sidans storlek.
+  const olastaFler = lage.rader.some((r) => r.olastaFler === true);
+  return { ...lage, olasta, olastaFler, lasOm, laggIn };
 }

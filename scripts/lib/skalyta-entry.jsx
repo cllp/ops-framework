@@ -1006,6 +1006,11 @@ async function byggChattkalla() {
   ids.privat = p.id;
   await s.skicka(p.id, { text: "Hej Anna! Kan du titta på fakturan från Bokio innan fredag?", av: "bo" });
   await s.skicka(p.id, { text: "Absolut, jag gör det i eftermiddag.", av: "anna" });
+  // (2) Ett långt samtal: 120 olästa från Cecilia, så att "Visa äldre" och "50+" har något att visa.
+  const lang = await s.oppnaPrivat({ groupId: "g1", uid: "cecilia", annan: "anna" });
+  ids.aldre = lang.id;
+  for (let i = 1; i <= 120; i += 1) await s.skicka(lang.id, { text: `Avstämning ${i}: ${i % 3 ? "kvitton och fakturor" : "momsen för augusti, med en längre rad som bryts"}`, av: "cecilia" });
+  ids.ingen = null;
   return { s, ids };
 }
 let chattkallan = null;
@@ -1018,7 +1023,7 @@ function ChattNattScen() {
       setK(x);
     });
   }
-  const valt = k ? k.ids[window.__aktiv ?? "agent"] ?? k.ids.agent : null;
+  const valt = k ? (window.__aktiv === "ingen" ? null : k.ids[window.__aktiv ?? "agent"] ?? k.ids.agent) : null;
   return (
     <Full>
       {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={valt} onValj={() => {}} /> : <p>Laddar</p>}

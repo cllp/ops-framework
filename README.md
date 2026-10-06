@@ -1866,6 +1866,17 @@ bort det när svaret är skrivet eller felet visat. Vyn visar "Agenten tänker" 
 En status som inte går att läsa är också en felrad. Källan: `lasStatus(sid, { tid? })` och `prenumereraStatus(sid, lyssnare, { tid? })`,
 bara när `harStatus(kalla)`.
 
+**"Visa äldre" och "50+".** Datakontraktet har villkoret `fore: { falt, varde }` (strikt mindre än), som `foreVillkor` prövar för
+alla adaptrar: minnet och JSON filtrerar (bara mot samma typ), `createFirestoreSource` ger `where(falt, "<", varde)`, Postgres en
+parameter, och `createHttpSource` **kastar**, eftersom ett villkor som tyst faller bort hade gett den senaste sidan igen. En apps egen
+adapter som inte kan uttrycka villkoret ska också kasta. Källan har `aldreMeddelanden(sid, { tid, kanda, trad? })`: nästa sida bakåt
+från det äldsta lästa, med "till och med" dess tid och de redan lästa bortsorterade, så att två meddelanden samma millisekund inte
+faller mellan sidorna; `fler` säger om det kan finnas mer. Vyn har "Visa äldre" överst i loggen (också i en tråd), behåller det som
+setts när nya meddelanden kommer, står kvar på det man läste när en sida läggs in ovanför, och skriver ut "Inga äldre meddelanden"
+och felet. `oversikt` ger `olastaFler` per rad (sidan var full och dess äldsta oläst), `useSamtal` ger `olastaFler` för summan,
+`onOlasta(antal, { fler })` har ett andra argument, och märket visar "50+": `OpsCountBadge fler`, `OpsIconLink badgeFler` och
+`OpsMeddelandeLank olastaFler`. Skärmläsaren hör "50 eller fler".
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.

@@ -129,6 +129,41 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
+   * Nästa sida BAKÅT: meddelandena före det äldsta som redan är läst, i stigande tid (chattens nattskiva, "Visa äldre").
+   *
+   * Före chattens nattskiva gick det 51:a meddelandet bakåt inte att nå alls: kontraktet hade ingen markör, och källan läste de
+   * senaste `sida` och inget mer. Nu används kontraktets `fore`.
+   *
+   * ⛔ TVÅ MEDDELANDEN SAMMA MILLISEKUND FALLER INTE MELLAN SIDORNA. Frågan är "till och med" det äldstas tid (`fore: tid + 1`), och
+   * de som redan är lästa (`kanda`) sorteras bort. Med "strikt före" hade ett meddelande med samma tid som sidans äldsta, men som
+   * inte kom med på sidan, aldrig gått att nå. Bara om en HEL sida bär samma tid frågas strikt före, annars hade knappen gett samma
+   * sida för alltid.
+   *
+   * @param {string} sid
+   * @param {{ tid: number, kanda: ReadonlySet<string> | ReadonlyArray<string>, trad?: string }} fran Det äldsta lästa meddelandets tid, id:na som
+   *   redan är lästa, och (med trådar) trådens id för en sida bakåt i tråden.
+   * @returns {Promise<{ rader: Array<import("../lib/samtal.js").Meddelande & { id: string }>, fler: boolean }>} `fler`: sidan var full, och
+   *   det kan finnas fler. `false` betyder att samtalets början är nådd.
+   */
+  async function aldreMeddelanden(sid, { tid, kanda, trad: tradId }) {
+    if (!Number.isInteger(tid)) throw new Error("samtalskalla.aldreMeddelanden: tid är det äldsta lästa meddelandets tid, ett heltal.");
+    if (tradId !== undefined && tradar === undefined) throw new Error("samtalskalla.aldreMeddelanden: en tråd kräver tradar.");
+    const vag = tradId === undefined ? meddelandevag(sid) : `${samtal}/${sid}/${tradar}/${tradId}/${meddelanden}`;
+    const sedda = new Set(kanda);
+    // ⛔ En rad mer än sidan: den äldsta lästa kommer alltid med i "till och med", och utan den extra raden hade varje sida bakåt
+    // varit en kortare än de andra.
+    const tak = sida + 1;
+    const fraga = (/** @type {number} */ grans) => kalla.list(vag, { fore: { falt: "tid", varde: grans }, sortBy: "tid", direction: "desc", limit: tak });
+    let rader = await fraga(tid + 1);
+    let nya = rader.filter((r) => !sedda.has(r.id));
+    if (nya.length === 0 && rader.length >= tak) {
+      rader = await fraga(tid);
+      nya = rader.filter((r) => !sedda.has(r.id));
+    }
+    return { rader: [...nya].reverse(), fler: rader.length >= tak };
+  }
+
+  /**
    * Lyssnar på ett samtals meddelanden, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje skickat.
    *
    * @param {string} sid
@@ -177,15 +212,31 @@ export function createSamtalskalla(konfig) {
   /**
    * Inkorgens rader: varje samtal med det senaste meddelandet, antal olästa och läsmärket, nyast först.
    *
+   * ⛔ `olastaFler` (chattens nattskiva): de olästa räknas över de senaste `sida` meddelandena. Är sidan full och dess äldsta ändå
+   * oläst kan fler ligga bakom, och då är antalet ett golv. Förut visades 120 olästa som 50, utan plustecken, en siffra som såg
+   * exakt ut och inte var det (regel 5).
+   *
+   * ⛔ `olastaRader` är de olästa meddelanden andra skrev, ur samma läsning. Den härledda notisen "nämnd i gruppchatten" läser dem,
+   * utan en läsning till.
+   *
    * @param {{ groupId: string, uid: string }} fraga
-   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, lastTill: number, motpart: string | null }>>}
+   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null }>>}
    */
   async function oversikt({ groupId, uid }) {
     const alla = await lista({ groupId, uid });
     const rader = await Promise.all(
       alla.map(async (s) => {
         const [ms, till] = await Promise.all([lasMeddelanden(s.id), lastTill(s.id, uid)]);
-        return { samtal: s, senaste: ms[ms.length - 1] ?? null, olasta: olastaI(ms, till, uid), lastTill: till, motpart: motpart(s, uid) };
+        const olastaRader = ms.filter((m) => m && m.av !== uid && m.tid > till);
+        return {
+          samtal: s,
+          senaste: ms[ms.length - 1] ?? null,
+          olasta: olastaI(ms, till, uid),
+          olastaFler: ms.length >= sida && ms[0].tid > till,
+          olastaRader,
+          lastTill: till,
+          motpart: motpart(s, uid),
+        };
       }),
     );
     return rader.sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0));
@@ -379,6 +430,7 @@ export function createSamtalskalla(konfig) {
     oppnaGrupp,
     oppnaPrivat,
     meddelanden: lasMeddelanden,
+    aldreMeddelanden,
     prenumerera,
     skicka,
     lastTill,
