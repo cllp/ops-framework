@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motpart } from "../lib/samtal.js";
 
 /**
  * Inkorgens rader och antalet olästa, ur en samtalskälla (0.34.0, #182).
@@ -11,6 +12,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *
  * ⛔ LÄSES OM NÄR FÖNSTRET FÅR FOKUS. Ingen realtidsnärvaro i 0.34.0 (se CHANGELOG), men den som kommer tillbaka till
  * fliken ska inte se en inkorg från i morse.
+ *
+ * ⛔ `laggIn` LÄGGER IN EN RAD LOKALT DIREKT, OCH LÄSER SEDAN OM (0.63.0, #263). Den som just öppnat eller skrivit i ett samtal
+ * ska se det i listan i samma stund, inte vid nästa `focus`. CP 2026-10-06: "Chatten dök upp långt senare", och frågan
+ * skickades två gånger. Raden är en förhandsvisning av det omläsningen strax ger: inget sparas, och omläsningen vinner.
+ * Ingen spegelkolumn (`senast`) på samtalsdokumentet byggs för det (regel 2, se filhuvudet i `lib/samtal.js`).
  *
  * @param {{ kalla: ReturnType<typeof import("./samtalskalla.js").createSamtalskalla> | null | undefined, groupId: string | null | undefined, uid: string | null | undefined }} arg
  */
@@ -47,6 +53,25 @@ export function useSamtal({ kalla, groupId, uid }) {
     };
   }, [lasOm]);
 
+  // `senaste`: det man just skickade, om något.
+  const laggIn = useCallback(
+    (/** @type {import("../lib/samtal.js").Samtal} */ samtal, /** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null} */ senaste = null) => {
+      if (!uid) return;
+      setLage((f) => {
+        const finns = f.rader.find((r) => r.samtal.id === samtal.id);
+        const ny = finns
+          ? { ...finns, senaste: senaste && (!finns.senaste || senaste.tid >= finns.senaste.tid) ? senaste : finns.senaste }
+          : { samtal, senaste, olasta: 0, lastTill: senaste?.tid ?? 0, motpart: motpart(samtal, uid) };
+        const tid = (/** @type {typeof ny} */ r) => r.senaste?.tid ?? r.samtal.skapad ?? 0;
+        const rader = [ny, ...f.rader.filter((r) => r.samtal.id !== samtal.id)].sort((a, b) => tid(b) - tid(a));
+        return { rader, laddar: false, fel: f.fel };
+      });
+      // ⛔ Omläsningen räknar upp `levande`, så ett svar som var på väg FÖRE inläggningen skriver inte över den.
+      lasOm();
+    },
+    [uid, lasOm],
+  );
+
   const olasta = lage.rader.reduce((n, r) => n + r.olasta, 0);
-  return { ...lage, olasta, lasOm };
+  return { ...lage, olasta, lasOm, laggIn };
 }

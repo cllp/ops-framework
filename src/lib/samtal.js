@@ -213,6 +213,28 @@ export function motpart(samtal, uid) {
 }
 
 /**
+ * Läser nyckeln baklänges: vilken grupp och vilka deltagare ett samtals id betyder (0.63.0, #263). Inverterar `samtalsnyckel`.
+ *
+ * ⛔ VARFÖR. Ett valt samtal (ur adressen, eller nyss öppnat med `oppnaPrivat`) ska ritas innan inkorgen hunnit läsa in det.
+ * Nyckeln BÄR redan gruppen och paret, eftersom den är härledd ur dem (filhuvudet), så tråden kan ritas på id:t utan en
+ * läsning och utan en kopia någonstans. Slaget `personer` eller `agent` avgörs av vem paret är, och det vet bara den som
+ * har medlemmarna: därför lämnas det åt anroparen.
+ *
+ * @param {unknown} id
+ * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, deltagare: [string, string] } | null} `null` när id:t inte är en samtalsnyckel.
+ */
+export function delaSamtalsnyckel(id) {
+  if (typeof id !== "string") return null;
+  const delar = id.split(SAMTALSAVGRANSARE);
+  if (delar.some((d) => d.trim() === "" || d !== d.trim())) return null;
+  if (delar.length === 2 && delar[1] === GRUPPSAMTAL) return { groupId: delar[0], slag: "grupp" };
+  if (delar.length !== 3 || delar[1] === delar[2]) return null;
+  // ⛔ Bara en nyckel som `samtalsnyckel` hade kunnat skriva: paret sorterat. Annars är det inget samtals id.
+  if (!(delar[1] < delar[2])) return null;
+  return { groupId: delar[0], deltagare: [delar[1], delar[2]] };
+}
+
+/**
  * Ett kort utdrag av en text, för inkorgens rad och för notisen. Härlett, aldrig lagrat (se filhuvudet).
  *
  * @param {string} text

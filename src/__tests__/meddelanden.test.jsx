@@ -1,11 +1,8 @@
-import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsMeddelanden } from "../components/OpsMeddelanden.jsx";
 import { OpsMottagare } from "../components/OpsMottagare.jsx";
-import { OpsNyttMeddelande } from "../components/OpsNyttMeddelande.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
 
@@ -111,11 +108,33 @@ describe("OpsMeddelanden: inkorgen", () => {
     expect(await screen.findByText("Inga samtal än")).toBeInTheDocument();
   });
 
-  it("Nytt meddelande-knappen anropar onNytt", async () => {
-    const onNytt = vi.fn();
-    render(<OpsMeddelanden kalla={createSamtalskalla({ kalla: createMemorySource({}) })} uid="anna" groupId="g" gruppNamn="Alfa" medlemmar={[]} onNytt={onNytt} />);
+  // 0.63.0 (#263): knappen öppnar läget "nytt" i högerpanelen och meddelar appen med EN signal, `onValj(null, { nytt: true })`.
+  it("Nytt meddelande-knappen öppnar läget nytt och säger det till appen", async () => {
+    const onValj = vi.fn();
+    render(<OpsMeddelanden kalla={createSamtalskalla({ kalla: createMemorySource({}) })} uid="anna" groupId="g" gruppNamn="Alfa" medlemmar={MEDLEMMAR} onValj={onValj} />);
     await userEvent.setup().click(screen.getByRole("button", { name: "Nytt meddelande" }));
-    expect(onNytt).toHaveBeenCalledTimes(1);
+    expect(onValj).toHaveBeenCalledWith(null, { nytt: true });
+    const nytt = screen.getByRole("region", { name: "Nytt meddelande" });
+    expect(within(nytt).getByText("Bara ni två ser det här")).toBeInTheDocument();
+    expect(within(nytt).getByRole("textbox", { name: "Skriv ett meddelande" })).toBeInTheDocument();
+  });
+
+  it("utan grupp finns ingen knapp Nytt meddelande, och läget nytt öppnas inte", () => {
+    render(<OpsMeddelanden kalla={createSamtalskalla({ kalla: createMemorySource({}) })} uid="anna" groupId={null} gruppNamn="Alfa" medlemmar={MEDLEMMAR} nytt />);
+    expect(screen.queryByRole("button", { name: "Nytt meddelande" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Nytt meddelande" })).toBeNull();
+  });
+
+  it("⛔ läget nytt: valet öppnar samma privata samtal som förut, och svaret skrivs i trådens fält", async () => {
+    const { samtal, privat } = await underlag();
+    render(<OpsMeddelanden kalla={samtal} uid="anna" groupId="g" gruppNamn="Alfa" medlemmar={MEDLEMMAR} nytt={undefined} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Nytt meddelande" }));
+    await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
+    const trad = await waitFor(() => /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"]')));
+    expect(await within(trad).findByText("Kan du titta på fakturan?")).toBeInTheDocument();
+    await user.type(within(trad).getByRole("textbox", { name: "Skriv ett meddelande" }), "Ja, jag tittar{Enter}");
+    await waitFor(async () => expect((await samtal.meddelanden(privat.id)).at(-1)).toMatchObject({ text: "Ja, jag tittar", av: "anna" }));
   });
 });
 
@@ -133,106 +152,5 @@ describe("OpsMottagare", () => {
     expect(screen.getAllByRole("radio").map((r) => r.querySelector(".truncate")?.textContent)).toEqual(["Bo Lind", "Cecilia Berg", "Ops-agenten"]);
     await userEvent.setup().click(screen.getByRole("radio", { name: "Bo Lind" }));
     expect(onChange).toHaveBeenCalledWith({ slag: "person", uid: "bo" });
-  });
-});
-
-describe("OpsNyttMeddelande", () => {
-  it("⛔ skickar i det privata samtalet med den valda personen, samma samtal som förut", async () => {
-    const { samtal, privat } = await underlag();
-    const onKlar = vi.fn();
-    render(<OpsNyttMeddelande formId="f" groupId="g" uid="anna" medlemmar={MEDLEMMAR} kalla={samtal} onKlar={onKlar} />);
-    const user = userEvent.setup();
-    expect(screen.getByText("Bara ni två ser det här.")).toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
-    await user.type(screen.getByRole("textbox"), "Ja, jag tittar");
-    await user.keyboard("{Control>}{Enter}{/Control}");
-    await waitFor(() => expect(onKlar).toHaveBeenCalledWith(privat.id));
-    expect((await samtal.meddelanden(privat.id)).at(-1)).toMatchObject({ text: "Ja, jag tittar", av: "anna" });
-  });
-  it("⛔ utan mottagare eller utan text skickas inget, och felet står vid fältet", async () => {
-    const { samtal } = await underlag();
-    const onKlar = vi.fn();
-    render(
-      <>
-        <OpsNyttMeddelande formId="f" groupId="g" uid="anna" medlemmar={MEDLEMMAR} kalla={samtal} onKlar={onKlar} />
-        <button type="submit" form="f">
-          Skicka
-        </button>
-      </>,
-    );
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Skicka" }));
-    expect(screen.getByText("Välj vem meddelandet ska till.")).toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: "Cecilia Berg" }));
-    await user.click(screen.getByRole("button", { name: "Skicka" }));
-    expect(screen.getByText("Skriv något först.")).toBeInTheDocument();
-    expect(onKlar).not.toHaveBeenCalled();
-  });
-  it("utan grupp säger formuläret det", () => {
-    render(<OpsNyttMeddelande formId="f" groupId={null} uid="anna" medlemmar={[]} kalla={createSamtalskalla({ kalla: createMemorySource({}) })} />);
-    expect(screen.getByText(/inte med i någon grupp/)).toBeInTheDocument();
-  });
-});
-
-describe("⛔ skalet: Nytt meddelande i plusset öppnar skapa-panelen med Skicka", () => {
-  function Skal({ samtal, onGaTill, start = "g", sektioner = undefined }) {
-    const [aktiv, setAktiv] = useState(start);
-    return (
-      <OpsAppShell
-        brand="Ops"
-        nav={[{ href: "/", label: "Start" }]}
-        activeHref="/"
-        grupper={{ lista: [{ id: "g", namn: { sv: "Alfa AB" }, medlemsantal: 3, roll: "agare" }], aktiv, onValj: setAktiv }}
-        skapa={{
-          sparaEtikett: "Spara",
-          lage: aktiv,
-          skapaISektioner: sektioner,
-          meddelande: ({ formId, groupId, onKlar }) => (
-            <OpsNyttMeddelande
-              formId={formId}
-              groupId={groupId}
-              uid="anna"
-              medlemmar={MEDLEMMAR}
-              kalla={samtal}
-              onKlar={(id) => {
-                onKlar();
-                onGaTill(id);
-              }}
-            />
-          ),
-        }}
-      >
-        <p>appens vy</p>
-      </OpsAppShell>
-    );
-  }
-
-  it("raden finns, panelen är en region med knappen Skicka, och ett skickat meddelande stänger den", async () => {
-    const { samtal } = await underlag();
-    const onGaTill = vi.fn();
-    render(<Skal samtal={samtal} onGaTill={onGaTill} />);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Skapa" }));
-    await user.click(screen.getByRole("button", { name: "Nytt meddelande" }));
-    const panel = screen.getByRole("region", { name: "Nytt meddelande" });
-    expect(new URL(window.location.href).searchParams.get("skapa")).toBe("meddelande");
-    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
-    await user.click(within(panel).getByRole("radio", { name: "Cecilia Berg" }));
-    await user.type(within(panel).getByRole("textbox"), "Hej Cecilia");
-    await user.click(screen.getByRole("button", { name: "Skicka" }));
-    await waitFor(() => expect(onGaTill).toHaveBeenCalledWith("g|anna|cecilia"));
-    expect(screen.queryByRole("region", { name: "Nytt meddelande" })).toBeNull();
-  });
-
-  it("⛔ ingen gruppväljare före panelen: meddelandet skrivs i den aktiva gruppen, också när appen har egna mål (0.35.0, #190)", async () => {
-    const { samtal } = await underlag();
-    render(<Skal samtal={samtal} onGaTill={() => {}} sektioner={[{ id: "appen", rubrik: "Appen", poster: [{ id: "x", namn: "Appens plats" }] }]} />);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Skapa" }));
-    await user.click(screen.getByRole("button", { name: "Nytt meddelande" }));
-    expect(screen.queryByRole("dialog", { name: "Skapa i" })).toBeNull();
-    const panel = await screen.findByRole("region", { name: "Nytt meddelande" });
-    expect(within(panel).getByRole("radio", { name: "Bo Lind" })).toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: /Skapas i/ })).toBeNull();
   });
 });

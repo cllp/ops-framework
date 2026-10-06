@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { byggMeddelande, byggMottagare, byggSamtal, MAX_MEDDELANDE, motpart, olastaI, samtalsnyckel, utdrag } from "../lib/samtal.js";
+import { byggMeddelande, byggMottagare, byggSamtal, delaSamtalsnyckel, MAX_MEDDELANDE, motpart, olastaI, samtalsnyckel, utdrag } from "../lib/samtal.js";
 import { createSamtalskalla, samtalsnotiser } from "../data/samtalskalla.js";
 import { applyQuery } from "../data/contract.js";
 import { createMemorySource } from "../data/adapters.js";
 import { samtalsregelfragment } from "../lib/regler.js";
+
+describe("delaSamtalsnyckel (0.63.0, #263): nyckeln läst baklänges, så att tråden kan ritas på ett id", () => {
+  it("inverterar samtalsnyckel för gruppchatten och för ett par", () => {
+    const par = samtalsnyckel({ groupId: "g", slag: "personer", deltagare: ["bo", "anna"] });
+    expect(delaSamtalsnyckel(par)).toEqual({ groupId: "g", deltagare: ["anna", "bo"] });
+    expect(delaSamtalsnyckel(samtalsnyckel({ groupId: "g", slag: "grupp" }))).toEqual({ groupId: "g", slag: "grupp" });
+  });
+  it("⛔ ett id som samtalsnyckel aldrig hade skrivit är inget samtal", () => {
+    for (const fel of [null, 42, "", "g", "g|", "g|b|a", "g|a|a", "g|a|b|c", " g|a|b", "g||b"]) expect(delaSamtalsnyckel(fel)).toBeNull();
+  });
+});
 
 describe("samtalsnyckel (0.34.0): härledd, sorterad, en per par och grupp", () => {
   it("samma nyckel oavsett vem som skriver till vem", () => {

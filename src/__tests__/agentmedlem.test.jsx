@@ -8,7 +8,7 @@ import { medlemsinfo } from "../lib/gruppmedlemmar.js";
 import { OpsGruppSida } from "../components/OpsGruppSida.jsx";
 import { OpsMedlemmar } from "../components/OpsMedlemmar.jsx";
 import { OpsMottagare } from "../components/OpsMottagare.jsx";
-import { OpsNyttMeddelande } from "../components/OpsNyttMeddelande.jsx";
+import { OpsMeddelanden } from "../components/OpsMeddelanden.jsx";
 
 /**
  * Agenten är medlem i varje grupp (cllp/lifehub.app#47, skiva 1 och 2, ramverkets del).
@@ -213,16 +213,24 @@ describe("Nytt meddelande: agenten går att välja, som en person", () => {
     expect(screen.queryByRole("radio", { name: "Agent" })).toBeNull();
   });
 
+  // 0.63.0 (#263): läget "nytt" i Meddelanden, inte längre en panel. Valet öppnar samtalet direkt, och texten skrivs i tråden.
   it("med agenten vald öppnas ett agentsamtal, och raden säger vem som ser det", async () => {
-    const kalla = { oppnaPrivat: vi.fn(async () => ({ id: "g1|agent_g1|uid-agare" })), skicka: vi.fn(async () => {}) };
-    const onKlar = vi.fn();
-    render(<OpsNyttMeddelande formId="f" groupId="g1" uid={UID} medlemmar={medlemskap()} kalla={/** @type {any} */ (kalla)} onKlar={onKlar} />);
+    const id = "g1|agent_g1|uid-agare";
+    const samtal = { id, groupId: "g1", slag: "agent", deltagare: ["agent_g1", "uid-agare"], skapad: 1, skapadAv: UID };
+    const kalla = {
+      oversikt: vi.fn(async () => []),
+      oppnaPrivat: vi.fn(async () => samtal),
+      meddelanden: vi.fn(async () => []),
+      prenumerera: () => null,
+      markeraLast: vi.fn(async () => {}),
+      skicka: vi.fn(async (_sid, { text, av }) => ({ id: "m1", text, av, tid: 2 })),
+    };
+    const onValj = vi.fn();
+    render(<OpsMeddelanden kalla={/** @type {any} */ (kalla)} uid={UID} groupId="g1" gruppNamn="G" medlemmar={medlemskap()} nytt onValj={onValj} />);
+    expect(screen.getByText("Bara ni två ser det här")).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "Agent" }));
-    expect(screen.getByText("Bara du och agenten ser det här.")).toBeTruthy();
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Hej agenten" } });
-    fireEvent.submit(/** @type {HTMLFormElement} */ (document.getElementById("f")));
-    await waitFor(() => expect(onKlar).toHaveBeenCalledWith("g1|agent_g1|uid-agare"));
+    expect(screen.getByText("Bara du och agenten ser det här")).toBeTruthy();
+    await waitFor(() => expect(onValj).toHaveBeenCalledWith(id, undefined));
     expect(kalla.oppnaPrivat).toHaveBeenCalledWith({ groupId: "g1", uid: UID, annan: "agent_g1", slag: "agent" });
-    expect(kalla.skicka).toHaveBeenCalledWith("g1|agent_g1|uid-agare", { text: "Hej agenten", av: UID });
   });
 });

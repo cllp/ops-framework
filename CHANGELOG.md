@@ -9,6 +9,42 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.63.0
+
+⛔ **Versionsnumret:** 0.61.0 och 0.62.0 är redan tagna av PR 260 (#259, regel 13) och PR 261 (bolag-ops#565), som inte är mergade när den här grenen öppnas. Den här grenen tar därför 0.63.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.
+
+### "Nytt meddelande" lämnar aldrig Meddelanden (#263)
+
+CP 2026-10-06 11:22, med en skärminspelning från LifeHub: "steget med att öppna en liten chattfönster till är lite konstigt", och "Chatten dök upp långt senare...". Han skickade frågan till agenten två gånger, eftersom ingenting syntes hända.
+
+Tre fel samverkade, alla mätta i ett vitest-prov mot 0.60.0 (efter Skicka och 300 ms: källan har ett samtal, skärmen noll rader, noll trådar och "Inga samtal än"):
+
+1. "+ Nytt meddelande" öppnade skalets skapa-panel, som dolde hela appens vy (`hidden={skapaPanelSyns}`). Listan och tråden försvann.
+2. `useSamtal` läste listan vid montering och vid `focus`, och lyssnade inte däremellan. `OpsMeddelanden` monterades inte om, eftersom vyn bara var dold.
+3. Tråden ritades bara när samtalet fanns bland raderna, så ett nytt samtal gav "Inga samtal än" fast adressen pekade på rätt `?samtal=`.
+
+Skalprovet i `meddelanden.test.jsx` stod grönt genom felet: det hade `<p>appens vy</p>` som barn och mätte bara att `onGaTill` anropades.
+
+#### Ändrat
+
+- **`OpsMeddelanden` har läget "nytt" i högerpanelen**, som SessionStudio (`ChatInboxPanel.jsx:1091-1124`, `:477-505`). Till (`OpsMottagare lage="person"`) och raden om vem som ser samtalet överst, trådens skrivfält längst ned, och listan står kvar till vänster. På telefon ersätter läget listan, med "‹ Tillbaka". Valet i Till öppnar samtalet direkt med `oppnaPrivat`; ett befintligt samtal, också agentens, öppnas med sin historik och inget nytt skapas. Text skriven före valet följer med in i tråden, och Skicka utan mottagare säger "Välj vem meddelandet ska till.".
+- **Tråden ritas på det valda id:t**, inte på listan (SS `:186-191`, `DMPanel.jsx:95-97`). Saknas raden läses gruppen och paret ur nyckeln (`delaSamtalsnyckel` i `lib/samtal.js`, inversen av `samtalsnyckel`) och rubriken ur `medlemmar`. Ett id i en annan grupp, eller ett par man inte är med i, ritar ingen tråd.
+- **`useSamtal` har `laggIn(samtal, senaste?)`**: raden läggs in lokalt direkt efter öppnandet och efter Skicka, och listan läses sedan om. Inget sparas; omläsningen vinner. ⛔ Ingen spegelkolumn (`senast`) på samtalsdokumentet (regel 2, filhuvudet i `lib/samtal.js`).
+- **`OpsMeddelanden` props:** `nytt` (läget, när appen styr det) och `onValj(id, val?)`, som får `(null, { nytt: true })` när läget öppnas. Knappen Nytt meddelande står alltid när en grupp är vald.
+- **`OpsSamtal` props:** `onSkickat(meddelande)` och `utkast`.
+- **Plussets "Nytt meddelande" leder till Meddelanden i läget "nytt"** (`skapa.nyttMeddelande`, en funktion `() => void`). `useOppnaSkapa()("meddelande")` och adressens `?skapa=meddelande` gör samma sak, och parametern tas bort ur adressen.
+
+#### Borttaget (brytande)
+
+- **`skapa.meddelande`, `OpsNyttMeddelande` och skalets `skickaEtikett`.** Det ska finnas EN väg att starta ett samtal. Skalet **kastar** om `skapa.meddelande` skickas, med vägen till `skapa.nyttMeddelande` i felet, i stället för att raden tyst försvinner (regel 5). En app som pinnar om byter `skapa.meddelande` mot `nyttMeddelande: () => navigera("/meddelanden?nytt=1")` och ger vyns `OpsMeddelanden` `nytt` och `onValj(id, val)`.
+
+#### Prov
+
+- `nyttMeddelande.test.jsx`, med `OpsMeddelanden` monterad i skalet och utan någon `focus`-händelse: tom inkorg, Nytt meddelande, agenten, skriv, Skicka ger samtalsraden och `[data-ops-samtal]`; ett valt id som inte finns bland raderna öppnar tråden; agenten med ett befintligt samtal ger samma id och inget nytt `create`; listan är samma element i DOM:en under hela flödet.
+- `check-skalyta` avsnitt 29 (d) är omskrivet. Den gamla mätningen av panelen (en region, kolumnen högst 672 px, Skicka i panelens knapprad) är borttagen, eftersom det den mätte är felet. Nu: plussets rad öppnar läget "nytt" i Meddelanden utan dialog och utan skapa-panel, listan står kvar vid 1280 med samma bredd, valet öppnar tråden direkt, och efter Skicka står raden i listan och bubblan i tråden utan `focus`.
+
+---
+
 ## 0.60.0
 
 Tre grenar samlade i en version (#253, #255 och #256), eftersom alla tre gjorde anspråk på 0.60.0 eller 0.61.0.

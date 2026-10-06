@@ -496,10 +496,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen till samma panel (växlarens ark på telefon har ingen sedan 0.37.0): `grupper.onSkapa` behövs då inte,
  *   och om båda finns vinner `skapa.grupp` (en väg att skapa en grupp är en sanning, två är två). `onKlar` stänger panelen UTAN att gå bakåt i
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
- * @property {(arg: { formId: string, groupId: string | null, onKlar: () => void }) => import("react").ReactNode} [meddelande] (0.34.0, #182) Ramverkets egen rad
- *   "Nytt meddelande", normalt `({ formId, groupId, onKlar }) => <OpsNyttMeddelande formId={formId} groupId={groupId} ... onKlar={(id) => { onKlar(); gaTill(id); }} />`.
- *   `groupId` är den aktiva gruppen (0.35.0: alltid, det finns ingen gruppväljare före formuläret; ett meddelande hör alltid till en
- *   grupp). Panelens knapp heter `skickaEtikett` ("Skicka"), inte Spara. `onKlar` stänger utan att gå bakåt.
+ * @property {() => void} [nyttMeddelande] (0.63.0, #263) Ramverkets rad "Nytt meddelande" i plusset. Raden öppnar INGEN panel: den anropar
+ *   funktionen, och appen leder till Meddelanden i läget "nytt" (normalt `() => navigera("/meddelanden?nytt=1")`, och vyn ger
+ *   `OpsMeddelanden` `nytt`). `useOppnaSkapa()("meddelande")` och adressens `?skapa=meddelande` gör samma sak.
+ *   ⛔ `skapa.meddelande` (0.34.0 till 0.62.0, en panel med `OpsNyttMeddelande`) är borttagen, och skalet KASTAR om den skickas: en
+ *   rad som tyst försvann hade varit det fel CP såg, en väg som inte gör något. CP 2026-10-06: "steget med att öppna en liten
+ *   chattfönster till är lite konstigt". Det finns EN väg att starta ett samtal, och den lämnar aldrig Meddelanden.
  * @property {(arg: { formId: string, groupId: string, onKlar: () => void }) => import("react").ReactNode} [redigeraGrupp] (0.32.0, #180 G2) Formuläret i REDIGERINGSLÄGE
  *   (`OpsGruppFormular grupp={...}`), öppnat av pennan på gruppkortet i gruppanelen. Med den ritar skalet pennan och öppnar samma panel-form som "Ny grupp"
  *   (`?skapa=redigera-grupp&grupp=<id>`, smal kolumn). Utan den anropas `grupper.onRedigera` i stället, om appen gav en.
@@ -574,14 +576,6 @@ function GruppRitare({ rita, formId, onKlar }) {
 }
 
 /**
- * Ritar `skapa.meddelande` (0.34.0). Samma skäl som `GruppRitare`.
- * @param {{ rita: (arg: { formId: string, groupId: string | null, onKlar: () => void }) => import("react").ReactNode, formId: string, groupId: string | null, onKlar: () => void }} props
- */
-function MeddelandeRitare({ rita, formId, groupId, onKlar }) {
-  return <>{rita({ formId, groupId, onKlar })}</>;
-}
-
-/**
  * Grinden i redigeringsläget (0.40.0, #214): läser händelsen med appens hook, fyller i skalets val och släpper först då fram formuläret.
  *
  * ⛔ VARFÖR EN GRIND OCH INTE EN EFFEKT I SKALET. Skalets val (typ, kalender, "Kräv svar") är skalets state, men VÄRDENA finns i appens
@@ -650,7 +644,8 @@ function skapaFormFranNyckel(skapa, nyckel, extra = {}) {
   }
   if (nyckel === "arende" && skapa.arende) return { kind: "arende" };
   if (nyckel === "grupp" && skapa.grupp) return { kind: "grupp" };
-  if (nyckel === "meddelande" && typeof skapa.meddelande === "function") return { kind: "meddelande" };
+  // ⛔ 0.63.0 (#263): "meddelande" är ingen panel. Beskrivningen leder till `skapa.nyttMeddelande`, se `oppnaSkapa`.
+  if (nyckel === "meddelande" && typeof skapa.nyttMeddelande === "function") return { kind: "meddelande" };
   if (nyckel === "redigera-grupp" && typeof skapa.redigeraGrupp === "function" && extra.groupId) return { kind: "redigeragrupp", groupId: extra.groupId };
   const reg = (skapa.registreringar ?? []).find((/** @type {any} */ r) => r.id === nyckel);
   return reg ? { kind: "modul", registrering: reg } : null;
@@ -678,7 +673,8 @@ const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { g
  * Tillbaka, och webbläsarens bakåt, går tillbaka till det man kom från (normalt händelsepanelen, som då visar den ändrade händelsen). Kräver att
  * `skapa.handelse` är ett formulär med `redigera` (`HandelseSkapare`); annars kastas ett fel. `id` gäller bara händelsen.
  * Använder skalets egen `oppnaSkapa`, så adressen (`?skapa=`) och webbläsarens Tillbaka fungerar som när panelen öppnas ur plusset.
- * Är posten inte tillgänglig (`skapa.meddelande` saknas, okänd nyckel) kastas ett fel: ingenting sker aldrig tyst.
+ * `oppna("meddelande")` (0.63.0, #263) öppnar ingen panel: den anropar `skapa.nyttMeddelande`, som leder till Meddelanden i läget "nytt".
+ * Är posten inte tillgänglig (`skapa.nyttMeddelande` saknas, okänd nyckel) kastas ett fel: ingenting sker aldrig tyst.
  * Utanför `OpsAppShell` kastas ett fel direkt när hooken anropas.
  *
  * @returns {(nyckel: string, extra?: { groupId?: string, datum?: string, id?: string }) => void}
@@ -791,8 +787,7 @@ export function useOppnaHandelse() {
  *   Given: märket heter den aktiva hubbens namn (om `brand` inte är satt), en chevron bredvid märket öppnar hubblistan (från `lg`,
  *   och på alla bredder när `grupper` saknas), och gruppväxlarens ark börjar med hubbarna (under `lg`). Utelämnad: skalet som förut. Se `OpsHubbar.jsx`.
  * @param {string} [props.hubbEtikett] (0.52.0) Skärmläsarnamnet på chevronen vid märket. Förval "Byt hubb".
- * @param {string} [props.nyttMeddelandeEtikett] (0.34.0) Ramverkets rad för `skapa.meddelande`, och panelens rubrik. Förval "Nytt meddelande".
- * @param {string} [props.skickaEtikett] (0.34.0) Panelens knapp för `skapa.meddelande`. Förval "Skicka".
+ * @param {string} [props.nyttMeddelandeEtikett] (0.34.0) Ramverkets rad för `skapa.nyttMeddelande`. Förval "Nytt meddelande".
  * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
  * @param {import("react").ReactNode} props.children
  */
@@ -832,7 +827,6 @@ function OpsAppShellRitad({
   nyttArendeEtikett = ORD_OPSAPPSHELL.nyttArendeEtikett.sv,
   nyGruppEtikett = ORD_OPSAPPSHELL.nyGruppEtikett.sv,
   nyttMeddelandeEtikett = ORD_OPSAPPSHELL.nyttMeddelandeEtikett.sv,
-  skickaEtikett = ORD_OPSAPPSHELL.skickaEtikett.sv,
   redigeraGruppEtikett = ORD_OPSAPPSHELL.redigeraGruppEtikett.sv,
   redigeraHandelseEtikett = ORD_OPSAPPSHELL.redigeraHandelseEtikett.sv,
   skapaTypEtikett = ORD_OPSAPPSHELL.skapaTypEtikett.sv,
@@ -975,11 +969,30 @@ function OpsAppShellRitad({
     return skapaFormFranNyckel(skapa, v, { groupId: u.searchParams.get("grupp"), nyHandelseEtikett, datum, redigera: u.searchParams.get("redigera") });
   };
   const skapaFormId = useId();
+  /**
+   * ⛔ `?skapa=meddelande` (0.63.0, #263): adressen öppnar ingen panel längre. Parametern tas bort ur posten (annars kom den
+   * tillbaka vid nästa omladdning) och appen får leda till Meddelanden i läget "nytt", som raden i plusset.
+   */
+  const nyttMeddelandeUrAdress = () => {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("skapa");
+      window.history.replaceState(window.history.state, "", u);
+    } catch {
+      // En adress som inte går att skriva (en sandlåda) hindrar inte att Meddelanden öppnas.
+    }
+    /** @type {() => void} */ (skapa?.nyttMeddelande)();
+  };
   /** @param {any} form */
   const oppnaSkapa = (form) => {
     // ⛔ TALK-raden öppnar inget formulär, den öppnar fältet. Samma väg från båda plusen.
     if (form?.kind === "talk") {
       talkStyr.direkt();
+      return;
+    }
+    // ⛔ 0.63.0 (#263): "Nytt meddelande" öppnar ingen panel. Appen leder till Meddelanden i läget "nytt".
+    if (form?.kind === "meddelande") {
+      /** @type {() => void} */ (skapa?.nyttMeddelande)();
       return;
     }
     if (typeof window !== "undefined") skapaRullning.current = window.scrollY;
@@ -1157,7 +1170,8 @@ function OpsAppShellRitad({
   // Adressen öppnar panelen vid inläsning, och webbläsarens Tillbaka stänger den.
   useEffect(() => {
     const fran = skapaUrAdress();
-    if (fran) setSkapaFormRaw(/** @type {any} */ (fran));
+    if (fran?.kind === "meddelande") nyttMeddelandeUrAdress();
+    else if (fran) setSkapaFormRaw(/** @type {any} */ (fran));
     if (typeof window === "undefined") return undefined;
     const lyssna = () => {
       const finns = new URL(window.location.href).searchParams.has("skapa");
@@ -1178,10 +1192,11 @@ function OpsAppShellRitad({
   // av vilka nycklar som finns; när den ändras öppnas panelen om adressen bär en `?skapa=` ingen panel är öppen för. Öppnar bara om
   // inget formulär redan är öppet, och en stängd panel tar bort parametern ur adressen, så den kommer inte tillbaka. Ingen polling.
   const skapaNycklar = skapa
-    ? [skapa.handelse ? "handelse" : "", skapa.arende ? "arende" : "", skapa.grupp ? "grupp" : "", typeof skapa.meddelande === "function" ? "meddelande" : "", typeof skapa.redigeraGrupp === "function" ? "redigera-grupp" : "", ...(skapa.registreringar ?? []).map((/** @type {any} */ r) => r.id)].join("|")
+    ? [skapa.handelse ? "handelse" : "", skapa.arende ? "arende" : "", skapa.grupp ? "grupp" : "", typeof skapa.nyttMeddelande === "function" ? "meddelande" : "", typeof skapa.redigeraGrupp === "function" ? "redigera-grupp" : "", ...(skapa.registreringar ?? []).map((/** @type {any} */ r) => r.id)].join("|")
     : "";
   useEffect(() => {
     const fran = skapaUrAdress();
+    if (fran?.kind === "meddelande") return void nyttMeddelandeUrAdress();
     if (fran) setSkapaFormRaw((/** @type {any} */ nu) => nu ?? fran);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skapaNycklar]);
@@ -1209,6 +1224,13 @@ function OpsAppShellRitad({
     oppnaSkapa(form);
   };
 
+  // ⛔ 0.63.0 (#263): `skapa.meddelande` ÄR BORTTAGEN, OCH SKALET KASTAR I STÄLLET FÖR ATT TYST HOPPA ÖVER RADEN. En app som pinnar om
+  // utan att byta till `skapa.nyttMeddelande` hade annars förlorat raden "Nytt meddelande" utan att någon märkte det (regel 5).
+  if (skapa && "meddelande" in skapa && /** @type {any} */ (skapa).meddelande !== undefined) {
+    throw new Error(
+      'OpsAppShell: skapa.meddelande är borttagen i 0.63.0 (#263). "Nytt meddelande" öppnar ingen panel längre: skicka skapa.nyttMeddelande, en funktion som leder till Meddelanden i läget "nytt" (OpsMeddelanden nytt).',
+    );
+  }
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
   const skapaModulerRedo = skapaLaget?.tillstand === "redo";
   if (skapa?.aktivGrupp && skapa.aktivGrupp.id !== (skapa.lage ?? null)) {
@@ -1218,7 +1240,7 @@ function OpsAppShellRitad({
   }
   // ⛔ PLATSEN `handelse.atgard` (0.60.0, #251, beslut 0003): bara moduler som är påslagna i gruppen, och en avslagen moduls komponent anropas inte.
   const handelseAtgarder = skapa?.moduler ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "handelse.atgard" }) : [];
-  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.meddelande === "function";
+  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
@@ -1240,7 +1262,6 @@ function OpsAppShellRitad({
   // ⛔ MÅLET ÄR ALLTID DEN AKTIVA GRUPPEN (0.35.0, #190). CP 2026-09-30: "Ta bort det", om läget "Alla mina grupper". Allt som
   // skapas hamnar i den aktiva gruppen, utan gruppväljare, och väljaren "Skapa i" visar bara appens EGNA mål (`skapaISektioner`,
   // t.ex. "Mina kalendrar"). Den öppnas bara från raden "Skapas i" och bara för en moduls formulär, eftersom bara det tar emot `mal`.
-  // Ett meddelande hör till en grupp och har inga andra mål, så det får ingen väljare.
   const skapaGrupperLista = grupper?.lista ?? [];
   const skapaEffektivGrupp = skapaLaget?.grupp ?? null;
   // ══ ⛔ 0.37.0 (#179 F2, F3): "SKAPA I" FÖR EN HÄNDELSE ÄR KALENDRARNA ════════════════════════════════════════════
@@ -1310,10 +1331,6 @@ function OpsAppShellRitad({
   } else if (skapaForm?.kind === "grupp" && typeof skapa?.grupp === "function") {
     skapaModalTitel = nyGruppEtikett;
     skapaModalInnehall = <GruppRitare rita={skapa.grupp} formId={skapaFormId} onKlar={() => stangSkapa(true)} />;
-    skapaHarFormKonsument = true;
-  } else if (skapaForm?.kind === "meddelande" && typeof skapa?.meddelande === "function") {
-    skapaModalTitel = nyttMeddelandeEtikett;
-    skapaModalInnehall = <MeddelandeRitare rita={skapa.meddelande} formId={skapaFormId} groupId={skapaEffektivGrupp} onKlar={() => stangSkapa(true)} />;
     skapaHarFormKonsument = true;
   } else if (skapaForm?.kind === "redigeragrupp" && typeof skapa?.redigeraGrupp === "function") {
     skapaModalTitel = redigeraGruppEtikett;
@@ -1473,8 +1490,9 @@ function OpsAppShellRitad({
               onClick={() => oppna({ kind: "arende" })}
             />
           ) : null}
-          {/* ⛔ 0.34.0, #182: "Nytt meddelande" efter ärendet och före gruppen. Ett meddelande är en post som ärendet, gruppen är en plats. */}
-          {typeof skapa?.meddelande === "function" ? (
+          {/* ⛔ 0.34.0, #182: "Nytt meddelande" efter ärendet och före gruppen. Ett meddelande är en post som ärendet, gruppen är en plats.
+              0.63.0, #263: raden leder till Meddelanden i läget "nytt" (`skapa.nyttMeddelande`), den öppnar ingen panel. */}
+          {typeof skapa?.nyttMeddelande === "function" ? (
             <OpsPanelRow icon={<MeddelandeIkon size={18} />} label={nyttMeddelandeEtikett} accent onClick={() => oppna({ kind: "meddelande" })} />
           ) : null}
           {/* ⛔ 0.32.0, #180: "Ny grupp" EFTER händelse och ärende, som SS plusmeny (`AppHeader.jsx:398-425`: kalender, session, grupp). */}
@@ -2083,15 +2101,15 @@ function OpsAppShellRitad({
         {handelsePanelSyns && handelsepanel ? <HandelsepanelRitare key={handelseId} rita={handelsepanel.rita} id={/** @type {string} */ (handelseId)} onTillbaka={() => stangHandelse()} /> : null}
         {skapaPanelSyns ? (
           <OpsSkapaPanel
-            kolumn={skapaForm?.kind === "grupp" || skapaForm?.kind === "redigeragrupp" || skapaForm?.kind === "meddelande" ? "smal" : "bred"}
+            kolumn={skapaForm?.kind === "grupp" || skapaForm?.kind === "redigeragrupp" ? "smal" : "bred"}
             titel={skapaModalTitel || skapaLabel}
             onTillbaka={stangSkapa}
             tillbakaEtikett={skapa?.tillbakaEtikett}
             skapasIEtikett={handelseMedKalendrar ? "Kalender" : skapa?.skapasIEtikett}
-            skapasI={(skapaForm?.kind === "modul" && !(skapaForm.redigera && !redigeraKlar)) || skapaForm?.kind === "meddelande" ? skapaMalNamn : null}
+            skapasI={skapaForm?.kind === "modul" && !(skapaForm.redigera && !redigeraKlar) ? skapaMalNamn : null}
             onByt={skapaHarVaxlare ? () => setSkapaVaxlare(true) : undefined}
             avbrytEtikett={skapa?.avbrytEtikett}
-            sparaEtikett={skapaForm?.kind === "meddelande" ? skickaEtikett : skapaHarFormKonsument ? skapa?.sparaEtikett : undefined}
+            sparaEtikett={skapaHarFormKonsument ? skapa?.sparaEtikett : undefined}
             formId={skapaFormId}
           >
             {skapaModalInnehall}
@@ -2231,7 +2249,6 @@ export const ORD_OPSAPPSHELL = {
   nyttArendeEtikett: { sv: "Nytt ärende", en: "New case" },
   nyGruppEtikett: { sv: "Ny grupp", en: "New group" },
   nyttMeddelandeEtikett: { sv: "Nytt meddelande", en: "New message" },
-  skickaEtikett: { sv: "Skicka", en: "Send" },
   redigeraGruppEtikett: { sv: "Redigera grupp", en: "Edit group" },
   redigeraHandelseEtikett: { sv: "Redigera händelse", en: "Edit event" },
   skapaTypEtikett: { sv: "Typ", en: "Type" },
