@@ -37,6 +37,13 @@ import { tillaggFor } from "../lib/tillagg.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 
 /**
+ * ⛔ EN VÄG IN I INSPELNINGEN UTAN ATT HÅLLA (#276): raden i Skapa och huvudets mikrofonknapp lämnar SAMMA form till
+ * `oppnaSkapa`, som går till `talkStyr.direkt()`. Två vägar hade kunnat glida isär i vad de startar. På modulnivå, fryst:
+ * den är samma objekt i varje rendering och kan inte ändras av den som får den.
+ */
+const TALK_FORM = Object.freeze({ kind: "talk" });
+
+/**
  * En rad i en rullgardin: en modul (Hubs barn) med egna undersidor som fälls ut och in (0.30.1).
  *
  * ⛔ SAMMA REGEL SOM `OpsHub`s KORT (CP 2026-09-29 13:44: "ekonomi skall vara expanderbar"). Före 0.30.1 stod
@@ -1445,9 +1452,6 @@ function OpsAppShellRitad({
     ),
   );
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
-  // ⛔ EN VÄG IN I INSPELNINGEN UTAN ATT HÅLLA (#276): raden i Skapa och huvudets mikrofonknapp lämnar SAMMA form till
-  // `oppnaSkapa`, som går till `talkStyr.direkt()`. Två vägar hade kunnat glida isär i vad de startar.
-  const TALK_FORM = { kind: "talk" };
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const talkStyr = useTalk({
     onTalk: (blob, meta) => talk?.onTalk(blob, meta),
