@@ -1151,8 +1151,9 @@ function Rostrad({ rost, texter: t }) {
   return (
     <div data-rostlage="fel" role="alert" className="flex shrink-0 flex-wrap items-center gap-x-2 border-t border-line px-3 pt-1 text-meta text-danger">
       <span className="min-w-0 flex-1">
-        {t.transkriptionFel}
-        {rost.fel ? ` ${rost.fel}` : ""}
+        {/* ⛔ "Kunde inte skrivas ut" bara när det finns ett ljud som inte skrevs ut. Ett fel innan något spelats in (mikrofonen
+            nekad, en annan inspelning pågår) säger sitt eget skäl och inget om utskriften. */}
+        {rost.harLjud() ? `${t.transkriptionFel}${rost.fel ? ` ${rost.fel}` : ""}` : rost.fel || t.transkriptionFel}
       </span>
       {rost.harLjud() ? (
         <>

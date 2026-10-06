@@ -19,6 +19,18 @@ import { KryssIkon, KugghjulIkon, MikrofonIkon } from "./icons.jsx";
  */
 
 /**
+ * ⛔ EN MIKROFON ÅT GÅNGEN, FÖR HELA SIDAN. Varje `useTalk` har sin egen inspelare, och sedan 0.72.0 finns två på samma sida:
+ * TALK-knappen i huvudet (0.71.0) och ljudvågen i chattens skrivfält. Utan en gemensam spärr spelade båda in samtidigt, och samma
+ * ord gick både till appens TALK och in i chattens fält. Den som försöker starta en andra får ett fel som säger vad som pågår, och
+ * den första spelar in vidare. Inget ljud kastas av spärren.
+ * @type {object | null}
+ */
+let mikrofonenUpptagenAv = null;
+
+/** Felet när en annan del av sidan redan spelar in. */
+export const TALK_UPPTAGEN = "En annan inspelning pågår redan. Avsluta den först.";
+
+/**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
 export function useTalk({ onTalk, onKlick, inspelare }) {
@@ -37,6 +49,9 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   };
+  const frigor = () => {
+    if (mikrofonenUpptagenAv === inspRef) mikrofonenUpptagenAv = null;
+  };
 
   const skicka = useCallback(
     /** @param {import("../lib/talk.js").Talkhandelse} h */
@@ -52,8 +67,14 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
         } catch (fel) {
           rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta" });
         }
+        frigor();
       }
       if (nasta.gor === "starta") {
+        if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
+          skicka({ typ: "fel", text: TALK_UPPTAGEN });
+          return;
+        }
+        mikrofonenUpptagenAv = inspRef;
         insp()
           .starta()
           .then(() => {
@@ -61,16 +82,21 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
             const l = lageRef.current.lage;
             if (l !== "haller" && l !== "lyssnar") {
               insp().kasta();
+              frigor();
               return;
             }
             tak.current = setTimeout(() => skicka({ typ: "tak" }), MAX_SEKUNDER * 1000);
           })
-          .catch((fel) => skicka({ typ: "fel", text: talkFeltext(fel) }));
+          .catch((fel) => {
+            frigor();
+            skicka({ typ: "fel", text: talkFeltext(fel) });
+          });
       }
       if (nasta.gor === "skicka") {
         if (tak.current) clearTimeout(tak.current);
         insp()
           .stoppa()
+          .finally(frigor)
           .then(({ blob, mimeType, sekunder }) => onTalk(blob, { mimeType, sekunder }))
           .then(() => skicka({ typ: "klar" }))
           .catch((fel) => {
@@ -86,6 +112,7 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
     rensa();
     if (tak.current) clearTimeout(tak.current);
     if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") inspRef.current?.kasta();
+    frigor();
   }, []);
 
   /**

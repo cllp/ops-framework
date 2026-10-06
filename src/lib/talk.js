@@ -26,6 +26,24 @@ export const LANGTRYCK_MS = 450;
 /** Den enda text knappen visar medan fingret ligger kvar (CP 2026-10-04: "Den skall bara heta en sak"). */
 export const TALK_ORD = "TALK";
 
+/**
+ * Namnet på vägen in i TALK utan att hålla (#276): raden i Skapa och huvudets mikrofonknapp på dator. EN sträng, så
+ * att raden och knappen inte kan börja heta olika saker.
+ */
+export const TALK_PRATA_IN = "TALK, prata in";
+
+/**
+ * Huvudets mikrofonknapp säger vilket läge inspelningen är i (#276). Namnet är det skärmläsaren läser och det tooltipen
+ * visar, så den som inte ser att knappen är tänd hör det i stället.
+ * @param {Talklage} lage
+ * @returns {string}
+ */
+export function talkKnappNamn(lage) {
+  if (lage === "haller" || lage === "lyssnar") return `${TALK_ORD}, lyssnar`;
+  if (lage === "skickar") return `${TALK_ORD}, skickar`;
+  return TALK_PRATA_IN;
+}
+
 /** Längsta inspelningen. Ett fält som glömts öppet ska inte spela in i en timme. */
 export const MAX_SEKUNDER = 120;
 

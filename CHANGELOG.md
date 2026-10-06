@@ -9,10 +9,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## Ej utgiven: chattens nattskiva (#273 och chattanalysen)
-
-⛔ **Versionen sätts vid merge.** 0.69.0 och 0.70.0 är utgivna, och 0.71.0 och 0.72.0 är tagna av andra öppna PR:ar, så rubriken byts mot nästa lediga nummer när den
-här mergas.
+## 0.72.0: chattens nattskiva (#273 och chattanalysen)
 
 CP 2026-10-06 20:02 i LifeHubs agentsamtal: "jag skulle vilja ha en indikation medans du tänker och skriver i chatten", och agentens
 svar ritades med råa `**`. Samma kväll kom chattanalysen (SessionStudio mot ramverket), och CP:s beslut för natten: ett meddelande kan
@@ -54,6 +51,11 @@ heter samma sak.
 ### Rättat
 
 - Fokus tillbaka till trådens märke (KAN 6) efter att loggen börjat samla det som setts.
+- ⛔ **En mikrofon åt gången.** TALK-knappen i huvudet (0.71.0) och ljudvågen i skrivfältet har var sin `useTalk`, och utan en
+  gemensam spärr spelade båda in samtidigt. Nu får den som startar som nummer två felet "En annan inspelning pågår redan. Avsluta
+  den först.", och den första spelar vidare. Inget ljud kastas av spärren. Prov: `chatt-talk-krock.test.jsx`, rött utan spärren.
+- Skrivfältets felrad säger "Det inspelade kunde inte skrivas ut" bara när det finns ett ljud som inte skrevs ut. En nekad
+  mikrofon eller en upptagen inspelning säger sitt eget skäl.
 
 ### Ompinning
 
@@ -66,6 +68,26 @@ heter samma sak.
    `OpsMeddelandeLank olastaFler`.
 
 ---
+## 0.71.0
+
+⛔ **Mergas efter 0.70.0 (PR 275), som mergas efter 0.69.0 (PR 278).** Ordningen är satt av utvecklingschefen 2026-10-06.
+
+### TALK får en egen knapp i webbens huvud (#276)
+
+CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn på webben: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." På dator fanns TALK bara som första rad i Skapa, alltså två klick (plusset, sedan raden). På mobil är vägen redan ett långtryck på bottenradens plus (0.57.0).
+
+#### Tillagt
+
+- **En mikrofonknapp i huvudet på dator, direkt till höger om plusset.** Den ritas bara när appen skickar in `talk`, och bara från `md` (`hidden md:inline-flex`, display i en klass som huvudets övriga knappar). Den är huvudets vanliga ikonknapp (`huvudknappKlass`): 36 px cirkel med 20 px ikon vid 1280, 44 px träffyta, och samma namn i tooltipen som i uppläsningen.
+- ⛔ **Samma väg som raden i Skapa, ingen andra inspelningsväg.** Knappen och raden lämnar samma form (`TALK_FORM`, en fryst konstant på modulnivå) till `oppnaSkapa`, som går till `talkStyr.direkt()`. Det är samma krok, samma inspelare och samma fält som plusset och raden använder. Knappen använder inte `talkStyr.knapp`: de händelserna är plussets, där ett vanligt tryck är Skapa och bara ett långtryck spelar in. Här är ett vanligt tryck inspelningen.
+- **Knappen visar inspelningsläget.** Medan den lyssnar eller skickar är den tänd (`bg-raised text-accent`, som en öppen knapp i huvudet), och namnet följer läget: "TALK, prata in", "TALK, lyssnar", "TALK, skickar" (`talkKnappNamn` i `lib/talk.js`). Den som inte ser att knappen är tänd hör det i stället.
+- `TALK_PRATA_IN` i `lib/talk.js` är raden och knappens gemensamma namn, så att de inte kan börja heta olika saker.
+- Raden "TALK, prata in" i Skapa står kvar. Mobilen ändras inte.
+
+#### Prov
+
+- `talk.test.jsx`, "mikrofonknappen i huvudet": knappen finns i huvudet med `talk`, som plussets närmaste granne och med ett namn, och saknas utan `talk`; ett tryck startar samma inspelare och samma fält som raden, bottenradens plus står i samma läge (samma krok), knappen säger "TALK, lyssnar" och ljudet når appen; display bärs av `hidden md:inline-flex` utan bar `inline-flex`. Alla tre röda utan ändringen. Dessutom: namnet blir "TALK, skickar" medan ljudet lämnas till appen (rött när skickar-namnet tas bort), och ett tryck under håll, lyssnar eller skickar startar ingen andra inspelning, både i `talkNasta` och i skalet (rött när `direkt` startar om i alla lägen).
+- `check-skalyta` avsnitt 43, scenen `talk`: vid 1280 px står knappen 0 till 4 px från plussets högerkant, är en 36 px cirkel med 20 px ikon, har plussets mittlinje inom 1 px, träffas på hela den ritade cirkeln (`elementFromPoint`), och ett tryck öppnar fältet i läget lyssnar medan knappen är tänd. Vid 390 px har knappen `display: none` och bottenradens plus är kvar. Skärmbilder i `docs/jamforelser/`.
 ## 0.70.0
 
 ⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, mergad medan den här grenen var öppen, och inmergad hit med en vanlig merge) och 0.69.0 är #278 (#274), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.70.0.
