@@ -176,6 +176,11 @@ function antalI(x, falt) {
 /** Varningen för `hornmarken` skrivs en gång per sidladdning. */
 let hornmarkenVarnad = false;
 
+/** Bara för prov: nollställer "en gång per sidladdning", så att provet inte beror på vilka prov som körts före. */
+export function aterstallHornmarkenVarning() {
+  hornmarkenVarnad = false;
+}
+
 /** @param {string} text */
 function utvecklingsvarning(text) {
   // ⛔ Bara när bygget säger att det är utveckling (Vite och Vitest sätter `import.meta.env.DEV`). Ramverkets egen dist har ingen

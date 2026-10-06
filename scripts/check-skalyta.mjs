@@ -4488,7 +4488,7 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
   await context.close();
 }
 
-// ══ 41. LAGER OCH TILLGÄNGLIGHET I DAGSRUTAN MOT SS FRÅN 300 TILL 1280 PX (0.61.0, #259 skiva 1) ══════════════════════════════════
+// ══ 41. LAGER OCH TILLGÄNGLIGHET I DAGSRUTAN MOT SS FRÅN 310 TILL 1280 PX (0.61.0, #259 skiva 1) ══════════════════════════════════
 // CP 2026-10-06: "Det tog LÅNG tid att få till ikonerna för lager och tillgänglighet särskilt i mobil vy och native med små celler så
 // studera det NOGA", och samma morgon "Allt finns i SessionStudio", alltså SS i varje bredd: SS-appen under 640 px, SS webb från.
 //
@@ -4515,7 +4515,7 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
 //   (c) telefon: en ensam lagerbricka sitter 4 px högre än en ensam borta-bricka, mätt mot sin ruta, med samma överhäng;
 //   (d) telefon: med båda: 16 px mellan överkanterna, borta överst och lagret ovanpå (senare i ordningen);
 //   (e) ingen bricka eller ikon skär siffrans glyfer;
-//   (e2) ingen bricka skär någon siffra i bild, inte heller grannens (den smala rutans risk);
+//   (e2) ingen bricka skär någon siffra i bild, inte heller grannens (den smala rutans risk), med tillgängligheten på och av;
 //   (f) rutans höjd är densamma med och utan brickor, rad och ram (samma dagar med tillgänglighet och lager avslagna);
 //   (g) telefon: räknaren ligger inom cirkelns ytterkant, också för `9+`, står 2, 9+ och 2 på mätdagarna, och saknas vid 1;
 //   (h) telefon: siffrans ruta 5 px in från rutans vänsterkant och 28 px bred, krympt bara där brickan annars täckt siffran, och
@@ -4731,22 +4731,41 @@ for (const [vp, vecka] of /** @type {[{ width: number, height: number }, boolean
       await page.waitForTimeout(200);
       await page.screenshot({ path: path.join(bildmapp, `tillganglighet-${vp.width}.png`) });
     }
+    // (e2) ingen bricka skär NÅGON siffra, inte heller grannens: i en smal ruta går brickan längre ut, och då är det grannen den
+    // når (granskningen av PR 260, tredje varvet). Alla synliga brickor mot alla synliga siffror, med oktober och november i bild
+    // (8 oktober och 18 november bär båda brickorna). ⛔ MED TILLGÄNGLIGHETEN PÅ OCH AV (fjärde varvet): mätt bara efter avslag såg
+    // den enbart lagerbrickor, och en borta-bricka som gick för långt ut syntes aldrig.
+    const matGranne = async () => {
+      const ut = { borta: 0, lager: 0, bada: 0, glyfer: 0, /** @type {string[]} */ traff: [] };
+      for (const dag of ["2026-10-08", "2026-11-18"]) {
+        await page.evaluate((d) => { const c = document.querySelector(`[data-cal-day="${d}"]`); if (c) c.scrollIntoView({ block: "center" }); }, dag);
+        await page.waitForTimeout(80);
+        const g = await page.evaluate(() => {
+          const syns = (/** @type {Element} */ e) => { const x = e.getBoundingClientRect(); return x.width > 0 && x.height > 0 && x.bottom > 0 && x.top < innerHeight; };
+          const glyfer = [...document.querySelectorAll("[data-dagnummer]")].filter(syns).map((n) => { const r = document.createRange(); r.selectNodeContents(n); const gl = r.getBoundingClientRect(); return { dag: /** @type {Element} */ (n.closest("[data-cal-day]")).getAttribute("data-cal-day"), g: gl }; });
+          const brickor = [...document.querySelectorAll("[data-hornmarke], [data-indikator]")].filter(syns).map((b) => ({ id: b.getAttribute("data-hornmarke") || b.getAttribute("data-indikator"), dag: /** @type {Element} */ (b.closest("[data-cal-day]")).getAttribute("data-cal-day"), r: b.getBoundingClientRect() }));
+          const traff = [];
+          for (const b of brickor) for (const x of glyfer) if (b.r.left < x.g.right && b.r.right > x.g.left && b.r.top < x.g.bottom && b.r.bottom > x.g.top) traff.push(`${b.id} ${b.dag} över ${x.dag}`);
+          const perDag = new Map();
+          for (const b of brickor) perDag.set(b.dag, (perDag.get(b.dag) || new Set()).add(b.id));
+          return { borta: brickor.filter((b) => b.id === "borta").length, lager: brickor.filter((b) => b.id === "lager").length, bada: [...perDag.values()].filter((x) => x.size === 2).length, glyfer: glyfer.length, traff };
+        });
+        ut.borta += g.borta; ut.lager += g.lager; ut.bada += g.bada; ut.glyfer += g.glyfer; ut.traff.push(...g.traff);
+      }
+      return ut;
+    };
+    const granneMed = await matGranne();
+    matt.push(`${namn}: (e2) med tillgänglighet ${JSON.stringify({ ...granneMed, traff: granneMed.traff.length })}`);
+    krav(granneMed.borta >= 3 && granneMed.lager >= 2 && granneMed.bada >= 1 && granneMed.glyfer >= 40 && granneMed.traff.length === 0, `${namn} (e2): med tillgängligheten på skär ${granneMed.traff.length} brickor en siffra (${granneMed.traff.slice(0, 4).join(", ")}); i bild ${granneMed.borta} borta-, ${granneMed.lager} lagermarkeringar, ${granneMed.bada} dagar med båda och ${granneMed.glyfer} siffror, väntat ingen träff (golv 3, 2, 1 och 40).`);
+
     await page.getByRole("button", { name: "Tillgänglighet" }).click();
     await page.waitForTimeout(150);
     const kvar = await page.evaluate(() => document.querySelectorAll('[data-hornmarke="borta"], [data-indikator="borta"], [data-narvaro]').length);
     krav(kvar === 0, `${namn} (j): ${kvar} borta-markeringar eller N/N kvar efter att tillgängligheten slagits av, väntat inga.`);
 
-    // (e2) ingen bricka skär NÅGON siffra, inte heller grannens: i en smal ruta går brickan längre ut, och då är det grannen den
-    // når (granskningen av PR 260, tredje varvet). Alla synliga brickor mot alla synliga siffror på sidan.
-    const granne = await page.evaluate(() => {
-      const syns = (/** @type {Element} */ e) => { const x = e.getBoundingClientRect(); return x.width > 0 && x.height > 0 && x.bottom > 0 && x.top < innerHeight; };
-      const glyfer = [...document.querySelectorAll("[data-dagnummer]")].filter(syns).map((n) => { const r = document.createRange(); r.selectNodeContents(n); const g = r.getBoundingClientRect(); return { dag: /** @type {Element} */ (n.closest("[data-cal-day]")).getAttribute("data-cal-day"), g }; });
-      const brickor = [...document.querySelectorAll("[data-hornmarke], [data-indikator]")].filter(syns).map((b) => ({ dag: /** @type {Element} */ (b.closest("[data-cal-day]")).getAttribute("data-cal-day"), r: b.getBoundingClientRect() }));
-      const traff = [];
-      for (const b of brickor) for (const x of glyfer) if (b.r.left < x.g.right && b.r.right > x.g.left && b.r.top < x.g.bottom && b.r.bottom > x.g.top) traff.push(`${b.dag} över ${x.dag}`);
-      return { brickor: brickor.length, glyfer: glyfer.length, traff };
-    });
-    krav(granne.brickor >= 2 && granne.glyfer >= 20 && granne.traff.length === 0, `${namn} (e2): ${granne.traff.length} brickor skär en siffra (${granne.traff.slice(0, 4).join(", ")}) av ${granne.brickor} brickor och ${granne.glyfer} siffror i bild, väntat ingen (golv 2 och 20).`);
+
+    const granneUtan = await matGranne();
+    krav(granneUtan.borta === 0 && granneUtan.lager >= 2 && granneUtan.glyfer >= 40 && granneUtan.traff.length === 0, `${namn} (e2): med tillgängligheten av skär ${granneUtan.traff.length} brickor en siffra (${granneUtan.traff.slice(0, 4).join(", ")}); i bild ${granneUtan.borta} borta- och ${granneUtan.lager} lagermarkeringar, väntat ingen träff, inga borta och minst 2 lager (golv 40 siffror).`);
 
     // (f) samma höjd: samma dagar med tillgänglighet och lager avslagna, alltså helt utan dekor, är jämförelsen. (En granne i samma
     // rad räcker inte från 640 px, där nästan varje dag bär `N/N` i raden och alltså växer lika mycket som dagen den jämförs med.)

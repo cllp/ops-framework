@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { aterstallHornmarkenVarning } from "../components/OpsCalendarDagruta.jsx";
 import {
   dateKey,
   dateText,
@@ -896,6 +897,7 @@ describe("OpsKalender", () => {
   });
 
   it("⛔ ett antal som inte är ett heltal, och en kvarlämnad hornmarken, varnar i utveckling i stället för att tyst inte rita", () => {
+    aterstallHornmarkenVarning();
     const varn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       /** @type {Record<string, any>} */
