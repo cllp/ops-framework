@@ -9,6 +9,64 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgiven: chattens nattskiva (#273 och chattanalysen)
+
+⛔ **Versionen sätts vid merge.** 0.69.0 till 0.72.0 är tagna av andra öppna PR:ar, så rubriken byts mot nästa lediga nummer när den
+här mergas.
+
+CP 2026-10-06 20:02 i LifeHubs agentsamtal: "jag skulle vilja ha en indikation medans du tänker och skriver i chatten", och agentens
+svar ritades med råa `**`. Samma kväll kom chattanalysen (SessionStudio mot ramverket), och CP:s beslut för natten: ett meddelande kan
+inte ångras eller redigeras, trådar får inget eget läsmärke, läskvitton och push byggs inte, och bilagor väntar på bilagemodulen i
+ops-framework PR 277.
+
+⛔ **Varje ny undersamling och varje nytt meddelandefält är en NY NYCKEL, utan förval**, till `createSamtalskalla` och
+`samtalsregelfragment`: `status`, `reaktioner`, `fasta`, `omnamnanden: true` och `citat: true`. En app som inte skickar nyckeln får
+byte för byte samma regeltext som i 0.68.0 (prov mot `rules/__fixturer__/samtalsregelfragment-0.67.0.rules` och den nya
+`-0.68.0-tradar.rules`), och vyn ritar inget nytt. `undersamlingskrock` är det enda stället som prövar att två undersamlingar inte
+heter samma sak.
+
+### Lagt till
+
+- **Markdown i bubblan** (#273): `OpsMarkdown chatt`, chattens delmängd av `splitMarkdown(text, { chatt: true })`. Fet, kursiv (nytt
+  i parsern: `*` och `_` vid ordgräns), listor, radbrytningar och klickbara http- och https-länkar i ny flik med `rel="noopener"`.
+  Ingen HTML; rubriker, tabeller, citat och kodblock står kvar som text i chatten. Prov med injektionsförsök.
+- **Agentens status** (#273, `status`): `<status>/agent { lage, sedan }` under samtalet och tråden, bara servern skriver. "Agenten
+  tänker" eller "Agenten skriver" där svaret kommer; äldre än två minuter visas den inte, och en felrad står i stället. `byggAgentstatus`
+  och konstanterna också i `node`-delen. Källan: `lasStatus`, `prenumereraStatus`, `harStatus`.
+- **Visa äldre** och **50+**: kontraktets nya villkor `fore: { falt, varde }` (`foreVillkor`), i minnet, JSON, Firestore och Postgres;
+  http-adaptern kastar. `aldreMeddelanden` tappar inte två meddelanden samma millisekund. Knappen överst i loggen, i samtalet och i
+  tråden; det som setts stannar, och rullningen står kvar. `olastaFler` i `oversikt` och `useSamtal`, `onOlasta(antal, { fler })`,
+  `OpsCountBadge fler`, `OpsIconLink badgeFler` och `OpsMeddelandeLank olastaFler`.
+- **Reaktioner** (`reaktioner`): `<reaktioner>/{mid|uid|kod}` med sex fasta koder, emoji bara i vyn; skapa och radera bara sin egen,
+  aldrig uppdatera; meddelandet i samma samtal. En lyssnare per samtal och tråd (`REAKTIONSTAK`). Chips med `aria-pressed` och en
+  väljare med 44 px, pilar och Escape.
+- **Omnämnanden, @alla och @agent** (`omnamnanden: true`): `namner: [uid] | ["alla"]`, högst 20. Regeln prövar formen, läsaren
+  auktoriserar (`namnda`, `arNamnd`), "alla" expanderas vid läsning. `agentenNamnd` för appens agent, också i `node`.
+  `samtalsnotiser({ medlemmar })` ger "nämnd i gruppchatten". @-lista i skrivfältet.
+- **Svar med citat i privata samtal** (`citat: true`): `svarPa: mid`, regeln kräver samma samtal och inte gruppchatten; citatet
+  härleds. **Sök i samtalet** bland de laddade meddelandena, med träffar, bläddring och omfång utskrivet.
+- **Fästa meddelanden** (`fasta`): `<fasta>/{mid} { av, tid }`, samtalets personer lossar. Raden "n fästa" under huvudet.
+- **Länk till post som kort**: `postkort={{ slaUpp, onOppna? }}`. Appen slår upp sina egna adresser; ramverket känner inga posttyper.
+- **Skrivfältet efter CP:s förebild**: rundat fält, platstext efter samtalet, ljudvåg för röstinmatning (`onTranscribe`, TALK:s
+  inspelning, texten in i fältet utan att skickas, ljudet sparas om transkriberingen faller), stopp när något pågår
+  (`onStoppaAgent`). Plusmenyn är byggd men inte inkopplad förrän bilagemodulen finns.
+
+### Rättat
+
+- Fokus tillbaka till trådens märke (KAN 6) efter att loggen börjat samla det som setts.
+
+### Ompinning
+
+1. **Regeldeploy före klienten**, med de nycklar appen vill ha, samma som till `createSamtalskalla`:
+   `samtalsregelfragment({ tradar, status: "status", reaktioner: "reaktioner", fasta: "fasta", omnamnanden: true, citat: true })`.
+   En klient som läser `status`, `reaktioner` eller `fasta` innan reglerna är ute faller på catch-allen.
+2. **Agentens server** skriver `<status>/agent` med `byggAgentstatus` innan den börjar och tar bort det när svaret är skrivet eller
+   felet visat, och läser `agentenNamnd(meddelande, agentUid, medlemmar)` i stället för en regex på `@agent`.
+3. **Valfritt**: `postkort`, `onTranscribe`, `onStoppaAgent`, `samtalsnotiser({ medlemmar })`, och `onOlasta`:s andra argument till
+   `OpsMeddelandeLank olastaFler`.
+
+---
+
 ## 0.68.0
 
 ### Trådar i gruppchatten (cllp/lifehub.app#60)
