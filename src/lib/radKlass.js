@@ -97,6 +97,16 @@ export function radBehallare({ ark = false } = {}) {
  * ⛔ BARA UNDER `md`. CP samma dag: "563 är bara i mobil." På dator står SS 20 px
  * kvar (`md:p-2 md:[&_svg]:size-5`): klagomålet gällde fingret, inte musen.
  *
+ * ⛔ 0.62.0: UNDER `md` ÄR KNAPPEN SJÄLV 44 PX (`size-11 p-2.5`), INTE 36 MED EN
+ * OSYNLIG 44-YTA. CP 2026-10-06 i cllp/bolag-ops#565: "Fortfarande lite svårt att
+ * träffa ikonerna i header och bottenlagen." Mätt med `elementFromPoint` i 390 px:
+ * den faktiska träffytan var 36x44 eller 38x44, inte 44x44. Knapparna står 2 px
+ * isär (`gap-0.5`), så den osynliga `after:size-11` hamnade UNDER grannen, och
+ * grannen vann varje tryck i de överlappande 8 px. `check-skalyta` mätte
+ * pseudoelementets storlek och såg 44: falsk grönhet, nu ersatt av en mätning av
+ * var ett tryck faktiskt landar (avsnitt 6b). Den synliga cirkeln (hover, öppen)
+ * blir 44 på mobil; på dator står 36 och `after:`-ytan kvar, där en mus träffar.
+ *
  * ⛔ 44 PX TRÄFFYTA BEHÅLLS, MEN SOM EN OSYNLIG YTA. Storleken man SER är 36;
  * storleken man TRÄFFAR är 44 (`after:size-11`), utan att röra radens höjd.
  * Samma lösning som toppradens chevron redan hade (#90): en synlig storlek som
@@ -113,7 +123,7 @@ export function radBehallare({ ark = false } = {}) {
  */
 export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {}) {
   return cx(
-    "relative size-9 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 [&_svg]:size-6 md:p-2 md:[&_svg]:size-5",
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 md:size-9 md:p-2 md:[&_svg]:size-5",
     visning,
     "transition-colors duration-(--duration-fast) ease-standard",
     aktiv === true && "bg-raised text-accent",
@@ -136,8 +146,8 @@ export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {})
  * ikonerna i topraden till höger?" Plusset är huvudåtgärden, och på mobil är det redan den enda fyllda ytan i bottenraden.
  * Därför från `md`: 40 px fylld accent (`bg-accent text-accent-contrast`), 24 px plus, först i klustret.
  *
- * ⛔ UNDER `md` ÄR ALLT SOM FÖRE. Finns ingen bottenrad med eget plus (`synligMobil`) står den dämpade 36 px cirkeln kvar, så
- * bara datorn ändras. Med bottenraden är plusset gömt under `md` (ett plus per yta).
+ * ⛔ UNDER `md` ÄR ALLT SOM FÖRE. Finns ingen bottenrad med eget plus (`synligMobil`) står den dämpade cirkeln kvar, så
+ * bara datorn ändras. ⛔ 0.62.0 (bolag-ops#565): den är 44 px under `md`, av samma skäl som `huvudknappKlass`. Med bottenraden är plusset gömt under `md` (ett plus per yta).
  *
  * ⛔ DISPLAY ÄGS AV EN KLASSTRÄNG: `inline-flex` eller `hidden md:inline-flex`, aldrig båda (se `huvudknappKlass`).
  * ⛔ Träffytan är 44 px som en osynlig `after:`-yta, också på den 40 px stora cirkeln.
@@ -149,7 +159,7 @@ export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {})
  */
 export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
   return cx(
-    "relative size-9 shrink-0 cursor-pointer items-center justify-center rounded-full p-1.5 [&_svg]:size-6 md:size-10 md:p-2",
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 md:size-10 md:p-2",
     synligMobil ? "inline-flex" : "hidden md:inline-flex",
     "transition-colors duration-(--duration-fast) ease-standard",
     // Under md: som toppradens övriga ikoner.

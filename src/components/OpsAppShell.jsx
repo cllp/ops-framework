@@ -1753,11 +1753,13 @@ function OpsAppShellRitad({
                 utanför med `outline-offset-2`. */}
             {/* ⛔ 0.31.1: UNDER `md` RITAS MÄRKET INTE ALLS när `grupper` finns. Gruppväxlaren (ikonen) står längst till vänster i
                 stället (CP 2026-09-29 18:40: "Header i mobil skall vi ta bort texten helt"). Startsidan nås ur bottenraden.
-                Utan `grupper` finns ingen växlare att ersätta märket med, och monogrammet står kvar som förut. */}
+                Utan `grupper` finns ingen växlare att ersätta märket med, och monogrammet står kvar som förut.
+                ⛔ 0.62.0 (bolag-ops#565): då är länken minst 44x44 under `md` (monogrammet är 40), mätt med elementFromPoint i
+                `check-skalyta` 6b. Från `md` som förut. */}
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:flex md:items-center md:gap-2" : "block")}
+              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:flex md:items-center md:gap-2" : "flex min-h-11 min-w-11 items-center md:block md:min-h-0 md:min-w-0")}
             >
               {varumarke}
             </a>

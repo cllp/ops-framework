@@ -77,9 +77,9 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
         avatar
           ? cx(
               // ⛔ 32 px knapp, 28 px avatar, ring vid hover. 44 px träffyta som en osynlig `after:`, som övriga knappar i klustret.
-              "relative inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full p-0.5",
-              "transition-all duration-(--duration-fast) ease-standard",
-              active ? "ring-2 ring-accent" : "hover:ring-2 hover:ring-line-strong",
+              // ⛔ 0.62.0 (bolag-ops#565): under `md` är KNAPPEN 44 px och ringen sitter på den inre 32 px cirkeln (`avatarRing`),
+              // så avataren ser likadan ut men ett tryck intill den inte längre landar hos grannen. Se `huvudknappKlass`.
+              "group relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full md:size-8",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
             )
@@ -91,7 +91,18 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
             )
       }
     >
-      <span aria-hidden="true" className="inline-flex">{avatar && isValidElement(icon) && icon.type === OpsIdentity ? cloneElement(/** @type {any} */ (icon), { size: "avatar" }) : icon}</span>
+      <span
+        aria-hidden="true"
+        className={
+          avatar
+            ? cx(
+                "inline-flex size-8 shrink-0 items-center justify-center rounded-full p-0.5 transition-all duration-(--duration-fast) ease-standard",
+                active ? "ring-2 ring-accent" : "group-hover:ring-2 group-hover:ring-line-strong",
+              )
+            : "inline-flex"
+        }
+      >
+        {avatar && isValidElement(icon) && icon.type === OpsIdentity ? cloneElement(/** @type {any} */ (icon), { size: "avatar" }) : icon}</span>
       {fel ? <OpsFelBadge text={fel} placement="icon" /> : count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" /> : null}
     </a>
   );

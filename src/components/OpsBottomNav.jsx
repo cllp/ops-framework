@@ -259,6 +259,11 @@ function OpsBottomNavRitad({
  * ⛔ 0.59.1 (bolag-ops#563): raden blev 8 px högre, och knappen är centrerad i den. Lyftet gick därför från 12 till 16
  * px, så att knappen sticker upp exakt lika långt över radens överkant som förut och `--bottom-nav-overhang` (16 px)
  * fortfarande stämmer. Med kvar `-translate-y-3` hade knappen sjunkit 4 px ned i raden.
+ *
+ * ⛔ 0.62.0 (bolag-ops#565): KNAPPEN STÅR I RADENS ÖVERKANT (`items-start`) OCH LYFTS `--bottom-nav-overhang` MINUS RINGEN.
+ * Det som hände i 0.59.1 är skälet: så länge knappen var centrerad flyttade varje ändring av radens höjd den, och lyftet
+ * fick räknas om för hand. Nu är talet i tokens.css den enda sanningen om hur långt knappen sticker upp, och radens
+ * höjd (`--bottom-nav-lyft`) kan ändras utan att knappen rör sig.
  * Utan det blir den en cirkel bland fyra ikoner, alltså en femte flik som råkar
  * vara rund, och hela poängen med att skilja "gör" från "gå till" försvinner.
  *
@@ -277,14 +282,14 @@ function Huvudatgard({ atgard }) {
   const handelser = talk ? talk.knapp : { onClick: atgard.onClick };
   const haller = talk?.lage === "haller";
   return (
-    <div className="flex shrink-0 items-center justify-center px-1">
+    <div className="flex shrink-0 items-start justify-center px-1">
       <button
         type="button"
         {...handelser}
         data-talk-knapp={talk ? talk.lage : undefined}
         aria-label={haller ? TALK_ORD : atgard.label}
         className={cx(
-          "-translate-y-4 inline-flex size-14 cursor-pointer touch-none items-center justify-center rounded-full select-none [-webkit-touch-callout:none]",
+          "translate-y-[calc(0.25rem-var(--bottom-nav-overhang))] inline-flex size-14 cursor-pointer touch-none items-center justify-center rounded-full select-none [-webkit-touch-callout:none]",
           "bg-accent text-accent-contrast ring-4 ring-surface",
           "transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-hover",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -313,7 +318,10 @@ function Huvudatgard({ atgard }) {
  */
 function platsKlass(active) {
   return cx(
-    "relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-1.5",
+    // ⛔ 0.62.0 (bolag-ops#565): `justify-start pt-2`, INTE `justify-center`. Ikonens läge bestäms uppifrån (SS paddingTop 8)
+    // och lyftet är luft under etiketten (`--bottom-nav-lyft`). Centrerat steg ikonen bara halva höjdökningen i 0.59.1.
+    // Platsen fyller hela radens höjd (`items-stretch` i raden), så hela kolumnen är träffyta, inte bara ikonen.
+    "relative flex min-h-11 flex-1 flex-col items-center justify-start gap-0.5 px-1 pt-2",
     "text-center transition-colors duration-(--duration-fast) ease-standard",
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
     active ? "text-accent" : "text-ink-muted hover:text-ink-secondary",

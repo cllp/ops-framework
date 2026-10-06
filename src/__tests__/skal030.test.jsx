@@ -249,19 +249,23 @@ describe("C: hover och rundning (#173)", () => {
     render(<OpsIconLink href="/inkorg" icon={<span />} label="Inkorg" />);
     const l = screen.getByRole("link", { name: "Inkorg" });
     // ⛔ 0.59.1 (bolag-ops#563): `p-1.5` runt en 24 px ikon i samma 36 px cirkel, inte SS `p-2` runt 20; bara under md, CP: "563 är bara i mobil". Pixlarna mäts i `check-skalyta`.
-    for (const k of ["rounded-full", "size-9", "p-1.5", "[&_svg]:size-6", "md:p-2", "md:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) expect(l.className).toContain(k);
+    // ⛔ 0.62.0 (bolag-ops#565): under md är knappen själv 44 px (`size-11 p-2.5`), från md SS 36 (`md:size-9 md:p-2`). Den faktiska träffytan mäts med elementFromPoint i `check-skalyta` 6b.
+    for (const k of ["rounded-full", "size-11", "md:size-9", "p-2.5", "[&_svg]:size-6", "md:p-2", "md:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) expect(l.className).toContain(k);
     expect(l.className).not.toContain("min-h-11");
   });
 
   it("avataren: 32 px rund knapp (p-0.5), ring vid hover, accentring när aktiv, OpsIdentity görs 28 px rund", () => {
     const { container, rerender } = render(<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" />} />);
     const l = screen.getByRole("link", { name: "Min profil" });
-    for (const k of ["size-8", "rounded-full", "p-0.5", "hover:ring-2", "hover:ring-line-strong", "after:size-11"]) expect(l.className).toContain(k);
+    // ⛔ 0.62.0 (bolag-ops#565): knappen är 44 px under md och 32 från md; ringen och 32 px-cirkeln bor på den inre ytan.
+    for (const k of ["size-11", "md:size-8", "rounded-full", "after:size-11"]) expect(l.className).toContain(k);
+    const ring = /** @type {HTMLElement} */ (l.firstElementChild);
+    for (const k of ["size-8", "rounded-full", "p-0.5", "group-hover:ring-2", "group-hover:ring-line-strong"]) expect(ring.className).toContain(k);
     const id = container.querySelector('[role="img"]');
     for (const k of ["size-7", "rounded-full"]) expect(id.className).toContain(k);
     expect(id.className).not.toContain("size-9");
     rerender(<OpsIconLink avatar active href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" />} />);
-    expect(screen.getByRole("link", { name: "Min profil" }).className).toContain("ring-accent");
+    expect(/** @type {HTMLElement} */ (screen.getByRole("link", { name: "Min profil" }).firstElementChild).className).toContain("ring-accent");
   });
 
   it("OpsIdentity: size=avatar och rund är cirklar, en grupp förblir en rundad ruta", () => {
