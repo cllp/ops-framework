@@ -60,7 +60,8 @@ const DATUM = /^(\d{4})-(\d{2})-(\d{2})$/;
 const LOKAL_TID = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?$/;
 const MED_ZON = /(Z|[+-]\d{2}:?\d{2})$/;
 // ⛔ STRIKT ISO MED ZON. `Date.parse` ensam godtar "2026-02-30T10:00Z" och räknar den som 2 mars (granskningen av PR 260).
-const ISO_MED_ZON = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?(Z|[+-](?:[01]\d|2[0-3]):?[0-5]\d)$/;
+// ⛔ KOLON I ZONEN (±hh:mm): Safari ger NaN för "+0200", och README lovar ±hh:mm.
+const ISO_MED_ZON = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 const LAGEN = new Set(["dold", "upptagen", "delad"]);
 
 /**

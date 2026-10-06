@@ -279,8 +279,9 @@ export function weekdayNames(locale = DEFAULT_LOCALE) {
   const fmt = new Intl.DateTimeFormat(nyckel, { weekday: "short" });
   // 2024-01-01 var en måndag. Sju dagar framåt ger veckan i rätt ordning.
   const namn = Array.from({ length: 7 }, (_, i) => {
-    const hel = fmt.format(new Date(2024, 0, 1 + i)).replace(/\.$/, "");
-    const ord = /^sv\b/i.test(nyckel) ? hel.slice(0, 3) : hel;
+    const hel = fmt.format(new Date(2024, 0, 1 + i));
+    // Bara svenskan kortas (och tappar en eventuell punkt). Franskans "lun." och norskans "man." är `Intl`:s form och får stå.
+    const ord = /^sv\b/i.test(nyckel) ? hel.replace(/\.$/, "").slice(0, 3) : hel;
     return ord.charAt(0).toUpperCase() + ord.slice(1);
   });
   veckodagscache.set(nyckel, namn);

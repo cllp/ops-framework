@@ -899,12 +899,13 @@ describe("OpsKalender", () => {
     const varn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       /** @type {Record<string, any>} */
-      const dekor = { "2026-10-12": { borta: { antal: "2" } }, "2026-10-13": { lager: { antal: 1.5 } }, "2026-10-14": { hornmarken: [] } };
+      const dekor = { "2026-10-12": { borta: { antal: "2" } }, "2026-10-13": { lager: { antal: 1.5 } }, "2026-10-14": { hornmarken: [] }, "2026-10-15": { hornmarken: [] }, "2026-10-16": { hornmarken: [] } };
       rendera({ entries: [], dagdekor: (/** @type {string} */ d) => dekor[d] });
       const texter = varn.mock.calls.map((c) => String(c[0]));
       expect(texter.some((t) => /borta\.antal är "2"/.test(t))).toBe(true);
       expect(texter.some((t) => /lager\.antal är 1\.5/.test(t))).toBe(true);
-      expect(texter.some((t) => /hornmarken finns inte sedan 0\.61\.0/.test(t))).toBe(true);
+      // Tre dagar med hornmarken, EN varning: den skrivs en gång per sidladdning, inte en gång per ruta.
+      expect(texter.filter((t) => /hornmarken finns inte sedan 0\.61\.0/.test(t)).length).toBe(1);
       expect(ruta("2026-10-12").querySelector("[data-hornmarken]")).toBeNull();
     } finally {
       varn.mockRestore();

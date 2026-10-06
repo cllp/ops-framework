@@ -134,8 +134,9 @@ describe("tillganglighetForDag", () => {
     expect(() => dag([{ uid: "a", start: "2026-02-30T10:00Z", slut: "2026-02-30T11:00Z", lage: "upptagen" }], "2026-03-02")).toThrow(/inget datum/);
     expect(() => dag([{ uid: "a", start: "2026-10-06 10:00Z", slut: "2026-10-06T11:00Z", lage: "upptagen" }])).toThrow(/ingen ISO-tid/);
     expect(() => dag([{ uid: "a", start: "2026-10-06T24:00+02:00", slut: "2026-10-06T25:00+02:00", lage: "upptagen" }])).toThrow(/ingen ISO-tid/);
-    // Giltiga former: Z, ±hh:mm, ±hhmm, med sekunder och bråkdel.
-    expect(dag([{ uid: "a", start: "2026-10-06T09:00:00.000+02:00", slut: "2026-10-06T10:00+0200", lage: "upptagen" }]).map((x) => x.lage)).toEqual(["upptagen"]);
+    // Giltiga former: Z och ±hh:mm, med sekunder och bråkdel. ⛔ Utan kolon (+0200) kastar den: Safari ger NaN för den formen.
+    expect(dag([{ uid: "a", start: "2026-10-06T09:00:00.000+02:00", slut: "2026-10-06T08:00Z", lage: "upptagen" }]).map((x) => x.lage)).toEqual(["upptagen"]);
+    expect(() => dag([{ uid: "a", start: "2026-10-06T09:00+02:00", slut: "2026-10-06T10:00+0200", lage: "upptagen" }])).toThrow(/ingen ISO-tid/);
   });
 
   it("orsakerna ordnas på den tolkade tiden, inte på strängen", () => {

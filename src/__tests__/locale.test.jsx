@@ -59,8 +59,11 @@ describe("månadernas och veckodagarnas namn", () => {
       expect(namn[3]).toBe("Tor");
       expect(namn.every((n) => n.length === 3)).toBe(true);
     }
-    // Andra språk kortas inte: engelskan är redan tre bokstäver och ska få vara vad `Intl` säger.
+    // Andra språk kortas inte och behåller `Intl`:s form, punkten med (granskningen av PR 260).
     expect(weekdayNames("en-GB")[3]).toBe("Thu");
+    const intl = (/** @type {string} */ sprak) => { const ord = new Intl.DateTimeFormat(sprak, { weekday: "short" }).format(new Date(2024, 0, 1)); return ord.charAt(0).toUpperCase() + ord.slice(1); };
+    for (const sprak of ["fr-FR", "nb-NO"]) expect(weekdayNames(sprak)[0]).toBe(intl(sprak));
+    expect(weekdayNames("fr-FR")[0]).toMatch(/\.$/);
   });
 
   it("skriver dagsrubriken på det språk den ombeds", () => {
