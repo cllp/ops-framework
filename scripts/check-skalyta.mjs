@@ -3071,7 +3071,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 //       - plussets rad leder till läget "nytt" INNE I Meddelanden: regionen "Nytt meddelande" ligger i `[data-ops-meddelanden]`,
 //         ingen dialog och ingen skapa-panel (`[data-skapa-panel]`, `[data-skapa-knappar]`) finns, och vid 1280 står listan kvar till vänster med
 //         samma bredd som förut (vid 390 ersätter läget listan, och "Tillbaka" syns);
-//       - minst två att välja med 44 px träffyta, raden om vem som ser samtalet MELLAN väljaren och skrivfältet, och
+//       - minst två att välja med 44 px träffyta, ingen rad om vem som ser samtalet innan något är valt (0.68.0), och
 //         skrivfältet längst ned i panelen och inom fönstret ovanför bottenraden;
 //       - ett val öppnar tråden direkt (`[data-ops-samtal]` med personens namn) innan något är skrivet, och efter Skicka står
 //         raden i listan och bubblan i tråden UTAN någon `focus`-händelse. Listan står kvar vid 1280 hela vägen.
@@ -3229,7 +3229,9 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       krav(!ny.lista.synlig && ny.hoger.synlig && ny.tillbaka, `${namn}: på telefon ersätter läget "nytt" listan (${ny.lista.synlig ? "synlig" : "dold"}) och "Tillbaka" syns (${ny.tillbaka}).`);
     }
     krav(ny.radio.length >= 2 && ny.radio.every((h) => h >= 43.5), `${namn}: ${ny.radio.length} att välja med höjderna ${JSON.stringify(ny.radio)}, väntat minst 2 och 44 px. Golv.`);
-    krav(ny.rad === "Bara ni två ser det här" && ny.ordning, `${namn}: raden om vem som ser samtalet ("${ny.rad}") ska stå mellan väljaren och skrivfältet (${ny.ordning}).`);
+    // ⛔ 0.68.0 (omgranskningen av PR 268, A6): raden följer valet och finns inte innan något är valt. Förut krävdes "Bara ni två
+    // ser det här" här, före valet, vilket var fel om "Hela gruppen" som nu står först. Raden efter valet provas i jsdom.
+    krav(ny.rad === null, `${namn}: innan något är valt ska ingen rad säga vem som ser samtalet (fick "${ny.rad}").`);
     krav(ny.formNederkant !== null && Math.abs(ny.formNederkant - ny.hoger.nederkant) < 1.5 && ny.formNederkant <= ny.vh - bottenrad + 0.5, `${namn}: skrivfältet slutar ${ny.formNederkant}, panelen ${ny.hoger.nederkant}, fönstret minus bottenraden ${ny.vh - bottenrad}. Det ska ligga längst ned och synas.`);
     krav((await over()) <= 0, `${namn}, Nytt meddelande: sidan flödar över ${await over()} px horisontellt.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `nytt-meddelande-${vp.width}.png`) });
@@ -3366,11 +3368,13 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 }
 
 // ══ 29f. GRUPPCHATTEN I EN GRUPP DÄR INGEN HAR SKRIVIT (0.68.0) ══════════════════════════════════════════════════════════
-// CP 2026-10-06, i "Philip Staiger AB" med en medlem och agenten: "Hur skriver jag ett meddelande till hela gruppen?" Listan
+// CP 2026-10-06, i sin grupp med en medlem och agenten: "Hur skriver jag ett meddelande till hela gruppen?" Listan
 // visade bara agentsamtalet och Till bara Agent: vyn anropade aldrig `oppnaGrupp`, och avsnitt 29 sår gruppchatten, så det
 // syntes inte här. Scenen `meddelanden-ny-grupp` har bara agentsamtalet. Krav, vid 390 och 1280:
 //   - gruppchattens rad står ÖVERST med gruppens namn och märket "Grupp", och agentsamtalet under (golv: 2 rader);
-//   - "Nytt meddelande" visar "Hela gruppen" som första val under Till, och valet öppnar gruppchatten med raden
+//   - vid 1280 heter den valda gruppen i sidopanelen samma sak som gruppchatten (omgranskningen av PR 268, A6);
+//   - "Nytt meddelande" visar "Hela gruppen" som första val under Till, med samma färg på märket som gruppchattens rad, och
+//     ingen rad om vem som ser samtalet innan något är valt; valet öppnar gruppchatten med raden
 //     "Alla i gruppen ser det som skrivs här." i det tomma läget;
 //   - ett skickat meddelande står i gruppchatten och i radens utdrag; ingen horisontell överflödning.
 for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -3381,7 +3385,15 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     const rader = await page.evaluate(() => [...document.querySelectorAll("[data-samtalsrad]")].map((r) => ({ slag: r.getAttribute("data-samtalsrad"), text: (r.textContent || "").trim(), etikett: (r.querySelector("[data-slag]")?.textContent || "").trim() })));
     matt.push(`${namn}, listan: ${JSON.stringify(rader)}`);
-    krav(rader.length >= 2 && rader[0].slag === "grupp" && rader[0].text.includes("Philip Staiger AB") && rader[0].etikett === "Grupp", `${namn}: gruppchattens rad ska stå överst med gruppens namn och märket Grupp (${JSON.stringify(rader)}). Golv: 2 rader.`);
+    krav(rader.length >= 2 && rader[0].slag === "grupp" && rader[0].text.includes("Claes Philip Staiger AB") && rader[0].etikett === "Grupp", `${namn}: gruppchattens rad ska stå överst med gruppens namn och märket Grupp (${JSON.stringify(rader)}). Golv: 2 rader.`);
+    if (vp.width >= 1024) {
+      const panel = await page.evaluate(() => document.querySelector('[aria-current="true"][aria-label]')?.getAttribute("aria-label") ?? null);
+      const chatt = await page.evaluate(() => document.querySelector('[data-samtalsrad="grupp"] [role=img]')?.getAttribute("aria-label") ?? null);
+      matt.push(`${namn}, sidopanelens grupp ${JSON.stringify(panel)}, chattens ${JSON.stringify(chatt)}`);
+      krav(panel !== null && panel === chatt, `${namn}: den valda gruppen i sidopanelen (${JSON.stringify(panel)}) ska heta samma sak som gruppchatten (${JSON.stringify(chatt)}).`);
+    }
+    const farg = (/** @type {string} */ sel) => page.evaluate((s) => { const e = document.querySelector(s); return e ? getComputedStyle(e).backgroundColor : null; }, sel);
+    const radfarg = await farg('[data-samtalsrad="grupp"] [role=img]');
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-lista-${vp.width}.png`) });
 
     await page.locator("[data-ops-meddelanden] button", { hasText: "Nytt meddelande" }).first().click();
@@ -3389,6 +3401,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const val = await page.evaluate(() => [...document.querySelectorAll("[data-ops-nytt] [role=radio]")].map((r) => (r.textContent || "").trim()));
     matt.push(`${namn}, Till: ${JSON.stringify(val)}`);
     krav(val[0] === "Hela gruppen" && val.length >= 2, `${namn}: "Hela gruppen" ska stå först under Till (${JSON.stringify(val)}).`);
+    const tillfarg = await farg("[data-ops-nytt] [role=radio] [role=img]");
+    matt.push(`${namn}, märkets färg: raden ${radfarg}, Till ${tillfarg}`);
+    krav(radfarg !== null && radfarg === tillfarg, `${namn}: "Hela gruppen" ska ha gruppchattens märke (raden ${radfarg}, Till ${tillfarg}).`);
+    krav((await page.locator("[data-ops-nytt] [data-privat]").count()) === 0, `${namn}: innan något är valt ska ingen rad säga vem som ser samtalet.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-till-${vp.width}.png`) });
     await page.locator("[data-ops-nytt] [role=radio]").first().click();
     await page.waitForSelector('[data-ops-samtal="grupp"] [data-tomrad]', { timeout: 4000 });

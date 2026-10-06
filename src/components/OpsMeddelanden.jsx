@@ -507,6 +507,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
            */
           <NyttSamtal
             key={groupId}
+            gruppMarke={<OpsIdentity name={gruppNamn} seed={groupId} size="sm" icon={GruppIkon} />}
             kalla={kalla}
             uid={uid}
             groupId={groupId}
@@ -621,9 +622,9 @@ function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
  *
  * ⛔ DET MAN SKRIVIT INNAN VALET FÖLJER MED, och ett Skicka utan mottagare säger vad som saknas i stället för att inte göra något.
  *
- * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, medlemmar: ReadonlyArray<Medlemsrad>, texter: Required<Meddelandetexter>, onOppnat: (samtal: import("../lib/samtal.js").Samtal, text: string) => void }} props
+ * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, medlemmar: ReadonlyArray<Medlemsrad>, texter: Required<Meddelandetexter>, gruppMarke: import("react").ReactNode, onOppnat: (samtal: import("../lib/samtal.js").Samtal, text: string) => void }} props
  */
-function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
+function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, gruppMarke, onOppnat }) {
   const [mottagare, setMottagare] = useState(/** @type {import("../lib/samtal.js").Mottagare | null} */ (null));
   const [text, setTextState] = useState("");
   // ⛔ Texten läses ur en ref när samtalet öppnats, inte ur stängningen: det man skrev MEDAN `oppnaPrivat` pågick följer med.
@@ -685,12 +686,18 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
         <span id={tillId} className="text-meta font-medium text-ink-secondary">
           {t.till}
         </span>
-        <OpsMottagare lage="person" helaGruppen={t.helaGruppen} medlemmar={medlemmar} uid={uid} value={mottagare} onChange={oppna} ariaLabel={t.till} tomText={t.ingenAnnan} />
-        {/* ⛔ Raden syns alltid, också innan någon är vald: det är innan man skriver som man behöver veta vem som läser. */}
-        <p data-privat="" className="m-0 flex items-center gap-1.5 text-meta text-ink-secondary">
-          <LasIkon size={14} />
-          <span>{mottagare?.slag === "grupp" ? t.gruppRad : mottagare?.slag === "agent" ? t.agentRad : t.privatRad}</span>
-        </p>
+        <OpsMottagare lage="person" helaGruppen={t.helaGruppen} gruppMarke={gruppMarke} medlemmar={medlemmar} uid={uid} value={mottagare} onChange={oppna} ariaLabel={t.till} tomText={t.ingenAnnan} />
+        {/*
+          ⛔ RADEN FÖLJER VALET, OCH FINNS INTE INNAN NÅGOT ÄR VALT (0.68.0, omgranskningen av PR 268, A6). Förut stod "Bara ni två
+          ser det här" redan innan valet, med "Hela gruppen" först under Till var det fel om det som låg närmast till hands.
+          Valet öppnar samtalet direkt, och samtalets huvud säger sedan samma sak.
+        */}
+        {mottagare ? (
+          <p data-privat="" className="m-0 flex items-center gap-1.5 text-meta text-ink-secondary">
+            {mottagare.slag !== "grupp" ? <LasIkon size={14} /> : null}
+            <span>{mottagare.slag === "grupp" ? t.gruppRad : mottagare.slag === "agent" ? t.agentRad : t.privatRad}</span>
+          </p>
+        ) : null}
         {fel?.falt === "till" ? (
           <p role="alert" className="m-0 text-meta text-danger">
             {fel.text}

@@ -13,10 +13,15 @@
  *   - `CHANGELOG.md`: de äldre avsnitten beskriver vad som var sant när de gavs ut, och deras release-URL:er är de
  *     filnamn som faktiskt ligger på de releaserna;
  *   - `create-ops-app/`: mallens eget paket ges inte ut och har ett eget namn (`@staiger/create-ops-app`, se 0.67.0);
- *   - `README.md` med ett TAK (2 träffar, stycket om tarbollens namn före 0.67.0). Taket får bara sjunka (regel 4).
+ *   - `README.md` med ett TAK (2 träffar, stycket om tarbollens namn före 0.67.0). Taket får bara sjunka (regel 4), och
+ *     vakten är röd också när träffarna är FÄRRE än taket: då ska taket sänkas, annars får en ny träff plats under det
+ *     gamla taket utan att någon ser den (omgranskningen av PR 268, A4).
  * Mönstren byggs av delar i den här filen och i `test-guards`, så att ingen av dem är ett undantag.
  *
- * ⛔ GOLV: minst 400 lästa filer i repot (568 vid 0.68.0). En vakt som läste noll filer hade varit grön (regel 4).
+ * ⛔ GOLV: minst 540 lästa filer i repot (569 vid 0.68.0). En vakt som läste noll filer hade varit grön (regel 4).
+ * Golvet FÖLJER MED (omgranskningen av PR 268, A4): läser vakten mer än 20 procent över golvet är den röd och säger vilket
+ * golv som ska stå. Ett golv långt under det som faktiskt läses vaktar inte längre mot ett halvtomt underlag, till exempel en
+ * `git ls-files` som bara ser en del av repot. Den som höjer det skriver det nya talet här och i konstanten.
  *
  *   node scripts/check-gammalt-namn.mjs                       repots rot
  *   node scripts/check-gammalt-namn.mjs --rot <mapp> --golv N  för de planterade fallen i test-guards
@@ -32,7 +37,9 @@ const flagga = (/** @type {string} */ n) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const rot = path.resolve(flagga("--rot") ?? path.join(path.dirname(fileURLToPath(import.meta.url)), ".."));
-const golv = Number(flagga("--golv") ?? 400);
+const GOLV = 540;
+const golv = Number(flagga("--golv") ?? GOLV);
+const GOLV_MARGINAL = 1.2;
 
 const SCOPE = "@" + "staiger/";
 const MONSTER = [SCOPE + "ops-framework", "staiger" + "-ops-framework"];
@@ -84,10 +91,19 @@ for (const rel of lista) {
   });
   const tak = TAK[rel] ?? 0;
   if (traffar.length > tak) brott.push(...(tak ? [`${rel}: ${traffar.length} träffar, taket är ${tak}.`] : []), ...traffar);
+  else if (traffar.length < tak) brott.push(`${rel}: ${traffar.length} träffar, taket är ${tak}. Sänk taket till ${traffar.length}, annars får en ny träff plats under det.`);
+}
+// Ett tak för en fil som inte lästes är också ett tak som ska sänkas (till 0, alltså bort).
+for (const [rel, tak] of Object.entries(TAK)) {
+  if (!lista.includes(rel)) brott.push(`${rel}: filen finns inte, taket är ${tak}. Ta bort taket.`);
 }
 
 if (lasta < golv) {
   console.error(`check-gammalt-namn: läste ${lasta} filer i ${rot}, golvet är ${golv}. Fel rot eller tomt underlag, inte ett godkänt utfall.`);
+  process.exit(1);
+}
+if (lasta > golv * GOLV_MARGINAL) {
+  console.error(`check-gammalt-namn: läste ${lasta} filer, golvet ${golv} står mer än 20 procent under. Höj golvet till ${Math.floor(lasta * 0.95)} (GOLV i scripts/check-gammalt-namn.mjs), så att det vaktar mot ett halvtomt underlag igen.`);
   process.exit(1);
 }
 if (brott.length) {

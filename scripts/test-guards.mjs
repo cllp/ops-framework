@@ -342,7 +342,7 @@ kravRott("api golv: tom katalog", [apivakt, path.join(arbetsmapp, "finns-inte")]
     "src/b.css": '@import "ops-framework/tokens.css";\n',
     "CHANGELOG.md": `Paketet hette ${GAMMALT}.\n`,
     "create-ops-app/package.json": `{ "beskrivning": "${GAMMALT}" }\n`,
-    "README.md": `Före 0.67.0 hette paketet ${GAMMALT}.\n`,
+    "README.md": `Före 0.67.0 hette paketet ${GAMMALT}.\nTarbollen hette ${"staiger" + "-ops-framework"}-X.Y.Z.tgz.\n`,
   };
   {
     const k = spawnSync(process.execPath, [namnvakt, "--rot", namnrot("ok", UNDERLAG), "--golv", "5"], { cwd: rot, encoding: "utf8" });
@@ -353,6 +353,9 @@ kravRott("api golv: tom katalog", [apivakt, path.join(arbetsmapp, "finns-inte")]
   kravRott("gammalt namn 2: tarbollens gamla filnamn i ett skript", [namnvakt, "--rot", namnrot("tgz", { ...UNDERLAG, "scripts/x.sh": `curl -LO .../${"staiger" + "-ops-framework"}-0.67.0.tgz\n` }), "--golv", "5"], "är tillbaka");
   kravRott("gammalt namn 3: README över sitt tak", [namnvakt, "--rot", namnrot("tak", { ...UNDERLAG, "README.md": `${GAMMALT}\n${GAMMALT}\n${GAMMALT}\n` }), "--golv", "5"], "taket är 2");
   kravRott("gammalt namn 4: golvet, för få lästa filer", [namnvakt, "--rot", namnrot("golv", UNDERLAG), "--golv", "50"], "golvet är 50");
+  // Omgranskningen av PR 268, A4: taket ska sänkas när träffarna blir färre, och golvet följa med när filerna blir fler.
+  kravRott("gammalt namn 5: README under sitt tak", [namnvakt, "--rot", namnrot("under", { ...UNDERLAG, "README.md": `Före 0.67.0 hette paketet ${GAMMALT}.\n` }), "--golv", "5"], "Sänk taket till 1");
+  kravRott("gammalt namn 6: golvet står långt under det som läses", [namnvakt, "--rot", namnrot("hojgolv", UNDERLAG), "--golv", "3"], "Höj golvet");
 }
 
 // ── Vakten för en konsumentapps stilrot ────────────────────────────────────

@@ -117,7 +117,8 @@ describe("OpsMeddelanden: inkorgen", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Nytt meddelande" }));
     expect(onValj).toHaveBeenCalledWith(null, { nytt: true });
     const nytt = screen.getByRole("region", { name: "Nytt meddelande" });
-    expect(within(nytt).getByText("Bara ni två ser det här")).toBeInTheDocument();
+    // Ingen rad om vem som ser samtalet innan något är valt (0.68.0, omgranskningen av PR 268, A6).
+    expect(nytt.querySelector("[data-privat]")).toBeNull();
     expect(within(nytt).getByRole("textbox", { name: "Skriv ett meddelande" })).toBeInTheDocument();
   });
 
@@ -211,5 +212,29 @@ describe("⛔ gruppchatten finns innan någon har skrivit i den (CP 2026-10-06)"
     await user.click(val[0]);
     await waitFor(() => expect(document.querySelector('[data-ops-samtal="grupp"]')).not.toBeNull());
     expect(await screen.findByRole("log", { name: "Philip Staiger AB" })).toBeInTheDocument();
+  });
+
+  // Omgranskningen av PR 268, A6: raden under Till följer valet, och "Hela gruppen" bär gruppchattens märke.
+  it("raden under Till finns inte före valet och säger Alla i gruppen när Hela gruppen är vald; märket är gruppchattens", async () => {
+    const kallan = await ensamGrupp();
+    /** @type {(v: any) => void} */
+    let slapp = () => {};
+    const oppnaGrupp = vi.fn((/** @type {any} */ d) => new Promise((r) => { slapp = () => r(kallan.oppnaGrupp(d)); }));
+    const samtal = { ...kallan, oppnaGrupp };
+    render(<OpsMeddelanden kalla={samtal} uid="cp" groupId="psab" gruppNamn="Philip Staiger AB" medlemmar={ENSAM} />);
+    await screen.findByRole("button", { name: /Philip Staiger AB/ });
+    const ton = (/** @type {Element | null} */ e) => [...(e?.classList ?? [])].find((c) => c.startsWith("bg-identity-")) ?? null;
+    const radton = ton(document.querySelector('[data-samtalsrad="grupp"] [role=img]'));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Nytt meddelande" }));
+    expect(document.querySelector("[data-privat]")).toBeNull();
+    const hela = screen.getByRole("radio", { name: "Hela gruppen" });
+    expect(radton).not.toBeNull();
+    expect(ton(hela.querySelector("[role=img]"))).toBe(radton);
+    expect(hela.querySelector("[role=img]")?.getAttribute("aria-label")).toBe("Philip Staiger AB");
+    await user.click(hela);
+    expect(document.querySelector("[data-privat]")?.textContent).toBe("Alla i gruppen ser det här");
+    slapp(undefined);
+    await waitFor(() => expect(document.querySelector('[data-ops-samtal="grupp"]')).not.toBeNull());
   });
 });

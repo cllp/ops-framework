@@ -848,9 +848,9 @@ const manyaGrupper = (lista) => [...lista, ...Array.from({ length: window.__mang
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, utanMeny = false, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
+function Full({ children, aktivGrupp = undefined, utanMeny = false, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
   const [infalld, setInfalld] = useState(false);
-  const [aktiv, setAktiv] = useState(aktivIScenen());
+  const [aktiv, setAktiv] = useState(aktivGrupp ?? aktivIScenen());
   return (
     <OpsAppShell
       fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
@@ -970,8 +970,9 @@ function MeddelandeScen() {
 }
 
 /*
- * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i "Philip Staiger AB" med en medlem och agenten: "Hur skriver jag ett
- * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f.
+ * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i sin grupp med en medlem och agenten: "Hur skriver jag ett
+ * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f. Gruppen är g3 ur `grupperLista`,
+ * vald i sidopanelen, så att panelen och chatten heter samma sak (omgranskningen av PR 268, A6).
  */
 function MeddelandeNyGruppScen() {
   const [kalla, setKalla] = useState(null);
@@ -982,19 +983,19 @@ function MeddelandeNyGruppScen() {
     (async () => {
       let t = new Date(2026, 9, 6, 9, 0).getTime();
       const k = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000) });
-      const a = await k.oppnaPrivat({ groupId: "psab", uid: "cp", annan: "ops", slag: "agent" });
+      const a = await k.oppnaPrivat({ groupId: "g3", uid: "cp", annan: "ops", slag: "agent" });
       await k.skicka(a.id, { text: "Vilka fakturor är obetalda?", av: "cp" });
       setKalla(k);
     })();
   }
   return (
-    <Full>
+    <Full aktivGrupp="g3">
       {kalla ? (
         <Ops.OpsMeddelanden
           kalla={kalla}
           uid="cp"
-          groupId="psab"
-          gruppNamn="Philip Staiger AB"
+          groupId="g3"
+          gruppNamn={grupperLista.find((g) => g.id === "g3").namn.sv}
           medlemmar={[
             { userId: "cp", namn: "Claes Philip", typ: "person", status: "aktiv" },
             { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },

@@ -90,8 +90,8 @@ describe("⛔ Nytt meddelande i skalet: tråden öppnas bredvid listan och samta
     // ⛔ Listan står kvar i DOM:en, och ingen skapa-panel öppnades.
     expect(lista()).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Nytt meddelande" })?.closest("[data-ops-meddelanden]")).toBeTruthy();
-    // Raden under Till följer valet: före valet "Bara ni två", med agenten vald samma ord som trådens huvud sedan bär.
-    expect(document.querySelector("[data-privat]")?.textContent).toBe("Bara ni två ser det här");
+    // Raden under Till följer valet: ingen rad före valet (0.68.0), med agenten vald samma ord som trådens huvud sedan bär.
+    expect(document.querySelector("[data-privat]")).toBeNull();
     await user.click(screen.getByRole("radio", { name: "Agent" }));
     // Valet öppnar tråden direkt, innan något är skrivet.
     await waitFor(() => expect(document.querySelector("[data-ops-samtal]")).not.toBeNull());
