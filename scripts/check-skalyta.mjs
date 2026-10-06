@@ -4841,7 +4841,8 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       await page.mouse.up();
     } else {
       await page.locator("header").getByRole("button", { name: "Skapa" }).first().click();
-      const rad = page.getByRole("button", { name: "TALK, prata in" });
+      // ⛔ Raden i popovern, inte huvudets mikrofonknapp (#276), som heter samma sak och gör samma sak.
+      const rad = page.locator('[role="dialog"]').getByRole("button", { name: "TALK, prata in" });
       await rad.waitFor({ timeout: 4000 });
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-skapa-${vp.width}.png`), clip: { x: vp.width - 640, y: 0, width: 640, height: 360 } });
       await rad.click();
@@ -5360,6 +5361,86 @@ for (const bredd of [390, 1280]) {
   const vald = m.find((r) => r.bockVanster !== null);
   krav(Boolean(vald) && /** @type {any} */ (vald).talHoger <= /** @type {any} */ (vald).bockVanster + 0.5, `segmentets meny ${bredd} px: talet står inte före bocken i den valda raden (${JSON.stringify(vald)}).`);
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `segment-meny-${bredd}.png`) });
+  await context.close();
+}
+
+// ══ 43. TALK:S EGEN KNAPP I HUVUDET, BARA PÅ DATOR (#276) ═══════════════════════════════════════════════════════════════════════
+// CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall
+// sitta." jsdom kör ingen CSS, så "bara på dator" och "samma storlek som grannarna" går bara att se här. Vid 1280: knappen står
+// direkt till höger om plusset, är en 36 px cirkel med 20 px ikon som de dämpade knapparna (avsnitt 2), har samma mittlinje som
+// plusset, hela den ritade cirkeln träffar knappen, och ett tryck öppnar fältet i läget lyssnar medan knappen visar läget (tänd,
+// namnet "TALK, lyssnar"). Vid 390: knappen ritas inte alls, och bottenradens plus är vägen som förut.
+// ⛔ GOLV: knappen och plusset måste hittas vid 1280, och bottenradens plus vid 390, annars rött.
+for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width: 1280, height: 900 }], ["TALK-knappen 390 px", { width: 390, height: 844 }]])) {
+  const { page, context } = await oppna("talk", vp);
+  try {
+    await page.waitForSelector("header", { timeout: 4000 });
+    if (vp.width >= 768) {
+      await page.locator("header [data-talk-huvud]").waitFor({ timeout: 4000 });
+      const ruta = () =>
+        page.evaluate(() => {
+          const rut = (/** @type {Element | null} */ el) => {
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            const svg = el.querySelector("svg");
+            return { x: r.x, w: r.width, h: r.height, mitt: r.y + r.height / 2, ikon: svg ? svg.getBoundingClientRect().width : 0, radie: parseFloat(cs.borderTopLeftRadius) || 0, bakgrund: cs.backgroundColor };
+          };
+          const knapp = document.querySelector("header [data-talk-huvud]");
+          const p = document.createElement("div");
+          p.style.backgroundColor = "var(--color-raised)";
+          document.body.appendChild(p);
+          const raised = getComputedStyle(p).backgroundColor;
+          p.remove();
+          return { knapp: rut(knapp), plus: rut(document.querySelector('header button[aria-label="Skapa"]')), lage: knapp?.getAttribute("data-talk-huvud"), namn: knapp?.getAttribute("aria-label"), raised };
+        });
+      const fore = await ruta();
+      krav(!!fore.knapp && !!fore.plus, `${namn}: knappen (${!!fore.knapp}) eller plusset (${!!fore.plus}) hittades inte i huvudet.`);
+      if (fore.knapp && fore.plus) {
+        matt.push(`${namn}: knappen ${fore.knapp.w}x${fore.knapp.h} px, ikon ${fore.knapp.ikon} px, mitt ${fore.knapp.mitt.toFixed(1)} (plusset ${fore.plus.mitt.toFixed(1)}), avstånd till plusset ${(fore.knapp.x - fore.plus.x - fore.plus.w).toFixed(1)} px, namn ${JSON.stringify(fore.namn)}`);
+        krav(Math.abs(fore.knapp.w - 36) < 0.5 && Math.abs(fore.knapp.h - 36) < 0.5 && fore.knapp.radie >= 18, `${namn}: knappen är ${fore.knapp.w}x${fore.knapp.h} px med rundning ${fore.knapp.radie}, väntat en 36 px cirkel som huvudets övriga ikonknappar.`);
+        krav(Math.abs(fore.knapp.ikon - 20) < 0.5, `${namn}: ikonen är ${fore.knapp.ikon} px, väntat 20 som huvudets övriga ikonknappar vid 1280.`);
+        krav(Math.abs(fore.knapp.mitt - fore.plus.mitt) <= 1, `${namn}: mittlinjen är ${fore.knapp.mitt.toFixed(1)} och plussets ${fore.plus.mitt.toFixed(1)}, väntat högst 1 px isär.`);
+        const glipa = fore.knapp.x - fore.plus.x - fore.plus.w;
+        krav(glipa >= 0 && glipa <= 4, `${namn}: knappen står ${glipa.toFixed(1)} px från plussets högerkant, väntat direkt bredvid (0 till 4 px).`);
+        krav(fore.lage === "vila" && fore.namn === "TALK, prata in", `${namn}: före trycket är läget ${fore.lage} och namnet ${JSON.stringify(fore.namn)}, väntat vila och "TALK, prata in".`);
+      }
+      const traff = await matTraffyta(page, "header [data-talk-huvud]");
+      krav(traff.length === 1, `${namn}: ${traff.length} knappar mättes med elementFromPoint, väntat 1.`);
+      for (const t of traff) krav(t.mittTraff && t.w >= t.synligW - 0.5 && t.h >= t.synligH - 0.5, `${namn}: knappen träffas bara på ${t.w}x${t.h} px men ritas ${t.synligW}x${t.synligH}.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-${vp.width}.png`), clip: { x: vp.width - 640, y: 0, width: 640, height: 130 } });
+      await page.locator("header [data-talk-huvud]").click();
+      await page.waitForSelector("[data-ops-talk]", { timeout: 4000 });
+      await page.waitForTimeout(300);
+      const under = await ruta();
+      const falt = await page.evaluate(() => document.querySelector("[data-ops-talk]")?.getAttribute("data-lage"));
+      matt.push(`${namn}: efter trycket fältet ${falt}, knappen ${under.lage} ${JSON.stringify(under.namn)}, bakgrund ${under.knapp?.bakgrund}`);
+      krav(falt === "lyssnar", `${namn}: fältet är i läget ${falt} efter trycket, väntat lyssnar.`);
+      krav(under.lage === "lyssnar" && under.namn === "TALK, lyssnar", `${namn}: knappen säger ${under.lage} och ${JSON.stringify(under.namn)} medan den lyssnar, väntat lyssnar och "TALK, lyssnar".`);
+      krav(!!under.knapp && under.knapp.bakgrund === under.raised, `${namn}: knappens bakgrund är ${under.knapp?.bakgrund} medan den lyssnar, väntat --color-raised (${under.raised}): läget ska synas.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-lyssnar-${vp.width}.png`) });
+      await page.getByRole("button", { name: "Skicka" }).click();
+      await page.waitForTimeout(250);
+      const skickat = await page.evaluate(() => /** @type {any} */ (window).__talk);
+      krav(skickat.length === 1 && skickat[0].mimeType === "audio/webm", `${namn}: appen fick ${JSON.stringify(skickat)}, väntat ett ljud.`);
+    } else {
+      await page.locator("[data-talk-knapp]").waitFor({ timeout: 4000 });
+      const m = await page.evaluate(() => {
+        const k = document.querySelector("[data-talk-huvud]");
+        const r = k ? k.getBoundingClientRect() : null;
+        const plus = document.querySelector("[data-talk-knapp]");
+        const pr = plus ? plus.getBoundingClientRect() : null;
+        return { finns: !!k, display: k ? getComputedStyle(k).display : null, w: r ? r.width : 0, h: r ? r.height : 0, plus: pr ? { w: pr.width, h: pr.height } : null, synligaMikrofoner: [...document.querySelectorAll("header button, header a")].filter((b) => (b.getAttribute("aria-label") || "").startsWith("TALK") && b.getBoundingClientRect().width > 0).length };
+      });
+      matt.push(`${namn}: huvudets knapp display ${m.display}, ${m.w}x${m.h} px; bottenradens plus ${JSON.stringify(m.plus)}`);
+      krav(m.finns, `${namn}: knappen finns inte i dokumentet alls. Den ska finnas och vara gömd med CSS, annars mäts inte att det är CSS:en som gömmer den.`);
+      krav(!m.finns || m.display === "none" && m.w === 0 && m.h === 0 && m.synligaMikrofoner === 0, `${namn}: huvudets mikrofon syns på telefon (display ${m.display}, ${m.w}x${m.h}). Mobilens väg är långtryck på bottenradens plus.`);
+      krav(!!m.plus && m.plus.w >= 43.5, `${namn}: bottenradens plus hittades inte, eller är mindre än 44 px (${JSON.stringify(m.plus)}).`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-${vp.width}.png`) });
+    }
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
   await context.close();
 }
 

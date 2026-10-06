@@ -171,3 +171,66 @@ describe("raden i Skapa", () => {
     expect(() => render(Skal({ talk: {} }))).toThrow(/onTalk/);
   });
 });
+
+/*
+ * #276. CP 2026-10-06 21:37: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." En
+ * mikrofonknapp i huvudet, bredvid plusset, bara på dator och bara med `talk`. Samma väg som raden i Skapa.
+ * ⛔ jsdom kör ingen CSS: "bara på dator" mäts här som klassen som bär display, och på riktigt i `check-skalyta` avsnitt 43.
+ */
+describe("mikrofonknappen i huvudet", () => {
+  const huvudknapp = () => /** @type {HTMLElement | null} */ (document.querySelector("header [data-talk-huvud]"));
+
+  it("finns i huvudet med talk, med ett namn, och saknas utan talk", () => {
+    const { unmount } = render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
+    const knapp = huvudknapp();
+    expect(knapp).toBeTruthy();
+    expect(knapp?.tagName).toBe("BUTTON");
+    expect(knapp?.getAttribute("aria-label")).toBe("TALK, prata in");
+    // Bredvid plusset: knappen är plussets närmaste granne i klustret.
+    const plusIHuvud = /** @type {HTMLElement} */ (document.querySelector("header button[aria-label='Skapa']"));
+    expect(plusIHuvud).toBeTruthy();
+    expect(plusIHuvud.nextElementSibling).toBe(knapp);
+    unmount();
+
+    render(Skal({ skapa: { arende: true } }));
+    expect(huvudknapp()).toBeNull();
+    expect(document.querySelector("header [aria-label^='TALK']")).toBeNull();
+  });
+
+  it("startar samma inspelning som raden: samma inspelare, samma fält, och ljudet når appen", async () => {
+    const insp = falskInspelare();
+    const onTalk = vi.fn();
+    render(Skal({ talk: { onTalk, inspelare: insp }, skapa: { arende: true } }));
+    fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(insp.starta).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog", { name: "TALK" })).toBeTruthy();
+    expect(document.querySelector("[data-ops-talk]")?.getAttribute("data-lage")).toBe("lyssnar");
+    // ⛔ Samma tillstånd som plusset och raden, inte en andra krok: bottenradens plus står i samma läge.
+    expect(plus().getAttribute("data-talk-knapp")).toBe("lyssnar");
+    // Läget syns på knappen och i dess namn.
+    expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("lyssnar");
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, lyssnar");
+    expect(huvudknapp()?.className.split(/\s+/)).toContain("text-accent");
+
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(onTalk).toHaveBeenCalledTimes(1);
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, prata in");
+  });
+
+  it("⛔ saknas på mobil: display bärs av EN klass, gömd under md, och bottenraden får ingen mikrofon", () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
+    const klasser = /** @type {HTMLElement} */ (huvudknapp()).className.split(/\s+/);
+    expect(klasser).toContain("hidden");
+    expect(klasser).toContain("md:inline-flex");
+    // Bar `inline-flex` vid sidan av `hidden` vinner i Tailwinds ordning och hade visat knappen på mobil.
+    expect(klasser).not.toContain("inline-flex");
+    expect(document.querySelectorAll("[data-talk-huvud]")).toHaveLength(1);
+    expect(document.querySelector("nav [data-talk-huvud]")).toBeNull();
+  });
+});

@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## Ej utgiven
+
+Numret sätts vid merge. 0.69.0, 0.70.0 och 0.71.0 är redan tagna av andra öppna grenar.
+
+### TALK får en egen knapp i webbens huvud (#276)
+
+CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn på webben: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." På dator fanns TALK bara som första rad i Skapa, alltså två klick (plusset, sedan raden). På mobil är vägen redan ett långtryck på bottenradens plus (0.57.0).
+
+#### Tillagt
+
+- **En mikrofonknapp i huvudet på dator, direkt till höger om plusset.** Den ritas bara när appen skickar in `talk`, och bara från `md` (`hidden md:inline-flex`, display i en klass som huvudets övriga knappar). Den är huvudets vanliga ikonknapp (`huvudknappKlass`): 36 px cirkel med 20 px ikon vid 1280, 44 px träffyta, och samma namn i tooltipen som i uppläsningen.
+- ⛔ **Samma väg som raden i Skapa, ingen andra inspelningsväg.** Knappen och raden lämnar samma form (`TALK_FORM`) till `oppnaSkapa`, som går till `talkStyr.direkt()`. Det är samma krok, samma inspelare och samma fält som plusset och raden använder. Knappen använder inte `talkStyr.knapp`: de händelserna är plussets, där ett vanligt tryck är Skapa och bara ett långtryck spelar in. Här är ett vanligt tryck inspelningen.
+- **Knappen visar inspelningsläget.** Medan den lyssnar eller skickar är den tänd (`bg-raised text-accent`, som en öppen knapp i huvudet), och namnet följer läget: "TALK, prata in", "TALK, lyssnar", "TALK, skickar" (`talkKnappNamn` i `lib/talk.js`). Den som inte ser att knappen är tänd hör det i stället.
+- `TALK_PRATA_IN` i `lib/talk.js` är raden och knappens gemensamma namn, så att de inte kan börja heta olika saker.
+- Raden "TALK, prata in" i Skapa står kvar. Mobilen ändras inte.
+
+#### Prov
+
+- `talk.test.jsx`, "mikrofonknappen i huvudet": knappen finns i huvudet med `talk`, som plussets närmaste granne och med ett namn, och saknas utan `talk`; ett tryck startar samma inspelare och samma fält som raden, bottenradens plus står i samma läge (samma krok), knappen säger "TALK, lyssnar" och ljudet når appen; display bärs av `hidden md:inline-flex` utan bar `inline-flex`. Alla tre röda utan ändringen.
+- `check-skalyta` avsnitt 43, scenen `talk`: vid 1280 px står knappen 0 till 4 px från plussets högerkant, är en 36 px cirkel med 20 px ikon, har plussets mittlinje inom 1 px, träffas på hela den ritade cirkeln (`elementFromPoint`), och ett tryck öppnar fältet i läget lyssnar medan knappen är tänd. Vid 390 px har knappen `display: none` och bottenradens plus är kvar. Skärmbilder i `docs/jamforelser/`.
+
 ## 0.68.0
 
 ### Trådar i gruppchatten (cllp/lifehub.app#60)

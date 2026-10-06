@@ -11,6 +11,8 @@ import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
+import { OpsTooltip } from "./OpsTooltip.jsx";
+import { TALK_PRATA_IN, talkKnappNamn } from "../lib/talk.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -776,7 +778,8 @@ export function useOppnaHandelse() {
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
  * @param {import("./OpsTalk.jsx").TalkVal} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
  *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. ⛔ Utan `talk` finns varken
- *   långtrycket eller raden: en knapp som spelar in men inte har någon mottagare hade tappat det man sade.
+ *   långtrycket eller raden: en knapp som spelar in men inte har någon mottagare hade tappat det man sade. (#276) På dator
+ *   får huvudet också en mikrofonknapp bredvid plusset, som gör det raden gör.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
  * @param {string} [props.nyttArendeEtikett] Ramverkets rad för `skapa.arende`.
@@ -1442,6 +1445,9 @@ function OpsAppShellRitad({
     ),
   );
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
+  // ⛔ EN VÄG IN I INSPELNINGEN UTAN ATT HÅLLA (#276): raden i Skapa och huvudets mikrofonknapp lämnar SAMMA form till
+  // `oppnaSkapa`, som går till `talkStyr.direkt()`. Två vägar hade kunnat glida isär i vad de startar.
+  const TALK_FORM = { kind: "talk" };
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const talkStyr = useTalk({
     onTalk: (blob, meta) => talk?.onTalk(blob, meta),
@@ -1463,7 +1469,7 @@ function OpsAppShellRitad({
       {harRamverksrader ? (
         <div className="flex flex-col gap-0.5 px-1">
           {/* ⛔ TALK FÖRST (CP 2026-10-04): den snabbaste vägen in, och den enda som inte är en sort. */}
-          {talk ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label="TALK, prata in" accent onClick={() => oppna({ kind: "talk" })} /> : null}
+          {talk ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
           {skapa?.handelse ? (
             <OpsPanelRow
               icon={<HandelsePlusIkon size={18} />}
@@ -1951,6 +1957,32 @@ function OpsAppShellRitad({
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
+            ) : null}
+            {/* ⛔ TALK FÅR EN EGEN KNAPP PÅ DATOR (#276). CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn: "TALK
+                förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." På dator tog TALK två klick
+                (plusset, sedan raden). Knappen ligger direkt efter plusset, och den gör EXAKT det raden gör: samma form
+                till `oppnaSkapa`, alltså `talkStyr.direkt()`. Raden står kvar.
+                ⛔ BARA FRÅN `md` (`hidden md:inline-flex`, en klass, se `huvudknappKlass`). Mobilen har redan sin väg:
+                långtryck på bottenradens plus. En andra mikrofon i mobilens huvud hade gett två vägar på samma skärm.
+                ⛔ Inte `talkStyr.knapp`: de händelserna är plussets, där ett vanligt tryck är Skapa och bara ett
+                långtryck spelar in. Här är ett vanligt tryck inspelningen.
+                ⛔ LÄGET SYNS: tänd (`aktiv`) medan den lyssnar eller skickar, och namnet säger samma sak för den som
+                lyssnar (`talkKnappNamn`). Utan `talk` ritas ingen knapp: en mikrofon utan mottagare hade tappat det man sade. */}
+            {talk ? (
+              <OpsTooltip content={talkKnappNamn(talkStyr.lage)} side="bottom">
+                <button
+                  type="button"
+                  data-talk-huvud={talkStyr.lage}
+                  aria-label={talkKnappNamn(talkStyr.lage)}
+                  onClick={() => oppnaSkapa(TALK_FORM)}
+                  className={huvudknappKlass({
+                    visning: "hidden md:inline-flex",
+                    aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar",
+                  })}
+                >
+                  <MikrofonIkon size={24} />
+                </button>
+              </OpsTooltip>
             ) : null}
             {atgarderIHuvud}
             {/* ⛔ Efter actions och FÖRE hamburgaren. Kontot är personens egen
