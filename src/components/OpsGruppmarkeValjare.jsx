@@ -2,7 +2,8 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { initials } from "../lib/identity.js";
 import { GRUPPINITIALER_FORM } from "../lib/grupp.js";
-import { GRUPPKULORFORSLAG, fargTillKulor, gruppKulor, kulorTillFarg } from "../lib/gruppfarg.js";
+import { GRUPPKULORFORSLAG, fargTillKulor, gruppKulor, kulorTillFarg, narmasteKulornamn } from "../lib/gruppfarg.js";
+import { gruppikonEtikett } from "../lib/gruppikonnamn.js";
 import { gruppikonKomponent, gruppikonNamn } from "../lib/gruppikoner.js";
 import { VANLIGA_GRUPPIKONER, forslagUrGruppnamn, sokGruppikoner } from "../lib/gruppikonsok.js";
 import { OpsSlider } from "./OpsSlider.jsx";
@@ -36,7 +37,7 @@ import { BockIkon } from "./icons.jsx";
  * @param {(farg: string) => void} props.onFarg
  * @param {(ikon: string) => void} props.onIkon
  * @param {"sv"|"en"} props.sprak
- * @param {{ farg: string, initialer: string, ikonEllerLogotyp: string, egnaInitialer: string, egnaInitialerHint: string, aterstallInitialer: string, kulorExakt: string, kulorGrader: string, kulorAterstall: string, kulorHint: string, sokIkon: string, sokIkonPlatshallare: string, forslagUrNamn: string, forslagInga: string, forslagSkrivNamn: string, senastAnvanda: string, senastInga: string, vanliga: string, traffar: string, ingaTraffar: string }} props.t Formulärets etiketter.
+ * @param {{ farg: string, initialer: string, ikonEllerLogotyp: string, egnaInitialer: string, egnaInitialerHint: string, aterstallInitialer: string, kulorExakt: string, kulorGrader: string, kulorAterstall: string, kulorHint: string, sokIkon: string, sokIkonPlatshallare: string, forslagUrNamn: string, forslagInga: string, forslagSkrivNamn: string, senastAnvanda: string, senastInga: string, vanliga: string, traffar: string, ingaTraffar: string, traffarStatus: string, ingetMatchar: string }} props.t Formulärets etiketter.
  * @param {string} props.idPrefix
  */
 export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, sprak, t, idPrefix }) {
@@ -94,9 +95,9 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
                 key={n}
                 type="button"
                 onClick={() => valjIkon(n)}
-                aria-label={n.replace(/-/g, " ")}
+                aria-label={gruppikonEtikett(n, sprak)}
                 aria-pressed={vald}
-                title={n}
+                title={gruppikonEtikett(n, sprak)}
                 data-ikonnamn={n}
                 className={cx(
                   "flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
@@ -150,7 +151,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
             max={359}
             zero={standardKulor}
             onChange={(v) => onFarg(kulorTillFarg(Math.round(v)))}
-            formatValue={(v) => `${Math.round(v)} ${t.kulorGrader}`}
+            formatValue={(v) => `${Math.round(v)} ${t.kulorGrader}, ${narmasteKulornamn(Math.round(v), sprak)}`}
             resetLabel={t.kulorAterstall}
           />
         </div>
@@ -171,7 +172,14 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
           autoComplete="off"
           className="mb-2 min-h-11 w-full rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod text-ink placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
         />
-        <div className="flex flex-col gap-2" aria-live="polite">
+        {/*
+          ⛔ DEN LEVANDE REGIONEN ÄR EN KORT RAD, INTE RUTNÄTET (granskningen av PR 266). Med aria-live på rutnätet läste en
+          skärmläsare upp upp till 48 knappar för varje tangent. Raden säger bara hur många som träffade, eller att inget gjorde det.
+        */}
+        <p className="sr-only" role="status" aria-live="polite" data-ikonstatus="">
+          {fraga.trim() ? (traffar.length > 0 ? t.traffarStatus.replace("{n}", String(traffar.length)) : t.ingetMatchar) : ""}
+        </p>
+        <div className="flex flex-col gap-2">
           {fraga.trim() ? (
             rad({ id: "traffar", rubrik: `${t.traffar} (${traffar.length})`, namn: traffar.slice(0, 48), tomText: t.ingaTraffar.replace("{fraga}", fraga.trim()) })
           ) : (

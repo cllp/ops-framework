@@ -1648,6 +1648,7 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravGront("gruppfärg: tokens.css som den står", [fargvakt, tokenfil]);
   kravRott("gruppfärg: ljus ikon för nära plattan (L 0,62)", [fargvakt, fargfil("ljus", (c) => c.replace("--gruppmarke-ikon-l: 0.47;", "--gruppmarke-ikon-l: 0.62;"))], "ikonen mot plattan");
   kravRott("gruppfärg: mörk platta för ljus (L 0,6)", [fargvakt, fargfil("mork", (c) => c.replace("--dark-gruppmarke-platta-l: 0.33;", "--dark-gruppmarke-platta-l: 0.6;"))], "morkt, kulör");
+  kravRott("gruppfärg golv: mättnad 0, alla kulörer gråa", [fargvakt, fargfil("gra", (c) => c.replace("--gruppmarke-ikon-c: 0.13;", "--gruppmarke-ikon-c: 0;"))], "olika ikonfärger");
   kravRott("gruppfärg golv: talen saknas", [fargvakt, fargfil("tom", (c) => c.replace(/--gruppmarke-ikon-l: [^;]+;/, ""))], "saknas i");
 }
 

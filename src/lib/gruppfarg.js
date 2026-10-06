@@ -28,8 +28,11 @@ import { identityTone } from "./identity.js";
  * kulören ur hexvärdena i `tokens.css` och blir rött om de skiljer sig.
  */
 
-/** `kulor:` följt av 0 till 359. */
-export const GRUPPKULOR_FORM = /^kulor:(\d{1,3})$/;
+/**
+ * `kulor:` följt av 0 till 359, utan inledande nollor (granskningen av PR 266): en lagrad form per kulör, så att
+ * `kulor:7` och `kulor:007` aldrig är två värden för samma färg. Övre gränsen prövas i `fargTillKulor`.
+ */
+export const GRUPPKULOR_FORM = /^kulor:(0|[1-9]\d{0,2})$/;
 
 /** De äldre tonerna (`PROFILFARGER`, "1" till "6") som kulör, i grader. Härledd ur `--color-identity-N`, se filhuvudet. */
 export const ARV_TON_KULOR = Object.freeze({ 1: 166, 2: 88, 3: 29, 4: 240, 5: 336, 6: 119 });
@@ -52,6 +55,24 @@ export const GRUPPKULORFORSLAG = Object.freeze([
   Object.freeze({ kulor: 315, sv: "Violett", en: "Violet" }),
   Object.freeze({ kulor: 345, sv: "Rosa", en: "Pink" }),
 ]);
+
+/**
+ * Namnet på det snabbval som ligger närmast en kulör, runt cirkeln. Reglagets `aria-valuetext` bär det ("227 grader, Turkos"),
+ * så att den som inte ser färgen hör ungefär vilken det är.
+ * @param {number} grader @param {string} [sprak]
+ */
+export function narmasteKulornamn(grader, sprak = "sv") {
+  let basta = GRUPPKULORFORSLAG[0];
+  let avstand = 361;
+  for (const f of GRUPPKULORFORSLAG) {
+    const d = Math.min(Math.abs(f.kulor - grader), 360 - Math.abs(f.kulor - grader));
+    if (d < avstand) {
+      avstand = d;
+      basta = f;
+    }
+  }
+  return sprak === "en" ? basta.en : basta.sv;
+}
 
 /** @param {number} grader @returns {string} Lagringsformen. */
 export function kulorTillFarg(grader) {

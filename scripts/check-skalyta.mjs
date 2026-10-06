@@ -2553,7 +2553,7 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
       const rosa = await markeFarg("Rosa");
       await page.getByRole("searchbox", { name: "Sök ikon" }).fill("music");
       const traffar = await page.evaluate(() => [...document.querySelectorAll('[data-ikonrad="traffar"] [data-ikonnamn]')].map((e) => e.getAttribute("data-ikonnamn")));
-      await page.getByRole("button", { name: "guitar", exact: true }).first().click();
+      await page.getByRole("button", { name: "Gitarr", exact: true }).first().click();
       const harIkon = await page.evaluate(() => !!document.querySelector("[data-gruppidentitet] > button [role=img] svg"));
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       matt.push(`${etikett}: ${kulorer} kulörrutor, förslag ur Bandet ${JSON.stringify(forslag.slice(0, 6))}, music ger ${traffar.length} träffar, Petrol platta ${JSON.stringify(petrol.platta)} ikon ${JSON.stringify(petrol.ikon)} kontrast ${petrol.kontrast.toFixed(2)}, Rosa kontrast ${rosa.kontrast.toFixed(2)}`);
@@ -2571,8 +2571,20 @@ for (const tema of /** @type {const} */ (["light", "dark"])) {
         await page.evaluate(() => { window.scrollTo(0, 0); for (const d of document.querySelectorAll("[data-skapa-panel] div")) if (d.scrollTop) d.scrollTop = 0; });
         await page.waitForTimeout(150);
         await page.screenshot({ path: path.join(bildmapp, `grupp-ikon-farg-${vp.width}-${tema === "dark" ? "morkt" : "ljust"}.png`), fullPage: false });
-        await page.locator("[data-ikonvaljare]").scrollIntoViewIfNeeded();
+        // ⛔ RULLA BEHÅLLAREN, INTE SIDAN (granskningen av PR 266): vid 1280 px rullar panelens egen kropp, och
+        // scrollIntoViewIfNeeded lämnade den där den stod, så "-ikoner" blev samma bild som översikten.
+        const rullad = await page.evaluate(() => {
+          const mal = /** @type {HTMLElement} */ (document.querySelector("[data-ikonvaljare]"));
+          let el = mal.parentElement;
+          while (el && !(el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY))) el = el.parentElement;
+          const rulle = el ?? document.scrollingElement;
+          if (!rulle) return null;
+          const fore = rulle.scrollTop;
+          rulle.scrollTop += mal.getBoundingClientRect().top - rulle.getBoundingClientRect().top - 16;
+          return { fore, efter: rulle.scrollTop, synlig: mal.getBoundingClientRect().top < innerHeight - 100 };
+        });
         await page.waitForTimeout(150);
+        krav(!!rullad && rullad.efter > rullad.fore && rullad.synlig, `${etikett}: ikonväljaren rullades inte fram för bilden (${JSON.stringify(rullad)}).`);
         await page.screenshot({ path: path.join(bildmapp, `grupp-ikon-farg-${vp.width}-${tema === "dark" ? "morkt" : "ljust"}-ikoner.png`), fullPage: false });
       }
     } catch (e) {

@@ -202,7 +202,8 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, AGENT_NAMN, agentId, agentMedlemskap, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNREPO, MAX_EXTERNLABEL, MAX_EXTERNHEMLIGHET, INBJUDNING_GILTIGHET_DAGAR, byggAnvandare, byggGrupp, byggExternaDatakallor, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
 export { gruppmarkeProps, gruppikonKomponent, ARV_GRUPPIKON } from "./lib/gruppikoner.js";
-export { GRUPPKULORFORSLAG, GRUPPKULOR_FORM, fargTillKulor, kulorTillFarg, gruppKulor } from "./lib/gruppfarg.js";
+export { GRUPPKULORFORSLAG, GRUPPKULOR_FORM, fargTillKulor, kulorTillFarg, gruppKulor, narmasteKulornamn } from "./lib/gruppfarg.js";
+export { GRUPPIKON_SVENSKA, gruppikonEtikett } from "./lib/gruppikonnamn.js";
 export { GRUPPIKONKATALOG } from "./lib/gruppikonkatalog.generated.js";
 export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/gruppikonsok.js";
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";

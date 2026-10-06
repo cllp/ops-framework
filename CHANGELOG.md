@@ -17,10 +17,24 @@ Händelsen: CP 2026-10-06, överlämning från en annan tråd om att skapa en gr
 
 #### Tillagt
 
-- **Sökbar ikonväljare** (`OpsGruppmarkeValjare`, i formulärets "Färg och ikon"). 203 Lucide-ikoner som en grupp kan vara (musik, arbete, idrott, familj, natur, mat, resor, pengar, teknik, skapande), med Lucides egna sökord (`lucide-static/tags.json`, samma version som `lucide-react`) och svenska synonymer (`SVENSKA_SYNONYMER` i `gruppikonsok.js`, som pekar på sökord och aldrig på en ikon). Innan något skrivits: förslag ur gruppens namn, de senast använda (per webbläsare, `localStorage`) och tjugo vanliga. Tomma rader säger att de är tomma (regel 5).
+- **Sökbar ikonväljare** (`OpsGruppmarkeValjare`, i formulärets "Färg och ikon"). 187 Lucide-ikoner som en grupp kan vara (musik, arbete, idrott, familj, natur, mat, resor, pengar, teknik, skapande), med Lucides egna sökord (`lucide-static/tags.json`, samma version som `lucide-react`) och svenska synonymer (`SVENSKA_SYNONYMER` i `gruppikonsok.js`, som pekar på sökord och aldrig på en ikon). Innan något skrivits: förslag ur gruppens namn, de senast använda (per webbläsare, `localStorage`) och tjugo vanliga. Tomma rader säger att de är tomma (regel 5).
 - **Kulörväljare**: tolv snabbval och ett reglage för alla 360 kulörer. Ljusheten och mättnaden står i temat (`--gruppmarke-ikon-l/-c`, `--gruppmarke-platta-l/-c`, med `--dark-*` för mörkt läge), och märket ritas som `oklch(L C <kulör>)`.
 - **Märket: ikonen i gruppens färg på en tonad platta av samma kulör**, överallt där gruppmärket ritas (gruppanelen, remsan, växlaren, gruppsidan, formuläret). `OpsIdentity` har en ny prop `kulor`; `gruppmarkeProps` sätter den för varje grupp. Personers märken är oförändrade.
 - **Exporter:** `gruppikonKomponent`, `ARV_GRUPPIKON`, `GRUPPIKONKATALOG`, `sokGruppikoner`, `forslagUrGruppnamn`, `VANLIGA_GRUPPIKONER`, `GRUPPKULORFORSLAG`, `GRUPPKULOR_FORM`, `fargTillKulor`, `kulorTillFarg`, `gruppKulor`.
+
+#### Efter granskningen av PR 266
+
+- **Svenska namn på ikonerna** (`GRUPPIKON_SVENSKA`, `gruppikonEtikett`). Knapparna hette Lucides engelska filnamn ("music 2", "audio waveform"); nu säger varje namn vad ikonen föreställer, unikt, så varianter går att skilja åt med skärmläsare. Namnen är också sökord.
+- **Ord som gav noll träffar och lagades:** hörlur, hörlurar, högtalare, noter och skiva (nya synonymer plus de svenska namnen). Prövat också: fotboll, kontor, familj, skola, resa, mat, bok, kör, band och styrelse gav redan träffar, men "styrelse" gav en tärning (`board` som i brädspel) och "not" gav anteckningsboken först; båda rättade. Ett prov per ord.
+- **Prefix på engelska taggar bara för det som skrevs, och lågt viktat.** "kontor" gav en hantel: synonymen `work` var prefix till taggen `workout`.
+- **Den levande regionen är en statusrad** ("12 träffar", "Inget matchar"), inte rutnätet med upp till 48 knappar.
+- **Reglagets uppläsning bär närmaste kulörnamn** (`narmasteKulornamn`): "227 grader, Turkos".
+- **En ny grupp sparar kulören den visar.** Utan val visade formuläret kulören ur fröet `ny-grupp` men sparade tom sträng, och gruppen fick då en annan kulör ur sitt nya id.
+- **`GRUPPKULOR_FORM` är `^kulor:(0|[1-9]\d{0,2})$`**, en lagrad form per kulör, och 0 till 359 prövas i `fargTillKulor`.
+- **16 nästan-dubbletter strukna ur urvalet** (music-2/3/4, disc-3, flower-2, fish-symbol, users-round, user-round, building, tree-deciduous, mic-vocal, audio-waveform, headset, mountain-snow, brush, diamond) utan att någon sökning tappar sitt svar.
+- **`check-gruppfarg`s golv "räknade minst 720" kunde aldrig bli rött** och är ersatt av ett riktigt: minst 300 olika ritade ikonfärger av 360 per läge. En mättnad 0 i temat klarar varje kontrastkrav men gör alla kulörer grå; den är röd nu.
+- **`check-skalyta` 22b rullar panelens behållare** för bilden av ikonväljaren (vid 1280 px blev den annars samma bild som översikten), och kräver att den faktiskt rullades.
+- **Montage före och efter** av befintliga gruppkort och gruppsidans märke, i ljust och mörkt läge: `docs/bilder/265/montage-fore-efter-*.png` (`docs/bilder/265/gor-montage.mjs`).
 
 #### Valet: kulörvägen, inte en kurerad palett
 
@@ -43,6 +57,8 @@ Mätt med `scripts/build.mjs` och `npm pack --dry-run`, före på `origin/main` 
 | `dist/index.js` gzip | 234 013 byte | 267 545 byte | +33,5 kB |
 | minifierad och gzip (det en app laddar, React och Radix externa) | 163 259 byte | 193 942 byte | +30,7 kB |
 | tarbollen | 2 640 359 byte | 2 785 721 byte | +145 kB |
+
+Efter granskningen av PR 266 (16 nästan-dubbletter strukna, 187 ikoner, svenska namn tillagda): `dist/index.js` 1 060 119 byte (268 584 gzip), minifierad och gzip 194 679 byte, tarbollen 2 794 863 byte. Strykningen och de svenska namnen tar i stort sett ut varandra: minifierad och gzip +0,7 kB mot versionen med 203 ikoner (193 942), alltså +31,4 kB mot 0.63.0. Att lata in katalogen är ett senare ärende.
 
 Ungefär en fjärdedel av tillväxten är sökorden (26,5 kB okomprimerat), resten är de 203 ikonerna.
 

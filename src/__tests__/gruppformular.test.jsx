@@ -7,6 +7,10 @@ import { OpsGruppFormular } from "../components/OpsGruppFormular.jsx";
 import { OpsGruppanel } from "../components/OpsGruppanel.jsx";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
 import { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
+import { gruppKulor } from "../lib/gruppfarg.js";
+
+/** Kulören formuläret visar för en ny grupp utan val, och därmed sparar (granskningen av PR 266, KAN 8). */
+const NY_KULOR = gruppKulor(null, "ny-grupp");
 
 /**
  * "Ny grupp" (0.32.0, #180): formuläret, dess väg in i skapa-panelen och märket det ritar.
@@ -125,6 +129,37 @@ describe("⛔ visuell identitet: förhandsvisning, färg, ikon, initialer", () =
     await user.type(screen.getByRole("searchbox", { name: "Sök ikon" }), "xyzzy");
     expect(screen.getByText("Träffar (0)")).toBeInTheDocument();
     expect(screen.getByText(`Inga ikoner matchar "xyzzy".`)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Inget matchar");
+  });
+
+  it("⛔ den levande regionen är en kort statusrad, inte rutnätet med knapparna", async () => {
+    rita();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    await user.type(screen.getByRole("searchbox", { name: "Sök ikon" }), "music");
+    const levande = [...document.querySelectorAll("[data-ikonvaljare] [aria-live]")];
+    expect(levande).toHaveLength(1);
+    expect(levande[0].querySelectorAll("button")).toHaveLength(0);
+    expect(levande[0].textContent).toMatch(/^\d+ träffar$/);
+  });
+
+  it("⛔ ikonerna har svenska namn, och varianter går att skilja åt", async () => {
+    rita();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    await user.type(screen.getByRole("searchbox", { name: "Sök ikon" }), "bok");
+    expect(screen.getByRole("button", { name: "Bok" })).toHaveAttribute("data-ikonnamn", "book");
+    expect(screen.getByRole("button", { name: "Uppslagen bok" })).toHaveAttribute("data-ikonnamn", "book-open");
+    const namn = [...document.querySelectorAll("[data-ikonvaljare] [data-ikonnamn]")].map((e) => e.getAttribute("aria-label"));
+    for (const n of namn) expect(n, String(n)).not.toMatch(/^[a-z0-9 ]+$/);
+  });
+
+  it("⛔ reglagets uppläsning bär närmaste kulörnamn: 225 grader, Turkos", async () => {
+    rita();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
+    await user.click(screen.getByRole("button", { name: "Turkos" }));
+    expect(screen.getByRole("slider", { name: "Exakt kulör" })).toHaveAttribute("aria-valuetext", "225 grader, Turkos");
   });
 
   it("⛔ innan något skrivits: förslag ur namnet, senast använda och tjugo vanliga. Bandet ger musikikonerna", async () => {
@@ -148,8 +183,8 @@ describe("⛔ visuell identitet: förhandsvisning, färg, ikon, initialer", () =
     await user.type(screen.getByLabelText(/Gruppnamn/), "Gitarrgänget");
     await user.click(screen.getByRole("button", { name: /Färg och ikon/ }));
     await user.type(screen.getByRole("searchbox", { name: "Sök ikon" }), "guitar");
-    await user.click(screen.getByRole("button", { name: "guitar" }));
-    expect(screen.getByRole("button", { name: "guitar" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Gitarr" }));
+    expect(screen.getByRole("button", { name: "Gitarr" })).toHaveAttribute("aria-pressed", "true");
     expect(marke()?.querySelector("svg")).toBeTruthy();
     await user.clear(screen.getByRole("searchbox", { name: "Sök ikon" }));
     expect([...document.querySelectorAll("[data-ikonrad=senaste] [data-ikonnamn]")].map((e) => e.getAttribute("data-ikonnamn"))).toEqual(["guitar"]);
@@ -164,7 +199,7 @@ describe("⛔ visuell identitet: förhandsvisning, färg, ikon, initialer", () =
   it("⛔ en befintlig grupp med ett äldre id (hus) visas vald under sitt Lucide-namn", async () => {
     rita({ grupp: { id: "g9", namn: { sv: "Hemmet", en: "Hemmet" }, farg: "3", ikon: "hus" }, onSpara: vi.fn(async () => {}) });
     await userEvent.setup().click(screen.getByRole("button", { name: /Färg och ikon/ }));
-    const hus = screen.getAllByRole("button", { name: "house" });
+    const hus = screen.getAllByRole("button", { name: "Hus" });
     expect(hus.length).toBeGreaterThan(0);
     for (const b of hus) expect(b).toHaveAttribute("aria-pressed", "true");
     expect(marke()).toHaveAttribute("data-grupp-kulor", "29");
@@ -183,13 +218,15 @@ describe("⛔ visuell identitet: förhandsvisning, färg, ikon, initialer", () =
     expect(onSkapa.mock.calls[0][0].grupp.ikon).toBe("initialer:ABC");
   });
 
-  it("utan val ritas initialer ur namnet, och ikonen skickas som tom sträng", async () => {
+  it("⛔ utan val ritas initialer ur namnet, ikonen skickas tom, och kulören som VISAS är den som SPARAS", async () => {
     const { onSkapa } = rita();
     await userEvent.setup().type(screen.getByLabelText(/Gruppnamn/), "Mitt bolag");
     expect(marke()).toHaveTextContent("MB");
+    const visad = marke()?.getAttribute("data-grupp-kulor");
+    expect(visad).toBe(String(NY_KULOR));
     skicka();
     await waitFor(() => expect(onSkapa).toHaveBeenCalled());
-    expect(onSkapa.mock.calls[0][0].grupp).toMatchObject({ farg: "", ikon: "" });
+    expect(onSkapa.mock.calls[0][0].grupp).toMatchObject({ farg: `kulor:${visad}`, ikon: "" });
   });
 
   it("gruppmarkeProps: tom rad ger kulören ur id, ett okänt id kastar inte", () => {
@@ -316,7 +353,7 @@ describe("⛔ att spara", () => {
     skicka();
     await waitFor(() => expect(onSkapa).toHaveBeenCalled());
     expect(onSkapa.mock.calls[0][0]).toEqual({
-      grupp: { namn: "Mitt bolag", farg: "", ikon: "", beskrivning: "Vi jobbar", ort: "Visby", epostsprak: "en" },
+      grupp: { namn: "Mitt bolag", farg: `kulor:${NY_KULOR}`, ikon: "", beskrivning: "Vi jobbar", ort: "Visby", epostsprak: "en" },
       inbjudningar: [],
     });
   });

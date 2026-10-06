@@ -3,6 +3,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { MAX_GRUPPBESKRIVNING, MAX_GRUPPORT } from "../lib/grupp.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
+import { kulorTillFarg } from "../lib/gruppfarg.js";
 import { OpsGruppmarkeValjare } from "./OpsGruppmarkeValjare.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsButton } from "./OpsButton.jsx";
@@ -93,6 +94,8 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [senastInga]
  * @property {string} [vanliga]
  * @property {string} [traffar] Rubriken över sökträffarna, följd av antalet.
+ * @property {string} [traffarStatus] Skärmläsarens statusrad efter en sökning. `{n}` byts mot antalet.
+ * @property {string} [ingetMatchar] Statusraden när sökningen inte gav något.
  * @property {string} [ingaTraffar] Texten när sökningen inte ger något. `{fraga}` byts mot frågan.
  * @property {string} [egnaInitialer]
  * @property {string} [egnaInitialerHint]
@@ -161,6 +164,8 @@ const STANDARD = {
     senastInga: "Inga ännu.",
     vanliga: "Vanliga",
     traffar: "Träffar",
+    traffarStatus: "{n} träffar",
+    ingetMatchar: "Inget matchar",
     ingaTraffar: "Inga ikoner matchar \"{fraga}\".",
     egnaInitialer: "Egna initialer",
     egnaInitialerHint: "Ett till tre tecken. Tomt fält ger initialer ur gruppens namn.",
@@ -226,6 +231,8 @@ const STANDARD = {
     senastInga: "None yet.",
     vanliga: "Common",
     traffar: "Matches",
+    traffarStatus: "{n} matches",
+    ingetMatchar: "Nothing matches",
     ingaTraffar: "No icons match \"{fraga}\".",
     egnaInitialer: "Custom initials",
     egnaInitialerHint: "One to three characters. An empty field uses the initials of the group name.",
@@ -424,7 +431,11 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         return;
       }
       const svar = await /** @type {NonNullable<typeof onSkapa>} */ (onSkapa)({
-        grupp: { namn: namn.trim(), farg, ikon, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak },
+        /*
+         * ⛔ KULÖREN SOM VISAS ÄR KULÖREN SOM SPARAS (granskningen av PR 266). Utan val visar formuläret kulören ur fröet
+         * "ny-grupp"; sparades tom sträng hade gruppen fått en ANNAN kulör ur sitt nya id direkt efter Spara.
+         */
+        grupp: { namn: namn.trim(), farg: farg || kulorTillFarg(marke.kulor), ikon, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak },
         inbjudningar: ut,
       });
       if ((svar.fel ?? []).length > 0) {

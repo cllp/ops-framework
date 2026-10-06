@@ -5,6 +5,7 @@ import { GRUPPIKONKATALOG } from "../lib/gruppikonkatalog.generated.js";
 import { VANLIGA_GRUPPIKONER, forslagUrGruppnamn, sokGruppikoner } from "../lib/gruppikonsok.js";
 import { ARV_GRUPPIKON, gruppikonKomponent } from "../lib/gruppikoner.js";
 import { GRUPPIKONER } from "../lib/grupp.js";
+import { GRUPPIKON_SVENSKA, gruppikonEtikett } from "../lib/gruppikonnamn.js";
 import { BlixtIkon, BokIkon, ByggnadIkon, GruppIkon, HjartaIkon, HusIkon, JordglobIkon, KronaIkon, PortfoljIkon, StjarnaIkon } from "../components/icons.jsx";
 
 /**
@@ -84,5 +85,53 @@ describe("⛔ de äldre id:na ritas oförändrade", () => {
     const svg = (/** @type {any} */ K) => renderToStaticMarkup(createElement(K, { size: 20 })).replace(/ class="[^"]*"/, "");
     expect(svg(ny)).toBe(svg(FORE[id]));
     expect(ARV_GRUPPIKON[id]).toBeTypeOf("string");
+  });
+});
+
+describe("⛔ svenska namn (granskningen av PR 266)", () => {
+  it("varje ikon i katalogen har ett svenskt namn, och inga två har samma", () => {
+    const namn = GRUPPIKONKATALOG.map((i) => gruppikonEtikett(i.namn, "sv"));
+    for (const [i, n] of namn.entries()) expect(GRUPPIKON_SVENSKA[GRUPPIKONKATALOG[i].namn], GRUPPIKONKATALOG[i].namn).toBe(n);
+    expect(new Set(namn).size).toBe(namn.length);
+    expect(Object.keys(GRUPPIKON_SVENSKA).sort()).toEqual(GRUPPIKONKATALOG.map((i) => i.namn).sort());
+  });
+
+  it("engelska ger Lucides namn med mellanslag", () => {
+    expect(gruppikonEtikett("book-open", "en")).toBe("book open");
+  });
+});
+
+describe("⛔ svenska ord som gav noll träffar före granskningen", () => {
+  it.each([
+    ["hörlur", "headphones"],
+    ["hörlurar", "headphones"],
+    ["högtalare", "speaker"],
+    ["not", "music"],
+    ["noter", "music"],
+    ["skiva", "disc"],
+  ])("%s ger %s först", (ord, forst) => {
+    expect(sokGruppikoner(ord)[0]).toBe(forst);
+  });
+});
+
+describe("⛔ vanliga gruppsorter på svenska ger träffar", () => {
+  it.each([
+    ["fotboll", "volleyball"],
+    ["kontor", "building-2"],
+    ["familj", "users"],
+    ["skola", "school"],
+    ["resa", "luggage"],
+    ["mat", "utensils"],
+    ["bok", "book"],
+    ["kör", "music"],
+    ["band", "guitar"],
+    ["styrelse", "handshake"],
+  ])("%s ger bland annat %s", (ord, ikon) => {
+    expect(sokGruppikoner(ord).slice(0, 8)).toContain(ikon);
+  });
+
+  it("⛔ kontor ger ingen hantel: en synonym matchar hela ord i taggarna, inte prefix (work blev workout)", () => {
+    expect(sokGruppikoner("kontor")).not.toContain("dumbbell");
+    expect(sokGruppikoner("kontor").length).toBeGreaterThan(0);
   });
 });

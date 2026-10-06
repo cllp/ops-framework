@@ -258,6 +258,7 @@ describe("gruppens utseende och uppgifter (0.32.0, #180)", () => {
     expect(() => byggGrupp({ ...GRUPP(), farg: "kulor:360" })).toThrow(/groups: färgen/);
     expect(() => byggGrupp({ ...GRUPP(), farg: "kulor:-5" })).toThrow(/groups: färgen/);
     expect(byggGrupp({ ...GRUPP(), farg: "kulor:0" }).farg).toBe("kulor:0");
+    expect(() => byggGrupp({ ...GRUPP(), farg: "kulor:007" })).toThrow(/groups: färgen/);
     expect(byggGrupp({ ...GRUPP(), farg: "kulor:359" }).farg).toBe("kulor:359");
     expect(byggGrupp({ ...GRUPP(), farg: "3" }).farg).toBe("3");
     expect(() => byggGrupp({ ...GRUPP(), farg: "#c9a84c" })).toThrow(/groups: färgen/);

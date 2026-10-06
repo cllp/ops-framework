@@ -37,25 +37,29 @@ const require = createRequire(import.meta.url);
 /**
  * Urvalet, grupperat bara för läsbarhetens skull.
  *
+ * ⛔ INGA NÄSTAN-DUBBLETTER (granskningen av PR 266). music-2/3/4, disc-3, flower-2, fish-symbol, users-round, user-round,
+ * building, tree-deciduous, mic-vocal, audio-waveform, headset, mountain-snow, brush och diamond ströks: varianter av ett
+ * motiv som redan finns gör väljaren längre och paketet tyngre utan att någon sökning får ett nytt svar.
+ *
  * ⛔ `sun` SAKNAS MED FLIT: namnet är också en handskriven veckodag i `check-datumnamn`s ögon, och `sun-medium` är samma
  * motiv. Vakten har rätt i sak (ett handskrivet "sun" i källan går inte att skilja från en veckodag). ⛔ Namnen är Lucides egna (kebab-case), det är dem som sparas.
  */
 export const URVAL = {
-  musik: "music music-2 music-3 music-4 guitar piano mic mic-vocal headphones headset speaker radio disc disc-3 drum audio-lines audio-waveform volume-2 album list-music",
-  manniskor: "users users-round user user-round contact handshake heart-handshake baby person-standing smile party-popper",
-  platser: "briefcase building building-2 factory store warehouse landmark hotel house castle church school tent",
+  musik: "music guitar piano mic headphones speaker radio disc drum audio-lines volume-2 album list-music",
+  manniskor: "users user contact handshake heart-handshake baby person-standing smile party-popper",
+  platser: "briefcase building-2 factory store warehouse landmark hotel house castle church school tent",
   kunskap: "book book-open library graduation-cap pencil pen-tool notebook-pen backpack lightbulb brain microscope flask-conical atom calculator ruler",
-  natur: "trees tree-pine tree-deciduous leaf flower flower-2 sprout mountain mountain-snow moon cloud snowflake waves droplet flame",
+  natur: "trees tree-pine leaf flower sprout mountain moon cloud snowflake waves droplet flame",
   idrott: "dumbbell bike trophy medal volleyball footprints sailboat fish target goal",
   mat: "utensils chef-hat coffee cup-soda wine beer pizza cake apple carrot cookie sandwich",
   resor: "plane car bus train-front ship map map-pin compass globe earth luggage caravan",
   halsa: "stethoscope hospital pill activity heart-pulse cross syringe",
   pengar: "wallet banknote coins piggy-bank receipt credit-card chart-line chart-pie trending-up scale",
   teknik: "laptop monitor smartphone code terminal cpu server database wifi cloud-cog gamepad-2 joystick bot rocket",
-  skapande: "camera film clapperboard palette brush paintbrush scissors shirt image video theater drama tv",
-  djur: "dog cat bird rabbit paw-print bug fish-symbol",
+  skapande: "camera film clapperboard palette paintbrush scissors shirt image video theater drama tv",
+  djur: "dog cat bird rabbit paw-print bug",
   symboler:
-    "star heart zap crown shield flag bell calendar clock gift sparkles anchor key lock wrench hammer hard-hat truck tractor package shopping-cart shopping-bag newspaper megaphone mail message-circle phone inbox folder file-text clipboard-list archive layers tag hash infinity sun-medium award gem diamond puzzle dice-5 crosshair",
+    "star heart zap crown shield flag bell calendar clock gift sparkles anchor key lock wrench hammer hard-hat truck tractor package shopping-cart shopping-bag newspaper megaphone mail message-circle phone inbox folder file-text clipboard-list archive layers tag hash infinity sun-medium award gem puzzle dice-5 crosshair",
 };
 
 /** @param {string} namn */

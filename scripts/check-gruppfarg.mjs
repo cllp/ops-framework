@@ -19,8 +19,8 @@
  *   ikonen mot plattan   golv 4,5:1   initialer är text, så textens krav gäller och inte grafikens
  *   ikonen mot ytan      golv 3:1     WCAG 1.4.11, grafik; kulörrutan i väljaren och kanten på ett valt kort
  *
- * ⛔ GOLV FÖR UNDERLAGET (regel 4): minst 12 kulörer i tabellen (de tolv snabbvalen), alla 360 räknade, och tre ytor
- * per läge. Läser vakten färre blir den röd i stället för grön på tomhet.
+ * ⛔ GOLV FÖR UNDERLAGET (regel 4): minst 12 kulörer i tabellen (de tolv snabbvalen), minst 300 olika ritade ikonfärger
+ * av 360 per läge, och tre ytor per läge. Läser vakten färre blir den röd i stället för grön på tomhet.
  *
  * Kör: node scripts/check-gruppfarg.mjs [tokens.css]
  */
@@ -89,20 +89,32 @@ function mat(lage, h) {
 }
 
 let raknade = 0;
+/*
+ * ⛔ GOLVET ÄR ANTALET OLIKA FÄRGER, INTE ANTALET VARV (granskningen av PR 266). "Räknade minst 720" kunde aldrig bli rött:
+ * slingan går alltid 360 varv. Det som kan gå fel är att kulören inte når färgen, till exempel en mättnad 0 i temat. Då klarar
+ * varje kulör kontrasten (allt är grått) och vakten hade varit grön genom precis det felet. Golvet: minst MIN_OLIKA olika
+ * ritade ikonfärger (8 bitar per kanal) av 360 per läge.
+ */
+const MIN_OLIKA = 300;
+/** @param {[number, number, number]} lin */
+const ritad = (lin) => lin.map((v) => Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055))).join(",");
 const sammanfattning = {};
 if (fel.length === 0) {
   for (const lage of Object.keys(LAGEN)) {
+    const olika = new Set();
     let samstPlatta = { v: Infinity, h: -1 };
     let samstYta = { v: Infinity, h: -1 };
     for (let h = 0; h < 360; h++) {
       const m = mat(lage, h);
       raknade++;
+      olika.add(ritad(iGamut(tema[lage].ikon[0], tema[lage].ikon[1], h)));
       if (m.platta < samstPlatta.v) samstPlatta = { v: m.platta, h };
       if (m.yta < samstYta.v) samstYta = { v: m.yta, h };
       if (m.platta < GOLV_PLATTA) fel.push(`${lage}, kulör ${h}: ikonen mot plattan ${m.platta.toFixed(2)}:1, golvet är ${GOLV_PLATTA}:1`);
       if (m.yta < GOLV_YTA) fel.push(`${lage}, kulör ${h}: ikonen mot ytan ${m.yta.toFixed(2)}:1, golvet är ${GOLV_YTA}:1`);
     }
-    sammanfattning[lage] = { samstPlatta, samstYta };
+    sammanfattning[lage] = { samstPlatta, samstYta, olika: olika.size };
+    if (olika.size < MIN_OLIKA) fel.push(`${lage}: bara ${olika.size} olika ikonfärger av 360 kulörer, golvet är ${MIN_OLIKA}. Når kulören färgen (mättnad över 0)?`);
   }
 
   console.log("Kulör  Namn       ljust ikon/platta  ljust ikon/yta  mörkt ikon/platta  mörkt ikon/yta");
@@ -112,10 +124,9 @@ if (fel.length === 0) {
     console.log(`${String(f.kulor).padStart(5)}  ${f.sv.padEnd(9)}  ${l.platta.toFixed(2).padStart(17)}  ${l.yta.toFixed(2).padStart(14)}  ${d.platta.toFixed(2).padStart(17)}  ${d.yta.toFixed(2).padStart(14)}`);
   }
   if (GRUPPKULORFORSLAG.length < MIN_KULORER_I_TABELL) fel.push(`tabellen har ${GRUPPKULORFORSLAG.length} kulörer, golvet är ${MIN_KULORER_I_TABELL}`);
-  if (raknade < 720) fel.push(`räknade ${raknade} kulörer, golvet är 720 (360 per läge)`);
   for (const [lage, s] of Object.entries(sammanfattning)) {
     console.log(
-      `${lage}: sämsta av 360, ikonen mot plattan ${s.samstPlatta.v.toFixed(2)}:1 (kulör ${s.samstPlatta.h}), ikonen mot ytan ${s.samstYta.v.toFixed(2)}:1 (kulör ${s.samstYta.h})`,
+      `${lage}: sämsta av 360, ikonen mot plattan ${s.samstPlatta.v.toFixed(2)}:1 (kulör ${s.samstPlatta.h}), ikonen mot ytan ${s.samstYta.v.toFixed(2)}:1 (kulör ${s.samstYta.h}), ${s.olika} olika ikonfärger`,
     );
   }
 }

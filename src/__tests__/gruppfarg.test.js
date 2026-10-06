@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { createElement } from "react";
-import { ARV_TON_KULOR, GRUPPKULORFORSLAG, fargTillKulor, gruppKulor, kulorTillFarg } from "../lib/gruppfarg.js";
+import { ARV_TON_KULOR, GRUPPKULORFORSLAG, fargTillKulor, gruppKulor, kulorTillFarg, narmasteKulornamn } from "../lib/gruppfarg.js";
 import { hexKulor } from "../lib/oklch.js";
 import { identityTone } from "../lib/identity.js";
 import { OpsIdentity } from "../components/OpsIdentity.jsx";
@@ -30,12 +30,24 @@ describe("⛔ lagringsformen", () => {
     expect(fargTillKulor("kulor:359")).toBe(359);
     expect(fargTillKulor("kulor:360")).toBeNull();
     expect(fargTillKulor("kulor:abc")).toBeNull();
+    // ⛔ En lagrad form per kulör (granskningen av PR 266): inga inledande nollor.
+    expect(fargTillKulor("kulor:007")).toBeNull();
+    expect(fargTillKulor("kulor:07")).toBeNull();
+    expect(fargTillKulor("kulor:00")).toBeNull();
+    expect(fargTillKulor("kulor:7")).toBe(7);
     expect(fargTillKulor("#ff0000")).toBeNull();
     expect(fargTillKulor("3")).toBe(ARV_TON_KULOR[3]);
     expect(fargTillKulor("")).toBeNull();
     expect(kulorTillFarg(210)).toBe("kulor:210");
     expect(() => kulorTillFarg(360)).toThrow();
     expect(() => kulorTillFarg(1.5)).toThrow();
+  });
+
+  it("närmaste kulörnamn runt cirkeln", () => {
+    expect(narmasteKulornamn(227)).toBe("Turkos");
+    expect(narmasteKulornamn(359)).toBe("Rosa");
+    expect(narmasteKulornamn(5)).toBe("Hallon");
+    expect(narmasteKulornamn(10, "en")).toBe("Raspberry");
   });
 
   it("golv: minst tolv snabbval, unika, inom 0 till 359", () => {

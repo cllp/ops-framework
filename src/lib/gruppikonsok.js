@@ -1,4 +1,5 @@
 import { GRUPPIKONKATALOG } from "./gruppikonkatalog.generated.js";
+import { GRUPPIKON_SVENSKA } from "./gruppikonnamn.js";
 
 /**
  * Sökningen i gruppikonerna (0.65.0, #265): namn, Lucides sökord och svenska synonymer.
@@ -22,6 +23,11 @@ export const SVENSKA_SYNONYMER = Object.freeze({
   låt: ["music", "song"],
   konsert: ["concert", "music"],
   ljud: ["audio", "sound"],
+  hörlur: ["headphones", "audio"],
+  högtalare: ["speaker", "audio"],
+  not: ["music", "note"],
+  noter: ["music", "note"],
+  skiva: ["disc", "album", "vinyl", "record"],
   gitarr: ["guitar"],
   trumm: ["drum"],
   piano: ["piano"],
@@ -97,7 +103,7 @@ export const SVENSKA_SYNONYMER = Object.freeze({
   klubb: ["club", "community", "group"],
   grupp: ["group", "people", "team"],
   team: ["team", "group", "people"],
-  styrelse: ["board", "business", "meeting"],
+  styrelse: ["meeting", "business", "handshake"],
   projekt: ["project", "work", "plan"],
   bygg: ["construction", "build", "tools"],
   verktyg: ["tools", "tool", "repair"],
@@ -160,17 +166,25 @@ function expandera(o) {
  * Hur väl en ikon svarar på ETT sökord. 0 är ingen träff.
  * @param {{ namn: string, taggar: ReadonlyArray<string> }} ikon
  * @param {string} sok
+ * @param {boolean} ra Sant när `sok` är ordet som skrevs, falskt för en synonym.
  */
-function poang(ikon, sok) {
+function poang(ikon, sok, ra) {
   const namnDelar = ikon.namn.split("-");
-  if (ikon.namn === sok || namnDelar[0] === sok) return 100;
-  if (ikon.namn.startsWith(sok)) return 60;
-  let basta = 0;
+  let basta = ikon.namn === sok || namnDelar[0] === sok ? 100 : ikon.namn.startsWith(sok) ? 60 : 0;
+  // Det svenska namnet (`gruppikonnamn.js`) är ett sökord: "hörlurar" hittar Hörlurar, "hörlur" börjar ett ord i det.
+  const sv = (/** @type {Record<string, string>} */ (GRUPPIKON_SVENSKA)[ikon.namn] ?? "").toLocaleLowerCase("sv").split(/\s+/);
+  if (sv.includes(sok)) basta = Math.max(basta, 110);
+  else if (ra && sok.length >= MIN_ORD && sv.some((o) => o.startsWith(sok))) basta = Math.max(basta, 95);
   for (const tagg of ikon.taggar) {
     const t = tagg.toLowerCase();
     if (t === sok) basta = Math.max(basta, 40);
     else if (t.split(/\s+/).includes(sok)) basta = Math.max(basta, 30);
-    else if (sok.length >= 2 && t.startsWith(sok)) basta = Math.max(basta, 20);
+    /*
+     * ⛔ PREFIX PÅ EN ENGELSK TAGG BARA FÖR DET SOM SKREVS, OCH LÅGT VIKTAT (granskningen av PR 266). Före fixen gav
+     * "kontor" en hantel: synonymen "work" var prefix till taggen "workout". En synonym är ett helt ord och matchar bara
+     * hela ord; ett halvskrivet engelskt ord ("guit") får fortfarande en svag träff.
+     */
+    else if (ra && sok.length >= 4 && t.startsWith(sok)) basta = Math.max(basta, 10);
   }
   return basta;
 }
@@ -193,7 +207,7 @@ export function sokGruppikoner(fraga, katalog = GRUPPIKONKATALOG) {
     let alla = true;
     for (const d of delar) {
       let b = 0;
-      for (const s of expandera(d)) b = Math.max(b, poang(ikon, s) * (s === d ? 1 : 0.9));
+      for (const s of expandera(d)) b = Math.max(b, poang(ikon, s, s === d) * (s === d ? 1 : 0.9));
       if (b === 0) {
         alla = false;
         break;
@@ -226,7 +240,7 @@ export function forslagUrGruppnamn(gruppnamn, katalog = GRUPPIKONKATALOG) {
     const sokord = expandera(d);
     for (const ikon of katalog) {
       let b = 0;
-      for (const s of sokord) b = Math.max(b, poang(ikon, s));
+      for (const s of sokord) b = Math.max(b, poang(ikon, s, s === d));
       for (const tagg of ikon.taggar) {
         const t = tagg.toLowerCase();
         if (t.length >= MIN_ORD && !t.includes(" ") && d.startsWith(t)) b = Math.max(b, 25);
