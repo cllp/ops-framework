@@ -5471,6 +5471,10 @@ for (const bredd of [390, 820, 1280]) {
     }
   } catch (e) {
     krav(false, `inställningarna ${bredd}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 // ══ 44. TALK:S EGEN KNAPP I HUVUDET, BARA PÅ DATOR (0.71.0, #276) ═══════════════════════════════════════════════════════════════════════
 // CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall
 // sitta." jsdom kör ingen CSS, så "bara på dator" och "samma storlek som grannarna" går bara att se här. Vid 1280: knappen står
