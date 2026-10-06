@@ -155,6 +155,12 @@ describe("OpsInstallningar", () => {
     expect(screen.getByRole("heading", { level: 4, name: "Från moduler" })).toBeTruthy();
   });
 
+  it("rubrikniva={undefined} ger förvalet 2", () => {
+    render(<OpsInstallningar rubrikniva={undefined} sektioner={SEKTIONER} vald="gruppen" onValj={() => {}} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Inställningar" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Gruppen" })).toBeTruthy();
+  });
+
   it("rubrikniva som inte är ett heltal från 1 till 5 vägras med en läsbar text", () => {
     const fel = vi.spyOn(console, "error").mockImplementation(() => {});
     for (const dalig of [NaN, 0, 6, 9, 2.5, "3", null]) {
@@ -206,7 +212,10 @@ describe("OpsInstallningar", () => {
     });
 
     describe("katalogens delrubriker följer rubrikniva (0.71.1, granskningen av PR 278)", () => {
-      // ⛔ En arkiverad kategori, så att "Arkiverade" ritas. Före 0.71.1 var den h3 eller h4 efter en regel som bara stämde vid nivå 2.
+      // ⛔ Underlaget ritar ALLA fyra delrubriker: en arkiverad kategori ("Arkiverade"), en ifylld logg ("Senaste ändringarna"), och
+      // med formuläret öppet en textnyckel ("Texter, ...") och förhandsvisningen ("Så här kommer den att se ut"). Före 0.71.1 var de
+      // h3 eller h4 efter en regel som bara stämde vid nivå 2, och granskningen visade att en hårdkodad h3 i tre av dem inte fälldes
+      // av något prov. Varje delrubrik mäts därför för sig, i varje läge.
       const MED_ARKIV = validateKatalog(
         [
           { id: "hog", namn: { sv: "Hög" }, farg: 1, ikon: "bell", fas: "aktiv", ordning: 0 },
@@ -214,58 +223,71 @@ describe("OpsInstallningar", () => {
         ],
         { ikoner: ["bell"], grupp: false },
       );
-      const panel = (niva, katalogrubrik) => (
-        <OpsInstallningar
-          rubrikniva={niva}
-          sektioner={[
-            {
-              id: "prio",
-              rubrik: "Prioriteter",
-              innehall: (
-                <OpsKatalogInstallning kategorier={MED_ARKIV} ikoner={["bell"]} kanAndra onSpara={() => {}} onArkivera={() => {}} rubrik={katalogrubrik} groupId="g" />
-              ),
-            },
-          ]}
-          vald="prio"
-          onValj={() => {}}
+      const LOGG = [{ id: "hog", kategori: "hog", handelse: "tillagd", nar: "2026-10-06T20:00:00Z", efter: { namn: { sv: "Hög" } } }];
+      const TEXTNYCKLAR = [{ nyckel: "tom", etikett: "Tomt läge" }];
+      const katalogen = (katalogrubrik) => (
+        <OpsKatalogInstallning
+          kategorier={MED_ARKIV}
+          ikoner={["bell"]}
+          kanAndra
+          onSpara={() => {}}
+          onArkivera={() => {}}
+          rubrik={katalogrubrik}
+          groupId="g"
+          logg={LOGG}
+          textnycklar={TEXTNYCKLAR}
         />
       );
-      const arkiverade = () => screen.getByRole("heading", { name: "Arkiverade" });
+      /** @param {number | null} niva `null`: katalogen ensam, utan panel. @param {string} katalogrubrik */
+      const rita = (niva, katalogrubrik) => {
+        render(
+          niva === null ? (
+            katalogen(katalogrubrik)
+          ) : (
+            <OpsInstallningar rubrikniva={niva} sektioner={[{ id: "prio", rubrik: "Prioriteter", innehall: katalogen(katalogrubrik) }]} vald="prio" onValj={() => {}} />
+          ),
+        );
+        // Redigeringsläget: formulärets två rubriker finns bara när en kategori läggs till eller ändras.
+        fireEvent.click(screen.getByRole("button", { name: "Lägg till kategori" }));
+      };
       const niva = (el) => Number(el.getAttribute("aria-level") || el.tagName.slice(1));
 
-      it("golv: provets katalog har en arkiverad kategori, annars mäter provet ingenting", () => {
+      const DELRUBRIKER = ["Arkiverade", "Senaste ändringarna", "Texter, alltså det som gör formuläret begripligt", "Så här kommer den att se ut"];
+      // [läge, rubrikniva (null utan panel), katalogens rubrik, katalogens förväntade nivå (null: ritas inte), delrubrikernas nivå]
+      const LAGEN = [
+        ["utan panel", null, "Prioriteter", 2, 3],
+        ["nivå 2, samma rubrik som panelen", 2, "Prioriteter", null, 3],
+        ["nivå 2, annan rubrik", 2, "Lägen", 3, 4],
+        ["nivå 3, samma rubrik som panelen", 3, "Prioriteter", null, 4],
+        ["nivå 3, annan rubrik", 3, "Lägen", 4, 5],
+        ["nivå 5, annan rubrik (aria-level 7 på en h6)", 5, "Lägen", 6, 7],
+      ];
+
+      it("golv: underlaget har en arkiverad kategori, en loggrad och en textnyckel, och alla fyra delrubriker ritas", () => {
         expect(MED_ARKIV.filter((k) => k.arkiverad)).toHaveLength(1);
+        expect(LOGG).toHaveLength(1);
+        rita(null, "Prioriteter");
+        for (const namn of DELRUBRIKER) expect(screen.getByRole("heading", { name: namn })).toBeTruthy();
       });
 
-      it("nivå 2, samma rubrik som panelen: Arkiverade är h3", () => {
-        render(panel(2, "Prioriteter"));
-        expect(niva(arkiverade())).toBe(3);
-      });
-
-      it("nivå 2, annan rubrik: katalogen är h3 och Arkiverade h4", () => {
-        render(panel(2, "Lägen"));
-        expect(screen.getByRole("heading", { level: 3, name: "Lägen" })).toBeTruthy();
-        expect(niva(arkiverade())).toBe(4);
-      });
-
-      it("nivå 3, samma rubrik som panelen: Arkiverade är h4, under panelens h3", () => {
-        render(panel(3, "Prioriteter"));
-        expect(screen.getByRole("heading", { level: 3, name: "Prioriteter" })).toBeTruthy();
-        expect(niva(arkiverade())).toBe(4);
-      });
-
-      it("nivå 3, annan rubrik: katalogen är h4 och Arkiverade h5", () => {
-        render(panel(3, "Lägen"));
-        expect(screen.getByRole("heading", { level: 4, name: "Lägen" })).toBeTruthy();
-        expect(arkiverade().tagName).toBe("H5");
-      });
-
-      it("nivå 5, annan rubrik: Arkiverade är nivå 7 för skärmläsaren, ritad som h6 eftersom HTML slutar där", () => {
-        render(panel(5, "Lägen"));
-        expect(screen.getByRole("heading", { level: 6, name: "Lägen" })).toBeTruthy();
-        expect(arkiverade().tagName).toBe("H6");
-        expect(arkiverade().getAttribute("aria-level")).toBe("7");
-      });
+      for (const [lage, panelniva, katalogrubrik, katalogniva, underniva] of LAGEN) {
+        it(`${lage}: katalogens rubrik ${katalogniva === null ? "ritas inte" : `är nivå ${katalogniva}`}`, () => {
+          rita(panelniva, katalogrubrik);
+          if (katalogniva === null) {
+            expect(screen.getAllByRole("heading", { name: katalogrubrik })).toHaveLength(1);
+          } else {
+            expect(niva(screen.getByRole("heading", { name: katalogrubrik }))).toBe(katalogniva);
+          }
+        });
+        for (const namn of DELRUBRIKER) {
+          it(`${lage}: "${namn}" är nivå ${underniva}`, () => {
+            rita(panelniva, katalogrubrik);
+            const el = screen.getByRole("heading", { name: namn });
+            expect(niva(el)).toBe(underniva);
+            expect(el.tagName).toBe(`H${Math.min(underniva, 6)}`);
+          });
+        }
+      }
     });
 
     it("utan ikonRitare ritas ingen ikonnyckel som text", () => {
