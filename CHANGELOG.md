@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## Ej utgiven: chattens nattskiva (#273 och chattanalysen)
 
-⛔ **Versionen sätts vid merge.** 0.69.0 till 0.72.0 är tagna av andra öppna PR:ar, så rubriken byts mot nästa lediga nummer när den
+⛔ **Versionen sätts vid merge.** 0.69.0 och 0.70.0 är utgivna, och 0.71.0 och 0.72.0 är tagna av andra öppna PR:ar, så rubriken byts mot nästa lediga nummer när den
 här mergas.
 
 CP 2026-10-06 20:02 i LifeHubs agentsamtal: "jag skulle vilja ha en indikation medans du tänker och skriver i chatten", och agentens
@@ -66,6 +66,75 @@ heter samma sak.
    `OpsMeddelandeLank olastaFler`.
 
 ---
+## 0.70.0
+
+⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, mergad medan den här grenen var öppen, och inmergad hit med en vanlig merge) och 0.69.0 är #278 (#274), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.70.0.
+
+### Personen har samma märke och samma val som gruppen, och märket finns utan React (cllp/lifehub.identity#27)
+
+Händelsen: CP 2026-10-06 20:13, med en skärmbild av Profil i Mitt konto: "Låt profildelen i identity ha samma fina funktion exakt som man editerar grupp med ikoner och färger." Profilen hade sex fasta ikoner och sex färgprickar; grupper har sedan 0.65.0 en sökbar ikonväljare och en kulör.
+
+Identitys webb är vanlig TypeScript utan React. Mätt i identitys bygge (vite build, gzip -9): React och react-dom med `OpsGruppmarkeValjare` lade till 103,6 kB; katalogen, sökningen och kulörerna ur rotens `ops-framework` 36,9 kB (`dist/index.js` är en fil som inte skakas ned väl); samma funktioner ur källfilerna plus SVG-datan 23,5 kB. Den sista vägen är den nya ingången.
+
+#### Tillagt
+
+- **`ops-framework/gruppmarke`**, en ingång utan React: katalogen, sökningen, de svenska namnen, kulören, senast använda, `personmarke` och SVG för varje ikon. Typer i `dist/types/gruppmarke/index.d.ts`. Se README, "ops-framework/gruppmarke".
+- **SVG-datan** (`gruppikonsvg.generated.js`, `GRUPPIKON_SVG`, `gruppikonSvg(namn, storlek)`), genererad av `scripts/generate-gruppikoner.mjs` genom att rita varje `lucide-react`-komponent med `react-dom/server`. ⛔ Inte en andra källa: provet jämför `gruppikonSvg(namn)` med komponentens markup för alla 187 ikoner, och `check-gruppikoner` blir röd när datan ligger efter generatorn.
+- **`personmarke(person)`** (ren) och **`personmarkeProps(person)`** (för `OpsIdentity`): personens märke som gruppens, ikonen i kulören på en tonad platta, eller initialerna.
+- **`ARV_PROFILIKON`**: de sex äldre profil-id:na till Lucide-namnet de alltid ritats med (person till user, leende till smile, stjarna, hjarta, blixt och krona till star, heart, zap och crown).
+- **`arGiltigProfilikon`**, och `arGiltigGruppfarg` exporteras nu.
+- **`check-gruppmarke`**: ingången får bara nå filer under `src/lib/` och inga paket alls, och varje export ska stå i README. Planterat i `test-guards` (gruppmärke 1 till 4 och ett golv).
+
+#### Ändrat
+
+- **`byggAnvandare` tar emot ett katalognamn som `ikon` och `kulor:0` till `kulor:359` som `farg`**, utöver de äldre sex id:na och tonerna `"1"` till `"6"`. Allt annat avvisas, också `initialer:AB`, gruppens äldre id (`portfolj`) och `kulor:007`. Ingenting i databasen skrivs om.
+- **`OpsProfil` ritar personen som en grupp** (`personmarkeProps`). Bilden väger fortfarande tyngst. Profilens egen väljare i `OpsProfil` är oförändrad i den här versionen: den skriver fortfarande de äldre id:na och tonerna, som tas emot och ritas i det nya märket.
+- **`gruppikonKomponent` och `gruppikonNamn` känner också de äldre profil-id:na**, så att en person ritas med samma karta som en grupp.
+- **Flyttat utan att namnen ändrats:** `ARV_GRUPPIKON` och `gruppikonNamn` bor i `src/lib/gruppikonarv.js`, märkets former (`PROFILIKONER`, `PROFILFARGER`, `GRUPPIKONER`, `GRUPPINITIALER_FORM`) i `src/lib/markeformer.js`, och senast använda i `src/lib/gruppikonsenaste.js` (samma nyckel i `localStorage`, så listan följer med). Alla återexporteras där de stod.
+
+#### Rättat efter granskningen
+
+- **Prototypnycklar var giltiga färger.** `fargTillKulor` slog upp tonerna med `in`, som når prototypkedjan, så "toString", "constructor", "__proto__", "valueOf" och "hasOwnProperty" togs emot av `byggAnvandare` och `byggGrupp`. Uppslaget går nu med `Object.hasOwn`, och `gruppikonEtikett` likaså (där gav "toString" en funktion i stället för en etikett). Prov i `gruppmarke.test.jsx`.
+- **`check-gruppmarke` fångar mallsträngar och beräknade importer.** `import(\`react\`)` gick förbi, och en `import(x)` går inte att följa och är nu ett brott. En export räknas som nämnd i README först som eget ord, inte som del av ett längre.
+
+#### Ompinning till 0.70.0
+
+LifeHubs Identity använder `ops-framework/gruppmarke` för profilens väljare (lifehub.identity#27), och hubben bör rita personens märke i huvudet med `personmarkeProps(profil)`.
+
+⛔ **En app som prövar en spegling av profilen med `byggAnvandare` måste pinna om INNAN identity släpps.** Det gäller hubbens `speglaPerson` (lifehub.app). På 0.67.0 kastar `byggAnvandare` för ett katalognamn som `music` och för `kulor:210`. `speglaPerson` loggar felet och speglar då inte raden alls: inte namnet, inte bilden, inte telefonen. Släpps identity först slutar alltså varje person som väljer en ny ikon eller kulör att speglas, och det syns bara som en varning i funktionsloggen. Ordningen är: ramverket, hubbens ompinning och funktionsdeploy, och sedan identitys funktioner (`sparaProfil`, som också prövar med `byggAnvandare`) före identitys webb.
+
+En app som varken prövar profilen eller vill rita det nya märket behöver ingen ändring.
+## 0.69.0
+
+⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, lifehub.app#60), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.69.0.
+
+### Inställningarna: en lista med sektioner, och varje sektion i en egen panel (#274)
+
+Händelsen: CP 2026-10-06 20:12, med en skärmbild av Inställningar i LifeHub på surfplatta: "hela inställnings-panelen är superrörig. Vi måste bygga ett intuitivt, enkelt och rent inställningspanel. Sektioner kanske skall stå ensamma, med att man navigerar till en specifik panel med tillbaka-pil mm. Texterna känns ihoptryckta." Sidan var ett enda långt flöde av kort, med små rubriker, täta rader och utvecklartext mellan korten ("Slagen är inte seedade än", "Samlingen är tom, så appen ritar repots standardvärden", "står däremot i koden (SLAGBETEENDEN)").
+
+#### Tillagt
+
+- **`OpsInstallningar`**: appen ger sektionerna (`{ id, ikon, rubrik, beskrivning, antal, innehall }`), ramverket ger listan och panelen. Raderna är minst 56 px, med ikon, rubrik i 16 px halvfet, beskrivningen på egen rad i 14 px dämpad (12 px i första utkastet, som granskningen kallade just det CP klagade på), antalet till höger och en chevron. Panelen har tillbaka-pil, rubrik i 18 px och beskrivning på egen rad. `ORD_OPSINSTALLNINGAR` på svenska och engelska. En sektion utan `id`, `rubrik` eller `innehall` vägras, och ett okänt `vald` ger en varning i utvecklingsläge.
+- **`rubrikniva`, förval 2:** sidans och panelens rubrik står på samma nivå under appskalets `h1`, och delarna i en panel en nivå under. Samma nivå med flit, eftersom panelen står ensam under 1024 px.
+- **Tillbaka går tillbaka i historiken:** filhuvudet säger att appens `onValj(null)` ska vara `history.back()` när panelen öppnades med `pushState`, och `replaceState` när sidan öppnades direkt på en sektion.
+- **Den valda sektionen ligger i adressen.** `vald` och `onValj` kommer från appen, så att webbläsarens tillbaka fungerar och en sektion går att länka till. Ramverket känner ingen router och inga samlingsnamn. Ett okänt `vald` (en gammal länk) ritar listan och ingen tom panel.
+- **En kolumn under 1024 px, två från 1024.** Telefon och iPad i stående läge (820 px) får listan, och panelen ersätter den; datorn får listan till vänster och panelen till höger, utan tillbaka-pil. Gränsen är `lg` och inte `md` som i Meddelanden: i 820 px hade panelen blivit drygt 500 px bred, och en katalog trängs där igen.
+- **Tangentbord och skärmläsare:** listan är en `<ul>` med knappar och den valda bär `aria-current`. Fokus går till panelens rubrik när den öppnas och tillbaka till raden när man går tillbaka, med pilen eller med webbläsarens tillbaka. Vid första ritningen flyttas inget fokus.
+- **`useInstallningspanel`:** `OpsKatalogInstallning` och `OpsModulTyper` ritar sin rubrik en nivå under panelens, och inte alls när den är samma som panelens. Katalogens delrubriker (Arkiverade, Senaste ändringarna) följer med en nivå ned. Utanför en panel är allt som förut.
+- **`check-utvecklarord`** (i `npm run check`): larmar på seedad/seedade/seedning, samlingen/samlingens/samlingar, standardvärden, driftsättning, repots, Firestore och kodnamn i versaler i det användaren ser: JSX-text, strängar som ensamma barn i JSX, båda grenarna i en ternär, ordböckernas `sv:`/`en:` och värden på användartextnamn (inklusive `hint`). Kommentarer, felmeddelanden och loggrader läses inte. Golv: 150 filer och 400 texter i ramverket, och ett golv per mönster (attribut 130, ordbok 125, ternär 15, barn 6, JSX-text 55, ungefär hälften av det mätta); 5 filer och 10 texter i en app. `--golv=abc` avbryts med fel. Planterat i `test-guards`: nio röda fall, ett grönt, fyra golv och ett avstängt mönster i taget (fem röda), plus beviset att `{"..."}`-fallet bara fångas av barnmönstret. Ramverket självt: 675 texter, 0 träffar. LifeHub på origin/main: 16, som ompinningen lagar.
+- **`check-skalyta` avsnitt 43** vid 390, 820 och 1280 px: listan, en panel, tillbaka, fokus, beskrivningen minst 13 px, inget eget `h1`, panelens rubrik på sidans nivå och ingen horisontell överflödning.
+
+#### Ändrat
+
+- **`OpsKatalogInstallning` utan `ikonRitare`** ritar ingen ikon. Förut stod ikonens nyckel (`wallet`, `inbox`) som text i varje rad.
+
+#### Ompinning till 0.69.0
+
+Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.69.0/ops-framework-0.69.0.tgz"`.
+2. `SettingsView` byggs om till `OpsInstallningar` med sektionerna ur ärendet, och sektionen läses ur och skrivs till adressen.
+3. Utvecklartexten skrivs om för användaren. Lägg `node node_modules/ops-framework/scripts/check-utvecklarord.mjs src` i appens kedja.
 
 ## 0.68.0
 

@@ -63,7 +63,7 @@ const STORLEKAR = {
  *   t.ex. personens sparade `farg` (#164), väger tyngre än det härledda.
  * @param {number} [props.kulor] (0.65.0, #265) En GRUPPS kulör i grader (0 till 359). Ges den ritas märket som gruppmärke: ikonen eller
  *   initialerna i kulören på en tonad platta av samma kulör (`.ops-gruppmarke` i tokens.css, ljushet och mättnad ur temat). Vinner över
- *   `tone`. Utelämnad: tonen, som för en person. `gruppmarkeProps` sätter den för varje grupp.
+ *   `tone`. `gruppmarkeProps` sätter den för varje grupp, och sedan 0.70.0 `personmarkeProps` för varje person (lifehub.identity#27).
  */
 export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone, initialer, kulor, rund = false }) {
   const storlekKlass = STORLEKAR[size];

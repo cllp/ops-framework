@@ -204,8 +204,8 @@ export const GRUPPIKON_SVENSKA = Object.freeze({
  */
 export function gruppikonEtikett(namn, sprak = "sv") {
   if (sprak !== "en") {
-    const sv = /** @type {Record<string, string>} */ (GRUPPIKON_SVENSKA)[namn];
-    if (sv) return sv;
+    // ⛔ `Object.hasOwn`: annars ger "toString" en funktion tillbaka i stället för en etikett.
+    if (Object.hasOwn(GRUPPIKON_SVENSKA, namn)) return /** @type {Record<string, string>} */ (GRUPPIKON_SVENSKA)[namn];
   }
   return namn.replace(/-/g, " ");
 }
