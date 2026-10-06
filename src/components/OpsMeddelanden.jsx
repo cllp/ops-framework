@@ -505,7 +505,8 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
       if (!monterad.current) return;
       onOppnat(s, textNu.current);
     } catch (e) {
-      if (!monterad.current) return;
+      // Ingen kontroll av `monterad` här: en setState på en avmonterad komponent gör ingenting i React 18, så en kontroll
+      // hade inte gått att se falla (samma skäl som gruppkontrollen i `onOppnat`, fjärde varvet av granskningen av PR 264).
       setFel({ text: e instanceof Error ? e.message : String(e) });
       setOppnar(false);
     }

@@ -86,9 +86,10 @@ export function useSamtal({ kalla, groupId, uid }) {
     /*
      * ⛔ En `lasOm` ur en rendering för en annan grupp gör ingenting. Den får inte heller räkna upp `levande`: då hade den
      * aktuella gruppens läsning som är på väg kastats som inaktuell, och inkorgen hade stått kvar på "laddar" eller tom.
-     * Det är den enda gruppkontrollen i `lasOm` som behövs. Ett sent svar för en grupp man lämnat fångas redan av numret:
-     * effektens städning räknar upp `levande` vid varje gruppbyte, så en läsning som började före bytet har aldrig det
-     * aktuella numret. En andra kontroll av gruppen på svaret stod här och var grön utan sig själv i varje prov, och togs
+     * Det är den enda gruppkontrollen i `lasOm` som behövs. Ett sent svar för en grupp man lämnat fångas av numret. Vid ett
+     * byte från g till h är det h:s nya läsning som räknar upp `levande`, så g:s svar har inte längre det aktuella numret.
+     * Effektens städning (`levande.current += 1` nedan) bär bara när ingen ny läsning startar: gruppen blir `null`, eller
+     * källan byts utan att en ny läsning kommer igång. Fallet null har ett eget prov i `useSamtal.test.jsx`. En andra kontroll av gruppen på svaret stod här och var grön utan sig själv i varje prov, och togs
      * bort i fjärde varvet av granskningen av PR 264 (regel 4: ett skydd som inte kan ses falla är ingen vakt).
      */
     if (gruppNu.current !== groupId) return;
@@ -118,6 +119,7 @@ export function useSamtal({ kalla, groupId, uid }) {
     window.addEventListener("focus", fokus);
     return () => {
       window.removeEventListener("focus", fokus);
+      // ⛔ Det enda skyddet mot ett sent svar när ingen ny läsning startar efter bytet (gruppen blir `null`). Se ovan.
       levande.current += 1;
     };
   }, [lasOm]);

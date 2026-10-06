@@ -100,4 +100,18 @@ describe("useSamtal.laggIn", () => {
     expect(result.current.laddar).toBe(false);
     expect(result.current.rader.map((r) => r.samtal.id)).toEqual(["h|grupp"]);
   });
+
+  it("⛔ ett sent svar för g när gruppen blir null skrivs inte in: städningens uppräkning är det enda skyddet då", async () => {
+    const gRad = { samtal: samtal("g", "g|grupp"), senaste: { id: "x", text: "Bara i g", av: "bo", tid: 5 }, olasta: 1, lastTill: 0, motpart: null };
+    /** @type {(v: any) => void} */
+    let gSvar = () => {};
+    const kalla = /** @type {any} */ ({ oversikt: vi.fn(() => new Promise((r) => (gSvar = r))) });
+    const { result, rerender } = renderHook(({ g }) => useSamtal({ kalla, groupId: g, uid: "anna" }), { initialProps: { g: /** @type {string | null} */ ("g") } });
+    await waitFor(() => expect(kalla.oversikt).toHaveBeenCalledTimes(1));
+    rerender({ g: null });
+    await waitFor(() => expect(result.current.laddar).toBe(false));
+    await act(async () => gSvar([gRad]));
+    expect(kalla.oversikt).toHaveBeenCalledTimes(1);
+    expect(result.current.rader).toEqual([]);
+  });
 });
