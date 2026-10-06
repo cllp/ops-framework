@@ -217,7 +217,7 @@ export function regelfragment(namn = {}, val = {}) {
 
   return `    // ══ Ramverkets grupper och medlemskap. GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, regelfragment() i src/lib/regler.js.
+    // Källa: ops-framework, regelfragment() i src/lib/regler.js.
     // En ändring hör hemma där och kommer hit när fragmentet genereras om.
 
     function opsInloggad() {
@@ -388,7 +388,7 @@ export function lagringsregelfragment(konfig = {}) {
 
   return `    // ══ Ramverkets profilbilder. GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, lagringsregelfragment() i src/lib/regler.js.
+    // Källa: ops-framework, lagringsregelfragment() i src/lib/regler.js.
     // En ändring hör hemma där och kommer hit när fragmentet genereras om.
     //
     // ⛔ BARA SIN EGEN SÖKVÄG. \`uid\` i sökvägen måste vara den inloggades eget,
@@ -743,7 +743,7 @@ export function konfigloggregelfragment(namn) {
  *     i efterhand se ut att svara på något annat än det gjorde, och en radering lämnar inget svar på "vad stod
  *     det?". Samma princip som arkivering i stället för radering överallt annars i ramverket.
  *   - LÄST-STATUS: bara personen själv, och bara i ett samtal hen får läsa.
- *   - TRÅDAR (0.66.0, lifehub.app#60): bara i gruppchatten. Läsa: den som får läsa gruppchatten. Starta: en aktiv
+ *   - TRÅDAR (0.68.0, lifehub.app#60): bara i gruppchatten. Läsa: den som får läsa gruppchatten. Starta: en aktiv
  *     person i gruppen, ur ett meddelande som finns i samma samtal (trådens nyckel ÄR rotmeddelandets id), som sig
  *     själv. Döpa om: vem som helst av gruppens personer, och bara `namn`. Trådens meddelanden har samtalets form och
  *     samma krav. Aldrig radering. ⛔ EN KLIENT SKRIVER ALDRIG SOM AGENT här heller.
@@ -763,9 +763,9 @@ export function samtalsregelfragment(namn = {}) {
   const meddelanden = kontrolleraNamn(namn.meddelanden ?? "meddelanden", "meddelanden");
   const last = kontrolleraNamn(namn.last ?? "last", "last");
   /*
-   * ⛔ TRÅDARNA ÄR FRIVILLIGA OCH HAR INGET FÖRVAL (0.66.0, granskningen av PR 268, BÖR 1). Ramverket känner aldrig ett
-   * samlingsnamn själv, och en app som inte skickar `tradar` får EXAKT samma regeltext som i 0.64.0, byte för byte (provet
-   * mot `rules/__fixturer__/samtalsregelfragment-0.64.0.rules`). Ett förval hade gett varje app nya regler vid en ompinning
+   * ⛔ TRÅDARNA ÄR FRIVILLIGA OCH HAR INGET FÖRVAL (0.68.0, granskningen av PR 268, BÖR 1). Ramverket känner aldrig ett
+   * samlingsnamn själv, och en app som inte skickar `tradar` får EXAKT samma regeltext som i 0.67.0, byte för byte (provet
+   * mot `rules/__fixturer__/samtalsregelfragment-0.67.0.rules`). Ett förval hade gett varje app nya regler vid en ompinning
    * som ingen bad om.
    */
   const tradar = namn.tradar === undefined ? null : kontrolleraNamn(namn.tradar, "tradar");
@@ -778,9 +778,9 @@ export function samtalsregelfragment(namn = {}) {
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
-  const version = tradar ? "0.34.0, trådar 0.66.0" : "0.34.0";
+  const version = tradar ? "0.34.0, trådar 0.68.0" : "0.34.0";
   const tradfunktioner = tradar
-    ? `    // Gruppchatten s, och den inloggade får läsa den (0.66.0). Trådar finns bara här.
+    ? `    // Gruppchatten s, och den inloggade får läsa den (0.68.0). Trådar finns bara här.
     function opsIGruppchatten(sid) {
       return opsISamtal(sid) && get(opsSamtalet(sid)).data.slag == '${GRUPPSAMTAL}';
     }
@@ -800,7 +800,7 @@ export function samtalsregelfragment(namn = {}) {
   const tradblock = tradar
     ? `
 
-      // Trådar (0.66.0): nyckeln är rotmeddelandets id i samma samtal.
+      // Trådar (0.68.0): nyckeln är rotmeddelandets id i samma samtal.
       match /${tradar}/{tid} {
         allow read: if opsIGruppchatten(sid);
         allow create: if opsPersonIGruppchatten(sid)
@@ -831,7 +831,7 @@ export function samtalsregelfragment(namn = {}) {
 
   return `    // ══ Ramverkets samtal (${version}). GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Källa: ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
     function opsMedlemskapFor(uid, gid) {
       return /databases/$(database)/documents/${medlemskap}/$(uid + '${A}' + gid);
@@ -974,7 +974,7 @@ export function kalenderregelfragment(namn = {}) {
 
   return `    // ══ Ramverkets kalendrar (0.37.0). GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Källa: ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
 ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KALENDERFALT], nyckelMedGrupp: true })}
     function opsMinKalender(uid, kid) {
@@ -1073,7 +1073,7 @@ export function handelseregelfragment(namn = {}) {
 
   return `    // ══ Ramverkets händelsemodell (0.37.0). GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, handelseregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Källa: ops-framework, handelseregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
     function opsGruppkalendern(gid, kid) {
       return /databases/$(database)/documents/${gruppkalendrar}/$(gid + '${KATALOGAVGRANSARE}' + kid);

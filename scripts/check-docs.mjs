@@ -112,11 +112,11 @@ if (!pastatt) {
 
 // ── Sentry-ingången (#159), som utlovade INTE ser ───────────────────────────
 //
-// ⛔ `@staiger/ops-framework/sentry` ÄR EN EGEN INGÅNG, src/sentry.js, som
+// ⛔ `ops-framework/sentry` ÄR EN EGEN INGÅNG, src/sentry.js, som
 // varken ligger i src/index.js eller src/node/index.js. Ingen av de andra
 // kontrollerna ovan ser den. Utan en egen rad hade den kunnat glömmas bort
 // helt, dokumentationslöst, trots att den är en publik del av paketets API.
-const SENTRY_STRANGAR = ["@staiger/ops-framework/sentry", "sentryMottagare", "felmottagare"];
+const SENTRY_STRANGAR = ["ops-framework/sentry", "sentryMottagare", "felmottagare"];
 for (const strang of SENTRY_STRANGAR) {
   if (!readme.includes(strang)) {
     brott.push(`README nämner inte "${strang}". Sentry-ingången (src/sentry.js, #159) syns inte i den andra kontrollen ovan: den ligger varken i src/index.js eller src/node/index.js.`);

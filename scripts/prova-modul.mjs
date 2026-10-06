@@ -3,7 +3,7 @@
  * Provar en modul mot ramverkets kontrakt (0.56.0, cllp/ops-framework#244). Det en agent kör innan modulen lämnas till
  * granskning, och det granskaren kör för att se samma sak.
  *
- *   node node_modules/@staiger/ops-framework/scripts/prova-modul.mjs <fil> --grupp <groupId> [--export <namn>]
+ *   node node_modules/ops-framework/scripts/prova-modul.mjs <fil> --grupp <groupId> [--export <namn>]
  *
  * `<fil>` är modulens manifestfil. `--export` väljer exporten när filen har flera, annars tas den första exporten som har
  * `id` och `kallor`. Avslutas med 1 när ett steg faller, och skriver ut varje steg, också de godkända.

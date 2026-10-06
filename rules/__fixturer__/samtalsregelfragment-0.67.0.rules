@@ -1,6 +1,6 @@
     // ══ Ramverkets samtal (0.34.0). GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Källa: ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
     function opsMedlemskapFor(uid, gid) {
       return /databases/$(database)/documents/memberships/$(uid + '|' + gid);

@@ -304,7 +304,7 @@ export function byggMottagare(m, medlemmar) {
 }
 
 /*
- * ══ ⛔ TRÅDAR I GRUPPCHATTEN (0.66.0, cllp/lifehub.app#60) ══════════════════════════════════════════════════════
+ * ══ ⛔ TRÅDAR I GRUPPCHATTEN (0.68.0, cllp/lifehub.app#60) ══════════════════════════════════════════════════════
  *
  * CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är
  * med i tråden för alla." Före det fanns ett enda flöde per grupp, och fem spår i samma flöde gav kopplingar mellan

@@ -34,7 +34,7 @@ const ut = path.join(rot, "rules", "provregler.rules");
  *
  * ⛔ `konfiglogg` ÄR RAMVERKETS FRAGMENT FÖR ÄNDRINGSLOGGEN (0.39.0, #188), med samlingsnamnet som en app skickar in det.
  *
- * ⛔ `samtal` MED FÖRVALDA NAMN (0.34.0): samma skäl, det är `samtalsregelfragment()` som provas. `tradar` (0.66.0) skickas UTTRYCKLIGEN: den har inget förval.
+ * ⛔ `samtal` MED FÖRVALDA NAMN (0.34.0): samma skäl, det är `samtalsregelfragment()` som provas. `tradar` (0.68.0) skickas UTTRYCKLIGEN: den har inget förval.
  *
  * ⛔ KALENDRARNA MED FÖRVALDA NAMN (0.36.0, #179 F0): `kalenderregelfragment()`, alltså `gruppkalendrar`,
  * `users/{uid}/minaKalendrar` och `users/{uid}/kalenderposter`.

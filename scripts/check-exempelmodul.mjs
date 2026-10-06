@@ -102,7 +102,7 @@ const exempel = exempelfiler.map((f) => f.text).join("\n");
  *
  * Granskningsfynd på #151. Exemplet importerade `../../src/lib/modul.js`,
  * alltså ramverkets INNANMÄTE, medan README säger
- * `import { defineModule } from "@staiger/ops-framework"`.
+ * `import { defineModule } from "ops-framework"`.
  *
  * ⛔ DET BRÖT MOT DET ENDA LÖFTE MAPPEN FINNS FÖR: att den ska gå att kopiera
  * och bygga vidare på ur README, utan att öppna ramverkets källkod. En
@@ -114,7 +114,7 @@ const exempel = exempelfiler.map((f) => f.text).join("\n");
  * var osynlig genom varje grön körning.
  *
  * Node tillåter självreferens via paketnamnet när `exports` finns, så
- * exemplet importerar `@staiger/ops-framework` även inne i repot. Relativa
+ * exemplet importerar `ops-framework` även inne i repot. Relativa
  * vägar INOM mappen är tillåtna: det är så en kopierad mapp hänger ihop.
  */
 /** @type {string[]} */
@@ -128,7 +128,7 @@ for (const fil of exempelfiler) {
     importrader.push(`${fil.namn}: ${spec}`);
     if (spec.startsWith("../")) {
       brott.push(
-        `exempelmodulen: ${fil.namn} importerar "${spec}", alltså utanför sin egen mapp. Den ska gå att kopiera och bygga ur README, och README säger import från "@staiger/ops-framework". En relativ väg ut ur mappen finns inte i en installerad tarboll.`,
+        `exempelmodulen: ${fil.namn} importerar "${spec}", alltså utanför sin egen mapp. Den ska gå att kopiera och bygga ur README, och README säger import från "ops-framework". En relativ väg ut ur mappen finns inte i en installerad tarboll.`,
       );
     }
   }

@@ -12,7 +12,7 @@ import { samtalsregelfragment } from "../lib/regler.js";
 import * as nod from "../node/index.js";
 
 /**
- * Trådar i gruppchatten (0.66.0, cllp/lifehub.app#60): namnregeln, källan och vyn, mot minnesadaptern.
+ * Trådar i gruppchatten (0.68.0, cllp/lifehub.app#60): namnregeln, källan och vyn, mot minnesadaptern.
  *
  * ⛔ HÄR MÄTS BETEENDE: vilket namn en tråd får, att tråden skapas med det första svaret och inte när den öppnas, att märket
  * visar antal och namn, att omdöpning och återgång fungerar, och att trådar bara finns i gruppchatten. Hur det SER UT mäts i
@@ -59,8 +59,8 @@ describe("namnregeln: ett begripligt namn ur frågan, ingen modell", () => {
     expect(nod.autonamn).toBe(autonamn);
     expect(nod.tradensNamn).toBe(tradensNamn);
   });
-  it("⛔ BÖR 1: utan tradar är regeltexten byte för byte 0.64.0", () => {
-    const fil = path.resolve(__dirname, "..", "..", "rules", "__fixturer__", "samtalsregelfragment-0.64.0.rules");
+  it("⛔ BÖR 1: utan tradar är regeltexten byte för byte 0.67.0", () => {
+    const fil = path.resolve(__dirname, "..", "..", "rules", "__fixturer__", "samtalsregelfragment-0.67.0.rules");
     const gammal = fs.readFileSync(fil, "utf8");
     expect(gammal.length).toBeGreaterThan(3000); // golv: fixturen är inte tom
     expect(samtalsregelfragment()).toBe(gammal);
@@ -139,7 +139,7 @@ async function underlag({ tradar = "tradar" } = {}) {
 /** @param {any} s */
 const medT = (s) => /** @type {any} */ (s);
 
-describe("Firestore-adapterns count (0.66.0)", () => {
+describe("Firestore-adapterns count (0.68.0)", () => {
   const bas = () => ({
     collection: (/** @type {any} */ _d, /** @type {string} */ c) => ({ c }), doc: () => ({}), getDoc: async () => ({ exists: () => false }), getDocs: async () => ({ docs: [] }),
     addDoc: async () => ({ id: "x" }), setDoc: async () => {}, updateDoc: async () => {}, deleteDoc: async () => {},

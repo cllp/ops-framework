@@ -23,7 +23,7 @@ import { byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, s
  * @param {string} [konfig.samtal] Förval `"samtal"`.
  * @param {string} [konfig.meddelanden] Förval `"meddelanden"`.
  * @param {string} [konfig.last] Förval `"last"`.
- * @param {string} [konfig.tradar] (0.66.0) Trådarnas samlingsnamn. ⛔ INGET FÖRVAL: utan det har källan inga trådfunktioner,
+ * @param {string} [konfig.tradar] (0.68.0) Trådarnas samlingsnamn. ⛔ INGET FÖRVAL: utan det har källan inga trådfunktioner,
  *   och `OpsMeddelanden` ritar inga trådar. Appen slår på trådarna genom att skicka samma namn som till
  *   `samtalsregelfragment({ tradar })`. Trådens meddelanden ligger under tråden med samma namn som samtalets (`meddelanden`),
  *   eftersom de har samma form och samma regel.
@@ -190,7 +190,7 @@ export function createSamtalskalla(konfig) {
   }
 
   /*
-   * ══ ⛔ TRÅDARNA (0.66.0, cllp/lifehub.app#60) ═══════════════════════════════════════════════════════════════════
+   * ══ ⛔ TRÅDARNA (0.68.0, cllp/lifehub.app#60) ═══════════════════════════════════════════════════════════════════
    *
    * Modellen och skälen står i `lib/samtal.js`. Här: hur källan läser och skriver dem. Bara när appen skickat `tradar`.
    *
@@ -342,7 +342,7 @@ export function createSamtalskalla(konfig) {
 }
 
 /**
- * @typedef {object} Tradfunktioner (0.66.0) Det en samtalskälla har när appen skickat `tradar`.
+ * @typedef {object} Tradfunktioner (0.68.0) Det en samtalskälla har när appen skickat `tradar`.
  * @property {string} tradar
  * @property {(sid: string, tid: string) => Promise<import("../lib/samtal.js").Trad | null>} trad
  * @property {(d: { sid: string, rot: string, uid: string }) => Promise<import("../lib/samtal.js").Trad>} oppnaTrad
@@ -356,7 +356,7 @@ export function createSamtalskalla(konfig) {
  */
 
 /**
- * Har källan trådar, alltså har appen slagit på dem med `tradar`? (0.66.0, granskningen av PR 268, BÖR 2.)
+ * Har källan trådar, alltså har appen slagit på dem med `tradar`? (0.68.0, granskningen av PR 268, BÖR 2.)
  *
  * ⛔ EN FRÅGA, ETT STÄLLE. Vyn ritar "Svara i tråd" och märkena bara när svaret är ja, så att en app som inte bett om trådar
  * aldrig får en knapp som skriver till en samling dess regler inte släpper in.

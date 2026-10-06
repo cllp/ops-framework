@@ -22,7 +22,7 @@
  * `Felmottagare` är formen `{ fanga, satt }`, ingenting mer. Ramverket
  * importerar ingen felrapporteringstjänst i sin kärna, precis som det inte
  * importerar Firebase eller Postgres. `sentryMottagare` (egen ingång,
- * `@staiger/ops-framework/sentry`) är EN implementation av kontraktet; en app
+ * `ops-framework/sentry`) är EN implementation av kontraktet; en app
  * som vill använda en annan tjänst skriver sin egen på samma form.
  *
  * ⛔ `satt` TAR UID OCH GROUPID, ALDRIG E-POST. E-posten är personlig

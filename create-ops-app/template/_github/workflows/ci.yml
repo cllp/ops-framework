@@ -33,9 +33,9 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Tokenkontraktet
-        run: node node_modules/@staiger/ops-framework/scripts/check-token-overrides.mjs src/index.css
+        run: node node_modules/ops-framework/scripts/check-token-overrides.mjs src/index.css
       - name: Stängt API
-        run: node node_modules/@staiger/ops-framework/scripts/check-closed-api.mjs src
+        run: node node_modules/ops-framework/scripts/check-closed-api.mjs src
       - name: Tester
         run: npm run test
       - name: Bygge

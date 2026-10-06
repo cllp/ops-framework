@@ -322,6 +322,29 @@
   --color-identity-5: #6b4a63;
   --color-identity-6: #5a5f4a;
 
+  /* ─── Gruppmärkets kulör (0.65.0, #265) ───────────────────────────────────
+   * En grupp väljer bara KULÖR (0 till 359 grader). Ljusheten och mättnaden
+   * står här, en gång per läge, och märket ritas som
+   * `oklch(L C <gruppens kulör>)`: ikonen i gruppens färg på en tonad platta
+   * av samma kulör (`.ops-gruppmarke` längre ned).
+   *
+   * ⛔ VARFÖR KULÖR OCH INTE FRI FÄRG. En fri färgväljare ger färger ytan inte
+   * tål och grupper som inte ser ut som en familj. Med ljusheten fast i temat
+   * håller VARJE kulör samma kontrast, och det är mätt, inte antaget:
+   * `scripts/check-gruppfarg.mjs` räknar alla 360 kulörer i båda lägena mot
+   * plattan och mot canvas, surface och raised, med samma gamut-kartläggning
+   * som webbläsaren (mättnaden sänks, ljusheten står kvar). Golv: ikonen mot
+   * plattan 4,5:1 (initialer är text), ikonen mot ytan 3:1 (WCAG 1.4.11).
+   * Ändras ett tal här och en kulör faller under golvet blir vakten röd.
+   *
+   * Talen är inte färger och har därför inget `--color-`-prefix: de är
+   * OKLCH-ljushet och mättnad som kulören sätts in i.
+   * ──────────────────────────────────────────────────────────────────────── */
+  --gruppmarke-ikon-l: 0.47;
+  --gruppmarke-ikon-c: 0.13;
+  --gruppmarke-platta-l: 0.93;
+  --gruppmarke-platta-c: 0.045;
+
   /* ─── Slag ───────────────────────────────────────────────────────────────
    * Vad en post ÄR, när samma svar ska synas på flera ytor samtidigt: ett
    * korts vänsterkant, en ikon i en rad, och en prick i en kalenderruta.
@@ -828,6 +851,12 @@
   --dark-identity-5: #b08fa6;
   --dark-identity-6: #9aa08a;
 
+  /* Gruppmärket i mörkt läge (0.65.0, #265). Se `--gruppmarke-ikon-l` i @theme. */
+  --dark-gruppmarke-ikon-l: 0.82;
+  --dark-gruppmarke-ikon-c: 0.11;
+  --dark-gruppmarke-platta-l: 0.33;
+  --dark-gruppmarke-platta-c: 0.06;
+
   /* Slagen i mörkt läge. Uppmätta mot `--dark-canvas`, alla kontroller
      passerade: delta E 15,6 mellan det svåraste paret, kromagolvet klarat av
      alla tre, kontrast över 3:1. Se den långa noten vid `--color-slag-*`. */
@@ -1067,6 +1096,10 @@
     --color-identity-4: var(--dark-identity-4);
     --color-identity-5: var(--dark-identity-5);
     --color-identity-6: var(--dark-identity-6);
+    --gruppmarke-ikon-l: var(--dark-gruppmarke-ikon-l);
+    --gruppmarke-ikon-c: var(--dark-gruppmarke-ikon-c);
+    --gruppmarke-platta-l: var(--dark-gruppmarke-platta-l);
+    --gruppmarke-platta-c: var(--dark-gruppmarke-platta-c);
     --color-slag-1: var(--dark-slag-1);
     --color-slag-2: var(--dark-slag-2);
     --color-slag-3: var(--dark-slag-3);
@@ -1156,6 +1189,10 @@
   --color-identity-4: var(--dark-identity-4);
   --color-identity-5: var(--dark-identity-5);
   --color-identity-6: var(--dark-identity-6);
+  --gruppmarke-ikon-l: var(--dark-gruppmarke-ikon-l);
+  --gruppmarke-ikon-c: var(--dark-gruppmarke-ikon-c);
+  --gruppmarke-platta-l: var(--dark-gruppmarke-platta-l);
+  --gruppmarke-platta-c: var(--dark-gruppmarke-platta-c);
   --color-slag-1: var(--dark-slag-1);
   --color-slag-2: var(--dark-slag-2);
   --color-slag-3: var(--dark-slag-3);
@@ -1261,6 +1298,26 @@
 }
 
 @layer components {
+  /*
+   * Gruppens märke (0.65.0, #265): ikonen eller initialerna i gruppens kulör, på en tonad platta av samma kulör.
+   * Kulören sätts per märke som `--grupp-kulor` (grader, utan enhet) av `OpsIdentity`. Ljushet och mättnad
+   * kommer ur temat ovan, så samma kulör blir rätt i båda lägena utan att märket vet vilket läge som gäller.
+   */
+  .ops-gruppmarke {
+    background-color: oklch(var(--gruppmarke-platta-l) var(--gruppmarke-platta-c) var(--grupp-kulor));
+    color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+  /* Ett valt gruppkort i gruppens kulör (OpsGruppanel): kanten i märkets färg och ytan i samma färg vid 6 procent, som SS
+     `GroupCard.jsx:60-65` (`${group.color}10`). */
+  .ops-grupp-vald {
+    border-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+    background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor) / 0.06);
+  }
+  /* En kulörruta i formulärets väljare: en fylld cirkel i märkets ikonfärg. */
+  .ops-grupp-kulorruta {
+    background-color: oklch(var(--gruppmarke-ikon-l) var(--gruppmarke-ikon-c) var(--grupp-kulor));
+  }
+
   /*
    * Inloggningens bildlogga, en bild per tema (0.31.1, `OpsInloggning ordmarke`). Samma tre tillstånd som färgerna
    * ovan: systemets val när inget är valt, och ett uttryckligt `data-theme` vinner i båda riktningarna. En

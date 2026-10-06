@@ -1,5 +1,5 @@
 /**
- * Regelprov för trådarna i gruppchatten (0.66.0, cllp/lifehub.app#60), mot Firestore-emulatorn.
+ * Regelprov för trådarna i gruppchatten (0.68.0, cllp/lifehub.app#60), mot Firestore-emulatorn.
  *
  * ══ ⛔ VAD SOM MÄTS ═══════════════════════════════════════════════════════════════════════════════════════════
  *

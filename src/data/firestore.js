@@ -19,7 +19,7 @@ import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
  * ```js
  * import { initializeApp } from "firebase/app";
  * import * as firestore from "firebase/firestore";
- * import { createFirestoreSource } from "@staiger/ops-framework";
+ * import { createFirestoreSource } from "ops-framework";
  *
  * const app = initializeApp(config);
  * const kalla = createFirestoreSource({ db: firestore.getFirestore(app), sdk: firestore });
@@ -199,7 +199,7 @@ export function createFirestoreSource(config) {
     },
 
     /*
-     * ⛔ `count` FINNS BARA OM SDK:N HAR `getCountFromServer` (0.66.0, frivillig som `batch`). En aggregatfråga kostar en läsning
+     * ⛔ `count` FINNS BARA OM SDK:N HAR `getCountFromServer` (0.68.0, frivillig som `batch`). En aggregatfråga kostar en läsning
      * per tusen poster i stället för en per post, och det är den trådarnas märken räknar med (granskningen av PR 268, BÖR 4).
      */
     ...(typeof sdk.getCountFromServer === "function"

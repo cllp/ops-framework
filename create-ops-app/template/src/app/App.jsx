@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { OpsAppShell, OpsBrand, OpsDataProvider, OpsThemeToggle, OpsToastProvider, createMemorySource } from "@staiger/ops-framework";
+import { OpsAppShell, OpsBrand, OpsDataProvider, OpsThemeToggle, OpsToastProvider, createMemorySource } from "ops-framework";
 // ⛔ #159: felgränsen är ramverkets, inte appens. `OpsAppShell` fångar och
 // visar varje fel som når den, ALLTID, utan en prop som slår av den. Innan
 // #159 löste varje app det här själv (se `lib/ErrorBoundary.jsx` i äldre
@@ -16,7 +16,7 @@ import { NotFoundView } from "./views/NotFoundView.jsx";
  * Utan en mottagare hamnar varje fel i konsolen ändå (`rapporteraFel`),
  * felgränsen fungerar likadant med eller utan den.
  *
- * import { sentryMottagare } from "@staiger/ops-framework/sentry";
+ * import { sentryMottagare } from "ops-framework/sentry";
  * const felmottagare = sentryMottagare({ dsn: "__ER_DSN__", miljo: import.meta.env.MODE, version: "__APP_VERSION__" });
  */
 

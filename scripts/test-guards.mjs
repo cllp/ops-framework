@@ -337,8 +337,8 @@ function appkopia(namn, innehall) {
 }
 
 const GILTIG_APPCSS = `@import "tailwindcss";
-@import "@staiger/ops-framework/tokens.css";
-@source "../node_modules/@staiger/ops-framework/dist";
+@import "ops-framework/tokens.css";
+@source "../node_modules/ops-framework/dist";
 @theme static { --color-accent: #2f5d8a; }
 :root { --dark-accent: #7fb0d9; }
 `;
@@ -364,7 +364,7 @@ kravRott(
 
 kravRott(
   "overrides 2: tokens importeras före tailwindcss",
-  [overridevakt, appkopia("ao2", '@import "@staiger/ops-framework/tokens.css";\n@import "tailwindcss";\n@source "../node_modules/@staiger/ops-framework/dist";\n')],
+  [overridevakt, appkopia("ao2", '@import "ops-framework/tokens.css";\n@import "tailwindcss";\n@source "../node_modules/ops-framework/dist";\n')],
   "FÖRE tailwindcss",
 );
 
@@ -1135,7 +1135,7 @@ kravRott(
   }
 
   const HEL = {
-    name: "@staiger/prov",
+    name: "ops-prov",
     version: "1.2.3",
     files: ["dist", "tokens"],
     exports: { ".": { types: "./dist/types/index.d.ts", default: "./dist/index.js" }, "./tokens.css": "./tokens/tokens.css" },
@@ -1161,6 +1161,12 @@ kravRott(
     "paket 3: en version som inte är semver",
     [paketvakt, paketrot("version", { ...HEL, version: "0.17" }), "--struktur"],
     "inte semver",
+  );
+
+  kravRott(
+    "paket 3b: ett scopat namn ger scopet i tarbollens filnamn",
+    [paketvakt, paketrot("scope", { ...HEL, name: "@staiger/prov" }), "--struktur"],
+    "har ett scope",
   );
 
   // ⛔ En utgivning utan anteckningar är en version ingen kan välja att hoppa
@@ -1263,7 +1269,7 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     [
       exempelvakt,
       kopia("ex4", "examples/paminnelser/index.js", (_f, t) =>
-        t.replace('import { defineModule, byggKategori } from "@staiger/ops-framework";', 'import { defineModule } from "../../src/lib/modul.js";\nimport { byggKategori } from "../../src/lib/katalog.js";'),
+        t.replace('import { defineModule, byggKategori } from "ops-framework";', 'import { defineModule } from "../../src/lib/modul.js";\nimport { byggKategori } from "../../src/lib/katalog.js";'),
       ),
     ],
     "utanför sin egen mapp",
@@ -1632,6 +1638,24 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return null; }\n");
   kravRott("typografi golv: för få filer lästa", [typvakt, tunn], "väntat minst");
   kravRott("typografi golv: fel sökväg", [typvakt, path.join(typmapp, "finns-inte")], "finns inte");
+}
+
+// ── Gruppkulör (0.65.0, #265): kontrasten för alla 360 kulörer, i båda lägena ──
+{
+  const fargvakt = path.join(rot, "scripts", "check-gruppfarg.mjs");
+  const fargmapp = path.join(arbetsmapp, "gruppfarg");
+  fs.mkdirSync(fargmapp, { recursive: true });
+  /** @param {string} namn @param {(css: string) => string} f */
+  const fargfil = (namn, f) => {
+    const ut = path.join(fargmapp, `${namn}.css`);
+    fs.writeFileSync(ut, f(original));
+    return ut;
+  };
+  kravGront("gruppfärg: tokens.css som den står", [fargvakt, tokenfil]);
+  kravRott("gruppfärg: ljus ikon för nära plattan (L 0,62)", [fargvakt, fargfil("ljus", (c) => c.replace("--gruppmarke-ikon-l: 0.47;", "--gruppmarke-ikon-l: 0.62;"))], "ikonen mot plattan");
+  kravRott("gruppfärg: mörk platta för ljus (L 0,6)", [fargvakt, fargfil("mork", (c) => c.replace("--dark-gruppmarke-platta-l: 0.33;", "--dark-gruppmarke-platta-l: 0.6;"))], "morkt, kulör");
+  kravRott("gruppfärg golv: mättnad 0, alla kulörer gråa", [fargvakt, fargfil("gra", (c) => c.replace("--gruppmarke-ikon-c: 0.13;", "--gruppmarke-ikon-c: 0;"))], "olika ikonfärger");
+  kravRott("gruppfärg golv: talen saknas", [fargvakt, fargfil("tom", (c) => c.replace(/--gruppmarke-ikon-l: [^;]+;/, ""))], "saknas i");
 }
 
 fs.rmSync(arbetsmapp, { recursive: true, force: true });

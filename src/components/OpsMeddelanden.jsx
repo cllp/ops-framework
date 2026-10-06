@@ -47,7 +47,7 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  *     medlemmarna;
  *   - raden läggs in i listan lokalt (`laggIn`) efter öppnandet och efter Skicka, och listan läses sedan om.
  *
- * ⛔ TRÅDAR I GRUPPCHATTEN (0.66.0, cllp/lifehub.app#60). CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en
+ * ⛔ TRÅDAR I GRUPPCHATTEN (0.68.0, cllp/lifehub.app#60). CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en
  * tråd och när som helst blanda in en agent som är med i tråden för alla." Under varje meddelande i gruppchatten står "Svara i
  * tråd", eller, när tråden finns, ett märke med antal svar och trådens namn. Tråden öppnas i högerpanelen i stället för chatten,
  * med en rad tillbaka till gruppchatten överst, rotmeddelandet först, svaren och samma skrivfält. Listan står kvar till vänster
@@ -96,19 +96,19 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {string} [valjMottagare] Felet när man skickar i läget "nytt" utan att ha valt någon. Förval "Välj vem meddelandet ska till.".
  * @property {string} [oppnaFel] Rubriken när samtalet inte kunde öppnas. Förval "Samtalet kunde inte öppnas".
  * @property {string} [ingenAnnan] När det inte finns någon att skriva till. Förval "Det finns ingen annan i gruppen att skriva till.".
- * @property {string} [svaraITrad] (0.66.0) Förval "Svara i tråd".
- * @property {string} [svar] (0.66.0) Substantivet efter antalet i trådens märke. Förval "svar".
- * @property {string} [tradRad] (0.66.0) Förval "Alla i gruppen ser tråden".
- * @property {string} [tradFel] (0.66.0) Förval "Tråden kunde inte hämtas".
- * @property {string} [ingaSvar] (0.66.0) Förval "Inga svar än. Skriv det första.".
- * @property {string} [dopOm] (0.66.0) Förval "Döp om".
- * @property {string} [tradnamn] (0.66.0) Namnfältets etikett. Förval "Trådens namn".
- * @property {string} [spara] (0.66.0) Förval "Spara".
- * @property {string} [avbryt] (0.66.0) Förval "Avbryt".
- * @property {string} [automatisktNamn] (0.66.0) Förval "Använd det automatiska namnet".
- * @property {string} [rotSaknas] (0.66.0) När meddelandet tråden startades ur inte går att läsa. Förval "Meddelandet tråden startades ur går inte att läsa.".
- * @property {string} [tradarFel] (0.66.0) En diskret rad när trådarnas märken inte kunde läsas. Förval "Trådarna kunde inte hämtas.".
- * @property {string} [svarPa] (0.66.0) Förled för skärmläsaren: vems meddelande "Svara i tråd" gäller. Förval "Meddelande från".
+ * @property {string} [svaraITrad] (0.68.0) Förval "Svara i tråd".
+ * @property {string} [svar] (0.68.0) Substantivet efter antalet i trådens märke. Förval "svar".
+ * @property {string} [tradRad] (0.68.0) Förval "Alla i gruppen ser tråden".
+ * @property {string} [tradFel] (0.68.0) Förval "Tråden kunde inte hämtas".
+ * @property {string} [ingaSvar] (0.68.0) Förval "Inga svar än. Skriv det första.".
+ * @property {string} [dopOm] (0.68.0) Förval "Döp om".
+ * @property {string} [tradnamn] (0.68.0) Namnfältets etikett. Förval "Trådens namn".
+ * @property {string} [spara] (0.68.0) Förval "Spara".
+ * @property {string} [avbryt] (0.68.0) Förval "Avbryt".
+ * @property {string} [automatisktNamn] (0.68.0) Förval "Använd det automatiska namnet".
+ * @property {string} [rotSaknas] (0.68.0) När meddelandet tråden startades ur inte går att läsa. Förval "Meddelandet tråden startades ur går inte att läsa.".
+ * @property {string} [tradarFel] (0.68.0) En diskret rad när trådarnas märken inte kunde läsas. Förval "Trådarna kunde inte hämtas.".
+ * @property {string} [svarPa] (0.68.0) Förled för skärmläsaren: vems meddelande "Svara i tråd" gäller. Förval "Meddelande från".
  */
 
 /** @type {Required<Meddelandetexter>} */
@@ -192,9 +192,9 @@ export function OpsMeddelandeLank({ href, olasta, etikett = "Meddelanden", olast
  *   `(null, { nytt: true })` när läget "nytt" öppnas. Ett anrop utan `val` betyder att läget "nytt" är stängt. EN signal för
  *   båda, så att en app som har dem i adressen skriver adressen en gång.
  * @param {(antal: number) => void} [props.onOlasta] Anropas med antalet olästa när det ändras, för ingångens räknare.
- * @param {string | null} [props.valtTrad] (0.66.0) Vald tråd i gruppchatten, rotmeddelandets id, när appen styr det (t.ex. ur
+ * @param {string | null} [props.valtTrad] (0.68.0) Vald tråd i gruppchatten, rotmeddelandets id, när appen styr det (t.ex. ur
  *   adressen, `?trad=`). Gäller bara när det valda samtalet är gruppchatten. Utelämnad: komponenten håller valet själv.
- * @param {(tid: string | null) => void} [props.onValjTrad] (0.66.0) Anropas med tråden som öppnas, eller `null` när man går
+ * @param {(tid: string | null) => void} [props.onValjTrad] (0.68.0) Anropas med tråden som öppnas, eller `null` när man går
  *   tillbaka till gruppchatten. Ett nytt val av samtal stänger tråden, och då anropas den inte: det är `onValj` som säger det.
  * @param {string} [props.sprak] "sv" eller "en", för tiderna. Förval "sv".
  * @param {Meddelandetexter} [props.texter]
@@ -273,7 +273,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     return { samtal: { id: valdId, groupId: d.groupId, slag, deltagare: d.deltagare, skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: annan };
   }, [valdId, rader, groupId, uid, namn]);
   const hoger = nyttLage || Boolean(vald);
-  // ⛔ TRÅDEN GÄLLER BARA GRUPPCHATTEN, och ett nytt samtalsval stänger den (0.66.0). Ett trådid kvar från förra samtalet hade
+  // ⛔ TRÅDEN GÄLLER BARA GRUPPCHATTEN, och ett nytt samtalsval stänger den (0.68.0). Ett trådid kvar från förra samtalet hade
   // öppnat en tråd under fel samtal.
   const [egenTrad, setEgenTrad] = useState(/** @type {string | null} */ (null));
   useEffect(() => {
@@ -463,7 +463,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
       >
         {hoger && !(vald && tradId) ? (
           /* Telefon: en rad "‹ Tillbaka" överst, som SS (`ChatInboxPanel.jsx:880-892`). Läget "nytt" har samma rad.
-             ⛔ INTE I EN TRÅD (0.66.0): tråden har sin egen rad tillbaka till gruppchatten, och två rader tillbaka ovanför
+             ⛔ INTE I EN TRÅD (0.68.0): tråden har sin egen rad tillbaka till gruppchatten, och två rader tillbaka ovanför
              varandra, till två olika ställen, är samma sorts dubblering som den dubblerade hamburgaren i #164. */
           <button
             type="button"
@@ -714,12 +714,12 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false 
  * @param {(meddelande: import("../lib/samtal.js").Meddelande & { id: string }) => void} [props.onSkickat] (0.63.0, #263) Anropas med
  *   det skickade meddelandet, så att inkorgen kan lägga in raden direkt i stället för vid nästa omläsning.
  * @param {string} [props.utkast] (0.63.0) Text som redan står i skrivfältet när samtalet öppnas, och fältet får fokus.
- * @param {(tid: string) => void} [props.onOppnaTrad] (0.66.0) Öppnar tråden ur ett meddelande. Utelämnad, eller en källa utan
+ * @param {(tid: string) => void} [props.onOppnaTrad] (0.68.0) Öppnar tråden ur ett meddelande. Utelämnad, eller en källa utan
  *   trådar (`harTradar`): inga trådar visas.
- * @param {Map<string, Map<string, Tradrad>>} [props.tradminne] (0.66.0) Märkenas minne per samtal, så att en återkomst från en tråd
+ * @param {Map<string, Map<string, Tradrad>>} [props.tradminne] (0.68.0) Märkenas minne per samtal, så att en återkomst från en tråd
  *   inte läser alla rötter igen. Utelämnat: ett eget minne som lever så länge vyn.
- * @param {string | null} [props.fokusRot] (0.66.0) Märket som ska få fokus när det ritats, efter att tråden stängts.
- * @param {() => void} [props.onFokuserad] (0.66.0) Anropas när fokus har flyttats dit.
+ * @param {string | null} [props.fokusRot] (0.68.0) Märket som ska få fokus när det ritats, efter att tråden stängts.
+ * @param {() => void} [props.onFokuserad] (0.68.0) Anropas när fokus har flyttats dit.
  *   ⛔ GÄLLER BARA GRUPPCHATTEN, och det avgörs här och inte av den som skickar in funktionen: ett privat samtal ritas utan
  *   trådar också när en app skickar den.
  * @param {string} [props.sprak]
@@ -901,7 +901,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
 }
 
 /**
- * @typedef {object} Tradrad (0.66.0) Vad chatten vet om tråden ur ett meddelande.
+ * @typedef {object} Tradrad (0.68.0) Vad chatten vet om tråden ur ett meddelande.
  * @property {boolean} finns
  * @property {string} [namn] Bara när en person döpt om tråden.
  * @property {number} [antal] Okänt (`undefined`) tills det räknats, och efter ett svar.
@@ -912,7 +912,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
 const NYA_ROTTER_VID_FOKUS = 10;
 
 /**
- * Märkena under gruppchattens meddelanden (0.66.0, granskningen av PR 268, BÖR 4).
+ * Märkena under gruppchattens meddelanden (0.68.0, granskningen av PR 268, BÖR 4).
  *
  * ⛔ LÄSNINGARNA, OCH VARFÖR DE ÄR SÅ FÅ:
  *   - en tråd läses per rot, och bara för rötter som inte redan finns i minnet: ett nytt meddelande i chatten är EN läsning;
@@ -984,7 +984,7 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
 }
 
 /**
- * Meddelandena i en logg: dagens avdelare, bubblorna och tiden. Samma i ett samtal och i en tråd (0.66.0), så att en tråd ser ut
+ * Meddelandena i en logg: dagens avdelare, bubblorna och tiden. Samma i ett samtal och i en tråd (0.68.0), så att en tråd ser ut
  * som det samtal den hör till.
  *
  * @param {object} props
@@ -1058,7 +1058,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
 }
 
 /**
- * En tråd i gruppchatten (0.66.0, cllp/lifehub.app#60): raden tillbaka till gruppchatten, trådens namn med Döp om,
+ * En tråd i gruppchatten (0.68.0, cllp/lifehub.app#60): raden tillbaka till gruppchatten, trådens namn med Döp om,
  * rotmeddelandet, svaren och skrivfältet.
  *
  * ⛔ TRÅDEN SKAPAS MED DET FÖRSTA SVARET (`skickaITrad`), inte när vyn öppnas. Döp om finns därför först när tråden finns.

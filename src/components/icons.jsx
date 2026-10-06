@@ -358,7 +358,7 @@ export function MeddelandeIkon({ size = 18 }) {
   return <MessageSquare size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
-/** En tråd i gruppchatten: "Svara i tråd" och märket med antal svar (0.66.0, lifehub.app#60). @param {{ size?: number }} props */
+/** En tråd i gruppchatten: "Svara i tråd" och märket med antal svar (0.68.0, lifehub.app#60). @param {{ size?: number }} props */
 export function TradIkon({ size = 14 }) {
   return <MessagesSquare size={size} aria-hidden="true" strokeWidth={1.5} />;
 }

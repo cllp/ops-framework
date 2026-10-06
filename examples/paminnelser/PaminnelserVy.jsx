@@ -1,4 +1,4 @@
-import { OpsView, OpsViewHeader, OpsEmpty } from "@staiger/ops-framework";
+import { OpsView, OpsViewHeader, OpsEmpty } from "ops-framework";
 
 /**
  * Modulens egen sida.

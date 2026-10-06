@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { initTheme } from "@staiger/ops-framework";
+import { initTheme } from "ops-framework";
 import { App } from "./app/App.jsx";
 import "./index.css";
 

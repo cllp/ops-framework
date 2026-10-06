@@ -1,5 +1,5 @@
 /**
- * Sentry som en färdig felmottagare. Egen ingång, `@staiger/ops-framework/sentry`.
+ * Sentry som en färdig felmottagare. Egen ingång, `ops-framework/sentry`.
  *
  * ══ ⛔ VARFÖR EN EGEN INGÅNG OCH INTE EN DEL AV HUVUDPAKETET (#159) ═══════
  *
@@ -8,7 +8,7 @@
  * konton (ingen DSN, precis som ingen Firebase-config), men den app som VILL
  * ha Sentry ska kunna skriva en enda rad:
  *
- *   import { sentryMottagare } from "@staiger/ops-framework/sentry";
+ *   import { sentryMottagare } from "ops-framework/sentry";
  *   const felmottagare = sentryMottagare({ dsn, miljo, version });
  *
  * ⛔ EN EGEN INGÅNG ÄR VAD SOM GÖR "FÄRDIGKOPPLAT" MÖJLIGT UTAN ATT TVINGA

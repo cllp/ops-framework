@@ -25,7 +25,7 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * själv, från ett namn. Den som inte är det ska bli ombedd om en inbjudan,
  * precis som förut. Ramverket vet inte här vilketdera som gäller för den
  * inloggade: appen VET (den kontrollerar vitlistan server-sidan innan den
- * ens visar knappen, se `createGroupService` i `@staiger/ops-framework/node`)
+ * ens visar knappen, se `createGroupService` i `ops-framework/node`)
  * och signalerar det genom att skicka in `onSkapaGrupp` eller inte.
  *
  * ⛔ UTAN `onSkapaGrupp` ÄR SIDAN OFÖRÄNDRAD. Formen ritas bara när appen

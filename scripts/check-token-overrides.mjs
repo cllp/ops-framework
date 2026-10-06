@@ -65,18 +65,18 @@ const kontrakt = fs.readFileSync(kontraktfil, "utf8");
 const brott = [];
 
 // ── Regel 1: den tysta fällan ───────────────────────────────────────────────
-if (!/@source\s+["'][^"']*@staiger\/ops-framework[^"']*["']/.test(app)) {
+if (!/@source\s+["'](?:[^"']*\/)?ops-framework\/[^"']*["']/.test(app)) {
   brott.push(
-    `${appfil} saknar @source mot ramverkets dist. Tailwind läser inte node_modules av sig själv, så utan den raden hittas inga klassnamn i primitiverna och appen blir helt ostylad UTAN felmeddelande. Lägg till: @source "../node_modules/@staiger/ops-framework/dist";`,
+    `${appfil} saknar @source mot ramverkets dist. Tailwind läser inte node_modules av sig själv, så utan den raden hittas inga klassnamn i primitiverna och appen blir helt ostylad UTAN felmeddelande. Lägg till: @source "../node_modules/ops-framework/dist";`,
   );
 }
 
 // ── Regel 2: importerna finns och i rätt ordning ────────────────────────────
 const iTailwind = app.indexOf('@import "tailwindcss"');
-const iTokens = app.search(/@import\s+["']@staiger\/ops-framework\/tokens\.css["']/);
+const iTokens = app.search(/@import\s+["']ops-framework\/tokens\.css["']/);
 if (iTailwind === -1) brott.push(`${appfil} importerar inte "tailwindcss".`);
 if (iTokens === -1) {
-  brott.push(`${appfil} importerar inte "@staiger/ops-framework/tokens.css". Utan den finns inga tokens och varje utility faller tillbaka på Tailwinds standard.`);
+  brott.push(`${appfil} importerar inte "ops-framework/tokens.css". Utan den finns inga tokens och varje utility faller tillbaka på Tailwinds standard.`);
 } else if (iTailwind !== -1 && iTokens < iTailwind) {
   brott.push(`${appfil} importerar tokens FÖRE tailwindcss. Då skriver Tailwinds standardtema över kontraktet, och nollningen av paletten slutar gälla.`);
 }

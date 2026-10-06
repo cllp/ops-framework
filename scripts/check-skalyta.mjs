@@ -2353,8 +2353,8 @@ matt.push(`textstorlek: ${textMatta} textelement mätta, ${avvikelser.length} av
 // CP 2026-09-29 23:30: "Skapa grupp och bjuda in till grupp finns inte ännu. Skapa grupp i web skall ha samma funktion som i SessionStudio."
 // SS `ManageGroupModal.jsx:479-640` (inline, ritad i `GroupEditRouteView`): Visuell identitet, Namn, Beskrivning, Ort, Medlemmar, Mer inställningar.
 // Mått vid 390 och 1280 px: en panel och ingen dialog, fälten i SS ordning och alla synliga, namnet obligatoriskt, panelens fasta Spara, ingen
-// horisontell överflödning, identitetsrutorna har 44 px träffyta och märket ritas i den valda färgen, samt att båda ingångarna (plusset,
-// gruppanelen på dator) öppnar samma panel. Växlarens ark på telefon är ingen ingång från 0.37.0. Golv: minst 6 färgprickar och 11 ikonrutor.
+// horisontell överflödning, identitetsrutorna har 44 px träffyta och märket ritas i den valda kulören, samt att båda ingångarna (plusset,
+// gruppanelen på dator) öppnar samma panel. Växlarens ark på telefon är ingen ingång från 0.37.0. Golv: minst 12 kulörrutor och 21 ikonrutor (0.65.0, #265).
 for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 800 }], ["390 px", { width: 390, height: 844 }]])) {
   const mobil = vp.width < 800;
   const { page, context } = await oppna("nygrupp", vp);
@@ -2435,29 +2435,21 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     matt.push(`ny grupp ${namn}: Spara utan namn, felet synligt ${fel}, panelen kvar ${kvar}`);
     krav(fel && kvar === 1, `ny grupp ${namn}: Spara utan namn ska visa "Gruppen behöver ett namn." och stanna (fel synligt ${fel}, paneler ${kvar}).`);
 
-    // Visuell identitet: rutorna har träffyta, och märket ritas i den valda färgen.
+    // Visuell identitet: rutorna har träffyta, och märket ritas i den valda kulören (0.65.0, #265: kulörer, inte sex prickar).
     await page.getByRole("button", { name: /Färg och ikon/ }).click();
     const id = await page.evaluate(() => {
-      const prickar = [...document.querySelectorAll('[data-gruppidentitet] [aria-label^="Färg "]')];
-      const ikoner = [...document.querySelectorAll('[data-gruppidentitet] [role="group"][aria-label="Ikon eller initialer"] button')];
+      const prickar = [...document.querySelectorAll("[data-gruppidentitet] [data-kulorvaljare] [data-kulor]")];
+      const ikoner = [...document.querySelectorAll('[data-gruppidentitet] [data-ikonrad="vanliga"] button')];
       const minsta = (/** @type {Element[]} */ l) => (l.length ? Math.min(...l.map((e) => Math.min(e.getBoundingClientRect().width, e.getBoundingClientRect().height))) : 0);
       return { prickar: prickar.length, ikoner: ikoner.length, prickMin: minsta(prickar), ikonMin: minsta(ikoner) };
     });
-    matt.push(`ny grupp ${namn}: identitet öppen, ${id.prickar} färgprickar (minsta träffyta ${id.prickMin.toFixed(0)}), ${id.ikoner} ikonrutor (minsta ${id.ikonMin.toFixed(0)})`);
-    krav(id.prickar >= 6 && id.ikoner >= 11, `ny grupp ${namn}: ${id.prickar} färgprickar och ${id.ikoner} ikonrutor, väntat minst 6 och 11 (golv: Aa plus tio ikoner).`);
-    krav(id.prickMin >= 43.5 && id.ikonMin >= 43.5, `ny grupp ${namn}: minsta träffyta är ${id.prickMin.toFixed(0)} (prickar) och ${id.ikonMin.toFixed(0)} (ikoner), väntat 44.`);
-    await page.getByRole("button", { name: "Färg 3", exact: true }).click();
-    const farg = await page.evaluate(() => {
-      const sonda = document.createElement("span");
-      sonda.className = "bg-identity-3";
-      document.body.append(sonda);
-      const vantad = getComputedStyle(sonda).backgroundColor;
-      sonda.remove();
-      const marke = document.querySelector("[data-gruppidentitet] > button [role=img]");
-      return { vantad, faktisk: marke ? getComputedStyle(marke).backgroundColor : null };
-    });
-    matt.push(`ny grupp ${namn}: märket efter Färg 3 är ${farg.faktisk}, identitetston 3 är ${farg.vantad}`);
-    krav(farg.faktisk === farg.vantad && farg.vantad !== "rgba(0, 0, 0, 0)", `ny grupp ${namn}: märket har bakgrund ${farg.faktisk} efter Färg 3, väntat identitetston 3 (${farg.vantad}).`);
+    matt.push(`ny grupp ${namn}: identitet öppen, ${id.prickar} kulörrutor (minsta träffyta ${id.prickMin.toFixed(0)}), ${id.ikoner} ikonrutor bland de vanliga (minsta ${id.ikonMin.toFixed(0)})`);
+    krav(id.prickar >= 12 && id.ikoner >= 21, `ny grupp ${namn}: ${id.prickar} kulörrutor och ${id.ikoner} ikonrutor bland de vanliga, väntat minst 12 och 21 (golv: Aa plus tjugo vanliga).`);
+    krav(id.prickMin >= 43.5 && id.ikonMin >= 43.5, `ny grupp ${namn}: minsta träffyta är ${id.prickMin.toFixed(0)} (kulörer) och ${id.ikonMin.toFixed(0)} (ikoner), väntat 44.`);
+    await page.getByRole("button", { name: "Petrol", exact: true }).click();
+    const farg = await page.evaluate(() => document.querySelector("[data-gruppidentitet] > button [role=img]")?.getAttribute("data-grupp-kulor") ?? null);
+    matt.push(`ny grupp ${namn}: märket efter Petrol har kulören ${farg}`);
+    krav(farg === "195", `ny grupp ${namn}: märket har kulören ${farg} efter Petrol, väntat 195.`);
 
     // Medlemmar och Mer inställningar.
     await page.getByLabel(/Gruppnamn/).fill("Åkeriet Örebro");
@@ -2511,6 +2503,96 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   }
   await context.close();
 }
+// ══ 22b. GRUPPENS KULÖR OCH IKON (0.65.0, #265) ═══════════════════════════════════════════════════════════════════════
+// CP 2026-10-06: sökbar ikonväljare med synonymer, kulör i stället för fri färg, ikonen i gruppens färg på en tonad platta.
+// Mätt i Chromium, i ljust OCH mörkt läge vid 390 och 1280 px, eftersom jsdom varken kör CSS eller kan räkna en färg:
+//   (a) märket ritas med en riktig färg ur temat: plattan och ikonen är olika och inte genomskinliga, och två kulörer ger två färger;
+//   (b) kontrasten i det RITADE märket, avläst pixel för pixel ur en canvas: ikonen mot plattan minst 4,5:1;
+//   (c) "Bandet" ger musikikoner bland förslagen, och sökningen "music" ger gitarr och hörlurar (sökorden, inte filnamnet);
+//   (d) ingen horisontell överflödning med allt utfällt.
+// Golv: minst 12 kulörrutor, minst 1 förslag och minst 5 sökträffar. Bilden `grupp-ikon-farg-<bredd>-<läge>.png` hör till PR:en.
+for (const tema of /** @type {const} */ (["light", "dark"])) {
+  for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 900 }], ["390 px", { width: 390, height: 844 }]])) {
+    const etikett = `kulör och ikon ${namn} ${tema === "dark" ? "mörkt" : "ljust"}`;
+    const { page, context } = await oppna("nygrupp", vp, tema);
+    try {
+      await page.getByRole("button", { name: "Skapa", exact: true }).last().click();
+      await page.getByRole("button", { name: "Ny grupp" }).click({ timeout: 3000 });
+      await page.waitForSelector("[data-gruppformular]", { timeout: 3000 });
+      await page.getByLabel(/Gruppnamn/).fill("Bandet");
+      await page.getByRole("button", { name: /Färg och ikon/ }).click();
+      const forslag = await page.evaluate(() => [...document.querySelectorAll('[data-ikonrad="forslag"] [data-ikonnamn]')].map((e) => e.getAttribute("data-ikonnamn")));
+      const kulorer = await page.evaluate(() => document.querySelectorAll("[data-kulorvaljare] [data-kulor]").length);
+      /** @param {string} knapp */
+      const markeFarg = async (knapp) => {
+        await page.getByRole("button", { name: knapp, exact: true }).click();
+        return page.evaluate(() => {
+          const el = /** @type {HTMLElement} */ (document.querySelector("[data-gruppidentitet] > button [role=img]"));
+          const cs = getComputedStyle(el);
+          const c = document.createElement("canvas");
+          c.width = 1;
+          c.height = 1;
+          const ctx = /** @type {CanvasRenderingContext2D} */ (c.getContext("2d"));
+          const rgb = (/** @type {string} */ farg) => {
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillStyle = "#000";
+            ctx.fillStyle = farg;
+            ctx.fillRect(0, 0, 1, 1);
+            const d = ctx.getImageData(0, 0, 1, 1).data;
+            return [d[0], d[1], d[2], d[3]];
+          };
+          const lin = (/** @type {number} */ v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
+          const y = (/** @type {number[]} */ p) => 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2]);
+          const platta = rgb(cs.backgroundColor);
+          const ikon = rgb(cs.color);
+          const [hi, lo] = [y(ikon), y(platta)].sort((a, b) => b - a);
+          return { platta, ikon, kontrast: (hi + 0.05) / (lo + 0.05), bg: cs.backgroundColor, kulor: el.getAttribute("data-grupp-kulor"), alfa: cs.backgroundColor.includes("/ 0)") || cs.backgroundColor === "rgba(0, 0, 0, 0)" };
+        });
+      };
+      const petrol = await markeFarg("Petrol");
+      const rosa = await markeFarg("Rosa");
+      await page.getByRole("searchbox", { name: "Sök ikon" }).fill("music");
+      const traffar = await page.evaluate(() => [...document.querySelectorAll('[data-ikonrad="traffar"] [data-ikonnamn]')].map((e) => e.getAttribute("data-ikonnamn")));
+      await page.getByRole("button", { name: "Gitarr", exact: true }).first().click();
+      const harIkon = await page.evaluate(() => !!document.querySelector("[data-gruppidentitet] > button [role=img] svg"));
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      matt.push(`${etikett}: ${kulorer} kulörrutor, förslag ur Bandet ${JSON.stringify(forslag.slice(0, 6))}, music ger ${traffar.length} träffar, Petrol platta ${JSON.stringify(petrol.platta)} ikon ${JSON.stringify(petrol.ikon)} kontrast ${petrol.kontrast.toFixed(2)}, Rosa kontrast ${rosa.kontrast.toFixed(2)}`);
+      krav(kulorer >= 12, `${etikett} (golv): ${kulorer} kulörrutor, väntat minst 12.`);
+      krav(petrol.kulor === "195" && rosa.kulor === "345", `${etikett} (a): märkets kulör är ${petrol.kulor} och ${rosa.kulor}, väntat 195 och 345.`);
+      krav(!petrol.alfa && petrol.platta[3] === 255 && JSON.stringify(petrol.platta) !== JSON.stringify(petrol.ikon), `${etikett} (a): plattan ${JSON.stringify(petrol.platta)} och ikonen ${JSON.stringify(petrol.ikon)} ska vara två täckande färger (bakgrund ${petrol.bg}). Saknas .ops-gruppmarke i CSS:en blir plattan genomskinlig.`);
+      krav(JSON.stringify(petrol.platta) !== JSON.stringify(rosa.platta), `${etikett} (a): Petrol och Rosa ger samma platta ${JSON.stringify(petrol.platta)}. Kulören når inte färgen.`);
+      krav(petrol.kontrast >= 4.5 && rosa.kontrast >= 4.5, `${etikett} (b): ikonen mot plattan ${petrol.kontrast.toFixed(2)}:1 (Petrol) och ${rosa.kontrast.toFixed(2)}:1 (Rosa), golvet är 4,5:1.`);
+      krav(forslag.length >= 1 && forslag.slice(0, 6).some((n) => n === "guitar" || n === "drum"), `${etikett} (c): förslagen ur "Bandet" är ${JSON.stringify(forslag.slice(0, 6))}, väntat gitarr eller trumma bland de första sex.`);
+      krav(traffar.length >= 5 && traffar.includes("guitar") && traffar.includes("headphones"), `${etikett} (c): "music" ger ${JSON.stringify(traffar.slice(0, 10))}, väntat minst 5 träffar med guitar och headphones.`);
+      krav(harIkon, `${etikett}: märket ritar ingen ikon efter att gitarren valts.`);
+      krav(!overflow, `${etikett} (d): horisontell överflödning.`);
+      // ⛔ RULLNINGEN MÄTS ALLTID, INTE BARA NÄR BILDER TAS (granskningen av PR 266): vid 1280 px rullar panelens egen kropp, och
+      // scrollIntoViewIfNeeded lämnade den där den stod, så "-ikoner" blev samma bild som översikten. Här rullas behållaren,
+      // och kravet är att ikonväljaren står i fönstrets övre halva efteråt.
+      await page.getByRole("searchbox", { name: "Sök ikon" }).fill("");
+      await page.evaluate(() => { window.scrollTo(0, 0); for (const d of document.querySelectorAll("[data-skapa-panel] div")) if (d.scrollTop) d.scrollTop = 0; });
+      await page.waitForTimeout(150);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupp-ikon-farg-${vp.width}-${tema === "dark" ? "morkt" : "ljust"}.png`), fullPage: false });
+      const rullad = await page.evaluate(() => {
+        const mal = /** @type {HTMLElement} */ (document.querySelector("[data-ikonvaljare]"));
+        let el = mal.parentElement;
+        while (el && !(el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY))) el = el.parentElement;
+        const rulle = el ?? document.scrollingElement;
+        if (!rulle) return null;
+        const fore = Math.round(mal.getBoundingClientRect().top);
+        rulle.scrollTop += mal.getBoundingClientRect().top - rulle.getBoundingClientRect().top - 16;
+        return { fore, efter: Math.round(mal.getBoundingClientRect().top), halva: innerHeight / 2 };
+      });
+      await page.waitForTimeout(150);
+      matt.push(`${etikett}: ikonväljarens överkant ${rullad ? `${rullad.fore} före och ${rullad.efter} efter rullningen` : "okänd"}`);
+      krav(!!rullad && rullad.efter >= 0 && rullad.efter < rullad.halva, `${etikett}: ikonväljaren rullades inte fram till fönstrets övre halva (${JSON.stringify(rullad)}).`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupp-ikon-farg-${vp.width}-${tema === "dark" ? "morkt" : "ljust"}-ikoner.png`), fullPage: false });
+    } catch (e) {
+      krav(false, `${etikett}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
 // Gruppanelens "Skapa grupp" på dator öppnar SAMMA panel. (Växlarens ark på telefon hade samma knapp till 0.36.0, se nedan.)
 {
   const { page, context } = await oppna("nygrupp", { width: 1280, height: 800 });
@@ -2563,7 +2645,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     const k = await page.evaluate(() => {
       const nav = document.querySelector('nav[aria-label="Mina grupper"]');
       const kort = (/** @type {string} */ n) => /** @type {HTMLElement | null} */ ([...nav.querySelectorAll("li[role=button]")].find((l) => l.getAttribute("aria-label") === n) ?? null);
-      const sonda = (/** @type {string} */ klass, /** @type {string} */ prop) => { const e = document.createElement("span"); e.className = klass; document.body.append(e); const v = getComputedStyle(e)[prop]; e.remove(); return v; };
+      // 0.65.0 (#265): sonden bär kulören som märket, `--grupp-kulor`. Ton 3 är kulör 29 och ton 5 kulör 336 (`ARV_TON_KULOR`).
+      const sonda = (/** @type {string} */ klass, /** @type {string} */ prop, /** @type {number} */ kulor) => { const e = document.createElement("span"); e.className = klass; e.style.setProperty("--grupp-kulor", String(kulor)); document.body.append(e); const v = getComputedStyle(e)[prop]; e.remove(); return v; };
       const knapp = (/** @type {HTMLElement | null} */ li, /** @type {string} */ n) => li ? /** @type {HTMLElement | null} */ (li.querySelector(`button[aria-label="${n}"]`)) : null;
       const a = kort("Alfa AB"), b = kort("Beta AB"), c = kort("Gamma AB");
       const cs = (/** @type {Element | null} */ e) => (e ? getComputedStyle(e) : null);
@@ -2586,9 +2669,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         avatarAntal: avatarer.length, avatarPx: avatarer[0] ? avatarer[0].getBoundingClientRect().width : null,
         plusN: a ? [...a.querySelectorAll("span")].some((x) => (x.textContent || "").trim().startsWith("+2")) : false,
         markePx: marke ? marke.getBoundingClientRect().width : null,
-        markeBg: marke ? getComputedStyle(marke).backgroundColor : null, ton3: sonda("bg-identity-3", "backgroundColor"),
-        gammaIkon: !!(mg && mg.querySelector("svg")), gammaBg: mg ? getComputedStyle(mg).backgroundColor : null, ton5: sonda("bg-identity-5", "backgroundColor"),
-        kant: alfa ? alfa.borderTopColor : null, kantVantad: sonda("border-identity-3", "borderTopColor"),
+        markeBg: marke ? getComputedStyle(marke).backgroundColor : null, ton3: sonda("ops-gruppmarke", "backgroundColor", 29),
+        gammaIkon: !!(mg && mg.querySelector("svg")), gammaBg: mg ? getComputedStyle(mg).backgroundColor : null, ton5: sonda("ops-gruppmarke", "backgroundColor", 336),
+        kant: alfa ? alfa.borderTopColor : null, kantVantad: sonda("ops-grupp-vald", "borderTopColor", 29),
         yta: alfa ? alfa.backgroundColor : null, betaKant: b ? getComputedStyle(b).borderTopColor : null,
       };
     });
@@ -2600,8 +2683,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     krav(k.namn !== null && k.namn.fs === "12px" && k.namn.fw === "600", `gruppkort: namnet är ${JSON.stringify(k.namn)}, väntat 12 px och 600 (SS text-xs font-semibold).`);
     krav(k.antalFs === "10px", `gruppkort: medlemsantalet är ${k.antalFs}, väntat 10px (SS text-[10px]).`);
     krav(k.avatarAntal === 4 && Math.abs((k.avatarPx ?? 0) - 20) < 0.6 && k.plusN, `gruppkort: ${k.avatarAntal} avatarer om ${k.avatarPx} px och "+2" ${k.plusN}, väntat 4, 20 och "+2" (SS slice(0,4), Avatar size=5).`);
-    krav(k.markePx !== null && Math.abs(k.markePx - 20) < 0.6 && k.markeBg === k.ton3, `gruppkort: märket är ${k.markePx} px med bakgrund ${k.markeBg}, väntat 20 och identitetston 3 (${k.ton3}).`);
-    krav(k.gammaIkon && k.gammaBg === k.ton5, `gruppkort: Gamma ska ha ikon i identitetston 5 (ikon ${k.gammaIkon}, bakgrund ${k.gammaBg}, väntat ${k.ton5}).`);
+    krav(k.markePx !== null && Math.abs(k.markePx - 20) < 0.6 && k.markeBg === k.ton3, `gruppkort: märket är ${k.markePx} px med bakgrund ${k.markeBg}, väntat 20 och plattan i ton 3:s kulör 29 (${k.ton3}).`);
+    krav(k.gammaIkon && k.gammaBg === k.ton5, `gruppkort: Gamma ska ha ikon på plattan i ton 5:s kulör 336 (ikon ${k.gammaIkon}, bakgrund ${k.gammaBg}, väntat ${k.ton5}).`);
     krav(k.kant === k.kantVantad && k.kant !== k.betaKant, `gruppkort: det valda kortets kant är ${k.kant}, väntat gruppens färg ${k.kantVantad} (och inte ovalda ${k.betaKant}). SS GroupCard.jsx:60-65.`);
     const alfa = /\/\s*([0-9.]+)\)|,\s*([0-9.]+)\)\s*$/.exec(k.yta ?? "");
     krav(!!alfa && Number(alfa[1] ?? alfa[2]) >= 0.05 && Number(alfa[1] ?? alfa[2]) <= 0.075, `gruppkort: det valda kortets yta är ${k.yta}, väntat gruppens färg vid ca 6 procent (SS \`${"${group.color}"}10\`).`);
@@ -2630,11 +2713,12 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
       const rader = [...rot.querySelectorAll("[data-gruppsida-medlemmar] li")];
       const av = rader[0] ? rader[0].querySelector("span[role=img]") : null;
       const etikett = rader[0] ? [...rader[0].querySelectorAll("span")].find((x) => (x.textContent || "").trim() === "Ägare") : null;
-      const sonda = (/** @type {string} */ k) => { const e = document.createElement("span"); e.className = k; document.body.append(e); const v = getComputedStyle(e).backgroundColor; e.remove(); return v; };
+      // 0.65.0 (#265): plattan i ton 3:s kulör (29), som märket ritar den.
+      const sonda = (/** @type {string} */ k) => { const e = document.createElement("span"); e.className = k; e.style.setProperty("--grupp-kulor", "29"); document.body.append(e); const v = getComputedStyle(e).backgroundColor; e.remove(); return v; };
       const redigera = [...rot.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Redigera grupp");
       return {
         kolW: rot.getBoundingClientRect().width,
-        marke: marke ? marke.getBoundingClientRect().width : null, markeBg: marke ? cs(marke).backgroundColor : null, ton3: sonda("bg-identity-3"),
+        marke: marke ? marke.getBoundingClientRect().width : null, markeBg: marke ? cs(marke).backgroundColor : null, ton3: sonda("ops-gruppmarke"),
         h1: h1 ? { fs: cs(h1).fontSize, fw: cs(h1).fontWeight } : null,
         beskr: beskr ? cs(beskr).fontSize : null, ort: ort ? cs(ort).fontSize : null,
         snAntal: sn.length, snEnRad: snR.length === 3 && snR.every((r) => Math.abs(r.top - snR[0].top) < 1),
@@ -2648,7 +2732,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     });
     matt.push(`gruppsida ${namn}: ${JSON.stringify(d)}`);
     krav(Math.abs(d.kolW - Math.min(768, d.vw)) <= 1, `gruppsida ${namn}: kolumnen är ${d.kolW} px, väntat ${Math.min(768, d.vw)} (SS GroupDetailView.jsx:79 max-w-3xl).`);
-    krav(d.marke !== null && Math.abs(d.marke - 56) < 0.6 && d.markeBg === d.ton3, `gruppsida ${namn}: märket är ${d.marke} px med bakgrund ${d.markeBg}, väntat 56 och identitetston 3 (${d.ton3}).`);
+    krav(d.marke !== null && Math.abs(d.marke - 56) < 0.6 && d.markeBg === d.ton3, `gruppsida ${namn}: märket är ${d.marke} px med bakgrund ${d.markeBg}, väntat 56 och plattan i ton 3:s kulör 29 (${d.ton3}).`);
     krav(d.h1 !== null && d.h1.fs === "20px" && d.h1.fw === "600", `gruppsida ${namn}: rubriken är ${JSON.stringify(d.h1)}, väntat 20 px och 600 (SS text-xl font-semibold).`);
     krav(d.beskr === "14px" && d.ort === "12px", `gruppsida ${namn}: beskrivning ${d.beskr} och ort ${d.ort}, väntat 14px och 12px (SS text-sm, text-xs).`);
     krav(d.snAntal === 3 && d.snEnRad, `gruppsida ${namn}: ${d.snAntal} snabbval, i en rad ${d.snEnRad}, väntat 3 i en rad (SS grid-cols-3).`);
@@ -3179,7 +3263,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
-// ══ 29e. TRÅDAR I GRUPPCHATTEN VID 390 OCH 1280 PX (0.66.0, cllp/lifehub.app#60) ═══════════════════════════════════════════
+// ══ 29e. TRÅDAR I GRUPPCHATTEN VID 390 OCH 1280 PX (0.68.0, cllp/lifehub.app#60) ═══════════════════════════════════════════
 // CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är med i
 // tråden för alla." Tråden öppnas i högerpanelen i stället för chatten. Krav:
 //   - i gruppchatten bär meddelandet med en tråd ett märke med antalet ("3 svar"; namnet bara när en person döpt om tråden,

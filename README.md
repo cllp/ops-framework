@@ -129,7 +129,7 @@ i `@layer base`, så en apps EGNA direkta lucide-importer följer med.
 Versionen är en **git-tagg**, inte npm, eftersom repot är privat:
 
 ```json
-"@staiger/ops-framework": "github:cllp/ops-framework#v0.1.0"
+"ops-framework": "github:cllp/ops-framework#v0.1.0"
 ```
 
 npm kör ramverkets `prepare` vid installation, alltså bygger bundle och typer åt
@@ -520,7 +520,7 @@ inte längre personens egen, och den som redigerar sitt namn i appen får det
 denormaliserade kopior av namn och bild (#138) och skrivs aldrig av en klient
 (#136, `allow write: if false`). Appen som vill hålla dem i takt anropar
 EFTERÅT en server-callable byggd på `uppdateraProfil`
-(`@staiger/ops-framework/node`, se Nodsidan), som skriver `users` OCH alla
+(`ops-framework/node`, se Nodsidan), som skriver `users` OCH alla
 medlemskap för uid i samma steg.
 
 ⛔ **ETT TOMT NAMN FYLLS (0.40.1, #218).** `sakerstallAnvandare` fyller ett TOMT `users.namn` på en befintlig rad när inloggningen
@@ -728,10 +728,10 @@ behörighet.
 
 #### Vägen in för en ny person
 
-Två steg, båda på serversidan, ur `@staiger/ops-framework/node`:
+Två steg, båda på serversidan, ur `ops-framework/node`:
 
 ```js
-import { createInvitationService } from "@staiger/ops-framework/node";
+import { createInvitationService } from "ops-framework/node";
 
 const tjanst = createInvitationService({ kalla });
 await tjanst.bjudIn({ avUid, groupId, epost, roll });          // ägaren bjuder in
@@ -793,7 +793,7 @@ varje adress som någonsin bjudits in att skapa en grupp, alltså en lista över
 precis vilka adresser det är värt att gissa lösenord för.
 
 ```js
-import { createGroupService } from "@staiger/ops-framework/node";
+import { createGroupService } from "ops-framework/node";
 
 const tjanst = createGroupService({ kalla, kataloger: { handelsetyper: HANDELSETYPER, sorter: { standard: SORTER, faser: false, farger: false } } }); // kalla MÅSTE ha batch
 const svar = await tjanst.skapaGrupp({
@@ -828,7 +828,7 @@ taget.
 `OpsUtanMedlemskap props.onSkapaGrupp` (namnet, se ovan) kopplas till den här
 funktionen via appens egen callable (den anropar `skapaGrupp` med `grupp: { namn }`), precis som `OpsMedlemmar props.onBjudIn`
 kopplas till `bjudIn`. `byggVitlisterad` och `medlemskapsId` är återexporterade
-ur `@staiger/ops-framework/node` för den som skriver appens EGEN vitlista-yta
+ur `ops-framework/node` för den som skriver appens EGEN vitlista-yta
 (en administratörssida läggs till i #162): att skriva raden är fortfarande
 appens Admin SDK, inte ramverkets, precis som inbjudan.
 
@@ -844,7 +844,7 @@ Agenten är ett vanligt medlemskap: `typ: "agent"`, roll `medlem`, status `aktiv
 - **`OpsMedlemmar`**: en agents rad har märket AI (`aiEtikett`), ingen rollväljare och ingen Ta bort.
 - **`OpsMottagare lage="person"`** och därmed läget "nytt" i **`OpsMeddelanden`** (0.63.0, före det `OpsNyttMeddelande`) har den aktiva agenten bland mottagarna. Vald öppnas ett samtal av slaget `agent` (`oppnaPrivat({ ..., slag: "agent" })`), och raden under säger texten `agentRad` ("Bara du och agenten ser det här"). En avstängd agent står inte med.
 
-`AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE` finns också på nodsidan (`@staiger/ops-framework/node`), så att servern som svarar bygger agentens id och meddelandet med samma funktioner som klienten, utan att dra in React.
+`AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE` finns också på nodsidan (`ops-framework/node`), så att servern som svarar bygger agentens id och meddelandet med samma funktioner som klienten, utan att dra in React.
 
 Svaret skrivs av appens server som ett vanligt meddelande med `av` = agentens id: `memberships` och meddelanden som agent går aldrig att skriva från en klient (`allow write: if false`, och `typ == 'person'` för den som skriver i ett samtal).
 
@@ -893,7 +893,7 @@ radens grupp" en textsnutt någon klistrar in per samling, och den dagen villkor
 ändras sitter den gamla versionen kvar i de samlingar ingen kom ihåg.
 
 ```js
-import { regelfragment, gruppadSamling } from "@staiger/ops-framework";
+import { regelfragment, gruppadSamling } from "ops-framework";
 
 const text = `rules_version = '2';
 service cloud.firestore {
@@ -941,7 +941,7 @@ Samma snitt som Firestore, bredvid `kalla`: ramverket äger MAPPNINGEN, appen
 | `lagringsregelfragment({ prefix })` | Storage-regelfragment som text, `prefix` förval `"profilbilder"`: bara sin egen sökväg (`request.auth.uid == uid`), bara bilder (`contentType.matches('image/.*')`), 2 MB tak (`request.resource.size`). Limmas in i appens `storage.rules`, precis som `gruppadSamling` limmas in i `firestore.rules` |
 
 ```js
-import { createFirebaseStorageSource, lagringsregelfragment } from "@staiger/ops-framework";
+import { createFirebaseStorageSource, lagringsregelfragment } from "ops-framework";
 import { getStorage } from "firebase/storage";
 import * as storage from "firebase/storage";
 
@@ -964,7 +964,7 @@ ger hela `firestore.rules` ur modulernas manifest: ramverkets fragment, ett
 block per modulsamling, appens egen text, och catch-allen sist.
 
 ```js
-import { generateRules, validateModuler } from "@staiger/ops-framework";
+import { generateRules, validateModuler } from "ops-framework";
 
 const moduler = validateModuler([ekonomi, liv]);
 fs.writeFileSync("firestore.rules", generateRules(moduler, { extra: appensEgnaBlock }));
@@ -1028,7 +1028,7 @@ grupp. Ekonomimodulen bor där." Privat, Företag och Samlat är alltså flikar 
 data i EN grupp, och det finns ingen läsning över flera grupper.
 
 ```js
-import { minaGrupper, aktivGrupp, navForGrupp, lasAktivGrupp, sparaAktivGrupp, medAktivGrupp, OpsDataProvider } from "@staiger/ops-framework";
+import { minaGrupper, aktivGrupp, navForGrupp, lasAktivGrupp, sparaAktivGrupp, medAktivGrupp, OpsDataProvider } from "ops-framework";
 
 const mina = minaGrupper(mittMedlemskap, grupper);
 const aktiv = aktivGrupp(lasAktivGrupp(uid, localStorage), mina); // null bara när personen inte har någon grupp
@@ -1283,13 +1283,13 @@ tyst, med eller utan ett sådant konto.
 | `OpsAppShell props.felmottagare` | felgränsen (alltid på, ingen prop stänger av den) kallar `rapporteraFel` i `componentDidCatch` med `felmottagare` och ett sammanhang som bär felytans id |
 | `OpsAppShell props.felRubrik`, `felBeskrivning`, `laddaOmEtikett` | texten på felytan |
 | `OpsAuthProvider props.felmottagare` | kallar `felmottagare.satt({ uid, groupId })` vid varje inloggningsbyte, `satt(null)` vid utloggning. **Aldrig e-post**, även när den finns på `User`-objektet |
-| `sentryMottagare({ dsn, miljo, version })` | en färdig `felmottagare`, i en EGEN ingång: `@staiger/ops-framework/sentry` |
+| `sentryMottagare({ dsn, miljo, version })` | en färdig `felmottagare`, i en EGEN ingång: `ops-framework/sentry` |
 
 ```js
-import { OpsAppShell } from "@staiger/ops-framework";
-import { OpsAuthProvider } from "@staiger/ops-framework";
+import { OpsAppShell } from "ops-framework";
+import { OpsAuthProvider } from "ops-framework";
 // Förvalet är AV. Kommentera in när appen vill ha Sentry:
-// import { sentryMottagare } from "@staiger/ops-framework/sentry";
+// import { sentryMottagare } from "ops-framework/sentry";
 // const felmottagare = sentryMottagare({ dsn, miljo: import.meta.env.MODE, version });
 
 <OpsAuthProvider authentication={auth} felmottagare={felmottagare}>
@@ -1309,10 +1309,10 @@ pratar med mottagaren gör felsökning utan nätverk (offline, en trasig DSN, en
 blockerad tredjepartsdomän) omöjlig: den enda platsen felet syns är i ett konto
 ingen kan nå just då.
 
-⛔ **`@staiger/ops-framework/sentry` ÄR EN EGEN, OBUNDLAD INGÅNG**, precis som
+⛔ **`ops-framework/sentry` ÄR EN EGEN, OBUNDLAD INGÅNG**, precis som
 `/node`: `package.json` pekar den direkt mot källan, ingen esbuild-runda.
 `@sentry/browser` bara laddas av den app som faktiskt skriver
-`import ... from "@staiger/ops-framework/sentry"`, aldrig av en app som inte
+`import ... from "ops-framework/sentry"`, aldrig av en app som inte
 gör det. `@sentry/browser` är en `peerDependency`, `optional: true`, ALDRIG en
 `dependency`: en `dependency` installeras åt ALLA, oavsett om de importerar
 filen. `check-paket.mjs` bevisar att ramverkets egen `dist/index.js` aldrig
@@ -1331,7 +1331,7 @@ stämmer, `validateModuler` tar listan och kastar dessutom på det som bara syns
 mellan två moduler.
 
 ```js
-import { defineModule } from "@staiger/ops-framework";
+import { defineModule } from "ops-framework";
 
 export const liv = defineModule({
   id: "liv",
@@ -1380,7 +1380,7 @@ klicket är ett fel i knäet på användaren.
 ([beslut 0003](docs/beslut/0003-appar-ytor-och-tillagg.md)). Saknas platsen öppnar ramverket den, en gång, för alla appar.
 
 ```js
-import { defineModule, HANDELSE_PLATSER } from "@staiger/ops-framework";
+import { defineModule, HANDELSE_PLATSER } from "ops-framework";
 
 export const omrostning = defineModule({
   id: "omrostning",
@@ -1479,7 +1479,7 @@ CP 2026-10-04: en agent ska kunna bygga en LifeHub-app, och den ska "falla in i 
 håller kontraktet. Det svaret ger en körning:
 
 ```
-node node_modules/@staiger/ops-framework/scripts/prova-modul.mjs src/moduler/ekonomi/index.js --grupp <en grupp med data>
+node node_modules/ops-framework/scripts/prova-modul.mjs src/moduler/ekonomi/index.js --grupp <en grupp med data>
 ```
 
 Kommandot provar modulen genom samma vägar appen använder, inte genom egna regler:
@@ -1519,7 +1519,7 @@ anrop, och en rad som bär ett annat `groupId` än frågans kastar med modulens 
 i felet (0.35.0, #190).
 
 ```js
-import { defineModule, skapaKallregister } from "@staiger/ops-framework";
+import { defineModule, skapaKallregister } from "ops-framework";
 
 const liv = defineModule({
   id: "liv",
@@ -1596,7 +1596,7 @@ ramverkets ytor. `skapar` är samma kontrakt åt andra hållet: **vad modulen ka
 skapa, och var typen väljs ur.**
 
 ```js
-import { OpsAppShell, skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "@staiger/ops-framework";
+import { OpsAppShell, skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "ops-framework";
 
 // Registreringarna för den aktiva gruppens PÅSLAGNA moduler, i registreringsordning.
 const registreringar = skaparFor(moduler, grupp.moduler);
@@ -1681,7 +1681,11 @@ Med `skapa.grupp` får plusset raden "Ny grupp" (efter Ny händelse och Nytt är
 
 ⛔ **BILDEN LADDAS UPP FÖRST NÄR GRUPPEN FINNS**, som i SS (`!isNew && form.id`): en lagringssökväg bär gruppens id. Formuläret säger det, och `onSkapad(groupId, svar)` ger appen id:t att navigera till gruppens sida med. ⛔ **Faller en inbjudan visas det:** panelen stängs inte utan visar vilka adresser som inte blev av och varför. ⛔ **Stängningen går inte bakåt i historiken** (`onKlar` gör `replaceState`, inte `history.back()`), så appens navigering efter `onSkapad` inte ångras av ett sent `back`.
 
-⛔ **Färg och ikon i märket ritas överallt** (`OpsGruppanel`, `OpsGruppvaxlare`): `GruppanelGrupp` tar `farg` och `ikon`, `gruppmarkeProps(grupp)` gör dem till det `OpsIdentity` behöver (`tone`, `icon`, `initialer`). Färgen är en av de sex identitetstonerna (`PROFILFARGER`), inte en hex: en fri färg följer inte med när mörkt läge kommer. Ikonerna är `GRUPPIKONER` (grupp, portfölj, byggnad, hus, bok, jordglob, stjärna, hjärta, blixt, krona), ramverkets egna id och inte Lucide-namn. `GRUPPINITIALER_FORM` är formen `initialer:AB`.
+⛔ **Färg och ikon i märket ritas överallt** (`OpsGruppanel`, `OpsGruppvaxlare`, `OpsGruppSida`, `OpsGruppFormular`): `GruppanelGrupp` tar `farg` och `ikon`, `gruppmarkeProps(grupp)` gör dem till det `OpsIdentity` behöver (`kulor`, `icon`, `initialer`). Sedan 0.65.0 (#265) ritas märket som ikonen i gruppens färg på en tonad platta av samma kulör.
+
+⛔ **Färgen är en KULÖR, inte en fri färg** (0.65.0, #265). `farg` är `kulor:<0-359>` (`kulorTillFarg`, `fargTillKulor`, `GRUPPKULOR_FORM`); ljusheten och mättnaden står i temat (`--gruppmarke-*` i tokens.css) för ljust och mörkt läge, och `check-gruppfarg` mäter kontrasten för alla 360 kulörer. `GRUPPKULORFORSLAG` är tolv snabbval med namn, och `narmasteKulornamn(grader)` ger det närmaste, som reglagets uppläsning bär ("227 grader, Turkos"). De sex äldre tonerna (`PROFILFARGER`, `"1"` till `"6"`) läses vidare och ritas i sin egen kulör; `gruppKulor(grupp)` ger kulören för en grupp, också en utan sparad färg (ur `id`).
+
+⛔ **Ikonen är ett Lucide-namn ur en sökbar katalog, aldrig ett index** (0.65.0, #265). `GRUPPIKONKATALOG` är 187 ikoner med Lucides sökord, och varje ikon har ett unikt svenskt namn (`GRUPPIKON_SVENSKA`, `gruppikonEtikett(namn, sprak)`) som skärmläsaren läser och som också är ett sökord; `sokGruppikoner(fraga)` söker på sökorden och svenska synonymer, `forslagUrGruppnamn(namn)` förfiltrerar ur gruppens namn ("Bandet" ger musikikonerna), `VANLIGA_GRUPPIKONER` är de tjugo som visas innan något skrivits, och `gruppikonKomponent(namn)` ger komponenten med ramverkets streckvikt. De tio äldre id:na i `GRUPPIKONER` (grupp, portfölj, byggnad, hus, bok, jordglob, stjärna, hjärta, blixt, krona) läses vidare och ritas med samma Lucide-ikon som förut (`ARV_GRUPPIKON`). `GRUPPINITIALER_FORM` är formen `initialer:AB`.
 
 #### Gruppkortet, detaljsidan och redigering (0.32.0, #180 G2)
 
@@ -1821,7 +1825,7 @@ meddelande. Tider är millisekunder.
 - ⛔ **Inget `senast` på samtalet.** Det senaste meddelandet finns redan, och inkorgen läser meddelandena ändå för att räkna olästa.
   Ett lagrat utdrag hade varit en andra sanning som vem som helst i gruppchatten kan skriva om. `utdrag` härleder det.
 - `byggSamtal`, `byggMeddelande` bygger eller kastar med skälet. `motpart(samtal, uid)` är den andra deltagaren.
-- ⛔ **Trådar (0.66.0, lifehub.app#60)**: `byggTrad({ rot, skapadAv, skapad?, namn? })` bygger en tråd vars nyckel är rotmeddelandets id, `TRADFALT` är dess fält och `kravTradnamn` prövar ett namn mot `MAX_TRADNAMN`. Namnet härleds, en regel och inget modellanrop: `rensaForNamn` tar första raden utan @-nämnanden, länkar och markdowntecken, `autonamn` tar nästa meddelande till hjälp när roten är kortare än `AUTONAMN_MINST` och kortar vid ett ordslut till `AUTONAMN_LANGD`, och `NAMNLOS_TRAD` står när ingen text finns kvar. `tradensNamn(trad, meddelanden)` ger det en person satt, annars det härledda. `autonamn`, `tradensNamn`, `rensaForNamn` och `NAMNLOS_TRAD` finns också i `/node`, så att appens agent kallar tråden samma sak som vyn.
+- ⛔ **Trådar (0.68.0, lifehub.app#60)**: `byggTrad({ rot, skapadAv, skapad?, namn? })` bygger en tråd vars nyckel är rotmeddelandets id, `TRADFALT` är dess fält och `kravTradnamn` prövar ett namn mot `MAX_TRADNAMN`. Namnet härleds, en regel och inget modellanrop: `rensaForNamn` tar första raden utan @-nämnanden, länkar och markdowntecken, `autonamn` tar nästa meddelande till hjälp när roten är kortare än `AUTONAMN_MINST` och kortar vid ett ordslut till `AUTONAMN_LANGD`, och `NAMNLOS_TRAD` står när ingen text finns kvar. `tradensNamn(trad, meddelanden)` ger det en person satt, annars det härledda. `autonamn`, `tradensNamn`, `rensaForNamn` och `NAMNLOS_TRAD` finns också i `/node`, så att appens agent kallar tråden samma sak som vyn.
 
 **Mottagaren på ett ärende**, `byggMottagare(m, medlemmar?)`: formen `{ slag, uid? }` med `slag` ur `MOTTAGARSLAG` (`grupp`,
 `person`, `agent`). Appens ärenden ligger i appens samling och appen skriver deras regler; ramverket ger formen, valideringen (med
@@ -1830,12 +1834,12 @@ alltså ska appens läsregel för ärenden INTE bero på `mottagare`.
 
 | | |
 |---|---|
-| `samtalsregelfragment({ samtal?, meddelanden?, last?, medlemskap? })` | **reglerna, ur modellens fältlistor.** Aktiv medlem läser gruppchatten, bara deltagarna läser ett privat samtal och dess meddelanden, en borttagen medlem läser inget. Ett samtal skapas med den härledda nyckeln, av en deltagare, och båda är aktiva medlemmar (`personer`: båda personer; `agent`: den andra är agent). Deltagarna ändras aldrig och samtalet raderas inte. Ett meddelande skrivs med `av == request.auth.uid` av en medlem av typen `person`, så **en klient skriver aldrig som agent** (agentens svar skrivs av servern med Admin SDK). Meddelanden ändras och raderas aldrig: ett meddelande är vad som sades. `tid` och `skapad` ligger inom fem minuter från serverns klocka. Läst-status är bara personens egen. Kräver `regelfragment()` (dess `opsArMedlem`), med samma `medlemskap`. Regelprov i `rules/__tests__/samtal.test.mjs`. ⛔ **Trådar (0.66.0, lifehub.app#60), frivilliga:** `tradar` har INGET förval. Utelämnat är texten byte för byte densamma som i 0.64.0 (prov mot `rules/__fixturer__/samtalsregelfragment-0.64.0.rules`). Med `{ tradar: "<namn>" }`, som inte får vara samma som `meddelanden` eller `last`, ges `<samtal>/{sid}/<tradar>/{tid}` med meddelanden under. Bara i gruppchatten; den som får läsa gruppchatten läser; en aktiv person startar en tråd ur ett meddelande som finns (nyckeln ÄR rotmeddelandets id), som sig själv, med fälten `TRADFALT`; en uppdatering rör bara `namn` (högst `MAX_TRADNAMN`); trådens meddelanden har samtalets krav; ingen radering. Regelprov med mutationstabell i `rules/__tests__/tradar.test.mjs` |
-| `createSamtalskalla({ kalla, samtal?, meddelanden?, last?, tradar?, sida? })` | **läser och skriver samtalen genom en datakälla.** `lista`, `oversikt` (varje samtal med senaste meddelandet, olästa och läsmärket, nyast först), `oppnaGrupp`, `oppnaPrivat` (samma samtal för A till B som för B till A), `meddelanden`, `prenumerera` (om källan kan), `skicka`, `lastTill`, `markeraLast`. Trådar (0.66.0) finns BARA när appen skickat `tradar` (inget förval; `harTradar(kalla)` svarar, och datakontraktets frivilliga `count(samling, fråga?)` används för antalet där adaptern har den: `createFirestoreSource` när SDK:n har `getCountFromServer`): `trad`, `oppnaTrad({ sid, rot, uid })` (unikheten bärs av regeln), `tradarFor(sid, rotter)` (en läsning per rot, bara de rötter man ber om), `antalSvar(sid, tid)` (aggregatfrågan `count` där källan har den, annars en lista med `sida` som tak), `tradmeddelanden`, `prenumereraTrad`, `skickaITrad` (skapar tråden med det första svaret, aldrig tom), `dopOm(sid, tid, namn | null)` och `rotmeddelande`. ⛔ `lista` är TVÅ frågor, gruppchatten på `slag` och de privata med `innehaller: { deltagare: uid }`: en fråga över hela gruppen hade tagit med andras privata samtal, och regeln nekar den |
+| `samtalsregelfragment({ samtal?, meddelanden?, last?, medlemskap? })` | **reglerna, ur modellens fältlistor.** Aktiv medlem läser gruppchatten, bara deltagarna läser ett privat samtal och dess meddelanden, en borttagen medlem läser inget. Ett samtal skapas med den härledda nyckeln, av en deltagare, och båda är aktiva medlemmar (`personer`: båda personer; `agent`: den andra är agent). Deltagarna ändras aldrig och samtalet raderas inte. Ett meddelande skrivs med `av == request.auth.uid` av en medlem av typen `person`, så **en klient skriver aldrig som agent** (agentens svar skrivs av servern med Admin SDK). Meddelanden ändras och raderas aldrig: ett meddelande är vad som sades. `tid` och `skapad` ligger inom fem minuter från serverns klocka. Läst-status är bara personens egen. Kräver `regelfragment()` (dess `opsArMedlem`), med samma `medlemskap`. Regelprov i `rules/__tests__/samtal.test.mjs`. ⛔ **Trådar (0.68.0, lifehub.app#60), frivilliga:** `tradar` har INGET förval. Utelämnat är texten byte för byte densamma som i 0.67.0 (prov mot `rules/__fixturer__/samtalsregelfragment-0.67.0.rules`). Med `{ tradar: "<namn>" }`, som inte får vara samma som `meddelanden` eller `last`, ges `<samtal>/{sid}/<tradar>/{tid}` med meddelanden under. Bara i gruppchatten; den som får läsa gruppchatten läser; en aktiv person startar en tråd ur ett meddelande som finns (nyckeln ÄR rotmeddelandets id), som sig själv, med fälten `TRADFALT`; en uppdatering rör bara `namn` (högst `MAX_TRADNAMN`); trådens meddelanden har samtalets krav; ingen radering. Regelprov med mutationstabell i `rules/__tests__/tradar.test.mjs` |
+| `createSamtalskalla({ kalla, samtal?, meddelanden?, last?, tradar?, sida? })` | **läser och skriver samtalen genom en datakälla.** `lista`, `oversikt` (varje samtal med senaste meddelandet, olästa och läsmärket, nyast först), `oppnaGrupp`, `oppnaPrivat` (samma samtal för A till B som för B till A), `meddelanden`, `prenumerera` (om källan kan), `skicka`, `lastTill`, `markeraLast`. Trådar (0.68.0) finns BARA när appen skickat `tradar` (inget förval; `harTradar(kalla)` svarar, och datakontraktets frivilliga `count(samling, fråga?)` används för antalet där adaptern har den: `createFirestoreSource` när SDK:n har `getCountFromServer`): `trad`, `oppnaTrad({ sid, rot, uid })` (unikheten bärs av regeln), `tradarFor(sid, rotter)` (en läsning per rot, bara de rötter man ber om), `antalSvar(sid, tid)` (aggregatfrågan `count` där källan har den, annars en lista med `sida` som tak), `tradmeddelanden`, `prenumereraTrad`, `skickaITrad` (skapar tråden med det första svaret, aldrig tom), `dopOm(sid, tid, namn | null)` och `rotmeddelande`. ⛔ `lista` är TVÅ frågor, gruppchatten på `slag` och de privata med `innehaller: { deltagare: uid }`: en fråga över hela gruppen hade tagit med andras privata samtal, och regeln nekar den |
 | `samtalsnotiser({ samtal, uid, namnFor, href? })` | **notiser för olästa privata meddelanden, som en källa för ytan `notiser`.** Inget nytt notissystem: notisen härleds ur samtalet och läsmärket när notiserna hämtas och försvinner när meddelandet läses. Id `<samtal>|<meddelande>`, titel "X skickade ett meddelande". Registreras som `kallor.notiser` i en av appens moduler |
 | `useSamtal({ kalla, groupId, uid })` | inkorgens rader och antalet olästa. Tre tillstånd (`laddar`, `fel`, `rader`), och `olasta` räknas ur raderna, så ingången och listan kan inte visa olika tal. `lasOm()` läser om. `laggIn(samtal, senaste?)` (0.63.0, #263) lägger in en rad lokalt direkt och läser sedan om: den som just öppnat eller skrivit i ett samtal ser det i listan i samma stund, inte vid nästa `focus`. Inget sparas, och omläsningen vinner |
-| `OpsMeddelanden` | **inkorgen, som SS `ChatInboxPanel`.** Listan till vänster (35 procent, minst 220 px) och samtalet till höger på dator, listan som hela sidan och "‹ Tillbaka" på telefon. Filtret Alla / Olästa, sökning, räknare i samtalsrutans hörn, etiketten Grupp, Privat eller Agent. Props `kalla`, `uid`, `groupId`, `gruppNamn`, `medlemmar` (gruppens medlemskap), `valt`, `nytt`, `onValj`, `onOlasta`, `sprak`, `texter`. ⛔ **"Nytt meddelande" lämnar aldrig Meddelanden (0.63.0, #263):** knappen öppnar läget "nytt" i högerpanelen, med Till (`OpsMottagare lage="person"`) och raden om vem som ser samtalet överst och trådens skrivfält längst ned, och listan står kvar till vänster (på telefon ersätter läget listan, med "‹ Tillbaka"). Valet öppnar samtalet direkt med `oppnaPrivat`, ett befintligt med sin historik, och det första meddelandet skrivs i trådens fält. Tråden ritas på `valt` också när samtalet ännu inte finns bland raderna: gruppen och paret läses ur nyckeln, rubriken ur `medlemmar`. `nytt` styr läget när appen har det i adressen; `onValj(id, val?)` får `(null, { nytt: true })` när läget öppnas och `(id)` när ett samtal väljs, EN signal för båda. `onNytt` finns inte längre. ⛔ **Trådar i gruppchatten (0.66.0, lifehub.app#60), bara när källan har trådar (`harTradar`, appen har skickat `tradar`):** under varje meddelande i gruppchatten "Svara i tråd" (44 px träffyta; på dator synlig vid hover och fokus) eller ett märke "3 svar" när tråden finns (namnet bara när en person döpt om tråden, annars upprepar det roten); märkena läser en tråd per ny rot och räknar svar med `count`, och ett svar från någon annan når märket när fönstret får fokus; tråden (`OpsTrad`) öppnas i högerpanelen med raden tillbaka till gruppchatten, namnet med Döp om, rotmeddelandet, svaren och samma skrivfält, och listan står kvar till vänster. Props `valtTrad` och `onValjTrad(tid \| null)` när appen har tråden i adressen. Inget läsmärke och ingen notis per tråd i första skivan |
-| `OpsTrad` | (0.66.0) **en tråd i gruppchatten**, den vy `OpsMeddelanden` ritar för `valtTrad`. Props `kalla`, `uid`, `samtal`, `tid`, `gruppNamn`, `namnFor`, `medlemmar`, `onStang`, `sprak`, `texter`. Namnet är `tradensNamn` |
+| `OpsMeddelanden` | **inkorgen, som SS `ChatInboxPanel`.** Listan till vänster (35 procent, minst 220 px) och samtalet till höger på dator, listan som hela sidan och "‹ Tillbaka" på telefon. Filtret Alla / Olästa, sökning, räknare i samtalsrutans hörn, etiketten Grupp, Privat eller Agent. Props `kalla`, `uid`, `groupId`, `gruppNamn`, `medlemmar` (gruppens medlemskap), `valt`, `nytt`, `onValj`, `onOlasta`, `sprak`, `texter`. ⛔ **"Nytt meddelande" lämnar aldrig Meddelanden (0.63.0, #263):** knappen öppnar läget "nytt" i högerpanelen, med Till (`OpsMottagare lage="person"`) och raden om vem som ser samtalet överst och trådens skrivfält längst ned, och listan står kvar till vänster (på telefon ersätter läget listan, med "‹ Tillbaka"). Valet öppnar samtalet direkt med `oppnaPrivat`, ett befintligt med sin historik, och det första meddelandet skrivs i trådens fält. Tråden ritas på `valt` också när samtalet ännu inte finns bland raderna: gruppen och paret läses ur nyckeln, rubriken ur `medlemmar`. `nytt` styr läget när appen har det i adressen; `onValj(id, val?)` får `(null, { nytt: true })` när läget öppnas och `(id)` när ett samtal väljs, EN signal för båda. `onNytt` finns inte längre. ⛔ **Trådar i gruppchatten (0.68.0, lifehub.app#60), bara när källan har trådar (`harTradar`, appen har skickat `tradar`):** under varje meddelande i gruppchatten "Svara i tråd" (44 px träffyta; på dator synlig vid hover och fokus) eller ett märke "3 svar" när tråden finns (namnet bara när en person döpt om tråden, annars upprepar det roten); märkena läser en tråd per ny rot och räknar svar med `count`, och ett svar från någon annan når märket när fönstret får fokus; tråden (`OpsTrad`) öppnas i högerpanelen med raden tillbaka till gruppchatten, namnet med Döp om, rotmeddelandet, svaren och samma skrivfält, och listan står kvar till vänster. Props `valtTrad` och `onValjTrad(tid \| null)` när appen har tråden i adressen. Inget läsmärke och ingen notis per tråd i första skivan |
+| `OpsTrad` | (0.68.0) **en tråd i gruppchatten**, den vy `OpsMeddelanden` ritar för `valtTrad`. Props `kalla`, `uid`, `samtal`, `tid`, `gruppNamn`, `namnFor`, `medlemmar`, `onStang`, `sprak`, `texter`. Namnet är `tradensNamn` |
 | `OpsSamtal` | ett samtal: huvudet med raden om vem som ser det ("Bara ni två ser det här"), bubblorna och skrivfältet (Enter skickar, Skift plus Enter bryter raden). Samma vy för alla tre slagen. Flyttar läsmärket när samtalet är öppet. `onSkickat(meddelande)` (0.63.0) får det skickade meddelandet, `utkast` (0.63.0) är text som redan står i fältet, och fältet får då fokus |
 | `OpsMottagare` | **en väljare för ärenden och meddelanden.** `lage="arende"`: Gruppen (förval), varje aktiv person (en själv märkt "du") och Agenten när gruppen har en agent. `lage="person"`: andra aktiva personer och den aktiva agenten. En radiogrupp med avatarer, 44 px per rad |
 | `OpsMeddelandeLank` | ingången, en `OpsIconLink` med meddelandeikonen och antalet olästa, för appens `actions` |
@@ -1971,7 +1975,7 @@ bakfylld rad under kategorins `id` medan `spara` skriver under `groupId|id`, all
 två dokument för samma kategori efter första ändringen i inställningsvyn.
 
 ```js
-import { bakfyllKatalogGrupp } from "@staiger/ops-framework/node";
+import { bakfyllKatalogGrupp } from "ops-framework/node";
 
 const svar = await bakfyllKatalogGrupp({
   kalla,                      // Admin-källa MED batch
@@ -2014,7 +2018,7 @@ användningen. En halv konfiguration kraschar annars först den dag någon råka
 just den metoden, och felet pekar mot anropsstället i stället för mot uppsättningen.
 `check-config-requirements` mäter det genom att anropa varje fabrik utan argument.
 
-### Nodsidan: `@staiger/ops-framework/node`
+### Nodsidan: `ops-framework/node`
 
 En andra ingång, för det som behöver en token. Buntas **inte** för webbläsaren.
 
@@ -2023,7 +2027,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `createActivityWriter` | vägen in i aktivitetsloggen för det som körs utan skärm: importskript, synkjobb, utlösare. Tar `model` (ur `createActivityLog`) och `append`, en injicerad skrivning, så ramverket får inget beroende till en databas. ⛔ `skriv` KASTAR ALDRIG, den svarar `{ ok, fel, orsak }`: en logg som kan sänka jobbet den loggar är värre än ingen logg, och alternativet, att varje anropsställe lindar sitt anrop i try, fungerar tills någon glömmer en gång. ⛔ `orsak` skiljer `utkast` från `skrivning`, eftersom det första är ett programfel och det andra är drift. ⛔ `misslyckades(utkast, fel)` finns för att en glömd `resultat: "fel"` lägger ett misslyckande i listan som ett lyckat jobb |
 | `byggSkapare`, `laesSkapare`, `skaparensNamn`, `arGammalForm`, `SKAPARTYPER` | **samma fem som i huvudingången**, eftersom både klienten och det som körs utan skärm skriver `skapadAv`. Två former av samma fält är precis det modulen finns för att förhindra |
 | `FASER`, `AVSLUTADE_FASER`, `byggKategori`, `validateKatalog`, `valjbara`, `kategorin`, `arAvslutad`, `texten`, `katalognyckel`, `gruppensRader`, `SPRAK`, `RESERVSPRAK`, `byggNamn`, `text`, `arGammalNamn`, `saknadeSprak` | **katalogen och språken finns i båda ingångarna**, av samma skäl som `createActivityLog`: konfigurationen läses både av klienten och av det som körs utan skärm. Ett Cloud Function ska kunna fråga vilka sorter som finns utan att ladda React, och skillnaden är mätt till 8 ms mot 1946 ms |
-| `createActivityLog` | **samma funktion som i huvudingången, återexporterad här**, och det är en mätning och inte en bekvämlighet. `createActivityWriter` kräver en modell ur den, så ett Cloud Function som ville skriva en rad tvingades importera hela webbuntlen. Mätt (Node 20, ur den utgivna tarbollen): `@staiger/ops-framework/node` tar **8 ms**, `@staiger/ops-framework` tar **1946 ms**. Nästan två sekunder per kallstart för att en funktion som skriver ETT dokument skulle ladda React, Radix och en kalender. ⛔ `check-node-side` kräver att nodsidan inte når React eller en komponent, varken direkt eller genom en mellanfil, annars är mätningen osann inom en månad |
+| `createActivityLog` | **samma funktion som i huvudingången, återexporterad här**, och det är en mätning och inte en bekvämlighet. `createActivityWriter` kräver en modell ur den, så ett Cloud Function som ville skriva en rad tvingades importera hela webbuntlen. Mätt (Node 20, ur den utgivna tarbollen): `ops-framework/node` tar **8 ms**, `ops-framework` tar **1946 ms**. Nästan två sekunder per kallstart för att en funktion som skriver ETT dokument skulle ladda React, Radix och en kalender. ⛔ `check-node-side` kräver att nodsidan inte når React eller en komponent, varken direkt eller genom en mellanfil, annars är mätningen osann inom en månad |
 | `createCaseMirror` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ owner, repo, label }` som konfiguration, plus `summary` och `extraFields` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `load` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
 | `uppdateraProfil({ kalla, uid, andring })` | #156. Den ENDA platsen som skriver `namn`/`bild` i `users` OCH i ALLA medlemskap för `uid` i samma steg, byggda genom `byggMedlemskap` så en trasig rad i databasen upptäcks i stället för att tystas in i ett rått patch-objekt. Bara `namn` och `bild` tas emot: de är de enda fälten som är denormaliserade i `memberships` (#138). Klienten kan inte göra det här själv, `memberships` har `allow write: if false` |
 | `byggAnvandare`, `PROFILIKONER`, `PROFILFARGER`, `MAX_PRESENTATION` | 0.53.0, lifehub.app#32. **Samma byggare som i huvudingången**, för ett konto som äger personen utanför appen (LifeHubs Identity) och för appen som speglar personen vid inloggningen. Två prövningar av samma rad hade glidit isär |
@@ -2243,6 +2247,8 @@ kan köras av en app mot sin egen källkatalog. Inställningsvyn (`OpsKatalogIns
 | `check-kontrast` | varje text-mot-yta-par komponenterna använder klarar WCAG AA i BÅDA teman, 4,5:1 för brödtext och 3:1 för grafik. ⛔ Finns för att ett FANTOMTOKEN tog sig hela vägen förbi grinden: notischippet skrev `text-on-accent`, och `--color-on-accent` har aldrig funnits. Tailwind skriver då `color: var(--color-on-accent)`, som resolvar till ingenting, så texten ärver föräldern. I ljust tema såg det rimligt ut; i mörkt blev ljus text på krämfärgad yta, och det upptäcktes av en människa med en telefon. `check-token-overrides` läser appens CSS, `check-closed-api` bryr sig om vem som får ta emot `className`, och ingen av dem tittar på om ett token finns. ⛔ Paren står utskrivna och härleds INTE ur klasserna: en parser som gissar vilken bakgrund en text ligger på blir fel i första kapslade fallet, och en vakt som har fel ibland stängs av. ⛔ `ink-muted` ger 3,65:1 mot `raised` och bär därför aldrig information, bara dekor och avstängda kontroller |
 | `check-statusord` | ingen gränssnittssträng kallar en **status** för **läge**. Taxonomin heter Status sedan CP:s beslut 2026-09-25 (cllp/bolag-ops#359), och ett fält som heter `status` i koden men "Läge" på skärmen tvingar varje läsare att hålla två ord för en sak. ⛔ Ordet står på ett sextiotal rader i `src/`, och nästan alla är riktig svenska om något annat: "mörkt läge", "nolläget", "radläget". Vakten använder därför den regel svenskan själv har: är `läge` **efterled** är det ett tillstånd eller en position och går fritt, är det **förled** (`lägesfilter`, `lägesväljare`) eller fristående är det taxonomin och fälls. ⛔ Läser bara stränglitteraler utanför kommentarer, och inga prov: ett resonemang om varför en kontrast mättes i mörkt läge ska inte fälla ett bygge. ⛔ Undantagen bär ett skäl som säger vilken ANNAN betydelse ordet har, och ett undantag som slutat matcha är också rött. ⛔ Går att peka mot en katalog, så bolag-ops kör samma vakt mot sin egen `web/src` |
 | `check-datumnamn` | inga **månads- eller veckodagsnamn skrivna för hand**. `Intl` kan dem i varje språk; en egen lista kan ett, och ramverket hade två (`MONTH_NAMES` och `WEEKDAYS`) som var hela skälet till att kalendern inte gick att visa på engelska. ⛔ Vakten hämtar namnen den letar efter ur `Intl` själv: en vakt mot handskrivna ordlistor som bär en handskriven ordlista missar just den stavning någon kopierade därifrån. ⛔ Fäller bara när HELA strängen är ett namn, så "17 september 2026 mättes" går fritt: ett datum i en text är ett exempel. ⛔ `maj`, `mars` och `March` är undantagna som enskilda ord, eftersom de också är vanliga ord och en planet |
+| `check-gruppfarg` | (0.65.0, #265) **varje gruppkulör håller kontrasten** i ljust och mörkt läge. En grupp väljer bara kulör; ljusheten och mättnaden står i `tokens.css` (`--gruppmarke-*`). Vakten räknar alla 360 kulörer mot plattan (golv 4,5:1, initialer är text) och mot canvas, surface och raised (golv 3:1, WCAG 1.4.11), både med CSS Color 4:s gamut-kartläggning och med Chromiums klippning per kanal, och skriver ut tabellen för de tolv snabbvalen. ⛔ Talen läses ur tokens.css, aldrig ur en kopia. Golv: 12 kulörer i tabellen, minst 300 olika ritade ikonfärger av 360 per läge (en mättnad 0 i temat klarar kontrasten men gör alla kulörer grå), tre ytor per läge |
+| `check-gruppikoner` | (0.65.0, #265) gruppikonernas katalog (`gruppikonkatalog.generated.js` och `.jsx`) är i takt med `scripts/generate-gruppikoner.mjs`: urvalet, Lucides sökord ur `lucide-static/tags.json` i SAMMA version som `lucide-react`, och att varje namn finns som export. Ikonen sparas som sitt namn, aldrig som index |
 | `check-handritade-ikoner` | ingen komponent utanför `icons.jsx` ritar sin egen `<svg>` eller `<path d=`. ops-framework#164: krysset stod handritat på tre ställen (`OpsCalendar`, `OpsBottomNav`, `OpsFloatingSummary`), var med sin egen storlek och sitt eget strokeWidth, exakt samma mönster som `counter.jsx` redan lärt oss kostar en bugg per ritning. ⛔ Tre dokumenterade undantag (`OpsActivity`, `OpsSpinner`, `OpsShareChart`) bär var sitt eget skäl i koden och i vakten: en ensam ikon, en ikon som kräver `animate-spin` på själva SVG:n, och en beräknad diagramgeometri, inte en ikon. Ett fjärde `<svg>` utan ett likadant undantag är ett fynd. ⛔ Golv på 30 lästa filer, så en trasig sökväg inte blir tyst grön |
 | `check-typografi` | **inga egna storlekar eller typsnitt förbi tokens.** Fäller `text-[13px]`, `text-[0.7rem]`, `font-size:` och `font-family:` i `src/components` och i en konsuments källkatalog (`node .../scripts/check-typografi.mjs src`), efter att kommentarer räknats bort. ⛔ 0.29.1 hade tio `text-[Npx]` i fem komponenter, var och en med sin egen vikt: ingen hade ett namn att rätta. Golv 60 filer för ramverket, 5 för en app (`--golv=N`). Se [Typografin](#typografin) |
 | `check-skalyta` | **skalets yta mätt i en riktig webbläsare** (Chromium, fail-closed): ingen avgränsare närmare en annan än 24 px i menyn (arket vid 390 och rullgardinen vid 1280), huvudets ikonknappar som 36 px cirklar med 44 px träffyta och mittlinjer inom 1 px, loggan utan text och inte högre än toppraden, radens 12 px och hover i `--color-raised`, inställningsvyn utan horisontell överflödning vid 390 px, bottenraden med `fasta`. ⛔ jsdom kör ingen CSS, så fem av CP:s sex punkter 2026-09-29 gick grönt genom hela provsviten. Körs i CI-jobbet som redan har en webbläsare (`scaffold`), inte i `check`. `--utan-fasta` provar samma vakt mot en äldre `dist`, `--bilder <mapp>` skriver skärmbilderna |
@@ -2333,8 +2339,14 @@ Varje tagg `vX.Y.Z` ger en **GitHub-release med en packad tarboll**
 (`.github/workflows/publish.yml`). En konsument installerar den direkt:
 
 ```bash
-npm install https://github.com/cllp/ops-framework/releases/download/v0.17.0/staiger-ops-framework-0.17.0.tgz
+npm install https://github.com/cllp/ops-framework/releases/download/v0.67.0/ops-framework-0.67.0.tgz
 ```
+
+⛔ **Tarbollen heter `ops-framework-X.Y.Z.tgz` från och med 0.67.0.** Före den
+hette paketet `ops-framework` och tarbollen
+`staiger-ops-framework-X.Y.Z.tgz`, och de gamla releaserna bär fortfarande det
+namnet. Filnamnet härleds ur `name` i `package.json` av `npm pack` och skrivs
+inte någon annanstans. `check-paket` kräver att det börjar på `ops-framework-`.
 
 ⛔ **Varför inte ett registry.** Kravet i cllp/ops-framework#93 är att
 `bolag-ops/functions` ska kunna installera paketet utan inloggning, eftersom
@@ -2502,7 +2514,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 | `tokens/tokens.css` | tokenkontraktet, som är Tailwind-temat |
 | `src/components/` | primitiverna |
 | `src/lib/` | tema, identitet, formatering |
-| `src/nodee/` | **nodsidan**, importeras som `@staiger/ops-framework/node`. Hit hör det som behöver en token, en filsökväg eller ett autentiserat nätanrop. ⛔ Ligger utanför webbundeln med flit: en token i bundlen är en token i varje besökares JS-fil. `check-node-side` gör det till rött bygge om webbsidan importerar härifrån |
+| `src/nodee/` | **nodsidan**, importeras som `ops-framework/node`. Hit hör det som behöver en token, en filsökväg eller ett autentiserat nätanrop. ⛔ Ligger utanför webbundeln med flit: en token i bundlen är en token i varje besökares JS-fil. `check-node-side` gör det till rött bygge om webbsidan importerar härifrån |
 | `scripts/` | vakterna |
 | `create-ops-app/` | mallen som kopieras en gång |
 | `adoption/` | **det enda stället som får veta vilka som använder ramverket.** Här beskrivs hur en namngiven plattform tar ramverket i bruk och vad som återstår i dess upprensning (`mobil-nav.md`, `ss-paritet.md`) |

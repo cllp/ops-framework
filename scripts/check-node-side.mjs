@@ -209,8 +209,8 @@ if (korimporter.length > 0 || typimporter.length > 0 || provimporter.length > 0)
 // ⛔ MÄTT, INTE ANTAGET. cllp/ops-framework#93: ett Cloud Function som vill
 // skriva en rad i aktivitetsloggen ska importera nodsidan och ingenting mer.
 //
-//   import("@staiger/ops-framework/node")   ->     8 ms
-//   import("@staiger/ops-framework")        ->  1946 ms
+//   import("ops-framework/node")   ->     8 ms
+//   import("ops-framework")        ->  1946 ms
 //
 // Skillnaden är React, Radix och en kalender. Nästan två sekunder per
 // kallstart för en funktion som skriver ETT dokument.
