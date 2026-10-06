@@ -70,7 +70,7 @@ if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(String(paket.version || ""))) {
 
 // ── 1b. Namnet är oscopat, för tarbollens filnamn härleds ur det ───────────
 //
-// ⛔ CP 2026-10-06: releasens tarboll hette `staiger-ops-framework-X.Y.Z.tgz`,
+// ⛔ CP 2026-10-06: releasens tarboll bar scopet `staiger` först i filnamnet,
 // för `npm pack` gör scopet `@staiger/` till ett prefix i filnamnet. Kravet är
 // att release-artefakten inte bär något scope. Filnamnet sätts inte i
 // publish.yml, så det är namnet här som avgör det.

@@ -77,19 +77,21 @@ function App({ kalla }) {
 }
 
 const lista = () => /** @type {HTMLElement} */ (document.querySelector("[data-samtalslista]"));
+// ⛔ Inkorgen är laddad när gruppchattens rad står där (0.68.0): den finns alltid, också innan någon har skrivit i den.
+const gruppradFinns = () => waitFor(() => expect(document.querySelector('[data-samtalsrad="grupp"]')).not.toBeNull());
 
 describe("⛔ Nytt meddelande i skalet: tråden öppnas bredvid listan och samtalet syns direkt (#263)", () => {
   it("tom inkorg, Nytt meddelande, agenten, skriv, Skicka: samtalsraden och tråden syns utan någon focus-händelse", async () => {
     const kalla = createSamtalskalla({ kalla: createMemorySource({}) });
     render(<App kalla={kalla} />);
-    expect(await screen.findByText("Inga samtal än")).toBeInTheDocument();
+    await gruppradFinns();
     const user = userEvent.setup();
     await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
     // ⛔ Listan står kvar i DOM:en, och ingen skapa-panel öppnades.
     expect(lista()).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Nytt meddelande" })?.closest("[data-ops-meddelanden]")).toBeTruthy();
-    // Raden under Till följer valet: före valet "Bara ni två", med agenten vald samma ord som trådens huvud sedan bär.
-    expect(document.querySelector("[data-privat]")?.textContent).toBe("Bara ni två ser det här");
+    // Raden under Till följer valet: ingen rad före valet (0.68.0), med agenten vald samma ord som trådens huvud sedan bär.
+    expect(document.querySelector("[data-privat]")).toBeNull();
     await user.click(screen.getByRole("radio", { name: "Agent" }));
     // Valet öppnar tråden direkt, innan något är skrivet.
     await waitFor(() => expect(document.querySelector("[data-ops-samtal]")).not.toBeNull());
@@ -97,7 +99,8 @@ describe("⛔ Nytt meddelande i skalet: tråden öppnas bredvid listan och samta
     expect(lista()).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "vilka ärenden är öppna?");
     await user.click(screen.getByRole("button", { name: "Skicka" }));
-    await waitFor(() => expect(document.querySelectorAll("[data-samtalsrad]")).toHaveLength(1));
+    // Gruppchatten står alltid överst (0.68.0), agentsamtalet under.
+    await waitFor(() => expect(document.querySelectorAll("[data-samtalsrad]")).toHaveLength(2));
     expect(document.querySelector('[data-samtalsrad="agent"]')).not.toBeNull();
     expect(document.querySelector('[data-ops-samtal="agent"]')).not.toBeNull();
     expect(screen.queryByText("Inga samtal än")).toBeNull();
@@ -110,7 +113,7 @@ describe("⛔ Nytt meddelande i skalet: tråden öppnas bredvid listan och samta
   it("plussets rad Nytt meddelande leder till läget nytt i Meddelanden, och ingen skapa-panel öppnas", async () => {
     const kalla = createSamtalskalla({ kalla: createMemorySource({}) });
     render(<App kalla={kalla} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Skapa" }));
     const rader = screen.getAllByRole("button", { name: "Nytt meddelande" });
@@ -139,9 +142,10 @@ describe("⛔ tråden ritas på det valda id:t, inte på listan (#263)", () => {
     const oversikt = vi.fn(async () => []);
     const kalla = { ...kallan, oversikt };
     render(<OpsMeddelanden kalla={kalla} uid="anna" groupId="g" gruppNamn="Alfa" medlemmar={MEDLEMMAR} valt={s.id} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     expect(oversikt).toHaveBeenCalled();
-    expect(document.querySelectorAll("[data-samtalsrad]")).toHaveLength(0);
+    // Bara gruppchattens härledda rad (0.68.0): ingen rad för det privata samtalet.
+    expect(document.querySelectorAll('[data-samtalsrad]:not([data-samtalsrad="grupp"])')).toHaveLength(0);
     // Vyn har ingen rad för samtalet, men tråden ska ändå stå där, med rubriken och raden om vem som ser det.
     const tradar = document.querySelectorAll('[data-ops-samtal="personer"]');
     expect(tradar).toHaveLength(1);
@@ -153,7 +157,7 @@ describe("⛔ tråden ritas på det valda id:t, inte på listan (#263)", () => {
   it("ett valt id som inte är mitt eller inte hör till gruppen öppnar ingen tråd, och det står att man ska välja ett samtal", async () => {
     const kalla = createSamtalskalla({ kalla: createMemorySource({}) });
     const { rerender } = render(<OpsMeddelanden kalla={kalla} uid="anna" groupId="g" gruppNamn="Alfa" medlemmar={MEDLEMMAR} valt="g|bo|cecilia" />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     expect(document.querySelector("[data-ops-samtal]")).toBeNull();
     expect(screen.getByText("Välj ett samtal")).toBeInTheDocument();
     rerender(<OpsMeddelanden kalla={kalla} uid="anna" groupId="g" gruppNamn="Alfa" medlemmar={MEDLEMMAR} valt="h|anna|bo" />);
@@ -208,7 +212,7 @@ describe("⛔ listan står kvar i DOM:en under hela flödet (#263)", () => {
   it("från tom inkorg via läget nytt och tråden till efter Skicka finns samma lista hela tiden", async () => {
     const kalla = createSamtalskalla({ kalla: createMemorySource({}) });
     render(<App kalla={kalla} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     const forsta = lista();
     const user = userEvent.setup();
     /** @type {boolean[]} */
@@ -220,7 +224,8 @@ describe("⛔ listan står kvar i DOM:en under hela flödet (#263)", () => {
     await waitFor(() => expect(document.querySelector('[data-ops-samtal="personer"]')).not.toBeNull());
     await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Hej Bo");
     await user.click(screen.getByRole("button", { name: "Skicka" }));
-    await waitFor(() => expect(document.querySelectorAll("[data-samtalsrad]")).toHaveLength(1));
+    // Gruppchatten står alltid överst (0.68.0), agentsamtalet under.
+    await waitFor(() => expect(document.querySelectorAll("[data-samtalsrad]")).toHaveLength(2));
     observer.disconnect();
     // Golv: flödet ändrade DOM:en många gånger, annars mätte observatören ingenting.
     expect(kvar.length).toBeGreaterThan(5);
@@ -230,7 +235,7 @@ describe("⛔ listan står kvar i DOM:en under hela flödet (#263)", () => {
   it("Tillbaka i läget nytt stänger läget och går inte till någon annan sida", async () => {
     const kalla = createSamtalskalla({ kalla: createMemorySource({}) });
     render(<App kalla={kalla} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     const user = userEvent.setup();
     await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
     expect(screen.getByRole("region", { name: "Nytt meddelande" })).toBeInTheDocument();
@@ -242,7 +247,7 @@ describe("⛔ listan står kvar i DOM:en under hela flödet (#263)", () => {
   it("text skriven före valet följer med in i tråden, och Skicka utan mottagare säger vad som saknas", async () => {
     const kalla = createSamtalskalla({ kalla: createMemorySource({}) });
     render(<App kalla={kalla} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     const user = userEvent.setup();
     await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
     await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Hej{Enter}");
@@ -298,14 +303,14 @@ describe("⛔ laggIn mot en källa som aldrig svarar med det nya samtalet (#263,
     expect(raderna().some((r) => r.includes("Bo Lind"))).toBe(true);
     const foreSkicka = oversikt.mock.calls.length;
     await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Ny fråga till Bo{Enter}");
-    await waitFor(() => expect(raderna()[0]).toContain("Ny fråga till Bo"));
-    // Sorteringen: det just skickade ligger överst, gruppchatten med sitt äldre meddelande under.
-    expect(raderna()[0]).toContain("Bo Lind");
-    expect(raderna()[1]).toContain("Gammalt i gruppen");
+    await waitFor(() => expect(raderna()[1]).toContain("Ny fråga till Bo"));
+    // Sorteringen: gruppchatten står alltid överst (0.68.0), och under den ligger det just skickade först.
+    expect(raderna()[1]).toContain("Bo Lind");
+    expect(raderna()[0]).toContain("Gammalt i gruppen");
     // Källan har läst om efter Skicka (räknat FÖRE Skicka, så att väntan mäter något) och svarat utan meddelandet.
     await waitFor(() => expect(oversikt.mock.calls.length).toBeGreaterThan(foreSkicka));
     await act(async () => {});
-    expect(raderna()[0]).toContain("Ny fråga till Bo");
+    expect(raderna()[1]).toContain("Ny fråga till Bo");
   });
 
   it("text som skrivs medan samtalet öppnas följer med in i tråden", async () => {
@@ -317,7 +322,7 @@ describe("⛔ laggIn mot en källa som aldrig svarar med det nya samtalet (#263,
       return kallan.oppnaPrivat(d);
     };
     render(<App kalla={{ ...kallan, oppnaPrivat }} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     const user = userEvent.setup();
     await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
     const falt = () => screen.getByRole("textbox", { name: "Skriv ett meddelande" });
@@ -409,7 +414,7 @@ describe("⛔ gruppbyte medan oppnaPrivat pågår (#263, granskningen, tredje va
   it("utkastet nollas efter Skicka och kommer inte tillbaka", async () => {
     const kallan = createSamtalskalla({ kalla: createMemorySource({}) });
     render(<OpsMeddelanden kalla={kallan} uid="anna" groupId="g" gruppNamn="X" medlemmar={MED} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     const user = userEvent.setup();
     await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
     await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Utkast");
@@ -421,7 +426,7 @@ describe("⛔ gruppbyte medan oppnaPrivat pågår (#263, granskningen, tredje va
     });
     expect(falt).toHaveValue("Utkast");
     await user.type(/** @type {HTMLElement} */ (falt), "{Enter}");
-    await waitFor(() => expect(raderna()[0]).toContain("Utkast"));
+    await waitFor(() => expect(raderna()[1]).toContain("Utkast"));
     await act(async () => {});
     expect(document.querySelector('[data-ops-samtal="personer"] textarea')).toHaveValue("");
   });
@@ -455,7 +460,7 @@ describe("⛔ skydden i läget nytt, ett prov per skydd (#263, granskningen, fj�
     const { kalla, styr } = vantandeKalla();
     const onValj = vi.fn();
     render(<OpsMeddelanden kalla={/** @type {any} */ (kalla)} uid="anna" groupId="g" gruppNamn="X" medlemmar={MED} onValj={onValj} />);
-    await screen.findByText("Inga samtal än");
+    await gruppradFinns();
     const user = userEvent.setup();
     await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
     await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
