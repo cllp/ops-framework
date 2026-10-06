@@ -11,13 +11,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.68.0
 
-⛔ **Versionsnumret:** grenen öppnades som 0.66.0. PR 266 (0.65.0) och PR 271 (0.67.0, paketnamnet `ops-framework`) mergades först, så den här grenen tar nästa lediga version, 0.68.0. 0.66.0 gavs aldrig ut.
-
 ### Trådar i gruppchatten (cllp/lifehub.app#60)
 
 CP 2026-10-06, överlämning i cllp/lifehub.app#60: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är med i tråden för alla." Bakgrunden var en lång tråd med fem olika spår, där spåren gav kopplingar till varandra som inte hade uppstått om de legat isär. Tråden är gruppens, inte ett privat samtal med agenten.
 
 Första versionen byggdes i appen (lifehub.app PR 65), med datamodell och regler i appens `firestore.rules`. Beslutet samma dag: samtalen och deras regler är ramverkets (`createSamtalskalla`, `samtalsregelfragment`), och en regel för trådar i appen hade varit två hem för samma regel (regel 2). Reglerna och proven flyttar därför hit, och appen pinnar om.
+
+#### Rättat
+
+- **Gruppchatten fanns inte förrän någon hade skapat den.** CP 2026-10-06, i gruppen "Philip Staiger AB" med en medlem och agenten: "Hur skriver jag ett meddelande till hela gruppen?" Det gick inte. Listan i Meddelanden visade bara agentsamtalet, och under Till i "Nytt meddelande" stod bara Agent. Rotorsaken, mätt i `origin/main`: `oppnaGrupp` i `samtalskalla.js` anropades aldrig från vyn, så gruppchatten fanns bara där den var sådd, och den var sådd i varje prov och i varje skalyta-scen. Därför syntes felet aldrig före CP.
+  - Gruppchatten står nu **alltid överst** i listan för en vald grupp, med gruppens namn och märket Grupp, också innan något har skrivits. Raden härleds i vyn ur gruppen. Den är inget dokument i databasen: samtalet skapas med `oppnaGrupp` när någon öppnar raden (en rad "Öppnar gruppchatten…" under tiden, och ett fel står som en banderoll).
+  - I läget "Nytt meddelande" står **"Hela gruppen"** först under Till, och valet öppnar gruppchatten. `OpsMottagare` har en ny prop `helaGruppen` för det i `lage="person"`. Utan den är läget som förut.
+  - Gruppchattens tomma läge säger "Alla i gruppen ser det som skrivs här." (texten `gruppTom`). Nya texter även `helaGruppen` och `oppnarGrupp`.
+  - Prov som var röda utan rättningen (mutationstabell i PR-texten): en grupp med bara agentsamtalet har raden överst utan att något skrivs i källan, att öppna den anropar `oppnaGrupp`, och det första meddelandet syns; "Hela gruppen" står först under Till. `check-skalyta` avsnitt 29f, scenen `meddelanden-ny-grupp`, vid 390 och 1280 px.
+  - ⛔ **Följd för appen:** listan sorteras inte längre helt efter senaste meddelandet. Gruppchatten står först, och de privata samtalen under den efter senaste meddelandet.
+
+- **Det gamla paketnamnet hade ingen vakt** (granskningen av PR 271, A1, #270 klarkriterium 2). Bytet i 0.67.0 gjordes för hand, och ingenting hindrade det scopade namnet från att komma tillbaka med en kopierad rad. Nytt: `check-gammalt-namn` (i `npm run check`) läser varje fil i repot och är röd på det scopade namnet och tarbollens gamla filnamn utanför `CHANGELOG.md`, `create-ops-app/` och README:s stycke om namnet före 0.67.0 (ett tak på 2 träffar, som bara får sjunka). Golv: 400 lästa filer (569 nu). Planterat i `test-guards` (`gammalt namn` 1 till 4: en import, tarbollens namn i ett skript, README över taket, golvet), och provat mot repot med en planterad import (röd) och utan (grön).
+- **`check-token-overrides` godkände en `@source` mot det gamla namnets katalog** (granskningen av PR 271, A2). Mönstret krävde bara att sökvägen slutade på `ops-framework/`, så `../node_modules/` följt av det scopade namnet passerade, och en sådan app blir helt ostylad utan fel när nyckeln i `package.json` är bytt. Nu ska segmentet före `ops-framework/` vara `node_modules/`. Planterat i `test-guards` (`overrides 1b`), som var grönt med det gamla mönstret och rött med det nya.
+- **README sade att paketet hette `ops-framework` före 0.67.0.** Det hette det scopade namnet; namnbytet hade ersatt även den raden.
 
 #### Tillagt
 
@@ -50,7 +61,7 @@ Trådarna är **frivilliga**: allt nedan gäller bara en app som skickar `tradar
 ---
 ## 0.67.0
 
-⛔ **Versionsnumret:** 0.66.0 är redan taget av utkastet PR 268 (trådar i gruppchatten, lifehub.app#60), som inte är mergat när den här grenen öppnas. Main står på 0.65.0. Den här grenen tar därför 0.67.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.
+⛔ **Versionsnumret:** 0.66.0 hoppas över. Det numret bar utkastet till trådarna i gruppchatten (PR 268, lifehub.app#60) när den här grenen öppnades, och trådarna ges ut som 0.68.0. Någon tagg v0.66.0 finns inte.
 
 ### Paketet heter `ops-framework`, utan scope
 
@@ -67,7 +78,7 @@ CP 2026-10-06: release-artefakterna ska inte bära "staiger" i namnet. Paketet h
 
 #### Ompinning till 0.67.0
 
-Gäller `cllp/lifehub.app` och `cllp/bolag-ops` (sökvägarna under `web/`, och `functions/` där ramverket används). Ompinningen mergas efter ramverket, i samma pass (regel 11).
+Gäller `cllp/lifehub.app`. `cllp/bolag-ops` stängs och pinnas inte om. Ompinningen mergas efter ramverket, i samma pass (regel 11).
 
 1. **`package.json`:** byt nyckeln, inte bara URL:en: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.67.0/ops-framework-0.67.0.tgz"`, och ta bort `"@staiger/ops-framework"`.
    - ⛔ Står den gamla nyckeln kvar installerar npm det nya paketet under `node_modules/@staiger/ops-framework` (mätt med en tarboll), så importerna fortsätter fungera och ingenting ser fel ut. Ramverkets vakter och dokumentation säger då `ops-framework`, och appen säger något annat.

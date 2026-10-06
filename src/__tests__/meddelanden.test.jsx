@@ -103,9 +103,11 @@ describe("OpsMeddelanden: inkorgen", () => {
     expect(screen.getByText("Alla i gruppen ser det här")).toBeInTheDocument();
   });
 
-  it("tomhet är ett svar: en grupp utan samtal säger det", async () => {
+  it("tomhet är ett svar: med sökningen utan träff säger listan det", async () => {
     render(<OpsMeddelanden kalla={createSamtalskalla({ kalla: createMemorySource({}) })} uid="anna" groupId="tom" gruppNamn="Tom" medlemmar={[]} />);
-    expect(await screen.findByText("Inga samtal än")).toBeInTheDocument();
+    await screen.findByRole("button", { name: /Tom/ });
+    await userEvent.setup().type(screen.getByRole("searchbox"), "finns inte");
+    expect(await screen.findByText("Ingen träff")).toBeInTheDocument();
   });
 
   // 0.63.0 (#263): knappen öppnar läget "nytt" i högerpanelen och meddelar appen med EN signal, `onValj(null, { nytt: true })`.
@@ -152,5 +154,62 @@ describe("OpsMottagare", () => {
     expect(screen.getAllByRole("radio").map((r) => r.querySelector(".truncate")?.textContent)).toEqual(["Bo Lind", "Cecilia Berg", "Ops-agenten"]);
     await userEvent.setup().click(screen.getByRole("radio", { name: "Bo Lind" }));
     expect(onChange).toHaveBeenCalledWith({ slag: "person", uid: "bo" });
+  });
+});
+
+/*
+ * ⛔ GRUPPCHATTEN UTAN SÅDD GRUPPCHATT (0.68.0). CP 2026-10-06, i gruppen "Philip Staiger AB" med en medlem och agenten:
+ * "Hur skriver jag ett meddelande till hela gruppen?" Listan visade bara agentsamtalet och Till bara Agent, eftersom vyn aldrig
+ * anropade `oppnaGrupp`. Alla prov ovan sår gruppchatten i `underlag()`, och därför såg inget av dem felet.
+ */
+describe("⛔ gruppchatten finns innan någon har skrivit i den (CP 2026-10-06)", () => {
+  const ENSAM = [
+    { userId: "cp", namn: "Claes Philip", typ: "person", status: "aktiv" },
+    { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+  ];
+  async function ensamGrupp() {
+    const samtal = createSamtalskalla({ kalla: createMemorySource({}) });
+    // Bara agentsamtalet finns, precis som i CP:s grupp.
+    await samtal.oppnaPrivat({ groupId: "psab", uid: "cp", annan: "ops", slag: "agent" });
+    return samtal;
+  }
+
+  it("raden står överst med gruppens namn och märket Grupp, utan att något skrivs i databasen; att öppna den skapar samtalet, och det första meddelandet syns", async () => {
+    const kallan = await ensamGrupp();
+    // Källan är fryst, så spionen sitter på en kopia.
+    const oppnaGrupp = vi.fn(kallan.oppnaGrupp);
+    const samtal = { ...kallan, oppnaGrupp };
+    render(<OpsMeddelanden kalla={samtal} uid="cp" groupId="psab" gruppNamn="Philip Staiger AB" medlemmar={ENSAM} />);
+    const lista = await screen.findByRole("region", { name: "Meddelanden" });
+    await waitFor(() => expect(within(lista).getAllByRole("listitem")).toHaveLength(2));
+    const rader = within(lista).getAllByRole("listitem");
+    expect(rader[0].textContent).toContain("Philip Staiger AB");
+    expect(rader[0].querySelector('[data-samtalsrad="grupp"] [data-slag]')?.textContent).toBe("Grupp");
+    // ⛔ Raden är härledd: inget samtalsdokument för gruppen förrän någon öppnar den.
+    expect((await samtal.lista({ groupId: "psab", uid: "cp" })).map((x) => x.slag)).toEqual(["agent"]);
+    expect(oppnaGrupp).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.click(within(rader[0]).getByRole("button"));
+    const vy = await screen.findByRole("log", { name: "Philip Staiger AB" });
+    expect(oppnaGrupp).toHaveBeenCalledWith({ groupId: "psab", uid: "cp" });
+    expect(vy.querySelector("[data-tomrad]")?.textContent).toBe("Alla i gruppen ser det som skrivs här.");
+    expect((await samtal.lista({ groupId: "psab", uid: "cp" })).map((x) => x.slag).sort()).toEqual(["agent", "grupp"]);
+    await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Till hela gruppen{Enter}");
+    expect(await within(vy).findByText("Till hela gruppen")).toBeInTheDocument();
+    await waitFor(() => expect(within(lista).getAllByRole("listitem")[0].textContent).toContain("Till hela gruppen"));
+  });
+
+  it("Nytt meddelande: Hela gruppen står först under Till, och valet öppnar gruppchatten", async () => {
+    const samtal = await ensamGrupp();
+    render(<OpsMeddelanden kalla={samtal} uid="cp" groupId="psab" gruppNamn="Philip Staiger AB" medlemmar={ENSAM} />);
+    await screen.findByRole("button", { name: /Philip Staiger AB/ });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Nytt meddelande" }));
+    const val = within(screen.getByRole("radiogroup", { name: "Till" })).getAllByRole("radio");
+    expect(val.map((r) => r.textContent)).toEqual(["Hela gruppen", "Ops-agenten"]);
+    await user.click(val[0]);
+    await waitFor(() => expect(document.querySelector('[data-ops-samtal="grupp"]')).not.toBeNull());
+    expect(await screen.findByRole("log", { name: "Philip Staiger AB" })).toBeInTheDocument();
   });
 });

@@ -322,6 +322,39 @@ kravRott(
 
 kravRott("api golv: tom katalog", [apivakt, path.join(arbetsmapp, "finns-inte")], "noll filer lästa");
 
+// ── Det gamla paketnamnet (0.68.0, #270 klarkriterium 2, granskningen av PR 271, A1) ──
+//
+// ⛔ Namnet byggs av delar, så att den här filen inte är ett undantag i vakten.
+{
+  const namnvakt = "scripts/check-gammalt-namn.mjs";
+  const GAMMALT = "@" + "staiger/ops-framework";
+  /** @param {string} namn @param {Record<string, string>} innehall */
+  const namnrot = (namn, innehall) => {
+    const d = path.join(arbetsmapp, `namn-${namn}`);
+    for (const [rel, text] of Object.entries(innehall)) {
+      fs.mkdirSync(path.dirname(path.join(d, rel)), { recursive: true });
+      fs.writeFileSync(path.join(d, rel), text);
+    }
+    return d;
+  };
+  const UNDERLAG = {
+    "src/a.js": 'import { OpsButton } from "ops-framework";\n',
+    "src/b.css": '@import "ops-framework/tokens.css";\n',
+    "CHANGELOG.md": `Paketet hette ${GAMMALT}.\n`,
+    "create-ops-app/package.json": `{ "beskrivning": "${GAMMALT}" }\n`,
+    "README.md": `Före 0.67.0 hette paketet ${GAMMALT}.\n`,
+  };
+  {
+    const k = spawnSync(process.execPath, [namnvakt, "--rot", namnrot("ok", UNDERLAG), "--golv", "5"], { cwd: rot, encoding: "utf8" });
+    const namn = "gammalt namn: giltigt underlag med undantagen är grönt";
+    resultat.push(k.status === 0 ? { namn, vantat: "gront", utfall: "ok" } : { namn, vantat: "gront", utfall: `underlaget var RÖTT: ${(k.stderr ?? "").trim().split("\n")[0]}` });
+  }
+  kravRott("gammalt namn 1: en import med det scopade namnet", [namnvakt, "--rot", namnrot("imp", { ...UNDERLAG, "src/a.js": `import { OpsButton } from "${GAMMALT}";\n` }), "--golv", "5"], "är tillbaka");
+  kravRott("gammalt namn 2: tarbollens gamla filnamn i ett skript", [namnvakt, "--rot", namnrot("tgz", { ...UNDERLAG, "scripts/x.sh": `curl -LO .../${"staiger" + "-ops-framework"}-0.67.0.tgz\n` }), "--golv", "5"], "är tillbaka");
+  kravRott("gammalt namn 3: README över sitt tak", [namnvakt, "--rot", namnrot("tak", { ...UNDERLAG, "README.md": `${GAMMALT}\n${GAMMALT}\n${GAMMALT}\n` }), "--golv", "5"], "taket är 2");
+  kravRott("gammalt namn 4: golvet, för få lästa filer", [namnvakt, "--rot", namnrot("golv", UNDERLAG), "--golv", "50"], "golvet är 50");
+}
+
 // ── Vakten för en konsumentapps stilrot ────────────────────────────────────
 //
 // ⛔ Regel 1 är den viktigaste i hela uppsättningen, och den ser minst ut som
@@ -359,6 +392,12 @@ const GILTIG_APPCSS = `@import "tailwindcss";
 kravRott(
   "overrides 1: @source-raden saknas",
   [overridevakt, appkopia("ao1", GILTIG_APPCSS.replace(/@source[^\n]*\n/, ""))],
+  "helt ostylad",
+);
+
+kravRott(
+  "overrides 1b: @source mot det gamla scopade namnet (0.68.0, granskningen av PR 271, A2)",
+  [overridevakt, appkopia("ao1b", GILTIG_APPCSS.replace('@source "../node_modules/ops-framework/dist";', '@source "../node_modules/@' + 'staiger/ops-framework/dist";'))],
   "helt ostylad",
 );
 

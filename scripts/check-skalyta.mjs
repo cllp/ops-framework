@@ -3365,6 +3365,49 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+// ══ 29f. GRUPPCHATTEN I EN GRUPP DÄR INGEN HAR SKRIVIT (0.68.0) ══════════════════════════════════════════════════════════
+// CP 2026-10-06, i "Philip Staiger AB" med en medlem och agenten: "Hur skriver jag ett meddelande till hela gruppen?" Listan
+// visade bara agentsamtalet och Till bara Agent: vyn anropade aldrig `oppnaGrupp`, och avsnitt 29 sår gruppchatten, så det
+// syntes inte här. Scenen `meddelanden-ny-grupp` har bara agentsamtalet. Krav, vid 390 och 1280:
+//   - gruppchattens rad står ÖVERST med gruppens namn och märket "Grupp", och agentsamtalet under (golv: 2 rader);
+//   - "Nytt meddelande" visar "Hela gruppen" som första val under Till, och valet öppnar gruppchatten med raden
+//     "Alla i gruppen ser det som skrivs här." i det tomma läget;
+//   - ett skickat meddelande står i gruppchatten och i radens utdrag; ingen horisontell överflödning.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const { page, context } = await oppna("meddelanden-ny-grupp", vp);
+  const namn = `ny grupp ${vp.width}`;
+  try {
+    await page.waitForSelector("[data-samtalsrad]", { timeout: 4000 });
+    const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const rader = await page.evaluate(() => [...document.querySelectorAll("[data-samtalsrad]")].map((r) => ({ slag: r.getAttribute("data-samtalsrad"), text: (r.textContent || "").trim(), etikett: (r.querySelector("[data-slag]")?.textContent || "").trim() })));
+    matt.push(`${namn}, listan: ${JSON.stringify(rader)}`);
+    krav(rader.length >= 2 && rader[0].slag === "grupp" && rader[0].text.includes("Philip Staiger AB") && rader[0].etikett === "Grupp", `${namn}: gruppchattens rad ska stå överst med gruppens namn och märket Grupp (${JSON.stringify(rader)}). Golv: 2 rader.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-lista-${vp.width}.png`) });
+
+    await page.locator("[data-ops-meddelanden] button", { hasText: "Nytt meddelande" }).first().click();
+    await page.waitForSelector("[data-ops-nytt] [role=radio]", { timeout: 4000 });
+    const val = await page.evaluate(() => [...document.querySelectorAll("[data-ops-nytt] [role=radio]")].map((r) => (r.textContent || "").trim()));
+    matt.push(`${namn}, Till: ${JSON.stringify(val)}`);
+    krav(val[0] === "Hela gruppen" && val.length >= 2, `${namn}: "Hela gruppen" ska stå först under Till (${JSON.stringify(val)}).`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-till-${vp.width}.png`) });
+    await page.locator("[data-ops-nytt] [role=radio]").first().click();
+    await page.waitForSelector('[data-ops-samtal="grupp"] [data-tomrad]', { timeout: 4000 });
+    const tom = await page.evaluate(() => (document.querySelector('[data-ops-samtal="grupp"] [data-tomrad]')?.textContent || "").trim());
+    krav(tom === "Alla i gruppen ser det som skrivs här.", `${namn}: gruppchattens tomma läge ska säga att alla i gruppen ser det som skrivs (fick "${tom}").`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-tom-${vp.width}.png`) });
+
+    await page.locator('[data-ops-samtal="grupp"] textarea').fill("Hej alla, nu finns gruppchatten.");
+    await page.keyboard.press("Enter");
+    await page.waitForSelector('[data-ops-samtal="grupp"] [data-meddelande]', { timeout: 4000 });
+    krav((await page.locator('[data-ops-samtal="grupp"] [role=log]', { hasText: "nu finns gruppchatten" }).count()) === 1, `${namn}: meddelandet ska stå i gruppchatten.`);
+    krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `ny-grupp-skrivet-${vp.width}.png`) });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 // ══ 30. KALENDERN MOT SS CalView VID 390 OCH 1280 PX (0.36.0, #179 F1) ════════════════════════════════════════════════
 // CP 2026-09-29 i #179: "Kolla alla kalender inställningar och funktioner i SessionStudio. [...] Samma vill jag ha i ramverket."
 // Förebilderna: SS `CalView.jsx`, `calView/MonthGrid.jsx`, `useCalendarDaySelection.js`, `CalendarDayPeekPopover.jsx`,

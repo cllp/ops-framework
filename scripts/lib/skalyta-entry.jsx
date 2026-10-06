@@ -969,6 +969,50 @@ function MeddelandeScen() {
   );
 }
 
+/*
+ * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i "Philip Staiger AB" med en medlem och agenten: "Hur skriver jag ett
+ * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f.
+ */
+function MeddelandeNyGruppScen() {
+  const [kalla, setKalla] = useState(null);
+  const [valt, setValt] = useState(null);
+  const [nytt, setNytt] = useState(false);
+  if (!Ops.OpsMeddelanden || !Ops.createSamtalskalla) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!kalla) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const k = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000) });
+      const a = await k.oppnaPrivat({ groupId: "psab", uid: "cp", annan: "ops", slag: "agent" });
+      await k.skicka(a.id, { text: "Vilka fakturor är obetalda?", av: "cp" });
+      setKalla(k);
+    })();
+  }
+  return (
+    <Full>
+      {kalla ? (
+        <Ops.OpsMeddelanden
+          kalla={kalla}
+          uid="cp"
+          groupId="psab"
+          gruppNamn="Philip Staiger AB"
+          medlemmar={[
+            { userId: "cp", namn: "Claes Philip", typ: "person", status: "aktiv" },
+            { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+          ]}
+          valt={valt}
+          nytt={nytt}
+          onValj={(id, val) => {
+            setNytt(Boolean(val?.nytt));
+            setValt(id);
+          }}
+        />
+      ) : (
+        <p>Laddar</p>
+      )}
+    </Full>
+  );
+}
+
 /** 0.31.0: ett formulär i en OpsModal med typlista, datum och tid, som "Ny händelse". */
 function ModalForm() {
   const [typ, setTyp] = useState(undefined);
@@ -1471,6 +1515,7 @@ function Scen() {
     );
   }
   if (s === "meddelanden") return <MeddelandeScen />;
+  if (s === "meddelanden-ny-grupp") return <MeddelandeNyGruppScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>

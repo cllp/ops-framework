@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
-import { MAX_MEDDELANDE, MAX_TRADNAMN, delaSamtalsnyckel, tradensNamn, utdrag } from "../lib/samtal.js";
+import { MAX_MEDDELANDE, MAX_TRADNAMN, delaSamtalsnyckel, samtalsnyckel, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harTradar } from "../data/samtalskalla.js";
 import { OpsBanner } from "./OpsBanner.jsx";
@@ -96,6 +96,9 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {string} [valjMottagare] Felet när man skickar i läget "nytt" utan att ha valt någon. Förval "Välj vem meddelandet ska till.".
  * @property {string} [oppnaFel] Rubriken när samtalet inte kunde öppnas. Förval "Samtalet kunde inte öppnas".
  * @property {string} [ingenAnnan] När det inte finns någon att skriva till. Förval "Det finns ingen annan i gruppen att skriva till.".
+ * @property {string} [helaGruppen] (0.68.0) Raden under Till som öppnar gruppchatten. Förval "Hela gruppen".
+ * @property {string} [gruppTom] (0.68.0) Gruppchattens tomma läge. Förval "Alla i gruppen ser det som skrivs här.".
+ * @property {string} [oppnarGrupp] (0.68.0) Medan gruppchatten öppnas första gången. Förval "Öppnar gruppchatten…".
  * @property {string} [svaraITrad] (0.68.0) Förval "Svara i tråd".
  * @property {string} [svar] (0.68.0) Substantivet efter antalet i trådens märke. Förval "svar".
  * @property {string} [tradRad] (0.68.0) Förval "Alla i gruppen ser tråden".
@@ -140,6 +143,9 @@ const TEXTER = {
   valjMottagare: "Välj vem meddelandet ska till.",
   oppnaFel: "Samtalet kunde inte öppnas",
   ingenAnnan: "Det finns ingen annan i gruppen att skriva till.",
+  helaGruppen: "Hela gruppen",
+  gruppTom: "Alla i gruppen ser det som skrivs här.",
+  oppnarGrupp: "Öppnar gruppchatten…",
   svaraITrad: "Svara i tråd",
   svar: "svar",
   tradRad: "Alla i gruppen ser tråden",
@@ -245,8 +251,26 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   const personnamn = usePersonnamn();
   const namnFor = (/** @type {string} */ id) => personnamn(namn.get(id)?.namn, id).text;
 
+  /*
+   * ⛔ GRUPPCHATTEN FINNS ALLTID I LISTAN, ÖVERST (0.68.0). CP 2026-10-06, i en grupp med en medlem: "Hur skriver jag ett
+   * meddelande till hela gruppen?" Det gick inte. Listan visade bara agentsamtalet, och Till i "Nytt meddelande" bara Agent:
+   * `oppnaGrupp` anropades aldrig från vyn, så gruppchatten fanns bara där någon redan hade skapat den (i mätdatan var den sådd).
+   * Raden härleds här ur gruppen, den lagras inte: ett tomt samtalsdokument per grupp hade varit en rad i databasen som
+   * bara finns för att vyn ska ha något att rita. Samtalet skapas med `oppnaGrupp` när någon öppnar raden (`ej: true`).
+   */
+  const gruppSid = groupId ? samtalsnyckel({ groupId, slag: "grupp" }) : null;
+  /** @type {Array<typeof rader[number] & { ej?: true }>} */
+  const allaRader = useMemo(() => {
+    if (!gruppSid || !groupId) return rader;
+    const finns = rader.find((r) => r.samtal.id === gruppSid);
+    const ovriga = rader.filter((r) => r.samtal.id !== gruppSid);
+    if (finns) return [finns, ...ovriga];
+    if (laddar || fel) return rader;
+    return [{ samtal: { id: gruppSid, groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true }, ...ovriga];
+  }, [rader, gruppSid, groupId, laddar, fel]);
+
   const nu = Date.now();
-  const visade = rader
+  const visade = allaRader
     .filter((r) => (filter === "olasta" ? r.olasta > 0 : true))
     .filter((r) => {
       const q = sok.trim().toLocaleLowerCase("sv");
@@ -259,19 +283,20 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
    * Annars läses gruppen och paret ur nyckeln: ett id i en annan grupp, eller ett par jag inte är med i, ritar ingen tråd.
    * Slaget avgörs av vem den andra är, ur medlemmarna, på samma sätt som regeln skiljer `personer` från `agent`.
    */
-  /** @type {typeof rader[number] | null} */
+  /** @type {(typeof rader[number] & { ej?: true }) | null} */
   const vald = useMemo(() => {
     if (!valdId) return null;
-    const rad = rader.find((r) => r.samtal.id === valdId);
+    const rad = allaRader.find((r) => r.samtal.id === valdId);
     if (rad) return rad;
     const d = delaSamtalsnyckel(valdId, groupId);
     if (!d || d.groupId !== groupId || !uid) return null;
-    if ("slag" in d) return { samtal: { id: valdId, groupId: d.groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null };
+    // Gruppchatten ur adressen innan listan svarat: `oppnaGrupp` ger den som finns, eller skapar den (0.68.0).
+    if ("slag" in d) return { samtal: { id: valdId, groupId: d.groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null, ej: true };
     if (!d.deltagare.includes(uid)) return null;
     const annan = d.deltagare[0] === uid ? d.deltagare[1] : d.deltagare[0];
     const slag = namn.get(annan)?.typ === "agent" ? "agent" : "personer";
     return { samtal: { id: valdId, groupId: d.groupId, slag, deltagare: d.deltagare, skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: annan };
-  }, [valdId, rader, groupId, uid, namn]);
+  }, [valdId, allaRader, groupId, uid, namn]);
   const hoger = nyttLage || Boolean(vald);
   // ⛔ TRÅDEN GÄLLER BARA GRUPPCHATTEN, och ett nytt samtalsval stänger den (0.68.0). Ett trådid kvar från förra samtalet hade
   // öppnat en tråd under fel samtal.
@@ -516,6 +541,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             sprak={sprak}
             texter={t}
           />
+        ) : vald?.ej && groupId ? (
+          <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
         ) : vald ? (
           <OpsSamtal
             key={vald.samtal.id}
@@ -547,6 +574,40 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * Gruppchatten som ingen har öppnat än (0.68.0): skapas med `oppnaGrupp` när någon öppnar raden, och läggs sedan in i listan
+ * (`onOppnad`), så att vyn ritar det riktiga samtalet. Fel står kvar som en banderoll, aldrig tyst.
+ *
+ * @param {{ kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, uid: string, groupId: string, texter: Required<Meddelandetexter>, onOppnad: (s: import("../lib/samtal.js").Samtal) => void }} props
+ */
+function OppnaGruppchatt({ kalla, uid, groupId, texter: t, onOppnad }) {
+  const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  useEffect(() => {
+    let levande = true;
+    kalla.oppnaGrupp({ groupId, uid }).then(
+      (s) => levande && onOppnad(s),
+      (e) => levande && setFel(e instanceof Error ? e.message : String(e)),
+    );
+    return () => {
+      levande = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, groupId, uid]);
+  return (
+    <div data-ops-oppnar-grupp="" aria-busy={!fel || undefined} className="flex min-h-0 flex-1 flex-col px-3 py-3">
+      {fel ? (
+        <OpsBanner tone="danger" title={t.oppnaFel}>
+          {fel}
+        </OpsBanner>
+      ) : (
+        <p role="status" className="m-0 py-6 text-center text-meta text-ink-muted">
+          {t.oppnarGrupp}
+        </p>
+      )}
     </div>
   );
 }
@@ -587,11 +648,15 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
     // Spärren först: ett andra val medan det första öppnas byter inte mottagare under ett samtal som redan är på väg.
     if (oppnar) return;
     setMottagare(m);
-    if ((m.slag !== "person" && m.slag !== "agent") || !m.uid) return;
+    if (m.slag !== "grupp" && ((m.slag !== "person" && m.slag !== "agent") || !m.uid)) return;
     setFel(null);
     setOppnar(true);
     try {
-      const s = await kalla.oppnaPrivat(m.slag === "agent" ? { groupId, uid, annan: m.uid, slag: "agent" } : { groupId, uid, annan: m.uid });
+      // ⛔ "Hela gruppen" (0.68.0) öppnar gruppchatten, och skapar den om ingen har skrivit i den än.
+      const s =
+        m.slag === "grupp"
+          ? await kalla.oppnaGrupp({ groupId, uid })
+          : await kalla.oppnaPrivat(m.slag === "agent" ? { groupId, uid, annan: m.uid ?? "", slag: "agent" } : { groupId, uid, annan: m.uid });
       // ⛔ Avmonterad under öppnandet, t.ex. för att man tryckte Tillbaka: tråden öppnas inte bakom ryggen på en som ångrade sig.
       if (!monterad.current) return;
       onOppnat(s, textNu.current);
@@ -620,11 +685,11 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
         <span id={tillId} className="text-meta font-medium text-ink-secondary">
           {t.till}
         </span>
-        <OpsMottagare lage="person" medlemmar={medlemmar} uid={uid} value={mottagare} onChange={oppna} ariaLabel={t.till} tomText={t.ingenAnnan} />
+        <OpsMottagare lage="person" helaGruppen={t.helaGruppen} medlemmar={medlemmar} uid={uid} value={mottagare} onChange={oppna} ariaLabel={t.till} tomText={t.ingenAnnan} />
         {/* ⛔ Raden syns alltid, också innan någon är vald: det är innan man skriver som man behöver veta vem som läser. */}
         <p data-privat="" className="m-0 flex items-center gap-1.5 text-meta text-ink-secondary">
           <LasIkon size={14} />
-          <span>{mottagare?.slag === "agent" ? t.agentRad : t.privatRad}</span>
+          <span>{mottagare?.slag === "grupp" ? t.gruppRad : mottagare?.slag === "agent" ? t.agentRad : t.privatRad}</span>
         </p>
         {fel?.falt === "till" ? (
           <p role="alert" className="m-0 text-meta text-danger">
@@ -837,7 +902,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
               <MeddelandeIkon size={28} />
             </span>
             <p className="m-0 mt-3 text-etikett text-ink-muted">{t.inga}</p>
-            <p className="m-0 mt-1 text-liten text-ink-muted">{privatRad}</p>
+            <p data-tomrad="" className="m-0 mt-1 text-liten text-ink-muted">{samtal.slag === "grupp" ? t.gruppTom : privatRad}</p>
           </div>
         ) : null}
         <Meddelanderader
