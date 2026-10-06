@@ -817,12 +817,106 @@ describe("OpsKalender", () => {
     expect(/** @type {HTMLElement} */ (m.querySelector("[data-plus]")).textContent).toBe("+1");
   });
 
-  it("dagdekor: en ton och ett hörnmärke ritas i rutan, och märkets ord står i knappens namn (plats för F6)", () => {
-    rendera({ dagdekor: (/** @type {string} */ d) => (d === "2026-10-12" ? { ton: 2, hornmarken: [{ id: "lager", etikett: "1 lager", innehall: <svg data-prov="lager" /> }] } : undefined) });
-    const ruta = screen.getByRole("button", { name: /^12, .*1 lager$/ });
-    expect(/** @type {HTMLElement} */ (ruta.querySelector("[data-dagton]")).className).toContain("bg-identity-2/15");
-    expect(ruta.querySelector('[data-hornmarke="lager"] svg[data-prov="lager"]')).not.toBeNull();
-    expect(/** @type {HTMLElement} */ (document.querySelector(`[data-cal-day="2026-10-13"]`)).querySelector("[data-hornmarken]")).toBeNull();
+  /** @param {string} d @returns {HTMLElement} */
+  const ruta = (d) => /** @type {HTMLElement} */ (document.querySelector(`[data-cal-day="${d}"]`));
+  /** @param {HTMLElement} r @returns {{ id: string | null, ikon: string, raknare: string | null, klass: string }[]} */
+  const brickor = (r) =>
+    [...r.querySelectorAll("[data-hornmarke]")].map((b) => ({
+      id: b.getAttribute("data-hornmarke"),
+      ikon: String((b.querySelector("svg") || { getAttribute: () => "" }).getAttribute("class")),
+      raknare: (b.querySelector("[data-raknare]") || { textContent: null }).textContent,
+      klass: String(b.className),
+    }));
+
+  it("dagdekor: ton och ram ritas i rutan, men inte i den valda", () => {
+    rendera({ dagdekor: (/** @type {string} */ d) => (d === "2026-10-12" ? { ton: 2, ram: 4 } : undefined) });
+    expect(/** @type {HTMLElement} */ (ruta("2026-10-12").querySelector("[data-dagton]")).className).toContain("bg-identity-2/15");
+    const ram = /** @type {HTMLElement} */ (ruta("2026-10-12").querySelector("[data-dagram]"));
+    expect(ram.className).toContain("border-identity-4");
+    expect(ram.className).toContain("border-2");
+    expect(ruta("2026-10-13").querySelector("[data-dagram]")).toBeNull();
+    fireEvent.click(ruta("2026-10-12"));
+    expect(ruta("2026-10-12").querySelector("[data-dagram]")).toBeNull();
+    expect(ruta("2026-10-12").querySelector("[data-dagton]")).toBeNull();
+  });
+
+  it("⛔ hörnbrickorna är typade: ramverket ritar UserX och Layers själv, borta först oavsett ordning, och orden står i knappens namn", () => {
+    rendera({ entries: [], dagdekor: (/** @type {string} */ d) => (d === "2026-10-12" ? { lager: { antal: 1 }, borta: { antal: 1 } } : d === "2026-10-13" ? { lager: { antal: 1 } } : d === "2026-10-14" ? { borta: { antal: 1 } } : undefined) });
+    const b12 = brickor(ruta("2026-10-12"));
+    expect(b12.map((b) => b.id)).toEqual(["borta", "lager"]);
+    expect(b12[0].ikon).toContain("lucide-user-x");
+    expect(b12[1].ikon).toContain("lucide-layers");
+    expect(b12[0].klass).toContain("border-danger");
+    expect(b12[0].klass).toContain("text-danger");
+    expect(b12[1].klass).toContain("border-ink-muted");
+    // Lagerbrickan har ALLTID -4 px, också ensam (SS pillBadgeOverlap). Borta-brickan aldrig.
+    expect(b12[1].klass).toContain("-mt-1");
+    expect(b12[0].klass).not.toContain("-mt-1");
+    expect(brickor(ruta("2026-10-13"))[0].klass).toContain("-mt-1");
+    expect(b12.every((b) => b.raknare === null)).toBe(true);
+    expect(ruta("2026-10-12").getAttribute("aria-label")).toBe("12, 1 borta, 1 lager");
+    expect(ruta("2026-10-13").getAttribute("aria-label")).toBe("13, 1 lager");
+    expect(ruta("2026-10-14").getAttribute("aria-label")).toBe("14, 1 borta");
+    expect(ruta("2026-10-15").querySelector("[data-hornmarken]")).toBeNull();
+  });
+
+  it("räknaren: ingen vid 1, siffran från 2, och 9+ från 10; 0 ritar ingen bricka", () => {
+    /** @type {Record<string, any>} */
+    const dekor = { "2026-10-12": { borta: { antal: 2 }, lager: { antal: 9 } }, "2026-10-13": { borta: { antal: 10 }, lager: { antal: 12 } }, "2026-10-14": { borta: { antal: 0 }, lager: { antal: 0 } } };
+    rendera({ entries: [], dagdekor: (/** @type {string} */ d) => dekor[d] });
+    expect(brickor(ruta("2026-10-12")).map((b) => b.raknare)).toEqual(["2", "9"]);
+    expect(brickor(ruta("2026-10-13")).map((b) => b.raknare)).toEqual(["9+", "9+"]);
+    expect(ruta("2026-10-13").getAttribute("aria-label")).toBe("13, 10 borta, 12 lager");
+    expect(ruta("2026-10-14").querySelector("[data-hornmarken]")).toBeNull();
+    expect(ruta("2026-10-14").getAttribute("aria-label")).toBe("14");
+  });
+
+  it("från 640 px raden bredvid siffran som SS webb: UserX före Layers, siffran som den är, och N/N bara utan borta", () => {
+    /** @type {Record<string, any>} */
+    const dekor = {
+      "2026-10-12": { narvaro: { tillgangliga: 2, totalt: 4 }, borta: { antal: 2 }, lager: { antal: 12 } },
+      "2026-10-13": { narvaro: { tillgangliga: 4, totalt: 4 }, lager: { antal: 1 } },
+      "2026-10-14": { narvaro: { tillgangliga: 0, totalt: 0 } },
+    };
+    rendera({ entries: [], dagdekor: (/** @type {string} */ d) => dekor[d] });
+    const rad = (/** @type {string} */ d) => [...ruta(d).querySelectorAll("[data-indikator]")].map((x) => [x.getAttribute("data-indikator"), (x.querySelector("[data-raknare]") || { textContent: "" }).textContent]);
+    // Raden står i siffrans rad (samma förälder som siffran) och är dold under 640 px; brickorna är dolda från 640 px.
+    const radEl = /** @type {HTMLElement} */ (ruta("2026-10-12").querySelector("[data-indikatorrad]"));
+    expect(radEl.parentElement).toBe(/** @type {HTMLElement} */ (ruta("2026-10-12").querySelector("[data-dagnummer]")).parentElement);
+    expect(radEl.className).toContain("hidden");
+    expect(radEl.className).toContain("sm:flex");
+    expect(String(/** @type {HTMLElement} */ (ruta("2026-10-12").querySelector("[data-hornmarken]")).className)).toContain("sm:hidden");
+    expect(rad("2026-10-12")).toEqual([["borta", "2"], ["lager", "12"]]);
+    expect(ruta("2026-10-12").querySelector("[data-narvaro]")).toBeNull();
+    expect(/** @type {HTMLElement} */ (ruta("2026-10-13").querySelector("[data-narvaro]")).textContent).toBe("4/4");
+    expect(ruta("2026-10-13").getAttribute("aria-label")).toBe("13, 4 av 4 tillgängliga, 1 lager");
+    expect(ruta("2026-10-12").getAttribute("aria-label")).toBe("12, 2 borta, 12 lager");
+    // En grupp utan medlemmar har ingen N/N att säga.
+    expect(ruta("2026-10-14").querySelector("[data-narvaro]")).toBeNull();
+  });
+
+  it("verktygsraden: tillgänglighet och lager finns bara med sina props, och trycket byter läget", () => {
+    const forsta = rendera();
+    expect(screen.queryByRole("button", { name: "Tillgänglighet" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Kalenderlager" })).toBeNull();
+    forsta.unmount();
+    /** @type {boolean[]} */
+    const t = [];
+    /** @type {boolean[]} */
+    const l = [];
+    rendera({ tillganglighet: { pa: false, onByt: (/** @type {boolean} */ v) => t.push(v) }, lager: { pa: true, onByt: (/** @type {boolean} */ v) => l.push(v) } });
+    const tk = screen.getByRole("button", { name: "Tillgänglighet" });
+    const lk = screen.getByRole("button", { name: "Kalenderlager" });
+    expect(tk.getAttribute("aria-pressed")).toBe("false");
+    expect(lk.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(tk);
+    fireEvent.click(lk);
+    expect(t).toEqual([true]);
+    expect(l).toEqual([false]);
+    // Ordningen i källan: kalenderväljaren (om den finns), tillgänglighet, veckonummer, lager. Under 768 px flyttar CSS tillgänglighet först.
+    const knappar = [...screen.getByRole("toolbar", { name: "Kalenderverktyg" }).querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
+    expect(knappar.indexOf("Tillgänglighet")).toBeLessThan(knappar.indexOf("Veckonummer"));
+    expect(knappar.indexOf("Veckonummer")).toBe(knappar.indexOf("Kalenderlager") - 1);
   });
 
   it("daglager: lagrens egen bubbla ritas bara när den har innehåll, och får de valda dagarna (plats för F6)", () => {

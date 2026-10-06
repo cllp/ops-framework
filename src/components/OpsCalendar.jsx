@@ -38,7 +38,7 @@ import {
   appfilterNyckel,
   lasDoldaAppar,
 } from "../lib/calendar.js";
-import { ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, VeckonummerIkon } from "./icons.jsx";
+import { ChevronNedIkon, KalenderIkon, KryssIkon, LagerIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { ValRad } from "./ValRad.jsx";
 
@@ -839,13 +839,13 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  */
 
 /**
- * Verktygsraden över rutnätet (SS `CalendarViewToolbar.jsx`): Kalendrar, veckonummer, typ och status, sök, "+".
+ * Verktygsraden över rutnätet (SS `CalendarViewToolbar.jsx`): Kalendrar, tillgänglighet, veckonummer, lager, typ och status, sök, "+".
  *
  * ⛔ HÖGERSTÄLLD, SOM I SS (`ml-auto`). Rubriken och gruppen står i appens huvud ovanför, och raden är verktyg, inte en
  * rubrik.
  *
  * ⛔ EN KONTROLL FINNS BARA NÄR DEN GÖR NÅGOT. Utan `kalendrar` ingen kalenderväljare, utan typer och statusord inget
- * filter, utan `onSkapa` inget plus (punkt 5). Veckonummer och sök kräver ingenting av appen och finns alltid.
+ * filter, utan `onSkapa` inget plus, utan `tillganglighet` och `lager` inga sådana knappar (punkt 5). Veckonummer och sök kräver ingenting av appen och finns alltid.
  *
  * @param {object} props
  * @param {KalenderVal[] | undefined} props.kalendrar
@@ -863,8 +863,10 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {boolean} props.sokOppen
  * @param {() => void} props.onSok
  * @param {(() => void) | undefined} props.onSkapa
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.tillganglighet
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.lager
  */
-function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa }) {
+function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet, lager }) {
   const statusar = Object.entries(statusWords);
   const harFilter = typer.length > 0 || statusar.length > 0;
   const gruppens = (kalendrar || []).filter((k) => k.grupp);
@@ -937,9 +939,40 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
         </Popover.Root>
       ) : null}
 
+      {/* ⛔ TILLGÄNGLIGHET (0.61.0, #259). Under 768 px först i raden, som SS-appen (`calendar.js:1015`, före sök); från 768
+          efter kalenderväljaren, som SS webb (`CalendarViewToolbar.jsx:203-229`, källfiltret först). Aktiv: fara-tonad yta och
+          ikonen i fara-färg (SS-appen `colors.danger` med 20 procent, SS webb `--color-action-remove` med 14). */}
+      {tillganglighet ? (
+        <button
+          type="button"
+          data-verktyg-tillganglighet=""
+          aria-pressed={tillganglighet.pa}
+          aria-label="Tillgänglighet"
+          onClick={() => tillganglighet.onByt(!tillganglighet.pa)}
+          className={cx(VERKTYG, "max-md:order-first", tillganglighet.pa ? "bg-danger/20 text-danger md:border-danger md:bg-danger/14" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface")}
+        >
+          <TillganglighetIkon size={14} />
+        </button>
+      ) : null}
+
       <button type="button" aria-pressed={veckonummer} aria-label="Veckonummer" onClick={onVeckonummer} className={verktygsklass(veckonummer)}>
         <VeckonummerIkon size={14} />
       </button>
+
+      {/* ⛔ LAGER (0.61.0, #259), direkt efter veckonumret som i SS-appen (`calendar.js:1048`: tillgänglighet, sök, #, lager).
+          Aktiv: en grå yta med mörk ikon, som förebild 1 och 3 (SS `colors.accent`, som i SS är mörk, med 20 procent). */}
+      {lager ? (
+        <button
+          type="button"
+          data-verktyg-lager=""
+          aria-pressed={lager.pa}
+          aria-label="Kalenderlager"
+          onClick={() => lager.onByt(!lager.pa)}
+          className={cx(VERKTYG, lager.pa ? "bg-contrast-panel/15 text-ink md:border-contrast-panel/30" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface")}
+        >
+          <LagerIkon size={14} />
+        </button>
+      ) : null}
 
       {harFilter ? (
         <Popover.Root>
@@ -1069,8 +1102,13 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   dagarna, eller idag när ingen är vald.
  * @param {() => void} [props.onHanteraKalendrar] Raden "Hantera kalendrar" längst ned i kalenderväljaren (0.37.0, #179 F2):
  *   appen visar `OpsKalendrar`. Utan den ritas ingen rad (till 0.36.0 en rad som sade att den kom i F2).
- * @param {(dayKey: string) => import("./OpsCalendarDagruta.jsx").Dagdekor | undefined} [props.dagdekor] (0.37.0) En ton och runda
- *   hörnmärken per dag, som SS lager och tillgänglighet. Platsen för fas F6; ramverket har ingen lagerlogik än.
+ * @param {(dayKey: string) => import("./OpsCalendarDagruta.jsx").Dagdekor | undefined} [props.dagdekor] (0.37.0, typad 0.61.0) Per dag
+ *   en ton, en ram i lagrets färg och antalen för hörnbrickorna (`borta`, `lager`), som SS lager och tillgänglighet. Rutan ritar
+ *   brickorna själv; appen avgör vad som returneras när `tillganglighet` och `lager` är på.
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void }} [props.tillganglighet] (0.61.0, #259) Knappen för tillgänglighetsläget i
+ *   verktygsraden (SS `UsersRound`). Ritas bara när propen finns.
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void }} [props.lager] (0.61.0, #259) Knappen för kalenderlagren (SS `Layers`).
+ *   Ritas bara när propen finns.
  * @param {(dayKeys: string[]) => import("react").ReactNode} [props.daglager] (0.37.0) Innehållet i dagpanelens egen lagerbubbla
  *   under posterna (SS-appen). `null` ritar ingen bubbla. Platsen för F6.
  * @param {(id: string) => void} [props.onOppnaHandelse] (0.40.0, #214) Vad ett tryck på en post med `handelseId` gör, i dagpanelen och snabbtitten. Utelämnad:
@@ -1098,6 +1136,8 @@ export function OpsCalendar({
   onHanteraKalendrar,
   dagdekor,
   daglager,
+  tillganglighet,
+  lager: lagerlage,
   lagring,
   onOppnaHandelse,
   filterMinne,
@@ -1496,6 +1536,8 @@ export function OpsCalendar({
             setFraga("");
           }}
           onSkapa={skapa}
+          tillganglighet={tillganglighet}
+          lager={lagerlage}
         />
         {appar.length >= 2 ? <Apprad appar={appar} dolda={doldaSet} onVaxla={vaxlaApp} onVisaAlla={() => sparaDolda([])} /> : null}
         {sokOppen ? (
