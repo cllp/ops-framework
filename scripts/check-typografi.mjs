@@ -78,7 +78,7 @@ function filer(dir) {
 }
 
 const REGLER = [
-  { namn: "literal storlek", re: /\btext-\[\s*-?\d*\.?\d+\s*(?:px|rem|em)\s*\]/g, skal: "Använd en roll: text-rubrik, text-sektion, text-etikett, text-hjalp, text-liten eller text-mikro. Saknas den storlek du behöver är det en ny roll i tokens/sessionstudio-profil.json, inte en literal här." },
+  { namn: "literal storlek", re: /\btext-\[\s*-?\d*\.?\d+\s*(?:px|rem|em)\s*\]/g, skal: "Använd en roll: text-rubrik, text-sektion, text-etikett, text-hjalp, text-liten, text-raknare eller text-mikro. Saknas den storlek du behöver är det en ny roll i tokens/sessionstudio-profil.json, inte en literal här." },
   { namn: "font-size", re: /\bfont-size\s*:/g, skal: "Storlek kommer ur en typografiroll (text-*), inte ur en egen deklaration." },
   { namn: "font-family", re: /\bfont-family\s*:/g, skal: "Typsnitt kommer ur --font-sans och --font-display (font-sans, font-display), inte ur en egen deklaration." },
 ];
@@ -88,7 +88,7 @@ const REGLER = [
 // och det som inte hade någon ärvde 16 px från body. Bara i ramverksläget: en app har egna skäl och egen vakt, och dess `text-sm`
 // fungerar fortfarande (storlekarna finns kvar i tokens för appar som ännu inte flyttat).
 if (ramverksRegler) {
-  REGLER.push({ namn: "Tailwind-storlek", re: /(?<![\w-])(?:[a-z0-9\[\]-]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?![\w-])/g, skal: "Använd en roll: text-meta (12), text-etikett (14), text-brod (16), text-rubrik (16 fet), text-titel (18), text-sida (24), text-hjalp (11), text-liten (10), text-mikro (8). Skalan bor i tokens/sessionstudio-profil.json och ingen komponent har en egen." });
+  REGLER.push({ namn: "Tailwind-storlek", re: /(?<![\w-])(?:[a-z0-9\[\]-]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?![\w-])/g, skal: "Använd en roll: text-meta (12), text-etikett (14), text-brod (16), text-rubrik (16 fet), text-titel (18), text-sida (24), text-hjalp (11), text-liten (10), text-raknare (9), text-mikro (8). Skalan bor i tokens/sessionstudio-profil.json och ingen komponent har en egen." });
 }
 
 /** @type {{ fil: string, rad: number, regel: string, skal: string, text: string }[]} */
