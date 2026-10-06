@@ -115,13 +115,13 @@ if (!/wght@400;500;600;700/.test(mall)) {
 // har inte mätt något (arbetsreglernas punkt 4, "tomt underlag").
 //
 // ⛔ EN APP BÄR INGEN EGEN @font-face, DEN ÄRVER RAMVERKETS. Appens stilrot
-// (`create-ops-app`-mallen, bolag-ops) har bara `@import "@staiger/ops-framework/tokens.css"`,
+// (`create-ops-app`-mallen, bolag-ops) har bara `@import "ops-framework/tokens.css"`,
 // och det är där regeln står. Att kräva den i appens egen fil fällde scaffold-jobbet
 // i PR 176 på en app som ritade märket rätt. Vakten följer därför importen till
 // ramverkets tokens.css och mäter regeln där den faktiskt bor, och golvet gäller
 // summan: en app som varken har en egen regel eller importerar ramverkets fälls.
 const kallor = [{ fil: tokenfil, text: tokenUtanKommentarer }];
-if (tokenfil !== path.join(rot, "tokens", "tokens.css") && /@import\s+["']@staiger\/ops-framework\/tokens\.css["']/.test(tokenUtanKommentarer)) {
+if (tokenfil !== path.join(rot, "tokens", "tokens.css") && /@import\s+["']ops-framework\/tokens\.css["']/.test(tokenUtanKommentarer)) {
   const ramverkets = path.join(rot, "tokens", "tokens.css");
   kallor.push({ fil: ramverkets, text: fs.readFileSync(ramverkets, "utf8").replace(/\/\*[\s\S]*?\*\//g, "") });
 }

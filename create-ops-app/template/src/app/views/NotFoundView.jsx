@@ -1,4 +1,4 @@
-import { OpsButton, OpsView, OpsViewHeader } from "@staiger/ops-framework";
+import { OpsButton, OpsView, OpsViewHeader } from "ops-framework";
 
 export function NotFoundView() {
   return (

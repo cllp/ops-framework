@@ -19,7 +19,7 @@ import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
  * ```js
  * import { initializeApp } from "firebase/app";
  * import * as firestore from "firebase/firestore";
- * import { createFirestoreSource } from "@staiger/ops-framework";
+ * import { createFirestoreSource } from "ops-framework";
  *
  * const app = initializeApp(config);
  * const kalla = createFirestoreSource({ db: firestore.getFirestore(app), sdk: firestore });

@@ -23,7 +23,7 @@
 
 import { createElement, lazy } from "react";
 import { Bell, List } from "lucide-react";
-import { defineModule, byggKategori } from "@staiger/ops-framework";
+import { defineModule, byggKategori } from "ops-framework";
 
 /**
  * ⛔ VYN LADDAS LAT, OCH DET ÄR INTE EN PRESTANDAFRÅGA. Manifestfilen måste gå

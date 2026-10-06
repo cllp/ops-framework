@@ -311,14 +311,14 @@ minuter och kostar för alltid.
 Lägg till i appens `npm run gate`:
 
 ```
-node node_modules/@staiger/ops-framework/scripts/check-token-overrides.mjs src/index.css
-node node_modules/@staiger/ops-framework/scripts/check-closed-api.mjs src
-node node_modules/@staiger/ops-framework/scripts/check-adoption.mjs adoption.json
+node node_modules/ops-framework/scripts/check-token-overrides.mjs src/index.css
+node node_modules/ops-framework/scripts/check-closed-api.mjs src
+node node_modules/ops-framework/scripts/check-adoption.mjs adoption.json
 ```
 
 Och läs ramverkets regler där de bor, kopiera dem aldrig hit:
 
 ```
-node_modules/@staiger/ops-framework/CLAUDE.md
-node_modules/@staiger/ops-framework/skills/
+node_modules/ops-framework/CLAUDE.md
+node_modules/ops-framework/skills/
 ```

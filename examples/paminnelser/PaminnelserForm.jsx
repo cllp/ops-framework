@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { OpsField, OpsButton } from "@staiger/ops-framework";
+import { OpsField, OpsButton } from "ops-framework";
 
 /**
  * Formuläret plusset ritar för en ny påminnelse (#150).

@@ -192,13 +192,13 @@ bara en rekommendation och plattformarna börjar glida isär i tysthet.
 ```css
 /* app/src/index.css */
 @import "tailwindcss";
-@import "@staiger/ops-framework/tokens.css";
+@import "ops-framework/tokens.css";
 
 /* ⛔ Tailwind läser inte node_modules av sig själv. Utan den här raden hittas
    inga klassnamn i ramverkets primitiver, och appen blir helt ostylad UTAN ett
    enda felmeddelande. Det är den dyraste fällan i hela uppsättningen, och
    därför skriver create-ops-app in raden åt dig. */
-@source "../node_modules/@staiger/ops-framework/dist";
+@source "../node_modules/ops-framework/dist";
 
 /* Därefter appens egna värden. Bara VÄRDEN, aldrig struktur. */
 @theme static {
@@ -215,5 +215,5 @@ inte att hitta på ett lokalt.
 I CI, som en del av appens egen grind:
 
 ```
-node node_modules/@staiger/ops-framework/tokens/check-tokens.mjs src/index.css
+node node_modules/ops-framework/tokens/check-tokens.mjs src/index.css
 ```

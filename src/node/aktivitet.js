@@ -33,7 +33,7 @@
  *
  * ══ Användning ══════════════════════════════════════════════════════════
  *
- *   import { createActivityLog, createActivityWriter } from "@staiger/ops-framework/node";
+ *   import { createActivityLog, createActivityWriter } from "ops-framework/node";
  *
  *   ⛔ BÅDA UR NODSIDAN. Huvudingången har också `createActivityLog`, men den
  *   är webbuntlen: mätt 1946 ms att importera mot nodsidans 8.

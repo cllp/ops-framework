@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // ══ Ramverkets grupper och medlemskap. GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, regelfragment() i src/lib/regler.js.
+    // Källa: ops-framework, regelfragment() i src/lib/regler.js.
     // En ändring hör hemma där och kommer hit när fragmentet genereras om.
 
     function opsInloggad() {

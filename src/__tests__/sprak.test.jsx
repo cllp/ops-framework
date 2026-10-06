@@ -122,7 +122,7 @@ describe("⛔ ordböckerna är hela (#528)", () => {
 });
 
 describe("nodsidan läser gruppens externa datakällor (#512)", () => {
-  it("byggExternaDatakallor finns i @staiger/ops-framework/node", () => {
+  it("byggExternaDatakallor finns i ops-framework/node", () => {
     expect(typeof nod.byggExternaDatakallor).toBe("function");
     expect(nod.byggExternaDatakallor([{ type: "github", repo: "cllp/travel", enabled: true }], "g")).toEqual([{ type: "github", repo: "cllp/travel", enabled: true }]);
   });

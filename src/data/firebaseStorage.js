@@ -16,7 +16,7 @@ import { createStorageSource } from "./storage.js";
  * ```js
  * import { initializeApp } from "firebase/app";
  * import * as storage from "firebase/storage";
- * import { createFirebaseStorageSource } from "@staiger/ops-framework";
+ * import { createFirebaseStorageSource } from "ops-framework";
  *
  * const app = initializeApp(config);
  * const lagring = createFirebaseStorageSource({ storage: storage.getStorage(app), sdk: storage });

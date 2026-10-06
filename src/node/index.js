@@ -1,5 +1,5 @@
 /**
- * Ramverkets NODSIDA. Importeras som `@staiger/ops-framework/node`.
+ * Ramverkets NODSIDA. Importeras som `ops-framework/node`.
  *
  * ══ ⛔ VARFÖR EN ANDRA INGÅNG, OCH NÄR NÅGOT FÅR LIGGA HÄR ═══════════════
  *
@@ -63,7 +63,7 @@ export { uppdateraProfil, bakfyllMedlemsnamn } from "./profil.js";
 /*
  * ⛔ GRUPPENS EXTERNA DATAKÄLLOR PÅ NODSIDAN (0.46.0, cllp/bolag-ops#512). Appens funktion som skapar ett GitHub-ärende ska skicka det
  * till gruppens kopplade repo, och den måste läsa listan med SAMMA byggare som klienten och reglerna, inte en egen tolkning av ett
- * repo-namn. Ren funktion ur `lib/grupp.js`, som nodsidan redan importerar: inget nytt beroende, och `@staiger/ops-framework` (två
+ * repo-namn. Ren funktion ur `lib/grupp.js`, som nodsidan redan importerar: inget nytt beroende, och `ops-framework` (två
  * sekunder vid kallstart) behövs inte för att läsa en lista.
  */
 export { byggExternaDatakallor, MAX_EXTERNA } from "../lib/grupp.js";
@@ -85,8 +85,8 @@ export { byggAnvandare, PROFILIKONER, PROFILFARGER, MAX_PRESENTATION } from "../
  *
  * Mätt 2026-09-25, Node 20, paketet installerat ur den utgivna tarbollen:
  *
- *   import("@staiger/ops-framework/node")   ->     8 ms
- *   import("@staiger/ops-framework")        ->  1946 ms
+ *   import("ops-framework/node")   ->     8 ms
+ *   import("ops-framework")        ->  1946 ms
  *
  * Nästan två sekunder per kallstart, för att en funktion som skriver ETT
  * dokument skulle ladda React, Radix och en kalender. Det är inte en optimering

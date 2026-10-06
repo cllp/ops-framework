@@ -1,6 +1,6 @@
 {
-  "name": "@staiger/ops-framework",
-  "version": "0.65.0",
+  "name": "ops-framework",
+  "version": "0.67.0",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",

@@ -12,7 +12,7 @@ import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
  *
  * ```js
  * import { Pool } from "pg";
- * import { createPostgresSource } from "@staiger/ops-framework";
+ * import { createPostgresSource } from "ops-framework";
  *
  * const pool = new Pool({ ... });
  * const kalla = createPostgresSource({

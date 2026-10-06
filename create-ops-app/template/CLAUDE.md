@@ -1,14 +1,14 @@
 # __APP_NAME__
 
-En ops-plattform byggd på `@staiger/ops-framework`.
+En ops-plattform byggd på `ops-framework`.
 
 ## ⛔ Läs ramverkets regler först, och läs dem där de bor
 
 Arbetsreglerna och skills ligger i ramverket, inte här:
 
 ```
-node_modules/@staiger/ops-framework/CLAUDE.md
-node_modules/@staiger/ops-framework/skills/
+node_modules/ops-framework/CLAUDE.md
+node_modules/ops-framework/skills/
 ```
 
 **Kopiera dem aldrig hit.** En kopia börjar glida isär från originalet samma

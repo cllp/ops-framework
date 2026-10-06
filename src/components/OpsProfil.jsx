@@ -75,7 +75,7 @@ const FARGKLASSER = {
  * VYN VET INTE OM DEN ÄNDRINGEN NÅR MEDLEMSLISTORNA. `onSpara` skriver bara
  * `users/{uid}`; att hålla `memberships` i takt kräver att appen ÄVEN
  * anropar en server-callable byggd på `uppdateraProfil`
- * (`@staiger/ops-framework/node`) när `onSpara` ser namn eller bild i
+ * (`ops-framework/node`) när `onSpara` ser namn eller bild i
  * andringen. Det är appens jobb, inte vyns: vyn skriver inte själv.
  *
  * ══ ⛔ VYN SKRIVER INTE SJÄLV ══════════════════════════════════════════

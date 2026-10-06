@@ -29,10 +29,10 @@ steg "Lint"
 npm run lint
 
 steg "Tokenkontraktet"
-node node_modules/@staiger/ops-framework/scripts/check-token-overrides.mjs src/index.css
+node node_modules/ops-framework/scripts/check-token-overrides.mjs src/index.css
 
 steg "Stängt API"
-node node_modules/@staiger/ops-framework/scripts/check-closed-api.mjs src
+node node_modules/ops-framework/scripts/check-closed-api.mjs src
 
 steg "Tester"
 npm run test
