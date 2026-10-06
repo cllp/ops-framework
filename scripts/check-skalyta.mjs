@@ -5369,7 +5369,9 @@ for (const bredd of [390, 1280]) {
 // varje rad är minst 56 px, rubriken är större än beskrivningen och beskrivningen står på egen rad under den; (b) ett tryck öppnar
 // panelen, fokus står på dess rubrik, och katalogens egen rubrik ritas inte en gång till; (c) under 1024 px ersätter panelen listan
 // och tillbaka-pilen är minst 44 px hög; från 1024 står listan till vänster och panelen till höger, utan pil; (d) tillbaka visar
-// listan igen med fokus på raden man kom ifrån; (e) ingen horisontell överflödning i något läge.
+// listan igen med fokus på raden man kom ifrån; (e) ingen horisontell överflödning i något läge; (f) beskrivningen är minst 13 px
+// (granskningen av PR 278: 12 px var just "ihoptryckt"); (g) komponenten har inget eget h1 (appskalet har det), och panelens
+// rubrik står på samma nivå som sidans, så att den inte hoppar en nivå när den står ensam under 1024 px.
 for (const bredd of [390, 820, 1280]) {
   const { page, context } = await oppna("installningar", { width: bredd, height: 1000 });
   const tva = bredd >= 1024;
@@ -5396,6 +5398,9 @@ for (const bredd of [390, 820, 1280]) {
         });
         const a = document.activeElement;
         const rubriker = [...document.querySelectorAll("h1, h2, h3")].filter((h) => syns(h)).map((h) => (h.textContent || "").trim());
+        const rot = document.querySelector("[data-ops-installningar]");
+        const sidrubrik = lista ? lista.querySelector("header > :is(h1, h2, h3, h4, h5, h6)") : null;
+        const panelrubrik = panel ? panel.querySelector("header > :is(h1, h2, h3, h4, h5, h6)") : null;
         return {
           listaSyns: syns(lista),
           panelSyns: syns(panel),
@@ -5407,6 +5412,9 @@ for (const bredd of [390, 820, 1280]) {
           rader,
           fokus: a ? `${a.tagName.toLowerCase()}${a.getAttribute("data-sektion") ? `:${a.getAttribute("data-sektion")}` : ""}:${(a.textContent || "").trim().slice(0, 30)}` : null,
           rubriker,
+          egnaH1: rot ? rot.querySelectorAll("h1").length : null,
+          sidniva: sidrubrik ? sidrubrik.tagName : null,
+          panelniva: panelrubrik ? panelrubrik.tagName : null,
           over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         };
       });
@@ -5419,9 +5427,11 @@ for (const bredd of [390, 820, 1280]) {
     for (const r of lista.rader) {
       if (r.beskrivningPx === null) continue;
       krav(r.rubrikPx > r.beskrivningPx, `inställningarna ${bredd}: raden "${r.id}" har rubriken ${r.rubrikPx} px och beskrivningen ${r.beskrivningPx} px, rubriken ska vara störst.`);
+      krav(r.beskrivningPx >= 13, `inställningarna ${bredd}: beskrivningen i raden "${r.id}" är ${r.beskrivningPx} px, väntat minst 13 (CP: "texterna känns ihoptryckta").`);
       krav(r.egenRad === true, `inställningarna ${bredd}: beskrivningen i raden "${r.id}" står inte på egen rad under rubriken.`);
     }
     krav(lista.valjSyns === tva, `inställningarna ${bredd}: raden "välj" i högerkolumnen ${lista.valjSyns ? "syns" : "syns inte"}, väntat ${tva ? "synlig från 1024 px" : "dold under 1024 px"}.`);
+    krav(lista.egnaH1 === 0, `inställningarna ${bredd}: komponenten har ${lista.egnaH1} egna h1, väntat inget (appskalet har sidans h1).`);
     krav(lista.over <= 0, `inställningarna ${bredd}: listan flödar över ${lista.over} px horisontellt.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `installningar-lista-${bredd}-${standardtema}.png`), fullPage: true });
 
@@ -5430,6 +5440,7 @@ for (const bredd of [390, 820, 1280]) {
     const panel = await las();
     matt.push(`inställningarna ${bredd} px, panelen: lista ${panel.listaSyns ? "synlig" : "dold"}, tillbaka ${panel.tillbakaSyns ? `${panel.tillbakaHojd} px` : "dold"}, fokus ${panel.fokus}, rubriker ${JSON.stringify(panel.rubriker)}, överflöde ${panel.over} px`);
     krav(panel.panelSyns, `inställningarna ${bredd}: panelen syns inte efter ett tryck på raden.`);
+    krav(panel.panelniva !== null && panel.panelniva === panel.sidniva, `inställningarna ${bredd}: panelens rubrik är ${panel.panelniva} och sidans ${panel.sidniva}, väntat samma nivå.`);
     krav(panel.fokus === "h2:Händelsetyper", `inställningarna ${bredd}: fokus står på ${panel.fokus} när panelen öppnats, väntat panelens rubrik.`);
     krav(panel.rubriker.filter((/** @type {string} */ t) => t.toLowerCase() === "händelsetyper").length === 1, `inställningarna ${bredd}: rubriken "Händelsetyper" står ${panel.rubriker.filter((/** @type {string} */ t) => t.toLowerCase() === "händelsetyper").length} gånger, väntat en.`);
     if (tva) {

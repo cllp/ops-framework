@@ -51,7 +51,7 @@ export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak: s
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const rubrikId = useId();
-  // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken nivå 3, och samma som panelens ritas den inte alls (`delrubrik`).
+  // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken en nivå under panelens, och samma som panelens ritas den inte alls (`delrubrik`).
   const delen = delrubrik(rubrik, rubrikId, useInstallningspanel());
   if (!Array.isArray(bidrag)) {
     throw new Error("OpsModulTyper: bidrag krävs och måste vara en lista, även när den är tom. Skicka resultatet av bidragForGrupp.");

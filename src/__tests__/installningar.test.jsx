@@ -50,7 +50,9 @@ describe("OpsInstallningar", () => {
     expect(rad("Medlemmar").querySelector("[data-antal]")?.textContent).toBe("4");
     expect(rad("Kalendrar").querySelector("[data-antal]")?.textContent).toBe("0");
     expect(rad("Gruppen").querySelector("[data-antal]")).toBeNull();
-    expect(screen.getByRole("heading", { level: 1, name: "Inställningar" })).toBeTruthy();
+    // ⛔ Nivå 2, inte 1: appskalet har redan sidans h1, och två h1 gör sidans rubrikträd tvetydigt för en skärmläsare.
+    expect(screen.getByRole("heading", { level: 2, name: "Inställningar" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.queryByText("Gruppens innehåll")).toBeNull();
   });
 
@@ -81,8 +83,12 @@ describe("OpsInstallningar", () => {
   });
 
   it("ett okänt id i adressen ritar listan och ingen tom panel", () => {
+    const varn = vi.spyOn(console, "warn").mockImplementation(() => {});
     render(<OpsInstallningar sektioner={SEKTIONER} vald="finns-inte" onValj={() => {}} />);
-    expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
+    expect(document.querySelector("[data-installningspanel]")).toBeNull();
+    // ⛔ I utvecklingsläge säger komponenten varför listan ritades: en felstavad sektion i en länk syns annars aldrig.
+    expect(varn).toHaveBeenCalledWith(expect.stringContaining('"finns-inte"'));
+    varn.mockRestore();
     expect(screen.queryByRole("button", { name: "Tillbaka" })).toBeNull();
     for (const b of screen.getByRole("list").querySelectorAll("button")) expect(b.getAttribute("aria-current")).toBeNull();
   });
@@ -124,9 +130,34 @@ describe("OpsInstallningar", () => {
     fel.mockRestore();
   });
 
+  it("en sektion utan id, utan rubrik eller utan innehåll vägras", () => {
+    const fel = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { innehall: _i, ...utanInnehall } = SEKTIONER[0];
+    expect(() => render(<OpsInstallningar sektioner={[{ ...SEKTIONER[0], id: "" }]} vald={null} onValj={() => {}} />)).toThrow(/ett id och en rubrik/);
+    expect(() => render(<OpsInstallningar sektioner={[{ ...SEKTIONER[0], rubrik: "" }]} vald={null} onValj={() => {}} />)).toThrow(/ett id och en rubrik/);
+    expect(() => render(<OpsInstallningar sektioner={[{ ...SEKTIONER[0], id: 7 }]} vald={null} onValj={() => {}} />)).toThrow(/ett id och en rubrik/);
+    expect(() => render(<OpsInstallningar sektioner={[utanInnehall]} vald={null} onValj={() => {}} />)).toThrow(/"gruppen" saknar innehall/);
+    fel.mockRestore();
+  });
+
+  it("rubriknivån styrs av appen: sidan och panelen på samma nivå, delarna en nivå under", () => {
+    render(
+      <OpsInstallningar
+        rubrikniva={3}
+        sektioner={[{ id: "sorter", rubrik: "Inkorgens sorter", innehall: <OpsModulTyper bidrag={[]} yta="inkorg" rubrik="Från moduler" /> }]}
+        vald="sorter"
+        onValj={() => {}}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 3, name: "Inställningar" })).toBeTruthy();
+    // ⛔ Under 1024 px är listan dold och panelen ensam. Panelens rubrik står då direkt under appskalets rubrik och ska inte hoppa en nivå.
+    expect(screen.getByRole("heading", { level: 3, name: "Inkorgens sorter" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 4, name: "Från moduler" })).toBeTruthy();
+  });
+
   it("engelska ur språket", () => {
     render(<OpsInstallningar sektioner={SEKTIONER} vald="gruppen" onValj={() => {}} sprak="en" />);
-    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Settings" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
   });
 
@@ -157,6 +188,12 @@ describe("OpsInstallningar", () => {
       expect(screen.getByRole("heading", { level: 2, name: "Inkorgens sorter" })).toBeTruthy();
       expect(screen.getByRole("heading", { level: 3, name: "Sorter" })).toBeTruthy();
       expect(screen.getByRole("heading", { level: 3, name: "Från moduler" })).toBeTruthy();
+    });
+
+    it("utan ikonRitare ritas ingen ikonnyckel som text", () => {
+      render(katalog("Prioriteter"));
+      // ⛔ "bell" är ett namn i appens ikonuppsättning, inte ett ord för den som läser. Det stod som text i varje rad (granskningen av PR 278).
+      expect(screen.queryByText("bell")).toBeNull();
     });
 
     it("utanför en panel är katalogens rubrik nivå 2 som förut", () => {

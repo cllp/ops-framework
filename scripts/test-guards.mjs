@@ -1703,6 +1703,18 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   fs.writeFileSync(prov, "export function OpsProvbanderoll({ fel }) {\n  return <OpsBanner title={`${fel} kräver en driftsättning`} />;\n}\n");
   kravRott("utvecklarord: \"driftsättning\" i en mall", [ordvakt, path.join(ordmapp, "smutsig")], '"driftsättning"');
 
+  // ⛔ Granskningen av PR 278 fann två hål som var gröna: `hint` lästes inte, och ordböckernas `sv:`/`en:` lästes inte.
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <OpsField hint="Slagen är inte seedade än" />;\n}\n');
+  kravRott("utvecklarord: \"seedade\" i en hint", [ordvakt, path.join(ordmapp, "smutsig")], '"seedade"');
+  fs.writeFileSync(prov, 'export const ORD_H = { rubrik: { sv: "Samlingen är tom", en: "Empty" } };\n');
+  kravRott("utvecklarord: \"Samlingen\" i en ordboks sv:", [ordvakt, path.join(ordmapp, "smutsig")], '"Samlingen"');
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <p>{"Kör seedningen först"}</p>;\n}\n');
+  kravRott("utvecklarord: \"seedningen\" som ensam sträng i JSX", [ordvakt, path.join(ordmapp, "smutsig")], '"seedningen"');
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll({ tom }) {\n  return <OpsBanner title={tom ? "Samlingens slag saknas" : "Allt finns"} />;\n}\n');
+  kravRott("utvecklarord: \"Samlingens\" i en ternär i ett attribut", [ordvakt, path.join(ordmapp, "smutsig")], '"Samlingens"');
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll({ tom }) {\n  return <p>{tom ? "Inga samlingar ännu" : "Klart"}</p>;\n}\n');
+  kravRott("utvecklarord: \"samlingar\" i en ternär som barn", [ordvakt, path.join(ordmapp, "smutsig")], '"samlingar"');
+
   fs.writeFileSync(
     prov,
     [
@@ -1726,6 +1738,27 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   fs.mkdirSync(tyst, { recursive: true });
   for (let i = 0; i < 6; i++) fs.writeFileSync(path.join(tyst, `Tom${i}.js`), `export const x${i} = ${i};\n`);
   kravRott("utvecklarord golv: filer lästa men inga användartexter", [ordvakt, tyst], "användartexter hittades");
+  kravRott("utvecklarord golv: ett golv som inte är ett tal", [ordvakt, "--golv=abc"], "inte ett heltal");
+
+  // ⛔ GOLV PER MÖNSTER. Varje mönster stängs av i en kopia av vakten (det matchar aldrig), och ramverkets körning ska då bli
+  // röd på just det mönstret. Kopian ligger i scripts/ så att dess import och rot är desamma, och tas bort efteråt.
+  const ordkalla = fs.readFileSync(path.join(rot, ordvakt), "utf8");
+  const ordkopia = path.join(rot, "scripts", "_prov-utvecklarord-avstangt.mjs");
+  try {
+    for (const namn of ["attribut", "ordbok", "ternar", "barn", "jsxtext"]) {
+      const avstangd = ordkalla.replace(new RegExp(`(namn: "${namn}",[\\s\\S]*?\\n    re: )[^\\n]*`), "$1/(?!)/g,");
+      if (avstangd === ordkalla) throw new Error(`test-guards: mönstret ${namn} hittades inte i ${ordvakt}`);
+      fs.writeFileSync(ordkopia, avstangd);
+      kravRott(`utvecklarord golv: mönstret "${namn}" avstängt`, [ordkopia], `Mönstret "${namn}"`);
+      if (namn === "barn") {
+        // Det planterade {"..."}-fallet fångas BARA av barnmönstret: med det avstängt är samma fil grön.
+        fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <p>{"Kör seedningen först"}</p>;\n}\n');
+        kravGront("utvecklarord: {\"...\"}-fallet släpps igenom utan barnmönstret", [ordkopia, path.join(ordmapp, "smutsig")]);
+      }
+    }
+  } finally {
+    fs.rmSync(ordkopia, { force: true });
+  }
 }
 
 // ── Gruppkulör (0.65.0, #265): kontrasten för alla 360 kulörer, i båda lägena ──

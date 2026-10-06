@@ -43,8 +43,11 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  * ══ ⛔ LUFT: RADER PÅ MINST 56 PX, RUBRIK OCH HJÄLPTEXT PÅ VAR SIN RAD ════════════════════════════════════════════════
  *
  * Raden är `min-h-14` (56 px): ikonen i en ruta på 36 px, rubriken i brödtextens storlek (16 px) och halvfet, beskrivningen på
- * egen rad i 12 px dämpat, antalet till höger i tabellsiffror och en chevron sist som säger att raden leder vidare. Panelens
- * rubrik är 18 px och dess beskrivning 14 px på egen rad. Mätt i `check-skalyta` avsnitt 43.
+ * egen rad i 14 px dämpat med 20 px radhöjd, antalet till höger i tabellsiffror och en chevron sist som säger att raden leder
+ * vidare. Panelens rubrik är 18 px och dess beskrivning 14 px på egen rad. Mätt i `check-skalyta` avsnitt 43.
+ *
+ * ⛔ BESKRIVNINGEN VAR 12 PX I FÖRSTA UTKASTET, och granskningen av PR 278 påpekade att det är just det CP kallade "ihoptryckt":
+ * två rader i metatextens storlek under varje rubrik. Den är nu 14 px, samma som panelens beskrivning, och mäts mot 13 px som golv.
  *
  * ══ ⛔ TANGENTBORD OCH SKÄRMLÄSARE ═══════════════════════════════════════════════════════════════════════════════════
  *
@@ -54,10 +57,23 @@ import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
  * avmonteras, och en tangentbordsanvändare får börja om från sidans topp. ⛔ Vid första ritningen flyttas inget fokus: en sida
  * som öppnas på en sektion ur adressen ska inte stjäla fokus från webbläsarens adressfält.
  *
+ * ══ ⛔ RUBRIKNIVÅN ÄR APPENS ═════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Appskalet har redan sidans `h1`. Sidans rubrik ("Inställningar") och panelens rubrik står därför på `rubrikniva`, förval 2,
+ * och delarna i en panel en nivå under. Sidan och panelen har SAMMA nivå med flit: under 1024 px är listan dold och panelen
+ * ensam, och dess rubrik står då direkt under appskalets `h1`. En panel på nivå 3 hade hoppat över en nivå just där.
+ *
+ * ══ ⛔ TILLBAKA SKA GÅ TILLBAKA I HISTORIKEN ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `onValj(null)` är appens. Har panelen öppnats med `pushState` ska appen svara med `history.back()` (eller en router som gör
+ * samma sak), inte med en ny `pushState` till listan: annars står listan och panelen omväxlande i historiken, och webbläsarens
+ * tillbaka från listan öppnar panelen igen. Öppnades sidan direkt på en sektion ur en länk finns ingen lista att gå tillbaka
+ * till, och då är `replaceState` till listan rätt. Ramverket kan inte välja åt appen, eftersom det inte vet hur sidan öppnades.
+ *
  * ══ ⛔ EN RUBRIK, INTE TVÅ ═══════════════════════════════════════════════════════════════════════════════════════════
  *
  * Panelen ger sitt innehåll en kontext (`useInstallningspanel`). `OpsKatalogInstallning` och `OpsModulTyper` läser den: deras
- * egen rubrik blir nivå 3 under panelens nivå 2, och är den samma som panelens ritas den inte alls. Annars hade panelen
+ * egen rubrik blir en nivå under panelens, och är den samma som panelens ritas den inte alls. Annars hade panelen
  * "Prioriteter" börjat med rubriken PRIORITETER en gång till, som första rad i innehållet.
  */
 
@@ -79,10 +95,12 @@ export const ORD_OPSINSTALLNINGAR = {
   valjText: { sv: "Välj vad du vill se eller ändra.", en: "Choose what you want to view or change." },
 };
 
-const Panelkontext = createContext(/** @type {{ rubrik: string, rubrikId: string } | null} */ (null));
+/** @typedef {{ rubrik: string, rubrikId: string, niva: number }} Panel */
+
+const Panelkontext = createContext(/** @type {Panel | null} */ (null));
 
 /**
- * Panelen en komponent står i, om den står i en: `{ rubrik, rubrikId }` eller `null`. `OpsKatalogInstallning` och `OpsModulTyper`
+ * Panelen en komponent står i, om den står i en: `{ rubrik, rubrikId, niva }` eller `null`. `OpsKatalogInstallning` och `OpsModulTyper`
  * läser den för att inte rita samma rubrik två gånger.
  */
 export function useInstallningspanel() {
@@ -90,29 +108,29 @@ export function useInstallningspanel() {
 }
 
 /**
- * Rubriken för en del av en panel: nivå 2 utanför en panel (som förut), nivå 3 inuti, och ingen synlig rubrik alls när den är
+ * Rubriken för en del av en panel: nivå 2 utanför en panel (som förut), en nivå under panelens inuti, och ingen synlig rubrik när den är
  * samma som panelens. ⛔ Rubriken används också som sektionens namn (`aria-labelledby`), så när den inte ritas pekar
  * namnet på panelens rubrik i stället.
  *
  * @param {string} rubrik
  * @param {string} egetId
- * @param {{ rubrik: string, rubrikId: string } | null} panel
- * @returns {{ niva: 2 | 3 | null, etikettId: string }}
+ * @param {Panel | null} panel
+ * @returns {{ niva: number | null, etikettId: string }}
  */
 export function delrubrik(rubrik, egetId, panel) {
   if (!panel) return { niva: 2, etikettId: egetId };
   if (rubrik.trim().toLocaleLowerCase("sv") === panel.rubrik.trim().toLocaleLowerCase("sv")) return { niva: null, etikettId: panel.rubrikId };
-  return { niva: 3, etikettId: egetId };
+  return { niva: Math.min(panel.niva + 1, 6), etikettId: egetId };
 }
 
 /**
  * Delens rubrik, på den nivå `delrubrik` gav. `null`: ingen synlig rubrik (panelens rubrik säger redan samma sak).
  *
- * @param {{ niva: 2 | 3 | null, id: string, children: import("react").ReactNode }} props
+ * @param {{ niva: number | null, id: string, children: import("react").ReactNode }} props
  */
 export function Delrubrik({ niva, id, children }) {
   if (niva === null) return null;
-  const Tagg = niva === 3 ? "h3" : "h2";
+  const Tagg = rubriktagg(niva);
   return (
     <Tagg id={id} className="m-0 text-sektion uppercase text-accent">
       {children}
@@ -120,12 +138,25 @@ export function Delrubrik({ niva, id, children }) {
   );
 }
 
+/** @param {number} niva @returns {"h1" | "h2" | "h3" | "h4" | "h5" | "h6"} */
+function rubriktagg(niva) {
+  return /** @type {any} */ (`h${Math.min(Math.max(Math.trunc(niva), 1), 6)}`);
+}
+
+/** @param {string} text */
+function utvecklingsvarning(text) {
+  // ⛔ Bara när bygget säger att det är utveckling (Vite och Vitest sätter `import.meta.env.DEV`), som i OpsCalendarDagruta.
+  const env = /** @type {any} */ (import.meta).env;
+  if (env && env.DEV) console.warn(text);
+}
+
 /**
  * @param {object} props
  * @param {ReadonlyArray<Installningssektion>} props.sektioner
  * @param {string | null | undefined} props.vald Den valda sektionens `id`, ur adressen. `null` eller ett okänt id: listan.
  * @param {(id: string | null) => void} props.onValj Skriver valet till adressen. `null` är tillbaka till listan.
- * @param {string} [props.rubrik] Sidans rubrik (nivå 1) över listan. Förval "Inställningar".
+ * @param {string} [props.rubrik] Sidans rubrik över listan. Förval "Inställningar".
+ * @param {number} [props.rubrikniva] Nivån för sidans och panelens rubrik. Förval 2, under appskalets `h1`. Se filhuvudet.
  * @param {string} [props.beskrivning] En rad under sidans rubrik, till exempel vilken grupp inställningarna gäller.
  * @param {string} [props.tillbakaEtikett] Förval "Tillbaka".
  * @param {string} [props.valjText] Texten i högerkolumnen på dator när inget är valt.
@@ -146,6 +177,7 @@ function OpsInstallningarRitad({
   beskrivning,
   tillbakaEtikett = ORD_OPSINSTALLNINGAR.tillbakaEtikett.sv,
   valjText = ORD_OPSINSTALLNINGAR.valjText.sv,
+  rubrikniva = 2,
 }) {
   if (!Array.isArray(sektioner)) throw new Error("OpsInstallningar: sektioner krävs, en lista med { id, rubrik, innehall }.");
   if (typeof onValj !== "function") {
@@ -156,6 +188,8 @@ function OpsInstallningarRitad({
     if (!s || typeof s.id !== "string" || s.id === "" || typeof s.rubrik !== "string" || s.rubrik === "") {
       throw new Error("OpsInstallningar: varje sektion behöver ett id och en rubrik.");
     }
+    // ⛔ En sektion utan innehåll är en rad som öppnar en tom panel, och en tom panel ser ut som ett fel i appen.
+    if (s.innehall === undefined) throw new Error(`OpsInstallningar: sektionen "${s.id}" saknar innehall. En rad som öppnar en tom panel ser trasig ut.`);
     if (sedda.has(s.id)) throw new Error(`OpsInstallningar: två sektioner har id "${s.id}". Id:t står i adressen och måste vara unikt.`);
     sedda.add(s.id);
   }
@@ -163,9 +197,13 @@ function OpsInstallningarRitad({
   /** @type {Installningssektion | null} */
   const aktiv = (vald && sektioner.find((/** @type {Installningssektion} */ s) => s.id === vald)) || null;
   const aktivId = aktiv ? aktiv.id : null;
+  if (vald && !aktiv) {
+    utvecklingsvarning(`OpsInstallningar: ingen sektion har id "${vald}", så listan ritas. Det är rätt för en gammal länk, men kommer id:t från appens egen kod är det felstavat.`);
+  }
+  const Sidtagg = rubriktagg(rubrikniva);
   const sidrubrikId = useId();
   const panelrubrikId = useId();
-  const panelrubrik = useRef(/** @type {HTMLHeadingElement | null} */ (null));
+  const panelrubrik = useRef(/** @type {any} */ (null));
   const rader = useRef(/** @type {Map<string, HTMLButtonElement>} */ (new Map()));
   const forra = useRef(aktivId);
 
@@ -183,9 +221,9 @@ function OpsInstallningarRitad({
       {/* ── Listan ─────────────────────────────────────────────────────────────────────────────────────── */}
       <div data-installningslista="" className={cx("min-w-0 flex-col gap-4", aktiv ? "hidden lg:flex" : "flex")}>
         <header className="flex flex-col gap-1.5 px-1">
-          <h1 id={sidrubrikId} className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">
+          <Sidtagg id={sidrubrikId} className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">
             {rubrik}
-          </h1>
+          </Sidtagg>
           {beskrivning ? <p className="m-0 text-etikett text-ink-muted">{beskrivning}</p> : null}
         </header>
         <nav aria-labelledby={sidrubrikId} className="rounded-xl bg-surface p-2">
@@ -217,7 +255,7 @@ function OpsInstallningarRitad({
                         {s.rubrik}
                       </span>
                       {s.beskrivning ? (
-                        <span data-radbeskrivning="" className="text-meta text-ink-muted">
+                        <span data-radbeskrivning="" className="text-etikett text-ink-muted">
                           {s.beskrivning}
                         </span>
                       ) : null}
@@ -249,17 +287,17 @@ function OpsInstallningarRitad({
             <TillbakaKnapp onClick={() => onValj(null)} etikett={tillbakaEtikett} />
           </div>
           <header className="flex flex-col gap-1.5">
-            <h2
+            <Sidtagg
               id={panelrubrikId}
               ref={panelrubrik}
               tabIndex={-1}
               className="m-0 font-display text-titel font-bold leading-tight tracking-tight text-ink outline-none"
             >
               {aktiv.rubrik}
-            </h2>
+            </Sidtagg>
             {aktiv.beskrivning ? <p className="m-0 text-etikett text-ink-muted">{aktiv.beskrivning}</p> : null}
           </header>
-          <Panelkontext.Provider value={{ rubrik: aktiv.rubrik, rubrikId: panelrubrikId }}>
+          <Panelkontext.Provider value={{ rubrik: aktiv.rubrik, rubrikId: panelrubrikId, niva: rubrikniva }}>
             <div className="flex min-w-0 flex-col gap-6">{aktiv.innehall}</div>
           </Panelkontext.Provider>
         </section>

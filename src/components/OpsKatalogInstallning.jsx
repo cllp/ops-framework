@@ -88,7 +88,8 @@ function textraderna(deklarerade, bar) {
  * @param {object} props
  * @param {import("../lib/katalog.js").Kategori[]} props.kategorier
  * @param {readonly string[]} props.ikoner Tillåtelselistan. Appen äger den, eftersom den beror på ikonuppsättningen.
- * @param {(namn: string) => import("react").ReactNode} [props.ikonRitare] Namn till ikon. Utan den visas namnet som text.
+ * @param {(namn: string) => import("react").ReactNode} [props.ikonRitare] Namn till ikon. Utan den ritas ingen ikon. ⛔ Namnet visas
+ *   aldrig som text: `wallet` är en nyckel i appens ikonuppsättning, inte ett ord för den som läser (granskningen av PR 278).
  * @param {boolean} [props.kanAndra] Ur rollerna. Falskt ger en läsvy med skälet utskrivet.
  * @param {(kategori: import("../lib/katalog.js").Kategori) => void} props.onSpara
  * @param {(kategori: import("../lib/katalog.js").Kategori, arkiverad: boolean) => void} props.onArkivera
@@ -138,7 +139,7 @@ export function OpsKatalogInstallning({
   }
 
   const rubrikId = useId();
-  // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken nivå 3, och samma som panelens ritas den inte alls (`delrubrik`).
+  // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken en nivå under panelens, och samma som panelens ritas den inte alls (`delrubrik`).
   const delen = delrubrik(rubrik, rubrikId, useInstallningspanel());
   // Delarnas rubriker (Arkiverade, Senaste ändringarna) ligger en nivå under katalogens: h4 när katalogen själv är h3.
   const Under = delen.niva === 3 ? "h4" : "h3";
@@ -281,7 +282,7 @@ export function OpsKatalogInstallning({
             <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
           ) : null}
           <span className="min-w-0 break-words text-etikett font-medium text-ink">{text(kategori.namn, sprak)}</span>
-          <span className="min-w-0 break-all text-etikett text-ink-muted">{ikonRitare ? ikonRitare(kategori.ikon) : kategori.ikon}</span>
+          {ikonRitare ? <span className="inline-flex shrink-0 text-ink-muted">{ikonRitare(kategori.ikon)}</span> : null}
           {kategori.fas ? <OpsPill tone="neutral">{kategori.fas}</OpsPill> : null}
           {kategori.arkiverad ? <OpsPill tone="warning">Arkiverad</OpsPill> : null}
         </div>
