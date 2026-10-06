@@ -17,14 +17,17 @@
  *      rullgardinen (1280 px). Två streck 8 px från varandra under arkets rubrik.
  *   2. HUVUDETS KNAPPAR (1280 px): ikonlänk och hamburgare är 36 px cirklar med 20 px ikon, PLUSSET (0.60.0, CP 2026-10-05) en fylld
  *      40 px accentcirkel med 24 px ikon som ligger FÖRST i klustret (till vänster om inkorgen), avataren
- *      en 28 px cirkel i en 32 px knapp, alla med 44 px träffyta, och mittlinjerna
- *      skiljer högst 1 px.
+ *      en 28 px cirkel i en 32 px knapp, hela den ritade cirkeln träffbar (mätt med
+ *      `elementFromPoint`, 0.62.0), och mittlinjerna skiljer högst 1 px.
  *   3. LOGGAN: märket i toppraden bär ingen text och är inte högre än toppraden (56 px).
  *   4. RADEN: 12 px rundning och hover i `--color-raised`.
  *   5. INSTÄLLNINGSVYN vid 390 px: ingen horisontell överflödning.
  *   6. BOTTENRADEN med `fasta`: Idag, Kalender, STORT PLUS i mitten, Hub, Meny; ikon
- *      24 px, etikett 10 px, höjd 64 px; huvudets plus gömt i mobil; huvudets ikonlänk 24 px. (0.59.1, bolag-ops#563:
- *      SS mätte 20 och 56, men CP: "Svårt att träffa dom med fingret".)
+ *      24 px, etikett 10 px, höjd 68 px (0.62.0: rad 56 plus lyft 12); huvudets plus gömt i mobil; huvudets ikonlänk 24 px.
+ *      (0.59.1, bolag-ops#563: SS mätte 20 och 56, men CP: "Svårt att träffa dom med fingret".)
+ *   6b. TRÄFFYTAN (0.62.0, bolag-ops#565): varje kontroll i huvudet och bottenraden träffas på minst 44x44 där ett tryck
+ *      faktiskt landar (`elementFromPoint`), vid 390 och 375 px med emulerade säkra zoner, och bottenradens ikoner står
+ *      8 px under radens överkant med mitten minst 81 px (safe 34) eller 47 px (safe 0) över skärmens underkant.
  *
  * ⛔ GOLV: varje mätning kräver att det den mäter FANNS (minst så många rader, knappar
  * eller streck), annars är den röd. En mätning som blir grön av att inget hittades
@@ -242,7 +245,6 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
       const ikon = ar ? 24 : 20;
       krav(Math.abs(r.ikon - ikon) < 0.5, `huvudet 1280: ${k} har en ${r.ikon} px ikon, väntat ${ikon}${ar ? " (plusset är huvudåtgärden)" : " (bolag-ops#563 gäller bara mobil)"}.`);
       krav(r.radie >= 18, `huvudet: ${k} har rundning ${r.radie} px, väntat en cirkel (minst 18 px).`);
-      krav(r.efterBredd >= 44 && r.efterHojd >= 44, `huvudet: ${k} har träffyta ${r.efterBredd}x${r.efterHojd} px, väntat minst 44x44 som osynlig \`after:\`-yta.`);
     }
     // Plusset är FYLLT med accent (jämfört mot det beräknade `--color-accent`, inte en hårdkodad färg) och ligger till vänster om inkorgen.
     krav(m.accent !== "" && m.plus.bakgrund === m.accent, `huvudet: plussets bakgrund är ${m.plus.bakgrund}, väntat --color-accent (${m.accent}).`);
@@ -251,7 +253,14 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
     krav(m.inkorg.x < m.avatar.x && m.avatar.x < m.hamburgare.x, `huvudet: ordningen från vänster är inkorg ${m.inkorg.x.toFixed(0)}, avatar ${m.avatar.x.toFixed(0)}, hamburgare ${m.hamburgare.x.toFixed(0)}, väntat inkorg, avatar, hamburgare.`);
     krav(Math.abs(m.avatar.w - 32) < 0.5 && Math.abs(m.avatar.h - 32) < 0.5, `huvudet: avatarknappen är ${m.avatar.w}x${m.avatar.h} px, väntat 32x32.`);
     krav(m.avatarBild !== null && Math.abs(m.avatarBild.w - 28) < 0.5 && m.avatarBild.radie >= 14, `huvudet: avataren är ${m.avatarBild ? `${m.avatarBild.w} px, rundning ${m.avatarBild.radie}` : "inte hittad"}, väntat en 28 px cirkel.`);
-    krav(m.avatar.efterBredd >= 44, `huvudet: avatarens träffyta är ${m.avatar.efterBredd} px, väntat minst 44.`);
+    // ⛔ 0.62.0 (bolag-ops#565): HÄR STOD `efterBredd >= 44`, alltså storleken på den osynliga `::after`-ytan. Den var 44 och
+    // grön medan den faktiska träffytan i 390 px var 36x44: ytan låg under grannen. En pseudoelementstorlek mäter inte var ett
+    // tryck landar. Nu frågas webbläsaren (`elementFromPoint`, se avsnitt 6b). Vid 1280 krävs att hela den SYNLIGA cirkeln
+    // träffar knappen själv (en mus träffar det man ser); 44x44 krävs under md, där fingret är, i avsnitt 6b.
+    const traff = await matTraffyta(page, 'header button[aria-label="Skapa"], header a[aria-label="Inkorg"], header a[aria-label="Min profil"], header button[aria-label^="Meny,"]');
+    krav(traff.length === 4, `huvudet 1280: ${traff.length} av 4 knappar mättes med elementFromPoint.`);
+    matt.push(`huvudet 1280, faktisk träffyta: ${traff.map((t) => `${t.namn} ${t.w}x${t.h} (ritad ${t.synligW}x${t.synligH})`).join(", ")}`);
+    for (const t of traff) krav(t.mittTraff && t.w >= t.synligW - 0.5 && t.h >= t.synligH - 0.5, `huvudet 1280: "${t.namn}" träffas bara på ${t.w}x${t.h} px men ritas ${t.synligW}x${t.synligH}. Väntat att hela den synliga ytan träffar knappen.`);
   }
   // Loggan: höjden (texten mäts i sektion 10, märket är text sedan 0.31.0)
   krav(m.brand !== null && m.header !== null, "loggan: märket eller toppraden hittades inte.");
@@ -370,7 +379,9 @@ if (!utanFasta) {
     const plus = m.poster.find((p) => p.namn === "Skapa");
     krav(!!plus && Math.abs(plus.w - 56) < 0.5 && Math.abs(plus.h - 56) < 0.5, `bottenraden: plusset är ${plus?.w}x${plus?.h} px, väntat 56x56.`);
     krav(!!plus && Math.abs(plus.mitt - m.bredd / 2) <= 2, `bottenraden: plusset ligger på x=${plus?.mitt.toFixed(1)}, väntat mitt i raden (${m.bredd / 2}).`);
-    krav(Math.abs(m.hojd - 64) < 0.5, `bottenraden: höjd ${m.hojd} px, väntat 64 (bolag-ops#563: "några pixlar högre så ikonerna inte kommer så långt i nederkant").`);
+    // ⛔ 0.62.0 (bolag-ops#565): 68 = rad 56 plus lyft 12 (`--bottom-nav-h` är summan). Ikonens LÄGE mäts i avsnitt 6b; höjden här
+    // är bara att summan faktiskt nådde raden.
+    krav(Math.abs(m.hojd - 68) < 0.5, `bottenraden: höjd ${m.hojd} px, väntat 68 (rad 56 plus --bottom-nav-lyft 12, bolag-ops#565).`);
     krav(Math.abs(m.ikon - 24) < 0.5, `bottenraden: ikonen är ${m.ikon} px, väntat 24 (bolag-ops#563: "Svårt att träffa dom med fingret").`);
     krav(Math.abs(m.huvudIkon - 24) < 0.5, `huvudet 390: inkorgens ikon är ${m.huvudIkon} px, väntat 24 (bolag-ops#563: "Svårt att träffa dom med fingret").`);
     krav(Math.abs(m.etikett - 10) < 0.5, `bottenraden: etiketten är ${m.etikett} px, väntat 10 (SS \`text-[10px]\`).`);
@@ -384,6 +395,172 @@ if (!utanFasta) {
     await page.screenshot({ path: path.join(bildmapp, "bottenrad-meny-mobil.png") });
   }
   await context.close();
+}
+
+// ══ 6b. TRÄFFYTAN DÄR ETT TRYCK FAKTISKT LANDAR, OCH BOTTENRADENS LYFT (0.62.0, bolag-ops#565) ═══
+// CP 2026-10-06: "Fortfarande lite svårt att träffa ikonerna i header och bottenlagen. Skulle vilja att de kom upp några
+// pixlar. Är det förra ärendet utfört? Ser ingen skillnad ännu."
+//
+// ⛔ VARFÖR `elementFromPoint` OCH INTE ELEMENTETS ELLER PSEUDOELEMENTETS STORLEK. Avsnitt 2 mätte till 0.61 att
+// huvudknapparnas osynliga `::after` var 44x44 och var grönt. I 390 px var den FAKTISKA träffytan 36x44 eller 38x44:
+// knapparna står 2 px isär, så 44-ytan låg under grannen och grannen vann trycket. Storleken på en yta säger inte var
+// ett finger landar; webbläsarens träffprov gör det. Därför frågas webbläsaren, punkt för punkt, vilket element ett
+// tryck träffar, utåt från knappens mitt i fyra riktningar, och träffytan är den sammanhängande sträckan där svaret är
+// knappen själv (eller något inuti den).
+//
+// ⛔ LYFTET: ikonens mitt minst 81 px över skärmens underkant med emulerad hemindikator (safe 34) och minst 47 med safe 0,
+// och ikonens överkant 8 px under radens överkant i alla lägen (läget bestäms uppifrån, SS `MobileTabBar` paddingTop 8).
+// 0.59.1 gjorde raden 8 px högre men ikonen var centrerad och steg bara 4 px; ett mål på ikonens läge och inte på radens
+// höjd är det som hade fångat det.
+//
+// ⛔ GOLV: minst 5 kontroller i huvudet i `full` och `utanmeny` (3 i `fasta`, som bara har märke, inkorg och avatar) och 5 i
+// bottenraden i varje läge, annars rött (tomt underlag). Vid 768-1023 px skrivs träffytorna ut (golv 4) men krävs inte, se nedan.
+
+/**
+ * Den faktiska träffytan för varje synlig kontroll som matchar `sel`, mätt med `elementFromPoint`.
+ * Steg 0,25 px utåt från mitten, högst 40 px åt varje håll. Bredd och höjd är summan av de två riktningarna.
+ * @param {any} page @param {string} sel
+ * @returns {Promise<{ namn: string, w: number, h: number, synligW: number, synligH: number, mittTraff: boolean }[]>}
+ */
+async function matTraffyta(page, sel) {
+  return page.evaluate((/** @type {string} */ s) => {
+    return [...document.querySelectorAll(s)]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
+      })
+      .map((el) => {
+        const q = el.getBoundingClientRect();
+        const cx = q.x + q.width / 2;
+        const cy = q.y + q.height / 2;
+        const traff = (/** @type {number} */ x, /** @type {number} */ y) => {
+          const h = document.elementFromPoint(x, y);
+          return !!h && (h === el || el.contains(h));
+        };
+        const ut = (/** @type {number} */ dx, /** @type {number} */ dy) => {
+          let d = 0;
+          while (d < 40 && traff(cx + dx * (d + 0.25), cy + dy * (d + 0.25))) d += 0.25;
+          return d;
+        };
+        return {
+          namn: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 24),
+          w: ut(-1, 0) + ut(1, 0),
+          h: ut(0, -1) + ut(0, 1),
+          synligW: q.width,
+          synligH: q.height,
+          mittTraff: traff(cx, cy),
+        };
+      });
+  }, sel);
+}
+
+if (!utanFasta) {
+  const lagen = /** @type {const} */ ([
+    { namn: "390x844 hemskärm (safe 47/34)", vp: { width: 390, height: 844 }, top: 47, bot: 34, mal: 81 },
+    { namn: "390x844 Safari (safe 0)", vp: { width: 390, height: 844 }, top: 0, bot: 0, mal: 47 },
+    { namn: "375x667 SE (safe 20/0)", vp: { width: 375, height: 667 }, top: 20, bot: 0, mal: 47 },
+    // 0.62.0 (granskningen av #261): de smalaste telefonerna, där ett huvud med fem åtgärder svämmade över utan `meny`.
+    { namn: "360x740 (safe 24/0)", vp: { width: 360, height: 740 }, top: 24, bot: 0, mal: 47 },
+    { namn: "320x568 (safe 20/0)", vp: { width: 320, height: 568 }, top: 20, bot: 0, mal: 47 },
+  ]);
+  for (const l of lagen) {
+    // `utanmeny`: skalet utan `meny`, fem åtgärder plus avataren (granskningen av #261).
+    for (const scen of ["fasta", "full", "utanmeny"]) {
+      const { page, context } = await oppna(scen, l.vp, standardtema, 2);
+      await page.evaluate(([t, b]) => {
+        document.documentElement.style.setProperty("--safe-top", `${t}px`);
+        document.documentElement.style.setProperty("--safe-bottom", `${b}px`);
+      }, [l.top, l.bot]);
+      await page.waitForTimeout(150);
+      const etikett = `${scen} ${l.namn}`;
+      const huvud = await matTraffyta(page, "header a, header button");
+      const botten = await matTraffyta(page, 'nav[aria-label="Snabbnavigering"] a, nav[aria-label="Snabbnavigering"] button');
+      // Golvet i huvudet: `full` har gruppväxlare, tema, inkorg, sök och avatar (5), `utanmeny` gruppväxlare, tema, inkorg,
+      // påminnelser och avatar (5, sök och fråga har flyttat till arket); `fasta` har märke, inkorg och avatar (3).
+      const golv = scen === "fasta" ? 3 : 5;
+      krav(huvud.length >= golv, `träffytan ${etikett}: bara ${huvud.length} kontroller lästa i huvudet, väntat minst ${golv}. Fel scenario.`);
+      krav(botten.length >= 5, `träffytan ${etikett}: bara ${botten.length} kontroller lästa i bottenraden, väntat minst 5. Fel scenario.`);
+      // Större knappar får inte köpas med ett huvud som flödar ut: ingen horisontell överflödning och inget utanför fönstret.
+      const flode = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, klient: document.documentElement.clientWidth, hoger: Math.max(0, ...[...document.querySelectorAll("header a, header button")].map((e) => e.getBoundingClientRect().right)) }));
+      krav(flode.scroll <= flode.klient && flode.hoger <= l.vp.width + 0.5, `träffytan ${etikett}: huvudet flödar över (scrollWidth ${flode.scroll}, clientWidth ${flode.klient}, längst ut ${flode.hoger.toFixed(1)}).`);
+      matt.push(`träffytan ${etikett}: huvudet ${huvud.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}; bottenraden ${botten.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}`);
+      for (const [yta, lista] of /** @type {const} */ ([["huvudet", huvud], ["bottenraden", botten]])) {
+        for (const k of lista) {
+          // 43,5 och inte 44: provet går i steg om 0,25 px från mitten, så en 44 px yta mäts till 43,5-44 beroende på halvpixlar.
+          krav(k.mittTraff && k.w >= 43.5 && k.h >= 43.5, `träffytan ${etikett}: ${yta}s "${k.namn}" träffas på ${k.w}x${k.h} px (ritad ${k.synligW.toFixed(1)}x${k.synligH.toFixed(1)}), väntat minst 44x44 där ett tryck faktiskt landar.`);
+        }
+      }
+      // Lyftet: bara i `fasta` (bottenraden med plus är den CP använder), ikoner i flikarna och Meny, inte den runda knappen.
+      if (scen === "fasta") {
+        const lyft = await page.evaluate((/** @type {number} */ bot) => {
+          const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+          const rad = nav?.firstElementChild;
+          if (!nav || !rad) return null;
+          const radTop = rad.getBoundingClientRect().top;
+          const vh = window.innerHeight;
+          return [...nav.querySelectorAll("a, button")]
+            .filter((el) => el.querySelector("svg") && !el.hasAttribute("data-talk-knapp") && el.getAttribute("aria-label") !== "Skapa")
+            .map((el) => {
+              const s = /** @type {Element} */ (el.querySelector("svg")).getBoundingClientRect();
+              return { namn: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 12), mittOverKant: vh - (s.top + s.height / 2), franRadTop: s.top - radTop, bot };
+            });
+        }, l.bot);
+        krav(lyft !== null && lyft.length >= 4, `lyftet ${etikett}: bara ${lyft?.length ?? 0} ikoner i bottenraden, väntat minst 4 (flikar och Meny).`);
+        if (lyft) {
+          matt.push(`lyftet ${etikett}: ${lyft.map((p) => `${p.namn} mitt ${p.mittOverKant.toFixed(1)} px över kanten, överkant ${p.franRadTop.toFixed(1)} under radens`).join("; ")}`);
+          for (const p of lyft) {
+            krav(p.mittOverKant >= l.mal - 0.25, `lyftet ${etikett}: ikonen i "${p.namn}" har sin mitt ${p.mittOverKant.toFixed(1)} px över skärmens underkant, väntat minst ${l.mal} (bolag-ops#565: "kom upp några pixlar").`);
+            krav(Math.abs(p.franRadTop - 8) <= 0.5, `lyftet ${etikett}: ikonen i "${p.namn}" står ${p.franRadTop.toFixed(1)} px under radens överkant, väntat 8 (läget bestäms uppifrån, SS paddingTop 8, inte av centrering).`);
+          }
+        }
+        // ⛔ DEN RUNDA KNAPPENS LYFT (granskningen av #261): överkanten ska ligga `--bottom-nav-overhang` minus ringen (4 px)
+        // ovanför radens överkant, alltså 12 px i dag. Talet läses ur tokenen med ett provelement, inte ur källan, så att
+        // tokenen och knappen inte kan glida isär utan att det syns. Med `translate-y-0` var allt annat grönt.
+        const knapp = await page.evaluate(() => {
+          const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+          const rad = nav?.firstElementChild;
+          const b = nav?.querySelector('button[aria-label="Skapa"]');
+          const prov = document.createElement("div");
+          prov.style.cssText = "position:absolute;visibility:hidden;width:1px;height:var(--bottom-nav-overhang)";
+          document.body.appendChild(prov);
+          const overhang = prov.getBoundingClientRect().height;
+          prov.remove();
+          if (!rad || !b) return null;
+          return { lyft: rad.getBoundingClientRect().top - b.getBoundingClientRect().top, overhang };
+        });
+        krav(knapp !== null && knapp.overhang > 0, `knappens lyft ${etikett}: ${knapp === null ? "knappen eller raden hittades inte" : "--bottom-nav-overhang gick inte att mäta"}.`);
+        if (knapp && knapp.overhang > 0) {
+          const vantat = knapp.overhang - 4;
+          matt.push(`knappens lyft ${etikett}: överkanten ${knapp.lyft.toFixed(1)} px ovanför radens överkant, väntat ${vantat} (overhang ${knapp.overhang} minus ringen 4)`);
+          krav(Math.abs(knapp.lyft - vantat) <= 0.5, `knappens lyft ${etikett}: den runda knappens överkant står ${knapp.lyft.toFixed(1)} px ovanför radens överkant, väntat ${vantat} (--bottom-nav-overhang ${knapp.overhang} minus ringen 4).`);
+        }
+      }
+      // ⛔ EN FLYTTAD ÅTGÄRD FÖRSVINNER INTE TYST: utan `meny` ska Sök och Fråga finnas som rader i bottenradens ark.
+      if (scen === "utanmeny") {
+        await page.getByRole("button", { name: "Meny" }).last().click();
+        await page.waitForSelector('[role="dialog"]');
+        const rader = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] a')].map((a) => (a.textContent || "").trim()));
+        matt.push(`arket ${etikett}: arkets rader ${rader.join(", ") || "(inga)"}`);
+        for (const namn of ["Sök", "Fråga"]) krav(rader.includes(namn), `arket ${etikett}: "${namn}" finns varken i huvudet eller som rad i bottenradens ark (rader: ${rader.join(", ") || "inga"}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+// 6b, surfplattan (granskningen av #261): 768-1023 px är `md` men fortfarande en tumme. ⛔ MÄTS OCH SKRIVS UT, KRÄVS INTE.
+// Knapparna är 36 px från `md` (se `huvudknappKlass`). 44 px provades: vid 768 px ligger huvudets flikar (Appar och dess
+// chevron) redan i 0.60.0 ovanpå högerklustret, så plusset och temaväxlaren träffas inte alls i sin mitt. Det är ett eget fel i
+// surfplattans huvud. Raden nedan gör det synligt i varje körning; den blir ett krav när huvudet är lagat.
+for (const bredd of [768, 900, 1023]) {
+  for (const scen of ["full", "utanmeny"]) {
+    const { page, context } = await oppna(scen, { width: bredd, height: 900 });
+    const kluster = await matTraffyta(page, "header a[aria-label], header button[aria-label]");
+    krav(kluster.length >= 4, `träffytan ${scen} ${bredd} px: bara ${kluster.length} knappar med namn i huvudet, väntat minst 4.`);
+    const under = kluster.filter((k) => !(k.mittTraff && k.w >= 43.5 && k.h >= 43.5));
+    matt.push(`träffytan ${scen} ${bredd} px (surfplatta, inget krav): ${kluster.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}; under 44x44: ${under.length ? under.map((k) => k.namn).join(", ") : "inga"}`);
+    await context.close();
+  }
 }
 
 // ══ 7. MOBILHUVUDET FÅR ALDRIG FLÖDA ÖVER (0.30.1) ═══════════════════════════

@@ -1398,11 +1398,17 @@ function OpsAppShellRitad({
   // ══ ⛔ ÅTGÄRDER SOM INTE RYMS UNDER `md` FLYTTAR TILL MENYN (0.30.1) ═══════
   //
   // Se `ATGARDER_SMAL`. Bara `OpsIconLink` kan flyttas (href, etikett, ikon och
-  // räknare är data ramverket kan rita som en menyrad), och bara när det FINNS en
-  // meny att flytta till: utan `meny` har en flyttad åtgärd inget hem, och en
-  // åtgärd som försvinner tyst är värre än en som ligger kvar (punkt 5).
+  // räknare är data ramverket kan rita som en menyrad).
+  //
+  // ⛔ 0.62.0 (granskningen av #261): FLYTTEN GÄLLER ÄVEN UTAN `meny`. Här stod att en
+  // flyttad åtgärd utan `meny` inte har något hem, och därför flyttades ingenting:
+  // fem åtgärder plus avataren gav ett huvud som svämmade över vid 320 px
+  // (scrollWidth 346) och klipptes vid 360, alltså bröt huvudet det `ATGARDER_SMAL`
+  // lovar. Hemmet finns ändå: bottenradens Meny ritas alltid under `md`, och dess
+  // ark visar `moreNav` som rader. Med `meny` går raderna in i appens avdelning som
+  // förut, utan `meny` i arkets navigeringsrader. Ingen åtgärd försvinner tyst.
   const atgardsLista = plattaAtgarder(actions);
-  const flyttbara = meny ? atgardsLista.slice(ATGARDER_SMAL).filter((a) => a.type === OpsIconLink) : [];
+  const flyttbara = atgardsLista.slice(ATGARDER_SMAL).filter((a) => a.type === OpsIconLink);
   /** @type {import("../lib/nav.js").NavPost[]} */
   const flyttadeRader = flyttbara.map((a) => {
     const p = /** @type {any} */ (a.props);
@@ -1753,11 +1759,13 @@ function OpsAppShellRitad({
                 utanför med `outline-offset-2`. */}
             {/* ⛔ 0.31.1: UNDER `md` RITAS MÄRKET INTE ALLS när `grupper` finns. Gruppväxlaren (ikonen) står längst till vänster i
                 stället (CP 2026-09-29 18:40: "Header i mobil skall vi ta bort texten helt"). Startsidan nås ur bottenraden.
-                Utan `grupper` finns ingen växlare att ersätta märket med, och monogrammet står kvar som förut. */}
+                Utan `grupper` finns ingen växlare att ersätta märket med, och monogrammet står kvar som förut.
+                ⛔ 0.62.0 (bolag-ops#565): då är länken minst 44x44 under `md` (monogrammet är 40), mätt med elementFromPoint i
+                `check-skalyta` 6b. Från `md` som förut. */}
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:flex md:items-center md:gap-2" : "block")}
+              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:flex md:items-center md:gap-2" : "flex min-h-11 min-w-11 items-center md:block md:min-h-0 md:min-w-0")}
             >
               {varumarke}
             </a>
@@ -2106,7 +2114,7 @@ function OpsAppShellRitad({
           skulle slice(smaltTak) hoppa över index 3 och göra den oåtkomlig under md. */}
       <OpsBottomNav
         nav={bottenNav}
-        moreNav={harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))}
+        moreNav={[...(harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))), ...(meny ? [] : flyttadeRader)]}
         activeHref={activeHref}
         onNavigate={onNavigate}
         primaryAction={(() => {

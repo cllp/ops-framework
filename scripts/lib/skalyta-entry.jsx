@@ -848,7 +848,7 @@ const manyaGrupper = (lista) => [...lista, ...Array.from({ length: window.__mang
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
+function Full({ children, utanMeny = false, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(aktivIScenen());
   return (
@@ -870,7 +870,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions =
       skapa={skapa}
       handelsepanel={handelsepanel}
       talk={talk}
-      meny={meny}
+      meny={utanMeny ? undefined : meny}
       grupper={{ lista: utanGrupp() ? [] : window.__skal === "gruppkort" ? g2Lista : manyaGrupper(grupperLista), aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
     >
       {children}
@@ -1143,6 +1143,15 @@ function Scen() {
     );
   }
   if (s === "modal") return <ModalForm />;
+  // 0.62.0 (granskningen av #261): huvudet UTAN `meny`, med fem åtgärder (tema, inkorg, påminnelser, sök, fråga) plus avataren.
+  // Före 0.62.0 flyttades inga åtgärder utan `meny`, och huvudet svämmade över vid 320 px. Avsnitt 6b mäter 320 och 360.
+  if (s === "utanmeny") {
+    return (
+      <Full utanMeny extraActions={<OpsIconLink href="/paminnelser" icon={<Calendar size={IKON} />} label="Påminnelser" />}>
+        <p className="px-4 text-brod">innehåll</p>
+      </Full>
+    );
+  }
   if (s === "full") {
     return (
       <Full>

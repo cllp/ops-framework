@@ -567,7 +567,17 @@ export async function matVyport({ dist, rutter }) {
 
           const huvud = document.querySelector("main");
           const insetBotten = huvud ? parseFloat(getComputedStyle(huvud).paddingBottom) || 0 : 0;
-          const barhojd = parseFloat(getComputedStyle(rot).getPropertyValue("--bottom-nav-h")) || 0;
+          // ⛔ 0.62.0 (granskningen av #261): HÖJDEN MÄTS, DEN LÄSES INTE SOM TEXT. Här stod
+          // `parseFloat(getComputedStyle(rot).getPropertyValue("--bottom-nav-h"))`. När tokenen blev en summa
+          // (`calc(var(--bottom-nav-rad) + var(--bottom-nav-lyft))`) gav Chromium tillbaka strängen
+          // "calc(3.5rem + .75rem)", parseFloat gav NaN, `|| 0` gjorde det till noll, och kontroll 3 nedan
+          // hoppade tyst över i varje app. Ett provelement med `height: var(--bottom-nav-h)` låter layoutmotorn
+          // räkna ut talet, i vilken form tokenen än skrivs. En token som saknas ger höjd 0 och blir ett brott.
+          const prov = document.createElement("div");
+          prov.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;width:1px;height:var(--bottom-nav-h)";
+          document.body.appendChild(prov);
+          const barhojdMatt = prov.getBoundingClientRect().height;
+          prov.remove();
 
           return {
             sidbredd: rot.scrollWidth,
@@ -575,8 +585,7 @@ export async function matVyport({ dist, rutter }) {
             skyldiga: skyldiga.slice(0, 6),
             navs,
             insetBotten,
-            // `--bottom-nav-h` är i rem; 1rem är 16px om inget annat sagts.
-            barhojdPx: barhojd * parseFloat(getComputedStyle(rot).fontSize),
+            barhojdPx: barhojdMatt,
           };
         });
 
@@ -607,7 +616,14 @@ export async function matVyport({ dist, rutter }) {
         }
 
         // 3. Innehållet hamnar inte bakom baren.
-        if (vy.bottenrad && matt.barhojdPx > 0 && matt.insetBotten < matt.barhojdPx) {
+        // ⛔ En höjd som inte gick att mäta är ett brott, aldrig ett överhopp (arbetsreglernas punkt 5): före 0.62.0 stod
+        // `matt.barhojdPx > 0` här som ett villkor, och en oläsbar token gjorde hela kontrollen grön.
+        if (vy.bottenrad && !(matt.barhojdPx > 0)) {
+          brott.push(
+            `${var_}: bottenradens höjd \`--bottom-nav-h\` gick inte att mäta (${matt.barhojdPx} px). ` +
+              "Utan den kan det inte avgöras om innehållet hamnar bakom baren, och en kontroll som inte kan göras är inte grön.",
+          );
+        } else if (vy.bottenrad && matt.insetBotten < matt.barhojdPx) {
           brott.push(
             `${var_}: main har ${Math.round(matt.insetBotten)} px botteninset men baren är ${Math.round(matt.barhojdPx)} px hög. ` +
               "Sista raden i innehållet hamnar bakom baren, och det märks först när någon letar efter sin sista post.",
