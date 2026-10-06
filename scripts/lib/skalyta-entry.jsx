@@ -217,36 +217,59 @@ function KalenderScen() {
 }
 
 /*
- * 0.61.0 (#259 skiva 1): lager och tillgänglighet, som förebild 3 (`docs/bilder/259/ss-lager-och-tillganglighet-mobil-3.png`).
- * Idag är tisdag 6 oktober 2026, som i förebilden. Tillgängligheten räknas med ramverkets egen `tillganglighetForDag` ur
- * fjorton medlemmar och deras poster, så att sidan visar modellen hela vägen till brickan: dagarna med någon borta är förebildens
- * (5, 6, 24, 30 september, 1-4 och 8 oktober), och den 9 oktober har bara DOLDA poster och ska alltså inte få någon bricka.
- * Lagren är förebildens onsdagar (ram och bricka). Mätdagarna ligger efter förebildens utsnitt: 20 oktober två borta,
- * 21 oktober tolv borta och tolv lager, 22 oktober två lager. Gruppen räknas som vald, så `N/N` står på dagar utan borta från 640 px
- * (SS webb, `docs/bilder/259/ss-tillganglighet-webb-6.png`).
+ * 0.61.0 (#259 skiva 1): lager och tillgänglighet. Idag är tisdag 6 oktober 2026, som i förebilderna. Tillgängligheten räknas med
+ * ramverkets egen `tillganglighetForDag` ur fjorton medlemmar och deras poster, så att sidan visar modellen hela vägen till brickan.
+ *
+ * ⛔ SAMMA DATA SOM FÖREBILDEN (regel 12: samma flöde). Två scener, en per förebild, eftersom CP:s två bilder visar olika lägen:
+ *   - `kalender-tillganglighet`: förebild 7 (`docs/bilder/259/ss-kalender-mobil-7.png`). Lager med ram på onsdagarna 9, 16, 23
+ *     och 30 september och 7, 14 och 21 oktober. En borta den 24 september, 1-4 och 22 oktober. Båda den 30 september. Två borta
+ *     och två lager den 8 oktober. Prickarna dag för dag som i bilden. Mätdagarna som förebilden inte visar ligger i november:
+ *     den 18 tolv borta och tolv lager (`9+`), den 19 två borta, den 22 (söndag) en borta, den 25 två lager.
+ *   - `kalender-tillganglighet-3`: förebild 3 (`ss-lager-och-tillganglighet-mobil-3.png`). Lager med ram på onsdagarna 2 september
+ *     till 14 oktober; en borta den 5, 6, 24 och 30 september och 1-4 och 8 oktober.
+ * Den 9 oktober har bara DOLDA poster och ska alltså inte få någon bricka. Gruppen räknas som vald, så `N/N` står på dagar utan
+ * borta från 640 px (SS webb, `ss-tillganglighet-webb-6.png`).
  */
 const TG_IDAG = new Date(2026, 9, 6, 12);
 const TG_MEDLEMMAR = ["Örjan Klintberg", "Anna Berg", "Bo Ek", "Cecilia Holm", "David Lind", "Eva Nord", "Filip Strand", "Greta Åberg", "Hugo Wik", "Ida Sjö", "Jonas Ström", "Karin Dahl", "Lena Falk", "Måns Gran"].map((namn, i) => ({ uid: `m${i}`, namn }));
-const TG_POSTER = [
-  ...["2026-09-05", "2026-09-06", "2026-09-24", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"].map((d, i) => ({ uid: `m${i % 3}`, heldag: true, start: d, lage: i % 2 ? "delad" : "upptagen", rubrik: "Jobbresa | Tyskland" })),
-  // En tidsatt post är "upptagen" och räknas i brickan som i SS (blockedCount är binärt).
-  { uid: "m4", start: "2026-10-08T09:00", slut: "2026-10-08T12:00", lage: "upptagen" },
-  // ⛔ Bara dolda poster: ingen bricka.
+/** En borta per dag, växelvis delad och upptagen. @param {string[]} dagar */
+const tgEnBorta = (dagar) => dagar.map((d, i) => ({ uid: `m${i % 3}`, heldag: true, start: d, lage: i % 2 ? "delad" : "upptagen", rubrik: "Jobbresa | Tyskland" }));
+// ⛔ Bara dolda poster den 9 oktober: ingen bricka.
+const TG_DOLDA = [
   { uid: "m5", heldag: true, start: "2026-10-09", lage: "dold", rubrik: "Hemligt" },
   { uid: "m6", start: "2026-10-09T08:00", slut: "2026-10-09T17:00", lage: "dold" },
-  { uid: "m1", heldag: true, start: "2026-10-20", lage: "upptagen" },
-  { uid: "m2", start: "2026-10-20T10:00", slut: "2026-10-20T11:00", lage: "delad", rubrik: "Tandläkare" },
-  ...TG_MEDLEMMAR.slice(0, 12).map((m) => ({ uid: m.uid, heldag: true, start: "2026-10-21", lage: "upptagen" })),
 ];
-const TG_ONSDAGAR = ["2026-09-02", "2026-09-09", "2026-09-16", "2026-09-23", "2026-09-30", "2026-10-07", "2026-10-14"];
-/** @param {string} d */
-const tgLager = (d) => (TG_ONSDAGAR.includes(d) ? 1 : d === "2026-10-21" ? 12 : d === "2026-10-22" ? 2 : 0);
-// Prickarna i förebilden, ungefär, så att rutorna bär samma mängd innehåll som där.
-const TG_PRICKAR = { "2026-09-01": 3, "2026-09-02": 4, "2026-09-03": 5, "2026-09-04": 3, "2026-09-06": 1, "2026-09-07": 1, "2026-09-08": 1, "2026-09-09": 1, "2026-09-10": 3, "2026-09-11": 1, "2026-09-12": 4, "2026-09-14": 2, "2026-09-15": 3, "2026-09-16": 2, "2026-09-17": 4, "2026-09-18": 3, "2026-09-19": 1, "2026-09-20": 1, "2026-09-21": 2, "2026-09-22": 1, "2026-09-23": 1, "2026-09-24": 6, "2026-09-25": 2, "2026-09-27": 1, "2026-09-29": 1, "2026-09-30": 2, "2026-10-01": 4, "2026-10-02": 1, "2026-10-03": 1, "2026-10-07": 1, "2026-10-08": 1, "2026-10-14": 1 };
+const TG_VARIANT = {
+  7: {
+    poster: [
+      ...tgEnBorta(["2026-09-24", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-22", "2026-11-22"]),
+      // Två den 8 oktober: en heldag och en tidsatt ("upptagen", som räknas i brickan som i SS, blockedCount är binärt).
+      { uid: "m3", heldag: true, start: "2026-10-08", lage: "upptagen" },
+      { uid: "m4", start: "2026-10-08T09:00", slut: "2026-10-08T12:00", lage: "upptagen" },
+      ...TG_DOLDA,
+      ...TG_MEDLEMMAR.slice(0, 12).map((m) => ({ uid: m.uid, heldag: true, start: "2026-11-18", lage: "upptagen" })),
+      { uid: "m1", heldag: true, start: "2026-11-19", lage: "upptagen" },
+      { uid: "m2", start: "2026-11-19T10:00", slut: "2026-11-19T11:00", lage: "delad", rubrik: "Tandläkare" },
+    ],
+    ramdagar: ["2026-09-09", "2026-09-16", "2026-09-23", "2026-09-30", "2026-10-07", "2026-10-14", "2026-10-21"],
+    lager: { "2026-10-08": 2, "2026-11-18": 12, "2026-11-25": 2 },
+    // Prickarna dag för dag ur förebild 7 (1-6 september syns inte där och har förebild 3:s).
+    prickar: { "2026-09-01": 3, "2026-09-02": 4, "2026-09-03": 5, "2026-09-04": 3, "2026-09-06": 1, "2026-09-07": 1, "2026-09-08": 1, "2026-09-09": 1, "2026-09-10": 3, "2026-09-11": 1, "2026-09-12": 4, "2026-09-14": 2, "2026-09-15": 3, "2026-09-16": 2, "2026-09-17": 4, "2026-09-18": 3, "2026-09-19": 1, "2026-09-20": 1, "2026-09-21": 2, "2026-09-22": 1, "2026-09-23": 1, "2026-09-24": 6, "2026-09-25": 2, "2026-09-27": 1, "2026-09-29": 1, "2026-09-30": 2, "2026-10-01": 4, "2026-10-02": 1, "2026-10-03": 1, "2026-10-07": 1, "2026-10-08": 2, "2026-10-14": 1, "2026-10-21": 1, "2026-10-24": 1 },
+  },
+  3: {
+    poster: [...tgEnBorta(["2026-09-05", "2026-09-06", "2026-09-24", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"]), { uid: "m4", start: "2026-10-08T09:00", slut: "2026-10-08T12:00", lage: "upptagen" }, ...TG_DOLDA],
+    ramdagar: ["2026-09-02", "2026-09-09", "2026-09-16", "2026-09-23", "2026-09-30", "2026-10-07", "2026-10-14"],
+    lager: {},
+    prickar: { "2026-09-01": 3, "2026-09-02": 4, "2026-09-03": 5, "2026-09-04": 3, "2026-09-06": 1, "2026-09-07": 1, "2026-09-08": 1, "2026-09-09": 1, "2026-09-10": 3, "2026-09-11": 1, "2026-09-12": 4, "2026-09-14": 2, "2026-09-15": 3, "2026-09-16": 2, "2026-09-17": 4, "2026-09-18": 3, "2026-09-19": 1, "2026-09-20": 1, "2026-09-21": 2, "2026-09-22": 1, "2026-09-23": 1, "2026-09-24": 6, "2026-09-25": 2, "2026-09-27": 1, "2026-09-29": 1, "2026-09-30": 2, "2026-10-01": 4, "2026-10-02": 1, "2026-10-03": 1, "2026-10-07": 1, "2026-10-08": 1, "2026-10-14": 1 },
+  },
+};
 const TG_KAL = [{ id: "g", namn: "Gruppen", farg: 6 }, { id: "r", namn: "Resor", farg: 4 }, { id: "p", namn: "Privat", farg: 2 }];
-const TG_ENTRIES = Object.entries(TG_PRICKAR).flatMap(([d, n]) => Array.from({ length: n }, (_, i) => ({ id: `${d}-${i}`, date: d, title: `Post ${i + 1}`, kalender: TG_KAL[(i + Number(d.slice(-2))) % 3] })));
-function KalenderTillganglighetScen() {
+/** @param {Record<string, number>} prickar */
+const tgEntries = (prickar) => Object.entries(prickar).flatMap(([d, n]) => Array.from({ length: n }, (_, i) => ({ id: `${d}-${i}`, date: d, title: `Post ${i + 1}`, kalender: TG_KAL[(i + Number(d.slice(-2))) % 3] })));
+/** @param {{ variant: 3 | 7 }} props */
+function KalenderTillganglighetScen({ variant }) {
   const { OpsView, OpsCalendar, tillganglighetForDag, bortaAntal } = Ops;
+  const v = TG_VARIANT[variant];
   const [tg, setTg] = useState(true);
   const [lager, setLager] = useState(true);
   return (
@@ -254,7 +277,7 @@ function KalenderTillganglighetScen() {
       <OpsView>
         <OpsCalendar
           ariaLabel="Kalender"
-          entries={TG_ENTRIES}
+          entries={tgEntries(v.prickar)}
           today={TG_IDAG}
           monthsBack={1}
           monthsForward={1}
@@ -263,11 +286,12 @@ function KalenderTillganglighetScen() {
           tillganglighet={{ pa: tg, onByt: setTg }}
           lager={{ pa: lager, onByt: setLager }}
           dagdekor={(d) => {
-            const borta = tg && tillganglighetForDag ? bortaAntal(tillganglighetForDag({ medlemmar: TG_MEDLEMMAR, poster: TG_POSTER, dag: d })) : 0;
-            const l = lager ? tgLager(d) : 0;
+            const borta = tg && tillganglighetForDag ? bortaAntal(tillganglighetForDag({ medlemmar: TG_MEDLEMMAR, poster: v.poster, dag: d })) : 0;
+            const ram = v.ramdagar.includes(d);
+            const l = lager ? v.lager[d] || (ram ? 1 : 0) : 0;
             // N/N: gruppen är vald (sidan visar en grupp), som SS webbs `activeGroup`. Rutan ritar den bara när ingen är borta.
             const narvaro = tg ? { narvaro: { tillgangliga: TG_MEDLEMMAR.length - borta, totalt: TG_MEDLEMMAR.length } } : {};
-            return { ...narvaro, ...(borta ? { borta: { antal: borta } } : {}), ...(l ? { lager: { antal: l }, ...(TG_ONSDAGAR.includes(d) ? { ram: 1 } : {}) } : {}) };
+            return { ...narvaro, ...(borta ? { borta: { antal: borta } } : {}), ...(l ? { lager: { antal: l }, ...(ram ? { ram: 1 } : {}) } : {}) };
           }}
         />
       </OpsView>
@@ -1305,7 +1329,8 @@ function Scen() {
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   if (s === "kalender") return <KalenderScen />;
   if (s === "kalender-appar") return <KalenderApparScen />;
-  if (s === "kalender-tillganglighet") return <KalenderTillganglighetScen />;
+  if (s === "kalender-tillganglighet") return <KalenderTillganglighetScen variant={7} />;
+  if (s === "kalender-tillganglighet-3") return <KalenderTillganglighetScen variant={3} />;
   if (s === "talk") return <TalkScen />;
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;

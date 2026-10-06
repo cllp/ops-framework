@@ -4503,7 +4503,9 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
 // BRED (1280 px), förebild `docs/bilder/259/ss-tillganglighet-webb-6.png` och SS webb `calView/MonthGrid.jsx:448-536`: ikonerna i
 // siffrans rad, till höger, liggande och i flödet, 14 px utan bricka, räknaren efter ikonen, och `N/N` när ingen är borta.
 //
-// Scenen `kalender-tillganglighet` räknar tillgängligheten med `tillganglighetForDag` (modellen hela vägen till brickan).
+// Scenen `kalender-tillganglighet` bär förebild 7:s data (samma dagar med samma markeringar och prickar) och räknar tillgängligheten
+// med `tillganglighetForDag` (modellen hela vägen till brickan). Det förebilden inte visar (`9+`, två ensamma lager, söndagen den
+// 22 november) ligger i november, utanför förebildens utsnitt.
 // Krav, varje del för sig:
 // Telefonbredderna är 320, 360, 375 och 393 (granskningen av PR 260: brickan täckte siffran vid 360 och 320).
 //   (a) telefon: varje bricka är en cirkel på 20 px (22 är fel) med ikonen 10 px, opak yta;
@@ -4530,7 +4532,7 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
   const telefon = vp.width < 640;
   const { page, context } = await oppna("kalender-tillganglighet", vp);
   try {
-    await page.waitForSelector('[data-cal-day="2026-09-05"]', { timeout: 4000 });
+    await page.waitForSelector('[data-cal-day="2026-09-24"]', { timeout: 4000 });
     /** @param {string} d */
     const fram = async (d) => {
       await page.locator(`[data-cal-day="${d}"]`).scrollIntoViewIfNeeded();
@@ -4591,7 +4593,8 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
         };
       }, d);
 
-    const dagar = ["2026-09-05", "2026-09-06", "2026-09-24", "2026-10-01", "2026-10-08", "2026-09-02", "2026-09-09", "2026-10-14", "2026-09-30", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-09", "2026-10-15", "2026-10-04"];
+    // Förebild 7:s dagar, och mätdagarna i november som förebilden inte visar (se scenen).
+    const dagar = ["2026-09-24", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-22", "2026-09-16", "2026-09-23", "2026-10-14", "2026-11-25", "2026-09-30", "2026-10-08", "2026-11-18", "2026-11-19", "2026-10-09", "2026-10-15", "2026-10-04", "2026-11-22"];
     /** @type {Record<string, any>} */
     const m = {};
     for (const d of dagar) {
@@ -4608,7 +4611,7 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
     krav(antalBorta >= 8 && antalLager >= 6, `${namn}: ${antalBorta} borta- och ${antalLager} lagermarkeringar mätta, väntat minst 8 och 6 (golv).`);
 
     if (telefon) {
-      matt.push(`${namn}: 5 sep ${JSON.stringify(m["2026-09-05"] && m["2026-09-05"].brickor.map((/** @type {any} */ b) => ({ id: b.id, w: b.w, ovan: +(m["2026-09-05"].cell.top - b.top).toFixed(2), utanfor: +(b.right - m["2026-09-05"].cell.right).toFixed(2), ikon: b.ikon })))}`);
+      matt.push(`${namn}: 24 sep ${JSON.stringify(m["2026-09-24"] && m["2026-09-24"].brickor.map((/** @type {any} */ b) => ({ id: b.id, w: b.w, ovan: +(m["2026-09-24"].cell.top - b.top).toFixed(2), utanfor: +(b.right - m["2026-09-24"].cell.right).toFixed(2), ikon: b.ikon })))}`);
       krav(rad.length === 0, `${namn}: ${rad.length} radikoner syns under 640 px, väntat inga (där är det SS-appens brickor).`);
 
       // (a)
@@ -4619,7 +4622,7 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
       krav(brickor.every((b) => !genomskinlig(b.bakgrund)), `${namn} (a): en bricka har genomskinlig bakgrund (${[...new Set(brickor.map((b) => b.bakgrund))].join(", ")}), väntat opak yta (SS colors.surface).`);
 
       // (b) ensamma borta-brickor
-      const ensamBorta = ["2026-09-05", "2026-09-06", "2026-09-24", "2026-10-01", "2026-10-08"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1);
+      const ensamBorta = ["2026-09-24", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-22"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1);
       // ⛔ ÖVERHÄNGET ÄR 4 PX (SS) SÅ LÄNGE RUTAN ÄR MINST 36 PX, OCH 40 MINUS RUTANS BREDD UNDER DET; siffrans ruta krymper i
       // stället där den annars hade täckts (granskningen av PR 260: täckt vid 360 och 320). Se `Hornbrickor`.
       const overhang = (/** @type {number} */ w) => Math.max(4, 40 - w);
@@ -4627,14 +4630,14 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
       krav(ensamBorta.length === 5 && bAvvik.every((a) => Math.abs(a.ovan - 4) <= 0.6 && Math.abs(a.utanfor - a.vantat) <= 0.6), `${namn} (b): ensam borta-bricka ${JSON.stringify(bAvvik)} (${ensamBorta.length} av 5), väntat 4 px över och max(4, 40 minus rutans bredd) px utanför (förebild 3: 3,7 och 4 pt).`);
 
       // (c) ensam lagerbricka 4 px högre
-      const ensamLager = ["2026-09-02", "2026-09-09", "2026-10-14", "2026-10-22"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1 && x.brickor[0].id === "lager");
+      const ensamLager = ["2026-09-16", "2026-09-23", "2026-10-14", "2026-11-25"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1 && x.brickor[0].id === "lager");
       const lAvvik = ensamLager.map((x) => ({ ovan: +(x.cell.top - x.brickor[0].top).toFixed(2), utanfor: +(x.brickor[0].right - x.cell.right).toFixed(2), vantat: +overhang(x.cell.w).toFixed(2) }));
       krav(ensamLager.length === 4 && lAvvik.every((a) => Math.abs(a.ovan - 8) <= 0.6 && Math.abs(a.utanfor - a.vantat) <= 0.6), `${namn} (c): ensam lagerbricka ${JSON.stringify(lAvvik)} (${ensamLager.length} av 4), väntat 8 px över (4 högre än borta, SS marginTop:-4 alltid) och samma överhäng som borta.`);
 
       // (d) båda
-      const bada = ["2026-09-30", "2026-10-21"].map((d) => m[d]).filter((x) => x && x.brickor.length === 2);
+      const bada = ["2026-09-30", "2026-10-08", "2026-11-18"].map((d) => m[d]).filter((x) => x && x.brickor.length === 2);
       const dAvvik = bada.map((x) => ({ ordning: x.brickor.map((/** @type {any} */ b) => b.id).join(","), mellan: +(x.brickor[1].top - x.brickor[0].top).toFixed(2), ovan: +(x.cell.top - x.brickor[0].top).toFixed(2) }));
-      krav(bada.length === 2 && dAvvik.every((a) => a.ordning === "borta,lager" && Math.abs(a.mellan - 16) <= 0.6 && Math.abs(a.ovan - 4) <= 0.6), `${namn} (d): båda brickorna ${JSON.stringify(dAvvik)} (${bada.length} av 2), väntat borta överst, 16 px mellan överkanterna och borta 4 px över rutan (SS 20 - 4).`);
+      krav(bada.length === 3 && dAvvik.every((a) => a.ordning === "borta,lager" && Math.abs(a.mellan - 16) <= 0.6 && Math.abs(a.ovan - 4) <= 0.6), `${namn} (d): båda brickorna ${JSON.stringify(dAvvik)} (${bada.length} av 3), väntat borta överst, 16 px mellan överkanterna och borta 4 px över rutan (SS 20 - 4).`);
 
       // (g) räknaren inom cirkeln
       // ⛔ INOM CIRKELNS YTTERKANT, INTE INOM RINGEN. Med SS-mått (ikon 10, mellanrum 1, siffran 8 px) är `9+` 8,5 px brett och
@@ -4644,12 +4647,12 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
       // tre siffror (`100`, 12,5 px) aldrig kan uppstå.
       const raknare = brickor.filter((b) => b.raknare);
       const utanfor = raknare.filter((b) => b.raknare.left < b.left - 0.01 || b.raknare.right > b.right + 0.01 || b.raknare.top < b.top || b.raknare.bottom > b.bottom);
-      const texter = ["2026-10-20", "2026-10-21", "2026-10-22"].map((d) => (m[d] ? m[d].brickor.map((/** @type {any} */ b) => (b.raknare ? b.raknare.text : "")).join("|") : "?"));
+      const texter = ["2026-10-08", "2026-11-18", "2026-11-19", "2026-11-25"].map((d) => (m[d] ? m[d].brickor.map((/** @type {any} */ b) => (b.raknare ? b.raknare.text : "")).join("|") : "?"));
       matt.push(`${namn}: räknarna ${JSON.stringify(raknare.map((b) => ({ text: b.raknare.text, vanster: +(b.raknare.left - b.left).toFixed(2), hoger: +(b.right - b.raknare.right).toFixed(2) })))}`);
       krav(raknare.length >= 4 && utanfor.length === 0, `${namn} (g): ${utanfor.length} av ${raknare.length} räknare går ut ur cirkeln: ${JSON.stringify(utanfor.map((b) => ({ text: b.raknare.text, raknare: [b.raknare.left, b.raknare.right], bricka: [b.left, b.right] })))}, väntat alla inom cirkelns ytterkant (golv 4).`);
-      krav(JSON.stringify(texter) === JSON.stringify(["2", "9+|9+", "2"]), `${namn} (g): räknarna den 20, 21 och 22 oktober är ${JSON.stringify(texter)}, väntat ["2", "9+|9+", "2"].`);
-      const ettor = ["2026-09-05", "2026-10-08", "2026-09-02", "2026-10-14"].map((d) => (m[d] ? m[d].brickor.map((/** @type {any} */ b) => (b.raknare ? b.raknare.text : "")).join("|") : "?"));
-      krav(JSON.stringify(ettor) === JSON.stringify(["", "", "", ""]), `${namn} (g): brickorna med en person eller ett lager (5 och 2 sep, 8 och 14 okt) har räknarna ${JSON.stringify(ettor)}, väntat ingen siffra (SS visar den från 2).`);
+      krav(JSON.stringify(texter) === JSON.stringify(["2|2", "9+|9+", "2", "2"]), `${namn} (g): räknarna den 8 oktober och 18, 19 och 25 november är ${JSON.stringify(texter)}, väntat ["2|2", "9+|9+", "2", "2"] (förebild 7: den 8 oktober UserX 2 och Layers 2).`);
+      const ettor = ["2026-09-24", "2026-10-22", "2026-09-16", "2026-10-14"].map((d) => (m[d] ? m[d].brickor.map((/** @type {any} */ b) => (b.raknare ? b.raknare.text : "")).join("|") : "?"));
+      krav(JSON.stringify(ettor) === JSON.stringify(["", "", "", ""]), `${namn} (g): brickorna med en person eller ett lager (24 och 16 sep, 22 och 14 okt) har räknarna ${JSON.stringify(ettor)}, väntat ingen siffra (SS visar den från 2).`);
 
       // (h) siffran till vänster
       // ⛔ (h) MÄTER SS-GEOMETRIN OCH INTE FÖREBILDENS 5,8 PT. Hur långt siffran står från mitten beror på rutans bredd: i förebilden
@@ -4666,8 +4669,8 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
       if (vp.width === 393) krav(bredd.every((w) => Math.abs(w - 28) <= 0.6) && bAvvik.every((a) => Math.abs(a.utanfor - 4) <= 0.6), `${namn} (h): vid 393 (förebildens bredd) ska allt vara SS rakt av, siffrans ruta 28 px och överhänget 4 px; mätt ${JSON.stringify([...new Set(bredd)])} och ${JSON.stringify(bAvvik.map((a) => a.utanfor))}.`);
 
       // (l) brickan i söndagskolumnen sticker ut över rutnätets kant och klipps inte (förebild 7, den 4 oktober)
-      const klipp = ["2026-09-06", "2026-10-04"].map((d) => (m[d] ? m[d].klippt : "?"));
-      krav(klipp.every((k) => k === 0), `${namn} (l): brickan i söndagskolumnen (6 sep, 4 okt) klipps ${JSON.stringify(klipp)} px av en förälder, väntat 0 (förebild 7: den sticker ut och syns hel).`);
+      const klipp = ["2026-10-04", "2026-11-22"].map((d) => (m[d] ? m[d].klippt : "?"));
+      krav(klipp.every((k) => k === 0), `${namn} (l): brickan i söndagskolumnen (4 okt, 22 nov) klipps ${JSON.stringify(klipp)} px av en förälder, väntat 0 (förebild 7: den sticker ut och syns hel).`);
 
       // (m) det som varit tonas med brickan och ramen, som SS-appens opacity 0,5 på hela cellen (förebild 7: den 24 september)
       const tack = { forbiBricka: m["2026-09-24"] && m["2026-09-24"].tackning.bricka, forbiRam: m["2026-09-30"] && m["2026-09-30"].tackning.ram, kommandeBricka: m["2026-10-08"] && m["2026-10-08"].tackning.bricka, kommandeRam: m["2026-10-14"] && m["2026-10-14"].tackning.ram };
@@ -4679,14 +4682,14 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
       const fel = rad.filter((b) => Math.abs(b.ikon.w - 14) > 0.5 || Math.abs(b.top - b.nummer.top) > 2 || Math.abs((b.top + b.bottom) / 2 - (b.nummer.top + b.nummer.bottom) / 2) > 2 || b.left < b.glyf.right || b.right > b.cell.right);
       matt.push(`${namn}: raden ${JSON.stringify(rad.slice(0, 3).map((b) => ({ id: b.id, ikon: b.ikon.w, toppMotSiffran: +(b.top - b.nummer.top).toFixed(2), efterSiffran: +(b.left - b.glyf.right).toFixed(2), fore: +(b.cell.right - b.right).toFixed(2) })))}`);
       krav(fel.length === 0, `${namn} (k): ${fel.length} av ${rad.length} radikoner står fel: ${JSON.stringify(fel.slice(0, 3).map((b) => ({ id: b.id, ikon: b.ikon.w, topp: b.top, siffransTopp: b.nummer.top, vanster: b.left, siffranSlutar: b.glyf.right })))}, väntat 14 px i siffrans rad (inom 2 px), till höger om den och inom rutan (SS MonthGrid.jsx:470).`);
-      const ordning = ["2026-09-30", "2026-10-21"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.id).join(",") : "?"));
-      const texter = ["2026-10-20", "2026-10-21", "2026-10-22"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
-      krav(JSON.stringify(ordning) === JSON.stringify(["borta,lager", "borta,lager"]) && JSON.stringify(texter) === JSON.stringify(["2", "12|12", "2"]), `${namn} (k): ordningen ${JSON.stringify(ordning)} och räknarna ${JSON.stringify(texter)}, väntat borta före lager och 2, 12|12, 2 (SS webb skriver siffran som den är).`);
-      const ettorRad = ["2026-10-08", "2026-10-14"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
-      krav(JSON.stringify(ettorRad) === JSON.stringify(["", ""]), `${namn} (k): raden den 8 oktober (en borta) och 14 oktober (ett lager) har räknarna ${JSON.stringify(ettorRad)}, väntat ingen siffra (SS webb blockedMembers.length > 1).`);
+      const ordning = ["2026-09-30", "2026-10-08", "2026-11-18"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.id).join(",") : "?"));
+      const texter = ["2026-10-08", "2026-11-18", "2026-11-19", "2026-11-25"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
+      krav(JSON.stringify(ordning) === JSON.stringify(["borta,lager", "borta,lager", "borta,lager"]) && JSON.stringify(texter) === JSON.stringify(["2|2", "12|12", "2", "2"]), `${namn} (k): ordningen ${JSON.stringify(ordning)} och räknarna ${JSON.stringify(texter)}, väntat borta före lager och 2|2, 12|12, 2, 2 (SS webb skriver siffran som den är).`);
+      const ettorRad = ["2026-10-22", "2026-10-14"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
+      krav(JSON.stringify(ettorRad) === JSON.stringify(["", ""]), `${namn} (k): raden den 22 oktober (en borta) och 14 oktober (ett lager) har räknarna ${JSON.stringify(ettorRad)}, väntat ingen siffra (SS webb blockedMembers.length > 1).`);
       const n15 = m["2026-10-15"] && m["2026-10-15"].narvaro;
-      const n05 = m["2026-09-05"] && m["2026-09-05"].narvaro;
-      krav(!!n15 && n15.text === "14/14" && Math.abs(n15.top - m["2026-10-15"].nummer.top) <= 3 && n15.left > m["2026-10-15"].glyf.right && !n05, `${namn} (k): N/N den 15 oktober ${JSON.stringify(n15)}, den 5 september ${JSON.stringify(n05)}, väntat "14/14" i siffrans rad på en dag utan borta och inget på en dag med borta (SS MonthGrid.jsx:529).`);
+      const n05 = m["2026-09-24"] && m["2026-09-24"].narvaro;
+      krav(!!n15 && n15.text === "14/14" && Math.abs(n15.top - m["2026-10-15"].nummer.top) <= 3 && n15.left > m["2026-10-15"].glyf.right && !n05, `${namn} (k): N/N den 15 oktober ${JSON.stringify(n15)}, den 24 september ${JSON.stringify(n05)}, väntat "14/14" i siffrans rad på en dag utan borta och inget på en dag med borta (SS MonthGrid.jsx:529).`);
     }
 
     // (e) ingen markering skär siffran
@@ -4741,7 +4744,8 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
 // Montagebilden (regel 12): 393 px i skala 3, alltså samma bredd och upplösning som förebild 3 (1179 x 2556), med september 2026
 // överst och tillgänglighet och lager på.
 if (bildmapp) {
-  const { page, context } = await oppna("kalender-tillganglighet", { width: 393, height: 852 }, standardtema, 3);
+  // Förebild 3:s data (scenen `kalender-tillganglighet-3`), så att montaget jämför samma läge.
+  const { page, context } = await oppna("kalender-tillganglighet-3", { width: 393, height: 852 }, standardtema, 3);
   await page.waitForSelector('[data-cal-day="2026-09-05"]', { timeout: 4000 }).catch(() => {});
   await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); const h = [...(r ? r.querySelectorAll("h3") : [])].find((x) => /september 2026/i.test(x.textContent || "")); if (r && h) r.scrollTop = /** @type {HTMLElement} */ (h.parentElement).offsetTop - /** @type {HTMLElement} */ (r.firstElementChild).offsetHeight; });
   await page.waitForTimeout(300);
