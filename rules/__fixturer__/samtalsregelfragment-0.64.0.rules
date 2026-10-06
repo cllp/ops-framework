@@ -1,0 +1,84 @@
+    // ══ Ramverkets samtal (0.34.0). GENERERAD, ändra inte för hand ══
+    //
+    // Källa: @staiger/ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+    function opsMedlemskapFor(uid, gid) {
+      return /databases/$(database)/documents/memberships/$(uid + '|' + gid);
+    }
+
+    // Aktiv medlem av en viss typ (person eller agent). exists före get, samma skäl som opsHarMedlemskap.
+    function opsArAktivTyp(uid, gid, typ) {
+      return exists(opsMedlemskapFor(uid, gid))
+        && get(opsMedlemskapFor(uid, gid)).data.status == 'aktiv'
+        && get(opsMedlemskapFor(uid, gid)).data.typ == typ;
+    }
+
+    // Får den inloggade läsa samtalet s (dess data)?
+    function opsFarLasaSamtal(s) {
+      return opsArMedlem(s.groupId) && (s.slag == 'grupp' || request.auth.uid in s.deltagare);
+    }
+
+    function opsSamtalet(sid) {
+      return /databases/$(database)/documents/samtal/$(sid);
+    }
+
+    function opsISamtal(sid) {
+      return opsInloggad() && exists(opsSamtalet(sid)) && opsFarLasaSamtal(get(opsSamtalet(sid)).data);
+    }
+
+    // En tid i millisekunder nära serverns klocka.
+    function opsNu(t) {
+      return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
+    }
+
+    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+    function opsNyttSamtal(sid, d) {
+      return opsInloggad()
+        && d.skapadAv == request.auth.uid
+        && d.groupId is string
+        && opsNu(d.skapad)
+        && opsArAktivTyp(request.auth.uid, d.groupId, 'person')
+        && (
+          (d.slag == 'grupp'
+            && d.keys().hasOnly(["groupId", "slag", "skapad", "skapadAv"])
+            && sid == d.groupId + '|grupp')
+          || ((d.slag == 'personer' || d.slag == 'agent')
+            && d.keys().hasOnly(["groupId", "slag", "deltagare", "skapad", "skapadAv"])
+            && d.deltagare is list && d.deltagare.size() == 2
+            && d.deltagare[0] is string && d.deltagare[1] is string
+            && d.deltagare[0] < d.deltagare[1]
+            && !d.deltagare[0].matches('.*[|].*') && !d.deltagare[1].matches('.*[|].*')
+            && request.auth.uid in d.deltagare
+            && sid == d.groupId + '|' + d.deltagare[0] + '|' + d.deltagare[1]
+            && (d.slag == 'personer'
+              ? opsArAktivTyp(d.deltagare[0], d.groupId, 'person') && opsArAktivTyp(d.deltagare[1], d.groupId, 'person')
+              : opsArAktivTyp(d.deltagare[0], d.groupId, 'agent') || opsArAktivTyp(d.deltagare[1], d.groupId, 'agent')))
+        );
+    }
+
+    match /samtal/{sid} {
+      allow read: if opsInloggad() && opsFarLasaSamtal(resource.data);
+      allow create: if opsNyttSamtal(sid, request.resource.data);
+      allow update, delete: if false;
+
+      match /meddelanden/{mid} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && request.resource.data.keys().hasOnly(["text", "av", "tid"])
+          && request.resource.data.av == request.auth.uid
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && opsNu(request.resource.data.tid);
+        allow update, delete: if false;
+      }
+
+      match /last/{uid} {
+        allow read: if request.auth != null && request.auth.uid == uid && opsISamtal(sid);
+        allow create, update: if request.auth != null && request.auth.uid == uid && opsISamtal(sid)
+          && request.resource.data.keys().hasOnly(["lastTill"])
+          && request.resource.data.lastTill is int;
+        allow delete: if false;
+      }
+    }

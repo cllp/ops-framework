@@ -23,30 +23,32 @@ import { byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, s
  * @param {string} [konfig.samtal] Förval `"samtal"`.
  * @param {string} [konfig.meddelanden] Förval `"meddelanden"`.
  * @param {string} [konfig.last] Förval `"last"`.
- * @param {string} [konfig.tradar] (0.66.0) Förval `"tradar"`. Trådarna ligger under gruppchatten, och trådens meddelanden
- *   under tråden med samma namn som samtalets (`meddelanden`), eftersom de har samma form och samma regel.
+ * @param {string} [konfig.tradar] (0.66.0) Trådarnas samlingsnamn. ⛔ INGET FÖRVAL: utan det har källan inga trådfunktioner,
+ *   och `OpsMeddelanden` ritar inga trådar. Appen slår på trådarna genom att skicka samma namn som till
+ *   `samtalsregelfragment({ tradar })`. Trådens meddelanden ligger under tråden med samma namn som samtalets (`meddelanden`),
+ *   eftersom de har samma form och samma regel.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar = "tradar", sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, tradar })) {
+  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...(tradar === undefined ? {} : { tradar }) })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
     }
+  }
+  // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
+  if (tradar !== undefined && (tradar === meddelanden || tradar === last)) {
+    throw new Error(`createSamtalskalla: tradar "${tradar}" krockar med ${tradar === meddelanden ? "meddelanden" : "last"}.`);
   }
 
   /** @param {string} sid */
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
   /** @param {string} sid */
   const lastvag = (sid) => `${samtal}/${sid}/${last}`;
-  /** @param {string} sid */
-  const tradvag = (sid) => `${samtal}/${sid}/${tradar}`;
-  /** @param {string} sid @param {string} tid */
-  const tradmeddelandevag = (sid, tid) => `${tradvag(sid)}/${tid}/${meddelanden}`;
 
   /**
    * Gruppchatten och mina privata samtal i en grupp.
@@ -190,15 +192,24 @@ export function createSamtalskalla(konfig) {
   /*
    * ══ ⛔ TRÅDARNA (0.66.0, cllp/lifehub.app#60) ═══════════════════════════════════════════════════════════════════
    *
-   * Modellen och skälen står i `lib/samtal.js`. Här: hur källan läser och skriver dem.
+   * Modellen och skälen står i `lib/samtal.js`. Här: hur källan läser och skriver dem. Bara när appen skickat `tradar`.
    *
    * ⛔ EN TRÅD SKAPAS FÖRST NÄR DET FÖRSTA SVARET SKICKAS (`skickaITrad`), inte när någon öppnar den. "Svara i tråd" som
    * ångras lämnar då ingen tom tråd efter sig, och märket under meddelandet ljuger aldrig om ett svar som inte finns.
    *
-   * ⛔ ANTALET RÄKNAS, DET LAGRAS INTE. En räknare på tråden hade varit en andra sanning om meddelandena och en skrivning
-   * per svar som kan misslyckas för sig (samma skäl som `senast` på samtalet, filhuvudet i `lib/samtal.js`). Räkningen
-   * läser högst `sida` meddelanden per tråd, och bara för trådar vars rotmeddelande syns (`rotter`).
+   * ⛔ LÄSNINGARNA ÄR RÄKNADE (granskningen av PR 268, BÖR 4). Första versionen läste alla trådar i samtalet och 50 meddelanden
+   * per tråd, vid varje nytt meddelande. Nu:
+   *   - `tradarFor(sid, rotter)` läser en tråd per rot, och bara de rötter vyn ber om: vyn frågar bara om nya rötter.
+   *     Kontraktet har ingen `in`-fråga, och en per rot kräver ingen ny form i varje adapter (regel 13);
+   *   - `antalSvar` är en aggregatfråga (`count`) där källan kan, och annars en lista med `sida` som tak (minneskällan);
+   *   - märkets namn kräver inga meddelanden: det är trådens `namn`, eller rotmeddelandet som redan står i chatten.
+   * Antalet svar räknas fram och lagras inte: en räknare på tråden hade varit en andra sanning om meddelandena.
    */
+
+  /** @param {string} sid */
+  const tradvag = (sid) => `${samtal}/${sid}/${tradar}`;
+  /** @param {string} sid @param {string} tid */
+  const tradmeddelandevag = (sid, tid) => `${tradvag(sid)}/${tid}/${meddelanden}`;
 
   /**
    * En tråd, eller `null` om den inte finns än.
@@ -210,10 +221,13 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
-   * Öppnar tråden ur rotmeddelandet `rot`: den befintliga, eller en ny. Högst en per meddelande, ur nyckeln.
+   * Öppnar tråden ur rotmeddelandet `rot`: den befintliga, eller en ny. Högst en per meddelande.
    *
-   * ⛔ LÄS FÖRST ÄR EN BESPARING, INTE UNIKHETEN, samma skäl som `oppnaPrivat`. Kontraktets `create` med eget id ersätter, men
-   * regeln nekar en andra skapelse (den är en uppdatering som rör mer än namnet), och då läses den befintliga.
+   * ⛔ UNIKHETEN BÄRS AV REGELN, INTE AV DEN HÄR FUNKTIONEN (KAN 8). Nyckeln är rotens id, och regeln nekar en andra skapelse:
+   * kontraktets `create` med eget id ersätter (som `setDoc`), och en ersättning är en uppdatering som rör mer än `namn`. Läsningen
+   * först är en besparing, och läsningen efter ett nej ger den befintliga. ⛔ I EN KÄLLA UTAN REGLER (minneskällan, ett prov)
+   * finns ingen sådan spärr: två som öppnar samma tråd i samma ögonblick, båda före den andras skrivning, skriver båda, och den
+   * sista skaparen står kvar. Svaren går inte förlorade, de ligger under samma nyckel; bara `skapadAv` kan bli den andras.
    *
    * @param {{ sid: string, rot: string, uid: string }} d
    * @returns {Promise<import("../lib/samtal.js").Trad>}
@@ -235,22 +249,26 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
-   * Trådarna i ett samtal, var och en med antal svar och sina första meddelanden (för namnet).
+   * De trådar som finns bland rötterna, en läsning per rot. Rötter utan tråd ger ingen rad.
    *
-   * @param {string} sid
-   * @param {{ rotter?: ReadonlyArray<string> }} [val] Bara trådarna ur de här rotmeddelandena: de som syns.
-   * @returns {Promise<Array<import("../lib/samtal.js").Trad & { antal: number, fler: boolean, forsta: Array<import("../lib/samtal.js").Meddelande & { id: string }> }>>}
+   * @param {string} sid @param {ReadonlyArray<string>} rotter
+   * @returns {Promise<Array<import("../lib/samtal.js").Trad>>}
    */
-  async function listaTradar(sid, val = {}) {
-    const alla = /** @type {any[]} */ (await kalla.list(tradvag(sid)));
-    const synliga = val.rotter ? new Set(val.rotter) : null;
-    const urval = synliga ? alla.filter((t) => synliga.has(t.id)) : alla;
-    return Promise.all(
-      urval.map(async (t) => {
-        const ms = /** @type {any[]} */ (await kalla.list(tradmeddelandevag(sid, t.id), { sortBy: "tid", direction: "asc", limit: sida }));
-        return { ...t, antal: ms.length, fler: ms.length >= sida, forsta: ms.slice(0, 3) };
-      }),
-    );
+  async function tradarFor(sid, rotter) {
+    if (!Array.isArray(rotter)) throw new Error("samtalskalla.tradarFor: rotter krävs, de meddelanden vars trådar ska läsas. Hela samtalet läses aldrig.");
+    const rader = await Promise.all(rotter.map((r) => trad(sid, r)));
+    return /** @type {any} */ (rader.filter(Boolean));
+  }
+
+  /**
+   * Antalet svar i en tråd. `fler` när källan saknar `count` och taket `sida` nåddes.
+   * @param {string} sid @param {string} tid
+   * @returns {Promise<{ antal: number, fler: boolean }>}
+   */
+  async function antalSvar(sid, tid) {
+    if (typeof kalla.count === "function") return { antal: await kalla.count(tradmeddelandevag(sid, tid)), fler: false };
+    const ms = await kalla.list(tradmeddelandevag(sid, tid), { limit: sida });
+    return { antal: ms.length, fler: ms.length >= sida };
   }
 
   /**
@@ -306,6 +324,8 @@ export function createSamtalskalla(konfig) {
     return /** @type {any} */ (await kalla.read(meddelandevag(sid), tid));
   }
 
+  const tradfunktioner = tradar === undefined ? {} : { tradar, trad, oppnaTrad, tradarFor, antalSvar, tradmeddelanden, prenumereraTrad, skickaITrad, dopOm, rotmeddelande };
+
   return Object.freeze({
     lista,
     oppnaGrupp,
@@ -317,15 +337,36 @@ export function createSamtalskalla(konfig) {
     markeraLast,
     oversikt,
     sida,
-    trad,
-    oppnaTrad,
-    tradar: listaTradar,
-    tradmeddelanden,
-    prenumereraTrad,
-    skickaITrad,
-    dopOm,
-    rotmeddelande,
+    ...tradfunktioner,
   });
+}
+
+/**
+ * @typedef {object} Tradfunktioner (0.66.0) Det en samtalskälla har när appen skickat `tradar`.
+ * @property {string} tradar
+ * @property {(sid: string, tid: string) => Promise<import("../lib/samtal.js").Trad | null>} trad
+ * @property {(d: { sid: string, rot: string, uid: string }) => Promise<import("../lib/samtal.js").Trad>} oppnaTrad
+ * @property {(sid: string, rotter: ReadonlyArray<string>) => Promise<Array<import("../lib/samtal.js").Trad>>} tradarFor
+ * @property {(sid: string, tid: string) => Promise<{ antal: number, fler: boolean }>} antalSvar
+ * @property {(sid: string, tid: string) => Promise<Array<import("../lib/samtal.js").Meddelande & { id: string }>>} tradmeddelanden
+ * @property {(sid: string, tid: string, lyssnare: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraTrad
+ * @property {(sid: string, tid: string, d: { text: string, av: string }) => Promise<any>} skickaITrad
+ * @property {(sid: string, tid: string, namn: string | null) => Promise<any>} dopOm
+ * @property {(sid: string, tid: string) => Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>} rotmeddelande
+ */
+
+/**
+ * Har källan trådar, alltså har appen slagit på dem med `tradar`? (0.66.0, granskningen av PR 268, BÖR 2.)
+ *
+ * ⛔ EN FRÅGA, ETT STÄLLE. Vyn ritar "Svara i tråd" och märkena bara när svaret är ja, så att en app som inte bett om trådar
+ * aldrig får en knapp som skriver till en samling dess regler inte släpper in.
+ *
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Tradfunktioner}
+ */
+export function harTradar(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).oppnaTrad) === "function";
 }
 
 /**

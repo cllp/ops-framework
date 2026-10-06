@@ -199,6 +199,20 @@ export function createFirestoreSource(config) {
     },
 
     /*
+     * ⛔ `count` FINNS BARA OM SDK:N HAR `getCountFromServer` (0.66.0, frivillig som `batch`). En aggregatfråga kostar en läsning
+     * per tusen poster i stället för en per post, och det är den trådarnas märken räknar med (granskningen av PR 268, BÖR 4).
+     */
+    ...(typeof sdk.getCountFromServer === "function"
+      ? {
+          /** @param {string} collectionName @param {import("./contract.js").Query} [q] */
+          async count(collectionName, q) {
+            const snap = await sdk.getCountFromServer(build(collectionName, q));
+            return snap.data().count;
+          },
+        }
+      : {}),
+
+    /*
      * ⛔ `batch` FINNS BARA OM SDK:N HAR `writeBatch` (kontraktets regel 6: frivillig, allt eller inget).
      * Den läggs INTE till som en tyst slinga över de enskilda skrivningarna när den saknas: en batch
      * som inte är atomär är en `create` följt av en `create` med ett vackrare namn. Saknas

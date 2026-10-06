@@ -3182,8 +3182,10 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 // ══ 29e. TRÅDAR I GRUPPCHATTEN VID 390 OCH 1280 PX (0.66.0, cllp/lifehub.app#60) ═══════════════════════════════════════════
 // CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är med i
 // tråden för alla." Tråden öppnas i högerpanelen i stället för chatten. Krav:
-//   - i gruppchatten bär meddelandet med en tråd ett märke med antal och namn ("3 svar · ..."), och minst ett annat meddelande
-//     "Svara i tråd"; märket och knappen är minst 28 px höga och ryms i loggens bredd;
+//   - i gruppchatten bär meddelandet med en tråd ett märke med antalet ("3 svar"; namnet bara när en person döpt om tråden,
+//     annars upprepar det roten som står ovanför, granskningen av PR 268, KAN 9), och minst ett annat meddelande "Svara i
+//     tråd"; båda har 44 px träffyta (KAN 6) och ryms i loggens bredd;
+//   - vid 1280 syns "Svara i tråd" först när pekaren är på meddelandet (KAN 9), märket alltid; vid 390 syns båda;
 //   - ett tryck på märket öppnar tråden (`[data-ops-trad]`) i högerpanelen: raden tillbaka till gruppchatten överst, trådens namn
 //     som rubrik, raden "Alla i gruppen ser tråden", rotmeddelandet före svaren, minst 3 svarsbubblor, och skrivfältet längst ned
 //     i panelen och inom fönstret ovanför bottenraden;
@@ -3204,14 +3206,29 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     const chatt = await page.evaluate(() => {
       const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
       const logg = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="grupp"] [role=log]'));
-      const marken = [...logg.querySelectorAll("[data-tradmarke]")].map((m) => ({ slag: m.getAttribute("data-tradmarke"), text: (m.textContent || "").trim(), h: b(m).height, inom: b(m).right <= b(logg).right + 0.5 && b(m).left >= b(logg).left - 0.5 }));
+      const marken = [...logg.querySelectorAll("[data-tradmarke]")].map((m) => ({ slag: m.getAttribute("data-tradmarke"), text: (m.textContent || "").trim(), h: b(m).height, opacitet: getComputedStyle(m).opacity, inom: b(m).right <= b(logg).right + 0.5 && b(m).left >= b(logg).left - 0.5 }));
       return { marken };
     });
     matt.push(`${namn}, gruppchatten: ${JSON.stringify(chatt)}`);
     const finns = chatt.marken.filter((m) => m.slag === "finns");
-    krav(finns.length === 1 && /^3 svar · /.test(finns[0].text), `${namn}: väntat ett märke "3 svar · <namn>" på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`);
+    krav(finns.length === 1 && finns[0].text === "3 svar", `${namn}: väntat ett märke "3 svar" (utan rotens text) på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`);
     krav(chatt.marken.some((m) => m.slag === "ny" && m.text === "Svara i tråd"), `${namn}: inget meddelande bär "Svara i tråd".`);
-    krav(chatt.marken.length >= 2 && chatt.marken.every((m) => m.h >= 27.5 && m.inom), `${namn}: märkena ska vara minst 28 px höga och rymmas i loggen (${JSON.stringify(chatt.marken)}). Golv: minst 2.`);
+    krav(chatt.marken.length >= 2 && chatt.marken.every((m) => m.h >= 43.5 && m.inom), `${namn}: märkena ska ha 44 px träffyta och rymmas i loggen (${JSON.stringify(chatt.marken)}). Golv: minst 2.`);
+    krav(finns.every((m) => m.opacitet === "1"), `${namn}: märket ska alltid synas (${JSON.stringify(finns.map((m) => m.opacitet))}).`);
+    const nya = chatt.marken.filter((m) => m.slag === "ny");
+    if (vp.width >= 1024) {
+      krav(nya.every((m) => m.opacitet === "0"), `${namn}: "Svara i tråd" ska vara dolt tills pekaren är på meddelandet (${JSON.stringify(nya.map((m) => m.opacitet))}).`);
+      await page.locator('[data-ops-samtal="grupp"] [data-meddelande]').filter({ has: page.locator('[data-tradmarke="ny"]') }).first().hover();
+      await page.waitForTimeout(250);
+      const efterHover = await page.evaluate(() => {
+        const rad = [...document.querySelectorAll('[data-ops-samtal="grupp"] [data-meddelande]')].find((r) => r.matches(":hover"));
+        const k = rad?.querySelector('[data-tradmarke="ny"]');
+        return k ? getComputedStyle(k).opacity : null;
+      });
+      krav(efterHover === "1", `${namn}: "Svara i tråd" ska synas när pekaren är på meddelandet (opacitet ${efterHover}).`);
+    } else {
+      krav(nya.every((m) => m.opacitet === "1"), `${namn}: på telefon finns ingen hover, och "Svara i tråd" ska synas (${JSON.stringify(nya.map((m) => m.opacitet))}).`);
+    }
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gruppchatt-tradmarke-${vp.width}.png`) });
 
     await page.locator('[data-tradmarke="finns"]').click();

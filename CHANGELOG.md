@@ -21,22 +21,29 @@ Första versionen byggdes i appen (lifehub.app PR 65), med datamodell och regler
 
 #### Tillagt
 
+Trådarna är **frivilliga**: allt nedan gäller bara en app som skickar `tradar`. Ramverket känner inget samlingsnamn själv, så `tradar` har inget förval (granskningen av PR 268, BÖR 1).
+
 - **Modellen i `lib/samtal.js`:** `<samtal>/{sid}/<tradar>/{tid}` med `{ skapad, skapadAv, namn? }`, där `tid` ÄR rotmeddelandets id (inget `rot`-fält, inget `groupId`: samtalet bär gruppen). `TRADFALT`, `MAX_TRADNAMN`, `byggTrad`, `kravTradnamn`.
 - **Namnet är en regel, inget modellanrop:** `rensaForNamn`, `autonamn`, `tradensNamn`, `AUTONAMN_LANGD`, `AUTONAMN_MINST`, `NAMNLOS_TRAD`. Rotmeddelandet är frågan, så regeln ger ett begripligt namn direkt och kostar ingen kvot; ett lagrat automatiskt namn hade varit en andra sanning om rotmeddelandet. `namn` på tråden betyder bara att en person döpt om den. `autonamn` och `tradensNamn` finns också i `/node`, så att appens agent kallar tråden samma sak som vyn.
-- **`samtalsregelfragment({ tradar? })`:** trådar bara i gruppchatten; läsa som gruppchatten; en aktiv person startar en tråd ur ett meddelande som finns, som sig själv; en uppdatering rör bara `namn`; trådens meddelanden har samtalets krav och skrivs aldrig av en klient som agent; ingen radering. Regelprov med mutationstabell i `rules/__tests__/tradar.test.mjs`.
-- **`createSamtalskalla({ tradar? })`:** `trad`, `oppnaTrad`, `tradar(sid, { rotter })`, `tradmeddelanden`, `prenumereraTrad`, `skickaITrad`, `dopOm`, `rotmeddelande`. En tråd skapas med det första svaret, så ett "Svara i tråd" som ångras lämnar ingen tom tråd. Antalet svar räknas, det lagras inte.
-- **`OpsMeddelanden`:** "Svara i tråd" under varje meddelande i gruppchatten, eller ett märke "3 svar · <namn>" när tråden finns. Tråden öppnas i högerpanelen (`OpsTrad`) med en rad tillbaka till gruppchatten, namnet med Döp om, rotmeddelandet, svaren och samma skrivfält, och listan står kvar till vänster på dator. Nya props `valtTrad` och `onValjTrad`. På telefon ersätter trådens rad tillbaka den vanliga "Tillbaka", så att två rader tillbaka till två olika ställen aldrig står ovanför varandra.
-- **`check-skalyta` avsnitt 29 (e):** märket och "Svara i tråd" i gruppchatten, tråden i högerpanelen vid 390 och 1280 px, listan kvar vid 1280.
+- **`samtalsregelfragment({ tradar })`:** trådar bara i gruppchatten; läsa som gruppchatten; en aktiv person startar en tråd ur ett meddelande som finns, som sig själv; en uppdatering rör bara `namn`; trådens meddelanden har samtalets krav och skrivs aldrig av en klient som agent; ingen radering. Ett `tradar` som krockar med `meddelanden` eller `last` kastar. Regelprov med mutationstabell i `rules/__tests__/tradar.test.mjs`.
+- **`createSamtalskalla({ tradar })` och `harTradar(kalla)`:** `trad`, `oppnaTrad`, `tradarFor(sid, rotter)`, `antalSvar`, `tradmeddelanden`, `prenumereraTrad`, `skickaITrad`, `dopOm`, `rotmeddelande`, bara när `tradar` skickats. En tråd skapas med det första svaret, så ett "Svara i tråd" som ångras lämnar ingen tom tråd. Antalet svar räknas, det lagras inte.
+- **Datakontraktets frivilliga `count(samling, fråga?)`:** en aggregatfråga utan att läsa raderna. `createFirestoreSource` har den när SDK:n har `getCountFromServer`; minneskällan har den inte, och då räknar källan en lista med `sida` som tak.
+- **`OpsMeddelanden` och `OpsTrad`, när källan har trådar:** "Svara i tråd" under varje meddelande i gruppchatten (44 px träffyta, på dator synlig vid hover och fokus, på telefon alltid, eftersom telefonen saknar hover och en meny vore ett steg till), eller ett märke "3 svar" när tråden finns, med namnet bara när en person döpt om tråden. Tråden öppnas i högerpanelen med en rad tillbaka till gruppchatten, namnet med Döp om (Escape avbryter, fokus stannar i rubriken), rotmeddelandet, svaren och samma skrivfält; fokus går tillbaka till märket när tråden stängs. Listan står kvar till vänster på dator. Agentens svar bär agentens ikon. Nya props `valtTrad` och `onValjTrad`.
+- **Märkenas läsningar** (BÖR 4, mätt med 50 meddelanden och 20 trådar med 3 svar var, med en källa som räknar som Firestore fakturerar): att öppna chatten 70 läsningar för trådarna (förut 80, och förut växte det med antalet svar: med 50 svar per tråd hade det varit 20 + 20 × 50 = 1 020, räknat och inte mätt; nu är det 70 oavsett antal svar), ett nytt meddelande 1 (förut 77), tillbaka från en tråd 0 (förut 77). Ett svar från någon annan når märket när fönstret får fokus (30 läsningar); förut nådde det inte märket alls förrän chatten lästes om.
+- **`check-skalyta` avsnitt 29 (e):** märket och "Svara i tråd" i gruppchatten med 44 px träffyta och hover på dator, tråden i högerpanelen vid 390 och 1280 px, listan kvar vid 1280.
 
 #### Medvetet utelämnat (regel 13)
 
 - **Inget läsmärke per tråd.** Det hade varit en samling till, en läsning till per tråd och en regel till, för ett behov ingen har sett än. Trådens olästa räknas inte; märket visar antal svar.
 - **Ingen notis för trådsvar**, utom det som redan gäller när agenten nämns.
 - **Inget gruppminne.** "Lyft till minnet" väntar på CP:s beslut om var minnet ska bo.
+- **Ingen `in`-fråga i datakontraktet.** Märkena läser en tråd per ny rot i stället; en ny frågeform hade krävt en ändring i varje adapter.
 
 #### Ompinning till 0.66.0
 
-Ingen brytande ändring för en app som inte skickar `tradar`: fragmentet får ett nytt `match /tradar/{tid}` under samtalen, med förvalt namn. En app som har trådregler i ett eget block ska ta bort det, eftersom två `match` på samma väg läggs ihop med ELLER. Klienten läser trådarna först när reglerna är deployade.
+**Utan `tradar` ändras ingenting.** `samtalsregelfragment()` ger samma text som i 0.64.0, byte för byte, `createSamtalskalla` har samma funktioner som förut, och `OpsMeddelanden` ritar varken knappen, märkena eller trådvyn. En ompinning utan `tradar` kräver alltså ingen regeldeploy och ändrar ingenting för användaren.
+
+**Med `tradar`** finns en ordning, och den är inte förhandlingsbar: reglerna med `samtalsregelfragment({ tradar })` deployas FÖRE den klient som skickar `tradar` till `createSamtalskalla`, eftersom det är den klienten som visar "Svara i tråd". En klient som visar knappen mot regler som inte känner trådarna får "Missing or insufficient permissions" vid första svaret. En app som har trådregler i ett eget block ska ta bort det, eftersom två `match` på samma väg läggs ihop med ELLER.
 
 ---
 

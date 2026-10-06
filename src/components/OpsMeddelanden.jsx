@@ -4,6 +4,7 @@ import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { MAX_MEDDELANDE, MAX_TRADNAMN, delaSamtalsnyckel, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
+import { harTradar } from "../data/samtalskalla.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
@@ -106,6 +107,8 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {string} [avbryt] (0.66.0) Förval "Avbryt".
  * @property {string} [automatisktNamn] (0.66.0) Förval "Använd det automatiska namnet".
  * @property {string} [rotSaknas] (0.66.0) När meddelandet tråden startades ur inte går att läsa. Förval "Meddelandet tråden startades ur går inte att läsa.".
+ * @property {string} [tradarFel] (0.66.0) En diskret rad när trådarnas märken inte kunde läsas. Förval "Trådarna kunde inte hämtas.".
+ * @property {string} [svarPa] (0.66.0) Förled för skärmläsaren: vems meddelande "Svara i tråd" gäller. Förval "Meddelande från".
  */
 
 /** @type {Required<Meddelandetexter>} */
@@ -148,6 +151,8 @@ const TEXTER = {
   avbryt: "Avbryt",
   automatisktNamn: "Använd det automatiska namnet",
   rotSaknas: "Meddelandet tråden startades ur går inte att läsa.",
+  tradarFel: "Trådarna kunde inte hämtas.",
+  svarPa: "Meddelande från",
 };
 
 /**
@@ -274,11 +279,28 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   useEffect(() => {
     if (valtTrad === undefined) setEgenTrad(null);
   }, [valdId, valtTrad]);
-  const tradId = vald?.samtal.slag === "grupp" ? (valtTrad !== undefined ? valtTrad : egenTrad) : null;
+  // ⛔ TRÅDAR BARA NÄR KÄLLAN HAR DEM (BÖR 2): en app som inte skickat `tradar` får varken knapp, märke eller trådvy.
+  const medTradar = harTradar(kalla);
+  const tradId = medTradar && vald?.samtal.slag === "grupp" ? (valtTrad !== undefined ? valtTrad : egenTrad) : null;
+  /*
+   * ⛔ MÄRKENA LIGGER KVAR NÄR TRÅDEN ÖPPNAS OCH STÄNGS (BÖR 4). Chatten monteras om när man går tillbaka från en tråd, och utan
+   * ett minne utanför den hade varje återkomst läst alla rötter igen. Minnet är per samtal; ett svar eller en omdöpning i tråden
+   * ändrar bara sin egen rad.
+   */
+  const tradminne = useRef(/** @type {Map<string, Map<string, Tradrad>>} */ (new Map()));
+  // Fokus tillbaka till märket när tråden stängs (KAN 6).
+  const [fokusRot, setFokusRot] = useState(/** @type {string | null} */ (null));
   /** @param {string | null} tid */
   const valjTrad = (tid) => {
+    if (tid === null && tradId) setFokusRot(tradId);
     if (valtTrad === undefined) setEgenTrad(tid);
     onValjTrad?.(tid);
+  };
+  /** @param {string} sid @param {string} tid @param {Partial<Tradrad>} andring */
+  const andraTradrad = (sid, tid, andring) => {
+    const m = tradminne.current.get(sid) ?? new Map();
+    m.set(tid, { ...(m.get(tid) ?? { finns: false }), ...andring });
+    tradminne.current.set(sid, m);
   };
   // Utkastet hör till den tråd som just öppnades ur läget "nytt". Den har läst det när den monterades; sedan glöms det.
   useEffect(() => {
@@ -488,13 +510,20 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             namnFor={namnFor}
             medlemmar={medlemmar}
             onStang={() => valjTrad(null)}
+            // Ett svar gör tråden till en tråd och gör antalet okänt: chatten räknar om just den raden när den visas igen.
+            onSvarat={() => andraTradrad(vald.samtal.id, tradId, { finns: true, antal: undefined })}
+            onDopt={(/** @type {string | null} */ n) => andraTradrad(vald.samtal.id, tradId, { finns: true, namn: n ?? undefined })}
             sprak={sprak}
             texter={t}
           />
         ) : vald ? (
           <OpsSamtal
             key={vald.samtal.id}
+            // ⛔ Om källan har trådar avgör OpsSamtal själv (`harTradar`), en vakt och inte två (regel 4).
             onOppnaTrad={valjTrad}
+            tradminne={tradminne.current}
+            fokusRot={fokusRot}
+            onFokuserad={() => setFokusRot(null)}
             kalla={kalla}
             uid={uid}
             samtal={vald.samtal}
@@ -685,13 +714,18 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false 
  * @param {(meddelande: import("../lib/samtal.js").Meddelande & { id: string }) => void} [props.onSkickat] (0.63.0, #263) Anropas med
  *   det skickade meddelandet, så att inkorgen kan lägga in raden direkt i stället för vid nästa omläsning.
  * @param {string} [props.utkast] (0.63.0) Text som redan står i skrivfältet när samtalet öppnas, och fältet får fokus.
- * @param {(tid: string) => void} [props.onOppnaTrad] (0.66.0) Öppnar tråden ur ett meddelande. Utelämnad: inga trådar visas.
+ * @param {(tid: string) => void} [props.onOppnaTrad] (0.66.0) Öppnar tråden ur ett meddelande. Utelämnad, eller en källa utan
+ *   trådar (`harTradar`): inga trådar visas.
+ * @param {Map<string, Map<string, Tradrad>>} [props.tradminne] (0.66.0) Märkenas minne per samtal, så att en återkomst från en tråd
+ *   inte läser alla rötter igen. Utelämnat: ett eget minne som lever så länge vyn.
+ * @param {string | null} [props.fokusRot] (0.66.0) Märket som ska få fokus när det ritats, efter att tråden stängts.
+ * @param {() => void} [props.onFokuserad] (0.66.0) Anropas när fokus har flyttats dit.
  *   ⛔ GÄLLER BARA GRUPPCHATTEN, och det avgörs här och inte av den som skickar in funktionen: ett privat samtal ritas utan
  *   trådar också när en app skickar den.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, sprak: sprakProp, texter = {} }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {} }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -703,9 +737,9 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const [skickar, setSkickar] = useState(false);
   const markt = useRef(lastTill);
   const lyssnar = useRef(false);
-  // Trådarna ur de meddelanden som syns, med antal och namn (0.66.0). Läses om när meddelandena ändras.
-  const [tradar, setTradar] = useState(/** @type {Map<string, { antal: number, fler: boolean, namn: string }>} */ (new Map()));
-  const medTradar = Boolean(onOppnaTrad) && samtal.slag === "grupp" && typeof kalla.tradar === "function";
+  const medTradar = Boolean(onOppnaTrad) && samtal.slag === "grupp" && harTradar(kalla);
+  const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden, minne: tradminne });
+  const loggRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   const lasIn = async () => {
@@ -743,22 +777,15 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meddelanden]);
 
+  // Fokus tillbaka till märket när tråden stängts (KAN 6). Efter rullningen till slutet, så att märket rullas fram.
   useEffect(() => {
-    if (!medTradar || !meddelanden || meddelanden.length === 0) return;
-    let aktuell = true;
-    const efterId = new Map(meddelanden.map((m) => [m.id, m]));
-    kalla.tradar(samtal.id, { rotter: [...efterId.keys()] }).then(
-      (rader) => {
-        if (!aktuell) return;
-        setTradar(new Map(rader.map((r) => [r.id, { antal: r.antal, fler: r.fler, namn: tradensNamn(r, [efterId.get(r.id) ?? {}, ...r.forsta]) }])));
-      },
-      // ⛔ Föll läsningen av trådarna står meddelandena kvar utan märken, och "Svara i tråd" öppnar ändå tråden, som säger felet.
-      () => {},
-    );
-    return () => {
-      aktuell = false;
-    };
-  }, [medTradar, kalla, samtal.id, meddelanden]);
+    if (!fokusRot || !meddelanden) return;
+    const knapp = /** @type {HTMLElement | null} */ (loggRef.current?.querySelector(`[data-tradrot="${CSS.escape(fokusRot)}"]`) ?? null);
+    if (!knapp) return;
+    knapp.focus();
+    onFokuserad?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fokusRot, meddelanden, tradar]);
 
   const skicka = async () => {
     if (skickar || !text.trim()) return;
@@ -792,11 +819,17 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         </div>
       </header>
 
-      <div role="log" aria-label={rubrik} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div ref={loggRef} role="log" aria-label={rubrik} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
           <OpsBanner tone="danger" title={t.fel}>
             {fel.message}
           </OpsBanner>
+        ) : null}
+        {tradfel ? (
+          /* ⛔ KAN 5: aldrig tyst. Meddelandena står kvar och "Svara i tråd" öppnar tråden, men raden säger att märkena kan saknas. */
+          <p data-tradarfel="" role="status" className="m-0 py-1 text-center text-liten text-ink-muted">
+            {t.tradarFel}
+          </p>
         ) : null}
         {meddelanden && meddelanden.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center py-16 text-center">
@@ -818,26 +851,42 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
             medTradar
               ? (m) => {
                   const tr = tradar.get(m.id);
+                  const finns = Boolean(tr?.finns);
+                  const beskrivning = `tradrot-${m.id}`;
                   return (
-                    <button
-                      type="button"
-                      data-tradmarke={tr ? "finns" : "ny"}
-                      onClick={() => onOppnaTrad?.(m.id)}
-                      className={cx(
-                        "inline-flex min-h-7 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten font-medium transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-                        tr ? "bg-accent-faint text-accent hover:bg-hover" : "text-ink-muted hover:bg-hover hover:text-ink",
-                      )}
-                    >
-                      <TradIkon size={12} />
-                      {tr ? (
-                        <span className="min-w-0 truncate">
-                          <span className="tabular-nums">{tr.fler ? `${tr.antal}+` : tr.antal}</span> {t.svar}
-                          <span className="text-ink-secondary"> · {tr.namn}</span>
-                        </span>
-                      ) : (
-                        <span>{t.svaraITrad}</span>
-                      )}
-                    </button>
+                    <>
+                      <span id={beskrivning} className="sr-only">
+                        {`${t.svarPa} ${m.av === uid ? t.du : namnFor(m.av)}: ${utdrag(m.text, 60)}`}
+                      </span>
+                      <button
+                        type="button"
+                        data-tradmarke={finns ? "finns" : "ny"}
+                        data-tradrot={m.id}
+                        aria-describedby={beskrivning}
+                        onClick={() => onOppnaTrad?.(m.id)}
+                        className={cx(
+                          /* ⛔ KAN 6: träffytan är 44 px, men raden växer inte: de negativa marginalerna lägger ytan i luften
+                             mellan meddelandena. KAN 9: på dator syns "Svara i tråd" först när pekaren eller fokus är på
+                             meddelandet, så att en lång chatt inte blir en rad knappar. På telefon finns ingen hover, och en
+                             meny vore ett steg till för det vanligaste: där står den kvar. Märket syns alltid, det är innehåll. */
+                          "-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten font-medium transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                          finns
+                            ? "text-accent hover:bg-accent-faint"
+                            : "text-ink-muted hover:bg-hover hover:text-ink md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+                        )}
+                      >
+                        <TradIkon size={12} />
+                        {finns ? (
+                          <span className="min-w-0 truncate">
+                            {tr?.antal === undefined ? "…" : <span className="tabular-nums">{tr.fler ? `${tr.antal}+` : tr.antal}</span>} {t.svar}
+                            {/* ⛔ KAN 9: namnet bara när det inte är rotens egen rad, som står precis ovanför. */}
+                            {tr?.namn ? <span className="text-ink-secondary"> · {tr.namn}</span> : null}
+                          </span>
+                        ) : (
+                          <span>{t.svaraITrad}</span>
+                        )}
+                      </button>
+                    </>
                   );
                 }
               : undefined
@@ -849,6 +898,89 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
       <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus={utkast !== undefined} />
     </div>
   );
+}
+
+/**
+ * @typedef {object} Tradrad (0.66.0) Vad chatten vet om tråden ur ett meddelande.
+ * @property {boolean} finns
+ * @property {string} [namn] Bara när en person döpt om tråden.
+ * @property {number} [antal] Okänt (`undefined`) tills det räknats, och efter ett svar.
+ * @property {boolean} [fler]
+ */
+
+/** Hur många av de senaste meddelandena utan tråd som prövas igen när fönstret får fokus. */
+const NYA_ROTTER_VID_FOKUS = 10;
+
+/**
+ * Märkena under gruppchattens meddelanden (0.66.0, granskningen av PR 268, BÖR 4).
+ *
+ * ⛔ LÄSNINGARNA, OCH VARFÖR DE ÄR SÅ FÅ:
+ *   - en tråd läses per rot, och bara för rötter som inte redan finns i minnet: ett nytt meddelande i chatten är EN läsning;
+ *   - antalet svar är en aggregatfråga där källan kan (`count`), och räknas bara för trådar vars antal är okänt;
+ *   - märkets namn läser inga meddelanden: det är trådens `namn`, eller inget (roten står redan ovanför).
+ *
+ * ⛔ ETT SVAR FRÅN NÅGON ANNAN NÅR MÄRKET NÄR FÖNSTRET FÅR FOKUS. Det är den billigaste vägen som håller: en lyssnare per tråd
+ * hade varit en öppen läsning per synlig tråd så länge chatten är öppen, och en räknare på tråden hade varit en andra sanning om
+ * meddelandena och en skrivning per svar som kan misslyckas för sig. Fokus är samma signal som inkorgen läser om på
+ * (`useSamtal`). Vid fokus räknas de kända trådarna om, och de senaste `NYA_ROTTER_VID_FOKUS` rötterna utan tråd prövas igen,
+ * eftersom en ny tråd nästan alltid startas ur något som nyss sades. Egna svar och omdöpningar ändrar minnet direkt.
+ *
+ * @param {{ kalla: (ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> & import("../data/samtalskalla.js").Tradfunktioner) | null, sid: string, meddelanden: ReadonlyArray<{ id: string }> | null, minne?: Map<string, Map<string, Tradrad>> }} p
+ * @returns {{ rader: Map<string, Tradrad>, fel: Error | null }}
+ */
+function useTradmarken({ kalla, sid, meddelanden, minne }) {
+  const eget = useRef(/** @type {Map<string, Map<string, Tradrad>>} */ (new Map()));
+  const alla = minne ?? eget.current;
+  if (!alla.has(sid)) alla.set(sid, new Map());
+  const rader = /** @type {Map<string, Tradrad>} */ (alla.get(sid));
+  const [, setVersion] = useState(0);
+  const [fel, setFel] = useState(/** @type {Error | null} */ (null));
+
+  /** @param {ReadonlyArray<string>} rotter @param {boolean} raknaKanda */
+  const las = async (rotter, raknaKanda) => {
+    if (!kalla) return;
+    try {
+      if (rotter.length) {
+        const funna = await kalla.tradarFor(sid, rotter);
+        const efterId = new Map(funna.map((t) => [t.id, t]));
+        for (const r of rotter) {
+          const t = efterId.get(r);
+          rader.set(r, t ? { ...(rader.get(r) ?? {}), finns: true, namn: t.namn } : { finns: false });
+        }
+      }
+      const raknas = [...rader.entries()].filter(([, v]) => v.finns && (raknaKanda || v.antal === undefined)).map(([k]) => k);
+      await Promise.all(
+        raknas.map(async (tid) => {
+          const { antal, fler } = await kalla.antalSvar(sid, tid);
+          rader.set(tid, { ...(/** @type {Tradrad} */ (rader.get(tid))), antal, fler });
+        }),
+      );
+      setFel(null);
+    } catch (e) {
+      setFel(e instanceof Error ? e : new Error(String(e)));
+    }
+    setVersion((v) => v + 1);
+  };
+
+  // Nya rötter, och trådar vars antal blivit okänt (ett eget svar i tråden).
+  useEffect(() => {
+    if (!kalla || !meddelanden) return;
+    las(meddelanden.map((m) => m.id).filter((id) => !rader.has(id)), false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, sid, meddelanden]);
+
+  useEffect(() => {
+    if (!kalla || typeof window === "undefined") return undefined;
+    const fokus = () => {
+      const senaste = (meddelanden ?? []).slice(-NYA_ROTTER_VID_FOKUS).map((m) => m.id).filter((id) => rader.get(id)?.finns === false);
+      las(senaste, true);
+    };
+    window.addEventListener("focus", fokus);
+    return () => window.removeEventListener("focus", fokus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, sid, meddelanden]);
+
+  return { rader, fel };
 }
 
 /**
@@ -869,6 +1001,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
  */
 function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
+  const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
     <>
       {meddelanden.map((m, i, alla) => {
@@ -885,8 +1018,20 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                 <span className="rounded-full bg-canvas px-3 py-1 text-liten font-medium text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
               </div>
             ) : null}
-            <div data-meddelande={egen ? "eget" : "annans"} className={cx("flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
-              {!egen ? <span className="w-8 shrink-0">{!fortsattning ? <OpsIdentity name={namnFor(m.av)} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund /> : null}</span> : null}
+            <div data-meddelande={egen ? "eget" : "annans"} className={cx("group flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
+              {!egen ? (
+                <span className="w-8 shrink-0">
+                  {!fortsattning ? (
+                    /* ⛔ KAN 9: agentens svar bär agentens ikon, som agentsamtalets rad i listan, så att ett svar från agenten
+                       aldrig ser ut som en persons. */
+                    medlemstyp(m.av) === "agent" ? (
+                      <OpsIdentity name={namnFor(m.av)} seed={m.av} size="sm" icon={AgentIkon} rund />
+                    ) : (
+                      <OpsIdentity name={namnFor(m.av)} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund />
+                    )
+                  ) : null}
+                </span>
+              ) : null}
               <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
                 {!egen && !fortsattning && visaNamn ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
                 <div
@@ -930,10 +1075,14 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {(uid: string) => string} props.namnFor
  * @param {ReadonlyArray<Medlemsrad>} [props.medlemmar]
  * @param {() => void} props.onStang Tillbaka till gruppchatten.
+ * @param {() => void} [props.onSvarat] Anropas efter ett skickat svar, så att chattens märke kan räknas om.
+ * @param {(namn: string | null) => void} [props.onDopt] Anropas efter en omdöpning, med namnet eller `null` för det härledda.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, sprak: sprakProp, texter = {} }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {} }) {
+  if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
+  const kalla = kallan;
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const t = { ...TEXTER, ...texter };
@@ -949,6 +1098,12 @@ export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar
   const lyssnar = useRef(false);
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const namnId = useId();
+  const dopKnapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  // ⛔ KAN 6: fokus stannar i rubriken när Döp om stängs (Spara, Avbryt eller Escape), i stället för att falla till dokumentet.
+  const stangDop = () => {
+    setRedigerar(false);
+    requestAnimationFrame(() => dopKnapp.current?.focus());
+  };
   const somFel = (/** @type {unknown} */ e) => (e instanceof Error ? e : new Error(String(e)));
 
   const lasTraden = async () => {
@@ -994,6 +1149,7 @@ export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar
     try {
       await kalla.skickaITrad(samtal.id, tid, { text, av: uid });
       setText("");
+      onSvarat?.();
       if (!trad) await lasTraden();
       if (!lyssnar.current) await lasSvar();
     } catch (e) {
@@ -1007,8 +1163,9 @@ export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar
   const spara = async (nytt) => {
     try {
       await kalla.dopOm(samtal.id, tid, nytt);
-      setRedigerar(false);
+      onDopt?.(nytt && nytt.trim() ? nytt.trim() : null);
       await lasTraden();
+      stangDop();
     } catch (e) {
       setFel(somFel(e));
     }
@@ -1032,6 +1189,12 @@ export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar
         {redigerar ? (
           <form
             className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                stangDop();
+              }
+            }}
             onSubmit={(e) => {
               e.preventDefault();
               spara(utkastNamn);
@@ -1051,7 +1214,7 @@ export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar
             <button type="submit" className="inline-flex min-h-9 cursor-pointer items-center rounded-base bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover">
               {t.spara}
             </button>
-            <button type="button" onClick={() => setRedigerar(false)} className="inline-flex min-h-9 cursor-pointer items-center rounded-base px-2 text-meta text-ink-secondary hover:bg-hover">
+            <button type="button" onClick={stangDop} className="inline-flex min-h-9 cursor-pointer items-center rounded-base px-2 text-meta text-ink-secondary hover:bg-hover">
               {t.avbryt}
             </button>
             {trad?.namn ? (
@@ -1073,6 +1236,7 @@ export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar
             </div>
             {trad ? (
               <button
+                ref={dopKnapp}
                 type="button"
                 aria-label={t.dopOm}
                 onClick={() => {

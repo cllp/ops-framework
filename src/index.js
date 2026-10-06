@@ -264,7 +264,7 @@ export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.
  */
 export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn } from "./lib/samtal.js";
-export { createSamtalskalla, samtalsnotiser } from "./data/samtalskalla.js";
+export { createSamtalskalla, samtalsnotiser, harTradar } from "./data/samtalskalla.js";
 export { useSamtal } from "./data/useSamtal.jsx";
 export { OpsMottagare } from "./components/OpsMottagare.jsx";
 export { OpsMeddelanden, OpsSamtal, OpsMeddelandeLank, OpsTrad } from "./components/OpsMeddelanden.jsx";

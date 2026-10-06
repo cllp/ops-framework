@@ -893,7 +893,8 @@ let samtalskallan = null;
 async function byggSamtalskalla() {
   if (!Ops.createSamtalskalla) return null;
   let t = new Date(2026, 8, 30, 9, 0).getTime();
-  const s = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000) });
+  // 0.66.0: trådarna slås på med `tradar`, som en app gör. Utan namnet har källan inga trådar (BÖR 1).
+  const s = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000), tradar: "tradar" });
   const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
   await s.skicka(g.id, { text: "Hej alla, styrelsemötet flyttas till fredag klockan tio.", av: "cecilia" });
   // 0.66.0 (lifehub.app#60): en tråd ur ett meddelande i gruppchatten, med svar från två, och ett meddelande utan tråd.

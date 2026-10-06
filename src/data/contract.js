@@ -83,6 +83,10 @@
  * @property {(collectionName: string, query: Query | undefined, listener: Listener<T>) => Unsubscribe} [subscribe]
  *   ⛔ FRIVILLIG. Se regel 5 nedan.
  * @property {(ops: ReadonlyArray<BatchOp<T>>) => Promise<Array<T | null>>} [batch]
+ * @property {(collectionName: string, query?: Query) => Promise<number>} [count] (0.66.0) FRIVILLIG: antalet poster som frågan
+ *   matchar, utan att läsa dem (Firestores aggregatfråga, en läsning per tusen). Saknas den läser den som behöver ett antal
+ *   raderna i stället, med ett tak. ⛔ Samma frivillighet som `batch`: en adapter som inte kan räkna utan att läsa allt ska
+ *   inte låtsas att den kan.
  *   ⛔ FRIVILLIG, OCH ALLT ELLER INGET. Se regel 6 nedan.
  */
 
