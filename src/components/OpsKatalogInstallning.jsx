@@ -142,7 +142,7 @@ export function OpsKatalogInstallning({
   // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken en nivå under panelens, och samma som panelens ritas den inte alls (`delrubrik`).
   const delen = delrubrik(rubrik, rubrikId, useInstallningspanel());
   // Delarnas rubriker (Arkiverade, Senaste ändringarna) ligger en nivå under närmaste synliga rubrik: katalogens, eller panelens
-  // när katalogens inte ritas. ⛔ Regeln är `delrubrik`s (`underniva`), inte katalogens egen (0.69.1, granskningen av PR 278).
+  // när katalogens inte ritas. ⛔ Regeln är `delrubrik`s (`underniva`), inte katalogens egen (0.70.1, granskningen av PR 278).
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [utkast, setUtkast] = useState(TOMT);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));

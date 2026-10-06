@@ -115,7 +115,7 @@ export function useInstallningspanel() {
  * `underniva` är nivån för delens EGNA delrubriker (katalogens "Arkiverade", "Senaste ändringarna"): en under den närmaste rubrik som
  * faktiskt syns ovanför dem. Det är delens rubrik när den ritas, annars panelens.
  *
- * ⛔ REGELN BOR HÄR OCH INGEN ANNANSTANS (0.69.1, granskningen av PR 278). Katalogen räknade förut ut sin underrubrik själv med
+ * ⛔ REGELN BOR HÄR OCH INGEN ANNANSTANS (0.70.1, granskningen av PR 278). Katalogen räknade förut ut sin underrubrik själv med
  * `niva === 3 ? "h4" : "h3"`, och det var rätt bara vid förvalet 2. Med `rubrikniva={3}` blev "Arkiverade" h3, alltså samma nivå
  * som panelen den står i, och med en egen katalogrubrik på h4 hoppade den upp en nivå i stället för ned.
  *

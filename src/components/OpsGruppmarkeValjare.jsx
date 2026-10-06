@@ -5,6 +5,7 @@ import { GRUPPINITIALER_FORM } from "../lib/grupp.js";
 import { GRUPPKULORFORSLAG, fargTillKulor, gruppKulor, kulorTillFarg, narmasteKulornamn } from "../lib/gruppfarg.js";
 import { gruppikonEtikett } from "../lib/gruppikonnamn.js";
 import { gruppikonKomponent, gruppikonNamn } from "../lib/gruppikoner.js";
+import { lasSenasteGruppikoner, sparaSenasteGruppikon } from "../lib/gruppikonsenaste.js";
 import { VANLIGA_GRUPPIKONER, forslagUrGruppnamn, sokGruppikoner } from "../lib/gruppikonsok.js";
 import { OpsSlider } from "./OpsSlider.jsx";
 import { BockIkon } from "./icons.jsx";
@@ -27,7 +28,8 @@ import { BockIkon } from "./icons.jsx";
  * ⛔ TOMHET SÄGS UT (regel 5). En rad utan förslag skriver att det inte finns några, och en sökning utan träff säger det.
  *
  * ⛔ SENAST ANVÄNDA ÄR EN BEKVÄMLIGHET PER WEBBLÄSARE, i `localStorage`. Den får försvinna (privat fönster, rensad
- * webbplatsdata), och raden säger då "Inga ännu". Den är aldrig gruppens data.
+ * webbplatsdata), och raden säger då "Inga ännu". Den är aldrig gruppens data. Läsningen och skrivningen bor i
+ * `src/lib/gruppikonsenaste.js` sedan 0.70.0, så att en väljare utan React delar samma lista.
  *
  * @param {object} props
  * @param {string} props.namn Gruppens namn som det står i fältet nu. Förfiltrerar ikonerna.
@@ -44,7 +46,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
   const sokId = useId();
   const [fraga, setFraga] = useState("");
   const [senaste, setSenaste] = useState(/** @type {string[]} */ ([]));
-  useEffect(() => setSenaste(lasSenaste()), []);
+  useEffect(() => setSenaste(lasSenasteGruppikoner()), []);
 
   const kulor = fargTillKulor(farg) ?? gruppKulor(null, seed);
   const standardKulor = gruppKulor(null, seed);
@@ -57,7 +59,7 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
 
   const valjIkon = (/** @type {string} */ n) => {
     onIkon(n);
-    setSenaste(sparaSenaste(n));
+    setSenaste(sparaSenasteGruppikon(n));
   };
 
   /** @param {{ rubrik: string, namn: ReadonlyArray<string>, tomText: string, medInitialer?: boolean, id: string }} r */
@@ -224,30 +226,4 @@ export function OpsGruppmarkeValjare({ namn, seed, farg, ikon, onFarg, onIkon, s
       ) : null}
     </>
   );
-}
-
-/** Nyckeln i `localStorage`. Per webbläsare, aldrig gruppens data. */
-export const SENASTE_NYCKEL = "ops-gruppikon-senaste";
-const MAX_SENASTE = 8;
-
-/** @returns {string[]} */
-function lasSenaste() {
-  try {
-    const varde = JSON.parse(globalThis.localStorage?.getItem(SENASTE_NYCKEL) ?? "[]");
-    return Array.isArray(varde) ? varde.filter((n) => typeof n === "string" && gruppikonKomponent(n)).slice(0, MAX_SENASTE) : [];
-  } catch {
-    // ⛔ Ingen lagring (privat fönster, blockerad) är inget fel: raden säger "Inga ännu".
-    return [];
-  }
-}
-
-/** @param {string} namn @returns {string[]} */
-function sparaSenaste(namn) {
-  const lista = [namn, ...lasSenaste().filter((n) => n !== namn)].slice(0, MAX_SENASTE);
-  try {
-    globalThis.localStorage?.setItem(SENASTE_NYCKEL, JSON.stringify(lista));
-  } catch {
-    // Se `lasSenaste`. Listan gäller ändå för den här visningen.
-  }
-  return lista;
 }

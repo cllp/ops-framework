@@ -205,8 +205,8 @@ describe("OpsInstallningar", () => {
       expect(screen.getByRole("heading", { level: 3, name: "Från moduler" })).toBeTruthy();
     });
 
-    describe("katalogens delrubriker följer rubrikniva (0.69.1, granskningen av PR 278)", () => {
-      // ⛔ En arkiverad kategori, så att "Arkiverade" ritas. Före 0.69.1 var den h3 eller h4 efter en regel som bara stämde vid nivå 2.
+    describe("katalogens delrubriker följer rubrikniva (0.70.1, granskningen av PR 278)", () => {
+      // ⛔ En arkiverad kategori, så att "Arkiverade" ritas. Före 0.70.1 var den h3 eller h4 efter en regel som bara stämde vid nivå 2.
       const MED_ARKIV = validateKatalog(
         [
           { id: "hog", namn: { sv: "Hög" }, farg: 1, ikon: "bell", fas: "aktiv", ordning: 0 },
