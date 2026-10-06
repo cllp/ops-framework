@@ -1845,7 +1845,8 @@ och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg a
 med vägen till `skapa.nyttMeddelande` i felet: en rad som tyst försvann hade varit samma fel som CP såg, en väg som inte gör något.
 Skälet: CP 2026-10-06, "steget med att öppna en liten chattfönster till är lite konstigt", och "Chatten dök upp långt senare...".
 `skickaEtikett` är borttagen med panelen. **Ompinning till 0.63.0:** fil för fil, med radnummer för lifehub.app och bolag-ops, i
-CHANGELOG under 0.63.0. Kort sagt:
+CHANGELOG under 0.63.0. Avsnittet förutsätter 0.62.0. Från en äldre version (lifehub.app står på 0.60.0, bolag-ops på 0.50.0) går
+ompinningen också igenom CHANGELOG för 0.61.0 och 0.62.0, och för bolag-ops även versionerna däremellan. Kort sagt:
 - Ta bort importen av `OpsNyttMeddelande`, annars blir det byggfel.
 - Byt `skapa.meddelande` mot `skapa.nyttMeddelande`.
 - Ta bort `onNytt` ur vyn, eftersom den ignoreras.

@@ -1,6 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motpart } from "../lib/samtal.js";
 
+/** @typedef {Awaited<ReturnType<ReturnType<typeof import("./samtalskalla.js").createSamtalskalla>["oversikt"]>>} Rader */
+/** @typedef {Map<string, { samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null }>} Lokala */
+
+/**
+ * Slår in de lokala raderna i källans svar. Ren: de lokala rader källan har kommit ikapp med (samtalet finns och dess senaste
+ * meddelande är minst lika nytt) står inte i den karta som returneras, och anroparen sparar den kartan.
+ *
+ * @param {Rader} fran Källans svar.
+ * @param {Lokala} lokala
+ * @param {string} uid
+ * @returns {{ rader: Rader, kvar: Lokala }}
+ */
+function sammanfoga(fran, lokala, uid) {
+  const rader = [...fran];
+  /** @type {Lokala} */
+  const kvar = new Map();
+  for (const [id, l] of lokala) {
+    const i = rader.findIndex((r) => r.samtal.id === id);
+    if (i < 0) {
+      rader.push({ samtal: l.samtal, senaste: l.senaste, olasta: 0, lastTill: l.senaste?.tid ?? 0, motpart: motpart(l.samtal, uid) });
+      kvar.set(id, l);
+      continue;
+    }
+    const r = rader[i];
+    if (l.senaste && (!r.senaste || r.senaste.tid < l.senaste.tid)) {
+      rader[i] = { ...r, senaste: l.senaste };
+      kvar.set(id, l);
+    }
+  }
+  const tid = (/** @type {Rader[number]} */ r) => r.senaste?.tid ?? r.samtal.skapad ?? 0;
+  return { rader: rader.sort((a, b) => tid(b) - tid(a)), kvar };
+}
+
 /**
  * Inkorgens rader och antalet olästa, ur en samtalskälla (0.34.0, #182).
  *
@@ -29,46 +62,39 @@ export function useSamtal({ kalla, groupId, uid }) {
     /** @type {{ rader: Awaited<ReturnType<ReturnType<typeof import("./samtalskalla.js").createSamtalskalla>["oversikt"]>>, laddar: boolean, fel: Error | null }} */ ({ rader: [], laddar: true, fel: null }),
   );
   const levande = useRef(0);
-  /** Raderna som lagts in lokalt och som källan ännu inte svarat med. Nyckel: samtalets id. */
   /** Källans senaste svar, utan de lokala raderna. Bara det svaret får avgöra att källan kommit ikapp. */
-  const kallsvar = useRef(/** @type {Awaited<ReturnType<ReturnType<typeof import("./samtalskalla.js").createSamtalskalla>["oversikt"]>>} */ ([]));
-  const lokala = useRef(/** @type {Map<string, { samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null }>} */ (new Map()));
-
-  /**
-   * Slår in de lokala raderna i källans svar, och glömmer dem källan har kommit ikapp med.
-   * @param {Awaited<ReturnType<ReturnType<typeof import("./samtalskalla.js").createSamtalskalla>["oversikt"]>>} fran
+  const kallsvar = useRef(/** @type {Rader} */ ([]));
+  /** Raderna som lagts in lokalt och som källan ännu inte svarat med. Nyckel: samtalets id. */
+  const lokala = useRef(/** @type {Lokala} */ (new Map()));
+  /*
+   * ⛔ GRUPPEN SOM VISAS JUST NU, INTE DEN SOM GÄLLDE NÄR ETT ANROP BÖRJADE (granskningen av PR 264, tredje varvet). Ett gruppbyte
+   * medan `oppnaPrivat` pågick lade in förra gruppens samtal i den nya inkorgen: anroparen höll kvar `laggIn` ur renderingen där
+   * klicket skedde, och dess `groupId` var den gamla gruppen, så kontrollen jämförde g med g. `lokala` är en ref och delades med
+   * den nya gruppen, och den gamla `lasOm` kunde skriva in g:s hela översikt. Både `laggIn` och `lasOm` jämför därför med refen.
    */
-  const sammanfoga = (fran) => {
-    const rader = [...fran];
-    for (const [id, l] of lokala.current) {
-      const i = rader.findIndex((r) => r.samtal.id === id);
-      if (i < 0) {
-        rader.push({ samtal: l.samtal, senaste: l.senaste, olasta: 0, lastTill: l.senaste?.tid ?? 0, motpart: motpart(l.samtal, uid ?? "") });
-        continue;
-      }
-      const r = rader[i];
-      if (l.senaste && (!r.senaste || r.senaste.tid < l.senaste.tid)) rader[i] = { ...r, senaste: l.senaste };
-      else lokala.current.delete(id);
-    }
-    const tid = (/** @type {typeof rader[number]} */ r) => r.senaste?.tid ?? r.samtal.skapad ?? 0;
-    return rader.sort((a, b) => tid(b) - tid(a));
-  };
+  const gruppNu = useRef(groupId);
+  gruppNu.current = groupId;
 
   const lasOm = useCallback(async () => {
     if (!kalla || !groupId || !uid) {
       setLage({ rader: [], laddar: !groupId || !uid ? false : true, fel: null });
       return;
     }
+    // ⛔ En `lasOm` ur en rendering för en annan grupp gör ingenting, och räknar inte upp `levande` för den aktuella.
+    if (gruppNu.current !== groupId) return;
     const nr = ++levande.current;
+    const aktuell = () => nr === levande.current && gruppNu.current === groupId;
     try {
       const rader = await kalla.oversikt({ groupId, uid });
       // ⛔ Ett sent svar för en grupp man redan lämnat skrivs inte in i den nya gruppens inkorg.
-      if (nr === levande.current) {
+      if (aktuell()) {
         kallsvar.current = rader;
-        setLage({ rader: sammanfoga(rader), laddar: false, fel: null });
+        const s = sammanfoga(rader, lokala.current, uid);
+        lokala.current = s.kvar;
+        setLage({ rader: s.rader, laddar: false, fel: null });
       }
     } catch (fel) {
-      if (nr === levande.current) setLage({ rader: [], laddar: false, fel: fel instanceof Error ? fel : new Error(String(fel)) });
+      if (aktuell()) setLage({ rader: [], laddar: false, fel: fel instanceof Error ? fel : new Error(String(fel)) });
     }
   }, [kalla, groupId, uid]);
 
@@ -89,15 +115,17 @@ export function useSamtal({ kalla, groupId, uid }) {
   // `senaste`: det man just skickade, om något.
   const laggIn = useCallback(
     (/** @type {import("../lib/samtal.js").Samtal} */ samtal, /** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null} */ senaste = null) => {
-      if (!uid || !groupId || samtal.groupId !== groupId) return;
+      // ⛔ Mot gruppen som visas NU, se `gruppNu`. Ett `laggIn` ur en äldre rendering bär en gammal `groupId`.
+      if (!uid || !groupId || gruppNu.current !== groupId || samtal.groupId !== groupId) return;
       const forra = lokala.current.get(samtal.id);
       const nyast = forra?.senaste && (!senaste || forra.senaste.tid > senaste.tid) ? forra.senaste : senaste;
-      lokala.current.set(samtal.id, { samtal, senaste: nyast });
-      setLage((f) => ({ rader: sammanfoga(kallsvar.current), laddar: false, fel: f.fel }));
+      lokala.current = new Map(lokala.current).set(samtal.id, { samtal, senaste: nyast });
+      const s = sammanfoga(kallsvar.current, lokala.current, uid);
+      lokala.current = s.kvar;
+      setLage((f) => ({ rader: s.rader, laddar: false, fel: f.fel }));
       // ⛔ Omläsningen räknar upp `levande`, så ett svar som var på väg FÖRE inläggningen skriver inte över den.
       lasOm();
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [uid, groupId, lasOm],
   );
 

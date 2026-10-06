@@ -296,13 +296,14 @@ describe("⛔ laggIn mot en källa som aldrig svarar med det nya samtalet (#263,
     await waitFor(() => expect(oversikt.mock.calls.length).toBeGreaterThan(lasningarFore));
     await act(async () => {});
     expect(raderna().some((r) => r.includes("Bo Lind"))).toBe(true);
+    const foreSkicka = oversikt.mock.calls.length;
     await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Ny fråga till Bo{Enter}");
     await waitFor(() => expect(raderna()[0]).toContain("Ny fråga till Bo"));
     // Sorteringen: det just skickade ligger överst, gruppchatten med sitt äldre meddelande under.
     expect(raderna()[0]).toContain("Bo Lind");
     expect(raderna()[1]).toContain("Gammalt i gruppen");
-    const efterSkicka = oversikt.mock.calls.length;
-    await waitFor(() => expect(oversikt.mock.calls.length).toBeGreaterThan(efterSkicka - 1));
+    // Källan har läst om efter Skicka (räknat FÖRE Skicka, så att väntan mäter något) och svarat utan meddelandet.
+    await waitFor(() => expect(oversikt.mock.calls.length).toBeGreaterThan(foreSkicka));
     await act(async () => {});
     expect(raderna()[0]).toContain("Ny fråga till Bo");
   });
@@ -340,5 +341,88 @@ describe("⛔ laggIn mot en källa som aldrig svarar med det nya samtalet (#263,
     await waitFor(() => expect(raderna().some((r) => r.includes("Bo Lind"))).toBe(true));
     expect(screen.getByRole("button", { name: "Alla" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("searchbox", { name: "Sök i meddelanden" })).toHaveValue("");
+  });
+});
+
+/**
+ * ⛔ GRUPPBYTE MEDAN SAMTALET ÖPPNAS (granskningen av PR 264, tredje varvet). `NyttSamtal` höll kvar `onOppnat` ur renderingen
+ * där klicket skedde, så gruppkontrollen i `laggIn` jämförde g med g och släppte igenom. `lokala` delades med den nya gruppen och
+ * raden "Bo Lind Privat" stod kvar i h:s inkorg, och en sen `lasOm` för g kunde skriva in g:s hela översikt. Provet är
+ * granskarens, med appens `onValj` mätt också: ett samtal i g får aldrig väljas eller skrivas till adressen när h visas.
+ */
+describe("⛔ gruppbyte medan oppnaPrivat pågår (#263, granskningen, tredje varvet)", () => {
+  const MED = [
+    { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+    { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+  ];
+  const raderna = () => [...document.querySelectorAll("[data-samtalsrad]")].map((r) => r.textContent ?? "");
+
+  for (const [namn, styrt] of /** @type {const} */ ([["läget i komponenten", false], ["läget styrt av appen", true]])) {
+    it(`inget ur grupp g hamnar i grupp h:s inkorg eller adress (${namn})`, async () => {
+      let t = Date.now() - 60000;
+      const kallan = createSamtalskalla({ kalla: createMemorySource({}), klocka: () => (t += 1000) });
+      const gh = await kallan.oppnaGrupp({ groupId: "h", uid: "anna" });
+      await kallan.skicka(gh.id, { text: "Bara i h", av: "bo" });
+      const gg = await kallan.oppnaGrupp({ groupId: "g", uid: "anna" });
+      await kallan.skicka(gg.id, { text: "Bara i g", av: "bo" });
+      /** @type {(v?: unknown) => void} */
+      let slapp = () => {};
+      const oppnaPrivat = async (/** @type {any} */ d) => {
+        await new Promise((r) => (slapp = r));
+        return kallan.oppnaPrivat(d);
+      };
+      let gLangsam = false;
+      const oversikt = async (/** @type {any} */ f) => {
+        if (gLangsam && f.groupId === "g") await new Promise((r) => setTimeout(r, 300));
+        return kallan.oversikt(f);
+      };
+      const kalla = { ...kallan, oppnaPrivat, oversikt };
+      const onValj = vi.fn();
+      const props = { kalla, uid: "anna", gruppNamn: "X", medlemmar: MED, onValj, ...(styrt ? { nytt: true, valt: null } : {}) };
+      const { rerender } = render(<OpsMeddelanden {...props} groupId="g" />);
+      await waitFor(() => expect(raderna().join()).toContain("Bara i g"));
+      const user = userEvent.setup();
+      if (!styrt) await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
+      await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
+      rerender(<OpsMeddelanden {...props} groupId="h" />);
+      await waitFor(() => expect(raderna().join()).toContain("Bara i h"));
+      gLangsam = true;
+      await act(async () => slapp());
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 400));
+      });
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      await act(async () => {});
+      expect(raderna().join()).not.toContain("Bara i g");
+      expect(raderna().join()).not.toContain("Privat");
+      expect(raderna()).toHaveLength(1);
+      expect(onValj.mock.calls.filter(([id]) => typeof id === "string" && id.startsWith("g|"))).toEqual([]);
+      expect(document.querySelector("[data-ops-samtal]")).toBeNull();
+    });
+  }
+
+  it("utkastet nollas efter Skicka och kommer inte tillbaka", async () => {
+    const kallan = createSamtalskalla({ kalla: createMemorySource({}) });
+    render(<OpsMeddelanden kalla={kallan} uid="anna" groupId="g" gruppNamn="X" medlemmar={MED} />);
+    await screen.findByText("Inga samtal än");
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
+    await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Utkast");
+    await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
+    const falt = await waitFor(() => {
+      const f = document.querySelector('[data-ops-samtal="personer"] textarea');
+      if (!f) throw new Error("ingen tråd");
+      return f;
+    });
+    expect(falt).toHaveValue("Utkast");
+    await user.type(/** @type {HTMLElement} */ (falt), "{Enter}");
+    await waitFor(() => expect(raderna()[0]).toContain("Utkast"));
+    await act(async () => {});
+    expect(document.querySelector('[data-ops-samtal="personer"] textarea')).toHaveValue("");
   });
 });

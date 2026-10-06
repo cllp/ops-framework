@@ -34,4 +34,53 @@ describe("useSamtal.laggIn", () => {
     await act(async () => result.current.lasOm());
     expect(result.current.rader).toHaveLength(0);
   });
+
+  it("⛔ gruppbytet glömmer de lokala raderna: en rad lagd i g står inte i h", async () => {
+    const kalla = /** @type {any} */ ({ oversikt: vi.fn(async () => []) });
+    const { result, rerender } = renderHook(({ g }) => useSamtal({ kalla, groupId: g, uid: "anna" }), { initialProps: { g: "g" } });
+    await waitFor(() => expect(result.current.laddar).toBe(false));
+    await act(async () => result.current.laggIn(samtal("g")));
+    expect(result.current.rader).toHaveLength(1);
+    rerender({ g: "h" });
+    await waitFor(() => expect(result.current.laddar).toBe(false));
+    expect(result.current.rader).toHaveLength(0);
+  });
+
+  it("⛔ gruppbytet glömmer källans förra svar: en inläggning i h innan h svarat tar inte med g:s rader", async () => {
+    const gRad = { samtal: samtal("g", "g|grupp"), senaste: { id: "x", text: "Bara i g", av: "bo", tid: 5 }, olasta: 1, lastTill: 0, motpart: null };
+    /** @type {(v: any) => void} */
+    let hSvar = () => {};
+    const kalla = /** @type {any} */ ({
+      oversikt: vi.fn(async (/** @type {any} */ f) => (f.groupId === "g" ? [gRad] : new Promise((r) => (hSvar = r)))),
+    });
+    const { result, rerender } = renderHook(({ g }) => useSamtal({ kalla, groupId: g, uid: "anna" }), { initialProps: { g: "g" } });
+    await waitFor(() => expect(result.current.rader).toHaveLength(1));
+    rerender({ g: "h" });
+    await act(async () => result.current.laggIn(samtal("h")));
+    expect(result.current.rader.map((r) => r.samtal.id)).toEqual(["h|anna|bo"]);
+    await act(async () => hSvar([]));
+  });
+
+  it("⛔ en laggIn ur en rendering för en annan grupp gör ingenting, också när samtalet är dess egen grupps", async () => {
+    const kalla = /** @type {any} */ ({ oversikt: vi.fn(async () => []) });
+    const { result, rerender } = renderHook(({ g }) => useSamtal({ kalla, groupId: g, uid: "anna" }), { initialProps: { g: "g" } });
+    await waitFor(() => expect(result.current.laddar).toBe(false));
+    const gamlaLaggIn = result.current.laggIn;
+    rerender({ g: "h" });
+    await waitFor(() => expect(result.current.laddar).toBe(false));
+    await act(async () => gamlaLaggIn(samtal("g")));
+    expect(result.current.rader).toHaveLength(0);
+  });
+
+  it("⛔ en lasOm ur en rendering för en annan grupp skriver inte in den gruppens översikt", async () => {
+    const gRad = { samtal: samtal("g", "g|grupp"), senaste: { id: "x", text: "Bara i g", av: "bo", tid: 5 }, olasta: 1, lastTill: 0, motpart: null };
+    const kalla = /** @type {any} */ ({ oversikt: vi.fn(async (/** @type {any} */ f) => (f.groupId === "g" ? [gRad] : [])) });
+    const { result, rerender } = renderHook(({ g }) => useSamtal({ kalla, groupId: g, uid: "anna" }), { initialProps: { g: "g" } });
+    await waitFor(() => expect(result.current.rader).toHaveLength(1));
+    const gamlaLasOm = result.current.lasOm;
+    rerender({ g: "h" });
+    await waitFor(() => expect(result.current.rader).toHaveLength(0));
+    await act(async () => gamlaLasOm());
+    expect(result.current.rader).toHaveLength(0);
+  });
 });

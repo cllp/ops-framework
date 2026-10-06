@@ -30,6 +30,7 @@ Skalprovet i `meddelanden.test.jsx` stod grönt genom felet: det hade `<p>appens
 - **`OpsMeddelanden` har läget "nytt" i högerpanelen**, som SessionStudio (`ChatInboxPanel.jsx:1091-1124`, `:477-505`). Till (`OpsMottagare lage="person"`) och raden om vem som ser samtalet överst, trådens skrivfält längst ned, och listan står kvar till vänster. På telefon ersätter läget listan, med "‹ Tillbaka". Valet i Till öppnar samtalet direkt med `oppnaPrivat`; ett befintligt samtal, också agentens, öppnas med sin historik och inget nytt skapas. Text skriven före valet följer med in i tråden, och Skicka utan mottagare säger "Välj vem meddelandet ska till.".
 - **Tråden ritas på det valda id:t**, inte på listan (SS `:186-191`, `DMPanel.jsx:95-97`). Saknas raden läses gruppen och paret ur nyckeln (`delaSamtalsnyckel` i `lib/samtal.js`, inversen av `samtalsnyckel`) och rubriken ur `medlemmar`. Ett id i en annan grupp, eller ett par man inte är med i, ritar ingen tråd.
 - **`useSamtal` har `laggIn(samtal, senaste?)`**: raden läggs in lokalt direkt efter öppnandet och efter Skicka, och listan läses sedan om. Inget sparas. Raden slås in i varje omläsning tills källan själv svarat med samtalet och ett lika nytt meddelande, så att en källa som ännu inte ser samtalet inte tar bort raden igen. Ett samtal i en annan grupp än inkorgens läggs aldrig in.
+- **Ett gruppbyte medan samtalet öppnas lägger inget i den nya gruppens inkorg** (granskningen av PR 264, tredje varvet). `NyttSamtal` höll kvar `onOppnat` ur renderingen där klicket skedde, så gruppkontrollen i `laggIn` jämförde den gamla gruppen med sig själv. `useSamtal` jämför nu `laggIn` och `lasOm` med gruppen som visas just nu (en ref), och nollar de lokala raderna och källans förra svar vid bytet. `NyttSamtal` monteras om per grupp och gör ingenting när svaret kommer efter att den avmonterats. Ett samtal i en grupp som inte visas väljs aldrig och skrivs inte till appens adress.
 - **Filtret och sökningen nollas när ett samtal startas**, som SS (`ChatInboxPanel.jsx:484-487`). Annars döljer "Olästa" det nya samtalet. Text som skrivs medan samtalet öppnas följer också med in i tråden.
 - **`samtalsnyckel` kastar för ett `groupId` med `|`**, och `delaSamtalsnyckel(id, groupId)` gör detsamma. En sådan nyckel hade lästs baklänges till fel grupp. ⛔ Ingen spegelkolumn (`senast`) på samtalsdokumentet (regel 2, filhuvudet i `lib/samtal.js`).
 - **`OpsMeddelanden` props:** `nytt` (läget, när appen styr det) och `onValj(id, val?)`, som får `(null, { nytt: true })` när läget öppnas. Knappen Nytt meddelande står alltid när en grupp är vald.
@@ -44,9 +45,11 @@ Skalprovet i `meddelanden.test.jsx` stod grönt genom felet: det hade `<p>appens
 
 Samma ändringar i båda apparna, `cllp/lifehub.app` och `cllp/bolag-ops` (sökvägarna under `web/`). Ompinningen mergas efter ramverket, i samma pass (regel 11).
 
+⛔ **Avsnittet beskriver bara skillnaden från 0.62.0 till 0.63.0.** Apparna står inte där: lifehub.app pinnar 0.60.0 och bolag-ops 0.50.0 (mätt i `web/package.json` på origin/main 2026-10-06). En ompinning från en äldre version går också igenom avsnitten 0.61.0 och 0.62.0 i den här filen, och för bolag-ops dessutom 0.51.0 till 0.60.0, var för sig. 0.61.0 och 0.62.0 kommer från PR 260 och PR 261 och står här först när de är mergade. Radnumren nedan är mätta på origin/main i båda repona samma dag.
+
 1. **`src/app/App.jsx`.**
-   - Ta bort `OpsNyttMeddelande` ur importen från `@staiger/ops-framework`. Exporten finns inte längre, så importen ger byggfel.
-   - Byt `skapa.meddelande` (lifehub `:677-690`, bolag-ops `:660-673`) mot `nyttMeddelande: () => navigera("/meddelanden?nytt=1")`, under samma villkor (`samtal.kalla`).
+   - Ta bort `OpsNyttMeddelande` ur importen från `@staiger/ops-framework` (lifehub `:18`, bolag-ops `:19`). Exporten finns inte längre, så importen ger byggfel.
+   - Byt blocket med `skapa.meddelande` och dess kommentar (lifehub `:681-703`, bolag-ops `:653-675`) mot `nyttMeddelande: () => navigera("/meddelanden?nytt=1")`, under samma villkor (`samtal.kalla`).
    - ⛔ Skickar appen kvar `skapa.meddelande` kastar skalet.
    - Rätta kommentaren om `skapa.meddelande` (lifehub `:231`, bolag-ops `:221`).
 2. **`src/app/views/MeddelandenView.jsx`.**

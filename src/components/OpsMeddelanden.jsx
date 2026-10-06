@@ -173,6 +173,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   // ⛔ Läget "nytt" vinner över ett valt samtal: det är det man senast bad om.
   const nyttLage = Boolean(groupId) && (nytt !== undefined ? nytt : egetNytt);
   const valdId = nyttLage ? null : valt !== undefined ? valt : egetVal;
+  // Gruppen som visas just nu, för svar som kommer efter ett byte. Se `useSamtal`.
+  const gruppNu = useRef(groupId);
+  gruppNu.current = groupId;
   /** @param {string | null} id @param {{ nytt: true }} [val] */
   const valj = (id, val) => {
     if (valt === undefined) setEgetVal(id);
@@ -407,12 +410,15 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         ) : null}
         {nyttLage && groupId ? (
           <NyttSamtal
+            key={groupId}
             kalla={kalla}
             uid={uid}
             groupId={groupId}
             medlemmar={medlemmar}
             texter={t}
             onOppnat={(s, text) => {
+              // ⛔ Ett samtal i en grupp som inte längre visas väljs inte och skrivs inte till appens adress (tredje varvet, PR 264).
+              if (s.groupId !== gruppNu.current) return;
               utkast.current = { id: s.id, text };
               // ⛔ Som SS (`ChatInboxPanel.jsx:484-487`): filtret och sökningen nollas, annars döljer "Olästa" det nya samtalet.
               setFilter("alla");
@@ -474,17 +480,29 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
   const [fel, setFel] = useState(/** @type {{ falt?: "till", text: string } | null} */ (null));
   const [oppnar, setOppnar] = useState(false);
   const tillId = useId();
+  const monterad = useRef(true);
+  useEffect(() => {
+    monterad.current = true;
+    return () => {
+      monterad.current = false;
+    };
+  }, []);
 
   /** @param {import("../lib/samtal.js").Mottagare} m */
   const oppna = async (m) => {
+    // Spärren först: ett andra val medan det första öppnas byter inte mottagare under ett samtal som redan är på väg.
+    if (oppnar) return;
     setMottagare(m);
-    if (oppnar || (m.slag !== "person" && m.slag !== "agent") || !m.uid) return;
+    if ((m.slag !== "person" && m.slag !== "agent") || !m.uid) return;
     setFel(null);
     setOppnar(true);
     try {
       const s = await kalla.oppnaPrivat(m.slag === "agent" ? { groupId, uid, annan: m.uid, slag: "agent" } : { groupId, uid, annan: m.uid });
+      // ⛔ Avmonterad (gruppen byttes, läget stängdes) under öppnandet: samtalet hör inte till det som visas nu.
+      if (!monterad.current) return;
       onOppnat(s, textNu.current);
     } catch (e) {
+      if (!monterad.current) return;
       setFel({ text: e instanceof Error ? e.message : String(e) });
       setOppnar(false);
     }
