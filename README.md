@@ -1844,7 +1844,12 @@ och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg a
 ⛔ `skapa.meddelande` och `OpsNyttMeddelande` (0.34.0 till 0.62.0) är borttagna, och skalet **kastar** om `skapa.meddelande` skickas,
 med vägen till `skapa.nyttMeddelande` i felet: en rad som tyst försvann hade varit samma fel som CP såg, en väg som inte gör något.
 Skälet: CP 2026-10-06, "steget med att öppna en liten chattfönster till är lite konstigt", och "Chatten dök upp långt senare...".
-`skickaEtikett` är borttagen med panelen.
+`skickaEtikett` är borttagen med panelen. **Ompinning till 0.63.0:** fil för fil, med radnummer för lifehub.app och bolag-ops, i
+CHANGELOG under 0.63.0. Kort sagt:
+- Ta bort importen av `OpsNyttMeddelande`, annars blir det byggfel.
+- Byt `skapa.meddelande` mot `skapa.nyttMeddelande`.
+- Ta bort `onNytt` ur vyn, eftersom den ignoreras.
+- Låt vyns `onValj(id, val)` skriva `?nytt=1` när `val.nytt` är satt och ta bort parametern annars.
 
 **Datakontraktet** fick `innehaller` (0.34.0): `{ innehaller: { deltagare: uid } }` är Firestores `array-contains`, ett fält per
 fråga. Minnesadaptern och Postgres (`= ANY`) stöder det; http-adaptern KASTAR hellre än att skicka frågan utan villkoret, eftersom

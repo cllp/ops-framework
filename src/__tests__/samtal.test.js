@@ -11,6 +11,12 @@ describe("delaSamtalsnyckel (0.63.0, #263): nyckeln läst baklänges, så att tr
     expect(delaSamtalsnyckel(par)).toEqual({ groupId: "g", deltagare: ["anna", "bo"] });
     expect(delaSamtalsnyckel(samtalsnyckel({ groupId: "g", slag: "grupp" }))).toEqual({ groupId: "g", slag: "grupp" });
   });
+  it("⛔ ett groupId med avgränsaren är ett fel, inte en nyckel som läses baklänges till fel grupp", () => {
+    expect(() => samtalsnyckel({ groupId: "g|a", slag: "personer", deltagare: ["b", "c"] })).toThrow(/groupId "g\|a" innehåller/);
+    expect(() => samtalsnyckel({ groupId: "g|a", slag: "grupp" })).toThrow(/avgränsare/);
+    expect(() => delaSamtalsnyckel("g|a|b|c", "g|a")).toThrow(/groupId "g\|a" innehåller/);
+    expect(delaSamtalsnyckel("g|a|b|c", "g")).toBeNull();
+  });
   it("⛔ ett id som samtalsnyckel aldrig hade skrivit är inget samtal", () => {
     for (const fel of [null, 42, "", "g", "g|", "g|b|a", "g|a|a", "g|a|b|c", " g|a|b", "g||b"]) expect(delaSamtalsnyckel(fel)).toBeNull();
   });

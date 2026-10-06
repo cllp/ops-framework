@@ -226,7 +226,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     if (!valdId) return null;
     const rad = rader.find((r) => r.samtal.id === valdId);
     if (rad) return rad;
-    const d = delaSamtalsnyckel(valdId);
+    const d = delaSamtalsnyckel(valdId, groupId);
     if (!d || d.groupId !== groupId || !uid) return null;
     if ("slag" in d) return { samtal: { id: valdId, groupId: d.groupId, slag: "grupp", skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: null };
     if (!d.deltagare.includes(uid)) return null;
@@ -414,6 +414,9 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             texter={t}
             onOppnat={(s, text) => {
               utkast.current = { id: s.id, text };
+              // ⛔ Som SS (`ChatInboxPanel.jsx:484-487`): filtret och sökningen nollas, annars döljer "Olästa" det nya samtalet.
+              setFilter("alla");
+              setSok("");
               laggIn(s);
               valj(s.id);
             }}
@@ -461,7 +464,13 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
  */
 function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
   const [mottagare, setMottagare] = useState(/** @type {import("../lib/samtal.js").Mottagare | null} */ (null));
-  const [text, setText] = useState("");
+  const [text, setTextState] = useState("");
+  // ⛔ Texten läses ur en ref när samtalet öppnats, inte ur stängningen: det man skrev MEDAN `oppnaPrivat` pågick följer med.
+  const textNu = useRef("");
+  const setText = (/** @type {string} */ v) => {
+    textNu.current = v;
+    setTextState(v);
+  };
   const [fel, setFel] = useState(/** @type {{ falt?: "till", text: string } | null} */ (null));
   const [oppnar, setOppnar] = useState(false);
   const tillId = useId();
@@ -474,7 +483,7 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, onOppnat }) {
     setOppnar(true);
     try {
       const s = await kalla.oppnaPrivat(m.slag === "agent" ? { groupId, uid, annan: m.uid, slag: "agent" } : { groupId, uid, annan: m.uid });
-      onOppnat(s, text);
+      onOppnat(s, textNu.current);
     } catch (e) {
       setFel({ text: e instanceof Error ? e.message : String(e) });
       setOppnar(false);

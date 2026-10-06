@@ -86,6 +86,17 @@ function kravUid(uid, vem) {
 }
 
 /**
+ * ⛔ Ett groupId med avgränsaren gör nyckeln tvetydig: "g|a" med paret b, c och "g" med "a|b", c. Felet sägs, det faller inte tyst
+ * till en nyckel som läses baklänges till fel grupp (0.63.0, #263).
+ * @param {string} groupId @param {string} vem
+ */
+function kravGruppUtanAvgransare(groupId, vem) {
+  if (groupId.includes(SAMTALSAVGRANSARE)) {
+    throw new Error(`${vem}: groupId "${groupId}" innehåller "${SAMTALSAVGRANSARE}", som är nyckelns avgränsare. Nyckeln hade blivit tvetydig.`);
+  }
+}
+
+/**
  * Samtalets nyckel, härledd ur gruppen och deltagarna.
  *
  * @param {{ groupId: string, slag: "grupp" | "personer" | "agent", deltagare?: ReadonlyArray<string> }} d
@@ -94,6 +105,7 @@ function kravUid(uid, vem) {
 export function samtalsnyckel(d) {
   const groupId = rensa(d?.groupId);
   if (!groupId) throw new Error("samtalsnyckel: groupId krävs. Ett samtal hör alltid till en grupp.");
+  kravGruppUtanAvgransare(groupId, "samtalsnyckel");
   if (d.slag === "grupp") return `${groupId}${SAMTALSAVGRANSARE}${GRUPPSAMTAL}`;
   if (d.slag !== "personer" && d.slag !== "agent") {
     throw new Error(`samtalsnyckel: slaget "${d.slag}" finns inte. Giltiga: ${SAMTALSSLAG.join(", ")}.`);
@@ -220,10 +232,15 @@ export function motpart(samtal, uid) {
  * läsning och utan en kopia någonstans. Slaget `personer` eller `agent` avgörs av vem paret är, och det vet bara den som
  * har medlemmarna: därför lämnas det åt anroparen.
  *
+ * Med `groupId` (gruppen man läser i) kastar den när gruppen själv bär avgränsaren: då går ingen nyckel i gruppen att läsa
+ * baklänges, och det är ett fel i anroparen, inte ett id som inte är ett samtal.
+ *
  * @param {unknown} id
+ * @param {string | null} [groupId]
  * @returns {{ groupId: string, slag: "grupp" } | { groupId: string, deltagare: [string, string] } | null} `null` när id:t inte är en samtalsnyckel.
  */
-export function delaSamtalsnyckel(id) {
+export function delaSamtalsnyckel(id, groupId) {
+  if (typeof groupId === "string") kravGruppUtanAvgransare(groupId, "delaSamtalsnyckel");
   if (typeof id !== "string") return null;
   const delar = id.split(SAMTALSAVGRANSARE);
   if (delar.some((d) => d.trim() === "" || d !== d.trim())) return null;

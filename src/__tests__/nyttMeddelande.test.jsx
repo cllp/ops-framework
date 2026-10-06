@@ -263,3 +263,82 @@ describe("⛔ listan står kvar i DOM:en under hela flödet (#263)", () => {
     await act(async () => {});
   });
 });
+
+/**
+ * ⛔ `laggIn` MÄTS MOT EN FRYST KÄLLA (granskningen av PR 264). Med en källa som svarar som vanligt syntes raden ändå, via
+ * läsmärket (`markeraLast`, `onLast`, `lasOm`), och alla prov var gröna med `laggIn` som no-op. Här svarar `oversikt` alltid
+ * med det den hade när provet började, så det enda som kan sätta raden i listan är den lokala inläggningen.
+ */
+describe("⛔ laggIn mot en källa som aldrig svarar med det nya samtalet (#263, granskningen)", () => {
+  /** Källan med en `oversikt` som är fryst vid sitt första svar. */
+  async function frystKalla() {
+    let t = Date.now() - 60000;
+    const kallan = createSamtalskalla({ kalla: createMemorySource({}), klocka: () => (t += 1000) });
+    const g = await kallan.oppnaGrupp({ groupId: "g", uid: "anna" });
+    await kallan.skicka(g.id, { text: "Gammalt i gruppen", av: "bo" });
+    const fryst = await kallan.oversikt({ groupId: "g", uid: "anna" });
+    const oversikt = vi.fn(async () => fryst);
+    return { kalla: { ...kallan, oversikt }, oversikt };
+  }
+  const raderna = () => [...document.querySelectorAll("[data-samtalsrad]")].map((r) => r.textContent ?? "");
+
+  it("raden står i listan direkt efter valet och står kvar efter omläsningen, utdraget finns efter Skicka, och den nya raden ligger överst", async () => {
+    const { kalla, oversikt } = await frystKalla();
+    render(<App kalla={kalla} />);
+    await waitFor(() => expect(raderna()).toHaveLength(1));
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
+    const lasningarFore = oversikt.mock.calls.length;
+    await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
+    await waitFor(() => expect(raderna()).toHaveLength(2));
+    expect(raderna().some((r) => r.includes("Bo Lind"))).toBe(true);
+    // Källan har läst om efter valet och svarat utan samtalet. Raden står kvar.
+    await waitFor(() => expect(oversikt.mock.calls.length).toBeGreaterThan(lasningarFore));
+    await act(async () => {});
+    expect(raderna().some((r) => r.includes("Bo Lind"))).toBe(true);
+    await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Ny fråga till Bo{Enter}");
+    await waitFor(() => expect(raderna()[0]).toContain("Ny fråga till Bo"));
+    // Sorteringen: det just skickade ligger överst, gruppchatten med sitt äldre meddelande under.
+    expect(raderna()[0]).toContain("Bo Lind");
+    expect(raderna()[1]).toContain("Gammalt i gruppen");
+    const efterSkicka = oversikt.mock.calls.length;
+    await waitFor(() => expect(oversikt.mock.calls.length).toBeGreaterThan(efterSkicka - 1));
+    await act(async () => {});
+    expect(raderna()[0]).toContain("Ny fråga till Bo");
+  });
+
+  it("text som skrivs medan samtalet öppnas följer med in i tråden", async () => {
+    const kallan = createSamtalskalla({ kalla: createMemorySource({}) });
+    /** @type {(v?: unknown) => void} */
+    let slapp = () => {};
+    const oppnaPrivat = async (/** @type {any} */ d) => {
+      await new Promise((r) => (slapp = r));
+      return kallan.oppnaPrivat(d);
+    };
+    render(<App kalla={{ ...kallan, oppnaPrivat }} />);
+    await screen.findByText("Inga samtal än");
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
+    const falt = () => screen.getByRole("textbox", { name: "Skriv ett meddelande" });
+    await user.type(falt(), "Hej ");
+    await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
+    await user.type(falt(), "Bo");
+    await act(async () => slapp());
+    const trad = await waitFor(() => /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"]')));
+    expect(within(trad).getByRole("textbox", { name: "Skriv ett meddelande" })).toHaveValue("Hej Bo");
+  });
+
+  it("filtret Olästa och sökningen nollas när ett samtal startas, så att det nya samtalet syns", async () => {
+    const { kalla } = await frystKalla();
+    render(<App kalla={kalla} />);
+    await waitFor(() => expect(raderna()).toHaveLength(1));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^Olästa/ }));
+    await user.type(screen.getByRole("searchbox", { name: "Sök i meddelanden" }), "xyz");
+    await user.click(screen.getAllByRole("button", { name: "Nytt meddelande" })[0]);
+    await user.click(screen.getByRole("radio", { name: "Bo Lind" }));
+    await waitFor(() => expect(raderna().some((r) => r.includes("Bo Lind"))).toBe(true));
+    expect(screen.getByRole("button", { name: "Alla" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("searchbox", { name: "Sök i meddelanden" })).toHaveValue("");
+  });
+});
