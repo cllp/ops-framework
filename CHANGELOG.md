@@ -13,6 +13,49 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 0.69.0 och 0.70.0 är på väg i egna PR:ar (#274, #275). Det här avsnittet ligger ovanför dem, och en krock med main löses med en vanlig merge.
 
+### ⛔ Deploy före klienten: regeln för kommentarer på händelser bär nu `bilaga`
+
+`handelseregelfragment` släpper in ett frivilligt fält `bilaga` på `<händelser>/{hid}/<kommentarer>/{kid}`. Appen genererar om sina regler och rullar ut dem FÖRE en klient som slår på `bilagor` i `OpsKommentarer`. Utan bilaga är regeln oförändrad i sak: samma fält, samma läsning, samma tak för texten. Läsningen ändras inte alls, så en bilaga läses av exakt dem som läser kommentaren.
+
+### Bild och fil i kommentarer (cllp/bolag-ops#570)
+
+Händelsen: CP 2026-10-06, inkorgspost `D7P0tLlRj3EKcoptFcF1`: "Vill kunna klistra in bild i kommentar. Kommentarer behöver ha bilder elelr filer också."
+
+#### Tillagt
+
+- `OpsKommentarer` med `bilagor`: `OpsFilePicker` under skrivrutan. Välj fil, inklistring med Cmd+V, förhandsvisning före sändning (miniatyr för en bild, namnet för allt annat), Ta bort. `onSkriv(text, { bilaga })`, och med en bilaga får texten vara tom. Av som förval, se deploy ovan. En bilaga på en befintlig kommentar visas alltid: en bild som miniatyr, en fil som nedladdningslänk med namn och storlek.
+- Modellen: `KOMMENTARBILAGA_TYPER` (JPEG, PNG, WebP, GIF, PDF, text, CSV), `MAX_KOMMENTARBILAGA` (700 000 tecken), `MAX_BILAGENAMN`, `KOMMENTARBILAGAFALT` och `kommentarbilagaFel`. `byggKommentar` prövar bilagan med samma funktion.
+- `readAttachment` och `OpsFilePicker` tar `typer`, en lista över typerna en bilaga får ha. En bild prövas efter att den krympts till JPEG, allt annat innan filen läses.
+
+#### Tre listor (regel 13)
+
+- **Tas som det är:** inkorgens `bilaga`-form `{ dataUrl, namn, typ, tecken, bredd?, hojd? }`, `readAttachment` och `OpsFilePicker` med inklistring och förhandsvisning.
+- **Görs bättre:** en typlista i stället för allt som går att välja (SVG bär skript, en okänd typ går inte att visa), och regeln prövar att data-URL:en är av den typ posten påstår och att `tecken` är dess längd. Inkorgens regel prövar bara `data:.*`.
+- **Stryks:** en fillagring (Firebase Storage) för kommentarernas filer. Den hade krävt en andra regeluppsättning för samma läsbehörighet, en andra skrivning per kommentar med en föräldralös fil när den föll, och en ny tjänst i appen, som i dag inte har någon. Bilagan ligger i kommentarens dokument, och taket följer av dokumentets gräns på 1 MiB. Blir bilagorna många eller stora är fillagringen svaret, och då ska den här formen bort och inte byggas ut.
+
+#### Prov
+
+- `src/__tests__/kommentarer.test.jsx`: modellen, att regeln bär samma typer och tak, inklistring som ger en bilaga med förhandsvisning och skickas, fel typ och för stor fil nekade i klienten. Utan ändringen: 8 av 8 nya röda. Med: 32 av 32 gröna.
+- `rules/__tests__/handelsekommentarer.test.mjs`, mot emulatorn: medlem skriver med bild (också utan text) och läser, icke-medlem nekas att läsa och skriva, exakt taket in och ett tecken över nekas, SVG, program och fel innehåll nekas, okända och saknade fält nekas. Med ändringen 19 av 19 gröna. Mot den gamla regeln 2 röda (det tillåtna nekades, eftersom den gamla regeln nekar varje bilaga). Avslagen är gröna också mot den gamla regeln, så de provades med en mutation: utan typ- och storlekskontrollerna i den nya regeln blir provet för taket och provet för typen röda (2 av 19).
+
+### Snabbvyn vid långtryck ligger överst i panelen, centrerad (cllp/bolag-ops#568)
+
+Händelsen: CP 2026-10-06, inkorgspost `tAv8ejFHHWVkAzKx6eHv`: "Kände nu när jag testade snabbvyn för kalender att den bubblan med långpress i cellen (ej den vanliga). Att snabb vyn kan ligga längst upp i panelen centrerat."
+
+#### Ändrat
+
+- `OpsCalendar`: snabbtitten (långtryck eller högerklick på en dag) är inte längre en `fixed` bubbla under rutan. Den ritas först i dagpanelens plats, centrerad och högst 280 px bred: under rutnätet under 1024 px, i kolumnen bredvid från 1024 px. Platsen öppnas för titten också när ingen dag är vald, och ligger en dagpanel öppen står titten ovanför den. Dagpanelen vid ett vanligt tryck är orörd.
+
+#### Tre listor (regel 13)
+
+- **Tas som det är:** tittens innehåll, "Dold" på det filtret döljer, och de tre vägarna ut (krysset, Escape, tryck utanför).
+- **Görs bättre:** titten täcker inte längre rutnätet kring tummen, och dess plats är samma plats som dagpanelens.
+- **Stryks:** positionsuträkningen (`ankare.x`, `ankare.y` och klämningen mot fönstret), som bara fanns för att bubblan flöt.
+
+#### Prov
+
+- `src/__tests__/calendar.test.jsx`, "snabbvyn vid långtryck": ett långtryck på 450 ms ger titten som första barn i dagpanelens plats, utan `fixed` och utan koordinater, och utan att en dag väljs; med en dag vald står titten ovanför dagpanelen. Utan ändringen: 2 av 3 nya röda (det tredje, att ett vanligt tryck öppnar dagpanelen, är ett skydd mot en regression och grönt i båda). Med: 117 av 117 gröna i kalenderns tre provfiler.
+
 ### Vem-filtrets räknare: ett tal per rad, och en grupp räknas helt eller inte alls (cllp/bolag-ops#569)
 
 Händelsen: CP 2026-10-06, inkorgspost `kBctxHT9NDWs7VQ4roJI`: "Finns många initialt, sedan agent 0st och jag 2st. Går inte jämnt ut. Nåt är fel där med alla, jag och agent."

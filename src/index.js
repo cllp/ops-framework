@@ -236,7 +236,7 @@ export { OpsKommentarer, OpsKommentarsrad, ORD_OPSKOMMENTARER, ORD_OPSKOMMENTARS
 export { OpsHandelsePanel } from "./components/OpsHandelsePanel.jsx";
 export { HANDELSEPARAM, handelseHref } from "./lib/handelsepanel.js";
 export { createKalenderkalla, createSvarskalla, createKommentarkalla } from "./data/kalenderkalla.js";
-export { HANDELSEKONTRAKT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader, KOMMENTARFALT, MAX_HANDELSEKOMMENTAR, LASMARKESFALT, byggKommentar, kommentarsrader } from "./lib/handelsemodell.js";
+export { HANDELSEKONTRAKT, SVARSVAL, SVARSFALT, handelsefel, handelsensKalenderId, handelsensDagar, byggSvar, sammanstallSvar, harPasserat, svarsrader, KOMMENTARFALT, MAX_HANDELSEKOMMENTAR, KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, MAX_BILAGENAMN, KOMMENTARBILAGAFALT, kommentarbilagaFel, LASMARKESFALT, byggKommentar, kommentarsrader } from "./lib/handelsemodell.js";
 
 /*
  * ⛔ GRUPPLÄGET (#139, #190). Besluten är rena funktioner och ligger därför här:
