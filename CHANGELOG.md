@@ -9,6 +9,35 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.67.0
+
+⛔ **Versionsnumret:** 0.66.0 är redan taget av utkastet PR 268 (trådar i gruppchatten, lifehub.app#60), som inte är mergat när den här grenen öppnas. Main står på 0.65.0. Den här grenen tar därför 0.67.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.
+
+### Paketet heter `ops-framework`, utan scope
+
+CP 2026-10-06: release-artefakterna ska inte bära "staiger" i namnet. Paketet hette `@staiger/ops-framework`, och `npm pack` gör ett scope till ett prefix i filnamnet, så varje release fick tarbollen `staiger-ops-framework-X.Y.Z.tgz`.
+
+#### Ändrat (brytande)
+
+- **`name` i `package.json` är `ops-framework`.** `npm pack` ger `ops-framework-0.67.0.tgz` (mätt). `publish.yml` är oförändrad: den tar filnamnet ur `npm pack` och skriver det inte själv, så namnet har ett hem.
+- **Varje hänvisning i repot följer med:** README, SETUP, adoption, skills, exempelmodulen, kommentarer och filhuvuden i `src/`, de genererade reglernas källrad (`// Källa: ops-framework, ...`), `create-ops-app`-mallen och vakterna.
+- **`check-token-overrides` och `check-fonts` kräver `@import "ops-framework/tokens.css"`**, och `@source` ska peka på en sökväg vars segment heter exakt `ops-framework/`. En app som står kvar på `@staiger/ops-framework` i CSS:en blir röd.
+- **`check-paket` är rött för ett scopat `name`**, med filnamnet `npm pack` hade gett i felet. Planterat i `test-guards` (`paket 3b`).
+- ⛔ **De äldre avsnitten i den här filen står kvar med det gamla namnet.** De beskriver vad som var sant när de gavs ut, och release-URL:erna i dem (till exempel `staiger-ops-framework-0.40.0.tgz`) är filnamnen som faktiskt ligger på de releaserna.
+- **Inte ändrat:** `create-ops-app/package.json` heter fortfarande `@staiger/create-ops-app`. Den ligger inte i `files`, packas inte och ges inte ut.
+
+#### Ompinning till 0.67.0
+
+Gäller `cllp/lifehub.app` och `cllp/bolag-ops` (sökvägarna under `web/`, och `functions/` där ramverket används). Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. **`package.json`:** byt nyckeln, inte bara URL:en: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.67.0/ops-framework-0.67.0.tgz"`, och ta bort `"@staiger/ops-framework"`.
+   - ⛔ Står den gamla nyckeln kvar installerar npm det nya paketet under `node_modules/@staiger/ops-framework` (mätt med en tarboll), så importerna fortsätter fungera och ingenting ser fel ut. Ramverkets vakter och dokumentation säger då `ops-framework`, och appen säger något annat.
+2. **Alla importer:** `from "@staiger/ops-framework"`, `"@staiger/ops-framework/node"` och `"@staiger/ops-framework/sentry"` blir `"ops-framework"`, `"ops-framework/node"` och `"ops-framework/sentry"`.
+3. **`src/index.css`:** `@import "ops-framework/tokens.css";` och `@source "../node_modules/ops-framework/dist";`.
+4. **Skript och CI** som kör `node node_modules/@staiger/ops-framework/scripts/...` byter till `node_modules/ops-framework/scripts/...`.
+5. **Genererade regler:** kör regelgenereringen igen, så att källraden säger `ops-framework`. Reglerna i övrigt är oförändrade.
+6. `npm install` så att låsfilen bär det nya namnet, och sök efter `@staiger/ops-framework` i repot efteråt. Noll träffar i `src/`, `functions/`, CSS och skript är målet.
+
 ## 0.65.0
 
 ### Gruppens ikon och färg: sökbar ikonväljare med synonymer, kulör i stället för fri färg (#265)
