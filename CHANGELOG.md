@@ -9,6 +9,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.66.0
+
+⛔ **Versionsnumret:** 0.65.0 är reserverat för PR 266, som inte är mergad när den här grenen öppnas. Den här grenen tar därför 0.66.0.
+
+### Trådar i gruppchatten (cllp/lifehub.app#60)
+
+CP 2026-10-06, överlämning i cllp/lifehub.app#60: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är med i tråden för alla." Bakgrunden var en lång tråd med fem olika spår, där spåren gav kopplingar till varandra som inte hade uppstått om de legat isär. Tråden är gruppens, inte ett privat samtal med agenten.
+
+Första versionen byggdes i appen (lifehub.app PR 65), med datamodell och regler i appens `firestore.rules`. Beslutet samma dag: samtalen och deras regler är ramverkets (`createSamtalskalla`, `samtalsregelfragment`), och en regel för trådar i appen hade varit två hem för samma regel (regel 2). Reglerna och proven flyttar därför hit, och appen pinnar om.
+
+#### Tillagt
+
+- **Modellen i `lib/samtal.js`:** `<samtal>/{sid}/<tradar>/{tid}` med `{ skapad, skapadAv, namn? }`, där `tid` ÄR rotmeddelandets id (inget `rot`-fält, inget `groupId`: samtalet bär gruppen). `TRADFALT`, `MAX_TRADNAMN`, `byggTrad`, `kravTradnamn`.
+- **Namnet är en regel, inget modellanrop:** `rensaForNamn`, `autonamn`, `tradensNamn`, `AUTONAMN_LANGD`, `AUTONAMN_MINST`, `NAMNLOS_TRAD`. Rotmeddelandet är frågan, så regeln ger ett begripligt namn direkt och kostar ingen kvot; ett lagrat automatiskt namn hade varit en andra sanning om rotmeddelandet. `namn` på tråden betyder bara att en person döpt om den. `autonamn` och `tradensNamn` finns också i `/node`, så att appens agent kallar tråden samma sak som vyn.
+- **`samtalsregelfragment({ tradar? })`:** trådar bara i gruppchatten; läsa som gruppchatten; en aktiv person startar en tråd ur ett meddelande som finns, som sig själv; en uppdatering rör bara `namn`; trådens meddelanden har samtalets krav och skrivs aldrig av en klient som agent; ingen radering. Regelprov med mutationstabell i `rules/__tests__/tradar.test.mjs`.
+- **`createSamtalskalla({ tradar? })`:** `trad`, `oppnaTrad`, `tradar(sid, { rotter })`, `tradmeddelanden`, `prenumereraTrad`, `skickaITrad`, `dopOm`, `rotmeddelande`. En tråd skapas med det första svaret, så ett "Svara i tråd" som ångras lämnar ingen tom tråd. Antalet svar räknas, det lagras inte.
+- **`OpsMeddelanden`:** "Svara i tråd" under varje meddelande i gruppchatten, eller ett märke "3 svar · <namn>" när tråden finns. Tråden öppnas i högerpanelen (`OpsTrad`) med en rad tillbaka till gruppchatten, namnet med Döp om, rotmeddelandet, svaren och samma skrivfält, och listan står kvar till vänster på dator. Nya props `valtTrad` och `onValjTrad`. På telefon ersätter trådens rad tillbaka den vanliga "Tillbaka", så att två rader tillbaka till två olika ställen aldrig står ovanför varandra.
+- **`check-skalyta` avsnitt 29 (e):** märket och "Svara i tråd" i gruppchatten, tråden i högerpanelen vid 390 och 1280 px, listan kvar vid 1280.
+
+#### Medvetet utelämnat (regel 13)
+
+- **Inget läsmärke per tråd.** Det hade varit en samling till, en läsning till per tråd och en regel till, för ett behov ingen har sett än. Trådens olästa räknas inte; märket visar antal svar.
+- **Ingen notis för trådsvar**, utom det som redan gäller när agenten nämns.
+- **Inget gruppminne.** "Lyft till minnet" väntar på CP:s beslut om var minnet ska bo.
+
+#### Ompinning till 0.66.0
+
+Ingen brytande ändring för en app som inte skickar `tradar`: fragmentet får ett nytt `match /tradar/{tid}` under samtalen, med förvalt namn. En app som har trådregler i ett eget block ska ta bort det, eftersom två `match` på samma väg läggs ihop med ELLER. Klienten läser trådarna först när reglerna är deployade.
+
+---
+
 ## 0.64.0
 
 ⛔ **Versionsnumret:** 0.64.0 är reserverat för den här grenen. Arbetet med #265 (ikon och kulör) tar 0.65.0.

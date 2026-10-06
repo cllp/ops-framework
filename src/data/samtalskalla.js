@@ -1,5 +1,6 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
-import { byggMeddelande, byggSamtal, motpart, olastaI, samtalsnyckel, utdrag } from "../lib/samtal.js";
+import { FALT_BORT } from "./contract.js";
+import { byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, utdrag } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -22,15 +23,17 @@ import { byggMeddelande, byggSamtal, motpart, olastaI, samtalsnyckel, utdrag } f
  * @param {string} [konfig.samtal] Förval `"samtal"`.
  * @param {string} [konfig.meddelanden] Förval `"meddelanden"`.
  * @param {string} [konfig.last] Förval `"last"`.
+ * @param {string} [konfig.tradar] (0.66.0) Förval `"tradar"`. Trådarna ligger under gruppchatten, och trådens meddelanden
+ *   under tråden med samma namn som samtalets (`meddelanden`), eftersom de har samma form och samma regel.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar = "tradar", sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  for (const [falt, v] of Object.entries({ samtal, meddelanden, last })) {
+  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, tradar })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
     }
@@ -40,6 +43,10 @@ export function createSamtalskalla(konfig) {
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
   /** @param {string} sid */
   const lastvag = (sid) => `${samtal}/${sid}/${last}`;
+  /** @param {string} sid */
+  const tradvag = (sid) => `${samtal}/${sid}/${tradar}`;
+  /** @param {string} sid @param {string} tid */
+  const tradmeddelandevag = (sid, tid) => `${tradvag(sid)}/${tid}/${meddelanden}`;
 
   /**
    * Gruppchatten och mina privata samtal i en grupp.
@@ -180,7 +187,145 @@ export function createSamtalskalla(konfig) {
     return rader.sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0));
   }
 
-  return Object.freeze({ lista, oppnaGrupp, oppnaPrivat, meddelanden: lasMeddelanden, prenumerera, skicka, lastTill, markeraLast, oversikt, sida });
+  /*
+   * ══ ⛔ TRÅDARNA (0.66.0, cllp/lifehub.app#60) ═══════════════════════════════════════════════════════════════════
+   *
+   * Modellen och skälen står i `lib/samtal.js`. Här: hur källan läser och skriver dem.
+   *
+   * ⛔ EN TRÅD SKAPAS FÖRST NÄR DET FÖRSTA SVARET SKICKAS (`skickaITrad`), inte när någon öppnar den. "Svara i tråd" som
+   * ångras lämnar då ingen tom tråd efter sig, och märket under meddelandet ljuger aldrig om ett svar som inte finns.
+   *
+   * ⛔ ANTALET RÄKNAS, DET LAGRAS INTE. En räknare på tråden hade varit en andra sanning om meddelandena och en skrivning
+   * per svar som kan misslyckas för sig (samma skäl som `senast` på samtalet, filhuvudet i `lib/samtal.js`). Räkningen
+   * läser högst `sida` meddelanden per tråd, och bara för trådar vars rotmeddelande syns (`rotter`).
+   */
+
+  /**
+   * En tråd, eller `null` om den inte finns än.
+   * @param {string} sid @param {string} tid
+   * @returns {Promise<import("../lib/samtal.js").Trad | null>}
+   */
+  async function trad(sid, tid) {
+    return /** @type {any} */ (await kalla.read(tradvag(sid), tid));
+  }
+
+  /**
+   * Öppnar tråden ur rotmeddelandet `rot`: den befintliga, eller en ny. Högst en per meddelande, ur nyckeln.
+   *
+   * ⛔ LÄS FÖRST ÄR EN BESPARING, INTE UNIKHETEN, samma skäl som `oppnaPrivat`. Kontraktets `create` med eget id ersätter, men
+   * regeln nekar en andra skapelse (den är en uppdatering som rör mer än namnet), och då läses den befintliga.
+   *
+   * @param {{ sid: string, rot: string, uid: string }} d
+   * @returns {Promise<import("../lib/samtal.js").Trad>}
+   */
+  async function oppnaTrad({ sid, rot, uid }) {
+    if (!sid) throw new Error("samtalskalla.oppnaTrad: sid krävs.");
+    const ny = byggTrad({ rot, skapadAv: uid, skapad: klocka() });
+    const finns = await trad(sid, ny.id);
+    if (finns) return finns;
+    try {
+      const { id, ...falt } = ny;
+      await kalla.create(tradvag(sid), { id, ...falt });
+      return ny;
+    } catch (fel) {
+      const igen = await trad(sid, ny.id);
+      if (igen) return igen;
+      throw fel;
+    }
+  }
+
+  /**
+   * Trådarna i ett samtal, var och en med antal svar och sina första meddelanden (för namnet).
+   *
+   * @param {string} sid
+   * @param {{ rotter?: ReadonlyArray<string> }} [val] Bara trådarna ur de här rotmeddelandena: de som syns.
+   * @returns {Promise<Array<import("../lib/samtal.js").Trad & { antal: number, fler: boolean, forsta: Array<import("../lib/samtal.js").Meddelande & { id: string }> }>>}
+   */
+  async function listaTradar(sid, val = {}) {
+    const alla = /** @type {any[]} */ (await kalla.list(tradvag(sid)));
+    const synliga = val.rotter ? new Set(val.rotter) : null;
+    const urval = synliga ? alla.filter((t) => synliga.has(t.id)) : alla;
+    return Promise.all(
+      urval.map(async (t) => {
+        const ms = /** @type {any[]} */ (await kalla.list(tradmeddelandevag(sid, t.id), { sortBy: "tid", direction: "asc", limit: sida }));
+        return { ...t, antal: ms.length, fler: ms.length >= sida, forsta: ms.slice(0, 3) };
+      }),
+    );
+  }
+
+  /**
+   * De senaste meddelandena i en tråd, i stigande tid.
+   * @param {string} sid @param {string} tid
+   * @returns {Promise<Array<import("../lib/samtal.js").Meddelande & { id: string }>>}
+   */
+  async function tradmeddelanden(sid, tid) {
+    const rader = await kalla.list(tradmeddelandevag(sid, tid), { sortBy: "tid", direction: "desc", limit: sida });
+    return [...rader].reverse();
+  }
+
+  /**
+   * Lyssnar på en tråds meddelanden, om källan kan prenumerera. Annars `null`.
+   * @param {string} sid @param {string} tid
+   * @param {{ onData: (rader: any[]) => void, onError: (fel: Error) => void }} lyssnare
+   * @returns {(() => void) | null}
+   */
+  function prenumereraTrad(sid, tid, lyssnare) {
+    if (typeof kalla.subscribe !== "function") return null;
+    return kalla.subscribe(tradmeddelandevag(sid, tid), { sortBy: "tid", direction: "desc", limit: sida }, {
+      onData: (rader) => lyssnare.onData([...rader].reverse()),
+      onError: lyssnare.onError,
+    });
+  }
+
+  /**
+   * Skickar i tråden ur `tid`, och öppnar tråden först om den inte finns.
+   * @param {string} sid @param {string} tid
+   * @param {{ text: string, av: string }} d
+   */
+  async function skickaITrad(sid, tid, { text, av }) {
+    // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig.
+    const m = byggMeddelande({ text, av, tid: klocka() });
+    await oppnaTrad({ sid, rot: tid, uid: av });
+    return kalla.create(tradmeddelandevag(sid, tid), { ...m });
+  }
+
+  /**
+   * Döper om tråden, eller (med `null` eller tomt) går tillbaka till det härledda namnet.
+   * @param {string} sid @param {string} tid @param {string | null} namn
+   */
+  async function dopOm(sid, tid, namn) {
+    const n = kravTradnamn(namn, "samtalskalla.dopOm");
+    return kalla.update(tradvag(sid), tid, { namn: n ?? FALT_BORT });
+  }
+
+  /**
+   * Rotmeddelandet en tråd startades ur, eller `null`.
+   * @param {string} sid @param {string} tid
+   */
+  async function rotmeddelande(sid, tid) {
+    return /** @type {any} */ (await kalla.read(meddelandevag(sid), tid));
+  }
+
+  return Object.freeze({
+    lista,
+    oppnaGrupp,
+    oppnaPrivat,
+    meddelanden: lasMeddelanden,
+    prenumerera,
+    skicka,
+    lastTill,
+    markeraLast,
+    oversikt,
+    sida,
+    trad,
+    oppnaTrad,
+    tradar: listaTradar,
+    tradmeddelanden,
+    prenumereraTrad,
+    skickaITrad,
+    dopOm,
+    rotmeddelande,
+  });
 }
 
 /**

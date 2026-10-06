@@ -3179,6 +3179,91 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+// ══ 29e. TRÅDAR I GRUPPCHATTEN VID 390 OCH 1280 PX (0.66.0, cllp/lifehub.app#60) ═══════════════════════════════════════════
+// CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är med i
+// tråden för alla." Tråden öppnas i högerpanelen i stället för chatten. Krav:
+//   - i gruppchatten bär meddelandet med en tråd ett märke med antal och namn ("3 svar · ..."), och minst ett annat meddelande
+//     "Svara i tråd"; märket och knappen är minst 28 px höga och ryms i loggens bredd;
+//   - ett tryck på märket öppnar tråden (`[data-ops-trad]`) i högerpanelen: raden tillbaka till gruppchatten överst, trådens namn
+//     som rubrik, raden "Alla i gruppen ser tråden", rotmeddelandet före svaren, minst 3 svarsbubblor, och skrivfältet längst ned
+//     i panelen och inom fönstret ovanför bottenraden;
+//   - vid 1280 står listan kvar till vänster med samma bredd som innan tråden öppnades; vid 390 är listan dold och raden
+//     tillbaka till gruppchatten är minst 44 px hög;
+//   - raden tillbaka leder till gruppchatten igen, och ingen horisontell överflödning någonstans.
+for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  const { page, context } = await oppna("meddelanden", vp);
+  const namn = `tråd ${vp.width}`;
+  try {
+    await page.waitForSelector("[data-samtalsrad]", { timeout: 4000 });
+    const over = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    const listbredd = await page.evaluate(() => document.querySelector("[data-samtalslista]")?.getBoundingClientRect().width ?? 0);
+    await page.locator('[data-samtalsrad="grupp"]').click();
+    await page.waitForSelector('[data-ops-samtal="grupp"] [data-meddelande]', { timeout: 4000 });
+    await page.waitForSelector('[data-tradmarke="finns"]', { timeout: 4000 });
+    await page.waitForTimeout(150);
+    const chatt = await page.evaluate(() => {
+      const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+      const logg = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="grupp"] [role=log]'));
+      const marken = [...logg.querySelectorAll("[data-tradmarke]")].map((m) => ({ slag: m.getAttribute("data-tradmarke"), text: (m.textContent || "").trim(), h: b(m).height, inom: b(m).right <= b(logg).right + 0.5 && b(m).left >= b(logg).left - 0.5 }));
+      return { marken };
+    });
+    matt.push(`${namn}, gruppchatten: ${JSON.stringify(chatt)}`);
+    const finns = chatt.marken.filter((m) => m.slag === "finns");
+    krav(finns.length === 1 && /^3 svar · /.test(finns[0].text), `${namn}: väntat ett märke "3 svar · <namn>" på meddelandet med tråden, fick ${JSON.stringify(finns.map((m) => m.text))}.`);
+    krav(chatt.marken.some((m) => m.slag === "ny" && m.text === "Svara i tråd"), `${namn}: inget meddelande bär "Svara i tråd".`);
+    krav(chatt.marken.length >= 2 && chatt.marken.every((m) => m.h >= 27.5 && m.inom), `${namn}: märkena ska vara minst 28 px höga och rymmas i loggen (${JSON.stringify(chatt.marken)}). Golv: minst 2.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `gruppchatt-tradmarke-${vp.width}.png`) });
+
+    await page.locator('[data-tradmarke="finns"]').click();
+    await page.waitForSelector("[data-ops-trad] [data-rotmeddelande] [data-meddelande]", { timeout: 4000 });
+    await page.waitForFunction(() => document.querySelectorAll("[data-ops-trad] [role=log] > [data-meddelande], [data-ops-trad] [role=log] > div > [data-meddelande]").length >= 4, null, { timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(150);
+    const trad = await page.evaluate(() => {
+      const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+      const vy = /** @type {HTMLElement} */ (document.querySelector("[data-ops-trad]"));
+      const panel = /** @type {HTMLElement} */ (vy.closest("section"));
+      const lista = /** @type {HTMLElement} */ (document.querySelector("[data-samtalslista]"));
+      const tillbaka = /** @type {HTMLElement} */ (vy.querySelector("[data-tillbaka-chatten]"));
+      const rot = /** @type {HTMLElement} */ (vy.querySelector("[data-rotmeddelande]"));
+      const alla = [...vy.querySelectorAll("[data-meddelande]")];
+      const svar = alla.filter((m) => !rot.contains(m));
+      const form = /** @type {HTMLElement} */ (vy.querySelector("form"));
+      return {
+        rubrik: vy.querySelector("[data-tradnamn]")?.textContent ?? null,
+        rad: vy.querySelector("[data-privat-rad]")?.textContent?.trim() ?? null,
+        tillbaka: { text: (tillbaka.textContent || "").trim(), h: b(tillbaka).height, overst: Math.abs(b(tillbaka).top - b(panel).top) < 1.5 },
+        rotForeSvar: svar.length > 0 && b(rot).bottom <= b(svar[0]).top + 0.5,
+        svar: svar.length,
+        formNederkant: b(form).bottom,
+        panelNederkant: b(panel).bottom,
+        lista: { synlig: getComputedStyle(lista).display !== "none", w: b(lista).width },
+        vh: window.innerHeight,
+      };
+    });
+    const bottenrad = vp.width < 768 ? 64 : 0;
+    matt.push(`${namn}, tråden: ${JSON.stringify(trad)}`);
+    krav(!!trad.rubrik && trad.rubrik.startsWith("Kan du sammanfatta budgeten"), `${namn}: trådens rubrik är "${trad.rubrik}", väntat namnet ur rotmeddelandet utan @Agent.`);
+    krav(trad.rad === "Alla i gruppen ser tråden", `${namn}: raden om vem som ser tråden är "${trad.rad}".`);
+    krav(trad.tillbaka.overst && trad.tillbaka.text.includes("Claes Philip Staiger"), `${namn}: raden tillbaka till gruppchatten ska stå överst i panelen (${JSON.stringify(trad.tillbaka)}).`);
+    krav(trad.rotForeSvar && trad.svar >= 3, `${namn}: rotmeddelandet ska stå före svaren (${trad.rotForeSvar}), och minst 3 svar (${trad.svar}). Golv.`);
+    krav(Math.abs(trad.formNederkant - trad.panelNederkant) < 1.5 && trad.formNederkant <= trad.vh - bottenrad + 0.5, `${namn}: skrivfältet slutar ${trad.formNederkant}, panelen ${trad.panelNederkant}, fönstret minus bottenraden ${trad.vh - bottenrad}.`);
+    if (vp.width >= 1024) {
+      krav(trad.lista.synlig && Math.abs(trad.lista.w - listbredd) < 1, `${namn}: listan ska stå kvar till vänster med samma bredd (${trad.lista.w} mot ${listbredd}, ${trad.lista.synlig ? "synlig" : "dold"}).`);
+    } else {
+      krav(!trad.lista.synlig && trad.tillbaka.h >= 43.5, `${namn}: på telefon ska listan vara dold (${trad.lista.synlig ? "synlig" : "dold"}) och raden tillbaka minst 44 px (${trad.tillbaka.h}).`);
+    }
+    krav((await over()) <= 0, `${namn}: sidan flödar över ${await over()} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `trad-oppen-${vp.width}.png`) });
+
+    await page.locator("[data-tillbaka-chatten]").click();
+    await page.waitForSelector('[data-ops-samtal="grupp"]', { timeout: 4000 });
+    krav((await page.locator("[data-ops-trad]").count()) === 0, `${namn}: raden tillbaka ska leda till gruppchatten.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 // ══ 30. KALENDERN MOT SS CalView VID 390 OCH 1280 PX (0.36.0, #179 F1) ════════════════════════════════════════════════
 // CP 2026-09-29 i #179: "Kolla alla kalender inställningar och funktioner i SessionStudio. [...] Samma vill jag ha i ramverket."
 // Förebilderna: SS `CalView.jsx`, `calView/MonthGrid.jsx`, `useCalendarDaySelection.js`, `CalendarDayPeekPopover.jsx`,

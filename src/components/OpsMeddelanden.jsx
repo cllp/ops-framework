@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
-import { MAX_MEDDELANDE, delaSamtalsnyckel, utdrag } from "../lib/samtal.js";
+import { MAX_MEDDELANDE, MAX_TRADNAMN, delaSamtalsnyckel, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -11,7 +11,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { AgentIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -45,6 +45,13 @@ import { AgentIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, Meddeland
  *   - tråden ritas på `valdId`. Saknas raden läses gruppen och paret ur nyckeln (`delaSamtalsnyckel`), och rubriken ur
  *     medlemmarna;
  *   - raden läggs in i listan lokalt (`laggIn`) efter öppnandet och efter Skicka, och listan läses sedan om.
+ *
+ * ⛔ TRÅDAR I GRUPPCHATTEN (0.66.0, cllp/lifehub.app#60). CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en
+ * tråd och när som helst blanda in en agent som är med i tråden för alla." Under varje meddelande i gruppchatten står "Svara i
+ * tråd", eller, när tråden finns, ett märke med antal svar och trådens namn. Tråden öppnas i högerpanelen i stället för chatten,
+ * med en rad tillbaka till gruppchatten överst, rotmeddelandet först, svaren och samma skrivfält. Listan står kvar till vänster
+ * på dator. Namnet härleds ur rotmeddelandet (`tradensNamn`) och går att döpa om. Tråden skapas först med det första svaret, så
+ * ett "Svara i tråd" som ångras lämnar ingen tom tråd. Inget läsmärke och ingen notis per tråd i första skivan (regel 13).
  *
  * ⛔ ETT SAMTAL ÄR EN MODELL (CP:s beslut 4). Gruppchatten, ett privat samtal och ett agentsamtal ritas av samma vy;
  * skillnaden är huvudets rad och vilka namn som skrivs ut.
@@ -88,6 +95,17 @@ import { AgentIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, Meddeland
  * @property {string} [valjMottagare] Felet när man skickar i läget "nytt" utan att ha valt någon. Förval "Välj vem meddelandet ska till.".
  * @property {string} [oppnaFel] Rubriken när samtalet inte kunde öppnas. Förval "Samtalet kunde inte öppnas".
  * @property {string} [ingenAnnan] När det inte finns någon att skriva till. Förval "Det finns ingen annan i gruppen att skriva till.".
+ * @property {string} [svaraITrad] (0.66.0) Förval "Svara i tråd".
+ * @property {string} [svar] (0.66.0) Substantivet efter antalet i trådens märke. Förval "svar".
+ * @property {string} [tradRad] (0.66.0) Förval "Alla i gruppen ser tråden".
+ * @property {string} [tradFel] (0.66.0) Förval "Tråden kunde inte hämtas".
+ * @property {string} [ingaSvar] (0.66.0) Förval "Inga svar än. Skriv det första.".
+ * @property {string} [dopOm] (0.66.0) Förval "Döp om".
+ * @property {string} [tradnamn] (0.66.0) Namnfältets etikett. Förval "Trådens namn".
+ * @property {string} [spara] (0.66.0) Förval "Spara".
+ * @property {string} [avbryt] (0.66.0) Förval "Avbryt".
+ * @property {string} [automatisktNamn] (0.66.0) Förval "Använd det automatiska namnet".
+ * @property {string} [rotSaknas] (0.66.0) När meddelandet tråden startades ur inte går att läsa. Förval "Meddelandet tråden startades ur går inte att läsa.".
  */
 
 /** @type {Required<Meddelandetexter>} */
@@ -119,6 +137,17 @@ const TEXTER = {
   valjMottagare: "Välj vem meddelandet ska till.",
   oppnaFel: "Samtalet kunde inte öppnas",
   ingenAnnan: "Det finns ingen annan i gruppen att skriva till.",
+  svaraITrad: "Svara i tråd",
+  svar: "svar",
+  tradRad: "Alla i gruppen ser tråden",
+  tradFel: "Tråden kunde inte hämtas",
+  ingaSvar: "Inga svar än. Skriv det första.",
+  dopOm: "Döp om",
+  tradnamn: "Trådens namn",
+  spara: "Spara",
+  avbryt: "Avbryt",
+  automatisktNamn: "Använd det automatiska namnet",
+  rotSaknas: "Meddelandet tråden startades ur går inte att läsa.",
 };
 
 /**
@@ -158,10 +187,14 @@ export function OpsMeddelandeLank({ href, olasta, etikett = "Meddelanden", olast
  *   `(null, { nytt: true })` när läget "nytt" öppnas. Ett anrop utan `val` betyder att läget "nytt" är stängt. EN signal för
  *   båda, så att en app som har dem i adressen skriver adressen en gång.
  * @param {(antal: number) => void} [props.onOlasta] Anropas med antalet olästa när det ändras, för ingångens räknare.
+ * @param {string | null} [props.valtTrad] (0.66.0) Vald tråd i gruppchatten, rotmeddelandets id, när appen styr det (t.ex. ur
+ *   adressen, `?trad=`). Gäller bara när det valda samtalet är gruppchatten. Utelämnad: komponenten håller valet själv.
+ * @param {(tid: string | null) => void} [props.onValjTrad] (0.66.0) Anropas med tråden som öppnas, eller `null` när man går
+ *   tillbaka till gruppchatten. Ett nytt val av samtal stänger tråden, och då anropas den inte: det är `onValj` som säger det.
  * @param {string} [props.sprak] "sv" eller "en", för tiderna. Förval "sv".
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, sprak: sprakProp, texter = {} }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {} }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -235,6 +268,18 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
     return { samtal: { id: valdId, groupId: d.groupId, slag, deltagare: d.deltagare, skapad: 0, skapadAv: "" }, senaste: null, olasta: 0, lastTill: 0, motpart: annan };
   }, [valdId, rader, groupId, uid, namn]);
   const hoger = nyttLage || Boolean(vald);
+  // ⛔ TRÅDEN GÄLLER BARA GRUPPCHATTEN, och ett nytt samtalsval stänger den (0.66.0). Ett trådid kvar från förra samtalet hade
+  // öppnat en tråd under fel samtal.
+  const [egenTrad, setEgenTrad] = useState(/** @type {string | null} */ (null));
+  useEffect(() => {
+    if (valtTrad === undefined) setEgenTrad(null);
+  }, [valdId, valtTrad]);
+  const tradId = vald?.samtal.slag === "grupp" ? (valtTrad !== undefined ? valtTrad : egenTrad) : null;
+  /** @param {string | null} tid */
+  const valjTrad = (tid) => {
+    if (valtTrad === undefined) setEgenTrad(tid);
+    onValjTrad?.(tid);
+  };
   // Utkastet hör till den tråd som just öppnades ur läget "nytt". Den har läst det när den monterades; sedan glöms det.
   useEffect(() => {
     utkast.current = null;
@@ -394,8 +439,10 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         aria-label={nyttLage ? t.nytt : vald ? rubrikFor(vald) : t.valjSamtal}
         className={cx("min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden bg-surface md:flex md:rounded-xl", hoger ? "flex" : "hidden")}
       >
-        {hoger ? (
-          /* Telefon: en rad "‹ Tillbaka" överst, som SS (`ChatInboxPanel.jsx:880-892`). Läget "nytt" har samma rad. */
+        {hoger && !(vald && tradId) ? (
+          /* Telefon: en rad "‹ Tillbaka" överst, som SS (`ChatInboxPanel.jsx:880-892`). Läget "nytt" har samma rad.
+             ⛔ INTE I EN TRÅD (0.66.0): tråden har sin egen rad tillbaka till gruppchatten, och två rader tillbaka ovanför
+             varandra, till två olika ställen, är samma sorts dubblering som den dubblerade hamburgaren i #164. */
           <button
             type="button"
             onClick={() => valj(null)}
@@ -430,9 +477,24 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
               valj(s.id);
             }}
           />
+        ) : vald && tradId ? (
+          <OpsTrad
+            key={`${vald.samtal.id}|${tradId}`}
+            kalla={kalla}
+            uid={uid}
+            samtal={vald.samtal}
+            tid={tradId}
+            gruppNamn={gruppNamn}
+            namnFor={namnFor}
+            medlemmar={medlemmar}
+            onStang={() => valjTrad(null)}
+            sprak={sprak}
+            texter={t}
+          />
         ) : vald ? (
           <OpsSamtal
             key={vald.samtal.id}
+            onOppnaTrad={valjTrad}
             kalla={kalla}
             uid={uid}
             samtal={vald.samtal}
@@ -623,10 +685,13 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false 
  * @param {(meddelande: import("../lib/samtal.js").Meddelande & { id: string }) => void} [props.onSkickat] (0.63.0, #263) Anropas med
  *   det skickade meddelandet, så att inkorgen kan lägga in raden direkt i stället för vid nästa omläsning.
  * @param {string} [props.utkast] (0.63.0) Text som redan står i skrivfältet när samtalet öppnas, och fältet får fokus.
+ * @param {(tid: string) => void} [props.onOppnaTrad] (0.66.0) Öppnar tråden ur ett meddelande. Utelämnad: inga trådar visas.
+ *   ⛔ GÄLLER BARA GRUPPCHATTEN, och det avgörs här och inte av den som skickar in funktionen: ett privat samtal ritas utan
+ *   trådar också när en app skickar den.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, sprak: sprakProp, texter = {} }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, sprak: sprakProp, texter = {} }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -638,6 +703,9 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const [skickar, setSkickar] = useState(false);
   const markt = useRef(lastTill);
   const lyssnar = useRef(false);
+  // Trådarna ur de meddelanden som syns, med antal och namn (0.66.0). Läses om när meddelandena ändras.
+  const [tradar, setTradar] = useState(/** @type {Map<string, { antal: number, fler: boolean, namn: string }>} */ (new Map()));
+  const medTradar = Boolean(onOppnaTrad) && samtal.slag === "grupp" && typeof kalla.tradar === "function";
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
 
   const lasIn = async () => {
@@ -675,6 +743,23 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meddelanden]);
 
+  useEffect(() => {
+    if (!medTradar || !meddelanden || meddelanden.length === 0) return;
+    let aktuell = true;
+    const efterId = new Map(meddelanden.map((m) => [m.id, m]));
+    kalla.tradar(samtal.id, { rotter: [...efterId.keys()] }).then(
+      (rader) => {
+        if (!aktuell) return;
+        setTradar(new Map(rader.map((r) => [r.id, { antal: r.antal, fler: r.fler, namn: tradensNamn(r, [efterId.get(r.id) ?? {}, ...r.forsta]) }])));
+      },
+      // ⛔ Föll läsningen av trådarna står meddelandena kvar utan märken, och "Svara i tråd" öppnar ändå tråden, som säger felet.
+      () => {},
+    );
+    return () => {
+      aktuell = false;
+    };
+  }, [medTradar, kalla, samtal.id, meddelanden]);
+
   const skicka = async () => {
     if (skickar || !text.trim()) return;
     setSkickar(true);
@@ -693,7 +778,6 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
 
   const agent = samtal.slag === "agent";
   const privatRad = samtal.slag === "grupp" ? t.gruppRad : agent ? t.agentRad : t.privatRad;
-  const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
 
   return (
     <div data-ops-samtal={samtal.slag} className="flex min-h-0 flex-1 flex-col">
@@ -723,42 +807,308 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
             <p className="m-0 mt-1 text-liten text-ink-muted">{privatRad}</p>
           </div>
         ) : null}
-        {(meddelanden ?? []).map((m, i, alla) => {
-          const egen = m.av === uid;
-          const forra = alla[i - 1];
-          const nyDag = !forra || new Date(forra.tid).toDateString() !== new Date(m.tid).toDateString();
-          const fortsattning = !nyDag && forra && forra.av === m.av && m.tid - forra.tid < 5 * 60000;
-          return (
-            <div key={m.id}>
-              {nyDag ? (
-                <div className="flex justify-center py-3">
-                  <span className="rounded-full bg-canvas px-3 py-1 text-liten font-medium text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
-                </div>
-              ) : null}
-              <div data-meddelande={egen ? "eget" : "annans"} className={cx("flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
-                {!egen ? <span className="w-8 shrink-0">{!fortsattning ? <OpsIdentity name={namnFor(m.av)} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund /> : null}</span> : null}
-                <div className={cx("flex max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
-                  {!egen && !fortsattning && samtal.slag === "grupp" ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
-                  <div
-                    className={cx(
-                      "rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words whitespace-pre-wrap",
-                      egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
-                      fortsattning && egen ? "rounded-tr-lg" : "",
-                      fortsattning && !egen ? "rounded-tl-lg" : "",
-                    )}
-                  >
-                    {m.text}
-                  </div>
-                  <span className={cx("mt-0.5 text-liten tabular-nums text-ink-muted", egen ? "mr-1" : "ml-1")}>{formatTime(m.tid, { locale })}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <Meddelanderader
+          meddelanden={meddelanden ?? []}
+          uid={uid}
+          namnFor={namnFor}
+          medlemmar={medlemmar}
+          locale={locale}
+          visaNamn={samtal.slag === "grupp"}
+          efter={
+            medTradar
+              ? (m) => {
+                  const tr = tradar.get(m.id);
+                  return (
+                    <button
+                      type="button"
+                      data-tradmarke={tr ? "finns" : "ny"}
+                      onClick={() => onOppnaTrad?.(m.id)}
+                      className={cx(
+                        "inline-flex min-h-7 max-w-full cursor-pointer items-center gap-1 rounded-full px-2 text-liten font-medium transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                        tr ? "bg-accent-faint text-accent hover:bg-hover" : "text-ink-muted hover:bg-hover hover:text-ink",
+                      )}
+                    >
+                      <TradIkon size={12} />
+                      {tr ? (
+                        <span className="min-w-0 truncate">
+                          <span className="tabular-nums">{tr.fler ? `${tr.antal}+` : tr.antal}</span> {t.svar}
+                          <span className="text-ink-secondary"> · {tr.namn}</span>
+                        </span>
+                      ) : (
+                        <span>{t.svaraITrad}</span>
+                      )}
+                    </button>
+                  );
+                }
+              : undefined
+          }
+        />
         <div ref={slut} />
       </div>
 
       <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus={utkast !== undefined} />
+    </div>
+  );
+}
+
+/**
+ * Meddelandena i en logg: dagens avdelare, bubblorna och tiden. Samma i ett samtal och i en tråd (0.66.0), så att en tråd ser ut
+ * som det samtal den hör till.
+ *
+ * @param {object} props
+ * @param {ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }>} props.meddelanden
+ * @param {string} props.uid
+ * @param {(uid: string) => string} props.namnFor
+ * @param {ReadonlyArray<Medlemsrad>} [props.medlemmar]
+ * @param {string} props.locale
+ * @param {boolean} props.visaNamn Avsändarens namn över en annans bubbla (gruppchatten och tråden).
+ * @param {(m: import("../lib/samtal.js").Meddelande & { id: string }) => import("react").ReactNode} [props.efter] Det som står efter
+ *   tiden under bubblan: trådens märke i gruppchatten.
+ * @param {number} [props.forraTid] Tiden på meddelandet före det första, när listan fortsätter en annan (trådens svar efter
+ *   roten). Samma dag ger då ingen ny avdelare: två "I dag" på rad är en avdelare som inte avdelar något.
+ */
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid }) {
+  const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
+  return (
+    <>
+      {meddelanden.map((m, i, alla) => {
+        const egen = m.av === uid;
+        const forra = alla[i - 1];
+        const fore = forra ? forra.tid : forraTid;
+        const nyDag = fore === undefined || new Date(fore).toDateString() !== new Date(m.tid).toDateString();
+        const fortsattning = !nyDag && forra && forra.av === m.av && m.tid - forra.tid < 5 * 60000;
+        const extra = efter?.(m);
+        return (
+          <div key={m.id}>
+            {nyDag ? (
+              <div className="flex justify-center py-3">
+                <span className="rounded-full bg-canvas px-3 py-1 text-liten font-medium text-ink-muted">{forstaVersal(formatRelativeDate(m.tid, { locale }))}</span>
+              </div>
+            ) : null}
+            <div data-meddelande={egen ? "eget" : "annans"} className={cx("flex gap-2", fortsattning ? "mt-px" : "mt-2", egen ? "flex-row-reverse" : "")}>
+              {!egen ? <span className="w-8 shrink-0">{!fortsattning ? <OpsIdentity name={namnFor(m.av)} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund /> : null}</span> : null}
+              <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
+                {!egen && !fortsattning && visaNamn ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
+                <div
+                  className={cx(
+                    "rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words whitespace-pre-wrap",
+                    egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
+                    fortsattning && egen ? "rounded-tr-lg" : "",
+                    fortsattning && !egen ? "rounded-tl-lg" : "",
+                  )}
+                >
+                  {m.text}
+                </div>
+                <span className={cx("mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
+                  <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
+                  {extra}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * En tråd i gruppchatten (0.66.0, cllp/lifehub.app#60): raden tillbaka till gruppchatten, trådens namn med Döp om,
+ * rotmeddelandet, svaren och skrivfältet.
+ *
+ * ⛔ TRÅDEN SKAPAS MED DET FÖRSTA SVARET (`skickaITrad`), inte när vyn öppnas. Döp om finns därför först när tråden finns.
+ *
+ * ⛔ NAMNET HÄRLEDS UR ROTMEDDELANDET OCH DE FÖRSTA SVAREN (`tradensNamn`), samma regel som appens agent använder, så att
+ * agenten och personerna kallar tråden samma sak.
+ *
+ * @param {object} props
+ * @param {ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>} props.kalla
+ * @param {string} props.uid
+ * @param {import("../lib/samtal.js").Samtal} props.samtal Gruppchatten.
+ * @param {string} props.tid Rotmeddelandets id.
+ * @param {string} props.gruppNamn
+ * @param {(uid: string) => string} props.namnFor
+ * @param {ReadonlyArray<Medlemsrad>} [props.medlemmar]
+ * @param {() => void} props.onStang Tillbaka till gruppchatten.
+ * @param {string} [props.sprak]
+ * @param {Meddelandetexter} [props.texter]
+ */
+export function OpsTrad({ kalla, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, sprak: sprakProp, texter = {} }) {
+  const sprakKontext = useOpsSprak();
+  const sprak = sprakProp ?? sprakKontext;
+  const t = { ...TEXTER, ...texter };
+  const locale = sprak === "en" ? "en-GB" : "sv-SE";
+  const [rot, setRot] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null | undefined} */ (undefined));
+  const [trad, setTrad] = useState(/** @type {import("../lib/samtal.js").Trad | null} */ (null));
+  const [svar, setSvar] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));
+  const [fel, setFel] = useState(/** @type {Error | null} */ (null));
+  const [text, setText] = useState("");
+  const [skickar, setSkickar] = useState(false);
+  const [redigerar, setRedigerar] = useState(false);
+  const [utkastNamn, setUtkastNamn] = useState("");
+  const lyssnar = useRef(false);
+  const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const namnId = useId();
+  const somFel = (/** @type {unknown} */ e) => (e instanceof Error ? e : new Error(String(e)));
+
+  const lasTraden = async () => {
+    try {
+      setTrad(await kalla.trad(samtal.id, tid));
+    } catch (e) {
+      setFel(somFel(e));
+    }
+  };
+  const lasSvar = async () => {
+    try {
+      setSvar(await kalla.tradmeddelanden(samtal.id, tid));
+    } catch (e) {
+      setFel(somFel(e));
+    }
+  };
+
+  useEffect(() => {
+    kalla.rotmeddelande(samtal.id, tid).then(
+      (r) => setRot(r ? { ...r, id: tid } : null),
+      (e) => setFel(somFel(e)),
+    );
+    lasTraden();
+    const stang = kalla.prenumereraTrad(samtal.id, tid, {
+      onData: (rader) => setSvar(rader),
+      onError: (e) => setFel(e),
+    });
+    lyssnar.current = Boolean(stang);
+    if (!stang) lasSvar();
+    return () => stang?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, samtal.id, tid]);
+
+  useEffect(() => {
+    slut.current?.scrollIntoView?.({ block: "end" });
+  }, [svar]);
+
+  const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...(svar ?? [])]);
+
+  const skicka = async () => {
+    if (skickar || !text.trim()) return;
+    setSkickar(true);
+    try {
+      await kalla.skickaITrad(samtal.id, tid, { text, av: uid });
+      setText("");
+      if (!trad) await lasTraden();
+      if (!lyssnar.current) await lasSvar();
+    } catch (e) {
+      setFel(somFel(e));
+    } finally {
+      setSkickar(false);
+    }
+  };
+
+  /** @param {string | null} nytt */
+  const spara = async (nytt) => {
+    try {
+      await kalla.dopOm(samtal.id, tid, nytt);
+      setRedigerar(false);
+      await lasTraden();
+    } catch (e) {
+      setFel(somFel(e));
+    }
+  };
+
+  return (
+    <div data-ops-trad="" className="flex min-h-0 flex-1 flex-col">
+      <button
+        type="button"
+        data-tillbaka-chatten=""
+        onClick={onStang}
+        className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 border-b border-line px-3 text-meta text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+      >
+        <ChevronVansterIkon size={14} />
+        <span className="min-w-0 truncate">{gruppNamn}</span>
+      </button>
+      <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
+        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-faint text-accent">
+          <TradIkon size={18} />
+        </span>
+        {redigerar ? (
+          <form
+            className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              spara(utkastNamn);
+            }}
+          >
+            <label htmlFor={namnId} className="sr-only">
+              {t.tradnamn}
+            </label>
+            <input
+              id={namnId}
+              value={utkastNamn}
+              onChange={(e) => setUtkastNamn(e.target.value)}
+              maxLength={MAX_TRADNAMN}
+              autoFocus
+              className="min-h-9 min-w-0 flex-1 rounded-base border border-line bg-canvas px-2.5 text-etikett text-ink outline-none focus-visible:border-accent"
+            />
+            <button type="submit" className="inline-flex min-h-9 cursor-pointer items-center rounded-base bg-accent px-3 text-meta font-medium text-accent-contrast hover:bg-accent-hover">
+              {t.spara}
+            </button>
+            <button type="button" onClick={() => setRedigerar(false)} className="inline-flex min-h-9 cursor-pointer items-center rounded-base px-2 text-meta text-ink-secondary hover:bg-hover">
+              {t.avbryt}
+            </button>
+            {trad?.namn ? (
+              <button type="button" onClick={() => spara(null)} className="inline-flex min-h-9 cursor-pointer items-center rounded-base px-2 text-meta text-accent hover:bg-accent-faint">
+                {t.automatisktNamn}
+              </button>
+            ) : null}
+          </form>
+        ) : (
+          <>
+            <div className="min-w-0 flex-1">
+              <h3 data-tradnamn="" className="m-0 truncate text-etikett font-semibold text-ink">
+                {namn}
+              </h3>
+              <p data-privat-rad="" className="m-0 flex items-center gap-1 text-liten text-ink-muted">
+                <GruppIkon size={10} />
+                <span>{t.tradRad}</span>
+              </p>
+            </div>
+            {trad ? (
+              <button
+                type="button"
+                aria-label={t.dopOm}
+                onClick={() => {
+                  setUtkastNamn(namn);
+                  setRedigerar(true);
+                }}
+                className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                <AndraIkon size={16} />
+              </button>
+            ) : null}
+          </>
+        )}
+      </header>
+
+      <div role="log" aria-label={namn} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        {fel ? (
+          <OpsBanner tone="danger" title={t.tradFel}>
+            {fel.message}
+          </OpsBanner>
+        ) : null}
+        <div data-rotmeddelande="" className="border-b border-line pb-2">
+          {rot ? (
+            <Meddelanderader meddelanden={[rot]} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn />
+          ) : rot === null ? (
+            <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
+          ) : null}
+        </div>
+        <p data-antal-svar="" className="m-0 py-2 text-liten font-medium text-ink-muted">
+          {svar && svar.length > 0 ? `${svar.length} ${t.svar}` : t.ingaSvar}
+        </p>
+        <Meddelanderader meddelanden={svar ?? []} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <div ref={slut} />
+      </div>
+
+      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus />
     </div>
   );
 }
