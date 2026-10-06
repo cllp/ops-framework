@@ -55,8 +55,10 @@ import { BortaIkon, LagerIkon } from "./icons.jsx";
  */
 export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday, forbi, chosen, forhand, sok, bandhojd, pekare, dekor }) {
   const count = entries.length;
-  const borta = antalI(dekor?.borta);
-  const lager = antalI(dekor?.lager);
+  const borta = antalI(dekor?.borta, "borta");
+  const lager = antalI(dekor?.lager, "lager");
+  // ⛔ `hornmarken` togs bort i 0.61.0. En app som inte bytt hade fått en tom ruta utan förklaring.
+  if (dekor && "hornmarken" in dekor) utvecklingsvarning("OpsCalendar dagdekor: hornmarken finns inte sedan 0.61.0. Skicka { borta: { antal }, lager: { antal } }, och rutan ritar brickorna själv.");
   // ⛔ N/N BARA NÄR INGEN ÄR BORTA (SS `MonthGrid.jsx:529`, `blockedMembers.length === 0`): brickan och talet säger samma sak åt två håll.
   const narvaro = borta === 0 && dekor?.narvaro && dekor.narvaro.totalt > 0 ? dekor.narvaro : null;
   const label = [
@@ -66,6 +68,7 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
     ...(lager > 0 ? [`${lager} lager`] : []),
   ].join(", ");
   const vald = chosen || forhand;
+  const nedtonad = vald ? "" : sok === "miss" ? "sok" : sok === "" && forbi ? "forbi" : "";
 
   return (
     <button
@@ -78,6 +81,14 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
         "relative flex aspect-[1/1.1] min-w-0 cursor-pointer select-none flex-col items-stretch border p-1 text-left sm:min-h-20 sm:p-2",
         "transition-[background-color,border-color,transform] duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        /*
+         * ⛔ UNDER 640 PX TONAS HELA RUTAN, BRICKORNA OCH RAMEN MED (0.61.0, #259). SS-appen sätter `opacity` på hela cellen
+         * (`DayCell.js:91-93`: 0,5 för det som varit, 0,3 för en sökning som missar), och förebild 7 (CP 2026-10-06) visar det:
+         * brickan den 24 september är blekare röd, lagrets ram blekare och siffran grå. En yta ovanpå rutan når inte brickorna,
+         * som sticker ut ur den. Från 640 px är det SS webbs yta (`MonthGrid.jsx:413`) nedan, som förut.
+         */
+        nedtonad === "forbi" && "max-sm:opacity-50",
+        nedtonad === "sok" && "max-sm:opacity-30",
         /*
          * ⛔ RUNDNINGEN ÄR SS:S, UR TOKENS (0.37.0). CP 2026-09-30 22:30, med en skärmbild ur SS-appen bredvid vår: "Rundningen
          * i cellerna är fel." 0.36.0 hade `rounded-xl`, som i ramverkets tokens är 20 px (`--radius-xl`), medan SS webb
@@ -105,14 +116,13 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
       {dekor?.ton && !vald ? <span aria-hidden="true" data-dagton={dekor.ton} className={cx("pointer-events-none absolute inset-0 rounded-base", DAGTON[dekor.ton])} /> : null}
       {/* ⛔ FÖRBI ÄR NEDTONAT, OCH UNDER EN SÖKNING ÄR DET MISSEN SOM TONAS. SS `MonthGrid.jsx:413`: en halvgenomskinlig
           yta över rutan, 50 procent för det som varit, 70 för det sökningen inte träffar. */}
-      {!vald && (sok === "miss" || (sok === "" && forbi)) ? (
-        <span aria-hidden="true" data-nedtonad={sok === "miss" ? "sok" : "forbi"} className={cx("pointer-events-none absolute inset-0 z-1 rounded-base bg-canvas", sok === "miss" ? "opacity-70" : "opacity-50")} />
+      {nedtonad ? (
+        <span aria-hidden="true" data-nedtonad={nedtonad} className={cx("pointer-events-none absolute inset-0 z-1 hidden rounded-base bg-canvas sm:block", nedtonad === "sok" ? "opacity-70" : "opacity-50")} />
       ) : null}
       {/* ⛔ LAGRETS RAM (0.61.0, #259): SS-appen ritar rutans kant 2 px i lagrets färg (`DayCell.js` `borderWidthForLayer`).
           Här en egen absolut ram som täcker rutans kant (`-inset-px`, alltså kantlådan), så att rutans storlek och innehållets
-          plats är desamma med och utan lager: en `border-2` på rutan hade flyttat siffran och prickarna en pixel. Efter
-          nedtoningen i ordningen, så att ett lager på en dag som varit syns lika tydligt som på en kommande (förebild 3).
-          Ingen ram på den valda rutan, som SS (`!picked && layerBorderColor`). Från 640 px som SS webb (`MonthGrid.jsx:421`):
+          plats är desamma med och utan lager: en `border-2` på rutan hade flyttat siffran och prickarna en pixel. På en dag
+          som varit tonas ramen med rutan (förebild 7: ramen den 23 september är blekare än den 7 oktober). Ingen ram på den valda rutan, som SS (`!picked && layerBorderColor`). Från 640 px som SS webb (`MonthGrid.jsx:421`):
           2 px innanför kanten (`inset-0.5`), rundning 8 och 70 procents täckning. */}
       {dekor?.ram && !vald ? <span aria-hidden="true" data-dagram={dekor.ram} className={cx("pointer-events-none absolute -inset-px z-1 rounded-base border-2 sm:inset-0.5 sm:rounded-sm sm:opacity-70", DAGRAM[dekor.ram])} /> : null}
       <Dagnummer day={day} isToday={isToday} vald={vald}>
@@ -142,8 +152,30 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
  *   grupp är vald.
  */
 
-/** Antalet ur `{ antal }`, heltal och aldrig under noll. @param {{ antal: number } | undefined} x */
-const antalI = (x) => (x && Number.isFinite(x.antal) && x.antal > 0 ? Math.floor(x.antal) : 0);
+/**
+ * Antalet ur `{ antal }`: ett heltal över noll, annars 0 och ingen markering.
+ *
+ * ⛔ ETT ANTAL SOM INTE ÄR ETT HELTAL VARNAR I UTVECKLING (punkt 5). `{ antal: "2" }` eller `{ antal: 1.5 }` är ett fel i appen,
+ * och en ruta som tyst inte ritar något ser ut som "ingen är borta". I produktion ritas ingenting, eftersom en kalender som
+ * kastar för en dekor är värre än en utan.
+ * @param {{ antal: number } | undefined} x @param {string} falt
+ */
+function antalI(x, falt) {
+  if (x === undefined || x === null) return 0;
+  if (!Number.isInteger(x.antal) || x.antal < 0) {
+    utvecklingsvarning(`OpsCalendar dagdekor: ${falt}.antal är ${JSON.stringify(x.antal)}, väntat ett heltal från 0. Ingenting ritas för den dagen.`);
+    return 0;
+  }
+  return x.antal;
+}
+
+/** @param {string} text */
+function utvecklingsvarning(text) {
+  // ⛔ Bara när bygget säger att det är utveckling (Vite och Vitest sätter `import.meta.env.DEV`). Ramverkets egen dist har ingen
+  // `import.meta.env`, och där är tystnaden det dokumenterade beteendet.
+  const env = /** @type {any} */ (import.meta).env;
+  if (env && env.DEV) console.warn(text);
+}
 
 /** Tonen som klass, utskriven (Tailwind läser källan som text). SS `tintOpacity` förval 0,12 till 0,25: här 15. @type {Record<number, string>} */
 const DAGTON = { 1: "bg-identity-1/15", 2: "bg-identity-2/15", 3: "bg-identity-3/15", 4: "bg-identity-4/15", 5: "bg-identity-5/15", 6: "bg-identity-6/15" };
@@ -169,7 +201,8 @@ function Dagnummer({ day, isToday, vald, children }) {
       <span
         data-dagnummer=""
         className={cx(
-          "flex size-7 shrink-0 items-center justify-center text-meta font-semibold leading-none tabular-nums sm:size-auto sm:text-etikett sm:leading-none",
+          // ⛔ 28 PX SÅ LÄNGE RUTAN RYMMER DET, SMALARE UNDER: `clamp(14, 2 x radbredd - 38, 28)`. Se `Hornbrickor`.
+          "flex aspect-square w-[clamp(14px,calc(200%-38px),28px)] shrink-0 items-center justify-center text-meta font-semibold leading-none tabular-nums sm:aspect-auto sm:w-auto sm:text-etikett sm:leading-none",
           isToday ? "ops-contrast-panel rounded-full bg-contrast-panel text-ink sm:px-1.5 sm:py-px" : cx("text-ink", vald && "font-bold"),
         )}
       >
@@ -213,7 +246,7 @@ function Indikatorrad({ borta, lager, narvaro, vald }) {
         </span>
       ) : null}
       {narvaro ? (
-        <span data-narvaro="" className={cx("ml-0.5 shrink-0 text-raknare tabular-nums", vald ? "text-ink/60" : "text-success")}>
+        <span data-narvaro="" className={cx("ml-0.5 shrink-0 text-raknare font-semibold tabular-nums", vald ? "text-ink/60" : "text-success")}>
           {narvaro.tillgangliga}/{narvaro.totalt}
         </span>
       ) : null}
@@ -292,8 +325,19 @@ export function raknartext(antal) {
  * och i React Native är en absolut position relativ till FÖRÄLDERN, som står innanför rutans kant (1) och padding (4). Mätt i
  * förebild 3: brickan den 5 september börjar 11 px (3,7 pt) ovanför rutans överkant och slutar 12 px (4 pt) utanför dess
  * högerkant; på en lagerdag, där kanten är 2, 3 pt. Här räknas samma sak från rutans innerkant: kanten 1 och paddingen 4 gör
- * `-9` till `-5` mot `top: 0`, och brickan hamnar 4 px utanför kanten. Överhänget är mindre än mellanrummet mellan rutorna (4 px
- * mot 4), så brickan når aldrig grannens innehåll. Bara under 640 px: från 640 px står indikatorerna i siffrans rad (`Indikatorrad`).
+ * `-9` till `-5` mot `top: 0`, och brickan hamnar 4 px utanför kanten. Bara under 640 px: från 640 px står indikatorerna i
+ * siffrans rad (`Indikatorrad`).
+ *
+ * ⛔ SMALARE RUTOR: SIFFRANS RUTA KRYMPER, OCH BRICKAN GÅR UT LITE MER (0.61.0, granskningen av PR 260). Siffrans ruta är 28 px
+ * och börjar 5 px in (SS), så två siffror slutar cirka 25,7 px in, och brickan börjar 20 px från sin högerkant. Med 4 px överhäng
+ * når brickan siffran när rutan är smalare än cirka 47 px: mätt 0,6 px luft vid 375, täckt vid 360 (4 av 12 rutor) och 320 (8 av
+ * 12). SS-appen har rutor på 48 pt vid 393 och ser det aldrig; ramverkets skal har bredare marginal.
+ *
+ * Två vägar, och ingen räcker ensam. Bara överhäng hade krävt 12 px vid 320, och rullytan klipper det som sticker ut mer än
+ * dess egen marginal (förebild 7 visar brickan hel över rutnätets kant). Bara en krympt ruta räcker inte vid 320, där två siffror
+ * ensamma är nästan lika breda som det som finns kvar. Så: siffrans ruta är `clamp(14, 2 x radbredd - 38, 28)` px, alltså 28 som
+ * SS så länge den ryms och krympt bara där den annars hade täckts; och överhänget är `max(4, 40 - rutbredd)` px, alltså 4 som SS
+ * från 36 px rutbredd och cirka 6,4 px vid 320. Rullytan har 7 px marginal under 640 px (`OpsCalendar`), så brickan klipps aldrig.
  *
  * ⛔ TILLGÄNGLIGHET FÖRST, LAGER SEDAN, OAVSETT ORDNINGEN APPEN SKICKADE DEM I. Lagerbrickan har ALLTID `margin-top: -4`
  * (SS `pillBadgeOverlap`), också när den är ensam, och sitter då 4 px högre än en ensam borta-bricka (CP 2026-10-06: behåll
@@ -306,7 +350,7 @@ export function raknartext(antal) {
  */
 function Hornbrickor({ borta, lager }) {
   return (
-    <span aria-hidden="true" data-hornmarken="" className="pointer-events-none absolute top-[-5px] right-[-5px] z-3 flex flex-col items-end sm:hidden">
+    <span aria-hidden="true" data-hornmarken="" className="pointer-events-none absolute top-[-5px] right-[min(-5px,calc(100%-39px))] z-3 flex flex-col items-end sm:hidden">
       {borta > 0 ? (
         <Bricka id="borta" antal={borta} farg="border-danger text-danger">
           <BortaIkon size={10} />

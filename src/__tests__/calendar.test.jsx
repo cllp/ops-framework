@@ -895,6 +895,22 @@ describe("OpsKalender", () => {
     expect(ruta("2026-10-14").querySelector("[data-narvaro]")).toBeNull();
   });
 
+  it("⛔ ett antal som inte är ett heltal, och en kvarlämnad hornmarken, varnar i utveckling i stället för att tyst inte rita", () => {
+    const varn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      /** @type {Record<string, any>} */
+      const dekor = { "2026-10-12": { borta: { antal: "2" } }, "2026-10-13": { lager: { antal: 1.5 } }, "2026-10-14": { hornmarken: [] } };
+      rendera({ entries: [], dagdekor: (/** @type {string} */ d) => dekor[d] });
+      const texter = varn.mock.calls.map((c) => String(c[0]));
+      expect(texter.some((t) => /borta\.antal är "2"/.test(t))).toBe(true);
+      expect(texter.some((t) => /lager\.antal är 1\.5/.test(t))).toBe(true);
+      expect(texter.some((t) => /hornmarken finns inte sedan 0\.61\.0/.test(t))).toBe(true);
+      expect(ruta("2026-10-12").querySelector("[data-hornmarken]")).toBeNull();
+    } finally {
+      varn.mockRestore();
+    }
+  });
+
   it("verktygsraden: tillgänglighet och lager finns bara med sina props, och trycket byter läget", () => {
     const forsta = rendera();
     expect(screen.queryByRole("button", { name: "Tillgänglighet" })).toBeNull();

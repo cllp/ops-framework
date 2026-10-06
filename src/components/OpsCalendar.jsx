@@ -1582,7 +1582,9 @@ export function OpsCalendar({
             setDirection(scrollDirection(m.getBoundingClientRect(), e.currentTarget.getBoundingClientRect()));
           }}
           style={fullhojd}
-          className={cx("relative bg-canvas px-1", FULL_HEIGHT_CLASSES)}
+          // ⛔ 7 PX MARGINAL UNDER 640 PX (0.61.0, #259): hörnbrickorna sticker ut upp till 6,4 px (vid 320) över rutnätets kant i en smal ruta,
+          // och rullytan klipper det som går utanför. Förebild 7 visar brickan hel över kanten. Från 640 px finns inga brickor.
+          className={cx("relative bg-canvas px-[7px] sm:px-1", FULL_HEIGHT_CLASSES)}
         >
           {/* ⛔ Klistrad veckodagsrad, med veckonumrets kolumn när den är på (SS `CalView.jsx:124-138`). */}
           <div ref={huvudRef} className={cx("sticky top-0 z-(--z-sticky) grid gap-1 bg-canvas pt-1 pb-2 sm:gap-1.5", gridKlass)}>
