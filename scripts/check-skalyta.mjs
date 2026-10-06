@@ -5364,7 +5364,114 @@ for (const bredd of [390, 1280]) {
   await context.close();
 }
 
-// ══ 43. TALK:S EGEN KNAPP I HUVUDET, BARA PÅ DATOR (#276) ═══════════════════════════════════════════════════════════════════════
+// ══ 43. INSTÄLLNINGARNA SOM LISTA OCH PANEL VID 390, 820 OCH 1280 PX (0.69.0, #274) ══════════════════════════════════════════
+// CP 2026-10-06 20:12, om Inställningar i LifeHub på surfplatta: "superrörig ... Sektioner kanske skall stå ensamma, med att man
+// navigerar till en specifik panel med tillbaka-pil mm. Texterna känns ihoptryckta." Mätt: (a) listan har minst fem rader (golv),
+// varje rad är minst 56 px, rubriken är större än beskrivningen och beskrivningen står på egen rad under den; (b) ett tryck öppnar
+// panelen, fokus står på dess rubrik, och katalogens egen rubrik ritas inte en gång till; (c) under 1024 px ersätter panelen listan
+// och tillbaka-pilen är minst 44 px hög; från 1024 står listan till vänster och panelen till höger, utan pil; (d) tillbaka visar
+// listan igen med fokus på raden man kom ifrån; (e) ingen horisontell överflödning i något läge; (f) beskrivningen är minst 13 px
+// (granskningen av PR 278: 12 px var just "ihoptryckt"); (g) komponenten har inget eget h1 (appskalet har det), och panelens
+// rubrik står på samma nivå som sidans, så att den inte hoppar en nivå när den står ensam under 1024 px.
+for (const bredd of [390, 820, 1280]) {
+  const { page, context } = await oppna("installningar", { width: bredd, height: 1000 });
+  const tva = bredd >= 1024;
+  try {
+    /** @returns {Promise<any>} */
+    const las = () =>
+      page.evaluate(() => {
+        /** @param {Element | null} el */
+        const syns = (el) => Boolean(el) && getComputedStyle(/** @type {Element} */ (el)).display !== "none" && /** @type {HTMLElement} */ (el).getBoundingClientRect().height > 0;
+        const lista = document.querySelector("[data-installningslista]");
+        const panel = document.querySelector("[data-installningspanel]");
+        const tillbaka = panel ? [...panel.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Tillbaka") ?? null : null;
+        const rader = [...document.querySelectorAll("[data-installningslista] li > button")].map((b) => {
+          const r = b.getBoundingClientRect();
+          const rub = /** @type {HTMLElement} */ (b.querySelector("[data-radrubrik]"));
+          const bes = /** @type {HTMLElement | null} */ (b.querySelector("[data-radbeskrivning]"));
+          return {
+            id: b.getAttribute("data-sektion"),
+            hojd: r.height,
+            rubrikPx: parseFloat(getComputedStyle(rub).fontSize),
+            beskrivningPx: bes ? parseFloat(getComputedStyle(bes).fontSize) : null,
+            egenRad: bes ? bes.getBoundingClientRect().top >= rub.getBoundingClientRect().bottom - 0.5 : null,
+          };
+        });
+        const a = document.activeElement;
+        const rubriker = [...document.querySelectorAll("h1, h2, h3")].filter((h) => syns(h)).map((h) => (h.textContent || "").trim());
+        const rot = document.querySelector("[data-ops-installningar]");
+        const sidrubrik = lista ? lista.querySelector("header > :is(h1, h2, h3, h4, h5, h6)") : null;
+        const panelrubrik = panel ? panel.querySelector("header > :is(h1, h2, h3, h4, h5, h6)") : null;
+        return {
+          listaSyns: syns(lista),
+          panelSyns: syns(panel),
+          listaHoger: lista ? lista.getBoundingClientRect().right : null,
+          panelVanster: panel ? panel.getBoundingClientRect().left : null,
+          tillbakaSyns: syns(tillbaka),
+          tillbakaHojd: tillbaka ? tillbaka.getBoundingClientRect().height : null,
+          valjSyns: syns(document.querySelector("[data-installningar-valj]")),
+          rader,
+          fokus: a ? `${a.tagName.toLowerCase()}${a.getAttribute("data-sektion") ? `:${a.getAttribute("data-sektion")}` : ""}:${(a.textContent || "").trim().slice(0, 30)}` : null,
+          rubriker,
+          egnaH1: rot ? rot.querySelectorAll("h1").length : null,
+          sidniva: sidrubrik ? sidrubrik.tagName : null,
+          panelniva: panelrubrik ? panelrubrik.tagName : null,
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+    const lista = await las();
+    const lagst = Math.min(...lista.rader.map((/** @type {any} */ r) => r.hojd));
+    matt.push(`inställningarna ${bredd} px, listan: ${lista.rader.length} rader, lägsta ${lagst.toFixed(0)} px, rubrik ${lista.rader[0]?.rubrikPx} px, beskrivning ${lista.rader[0]?.beskrivningPx} px, överflöde ${lista.over} px`);
+    krav(lista.rader.length >= 5, `inställningarna ${bredd}: ${lista.rader.length} rader i listan, väntat minst 5 (golv).`);
+    krav(lista.listaSyns && !lista.panelSyns, `inställningarna ${bredd}: listan ${lista.listaSyns ? "syns" : "syns inte"} och en panel ${lista.panelSyns ? "syns" : "syns inte"} innan något valts.`);
+    krav(lagst >= 56, `inställningarna ${bredd}: en rad är ${lagst.toFixed(1)} px hög, väntat minst 56.`);
+    for (const r of lista.rader) {
+      if (r.beskrivningPx === null) continue;
+      krav(r.rubrikPx > r.beskrivningPx, `inställningarna ${bredd}: raden "${r.id}" har rubriken ${r.rubrikPx} px och beskrivningen ${r.beskrivningPx} px, rubriken ska vara störst.`);
+      krav(r.beskrivningPx >= 13, `inställningarna ${bredd}: beskrivningen i raden "${r.id}" är ${r.beskrivningPx} px, väntat minst 13 (CP: "texterna känns ihoptryckta").`);
+      krav(r.egenRad === true, `inställningarna ${bredd}: beskrivningen i raden "${r.id}" står inte på egen rad under rubriken.`);
+    }
+    krav(lista.valjSyns === tva, `inställningarna ${bredd}: raden "välj" i högerkolumnen ${lista.valjSyns ? "syns" : "syns inte"}, väntat ${tva ? "synlig från 1024 px" : "dold under 1024 px"}.`);
+    krav(lista.egnaH1 === 0, `inställningarna ${bredd}: komponenten har ${lista.egnaH1} egna h1, väntat inget (appskalet har sidans h1).`);
+    krav(lista.over <= 0, `inställningarna ${bredd}: listan flödar över ${lista.over} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `installningar-lista-${bredd}-${standardtema}.png`), fullPage: true });
+
+    await page.locator('[data-sektion="handelsetyper"]').click();
+    await page.locator("[data-installningspanel]").waitFor({ timeout: 4000 });
+    const panel = await las();
+    matt.push(`inställningarna ${bredd} px, panelen: lista ${panel.listaSyns ? "synlig" : "dold"}, tillbaka ${panel.tillbakaSyns ? `${panel.tillbakaHojd} px` : "dold"}, fokus ${panel.fokus}, rubriker ${JSON.stringify(panel.rubriker)}, överflöde ${panel.over} px`);
+    krav(panel.panelSyns, `inställningarna ${bredd}: panelen syns inte efter ett tryck på raden.`);
+    krav(panel.panelniva !== null && panel.panelniva === panel.sidniva, `inställningarna ${bredd}: panelens rubrik är ${panel.panelniva} och sidans ${panel.sidniva}, väntat samma nivå.`);
+    krav(panel.fokus === "h2:Händelsetyper", `inställningarna ${bredd}: fokus står på ${panel.fokus} när panelen öppnats, väntat panelens rubrik.`);
+    krav(panel.rubriker.filter((/** @type {string} */ t) => t.toLowerCase() === "händelsetyper").length === 1, `inställningarna ${bredd}: rubriken "Händelsetyper" står ${panel.rubriker.filter((/** @type {string} */ t) => t.toLowerCase() === "händelsetyper").length} gånger, väntat en.`);
+    if (tva) {
+      krav(panel.listaSyns && panel.panelVanster !== null && panel.listaHoger !== null && panel.panelVanster >= panel.listaHoger, `inställningarna ${bredd}: listan och panelen står inte bredvid varandra (lista ${panel.listaSyns ? "synlig" : "dold"}, listans högerkant ${panel.listaHoger}, panelens vänsterkant ${panel.panelVanster}).`);
+      krav(!panel.tillbakaSyns, `inställningarna ${bredd}: tillbaka-pilen syns fast listan står bredvid.`);
+    } else {
+      krav(!panel.listaSyns, `inställningarna ${bredd}: listan syns bredvid panelen under 1024 px, väntat att panelen ersätter den.`);
+      krav(panel.tillbakaSyns && panel.tillbakaHojd >= 44, `inställningarna ${bredd}: tillbaka-pilen ${panel.tillbakaSyns ? `är ${panel.tillbakaHojd} px hög, väntat minst 44` : "syns inte"}.`);
+    }
+    krav(panel.over <= 0, `inställningarna ${bredd}: panelen flödar över ${panel.over} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `installningar-panel-${bredd}-${standardtema}.png`), fullPage: true });
+
+    if (!tva) {
+      await page.getByRole("button", { name: "Tillbaka" }).click();
+      await page.locator("[data-installningspanel]").waitFor({ state: "detached", timeout: 4000 });
+      const tillbaka = await las();
+      matt.push(`inställningarna ${bredd} px, tillbaka: lista ${tillbaka.listaSyns ? "synlig" : "dold"}, fokus ${tillbaka.fokus}, överflöde ${tillbaka.over} px`);
+      krav(tillbaka.listaSyns && !tillbaka.panelSyns, `inställningarna ${bredd}: efter Tillbaka syns ${tillbaka.listaSyns ? "listan" : "inte listan"} och panelen ${tillbaka.panelSyns ? "står kvar" : "är borta"}.`);
+      krav(/^button:handelsetyper:/.test(tillbaka.fokus ?? ""), `inställningarna ${bredd}: fokus står på ${tillbaka.fokus} efter Tillbaka, väntat raden man kom ifrån.`);
+      krav(tillbaka.over <= 0, `inställningarna ${bredd}: listan flödar över ${tillbaka.over} px efter Tillbaka.`);
+    } else {
+      await page.locator('[data-sektion="medlemmar"]').click();
+      await page.waitForTimeout(50);
+      const byte = await las();
+      matt.push(`inställningarna ${bredd} px, nästa sektion: fokus ${byte.fokus}`);
+      krav(byte.fokus === "h2:Medlemmar", `inställningarna ${bredd}: fokus står på ${byte.fokus} efter bytet till Medlemmar, väntat panelens rubrik.`);
+    }
+  } catch (e) {
+    krav(false, `inställningarna ${bredd}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+// ══ 44. TALK:S EGEN KNAPP I HUVUDET, BARA PÅ DATOR (0.71.0, #276) ═══════════════════════════════════════════════════════════════════════
 // CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall
 // sitta." jsdom kör ingen CSS, så "bara på dator" och "samma storlek som grannarna" går bara att se här. Vid 1280: knappen står
 // direkt till höger om plusset, är en 36 px cirkel med 20 px ikon som de dämpade knapparna (avsnitt 2), har samma mittlinje som

@@ -756,6 +756,35 @@ function HandelseRedigeraScen() {
   );
 }
 
+/**
+ * Inställningarna som lista och panel (0.69.0, #274), med LifeHubs sektioner. `vald` hålls här som appens adress skulle göra.
+ * Saknas `OpsInstallningar` (en äldre dist) ritas en markör, och avsnitt 43 blir rött på rätt sak.
+ */
+function InstallningarScen() {
+  const [vald, setVald] = useState(/** @type {string | null} */ (null));
+  if (!Ops.OpsInstallningar) return <p data-saknas="OpsInstallningar">OpsInstallningar saknas</p>;
+  const I = (/** @type {any} */ Komp) => <Komp size={20} />;
+  const sektioner = [
+    { id: "gruppen", ikon: I(Settings), rubrik: "Gruppen", beskrivning: "Namn, färg och ikon", innehall: <p className="m-0 text-brod">Gruppens namn</p> },
+    { id: "medlemmar", ikon: I(Inbox), rubrik: "Medlemmar", beskrivning: "Vilka som är med och vad de får göra", antal: 4, innehall: <p className="m-0 text-brod">Fyra medlemmar</p> },
+    { id: "kalendrar", ikon: I(Calendar), rubrik: "Kalendrar", beskrivning: "Kalendrar som visas i gruppens kalender", antal: 0, innehall: <p className="m-0 text-brod">Inga kalendrar</p> },
+    {
+      id: "handelsetyper",
+      ikon: I(CalendarDays),
+      rubrik: "Händelsetyper",
+      beskrivning: "Orden och färgerna för gruppens händelser, med ikon för varje sort",
+      antal: kategorier.length,
+      innehall: <OpsKatalogInstallning kategorier={kategorier} ikoner={["wallet", "inbox"]} kanAndra onSpara={() => {}} onArkivera={() => {}} rubrik="Händelsetyper" groupId="cps-ab" />,
+    },
+    { id: "loggen", ikon: I(FileText), rubrik: "Ändringslogg", beskrivning: "Vem som ändrade vad, och när", innehall: <p className="m-0 text-brod">Loggen</p> },
+  ];
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 pt-6 pb-6">
+      <Ops.OpsInstallningar sektioner={sektioner} vald={vald} onValj={setVald} beskrivning="Gäller gruppen Claes Philip Staiger AB" />
+    </div>
+  );
+}
+
 function Skal({ children, extra = {} }) {
   const [aktiv] = useState("/");
   return (
@@ -1505,6 +1534,13 @@ function Scen() {
         <div className="px-4 py-4">
           <OpsKatalogInstallning kategorier={kategorier} ikoner={["wallet", "inbox"]} kanAndra onSpara={() => {}} onArkivera={() => {}} rubrik="Kategorier" groupId="cps-ab" />
         </div>
+      </Skal>
+    );
+  }
+  if (s === "installningar") {
+    return (
+      <Skal>
+        <InstallningarScen />
       </Skal>
     );
   }
