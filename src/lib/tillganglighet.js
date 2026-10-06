@@ -59,6 +59,8 @@ import { STANDARD_TIDSZON } from "./kalendrar.js";
 const DATUM = /^(\d{4})-(\d{2})-(\d{2})$/;
 const LOKAL_TID = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?$/;
 const MED_ZON = /(Z|[+-]\d{2}:?\d{2})$/;
+// ⛔ STRIKT ISO MED ZON. `Date.parse` ensam godtar "2026-02-30T10:00Z" och räknar den som 2 mars (granskningen av PR 260).
+const ISO_MED_ZON = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.\d+)?)?(Z|[+-](?:[01]\d|2[0-3]):?[0-5]\d)$/;
 const LAGEN = new Set(["dold", "upptagen", "delad"]);
 
 /**
@@ -107,6 +109,8 @@ function nastaDag(dag) {
 function tidpunkt(varde, tz, falt) {
   if (typeof varde !== "string") throw new Error(`tillganglighet: ${falt} saknas för en tidsatt post.`);
   if (MED_ZON.test(varde)) {
+    if (!ISO_MED_ZON.test(varde)) throw new Error(`tillganglighet: ${falt} "${varde}" är ingen ISO-tid (YYYY-MM-DDTHH:MM, sekunder valfria, och Z eller ±hh:mm).`);
+    datumdelar(varde.slice(0, 10), falt);
     const t = Date.parse(varde);
     if (!Number.isFinite(t)) throw new Error(`tillganglighet: ${falt} "${varde}" är ingen ISO-tid.`);
     return t;
@@ -118,9 +122,9 @@ function tidpunkt(varde, tz, falt) {
 }
 
 /**
- * Vilket läge en post ger personen den dagen: `borta`, `upptagen` eller `null` (posten rör inte dagen).
+ * Vilket läge en post ger personen den dagen, och när posten börjar (för orsakernas ordning): `null` när posten inte rör dagen.
  * @param {Tillganglighetspost} p @param {string} dag @param {number} dagStart @param {number} dagSlut @param {string} tz
- * @returns {Tillganglighetslage | null}
+ * @returns {{ lage: Tillganglighetslage, start: number } | null}
  */
 function postensLage(p, dag, dagStart, dagSlut, tz) {
   if (p.heldag) {
@@ -128,15 +132,16 @@ function postensLage(p, dag, dagStart, dagSlut, tz) {
     const slut = p.slut == null || p.slut === "" ? nastaDag(p.start) : p.slut;
     datumdelar(slut, "slut");
     if (slut <= p.start) throw new Error(`tillganglighet: heldagsposten ${p.start} har slut ${slut}. Slutet är exklusivt (som DTEND i ICS) och ska vara efter start.`);
-    return p.start <= dag && dag < slut ? "borta" : null;
+    const [y, mo, d] = datumdelar(p.start, "start");
+    return p.start <= dag && dag < slut ? { lage: "borta", start: lokalTill(y, mo, d, 0, 0, 0, tz) } : null;
   }
   const start = tidpunkt(p.start, tz, "start");
   const slut = tidpunkt(/** @type {string} */ (p.slut), tz, "slut");
   if (slut < start) throw new Error(`tillganglighet: posten slutar ${p.slut}, före sin start ${p.start}.`);
-  if (start <= dagStart && slut >= dagSlut) return "borta";
+  if (start <= dagStart && slut >= dagSlut) return { lage: "borta", start };
   // ⛔ En post utan längd (start lika med slut) skär dagen om den står i den: ett möte på noll minuter är ändå ett möte.
   const skar = slut > start ? start < dagSlut && slut > dagStart : start >= dagStart && start < dagSlut;
-  return skar ? "upptagen" : null;
+  return skar ? { lage: "upptagen", start } : null;
 }
 
 /**
@@ -164,27 +169,30 @@ export function tillganglighetForDag({ medlemmar, poster, dag, tidszon = STANDAR
   const dagSlut = lokalTill(ny, nmo, nd, 0, 0, 0, tidszon);
   const namnFor = new Map(medlemmar.map((m) => [m.uid, m.namn]));
 
-  /** @type {Map<string, { lage: Tillganglighetslage, orsaker: { start: string, rubrik: string }[] }>} */
+  /** @type {Map<string, { lage: Tillganglighetslage, orsaker: { start: number, rubrik: string }[] }>} */
   const perPerson = new Map();
   for (const p of poster) {
     if (!LAGEN.has(p.lage)) throw new Error(`tillganglighet: delningen "${String(p.lage)}" finns inte för posten. Väntat dold, upptagen eller delad.`);
     if (p.lage === "dold") continue;
+    // ⛔ En post från någon som inte är medlem läses inte alls, precis som en dold: den kan alltså inte heller kasta.
     if (!namnFor.has(p.uid)) continue;
-    const lage = postensLage(p, dag, dagStart, dagSlut, tidszon);
-    if (!lage) continue;
+    const traff = postensLage(p, dag, dagStart, dagSlut, tidszon);
+    if (!traff) continue;
+    const { lage } = traff;
     const forra = perPerson.get(p.uid);
     const rubrik = p.lage === "delad" && typeof p.rubrik === "string" && p.rubrik.trim() ? p.rubrik.trim() : null;
     if (!forra || (forra.lage === "upptagen" && lage === "borta")) {
-      perPerson.set(p.uid, { lage, orsaker: rubrik ? [{ start: p.start, rubrik }] : [] });
+      perPerson.set(p.uid, { lage, orsaker: rubrik ? [{ start: traff.start, rubrik }] : [] });
     } else if (forra.lage === lage && rubrik) {
-      forra.orsaker.push({ start: p.start, rubrik });
+      forra.orsaker.push({ start: traff.start, rubrik });
     }
   }
 
   return [...perPerson.entries()]
     .map(([uid, { lage, orsaker }]) => {
       // ⛔ Orsaken kommer bara från poster som gav det läge som vann: en delad lunch säger inget om varför någon är borta hela dagen.
-      const rubriker = [...new Set(orsaker.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0)).map((o) => o.rubrik))];
+      // Ordningen är den TOLKADE tiden, inte strängen: "09:00+02:00" och "08:00Z" är samma ögonblick skrivet på två sätt.
+      const rubriker = [...new Set(orsaker.sort((a, b) => a.start - b.start).map((o) => o.rubrik))];
       return { uid, namn: /** @type {string} */ (namnFor.get(uid)), lage, orsak: rubriker.length > 0 ? rubriker.join(", ") : null };
     })
     .sort((a, b) => a.namn.localeCompare(b.namn, "sv") || (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0));

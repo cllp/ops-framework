@@ -129,4 +129,25 @@ describe("tillganglighetForDag", () => {
     expect(() => dag([{ uid: "a", heldag: true, start: "2026-02-30", lage: "upptagen" }])).toThrow(/inget datum/);
     expect(() => dag([{ uid: "a", heldag: true, start: "2026-10-06", lage: "privat" }])).toThrow(/delningen "privat"/);
   });
+
+  it("⛔ en tid med zon prövas strikt: datumet måste finnas och formen vara ISO, annars kastar den (Date.parse ensam godtar 30 februari)", () => {
+    expect(() => dag([{ uid: "a", start: "2026-02-30T10:00Z", slut: "2026-02-30T11:00Z", lage: "upptagen" }], "2026-03-02")).toThrow(/inget datum/);
+    expect(() => dag([{ uid: "a", start: "2026-10-06 10:00Z", slut: "2026-10-06T11:00Z", lage: "upptagen" }])).toThrow(/ingen ISO-tid/);
+    expect(() => dag([{ uid: "a", start: "2026-10-06T24:00+02:00", slut: "2026-10-06T25:00+02:00", lage: "upptagen" }])).toThrow(/ingen ISO-tid/);
+    // Giltiga former: Z, ±hh:mm, ±hhmm, med sekunder och bråkdel.
+    expect(dag([{ uid: "a", start: "2026-10-06T09:00:00.000+02:00", slut: "2026-10-06T10:00+0200", lage: "upptagen" }]).map((x) => x.lage)).toEqual(["upptagen"]);
+  });
+
+  it("orsakerna ordnas på den tolkade tiden, inte på strängen", () => {
+    // 07:30Z är 09:30 i Stockholm, alltså efter 09:00 lokal tid, fast strängen "2026-10-06T07:30Z" sorterar först.
+    const p = [
+      { uid: "a", start: "2026-10-06T07:30Z", slut: "2026-10-06T08:00Z", lage: "delad", rubrik: "Senare" },
+      { uid: "a", start: "2026-10-06T09:00", slut: "2026-10-06T09:15", lage: "delad", rubrik: "Tidigare" },
+    ];
+    expect(dag(p)[0].orsak).toBe("Tidigare, Senare");
+  });
+
+  it("en post från någon som inte är medlem läses inte, och kastar alltså inte ens med ett trasigt datum", () => {
+    expect(dag([{ uid: "x", start: "inte ett datum", lage: "upptagen" }])).toEqual([]);
+  });
 });
