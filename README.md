@@ -1860,7 +1860,7 @@ står kvar som text. Färgen ärvs från bubblan.
 **Agentens status (#273), med nyckeln `status`.** `<samtal>/{sid}/<status>/agent` och samma under en tråd, `{ lage, sedan }` med
 `lage` ur `AGENTLAGEN` (`tanker`, `skriver`) och fälten `AGENTSTATUSFALT`. **Bara servern skriver** (`allow write: if false`); den som får
 läsa samtalet (eller tråden) läser. Appens agent bygger dokumentet med `byggAgentstatus({ lage, sedan? })` (också i
-`@staiger/ops-framework/node`, med `AGENTSTATUS_ID` och `AGENTSTATUS_MAX_ALDER`), skriver det med Admin SDK innan den börjar och tar
+`ops-framework/node`, med `AGENTSTATUS_ID` och `AGENTSTATUS_MAX_ALDER`), skriver det med Admin SDK innan den börjar och tar
 bort det när svaret är skrivet eller felet visat. Vyn visar "Agenten tänker" eller "Agenten skriver" där svaret kommer, och
 `agentstatus(dok, nu)` avgör: en status äldre än `AGENTSTATUS_MAX_ALDER` (två minuter) visas inte, och då står en felrad i stället.
 En status som inte går att läsa är också en felrad. Källan: `lasStatus(sid, { tid? })` och `prenumereraStatus(sid, lyssnare, { tid? })`,
@@ -1893,7 +1893,7 @@ tråden.
 1 till 20, inga dubbletter, "alla" ensamt), i samtalet och i trådar; den kan inte loopa och prövar alltså inte medlemskapet. **Den som
 läser omnämnandet auktoriserar:** `namnda(meddelande, medlemmar)` ger bara aktiva medlemmar, och "alla" expanderas VID LÄSNING till
 gruppens aktiva personer utom avsändaren (inte agenten). `arNamnd(meddelande, uid, medlemmar)` och `agentenNamnd(meddelande, agentUid,
-medlemmar)` (också i `@staiger/ops-framework/node`, med `namnda`, `arNamnd`, `NAMNER_ALLA` och `MAX_NAMNER`) är det appens agent läser
+medlemmar)` (också i `ops-framework/node`, med `namnda`, `arNamnd`, `NAMNER_ALLA` och `MAX_NAMNER`) är det appens agent läser
 i stället för en regex på `@agent` i texten. `samtalsnotiser({ ..., medlemmar, namndTitel? })` ger den härledda notisen "Anna nämnde
 dig i gruppchatten" för olästa omnämnanden; utan `medlemmar` ingen sådan notis. Vyn: "@" i gruppchattens och trådens skrivfält öppnar
 en lista ur medlemmarna och agenten plus "alla" (pilarna, Enter eller Tab, Escape); bara de uid vars `@Namn` står kvar i texten

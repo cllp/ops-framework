@@ -2118,7 +2118,13 @@ function useHistorik({ kalla, sid, trad, live, logg }) {
       return ny;
     });
   }, [live]);
-  const alla = useMemo(() => [...sedda.values()].sort((a, b) => a.tid - b.tid || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)), [sedda]);
+  // ⛔ Det senaste urvalet slås in direkt, i samma rendering, och inte först när effekten ovan sparat det: annars hade varje nytt
+  // meddelande ritats en rendering senare, och allt som läser loggen (trådmärkena, citaten) väntat ett varv till.
+  const alla = useMemo(() => {
+    const m = new Map(sedda);
+    for (const r of live ?? []) m.set(r.id, r);
+    return [...m.values()].sort((a, b) => a.tid - b.tid || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }, [sedda, live]);
   // Innan någon bläddrat: en full första sida betyder att det kan finnas mer. Efter: det senaste svaret avgör.
   const kanFinnasAldre = lage.bladdrat ? lage.fler === true : Boolean(live && live.length >= kalla.sida);
   useLayoutEffect(() => {

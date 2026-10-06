@@ -523,7 +523,7 @@ export const AGENTSTATUS_MAX_ALDER = 2 * 60 * 1000;
 export function byggAgentstatus(d) {
   const lage = rensa(d?.lage);
   if (!(/** @type {readonly string[]} */ (AGENTLAGEN)).includes(lage)) {
-    throw new Error(`byggAgentstatus: läget "${d?.lage}" finns inte. Giltiga: ${AGENTLAGEN.join(", ")}.`);
+    throw new Error(`byggAgentstatus: statusen "${d?.lage}" finns inte. Giltiga: ${AGENTLAGEN.join(", ")}.`);
   }
   const sedan = d.sedan ?? Date.now();
   if (!Number.isInteger(sedan)) throw new Error("byggAgentstatus: sedan är millisekunder, ett heltal.");
