@@ -33,6 +33,12 @@ describe("flödet är en ren funktion", () => {
     expect(talkNasta({ lage: "lyssnar" }, { typ: "tak" })).toEqual({ lage: "skickar", gor: "skicka" });
   });
 
+  it("⛔ direkt under håll, lyssnar och skickar startar ingen andra inspelning (#276)", () => {
+    for (const lage of /** @type {const} */ (["haller", "lyssnar", "skickar"])) {
+      expect(talkNasta({ lage }, { typ: "direkt" })).toEqual({ lage, gor: null });
+    }
+  });
+
   it("felet bär sin text, och mikrofonen släpps när starten föll", () => {
     expect(talkNasta({ lage: "haller" }, { typ: "fel", text: "nej" })).toEqual({ lage: "fel", gor: "kasta", fel: "nej" });
     expect(talkNasta({ lage: "fel", fel: "nej" }, { typ: "avbryt" }).lage).toBe("vila");
@@ -169,5 +175,127 @@ describe("raden i Skapa", () => {
 
   it("⛔ talk utan mottagare kastar", () => {
     expect(() => render(Skal({ talk: {} }))).toThrow(/onTalk/);
+  });
+});
+
+/*
+ * #276. CP 2026-10-06 21:37: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." En
+ * mikrofonknapp i huvudet, bredvid plusset, bara på dator och bara med `talk`. Samma väg som raden i Skapa.
+ * ⛔ jsdom kör ingen CSS: "bara på dator" mäts här som klassen som bär display, och på riktigt i `check-skalyta` avsnitt 43.
+ */
+describe("mikrofonknappen i huvudet", () => {
+  const huvudknapp = () => /** @type {HTMLElement | null} */ (document.querySelector("header [data-talk-huvud]"));
+
+  it("finns i huvudet med talk, med ett namn, och saknas utan talk", () => {
+    const { unmount } = render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
+    const knapp = huvudknapp();
+    expect(knapp).toBeTruthy();
+    expect(knapp?.tagName).toBe("BUTTON");
+    expect(knapp?.getAttribute("aria-label")).toBe("TALK, prata in");
+    // Bredvid plusset: knappen är plussets närmaste granne i klustret.
+    const plusIHuvud = /** @type {HTMLElement} */ (document.querySelector("header button[aria-label='Skapa']"));
+    expect(plusIHuvud).toBeTruthy();
+    expect(plusIHuvud.nextElementSibling).toBe(knapp);
+    unmount();
+
+    render(Skal({ skapa: { arende: true } }));
+    expect(huvudknapp()).toBeNull();
+    expect(document.querySelector("header [aria-label^='TALK']")).toBeNull();
+  });
+
+  it("startar samma inspelning som raden: samma inspelare, samma fält, och ljudet når appen", async () => {
+    const insp = falskInspelare();
+    const onTalk = vi.fn();
+    render(Skal({ talk: { onTalk, inspelare: insp }, skapa: { arende: true } }));
+    fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(insp.starta).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog", { name: "TALK" })).toBeTruthy();
+    expect(document.querySelector("[data-ops-talk]")?.getAttribute("data-lage")).toBe("lyssnar");
+    // ⛔ Samma tillstånd som plusset och raden, inte en andra krok: bottenradens plus står i samma läge.
+    expect(plus().getAttribute("data-talk-knapp")).toBe("lyssnar");
+    // Läget syns på knappen och i dess namn.
+    expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("lyssnar");
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, lyssnar");
+    expect(huvudknapp()?.className.split(/\s+/)).toContain("text-accent");
+
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+    });
+    expect(onTalk).toHaveBeenCalledTimes(1);
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, prata in");
+  });
+
+  it("namnet säger TALK, skickar medan ljudet lämnas till appen, och prata in igen när det är klart", async () => {
+    /** @type {(v?: unknown) => void} */
+    let klar = () => {};
+    const onTalk = vi.fn(() => new Promise((r) => (klar = r)));
+    render(Skal({ talk: { onTalk, inspelare: falskInspelare() }, skapa: { arende: true } }));
+    fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await flush();
+    expect(onTalk).toHaveBeenCalledTimes(1);
+    expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("skickar");
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, skickar");
+    expect(huvudknapp()?.className.split(/\s+/)).toContain("text-accent");
+    await act(async () => klar());
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, prata in");
+  });
+
+  it("⛔ ett tryck under lyssnar, skickar eller håll startar ingen andra inspelning", async () => {
+    vi.useFakeTimers();
+    try {
+      // Håll: långtryck på bottenradens plus, sedan huvudets knapp medan fingret ligger kvar.
+      const insp = falskInspelare();
+      const { unmount } = render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp }, skapa: { arende: true } }));
+      fireEvent.pointerDown(plus(), { button: 0 });
+      act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+      await flush();
+      expect(plus().getAttribute("data-talk-knapp")).toBe("haller");
+      fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
+      await flush();
+      expect(insp.starta).toHaveBeenCalledTimes(1);
+      expect(plus().getAttribute("data-talk-knapp")).toBe("haller");
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // Lyssnar och skickar: huvudets knapp startar, sedan trycks den igen i varje läge.
+    /** @type {(v?: unknown) => void} */
+    let klar = () => {};
+    const insp = falskInspelare();
+    render(Skal({ talk: { onTalk: vi.fn(() => new Promise((r) => (klar = r))), inspelare: insp }, skapa: { arende: true } }));
+    fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
+    await flush();
+    expect(insp.starta).toHaveBeenCalledTimes(1);
+    fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
+    await flush();
+    expect(insp.starta).toHaveBeenCalledTimes(1);
+    expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("lyssnar");
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await flush();
+    expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("skickar");
+    fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
+    await flush();
+    expect(insp.starta).toHaveBeenCalledTimes(1);
+    expect(insp.stoppa).toHaveBeenCalledTimes(1);
+    expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("skickar");
+    await act(async () => klar());
+  });
+
+  it("⛔ saknas på mobil: display bärs av EN klass, gömd under md, och bottenraden får ingen mikrofon", () => {
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
+    const klasser = /** @type {HTMLElement} */ (huvudknapp()).className.split(/\s+/);
+    expect(klasser).toContain("hidden");
+    expect(klasser).toContain("md:inline-flex");
+    // Bar `inline-flex` vid sidan av `hidden` vinner i Tailwinds ordning och hade visat knappen på mobil.
+    expect(klasser).not.toContain("inline-flex");
+    expect(document.querySelectorAll("[data-talk-huvud]")).toHaveLength(1);
+    expect(document.querySelector("nav [data-talk-huvud]")).toBeNull();
   });
 });
