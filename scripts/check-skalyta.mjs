@@ -4488,7 +4488,7 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
   await context.close();
 }
 
-// ══ 41. LAGER OCH TILLGÄNGLIGHET I DAGSRUTAN MOT SS VID 375 OCH 1280 PX (0.61.0, #259 skiva 1) ══════════════════════════════════
+// ══ 41. LAGER OCH TILLGÄNGLIGHET I DAGSRUTAN MOT SS VID 320, 360, 375, 393 OCH 1280 PX (0.61.0, #259 skiva 1) ══════════════════════════════════
 // CP 2026-10-06: "Det tog LÅNG tid att få till ikonerna för lager och tillgänglighet särskilt i mobil vy och native med små celler så
 // studera det NOGA", och samma morgon "Allt finns i SessionStudio", alltså SS i varje bredd: SS-appen under 640 px, SS webb från.
 //
@@ -4505,22 +4505,27 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
 //
 // Scenen `kalender-tillganglighet` räknar tillgängligheten med `tillganglighetForDag` (modellen hela vägen till brickan).
 // Krav, varje del för sig:
-//   (a) 375: varje bricka är en cirkel på 20 px (22 är fel) med ikonen 10 px, opak yta;
-//   (b) 375: en ensam borta-bricka: överkanten 4 px över rutan och högerkanten 4 px utanför;
-//   (c) 375: en ensam lagerbricka sitter 4 px högre än en ensam borta-bricka, mätt mot sin ruta;
-//   (d) 375: med båda: 16 px mellan överkanterna, borta överst och lagret ovanpå (senare i ordningen);
+// Telefonbredderna är 320, 360, 375 och 393 (granskningen av PR 260: brickan täckte siffran vid 360 och 320).
+//   (a) telefon: varje bricka är en cirkel på 20 px (22 är fel) med ikonen 10 px, opak yta;
+//   (b) telefon: en ensam borta-bricka: överkanten 4 px över rutan och högerkanten max(4, 40 minus rutans bredd) px utanför, alltså
+//       SS rakt av från 36 px rutbredd och längre ut under det;
+//   (c) telefon: en ensam lagerbricka sitter 4 px högre än en ensam borta-bricka, mätt mot sin ruta, med samma överhäng;
+//   (d) telefon: med båda: 16 px mellan överkanterna, borta överst och lagret ovanpå (senare i ordningen);
 //   (e) ingen bricka eller ikon skär siffrans glyfer;
 //   (f) rutans höjd är densamma med och utan brickor, rad och ram (samma dagar med tillgänglighet och lager avslagna);
-//   (g) 375: räknaren ligger inom cirkelns ytterkant, också för `9+`, och står 2, 9+ och 2 på mätdagarna;
-//   (h) 375: siffrans ruta 28 px bred och 5 px in från rutans vänsterkant, alltså vänster om mitten (minst sju rutor mätta);
+//   (g) telefon: räknaren ligger inom cirkelns ytterkant, också för `9+`, står 2, 9+ och 2 på mätdagarna, och saknas vid 1;
+//   (h) telefon: siffrans ruta 5 px in från rutans vänsterkant och 28 px bred, krympt bara där brickan annars täckt siffran, och
+//       vid 393 SS rakt av (28 px, 4 px överhäng) (minst sju rutor mätta);
 //   (i) lagrets ram är 2 px: under 640 px täcker den rutans kant, från 640 px står den 3 px innanför den (SS webb `inset-0.5`);
 //   (j) den 9 oktober har bara dolda poster och ingen markering; knapparna Tillgänglighet och Kalenderlager är aktiva, och ett tryck
 //       på Tillgänglighet tar bort alla borta-markeringar;
 //   (k) 1280: inga brickor syns; ikonerna står i siffrans rad (överkant och mitt inom 2 px av siffrans), till höger om den, 14 px,
 //       borta före lager, räknarna 2, 12|12 och 2 (siffran som den är, som SS webb), och `N/N` står på en dag utan borta men inte på
-//       en dag med borta.
+//       en dag med borta, och ingen siffra vid 1;
+//   (l) telefon: brickan i söndagskolumnen klipps inte av rullytan (förebild 7, den 4 oktober);
+//   (m) telefon: en dag som varit tonar bricka och ram till 0,5, en kommande inte (SS-appens opacity på hela cellen, förebild 7).
 // Golv: minst 8 borta- och 6 lagermarkeringar mätta i varje bredd, och minst 8 rutor i (e).
-for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
+for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { width: 375, height: 812 }, { width: 393, height: 852 }, { width: 1280, height: 900 }]) {
   const namn = `lager och tillgänglighet ${vp.width}`;
   const telefon = vp.width < 640;
   const { page, context } = await oppna("kalender-tillganglighet", vp);
@@ -4564,11 +4569,29 @@ for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
             return { id: b.getAttribute("data-indikator"), ...rekt(b), ikon: rekt(svg), raknare: rk ? rk.textContent : null };
           }),
           narvaro: narvaro && syns(narvaro) ? { text: narvaro.textContent, ...rekt(narvaro) } : null,
+          // Den sammanlagda täckningen (produkten av `opacity` uppåt) för första brickan och för ramen: SS tonar hela rutan.
+          tackning: (() => {
+            const prod = (/** @type {Element | null} */ e) => { let t = 1; for (let x = e; x; x = x.parentElement) t *= parseFloat(getComputedStyle(x).opacity); return +t.toFixed(3); };
+            const b = [...c.querySelectorAll("[data-hornmarke]")].find(syns) || null;
+            return { bricka: b ? prod(b) : null, ram: ram ? prod(ram) : null };
+          })(),
+          // Klipps brickan av någon förälder som klipper (rullytan)? Den del av brickans bredd som syns.
+          klippt: (() => {
+            const b = [...c.querySelectorAll("[data-hornmarke]")].find(syns);
+            if (!b) return null;
+            const br = b.getBoundingClientRect();
+            let hoger = br.right;
+            for (let x = c.parentElement; x; x = x.parentElement) {
+              const cs = getComputedStyle(x);
+              if (cs.overflowX !== "visible" || cs.overflowY !== "visible") hoger = Math.min(hoger, x.getBoundingClientRect().right);
+            }
+            return +(br.right - hoger).toFixed(2);
+          })(),
           x: r.left,
         };
       }, d);
 
-    const dagar = ["2026-09-05", "2026-09-06", "2026-09-24", "2026-10-01", "2026-10-08", "2026-09-02", "2026-09-09", "2026-10-14", "2026-09-30", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-09", "2026-10-15"];
+    const dagar = ["2026-09-05", "2026-09-06", "2026-09-24", "2026-10-01", "2026-10-08", "2026-09-02", "2026-09-09", "2026-10-14", "2026-09-30", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-09", "2026-10-15", "2026-10-04"];
     /** @type {Record<string, any>} */
     const m = {};
     for (const d of dagar) {
@@ -4597,13 +4620,16 @@ for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
 
       // (b) ensamma borta-brickor
       const ensamBorta = ["2026-09-05", "2026-09-06", "2026-09-24", "2026-10-01", "2026-10-08"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1);
-      const bAvvik = ensamBorta.map((x) => ({ ovan: +(x.cell.top - x.brickor[0].top).toFixed(2), utanfor: +(x.brickor[0].right - x.cell.right).toFixed(2) }));
-      krav(ensamBorta.length === 5 && bAvvik.every((a) => Math.abs(a.ovan - 4) <= 0.6 && Math.abs(a.utanfor - 4) <= 0.6), `${namn} (b): ensam borta-bricka ${JSON.stringify(bAvvik)} (${ensamBorta.length} av 5), väntat 4 px över och 4 px utanför (förebild 3: 3,7 och 4 pt).`);
+      // ⛔ ÖVERHÄNGET ÄR 4 PX (SS) SÅ LÄNGE RUTAN ÄR MINST 36 PX, OCH 40 MINUS RUTANS BREDD UNDER DET; siffrans ruta krymper i
+      // stället där den annars hade täckts (granskningen av PR 260: täckt vid 360 och 320). Se `Hornbrickor`.
+      const overhang = (/** @type {number} */ w) => Math.max(4, 40 - w);
+      const bAvvik = ensamBorta.map((x) => ({ ovan: +(x.cell.top - x.brickor[0].top).toFixed(2), utanfor: +(x.brickor[0].right - x.cell.right).toFixed(2), vantat: +overhang(x.cell.w).toFixed(2) }));
+      krav(ensamBorta.length === 5 && bAvvik.every((a) => Math.abs(a.ovan - 4) <= 0.6 && Math.abs(a.utanfor - a.vantat) <= 0.6), `${namn} (b): ensam borta-bricka ${JSON.stringify(bAvvik)} (${ensamBorta.length} av 5), väntat 4 px över och max(4, 40 minus rutans bredd) px utanför (förebild 3: 3,7 och 4 pt).`);
 
       // (c) ensam lagerbricka 4 px högre
       const ensamLager = ["2026-09-02", "2026-09-09", "2026-10-14", "2026-10-22"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1 && x.brickor[0].id === "lager");
-      const lAvvik = ensamLager.map((x) => ({ ovan: +(x.cell.top - x.brickor[0].top).toFixed(2), utanfor: +(x.brickor[0].right - x.cell.right).toFixed(2) }));
-      krav(ensamLager.length === 4 && lAvvik.every((a) => Math.abs(a.ovan - 8) <= 0.6 && Math.abs(a.utanfor - 4) <= 0.6), `${namn} (c): ensam lagerbricka ${JSON.stringify(lAvvik)} (${ensamLager.length} av 4), väntat 8 px över (4 högre än borta, SS marginTop:-4 alltid) och 4 utanför.`);
+      const lAvvik = ensamLager.map((x) => ({ ovan: +(x.cell.top - x.brickor[0].top).toFixed(2), utanfor: +(x.brickor[0].right - x.cell.right).toFixed(2), vantat: +overhang(x.cell.w).toFixed(2) }));
+      krav(ensamLager.length === 4 && lAvvik.every((a) => Math.abs(a.ovan - 8) <= 0.6 && Math.abs(a.utanfor - a.vantat) <= 0.6), `${namn} (c): ensam lagerbricka ${JSON.stringify(lAvvik)} (${ensamLager.length} av 4), väntat 8 px över (4 högre än borta, SS marginTop:-4 alltid) och samma överhäng som borta.`);
 
       // (d) båda
       const bada = ["2026-09-30", "2026-10-21"].map((d) => m[d]).filter((x) => x && x.brickor.length === 2);
@@ -4622,6 +4648,8 @@ for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
       matt.push(`${namn}: räknarna ${JSON.stringify(raknare.map((b) => ({ text: b.raknare.text, vanster: +(b.raknare.left - b.left).toFixed(2), hoger: +(b.right - b.raknare.right).toFixed(2) })))}`);
       krav(raknare.length >= 4 && utanfor.length === 0, `${namn} (g): ${utanfor.length} av ${raknare.length} räknare går ut ur cirkeln: ${JSON.stringify(utanfor.map((b) => ({ text: b.raknare.text, raknare: [b.raknare.left, b.raknare.right], bricka: [b.left, b.right] })))}, väntat alla inom cirkelns ytterkant (golv 4).`);
       krav(JSON.stringify(texter) === JSON.stringify(["2", "9+|9+", "2"]), `${namn} (g): räknarna den 20, 21 och 22 oktober är ${JSON.stringify(texter)}, väntat ["2", "9+|9+", "2"].`);
+      const ettor = ["2026-09-05", "2026-10-08", "2026-09-02", "2026-10-14"].map((d) => (m[d] ? m[d].brickor.map((/** @type {any} */ b) => (b.raknare ? b.raknare.text : "")).join("|") : "?"));
+      krav(JSON.stringify(ettor) === JSON.stringify(["", "", "", ""]), `${namn} (g): brickorna med en person eller ett lager (5 och 2 sep, 8 och 14 okt) har räknarna ${JSON.stringify(ettor)}, väntat ingen siffra (SS visar den från 2).`);
 
       // (h) siffran till vänster
       // ⛔ (h) MÄTER SS-GEOMETRIN OCH INTE FÖREBILDENS 5,8 PT. Hur långt siffran står från mitten beror på rutans bredd: i förebilden
@@ -4631,8 +4659,20 @@ for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
       const forskj = alla.map((x) => +((x.cell.left + x.cell.right) / 2 - (x.nummer.left + x.nummer.right) / 2).toFixed(2));
       const vanster = alla.map((x) => +(x.nummer.left - x.cell.left).toFixed(2));
       const bredd = alla.map((x) => +x.nummer.w.toFixed(2));
-      matt.push(`${namn}: siffrans ruta ${JSON.stringify(vanster)} px in, bredd ${JSON.stringify([...new Set(bredd)])}, mitten ${JSON.stringify(forskj)} px vänster om rutans`);
-      krav(alla.length >= 7 && vanster.every((v) => Math.abs(v - 5) <= 0.6) && bredd.every((w) => Math.abs(w - 28) <= 0.6) && forskj.every((f) => f >= 2), `${namn} (h): siffrans ruta börjar ${JSON.stringify(vanster)} px in med bredden ${JSON.stringify(bredd)} och mitten ${JSON.stringify(forskj)} px vänster om rutans, väntat 5 px in, 28 px bred och minst 2 px vänster om mitten (SS dayNumberContainer först i dayTopRow; förebild 3: 5,8 pt i en bredare ruta).`);
+      // 28 px som SS så länge rutan rymmer det, annars clamp(14, 2 x (rutbredd - 10) - 38, 28): se `Hornbrickor`.
+      const vantadBredd = alla.map((x) => Math.min(28, Math.max(14, 2 * (x.cell.w - 10) - 38)));
+      matt.push(`${namn}: siffrans ruta ${JSON.stringify(vanster)} px in, bredd ${JSON.stringify([...new Set(bredd)])} (väntat ${JSON.stringify([...new Set(vantadBredd.map((w) => +w.toFixed(2)))])}), mitten ${JSON.stringify(forskj)} px vänster om rutans`);
+      krav(alla.length >= 7 && vanster.every((v) => Math.abs(v - 5) <= 0.6) && bredd.every((w, i) => Math.abs(w - vantadBredd[i]) <= 0.6), `${namn} (h): siffrans ruta börjar ${JSON.stringify(vanster)} px in med bredden ${JSON.stringify(bredd)}, väntat 5 px in och ${JSON.stringify([...new Set(vantadBredd.map((w) => +w.toFixed(2)))])} px bred (SS dayNumberContainer 28 px först i dayTopRow, krympt bara där brickan annars täckt siffran).`);
+      if (vp.width === 393) krav(bredd.every((w) => Math.abs(w - 28) <= 0.6) && bAvvik.every((a) => Math.abs(a.utanfor - 4) <= 0.6), `${namn} (h): vid 393 (förebildens bredd) ska allt vara SS rakt av, siffrans ruta 28 px och överhänget 4 px; mätt ${JSON.stringify([...new Set(bredd)])} och ${JSON.stringify(bAvvik.map((a) => a.utanfor))}.`);
+
+      // (l) brickan i söndagskolumnen sticker ut över rutnätets kant och klipps inte (förebild 7, den 4 oktober)
+      const klipp = ["2026-09-06", "2026-10-04"].map((d) => (m[d] ? m[d].klippt : "?"));
+      krav(klipp.every((k) => k === 0), `${namn} (l): brickan i söndagskolumnen (6 sep, 4 okt) klipps ${JSON.stringify(klipp)} px av en förälder, väntat 0 (förebild 7: den sticker ut och syns hel).`);
+
+      // (m) det som varit tonas med brickan och ramen, som SS-appens opacity 0,5 på hela cellen (förebild 7: den 24 september)
+      const tack = { forbiBricka: m["2026-09-24"] && m["2026-09-24"].tackning.bricka, forbiRam: m["2026-09-30"] && m["2026-09-30"].tackning.ram, kommandeBricka: m["2026-10-08"] && m["2026-10-08"].tackning.bricka, kommandeRam: m["2026-10-14"] && m["2026-10-14"].tackning.ram };
+      matt.push(`${namn}: täckning ${JSON.stringify(tack)}`);
+      krav(tack.forbiBricka === 0.5 && tack.forbiRam === 0.5 && tack.kommandeBricka === 1 && tack.kommandeRam === 1, `${namn} (m): täckningen ${JSON.stringify(tack)}, väntat 0,5 för bricka och ram en dag som varit och 1 en kommande dag (SS DayCell.js:91-93).`);
     } else {
       // (k) raden bredvid siffran
       krav(brickor.length === 0, `${namn} (k): ${brickor.length} hörnbrickor syns från 640 px, väntat inga (SS webb har dem i raden).`);
@@ -4642,6 +4682,8 @@ for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
       const ordning = ["2026-09-30", "2026-10-21"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.id).join(",") : "?"));
       const texter = ["2026-10-20", "2026-10-21", "2026-10-22"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
       krav(JSON.stringify(ordning) === JSON.stringify(["borta,lager", "borta,lager"]) && JSON.stringify(texter) === JSON.stringify(["2", "12|12", "2"]), `${namn} (k): ordningen ${JSON.stringify(ordning)} och räknarna ${JSON.stringify(texter)}, väntat borta före lager och 2, 12|12, 2 (SS webb skriver siffran som den är).`);
+      const ettorRad = ["2026-10-08", "2026-10-14"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
+      krav(JSON.stringify(ettorRad) === JSON.stringify(["", ""]), `${namn} (k): raden den 8 oktober (en borta) och 14 oktober (ett lager) har räknarna ${JSON.stringify(ettorRad)}, väntat ingen siffra (SS webb blockedMembers.length > 1).`);
       const n15 = m["2026-10-15"] && m["2026-10-15"].narvaro;
       const n05 = m["2026-09-05"] && m["2026-09-05"].narvaro;
       krav(!!n15 && n15.text === "14/14" && Math.abs(n15.top - m["2026-10-15"].nummer.top) <= 3 && n15.left > m["2026-10-15"].glyf.right && !n05, `${namn} (k): N/N den 15 oktober ${JSON.stringify(n15)}, den 5 september ${JSON.stringify(n05)}, väntat "14/14" i siffrans rad på en dag utan borta och inget på en dag med borta (SS MonthGrid.jsx:529).`);
@@ -4706,6 +4748,22 @@ if (bildmapp) {
   await page.screenshot({ path: path.join(bildmapp, "tillganglighet-393.png") });
   await context.close();
 }
+// Förebild 7 (CP 2026-10-06, SS-appen med tillgänglighet och lager påslagna): 390 px i skala 3, rullad så att veckan med den
+// 7 september står överst under veckodagsraden, som i bilden.
+if (bildmapp) {
+  const { page, context } = await oppna("kalender-tillganglighet", { width: 390, height: 844 }, standardtema, 3);
+  await page.waitForSelector('[data-cal-day="2026-09-07"]', { timeout: 4000 }).catch(() => {});
+  await page.evaluate(() => {
+    const r = /** @type {HTMLElement | null} */ (document.querySelector("[data-kalender-rulle]"));
+    const c = document.querySelector('[data-cal-day="2026-09-07"]');
+    const h = r && /** @type {HTMLElement} */ (r.firstElementChild);
+    if (r && c && h) r.scrollTop += c.getBoundingClientRect().top - h.getBoundingClientRect().bottom + 12;
+  });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(bildmapp, "tillganglighet-390.png") });
+  await context.close();
+}
+
 // Och 1280 px i mörkt tema med oktober överst, bredvid SS webb i mörkt tema (`ss-tillganglighet-webb-6.png`, CP 2026-10-06).
 if (bildmapp) {
   const { page, context } = await oppna("kalender-tillganglighet", { width: 1280, height: 720 }, "dark");
