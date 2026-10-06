@@ -25,7 +25,7 @@ Händelsen: CP 2026-10-06, överlämning från en annan tråd om att skapa en gr
 #### Efter granskningen av PR 266
 
 - **Svenska namn på ikonerna** (`GRUPPIKON_SVENSKA`, `gruppikonEtikett`). Knapparna hette Lucides engelska filnamn ("music 2", "audio waveform"); nu säger varje namn vad ikonen föreställer, unikt, så varianter går att skilja åt med skärmläsare. Namnen är också sökord.
-- **Ord som gav noll träffar och lagades:** hörlur, hörlurar, högtalare, noter och skiva (nya synonymer plus de svenska namnen). Prövat också: fotboll, kontor, familj, skola, resa, mat, bok, kör, band och styrelse gav redan träffar, men "styrelse" gav en tärning (`board` som i brädspel) och "not" gav anteckningsboken först; båda rättade. Ett prov per ord.
+- **Ord som gav noll träffar och lagades:** hörlur, hörlurar, högtalare, noter och skiva, via ikonernas svenska namn. De lades först också som synonymer, men en mutation som tog bort synonymerna lämnade alla prov gröna, så de ströks (regel 2). Prövat också: fotboll, kontor, familj, skola, resa, mat, bok, kör, band och styrelse gav redan träffar, men "styrelse" gav en tärning (`board` som i brädspel) och "not" gav anteckningsboken först; båda rättade. Ett prov per ord.
 - **Prefix på engelska taggar bara för det som skrevs, och lågt viktat.** "kontor" gav en hantel: synonymen `work` var prefix till taggen `workout`.
 - **Den levande regionen är en statusrad** ("12 träffar", "Inget matchar"), inte rutnätet med upp till 48 knappar.
 - **Reglagets uppläsning bär närmaste kulörnamn** (`narmasteKulornamn`): "227 grader, Turkos".
