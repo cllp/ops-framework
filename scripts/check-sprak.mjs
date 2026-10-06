@@ -10,7 +10,7 @@
  *
  * ══ ⛔ ETT TAK SOM BARA FÅR SJUNKA, INTE NOLL ════════════════════════════
  *
- * Arbetsreglernas punkt 4: vaktar man en skuld sätter man ett tak, inte noll. 183 förval före 0.46.0, 118 efter. Noll hade gjort varje
+ * Arbetsreglernas punkt 4: vaktar man en skuld sätter man ett tak, inte noll. 183 förval före 0.46.0, 118 efter, 112 i 0.63.0 (OpsNyttMeddelande och skalets skickaEtikett borttagna, #263). Noll hade gjort varje
  * kvarvarande komponent röd på en gång, och då hade vakten stängts av. Taket sänks i samma PR som flyttar fler förval till en ordbok;
  * det höjs aldrig. En ny komponent med ett svenskt förval gör vakten röd, och svaret är en ordbok, inte ett högre tak.
  *
@@ -30,7 +30,7 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const katalog = path.join(rot, "src", "components");
 
 /** Taket. ⛔ FÅR BARA SJUNKA. */
-export const TAK = 118;
+export const TAK = 112;
 const GOLV_FILER = 90;
 const MONSTER = /(?:^|[\s({,])([a-zA-Z]*(?:[Ll]abel|[Ee]tikett|[Tt]ext|[Rr]ubrik|[Tt]itel|[Bb]eskrivning)) = "([^"]+)"/g;
 

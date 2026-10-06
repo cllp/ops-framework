@@ -267,7 +267,6 @@ export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOT
 export { createSamtalskalla, samtalsnotiser } from "./data/samtalskalla.js";
 export { useSamtal } from "./data/useSamtal.jsx";
 export { OpsMottagare } from "./components/OpsMottagare.jsx";
-export { OpsNyttMeddelande } from "./components/OpsNyttMeddelande.jsx";
 export { OpsMeddelanden, OpsSamtal, OpsMeddelandeLank } from "./components/OpsMeddelanden.jsx";
 export { STATUS_TONES, statusTone } from "./lib/statusTone.js";
 export { createActivityLog, unreadCount, isUnread, unread, unreadRows, activityId, activityWindow, groupByDay, ACTIVITY_RESULTS, ACTIVITY_SECTIONS } from "./lib/aktivitet.js";

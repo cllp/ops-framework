@@ -911,6 +911,8 @@ function MeddelandeScen() {
   const [kalla, setKalla] = useState(samtalskallan);
   const [olasta, setOlasta] = useState(0);
   const [valt, setValt] = useState(null);
+  // 0.63.0 (#263): läget "nytt" ligger i appens state, som LifeHub har det i adressen. Plussets rad leder hit.
+  const [nytt, setNytt] = useState(false);
   if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
   if (!kalla) {
     byggSamtalskalla().then((k) => {
@@ -924,13 +926,27 @@ function MeddelandeScen() {
       skapa={{
         handelse: <p>Formulär</p>,
         lage: "g1",
-        meddelande: ({ formId, groupId, onKlar }) => (
-          <Ops.OpsNyttMeddelande formId={formId} groupId={groupId} uid="anna" medlemmar={MEDLEMMAR_M} kalla={kalla} onKlar={(id) => { onKlar(); setValt(id); }} />
-        ),
+        nyttMeddelande: () => {
+          setValt(null);
+          setNytt(true);
+        },
       }}
     >
       {kalla ? (
-        <Ops.OpsMeddelanden kalla={kalla} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger Konsulting och Förvaltning AB" medlemmar={MEDLEMMAR_M} onOlasta={setOlasta} valt={valt} onValj={setValt} onNytt={() => {}} />
+        <Ops.OpsMeddelanden
+          kalla={kalla}
+          uid="anna"
+          groupId="g1"
+          gruppNamn="Claes Philip Staiger Konsulting och Förvaltning AB"
+          medlemmar={MEDLEMMAR_M}
+          onOlasta={setOlasta}
+          valt={valt}
+          nytt={nytt}
+          onValj={(id, val) => {
+            setNytt(Boolean(val?.nytt));
+            setValt(id);
+          }}
+        />
       ) : (
         <p>Laddar</p>
       )}

@@ -2979,8 +2979,18 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
 //       färg som `surface`, och andras bubblor var osynliga tills montaget visade det), skrivfältet längst ned i samtalsytan.
 //   (c) 390: listan är hela bredden och samtalet dolt; efter ett tryck är listan dold, "Tillbaka" syns, och skrivfältet ligger
 //       ovanför bottenraden, inom fönstret.
-//   (d) Nytt meddelande (plusset): en region och ingen dialog, minst två personer att välja med 44 px träffyta, raden om att det är
-//       privat MELLAN väljaren och textrutan, knappen Skicka, kolumnen högst 672 px vid 1280.
+//   (d) Nytt meddelande LÄMNAR ALDRIG MEDDELANDEN (0.63.0, #263). CP 2026-10-06 11:22, med en skärminspelning från LifeHub:
+//       "steget med att öppna en liten chattfönster till är lite konstigt", och "Chatten dök upp långt senare...". 0.34.0 till
+//       0.62.0 öppnade plusset en skapa-panel som dolde hela vyn, och det mätte den här vakten då (en region, kolumnen högst
+//       672 px, knappen Skicka i panelens knapprad). Den mätningen är borttagen; det den mätte är felet. Förebilden är SS
+//       `ChatInboxPanel.jsx:1091-1124` och `:477-505`: man väljer en person i inkorgen, och samtalet öppnas bredvid. Krav:
+//       - plussets rad leder till läget "nytt" INNE I Meddelanden: regionen "Nytt meddelande" ligger i `[data-ops-meddelanden]`,
+//         ingen dialog och ingen skapa-panel (`[data-skapa-panel]`, `[data-skapa-knappar]`) finns, och vid 1280 står listan kvar till vänster med
+//         samma bredd som förut (vid 390 ersätter läget listan, och "Tillbaka" syns);
+//       - minst två att välja med 44 px träffyta, raden om vem som ser samtalet MELLAN väljaren och skrivfältet, och
+//         skrivfältet längst ned i panelen och inom fönstret ovanför bottenraden;
+//       - ett val öppnar tråden direkt (`[data-ops-samtal]` med personens namn) innan något är skrivet, och efter Skicka står
+//         raden i listan och bubblan i tråden UTAN någon `focus`-händelse. Listan står kvar vid 1280 hela vägen.
 // Ingen horisontell överflödning någonstans. Golv: minst 2 rader i listan och minst 3 bubblor i samtalet.
 for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   const { page, context } = await oppna("meddelanden", vp);
@@ -3090,34 +3100,79 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     // (d) Nytt meddelande ur plusset. På telefon är det bottenradens plus (ett ark), på dator huvudets.
     if (vp.width < 768) await page.locator('nav button[aria-label="Skapa"]').last().click();
     else await page.getByRole("button", { name: "Skapa" }).first().click();
-    await page.getByRole("button", { name: "Nytt meddelande" }).last().click();
-    const panel = page.getByRole("region", { name: "Nytt meddelande" });
-    await panel.waitFor({ timeout: 4000 });
-    const ny = await panel.evaluate((p) => {
-      const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
-      const radio = [...p.querySelectorAll("[role=radio]")].map((r) => b(r).height);
-      const grupp = p.querySelector("[role=radiogroup]");
-      const rad = p.querySelector("[data-privat]");
-      const text = p.querySelector("textarea");
-      const kolumn = /** @type {HTMLElement} */ (p.querySelector(".max-w-2xl"));
-      const skicka = [...document.querySelectorAll("[data-skapa-knappar] button")].map((x) => (x.textContent || "").trim());
-      return {
-        radio,
-        ordning: grupp && rad && text ? b(grupp).bottom <= b(rad).top + 0.5 && b(rad).bottom <= b(text).top + 0.5 : false,
-        rad: rad ? (rad.textContent || "").trim() : null,
-        kolumn: kolumn ? b(kolumn).width : null,
-        skicka,
-        dialoger: document.querySelectorAll("[role=dialog]").length,
-      };
-    });
-    matt.push(`${namn}, Nytt meddelande: radioknappar ${JSON.stringify(ny.radio)}, rad "${ny.rad}", ordning ${ny.ordning}, kolumn ${ny.kolumn}, knappar ${JSON.stringify(ny.skicka)}, dialoger ${ny.dialoger}`);
-    krav(ny.dialoger === 0, `${namn}: Nytt meddelande öppnade ${ny.dialoger} dialoger, väntat en panel (0.31.0).`);
-    krav(ny.radio.length >= 2 && ny.radio.every((h) => h >= 43.5), `${namn}: ${ny.radio.length} personer att välja med höjderna ${JSON.stringify(ny.radio)}, väntat minst 2 och 44 px.`);
-    krav(ny.rad === "Bara ni två ser det här." && ny.ordning, `${namn}: raden om det privata ("${ny.rad}") ska stå mellan väljaren och textrutan (${ny.ordning}).`);
-    krav(ny.skicka.includes("Skicka") && !ny.skicka.includes("Spara"), `${namn}: panelens knappar är ${JSON.stringify(ny.skicka)}, väntat Skicka och ingen Spara.`);
-    if (vp.width >= 1024) krav(ny.kolumn !== null && ny.kolumn <= 672.5, `${namn}: Nytt meddelande är ${ny.kolumn} px brett, väntat högst 672 (smal kolumn som Ny grupp).`);
+    // Plussets rad, inte knappen i listans huvud: den som inte ligger i Meddelanden.
+    await page.locator('xpath=//button[normalize-space()="Nytt meddelande"][not(ancestor::*[@data-ops-meddelanden])]').last().click();
+    const nyttRegion = page.locator("[data-ops-meddelanden]").getByRole("region", { name: "Nytt meddelande" });
+    await nyttRegion.waitFor({ timeout: 4000 });
+    await page.waitForTimeout(150);
+    /** Läget "nytt" eller tråden: var ligger listan, panelen, raden och skrivfältet. */
+    const matHoger = () =>
+      page.evaluate(() => {
+        const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+        const yta = /** @type {HTMLElement} */ (document.querySelector("[data-ops-meddelanden]"));
+        const l = /** @type {HTMLElement} */ (document.querySelector("[data-samtalslista]"));
+        const h = /** @type {HTMLElement} */ (l.nextElementSibling);
+        const form = h.querySelector("form");
+        const grupp = h.querySelector("[role=radiogroup]");
+        const rad = h.querySelector("[data-privat]");
+        const tillbaka = [...h.querySelectorAll("button")].find((x) => (x.textContent || "").trim() === "Tillbaka" && getComputedStyle(x).display !== "none");
+        return {
+          iMeddelanden: !!yta && yta.contains(h),
+          region: h.getAttribute("aria-label"),
+          dialoger: document.querySelectorAll("[role=dialog]").length,
+          skapaPanel: document.querySelectorAll("[data-skapa-panel], [data-skapa-knappar]").length,
+          lista: { synlig: getComputedStyle(l).display !== "none", w: b(l).width, x: b(l).left },
+          hoger: { synlig: getComputedStyle(h).display !== "none", x: b(h).left, nederkant: b(h).bottom },
+          radio: [...h.querySelectorAll("[role=radio]")].map((r) => b(r).height),
+          rad: rad ? (rad.textContent || "").trim() : null,
+          ordning: grupp && rad && form ? b(grupp).bottom <= b(rad).top + 0.5 && b(rad).bottom <= b(form).top + 0.5 : false,
+          formNederkant: form ? b(form).bottom : null,
+          trad: h.querySelector("[data-ops-samtal]")?.getAttribute("data-ops-samtal") ?? null,
+          tradRubrik: h.querySelector("[data-ops-samtal] h3")?.textContent ?? null,
+          bubblor: [...h.querySelectorAll("[data-meddelande]")].map((m) => (m.textContent || "").trim()),
+          rader: [...document.querySelectorAll("[data-samtalsrad]")].map((r) => (r.textContent || "").trim()),
+          tillbaka: !!tillbaka,
+          vh: window.innerHeight,
+        };
+      });
+    const ny = await matHoger();
+    matt.push(`${namn}, Nytt meddelande: ${JSON.stringify(ny)}`);
+    krav(ny.iMeddelanden && ny.region === "Nytt meddelande", `${namn}: plussets Nytt meddelande ska öppna läget "nytt" i Meddelanden (region "${ny.region}", i Meddelanden ${ny.iMeddelanden}).`);
+    krav(ny.dialoger === 0 && ny.skapaPanel === 0, `${namn}: Nytt meddelande öppnade ${ny.dialoger} dialoger och ${ny.skapaPanel} skapa-paneler, väntat noll av båda (#263).`);
+    if (vp.width >= 1024) {
+      krav(ny.lista.synlig && Math.abs(ny.lista.w - lista.lista.w) < 1 && ny.hoger.synlig, `${namn}: listan ska stå kvar till vänster med samma bredd (${ny.lista.w} mot ${lista.lista.w}, ${ny.lista.synlig ? "synlig" : "dold"}) och läget "nytt" bredvid (#263).`);
+    } else {
+      krav(!ny.lista.synlig && ny.hoger.synlig && ny.tillbaka, `${namn}: på telefon ersätter läget "nytt" listan (${ny.lista.synlig ? "synlig" : "dold"}) och "Tillbaka" syns (${ny.tillbaka}).`);
+    }
+    krav(ny.radio.length >= 2 && ny.radio.every((h) => h >= 43.5), `${namn}: ${ny.radio.length} att välja med höjderna ${JSON.stringify(ny.radio)}, väntat minst 2 och 44 px. Golv.`);
+    krav(ny.rad === "Bara ni två ser det här" && ny.ordning, `${namn}: raden om vem som ser samtalet ("${ny.rad}") ska stå mellan väljaren och skrivfältet (${ny.ordning}).`);
+    krav(ny.formNederkant !== null && Math.abs(ny.formNederkant - ny.hoger.nederkant) < 1.5 && ny.formNederkant <= ny.vh - bottenrad + 0.5, `${namn}: skrivfältet slutar ${ny.formNederkant}, panelen ${ny.hoger.nederkant}, fönstret minus bottenraden ${ny.vh - bottenrad}. Det ska ligga längst ned och synas.`);
     krav((await over()) <= 0, `${namn}, Nytt meddelande: sidan flödar över ${await over()} px horisontellt.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `nytt-meddelande-${vp.width}.png`) });
+
+    // Valet öppnar tråden direkt. Cecilia har inget samtal med Anna, så det skapas nu.
+    const raderFore = ny.rader.length;
+    await nyttRegion.getByRole("radio", { name: "Cecilia Berg" }).click();
+    await page.waitForSelector('[data-ops-samtal="personer"]', { timeout: 4000 });
+    await page.waitForTimeout(150);
+    const vald = await matHoger();
+    matt.push(`${namn}, Cecilia vald: ${JSON.stringify(vald)}`);
+    krav(vald.trad === "personer" && vald.tradRubrik === "Cecilia Berg", `${namn}: valet ska öppna tråden med Cecilia direkt (tråd ${vald.trad}, rubrik "${vald.tradRubrik}").`);
+    if (vp.width >= 1024) krav(vald.lista.synlig, `${namn}: listan ska stå kvar när tråden öppnats.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `nytt-vald-${vp.width}.png`) });
+
+    await page.locator("[data-ops-samtal] textarea").fill("Hej Cecilia, har du sett protokollet?");
+    await page.locator("[data-ops-samtal] form button[type=submit]").click();
+    // ⛔ INGEN focus-HÄNDELSE. Det var den enda vägen som fick raden att synas i 0.60.0 (#263).
+    await page.waitForFunction((n) => document.querySelectorAll("[data-samtalsrad]").length > n, raderFore, { timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(150);
+    const efter = await matHoger();
+    matt.push(`${namn}, efter Skicka: ${JSON.stringify(efter)}`);
+    krav(efter.rader.length === raderFore + 1 && efter.rader.some((r) => r.includes("Cecilia Berg") && r.includes("protokollet")), `${namn}: efter Skicka ska raden med Cecilia stå i listan utan någon focus-händelse (${raderFore} rader före, ${efter.rader.length} efter).`);
+    krav(efter.bubblor.some((t) => t.includes("Hej Cecilia, har du sett protokollet?")), `${namn}: meddelandet ska stå i tråden (${JSON.stringify(efter.bubblor)}).`);
+    if (vp.width >= 1024) krav(efter.lista.synlig, `${namn}: listan ska stå kvar efter Skicka.`);
+    krav((await over()) <= 0, `${namn}, efter Skicka: sidan flödar över ${await over()} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `nytt-skickat-${vp.width}.png`) });
   } catch (e) {
     krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }

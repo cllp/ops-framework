@@ -9,6 +9,75 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.63.0
+
+⛔ **Versionsnumret:** 0.61.0 och 0.62.0 är redan tagna av PR 260 (#259, regel 13) och PR 261 (bolag-ops#565), som inte är mergade när den här grenen öppnas. Den här grenen tar därför 0.63.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.
+
+### "Nytt meddelande" lämnar aldrig Meddelanden (#263)
+
+CP 2026-10-06 11:22, med en skärminspelning från LifeHub: "steget med att öppna en liten chattfönster till är lite konstigt", och "Chatten dök upp långt senare...". Han skickade frågan till agenten två gånger, eftersom ingenting syntes hända.
+
+Tre fel samverkade, alla mätta i ett vitest-prov mot 0.60.0 (efter Skicka och 300 ms: källan har ett samtal, skärmen noll rader, noll trådar och "Inga samtal än"):
+
+1. "+ Nytt meddelande" öppnade skalets skapa-panel, som dolde hela appens vy (`hidden={skapaPanelSyns}`). Listan och tråden försvann.
+2. `useSamtal` läste listan vid montering och vid `focus`, och lyssnade inte däremellan. `OpsMeddelanden` monterades inte om, eftersom vyn bara var dold.
+3. Tråden ritades bara när samtalet fanns bland raderna, så ett nytt samtal gav "Inga samtal än" fast adressen pekade på rätt `?samtal=`.
+
+Skalprovet i `meddelanden.test.jsx` stod grönt genom felet: det hade `<p>appens vy</p>` som barn och mätte bara att `onGaTill` anropades.
+
+#### Ändrat
+
+- **`OpsMeddelanden` har läget "nytt" i högerpanelen**, som SessionStudio (`ChatInboxPanel.jsx:1091-1124`, `:477-505`). Till (`OpsMottagare lage="person"`) och raden om vem som ser samtalet överst, trådens skrivfält längst ned, och listan står kvar till vänster. På telefon ersätter läget listan, med "‹ Tillbaka". Valet i Till öppnar samtalet direkt med `oppnaPrivat`; ett befintligt samtal, också agentens, öppnas med sin historik och inget nytt skapas. Text skriven före valet följer med in i tråden, och Skicka utan mottagare säger "Välj vem meddelandet ska till.".
+- **Tråden ritas på det valda id:t**, inte på listan (SS `:186-191`, `DMPanel.jsx:95-97`). Saknas raden läses gruppen och paret ur nyckeln (`delaSamtalsnyckel` i `lib/samtal.js`, inversen av `samtalsnyckel`) och rubriken ur `medlemmar`. Ett id i en annan grupp, eller ett par man inte är med i, ritar ingen tråd.
+- **`useSamtal` har `laggIn(samtal, senaste?)`**: raden läggs in lokalt direkt efter öppnandet och efter Skicka, och listan läses sedan om. Inget sparas. Raden slås in i varje omläsning tills källan själv svarat med samtalet och ett lika nytt meddelande, så att en källa som ännu inte ser samtalet inte tar bort raden igen. Ett samtal i en annan grupp än inkorgens läggs aldrig in.
+- **Ett gruppbyte medan samtalet öppnas lägger inget i den nya gruppens inkorg** (granskningen av PR 264, tredje varvet). `NyttSamtal` höll kvar `onOppnat` ur renderingen där klicket skedde, så gruppkontrollen i `laggIn` jämförde den gamla gruppen med sig själv. `useSamtal` jämför nu `laggIn` och `lasOm` med gruppen som visas just nu (en ref), och nollar de lokala raderna och källans förra svar vid bytet. `NyttSamtal` monteras om per grupp och gör ingenting när svaret kommer efter att den avmonterats (också när man tryckt Tillbaka), så ett samtal i en grupp som inte visas väljs aldrig och skrivs inte till appens adress. Utkastet följer inte med över ett gruppbyte, med avsikt: det skrevs till någon i den förra gruppen. Varje skydd har ett eget prov som är rött utan just det skyddet. Två skydd som var gröna utan sig själva (en andra gruppkontroll på svaret i `lasOm`, och en gruppkontroll i `onOppnat`) är borttagna.
+- **Filtret och sökningen nollas när ett samtal startas**, som SS (`ChatInboxPanel.jsx:484-487`). Annars döljer "Olästa" det nya samtalet. Text som skrivs medan samtalet öppnas följer också med in i tråden.
+- **`samtalsnyckel` kastar för ett `groupId` med `|`**, och `delaSamtalsnyckel(id, groupId)` gör detsamma. En sådan nyckel hade lästs baklänges till fel grupp. ⛔ Ingen spegelkolumn (`senast`) på samtalsdokumentet (regel 2, filhuvudet i `lib/samtal.js`).
+- **`OpsMeddelanden` props:** `nytt` (läget, när appen styr det) och `onValj(id, val?)`, som får `(null, { nytt: true })` när läget öppnas. Knappen Nytt meddelande står alltid när en grupp är vald.
+- **`OpsSamtal` props:** `onSkickat(meddelande)` och `utkast`.
+- **Plussets "Nytt meddelande" leder till Meddelanden i läget "nytt"** (`skapa.nyttMeddelande`, en funktion `() => void`). `useOppnaSkapa()("meddelande")` och adressens `?skapa=meddelande` gör samma sak, och parametern tas bort ur adressen.
+
+#### Borttaget (brytande)
+
+- **`skapa.meddelande`, `OpsNyttMeddelande` och skalets `skickaEtikett`.** Det ska finnas EN väg att starta ett samtal. Skalet **kastar** om `skapa.meddelande` skickas, med vägen till `skapa.nyttMeddelande` i felet, i stället för att raden tyst försvinner (regel 5). En app som pinnar om byter `skapa.meddelande` mot `nyttMeddelande: () => navigera("/meddelanden?nytt=1")` och ger vyns `OpsMeddelanden` `nytt` och `onValj(id, val)`.
+
+#### Ompinning till 0.63.0
+
+Samma ändringar i båda apparna, `cllp/lifehub.app` och `cllp/bolag-ops` (sökvägarna under `web/`). Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+⛔ **Avsnittet beskriver bara skillnaden från 0.62.0 till 0.63.0.** Apparna står inte där: lifehub.app pinnar 0.60.0 och bolag-ops 0.50.0 (mätt i `web/package.json` på origin/main 2026-10-06). En ompinning från en äldre version går också igenom avsnitten 0.61.0 och 0.62.0 i den här filen, och för bolag-ops dessutom 0.51.0 till 0.60.0, var för sig. 0.61.0 och 0.62.0 kommer från PR 260 och PR 261 och står här först när de är mergade. Radnumren nedan är mätta på origin/main i båda repona samma dag.
+
+1. **`src/app/App.jsx`.**
+   - Ta bort `OpsNyttMeddelande` ur importen från `@staiger/ops-framework` (lifehub `:18`, bolag-ops `:19`). Exporten finns inte längre, så importen ger byggfel.
+   - Byt blocket med `skapa.meddelande` och dess kommentar (lifehub `:681-703`, bolag-ops `:653-675`) mot `nyttMeddelande: () => navigera("/meddelanden?nytt=1")`, under samma villkor (`samtal.kalla`).
+   - ⛔ Skickar appen kvar `skapa.meddelande` kastar skalet.
+   - Rätta kommentaren om `skapa.meddelande` (lifehub `:231`, bolag-ops `:221`).
+2. **`src/app/views/MeddelandenView.jsx`.**
+   - Läs `nytt` ur adressen (`new URLSearchParams(search).has("nytt")`) och ge den till `OpsMeddelanden nytt`.
+   - Skriv om `onValj` (`:48`) så att den tar `(id, val)`:
+     - Med `val?.nytt` blir adressen `${pathname}?nytt=1`.
+     - Med ett `id` blir den `${pathname}?samtal=<id>`.
+     - Annars blir den `pathname`.
+   - ⛔ Appen ska ta bort `?nytt=1` när den får `onValj(id)` utan `val`. Annars vinner läget "nytt" över det valda samtalet, och tråden öppnas aldrig.
+   - Ta bort `onNytt` (`:50`) och `useOppnaSkapa`. Komponenten ignorerar `onNytt`, och knappen öppnar läget själv.
+   - Kommentaren `:19-20` beskriver den gamla panelvägen och ska skrivas om.
+3. **`src/app/__tests__/meddelanden.test.jsx:135-160`.**
+   - Proven för plusset letar efter regionen "Nytt meddelande" med knappen Skicka i skapa-panelen.
+   - Nu ligger regionen i Meddelanden: `[data-ops-meddelanden]` med Till, raden om vem som ser samtalet och trådens skrivfält med knappen Skicka (en ikonknapp med etiketten "Skicka").
+   - Valet av en person öppnar samtalet direkt. Texten skrivs sedan i tråden.
+   - Adressen ska vara `/meddelanden?samtal=<id>` efter valet.
+4. **`scripts/ta-montage-meddelanden.mjs:66-76`.**
+   - Kommentaren om att adressvägen inte öppnar någon panel är inte längre sann. Både knappen i vyn och plusset leder till läget "nytt".
+   - Montaget av "Nytt meddelande" tas nu i Meddelanden, och bör också ta tråden före och efter det första meddelandet.
+
+#### Prov
+
+- `nyttMeddelande.test.jsx`, med `OpsMeddelanden` monterad i skalet och utan någon `focus`-händelse: tom inkorg, Nytt meddelande, agenten, skriv, Skicka ger samtalsraden och `[data-ops-samtal]`; ett valt id som inte finns bland raderna öppnar tråden; agenten med ett befintligt samtal ger samma id och inget nytt `create`; listan är samma element i DOM:en under hela flödet.
+- `useSamtal.test.jsx` och ett block i `nyttMeddelande.test.jsx` mäter `laggIn` mot en källa vars `oversikt` är fryst och aldrig svarar med det nya samtalet. Raden ska stå i listan direkt efter valet och finnas kvar efter omläsningen, utdraget ska synas efter Skicka och det nyss skickade ska ligga överst. Granskningen av PR 264 visade att alla prov var gröna med `laggIn` som no-op, eftersom raden syntes ändå via läsmärket.
+- `check-skalyta` avsnitt 29 (d) är omskrivet. Den gamla mätningen av panelen (en region, kolumnen högst 672 px, Skicka i panelens knapprad) är borttagen, eftersom det den mätte är felet. Nu: plussets rad öppnar läget "nytt" i Meddelanden utan dialog och utan skapa-panel, listan står kvar vid 1280 med samma bredd, valet öppnar tråden direkt, och efter Skicka står raden i listan och bubblan i tråden utan `focus`.
+
+---
+
 ## 0.62.0
 
 ### Ikonerna i huvudet och bottenraden går att träffa, och bottenradens ikoner står högre (cllp/bolag-ops#565)

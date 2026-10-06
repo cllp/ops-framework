@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**113 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**112 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -842,7 +842,7 @@ Agenten är ett vanligt medlemskap: `typ: "agent"`, roll `medlem`, status `aktiv
 - **`medlemsinfo(...).agenter`** är gruppens agenter, aktiva och avstängda, `{ id, namn, status }`. ⛔ Agenten är inte en av `medlemmar`, `avatarer` eller `medlemsantal`: kortets antal räknar människor.
 - **`OpsGruppSida agenter onVaxlaAgent onSkrivTillAgent`**: agenten står sist i medlemslistan med märket AI och räknas i rubrikens antal. Ägaren (och bara ägaren) får strömbrytaren "Agenten är på", som anropar `onVaxlaAgent({ userId, status })`. En aktiv agent har "Skriv till" (`onSkrivTillAgent(id)`), en avstängd säger "Avstängd". Ingen knapp tar bort den.
 - **`OpsMedlemmar`**: en agents rad har märket AI (`aiEtikett`), ingen rollväljare och ingen Ta bort.
-- **`OpsMottagare lage="person"`** och därmed **`OpsNyttMeddelande`** har den aktiva agenten bland mottagarna. Vald öppnas ett samtal av slaget `agent` (`oppnaPrivat({ ..., slag: "agent" })`), och raden under säger `privatAgentText` ("Bara du och agenten ser det här."). En avstängd agent står inte med.
+- **`OpsMottagare lage="person"`** och därmed läget "nytt" i **`OpsMeddelanden`** (0.63.0, före det `OpsNyttMeddelande`) har den aktiva agenten bland mottagarna. Vald öppnas ett samtal av slaget `agent` (`oppnaPrivat({ ..., slag: "agent" })`), och raden under säger texten `agentRad` ("Bara du och agenten ser det här"). En avstängd agent står inte med.
 
 `AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE` finns också på nodsidan (`@staiger/ops-framework/node`), så att servern som svarar bygger agentens id och meddelandet med samma funktioner som klienten, utan att dra in React.
 
@@ -1792,7 +1792,9 @@ const marke = typ ? typmarke(typ, sprak) : null;                  // «från Eko
 (`"meddelande"`, `"arende"`, `"handelse"`, `"grupp"`, `"redigera-grupp"` med `{ groupId }`, eller en registrerings id). Den använder
 skalets `oppnaSkapa`, så `?skapa=` och Tillbaka fungerar som ur plusset. Använd den i stället för
 `window.location.assign(...?skapa=meddelande)`. Saknas posten i `skapa`, eller anropas hooken utanför `OpsAppShell`, kastas ett fel.
-Skalet öppnar också en `?skapa=` vars post kommer efter monteringen (t.ex. `skapa.meddelande` efter inloggning), så länkar och omladdning fungerar.
+Skalet öppnar också en `?skapa=` vars post kommer efter monteringen (t.ex. `skapa.grupp`), så länkar och omladdning fungerar.
+⛔ **`"meddelande"` öppnar ingen panel (0.63.0, #263):** nyckeln anropar `skapa.nyttMeddelande`, både ur hooken och ur adressen, och
+`?skapa=meddelande` tas bort ur adressen. Se Skalet nedan.
 
 ⛔ **Att navigera stänger panelen (0.38.0, #194).** Panelen hör till sidan den öppnades på. Ett klick på en länk skalet äger (flikarna,
 märket, menyns rader, hubbens moduler) stänger den, också när länken pekar på sidan man redan står på, och det gör även ett byte av
@@ -1830,16 +1832,25 @@ alltså ska appens läsregel för ärenden INTE bero på `mottagare`.
 | `samtalsregelfragment({ samtal?, meddelanden?, last?, medlemskap? })` | **reglerna, ur modellens fältlistor.** Aktiv medlem läser gruppchatten, bara deltagarna läser ett privat samtal och dess meddelanden, en borttagen medlem läser inget. Ett samtal skapas med den härledda nyckeln, av en deltagare, och båda är aktiva medlemmar (`personer`: båda personer; `agent`: den andra är agent). Deltagarna ändras aldrig och samtalet raderas inte. Ett meddelande skrivs med `av == request.auth.uid` av en medlem av typen `person`, så **en klient skriver aldrig som agent** (agentens svar skrivs av servern med Admin SDK). Meddelanden ändras och raderas aldrig: ett meddelande är vad som sades. `tid` och `skapad` ligger inom fem minuter från serverns klocka. Läst-status är bara personens egen. Kräver `regelfragment()` (dess `opsArMedlem`), med samma `medlemskap`. Regelprov i `rules/__tests__/samtal.test.mjs` |
 | `createSamtalskalla({ kalla, samtal?, meddelanden?, last?, sida? })` | **läser och skriver samtalen genom en datakälla.** `lista`, `oversikt` (varje samtal med senaste meddelandet, olästa och läsmärket, nyast först), `oppnaGrupp`, `oppnaPrivat` (samma samtal för A till B som för B till A), `meddelanden`, `prenumerera` (om källan kan), `skicka`, `lastTill`, `markeraLast`. ⛔ `lista` är TVÅ frågor, gruppchatten på `slag` och de privata med `innehaller: { deltagare: uid }`: en fråga över hela gruppen hade tagit med andras privata samtal, och regeln nekar den |
 | `samtalsnotiser({ samtal, uid, namnFor, href? })` | **notiser för olästa privata meddelanden, som en källa för ytan `notiser`.** Inget nytt notissystem: notisen härleds ur samtalet och läsmärket när notiserna hämtas och försvinner när meddelandet läses. Id `<samtal>|<meddelande>`, titel "X skickade ett meddelande". Registreras som `kallor.notiser` i en av appens moduler |
-| `useSamtal({ kalla, groupId, uid })` | inkorgens rader och antalet olästa. Tre tillstånd (`laddar`, `fel`, `rader`), och `olasta` räknas ur raderna, så ingången och listan kan inte visa olika tal |
-| `OpsMeddelanden` | **inkorgen, som SS `ChatInboxPanel`.** Listan till vänster (35 procent, minst 220 px) och samtalet till höger på dator, listan som hela sidan och "‹ Tillbaka" på telefon. Filtret Alla / Olästa, sökning, räknare i samtalsrutans hörn, etiketten Grupp, Privat eller Agent. Props `kalla`, `uid`, `groupId`, `gruppNamn`, `medlemmar` (gruppens medlemskap), `onNytt`, `valt`/`onValj`, `onOlasta`, `sprak`, `texter` |
-| `OpsSamtal` | ett samtal: huvudet med raden om vem som ser det ("Bara ni två ser det här"), bubblorna och skrivfältet (Enter skickar, Skift plus Enter bryter raden). Samma vy för alla tre slagen. Flyttar läsmärket när samtalet är öppet |
-| `OpsNyttMeddelande` | **"Nytt meddelande"**: `OpsMottagare` i personläget och en text. Öppnar det privata samtalet och skickar i det, `onKlar(samtalId)`. Raden "Bara ni två ser det här." står under mottagaren. Ritas av skalets `skapa.meddelande` |
-| `OpsMottagare` | **en väljare för ärenden och meddelanden.** `lage="arende"`: Gruppen (förval), varje aktiv person (en själv märkt "du") och Agenten när gruppen har en agent. `lage="person"`: bara andra aktiva personer. En radiogrupp med avatarer, 44 px per rad |
+| `useSamtal({ kalla, groupId, uid })` | inkorgens rader och antalet olästa. Tre tillstånd (`laddar`, `fel`, `rader`), och `olasta` räknas ur raderna, så ingången och listan kan inte visa olika tal. `lasOm()` läser om. `laggIn(samtal, senaste?)` (0.63.0, #263) lägger in en rad lokalt direkt och läser sedan om: den som just öppnat eller skrivit i ett samtal ser det i listan i samma stund, inte vid nästa `focus`. Inget sparas, och omläsningen vinner |
+| `OpsMeddelanden` | **inkorgen, som SS `ChatInboxPanel`.** Listan till vänster (35 procent, minst 220 px) och samtalet till höger på dator, listan som hela sidan och "‹ Tillbaka" på telefon. Filtret Alla / Olästa, sökning, räknare i samtalsrutans hörn, etiketten Grupp, Privat eller Agent. Props `kalla`, `uid`, `groupId`, `gruppNamn`, `medlemmar` (gruppens medlemskap), `valt`, `nytt`, `onValj`, `onOlasta`, `sprak`, `texter`. ⛔ **"Nytt meddelande" lämnar aldrig Meddelanden (0.63.0, #263):** knappen öppnar läget "nytt" i högerpanelen, med Till (`OpsMottagare lage="person"`) och raden om vem som ser samtalet överst och trådens skrivfält längst ned, och listan står kvar till vänster (på telefon ersätter läget listan, med "‹ Tillbaka"). Valet öppnar samtalet direkt med `oppnaPrivat`, ett befintligt med sin historik, och det första meddelandet skrivs i trådens fält. Tråden ritas på `valt` också när samtalet ännu inte finns bland raderna: gruppen och paret läses ur nyckeln, rubriken ur `medlemmar`. `nytt` styr läget när appen har det i adressen; `onValj(id, val?)` får `(null, { nytt: true })` när läget öppnas och `(id)` när ett samtal väljs, EN signal för båda. `onNytt` finns inte längre |
+| `OpsSamtal` | ett samtal: huvudet med raden om vem som ser det ("Bara ni två ser det här"), bubblorna och skrivfältet (Enter skickar, Skift plus Enter bryter raden). Samma vy för alla tre slagen. Flyttar läsmärket när samtalet är öppet. `onSkickat(meddelande)` (0.63.0) får det skickade meddelandet, `utkast` (0.63.0) är text som redan står i fältet, och fältet får då fokus |
+| `OpsMottagare` | **en väljare för ärenden och meddelanden.** `lage="arende"`: Gruppen (förval), varje aktiv person (en själv märkt "du") och Agenten när gruppen har en agent. `lage="person"`: andra aktiva personer och den aktiva agenten. En radiogrupp med avatarer, 44 px per rad |
 | `OpsMeddelandeLank` | ingången, en `OpsIconLink` med meddelandeikonen och antalet olästa, för appens `actions` |
 
-**Skalet:** `skapa.meddelande` är en funktion `({ formId, groupId, onKlar }) => nod`, normalt `OpsNyttMeddelande`. Med den står
-"Nytt meddelande" i plusset (efter Nytt ärende, före Ny grupp), panelen har den smala kolumnen och knappen **Skicka**
-(`skickaEtikett`), och meddelandet skrivs i den aktiva gruppen utan gruppväljare. Etiketten är `nyttMeddelandeEtikett`.
+**Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
+ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
+och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.
+⛔ `skapa.meddelande` och `OpsNyttMeddelande` (0.34.0 till 0.62.0) är borttagna, och skalet **kastar** om `skapa.meddelande` skickas,
+med vägen till `skapa.nyttMeddelande` i felet: en rad som tyst försvann hade varit samma fel som CP såg, en väg som inte gör något.
+Skälet: CP 2026-10-06, "steget med att öppna en liten chattfönster till är lite konstigt", och "Chatten dök upp långt senare...".
+`skickaEtikett` är borttagen med panelen. **Ompinning till 0.63.0:** fil för fil, med radnummer för lifehub.app och bolag-ops, i
+CHANGELOG under 0.63.0. Avsnittet förutsätter 0.62.0. Från en äldre version (lifehub.app står på 0.60.0, bolag-ops på 0.50.0) går
+ompinningen också igenom CHANGELOG för 0.61.0 och 0.62.0, och för bolag-ops även versionerna däremellan. Kort sagt:
+- Ta bort importen av `OpsNyttMeddelande`, annars blir det byggfel.
+- Byt `skapa.meddelande` mot `skapa.nyttMeddelande`.
+- Ta bort `onNytt` ur vyn, eftersom den ignoreras.
+- Låt vyns `onValj(id, val)` skriva `?nytt=1` när `val.nytt` är satt och ta bort parametern annars.
 
 **Datakontraktet** fick `innehaller` (0.34.0): `{ innehaller: { deltagare: uid } }` är Firestores `array-contains`, ett fält per
 fråga. Minnesadaptern och Postgres (`= ANY`) stöder det; http-adaptern KASTAR hellre än att skicka frågan utan villkoret, eftersom
