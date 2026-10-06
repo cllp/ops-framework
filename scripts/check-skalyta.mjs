@@ -4488,7 +4488,7 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
   await context.close();
 }
 
-// ══ 41. LAGER OCH TILLGÄNGLIGHET I DAGSRUTAN MOT SS VID 320, 360, 375, 393 OCH 1280 PX (0.61.0, #259 skiva 1) ══════════════════════════════════
+// ══ 41. LAGER OCH TILLGÄNGLIGHET I DAGSRUTAN MOT SS FRÅN 300 TILL 1280 PX (0.61.0, #259 skiva 1) ══════════════════════════════════
 // CP 2026-10-06: "Det tog LÅNG tid att få till ikonerna för lager och tillgänglighet särskilt i mobil vy och native med små celler så
 // studera det NOGA", och samma morgon "Allt finns i SessionStudio", alltså SS i varje bredd: SS-appen under 640 px, SS webb från.
 //
@@ -4507,13 +4507,15 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
 // med `tillganglighetForDag` (modellen hela vägen till brickan). Det förebilden inte visar (`9+`, två ensamma lager, söndagen den
 // 22 november) ligger i november, utanför förebildens utsnitt.
 // Krav, varje del för sig:
-// Telefonbredderna är 320, 360, 375 och 393 (granskningen av PR 260: brickan täckte siffran vid 360 och 320).
+// Telefonbredderna är 310, 320, 360, 375 och 393, och 350, 360 och 375 med veckonumren på (granskningen av PR 260: brickan täckte
+// siffran vid 360 och 320, och klipptes med veckonummer och under 320). 310 px, och 350 med veckonummer, är golvet (README).
 //   (a) telefon: varje bricka är en cirkel på 20 px (22 är fel) med ikonen 10 px, opak yta;
 //   (b) telefon: en ensam borta-bricka: överkanten 4 px över rutan och högerkanten max(4, 40 minus rutans bredd) px utanför, alltså
 //       SS rakt av från 36 px rutbredd och längre ut under det;
 //   (c) telefon: en ensam lagerbricka sitter 4 px högre än en ensam borta-bricka, mätt mot sin ruta, med samma överhäng;
 //   (d) telefon: med båda: 16 px mellan överkanterna, borta överst och lagret ovanpå (senare i ordningen);
 //   (e) ingen bricka eller ikon skär siffrans glyfer;
+//   (e2) ingen bricka skär någon siffra i bild, inte heller grannens (den smala rutans risk);
 //   (f) rutans höjd är densamma med och utan brickor, rad och ram (samma dagar med tillgänglighet och lager avslagna);
 //   (g) telefon: räknaren ligger inom cirkelns ytterkant, också för `9+`, står 2, 9+ och 2 på mätdagarna, och saknas vid 1;
 //   (h) telefon: siffrans ruta 5 px in från rutans vänsterkant och 28 px bred, krympt bara där brickan annars täckt siffran, och
@@ -4527,10 +4529,18 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
 //   (l) telefon: brickan i söndagskolumnen klipps inte av rullytan (förebild 7, den 4 oktober);
 //   (m) telefon: en dag som varit tonar bricka och ram till 0,5, en kommande inte (SS-appens opacity på hela cellen, förebild 7).
 // Golv: minst 8 borta- och 6 lagermarkeringar mätta i varje bredd, och minst 8 rutor i (e).
-for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { width: 375, height: 812 }, { width: 393, height: 852 }, { width: 1280, height: 900 }]) {
-  const namn = `lager och tillgänglighet ${vp.width}`;
+for (const [vp, vecka] of /** @type {[{ width: number, height: number }, boolean][]} */ ([
+  // ⛔ GOLVET: 310 px, och 350 px med veckonumren på, är de smalaste bredder som stöds (README, `OpsCalendar`). Mätt i granskningen
+  // av PR 260, tredje varvet: vid 300 px, och vid 340 med veckonummer, är rutan under 31 px, och brickan behöver då så mycket
+  // överhäng att den når grannens siffra (e2). Ingen klippning där längre (l), men en bricka över grannens datum är fel ändå.
+  [{ width: 310, height: 700 }, false], [{ width: 320, height: 700 }, false], [{ width: 360, height: 780 }, false],
+  [{ width: 375, height: 812 }, false], [{ width: 393, height: 852 }, false], [{ width: 1280, height: 900 }, false],
+  // ⛔ Med veckonumren på blir rutan smalare och överhänget större (granskningen av PR 260: 4,6 px klippt vid 320, 1,7 vid 340).
+  [{ width: 350, height: 740 }, true], [{ width: 360, height: 780 }, true], [{ width: 375, height: 812 }, true],
+])) {
+  const namn = `lager och tillgänglighet ${vp.width}${vecka ? " med veckonummer" : ""}`;
   const telefon = vp.width < 640;
-  const { page, context } = await oppna("kalender-tillganglighet", vp);
+  const { page, context } = await oppna(vecka ? "kalender-tillganglighet-vecka" : "kalender-tillganglighet", vp);
   try {
     await page.waitForSelector('[data-cal-day="2026-09-24"]', { timeout: 4000 });
     /** @param {string} d */
@@ -4725,6 +4735,18 @@ for (const vp of [{ width: 320, height: 700 }, { width: 360, height: 780 }, { wi
     await page.waitForTimeout(150);
     const kvar = await page.evaluate(() => document.querySelectorAll('[data-hornmarke="borta"], [data-indikator="borta"], [data-narvaro]').length);
     krav(kvar === 0, `${namn} (j): ${kvar} borta-markeringar eller N/N kvar efter att tillgängligheten slagits av, väntat inga.`);
+
+    // (e2) ingen bricka skär NÅGON siffra, inte heller grannens: i en smal ruta går brickan längre ut, och då är det grannen den
+    // når (granskningen av PR 260, tredje varvet). Alla synliga brickor mot alla synliga siffror på sidan.
+    const granne = await page.evaluate(() => {
+      const syns = (/** @type {Element} */ e) => { const x = e.getBoundingClientRect(); return x.width > 0 && x.height > 0 && x.bottom > 0 && x.top < innerHeight; };
+      const glyfer = [...document.querySelectorAll("[data-dagnummer]")].filter(syns).map((n) => { const r = document.createRange(); r.selectNodeContents(n); const g = r.getBoundingClientRect(); return { dag: /** @type {Element} */ (n.closest("[data-cal-day]")).getAttribute("data-cal-day"), g }; });
+      const brickor = [...document.querySelectorAll("[data-hornmarke], [data-indikator]")].filter(syns).map((b) => ({ dag: /** @type {Element} */ (b.closest("[data-cal-day]")).getAttribute("data-cal-day"), r: b.getBoundingClientRect() }));
+      const traff = [];
+      for (const b of brickor) for (const x of glyfer) if (b.r.left < x.g.right && b.r.right > x.g.left && b.r.top < x.g.bottom && b.r.bottom > x.g.top) traff.push(`${b.dag} över ${x.dag}`);
+      return { brickor: brickor.length, glyfer: glyfer.length, traff };
+    });
+    krav(granne.brickor >= 2 && granne.glyfer >= 20 && granne.traff.length === 0, `${namn} (e2): ${granne.traff.length} brickor skär en siffra (${granne.traff.slice(0, 4).join(", ")}) av ${granne.brickor} brickor och ${granne.glyfer} siffror i bild, väntat ingen (golv 2 och 20).`);
 
     // (f) samma höjd: samma dagar med tillgänglighet och lager avslagna, alltså helt utan dekor, är jämförelsen. (En granne i samma
     // rad räcker inte från 640 px, där nästan varje dag bär `N/N` i raden och alltså växer lika mycket som dagen den jämförs med.)
