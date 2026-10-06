@@ -23,7 +23,7 @@ Händelsen: CP 2026-10-06, inkorgspost `D7P0tLlRj3EKcoptFcF1`: "Vill kunna klist
 
 #### Tillagt
 
-- `OpsKommentarer` med `bilagor`: `OpsFilePicker` under skrivrutan. Välj fil, inklistring med Cmd+V, förhandsvisning före sändning (miniatyr för en bild, namnet för allt annat), Ta bort. `onSkriv(text, { bilaga })`, och med en bilaga får texten vara tom. Av som förval, se deploy ovan. En bilaga på en befintlig kommentar visas alltid: en bild som miniatyr, en fil som nedladdningslänk med namn och storlek.
+- `OpsKommentarer` med `bilagor`: `OpsFilePicker` under skrivrutan. Välj fil, inklistring med Cmd+V (bara när fokus är i tråden, så att två öppna trådar inte får samma bild), förhandsvisning före sändning (miniatyr för en bild, namnet för allt annat), Ta bort. `onSkriv(text, { bilaga })`, och med en bilaga får texten vara tom. Av som förval, se deploy ovan. En bilaga på en befintlig kommentar visas alltid: en bild som miniatyr, en fil som nedladdningslänk med namn och storlek.
 - Modellen: `KOMMENTARBILAGA_TYPER` (JPEG, PNG, WebP, GIF, PDF, text, CSV), `MAX_KOMMENTARBILAGA` (700 000 tecken), `MAX_BILAGENAMN`, `KOMMENTARBILAGAFALT` och `kommentarbilagaFel`. `byggKommentar` prövar bilagan med samma funktion.
 - `readAttachment` och `OpsFilePicker` tar `typer`, en lista över typerna en bilaga får ha. En bild prövas efter att den krympts till JPEG, allt annat innan filen läses.
 
@@ -35,7 +35,7 @@ Händelsen: CP 2026-10-06, inkorgspost `D7P0tLlRj3EKcoptFcF1`: "Vill kunna klist
 
 #### Prov
 
-- `src/__tests__/kommentarer.test.jsx`: modellen, att regeln bär samma typer och tak, inklistring som ger en bilaga med förhandsvisning och skickas, fel typ och för stor fil nekade i klienten. Utan ändringen: 8 av 8 nya röda. Med: 32 av 32 gröna.
+- `src/__tests__/kommentarer.test.jsx`: modellen, att regeln bär samma typer och tak, inklistring som ger en bilaga med förhandsvisning och skickas, fel typ och för stor fil nekade i klienten, och en inklistring utanför tråden som inte tas. Utan ändringen: 8 av de 9 nya röda (det nionde, om fokus, provades med en mutation: med inklistringen alltid på blir det rött). Med: 33 av 33 gröna.
 - `rules/__tests__/handelsekommentarer.test.mjs`, mot emulatorn: medlem skriver med bild (också utan text) och läser, icke-medlem nekas att läsa och skriva, exakt taket in och ett tecken över nekas, SVG, program och fel innehåll nekas, okända och saknade fält nekas. Med ändringen 19 av 19 gröna. Mot den gamla regeln 2 röda (det tillåtna nekades, eftersom den gamla regeln nekar varje bilaga). Avslagen är gröna också mot den gamla regeln, så de provades med en mutation: utan typ- och storlekskontrollerna i den nya regeln blir provet för taket och provet för typen röda (2 av 19).
 
 ### Snabbvyn vid långtryck ligger överst i panelen, centrerad (cllp/bolag-ops#568)

@@ -39,6 +39,9 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * `KOMMENTARBILAGA_TYPER`), samma konstanter som regeln är byggd av. `onSkriv` får `(text, { bilaga })`, och med en bilaga får
  * texten vara tom.
  *
+ * ⛔ INKLISTRINGEN TAS BARA NÄR FOKUS ÄR I TRÅDEN. `OpsFilePicker` lyssnar på hela dokumentet, och två öppna trådar (en i
+ * inkorgen och en i händelsepanelen) hade båda fått samma skärmbild. Den som klistrar in i en kommentar står i dess skrivruta.
+ *
  * ⛔ AV SOM FÖRVAL. En app vars utrullade regel inte känner fältet hade fått varje kommentar med bilaga nekad, så appen slår på
  * det när regeln från 0.71.0 är utrullad. Bilagor som redan finns på en kommentar visas alltid.
  *
@@ -99,6 +102,7 @@ function OpsKommentarerRitad({
   const rubrikId = useId();
   const [utkast, setUtkast] = useState("");
   const [bilaga, setBilaga] = useState(/** @type {import("../lib/file.js").Bilaga | null} */ (null));
+  const [fokusInne, setFokusInne] = useState(false);
   const [skriver, setSkriver] = useState(false);
   const [skrivfel, setSkrivfel] = useState(/** @type {string | null} */ (null));
   const [tarBort, setTarBort] = useState(/** @type {string | null} */ (null));
@@ -135,7 +139,15 @@ function OpsKommentarerRitad({
   };
 
   return (
-    <section data-ops-kommentarer="" aria-labelledby={rubrikId} className="flex flex-col gap-3">
+    <section
+      data-ops-kommentarer=""
+      aria-labelledby={rubrikId}
+      className="flex flex-col gap-3"
+      onFocus={() => setFokusInne(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(/** @type {Node | null} */ (e.relatedTarget))) setFokusInne(false);
+      }}
+    >
       <span id={rubrikId} className="text-brod font-semibold text-ink">
         {rubrik}
       </span>
@@ -197,6 +209,7 @@ function OpsKommentarerRitad({
             maxChars={MAX_KOMMENTARBILAGA}
             typer={KOMMENTARBILAGA_TYPER}
             accept={KOMMENTARBILAGA_TYPER.join(",")}
+            paste={fokusInne}
             ariaLabel={bifogaEtikett}
           />
         </div>

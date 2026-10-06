@@ -265,6 +265,7 @@ describe("OpsKommentarer med bilagor", () => {
     const skrivna = [];
     render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={(t, x) => { skrivna.push([t, x]); }} />);
     expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
+    fireEvent.focus(screen.getByLabelText("Skriv en kommentar"));
     klistraIn([new File([new Uint8Array([137, 80, 78, 71])], "skarm.png", { type: "image/png" })]);
     const forhand = await screen.findByRole("img", { name: "Vald bilaga: skarm.png" });
     expect(forhand.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
@@ -279,9 +280,24 @@ describe("OpsKommentarer med bilagor", () => {
     await waitFor(() => expect(screen.queryByRole("img", { name: /Vald bilaga/ })).toBeNull());
   });
 
+  it("⛔ en inklistring när fokus inte är i tråden tas inte, så två öppna trådar inte får samma bild", async () => {
+    render(
+      <>
+        <OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={() => {}} rubrik="Första" />
+        <OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={() => {}} rubrik="Andra" />
+      </>,
+    );
+    const [forsta, andra] = /** @type {HTMLElement[]} */ ([...document.querySelectorAll("[data-ops-kommentarer]")]);
+    fireEvent.focus(within(andra).getByLabelText("Skriv en kommentar"));
+    klistraIn([new File([new Uint8Array([137, 80, 78, 71])], "skarm.png", { type: "image/png" })]);
+    expect(await within(andra).findByRole("img", { name: "Vald bilaga: skarm.png" })).toBeInTheDocument();
+    expect(within(forsta).queryByRole("img", { name: /Vald bilaga/ })).toBeNull();
+  });
+
   it("⛔ fel typ nekas i klienten med besked, och ingen bilaga skickas", async () => {
     const onSkriv = vi.fn();
     render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={onSkriv} />);
+    fireEvent.focus(screen.getByLabelText("Skriv en kommentar"));
     klistraIn([new File(["MZ"], "program.exe", { type: "application/x-msdownload" })]);
     expect(await screen.findByRole("alert")).toHaveTextContent(/Filtypen "application\/x-msdownload" går inte att bifoga/);
     expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
@@ -291,6 +307,7 @@ describe("OpsKommentarer med bilagor", () => {
   it("⛔ för stor fil nekas i klienten innan den läses", async () => {
     render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={() => {}} />);
     const stor = new File([new Uint8Array(Math.ceil(MAX_KOMMENTARBILAGA / 1.4) + 1024)], "stor.pdf", { type: "application/pdf" });
+    fireEvent.focus(screen.getByLabelText("Skriv en kommentar"));
     klistraIn([stor]);
     expect(await screen.findByRole("alert")).toHaveTextContent(/för stor/);
     expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
