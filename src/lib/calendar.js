@@ -262,9 +262,12 @@ const veckodagscache = new Map();
  * halva paketet är gement och halva versalt ser ut som ett fel, och versalisering
  * av en redan versal bokstav kostar ingenting.
  *
- * ⛔ Mätt 2026-09-25, Node ICU 78.2: `sv-SE` ger mån tis ons tors fre lör sön.
- * Den gamla hårdkodade raden sade "Tor", `Intl` säger "tors". Det är den korrekta
- * svenska förkortningen, och kolumnen rymmer den.
+ * ⛔ PÅ SVENSKA ALLTID TRE BOKSTÄVER: MÅN TIS ONS TOR FRE LÖR SÖN (0.61.0, #259).
+ * Mätt 2026-09-25, Node ICU 78.2: `sv-SE` ger mån tis ons tors fre lör sön, och
+ * till 0.60.0 stod här att "tors" var den korrekta förkortningen och fick stå.
+ * Förebild 7 (CP 2026-10-06, SS-appen) skriver TOR, som de sex andra: en kolumn
+ * med fyra bokstäver bland sex med tre syns, och är det som skiljer bilderna åt i
+ * montaget. Språket är fortfarande `Intl`; bara den svenska förkortningen kortas.
  *
  * @param {string} [locale]
  * @returns {string[]} Sju namn, måndag först.
@@ -276,7 +279,9 @@ export function weekdayNames(locale = DEFAULT_LOCALE) {
   const fmt = new Intl.DateTimeFormat(nyckel, { weekday: "short" });
   // 2024-01-01 var en måndag. Sju dagar framåt ger veckan i rätt ordning.
   const namn = Array.from({ length: 7 }, (_, i) => {
-    const ord = fmt.format(new Date(2024, 0, 1 + i));
+    const hel = fmt.format(new Date(2024, 0, 1 + i));
+    // Bara svenskan kortas (och tappar en eventuell punkt). Franskans "lun." och norskans "man." är `Intl`:s form och får stå.
+    const ord = /^sv\b/i.test(nyckel) ? hel.replace(/\.$/, "").slice(0, 3) : hel;
     return ord.charAt(0).toUpperCase() + ord.slice(1);
   });
   veckodagscache.set(nyckel, namn);

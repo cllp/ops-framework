@@ -212,6 +212,11 @@ export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, ka
  */
 export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
 /*
+ * ⛔ TILLGÄNGLIGHETEN (0.61.0, #259 skiva 1): vem i gruppen som är borta eller upptagen en dag, härledd ur posterna och aldrig
+ * lagrad. En post med läget `dold` räknas inte alls. Hörnbrickan i `OpsCalendar` får `bortaAntal` via `dagdekor`.
+ */
+export { tillganglighetForDag, bortaAntal } from "./lib/tillganglighet.js";
+/*
  * ⛔ HANTERA KALENDRAR OCH HÄNDELSEMODELLEN (0.37.0, #179 F2 och F3): hanteringen (`OpsKalendrar`), källan som läser och
  * skriver kalendrarna, kontraktet för en händelse i en kalender, och svaren Kommer / Kommer inte med inkorgens rader
  * härledda ur händelserna och svaren.

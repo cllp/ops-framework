@@ -182,6 +182,32 @@ sida, tagen med Playwright mot en byggd app (aldrig ett enhetstest, aldrig
 jsdom). Montaget följs av en ärlig egen jämförelse i PR-texten: vad som nu
 matchar och vad som fortfarande skiljer sig, aldrig bara "klart".
 
+## 13. Förebilden är ett golv, inte ett tak. Det som gör modellen tyngre stryks.
+
+CP 2026-10-06, mitt i arbetet med tillgängligheten (#259): "Om vi ser att vi
+kan göra saker bättre än sessionstudio skall vi göra det och ta höjd ... om vi
+ser att någon funktion komplicerar vår modell och app så skall vi överväga att
+tänka om eller ta bort funktion ... VI skall inte utmana prestanda och
+arkitektur och göra det komplext."
+
+Regel 12 säger att det SS gör ska se likadant ut. Den här säger vad som
+händer när SS gör något sämre, eller gör det på ett sätt som kostar. SS bär
+själv beviset: dess tillgänglighet byggdes på läsregler som avgjorde vem som
+fick se vad. Delade blockerade datum (`blockedDates`) fick i 0.9.328 en
+läsregel som prövade medlemskapet per grupp, och redan i 0.9.329 föll den på
+Firestores gräns för antal `exists()` (`subscribe_blocked_shared_error`) och
+fick backas till JWT-anspråken. I 0.9.398 (#113) fick samma läsning en
+tredje form, JWT eller medlemskap. Beslutet om den sortens läsregler, och det
+SS kallar "permissions-träsket", är ADR-020: beslutet om att läsregler inte ska
+avgöra synlighet. Att kopiera den modellen för att ytan ska se likadan ut hade
+varit att kopiera felet tillsammans med utseendet.
+
+**Regeln:** varje skiva som följer en förebild skriver ut tre listor i PR:en.
+Den första är det som tas som det är. Den andra är det som görs bättre, och
+skälet. Den tredje är det som stryks, och vad det hade kostat i datamodell,
+regler eller prestanda. Ytan följer förebilden. Modellen bakom den följer
+den här regeln. Ingen funktion kommer med bara för att förebilden har den.
+
 ---
 
 ## Vad som inte är regler här

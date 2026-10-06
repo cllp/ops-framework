@@ -49,7 +49,21 @@ describe("månadernas och veckodagarnas namn", () => {
   it("skriver veckodagen med stor bokstav också på svenska", () => {
     // Svenskan skriver dem gement, och `Intl` svarar därefter. En rubrikrad där
     // halva paketet är gement och halva versalt ser ut som ett fel.
-    expect(weekdayNames()).toEqual(["Mån", "Tis", "Ons", "Tors", "Fre", "Lör", "Sön"]);
+    expect(weekdayNames()).toEqual(["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"]);
+  });
+
+  it("⛔ svenska veckodagar har alltid tre bokstäver, TOR och inte TORS (förebild 7, #259)", () => {
+    // `Intl` på sv-SE svarar "tors". SS-appen skriver TOR, som de andra sex.
+    for (const sprak of ["sv-SE", "sv", "sv-FI"]) {
+      const namn = weekdayNames(sprak);
+      expect(namn[3]).toBe("Tor");
+      expect(namn.every((n) => n.length === 3)).toBe(true);
+    }
+    // Andra språk kortas inte och behåller `Intl`:s form, punkten med (granskningen av PR 260).
+    expect(weekdayNames("en-GB")[3]).toBe("Thu");
+    const intl = (/** @type {string} */ sprak) => { const ord = new Intl.DateTimeFormat(sprak, { weekday: "short" }).format(new Date(2024, 0, 1)); return ord.charAt(0).toUpperCase() + ord.slice(1); };
+    for (const sprak of ["fr-FR", "nb-NO"]) expect(weekdayNames(sprak)[0]).toBe(intl(sprak));
+    expect(weekdayNames("fr-FR")[0]).toMatch(/\.$/);
   });
 
   it("skriver dagsrubriken på det språk den ombeds", () => {

@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, LayoutGrid, Lock, LogOut, MessageSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, Users, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
 
 /** @param {{ size?: number }} props */
 export function GemIkon({ size = 16 }) {
@@ -384,6 +384,31 @@ export function AgentIkon({ size = 18 }) {
  */
 export function VeckonummerIkon({ size = 14 }) {
   return <Hash size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Någon är borta eller upptagen (0.61.0, #259): brickan i kalenderns dagsruta. SS-appen ritar `UserX` (`DayCell.js:179`).
+ * @param {{ size?: number }} props
+ */
+export function BortaIkon({ size = 10 }) {
+  return <UserX size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Kalenderlager (0.61.0, #259): brickan i dagsrutan och knappen i verktygsraden. SS ritar alltid den generiska `Layers` i rutan,
+ * aldrig lagrets egen ikon (SS 2026-04-25: "N ikoner per dag fungerar inte").
+ * @param {{ size?: number }} props
+ */
+export function LagerIkon({ size = 10 }) {
+  return <Layers size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+
+/**
+ * Tillgänglighetsläget i kalenderns verktygsrad (0.61.0, #259). SS `CalendarViewToolbar` ritar `UsersRound`.
+ * @param {{ size?: number }} props
+ */
+export function TillganglighetIkon({ size = 14 }) {
+  return <UsersRound size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 
 /**

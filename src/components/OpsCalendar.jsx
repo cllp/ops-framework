@@ -10,7 +10,7 @@ import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js
 import { KALENDERPRICK, postklasser } from "../lib/kalenderfarg.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
-import { Dagruta } from "./OpsCalendarDagruta.jsx";
+import { BRICKA_GRANS, BRICKA_MINSTA_OVERHANG, Dagruta } from "./OpsCalendarDagruta.jsx";
 import { HandelseLank } from "./HandelseLank.jsx";
 import {
   DEFAULT_LOCALE,
@@ -38,7 +38,7 @@ import {
   appfilterNyckel,
   lasDoldaAppar,
 } from "../lib/calendar.js";
-import { ChevronNedIkon, KalenderIkon, KryssIkon, PlusIkon, ReglageIkon, SokIkon, VeckonummerIkon } from "./icons.jsx";
+import { ChevronNedIkon, KalenderIkon, KryssIkon, LagerIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
 import { ValRad } from "./ValRad.jsx";
 
@@ -839,13 +839,13 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  */
 
 /**
- * Verktygsraden över rutnätet (SS `CalendarViewToolbar.jsx`): Kalendrar, veckonummer, typ och status, sök, "+".
+ * Verktygsraden över rutnätet (SS `CalendarViewToolbar.jsx`): Kalendrar, tillgänglighet, veckonummer, lager, typ och status, sök, "+".
  *
  * ⛔ HÖGERSTÄLLD, SOM I SS (`ml-auto`). Rubriken och gruppen står i appens huvud ovanför, och raden är verktyg, inte en
  * rubrik.
  *
  * ⛔ EN KONTROLL FINNS BARA NÄR DEN GÖR NÅGOT. Utan `kalendrar` ingen kalenderväljare, utan typer och statusord inget
- * filter, utan `onSkapa` inget plus (punkt 5). Veckonummer och sök kräver ingenting av appen och finns alltid.
+ * filter, utan `onSkapa` inget plus, utan `tillganglighet` och `lager` inga sådana knappar (punkt 5). Veckonummer och sök kräver ingenting av appen och finns alltid.
  *
  * @param {object} props
  * @param {KalenderVal[] | undefined} props.kalendrar
@@ -863,8 +863,10 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {boolean} props.sokOppen
  * @param {() => void} props.onSok
  * @param {(() => void) | undefined} props.onSkapa
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.tillganglighet
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.lager
  */
-function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa }) {
+function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet, lager }) {
   const statusar = Object.entries(statusWords);
   const harFilter = typer.length > 0 || statusar.length > 0;
   const gruppens = (kalendrar || []).filter((k) => k.grupp);
@@ -937,9 +939,40 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
         </Popover.Root>
       ) : null}
 
+      {/* ⛔ TILLGÄNGLIGHET (0.61.0, #259). Under 768 px först i raden, som SS-appen (`calendar.js:1015`, före sök); från 768
+          efter kalenderväljaren, som SS webb (`CalendarViewToolbar.jsx:203-229`, källfiltret först). Aktiv: fara-tonad yta och
+          ikonen i fara-färg (SS-appen `colors.danger` med 20 procent, SS webb `--color-action-remove` med 14). */}
+      {tillganglighet ? (
+        <button
+          type="button"
+          data-verktyg-tillganglighet=""
+          aria-pressed={tillganglighet.pa}
+          aria-label="Tillgänglighet"
+          onClick={() => tillganglighet.onByt(!tillganglighet.pa)}
+          className={cx(VERKTYG, "max-md:order-first", tillganglighet.pa ? "bg-danger/20 text-danger md:border-danger md:bg-danger/14" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface")}
+        >
+          <TillganglighetIkon size={14} />
+        </button>
+      ) : null}
+
       <button type="button" aria-pressed={veckonummer} aria-label="Veckonummer" onClick={onVeckonummer} className={verktygsklass(veckonummer)}>
         <VeckonummerIkon size={14} />
       </button>
+
+      {/* ⛔ LAGER (0.61.0, #259), direkt efter veckonumret som i SS-appen (`calendar.js:1048`: tillgänglighet, sök, #, lager).
+          Aktiv: en grå yta med mörk ikon, som förebild 1 och 3 (SS `colors.accent`, som i SS är mörk, med 20 procent). */}
+      {lager ? (
+        <button
+          type="button"
+          data-verktyg-lager=""
+          aria-pressed={lager.pa}
+          aria-label="Kalenderlager"
+          onClick={() => lager.onByt(!lager.pa)}
+          className={cx(VERKTYG, lager.pa ? "bg-contrast-panel/15 text-ink md:border-contrast-panel/30" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface")}
+        >
+          <LagerIkon size={14} />
+        </button>
+      ) : null}
 
       {harFilter ? (
         <Popover.Root>
@@ -1040,6 +1073,26 @@ function Band({ bitar, veckonummer }) {
   );
 }
 
+/** Avståndet mellan rutorna under 640 px, `gap-1`, och veckonumrets kolumn, `2rem` (`gridKlass`). */
+const RUTNAT_GAP = 4;
+const VECKOKOLUMN = 32;
+
+/**
+ * Rullytans marginal på var sida under 640 px, som CSS: lika stor som brickans överhäng i rutans högerkant.
+ *
+ * Överhänget är o = max(MINSTA, GRANS - c) (`OpsCalendarDagruta`), och rutbredden c = (R - 2p - G) / 7, där R är rullytans bredd,
+ * p marginalen och G mellanrummen plus veckonumrets kolumn. Med p = o och o över minsta ger det p = (7 x GRANS + G - R) / 5.
+ * Mätt i granskningen av PR 260 innan det härleddes: en fast marginal på 7 px klippte brickan 4,6 px vid 320 och 1,7 px vid 340
+ * med veckonumren på, och redan vid 310 utan dem.
+ * @param {boolean} veckonummer
+ * @returns {string}
+ */
+export function kantluft(veckonummer) {
+  const kolumner = 7;
+  const g = (veckonummer ? kolumner : kolumner - 1) * RUTNAT_GAP + (veckonummer ? VECKOKOLUMN : 0);
+  return `max(${BRICKA_MINSTA_OVERHANG}px, calc((${kolumner * BRICKA_GRANS + g}px - 100%) / ${kolumner - 2}))`;
+}
+
 /** Nyckeln veckonumrens val sparas under, per enhet. */
 export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
 
@@ -1069,8 +1122,13 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   dagarna, eller idag när ingen är vald.
  * @param {() => void} [props.onHanteraKalendrar] Raden "Hantera kalendrar" längst ned i kalenderväljaren (0.37.0, #179 F2):
  *   appen visar `OpsKalendrar`. Utan den ritas ingen rad (till 0.36.0 en rad som sade att den kom i F2).
- * @param {(dayKey: string) => import("./OpsCalendarDagruta.jsx").Dagdekor | undefined} [props.dagdekor] (0.37.0) En ton och runda
- *   hörnmärken per dag, som SS lager och tillgänglighet. Platsen för fas F6; ramverket har ingen lagerlogik än.
+ * @param {(dayKey: string) => import("./OpsCalendarDagruta.jsx").Dagdekor | undefined} [props.dagdekor] (0.37.0, typad 0.61.0) Per dag
+ *   en ton, en ram i lagrets färg och antalen för hörnbrickorna (`borta`, `lager`), som SS lager och tillgänglighet. Rutan ritar
+ *   brickorna själv; appen avgör vad som returneras när `tillganglighet` och `lager` är på.
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void }} [props.tillganglighet] (0.61.0, #259) Knappen för tillgänglighetsläget i
+ *   verktygsraden (SS `UsersRound`). Ritas bara när propen finns.
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void }} [props.lager] (0.61.0, #259) Knappen för kalenderlagren (SS `Layers`).
+ *   Ritas bara när propen finns.
  * @param {(dayKeys: string[]) => import("react").ReactNode} [props.daglager] (0.37.0) Innehållet i dagpanelens egen lagerbubbla
  *   under posterna (SS-appen). `null` ritar ingen bubbla. Platsen för F6.
  * @param {(id: string) => void} [props.onOppnaHandelse] (0.40.0, #214) Vad ett tryck på en post med `handelseId` gör, i dagpanelen och snabbtitten. Utelämnad:
@@ -1098,6 +1156,8 @@ export function OpsCalendar({
   onHanteraKalendrar,
   dagdekor,
   daglager,
+  tillganglighet,
+  lager: lagerlage,
   lagring,
   onOppnaHandelse,
   filterMinne,
@@ -1496,6 +1556,8 @@ export function OpsCalendar({
             setFraga("");
           }}
           onSkapa={skapa}
+          tillganglighet={tillganglighet}
+          lager={lagerlage}
         />
         {appar.length >= 2 ? <Apprad appar={appar} dolda={doldaSet} onVaxla={vaxlaApp} onVisaAlla={() => sparaDolda([])} /> : null}
         {sokOppen ? (
@@ -1539,8 +1601,11 @@ export function OpsCalendar({
             if (!m) return;
             setDirection(scrollDirection(m.getBoundingClientRect(), e.currentTarget.getBoundingClientRect()));
           }}
-          style={fullhojd}
-          className={cx("relative bg-canvas px-1", FULL_HEIGHT_CLASSES)}
+          style={/** @type {any} */ ({ ...fullhojd, "--ops-kantluft": kantluft(veckonummer) })}
+          // ⛔ MARGINALEN UNDER 640 PX RYMMER ALLTID BRICKANS ÖVERHÄNG (0.61.0, #259). Hörnbrickorna sticker ut över rutnätets kant, och
+          // rullytan klipper det som går utanför; förebild 7 visar brickan hel. Överhänget växer när rutan blir smalare, och rutan blir
+          // smalare när marginalen växer, så marginalen räknas ur samma tal som brickan (`kantluft`). Från 640 px finns inga brickor.
+          className={cx("relative bg-canvas px-(--ops-kantluft) sm:px-1", FULL_HEIGHT_CLASSES)}
         >
           {/* ⛔ Klistrad veckodagsrad, med veckonumrets kolumn när den är på (SS `CalView.jsx:124-138`). */}
           <div ref={huvudRef} className={cx("sticky top-0 z-(--z-sticky) grid gap-1 bg-canvas pt-1 pb-2 sm:gap-1.5", gridKlass)}>

@@ -380,7 +380,7 @@ describe("D: typografin på ETT ställe (#173)", () => {
     const css = fs.readFileSync(pathMod.resolve(process.cwd(), "tokens", "tokens.css"), "utf8");
     const fixtur = JSON.parse(fs.readFileSync(pathMod.resolve(process.cwd(), "tokens", "sessionstudio-profil.json"), "utf8"));
     const roller = Object.keys(fixtur.typografi.roller).filter((n) => !n.startsWith("_"));
-    expect(roller.sort()).toEqual(["brod", "etikett", "hjalp", "liten", "meta", "mikro", "rubrik", "sektion", "sida", "titel"]);
+    expect(roller.sort()).toEqual(["brod", "etikett", "hjalp", "liten", "meta", "mikro", "raknare", "rubrik", "sektion", "sida", "titel"]);
     for (const r of roller) {
       expect(css).toContain(`--text-${r}: ${fixtur.typografi.roller[r].storlek};`);
       expect(css).toContain(`--text-${r}--font-weight: ${fixtur.typografi.roller[r].vikt};`);
@@ -391,6 +391,8 @@ describe("D: typografin på ETT ställe (#173)", () => {
     expect(fixtur.typografi.roller.liten.storlek).toBe("0.625rem");
     expect(fixtur.typografi.roller.hjalp.storlek).toBe("0.6875rem");
     expect(fixtur.typografi.roller.sektion.storlek).toBe("0.75rem");
+    // 0.61.0 (#259): räknaren i dagsrutans rad från 640 px, SS `sm:text-[9px] font-bold leading-none`.
+    expect(fixtur.typografi.roller.raknare.storlek).toBe("0.5625rem");
   });
 
   it("varje roll har en _kalla med fil och rad ur SessionStudio (regeln: mät, gissa inte)", async () => {
