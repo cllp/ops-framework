@@ -9,6 +9,38 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.69.0
+
+⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, lifehub.app#60), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.69.0.
+
+### Inställningarna: en lista med sektioner, och varje sektion i en egen panel (#274)
+
+Händelsen: CP 2026-10-06 20:12, med en skärmbild av Inställningar i LifeHub på surfplatta: "hela inställnings-panelen är superrörig. Vi måste bygga ett intuitivt, enkelt och rent inställningspanel. Sektioner kanske skall stå ensamma, med att man navigerar till en specifik panel med tillbaka-pil mm. Texterna känns ihoptryckta." Sidan var ett enda långt flöde av kort, med små rubriker, täta rader och utvecklartext mellan korten ("Slagen är inte seedade än", "Samlingen är tom, så appen ritar repots standardvärden", "står däremot i koden (SLAGBETEENDEN)").
+
+#### Tillagt
+
+- **`OpsInstallningar`**: appen ger sektionerna (`{ id, ikon, rubrik, beskrivning, antal, innehall }`), ramverket ger listan och panelen. Raderna är minst 56 px, med ikon, rubrik i 16 px halvfet, beskrivningen på egen rad i 14 px dämpad (12 px i första utkastet, som granskningen kallade just det CP klagade på), antalet till höger och en chevron. Panelen har tillbaka-pil, rubrik i 18 px och beskrivning på egen rad. `ORD_OPSINSTALLNINGAR` på svenska och engelska. En sektion utan `id`, `rubrik` eller `innehall` vägras, och ett okänt `vald` ger en varning i utvecklingsläge.
+- **`rubrikniva`, förval 2:** sidans och panelens rubrik står på samma nivå under appskalets `h1`, och delarna i en panel en nivå under. Samma nivå med flit, eftersom panelen står ensam under 1024 px.
+- **Tillbaka går tillbaka i historiken:** filhuvudet säger att appens `onValj(null)` ska vara `history.back()` när panelen öppnades med `pushState`, och `replaceState` när sidan öppnades direkt på en sektion.
+- **Den valda sektionen ligger i adressen.** `vald` och `onValj` kommer från appen, så att webbläsarens tillbaka fungerar och en sektion går att länka till. Ramverket känner ingen router och inga samlingsnamn. Ett okänt `vald` (en gammal länk) ritar listan och ingen tom panel.
+- **En kolumn under 1024 px, två från 1024.** Telefon och iPad i stående läge (820 px) får listan, och panelen ersätter den; datorn får listan till vänster och panelen till höger, utan tillbaka-pil. Gränsen är `lg` och inte `md` som i Meddelanden: i 820 px hade panelen blivit drygt 500 px bred, och en katalog trängs där igen.
+- **Tangentbord och skärmläsare:** listan är en `<ul>` med knappar och den valda bär `aria-current`. Fokus går till panelens rubrik när den öppnas och tillbaka till raden när man går tillbaka, med pilen eller med webbläsarens tillbaka. Vid första ritningen flyttas inget fokus.
+- **`useInstallningspanel`:** `OpsKatalogInstallning` och `OpsModulTyper` ritar sin rubrik en nivå under panelens, och inte alls när den är samma som panelens. Katalogens delrubriker (Arkiverade, Senaste ändringarna) följer med en nivå ned. Utanför en panel är allt som förut.
+- **`check-utvecklarord`** (i `npm run check`): larmar på seedad/seedade/seedning, samlingen/samlingens/samlingar, standardvärden, driftsättning, repots, Firestore och kodnamn i versaler i det användaren ser: JSX-text, strängar som ensamma barn i JSX, båda grenarna i en ternär, ordböckernas `sv:`/`en:` och värden på användartextnamn (inklusive `hint`). Kommentarer, felmeddelanden och loggrader läses inte. Golv: 150 filer och 400 texter i ramverket, och ett golv per mönster (attribut 130, ordbok 125, ternär 15, barn 6, JSX-text 55, ungefär hälften av det mätta); 5 filer och 10 texter i en app. `--golv=abc` avbryts med fel. Planterat i `test-guards`: nio röda fall, ett grönt, fyra golv och ett avstängt mönster i taget (fem röda), plus beviset att `{"..."}`-fallet bara fångas av barnmönstret. Ramverket självt: 675 texter, 0 träffar. LifeHub på origin/main: 16, som ompinningen lagar.
+- **`check-skalyta` avsnitt 43** vid 390, 820 och 1280 px: listan, en panel, tillbaka, fokus, beskrivningen minst 13 px, inget eget `h1`, panelens rubrik på sidans nivå och ingen horisontell överflödning.
+
+#### Ändrat
+
+- **`OpsKatalogInstallning` utan `ikonRitare`** ritar ingen ikon. Förut stod ikonens nyckel (`wallet`, `inbox`) som text i varje rad.
+
+#### Ompinning till 0.69.0
+
+Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.69.0/ops-framework-0.69.0.tgz"`.
+2. `SettingsView` byggs om till `OpsInstallningar` med sektionerna ur ärendet, och sektionen läses ur och skrivs till adressen.
+3. Utvecklartexten skrivs om för användaren. Lägg `node node_modules/ops-framework/scripts/check-utvecklarord.mjs src` i appens kedja.
+
 ## 0.68.0
 
 ### Trådar i gruppchatten (cllp/lifehub.app#60)

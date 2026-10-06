@@ -6,6 +6,7 @@ import { beskrivKonfigandring } from "../lib/konfiglogg.js";
 import { SLAGPLATSER, slagPrick } from "../lib/slag.js";
 import { text } from "../lib/sprak.js";
 import { OpsBanner } from "./OpsBanner.jsx";
+import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { AndraIkon, ArkiveraIkon, TaFramIkon } from "./icons.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -87,7 +88,8 @@ function textraderna(deklarerade, bar) {
  * @param {object} props
  * @param {import("../lib/katalog.js").Kategori[]} props.kategorier
  * @param {readonly string[]} props.ikoner Tillåtelselistan. Appen äger den, eftersom den beror på ikonuppsättningen.
- * @param {(namn: string) => import("react").ReactNode} [props.ikonRitare] Namn till ikon. Utan den visas namnet som text.
+ * @param {(namn: string) => import("react").ReactNode} [props.ikonRitare] Namn till ikon. Utan den ritas ingen ikon. ⛔ Namnet visas
+ *   aldrig som text: `wallet` är en nyckel i appens ikonuppsättning, inte ett ord för den som läser (granskningen av PR 278).
  * @param {boolean} [props.kanAndra] Ur rollerna. Falskt ger en läsvy med skälet utskrivet.
  * @param {(kategori: import("../lib/katalog.js").Kategori) => void} props.onSpara
  * @param {(kategori: import("../lib/katalog.js").Kategori, arkiverad: boolean) => void} props.onArkivera
@@ -137,6 +139,10 @@ export function OpsKatalogInstallning({
   }
 
   const rubrikId = useId();
+  // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken en nivå under panelens, och samma som panelens ritas den inte alls (`delrubrik`).
+  const delen = delrubrik(rubrik, rubrikId, useInstallningspanel());
+  // Delarnas rubriker (Arkiverade, Senaste ändringarna) ligger en nivå under katalogens: h4 när katalogen själv är h3.
+  const Under = delen.niva === 3 ? "h4" : "h3";
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [utkast, setUtkast] = useState(TOMT);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
@@ -276,7 +282,7 @@ export function OpsKatalogInstallning({
             <span className={cx("size-2 shrink-0 rounded-full", slagPrick(kategori.farg, text(kategori.namn, sprak), "OpsKatalogInstallning"))} aria-hidden="true" />
           ) : null}
           <span className="min-w-0 break-words text-etikett font-medium text-ink">{text(kategori.namn, sprak)}</span>
-          <span className="min-w-0 break-all text-etikett text-ink-muted">{ikonRitare ? ikonRitare(kategori.ikon) : kategori.ikon}</span>
+          {ikonRitare ? <span className="inline-flex shrink-0 text-ink-muted">{ikonRitare(kategori.ikon)}</span> : null}
           {kategori.fas ? <OpsPill tone="neutral">{kategori.fas}</OpsPill> : null}
           {kategori.arkiverad ? <OpsPill tone="warning">Arkiverad</OpsPill> : null}
         </div>
@@ -301,11 +307,11 @@ export function OpsKatalogInstallning({
   );
 
   return (
-    <section aria-labelledby={rubrikId} className="flex flex-col gap-3">
+    <section aria-labelledby={delen.etikettId} className="flex flex-col gap-3">
       {/* ⛔ RUBRIKEN SYNS (0.44.0, bolag-ops#507). CP: "Bra om ... det är en rubrik på varje sektion." Före 0.44.0 bar `rubrik` bara
           listans namn för skärmläsaren, så fyra kataloger på samma sida stod efter varandra utan att säga vad de var, medan kortet
           från modulerna (`OpsModulTyper`) hade en. Nivå 2 under sidans rubrik; "Arkiverade" och "Senaste ändringarna" är nivå 3. */}
-      <h2 id={rubrikId} className="m-0 text-sektion uppercase text-accent">{rubrik}</h2>
+      <Delrubrik niva={delen.niva} id={rubrikId}>{rubrik}</Delrubrik>
       {!kanAndra ? (
         <OpsBanner tone="info" title="Du kan läsa katalogen, inte ändra den">
           Konfigurationen ändras av gruppens ägare och admin, eftersom en ändring här ändrar vad alla andra i gruppen ser. Låset sitter i databasens regler, inte i den här vyn.
@@ -316,7 +322,7 @@ export function OpsKatalogInstallning({
 
       {arkiverade.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="m-0 text-sektion uppercase text-accent">Arkiverade</h3>
+          <Under className="m-0 text-sektion uppercase text-accent">Arkiverade</Under>
           <OpsList divided ariaLabel="Arkiverade kategorier">{arkiverade.map(rad)}</OpsList>
         </div>
       ) : null}
@@ -326,7 +332,7 @@ export function OpsKatalogInstallning({
           varför en kategori ser annorlunda ut än i går. */}
       {logg.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="m-0 text-sektion uppercase text-accent">Senaste ändringarna</h3>
+          <Under className="m-0 text-sektion uppercase text-accent">Senaste ändringarna</Under>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {logg.slice(0, 5).map((rad) => (
               <li key={`${rad.id}-${rad.nar}`} className="flex flex-wrap items-baseline gap-x-2 text-hjalp text-ink-muted">
@@ -398,7 +404,7 @@ export function OpsKatalogInstallning({
               {/* ⛔ Rubriken säger vad de ÄR och inte bara att de finns. Utan
                   den meningen ser arton fält ut som administration, och då
                   fylls de i med ett ord var. */}
-              <h3 className="m-0 text-sektion uppercase text-accent">Texter, alltså det som gör formuläret begripligt</h3>
+              <Under className="m-0 text-sektion uppercase text-accent">Texter, alltså det som gör formuläret begripligt</Under>
               {textraderna(textnycklar, utkast.texter).map((t) => (
                 <div key={t.nyckel} className="flex flex-col gap-2">
                   <OpsField label={`${text(t.etikett, sprak) || t.nyckel}, svenska`} hint={t.hjalp} required>
@@ -421,7 +427,7 @@ export function OpsKatalogInstallning({
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <h3 className="m-0 text-sektion uppercase text-accent">Så här kommer den att se ut</h3>
+            <Under className="m-0 text-sektion uppercase text-accent">Så här kommer den att se ut</Under>
             <div className="flex items-center gap-3">
               {farger ? (
                 <span
