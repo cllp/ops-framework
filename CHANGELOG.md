@@ -58,7 +58,16 @@ Mätt med `scripts/build.mjs` och `npm pack --dry-run`, före på `origin/main` 
 | minifierad och gzip (det en app laddar, React och Radix externa) | 163 259 byte | 193 942 byte | +30,7 kB |
 | tarbollen | 2 640 359 byte | 2 785 721 byte | +145 kB |
 
-Efter granskningen av PR 266 (16 nästan-dubbletter strukna, 187 ikoner, svenska namn tillagda): `dist/index.js` 1 060 119 byte (268 584 gzip), minifierad och gzip 194 679 byte, tarbollen 2 794 863 byte. Strykningen och de svenska namnen tar i stort sett ut varandra: minifierad och gzip +0,7 kB mot versionen med 203 ikoner (193 942), alltså +31,4 kB mot 0.63.0. Att lata in katalogen är ett senare ärende.
+Efter granskningen av PR 266, mätt igen mot `origin/main` på 0.64.0 (c03f8e7):
+
+| | 0.64.0 | 0.65.0, 203 ikoner (före granskningen) | 0.65.0, 187 ikoner och svenska namn |
+|---|---|---|---|
+| `dist/index.js` | 933 884 | 1 062 111 | 1 060 351 |
+| gzip | 234 070 | 267 545 | 268 642 |
+| minifierad och gzip | 163 314 | 193 942 | 194 730 (+31,4 kB mot 0.64.0) |
+| tarbollen | 2 644 419 | 2 785 721 | 2 799 747 |
+
+Strykningen av 16 ikoner och de tillagda svenska namnen (187 rader) tar i stort sett ut varandra. Att lata in katalogen är ett senare ärende.
 
 Ungefär en fjärdedel av tillväxten är sökorden (26,5 kB okomprimerat), resten är de 203 ikonerna.
 
