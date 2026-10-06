@@ -19,11 +19,12 @@ import { radKlass } from "../lib/radKlass.js";
  * @param {boolean} props.chosen
  * @param {() => void} props.onClick
  * @param {import("react").ReactNode} [props.ikon]
+ * @param {number} [props.antal] Ett tal till höger, före bocken, i samma talform som segmentets räknare (0.64.0, lifehub.app#59). 0 ritas.
  * @param {boolean} [props.stor] `text-sm`, `py-2.5`: SS `TodayView.jsx:294` (statusmenyn). Utan: `text-xs`, `py-1.5`, SS `ThemedDropdown.jsx:122`.
  * @param {boolean} [props.radio] `role="menuitemradio"` och `aria-checked` i stället för `aria-pressed` (rader i en `role="menu"`).
  * @param {import("react").ReactNode} props.children
  */
-export function ValRad({ chosen, onClick, ikon, radio = false, stor = false, children }) {
+export function ValRad({ chosen, onClick, ikon, antal, radio = false, stor = false, children }) {
   return (
     <button
       type="button"
@@ -37,6 +38,9 @@ export function ValRad({ chosen, onClick, ikon, radio = false, stor = false, chi
         </span>
       ) : null}
       <span className="min-w-0 flex-1 truncate">{children}</span>
+      {/* ⛔ ANTALET FÖRE KLICKET (0.64.0, lifehub.app#59): "Inom 7 dagar 12". Före bocken, så bocken står i samma kolumn på
+          varje rad, och i segmentets talform (`tabular-nums`, dämpad) så att menyn och fliken säger samma tal på samma sätt. */}
+      {typeof antal === "number" ? <span data-antal className="shrink-0 tabular-nums opacity-70">{antal}</span> : null}
       {chosen ? (
         <span aria-hidden="true" className="shrink-0 text-accent">
           <BockIkon size={14} />

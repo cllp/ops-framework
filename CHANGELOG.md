@@ -70,6 +70,28 @@ Ikonerna buntas in (`lucide-react` är inte extern i `scripts/build.mjs`), så u
 - **`check-gruppikoner`** (ny): katalogen är i takt med generatorn och samma Lucide-version.
 - **`check-skalyta` avsnitt 22b** (nytt): i ljust och mörkt vid 390 och 1280 px, kulören når märket (plattan och ikonen två täckande färger, Petrol och Rosa olika), kontrasten i det RITADE märket avläst ur en canvas (golv 4,5), "Bandet" ger gitarr eller trumma bland de sex första förslagen, "music" ger minst fem träffar med gitarr och hörlurar, ingen överflödning. Avsnitt 22, gruppkortet och gruppsidan mäter kulören i stället för identitetstonen.
 
+## 0.64.0
+
+⛔ **Versionsnumret:** 0.64.0 är reserverat för den här grenen. Arbetet med #265 (ikon och kulör) tar 0.65.0.
+
+### Segmentets räknare, antal i menyraderna och grundlägets etikett (cllp/lifehub.app#59)
+
+CP 2026-10-06, om Idag i LifeHub (cllp/lifehub.app#59): segmentet Idag/Kommande är redan ett tidsfilter, och förfiningen ska ligga i flikens chevron i stället för i en egen När-knapp. "Idag visade 9, Kommande 70, Tidigare ingenting. Utan nollan hoppar kontrollen i bredd när den fylls." Antalet ska stå i menyraderna ("Inom 7 dagar 12") före klicket.
+
+Mätt mot 0.63.0 i Chromium (check-skalyta avsnitt 42): samma kontroll var 170,84 px bred med räknaren 0 och 198,44 px med 9, eftersom nollan inte ritades. Menyraderna hade ingen plats för ett tal, och en app som lade talet i `label` hade fått det två gånger i fliken, eftersom etiketten följer menyvalet. Appens bygge i lifehub.app#64 visade också att Kommande bytte namn till "Allt framåt" vid första klicket, eftersom menyraden med segmentets eget värde tog över etiketten.
+
+#### Ändrat
+
+- **`OpsSegmented` ritar räknaren också när den är 0.** `badge` ritas när det är ett tal. En app som inte vill visa något utelämnar `badge`, och skickar inte 0.
+- **`menu.items[].badge?: number`** ritas i menyraden, till höger om ordet och före bocken, i samma talform som segmentets räknare (`tabular-nums`, dämpad). `ValRad` har den nya propen `antal`. Menyradens tillgängliga namn bär talet ("Inom 7 dagar 12").
+- **Segmentet behåller sin egen etikett när det valda värdet är segmentets eget värde**, också när en menyrad bär samma värde. Bara ett annat menyval byter etiketten: Kommande heter Kommande i grundläget, och Inom 7 dagar när det fönstret valts.
+
+#### Ompinning till 0.64.0
+
+Ingen brytande ändring. En app som skickade `badge: 0` och räknade med att inget syntes får nu en nolla. En app vars menyrad bär segmentets eget värde med ett annat ord (till exempel `{ value: "kommande", label: "Alla" }`) ser nu segmentets ord i fliken när det läget är valt. Prov som letar efter en menyrad med exakt namn måste ta med talet när raden har `badge`.
+
+---
+
 ## 0.63.0
 
 ⛔ **Versionsnumret:** 0.61.0 och 0.62.0 är redan tagna av PR 260 (#259, regel 13) och PR 261 (bolag-ops#565), som inte är mergade när den här grenen öppnas. Den här grenen tar därför 0.63.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.

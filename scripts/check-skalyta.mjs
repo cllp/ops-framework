@@ -5149,6 +5149,59 @@ if (bildmapp) {
   }
 }
 
+// ══ 42. SEGMENTETS RÄKNARE: NOLLAN HOPPAR INTE I BREDD, OCH ANTALET STÅR I MENYRADEN (0.64.0, lifehub.app#59) ════════════════
+// CP 2026-10-06, om Idag i LifeHub: Idag visade 9, Kommande 70, Tidigare ingenting. "Utan nollan hoppar kontrollen i bredd när den
+// fylls." jsdom räknar ingen CSS, så bredden mäts här: samma kontroll med räknaren 0 och 9 ska vara lika bred inom en halv pixel,
+// vid 390 och 1280 px. Och menyns rader ska bära sitt tal mellan ordet och bocken, i segmentets talform (tabular-nums).
+for (const bredd of [390, 1280]) {
+  const { page, context } = await oppna("galleri", { width: bredd, height: 1600 }, standardtema, 2);
+  await page.evaluate(() => document.fonts.ready);
+  const b = await page.evaluate(() => {
+    /** @param {string} p */
+    const lista = (p) => /** @type {HTMLElement | null} */ (document.querySelector(`[data-p="${p}"] [role="tablist"]`));
+    const noll = lista("segment-noll");
+    const nio = lista("segment-nio");
+    return {
+      noll: noll ? noll.getBoundingClientRect().width : null,
+      nio: nio ? nio.getBoundingClientRect().width : null,
+      nollText: noll ? noll.textContent : null,
+    };
+  });
+  krav(b.noll !== null && b.nio !== null, `segmentets räknare ${bredd} px: kontrollerna med 0 och 9 hittades inte i galleriet.`);
+  if (b.noll !== null && b.nio !== null) {
+    matt.push(`segmentets räknare ${bredd} px: bredd med 0 ${b.noll.toFixed(2)} px, med 9 ${b.nio.toFixed(2)} px (${JSON.stringify(b.nollText)})`);
+    krav(b.nollText === "Idag0Kommande0", `segmentets räknare ${bredd} px: nollan ritas inte, texten är ${JSON.stringify(b.nollText)}.`);
+    krav(Math.abs(b.noll - b.nio) < 0.5, `segmentets räknare ${bredd} px: bredden med 0 är ${b.noll.toFixed(2)} och med 9 ${b.nio.toFixed(2)}, alltså hoppar kontrollen när räknaren fylls.`);
+  }
+  await page.locator('[data-p="segment-meny"] [role="tab"][aria-selected="true"]').click();
+  await page.locator('[role="menuitemradio"]').first().waitFor({ timeout: 4000 }).catch(() => {});
+  const m = await page.evaluate(() => [...document.querySelectorAll('[role="menuitemradio"]')].map((r) => {
+    const tal = /** @type {HTMLElement | null} */ (r.querySelector("[data-antal]"));
+    const ord = /** @type {HTMLElement | null} */ (r.querySelector(".truncate"));
+    const bock = r.getAttribute("aria-checked") === "true" ? /** @type {HTMLElement | null} */ (r.lastElementChild) : null;
+    return {
+      text: r.textContent,
+      tal: tal ? tal.textContent : null,
+      siffror: tal ? getComputedStyle(tal).fontVariantNumeric : null,
+      ordHoger: ord ? ord.getBoundingClientRect().right : null,
+      talVanster: tal ? tal.getBoundingClientRect().left : null,
+      talHoger: tal ? tal.getBoundingClientRect().right : null,
+      bockVanster: bock && bock !== tal ? bock.getBoundingClientRect().left : null,
+    };
+  }));
+  matt.push(`segmentets meny ${bredd} px: ${JSON.stringify(m.map((r) => r.text))}`);
+  krav(m.length === 3, `segmentets meny ${bredd} px: ${m.length} menyrader, väntat 3 (golv).`);
+  krav(JSON.stringify(m.map((r) => r.tal)) === JSON.stringify(["12", "40", "70"]), `segmentets meny ${bredd} px: talen är ${JSON.stringify(m.map((r) => r.tal))}, väntat 12, 40 och 70.`);
+  for (const r of m) {
+    krav(r.siffror === "tabular-nums", `segmentets meny ${bredd} px: "${r.text}" har talform ${r.siffror}, väntat tabular-nums som segmentets räknare.`);
+    krav(r.ordHoger !== null && r.talVanster !== null && r.talVanster >= r.ordHoger - 0.5, `segmentets meny ${bredd} px: talet i "${r.text}" står inte till höger om ordet.`);
+  }
+  const vald = m.find((r) => r.bockVanster !== null);
+  krav(Boolean(vald) && /** @type {any} */ (vald).talHoger <= /** @type {any} */ (vald).bockVanster + 0.5, `segmentets meny ${bredd} px: talet står inte före bocken i den valda raden (${JSON.stringify(vald)}).`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `segment-meny-${bredd}.png`) });
+  await context.close();
+}
+
 await browser.close();
 
 for (const rad of matt) console.log(`  mätt: ${rad}`);
