@@ -10,7 +10,7 @@ import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js
 import { KALENDERPRICK, postklasser } from "../lib/kalenderfarg.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
-import { Dagruta } from "./OpsCalendarDagruta.jsx";
+import { BRICKA_GRANS, BRICKA_MINSTA_OVERHANG, Dagruta } from "./OpsCalendarDagruta.jsx";
 import { HandelseLank } from "./HandelseLank.jsx";
 import {
   DEFAULT_LOCALE,
@@ -1073,6 +1073,26 @@ function Band({ bitar, veckonummer }) {
   );
 }
 
+/** Avståndet mellan rutorna under 640 px, `gap-1`, och veckonumrets kolumn, `2rem` (`gridKlass`). */
+const RUTNAT_GAP = 4;
+const VECKOKOLUMN = 32;
+
+/**
+ * Rullytans marginal på var sida under 640 px, som CSS: lika stor som brickans överhäng i rutans högerkant.
+ *
+ * Överhänget är o = max(MINSTA, GRANS - c) (`OpsCalendarDagruta`), och rutbredden c = (R - 2p - G) / 7, där R är rullytans bredd,
+ * p marginalen och G mellanrummen plus veckonumrets kolumn. Med p = o och o över minsta ger det p = (7 x GRANS + G - R) / 5.
+ * Mätt i granskningen av PR 260 innan det härleddes: en fast marginal på 7 px klippte brickan 4,6 px vid 320 och 1,7 px vid 340
+ * med veckonumren på, och redan vid 310 utan dem.
+ * @param {boolean} veckonummer
+ * @returns {string}
+ */
+export function kantluft(veckonummer) {
+  const kolumner = 7;
+  const g = (veckonummer ? kolumner : kolumner - 1) * RUTNAT_GAP + (veckonummer ? VECKOKOLUMN : 0);
+  return `max(${BRICKA_MINSTA_OVERHANG}px, calc((${kolumner * BRICKA_GRANS + g}px - 100%) / ${kolumner - 2}))`;
+}
+
 /** Nyckeln veckonumrens val sparas under, per enhet. */
 export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
 
@@ -1581,10 +1601,11 @@ export function OpsCalendar({
             if (!m) return;
             setDirection(scrollDirection(m.getBoundingClientRect(), e.currentTarget.getBoundingClientRect()));
           }}
-          style={fullhojd}
-          // ⛔ 7 PX MARGINAL UNDER 640 PX (0.61.0, #259): hörnbrickorna sticker ut upp till 6,4 px (vid 320) över rutnätets kant i en smal ruta,
-          // och rullytan klipper det som går utanför. Förebild 7 visar brickan hel över kanten. Från 640 px finns inga brickor.
-          className={cx("relative bg-canvas px-[7px] sm:px-1", FULL_HEIGHT_CLASSES)}
+          style={/** @type {any} */ ({ ...fullhojd, "--ops-kantluft": kantluft(veckonummer) })}
+          // ⛔ MARGINALEN UNDER 640 PX RYMMER ALLTID BRICKANS ÖVERHÄNG (0.61.0, #259). Hörnbrickorna sticker ut över rutnätets kant, och
+          // rullytan klipper det som går utanför; förebild 7 visar brickan hel. Överhänget växer när rutan blir smalare, och rutan blir
+          // smalare när marginalen växer, så marginalen räknas ur samma tal som brickan (`kantluft`). Från 640 px finns inga brickor.
+          className={cx("relative bg-canvas px-(--ops-kantluft) sm:px-1", FULL_HEIGHT_CLASSES)}
         >
           {/* ⛔ Klistrad veckodagsrad, med veckonumrets kolumn när den är på (SS `CalView.jsx:124-138`). */}
           <div ref={huvudRef} className={cx("sticky top-0 z-(--z-sticky) grid gap-1 bg-canvas pt-1 pb-2 sm:gap-1.5", gridKlass)}>

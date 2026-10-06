@@ -57,8 +57,12 @@ export function Dagruta({ day, dayKey, entries, markerade, spann, enkla, isToday
   const count = entries.length;
   const borta = antalI(dekor?.borta, "borta");
   const lager = antalI(dekor?.lager, "lager");
-  // ⛔ `hornmarken` togs bort i 0.61.0. En app som inte bytt hade fått en tom ruta utan förklaring.
-  if (dekor && "hornmarken" in dekor) utvecklingsvarning("OpsCalendar dagdekor: hornmarken finns inte sedan 0.61.0. Skicka { borta: { antal }, lager: { antal } }, och rutan ritar brickorna själv.");
+  // ⛔ `hornmarken` togs bort i 0.61.0. En app som inte bytt hade fått en tom ruta utan förklaring. EN gång per sidladdning, inte
+  // en gång per ruta: 750 likadana rader i konsolen döljer felet de ska visa.
+  if (dekor && "hornmarken" in dekor && !hornmarkenVarnad) {
+    hornmarkenVarnad = true;
+    utvecklingsvarning("OpsCalendar dagdekor: hornmarken finns inte sedan 0.61.0. Skicka { borta: { antal }, lager: { antal } }, och rutan ritar brickorna själv.");
+  }
   // ⛔ N/N BARA NÄR INGEN ÄR BORTA (SS `MonthGrid.jsx:529`, `blockedMembers.length === 0`): brickan och talet säger samma sak åt två håll.
   const narvaro = borta === 0 && dekor?.narvaro && dekor.narvaro.totalt > 0 ? dekor.narvaro : null;
   const label = [
@@ -168,6 +172,9 @@ function antalI(x, falt) {
   }
   return x.antal;
 }
+
+/** Varningen för `hornmarken` skrivs en gång per sidladdning. */
+let hornmarkenVarnad = false;
 
 /** @param {string} text */
 function utvecklingsvarning(text) {
@@ -306,6 +313,19 @@ function Pillerrad({ markerade, vald }) {
 }
 
 /**
+ * Brickans överhäng, i px: `max(BRICKA_MINSTA_OVERHANG, BRICKA_GRANS - rutbredd)`. SS-appens 4 px så länge rutan är minst
+ * `BRICKA_GRANS - 4` = 36 px bred, och mer i smalare rutor, så att brickan aldrig täcker två siffror (se `Hornbrickor`).
+ * ⛔ EN SANNING (arbetsreglernas punkt 2): rullytans marginal i `OpsCalendar` härleds ur samma två tal, så att den alltid rymmer
+ * överhänget, med eller utan veckonumrets kolumn.
+ */
+export const BRICKA_MINSTA_OVERHANG = 4;
+export const BRICKA_GRANS = 40;
+/** Rutans kant, 1 px: `right` räknas från innerkanten, överhänget från ytterkanten. */
+const RUTANS_KANT = 1;
+/** `right` för klustret: innerbredd P = rutbredd - 2 x kant, överhänget o = -right - kant = GRANS - rutbredd, alltså right = P - (GRANS - kant). */
+const BRICKA_HOGER = `min(${-(BRICKA_MINSTA_OVERHANG + RUTANS_KANT)}px, calc(100% - ${BRICKA_GRANS - 2 * RUTANS_KANT + RUTANS_KANT}px))`;
+
+/**
  * Räknarens text: ingen under 2 (SS `blockedCount > 1`, `dayLayers.length > 1`), siffran till 9, och `9+` från 10.
  *
  * ⛔ `9+` ÄR DEN ENDA AVVIKELSEN FRÅN SS I BRICKAN (CP 2026-10-06). Cirkeln är 20 px: ikonen (10), 1 px mellanrum och en siffra
@@ -336,8 +356,9 @@ export function raknartext(antal) {
  * Två vägar, och ingen räcker ensam. Bara överhäng hade krävt 12 px vid 320, och rullytan klipper det som sticker ut mer än
  * dess egen marginal (förebild 7 visar brickan hel över rutnätets kant). Bara en krympt ruta räcker inte vid 320, där två siffror
  * ensamma är nästan lika breda som det som finns kvar. Så: siffrans ruta är `clamp(14, 2 x radbredd - 38, 28)` px, alltså 28 som
- * SS så länge den ryms och krympt bara där den annars hade täckts; och överhänget är `max(4, 40 - rutbredd)` px, alltså 4 som SS
- * från 36 px rutbredd och cirka 6,4 px vid 320. Rullytan har 7 px marginal under 640 px (`OpsCalendar`), så brickan klipps aldrig.
+ * SS så länge den ryms och krympt bara där den annars hade täckts; och överhänget är `max(4, 40 - rutbredd)` px (`BRICKA_GRANS`),
+ * alltså 4 som SS från 36 px rutbredd och mer under det. Rullytans marginal under 640 px härleds i `OpsCalendar` ur samma tal och
+ * rymmer alltid överhänget, med eller utan veckonummer; `check-skalyta` avsnitt 41 mäter att brickan inte klipps ned till golvet, 310 px (350 med veckonummer).
  *
  * ⛔ TILLGÄNGLIGHET FÖRST, LAGER SEDAN, OAVSETT ORDNINGEN APPEN SKICKADE DEM I. Lagerbrickan har ALLTID `margin-top: -4`
  * (SS `pillBadgeOverlap`), också när den är ensam, och sitter då 4 px högre än en ensam borta-bricka (CP 2026-10-06: behåll
@@ -350,7 +371,7 @@ export function raknartext(antal) {
  */
 function Hornbrickor({ borta, lager }) {
   return (
-    <span aria-hidden="true" data-hornmarken="" className="pointer-events-none absolute top-[-5px] right-[min(-5px,calc(100%-39px))] z-3 flex flex-col items-end sm:hidden">
+    <span aria-hidden="true" data-hornmarken="" style={{ right: BRICKA_HOGER }} className="pointer-events-none absolute top-[-5px] z-3 flex flex-col items-end sm:hidden">
       {borta > 0 ? (
         <Bricka id="borta" antal={borta} farg="border-danger text-danger">
           <BortaIkon size={10} />
