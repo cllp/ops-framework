@@ -42,7 +42,11 @@ Identitys webb är vanlig TypeScript utan React. Mätt i identitys bygge (vite b
 
 #### Ompinning till 0.70.0
 
-Ingen ändring krävs i en app som inte vill något nytt. LifeHubs Identity använder `ops-framework/gruppmarke` för profilens väljare (lifehub.identity#27), och hubben bör rita personens märke i huvudet med `personmarkeProps(profil)` så att växlingen speglar profilen. Funktionerna som prövar profilen med `byggAnvandare` (identitys `sparaProfil`) måste pinna om för att ta emot de nya formerna.
+LifeHubs Identity använder `ops-framework/gruppmarke` för profilens väljare (lifehub.identity#27), och hubben bör rita personens märke i huvudet med `personmarkeProps(profil)`.
+
+⛔ **En app som prövar en spegling av profilen med `byggAnvandare` måste pinna om INNAN identity släpps.** Det gäller hubbens `speglaPerson` (lifehub.app). På 0.67.0 kastar `byggAnvandare` för ett katalognamn som `music` och för `kulor:210`. `speglaPerson` loggar felet och speglar då inte raden alls: inte namnet, inte bilden, inte telefonen. Släpps identity först slutar alltså varje person som väljer en ny ikon eller kulör att speglas, och det syns bara som en varning i funktionsloggen. Ordningen är: ramverket, hubbens ompinning och funktionsdeploy, och sedan identitys funktioner (`sparaProfil`, som också prövar med `byggAnvandare`) före identitys webb.
+
+En app som varken prövar profilen eller vill rita det nya märket behöver ingen ändring.
 
 ## 0.68.0
 
