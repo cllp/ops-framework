@@ -60,7 +60,7 @@ Mätt med `scripts/build.mjs` och `npm pack --dry-run`, före på `origin/main` 
 
 Efter granskningen av PR 266, mätt igen mot `origin/main` på 0.64.0 (c03f8e7):
 
-| | 0.64.0 | 0.65.0, 203 ikoner (före granskningen) | 0.65.0, 187 ikoner och svenska namn |
+| | 0.64.0 | 0.65.0 före granskningen (203 ikoner, mätt på 0.63.0) | 0.65.0, 187 ikoner och svenska namn |
 |---|---|---|---|
 | `dist/index.js` | 933 884 | 1 062 111 | 1 060 351 |
 | gzip | 234 070 | 267 545 | 268 642 |
