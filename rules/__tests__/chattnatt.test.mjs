@@ -55,6 +55,12 @@ export const MUTATIONER = {
   "svarpa-i-gruppchatten": ["        && get(opsSamtalet(sid)).data.slag != 'grupp'\n", ""],
   "svarpa-utan-meddelande": ["\n        && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(d.svarPa)));", ");"],
   "svarpa-fri-form": ["      return !('svarPa' in d) || (d.svarPa is string", "      return true || (d.svarPa is string"],
+  "fast-las-alla": ["match /fasta/{mid} {\n        allow read: if opsISamtal(sid);", "match /fasta/{mid} {\n        allow read: if request.auth != null;"],
+  "fast-som-annan": ["          && request.resource.data.av == request.auth.uid\n          && opsNu(request.resource.data.tid)\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));", "          && opsNu(request.resource.data.tid)\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));"],
+  "fast-utan-meddelande": ["\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));", ";"],
+  "fast-fria-falt": ["          && request.resource.data.keys().hasOnly([\"av\", \"tid\"])\n", ""],
+  "fast-lossa-alla": ["        allow delete: if opsISamtal(sid)\n          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');\n        allow update: if false;\n      }", "        allow delete: if request.auth != null;\n        allow update: if false;\n      }"],
+  "fast-uppdaterbar": ["          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');\n        allow update: if false;\n      }", "          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');\n        allow update: if opsISamtal(sid);\n      }"],
 };
 
 /** Provreglerna, eller (bara för bevisets röda riktning) provreglerna med ett skydd bortplockat. */
@@ -63,7 +69,7 @@ function regeltext() {
   if (!fs.existsSync(fil)) throw new Error("rules/provregler.rules saknas. Kör npm run test:rules.");
   const text = fs.readFileSync(fil, "utf8");
   // ⛔ GOLV: varje nytt block måste finnas, annars mäter provet regler utan det som ska provas.
-  for (const block of ["match /status/{dok} {", "match /reaktioner/{rid} {", "function opsGiltigReaktion(", "function opsGiltigaNamner(", "function opsGiltigtSvarPa("]) {
+  for (const block of ["match /status/{dok} {", "match /reaktioner/{rid} {", "function opsGiltigReaktion(", "function opsGiltigaNamner(", "function opsGiltigtSvarPa(", "match /fasta/{mid} {"]) {
     if (!text.includes(block)) throw new Error(`"${block}" saknas i provreglerna`);
   }
   const namn = process.env.CHATTPROV_MUTATION;
@@ -125,6 +131,7 @@ before(async () => {
     await setDoc(doc(db, `samtal/${grupp}/status/agent`), { lage: "tanker", sedan: nu() });
     await setDoc(doc(db, `samtal/${grupp}/tradar/${T}/status/agent`), { lage: "skriver", sedan: nu() });
     await setDoc(doc(db, `samtal/${annaBo}/status/agent`), { lage: "tanker", sedan: nu() });
+    await setDoc(doc(db, `samtal/${grupp}/fasta/${T}`), { av: BO, tid: nu() });
     // Reaktioner, skrivna förbi reglerna: Bos på M1, och Bos i tråden.
     await setDoc(doc(db, `samtal/${grupp}/reaktioner/${M1}|${BO}|tumme`), { mid: M1, av: BO, kod: "tumme", tid: nu() });
     await setDoc(doc(db, `samtal/${grupp}/tradar/${T}/reaktioner/${TM}|${BO}|eld`), { mid: TM, av: BO, kod: "eld", tid: nu() });
@@ -237,5 +244,28 @@ describe("⛔ citat: bara i privata samtal, bara ett meddelande i samma samtal",
   });
   it("⛔ inte i en tråd", async () => {
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/c6`), { text: "Ja", av: ANNA, tid: nu(), svarPa: TM }));
+  });
+});
+
+describe("⛔ fästa: samtalets personer fäster och lossar, ingen annan", () => {
+  it("en medlem fäster ett meddelande och en annan lossar det", async () => {
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/${M1}`), { av: ANNA, tid: nu() }));
+    await assertSucceeds(getDocs(collection(som(CECILIA), `samtal/${grupp}/fasta`)));
+    await assertSucceeds(deleteDoc(doc(som(CECILIA), `samtal/${grupp}/fasta/${M1}`)));
+  });
+  it("⛔ en främling, en borttagen och den som inte är inloggad varken läser, fäster eller lossar", async () => {
+    for (const u of [FRAMLING, DAVID]) {
+      await assertFails(getDocs(collection(som(u), `samtal/${grupp}/fasta`)));
+      await assertFails(setDoc(doc(som(u), `samtal/${grupp}/fasta/${M1}`), { av: u, tid: nu() }));
+      await assertFails(deleteDoc(doc(som(u), `samtal/${grupp}/fasta/${T}`)));
+    }
+    await assertFails(getDocs(collection(utan(), `samtal/${grupp}/fasta`)));
+    await assertFails(deleteDoc(doc(som(AGENT), `samtal/${grupp}/fasta/${T}`)));
+  });
+  it("⛔ inte som någon annan, inte ett meddelande som inte finns, inga andra fält, och ingen uppdatering", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/${M1}`), { av: BO, tid: nu() }));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/finns-inte`), { av: ANNA, tid: nu() }));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/${M1}`), { av: ANNA, tid: nu(), text: "kopia" }));
+    await assertFails(updateDoc(doc(som(BO), `samtal/${grupp}/fasta/${T}`), { tid: nu() }));
   });
 });

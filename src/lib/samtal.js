@@ -771,3 +771,35 @@ export function agentenNamnd(meddelande, agentUid, medlemmar) {
 
 /** Fältet på meddelandet. */
 export const SVARPAFALT = "svarPa";
+
+/*
+ * ══ ⛔ FÄSTA MEDDELANDEN (chattanalysen 3.6) ═══════════════════════════════════════════════════════════════════════════════
+ *
+ *   <samtal>/{sid}/<fasta>/{mid}   { av, tid }
+ *
+ * SS lade `pinned, pinnedBy, pinnedAt` PÅ meddelandet, och regeln lät vem som helst i chatten sätta `pinnedBy` (SS
+ * `firestore.rules:1068-1070`). Här bor fästningen bredvid meddelandet, så att meddelandet förblir oföränderligt.
+ *
+ * ⛔ NYCKELN ÄR MEDDELANDETS ID: ett meddelande fästs högst en gång. `av` är den som fäste, och regeln kräver att det är den inloggade.
+ * ⛔ (bedömning, analysens förslag) VEM SOM HELST AV SAMTALETS PERSONER LOSSAR, som att döpa om en tråd: en fästning är samtalets,
+ * inte personens. Ingen uppdatering.
+ */
+
+/** Fälten en fästning får bära. */
+export const FASTFALT = /** @type {const} */ (["av", "tid"]);
+
+/** Hur många fästningar ett samtal läser. Når läsningen taket sägs det. */
+export const FASTA_TAK = 50;
+
+/**
+ * Bygger en fästning med meddelandets id som `id`, eller kastar med skälet.
+ * @param {{ mid: string, av: string, tid?: number }} d
+ * @returns {{ id: string, av: string, tid: number }}
+ */
+export function byggFastning(d) {
+  const id = kravMid(d?.mid, "byggFastning");
+  const av = kravUid(d?.av, "byggFastning");
+  const tid = d.tid ?? Date.now();
+  if (!Number.isInteger(tid)) throw new Error("byggFastning: tid är millisekunder, ett heltal.");
+  return Object.freeze({ id, av, tid });
+}

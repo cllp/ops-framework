@@ -202,6 +202,8 @@ function avsluta() {
 //   (5) CITAT OCH SÖK: i det privata samtalet ger "Svara med citat" (44 px) en rad ovanför skrivfältet med "Svarar på Bo Lind"
 //       och ett kryss på 44 px; det skickade svaret bär citatet ovanför bubblan, inom loggens bredd. "Sök i samtalet" (44 px) öppnar
 //       en rad under huvudet; "fakturan" ger "1 av 1" och den aktuella bubblan markerad och synlig i loggen.
+//   (6) FÄSTA: under gruppchattens huvud står "1 fästa" (44 px), som fälls ut till det fästa meddelandet med namn och utdrag och
+//       Lossa (44 px); knappen vid det fästa meddelandet är tryckt och har 44 px träffyta.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
 async function chattensNattskiva() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -363,6 +365,32 @@ async function chattensNattskiva() {
         matt.push(`${namn}: sök ${JSON.stringify(sok)}`);
         krav(sok.plats === "1 av 1" && sok.synlig && sok.kontur !== "none", `${namn}: sökningen ska ge 1 av 1 med den aktuella markerad och synlig (${JSON.stringify(sok)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-5-sok-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (6) fästa ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (6) fästa ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-fasta-knapp]", { timeout: 6000 });
+        const fk = await page.locator("[data-fasta-knapp]").boundingBox();
+        await page.locator("[data-fasta-knapp]").click();
+        await page.waitForSelector("[data-fastad]", { timeout: 3000 });
+        await page.waitForTimeout(150);
+        const m = await page.evaluate(() => {
+          const poster = [...document.querySelectorAll("[data-fastad]")].map((p) => ({ text: (p.textContent || "").trim(), lossa: p.querySelector("button")?.getBoundingClientRect().height ?? 0 }));
+          const tryckt = [...document.querySelectorAll("[data-fast]")].filter((b) => b.getAttribute("aria-pressed") === "true").map((b) => { const r = b.getBoundingClientRect(); return { w: r.width, h: r.height }; });
+          return { poster, tryckt };
+        });
+        matt.push(`${namn}: knappen ${JSON.stringify(fk)}, ${JSON.stringify(m)}`);
+        krav(!!fk && fk.height >= 43.5, `${namn}: "1 fästa" har ${fk?.height} px höjd, väntat 44.`);
+        krav(m.poster.length === 1 && m.poster[0].text.startsWith("Cecilia Berg: Hej alla") && m.poster[0].lossa >= 43.5, `${namn}: det fästa meddelandet ska stå med namn, utdrag och Lossa på 44 px (${JSON.stringify(m.poster)}). Golv: 1.`);
+        krav(m.tryckt.length === 1 && m.tryckt[0].w >= 43.5 && m.tryckt[0].h >= 43.5, `${namn}: knappen vid det fästa meddelandet ska vara tryckt med 44 px (${JSON.stringify(m.tryckt)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-6-fasta-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);

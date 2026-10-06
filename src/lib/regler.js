@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -765,11 +765,14 @@ export function konfigloggregelfragment(namn) {
  *     inte att varje uid är medlem: den som läser omnämnandet auktoriserar (`namnda` i lib/samtal.js).
  *   - CITAT (chattens nattskiva, med `citat: true`): ett meddelande i samtalet (inte i en tråd) får bära `svarPa`, id:t på ett
  *     meddelande som finns i SAMMA samtal, och bara när samtalet inte är gruppchatten (där är trådar svaret).
+ *   - FÄSTA (chattens nattskiva, med `fasta`): `<fasta>/{mid}` med `FASTFALT`. Läsa som samtalet. Fästa: en aktiv person i
+ *     samtalet, som sig själv, ett meddelande som finns i samma samtal (nyckeln ÄR dess id). Lossa: vem som helst av samtalets
+ *     aktiva personer. Uppdatera: aldrig.
  *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -785,8 +788,9 @@ export function samtalsregelfragment(namn = {}) {
   const tradar = namn.tradar === undefined ? null : kontrolleraNamn(namn.tradar, "tradar");
   const status = namn.status === undefined ? null : kontrolleraNamn(namn.status, "status");
   const reaktioner = namn.reaktioner === undefined ? null : kontrolleraNamn(namn.reaktioner, "reaktioner");
+  const fasta = namn.fasta === undefined ? null : kontrolleraNamn(namn.fasta, "fasta");
   // ⛔ KAN 7: ett namn som är samma som en annan undersamling hade lagt två regler på samma väg. Samma prövning som källan gör.
-  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner }, "samtalsregelfragment");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta }, "samtalsregelfragment");
   if (namn.omnamnanden !== undefined && typeof namn.omnamnanden !== "boolean") throw new Error("samtalsregelfragment: omnamnanden är true eller utelämnat.");
   const omnamnanden = namn.omnamnanden === true;
   // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
@@ -803,7 +807,7 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : [])].join(", ");
   const R = SAMTALSAVGRANSARE;
   const citatfunktion = citat
     ? `    // Citat (chattens nattskiva): saknas, eller ett meddelande i samma samtal, och aldrig i gruppchatten.
@@ -878,6 +882,23 @@ export function samtalsregelfragment(namn = {}) {
       match /${status}/{dok} {
         allow read: if opsISamtal(sid);
         allow write: if false;
+      }`
+    : "";
+  const fastblock = fasta
+    ? `
+
+      // Fästa meddelanden (chattens nattskiva): nyckeln är meddelandets id. Samtalets personer lossar, ingen uppdaterar.
+      match /${fasta}/{mid} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && request.resource.data.keys().hasOnly([${lista(FASTFALT)}])
+          && request.resource.data.av == request.auth.uid
+          && opsNu(request.resource.data.tid)
+          && exists(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(mid));
+        allow delete: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');
+        allow update: if false;
       }`
     : "";
   const tradreaktioner = reaktioner && tradar
@@ -1014,7 +1035,7 @@ ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}    // Ett
           && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
           && request.resource.data.lastTill is int;
         allow delete: if false;
-      }${tradblock}${statusblock}${reaktionsblock}
+      }${tradblock}${statusblock}${reaktionsblock}${fastblock}
     }
 `;
 }

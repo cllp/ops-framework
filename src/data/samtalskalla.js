@@ -1,6 +1,6 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
-import { AGENTSTATUS_ID, REAKTIONSTAK, arNamnd, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -36,15 +36,17 @@ import { AGENTSTATUS_ID, REAKTIONSTAK, arNamnd, byggMeddelande, byggReaktion, by
  *   kastar `skicka` på ett `namner`, och vyn har ingen @-lista. Samma som till `samtalsregelfragment({ omnamnanden: true })`.
  * @param {boolean} [konfig.citat] (chattens nattskiva) `true` slår på `svarPa` på samtalets meddelanden (svar med citat i privata
  *   samtal). ⛔ INGET FÖRVAL. Samma som till `samtalsregelfragment({ citat: true })`.
+ * @param {string} [konfig.fasta] (chattens nattskiva) Samlingsnamnet för fästa meddelanden, `<samtal>/{sid}/<fasta>/{mid}`. ⛔ INGET
+ *   FÖRVAL. Samma namn som till `samtalsregelfragment({ fasta })`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner }).filter(([, v]) => v !== undefined));
+  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner, fasta }).filter(([, v]) => v !== undefined));
   for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...frivilliga })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
@@ -52,7 +54,7 @@ export function createSamtalskalla(konfig) {
   }
   // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
   // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
-  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner }, "createSamtalskalla");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta }, "createSamtalskalla");
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
 
@@ -511,6 +513,40 @@ export function createSamtalskalla(konfig) {
 
   const reaktionsfunktioner = reaktioner === undefined ? {} : { reaktioner, lasReaktioner, prenumereraReaktioner, reagera, taBortReaktion };
 
+  /*
+   * ══ ⛔ FÄSTA MEDDELANDEN (chattens nattskiva) ═══════════════════════════════════════════════════════════════════════════
+   * Modellen och skälen står i `lib/samtal.js`. En läsning per samtal, de senaste `FASTA_TAK`.
+   */
+  /** @param {string} sid */
+  const fastvag = (sid) => `${samtal}/${sid}/${fasta}`;
+  const fastfraga = /** @type {const} */ ({ sortBy: "tid", direction: "desc", limit: FASTA_TAK });
+
+  /** @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>} */
+  async function lasFasta(sid) {
+    const rader = await kalla.list(fastvag(sid), fastfraga);
+    return { rader, fler: rader.length >= FASTA_TAK };
+  }
+  /**
+   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * @returns {(() => void) | null}
+   */
+  function prenumereraFasta(sid, lyssnare) {
+    if (typeof kalla.subscribe !== "function") return null;
+    return kalla.subscribe(fastvag(sid), fastfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= FASTA_TAK }), onError: lyssnare.onError });
+  }
+  /**
+   * Fäster ett meddelande. Nyckeln är meddelandets id, så en andra fästning är samma dokument (och regeln nekar den).
+   * @param {string} sid @param {{ mid: string, av: string }} d
+   */
+  async function fast(sid, { mid, av }) {
+    return kalla.create(fastvag(sid), { ...byggFastning({ mid, av, tid: klocka() }) });
+  }
+  /** Lossar en fästning. @param {string} sid @param {string} mid */
+  async function lossa(sid, mid) {
+    return kalla.remove(fastvag(sid), mid);
+  }
+  const fastfunktioner = fasta === undefined ? {} : { fasta, lasFasta, prenumereraFasta, fast, lossa };
+
   return Object.freeze({
     lista,
     oppnaGrupp,
@@ -527,6 +563,7 @@ export function createSamtalskalla(konfig) {
     ...tradfunktioner,
     ...statusfunktioner,
     ...reaktionsfunktioner,
+    ...fastfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
     ...(citat === true ? { citat: true } : {}),
   });
@@ -580,6 +617,25 @@ export function harStatus(kalla) {
  */
 export function harReaktioner(kalla) {
   return Boolean(kalla) && typeof (/** @type {any} */ (kalla).reagera) === "function";
+}
+
+/**
+ * @typedef {object} Fastfunktioner (chattens nattskiva) Det en samtalskälla har när appen skickat `fasta`.
+ * @property {string} fasta
+ * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasFasta
+ * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraFasta
+ * @property {(sid: string, d: { mid: string, av: string }) => Promise<any>} fast
+ * @property {(sid: string, mid: string) => Promise<any>} lossa
+ */
+
+/**
+ * Har källan fästa meddelanden, alltså har appen slagit på dem med `fasta`? (chattens nattskiva)
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Fastfunktioner}
+ */
+export function harFasta(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).lossa) === "function";
 }
 
 /**

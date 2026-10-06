@@ -1908,6 +1908,14 @@ avbryter. **Sök i samtalet** (knappen i huvudet, i alla samtal): träffarna bla
 föregående och nästa (Enter bakåt, Skift plus Enter framåt), "Ingen träff bland de laddade meddelandena." vid noll, och när äldre
 finns säger raden hur långt sökningen når. Fulltext över historiken kräver en server och är inte byggd.
 
+**Fästa meddelanden, med nyckeln `fasta`.** `<samtal>/{sid}/<fasta>/{mid}` med `FASTFALT` (`av`, `tid`), byggd med `byggFastning`:
+nyckeln är meddelandets id, så ett meddelande fästs högst en gång, och meddelandet förblir oföränderligt. Regeln: läsa som samtalet;
+fästa en aktiv person som sig själv, ett meddelande i samma samtal; lossa vem som helst av samtalets aktiva personer (en fästning är
+samtalets, bedömning ur analysen); aldrig uppdatera. Källan: `lasFasta`, `prenumereraFasta` (de senaste `FASTA_TAK`), `fast` och
+`lossa`, bara när `harFasta(kalla)`. Vyn: Fäst eller Lossa vid varje meddelande (`aria-pressed`), och raden "2 fästa" under
+samtalets huvud som fälls ut till de fästa, härledda ur meddelandena (lästa en gång när de inte är laddade), med Lossa. Fel och tak
+står utskrivna.
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.

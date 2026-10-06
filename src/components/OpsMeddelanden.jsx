@@ -4,7 +4,7 @@ import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harCitat, harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
+import { harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -13,7 +13,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { AgentIkon, AndraIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, FastIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -136,6 +136,12 @@ import { AgentIkon, AndraIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, Che
  * @property {string} [forraTraff] Förval "Föregående träff".
  * @property {string} [ingenTraffLaddade] Förval "Ingen träff bland de laddade meddelandena.".
  * @property {string} [sokOmfang] Hur långt sökningen når. `{n}` byts mot antalet. Förval "Söker bland de {n} laddade meddelandena. Visa äldre för att söka längre bak.".
+ * @property {string} [fast] (chattens nattskiva) Förval "Fäst".
+ * @property {string} [lossa] Förval "Lossa".
+ * @property {string} [fastaRubrik] `{n}` byts mot antalet. Förval "{n} fästa".
+ * @property {string} [fastaFel] Förval "Fästa meddelanden kunde inte hämtas.".
+ * @property {string} [fastFel] Förval "Fästningen kunde inte sparas.".
+ * @property {string} [fastaFler] Förval "Äldre fästningar visas inte.".
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
@@ -198,6 +204,12 @@ const TEXTER = {
   reaktionerFel: "Reaktionerna kunde inte hämtas.",
   reaktionerFler: "Äldre reaktioner visas inte.",
   reaktionsnamn: {},
+  fast: "Fäst",
+  lossa: "Lossa",
+  fastaRubrik: "{n} fästa",
+  fastaFel: "Fästa meddelanden kunde inte hämtas.",
+  fastFel: "Fästningen kunde inte sparas.",
+  fastaFler: "Äldre fästningar visas inte.",
   citera: "Svara med citat",
   svararPa: "Svarar på",
   avbrytCitat: "Avbryt citatet",
@@ -997,6 +1009,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const [svarPa, setSvarPa] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null} */ (null));
   const citatuppslag = useCitatuppslag(medCitat || alla.some((m) => m.svarPa) ? kalla : null, samtal.id, alla);
   const sok = useSokISamtal(alla, loggRef);
+  const fasta = useFasta(harFasta(kalla) ? kalla : null, samtal.id, uid);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
 
@@ -1090,6 +1103,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         </button>
       </header>
       {sok.oppen ? <Sokrad sok={sok} antal={alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
+      <Fastarad fasta={fasta} kalla={kalla} sid={samtal.id} laddade={alla} uid={uid} namnFor={namnFor} texter={t} />
 
       <div ref={loggRef} role="log" aria-label={rubrik} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
@@ -1120,6 +1134,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           texter={t}
           citat={{ pa: medCitat, onCitera: (m) => setSvarPa(m), uppslag: citatuppslag }}
           traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null}
+          fasta={fasta.pa ? fasta : null}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -1298,8 +1313,9 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {{ pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void, uppslag: Map<string, (import("../lib/samtal.js").Meddelande & { id: string }) | null> }} [props.citat]
  *   (chattens nattskiva) Citaten: knappen när `pa`, och det citerade meddelandet ur `uppslag` (`null`: går inte att läsa).
  * @param {{ ids: ReadonlySet<string>, aktuell: string | null } | null} [props.traffar] Sökningens träffar i samtalet.
+ * @param {ReturnType<typeof useFasta> | null} [props.fasta] Fästningarna, i samtalet (inte i en tråd).
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -1355,6 +1371,21 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                   <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
                   {extra}
                   {reakt?.pa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
+                  {fasta ? (
+                    <button
+                      type="button"
+                      data-fast={m.id}
+                      aria-label={fasta.ids.has(m.id) ? texter.lossa : texter.fast}
+                      aria-pressed={fasta.ids.has(m.id)}
+                      onClick={() => fasta.vaxla(m.id)}
+                      className={cx(
+                        "-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+                        fasta.ids.has(m.id) ? "text-accent" : "text-ink-muted hover:text-ink md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100",
+                      )}
+                    >
+                      <FastIkon size={16} />
+                    </button>
+                  ) : null}
                   {citat?.pa ? (
                     <button
                       type="button"
@@ -2020,26 +2051,38 @@ function Citat({ mid, uppslag, egen, uid, namnFor, texter: t }) {
 }
 
 /**
- * De citerade meddelandena: de som redan är laddade, och de andra lästa en gång var (`kalla.meddelande`). `null`: finns inte.
+ * Meddelanden som ska ritas på annat ställe än i loggen (citat, fästa): de som redan är laddade, och de andra lästa en gång var
+ * (`kalla.meddelande`). `null`: finns inte, eller kunde inte läsas. Utan källa: bara de laddade.
  * @param {ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> | null} kalla
  * @param {string} sid @param {ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }>} alla
+ * @param {ReadonlyArray<string>} onskade
  */
-function useCitatuppslag(kalla, sid, alla) {
+function useMeddelandeuppslag(kalla, sid, alla, onskade) {
   const [lasta, setLasta] = useState(/** @type {Map<string, (import("../lib/samtal.js").Meddelande & { id: string }) | null>} */ (new Map()));
   const begarda = useRef(/** @type {Set<string>} */ (new Set()));
   const laddade = useMemo(() => new Map(alla.map((m) => [m.id, m])), [alla]);
+  const nyckel = [...new Set(onskade)].sort().join("|");
   useEffect(() => {
-    if (!kalla) return;
-    const saknas = [...new Set(alla.map((m) => m.svarPa).filter((x) => typeof x === "string" && !laddade.has(x) && !begarda.current.has(x)))];
-    for (const mid of /** @type {string[]} */ (saknas)) {
+    if (!kalla || !nyckel) return;
+    for (const mid of nyckel.split("|")) {
+      if (laddade.has(mid) || begarda.current.has(mid)) continue;
       begarda.current.add(mid);
       kalla.meddelande(sid, mid).then(
         (m) => setLasta((f) => new Map(f).set(mid, m ? { ...m, id: mid } : null)),
         () => setLasta((f) => new Map(f).set(mid, null)),
       );
     }
-  }, [kalla, sid, alla, laddade]);
+  }, [kalla, sid, nyckel, laddade]);
   return useMemo(() => new Map([...lasta, ...laddade]), [lasta, laddade]);
+}
+
+/**
+ * De citerade meddelandena i loggen.
+ * @param {ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> | null} kalla
+ * @param {string} sid @param {ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }>} alla
+ */
+function useCitatuppslag(kalla, sid, alla) {
+  return useMeddelandeuppslag(kalla, sid, alla, /** @type {string[]} */ (alla.map((m) => m.svarPa).filter((x) => typeof x === "string")));
 }
 
 /**
@@ -2144,6 +2187,116 @@ function Sokrad({ sok, antal, kanFinnasAldre, texter: t }) {
           {t.sokOmfang.replace("{n}", String(antal))}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Fästningarna i ett samtal (chattens nattskiva): en lyssnare eller en läsning, och växlingen.
+ * @param {(ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> & import("../data/samtalskalla.js").Fastfunktioner) | null} kalla
+ * @param {string} sid @param {string} uid
+ */
+function useFasta(kalla, sid, uid) {
+  const [lage, setLage] = useState(/** @type {{ rader: any[], fler: boolean, fel: Error | null, skrivfel: Error | null }} */ ({ rader: [], fler: false, fel: null, skrivfel: null }));
+  const lyssnar = useRef(false);
+  const lasIn = async () => {
+    if (!kalla) return;
+    try {
+      const svar = await kalla.lasFasta(sid);
+      setLage((l) => ({ ...l, rader: svar.rader, fler: svar.fler, fel: null }));
+    } catch (e) {
+      setLage((l) => ({ ...l, fel: e instanceof Error ? e : new Error(String(e)) }));
+    }
+  };
+  useEffect(() => {
+    if (!kalla) return undefined;
+    let levande = true;
+    const stang = kalla.prenumereraFasta(sid, { onData: (svar) => levande && setLage((l) => ({ ...l, rader: svar.rader, fler: svar.fler, fel: null })), onError: (e) => levande && setLage((l) => ({ ...l, fel: e })) });
+    lyssnar.current = Boolean(stang);
+    if (!stang) lasIn();
+    return () => {
+      levande = false;
+      stang?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kalla, sid]);
+  const ids = useMemo(() => new Set(lage.rader.map((r) => r.id)), [lage.rader]);
+  /** @param {string} mid */
+  const vaxla = async (mid) => {
+    if (!kalla) return;
+    try {
+      if (ids.has(mid)) await kalla.lossa(sid, mid);
+      else await kalla.fast(sid, { mid, av: uid });
+      setLage((l) => ({ ...l, skrivfel: null }));
+      if (!lyssnar.current) await lasIn();
+    } catch (e) {
+      setLage((l) => ({ ...l, skrivfel: e instanceof Error ? e : new Error(String(e)) }));
+    }
+  };
+  return { pa: Boolean(kalla), rader: lage.rader, ids, fler: lage.fler, fel: lage.fel, skrivfel: lage.skrivfel, vaxla };
+}
+
+/**
+ * Raden med fästa meddelanden under samtalets huvud: "2 fästa", som fälls ut till en lista med namn, utdrag och Lossa.
+ *
+ * ⛔ DET FÄSTA MEDDELANDET HÄRLEDS, DET KOPIERAS INTE: ur de laddade, annars läst en gång (`kalla.meddelande`). Ett som inte går att
+ * läsa sägs ut. Fel och tak står utskrivna (regel 5). Finns inga fästa och inget fel ritas ingen rad: tomheten är då inte en rubrik
+ * utan ett samtal utan fästningar, och knappen vid varje meddelande säger hur man fäster.
+ *
+ * @param {{ fasta: ReturnType<typeof useFasta>, kalla: ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>, sid: string, laddade: ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }>, uid: string, namnFor: (uid: string) => string, texter: Required<Meddelandetexter> }} props
+ */
+function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
+  const [oppen, setOppen] = useState(false);
+  const listId = useId();
+  const uppslag = useMeddelandeuppslag(fasta.pa ? kalla : null, sid, laddade, fasta.rader.map((r) => r.id));
+  if (!fasta.pa || (fasta.rader.length === 0 && !fasta.fel && !fasta.skrivfel)) return null;
+  return (
+    <div data-fastarad="" className="shrink-0 border-b border-line px-3 py-1">
+      {fasta.fel ? <p role="alert" data-fastafel="lasa" className="m-0 py-1 text-liten text-danger">{t.fastaFel}</p> : null}
+      {fasta.skrivfel ? <p role="alert" data-fastafel="skriva" className="m-0 py-1 text-liten text-danger">{t.fastFel}</p> : null}
+      {fasta.rader.length > 0 ? (
+        <button
+          type="button"
+          data-fasta-knapp=""
+          aria-expanded={oppen}
+          aria-controls={oppen ? listId : undefined}
+          onClick={() => setOppen((o) => !o)}
+          className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-base px-1 text-meta font-medium text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          <FastIkon size={14} />
+          <span>{t.fastaRubrik.replace("{n}", String(fasta.rader.length))}</span>
+          <span className={cx("inline-flex transition-transform", oppen ? "rotate-180" : "")}>
+            <ChevronNedIkon size={14} />
+          </span>
+        </button>
+      ) : null}
+      {oppen ? (
+        <ul id={listId} className="m-0 flex max-h-48 list-none flex-col overflow-y-auto p-0">
+          {fasta.rader.map((r) => {
+            const m = uppslag.get(r.id);
+            return (
+              <li key={r.id} data-fastad={r.id} className="flex items-center gap-2 border-t border-line first:border-t-0">
+                <span className="min-w-0 flex-1 truncate py-2 text-meta text-ink-secondary">
+                  {m === undefined ? "…" : m === null ? t.citatSaknas : (
+                    <>
+                      <span className="font-medium text-ink">{m.av === uid ? t.du : namnFor(m.av)}</span>: {utdrag(m.text, 80)}
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`${t.lossa}: ${m ? utdrag(m.text, 40) : r.id}`}
+                  onClick={() => fasta.vaxla(r.id)}
+                  className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-base px-2 text-meta text-ink-secondary hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  {t.lossa}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {fasta.fler ? <p role="status" className="m-0 py-1 text-liten text-ink-muted">{t.fastaFler}</p> : null}
     </div>
   );
 }
