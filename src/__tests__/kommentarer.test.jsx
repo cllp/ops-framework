@@ -6,7 +6,7 @@ import { OpsSprakProvider } from "../components/OpsSprak.jsx";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { createMemorySource } from "../data/adapters.js";
 import { createKommentarkalla } from "../data/kalenderkalla.js";
-import { byggKommentar, kommentarsrader, MAX_HANDELSEKOMMENTAR } from "../lib/handelsemodell.js";
+import { byggKommentar, KOMMENTARBILAGA_TYPER, kommentarbilagaFel, kommentarsrader, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA } from "../lib/handelsemodell.js";
 import { handelseregelfragment } from "../lib/regler.js";
 
 /**
@@ -203,5 +203,96 @@ describe("OpsKommentarsrad och panelens slot", () => {
     unmount();
     render(<OpsHandelsePanel handelse={{ id: "h1", titel: "Höstfest", datum: "2026-10-12" }} onTillbaka={() => {}} statusWords={{}} />);
     expect(document.querySelector("[data-handelsekommentarer]")).toBeNull();
+  });
+});
+
+/*
+ * ══ ⛔ BILD OCH FIL I KOMMENTARER (0.71.0, cllp/bolag-ops#570) ═══════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-06: "Vill kunna klistra in bild i kommentar." Regelproven (icke-medlem nekas, för stor fil och fel typ nekas i
+ * regeln) ligger i `rules/__tests__/handelsekommentarer.test.mjs`. Här: modellen, filväljarens avslag och inklistringen.
+ */
+const PNG = "data:image/png;base64,iVBORw0KGgo=";
+const bild = (extra = {}) => ({ dataUrl: PNG, namn: "skarm.png", typ: "image/png", tecken: PNG.length, ...extra });
+
+/** Klistrar in filer på dokumentet, som Cmd+V gör med en skärmbild i urklippet. */
+const klistraIn = (/** @type {File[]} */ filer) => {
+  const e = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(e, "clipboardData", { value: { files: filer } });
+  document.dispatchEvent(e);
+};
+
+describe("kommentarens bilaga: modellen", () => {
+  it("med en bilaga får texten vara tom, och bilagan följer med i inkorgens form", () => {
+    const r = byggKommentar("", { skapare: anna, nu: () => "2026-10-06T10:00:00.000Z", bilaga: bild() });
+    expect(r).toEqual({ text: "", skapad: "2026-10-06T10:00:00.000Z", skapadAv: anna, bilaga: bild() });
+  });
+  it("⛔ fel typ, för stor, innehåll som inte är typen och okända fält kastar med ett besked", () => {
+    expect(() => byggKommentar("", { skapare: anna, bilaga: bild({ typ: "image/svg+xml", dataUrl: "data:image/svg+xml;base64,PHN2Zz4=", tecken: 26 }) })).toThrow(/går inte att bifoga/);
+    const stor = "data:application/pdf;base64," + "A".repeat(MAX_KOMMENTARBILAGA);
+    expect(() => byggKommentar("Hej", { skapare: anna, bilaga: { dataUrl: stor, namn: "a.pdf", typ: "application/pdf", tecken: stor.length } })).toThrow(/för stor/);
+    expect(kommentarbilagaFel(bild({ typ: "application/pdf" }))).toMatch(/stämmer inte med dess typ/);
+    expect(kommentarbilagaFel(bild({ url: "https://x" }))).toMatch(/url/);
+    expect(kommentarbilagaFel(bild({ tecken: 1 }))).toMatch(/storlek/);
+    expect(kommentarbilagaFel(bild())).toBeNull();
+  });
+  it("regeln bär samma typer och samma tak som modellen", () => {
+    const r = handelseregelfragment();
+    expect(KOMMENTARBILAGA_TYPER.length).toBeGreaterThanOrEqual(5);
+    for (const t of KOMMENTARBILAGA_TYPER) expect(r).toContain(`"${t}"`);
+    expect(r).toContain(`bilaga.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}`);
+    expect(r).not.toContain("svg");
+  });
+});
+
+describe("OpsKommentarer med bilagor", () => {
+  it("⛔ utan bilagor finns ingen filväljare, och en befintlig bilaga visas ändå", () => {
+    render(<OpsKommentarer kommentarer={[{ ...k("a1", bo, "2026-10-06T09:00:00.000Z", ""), bilaga: bild() }]} uid="anna" onSkriv={() => {}} />);
+    expect(screen.queryByLabelText("Bifoga bild eller fil")).toBeNull();
+    expect(screen.getByRole("img", { name: "Bilaga från Bo Lind: skarm.png" })).toBeInTheDocument();
+  });
+
+  it("en fil som inte är en bild visas med sitt namn och laddas ned", () => {
+    const pdf = "data:application/pdf;base64,JVBERi0=";
+    render(<OpsKommentarer kommentarer={[{ ...k("a1", bo, "2026-10-06T09:00:00.000Z", "Utdraget"), bilaga: { dataUrl: pdf, namn: "utdrag.pdf", typ: "application/pdf", tecken: pdf.length } }]} uid="anna" onSkriv={() => {}} />);
+    const lank = screen.getByRole("link", { name: /utdrag\.pdf/ });
+    expect(lank).toHaveAttribute("download", "utdrag.pdf");
+    expect(lank.getAttribute("data-kommentar-bilaga-visad")).toBe("fil");
+  });
+
+  it("inklistring (Cmd+V) ger en bilaga med förhandsvisning, och den skickas med texten", async () => {
+    /** @type {any[]} */
+    const skrivna = [];
+    render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={(t, x) => { skrivna.push([t, x]); }} />);
+    expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
+    klistraIn([new File([new Uint8Array([137, 80, 78, 71])], "skarm.png", { type: "image/png" })]);
+    const forhand = await screen.findByRole("img", { name: "Vald bilaga: skarm.png" });
+    expect(forhand.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
+    // ⛔ Bara bilagan räcker: Skicka går att trycka utan text.
+    expect(screen.getByRole("button", { name: "Skicka" })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await waitFor(() => expect(skrivna).toHaveLength(1));
+    const [text, { bilaga }] = skrivna[0];
+    expect(text).toBe("");
+    expect(bilaga).toMatchObject({ namn: "skarm.png", typ: "image/png" });
+    expect(kommentarbilagaFel(bilaga)).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("img", { name: /Vald bilaga/ })).toBeNull());
+  });
+
+  it("⛔ fel typ nekas i klienten med besked, och ingen bilaga skickas", async () => {
+    const onSkriv = vi.fn();
+    render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={onSkriv} />);
+    klistraIn([new File(["MZ"], "program.exe", { type: "application/x-msdownload" })]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Filtypen "application\/x-msdownload" går inte att bifoga/);
+    expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
+    expect(onSkriv).not.toHaveBeenCalled();
+  });
+
+  it("⛔ för stor fil nekas i klienten innan den läses", async () => {
+    render(<OpsKommentarer bilagor kommentarer={[]} uid="anna" onSkriv={() => {}} />);
+    const stor = new File([new Uint8Array(Math.ceil(MAX_KOMMENTARBILAGA / 1.4) + 1024)], "stor.pdf", { type: "application/pdf" });
+    klistraIn([stor]);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/för stor/);
+    expect(screen.getByRole("button", { name: "Skicka" })).toBeDisabled();
   });
 });

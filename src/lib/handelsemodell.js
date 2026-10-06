@@ -249,6 +249,61 @@ export const KOMMENTARFALT = /** @type {const} */ (["text", "skapad", "skapadAv"
  */
 export const MAX_HANDELSEKOMMENTAR = 5000;
 
+/*
+ * ══ ⛔ EN BILAGA PÅ EN KOMMENTAR (0.71.0, cllp/bolag-ops#570) ═════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-06, inkorgspost `D7P0tLlRj3EKcoptFcF1`: "Kommentarer behöver ha bilder elelr filer också."
+ *
+ * ⛔ SAMMA FORM SOM INKORGENS OCH HÄNDELSENS `bilaga`, INTE EN ANDRA MODELL: `{ dataUrl, namn, typ, tecken, bredd?, hojd? }`, den
+ * form `readAttachment` ger. Bilagan ligger i kommentarens eget dokument. Då läser exakt de som läser kommentaren bilagan (gruppens
+ * aktiva medlemmar, regeln ovanför), och en kommentar och dess bilaga skrivs i EN skrivning som lyckas eller inte. En fil i en
+ * fillagring hade krävt en andra regeluppsättning för samma läsbehörighet, och en föräldralös fil när den andra skrivningen föll.
+ *
+ * ⛔ TYPERNA ÄR EN LISTA OCH INTE `image/*`. SVG är en bild som bär skript, och en okänd typ går inte att visa eller lita på.
+ * Bilder krymps till `image/jpeg` av `readAttachment`, så en PNG eller en HEIC som webbläsaren kan läsa landar som JPEG. Listan och
+ * taket står både här och i den genererade regeln (`handelseregelfragment`), ur samma konstanter.
+ */
+/** MIME-typerna en kommentarsbilaga får ha. Utan regextecken, eftersom regeln bygger sitt mönster ur typen. */
+export const KOMMENTARBILAGA_TYPER = /** @type {const} */ (["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "text/plain", "text/csv"]);
+
+/**
+ * Tak för bilagans data-URL i tecken. Ett Firestore-dokument tar 1 MiB, och 700 000 tecken plus en text på 5 000 ryms med marginal.
+ * Samma tal som inkorgens `MAX_ATTACHMENT_CHARS` i lifehub.app.
+ */
+export const MAX_KOMMENTARBILAGA = 700000;
+
+/** Tak för filnamnet. Ett namn längre än så är inte ett namn någon läser, och regeln behöver ett tal. */
+export const MAX_BILAGENAMN = 200;
+
+/** Bilagans fält, exakt. De fyra första krävs, bredd och höjd bara för en bild som gick att läsa. */
+export const KOMMENTARBILAGAFALT = /** @type {const} */ (["dataUrl", "namn", "typ", "tecken", "bredd", "hojd"]);
+const KOMMENTARBILAGA_KRAV = KOMMENTARBILAGAFALT.slice(0, 4);
+
+/**
+ * Varför en bilaga inte får följa med en kommentar, eller `null` när den får. Samma prövning som regeln, med ett besked som
+ * säger vad man ska göra i stället för "Missing or insufficient permissions".
+ *
+ * @param {unknown} bilaga
+ * @returns {string | null}
+ */
+export function kommentarbilagaFel(bilaga) {
+  if (!bilaga || typeof bilaga !== "object" || Array.isArray(bilaga)) return "bilagan är inte en bilaga.";
+  const b = /** @type {Record<string, unknown>} */ (bilaga);
+  const okanda = Object.keys(b).filter((k) => !(/** @type {readonly string[]} */ (KOMMENTARBILAGAFALT)).includes(k));
+  if (okanda.length) return `bilagan bär fälten ${okanda.join(", ")}, som inte hör till en bilaga.`;
+  const saknas = KOMMENTARBILAGA_KRAV.filter((k) => !(k in b));
+  if (saknas.length) return `bilagan saknar ${saknas.join(", ")}.`;
+  if (typeof b.typ !== "string" || !(/** @type {readonly string[]} */ (KOMMENTARBILAGA_TYPER)).includes(b.typ)) {
+    return `filtypen ${b.typ ? `"${b.typ}"` : "saknas och"} går inte att bifoga. Tillåtna: bilder (JPEG, PNG, WebP, GIF), PDF, text och CSV.`;
+  }
+  if (typeof b.dataUrl !== "string" || !b.dataUrl.startsWith(`data:${b.typ};base64,`)) return "bilagans innehåll stämmer inte med dess typ.";
+  if (b.dataUrl.length > MAX_KOMMENTARBILAGA) return `filen är för stor (${b.dataUrl.length} tecken, taket är ${MAX_KOMMENTARBILAGA}).`;
+  if (b.tecken !== b.dataUrl.length) return "bilagans storlek stämmer inte med dess innehåll.";
+  if (typeof b.namn !== "string" || !b.namn || b.namn.length > MAX_BILAGENAMN) return `bilagans namn ska vara 1 till ${MAX_BILAGENAMN} tecken.`;
+  for (const k of ["bredd", "hojd"]) if (k in b && typeof b[k] !== "number") return `bilagans ${k} är inget tal.`;
+  return null;
+}
+
 /** Fälten på ett läsmärke, exakt: när personen senast läste trådens kommentarer, ISO-tid. */
 export const LASMARKESFALT = /** @type {const} */ (["lastTill"]);
 
@@ -263,19 +318,24 @@ const ISOFORM = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
  * ⛔ UTAN `uid` PÅ SKAPAREN KASTAR DEN. Regeln kräver `skapadAv.uid == request.auth.uid`, och en kommentar utan uid hade nekats
  * utan att säga varför.
  *
+ * ⛔ MED EN BILAGA FÅR TEXTEN VARA TOM (0.71.0, #570): en skärmbild är ett fullgott inlägg i en tråd. Utan bilaga kastar en tom text
+ * som förut. Fältet `text` står alltid med, också tomt, så att regelns fältlista är densamma med och utan bilaga.
+ *
  * @param {unknown} text
- * @param {{ skapare: { uid?: string | null, namn?: string, typ?: string, kalla?: string }, nu?: () => string }} arg
- * @returns {{ text: string, skapad: string, skapadAv: import("./skapare.js").Skapare }}
+ * @param {{ skapare: { uid?: string | null, namn?: string, typ?: string, kalla?: string }, nu?: () => string, bilaga?: import("./file.js").Bilaga | null }} arg
+ * @returns {{ text: string, skapad: string, skapadAv: import("./skapare.js").Skapare, bilaga?: import("./file.js").Bilaga }}
  */
-export function byggKommentar(text, { skapare, nu = () => new Date().toISOString() } = /** @type {any} */ ({})) {
+export function byggKommentar(text, { skapare, nu = () => new Date().toISOString(), bilaga = null } = /** @type {any} */ ({})) {
   const t = typeof text === "string" ? text.trim() : "";
-  if (!t) throw new Error("byggKommentar: kommentaren är tom.");
+  if (!t && !bilaga) throw new Error("byggKommentar: kommentaren är tom.");
   if (t.length > MAX_HANDELSEKOMMENTAR) throw new Error(`byggKommentar: kommentaren är ${t.length} tecken, taket är ${MAX_HANDELSEKOMMENTAR}.`);
+  const bilagefel = bilaga ? kommentarbilagaFel(bilaga) : null;
+  if (bilagefel) throw new Error(`byggKommentar: ${bilagefel}`);
   const av = byggSkapare(skapare ?? {});
   if (!av.uid) throw new Error("byggKommentar: skapare.uid krävs. Regeln släpper bara in en kommentar i den inloggades namn.");
   const skapad = nu();
   if (!ISOFORM.test(skapad)) throw new Error(`byggKommentar: skapad "${skapad}" är ingen ISO-tid.`);
-  return { text: t, skapad, skapadAv: av };
+  return { text: t, skapad, skapadAv: av, ...(bilaga ? { bilaga: { ...bilaga } } : {}) };
 }
 
 /**

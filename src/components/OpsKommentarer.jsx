@@ -1,11 +1,14 @@
 import { useContext, useId, useState } from "react";
-import { MAX_HANDELSEKOMMENTAR } from "../lib/handelsemodell.js";
+import { attachmentSize, isImage } from "../lib/file.js";
+import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA } from "../lib/handelsemodell.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
 import { handelseIdUrAdress } from "../lib/handelsepanel.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
+import { OpsFilePicker } from "./OpsFilePicker.jsx";
+import { FilIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
@@ -28,10 +31,22 @@ import { usePersonnamn } from "./usePersonnamn.js";
  *
  * ⛔ ETT FEL STÅR UTSKRIVET OCH TEXTEN BLIR KVAR. En kommentar som inte gick fram och försvinner ur rutan är skriven förgäves.
  *
+ * ══ ⛔ BILD OCH FIL (0.71.0, cllp/bolag-ops#570) ═══════════════════════════════════════════════════════════════════════════
+ *
+ * CP 2026-10-06: "Vill kunna klistra in bild i kommentar. Kommentarer behöver ha bilder elelr filer också." Med `bilagor` står
+ * `OpsFilePicker` under skrivrutan: Välj fil, inklistring (Cmd+V) var som helst på sidan, och en förhandsvisning före sändning,
+ * en miniatyr för en bild och namnet för allt annat. Taket och typerna är modellens (`MAX_KOMMENTARBILAGA`,
+ * `KOMMENTARBILAGA_TYPER`), samma konstanter som regeln är byggd av. `onSkriv` får `(text, { bilaga })`, och med en bilaga får
+ * texten vara tom.
+ *
+ * ⛔ AV SOM FÖRVAL. En app vars utrullade regel inte känner fältet hade fått varje kommentar med bilaga nekad, så appen slår på
+ * det när regeln från 0.71.0 är utrullad. Bilagor som redan finns på en kommentar visas alltid.
+ *
  * @param {object} props
  * @param {ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } }>} props.kommentarer
  * @param {string} props.uid Den som tittar.
- * @param {(text: string) => Promise<unknown> | void} props.onSkriv
+ * @param {(text: string, extra: { bilaga: import("../lib/file.js").Bilaga | null }) => Promise<unknown> | void} props.onSkriv
+ * @param {boolean} [props.bilagor] (0.71.0) Visa filväljaren. Av som förval, se ovan.
  * @param {(id: string) => Promise<unknown> | void} [props.onTaBort]
  * @param {boolean} [props.laddar]
  * @param {Error | string | null} [props.fel] Läsningen föll. Skrivs ut med texten.
@@ -46,6 +61,8 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {string} [props.skrivfelText]
  * @param {string} [props.taBortFelText]
  * @param {string} [props.duText]
+ * @param {string} [props.bifogaEtikett]
+ * @param {string} [props.bilagaText]
  */
 export function OpsKommentarer(props) {
   const kontext = useOpsSprak();
@@ -59,6 +76,7 @@ function OpsKommentarerRitad({
   uid,
   onSkriv,
   onTaBort,
+  bilagor = false,
   laddar = false,
   fel = null,
   sprak,
@@ -72,26 +90,31 @@ function OpsKommentarerRitad({
   skrivfelText = ORD_OPSKOMMENTARER.skrivfelText.sv,
   taBortFelText = ORD_OPSKOMMENTARER.taBortFelText.sv,
   duText = ORD_OPSKOMMENTARER.duText.sv,
+  bifogaEtikett = ORD_OPSKOMMENTARER.bifogaEtikett.sv,
+  bilagaText = ORD_OPSKOMMENTARER.bilagaText.sv,
 }) {
   if (typeof onSkriv !== "function") throw new Error("OpsKommentarer: onSkriv krävs. En tråd utan skrivruta är en lista, och den heter inte kommentarer.");
   if (onTaBort !== undefined && typeof onTaBort !== "function") throw new Error("OpsKommentarer: onTaBort måste vara en funktion, eller utelämnas.");
   const personnamn = usePersonnamn();
   const rubrikId = useId();
   const [utkast, setUtkast] = useState("");
+  const [bilaga, setBilaga] = useState(/** @type {import("../lib/file.js").Bilaga | null} */ (null));
   const [skriver, setSkriver] = useState(false);
   const [skrivfel, setSkrivfel] = useState(/** @type {string | null} */ (null));
   const [tarBort, setTarBort] = useState(/** @type {string | null} */ (null));
   const [taBortFel, setTaBortFel] = useState(/** @type {string | null} */ (null));
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const rensad = utkast.trim();
+  const kanSkicka = Boolean(rensad || bilaga);
 
   const skicka = async () => {
-    if (!rensad || skriver) return;
+    if (!kanSkicka || skriver) return;
     setSkrivfel(null);
     setSkriver(true);
     try {
-      await onSkriv(rensad);
+      await onSkriv(rensad, { bilaga });
       setUtkast("");
+      setBilaga(null);
     } catch (e) {
       setSkrivfel(`${skrivfelText}: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -145,10 +168,11 @@ function OpsKommentarerRitad({
                     </span>
                     <span className="text-meta text-ink-muted">{formatDagOchKlockslag(k.skapad, { locale })}</span>
                   </div>
-                  <p className="m-0 whitespace-pre-wrap break-words text-brod text-ink">{k.text}</p>
+                  {k.text ? <p className="m-0 whitespace-pre-wrap break-words text-brod text-ink">{k.text}</p> : null}
+                  {k.bilaga?.dataUrl ? <Kommentarbilaga bilaga={k.bilaga} namn={namn} bilagaText={bilagaText} /> : null}
                 </div>
                 {min && onTaBort ? (
-                  <OpsButton variant="ghost" size="sm" busy={tarBort === k.id} disabled={tarBort !== null} ariaLabel={`${taBortEtikett}, ${k.text.slice(0, 40)}`} onClick={() => taBort(k.id)}>
+                  <OpsButton variant="ghost" size="sm" busy={tarBort === k.id} disabled={tarBort !== null} ariaLabel={`${taBortEtikett}, ${(k.text || k.bilaga?.namn || "").slice(0, 40)}`} onClick={() => taBort(k.id)}>
                     {taBortEtikett}
                   </OpsButton>
                 ) : null}
@@ -165,8 +189,20 @@ function OpsKommentarerRitad({
       <OpsField label={skrivEtikett} error={skrivfel ?? undefined}>
         <OpsTextarea value={utkast} onChange={setUtkast} rows={3} maxLength={MAX_HANDELSEKOMMENTAR} disabled={skriver} onSend={skicka} />
       </OpsField>
+      {bilagor ? (
+        <div data-kommentar-bilaga="">
+          <OpsFilePicker
+            value={bilaga}
+            onChange={setBilaga}
+            maxChars={MAX_KOMMENTARBILAGA}
+            typer={KOMMENTARBILAGA_TYPER}
+            accept={KOMMENTARBILAGA_TYPER.join(",")}
+            ariaLabel={bifogaEtikett}
+          />
+        </div>
+      ) : null}
       <div className="flex justify-end">
-        <OpsButton variant="primary" busy={skriver} disabled={!rensad || skriver} onClick={skicka}>
+        <OpsButton variant="primary" busy={skriver} disabled={!kanSkicka || skriver} onClick={skicka}>
           {skickaEtikett}
         </OpsButton>
       </div>
@@ -186,7 +222,40 @@ export const ORD_OPSKOMMENTARER = {
   skrivfelText: { sv: "Kommentaren sparades inte", en: "The comment was not saved" },
   taBortFelText: { sv: "Kommentaren togs inte bort", en: "The comment was not deleted" },
   duText: { sv: "du", en: "you" },
+  bifogaEtikett: { sv: "Bifoga bild eller fil", en: "Attach image or file" },
+  bilagaText: { sv: "Bilaga från", en: "Attachment from" },
 };
+
+/**
+ * En bilaga på en kommentar: bilden som en miniatyr som öppnas i full storlek, en fil som en nedladdningslänk med namn och storlek.
+ *
+ * ⛔ INGEN `<iframe>` FÖR EN PDF, av samma skäl som i `OpsFilePicker`: den ritas olika i varje webbläsare, och en tom ruta ser ut
+ * som att filen inte kom fram.
+ *
+ * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string }} props
+ */
+function Kommentarbilaga({ bilaga, namn, bilagaText }) {
+  const storlek = bilaga.tecken ? attachmentSize(bilaga.tecken) : "";
+  if (isImage(bilaga.typ)) {
+    return (
+      <a href={bilaga.dataUrl} download={bilaga.namn || "bild"} data-kommentar-bilaga-visad="bild" className="block w-fit">
+        <img src={bilaga.dataUrl} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} className="block max-h-40 max-w-full rounded-md border border-line" />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={bilaga.dataUrl}
+      download={bilaga.namn || "bilaga"}
+      data-kommentar-bilaga-visad="fil"
+      className="flex w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint"
+    >
+      <FilIkon />
+      <span className="min-w-0 truncate">{bilaga.namn}</span>
+      {storlek ? <span className="shrink-0 text-ink-muted">{storlek}</span> : null}
+    </a>
+  );
+}
 
 /**
  * En rad i inkorgen för en händelse med nya kommentarer från någon annan (0.48.0). Raderna räknas fram med `kommentarsrader`,

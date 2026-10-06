@@ -617,7 +617,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
   }, [onClose]);
 
   return (
-    <div data-snabbtitt-plats="" className="flex justify-center px-3 pt-3 lg:px-0 lg:pt-0 lg:pb-2">
+    <div data-snabbtitt-plats="" className="flex justify-center p-3 lg:p-0 lg:pb-2">
     <div
       ref={ref}
       role="dialog"
