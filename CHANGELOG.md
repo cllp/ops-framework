@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.61.0
+
+### Lager och tillgänglighet i dagsrutan (#259 skiva 1)
+
+Händelsen: CP 2026-10-06, med tre skärmbilder ur SessionStudio-appen och en ur SS webb: "Det tog LÅNG tid att få till ikonerna för lager och tillgänglighet särskilt i mobil vy och native med små celler så studera det NOGA", och samma morgon "Allt finns i SessionStudio". Förebilderna ligger i `docs/bilder/259/`, montagen bredvid dem (`montage-393.png`, `montage-393-utsnitt.png`, `montage-1280.png`, gjorda av `gor-montage.mjs`).
+
+#### ⛔ Brytande
+
+- **`dagdekor` är typad: `hornmarken` är borta.** `OpsCalendar dagdekor(dayKey)` ger nu `{ ton?, ram?, borta?: { antal }, lager?: { antal }, narvaro?: { tillgangliga, totalt } }`. Appen skickar bara antalen, och rutan ritar SS:s markeringar själv, med ikonen (`UserX`, `Layers`), räknaren och orden "N borta", "N av N tillgängliga" och "N lager" i knappens namn. Skälet: utseendet ÄR SS-reglerna (fast cirkel, opak yta, kant i ikonens färg, räknaren inne i cirkeln), och en plats där varje app ritade sitt eget innehåll hade låtit varje app göra om SS:s fem varv (#564-#570). En app som skickade `hornmarken` får ingenting ritat: byt till `borta` och `lager`.
+
+#### Tillagt
+
+- **`tillganglighetForDag({ medlemmar, poster, dag, tidszon })` och `bortaAntal(lista)`** (`src/lib/tillganglighet.js`). Vem i gruppen som är borta (något täcker hela dagen i tidszonen) eller upptagen (en tidsatt post skär dagen), sorterat på namn, borta vinner. Heldag har exklusivt slut som `DTEND` i ICS. Härleds, lagras aldrig. ⛔ En post med läget `dold` räknas inte alls och läses inte ens; `orsak` är rubriken bara från `delad` poster. En post som inte går att läsa kastar i stället för att visa personen som tillgänglig. `bortaAntal` räknar borta och upptagna tillsammans, som SS `blockedCount`.
+- **Under 640 px: SS-appens hörnbrickor.** En opak cirkel på 20 px med 1 px kant i ikonens färg (fara för `UserX`, `ink-muted` för `Layers`), ikonen 10 px, ingen skugga. Klustret sitter 4 px utanför rutans övre högra hörn, borta först och lagret alltid 4 px högre (SS `marginTop:-4`, också ensam), 16 px mellan överkanterna med båda. Räknaren inne i cirkeln från 2, `9+` från 10.
+- **Från 640 px: SS webbs rad** (`MonthGrid.jsx:448-536`). `UserX` och `Layers` på 14 px i siffrans rad till höger, i flödet och utan bricka, räknaren direkt efter ikonen, och `N/N` på samma plats när ingen är borta (`dekor.narvaro`).
+- **`dekor.ram`:** lagrets ram, 2 px i identitetsfärgen. Under 640 px täcker den rutans kant (SS-appen `borderWidthForLayer`) utan att ändra rutans storlek, från 640 px 3 px innanför med 70 procents täckning (SS webb `inset-0.5`). Ingen ram på den valda rutan.
+- **`OpsCalendar tillganglighet` och `lager`** (`{ pa, onByt }`): knapparna i verktygsraden, bara när propen finns, med `aria-pressed`. Under 768 px först i raden (tillgänglighet, sök, veckonummer, lager), som SS-appen; från 768 tillgänglighet efter kalenderväljaren, som SS webb, och lager efter veckonumret. Aktiv tillgänglighet är fara-tonad, aktivt lager grått.
+- **Typografirollen `raknare`** (9 px, 700, radhöjd 1), SS webbs `sm:text-[9px] font-bold leading-none`.
+- **`check-skalyta` avsnitt 41**, i 375 och 1280 px: brickans mått, läge, överlapp och räknare (telefon), radens läge, ordning, räknare och `N/N` (bred), siffrans glyfer fria, höjden oförändrad, ramen, dolda poster utan markering och verktygsradens ordning. Varje mätning sedd röd.
+
+#### Ändrat
+
+- **Siffran står på telefon i en ruta på 28 px längst till vänster, inte centrerad.** Kommentaren sade att SS centrerar; SS lägger `dayNumberContainer` först i `dayTopRow` (`flex-start`). Mätt i förebild 3: 5,8 pt vänster om rutans mitt. `check-skalyta` avsnitt 30 krävde en centrerad siffra och kräver nu SS-geometrin.
+
 ## 0.60.0
 
 Tre grenar samlade i en version (#253, #255 och #256), eftersom alla tre gjorde anspråk på 0.60.0 eller 0.61.0.
