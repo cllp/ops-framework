@@ -35,14 +35,14 @@ Händelsen: CP 2026-10-06, överlämning från en annan tråd om att skapa en gr
 
 #### Paketstorlek, mätt före och efter
 
-Mätt med `scripts/build.mjs` och `npm pack --dry-run`, före på `origin/main` (0.62.0), efter på den här grenen:
+Mätt med `scripts/build.mjs` och `npm pack --dry-run`, före på `origin/main` (0.63.0, 9ab058f), efter på den här grenen:
 
-| | 0.62.0 | 0.65.0 | Skillnad |
+| | 0.63.0 | 0.65.0 | Skillnad |
 |---|---|---|---|
-| `dist/index.js` | 926 980 byte | 1 055 979 byte | +129 kB |
-| `dist/index.js` gzip | 232 536 byte | 266 013 byte | +33,5 kB |
-| minifierad och gzip (det en app laddar, React och Radix externa) | 162 254 byte | 192 828 byte | +30,6 kB |
-| tarbollen | 2 616 999 byte | 2 761 721 byte | +145 kB |
+| `dist/index.js` | 933 652 byte | 1 062 111 byte | +128 kB |
+| `dist/index.js` gzip | 234 013 byte | 267 545 byte | +33,5 kB |
+| minifierad och gzip (det en app laddar, React och Radix externa) | 163 259 byte | 193 942 byte | +30,7 kB |
+| tarbollen | 2 640 359 byte | 2 785 721 byte | +145 kB |
 
 Ungefär en fjärdedel av tillväxten är sökorden (26,5 kB okomprimerat), resten är de 203 ikonerna.
 
