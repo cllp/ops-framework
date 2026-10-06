@@ -37,10 +37,8 @@ import { byggSkapare } from "./skapare.js";
 import { byggNamn } from "./sprak.js";
 import { SPRAK } from "./sprak.js";
 import { arGiltigGruppfarg } from "./gruppfarg.js";
-import { GRUPPIKONKATALOG } from "./gruppikonkatalog.generated.js";
+import { PROFILIKONER, PROFILFARGER, GRUPPIKONER, GRUPPINITIALER_FORM, KATALOGNAMN, arGiltigProfilikon } from "./markeformer.js";
 
-/** Katalogens ikonnamn (#265), för att pröva ett sparat namn. */
-const KATALOGNAMN = new Set(GRUPPIKONKATALOG.map((i) => i.namn));
 
 /**
  * Rollerna i en grupp. Tre, och fler kräver en ändring här och i reglerna.
@@ -87,57 +85,12 @@ export const INBJUDNINGSSTATUS = /** @type {const} */ (["vantar", "accepterad", 
 /** Teman en person kan välja. `system` är förvalet och betyder "fråga enheten". */
 export const TEMAN = /** @type {const} */ (["system", "ljust", "morkt"]);
 
-/**
- * Standardikoner för en profilbild UTAN Storage (#164, korrigering C).
- *
- * ⛔ VARFÖR DEN HÄR LISTAN FINNS: CP 2026-09-28, mätt mot en skärmbild av
- * SessionStudios profilvy: "PROFILBILD-sektionen erbjuder 'Välj standardikon'
- * ... Det viktiga: standardikon plus färg kräver INGEN Storage, så
- * profilbilden fungerar i bolag-ops i dag." bolag-ops har ingen Storage-
- * konfiguration ännu (`OpsProfil props.lagring` är valfri av precis det
- * skälet), och en profilbild som KRÄVER uppladdning hade alltså varit
- * oanvändbar där tills den dagen. Ett ikon-id plus ett palett-id är två
- * strängar i `users/{uid}`, inga filer, ingen regel för lagring.
- *
- * ⛔ IKON-ID:N ÄR RAMVERKETS EGNA, INTE LUCIDE-KOMPONENTNAMN. `OpsProfil` slår
- * upp id:t mot `src/lib/profilikoner.js` för att rita SVG:n. Skulle raden bära
- * ett Lucide-namn direkt hade ett byte av ikonbibliotek förvandlat varje sparad
- * profil till ett fält ingen kod längre känner igen.
+/*
+ * ⛔ MÄRKETS FORMER (`PROFILIKONER`, `PROFILFARGER`, `GRUPPIKONER`, `GRUPPINITIALER_FORM`, `KATALOGNAMN`,
+ * `arGiltigProfilikon`) BOR I `markeformer.js` SEDAN 0.70.0 (lifehub.identity#27), så att `ops-framework/gruppmarke`
+ * når dem utan att dra in hela den här filen. De återexporteras härifrån, och namnen är oförändrade.
  */
-export const PROFILIKONER = /** @type {const} */ (["person", "stjarna", "hjarta", "blixt", "leende", "krona"]);
-
-/**
- * Palettens id:n för en profils bakgrundsfärg, samma sex toner som
- * `OpsIdentity` redan väljer AUTOMATISKT ur `seed` (#164, korrigering C).
- * Ett uttryckligt val åsidosätter det härledda: `identityTone(seed)` förblir
- * FÖRVALET så länge `farg` är tom sträng, ingen ny färgskala.
- */
-export const PROFILFARGER = /** @type {const} */ (["1", "2", "3", "4", "5", "6"]);
-
-/**
- * Standardikoner för en GRUPPS märke (0.32.0, #180), utan Storage, samma tanke som `PROFILIKONER`.
- *
- * ⛔ EGNA ID:N OCH EN EGEN LISTA, INTE `PROFILIKONER`. En profil är en person (person, leende), en
- * grupp är en verksamhet (grupp, portfölj, byggnad, hus, bok, jordglob), och att låta en grupp
- * bära "leende" hade sparat ett id vars mening är en annan. Ikonerna ritas ur
- * `src/lib/gruppikoner.js`.
- *
- * ⛔ SEDAN 0.65.0 (#265) ÄR DE HÄR TIO ÄLDRE ID:N, som läses vidare men inte längre skrivs av formuläret. En ny ikon
- * sparas som sitt Lucide-namn ur den sökbara katalogen (`gruppikonkatalog.generated.js`), och ett äldre id ritas med
- * samma Lucide-ikon som förut (`ARV_GRUPPIKON` i `gruppikoner.js`).
- *
- * ⛔ SS-GRUPPERNAS IKONER ÄR MUSIKALISKA (`groupDefaults.js`: gitarr, mikrofon, piano ...). Det är
- * SessionStudios domän, inte ramverkets, och en ops-plattform för bolag ska inte bära den.
- * Formen är densamma: ett ikon-id, eller initialer.
- */
-export const GRUPPIKONER = /** @type {const} */ (["grupp", "portfolj", "byggnad", "hus", "bok", "jordglob", "stjarna", "hjarta", "blixt", "krona"]);
-
-/**
- * En grupps märke kan vara initialer i stället för en ikon: `initialer:AB` (1 till 3 tecken).
- * Formen är SS `GROUP_ICON_INITIALS_ID` plus `initialsOverride` i ETT fält, så en grupp har en
- * sanning om sitt märke och inte två fält som kan säga emot varandra.
- */
-export const GRUPPINITIALER_FORM = /^initialer:([A-Za-zÅÄÖåäö0-9]{1,3})$/;
+export { PROFILIKONER, PROFILFARGER, GRUPPIKONER, GRUPPINITIALER_FORM, KATALOGNAMN, arGiltigProfilikon } from "./markeformer.js";
 
 /** Tak för gruppens beskrivning och ort (SS `groupDesc`/`groupCityLabel`, här med tak som en rad i en regel kan hålla). */
 export const MAX_GRUPPBESKRIVNING = 280;
@@ -160,10 +113,11 @@ export const MAX_GRUPPORT = 80;
  *   sökväg i en fillagring (Storage-URL:er är inte reversibla till sin sökväg
  *   utan att fråga lagringen, och det kravet hade gjort borttagning till ett
  *   nätverksanrop till, med ett eget felfall). #156.
- * @property {string} ikon Ett id ur `PROFILIKONER`, eller tom sträng. Ritas bara när
- *   `bild` saknas. #164, kräver ingen Storage.
- * @property {string} farg Ett id ur `PROFILFARGER`, eller tom sträng (då väljer
- *   `OpsIdentity` tonen ur `seed`, precis som innan detta fält fanns). #164.
+ * @property {string} ikon Ett Lucide-namn ur gruppikonkatalogen (0.70.0, lifehub.identity#27), ett äldre id ur
+ *   `PROFILIKONER` (#164, ritas med samma ikon som förut, `ARV_PROFILIKON`), eller tom sträng (initialer). Ritas bara
+ *   när `bild` saknas. Kräver ingen Storage.
+ * @property {string} farg `kulor:<0-359>` (0.70.0), en äldre ton ur `PROFILFARGER` (#164, ritas med sin kulör), eller
+ *   tom sträng (kulören ur `id`). Se `personmarke`.
  */
 
 /**
@@ -415,14 +369,22 @@ export function byggAnvandare(d, tillatnaPlattformar) {
 
   const lankar = byggLankar(rad.lankar, id, tillatnaPlattformar);
 
+  /*
+   * ⛔ 0.70.0 (lifehub.identity#27): PERSONEN SPARAR SAMMA FORMER SOM GRUPPEN. Ikonen är ett namn ur gruppikonkatalogen,
+   * färgen `kulor:0` till `kulor:359`. De sex äldre ikon-id:na och tonerna "1" till "6" tas fortfarande emot, så att en
+   * person som sparar något annat inte får ett fel om en ikon hon valde förra året. Allt annat avvisas, också
+   * `initialer:AB` (personens initialer kommer ur namnet) och `kulor:007` (en lagrad form per kulör).
+   */
   const ikon = rensa(rad.ikon);
-  if (ikon && !(/** @type {readonly string[]} */ (PROFILIKONER).includes(ikon))) {
-    throw new Error(`users: ikonen "${ikon}" för "${id}" finns inte. Giltiga: ${PROFILIKONER.join(", ")}, eller tom sträng.`);
+  if (!arGiltigProfilikon(ikon)) {
+    throw new Error(
+      `users: ikonen "${ikon}" för "${id}" finns inte. Giltiga: ett namn ur gruppikonkatalogen (${KATALOGNAMN.size} st, t.ex. music), ett äldre id (${PROFILIKONER.join(", ")}), eller tom sträng.`,
+    );
   }
 
   const farg = rensa(rad.farg);
-  if (farg && !(/** @type {readonly string[]} */ (PROFILFARGER).includes(farg))) {
-    throw new Error(`users: färgen "${farg}" för "${id}" finns inte. Giltiga: ${PROFILFARGER.join(", ")}, eller tom sträng.`);
+  if (!arGiltigGruppfarg(farg)) {
+    throw new Error(`users: färgen "${farg}" för "${id}" finns inte. Giltiga: kulor:<0-359>, en äldre ton ${PROFILFARGER.join(", ")}, eller tom sträng.`);
   }
 
   return Object.freeze({

@@ -9,6 +9,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.70.0
+
+⛔ **Versionsnumret:** 0.68.0 är taget av utkastet PR 268 (trådar i gruppchatten) och 0.69.0 av #274, och ingen av dem är mergad när den här grenen öppnas. Main står på 0.67.0. Den här grenen tar därför 0.70.0, och versionskonflikten löses med en vanlig merge när de andra är inne, inte med en rebase.
+
+### Personen har samma märke och samma val som gruppen, och märket finns utan React (cllp/lifehub.identity#27)
+
+Händelsen: CP 2026-10-06 20:13, med en skärmbild av Profil i Mitt konto: "Låt profildelen i identity ha samma fina funktion exakt som man editerar grupp med ikoner och färger." Profilen hade sex fasta ikoner och sex färgprickar; grupper har sedan 0.65.0 en sökbar ikonväljare och en kulör.
+
+Identitys webb är vanlig TypeScript utan React. Mätt i identitys bygge (vite build, gzip -9): React och react-dom med `OpsGruppmarkeValjare` lade till 103,6 kB; katalogen, sökningen och kulörerna ur rotens `ops-framework` 36,9 kB (`dist/index.js` är en fil som inte skakas ned väl); samma funktioner ur källfilerna plus SVG-datan 23,5 kB. Den sista vägen är den nya ingången.
+
+#### Tillagt
+
+- **`ops-framework/gruppmarke`**, en ingång utan React: katalogen, sökningen, de svenska namnen, kulören, senast använda, `personmarke` och SVG för varje ikon. Typer i `dist/types/gruppmarke/index.d.ts`. Se README, "ops-framework/gruppmarke".
+- **SVG-datan** (`gruppikonsvg.generated.js`, `GRUPPIKON_SVG`, `gruppikonSvg(namn, storlek)`), genererad av `scripts/generate-gruppikoner.mjs` genom att rita varje `lucide-react`-komponent med `react-dom/server`. ⛔ Inte en andra källa: provet jämför `gruppikonSvg(namn)` med komponentens markup för alla 187 ikoner, och `check-gruppikoner` blir röd när datan ligger efter generatorn.
+- **`personmarke(person)`** (ren) och **`personmarkeProps(person)`** (för `OpsIdentity`): personens märke som gruppens, ikonen i kulören på en tonad platta, eller initialerna.
+- **`ARV_PROFILIKON`**: de sex äldre profil-id:na till Lucide-namnet de alltid ritats med (person till user, leende till smile, stjarna, hjarta, blixt och krona till star, heart, zap och crown).
+- **`arGiltigProfilikon`**, och `arGiltigGruppfarg` exporteras nu.
+- **`check-gruppmarke`**: ingången får bara nå filer under `src/lib/` och inga paket alls, och varje export ska stå i README. Planterat i `test-guards` (gruppmärke 1 till 4 och ett golv).
+
+#### Ändrat
+
+- **`byggAnvandare` tar emot ett katalognamn som `ikon` och `kulor:0` till `kulor:359` som `farg`**, utöver de äldre sex id:na och tonerna `"1"` till `"6"`. Allt annat avvisas, också `initialer:AB`, gruppens äldre id (`portfolj`) och `kulor:007`. Ingenting i databasen skrivs om.
+- **`OpsProfil` ritar personen som en grupp** (`personmarkeProps`). Bilden väger fortfarande tyngst. Profilens egen väljare i `OpsProfil` är oförändrad i den här versionen: den skriver fortfarande de äldre id:na och tonerna, som tas emot och ritas i det nya märket.
+- **`gruppikonKomponent` och `gruppikonNamn` känner också de äldre profil-id:na**, så att en person ritas med samma karta som en grupp.
+- **Flyttat utan att namnen ändrats:** `ARV_GRUPPIKON` och `gruppikonNamn` bor i `src/lib/gruppikonarv.js`, märkets former (`PROFILIKONER`, `PROFILFARGER`, `GRUPPIKONER`, `GRUPPINITIALER_FORM`) i `src/lib/markeformer.js`, och senast använda i `src/lib/gruppikonsenaste.js` (samma nyckel i `localStorage`, så listan följer med). Alla återexporteras där de stod.
+
+#### Ompinning till 0.70.0
+
+Ingen ändring krävs i en app som inte vill något nytt. LifeHubs Identity använder `ops-framework/gruppmarke` för profilens väljare (lifehub.identity#27), och hubben bör rita personens märke i huvudet med `personmarkeProps(profil)` så att växlingen speglar profilen. Funktionerna som prövar profilen med `byggAnvandare` (identitys `sparaProfil`) måste pinna om för att ta emot de nya formerna.
+
+
 ## 0.67.0
 
 ⛔ **Versionsnumret:** 0.66.0 är redan taget av utkastet PR 268 (trådar i gruppchatten, lifehub.app#60), som inte är mergat när den här grenen öppnas. Main står på 0.65.0. Den här grenen tar därför 0.67.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.

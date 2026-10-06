@@ -21,7 +21,14 @@
  * Att TA BORT en rad gör däremot en sparad grupp till en okänd ikon (märket faller tillbaka på initialer,
  * `gruppmarkeProps`), alltså tas rader bara bort med en migrering.
  *
- * Kör:  node scripts/generate-gruppikoner.mjs                skriver om de två filerna
+ * ⛔ SVG-DATAN (0.70.0, lifehub.identity#27) ÄR EN TREDJE GENERERAD FIL, OCH DEN RENDERAS UR KOMPONENTERNA. En app utan
+ * React (LifeHubs Identity) behöver rita samma ikon som gruppväljaren. Hade datan skrivits för hand, eller hämtats ur
+ * `lucide-static/icons`, hade det varit två original som kan glida isär. I stället ritas varje `lucide-react`-komponent med
+ * `react-dom/server` här, och det som står i `gruppikonsvg.generated.js` är exakt det komponenten ritar. Provet
+ * `gruppmarke.test.js` jämför dessutom `gruppikonSvg(namn)` med komponentens markup för varje ikon, och `--kontrollera`
+ * blir röd när datan ligger efter generatorn.
+ *
+ * Kör:  node scripts/generate-gruppikoner.mjs                skriver om de tre filerna
  *       node scripts/generate-gruppikoner.mjs --kontrollera   rött om filerna inte redan matchar
  */
 
@@ -106,8 +113,29 @@ function bygg() {
     namn.map((n) => `  ${JSON.stringify(n)}: ${pascal(n)},`).join("\n") +
     `\n});\n`;
 
+  /*
+   * ⛔ BARA BARNEN SPARAS, INTE DET YTTRE <svg>. Storlek och streckvikt sätts av den som ritar (`gruppikonSvg`), precis som
+   * komponentens props. Barnen är det enda som skiljer en ikon från en annan.
+   */
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { createElement } = require("react");
+  /** @type {Record<string, string>} */
+  const svg = {};
+  for (const n of namn) {
+    const markup = renderToStaticMarkup(createElement(lucide[pascal(n)]));
+    const m = /^<svg[^>]*>([\s\S]*)<\/svg>$/.exec(markup);
+    if (!m || !m[1]) throw new Error(`generate-gruppikoner: ${n} ritades inte som ett <svg> med innehåll: ${markup.slice(0, 80)}`);
+    svg[n] = m[1];
+  }
+  const svgfil =
+    `${huvud("Ikonernas SVG-innehåll, ritat ur lucide-react med react-dom/server (0.70.0, lifehub.identity#27). Ren data utan React.")}\n` +
+    `/** @type {Readonly<Record<string, string>>} */\nexport const GRUPPIKON_SVG = Object.freeze({\n` +
+    namn.map((n) => `  ${JSON.stringify(n)}: ${JSON.stringify(svg[n])},`).join("\n") +
+    `\n});\n`;
+
   return {
     [path.join(rot, "src", "lib", "gruppikonkatalog.generated.js")]: data,
+    [path.join(rot, "src", "lib", "gruppikonsvg.generated.js")]: svgfil,
     [path.join(rot, "src", "components", "gruppikonkatalog.generated.jsx")]: jsx,
   };
 }
