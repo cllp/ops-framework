@@ -255,6 +255,11 @@ describe("gruppens utseende och uppgifter (0.32.0, #180)", () => {
 
   it("⛔ en färg utanför paletten avvisas", () => {
     expect(() => byggGrupp({ ...GRUPP(), farg: "7" })).toThrow(/groups: färgen "7" för "bolaget" finns inte/);
+    expect(() => byggGrupp({ ...GRUPP(), farg: "kulor:360" })).toThrow(/groups: färgen/);
+    expect(() => byggGrupp({ ...GRUPP(), farg: "kulor:-5" })).toThrow(/groups: färgen/);
+    expect(byggGrupp({ ...GRUPP(), farg: "kulor:0" }).farg).toBe("kulor:0");
+    expect(byggGrupp({ ...GRUPP(), farg: "kulor:359" }).farg).toBe("kulor:359");
+    expect(byggGrupp({ ...GRUPP(), farg: "3" }).farg).toBe("3");
     expect(() => byggGrupp({ ...GRUPP(), farg: "#c9a84c" })).toThrow(/groups: färgen/);
   });
 
@@ -265,6 +270,11 @@ describe("gruppens utseende och uppgifter (0.32.0, #180)", () => {
     expect(() => byggGrupp({ ...GRUPP(), ikon: "initialer:ABCD" })).toThrow(/groups: ikonen/);
     expect(() => byggGrupp({ ...GRUPP(), ikon: "initialer:" })).toThrow(/groups: ikonen/);
     for (const i of GRUPPIKONER) expect(byggGrupp({ ...GRUPP(), ikon: i }).ikon).toBe(i);
+    expect(byggGrupp({ ...GRUPP(), ikon: "music" }).ikon).toBe("music");
+    expect(byggGrupp({ ...GRUPP(), ikon: "building-2" }).ikon).toBe("building-2");
+    // ⛔ #265: ett index är inget namn. Ett sparat "12" hade bytt betydelse den dag katalogen växte.
+    expect(() => byggGrupp({ ...GRUPP(), ikon: "12" })).toThrow(/groups: ikonen "12"/);
+    expect(() => byggGrupp({ ...GRUPP(), ikon: "0" })).toThrow(/groups: ikonen "0"/);
     expect(GRUPPIKONER.length).toBeGreaterThanOrEqual(8);
   });
 

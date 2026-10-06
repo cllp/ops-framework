@@ -9,6 +9,51 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.65.0
+
+### Gruppens ikon och färg: sökbar ikonväljare med synonymer, kulör i stället för fri färg (#265)
+
+Händelsen: CP 2026-10-06, överlämning från en annan tråd om att skapa en grupp (`OpsGruppFormular`): "Music" ska ge not, hörlurar, högtalare, gitarr och skiva, inte bara ikonen som heter music; gruppen "Bandet" ska visa musikikonerna först; ingen helt fri färgväljare, eftersom den ger färger bakgrunden inte tål, text som tappar läsbarhet och grupper som inte ser ut som en familj.
+
+#### Tillagt
+
+- **Sökbar ikonväljare** (`OpsGruppmarkeValjare`, i formulärets "Färg och ikon"). 203 Lucide-ikoner som en grupp kan vara (musik, arbete, idrott, familj, natur, mat, resor, pengar, teknik, skapande), med Lucides egna sökord (`lucide-static/tags.json`, samma version som `lucide-react`) och svenska synonymer (`SVENSKA_SYNONYMER` i `gruppikonsok.js`, som pekar på sökord och aldrig på en ikon). Innan något skrivits: förslag ur gruppens namn, de senast använda (per webbläsare, `localStorage`) och tjugo vanliga. Tomma rader säger att de är tomma (regel 5).
+- **Kulörväljare**: tolv snabbval och ett reglage för alla 360 kulörer. Ljusheten och mättnaden står i temat (`--gruppmarke-ikon-l/-c`, `--gruppmarke-platta-l/-c`, med `--dark-*` för mörkt läge), och märket ritas som `oklch(L C <kulör>)`.
+- **Märket: ikonen i gruppens färg på en tonad platta av samma kulör**, överallt där gruppmärket ritas (gruppanelen, remsan, växlaren, gruppsidan, formuläret). `OpsIdentity` har en ny prop `kulor`; `gruppmarkeProps` sätter den för varje grupp. Personers märken är oförändrade.
+- **Exporter:** `gruppikonKomponent`, `ARV_GRUPPIKON`, `GRUPPIKONKATALOG`, `sokGruppikoner`, `forslagUrGruppnamn`, `VANLIGA_GRUPPIKONER`, `GRUPPKULORFORSLAG`, `GRUPPKULOR_FORM`, `fargTillKulor`, `kulorTillFarg`, `gruppKulor`.
+
+#### Valet: kulörvägen, inte en kurerad palett
+
+Ärendet sade att en kurerad palett på 12 till 16 färger väljs bara om kulörvägen inte håller kontrastkraven. Den håller, mätt för alla 360 kulörer (`check-gruppfarg`): sämsta kulören ger ikonen mot plattan 4,92:1 i ljust (kulör 192) och 6,77:1 i mörkt, golv 4,5 eftersom initialer är text; ikonen mot ytan 5,63:1 respektive 7,63:1, golv 3. Skälet: OKLCH-ljusheten är perceptuell, så en fast ljushet ger nästan samma luminans oavsett kulör. Vakten räknar både med CSS Color 4:s gamut-kartläggning och med Chromiums klippning per kanal, eftersom Chromium klipper (mätt: Petrol ljust ritades rgb(0, 111, 113), 4,95:1 avläst ur en canvas mot vaktens 4,93:1).
+
+#### Lagring och migrering
+
+- **Ikonen sparas som sitt Lucide-namn** (`music`, `building-2`), aldrig som index. `byggGrupp` avvisar ett tal (`"12"`). De tio äldre id:na (`grupp`, `hus` ...) tas fortfarande emot och ritas med exakt samma SVG som före 0.65.0 (`ARV_GRUPPIKON`, provat ikon för ikon); formuläret skriver aldrig ett äldre id.
+- **Färgen sparas som `kulor:<0-359>`.** De sex äldre tonerna (`"1"` till `"6"`) tas fortfarande emot. ⛔ **Dokumenterad migrering, på läsvägen och utan att något skrivs om:** en grupp med en äldre ton ritas i den tonens kulör (`ARV_TON_KULOR`, härledd ur `--color-identity-N` och provad mot tokens.css), i det nya märket. En grupp utan sparad färg får kulören dess ton ur `id` hade haft. Samma familj som förut, ny form: plattan är ljus och ikonen färgad, i stället för en fylld ruta med vit ikon. Ton 6 (gråoliv) blir mättare än förut, eftersom mättnaden nu kommer ur temat.
+- Ett valt gruppkort har kanten i gruppens färg och ytan i samma färg vid 6 procent, som SS `GroupCard.jsx:60-65`. Utan sparad färg: accenten, som förut.
+- Ramverket känner inget samlingsnamn och inget projekt-id: inget ändras i reglerna, fälten `farg` och `ikon` finns redan och fick bara nya giltiga värden i `byggGrupp`.
+
+#### Paketstorlek, mätt före och efter
+
+Mätt med `scripts/build.mjs` och `npm pack --dry-run`, före på `origin/main` (0.62.0), efter på den här grenen:
+
+| | 0.62.0 | 0.65.0 | Skillnad |
+|---|---|---|---|
+| `dist/index.js` | 926 980 byte | 1 055 979 byte | +129 kB |
+| `dist/index.js` gzip | 232 536 byte | 266 013 byte | +33,5 kB |
+| minifierad och gzip (det en app laddar, React och Radix externa) | 162 254 byte | 192 828 byte | +30,6 kB |
+| tarbollen | 2 616 999 byte | 2 761 721 byte | +145 kB |
+
+Ungefär en fjärdedel av tillväxten är sökorden (26,5 kB okomprimerat), resten är de 203 ikonerna.
+
+Ikonerna buntas in (`lucide-react` är inte extern i `scripts/build.mjs`), så urvalet är ett urval: hela Lucide är 1 539 ikoner och `tags.json` ensam 190 kB. `lucide-static` är en devDependency och hamnar aldrig i paketet.
+
+#### Vakter
+
+- **`check-gruppfarg`** (ny): kontrasten för alla 360 kulörer i båda lägena mot plattan och tre ytor. I `check-guards` röd med ikonens ljushet 0,62 i ljust, med plattans ljushet 0,6 i mörkt och utan talen.
+- **`check-gruppikoner`** (ny): katalogen är i takt med generatorn och samma Lucide-version.
+- **`check-skalyta` avsnitt 22b** (nytt): i ljust och mörkt vid 390 och 1280 px, kulören når märket (plattan och ikonen två täckande färger, Petrol och Rosa olika), kontrasten i det RITADE märket avläst ur en canvas (golv 4,5), "Bandet" ger gitarr eller trumma bland de sex första förslagen, "music" ger minst fem träffar med gitarr och hörlurar, ingen överflödning. Avsnitt 22, gruppkortet och gruppsidan mäter kulören i stället för identitetstonen.
+
 ## 0.63.0
 
 ⛔ **Versionsnumret:** 0.61.0 och 0.62.0 är redan tagna av PR 260 (#259, regel 13) och PR 261 (bolag-ops#565), som inte är mergade när den här grenen öppnas. Den här grenen tar därför 0.63.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.

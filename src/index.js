@@ -201,7 +201,10 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * körs utan skärm, och reglerna genereras av ett skript.
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, AGENT_NAMN, agentId, agentMedlemskap, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNREPO, MAX_EXTERNLABEL, MAX_EXTERNHEMLIGHET, INBJUDNING_GILTIGHET_DAGAR, byggAnvandare, byggGrupp, byggExternaDatakallor, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
-export { gruppmarkeProps } from "./lib/gruppikoner.js";
+export { gruppmarkeProps, gruppikonKomponent, ARV_GRUPPIKON } from "./lib/gruppikoner.js";
+export { GRUPPKULORFORSLAG, GRUPPKULOR_FORM, fargTillKulor, kulorTillFarg, gruppKulor } from "./lib/gruppfarg.js";
+export { GRUPPIKONKATALOG } from "./lib/gruppikonkatalog.generated.js";
+export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/gruppikonsok.js";
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
