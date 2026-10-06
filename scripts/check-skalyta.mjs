@@ -413,8 +413,8 @@ if (!utanFasta) {
 // 0.59.1 gjorde raden 8 px högre men ikonen var centrerad och steg bara 4 px; ett mål på ikonens läge och inte på radens
 // höjd är det som hade fångat det.
 //
-// ⛔ GOLV: minst 4 kontroller i huvudet i `full` (3 i `fasta`, som bara har märke, inkorg och avatar) och 5 i bottenraden i
-// varje läge, annars rött (tomt underlag).
+// ⛔ GOLV: minst 5 kontroller i huvudet i `full` och `utanmeny` (3 i `fasta`, som bara har märke, inkorg och avatar) och 5 i
+// bottenraden i varje läge, annars rött (tomt underlag). Vid 768-1023 px skrivs träffytorna ut (golv 4) men krävs inte, se nedan.
 
 /**
  * Den faktiska träffytan för varje synlig kontroll som matchar `sel`, mätt med `elementFromPoint`.
@@ -459,9 +459,13 @@ if (!utanFasta) {
     { namn: "390x844 hemskärm (safe 47/34)", vp: { width: 390, height: 844 }, top: 47, bot: 34, mal: 81 },
     { namn: "390x844 Safari (safe 0)", vp: { width: 390, height: 844 }, top: 0, bot: 0, mal: 47 },
     { namn: "375x667 SE (safe 20/0)", vp: { width: 375, height: 667 }, top: 20, bot: 0, mal: 47 },
+    // 0.62.0 (granskningen av #261): de smalaste telefonerna, där ett huvud med fem åtgärder svämmade över utan `meny`.
+    { namn: "360x740 (safe 24/0)", vp: { width: 360, height: 740 }, top: 24, bot: 0, mal: 47 },
+    { namn: "320x568 (safe 20/0)", vp: { width: 320, height: 568 }, top: 20, bot: 0, mal: 47 },
   ]);
   for (const l of lagen) {
-    for (const scen of ["fasta", "full"]) {
+    // `utanmeny`: skalet utan `meny`, fem åtgärder plus avataren (granskningen av #261).
+    for (const scen of ["fasta", "full", "utanmeny"]) {
       const { page, context } = await oppna(scen, l.vp, standardtema, 2);
       await page.evaluate(([t, b]) => {
         document.documentElement.style.setProperty("--safe-top", `${t}px`);
@@ -471,8 +475,9 @@ if (!utanFasta) {
       const etikett = `${scen} ${l.namn}`;
       const huvud = await matTraffyta(page, "header a, header button");
       const botten = await matTraffyta(page, 'nav[aria-label="Snabbnavigering"] a, nav[aria-label="Snabbnavigering"] button');
-      // Golvet i huvudet: `full` har gruppväxlare, tema, inkorg, sök och avatar (5); `fasta` har märke, inkorg och avatar (3).
-      const golv = scen === "full" ? 4 : 3;
+      // Golvet i huvudet: `full` har gruppväxlare, tema, inkorg, sök och avatar (5), `utanmeny` gruppväxlare, tema, inkorg,
+      // påminnelser och avatar (5, sök och fråga har flyttat till arket); `fasta` har märke, inkorg och avatar (3).
+      const golv = scen === "fasta" ? 3 : 5;
       krav(huvud.length >= golv, `träffytan ${etikett}: bara ${huvud.length} kontroller lästa i huvudet, väntat minst ${golv}. Fel scenario.`);
       krav(botten.length >= 5, `träffytan ${etikett}: bara ${botten.length} kontroller lästa i bottenraden, väntat minst 5. Fel scenario.`);
       // Större knappar får inte köpas med ett huvud som flödar ut: ingen horisontell överflödning och inget utanför fönstret.
@@ -508,9 +513,53 @@ if (!utanFasta) {
             krav(Math.abs(p.franRadTop - 8) <= 0.5, `lyftet ${etikett}: ikonen i "${p.namn}" står ${p.franRadTop.toFixed(1)} px under radens överkant, väntat 8 (läget bestäms uppifrån, SS paddingTop 8, inte av centrering).`);
           }
         }
+        // ⛔ DEN RUNDA KNAPPENS LYFT (granskningen av #261): överkanten ska ligga `--bottom-nav-overhang` minus ringen (4 px)
+        // ovanför radens överkant, alltså 12 px i dag. Talet läses ur tokenen med ett provelement, inte ur källan, så att
+        // tokenen och knappen inte kan glida isär utan att det syns. Med `translate-y-0` var allt annat grönt.
+        const knapp = await page.evaluate(() => {
+          const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+          const rad = nav?.firstElementChild;
+          const b = nav?.querySelector('button[aria-label="Skapa"]');
+          const prov = document.createElement("div");
+          prov.style.cssText = "position:absolute;visibility:hidden;width:1px;height:var(--bottom-nav-overhang)";
+          document.body.appendChild(prov);
+          const overhang = prov.getBoundingClientRect().height;
+          prov.remove();
+          if (!rad || !b) return null;
+          return { lyft: rad.getBoundingClientRect().top - b.getBoundingClientRect().top, overhang };
+        });
+        krav(knapp !== null && knapp.overhang > 0, `knappens lyft ${etikett}: ${knapp === null ? "knappen eller raden hittades inte" : "--bottom-nav-overhang gick inte att mäta"}.`);
+        if (knapp && knapp.overhang > 0) {
+          const vantat = knapp.overhang - 4;
+          matt.push(`knappens lyft ${etikett}: överkanten ${knapp.lyft.toFixed(1)} px ovanför radens överkant, väntat ${vantat} (overhang ${knapp.overhang} minus ringen 4)`);
+          krav(Math.abs(knapp.lyft - vantat) <= 0.5, `knappens lyft ${etikett}: den runda knappens överkant står ${knapp.lyft.toFixed(1)} px ovanför radens överkant, väntat ${vantat} (--bottom-nav-overhang ${knapp.overhang} minus ringen 4).`);
+        }
+      }
+      // ⛔ EN FLYTTAD ÅTGÄRD FÖRSVINNER INTE TYST: utan `meny` ska Sök och Fråga finnas som rader i bottenradens ark.
+      if (scen === "utanmeny") {
+        await page.getByRole("button", { name: "Meny" }).last().click();
+        await page.waitForSelector('[role="dialog"]');
+        const rader = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] a')].map((a) => (a.textContent || "").trim()));
+        matt.push(`arket ${etikett}: arkets rader ${rader.join(", ") || "(inga)"}`);
+        for (const namn of ["Sök", "Fråga"]) krav(rader.includes(namn), `arket ${etikett}: "${namn}" finns varken i huvudet eller som rad i bottenradens ark (rader: ${rader.join(", ") || "inga"}).`);
       }
       await context.close();
     }
+  }
+}
+
+// 6b, surfplattan (granskningen av #261): 768-1023 px är `md` men fortfarande en tumme. ⛔ MÄTS OCH SKRIVS UT, KRÄVS INTE.
+// Knapparna är 36 px från `md` (se `huvudknappKlass`). 44 px provades: vid 768 px ligger huvudets flikar (Appar och dess
+// chevron) redan i 0.60.0 ovanpå högerklustret, så plusset och temaväxlaren träffas inte alls i sin mitt. Det är ett eget fel i
+// surfplattans huvud. Raden nedan gör det synligt i varje körning; den blir ett krav när huvudet är lagat.
+for (const bredd of [768, 900, 1023]) {
+  for (const scen of ["full", "utanmeny"]) {
+    const { page, context } = await oppna(scen, { width: bredd, height: 900 });
+    const kluster = await matTraffyta(page, "header a[aria-label], header button[aria-label]");
+    krav(kluster.length >= 4, `träffytan ${scen} ${bredd} px: bara ${kluster.length} knappar med namn i huvudet, väntat minst 4.`);
+    const under = kluster.filter((k) => !(k.mittTraff && k.w >= 43.5 && k.h >= 43.5));
+    matt.push(`träffytan ${scen} ${bredd} px (surfplatta, inget krav): ${kluster.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}; under 44x44: ${under.length ? under.map((k) => k.namn).join(", ") : "inga"}`);
+    await context.close();
   }
 }
 

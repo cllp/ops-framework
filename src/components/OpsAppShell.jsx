@@ -1398,11 +1398,17 @@ function OpsAppShellRitad({
   // ══ ⛔ ÅTGÄRDER SOM INTE RYMS UNDER `md` FLYTTAR TILL MENYN (0.30.1) ═══════
   //
   // Se `ATGARDER_SMAL`. Bara `OpsIconLink` kan flyttas (href, etikett, ikon och
-  // räknare är data ramverket kan rita som en menyrad), och bara när det FINNS en
-  // meny att flytta till: utan `meny` har en flyttad åtgärd inget hem, och en
-  // åtgärd som försvinner tyst är värre än en som ligger kvar (punkt 5).
+  // räknare är data ramverket kan rita som en menyrad).
+  //
+  // ⛔ 0.62.0 (granskningen av #261): FLYTTEN GÄLLER ÄVEN UTAN `meny`. Här stod att en
+  // flyttad åtgärd utan `meny` inte har något hem, och därför flyttades ingenting:
+  // fem åtgärder plus avataren gav ett huvud som svämmade över vid 320 px
+  // (scrollWidth 346) och klipptes vid 360, alltså bröt huvudet det `ATGARDER_SMAL`
+  // lovar. Hemmet finns ändå: bottenradens Meny ritas alltid under `md`, och dess
+  // ark visar `moreNav` som rader. Med `meny` går raderna in i appens avdelning som
+  // förut, utan `meny` i arkets navigeringsrader. Ingen åtgärd försvinner tyst.
   const atgardsLista = plattaAtgarder(actions);
-  const flyttbara = meny ? atgardsLista.slice(ATGARDER_SMAL).filter((a) => a.type === OpsIconLink) : [];
+  const flyttbara = atgardsLista.slice(ATGARDER_SMAL).filter((a) => a.type === OpsIconLink);
   /** @type {import("../lib/nav.js").NavPost[]} */
   const flyttadeRader = flyttbara.map((a) => {
     const p = /** @type {any} */ (a.props);
@@ -2108,7 +2114,7 @@ function OpsAppShellRitad({
           skulle slice(smaltTak) hoppa över index 3 och göra den oåtkomlig under md. */}
       <OpsBottomNav
         nav={bottenNav}
-        moreNav={harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))}
+        moreNav={[...(harFasta ? [] : navLista.slice(Math.min(smaltTak, primaryAction ? 3 : 4))), ...(meny ? [] : flyttadeRader)]}
         activeHref={activeHref}
         onNavigate={onNavigate}
         primaryAction={(() => {

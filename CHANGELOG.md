@@ -11,8 +11,6 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.62.0
 
-⛔ Numret förutsätter att #259 skiva 1 (0.61.0) mergas först. Mergas den här först byts numret till 0.61.0.
-
 ### Ikonerna i huvudet och bottenraden går att träffa, och bottenradens ikoner står högre (cllp/bolag-ops#565)
 
 CP 2026-10-06: "Fortfarande lite svårt att träffa ikonerna i header och bottenlagen. Skulle vilja att de kom upp några pixlar. Är det förra ärendet utfört? Ser ingen skillnad ännu."
@@ -21,11 +19,14 @@ CP 2026-10-06: "Fortfarande lite svårt att träffa ikonerna i header och botten
 
 - **Huvudets ikonknappar är 44 px under `md`, inte 36 med en osynlig 44-yta.** Mätt med `elementFromPoint` i 390 px träffades Inkorg på 36x44 och Sök på 36x44, och temaväxlaren (ritad 44) bara på 42x44: knapparna står 2 px isär, så den osynliga `after:size-11` hamnade under grannen och grannen vann trycket. `huvudknappKlass` och `huvudPlusKlass` är nu `size-11 p-2.5` under `md` (ikonen 24 px som i 0.59.1) och `md:size-9`/`md:size-10` från `md`, oförändrat på dator. Avataren är en 44 px knapp under `md` med ringen och 32 px-cirkeln på en inre yta (`group-hover:ring-2`), så den ser likadan ut. Märket utan grupper är en 44 px länk under `md` (monogrammet 40).
 - **Bottenradens ikoner står uppifrån, och raden har ett lyft.** `--bottom-nav-h` är nu summan `--bottom-nav-rad` (56 px) plus `--bottom-nav-lyft` (12 px), 68 px, och är fortfarande den enda höjd `<main>`, toasten, sifferbubblan och meddelandeytan räknar med. Platsen är `justify-start pt-2` (SS `MobileTabBar` paddingTop 8) i stället för centrerad; i 0.59.1 blev raden 8 px högre men ikonen steg bara 4 px. Ikonens mitt står nu 82 px över skärmens underkant med hemindikator (safe 34, var 73) och 48 px utan (var 39). SS står på 72 och 38.
+- **Åtgärder som inte ryms under `md` flyttar till bottenradens ark även utan `meny`** (granskningen av #261). Före 0.62.0 flyttades ingenting utan `meny`, med skälet att en flyttad åtgärd då saknade hem, och fem åtgärder plus avataren gav ett huvud som svämmade över vid 320 px (scrollWidth 346) och klipptes vid 360. Bottenradens Meny ritas alltid under `md`, och dess ark visar nu de flyttade `OpsIconLink` som rader. Med `meny` går de som förut in i appens avdelning. `ATGARDER_SMAL` (tre) håller därmed i båda fallen.
 - **Den runda knappen står i radens överkant och lyfts `--bottom-nav-overhang` minus ringen**, i stället för en handskriven `-translate-y-4` från mitten. Radens höjd kan ändras utan att knappen flyttar sig.
 
 #### Vakter
 
-- **`check-skalyta` avsnitt 6b: träffytan där ett tryck faktiskt landar.** Varje `a`/`button` i huvudet och bottenraden ska träffas på minst 44x44 enligt `elementFromPoint`, vid 390x844 (safe 47/34 och 0) och 375x667 (safe 20/0), i scenerna `fasta` och `full`, utan horisontell överflödning. Bottenradens ikoner ska stå 8 px under radens överkant med mitten minst 81 px (safe 34) eller 47 px (safe 0) över skärmens underkant. Golv: 4 kontroller i huvudet i `full` (3 i `fasta`), 5 i bottenraden. Röd mot 0.60.0 med 43 brott, grön med fixen.
+- **`check-skalyta` avsnitt 6b: träffytan där ett tryck faktiskt landar.** Varje `a`/`button` i huvudet och bottenraden ska träffas på minst 44x44 enligt `elementFromPoint`, vid 390x844 (safe 47/34 och 0) och 375x667 (safe 20/0), i scenerna `fasta` och `full`, utan horisontell överflödning. Bottenradens ikoner ska stå 8 px under radens överkant med mitten minst 81 px (safe 34) eller 47 px (safe 0) över skärmens underkant. Golv: 5 kontroller i huvudet i `full` och `utanmeny` (3 i `fasta`), 5 i bottenraden. Röd mot 0.60.0 med 102 brott (avsnitt 6b och 2), grön med fixen.
+- **`ops-viewport` och `check-scaffold` läste `--bottom-nav-h` som text** (`parseFloat` på det beräknade värdet). När tokenen blev en `calc`-summa gav Chromium "calc(3.5rem + .75rem)", `parseFloat` gav NaN, och kontrollen "innehållet hamnar bakom baren" hoppade tyst över i varje app. Höjden mäts nu med ett provelement (`height: var(--bottom-nav-h)`), och en höjd som inte går att mäta är ett brott. Fixturen i `test-viewport-guard` har samma `calc`-form som ramverket och ett nytt prov där tokenen saknas.
+- **Avsnitt 6b mäter också** den runda knappens lyft (överkanten `--bottom-nav-overhang` minus ringen, 12 px, ovanför radens överkant), scenen `utanmeny` (fem åtgärder utan `meny`) vid 320 och 360 px och att de flyttade åtgärderna finns som rader i arket. Vid 768, 900 och 1023 px skrivs träffytorna ut utan krav: knapparna är 36 px från `md`, eftersom huvudets flikar redan i 0.60.0 ligger ovanpå högerklustret vid 768 px och större knappar gjorde det värre.
 - **Avsnitt 2 mätte pseudoelementets storlek (`efterBredd >= 44`) vid 1280 px.** Den var grön genom hela felet. Ersatt av samma `elementFromPoint`-mätning: vid 1280 ska hela den ritade cirkeln träffa knappen.
 
 ## 0.60.0

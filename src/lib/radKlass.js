@@ -107,6 +107,14 @@ export function radBehallare({ ark = false } = {}) {
  * var ett tryck faktiskt landar (avsnitt 6b). Den synliga cirkeln (hover, öppen)
  * blir 44 på mobil; på dator står 36 och `after:`-ytan kvar, där en mus träffar.
  *
+ * ⛔ SURFPLATTAN (768-1023 px) HAR KVAR 36 PX, OCH DET ÄR ETT MÄTT BESLUT, INTE ETT
+ * FÖRBISEENDE (granskningen av #261). 44 px där provades och mättes i
+ * `check-skalyta` 6b: vid 768 px ligger huvudets flikar (Appar och dess chevron)
+ * redan i 0.60.0 OVANPÅ högerklustret, och 44 px knappar gjorde överlappet större.
+ * Det är ett eget fel i huvudets layout på surfplatta, inte i knapparna, och det
+ * ska lagas där innan knapparna kan växa. Vakten skriver ut träffytorna vid 768,
+ * 900 och 1023 utan att kräva 44.
+ *
  * ⛔ 44 PX TRÄFFYTA BEHÅLLS, MEN SOM EN OSYNLIG YTA. Storleken man SER är 36;
  * storleken man TRÄFFAR är 44 (`after:size-11`), utan att röra radens höjd.
  * Samma lösning som toppradens chevron redan hade (#90): en synlig storlek som
