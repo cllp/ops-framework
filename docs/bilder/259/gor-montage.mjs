@@ -10,7 +10,7 @@
  *   npm run build && node scripts/check-skalyta.mjs --bilder <mapp>
  *   node docs/bilder/259/gor-montage.mjs <mapp>
  *
- * Skriver `montage-393.png`, `montage-393-utsnitt.png` och `montage-1280.png` i den här mappen.
+ * Skriver `montage-393.png`, `montage-393-utsnitt.png`, `montage-390.png` (förebild 7) och `montage-1280.png` i den här mappen.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -27,8 +27,10 @@ if (!mapp) {
 const ss = path.join(har, "ss-lager-och-tillganglighet-mobil-3.png");
 const ram393 = path.join(mapp, "tillganglighet-393.png");
 const ssWebb = path.join(har, "ss-tillganglighet-webb-6.png");
+const ss7 = path.join(har, "ss-kalender-mobil-7.png");
+const ram390 = path.join(mapp, "tillganglighet-390.png");
 const ram1280 = path.join(mapp, "tillganglighet-1280-mork.png");
-for (const f of [ss, ram393, ssWebb, ram1280]) {
+for (const f of [ss, ram393, ssWebb, ram1280, ss7, ram390]) {
   if (!fs.existsSync(f)) {
     console.error(`gor-montage: ${f} saknas.`);
     process.exit(1);
@@ -67,6 +69,8 @@ await skriv(sida(data(ss), data(ram393), "SessionStudio-appen (förebild 3, CP 2
 // Utsnittet: september 2026, raderna med lager och borta (förebildens y 400 till 1250 i bildpixlar, alltså 133 till 417 pt).
 await skriv(sida(data(ss), data(ram393), "SessionStudio-appen, september", "Ramverket, september", { y: 560, h: 1050 }), "montage-393-utsnitt.png");
 await page.setViewportSize({ width: 1240, height: 1400 });
+await skriv(sida(data(ss7), data(ram390), "SessionStudio-appen (förebild 7, CP 2026-10-06)", "Ramverket 0.61.0, 390 px i skala 3", null), "montage-390.png");
+await page.setViewportSize({ width: 1240, height: 1400 });
 await skriv(sida(data(ssWebb), data(ram1280), "SessionStudio webb (förebild 6, CP 2026-10-06), mörkt tema", "Ramverket 0.61.0, 1280 px, mörkt tema", null, 900), "montage-1280.png");
 await browser.close();
-console.log("gor-montage: montage-393.png, montage-393-utsnitt.png och montage-1280.png skrivna.");
+console.log("gor-montage: montage-393.png, montage-393-utsnitt.png, montage-390.png och montage-1280.png skrivna.");
