@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { OpsButton } from "../components/OpsButton.jsx";
+import { OpsIconLink } from "../components/OpsIconLink.jsx";
 
 /**
  * Plusset i skalets topprad (#168).
@@ -190,11 +191,11 @@ describe("OpsAppShell skapa (#168)", () => {
   });
 
   // ══ #168, ANDRA GRANSKNINGEN: MÄTT MOT SESSIONSTUDIOS AppHeader.jsx ══════
-  it("⛔ plussets knapp är en CIRKEL som SessionStudios, samma form som hamburgaren och ikonlänken (0.30.0)", () => {
-    // ⛔ Före 0.30.0 var plusset en 32 px accentfylld cirkel med `OpsButton`s klasser,
-    // det enda i klustret som skrek. SS `AppHeader.jsx:376`: `p-2 rounded-full`,
-    // dämpad ikon, `hover:bg-card`. Provet bevisar formen, inte färgen på pixeln
-    // (den mäts i `check-skalyta`, jsdom ritar ingen CSS).
+  it("⛔ plussets knapp är en fylld accentcirkel på dator och den dämpade cirkeln i mobil (0.60.0)", () => {
+    // ⛔ 0.60.0, CP 2026-10-05: "Kan man göra +et sådär framträdande som det är på mobil. Samma position men större och
+    // framträdande." Före det (0.30.0, #173) var plusset en dämpad 36 px cirkel som SS `AppHeader.jsx:376`, eftersom en
+    // accentfylld knapp bland likar "skrek". Provet bevisar klasserna; pixlarna och färgen mäts i `check-skalyta`
+    // (jsdom ritar ingen CSS).
     render(
       <OpsAppShell brand="Ops" nav={enkelNav} activeHref="/" skapa={{ handelse: <p>x</p> }} meny={{ onLoggaUt: () => {} }}>
         <p>innehåll</p>
@@ -202,12 +203,56 @@ describe("OpsAppShell skapa (#168)", () => {
     );
     const plus = screen.getByRole("button", { name: "Skapa" });
     const hamburgare = screen.getByRole("button", { name: /Meny, fler åtgärder/ });
-    // ⛔ 0.59.1 (bolag-ops#563): `p-1.5` runt en 24 px ikon i samma 36 px cirkel, inte SS `p-2` runt 20; bara under md, CP: "563 är bara i mobil". Pixlarna mäts i `check-skalyta`.
+    // Hamburgaren är oförändrad: dämpad 36 px cirkel, 24 px ikon under md.
+    // ⛔ 0.59.1 (bolag-ops#563): `p-1.5` runt en 24 px ikon i samma 36 px cirkel, inte SS `p-2` runt 20; bara under md, CP: "563 är bara i mobil".
     for (const klass of ["rounded-full", "size-9", "p-1.5", "[&_svg]:size-6", "md:p-2", "md:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) {
-      expect(plus.className, `plusset saknar ${klass}`).toContain(klass);
       expect(hamburgare.className, `hamburgaren saknar ${klass}`).toContain(klass);
     }
-    expect(plus.className).not.toContain("bg-accent");
+    // Plusset: 36 px dämpad under md (ingen bottenrad här), 40 px fylld accent från md, 24 px plus, 44 px träffyta.
+    for (const klass of ["rounded-full", "size-9", "md:size-10", "p-1.5", "md:p-2", "[&_svg]:size-6", "text-ink-muted", "md:bg-accent", "md:text-accent-contrast", "md:hover:bg-accent-hover", "focus-visible:outline-accent", "after:size-11"]) {
+      expect(plus.className, `plusset saknar ${klass}`).toContain(klass);
+    }
+    expect(plus.className).not.toContain("md:[&_svg]:size-5");
+  });
+
+  it("⛔ plusset ligger FÖRST i högerklustret, före ikonlänkarna, avataren och hamburgaren (0.60.0)", () => {
+    render(
+      <OpsAppShell
+        brand="Ops"
+        nav={enkelNav}
+        activeHref="/"
+        skapa={{ handelse: <p>x</p> }}
+        actions={<OpsIconLink href="/inkorg" label="Inkorg" icon={<i />} />}
+        meny={{ onLoggaUt: () => {} }}
+      >
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    const plus = screen.getByRole("button", { name: "Skapa" });
+    const hamburgare = screen.getByRole("button", { name: /Meny, fler åtgärder/ });
+    const kluster = plus.parentElement;
+    expect(kluster).toBe(hamburgare.parentElement);
+    expect(kluster?.firstElementChild).toBe(plus);
+    const inkorg = screen.getByRole("link", { name: "Inkorg" });
+    expect(inkorg.parentElement).toBe(kluster);
+    expect(Array.from(kluster?.children ?? []).indexOf(plus)).toBeLessThan(Array.from(kluster?.children ?? []).indexOf(inkorg));
+  });
+
+  it("⛔ med bottenradens plus är huvudets plus gömt under md men syns från md, med display i EN klass (0.60.0)", () => {
+    render(
+      <OpsAppShell
+        brand="Ops"
+        activeHref="/"
+        fasta={{ idag: { href: "/", label: "Idag" }, kalender: { href: "/k", label: "Kalender" }, hub: { href: "/h", label: "Hub" } }}
+        skapa={{ handelse: <p>x</p> }}
+      >
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    const plus = screen.getAllByRole("button", { name: "Skapa" }).find((b) => b.className.includes("md:bg-accent"));
+    expect(plus).toBeTruthy();
+    expect(plus?.className).toContain("hidden md:inline-flex");
+    expect(plus?.className.split(/\s+/)).not.toContain("inline-flex");
   });
 
   it("⛔ popovern mäter w-56 (14rem, 224 px, mätt ur SessionStudios create-meny)", () => {

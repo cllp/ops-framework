@@ -9,6 +9,58 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.60.0
+
+Tre grenar samlade i en version (#253, #255 och #256), eftersom alla tre gjorde anspråk på 0.60.0 eller 0.61.0.
+
+### Plusset i toppraden är huvudåtgärden (CP 2026-10-05)
+
+#### Ändrat
+
+- **Plusset i toppraden är en fylld accentcirkel på dator, och ligger först i högerklustret.** CP 2026-10-05: "Kan man göra +et sådär framträdande som det är på mobil. Samma position men större och framträdande. Kanske skall ligga längst till vänster av ikonerna i topraden till höger?" Från `md` är plusset 40 px (`bg-accent text-accent-contrast`, `hover:bg-accent-hover`) med en 24 px ikon, fortfarande med 44 px träffyta, och står före `actions` (inkorgen och de andra ikonlänkarna), avataren och hamburgaren. Före 0.60.0 var det en dämpad 36 px cirkel sist bland `actions` och före avataren. Den dämpades i 0.30.0 (#168, #173) eftersom en fylld knapp bland likar "skrek"; förutsättningen är ändrad, plusset är huvudåtgärden och inte en ikon bland ikoner. Under `md` är allt som förut: gömt när bottenraden har ett eget plus, annars den dämpade 36 px cirkeln. Ny `huvudPlusKlass` i `radKlass.js`. `check-skalyta` mäter 40 px, accentbakgrund (mot `--color-accent`) och `plus.x < inkorg.x`.
+
+### Nodsidan för TALK (cllp/lifehub.app#37, #253)
+
+#### Tillagt
+
+- **`typerForGrupp`, `MAX_SEKUNDER` och `LJUDFORMAT` på nodsidan** (cllp/lifehub.app#37). Servern som gör TALK-ljud till ett förslag ger modellen gruppens sorter och prövar ljudets längd. Den importerade tidigare `src/lib/modultyper.js` förbi exports-kartan och skrev taket en gång till. Samma funktion och samma tak som i huvudingången, och båda filerna är rena.
+
+### Tillägg på händelseytan och Syns på (#251, #255)
+
+#### Tillagt
+
+- **Tillägg på händelseytan** (#251, beslut 0003). Modulmanifestet får `tillagg: [{ plats, id, etikett: { sv, en }, komponent }]`. En app ändrar aldrig en ramverksyta, den pluggar bara in i platser ytan erbjuder. Två platser, exporterade som `HANDELSE_PLATSER`: `"handelse.sektion"` är en sektion i `OpsHandelsePanel` efter informationsrutan, med etiketten som rubrik, och `"handelse.atgard"` är en rad i plussets händelsedel direkt under Ny händelse. Komponenten får `{ handelse, grupp }` och inget annat (i plusset är `handelse` `null`).
+- **`OpsHandelsePanel moduler grupp`** och **`OpsAppShell skapa.moduler skapa.aktivGrupp`**. Ytan ritar bara tillägg från moduler som är påslagna i `grupp.moduler`; en avslagen moduls komponent anropas inte. `skapa.aktivGrupp.id` måste vara `skapa.lage`, annars kastar skalet.
+- **`tillaggFor`, `synsPa`, `synsPaText`, `PLATSER`, `PLATSYTOR`** för den som bygger en egen yta eller en egen lista.
+- **"Syns på" i gruppens inställningar.** Listan Appar i `OpsGruppFormular` visar alla appar, också de utan egen yta, och varje rad säger var appen syns: "Egen yta", ytornas namn ("Händelser"), eller båda. Härlett ur manifestet, aldrig ett handskrivet fält.
+- **`defineModule` avvisar ett tillägg vars `komponent` inte är en funktion eller ett objekt** (PR 258). Före detta stoppade kontrollen bara `undefined` och `null`, så en sträng eller ett tal klarade uppstarten och föll först när ytan försökte rita det. Objekt släpps in, eftersom React memo och forwardRef ger objekt. Felet nämner modul, fält och skäl.
+
+#### Ändrat
+
+- **`valbaraModuler` ger alla registrerade moduler**, inte bara de med ett kort. En modul med bara tillägg går nu att slå på och av per grupp. `hubbForGrupp` räknar inte en sådan modul som `inget-kort`.
+
+#### Valideras vid uppstart
+
+- `validateModuler` avvisar ett tillägg med okänd plats, ett dubblerat `id` inom modulen, en etikett som saknar ett språk, och ett tillägg utan komponent. Felet bär modulens namn och fältet.
+
+### Agenten är medlem (cllp/lifehub.app#47, #256)
+
+#### Tillagt
+
+- **Gruppens agent är medlem** (cllp/lifehub.app#47, skiva 1 och 2, ramverkets del). `agentId(groupId)` ger det stabila id:t `agent_<groupId>`, `agentMedlemskap(groupId)` raden (typ `agent`, roll `medlem`, status `aktiv`, namnet `AGENT_NAMN`, "Agent").
+- **`createGroupService({ agent: true })`** skriver agentens medlemskap i samma batch som gruppen och ägaren. Förval `false`.
+- **`createAgentService`** på nodsidan: `satStatus` (ägaren slår av och på agenten, aldrig ta bort) och `sakerstall` för engångssteget som ger befintliga grupper sin agent (idempotent, torrt skriver inget).
+- **Nodsidan exporterar också `AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE`**, för servern som svarar som agenten.
+- **Statusen `avstangd`** i `MEDLEMSSTATUS`, bara för en agent. `byggMedlemskap` avvisar en person med den.
+- **`medlemsinfo(...).agenter`**, och **`OpsGruppSida agenter onVaxlaAgent onSkrivTillAgent`**: agenten i medlemslistan med märket AI, ägarens strömbrytare, och "Skriv till" för ett privat samtal.
+- **`OpsMedlemmar aiEtikett`**: en agents rad har märket AI och varken rollväljare eller Ta bort.
+- **`OpsNyttMeddelande privatAgentText`**.
+
+#### Ändrat
+
+- **`OpsMottagare lage="person"` och "Nytt meddelande" har den aktiva agenten bland mottagarna**, och vald öppnas ett samtal av slaget `agent`. Före 0.60.0 stod den bara med i ärendeläget.
+- **`medlemsinfo(...).medlemmar`, `avatarer` och `medlemsantal` räknar inte en agent.** Före 0.60.0 räknades en aktiv agent som en medlem bland personerna. Den står nu i `agenter`.
+
 ## 0.59.1
 
 ### Ändrat

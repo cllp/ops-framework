@@ -77,7 +77,7 @@
  * det som gör att det här går att prova utan nätverk: minneskällan räcker.
  */
 
-import { byggGrupp, byggMedlemskap, byggVitlisterad, medlemskapsId } from "../lib/grupp.js";
+import { agentMedlemskap, byggGrupp, byggMedlemskap, byggVitlisterad, medlemskapsId } from "../lib/grupp.js";
 import { byggSkapare } from "../lib/skapare.js";
 import { createInvitationService } from "./inbjudan.js";
 import { seedoperationer } from "../data/katalogkalla.js";
@@ -171,10 +171,11 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param {ReadonlyArray<string>} [konfig.moduler] Apparna (modul-id) en ny grupp börjar med (0.51.0). Utelämnade: `[]`, som förut.
  * @param {boolean} [konfig.forstaGruppenFri] Den som aldrig ägt en grupp får skapa en utan vitlista och utan e-post (0.51.0). Förval av. Gäller bara när vitlistan krävs.
  * @param {boolean} [konfig.vitlistaKravs] Ska `skapaGrupp` läsa vitlistan (0.59.0). Förval `true`. `false`: ingen vitlista och ingen e-post, för första gruppen och för de följande, tills appen slår på kravet igen.
+ * @param {boolean} [konfig.agent] Får en ny grupp sin agent (`agentMedlemskap`) i samma batch som gruppen och ägaren (lifehub.app#47). Förval `false`.
  * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }) => Promise<SkapaGruppSvar> }}
  */
 export function createGroupService(konfig) {
-  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, forstaGruppenFri = false, vitlistaKravs = true } = konfig ?? {};
+  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, forstaGruppenFri = false, vitlistaKravs = true, agent = false } = konfig ?? {};
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error("createGroupService: en datakälla med read, list och create krävs. Ramverket känner ingen databas.");
   }
@@ -202,6 +203,9 @@ export function createGroupService(konfig) {
   }
   if (typeof vitlistaKravs !== "boolean") {
     throw new Error("createGroupService: vitlistaKravs måste vara true eller false. Ett annat värde hade antingen släppt förbi vitlistan eller krävt den utan att någon valt.");
+  }
+  if (typeof agent !== "boolean") {
+    throw new Error("createGroupService: agent måste vara true eller false. Ett värde som råkar vara sant ger varje ny grupp en medlem ingen valt.");
   }
   /*
    * ⛔ APPARNA PRÖVAS NÄR TJÄNSTEN BYGGS, med samma `byggGrupp` som skrivvägen, av samma skäl som katalogerna ovan:
@@ -360,6 +364,8 @@ export function createGroupService(konfig) {
       await /** @type {NonNullable<typeof kalla.batch>} */ (kalla.batch).call(kalla, [
         { op: "create", collection: GRUPPER, data: grupp },
         { op: "create", collection: MEDLEMSKAP, data: medlemskap },
+        // ⛔ AGENTEN I SAMMA BATCH (lifehub.app#47): en grupp som skapades utan sin agent är precis det engångssteget finns för att laga.
+        ...(agent ? [{ op: "create", collection: MEDLEMSKAP, data: agentMedlemskap(id) }] : []),
         ...katalogOps,
       ]);
 

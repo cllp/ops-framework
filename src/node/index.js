@@ -35,6 +35,17 @@ export { createActivityWriter } from "./aktivitet.js";
  */
 export { createInvitationService } from "./inbjudan.js";
 
+/* Samma skäl som inbjudan: agentens medlemskap skrivs bara av servern (lifehub.app#47). */
+export { createAgentService } from "./agent.js";
+
+/*
+ * ⛔ AGENTENS ID OCH MEDDELANDETS FORM ÄVEN HÄR (lifehub.app#47). Servern som svarar som agenten skriver ett vanligt
+ * meddelande med `av` = agentens id. En kopia av `byggMeddelande` eller av id-formen i appens functions hade varit en
+ * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.
+ */
+export { AGENT_NAMN, agentId, agentMedlemskap } from "../lib/grupp.js";
+export { byggMeddelande, samtalsnyckel, MAX_MEDDELANDE } from "../lib/samtal.js";
+
 /*
  * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#161). Vitlistan nekar en klient allt
  * (`regelfragment()`, `allow read, write: if false`), så `skapaGrupp` MÅSTE
@@ -134,4 +145,12 @@ export { bakfyllKatalogGrupp } from "./katalog.js";
  * ur medlemskapen, och det som svarar med dem utan skärm ska inte dra in React. Filen är ren.
  */
 export { medlemsinfo } from "../lib/gruppmedlemmar.js";
+
+/*
+ * ⛔ GRUPPENS TYPER OCH TALK-TAKEN PÅ NODSIDAN (0.60.0, cllp/lifehub.app#37). Servern som gör ljud till ett förslag ska ge
+ * modellen samma sorter som Nytt ärende visar, och pröva ljudet mot samma tak som inspelaren stoppar vid. Utan exporten
+ * importerade lifehub `src/lib/modultyper.js` förbi exports-kartan, och skrev taket en gång till. Båda filerna är rena.
+ */
+export { typerForGrupp } from "../lib/modultyper.js";
+export { MAX_SEKUNDER, LJUDFORMAT } from "../lib/talk.js";
 export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";

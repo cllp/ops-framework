@@ -12,7 +12,7 @@ import { Counter } from "./counter.jsx";
 import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, MeddelandeIkon, MenuIcon, MikrofonIkon, PlusIkon, GruppIkon } from "./icons.jsx";
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
-import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
+import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsIconLink } from "./OpsIconLink.jsx";
@@ -31,6 +31,7 @@ import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsep
 import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
+import { tillaggFor } from "../lib/tillagg.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 
 /**
@@ -504,6 +505,12 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   (`?skapa=redigera-grupp&grupp=<id>`, smal kolumn). Utan den anropas `grupper.onRedigera` i stället, om appen gav en.
  * @property {ReadonlyArray<import("../lib/modul.js").Skaparregistrering & { modulId: string }>} [registreringar] Ur `skaparFor` (#150).
  * @property {string | null} [lage] Den aktiva gruppens id, se `skapalaget`. `null` bara när personen inte är med i någon grupp.
+ * @property {ReadonlyArray<import("../lib/modul.js").Modul>} [moduler] (0.60.0, #251) Appens moduler, ur `validateModuler`. Deras tillägg på platsen
+ *   `handelse.atgard` ritas i plussets händelsedel, direkt efter "Ny händelse", med `{ handelse: null, grupp: aktivGrupp }`: plusset öppnas utan en
+ *   händelse. Komponenten ÄR raden (normalt en `OpsPanelRow`), och listan stängs när man trycker i den.
+ * @property {{ id: string, moduler: ReadonlyArray<string> } & Record<string, unknown>} [aktivGrupp] (0.60.0, #251) Den aktiva gruppen, med `moduler`.
+ *   ⛔ Bara moduler i dess `moduler` bidrar med tillägg. `aktivGrupp.id` måste vara `lage`; annars kastar skalet, eftersom plusset då hade fått två svar
+ *   på vilken grupp det gäller. (Inte `grupp`: det namnet är redan formuläret "Ny grupp".)
  * @property {ReadonlyArray<{ id: string, kategorier?: ReadonlyArray<any> }>} [kataloger]
  * @property {(namn: string) => import("react").ReactNode} [ikonRitare]
  * @property {string} [sprak]
@@ -759,7 +766,7 @@ export function useOppnaHandelse() {
  * @param {string} [props.felBeskrivning]
  * @param {string} [props.laddaOmEtikett]
  * @param {HandelsepanelKonfiguration} [props.handelsepanel] (0.40.0, #214) Händelsen på en egen sida med Tillbaka, öppnad av en rad i Idag eller en post i kalendern (`handelseId`) eller av `useOppnaHandelse()`. Se `HandelsepanelKonfiguration`.
- * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden, mellan `actions` och `anvandare`.
+ * @param {SkapaKonfiguration} [props.skapa] (#168) Plusset i toppraden. Från 0.60.0 först i högerklustret, före `actions`, `anvandare` och hamburgaren, och en fylld accentcirkel från `md`.
  *   Tryck öppnar en POPOVER med en platt lista (`ss-skapa-meny.png`), aldrig en yta i sidan: `handelse`
  *   och `arende` är ramverkets EGNA rader (Idag/kalendern och Inkorgen är ramverkets vyer, inte moduler),
  *   `registreringar`/`lage`/`kataloger`/`ikonRitare`/`sprak` är samma kontrakt som `OpsSkapa` redan hade
@@ -1204,7 +1211,14 @@ function OpsAppShellRitad({
 
   const skapaLaget = skapa ? skapalaget({ lage: skapa.lage ?? null, registreringar: skapa.registreringar ?? [] }) : null;
   const skapaModulerRedo = skapaLaget?.tillstand === "redo";
-  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.meddelande === "function";
+  if (skapa?.aktivGrupp && skapa.aktivGrupp.id !== (skapa.lage ?? null)) {
+    throw new Error(
+      `OpsAppShell: skapa.aktivGrupp är "${String(skapa.aktivGrupp.id)}" men skapa.lage är "${String(skapa.lage ?? null)}". Plusset skapar i lage och ritar tillägg ur aktivGrupp, och två olika svar på vilken grupp det gäller ger rader från en grupp i en annans plus.`,
+    );
+  }
+  // ⛔ PLATSEN `handelse.atgard` (0.60.0, #251, beslut 0003): bara moduler som är påslagna i gruppen, och en avslagen moduls komponent anropas inte.
+  const handelseAtgarder = skapa?.moduler ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "handelse.atgard" }) : [];
+  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.meddelande === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
@@ -1416,8 +1430,9 @@ function OpsAppShellRitad({
    * Plussets lista: ramverkets rader, en avdelare, modulernas rader. EN
    * definition för header-popovern och bottenradens ark, se ovan.
    * @param {(form: any) => void} oppna Stänger den yta listan ritas i och öppnar modalen. ⛔ Yta och modal i SAMMA tick gick bra för en popover men inte för ett ark: därför äger anropsstället ordningen.
+   * @param {() => void} stang Stänger den yta listan ritas i, utan att öppna något. Ett tillägg i `handelse.atgard` gör sitt eget i sin `onClick`.
    */
-  const renderSkapaLista = (oppna) => (
+  const renderSkapaLista = (oppna, stang) => (
     <>
       {/* ⛔ RAMVERKETS EGNA RADER FÖRST (#168, CP:s rättelse 23:35): Idag/kalendern
           och Inkorgen är ramverkets vyer, inte moduler, och deras "Ny …"-rader
@@ -1440,6 +1455,16 @@ function OpsAppShellRitad({
               }
             />
           ) : null}
+          {/* ⛔ PLATSEN `handelse.atgard` (0.60.0, #251): appens rader i händelsedelen, efter "Ny händelse". Klicket bubblar hit efter
+              komponentens eget, och stänger listan som en ramverksrad gör. */}
+          {handelseAtgarder.map((t) => {
+            const Komponent = /** @type {import("react").ComponentType<{ handelse: null, grupp: any }>} */ (t.komponent);
+            return (
+              <div key={`${t.modulId}:${t.id}`} role="group" aria-label={text(t.etikett, skapa?.sprak ?? sprak)} data-tillagg={`${t.modulId}:${t.id}`} onClick={stang}>
+                <Komponent handelse={null} grupp={skapa?.aktivGrupp} />
+              </div>
+            );
+          })}
           {skapa?.arende ? (
             <OpsPanelRow
               icon={<ArendePlusIkon size={18} />}
@@ -1824,23 +1849,36 @@ function OpsAppShellRitad({
             CP ville dem tätare än gap-1 på desktop (bolag-ops header polish).
           */}
           <div className="ml-auto flex shrink-0 items-center gap-0.5">
-            {atgarderIHuvud}
-            {/* ⛔ #168: PLUSSET LIGGER EFTER actions OCH FÖRE avataren, SOM I
-                SESSIONSTUDIO (`ss-skapa-meny.png`: växlare, expandera, sök,
-                PLUS, avatar, hamburgare). Ett tryck öppnar en popover med
-                listan, aldrig en yta inuti sidan; en rad öppnar en RIKTIG
-                `OpsModal`, se filhuvudets ärende (#168). */}
+            {/* ⛔ 0.60.0: PLUSSET LIGGER FÖRST I KLUSTRET, FÖRE actions, avataren
+                och hamburgaren. CP 2026-10-05: "Kan man göra +et sådär
+                framträdande som det är på mobil. Samma position men större och
+                framträdande. Kanske skall ligga längst till vänster av ikonerna
+                i topraden till höger?"
+                Historik: #168 la det EFTER actions OCH FÖRE avataren, som i
+                SessionStudio (`ss-skapa-meny.png`: växlare, expandera, sök,
+                PLUS, avatar, hamburgare). Platsen byttes för att plusset är
+                huvudåtgärden och ska vara det första ögat möter i klustret.
+                Ett tryck öppnar en popover med listan, aldrig en yta inuti
+                sidan; en rad öppnar en RIKTIG `OpsModal`, se filhuvudets
+                ärende (#168). */}
             {visaSkapaKnapp ? (
               <Popover.Root open={skapaOppen} onOpenChange={setSkapaOppen}>
                 {/*
-                  ⛔ EN CIRKEL SOM SESSIONSTUDIOS (0.30.0, #173), INTE EN
-                  ACCENTFYLLD KNAPP. SS `AppHeader.jsx:376`: `p-2 rounded-full`,
-                  dämpad ikon, `hover:bg-card`, och `bg-card text-accent` medan
-                  menyn är öppen. Före 0.30.0 var plusset en 32 px accentfylld
-                  cirkel (samma klasser som `OpsButton variant="primary" round
-                  iconOnly`), alltså det enda i klustret som skrek, och tre
-                  olika höjder i samma rad. Accentfärgen är bottenradens stora
-                  plus, som är den enda ytan där plusset ÄR huvudsaken.
+                  ⛔ FRÅN 0.60.0 EN FYLLD ACCENTCIRKEL PÅ DATOR (md och uppåt),
+                  40 px med 24 px plus och 44 px träffyta (`huvudPlusKlass`).
+                  CP 2026-10-05: "Kan man göra +et sådär framträdande som det
+                  är på mobil. Samma position men större och framträdande."
+                  HISTORIK, BEHÅLLEN FÖR SKÄLETS SKULL: 0.30.0 (#173) gjorde
+                  plusset till en dämpad 36 px cirkel som SessionStudios
+                  (`AppHeader.jsx:376`: `p-2 rounded-full`, dämpad ikon,
+                  `hover:bg-card`, `bg-card text-accent` medan menyn är öppen).
+                  Före det var det en 32 px accentfylld cirkel, och den
+                  "skrek" bland likar och gav tre olika höjder i samma rad.
+                  Det som ändrats är inte slutsatsen utan förutsättningen:
+                  plusset är huvudåtgärden, inte en ikon bland ikoner, och
+                  CP vill att det syns som bottenradens plus gör på mobil.
+                  Under `md` är cirkeln den dämpade 36 px som förut, när ingen
+                  bottenrad har ett eget plus.
 
                   ⛔ INTE `asChild` RUNT `OpsButton` (#168, andra granskningen).
                   `OpsButton` är en vanlig funktionskomponent utan `forwardRef`
@@ -1854,7 +1892,7 @@ function OpsAppShellRitad({
                 */}
                 <Popover.Trigger
                   aria-label={skapaLabel}
-                  className={huvudknappKlass({ visning: bottenPlus ? "hidden md:inline-flex" : "inline-flex", aktiv: skapaOppen })}
+                  className={huvudPlusKlass({ synligMobil: !bottenPlus, aktiv: skapaOppen })}
                 >
                   <PlusIkon size={24} />
                 </Popover.Trigger>
@@ -1877,14 +1915,18 @@ function OpsAppShellRitad({
                     sideOffset={4}
                     className={cx("z-(--z-dropdown) w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden py-1.5", radBehallare())}
                   >
-                    {renderSkapaLista((form) => {
-                      setSkapaOppen(false);
-                      oppnaSkapa(form);
-                    })}
+                    {renderSkapaLista(
+                      (form) => {
+                        setSkapaOppen(false);
+                        oppnaSkapa(form);
+                      },
+                      () => setSkapaOppen(false),
+                    )}
                   </Popover.Content>
                 </Popover.Portal>
               </Popover.Root>
             ) : null}
+            {atgarderIHuvud}
             {/* ⛔ Efter actions och FÖRE hamburgaren. Kontot är personens egen
                 yta och hör ihop med appens åtgärder; hamburgaren är resten av
                 navigeringen och ligger ytterst. Se noten vid propen. */}
@@ -2115,10 +2157,13 @@ function OpsAppShellRitad({
                 </Dialog.Close>
               </div>
               <div className="min-h-0 flex-1 overflow-auto py-1.5">
-                {renderSkapaLista((form) => {
-                  setSkapaBottenOppen(false);
-                  setTimeout(() => oppnaSkapa(form), 0);
-                })}
+                {renderSkapaLista(
+                  (form) => {
+                    setSkapaBottenOppen(false);
+                    setTimeout(() => oppnaSkapa(form), 0);
+                  },
+                  () => setSkapaBottenOppen(false),
+                )}
               </div>
             </Dialog.Content>
           </Dialog.Portal>

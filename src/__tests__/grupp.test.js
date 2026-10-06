@@ -503,7 +503,7 @@ describe("medlemskapet", () => {
     expect(() => byggMedlemskap({ ...MEDLEM(), status: "kanske" })).toThrow(/memberships: statusen "kanske" för "uid-1\\|bolaget" finns inte/);
     const { status: _s, ...utan } = MEDLEM();
     expect(byggMedlemskap(utan).status).toBe("aktiv");
-    expect(MEDLEMSSTATUS).toEqual(["aktiv", "avslutad"]);
+    expect(MEDLEMSSTATUS).toEqual(["aktiv", "avslutad", "avstangd"]);
   });
 
   it("okända fält avvisas", () => {

@@ -490,6 +490,85 @@ function HandelseScen() {
 }
 
 /*
+ * 0.60.0 (#251, beslut 0003): tillägg på händelseytan. En provmodul "Datumomröstning" utan egen yta, med en sektion i panelen
+ * (`handelse.sektion`) och en rad i plussets händelsedel (`handelse.atgard`), påslagen i gruppen g1. En andra modul har en sektion
+ * men är AVSLAGEN, och dess komponent markerar om den ändå anropas. Ekonomi har en egen yta och står med i inställningslistan.
+ * "tillagg" ritar panelen fristående i skalet, "tillagg-installning" gruppens inställningar med alla appar. Saknas `tillaggFor`
+ * i den byggda versionen (0.59.0) ritas en markör, och avsnitt 40 blir rött på det i stället för att sidan kastar.
+ */
+function TillaggRostning({ handelse, grupp }) {
+  const forslag = [
+    { dag: "tis 13 okt, 18:00", roster: 4 },
+    { dag: "ons 14 okt, 18:00", roster: 2 },
+    { dag: "tor 15 okt, 17:30", roster: 5 },
+  ];
+  return (
+    <div data-provtillagg="rostning" data-handelse={handelse.id} data-grupp={grupp.id} className="flex flex-col gap-1.5">
+      {forslag.map((f) => (
+        <div key={f.dag} className="flex min-h-11 items-center justify-between gap-3 rounded-base border border-line bg-raised px-3 text-etikett text-ink">
+          <span>{f.dag}</span>
+          <span className="text-meta text-ink-muted">{f.roster} röster</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function TillaggNyRostning() {
+  return <OpsPanelRow icon={<CalendarDays size={18} />} label="Ny datumomröstning" accent onClick={() => { window.__nyRostning = (window.__nyRostning ?? 0) + 1; }} />;
+}
+function TillaggAvslagen() {
+  window.__avslagenAnropad = true;
+  return <p data-provtillagg="avslagen">Avslagen modul</p>;
+}
+const TILLAGG_MODULER = () =>
+  Ops.validateModuler([
+    {
+      id: "omrostning",
+      namn: { sv: "Datumomröstning", en: "Date poll" },
+      nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: null,
+      tillagg: [
+        { plats: "handelse.sektion", id: "rostning", etikett: { sv: "Omröstning", en: "Poll" }, komponent: TillaggRostning },
+        { plats: "handelse.atgard", id: "ny", etikett: { sv: "Ny datumomröstning", en: "New date poll" }, komponent: TillaggNyRostning },
+      ],
+    },
+    {
+      id: "anteckningar",
+      namn: { sv: "Anteckningar", en: "Notes" },
+      nav: [], routes: [], samlingar: [], kallor: {}, skapar: [], hubb: null,
+      tillagg: [{ plats: "handelse.sektion", id: "anteckning", etikett: { sv: "Anteckningar", en: "Notes" }, komponent: TillaggAvslagen }],
+    },
+    {
+      id: "ekonomi",
+      namn: { sv: "Ekonomi", en: "Finance" },
+      nav: [{ href: "/ekonomi", label: "Ekonomi" }], routes: [], samlingar: [], kallor: {}, skapar: [],
+      hubb: { ikon: <Wallet size={20} />, rutt: "/ekonomi", startsida: "oversikt", delar: [{ id: "oversikt", namn: { sv: "Översikt", en: "Overview" }, ikon: <LayoutGrid size={16} />, rutt: "/ekonomi/oversikt" }] },
+    },
+  ]);
+function TillaggScen() {
+  const { OpsHandelsePanel } = Ops;
+  if (!Ops.tillaggFor) return <Full><p data-saknas="tillaggFor">tillaggFor saknas</p></Full>;
+  const moduler = TILLAGG_MODULER();
+  const grupp = { id: "g1", namn: { sv: "Claes Philip Staiger Konsulting och Förvaltning AB" }, moduler: ["ekonomi", "omrostning"] };
+  return (
+    <Full skapa={{ handelse: <p>Formulär</p>, lage: grupp.id, moduler, aktivGrupp: grupp }}>
+      <OpsHandelsePanel handelse={{ ...HANDELSE_VY.mote, kravSvar: false }} onTillbaka={() => {}} statusWords={{ oppet: "Öppet" }} moduler={moduler} grupp={grupp} />
+    </Full>
+  );
+}
+function TillaggInstallningScen() {
+  const { OpsView, OpsGruppFormular } = Ops;
+  if (!Ops.tillaggFor) return <Full><p data-saknas="tillaggFor">tillaggFor saknas</p></Full>;
+  const moduler = TILLAGG_MODULER();
+  return (
+    <Full>
+      <OpsView>
+        <OpsGruppFormular grupp={{ id: "g1", namn: { sv: "Claes Philip Staiger Konsulting och Förvaltning AB" }, moduler: ["ekonomi", "omrostning"] }} onSpara={async () => {}} moduler={{ valbara: Ops.valbaraModuler(moduler), agare: true }} />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
  * 0.40.0 (#214): att ÄNDRA en händelse. Samma app som `handelse` men med pennan i panelen (`onRedigera`) och skalets redigeringsläge
  * (`skapa.handelse.redigera`). Appens källa är `REDIGERA_RADER`, en liten butik som formuläret skriver i och panelen läser ur, som en
  * app gör med sin databas. `?utanpenna=1` ritar panelen utan `onRedigera` (appen ger ingen penna till den som inte får ändra). Saknas
@@ -1173,6 +1252,8 @@ function Scen() {
   if (s === "svar") return <SvarScen />;
   if (s === "handelse") return <HandelseScen />;
   if (s === "handelse-redigera") return <HandelseRedigeraScen />;
+  if (s === "tillagg") return <TillaggScen />;
+  if (s === "tillagg-installning") return <TillaggInstallningScen />;
   // 0.31.2: Idag som referens för avståndet under toppraden och sidomarginalen: en vanlig vy i `OpsView`, som bolag-ops Idag.
   if (s === "idag") {
     const { OpsView } = Ops;
