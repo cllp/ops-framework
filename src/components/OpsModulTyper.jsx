@@ -5,6 +5,7 @@ import { MAX_TYPNAMN, typmarke } from "../lib/modultyper.js";
 import { text } from "../lib/sprak.js";
 import { cx } from "../lib/cx.js";
 import { OpsBanner } from "./OpsBanner.jsx";
+import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { AndraIkon, ArkiveraIkon, TaFramIkon } from "./icons.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -50,6 +51,8 @@ export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak: s
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const rubrikId = useId();
+  // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken nivå 3, och samma som panelens ritas den inte alls (`delrubrik`).
+  const delen = delrubrik(rubrik, rubrikId, useInstallningspanel());
   if (!Array.isArray(bidrag)) {
     throw new Error("OpsModulTyper: bidrag krävs och måste vara en lista, även när den är tom. Skicka resultatet av bidragForGrupp.");
   }
@@ -117,10 +120,10 @@ export function OpsModulTyper({ bidrag, yta, onAndra, kanAndra = false, sprak: s
   );
 
   return (
-    <section aria-labelledby={rubrikId} className="flex flex-col gap-3">
+    <section aria-labelledby={delen.etikettId} className="flex flex-col gap-3">
       {/* ⛔ NIVÅ 2, SOM KATALOGERNAS (0.44.0, bolag-ops#507): kortet står bredvid `OpsKatalogInstallning` i inställningarna, och två
           kort på samma sida med olika rubriknivå hade gett skärmläsarens rubriklista en ordning som inte finns på skärmen. */}
-      <h2 id={rubrikId} className="m-0 text-sektion uppercase text-accent">{rubrik}</h2>
+      <Delrubrik niva={delen.niva} id={rubrikId}>{rubrik}</Delrubrik>
       {!kanAndra ? (
         <OpsBanner tone="info" title="Du kan läsa listan, inte ändra den">
           Det är gruppens ägare som döljer eller döper om typer från moduler. Låset sitter i databasens regler, inte i den här vyn.

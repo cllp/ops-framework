@@ -1640,6 +1640,52 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("typografi golv: fel sökväg", [typvakt, path.join(typmapp, "finns-inte")], "finns inte");
 }
 
+// ── Utvecklarord i användartext (0.69.0, #274) ─────────────────────────────
+//
+// ⛔ Det planterade fallet är CP:s skärmbild, ordagrant: en banderoll som säger att slagen inte är seedade och att samlingen är tom.
+// Grönt: samma ord i en kommentar, i ett felmeddelande och i en jämförelse med en konstant, för de är skrivna för en utvecklare.
+{
+  const ordvakt = "scripts/check-utvecklarord.mjs";
+  const ordmapp = path.join(arbetsmapp, "utvecklarord");
+
+  kravGront("utvecklarord: ramverkets riktiga src är grön", [ordvakt]);
+
+  fs.cpSync(path.join(rot, "src", "components"), path.join(ordmapp, "smutsig"), { recursive: true });
+  const prov = path.join(ordmapp, "smutsig", "OpsProvbanderoll.jsx");
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <OpsBanner tone="info" title="Slagen är inte seedade än">Inget att visa.</OpsBanner>;\n}\n');
+  kravRott("utvecklarord: \"seedade\" i en banderolls title", [ordvakt, path.join(ordmapp, "smutsig")], '"seedade"');
+  fs.writeFileSync(prov, "export function OpsProvbanderoll() {\n  return <p>Samlingen är tom, så appen ritar repots standardvärden.</p>;\n}\n");
+  kravRott("utvecklarord: \"Samlingen\" i JSX-text", [ordvakt, path.join(ordmapp, "smutsig")], '"Samlingen"');
+  fs.writeFileSync(prov, "export const TEXTER = { hjalpText: \"Står i koden (SLAGBETEENDEN).\" };\n");
+  kravRott("utvecklarord: ett kodnamn i versaler i en texttabell", [ordvakt, path.join(ordmapp, "smutsig")], '"SLAGBETEENDEN"');
+  fs.writeFileSync(prov, "export function OpsProvbanderoll({ fel }) {\n  return <OpsBanner title={`${fel} kräver en driftsättning`} />;\n}\n");
+  kravRott("utvecklarord: \"driftsättning\" i en mall", [ordvakt, path.join(ordmapp, "smutsig")], '"driftsättning"');
+
+  fs.writeFileSync(
+    prov,
+    [
+      "/** Före seedningen är samlingen tom och repots standardvärden ritas (SLAGBETEENDEN). */",
+      "export function OpsProvbanderoll({ text }) {",
+      '  if (!text) throw new Error("OpsProvbanderoll: samlingen saknas, kör seedningen.");',
+      "  if (text.length > MAX_TEXT) return null;",
+      "  return <p>Allt är som det ska.</p>;",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  kravGront("utvecklarord: en kommentar, ett felmeddelande och en jämförelse är inga brott", [ordvakt, path.join(ordmapp, "smutsig")]);
+
+  const tunn = path.join(ordmapp, "tunn");
+  fs.mkdirSync(tunn, { recursive: true });
+  fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return <p>Hej</p>; }\n");
+  kravRott("utvecklarord golv: för få filer lästa", [ordvakt, tunn], "väntat minst");
+  kravRott("utvecklarord golv: fel sökväg", [ordvakt, path.join(ordmapp, "finns-inte")], "finns inte");
+  const tyst = path.join(ordmapp, "tyst");
+  fs.mkdirSync(tyst, { recursive: true });
+  for (let i = 0; i < 6; i++) fs.writeFileSync(path.join(tyst, `Tom${i}.js`), `export const x${i} = ${i};\n`);
+  kravRott("utvecklarord golv: filer lästa men inga användartexter", [ordvakt, tyst], "användartexter hittades");
+}
+
 // ── Gruppkulör (0.65.0, #265): kontrasten för alla 360 kulörer, i båda lägena ──
 {
   const fargvakt = path.join(rot, "scripts", "check-gruppfarg.mjs");

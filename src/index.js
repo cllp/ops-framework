@@ -263,6 +263,7 @@ export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
+export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./components/OpsInstallningar.jsx";
 /*
  * ⛔ SAMTALEN (0.34.0, #182, #185): gruppchatt, privata meddelanden och Assistent-tråden som EN modell. Formerna och
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.

@@ -9,6 +9,32 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.69.0
+
+⛔ **Versionsnumret:** 0.68.0 är taget av PR 268 (trådar i gruppchatten, lifehub.app#60), som inte är mergat när den här grenen öppnas. Main står på 0.67.0. Den här grenen tar 0.69.0 och mergar in main när 268 är inne.
+
+### Inställningarna: en lista med sektioner, och varje sektion i en egen panel (#274)
+
+Händelsen: CP 2026-10-06 20:12, med en skärmbild av Inställningar i LifeHub på surfplatta: "hela inställnings-panelen är superrörig. Vi måste bygga ett intuitivt, enkelt och rent inställningspanel. Sektioner kanske skall stå ensamma, med att man navigerar till en specifik panel med tillbaka-pil mm. Texterna känns ihoptryckta." Sidan var ett enda långt flöde av kort, med små rubriker, täta rader och utvecklartext mellan korten ("Slagen är inte seedade än", "Samlingen är tom, så appen ritar repots standardvärden", "står däremot i koden (SLAGBETEENDEN)").
+
+#### Tillagt
+
+- **`OpsInstallningar`**: appen ger sektionerna (`{ id, ikon, rubrik, beskrivning, antal, innehall }`), ramverket ger listan och panelen. Raderna är minst 56 px, med ikon, rubrik i 16 px halvfet, beskrivningen på egen rad i 12 px dämpad, antalet till höger och en chevron. Panelen har tillbaka-pil, rubrik i 18 px och beskrivning på egen rad. `ORD_OPSINSTALLNINGAR` på svenska och engelska.
+- **Den valda sektionen ligger i adressen.** `vald` och `onValj` kommer från appen, så att webbläsarens tillbaka fungerar och en sektion går att länka till. Ramverket känner ingen router och inga samlingsnamn. Ett okänt `vald` (en gammal länk) ritar listan och ingen tom panel.
+- **En kolumn under 1024 px, två från 1024.** Telefon och iPad i stående läge (820 px) får listan, och panelen ersätter den; datorn får listan till vänster och panelen till höger, utan tillbaka-pil. Gränsen är `lg` och inte `md` som i Meddelanden: i 820 px hade panelen blivit drygt 500 px bred, och en katalog trängs där igen.
+- **Tangentbord och skärmläsare:** listan är en `<ul>` med knappar och den valda bär `aria-current`. Fokus går till panelens rubrik när den öppnas och tillbaka till raden när man går tillbaka, med pilen eller med webbläsarens tillbaka. Vid första ritningen flyttas inget fokus.
+- **`useInstallningspanel`:** `OpsKatalogInstallning` och `OpsModulTyper` ritar sin rubrik på nivå 3 inuti en panel, och inte alls när den är samma som panelens. Katalogens delrubriker (Arkiverade, Senaste ändringarna) följer med en nivå ned. Utanför en panel är allt som förut.
+- **`check-utvecklarord`** (i `npm run check`): larmar på seedad/seedade/seedning, samlingen, standardvärden, driftsättning, repots, Firestore och kodnamn i versaler i det användaren ser: JSX-text, strängar som ensamma barn i JSX och värden på användartextnamn. Kommentarer, felmeddelanden och loggrader läses inte. Golv: 150 filer och 300 texter i ramverket, 5 och 10 i en app. Planterat i `test-guards` (fyra röda fall, ett grönt, tre golv). Ramverket självt: 0 träffar. LifeHub på origin/main: 15, som ompinningen lagar.
+- **`check-skalyta` avsnitt 43** vid 390, 820 och 1280 px: listan, en panel, tillbaka, fokus och ingen horisontell överflödning.
+
+#### Ompinning till 0.69.0
+
+Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.69.0/ops-framework-0.69.0.tgz"`.
+2. `SettingsView` byggs om till `OpsInstallningar` med sektionerna ur ärendet, och sektionen läses ur och skrivs till adressen.
+3. Utvecklartexten skrivs om för användaren. Lägg `node node_modules/ops-framework/scripts/check-utvecklarord.mjs src` i appens kedja.
+
 ## 0.67.0
 
 ⛔ **Versionsnumret:** 0.66.0 är redan taget av utkastet PR 268 (trådar i gruppchatten, lifehub.app#60), som inte är mergat när den här grenen öppnas. Main står på 0.65.0. Den här grenen tar därför 0.67.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.
