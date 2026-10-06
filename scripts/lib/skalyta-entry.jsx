@@ -200,7 +200,8 @@ function KalenderScen() {
         <OpsCalendar
           onHanteraKalendrar={() => { window.__hantera += 1; setHantera(true); }}
           // 0.37.0: platsen för F6 (lager och tillgänglighet), med en ton och två hörnmärken den 14 oktober.
-          dagdekor={(d) => (d === "2026-10-14" ? { ton: 5, hornmarken: [{ id: "borta", etikett: "2 borta", innehall: <Bell size={12} /> }, { id: "lager", etikett: "1 lager", innehall: <LayoutGrid size={12} /> }] } : undefined)}
+          // 0.61.0 (#259): hörnbrickorna är typade, appen skickar bara antalen.
+          dagdekor={(d) => (d === "2026-10-14" ? { ton: 5, borta: { antal: 2 }, lager: { antal: 1 } } : undefined)}
           ariaLabel="Kalender"
           entries={KAL_POSTER}
           today={KAL_IDAG}
@@ -209,6 +210,93 @@ function KalenderScen() {
           statusWords={{ oppet: "Öppet", vantar: "Väntar", klart: "Klart" }}
           onSkapa={(d) => window.__skapat.push(d)}
           lagring={{ getItem: (n) => window.__lagring[n] ?? null, setItem: (n, v) => { window.__lagring[n] = v; } }}
+        />
+      </OpsView>
+    </Full>
+  );
+}
+
+/*
+ * 0.61.0 (#259 skiva 1): lager och tillgänglighet. Idag är tisdag 6 oktober 2026, som i förebilderna. Tillgängligheten räknas med
+ * ramverkets egen `tillganglighetForDag` ur fjorton medlemmar och deras poster, så att sidan visar modellen hela vägen till brickan.
+ *
+ * ⛔ SAMMA DATA SOM FÖREBILDEN (regel 12: samma flöde). Två scener, en per förebild, eftersom CP:s två bilder visar olika lägen:
+ *   - `kalender-tillganglighet`: förebild 7 (`docs/bilder/259/ss-kalender-mobil-7.png`). Lager med ram på onsdagarna 9, 16, 23
+ *     och 30 september och 7, 14 och 21 oktober. En borta den 24 september, 1-4 och 22 oktober. Båda den 30 september. Två borta
+ *     och två lager den 8 oktober. Prickarna dag för dag som i bilden. Mätdagarna som förebilden inte visar ligger i november:
+ *     den 18 tolv borta och tolv lager (`9+`), den 19 två borta, den 22 (söndag) en borta, den 25 två lager.
+ *   - `kalender-tillganglighet-3`: förebild 3 (`ss-lager-och-tillganglighet-mobil-3.png`). Lager med ram på onsdagarna 2 september
+ *     till 14 oktober; en borta den 5, 6, 24 och 30 september och 1-4 och 8 oktober.
+ * Den 9 oktober har bara DOLDA poster och ska alltså inte få någon bricka. Gruppen räknas som vald, så `N/N` står på dagar utan
+ * borta från 640 px (SS webb, `ss-tillganglighet-webb-6.png`).
+ */
+const TG_IDAG = new Date(2026, 9, 6, 12);
+const TG_MEDLEMMAR = ["Örjan Klintberg", "Anna Berg", "Bo Ek", "Cecilia Holm", "David Lind", "Eva Nord", "Filip Strand", "Greta Åberg", "Hugo Wik", "Ida Sjö", "Jonas Ström", "Karin Dahl", "Lena Falk", "Måns Gran"].map((namn, i) => ({ uid: `m${i}`, namn }));
+/** En borta per dag, växelvis delad och upptagen. @param {string[]} dagar */
+const tgEnBorta = (dagar) => dagar.map((d, i) => ({ uid: `m${i % 3}`, heldag: true, start: d, lage: i % 2 ? "delad" : "upptagen", rubrik: "Jobbresa | Tyskland" }));
+// ⛔ Bara dolda poster den 9 oktober: ingen bricka.
+const TG_DOLDA = [
+  { uid: "m5", heldag: true, start: "2026-10-09", lage: "dold", rubrik: "Hemligt" },
+  { uid: "m6", start: "2026-10-09T08:00", slut: "2026-10-09T17:00", lage: "dold" },
+];
+const TG_VARIANT = {
+  7: {
+    poster: [
+      ...tgEnBorta(["2026-09-24", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-22", "2026-11-22"]),
+      // Två den 8 oktober: en heldag och en tidsatt ("upptagen", som räknas i brickan som i SS, blockedCount är binärt).
+      { uid: "m3", heldag: true, start: "2026-10-08", lage: "upptagen" },
+      { uid: "m4", start: "2026-10-08T09:00", slut: "2026-10-08T12:00", lage: "upptagen" },
+      ...TG_DOLDA,
+      ...TG_MEDLEMMAR.slice(0, 12).map((m) => ({ uid: m.uid, heldag: true, start: "2026-11-18", lage: "upptagen" })),
+      { uid: "m1", heldag: true, start: "2026-11-19", lage: "upptagen" },
+      { uid: "m2", start: "2026-11-19T10:00", slut: "2026-11-19T11:00", lage: "delad", rubrik: "Tandläkare" },
+    ],
+    ramdagar: ["2026-09-09", "2026-09-16", "2026-09-23", "2026-09-30", "2026-10-07", "2026-10-14", "2026-10-21"],
+    lager: { "2026-10-08": 2, "2026-11-18": 12, "2026-11-25": 2 },
+    // Prickarna dag för dag ur förebild 7 (1-6 september syns inte där och har förebild 3:s). ⛔ UTAN LAGRETS PRICK: på lagerdagarna
+    // ritar SS en egen prick i lagrets färg (`DayCell.js:330-357`, visningssättet "dot"), och den byggs inte i den här skivan
+    // (granskningen av PR 260: en tredje visning av samma lager). Scenen fejkar den inte med extra poster, för då hade montaget sett
+    // likare ut än förmågan är. Prickarna här är alltså bara förebildens HÄNDELSER.
+    prickar: { "2026-09-01": 3, "2026-09-02": 4, "2026-09-03": 5, "2026-09-04": 3, "2026-09-06": 1, "2026-09-07": 1, "2026-09-08": 1, "2026-09-10": 3, "2026-09-11": 1, "2026-09-12": 4, "2026-09-14": 2, "2026-09-15": 3, "2026-09-16": 1, "2026-09-17": 4, "2026-09-18": 3, "2026-09-19": 1, "2026-09-20": 1, "2026-09-21": 2, "2026-09-22": 1, "2026-09-24": 6, "2026-09-25": 2, "2026-09-27": 1, "2026-09-29": 1, "2026-09-30": 1, "2026-10-01": 4, "2026-10-02": 1, "2026-10-03": 1, "2026-10-08": 1, "2026-10-24": 1 },
+  },
+  3: {
+    poster: [...tgEnBorta(["2026-09-05", "2026-09-06", "2026-09-24", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"]), { uid: "m4", start: "2026-10-08T09:00", slut: "2026-10-08T12:00", lage: "upptagen" }, ...TG_DOLDA],
+    ramdagar: ["2026-09-02", "2026-09-09", "2026-09-16", "2026-09-23", "2026-09-30", "2026-10-07", "2026-10-14"],
+    lager: {},
+    // Utan lagrets prick, som i förebild 7:s scen ovan: en prick mindre på varje lagerdag.
+    prickar: { "2026-09-01": 3, "2026-09-02": 3, "2026-09-03": 5, "2026-09-04": 3, "2026-09-06": 1, "2026-09-07": 1, "2026-09-08": 1, "2026-09-10": 3, "2026-09-11": 1, "2026-09-12": 4, "2026-09-14": 2, "2026-09-15": 3, "2026-09-16": 1, "2026-09-17": 4, "2026-09-18": 3, "2026-09-19": 1, "2026-09-20": 1, "2026-09-21": 2, "2026-09-22": 1, "2026-09-24": 6, "2026-09-25": 2, "2026-09-27": 1, "2026-09-29": 1, "2026-09-30": 1, "2026-10-01": 4, "2026-10-02": 1, "2026-10-03": 1, "2026-10-08": 1 },
+  },
+};
+const TG_KAL = [{ id: "g", namn: "Gruppen", farg: 6 }, { id: "r", namn: "Resor", farg: 4 }, { id: "p", namn: "Privat", farg: 2 }];
+/** @param {Record<string, number>} prickar */
+const tgEntries = (prickar) => Object.entries(prickar).flatMap(([d, n]) => Array.from({ length: n }, (_, i) => ({ id: `${d}-${i}`, date: d, title: `Post ${i + 1}`, kalender: TG_KAL[(i + Number(d.slice(-2))) % 3] })));
+/** @param {{ variant: 3 | 7 }} props */
+function KalenderTillganglighetScen({ variant }) {
+  const { OpsView, OpsCalendar, tillganglighetForDag, bortaAntal } = Ops;
+  const v = TG_VARIANT[variant];
+  const [tg, setTg] = useState(true);
+  const [lager, setLager] = useState(true);
+  return (
+    <Full>
+      <OpsView>
+        <OpsCalendar
+          ariaLabel="Kalender"
+          entries={tgEntries(v.prickar)}
+          today={TG_IDAG}
+          monthsBack={1}
+          monthsForward={1}
+          // Sidan laddas med `setContent` och har ingen `localStorage`: enhetens minne är `window.__lagring`, som i `KalenderScen`.
+          lagring={{ getItem: (n) => window.__lagring[n] ?? null, setItem: (n, v) => { window.__lagring[n] = v; } }}
+          tillganglighet={{ pa: tg, onByt: setTg }}
+          lager={{ pa: lager, onByt: setLager }}
+          dagdekor={(d) => {
+            const borta = tg && tillganglighetForDag ? bortaAntal(tillganglighetForDag({ medlemmar: TG_MEDLEMMAR, poster: v.poster, dag: d })) : 0;
+            const ram = v.ramdagar.includes(d);
+            const l = lager ? v.lager[d] || (ram ? 1 : 0) : 0;
+            // N/N: gruppen är vald (sidan visar en grupp), som SS webbs `activeGroup`. Rutan ritar den bara när ingen är borta.
+            const narvaro = tg ? { narvaro: { tillgangliga: TG_MEDLEMMAR.length - borta, totalt: TG_MEDLEMMAR.length } } : {};
+            return { ...narvaro, ...(borta ? { borta: { antal: borta } } : {}), ...(l ? { lager: { antal: l }, ...(ram ? { ram: 1 } : {}) } : {}) };
+          }}
         />
       </OpsView>
     </Full>
@@ -760,7 +848,7 @@ const manyaGrupper = (lista) => [...lista, ...Array.from({ length: window.__mang
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
+function Full({ children, utanMeny = false, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
   const [infalld, setInfalld] = useState(false);
   const [aktiv, setAktiv] = useState(aktivIScenen());
   return (
@@ -782,7 +870,7 @@ function Full({ children, skapa = { handelse: <p>Formulär</p> }, extraActions =
       skapa={skapa}
       handelsepanel={handelsepanel}
       talk={talk}
-      meny={meny}
+      meny={utanMeny ? undefined : meny}
       grupper={{ lista: utanGrupp() ? [] : window.__skal === "gruppkort" ? g2Lista : manyaGrupper(grupperLista), aktiv, onValj: setAktiv, infalld, onInfalld: setInfalld, onSkapa: () => {}, onInfo: () => {}, onRedigera: () => {} }}
     >
       {children}
@@ -1071,6 +1159,15 @@ function Scen() {
     );
   }
   if (s === "modal") return <ModalForm />;
+  // 0.62.0 (granskningen av #261): huvudet UTAN `meny`, med fem åtgärder (tema, inkorg, påminnelser, sök, fråga) plus avataren.
+  // Före 0.62.0 flyttades inga åtgärder utan `meny`, och huvudet svämmade över vid 320 px. Avsnitt 6b mäter 320 och 360.
+  if (s === "utanmeny") {
+    return (
+      <Full utanMeny extraActions={<OpsIconLink href="/paminnelser" icon={<Calendar size={IKON} />} label="Påminnelser" />}>
+        <p className="px-4 text-brod">innehåll</p>
+      </Full>
+    );
+  }
   if (s === "full") {
     return (
       <Full>
@@ -1261,6 +1358,13 @@ function Scen() {
   if (s === "fullyta-kalender") return <FullYta vy="kalender" />;
   if (s === "kalender") return <KalenderScen />;
   if (s === "kalender-appar") return <KalenderApparScen />;
+  if (s === "kalender-tillganglighet") return <KalenderTillganglighetScen variant={7} />;
+  if (s === "kalender-tillganglighet-3") return <KalenderTillganglighetScen variant={3} />;
+  // Samma scen med veckonumren på (granskningen av PR 260: rutan blir smalare och brickan klipptes). Enhetens minne säger "1".
+  if (s === "kalender-tillganglighet-vecka") {
+    window.__lagring["ops-kalender-veckonummer"] = "1";
+    return <KalenderTillganglighetScen variant={7} />;
+  }
   if (s === "talk") return <TalkScen />;
   if (s === "kalendrar") return <KalendrarScen />;
   if (s === "ny-handelse") return <NyHandelseScen />;

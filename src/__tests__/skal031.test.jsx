@@ -118,10 +118,18 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
     expect(rad.getAttribute("href")).toBe("/fraga");
   });
 
-  it("⛔ utan meny finns inget hem för en flyttad åtgärd, så ingen åtgärd göms", () => {
+  // ⛔ 0.62.0 (granskningen av #261): HÄR STOD "utan meny finns inget hem för en flyttad åtgärd, så ingen åtgärd göms". Det
+  // höll inte: bottenradens Meny ritas alltid under md, och huvudet med fem åtgärder svämmade över vid 320 px (scrollWidth 346,
+  // mätt i check-skalyta 6b). Hemmet är arkets navigeringsrader. Provet kräver nu BÅDA halvorna: gömd i huvudet under md, och
+  // en rad i arket, så att ingen åtgärd försvinner tyst.
+  it("⛔ utan meny flyttar åtgärd fyra och uppåt ändå, till bottenradens ark, och försvinner aldrig tyst (0.62.0)", () => {
     render(Skal({ meny: undefined }));
-    const fraga = within(screen.getByRole("banner")).getByRole("link", { name: "Fråga" });
-    expect(fraga.parentElement?.className ?? "").not.toContain("hidden");
+    const fraga = within(screen.getByRole("banner")).getByRole("link", { name: "Fråga", hidden: true });
+    expect(fraga.parentElement?.className).toContain("hidden");
+    expect(fraga.parentElement?.className).toContain("md:contents");
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
+    const rad = within(screen.getByRole("dialog")).getByRole("link", { name: "Fråga" });
+    expect(rad.getAttribute("href")).toBe("/fraga");
   });
 
   it("gruppväxlaren är bara gruppmärket under md: 44 px träffyta, namnet dolt men kvar i knappens skärmläsarnamn (0.31.1)", () => {

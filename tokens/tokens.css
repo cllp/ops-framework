@@ -178,6 +178,10 @@
   --text-mikro--line-height: var(--leading-tight);
   --text-mikro--font-weight: 700;
 
+  --text-raknare: 0.5625rem;
+  --text-raknare--line-height: 1;
+  --text-raknare--font-weight: 700;
+
   --shadow-sm: 0 1px 2px rgba(60, 47, 47, 0.06);
   --shadow-md: 0 2px 8px rgba(60, 47, 47, 0.08);
   --shadow-lg: 0 4px 16px rgba(60, 47, 47, 0.10);
@@ -909,12 +913,36 @@
    * fingret" och "se till att bottensektionen blir några pixlar högre så
    * ikonerna inte kommer så långt i nederkant." 56 px var SessionStudios
    * `h-14`, mätt och riktigt, men förebilden användes på en telefon där
-   * ikonerna hamnade nere vid hemindikatorn. Tummen går före förebilden. */
-  --bottom-nav-h: 4rem;
+   * ikonerna hamnade nere vid hemindikatorn. Tummen går före förebilden.
+   *
+   * ⛔ 0.62.0: HÖJDEN ÄR EN SUMMA, RAD PLUS LYFT. CP 2026-10-06 i
+   * cllp/bolag-ops#565: "Fortfarande lite svårt att träffa ikonerna i header
+   * och bottenlagen. Skulle vilja att de kom upp några pixlar." 0.59.1 gjorde
+   * raden 8 px högre men lät innehållet stå CENTRERAT i den, så ikonen steg
+   * bara 4 px (mätt). Nu bestäms ikonens läge UPPIFRÅN (`pt-2` i
+   * `OpsBottomNav`, SS `MobileTabBar` paddingTop 8) och lyftet är luft UNDER
+   * etiketten, ett eget tal. `--bottom-nav-h` är summan, och det är den enda
+   * höjd `<main>`-paddingen, toasten, sifferbubblan och meddelandeytan räknar
+   * med: höjs lyftet följer allt med, ingen räknar för hand.
+   *
+   * Mål (mätt i check-skalyta avsnitt 6b): ikonens mitt minst 81 px över
+   * skärmens underkant med safe 34, minst 47 px med safe 0. Med rad 56 och
+   * lyft 12 blir det 82 och 48. Förebilden SS står på 72 och 38 (höjd 60 plus
+   * insets, paddingTop 8, ikon 28), alltså lyfter vi mer än förebilden, av
+   * samma skäl som 0.59.1: tummen går före. */
+  --bottom-nav-rad: 3.5rem;
+  --bottom-nav-lyft: 0.75rem;
+  --bottom-nav-h: calc(var(--bottom-nav-rad) + var(--bottom-nav-lyft));
 
   /* ─── Hur långt huvudåtgärden sticker upp OVANFÖR bottenraden. ─────────
    * OpsBottomNav lyfter sin runda knapp 12px och lägger en 4px ring runt
-   * den, alltså 16px utanför baren. Allt som ligger fast strax ovanför
+   * den, alltså 16px utanför baren.
+   *
+   * ⛔ 0.62.0: KNAPPENS LYFT RÄKNAS UR DET HÄR TALET, inte tvärtom. Knappen står
+   * i radens överkant och flyttas upp `--bottom-nav-overhang` minus ringen
+   * (`OpsBottomNav`). Före 0.62.0 var den centrerad i raden och lyftet var en
+   * handskriven `-translate-y-4`, så varje ändring av radens höjd flyttade
+   * knappen och gjorde talet här fel (0.59.1 fick rätta det för hand). Allt som ligger fast strax ovanför
    * baren måste räkna med den sträckan, annars målar knappen över det.
    *
    * ⛔ Talet bor HÄR och inte i varje komponent som råkar veta det. Första

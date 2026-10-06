@@ -17,14 +17,17 @@
  *      rullgardinen (1280 px). Två streck 8 px från varandra under arkets rubrik.
  *   2. HUVUDETS KNAPPAR (1280 px): ikonlänk och hamburgare är 36 px cirklar med 20 px ikon, PLUSSET (0.60.0, CP 2026-10-05) en fylld
  *      40 px accentcirkel med 24 px ikon som ligger FÖRST i klustret (till vänster om inkorgen), avataren
- *      en 28 px cirkel i en 32 px knapp, alla med 44 px träffyta, och mittlinjerna
- *      skiljer högst 1 px.
+ *      en 28 px cirkel i en 32 px knapp, hela den ritade cirkeln träffbar (mätt med
+ *      `elementFromPoint`, 0.62.0), och mittlinjerna skiljer högst 1 px.
  *   3. LOGGAN: märket i toppraden bär ingen text och är inte högre än toppraden (56 px).
  *   4. RADEN: 12 px rundning och hover i `--color-raised`.
  *   5. INSTÄLLNINGSVYN vid 390 px: ingen horisontell överflödning.
  *   6. BOTTENRADEN med `fasta`: Idag, Kalender, STORT PLUS i mitten, Hub, Meny; ikon
- *      24 px, etikett 10 px, höjd 64 px; huvudets plus gömt i mobil; huvudets ikonlänk 24 px. (0.59.1, bolag-ops#563:
- *      SS mätte 20 och 56, men CP: "Svårt att träffa dom med fingret".)
+ *      24 px, etikett 10 px, höjd 68 px (0.62.0: rad 56 plus lyft 12); huvudets plus gömt i mobil; huvudets ikonlänk 24 px.
+ *      (0.59.1, bolag-ops#563: SS mätte 20 och 56, men CP: "Svårt att träffa dom med fingret".)
+ *   6b. TRÄFFYTAN (0.62.0, bolag-ops#565): varje kontroll i huvudet och bottenraden träffas på minst 44x44 där ett tryck
+ *      faktiskt landar (`elementFromPoint`), vid 390 och 375 px med emulerade säkra zoner, och bottenradens ikoner står
+ *      8 px under radens överkant med mitten minst 81 px (safe 34) eller 47 px (safe 0) över skärmens underkant.
  *
  * ⛔ GOLV: varje mätning kräver att det den mäter FANNS (minst så många rader, knappar
  * eller streck), annars är den röd. En mätning som blir grön av att inget hittades
@@ -242,7 +245,6 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
       const ikon = ar ? 24 : 20;
       krav(Math.abs(r.ikon - ikon) < 0.5, `huvudet 1280: ${k} har en ${r.ikon} px ikon, väntat ${ikon}${ar ? " (plusset är huvudåtgärden)" : " (bolag-ops#563 gäller bara mobil)"}.`);
       krav(r.radie >= 18, `huvudet: ${k} har rundning ${r.radie} px, väntat en cirkel (minst 18 px).`);
-      krav(r.efterBredd >= 44 && r.efterHojd >= 44, `huvudet: ${k} har träffyta ${r.efterBredd}x${r.efterHojd} px, väntat minst 44x44 som osynlig \`after:\`-yta.`);
     }
     // Plusset är FYLLT med accent (jämfört mot det beräknade `--color-accent`, inte en hårdkodad färg) och ligger till vänster om inkorgen.
     krav(m.accent !== "" && m.plus.bakgrund === m.accent, `huvudet: plussets bakgrund är ${m.plus.bakgrund}, väntat --color-accent (${m.accent}).`);
@@ -251,7 +253,14 @@ for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
     krav(m.inkorg.x < m.avatar.x && m.avatar.x < m.hamburgare.x, `huvudet: ordningen från vänster är inkorg ${m.inkorg.x.toFixed(0)}, avatar ${m.avatar.x.toFixed(0)}, hamburgare ${m.hamburgare.x.toFixed(0)}, väntat inkorg, avatar, hamburgare.`);
     krav(Math.abs(m.avatar.w - 32) < 0.5 && Math.abs(m.avatar.h - 32) < 0.5, `huvudet: avatarknappen är ${m.avatar.w}x${m.avatar.h} px, väntat 32x32.`);
     krav(m.avatarBild !== null && Math.abs(m.avatarBild.w - 28) < 0.5 && m.avatarBild.radie >= 14, `huvudet: avataren är ${m.avatarBild ? `${m.avatarBild.w} px, rundning ${m.avatarBild.radie}` : "inte hittad"}, väntat en 28 px cirkel.`);
-    krav(m.avatar.efterBredd >= 44, `huvudet: avatarens träffyta är ${m.avatar.efterBredd} px, väntat minst 44.`);
+    // ⛔ 0.62.0 (bolag-ops#565): HÄR STOD `efterBredd >= 44`, alltså storleken på den osynliga `::after`-ytan. Den var 44 och
+    // grön medan den faktiska träffytan i 390 px var 36x44: ytan låg under grannen. En pseudoelementstorlek mäter inte var ett
+    // tryck landar. Nu frågas webbläsaren (`elementFromPoint`, se avsnitt 6b). Vid 1280 krävs att hela den SYNLIGA cirkeln
+    // träffar knappen själv (en mus träffar det man ser); 44x44 krävs under md, där fingret är, i avsnitt 6b.
+    const traff = await matTraffyta(page, 'header button[aria-label="Skapa"], header a[aria-label="Inkorg"], header a[aria-label="Min profil"], header button[aria-label^="Meny,"]');
+    krav(traff.length === 4, `huvudet 1280: ${traff.length} av 4 knappar mättes med elementFromPoint.`);
+    matt.push(`huvudet 1280, faktisk träffyta: ${traff.map((t) => `${t.namn} ${t.w}x${t.h} (ritad ${t.synligW}x${t.synligH})`).join(", ")}`);
+    for (const t of traff) krav(t.mittTraff && t.w >= t.synligW - 0.5 && t.h >= t.synligH - 0.5, `huvudet 1280: "${t.namn}" träffas bara på ${t.w}x${t.h} px men ritas ${t.synligW}x${t.synligH}. Väntat att hela den synliga ytan träffar knappen.`);
   }
   // Loggan: höjden (texten mäts i sektion 10, märket är text sedan 0.31.0)
   krav(m.brand !== null && m.header !== null, "loggan: märket eller toppraden hittades inte.");
@@ -370,7 +379,9 @@ if (!utanFasta) {
     const plus = m.poster.find((p) => p.namn === "Skapa");
     krav(!!plus && Math.abs(plus.w - 56) < 0.5 && Math.abs(plus.h - 56) < 0.5, `bottenraden: plusset är ${plus?.w}x${plus?.h} px, väntat 56x56.`);
     krav(!!plus && Math.abs(plus.mitt - m.bredd / 2) <= 2, `bottenraden: plusset ligger på x=${plus?.mitt.toFixed(1)}, väntat mitt i raden (${m.bredd / 2}).`);
-    krav(Math.abs(m.hojd - 64) < 0.5, `bottenraden: höjd ${m.hojd} px, väntat 64 (bolag-ops#563: "några pixlar högre så ikonerna inte kommer så långt i nederkant").`);
+    // ⛔ 0.62.0 (bolag-ops#565): 68 = rad 56 plus lyft 12 (`--bottom-nav-h` är summan). Ikonens LÄGE mäts i avsnitt 6b; höjden här
+    // är bara att summan faktiskt nådde raden.
+    krav(Math.abs(m.hojd - 68) < 0.5, `bottenraden: höjd ${m.hojd} px, väntat 68 (rad 56 plus --bottom-nav-lyft 12, bolag-ops#565).`);
     krav(Math.abs(m.ikon - 24) < 0.5, `bottenraden: ikonen är ${m.ikon} px, väntat 24 (bolag-ops#563: "Svårt att träffa dom med fingret").`);
     krav(Math.abs(m.huvudIkon - 24) < 0.5, `huvudet 390: inkorgens ikon är ${m.huvudIkon} px, väntat 24 (bolag-ops#563: "Svårt att träffa dom med fingret").`);
     krav(Math.abs(m.etikett - 10) < 0.5, `bottenraden: etiketten är ${m.etikett} px, väntat 10 (SS \`text-[10px]\`).`);
@@ -384,6 +395,172 @@ if (!utanFasta) {
     await page.screenshot({ path: path.join(bildmapp, "bottenrad-meny-mobil.png") });
   }
   await context.close();
+}
+
+// ══ 6b. TRÄFFYTAN DÄR ETT TRYCK FAKTISKT LANDAR, OCH BOTTENRADENS LYFT (0.62.0, bolag-ops#565) ═══
+// CP 2026-10-06: "Fortfarande lite svårt att träffa ikonerna i header och bottenlagen. Skulle vilja att de kom upp några
+// pixlar. Är det förra ärendet utfört? Ser ingen skillnad ännu."
+//
+// ⛔ VARFÖR `elementFromPoint` OCH INTE ELEMENTETS ELLER PSEUDOELEMENTETS STORLEK. Avsnitt 2 mätte till 0.61 att
+// huvudknapparnas osynliga `::after` var 44x44 och var grönt. I 390 px var den FAKTISKA träffytan 36x44 eller 38x44:
+// knapparna står 2 px isär, så 44-ytan låg under grannen och grannen vann trycket. Storleken på en yta säger inte var
+// ett finger landar; webbläsarens träffprov gör det. Därför frågas webbläsaren, punkt för punkt, vilket element ett
+// tryck träffar, utåt från knappens mitt i fyra riktningar, och träffytan är den sammanhängande sträckan där svaret är
+// knappen själv (eller något inuti den).
+//
+// ⛔ LYFTET: ikonens mitt minst 81 px över skärmens underkant med emulerad hemindikator (safe 34) och minst 47 med safe 0,
+// och ikonens överkant 8 px under radens överkant i alla lägen (läget bestäms uppifrån, SS `MobileTabBar` paddingTop 8).
+// 0.59.1 gjorde raden 8 px högre men ikonen var centrerad och steg bara 4 px; ett mål på ikonens läge och inte på radens
+// höjd är det som hade fångat det.
+//
+// ⛔ GOLV: minst 5 kontroller i huvudet i `full` och `utanmeny` (3 i `fasta`, som bara har märke, inkorg och avatar) och 5 i
+// bottenraden i varje läge, annars rött (tomt underlag). Vid 768-1023 px skrivs träffytorna ut (golv 4) men krävs inte, se nedan.
+
+/**
+ * Den faktiska träffytan för varje synlig kontroll som matchar `sel`, mätt med `elementFromPoint`.
+ * Steg 0,25 px utåt från mitten, högst 40 px åt varje håll. Bredd och höjd är summan av de två riktningarna.
+ * @param {any} page @param {string} sel
+ * @returns {Promise<{ namn: string, w: number, h: number, synligW: number, synligH: number, mittTraff: boolean }[]>}
+ */
+async function matTraffyta(page, sel) {
+  return page.evaluate((/** @type {string} */ s) => {
+    return [...document.querySelectorAll(s)]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
+      })
+      .map((el) => {
+        const q = el.getBoundingClientRect();
+        const cx = q.x + q.width / 2;
+        const cy = q.y + q.height / 2;
+        const traff = (/** @type {number} */ x, /** @type {number} */ y) => {
+          const h = document.elementFromPoint(x, y);
+          return !!h && (h === el || el.contains(h));
+        };
+        const ut = (/** @type {number} */ dx, /** @type {number} */ dy) => {
+          let d = 0;
+          while (d < 40 && traff(cx + dx * (d + 0.25), cy + dy * (d + 0.25))) d += 0.25;
+          return d;
+        };
+        return {
+          namn: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 24),
+          w: ut(-1, 0) + ut(1, 0),
+          h: ut(0, -1) + ut(0, 1),
+          synligW: q.width,
+          synligH: q.height,
+          mittTraff: traff(cx, cy),
+        };
+      });
+  }, sel);
+}
+
+if (!utanFasta) {
+  const lagen = /** @type {const} */ ([
+    { namn: "390x844 hemskärm (safe 47/34)", vp: { width: 390, height: 844 }, top: 47, bot: 34, mal: 81 },
+    { namn: "390x844 Safari (safe 0)", vp: { width: 390, height: 844 }, top: 0, bot: 0, mal: 47 },
+    { namn: "375x667 SE (safe 20/0)", vp: { width: 375, height: 667 }, top: 20, bot: 0, mal: 47 },
+    // 0.62.0 (granskningen av #261): de smalaste telefonerna, där ett huvud med fem åtgärder svämmade över utan `meny`.
+    { namn: "360x740 (safe 24/0)", vp: { width: 360, height: 740 }, top: 24, bot: 0, mal: 47 },
+    { namn: "320x568 (safe 20/0)", vp: { width: 320, height: 568 }, top: 20, bot: 0, mal: 47 },
+  ]);
+  for (const l of lagen) {
+    // `utanmeny`: skalet utan `meny`, fem åtgärder plus avataren (granskningen av #261).
+    for (const scen of ["fasta", "full", "utanmeny"]) {
+      const { page, context } = await oppna(scen, l.vp, standardtema, 2);
+      await page.evaluate(([t, b]) => {
+        document.documentElement.style.setProperty("--safe-top", `${t}px`);
+        document.documentElement.style.setProperty("--safe-bottom", `${b}px`);
+      }, [l.top, l.bot]);
+      await page.waitForTimeout(150);
+      const etikett = `${scen} ${l.namn}`;
+      const huvud = await matTraffyta(page, "header a, header button");
+      const botten = await matTraffyta(page, 'nav[aria-label="Snabbnavigering"] a, nav[aria-label="Snabbnavigering"] button');
+      // Golvet i huvudet: `full` har gruppväxlare, tema, inkorg, sök och avatar (5), `utanmeny` gruppväxlare, tema, inkorg,
+      // påminnelser och avatar (5, sök och fråga har flyttat till arket); `fasta` har märke, inkorg och avatar (3).
+      const golv = scen === "fasta" ? 3 : 5;
+      krav(huvud.length >= golv, `träffytan ${etikett}: bara ${huvud.length} kontroller lästa i huvudet, väntat minst ${golv}. Fel scenario.`);
+      krav(botten.length >= 5, `träffytan ${etikett}: bara ${botten.length} kontroller lästa i bottenraden, väntat minst 5. Fel scenario.`);
+      // Större knappar får inte köpas med ett huvud som flödar ut: ingen horisontell överflödning och inget utanför fönstret.
+      const flode = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, klient: document.documentElement.clientWidth, hoger: Math.max(0, ...[...document.querySelectorAll("header a, header button")].map((e) => e.getBoundingClientRect().right)) }));
+      krav(flode.scroll <= flode.klient && flode.hoger <= l.vp.width + 0.5, `träffytan ${etikett}: huvudet flödar över (scrollWidth ${flode.scroll}, clientWidth ${flode.klient}, längst ut ${flode.hoger.toFixed(1)}).`);
+      matt.push(`träffytan ${etikett}: huvudet ${huvud.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}; bottenraden ${botten.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}`);
+      for (const [yta, lista] of /** @type {const} */ ([["huvudet", huvud], ["bottenraden", botten]])) {
+        for (const k of lista) {
+          // 43,5 och inte 44: provet går i steg om 0,25 px från mitten, så en 44 px yta mäts till 43,5-44 beroende på halvpixlar.
+          krav(k.mittTraff && k.w >= 43.5 && k.h >= 43.5, `träffytan ${etikett}: ${yta}s "${k.namn}" träffas på ${k.w}x${k.h} px (ritad ${k.synligW.toFixed(1)}x${k.synligH.toFixed(1)}), väntat minst 44x44 där ett tryck faktiskt landar.`);
+        }
+      }
+      // Lyftet: bara i `fasta` (bottenraden med plus är den CP använder), ikoner i flikarna och Meny, inte den runda knappen.
+      if (scen === "fasta") {
+        const lyft = await page.evaluate((/** @type {number} */ bot) => {
+          const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+          const rad = nav?.firstElementChild;
+          if (!nav || !rad) return null;
+          const radTop = rad.getBoundingClientRect().top;
+          const vh = window.innerHeight;
+          return [...nav.querySelectorAll("a, button")]
+            .filter((el) => el.querySelector("svg") && !el.hasAttribute("data-talk-knapp") && el.getAttribute("aria-label") !== "Skapa")
+            .map((el) => {
+              const s = /** @type {Element} */ (el.querySelector("svg")).getBoundingClientRect();
+              return { namn: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 12), mittOverKant: vh - (s.top + s.height / 2), franRadTop: s.top - radTop, bot };
+            });
+        }, l.bot);
+        krav(lyft !== null && lyft.length >= 4, `lyftet ${etikett}: bara ${lyft?.length ?? 0} ikoner i bottenraden, väntat minst 4 (flikar och Meny).`);
+        if (lyft) {
+          matt.push(`lyftet ${etikett}: ${lyft.map((p) => `${p.namn} mitt ${p.mittOverKant.toFixed(1)} px över kanten, överkant ${p.franRadTop.toFixed(1)} under radens`).join("; ")}`);
+          for (const p of lyft) {
+            krav(p.mittOverKant >= l.mal - 0.25, `lyftet ${etikett}: ikonen i "${p.namn}" har sin mitt ${p.mittOverKant.toFixed(1)} px över skärmens underkant, väntat minst ${l.mal} (bolag-ops#565: "kom upp några pixlar").`);
+            krav(Math.abs(p.franRadTop - 8) <= 0.5, `lyftet ${etikett}: ikonen i "${p.namn}" står ${p.franRadTop.toFixed(1)} px under radens överkant, väntat 8 (läget bestäms uppifrån, SS paddingTop 8, inte av centrering).`);
+          }
+        }
+        // ⛔ DEN RUNDA KNAPPENS LYFT (granskningen av #261): överkanten ska ligga `--bottom-nav-overhang` minus ringen (4 px)
+        // ovanför radens överkant, alltså 12 px i dag. Talet läses ur tokenen med ett provelement, inte ur källan, så att
+        // tokenen och knappen inte kan glida isär utan att det syns. Med `translate-y-0` var allt annat grönt.
+        const knapp = await page.evaluate(() => {
+          const nav = document.querySelector('nav[aria-label="Snabbnavigering"]');
+          const rad = nav?.firstElementChild;
+          const b = nav?.querySelector('button[aria-label="Skapa"]');
+          const prov = document.createElement("div");
+          prov.style.cssText = "position:absolute;visibility:hidden;width:1px;height:var(--bottom-nav-overhang)";
+          document.body.appendChild(prov);
+          const overhang = prov.getBoundingClientRect().height;
+          prov.remove();
+          if (!rad || !b) return null;
+          return { lyft: rad.getBoundingClientRect().top - b.getBoundingClientRect().top, overhang };
+        });
+        krav(knapp !== null && knapp.overhang > 0, `knappens lyft ${etikett}: ${knapp === null ? "knappen eller raden hittades inte" : "--bottom-nav-overhang gick inte att mäta"}.`);
+        if (knapp && knapp.overhang > 0) {
+          const vantat = knapp.overhang - 4;
+          matt.push(`knappens lyft ${etikett}: överkanten ${knapp.lyft.toFixed(1)} px ovanför radens överkant, väntat ${vantat} (overhang ${knapp.overhang} minus ringen 4)`);
+          krav(Math.abs(knapp.lyft - vantat) <= 0.5, `knappens lyft ${etikett}: den runda knappens överkant står ${knapp.lyft.toFixed(1)} px ovanför radens överkant, väntat ${vantat} (--bottom-nav-overhang ${knapp.overhang} minus ringen 4).`);
+        }
+      }
+      // ⛔ EN FLYTTAD ÅTGÄRD FÖRSVINNER INTE TYST: utan `meny` ska Sök och Fråga finnas som rader i bottenradens ark.
+      if (scen === "utanmeny") {
+        await page.getByRole("button", { name: "Meny" }).last().click();
+        await page.waitForSelector('[role="dialog"]');
+        const rader = await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] a')].map((a) => (a.textContent || "").trim()));
+        matt.push(`arket ${etikett}: arkets rader ${rader.join(", ") || "(inga)"}`);
+        for (const namn of ["Sök", "Fråga"]) krav(rader.includes(namn), `arket ${etikett}: "${namn}" finns varken i huvudet eller som rad i bottenradens ark (rader: ${rader.join(", ") || "inga"}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+// 6b, surfplattan (granskningen av #261): 768-1023 px är `md` men fortfarande en tumme. ⛔ MÄTS OCH SKRIVS UT, KRÄVS INTE.
+// Knapparna är 36 px från `md` (se `huvudknappKlass`). 44 px provades: vid 768 px ligger huvudets flikar (Appar och dess
+// chevron) redan i 0.60.0 ovanpå högerklustret, så plusset och temaväxlaren träffas inte alls i sin mitt. Det är ett eget fel i
+// surfplattans huvud. Raden nedan gör det synligt i varje körning; den blir ett krav när huvudet är lagat.
+for (const bredd of [768, 900, 1023]) {
+  for (const scen of ["full", "utanmeny"]) {
+    const { page, context } = await oppna(scen, { width: bredd, height: 900 });
+    const kluster = await matTraffyta(page, "header a[aria-label], header button[aria-label]");
+    krav(kluster.length >= 4, `träffytan ${scen} ${bredd} px: bara ${kluster.length} knappar med namn i huvudet, väntat minst 4.`);
+    const under = kluster.filter((k) => !(k.mittTraff && k.w >= 43.5 && k.h >= 43.5));
+    matt.push(`träffytan ${scen} ${bredd} px (surfplatta, inget krav): ${kluster.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}; under 44x44: ${under.length ? under.map((k) => k.namn).join(", ") : "inga"}`);
+    await context.close();
+  }
 }
 
 // ══ 7. MOBILHUVUDET FÅR ALDRIG FLÖDA ÖVER (0.30.1) ═══════════════════════════
@@ -3121,6 +3298,9 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
           siffraRadie: siffra ? parseFloat(getComputedStyle(siffra).borderTopLeftRadius) : 0,
           siffraMatt: siffraRuta ? [siffraRuta.width, siffraRuta.height] : null,
           centrerad: vanlig && vs ? Math.abs(mitt(vanlig) - mitt(vs)) : 99,
+          // 0.61.0 (#259): siffrans ruta mätt från rutans vänsterkant, och dess bredd (SS dayNumberContainer 28 px först i dayTopRow).
+          siffraVanster: vanlig && vs ? vs.getBoundingClientRect().left - vanlig.getBoundingClientRect().left : 99,
+          siffraBredd: vs ? vs.getBoundingClientRect().width : 0,
           forbiNedtonad: !!forbi && !!forbi.querySelector('[data-nedtonad="forbi"]'),
           idagNedtonad: !!idag && !!idag.querySelector("[data-nedtonad]"),
           prickar: syns(tolfte && tolfte.querySelector("[data-kalender-marken]")),
@@ -3135,7 +3315,9 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       krav(Math.abs(ruta.radie - 12) < 0.5 && ruta.kant >= 1, `${namn}: rutan har rundning ${ruta.radie} och kant ${ruta.kant}, väntat 12 (--radius-base, SS-appens radius.md och SS webb rounded-xl) och en kant. CP 2026-09-30: "Rundningen i cellerna är fel."`);
       krav(ruta.forbiNedtonad && !ruta.idagNedtonad, `${namn}: den 14 september är ${ruta.forbiNedtonad ? "" : "inte "}nedtonad och idag ${ruta.idagNedtonad ? "är" : "är inte"} det, väntat det som varit nedtonat och idag inte (SS :413).`);
       if (vp.width < 640) {
-        krav(ruta.centrerad <= 1, `${namn}: siffran står ${ruta.centrerad.toFixed(1)} px från rutans mitt, väntat centrerad (SS-appen dayNumberContainer).`);
+        // ⛔ 0.61.0 (#259): INTE CENTRERAD. Till 0.60.0 krävde den här raden en centrerad siffra, med en kommentar som sade att SS centrerar.
+        // Mätt i förebild 3 står siffran 5,8 pt vänster om mitten, i en ruta på 28 längst till vänster (`dayTopRow` är flex-start).
+        krav(Math.abs(ruta.siffraVanster - 5) <= 0.6 && Math.abs(ruta.siffraBredd - 28) <= 0.6 && ruta.centrerad >= 2, `${namn}: siffrans ruta börjar ${ruta.siffraVanster.toFixed(1)} px in och är ${ruta.siffraBredd.toFixed(1)} px bred, mitten ${ruta.centrerad.toFixed(1)} px från rutans, väntat 5 px in (kant 1 och padding 4), 28 px bred och inte centrerad (SS-appen dayTopRow, dayNumberContainer).`);
         krav(!!ruta.siffraMatt && Math.abs(ruta.siffraMatt[0] - 28) < 0.6 && Math.abs(ruta.siffraMatt[1] - 28) < 0.6 && ruta.siffraRadie >= 13.5 && ruta.siffraLjus < 0.35, `${namn}: idags siffra är ${JSON.stringify(ruta.siffraMatt)} px, rundning ${ruta.siffraRadie}, bakgrund ${ruta.siffraBg}, väntat en mörk cirkel på 28 px (SS-appen todayCircle).`);
         krav(ruta.prickar && !ruta.piller, `${namn}: den 12 oktober visar märken ${ruta.prickar} och piller ${ruta.piller}, väntat märken och inga piller under 640 px (SS sm:hidden).`);
         const prickar = ruta.markeFarg.filter((m) => m.slag === "prick");
@@ -3504,13 +3686,16 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
         return {
           namn: c.getAttribute("aria-label"),
           ton: ton ? getComputedStyle(ton).backgroundColor : null,
-          marken: [...c.querySelectorAll("[data-hornmarke]")].map((m) => { const x = m.getBoundingClientRect(); return { id: m.getAttribute("data-hornmarke"), topp: x.top - r.top, hoger: x.right - r.right, vanster: x.left - r.left, botten: x.bottom - r.bottom, w: x.width }; }),
+          // 0.61.0 (#259): hörnbrickorna under 640 px, raden bredvid siffran från 640 px. Bara de som syns räknas.
+          marken: [...c.querySelectorAll("[data-hornmarke], [data-indikator]")].filter((m) => m.getBoundingClientRect().width > 0).map((m) => { const x = m.getBoundingClientRect(); return { id: m.getAttribute("data-hornmarke") || m.getAttribute("data-indikator"), topp: x.top - r.top, hoger: x.right - r.right, vanster: x.left - r.left, botten: x.bottom - r.bottom, w: x.width }; }),
         };
       });
       matt.push(`${namn}: den 14 oktober ${JSON.stringify(d)}`);
       krav(!!d && d.marken.length === 2, `${namn}: den 14 oktober har ${d ? d.marken.length : 0} hörnmärken, väntat 2 (golv).`);
       krav(!!d && !!d.ton && !/^rgba\([^)]*,\s*0\)$/.test(d.ton), `${namn}: den 14 oktober har tonen ${d && d.ton}, väntat en synlig ton (SS lagrets tint).`);
-      krav(!!d && d.marken.every((m) => m.topp >= -6.5 && m.hoger <= 6.5 && m.vanster >= 0 && m.botten <= 0), `${namn}: hörnmärkena ${JSON.stringify(d && d.marken)}, väntat inom rutan och högst 6 px utanför dess övre högra hörn (SS top: -6, right: -6).`);
+      // ⛔ 0.61.0 (#259): brickorna sitter 4 px utanför kanten (SS `top:-9` räknat från innehållsrutan, mätt i förebild 3), och
+      // lagerbrickan 4 px högre. Avsnitt 41 mäter geometrin i detalj; här bara att de håller sig i hörnet.
+      krav(!!d && d.marken.every((m) => (telefon ? m.topp >= -8.5 && m.hoger <= 4.5 : m.topp >= 0 && m.hoger <= 0) && m.vanster >= 0 && m.botten <= 0), `${namn}: märkena ${JSON.stringify(d && d.marken)}, väntat ${telefon ? "i rutans övre högra hörn, högst 4 px utanför högerkanten och 8 över (SS-appen, förebild 3)" : "inom rutan, i raden bredvid siffran (SS webb)"}.`);
       krav(!!d && /2 borta/.test(d.namn || "") && /1 lager/.test(d.namn || ""), `${namn}: rutans namn är "${d && d.namn}", väntat att märkenas ord (2 borta, 1 lager) läses upp.`);
     } catch (e) {
       krav(false, `${namn} (k): delen avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
@@ -4532,6 +4717,337 @@ for (const [namn, vp] of /** @type {const} */ ([["syns på 390 px", { width: 390
   } catch (e) {
     krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }
+  await context.close();
+}
+
+// ══ 41. LAGER OCH TILLGÄNGLIGHET I DAGSRUTAN MOT SS FRÅN 310 TILL 1280 PX (0.61.0, #259 skiva 1) ══════════════════════════════════
+// CP 2026-10-06: "Det tog LÅNG tid att få till ikonerna för lager och tillgänglighet särskilt i mobil vy och native med små celler så
+// studera det NOGA", och samma morgon "Allt finns i SessionStudio", alltså SS i varje bredd: SS-appen under 640 px, SS webb från.
+//
+// TELEFON (375 px), förebild `docs/bilder/259/ss-lager-och-tillganglighet-mobil-3.png` (1179 px, 3x av 393 pt), mätt med pixlar:
+//   - brickan är 58-60 bildpixlar, alltså 20 pt,
+//   - en ensam borta-bricka börjar 11 px (3,7 pt) över rutans överkant och slutar 12 px (4 pt) utanför högerkanten,
+//   - lagerbrickan sitter 4 pt högre (`marginTop:-4` alltid), och med båda är det 16 pt mellan överkanterna,
+//   - siffrans mitt står 17,5 px (5,8 pt) vänster om rutans mitt.
+// ⛔ 4 PX OCH INTE 9. SS-koden säger `top: -9, right: -9`, men klustret ligger i `dayTopRow`, och i React Native räknas en absolut
+// position från FÖRÄLDERN, som står innanför rutans kant och padding (1 + 4). Mätningen i bilden avgör, inte siffran i koden.
+//
+// BRED (1280 px), förebild `docs/bilder/259/ss-tillganglighet-webb-6.png` och SS webb `calView/MonthGrid.jsx:448-536`: ikonerna i
+// siffrans rad, till höger, liggande och i flödet, 14 px utan bricka, räknaren efter ikonen, och `N/N` när ingen är borta.
+//
+// Scenen `kalender-tillganglighet` bär förebild 7:s data (samma dagar med samma markeringar och prickar) och räknar tillgängligheten
+// med `tillganglighetForDag` (modellen hela vägen till brickan). Det förebilden inte visar (`9+`, två ensamma lager, söndagen den
+// 22 november) ligger i november, utanför förebildens utsnitt.
+// Krav, varje del för sig:
+// Telefonbredderna är 310, 320, 360, 375 och 393, och 350, 360 och 375 med veckonumren på (granskningen av PR 260: brickan täckte
+// siffran vid 360 och 320, och klipptes med veckonummer och under 320). 310 px, och 350 med veckonummer, är golvet (README).
+//   (a) telefon: varje bricka är en cirkel på 20 px (22 är fel) med ikonen 10 px, opak yta;
+//   (b) telefon: en ensam borta-bricka: överkanten 4 px över rutan och högerkanten max(4, 40 minus rutans bredd) px utanför, alltså
+//       SS rakt av från 36 px rutbredd och längre ut under det;
+//   (c) telefon: en ensam lagerbricka sitter 4 px högre än en ensam borta-bricka, mätt mot sin ruta, med samma överhäng;
+//   (d) telefon: med båda: 16 px mellan överkanterna, borta överst och lagret ovanpå (senare i ordningen);
+//   (e) ingen bricka eller ikon skär siffrans glyfer;
+//   (e2) ingen bricka skär någon siffra i bild, inte heller grannens (den smala rutans risk), med tillgängligheten på och av;
+//   (f) rutans höjd är densamma med och utan brickor, rad och ram (samma dagar med tillgänglighet och lager avslagna);
+//   (g) telefon: räknaren ligger inom cirkelns ytterkant, också för `9+`, står 2, 9+ och 2 på mätdagarna, och saknas vid 1;
+//   (h) telefon: siffrans ruta 5 px in från rutans vänsterkant och 28 px bred, krympt bara där brickan annars täckt siffran, och
+//       vid 393 SS rakt av (28 px, 4 px överhäng) (minst sju rutor mätta);
+//   (i) lagrets ram är 2 px: under 640 px täcker den rutans kant, från 640 px står den 3 px innanför den (SS webb `inset-0.5`);
+//   (j) den 9 oktober har bara dolda poster och ingen markering; knapparna Tillgänglighet och Kalenderlager är aktiva, och ett tryck
+//       på Tillgänglighet tar bort alla borta-markeringar;
+//   (k) 1280: inga brickor syns; ikonerna står i siffrans rad (överkant och mitt inom 2 px av siffrans), till höger om den, 14 px,
+//       borta före lager, räknarna 2, 12|12 och 2 (siffran som den är, som SS webb), och `N/N` står på en dag utan borta men inte på
+//       en dag med borta, och ingen siffra vid 1;
+//   (l) telefon: brickan i söndagskolumnen klipps inte av rullytan (förebild 7, den 4 oktober);
+//   (m) telefon: en dag som varit tonar bricka och ram till 0,5, en kommande inte (SS-appens opacity på hela cellen, förebild 7).
+// Golv: minst 8 borta- och 6 lagermarkeringar mätta i varje bredd, och minst 8 rutor i (e).
+for (const [vp, vecka] of /** @type {[{ width: number, height: number }, boolean][]} */ ([
+  // ⛔ GOLVET: 310 px, och 350 px med veckonumren på, är de smalaste bredder som stöds (README, `OpsCalendar`). Mätt i granskningen
+  // av PR 260, tredje varvet: vid 300 px, och vid 340 med veckonummer, är rutan under 31 px, och brickan behöver då så mycket
+  // överhäng att den når grannens siffra (e2). Ingen klippning där längre (l), men en bricka över grannens datum är fel ändå.
+  [{ width: 310, height: 700 }, false], [{ width: 320, height: 700 }, false], [{ width: 360, height: 780 }, false],
+  [{ width: 375, height: 812 }, false], [{ width: 393, height: 852 }, false], [{ width: 1280, height: 900 }, false],
+  // ⛔ Med veckonumren på blir rutan smalare och överhänget större (granskningen av PR 260: 4,6 px klippt vid 320, 1,7 vid 340).
+  [{ width: 350, height: 740 }, true], [{ width: 360, height: 780 }, true], [{ width: 375, height: 812 }, true],
+])) {
+  const namn = `lager och tillgänglighet ${vp.width}${vecka ? " med veckonummer" : ""}`;
+  const telefon = vp.width < 640;
+  const { page, context } = await oppna(vecka ? "kalender-tillganglighet-vecka" : "kalender-tillganglighet", vp);
+  try {
+    await page.waitForSelector('[data-cal-day="2026-09-24"]', { timeout: 4000 });
+    /** @param {string} d */
+    const fram = async (d) => {
+      await page.locator(`[data-cal-day="${d}"]`).scrollIntoViewIfNeeded();
+      await page.waitForTimeout(50);
+    };
+    /** @param {string} d */
+    const las = (d) =>
+      page.evaluate((dag) => {
+        const c = /** @type {HTMLElement | null} */ (document.querySelector(`[data-cal-day="${dag}"]`));
+        if (!c) return null;
+        const r = c.getBoundingClientRect();
+        const rekt = (/** @type {Element} */ e) => { const x = e.getBoundingClientRect(); return { top: x.top, left: x.left, right: x.right, bottom: x.bottom, w: x.width, h: x.height }; };
+        const syns = (/** @type {Element} */ e) => { const x = e.getBoundingClientRect(); return x.width > 0 && x.height > 0; };
+        const nr = /** @type {Element} */ (c.querySelector("[data-dagnummer]"));
+        // ⛔ SIFFRANS GLYFER, inte dess ruta på 28 px: rutan når i SS också in under brickan (48 pt rutor: rutan slutar 33 pt in och
+        // brickan börjar 32 in). Det SS #266 handlade om var att brickan låg över SIFFRAN, och det är den som mäts.
+        const intervall = document.createRange();
+        intervall.selectNodeContents(nr);
+        const glyf = intervall.getBoundingClientRect();
+        const ram = c.querySelector("[data-dagram]");
+        const narvaro = c.querySelector("[data-narvaro]");
+        return {
+          cell: rekt(c),
+          nummer: rekt(nr),
+          glyf: { top: glyf.top, left: glyf.left, right: glyf.right, bottom: glyf.bottom },
+          ram: ram ? { ...rekt(ram), kant: parseFloat(getComputedStyle(ram).borderTopWidth), opacitet: parseFloat(getComputedStyle(ram).opacity) } : null,
+          brickor: [...c.querySelectorAll("[data-hornmarke]")].filter(syns).map((b) => {
+            const svg = b.querySelector("svg");
+            const rk = b.querySelector("[data-raknare]");
+            const cs = getComputedStyle(b);
+            return { id: b.getAttribute("data-hornmarke"), ...rekt(b), radie: parseFloat(cs.borderTopLeftRadius), ikon: svg ? svg.getBoundingClientRect().width : 0, raknare: rk ? { text: rk.textContent, ...rekt(rk) } : null, bakgrund: cs.backgroundColor };
+          }),
+          rad: [...c.querySelectorAll("[data-indikator]")].filter(syns).map((b) => {
+            const svg = /** @type {Element} */ (b.querySelector("svg"));
+            const rk = b.querySelector("[data-raknare]");
+            return { id: b.getAttribute("data-indikator"), ...rekt(b), ikon: rekt(svg), raknare: rk ? rk.textContent : null };
+          }),
+          narvaro: narvaro && syns(narvaro) ? { text: narvaro.textContent, ...rekt(narvaro) } : null,
+          // Den sammanlagda täckningen (produkten av `opacity` uppåt) för första brickan och för ramen: SS tonar hela rutan.
+          tackning: (() => {
+            const prod = (/** @type {Element | null} */ e) => { let t = 1; for (let x = e; x; x = x.parentElement) t *= parseFloat(getComputedStyle(x).opacity); return +t.toFixed(3); };
+            const b = [...c.querySelectorAll("[data-hornmarke]")].find(syns) || null;
+            return { bricka: b ? prod(b) : null, ram: ram ? prod(ram) : null };
+          })(),
+          // Klipps brickan av någon förälder som klipper (rullytan)? Den del av brickans bredd som syns.
+          klippt: (() => {
+            const b = [...c.querySelectorAll("[data-hornmarke]")].find(syns);
+            if (!b) return null;
+            const br = b.getBoundingClientRect();
+            let hoger = br.right;
+            for (let x = c.parentElement; x; x = x.parentElement) {
+              const cs = getComputedStyle(x);
+              if (cs.overflowX !== "visible" || cs.overflowY !== "visible") hoger = Math.min(hoger, x.getBoundingClientRect().right);
+            }
+            return +(br.right - hoger).toFixed(2);
+          })(),
+          x: r.left,
+        };
+      }, d);
+
+    // Förebild 7:s dagar, och mätdagarna i november som förebilden inte visar (se scenen).
+    const dagar = ["2026-09-24", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-22", "2026-09-16", "2026-09-23", "2026-10-14", "2026-11-25", "2026-09-30", "2026-10-08", "2026-11-18", "2026-11-19", "2026-10-09", "2026-10-15", "2026-10-04", "2026-11-22"];
+    /** @type {Record<string, any>} */
+    const m = {};
+    for (const d of dagar) {
+      await fram(d);
+      m[d] = await las(d);
+    }
+    const alla = dagar.map((d) => m[d]).filter(Boolean);
+    const brickor = alla.flatMap((x) => x.brickor.map((/** @type {any} */ b) => ({ ...b, cell: x.cell })));
+    const rad = alla.flatMap((x) => x.rad.map((/** @type {any} */ b) => ({ ...b, cell: x.cell, nummer: x.nummer, glyf: x.glyf })));
+    const markeringar = telefon ? brickor : rad;
+    const antalBorta = markeringar.filter((b) => b.id === "borta").length;
+    const antalLager = markeringar.filter((b) => b.id === "lager").length;
+    matt.push(`${namn}: ${antalBorta} borta- och ${antalLager} lagermarkeringar, ${brickor.length} synliga brickor, ${rad.length} synliga radikoner`);
+    krav(antalBorta >= 8 && antalLager >= 6, `${namn}: ${antalBorta} borta- och ${antalLager} lagermarkeringar mätta, väntat minst 8 och 6 (golv).`);
+
+    if (telefon) {
+      matt.push(`${namn}: 24 sep ${JSON.stringify(m["2026-09-24"] && m["2026-09-24"].brickor.map((/** @type {any} */ b) => ({ id: b.id, w: b.w, ovan: +(m["2026-09-24"].cell.top - b.top).toFixed(2), utanfor: +(b.right - m["2026-09-24"].cell.right).toFixed(2), ikon: b.ikon })))}`);
+      krav(rad.length === 0, `${namn}: ${rad.length} radikoner syns under 640 px, väntat inga (där är det SS-appens brickor).`);
+
+      // (a)
+      const felStorlek = brickor.filter((b) => Math.abs(b.w - 20) > 0.5 || Math.abs(b.h - 20) > 0.5 || b.radie < 9.5 || Math.abs(b.ikon - 10) > 0.5);
+      krav(felStorlek.length === 0, `${namn} (a): brickor som inte är en cirkel på 20 px med ikonen 10 px: ${JSON.stringify(felStorlek.slice(0, 3).map((b) => ({ id: b.id, w: b.w, h: b.h, radie: b.radie, ikon: b.ikon })))} (SS pillBadge 20x20, ikon 10).`);
+      // Opak: ingen alfakanal under 1, varken som `rgba(r, g, b, a)` eller som `oklab(l a b / a)` (Tailwind 4 skriver det senare).
+      const genomskinlig = (/** @type {string} */ f) => f === "transparent" || /,\s*0?\.\d+\)$|,\s*0\)$|\/\s*0?\.\d+\)$|\/\s*0\)$/.test(f);
+      krav(brickor.every((b) => !genomskinlig(b.bakgrund)), `${namn} (a): en bricka har genomskinlig bakgrund (${[...new Set(brickor.map((b) => b.bakgrund))].join(", ")}), väntat opak yta (SS colors.surface).`);
+
+      // (b) ensamma borta-brickor
+      const ensamBorta = ["2026-09-24", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-22"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1);
+      // ⛔ ÖVERHÄNGET ÄR 4 PX (SS) SÅ LÄNGE RUTAN ÄR MINST 36 PX, OCH 40 MINUS RUTANS BREDD UNDER DET; siffrans ruta krymper i
+      // stället där den annars hade täckts (granskningen av PR 260: täckt vid 360 och 320). Se `Hornbrickor`.
+      const overhang = (/** @type {number} */ w) => Math.max(4, 40 - w);
+      const bAvvik = ensamBorta.map((x) => ({ ovan: +(x.cell.top - x.brickor[0].top).toFixed(2), utanfor: +(x.brickor[0].right - x.cell.right).toFixed(2), vantat: +overhang(x.cell.w).toFixed(2) }));
+      krav(ensamBorta.length === 5 && bAvvik.every((a) => Math.abs(a.ovan - 4) <= 0.6 && Math.abs(a.utanfor - a.vantat) <= 0.6), `${namn} (b): ensam borta-bricka ${JSON.stringify(bAvvik)} (${ensamBorta.length} av 5), väntat 4 px över och max(4, 40 minus rutans bredd) px utanför (förebild 3: 3,7 och 4 pt).`);
+
+      // (c) ensam lagerbricka 4 px högre
+      const ensamLager = ["2026-09-16", "2026-09-23", "2026-10-14", "2026-11-25"].map((d) => m[d]).filter((x) => x && x.brickor.length === 1 && x.brickor[0].id === "lager");
+      const lAvvik = ensamLager.map((x) => ({ ovan: +(x.cell.top - x.brickor[0].top).toFixed(2), utanfor: +(x.brickor[0].right - x.cell.right).toFixed(2), vantat: +overhang(x.cell.w).toFixed(2) }));
+      krav(ensamLager.length === 4 && lAvvik.every((a) => Math.abs(a.ovan - 8) <= 0.6 && Math.abs(a.utanfor - a.vantat) <= 0.6), `${namn} (c): ensam lagerbricka ${JSON.stringify(lAvvik)} (${ensamLager.length} av 4), väntat 8 px över (4 högre än borta, SS marginTop:-4 alltid) och samma överhäng som borta.`);
+
+      // (d) båda
+      const bada = ["2026-09-30", "2026-10-08", "2026-11-18"].map((d) => m[d]).filter((x) => x && x.brickor.length === 2);
+      const dAvvik = bada.map((x) => ({ ordning: x.brickor.map((/** @type {any} */ b) => b.id).join(","), mellan: +(x.brickor[1].top - x.brickor[0].top).toFixed(2), ovan: +(x.cell.top - x.brickor[0].top).toFixed(2) }));
+      krav(bada.length === 3 && dAvvik.every((a) => a.ordning === "borta,lager" && Math.abs(a.mellan - 16) <= 0.6 && Math.abs(a.ovan - 4) <= 0.6), `${namn} (d): båda brickorna ${JSON.stringify(dAvvik)} (${bada.length} av 3), väntat borta överst, 16 px mellan överkanterna och borta 4 px över rutan (SS 20 - 4).`);
+
+      // (g) räknaren inom cirkeln
+      // ⛔ INOM CIRKELNS YTTERKANT, INTE INOM RINGEN. Med SS-mått (ikon 10, mellanrum 1, siffran 8 px) är `9+` 8,5 px brett och
+      // innehållet 19,5 px, mot 16 innanför ring och padding: det når 0,8 px in i ringen på var sida, men aldrig utanför cirkeln.
+      // En räknare som skjuter UT ur cirkeln (SS-felet #564: "räknaren sköt ut ur cellen") är röd. ⛔ `9+` och `12` är LIKA BREDA i
+      // det här typsnittet (8,5 och 8,3 px), så det är texten som skiljer dem åt, och den mäts på raden under. Det `9+` vinner är att
+      // tre siffror (`100`, 12,5 px) aldrig kan uppstå.
+      const raknare = brickor.filter((b) => b.raknare);
+      const utanfor = raknare.filter((b) => b.raknare.left < b.left - 0.01 || b.raknare.right > b.right + 0.01 || b.raknare.top < b.top || b.raknare.bottom > b.bottom);
+      const texter = ["2026-10-08", "2026-11-18", "2026-11-19", "2026-11-25"].map((d) => (m[d] ? m[d].brickor.map((/** @type {any} */ b) => (b.raknare ? b.raknare.text : "")).join("|") : "?"));
+      matt.push(`${namn}: räknarna ${JSON.stringify(raknare.map((b) => ({ text: b.raknare.text, vanster: +(b.raknare.left - b.left).toFixed(2), hoger: +(b.right - b.raknare.right).toFixed(2) })))}`);
+      krav(raknare.length >= 4 && utanfor.length === 0, `${namn} (g): ${utanfor.length} av ${raknare.length} räknare går ut ur cirkeln: ${JSON.stringify(utanfor.map((b) => ({ text: b.raknare.text, raknare: [b.raknare.left, b.raknare.right], bricka: [b.left, b.right] })))}, väntat alla inom cirkelns ytterkant (golv 4).`);
+      krav(JSON.stringify(texter) === JSON.stringify(["2|2", "9+|9+", "2", "2"]), `${namn} (g): räknarna den 8 oktober och 18, 19 och 25 november är ${JSON.stringify(texter)}, väntat ["2|2", "9+|9+", "2", "2"] (förebild 7: den 8 oktober UserX 2 och Layers 2).`);
+      const ettor = ["2026-09-24", "2026-10-22", "2026-09-16", "2026-10-14"].map((d) => (m[d] ? m[d].brickor.map((/** @type {any} */ b) => (b.raknare ? b.raknare.text : "")).join("|") : "?"));
+      krav(JSON.stringify(ettor) === JSON.stringify(["", "", "", ""]), `${namn} (g): brickorna med en person eller ett lager (24 och 16 sep, 22 och 14 okt) har räknarna ${JSON.stringify(ettor)}, väntat ingen siffra (SS visar den från 2).`);
+
+      // (h) siffran till vänster
+      // ⛔ (h) MÄTER SS-GEOMETRIN OCH INTE FÖREBILDENS 5,8 PT. Hur långt siffran står från mitten beror på rutans bredd: i förebilden
+      // är rutan 47-48 pt (393 pt, SS-appens rutnät med 16 i sidmarginal och 4 mellan rutorna), här 42 px vid 375 (skalets egen
+      // marginal). Det SS bestämmer är att siffran står i en ruta på 28 px som börjar vid innehållets vänsterkant (kant 1, padding 4),
+      // och det mäts. Avståndet till mitten skrivs ut och ska vara minst 2 px: en centrerad siffra (0.60.0) är röd.
+      const forskj = alla.map((x) => +((x.cell.left + x.cell.right) / 2 - (x.nummer.left + x.nummer.right) / 2).toFixed(2));
+      const vanster = alla.map((x) => +(x.nummer.left - x.cell.left).toFixed(2));
+      const bredd = alla.map((x) => +x.nummer.w.toFixed(2));
+      // 28 px som SS så länge rutan rymmer det, annars clamp(14, 2 x (rutbredd - 10) - 38, 28): se `Hornbrickor`.
+      const vantadBredd = alla.map((x) => Math.min(28, Math.max(14, 2 * (x.cell.w - 10) - 38)));
+      matt.push(`${namn}: siffrans ruta ${JSON.stringify(vanster)} px in, bredd ${JSON.stringify([...new Set(bredd)])} (väntat ${JSON.stringify([...new Set(vantadBredd.map((w) => +w.toFixed(2)))])}), mitten ${JSON.stringify(forskj)} px vänster om rutans`);
+      krav(alla.length >= 7 && vanster.every((v) => Math.abs(v - 5) <= 0.6) && bredd.every((w, i) => Math.abs(w - vantadBredd[i]) <= 0.6), `${namn} (h): siffrans ruta börjar ${JSON.stringify(vanster)} px in med bredden ${JSON.stringify(bredd)}, väntat 5 px in och ${JSON.stringify([...new Set(vantadBredd.map((w) => +w.toFixed(2)))])} px bred (SS dayNumberContainer 28 px först i dayTopRow, krympt bara där brickan annars täckt siffran).`);
+      if (vp.width === 393) krav(bredd.every((w) => Math.abs(w - 28) <= 0.6) && bAvvik.every((a) => Math.abs(a.utanfor - 4) <= 0.6), `${namn} (h): vid 393 (förebildens bredd) ska allt vara SS rakt av, siffrans ruta 28 px och överhänget 4 px; mätt ${JSON.stringify([...new Set(bredd)])} och ${JSON.stringify(bAvvik.map((a) => a.utanfor))}.`);
+
+      // (l) brickan i söndagskolumnen sticker ut över rutnätets kant och klipps inte (förebild 7, den 4 oktober)
+      const klipp = ["2026-10-04", "2026-11-22"].map((d) => (m[d] ? m[d].klippt : "?"));
+      krav(klipp.every((k) => k === 0), `${namn} (l): brickan i söndagskolumnen (4 okt, 22 nov) klipps ${JSON.stringify(klipp)} px av en förälder, väntat 0 (förebild 7: den sticker ut och syns hel).`);
+
+      // (m) det som varit tonas med brickan och ramen, som SS-appens opacity 0,5 på hela cellen (förebild 7: den 24 september)
+      const tack = { forbiBricka: m["2026-09-24"] && m["2026-09-24"].tackning.bricka, forbiRam: m["2026-09-30"] && m["2026-09-30"].tackning.ram, kommandeBricka: m["2026-10-08"] && m["2026-10-08"].tackning.bricka, kommandeRam: m["2026-10-14"] && m["2026-10-14"].tackning.ram };
+      matt.push(`${namn}: täckning ${JSON.stringify(tack)}`);
+      krav(tack.forbiBricka === 0.5 && tack.forbiRam === 0.5 && tack.kommandeBricka === 1 && tack.kommandeRam === 1, `${namn} (m): täckningen ${JSON.stringify(tack)}, väntat 0,5 för bricka och ram en dag som varit och 1 en kommande dag (SS DayCell.js:91-93).`);
+    } else {
+      // (k) raden bredvid siffran
+      krav(brickor.length === 0, `${namn} (k): ${brickor.length} hörnbrickor syns från 640 px, väntat inga (SS webb har dem i raden).`);
+      const fel = rad.filter((b) => Math.abs(b.ikon.w - 14) > 0.5 || Math.abs(b.top - b.nummer.top) > 2 || Math.abs((b.top + b.bottom) / 2 - (b.nummer.top + b.nummer.bottom) / 2) > 2 || b.left < b.glyf.right || b.right > b.cell.right);
+      matt.push(`${namn}: raden ${JSON.stringify(rad.slice(0, 3).map((b) => ({ id: b.id, ikon: b.ikon.w, toppMotSiffran: +(b.top - b.nummer.top).toFixed(2), efterSiffran: +(b.left - b.glyf.right).toFixed(2), fore: +(b.cell.right - b.right).toFixed(2) })))}`);
+      krav(fel.length === 0, `${namn} (k): ${fel.length} av ${rad.length} radikoner står fel: ${JSON.stringify(fel.slice(0, 3).map((b) => ({ id: b.id, ikon: b.ikon.w, topp: b.top, siffransTopp: b.nummer.top, vanster: b.left, siffranSlutar: b.glyf.right })))}, väntat 14 px i siffrans rad (inom 2 px), till höger om den och inom rutan (SS MonthGrid.jsx:470).`);
+      const ordning = ["2026-09-30", "2026-10-08", "2026-11-18"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.id).join(",") : "?"));
+      const texter = ["2026-10-08", "2026-11-18", "2026-11-19", "2026-11-25"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
+      krav(JSON.stringify(ordning) === JSON.stringify(["borta,lager", "borta,lager", "borta,lager"]) && JSON.stringify(texter) === JSON.stringify(["2|2", "12|12", "2", "2"]), `${namn} (k): ordningen ${JSON.stringify(ordning)} och räknarna ${JSON.stringify(texter)}, väntat borta före lager och 2|2, 12|12, 2, 2 (SS webb skriver siffran som den är).`);
+      const ettorRad = ["2026-10-22", "2026-10-14"].map((d) => (m[d] ? m[d].rad.map((/** @type {any} */ b) => b.raknare || "").join("|") : "?"));
+      krav(JSON.stringify(ettorRad) === JSON.stringify(["", ""]), `${namn} (k): raden den 22 oktober (en borta) och 14 oktober (ett lager) har räknarna ${JSON.stringify(ettorRad)}, väntat ingen siffra (SS webb blockedMembers.length > 1).`);
+      const n15 = m["2026-10-15"] && m["2026-10-15"].narvaro;
+      const n05 = m["2026-09-24"] && m["2026-09-24"].narvaro;
+      krav(!!n15 && n15.text === "14/14" && Math.abs(n15.top - m["2026-10-15"].nummer.top) <= 3 && n15.left > m["2026-10-15"].glyf.right && !n05, `${namn} (k): N/N den 15 oktober ${JSON.stringify(n15)}, den 24 september ${JSON.stringify(n05)}, väntat "14/14" i siffrans rad på en dag utan borta och inget på en dag med borta (SS MonthGrid.jsx:529).`);
+    }
+
+    // (e) ingen markering skär siffran
+    const skar = alla.filter((x) => [...x.brickor, ...x.rad].some((/** @type {any} */ b) => b.left < x.glyf.right && b.right > x.glyf.left && b.top < x.glyf.bottom && b.bottom > x.glyf.top));
+    const medMarkering = alla.filter((x) => x.brickor.length + x.rad.length > 0);
+    const luft = medMarkering.map((x) => +(Math.min(...[...x.brickor, ...x.rad].map((/** @type {any} */ b) => b.left)) - x.glyf.right).toFixed(2));
+    matt.push(`${namn}: luft mellan siffrans glyfer och markeringen ${JSON.stringify(luft)} px`);
+    krav(skar.length === 0 && luft.length >= 8, `${namn} (e): markeringar skär siffran i ${skar.length} rutor av ${luft.length} (${JSON.stringify(skar.slice(0, 2).map((x) => ({ glyf: x.glyf, brickor: x.brickor.map((/** @type {any} */ b) => [b.left, b.top, b.right, b.bottom]) })))}), väntat ingen (SS #266, golv 8).`);
+
+    // (i) lagrets ram
+    const insida = telefon ? 0 : 3;
+    const ramar = alla.filter((x) => x.ram);
+    const ramFel = ramar.filter((x) => Math.abs(x.ram.kant - 2) > 0.01 || Math.abs(x.ram.top - x.cell.top - insida) > 0.5 || Math.abs(x.ram.left - x.cell.left - insida) > 0.5 || Math.abs(x.cell.right - x.ram.right - insida) > 0.5 || Math.abs(x.cell.bottom - x.ram.bottom - insida) > 0.5);
+    krav(ramar.length >= 4 && ramFel.length === 0, `${namn} (i): ${ramFel.length} av ${ramar.length} ramar avviker (${JSON.stringify(ramFel.slice(0, 2).map((x) => ({ ram: x.ram, cell: x.cell })))}), väntat 2 px ${telefon ? "som täcker rutans kant (SS-appen borderWidthForLayer)" : "3 px innanför rutans kant (SS webb inset-0.5 innanför kanten)"} (golv 4).`);
+
+    // (j) dolda poster och knapparna
+    const nio = m["2026-10-09"];
+    krav(!!nio && nio.brickor.length === 0 && nio.rad.length === 0, `${namn} (j): den 9 oktober, med bara dolda poster, har ${nio ? nio.brickor.length + nio.rad.length : "?"} markeringar, väntat ingen.`);
+    const knappar = await page.evaluate(() => ["Tillgänglighet", "Kalenderlager"].map((n) => { const b = document.querySelector(`[aria-label="${n}"]`); return b ? { n, tryckt: b.getAttribute("aria-pressed"), bg: getComputedStyle(b).backgroundColor, ikon: getComputedStyle(b).color, x: b.getBoundingClientRect().left } : null; }));
+    matt.push(`${namn}: knapparna ${JSON.stringify(knappar)}`);
+    krav(knappar.every((k) => k && k.tryckt === "true" && !/rgba\([^)]*,\s*0\)/.test(k.bg)), `${namn} (j): knapparna ${JSON.stringify(knappar)}, väntat båda aktiva med en synlig yta (SS: rosa för tillgänglighet, grå för lager).`);
+    if (telefon) {
+      const ordning = await page.evaluate(() => [...document.querySelectorAll('[data-kalender-verktyg] button, [data-kalender-verktyg] [aria-haspopup]')].map((b) => ({ n: b.getAttribute("aria-label") || "", x: b.getBoundingClientRect().left })).filter((b) => b.x >= 0).sort((a, c) => a.x - c.x).map((b) => b.n.split(":")[0]));
+      matt.push(`${namn}: verktygsradens ordning ${JSON.stringify(ordning)}`);
+      krav(ordning[0] === "Tillgänglighet" && ordning.indexOf("Sök i kalendern") === 1 && ordning.indexOf("Kalenderlager") === ordning.indexOf("Veckonummer") + 1, `${namn} (j): verktygsraden är ${JSON.stringify(ordning)}, väntat Tillgänglighet först, sedan sök, och lager direkt efter veckonummer (SS-appen calendar.js:1015-1057).`);
+    }
+    if (bildmapp) {
+      await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); const h = [...(r ? r.querySelectorAll("h3") : [])].find((x) => /oktober 2026/i.test(x.textContent || "")); if (r && h) r.scrollTop = /** @type {HTMLElement} */ (h.parentElement).offsetTop - /** @type {HTMLElement} */ (r.firstElementChild).offsetHeight; });
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: path.join(bildmapp, `tillganglighet-${vp.width}.png`) });
+    }
+    // (e2) ingen bricka skär NÅGON siffra, inte heller grannens: i en smal ruta går brickan längre ut, och då är det grannen den
+    // når (granskningen av PR 260, tredje varvet). Alla synliga brickor mot alla synliga siffror, med oktober och november i bild
+    // (8 oktober och 18 november bär båda brickorna). ⛔ MED TILLGÄNGLIGHETEN PÅ OCH AV (fjärde varvet): mätt bara efter avslag såg
+    // den enbart lagerbrickor, och en borta-bricka som gick för långt ut syntes aldrig.
+    const matGranne = async () => {
+      const ut = { borta: 0, lager: 0, bada: 0, glyfer: 0, /** @type {string[]} */ traff: [] };
+      for (const dag of ["2026-10-08", "2026-11-18"]) {
+        await page.evaluate((d) => { const c = document.querySelector(`[data-cal-day="${d}"]`); if (c) c.scrollIntoView({ block: "center" }); }, dag);
+        await page.waitForTimeout(80);
+        const g = await page.evaluate(() => {
+          const syns = (/** @type {Element} */ e) => { const x = e.getBoundingClientRect(); return x.width > 0 && x.height > 0 && x.bottom > 0 && x.top < innerHeight; };
+          const glyfer = [...document.querySelectorAll("[data-dagnummer]")].filter(syns).map((n) => { const r = document.createRange(); r.selectNodeContents(n); const gl = r.getBoundingClientRect(); return { dag: /** @type {Element} */ (n.closest("[data-cal-day]")).getAttribute("data-cal-day"), g: gl }; });
+          const brickor = [...document.querySelectorAll("[data-hornmarke], [data-indikator]")].filter(syns).map((b) => ({ id: b.getAttribute("data-hornmarke") || b.getAttribute("data-indikator"), dag: /** @type {Element} */ (b.closest("[data-cal-day]")).getAttribute("data-cal-day"), r: b.getBoundingClientRect() }));
+          const traff = [];
+          for (const b of brickor) for (const x of glyfer) if (b.r.left < x.g.right && b.r.right > x.g.left && b.r.top < x.g.bottom && b.r.bottom > x.g.top) traff.push(`${b.id} ${b.dag} över ${x.dag}`);
+          const perDag = new Map();
+          for (const b of brickor) perDag.set(b.dag, (perDag.get(b.dag) || new Set()).add(b.id));
+          return { borta: brickor.filter((b) => b.id === "borta").length, lager: brickor.filter((b) => b.id === "lager").length, bada: [...perDag.values()].filter((x) => x.size === 2).length, glyfer: glyfer.length, traff };
+        });
+        ut.borta += g.borta; ut.lager += g.lager; ut.bada += g.bada; ut.glyfer += g.glyfer; ut.traff.push(...g.traff);
+      }
+      return ut;
+    };
+    const granneMed = await matGranne();
+    matt.push(`${namn}: (e2) med tillgänglighet ${JSON.stringify({ ...granneMed, traff: granneMed.traff.length })}`);
+    krav(granneMed.borta >= 3 && granneMed.lager >= 2 && granneMed.bada >= 1 && granneMed.glyfer >= 40 && granneMed.traff.length === 0, `${namn} (e2): med tillgängligheten på skär ${granneMed.traff.length} brickor en siffra (${granneMed.traff.slice(0, 4).join(", ")}); i bild ${granneMed.borta} borta-, ${granneMed.lager} lagermarkeringar, ${granneMed.bada} dagar med båda och ${granneMed.glyfer} siffror, väntat ingen träff (golv 3, 2, 1 och 40).`);
+
+    await page.getByRole("button", { name: "Tillgänglighet" }).click();
+    await page.waitForTimeout(150);
+    const kvar = await page.evaluate(() => document.querySelectorAll('[data-hornmarke="borta"], [data-indikator="borta"], [data-narvaro]').length);
+    krav(kvar === 0, `${namn} (j): ${kvar} borta-markeringar eller N/N kvar efter att tillgängligheten slagits av, väntat inga.`);
+
+
+    const granneUtan = await matGranne();
+    krav(granneUtan.borta === 0 && granneUtan.lager >= 2 && granneUtan.glyfer >= 40 && granneUtan.traff.length === 0, `${namn} (e2): med tillgängligheten av skär ${granneUtan.traff.length} brickor en siffra (${granneUtan.traff.slice(0, 4).join(", ")}); i bild ${granneUtan.borta} borta- och ${granneUtan.lager} lagermarkeringar, väntat ingen träff, inga borta och minst 2 lager (golv 40 siffror).`);
+
+    // (f) samma höjd: samma dagar med tillgänglighet och lager avslagna, alltså helt utan dekor, är jämförelsen. (En granne i samma
+    // rad räcker inte från 640 px, där nästan varje dag bär `N/N` i raden och alltså växer lika mycket som dagen den jämförs med.)
+    await page.getByRole("button", { name: "Kalenderlager" }).click();
+    await page.waitForTimeout(150);
+    const utan = await page.evaluate((ds) => ds.map((d) => { const c = document.querySelector(`[data-cal-day="${d}"]`); return c ? c.getBoundingClientRect().height : -1; }), dagar);
+    const dekorFri = await page.evaluate(() => document.querySelectorAll("[data-hornmarke], [data-indikator], [data-narvaro], [data-dagram]").length);
+    const hojd = dagar.map((d, i) => (m[d] ? +(m[d].cell.h - utan[i]).toFixed(2) : 99));
+    krav(dekorFri === 0 && hojd.length >= 8 && hojd.every((h) => Math.abs(h) <= 0.5), `${namn} (f): rutornas höjd med dekor minus utan ${JSON.stringify(hojd)} px (${dekorFri} dekorer kvar efter avslag), väntat 0 för alla (golv 8).`);
+    krav((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 0, `${namn}: sidan flödar över horisontellt.`);
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// Montagebilden (regel 12): 393 px i skala 3, alltså samma bredd och upplösning som förebild 3 (1179 x 2556), med september 2026
+// överst och tillgänglighet och lager på.
+if (bildmapp) {
+  // Förebild 3:s data (scenen `kalender-tillganglighet-3`), så att montaget jämför samma läge.
+  const { page, context } = await oppna("kalender-tillganglighet-3", { width: 393, height: 852 }, standardtema, 3);
+  await page.waitForSelector('[data-cal-day="2026-09-05"]', { timeout: 4000 }).catch(() => {});
+  await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); const h = [...(r ? r.querySelectorAll("h3") : [])].find((x) => /september 2026/i.test(x.textContent || "")); if (r && h) r.scrollTop = /** @type {HTMLElement} */ (h.parentElement).offsetTop - /** @type {HTMLElement} */ (r.firstElementChild).offsetHeight; });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(bildmapp, "tillganglighet-393.png") });
+  await context.close();
+}
+// Förebild 7 (CP 2026-10-06, SS-appen med tillgänglighet och lager påslagna): 390 px i skala 3, rullad så att veckan med den
+// 7 september står överst under veckodagsraden, som i bilden.
+if (bildmapp) {
+  const { page, context } = await oppna("kalender-tillganglighet", { width: 390, height: 844 }, standardtema, 3);
+  await page.waitForSelector('[data-cal-day="2026-09-07"]', { timeout: 4000 }).catch(() => {});
+  await page.evaluate(() => {
+    const r = /** @type {HTMLElement | null} */ (document.querySelector("[data-kalender-rulle]"));
+    const c = document.querySelector('[data-cal-day="2026-09-07"]');
+    const h = r && /** @type {HTMLElement} */ (r.firstElementChild);
+    if (r && c && h) r.scrollTop += c.getBoundingClientRect().top - h.getBoundingClientRect().bottom + 12;
+  });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(bildmapp, "tillganglighet-390.png") });
+  await context.close();
+}
+
+// Och 1280 px i mörkt tema med oktober överst, bredvid SS webb i mörkt tema (`ss-tillganglighet-webb-6.png`, CP 2026-10-06).
+if (bildmapp) {
+  const { page, context } = await oppna("kalender-tillganglighet", { width: 1280, height: 720 }, "dark");
+  await page.waitForSelector('[data-cal-day="2026-10-08"]', { timeout: 4000 }).catch(() => {});
+  await page.evaluate(() => { const r = document.querySelector("[data-kalender-rulle]"); const h = [...(r ? r.querySelectorAll("h3") : [])].find((x) => /oktober 2026/i.test(x.textContent || "")); if (r && h) r.scrollTop = /** @type {HTMLElement} */ (h.parentElement).offsetTop - /** @type {HTMLElement} */ (r.firstElementChild).offsetHeight; });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(bildmapp, "tillganglighet-1280-mork.png") });
   await context.close();
 }
 

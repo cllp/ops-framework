@@ -70,7 +70,13 @@ const SIDA = `<!doctype html>
     --color-accent: #9a9588;
     --color-surface: #f8f7f4;
     --color-line: #d8d4cc;
-    --bottom-nav-h: 3.5rem;
+    /* ⛔ 0.62.0 (granskningen av #261): SAMMA FORM SOM RAMVERKET, en summa i calc. Stod här ett rent rem-tal
+       medan ramverket skrev calc(var(--bottom-nav-rad) + var(--bottom-nav-lyft)), så provade fixturen en form
+       mätningen klarade och inte den den mötte: Chromium ger tillbaka "calc(3.5rem + .75rem)", parseFloat gör det
+       till NaN, och prov 3 hoppade tyst över. */
+    --bottom-nav-rad: 3.5rem;
+    --bottom-nav-lyft: 0.75rem;
+    --bottom-nav-h: calc(var(--bottom-nav-rad) + var(--bottom-nav-lyft));
     /* ⛔ Bottenradens huvudknapp sticker upp ovanför baren, och en flytande yta
        måste bottna ovanför även den. Samma token som i ramverket, skriven i
        klartext av samma skäl som resten av fixturen. */
@@ -239,6 +245,16 @@ kravRott(
   "main saknar botteninset för bottenraden",
   (s) => s.replace("padding: 16px 16px calc(var(--bottom-nav-h) + 8px);", "padding: 16px;"),
   "hamnar bakom baren",
+);
+
+// ── 3b. Bottenradens höjd går inte att mäta (0.62.0, granskningen av #261) ──
+//
+// ⛔ Före 0.62.0 lästes höjden som text och `|| 0` gjorde en oläsbar token till noll, och då hoppade prov 3 över
+// tyst. En höjd som inte går att mäta ska vara ett brott (arbetsreglernas punkt 5), inte ett grönt utfall.
+kravRott(
+  "bottenradens höjd saknas",
+  (s) => s.replace("    --bottom-nav-h: calc(var(--bottom-nav-rad) + var(--bottom-nav-lyft));\n", ""),
+  "gick inte att mäta",
 );
 
 // ── 4. Mörkt läge når inte sidan ────────────────────────────────────────────
