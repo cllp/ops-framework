@@ -130,6 +130,10 @@ describe("⛔ vanliga gruppsorter på svenska ger träffar", () => {
     expect(sokGruppikoner(ord).slice(0, 8)).toContain(ikon);
   });
 
+  it("⛔ styrelse ger ingen tärning: board som i brädspel var fel synonym", () => {
+    expect(sokGruppikoner("styrelse")).not.toContain("dice-5");
+  });
+
   it("⛔ kontor ger ingen hantel: en synonym matchar hela ord i taggarna, inte prefix (work blev workout)", () => {
     expect(sokGruppikoner("kontor")).not.toContain("dumbbell");
     expect(sokGruppikoner("kontor").length).toBeGreaterThan(0);

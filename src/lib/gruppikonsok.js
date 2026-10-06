@@ -9,6 +9,10 @@ import { GRUPPIKON_SVENSKA } from "./gruppikonnamn.js";
  * nedan översätter ett svenskt ord till de engelska sökord det betyder, så att "musik" och gruppen "Bandet" hittar
  * samma ikoner som "music". De är ramverkets enda handskrivna del av sökningen, och de pekar på sökord, aldrig på
  * en ikon: en ny ikon med rätt sökord hittas utan att listan ändras.
+ *
+ * ⛔ ORD SOM REDAN ÄR ETT IKONNAMN STÅR INTE HÄR (granskningen av PR 266). "hörlurar", "högtalare", "noter" och "skiva" gav
+ * noll träffar; de hittas nu på ikonernas svenska namn (`gruppikonnamn.js`). De lades först in här också, och mutationen som
+ * tog bort raderna igen lämnade varje prov grönt: två ställen för samma ord, där det ena inte gjorde något (regel 2).
  */
 
 /** Ord som räcker för en träff. Kortare ord ger brus ("ab", "i", "och"). */
@@ -23,11 +27,6 @@ export const SVENSKA_SYNONYMER = Object.freeze({
   låt: ["music", "song"],
   konsert: ["concert", "music"],
   ljud: ["audio", "sound"],
-  hörlur: ["headphones", "audio"],
-  högtalare: ["speaker", "audio"],
-  not: ["music", "note"],
-  noter: ["music", "note"],
-  skiva: ["disc", "album", "vinyl", "record"],
   gitarr: ["guitar"],
   trumm: ["drum"],
   piano: ["piano"],
