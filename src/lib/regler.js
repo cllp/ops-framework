@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT } from "./samtal.js";
+import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_TRADNAMN, MEDDELANDEFALT, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -743,6 +743,10 @@ export function konfigloggregelfragment(namn) {
  *     i efterhand se ut att svara på något annat än det gjorde, och en radering lämnar inget svar på "vad stod
  *     det?". Samma princip som arkivering i stället för radering överallt annars i ramverket.
  *   - LÄST-STATUS: bara personen själv, och bara i ett samtal hen får läsa.
+ *   - TRÅDAR (0.68.0, lifehub.app#60): bara i gruppchatten. Läsa: den som får läsa gruppchatten. Starta: en aktiv
+ *     person i gruppen, ur ett meddelande som finns i samma samtal (trådens nyckel ÄR rotmeddelandets id), som sig
+ *     själv. Döpa om: vem som helst av gruppens personer, och bara `namn`. Trådens meddelanden har samtalets form och
+ *     samma krav. Aldrig radering. ⛔ EN KLIENT SKRIVER ALDRIG SOM AGENT här heller.
  *
  * ⛔ `tid` OCH `skapad` ÄR MILLISEKUNDER, OCH REGELN JÄMFÖR DEM MED SERVERNS KLOCKA (inom fem minuter). Annars kan
  * en klient skriva ett meddelande "från i går" eller "i morgon", och ett meddelande daterat i framtiden räknas
@@ -751,19 +755,81 @@ export function konfigloggregelfragment(namn) {
  * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNEN. `medlemskap` måste vara samma namn som skickas till `regelfragment()`,
  * och fragmentet använder dess `opsArMedlem`, alltså ska båda limmas in.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
   const samtal = kontrolleraNamn(namn.samtal ?? "samtal", "samtal");
   const meddelanden = kontrolleraNamn(namn.meddelanden ?? "meddelanden", "meddelanden");
   const last = kontrolleraNamn(namn.last ?? "last", "last");
+  /*
+   * ⛔ TRÅDARNA ÄR FRIVILLIGA OCH HAR INGET FÖRVAL (0.68.0, granskningen av PR 268, BÖR 1). Ramverket känner aldrig ett
+   * samlingsnamn själv, och en app som inte skickar `tradar` får EXAKT samma regeltext som i 0.67.0, byte för byte (provet
+   * mot `rules/__fixturer__/samtalsregelfragment-0.67.0.rules`). Ett förval hade gett varje app nya regler vid en ompinning
+   * som ingen bad om.
+   */
+  const tradar = namn.tradar === undefined ? null : kontrolleraNamn(namn.tradar, "tradar");
+  // ⛔ KAN 7: ett trådnamn som är samma som en annan undersamling hade lagt två regler på samma väg.
+  if (tradar !== null && (tradar === meddelanden || tradar === last)) {
+    throw new Error(`samtalsregelfragment: tradar "${tradar}" krockar med ${tradar === meddelanden ? "meddelanden" : "last"}. Två undersamlingar med samma namn är samma väg, och reglerna hade lagts ihop.`);
+  }
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const A = SAMTALSAVGRANSARE;
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
-  return `    // ══ Ramverkets samtal (0.34.0). GENERERAD, ändra inte för hand ══
+  const version = tradar ? "0.34.0, trådar 0.68.0" : "0.34.0";
+  const tradfunktioner = tradar
+    ? `    // Gruppchatten s, och den inloggade får läsa den (0.68.0). Trådar finns bara här.
+    function opsIGruppchatten(sid) {
+      return opsISamtal(sid) && get(opsSamtalet(sid)).data.slag == '${GRUPPSAMTAL}';
+    }
+
+    // En aktiv person i gruppchatten s: den som får starta, döpa om och skriva i en tråd.
+    function opsPersonIGruppchatten(sid) {
+      return opsIGruppchatten(sid) && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');
+    }
+
+    // Ett trådnamn: saknas (det härledda gäller) eller text inom taket.
+    function opsGiltigtTradnamn(d) {
+      return !('namn' in d) || (d.namn is string && d.namn.size() > 0 && d.namn.size() <= ${MAX_TRADNAMN});
+    }
+
+`
+    : "";
+  const tradblock = tradar
+    ? `
+
+      // Trådar (0.68.0): nyckeln är rotmeddelandets id i samma samtal.
+      match /${tradar}/{tid} {
+        allow read: if opsIGruppchatten(sid);
+        allow create: if opsPersonIGruppchatten(sid)
+          && exists(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(tid))
+          && request.resource.data.keys().hasOnly([${lista(TRADFALT)}])
+          && request.resource.data.skapadAv == request.auth.uid
+          && opsNu(request.resource.data.skapad)
+          && opsGiltigtTradnamn(request.resource.data);
+        allow update: if opsPersonIGruppchatten(sid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn"])
+          && opsGiltigtTradnamn(request.resource.data);
+        allow delete: if false;
+
+        match /${meddelanden}/{mid} {
+          allow read: if opsIGruppchatten(sid);
+          allow create: if opsPersonIGruppchatten(sid)
+            && exists(/databases/$(database)/documents/${samtal}/$(sid)/${tradar}/$(tid))
+            && request.resource.data.keys().hasOnly([${lista(MEDDELANDEFALT)}])
+            && request.resource.data.av == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= ${MAX_MEDDELANDE}
+            && opsNu(request.resource.data.tid);
+          allow update, delete: if false;
+        }
+      }`
+    : "";
+
+  return `    // ══ Ramverkets samtal (${version}). GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
@@ -796,7 +862,7 @@ export function samtalsregelfragment(namn = {}) {
       return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
     }
 
-    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+${tradfunktioner}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
@@ -845,7 +911,7 @@ export function samtalsregelfragment(namn = {}) {
           && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
           && request.resource.data.lastTill is int;
         allow delete: if false;
-      }
+      }${tradblock}
     }
 `;
 }

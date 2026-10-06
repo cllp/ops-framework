@@ -37,6 +37,11 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {string} [props.agentNamn] Förval "Agenten".
  * @param {string} [props.duEtikett] Förval "du".
  * @param {string} [props.ariaLabel] Förval "Till".
+ * @param {string} [props.helaGruppen] (0.68.0) I `lage="person"`: en rad överst med den här etiketten, värdet `{ slag: "grupp" }`.
+ *   Meddelandets läge använder den för gruppchatten. Utan den har läget ingen grupprad, som förut.
+ * @param {import("react").ReactNode} [props.gruppMarke] (0.68.0) Gruppradens märke. Meddelanden skickar samma märke som
+ *   gruppchattens rad i listan, så att "Hela gruppen" har gruppens färg och ikon och inte en egen (omgranskningen av PR 268, A6).
+ *   Utan den ritas ett märke ur etiketten.
  * @param {string} [props.tomText] När det inte finns någon att välja. Förval "Det finns ingen annan i gruppen att skriva till."
  */
 export function OpsMottagare({
@@ -50,6 +55,8 @@ export function OpsMottagare({
   duEtikett = "du",
   ariaLabel = "Till",
   tomText = "Det finns ingen annan i gruppen att skriva till.",
+  helaGruppen,
+  gruppMarke,
 }) {
   const namnId = useId();
   const personnamn = usePersonnamn();
@@ -61,6 +68,9 @@ export function OpsMottagare({
 
   /** @type {Array<{ nyckel: string, varde: import("../lib/samtal.js").Mottagare, namn: string, saknas?: boolean, ikon: import("react").ReactNode }>} */
   const rader = [];
+  if (lage === "person" && helaGruppen) {
+    rader.push({ nyckel: "grupp", varde: { slag: "grupp" }, namn: helaGruppen, ikon: gruppMarke ?? <OpsIdentity name={helaGruppen} seed="grupp" size="sm" icon={GruppIkon} /> });
+  }
   if (lage === "arende") {
     rader.push({ nyckel: "grupp", varde: { slag: "grupp" }, namn: gruppNamn, ikon: <OpsIdentity name={gruppNamn} seed="grupp" size="sm" icon={GruppIkon} /> });
   }

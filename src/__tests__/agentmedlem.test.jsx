@@ -227,7 +227,8 @@ describe("Nytt meddelande: agenten går att välja, som en person", () => {
     };
     const onValj = vi.fn();
     render(<OpsMeddelanden kalla={/** @type {any} */ (kalla)} uid={UID} groupId="g1" gruppNamn="G" medlemmar={medlemskap()} nytt onValj={onValj} />);
-    expect(screen.getByText("Bara ni två ser det här")).toBeTruthy();
+    // Ingen rad innan något är valt (0.68.0); raden följer valet.
+    expect(screen.queryByText("Bara ni två ser det här")).toBeNull();
     fireEvent.click(screen.getByRole("radio", { name: "Agent" }));
     expect(screen.getByText("Bara du och agenten ser det här")).toBeTruthy();
     await waitFor(() => expect(onValj).toHaveBeenCalledWith(id, undefined));
