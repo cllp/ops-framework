@@ -112,27 +112,40 @@ export function useInstallningspanel() {
  * samma som panelens. ⛔ Rubriken används också som sektionens namn (`aria-labelledby`), så när den inte ritas pekar
  * namnet på panelens rubrik i stället.
  *
+ * `underniva` är nivån för delens EGNA delrubriker (katalogens "Arkiverade", "Senaste ändringarna"): en under den närmaste rubrik som
+ * faktiskt syns ovanför dem. Det är delens rubrik när den ritas, annars panelens.
+ *
+ * ⛔ REGELN BOR HÄR OCH INGEN ANNANSTANS (0.69.1, granskningen av PR 278). Katalogen räknade förut ut sin underrubrik själv med
+ * `niva === 3 ? "h4" : "h3"`, och det var rätt bara vid förvalet 2. Med `rubrikniva={3}` blev "Arkiverade" h3, alltså samma nivå
+ * som panelen den står i, och med en egen katalogrubrik på h4 hoppade den upp en nivå i stället för ned.
+ *
  * @param {string} rubrik
  * @param {string} egetId
  * @param {Panel | null} panel
- * @returns {{ niva: number | null, etikettId: string }}
+ * @returns {{ niva: number | null, etikettId: string, underniva: number }}
  */
 export function delrubrik(rubrik, egetId, panel) {
-  if (!panel) return { niva: 2, etikettId: egetId };
-  if (rubrik.trim().toLocaleLowerCase("sv") === panel.rubrik.trim().toLocaleLowerCase("sv")) return { niva: null, etikettId: panel.rubrikId };
-  return { niva: Math.min(panel.niva + 1, 6), etikettId: egetId };
+  if (!panel) return { niva: 2, etikettId: egetId, underniva: 3 };
+  if (rubrik.trim().toLocaleLowerCase("sv") === panel.rubrik.trim().toLocaleLowerCase("sv")) {
+    return { niva: null, etikettId: panel.rubrikId, underniva: panel.niva + 1 };
+  }
+  return { niva: panel.niva + 1, etikettId: egetId, underniva: panel.niva + 2 };
 }
 
 /**
  * Delens rubrik, på den nivå `delrubrik` gav. `null`: ingen synlig rubrik (panelens rubrik säger redan samma sak).
  *
- * @param {{ niva: number | null, id: string, children: import("react").ReactNode }} props
+ * ⛔ HTML har bara sex rubriknivåer. En nivå djupare än 6 (panelen på 5 och en katalog med egen rubrik, vars "Arkiverade" då är 7)
+ * ritas som `h6` med `aria-level` satt till den riktiga nivån, så att skärmläsarens rubrikträd inte plattas till tyst. ARIA tillåter
+ * nivåer över 6.
+ *
+ * @param {{ niva: number | null, id?: string, children: import("react").ReactNode }} props
  */
 export function Delrubrik({ niva, id, children }) {
   if (niva === null) return null;
   const Tagg = rubriktagg(niva);
   return (
-    <Tagg id={id} className="m-0 text-sektion uppercase text-accent">
+    <Tagg id={id} aria-level={niva > 6 ? niva : undefined} className="m-0 text-sektion uppercase text-accent">
       {children}
     </Tagg>
   );
@@ -140,7 +153,24 @@ export function Delrubrik({ niva, id, children }) {
 
 /** @param {number} niva @returns {"h1" | "h2" | "h3" | "h4" | "h5" | "h6"} */
 function rubriktagg(niva) {
-  return /** @type {any} */ (`h${Math.min(Math.max(Math.trunc(niva), 1), 6)}`);
+  return /** @type {any} */ (`h${Math.min(niva, 6)}`);
+}
+
+/**
+ * `rubrikniva` måste vara ett heltal från 1 till 5. ⛔ Förut kontrollerades det inte: `NaN` gav taggen `<hNaN>` och `9` blev tyst `h6`
+ * (granskningen av PR 278). Taket är 5 och inte 6, eftersom delarna i en panel ligger en nivå under panelen, och en panel på 6 hade
+ * inte haft någon nivå kvar åt dem.
+ *
+ * @param {unknown} niva
+ * @returns {number}
+ */
+export function kontrolleraRubrikniva(niva) {
+  if (typeof niva !== "number" || !Number.isInteger(niva) || niva < 1 || niva > 5) {
+    throw new Error(
+      `OpsInstallningar: rubrikniva måste vara ett heltal från 1 till 5, men var ${typeof niva === "string" ? `"${niva}"` : String(niva)}. Nivån blir sidans och panelens rubrik (h1 till h5), och delarna i panelen hamnar en nivå under.`,
+    );
+  }
+  return niva;
 }
 
 /** @param {string} text */
@@ -200,7 +230,7 @@ function OpsInstallningarRitad({
   if (vald && !aktiv) {
     utvecklingsvarning(`OpsInstallningar: ingen sektion har id "${vald}", så listan ritas. Det är rätt för en gammal länk, men kommer id:t från appens egen kod är det felstavat.`);
   }
-  const Sidtagg = rubriktagg(rubrikniva);
+  const Sidtagg = rubriktagg(kontrolleraRubrikniva(rubrikniva));
   const sidrubrikId = useId();
   const panelrubrikId = useId();
   const panelrubrik = useRef(/** @type {any} */ (null));

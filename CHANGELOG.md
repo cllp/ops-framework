@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.69.1
+
+Rättelser efter granskningen av PR 278 (0.69.0, #274), som mergades innan granskningens två MÅSTE-fynd var lagade.
+
+#### Rättat
+
+- **Katalogens delrubriker följer `rubrikniva`.** `OpsKatalogInstallning` räknade själv ut nivån för "Arkiverade", "Senaste ändringarna" och formulärets två rubriker med `niva === 3 ? "h4" : "h3"`, vilket bara stämde vid förvalet 2. Med `rubrikniva={3}` blev "Arkiverade" h3, samma nivå som panelen den står i, och med en egen katalogrubrik på h4 låg "Arkiverade" en nivå ÖVER den. Nivån kommer nu ur `delrubrik` (`underniva`, en under närmaste synliga rubrik), samma hjälpfunktion som `OpsInstallningar` och `OpsModulTyper` använder, så regeln finns på ett ställe. En nivå djupare än 6 ritas som `h6` med `aria-level`. Prov i `installningar.test.jsx` med en arkiverad kategori vid nivå 2, 3 och 5, med samma och med annan rubrik än panelen: fyra röda mot 0.69.0, alla gröna nu.
+- **`rubrikniva` kontrolleras.** Ett värde som inte är ett heltal från 1 till 5 vägras med ett läsbart fel (`kontrolleraRubrikniva`). Förut gav `NaN` taggen `<hNaN>` och `9` blev tyst `h6`. Prov för `NaN`, 0, 6, 9, 2,5, `"3"` och `null`, plus 1 och 5 som gröna; rött mot 0.69.0.
+
+#### Ändrat
+
+- **`check-utvecklarord` säger i filhuvudet vad den INTE läser:** ternär i flera led, ternär där en gren inte är en sträng, `&&`, strängar inuti `${}`, och `text=`/`children=` som props. Varje fall är mätt mot vakten och ger noll träffar. Inga mönster tillagda: `&&` som barn förekommer inte i ramverkets src, så ett mönster hade inte kunnat få ett golv här.
+- **`test-guards` skriver kopian av vakten med ett avstängt mönster i en temporär katalog**, inte i `scripts/`, med importen och roten omskrivna till absoluta sökvägar. Ett nytt grönt fall visar att kopian utan avstängt mönster är grön, så att de fem röda inte kan bero på flytten.
+
+#### Ompinning till 0.69.1
+
+Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.69.1/ops-framework-0.69.1.tgz"`.
+2. Ingen kod i appen behöver ändras, om den inte skickar en `rubrikniva` utanför 1 till 5. Gör den det kastar `OpsInstallningar` nu i stället för att rita fel nivå.
+
 ## 0.69.0
 
 ⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, lifehub.app#60), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.69.0.

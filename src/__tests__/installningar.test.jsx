@@ -155,6 +155,21 @@ describe("OpsInstallningar", () => {
     expect(screen.getByRole("heading", { level: 4, name: "Från moduler" })).toBeTruthy();
   });
 
+  it("rubrikniva som inte är ett heltal från 1 till 5 vägras med en läsbar text", () => {
+    const fel = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const dalig of [NaN, 0, 6, 9, 2.5, "3", null]) {
+      expect(() => render(<OpsInstallningar rubrikniva={dalig} sektioner={SEKTIONER} vald={null} onValj={() => {}} />), String(dalig)).toThrow(
+        /rubrikniva måste vara ett heltal från 1 till 5/,
+      );
+    }
+    for (const bra of [1, 5]) {
+      const { unmount } = render(<OpsInstallningar rubrikniva={bra} sektioner={SEKTIONER} vald={null} onValj={() => {}} />);
+      expect(screen.getByRole("heading", { level: bra, name: "Inställningar" })).toBeTruthy();
+      unmount();
+    }
+    fel.mockRestore();
+  });
+
   it("engelska ur språket", () => {
     render(<OpsInstallningar sektioner={SEKTIONER} vald="gruppen" onValj={() => {}} sprak="en" />);
     expect(screen.getByRole("heading", { level: 2, name: "Settings" })).toBeTruthy();
@@ -188,6 +203,69 @@ describe("OpsInstallningar", () => {
       expect(screen.getByRole("heading", { level: 2, name: "Inkorgens sorter" })).toBeTruthy();
       expect(screen.getByRole("heading", { level: 3, name: "Sorter" })).toBeTruthy();
       expect(screen.getByRole("heading", { level: 3, name: "Från moduler" })).toBeTruthy();
+    });
+
+    describe("katalogens delrubriker följer rubrikniva (0.69.1, granskningen av PR 278)", () => {
+      // ⛔ En arkiverad kategori, så att "Arkiverade" ritas. Före 0.69.1 var den h3 eller h4 efter en regel som bara stämde vid nivå 2.
+      const MED_ARKIV = validateKatalog(
+        [
+          { id: "hog", namn: { sv: "Hög" }, farg: 1, ikon: "bell", fas: "aktiv", ordning: 0 },
+          { id: "gammal", namn: { sv: "Gammal" }, farg: 2, ikon: "bell", fas: "aktiv", ordning: 1, arkiverad: true },
+        ],
+        { ikoner: ["bell"], grupp: false },
+      );
+      const panel = (niva, katalogrubrik) => (
+        <OpsInstallningar
+          rubrikniva={niva}
+          sektioner={[
+            {
+              id: "prio",
+              rubrik: "Prioriteter",
+              innehall: (
+                <OpsKatalogInstallning kategorier={MED_ARKIV} ikoner={["bell"]} kanAndra onSpara={() => {}} onArkivera={() => {}} rubrik={katalogrubrik} groupId="g" />
+              ),
+            },
+          ]}
+          vald="prio"
+          onValj={() => {}}
+        />
+      );
+      const arkiverade = () => screen.getByRole("heading", { name: "Arkiverade" });
+      const niva = (el) => Number(el.getAttribute("aria-level") || el.tagName.slice(1));
+
+      it("golv: provets katalog har en arkiverad kategori, annars mäter provet ingenting", () => {
+        expect(MED_ARKIV.filter((k) => k.arkiverad)).toHaveLength(1);
+      });
+
+      it("nivå 2, samma rubrik som panelen: Arkiverade är h3", () => {
+        render(panel(2, "Prioriteter"));
+        expect(niva(arkiverade())).toBe(3);
+      });
+
+      it("nivå 2, annan rubrik: katalogen är h3 och Arkiverade h4", () => {
+        render(panel(2, "Lägen"));
+        expect(screen.getByRole("heading", { level: 3, name: "Lägen" })).toBeTruthy();
+        expect(niva(arkiverade())).toBe(4);
+      });
+
+      it("nivå 3, samma rubrik som panelen: Arkiverade är h4, under panelens h3", () => {
+        render(panel(3, "Prioriteter"));
+        expect(screen.getByRole("heading", { level: 3, name: "Prioriteter" })).toBeTruthy();
+        expect(niva(arkiverade())).toBe(4);
+      });
+
+      it("nivå 3, annan rubrik: katalogen är h4 och Arkiverade h5", () => {
+        render(panel(3, "Lägen"));
+        expect(screen.getByRole("heading", { level: 4, name: "Lägen" })).toBeTruthy();
+        expect(arkiverade().tagName).toBe("H5");
+      });
+
+      it("nivå 5, annan rubrik: Arkiverade är nivå 7 för skärmläsaren, ritad som h6 eftersom HTML slutar där", () => {
+        render(panel(5, "Lägen"));
+        expect(screen.getByRole("heading", { level: 6, name: "Lägen" })).toBeTruthy();
+        expect(arkiverade().tagName).toBe("H6");
+        expect(arkiverade().getAttribute("aria-level")).toBe("7");
+      });
     });
 
     it("utan ikonRitare ritas ingen ikonnyckel som text", () => {
