@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.71.0
+
+0.69.0 och 0.70.0 är på väg i egna PR:ar (#274, #275). Det här avsnittet ligger ovanför dem, och en krock med main löses med en vanlig merge.
+
+### Vem-filtrets räknare: ett tal per rad, och en grupp räknas helt eller inte alls (cllp/bolag-ops#569)
+
+Händelsen: CP 2026-10-06, inkorgspost `kBctxHT9NDWs7VQ4roJI`: "Finns många initialt, sedan agent 0st och jag 2st. Går inte jämnt ut. Nåt är fel där med alla, jag och agent."
+
+Rotorsaken är appens, och den mättes i lifehub.app:s kod: filtret Vem jämför `skapadAv.uid` med medlemmens id. Agentens poster skrivs med `skapadAv: { uid: null, typ: "agent" }` (`functions/agentpost.js`), så de träffade aldrig agentens id `agent_<grupp>`, och Agent visade 0. Uppgifter, pengar och kalenderrader bär ingen `skapadAv` alls och räknades bara under Alla. Delarna kunde alltså aldrig bli helheten. Rättningen av vem som äger en rad ligger i appens PR.
+
+Ramverkets del är att talen kan stå där valet görs:
+
+#### Tillagt
+
+- `OpsFilterPanel`: `options[].badge` och gruppens `allBadge` ritas till höger i raden, före bocken, i samma talform som segmentets räknare. 0 ritas (regel 5).
+
+#### Ändrat
+
+- `OpsFilterPanel` kastar när en grupp bara räknar en del av sina rader: har ett alternativ ett tal måste varje alternativ och "Alla" ha det. En saknad siffra går inte att skilja från 0, och en halv uppsättning tal går att lägga ihop till en summa som inte är listans.
+- Summan prövas medvetet inte i ramverket. Hade panelen räknat ihop alternativen och skrivit summan på "Alla" hade summan stämt per definition och dolt precis den rad som inte hör till något alternativ.
+
+#### Prov
+
+- `src/__tests__/filterpanel.test.jsx`, "antal per rad": sex rader och fyra alternativ (golv), talet på varje rad jämförs med antalet rader efter tryck, och delarna med Alla. Utan ändringen i `OpsFilterPanel.jsx`: 3 av 3 nya prov röda. Med: 19 av 19 gröna.
+
 ## 0.68.0
 
 ### Trådar i gruppchatten (cllp/lifehub.app#60)

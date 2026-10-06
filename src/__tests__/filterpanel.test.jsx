@@ -369,3 +369,91 @@ describe("OpsFilterPanel", () => {
     ).toThrow(/okänd layout/);
   });
 });
+
+/*
+ * ⛔ RÄKNARNA PÅ RADERNA (0.71.0, cllp/bolag-ops#569). CP 2026-10-06: "Finns många initialt, sedan agent 0st och jag 2st.
+ * Går inte jämnt ut." Provet bygger talen ur samma rader som listan visar, trycker på varje rad och jämför talet med
+ * antalet rader som syns efteråt. Golv: sex rader och fyra alternativ, så ett tomt underlag inte blir grönt.
+ */
+describe("OpsFilterPanel: antal per rad", () => {
+  const RADER = [
+    { id: 1, vem: "jag" },
+    { id: 2, vem: "jag" },
+    { id: 3, vem: "agent" },
+    { id: 4, vem: "anna" },
+    { id: 5, vem: "ingen" },
+    { id: 6, vem: "ingen" },
+  ];
+  const ALTERNATIV = [
+    { value: "jag", label: "Jag" },
+    { value: "agent", label: "Agent" },
+    { value: "anna", label: "Anna" },
+    { value: "ingen", label: "Ingen person" },
+  ];
+  const urval = (/** @type {string | null} */ v) => RADER.filter((r) => !v || r.vem === v);
+
+  function Lista() {
+    const [val, setVal] = useState(/** @type {Record<string, string | null>} */ ({ vem: null }));
+    const grupp = {
+      id: "vem",
+      label: "Vem",
+      allBadge: urval(null).length,
+      options: ALTERNATIV.map((o) => ({ ...o, badge: urval(o.value).length })),
+    };
+    return (
+      <>
+        <OpsFilterPanel layout="ikoner" ariaLabel="Filter" groups={[grupp]} value={val} onChange={setVal} />
+        <ul aria-label="Rader">
+          {urval(val.vem).map((r) => (
+            <li key={r.id}>{r.id}</li>
+          ))}
+        </ul>
+      </>
+    );
+  }
+
+  it("varje rads tal är antalet rader efter tryck, och delarna blir Alla", () => {
+    expect(RADER.length).toBeGreaterThanOrEqual(6);
+    render(<Lista />);
+    /** @param {string} namn */
+    const talPa = (namn) => {
+      if (!screen.queryByRole("button", { name: /^Alla/ })) fireEvent.click(screen.getByRole("button", { name: /^Vem/ }));
+      const rad = screen.getByRole("button", { name: new RegExp(`^${namn}`) });
+      const tal = Number(rad.querySelector("[data-antal]")?.textContent);
+      fireEvent.click(rad);
+      return tal;
+    };
+
+    let summa = 0;
+    for (const o of ALTERNATIV) {
+      const tal = talPa(o.label);
+      expect(tal).toBe(screen.getAllByRole("listitem").length);
+      summa += tal;
+    }
+    const alla = talPa("Alla");
+    expect(alla).toBe(screen.getAllByRole("listitem").length);
+    expect(summa).toBe(alla);
+  });
+
+  it("ritar 0 och inte ingenting", () => {
+    render(
+      <OpsFilterPanel
+        layout="ikoner"
+        ariaLabel="Filter"
+        groups={[{ id: "vem", label: "Vem", allBadge: 2, options: [{ value: "agent", label: "Agent", badge: 0 }, { value: "jag", label: "Jag", badge: 2 }] }]}
+        value={{ vem: null }}
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Vem" }));
+    expect(screen.getByRole("button", { name: /^Agent/ }).querySelector("[data-antal]")?.textContent).toBe("0");
+  });
+
+  it("vägrar en grupp där bara en del av raderna räknas", () => {
+    const halv = (/** @type {any} */ g) => () =>
+      render(<OpsFilterPanel ariaLabel="Filter" groups={[g]} value={{ vem: null }} onChange={() => {}} />);
+    expect(halv({ id: "vem", label: "Vem", options: [{ value: "a", label: "A", badge: 1 }, { value: "b", label: "B" }], allBadge: 1 })).toThrow(/räknar bara en del/);
+    expect(halv({ id: "vem", label: "Vem", options: [{ value: "a", label: "A", badge: 1 }] })).toThrow(/räknar bara en del/);
+    expect(halv({ id: "vem", label: "Vem", options: [{ value: "a", label: "A" }], allBadge: 1 })).toThrow(/räknar bara en del/);
+  });
+});
