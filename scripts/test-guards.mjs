@@ -1752,6 +1752,21 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     "sparaSenasteGruppikon saknas i README",
   );
   kravRott(
+    "gruppmärke 5: react importerat med mallsträng",
+    [markevakt, markekopia("m6", (m) => andra(m, "src/lib/gruppikonsvg.js", (t) => `${t}\nexport const ladda = () => import(\`react\`);\n`))],
+    'paketet "react"',
+  );
+  kravRott(
+    "gruppmärke 6: en dynamisk import med beräknat mål",
+    [markevakt, markekopia("m7", (m) => andra(m, "src/lib/gruppfarg.js", (t) => `${t}\nconst p = "re" + "act";\nexport const ladda = () => import(p);\n`))],
+    "inte är en bokstavlig sträng",
+  );
+  kravRott(
+    "gruppmärke 7: exporten står bara som del av ett längre ord i README",
+    [markevakt, markekopia("m8", (m) => andra(m, "README.md", (t) => t.replaceAll("narmasteKulornamn", "narmasteKulornamnet")))],
+    "narmasteKulornamn saknas i README",
+  );
+  kravRott(
     "gruppmärke golv: ingången har nästan inga exporter",
     [markevakt, markekopia("m5", (m) => fs.writeFileSync(path.join(m, "src", "gruppmarke", "index.js"), 'export { initials } from "../lib/identity.js";\n'))],
     "filer i grafen",

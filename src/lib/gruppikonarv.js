@@ -27,7 +27,7 @@ export const ARV_GRUPPIKON = /** @type {const} */ ({
 
 /**
  * Profilens sex äldre id (#164, `PROFILIKONER`) till Lucide-namnet de ritats med: `PersonIkon` är `User`, `LeendeIkon` är
- * `Smile` och så vidare (`icons.jsx`). ⛔ Provet `gruppmarke.test.js` ritar båda och kräver samma markup, så en karta som
+ * `Smile` och så vidare (`icons.jsx`). ⛔ Provet `gruppmarke.test.jsx` ritar båda och kräver samma markup, så en karta som
  * pekar på fel ikon blir röd i stället för att byta ikon på varje person som valt den.
  */
 export const ARV_PROFILIKON = /** @type {const} */ ({

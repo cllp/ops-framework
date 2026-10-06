@@ -25,7 +25,7 @@
  * React (LifeHubs Identity) behöver rita samma ikon som gruppväljaren. Hade datan skrivits för hand, eller hämtats ur
  * `lucide-static/icons`, hade det varit två original som kan glida isär. I stället ritas varje `lucide-react`-komponent med
  * `react-dom/server` här, och det som står i `gruppikonsvg.generated.js` är exakt det komponenten ritar. Provet
- * `gruppmarke.test.js` jämför dessutom `gruppikonSvg(namn)` med komponentens markup för varje ikon, och `--kontrollera`
+ * `gruppmarke.test.jsx` jämför dessutom `gruppikonSvg(namn)` med komponentens markup för varje ikon, och `--kontrollera`
  * blir röd när datan ligger efter generatorn.
  *
  * Kör:  node scripts/generate-gruppikoner.mjs                skriver om de tre filerna

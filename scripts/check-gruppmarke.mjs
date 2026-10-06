@@ -32,7 +32,10 @@ if (!fs.existsSync(start)) {
   process.exit(1);
 }
 
-const IMPORTMONSTER = /(?:^|[^\w$.])(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
+// ⛔ Alla tre citattecknen. Mönstret tog först bara " och ', så `import(\`react\`)` gick förbi vakten (granskningen av PR 275).
+const IMPORTMONSTER = /(?:^|[^\w$.])(?:from|import)\s*\(?\s*(["'`])([^"'`]+)\1/g;
+// En dynamisk import vars mål inte är en bokstavlig sträng går inte att följa, alltså är den ett brott och inte ett frikort.
+const OKLAR_IMPORT = /(?:^|[^\w$.])import\s*\(\s*(?!["'`][^"'`$]+["'`]\s*\))/g;
 /** @param {string} t */
 const utanKommentarer = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'])\/\/[^\n]*/g, "$1");
 
@@ -50,8 +53,10 @@ while (ko.length > 0) {
   }
   besokta.add(fil);
   const text = utanKommentarer(fs.readFileSync(fil, "utf8"));
+  if (OKLAR_IMPORT.test(text)) brott.push(`${path.relative(bas, fil)} har en dynamisk import vars mål inte är en bokstavlig sträng. Den går inte att pröva.`);
+  OKLAR_IMPORT.lastIndex = 0;
   for (const m of text.matchAll(IMPORTMONSTER)) {
-    const spec = m[1];
+    const spec = m[2];
     if (!spec.startsWith(".")) {
       brott.push(`${path.relative(bas, fil)} importerar paketet "${spec}". Ingången får inte nå något paket, och allra minst React eller lucide-react.`);
       continue;
@@ -86,7 +91,10 @@ if (exporter.length < 20) brott.push(`bara ${exporter.length} exporter lästes u
 const readmeFil = path.join(bas, "README.md");
 const readme = fs.existsSync(readmeFil) ? fs.readFileSync(readmeFil, "utf8") : "";
 if (!readme.includes("ops-framework/gruppmarke")) brott.push("README nämner inte ops-framework/gruppmarke.");
-for (const namn of exporter) if (!readme.includes(namn)) brott.push(`exporten ${namn} saknas i README.`);
+// ⛔ Som eget ord, inte delsträng: `gruppKulor` ska inte räknas som nämnd för att `gruppKulorX` står där.
+for (const namn of exporter) {
+  if (!new RegExp(`(?<![\\w$])${namn.replace(/[$]/g, "\\$")}(?![\\w$])`).test(readme)) brott.push(`exporten ${namn} saknas i README.`);
+}
 
 if (brott.length > 0) {
   console.error(`check-gruppmarke: ${brott.length} brott\n`);

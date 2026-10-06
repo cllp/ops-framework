@@ -35,6 +35,11 @@ Identitys webb är vanlig TypeScript utan React. Mätt i identitys bygge (vite b
 - **`gruppikonKomponent` och `gruppikonNamn` känner också de äldre profil-id:na**, så att en person ritas med samma karta som en grupp.
 - **Flyttat utan att namnen ändrats:** `ARV_GRUPPIKON` och `gruppikonNamn` bor i `src/lib/gruppikonarv.js`, märkets former (`PROFILIKONER`, `PROFILFARGER`, `GRUPPIKONER`, `GRUPPINITIALER_FORM`) i `src/lib/markeformer.js`, och senast använda i `src/lib/gruppikonsenaste.js` (samma nyckel i `localStorage`, så listan följer med). Alla återexporteras där de stod.
 
+#### Rättat efter granskningen
+
+- **Prototypnycklar var giltiga färger.** `fargTillKulor` slog upp tonerna med `in`, som når prototypkedjan, så "toString", "constructor", "__proto__", "valueOf" och "hasOwnProperty" togs emot av `byggAnvandare` och `byggGrupp`. Uppslaget går nu med `Object.hasOwn`, och `gruppikonEtikett` likaså (där gav "toString" en funktion i stället för en etikett). Prov i `gruppmarke.test.jsx`.
+- **`check-gruppmarke` fångar mallsträngar och beräknade importer.** `import(\`react\`)` gick förbi, och en `import(x)` går inte att följa och är nu ett brott. En export räknas som nämnd i README först som eget ord, inte som del av ett längre.
+
 #### Ompinning till 0.70.0
 
 Ingen ändring krävs i en app som inte vill något nytt. LifeHubs Identity använder `ops-framework/gruppmarke` för profilens väljare (lifehub.identity#27), och hubben bör rita personens märke i huvudet med `personmarkeProps(profil)` så att växlingen speglar profilen. Funktionerna som prövar profilen med `byggAnvandare` (identitys `sparaProfil`) måste pinna om för att ta emot de nya formerna.

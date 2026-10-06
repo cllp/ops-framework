@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { render, screen } from "@testing-library/react";
 import * as rent from "../gruppmarke/index.js";
 import * as rot from "../index.js";
-import { byggAnvandare } from "../lib/grupp.js";
+import { byggAnvandare, byggGrupp } from "../lib/grupp.js";
+import { gruppikonEtikett } from "../lib/gruppikonnamn.js";
 import { gruppikonKomponent, personmarkeProps } from "../lib/gruppikoner.js";
 import { PROFILIKON_KOMPONENT } from "../lib/profilikoner.js";
 import { GRUPPIKON_SVG } from "../lib/gruppikonsvg.generated.js";
@@ -80,6 +81,32 @@ describe("validering: byggAnvandare tar emot katalognamn och kulor:N, och avvisa
   });
   it.each([["kulor:360"], ["kulor:007"], ["kulor:-1"], ["7"], ["#ff0000"], ["kulor:"]])("färgen %s avvisas", (farg) => {
     expect(() => byggAnvandare(ANV({ farg }))).toThrow(/färgen/);
+  });
+});
+
+/**
+ * ⛔ Granskningen av PR 275: `varde in ARV_TON_KULOR` nådde prototypkedjan, så "toString" och de andra nedan godtogs
+ * som en äldre ton och sparades. Identity sparade `{ farg: "toString" }`. Uppslagen går nu med `Object.hasOwn`.
+ */
+const PROTOTYPNYCKLAR = ["toString", "constructor", "__proto__", "valueOf", "hasOwnProperty", "isPrototypeOf", "toLocaleString"];
+
+describe("prototypnycklar är inga sparade värden", () => {
+  it.each(PROTOTYPNYCKLAR.map((n) => [n]))("färgen %s avvisas av byggAnvandare och byggGrupp, och är ingen kulör", (farg) => {
+    expect(rent.fargTillKulor(farg)).toBeNull();
+    expect(rent.arGiltigGruppfarg(farg)).toBe(false);
+    expect(() => byggAnvandare(ANV({ farg }))).toThrow(/färgen/);
+    expect(() =>
+      byggGrupp({ id: "bolaget", namn: { sv: "Bolaget" }, moduler: ["ekonomi"], arkiverad: false, farg, skapadAv: { uid: "u1", namn: "CP", typ: "manniska", kalla: "prov" } }),
+    ).toThrow(/färgen/);
+  });
+  it.each(PROTOTYPNYCKLAR.map((n) => [n]))("ikonen %s avvisas, ritas inte och får ingen funktion som etikett", (ikon) => {
+    expect(() => byggAnvandare(ANV({ ikon }))).toThrow(/ikonen/);
+    expect(rent.gruppikonNamn(ikon)).toBe("");
+    expect(rent.gruppikonSvg(ikon)).toBe("");
+    expect(typeof gruppikonEtikett(ikon)).toBe("string");
+  });
+  it("läsvägen ritar en prototypnyckel som om fältet saknades", () => {
+    expect(rent.personmarke(ANV({ farg: "toString", ikon: "constructor" }))).toEqual({ kulor: rent.gruppKulor({ id: "u1" }), ikon: "", initialer: "CP" });
   });
 });
 

@@ -6,7 +6,7 @@ import { GRUPPIKON_SVG } from "./gruppikonsvg.generated.js";
  *
  * ⛔ SAMMA IKON SOM KOMPONENTEN, INTE EN LIKNANDE. Innehållet är genererat ur `lucide-react` med `react-dom/server`
  * (`scripts/generate-gruppikoner.mjs`), och det yttre elementet har samma attribut som `gruppikonKomponent(namn)` ritar:
- * streckvikt 1,5, `currentColor` och `aria-hidden`. Provet `gruppmarke.test.js` jämför de två för varje ikon i katalogen.
+ * streckvikt 1,5, `currentColor` och `aria-hidden`. Provet `gruppmarke.test.jsx` jämför de två för varje ikon i katalogen.
  *
  * @param {string} namn Ett katalognamn eller ett äldre grupp- eller profil-id.
  * @param {number} [storlek] Bredd och höjd i px. Förval 20, som komponenten.
