@@ -29,7 +29,7 @@ import {
   formatDate,
   OpsView,
   OpsViewHeader,
-} from "@staiger/ops-framework";
+} from "ops-framework";
 
 /**
  * Levande katalog över primitiverna.

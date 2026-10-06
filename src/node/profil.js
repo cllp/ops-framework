@@ -24,7 +24,7 @@
  *
  * ══ Användning ══════════════════════════════════════════════════════════
  *
- *   import { uppdateraProfil } from "@staiger/ops-framework/node";
+ *   import { uppdateraProfil } from "ops-framework/node";
  *
  *   await uppdateraProfil({ kalla, uid, andring: { namn: "Nytt namn" } });
  */

@@ -18,8 +18,8 @@
  *
  * Kör, från appens rot, efter att ramverket pinnats om till 0.40.1:
  *
- *   node web/node_modules/@staiger/ops-framework/scripts/bakfyll-medlemsnamn.mjs --projekt <projekt-id>
- *   node web/node_modules/@staiger/ops-framework/scripts/bakfyll-medlemsnamn.mjs --projekt <projekt-id> --skarpt
+ *   node web/node_modules/ops-framework/scripts/bakfyll-medlemsnamn.mjs --projekt <projekt-id>
+ *   node web/node_modules/ops-framework/scripts/bakfyll-medlemsnamn.mjs --projekt <projekt-id> --skarpt
  *
  * Valfria: `--anvandare users` och `--medlemskap memberships` om appen heter samlingarna något annat.
  * Inloggning: Admin SDK med "application default credentials" (`gcloud auth application-default login`, eller

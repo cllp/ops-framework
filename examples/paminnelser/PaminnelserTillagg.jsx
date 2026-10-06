@@ -1,4 +1,4 @@
-import { OpsEmpty } from "@staiger/ops-framework";
+import { OpsEmpty } from "ops-framework";
 
 /**
  * Modulens tillägg på händelsepanelen: platsen `handelse.sektion` (0.60.0, #251).

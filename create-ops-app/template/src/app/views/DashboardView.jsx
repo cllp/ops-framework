@@ -12,7 +12,7 @@ import {
   OpsViewHeader,
   formatCurrency,
   formatDate,
-} from "@staiger/ops-framework";
+} from "ops-framework";
 
 /**
  * Startvy. Byt ut innehållet mot appens egna data.

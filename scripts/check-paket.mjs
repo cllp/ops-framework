@@ -68,6 +68,16 @@ if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(String(paket.version || ""))) {
   fel.push(`version "${paket.version}" är inte semver. Taggen heter v<version>, så en version som inte är semver ger en tagg ingen kan tolka.`);
 }
 
+// ── 1b. Namnet är oscopat, för tarbollens filnamn härleds ur det ───────────
+//
+// ⛔ CP 2026-10-06: releasens tarboll hette `staiger-ops-framework-X.Y.Z.tgz`,
+// för `npm pack` gör scopet `@staiger/` till ett prefix i filnamnet. Kravet är
+// att release-artefakten inte bär något scope. Filnamnet sätts inte i
+// publish.yml, så det är namnet här som avgör det.
+if (String(paket.name || "").startsWith("@")) {
+  fel.push(`name "${paket.name}" har ett scope. \`npm pack\` gör det till "${String(paket.name).slice(1).replace("/", "-")}-${paket.version}.tgz", och release-tarbollen ska inte bära något scope i filnamnet.`);
+}
+
 /*
  * ── 2. Varje ingång måste ligga i `files` ──────────────────────────────────
  *
@@ -206,7 +216,7 @@ try {
     process.execPath,
     [
       "-e",
-      'import("@staiger/ops-framework/node").then((m) => { const kravs = ["createActivityWriter", "createCaseMirror"]; const saknas = kravs.filter((k) => typeof m[k] !== "function"); if (saknas.length) { console.error("saknar " + saknas.join(", ")); process.exit(1); } console.log(Object.keys(m).join(",")); }).catch((e) => { console.error(e.message); process.exit(1); });',
+      'import("ops-framework/node").then((m) => { const kravs = ["createActivityWriter", "createCaseMirror"]; const saknas = kravs.filter((k) => typeof m[k] !== "function"); if (saknas.length) { console.error("saknar " + saknas.join(", ")); process.exit(1); } console.log(Object.keys(m).join(",")); }).catch((e) => { console.error(e.message); process.exit(1); });',
     ],
     { cwd: konsument, encoding: "utf8" },
   );

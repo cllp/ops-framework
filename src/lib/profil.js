@@ -37,7 +37,7 @@
  * oförändrade, av samma skäl som klienten aldrig får skriva den samlingen
  * alls (#136): `allow write: if false`. Den app som vill hålla
  * medlemslistorna i takt anropar EFTERÅT en server-callable byggd på
- * `uppdateraProfil` (`@staiger/ops-framework/node`), som skriver users OCH
+ * `uppdateraProfil` (`ops-framework/node`), som skriver users OCH
  * alla medlemskap för uid i samma steg. Utan det anropet gäller samma
  * ärvda eftersläpning som redan stod här: ett namn i medlemslistan kan bli
  * inaktuellt, precis som det redan kunde bli mot Google.

@@ -1,6 +1,6 @@
 # __APP_NAME__
 
-Ops-plattform på `@staiger/ops-framework`.
+Ops-plattform på `ops-framework`.
 
 ## Kom igång
 
@@ -27,7 +27,7 @@ npm run dev
 | `src/index.css` | appens profil. Bara VÄRDEN, aldrig struktur |
 | `src/app/views/` | vyerna |
 | `src/lib/` | appens egna hjälpare |
-| `node_modules/@staiger/ops-framework/` | tokens, primitiver, arbetsregler, skills, vakter |
+| `node_modules/ops-framework/` | tokens, primitiver, arbetsregler, skills, vakter |
 
 ## Nästa steg
 

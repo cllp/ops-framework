@@ -217,7 +217,7 @@ export function regelfragment(namn = {}, val = {}) {
 
   return `    // ══ Ramverkets grupper och medlemskap. GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, regelfragment() i src/lib/regler.js.
+    // Källa: ops-framework, regelfragment() i src/lib/regler.js.
     // En ändring hör hemma där och kommer hit när fragmentet genereras om.
 
     function opsInloggad() {
@@ -388,7 +388,7 @@ export function lagringsregelfragment(konfig = {}) {
 
   return `    // ══ Ramverkets profilbilder. GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, lagringsregelfragment() i src/lib/regler.js.
+    // Källa: ops-framework, lagringsregelfragment() i src/lib/regler.js.
     // En ändring hör hemma där och kommer hit när fragmentet genereras om.
     //
     // ⛔ BARA SIN EGEN SÖKVÄG. \`uid\` i sökvägen måste vara den inloggades eget,
@@ -765,7 +765,7 @@ export function samtalsregelfragment(namn = {}) {
 
   return `    // ══ Ramverkets samtal (0.34.0). GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Källa: ops-framework, samtalsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
     function opsMedlemskapFor(uid, gid) {
       return /databases/$(database)/documents/${medlemskap}/$(uid + '${A}' + gid);
@@ -908,7 +908,7 @@ export function kalenderregelfragment(namn = {}) {
 
   return `    // ══ Ramverkets kalendrar (0.37.0). GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Källa: ops-framework, kalenderregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
 ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KALENDERFALT], nyckelMedGrupp: true })}
     function opsMinKalender(uid, kid) {
@@ -1007,7 +1007,7 @@ export function handelseregelfragment(namn = {}) {
 
   return `    // ══ Ramverkets händelsemodell (0.37.0). GENERERAD, ändra inte för hand ══
     //
-    // Källa: @staiger/ops-framework, handelseregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Källa: ops-framework, handelseregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
 
     function opsGruppkalendern(gid, kid) {
       return /databases/$(database)/documents/${gruppkalendrar}/$(gid + '${KATALOGAVGRANSARE}' + kid);

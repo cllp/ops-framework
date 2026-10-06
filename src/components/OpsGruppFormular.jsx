@@ -40,7 +40,7 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  *
  * ══ ⛔ FORMULÄRET ÄGER INGEN DATA OCH INGEN ANROPSVÄG ══════════════════════════════════════════════════════
  *
- * `onSkapa({ grupp, inbjudningar })` är appens callable (`skapaGrupp` på nodsidan, `@staiger/ops-framework/node`). Formuläret vet inte
+ * `onSkapa({ grupp, inbjudningar })` är appens callable (`skapaGrupp` på nodsidan, `ops-framework/node`). Formuläret vet inte
  * hur den anropas, bara vad den svarar: `{ groupId, tillagda, inbjudna, fel }`. Faller den visas felet i formuläret och ingenting
  * har sparats som en halv grupp (`skapaGrupp` skriver gruppen och ägaren i en batch).
  *

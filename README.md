@@ -129,7 +129,7 @@ i `@layer base`, så en apps EGNA direkta lucide-importer följer med.
 Versionen är en **git-tagg**, inte npm, eftersom repot är privat:
 
 ```json
-"@staiger/ops-framework": "github:cllp/ops-framework#v0.1.0"
+"ops-framework": "github:cllp/ops-framework#v0.1.0"
 ```
 
 npm kör ramverkets `prepare` vid installation, alltså bygger bundle och typer åt
@@ -520,7 +520,7 @@ inte längre personens egen, och den som redigerar sitt namn i appen får det
 denormaliserade kopior av namn och bild (#138) och skrivs aldrig av en klient
 (#136, `allow write: if false`). Appen som vill hålla dem i takt anropar
 EFTERÅT en server-callable byggd på `uppdateraProfil`
-(`@staiger/ops-framework/node`, se Nodsidan), som skriver `users` OCH alla
+(`ops-framework/node`, se Nodsidan), som skriver `users` OCH alla
 medlemskap för uid i samma steg.
 
 ⛔ **ETT TOMT NAMN FYLLS (0.40.1, #218).** `sakerstallAnvandare` fyller ett TOMT `users.namn` på en befintlig rad när inloggningen
@@ -728,10 +728,10 @@ behörighet.
 
 #### Vägen in för en ny person
 
-Två steg, båda på serversidan, ur `@staiger/ops-framework/node`:
+Två steg, båda på serversidan, ur `ops-framework/node`:
 
 ```js
-import { createInvitationService } from "@staiger/ops-framework/node";
+import { createInvitationService } from "ops-framework/node";
 
 const tjanst = createInvitationService({ kalla });
 await tjanst.bjudIn({ avUid, groupId, epost, roll });          // ägaren bjuder in
@@ -793,7 +793,7 @@ varje adress som någonsin bjudits in att skapa en grupp, alltså en lista över
 precis vilka adresser det är värt att gissa lösenord för.
 
 ```js
-import { createGroupService } from "@staiger/ops-framework/node";
+import { createGroupService } from "ops-framework/node";
 
 const tjanst = createGroupService({ kalla, kataloger: { handelsetyper: HANDELSETYPER, sorter: { standard: SORTER, faser: false, farger: false } } }); // kalla MÅSTE ha batch
 const svar = await tjanst.skapaGrupp({
@@ -828,7 +828,7 @@ taget.
 `OpsUtanMedlemskap props.onSkapaGrupp` (namnet, se ovan) kopplas till den här
 funktionen via appens egen callable (den anropar `skapaGrupp` med `grupp: { namn }`), precis som `OpsMedlemmar props.onBjudIn`
 kopplas till `bjudIn`. `byggVitlisterad` och `medlemskapsId` är återexporterade
-ur `@staiger/ops-framework/node` för den som skriver appens EGEN vitlista-yta
+ur `ops-framework/node` för den som skriver appens EGEN vitlista-yta
 (en administratörssida läggs till i #162): att skriva raden är fortfarande
 appens Admin SDK, inte ramverkets, precis som inbjudan.
 
@@ -844,7 +844,7 @@ Agenten är ett vanligt medlemskap: `typ: "agent"`, roll `medlem`, status `aktiv
 - **`OpsMedlemmar`**: en agents rad har märket AI (`aiEtikett`), ingen rollväljare och ingen Ta bort.
 - **`OpsMottagare lage="person"`** och därmed läget "nytt" i **`OpsMeddelanden`** (0.63.0, före det `OpsNyttMeddelande`) har den aktiva agenten bland mottagarna. Vald öppnas ett samtal av slaget `agent` (`oppnaPrivat({ ..., slag: "agent" })`), och raden under säger texten `agentRad` ("Bara du och agenten ser det här"). En avstängd agent står inte med.
 
-`AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE` finns också på nodsidan (`@staiger/ops-framework/node`), så att servern som svarar bygger agentens id och meddelandet med samma funktioner som klienten, utan att dra in React.
+`AGENT_NAMN`, `agentId`, `agentMedlemskap`, `byggMeddelande`, `samtalsnyckel` och `MAX_MEDDELANDE` finns också på nodsidan (`ops-framework/node`), så att servern som svarar bygger agentens id och meddelandet med samma funktioner som klienten, utan att dra in React.
 
 Svaret skrivs av appens server som ett vanligt meddelande med `av` = agentens id: `memberships` och meddelanden som agent går aldrig att skriva från en klient (`allow write: if false`, och `typ == 'person'` för den som skriver i ett samtal).
 
@@ -893,7 +893,7 @@ radens grupp" en textsnutt någon klistrar in per samling, och den dagen villkor
 ändras sitter den gamla versionen kvar i de samlingar ingen kom ihåg.
 
 ```js
-import { regelfragment, gruppadSamling } from "@staiger/ops-framework";
+import { regelfragment, gruppadSamling } from "ops-framework";
 
 const text = `rules_version = '2';
 service cloud.firestore {
@@ -941,7 +941,7 @@ Samma snitt som Firestore, bredvid `kalla`: ramverket äger MAPPNINGEN, appen
 | `lagringsregelfragment({ prefix })` | Storage-regelfragment som text, `prefix` förval `"profilbilder"`: bara sin egen sökväg (`request.auth.uid == uid`), bara bilder (`contentType.matches('image/.*')`), 2 MB tak (`request.resource.size`). Limmas in i appens `storage.rules`, precis som `gruppadSamling` limmas in i `firestore.rules` |
 
 ```js
-import { createFirebaseStorageSource, lagringsregelfragment } from "@staiger/ops-framework";
+import { createFirebaseStorageSource, lagringsregelfragment } from "ops-framework";
 import { getStorage } from "firebase/storage";
 import * as storage from "firebase/storage";
 
@@ -964,7 +964,7 @@ ger hela `firestore.rules` ur modulernas manifest: ramverkets fragment, ett
 block per modulsamling, appens egen text, och catch-allen sist.
 
 ```js
-import { generateRules, validateModuler } from "@staiger/ops-framework";
+import { generateRules, validateModuler } from "ops-framework";
 
 const moduler = validateModuler([ekonomi, liv]);
 fs.writeFileSync("firestore.rules", generateRules(moduler, { extra: appensEgnaBlock }));
@@ -1028,7 +1028,7 @@ grupp. Ekonomimodulen bor där." Privat, Företag och Samlat är alltså flikar 
 data i EN grupp, och det finns ingen läsning över flera grupper.
 
 ```js
-import { minaGrupper, aktivGrupp, navForGrupp, lasAktivGrupp, sparaAktivGrupp, medAktivGrupp, OpsDataProvider } from "@staiger/ops-framework";
+import { minaGrupper, aktivGrupp, navForGrupp, lasAktivGrupp, sparaAktivGrupp, medAktivGrupp, OpsDataProvider } from "ops-framework";
 
 const mina = minaGrupper(mittMedlemskap, grupper);
 const aktiv = aktivGrupp(lasAktivGrupp(uid, localStorage), mina); // null bara när personen inte har någon grupp
@@ -1283,13 +1283,13 @@ tyst, med eller utan ett sådant konto.
 | `OpsAppShell props.felmottagare` | felgränsen (alltid på, ingen prop stänger av den) kallar `rapporteraFel` i `componentDidCatch` med `felmottagare` och ett sammanhang som bär felytans id |
 | `OpsAppShell props.felRubrik`, `felBeskrivning`, `laddaOmEtikett` | texten på felytan |
 | `OpsAuthProvider props.felmottagare` | kallar `felmottagare.satt({ uid, groupId })` vid varje inloggningsbyte, `satt(null)` vid utloggning. **Aldrig e-post**, även när den finns på `User`-objektet |
-| `sentryMottagare({ dsn, miljo, version })` | en färdig `felmottagare`, i en EGEN ingång: `@staiger/ops-framework/sentry` |
+| `sentryMottagare({ dsn, miljo, version })` | en färdig `felmottagare`, i en EGEN ingång: `ops-framework/sentry` |
 
 ```js
-import { OpsAppShell } from "@staiger/ops-framework";
-import { OpsAuthProvider } from "@staiger/ops-framework";
+import { OpsAppShell } from "ops-framework";
+import { OpsAuthProvider } from "ops-framework";
 // Förvalet är AV. Kommentera in när appen vill ha Sentry:
-// import { sentryMottagare } from "@staiger/ops-framework/sentry";
+// import { sentryMottagare } from "ops-framework/sentry";
 // const felmottagare = sentryMottagare({ dsn, miljo: import.meta.env.MODE, version });
 
 <OpsAuthProvider authentication={auth} felmottagare={felmottagare}>
@@ -1309,10 +1309,10 @@ pratar med mottagaren gör felsökning utan nätverk (offline, en trasig DSN, en
 blockerad tredjepartsdomän) omöjlig: den enda platsen felet syns är i ett konto
 ingen kan nå just då.
 
-⛔ **`@staiger/ops-framework/sentry` ÄR EN EGEN, OBUNDLAD INGÅNG**, precis som
+⛔ **`ops-framework/sentry` ÄR EN EGEN, OBUNDLAD INGÅNG**, precis som
 `/node`: `package.json` pekar den direkt mot källan, ingen esbuild-runda.
 `@sentry/browser` bara laddas av den app som faktiskt skriver
-`import ... from "@staiger/ops-framework/sentry"`, aldrig av en app som inte
+`import ... from "ops-framework/sentry"`, aldrig av en app som inte
 gör det. `@sentry/browser` är en `peerDependency`, `optional: true`, ALDRIG en
 `dependency`: en `dependency` installeras åt ALLA, oavsett om de importerar
 filen. `check-paket.mjs` bevisar att ramverkets egen `dist/index.js` aldrig
@@ -1331,7 +1331,7 @@ stämmer, `validateModuler` tar listan och kastar dessutom på det som bara syns
 mellan två moduler.
 
 ```js
-import { defineModule } from "@staiger/ops-framework";
+import { defineModule } from "ops-framework";
 
 export const liv = defineModule({
   id: "liv",
@@ -1380,7 +1380,7 @@ klicket är ett fel i knäet på användaren.
 ([beslut 0003](docs/beslut/0003-appar-ytor-och-tillagg.md)). Saknas platsen öppnar ramverket den, en gång, för alla appar.
 
 ```js
-import { defineModule, HANDELSE_PLATSER } from "@staiger/ops-framework";
+import { defineModule, HANDELSE_PLATSER } from "ops-framework";
 
 export const omrostning = defineModule({
   id: "omrostning",
@@ -1479,7 +1479,7 @@ CP 2026-10-04: en agent ska kunna bygga en LifeHub-app, och den ska "falla in i 
 håller kontraktet. Det svaret ger en körning:
 
 ```
-node node_modules/@staiger/ops-framework/scripts/prova-modul.mjs src/moduler/ekonomi/index.js --grupp <en grupp med data>
+node node_modules/ops-framework/scripts/prova-modul.mjs src/moduler/ekonomi/index.js --grupp <en grupp med data>
 ```
 
 Kommandot provar modulen genom samma vägar appen använder, inte genom egna regler:
@@ -1519,7 +1519,7 @@ anrop, och en rad som bär ett annat `groupId` än frågans kastar med modulens 
 i felet (0.35.0, #190).
 
 ```js
-import { defineModule, skapaKallregister } from "@staiger/ops-framework";
+import { defineModule, skapaKallregister } from "ops-framework";
 
 const liv = defineModule({
   id: "liv",
@@ -1596,7 +1596,7 @@ ramverkets ytor. `skapar` är samma kontrakt åt andra hållet: **vad modulen ka
 skapa, och var typen väljs ur.**
 
 ```js
-import { OpsAppShell, skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "@staiger/ops-framework";
+import { OpsAppShell, skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from "ops-framework";
 
 // Registreringarna för den aktiva gruppens PÅSLAGNA moduler, i registreringsordning.
 const registreringar = skaparFor(moduler, grupp.moduler);
@@ -1973,7 +1973,7 @@ bakfylld rad under kategorins `id` medan `spara` skriver under `groupId|id`, all
 två dokument för samma kategori efter första ändringen i inställningsvyn.
 
 ```js
-import { bakfyllKatalogGrupp } from "@staiger/ops-framework/node";
+import { bakfyllKatalogGrupp } from "ops-framework/node";
 
 const svar = await bakfyllKatalogGrupp({
   kalla,                      // Admin-källa MED batch
@@ -2016,7 +2016,7 @@ användningen. En halv konfiguration kraschar annars först den dag någon råka
 just den metoden, och felet pekar mot anropsstället i stället för mot uppsättningen.
 `check-config-requirements` mäter det genom att anropa varje fabrik utan argument.
 
-### Nodsidan: `@staiger/ops-framework/node`
+### Nodsidan: `ops-framework/node`
 
 En andra ingång, för det som behöver en token. Buntas **inte** för webbläsaren.
 
@@ -2025,7 +2025,7 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `createActivityWriter` | vägen in i aktivitetsloggen för det som körs utan skärm: importskript, synkjobb, utlösare. Tar `model` (ur `createActivityLog`) och `append`, en injicerad skrivning, så ramverket får inget beroende till en databas. ⛔ `skriv` KASTAR ALDRIG, den svarar `{ ok, fel, orsak }`: en logg som kan sänka jobbet den loggar är värre än ingen logg, och alternativet, att varje anropsställe lindar sitt anrop i try, fungerar tills någon glömmer en gång. ⛔ `orsak` skiljer `utkast` från `skrivning`, eftersom det första är ett programfel och det andra är drift. ⛔ `misslyckades(utkast, fel)` finns för att en glömd `resultat: "fel"` lägger ett misslyckande i listan som ett lyckat jobb |
 | `byggSkapare`, `laesSkapare`, `skaparensNamn`, `arGammalForm`, `SKAPARTYPER` | **samma fem som i huvudingången**, eftersom både klienten och det som körs utan skärm skriver `skapadAv`. Två former av samma fält är precis det modulen finns för att förhindra |
 | `FASER`, `AVSLUTADE_FASER`, `byggKategori`, `validateKatalog`, `valjbara`, `kategorin`, `arAvslutad`, `texten`, `katalognyckel`, `gruppensRader`, `SPRAK`, `RESERVSPRAK`, `byggNamn`, `text`, `arGammalNamn`, `saknadeSprak` | **katalogen och språken finns i båda ingångarna**, av samma skäl som `createActivityLog`: konfigurationen läses både av klienten och av det som körs utan skärm. Ett Cloud Function ska kunna fråga vilka sorter som finns utan att ladda React, och skillnaden är mätt till 8 ms mot 1946 ms |
-| `createActivityLog` | **samma funktion som i huvudingången, återexporterad här**, och det är en mätning och inte en bekvämlighet. `createActivityWriter` kräver en modell ur den, så ett Cloud Function som ville skriva en rad tvingades importera hela webbuntlen. Mätt (Node 20, ur den utgivna tarbollen): `@staiger/ops-framework/node` tar **8 ms**, `@staiger/ops-framework` tar **1946 ms**. Nästan två sekunder per kallstart för att en funktion som skriver ETT dokument skulle ladda React, Radix och en kalender. ⛔ `check-node-side` kräver att nodsidan inte når React eller en komponent, varken direkt eller genom en mellanfil, annars är mätningen osann inom en månad |
+| `createActivityLog` | **samma funktion som i huvudingången, återexporterad här**, och det är en mätning och inte en bekvämlighet. `createActivityWriter` kräver en modell ur den, så ett Cloud Function som ville skriva en rad tvingades importera hela webbuntlen. Mätt (Node 20, ur den utgivna tarbollen): `ops-framework/node` tar **8 ms**, `ops-framework` tar **1946 ms**. Nästan två sekunder per kallstart för att en funktion som skriver ETT dokument skulle ladda React, Radix och en kalender. ⛔ `check-node-side` kräver att nodsidan inte når React eller en komponent, varken direkt eller genom en mellanfil, annars är mätningen osann inom en månad |
 | `createCaseMirror` | speglar öppna ärenden med en etikett till en ögonblicksbild. Tar `{ owner, repo, label }` som konfiguration, plus `summary` och `extraFields` som **funktioner**: ett reguljärt uttryck i konfigurationen hade tvingat ramverket att veta att just den verksamheten skriver en rubrik som heter "Varför" i sina ärenden. ⛔ `load` kastar vid fel svar och svarar aldrig med en tom lista: ett 403 som blir `[]` ser exakt ut som "inga öppna ärenden". ⛔ Pull requests filtreras bort, eftersom GitHubs issues-API returnerar dem som ärenden och varje öppen PR annars hamnar i uppgiftslistan |
 | `uppdateraProfil({ kalla, uid, andring })` | #156. Den ENDA platsen som skriver `namn`/`bild` i `users` OCH i ALLA medlemskap för `uid` i samma steg, byggda genom `byggMedlemskap` så en trasig rad i databasen upptäcks i stället för att tystas in i ett rått patch-objekt. Bara `namn` och `bild` tas emot: de är de enda fälten som är denormaliserade i `memberships` (#138). Klienten kan inte göra det här själv, `memberships` har `allow write: if false` |
 | `byggAnvandare`, `PROFILIKONER`, `PROFILFARGER`, `MAX_PRESENTATION` | 0.53.0, lifehub.app#32. **Samma byggare som i huvudingången**, för ett konto som äger personen utanför appen (LifeHubs Identity) och för appen som speglar personen vid inloggningen. Två prövningar av samma rad hade glidit isär |
@@ -2337,8 +2337,14 @@ Varje tagg `vX.Y.Z` ger en **GitHub-release med en packad tarboll**
 (`.github/workflows/publish.yml`). En konsument installerar den direkt:
 
 ```bash
-npm install https://github.com/cllp/ops-framework/releases/download/v0.17.0/staiger-ops-framework-0.17.0.tgz
+npm install https://github.com/cllp/ops-framework/releases/download/v0.67.0/ops-framework-0.67.0.tgz
 ```
+
+⛔ **Tarbollen heter `ops-framework-X.Y.Z.tgz` från och med 0.67.0.** Före den
+hette paketet `ops-framework` och tarbollen
+`staiger-ops-framework-X.Y.Z.tgz`, och de gamla releaserna bär fortfarande det
+namnet. Filnamnet härleds ur `name` i `package.json` av `npm pack` och skrivs
+inte någon annanstans. `check-paket` kräver att det börjar på `ops-framework-`.
 
 ⛔ **Varför inte ett registry.** Kravet i cllp/ops-framework#93 är att
 `bolag-ops/functions` ska kunna installera paketet utan inloggning, eftersom
@@ -2506,7 +2512,7 @@ npm run check:all   # samma, plus en app som skapas och installeras på riktigt
 | `tokens/tokens.css` | tokenkontraktet, som är Tailwind-temat |
 | `src/components/` | primitiverna |
 | `src/lib/` | tema, identitet, formatering |
-| `src/nodee/` | **nodsidan**, importeras som `@staiger/ops-framework/node`. Hit hör det som behöver en token, en filsökväg eller ett autentiserat nätanrop. ⛔ Ligger utanför webbundeln med flit: en token i bundlen är en token i varje besökares JS-fil. `check-node-side` gör det till rött bygge om webbsidan importerar härifrån |
+| `src/nodee/` | **nodsidan**, importeras som `ops-framework/node`. Hit hör det som behöver en token, en filsökväg eller ett autentiserat nätanrop. ⛔ Ligger utanför webbundeln med flit: en token i bundlen är en token i varje besökares JS-fil. `check-node-side` gör det till rött bygge om webbsidan importerar härifrån |
 | `scripts/` | vakterna |
 | `create-ops-app/` | mallen som kopieras en gång |
 | `adoption/` | **det enda stället som får veta vilka som använder ramverket.** Här beskrivs hur en namngiven plattform tar ramverket i bruk och vad som återstår i dess upprensning (`mobil-nav.md`, `ss-paritet.md`) |

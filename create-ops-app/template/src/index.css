@@ -8,9 +8,9 @@
  */
 
 @import "tailwindcss";
-@import "@staiger/ops-framework/tokens.css";
+@import "ops-framework/tokens.css";
 
-@source "../node_modules/@staiger/ops-framework/dist";
+@source "../node_modules/ops-framework/dist";
 
 /**
  * Appens egen profil. Här skriver du om VÄRDEN, aldrig struktur.

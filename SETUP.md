@@ -66,7 +66,7 @@ slut.
 ## Steg 1. Skapa appen
 
 ```bash
-node node_modules/@staiger/ops-framework/create-ops-app/bin/create-ops-app.mjs bolag-ops
+node node_modules/ops-framework/create-ops-app/bin/create-ops-app.mjs bolag-ops
 cd bolag-ops
 npm install
 npm run dev
@@ -81,7 +81,7 @@ innan någon bestämt var datan bor.
 I appens `package.json`:
 
 ```json
-"@staiger/ops-framework": "github:cllp/ops-framework#21f0333"
+"ops-framework": "github:cllp/ops-framework#21f0333"
 ```
 
 ⛔ **Pinna till en commit eller en tagg, aldrig till `main`.** Pekar du på
@@ -97,7 +97,7 @@ dig. Du behöver inte checka in något byggt.
 gcloud auth login
 gcloud billing accounts list          # ger id:t till --faktura
 
-bash node_modules/@staiger/ops-framework/scripts/setup-gcloud.sh \
+bash node_modules/ops-framework/scripts/setup-gcloud.sh \
   --projekt bolag-ops-prod --namn "Bolag Ops" --faktura <id>
 ```
 
@@ -137,7 +137,7 @@ En fil i appen, till exempel `src/lib/firebase.js`:
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import * as fs from "firebase/firestore";
-import { skapaFirestoreKalla, skapaGoogleAuth } from "@staiger/ops-framework";
+import { skapaFirestoreKalla, skapaGoogleAuth } from "ops-framework";
 
 const app = initializeApp({
   apiKey: import.meta.env.VITE_FB_API_KEY,
@@ -236,8 +236,8 @@ Appen har redan `scripts/pre-push-gate.sh` och ett CI-flöde. Lägg till
 ramverkets vakter i `npm run check`:
 
 ```bash
-node node_modules/@staiger/ops-framework/scripts/check-token-overrides.mjs src/index.css
-node node_modules/@staiger/ops-framework/scripts/check-closed-api.mjs src
+node node_modules/ops-framework/scripts/check-token-overrides.mjs src/index.css
+node node_modules/ops-framework/scripts/check-closed-api.mjs src
 ```
 
 ```bash

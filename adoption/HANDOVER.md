@@ -23,7 +23,7 @@ inte ska göra, och vad du ska fråga om i stället för att gissa.
 | `skills/testing/SKILL.md` | vad som testas och vad som inte gör det |
 
 ⛔ **Kopiera aldrig reglerna in i din app.** De läses från
-`node_modules/@staiger/ops-framework/`. En kopia glider från originalet samma
+`node_modules/ops-framework/`. En kopia glider från originalet samma
 vecka den skapas, och sedan finns två regeluppsättningar där ingen vet vilken som
 gäller.
 

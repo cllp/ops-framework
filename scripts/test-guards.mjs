@@ -337,8 +337,8 @@ function appkopia(namn, innehall) {
 }
 
 const GILTIG_APPCSS = `@import "tailwindcss";
-@import "@staiger/ops-framework/tokens.css";
-@source "../node_modules/@staiger/ops-framework/dist";
+@import "ops-framework/tokens.css";
+@source "../node_modules/ops-framework/dist";
 @theme static { --color-accent: #2f5d8a; }
 :root { --dark-accent: #7fb0d9; }
 `;
@@ -364,7 +364,7 @@ kravRott(
 
 kravRott(
   "overrides 2: tokens importeras före tailwindcss",
-  [overridevakt, appkopia("ao2", '@import "@staiger/ops-framework/tokens.css";\n@import "tailwindcss";\n@source "../node_modules/@staiger/ops-framework/dist";\n')],
+  [overridevakt, appkopia("ao2", '@import "ops-framework/tokens.css";\n@import "tailwindcss";\n@source "../node_modules/ops-framework/dist";\n')],
   "FÖRE tailwindcss",
 );
 
@@ -1135,7 +1135,7 @@ kravRott(
   }
 
   const HEL = {
-    name: "@staiger/prov",
+    name: "ops-prov",
     version: "1.2.3",
     files: ["dist", "tokens"],
     exports: { ".": { types: "./dist/types/index.d.ts", default: "./dist/index.js" }, "./tokens.css": "./tokens/tokens.css" },
@@ -1161,6 +1161,12 @@ kravRott(
     "paket 3: en version som inte är semver",
     [paketvakt, paketrot("version", { ...HEL, version: "0.17" }), "--struktur"],
     "inte semver",
+  );
+
+  kravRott(
+    "paket 3b: ett scopat namn ger scopet i tarbollens filnamn",
+    [paketvakt, paketrot("scope", { ...HEL, name: "@staiger/prov" }), "--struktur"],
+    "har ett scope",
   );
 
   // ⛔ En utgivning utan anteckningar är en version ingen kan välja att hoppa
@@ -1263,7 +1269,7 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
     [
       exempelvakt,
       kopia("ex4", "examples/paminnelser/index.js", (_f, t) =>
-        t.replace('import { defineModule, byggKategori } from "@staiger/ops-framework";', 'import { defineModule } from "../../src/lib/modul.js";\nimport { byggKategori } from "../../src/lib/katalog.js";'),
+        t.replace('import { defineModule, byggKategori } from "ops-framework";', 'import { defineModule } from "../../src/lib/modul.js";\nimport { byggKategori } from "../../src/lib/katalog.js";'),
       ),
     ],
     "utanför sin egen mapp",

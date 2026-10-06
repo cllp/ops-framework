@@ -18,7 +18,7 @@
  *
  * ══ Användning ═════════════════════════════════════════════════════════
  *
- *   import { seedaKataloger } from "@staiger/ops-framework/node";
+ *   import { seedaKataloger } from "ops-framework/node";
  *
  *   const resultat = await seedaKataloger({
  *     kalla,
