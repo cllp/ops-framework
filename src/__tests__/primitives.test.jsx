@@ -465,3 +465,77 @@ describe("OpsSegmented", () => {
     expect(screen.getByRole("tab", { name: /Kommande/ })).toHaveAttribute("aria-selected", "false");
   });
 });
+
+/*
+ * ══ ⛔ RÄKNAREN, ANTALET I MENYN OCH GRUNDLÄGETS ETIKETT (0.64.0, lifehub.app#59) ══════════════════════════════════════════════
+ *
+ * CP 2026-10-06, om Idag i LifeHub: Idag visade 9, Kommande 70, Tidigare ingenting. Utan nollan hoppar kontrollen i bredd, antalet
+ * ska stå i menyraderna före klicket, och Kommande ska heta Kommande i sitt grundläge. Bredden mäts i en riktig webbläsare
+ * (check-skalyta avsnitt 42), eftersom jsdom inte räknar någon CSS.
+ */
+describe("OpsSegmented, räknaren och menyns antal (0.64.0, lifehub.app#59)", () => {
+  const kommande = (value, badge = 70) => (
+    <OpsSegmented
+      ariaLabel="Vad som visas"
+      value={value}
+      onChange={() => {}}
+      options={[
+        { value: "idag", label: "Idag", badge: 0, menu: { items: [{ value: "idag", label: "Idag", badge: 0 }, { value: "avklarat", label: "Avklarat", badge: 3 }] } },
+        {
+          value: "kommande",
+          label: "Kommande",
+          badge,
+          menu: {
+            items: [
+              { value: "vecka", label: "Inom 7 dagar", badge: 12 },
+              { value: "manad", label: "Inom 30 dagar", badge: 40 },
+              { value: "kommande", label: "Allt framåt", badge: 70 },
+            ],
+          },
+        },
+      ]}
+    />
+  );
+
+  it("⛔ ritar räknaren också när den är 0", () => {
+    render(kommande("kommande"));
+    const idag = screen.getByRole("tab", { name: /^Idag/ });
+    expect(idag.textContent).toBe("Idag0");
+    expect(screen.getByRole("tab", { name: /^Kommande/ }).textContent).toMatch(/^Kommande70/);
+  });
+
+  it("⛔ ritar antalet i varje menyrad, till höger om ordet och före bocken", () => {
+    render(kommande("vecka"));
+    fireEvent.click(screen.getByRole("tab", { name: /^Inom 7 dagar/ }));
+    const rader = screen.getAllByRole("menuitemradio");
+    // Golv: menyn ritades, med alla tre rader.
+    expect(rader.length).toBe(3);
+    expect(rader.map((r) => r.textContent)).toEqual(["Inom 7 dagar12", "Inom 30 dagar40", "Allt framåt70"]);
+    // Ordningen inne i den valda raden: ordet, talet, bocken.
+    const vald = rader[0];
+    const delar = [...vald.children];
+    const talet = delar.findIndex((d) => d.textContent === "12");
+    expect(talet).toBeGreaterThan(delar.findIndex((d) => d.textContent === "Inom 7 dagar"));
+    expect(talet).toBe(delar.length - 2);
+    expect(delar[delar.length - 1].querySelector("svg")).not.toBeNull();
+  });
+
+  it("⛔ ritar en nolla i menyraden, inte ingenting", () => {
+    render(kommande("idag"));
+    fireEvent.click(screen.getByRole("tab", { name: /^Idag/ }));
+    expect(screen.getAllByRole("menuitemradio").map((r) => r.textContent)).toEqual(["Idag0", "Avklarat3"]);
+  });
+
+  it("⛔ segmentet heter som sig själv i grundläget, och bara ett annat menyval byter etiketten", () => {
+    const { rerender } = render(kommande("kommande"));
+    expect(screen.getByRole("tab", { name: /^Kommande/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: /^Allt framåt/ })).toBeNull();
+
+    rerender(kommande("vecka"));
+    expect(screen.getByRole("tab", { name: /^Inom 7 dagar/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: /^Kommande/ })).toBeNull();
+
+    rerender(kommande("avklarat"));
+    expect(screen.getByRole("tab", { name: /^Avklarat/ })).toHaveAttribute("aria-selected", "true");
+  });
+});

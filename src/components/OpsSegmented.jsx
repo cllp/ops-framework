@@ -65,6 +65,20 @@ import { radBehallare } from "../lib/radKlass.js";
  * (huvudläge). Klick på ett redan aktivt segment öppnar menyn. `value` från
  * föräldern får vara antingen segmentets `value` eller ett menyitems `value`;
  * båda räknas som att segmentet är valt, och etiketten följer menyvalet.
+ *
+ * ── ⛔ RÄKNAREN, OCH ETIKETTEN I GRUNDLÄGET (0.64.0, lifehub.app#59) ────────
+ *
+ * CP 2026-10-06, om Idag i LifeHub: Idag visade 9, Kommande 70, Tidigare
+ * ingenting. Utan nollan hoppar kontrollen i bredd när den fylls, och "inget"
+ * gick inte att skilja från "inte räknat". Antalet ska också stå i menyraderna
+ * ("Inom 7 dagar 12") före klicket, och Kommande ska heta Kommande i sitt
+ * grundläge, inte namnet på menyraden som råkar vara samma läge.
+ *
+ * - `badge` ritas när det är ett tal, OCKSÅ 0 (regel 5: tomhet är ett svar).
+ * - `menu.items[].badge` ritas i menyraden, till höger och före bocken, med
+ *   samma talform som segmentets räknare (`tabular-nums`).
+ * - Är det valda värdet segmentets EGET värde behåller segmentet sin etikett,
+ *   även när en menyrad bär samma värde. Bara ett annat menyval byter etiketten.
  */
 
 /**
@@ -75,7 +89,7 @@ import { radBehallare } from "../lib/radKlass.js";
  *   label: string,
  *   icon?: import("react").ReactNode,
  *   badge?: number,
- *   menu?: { items: { value: T, label: string, icon?: import("react").ReactNode }[] },
+ *   menu?: { items: { value: T, label: string, icon?: import("react").ReactNode, badge?: number }[] },
  * }[]} props.options Två eller tre lägen.
  * @param {T} props.value
  * @param {(value: T) => void} props.onChange
@@ -111,7 +125,9 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
         const hasMenu = Array.isArray(menuItems) && menuItems.length > 0;
         const menuMatch = hasMenu ? menuItems.find((i) => i.value === value) : undefined;
         const chosen = o.value === value || Boolean(menuMatch);
-        const label = menuMatch?.label ?? o.label;
+        // ⛔ Grundläget behåller segmentets ord (0.64.0, lifehub.app#59). En menyrad med segmentets eget värde är samma läge
+        // sett från menyn, och "Kommande" som byter namn till "Allt framåt" vid första klicket säger att något annat valts.
+        const label = menuMatch && menuMatch.value !== o.value ? menuMatch.label : o.label;
         const menuOpen = hasMenu && chosen && menuFor === o.value;
 
         const theButton = (
@@ -156,7 +172,9 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
             ) : (
               label
             )}
-            {typeof o.badge === "number" && o.badge > 0 ? (
+            {/* ⛔ OCKSÅ NOLLAN (0.64.0, lifehub.app#59). En räknare som försvinner vid 0 gör "inget" omöjligt att skilja från
+                "inte räknat", och kontrollen hoppar i bredd när den fylls. Bredden mäts i check-skalyta avsnitt 42. */}
+            {typeof o.badge === "number" ? (
               // ⛔ Siffran står INNE i segmentet och inte som en cirkel ovanpå.
               // En påhängd badge på ett valt, fyllt segment får två bakgrunder
               // ovanpå varandra och blir en fläck. Här är den en del av ordet.
@@ -201,6 +219,7 @@ export function OpsSegmented({ options, value, onChange, ariaLabel }) {
                       stor
                       chosen={item.value === value}
                       ikon={item.icon}
+                      antal={item.badge}
                       onClick={() => {
                         onChange(item.value);
                         setMenuFor(null);

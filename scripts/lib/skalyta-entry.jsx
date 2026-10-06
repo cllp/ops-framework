@@ -1039,6 +1039,11 @@ function Galleri() {
       {rubrik("Val")}
       <div className="flex flex-col gap-2">
         <div data-p="segment"><OpsSegmented ariaLabel="Vy" value={seg} onChange={setSeg} options={[{ value: "a", label: "Lista" }, { value: "b", label: "Kalender" }, { value: "c", label: "Karta" }]} /></div>
+        {/* ⛔ 0.64.0 (lifehub.app#59): samma kontroll med räknaren 0 och 9, och en meny med antal. Avsnitt 42 mäter att bredden är
+            densamma, alltså att nollan inte får kontrollen att hoppa när den fylls. */}
+        <div data-p="segment-noll" className="flex"><OpsSegmented ariaLabel="Med noll" value="idag" onChange={() => {}} options={[{ value: "idag", label: "Idag", badge: 0 }, { value: "kommande", label: "Kommande", badge: 0 }]} /></div>
+        <div data-p="segment-nio" className="flex"><OpsSegmented ariaLabel="Med nio" value="idag" onChange={() => {}} options={[{ value: "idag", label: "Idag", badge: 9 }, { value: "kommande", label: "Kommande", badge: 9 }]} /></div>
+        <div data-p="segment-meny" className="flex"><OpsSegmented ariaLabel="Med antal i menyn" value="vecka" onChange={() => {}} options={[{ value: "idag", label: "Idag", badge: 4 }, { value: "kommande", label: "Kommande", badge: 12, menu: { items: [{ value: "vecka", label: "Inom 7 dagar", badge: 12 }, { value: "manad", label: "Inom 30 dagar", badge: 40 }, { value: "kommande", label: "Allt framåt", badge: 70 }] } }]} /></div>
         <div data-p="radio"><OpsRadioGroup ariaLabel="Sort" value={sort} onChange={setSort} options={[{ value: "a", label: "Ärende", hint: "Något som ska göras." }, { value: "b", label: "Kvitto", hint: "Ett underlag." }, { value: "c", label: "Fråga" }]} /></div>
         <div className="flex flex-wrap gap-4">
           <span data-p="checkbox"><OpsCheckbox label="Skicka kopia" checked={cb} onChange={setCb} /></span>
