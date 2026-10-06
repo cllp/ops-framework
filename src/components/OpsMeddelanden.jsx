@@ -6,6 +6,7 @@ import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, ag
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
+import { splitInline } from "../lib/markdown.js";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
@@ -13,7 +14,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { AgentIkon, AndraIkon, FastIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, FastIkon, FilIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -142,6 +143,7 @@ import { AgentIkon, AndraIkon, FastIkon, ChevronHogerIkon, ChevronNedIkon, Citer
  * @property {string} [fastaFel] Förval "Fästa meddelanden kunde inte hämtas.".
  * @property {string} [fastFel] Förval "Fästningen kunde inte sparas.".
  * @property {string} [fastaFler] Förval "Äldre fästningar visas inte.".
+ * @property {string} [postkortFel] (chattens nattskiva) När appens uppslag av en länk föll. Förval "Länken kunde inte slås upp.".
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
@@ -204,6 +206,7 @@ const TEXTER = {
   reaktionerFel: "Reaktionerna kunde inte hämtas.",
   reaktionerFler: "Äldre reaktioner visas inte.",
   reaktionsnamn: {},
+  postkortFel: "Länken kunde inte slås upp.",
   fast: "Fäst",
   lossa: "Lossa",
   fastaRubrik: "{n} fästa",
@@ -273,8 +276,9 @@ export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = 
  *   tillbaka till gruppchatten. Ett nytt val av samtal stänger tråden, och då anropas den inte: det är `onValj` som säger det.
  * @param {string} [props.sprak] "sv" eller "en", för tiderna. Förval "sv".
  * @param {Meddelandetexter} [props.texter]
+ * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort under bubblan, se `Postkort`.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {} }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -597,6 +601,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         ) : vald && tradId ? (
           <OpsTrad
             key={`${vald.samtal.id}|${tradId}`}
+            postkort={postkort}
             kalla={kalla}
             uid={uid}
             samtal={vald.samtal}
@@ -616,6 +621,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
         ) : vald ? (
           <OpsSamtal
             key={vald.samtal.id}
+            postkort={postkort}
             // ⛔ Om källan har trådar avgör OpsSamtal själv (`harTradar`), en vakt och inte två (regel 4).
             onOppnaTrad={valjTrad}
             tradminne={tradminne.current}
@@ -986,8 +992,9 @@ function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor) {
  *   trådar också när en app skickar den.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
+ * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {} }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -1135,6 +1142,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           citat={{ pa: medCitat, onCitera: (m) => setSvarPa(m), uppslag: citatuppslag }}
           traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null}
           fasta={fasta.pa ? fasta : null}
+          postkort={postkort}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -1314,8 +1322,9 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  *   (chattens nattskiva) Citaten: knappen när `pa`, och det citerade meddelandet ur `uppslag` (`null`: går inte att läsa).
  * @param {{ ids: ReadonlySet<string>, aktuell: string | null } | null} [props.traffar] Sökningens träffar i samtalet.
  * @param {ReturnType<typeof useFasta> | null} [props.fasta] Fästningarna, i samtalet (inte i en tråd).
+ * @param {Postkort} [props.postkort]
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -1366,6 +1375,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                       bubblan: den egna är accentfärgad. */}
                   <OpsMarkdown text={m.text} chatt />
                 </div>
+                {postkort ? <Postkortrad text={m.text} postkort={postkort} egen={egen} texter={texter} /> : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
                 <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
                   <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
@@ -1427,10 +1437,11 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {() => void} props.onStang Tillbaka till gruppchatten.
  * @param {() => void} [props.onSvarat] Anropas efter ett skickat svar, så att chattens märke kan räknas om.
  * @param {(namn: string | null) => void} [props.onDopt] Anropas efter en omdöpning, med namnet eller `null` för det härledda.
+ * @param {Postkort} [props.postkort] (chattens nattskiva) Länkar till appens poster som kort.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {} }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -1625,7 +1636,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} postkort={postkort} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
         <Agentrad kalla={kalla} sid={samtal.id} tid={tid} texter={t} />
         <div ref={slut} />
       </div>
@@ -2297,6 +2308,88 @@ function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
         </ul>
       ) : null}
       {fasta.fler ? <p role="status" className="m-0 py-1 text-liten text-ink-muted">{t.fastaFler}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * @typedef {object} Postkort (chattens nattskiva) Länkar till appens egna poster, ritade som kort under bubblan.
+ * @property {(url: string) => ({ titel: string, undertitel?: string, ikon?: import("react").ReactNode } | null) | Promise<{ titel: string, undertitel?: string, ikon?: import("react").ReactNode } | null>} slaUpp
+ *   Appens uppslag: en adress i texten ger postens titel (och gärna typ som `undertitel` och en ikon), eller `null` när adressen inte är
+ *   en av appens poster. ⛔ RAMVERKET KÄNNER INGA POSTTYPER: det vet inte vad ett ärende eller en faktura är, bara att appen svarade.
+ * @property {(url: string, e: import("react").MouseEvent) => void} [onOppna] Appens navigering. Utelämnad: en vanlig länk.
+ */
+
+/** Högst så många kort under en bubbla. Fler länkar står kvar som länkar i texten. */
+const MAX_POSTKORT = 2;
+
+/**
+ * Uppslagen, per appens funktion och adress. ⛔ Titel och typ LAGRAS INTE i meddelandet (SS kopierade `linkedArtifact` med titel och
+ * meta, som blev inaktuella när posten bytte namn): de slås upp när kortet ritas, och minns så länge sidan lever.
+ * @type {WeakMap<Function, Map<string, Promise<any>>>}
+ */
+const POSTKORTMINNE = new WeakMap();
+
+/** @param {Postkort["slaUpp"]} sla @param {string} url */
+function slaUppPostkort(sla, url) {
+  const minne = POSTKORTMINNE.get(sla) ?? new Map();
+  POSTKORTMINNE.set(sla, minne);
+  if (!minne.has(url)) minne.set(url, Promise.resolve().then(() => sla(url)));
+  return /** @type {Promise<any>} */ (minne.get(url));
+}
+
+/**
+ * Korten för länkarna i ett meddelande: bara de http- och https-adresser texten redan gör klickbara (samma parser som bubblan),
+ * högst `MAX_POSTKORT`, och bara de appen känner igen. ⛔ Ett uppslag som föll sägs ut, aldrig tyst.
+ * @param {{ text: string, postkort: Postkort, egen: boolean, texter: Required<Meddelandetexter> }} props
+ */
+function Postkortrad({ text, postkort, egen, texter: t }) {
+  const adresser = useMemo(() => {
+    /** @type {string[]} */
+    const ut = [];
+    for (const rad of String(text ?? "").split(/\r?\n/)) for (const b of splitInline(rad)) if (b.kind === "link" && b.url && !ut.includes(b.url)) ut.push(b.url);
+    return ut.slice(0, MAX_POSTKORT);
+  }, [text]);
+  const [svar, setSvar] = useState(/** @type {Record<string, any>} */ ({}));
+  useEffect(() => {
+    let levande = true;
+    for (const url of adresser) {
+      slaUppPostkort(postkort.slaUpp, url).then(
+        (r) => levande && setSvar((f) => ({ ...f, [url]: r ?? null })),
+        () => levande && setSvar((f) => ({ ...f, [url]: { fel: true } })),
+      );
+    }
+    return () => {
+      levande = false;
+    };
+  }, [adresser, postkort.slaUpp]);
+  const kort = adresser.filter((u) => svar[u]);
+  if (kort.length === 0) return null;
+  return (
+    <div className={cx("mt-1 flex w-full max-w-72 flex-col gap-1", egen ? "items-end" : "items-start")}>
+      {kort.map((url) =>
+        svar[url].fel ? (
+          <p key={url} data-postkort-fel={url} role="alert" className="m-0 text-liten text-danger">
+            {t.postkortFel}
+          </p>
+        ) : (
+          <a
+            key={url}
+            href={url}
+            data-postkort={url}
+            onClick={postkort.onOppna ? (e) => postkort.onOppna?.(url, e) : undefined}
+            className="flex min-h-11 w-full items-center gap-2.5 rounded-card border border-line bg-surface px-3 py-2 text-left no-underline transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <span aria-hidden="true" className="inline-flex shrink-0 text-accent">
+              {svar[url].ikon ?? <FilIkon size={18} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-etikett font-medium text-ink">{svar[url].titel}</span>
+              {svar[url].undertitel ? <span className="block truncate text-liten text-ink-muted">{svar[url].undertitel}</span> : null}
+            </span>
+          </a>
+        ),
+      )}
     </div>
   );
 }

@@ -1012,6 +1012,8 @@ async function byggChattkalla() {
   }
   // (6) Fästa: Cecilias meddelande om styrelsemötet.
   if (typeof s.fast === "function") await s.fast(g.id, { mid: (await s.meddelanden(g.id))[0].id, av: "bo" });
+  // (7) En länk till en av appens poster, som appens uppslag nedan känner igen.
+  await s.skicka(g.id, { text: "Momsen ligger här: https://app.exempel.se/arenden/464", av: "cecilia" });
   const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
   ids.privat = p.id;
   await s.skicka(p.id, { text: "Hej Anna! Kan du titta på fakturan från Bokio innan fredag?", av: "bo" });
@@ -1023,6 +1025,13 @@ async function byggChattkalla() {
   ids.ingen = null;
   return { s, ids };
 }
+// (7) Appens uppslag: bara /arenden/<nr> är en post. Ramverket känner inga posttyper.
+const POSTKORT_C = {
+  slaUpp: async (url) => {
+    const m = url.match(/^https:\/\/app\.exempel\.se\/arenden\/(\d+)$/);
+    return m ? { titel: `Moms augusti (#${m[1]})`, undertitel: "Ärende, öppet", ikon: <FileText size={18} /> } : null;
+  },
+};
 let chattkallan = null;
 function ChattNattScen() {
   const [k, setK] = useState(chattkallan);
@@ -1036,7 +1045,7 @@ function ChattNattScen() {
   const valt = k ? (window.__aktiv === "ingen" ? null : k.ids[window.__aktiv ?? "agent"] ?? k.ids.agent) : null;
   return (
     <Full>
-      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={valt} onValj={() => {}} /> : <p>Laddar</p>}
+      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={valt} onValj={() => {}} postkort={POSTKORT_C} /> : <p>Laddar</p>}
     </Full>
   );
 }

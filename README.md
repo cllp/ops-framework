@@ -1916,6 +1916,12 @@ samtalets, bedömning ur analysen); aldrig uppdatera. Källan: `lasFasta`, `pren
 samtalets huvud som fälls ut till de fästa, härledda ur meddelandena (lästa en gång när de inte är laddade), med Lossa. Fel och tak
 står utskrivna.
 
+**Länk till post som kort.** `OpsMeddelanden`, `OpsSamtal` och `OpsTrad` tar `postkort={{ slaUpp, onOppna? }}`. `slaUpp(url)` är
+appens uppslag: en http- eller https-adress i texten ger `{ titel, undertitel?, ikon? }`, eller `null` när den inte är en av appens
+poster. Ramverket känner inga posttyper och lagrar ingen titel i meddelandet (de blir inaktuella); uppslaget görs när kortet ritas, en
+gång per adress, för högst två länkar per meddelande. `onOppna(url, e)` är appens navigering. Ett uppslag som föll ger raden "Länken
+kunde inte slås upp.".
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.

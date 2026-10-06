@@ -204,6 +204,8 @@ function avsluta() {
 //       en rad under huvudet; "fakturan" ger "1 av 1" och den aktuella bubblan markerad och synlig i loggen.
 //   (6) FÄSTA: under gruppchattens huvud står "1 fästa" (44 px), som fälls ut till det fästa meddelandet med namn och utdrag och
 //       Lossa (44 px); knappen vid det fästa meddelandet är tryckt och har 44 px träffyta.
+//   (7) LÄNK SOM KORT: länken till appens post står som ett kort under bubblan, minst 44 px högt, inom loggen, med appens titel
+//       och undertitel; länken i texten står kvar.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
 async function chattensNattskiva() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -391,6 +393,32 @@ async function chattensNattskiva() {
         krav(m.poster.length === 1 && m.poster[0].text.startsWith("Cecilia Berg: Hej alla") && m.poster[0].lossa >= 43.5, `${namn}: det fästa meddelandet ska stå med namn, utdrag och Lossa på 44 px (${JSON.stringify(m.poster)}). Golv: 1.`);
         krav(m.tryckt.length === 1 && m.tryckt[0].w >= 43.5 && m.tryckt[0].h >= 43.5, `${namn}: knappen vid det fästa meddelandet ska vara tryckt med 44 px (${JSON.stringify(m.tryckt)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-6-fasta-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (7) länk som kort ─────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (7) postkort ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-postkort]", { timeout: 6000 });
+        await page.locator("[data-postkort]").scrollIntoViewIfNeeded();
+        const k = await page.evaluate(() => {
+          const kort = [...document.querySelectorAll("[data-postkort]")];
+          const l = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="grupp"] [role=log]'));
+          return kort.map((x) => {
+            const r = x.getBoundingClientRect();
+            const bubbla = /** @type {HTMLElement} */ (x.closest("[data-meddelande]")?.querySelector("[data-bubbla]"));
+            return { text: (x.textContent || "").trim(), h: r.height, inom: r.left >= l.getBoundingClientRect().left - 0.5 && r.right <= l.getBoundingClientRect().right + 0.5, under: r.top >= bubbla.getBoundingClientRect().bottom - 0.5, lankKvar: Boolean(bubbla.querySelector("a[href]")) };
+          });
+        });
+        matt.push(`${namn}: ${JSON.stringify(k)}`);
+        krav(k.length === 1, `${namn}: ${k.length} kort, väntat 1. Golv.`);
+        krav(k.every((x) => x.text === "Moms augusti (#464)Ärende, öppet" && x.h >= 43.5 && x.inom && x.under && x.lankKvar), `${namn}: kortet ska stå under bubblan, inom loggen, 44 px högt, med appens titel, och länken stå kvar i texten (${JSON.stringify(k)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-7-postkort-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
