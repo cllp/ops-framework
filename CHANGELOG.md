@@ -35,6 +35,8 @@ Händelsen: CP 2026-10-06, med tre skärmbilder ur SessionStudio-appen och en ur
 - **`tillganglighetForDag` prövar en tid med zon strikt.** `Date.parse` ensam godtog `2026-02-30T10:00Z` och räknade den som 2 mars. Nu krävs datum som finns, `THH:MM` med valfria sekunder, och `Z` eller `±hh:mm`. Orsakerna ordnas på den tolkade tiden, inte på strängen.
 - **`dagdekor` varnar i utveckling** (`import.meta.env.DEV`) för ett antal som inte är ett heltal och för en kvarlämnad `hornmarken`, i stället för att tyst inte rita.
 - **`N/N` har vikt 600**, som SS `font-semibold`.
+- **Svenska veckodagar har alltid tre bokstäver: MÅN TIS ONS TOR FRE LÖR SÖN.** `Intl` på `sv-SE` ger "tors", och `weekdayNames` skrev "Tors" sedan 0.36.0 med motiveringen att det är den korrekta förkortningen. Förebild 7 (SS-appen) skriver TOR som de sex andra; `weekdayNames` kortar nu bara den svenska förkortningen till tre bokstäver. Andra språk är som `Intl` säger.
+- **`check-skalyta` har en scen per förebild** (`kalender-tillganglighet` med förebild 7:s dagar och prickar, `kalender-tillganglighet-3` med förebild 3:s), så att varje montage jämför samma läge. Det förebilden inte visar (`9+`, två ensamma lager, en söndag) mäts i november.
 - **Siffran står på telefon i en ruta på 28 px längst till vänster, inte centrerad.** Kommentaren sade att SS centrerar; SS lägger `dayNumberContainer` först i `dayTopRow` (`flex-start`). Mätt i förebild 3: 5,8 pt vänster om rutans mitt. `check-skalyta` avsnitt 30 krävde en centrerad siffra och kräver nu SS-geometrin.
 
 ## 0.60.0
