@@ -65,7 +65,12 @@ const kontrakt = fs.readFileSync(kontraktfil, "utf8");
 const brott = [];
 
 // ── Regel 1: den tysta fällan ───────────────────────────────────────────────
-if (!/@source\s+["'](?:[^"']*\/)?ops-framework\/[^"']*["']/.test(app)) {
+/*
+ * ⛔ SEGMENTET FÖRE `ops-framework/` ÄR `node_modules/` (0.68.0, granskningen av PR 271, A2). Mönstret godkände förut
+ * en `@source` mot det gamla scopade namnets katalog under `node_modules`, för det slutade på `ops-framework/`. Efter 0.67.0 finns ingen
+ * sådan katalog när appen bytt nyckel i `package.json`, så Tailwind skannade ingenting och appen blev ostylad utan fel.
+ */
+if (!/@source\s+["'](?:[^"']*\/)?node_modules\/ops-framework\/[^"']*["']/.test(app)) {
   brott.push(
     `${appfil} saknar @source mot ramverkets dist. Tailwind läser inte node_modules av sig själv, så utan den raden hittas inga klassnamn i primitiverna och appen blir helt ostylad UTAN felmeddelande. Lägg till: @source "../node_modules/ops-framework/dist";`,
   );

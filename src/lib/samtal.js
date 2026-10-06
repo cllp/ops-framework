@@ -302,3 +302,150 @@ export function byggMottagare(m, medlemmar) {
   }
   return Object.freeze(slag === "person" ? { slag: "person", uid } : uid ? { slag: "agent", uid } : { slag: "agent" });
 }
+
+/*
+ * ══ ⛔ TRÅDAR I GRUPPCHATTEN (0.68.0, cllp/lifehub.app#60) ══════════════════════════════════════════════════════
+ *
+ * CP 2026-10-06: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är
+ * med i tråden för alla." Före det fanns ett enda flöde per grupp, och fem spår i samma flöde gav kopplingar mellan
+ * spåren som inte hade uppstått om de legat isär. Tråden är GRUPPENS: vem som helst i gruppen startar den ur ett
+ * meddelande, och den syns för hela gruppen.
+ *
+ *   <samtal>/{sid}/<tradar>/{tid}                       tråden: { skapad, skapadAv, namn? }
+ *   <samtal>/{sid}/<tradar>/{tid}/<meddelanden>/{mid}    trådens meddelanden, samma form som samtalets
+ *
+ * ⛔ TRÅDENS NYCKEL ÄR ROTMEDDELANDETS ID, OCH DET FINNS INGET `rot`-FÄLT. Högst en tråd per meddelande kommer ur
+ * nyckeln och regeln (en andra skapelse av samma nyckel är en uppdatering, som bara får röra namnet), inte ur en fråga
+ * "finns det redan en?" före skrivningen. Ett `rot` bredvid hade varit samma uppgift två gånger.
+ *
+ * ⛔ INGET `groupId` PÅ TRÅDEN. Den ligger under sitt samtal, och samtalet bär gruppen: samma skäl som för meddelandena.
+ *
+ * ⛔ BARA I GRUPPCHATTEN. Ett privat samtal har två läsare och ingen publik, och en tråd där hade varit en tråd utan grupp.
+ *
+ * ⛔ INGET LÄSMÄRKE OCH INGEN NOTIS PER TRÅD I FÖRSTA SKIVAN (beslut 2026-10-06, regel 13). Märket under meddelandet visar
+ * antal svar. Ett läsmärke per tråd hade varit en samling till, en läsning till per tråd i inkorgen och en regel till, för
+ * ett behov ingen ännu har sett.
+ *
+ * ══ ⛔ NAMNET HÄRLEDS, DET LAGRAS BARA NÄR NÅGON DÖPER OM ═══════════════════════════════════════════════════════
+ *
+ * En enkel regel, inte ett modellanrop. Rotmeddelandet ÄR frågan, så regeln ger ett begripligt namn direkt och kostar
+ * ingenting; ett modellanrop hade tagit en plats ur agentens dygnskvot för varje tråd, också i grupper som aldrig nämner
+ * agenten, och tråden hade stått namnlös tills svaret kom. Ett lagrat automatiskt namn hade varit en andra sanning om
+ * rotmeddelandet. `namn` på tråden betyder därför bara en sak: en person döpte om den. Tas det bort gäller det härledda.
+ *
+ * ⛔ EN REGEL, ETT HEM. Vyn och appens agent (node-delen) läser samma funktion, så att agenten och personerna kallar
+ * tråden samma sak.
+ */
+
+/** Fälten en tråd får bära. `namn` bara när en person döpt om den. */
+export const TRADFALT = /** @type {const} */ (["skapad", "skapadAv", "namn"]);
+
+/** Tak för ett namn, i tecken. Regeln har samma tak, härlett härifrån. */
+export const MAX_TRADNAMN = 80;
+
+/** Hur långt ett härlett namn blir innan det kortas vid ett ordslut. */
+export const AUTONAMN_LANGD = 60;
+
+/** Kortare än så säger ett rotmeddelande för lite, och nästa meddelande tas med. */
+export const AUTONAMN_MINST = 16;
+
+/** Namnet när inget meddelande har någon text kvar efter rensningen. Utskrivet, inte tomt (punkt 5). */
+export const NAMNLOS_TRAD = "Tråd utan text";
+
+/**
+ * Ett meddelandes text som en bit av ett namn: första raden med innehåll, utan @-nämnanden, länkar och markdowntecken.
+ * @param {unknown} text
+ * @returns {string}
+ */
+export function rensaForNamn(text) {
+  if (typeof text !== "string") return "";
+  const rad = text
+    .split(/\r?\n/)
+    .map((r) => r.trim())
+    .map((r) => r.replace(/https?:\/\/\S+/giu, ""))
+    .map((r) => r.replace(/(^|\s)@[\p{L}\p{N}_.-]+/gu, "$1"))
+    .map((r) => r.replace(/[*_`#>~]+/g, ""))
+    .map((r) => r.replace(/^[\s,.:;!?-]+/u, "").replace(/\s+/g, " ").trim())
+    .find((r) => r.length > 0);
+  if (!rad) return "";
+  return rad.charAt(0).toLocaleUpperCase("sv") + rad.slice(1);
+}
+
+/** @param {string} text @param {number} max */
+function kortaVidOrd(text, max) {
+  if (text.length <= max) return text;
+  const bit = text.slice(0, max - 1);
+  const slut = bit.lastIndexOf(" ");
+  // ⛔ Ett enda långt ord kortas mitt i ordet hellre än att namnet blir tomt.
+  return `${(slut > max / 2 ? bit.slice(0, slut) : bit).replace(/[\s,.:;]+$/u, "")}…`;
+}
+
+/**
+ * Trådens härledda namn ur de första meddelandena, rotmeddelandet först.
+ *
+ * @param {ReadonlyArray<{ text?: unknown }>} meddelanden Rotmeddelandet och sedan trådens meddelanden, äldst först.
+ * @returns {string}
+ */
+export function autonamn(meddelanden) {
+  /** @type {string[]} */
+  const delar = [];
+  for (const m of Array.isArray(meddelanden) ? meddelanden : []) {
+    const bit = rensaForNamn(m?.text);
+    if (!bit) continue;
+    delar.push(bit);
+    if (delar.join(" / ").length >= AUTONAMN_MINST) break;
+  }
+  if (!delar.length) return NAMNLOS_TRAD;
+  return kortaVidOrd(delar.join(" / "), AUTONAMN_LANGD);
+}
+
+/**
+ * Namnet som visas: det en person satte, annars det härledda.
+ *
+ * @param {{ namn?: unknown } | null | undefined} trad
+ * @param {ReadonlyArray<{ text?: unknown }>} meddelanden
+ * @returns {string}
+ */
+export function tradensNamn(trad, meddelanden) {
+  const satt = typeof trad?.namn === "string" ? trad.namn.trim() : "";
+  return satt ? satt.slice(0, MAX_TRADNAMN) : autonamn(meddelanden);
+}
+
+/**
+ * @typedef {object} Trad
+ * @property {string} id Rotmeddelandets id.
+ * @property {number} skapad
+ * @property {string} skapadAv
+ * @property {string} [namn] Bara när en person döpt om tråden.
+ */
+
+/**
+ * Bygger en ny tråd, eller kastar med skälet.
+ *
+ * @param {{ rot: string, skapadAv: string, skapad?: number, namn?: string | null }} d
+ * @returns {Trad}
+ */
+export function byggTrad(d) {
+  const rot = rensa(d?.rot);
+  if (!rot) throw new Error("byggTrad: rot krävs, id:t på meddelandet tråden startas ur. Det är trådens nyckel.");
+  if (rot.includes("/")) throw new Error(`byggTrad: rot "${rot}" är inget dokument-id.`);
+  const skapadAv = kravUid(d.skapadAv, "byggTrad");
+  const skapad = d.skapad ?? Date.now();
+  if (!Number.isInteger(skapad)) throw new Error("byggTrad: skapad är millisekunder, ett heltal.");
+  const namn = kravTradnamn(d.namn, "byggTrad");
+  return Object.freeze({ id: rot, skapad, skapadAv, ...(namn ? { namn } : {}) });
+}
+
+/**
+ * Ett namn en person satt, eller `null` för att gå tillbaka till det härledda. Kastar när det är för långt.
+ * @param {unknown} namn @param {string} vem
+ * @returns {string | null}
+ */
+export function kravTradnamn(namn, vem = "kravTradnamn") {
+  if (namn === null || namn === undefined) return null;
+  if (typeof namn !== "string") throw new Error(`${vem}: namnet är text.`);
+  const n = namn.trim().replace(/\s+/g, " ");
+  if (!n) return null;
+  if (n.length > MAX_TRADNAMN) throw new Error(`${vem}: namnet är ${n.length} tecken, taket är ${MAX_TRADNAMN}.`);
+  return n;
+}

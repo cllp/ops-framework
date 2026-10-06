@@ -9,9 +9,61 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.68.0
+
+### Trådar i gruppchatten (cllp/lifehub.app#60)
+
+CP 2026-10-06, överlämning i cllp/lifehub.app#60: "Vore ju snyggt om gruppen i gruppchatt kan starta en tråd och när som helst blanda in en agent som är med i tråden för alla." Bakgrunden var en lång tråd med fem olika spår, där spåren gav kopplingar till varandra som inte hade uppstått om de legat isär. Tråden är gruppens, inte ett privat samtal med agenten.
+
+Första versionen byggdes i appen (lifehub.app PR 65), med datamodell och regler i appens `firestore.rules`. Beslutet samma dag: samtalen och deras regler är ramverkets (`createSamtalskalla`, `samtalsregelfragment`), och en regel för trådar i appen hade varit två hem för samma regel (regel 2). Reglerna och proven flyttar därför hit, och appen pinnar om.
+
+#### Rättat
+
+- **Gruppchatten fanns inte förrän någon hade skapat den.** CP 2026-10-06, i gruppen "Philip Staiger AB" med en medlem och agenten: "Hur skriver jag ett meddelande till hela gruppen?" Det gick inte. Listan i Meddelanden visade bara agentsamtalet, och under Till i "Nytt meddelande" stod bara Agent. Rotorsaken, mätt i `origin/main`: `oppnaGrupp` i `samtalskalla.js` anropades aldrig från vyn, så gruppchatten fanns bara där den var sådd, och den var sådd i varje prov och i varje skalyta-scen. Därför syntes felet aldrig före CP.
+  - Gruppchatten står nu **alltid överst** i listan för en vald grupp, med gruppens namn och märket Grupp, också innan något har skrivits. Raden härleds i vyn ur gruppen. Den är inget dokument i databasen: samtalet skapas med `oppnaGrupp` när någon öppnar raden (en rad "Öppnar gruppchatten…" under tiden, och ett fel står som en banderoll).
+  - ⛔ **Att öppna raden skapar samtalet, också om inget skrivs.** Det är ett dokument per grupp, med nyckeln härledd ur gruppen (`samtalsnyckel`), så det finns högst ett, och det är samma dokument som det första meddelandet hade skapat. Att vänta med skapelsen till det första meddelandet hade krävt att samtalet läses och prenumereras innan det finns, och regeln för meddelandena förutsätter samtalet (omgranskningen av PR 268, A5: lämnas så).
+  - I läget "Nytt meddelande" står **"Hela gruppen"** först under Till, och valet öppnar gruppchatten. `OpsMottagare` har nya props `helaGruppen` och `gruppMarke` för det i `lage="person"`; Meddelanden skickar samma märke som gruppchattens rad i listan, så att raden har gruppens färg och ikon. Utan props är läget som förut.
+  - ⛔ **Raden under Till följer valet** (omgranskningen av PR 268, A6). Förut stod "Bara ni två ser det här" redan innan något var valt, vilket var fel om "Hela gruppen" som står först. Nu finns ingen rad innan valet, och efter det säger den "Alla i gruppen ser det här", "Bara du och agenten ser det här" eller "Bara ni två ser det här".
+  - Gruppchattens tomma läge säger "Alla i gruppen ser det som skrivs här." (texten `gruppTom`). Nya texter även `helaGruppen` och `oppnarGrupp`.
+  - Prov som var röda utan rättningen (mutationstabell i PR-texten): en grupp med bara agentsamtalet har raden överst utan att något skrivs i källan, att öppna den anropar `oppnaGrupp`, och det första meddelandet syns; "Hela gruppen" står först under Till, med gruppchattens märke, och raden under Till följer valet. `check-skalyta` avsnitt 29f, scenen `meddelanden-ny-grupp`, vid 390 och 1280 px: dessutom heter den valda gruppen i sidopanelen samma sak som chatten, och märkets färg under Till är densamma som radens.
+  - ⛔ **Följd för appen:** listan sorteras inte längre helt efter senaste meddelandet. Gruppchatten står först, och de privata samtalen under den efter senaste meddelandet.
+
+- **Det gamla paketnamnet hade ingen vakt** (granskningen av PR 271, A1, #270 klarkriterium 2). Bytet i 0.67.0 gjordes för hand, och ingenting hindrade det scopade namnet från att komma tillbaka med en kopierad rad. Nytt: `check-gammalt-namn` (i `npm run check`) läser varje fil i repot och är röd på det scopade namnet och tarbollens gamla filnamn utanför `CHANGELOG.md`, `create-ops-app/` och README:s stycke om namnet före 0.67.0 (ett tak på 2 träffar, som bara får sjunka). Golv: 540 lästa filer (569 nu), och golvet följer med: läser vakten mer än 20 procent över golvet är den röd och säger vilket golv som ska stå. Taket är exakt: färre träffar än taket är också rött, så att taket sänks (omgranskningen av PR 268, A4). Planterat i `test-guards` (`gammalt namn` 1 till 6: en import, tarbollens namn i ett skript, README över taket, golvet, README under taket, golvet för lågt), och provat mot repot med en planterad import (röd) och utan (grön).
+- **`check-token-overrides` godkände en `@source` mot det gamla namnets katalog** (granskningen av PR 271, A2). Mönstret krävde bara att sökvägen slutade på `ops-framework/`, så `../node_modules/` följt av det scopade namnet passerade, och en sådan app blir helt ostylad utan fel när nyckeln i `package.json` är bytt. Nu ska segmentet före `ops-framework/` vara `node_modules/`. Planterat i `test-guards` (`overrides 1b`), som var grönt med det gamla mönstret och rött med det nya.
+- **README sade att paketet hette `ops-framework` före 0.67.0.** Det hette det scopade namnet; namnbytet hade ersatt även den raden.
+
+#### Tillagt
+
+Trådarna är **frivilliga**: allt nedan gäller bara en app som skickar `tradar`. Ramverket känner inget samlingsnamn själv, så `tradar` har inget förval (granskningen av PR 268, BÖR 1).
+
+- **Modellen i `lib/samtal.js`:** `<samtal>/{sid}/<tradar>/{tid}` med `{ skapad, skapadAv, namn? }`, där `tid` ÄR rotmeddelandets id (inget `rot`-fält, inget `groupId`: samtalet bär gruppen). `TRADFALT`, `MAX_TRADNAMN`, `byggTrad`, `kravTradnamn`.
+- **Namnet är en regel, inget modellanrop:** `rensaForNamn`, `autonamn`, `tradensNamn`, `AUTONAMN_LANGD`, `AUTONAMN_MINST`, `NAMNLOS_TRAD`. Rotmeddelandet är frågan, så regeln ger ett begripligt namn direkt och kostar ingen kvot; ett lagrat automatiskt namn hade varit en andra sanning om rotmeddelandet. `namn` på tråden betyder bara att en person döpt om den. `autonamn` och `tradensNamn` finns också i `/node`, så att appens agent kallar tråden samma sak som vyn.
+- **`samtalsregelfragment({ tradar })`:** trådar bara i gruppchatten; läsa som gruppchatten; en aktiv person startar en tråd ur ett meddelande som finns, som sig själv; en uppdatering rör bara `namn`; trådens meddelanden har samtalets krav och skrivs aldrig av en klient som agent; ingen radering. Ett `tradar` som krockar med `meddelanden` eller `last` kastar. Regelprov med mutationstabell i `rules/__tests__/tradar.test.mjs`.
+- **`createSamtalskalla({ tradar })` och `harTradar(kalla)`:** `trad`, `oppnaTrad`, `tradarFor(sid, rotter)`, `antalSvar`, `tradmeddelanden`, `prenumereraTrad`, `skickaITrad`, `dopOm`, `rotmeddelande`, bara när `tradar` skickats. En tråd skapas med det första svaret, så ett "Svara i tråd" som ångras lämnar ingen tom tråd. Antalet svar räknas, det lagras inte.
+- **Datakontraktets frivilliga `count(samling, fråga?)`:** en aggregatfråga utan att läsa raderna. `createFirestoreSource` har den när SDK:n har `getCountFromServer`; minneskällan har den inte, och då räknar källan en lista med `sida` som tak.
+- **`OpsMeddelanden` och `OpsTrad`, när källan har trådar:** "Svara i tråd" under varje meddelande i gruppchatten (44 px träffyta, på dator synlig vid hover och fokus, på telefon alltid, eftersom telefonen saknar hover och en meny vore ett steg till), eller ett märke "3 svar" när tråden finns, med namnet bara när en person döpt om tråden. Tråden öppnas i högerpanelen med en rad tillbaka till gruppchatten, namnet med Döp om (Escape avbryter, fokus stannar i rubriken), rotmeddelandet, svaren och samma skrivfält; fokus går tillbaka till märket när tråden stängs. Listan står kvar till vänster på dator. Agentens svar bär agentens ikon. Nya props `valtTrad` och `onValjTrad`.
+- **Märkenas läsningar** (BÖR 4, mätt med 50 meddelanden och 20 trådar med 3 svar var, med en källa som räknar som Firestore fakturerar): att öppna chatten 70 läsningar för trådarna (förut 80, och förut växte det med antalet svar: med 50 svar per tråd hade det varit 20 + 20 × 50 = 1 020, räknat och inte mätt; nu är det 70 oavsett antal svar), ett nytt meddelande 1 (förut 77), tillbaka från en tråd 0 (förut 77). Ett svar från någon annan når märket när fönstret får fokus (30 läsningar); förut nådde det inte märket alls förrän chatten lästes om.
+- **`check-skalyta` avsnitt 29 (e):** märket och "Svara i tråd" i gruppchatten med 44 px träffyta och hover på dator, tråden i högerpanelen vid 390 och 1280 px, listan kvar vid 1280.
+
+#### Medvetet utelämnat (regel 13)
+
+- **Inget läsmärke per tråd.** Det hade varit en samling till, en läsning till per tråd och en regel till, för ett behov ingen har sett än. Trådens olästa räknas inte; märket visar antal svar.
+- **Ingen notis för trådsvar**, utom det som redan gäller när agenten nämns.
+- **Inget gruppminne.** "Lyft till minnet" väntar på CP:s beslut om var minnet ska bo.
+- **Ingen `in`-fråga i datakontraktet.** Märkena läser en tråd per ny rot i stället; en ny frågeform hade krävt en ändring i varje adapter.
+
+#### Ompinning till 0.68.0
+
+⛔ **Från en version före 0.67.0:** gör först stegen i 0.67.0 (paketet heter `ops-framework`, nyckeln i `package.json` och alla importer byts). Tarbollen är `ops-framework-0.68.0.tgz`.
+
+**Utan `tradar` ändras ingenting.** `samtalsregelfragment()` ger samma text som i 0.67.0, byte för byte (fixturen är genererad ur `origin/main`; mot 0.64.0 skiljer bara källkommentaren, som 0.67.0 bytte till paketnamnet `ops-framework`), `createSamtalskalla` har samma funktioner som förut, och `OpsMeddelanden` ritar varken knappen, märkena eller trådvyn. En ompinning utan `tradar` kräver alltså ingen regeldeploy och ändrar ingenting för användaren.
+
+**Med `tradar`** finns en ordning, och den är inte förhandlingsbar: reglerna med `samtalsregelfragment({ tradar })` deployas FÖRE den klient som skickar `tradar` till `createSamtalskalla`, eftersom det är den klienten som visar "Svara i tråd". En klient som visar knappen mot regler som inte känner trådarna får "Missing or insufficient permissions" vid första svaret. En app som har trådregler i ett eget block ska ta bort det, eftersom två `match` på samma väg läggs ihop med ELLER.
+
+---
 ## 0.67.0
 
-⛔ **Versionsnumret:** 0.66.0 är redan taget av utkastet PR 268 (trådar i gruppchatten, lifehub.app#60), som inte är mergat när den här grenen öppnas. Main står på 0.65.0. Den här grenen tar därför 0.67.0. Mergas de i en annan ordning ska numren rättas vid mergen, inte här.
+⛔ **Versionsnumret:** 0.66.0 hoppas över. Det numret bar utkastet till trådarna i gruppchatten (PR 268, lifehub.app#60) när den här grenen öppnades, och trådarna ges ut som 0.68.0. Någon tagg v0.66.0 finns inte.
 
 ### Paketet heter `ops-framework`, utan scope
 
@@ -28,7 +80,7 @@ CP 2026-10-06: release-artefakterna ska inte bära "staiger" i namnet. Paketet h
 
 #### Ompinning till 0.67.0
 
-Gäller `cllp/lifehub.app` och `cllp/bolag-ops` (sökvägarna under `web/`, och `functions/` där ramverket används). Ompinningen mergas efter ramverket, i samma pass (regel 11).
+Gäller `cllp/lifehub.app`. `cllp/bolag-ops` stängs och pinnas inte om. Ompinningen mergas efter ramverket, i samma pass (regel 11).
 
 1. **`package.json`:** byt nyckeln, inte bara URL:en: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.67.0/ops-framework-0.67.0.tgz"`, och ta bort `"@staiger/ops-framework"`.
    - ⛔ Står den gamla nyckeln kvar installerar npm det nya paketet under `node_modules/@staiger/ops-framework` (mätt med en tarboll), så importerna fortsätter fungera och ingenting ser fel ut. Ramverkets vakter och dokumentation säger då `ops-framework`, och appen säger något annat.
@@ -107,6 +159,7 @@ Ikonerna buntas in (`lucide-react` är inte extern i `scripts/build.mjs`), så u
 - **`check-gruppfarg`** (ny): kontrasten för alla 360 kulörer i båda lägena mot plattan och tre ytor. I `check-guards` röd med ikonens ljushet 0,62 i ljust, med plattans ljushet 0,6 i mörkt och utan talen.
 - **`check-gruppikoner`** (ny): katalogen är i takt med generatorn och samma Lucide-version.
 - **`check-skalyta` avsnitt 22b** (nytt): i ljust och mörkt vid 390 och 1280 px, kulören når märket (plattan och ikonen två täckande färger, Petrol och Rosa olika), kontrasten i det RITADE märket avläst ur en canvas (golv 4,5), "Bandet" ger gitarr eller trumma bland de sex första förslagen, "music" ger minst fem träffar med gitarr och hörlurar, ingen överflödning. Avsnitt 22, gruppkortet och gruppsidan mäter kulören i stället för identitetstonen.
+
 
 ## 0.64.0
 

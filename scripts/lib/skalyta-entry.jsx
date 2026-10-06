@@ -848,9 +848,9 @@ const manyaGrupper = (lista) => [...lista, ...Array.from({ length: window.__mang
 const utanGrupp = () => window.__aktiv === "ingen";
 const aktivIScenen = () => (utanGrupp() ? "" : window.__aktiv ?? "g1");
 
-function Full({ children, utanMeny = false, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
+function Full({ children, aktivGrupp = undefined, utanMeny = false, skapa = { handelse: <p>Formulär</p> }, extraActions = null, moduler: skaletsModuler = hubModuler, onNavigate = undefined, aktivHref = "/", handelsepanel = undefined, talk = undefined }) {
   const [infalld, setInfalld] = useState(false);
-  const [aktiv, setAktiv] = useState(aktivIScenen());
+  const [aktiv, setAktiv] = useState(aktivGrupp ?? aktivIScenen());
   return (
     <OpsAppShell
       fasta={{ idag: { href: "/" }, kalender: { href: "/kalender" }, hub: { href: "/hub" } }}
@@ -893,9 +893,19 @@ let samtalskallan = null;
 async function byggSamtalskalla() {
   if (!Ops.createSamtalskalla) return null;
   let t = new Date(2026, 8, 30, 9, 0).getTime();
-  const s = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000) });
+  // 0.68.0: trådarna slås på med `tradar`, som en app gör. Utan namnet har källan inga trådar (BÖR 1).
+  const s = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000), tradar: "tradar" });
   const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
   await s.skicka(g.id, { text: "Hej alla, styrelsemötet flyttas till fredag klockan tio.", av: "cecilia" });
+  // 0.68.0 (lifehub.app#60): en tråd ur ett meddelande i gruppchatten, med svar från två, och ett meddelande utan tråd.
+  // Saknas trådarna i den byggda versionen hoppas de över, och avsnitt 29 (e) blir rött på att märket saknas.
+  if (typeof s.skickaITrad === "function") {
+    const rot = await s.skicka(g.id, { text: "@Agent kan du sammanfatta budgeten för Q3 inför styrelsemötet?", av: "bo" });
+    await s.skickaITrad(g.id, rot.id, { text: "Jag tittade i går, marginalen är tunn i september.", av: "cecilia" });
+    await s.skickaITrad(g.id, rot.id, { text: "Tack, då tar vi den först på fredag.", av: "anna" });
+    await s.skickaITrad(g.id, rot.id, { text: "Q3: intäkter 412 000, kostnader 389 000. Marginalen är 5,6 procent, lägst i september.", av: "ops" });
+  }
+  await s.skicka(g.id, { text: "Jag tar med kaffe.", av: "cecilia" });
   const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
   await s.skicka(p.id, { text: "Hej Anna! Kan du titta på fakturan från Bokio innan fredag?", av: "bo" });
   await s.skicka(p.id, { text: "Absolut, jag gör det i eftermiddag.", av: "anna" });
@@ -913,6 +923,8 @@ function MeddelandeScen() {
   const [valt, setValt] = useState(null);
   // 0.63.0 (#263): läget "nytt" ligger i appens state, som LifeHub har det i adressen. Plussets rad leder hit.
   const [nytt, setNytt] = useState(false);
+  // 0.68.0: vald tråd i appens state, som LifeHub har den i adressen (`?trad=`).
+  const [trad, setTrad] = useState(null);
   if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
   if (!kalla) {
     byggSamtalskalla().then((k) => {
@@ -940,6 +952,54 @@ function MeddelandeScen() {
           gruppNamn="Claes Philip Staiger Konsulting och Förvaltning AB"
           medlemmar={MEDLEMMAR_M}
           onOlasta={setOlasta}
+          valt={valt}
+          nytt={nytt}
+          onValj={(id, val) => {
+            setNytt(Boolean(val?.nytt));
+            setValt(id);
+            setTrad(null);
+          }}
+          valtTrad={trad}
+          onValjTrad={setTrad}
+        />
+      ) : (
+        <p>Laddar</p>
+      )}
+    </Full>
+  );
+}
+
+/*
+ * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i sin grupp med en medlem och agenten: "Hur skriver jag ett
+ * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f. Gruppen är g3 ur `grupperLista`,
+ * vald i sidopanelen, så att panelen och chatten heter samma sak (omgranskningen av PR 268, A6).
+ */
+function MeddelandeNyGruppScen() {
+  const [kalla, setKalla] = useState(null);
+  const [valt, setValt] = useState(null);
+  const [nytt, setNytt] = useState(false);
+  if (!Ops.OpsMeddelanden || !Ops.createSamtalskalla) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!kalla) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const k = Ops.createSamtalskalla({ kalla: Ops.createMemorySource({}), klocka: () => (t += 60000) });
+      const a = await k.oppnaPrivat({ groupId: "g3", uid: "cp", annan: "ops", slag: "agent" });
+      await k.skicka(a.id, { text: "Vilka fakturor är obetalda?", av: "cp" });
+      setKalla(k);
+    })();
+  }
+  return (
+    <Full aktivGrupp="g3">
+      {kalla ? (
+        <Ops.OpsMeddelanden
+          kalla={kalla}
+          uid="cp"
+          groupId="g3"
+          gruppNamn={grupperLista.find((g) => g.id === "g3").namn.sv}
+          medlemmar={[
+            { userId: "cp", namn: "Claes Philip", typ: "person", status: "aktiv" },
+            { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+          ]}
           valt={valt}
           nytt={nytt}
           onValj={(id, val) => {
@@ -1456,6 +1516,7 @@ function Scen() {
     );
   }
   if (s === "meddelanden") return <MeddelandeScen />;
+  if (s === "meddelanden-ny-grupp") return <MeddelandeNyGruppScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>
