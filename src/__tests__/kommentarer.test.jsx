@@ -240,7 +240,8 @@ describe("kommentarens bilaga: modellen", () => {
     const r = handelseregelfragment();
     expect(KOMMENTARBILAGA_TYPER.length).toBeGreaterThanOrEqual(5);
     for (const t of KOMMENTARBILAGA_TYPER) expect(r).toContain(`"${t}"`);
-    expect(r).toContain(`bilaga.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}`);
+    expect(r).toContain(`b.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}`);
+    expect(r).toContain("function opsKommentarbilagaGiltig(b)");
     expect(r).not.toContain("svg");
   });
 });

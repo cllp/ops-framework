@@ -1053,7 +1053,8 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
  *   - KOMMENTARER, BILAGA (0.71.0, bolag-ops#570): frivilligt fält `bilaga` med inkorgens form (`KOMMENTARBILAGAFALT`), typen i
  *     `KOMMENTARBILAGA_TYPER`, data-URL:en med samma typ och högst `MAX_KOMMENTARBILAGA` tecken, `tecken` lika med dess längd och
  *     namnet 1 till `MAX_BILAGENAMN` tecken. Med bilaga får texten vara tom. Läsningen är kommentarens: bilagan ligger i samma
- *     dokument, så bara gruppens aktiva medlemmar läser den.
+ *     dokument, så bara gruppens aktiva medlemmar läser den. Prövningen är regelfunktionen `opsKommentarbilagaGiltig(b)`, som
+ *     appen får anropa i sina egna kommentarsregler (lifehub.app:s inkorg), så att den står en gång.
  *   - KOMMENTARER, ÄNDRA: aldrig. Ett svar på en kommentar hade annars kunnat stå under en mening som inte längre finns.
  *   - KOMMENTARER, RADERA: bara den som skrev den (CP 2026-10-02: "Ja"). Också efter att hen lämnat gruppen: det är hens text.
  *   - LÄSMÄRKEN (`<händelser>/{hid}/<läsmärken>/{uid}`): bara personen själv läser och skriver sitt, bara som aktiv medlem,
@@ -1112,6 +1113,24 @@ export function handelseregelfragment(namn = {}) {
       allow delete: if false;
     }
 
+    // En bilaga på en kommentar (0.71.0, bolag-ops#570): inkorgens form, typlistan och taket ur modellen. Appen får anropa
+    // funktionen i sina egna kommentarsregler, så att prövningen står en gång.
+    function opsKommentarbilagaGiltig(b) {
+      return b is map
+        && b.keys().hasOnly([${lista(KOMMENTARBILAGAFALT)}])
+        && b.keys().hasAll([${lista(KOMMENTARBILAGAFALT.slice(0, 4))}])
+        && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
+        && b.dataUrl is string
+        && b.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}
+        && b.dataUrl.matches('data:' + b.typ + ';base64,.*')
+        && b.tecken == b.dataUrl.size()
+        && b.namn is string
+        && b.namn.size() > 0
+        && b.namn.size() <= ${MAX_BILAGENAMN}
+        && (!('bredd' in b) || b.bredd is number)
+        && (!('hojd' in b) || b.hojd is number);
+    }
+
     match /${handelser}/{hid}/${kommentarer}/{kid} {
       allow read: if opsInloggad() && exists(opsHandelsen(hid))
         && opsArMedlem(get(opsHandelsen(hid)).data.groupId);
@@ -1122,20 +1141,7 @@ export function handelseregelfragment(namn = {}) {
         && request.resource.data.text is string
         && (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)
         && request.resource.data.text.size() <= ${MAX_HANDELSEKOMMENTAR}
-        && (!('bilaga' in request.resource.data) || (
-          request.resource.data.bilaga is map
-          && request.resource.data.bilaga.keys().hasOnly([${lista(KOMMENTARBILAGAFALT)}])
-          && request.resource.data.bilaga.keys().hasAll([${lista(KOMMENTARBILAGAFALT.slice(0, 4))}])
-          && request.resource.data.bilaga.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
-          && request.resource.data.bilaga.dataUrl is string
-          && request.resource.data.bilaga.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}
-          && request.resource.data.bilaga.dataUrl.matches('data:' + request.resource.data.bilaga.typ + ';base64,.*')
-          && request.resource.data.bilaga.tecken == request.resource.data.bilaga.dataUrl.size()
-          && request.resource.data.bilaga.namn is string
-          && request.resource.data.bilaga.namn.size() > 0
-          && request.resource.data.bilaga.namn.size() <= ${MAX_BILAGENAMN}
-          && (!('bredd' in request.resource.data.bilaga) || request.resource.data.bilaga.bredd is number)
-          && (!('hojd' in request.resource.data.bilaga) || request.resource.data.bilaga.hojd is number)))
+        && (!('bilaga' in request.resource.data) || opsKommentarbilagaGiltig(request.resource.data.bilaga))
         && request.resource.data.skapad is string
         && request.resource.data.skapad.matches('${isotid}')
         && request.resource.data.skapadAv is map

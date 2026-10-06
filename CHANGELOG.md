@@ -15,7 +15,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ### ⛔ Deploy före klienten: regeln för kommentarer på händelser bär nu `bilaga`
 
-`handelseregelfragment` släpper in ett frivilligt fält `bilaga` på `<händelser>/{hid}/<kommentarer>/{kid}`. Appen genererar om sina regler och rullar ut dem FÖRE en klient som slår på `bilagor` i `OpsKommentarer`. Utan bilaga är regeln oförändrad i sak: samma fält, samma läsning, samma tak för texten. Läsningen ändras inte alls, så en bilaga läses av exakt dem som läser kommentaren.
+`handelseregelfragment` släpper in ett frivilligt fält `bilaga` på `<händelser>/{hid}/<kommentarer>/{kid}`, prövat av en ny regelfunktion i fragmentet, `opsKommentarbilagaGiltig(b)`, som appen också får anropa i sina egna kommentarsregler. Appen genererar om sina regler och rullar ut dem FÖRE en klient som slår på `bilagor` i `OpsKommentarer`. Utan bilaga är regeln oförändrad i sak: samma fält, samma läsning, samma tak för texten. Läsningen ändras inte alls, så en bilaga läses av exakt dem som läser kommentaren.
 
 ### Bild och fil i kommentarer (cllp/bolag-ops#570)
 
