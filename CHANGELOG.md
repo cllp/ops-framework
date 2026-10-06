@@ -9,6 +9,76 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.65.0
+
+### Gruppens ikon och färg: sökbar ikonväljare med synonymer, kulör i stället för fri färg (#265)
+
+Händelsen: CP 2026-10-06, överlämning från en annan tråd om att skapa en grupp (`OpsGruppFormular`): "Music" ska ge not, hörlurar, högtalare, gitarr och skiva, inte bara ikonen som heter music; gruppen "Bandet" ska visa musikikonerna först; ingen helt fri färgväljare, eftersom den ger färger bakgrunden inte tål, text som tappar läsbarhet och grupper som inte ser ut som en familj.
+
+#### Tillagt
+
+- **Sökbar ikonväljare** (`OpsGruppmarkeValjare`, i formulärets "Färg och ikon"). 187 Lucide-ikoner som en grupp kan vara (musik, arbete, idrott, familj, natur, mat, resor, pengar, teknik, skapande), med Lucides egna sökord (`lucide-static/tags.json`, samma version som `lucide-react`) och svenska synonymer (`SVENSKA_SYNONYMER` i `gruppikonsok.js`, som pekar på sökord och aldrig på en ikon). Innan något skrivits: förslag ur gruppens namn, de senast använda (per webbläsare, `localStorage`) och tjugo vanliga. Tomma rader säger att de är tomma (regel 5).
+- **Kulörväljare**: tolv snabbval och ett reglage för alla 360 kulörer. Ljusheten och mättnaden står i temat (`--gruppmarke-ikon-l/-c`, `--gruppmarke-platta-l/-c`, med `--dark-*` för mörkt läge), och märket ritas som `oklch(L C <kulör>)`.
+- **Märket: ikonen i gruppens färg på en tonad platta av samma kulör**, överallt där gruppmärket ritas (gruppanelen, remsan, växlaren, gruppsidan, formuläret). `OpsIdentity` har en ny prop `kulor`; `gruppmarkeProps` sätter den för varje grupp. Personers märken är oförändrade.
+- **Exporter:** `gruppikonKomponent`, `ARV_GRUPPIKON`, `GRUPPIKONKATALOG`, `sokGruppikoner`, `forslagUrGruppnamn`, `VANLIGA_GRUPPIKONER`, `GRUPPKULORFORSLAG`, `GRUPPKULOR_FORM`, `fargTillKulor`, `kulorTillFarg`, `gruppKulor`.
+
+#### Efter granskningen av PR 266
+
+- **Svenska namn på ikonerna** (`GRUPPIKON_SVENSKA`, `gruppikonEtikett`). Knapparna hette Lucides engelska filnamn ("music 2", "audio waveform"); nu säger varje namn vad ikonen föreställer, unikt, så varianter går att skilja åt med skärmläsare. Namnen är också sökord.
+- **Ord som gav noll träffar och lagades:** hörlur, hörlurar, högtalare, noter och skiva, via ikonernas svenska namn. De lades först också som synonymer, men en mutation som tog bort synonymerna lämnade alla prov gröna, så de ströks (regel 2). Prövat också: fotboll, kontor, familj, skola, resa, mat, bok, kör, band och styrelse gav redan träffar, men "styrelse" gav en tärning (`board` som i brädspel) och "not" gav anteckningsboken först; båda rättade. Ett prov per ord.
+- **Prefix på engelska taggar bara för det som skrevs, och lågt viktat.** "kontor" gav en hantel: synonymen `work` var prefix till taggen `workout`.
+- **Den levande regionen är en statusrad** ("12 träffar", "Inget matchar"), inte rutnätet med upp till 48 knappar.
+- **Reglagets uppläsning bär närmaste kulörnamn** (`narmasteKulornamn`): "227 grader, Turkos".
+- **En ny grupp sparar kulören den visar.** Utan val visade formuläret kulören ur fröet `ny-grupp` men sparade tom sträng, och gruppen fick då en annan kulör ur sitt nya id.
+- **`GRUPPKULOR_FORM` är `^kulor:(0|[1-9]\d{0,2})$`**, en lagrad form per kulör, och 0 till 359 prövas i `fargTillKulor`.
+- **16 nästan-dubbletter strukna ur urvalet** (music-2/3/4, disc-3, flower-2, fish-symbol, users-round, user-round, building, tree-deciduous, mic-vocal, audio-waveform, headset, mountain-snow, brush, diamond) utan att någon sökning tappar sitt svar.
+- **`check-gruppfarg`s golv "räknade minst 720" kunde aldrig bli rött** och är ersatt av ett riktigt: minst 300 olika ritade ikonfärger av 360 per läge. En mättnad 0 i temat klarar varje kontrastkrav men gör alla kulörer grå; den är röd nu.
+- **`check-skalyta` 22b rullar panelens behållare** för bilden av ikonväljaren (vid 1280 px blev den annars samma bild som översikten), och kräver att den faktiskt rullades.
+- **Montage före och efter** av befintliga gruppkort och gruppsidans märke, i ljust och mörkt läge: `docs/bilder/265/montage-fore-efter-*.png` (`docs/bilder/265/gor-montage.mjs`).
+
+#### Valet: kulörvägen, inte en kurerad palett
+
+Ärendet sade att en kurerad palett på 12 till 16 färger väljs bara om kulörvägen inte håller kontrastkraven. Den håller, mätt för alla 360 kulörer (`check-gruppfarg`): sämsta kulören ger ikonen mot plattan 4,92:1 i ljust (kulör 192) och 6,77:1 i mörkt, golv 4,5 eftersom initialer är text; ikonen mot ytan 5,63:1 respektive 7,63:1, golv 3. Skälet: OKLCH-ljusheten är perceptuell, så en fast ljushet ger nästan samma luminans oavsett kulör. Vakten räknar både med CSS Color 4:s gamut-kartläggning och med Chromiums klippning per kanal, eftersom Chromium klipper (mätt: Petrol ljust ritades rgb(0, 111, 113), 4,95:1 avläst ur en canvas mot vaktens 4,93:1).
+
+#### Lagring och migrering
+
+- **Ikonen sparas som sitt Lucide-namn** (`music`, `building-2`), aldrig som index. `byggGrupp` avvisar ett tal (`"12"`). De tio äldre id:na (`grupp`, `hus` ...) tas fortfarande emot och ritas med exakt samma SVG som före 0.65.0 (`ARV_GRUPPIKON`, provat ikon för ikon); formuläret skriver aldrig ett äldre id.
+- **Färgen sparas som `kulor:<0-359>`.** De sex äldre tonerna (`"1"` till `"6"`) tas fortfarande emot. ⛔ **Dokumenterad migrering, på läsvägen och utan att något skrivs om:** en grupp med en äldre ton ritas i den tonens kulör (`ARV_TON_KULOR`, härledd ur `--color-identity-N` och provad mot tokens.css), i det nya märket. En grupp utan sparad färg får kulören dess ton ur `id` hade haft. Samma familj som förut, ny form: plattan är ljus och ikonen färgad, i stället för en fylld ruta med vit ikon. Ton 6 (gråoliv) blir mättare än förut, eftersom mättnaden nu kommer ur temat.
+- Ett valt gruppkort har kanten i gruppens färg och ytan i samma färg vid 6 procent, som SS `GroupCard.jsx:60-65`. Utan sparad färg: accenten, som förut.
+- Ramverket känner inget samlingsnamn och inget projekt-id: inget ändras i reglerna, fälten `farg` och `ikon` finns redan och fick bara nya giltiga värden i `byggGrupp`.
+
+#### Paketstorlek, mätt före och efter
+
+Mätt med `scripts/build.mjs` och `npm pack --dry-run`, före på `origin/main` (0.63.0, 9ab058f), efter på den här grenen:
+
+| | 0.63.0 | 0.65.0 | Skillnad |
+|---|---|---|---|
+| `dist/index.js` | 933 652 byte | 1 062 111 byte | +128 kB |
+| `dist/index.js` gzip | 234 013 byte | 267 545 byte | +33,5 kB |
+| minifierad och gzip (det en app laddar, React och Radix externa) | 163 259 byte | 193 942 byte | +30,7 kB |
+| tarbollen | 2 640 359 byte | 2 785 721 byte | +145 kB |
+
+Efter granskningen av PR 266, mätt igen mot `origin/main` på 0.64.0 (c03f8e7):
+
+| | 0.64.0 | 0.65.0 före granskningen (203 ikoner, mätt på 0.63.0) | 0.65.0, 187 ikoner och svenska namn |
+|---|---|---|---|
+| `dist/index.js` | 933 884 | 1 062 111 | 1 060 351 |
+| gzip | 234 070 | 267 545 | 268 642 |
+| minifierad och gzip | 163 314 | 193 942 | 194 730 (+31,4 kB mot 0.64.0) |
+| tarbollen | 2 644 419 | 2 785 721 | 2 799 747 |
+
+Strykningen av 16 ikoner och de tillagda svenska namnen (187 rader) tar i stort sett ut varandra. Att lata in katalogen är ett senare ärende.
+
+Ungefär en fjärdedel av tillväxten är sökorden (26,5 kB okomprimerat), resten är de 203 ikonerna.
+
+Ikonerna buntas in (`lucide-react` är inte extern i `scripts/build.mjs`), så urvalet är ett urval: hela Lucide är 1 539 ikoner och `tags.json` ensam 190 kB. `lucide-static` är en devDependency och hamnar aldrig i paketet.
+
+#### Vakter
+
+- **`check-gruppfarg`** (ny): kontrasten för alla 360 kulörer i båda lägena mot plattan och tre ytor. I `check-guards` röd med ikonens ljushet 0,62 i ljust, med plattans ljushet 0,6 i mörkt och utan talen.
+- **`check-gruppikoner`** (ny): katalogen är i takt med generatorn och samma Lucide-version.
+- **`check-skalyta` avsnitt 22b** (nytt): i ljust och mörkt vid 390 och 1280 px, kulören når märket (plattan och ikonen två täckande färger, Petrol och Rosa olika), kontrasten i det RITADE märket avläst ur en canvas (golv 4,5), "Bandet" ger gitarr eller trumma bland de sex första förslagen, "music" ger minst fem träffar med gitarr och hörlurar, ingen överflödning. Avsnitt 22, gruppkortet och gruppsidan mäter kulören i stället för identitetstonen.
+
 ## 0.64.0
 
 ⛔ **Versionsnumret:** 0.64.0 är reserverat för den här grenen. Arbetet med #265 (ikon och kulör) tar 0.65.0.

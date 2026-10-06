@@ -79,8 +79,9 @@ describe("⛔ kortet i gruppanelen", () => {
 
   it("⛔ det valda kortet har gruppens färg som kant och ljus bakgrund, ett ovalt inte", () => {
     render(<OpsGruppanel grupper={GRUPPER} aktiv="g1" onValj={() => {}} />);
-    expect(kort("Alfa AB")).toHaveClass("border-identity-3", "bg-identity-3/6");
-    expect(kort("Beta AB")).not.toHaveClass("border-identity-3");
+    expect(kort("Alfa AB")).toHaveClass("ops-grupp-vald");
+    expect(kort("Alfa AB").style.getPropertyValue("--grupp-kulor")).toBe("29");
+    expect(kort("Beta AB")).not.toHaveClass("ops-grupp-vald");
   });
 
   it("en vald grupp utan färg behåller accenten", () => {

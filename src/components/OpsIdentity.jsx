@@ -61,8 +61,11 @@ const STORLEKAR = {
  * @param {boolean} [props.rund] Rund i stället för rundad ruta. Förval falskt, utom för `size="avatar"` som alltid är rund (SS avatar är en cirkel, en grupp är en rundad ruta: formen säger vilket).
  * @param {1|2|3|4|5|6} [props.tone] Åsidosätter tonen `identityTone(seed)` annars härleder. Ett UTTRYCKLIGT val,
  *   t.ex. personens sparade `farg` (#164), väger tyngre än det härledda.
+ * @param {number} [props.kulor] (0.65.0, #265) En GRUPPS kulör i grader (0 till 359). Ges den ritas märket som gruppmärke: ikonen eller
+ *   initialerna i kulören på en tonad platta av samma kulör (`.ops-gruppmarke` i tokens.css, ljushet och mättnad ur temat). Vinner över
+ *   `tone`. Utelämnad: tonen, som för en person. `gruppmarkeProps` sätter den för varje grupp.
  */
-export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone, initialer, rund = false }) {
+export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, tone, initialer, kulor, rund = false }) {
   const storlekKlass = STORLEKAR[size];
   if (!storlekKlass) {
     throw new Error(`OpsIdentity: okänd size "${size}". Giltiga: ${Object.keys(STORLEKAR).join(", ")}.`);
@@ -83,11 +86,30 @@ export function OpsIdentity({ name, seed, imageUrl, size = "md", icon: Icon, ton
     );
   }
 
+  const ikonStorlek = size === "xl" ? 28 : size === "lg" ? 24 : size === "xs" || size === "sm" || size === "avatar" ? 12 : 18;
+
+  if (typeof kulor === "number" && Number.isFinite(kulor)) {
+    // ⛔ KULÖREN ÄR ETT TAL I EN CSS-VARIABEL, INTE EN KLASS: 360 kulörer kan inte stå utskrivna för Tailwind, och färgen räknas i
+    // tokens.css ur temats ljushet och mättnad. Värdet avrundas och hålls inom 0 till 359 så att ingen sträng når stilen.
+    const grader = ((Math.round(kulor) % 360) + 360) % 360;
+    return (
+      <span
+        className={cx(base, "ops-gruppmarke font-semibold")}
+        style={/** @type {import("react").CSSProperties} */ ({ "--grupp-kulor": grader })}
+        role="img"
+        aria-label={name}
+        data-grupp-kulor={grader}
+      >
+        <span aria-hidden="true">{Icon ? <Icon size={ikonStorlek} /> : initialer || initials(name)}</span>
+      </span>
+    );
+  }
+
   const vaildTone = tone && TONKLASSER[tone] ? tone : identityTone(seed);
 
   return (
     <span className={cx(base, TONKLASSER[vaildTone], "font-semibold text-ink-inverse")} role="img" aria-label={name}>
-      <span aria-hidden="true">{Icon ? <Icon size={size === "xl" ? 28 : size === "lg" ? 24 : size === "xs" || size === "sm" || size === "avatar" ? 12 : 18} /> : initialer || initials(name)}</span>
+      <span aria-hidden="true">{Icon ? <Icon size={ikonStorlek} /> : initialer || initials(name)}</span>
     </span>
   );
 }

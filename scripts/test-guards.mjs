@@ -1634,6 +1634,24 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("typografi golv: fel sökväg", [typvakt, path.join(typmapp, "finns-inte")], "finns inte");
 }
 
+// ── Gruppkulör (0.65.0, #265): kontrasten för alla 360 kulörer, i båda lägena ──
+{
+  const fargvakt = path.join(rot, "scripts", "check-gruppfarg.mjs");
+  const fargmapp = path.join(arbetsmapp, "gruppfarg");
+  fs.mkdirSync(fargmapp, { recursive: true });
+  /** @param {string} namn @param {(css: string) => string} f */
+  const fargfil = (namn, f) => {
+    const ut = path.join(fargmapp, `${namn}.css`);
+    fs.writeFileSync(ut, f(original));
+    return ut;
+  };
+  kravGront("gruppfärg: tokens.css som den står", [fargvakt, tokenfil]);
+  kravRott("gruppfärg: ljus ikon för nära plattan (L 0,62)", [fargvakt, fargfil("ljus", (c) => c.replace("--gruppmarke-ikon-l: 0.47;", "--gruppmarke-ikon-l: 0.62;"))], "ikonen mot plattan");
+  kravRott("gruppfärg: mörk platta för ljus (L 0,6)", [fargvakt, fargfil("mork", (c) => c.replace("--dark-gruppmarke-platta-l: 0.33;", "--dark-gruppmarke-platta-l: 0.6;"))], "morkt, kulör");
+  kravRott("gruppfärg golv: mättnad 0, alla kulörer gråa", [fargvakt, fargfil("gra", (c) => c.replace("--gruppmarke-ikon-c: 0.13;", "--gruppmarke-ikon-c: 0;"))], "olika ikonfärger");
+  kravRott("gruppfärg golv: talen saknas", [fargvakt, fargfil("tom", (c) => c.replace(/--gruppmarke-ikon-l: [^;]+;/, ""))], "saknas i");
+}
+
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
 
 const fel = resultat.filter((r) => r.utfall !== "ok");

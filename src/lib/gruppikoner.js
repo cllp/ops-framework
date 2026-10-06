@@ -1,49 +1,93 @@
-import { GRUPPIKONER, GRUPPINITIALER_FORM, PROFILFARGER } from "./grupp.js";
-import { BlixtIkon, BokIkon, ByggnadIkon, GruppIkon, HjartaIkon, HusIkon, JordglobIkon, KronaIkon, PortfoljIkon, StjarnaIkon } from "../components/icons.jsx";
+import { createElement } from "react";
+import { GRUPPIKONER, GRUPPINITIALER_FORM } from "./grupp.js";
+import { GRUPPIKONKATALOG } from "./gruppikonkatalog.generated.js";
+import { gruppKulor } from "./gruppfarg.js";
+import { GRUPPIKON_LUCIDE } from "../components/gruppikonkatalog.generated.jsx";
 
 /**
- * Kartan från ett sparat ikon-id (`GRUPPIKONER` i `grupp.js`) till komponenten som ritar det, och från en
- * grupprad till det `OpsIdentity` behöver för att rita märket (0.32.0, #180).
+ * Från ett sparat ikonnamn till komponenten som ritar det, och från en grupprad till det `OpsIdentity` behöver för att
+ * rita märket (0.32.0, #180; ikonkatalog och kulör 0.65.0, #265).
  *
- * Samma upplägg som `profilikoner.js` och av samma skäl: en uppslagstabell är en ren funktion, och `OpsGruppanel`,
- * `OpsGruppvaxlare` och `OpsGruppFormular` ritar SAMMA märke ur SAMMA karta i stället för att var och en gissa vad id:t "hus" betyder.
- * ⛔ ORDNINGEN ÄR RADENS ORDNING I VÄLJAREN. `GRUPPIKONER` (grupp.js) äger den, den här filen följer.
+ * ⛔ EN KARTA FÖR ALLA. `OpsGruppanel`, `OpsGruppSida` och `OpsGruppFormular` ritar SAMMA märke ur SAMMA karta i
+ * stället för att var och en gissa vad ett namn betyder.
+ *
+ * ⛔ IKONEN SPARAS SOM NAMN, ALDRIG SOM INDEX (#265). Ett index byter betydelse den dag katalogen växer, och då byter
+ * varje befintlig grupp ikon utan att någon rört den. Namnen är Lucides egna (`music`, `building-2`).
+ *
+ * ⛔ DE TIO ÄLDRE ID:NA LÄSES VIDARE (`GRUPPIKONER`, 0.32.0: `grupp`, `hus` ...). De pekar på samma Lucide-ikon som de
+ * alltid ritats med (`icons.jsx`: `GruppIkon` är `Users`, `HusIkon` är `Home`, alias för `House`), så en befintlig
+ * grupp ser likadan ut. Formuläret skriver aldrig ett äldre id: väljs ikonen igen sparas Lucide-namnet.
  */
-export const GRUPPIKON_KOMPONENT = /** @type {const} */ ({
-  grupp: GruppIkon,
-  portfolj: PortfoljIkon,
-  byggnad: ByggnadIkon,
-  hus: HusIkon,
-  bok: BokIkon,
-  jordglob: JordglobIkon,
-  stjarna: StjarnaIkon,
-  hjarta: HjartaIkon,
-  blixt: BlixtIkon,
-  krona: KronaIkon,
+export const ARV_GRUPPIKON = /** @type {const} */ ({
+  grupp: "users",
+  portfolj: "briefcase",
+  byggnad: "building-2",
+  hus: "house",
+  bok: "book-open",
+  jordglob: "globe",
+  stjarna: "star",
+  hjarta: "heart",
+  blixt: "zap",
+  krona: "crown",
 });
 
-if (Object.keys(GRUPPIKON_KOMPONENT).length !== GRUPPIKONER.length || GRUPPIKONER.some((i) => !(i in GRUPPIKON_KOMPONENT))) {
-  throw new Error("gruppikoner.js: GRUPPIKON_KOMPONENT täcker inte exakt GRUPPIKONER (grupp.js). En ikon utan komponent är ett id ingen kan rita.");
+if (Object.keys(ARV_GRUPPIKON).length !== GRUPPIKONER.length || GRUPPIKONER.some((i) => !(i in ARV_GRUPPIKON))) {
+  throw new Error("gruppikoner.js: ARV_GRUPPIKON täcker inte exakt GRUPPIKONER (grupp.js). Ett äldre id utan mål är en grupp som tappar sin ikon.");
+}
+for (const namn of Object.values(ARV_GRUPPIKON)) {
+  if (!(namn in GRUPPIKON_LUCIDE)) throw new Error(`gruppikoner.js: ARV_GRUPPIKON pekar på "${namn}", som inte finns i katalogen.`);
+}
+if (Object.keys(GRUPPIKON_LUCIDE).length !== GRUPPIKONKATALOG.length) {
+  throw new Error("gruppikoner.js: katalogens data och komponenter har olika antal ikoner. Kör node scripts/generate-gruppikoner.mjs.");
+}
+
+/** @type {Map<string, import("react").ComponentType<{ size?: number }>>} */
+const OMSLAG = new Map();
+
+/**
+ * Komponenten för ett ikonnamn (ett Lucide-namn ur katalogen eller ett äldre id), med ramverkets streckvikt 1,5 och
+ * `aria-hidden`, som `icons.jsx`. `null` när namnet inte är känt.
+ * @param {string | undefined | null} namn
+ * @returns {import("react").ComponentType<{ size?: number }> | null}
+ */
+export function gruppikonKomponent(namn) {
+  const n = typeof namn === "string" ? (ARV_GRUPPIKON[/** @type {keyof typeof ARV_GRUPPIKON} */ (namn)] ?? namn) : "";
+  const Lucide = Object.hasOwn(GRUPPIKON_LUCIDE, n) ? GRUPPIKON_LUCIDE[n] : null;
+  if (!Lucide) return null;
+  let omslag = OMSLAG.get(n);
+  if (!omslag) {
+    /** @param {{ size?: number }} p */
+    omslag = ({ size = 20 }) => createElement(Lucide, { size, strokeWidth: 1.5, "aria-hidden": "true" });
+    omslag.displayName = `Gruppikon(${n})`;
+    OMSLAG.set(n, omslag);
+  }
+  return omslag;
+}
+
+/** Lucide-namnet ett sparat ikonvärde ritas som, eller tom sträng. Ett äldre id ger sitt Lucide-namn. @param {string} ikon */
+export function gruppikonNamn(ikon) {
+  const n = ARV_GRUPPIKON[/** @type {keyof typeof ARV_GRUPPIKON} */ (ikon)] ?? ikon;
+  return Object.hasOwn(GRUPPIKON_LUCIDE, n) ? n : "";
 }
 
 /**
- * Det `OpsIdentity` behöver för en grupps märke: en ton om gruppen valt färg, en ikon eller initialer om den valt något
- * av dem. Tomma fält ger ett tomt objekt, och märket ritas då precis som före 0.32.0 (ton ur `id`, initialer ur namnet).
+ * Det `OpsIdentity` behöver för en grupps märke: kulören (alltid, se `gruppKulor`), och en ikon eller initialer om gruppen
+ * valt något av dem.
  *
  * ⛔ ETT FÄLT SOM INTE KÄNNS IGEN RITAS SOM OM DET INTE FANNS, det kastar inte. Läsvägen får inte ta ned en vy för att
- * en rad skrevs av en nyare version med en ikon den här inte känner: märket faller tillbaka på initialer, och
- * `byggGrupp` är den som avvisar ett okänt id när något SKRIVS.
+ * en rad skrevs av en nyare version: märket faller tillbaka på initialer och på kulören ur `id`, och `byggGrupp` är den
+ * som avvisar ett okänt värde när något SKRIVS.
  *
- * @param {{ farg?: string, ikon?: string } | null | undefined} grupp
- * @returns {{ tone?: 1|2|3|4|5|6, icon?: import("react").ComponentType<{ size?: number }>, initialer?: string }}
+ * @param {{ id?: string, farg?: string, ikon?: string } | null | undefined} grupp
+ * @param {string} [seed] Kulörens frö när gruppen saknar `id` (formulärets nya grupp).
+ * @returns {{ kulor: number, icon?: import("react").ComponentType<{ size?: number }>, initialer?: string }}
  */
-export function gruppmarkeProps(grupp) {
-  /** @type {{ tone?: 1|2|3|4|5|6, icon?: import("react").ComponentType<{ size?: number }>, initialer?: string }} */
-  const ut = {};
-  const farg = grupp?.farg ?? "";
-  if (farg && /** @type {readonly string[]} */ (PROFILFARGER).includes(farg)) ut.tone = /** @type {1|2|3|4|5|6} */ (Number(farg));
+export function gruppmarkeProps(grupp, seed) {
+  /** @type {{ kulor: number, icon?: import("react").ComponentType<{ size?: number }>, initialer?: string }} */
+  const ut = { kulor: gruppKulor(grupp, seed) };
   const ikon = grupp?.ikon ?? "";
-  if (ikon in GRUPPIKON_KOMPONENT) ut.icon = GRUPPIKON_KOMPONENT[/** @type {keyof typeof GRUPPIKON_KOMPONENT} */ (ikon)];
+  const Ikon = gruppikonKomponent(ikon);
+  if (Ikon) ut.icon = Ikon;
   else {
     const m = GRUPPINITIALER_FORM.exec(ikon);
     if (m) ut.initialer = m[1].toUpperCase();

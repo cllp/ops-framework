@@ -36,6 +36,11 @@ import { byggTypavvikelser } from "./modultyper.js";
 import { byggSkapare } from "./skapare.js";
 import { byggNamn } from "./sprak.js";
 import { SPRAK } from "./sprak.js";
+import { arGiltigGruppfarg } from "./gruppfarg.js";
+import { GRUPPIKONKATALOG } from "./gruppikonkatalog.generated.js";
+
+/** Katalogens ikonnamn (#265), för att pröva ett sparat namn. */
+const KATALOGNAMN = new Set(GRUPPIKONKATALOG.map((i) => i.namn));
 
 /**
  * Rollerna i en grupp. Tre, och fler kräver en ändring här och i reglerna.
@@ -115,7 +120,11 @@ export const PROFILFARGER = /** @type {const} */ (["1", "2", "3", "4", "5", "6"]
  * ⛔ EGNA ID:N OCH EN EGEN LISTA, INTE `PROFILIKONER`. En profil är en person (person, leende), en
  * grupp är en verksamhet (grupp, portfölj, byggnad, hus, bok, jordglob), och att låta en grupp
  * bära "leende" hade sparat ett id vars mening är en annan. Ikonerna ritas ur
- * `src/lib/gruppikoner.js`, och en sparad grupp bär id:t, aldrig ett Lucide-namn.
+ * `src/lib/gruppikoner.js`.
+ *
+ * ⛔ SEDAN 0.65.0 (#265) ÄR DE HÄR TIO ÄLDRE ID:N, som läses vidare men inte längre skrivs av formuläret. En ny ikon
+ * sparas som sitt Lucide-namn ur den sökbara katalogen (`gruppikonkatalog.generated.js`), och ett äldre id ritas med
+ * samma Lucide-ikon som förut (`ARV_GRUPPIKON` i `gruppikoner.js`).
  *
  * ⛔ SS-GRUPPERNAS IKONER ÄR MUSIKALISKA (`groupDefaults.js`: gitarr, mikrofon, piano ...). Det är
  * SessionStudios domän, inte ramverkets, och en ops-plattform för bolag ska inte bära den.
@@ -175,8 +184,8 @@ export const MAX_PRESENTATION = 500;
  * @property {ReadonlyArray<string>} moduler Modul-id, samma form som `defineModule`.
  * @property {boolean} arkiverad
  * @property {import("./skapare.js").Skapare} skapadAv
- * @property {string} farg Ett id ur `PROFILFARGER`, eller tom sträng (då väljer märket tonen ur `id`). 0.32.0.
- * @property {string} ikon Ett id ur `GRUPPIKONER`, `initialer:<1-3 tecken>`, eller tom sträng (initialer ur namnet). 0.32.0.
+ * @property {string} farg `kulor:<0-359>` (0.65.0, #265), en äldre ton ur `PROFILFARGER` (0.32.0, ritas med sin kulör, se `gruppfarg.js`), eller tom sträng (kulören ur `id`).
+ * @property {string} ikon Ett Lucide-namn ur gruppikonkatalogen (0.65.0, #265), ett äldre id ur `GRUPPIKONER` (0.32.0), `initialer:<1-3 tecken>`, eller tom sträng (initialer ur namnet). ⛔ Ett namn, aldrig ett index.
  * @property {string} bild Lagringssökvägen till gruppens bild, eller tom sträng. Sökvägen och inte en URL, av samma skäl som `Anvandare.bildSokvag`. 0.32.0.
  * @property {string} beskrivning Högst `MAX_GRUPPBESKRIVNING` tecken, eller tom sträng. 0.32.0.
  * @property {string} ort Högst `MAX_GRUPPORT` tecken, eller tom sträng. 0.32.0.
@@ -625,14 +634,18 @@ export function byggGrupp(d, kandaModuler) {
   }
 
   const farg = rensa(rad.farg);
-  if (farg && !(/** @type {readonly string[]} */ (PROFILFARGER).includes(farg))) {
-    throw new Error(`groups: färgen "${farg}" för "${id}" finns inte. Giltiga: ${PROFILFARGER.join(", ")}, eller tom sträng.`);
+  if (!arGiltigGruppfarg(farg)) {
+    throw new Error(`groups: färgen "${farg}" för "${id}" finns inte. Giltiga: kulor:<0-359>, en äldre ton ${PROFILFARGER.join(", ")}, eller tom sträng.`);
   }
 
+  /*
+   * ⛔ ETT NAMN, ALDRIG ETT INDEX (#265). En siffra är inget Lucide-namn och inget äldre id, så "12" avvisas här: ett index
+   * hade bytt betydelse den dag katalogen växte, och då hade varje sparad grupp bytt ikon utan att någon rört den.
+   */
   const ikon = rensa(rad.ikon);
-  if (ikon && !(/** @type {readonly string[]} */ (GRUPPIKONER).includes(ikon)) && !GRUPPINITIALER_FORM.test(ikon)) {
+  if (ikon && !KATALOGNAMN.has(ikon) && !(/** @type {readonly string[]} */ (GRUPPIKONER).includes(ikon)) && !GRUPPINITIALER_FORM.test(ikon)) {
     throw new Error(
-      `groups: ikonen "${ikon}" för "${id}" finns inte. Giltiga: ${GRUPPIKONER.join(", ")}, initialer:<1-3 tecken>, eller tom sträng.`,
+      `groups: ikonen "${ikon}" för "${id}" finns inte. Giltiga: ett namn ur gruppikonkatalogen (${KATALOGNAMN.size} st, t.ex. music), ett äldre id (${GRUPPIKONER.join(", ")}), initialer:<1-3 tecken>, eller tom sträng.`,
     );
   }
 

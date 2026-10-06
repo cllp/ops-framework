@@ -1,9 +1,10 @@
 import { useId, useMemo, useState } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
-import { GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, PROFILFARGER } from "../lib/grupp.js";
-import { GRUPPIKON_KOMPONENT, gruppmarkeProps } from "../lib/gruppikoner.js";
-import { initials } from "../lib/identity.js";
+import { MAX_GRUPPBESKRIVNING, MAX_GRUPPORT } from "../lib/grupp.js";
+import { gruppmarkeProps } from "../lib/gruppikoner.js";
+import { kulorTillFarg } from "../lib/gruppfarg.js";
+import { OpsGruppmarkeValjare } from "./OpsGruppmarkeValjare.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
@@ -80,6 +81,22 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [farg] "Färg".
  * @property {string} [ikonEllerLogotyp]
  * @property {string} [initialer] Skärmläsarnamn på "Aa"-rutan.
+ * @property {string} [kulorExakt] (0.65.0, #265) Reglaget för alla 360 kulörer.
+ * @property {string} [kulorGrader] Enheten efter reglagets värde.
+ * @property {string} [kulorAterstall] Reglagets återställning till kulören ur gruppen.
+ * @property {string} [kulorHint] Vad kulören gör och inte gör.
+ * @property {string} [sokIkon] Sökfältets namn.
+ * @property {string} [sokIkonPlatshallare]
+ * @property {string} [forslagUrNamn] Raden med förslag ur gruppens namn.
+ * @property {string} [forslagInga] Texten när namnet inte ger några förslag (regel 5).
+ * @property {string} [forslagSkrivNamn] Texten när namnet är tomt.
+ * @property {string} [senastAnvanda]
+ * @property {string} [senastInga]
+ * @property {string} [vanliga]
+ * @property {string} [traffar] Rubriken över sökträffarna, följd av antalet.
+ * @property {string} [traffarStatus] Skärmläsarens statusrad efter en sökning. `{n}` byts mot antalet.
+ * @property {string} [ingetMatchar] Statusraden när sökningen inte gav något.
+ * @property {string} [ingaTraffar] Texten när sökningen inte ger något. `{fraga}` byts mot frågan.
  * @property {string} [egnaInitialer]
  * @property {string} [egnaInitialerHint]
  * @property {string} [aterstallInitialer]
@@ -134,6 +151,22 @@ const STANDARD = {
     farg: "Färg",
     ikonEllerLogotyp: "Ikon eller initialer",
     initialer: "Initialer",
+    kulorExakt: "Exakt kulör",
+    kulorGrader: "grader",
+    kulorAterstall: "Kulör ur gruppen",
+    kulorHint: "Ljusheten följer temat, ljust eller mörkt, så ikonen alltid syns.",
+    sokIkon: "Sök ikon",
+    sokIkonPlatshallare: "Musik, fotboll, kontor ...",
+    forslagUrNamn: "Förslag ur namnet",
+    forslagInga: "Namnet ger inga förslag. Sök eller välj bland de vanliga.",
+    forslagSkrivNamn: "Skriv ett gruppnamn så föreslås ikoner som passar.",
+    senastAnvanda: "Senast använda",
+    senastInga: "Inga ännu.",
+    vanliga: "Vanliga",
+    traffar: "Träffar",
+    traffarStatus: "{n} träffar",
+    ingetMatchar: "Inget matchar",
+    ingaTraffar: "Inga ikoner matchar \"{fraga}\".",
     egnaInitialer: "Egna initialer",
     egnaInitialerHint: "Ett till tre tecken. Tomt fält ger initialer ur gruppens namn.",
     aterstallInitialer: "Återställ till automatiska",
@@ -185,6 +218,22 @@ const STANDARD = {
     farg: "Color",
     ikonEllerLogotyp: "Icon or initials",
     initialer: "Initials",
+    kulorExakt: "Exact hue",
+    kulorGrader: "degrees",
+    kulorAterstall: "Hue from the group",
+    kulorHint: "The lightness follows light and dark mode, so the icon is always visible.",
+    sokIkon: "Search icons",
+    sokIkonPlatshallare: "Music, football, office ...",
+    forslagUrNamn: "Suggested from the name",
+    forslagInga: "The name gives no suggestions. Search or pick a common one.",
+    forslagSkrivNamn: "Type a group name to get matching icons.",
+    senastAnvanda: "Recently used",
+    senastInga: "None yet.",
+    vanliga: "Common",
+    traffar: "Matches",
+    traffarStatus: "{n} matches",
+    ingetMatchar: "Nothing matches",
+    ingaTraffar: "No icons match \"{fraga}\".",
     egnaInitialer: "Custom initials",
     egnaInitialerHint: "One to three characters. An empty field uses the initials of the group name.",
     aterstallInitialer: "Reset to automatic",
@@ -233,12 +282,6 @@ const STANDARD = {
 
 /** Samma tumregel som servern (`EPOSTFORM` i `src/node/grupp.js`): en rad som inte är skräp, inte en kontroll av brevlådan. */
 const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/**
- * ⛔ KLASSNAMNEN STÅR UTSKRIVNA, INTE BYGGDA med `bg-identity-${n}`: Tailwind läser källkoden som text (se `OpsIdentity`).
- * @type {Record<string, string>}
- */
-const PRICKKLASS = { 1: "bg-identity-1", 2: "bg-identity-2", 3: "bg-identity-3", 4: "bg-identity-4", 5: "bg-identity-5", 6: "bg-identity-6" };
 
 /**
  * @typedef {object} GruppFormularSvar Vad `onSkapa` svarar med (`skapaGrupp` på nodsidan).
@@ -312,9 +355,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
   const merId = useId();
   const idPrefix = useId();
 
-  const initialerAktiva = ikon === "" || GRUPPINITIALER_FORM.test(ikon);
-  const egnaInitialer = GRUPPINITIALER_FORM.exec(ikon)?.[1] ?? "";
-  const marke = useMemo(() => gruppmarkeProps({ farg, ikon }), [farg, ikon]);
+  const marke = useMemo(() => gruppmarkeProps({ id: befintlig?.id, farg, ikon }, "ny-grupp"), [befintlig?.id, farg, ikon]);
 
   /**
    * Går vidare efter att gruppen finns: panelen stängs FÖRST, sedan får appen id:t.
@@ -390,7 +431,11 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         return;
       }
       const svar = await /** @type {NonNullable<typeof onSkapa>} */ (onSkapa)({
-        grupp: { namn: namn.trim(), farg, ikon, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak },
+        /*
+         * ⛔ KULÖREN SOM VISAS ÄR KULÖREN SOM SPARAS (granskningen av PR 266). Utan val visar formuläret kulören ur fröet
+         * "ny-grupp"; sparades tom sträng hade gruppen fått en ANNAN kulör ur sitt nya id direkt efter Spara.
+         */
+        grupp: { namn: namn.trim(), farg: farg || kulorTillFarg(marke.kulor), ikon, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak },
         inbjudningar: ut,
       });
       if ((svar.fel ?? []).length > 0) {
@@ -462,95 +507,8 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
 
         {identitetOppen ? (
           <div id={identitetId} className="mt-3 flex flex-col gap-3 rounded-base border border-line bg-canvas p-3">
+            <OpsGruppmarkeValjare namn={namn} seed={befintlig?.id ?? "ny-grupp"} farg={farg} ikon={ikon} onFarg={setFarg} onIkon={setIkon} sprak={sprak === "en" ? "en" : "sv"} t={t} idPrefix={identitetId} />
             <div>
-              <p className="m-0 mb-2 text-meta font-semibold text-ink-secondary">{t.farg}</p>
-              <div className="flex flex-wrap gap-1" role="group" aria-label={t.farg}>
-                {PROFILFARGER.map((f) => {
-                  const vald = farg === f;
-                  return (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setFarg(f)}
-                      aria-label={`${t.farg} ${f}`}
-                      aria-pressed={vald}
-                      className="flex size-11 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                    >
-                      <span className={cx("flex size-9 items-center justify-center rounded-full text-ink-inverse transition-all", PRICKKLASS[f], vald && "scale-105 ring-2 ring-accent ring-offset-2 ring-offset-canvas")}>
-                        {vald ? <BockIkon size={16} /> : null}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <p className="m-0 mb-2 text-meta font-semibold text-ink-secondary">{t.ikonEllerLogotyp}</p>
-              <div className="flex flex-wrap gap-1" role="group" aria-label={t.ikonEllerLogotyp}>
-                <button
-                  type="button"
-                  onClick={() => setIkon(egnaInitialer ? ikon : "")}
-                  aria-label={t.initialer}
-                  aria-pressed={initialerAktiva}
-                  className={cx(
-                    "flex size-11 cursor-pointer items-center justify-center rounded-base text-etikett font-semibold text-ink-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    initialerAktiva && "bg-accent-subtle text-ink ring-2 ring-accent",
-                  )}
-                >
-                  Aa
-                </button>
-                {GRUPPIKONER.map((id) => {
-                  const Ikon = GRUPPIKON_KOMPONENT[id];
-                  const vald = ikon === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setIkon(id)}
-                      aria-label={id}
-                      aria-pressed={vald}
-                      className={cx(
-                        "flex size-11 cursor-pointer items-center justify-center rounded-base text-ink-secondary transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                        vald && "bg-accent-subtle text-ink ring-2 ring-accent",
-                      )}
-                    >
-                      <Ikon size={18} />
-                    </button>
-                  );
-                })}
-              </div>
-
-              {initialerAktiva ? (
-                <div className="mt-2 flex flex-col gap-1">
-                  <label htmlFor={`${identitetId}-init`} className="text-hjalp text-ink-muted">
-                    {t.egnaInitialer}
-                  </label>
-                  <p className="m-0 text-hjalp text-ink-muted">{t.egnaInitialerHint}</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      id={`${identitetId}-init`}
-                      value={egnaInitialer}
-                      maxLength={3}
-                      placeholder={initials(namn)}
-                      onChange={(e) => {
-                        const v = e.target.value.replace(/[^a-zA-ZÅÄÖåäö0-9]/g, "").toUpperCase().slice(0, 3);
-                        setIkon(v ? `initialer:${v}` : "");
-                      }}
-                      className="min-h-11 w-24 rounded-base border-[1.5px] border-line bg-surface px-3 py-2 text-brod uppercase text-ink placeholder:normal-case placeholder:text-ink-muted hover:border-line-strong focus-visible:border-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                    />
-                    {egnaInitialer ? (
-                      <button
-                        type="button"
-                        onClick={() => setIkon("")}
-                        className="min-h-11 cursor-pointer rounded-base px-2 text-meta text-accent hover:underline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-                      >
-                        {t.aterstallInitialer}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
               {redigerar && onLaddaUppBild ? (
                 <div className="mt-3 flex flex-col gap-1" data-gruppbild="">
                   <div className="flex flex-wrap items-center gap-2">

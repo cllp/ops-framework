@@ -8,6 +8,7 @@ import { OpsPill } from "./OpsPill.jsx";
 import { AndraIkon, ChevronVansterIkon, ChevronHogerIkon, InfoIkon, PersonIkon, PlusIkon } from "./icons.jsx";
 import { text } from "../lib/sprak.js";
 import { gruppmarkeProps } from "../lib/gruppikoner.js";
+import { fargTillKulor } from "../lib/gruppfarg.js";
 import { OpsHubblista, aktivHubbNamn } from "./OpsHubbar.jsx";
 
 /**
@@ -138,8 +139,8 @@ const RADIE = "rounded-base";
  * @property {string} id
  * @property {import("../lib/sprak.js").Namn} namn
  * @property {string} [bild] Gruppens egen bild till märket. Utelämnad: ikon eller initialer (`OpsIdentity`).
- * @property {string} [farg] (0.32.0, #180) Gruppens valda färg, ett id ur `PROFILFARGER`. Utelämnad eller tom: tonen härleds ur `id`, som förut.
- * @property {string} [ikon] (0.32.0, #180) Gruppens valda ikon (`GRUPPIKONER`) eller `initialer:AB`. Utelämnad eller tom: initialer ur namnet, som förut.
+ * @property {string} [farg] Gruppens valda färg: `kulor:<0-359>` (0.65.0, #265) eller en äldre ton ur `PROFILFARGER` (0.32.0). Utelämnad eller tom: kulören härleds ur `id`.
+ * @property {string} [ikon] Gruppens valda ikon, ett Lucide-namn ur gruppikonkatalogen (0.65.0, #265) eller ett äldre id (`GRUPPIKONER`), eller `initialer:AB`. Utelämnad eller tom: initialer ur namnet.
  * @property {number} [medlemsantal] Utelämnad: ingen siffra ritas, aldrig "0" som gissning.
  * @property {"agare"|"admin"|"medlem"} [roll] Utelämnad: ingen rollpill, och ingen penna.
  * @property {ReadonlyArray<GruppanelKnapp>} [atgarder] Uppe till höger på kortet (glob/info/penna, `GroupCard.jsx` rad 71-107). Utelämnad: inga.
@@ -149,20 +150,19 @@ const RADIE = "rounded-base";
 
 /**
  * Kortets kant och ljusa bakgrund när det är valt, i GRUPPENS färg (0.32.0, #180 G2, SS `GroupCard.jsx:60-65`:
- * `borderColor: group.color; backgroundColor: ${group.color}10`, alltså färgen vid ca 6 procents täckning).
+ * `borderColor: group.color; backgroundColor: ${group.color}10`).
  *
- * ⛔ KLASSERNA STÅR UTSKRIVNA, INTE BYGGDA (`border-identity-${n}`): Tailwind läser källkoden som text. Färgen är en av de sex identitetstonerna
- * (`PROFILFARGER`), aldrig en hex, samma beslut som i `OpsIdentity`. En grupp utan vald färg använder accenten som förut.
- * @type {Record<string, string>}
+ * ⛔ SEDAN 0.65.0 (#265) ÄR FÄRGEN EN KULÖR, inte en av sex klasser: `.ops-grupp-vald` (tokens.css) ritar kanten i märkets
+ * färg och bakgrunden i plattans, ur `--grupp-kulor`. En äldre ton ("1" till "6") ger sin kulör (`fargTillKulor`). En grupp
+ * UTAN sparad färg använder accenten som förut: märket har en kulör ur `id`, men kortet påstår inget val som inte gjorts.
+ * @param {string | undefined} farg
+ * @returns {{ className: string, style?: import("react").CSSProperties }}
  */
-const VALD_FARG = {
-  1: "border-identity-1 bg-identity-1/6 shadow-sm",
-  2: "border-identity-2 bg-identity-2/6 shadow-sm",
-  3: "border-identity-3 bg-identity-3/6 shadow-sm",
-  4: "border-identity-4 bg-identity-4/6 shadow-sm",
-  5: "border-identity-5 bg-identity-5/6 shadow-sm",
-  6: "border-identity-6 bg-identity-6/6 shadow-sm",
-};
+function valdStil(farg) {
+  const kulor = fargTillKulor(farg);
+  if (kulor === null) return { className: "border-accent bg-accent/10 shadow-sm" };
+  return { className: "ops-grupp-vald shadow-sm", style: /** @type {import("react").CSSProperties} */ ({ "--grupp-kulor": kulor }) };
+}
 
 /** Hur många avatarer som ritas innan resten blir en "+N" (`GroupCard.jsx` rad 178: `.slice(0, 4)`). */
 const MAX_AVATARER = 4;
@@ -243,11 +243,12 @@ function GruppanelRader({ grupper, aktiv, onValj, sprak, listEtikett, tomText, r
             onKeyDown={tangentbordsVal(valj)}
             aria-current={vald ? "true" : undefined}
             aria-label={namn}
+            style={vald ? valdStil(g.farg).style : undefined}
             className={cx(
               "flex w-full cursor-pointer flex-col overflow-hidden border p-3 text-left transition-all hover:shadow-md",
               RADIE,
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              vald ? (VALD_FARG[g.farg ?? ""] ?? "border-accent bg-accent/10 shadow-sm") : "border-line bg-surface hover:border-line-strong",
+              vald ? valdStil(g.farg).className : "border-line bg-surface hover:border-line-strong",
             )}
           >
             {/* Rad 1: märke + åtgärder. GroupCard.jsx rad 70-107, sizePx=20. */}
