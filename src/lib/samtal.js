@@ -178,6 +178,7 @@ export function byggSamtal(d) {
  * @property {string} av Avsändarens uid.
  * @property {number} tid Millisekunder sedan 1970.
  * @property {ReadonlyArray<string>} [namner] (chattens nattskiva) Vilka som nämns: uid:n, eller `["alla"]`.
+ * @property {string} [svarPa] (chattens nattskiva) Meddelandet som besvaras med citat, i samma samtal.
  */
 
 /**
@@ -186,7 +187,10 @@ export function byggSamtal(d) {
  * `namner` (chattens nattskiva, omnämnanden): uid:n eller `["alla"]`, se `kravNamner`. Utelämnat eller tomt ger ett meddelande
  * med exakt de tre fälten, som förut.
  *
- * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null }} d
+ * `svarPa` (chattens nattskiva, citat): id:t på meddelandet som besvaras, i samma samtal. Citatet härleds vid ritning, se
+ * filhuvudet för citaten längre ned.
+ *
+ * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d
  * @returns {Meddelande}
  */
 export function byggMeddelande(d) {
@@ -197,7 +201,8 @@ export function byggMeddelande(d) {
   const tid = d.tid ?? Date.now();
   if (!Number.isInteger(tid)) throw new Error("byggMeddelande: tid är millisekunder, ett heltal.");
   const namner = kravNamner(d.namner, "byggMeddelande");
-  return Object.freeze(namner ? { text, av, tid, namner } : { text, av, tid });
+  const svarPa = d.svarPa === undefined || d.svarPa === null ? null : kravMid(d.svarPa, "byggMeddelande");
+  return Object.freeze({ text, av, tid, ...(namner ? { namner } : {}), ...(svarPa ? { svarPa } : {}) });
 }
 
 /**
@@ -751,3 +756,18 @@ export function agentenNamnd(meddelande, agentUid, medlemmar) {
   const agent = (medlemmar ?? []).find((m) => m && m.userId === agentUid);
   return Boolean(agent) && agent?.typ === "agent" && arNamnd(meddelande, agentUid, medlemmar);
 }
+
+/*
+ * ══ ⛔ SVAR MED CITAT I PRIVATA SAMTAL (chattanalysen 3.3) ═════════════════════════════════════════════════════════════════
+ *
+ *   <meddelanden>/{mid}  { text, av, tid, svarPa?: mid }
+ *
+ * SS kopierade den besvarade texten in i svaret (`replyTo: { messageId, userName, text }`), kapad, och fick städa citaten separat
+ * när ett konto raderades. Här lagras bara id:t, och citatet (namn och utdrag) HÄRLEDS ur det besvarade meddelandet när det ritas.
+ *
+ * ⛔ BARA I PRIVATA SAMTAL OCH AGENTSAMTAL. Gruppchatten har trådar för "svara på det här", och två sätt att svara i samma yta hade
+ * varit två sanningar om vad som hör ihop. Regeln kräver att samtalet inte är gruppchatten, och att meddelandet finns i samma samtal.
+ */
+
+/** Fältet på meddelandet. */
+export const SVARPAFALT = "svarPa";

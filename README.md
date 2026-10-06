@@ -1899,6 +1899,15 @@ dig i gruppchatten" för olästa omnämnanden; utan `medlemmar` ingen sådan not
 en lista ur medlemmarna och agenten plus "alla" (pilarna, Enter eller Tab, Escape); bara de uid vars `@Namn` står kvar i texten
 skickas. `skicka` och `skickaITrad` tar `namner`, och kastar på det när källan saknar `omnamnanden` (`harOmnamnanden`).
 
+**Svar med citat, med nyckeln `citat: true`, och sök i samtalet.** Ett meddelande i ett privat samtal eller agentsamtal får
+`svarPa` (`SVARPAFALT`), id:t på ett meddelande i samma samtal; ingen kopia av texten. Regeln kräver att samtalet inte är gruppchatten
+(där är tråden svaret) och att meddelandet finns i samma samtal. Citatet härleds vid ritning ur det besvarade meddelandet, ur det
+laddade eller lästa en gång med källans `meddelande(sid, mid)`, och "Meddelandet går inte att läsa." står där det inte finns. "Svara
+med citat" står vid varje meddelande när `harCitat(kalla)`, raden "Svarar på" står ovanför skrivfältet, och Escape eller krysset
+avbryter. **Sök i samtalet** (knappen i huvudet, i alla samtal): träffarna bland de laddade meddelandena markeras, "1 av 3" med
+föregående och nästa (Enter bakåt, Skift plus Enter framåt), "Ingen träff bland de laddade meddelandena." vid noll, och när äldre
+finns säger raden hur långt sökningen når. Fulltext över historiken kräver en server och är inte byggd.
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.

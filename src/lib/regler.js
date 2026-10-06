@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -763,11 +763,13 @@ export function konfigloggregelfragment(namn) {
  *   - OMNÄMNANDEN (chattens nattskiva, med `omnamnanden: true`): ett meddelande, i samtalet och i en tråd, får bära `namner`, en
  *     lista med 1 till `MAX_NAMNER` olika poster där "alla" bara står ensamt. ⛔ Regeln kan inte loopa och prövar därför formen,
  *     inte att varje uid är medlem: den som läser omnämnandet auktoriserar (`namnda` i lib/samtal.js).
+ *   - CITAT (chattens nattskiva, med `citat: true`): ett meddelande i samtalet (inte i en tråd) får bära `svarPa`, id:t på ett
+ *     meddelande som finns i SAMMA samtal, och bara när samtalet inte är gruppchatten (där är trådar svaret).
  *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -788,8 +790,12 @@ export function samtalsregelfragment(namn = {}) {
   if (namn.omnamnanden !== undefined && typeof namn.omnamnanden !== "boolean") throw new Error("samtalsregelfragment: omnamnanden är true eller utelämnat.");
   const omnamnanden = namn.omnamnanden === true;
   // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
+  if (namn.citat !== undefined && typeof namn.citat !== "boolean") throw new Error("samtalsregelfragment: citat är true eller utelämnat.");
+  const citat = namn.citat === true;
+  // Trådens meddelanden: utan `svarPa` (citat finns bara utanför gruppchatten, och trådar bara i den).
   const meddelandefalt = omnamnanden ? [...MEDDELANDEFALT, NAMNERFALT] : [...MEDDELANDEFALT];
-  const namnervillkor = omnamnanden ? "\n          && opsGiltigaNamner(request.resource.data)" : "";
+  const samtalsfaltlista = citat ? [...meddelandefalt, SVARPAFALT] : meddelandefalt;
+  const namnervillkor = (omnamnanden ? "\n          && opsGiltigaNamner(request.resource.data)" : "") + (citat ? "\n          && opsGiltigtSvarPa(sid, request.resource.data)" : "");
   const tradnamnervillkor = omnamnanden ? "\n            && opsGiltigaNamner(request.resource.data)" : "";
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const A = SAMTALSAVGRANSARE;
@@ -797,8 +803,18 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : [])].join(", ");
   const R = SAMTALSAVGRANSARE;
+  const citatfunktion = citat
+    ? `    // Citat (chattens nattskiva): saknas, eller ett meddelande i samma samtal, och aldrig i gruppchatten.
+    function opsGiltigtSvarPa(sid, d) {
+      return !('${SVARPAFALT}' in d) || (d.${SVARPAFALT} is string
+        && get(opsSamtalet(sid)).data.slag != '${GRUPPSAMTAL}'
+        && exists(/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(d.${SVARPAFALT})));
+    }
+
+`
+    : "";
   const namnerfunktion = omnamnanden
     ? `    // Omnämnanden (chattens nattskiva): saknas, eller 1 till ${MAX_NAMNER} olika poster, och "${NAMNER_ALLA}" bara ensamt.
     function opsGiltigaNamner(d) {
@@ -949,7 +965,7 @@ export function samtalsregelfragment(namn = {}) {
       return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
     }
 
-${tradfunktioner}${reaktionsfunktion}${namnerfunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
@@ -982,7 +998,7 @@ ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}    // Ett nytt samtal: ny
       match /${meddelanden}/{mid} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && request.resource.data.keys().hasOnly([${lista(meddelandefalt)}])${namnervillkor}
+          && request.resource.data.keys().hasOnly([${lista(samtalsfaltlista)}])${namnervillkor}
           && request.resource.data.av == request.auth.uid
           && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
           && request.resource.data.text is string

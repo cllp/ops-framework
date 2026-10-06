@@ -199,6 +199,9 @@ function avsluta() {
 //       träffyta, väljaren öppnas med sex knappar om 44 px helt inom fönstret, och Escape stänger den med fokus kvar på Reagera.
 //   (4) OMNÄMNANDEN: "@" i gruppchattens skrivfält öppnar listan ovanför fältet med minst 4 förslag (personer, agenten, alla),
 //       varje rad minst 44 px och helt inom fönstret; Enter skriver namnet i fältet och stänger listan.
+//   (5) CITAT OCH SÖK: i det privata samtalet ger "Svara med citat" (44 px) en rad ovanför skrivfältet med "Svarar på Bo Lind"
+//       och ett kryss på 44 px; det skickade svaret bär citatet ovanför bubblan, inom loggens bredd. "Sök i samtalet" (44 px) öppnar
+//       en rad under huvudet; "fakturan" ger "1 av 1" och den aktuella bubblan markerad och synlig i loggen.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
 async function chattensNattskiva() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -308,6 +311,58 @@ async function chattensNattskiva() {
         await page.keyboard.press("Enter");
         const efter = await page.evaluate(() => ({ text: /** @type {HTMLTextAreaElement} */ (document.querySelector("[data-ops-samtal] textarea")).value, oppen: Boolean(document.querySelector("[data-omnamnande]")) }));
         krav(efter.text === "Kan @Cecilia Berg " && !efter.oppen, `${namn}: Enter ska skriva det valda namnet och stänga listan (${JSON.stringify(efter)}).`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (5) citat och sök ─────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "privat");
+      const namn = `chatt (5) citat och sök ${vp.width}`;
+      try {
+        await page.waitForSelector('[data-ops-samtal="personer"] [data-citera]', { timeout: 6000 });
+        const rad = page.locator('[data-ops-samtal="personer"] [data-meddelande="annans"]').first();
+        await rad.hover();
+        const kb = await rad.locator("[data-citera]").boundingBox();
+        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: Svara med citat har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
+        await rad.locator("[data-citera]").click();
+        const strip = await page.evaluate(() => {
+          const el = /** @type {HTMLElement} */ (document.querySelector("[data-svarar-pa]"));
+          const form = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] form'));
+          const kryss = /** @type {HTMLElement} */ (el.querySelector("button"));
+          return { text: (el.textContent || "").trim(), ovanfor: el.getBoundingClientRect().bottom <= form.getBoundingClientRect().top + 0.5, kryss: kryss.getBoundingClientRect().height, fokus: document.activeElement?.tagName };
+        });
+        matt.push(`${namn}: raden ${JSON.stringify(strip)}`);
+        krav(strip.text.startsWith("Svarar på Bo Lind") && strip.ovanfor && strip.kryss >= 43.5 && strip.fokus === "TEXTAREA", `${namn}: raden ovanför fältet är fel (${JSON.stringify(strip)}).`);
+        await page.keyboard.type("Ja, i eftermiddag.");
+        await page.keyboard.press("Enter");
+        await page.waitForSelector('[data-ops-samtal="personer"] [data-citat]', { timeout: 4000 });
+        const citat = await page.evaluate(() => {
+          const c = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] [data-citat]'));
+          const l = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] [role=log]'));
+          const bubbla = /** @type {HTMLElement} */ (c.parentElement?.querySelector("[data-bubbla]"));
+          return { text: (c.textContent || "").trim(), ovanforBubbla: c.getBoundingClientRect().bottom <= bubbla.getBoundingClientRect().top + 0.5, inom: c.getBoundingClientRect().right <= l.getBoundingClientRect().right + 0.5 && c.getBoundingClientRect().left >= l.getBoundingClientRect().left - 0.5 };
+        });
+        matt.push(`${namn}: citatet ${JSON.stringify(citat)}`);
+        krav(citat.text.startsWith("Bo Lind: Hej Anna!") && citat.ovanforBubbla && citat.inom, `${namn}: citatet ska stå ovanför svaret och inom loggen (${JSON.stringify(citat)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-5-citat-${vp.width}.png`) });
+        const sk = await page.locator("[data-sok-samtal]").boundingBox();
+        krav(!!sk && sk.width >= 43.5 && sk.height >= 43.5, `${namn}: Sök i samtalet har ${sk?.width}x${sk?.height} px.`);
+        await page.locator("[data-sok-samtal]").click();
+        await page.keyboard.type("fakturan");
+        await page.waitForTimeout(200);
+        const sok = await page.evaluate(() => {
+          const a = /** @type {HTMLElement | null} */ (document.querySelector('[data-traff="aktuell"]'));
+          const l = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] [role=log]'));
+          const r = a?.getBoundingClientRect();
+          const lr = l.getBoundingClientRect();
+          return { plats: document.querySelector("[data-sok-plats]")?.textContent ?? null, synlig: !!r && r.top >= lr.top - 0.5 && r.bottom <= lr.bottom + 0.5, kontur: a ? getComputedStyle(a).outlineStyle : null };
+        });
+        matt.push(`${namn}: sök ${JSON.stringify(sok)}`);
+        krav(sok.plats === "1 av 1" && sok.synlig && sok.kontur !== "none", `${namn}: sökningen ska ge 1 av 1 med den aktuella markerad och synlig (${JSON.stringify(sok)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-5-sok-${vp.width}.png`) });
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);

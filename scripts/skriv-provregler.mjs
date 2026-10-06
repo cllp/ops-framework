@@ -55,7 +55,7 @@ ${gruppadSamling("handelser")}
 ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 ${katalogregelfragment("kataloger")}
 ${konfigloggregelfragment("konfiglogg")}
-${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true })}
+${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true })}
 ${kalenderregelfragment()}
 ${handelseregelfragment()}
     // Påhittad app-samling (se filhuvudet): appens eget block, med ramverkets fält prövade av opsHandelsefaltGiltiga.

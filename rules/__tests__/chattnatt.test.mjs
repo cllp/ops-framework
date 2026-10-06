@@ -52,6 +52,9 @@ export const MUTATIONER = {
   "namner-dubbletter": ["\n        && d.namner.toSet().size() == d.namner.size()", ""],
   "namner-alla-med-andra": ["\n        && (!('alla' in d.namner) || d.namner.size() == 1)", ""],
   "namner-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\"])\n          && opsGiltigaNamner(request.resource.data)", "size() > 0\n          && opsGiltigaNamner(request.resource.data)"],
+  "svarpa-i-gruppchatten": ["        && get(opsSamtalet(sid)).data.slag != 'grupp'\n", ""],
+  "svarpa-utan-meddelande": ["\n        && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(d.svarPa)));", ");"],
+  "svarpa-fri-form": ["      return !('svarPa' in d) || (d.svarPa is string", "      return true || (d.svarPa is string"],
 };
 
 /** Provreglerna, eller (bara för bevisets röda riktning) provreglerna med ett skydd bortplockat. */
@@ -60,7 +63,7 @@ function regeltext() {
   if (!fs.existsSync(fil)) throw new Error("rules/provregler.rules saknas. Kör npm run test:rules.");
   const text = fs.readFileSync(fil, "utf8");
   // ⛔ GOLV: varje nytt block måste finnas, annars mäter provet regler utan det som ska provas.
-  for (const block of ["match /status/{dok} {", "match /reaktioner/{rid} {", "function opsGiltigReaktion(", "function opsGiltigaNamner("]) {
+  for (const block of ["match /status/{dok} {", "match /reaktioner/{rid} {", "function opsGiltigReaktion(", "function opsGiltigaNamner(", "function opsGiltigtSvarPa("]) {
     if (!text.includes(block)) throw new Error(`"${block}" saknas i provreglerna`);
   }
   const namn = process.env.CHATTPROV_MUTATION;
@@ -219,5 +222,20 @@ describe("⛔ omnämnanden: formen prövas i regeln, i samtalet och i tråden", 
   });
   it("⛔ inga andra nya fält på meddelandet", async () => {
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x7`), mmsg(ANNA, { mentions: [BO] })));
+  });
+});
+
+describe("⛔ citat: bara i privata samtal, bara ett meddelande i samma samtal", () => {
+  it("en deltagare svarar med citat på ett meddelande i samma privata samtal", async () => {
+    await assertSucceeds(setDoc(doc(som(BO), `samtal/${annaBo}/meddelanden/c1`), { text: "Ja", av: BO, tid: nu(), svarPa: P1 }));
+  });
+  it("⛔ inte i gruppchatten, inte ett meddelande som inte finns, inte ett ur ett annat samtal, och inte som annat än en sträng", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/c2`), { text: "Ja", av: ANNA, tid: nu(), svarPa: M1 }));
+    await assertFails(setDoc(doc(som(BO), `samtal/${annaBo}/meddelanden/c3`), { text: "Ja", av: BO, tid: nu(), svarPa: "finns-inte" }));
+    await assertFails(setDoc(doc(som(BO), `samtal/${annaBo}/meddelanden/c4`), { text: "Ja", av: BO, tid: nu(), svarPa: M1 }));
+    await assertFails(setDoc(doc(som(BO), `samtal/${annaBo}/meddelanden/c5`), { text: "Ja", av: BO, tid: nu(), svarPa: 5 }));
+  });
+  it("⛔ inte i en tråd", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/c6`), { text: "Ja", av: ANNA, tid: nu(), svarPa: TM }));
   });
 });

@@ -4,7 +4,7 @@ import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
+import { harCitat, harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -13,7 +13,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
-import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -126,6 +126,16 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren.
  * @property {string} [allaNamn] (chattens nattskiva) Förslaget som nämner hela gruppen. Förval "alla".
  * @property {string} [namnForslag] @-listans namn för skärmläsaren. Förval "Nämn någon".
+ * @property {string} [citera] (chattens nattskiva) Förval "Svara med citat".
+ * @property {string} [svararPa] Raden ovanför skrivfältet. Förval "Svarar på".
+ * @property {string} [avbrytCitat] Förval "Avbryt citatet".
+ * @property {string} [citatSaknas] När det citerade meddelandet inte går att läsa. Förval "Meddelandet går inte att läsa.".
+ * @property {string} [sokISamtalet] Förval "Sök i samtalet".
+ * @property {string} [stangSok] Förval "Stäng sökningen".
+ * @property {string} [nastaTraff] Förval "Nästa träff".
+ * @property {string} [forraTraff] Förval "Föregående träff".
+ * @property {string} [ingenTraffLaddade] Förval "Ingen träff bland de laddade meddelandena.".
+ * @property {string} [sokOmfang] Hur långt sökningen når. `{n}` byts mot antalet. Förval "Söker bland de {n} laddade meddelandena. Visa äldre för att söka längre bak.".
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
@@ -188,6 +198,16 @@ const TEXTER = {
   reaktionerFel: "Reaktionerna kunde inte hämtas.",
   reaktionerFler: "Äldre reaktioner visas inte.",
   reaktionsnamn: {},
+  citera: "Svara med citat",
+  svararPa: "Svarar på",
+  avbrytCitat: "Avbryt citatet",
+  citatSaknas: "Meddelandet går inte att läsa.",
+  sokISamtalet: "Sök i samtalet",
+  stangSok: "Stäng sökningen",
+  nastaTraff: "Nästa träff",
+  forraTraff: "Föregående träff",
+  ingenTraffLaddade: "Ingen träff bland de laddade meddelandena.",
+  sokOmfang: "Söker bland de {n} laddade meddelandena. Visa äldre för att söka längre bak.",
   allaNamn: "alla",
   namnForslag: "Nämn någon",
   agentTanker: "Agenten tänker",
@@ -772,9 +792,11 @@ const MAX_FORSLAG = 6;
  * ett omnämnande man raderat ur texten inte skickas. "@alla" blir `["alla"]`. Listan nås med tangentbordet: pilarna väljer, Enter
  * eller Tab tar valet, Escape stänger.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null }} props
+ * `fokusNyckel`: när den ändras (ett citat valdes) får fältet fokus. `onEscape`: Escape utan öppen lista (avbryter citatet).
+ *
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void }} props
  */
-function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null }) {
+function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
@@ -793,6 +815,9 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
     return [...personer, ...alla].slice(0, MAX_FORSLAG);
   }, [omnamnande, fraga, t.allaNamn]);
   const oppen = forslag.length > 0;
+  useEffect(() => {
+    if (fokusNyckel) ruta.current?.focus({ preventScroll: true });
+  }, [fokusNyckel]);
   /** @param {string} v @param {number} markor */
   const las = (v, markor) => {
     if (!omnamnande) return setFraga(null);
@@ -872,6 +897,11 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
               setFraga(null);
               return;
             }
+          }
+          if (e.key === "Escape" && onEscape) {
+            e.preventDefault();
+            onEscape();
+            return;
           }
           // ⛔ Enter skickar, Skift plus Enter bryter raden, som SS skrivfält (`ComposerBar.jsx`).
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -962,6 +992,11 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const historik = useHistorik({ kalla, sid: samtal.id, live: meddelanden, logg: loggRef });
   const alla = historik.alla;
   const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, undefined, uid);
+  // ⛔ Citat bara utanför gruppchatten (regeln kräver det): där är tråden svaret.
+  const medCitat = harCitat(kalla) && samtal.slag !== "grupp";
+  const [svarPa, setSvarPa] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null} */ (null));
+  const citatuppslag = useCitatuppslag(medCitat || alla.some((m) => m.svarPa) ? kalla : null, samtal.id, alla);
+  const sok = useSokISamtal(alla, loggRef);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
 
@@ -1016,8 +1051,9 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     if (skickar || !text.trim()) return;
     setSkickar(true);
     try {
-      const ny = await kalla.skicka(samtal.id, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}) });
+      const ny = await kalla.skicka(samtal.id, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}) });
       setText("");
+      setSvarPa(null);
       if (ny && typeof ny.tid === "number") onSkickat?.(/** @type {any} */ (ny));
       // Med en prenumeration kommer meddelandet av sig självt. Utan den läses samtalet om.
       if (!lyssnar.current) await lasIn();
@@ -1042,7 +1078,18 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
             <span>{privatRad}</span>
           </p>
         </div>
+        <button
+          type="button"
+          data-sok-samtal=""
+          aria-label={t.sokISamtalet}
+          aria-expanded={sok.oppen}
+          onClick={() => (sok.oppen ? sok.stang() : sok.oppna())}
+          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          <SokIkon size={16} />
+        </button>
       </header>
+      {sok.oppen ? <Sokrad sok={sok} antal={alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
 
       <div ref={loggRef} role="log" aria-label={rubrik} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
@@ -1071,6 +1118,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           meddelanden={alla}
           reakt={reakt}
           texter={t}
+          citat={{ pa: medCitat, onCitera: (m) => setSvarPa(m), uppslag: citatuppslag }}
+          traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null}
           uid={uid}
           namnFor={namnFor}
           medlemmar={medlemmar}
@@ -1125,7 +1174,23 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         <div ref={slut} />
       </div>
 
-      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus={utkast !== undefined} omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)} />
+      {svarPa ? (
+        <div data-svarar-pa={svarPa.id} className="flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
+          <CiteraIkon size={14} />
+          <span className="min-w-0 flex-1 truncate">
+            {t.svararPa} <span className="font-medium text-ink">{svarPa.av === uid ? t.du : namnFor(svarPa.av)}</span>: {utdrag(svarPa.text, 60)}
+          </span>
+          <button
+            type="button"
+            aria-label={t.avbrytCitat}
+            onClick={() => setSvarPa(null)}
+            className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <KryssIkon size={14} />
+          </button>
+        </div>
+      ) : null}
+      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus={utkast !== undefined} omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)} fokusNyckel={svarPa?.id} onEscape={svarPa ? () => setSvarPa(null) : undefined} />
     </div>
   );
 }
@@ -1230,8 +1295,11 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  *   roten). Samma dag ger då ingen ny avdelare: två "I dag" på rad är en avdelare som inte avdelar något.
  * @param {ReturnType<typeof useReaktioner>} [props.reakt] (chattens nattskiva) Reaktionerna, när källan har dem.
  * @param {Required<Meddelandetexter>} [props.texter]
+ * @param {{ pa: boolean, onCitera: (m: import("../lib/samtal.js").Meddelande & { id: string }) => void, uppslag: Map<string, (import("../lib/samtal.js").Meddelande & { id: string }) | null> }} [props.citat]
+ *   (chattens nattskiva) Citaten: knappen när `pa`, och det citerade meddelandet ur `uppslag` (`null`: går inte att läsa).
+ * @param {{ ids: ReadonlySet<string>, aktuell: string | null } | null} [props.traffar] Sökningens träffar i samtalet.
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -1266,10 +1334,13 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
               ) : null}
               <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
                 {!egen && !fortsattning && visaNamn ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
+                {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
                 <div
                   data-bubbla=""
+                  data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
                   className={cx(
                     "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
+                    traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
                     egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
                     fortsattning && egen ? "rounded-tr-lg" : "",
                     fortsattning && !egen ? "rounded-tl-lg" : "",
@@ -1284,6 +1355,17 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                   <span className="text-liten tabular-nums text-ink-muted">{formatTime(m.tid, { locale })}</span>
                   {extra}
                   {reakt?.pa ? <ReageraKnapp m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
+                  {citat?.pa ? (
+                    <button
+                      type="button"
+                      data-citera={m.id}
+                      aria-label={texter.citera}
+                      onClick={() => citat.onCitera(m)}
+                      className="-my-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted transition-[color,background-color,opacity] duration-(--duration-fast) ease-standard hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:focus-visible:opacity-100"
+                    >
+                      <CiteraIkon size={16} />
+                    </button>
+                  ) : null}
                 </span>
               </div>
             </div>
@@ -1910,5 +1992,158 @@ function ReageraKnapp({ m, egen, reakt, texter: t }) {
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Citatet ovanför ett svar (chattens nattskiva): namnet och ett utdrag, HÄRLETT ur det citerade meddelandet. ⛔ Ingen kopia av
+ * texten i svaret (SS kopierade den, och fick städa citaten när ett konto raderades). Går meddelandet inte att läsa sägs det.
+ *
+ * @param {{ mid: string, uppslag: Map<string, (import("../lib/samtal.js").Meddelande & { id: string }) | null>, egen: boolean, uid: string, namnFor: (uid: string) => string, texter: Required<Meddelandetexter> }} props
+ */
+function Citat({ mid, uppslag, egen, uid, namnFor, texter: t }) {
+  const m = uppslag.get(mid);
+  return (
+    <div data-citat={mid} className={cx("mb-0.5 max-w-full rounded-lg border-l-2 border-line-strong bg-canvas px-2.5 py-1 text-meta text-ink-secondary", egen ? "self-end" : "self-start")}>
+      {m === undefined ? (
+        <span aria-busy="true">…</span>
+      ) : m === null ? (
+        <span data-citat-saknas="">{t.citatSaknas}</span>
+      ) : (
+        <>
+          <span className="font-medium text-ink">{m.av === uid ? t.du : namnFor(m.av)}</span>
+          <span>: {utdrag(m.text, 80)}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * De citerade meddelandena: de som redan är laddade, och de andra lästa en gång var (`kalla.meddelande`). `null`: finns inte.
+ * @param {ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla> | null} kalla
+ * @param {string} sid @param {ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }>} alla
+ */
+function useCitatuppslag(kalla, sid, alla) {
+  const [lasta, setLasta] = useState(/** @type {Map<string, (import("../lib/samtal.js").Meddelande & { id: string }) | null>} */ (new Map()));
+  const begarda = useRef(/** @type {Set<string>} */ (new Set()));
+  const laddade = useMemo(() => new Map(alla.map((m) => [m.id, m])), [alla]);
+  useEffect(() => {
+    if (!kalla) return;
+    const saknas = [...new Set(alla.map((m) => m.svarPa).filter((x) => typeof x === "string" && !laddade.has(x) && !begarda.current.has(x)))];
+    for (const mid of /** @type {string[]} */ (saknas)) {
+      begarda.current.add(mid);
+      kalla.meddelande(sid, mid).then(
+        (m) => setLasta((f) => new Map(f).set(mid, m ? { ...m, id: mid } : null)),
+        () => setLasta((f) => new Map(f).set(mid, null)),
+      );
+    }
+  }, [kalla, sid, alla, laddade]);
+  return useMemo(() => new Map([...lasta, ...laddade]), [lasta, laddade]);
+}
+
+/**
+ * Sökningen i det öppna samtalet (chattens nattskiva): träffarna bland de laddade meddelandena, och den aktuella rullad fram.
+ * @param {ReadonlyArray<import("../lib/samtal.js").Meddelande & { id: string }>} alla @param {{ current: HTMLElement | null }} logg
+ */
+function useSokISamtal(alla, logg) {
+  const [oppen, setOppen] = useState(false);
+  const [q, setQ] = useState("");
+  const [index, setIndex] = useState(0);
+  const lista = useMemo(() => {
+    const n = q.trim().toLocaleLowerCase("sv");
+    return n ? alla.filter((m) => m.text.toLocaleLowerCase("sv").includes(n)).map((m) => m.id) : [];
+  }, [alla, q]);
+  // Den senaste träffen först, som SS: det man letar efter har oftast nyss sagts.
+  const aktuell = lista.length ? lista[Math.max(0, lista.length - 1 - (index % lista.length))] : null;
+  useEffect(() => {
+    if (!aktuell) return;
+    const el = logg.current?.querySelector(`[data-traff="aktuell"]`);
+    /** @type {any} */ (el)?.scrollIntoView?.({ block: "center" });
+  }, [aktuell, logg]);
+  return {
+    oppen,
+    q,
+    setQ: (/** @type {string} */ v) => {
+      setQ(v);
+      setIndex(0);
+    },
+    traffar: new Set(lista),
+    antal: lista.length,
+    plats: lista.length ? (index % lista.length) + 1 : 0,
+    aktuell,
+    // "Föregående" är äldre (uppåt i loggen), "nästa" nyare (nedåt). Båda varvar runt.
+    forra: () => setIndex((i) => (i + 1) % Math.max(1, lista.length)),
+    nasta: () => setIndex((i) => (i + Math.max(1, lista.length) - 1) % Math.max(1, lista.length)),
+    oppna: () => setOppen(true),
+    stang: () => {
+      setOppen(false);
+      setQ("");
+      setIndex(0);
+    },
+  };
+}
+
+/**
+ * Sökraden under samtalets huvud. ⛔ Den säger hur långt den når: bara de laddade meddelandena, och "Visa äldre" för att nå längre.
+ * Noll träffar sägs ut, med samma förbehåll (regel 5).
+ * @param {{ sok: ReturnType<typeof useSokISamtal>, antal: number, kanFinnasAldre: boolean, texter: Required<Meddelandetexter> }} props
+ */
+function Sokrad({ sok, antal, kanFinnasAldre, texter: t }) {
+  const falt = useRef(/** @type {HTMLInputElement | null} */ (null));
+  useEffect(() => {
+    falt.current?.focus();
+  }, []);
+  return (
+    <div data-sokrad="" className="flex shrink-0 flex-col gap-1 border-b border-line px-3 py-2">
+      <div className="flex items-center gap-1">
+        <label className="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 rounded-base border border-line bg-surface px-2.5 text-ink-muted focus-within:outline-2 focus-within:outline-accent">
+          <SokIkon size={14} />
+          <input
+            ref={falt}
+            type="search"
+            value={sok.q}
+            onChange={(e) => sok.setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                // Enter letar bakåt i samtalet, Skift plus Enter framåt.
+                if (e.shiftKey) sok.nasta();
+                else sok.forra();
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                sok.stang();
+              }
+            }}
+            aria-label={t.sokISamtalet}
+            placeholder={t.sokISamtalet}
+            className="min-w-0 flex-1 bg-transparent text-hjalp text-ink outline-none placeholder:text-ink-muted"
+          />
+        </label>
+        <span data-sok-plats="" role="status" className="min-w-12 text-center text-liten tabular-nums text-ink-muted">
+          {sok.q.trim() ? `${sok.plats} av ${sok.antal}` : ""}
+        </span>
+        <button type="button" aria-label={t.forraTraff} disabled={sok.antal < 2} onClick={sok.forra} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover disabled:cursor-default disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent">
+          <span className="inline-flex -rotate-90"><ChevronHogerIkon size={16} /></span>
+        </button>
+        <button type="button" aria-label={t.nastaTraff} disabled={sok.antal < 2} onClick={sok.nasta} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover disabled:cursor-default disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-accent">
+          <ChevronNedIkon size={16} />
+        </button>
+        <button type="button" aria-label={t.stangSok} onClick={sok.stang} className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent">
+          <KryssIkon size={14} />
+        </button>
+      </div>
+      {sok.q.trim() && sok.antal === 0 ? (
+        <p data-sok-ingen="" className="m-0 text-liten text-ink-muted">
+          {t.ingenTraffLaddade}
+        </p>
+      ) : null}
+      {kanFinnasAldre ? (
+        <p data-sok-omfang="" className="m-0 text-liten text-ink-muted">
+          {t.sokOmfang.replace("{n}", String(antal))}
+        </p>
+      ) : null}
+    </div>
   );
 }

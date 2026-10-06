@@ -34,11 +34,13 @@ import { AGENTSTATUS_ID, REAKTIONSTAK, arNamnd, byggMeddelande, byggReaktion, by
  *   samma under en tråd. ⛔ INGET FÖRVAL. Samma namn som till `samtalsregelfragment({ reaktioner })`.
  * @param {boolean} [konfig.omnamnanden] (chattens nattskiva) `true` slår på fältet `namner` på meddelandena. ⛔ INGET FÖRVAL: utan det
  *   kastar `skicka` på ett `namner`, och vyn har ingen @-lista. Samma som till `samtalsregelfragment({ omnamnanden: true })`.
+ * @param {boolean} [konfig.citat] (chattens nattskiva) `true` slår på `svarPa` på samtalets meddelanden (svar med citat i privata
+ *   samtal). ⛔ INGET FÖRVAL. Samma som till `samtalsregelfragment({ citat: true })`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
@@ -52,14 +54,16 @@ export function createSamtalskalla(konfig) {
   // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
   undersamlingskrock({ meddelanden, last, tradar, status, reaktioner }, "createSamtalskalla");
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
+  if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
 
   /**
    * Meddelandet som skrivs. ⛔ `namner` utan `omnamnanden` kastar: regeln hade nekat skrivningen, och ett fel här säger varför.
-   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null }} d @param {string} vem
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d @param {string} vem
    */
-  const nyttMeddelande = ({ text, av, namner }, vem) => {
+  const nyttMeddelande = ({ text, av, namner, svarPa }, vem) => {
     if (namner && namner.length && omnamnanden !== true) throw new Error(`${vem}: namner kräver omnamnanden: true, med samma val i samtalsregelfragment.`);
-    return byggMeddelande({ text, av, tid: klocka(), namner });
+    if (svarPa && citat !== true) throw new Error(`${vem}: svarPa kräver citat: true, med samma val i samtalsregelfragment.`);
+    return byggMeddelande({ text, av, tid: klocka(), namner, svarPa });
   };
 
   /** @param {string} sid */
@@ -144,6 +148,15 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
+   * Ett meddelande i samtalet, eller `null`. För citatet (chattens nattskiva) och fästningarna, när meddelandet inte är laddat.
+   * @param {string} sid @param {string} mid
+   * @returns {Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>}
+   */
+  async function lasMeddelande(sid, mid) {
+    return /** @type {any} */ (await kalla.read(meddelandevag(sid), mid));
+  }
+
+  /**
    * Nästa sida BAKÅT: meddelandena före det äldsta som redan är läst, i stigande tid (chattens nattskiva, "Visa äldre").
    *
    * Före chattens nattskiva gick det 51:a meddelandet bakåt inte att nå alls: kontraktet hade ingen markör, och källan läste de
@@ -195,10 +208,10 @@ export function createSamtalskalla(konfig) {
 
   /**
    * @param {string} sid
-   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null }} d
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d
    */
-  async function skicka(sid, { text, av, namner }) {
-    const m = nyttMeddelande({ text, av, namner }, "samtalskalla.skicka");
+  async function skicka(sid, { text, av, namner, svarPa }) {
+    const m = nyttMeddelande({ text, av, namner, svarPa }, "samtalskalla.skicka");
     return kalla.create(meddelandevag(sid), { ...m, ...(m.namner ? { namner: [...m.namner] } : {}) });
   }
 
@@ -503,6 +516,7 @@ export function createSamtalskalla(konfig) {
     oppnaGrupp,
     oppnaPrivat,
     meddelanden: lasMeddelanden,
+    meddelande: lasMeddelande,
     aldreMeddelanden,
     prenumerera,
     skicka,
@@ -514,6 +528,7 @@ export function createSamtalskalla(konfig) {
     ...statusfunktioner,
     ...reaktionsfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
+    ...(citat === true ? { citat: true } : {}),
   });
 }
 
@@ -565,6 +580,14 @@ export function harStatus(kalla) {
  */
 export function harReaktioner(kalla) {
   return Boolean(kalla) && typeof (/** @type {any} */ (kalla).reagera) === "function";
+}
+
+/**
+ * Har källan citat, alltså har appen slagit på dem med `citat: true`? (chattens nattskiva)
+ * @param {unknown} kalla
+ */
+export function harCitat(kalla) {
+  return Boolean(kalla) && /** @type {any} */ (kalla).citat === true;
 }
 
 /**

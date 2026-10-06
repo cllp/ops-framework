@@ -985,7 +985,7 @@ async function byggChattkalla() {
   let t = new Date(2026, 9, 6, 9, 0).getTime();
   const kalla = Ops.createMemorySource({});
   // Varje nyckel som den byggda versionen känner till. En äldre version kastar inte på en okänd nyckel, den ignorerar den.
-  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true });
+  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true });
   const ids = {};
   const a = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
   ids.agent = a.id;
