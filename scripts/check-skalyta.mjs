@@ -197,6 +197,8 @@ function avsluta() {
 //       knappen står kvar eftersom det finns fler.
 //   (3) REAKTIONER: i gruppchatten står chippen under bubblan med antal (golv: 3 chips), varje chip och "Reagera" har minst 44 px
 //       träffyta, väljaren öppnas med sex knappar om 44 px helt inom fönstret, och Escape stänger den med fokus kvar på Reagera.
+//   (4) OMNÄMNANDEN: "@" i gruppchattens skrivfält öppnar listan ovanför fältet med minst 4 förslag (personer, agenten, alla),
+//       varje rad minst 44 px och helt inom fönstret; Enter skriver namnet i fältet och stänger listan.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
 async function chattensNattskiva() {
   for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
@@ -275,6 +277,37 @@ async function chattensNattskiva() {
         await page.keyboard.press("Escape");
         const efter = await page.evaluate(() => ({ oppen: Boolean(document.querySelector("[data-reaktionsvaljare]")), fokus: document.activeElement?.hasAttribute("data-reagera") ?? false }));
         krav(!efter.oppen && efter.fokus, `${namn}: Escape ska stänga väljaren och lämna fokus på Reagera (${JSON.stringify(efter)}).`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (4) omnämnanden ───────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (4) omnämnanden ${vp.width}`;
+      try {
+        const ruta = page.locator("[data-ops-samtal] textarea");
+        await ruta.waitFor({ timeout: 6000 });
+        await ruta.click();
+        await page.keyboard.type("Kan @");
+        await page.waitForSelector("[data-omnamnande]", { timeout: 3000 });
+        const l = await page.evaluate(() => {
+          const lista = /** @type {HTMLElement} */ (document.querySelector("[data-omnamnande]"));
+          const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] textarea"));
+          const rader = [...lista.querySelectorAll("[role=option]")].map((o) => { const r = o.getBoundingClientRect(); return { text: (o.textContent || "").trim(), h: r.height, inom: r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 }; });
+          return { rader, ovanfor: lista.getBoundingClientRect().bottom <= ruta.getBoundingClientRect().top + 0.5 };
+        });
+        matt.push(`${namn}: ${JSON.stringify(l)}`);
+        krav(l.rader.length >= 4, `${namn}: ${l.rader.length} förslag, väntat minst 4 (Bo, Cecilia, agenten, alla). Golv.`);
+        krav(l.rader.every((r) => r.h >= 43.5 && r.inom) && l.ovanfor, `${namn}: förslagen ska vara 44 px höga, inom fönstret och ovanför fältet (${JSON.stringify(l)}).`);
+        krav(l.rader.some((r) => r.text.includes("Ops-agenten")) && l.rader.some((r) => r.text === "alla") && !l.rader.some((r) => r.text.includes("Anna")), `${namn}: agenten och alla ska finnas, en själv inte (${JSON.stringify(l.rader.map((r) => r.text))}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-4-omnamnanden-${vp.width}.png`) });
+        await page.keyboard.press("ArrowDown");
+        await page.keyboard.press("Enter");
+        const efter = await page.evaluate(() => ({ text: /** @type {HTMLTextAreaElement} */ (document.querySelector("[data-ops-samtal] textarea")).value, oppen: Boolean(document.querySelector("[data-omnamnande]")) }));
+        krav(efter.text === "Kan @Cecilia Berg " && !efter.oppen, `${namn}: Enter ska skriva det valda namnet och stänga listan (${JSON.stringify(efter)}).`);
         krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
       } catch (e) {
         krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);

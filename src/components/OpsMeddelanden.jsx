@@ -4,7 +4,7 @@ import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
+import { harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
@@ -124,6 +124,8 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon
  * @property {string} [reaktionerFel] Förval "Reaktionerna kunde inte hämtas.".
  * @property {string} [reaktionerFler] När läsningen nådde sitt tak. Förval "Äldre reaktioner visas inte.".
  * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren.
+ * @property {string} [allaNamn] (chattens nattskiva) Förslaget som nämner hela gruppen. Förval "alla".
+ * @property {string} [namnForslag] @-listans namn för skärmläsaren. Förval "Nämn någon".
  * @property {string} [agentTanker] (#273) Förval "Agenten tänker".
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
@@ -186,6 +188,8 @@ const TEXTER = {
   reaktionerFel: "Reaktionerna kunde inte hämtas.",
   reaktionerFler: "Äldre reaktioner visas inte.",
   reaktionsnamn: {},
+  allaNamn: "alla",
+  namnForslag: "Nämn någon",
   agentTanker: "Agenten tänker",
   agentSkriver: "Agenten skriver",
   agentFastnat: "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.",
@@ -751,41 +755,137 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, gruppMarke, onO
 }
 
 /**
+ * @typedef {object} Omnamnande (chattens nattskiva) Vilka som går att nämna i skrivfältet.
+ * @property {ReadonlyArray<{ uid: string, namn: string, typ: string }>} kandidater Aktiva medlemmar utom en själv: personer och agenten.
+ * @property {boolean} alla Om "@alla" erbjuds (gruppchatten och trådar).
+ */
+
+/** Hur många förslag @-listan visar. */
+const MAX_FORSLAG = 6;
+
+/**
  * Trådens skrivfält: en textruta och knappen Skicka. Samma i ett samtal och i läget "nytt", så att det första meddelandet
  * skrivs på samma ställe som alla andra (SS: trådens `ComposerBar`).
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: () => void, texter: Required<Meddelandetexter>, fokus?: boolean }} props
+ * ⛔ OMNÄMNANDEN (chattens nattskiva, med `omnamnande`): "@" följt av bokstäver öppnar en lista ur gruppens medlemmar och agenten.
+ * Valet skriver `@Namn` i texten och minns UID:t. Vid Skicka går `namner` med de uid vars `@Namn` fortfarande står i texten, så att
+ * ett omnämnande man raderat ur texten inte skickas. "@alla" blir `["alla"]`. Listan nås med tangentbordet: pilarna väljer, Enter
+ * eller Tab tar valet, Escape stänger.
+ *
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null }} props
  */
-function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false }) {
+function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
+  const listId = useId();
+  const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
+  const [fraga, setFraga] = useState(/** @type {{ start: number, q: string } | null} */ (null));
+  const [aktiv, setAktiv] = useState(0);
   useEffect(() => {
     if (fokus) ruta.current?.focus({ preventScroll: true });
     // Bara när fältet monteras: tråden som just öppnades ur läget "nytt" tar emot skrivandet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const forslag = useMemo(() => {
+    if (!omnamnande || !fraga) return [];
+    const q = fraga.q.toLocaleLowerCase("sv");
+    const personer = omnamnande.kandidater.filter((k) => k.namn.toLocaleLowerCase("sv").split(/\s+/).some((d) => d.startsWith(q)) || k.namn.toLocaleLowerCase("sv").startsWith(q));
+    const alla = omnamnande.alla && t.allaNamn.toLocaleLowerCase("sv").startsWith(q) ? [{ uid: "alla", namn: t.allaNamn, typ: "alla" }] : [];
+    return [...personer, ...alla].slice(0, MAX_FORSLAG);
+  }, [omnamnande, fraga, t.allaNamn]);
+  const oppen = forslag.length > 0;
+  /** @param {string} v @param {number} markor */
+  const las = (v, markor) => {
+    if (!omnamnande) return setFraga(null);
+    const m = v.slice(0, markor).match(/(^|\s)@([\p{L}\p{N}_.-]*)$/u);
+    setFraga(m ? { start: markor - m[2].length - 1, q: m[2] } : null);
+    setAktiv(0);
+  };
+  /** @param {{ uid: string, namn: string }} k */
+  const valj = (k) => {
+    if (!fraga) return;
+    const fore = text.slice(0, fraga.start);
+    const efter = text.slice(fraga.start + 1 + fraga.q.length);
+    const insatt = `@${k.namn} `;
+    valda.current.set(k.uid, k.namn);
+    setText(`${fore}${insatt}${efter.replace(/^ /, "")}`);
+    setFraga(null);
+    const pos = fore.length + insatt.length;
+    requestAnimationFrame(() => ruta.current?.setSelectionRange(pos, pos));
+  };
+  const skicka = () => {
+    const namner = [...valda.current].filter(([, namn]) => text.includes(`@${namn}`)).map(([uid]) => uid);
+    valda.current = new Map();
+    setFraga(null);
+    // ⛔ "@alla" står ensamt (modellen): hela gruppen är redan alla.
+    onSkicka(namner.length ? { namner: namner.includes("alla") ? ["alla"] : namner } : undefined);
+  };
   return (
     <form
-      className="flex shrink-0 items-end gap-2 border-t border-line px-3 py-2"
+      className="relative flex shrink-0 items-end gap-2 border-t border-line px-3 py-2"
       onSubmit={(e) => {
         e.preventDefault();
-        onSkicka();
+        skicka();
       }}
     >
+      {oppen ? (
+        <ul id={listId} role="listbox" aria-label={t.namnForslag} data-omnamnande="" className="absolute bottom-full left-3 z-10 mb-1 max-w-[calc(100%-1.5rem)] min-w-56 list-none overflow-hidden rounded-card border border-line bg-surface p-1 shadow-md">
+          {forslag.map((k, i) => (
+            <li
+              key={k.uid}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === aktiv}
+              data-forslag={k.uid}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                valj(k);
+              }}
+              className={cx("flex min-h-11 cursor-pointer items-center gap-2 rounded-base px-2 text-etikett text-ink", i === aktiv ? "bg-hover" : "")}
+            >
+              <span className="text-ink-muted">{k.typ === "agent" ? <AgentIkon size={14} /> : k.typ === "alla" ? <GruppIkon size={14} /> : "@"}</span>
+              <span className="min-w-0 truncate">{k.namn}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <textarea
         ref={ruta}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          las(e.target.value, e.target.selectionStart ?? e.target.value.length);
+        }}
         onKeyDown={(e) => {
+          if (oppen) {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              setAktiv((a) => (a + (e.key === "ArrowDown" ? 1 : forslag.length - 1)) % forslag.length);
+              return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+              e.preventDefault();
+              valj(forslag[aktiv] ?? forslag[0]);
+              return;
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setFraga(null);
+              return;
+            }
+          }
           // ⛔ Enter skickar, Skift plus Enter bryter raden, som SS skrivfält (`ComposerBar.jsx`).
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            onSkicka();
+            skicka();
           }
         }}
         rows={1}
         maxLength={MAX_MEDDELANDE}
         placeholder={t.skriv}
         aria-label={t.skriv}
+        aria-controls={oppen ? listId : undefined}
+        aria-activedescendant={oppen ? `${listId}-${aktiv}` : undefined}
+        aria-autocomplete={omnamnande ? "list" : undefined}
         className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-line bg-canvas px-3.5 py-2.5 text-etikett text-ink outline-none placeholder:text-ink-muted focus-visible:border-accent"
       />
       <button
@@ -798,6 +898,21 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false 
       </button>
     </form>
   );
+}
+
+/**
+ * Vilka som går att nämna: aktiva medlemmar utom en själv, och "@alla" i gruppchatten och trådar. `null` när källan saknar
+ * omnämnanden eller samtalet är privat (där finns ingen att nämna som inte redan läser).
+ * @param {unknown} kalla @param {string} slag @param {ReadonlyArray<Medlemsrad> | undefined} medlemmar @param {string} uid
+ * @param {(uid: string) => string} namnFor
+ * @returns {Omnamnande | null}
+ */
+function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor) {
+  if (!harOmnamnanden(kalla) || slag !== "grupp") return null;
+  const kandidater = (medlemmar ?? [])
+    .filter((m) => m && m.userId !== uid && (m.status ?? "aktiv") === "aktiv")
+    .map((m) => ({ uid: m.userId, namn: namnFor(m.userId), typ: m.typ ?? "person" }));
+  return { kandidater, alla: true };
 }
 
 /**
@@ -896,11 +1011,12 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fokusRot, meddelanden, tradar]);
 
-  const skicka = async () => {
+  /** @param {{ namner?: string[] }} [extra] */
+  const skicka = async (extra) => {
     if (skickar || !text.trim()) return;
     setSkickar(true);
     try {
-      const ny = await kalla.skicka(samtal.id, { text, av: uid });
+      const ny = await kalla.skicka(samtal.id, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}) });
       setText("");
       if (ny && typeof ny.tid === "number") onSkickat?.(/** @type {any} */ (ny));
       // Med en prenumeration kommer meddelandet av sig självt. Utan den läses samtalet om.
@@ -1009,7 +1125,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         <div ref={slut} />
       </div>
 
-      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus={utkast !== undefined} />
+      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus={utkast !== undefined} omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)} />
     </div>
   );
 }
@@ -1268,11 +1384,12 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
 
   const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
 
-  const skicka = async () => {
+  /** @param {{ namner?: string[] }} [extra] */
+  const skicka = async (extra) => {
     if (skickar || !text.trim()) return;
     setSkickar(true);
     try {
-      await kalla.skickaITrad(samtal.id, tid, { text, av: uid });
+      await kalla.skickaITrad(samtal.id, tid, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}) });
       setText("");
       onSvarat?.();
       if (!trad) await lasTraden();
@@ -1400,7 +1517,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         <div ref={slut} />
       </div>
 
-      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus />
+      <Skrivfalt text={text} setText={setText} skickar={skickar} onSkicka={skicka} texter={t} fokus omnamnande={omnamnandeFor(kalla, samtal.slag, medlemmar, uid, namnFor)} />
     </div>
   );
 }

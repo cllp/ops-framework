@@ -47,6 +47,11 @@ export const MUTATIONER = {
   "reaktion-uppdaterbar": ["        allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;\n        allow update: if false;", "        allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;\n        allow update: if opsISamtal(sid);"],
   "tradreaktion-utan-meddelande": ["&& exists(/databases/$(database)/documents/samtal/$(sid)/tradar/$(tid)/meddelanden/$(request.resource.data.mid));", ";"],
   "tradreaktion-radera-andras": ["allow delete: if opsIGruppchatten(sid) && resource.data.av == request.auth.uid;", "allow delete: if opsIGruppchatten(sid);"],
+  "namner-fri-form": ["      return !('namner' in d) || (d.namner is list\n        && d.namner.size() > 0 && d.namner.size() <= 20\n        && d.namner.toSet().size() == d.namner.size()\n        && (!('alla' in d.namner) || d.namner.size() == 1));", "      return true;"],
+  "namner-utan-tak": ["d.namner.size() <= 20", "true"],
+  "namner-dubbletter": ["\n        && d.namner.toSet().size() == d.namner.size()", ""],
+  "namner-alla-med-andra": ["\n        && (!('alla' in d.namner) || d.namner.size() == 1)", ""],
+  "namner-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\"])\n          && opsGiltigaNamner(request.resource.data)", "size() > 0\n          && opsGiltigaNamner(request.resource.data)"],
 };
 
 /** Provreglerna, eller (bara för bevisets röda riktning) provreglerna med ett skydd bortplockat. */
@@ -55,7 +60,7 @@ function regeltext() {
   if (!fs.existsSync(fil)) throw new Error("rules/provregler.rules saknas. Kör npm run test:rules.");
   const text = fs.readFileSync(fil, "utf8");
   // ⛔ GOLV: varje nytt block måste finnas, annars mäter provet regler utan det som ska provas.
-  for (const block of ["match /status/{dok} {", "match /reaktioner/{rid} {", "function opsGiltigReaktion("]) {
+  for (const block of ["match /status/{dok} {", "match /reaktioner/{rid} {", "function opsGiltigReaktion(", "function opsGiltigaNamner("]) {
     if (!text.includes(block)) throw new Error(`"${block}" saknas i provreglerna`);
   }
   const namn = process.env.CHATTPROV_MUTATION;
@@ -192,5 +197,27 @@ describe("⛔ reaktioner: en per person, meddelande och kod, bara sin egen", () 
     await assertFails(setDoc(doc(som(ANNA), tv(M1, ANNA, "klapp")), reaktion(M1, ANNA, "klapp")));
     await assertFails(deleteDoc(doc(som(ANNA), tv(TM, BO, "eld"))));
     await assertFails(getDocs(collection(som(FRAMLING), `samtal/${grupp}/tradar/${T}/reaktioner`)));
+  });
+});
+
+const mmsg = (/** @type {string} */ av, extra = {}) => ({ text: "Hej @Bo", av, tid: nu(), ...extra });
+
+describe("⛔ omnämnanden: formen prövas i regeln, i samtalet och i tråden", () => {
+  it("ett meddelande med en eller flera uid, eller med alla ensamt, skrivs", async () => {
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/n1`), mmsg(ANNA, { namner: [BO] })));
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/n2`), mmsg(ANNA, { namner: [BO, AGENT] })));
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/n3`), mmsg(ANNA, { namner: ["alla"] })));
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/n4`), mmsg(ANNA, { namner: [AGENT] })));
+  });
+  it("⛔ inte en tom lista, inte över 20, inga dubbletter, och alla inte tillsammans med andra", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x1`), mmsg(ANNA, { namner: [] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x2`), mmsg(ANNA, { namner: Array.from({ length: 21 }, (_, i) => `u${i}`) })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x3`), mmsg(ANNA, { namner: [BO, BO] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x4`), mmsg(ANNA, { namner: ["alla", BO] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x5`), mmsg(ANNA, { namner: BO })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/x6`), mmsg(ANNA, { namner: ["alla", BO] })));
+  });
+  it("⛔ inga andra nya fält på meddelandet", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x7`), mmsg(ANNA, { mentions: [BO] })));
   });
 });

@@ -177,12 +177,16 @@ export function byggSamtal(d) {
  * @property {string} text
  * @property {string} av Avsändarens uid.
  * @property {number} tid Millisekunder sedan 1970.
+ * @property {ReadonlyArray<string>} [namner] (chattens nattskiva) Vilka som nämns: uid:n, eller `["alla"]`.
  */
 
 /**
  * Bygger ett meddelande, eller kastar med skälet.
  *
- * @param {{ text: string, av: string, tid?: number }} d
+ * `namner` (chattens nattskiva, omnämnanden): uid:n eller `["alla"]`, se `kravNamner`. Utelämnat eller tomt ger ett meddelande
+ * med exakt de tre fälten, som förut.
+ *
+ * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null }} d
  * @returns {Meddelande}
  */
 export function byggMeddelande(d) {
@@ -192,7 +196,8 @@ export function byggMeddelande(d) {
   const av = kravUid(d.av, "byggMeddelande");
   const tid = d.tid ?? Date.now();
   if (!Number.isInteger(tid)) throw new Error("byggMeddelande: tid är millisekunder, ett heltal.");
-  return Object.freeze({ text, av, tid });
+  const namner = kravNamner(d.namner, "byggMeddelande");
+  return Object.freeze(namner ? { text, av, tid, namner } : { text, av, tid });
 }
 
 /**
@@ -655,4 +660,94 @@ export function summeraReaktioner(rader, uid) {
   const ut = new Map();
   for (const [mid, m] of per) ut.set(mid, REAKTIONSKODER.filter((k) => m.has(k)).map((k) => ({ kod: k, .../** @type {{ antal: number, egen: boolean }} */ (m.get(k)) })));
   return ut;
+}
+
+/*
+ * ══ ⛔ OMNÄMNANDEN, @ALLA OCH @AGENT (chattanalysen 3.4) ═══════════════════════════════════════════════════════════════════
+ *
+ *   <meddelanden>/{mid}  { text, av, tid, namner?: [uid, ...] | ["alla"] }
+ *
+ * SS matchade namnet mot TEXTEN vid skick (regexen tog högst två ord, så "Anna Maria Ek" och ett namnbyte gav ingen träff), skrev
+ * logiken en gång i webben och en gång i mobilen, och lagrade omnämnandet två gånger (`mentions` med namn och `mentionUserIds`).
+ * LifeHubs agent läste `@agent` med en regex i texten. Här:
+ *
+ * ⛔ UID:N I ETT FÄLT, VALDA UR LISTAN. Texten bär `@Namn` för den som läser; `namner` är det som gäller. Namnet ritas ur
+ * medlemskapet, så ett namnbyte ändrar ingenting i datan.
+ *
+ * ⛔ REGELN PRÖVAR FORMEN, LÄSAREN PRÖVAR MEDLEMSKAPET. Regelspråket kan inte loopa, så det kan inte pröva att varje uid är medlem.
+ * Den prövar en lista med 1 till `MAX_NAMNER` olika poster och "alla" bara ensam. Den som ANVÄNDER omnämnandet (notisen, agenten)
+ * läser bara uid:n som är aktiva medlemmar i samtalets grupp (`namnda`), samma princip som SS `computeAuthorizedMentionRecipients`.
+ * Ett påhittat uid i listan når alltså ingen.
+ *
+ * ⛔ "ALLA" EXPANDERAS VID LÄSNING, ALDRIG VID SKRIVNING. En ny medlem saknas då inte, och en som lämnat gruppen får ingenting.
+ * (bedömning) "Alla" är gruppens personer, inte agenten: en @alla till gruppen hade annars startat ett modellanrop varje gång.
+ *
+ * ⛔ @AGENT ÄR ETT OMNÄMNANDE SOM ALLA ANDRA: agentens uid i `namner`. `agentenNamnd` är det rena hjälpmedel appens agent läser
+ * i stället för en regex, i ramverkets node-del.
+ */
+
+/** Fältet på meddelandet. */
+export const NAMNERFALT = "namner";
+
+/** Värdet som betyder hela gruppen. Står alltid ensamt. */
+export const NAMNER_ALLA = "alla";
+
+/** Högst så många omnämnanden i ett meddelande. Regeln har samma tak, härlett härifrån. */
+export const MAX_NAMNER = 20;
+
+/**
+ * Prövar ett `namner`, eller kastar med skälet. `null` när inget nämns (utelämnat eller tomt).
+ * @param {unknown} namner @param {string} vem
+ * @returns {ReadonlyArray<string> | null}
+ */
+export function kravNamner(namner, vem = "kravNamner") {
+  if (namner === undefined || namner === null) return null;
+  if (!Array.isArray(namner)) throw new Error(`${vem}: namner är en lista med uid:n, eller ["${NAMNER_ALLA}"].`);
+  if (namner.length === 0) return null;
+  const lista = namner.map((u) => kravUid(u, vem));
+  if (new Set(lista).size !== lista.length) throw new Error(`${vem}: samma person nämns två gånger.`);
+  if (lista.length > MAX_NAMNER) throw new Error(`${vem}: ${lista.length} omnämnanden, taket är ${MAX_NAMNER}.`);
+  if (lista.includes(NAMNER_ALLA) && lista.length > 1) throw new Error(`${vem}: "${NAMNER_ALLA}" står ensamt. Hela gruppen är redan alla.`);
+  return Object.freeze(lista);
+}
+
+/**
+ * De som ett meddelande nämner, auktoriserade mot medlemskapet: bara aktiva medlemmar, och "alla" expanderat till gruppens aktiva
+ * PERSONER utom avsändaren. Ett uid som inte är en aktiv medlem tas bort tyst här, och det är avsikten: den som läser omnämnandet
+ * avgör vem det når, inte den som skrev det.
+ *
+ * @param {{ namner?: unknown, av?: unknown } | null | undefined} meddelande
+ * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} medlemmar Gruppens medlemskap.
+ * @returns {string[]}
+ */
+export function namnda(meddelande, medlemmar) {
+  const lista = Array.isArray(meddelande?.namner) ? meddelande.namner.filter((x) => typeof x === "string") : [];
+  if (lista.length === 0) return [];
+  const aktiva = (medlemmar ?? []).filter((m) => m && typeof m.userId === "string" && (m.status ?? "aktiv") === "aktiv");
+  if (lista.length === 1 && lista[0] === NAMNER_ALLA) {
+    return aktiva.filter((m) => (m.typ ?? "person") === "person" && m.userId !== meddelande?.av).map((m) => m.userId);
+  }
+  const ids = new Set(aktiva.map((m) => m.userId));
+  return [...new Set(lista)].filter((u) => u !== NAMNER_ALLA && ids.has(u));
+}
+
+/**
+ * Nämns `uid` i meddelandet, auktoriserat mot medlemskapet? Den egna avsändaren nämner aldrig sig själv.
+ * @param {{ namner?: unknown, av?: unknown } | null | undefined} meddelande @param {string} uid
+ * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} medlemmar
+ */
+export function arNamnd(meddelande, uid, medlemmar) {
+  return Boolean(uid) && meddelande?.av !== uid && namnda(meddelande, medlemmar).includes(uid);
+}
+
+/**
+ * Är agenten nämnd? Det rena hjälpmedel appens agent använder i stället för en regex på texten: agentens uid i `namner`, och
+ * agenten är en aktiv medlem av typen `agent` i gruppen. ⛔ "alla" väcker inte agenten (se filhuvudet för omnämnandena).
+ *
+ * @param {{ namner?: unknown, av?: unknown } | null | undefined} meddelande @param {string} agentUid
+ * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} medlemmar
+ */
+export function agentenNamnd(meddelande, agentUid, medlemmar) {
+  const agent = (medlemmar ?? []).find((m) => m && m.userId === agentUid);
+  return Boolean(agent) && agent?.typ === "agent" && arNamnd(meddelande, agentUid, medlemmar);
 }

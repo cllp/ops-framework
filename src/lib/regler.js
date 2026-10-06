@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_TRADNAMN, MEDDELANDEFALT, REAKTIONSFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -760,11 +760,14 @@ export function konfigloggregelfragment(namn) {
  *   - REAKTIONER (chattens nattskiva, med `reaktioner`): läsa som samtalet (i en tråd som tråden). Skapa: en aktiv person i
  *     samtalet, som sig själv, med en kod ur `REAKTIONSKODER`, nyckeln exakt `mid|uid|kod` ur fälten (`REAKTIONSFALT`), och
  *     meddelandet `mid` finns i samma samtal (i en tråd: i samma tråd). Radera: bara sin egen. Uppdatera: aldrig.
+ *   - OMNÄMNANDEN (chattens nattskiva, med `omnamnanden: true`): ett meddelande, i samtalet och i en tråd, får bära `namner`, en
+ *     lista med 1 till `MAX_NAMNER` olika poster där "alla" bara står ensamt. ⛔ Regeln kan inte loopa och prövar därför formen,
+ *     inte att varje uid är medlem: den som läser omnämnandet auktoriserar (`namnda` i lib/samtal.js).
  *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -782,14 +785,31 @@ export function samtalsregelfragment(namn = {}) {
   const reaktioner = namn.reaktioner === undefined ? null : kontrolleraNamn(namn.reaktioner, "reaktioner");
   // ⛔ KAN 7: ett namn som är samma som en annan undersamling hade lagt två regler på samma väg. Samma prövning som källan gör.
   undersamlingskrock({ meddelanden, last, tradar, status, reaktioner }, "samtalsregelfragment");
+  if (namn.omnamnanden !== undefined && typeof namn.omnamnanden !== "boolean") throw new Error("samtalsregelfragment: omnamnanden är true eller utelämnat.");
+  const omnamnanden = namn.omnamnanden === true;
+  // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
+  const meddelandefalt = omnamnanden ? [...MEDDELANDEFALT, NAMNERFALT] : [...MEDDELANDEFALT];
+  const namnervillkor = omnamnanden ? "\n          && opsGiltigaNamner(request.resource.data)" : "";
+  const tradnamnervillkor = omnamnanden ? "\n            && opsGiltigaNamner(request.resource.data)" : "";
   const medlemskap = kontrolleraNamn(namn.medlemskap ?? "memberships", "medlemskap");
   const A = SAMTALSAVGRANSARE;
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : [])].join(", ");
   const R = SAMTALSAVGRANSARE;
+  const namnerfunktion = omnamnanden
+    ? `    // Omnämnanden (chattens nattskiva): saknas, eller 1 till ${MAX_NAMNER} olika poster, och "${NAMNER_ALLA}" bara ensamt.
+    function opsGiltigaNamner(d) {
+      return !('${NAMNERFALT}' in d) || (d.${NAMNERFALT} is list
+        && d.${NAMNERFALT}.size() > 0 && d.${NAMNERFALT}.size() <= ${MAX_NAMNER}
+        && d.${NAMNERFALT}.toSet().size() == d.${NAMNERFALT}.size()
+        && (!('${NAMNER_ALLA}' in d.${NAMNERFALT}) || d.${NAMNERFALT}.size() == 1));
+    }
+
+`
+    : "";
   const reaktionsfunktion = reaktioner
     ? `    // En reaktion (chattens nattskiva): fälten, koden ur listan, som sig själv, nu, och nyckeln exakt mid|uid|kod ur fälten.
     function opsGiltigReaktion(rid, d) {
@@ -885,7 +905,7 @@ export function samtalsregelfragment(namn = {}) {
           allow read: if opsIGruppchatten(sid);
           allow create: if opsPersonIGruppchatten(sid)
             && exists(/databases/$(database)/documents/${samtal}/$(sid)/${tradar}/$(tid))
-            && request.resource.data.keys().hasOnly([${lista(MEDDELANDEFALT)}])
+            && request.resource.data.keys().hasOnly([${lista(meddelandefalt)}])${tradnamnervillkor}
             && request.resource.data.av == request.auth.uid
             && request.resource.data.text is string
             && request.resource.data.text.size() > 0
@@ -929,7 +949,7 @@ export function samtalsregelfragment(namn = {}) {
       return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
     }
 
-${tradfunktioner}${reaktionsfunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+${tradfunktioner}${reaktionsfunktion}${namnerfunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
@@ -962,7 +982,7 @@ ${tradfunktioner}${reaktionsfunktion}    // Ett nytt samtal: nyckeln härledd, s
       match /${meddelanden}/{mid} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && request.resource.data.keys().hasOnly([${lista(MEDDELANDEFALT)}])
+          && request.resource.data.keys().hasOnly([${lista(meddelandefalt)}])${namnervillkor}
           && request.resource.data.av == request.auth.uid
           && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
           && request.resource.data.text is string

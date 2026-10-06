@@ -1,6 +1,6 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
-import { AGENTSTATUS_ID, REAKTIONSTAK, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, REAKTIONSTAK, arNamnd, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -32,11 +32,13 @@ import { AGENTSTATUS_ID, REAKTIONSTAK, byggMeddelande, byggReaktion, byggSamtal,
  *   Samma namn som till `samtalsregelfragment({ status })`.
  * @param {string} [konfig.reaktioner] (chattens nattskiva) Samlingsnamnet för reaktionerna, `<samtal>/{sid}/<reaktioner>/{mid|uid|kod}` och
  *   samma under en tråd. ⛔ INGET FÖRVAL. Samma namn som till `samtalsregelfragment({ reaktioner })`.
+ * @param {boolean} [konfig.omnamnanden] (chattens nattskiva) `true` slår på fältet `namner` på meddelandena. ⛔ INGET FÖRVAL: utan det
+ *   kastar `skicka` på ett `namner`, och vyn har ingen @-lista. Samma som till `samtalsregelfragment({ omnamnanden: true })`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
@@ -49,6 +51,16 @@ export function createSamtalskalla(konfig) {
   // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
   // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
   undersamlingskrock({ meddelanden, last, tradar, status, reaktioner }, "createSamtalskalla");
+  if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
+
+  /**
+   * Meddelandet som skrivs. ⛔ `namner` utan `omnamnanden` kastar: regeln hade nekat skrivningen, och ett fel här säger varför.
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null }} d @param {string} vem
+   */
+  const nyttMeddelande = ({ text, av, namner }, vem) => {
+    if (namner && namner.length && omnamnanden !== true) throw new Error(`${vem}: namner kräver omnamnanden: true, med samma val i samtalsregelfragment.`);
+    return byggMeddelande({ text, av, tid: klocka(), namner });
+  };
 
   /** @param {string} sid */
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
@@ -183,11 +195,11 @@ export function createSamtalskalla(konfig) {
 
   /**
    * @param {string} sid
-   * @param {{ text: string, av: string }} d
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null }} d
    */
-  async function skicka(sid, { text, av }) {
-    const m = byggMeddelande({ text, av, tid: klocka() });
-    return kalla.create(meddelandevag(sid), { ...m });
+  async function skicka(sid, { text, av, namner }) {
+    const m = nyttMeddelande({ text, av, namner }, "samtalskalla.skicka");
+    return kalla.create(meddelandevag(sid), { ...m, ...(m.namner ? { namner: [...m.namner] } : {}) });
   }
 
   /**
@@ -354,13 +366,13 @@ export function createSamtalskalla(konfig) {
   /**
    * Skickar i tråden ur `tid`, och öppnar tråden först om den inte finns.
    * @param {string} sid @param {string} tid
-   * @param {{ text: string, av: string }} d
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null }} d
    */
-  async function skickaITrad(sid, tid, { text, av }) {
+  async function skickaITrad(sid, tid, { text, av, namner }) {
     // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig.
-    const m = byggMeddelande({ text, av, tid: klocka() });
+    const m = nyttMeddelande({ text, av, namner }, "samtalskalla.skickaITrad");
     await oppnaTrad({ sid, rot: tid, uid: av });
-    return kalla.create(tradmeddelandevag(sid, tid), { ...m });
+    return kalla.create(tradmeddelandevag(sid, tid), { ...m, ...(m.namner ? { namner: [...m.namner] } : {}) });
   }
 
   /**
@@ -501,6 +513,7 @@ export function createSamtalskalla(konfig) {
     ...tradfunktioner,
     ...statusfunktioner,
     ...reaktionsfunktioner,
+    ...(omnamnanden === true ? { omnamnanden: true } : {}),
   });
 }
 
@@ -513,7 +526,7 @@ export function createSamtalskalla(konfig) {
  * @property {(sid: string, tid: string) => Promise<{ antal: number, fler: boolean }>} antalSvar
  * @property {(sid: string, tid: string) => Promise<Array<import("../lib/samtal.js").Meddelande & { id: string }>>} tradmeddelanden
  * @property {(sid: string, tid: string, lyssnare: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraTrad
- * @property {(sid: string, tid: string, d: { text: string, av: string }) => Promise<any>} skickaITrad
+ * @property {(sid: string, tid: string, d: { text: string, av: string, namner?: ReadonlyArray<string> | null }) => Promise<any>} skickaITrad
  * @property {(sid: string, tid: string, namn: string | null) => Promise<any>} dopOm
  * @property {(sid: string, tid: string) => Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>} rotmeddelande
  */
@@ -555,6 +568,14 @@ export function harReaktioner(kalla) {
 }
 
 /**
+ * Har källan omnämnanden, alltså har appen slagit på dem med `omnamnanden: true`? (chattens nattskiva)
+ * @param {unknown} kalla
+ */
+export function harOmnamnanden(kalla) {
+  return Boolean(kalla) && /** @type {any} */ (kalla).omnamnanden === true;
+}
+
+/**
  * Har källan trådar, alltså har appen slagit på dem med `tradar`? (0.68.0, granskningen av PR 268, BÖR 2.)
  *
  * ⛔ EN FRÅGA, ETT STÄLLE. Vyn ritar "Svara i tråd" och märkena bara när svaret är ja, så att en app som inte bett om trådar
@@ -581,21 +602,30 @@ export function harTradar(kalla) {
  *
  * Notisens id är `<samtalets id>|<senaste meddelandets id>`, så ett nytt meddelande i samma samtal är en ny notis.
  *
+ * ⛔ NÄMND I GRUPPCHATTEN (chattens nattskiva, med `medlemmar`). Gruppchatten ger ingen notis för varje meddelande, men den som
+ * NÄMNS i ett oläst meddelande får en: "Anna nämnde dig i gruppchatten". Härledd på samma sätt, ur de olästa meddelandena och
+ * läsmärket, och den läser bara omnämnanden som är auktoriserade mot medlemskapet (`arNamnd`): ett påhittat uid i `namner` når
+ * ingen, och "alla" expanderas här, vid läsningen. Id:t är `<samtal>|<det senaste meddelandet som nämner>`. Utan `medlemmar`
+ * finns ingen sådan notis, eftersom ingen auktorisering går att göra, och notiserna är exakt som förut.
+ *
  * @param {object} konfig
  * @param {ReturnType<typeof createSamtalskalla>} konfig.samtal
  * @param {string} konfig.uid
  * @param {(uid: string) => string} konfig.namnFor Visningsnamnet för ett uid, ur gruppens medlemskap.
  * @param {(samtalId: string) => string} [konfig.href] Vart notisen leder.
  * @param {(namn: string) => string} [konfig.titel] Förval `"<namn> skickade ett meddelande"`.
+ * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} [konfig.medlemmar] (chattens nattskiva) Gruppens medlemskap,
+ *   för notisen "nämnd i gruppchatten". Utelämnat: ingen sådan notis.
+ * @param {(namn: string) => string} [konfig.namndTitel] Förval `"<namn> nämnde dig i gruppchatten"`.
  * @returns {(fraga: { groupId: string }) => Promise<Array<{ id: string, titel: string, text: string, prio: "normal", href?: string }>>}
  */
-export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande` }) {
+export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande`, medlemmar, namndTitel = (namn) => `${namn} nämnde dig i gruppchatten` }) {
   if (!samtal || typeof samtal.oversikt !== "function") throw new Error("samtalsnotiser: samtal krävs, en källa ur createSamtalskalla.");
   if (!uid) throw new Error("samtalsnotiser: uid krävs. Notiserna är en persons, inte gruppens.");
   if (typeof namnFor !== "function") throw new Error("samtalsnotiser: namnFor krävs. En notis utan namn säger inte vem som skrev.");
   return async ({ groupId }) => {
     const rader = await samtal.oversikt({ groupId, uid });
-    return rader
+    const privata = rader
       .filter((r) => r.samtal.slag !== "grupp" && r.olasta > 0 && r.senaste)
       .map((r) => {
         const s = /** @type {NonNullable<typeof r.senaste>} */ (r.senaste);
@@ -607,5 +637,20 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
           ...(href ? { href: href(r.samtal.id) } : {}),
         };
       });
+    if (!medlemmar) return privata;
+    const namnda = rader
+      .filter((r) => r.samtal.slag === "grupp")
+      .flatMap((r) => {
+        const s = [...(r.olastaRader ?? [])].reverse().find((m) => arNamnd(m, uid, medlemmar));
+        if (!s) return [];
+        return [{
+          id: `${r.samtal.id}|${s.id}`,
+          titel: namndTitel(namnFor(s.av) || NAMN_SAKNAS),
+          text: utdrag(s.text),
+          prio: /** @type {const} */ ("normal"),
+          ...(href ? { href: href(r.samtal.id) } : {}),
+        }];
+      });
+    return [...privata, ...namnda];
   };
 }

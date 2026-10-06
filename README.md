@@ -1888,6 +1888,17 @@ antalet per meddelande, inget lagras. Källan: `lasReaktioner`, `prenumereraReak
 44 px träffyta, pilarna flyttar, Escape stänger med fokus kvar. Rotmeddelandets reaktioner står i gruppchatten, trådens svar har sina i
 tråden.
 
+**Omnämnanden, @alla och @agent, med nyckeln `omnamnanden: true`.** Meddelandet får fältet `namner` (`NAMNERFALT`): uid:n, eller
+`["alla"]` (`NAMNER_ALLA`) ensamt, högst `MAX_NAMNER` (20), prövat av `kravNamner` i `byggMeddelande`. Regeln prövar formen (lista,
+1 till 20, inga dubbletter, "alla" ensamt), i samtalet och i trådar; den kan inte loopa och prövar alltså inte medlemskapet. **Den som
+läser omnämnandet auktoriserar:** `namnda(meddelande, medlemmar)` ger bara aktiva medlemmar, och "alla" expanderas VID LÄSNING till
+gruppens aktiva personer utom avsändaren (inte agenten). `arNamnd(meddelande, uid, medlemmar)` och `agentenNamnd(meddelande, agentUid,
+medlemmar)` (också i `@staiger/ops-framework/node`, med `namnda`, `arNamnd`, `NAMNER_ALLA` och `MAX_NAMNER`) är det appens agent läser
+i stället för en regex på `@agent` i texten. `samtalsnotiser({ ..., medlemmar, namndTitel? })` ger den härledda notisen "Anna nämnde
+dig i gruppchatten" för olästa omnämnanden; utan `medlemmar` ingen sådan notis. Vyn: "@" i gruppchattens och trådens skrivfält öppnar
+en lista ur medlemmarna och agenten plus "alla" (pilarna, Enter eller Tab, Escape); bara de uid vars `@Namn` står kvar i texten
+skickas. `skicka` och `skickaITrad` tar `namner`, och kastar på det när källan saknar `omnamnanden` (`harOmnamnanden`).
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.
