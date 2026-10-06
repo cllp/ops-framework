@@ -1744,7 +1744,7 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   // ⛔ GOLV PER MÖNSTER. Varje mönster stängs av i en kopia av vakten (det matchar aldrig), och ramverkets körning ska då bli
   // röd på just det mönstret.
   //
-  // ⛔ KOPIAN LIGGER I EN TEMPORÄR KATALOG, INTE I scripts/ (0.70.1, granskningen av PR 278). I scripts/ stod den kvar om körningen
+  // ⛔ KOPIAN LIGGER I EN TEMPORÄR KATALOG, INTE I scripts/ (0.71.1, granskningen av PR 278). I scripts/ stod den kvar om körningen
   // avbröts mellan skrivningen och `finally`, och då låg en vakt med ett avstängt mönster bredvid den riktiga. Kopian får i stället
   // sin import och sin rot omskrivna till absoluta sökvägar, och varje omskrivning kontrolleras, så att en ändrad rad i vakten ger
   // ett fel här och inte en kopia som tyst läser fel katalog.

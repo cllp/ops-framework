@@ -35,7 +35,7 @@
  *   - en ternär i flera led (`x ? "a" : y ? "b" : "c"`): mönstret kräver en sträng direkt i båda grenarna, så hela uttrycket
  *     missas, också dess första gren;
  *   - en ternär där ena grenen inte är en sträng (`x ? "a" : null`, `x ? <b>a</b> : "c"`, `x ? t("a") : "b"`): ingen av grenarna läses;
- *   - `&&` (`{tom && "Samlingen är tom"}`), varken som barn eller i ett attribut. Mätt 0.70.1: ingen förekomst som barn i
+ *   - `&&` (`{tom && "Samlingen är tom"}`), varken som barn eller i ett attribut. Mätt 0.71.1: ingen förekomst som barn i
  *     ramverkets src, så ett mönster hade inte kunnat få ett golv här;
  *   - strängar inuti `${}` i en mall (`${tom ? "a" : "b"}`): allt mellan `${` och `}` räknas som kod och tas bort före läsningen;
  *   - `text=` och `children=` som props (`<OpsBanner text="..." />`, `children="..."`). `text` är bortvalt med flit, se ovan;

@@ -9,29 +9,49 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.70.1
+## 0.71.1
 
 Rättelser efter granskningen av PR 278 (0.69.0, #274), som mergades innan granskningens två MÅSTE-fynd var lagade.
 
-⛔ **Versionsnumret:** grenen började som 0.69.1, men PR 275 (0.70.0) mergades medan den var öppen. Main är inmergad, och den här grenen är 0.70.1.
+⛔ **Versionsnumret:** grenen började som 0.69.1, men PR 275 (0.70.0) och PR 280 (0.71.0) mergades medan den var öppen. Main är inmergad båda gångerna, och den här grenen är 0.71.1.
 
 #### Rättat
 
-- **Katalogens delrubriker följer `rubrikniva`.** `OpsKatalogInstallning` räknade själv ut nivån för "Arkiverade", "Senaste ändringarna" och formulärets två rubriker med `niva === 3 ? "h4" : "h3"`, vilket bara stämde vid förvalet 2. Med `rubrikniva={3}` blev "Arkiverade" h3, samma nivå som panelen den står i, och med en egen katalogrubrik på h4 låg "Arkiverade" en nivå ÖVER den. Nivån kommer nu ur `delrubrik` (`underniva`, en under närmaste synliga rubrik), samma hjälpfunktion som `OpsInstallningar` och `OpsModulTyper` använder, så regeln finns på ett ställe. En nivå djupare än 6 ritas som `h6` med `aria-level`. Prov i `installningar.test.jsx` med en arkiverad kategori vid nivå 2, 3 och 5, med samma och med annan rubrik än panelen: fyra röda mot 0.70.0, alla gröna nu.
-- **`rubrikniva` kontrolleras.** Ett värde som inte är ett heltal från 1 till 5 vägras med ett läsbart fel (`kontrolleraRubrikniva`). Förut gav `NaN` taggen `<hNaN>` och `9` blev tyst `h6`. Prov för `NaN`, 0, 6, 9, 2,5, `"3"` och `null`, plus 1 och 5 som gröna; rött mot 0.70.0.
+- **Katalogens delrubriker följer `rubrikniva`.** `OpsKatalogInstallning` räknade själv ut nivån för "Arkiverade", "Senaste ändringarna" och formulärets två rubriker med `niva === 3 ? "h4" : "h3"`, vilket bara stämde vid förvalet 2. Med `rubrikniva={3}` blev "Arkiverade" h3, samma nivå som panelen den står i, och med en egen katalogrubrik på h4 låg "Arkiverade" en nivå ÖVER den. Nivån kommer nu ur `delrubrik` (`underniva`, en under närmaste synliga rubrik), samma hjälpfunktion som `OpsInstallningar` och `OpsModulTyper` använder, så regeln finns på ett ställe. En nivå djupare än 6 ritas som `h6` med `aria-level`. Prov i `installningar.test.jsx` med en arkiverad kategori vid nivå 2, 3 och 5, med samma och med annan rubrik än panelen: fyra röda mot 0.71.0, alla gröna nu.
+- **`rubrikniva` kontrolleras.** Ett värde som inte är ett heltal från 1 till 5 vägras med ett läsbart fel (`kontrolleraRubrikniva`). Förut gav `NaN` taggen `<hNaN>` och `9` blev tyst `h6`. Prov för `NaN`, 0, 6, 9, 2,5, `"3"` och `null`, plus 1 och 5 som gröna; rött mot 0.71.0.
 
 #### Ändrat
 
 - **`check-utvecklarord` säger i filhuvudet vad den INTE läser:** ternär i flera led, ternär där en gren inte är en sträng, `&&`, strängar inuti `${}`, och `text=`/`children=` som props. Varje fall är mätt mot vakten och ger noll träffar. Inga mönster tillagda: `&&` som barn förekommer inte i ramverkets src, så ett mönster hade inte kunnat få ett golv här.
 - **`test-guards` skriver kopian av vakten med ett avstängt mönster i en temporär katalog**, inte i `scripts/`, med importen och roten omskrivna till absoluta sökvägar. Ett nytt grönt fall visar att kopian utan avstängt mönster är grön, så att de fem röda inte kan bero på flytten.
 
-#### Ompinning till 0.70.1
+#### Ompinning till 0.71.1
 
 Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
 
-1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.70.1/ops-framework-0.70.1.tgz"`.
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.71.1/ops-framework-0.71.1.tgz"`.
 2. Ingen kod i appen behöver ändras, om den inte skickar en `rubrikniva` utanför 1 till 5. Gör den det kastar `OpsInstallningar` nu i stället för att rita fel nivå.
 
+## 0.71.0
+
+⛔ **Mergas efter 0.70.0 (PR 275), som mergas efter 0.69.0 (PR 278).** Ordningen är satt av utvecklingschefen 2026-10-06.
+
+### TALK får en egen knapp i webbens huvud (#276)
+
+CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn på webben: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." På dator fanns TALK bara som första rad i Skapa, alltså två klick (plusset, sedan raden). På mobil är vägen redan ett långtryck på bottenradens plus (0.57.0).
+
+#### Tillagt
+
+- **En mikrofonknapp i huvudet på dator, direkt till höger om plusset.** Den ritas bara när appen skickar in `talk`, och bara från `md` (`hidden md:inline-flex`, display i en klass som huvudets övriga knappar). Den är huvudets vanliga ikonknapp (`huvudknappKlass`): 36 px cirkel med 20 px ikon vid 1280, 44 px träffyta, och samma namn i tooltipen som i uppläsningen.
+- ⛔ **Samma väg som raden i Skapa, ingen andra inspelningsväg.** Knappen och raden lämnar samma form (`TALK_FORM`, en fryst konstant på modulnivå) till `oppnaSkapa`, som går till `talkStyr.direkt()`. Det är samma krok, samma inspelare och samma fält som plusset och raden använder. Knappen använder inte `talkStyr.knapp`: de händelserna är plussets, där ett vanligt tryck är Skapa och bara ett långtryck spelar in. Här är ett vanligt tryck inspelningen.
+- **Knappen visar inspelningsläget.** Medan den lyssnar eller skickar är den tänd (`bg-raised text-accent`, som en öppen knapp i huvudet), och namnet följer läget: "TALK, prata in", "TALK, lyssnar", "TALK, skickar" (`talkKnappNamn` i `lib/talk.js`). Den som inte ser att knappen är tänd hör det i stället.
+- `TALK_PRATA_IN` i `lib/talk.js` är raden och knappens gemensamma namn, så att de inte kan börja heta olika saker.
+- Raden "TALK, prata in" i Skapa står kvar. Mobilen ändras inte.
+
+#### Prov
+
+- `talk.test.jsx`, "mikrofonknappen i huvudet": knappen finns i huvudet med `talk`, som plussets närmaste granne och med ett namn, och saknas utan `talk`; ett tryck startar samma inspelare och samma fält som raden, bottenradens plus står i samma läge (samma krok), knappen säger "TALK, lyssnar" och ljudet når appen; display bärs av `hidden md:inline-flex` utan bar `inline-flex`. Alla tre röda utan ändringen. Dessutom: namnet blir "TALK, skickar" medan ljudet lämnas till appen (rött när skickar-namnet tas bort), och ett tryck under håll, lyssnar eller skickar startar ingen andra inspelning, både i `talkNasta` och i skalet (rött när `direkt` startar om i alla lägen).
+- `check-skalyta` avsnitt 43, scenen `talk`: vid 1280 px står knappen 0 till 4 px från plussets högerkant, är en 36 px cirkel med 20 px ikon, har plussets mittlinje inom 1 px, träffas på hela den ritade cirkeln (`elementFromPoint`), och ett tryck öppnar fältet i läget lyssnar medan knappen är tänd. Vid 390 px har knappen `display: none` och bottenradens plus är kvar. Skärmbilder i `docs/jamforelser/`.
 ## 0.70.0
 
 ⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, mergad medan den här grenen var öppen, och inmergad hit med en vanlig merge) och 0.69.0 är #278 (#274), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.70.0.
