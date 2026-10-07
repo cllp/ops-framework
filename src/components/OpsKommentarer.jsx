@@ -1,5 +1,4 @@
 import { useContext, useId, useState } from "react";
-import { attachmentSize, isImage } from "../lib/file.js";
 import { KOMMENTARBILAGA_TYPER, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA } from "../lib/handelsemodell.js";
 import { formatDagOchKlockslag } from "../lib/format.js";
 import { OppnaHandelseKontext } from "../lib/handelsekontext.js";
@@ -8,7 +7,7 @@ import { definierade, forvalda } from "../lib/ord.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsTextarea } from "./OpsField.jsx";
 import { OpsFilePicker } from "./OpsFilePicker.jsx";
-import { FilIkon } from "./icons.jsx";
+import { BilagaVisning } from "./BilagaVisning.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
@@ -248,26 +247,7 @@ export const ORD_OPSKOMMENTARER = {
  * @param {{ bilaga: import("../lib/file.js").Bilaga, namn: string, bilagaText: string }} props
  */
 function Kommentarbilaga({ bilaga, namn, bilagaText }) {
-  const storlek = bilaga.tecken ? attachmentSize(bilaga.tecken) : "";
-  if (isImage(bilaga.typ)) {
-    return (
-      <a href={bilaga.dataUrl} download={bilaga.namn || "bild"} data-kommentar-bilaga-visad="bild" className="block w-fit">
-        <img src={bilaga.dataUrl} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} className="block max-h-40 max-w-full rounded-md border border-line" />
-      </a>
-    );
-  }
-  return (
-    <a
-      href={bilaga.dataUrl}
-      download={bilaga.namn || "bilaga"}
-      data-kommentar-bilaga-visad="fil"
-      className="flex w-fit max-w-full items-center gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-meta text-ink no-underline hover:bg-accent-faint"
-    >
-      <FilIkon />
-      <span className="min-w-0 truncate">{bilaga.namn}</span>
-      {storlek ? <span className="shrink-0 text-ink-muted">{storlek}</span> : null}
-    </a>
-  );
+  return <BilagaVisning bilaga={bilaga} alt={`${bilagaText} ${namn}: ${bilaga.namn}`} />;
 }
 
 /**

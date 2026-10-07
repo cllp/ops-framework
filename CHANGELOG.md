@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.77.0
+
+Bilaga i chattens plusmeny (#292, lifehub.app#103 lane 1). Samma form som kommentarernas bilaga, inte en egen.
+
+Regeln med `bilagor: true` ska vara utrullad innan klienten slår på nyckeln. Utan nyckeln är `samtalsregelfragment()` byte för byte samma text som förut.
+
+### Tillagt
+
+- Fältet `bilaga` på ett meddelande, i kommentarernas form `{ dataUrl, namn, typ, tecken, bredd?, hojd? }`. `byggMeddelande` prövar den med `kommentarbilagaFel`. Med en bilaga får texten vara tom.
+- `samtalsregelfragment({ bilagor: true })` och `createSamtalskalla({ bilagor: true })`. `skicka` och `skickaITrad` skriver bilagan, och läsningen ger den tillbaka. `harBilagor(kalla)` svarar. Utan nyckeln kastar ett försök att skicka en bilaga.
+- Regeln `opsMeddelandebilagaGiltig`, byggd av samma uttryck som `opsKommentarbilagaGiltig`. Två namn, eftersom båda fragmenten limmas in i samma regelfil.
+- `onBifoga` på `OpsSamtal`, `OpsTrad` och `OpsMeddelanden`. Plus ritas när den finns, eller när källan har `bilagor`. Ta foto ritas bara när en kamera räknats upp. Med `bilagor` läser ramverket filen och skickar den med meddelandet. En bild visas som miniatyr, en fil som nedladdningslänk.
+
+### Prov
+
+- `src/__tests__/chatt-bilagor.test.jsx`, 7 prov. Utan storlekstaket i `kommentarbilagaFel` och i `opsMeddelandebilagaGiltig`: 2 röda, 5 gröna. Med taket: 7 gröna. Fixturen `samtalsregelfragment-0.67.0.rules` är oförändrad i samma körning.
+- `rules/__tests__/chattbilagor.test.mjs` mot emulatorn, och Playwright `check-skalyta` avsnitt 29g (9) i 390 och 1024 px: utfallen skrivs in här när de är körda.
+
 ## 0.76.2
 
 Följd-PR till PR 294 (0.76.0, mejlkön). PR 294 mergades innan granskningen var klar, och granskningen hittade två blockerande fel: https://github.com/cllp/ops-framework/pull/294#issuecomment-6040015858. 0.76.x ska inte publiceras utan de här rättningarna.
