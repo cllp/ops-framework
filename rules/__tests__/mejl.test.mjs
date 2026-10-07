@@ -1,5 +1,5 @@
 /**
- * Regelprov för mejlkö (0.74.0, ops-framework#101).
+ * Regelprov för mejlkö (0.76.0, ops-framework#101).
  *
  * ⛔ CATCH-ALL NEKAR OCKSÅ. Ett prov som bara gör assertFails hade varit grönt
  * utan fragmentet, eftersom provreglernas sista block nekar allt som saknar

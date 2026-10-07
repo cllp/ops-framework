@@ -46,7 +46,7 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * `handelser/{hid}/svar/{uid}`. `kalhandelser` är en påhittad APP-samling vars block är skrivet som en app skriver sitt:
  * handskrivet, med ramverkets `opsHandelsefaltGiltiga` anropad. Det är den funktionen provet mäter, inte blocket runt den.
  *
- * ⛔ MEJLKÖN (0.74.0, #101): `mejlregelfragment("mejlko")`. Namnet är påhittat här, precis som hos en app.
+ * ⛔ MEJLKÖN (0.76.0, #101): `mejlregelfragment("mejlko")`. Namnet är påhittat här, precis som hos en app.
  *   Catch-all nekar också, så provet läser att just det här blocket finns i den genererade texten.
  */
 const text = `rules_version = '2';

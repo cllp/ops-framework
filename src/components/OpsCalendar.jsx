@@ -416,6 +416,28 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
   );
 }
 
+/** Hur länge rullningen ska ha stått still innan `onSynligaManader` anropas (0.74.0, #284). */
+export const SYNLIGA_MANADER_VILA_MS = 150;
+
+/**
+ * Den första och sista månaden vars block syns i rullytan, under den klistrade veckodagsraden. `null` när inget block syns.
+ *
+ * @param {HTMLElement} rulle
+ * @param {number} huvud Veckodagsradens höjd, som täcker rullytans överkant.
+ * @returns {{ forsta: string, sista: string } | null}
+ */
+export function synligaManader(rulle, huvud) {
+  const yta = rulle.getBoundingClientRect();
+  const topp = yta.top + huvud;
+  /** @type {string[]} */
+  const synliga = [];
+  for (const el of rulle.querySelectorAll("[data-kalender-manad]")) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom > topp && r.top < yta.bottom) synliga.push(/** @type {string} */ (el.getAttribute("data-kalender-manad")));
+  }
+  return synliga.length ? { forsta: synliga[0], sista: synliga[synliga.length - 1] } : null;
+}
+
 /**
  * Dagpanelens tak under 1024 px, som andel av ytan (0.53.0, cllp/lifehub.app#32-passet).
  *
@@ -1144,6 +1166,9 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   grupp. ⛔ Ramverket känner inte gruppen, så appen säger vad som skiljer. Utelämnad: valet gäller bara den här visningen.
  * @param {{ getItem: (n: string) => string | null, setItem: (n: string, v: string) => void }} [props.lagring] Var
  *   veckonummervalet sparas, per enhet. Förval `window.localStorage` när den finns.
+ * @param {(manader: { forsta: string, sista: string }) => void} [props.onSynligaManader] (0.74.0, #284) Vilka månader som syns,
+ *   som `YYYY-MM`, när rullningen har stannat (`SYNLIGA_MANADER_VILA_MS`) och en gång vid start. Aldrig medan rullningen pågår, och
+ *   bara när intervallet ändrats. För en app som hämtar data för det synliga fönstret, så att den inte läser kalenderns DOM.
  */
 export function OpsCalendar({
   entries = [],
@@ -1166,6 +1191,7 @@ export function OpsCalendar({
   lagring,
   onOppnaHandelse,
   filterMinne,
+  onSynligaManader,
 }) {
   if (!ariaLabel) {
     throw new Error("OpsCalendar: ariaLabel krävs. Ett rutnät med tal är osynligt för den som inte ser det.");
@@ -1332,6 +1358,43 @@ export function OpsCalendar({
     didRef.current = true;
     toToday();
   }, [toToday]);
+
+  /*
+   * ══ ⛔ VILKA MÅNADER SOM SYNS, NÄR RULLNINGEN HAR STANNAT (0.74.0, #284) ══════════════════════════════════════════════
+   *
+   * lifehub.app läste `data-kalender-rulle` och `data-cal-day` ur kalenderns DOM för att veta vilket fönster den skulle hämta
+   * gruppens frånvaro för (lifehub.app PR 91, en tillfällig lösning med ärende). Det band appen till ramverkets markup. Nu säger
+   * kalendern det själv. ⛔ VARJE RULLNING STARTAR OM VILAN: en hämtning per rullningshändelse hade gett tiotals frågor för en
+   * svepning. ⛔ STARTEN GÅR GENOM SAMMA VILA, efter hoppet till idag, så att första svaret är månaderna man faktiskt ser och
+   * inte de överst i rullen. ⛔ SAMMA INTERVALL TVÅ GÅNGER RAPPORTERAS EN GÅNG: hoppet till idag kan ge en egen rullningshändelse.
+   */
+  const synligaRef = useRef(onSynligaManader);
+  synligaRef.current = onSynligaManader;
+  const vilaRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const senastRef = useRef("");
+  const planeraSynliga = useCallback(() => {
+    if (!synligaRef.current) return;
+    if (vilaRef.current) clearTimeout(vilaRef.current);
+    vilaRef.current = setTimeout(() => {
+      vilaRef.current = null;
+      const rulle = rulleRef.current;
+      const svar = rulle ? synligaManader(rulle, huvudRef.current ? huvudRef.current.offsetHeight : 0) : null;
+      if (!svar || !synligaRef.current) return;
+      const nyckel = `${svar.forsta}|${svar.sista}`;
+      if (nyckel === senastRef.current) return;
+      senastRef.current = nyckel;
+      synligaRef.current(svar);
+    }, SYNLIGA_MANADER_VILA_MS);
+  }, []);
+  useEffect(() => {
+    planeraSynliga();
+  }, [planeraSynliga, list]);
+  useEffect(
+    () => () => {
+      if (vilaRef.current) clearTimeout(vilaRef.current);
+    },
+    [],
+  );
 
   const fullhojd = useFullHeight(rulleRef);
 
@@ -1599,6 +1662,7 @@ export function OpsCalendar({
              * efter ett hopp till botten pekade den fortfarande nedåt, eftersom månaden var osynlig i båda lägena och
              * observatören aldrig svarade. Till 0.35.0 syntes det inte: fyra månader rullar man sällan förbi i ett hopp.
              */
+            planeraSynliga();
             const m = todayRef.current;
             if (!m) return;
             setDirection(scrollDirection(m.getBoundingClientRect(), e.currentTarget.getBoundingClientRect()));
@@ -1627,7 +1691,7 @@ export function OpsCalendar({
               const rows = monthGrid(ar, month);
 
               return (
-                <div key={`${ar}-${month}`} ref={isCurrentMonth ? todayRef : null}>
+                <div key={`${ar}-${month}`} ref={isCurrentMonth ? todayRef : null} data-kalender-manad={`${ar}-${String(month + 1).padStart(2, "0")}`}>
                   <h3 className="m-0 mt-2 mb-3 text-titel font-bold capitalize text-ink font-display sm:text-sida">
                     {monthNames(locale)[month]} {ar}
                   </h3>

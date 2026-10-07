@@ -156,7 +156,7 @@ export { MAX_SEKUNDER, LJUDFORMAT } from "../lib/talk.js";
 export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";
 
 /*
- * ⛔ MEJL (0.74.0, ops-framework#101, lifehub.app#103 lane 18A). Kön bär andras
+ * ⛔ MEJL (0.76.0, ops-framework#101, lifehub.app#103 lane 18A). Kön bär andras
  * adresser, och utskicket bär en hemlighet. Båda ligger här, inte i webbundlen.
  * Appen skickar in samlingsnamn, SMTP och avsändare. Modulen läser inga
  * hemligheter, varken vid laddning eller senare: funktionen gör det och skickar
