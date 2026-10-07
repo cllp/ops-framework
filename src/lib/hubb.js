@@ -120,7 +120,7 @@ export function hubbPoster(kort, { sprak = "sv", info = {}, badge = {} } = {}) {
     href: m.hubb.rutt,
     label: text(m.namn, sprak),
     icon: /** @type {import("react").ReactNode} */ (m.hubb.ikon),
-    ...(m.id in info ? { info: info[m.id] } : {}),
+    ...(Object.hasOwn(info, m.id) ? { info: info[m.id] } : {}),
     ...(typeof badge[m.id] === "number" ? { badge: badge[m.id] } : {}),
   }));
 }

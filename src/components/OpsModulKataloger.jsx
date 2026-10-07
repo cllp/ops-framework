@@ -1,4 +1,6 @@
+import { useId } from "react";
 import { useKallor } from "../data/useKallor.jsx";
+import { Delrubrik, UnderDel, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
 import { OpsKatalogInstallning } from "./OpsKatalogInstallning.jsx";
 import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
@@ -83,42 +85,69 @@ export function OpsModulKataloger({ register, fraga, ikoner, onSpara, onArkivera
 
   return (
     <>
-      {rader.map((rad) => {
-        const egnaModulnamn = text(modulNamn(rad.modulId) ?? rad.modulId, sprak);
-        const anvandsI = anvandsIModuler(rader, rad.id, modulNamn, sprak);
-        return (
-          <section key={`${rad.modulId}-${rad.id}`} className="flex flex-col gap-1">
-            {/* ⛔ MODULENS NAMN, INTE MODULENS ID. Ett `<h3>` och inte en del av
-                `rubrik`-propen: `OpsKatalogInstallning` använder `rubrik` som
-                listans skärmläsarnamn, och en app som lägger modulnamnet där
-                hade dubblerat det på varje läsning. */}
-            <h3 className="m-0 text-sektion uppercase text-accent">{egnaModulnamn}</h3>
-            <p className="m-0 text-hjalp text-ink-muted">
-              {/* ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5): en katalog utan
-                  en modul bakom sig skriver ut det, i stället för att raden
-                  bara försvinner. */}
-              {anvandsI.length > 0 ? `Används i: ${anvandsI.join(", ")}` : "Används inte av någon modul just nu."}
-            </p>
-            <OpsKatalogInstallning
-              kategorier={rad.kategorier}
-              ikoner={ikoner}
-              ikonRitare={ikonRitare}
-              kanAndra={kanAndra}
-              sprak={sprak}
-              rubrik={text(rad.namn, sprak)}
-              /*
-               * ⛔ #162: SAMMA groupId SOM `fraga` FRÅGADE MED. Den här vyn
-               * ritar redan EN grupps kataloger (`useKallor(register, "kataloger", fraga)`
-               * ovan), så en ny eller ändrad kategori ska höra till samma
-               * grupp den lästes ur, aldrig till ingen alls.
-               */
-              groupId={fraga && fraga.groupId}
-              onSpara={(kategori) => onSpara(rad.id, kategori)}
-              onArkivera={(kategori, arkiverad) => onArkivera(rad.id, kategori, arkiverad)}
-            />
-          </section>
-        );
-      })}
+      {rader.map((rad) => (
+        <Modulsektion
+          key={`${rad.modulId}-${rad.id}`}
+          rad={rad}
+          rader={rader}
+          modulNamn={modulNamn}
+          ikoner={ikoner}
+          ikonRitare={ikonRitare}
+          kanAndra={kanAndra}
+          sprak={sprak}
+          fraga={fraga}
+          onSpara={onSpara}
+          onArkivera={onArkivera}
+        />
+      ))}
     </>
+  );
+}
+
+
+/**
+ * En moduls katalog: modulens namn som rubrik, raden om var katalogen används, och katalogen under.
+ *
+ * ⛔ MODULNAMNET FÖLJER RUBRIKNIVA (0.73.1, #287). Det var en fast `<h3>`, så i en inställningspanel med `rubrikniva={3}` stod
+ * modulnamnet på samma nivå som panelens rubrik, och katalogens egen rubrik under det var h4 i bästa fall. Nivån kommer nu ur
+ * `delrubrik`, samma regel som katalogen och modultyperna följer, och katalogen läggs under modulnamnet (`UnderDel`). Heter
+ * modulen som panelen ritas namnet inte en gång till.
+ *
+ * ⛔ MODULENS NAMN, INTE MODULENS ID, och inte en del av katalogens `rubrik`: `OpsKatalogInstallning` använder `rubrik` som listans
+ * skärmläsarnamn, och en app som lagt modulnamnet där hade fått det dubblerat på varje läsning.
+ *
+ * @param {{ rad: Record<string, any>, rader: readonly Record<string, any>[], modulNamn: (modulId: string) => any, ikoner: readonly string[], ikonRitare?: (namn: string) => import("react").ReactNode, kanAndra?: boolean, sprak?: string, fraga: { groupId: string }, onSpara: Function, onArkivera: Function }} props
+ */
+function Modulsektion({ rad, rader, modulNamn, ikoner, ikonRitare, kanAndra, sprak, fraga, onSpara, onArkivera }) {
+  const rubrikId = useId();
+  const egnaModulnamn = text(modulNamn(rad.modulId) ?? rad.modulId, sprak);
+  const delen = delrubrik(egnaModulnamn, rubrikId, useInstallningspanel());
+  const anvandsI = anvandsIModuler(rader, rad.id, modulNamn, sprak);
+  return (
+    <section aria-labelledby={delen.etikettId} className="flex flex-col gap-1">
+      <Delrubrik niva={delen.niva} id={rubrikId}>{egnaModulnamn}</Delrubrik>
+      <p className="m-0 text-hjalp text-ink-muted">
+        {/* ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5): en katalog utan en modul bakom sig skriver ut det, i stället för att
+            raden bara försvinner. */}
+        {anvandsI.length > 0 ? `Används i: ${anvandsI.join(", ")}` : "Används inte av någon modul just nu."}
+      </p>
+      <UnderDel rubrik={egnaModulnamn} rubrikId={rubrikId} delen={delen}>
+        <OpsKatalogInstallning
+          kategorier={rad.kategorier}
+          ikoner={ikoner}
+          ikonRitare={ikonRitare}
+          kanAndra={kanAndra}
+          sprak={sprak}
+          rubrik={text(rad.namn, sprak)}
+          /*
+           * ⛔ #162: SAMMA groupId SOM `fraga` FRÅGADE MED. Den här vyn ritar redan EN grupps kataloger, så en ny eller ändrad
+           * kategori ska höra till samma grupp den lästes ur, aldrig till ingen alls.
+           */
+          groupId={fraga && fraga.groupId}
+          onSpara={(/** @type {any} */ kategori) => onSpara(rad.id, kategori)}
+          onArkivera={(/** @type {any} */ kategori, /** @type {boolean} */ arkiverad) => onArkivera(rad.id, kategori, arkiverad)}
+        />
+      </UnderDel>
+    </section>
   );
 }

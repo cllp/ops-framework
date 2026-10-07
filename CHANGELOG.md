@@ -9,6 +9,63 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.73.1
+
+Två små rättelser ur granskningarna av PR 275 och PR 285, och en tredje som hittades när CI föll på den här grenen. Inga regeländringar, inget att deploya före klienten.
+
+### Agentens status kunde stå kvar som "tänker" för alltid
+
+Händelsen: CI föll på den här grenen i `chatt-status.test.jsx` ("en status som blir gammal medan samtalet är öppet"), fast grenen inte rör chatten. Mätt 2026-10-07: samma prov föll i 6 av 30 körningar på orörd main, alltid på samma rad.
+
+Rotorsaken är vyns och inte provets. `Agentrad` sätter en timer till exakt den tidpunkt då statusen blir gammal, och gränsen är strikt (`nu - sedan > AGENTSTATUS_MAX_ALDER`). En timer kan vakna en millisekund före väggklockan, eftersom timern mäts mot en monoton klocka och `Date.now()` är väggklockan. Då var statusen fortfarande färsk, effektens beroenden oförändrade, och ingen ny timer sattes. "Agenten tänker" stod kvar tills något annat hände i samtalet, alltså den tysta nedsläppsväg raden finns för att stänga.
+
+#### Ändrat
+
+- `OpsMeddelanden`, `Agentrad`: `nu` är ett beroende i timerns effekt, och varje väckning sätter `nu` till `Math.max(Date.now(), förra + 1)`. Varje väckning ritar alltså om och sätter en ny timer, också när väggklockan står still på gränsen, och raden byts mot felraden senast en millisekund efter gränsen enligt vyns egen räkning. Granskningen av PR 288 visade att `nu` i beroendelistan ensam inte räckte: gav väckningen samma tal som förut ritade React inte om, och ingen ny timer sattes.
+
+#### Prov
+
+- `src/__tests__/chatt-status.test.jsx`, "en timer som vaknar före väggklockan sätts om": när raden "tänker" syns släpar väggklockan 200 ms efter timerns, vilket gör den för tidiga väckningen deterministisk. Utan rättningen: rött. Med: 15 av 15 gröna.
+- `src/__tests__/chatt-status.test.jsx`, "en väggklocka som står still på gränsen i 400 ms låser inte raden": `Date.now()` hålls på `sedan + AGENTSTATUS_MAX_ALDER` i 400 ms och släpps sedan. Rött på `a5d99cb` (bara `nu` i beroendelistan), grönt med rättningen, 16 av 16 i filen.
+- Det instabila provet: 6 av 30 röda på main före, 0 av 30 med rättningen.
+
+### Modulnamnet i `OpsModulKataloger` följer rubrikniva (#287)
+
+Händelsen: granskningen av PR 285 (0.71.1). `OpsModulKataloger.jsx:95` ritade varje moduls namn som en fast `<h3>`. I en inställningspanel med `rubrikniva={3}` stod modulnamnet då på samma nivå som panelens rubrik, och katalogen under modulnamnet hamnade på samma nivå som modulnamnet i stället för under det.
+
+#### Ändrat
+
+- Modulnamnet får sin nivå ur `delrubrik`, samma regel som `OpsKatalogInstallning` och `OpsModulTyper` följer, och ritas med `Delrubrik`. Heter modulen som panelen ritas namnet inte en gång till.
+- Katalogen i varje modulsektion ligger en nivå under modulnamnet. `OpsInstallningar.jsx` har en ny intern del, `UnderDel`, som ger katalogen modulnamnet som närmaste rubrik, så att regeln fortfarande bara finns i `delrubrik`.
+- Sektionen heter som modulnamnet (`aria-labelledby`), eller som panelen när namnet inte ritas.
+- ⛔ Nytt beteende: heter katalogen som modulen ritas katalogens rubrik inte, eftersom den då är samma rubrik som modulnamnet direkt ovanför. Det är samma regel som redan gäller en katalog som heter som panelen, nu tillämpad ett steg längre ned. Katalogens lista har kvar sitt namn för skärmläsaren.
+
+#### Prov
+
+- `src/__tests__/kallor.test.jsx`, "modulnamnet och katalogen följer rubrikniva": utan panel (2 och 3), nivå 2 (3 och 4), nivå 3 (4 och 5), nivå 5 (6 och 7, där 7 är `aria-level` på en `h6`), och nivå 3 när modulen heter som panelen (namnet ritas inte, katalogen 4). Mot den fasta `<h3>`: 5 av 5 röda. Med rättningen: 90 av 90 gröna i `kallor.test.jsx` och `installningar.test.jsx`.
+
+### `in` nådde prototypkedjan i tre uppslag (#283)
+
+Händelsen: granskningen av PR 275. `"constructor" in {}` är sant, så ett id som heter som något på `Object.prototype` räknades som en nyckel ingen hade satt.
+
+#### Ändrat
+
+- `src/lib/beteenden.js`, `kopplaBeteenden`: en kategori med id `constructor`, `toString` eller `__proto__` utan hanterare ger nu skälet "saknar hanterare". Förut räknades den som kopplad, till `Object`-konstruktorn.
+- `src/lib/hubb.js`, `hubbPoster`: en modul med ett sådant id får ingen infolinje när appen inte gett någon. Förut fick den prototypens funktion som `info`.
+- `src/lib/katalog.js`, de krävda textnycklarna: en krävd nyckel som heter `constructor` räknades som ifylld fast ingen text fanns. Den här var inte nämnd i ärendet men hittades i genomgången, eftersom nycklarna kommer ur appens konfiguration.
+- Alla tre går med `Object.hasOwn`.
+
+#### Genomgången av övriga `in` i `src/lib`
+
+- Står kvar, eftersom nyckeln är ett fast fältnamn och inte ett id: `modul.js` (`"katalog"`, `"hubb"`, `"$$typeof"`, `"props"`), `kallor.js` (`"daysLeft"`), `hubb.js` (`"del"`), `talk.js` (`"name"`), och kraven i `modultyper.js`, `grupp.js` och `handelsemodell.js`, som prövar fasta listor.
+- Står kvar, eftersom de prövar fasta listor vid laddning: `gruppikonarv.js` och `kalenderikoner.js`.
+- `hubb.js` `badge[m.id]` står kvar: `typeof ... === "number"` släpper aldrig igenom något ur prototypen.
+- `in` i `regler.js` är Firestore-regelspråk i strängar, inte JavaScript.
+
+#### Prov
+
+- `beteenden.test.js`, `hubb.test.jsx` och `katalogtexter.test.js`, med `constructor`, `toString` och `__proto__` på varje ställe. Utan rättelsen: 9 av 9 nya röda. Med: 96 av 96 gröna i de tre filerna.
+
 ## 0.73.0
 
 Grenen började som 0.71.0. Medan den var öppen mergades 0.69.0 till 0.72.0 (PR 278, 275, 280, 285 och 286); main är inmergad med en vanlig merge och versionen är 0.73.0.

@@ -133,6 +133,22 @@ export function delrubrik(rubrik, egetId, panel) {
 }
 
 /**
+ * Lägger en del UNDER en annan del, så att det som står i den räknar sin nivå från delens rubrik i stället för från panelens.
+ *
+ * ⛔ FÖR EN DEL SOM BÄR ANDRA DELAR (0.73.1, #287). `OpsModulKataloger` ritar modulens namn och under det en katalog med egen
+ * rubrik. Utan det här låg katalogens rubrik på samma nivå som modulnamnet, fast den står under det. Värdet är den närmaste synliga
+ * rubriken: delens egen, eller panelens när delens inte ritas (`delrubrik` gav `niva: null`). Utanför en panel blir delen en panel
+ * på sin egen nivå, så att regeln fortfarande bara finns i `delrubrik`.
+ *
+ * @param {{ rubrik: string, rubrikId: string, delen: { niva: number | null }, children: import("react").ReactNode }} props
+ */
+export function UnderDel({ rubrik, rubrikId, delen, children }) {
+  const panel = useInstallningspanel();
+  const narmast = delen.niva === null ? panel : { rubrik, rubrikId, niva: delen.niva };
+  return <Panelkontext.Provider value={narmast}>{children}</Panelkontext.Provider>;
+}
+
+/**
  * Delens rubrik, på den nivå `delrubrik` gav. `null`: ingen synlig rubrik (panelens rubrik säger redan samma sak).
  *
  * ⛔ HTML har bara sex rubriknivåer. En nivå djupare än 6 (panelen på 5 och en katalog med egen rubrik, vars "Arkiverade" då är 7)
