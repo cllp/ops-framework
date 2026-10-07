@@ -360,6 +360,8 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
           ) : null}
         </div>
 
+        {entry.atgard ? <div className="relative z-10 shrink-0">{entry.atgard}</div> : null}
+
         {harDetaljer ? (
           <button
             type="button"
@@ -685,6 +687,7 @@ function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
                   <span className="block truncate text-liten text-ink-secondary">{[e.allDay ? "Heldag" : "", e.not || "", e.kalender ? e.kalender.namn : ""].filter(Boolean).join(" · ")}</span>
                 ) : null}
               </span>
+              {e.atgard ? <span className="relative z-10 shrink-0">{e.atgard}</span> : null}
               {dold ? <span className="shrink-0 rounded-full border border-line px-1.5 text-mikro uppercase tracking-wide">Dold</span> : null}
             </li>
           );

@@ -65,6 +65,8 @@ import { delaModultypId } from "./modultyper.js";
  *   öppnar den. Id:t är appens. ⛔ BARA PÅ DE POSTER SOM ÄR HÄNDELSER: en post i en egen kalender (`kalenderposter` ur `postTillRad`) har ingen panel och bär inget
  *   `handelseId`. Kräver `handelsepanel` på skalet eller `onOppnaHandelse` på kalendern: annars kastar kalendern.
  * @property {string} [typ] Typens id ur appens typkatalog (0.36.0). Det verktygsradens typfilter jämför med.
+ * @property {import("react").ReactNode} [atgard] (0.78.0) Appens kontroll på raden, till exempel bocken som gör en uppgift klar.
+ *   Ramverket ritar den och tolkar den aldrig. En uppgift är ingen händelse och bär inget `handelseId`.
  */
 
 /**

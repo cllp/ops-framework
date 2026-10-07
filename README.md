@@ -398,6 +398,8 @@ Konfigurationen kontrolleras vid uppstart, inte vid första användningen. En so
 utan `label` ger annars ett ärende som saknar sin märkning, och det felet syns
 först i ärendesystemet: posten skapades, den hamnade bara aldrig där någon letar.
 
+**Uppgift (0.78.0, lifehub.app#103 lane 19).** En inkorgstyp, inte en händelse. `byggUppgift` skriver `rubrik`, `status` (`ny`, `hanterad`, `avskriven`), och valfritt `deadline` (`ÅÅÅÅ-MM-DD`) eller `utfors` (`ÅÅÅÅ-MM-DDTHH:MM`), aldrig båda, plus `vem` och `prio`. `uppgiftFel` svarar med skälen. `visaUppgifter(poster, { idag, snarast, onKlar? })` härleder Idag, Kommande och kalenderrader ur samma poster och skriver ingenting: en dag i dag eller försenad syns på Idag och på dagen i kalendern, en dag framåt på Kommande och i kalendern, ingen dag med prioritetsvärdet `snarast` bara på Idag, ingen dag med lägre prioritet bara i `inkorg`, och `hanterad` lämnar vyerna (`hanterade`). Bocken är `onKlar(id)`. Raderna bär inkorgens id och inget `handelseId`.
+
 ### Datalager
 
 Ett CRUD-kontrakt med utbytbara adaptrar. **Vyerna vet aldrig var datan kommer

@@ -9,6 +9,25 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.78.0
+
+Uppgift som inkorgstyp (lifehub.app#103, lane 19), ramverkets del. 0.77.0 är utkastet för chattbilagor (#297) och 0.76.3 är utkastet för mejlköns `updateIf` (#298). Ingen av dem är mergad. Den här är nästa lediga minor efter main, som står på 0.76.2.
+
+### Tillagt
+
+- `byggUppgift` och `uppgiftFel`. En uppgift har `rubrik`, `status`, och antingen `deadline` eller `utfors`, aldrig båda, plus `vem` och `prio`.
+- `visaUppgifter` härleder Idag, Kommande och kalenderrader ur inkorgens poster. Ingenting skrivs till händelsesamlingen. Raderna bär inkorgens id och inget `handelseId`. En bock anropar `onKlar(id)`. En klar uppgift lämnar Idag och kalendern. "Så snart som möjligt" är prioritetsvärdet appen skickar som `snarast`, och det blir aldrig ett datum.
+- Kalenderns postkort och snabbtitt ritar `atgard` när raden har en.
+
+### Ändrat
+
+- Huvudets plus på bred skärm har inte längre raden "TALK, prata in". Mikrofonen bredvid plusset gör samma sak. Telefonens plus har raden kvar.
+
+### Prov
+
+- `src/__tests__/uppgift.test.jsx`, 6 prov. Utan avvisningen av båda datumen: 1 rött, 5 gröna. Med den: 6 av 6 gröna.
+- `src/__tests__/talk.test.jsx`, raden i huvudets plus. Med `talkRad` påslaget också där: 1 rött. Med av: 24 av 24 gröna i filen.
+
 ## 0.76.2
 
 Följd-PR till PR 294 (0.76.0, mejlkön). PR 294 mergades innan granskningen var klar, och granskningen hittade två blockerande fel: https://github.com/cllp/ops-framework/pull/294#issuecomment-6040015858. 0.76.x ska inte publiceras utan de här rättningarna.
