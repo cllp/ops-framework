@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { mejlregelfragment } from "../src/lib/mejl.js";
 import { gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -44,6 +45,10 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ HÄNDELSEMODELLEN MED FÖRVALDA NAMN (0.37.0, #179 F3): `handelseregelfragment()`, alltså svaren under
  * `handelser/{hid}/svar/{uid}`. `kalhandelser` är en påhittad APP-samling vars block är skrivet som en app skriver sitt:
  * handskrivet, med ramverkets `opsHandelsefaltGiltiga` anropad. Det är den funktionen provet mäter, inte blocket runt den.
+ *
+ * ⛔ MEJLKÖN (0.74.0, #101): `mejlregelfragment("mejl")`. Samlingsnamnet är påhittat, som appens. Provet som
+ * mäter att en klient inte skriver ligger i `rules/__tests__/mejl.test.mjs` och bygger sina egna regler ur samma
+ * funktion, med en öppen samling bredvid, så att ett nej går att skilja från en emulator som nekar allt.
  */
 const text = `rules_version = '2';
 
@@ -58,6 +63,7 @@ ${konfigloggregelfragment("konfiglogg")}
 ${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta" })}
 ${kalenderregelfragment()}
 ${handelseregelfragment()}
+${mejlregelfragment("mejl")}
     // Påhittad app-samling (se filhuvudet): appens eget block, med ramverkets fält prövade av opsHandelsefaltGiltiga.
     match /kalhandelser/{id} {
       allow read: if opsArMedlem(resource.data.groupId);

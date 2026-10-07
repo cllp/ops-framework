@@ -14,7 +14,7 @@
     "noUnusedParameters": true,
     "verbatimModuleSyntax": false
   },
-  "include": ["src/**/*.js", "src/**/*.jsx"],
+  "include": ["src/**/*.js", "src/**/*.jsx", "src/node/nodemailer.d.ts"],
   "exclude": [
     "node_modules",
     "dist",

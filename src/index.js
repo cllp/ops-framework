@@ -214,6 +214,12 @@ export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
 export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment } from "./lib/regler.js";
 /*
+ * ⛔ MEJLKÖNS REGELFRAGMENT (0.74.0, #101). Text in och text ut, ingen React.
+ * Utskicket ligger på nodsidan, eftersom det bär en SMTP-hemlighet. Fragmentet
+ * ligger här så appens regelskript kan limma in det utan att ladda nodsidan.
+ */
+export { mejlregelfragment } from "./lib/mejl.js";
+/*
  * ⛔ KALENDRARNA (0.36.0, #179 F0): gruppens kalendrar (en katalog på typernas motor), mina kalendrar och posterna i
  * dem. Formerna och tidszonen är rena funktioner, och samlingsnamnen skickar appen in till `kalenderregelfragment`.
  */

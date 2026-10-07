@@ -154,3 +154,14 @@ export { medlemsinfo } from "../lib/gruppmedlemmar.js";
 export { typerForGrupp } from "../lib/modultyper.js";
 export { MAX_SEKUNDER, LJUDFORMAT } from "../lib/talk.js";
 export { personnamn, NAMN_SAKNAS } from "../lib/personnamn.js";
+
+/*
+ * ⛔ MEJLKÖN (0.74.0, ops-framework#101, lifehub.app#103 lane 18 A). Kön bär
+ * mottagaradresser och utskicket bär SMTP-hemligheten, alltså hör båda hit och
+ * inte i webbundeln. Ramverket känner ingen adress, ingen server och inget
+ * samlingsnamn: appen skickar in dem. `mejlregelfragment` finns också i
+ * huvudingången, eftersom regelskriptet limmar in text och inte ska ladda
+ * nodsidan för det.
+ */
+export { createMailService, createNodemailerTransport, createMockTransport } from "./mejl.js";
+export { byggMejl, sparradMejldoman, SPARRADE_MEJLDOMÄNER, normaliseraMejlsprak, losMejlsprak, losInbjudningssprak, mejlregelfragment, MEJLFALT, MEJLSTATUS, MAX_MEJLSVAR } from "../lib/mejl.js";

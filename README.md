@@ -2146,6 +2146,55 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `bakfyllKatalogGrupp({ kalla, samlingar, groupId, torr?, grupper? })` | 0.33.0, #162. Ger katalograder utan grupp appens `groupId` och nyckeln `groupId|id`, tar bort den gamla raden, och seedar grupper som saknar kataloger, ALLT i en batch. Torrkörning förval. Se bakfyllnaden under katalogtabellen ovan och ordningen i CHANGELOG 0.33.0 |
 | `createAgentService({ kalla, samlingar? })` | 0.60.0, cllp/lifehub.app#47. Gruppens agent: `satStatus({ uid, groupId, status })` (bara ägaren, `aktiv` eller `avstangd`, aldrig ta bort) och `sakerstall({ groupId, skarpt })` för engångssteget (idempotent, torrt skriver inget). Se [Gruppens agent är medlem](#gruppens-agent-är-medlem-0600-clllplifehubapp47) |
 | `seedaKataloger({ kalla, groupId, standardvarden })` | #161, #162. Seedar en befintlig grupps kataloger, en `createCatalogSource(...).seeda()` per katalog. ⛔ `skapaGrupp` anropar den inte längre (0.33.0): den skriver katalogerna i sin egen batch. `standardvarden` är ett objekt, en nyckel per katalog (samlingens namn): värdet är antingen en lista rader (genväg för `{ standard: rader }`) eller katalogens fulla `createCatalogSource`-konfiguration (`standard`, `ikoner`, `textnycklar`, `faser`, `farger`). Bygger EN `createCatalogSource` per katalog, med `groupId` inbakat, och kör dess `.seeda()`. Svarar `{ [namn]: { seedade, antal, orsak? } }`, en rad per katalog, aldrig en sammanslagen bool. Katalogerna seedas i turordning, inte parallellt |
+| `createMailService`, `createNodemailerTransport`, `createMockTransport`, `byggMejl`, `sparradMejldoman`, `SPARRADE_MEJLDOMÄNER`, `normaliseraMejlsprak`, `losMejlsprak`, `losInbjudningssprak`, `mejlregelfragment`, `MEJLFALT`, `MEJLSTATUS`, `MAX_MEJLSVAR` | 0.74.0, #101. Mejlkö. Se [Mejlkö](#mejlkö-0740-101) |
+
+### Mejlkö (0.74.0, #101)
+
+Kön ligger i datalagret. Appen skickar in samlingens namn, avsändaren och SMTP-värdena. Ramverket känner inga adresser och inga hemligheter: det läser aldrig `MAIL_USER` eller `MAIL_PASS`, varken när modulen laddas eller inne i anropet.
+
+Ett köat dokument har `till`, `amne`, `text`, `html`, `sprak` (`sv` eller `en`), `kategori` och valfritt `groupId`. `losMejlsprak` väljer språket i samma ordning som SessionStudios `resolveMailLang` (händelse, grupp, avsändare, sedan `sv`). `losInbjudningssprak` följer `resolveInviteLang`. Copy ur SessionStudio följer inte med: den namnger SessionStudio.
+
+Utskicket skriver kvittot på samma dokument: `status` (`skickad` eller `fel`), `accepterade`, `avvisade`, `svar` (serverns rad, längst `MAX_MEJLSVAR` tecken), `messageId`, `tid` och `orsak`. Ett köat dokument har status `koad` och de övriga fälten tomma (`null` eller `[]`), så ett obesvarat brev inte ser ut som ett fält som glömdes. `skickad` kräver att minst en mottagare accepterades och ingen avvisades. En avvisad mottagare, ett kast, en saknad transport och en spärrad domän blir alla `fel` med ett skäl. Dokumentet skickas inte igen: ett nytt försök är ett nytt dokument.
+
+Spärrade domäner är `test.se`, `example.com`, `test.com` och `example.se`, samma lista som SessionStudio. De skickas inte.
+
+`mejlregelfragment(samling)` ger `allow read, write: if false`. Klienten läser inte kön och skriver inte i den. Servern skriver med Admin SDK, som går förbi reglerna. Fragmentet finns i båda ingångarna. Regelskriptet importerar det från `ops-framework`, utskicket från `ops-framework/node`.
+
+```js
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { mejlregelfragment } from "ops-framework";
+import { createMailService, createNodemailerTransport } from "ops-framework/node";
+
+// mejlregelfragment("mejl") limmas in i firestore.rules.
+
+const tjanst = createMailService({ kalla, samling: "mejl" });
+
+export const skickaMejl = onDocumentCreated(
+  {
+    document: "mejl/{id}",
+    region: "europe-west1",
+    secrets: ["MAIL_USER", "MAIL_PASS"],
+  },
+  async (event) => {
+    // Hemligheterna läses här, inne i anropet. Vid modulens laddning finns de inte ännu.
+    await tjanst.skicka(event.params.id, {
+      transport: () => createNodemailerTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
+        from: "LifeHub <hello@life-hub.app>",
+      }),
+    });
+  },
+);
+```
+
+Värdena i exemplet är appens. LifeHub skickar från `hello@life-hub.app` via `smtp.gmail.com:465`. En annan app skickar in sina egna.
+
+⛔ **Gmail-taket för Workspace är cirka 2000 mejl per dygn.** Ett utskick som servern avvisar, inklusive ett som slår i taket, blir `fel` på köns dokument med serverns rad i `svar` och skälet i `orsak`. Det försvinner inte.
+
+⛔ **Prov och CI skickar inget riktigt mejl.** Där används `createMockTransport`. Första riktiga utskicket efter deploy är en inbjudan från Dev till en av CP:s adresser, och kvittot (`messageId` och `accepterade`) läses ur köns dokument.
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
 `src/index.js` buntas för webbläsaren, alltså hamnar i varje besökares JS-fil.

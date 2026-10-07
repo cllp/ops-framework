@@ -9,6 +9,38 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.74.0
+
+Mejlkö på nodsidan (ops-framework#101, lifehub.app#103 lane 18 steg A). Inget att deploya i en app förrän den limmar in `mejlregelfragment` och registrerar utskicket. Regeln nekar klienter, så den kan rullas ut före funktionen.
+
+### Kön, kvitto och transport
+
+Händelsen: inbjudningar skrivs redan, men inget mejl går iväg. Lane 18 steg A är ramverkets kö, inte inbjudningsflödet.
+
+Appen skickar in samlingens namn, `from` och SMTP (`host`, `port`, `secure`, `auth`). Ramverket känner inga adresser och läser inte `MAIL_USER` eller `MAIL_PASS`, varken vid laddning eller i anropet. Hemligheterna binds på appens funktion med `secrets: ["MAIL_USER", "MAIL_PASS"]` och läses inne i anropet, när transporten byggs.
+
+Ett köat dokument har `till`, `amne`, `text`, `html`, `sprak` (`sv` eller `en`), `kategori` och valfritt `groupId`. Utskicket skriver kvittot på samma dokument: `status` (`skickad` eller `fel`), `accepterade`, `avvisade`, `svar`, `messageId`, `tid` och `orsak`. `skickad` kräver att minst en mottagare accepterades och ingen avvisades. Ett kast, en saknad transport och en avvisad mottagare blir `fel`. Inget av dem försvinner.
+
+Spärrade domäner och språkvalet är samma beslut som i SessionStudio (`sendEmailNotification.js`, `mailLang.js`, `mailLogger.js`), inte samma filer. Listan är `test.se`, `example.com`, `test.com`, `example.se`. En adress med visningsnamn jämförs på adressen inuti vinkelparentesen, annars slank `Namn <a@example.com>` förbi listan. Copy ur SessionStudio följer inte med.
+
+`mejlregelfragment(samling)` är `allow read, write: if false`. Klienten läser inte och skriver inte. Servern skriver med Admin SDK.
+
+Gmail-taket för Workspace är cirka 2000 mejl per dygn. Ett avvisat utskick, också ett som slår i taket, blir `fel` på dokumentet. Prov och CI använder `createMockTransport` och skickar inget riktigt mejl.
+
+#### Prov
+
+Utan utskicket (`skicka` återvände med dokumentet kvar som `koad`): `mejl.test.js` "mock-transporten ger status skickad" röd, väntade `skickad`, fick `koad`. Med utskicket: grön.
+
+Utan kontrollen av avvisade mottagare (ett svar från transporten räknades som `skickad`): 2 röda, båda väntade `fel` och fick `skickad` (tom accepterad lista, och en delvis avvisad rad). Med kontrollen: gröna.
+
+Utan spärren: "de fyra domänerna" röd, väntade `fel`, fick `skickad`. Med spärren: grön, och mock-transporten anropades 0 gånger.
+
+Utan nekande fragment (`allow read, write: if request.auth != null`): enhetstestet rött, raden matchade inte `if false`. Mot emulatorn, med den öppna samlingen `oppna` bredvid: samma inloggade klient skrev i `oppna` (så emulatorn inte nekade allt) och skrev och läste i kön. Båda proven sa "Expected request to fail, but it succeeded". Med `if false`: 5 av 5 gröna, och loggen visar `false for 'create'` på köns rad.
+
+Med rättningen: 16 av 16 gröna i `src/__tests__/mejl.test.js`, 5 av 5 gröna i `rules/__tests__/mejl.test.mjs`. Hela regelprovssviten: 360 av 360 gröna.
+
+`check-gammalt-namn` läste 652 filer mot golvet 540, mer än 20 procent över, och blev röd. Golvet är höjt till 619, det tal vakten själv räknade fram (`Math.floor(652 * 0.95)`).
+
 ## 0.73.1
 
 Två små rättelser ur granskningarna av PR 275 och PR 285, och en tredje som hittades när CI föll på den här grenen. Inga regeländringar, inget att deploya före klienten.
