@@ -57,6 +57,13 @@ export const SAMTALSFALT = /** @type {const} */ (["groupId", "slag", "deltagare"
 /** Fälten ett meddelande får bära. */
 export const MEDDELANDEFALT = /** @type {const} */ (["text", "av", "tid"]);
 
+/**
+ * Det ett meddelande får bära om en bilaga (0.80.0, #300): namn och typ, aldrig innehållet.
+ * Filen ligger i sitt eget dokument. `namn` och `typ` skrivs i samma skrivning som meddelandet och kan inte
+ * ändras efteråt (meddelandet uppdateras aldrig), så de kan inte glida isär från filen.
+ */
+export const BILAGEMARKEFALT = /** @type {const} */ (["namn", "typ"]);
+
 /** Fältet på läst-raden. */
 export const LASTFALT = /** @type {const} */ (["lastTill"]);
 
@@ -184,8 +191,8 @@ export function byggSamtal(d) {
  * @property {number} tid Millisekunder sedan 1970.
  * @property {ReadonlyArray<string>} [namner] (chattens nattskiva) Vilka som nämns: uid:n, eller `["alla"]`.
  * @property {string} [svarPa] (chattens nattskiva) Meddelandet som besvaras med citat, i samma samtal.
- * @property {import("./file.js").Bilaga} [bilaga] (0.77.0, #292) En bild eller en fil, i kommentarernas form. Bara när
- *   källan och regeln har `bilagor: true`.
+ * @property {import("./file.js").Bilaga | { namn: string, typ: string }} [bilaga] `byggMeddelande` bär hela filen, så att källan kan dela den.
+ *   Det som lagras på meddelandet (0.80.0, #300) är bara `{ namn, typ }`. Filen läses med `lasBilaga`.
  */
 
 /**
@@ -289,6 +296,26 @@ export function utdrag(text, max = 80) {
   // fästraden (granskningen av PR 286).
   const t = rensa(markdownSomText(rensa(text))).replace(/\s+/g, " ");
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+/**
+ * Texten som visas för ett meddelande: utdraget av texten, annars bilagans namn.
+ *
+ * ⛔ ETT STÄLLE (0.80.0, #300). Bubblan, citatet, fästraden och `samtalsnotiser` läser samma funktion. Notisen tog
+ * förut bara `utdrag(text)`, så ett meddelande som bara var en fil blev en tom notis. En bilaga utan namn (en rad
+ * som inte gått genom `byggMeddelande`) syns som "Bilaga", inte som en tom sträng: tomt och ostält ska gå att skilja.
+ *
+ * @param {{ text?: string, bilaga?: { namn?: string } | null } | null | undefined} m
+ * @param {number} [max]
+ * @returns {string}
+ */
+export function synligText(m, max = 80) {
+  if (!m) return "";
+  const text = utdrag(typeof m.text === "string" ? m.text : "", max);
+  if (text) return text;
+  const namn = m.bilaga && typeof m.bilaga.namn === "string" ? utdrag(m.bilaga.namn, max) : "";
+  if (namn) return namn;
+  return m.bilaga ? "Bilaga" : "";
 }
 
 /**

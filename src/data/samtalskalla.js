@@ -1,6 +1,7 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
-import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
+import { KOMMENTARBILAGAFALT } from "../lib/handelsemodell.js";
+import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -38,18 +39,24 @@ import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, byggFastning, byggMed
  *   samtal). ⛔ INGET FÖRVAL. Samma som till `samtalsregelfragment({ citat: true })`.
  * @param {string} [konfig.fasta] (chattens nattskiva) Samlingsnamnet för fästa meddelanden, `<samtal>/{sid}/<fasta>/{mid}`. ⛔ INGET
  *   FÖRVAL. Samma namn som till `samtalsregelfragment({ fasta })`.
- * @param {boolean} [konfig.bilagor] (0.77.0, #292) `true` slår på fältet `bilaga` på meddelandena, i kommentarernas form. ⛔ INGET
- *   FÖRVAL: utan det kastar `skicka` på en `bilaga`, och pluset i skrivfältet ritas inte av källan. Samma som till
- *   `samtalsregelfragment({ bilagor: true })`. Filen ligger i meddelandets dokument. Ramverket känner ingen sökväg.
+ * @param {boolean} [konfig.bilagor] (0.77.0, #292, ändrat 0.80.0, #300) `true` slår på fältet `bilaga` på meddelandena.
+ *   ⛔ INGET FÖRVAL: utan det kastar `skicka` på en `bilaga`, och pluset i skrivfältet ritas inte av källan. Kräver
+ *   `bilagaSamling`. Samma val som till `samtalsregelfragment({ bilagor: true, bilagaSamling })`.
+ * @param {string} [konfig.bilagaSamling] (0.80.0, #300) Samlingsnamnet för filerna, `<samtal>/{sid}/<bilagaSamling>/{meddelandets id}`.
+ *   ⛔ INGET FÖRVAL, och namnet krävs när `bilagor` är på. Meddelandet bär bara `{ namn, typ }`. Filen ligger i det egna
+ *   dokumentet och läses när den visas. Firebase Storage används inte, och ramverket känner ingen sökväg utöver det namn
+ *   appen skickar in.
+ * @param {string} [konfig.tyst] (0.80.0, #301) Samlingsnamnet för tysta notiser, `<samtal>/{sid}/<tyst>/{uid}` med `{ tyst: bool }`.
+ *   ⛔ INGET FÖRVAL. Utan det finns ingen tystning, och `samtalsnotiser` beter sig som förut.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, bilagaSamling, tyst, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner, fasta }).filter(([, v]) => v !== undefined));
+  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner, fasta, bilagaSamling, tyst }).filter(([, v]) => v !== undefined));
   for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...frivilliga })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
@@ -57,10 +64,12 @@ export function createSamtalskalla(konfig) {
   }
   // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
   // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
-  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta }, "createSamtalskalla");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta, bilagaSamling, tyst }, "createSamtalskalla");
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
   if (bilagor !== undefined && bilagor !== true) throw new Error("createSamtalskalla: bilagor är true eller utelämnat.");
+  if (bilagor === true && bilagaSamling === undefined) throw new Error("createSamtalskalla: bilagor: true kräver bilagaSamling, samlingsnamnet för filerna. Samma namn som till samtalsregelfragment.");
+  if (bilagor !== true && bilagaSamling !== undefined) throw new Error("createSamtalskalla: bilagaSamling kräver bilagor: true.");
 
   /**
    * Meddelandet som skrivs. ⛔ `namner` utan `omnamnanden` kastar: regeln hade nekat skrivningen, och ett fel här säger varför.
@@ -78,7 +87,54 @@ export function createSamtalskalla(konfig) {
    * Det som skrivs. Arrayer och bilagan kopieras, så att den frusna modellen inte är det dokument källan lagrar.
    * @param {import("../lib/samtal.js").Meddelande} m
    */
-  const meddelandeAttLagra = (m) => ({ ...m, ...(m.namner ? { namner: [...m.namner] } : {}), ...(m.bilaga ? { bilaga: { ...m.bilaga } } : {}) });
+  const meddelandeAttLagra = (m) => ({
+    text: m.text,
+    av: m.av,
+    tid: m.tid,
+    ...(m.namner ? { namner: [...m.namner] } : {}),
+    ...(m.svarPa ? { svarPa: m.svarPa } : {}),
+    // ⛔ Märket, inte filen. `dataUrl` på meddelandet är det #300 tar bort ur översikten.
+    ...(m.bilaga ? { bilaga: { namn: m.bilaga.namn, typ: m.bilaga.typ } } : {}),
+  });
+
+  /**
+   * Filens fält, och inga andra. Regeln har `hasOnly` på samma lista.
+   * @param {import("../lib/file.js").Bilaga} bilaga
+   */
+  const bilagaAttLagra = (bilaga) => {
+    /** @type {Record<string, unknown>} */
+    const ut = {};
+    for (const k of KOMMENTARBILAGAFALT) if (k in bilaga) ut[k] = /** @type {any} */ (bilaga)[k];
+    return ut;
+  };
+
+  let foljd = 0;
+  /** Id som meddelandet och filen delar. Klockan anropas inte här: `nyttMeddelande` har redan tagit tiden. */
+  const nyttDokumentId = (/** @type {number} */ tid) => {
+    foljd += 1;
+    return `m_${tid.toString(36)}_${foljd}`;
+  };
+
+  /** @param {string} sid */
+  const bilagavag = (sid) => `${samtal}/${sid}/${bilagaSamling}`;
+
+  /**
+   * Skriver meddelandet. Med en bilaga skrivs märket och filen i samma batch, eller inte alls.
+   * @param {string} vag @param {string} sid @param {import("../lib/samtal.js").Meddelande} m
+   */
+  async function skrivMeddelande(vag, sid, m) {
+    const lagrad = meddelandeAttLagra(m);
+    if (!m.bilaga) return kalla.create(vag, lagrad);
+    if (typeof kalla.batch !== "function") {
+      throw new Error("samtalskalla: en bilaga kräver kalla.batch, så meddelandet och filen skrivs tillsammans eller inte alls. En ensam skrivning hade lämnat ett meddelande som pekar på en fil som inte finns, eller en fil som inget meddelande nämner.");
+    }
+    const id = nyttDokumentId(m.tid);
+    const svar = await kalla.batch([
+      { op: "create", collection: vag, data: { id, ...lagrad } },
+      { op: "create", collection: bilagavag(sid), data: { id, ...bilagaAttLagra(m.bilaga) } },
+    ]);
+    return svar[0];
+  }
 
   /** @param {string} sid */
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
@@ -226,7 +282,7 @@ export function createSamtalskalla(konfig) {
    */
   async function skicka(sid, { text, av, namner, svarPa, bilaga }) {
     const m = nyttMeddelande({ text, av, namner, svarPa, bilaga }, "samtalskalla.skicka");
-    return kalla.create(meddelandevag(sid), meddelandeAttLagra(m));
+    return skrivMeddelande(meddelandevag(sid), sid, m);
   }
 
   /**
@@ -268,7 +324,11 @@ export function createSamtalskalla(konfig) {
     const alla = await lista({ groupId, uid });
     const rader = await Promise.all(
       alla.map(async (s) => {
-        const [ms, till] = await Promise.all([lasMeddelanden(s.id), lastTill(s.id, uid)]);
+        const [ms, till, tystad] = await Promise.all([
+          lasMeddelanden(s.id),
+          lastTill(s.id, uid),
+          tyst === undefined ? Promise.resolve(false) : tystFor(s.id, uid),
+        ]);
         const olastaRader = ms.filter((m) => m && m.av !== uid && m.tid > till);
         return {
           samtal: s,
@@ -278,6 +338,8 @@ export function createSamtalskalla(konfig) {
           olastaRader,
           lastTill: till,
           motpart: motpart(s, uid),
+          // ⛔ Bara när appen slagit på tystning. Utan nyckeln är raden densamma som förut.
+          ...(tyst === undefined ? {} : { tyst: tystad }),
         };
       }),
     );
@@ -399,7 +461,8 @@ export function createSamtalskalla(konfig) {
     // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig. En bilaga utan text är ett svar.
     const m = nyttMeddelande({ text, av, namner, bilaga }, "samtalskalla.skickaITrad");
     await oppnaTrad({ sid, rot: tid, uid: av });
-    return kalla.create(tradmeddelandevag(sid, tid), meddelandeAttLagra(m));
+    // Filen ligger under samtalet, inte under tråden: panelen läser en samling, och meddelandets id är unikt i källan.
+    return skrivMeddelande(tradmeddelandevag(sid, tid), sid, m);
   }
 
   /**
@@ -559,6 +622,54 @@ export function createSamtalskalla(konfig) {
   }
   const fastfunktioner = fasta === undefined ? {} : { fasta, lasFasta, prenumereraFasta, fast, lossa };
 
+  /*
+   * ══ ⛔ BILAGOR I EGNA DOKUMENT (0.80.0, #300) ══════════════════════════════════════════════════════════════════════
+   *
+   * Översikten läser meddelandena, och ett meddelande med filen i sig var uppåt 700 000 tecken. Märket räcker för listan
+   * och notisen. Filen läses när någon visar meddelandet eller öppnar Chattinfo.
+   */
+  /**
+   * Filen bakom ett meddelande, eller `null`.
+   * @param {string} sid @param {string} mid
+   */
+  async function lasBilaga(sid, mid) {
+    return kalla.read(bilagavag(sid), mid);
+  }
+  /**
+   * Filerna i ett samtal, de senaste `sida`. `fler` när taket nåddes.
+   * @param {string} sid
+   * @returns {Promise<{ rader: any[], fler: boolean }>}
+   */
+  async function lasBilagor(sid) {
+    const rader = await kalla.list(bilagavag(sid), { limit: sida });
+    return { rader, fler: rader.length >= sida };
+  }
+  const bilagefunktioner = bilagor === true ? { bilagaSamling, lasBilaga, lasBilagor } : {};
+
+  /*
+   * ══ ⛔ TYSTA NOTISER (0.80.0, #301) ════════════════════════════════════════════════════════════════════════════════
+   * En rad per person och samtal. Notisen läser den och hoppar över samtalet. Ingen annan läser raden (regeln).
+   */
+  /** @param {string} sid */
+  const tystvag = (sid) => `${samtal}/${sid}/${tyst}`;
+  /**
+   * @param {string} sid @param {string} uid
+   * @returns {Promise<boolean>}
+   */
+  async function tystFor(sid, uid) {
+    const rad = await kalla.read(tystvag(sid), uid);
+    return Boolean(rad && /** @type {any} */ (rad).tyst === true);
+  }
+  /**
+   * @param {string} sid @param {string} uid @param {boolean} pa
+   */
+  async function sattTyst(sid, uid, pa) {
+    if (typeof pa !== "boolean") throw new Error("samtalskalla.sattTyst: pa är true eller false. Utan ett värde går det inte att se om samtalet är tystat.");
+    if (!uid) throw new Error("samtalskalla.sattTyst: uid krävs. Tystningen är en persons, inte samtalets.");
+    await kalla.create(tystvag(sid), { id: uid, tyst: pa });
+  }
+  const tystfunktioner = tyst === undefined ? {} : { tyst, tystFor, sattTyst };
+
   return Object.freeze({
     lista,
     oppnaGrupp,
@@ -576,6 +687,8 @@ export function createSamtalskalla(konfig) {
     ...statusfunktioner,
     ...reaktionsfunktioner,
     ...fastfunktioner,
+    ...bilagefunktioner,
+    ...tystfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
     ...(citat === true ? { citat: true } : {}),
     ...(bilagor === true ? { bilagor: true } : {}),
@@ -676,6 +789,14 @@ export function harBilagor(kalla) {
 }
 
 /**
+ * Har källan tysta notiser, alltså har appen slagit på dem med `tyst`? (0.80.0, #301)
+ * @param {unknown} kalla
+ */
+export function harTyst(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).sattTyst) === "function";
+}
+
+/**
  * Har källan trådar, alltså har appen slagit på dem med `tradar`? (0.68.0, granskningen av PR 268, BÖR 2.)
  *
  * ⛔ EN FRÅGA, ETT STÄLLE. Vyn ritar "Svara i tråd" och märkena bara när svaret är ja, så att en app som inte bett om trådar
@@ -724,7 +845,7 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
   if (!uid) throw new Error("samtalsnotiser: uid krävs. Notiserna är en persons, inte gruppens.");
   if (typeof namnFor !== "function") throw new Error("samtalsnotiser: namnFor krävs. En notis utan namn säger inte vem som skrev.");
   return async ({ groupId }) => {
-    const rader = await samtal.oversikt({ groupId, uid });
+    const rader = (await samtal.oversikt({ groupId, uid })).filter((r) => r.tyst !== true);
     const privata = rader
       .filter((r) => r.samtal.slag !== "grupp" && r.olasta > 0 && r.senaste)
       .map((r) => {
@@ -732,7 +853,7 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
         return {
           id: `${r.samtal.id}|${s.id}`,
           titel: titel(namnFor(s.av) || NAMN_SAKNAS),
-          text: utdrag(s.text),
+          text: synligText(s),
           prio: /** @type {const} */ ("normal"),
           ...(href ? { href: href(r.samtal.id) } : {}),
         };
@@ -746,7 +867,7 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
         return [{
           id: `${r.samtal.id}|${s.id}`,
           titel: namndTitel(namnFor(s.av) || NAMN_SAKNAS),
-          text: utdrag(s.text),
+          text: synligText(s),
           prio: /** @type {const} */ ("normal"),
           ...(href ? { href: href(r.samtal.id) } : {}),
         }];

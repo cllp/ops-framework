@@ -161,7 +161,7 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   // ⛔ Chattens scen har en fast klocka, samma dag som scenens meddelanden (2026-10-06 från 09:00). Utan den stod det "I går"
   // eller ett annat datum i bilderna beroende på när de togs, och de gick inte att återskapa (granskningen av PR 286).
   // Rörelse av, också: en puls eller en övergång mitt i en bild gör att samma scen ger en annan bild.
-  if (scen === "chattnatt") {
+  if (scen === "chattnatt" || scen === "chattinfo") {
     await page.clock.setFixedTime(new Date(2026, 9, 6, 22, 0));
     await page.emulateMedia({ reducedMotion: "reduce" });
   }
@@ -596,6 +596,81 @@ async function chattensNattskiva() {
       await context.close();
     }
   }
+}
+
+// ══ CHATTINFO (0.80.0, #301) ═══════════════════════════════════════════════════════════════════════════════════════
+// Bara med `--bara-chattinfo`. Hela `check-skalyta` kör den inte: den mäter en ny yta, och en röd bild i den långa
+// kedjan hade blandats med de 29g-kontroller som redan har sitt hem. Körningen skriver skärmbilder när `--bilder` är satt.
+async function chattinfoYta() {
+  const vyer = [{ width: 390, height: 844 }, { width: 1024, height: 900 }];
+  for (const vp of vyer) {
+    const { page, context } = await oppna("chattinfo", vp);
+    const namn = `chattinfo ${vp.width}`;
+    try {
+      await page.waitForSelector("[data-chattverktyg=info]", { timeout: 4000 });
+      const huvud = await page.evaluate(() => {
+        const knappar = [...document.querySelectorAll("[data-chattverktyg]")].map((e) => {
+          const r = e.getBoundingClientRect();
+          return { id: e.getAttribute("data-chattverktyg"), w: Math.round(r.width), h: Math.round(r.height), namn: e.getAttribute("aria-label") };
+        });
+        return { knappar };
+      });
+      matt.push(`${namn} huvud: ${JSON.stringify(huvud)}`);
+      const vantar = ["mejl", "tyst", "sok", "info"];
+      krav(huvud.knappar.map((k) => k.id).join(",") === vantar.join(","), `${namn}: verktygsraden är ${huvud.knappar.map((k) => k.id).join(",")}, väntat ${vantar.join(",")}.`);
+      krav(huvud.knappar.every((k) => k.w >= 44 && k.h >= 44 && k.namn), `${namn}: varje knapp ska ha namn och minst 44 px (${JSON.stringify(huvud.knappar)}).`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-huvud-${vp.width}.png`) });
+      await page.getByRole("button", { name: "Chattinfo" }).click();
+      await page.waitForSelector("[data-chattinfo]");
+      await page.getByRole("tab", { name: /^Bilder / }).click();
+      await page.waitForSelector("[data-chattinfo-bild]");
+      const lage = await page.evaluate(() => {
+        const inre = document.querySelector("[data-chattinfo]");
+        const panel = inre.parentElement;
+        const logg = document.querySelector("[role=log]");
+        const pr = panel.getBoundingClientRect();
+        const lr = logg.getBoundingClientRect();
+        const bilder = document.querySelector("[data-chattinfo-bild]");
+        const stil = getComputedStyle(panel);
+        return {
+          panel: { x: Math.round(pr.x), y: Math.round(pr.y), w: Math.round(pr.width), h: Math.round(pr.height), position: stil.position },
+          logg: { x: Math.round(lr.x), w: Math.round(lr.width) },
+          bild: Boolean(bilder),
+          pdfIBilder: Boolean(bilder && bilder.textContent && bilder.textContent.includes("avtal.pdf")),
+        };
+      });
+      matt.push(`${namn} bilder: ${JSON.stringify(lage)}`);
+      krav(lage.bild && !lage.pdfIBilder, `${namn}: Bilder ska visa bilden och inte avtal.pdf (${JSON.stringify(lage)}).`);
+      if (vp.width < 768) {
+        krav(lage.panel.position === "absolute" && lage.panel.x <= lage.logg.x + 2 && lage.panel.w >= lage.logg.w - 2, `${namn}: på smal skärm ska panelen ligga över chatten (${JSON.stringify(lage)}).`);
+      } else {
+        krav(lage.panel.position === "static" && lage.panel.x >= lage.logg.x + lage.logg.w - 2, `${namn}: på bred skärm ska panelen ligga bredvid chatten (${JSON.stringify(lage)}).`);
+      }
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-bilder-${vp.width}.png`) });
+      await page.getByRole("tab", { name: /^Dokument / }).click();
+      await page.waitForSelector("[data-chattinfo-dokument]");
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-dokument-${vp.width}.png`) });
+      await page.getByRole("button", { name: "Sök i samtalet" }).hover();
+      await page.waitForTimeout(400);
+      const tips = await page.evaluate(() => {
+        const bubbla = [...document.querySelectorAll("[role=tooltip], [data-radix-popper-content-wrapper]")].map((e) => (e.textContent || "").trim());
+        return bubbla;
+      });
+      matt.push(`${namn} tooltip: ${JSON.stringify(tips)}`);
+      krav(tips.some((t) => t.includes("Sök i samtalet")), `${namn}: tooltipen för Sök syntes inte (${JSON.stringify(tips)}).`);
+      krav((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 0, `${namn}: sidan flödar över horisontellt.`);
+    } catch (e) {
+      krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+    }
+    await context.close();
+  }
+}
+
+if (argv.includes("--bara-chattinfo")) {
+  await chattinfoYta();
+  await browser.close();
+  avsluta();
+  process.exit(0);
 }
 
 // `--bara-chatt`: bara avsnitt 29g, för en snabb körning under arbetet med chatten. Hela körningen är den som gäller i kedjan.

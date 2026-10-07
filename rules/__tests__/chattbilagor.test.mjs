@@ -14,7 +14,7 @@ import { samtalsnyckel } from "../../src/lib/samtal.js";
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, deleteDoc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,36 +67,59 @@ const pa = (typ, n) => {
   return huvud + "A".repeat(n - huvud.length);
 };
 const meddelande = (/** @type {string} */ av, extra = {}) => ({ text: "Hej", av, tid: nu(), ...extra });
+const marke = (namn, typ) => ({ namn, typ });
 
 describe("bilaga på ett meddelande", () => {
-  it("en deltagare skriver en bilaga, också utan text, och den andra läser den", async () => {
-    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/bild`), meddelande(ANNA, { text: "", bilaga: bild() })));
+  it("meddelandet bär märket och filen ligger i sitt dokument, också utan text", async () => {
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/bild`), meddelande(ANNA, { text: "", bilaga: marke("kvitto.png", "image/png") })));
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/bilagor/bild`), bild()));
     const las = await assertSucceeds(getDoc(doc(som(BO), `samtal/${sid}/meddelanden/bild`)));
     assert.equal(las.data()?.bilaga?.namn, "kvitto.png");
-    await assertSucceeds(setDoc(doc(som(BO), `samtal/${grupp}/tradar/rot/meddelanden/svar`), meddelande(BO, { text: "Se filen", bilaga: bild({ namn: "svar.png" }) })));
+    assert.equal(las.data()?.bilaga?.dataUrl, undefined);
+    const fil = await assertSucceeds(getDoc(doc(som(BO), `samtal/${sid}/bilagor/bild`)));
+    assert.equal(fil.data()?.dataUrl, PNG);
+    await assertSucceeds(setDoc(doc(som(BO), `samtal/${grupp}/tradar/rot/meddelanden/svar`), meddelande(BO, { text: "Se filen", bilaga: marke("svar.png", "image/png") })));
+    await assertSucceeds(setDoc(doc(som(BO), `samtal/${grupp}/bilagor/svar`), bild({ namn: "svar.png" })));
   });
 
-  it("⛔ en främling läser inte meddelandet med bilagan", async () => {
+  it("⛔ en främling läser varken meddelandet eller filen", async () => {
     await assertFails(getDoc(doc(som(FRAMLING), `samtal/${sid}/meddelanden/bild`)));
+    await assertFails(getDoc(doc(som(FRAMLING), `samtal/${sid}/bilagor/bild`)));
+  });
+
+  it("⛔ filen kan inte ändras eller raderas", async () => {
+    await assertFails(updateDoc(doc(som(ANNA), `samtal/${sid}/bilagor/bild`), { namn: "annat.png" }));
+    await assertFails(deleteDoc(doc(som(ANNA), `samtal/${sid}/bilagor/bild`)));
+    await assertFails(deleteDoc(doc(som(BO), `samtal/${sid}/bilagor/bild`)));
+  });
+
+  it("⛔ dataUrl på meddelandet nekas", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/hel`), meddelande(ANNA, { bilaga: bild() })));
   });
 
   it("⛔ för stor fil nekas, exakt taket släpps in", async () => {
     const exakt = pa("application/pdf", MAX_KOMMENTARBILAGA);
     assert.equal(exakt.length, MAX_KOMMENTARBILAGA);
-    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/tak`), meddelande(ANNA, { bilaga: { dataUrl: exakt, namn: "a.pdf", typ: "application/pdf", tecken: exakt.length } })));
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/bilagor/tak`), { dataUrl: exakt, namn: "a.pdf", typ: "application/pdf", tecken: exakt.length }));
     const over = pa("application/pdf", MAX_KOMMENTARBILAGA + 1);
-    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/over`), meddelande(ANNA, { bilaga: { dataUrl: over, namn: "a.pdf", typ: "application/pdf", tecken: over.length } })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/bilagor/over`), { dataUrl: over, namn: "a.pdf", typ: "application/pdf", tecken: over.length }));
   });
 
   it("⛔ fel typ och innehåll som inte är typen nekas", async () => {
     const svg = pa("image/svg+xml", 40);
-    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/svg`), meddelande(ANNA, { bilaga: { dataUrl: svg, namn: "a.svg", typ: "image/svg+xml", tecken: svg.length } })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/bilagor/svg`), { dataUrl: svg, namn: "a.svg", typ: "image/svg+xml", tecken: svg.length }));
     const exe = pa("application/x-msdownload", 40);
-    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/exe`), meddelande(ANNA, { bilaga: { dataUrl: exe, namn: "a.exe", typ: "application/x-msdownload", tecken: exe.length } })));
-    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/lur`), meddelande(ANNA, { bilaga: bild({ typ: "application/pdf" }) })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/bilagor/exe`), { dataUrl: exe, namn: "a.exe", typ: "application/x-msdownload", tecken: exe.length }));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/bilagor/lur`), bild({ typ: "application/pdf" })));
   });
 
   it("⛔ tom text utan bilaga nekas som förut", async () => {
     await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/tom`), meddelande(ANNA, { text: "" })));
+  });
+
+  it("tystning är personens egen rad", async () => {
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/tyst/${ANNA}`), { tyst: true }));
+    await assertFails(getDoc(doc(som(BO), `samtal/${sid}/tyst/${ANNA}`)));
+    await assertFails(deleteDoc(doc(som(ANNA), `samtal/${sid}/tyst/${ANNA}`)));
   });
 });

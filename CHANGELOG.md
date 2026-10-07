@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.80.0
+
+Bilagor i egna dokument och panelen Chattinfo (#300, #301). 0.78.1, 0.78.2 och 0.79.0 är utkast på andra grenar och är inte mergade. Den här är nästa lediga minor efter dem.
+
+### Ändrat
+
+- Ett meddelande med bilaga bär `{ namn, typ }`. Filen ligger i `<samtal>/{sid}/<bilagaSamling>/{meddelandets id}`. Översikten och notiserna läser inte `dataUrl`. `lasBilaga` och `lasBilagor` läser filen när den visas. Båda skrivs i en batch, eller inte alls.
+- `samtalsnotiser` använder `synligText`. En bilaga utan text ger filnamnet, inte en tom notis.
+- `BilagaVisning` sätter varken `href` eller `src` när `kommentarbilagaFel` inte är `null`.
+- `OpsChattinfo` med flikarna Medlemmar, Bilder, Dokument och Länkar. Verktygsraden i huvudet: Mejl när appen skickar en adress, Tysta notiser när källan har `tyst`, Sök i samtalet, Chattinfo. Varje knapp har namn, tooltip och 44 px. Ett tystat samtal ger ingen notis.
+- Länkarna i panelen härleds ur meddelandenas text. De lagras inte.
+- Firebase Storage används inte för chattens bilagor, och appen behöver inga Storage-regler. Med `bilagor` på källan anropas inte `onBifoga`.
+- `createRoutingSource` tar `fallback`, samma namn som i koden. README sade `standard` på två ställen.
+
+### Prov
+
+- `src/__tests__/chattinfo-rod.test.jsx` mot 0.78.0, innan rättningen: 3 röda av 3, exit 1. Översikten innehöll `dataUrl`. Notisen var `""` i stället för `kvitto.png`. `BilagaVisning` satte `href="javascript:alert(1)"`.
+- Med rättningen: `src/__tests__/chattinfo.test.jsx` 5 gröna och `src/__tests__/chatt-bilagor.test.jsx` grön. Utan `isImage` på Bilder (båda filerna räknades dit) saknades fliken "Bilder 1": 1 rött, exit 1. Med filtret: 5 gröna, exit 0.
+- `rules/__tests__/chattbilagor.test.mjs`: uppdatering och radering av filen nekas. `dataUrl` på meddelandet nekas.
+
 ## 0.78.0
 
 Uppgift som inkorgstyp (lifehub.app#103, lane 19), ramverkets del. 0.77.0 är utkastet för chattbilagor (#297) och 0.76.3 är utkastet för mejlköns `updateIf` (#298). Ingen av dem är mergad. Den här är nästa lediga minor efter main, som står på 0.76.2.
@@ -39,7 +59,7 @@ Regeln med `bilagor: true` ska vara utrullad innan klienten slår på nyckeln. U
 - Fältet `bilaga` på ett meddelande, i kommentarernas form `{ dataUrl, namn, typ, tecken, bredd?, hojd? }`. `byggMeddelande` prövar den med `kommentarbilagaFel`. Med en bilaga får texten vara tom.
 - `samtalsregelfragment({ bilagor: true })` och `createSamtalskalla({ bilagor: true })`. `skicka` och `skickaITrad` skriver bilagan, och läsningen ger den tillbaka. `harBilagor(kalla)` svarar. Utan nyckeln kastar ett försök att skicka en bilaga.
 - Regeln `opsMeddelandebilagaGiltig`, byggd av samma uttryck som `opsKommentarbilagaGiltig`. Två namn, eftersom båda fragmenten limmas in i samma regelfil.
-- `onBifoga` på `OpsSamtal`, `OpsTrad` och `OpsMeddelanden`. Plus ritas när den finns, eller när källan har `bilagor`. Ta foto ritas bara när en kamera räknats upp. Med `bilagor` läser ramverket filen och skickar den med meddelandet. En bild visas som miniatyr, en fil som nedladdningslänk.
+- `onBifoga` på `OpsSamtal`, `OpsTrad` och `OpsMeddelanden`. Plus ritas när den finns, eller när källan har `bilagor`. Ta foto ritas bara när en kamera räknats upp. Med `bilagor` läser ramverket filen och skickar den med meddelandet, och `onBifoga` anropas inte. En bild visas som miniatyr, en fil som nedladdningslänk. Firebase Storage används inte, och appen behöver inga Storage-regler. Filen låg i 0.77.0 i meddelandets dokument. Från 0.80.0 ligger den i ett eget dokument, se det avsnittet.
 
 ### Prov
 

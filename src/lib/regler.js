@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { BILAGEMARKEFALT, FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -732,6 +732,23 @@ export function konfigloggregelfragment(namn) {
  * @param {string} funktionsnamn
  * @returns {string}
  */
+/**
+ * Märket på meddelandet: namn och typ, och inget annat. `dataUrl` får inte ligga här (0.80.0, #300).
+ * @returns {string}
+ */
+function bilagemarkeFunktion() {
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  return `    function opsMeddelandebilagemarke(b) {
+      return b is map
+        && b.keys().hasOnly([${lista(BILAGEMARKEFALT)}])
+        && b.keys().hasAll([${lista(BILAGEMARKEFALT)}])
+        && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
+        && b.namn is string
+        && b.namn.size() > 0
+        && b.namn.size() <= ${MAX_BILAGENAMN};
+    }`;
+}
+
 function bilagaRegelfunktion(funktionsnamn) {
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   return `    function ${funktionsnamn}(b) {
@@ -797,15 +814,18 @@ function bilagaRegelfunktion(funktionsnamn) {
  *   - FÄSTA (chattens nattskiva, med `fasta`): `<fasta>/{mid}` med `FASTFALT`. Läsa som samtalet. Fästa: en aktiv person i
  *     samtalet, som sig själv, ett meddelande som finns i samma samtal (nyckeln ÄR dess id). Lossa: vem som helst av samtalets
  *     aktiva personer. Uppdatera: aldrig.
- *   - BILAGA (0.77.0, #292, med `bilagor: true`): ett meddelande, i samtalet och i en tråd, får bära `bilaga` i kommentarernas
- *     form. Prövningen är `opsMeddelandebilagaGiltig`, byggd av samma funktion som `opsKommentarbilagaGiltig` (ett uttryck, två
- *     namn, eftersom båda fragmenten limmas in i samma regelfil och ett delat namn inte går att deklarera två gånger). Med
- *     bilaga får texten vara tom. Utan nyckeln är meddelandets fält och textkrav desamma som förut.
+ *   - BILAGA (0.80.0, #300, med `bilagor: true` och `bilagaSamling`): meddelandet bär märket `{ namn, typ }`
+ *     (`opsMeddelandebilagemarke`). Filen, i kommentarernas form, ligger i `<samtal>/{sid}/<bilagaSamling>/{meddelandets id}`
+ *     och prövas med `opsMeddelandebilagaGiltig`. Uppdatera och radera: aldrig. Regeln kräver inte att meddelandet finns,
+ *     eftersom `exists` ser läget före anropet och inte den andra skrivningen i samma batch. Med bilaga får texten vara tom.
+ *     Utan nycklarna är meddelandets fält och textkrav desamma som förut. Firebase Storage används inte.
+ *   - TYSTA NOTISER (0.80.0, #301, med `tyst`): `<tyst>/{uid}` med `{ tyst: bool }`. Bara personen själv läser och skriver.
+ *     Radera: aldrig. Utan nyckeln finns inget sådant block.
  *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -822,8 +842,10 @@ export function samtalsregelfragment(namn = {}) {
   const status = namn.status === undefined ? null : kontrolleraNamn(namn.status, "status");
   const reaktioner = namn.reaktioner === undefined ? null : kontrolleraNamn(namn.reaktioner, "reaktioner");
   const fasta = namn.fasta === undefined ? null : kontrolleraNamn(namn.fasta, "fasta");
+  const bilagaSamling = namn.bilagaSamling === undefined ? null : kontrolleraNamn(namn.bilagaSamling, "bilagaSamling");
+  const tyst = namn.tyst === undefined ? null : kontrolleraNamn(namn.tyst, "tyst");
   // ⛔ KAN 7: ett namn som är samma som en annan undersamling hade lagt två regler på samma väg. Samma prövning som källan gör.
-  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta }, "samtalsregelfragment");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta, bilagaSamling, tyst }, "samtalsregelfragment");
   if (namn.omnamnanden !== undefined && typeof namn.omnamnanden !== "boolean") throw new Error("samtalsregelfragment: omnamnanden är true eller utelämnat.");
   const omnamnanden = namn.omnamnanden === true;
   // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
@@ -831,6 +853,9 @@ export function samtalsregelfragment(namn = {}) {
   const citat = namn.citat === true;
   if (namn.bilagor !== undefined && namn.bilagor !== true) throw new Error("samtalsregelfragment: bilagor är true eller utelämnat.");
   const bilagor = namn.bilagor === true;
+  // ⛔ Namnet kommer utifrån. Ett förval hade gett varje app en ny undersamling vid en ompinning som ingen bad om.
+  if (bilagor && !bilagaSamling) throw new Error("samtalsregelfragment: bilagor: true kräver bilagaSamling, samlingsnamnet för filerna. Ramverket väljer det inte.");
+  if (!bilagor && bilagaSamling) throw new Error("samtalsregelfragment: bilagaSamling kräver bilagor: true.");
   // Trådens meddelanden: utan `svarPa` (citat finns bara utanför gruppchatten, och trådar bara i den).
   const meddelandefalt = omnamnanden ? [...MEDDELANDEFALT, NAMNERFALT] : [...MEDDELANDEFALT];
   const samtalsfaltlista = citat ? [...meddelandefalt, SVARPAFALT] : meddelandefalt;
@@ -842,14 +867,15 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : [])].join(", ");
   // ⛔ Utan `bilagor` är de två raderna ordagrant de som stod här förut, så fixturen för 0.67.0 består.
+  // Med `bilagor` prövas MÄRKET på meddelandet. Filens `dataUrl` prövas på bilagedokumentet, inte här.
   const texttak = (/** @type {string} */ indrag) => (bilagor
-    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagaGiltig(request.resource.data.bilaga))`
+    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagemarke(request.resource.data.bilaga))`
     : `${indrag}&& request.resource.data.text.size() > 0\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}`);
   const meddelandefaltRegel = bilagor ? [...meddelandefalt, "bilaga"] : meddelandefalt;
   const samtalsfaltRegel = bilagor ? [...samtalsfaltlista, "bilaga"] : samtalsfaltlista;
-  const bilagefunktion = bilagor ? `${bilagaRegelfunktion("opsMeddelandebilagaGiltig")}\n\n` : "";
+  const bilagefunktion = bilagor ? `${bilagemarkeFunktion()}\n\n${bilagaRegelfunktion("opsMeddelandebilagaGiltig")}\n\n` : "";
   const R = SAMTALSAVGRANSARE;
   const citatfunktion = citat
     ? `    // Citat (chattens nattskiva): saknas, eller ett meddelande i samma samtal, och aldrig i gruppchatten.
@@ -998,6 +1024,30 @@ ${texttak("            ")}
         }${tradstatus}${tradreaktioner}
       }`
     : "";
+  const bilageblock = bilagaSamling
+    ? `
+
+      // Bilagor (0.80.0, #300): filen i sitt eget dokument, nyckeln är meddelandets id. Aldrig uppdatering eller radering.
+      match /${bilagaSamling}/{mid} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && opsMeddelandebilagaGiltig(request.resource.data);
+        allow update, delete: if false;
+      }`
+    : "";
+  const tystblock = tyst
+    ? `
+
+      // Tysta notiser (0.80.0, #301): en rad per person. Bara den egna läses och skrivs. Aldrig radering.
+      match /${tyst}/{uid} {
+        allow read: if request.auth != null && request.auth.uid == uid && opsISamtal(sid);
+        allow create, update: if request.auth != null && request.auth.uid == uid && opsISamtal(sid)
+          && request.resource.data.keys().hasOnly(["tyst"])
+          && request.resource.data.tyst is bool;
+        allow delete: if false;
+      }`
+    : "";
 
   return `    // ══ Ramverkets samtal (${version}). GENERERAD, ändra inte för hand ══
     //
@@ -1080,7 +1130,7 @@ ${texttak("          ")}
           && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
           && request.resource.data.lastTill is int;
         allow delete: if false;
-      }${tradblock}${statusblock}${reaktionsblock}${fastblock}
+      }${tradblock}${statusblock}${reaktionsblock}${fastblock}${bilageblock}${tystblock}
     }
 `;
 }

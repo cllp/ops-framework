@@ -2,12 +2,14 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
-import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA } from "../lib/handelsemodell.js";
+import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, tradensNamn, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
+import { harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
+import { CHATTINFO_TEXTER, OpsChattinfo } from "./OpsChattinfo.jsx";
+import { OpsTooltip } from "./OpsTooltip.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { splitInline } from "../lib/markdown.js";
 import { OpsBanner } from "./OpsBanner.jsx";
@@ -19,7 +21,7 @@ import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { useTalk } from "./OpsTalk.jsx";
 import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
-import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagIkon, MappIkon, StoppIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, InfoIkon, KameraIkon, LjudvagIkon, MappIkon, MejlIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -174,10 +176,30 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagI
  * @property {string} [agentSkriver] (#273) Förval "Agenten skriver".
  * @property {string} [agentFastnat] (#273) När statusen är äldre än två minuter. Förval "Agenten har inte svarat på två minuter. Skriv igen om du fortfarande väntar.".
  * @property {string} [agentstatusFel] (#273) När statusen inte kunde läsas, eller inte har statusens form. Förval "Agentens status kunde inte läsas.".
+ * @property {string} [mejl] (0.80.0, #301) Förval "Mejl".
+ * @property {string} [tystaNotiser] Förval "Tysta notiser".
+ * @property {string} [notiserTysta] Förval "Notiser är tysta".
+ * @property {string} [chattinfo] Förval "Chattinfo".
+ * @property {string} [stangChattinfo] Förval "Stäng chattinfo".
+ * @property {string} [medlemmar] Förval "Medlemmar".
+ * @property {string} [bilder] Förval "Bilder".
+ * @property {string} [dokument] Förval "Dokument".
+ * @property {string} [lankar] Förval "Länkar".
+ * @property {string} [ingaMedlemmar]
+ * @property {string} [ingaBilder]
+ * @property {string} [ingaDokument]
+ * @property {string} [ingaLankar]
+ * @property {string} [hamtarBilaga]
+ * @property {string} [hamtarBilagor]
+ * @property {string} [bilagorFler]
+ * @property {string} [bilagorFel]
+ * @property {string} [lankarUrLaddade]
+ * @property {string} [aldreLankar]
  */
 
 /** @type {Required<Meddelandetexter>} */
 const TEXTER = {
+  ...CHATTINFO_TEXTER,
   rubrik: "Meddelanden",
   nytt: "Nytt meddelande",
   alla: "Alla",
@@ -292,16 +314,91 @@ function radtid(tid, nu, locale) {
 const forstaVersal = (t) => (t ? t.charAt(0).toLocaleUpperCase("sv") + t.slice(1) : t);
 
 /**
- * Texten som visas för ett meddelande. En bilaga utan text syns som sitt filnamn, härlett, inte lagrat.
- * @param {{ text?: string, bilaga?: { namn?: string } } | null | undefined} m
- * @param {number} [max]
+ * En meddelandebilaga. Märket utan `dataUrl` är det vanliga efter #300: filen hämtas då, och "trasig" sägs bara när
+ * hämtningen föll eller innehållet inte klarar `kommentarbilagaFel`.
+ * @param {{ m: { id: string, bilaga?: { namn?: string, typ?: string, dataUrl?: string } | null }, kalla: any, sid: string, alt: string, texter: { hamtarBilaga: string, bilagaTrasig: string } }} props
  */
-function synligText(m, max) {
-  if (!m) return "";
-  const text = utdrag(typeof m.text === "string" ? m.text : "", max);
-  if (text) return text;
-  const namn = m.bilaga && typeof m.bilaga.namn === "string" ? m.bilaga.namn : "";
-  return namn ? utdrag(namn, max) : "";
+function VisadBilaga({ m, kalla, sid, alt, texter }) {
+  const klar = Boolean(m.bilaga && m.bilaga.dataUrl);
+  const [tillstand, setTillstand] = useState(/** @type {"hamtar" | "visad" | "trasig"} */ (klar ? "visad" : "hamtar"));
+  const [bilaga, setBilaga] = useState(klar ? m.bilaga : null);
+  useEffect(() => {
+    if (!m.bilaga || m.bilaga.dataUrl) return undefined;
+    if (!kalla || typeof kalla.lasBilaga !== "function") {
+      setTillstand("trasig");
+      return undefined;
+    }
+    let kvar = true;
+    kalla.lasBilaga(sid, m.id).then(
+      (/** @type {any} */ rad) => {
+        if (!kvar) return;
+        const b = bilagaUrDokument(rad);
+        if (!b || kommentarbilagaFel(b)) {
+          setTillstand("trasig");
+          return;
+        }
+        setBilaga(b);
+        setTillstand("visad");
+      },
+      () => {
+        if (kvar) setTillstand("trasig");
+      },
+    );
+    return () => {
+      kvar = false;
+    };
+  }, [m.id, m.bilaga, kalla, sid]);
+  if (!m.bilaga) return null;
+  if (tillstand === "hamtar") {
+    return <p data-meddelande-bilaga="hamtar" className="m-0 mt-1 text-meta text-ink-muted">{texter.hamtarBilaga}</p>;
+  }
+  if (tillstand !== "visad" || !bilaga) {
+    return (
+      <p role="alert" data-meddelande-bilaga="trasig" className="m-0 mt-1 text-meta text-danger">
+        {texter.bilagaTrasig}
+      </p>
+    );
+  }
+  return (
+    <span className="mt-1 block max-w-full">
+      <BilagaVisning bilaga={/** @type {any} */ (bilaga)} alt={alt} marke="data-meddelande-bilaga" />
+    </span>
+  );
+}
+
+/**
+ * Knapp i chattens huvud. Namnet är `aria-label`. Tooltipen är samma ord, i den mörka bubblan, så att ikonen går att läsa
+ * med pekaren och med tangentbordet. Träffytan är 44 px.
+ * @param {{ etikett: string, dataAttr: string, children: import("react").ReactNode, href?: string, pressed?: boolean, expanded?: boolean, onClick?: () => void }} props
+ */
+function Verktygsknapp({ etikett, dataAttr, children, href, pressed, expanded, onClick }) {
+  const klass = "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent";
+  const gem = {
+    "aria-label": etikett,
+    "data-chattverktyg": dataAttr,
+    ...(dataAttr === "sok" ? { "data-sok-samtal": "" } : {}),
+    ...(pressed === undefined ? {} : { "aria-pressed": pressed }),
+    ...(expanded === undefined ? {} : { "aria-expanded": expanded }),
+    className: klass,
+  };
+  const inre = href ? (
+    <a href={href} {...gem}>{children}</a>
+  ) : (
+    <button type="button" onClick={onClick} {...gem}>{children}</button>
+  );
+  return (
+    <OpsTooltip content={etikett} side="bottom" tone="mork">
+      {inre}
+    </OpsTooltip>
+  );
+}
+
+/** @param {unknown} mejl */
+function mejlHref(mejl) {
+  if (typeof mejl !== "string") return null;
+  const t = mejl.trim();
+  if (!t || /[\s<>]/.test(t)) return null;
+  return `mailto:${t}`;
 }
 
 /**
@@ -355,9 +452,10 @@ function texterPa(sprak, texter) {
  *   agenten arbetar. Utan den ingen sådan knapp.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Skickas till `OpsSamtal` och `OpsTrad`.
- *   Med `bilagor` på källan ritas pluset ändå, och filen läses av ramverket.
+ *   Med `bilagor` på källan ritas pluset ändå, och filen läses av ramverket. `onBifoga` anropas då inte.
+ * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp. Ramverket känner inga adresser.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -698,6 +796,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             sprak={sprak}
             texter={t}
             onBifoga={onBifoga}
+            mejl={mejl}
           />
         ) : vald?.ej && groupId ? (
           <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
@@ -727,6 +826,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             sprak={sprak}
             texter={t}
             onBifoga={onBifoga}
+            mejl={mejl}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
@@ -1472,8 +1572,9 @@ function Bilageutkast({ bilaga, fel, onTaBort, texter: t }) {
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Ritar pluset. Med `bilagor` på
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
+ * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -1500,6 +1601,49 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, undefined);
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [info, setInfo] = useState(false);
+  const [tyst, setTyst] = useState(false);
+  const [filer, setFiler] = useState(/** @type {{ rader: any[], fler: boolean } | null} */ (null));
+  const [filerFel, setFilerFel] = useState(/** @type {string | null} */ (null));
+  const post = mejlHref(mejl);
+  useEffect(() => {
+    if (!harTyst(kalla)) return undefined;
+    let kvar = true;
+    kalla.tystFor(samtal.id, uid).then(
+      (/** @type {boolean} */ v) => {
+        if (kvar) setTyst(v);
+      },
+      () => {},
+    );
+    return () => {
+      kvar = false;
+    };
+  }, [kalla, samtal.id, uid]);
+  useEffect(() => {
+    if (!info || !harBilagor(kalla)) return undefined;
+    let kvar = true;
+    setFiler(null);
+    setFilerFel(null);
+    kalla.lasBilagor(samtal.id).then(
+      (/** @type {{ rader: any[], fler: boolean }} */ svar) => {
+        if (kvar) setFiler(svar);
+      },
+      (/** @type {any} */ e) => {
+        if (kvar) setFilerFel(e instanceof Error ? e.message : t.bilagorFel);
+      },
+    );
+    return () => {
+      kvar = false;
+    };
+  }, [info, kalla, samtal.id, t.bilagorFel, meddelanden]);
+  const vaxlaTyst = () => {
+    if (!harTyst(kalla)) return;
+    const nasta = !tyst;
+    kalla.sattTyst(samtal.id, uid, nasta).then(
+      () => setTyst(nasta),
+      (/** @type {any} */ e) => setFel(e instanceof Error ? e : new Error(String(e))),
+    );
+  };
 
   const lasIn = async () => {
     try {
@@ -1570,7 +1714,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const privatRad = samtal.slag === "grupp" ? t.gruppRad : agent ? t.agentRad : t.privatRad;
 
   return (
-    <div data-ops-samtal={samtal.slag} className="flex min-h-0 flex-1 flex-col">
+    <div data-ops-samtal={samtal.slag} className={cx("relative flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
         {marke}
         <div className="min-w-0 flex-1">
@@ -1580,16 +1725,24 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
             <span>{privatRad}</span>
           </p>
         </div>
-        <button
-          type="button"
-          data-sok-samtal=""
-          aria-label={t.sokISamtalet}
-          aria-expanded={sok.oppen}
-          onClick={() => (sok.oppen ? sok.stang() : sok.oppna())}
-          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-base text-ink-muted hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          <SokIkon size={16} />
-        </button>
+        <div className="flex shrink-0 items-center">
+          {post ? (
+            <Verktygsknapp etikett={t.mejl} dataAttr="mejl" href={post}>
+              <MejlIkon size={16} />
+            </Verktygsknapp>
+          ) : null}
+          {harTyst(kalla) ? (
+            <Verktygsknapp etikett={tyst ? t.notiserTysta : t.tystaNotiser} dataAttr="tyst" pressed={tyst} onClick={vaxlaTyst}>
+              <TystIkon size={16} />
+            </Verktygsknapp>
+          ) : null}
+          <Verktygsknapp etikett={t.sokISamtalet} dataAttr="sok" expanded={sok.oppen} onClick={() => (sok.oppen ? sok.stang() : sok.oppna())}>
+            <SokIkon size={16} />
+          </Verktygsknapp>
+          <Verktygsknapp etikett={t.chattinfo} dataAttr="info" expanded={info} onClick={() => setInfo((v) => !v)}>
+            <InfoIkon size={16} />
+          </Verktygsknapp>
+        </div>
       </header>
       {sok.oppen ? <Sokrad sok={sok} antal={alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
       <Fastarad fasta={fasta} kalla={kalla} sid={samtal.id} laddade={alla} uid={uid} namnFor={namnFor} texter={t} />
@@ -1621,6 +1774,8 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           meddelanden={alla}
           reakt={reakt}
           texter={t}
+          kalla={kalla}
+          sid={samtal.id}
           citat={{ pa: medCitat, onCitera: (m) => setSvarPa(m), uppslag: citatuppslag }}
           traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null}
           fasta={fasta.pa ? fasta : null}
@@ -1715,6 +1870,22 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         agentArbetar={agentArbetar(agentlage)}
         onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id) : undefined}
       />
+      </div>
+      {info ? (
+        <div className="absolute inset-0 z-(--z-modal) flex min-h-0 flex-col bg-canvas md:static md:z-auto md:w-80 md:shrink-0 md:border-l md:border-line">
+          <OpsChattinfo
+            medlemmar={medlemmar}
+            bilagor={harBilagor(kalla) ? (filer ? filer.rader : null) : []}
+            bilagorFler={Boolean(filer?.fler)}
+            bilagorFel={filerFel}
+            meddelanden={alla}
+            aldreFinns={historik.kanFinnasAldre}
+            namnFor={namnFor}
+            onStang={() => setInfo(false)}
+            texter={t}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1824,8 +1995,10 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {{ ids: ReadonlySet<string>, aktuell: string | null } | null} [props.traffar] Sökningens träffar i samtalet.
  * @param {ReturnType<typeof useFasta> | null} [props.fasta] Fästningarna, i samtalet (inte i en tråd).
  * @param {Postkort} [props.postkort]
+ * @param {any} [props.kalla] Så att en bilaga utan innehåll kan hämtas när meddelandet visas.
+ * @param {string} [props.sid]
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -1879,15 +2052,13 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                   </div>
                 ) : null}
                 {m.bilaga ? (
-                  m.bilaga.dataUrl ? (
-                    <span className="mt-1 block max-w-full">
-                      <BilagaVisning bilaga={m.bilaga} alt={`${texter.bilagaText} ${egen ? texter.du : namnFor(m.av)}: ${m.bilaga.namn}`} marke="data-meddelande-bilaga" />
-                    </span>
-                  ) : (
-                    <p role="alert" data-meddelande-bilaga="trasig" className="m-0 mt-1 text-meta text-danger">
-                      {texter.bilagaTrasig}
-                    </p>
-                  )
+                  <VisadBilaga
+                    m={m}
+                    kalla={kalla}
+                    sid={sid ?? ""}
+                    alt={`${texter.bilagaText} ${egen ? texter.du : namnFor(m.av)}: ${m.bilaga.namn}`}
+                    texter={texter}
+                  />
                 ) : null}
                 {postkort ? <Postkortrad text={m.text} postkort={postkort} egen={egen} texter={texter} /> : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
@@ -1961,7 +2132,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -1981,6 +2152,49 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const tradlogg = useRef(/** @type {HTMLDivElement | null} */ (null));
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
+  const sok = useSokISamtal(historik.alla, tradlogg);
+  const [info, setInfo] = useState(false);
+  const [tyst, setTyst] = useState(false);
+  const [filer, setFiler] = useState(/** @type {{ rader: any[], fler: boolean } | null} */ (null));
+  const [filerFel, setFilerFel] = useState(/** @type {string | null} */ (null));
+  const post = mejlHref(mejl);
+  useEffect(() => {
+    if (!harTyst(kalla)) return undefined;
+    let kvar = true;
+    kalla.tystFor(samtal.id, uid).then(
+      (/** @type {boolean} */ v) => {
+        if (kvar) setTyst(v);
+      },
+      () => {},
+    );
+    return () => {
+      kvar = false;
+    };
+  }, [kalla, samtal.id, uid]);
+  useEffect(() => {
+    if (!info || !harBilagor(kalla)) return undefined;
+    let kvar = true;
+    setFiler(null);
+    kalla.lasBilagor(samtal.id).then(
+      (/** @type {{ rader: any[], fler: boolean }} */ svaren) => {
+        if (kvar) setFiler(svaren);
+      },
+      (/** @type {any} */ e) => {
+        if (kvar) setFilerFel(e instanceof Error ? e.message : t.bilagorFel);
+      },
+    );
+    return () => {
+      kvar = false;
+    };
+  }, [info, kalla, samtal.id, t.bilagorFel, svar]);
+  const vaxlaTyst = () => {
+    if (!harTyst(kalla)) return;
+    const nasta = !tyst;
+    kalla.sattTyst(samtal.id, uid, nasta).then(
+      () => setTyst(nasta),
+      (/** @type {any} */ e) => setFel(e instanceof Error ? e : new Error(String(e))),
+    );
+  };
   // ⛔ Trådens reaktioner bor under tråden (regeln följer tråden). Rotmeddelandets reaktioner står i gruppchatten.
   const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, tid, uid);
   const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, tid);
@@ -2061,7 +2275,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   };
 
   return (
-    <div data-ops-trad="" className="flex min-h-0 flex-1 flex-col">
+    <div data-ops-trad="" className="relative flex min-h-0 flex-1 flex-col">
       <button
         type="button"
         data-tillbaka-chatten=""
@@ -2071,6 +2285,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         <ChevronVansterIkon size={14} />
         <span className="min-w-0 truncate">{gruppNamn}</span>
       </button>
+      <div className={cx("flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
         <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-faint text-accent">
           <TradIkon size={18} />
@@ -2137,9 +2353,28 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
                 <AndraIkon size={16} />
               </button>
             ) : null}
+            <div className="flex shrink-0 items-center">
+              {post ? (
+                <Verktygsknapp etikett={t.mejl} dataAttr="mejl" href={post}>
+                  <MejlIkon size={16} />
+                </Verktygsknapp>
+              ) : null}
+              {harTyst(kalla) ? (
+                <Verktygsknapp etikett={tyst ? t.notiserTysta : t.tystaNotiser} dataAttr="tyst" pressed={tyst} onClick={vaxlaTyst}>
+                  <TystIkon size={16} />
+                </Verktygsknapp>
+              ) : null}
+              <Verktygsknapp etikett={t.sokISamtalet} dataAttr="sok" expanded={sok.oppen} onClick={() => (sok.oppen ? sok.stang() : sok.oppna())}>
+                <SokIkon size={16} />
+              </Verktygsknapp>
+              <Verktygsknapp etikett={t.chattinfo} dataAttr="info" expanded={info} onClick={() => setInfo((v) => !v)}>
+                <InfoIkon size={16} />
+              </Verktygsknapp>
+            </div>
           </>
         )}
       </header>
+      {sok.oppen ? <Sokrad sok={sok} antal={historik.alla.length} kanFinnasAldre={historik.kanFinnasAldre} texter={t} /> : null}
 
       <div ref={tradlogg} role="log" aria-label={namn} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {fel ? (
@@ -2149,7 +2384,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         ) : null}
         <div data-rotmeddelande="" className="border-b border-line pb-2">
           {rot ? (
-            <Meddelanderader meddelanden={[rot]} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn />
+            <Meddelanderader meddelanden={[rot]} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} />
           ) : rot === null ? (
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
@@ -2159,7 +2394,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} postkort={postkort} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
         <Agentrad lage={agentlage} texter={t} />
         <div ref={slut} />
       </div>
@@ -2182,6 +2417,23 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         agentArbetar={agentArbetar(agentlage)}
         onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id, tid) : undefined}
       />
+      </div>
+      {info ? (
+        <div className="absolute inset-0 z-(--z-modal) flex min-h-0 flex-col bg-canvas md:static md:z-auto md:w-80 md:shrink-0 md:border-l md:border-line">
+          <OpsChattinfo
+            medlemmar={medlemmar}
+            bilagor={harBilagor(kalla) ? (filer ? filer.rader : null) : []}
+            bilagorFler={Boolean(filer?.fler)}
+            bilagorFel={filerFel}
+            meddelanden={[...(rot ? [rot] : []), ...historik.alla]}
+            aldreFinns={historik.kanFinnasAldre}
+            namnFor={namnFor}
+            onStang={() => setInfo(false)}
+            texter={t}
+          />
+        </div>
+      ) : null}
+      </div>
     </div>
   );
 }
@@ -2618,7 +2870,7 @@ function Citat({ mid, uppslag, egen, uid, namnFor, texter: t }) {
       ) : (
         <>
           <span className="font-medium text-ink">{m.av === uid ? t.du : namnFor(m.av)}</span>
-          <span>: {utdrag(m.text, 80)}</span>
+          <span>: {synligText(m, 80)}</span>
         </>
       )}
     </div>
@@ -2854,13 +3106,13 @@ function Fastarad({ fasta, kalla, sid, laddade, uid, namnFor, texter: t }) {
                 <span className="min-w-0 flex-1 truncate py-2 text-meta text-ink-secondary">
                   {m === undefined ? "…" : m === null ? t.citatSaknas : (
                     <>
-                      <span className="font-medium text-ink">{m.av === uid ? t.du : namnFor(m.av)}</span>: {utdrag(m.text, 80)}
+                      <span className="font-medium text-ink">{m.av === uid ? t.du : namnFor(m.av)}</span>: {synligText(m, 80)}
                     </>
                   )}
                 </span>
                 <button
                   type="button"
-                  aria-label={`${t.lossa}: ${m ? utdrag(m.text, 40) : r.id}`}
+                  aria-label={`${t.lossa}: ${m ? synligText(m, 40) : r.id}`}
                   onClick={() => fasta.vaxla(r.id)}
                   className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-base px-2 text-meta text-ink-secondary hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
                 >

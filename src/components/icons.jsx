@@ -35,7 +35,7 @@
  * i takt för hand: talet kan inte läsas ur en CSS-variabel inuti en JSX-prop.
  */
 
-import { Archive, ArchiveRestore, AudioLines, Camera, Flame, Folder, Image as BildLucide, Laugh, PartyPopper, Pin, Reply, Square, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
+import { Archive, ArchiveRestore, AudioLines, BellOff, Camera, Flame, Folder, Image as BildLucide, Laugh, Link, Mail, PartyPopper, Pin, Reply, Square, ThumbsUp, ArrowDownUp, ArrowRight, Bell, BookOpen, Briefcase, Building2, Calendar, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Crown, ExternalLink, FileText, Globe, Hash, Heart, Home, Inbox, Info, Layers, LayoutGrid, Lock, LogOut, MessageSquare, MessagesSquare, Mic, Search as SokLucide, SendHorizontal, Bot, MapPin, Maximize2, Menu, Minimize2, Monitor, Moon, MoreHorizontal, Paperclip, Pencil, Plus, Settings, SlidersHorizontal, Smile, Star, Sun, User, UserX, Users, UsersRound, X, Zap } from "lucide-react";
 
 /** Reaktionen "tumme" (0.75.0). @param {{ size?: number }} props */
 export function TummeUppIkon({ size = 20 }) {
@@ -241,6 +241,18 @@ export function KronaIkon({ size = 20 }) {
  */
 export function InfoIkon({ size = 14 }) {
   return <Info size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** Mejl i chattens verktygsrad (0.80.0, #301). @param {{ size?: number }} props */
+export function MejlIkon({ size = 16 }) {
+  return <Mail size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** Tysta notiser i chattens verktygsrad (0.80.0, #301). @param {{ size?: number }} props */
+export function TystIkon({ size = 16 }) {
+  return <BellOff size={size} aria-hidden="true" strokeWidth={1.5} />;
+}
+/** En länk i Chattinfo (0.80.0, #301). @param {{ size?: number }} props */
+export function LankIkon({ size = 16 }) {
+  return <Link size={size} aria-hidden="true" strokeWidth={1.5} />;
 }
 /** @param {{ size?: number }} props */
 export function PlatsIkon({ size = 14 }) {
