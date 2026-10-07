@@ -50,7 +50,7 @@ export function kopplaBeteenden(kategorier, hanterare, { katalog = "katalog" } =
   const lista = Array.isArray(kategorier) ? kategorier : [];
   const karta = hanterare && typeof hanterare === "object" ? hanterare : {};
 
-  const utanHanterare = lista.filter((k) => k && rensa(k.id) && !(k.id in karta)).map((k) => k.id);
+  const utanHanterare = lista.filter((k) => k && rensa(k.id) && !Object.hasOwn(karta, k.id)).map((k) => k.id);
   const idn = new Set(lista.map((k) => k && rensa(k.id)).filter(Boolean));
   const utanKategori = Object.keys(karta).filter((id) => !idn.has(id));
 

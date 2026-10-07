@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { OpsCalendar } from "../components/OpsCalendar.jsx";
+import { OpsCalendar, SYNLIGA_MANADER_VILA_MS } from "../components/OpsCalendar.jsx";
 import { LANGTRYCK_MS } from "../lib/talk.js";
 import { aterstallHornmarkenVarning } from "../components/OpsCalendarDagruta.jsx";
 import {
@@ -1078,5 +1078,85 @@ describe("OpsKalender: snabbvyn vid långtryck ligger överst i panelen (0.73.0,
     const plats = /** @type {HTMLElement} */ (document.querySelector("[data-dagpanel-plats]"));
     const barn = [...plats.children].map((c) => (c.matches("[data-snabbtitt-plats]") ? "titt" : c.matches("[data-dagpanel]") ? "panel" : "annat"));
     expect(barn).toEqual(["titt", "panel"]);
+  });
+});
+
+describe("OpsKalender: onSynligaManader säger vilka månader som syns när rullningen stannat (0.74.0, #284)", () => {
+  /*
+   * ⛔ lifehub.app läste kalenderns DOM för att veta vilket fönster den skulle hämta frånvaron för (PR 91). Provet mäter
+   * kontraktet som ersätter det: ett svar vid start, inget under rullningen, ett svar med rätt intervall när den stannat.
+   * jsdom räknar ingen layout, så månadsblocken får 500 px var i en rullyta på 600 px.
+   */
+  const HOJD = 500;
+  let rullat = 0;
+  /** @type {import("vitest").MockInstance | null} */
+  let matt = null;
+  const rect = (/** @type {number} */ top, /** @type {number} */ hojd) => /** @type {DOMRect} */ ({ top, bottom: top + hojd, left: 0, right: 400, width: 400, height: hojd, x: 0, y: top, toJSON: () => ({}) });
+  const mat = () => {
+    matt = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function () {
+      const el = /** @type {Element} */ (this);
+      if (el.hasAttribute("data-kalender-rulle")) return rect(0, 600);
+      if (el.hasAttribute("data-kalender-manad")) {
+        const i = [...document.querySelectorAll("[data-kalender-manad]")].indexOf(el);
+        return rect(i * HOJD - rullat, HOJD);
+      }
+      return rect(0, 0);
+    });
+  };
+  const rulla = (/** @type {number} */ till) => {
+    rullat = till;
+    fireEvent.scroll(/** @type {Element} */ (document.querySelector("[data-kalender-rulle]")));
+  };
+
+  it("ett svar vid start, inget medan rullningen pågår, och rätt intervall när den stannat", () => {
+    vi.useFakeTimers();
+    rullat = 0;
+    mat();
+    try {
+      const svar = vi.fn();
+      rendera({ monthsBack: 1, monthsForward: 2, onSynligaManader: svar });
+      expect(document.querySelectorAll("[data-kalender-manad]")).toHaveLength(4);
+      expect(svar).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(SYNLIGA_MANADER_VILA_MS));
+      expect(svar).toHaveBeenCalledTimes(1);
+      expect(svar).toHaveBeenLastCalledWith({ forsta: "2026-09", sista: "2026-10" });
+
+      // En svepning: sex rullningshändelser med 50 ms emellan. Inget svar under den.
+      for (const till of [200, 400, 600, 800, 1000, 1100]) {
+        act(() => rulla(till));
+        act(() => vi.advanceTimersByTime(50));
+        expect(svar, `svar medan rullningen pågår, vid ${till} px`).toHaveBeenCalledTimes(1);
+      }
+      act(() => vi.advanceTimersByTime(SYNLIGA_MANADER_VILA_MS));
+      expect(svar).toHaveBeenCalledTimes(2);
+      expect(svar).toHaveBeenLastCalledWith({ forsta: "2026-11", sista: "2026-12" });
+    } finally {
+      matt?.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("samma intervall efter en kort rullning ger inget nytt svar, och utan callback startas ingen vila", () => {
+    vi.useFakeTimers();
+    rullat = 0;
+    mat();
+    try {
+      const svar = vi.fn();
+      const { unmount } = rendera({ monthsBack: 1, monthsForward: 2, onSynligaManader: svar });
+      act(() => vi.advanceTimersByTime(SYNLIGA_MANADER_VILA_MS));
+      act(() => rulla(40));
+      act(() => vi.advanceTimersByTime(SYNLIGA_MANADER_VILA_MS));
+      expect(svar).toHaveBeenCalledTimes(1);
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+
+      // Utan callback startas ingen vila: inget att vänta på, och inget att mäta.
+      rendera({ monthsBack: 1, monthsForward: 2 });
+      act(() => rulla(600));
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      matt?.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });

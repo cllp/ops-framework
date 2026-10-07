@@ -99,3 +99,15 @@ describe("uppslagningen i en vy", () => {
     expect(beteendet(null, "bugg")).toBeNull();
   });
 });
+
+describe("⛔ ett id som heter som något på Object.prototype (#283)", () => {
+  /*
+   * `in` når prototypkedjan: `"constructor" in {}` är sant. En kategori med id `constructor` räknades därför som att den hade en
+   * hanterare, fick ingen rad om saknad hanterare, och kopplades till `Object`-konstruktorn.
+   */
+  for (const id of ["constructor", "toString", "__proto__"]) {
+    it(`kategorin "${id}" utan hanterare ger ett skäl`, () => {
+      expect(() => kopplaBeteenden([{ id }], {})).toThrow(new RegExp(`kategorierna ${id.replace(/_/g, "_")} saknar hanterare`));
+    });
+  }
+});
