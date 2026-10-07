@@ -9,6 +9,28 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.74.0
+
+Versionen förutsätter att 0.73.1 (PR 288, #287 och #283) mergas först. Mergas den här först blir den 0.73.1, och PR 288 får då numret efter.
+
+### `OpsCalendar` säger vilka månader som syns (#284)
+
+Händelsen: lifehub.app PR 91 (gruppens frånvaro i kalendern) behövde veta vilket fönster den skulle hämta frånvaro för, och läste därför ramverkets egna attribut `data-kalender-rulle` och `data-cal-day` ur DOM när rullningen stannat. Det var en tillfällig lösning med ärende (regel 1): ändras attributen slutar hämtningen följa rullningen utan att något prov i appen märker det.
+
+#### Tillagt
+
+- `onSynligaManader({ forsta, sista })` på `OpsCalendar`, med månaderna som `YYYY-MM`. Anropas när rullningen stått still i `SYNLIGA_MANADER_VILA_MS` (150 ms, exporterad) och en gång vid start, efter hoppet till idag. Varje rullningshändelse startar om vilan, så en svepning ger ett anrop och inte ett per händelse. Samma intervall två gånger anropas en gång.
+- Varje månadsblock bär `data-kalender-manad="YYYY-MM"`, och `synligaManader(rulle, huvud)` (exporterad ur komponentfilen) räknar fram intervallet under den klistrade veckodagsraden. Utan callback startas ingen vila och ingenting mäts för den.
+
+#### Appens steg
+
+- lifehub.app pinnar om och byter läsningen i `CalendarView.jsx` mot `onSynligaManader`. Det görs efter ompinningen till 0.73.0 (lane 1).
+
+#### Prov
+
+- `src/__tests__/calendar.test.jsx`, "onSynligaManader": fyra månader à 500 px i en rullyta på 600 px. Ett svar vid start (september och oktober), inget svar under sex rullningshändelser med 50 ms emellan, och efter vilan november och december. Ett andra prov: samma intervall efter en kort rullning ger inget nytt svar, inga timrar lever efter avmontering, och utan callback startas ingen vila.
+- Utan ändringen: 2 av 2 röda. Utan debounce (vilan satt till 0): rött, med ett svar mitt i rullningen vid 600 px. Med ändringen: 64 av 64 gröna i `calendar.test.jsx`.
+
 ## 0.73.1
 
 Två små rättelser ur granskningarna av PR 275 och PR 285, och en tredje som hittades när CI föll på den här grenen. Inga regeländringar, inget att deploya före klienten.
