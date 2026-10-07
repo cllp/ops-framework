@@ -19,6 +19,18 @@ import { KryssIkon, KugghjulIkon, MikrofonIkon } from "./icons.jsx";
  */
 
 /**
+ * ⛔ EN MIKROFON ÅT GÅNGEN, FÖR HELA SIDAN. Varje `useTalk` har sin egen inspelare, och sedan 0.72.0 finns två på samma sida:
+ * TALK-knappen i huvudet (0.71.0) och ljudvågen i chattens skrivfält. Utan en gemensam spärr spelade båda in samtidigt, och samma
+ * ord gick både till appens TALK och in i chattens fält. Den som försöker starta en andra får ett fel som säger vad som pågår, och
+ * den första spelar in vidare. Inget ljud kastas av spärren.
+ * @type {object | null}
+ */
+let mikrofonenUpptagenAv = null;
+
+/** Felet när en annan del av sidan redan spelar in. */
+export const TALK_UPPTAGEN = "En annan inspelning pågår redan. Avsluta den först.";
+
+/**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
 export function useTalk({ onTalk, onKlick, inspelare }) {
@@ -29,6 +41,13 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
   const timer = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const tak = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const svalj = useRef(false);
+  /**
+   * ⛔ VILKET FÖRSÖK ETT SVAR HÖR TILL (#281). Varje start får ett nummer, och Avbryt, Skicka, ett fel och avmonteringen räknar
+   * upp det. Ett svar från `starta()` med ett gammalt nummer gör inget mer: förut jämfördes bara läget, så ett avbrutet försök
+   * vars mikrofon öppnades efteråt spelade in i bakgrunden, och efter avmonteringen skickades ljudet till appen efter 120 s.
+   */
+  const forsok = useRef(0);
+  const monterad = useRef(true);
   const insp = () => {
     if (!inspRef.current) inspRef.current = webblasarensInspelare();
     return inspRef.current;
@@ -36,6 +55,13 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
   const rensa = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+  };
+  const frigor = () => {
+    if (mikrofonenUpptagenAv === inspRef) mikrofonenUpptagenAv = null;
+  };
+  const rensaTak = () => {
+    if (tak.current) clearTimeout(tak.current);
+    tak.current = null;
   };
 
   const skicka = useCallback(
@@ -46,31 +72,56 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
       setTillstand({ lage: nasta.lage, ...(nasta.fel ? { fel: nasta.fel } : {}) });
       if (nasta.gor === "klick") onKlick();
       if (nasta.gor === "kasta") {
-        if (tak.current) clearTimeout(tak.current);
+        forsok.current += 1;
+        rensaTak();
         try {
           insp().kasta();
         } catch (fel) {
           rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta" });
         }
+        frigor();
       }
       if (nasta.gor === "starta") {
+        if (mikrofonenUpptagenAv && mikrofonenUpptagenAv !== inspRef) {
+          skicka({ typ: "fel", text: TALK_UPPTAGEN });
+          return;
+        }
+        mikrofonenUpptagenAv = inspRef;
+        forsok.current += 1;
+        const mitt = forsok.current;
+        rensaTak();
         insp()
           .starta()
           .then(() => {
-            // ⛔ Krysset kan ha tryckts medan mikrofonen öppnades. Då ska den stängas igen, inte spela in i bakgrunden.
-            const l = lageRef.current.lage;
-            if (l !== "haller" && l !== "lyssnar") {
-              insp().kasta();
+            if (mitt === forsok.current && monterad.current) {
+              tak.current = setTimeout(() => skicka({ typ: "tak" }), MAX_SEKUNDER * 1000);
               return;
             }
-            tak.current = setTimeout(() => skicka({ typ: "tak" }), MAX_SEKUNDER * 1000);
+            // ⛔ Ett avbrutet eller avmonterat försök vars mikrofon öppnades efteråt. Står ett nyare försök och spelar in rör vi
+            // inte inspelaren: webbläsarens inspelare stänger själv en ström som öppnats för ett avbrutet försök. Annars
+            // stängs den här, så att den inte spelar in i bakgrunden.
+            const l = lageRef.current.lage;
+            if (!monterad.current || (l !== "haller" && l !== "lyssnar")) {
+              try {
+                insp().kasta();
+              } catch (fel) {
+                rapporteraFel(fel, { yta: "OpsTalk", steg: "kasta" });
+              }
+            }
           })
-          .catch((fel) => skicka({ typ: "fel", text: talkFeltext(fel) }));
+          .catch((fel) => {
+            // Ett gammalt försök har redan släppt spärren och visat sitt. Ett nytt försök kan äga den nu.
+            // ⛔ Spärren släpps av felet självt: "fel" under håll eller lyssnar ger "kasta", och den grenen släpper den.
+            if (mitt !== forsok.current || !monterad.current) return;
+            skicka({ typ: "fel", text: talkFeltext(fel) });
+          });
       }
       if (nasta.gor === "skicka") {
-        if (tak.current) clearTimeout(tak.current);
+        forsok.current += 1;
+        rensaTak();
         insp()
           .stoppa()
+          .finally(frigor)
           .then(({ blob, mimeType, sekunder }) => onTalk(blob, { mimeType, sekunder }))
           .then(() => skicka({ typ: "klar" }))
           .catch((fel) => {
@@ -82,10 +133,16 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
     [onKlick, onTalk],
   );
 
-  useEffect(() => () => {
-    rensa();
-    if (tak.current) clearTimeout(tak.current);
-    if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") inspRef.current?.kasta();
+  useEffect(() => {
+    monterad.current = true;
+    return () => {
+      monterad.current = false;
+      forsok.current += 1;
+      rensa();
+      rensaTak();
+      if (lageRef.current.lage === "haller" || lageRef.current.lage === "lyssnar") inspRef.current?.kasta();
+      frigor();
+    };
   }, []);
 
   /**

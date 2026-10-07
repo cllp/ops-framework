@@ -52,7 +52,7 @@ describe("OpsMeddelanden: inkorgen", () => {
     expect(within(lista).getByText("Bo Lind")).toBeInTheDocument();
     expect(screen.queryByText(/Hemligt mellan Bo och Cecilia/)).toBeNull();
     // Gruppchatten: ett oläst från Cecilia. Det privata: två från Bo.
-    await waitFor(() => expect(onOlasta).toHaveBeenLastCalledWith(3));
+    await waitFor(() => expect(onOlasta).toHaveBeenLastCalledWith(3, { fler: false }));
     expect(within(lista).getByText("Privat")).toBeInTheDocument();
     expect(within(lista).getByText("Grupp")).toBeInTheDocument();
   });
@@ -81,13 +81,13 @@ describe("OpsMeddelanden: inkorgen", () => {
     const onOlasta = vi.fn();
     render(<OpsMeddelanden kalla={samtal} uid="anna" groupId="g" gruppNamn="Alfa AB" medlemmar={MEDLEMMAR} onOlasta={onOlasta} />);
     const user = userEvent.setup();
-    await waitFor(() => expect(onOlasta).toHaveBeenLastCalledWith(3));
+    await waitFor(() => expect(onOlasta).toHaveBeenLastCalledWith(3, { fler: false }));
     await user.click(await screen.findByRole("button", { name: /Bo Lind/ }));
     const vy = await screen.findByRole("log", { name: "Bo Lind" });
     await waitFor(() => expect(within(vy).getByText("Den från i måndags")).toBeInTheDocument());
     expect(screen.getByText("Bara ni två ser det här")).toBeInTheDocument();
     // Läsmärket: bara gruppchattens olästa återstår.
-    await waitFor(() => expect(onOlasta).toHaveBeenLastCalledWith(1));
+    await waitFor(() => expect(onOlasta).toHaveBeenLastCalledWith(1, { fler: false }));
     await user.type(screen.getByRole("textbox", { name: "Skriv ett meddelande" }), "Jag tittar nu{Enter}");
     await waitFor(() => expect(within(vy).getByText("Jag tittar nu")).toBeInTheDocument());
     const lagrat = await samtal.meddelanden(privat.id);

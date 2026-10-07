@@ -35,6 +35,8 @@ const ut = path.join(rot, "rules", "provregler.rules");
  * ⛔ `konfiglogg` ÄR RAMVERKETS FRAGMENT FÖR ÄNDRINGSLOGGEN (0.39.0, #188), med samlingsnamnet som en app skickar in det.
  *
  * ⛔ `samtal` MED FÖRVALDA NAMN (0.34.0): samma skäl, det är `samtalsregelfragment()` som provas. `tradar` (0.68.0) skickas UTTRYCKLIGEN: den har inget förval.
+ *   Samma sak för chattens nattskiva (#273): `status` och de undersamlingar och fält som följer, alla uttryckligen påslagna, så att
+ *   `rules/__tests__/chattnatt.test.mjs` mäter dem. Att de är AVSLAGNA utan nyckel mäts byte för byte i jsdom-proven.
  *
  * ⛔ KALENDRARNA MED FÖRVALDA NAMN (0.36.0, #179 F0): `kalenderregelfragment()`, alltså `gruppkalendrar`,
  * `users/{uid}/minaKalendrar` och `users/{uid}/kalenderposter`.
@@ -53,7 +55,7 @@ ${gruppadSamling("handelser")}
 ${gruppadSamling("konfig", { agareKravsForSkrivning: true })}
 ${katalogregelfragment("kataloger")}
 ${konfigloggregelfragment("konfiglogg")}
-${samtalsregelfragment({ tradar: "tradar" })}
+${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta" })}
 ${kalenderregelfragment()}
 ${handelseregelfragment()}
     // Påhittad app-samling (se filhuvudet): appens eget block, med ramverkets fält prövade av opsHandelsefaltGiltiga.

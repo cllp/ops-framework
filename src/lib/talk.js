@@ -160,6 +160,12 @@ export function webblasarensInspelare(miljo = {}) {
   let analys = null;
   /** @type {AudioContext | null} */
   let ctx = null;
+  /**
+   * ⛔ VARJE START ÄGER SIN STRÖM TILLS DEN ÄR INKOPPLAD (#281). En ny start räknar upp numret, och en ström som öppnas för
+   * ett äldre försök stängs direkt, i stället för att skriva över den som gäller eller stå kvar med webbläsarens
+   * inspelningsprick. Ett försök som bara avbrutits, utan en ny start, stänger `useTalk` när svaret kommer.
+   */
+  let forsok = 0;
   const slapp = () => {
     strom?.getTracks().forEach((t) => t.stop());
     strom = null;
@@ -170,7 +176,14 @@ export function webblasarensInspelare(miljo = {}) {
   return {
     async starta() {
       if (!md || !MR) throw new Error("Den här webbläsaren kan inte spela in ljud.");
-      strom = await md.getUserMedia({ audio: true });
+      forsok += 1;
+      const mitt = forsok;
+      const ny = await md.getUserMedia({ audio: true });
+      if (mitt !== forsok) {
+        ny.getTracks().forEach((t) => t.stop());
+        throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
+      }
+      strom = ny;
       const format = valjFormat(MR.isTypeSupported?.bind(MR));
       rec = new MR(strom, format ? { mimeType: format } : undefined);
       bitar = [];

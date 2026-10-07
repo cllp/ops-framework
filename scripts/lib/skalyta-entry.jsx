@@ -999,6 +999,98 @@ function MeddelandeScen() {
 }
 
 /*
+ * Chattens nattskiva (#273 och chattanalysen), avsnitt 29g. En egen scen och inte `meddelanden`, så att avsnitt 29 till 29f mäter
+ * samma sak som förut. `window.__aktiv` väljer samtalet: "agent", "grupp" eller "privat". Varje del sås bara när den byggda
+ * versionen har den, så att samma avsnitt kan köras mot en äldre dist och bli rött på rätt sak i stället för att sidan kastar.
+ */
+const MEDLEMMAR_C = [
+  { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
+  { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
+  { userId: "cecilia", namn: "Cecilia Berg", typ: "person", status: "aktiv" },
+  { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
+];
+async function byggChattkalla() {
+  if (!Ops.createSamtalskalla) return null;
+  let t = new Date(2026, 9, 6, 9, 0).getTime();
+  const kalla = Ops.createMemorySource({});
+  // Varje nyckel som den byggda versionen känner till. En äldre version kastar inte på en okänd nyckel, den ignorerar den.
+  const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), tradar: "tradar", status: "status", reaktioner: "reaktioner", omnamnanden: true, citat: true, fasta: "fasta" });
+  const ids = {};
+  const a = await s.oppnaPrivat({ groupId: "g1", uid: "anna", annan: "ops", slag: "agent" });
+  ids.agent = a.id;
+  await s.skicka(a.id, { text: "Vilka fakturor är obetalda?", av: "anna" });
+  // Agentens svar skrivs av servern; här förbi källan, som appens Admin SDK.
+  await kalla.create(`samtal/${a.id}/meddelanden`, {
+    text: "**Två fakturor** är obetalda:\n- *Bokio*, 1 250 kr, förföll 2026-10-01\n- Telia, 499 kr, förfaller i morgon\n\nSe https://exempel.se/fakturor för detaljer.",
+    av: "ops",
+    tid: (t += 60000),
+  });
+  await s.skicka(a.id, { text: "Tack. Kan du påminna mig på fredag?", av: "anna" });
+  if (typeof s.prenumereraStatus === "function") await kalla.create(`samtal/${a.id}/status`, { id: "agent", lage: "tanker", sedan: Date.now() });
+  const g = await s.oppnaGrupp({ groupId: "g1", uid: "anna" });
+  ids.grupp = g.id;
+  await s.skicka(g.id, { text: "Hej alla, styrelsemötet flyttas till **fredag** klockan tio.", av: "cecilia" });
+  const g2 = await s.skicka(g.id, { text: "Bra, då hinner jag läsa protokollet.", av: "bo" });
+  // (3) Reaktioner: två på Bos meddelande (en av dem Annas egen) och en på Cecilias.
+  if (typeof s.reagera === "function") {
+    const gm = (await s.meddelanden(g.id))[0];
+    await s.reagera(g.id, { mid: g2.id, kod: "tumme", av: "cecilia" });
+    await s.reagera(g.id, { mid: g2.id, kod: "tumme", av: "anna" });
+    await s.reagera(g.id, { mid: g2.id, kod: "hjarta", av: "cecilia" });
+    await s.reagera(g.id, { mid: gm.id, kod: "bock", av: "bo" });
+  }
+  // (6) Fästa: Cecilias meddelande om styrelsemötet.
+  if (typeof s.fast === "function") await s.fast(g.id, { mid: (await s.meddelanden(g.id))[0].id, av: "bo" });
+  // (7) En länk till en av appens poster, som appens uppslag nedan känner igen.
+  await s.skicka(g.id, { text: "Momsen ligger här: https://app.exempel.se/arenden/464", av: "cecilia" });
+  const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+  ids.privat = p.id;
+  await s.skicka(p.id, { text: "Hej Anna! Kan du titta på **fakturan** från Bokio innan fredag?", av: "bo" });
+  await s.skicka(p.id, { text: "Absolut, jag gör det i eftermiddag.", av: "anna" });
+  // (2) Ett långt samtal: 120 olästa från Cecilia, så att "Visa äldre" och "50+" har något att visa.
+  const lang = await s.oppnaPrivat({ groupId: "g1", uid: "cecilia", annan: "anna" });
+  ids.aldre = lang.id;
+  for (let i = 1; i <= 120; i += 1) await s.skicka(lang.id, { text: `Avstämning ${i}: ${i % 3 ? "kvitton och fakturor" : "momsen för augusti, med en längre rad som bryts"}`, av: "cecilia" });
+  ids.ingen = null;
+  return { s, ids };
+}
+// (7) Appens uppslag: bara /arenden/<nr> är en post. Ramverket känner inga posttyper.
+const POSTKORT_C = {
+  slaUpp: async (url) => {
+    const m = url.match(/^https:\/\/app\.exempel\.se\/arenden\/(\d+)$/);
+    return m ? { titel: `Moms augusti (#${m[1]})`, undertitel: "Ärende, öppet", ikon: <FileText size={18} /> } : null;
+  },
+};
+// (8) Röstinmatningen: en inspelare utan mikrofon och appens transkribering, som i ett prov. Ramverket känner ingen tjänst.
+const INSPELARE_C = {
+  starta: async () => {},
+  stoppa: async () => ({ blob: new Blob(["ljud"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 }),
+  kasta: () => {},
+  niva: () => 0.4,
+};
+const TRANSKRIBERA_C = async () => {
+  await new Promise((r) => setTimeout(r, 150));
+  return "Påminn mig om momsen på fredag";
+};
+let chattkallan = null;
+function ChattNattScen() {
+  const [k, setK] = useState(chattkallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    byggChattkalla().then((x) => {
+      chattkallan = x;
+      setK(x);
+    });
+  }
+  const valt = k ? (window.__aktiv === "ingen" ? null : k.ids[window.__aktiv ?? "agent"] ?? k.ids.agent) : null;
+  return (
+    <Full>
+      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={valt} onValj={() => {}} postkort={POSTKORT_C} onTranscribe={TRANSKRIBERA_C} inspelare={INSPELARE_C} /> : <p>Laddar</p>}
+    </Full>
+  );
+}
+
+/*
  * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i sin grupp med en medlem och agenten: "Hur skriver jag ett
  * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f. Gruppen är g3 ur `grupperLista`,
  * vald i sidopanelen, så att panelen och chatten heter samma sak (omgranskningen av PR 268, A6).
@@ -1553,6 +1645,7 @@ function Scen() {
   }
   if (s === "meddelanden") return <MeddelandeScen />;
   if (s === "meddelanden-ny-grupp") return <MeddelandeNyGruppScen />;
+  if (s === "chattnatt") return <ChattNattScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>

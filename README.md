@@ -1863,6 +1863,96 @@ alltså ska appens läsregel för ärenden INTE bero på `mottagare`.
 | `OpsMottagare` | **en väljare för ärenden och meddelanden.** `lage="arende"`: Gruppen (förval), varje aktiv person (en själv märkt "du") och Agenten när gruppen har en agent. `lage="person"`: andra aktiva personer och den aktiva agenten, och med `helaGruppen` (0.68.0) en rad överst med det namnet och värdet `{ slag: "grupp" }`, med märket `gruppMarke` om det skickas. En radiogrupp med avatarer, 44 px per rad |
 | `OpsMeddelandeLank` | ingången, en `OpsIconLink` med meddelandeikonen och antalet olästa, för appens `actions` |
 
+#### Chattens nattskiva (#273 och chattanalysen, ej utgiven)
+
+⛔ **Varje ny undersamling och varje nytt meddelandefält är en NY NYCKEL, utan förval**, till både `createSamtalskalla` och
+`samtalsregelfragment`, precis som `tradar`. En app som inte skickar nyckeln får byte för byte samma regeltext som innan
+(prov mot `rules/__fixturer__/samtalsregelfragment-0.67.0.rules` och `-0.68.0-tradar.rules`), och vyn ritar ingenting nytt.
+`undersamlingskrock(namn, vem)` är det ENA stället som prövar att två undersamlingar inte har samma namn; källan och
+regelfragmentet anropar båda den. Regelprov med mutationstabell i `rules/__tests__/chattnatt.test.mjs`.
+
+**Markdown i bubblan (#273).** Varje meddelande ritas med `OpsMarkdown text chatt`: chattens delmängd av `splitMarkdown(text, { chatt: true })`,
+alltså fetstil (`**`), kursiv (`*` eller `_` vid ordgräns), punkt- och numrerade listor, radbrytningar som radbrytningar och klickbara
+länkar, bara http och https, i ny flik med `rel="noopener noreferrer"`. Ingen HTML, inga bilder; rubriker, tabeller, citat och kodblock
+står kvar som text. Färgen ärvs från bubblan.
+
+**Agentens status (#273), med nyckeln `status`.** `<samtal>/{sid}/<status>/agent` och samma under en tråd, `{ lage, sedan }` med
+`lage` ur `AGENTLAGEN` (`tanker`, `skriver`) och fälten `AGENTSTATUSFALT`. **Bara servern skriver** (`allow write: if false`); den som får
+läsa samtalet (eller tråden) läser. Appens agent bygger dokumentet med `byggAgentstatus({ lage, sedan? })` (också i
+`ops-framework/node`, med `AGENTSTATUS_ID` och `AGENTSTATUS_MAX_ALDER`), skriver det med Admin SDK innan den börjar och tar
+bort det när svaret är skrivet eller felet visat. Vyn visar "Agenten tänker" eller "Agenten skriver" där svaret kommer, och
+`agentstatus(dok, nu)` avgör: en status äldre än `AGENTSTATUS_MAX_ALDER` (två minuter) visas inte, och då står en felrad i stället.
+En status som inte går att läsa är också en felrad. Källan: `lasStatus(sid, { tid? })` och `prenumereraStatus(sid, lyssnare, { tid? })`,
+bara när `harStatus(kalla)`.
+
+**"Visa äldre" och "50+".** Datakontraktet har villkoret `fore: { falt, varde }` (strikt mindre än), som `foreVillkor` prövar för
+alla adaptrar: minnet och JSON filtrerar (bara mot samma typ), `createFirestoreSource` ger `where(falt, "<", varde)`, Postgres en
+parameter, och `createHttpSource` **kastar**, eftersom ett villkor som tyst faller bort hade gett den senaste sidan igen. En apps egen
+adapter som inte kan uttrycka villkoret ska också kasta. Källan har `aldreMeddelanden(sid, { tid, kanda, trad? })`: nästa sida bakåt
+från det äldsta lästa, med "till och med" dess tid och de redan lästa bortsorterade, så att två meddelanden samma millisekund inte
+faller mellan sidorna; `fler` säger om det kan finnas mer. Vyn har "Visa äldre" överst i loggen (också i en tråd), behåller det som
+setts när nya meddelanden kommer, står kvar på det man läste när en sida läggs in ovanför, och skriver ut "Inga äldre meddelanden"
+och felet. `oversikt` ger `olastaFler` per rad (sidan var full och dess äldsta oläst), `useSamtal` ger `olastaFler` för summan,
+`onOlasta(antal, { fler })` har ett andra argument, och märket visar "50+": `OpsCountBadge fler`, `OpsIconLink badgeFler` och
+`OpsMeddelandeLank olastaFler`. Skärmläsaren hör "50 eller fler".
+
+**Reaktioner, med nyckeln `reaktioner`.** `<samtal>/{sid}/<reaktioner>/{mid|uid|kod}` och samma under en tråd, `{ mid, av, kod, tid }`
+(`REAKTIONSFALT`) med `kod` ur `REAKTIONSKODER` (`tumme`, `hjarta`, `skratt`, `eld`, `klapp`, `bock`); vyn ritar emoji, datan bär koden.
+Nyckeln (`reaktionsnyckel`, `byggReaktion`) bär unikheten: en reaktion per person, meddelande och kod, utan transaktion. Regeln: den som
+får läsa samtalet läser; en aktiv person skapar som sig själv, med nyckeln exakt ur fälten och meddelandet i samma samtal (i en tråd:
+samma tråd); **bara sin egen raderas, ingen uppdateras**; meddelandet förblir oföränderligt. `summeraReaktioner(rader, uid)` räknar fram
+antalet per meddelande, inget lagras. Källan: `lasReaktioner`, `prenumereraReaktioner` (EN lyssnare per samtal eller tråd, de senaste
+`REAKTIONSTAK`; når den taket sägs "Äldre reaktioner visas inte."), `reagera` och `taBortReaktion`, alla med `{ trad? }`, bara när
+`harReaktioner(kalla)`. Vyn: chips under bubblan med antal (`aria-pressed` för den egna) och "Reagera" med en väljare för de sex;
+44 px träffyta, pilarna flyttar, Escape stänger med fokus kvar. Rotmeddelandets reaktioner står i gruppchatten, trådens svar har sina i
+tråden.
+
+**Omnämnanden, @alla och @agent, med nyckeln `omnamnanden: true`.** Meddelandet får fältet `namner` (`NAMNERFALT`): uid:n, eller
+`["alla"]` (`NAMNER_ALLA`) ensamt, högst `MAX_NAMNER` (20) med högst `MAX_UIDLANGD` (128) tecken per uid, prövat av `kravNamner` i `byggMeddelande`. Regeln prövar formen (en lista med
+1 till 20 strängar, högst 20 gånger 128 tecken med kommatecken, inga dubbletter, "alla" ensamt), i samtalet och i trådar, och i alla
+samtalens slag: ett omnämnande i ett privat samtal når ingen fler än samtalet redan har, men appens agent ska läsa `agentenNamnd`
+bara för samtal den själv svarar i; den kan inte loopa och prövar alltså inte medlemskapet. **Den som
+läser omnämnandet auktoriserar:** `namnda(meddelande, medlemmar)` ger bara aktiva medlemmar, och "alla" expanderas VID LÄSNING till
+gruppens aktiva personer utom avsändaren (inte agenten). `arNamnd(meddelande, uid, medlemmar)` och `agentenNamnd(meddelande, agentUid,
+medlemmar)` (också i `ops-framework/node`, med `namnda`, `arNamnd`, `NAMNER_ALLA` och `MAX_NAMNER`) är det appens agent läser
+i stället för en regex på `@agent` i texten. `samtalsnotiser({ ..., medlemmar, namndTitel? })` ger den härledda notisen "Anna nämnde
+dig i gruppchatten" för olästa omnämnanden; utan `medlemmar` ingen sådan notis. Vyn: "@" i gruppchattens och trådens skrivfält öppnar
+en lista ur medlemmarna och agenten plus "alla" (pilarna, Enter eller Tab, Escape); bara de uid vars `@Namn` står kvar i texten
+skickas. `skicka` och `skickaITrad` tar `namner`, och kastar på det när källan saknar `omnamnanden` (`harOmnamnanden`).
+
+**Svar med citat, med nyckeln `citat: true`, och sök i samtalet.** Ett meddelande i ett privat samtal eller agentsamtal får
+`svarPa` (`SVARPAFALT`), id:t på ett meddelande i samma samtal; ingen kopia av texten. Regeln kräver att samtalet inte är gruppchatten
+(där är tråden svaret) och att meddelandet finns i samma samtal. Citatet härleds vid ritning ur det besvarade meddelandet, ur det
+laddade eller lästa en gång med källans `meddelande(sid, mid)`, och "Meddelandet går inte att läsa." står där det inte finns. "Svara
+med citat" står vid varje meddelande när `harCitat(kalla)`, raden "Svarar på" står ovanför skrivfältet, och Escape eller krysset
+avbryter. **Sök i samtalet** (knappen i huvudet, i alla samtal): träffarna bland de laddade meddelandena markeras, "1 av 3" med
+föregående och nästa (Enter bakåt, Skift plus Enter framåt), "Ingen träff bland de laddade meddelandena." vid noll, och när äldre
+finns säger raden hur långt sökningen når. Fulltext över historiken kräver en server och är inte byggd.
+
+**Fästa meddelanden, med nyckeln `fasta`.** `<samtal>/{sid}/<fasta>/{mid}` med `FASTFALT` (`av`, `tid`), byggd med `byggFastning`:
+nyckeln är meddelandets id, så ett meddelande fästs högst en gång, och meddelandet förblir oföränderligt. Regeln: läsa som samtalet;
+fästa en aktiv person som sig själv, ett meddelande i samma samtal; lossa vem som helst av samtalets aktiva personer (en fästning är
+samtalets, bedömning ur analysen); aldrig uppdatera. Källan: `lasFasta`, `prenumereraFasta` (de senaste `FASTA_TAK`), `fast` och
+`lossa`, bara när `harFasta(kalla)`. Vyn: Fäst eller Lossa vid varje meddelande (`aria-pressed`), och raden "2 fästa" under
+samtalets huvud som fälls ut till de fästa, härledda ur meddelandena (lästa en gång när de inte är laddade), med Lossa. Fel och tak
+står utskrivna.
+
+**Länk till post som kort.** `OpsMeddelanden`, `OpsSamtal` och `OpsTrad` tar `postkort={{ slaUpp, onOppna? }}`. `slaUpp(url)` är
+appens uppslag: en http- eller https-adress i texten ger `{ titel, undertitel?, ikon? }`, eller `null` när den inte är en av appens
+poster. Ramverket känner inga posttyper och lagrar ingen titel i meddelandet (de blir inaktuella); uppslaget görs när kortet ritas, en
+gång per adress, för högst två länkar per meddelande. `onOppna(url, e)` är appens navigering. Ett uppslag som föll ger raden "Länken
+kunde inte slås upp.".
+
+**Skrivfältet och röstinmatningen (CP:s förebild 2026-10-06).** Ett rundat fält med platstexten efter samtalet ("Skriv till
+gruppen", "Fråga agenten", "Svara i tråden"), och inne i fältets högra del en ljudvåg för röstinmatning, en grå stoppknapp bara när
+något pågår, och Skicka när det finns text. Varje knapp har 44 px träffyta. **En knapp finns bara när den gör något:** ljudvågen
+kräver `onTranscribe(blob) => Promise<text>` på `OpsMeddelanden` (eller `OpsSamtal`, `OpsTrad`); transkriberingen är appens och
+ramverket känner ingen tjänst. Inspelningen är TALK:s (`useTalk`), en inspelningsväg. Den utskrivna texten hamnar i fältet och
+skickas INTE, så att den kan läsas och rättas. En misslyckad transkribering ger en felrad; ljudet sparas, "Försök igen" skickar samma
+ljud och bara "Kasta ljudet" tar bort det. Stopp avbryter en inspelning, och när agenten arbetar stoppar den agenten bara om appen gett
+`onStoppaAgent(sid, tid?)`. ⛔ **Plus och menyn "Bifoga bild", "Ta foto" (med `capture`) och "Välj fil" är byggda men inte inkopplade:**
+bilagemodellen är bilagemodulens (ops-framework PR 277), och tills den finns ritas inget plus.
+
 **Skalet (0.63.0, #263):** `skapa.nyttMeddelande` är en funktion `() => void`. Med den står "Nytt meddelande" i plusset (efter Nytt
 ärende, före Ny grupp), och raden anropar den: appen leder till Meddelanden i läget "nytt" (normalt `navigera("/meddelanden?nytt=1")`,
 och vyn ger `OpsMeddelanden nytt`). Ingen panel öppnas, så det finns EN väg att starta ett samtal. Etiketten är `nyttMeddelandeEtikett`.

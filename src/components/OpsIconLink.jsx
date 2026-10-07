@@ -41,6 +41,7 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {number} [props.badge] Antal. ⛔ 0 ritar ingen räknare: en nolla i en cirkel är en notis om att det inte finns någon notis.
  * @param {string} [props.badgeText] Substantivet efter siffran, t.ex. "nya". Appen bestämmer vad den räknar.
+ * @param {boolean} [props.badgeFler] (chattens nattskiva) Antalet är ett golv: räkningen nådde sitt tak, och märket visar "50+".
  * @param {string} [props.badgeFel] (0.45.0, cllp/bolag-ops#150) Räknaren kunde inte läsas, med orden som säger det, t.ex.
  *   "kunde inte läsas". Ritar `OpsFelBadge` i stället för räknaren och lägger orden i tooltipen. ⛔ Går FÖRE `badge`: ett antal
  *   från innan läsningen föll är ett gammalt antal, och en siffra som ser aktuell ut är precis den lögn märket finns för att undvika.
@@ -50,7 +51,7 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
  *   (`AppHeader.jsx:463`: `p-0.5 rounded-full`, `hover:ring-2 hover:ring-border-hover`, aktiv `ring-2 ring-accent`).
  *   Är `icon` en `OpsIdentity` görs den till `size="avatar"` åt dig, så appen inte behöver känna till måttet.
  */
-export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", badgeFel, active = false, avatar = false }) {
+export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", badgeFler = false, badgeFel, active = false, avatar = false }) {
   if (!label) {
     throw new Error(
       "OpsIconLink: label krävs. En ikonlänk utan namn läses upp som sin adress, alltså \"/inkorg\", och det är inte ett namn på något.",
@@ -103,7 +104,7 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
         }
       >
         {avatar && isValidElement(icon) && icon.type === OpsIdentity ? cloneElement(/** @type {any} */ (icon), { size: "avatar" }) : icon}</span>
-      {fel ? <OpsFelBadge text={fel} placement="icon" /> : count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" /> : null}
+      {fel ? <OpsFelBadge text={fel} placement="icon" /> : count > 0 ? <OpsCountBadge count={count} text={badgeText} placement="icon" fler={badgeFler} /> : null}
     </a>
   );
 

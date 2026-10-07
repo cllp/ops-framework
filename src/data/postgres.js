@@ -1,4 +1,4 @@
-import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
+import { foreVillkor, createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
 
 /**
  * Adapter mot Postgres, till exempel Cloud SQL i Google Cloud.
@@ -97,6 +97,13 @@ export function createPostgresSource(config) {
       if (innehaller) {
         params.push(innehaller[1]);
         sql += `${sql.includes(" WHERE ") ? " AND " : " WHERE "}$${params.length} = ANY(${identifier(innehaller[0])})`;
+      }
+
+      // `fore` (chattens nattskiva): strikt mindre än, `fält < $n`.
+      const fore = foreVillkor(queryArg?.fore);
+      if (fore) {
+        params.push(fore[1]);
+        sql += `${sql.includes(" WHERE ") ? " AND " : " WHERE "}${identifier(fore[0])} < $${params.length}`;
       }
 
       if (queryArg?.sortBy) {

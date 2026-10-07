@@ -1,4 +1,4 @@
-import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
+import { createDataSource, foreVillkor, innehallerVillkor, FALT_BORT } from "./contract.js";
 
 /**
  * Adapter mot Firestore.
@@ -121,6 +121,10 @@ export function createFirestoreSource(config) {
     if (q?.where) for (const [field, value] of Object.entries(q.where)) conditions.push(where(field, "==", value));
     const innehaller = innehallerVillkor(q?.innehaller);
     if (innehaller) conditions.push(where(innehaller[0], "array-contains", innehaller[1]));
+    // `fore` (chattens nattskiva): strikt mindre än. Firestore kräver att ett olikhetsfält också är det första i sorteringen,
+    // och samtalen sorterar på samma fält (`tid`), så frågan behöver inget nytt index.
+    const fore = foreVillkor(q?.fore);
+    if (fore) conditions.push(where(fore[0], "<", fore[1]));
     if (q?.sortBy) conditions.push(orderBy(q.sortBy, q.direction === "desc" ? "desc" : "asc"));
     if (typeof q?.limit === "number") conditions.push(limit(q.limit));
     return query(collection(db, collectionName), ...conditions);
