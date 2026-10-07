@@ -6,6 +6,7 @@ import { createSamtalskalla, harReaktioner } from "../data/samtalskalla.js";
 import { REAKTIONSFALT, REAKTIONSKODER, REAKTIONSTAK, byggReaktion, reaktionsnyckel, summeraReaktioner } from "../lib/samtal.js";
 import { samtalsregelfragment } from "../lib/regler.js";
 import { levandeKalla } from "./levandeKalla.js";
+import { REAKTIONSVY, reaktionsnamnPa } from "../components/reaktionsvy.js";
 
 /**
  * Etapp 3 av chattens nattskiva: reaktioner (chattanalysen 3.1).
@@ -180,5 +181,70 @@ describe("vyn", () => {
     const fullt = { ...s, prenumereraReaktioner: (/** @type {any} */ _sid, /** @type {any} */ l) => (l.onData({ rader: [], fler: true }), () => {}) };
     render(<OpsMeddelanden kalla={fullt} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
     expect(await screen.findByText("Äldre reaktioner visas inte.")).toBeTruthy();
+  });
+});
+
+/*
+ * ⛔ LUCIDE OCH INTE EMOJI (0.75.0, CP 2026-10-07: "Kör Lucide Ikoner som reaktioner"). Datan bär fortfarande bara koden. Här mäts
+ * vad som RITAS: Lucides egen klass på svg:n (`lucide-<namn>`) säger vilken ikon det är, och ingen text i knappen får vara ett tecken
+ * ur emojiblocket.
+ */
+const VANTAD_IKON = /** @type {const} */ ({ tumme: "lucide-thumbs-up", hjarta: "lucide-heart", skratt: "lucide-laugh", eld: "lucide-flame", klapp: "lucide-party-popper", bock: "lucide-check" });
+const EMOJI = /\p{Extended_Pictographic}/u;
+
+describe("ikonerna", () => {
+  it("⛔ varje kod har en Lucide-ikon och ett namn på svenska och engelska (golv: sex)", () => {
+    expect(REAKTIONSKODER.length).toBeGreaterThanOrEqual(6);
+    for (const kod of REAKTIONSKODER) {
+      const vy = REAKTIONSVY[kod];
+      expect(typeof vy?.Ikon, kod).toBe("function");
+      const { container } = render(<vy.Ikon size={20} />);
+      const svg = container.querySelector("svg");
+      expect(svg?.classList.contains(VANTAD_IKON[kod]), `${kod}: ${svg?.getAttribute("class")}`).toBe(true);
+      expect(svg?.getAttribute("stroke-width")).toBe("1.5");
+      expect(EMOJI.test(container.textContent ?? ""), kod).toBe(false);
+      expect(vy.namn.sv.length > 0 && vy.namn.en.length > 0, kod).toBe(true);
+      expect(EMOJI.test(vy.namn.sv + vy.namn.en), kod).toBe(false);
+    }
+    expect(reaktionsnamnPa("en").tumme).toBe("Thumbs up");
+    expect(reaktionsnamnPa("sv").tumme).toBe("Tummen upp");
+  });
+  it("⛔ en sparad reaktion ritas som sin ikon under bubblan, med antalet och inget tecken", async () => {
+    const { s, g, m1 } = await underlag();
+    await s.reagera(g.id, { mid: m1.id, kod: "klapp", av: "anna" });
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
+    const tumme = await screen.findByRole("button", { name: "Tummen upp, 1" });
+    const klapp = await screen.findByRole("button", { name: "Applåd, 1, du har reagerat" });
+    expect(tumme.querySelector(`svg.${VANTAD_IKON.tumme}`)).not.toBeNull();
+    expect(klapp.querySelector(`svg.${VANTAD_IKON.klapp}`)).not.toBeNull();
+    expect(tumme.textContent).toBe("1");
+    expect(klapp.textContent).toBe("1");
+    // Ovald i textfärgen, vald i accenten.
+    expect(tumme.querySelector("[data-reaktionsikon]")?.classList.contains("text-ink")).toBe(true);
+    expect(klapp.querySelector("[data-reaktionsikon]")?.classList.contains("text-accent")).toBe(true);
+    expect(klapp.getAttribute("aria-pressed")).toBe("true");
+    const rad = /** @type {HTMLElement} */ (document.querySelector(`[data-reaktioner="${m1.id}"]`));
+    expect(rad.querySelectorAll("button")).toHaveLength(2); // golv
+    expect(EMOJI.test(rad.textContent ?? "")).toBe(false);
+  });
+  it("⛔ väljaren ritar sex ikoner, och den egna reaktionen är tryckt", async () => {
+    const { s, g, m1 } = await underlag();
+    await s.reagera(g.id, { mid: m1.id, kod: "eld", av: "anna" });
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} />);
+    await screen.findByRole("button", { name: "Eld, 1, du har reagerat" });
+    fireEvent.click(/** @type {HTMLElement} */ (document.querySelector(`[data-reagera="${m1.id}"]`)));
+    const valjare = await screen.findByRole("group", { name: "Välj en reaktion" });
+    const knappar = within(valjare).getAllByRole("button");
+    expect(knappar).toHaveLength(6);
+    for (const [i, kod] of REAKTIONSKODER.entries()) {
+      expect(knappar[i].querySelector(`svg.${VANTAD_IKON[kod]}`), kod).not.toBeNull();
+      expect(knappar[i].getAttribute("aria-pressed"), kod).toBe(kod === "eld" ? "true" : "false");
+    }
+    expect(EMOJI.test(valjare.textContent ?? "")).toBe(false);
+  });
+  it("⛔ på engelska heter reaktionerna på engelska", async () => {
+    const { s, g } = await underlag();
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} sprak="en" />);
+    expect(await screen.findByRole("button", { name: "Thumbs up, 1" })).toBeTruthy();
   });
 });

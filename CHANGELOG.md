@@ -9,6 +9,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.75.0
+
+Grenen bygger på main vid 0.73.0. PR 288 (0.73.1) och PR 289 (0.74.0) ligger före i kön; den som mergas sist tar in main och höjer versionen.
+
+### Reaktionerna ritas med Lucide, inte med enhetens emoji (lifehub.app#103, lane 7)
+
+Händelsen: CP 2026-10-07, "Kör Lucide Ikoner som reaktioner". Reaktionerna ritades med enhetens egna emoji, så samma reaktion såg olika ut på iPad, Windows och Android och följde inte appens linjestil ("ser ut som Windows 98").
+
+#### Ändrat
+
+- `OpsMeddelanden`: chippen under bubblan och väljaren ritar reaktionen som en Lucide-ikon med `strokeWidth` 1.5: `tumme` ThumbsUp, `hjarta` Heart, `skratt` Laugh, `eld` Flame, `klapp` PartyPopper (Lucide har ingen applåd) och `bock` Check. Ovald ikon är linje i textfärgen (`text-ink`), den egna i accentfärgen (`text-accent`). Ingen hårdkodad färg.
+- Väljarens knappar bär nu `aria-pressed`, sant för den kod personen själv redan reagerat med, och den knappen får `bg-accent-faint`. Förut sade bara chippet det.
+- Reaktionernas namn finns på svenska och engelska. Med `sprak="en"` (eller `OpsSprakProvider` på engelska) heter de Thumbs up, Heart, Laugh, Fire, Applause och Done. `texter.reaktionsnamn` vinner fortfarande över förvalet.
+
+#### Tillagt
+
+- `TummeUppIkon`, `SkrattIkon`, `EldIkon` och `ApplodIkon` i `icons.jsx`. `HjartaIkon` och `BockIkon` fanns redan.
+- `src/components/reaktionsvy.js`: tabellen från kod till ikon och namn. Ramverksintern, exporteras inte.
+- `check-skalyta.mjs --chattbredder 390,1024`: avsnitt 29g i andra bredder än förvalet 390 och 1280.
+
+#### Datan ändras inte
+
+De sex koderna (`REAKTIONSKODER`) och reglerna är desamma. En reaktion sparad före 0.75.0 ritas med sin nya ikon utan migrering. Ingen regeländring, ingen deploy före klienten.
+
+#### Tre listor (regel 13)
+
+- Tas som det är: de sex koderna, en rad per person och kod, antalet räknat fram, 44 px träffyta.
+- Görs bättre: väljaren säger nu vilken reaktion som är din (`aria-pressed`), inte bara chippet.
+- Stryks: ingenting. Ingen fri emojiväljare, eftersom en fri uppsättning kräver att datan bär tecknet, och det är precis den form `samtal.js` stängde.
+
+#### Prov
+
+- `src/__tests__/chatt-reaktioner.test.jsx`, "ikonerna": varje kod har en Lucide-ikon med rätt klass och `stroke-width` 1.5 och namn på båda språken (golv sex); en sparad reaktion ritas som sin ikon med bara antalet som text; väljaren ritar sex ikoner och den egna är tryckt; på engelska heter de på engelska. Mot mains `OpsMeddelanden.jsx`: 3 av de 4 nya röda (tabellprovet läser en fil som inte finns på main). Med bytet: 17 av 17 gröna.
+- `check-skalyta.mjs` 29g (3): varje chip bär exakt en Lucide-svg och ingen emoji, och väljaren sex. Mot mains bygge: 4 brott av 106 (390 och 1024 px). Med bytet: 106 kontroller, inga brott.
+
 ## 0.73.0
 
 Grenen började som 0.71.0. Medan den var öppen mergades 0.69.0 till 0.72.0 (PR 278, 275, 280, 285 och 286); main är inmergad med en vanlig merge och versionen är 0.73.0.
