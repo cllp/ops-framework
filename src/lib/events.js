@@ -74,6 +74,10 @@
  *   det som skalets `handelsepanel.rita` får. ⛔ BARA PÅ DE POSTER SOM ÄR HÄNDELSER: en uppgift eller ett ärende i samma lista har ingen panel och
  *   bär inget `handelseId`. Raden är en riktig länk (`?handelse=<id>`), så den går att öppna i en ny flik. Kontrollerna på raden (åtgärden, utfällningen,
  *   länken) ligger kvar ovanpå och tar sina egna tryck. Kräver `handelsepanel` på skalet eller `onOppnaHandelse` på listan: annars kastar listan.
+ * @property {boolean} [snarast] (0.78.1) Odaterad "så snart som möjligt". `daysLeft` är 0, samma som i dag,
+ *   så ihopslagningen lägger den efter andra rader med samma `daysLeft`. Utan flaggan
+ *   försvinner ordningen försenat, i dag, snarast så fort en händelse med `daysLeft` 0
+ *   ligger mellan dem.
  * @property {import("react").ReactNode} [atgard] Appens egen kontroll för raden, till exempel
  *   en knapp som bockar av den. ⛔ RAMVERKET RITAR DEN, TOLKAR DEN ALDRIG: vad en åtgärd
  *   gör är appens sak, var den hamnar och att den hamnar likadant på varje rad är vår.
@@ -236,6 +240,9 @@ export function collectEvents({ sources = [], order } = {}) {
     const bUndated = bd === null || bd === undefined;
     if (aUndated !== bUndated) return aUndated ? 1 : -1;
     if (!aUndated && !bUndated && ad !== bd) return /** @type {number} */ (ad) - /** @type {number} */ (bd);
+    const aSnart = a.h.snarast === true ? 1 : 0;
+    const bSnart = b.h.snarast === true ? 1 : 0;
+    if (aSnart !== bSnart) return aSnart - bSnart;
     if (a.weight !== b.weight) return a.weight - b.weight;
     return a.place - b.place;
   });
