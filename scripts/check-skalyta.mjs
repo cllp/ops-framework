@@ -5237,12 +5237,18 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-haller-${vp.width}.png`) });
       await page.mouse.up();
     } else {
+      // ⛔ 0.78.0 (lane 19): huvudets plus har ingen TALK-rad på bred skärm. Raden ska vara borta, och vägen in är
+      // mikrofonknappen i huvudet (#276), som gör exakt det raden gjorde.
       await page.locator("header").getByRole("button", { name: "Skapa" }).first().click();
-      // ⛔ Raden i popovern, inte huvudets mikrofonknapp (#276), som heter samma sak och gör samma sak.
-      const rad = page.locator('[role="dialog"]').getByRole("button", { name: "TALK, prata in" });
-      await rad.waitFor({ timeout: 4000 });
+      const dialog = page.locator('[role="dialog"]').first();
+      await dialog.waitFor({ timeout: 4000 });
+      const rader = await dialog.getByRole("button", { name: "TALK, prata in" }).count();
+      krav(rader === 0, `${namn}: huvudets plus har ${rader} rad "TALK, prata in", väntat ingen sedan 0.78.0.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-skapa-${vp.width}.png`), clip: { x: vp.width - 640, y: 0, width: 640, height: 360 } });
-      await rad.click();
+      await page.keyboard.press("Escape");
+      const mik = page.locator('header button[aria-label^="TALK"]:visible').first();
+      await mik.waitFor({ timeout: 4000 });
+      await mik.click();
     }
     await page.waitForSelector("[data-ops-talk]", { timeout: 4000 });
     await page.waitForTimeout(400);
