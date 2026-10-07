@@ -42,7 +42,7 @@ Rött utan beteendet, grönt med det. `src/__tests__/mejl.test.js`, 18 prov.
 - Spärrad domän: när spärren var avstängd blev status `skickad` (förväntat `hoppad`) och transporten anropades. Med spärren: inget utskick, `skal` innehåller domänen.
 - Regelfragmentet: `allow read, write: if true` föll på att blocket ska innehålla `allow read, write: if false`. Med nekandet: grönt. Emulatorn (`rules/__tests__/mejl.test.mjs`) nekar läsning, listning, skapande och ändring, inloggad och utan inloggning. Filen måste innehålla `mejlregelfragment("mejlko")`, eftersom catch-all också nekar.
 - `check-node-side`: en planterad `import "react"` i `src/node/mejl.js` föll med "nodsidan drar in webben". Utan den: grönt, 187 webbfiler och 80 nodexporter i README.
-- `check-gammalt-namn`: golvet höjt från 540 till 618. Med 540 var vakten röd, den läste 651 filer och 540 låg mer än 20 procent under (taket är 648). Med 618, efter merge av 0.74.0 och 0.75.0: grön, 658 filer lästa.
+- `check-gammalt-namn`: golvet höjt från 540 till 618. Med 540 var vakten röd, den läste 651 filer och 540 låg mer än 20 procent under (taket är 648). Med 618, efter merge av 0.74.0 och 0.75.0: grön, 652 filer lästa.
 
 ## 0.75.0
 

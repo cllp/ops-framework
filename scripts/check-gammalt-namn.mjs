@@ -18,7 +18,7 @@
  *     gamla taket utan att någon ser den (omgranskningen av PR 268, A4).
  * Mönstren byggs av delar i den här filen och i `test-guards`, så att ingen av dem är ett undantag.
  *
- * ⛔ GOLV: minst 618 lästa filer i repot (658 mätt 2026-10-07, 0.76.0, när mejlmodulen
+ * ⛔ GOLV: minst 618 lästa filer i repot (652 mätt 2026-10-07, 0.76.0, när mejlmodulen
  * lade till filer och 540 låg mer än 20 procent under, sedan PR 289 och 290 mergades). En vakt som läste noll filer hade varit grön (regel 4).
  * Golvet FÖLJER MED (omgranskningen av PR 268, A4): läser vakten mer än 20 procent över golvet är den röd och säger vilket
  * golv som ska stå. Ett golv långt under det som faktiskt läses vaktar inte längre mot ett halvtomt underlag, till exempel en
