@@ -9,6 +9,46 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.73.1
+
+Två små rättelser ur granskningarna av PR 275 och PR 285. Inga regeländringar, inget att deploya före klienten.
+
+### Modulnamnet i `OpsModulKataloger` följer rubrikniva (#287)
+
+Händelsen: granskningen av PR 285 (0.71.1). `OpsModulKataloger.jsx:95` ritade varje moduls namn som en fast `<h3>`. I en inställningspanel med `rubrikniva={3}` stod modulnamnet då på samma nivå som panelens rubrik, och katalogen under modulnamnet hamnade på samma nivå som modulnamnet i stället för under det.
+
+#### Ändrat
+
+- Modulnamnet får sin nivå ur `delrubrik`, samma regel som `OpsKatalogInstallning` och `OpsModulTyper` följer, och ritas med `Delrubrik`. Heter modulen som panelen ritas namnet inte en gång till.
+- Katalogen i varje modulsektion ligger en nivå under modulnamnet. `OpsInstallningar.jsx` har en ny intern del, `UnderDel`, som ger katalogen modulnamnet som närmaste rubrik, så att regeln fortfarande bara finns i `delrubrik`.
+- Sektionen heter som modulnamnet (`aria-labelledby`), eller som panelen när namnet inte ritas.
+
+#### Prov
+
+- `src/__tests__/kallor.test.jsx`, "modulnamnet och katalogen följer rubrikniva": utan panel (2 och 3), nivå 2 (3 och 4), nivå 3 (4 och 5), nivå 5 (6 och 7, där 7 är `aria-level` på en `h6`), och nivå 3 när modulen heter som panelen (namnet ritas inte, katalogen 4). Mot den fasta `<h3>`: 5 av 5 röda. Med rättningen: 90 av 90 gröna i `kallor.test.jsx` och `installningar.test.jsx`.
+
+### `in` nådde prototypkedjan i tre uppslag (#283)
+
+Händelsen: granskningen av PR 275. `"constructor" in {}` är sant, så ett id som heter som något på `Object.prototype` räknades som en nyckel ingen hade satt.
+
+#### Ändrat
+
+- `src/lib/beteenden.js`, `kopplaBeteenden`: en kategori med id `constructor`, `toString` eller `__proto__` utan hanterare ger nu skälet "saknar hanterare". Förut räknades den som kopplad, till `Object`-konstruktorn.
+- `src/lib/hubb.js`, `hubbPoster`: en modul med ett sådant id får ingen infolinje när appen inte gett någon. Förut fick den prototypens funktion som `info`.
+- `src/lib/katalog.js`, de krävda textnycklarna: en krävd nyckel som heter `constructor` räknades som ifylld fast ingen text fanns. Den här var inte nämnd i ärendet men hittades i genomgången, eftersom nycklarna kommer ur appens konfiguration.
+- Alla tre går med `Object.hasOwn`.
+
+#### Genomgången av övriga `in` i `src/lib`
+
+- Står kvar, eftersom nyckeln är ett fast fältnamn och inte ett id: `modul.js` (`"katalog"`, `"hubb"`, `"$$typeof"`, `"props"`), `kallor.js` (`"daysLeft"`), `hubb.js` (`"del"`), `talk.js` (`"name"`), och kraven i `modultyper.js`, `grupp.js` och `handelsemodell.js`, som prövar fasta listor.
+- Står kvar, eftersom de prövar fasta listor vid laddning: `gruppikonarv.js` och `kalenderikoner.js`.
+- `hubb.js` `badge[m.id]` står kvar: `typeof ... === "number"` släpper aldrig igenom något ur prototypen.
+- `in` i `regler.js` är Firestore-regelspråk i strängar, inte JavaScript.
+
+#### Prov
+
+- `beteenden.test.js`, `hubb.test.jsx` och `katalogtexter.test.js`, med `constructor`, `toString` och `__proto__` på varje ställe. Utan rättelsen: 9 av 9 nya röda. Med: 96 av 96 gröna i de tre filerna.
+
 ## 0.73.0
 
 Grenen började som 0.71.0. Medan den var öppen mergades 0.69.0 till 0.72.0 (PR 278, 275, 280, 285 och 286); main är inmergad med en vanlig merge och versionen är 0.73.0.

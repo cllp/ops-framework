@@ -244,3 +244,12 @@ describe("en katalog utan färger", () => {
     expect(katalog.every((k) => k.farg === null)).toBe(true);
   });
 });
+
+describe("⛔ en krävd textnyckel som heter som något på Object.prototype (#283)", () => {
+  // `n in ut` nådde prototypkedjan, så en krävd nyckel `constructor` räknades som ifylld fast ingen text fanns.
+  for (const nyckel of ["constructor", "toString", "__proto__"]) {
+    it(`"${nyckel}" som saknas ger ett skäl`, () => {
+      expect(() => bygg({ texter: {} }, { textnycklar: [nyckel] })).toThrow(new RegExp(`texterna ${nyckel} saknas`));
+    });
+  }
+});
