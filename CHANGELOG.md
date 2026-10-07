@@ -25,7 +25,8 @@ Regeln med `bilagor: true` ska vara utrullad innan klienten slår på nyckeln. U
 ### Prov
 
 - `src/__tests__/chatt-bilagor.test.jsx`, 7 prov. Utan storlekstaket i `kommentarbilagaFel` och i `opsMeddelandebilagaGiltig`: 2 röda, 5 gröna. Med taket: 7 gröna. Fixturen `samtalsregelfragment-0.67.0.rules` är oförändrad i samma körning.
-- `rules/__tests__/chattbilagor.test.mjs` mot emulatorn, och Playwright `check-skalyta` avsnitt 29g (9) i 390 och 1024 px: utfallen skrivs in här när de är körda.
+- `rules/__tests__/chattbilagor.test.mjs` mot emulatorn: med taket 5 av 5 gröna. Med taket sänkt till 1 tecken i den genererade regeln: 2 röda, 3 gröna (den giltiga bilden och exakt taket nekades).
+- Playwright, `check-skalyta --bara-chatt --chattbredder 390,1024`: 120 kontroller, inga brott. Avsnitt 29g (9) i båda bredderna visar bilden, Bifoga bild och Välj fil på 44 px, och ingen Ta foto eftersom kameran räknades som nej. Menyn ligger inom fönstret. Avsnitt (8) mäter fortfarande att pluset saknas i agentscenen. Bilderna ligger i `docs/jamforelser/chatt/chatt-9-bilaga-390.png` och `chatt-9-bilaga-1024.png`. Webbläsaren var `/opt/google/chrome/chrome`. `/opt/pw-browsers` fanns inte här, och ingen webbläsare installerades.
 
 ## 0.76.2
 
