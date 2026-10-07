@@ -582,7 +582,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
  *
  * ⛔ TRE VÄGAR UT: krysset, Escape och ett tryck utanför.
  *
- * ══ ⛔ ÖVERST I PANELEN, CENTRERAD, OCH INTE EN BUBBLA VID RUTAN (0.71.0, cllp/bolag-ops#568) ══════════
+ * ══ ⛔ ÖVERST I PANELEN, CENTRERAD, OCH INTE EN BUBBLA VID RUTAN (0.73.0, cllp/bolag-ops#568) ══════════
  *
  * CP 2026-10-06, inkorgspost `tAv8ejFHHWVkAzKx6eHv`: "Kände nu när jag testade snabbvyn för kalender att den bubblan med
  * långpress i cellen (ej den vanliga). Att snabb vyn kan ligga längst upp i panelen centrerat." Till 0.70.0 var titten en
@@ -1368,7 +1368,7 @@ export function OpsCalendar({
    */
   const days = useMemo(() => [...chosen].sort().map((dayKey) => ({ dayKey, entries: byKey.get(dayKey) || [] })), [chosen, byKey]);
   const panelOppen = days.length > 0;
-  // ⛔ PLATSEN ÖPPNAS AV DAGPANELEN ELLER SNABBTITTEN (0.71.0, bolag-ops#568). Luften under rutnätet och Idag-knappens läge läser samma höjd.
+  // ⛔ PLATSEN ÖPPNAS AV DAGPANELEN ELLER SNABBTITTEN (0.73.0, bolag-ops#568). Luften under rutnätet och Idag-knappens läge läser samma höjd.
   const platsOppen = panelOppen || titt !== null;
 
   useEffect(() => {

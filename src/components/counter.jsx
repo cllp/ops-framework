@@ -44,9 +44,13 @@ import { cx } from "../lib/cx.js";
  * ⛔ Både siffra och skärmläsartext. En prick utan namn säger ingenting till den
  * som inte ser den, och en siffra utan substantiv säger inte nio av vad.
  *
- * @param {{ count: number, text?: string, placement?: "icon" | "corner" | "inline", max?: number }} props
+ * ⛔ `fler` (chattens nattskiva): antalet är ett GOLV, inte ett antal. Chattens olästa räknas över de senaste 50 meddelandena, och 120
+ * olästa visades som 50, utan plustecken. Märket skriver då "50+" och skärmläsaren "50 eller fler", så att taket syns i stället
+ * för att se ut som en exakt siffra (arbetsreglernas punkt 5).
+ *
+ * @param {{ count: number, text?: string, placement?: "icon" | "corner" | "inline", max?: number, fler?: boolean }} props
  */
-export function OpsCountBadge({ count, text = "", placement = "corner", max = 99 }) {
+export function OpsCountBadge({ count, text = "", placement = "corner", max = 99, fler = false }) {
   if (!(typeof count === "number" && count > 0)) return null;
   const plats = PLATS[placement];
   if (plats === undefined) throw new Error(`OpsCountBadge: okänd placement "${placement}". Giltiga: ${Object.keys(PLATS).join(", ")}.`);
@@ -59,9 +63,9 @@ export function OpsCountBadge({ count, text = "", placement = "corner", max = 99
         plats,
       )}
     >
-      <span aria-hidden="true">{count > max ? `${max}+` : count}</span>
-      {/* ⛔ Det riktiga talet och substantivet, uppläst, som EN text. */}
-      <span className="sr-only">{text ? ` ${count} ${text}` : ` ${count}`}</span>
+      <span aria-hidden="true">{count > max ? `${max}+` : fler ? `${count}+` : count}</span>
+      {/* ⛔ Det riktiga talet och substantivet, uppläst, som EN text. Med `fler` är talet ett golv, och det sägs. */}
+      <span className="sr-only">{`${fler ? ` ${count} eller fler` : ` ${count}`}${text ? ` ${text}` : ""}`}</span>
     </span>
   );
 }

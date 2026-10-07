@@ -37,10 +37,14 @@ import { splitMarkdown } from "../lib/markdown.js";
 /**
  * @param {import("../lib/markdown.js").Bit[]} pieces
  * @param {string} blockKey
+ * @param {boolean} [arv] Chattens bubbla (#273): färgen ärvs. Den egna bubblan är accentfärgad, och en länk i `text-accent` eller
+ *   fet text i `text-ink` hade varit osynlig eller fel ton på den.
  */
-function inline(pieces, blockKey) {
+function inline(pieces, blockKey, arv = false) {
   return pieces.map((b, i) => {
     const k = `${blockKey}-${i}`;
+    if (b.kind === "break") return <br key={k} />;
+    if (b.kind === "italic") return <em key={k}>{b.value}</em>;
     if (b.kind === "link") {
       return (
         <a
@@ -48,7 +52,10 @@ function inline(pieces, blockKey) {
           href={b.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-sm text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className={cx(
+            "rounded-sm underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2",
+            arv ? "text-current focus-visible:outline-current" : "text-accent focus-visible:outline-accent",
+          )}
         >
           {b.value}
         </a>
@@ -56,14 +63,14 @@ function inline(pieces, blockKey) {
     }
     if (b.kind === "code") {
       return (
-        <code key={k} className="rounded-sm bg-sunken px-1 py-0.5 font-mono text-meta text-ink">
+        <code key={k} className={cx("rounded-sm px-1 py-0.5 font-mono text-meta", arv ? "bg-current/10" : "bg-sunken text-ink")}>
           {b.value}
         </code>
       );
     }
     if (b.kind === "bold") {
       return (
-        <strong key={k} className="font-semibold text-ink">
+        <strong key={k} className={cx("font-semibold", arv ? "" : "text-ink")}>
           {b.value}
         </strong>
       );
@@ -94,10 +101,40 @@ const TITLE_SIZE = {
 /**
  * @param {object} props
  * @param {string | null | undefined} props.text Markdown. Tom text ger ingenting alls.
+ * @param {boolean} [props.chatt] (#273) Chattens delmängd (`splitMarkdown(text, { chatt: true })`): radbrytningar står kvar,
+ *   rubriker, tabeller, citat och kodblock tolkas inte, och färgen ärvs från bubblan.
  */
-export function OpsMarkdown({ text }) {
-  const block = splitMarkdown(text);
+export function OpsMarkdown({ text, chatt = false }) {
+  const block = splitMarkdown(text, { chatt });
   if (block.length === 0) return null;
+  if (chatt) {
+    // ⛔ Ingen egen textfärg och ingen egen storlek: bubblan bestämmer, och den egna bubblan är accentfärgad (#273).
+    return (
+      <div data-ops-markdown="chatt" className="flex flex-col gap-1.5 break-words">
+        {block.map((b, i) => {
+          const k = `b${i}`;
+          if (b.kind === "paragraph") return <p key={k} className="m-0">{inline(b.inline, k, true)}</p>;
+          // ⛔ Kan inte hända: chattens delmängd ger bara stycken och listor. Skulle den ändå ge något annat sägs det, i stället
+          // för att texten tyst försvinner ur bubblan (regel 5).
+          if (b.kind !== "list") throw new Error(`OpsMarkdown: chattens delmängd gav blocket "${b.kind}", som den inte ska kunna ge.`);
+          const List = b.ordered ? "ol" : "ul";
+          return (
+            <List key={k} className="m-0 flex list-none flex-col gap-0.5 p-0">
+              {b.entries.map((entry, pi) => (
+                <li key={`${k}-p${pi}`} className="flex gap-2">
+                  <span aria-hidden="true" className="shrink-0 opacity-70">
+                    {entry.cross === null ? (b.ordered ? `${pi + 1}.` : "•") : entry.cross ? "☑" : "☐"}
+                  </span>
+                  {entry.cross === null ? null : <span className="sr-only">{entry.cross ? "Gjort:" : "Ogjort:"}</span>}
+                  <span className="min-w-0 flex-1">{inline(entry.inline, `${k}-p${pi}`, true)}</span>
+                </li>
+              ))}
+            </List>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     /* ⛔ `break-words`: issue-texter bär URL:er och tabellrader utan

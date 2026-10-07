@@ -14,7 +14,7 @@
  *     ta bort sin egen                                       ja       <- CP 2026-10-02: "Ja"
  *     ta bort någon annans, också som ägare                  nej
  *
- *   BILAGOR PÅ KOMMENTARER (0.71.0, bolag-ops#570)
+ *   BILAGOR PÅ KOMMENTARER (0.73.0, bolag-ops#570)
  *     medlem skriver en kommentar med bild eller fil, också utan text  ja
  *     icke-medlem skriver eller läser en kommentar med bilaga     nej      <- "bara gruppens medlemmar får läsa bilagan"
  *     för stor bilaga (ett tecken över MAX_KOMMENTARBILAGA)        nej

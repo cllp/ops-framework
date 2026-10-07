@@ -11,6 +11,7 @@ import { OpsChip } from "./OpsChip.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { PROFILIKON_KOMPONENT } from "../lib/profilikoner.js";
+import { personmarkeProps } from "../lib/gruppikoner.js";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
@@ -374,8 +375,7 @@ function OpsProfilRitad({
         name={anvandare.namn || anvandare.epost}
         seed={anvandare.id}
         imageUrl={anvandare.bild}
-        icon={!anvandare.bild && anvandare.ikon ? PROFILIKON_KOMPONENT[/** @type {keyof typeof PROFILIKON_KOMPONENT} */ (anvandare.ikon)] : undefined}
-        tone={anvandare.farg ? /** @type {any} */ (Number(anvandare.farg)) : undefined}
+        {...personmarkeProps(anvandare)}
         size="lg"
       />
       <div className="min-w-0 flex-1">

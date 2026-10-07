@@ -40,6 +40,7 @@
  *       node scripts/check-skalyta.mjs --dist <fil>       mät en annan byggd version (röd-beviset mot origin/main)
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
+ *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
 
@@ -140,6 +141,13 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: tema === "dark" ? "dark" : "light" });
+  // ⛔ Chattens scen har en fast klocka, samma dag som scenens meddelanden (2026-10-06 från 09:00). Utan den stod det "I går"
+  // eller ett annat datum i bilderna beroende på när de togs, och de gick inte att återskapa (granskningen av PR 286).
+  // Rörelse av, också: en puls eller en övergång mitt i en bild gör att samma scen ger en annan bild.
+  if (scen === "chattnatt") {
+    await page.clock.setFixedTime(new Date(2026, 9, 6, 22, 0));
+    await page.emulateMedia({ reducedMotion: "reduce" });
+  }
   await page.setContent(sida(scen, aktiv, manga));
   await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
   if (fel.length) throw new Error(`sidan "${scen}" kastade: ${fel[0]}`);
@@ -173,6 +181,372 @@ async function linjer(page, valjare) {
 
 /** @param {number[]} ys @returns {number} minsta avstånd mellan två intilliggande linjer */
 const minGap = (ys) => ys.slice(1).reduce((m, y, i) => Math.min(m, y - ys[i]), Infinity);
+
+/** Skriver ut mätningarna och brotten och avslutar. Samma för hela körningen och för `--bara-chatt`. */
+function avsluta() {
+  for (const rad of matt) console.log(`  mätt: ${rad}`);
+  if (brott.length > 0) {
+    console.error(`\ncheck-skalyta: ${brott.length} brott av ${mattningar} kontroller (${varifran})\n`);
+    for (const b of brott) console.error(`  ${b}`);
+    process.exit(1);
+  }
+  console.log(`\ncheck-skalyta: ${mattningar} kontroller, inga brott (${varifran})`);
+}
+
+// ══ 29g. CHATTENS NATTSKIVA VID 390 OCH 1280 PX (#273 och chattanalysen) ═══════════════════════════════════════════════════
+// En funktion och inte ett block i flödet, så att `--bara-chatt` kan köra den ensam under arbetet. Hela körningen kör den också,
+// efter 29f. Scenen är `chattnatt` (skalyta-entry.jsx), med samtalet valt ur `window.__aktiv`. Delarna, en per etapp:
+//   (1) MARKDOWN OCH AGENTENS STATUS (#273): i agentsamtalet bär agentens svar fet text, kursiv, en punktlista med minst två
+//       rader och en klickbar https-länk, och inga råa `**`; raden "Agenten tänker" står i loggen under sista bubblan, med
+//       ikonen och tre punkter, och inom loggens bredd.
+//   (2) VISA ÄLDRE OCH 50+: i listan bär samtalet med 120 olästa märket "50+"; i samtalet står "Visa äldre" överst i loggen med
+//       44 px träffyta, och ett klick lägger 50 meddelanden till ovanför UTAN att det man läste flyttar sig (högst 2 px), och
+//       knappen står kvar eftersom det finns fler.
+//   (3) REAKTIONER: i gruppchatten står chippen under bubblan med antal (golv: 3 chips), varje chip och "Reagera" har minst 44 px
+//       träffyta, väljaren öppnas med sex knappar om 44 px helt inom fönstret, och Escape stänger den med fokus kvar på Reagera.
+//   (4) OMNÄMNANDEN: "@" i gruppchattens skrivfält öppnar listan ovanför fältet med minst 4 förslag (personer, agenten, alla),
+//       varje rad minst 44 px och helt inom fönstret; Enter skriver namnet i fältet och stänger listan.
+//   (5) CITAT OCH SÖK: i det privata samtalet ger "Svara med citat" (44 px) en rad ovanför skrivfältet med "Svarar på Bo Lind"
+//       och ett kryss på 44 px; det skickade svaret bär citatet ovanför bubblan, inom loggens bredd. "Sök i samtalet" (44 px) öppnar
+//       en rad under huvudet; "fakturan" ger "1 av 1" och den aktuella bubblan markerad och synlig i loggen.
+//   (6) FÄSTA: under gruppchattens huvud står "1 fästa" (44 px), som fälls ut till det fästa meddelandet med namn och utdrag och
+//       Lossa (44 px); knappen vid det fästa meddelandet är tryckt och har 44 px träffyta.
+//   (7) LÄNK SOM KORT: länken till appens post står som ett kort under bubblan, minst 44 px högt, inom loggen, med appens titel
+//       och undertitel; länken i texten står kvar.
+//   (8) SKRIVFÄLTET (CP:s förebild): ett rundat fält (rundning minst 20 px) med platstexten "Fråga agenten", och inne i fältets
+//       högra del ljudvågen med 44 px träffyta. Ett tryck spelar in: raden "Spelar in" syns, stopp och ljudvåg är 44 px och ligger
+//       i fältet; ett andra tryck skriver ut, och texten står i fältet, oskickad. Plus ritas inte förrän bilagemodulen finns.
+// Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
+async function chattensNattskiva() {
+  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    // ── (1) markdown och agentens status ──────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "agent");
+      const namn = `chatt (1) agentsamtalet ${vp.width}`;
+      try {
+        await page.waitForSelector('[data-ops-samtal="agent"] [data-meddelande]', { timeout: 4000 });
+        await page.waitForTimeout(200);
+        const m = await page.evaluate(() => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const logg = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="agent"] [role=log]'));
+          const bubblor = [...logg.querySelectorAll("[data-bubbla]")];
+          const svar = bubblor.find((x) => x.querySelector("strong"));
+          const status = logg.querySelector("[data-agentstatus]");
+          return {
+            bubblor: bubblor.length,
+            fet: svar?.querySelector("strong")?.textContent ?? null,
+            kursiv: svar?.querySelector("em")?.textContent ?? null,
+            listrader: svar ? svar.querySelectorAll("li").length : 0,
+            lank: svar?.querySelector("a")?.getAttribute("href") ?? null,
+            ratecken: bubblor.some((x) => (x.textContent || "").includes("**")),
+            status: status ? { slag: status.getAttribute("data-agentstatus"), text: (status.textContent || "").trim(), roll: status.getAttribute("role"), punkter: status.querySelectorAll("[aria-hidden] > span").length, underSista: b(status).top >= b(bubblor[bubblor.length - 1]).bottom - 0.5, inom: b(status).right <= b(logg).right + 0.5 && b(status).left >= b(logg).left - 0.5 } : null,
+          };
+        });
+        matt.push(`${namn}: ${JSON.stringify(m)}`);
+        krav(m.bubblor >= 3, `${namn}: ${m.bubblor} bubblor, väntat minst 3. Golv.`);
+        krav(m.fet === "Två fakturor" && m.kursiv === "Bokio", `${namn}: agentens svar ska bära fet text och kursiv (fet "${m.fet}", kursiv "${m.kursiv}").`);
+        krav(m.listrader >= 2, `${namn}: punktlistan har ${m.listrader} rader, väntat minst 2.`);
+        krav(m.lank === "https://exempel.se/fakturor", `${namn}: länken i svaret är ${JSON.stringify(m.lank)}, väntat en klickbar https-adress.`);
+        krav(!m.ratecken, `${namn}: en bubbla visar råa ** (#273).`);
+        krav(m.status !== null && m.status.slag === "tanker" && m.status.text.startsWith("Agenten tänker") && m.status.roll === "status", `${namn}: raden "Agenten tänker" saknas eller är fel (${JSON.stringify(m.status)}).`);
+        krav(m.status !== null && m.status.punkter === 3 && m.status.underSista && m.status.inom, `${namn}: statusraden ska stå under sista bubblan, inom loggen, med tre punkter (${JSON.stringify(m.status)}).`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-1-markdown-status-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (3) reaktioner ────────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (3) reaktioner ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-ops-samtal] [data-reaktion]", { timeout: 6000 });
+        await page.waitForTimeout(200);
+        const chips = await page.evaluate(() => [...document.querySelectorAll("[data-ops-samtal] [data-reaktion]")].map((c) => {
+          const r = c.getBoundingClientRect();
+          return { namn: c.getAttribute("aria-label"), w: r.width, h: r.height, tryckt: c.getAttribute("aria-pressed") };
+        }));
+        matt.push(`${namn}: chips ${JSON.stringify(chips)}`);
+        krav(chips.length >= 3, `${namn}: ${chips.length} chips, väntat minst 3. Golv.`);
+        krav(chips.every((c) => c.w >= 43.5 && c.h >= 43.5), `${namn}: ett chip har mindre än 44 px träffyta (${JSON.stringify(chips)}).`);
+        krav(chips.some((c) => c.namn === "Tummen upp, 2, du har reagerat" && c.tryckt === "true"), `${namn}: Annas egen reaktion ska vara tryckt och säga det (${JSON.stringify(chips)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-3-reaktioner-chips-${vp.width}.png`) });
+        const rad = page.locator("[data-ops-samtal] [data-meddelande]").filter({ has: page.locator("[data-reaktion]") }).last();
+        await rad.hover();
+        const knapp = rad.locator("[data-reagera]");
+        const kb = await knapp.boundingBox();
+        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: Reagera har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
+        await knapp.focus();
+        await page.keyboard.press("Enter");
+        await page.waitForSelector("[data-reaktionsvaljare]", { timeout: 3000 });
+        const val = await page.evaluate(() => {
+          const v = /** @type {HTMLElement} */ (document.querySelector("[data-reaktionsvaljare]"));
+          const kn = [...v.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
+          return { antal: kn.length, minst: Math.min(...kn.map((r) => Math.min(r.width, r.height))), inom: kn.every((r) => r.left >= 0 && r.right <= window.innerWidth && r.top >= 0), fokus: document.activeElement?.getAttribute("data-valj-reaktion") ?? null };
+        });
+        matt.push(`${namn}: väljaren ${JSON.stringify(val)}`);
+        krav(val.antal === 6 && val.minst >= 43.5 && val.inom, `${namn}: väljaren ska ha sex knappar om 44 px inom fönstret (${JSON.stringify(val)}).`);
+        krav(val.fokus === "tumme", `${namn}: fokus ska stå på första reaktionen när väljaren öppnats (${val.fokus}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-3-reaktioner-valjare-${vp.width}.png`) });
+        await page.keyboard.press("Escape");
+        const efter = await page.evaluate(() => ({ oppen: Boolean(document.querySelector("[data-reaktionsvaljare]")), fokus: document.activeElement?.hasAttribute("data-reagera") ?? false }));
+        krav(!efter.oppen && efter.fokus, `${namn}: Escape ska stänga väljaren och lämna fokus på Reagera (${JSON.stringify(efter)}).`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (4) omnämnanden ───────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (4) omnämnanden ${vp.width}`;
+      try {
+        const ruta = page.locator("[data-ops-samtal] textarea");
+        await ruta.waitFor({ timeout: 6000 });
+        await ruta.click();
+        await page.keyboard.type("Kan @");
+        await page.waitForSelector("[data-omnamnande]", { timeout: 3000 });
+        const l = await page.evaluate(() => {
+          const lista = /** @type {HTMLElement} */ (document.querySelector("[data-omnamnande]"));
+          const ruta = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] textarea"));
+          const rader = [...lista.querySelectorAll("[role=option]")].map((o) => { const r = o.getBoundingClientRect(); return { text: (o.textContent || "").trim(), h: r.height, inom: r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 }; });
+          return { rader, ovanfor: lista.getBoundingClientRect().bottom <= ruta.getBoundingClientRect().top + 0.5 };
+        });
+        matt.push(`${namn}: ${JSON.stringify(l)}`);
+        krav(l.rader.length >= 4, `${namn}: ${l.rader.length} förslag, väntat minst 4 (Bo, Cecilia, agenten, alla). Golv.`);
+        krav(l.rader.every((r) => r.h >= 43.5 && r.inom) && l.ovanfor, `${namn}: förslagen ska vara 44 px höga, inom fönstret och ovanför fältet (${JSON.stringify(l)}).`);
+        krav(l.rader.some((r) => r.text.includes("Ops-agenten")) && l.rader.some((r) => r.text === "alla") && !l.rader.some((r) => r.text.includes("Anna")), `${namn}: agenten och alla ska finnas, en själv inte (${JSON.stringify(l.rader.map((r) => r.text))}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-4-omnamnanden-${vp.width}.png`) });
+        await page.keyboard.press("ArrowDown");
+        await page.keyboard.press("Enter");
+        const efter = await page.evaluate(() => ({ text: /** @type {HTMLTextAreaElement} */ (document.querySelector("[data-ops-samtal] textarea")).value, oppen: Boolean(document.querySelector("[data-omnamnande]")) }));
+        krav(efter.text === "Kan @Cecilia Berg " && !efter.oppen, `${namn}: Enter ska skriva det valda namnet och stänga listan (${JSON.stringify(efter)}).`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (5) citat och sök ─────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "privat");
+      const namn = `chatt (5) citat och sök ${vp.width}`;
+      try {
+        await page.waitForSelector('[data-ops-samtal="personer"] [data-citera]', { timeout: 6000 });
+        const rad = page.locator('[data-ops-samtal="personer"] [data-meddelande="annans"]').first();
+        await rad.hover();
+        const kb = await rad.locator("[data-citera]").boundingBox();
+        krav(!!kb && kb.width >= 43.5 && kb.height >= 43.5, `${namn}: Svara med citat har ${kb?.width}x${kb?.height} px, väntat 44x44.`);
+        await rad.locator("[data-citera]").click();
+        const strip = await page.evaluate(() => {
+          const el = /** @type {HTMLElement} */ (document.querySelector("[data-svarar-pa]"));
+          const form = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] form'));
+          const kryss = /** @type {HTMLElement} */ (el.querySelector("button"));
+          return { text: (el.textContent || "").trim(), ovanfor: el.getBoundingClientRect().bottom <= form.getBoundingClientRect().top + 0.5, kryss: kryss.getBoundingClientRect().height, fokus: document.activeElement?.tagName };
+        });
+        matt.push(`${namn}: raden ${JSON.stringify(strip)}`);
+        // ⛔ Granskningen av PR 286, MÅSTE 5: utdraget visar inte markdownens tecken. Meddelandet har **fakturan**.
+        krav(!/[*`]/.test(strip.text) && strip.text.includes("titta på fakturan"), `${namn}: raden ovanför fältet visar markdownens tecken (${strip.text}).`);
+        krav(strip.text.startsWith("Svarar på Bo Lind") && strip.ovanfor && strip.kryss >= 43.5 && strip.fokus === "TEXTAREA", `${namn}: raden ovanför fältet är fel (${JSON.stringify(strip)}).`);
+        await page.keyboard.type("Ja, i eftermiddag.");
+        await page.keyboard.press("Enter");
+        await page.waitForSelector('[data-ops-samtal="personer"] [data-citat]', { timeout: 4000 });
+        const citat = await page.evaluate(() => {
+          const c = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] [data-citat]'));
+          const l = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] [role=log]'));
+          const bubbla = /** @type {HTMLElement} */ (c.parentElement?.querySelector("[data-bubbla]"));
+          return { text: (c.textContent || "").trim(), ovanforBubbla: c.getBoundingClientRect().bottom <= bubbla.getBoundingClientRect().top + 0.5, inom: c.getBoundingClientRect().right <= l.getBoundingClientRect().right + 0.5 && c.getBoundingClientRect().left >= l.getBoundingClientRect().left - 0.5 };
+        });
+        matt.push(`${namn}: citatet ${JSON.stringify(citat)}`);
+        krav(!/[*`]/.test(citat.text) && citat.text.includes("titta på fakturan"), `${namn}: citatet visar markdownens tecken (${citat.text}).`);
+        krav(citat.text.startsWith("Bo Lind: Hej Anna!") && citat.ovanforBubbla && citat.inom, `${namn}: citatet ska stå ovanför svaret och inom loggen (${JSON.stringify(citat)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-5-citat-${vp.width}.png`) });
+        const sk = await page.locator("[data-sok-samtal]").boundingBox();
+        krav(!!sk && sk.width >= 43.5 && sk.height >= 43.5, `${namn}: Sök i samtalet har ${sk?.width}x${sk?.height} px.`);
+        await page.locator("[data-sok-samtal]").click();
+        await page.keyboard.type("fakturan");
+        await page.waitForTimeout(200);
+        const sok = await page.evaluate(() => {
+          const a = /** @type {HTMLElement | null} */ (document.querySelector('[data-traff="aktuell"]'));
+          const l = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="personer"] [role=log]'));
+          const r = a?.getBoundingClientRect();
+          const lr = l.getBoundingClientRect();
+          return { plats: document.querySelector("[data-sok-plats]")?.textContent ?? null, synlig: !!r && r.top >= lr.top - 0.5 && r.bottom <= lr.bottom + 0.5, kontur: a ? getComputedStyle(a).outlineStyle : null };
+        });
+        matt.push(`${namn}: sök ${JSON.stringify(sok)}`);
+        krav(sok.plats === "1 av 1" && sok.synlig && sok.kontur !== "none", `${namn}: sökningen ska ge 1 av 1 med den aktuella markerad och synlig (${JSON.stringify(sok)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-5-sok-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (6) fästa ─────────────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (6) fästa ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-fasta-knapp]", { timeout: 6000 });
+        const fk = await page.locator("[data-fasta-knapp]").boundingBox();
+        await page.locator("[data-fasta-knapp]").click();
+        await page.waitForSelector("[data-fastad]", { timeout: 3000 });
+        await page.waitForTimeout(150);
+        const m = await page.evaluate(() => {
+          const poster = [...document.querySelectorAll("[data-fastad]")].map((p) => ({ text: (p.textContent || "").trim(), lossa: p.querySelector("button")?.getBoundingClientRect().height ?? 0 }));
+          const tryckt = [...document.querySelectorAll("[data-fast]")].filter((b) => b.getAttribute("aria-pressed") === "true").map((b) => { const r = b.getBoundingClientRect(); return { w: r.width, h: r.height }; });
+          return { poster, tryckt };
+        });
+        matt.push(`${namn}: knappen ${JSON.stringify(fk)}, ${JSON.stringify(m)}`);
+        krav(!!fk && fk.height >= 43.5, `${namn}: "1 fästa" har ${fk?.height} px höjd, väntat 44.`);
+        // ⛔ Meddelandet har **fredag**: fästraden visar texten, inte stjärnorna (granskningen av PR 286, MÅSTE 5).
+        krav(m.poster.length === 1 && !/[*`]/.test(m.poster[0].text) && m.poster[0].text.includes("till fredag"), `${namn}: fästraden visar markdownens tecken (${m.poster[0]?.text}).`);
+        krav(m.poster.length === 1 && m.poster[0].text.startsWith("Cecilia Berg: Hej alla") && m.poster[0].lossa >= 43.5, `${namn}: det fästa meddelandet ska stå med namn, utdrag och Lossa på 44 px (${JSON.stringify(m.poster)}). Golv: 1.`);
+        krav(m.tryckt.length === 1 && m.tryckt[0].w >= 43.5 && m.tryckt[0].h >= 43.5, `${namn}: knappen vid det fästa meddelandet ska vara tryckt med 44 px (${JSON.stringify(m.tryckt)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-6-fasta-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (7) länk som kort ─────────────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "grupp");
+      const namn = `chatt (7) postkort ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-postkort]", { timeout: 6000 });
+        await page.locator("[data-postkort]").scrollIntoViewIfNeeded();
+        const k = await page.evaluate(() => {
+          const kort = [...document.querySelectorAll("[data-postkort]")];
+          const l = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="grupp"] [role=log]'));
+          return kort.map((x) => {
+            const r = x.getBoundingClientRect();
+            const bubbla = /** @type {HTMLElement} */ (x.closest("[data-meddelande]")?.querySelector("[data-bubbla]"));
+            return { text: (x.textContent || "").trim(), h: r.height, inom: r.left >= l.getBoundingClientRect().left - 0.5 && r.right <= l.getBoundingClientRect().right + 0.5, under: r.top >= bubbla.getBoundingClientRect().bottom - 0.5, lankKvar: Boolean(bubbla.querySelector("a[href]")) };
+          });
+        });
+        matt.push(`${namn}: ${JSON.stringify(k)}`);
+        krav(k.length === 1, `${namn}: ${k.length} kort, väntat 1. Golv.`);
+        krav(k.every((x) => x.text === "Moms augusti (#464)Ärende, öppet" && x.h >= 43.5 && x.inom && x.under && x.lankKvar), `${namn}: kortet ska stå under bubblan, inom loggen, 44 px högt, med appens titel, och länken stå kvar i texten (${JSON.stringify(k)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-7-postkort-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (8) skrivfältet och rösten ────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "agent");
+      const namn = `chatt (8) skrivfältet ${vp.width}`;
+      try {
+        await page.waitForSelector('[data-ops-samtal="agent"] [data-mikrofon]', { timeout: 6000 });
+        const m = (/** @type {string} */ lage) => page.evaluate((l) => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const ruta = /** @type {HTMLElement} */ (document.querySelector('[data-ops-samtal="agent"] [data-skrivruta]'));
+          const knappar = [...ruta.querySelectorAll("button")].map((k) => ({ namn: k.getAttribute("aria-label"), w: b(k).width, h: b(k).height, iFaltet: b(k).right <= b(ruta).right + 0.5 && b(k).left >= b(ruta).left - 0.5 }));
+          return {
+            lage: l,
+            radie: parseFloat(getComputedStyle(ruta).borderTopLeftRadius),
+            plats: /** @type {HTMLTextAreaElement} */ (ruta.querySelector("textarea")).placeholder,
+            text: /** @type {HTMLTextAreaElement} */ (ruta.querySelector("textarea")).value,
+            knappar,
+            plus: Boolean(document.querySelector('[data-ops-samtal="agent"] [data-plus]')),
+            rad: document.querySelector('[data-ops-samtal="agent"] [data-rostlage]')?.getAttribute("data-rostlage") ?? null,
+          };
+        }, lage);
+        const vila = await m("vila");
+        matt.push(`${namn}: ${JSON.stringify(vila)}`);
+        krav(vila.radie >= 20 && vila.plats === "Fråga agenten", `${namn}: fältet ska vara rundat med platstexten "Fråga agenten" (${JSON.stringify(vila)}).`);
+        krav(vila.knappar.length === 1 && vila.knappar[0].namn === "Prata in" && vila.knappar[0].w >= 43.5 && vila.knappar[0].h >= 43.5 && vila.knappar[0].iFaltet, `${namn}: i vila står bara ljudvågen i fältet, 44 px (${JSON.stringify(vila.knappar)}).`);
+        krav(!vila.plus, `${namn}: plus ritas inte förrän bilagemodulen finns.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-skrivfalt-${vp.width}.png`) });
+        await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
+        await page.waitForSelector('[data-rostlage="spelar"]', { timeout: 3000 });
+        const spelar = await m("spelar");
+        matt.push(`${namn}: ${JSON.stringify(spelar)}`);
+        krav(spelar.knappar.length === 2 && spelar.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5 && k.iFaltet) && spelar.knappar[0].namn === "Avbryt inspelningen", `${namn}: under inspelningen står stopp och ljudvåg i fältet, 44 px (${JSON.stringify(spelar.knappar)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-inspelning-${vp.width}.png`) });
+        await page.locator('[data-ops-samtal="agent"] [data-mikrofon]').click();
+        await page.waitForFunction(() => /** @type {HTMLTextAreaElement | null} */ (document.querySelector('[data-ops-samtal="agent"] textarea'))?.value.length > 0, null, { timeout: 4000 });
+        const klar = await m("klar");
+        matt.push(`${namn}: ${JSON.stringify(klar)}`);
+        krav(klar.text === "Påminn mig om momsen på fredag" && klar.rad === null && klar.knappar.some((k) => k.namn === "Skicka"), `${namn}: det utskrivna ska stå i fältet, oskickat, med Skicka (${JSON.stringify(klar)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-8-utskrivet-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    // ── (2) Visa äldre och 50+ ───────────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "ingen");
+      const namn = `chatt (2) listan ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-samtalsrad]", { timeout: 6000 });
+        await page.waitForTimeout(200);
+        const marken = await page.evaluate(() => [...document.querySelectorAll("[data-samtalsrad]")].map((r) => ({ text: (r.textContent || "").trim().slice(0, 40), marke: (r.querySelector("[data-ops-count-badge] [aria-hidden]")?.textContent || "").trim() })));
+        matt.push(`${namn}: ${JSON.stringify(marken)}`);
+        krav(marken.length >= 3, `${namn}: ${marken.length} rader, väntat minst 3. Golv.`);
+        krav(marken.some((m) => m.text.includes("Cecilia Berg") && m.marke === "50+"), `${namn}: samtalet med 120 olästa ska bära "50+" (${JSON.stringify(marken)}).`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-2-lista-50plus-${vp.width}.png`) });
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+    {
+      const { page, context } = await oppna("chattnatt", vp, standardtema, 1, "aldre");
+      const namn = `chatt (2) visa äldre ${vp.width}`;
+      try {
+        await page.waitForSelector("[data-ops-samtal] [data-visa-aldre]", { timeout: 6000 });
+        const logg = page.locator("[data-ops-samtal] [role=log]");
+        await logg.evaluate((el) => { el.scrollTop = 0; });
+        await page.waitForTimeout(150);
+        const fore = await page.evaluate(() => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const l = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]"));
+          const knapp = /** @type {HTMLElement} */ (l.querySelector("[data-visa-aldre]"));
+          const forsta = /** @type {HTMLElement} */ (l.querySelector("[data-bubbla]"));
+          return { bubblor: l.querySelectorAll("[data-bubbla]").length, knapp: { h: b(knapp).height, overForsta: b(knapp).bottom <= b(forsta).top + 0.5, text: (knapp.textContent || "").trim() }, forstaText: forsta.textContent, forstaY: b(forsta).top };
+        });
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-2-visa-aldre-${vp.width}.png`) });
+        await page.locator("[data-ops-samtal] [data-visa-aldre]").click();
+        await page.waitForFunction((n) => document.querySelectorAll("[data-ops-samtal] [data-bubbla]").length > n, fore.bubblor, { timeout: 4000 });
+        await page.waitForTimeout(200);
+        const efter = await page.evaluate((text) => {
+          const l = /** @type {HTMLElement} */ (document.querySelector("[data-ops-samtal] [role=log]"));
+          const samma = [...l.querySelectorAll("[data-bubbla]")].find((x) => x.textContent === text);
+          return { bubblor: l.querySelectorAll("[data-bubbla]").length, y: samma ? samma.getBoundingClientRect().top : null, knapp: Boolean(l.querySelector("[data-visa-aldre]")) };
+        }, fore.forstaText);
+        matt.push(`${namn}: före ${JSON.stringify(fore)}, efter ${JSON.stringify(efter)}`);
+        krav(fore.bubblor === 50, `${namn}: ${fore.bubblor} bubblor före klicket, väntat 50 (sidan). Golv.`);
+        krav(fore.knapp.text === "Visa äldre" && fore.knapp.h >= 43.5 && fore.knapp.overForsta, `${namn}: "Visa äldre" ska stå överst med 44 px träffyta (${JSON.stringify(fore.knapp)}).`);
+        krav(efter.bubblor === 100, `${namn}: ${efter.bubblor} bubblor efter klicket, väntat 100.`);
+        krav(efter.y !== null && Math.abs(efter.y - fore.forstaY) <= 2, `${namn}: meddelandet man läste flyttade sig från ${fore.forstaY} till ${efter.y} px när äldre lades in ovanför.`);
+        krav(efter.knapp, `${namn}: knappen ska stå kvar, det finns 20 meddelanden till.`);
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
+  }
+}
+
+// `--bara-chatt`: bara avsnitt 29g, för en snabb körning under arbetet med chatten. Hela körningen är den som gäller i kedjan.
+if (argv.includes("--bara-chatt")) {
+  await chattensNattskiva();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
 
 // ══ 1. MENYN: EN AVGRÄNSARE MELLAN SEKTIONER, ALDRIG TVÅ ═════════════════════
 for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
@@ -3424,6 +3798,8 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
   await context.close();
 }
 
+await chattensNattskiva();
+
 // ══ 30. KALENDERN MOT SS CalView VID 390 OCH 1280 PX (0.36.0, #179 F1) ════════════════════════════════════════════════
 // CP 2026-09-29 i #179: "Kolla alla kalender inställningar och funktioner i SessionStudio. [...] Samma vill jag ha i ramverket."
 // Förebilderna: SS `CalView.jsx`, `calView/MonthGrid.jsx`, `useCalendarDaySelection.js`, `CalendarDayPeekPopover.jsx`,
@@ -4841,7 +5217,8 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
       await page.mouse.up();
     } else {
       await page.locator("header").getByRole("button", { name: "Skapa" }).first().click();
-      const rad = page.getByRole("button", { name: "TALK, prata in" });
+      // ⛔ Raden i popovern, inte huvudets mikrofonknapp (#276), som heter samma sak och gör samma sak.
+      const rad = page.locator('[role="dialog"]').getByRole("button", { name: "TALK, prata in" });
       await rad.waitFor({ timeout: 4000 });
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-skapa-${vp.width}.png`), clip: { x: vp.width - 640, y: 0, width: 640, height: 360 } });
       await rad.click();
@@ -5363,12 +5740,196 @@ for (const bredd of [390, 1280]) {
   await context.close();
 }
 
-await browser.close();
+// ══ 43. INSTÄLLNINGARNA SOM LISTA OCH PANEL VID 390, 820 OCH 1280 PX (0.69.0, #274) ══════════════════════════════════════════
+// CP 2026-10-06 20:12, om Inställningar i LifeHub på surfplatta: "superrörig ... Sektioner kanske skall stå ensamma, med att man
+// navigerar till en specifik panel med tillbaka-pil mm. Texterna känns ihoptryckta." Mätt: (a) listan har minst fem rader (golv),
+// varje rad är minst 56 px, rubriken är större än beskrivningen och beskrivningen står på egen rad under den; (b) ett tryck öppnar
+// panelen, fokus står på dess rubrik, och katalogens egen rubrik ritas inte en gång till; (c) under 1024 px ersätter panelen listan
+// och tillbaka-pilen är minst 44 px hög; från 1024 står listan till vänster och panelen till höger, utan pil; (d) tillbaka visar
+// listan igen med fokus på raden man kom ifrån; (e) ingen horisontell överflödning i något läge; (f) beskrivningen är minst 13 px
+// (granskningen av PR 278: 12 px var just "ihoptryckt"); (g) komponenten har inget eget h1 (appskalet har det), och panelens
+// rubrik står på samma nivå som sidans, så att den inte hoppar en nivå när den står ensam under 1024 px.
+for (const bredd of [390, 820, 1280]) {
+  const { page, context } = await oppna("installningar", { width: bredd, height: 1000 });
+  const tva = bredd >= 1024;
+  try {
+    /** @returns {Promise<any>} */
+    const las = () =>
+      page.evaluate(() => {
+        /** @param {Element | null} el */
+        const syns = (el) => Boolean(el) && getComputedStyle(/** @type {Element} */ (el)).display !== "none" && /** @type {HTMLElement} */ (el).getBoundingClientRect().height > 0;
+        const lista = document.querySelector("[data-installningslista]");
+        const panel = document.querySelector("[data-installningspanel]");
+        const tillbaka = panel ? [...panel.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Tillbaka") ?? null : null;
+        const rader = [...document.querySelectorAll("[data-installningslista] li > button")].map((b) => {
+          const r = b.getBoundingClientRect();
+          const rub = /** @type {HTMLElement} */ (b.querySelector("[data-radrubrik]"));
+          const bes = /** @type {HTMLElement | null} */ (b.querySelector("[data-radbeskrivning]"));
+          return {
+            id: b.getAttribute("data-sektion"),
+            hojd: r.height,
+            rubrikPx: parseFloat(getComputedStyle(rub).fontSize),
+            beskrivningPx: bes ? parseFloat(getComputedStyle(bes).fontSize) : null,
+            egenRad: bes ? bes.getBoundingClientRect().top >= rub.getBoundingClientRect().bottom - 0.5 : null,
+          };
+        });
+        const a = document.activeElement;
+        const rubriker = [...document.querySelectorAll("h1, h2, h3")].filter((h) => syns(h)).map((h) => (h.textContent || "").trim());
+        const rot = document.querySelector("[data-ops-installningar]");
+        const sidrubrik = lista ? lista.querySelector("header > :is(h1, h2, h3, h4, h5, h6)") : null;
+        const panelrubrik = panel ? panel.querySelector("header > :is(h1, h2, h3, h4, h5, h6)") : null;
+        return {
+          listaSyns: syns(lista),
+          panelSyns: syns(panel),
+          listaHoger: lista ? lista.getBoundingClientRect().right : null,
+          panelVanster: panel ? panel.getBoundingClientRect().left : null,
+          tillbakaSyns: syns(tillbaka),
+          tillbakaHojd: tillbaka ? tillbaka.getBoundingClientRect().height : null,
+          valjSyns: syns(document.querySelector("[data-installningar-valj]")),
+          rader,
+          fokus: a ? `${a.tagName.toLowerCase()}${a.getAttribute("data-sektion") ? `:${a.getAttribute("data-sektion")}` : ""}:${(a.textContent || "").trim().slice(0, 30)}` : null,
+          rubriker,
+          egnaH1: rot ? rot.querySelectorAll("h1").length : null,
+          sidniva: sidrubrik ? sidrubrik.tagName : null,
+          panelniva: panelrubrik ? panelrubrik.tagName : null,
+          over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+    const lista = await las();
+    const lagst = Math.min(...lista.rader.map((/** @type {any} */ r) => r.hojd));
+    matt.push(`inställningarna ${bredd} px, listan: ${lista.rader.length} rader, lägsta ${lagst.toFixed(0)} px, rubrik ${lista.rader[0]?.rubrikPx} px, beskrivning ${lista.rader[0]?.beskrivningPx} px, överflöde ${lista.over} px`);
+    krav(lista.rader.length >= 5, `inställningarna ${bredd}: ${lista.rader.length} rader i listan, väntat minst 5 (golv).`);
+    krav(lista.listaSyns && !lista.panelSyns, `inställningarna ${bredd}: listan ${lista.listaSyns ? "syns" : "syns inte"} och en panel ${lista.panelSyns ? "syns" : "syns inte"} innan något valts.`);
+    krav(lagst >= 56, `inställningarna ${bredd}: en rad är ${lagst.toFixed(1)} px hög, väntat minst 56.`);
+    for (const r of lista.rader) {
+      if (r.beskrivningPx === null) continue;
+      krav(r.rubrikPx > r.beskrivningPx, `inställningarna ${bredd}: raden "${r.id}" har rubriken ${r.rubrikPx} px och beskrivningen ${r.beskrivningPx} px, rubriken ska vara störst.`);
+      krav(r.beskrivningPx >= 13, `inställningarna ${bredd}: beskrivningen i raden "${r.id}" är ${r.beskrivningPx} px, väntat minst 13 (CP: "texterna känns ihoptryckta").`);
+      krav(r.egenRad === true, `inställningarna ${bredd}: beskrivningen i raden "${r.id}" står inte på egen rad under rubriken.`);
+    }
+    krav(lista.valjSyns === tva, `inställningarna ${bredd}: raden "välj" i högerkolumnen ${lista.valjSyns ? "syns" : "syns inte"}, väntat ${tva ? "synlig från 1024 px" : "dold under 1024 px"}.`);
+    krav(lista.egnaH1 === 0, `inställningarna ${bredd}: komponenten har ${lista.egnaH1} egna h1, väntat inget (appskalet har sidans h1).`);
+    krav(lista.over <= 0, `inställningarna ${bredd}: listan flödar över ${lista.over} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `installningar-lista-${bredd}-${standardtema}.png`), fullPage: true });
 
-for (const rad of matt) console.log(`  mätt: ${rad}`);
-if (brott.length > 0) {
-  console.error(`\ncheck-skalyta: ${brott.length} brott av ${mattningar} kontroller (${varifran})\n`);
-  for (const b of brott) console.error(`  ${b}`);
-  process.exit(1);
+    await page.locator('[data-sektion="handelsetyper"]').click();
+    await page.locator("[data-installningspanel]").waitFor({ timeout: 4000 });
+    const panel = await las();
+    matt.push(`inställningarna ${bredd} px, panelen: lista ${panel.listaSyns ? "synlig" : "dold"}, tillbaka ${panel.tillbakaSyns ? `${panel.tillbakaHojd} px` : "dold"}, fokus ${panel.fokus}, rubriker ${JSON.stringify(panel.rubriker)}, överflöde ${panel.over} px`);
+    krav(panel.panelSyns, `inställningarna ${bredd}: panelen syns inte efter ett tryck på raden.`);
+    krav(panel.panelniva !== null && panel.panelniva === panel.sidniva, `inställningarna ${bredd}: panelens rubrik är ${panel.panelniva} och sidans ${panel.sidniva}, väntat samma nivå.`);
+    krav(panel.fokus === "h2:Händelsetyper", `inställningarna ${bredd}: fokus står på ${panel.fokus} när panelen öppnats, väntat panelens rubrik.`);
+    krav(panel.rubriker.filter((/** @type {string} */ t) => t.toLowerCase() === "händelsetyper").length === 1, `inställningarna ${bredd}: rubriken "Händelsetyper" står ${panel.rubriker.filter((/** @type {string} */ t) => t.toLowerCase() === "händelsetyper").length} gånger, väntat en.`);
+    if (tva) {
+      krav(panel.listaSyns && panel.panelVanster !== null && panel.listaHoger !== null && panel.panelVanster >= panel.listaHoger, `inställningarna ${bredd}: listan och panelen står inte bredvid varandra (lista ${panel.listaSyns ? "synlig" : "dold"}, listans högerkant ${panel.listaHoger}, panelens vänsterkant ${panel.panelVanster}).`);
+      krav(!panel.tillbakaSyns, `inställningarna ${bredd}: tillbaka-pilen syns fast listan står bredvid.`);
+    } else {
+      krav(!panel.listaSyns, `inställningarna ${bredd}: listan syns bredvid panelen under 1024 px, väntat att panelen ersätter den.`);
+      krav(panel.tillbakaSyns && panel.tillbakaHojd >= 44, `inställningarna ${bredd}: tillbaka-pilen ${panel.tillbakaSyns ? `är ${panel.tillbakaHojd} px hög, väntat minst 44` : "syns inte"}.`);
+    }
+    krav(panel.over <= 0, `inställningarna ${bredd}: panelen flödar över ${panel.over} px horisontellt.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `installningar-panel-${bredd}-${standardtema}.png`), fullPage: true });
+
+    if (!tva) {
+      await page.getByRole("button", { name: "Tillbaka" }).click();
+      await page.locator("[data-installningspanel]").waitFor({ state: "detached", timeout: 4000 });
+      const tillbaka = await las();
+      matt.push(`inställningarna ${bredd} px, tillbaka: lista ${tillbaka.listaSyns ? "synlig" : "dold"}, fokus ${tillbaka.fokus}, överflöde ${tillbaka.over} px`);
+      krav(tillbaka.listaSyns && !tillbaka.panelSyns, `inställningarna ${bredd}: efter Tillbaka syns ${tillbaka.listaSyns ? "listan" : "inte listan"} och panelen ${tillbaka.panelSyns ? "står kvar" : "är borta"}.`);
+      krav(/^button:handelsetyper:/.test(tillbaka.fokus ?? ""), `inställningarna ${bredd}: fokus står på ${tillbaka.fokus} efter Tillbaka, väntat raden man kom ifrån.`);
+      krav(tillbaka.over <= 0, `inställningarna ${bredd}: listan flödar över ${tillbaka.over} px efter Tillbaka.`);
+    } else {
+      await page.locator('[data-sektion="medlemmar"]').click();
+      await page.waitForTimeout(50);
+      const byte = await las();
+      matt.push(`inställningarna ${bredd} px, nästa sektion: fokus ${byte.fokus}`);
+      krav(byte.fokus === "h2:Medlemmar", `inställningarna ${bredd}: fokus står på ${byte.fokus} efter bytet till Medlemmar, väntat panelens rubrik.`);
+    }
+  } catch (e) {
+    krav(false, `inställningarna ${bredd}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
 }
-console.log(`\ncheck-skalyta: ${mattningar} kontroller, inga brott (${varifran})`);
+
+// ══ 44. TALK:S EGEN KNAPP I HUVUDET, BARA PÅ DATOR (0.71.0, #276) ═══════════════════════════════════════════════════════════════════════
+// CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall
+// sitta." jsdom kör ingen CSS, så "bara på dator" och "samma storlek som grannarna" går bara att se här. Vid 1280: knappen står
+// direkt till höger om plusset, är en 36 px cirkel med 20 px ikon som de dämpade knapparna (avsnitt 2), har samma mittlinje som
+// plusset, hela den ritade cirkeln träffar knappen, och ett tryck öppnar fältet i läget lyssnar medan knappen visar läget (tänd,
+// namnet "TALK, lyssnar"). Vid 390: knappen ritas inte alls, och bottenradens plus är vägen som förut.
+// ⛔ GOLV: knappen och plusset måste hittas vid 1280, och bottenradens plus vid 390, annars rött.
+for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width: 1280, height: 900 }], ["TALK-knappen 390 px", { width: 390, height: 844 }]])) {
+  const { page, context } = await oppna("talk", vp);
+  try {
+    await page.waitForSelector("header", { timeout: 4000 });
+    if (vp.width >= 768) {
+      await page.locator("header [data-talk-huvud]").waitFor({ timeout: 4000 });
+      const ruta = () =>
+        page.evaluate(() => {
+          const rut = (/** @type {Element | null} */ el) => {
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            const svg = el.querySelector("svg");
+            return { x: r.x, w: r.width, h: r.height, mitt: r.y + r.height / 2, ikon: svg ? svg.getBoundingClientRect().width : 0, radie: parseFloat(cs.borderTopLeftRadius) || 0, bakgrund: cs.backgroundColor };
+          };
+          const knapp = document.querySelector("header [data-talk-huvud]");
+          const p = document.createElement("div");
+          p.style.backgroundColor = "var(--color-raised)";
+          document.body.appendChild(p);
+          const raised = getComputedStyle(p).backgroundColor;
+          p.remove();
+          return { knapp: rut(knapp), plus: rut(document.querySelector('header button[aria-label="Skapa"]')), lage: knapp?.getAttribute("data-talk-huvud"), namn: knapp?.getAttribute("aria-label"), raised };
+        });
+      const fore = await ruta();
+      krav(!!fore.knapp && !!fore.plus, `${namn}: knappen (${!!fore.knapp}) eller plusset (${!!fore.plus}) hittades inte i huvudet.`);
+      if (fore.knapp && fore.plus) {
+        matt.push(`${namn}: knappen ${fore.knapp.w}x${fore.knapp.h} px, ikon ${fore.knapp.ikon} px, mitt ${fore.knapp.mitt.toFixed(1)} (plusset ${fore.plus.mitt.toFixed(1)}), avstånd till plusset ${(fore.knapp.x - fore.plus.x - fore.plus.w).toFixed(1)} px, namn ${JSON.stringify(fore.namn)}`);
+        krav(Math.abs(fore.knapp.w - 36) < 0.5 && Math.abs(fore.knapp.h - 36) < 0.5 && fore.knapp.radie >= 18, `${namn}: knappen är ${fore.knapp.w}x${fore.knapp.h} px med rundning ${fore.knapp.radie}, väntat en 36 px cirkel som huvudets övriga ikonknappar.`);
+        krav(Math.abs(fore.knapp.ikon - 20) < 0.5, `${namn}: ikonen är ${fore.knapp.ikon} px, väntat 20 som huvudets övriga ikonknappar vid 1280.`);
+        krav(Math.abs(fore.knapp.mitt - fore.plus.mitt) <= 1, `${namn}: mittlinjen är ${fore.knapp.mitt.toFixed(1)} och plussets ${fore.plus.mitt.toFixed(1)}, väntat högst 1 px isär.`);
+        const glipa = fore.knapp.x - fore.plus.x - fore.plus.w;
+        krav(glipa >= 0 && glipa <= 4, `${namn}: knappen står ${glipa.toFixed(1)} px från plussets högerkant, väntat direkt bredvid (0 till 4 px).`);
+        krav(fore.lage === "vila" && fore.namn === "TALK, prata in", `${namn}: före trycket är läget ${fore.lage} och namnet ${JSON.stringify(fore.namn)}, väntat vila och "TALK, prata in".`);
+      }
+      const traff = await matTraffyta(page, "header [data-talk-huvud]");
+      krav(traff.length === 1, `${namn}: ${traff.length} knappar mättes med elementFromPoint, väntat 1.`);
+      for (const t of traff) krav(t.mittTraff && t.w >= t.synligW - 0.5 && t.h >= t.synligH - 0.5, `${namn}: knappen träffas bara på ${t.w}x${t.h} px men ritas ${t.synligW}x${t.synligH}.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-${vp.width}.png`), clip: { x: vp.width - 640, y: 0, width: 640, height: 130 } });
+      await page.locator("header [data-talk-huvud]").click();
+      await page.waitForSelector("[data-ops-talk]", { timeout: 4000 });
+      await page.waitForTimeout(300);
+      const under = await ruta();
+      const falt = await page.evaluate(() => document.querySelector("[data-ops-talk]")?.getAttribute("data-lage"));
+      matt.push(`${namn}: efter trycket fältet ${falt}, knappen ${under.lage} ${JSON.stringify(under.namn)}, bakgrund ${under.knapp?.bakgrund}`);
+      krav(falt === "lyssnar", `${namn}: fältet är i läget ${falt} efter trycket, väntat lyssnar.`);
+      krav(under.lage === "lyssnar" && under.namn === "TALK, lyssnar", `${namn}: knappen säger ${under.lage} och ${JSON.stringify(under.namn)} medan den lyssnar, väntat lyssnar och "TALK, lyssnar".`);
+      krav(!!under.knapp && under.knapp.bakgrund === under.raised, `${namn}: knappens bakgrund är ${under.knapp?.bakgrund} medan den lyssnar, väntat --color-raised (${under.raised}): läget ska synas.`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-lyssnar-${vp.width}.png`) });
+      await page.getByRole("button", { name: "Skicka" }).click();
+      await page.waitForTimeout(250);
+      const skickat = await page.evaluate(() => /** @type {any} */ (window).__talk);
+      krav(skickat.length === 1 && skickat[0].mimeType === "audio/webm", `${namn}: appen fick ${JSON.stringify(skickat)}, väntat ett ljud.`);
+    } else {
+      await page.locator("[data-talk-knapp]").waitFor({ timeout: 4000 });
+      const m = await page.evaluate(() => {
+        const k = document.querySelector("[data-talk-huvud]");
+        const r = k ? k.getBoundingClientRect() : null;
+        const plus = document.querySelector("[data-talk-knapp]");
+        const pr = plus ? plus.getBoundingClientRect() : null;
+        return { finns: !!k, display: k ? getComputedStyle(k).display : null, w: r ? r.width : 0, h: r ? r.height : 0, plus: pr ? { w: pr.width, h: pr.height } : null, synligaMikrofoner: [...document.querySelectorAll("header button, header a")].filter((b) => (b.getAttribute("aria-label") || "").startsWith("TALK") && b.getBoundingClientRect().width > 0).length };
+      });
+      matt.push(`${namn}: huvudets knapp display ${m.display}, ${m.w}x${m.h} px; bottenradens plus ${JSON.stringify(m.plus)}`);
+      krav(m.finns, `${namn}: knappen finns inte i dokumentet alls. Den ska finnas och vara gömd med CSS, annars mäts inte att det är CSS:en som gömmer den.`);
+      krav(!m.finns || m.display === "none" && m.w === 0 && m.h === 0 && m.synligaMikrofoner === 0, `${namn}: huvudets mikrofon syns på telefon (display ${m.display}, ${m.w}x${m.h}). Mobilens väg är långtryck på bottenradens plus.`);
+      krav(!!m.plus && m.plus.w >= 43.5, `${namn}: bottenradens plus hittades inte, eller är mindre än 44 px (${JSON.stringify(m.plus)}).`);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-${vp.width}.png`) });
+    }
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+await browser.close();
+avsluta();

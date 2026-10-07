@@ -9,9 +9,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.71.0
+## 0.73.0
 
-0.69.0 och 0.70.0 är på väg i egna PR:ar (#274, #275). Det här avsnittet ligger ovanför dem, och en krock med main löses med en vanlig merge.
+Grenen började som 0.71.0. Medan den var öppen mergades 0.69.0 till 0.72.0 (PR 278, 275, 280, 285 och 286); main är inmergad med en vanlig merge och versionen är 0.73.0.
 
 ### ⛔ Deploy före klienten: regeln för kommentarer på händelser bär nu `bilaga`
 
@@ -76,6 +76,201 @@ Ramverkets del är att talen kan stå där valet görs:
 #### Prov
 
 - `src/__tests__/filterpanel.test.jsx`, "antal per rad": sex rader och fyra alternativ (golv), talet på varje rad jämförs med antalet rader efter tryck, och delarna med Alla. Utan ändringen i `OpsFilterPanel.jsx`: 3 av 3 nya prov röda. Med: 19 av 19 gröna.
+
+## 0.72.0
+
+Chattens nattskiva (#273 och chattanalysen). ⛔ **Mergas efter 0.71.0 (PR 280), som redan är mergad.** Cursors PR 277 blir 0.73.0.
+
+CP 2026-10-06 20:02 i LifeHubs agentsamtal: "jag skulle vilja ha en indikation medans du tänker och skriver i chatten", och agentens
+svar ritades med råa `**`. Samma kväll kom chattanalysen (SessionStudio mot ramverket), och CP:s beslut för natten: ett meddelande kan
+inte ångras eller redigeras, trådar får inget eget läsmärke, läskvitton och push byggs inte, och bilagor väntar på bilagemodulen i
+ops-framework PR 277.
+
+⛔ **Varje ny undersamling och varje nytt meddelandefält är en NY NYCKEL, utan förval**, till `createSamtalskalla` och
+`samtalsregelfragment`: `status`, `reaktioner`, `fasta`, `omnamnanden: true` och `citat: true`. En app som inte skickar nyckeln får
+byte för byte samma regeltext som i 0.68.0 (prov mot `rules/__fixturer__/samtalsregelfragment-0.67.0.rules` och den nya
+`-0.68.0-tradar.rules`), och vyn ritar inget nytt. `undersamlingskrock` är det enda stället som prövar att två undersamlingar inte
+heter samma sak.
+
+### Lagt till
+
+- **Markdown i bubblan** (#273): `OpsMarkdown chatt`, chattens delmängd av `splitMarkdown(text, { chatt: true })`. Fet, kursiv (nytt
+  i parsern: `*` och `_` vid ordgräns), listor, radbrytningar och klickbara http- och https-länkar i ny flik med `rel="noopener"`.
+  Ingen HTML; rubriker, tabeller, citat och kodblock står kvar som text i chatten. Prov med injektionsförsök.
+- **Agentens status** (#273, `status`): `<status>/agent { lage, sedan }` under samtalet och tråden, bara servern skriver. "Agenten
+  tänker" eller "Agenten skriver" där svaret kommer; äldre än två minuter visas den inte, och en felrad står i stället. `byggAgentstatus`
+  och konstanterna också i `node`-delen. Källan: `lasStatus`, `prenumereraStatus`, `harStatus`.
+- **Visa äldre** och **50+**: kontraktets nya villkor `fore: { falt, varde }` (`foreVillkor`), i minnet, JSON, Firestore och Postgres;
+  http-adaptern kastar. `aldreMeddelanden` tappar inte två meddelanden samma millisekund. Knappen överst i loggen, i samtalet och i
+  tråden; det som setts stannar, och rullningen står kvar. `olastaFler` i `oversikt` och `useSamtal`, `onOlasta(antal, { fler })`,
+  `OpsCountBadge fler`, `OpsIconLink badgeFler` och `OpsMeddelandeLank olastaFler`.
+- **Reaktioner** (`reaktioner`): `<reaktioner>/{mid|uid|kod}` med sex fasta koder, emoji bara i vyn; skapa och radera bara sin egen,
+  aldrig uppdatera; meddelandet i samma samtal. En lyssnare per samtal och tråd (`REAKTIONSTAK`). Chips med `aria-pressed` och en
+  väljare med 44 px, pilar och Escape.
+- **Omnämnanden, @alla och @agent** (`omnamnanden: true`): `namner: [uid] | ["alla"]`, högst 20 uid om högst 128 tecken (`MAX_UIDLANGD`), utan komma. Regeln prövar formen, läsaren
+  auktoriserar (`namnda`, `arNamnd`), "alla" expanderas vid läsning. `agentenNamnd` för appens agent, också i `node`.
+  `samtalsnotiser({ medlemmar })` ger "nämnd i gruppchatten". @-lista i skrivfältet.
+- **Svar med citat i privata samtal** (`citat: true`): `svarPa: mid`, regeln kräver samma samtal och inte gruppchatten; citatet
+  härleds. **Sök i samtalet** bland de laddade meddelandena, med träffar, bläddring och omfång utskrivet.
+- **Fästa meddelanden** (`fasta`): `<fasta>/{mid} { av, tid }`, samtalets personer lossar. Raden "n fästa" under huvudet.
+- **Länk till post som kort**: `postkort={{ slaUpp, onOppna? }}`. Appen slår upp sina egna adresser; ramverket känner inga posttyper.
+- **Skrivfältet efter CP:s förebild**: rundat fält, platstext efter samtalet, ljudvåg för röstinmatning (`onTranscribe`, TALK:s
+  inspelning, texten in i fältet utan att skickas, ljudet sparas om transkriberingen faller), stopp när något pågår
+  (`onStoppaAgent`). Plusmenyn är byggd men inte inkopplad förrän bilagemodulen finns.
+
+### Rättat
+
+- Fokus tillbaka till trådens märke (KAN 6) efter att loggen börjat samla det som setts.
+- ⛔ **En mikrofon åt gången.** TALK-knappen i huvudet (0.71.0) och ljudvågen i skrivfältet har var sin `useTalk`, och utan en
+  gemensam spärr spelade båda in samtidigt. Nu får den som startar som nummer två felet "En annan inspelning pågår redan. Avsluta
+  den först.", och den första spelar vidare. Inget ljud kastas av spärren. Prov: `chatt-talk-krock.test.jsx`, rött utan spärren.
+- Skrivfältets felrad säger "Det inspelade kunde inte skrivas ut" bara när det finns ett ljud som inte skrevs ut. En nekad
+  mikrofon eller en upptagen inspelning säger sitt eget skäl.
+- ⛔ **TALK: ett svar från `getUserMedia` hör till sitt försök (#281).** Ett försök som avbröts, skickades eller avmonterades
+  medan mikrofonen öppnades spelade in ändå, och efter en avmontering nådde ljudet appen efter 120 s. Två starter med Avbryt
+  emellan lämnade en ström öppen. `useTalk` numrerar nu varje försök, och webbläsarens inspelare stänger en ström som öppnats för
+  ett äldre försök. Prov: `talk-forsok.test.jsx` räknar öppna strömmar med en fejkad `getUserMedia`, rött utan rättelsen.
+- ⛔ **Utdragen visar inte markdownens tecken.** Fästraden, citaten, citatraden ovanför fältet och listans rad visade agentens
+  `**` rått. `utdrag` läser nu samma tolkning som bubblan. Prov i jsdom och i Chromium (`check-skalyta` 29g).
+- ⛔ **`namner` i regeln: bara strängar, och med ett tak.** Emulatorn släppte in `[{a:1}, 7]` och 200 000 tecken. Regeln fogar
+  ihop listan och delar den igen, vilket bara ger samma lista för strängar utan komma, och längden är högst 20 gånger 128 tecken.
+
+### Ompinning
+
+1. **Regeldeploy före klienten**, med de nycklar appen vill ha, samma som till `createSamtalskalla`:
+   `samtalsregelfragment({ tradar, status: "status", reaktioner: "reaktioner", fasta: "fasta", omnamnanden: true, citat: true })`.
+   En klient som läser `status`, `reaktioner` eller `fasta` innan reglerna är ute faller på catch-allen.
+2. **Agentens server** skriver `<status>/agent` med `byggAgentstatus` innan den börjar och tar bort det när svaret är skrivet eller
+   felet visat, och läser `agentenNamnd(meddelande, agentUid, medlemmar)` i stället för en regex på `@agent`.
+3. **Valfritt**: `postkort`, `onTranscribe`, `onStoppaAgent`, `samtalsnotiser({ medlemmar })`, och `onOlasta`:s andra argument till
+   `OpsMeddelandeLank olastaFler`.
+
+---
+
+## 0.71.1
+
+Rättelser efter granskningen av PR 278 (0.69.0, #274), som mergades innan granskningens två MÅSTE-fynd var lagade.
+
+⛔ **Versionsnumret:** grenen började som 0.69.1, men PR 275 (0.70.0) och PR 280 (0.71.0) mergades medan den var öppen. Main är inmergad båda gångerna, och den här grenen är 0.71.1.
+
+#### Rättat
+
+- **Katalogens delrubriker följer `rubrikniva`.** `OpsKatalogInstallning` räknade själv ut nivån för "Arkiverade", "Senaste ändringarna" och formulärets två rubriker med `niva === 3 ? "h4" : "h3"`, vilket bara stämde vid förvalet 2. Med `rubrikniva={3}` blev "Arkiverade" h3, samma nivå som panelen den står i, och med en egen katalogrubrik på h4 låg "Arkiverade" en nivå ÖVER den. Nivån kommer nu ur `delrubrik` (`underniva`, en under närmaste synliga rubrik), samma hjälpfunktion som `OpsInstallningar` och `OpsModulTyper` använder, så regeln finns på ett ställe. En nivå djupare än 6 ritas som `h6` med `aria-level`. Prov i `installningar.test.jsx`: var och en av de fyra delrubrikerna mäts för sig i sex lägen (utan panel, och nivå 2, 3 och 5 med samma eller annan rubrik än panelen), med en arkiverad kategori, en ifylld logg och formuläret öppet. 13 röda mot 0.71.0. Med de tre delrubrikerna utom "Arkiverade" hårdkodade som `<h3>` (granskningens försök, som inget prov fällde förut) blir 12 röda. Med `underniva` 2 utan panel blir 4 röda.
+- **`rubrikniva` kontrolleras.** Ett värde som inte är ett heltal från 1 till 5 vägras med ett läsbart fel (`kontrolleraRubrikniva`). Förut gav `NaN` taggen `<hNaN>` och `9` blev tyst `h6`. Prov för `NaN`, 0, 6, 9, 2,5, `"3"` och `null`, plus 1 och 5 som gröna, och för att `rubrikniva={undefined}` ger förvalet 2.
+
+#### ⛔ Kan bryta en app som pinnar om
+
+Från 0.71.1 **vägras** `rubrikniva` med ett fel vid ritningen när värdet inte är ett heltal från 1 till 5. Förut ritades det ändå, med fel tagg. Följande vägras nu:
+
+- **6 och uppåt.** `rubrikniva={6}` gav förut `h6` för både sidan och panelen, och delarna hamnade lika högt. Skriv högst `rubrikniva={5}`. Ligger sidan så djupt att 5 inte räcker är det appskalets rubriker som behöver ses över, inte den här.
+- **Strängar, också siffror som sträng.** `rubrikniva="3"` vägras. Skriv `rubrikniva={3}`, med klamrar, så att värdet blir ett tal. Kommer nivån ur adressen eller en konfiguration: gör om den till ett tal med `Number(...)` innan den skickas in.
+- **0, negativa tal, decimaltal, `NaN` och `null`.** Utelämna propen, eller skicka `undefined`, för att få förvalet 2.
+
+#### Kvar
+
+- **`OpsModulKataloger` har samma fel**, med modulnamnet som en hårdkodad `<h3>`: https://github.com/cllp/ops-framework/issues/287. Rättas inte här.
+
+#### Ändrat
+
+- **`check-utvecklarord` säger i filhuvudet vad den INTE läser:** ternär i flera led, ternär där en gren inte är en sträng, `&&`, strängar inuti `${}`, och `text=`/`children=` som props. Varje fall är mätt mot vakten och ger noll träffar. Inga mönster tillagda: `&&` som barn förekommer inte i ramverkets src, så ett mönster hade inte kunnat få ett golv här.
+- **`test-guards` skriver kopian av vakten med ett avstängt mönster i en temporär katalog**, inte i `scripts/`, med importen och roten omskrivna till absoluta sökvägar. Ett nytt grönt fall visar att kopian utan avstängt mönster är grön, så att de fem röda inte kan bero på flytten.
+
+#### Ompinning till 0.71.1
+
+Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.71.1/ops-framework-0.71.1.tgz"`.
+2. Sök i appen efter `rubrikniva`. Varje värde ska vara ett heltal från 1 till 5, skrivet med klamrar (se rutan ovan). Annars kastar `OpsInstallningar` nu i stället för att rita fel nivå.
+
+## 0.71.0
+
+⛔ **Mergas efter 0.70.0 (PR 275), som mergas efter 0.69.0 (PR 278).** Ordningen är satt av utvecklingschefen 2026-10-06.
+
+### TALK får en egen knapp i webbens huvud (#276)
+
+CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn på webben: "TALK förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." På dator fanns TALK bara som första rad i Skapa, alltså två klick (plusset, sedan raden). På mobil är vägen redan ett långtryck på bottenradens plus (0.57.0).
+
+#### Tillagt
+
+- **En mikrofonknapp i huvudet på dator, direkt till höger om plusset.** Den ritas bara när appen skickar in `talk`, och bara från `md` (`hidden md:inline-flex`, display i en klass som huvudets övriga knappar). Den är huvudets vanliga ikonknapp (`huvudknappKlass`): 36 px cirkel med 20 px ikon vid 1280, 44 px träffyta, och samma namn i tooltipen som i uppläsningen.
+- ⛔ **Samma väg som raden i Skapa, ingen andra inspelningsväg.** Knappen och raden lämnar samma form (`TALK_FORM`, en fryst konstant på modulnivå) till `oppnaSkapa`, som går till `talkStyr.direkt()`. Det är samma krok, samma inspelare och samma fält som plusset och raden använder. Knappen använder inte `talkStyr.knapp`: de händelserna är plussets, där ett vanligt tryck är Skapa och bara ett långtryck spelar in. Här är ett vanligt tryck inspelningen.
+- **Knappen visar inspelningsläget.** Medan den lyssnar eller skickar är den tänd (`bg-raised text-accent`, som en öppen knapp i huvudet), och namnet följer läget: "TALK, prata in", "TALK, lyssnar", "TALK, skickar" (`talkKnappNamn` i `lib/talk.js`). Den som inte ser att knappen är tänd hör det i stället.
+- `TALK_PRATA_IN` i `lib/talk.js` är raden och knappens gemensamma namn, så att de inte kan börja heta olika saker.
+- Raden "TALK, prata in" i Skapa står kvar. Mobilen ändras inte.
+
+#### Prov
+
+- `talk.test.jsx`, "mikrofonknappen i huvudet": knappen finns i huvudet med `talk`, som plussets närmaste granne och med ett namn, och saknas utan `talk`; ett tryck startar samma inspelare och samma fält som raden, bottenradens plus står i samma läge (samma krok), knappen säger "TALK, lyssnar" och ljudet når appen; display bärs av `hidden md:inline-flex` utan bar `inline-flex`. Alla tre röda utan ändringen. Dessutom: namnet blir "TALK, skickar" medan ljudet lämnas till appen (rött när skickar-namnet tas bort), och ett tryck under håll, lyssnar eller skickar startar ingen andra inspelning, både i `talkNasta` och i skalet (rött när `direkt` startar om i alla lägen).
+- `check-skalyta` avsnitt 43, scenen `talk`: vid 1280 px står knappen 0 till 4 px från plussets högerkant, är en 36 px cirkel med 20 px ikon, har plussets mittlinje inom 1 px, träffas på hela den ritade cirkeln (`elementFromPoint`), och ett tryck öppnar fältet i läget lyssnar medan knappen är tänd. Vid 390 px har knappen `display: none` och bottenradens plus är kvar. Skärmbilder i `docs/jamforelser/`.
+## 0.70.0
+
+⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, mergad medan den här grenen var öppen, och inmergad hit med en vanlig merge) och 0.69.0 är #278 (#274), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.70.0.
+
+### Personen har samma märke och samma val som gruppen, och märket finns utan React (cllp/lifehub.identity#27)
+
+Händelsen: CP 2026-10-06 20:13, med en skärmbild av Profil i Mitt konto: "Låt profildelen i identity ha samma fina funktion exakt som man editerar grupp med ikoner och färger." Profilen hade sex fasta ikoner och sex färgprickar; grupper har sedan 0.65.0 en sökbar ikonväljare och en kulör.
+
+Identitys webb är vanlig TypeScript utan React. Mätt i identitys bygge (vite build, gzip -9): React och react-dom med `OpsGruppmarkeValjare` lade till 103,6 kB; katalogen, sökningen och kulörerna ur rotens `ops-framework` 36,9 kB (`dist/index.js` är en fil som inte skakas ned väl); samma funktioner ur källfilerna plus SVG-datan 23,5 kB. Den sista vägen är den nya ingången.
+
+#### Tillagt
+
+- **`ops-framework/gruppmarke`**, en ingång utan React: katalogen, sökningen, de svenska namnen, kulören, senast använda, `personmarke` och SVG för varje ikon. Typer i `dist/types/gruppmarke/index.d.ts`. Se README, "ops-framework/gruppmarke".
+- **SVG-datan** (`gruppikonsvg.generated.js`, `GRUPPIKON_SVG`, `gruppikonSvg(namn, storlek)`), genererad av `scripts/generate-gruppikoner.mjs` genom att rita varje `lucide-react`-komponent med `react-dom/server`. ⛔ Inte en andra källa: provet jämför `gruppikonSvg(namn)` med komponentens markup för alla 187 ikoner, och `check-gruppikoner` blir röd när datan ligger efter generatorn.
+- **`personmarke(person)`** (ren) och **`personmarkeProps(person)`** (för `OpsIdentity`): personens märke som gruppens, ikonen i kulören på en tonad platta, eller initialerna.
+- **`ARV_PROFILIKON`**: de sex äldre profil-id:na till Lucide-namnet de alltid ritats med (person till user, leende till smile, stjarna, hjarta, blixt och krona till star, heart, zap och crown).
+- **`arGiltigProfilikon`**, och `arGiltigGruppfarg` exporteras nu.
+- **`check-gruppmarke`**: ingången får bara nå filer under `src/lib/` och inga paket alls, och varje export ska stå i README. Planterat i `test-guards` (gruppmärke 1 till 4 och ett golv).
+
+#### Ändrat
+
+- **`byggAnvandare` tar emot ett katalognamn som `ikon` och `kulor:0` till `kulor:359` som `farg`**, utöver de äldre sex id:na och tonerna `"1"` till `"6"`. Allt annat avvisas, också `initialer:AB`, gruppens äldre id (`portfolj`) och `kulor:007`. Ingenting i databasen skrivs om.
+- **`OpsProfil` ritar personen som en grupp** (`personmarkeProps`). Bilden väger fortfarande tyngst. Profilens egen väljare i `OpsProfil` är oförändrad i den här versionen: den skriver fortfarande de äldre id:na och tonerna, som tas emot och ritas i det nya märket.
+- **`gruppikonKomponent` och `gruppikonNamn` känner också de äldre profil-id:na**, så att en person ritas med samma karta som en grupp.
+- **Flyttat utan att namnen ändrats:** `ARV_GRUPPIKON` och `gruppikonNamn` bor i `src/lib/gruppikonarv.js`, märkets former (`PROFILIKONER`, `PROFILFARGER`, `GRUPPIKONER`, `GRUPPINITIALER_FORM`) i `src/lib/markeformer.js`, och senast använda i `src/lib/gruppikonsenaste.js` (samma nyckel i `localStorage`, så listan följer med). Alla återexporteras där de stod.
+
+#### Rättat efter granskningen
+
+- **Prototypnycklar var giltiga färger.** `fargTillKulor` slog upp tonerna med `in`, som når prototypkedjan, så "toString", "constructor", "__proto__", "valueOf" och "hasOwnProperty" togs emot av `byggAnvandare` och `byggGrupp`. Uppslaget går nu med `Object.hasOwn`, och `gruppikonEtikett` likaså (där gav "toString" en funktion i stället för en etikett). Prov i `gruppmarke.test.jsx`.
+- **`check-gruppmarke` fångar mallsträngar och beräknade importer.** `import(\`react\`)` gick förbi, och en `import(x)` går inte att följa och är nu ett brott. En export räknas som nämnd i README först som eget ord, inte som del av ett längre.
+
+#### Ompinning till 0.70.0
+
+LifeHubs Identity använder `ops-framework/gruppmarke` för profilens väljare (lifehub.identity#27), och hubben bör rita personens märke i huvudet med `personmarkeProps(profil)`.
+
+⛔ **En app som prövar en spegling av profilen med `byggAnvandare` måste pinna om INNAN identity släpps.** Det gäller hubbens `speglaPerson` (lifehub.app). På 0.67.0 kastar `byggAnvandare` för ett katalognamn som `music` och för `kulor:210`. `speglaPerson` loggar felet och speglar då inte raden alls: inte namnet, inte bilden, inte telefonen. Släpps identity först slutar alltså varje person som väljer en ny ikon eller kulör att speglas, och det syns bara som en varning i funktionsloggen. Ordningen är: ramverket, hubbens ompinning och funktionsdeploy, och sedan identitys funktioner (`sparaProfil`, som också prövar med `byggAnvandare`) före identitys webb.
+
+En app som varken prövar profilen eller vill rita det nya märket behöver ingen ändring.
+## 0.69.0
+
+⛔ **Versionsnumret:** 0.68.0 är PR 268 (trådar i gruppchatten, lifehub.app#60), som mergades medan den här grenen var öppen. Main är inmergad, och den här grenen är 0.69.0.
+
+### Inställningarna: en lista med sektioner, och varje sektion i en egen panel (#274)
+
+Händelsen: CP 2026-10-06 20:12, med en skärmbild av Inställningar i LifeHub på surfplatta: "hela inställnings-panelen är superrörig. Vi måste bygga ett intuitivt, enkelt och rent inställningspanel. Sektioner kanske skall stå ensamma, med att man navigerar till en specifik panel med tillbaka-pil mm. Texterna känns ihoptryckta." Sidan var ett enda långt flöde av kort, med små rubriker, täta rader och utvecklartext mellan korten ("Slagen är inte seedade än", "Samlingen är tom, så appen ritar repots standardvärden", "står däremot i koden (SLAGBETEENDEN)").
+
+#### Tillagt
+
+- **`OpsInstallningar`**: appen ger sektionerna (`{ id, ikon, rubrik, beskrivning, antal, innehall }`), ramverket ger listan och panelen. Raderna är minst 56 px, med ikon, rubrik i 16 px halvfet, beskrivningen på egen rad i 14 px dämpad (12 px i första utkastet, som granskningen kallade just det CP klagade på), antalet till höger och en chevron. Panelen har tillbaka-pil, rubrik i 18 px och beskrivning på egen rad. `ORD_OPSINSTALLNINGAR` på svenska och engelska. En sektion utan `id`, `rubrik` eller `innehall` vägras, och ett okänt `vald` ger en varning i utvecklingsläge.
+- **`rubrikniva`, förval 2:** sidans och panelens rubrik står på samma nivå under appskalets `h1`, och delarna i en panel en nivå under. Samma nivå med flit, eftersom panelen står ensam under 1024 px.
+- **Tillbaka går tillbaka i historiken:** filhuvudet säger att appens `onValj(null)` ska vara `history.back()` när panelen öppnades med `pushState`, och `replaceState` när sidan öppnades direkt på en sektion.
+- **Den valda sektionen ligger i adressen.** `vald` och `onValj` kommer från appen, så att webbläsarens tillbaka fungerar och en sektion går att länka till. Ramverket känner ingen router och inga samlingsnamn. Ett okänt `vald` (en gammal länk) ritar listan och ingen tom panel.
+- **En kolumn under 1024 px, två från 1024.** Telefon och iPad i stående läge (820 px) får listan, och panelen ersätter den; datorn får listan till vänster och panelen till höger, utan tillbaka-pil. Gränsen är `lg` och inte `md` som i Meddelanden: i 820 px hade panelen blivit drygt 500 px bred, och en katalog trängs där igen.
+- **Tangentbord och skärmläsare:** listan är en `<ul>` med knappar och den valda bär `aria-current`. Fokus går till panelens rubrik när den öppnas och tillbaka till raden när man går tillbaka, med pilen eller med webbläsarens tillbaka. Vid första ritningen flyttas inget fokus.
+- **`useInstallningspanel`:** `OpsKatalogInstallning` och `OpsModulTyper` ritar sin rubrik en nivå under panelens, och inte alls när den är samma som panelens. Katalogens delrubriker (Arkiverade, Senaste ändringarna) följer med en nivå ned. Utanför en panel är allt som förut.
+- **`check-utvecklarord`** (i `npm run check`): larmar på seedad/seedade/seedning, samlingen/samlingens/samlingar, standardvärden, driftsättning, repots, Firestore och kodnamn i versaler i det användaren ser: JSX-text, strängar som ensamma barn i JSX, båda grenarna i en ternär, ordböckernas `sv:`/`en:` och värden på användartextnamn (inklusive `hint`). Kommentarer, felmeddelanden och loggrader läses inte. Golv: 150 filer och 400 texter i ramverket, och ett golv per mönster (attribut 130, ordbok 125, ternär 15, barn 6, JSX-text 55, ungefär hälften av det mätta); 5 filer och 10 texter i en app. `--golv=abc` avbryts med fel. Planterat i `test-guards`: nio röda fall, ett grönt, fyra golv och ett avstängt mönster i taget (fem röda), plus beviset att `{"..."}`-fallet bara fångas av barnmönstret. Ramverket självt: 675 texter, 0 träffar. LifeHub på origin/main: 16, som ompinningen lagar.
+- **`check-skalyta` avsnitt 43** vid 390, 820 och 1280 px: listan, en panel, tillbaka, fokus, beskrivningen minst 13 px, inget eget `h1`, panelens rubrik på sidans nivå och ingen horisontell överflödning.
+
+#### Ändrat
+
+- **`OpsKatalogInstallning` utan `ikonRitare`** ritar ingen ikon. Förut stod ikonens nyckel (`wallet`, `inbox`) som text i varje rad.
+
+#### Ompinning till 0.69.0
+
+Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.69.0/ops-framework-0.69.0.tgz"`.
+2. `SettingsView` byggs om till `OpsInstallningar` med sektionerna ur ärendet, och sektionen läses ur och skrivs till adressen.
+3. Utvecklartexten skrivs om för användaren. Lägg `node node_modules/ops-framework/scripts/check-utvecklarord.mjs src` i appens kedja.
 
 ## 0.68.0
 

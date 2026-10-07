@@ -114,6 +114,10 @@
  *   Högst ETT fält per fråga (Firestores `array-contains` tillåter ett). ⛔ En adapter som inte kan uttrycka villkoret
  *   KASTAR, den ignorerar det aldrig: ett villkor som tyst faller bort ger fler rader än frågan bad om, och för
  *   privata samtal är "fler rader" någon annans samtal.
+ * @property {{ falt: string, varde: number | string }} [fore] (chattens nattskiva) Bara poster där `falt` är STRIKT MINDRE än `varde`.
+ *   Det är "Visa äldre" i chatten: nästa sida bakåt från det äldsta som redan är läst. ⛔ En adapter som inte kan uttrycka
+ *   villkoret KASTAR, samma skäl som `innehaller`: ett villkor som tyst faller bort ger den senaste sidan en gång till, och
+ *   "äldre meddelanden" som är samma meddelanden igen ser ut som en chatt som upprepar sig.
  * @property {string} [sortBy] Fältnamn.
  * @property {"asc" | "desc"} [direction]
  * @property {number} [limit]
@@ -190,6 +194,29 @@ export function innehallerVillkor(innehaller) {
 }
 
 /**
+ * `fore`-villkoret i en fråga som `[falt, varde]`, eller `null` om det saknas. Kastar när formen är fel.
+ *
+ * ⛔ EN DEFINITION FÖR ALLA ADAPTRAR, samma skäl som `innehallerVillkor`. Ett värde som inte är ett tal eller en sträng har ingen
+ * ordning som varje källa jämför likadant, och en jämförelse som Firestore gör på ett sätt och minnet på ett annat hade låtit
+ * ett prov gå grönt på en sida som ser annorlunda ut i appen.
+ *
+ * @param {unknown} fore
+ * @returns {[string, number | string] | null}
+ */
+export function foreVillkor(fore) {
+  if (fore === undefined || fore === null) return null;
+  const f = /** @type {Record<string, unknown>} */ (typeof fore === "object" ? fore : {});
+  if (typeof f.falt !== "string" || !f.falt) throw new Error("fore: falt krävs, fältets namn. Formen är { falt, varde }.");
+  const v = f.varde;
+  if (!((typeof v === "number" && Number.isFinite(v)) || typeof v === "string")) {
+    throw new Error(`fore: varde är ett tal eller en sträng, fick ${typeof v}. Formen är { falt, varde }.`);
+  }
+  const okanda = Object.keys(f).filter((k) => k !== "falt" && k !== "varde");
+  if (okanda.length) throw new Error(`fore: okända fält ${okanda.join(", ")}. Formen är { falt, varde }.`);
+  return [f.falt, /** @type {number | string} */ (v)];
+}
+
+/**
  * Filtrerar och sorterar en lista enligt en fråga.
  *
  * Delas av de adaptrar som håller allt i minnet (minne, JSON). En riktig databas
@@ -213,6 +240,14 @@ export function applyQuery(rows, query) {
       const [f, v] = villkor;
       out = out.filter((r) => Array.isArray(/** @type {any} */ (r)[f]) && /** @type {any} */ (r)[f].includes(v));
     }
+  }
+
+  const fore = foreVillkor(query.fore);
+  if (fore) {
+    const [f, v] = fore;
+    // ⛔ Samma typ krävs för en jämförelse: en sträng och ett tal har ingen gemensam ordning i Firestore, och här hade `<` tvingat
+    // fram en omvandling som ingen annan källa gör.
+    out = out.filter((r) => typeof (/** @type {any} */ (r)[f]) === typeof v && /** @type {any} */ (r)[f] < v);
   }
 
   if (query.sortBy) {

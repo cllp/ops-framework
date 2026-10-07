@@ -31,7 +31,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  *
  * ⛔ ETT FEL STÅR UTSKRIVET OCH TEXTEN BLIR KVAR. En kommentar som inte gick fram och försvinner ur rutan är skriven förgäves.
  *
- * ══ ⛔ BILD OCH FIL (0.71.0, cllp/bolag-ops#570) ═══════════════════════════════════════════════════════════════════════════
+ * ══ ⛔ BILD OCH FIL (0.73.0, cllp/bolag-ops#570) ═══════════════════════════════════════════════════════════════════════════
  *
  * CP 2026-10-06: "Vill kunna klistra in bild i kommentar. Kommentarer behöver ha bilder elelr filer också." Med `bilagor` står
  * `OpsFilePicker` under skrivrutan: Välj fil, inklistring (Cmd+V) var som helst på sidan, och en förhandsvisning före sändning,
@@ -43,7 +43,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * inkorgen och en i händelsepanelen) hade båda fått samma skärmbild. Den som klistrar in i en kommentar står i dess skrivruta.
  *
  * ⛔ AV SOM FÖRVAL. En app vars utrullade regel inte känner fältet hade fått varje kommentar med bilaga nekad, så appen slår på
- * det när regeln från 0.71.0 är utrullad. Bilagor som redan finns på en kommentar visas alltid.
+ * det när regeln från 0.73.0 är utrullad. Bilagor som redan finns på en kommentar visas alltid.
  *
  * @param {object} props
  * @param {ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } }>} props.kommentarer

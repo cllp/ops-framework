@@ -371,7 +371,7 @@ describe("OpsFilterPanel", () => {
 });
 
 /*
- * ⛔ RÄKNARNA PÅ RADERNA (0.71.0, cllp/bolag-ops#569). CP 2026-10-06: "Finns många initialt, sedan agent 0st och jag 2st.
+ * ⛔ RÄKNARNA PÅ RADERNA (0.73.0, cllp/bolag-ops#569). CP 2026-10-06: "Finns många initialt, sedan agent 0st och jag 2st.
  * Går inte jämnt ut." Provet bygger talen ur samma rader som listan visar, trycker på varje rad och jämför talet med
  * antalet rader som syns efteråt. Golv: sex rader och fyra alternativ, så ett tomt underlag inte blir grönt.
  */

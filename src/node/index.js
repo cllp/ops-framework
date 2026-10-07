@@ -44,7 +44,7 @@ export { createAgentService } from "./agent.js";
  * andra sanning om vad ett meddelande är, och huvudingången drar in React. Filerna är rena.
  */
 export { AGENT_NAMN, agentId, agentMedlemskap } from "../lib/grupp.js";
-export { byggMeddelande, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD } from "../lib/samtal.js";
+export { byggMeddelande, samtalsnyckel, MAX_MEDDELANDE, autonamn, tradensNamn, rensaForNamn, NAMNLOS_TRAD, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentenNamnd, namnda, arNamnd, NAMNER_ALLA, MAX_NAMNER } from "../lib/samtal.js";
 
 /*
  * ⛔ SAMMA SKÄL SOM INBJUDAN OVAN (#161). Vitlistan nekar en klient allt

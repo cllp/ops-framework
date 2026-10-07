@@ -43,7 +43,8 @@ export const MUTATIONER = {
   "namn-utan-tak": ["d.namn.size() <= 80", "true"],
   "meddelande-utan-trad": ["&& exists(/databases/$(database)/documents/samtal/$(sid)/tradar/$(tid))\n", ""],
   "meddelande-av-vem-som-helst": ["&& request.resource.data.av == request.auth.uid\n            && request.resource.data.text is string", "&& request.resource.data.text is string"],
-  "meddelande-fria-falt": ["/tradar/$(tid))\n            && request.resource.data.keys().hasOnly([\"text\", \"av\", \"tid\"])\n", "/tradar/$(tid))\n"],
+  // Provreglerna har chattens omnämnanden påslagna (skriv-provregler.mjs), så fältlistan bär `namner` och följs av dess prövning.
+  "meddelande-fria-falt": ["/tradar/$(tid))\n            && request.resource.data.keys().hasOnly([\"text\", \"av\", \"tid\", \"namner\"])\n            && opsGiltigaNamner(request.resource.data)\n", "/tradar/$(tid))\n"],
 };
 
 /** Provreglerna, eller (bara för bevisets röda riktning) provreglerna med ett skydd bortplockat. */

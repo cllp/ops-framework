@@ -1,6 +1,6 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
-import { byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, utdrag } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, undersamlingskrock, utdrag } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -27,23 +27,46 @@ import { byggMeddelande, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, s
  *   och `OpsMeddelanden` ritar inga trådar. Appen slår på trådarna genom att skicka samma namn som till
  *   `samtalsregelfragment({ tradar })`. Trådens meddelanden ligger under tråden med samma namn som samtalets (`meddelanden`),
  *   eftersom de har samma form och samma regel.
+ * @param {string} [konfig.status] (#273) Samlingsnamnet för agentens status, `<samtal>/{sid}/<status>/agent` och samma under en
+ *   tråd. ⛔ INGET FÖRVAL, samma skäl som `tradar`: utan det har källan inga statusfunktioner och vyn visar ingen statusrad.
+ *   Samma namn som till `samtalsregelfragment({ status })`.
+ * @param {string} [konfig.reaktioner] (chattens nattskiva) Samlingsnamnet för reaktionerna, `<samtal>/{sid}/<reaktioner>/{mid|uid|kod}` och
+ *   samma under en tråd. ⛔ INGET FÖRVAL. Samma namn som till `samtalsregelfragment({ reaktioner })`.
+ * @param {boolean} [konfig.omnamnanden] (chattens nattskiva) `true` slår på fältet `namner` på meddelandena. ⛔ INGET FÖRVAL: utan det
+ *   kastar `skicka` på ett `namner`, och vyn har ingen @-lista. Samma som till `samtalsregelfragment({ omnamnanden: true })`.
+ * @param {boolean} [konfig.citat] (chattens nattskiva) `true` slår på `svarPa` på samtalets meddelanden (svar med citat i privata
+ *   samtal). ⛔ INGET FÖRVAL. Samma som till `samtalsregelfragment({ citat: true })`.
+ * @param {string} [konfig.fasta] (chattens nattskiva) Samlingsnamnet för fästa meddelanden, `<samtal>/{sid}/<fasta>/{mid}`. ⛔ INGET
+ *   FÖRVAL. Samma namn som till `samtalsregelfragment({ fasta })`.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
-  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...(tradar === undefined ? {} : { tradar }) })) {
+  const frivilliga = Object.fromEntries(Object.entries({ tradar, status, reaktioner, fasta }).filter(([, v]) => v !== undefined));
+  for (const [falt, v] of Object.entries({ samtal, meddelanden, last, ...frivilliga })) {
     if (typeof v !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(v)) {
       throw new Error(`createSamtalskalla: ${falt} "${v}" är inte ett samlingsnamn.`);
     }
   }
   // ⛔ KAN 7 (granskningen av PR 268): samma namn som en annan undersamling hade blandat trådar med meddelanden eller läsmärken.
-  if (tradar !== undefined && (tradar === meddelanden || tradar === last)) {
-    throw new Error(`createSamtalskalla: tradar "${tradar}" krockar med ${tradar === meddelanden ? "meddelanden" : "last"}.`);
-  }
+  // Samma prövning för varje frivillig undersamling (#273 och framåt), med ETT hem: `undersamlingskrock` i lib/samtal.js.
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta }, "createSamtalskalla");
+  if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
+  if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
+
+  /**
+   * Meddelandet som skrivs. ⛔ `namner` utan `omnamnanden` kastar: regeln hade nekat skrivningen, och ett fel här säger varför.
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d @param {string} vem
+   */
+  const nyttMeddelande = ({ text, av, namner, svarPa }, vem) => {
+    if (namner && namner.length && omnamnanden !== true) throw new Error(`${vem}: namner kräver omnamnanden: true, med samma val i samtalsregelfragment.`);
+    if (svarPa && citat !== true) throw new Error(`${vem}: svarPa kräver citat: true, med samma val i samtalsregelfragment.`);
+    return byggMeddelande({ text, av, tid: klocka(), namner, svarPa });
+  };
 
   /** @param {string} sid */
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
@@ -127,6 +150,50 @@ export function createSamtalskalla(konfig) {
   }
 
   /**
+   * Ett meddelande i samtalet, eller `null`. För citatet (chattens nattskiva) och fästningarna, när meddelandet inte är laddat.
+   * @param {string} sid @param {string} mid
+   * @returns {Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>}
+   */
+  async function lasMeddelande(sid, mid) {
+    return /** @type {any} */ (await kalla.read(meddelandevag(sid), mid));
+  }
+
+  /**
+   * Nästa sida BAKÅT: meddelandena före det äldsta som redan är läst, i stigande tid (chattens nattskiva, "Visa äldre").
+   *
+   * Före chattens nattskiva gick det 51:a meddelandet bakåt inte att nå alls: kontraktet hade ingen markör, och källan läste de
+   * senaste `sida` och inget mer. Nu används kontraktets `fore`.
+   *
+   * ⛔ TVÅ MEDDELANDEN SAMMA MILLISEKUND FALLER INTE MELLAN SIDORNA. Frågan är "till och med" det äldstas tid (`fore: tid + 1`), och
+   * de som redan är lästa (`kanda`) sorteras bort. Med "strikt före" hade ett meddelande med samma tid som sidans äldsta, men som
+   * inte kom med på sidan, aldrig gått att nå. Bara om en HEL sida bär samma tid frågas strikt före, annars hade knappen gett samma
+   * sida för alltid.
+   *
+   * @param {string} sid
+   * @param {{ tid: number, kanda: ReadonlySet<string> | ReadonlyArray<string>, trad?: string }} fran Det äldsta lästa meddelandets tid, id:na som
+   *   redan är lästa, och (med trådar) trådens id för en sida bakåt i tråden.
+   * @returns {Promise<{ rader: Array<import("../lib/samtal.js").Meddelande & { id: string }>, fler: boolean }>} `fler`: sidan var full, och
+   *   det kan finnas fler. `false` betyder att samtalets början är nådd.
+   */
+  async function aldreMeddelanden(sid, { tid, kanda, trad: tradId }) {
+    if (!Number.isInteger(tid)) throw new Error("samtalskalla.aldreMeddelanden: tid är det äldsta lästa meddelandets tid, ett heltal.");
+    if (tradId !== undefined && tradar === undefined) throw new Error("samtalskalla.aldreMeddelanden: en tråd kräver tradar.");
+    const vag = tradId === undefined ? meddelandevag(sid) : `${samtal}/${sid}/${tradar}/${tradId}/${meddelanden}`;
+    const sedda = new Set(kanda);
+    // ⛔ En rad mer än sidan: den äldsta lästa kommer alltid med i "till och med", och utan den extra raden hade varje sida bakåt
+    // varit en kortare än de andra.
+    const tak = sida + 1;
+    const fraga = (/** @type {number} */ grans) => kalla.list(vag, { fore: { falt: "tid", varde: grans }, sortBy: "tid", direction: "desc", limit: tak });
+    let rader = await fraga(tid + 1);
+    let nya = rader.filter((r) => !sedda.has(r.id));
+    if (nya.length === 0 && rader.length >= tak) {
+      rader = await fraga(tid);
+      nya = rader.filter((r) => !sedda.has(r.id));
+    }
+    return { rader: [...nya].reverse(), fler: rader.length >= tak };
+  }
+
+  /**
    * Lyssnar på ett samtals meddelanden, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje skickat.
    *
    * @param {string} sid
@@ -143,11 +210,11 @@ export function createSamtalskalla(konfig) {
 
   /**
    * @param {string} sid
-   * @param {{ text: string, av: string }} d
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d
    */
-  async function skicka(sid, { text, av }) {
-    const m = byggMeddelande({ text, av, tid: klocka() });
-    return kalla.create(meddelandevag(sid), { ...m });
+  async function skicka(sid, { text, av, namner, svarPa }) {
+    const m = nyttMeddelande({ text, av, namner, svarPa }, "samtalskalla.skicka");
+    return kalla.create(meddelandevag(sid), { ...m, ...(m.namner ? { namner: [...m.namner] } : {}) });
   }
 
   /**
@@ -175,15 +242,31 @@ export function createSamtalskalla(konfig) {
   /**
    * Inkorgens rader: varje samtal med det senaste meddelandet, antal olästa och läsmärket, nyast först.
    *
+   * ⛔ `olastaFler` (chattens nattskiva): de olästa räknas över de senaste `sida` meddelandena. Är sidan full och dess äldsta ändå
+   * oläst kan fler ligga bakom, och då är antalet ett golv. Förut visades 120 olästa som 50, utan plustecken, en siffra som såg
+   * exakt ut och inte var det (regel 5).
+   *
+   * ⛔ `olastaRader` är de olästa meddelanden andra skrev, ur samma läsning. Den härledda notisen "nämnd i gruppchatten" läser dem,
+   * utan en läsning till.
+   *
    * @param {{ groupId: string, uid: string }} fraga
-   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, lastTill: number, motpart: string | null }>>}
+   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null }>>}
    */
   async function oversikt({ groupId, uid }) {
     const alla = await lista({ groupId, uid });
     const rader = await Promise.all(
       alla.map(async (s) => {
         const [ms, till] = await Promise.all([lasMeddelanden(s.id), lastTill(s.id, uid)]);
-        return { samtal: s, senaste: ms[ms.length - 1] ?? null, olasta: olastaI(ms, till, uid), lastTill: till, motpart: motpart(s, uid) };
+        const olastaRader = ms.filter((m) => m && m.av !== uid && m.tid > till);
+        return {
+          samtal: s,
+          senaste: ms[ms.length - 1] ?? null,
+          olasta: olastaI(ms, till, uid),
+          olastaFler: ms.length >= sida && ms[0].tid > till,
+          olastaRader,
+          lastTill: till,
+          motpart: motpart(s, uid),
+        };
       }),
     );
     return rader.sort((a, b) => (b.senaste?.tid ?? b.samtal.skapad ?? 0) - (a.senaste?.tid ?? a.samtal.skapad ?? 0));
@@ -298,13 +381,13 @@ export function createSamtalskalla(konfig) {
   /**
    * Skickar i tråden ur `tid`, och öppnar tråden först om den inte finns.
    * @param {string} sid @param {string} tid
-   * @param {{ text: string, av: string }} d
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null }} d
    */
-  async function skickaITrad(sid, tid, { text, av }) {
+  async function skickaITrad(sid, tid, { text, av, namner }) {
     // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig.
-    const m = byggMeddelande({ text, av, tid: klocka() });
+    const m = nyttMeddelande({ text, av, namner }, "samtalskalla.skickaITrad");
     await oppnaTrad({ sid, rot: tid, uid: av });
-    return kalla.create(tradmeddelandevag(sid, tid), { ...m });
+    return kalla.create(tradmeddelandevag(sid, tid), { ...m, ...(m.namner ? { namner: [...m.namner] } : {}) });
   }
 
   /**
@@ -326,11 +409,151 @@ export function createSamtalskalla(konfig) {
 
   const tradfunktioner = tradar === undefined ? {} : { tradar, trad, oppnaTrad, tradarFor, antalSvar, tradmeddelanden, prenumereraTrad, skickaITrad, dopOm, rotmeddelande };
 
+  /*
+   * ══ ⛔ AGENTENS STATUS (#273) ═════════════════════════════════════════════════════════════════════════════════════════
+   *
+   * Modellen och skälen står i `lib/samtal.js`. Källan LÄSER bara: statusen skrivs av appens server med Admin SDK. Därför finns
+   * ingen skrivfunktion här, och regeln nekar varje klientskrivning.
+   */
+
+  /** @param {string} sid @param {string | undefined} tid */
+  const statusvag = (sid, tid) => (tid === undefined ? `${samtal}/${sid}/${status}` : `${samtal}/${sid}/${tradar}/${tid}/${status}`);
+
+  /**
+   * Kontrollerar att en tråds status bara efterfrågas när källan har trådar. Annars hade vägen innehållit `undefined`.
+   * @param {string | undefined} tid
+   */
+  const kravTradForStatus = (tid) => {
+    if (tid !== undefined && tradar === undefined) throw new Error("samtalskalla: en tråds status kräver tradar. Skicka samma namn som till samtalsregelfragment({ tradar }).");
+  };
+
+  /**
+   * Statusdokumentet som det står, eller `null`.
+   * @param {string} sid @param {{ tid?: string }} [val] `tid`: trådens, annars samtalets.
+   */
+  async function lasStatus(sid, val = {}) {
+    kravTradForStatus(val.tid);
+    return kalla.read(statusvag(sid, val.tid), AGENTSTATUS_ID);
+  }
+
+  /**
+   * Lyssnar på statusen, om källan kan prenumerera. Annars `null`, och vyn läser en gång (`lasStatus`).
+   * @param {string} sid
+   * @param {{ onData: (dok: any) => void, onError: (fel: Error) => void }} lyssnare `onData` får dokumentet, eller `null`.
+   * @param {{ tid?: string }} [val]
+   * @returns {(() => void) | null}
+   */
+  function prenumereraStatus(sid, lyssnare, val = {}) {
+    kravTradForStatus(val.tid);
+    if (typeof kalla.subscribe !== "function") return null;
+    // ⛔ Undersamlingen har bara dokumentet `agent`, så en lyssnare på samlingen är en läsning, inte en fråga över många.
+    return kalla.subscribe(statusvag(sid, val.tid), undefined, {
+      onData: (rader) => lyssnare.onData(rader.find((r) => r && r.id === AGENTSTATUS_ID) ?? null),
+      onError: lyssnare.onError,
+    });
+  }
+
+  const statusfunktioner = status === undefined ? {} : { status, lasStatus, prenumereraStatus };
+
+  /*
+   * ══ ⛔ REAKTIONERNA (chattens nattskiva) ═════════════════════════════════════════════════════════════════════════════════
+   *
+   * Modellen och skälen står i `lib/samtal.js`. ⛔ EN LÄSNING PER SAMTAL (eller tråd), INTE EN PER MEDDELANDE: de senaste
+   * `REAKTIONSTAK` reaktionerna i tidsordning. Kontraktet har ingen `in`-fråga, och en lyssnare per synligt meddelande hade varit
+   * femtio öppna läsningar per samtal.
+   */
+
+  /** @param {string} sid @param {string | undefined} tid */
+  const reaktionsvag = (sid, tid) => {
+    if (tid !== undefined && tradar === undefined) throw new Error("samtalskalla: en tråds reaktioner kräver tradar.");
+    return tid === undefined ? `${samtal}/${sid}/${reaktioner}` : `${samtal}/${sid}/${tradar}/${tid}/${reaktioner}`;
+  };
+  const reaktionsfraga = /** @type {const} */ ({ sortBy: "tid", direction: "desc", limit: REAKTIONSTAK });
+
+  /**
+   * Reaktionerna i ett samtal eller en tråd. `fler`: taket nåddes, och äldre reaktioner finns som inte lästes.
+   * @param {string} sid @param {{ trad?: string }} [val]
+   * @returns {Promise<{ rader: any[], fler: boolean }>}
+   */
+  async function lasReaktioner(sid, val = {}) {
+    const rader = await kalla.list(reaktionsvag(sid, val.trad), reaktionsfraga);
+    return { rader, fler: rader.length >= REAKTIONSTAK };
+  }
+
+  /**
+   * Lyssnar på reaktionerna, om källan kan prenumerera. Annars `null`, och vyn läser om efter varje egen ändring.
+   * @param {string} sid
+   * @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * @param {{ trad?: string }} [val]
+   * @returns {(() => void) | null}
+   */
+  function prenumereraReaktioner(sid, lyssnare, val = {}) {
+    const vag = reaktionsvag(sid, val.trad);
+    if (typeof kalla.subscribe !== "function") return null;
+    return kalla.subscribe(vag, reaktionsfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= REAKTIONSTAK }), onError: lyssnare.onError });
+  }
+
+  /**
+   * Reagerar på ett meddelande. Nyckeln är härledd, så en andra likadan reaktion är samma dokument (och regeln nekar den).
+   * @param {string} sid @param {{ mid: string, kod: string, av: string }} d @param {{ trad?: string }} [val]
+   */
+  async function reagera(sid, { mid, kod, av }, val = {}) {
+    const r = byggReaktion({ mid, kod, av, tid: klocka() });
+    return kalla.create(reaktionsvag(sid, val.trad), { ...r });
+  }
+
+  /**
+   * Tar bort sin egen reaktion. Regeln släpper bara igenom den egna.
+   * @param {string} sid @param {{ mid: string, kod: string, av: string }} d @param {{ trad?: string }} [val]
+   */
+  async function taBortReaktion(sid, { mid, kod, av }, val = {}) {
+    const r = byggReaktion({ mid, kod, av, tid: 0 });
+    return kalla.remove(reaktionsvag(sid, val.trad), r.id);
+  }
+
+  const reaktionsfunktioner = reaktioner === undefined ? {} : { reaktioner, lasReaktioner, prenumereraReaktioner, reagera, taBortReaktion };
+
+  /*
+   * ══ ⛔ FÄSTA MEDDELANDEN (chattens nattskiva) ═══════════════════════════════════════════════════════════════════════════
+   * Modellen och skälen står i `lib/samtal.js`. En läsning per samtal, de senaste `FASTA_TAK`.
+   */
+  /** @param {string} sid */
+  const fastvag = (sid) => `${samtal}/${sid}/${fasta}`;
+  const fastfraga = /** @type {const} */ ({ sortBy: "tid", direction: "desc", limit: FASTA_TAK });
+
+  /** @param {string} sid @returns {Promise<{ rader: any[], fler: boolean }>} */
+  async function lasFasta(sid) {
+    const rader = await kalla.list(fastvag(sid), fastfraga);
+    return { rader, fler: rader.length >= FASTA_TAK };
+  }
+  /**
+   * @param {string} sid @param {{ onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }} lyssnare
+   * @returns {(() => void) | null}
+   */
+  function prenumereraFasta(sid, lyssnare) {
+    if (typeof kalla.subscribe !== "function") return null;
+    return kalla.subscribe(fastvag(sid), fastfraga, { onData: (rader) => lyssnare.onData({ rader, fler: rader.length >= FASTA_TAK }), onError: lyssnare.onError });
+  }
+  /**
+   * Fäster ett meddelande. Nyckeln är meddelandets id, så en andra fästning är samma dokument (och regeln nekar den).
+   * @param {string} sid @param {{ mid: string, av: string }} d
+   */
+  async function fast(sid, { mid, av }) {
+    return kalla.create(fastvag(sid), { ...byggFastning({ mid, av, tid: klocka() }) });
+  }
+  /** Lossar en fästning. @param {string} sid @param {string} mid */
+  async function lossa(sid, mid) {
+    return kalla.remove(fastvag(sid), mid);
+  }
+  const fastfunktioner = fasta === undefined ? {} : { fasta, lasFasta, prenumereraFasta, fast, lossa };
+
   return Object.freeze({
     lista,
     oppnaGrupp,
     oppnaPrivat,
     meddelanden: lasMeddelanden,
+    meddelande: lasMeddelande,
+    aldreMeddelanden,
     prenumerera,
     skicka,
     lastTill,
@@ -338,6 +561,11 @@ export function createSamtalskalla(konfig) {
     oversikt,
     sida,
     ...tradfunktioner,
+    ...statusfunktioner,
+    ...reaktionsfunktioner,
+    ...fastfunktioner,
+    ...(omnamnanden === true ? { omnamnanden: true } : {}),
+    ...(citat === true ? { citat: true } : {}),
   });
 }
 
@@ -350,10 +578,81 @@ export function createSamtalskalla(konfig) {
  * @property {(sid: string, tid: string) => Promise<{ antal: number, fler: boolean }>} antalSvar
  * @property {(sid: string, tid: string) => Promise<Array<import("../lib/samtal.js").Meddelande & { id: string }>>} tradmeddelanden
  * @property {(sid: string, tid: string, lyssnare: { onData: (rader: any[]) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraTrad
- * @property {(sid: string, tid: string, d: { text: string, av: string }) => Promise<any>} skickaITrad
+ * @property {(sid: string, tid: string, d: { text: string, av: string, namner?: ReadonlyArray<string> | null }) => Promise<any>} skickaITrad
  * @property {(sid: string, tid: string, namn: string | null) => Promise<any>} dopOm
  * @property {(sid: string, tid: string) => Promise<(import("../lib/samtal.js").Meddelande & { id: string }) | null>} rotmeddelande
  */
+
+/**
+ * @typedef {object} Statusfunktioner (#273) Det en samtalskälla har när appen skickat `status`.
+ * @property {string} status
+ * @property {(sid: string, val?: { tid?: string }) => Promise<any>} lasStatus
+ * @property {(sid: string, lyssnare: { onData: (dok: any) => void, onError: (fel: Error) => void }, val?: { tid?: string }) => (() => void) | null} prenumereraStatus
+ */
+
+/**
+ * Har källan agentens status, alltså har appen slagit på den med `status`? (#273) Samma form som `harTradar`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Statusfunktioner}
+ */
+export function harStatus(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).prenumereraStatus) === "function";
+}
+
+/**
+ * @typedef {object} Reaktionsfunktioner (chattens nattskiva) Det en samtalskälla har när appen skickat `reaktioner`.
+ * @property {string} reaktioner
+ * @property {(sid: string, val?: { trad?: string }) => Promise<{ rader: any[], fler: boolean }>} lasReaktioner
+ * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }, val?: { trad?: string }) => (() => void) | null} prenumereraReaktioner
+ * @property {(sid: string, d: { mid: string, kod: string, av: string }, val?: { trad?: string }) => Promise<any>} reagera
+ * @property {(sid: string, d: { mid: string, kod: string, av: string }, val?: { trad?: string }) => Promise<any>} taBortReaktion
+ */
+
+/**
+ * Har källan reaktioner, alltså har appen slagit på dem med `reaktioner`? Samma form som `harTradar`.
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Reaktionsfunktioner}
+ */
+export function harReaktioner(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).reagera) === "function";
+}
+
+/**
+ * @typedef {object} Fastfunktioner (chattens nattskiva) Det en samtalskälla har när appen skickat `fasta`.
+ * @property {string} fasta
+ * @property {(sid: string) => Promise<{ rader: any[], fler: boolean }>} lasFasta
+ * @property {(sid: string, lyssnare: { onData: (svar: { rader: any[], fler: boolean }) => void, onError: (fel: Error) => void }) => (() => void) | null} prenumereraFasta
+ * @property {(sid: string, d: { mid: string, av: string }) => Promise<any>} fast
+ * @property {(sid: string, mid: string) => Promise<any>} lossa
+ */
+
+/**
+ * Har källan fästa meddelanden, alltså har appen slagit på dem med `fasta`? (chattens nattskiva)
+ * @template {object} K
+ * @param {K | null | undefined} kalla
+ * @returns {kalla is K & Fastfunktioner}
+ */
+export function harFasta(kalla) {
+  return Boolean(kalla) && typeof (/** @type {any} */ (kalla).lossa) === "function";
+}
+
+/**
+ * Har källan citat, alltså har appen slagit på dem med `citat: true`? (chattens nattskiva)
+ * @param {unknown} kalla
+ */
+export function harCitat(kalla) {
+  return Boolean(kalla) && /** @type {any} */ (kalla).citat === true;
+}
+
+/**
+ * Har källan omnämnanden, alltså har appen slagit på dem med `omnamnanden: true`? (chattens nattskiva)
+ * @param {unknown} kalla
+ */
+export function harOmnamnanden(kalla) {
+  return Boolean(kalla) && /** @type {any} */ (kalla).omnamnanden === true;
+}
 
 /**
  * Har källan trådar, alltså har appen slagit på dem med `tradar`? (0.68.0, granskningen av PR 268, BÖR 2.)
@@ -382,21 +681,30 @@ export function harTradar(kalla) {
  *
  * Notisens id är `<samtalets id>|<senaste meddelandets id>`, så ett nytt meddelande i samma samtal är en ny notis.
  *
+ * ⛔ NÄMND I GRUPPCHATTEN (chattens nattskiva, med `medlemmar`). Gruppchatten ger ingen notis för varje meddelande, men den som
+ * NÄMNS i ett oläst meddelande får en: "Anna nämnde dig i gruppchatten". Härledd på samma sätt, ur de olästa meddelandena och
+ * läsmärket, och den läser bara omnämnanden som är auktoriserade mot medlemskapet (`arNamnd`): ett påhittat uid i `namner` når
+ * ingen, och "alla" expanderas här, vid läsningen. Id:t är `<samtal>|<det senaste meddelandet som nämner>`. Utan `medlemmar`
+ * finns ingen sådan notis, eftersom ingen auktorisering går att göra, och notiserna är exakt som förut.
+ *
  * @param {object} konfig
  * @param {ReturnType<typeof createSamtalskalla>} konfig.samtal
  * @param {string} konfig.uid
  * @param {(uid: string) => string} konfig.namnFor Visningsnamnet för ett uid, ur gruppens medlemskap.
  * @param {(samtalId: string) => string} [konfig.href] Vart notisen leder.
  * @param {(namn: string) => string} [konfig.titel] Förval `"<namn> skickade ett meddelande"`.
+ * @param {ReadonlyArray<{ userId: string, typ?: string, status?: string }>} [konfig.medlemmar] (chattens nattskiva) Gruppens medlemskap,
+ *   för notisen "nämnd i gruppchatten". Utelämnat: ingen sådan notis.
+ * @param {(namn: string) => string} [konfig.namndTitel] Förval `"<namn> nämnde dig i gruppchatten"`.
  * @returns {(fraga: { groupId: string }) => Promise<Array<{ id: string, titel: string, text: string, prio: "normal", href?: string }>>}
  */
-export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande` }) {
+export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `${namn} skickade ett meddelande`, medlemmar, namndTitel = (namn) => `${namn} nämnde dig i gruppchatten` }) {
   if (!samtal || typeof samtal.oversikt !== "function") throw new Error("samtalsnotiser: samtal krävs, en källa ur createSamtalskalla.");
   if (!uid) throw new Error("samtalsnotiser: uid krävs. Notiserna är en persons, inte gruppens.");
   if (typeof namnFor !== "function") throw new Error("samtalsnotiser: namnFor krävs. En notis utan namn säger inte vem som skrev.");
   return async ({ groupId }) => {
     const rader = await samtal.oversikt({ groupId, uid });
-    return rader
+    const privata = rader
       .filter((r) => r.samtal.slag !== "grupp" && r.olasta > 0 && r.senaste)
       .map((r) => {
         const s = /** @type {NonNullable<typeof r.senaste>} */ (r.senaste);
@@ -408,5 +716,20 @@ export function samtalsnotiser({ samtal, uid, namnFor, href, titel = (namn) => `
           ...(href ? { href: href(r.samtal.id) } : {}),
         };
       });
+    if (!medlemmar) return privata;
+    const namnda = rader
+      .filter((r) => r.samtal.slag === "grupp")
+      .flatMap((r) => {
+        const s = [...(r.olastaRader ?? [])].reverse().find((m) => arNamnd(m, uid, medlemmar));
+        if (!s) return [];
+        return [{
+          id: `${r.samtal.id}|${s.id}`,
+          titel: namndTitel(namnFor(s.av) || NAMN_SAKNAS),
+          text: utdrag(s.text),
+          prio: /** @type {const} */ ("normal"),
+          ...(href ? { href: href(r.samtal.id) } : {}),
+        }];
+      });
+    return [...privata, ...namnda];
   };
 }

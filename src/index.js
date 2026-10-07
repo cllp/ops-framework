@@ -94,7 +94,7 @@ export { OpsFullscreenToggle } from "./components/OpsFullscreenToggle.jsx";
 export { OpsIconLink } from "./components/OpsIconLink.jsx";
 
 // ── Datalager ──────────────────────────────────────────────────────────────
-export { createDataSource, applyQuery, OPERATIONS, FALT_BORT } from "./data/contract.js";
+export { createDataSource, applyQuery, OPERATIONS, FALT_BORT, foreVillkor } from "./data/contract.js";
 export { createMemorySource, createJsonSource, createMemoryStorage } from "./data/adapters.js";
 export { createStorageSource, STORAGE_OPERATIONS } from "./data/storage.js";
 export { createRoutingSource } from "./data/routing.js";
@@ -201,7 +201,10 @@ export { skaparFor, kontrolleraSkaparkataloger, typerAttValja, skapalaget } from
  * körs utan skärm, och reglerna genereras av ett skript.
  */
 export { ROLLER, MEDLEMSTYPER, MEDLEMSSTATUS, AGENT_NAMN, agentId, agentMedlemskap, INBJUDNINGSSTATUS, TEMAN, MEDLEMSKAPSAVGRANSARE, MAX_PRESENTATION, GRUPPIKONER, GRUPPINITIALER_FORM, MAX_GRUPPBESKRIVNING, MAX_GRUPPORT, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNREPO, MAX_EXTERNLABEL, MAX_EXTERNHEMLIGHET, INBJUDNING_GILTIGHET_DAGAR, byggAnvandare, byggGrupp, byggExternaDatakallor, byggMedlemskap, byggInbjudan, medlemskapsId } from "./lib/grupp.js";
-export { gruppmarkeProps, gruppikonKomponent, ARV_GRUPPIKON } from "./lib/gruppikoner.js";
+export { gruppmarkeProps, gruppikonKomponent, ARV_GRUPPIKON, ARV_PROFILIKON, personmarkeProps } from "./lib/gruppikoner.js";
+export { personmarke } from "./lib/personmarke.js";
+export { gruppikonSvg } from "./lib/gruppikonsvg.js";
+export { arGiltigProfilikon } from "./lib/markeformer.js";
 export { GRUPPKULORFORSLAG, GRUPPKULOR_FORM, fargTillKulor, kulorTillFarg, gruppKulor, narmasteKulornamn } from "./lib/gruppfarg.js";
 export { GRUPPIKON_SVENSKA, gruppikonEtikett } from "./lib/gruppikonnamn.js";
 export { GRUPPIKONKATALOG } from "./lib/gruppikonkatalog.generated.js";
@@ -263,12 +266,13 @@ export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil
 export { createCatalogSource } from "./data/katalogkalla.js";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
+export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./components/OpsInstallningar.jsx";
 /*
  * ⛔ SAMTALEN (0.34.0, #182, #185): gruppchatt, privata meddelanden och Assistent-tråden som EN modell. Formerna och
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.
  */
-export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn } from "./lib/samtal.js";
-export { createSamtalskalla, samtalsnotiser, harTradar } from "./data/samtalskalla.js";
+export { SAMTALSSLAG, SAMTALSFALT, MEDDELANDEFALT, LASTFALT, MAX_MEDDELANDE, MOTTAGARSLAG, samtalsnyckel, byggSamtal, byggMeddelande, byggMottagare, olastaI, motpart, utdrag, TRADFALT, MAX_TRADNAMN, AUTONAMN_LANGD, AUTONAMN_MINST, NAMNLOS_TRAD, rensaForNamn, autonamn, tradensNamn, byggTrad, kravTradnamn, undersamlingskrock, AGENTSTATUS_ID, AGENTLAGEN, AGENTSTATUSFALT, AGENTSTATUS_MAX_ALDER, byggAgentstatus, agentstatus, REAKTIONSKODER, REAKTIONSFALT, REAKTIONSTAK, reaktionsnyckel, byggReaktion, summeraReaktioner, NAMNERFALT, NAMNER_ALLA, MAX_NAMNER, MAX_UIDLANGD, kravNamner, namnda, arNamnd, agentenNamnd, SVARPAFALT, FASTFALT, FASTA_TAK, byggFastning } from "./lib/samtal.js";
+export { createSamtalskalla, samtalsnotiser, harTradar, harStatus, harReaktioner, harOmnamnanden, harCitat, harFasta } from "./data/samtalskalla.js";
 export { useSamtal } from "./data/useSamtal.jsx";
 export { OpsMottagare } from "./components/OpsMottagare.jsx";
 export { OpsMeddelanden, OpsSamtal, OpsMeddelandeLank, OpsTrad } from "./components/OpsMeddelanden.jsx";

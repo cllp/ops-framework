@@ -250,7 +250,7 @@ export const KOMMENTARFALT = /** @type {const} */ (["text", "skapad", "skapadAv"
 export const MAX_HANDELSEKOMMENTAR = 5000;
 
 /*
- * ══ ⛔ EN BILAGA PÅ EN KOMMENTAR (0.71.0, cllp/bolag-ops#570) ═════════════════════════════════════════════════════════════
+ * ══ ⛔ EN BILAGA PÅ EN KOMMENTAR (0.73.0, cllp/bolag-ops#570) ═════════════════════════════════════════════════════════════
  *
  * CP 2026-10-06, inkorgspost `D7P0tLlRj3EKcoptFcF1`: "Kommentarer behöver ha bilder elelr filer också."
  *

@@ -207,7 +207,7 @@ describe("OpsKommentarsrad och panelens slot", () => {
 });
 
 /*
- * ══ ⛔ BILD OCH FIL I KOMMENTARER (0.71.0, cllp/bolag-ops#570) ═══════════════════════════════════════════════════════════════
+ * ══ ⛔ BILD OCH FIL I KOMMENTARER (0.73.0, cllp/bolag-ops#570) ═══════════════════════════════════════════════════════════════
  *
  * CP 2026-10-06: "Vill kunna klistra in bild i kommentar." Regelproven (icke-medlem nekas, för stor fil och fel typ nekas i
  * regeln) ligger i `rules/__tests__/handelsekommentarer.test.mjs`. Här: modellen, filväljarens avslag och inklistringen.

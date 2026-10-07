@@ -1,4 +1,4 @@
-import { createDataSource, innehallerVillkor, FALT_BORT } from "./contract.js";
+import { createDataSource, foreVillkor, innehallerVillkor, FALT_BORT } from "./contract.js";
 
 /**
  * Adapter mot ett eget API över HTTP, alltså REST.
@@ -174,6 +174,10 @@ export function createHttpSource(config) {
        */
       if (innehallerVillkor(query?.innehaller)) {
         throw new Error(`http: innehaller stöds inte av http-adaptern (${collectionName}). Filtrera på servern med ett eget uttryckligt fält.`);
+      }
+      // ⛔ `fore` (chattens nattskiva): samma skäl som `innehaller`. En server som svarar utan villkoret hade gett den senaste sidan igen.
+      if (foreVillkor(query?.fore)) {
+        throw new Error(`http: fore stöds inte av http-adaptern (${collectionName}). En sida bakåt kräver ett villkor som varje server förstår likadant.`);
       }
       const p = new URLSearchParams();
       if (query?.where) {

@@ -88,7 +88,7 @@ import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
  */
 
 /**
- * ⛔ EN GRUPP RÄKNAS HELT ELLER INTE ALLS (0.71.0, cllp/bolag-ops#569). CP 2026-10-06: "Finns många initialt, sedan agent 0st
+ * ⛔ EN GRUPP RÄKNAS HELT ELLER INTE ALLS (0.73.0, cllp/bolag-ops#569). CP 2026-10-06: "Finns många initialt, sedan agent 0st
  * och jag 2st. Går inte jämnt ut." En grupp där bara några rader bär ett tal låter den som läser lägga ihop talen och få en
  * summa som inte är listans, och en saknad siffra går inte att skilja från 0 (regel 5). Därför kastar panelen: antingen bär
  * "Alla" och varje alternativ ett tal, eller ingen av dem.

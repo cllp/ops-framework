@@ -1,5 +1,7 @@
 import { createElement } from "react";
-import { GRUPPIKONER, GRUPPINITIALER_FORM } from "./grupp.js";
+import { GRUPPINITIALER_FORM } from "./markeformer.js";
+import { gruppikonNamn } from "./gruppikonarv.js";
+import { personmarke } from "./personmarke.js";
 import { GRUPPIKONKATALOG } from "./gruppikonkatalog.generated.js";
 import { gruppKulor } from "./gruppfarg.js";
 import { GRUPPIKON_LUCIDE } from "../components/gruppikonkatalog.generated.jsx";
@@ -17,26 +19,12 @@ import { GRUPPIKON_LUCIDE } from "../components/gruppikonkatalog.generated.jsx";
  * ⛔ DE TIO ÄLDRE ID:NA LÄSES VIDARE (`GRUPPIKONER`, 0.32.0: `grupp`, `hus` ...). De pekar på samma Lucide-ikon som de
  * alltid ritats med (`icons.jsx`: `GruppIkon` är `Users`, `HusIkon` är `Home`, alias för `House`), så en befintlig
  * grupp ser likadan ut. Formuläret skriver aldrig ett äldre id: väljs ikonen igen sparas Lucide-namnet.
+ *
+ * ⛔ KARTORNA BOR I `gruppikonarv.js` SEDAN 0.70.0 (lifehub.identity#27), utan React, så att en app utan React ritar och
+ * prövar samma märke. De återexporteras härifrån, och namnen i den publika ytan är oförändrade.
  */
-export const ARV_GRUPPIKON = /** @type {const} */ ({
-  grupp: "users",
-  portfolj: "briefcase",
-  byggnad: "building-2",
-  hus: "house",
-  bok: "book-open",
-  jordglob: "globe",
-  stjarna: "star",
-  hjarta: "heart",
-  blixt: "zap",
-  krona: "crown",
-});
+export { ARV_GRUPPIKON, ARV_PROFILIKON, gruppikonNamn } from "./gruppikonarv.js";
 
-if (Object.keys(ARV_GRUPPIKON).length !== GRUPPIKONER.length || GRUPPIKONER.some((i) => !(i in ARV_GRUPPIKON))) {
-  throw new Error("gruppikoner.js: ARV_GRUPPIKON täcker inte exakt GRUPPIKONER (grupp.js). Ett äldre id utan mål är en grupp som tappar sin ikon.");
-}
-for (const namn of Object.values(ARV_GRUPPIKON)) {
-  if (!(namn in GRUPPIKON_LUCIDE)) throw new Error(`gruppikoner.js: ARV_GRUPPIKON pekar på "${namn}", som inte finns i katalogen.`);
-}
 if (Object.keys(GRUPPIKON_LUCIDE).length !== GRUPPIKONKATALOG.length) {
   throw new Error("gruppikoner.js: katalogens data och komponenter har olika antal ikoner. Kör node scripts/generate-gruppikoner.mjs.");
 }
@@ -45,14 +33,14 @@ if (Object.keys(GRUPPIKON_LUCIDE).length !== GRUPPIKONKATALOG.length) {
 const OMSLAG = new Map();
 
 /**
- * Komponenten för ett ikonnamn (ett Lucide-namn ur katalogen eller ett äldre id), med ramverkets streckvikt 1,5 och
+ * Komponenten för ett ikonnamn (ett Lucide-namn ur katalogen, eller ett äldre grupp- eller profil-id), med ramverkets streckvikt 1,5 och
  * `aria-hidden`, som `icons.jsx`. `null` när namnet inte är känt.
  * @param {string | undefined | null} namn
  * @returns {import("react").ComponentType<{ size?: number }> | null}
  */
 export function gruppikonKomponent(namn) {
-  const n = typeof namn === "string" ? (ARV_GRUPPIKON[/** @type {keyof typeof ARV_GRUPPIKON} */ (namn)] ?? namn) : "";
-  const Lucide = Object.hasOwn(GRUPPIKON_LUCIDE, n) ? GRUPPIKON_LUCIDE[n] : null;
+  const n = gruppikonNamn(namn);
+  const Lucide = n && Object.hasOwn(GRUPPIKON_LUCIDE, n) ? GRUPPIKON_LUCIDE[n] : null;
   if (!Lucide) return null;
   let omslag = OMSLAG.get(n);
   if (!omslag) {
@@ -62,12 +50,6 @@ export function gruppikonKomponent(namn) {
     OMSLAG.set(n, omslag);
   }
   return omslag;
-}
-
-/** Lucide-namnet ett sparat ikonvärde ritas som, eller tom sträng. Ett äldre id ger sitt Lucide-namn. @param {string} ikon */
-export function gruppikonNamn(ikon) {
-  const n = ARV_GRUPPIKON[/** @type {keyof typeof ARV_GRUPPIKON} */ (ikon)] ?? ikon;
-  return Object.hasOwn(GRUPPIKON_LUCIDE, n) ? n : "";
 }
 
 /**
@@ -92,5 +74,21 @@ export function gruppmarkeProps(grupp, seed) {
     const m = GRUPPINITIALER_FORM.exec(ikon);
     if (m) ut.initialer = m[1].toUpperCase();
   }
+  return ut;
+}
+
+/**
+ * Det `OpsIdentity` behöver för en PERSONS märke (0.70.0, lifehub.identity#27): samma märke som gruppens, ikonen i
+ * kulören på en tonad platta, eller initialerna. Bilden väger fortfarande tyngst: `OpsIdentity` ritar `imageUrl` först.
+ *
+ * @param {{ id?: string, namn?: string, epost?: string, ikon?: string, farg?: string } | null | undefined} person
+ * @returns {{ kulor: number, icon?: import("react").ComponentType<{ size?: number }> }}
+ */
+export function personmarkeProps(person) {
+  const m = personmarke(person);
+  /** @type {{ kulor: number, icon?: import("react").ComponentType<{ size?: number }> }} */
+  const ut = { kulor: m.kulor };
+  const Ikon = gruppikonKomponent(m.ikon);
+  if (Ikon) ut.icon = Ikon;
   return ut;
 }

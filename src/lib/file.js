@@ -171,7 +171,7 @@ function nameFor(file) {
  * försöker med ett val mellan att ge upp och att försöka igen i blindo, och det
  * är så folk slutar rapportera saker.
  *
- * ⛔ `typer` (0.71.0, bolag-ops#570) ÄR TYPERNA SOM FÅR KOMMA UT, inte de som får väljas. En bild krymps till `image/jpeg` och
+ * ⛔ `typer` (0.73.0, bolag-ops#570) ÄR TYPERNA SOM FÅR KOMMA UT, inte de som får väljas. En bild krymps till `image/jpeg` och
  * prövas efteråt, så en PNG eller en HEIC som webbläsaren kan läsa går igenom fast bara JPEG står i listan. Allt annat prövas
  * INNAN filen läses, av samma skäl som storleken: att läsa in en fil för att sedan säga nej är väntan i onödan.
  *

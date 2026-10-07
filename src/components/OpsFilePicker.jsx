@@ -44,7 +44,7 @@ import { FilIkon, GemIkon } from "./icons.jsx";
  * @param {(attachment: import("../lib/file.js").Bilaga | null) => void} props.onChange
  * @param {number} props.maxChars Tak för data-URL:en i tecken. Plattformen äger talet: ramverket vet inte vad den lagrar i.
  * @param {string} [props.accept] Vad filväljaren erbjuder. ⛔ Ett filter, aldrig ett skydd: en fil kan alltid dras in eller klistras in ändå.
- * @param {readonly string[]} [props.typer] (0.71.0) Typerna en bilaga får ha. Det här ÄR ett skydd: en fil av annan typ avvisas med besked,
+ * @param {readonly string[]} [props.typer] (0.73.0) Typerna en bilaga får ha. Det här ÄR ett skydd: en fil av annan typ avvisas med besked,
  *   hur den än kom in (vald, indragen eller inklistrad). Saknas listan tas alla typer, som förut.
  * @param {boolean} [props.paste] Ta emot inklistrade filer. Av när två väljare delar yta.
  * @param {string} [props.ariaLabel] Vad som ska bifogas, för den som inte ser knappen.

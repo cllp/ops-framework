@@ -26,6 +26,24 @@ export const LANGTRYCK_MS = 450;
 /** Den enda text knappen visar medan fingret ligger kvar (CP 2026-10-04: "Den skall bara heta en sak"). */
 export const TALK_ORD = "TALK";
 
+/**
+ * Namnet på vägen in i TALK utan att hålla (#276): raden i Skapa och huvudets mikrofonknapp på dator. EN sträng, så
+ * att raden och knappen inte kan börja heta olika saker.
+ */
+export const TALK_PRATA_IN = "TALK, prata in";
+
+/**
+ * Huvudets mikrofonknapp säger vilket läge inspelningen är i (#276). Namnet är det skärmläsaren läser och det tooltipen
+ * visar, så den som inte ser att knappen är tänd hör det i stället.
+ * @param {Talklage} lage
+ * @returns {string}
+ */
+export function talkKnappNamn(lage) {
+  if (lage === "haller" || lage === "lyssnar") return `${TALK_ORD}, lyssnar`;
+  if (lage === "skickar") return `${TALK_ORD}, skickar`;
+  return TALK_PRATA_IN;
+}
+
 /** Längsta inspelningen. Ett fält som glömts öppet ska inte spela in i en timme. */
 export const MAX_SEKUNDER = 120;
 
@@ -142,6 +160,12 @@ export function webblasarensInspelare(miljo = {}) {
   let analys = null;
   /** @type {AudioContext | null} */
   let ctx = null;
+  /**
+   * ⛔ VARJE START ÄGER SIN STRÖM TILLS DEN ÄR INKOPPLAD (#281). En ny start räknar upp numret, och en ström som öppnas för
+   * ett äldre försök stängs direkt, i stället för att skriva över den som gäller eller stå kvar med webbläsarens
+   * inspelningsprick. Ett försök som bara avbrutits, utan en ny start, stänger `useTalk` när svaret kommer.
+   */
+  let forsok = 0;
   const slapp = () => {
     strom?.getTracks().forEach((t) => t.stop());
     strom = null;
@@ -152,7 +176,14 @@ export function webblasarensInspelare(miljo = {}) {
   return {
     async starta() {
       if (!md || !MR) throw new Error("Den här webbläsaren kan inte spela in ljud.");
-      strom = await md.getUserMedia({ audio: true });
+      forsok += 1;
+      const mitt = forsok;
+      const ny = await md.getUserMedia({ audio: true });
+      if (mitt !== forsok) {
+        ny.getTracks().forEach((t) => t.stop());
+        throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
+      }
+      strom = ny;
       const format = valjFormat(MR.isTypeSupported?.bind(MR));
       rec = new MR(strom, format ? { mimeType: format } : undefined);
       bitar = [];

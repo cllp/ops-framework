@@ -1026,7 +1026,7 @@ describe("OpsKalender: långtrycket överlever inte vyn", () => {
   });
 });
 
-describe("OpsKalender: snabbvyn vid långtryck ligger överst i panelen (0.71.0, bolag-ops#568)", () => {
+describe("OpsKalender: snabbvyn vid långtryck ligger överst i panelen (0.73.0, bolag-ops#568)", () => {
   /*
    * ⛔ CP 2026-10-06: "den bubblan med långpress i cellen (ej den vanliga). Att snabb vyn kan ligga längst upp i panelen
    * centrerat." Provet mäter VAR titten ritas: första barnet i dagpanelens plats, utan `fixed` och utan koordinater. Hur

@@ -18,10 +18,11 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tokenfil = path.join(rot, "tokens", "tokens.css");
@@ -1682,6 +1683,102 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("typografi golv: fel sökväg", [typvakt, path.join(typmapp, "finns-inte")], "finns inte");
 }
 
+// ── Utvecklarord i användartext (0.69.0, #274) ─────────────────────────────
+//
+// ⛔ Det planterade fallet är CP:s skärmbild, ordagrant: en banderoll som säger att slagen inte är seedade och att samlingen är tom.
+// Grönt: samma ord i en kommentar, i ett felmeddelande och i en jämförelse med en konstant, för de är skrivna för en utvecklare.
+{
+  const ordvakt = "scripts/check-utvecklarord.mjs";
+  const ordmapp = path.join(arbetsmapp, "utvecklarord");
+
+  kravGront("utvecklarord: ramverkets riktiga src är grön", [ordvakt]);
+
+  fs.cpSync(path.join(rot, "src", "components"), path.join(ordmapp, "smutsig"), { recursive: true });
+  const prov = path.join(ordmapp, "smutsig", "OpsProvbanderoll.jsx");
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <OpsBanner tone="info" title="Slagen är inte seedade än">Inget att visa.</OpsBanner>;\n}\n');
+  kravRott("utvecklarord: \"seedade\" i en banderolls title", [ordvakt, path.join(ordmapp, "smutsig")], '"seedade"');
+  fs.writeFileSync(prov, "export function OpsProvbanderoll() {\n  return <p>Samlingen är tom, så appen ritar repots standardvärden.</p>;\n}\n");
+  kravRott("utvecklarord: \"Samlingen\" i JSX-text", [ordvakt, path.join(ordmapp, "smutsig")], '"Samlingen"');
+  fs.writeFileSync(prov, "export const TEXTER = { hjalpText: \"Står i koden (SLAGBETEENDEN).\" };\n");
+  kravRott("utvecklarord: ett kodnamn i versaler i en texttabell", [ordvakt, path.join(ordmapp, "smutsig")], '"SLAGBETEENDEN"');
+  fs.writeFileSync(prov, "export function OpsProvbanderoll({ fel }) {\n  return <OpsBanner title={`${fel} kräver en driftsättning`} />;\n}\n");
+  kravRott("utvecklarord: \"driftsättning\" i en mall", [ordvakt, path.join(ordmapp, "smutsig")], '"driftsättning"');
+
+  // ⛔ Granskningen av PR 278 fann två hål som var gröna: `hint` lästes inte, och ordböckernas `sv:`/`en:` lästes inte.
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <OpsField hint="Slagen är inte seedade än" />;\n}\n');
+  kravRott("utvecklarord: \"seedade\" i en hint", [ordvakt, path.join(ordmapp, "smutsig")], '"seedade"');
+  fs.writeFileSync(prov, 'export const ORD_H = { rubrik: { sv: "Samlingen är tom", en: "Empty" } };\n');
+  kravRott("utvecklarord: \"Samlingen\" i en ordboks sv:", [ordvakt, path.join(ordmapp, "smutsig")], '"Samlingen"');
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <p>{"Kör seedningen först"}</p>;\n}\n');
+  kravRott("utvecklarord: \"seedningen\" som ensam sträng i JSX", [ordvakt, path.join(ordmapp, "smutsig")], '"seedningen"');
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll({ tom }) {\n  return <OpsBanner title={tom ? "Samlingens slag saknas" : "Allt finns"} />;\n}\n');
+  kravRott("utvecklarord: \"Samlingens\" i en ternär i ett attribut", [ordvakt, path.join(ordmapp, "smutsig")], '"Samlingens"');
+  fs.writeFileSync(prov, 'export function OpsProvbanderoll({ tom }) {\n  return <p>{tom ? "Inga samlingar ännu" : "Klart"}</p>;\n}\n');
+  kravRott("utvecklarord: \"samlingar\" i en ternär som barn", [ordvakt, path.join(ordmapp, "smutsig")], '"samlingar"');
+
+  fs.writeFileSync(
+    prov,
+    [
+      "/** Före seedningen är samlingen tom och repots standardvärden ritas (SLAGBETEENDEN). */",
+      "export function OpsProvbanderoll({ text }) {",
+      '  if (!text) throw new Error("OpsProvbanderoll: samlingen saknas, kör seedningen.");',
+      "  if (text.length > MAX_TEXT) return null;",
+      "  return <p>Allt är som det ska.</p>;",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  kravGront("utvecklarord: en kommentar, ett felmeddelande och en jämförelse är inga brott", [ordvakt, path.join(ordmapp, "smutsig")]);
+
+  const tunn = path.join(ordmapp, "tunn");
+  fs.mkdirSync(tunn, { recursive: true });
+  fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return <p>Hej</p>; }\n");
+  kravRott("utvecklarord golv: för få filer lästa", [ordvakt, tunn], "väntat minst");
+  kravRott("utvecklarord golv: fel sökväg", [ordvakt, path.join(ordmapp, "finns-inte")], "finns inte");
+  const tyst = path.join(ordmapp, "tyst");
+  fs.mkdirSync(tyst, { recursive: true });
+  for (let i = 0; i < 6; i++) fs.writeFileSync(path.join(tyst, `Tom${i}.js`), `export const x${i} = ${i};\n`);
+  kravRott("utvecklarord golv: filer lästa men inga användartexter", [ordvakt, tyst], "användartexter hittades");
+  kravRott("utvecklarord golv: ett golv som inte är ett tal", [ordvakt, "--golv=abc"], "inte ett heltal");
+
+  // ⛔ GOLV PER MÖNSTER. Varje mönster stängs av i en kopia av vakten (det matchar aldrig), och ramverkets körning ska då bli
+  // röd på just det mönstret.
+  //
+  // ⛔ KOPIAN LIGGER I EN TEMPORÄR KATALOG, INTE I scripts/ (0.71.1, granskningen av PR 278). I scripts/ stod den kvar om körningen
+  // avbröts mellan skrivningen och `finally`, och då låg en vakt med ett avstängt mönster bredvid den riktiga. Kopian får i stället
+  // sin import och sin rot omskrivna till absoluta sökvägar, och varje omskrivning kontrolleras, så att en ändrad rad i vakten ger
+  // ett fel här och inte en kopia som tyst läser fel katalog.
+  const ordkalla = fs.readFileSync(path.join(rot, ordvakt), "utf8");
+  const kopiemapp = fs.mkdtempSync(path.join(os.tmpdir(), "ops-utvecklarord-"));
+  const ordkopia = path.join(kopiemapp, "_prov-utvecklarord-avstangt.mjs");
+  /** @param {string} kalla @param {string | RegExp} fran @param {string} till */
+  const skrivOm = (kalla, fran, till) => {
+    const ut = kalla.replace(fran, till);
+    if (ut === kalla) throw new Error(`test-guards: ${String(fran)} hittades inte i ${ordvakt}, så kopian kan inte flyttas ut ur scripts/`);
+    return ut;
+  };
+  let flyttbar = skrivOm(ordkalla, `from "./lib/kallkod.mjs"`, `from ${JSON.stringify(pathToFileURL(path.join(rot, "scripts", "lib", "kallkod.mjs")).href)}`);
+  flyttbar = skrivOm(flyttbar, /^const rot = .*$/m, `const rot = ${JSON.stringify(rot)};`);
+  try {
+    // Kopian utan avstängt mönster är grön: annars hade de röda utfallen nedan kunnat bero på flytten och inte på mönstret.
+    fs.writeFileSync(ordkopia, flyttbar);
+    kravGront("utvecklarord: kopian i en temporär katalog är grön med alla mönster", [ordkopia]);
+    for (const namn of ["attribut", "ordbok", "ternar", "barn", "jsxtext"]) {
+      const avstangd = flyttbar.replace(new RegExp(`(namn: "${namn}",[\\s\\S]*?\\n    re: )[^\\n]*`), "$1/(?!)/g,");
+      if (avstangd === flyttbar) throw new Error(`test-guards: mönstret ${namn} hittades inte i ${ordvakt}`);
+      fs.writeFileSync(ordkopia, avstangd);
+      kravRott(`utvecklarord golv: mönstret "${namn}" avstängt`, [ordkopia], `Mönstret "${namn}"`);
+      if (namn === "barn") {
+        // Det planterade {"..."}-fallet fångas BARA av barnmönstret: med det avstängt är samma fil grön.
+        fs.writeFileSync(prov, 'export function OpsProvbanderoll() {\n  return <p>{"Kör seedningen först"}</p>;\n}\n');
+        kravGront("utvecklarord: {\"...\"}-fallet släpps igenom utan barnmönstret", [ordkopia, path.join(ordmapp, "smutsig")]);
+      }
+    }
+  } finally {
+    fs.rmSync(kopiemapp, { recursive: true, force: true });
+  }
+}
+
 // ── Gruppkulör (0.65.0, #265): kontrasten för alla 360 kulörer, i båda lägena ──
 {
   const fargvakt = path.join(rot, "scripts", "check-gruppfarg.mjs");
@@ -1698,6 +1795,79 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("gruppfärg: mörk platta för ljus (L 0,6)", [fargvakt, fargfil("mork", (c) => c.replace("--dark-gruppmarke-platta-l: 0.33;", "--dark-gruppmarke-platta-l: 0.6;"))], "morkt, kulör");
   kravRott("gruppfärg golv: mättnad 0, alla kulörer gråa", [fargvakt, fargfil("gra", (c) => c.replace("--gruppmarke-ikon-c: 0.13;", "--gruppmarke-ikon-c: 0;"))], "olika ikonfärger");
   kravRott("gruppfärg golv: talen saknas", [fargvakt, fargfil("tom", (c) => c.replace(/--gruppmarke-ikon-l: [^;]+;/, ""))], "saknas i");
+}
+
+// ── Märket utan React (0.70.0, lifehub.identity#27): `ops-framework/gruppmarke` når aldrig ett paket ──
+//
+// ⛔ Kopian är det RIKTIGA trädet (src/gruppmarke, src/lib och README), så att den gröna kontrollen bevisar att vakten
+// släpper igenom ingången som den står, och varje röd att ett enda planterat steg räcker.
+{
+  const markevakt = "scripts/check-gruppmarke.mjs";
+  /** @param {string} namn @param {(rot: string) => void} [plantera] */
+  const markekopia = (namn, plantera) => {
+    const mapp = path.join(arbetsmapp, namn);
+    fs.cpSync(path.join(rot, "src", "gruppmarke"), path.join(mapp, "src", "gruppmarke"), { recursive: true });
+    fs.cpSync(path.join(rot, "src", "lib"), path.join(mapp, "src", "lib"), { recursive: true });
+    fs.copyFileSync(path.join(rot, "README.md"), path.join(mapp, "README.md"));
+    plantera?.(mapp);
+    return mapp;
+  };
+  /** @param {string} mapp @param {string} rel @param {(t: string) => string} f */
+  const andra = (mapp, rel, f) => {
+    const fil = path.join(mapp, rel);
+    const fore = fs.readFileSync(fil, "utf8");
+    const efter = f(fore);
+    if (efter === fore) throw new Error(`test-guards: mutationen i ${rel} ändrade ingenting.`);
+    fs.writeFileSync(fil, efter);
+  };
+  kravGront("gruppmärke: ingången som den står", [markevakt, markekopia("m0")]);
+  kravRott(
+    "gruppmärke 1: en lib-fil i grafen importerar react",
+    [markevakt, markekopia("m1", (m) => andra(m, "src/lib/gruppikonsvg.js", (t) => `import "react";\n${t}`))],
+    'paketet "react"',
+  );
+  kravRott(
+    "gruppmärke 2: transitivt, lucide-react via gruppfarg.js",
+    [markevakt, markekopia("m2", (m) => andra(m, "src/lib/gruppfarg.js", (t) => `import { Music } from "lucide-react";\nexport const _m = Music;\n${t}`))],
+    'paketet "lucide-react"',
+  );
+  kravRott(
+    "gruppmärke 3: ingången återexporterar en komponent",
+    [
+      markevakt,
+      markekopia("m3", (m) => {
+        fs.mkdirSync(path.join(m, "src", "components"), { recursive: true });
+        fs.writeFileSync(path.join(m, "src", "components", "Knapp.jsx"), "export const Knapp = 1;\n");
+        andra(m, "src/gruppmarke/index.js", (t) => `${t}export { Knapp } from "../components/Knapp.jsx";\n`);
+      }),
+    ],
+    "utanför src/lib/",
+  );
+  kravRott(
+    "gruppmärke 4: en export saknas i README",
+    [markevakt, markekopia("m4", (m) => andra(m, "README.md", (t) => t.replaceAll("sparaSenasteGruppikon", "spara-senaste")))],
+    "sparaSenasteGruppikon saknas i README",
+  );
+  kravRott(
+    "gruppmärke 5: react importerat med mallsträng",
+    [markevakt, markekopia("m6", (m) => andra(m, "src/lib/gruppikonsvg.js", (t) => `${t}\nexport const ladda = () => import(\`react\`);\n`))],
+    'paketet "react"',
+  );
+  kravRott(
+    "gruppmärke 6: en dynamisk import med beräknat mål",
+    [markevakt, markekopia("m7", (m) => andra(m, "src/lib/gruppfarg.js", (t) => `${t}\nconst p = "re" + "act";\nexport const ladda = () => import(p);\n`))],
+    "inte är en bokstavlig sträng",
+  );
+  kravRott(
+    "gruppmärke 7: exporten står bara som del av ett längre ord i README",
+    [markevakt, markekopia("m8", (m) => andra(m, "README.md", (t) => t.replaceAll("narmasteKulornamn", "narmasteKulornamnet")))],
+    "narmasteKulornamn saknas i README",
+  );
+  kravRott(
+    "gruppmärke golv: ingången har nästan inga exporter",
+    [markevakt, markekopia("m5", (m) => fs.writeFileSync(path.join(m, "src", "gruppmarke", "index.js"), 'export { initials } from "../lib/identity.js";\n'))],
+    "filer i grafen",
+  );
 }
 
 fs.rmSync(arbetsmapp, { recursive: true, force: true });
