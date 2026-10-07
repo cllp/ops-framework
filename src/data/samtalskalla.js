@@ -38,11 +38,14 @@ import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, byggFastning, byggMed
  *   samtal). ⛔ INGET FÖRVAL. Samma som till `samtalsregelfragment({ citat: true })`.
  * @param {string} [konfig.fasta] (chattens nattskiva) Samlingsnamnet för fästa meddelanden, `<samtal>/{sid}/<fasta>/{mid}`. ⛔ INGET
  *   FÖRVAL. Samma namn som till `samtalsregelfragment({ fasta })`.
+ * @param {boolean} [konfig.bilagor] (0.77.0, #292) `true` slår på fältet `bilaga` på meddelandena, i kommentarernas form. ⛔ INGET
+ *   FÖRVAL: utan det kastar `skicka` på en `bilaga`, och pluset i skrivfältet ritas inte av källan. Samma som till
+ *   `samtalsregelfragment({ bilagor: true })`. Filen ligger i meddelandets dokument. Ramverket känner ingen sökväg.
  * @param {number} [konfig.sida] Hur många av de senaste meddelandena som läses per samtal. Förval 50.
  * @param {() => number} [konfig.klocka] Förval `Date.now`. Prov byter den.
  */
 export function createSamtalskalla(konfig) {
-  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
+  const { kalla, samtal = "samtal", meddelanden = "meddelanden", last = "last", tradar, status, reaktioner, omnamnanden, citat, fasta, bilagor, sida = 50, klocka = Date.now } = konfig ?? /** @type {any} */ ({});
   if (!kalla || typeof kalla.list !== "function") {
     throw new Error("createSamtalskalla: kalla krävs, en datakälla (createFirestoreSource, createMemorySource).");
   }
@@ -57,16 +60,25 @@ export function createSamtalskalla(konfig) {
   undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta }, "createSamtalskalla");
   if (omnamnanden !== undefined && typeof omnamnanden !== "boolean") throw new Error("createSamtalskalla: omnamnanden är true eller utelämnat.");
   if (citat !== undefined && typeof citat !== "boolean") throw new Error("createSamtalskalla: citat är true eller utelämnat.");
+  if (bilagor !== undefined && bilagor !== true) throw new Error("createSamtalskalla: bilagor är true eller utelämnat.");
 
   /**
    * Meddelandet som skrivs. ⛔ `namner` utan `omnamnanden` kastar: regeln hade nekat skrivningen, och ett fel här säger varför.
-   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d @param {string} vem
+   * Samma sak för `bilaga` utan `bilagor`.
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("../lib/file.js").Bilaga | null }} d @param {string} vem
    */
-  const nyttMeddelande = ({ text, av, namner, svarPa }, vem) => {
+  const nyttMeddelande = ({ text, av, namner, svarPa, bilaga }, vem) => {
     if (namner && namner.length && omnamnanden !== true) throw new Error(`${vem}: namner kräver omnamnanden: true, med samma val i samtalsregelfragment.`);
     if (svarPa && citat !== true) throw new Error(`${vem}: svarPa kräver citat: true, med samma val i samtalsregelfragment.`);
-    return byggMeddelande({ text, av, tid: klocka(), namner, svarPa });
+    if (bilaga && bilagor !== true) throw new Error(`${vem}: bilaga kräver bilagor: true, med samma val i samtalsregelfragment.`);
+    return byggMeddelande({ text, av, tid: klocka(), namner, svarPa, bilaga });
   };
+
+  /**
+   * Det som skrivs. Arrayer och bilagan kopieras, så att den frusna modellen inte är det dokument källan lagrar.
+   * @param {import("../lib/samtal.js").Meddelande} m
+   */
+  const meddelandeAttLagra = (m) => ({ ...m, ...(m.namner ? { namner: [...m.namner] } : {}), ...(m.bilaga ? { bilaga: { ...m.bilaga } } : {}) });
 
   /** @param {string} sid */
   const meddelandevag = (sid) => `${samtal}/${sid}/${meddelanden}`;
@@ -210,11 +222,11 @@ export function createSamtalskalla(konfig) {
 
   /**
    * @param {string} sid
-   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("../lib/file.js").Bilaga | null }} d
    */
-  async function skicka(sid, { text, av, namner, svarPa }) {
-    const m = nyttMeddelande({ text, av, namner, svarPa }, "samtalskalla.skicka");
-    return kalla.create(meddelandevag(sid), { ...m, ...(m.namner ? { namner: [...m.namner] } : {}) });
+  async function skicka(sid, { text, av, namner, svarPa, bilaga }) {
+    const m = nyttMeddelande({ text, av, namner, svarPa, bilaga }, "samtalskalla.skicka");
+    return kalla.create(meddelandevag(sid), meddelandeAttLagra(m));
   }
 
   /**
@@ -381,13 +393,13 @@ export function createSamtalskalla(konfig) {
   /**
    * Skickar i tråden ur `tid`, och öppnar tråden först om den inte finns.
    * @param {string} sid @param {string} tid
-   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null }} d
+   * @param {{ text: string, av: string, namner?: ReadonlyArray<string> | null, bilaga?: import("../lib/file.js").Bilaga | null }} d
    */
-  async function skickaITrad(sid, tid, { text, av, namner }) {
-    // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig.
-    const m = nyttMeddelande({ text, av, namner }, "samtalskalla.skickaITrad");
+  async function skickaITrad(sid, tid, { text, av, namner, bilaga }) {
+    // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig. En bilaga utan text är ett svar.
+    const m = nyttMeddelande({ text, av, namner, bilaga }, "samtalskalla.skickaITrad");
     await oppnaTrad({ sid, rot: tid, uid: av });
-    return kalla.create(tradmeddelandevag(sid, tid), { ...m, ...(m.namner ? { namner: [...m.namner] } : {}) });
+    return kalla.create(tradmeddelandevag(sid, tid), meddelandeAttLagra(m));
   }
 
   /**
@@ -566,6 +578,7 @@ export function createSamtalskalla(konfig) {
     ...fastfunktioner,
     ...(omnamnanden === true ? { omnamnanden: true } : {}),
     ...(citat === true ? { citat: true } : {}),
+    ...(bilagor === true ? { bilagor: true } : {}),
   });
 }
 
@@ -652,6 +665,14 @@ export function harCitat(kalla) {
  */
 export function harOmnamnanden(kalla) {
   return Boolean(kalla) && /** @type {any} */ (kalla).omnamnanden === true;
+}
+
+/**
+ * Har källan bilagor på meddelanden, alltså har appen slagit på dem med `bilagor: true`? (0.77.0, #292)
+ * @param {unknown} kalla
+ */
+export function harBilagor(kalla) {
+  return Boolean(kalla) && /** @type {any} */ (kalla).bilagor === true;
 }
 
 /**

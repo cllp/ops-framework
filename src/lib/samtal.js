@@ -10,8 +10,10 @@
  *
  *   - Ett SAMTAL har ett `slag`: `grupp` (gruppens chatt, alla aktiva medlemmar), `personer` (privat, exakt
  *     två deltagare) eller `agent` (en person och en medlem av typen `agent`, platsen för #185).
- *   - Ett MEDDELANDE ligger i sitt samtal och bär bara `text`, `av` och `tid`. Vem som får läsa det avgörs av
- *     samtalet, aldrig av en kopia av deltagarlistan på meddelandet (arbetsreglernas punkt 2).
+ *   - Ett MEDDELANDE ligger i sitt samtal och bär `text`, `av` och `tid`. Vem som får läsa det avgörs av
+ *     samtalet, aldrig av en kopia av deltagarlistan på meddelandet (arbetsreglernas punkt 2). Med nyckeln
+ *     `bilagor` (0.77.0, #292) får det också bära en frivillig `bilaga` i kommentarernas form. Utan nyckeln
+ *     är fälten de tre, som förut.
  *   - LÄST-STATUS är en rad per person och samtal med `lastTill` (en tid). Antalet olästa räknas fram ur
  *     meddelandena, det lagras aldrig (punkt 2: en räknare och meddelandena glider isär första gången en
  *     skrivning lyckas och den andra inte).
@@ -43,6 +45,7 @@
  * Växer volymen så att det blir dyrt är rätt plats en server som skriver fältet (Admin SDK), inte klienten.
  */
 
+import { kommentarbilagaFel } from "./handelsemodell.js";
 import { markdownSomText } from "./markdown.js";
 
 /** Samtalens slag. */
@@ -181,6 +184,8 @@ export function byggSamtal(d) {
  * @property {number} tid Millisekunder sedan 1970.
  * @property {ReadonlyArray<string>} [namner] (chattens nattskiva) Vilka som nämns: uid:n, eller `["alla"]`.
  * @property {string} [svarPa] (chattens nattskiva) Meddelandet som besvaras med citat, i samma samtal.
+ * @property {import("./file.js").Bilaga} [bilaga] (0.77.0, #292) En bild eller en fil, i kommentarernas form. Bara när
+ *   källan och regeln har `bilagor: true`.
  */
 
 /**
@@ -192,19 +197,28 @@ export function byggSamtal(d) {
  * `svarPa` (chattens nattskiva, citat): id:t på meddelandet som besvaras, i samma samtal. Citatet härleds vid ritning, se
  * filhuvudet för citaten längre ned.
  *
- * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null, svarPa?: string | null }} d
+ * `bilaga` (0.77.0, #292): samma form som en kommentars bilaga, prövad med `kommentarbilagaFel` (ett ställe, inte två).
+ * Med en bilaga får texten vara tom: en skärmbild är ett meddelande. Utan bilaga kastar en tom text som förut, och ett
+ * meddelande utan bilaga bär inte fältet.
+ *
+ * @param {{ text: string, av: string, tid?: number, namner?: ReadonlyArray<string> | null, svarPa?: string | null, bilaga?: import("./file.js").Bilaga | null }} d
  * @returns {Meddelande}
  */
 export function byggMeddelande(d) {
+  const bilaga = d?.bilaga === undefined || d?.bilaga === null ? null : d.bilaga;
   const text = rensa(d?.text);
-  if (!text) throw new Error("byggMeddelande: texten är tom. Ett tomt meddelande är en avisering om ingenting.");
+  if (!text && !bilaga) throw new Error("byggMeddelande: texten är tom. Ett tomt meddelande är en avisering om ingenting.");
   if (text.length > MAX_MEDDELANDE) throw new Error(`byggMeddelande: texten är ${text.length} tecken, taket är ${MAX_MEDDELANDE}.`);
+  if (bilaga) {
+    const fel = kommentarbilagaFel(bilaga);
+    if (fel) throw new Error(`byggMeddelande: ${fel}`);
+  }
   const av = kravUid(d.av, "byggMeddelande");
   const tid = d.tid ?? Date.now();
   if (!Number.isInteger(tid)) throw new Error("byggMeddelande: tid är millisekunder, ett heltal.");
   const namner = kravNamner(d.namner, "byggMeddelande");
   const svarPa = d.svarPa === undefined || d.svarPa === null ? null : kravMid(d.svarPa, "byggMeddelande");
-  return Object.freeze({ text, av, tid, ...(namner ? { namner } : {}), ...(svarPa ? { svarPa } : {}) });
+  return Object.freeze({ text, av, tid, ...(namner ? { namner } : {}), ...(svarPa ? { svarPa } : {}), ...(bilaga ? { bilaga: { ...bilaga } } : {}) });
 }
 
 /**

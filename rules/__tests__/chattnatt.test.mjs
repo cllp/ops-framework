@@ -60,8 +60,8 @@ export const MUTATIONER = {
   "namner-alla-med-andra": ["\n        && (!('alla' in d.namner) || d.namner.size() == 1)", ""],
   // ⛔ Samtalets meddelanden har också svarPa när citat är påslaget, och trådens har 12 blanksteg. Texten stod förut utan svarPa,
   // fanns då inte i provreglerna, och körningen dog i stället för att bli röd (granskningen av PR 286, MÅSTE 3).
-  "namner-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\", \"svarPa\"])\n          && opsGiltigaNamner(request.resource.data)", "size() > 0\n          && opsGiltigaNamner(request.resource.data)"],
-  "tradmeddelande-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\"])\n            && opsGiltigaNamner(request.resource.data)", "size() > 0\n            && opsGiltigaNamner(request.resource.data)"],
+  "namner-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\", \"svarPa\", \"bilaga\"])\n          && opsGiltigaNamner(request.resource.data)", "size() > 0\n          && opsGiltigaNamner(request.resource.data)"],
+  "tradmeddelande-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\", \"bilaga\"])\n            && opsGiltigaNamner(request.resource.data)", "size() > 0\n            && opsGiltigaNamner(request.resource.data)"],
   "svarpa-i-gruppchatten": ["        && get(opsSamtalet(sid)).data.slag != 'grupp'\n", ""],
   "svarpa-utan-meddelande": ["\n        && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(d.svarPa)));", ");"],
   "svarpa-fri-form": ["      return !('svarPa' in d) || (d.svarPa is string", "      return true || (d.svarPa is string"],
