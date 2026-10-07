@@ -18,10 +18,11 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tokenfil = path.join(rot, "tokens", "tokens.css");
@@ -1741,13 +1742,30 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   kravRott("utvecklarord golv: ett golv som inte är ett tal", [ordvakt, "--golv=abc"], "inte ett heltal");
 
   // ⛔ GOLV PER MÖNSTER. Varje mönster stängs av i en kopia av vakten (det matchar aldrig), och ramverkets körning ska då bli
-  // röd på just det mönstret. Kopian ligger i scripts/ så att dess import och rot är desamma, och tas bort efteråt.
+  // röd på just det mönstret.
+  //
+  // ⛔ KOPIAN LIGGER I EN TEMPORÄR KATALOG, INTE I scripts/ (0.71.1, granskningen av PR 278). I scripts/ stod den kvar om körningen
+  // avbröts mellan skrivningen och `finally`, och då låg en vakt med ett avstängt mönster bredvid den riktiga. Kopian får i stället
+  // sin import och sin rot omskrivna till absoluta sökvägar, och varje omskrivning kontrolleras, så att en ändrad rad i vakten ger
+  // ett fel här och inte en kopia som tyst läser fel katalog.
   const ordkalla = fs.readFileSync(path.join(rot, ordvakt), "utf8");
-  const ordkopia = path.join(rot, "scripts", "_prov-utvecklarord-avstangt.mjs");
+  const kopiemapp = fs.mkdtempSync(path.join(os.tmpdir(), "ops-utvecklarord-"));
+  const ordkopia = path.join(kopiemapp, "_prov-utvecklarord-avstangt.mjs");
+  /** @param {string} kalla @param {string | RegExp} fran @param {string} till */
+  const skrivOm = (kalla, fran, till) => {
+    const ut = kalla.replace(fran, till);
+    if (ut === kalla) throw new Error(`test-guards: ${String(fran)} hittades inte i ${ordvakt}, så kopian kan inte flyttas ut ur scripts/`);
+    return ut;
+  };
+  let flyttbar = skrivOm(ordkalla, `from "./lib/kallkod.mjs"`, `from ${JSON.stringify(pathToFileURL(path.join(rot, "scripts", "lib", "kallkod.mjs")).href)}`);
+  flyttbar = skrivOm(flyttbar, /^const rot = .*$/m, `const rot = ${JSON.stringify(rot)};`);
   try {
+    // Kopian utan avstängt mönster är grön: annars hade de röda utfallen nedan kunnat bero på flytten och inte på mönstret.
+    fs.writeFileSync(ordkopia, flyttbar);
+    kravGront("utvecklarord: kopian i en temporär katalog är grön med alla mönster", [ordkopia]);
     for (const namn of ["attribut", "ordbok", "ternar", "barn", "jsxtext"]) {
-      const avstangd = ordkalla.replace(new RegExp(`(namn: "${namn}",[\\s\\S]*?\\n    re: )[^\\n]*`), "$1/(?!)/g,");
-      if (avstangd === ordkalla) throw new Error(`test-guards: mönstret ${namn} hittades inte i ${ordvakt}`);
+      const avstangd = flyttbar.replace(new RegExp(`(namn: "${namn}",[\\s\\S]*?\\n    re: )[^\\n]*`), "$1/(?!)/g,");
+      if (avstangd === flyttbar) throw new Error(`test-guards: mönstret ${namn} hittades inte i ${ordvakt}`);
       fs.writeFileSync(ordkopia, avstangd);
       kravRott(`utvecklarord golv: mönstret "${namn}" avstängt`, [ordkopia], `Mönstret "${namn}"`);
       if (namn === "barn") {
@@ -1757,7 +1775,7 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
       }
     }
   } finally {
-    fs.rmSync(ordkopia, { force: true });
+    fs.rmSync(kopiemapp, { recursive: true, force: true });
   }
 }
 

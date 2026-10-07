@@ -141,8 +141,8 @@ export function OpsKatalogInstallning({
   const rubrikId = useId();
   // ⛔ I EN INSTÄLLNINGSPANEL (0.69.0, #274) blir rubriken en nivå under panelens, och samma som panelens ritas den inte alls (`delrubrik`).
   const delen = delrubrik(rubrik, rubrikId, useInstallningspanel());
-  // Delarnas rubriker (Arkiverade, Senaste ändringarna) ligger en nivå under katalogens: h4 när katalogen själv är h3.
-  const Under = delen.niva === 3 ? "h4" : "h3";
+  // Delarnas rubriker (Arkiverade, Senaste ändringarna) ligger en nivå under närmaste synliga rubrik: katalogens, eller panelens
+  // när katalogens inte ritas. ⛔ Regeln är `delrubrik`s (`underniva`), inte katalogens egen (0.71.1, granskningen av PR 278).
   const [redigerar, setRedigerar] = useState(/** @type {string | null} */ (null));
   const [utkast, setUtkast] = useState(TOMT);
   const [fel, setFel] = useState(/** @type {string | null} */ (null));
@@ -310,7 +310,7 @@ export function OpsKatalogInstallning({
     <section aria-labelledby={delen.etikettId} className="flex flex-col gap-3">
       {/* ⛔ RUBRIKEN SYNS (0.44.0, bolag-ops#507). CP: "Bra om ... det är en rubrik på varje sektion." Före 0.44.0 bar `rubrik` bara
           listans namn för skärmläsaren, så fyra kataloger på samma sida stod efter varandra utan att säga vad de var, medan kortet
-          från modulerna (`OpsModulTyper`) hade en. Nivå 2 under sidans rubrik; "Arkiverade" och "Senaste ändringarna" är nivå 3. */}
+          från modulerna (`OpsModulTyper`) hade en. Nivå 2 under sidans rubrik; "Arkiverade" och "Senaste ändringarna" en nivå under den (`underniva`). */}
       <Delrubrik niva={delen.niva} id={rubrikId}>{rubrik}</Delrubrik>
       {!kanAndra ? (
         <OpsBanner tone="info" title="Du kan läsa katalogen, inte ändra den">
@@ -322,7 +322,7 @@ export function OpsKatalogInstallning({
 
       {arkiverade.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <Under className="m-0 text-sektion uppercase text-accent">Arkiverade</Under>
+          <Delrubrik niva={delen.underniva}>Arkiverade</Delrubrik>
           <OpsList divided ariaLabel="Arkiverade kategorier">{arkiverade.map(rad)}</OpsList>
         </div>
       ) : null}
@@ -332,7 +332,7 @@ export function OpsKatalogInstallning({
           varför en kategori ser annorlunda ut än i går. */}
       {logg.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <Under className="m-0 text-sektion uppercase text-accent">Senaste ändringarna</Under>
+          <Delrubrik niva={delen.underniva}>Senaste ändringarna</Delrubrik>
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
             {logg.slice(0, 5).map((rad) => (
               <li key={`${rad.id}-${rad.nar}`} className="flex flex-wrap items-baseline gap-x-2 text-hjalp text-ink-muted">
@@ -404,7 +404,7 @@ export function OpsKatalogInstallning({
               {/* ⛔ Rubriken säger vad de ÄR och inte bara att de finns. Utan
                   den meningen ser arton fält ut som administration, och då
                   fylls de i med ett ord var. */}
-              <Under className="m-0 text-sektion uppercase text-accent">Texter, alltså det som gör formuläret begripligt</Under>
+              <Delrubrik niva={delen.underniva}>Texter, alltså det som gör formuläret begripligt</Delrubrik>
               {textraderna(textnycklar, utkast.texter).map((t) => (
                 <div key={t.nyckel} className="flex flex-col gap-2">
                   <OpsField label={`${text(t.etikett, sprak) || t.nyckel}, svenska`} hint={t.hjalp} required>
@@ -427,7 +427,7 @@ export function OpsKatalogInstallning({
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <Under className="m-0 text-sektion uppercase text-accent">Så här kommer den att se ut</Under>
+            <Delrubrik niva={delen.underniva}>Så här kommer den att se ut</Delrubrik>
             <div className="flex items-center gap-3">
               {farger ? (
                 <span
