@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.78.2
+
+Gruppen är kalendern (lane 6 steg F). 0.78.1 är reserverad av #302 och är inte mergad. Den här är nästa lediga patch efter main, som står på 0.78.0.
+
+### Ändrat
+
+- Kalendermenyn i `OpsCalendar` och gruppsektionen i `OpsKalendrar` skriver inte längre "Gruppen har inga kalendrar ännu." En tom lista namngivna gruppkalendrar är inte att gruppen saknar kalender. "Du har inga egna kalendrar ännu." står kvar, för egna kalendrar finns inte av sig själva.
+
+### Prov
+
+- `src/__tests__/kalendrar.test.jsx` ("gruppen är kalendern") och `src/__tests__/kalenderhantering.test.jsx` ("tomt är ett svar för egna kalendrar"). Utan ändringen: 2 röda, exit 1. Med ändringen: 2 gröna, exit 0.
+
 ## 0.78.0
 
 Uppgift som inkorgstyp (lifehub.app#103, lane 19), ramverkets del. 0.77.0 är utkastet för chattbilagor (#297) och 0.76.3 är utkastet för mejlköns `updateIf` (#298). Ingen av dem är mergad. Den här är nästa lediga minor efter main, som står på 0.76.2.
