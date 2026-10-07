@@ -116,6 +116,24 @@ describe("ett svar från starta hör till sitt försök (#281)", () => {
     expect(onTalk).not.toHaveBeenCalled();
   });
 
+  it("⛔ starta och avbryt medan mikrofonen öppnas, utan en ny start: strömmen stängs när den öppnas, också efter 121 s", async () => {
+    vi.useFakeTimers();
+    const w = webblasare();
+    const onTalk = vi.fn();
+    const { result, unmount } = renderHook(() => useTalk({ onTalk, onKlick: () => {}, inspelare: webblasarensInspelare(w.miljo) }));
+    act(() => result.current.direkt());
+    act(() => result.current.avbryt());
+    await w.svara();
+    expect(w.oppna()).toBe(0);
+    await act(async () => {
+      vi.advanceTimersByTime((MAX_SEKUNDER + 1) * 1000);
+    });
+    expect(w.oppna()).toBe(0);
+    expect(onTalk).not.toHaveBeenCalled();
+    expect(result.current.lage).toBe("vila");
+    unmount();
+  });
+
   it("⛔ S5 (#281): starta, avbryt medan mikrofonen öppnas, starta igen, avbryt: ingen ström står kvar", async () => {
     const w = webblasare();
     const { result } = renderHook(() => useTalk({ onTalk: vi.fn(), onKlick: () => {}, inspelare: webblasarensInspelare(w.miljo) }));
