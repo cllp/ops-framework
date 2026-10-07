@@ -15,6 +15,7 @@ import { OpsIconLink } from "./OpsIconLink.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { useTalk } from "./OpsTalk.jsx";
+import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
 import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagIkon, MappIkon, StoppIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
@@ -125,7 +126,7 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagI
  * @property {string} [reaktionFel] Förval "Reaktionen kunde inte sparas.".
  * @property {string} [reaktionerFel] Förval "Reaktionerna kunde inte hämtas.".
  * @property {string} [reaktionerFler] När läsningen nådde sitt tak. Förval "Äldre reaktioner visas inte.".
- * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren.
+ * @property {Partial<Record<(typeof REAKTIONSKODER)[number], string>>} [reaktionsnamn] Reaktionernas namn för skärmläsaren. Förval: svenska, eller engelska när `sprak` är "en" (`reaktionsvy.js`).
  * @property {string} [allaNamn] (chattens nattskiva) Förslaget som nämner hela gruppen. Förval "alla".
  * @property {string} [namnForslag] @-listans namn för skärmläsaren. Förval "Nämn någon".
  * @property {string} [citera] (chattens nattskiva) Förval "Svara med citat".
@@ -322,7 +323,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
-  const t = { ...TEXTER, ...texter };
+  const t = { ...TEXTER, ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid });
   const [egetVal, setEgetVal] = useState(/** @type {string | null} */ (null));
@@ -2197,16 +2198,6 @@ function VisaAldre({ historik, texter: t }) {
   );
 }
 
-/** Reaktionernas tecken och namn. ⛔ Bara här: datan bär koden (`REAKTIONSKODER`), vyn tecknet. */
-const REAKTIONSVY = /** @type {Record<(typeof REAKTIONSKODER)[number], [string, string]>} */ ({
-  tumme: ["👍", "Tummen upp"],
-  hjarta: ["❤️", "Hjärta"],
-  skratt: ["😂", "Skratt"],
-  eld: ["🔥", "Eld"],
-  klapp: ["👏", "Applåd"],
-  bock: ["✅", "Klart"],
-});
-
 /**
  * Reaktionerna i ett samtal eller en tråd: en lyssnare (eller en läsning), räknade per meddelande, och växlingen av den egna.
  *
@@ -2289,7 +2280,21 @@ function Reaktionslage({ reakt, texter: t }) {
 }
 
 /** @param {(typeof REAKTIONSKODER)[number]} kod @param {Required<Meddelandetexter>} t */
-const reaktionsnamn = (kod, t) => t.reaktionsnamn?.[kod] ?? REAKTIONSVY[kod][1];
+const reaktionsnamn = (kod, t) => t.reaktionsnamn?.[kod] ?? REAKTIONSVY[kod].namn.sv;
+
+/**
+ * En reaktions ikon. ⛔ Ovald: linje i textfärgen. Vald (den egna): accentfärgen, samma token som chatten och resten av ramverkets
+ * valda lägen. Ingen hårdkodad färg.
+ * @param {{ kod: (typeof REAKTIONSKODER)[number], vald: boolean, size: number }} props
+ */
+function Reaktionsikon({ kod, vald, size }) {
+  const { Ikon } = REAKTIONSVY[kod];
+  return (
+    <span aria-hidden="true" data-reaktionsikon={kod} className={cx("inline-flex", vald ? "text-accent" : "text-ink")}>
+      <Ikon size={size} />
+    </span>
+  );
+}
 
 /**
  * Reaktionerna under en bubbla: en knapp per kod med antalet. ⛔ En tryckning växlar den EGNA reaktionen, och knappen säger om den
@@ -2319,7 +2324,7 @@ function Reaktionschips({ m, egen, reakt, texter: t }) {
               r.egen ? "border-accent bg-accent-faint text-ink" : "border-line bg-surface text-ink-secondary group-hover/chip:bg-hover",
             )}
           >
-            <span>{REAKTIONSVY[r.kod][0]}</span>
+            <Reaktionsikon kod={r.kod} vald={r.egen} size={16} />
             <span>{r.antal}</span>
           </span>
         </button>
@@ -2342,6 +2347,7 @@ function ReageraKnapp({ m, egen, reakt, texter: t }) {
   const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const panel = useRef(/** @type {HTMLDivElement | null} */ (null));
   const panelId = useId();
+  const egna = new Set((reakt.sammanfattning.get(m.id) ?? []).filter((r) => r.egen).map((r) => r.kod));
   useEffect(() => {
     if (oppen) /** @type {HTMLElement | null} */ (panel.current?.querySelector("button") ?? null)?.focus();
   }, [oppen]);
@@ -2396,21 +2402,28 @@ function ReageraKnapp({ m, egen, reakt, texter: t }) {
             egen ? "right-0" : "left-0",
           )}
         >
-          {REAKTIONSKODER.map((kod) => (
-            <button
-              key={kod}
-              type="button"
-              data-valj-reaktion={kod}
-              aria-label={reaktionsnamn(kod, t)}
-              onClick={() => {
-                reakt.vaxla(m.id, kod);
-                stang();
-              }}
-              className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-brod transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-            >
-              <span aria-hidden="true">{REAKTIONSVY[kod][0]}</span>
-            </button>
-          ))}
+          {REAKTIONSKODER.map((kod) => {
+            const min = egna.has(kod);
+            return (
+              <button
+                key={kod}
+                type="button"
+                data-valj-reaktion={kod}
+                aria-label={reaktionsnamn(kod, t)}
+                aria-pressed={min}
+                onClick={() => {
+                  reakt.vaxla(m.id, kod);
+                  stang();
+                }}
+                className={cx(
+                  "inline-flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors duration-(--duration-fast) ease-standard hover:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+                  min && "bg-accent-faint",
+                )}
+              >
+                <Reaktionsikon kod={kod} vald={min} size={20} />
+              </button>
+            );
+          })}
         </div>
       ) : null}
     </>

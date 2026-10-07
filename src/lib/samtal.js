@@ -576,7 +576,8 @@ export function agentstatus(dok, nu) {
  *
  * ⛔ MEDDELANDET ÄNDRAS INTE. Reaktionen bor bredvid det, så `allow update: if false` står kvar på meddelandet.
  *
- * ⛔ SEX FASTA KODER, INGEN EMOJI I DATAN. Vyn mappar koden till en emoji. Byts tecknet en dag ändras en tabell i vyn, inte datan.
+ * ⛔ SEX FASTA KODER, INGEN EMOJI I DATAN. Vyn mappar koden till en Lucide-ikon (`src/components/reaktionsvy.js`, 0.75.0). Byts
+ * ikonen ändras en tabell i vyn, inte datan.
  *
  * ⛔ RADERA BARA SIN EGEN, ALDRIG UPPDATERA. Ramverkets andra raderingsväg efter kalenderposterna, med samma skäl: en reaktion har
  * ingen annan ägare, och ingen annan ska kunna fråga "varför försvann den".

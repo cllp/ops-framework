@@ -41,6 +41,7 @@
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
+ *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
 
@@ -217,8 +218,11 @@ function avsluta() {
 //       högra del ljudvågen med 44 px träffyta. Ett tryck spelar in: raden "Spelar in" syns, stopp och ljudvåg är 44 px och ligger
 //       i fältet; ett andra tryck skriver ut, och texten står i fältet, oskickad. Plus ritas inte förrän bilagemodulen finns.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
+// `--chattbredder 390,1024`: andra bredder för 29g (0.75.0, lane 7 bad om 390 och 1024 px). Förval 390 och 1280.
+const chattbredderI = argv.indexOf("--chattbredder");
+const chattbredder = chattbredderI >= 0 ? argv[chattbredderI + 1].split(",").map((b) => ({ width: Number(b), height: Number(b) <= 480 ? 844 : 900 })) : [{ width: 390, height: 844 }, { width: 1280, height: 900 }];
 async function chattensNattskiva() {
-  for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  for (const vp of chattbredder) {
     const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     // ── (1) markdown och agentens status ──────────────────────────────────────────────────────────────────────────────
     {
@@ -267,8 +271,10 @@ async function chattensNattskiva() {
         await page.waitForTimeout(200);
         const chips = await page.evaluate(() => [...document.querySelectorAll("[data-ops-samtal] [data-reaktion]")].map((c) => {
           const r = c.getBoundingClientRect();
-          return { namn: c.getAttribute("aria-label"), w: r.width, h: r.height, tryckt: c.getAttribute("aria-pressed") };
+          return { namn: c.getAttribute("aria-label"), w: r.width, h: r.height, tryckt: c.getAttribute("aria-pressed"), lucide: c.querySelectorAll("svg.lucide").length, emoji: /\p{Extended_Pictographic}/u.test(c.textContent || "") };
         }));
+        // ⛔ 0.75.0: Lucide och inte enhetens emoji. Varje chip bär exakt en Lucide-svg och inget tecken ur emojiblocket.
+        krav(chips.length > 0 && chips.every((c) => c.lucide === 1 && !c.emoji), `${namn}: ett chip saknar Lucide-ikonen eller bär en emoji (${JSON.stringify(chips)}).`);
         matt.push(`${namn}: chips ${JSON.stringify(chips)}`);
         krav(chips.length >= 3, `${namn}: ${chips.length} chips, väntat minst 3. Golv.`);
         krav(chips.every((c) => c.w >= 43.5 && c.h >= 43.5), `${namn}: ett chip har mindre än 44 px träffyta (${JSON.stringify(chips)}).`);
@@ -285,9 +291,11 @@ async function chattensNattskiva() {
         const val = await page.evaluate(() => {
           const v = /** @type {HTMLElement} */ (document.querySelector("[data-reaktionsvaljare]"));
           const kn = [...v.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
-          return { antal: kn.length, minst: Math.min(...kn.map((r) => Math.min(r.width, r.height))), inom: kn.every((r) => r.left >= 0 && r.right <= window.innerWidth && r.top >= 0), fokus: document.activeElement?.getAttribute("data-valj-reaktion") ?? null };
+          const ikoner = [...v.querySelectorAll("button")].filter((b) => b.querySelectorAll("svg.lucide").length === 1).length;
+          return { antal: kn.length, ikoner, emoji: /\p{Extended_Pictographic}/u.test(v.textContent || ""), minst: Math.min(...kn.map((r) => Math.min(r.width, r.height))), inom: kn.every((r) => r.left >= 0 && r.right <= window.innerWidth && r.top >= 0), fokus: document.activeElement?.getAttribute("data-valj-reaktion") ?? null };
         });
         matt.push(`${namn}: väljaren ${JSON.stringify(val)}`);
+        krav(val.ikoner === 6 && !val.emoji, `${namn}: väljaren ska rita sex Lucide-ikoner och ingen emoji (${JSON.stringify(val)}).`);
         krav(val.antal === 6 && val.minst >= 43.5 && val.inom, `${namn}: väljaren ska ha sex knappar om 44 px inom fönstret (${JSON.stringify(val)}).`);
         krav(val.fokus === "tumme", `${namn}: fokus ska stå på första reaktionen när väljaren öppnats (${val.fokus}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-3-reaktioner-valjare-${vp.width}.png`) });
