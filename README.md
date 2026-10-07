@@ -1908,8 +1908,10 @@ antalet per meddelande, inget lagras. Källan: `lasReaktioner`, `prenumereraReak
 tråden.
 
 **Omnämnanden, @alla och @agent, med nyckeln `omnamnanden: true`.** Meddelandet får fältet `namner` (`NAMNERFALT`): uid:n, eller
-`["alla"]` (`NAMNER_ALLA`) ensamt, högst `MAX_NAMNER` (20), prövat av `kravNamner` i `byggMeddelande`. Regeln prövar formen (lista,
-1 till 20, inga dubbletter, "alla" ensamt), i samtalet och i trådar; den kan inte loopa och prövar alltså inte medlemskapet. **Den som
+`["alla"]` (`NAMNER_ALLA`) ensamt, högst `MAX_NAMNER` (20) med högst `MAX_UIDLANGD` (128) tecken per uid, prövat av `kravNamner` i `byggMeddelande`. Regeln prövar formen (en lista med
+1 till 20 strängar, högst 20 gånger 128 tecken med kommatecken, inga dubbletter, "alla" ensamt), i samtalet och i trådar, och i alla
+samtalens slag: ett omnämnande i ett privat samtal når ingen fler än samtalet redan har, men appens agent ska läsa `agentenNamnd`
+bara för samtal den själv svarar i; den kan inte loopa och prövar alltså inte medlemskapet. **Den som
 läser omnämnandet auktoriserar:** `namnda(meddelande, medlemmar)` ger bara aktiva medlemmar, och "alla" expanderas VID LÄSNING till
 gruppens aktiva personer utom avsändaren (inte agenten). `arNamnd(meddelande, uid, medlemmar)` och `agentenNamnd(meddelande, agentUid,
 medlemmar)` (också i `ops-framework/node`, med `namnda`, `arNamnd`, `NAMNER_ALLA` och `MAX_NAMNER`) är det appens agent läser

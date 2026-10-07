@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -820,10 +820,15 @@ export function samtalsregelfragment(namn = {}) {
 `
     : "";
   const namnerfunktion = omnamnanden
-    ? `    // Omnämnanden (chattens nattskiva): saknas, eller 1 till ${MAX_NAMNER} olika poster, och "${NAMNER_ALLA}" bara ensamt.
+    ? `    // Omnämnanden (chattens nattskiva): saknas, eller 1 till ${MAX_NAMNER} olika strängar, och "${NAMNER_ALLA}" bara ensamt.
+    // Regeln kan inte loopa: listan blir en sträng och tillbaka. join gör ett tal till text och vägrar ett objekt, så bara en
+    // lista av strängar utan komma kommer tillbaka lika. Längden är taket för ${MAX_NAMNER} uid om ${MAX_UIDLANGD} tecken med kommatecken.
     function opsGiltigaNamner(d) {
       return !('${NAMNERFALT}' in d) || (d.${NAMNERFALT} is list
         && d.${NAMNERFALT}.size() > 0 && d.${NAMNERFALT}.size() <= ${MAX_NAMNER}
+        && d.${NAMNERFALT}.join(',').size() <= ${MAX_NAMNER * MAX_UIDLANGD + MAX_NAMNER - 1}
+        && d.${NAMNERFALT}.join(',').split(',') == d.${NAMNERFALT}
+        && !('' in d.${NAMNERFALT})
         && d.${NAMNERFALT}.toSet().size() == d.${NAMNERFALT}.size()
         && (!('${NAMNER_ALLA}' in d.${NAMNERFALT}) || d.${NAMNERFALT}.size() == 1));
     }

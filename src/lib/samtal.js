@@ -701,6 +701,13 @@ export const NAMNER_ALLA = "alla";
 export const MAX_NAMNER = 20;
 
 /**
+ * Högst så många tecken i ett uid i `namner`. 128 är Firebase Auths gräns för ett uid. ⛔ Regeln prövar listan som en sträng
+ * (`join` och `split` tillbaka, vilket bara ger samma lista för strängar utan komma), och med taket `MAX_NAMNER * MAX_UIDLANGD` plus kommatecknen, härlett härifrån. Utan
+ * det släppte regeln in `[{a:1}, 7]` och 200 000 tecken (granskningen av PR 286).
+ */
+export const MAX_UIDLANGD = 128;
+
+/**
  * Prövar ett `namner`, eller kastar med skälet. `null` när inget nämns (utelämnat eller tomt).
  * @param {unknown} namner @param {string} vem
  * @returns {ReadonlyArray<string> | null}
@@ -710,6 +717,10 @@ export function kravNamner(namner, vem = "kravNamner") {
   if (!Array.isArray(namner)) throw new Error(`${vem}: namner är en lista med uid:n, eller ["${NAMNER_ALLA}"].`);
   if (namner.length === 0) return null;
   const lista = namner.map((u) => kravUid(u, vem));
+  const lang = lista.find((u) => u.length > MAX_UIDLANGD);
+  if (lang) throw new Error(`${vem}: ett uid i namner har ${lang.length} tecken, taket är ${MAX_UIDLANGD}.`);
+  // ⛔ Regeln prövar listan genom att foga ihop den med komma och dela den igen, så ett komma i ett uid hade nekats där.
+  if (lista.some((u) => u.includes(","))) throw new Error(`${vem}: ett uid i namner innehåller ett komma.`);
   if (new Set(lista).size !== lista.length) throw new Error(`${vem}: samma person nämns två gånger.`);
   if (lista.length > MAX_NAMNER) throw new Error(`${vem}: ${lista.length} omnämnanden, taket är ${MAX_NAMNER}.`);
   if (lista.includes(NAMNER_ALLA) && lista.length > 1) throw new Error(`${vem}: "${NAMNER_ALLA}" står ensamt. Hela gruppen är redan alla.`);

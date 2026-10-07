@@ -46,17 +46,29 @@ export const MUTATIONER = {
   "reaktion-radera-andras": ["allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;", "allow delete: if opsISamtal(sid);"],
   "reaktion-uppdaterbar": ["        allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;\n        allow update: if false;", "        allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;\n        allow update: if opsISamtal(sid);"],
   "tradreaktion-utan-meddelande": ["&& exists(/databases/$(database)/documents/samtal/$(sid)/tradar/$(tid)/meddelanden/$(request.resource.data.mid));", ";"],
+  "tradreaktion-utan-giltig": ["allow create: if opsPersonIGruppchatten(sid)\n            && opsGiltigReaktion(rid, request.resource.data)\n", "allow create: if opsPersonIGruppchatten(sid)\n"],
+  "tradreaktion-som-agent": ["match /reaktioner/{rid} {\n          allow read: if opsIGruppchatten(sid);\n          allow create: if opsPersonIGruppchatten(sid)", "match /reaktioner/{rid} {\n          allow read: if opsIGruppchatten(sid);\n          allow create: if opsIGruppchatten(sid)"],
+  "reaktion-utan-nu": ["\n        && rid == d.mid + '|' + d.av + '|' + d.kod\n        && opsNu(d.tid);", "\n        && rid == d.mid + '|' + d.av + '|' + d.kod;"],
+  "reaktion-radera-utan-samtal": ["allow delete: if opsISamtal(sid) && resource.data.av == request.auth.uid;", "allow delete: if request.auth != null && resource.data.av == request.auth.uid;"],
   "tradreaktion-radera-andras": ["allow delete: if opsIGruppchatten(sid) && resource.data.av == request.auth.uid;", "allow delete: if opsIGruppchatten(sid);"],
-  "namner-fri-form": ["      return !('namner' in d) || (d.namner is list\n        && d.namner.size() > 0 && d.namner.size() <= 20\n        && d.namner.toSet().size() == d.namner.size()\n        && (!('alla' in d.namner) || d.namner.size() == 1));", "      return true;"],
+  "namner-fri-form": ["      return !('namner' in d) || (d.namner is list\n        && d.namner.size() > 0 && d.namner.size() <= 20\n        && d.namner.join(',').size() <= 2579\n        && d.namner.join(',').split(',') == d.namner\n        && !('' in d.namner)\n        && d.namner.toSet().size() == d.namner.size()\n        && (!('alla' in d.namner) || d.namner.size() == 1));", "      return true;"],
   "namner-utan-tak": ["d.namner.size() <= 20", "true"],
+  "namner-utan-langd": ["\n        && d.namner.join(',').size() <= 2579", ""],
+  "namner-utan-strangar": ["\n        && d.namner.join(',').split(',') == d.namner", ""],
+  "namner-tom-strang": ["\n        && !('' in d.namner)", ""],
   "namner-dubbletter": ["\n        && d.namner.toSet().size() == d.namner.size()", ""],
   "namner-alla-med-andra": ["\n        && (!('alla' in d.namner) || d.namner.size() == 1)", ""],
-  "namner-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\"])\n          && opsGiltigaNamner(request.resource.data)", "size() > 0\n          && opsGiltigaNamner(request.resource.data)"],
+  // ⛔ Samtalets meddelanden har också svarPa när citat är påslaget, och trådens har 12 blanksteg. Texten stod förut utan svarPa,
+  // fanns då inte i provreglerna, och körningen dog i stället för att bli röd (granskningen av PR 286, MÅSTE 3).
+  "namner-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\", \"svarPa\"])\n          && opsGiltigaNamner(request.resource.data)", "size() > 0\n          && opsGiltigaNamner(request.resource.data)"],
+  "tradmeddelande-fria-falt": ["hasOnly([\"text\", \"av\", \"tid\", \"namner\"])\n            && opsGiltigaNamner(request.resource.data)", "size() > 0\n            && opsGiltigaNamner(request.resource.data)"],
   "svarpa-i-gruppchatten": ["        && get(opsSamtalet(sid)).data.slag != 'grupp'\n", ""],
   "svarpa-utan-meddelande": ["\n        && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(d.svarPa)));", ");"],
   "svarpa-fri-form": ["      return !('svarPa' in d) || (d.svarPa is string", "      return true || (d.svarPa is string"],
   "fast-las-alla": ["match /fasta/{mid} {\n        allow read: if opsISamtal(sid);", "match /fasta/{mid} {\n        allow read: if request.auth != null;"],
   "fast-som-annan": ["          && request.resource.data.av == request.auth.uid\n          && opsNu(request.resource.data.tid)\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));", "          && opsNu(request.resource.data.tid)\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));"],
+  "fast-som-agent": ["        allow create: if opsISamtal(sid)\n          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')\n          && request.resource.data.keys().hasOnly([\"av\", \"tid\"])", "        allow create: if opsISamtal(sid)\n          && request.resource.data.keys().hasOnly([\"av\", \"tid\"])"],
+  "fast-utan-nu": ["\n          && opsNu(request.resource.data.tid)\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));", "\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));"],
   "fast-utan-meddelande": ["\n          && exists(/databases/$(database)/documents/samtal/$(sid)/meddelanden/$(mid));", ";"],
   "fast-fria-falt": ["          && request.resource.data.keys().hasOnly([\"av\", \"tid\"])\n", ""],
   "fast-lossa-alla": ["        allow delete: if opsISamtal(sid)\n          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person');\n        allow update: if false;\n      }", "        allow delete: if request.auth != null;\n        allow update: if false;\n      }"],
@@ -135,6 +147,9 @@ before(async () => {
     // Reaktioner, skrivna förbi reglerna: Bos på M1, och Bos i tråden.
     await setDoc(doc(db, `samtal/${grupp}/reaktioner/${M1}|${BO}|tumme`), { mid: M1, av: BO, kod: "tumme", tid: nu() });
     await setDoc(doc(db, `samtal/${grupp}/tradar/${T}/reaktioner/${TM}|${BO}|eld`), { mid: TM, av: BO, kod: "eld", tid: nu() });
+    // Davids reaktioner från när han var medlem: han är borttagen nu.
+    await setDoc(doc(db, `samtal/${grupp}/reaktioner/${M1}|${DAVID}|bock`), { mid: M1, av: DAVID, kod: "bock", tid: nu() });
+    await setDoc(doc(db, `samtal/${grupp}/tradar/${T}/reaktioner/${TM}|${DAVID}|bock`), { mid: TM, av: DAVID, kod: "bock", tid: nu() });
   });
 });
 
@@ -145,6 +160,17 @@ after(async () => {
 /** @param {string} uid */
 const som = (uid) => miljo.authenticatedContext(uid).firestore();
 const utan = () => miljo.unauthenticatedContext().firestore();
+
+describe("⛔ mutationstabellen: varje skydd går att plocka bort", () => {
+  // Granskningen av PR 286, MÅSTE 3: en mutation vars text inte fanns i provreglerna fick körningen att dö, och det räknades som
+  // rött. Här prövas tabellen i varje vanlig körning, så att en mutation som slutat passa är ett rött prov och inte en tyst lucka.
+  it("varje mutation hittar sin text exakt en gång i provreglerna, och tabellen har minst 38 rader", () => {
+    const text = fs.readFileSync(path.join(rot, "rules", "provregler.rules"), "utf8");
+    const fel = Object.entries(MUTATIONER).filter(([, [fran]]) => text.split(fran).length !== 2).map(([n]) => n);
+    if (fel.length) throw new Error(`mutationer som inte hittar sin text exakt en gång: ${fel.join(", ")}`);
+    if (Object.keys(MUTATIONER).length < 38) throw new Error(`bara ${Object.keys(MUTATIONER).length} mutationer`);
+  });
+});
 
 describe("⛔ agentens status (#273): medlemmar läser, ingen klient skriver", () => {
   it("en medlem läser gruppchattens och trådens status, en deltagare det privata samtalets", async () => {
@@ -197,6 +223,16 @@ describe("⛔ reaktioner: en per person, meddelande och kod, bara sin egen", () 
     await assertFails(setDoc(doc(som(ANNA), rvag(grupp, "finns-inte", ANNA, "eld")), reaktion("finns-inte", ANNA, "eld")));
     await assertFails(setDoc(doc(som(ANNA), rvag(grupp, P1, ANNA, "eld")), reaktion(P1, ANNA, "eld")));
   });
+  it("⛔ tiden är nu: inte för gammal, inte i framtiden, och ett tal", async () => {
+    const gammal = nu() - 10 * 60 * 1000;
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "skratt")), reaktion(M1, ANNA, "skratt", { tid: gammal })));
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "skratt")), reaktion(M1, ANNA, "skratt", { tid: nu() + 10 * 60 * 1000 })));
+    await assertFails(setDoc(doc(som(ANNA), rvag(grupp, M1, ANNA, "skratt")), reaktion(M1, ANNA, "skratt", { tid: String(nu()) })));
+  });
+  it("⛔ den som lämnat gruppen tar inte bort sin gamla reaktion, varken i samtalet eller i tråden", async () => {
+    await assertFails(deleteDoc(doc(som(DAVID), rvag(grupp, M1, DAVID, "bock"))));
+    await assertFails(deleteDoc(doc(som(DAVID), `samtal/${grupp}/tradar/${T}/reaktioner/${TM}|${DAVID}|bock`)));
+  });
   it("⛔ ingen tar bort någon annans reaktion, och ingen reaktion uppdateras", async () => {
     await assertFails(deleteDoc(doc(som(ANNA), rvag(grupp, M1, BO, "tumme"))));
     await assertFails(updateDoc(doc(som(BO), rvag(grupp, M1, BO, "tumme")), { tid: nu() }));
@@ -207,6 +243,18 @@ describe("⛔ reaktioner: en per person, meddelande och kod, bara sin egen", () 
     await assertFails(setDoc(doc(som(ANNA), tv(M1, ANNA, "klapp")), reaktion(M1, ANNA, "klapp")));
     await assertFails(deleteDoc(doc(som(ANNA), tv(TM, BO, "eld"))));
     await assertFails(getDocs(collection(som(FRAMLING), `samtal/${grupp}/tradar/${T}/reaktioner`)));
+  });
+  it("⛔ i tråden: inte som någon annan, bara de sex koderna, nyckeln ur fälten, inga andra fält och tiden nu", async () => {
+    const tv = (/** @type {string} */ mid, /** @type {string} */ av, /** @type {string} */ kod) => `samtal/${grupp}/tradar/${T}/reaktioner/${mid}|${av}|${kod}`;
+    await assertFails(setDoc(doc(som(ANNA), tv(TM, BO, "hjarta")), reaktion(TM, BO, "hjarta")));
+    await assertFails(setDoc(doc(som(ANNA), tv(TM, ANNA, "👍")), reaktion(TM, ANNA, "👍")));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/reaktioner/egen-nyckel`), reaktion(TM, ANNA, "hjarta")));
+    await assertFails(setDoc(doc(som(ANNA), tv(TM, ANNA, "hjarta")), reaktion(TM, ANNA, "hjarta", { emoji: "❤️" })));
+    await assertFails(setDoc(doc(som(ANNA), tv(TM, ANNA, "hjarta")), reaktion(TM, ANNA, "hjarta", { tid: nu() - 10 * 60 * 1000 })));
+  });
+  it("⛔ i tråden: ingen klient som agenten", async () => {
+    const tv = (/** @type {string} */ mid, /** @type {string} */ av, /** @type {string} */ kod) => `samtal/${grupp}/tradar/${T}/reaktioner/${mid}|${av}|${kod}`;
+    await assertFails(setDoc(doc(som(AGENT), tv(TM, AGENT, "tumme")), reaktion(TM, AGENT, "tumme")));
   });
 });
 
@@ -227,8 +275,19 @@ describe("⛔ omnämnanden: formen prövas i regeln, i samtalet och i tråden", 
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x5`), mmsg(ANNA, { namner: BO })));
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/x6`), mmsg(ANNA, { namner: ["alla", BO] })));
   });
-  it("⛔ inga andra nya fält på meddelandet", async () => {
+  it("⛔ bara strängar, och inte längre än 20 uid om 128 tecken: varken i samtalet eller i tråden", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x8`), mmsg(ANNA, { namner: [{ a: 1 }, 7] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x9`), mmsg(ANNA, { namner: ["x".repeat(200000)] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/x10`), mmsg(ANNA, { namner: [7] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/x11`), mmsg(ANNA, { namner: ["x".repeat(3000)] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x13`), mmsg(ANNA, { namner: [BO, true] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x14`), mmsg(ANNA, { namner: [""] })));
+    // Golvet: 20 uid om 128 tecken går in.
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/n5`), mmsg(ANNA, { namner: Array.from({ length: 20 }, (_, i) => String(i).padStart(128, "u")) })));
+  });
+  it("⛔ inga andra nya fält på meddelandet, i samtalet och i tråden", async () => {
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/x7`), mmsg(ANNA, { mentions: [BO] })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/tradar/${T}/meddelanden/x12`), mmsg(ANNA, { mentions: [BO] })));
   });
 });
 
@@ -267,5 +326,10 @@ describe("⛔ fästa: samtalets personer fäster och lossar, ingen annan", () =>
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/finns-inte`), { av: ANNA, tid: nu() }));
     await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/${M1}`), { av: ANNA, tid: nu(), text: "kopia" }));
     await assertFails(updateDoc(doc(som(BO), `samtal/${grupp}/fasta/${T}`), { tid: nu() }));
+  });
+  it("⛔ ingen klient som agenten fäster, och tiden är nu", async () => {
+    await assertFails(setDoc(doc(som(AGENT), `samtal/${grupp}/fasta/${M1}`), { av: AGENT, tid: nu() }));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/${M1}`), { av: ANNA, tid: nu() - 10 * 60 * 1000 }));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/fasta/${M1}`), { av: ANNA, tid: String(nu()) }));
   });
 });

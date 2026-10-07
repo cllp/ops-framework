@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { OpsMeddelanden } from "../components/OpsMeddelanden.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla, harOmnamnanden, samtalsnotiser } from "../data/samtalskalla.js";
-import { MAX_NAMNER, agentenNamnd, arNamnd, byggMeddelande, kravNamner, namnda } from "../lib/samtal.js";
+import { MAX_NAMNER, MAX_UIDLANGD, agentenNamnd, arNamnd, byggMeddelande, kravNamner, namnda } from "../lib/samtal.js";
 import { samtalsregelfragment } from "../lib/regler.js";
 import * as nod from "../node/index.js";
 
@@ -32,6 +32,16 @@ describe("modellen", () => {
     expect(() => kravNamner(["alla", "bo"])).toThrow(/ensamt/);
     expect(() => kravNamner(Array.from({ length: MAX_NAMNER + 1 }, (_, i) => `u${i}`))).toThrow(/taket/);
     expect(() => kravNamner("bo")).toThrow(/lista/);
+  });
+  it("⛔ ett uid i namner har högst 128 tecken och inget komma, samma gräns som regeln (granskningen av PR 286)", () => {
+    expect(kravNamner(["u".repeat(MAX_UIDLANGD)])).toEqual(["u".repeat(MAX_UIDLANGD)]);
+    expect(() => kravNamner(["u".repeat(MAX_UIDLANGD + 1)])).toThrow(/taket är 128/);
+    expect(() => kravNamner(["a,b"])).toThrow(/komma/);
+    expect(samtalsregelfragment({ omnamnanden: true })).toContain(`size() <= ${MAX_NAMNER * MAX_UIDLANGD + MAX_NAMNER - 1}`);
+  });
+  it("⛔ den som skrev är aldrig nämnd av sitt eget meddelande, inte ens med sitt eget uid i listan", () => {
+    expect(arNamnd({ av: "anna", namner: ["anna", "bo"] }, "anna", MEDLEMMAR)).toBe(false);
+    expect(arNamnd({ av: "anna", namner: ["anna", "bo"] }, "bo", MEDLEMMAR)).toBe(true);
   });
   it("⛔ läsaren auktoriserar: bara aktiva medlemmar, och alla blir gruppens aktiva personer utom avsändaren", () => {
     expect(namnda({ av: "anna", namner: ["bo", "david", "påhittad", "ops"] }, MEDLEMMAR)).toEqual(["bo", "ops"]);
