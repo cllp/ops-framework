@@ -2034,12 +2034,16 @@ function Agentrad({ lage, texter: t }) {
   const [nu, setNu] = useState(() => Date.now());
   const visning = agentstatus(dok, nu);
   // Räkna om när statusen passerar sitt tak, också om inget nytt kommer.
+  // ⛔ `nu` ÄR ETT BEROENDE (0.73.1). En timer kan vakna en millisekund före klockan: Node och webbläsaren mäter timern mot en
+  // monoton klocka, medan `Date.now()` är väggklockan. Vaknade den för tidigt var statusen fortfarande färsk, beroendena oförändrade,
+  // och ingen ny timer sattes. "Agenten tänker" stod då kvar för alltid, alltså precis den tysta nedsläppsväg raden finns för att
+  // stänga. Med `nu` i listan sätts en ny timer på den tid som återstår, tills gränsen faktiskt är passerad.
   useEffect(() => {
     if (!visning || "fel" in visning) return undefined;
     const kvar = visning.sedan + AGENTSTATUS_MAX_ALDER - Date.now() + 1;
     const h = setTimeout(() => setNu(Date.now()), Math.max(0, kvar));
     return () => clearTimeout(h);
-  }, [visning && "sedan" in visning ? visning.sedan : null, visning && "lage" in visning ? visning.lage : null]);
+  }, [visning && "sedan" in visning ? visning.sedan : null, visning && "lage" in visning ? visning.lage : null, nu]);
   useEffect(() => {
     setNu(Date.now());
   }, [dok]);

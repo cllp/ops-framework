@@ -11,7 +11,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.73.1
 
-Två små rättelser ur granskningarna av PR 275 och PR 285. Inga regeländringar, inget att deploya före klienten.
+Två små rättelser ur granskningarna av PR 275 och PR 285, och en tredje som hittades när CI föll på den här grenen. Inga regeländringar, inget att deploya före klienten.
+
+### Agentens status kunde stå kvar som "tänker" för alltid
+
+Händelsen: CI föll på den här grenen i `chatt-status.test.jsx` ("en status som blir gammal medan samtalet är öppet"), fast grenen inte rör chatten. Mätt 2026-10-07: samma prov föll i 6 av 30 körningar på orörd main, alltid på samma rad.
+
+Rotorsaken är vyns och inte provets. `Agentrad` sätter en timer till exakt den tidpunkt då statusen blir gammal, och gränsen är strikt (`nu - sedan > AGENTSTATUS_MAX_ALDER`). En timer kan vakna en millisekund före väggklockan, eftersom timern mäts mot en monoton klocka och `Date.now()` är väggklockan. Då var statusen fortfarande färsk, effektens beroenden oförändrade, och ingen ny timer sattes. "Agenten tänker" stod kvar tills något annat hände i samtalet, alltså den tysta nedsläppsväg raden finns för att stänga.
+
+#### Ändrat
+
+- `OpsMeddelanden`, `Agentrad`: `nu` är ett beroende i timerns effekt, så en timer som vaknade för tidigt sätts om på den tid som återstår.
+
+#### Prov
+
+- `src/__tests__/chatt-status.test.jsx`, "en timer som vaknar före väggklockan sätts om": när raden "tänker" syns släpar väggklockan 200 ms efter timerns, vilket gör den för tidiga väckningen deterministisk. Utan rättningen: rött. Med: 15 av 15 gröna.
+- Det instabila provet: 6 av 30 röda på main före, 0 av 30 med rättningen.
 
 ### Modulnamnet i `OpsModulKataloger` följer rubrikniva (#287)
 
