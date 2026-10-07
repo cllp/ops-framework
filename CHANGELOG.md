@@ -30,7 +30,7 @@ Följd-PR till PR 294 (0.76.0, mejlkön). PR 294 mergades innan granskningen var
 
 - Utan anspråket (dokumentet läses och skickas utan `updateIf`): 5 röda av 27. Samma id två gånger i följd gav 2 utskick, tre samtidiga anrop gav 3, dokument på `skickad`, `fel`, `hoppad` och `skickas` skickades, `skickas` och `paborjad` fanns inte under transporten, och raden stod inte kvar på `skickas` när kvittot inte gick att skriva.
 - Med en läs-sedan-skriv-kontroll i stället för `updateIf`: 2 röda av 27, bland dem de samtidiga anropen (fler än ett utskick).
-- Med en statisk `import "nodemailer"` tillbaka i `src/node/mejl.js`: 2 röda av 2 för nodemailerproven (en resolve-krok i en barnprocess såg 101 nodemailer-moduler redan vid `import("src/node/index.js")`).
+- Med en statisk `import "nodemailer"` tillbaka i `src/node/mejl.js`: 2 röda av 2 för nodemailerproven (en resolve-krok i en barnprocess såg 101 nodemailer-moduler redan vid `import("src/node/index.js")`). Kroken registreras med `module.register` via `node --import` och skriver varje url till en temporär fil, så proven går på Node 20.6 och nyare; de synkrona `registerHooks` finns först i Node 22.15, och CI kör Node 20. Rött och grönt är sett på både Node 20.20.2 och 22.22.2.
 - Med rättningen: 27 av 27 gröna. Barnprocessen ser 0 nodemailer-moduler efter importen och efter `createNodemailerTransport`, och minst 1 efter första `send` (golv: kroken måste se nodemailer, och minst 20 moduler). Utan nodemailer (kroken nekar paketet) blir dokumentet `fel` med installationsbeskedet.
 
 ## 0.76.1

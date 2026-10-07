@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { createMemorySource } from "../data/adapters.js";
 import { mejlregelfragment } from "../lib/mejl.js";
@@ -381,6 +383,60 @@ describe("kövalidering och språk", () => {
   });
 });
 
+/**
+ * Ett barnprocess-skript med en resolve-krok, via `module.register` och `node --import`, så att
+ * det går på Node 20.6 och nyare (de synkrona `registerHooks` finns först i 22.15). Kroken körs i
+ * en egen tråd och skriver varje upplöst url till en fil som skriptet och provet läser.
+ * Med `neka` kastar kroken ERR_MODULE_NOT_FOUND för "nodemailer", som när appen inte installerat det.
+ *
+ * @param {{ neka: boolean }} val
+ */
+function barnMedKrok({ neka }) {
+  const dir = mkdtempSync(path.join(tmpdir(), "mejlkrok-"));
+  const logg = path.join(dir, "sedda.txt");
+  writeFileSync(logg, "");
+  const krok = path.join(dir, "krok.mjs");
+  writeFileSync(
+    krok,
+    `import { appendFileSync } from "node:fs";
+let logg = "";
+let neka = false;
+export async function initialize(data) { logg = data.logg; neka = data.neka; }
+export async function resolve(spec, ctx, next) {
+  if (neka && spec === "nodemailer") {
+    const e = new Error("Cannot find package 'nodemailer'");
+    e.code = "ERR_MODULE_NOT_FOUND";
+    throw e;
+  }
+  const r = await next(spec, ctx);
+  appendFileSync(logg, r.url + "\\n");
+  return r;
+}
+`,
+  );
+  const reg = path.join(dir, "registrera.mjs");
+  writeFileSync(
+    reg,
+    `import { register } from "node:module";
+register(${JSON.stringify(pathToFileURL(krok).href)}, { data: { logg: ${JSON.stringify(logg)}, neka: ${neka} } });
+`,
+  );
+  return {
+    logg,
+    /** @param {string} skript */
+    kor(skript) {
+      const ut = execFileSync(process.execPath, ["--import", pathToFileURL(reg).href, "--input-type=module", "-e", skript], {
+        encoding: "utf8",
+        timeout: 30000,
+      });
+      return JSON.parse(ut.trim().split("\n").pop() ?? "{}");
+    },
+    stada() {
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
 describe("nodemailer-adaptern", () => {
   it("tar konfigurationen appen skickar in och läser inte hemligheterna", async () => {
     const tidigareUser = process.env.MAIL_USER;
@@ -444,48 +500,53 @@ describe("nodemailer-adaptern", () => {
   it("ops-framework/node laddar inte nodemailer förrän ett utskick (granskningen av PR 294, B2)", () => {
     // Ett barn med en resolve-krok som skriver ner varje modul som laddas. Golvet: kroken
     // måste se nodemailer när send körs, annars mäter den ingenting.
-    const skript = `
-      import { registerHooks } from "node:module";
-      const sedda = [];
-      registerHooks({ resolve(spec, ctx, next) { const r = next(spec, ctx); sedda.push(r.url); return r; } });
-      const nod = await import(${JSON.stringify(path.join(process.cwd(), "src/node/index.js"))});
-      const fore = sedda.filter((u) => u.includes("/nodemailer/")).length;
-      const antal = sedda.length;
-      const t = nod.createNodemailerTransport({ host: "127.0.0.1", port: 9, secure: false, auth: { user: "u", pass: "p" }, from: "a@unik-doman.test" });
-      const efterSkapa = sedda.filter((u) => u.includes("/nodemailer/")).length;
-      await t.send({ till: "b@unik-doman.test", amne: "x", text: "x", html: "" }).catch(() => {});
-      const efter = sedda.filter((u) => u.includes("/nodemailer/")).length;
-      console.log(JSON.stringify({ fore, antal, efterSkapa, efter }));
-    `;
-    const ut = execFileSync(process.execPath, ["--input-type=module", "-e", skript], { encoding: "utf8", timeout: 30000 });
-    const m = JSON.parse(ut.trim().split("\n").pop() ?? "{}");
-    expect(m.antal).toBeGreaterThanOrEqual(20);
-    expect(m.fore).toBe(0);
-    expect(m.efterSkapa).toBe(0);
-    expect(m.efter).toBeGreaterThanOrEqual(1);
+    const barn = barnMedKrok({ neka: false });
+    try {
+      const skript = `
+        import { readFileSync } from "node:fs";
+        const sedda = () => readFileSync(${JSON.stringify(barn.logg)}, "utf8").split("\\n").filter(Boolean);
+        const mailer = () => sedda().filter((u) => u.includes("/nodemailer/")).length;
+        const nod = await import(${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/node/index.js")).href)});
+        const fore = mailer();
+        const antal = sedda().length;
+        const t = nod.createNodemailerTransport({ host: "127.0.0.1", port: 9, secure: false, auth: { user: "u", pass: "p" }, from: "a@unik-doman.test" });
+        const efterSkapa = mailer();
+        await t.send({ till: "b@unik-doman.test", amne: "x", text: "x", html: "" }).catch(() => {});
+        const efter = mailer();
+        console.log(JSON.stringify({ fore, antal, efterSkapa, efter }));
+      `;
+      const m = barn.kor(skript);
+      expect(m.antal).toBeGreaterThanOrEqual(20);
+      expect(m.fore).toBe(0);
+      expect(m.efterSkapa).toBe(0);
+      expect(m.efter).toBeGreaterThanOrEqual(1);
+    } finally {
+      barn.stada();
+    }
   });
 
   it("utan nodemailer i appen säger första utskicket det, och kön får fel på dokumentet", () => {
-    const skript = `
-      import { registerHooks } from "node:module";
-      registerHooks({ resolve(spec, ctx, next) {
-        if (spec === "nodemailer") { const e = new Error("Cannot find package 'nodemailer'"); e.code = "ERR_MODULE_NOT_FOUND"; throw e; }
-        return next(spec, ctx);
-      } });
-      const nod = await import(${JSON.stringify(path.join(process.cwd(), "src/node/index.js"))});
-      const { createMemorySource } = await import(${JSON.stringify(path.join(process.cwd(), "src/data/adapters.js"))});
-      const kalla = createMemorySource({ ko: [] });
-      const ko = nod.createMailQueue({ kalla, samling: "ko" });
-      const transport = nod.createNodemailerTransport({ host: "127.0.0.1", port: 9, secure: false, auth: { user: "u", pass: "p" }, from: "a@unik-doman.test" });
-      const utskick = nod.createMailSender({ kalla, samling: "ko", transport });
-      const koad = await ko.koa({ till: "b@unik-doman.test", amne: "x", text: "x", sprak: "sv", kategori: "prov" });
-      const sparad = await utskick.skicka(koad.id);
-      console.log(JSON.stringify({ status: sparad.status, fel: sparad.fel }));
-    `;
-    const ut = execFileSync(process.execPath, ["--input-type=module", "-e", skript], { encoding: "utf8", timeout: 30000 });
-    const m = JSON.parse(ut.trim().split("\n").pop() ?? "{}");
-    expect(m.status).toBe("fel");
-    expect(m.fel).toMatch(/Installera nodemailer i appen för att skicka mejl/);
+    const barn = barnMedKrok({ neka: true });
+    try {
+      const skript = `
+        const nod = await import(${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/node/index.js")).href)});
+        const { createMemorySource } = await import(${JSON.stringify(pathToFileURL(path.join(process.cwd(), "src/data/adapters.js")).href)});
+        const kalla = createMemorySource({ ko: [] });
+        const ko = nod.createMailQueue({ kalla, samling: "ko" });
+        const transport = nod.createNodemailerTransport({ host: "127.0.0.1", port: 9, secure: false, auth: { user: "u", pass: "p" }, from: "a@unik-doman.test" });
+        const utskick = nod.createMailSender({ kalla, samling: "ko", transport });
+        const koad = await ko.koa({ till: "b@unik-doman.test", amne: "x", text: "x", sprak: "sv", kategori: "prov" });
+        const sparad = await utskick.skicka(koad.id);
+        console.log(JSON.stringify({ status: sparad.status, fel: sparad.fel }));
+      `;
+      const m = barn.kor(skript);
+      expect(m.status).toBe("fel");
+      expect(m.fel).toMatch(/Installera nodemailer i appen för att skicka mejl/);
+      // Golvet: kroken registrerades och såg modulerna, annars mäter provet ingenting.
+      expect(readFileSync(barn.logg, "utf8").split("\n").filter(Boolean).length).toBeGreaterThanOrEqual(20);
+    } finally {
+      barn.stada();
+    }
   });
 
   it("källan nämner inte MAIL_USER eller MAIL_PASS", () => {
