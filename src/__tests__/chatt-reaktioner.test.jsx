@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { OpsMeddelanden } from "../components/OpsMeddelanden.jsx";
+import { OpsMeddelanden, OpsSamtal, OpsTrad } from "../components/OpsMeddelanden.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla, harReaktioner } from "../data/samtalskalla.js";
 import { REAKTIONSFALT, REAKTIONSKODER, REAKTIONSTAK, byggReaktion, reaktionsnyckel, summeraReaktioner } from "../lib/samtal.js";
@@ -92,6 +92,8 @@ const MEDLEMMAR = [
   { userId: "anna", namn: "Anna Ek", typ: "person", status: "aktiv" },
   { userId: "bo", namn: "Bo Lind", typ: "person", status: "aktiv" },
 ];
+/** @param {string} uid */
+const NAMN_FOR = (uid) => MEDLEMMAR.find((m) => m.userId === uid)?.namn ?? uid;
 
 /** @param {{ reaktioner?: boolean }} [val] */
 async function underlag(val = { reaktioner: true }) {
@@ -246,5 +248,26 @@ describe("ikonerna", () => {
     const { s, g } = await underlag();
     render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={g.id} sprak="en" />);
     expect(await screen.findByRole("button", { name: "Thumbs up, 1" })).toBeTruthy();
+  });
+  /*
+   * ⛔ OpsSamtal och OpsTrad är egna exporter (src/index.js) och kan användas utan OpsMeddelanden runt sig. Byggde de sina texter
+   * själva utan `reaktionsnamnPa(sprak)` blev namnen svenska med sprak="en" (granskningen av PR 290). En källa: samma funktion
+   * bygger texterna i alla tre.
+   */
+  it("⛔ OpsSamtal ensam, på engelska: reaktionernas namn på engelska", async () => {
+    const { s, g } = await underlag();
+    render(<OpsSamtal kalla={s} uid="anna" samtal={g} namnFor={NAMN_FOR} medlemmar={MEDLEMMAR} sprak="en" />);
+    const chip = await screen.findByRole("button", { name: "Thumbs up, 1" });
+    expect(chip.querySelector(`svg.${VANTAD_IKON.tumme}`)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Tummen upp/ })).toBeNull();
+  });
+  it("⛔ OpsTrad ensam, på engelska: reaktionernas namn på engelska", async () => {
+    const { s, g, m1 } = await underlag();
+    const svar = await s.skickaITrad(g.id, m1.id, { text: "Svar i tråden", av: "bo" });
+    await s.reagera(g.id, { mid: svar.id, kod: "klapp", av: "bo" }, { trad: m1.id });
+    render(<OpsTrad kalla={s} uid="anna" samtal={g} tid={m1.id} namnFor={NAMN_FOR} medlemmar={MEDLEMMAR} sprak="en" />);
+    const chip = await screen.findByRole("button", { name: "Applause, 1" });
+    expect(chip.querySelector(`svg.${VANTAD_IKON.klapp}`)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Applåd/ })).toBeNull();
   });
 });

@@ -291,6 +291,18 @@ export function OpsMeddelandeLank({ href, olasta, olastaFler = false, etikett = 
 }
 
 /**
+ * Komponentens texter på ett språk: förvalen, appens egna och reaktionernas namn på `sprak`.
+ *
+ * ⛔ EN KÄLLA FÖR ALLA TRE (0.75.0, granskningen av PR 290). OpsSamtal och OpsTrad är egna exporter och används också utan
+ * OpsMeddelanden runt sig. När de byggde `t` själva utan reaktionsnamnen blev namnen svenska med sprak="en".
+ * @param {string} sprak
+ * @param {Partial<typeof TEXTER> & { reaktionsnamn?: Record<string, string> }} texter
+ */
+function texterPa(sprak, texter) {
+  return { ...TEXTER, ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
+}
+
+/**
  * @param {object} props
  * @param {ReturnType<typeof import("../data/samtalskalla.js").createSamtalskalla>} props.kalla
  * @param {string} props.uid
@@ -323,7 +335,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
-  const t = { ...TEXTER, ...texter, reaktionsnamn: { ...reaktionsnamnPa(sprak), ...texter.reaktionsnamn } };
+  const t = texterPa(sprak, texter);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const { rader, laddar, fel, olasta, olastaFler, lasOm, laggIn } = useSamtal({ kalla, groupId, uid });
   const [egetVal, setEgetVal] = useState(/** @type {string | null} */ (null));
@@ -1332,7 +1344,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
-  const t = { ...TEXTER, ...texter };
+  const t = texterPa(sprak, texter);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
@@ -1801,7 +1813,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
-  const t = { ...TEXTER, ...texter };
+  const t = texterPa(sprak, texter);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const [rot, setRot] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null | undefined} */ (undefined));
   const [trad, setTrad] = useState(/** @type {import("../lib/samtal.js").Trad | null} */ (null));
