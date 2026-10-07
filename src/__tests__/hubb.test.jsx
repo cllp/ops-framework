@@ -446,3 +446,14 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
     expect(container.querySelector("[data-moduler-tomt]")?.textContent).toBe("Det finns inga appar att installera.");
   });
 });
+
+describe("⛔ hubbPoster: ett modul-id som heter som något på Object.prototype (#283)", () => {
+  // `m.id in info` nådde prototypkedjan, så en modul med id `constructor` fick Object-konstruktorn som infolinje.
+  for (const id of ["constructor", "toString", "__proto__"]) {
+    it(`modulen "${id}" utan infolinje får ingen info`, () => {
+      const kort = /** @type {any} */ ([{ id, namn: { sv: "Modul" }, hubb: { rutt: "/m", ikon: null } }]);
+      expect(hubbPoster(kort, { info: {} })[0]).not.toHaveProperty("info");
+      expect(hubbPoster(kort, { info: { [id]: "Två nya" } })[0]).toHaveProperty("info", "Två nya");
+    });
+  }
+});
