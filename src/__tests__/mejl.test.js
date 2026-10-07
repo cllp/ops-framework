@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createMemorySource } from "../data/adapters.js";
@@ -188,7 +189,7 @@ describe("mejlkö och utskick", () => {
     expect((await kalla.read(SAMLING, koad.id))?.fel).toContain("421 tillfälligt nere");
   });
 
-  it("ett kvitto som inte går att skriva kastar, med båda felen", async () => {
+  it("ett kvitto som inte går att skriva kastar, med båda felen, och raden står kvar på skickas", async () => {
     const transport = createMockMailTransport({
       utfall() {
         throw new Error("421 tillfälligt nere");
@@ -196,12 +197,24 @@ describe("mejlkö och utskick", () => {
     });
     const { utskick, ko, kalla } = koOchUtskicket(transport);
     const koad = await ko.koa(brev());
+    const update = kalla.update;
     kalla.update = async () => {
       throw new Error("disk full");
     };
-    await expect(utskick.skicka(koad)).rejects.toThrow(/421 tillfälligt nere/);
-    await expect(utskick.skicka(koad)).rejects.toThrow(/disk full/);
-    await expect(utskick.skicka(koad)).rejects.toThrow(/skicka/);
+    /** @type {unknown} */
+    let fangat = null;
+    await utskick.skicka(koad.id).catch((e) => {
+      fangat = e;
+    });
+    expect(fangat).toBeInstanceOf(Error);
+    const text = /** @type {Error} */ (fangat).message;
+    expect(text).toMatch(/421 tillfälligt nere/);
+    expect(text).toMatch(/disk full/);
+    expect(text).toMatch(/skicka/);
+    kalla.update = update;
+    const kvar = await kalla.read(SAMLING, koad.id);
+    expect(kvar?.status).toBe("skickas");
+    expect(Number.isNaN(Date.parse(kvar?.paborjad))).toBe(false);
   });
 
   it("serverns svar kortas och loggen bär hash, inte adressen", async () => {
@@ -235,6 +248,100 @@ describe("mejlkö och utskick", () => {
     const koad = await ko.koa(brev());
     await expect(utskick.skicka(koad)).rejects.toThrow(/logg nere/);
     expect((await kalla.read(SAMLING, koad.id))?.status).toBe("skickad");
+  });
+});
+
+describe("ett utskick per mejl (granskningen av PR 294, B1)", () => {
+  it("samma id två gånger i följd ger ett utskick", async () => {
+    const transport = createMockMailTransport();
+    const { ko, utskick, kalla } = koOchUtskicket(transport);
+    const koad = await ko.koa(brev());
+    const forsta = await utskick.skicka(koad.id);
+    const andra = await utskick.skicka(koad.id);
+    const tredje = await utskick.skicka(koad);
+    expect(transport.skickade()).toHaveLength(1);
+    expect(forsta.status).toBe("skickad");
+    expect(andra).toEqual(forsta);
+    expect(tredje).toEqual(forsta);
+    expect(await kalla.read(SAMLING, koad.id)).toEqual(forsta);
+  });
+
+  it("två samtidiga anrop ger ett utskick", async () => {
+    const transport = createMockMailTransport({
+      // Transporten väntar, som en riktig SMTP. Utan anspråket hinner båda anropen fram hit.
+      utfall: () => new Promise((r) => setTimeout(() => r({}), 5)),
+    });
+    const { ko, utskick } = koOchUtskicket(transport);
+    const koad = await ko.koa(brev());
+    const svar = await Promise.all([utskick.skicka(koad.id), utskick.skicka(koad.id), utskick.skicka(koad)]);
+    expect(transport.skickade()).toHaveLength(1);
+    expect(svar.filter((s) => s.status === "skickad")).toHaveLength(1);
+    expect(svar.filter((s) => s.status === "skickas")).toHaveLength(2);
+  });
+
+  it("ett dokument som står på skickad, fel, hoppad eller skickas skickas inte", async () => {
+    const transport = createMockMailTransport();
+    const rader = ["skickad", "fel", "hoppad", "skickas"].map((status, i) => ({ id: `r${i}`, ...brev(), groupId: null, status }));
+    expect(rader).toHaveLength(4);
+    const kalla = createMemorySource({ [SAMLING]: rader });
+    const utskick = createMailSender({ kalla, samling: SAMLING, transport });
+    for (const rad of rader) {
+      const svar = await utskick.skicka(rad.id);
+      expect(svar).toEqual(rad);
+      expect(await kalla.read(SAMLING, rad.id)).toEqual(rad);
+    }
+    expect(transport.skickade()).toEqual([]);
+  });
+
+  it("innehållet läses ur källan, inte ur argumentet", async () => {
+    const transport = createMockMailTransport();
+    const { ko, utskick } = koOchUtskicket(transport);
+    const koad = await ko.koa(brev({ till: "ratt@unik-doman.test" }));
+    await utskick.skicka({ ...koad, till: "fel@unik-doman.test", amne: "Gammal bild" });
+    expect(transport.skickade()).toHaveLength(1);
+    expect(transport.skickade()[0].till).toBe("ratt@unik-doman.test");
+    expect(transport.skickade()[0].amne).toBe("Välkommen");
+  });
+
+  it("anspråket sätter skickas och paborjad innan transporten anropas", async () => {
+    /** @type {any} */
+    let underTiden = null;
+    /** @type {import("../data/contract.js").DataSource<any>} */
+    let kallan;
+    const transport = createMockMailTransport({
+      async utfall() {
+        underTiden = await kallan.read(SAMLING, id);
+        return {};
+      },
+    });
+    const { ko, utskick, kalla } = koOchUtskicket(transport);
+    kallan = kalla;
+    const id = (await ko.koa(brev())).id;
+    const sparad = await utskick.skicka(id);
+    expect(underTiden?.status).toBe("skickas");
+    expect(Number.isNaN(Date.parse(underTiden?.paborjad))).toBe(false);
+    expect(sparad.status).toBe("skickad");
+    expect(sparad.paborjad).toBe(underTiden.paborjad);
+  });
+
+  it("minneskällans updateIf skriver bara när villkoret stämmer", async () => {
+    const kalla = createMemorySource({ k: [{ id: "a", status: "koad", n: 1 }] });
+    const updateIf = /** @type {NonNullable<typeof kalla.updateIf>} */ (kalla.updateIf);
+    expect(await updateIf("k", "saknas", { status: "koad" }, { status: "x" })).toEqual({ updated: false, row: null });
+    expect(await updateIf("k", "a", { status: "annan" }, { status: "x" })).toEqual({ updated: false, row: { id: "a", status: "koad", n: 1 } });
+    expect(await updateIf("k", "a", { status: "koad" }, { status: "x" })).toEqual({ updated: true, row: { id: "a", status: "x", n: 1 } });
+    expect(await updateIf("k", "a", { status: "koad" }, { status: "y" })).toEqual({ updated: false, row: { id: "a", status: "x", n: 1 } });
+    await expect(updateIf("k", "a", {}, { status: "y" })).rejects.toThrow(/villkor/);
+  });
+
+  it("ett id som inte finns kastar, och en källa utan updateIf nekas vid uppstart", async () => {
+    const transport = createMockMailTransport();
+    const { utskick, kalla } = koOchUtskicket(transport);
+    await expect(utskick.skicka("finns-inte")).rejects.toThrow(/finns inte/);
+    await expect(utskick.skicka("")).rejects.toThrow(/id saknas/);
+    const utan = { ...kalla, updateIf: undefined };
+    expect(() => createMailSender({ kalla: utan, samling: SAMLING, transport })).toThrow(/updateIf/);
+    expect(transport.skickade()).toEqual([]);
   });
 });
 
@@ -332,6 +439,53 @@ describe("nodemailer-adaptern", () => {
       if (tidigarePass === undefined) delete process.env.MAIL_PASS;
       else process.env.MAIL_PASS = tidigarePass;
     }
+  });
+
+  it("ops-framework/node laddar inte nodemailer förrän ett utskick (granskningen av PR 294, B2)", () => {
+    // Ett barn med en resolve-krok som skriver ner varje modul som laddas. Golvet: kroken
+    // måste se nodemailer när send körs, annars mäter den ingenting.
+    const skript = `
+      import { registerHooks } from "node:module";
+      const sedda = [];
+      registerHooks({ resolve(spec, ctx, next) { const r = next(spec, ctx); sedda.push(r.url); return r; } });
+      const nod = await import(${JSON.stringify(path.join(process.cwd(), "src/node/index.js"))});
+      const fore = sedda.filter((u) => u.includes("/nodemailer/")).length;
+      const antal = sedda.length;
+      const t = nod.createNodemailerTransport({ host: "127.0.0.1", port: 9, secure: false, auth: { user: "u", pass: "p" }, from: "a@unik-doman.test" });
+      const efterSkapa = sedda.filter((u) => u.includes("/nodemailer/")).length;
+      await t.send({ till: "b@unik-doman.test", amne: "x", text: "x", html: "" }).catch(() => {});
+      const efter = sedda.filter((u) => u.includes("/nodemailer/")).length;
+      console.log(JSON.stringify({ fore, antal, efterSkapa, efter }));
+    `;
+    const ut = execFileSync(process.execPath, ["--input-type=module", "-e", skript], { encoding: "utf8", timeout: 30000 });
+    const m = JSON.parse(ut.trim().split("\n").pop() ?? "{}");
+    expect(m.antal).toBeGreaterThanOrEqual(20);
+    expect(m.fore).toBe(0);
+    expect(m.efterSkapa).toBe(0);
+    expect(m.efter).toBeGreaterThanOrEqual(1);
+  });
+
+  it("utan nodemailer i appen säger första utskicket det, och kön får fel på dokumentet", () => {
+    const skript = `
+      import { registerHooks } from "node:module";
+      registerHooks({ resolve(spec, ctx, next) {
+        if (spec === "nodemailer") { const e = new Error("Cannot find package 'nodemailer'"); e.code = "ERR_MODULE_NOT_FOUND"; throw e; }
+        return next(spec, ctx);
+      } });
+      const nod = await import(${JSON.stringify(path.join(process.cwd(), "src/node/index.js"))});
+      const { createMemorySource } = await import(${JSON.stringify(path.join(process.cwd(), "src/data/adapters.js"))});
+      const kalla = createMemorySource({ ko: [] });
+      const ko = nod.createMailQueue({ kalla, samling: "ko" });
+      const transport = nod.createNodemailerTransport({ host: "127.0.0.1", port: 9, secure: false, auth: { user: "u", pass: "p" }, from: "a@unik-doman.test" });
+      const utskick = nod.createMailSender({ kalla, samling: "ko", transport });
+      const koad = await ko.koa({ till: "b@unik-doman.test", amne: "x", text: "x", sprak: "sv", kategori: "prov" });
+      const sparad = await utskick.skicka(koad.id);
+      console.log(JSON.stringify({ status: sparad.status, fel: sparad.fel }));
+    `;
+    const ut = execFileSync(process.execPath, ["--input-type=module", "-e", skript], { encoding: "utf8", timeout: 30000 });
+    const m = JSON.parse(ut.trim().split("\n").pop() ?? "{}");
+    expect(m.status).toBe("fel");
+    expect(m.fel).toMatch(/Installera nodemailer i appen för att skicka mejl/);
   });
 
   it("källan nämner inte MAIL_USER eller MAIL_PASS", () => {

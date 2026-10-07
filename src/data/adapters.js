@@ -113,6 +113,23 @@ export function createMemorySource(seed = {}) {
     },
 
     /**
+     * Läs och skriv i ett steg (kontraktets regel 7). Kroppen väntar inte på något mellan jämförelsen och
+     * skrivningen, så två samtidiga anrop kan inte båda se villkoret stämma: det ena hinner skriva först.
+     *
+     * ⛔ JÄMFÖRELSEN ÄR LIKHET, SOM `where`. Ett villkor på ett fält som saknas stämmer inte.
+     */
+    async updateIf(collectionName, id, villkor, data) {
+      if (!villkor || typeof villkor !== "object" || Object.keys(villkor).length === 0) {
+        throw new Error("minne.updateIf: minst ett villkor krävs. Utan villkor är det en vanlig update.");
+      }
+      const rad = load(collectionName).find((r) => r.id === id);
+      if (!rad) return { updated: false, row: null };
+      const stammer = Object.entries(villkor).every(([k, v]) => /** @type {any} */ (rad)[k] === v);
+      if (!stammer) return { updated: false, row: { ...rad } };
+      return { updated: true, row: uppdatera(collectionName, id, data) };
+    },
+
+    /**
      * Allt eller inget (kontraktets regel 6). Skrivningarna görs mot minnet i tur och ordning, och kastar
      * en av dem sätts HELA lagret tillbaka till hur det var före anropet innan felet går vidare.
      *

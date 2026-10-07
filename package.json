@@ -1,6 +1,6 @@
 {
   "name": "ops-framework",
-  "version": "0.76.1",
+  "version": "0.76.2",
   "type": "module",
   "description": "Tokens, primitiver, arbetsregler och vakter. Delas av alla ops-plattformar.",
   "license": "UNLICENSED",
@@ -90,6 +90,7 @@
   "peerDependencies": {
     "@sentry/browser": ">=8",
     "lucide-react": "^0.460.0",
+    "nodemailer": ">=10",
     "playwright": ">=1.40",
     "react": ">=18",
     "react-dom": ">=18",
@@ -102,7 +103,6 @@
     "@radix-ui/react-tabs": "^1.1.21",
     "@radix-ui/react-toast": "^1.2.23",
     "@radix-ui/react-tooltip": "^1.2.16",
-    "nodemailer": "^10.0.15",
     "react-day-picker": "^10.0.1"
   },
   "devDependencies": {
@@ -119,6 +119,7 @@
     "jsdom": "^25.0.1",
     "lucide-react": "^0.460.0",
     "lucide-static": "0.460.0",
+    "nodemailer": "^10.0.15",
     "playwright": "^1.63.0",
     "postcss": "^8.5.1",
     "react": "^18.3.1",
@@ -136,6 +137,9 @@
       "optional": true
     },
     "@sentry/browser": {
+      "optional": true
+    },
+    "nodemailer": {
       "optional": true
     }
   }

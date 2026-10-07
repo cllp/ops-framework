@@ -70,6 +70,21 @@
  * ⛔ EN APPS ADMIN-ADAPTER HAR SAMMA SKYLDIGHET. Ramverket importerar aldrig Admin SDK, så adaptern
  * bor i appens functions, och med Admin SDK är `batch` en `db.batch()` med `set`/`update`/`delete`
  * och en `commit()`. Se README, avsnittet om `createGroupService`.
+ *
+ * ⛔ 7. `updateIf` ÄR FRIVILLIG, OCH DEN ÄR LÄS OCH SKRIV I ETT STEG (0.76.2, granskningen av PR 294).
+ *
+ * Mejlkön skickade samma mejl tre gånger i ett prov: `onDocumentCreated` levereras minst en gång, och
+ * utskicket läste aldrig om någon annan redan tagit dokumentet. En `read` följd av en `update` löser det
+ * inte, två körningar kan läsa `koad` samtidigt och båda skicka. Det är den läs-sedan-skriv-kontroll
+ * regel 2 i CLAUDE.md förbjuder. `updateIf(samling, id, villkor, data)` skriver `data` bara om varje
+ * likhetsvillkor i `villkor` stämmer mot posten SOM DEN ÄR NÄR SKRIVNINGEN GÖRS, och svarar
+ * `{ updated, row }`: `updated` säger om skrivningen gjordes, `row` är posten efteråt (eller som den
+ * stod, när villkoret inte stämde), `null` om den inte finns.
+ *
+ * ⛔ EN APPS ADMIN-ADAPTER HAR SAMMA SKYLDIGHET, och där är den en `db.runTransaction` som läser
+ * dokumentet med `tx.get`, jämför och skriver med `tx.update`. Se README, avsnittet om mejl. Den står
+ * inte i `OPERATIONS` av samma skäl som `batch`: en källa som inte kan göra steget atomärt ska säga
+ * nej, inte låtsas med en läsning följd av en skrivning.
   */
 
 /**
@@ -88,6 +103,8 @@
  *   raderna i stället, med ett tak. ⛔ Samma frivillighet som `batch`: en adapter som inte kan räkna utan att läsa allt ska
  *   inte låtsas att den kan.
  *   ⛔ FRIVILLIG, OCH ALLT ELLER INGET. Se regel 6 nedan.
+ * @property {(collectionName: string, id: string, villkor: Record<string, unknown>, data: Partial<T>) => Promise<{ updated: boolean, row: T | null }>} [updateIf]
+ *   (0.76.2) FRIVILLIG: skriver `data` bara om likhetsvillkoren stämmer, i samma atomära steg som läsningen. Se regel 7 nedan.
  */
 
 /**

@@ -2165,7 +2165,22 @@ Ett köat dokument har `till`, `amne`, `text`, `html`, `sprak` (`sv` eller `en`)
 väljer språket i den ordningen och faller tillbaka på `sv`. `normaliseraMejlsprak`
 godtar bara exakt `sv` eller `en`. `byggMejl` är formen kön skriver.
 
-Utskicket tar dokumentet, skickar det och skriver kvittot på samma rad:
+⛔ **Varje mejl skickas en gång (0.76.2).** `onDocumentCreated` levereras minst en
+gång, och händelsens dokument står alltid på `koad`. `skicka(id)` läser därför
+dokumentet ur källan och gör ett atomärt anspråk innan transporten anropas: från
+`koad` till `skickas`, med tidsstämpeln `paborjad`. Bara den körning som gör
+anspråket skickar. Står dokumentet på något annat än `koad` (`skickas`, `skickad`,
+`fel`, `hoppad`) skickas inget och dokumentet returneras som det står. Ett id som
+inte finns kastar. Källan måste ha `updateIf` (kontraktets regel 7); en källa utan
+nekas av `createMailSender` vid uppstart.
+
+⛔ **Dör funktionen mellan anspråket och kvittot står dokumentet kvar på
+`skickas` och skickas inte om automatiskt.** Servern kan ha tagit emot mejlet,
+och en automatisk omkörning hade då skickat det två gånger. Raden är inte tyst:
+`status: "skickas"` med en gammal `paborjad` är ett fastnat utskick som appen
+kan lista och visa. Att skicka om är ett beslut.
+
+Utskicket skriver sedan kvittot på samma rad:
 `status` (`skickad`, `fel` eller `hoppad`), `accepterade`, `avvisade`, `svar`
 (serverns rad, högst 200 tecken), `messageId`, `tid`, `skal` och `fel`. Tomma
 kvittofält är `null` eller `[]`, inte utelämnade. `skickad` betyder att servern
@@ -2184,6 +2199,31 @@ och felet når anroparen.
 `mejlregelfragment(samling)` nekar klienten både läsning och skrivning. Bara
 servern, med Admin SDK, som går förbi regeln. Fragmentet importeras från
 `ops-framework` (det är text, ingen transport) och från `ops-framework/node`.
+Statusen `skickas` ändrar inget i fragmentet: klienten får varken läsa eller
+skriva någon rad.
+
+⛔ **nodemailer är ett valfritt peer-beroende (0.76.2).** Appen som skickar mejl
+installerar det själv (`npm install nodemailer` i funktionerna).
+`createNodemailerTransport` laddar det med `await import("nodemailer")` vid första
+utskicket, inte när `ops-framework/node` importeras, så en app utan mejl laddar
+aldrig SMTP-klienten. Saknas paketet blir första utskicket `fel` på köns dokument
+med texten "Installera nodemailer i appen för att skicka mejl".
+
+Appens Admin-adapter behöver `updateIf`. Med Admin SDK är den en transaktion:
+
+```js
+async updateIf(samling, id, villkor, data) {
+  const ref = db.collection(samling).doc(id);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { updated: false, row: null };
+    const rad = { ...snap.data(), id: snap.id };
+    if (!Object.entries(villkor).every(([k, v]) => rad[k] === v)) return { updated: false, row: rad };
+    tx.update(ref, data);
+    return { updated: true, row: { ...rad, ...data } };
+  });
+},
+```
 
 ```js
 import { mejlregelfragment, regelfragment } from "ops-framework";
@@ -2219,9 +2259,9 @@ export const skickaKoatMejl = onDocumentCreated(
       from: "LifeHub <hello@life-hub.app>",
     });
     const utskick = createMailSender({ kalla, samling: "mejl", transport });
-    const data = event.data?.data();
-    if (!data) throw new Error("skickaKoatMejl: dokumentet saknar data.");
-    await utskick.skicka({ id: event.params.id, ...data });
+    // Bara id:t. Dokumentet läses ur källan och tas med ett anspråk, så en
+    // omleverans av händelsen skickar inte samma mejl igen.
+    await utskick.skicka(event.params.id);
   },
 );
 ```
