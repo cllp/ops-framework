@@ -14,7 +14,7 @@ export { OpsAppShell, useOppnaSkapa, useOppnaHandelse } from "./components/OpsAp
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
 // 0.57.0, cllp/lifehub.app#2: långtryck på plusset spelar in. Skalet kopplar in dem med `talk`, de är publika för den som bygger egen rad.
 export { OpsTalk, useTalk, TALK_PRICKAR } from "./components/OpsTalk.jsx";
-export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
+export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, MIKROFON_SPARRAD_AV_SIDAN, mikrofonenTillatenAvSidan, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsBrand } from "./components/OpsBrand.jsx";
