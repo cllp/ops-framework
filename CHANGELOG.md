@@ -9,6 +9,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.71.1
+
+Rättelser efter granskningen av PR 278 (0.69.0, #274), som mergades innan granskningens två MÅSTE-fynd var lagade.
+
+⛔ **Versionsnumret:** grenen började som 0.69.1, men PR 275 (0.70.0) och PR 280 (0.71.0) mergades medan den var öppen. Main är inmergad båda gångerna, och den här grenen är 0.71.1.
+
+#### Rättat
+
+- **Katalogens delrubriker följer `rubrikniva`.** `OpsKatalogInstallning` räknade själv ut nivån för "Arkiverade", "Senaste ändringarna" och formulärets två rubriker med `niva === 3 ? "h4" : "h3"`, vilket bara stämde vid förvalet 2. Med `rubrikniva={3}` blev "Arkiverade" h3, samma nivå som panelen den står i, och med en egen katalogrubrik på h4 låg "Arkiverade" en nivå ÖVER den. Nivån kommer nu ur `delrubrik` (`underniva`, en under närmaste synliga rubrik), samma hjälpfunktion som `OpsInstallningar` och `OpsModulTyper` använder, så regeln finns på ett ställe. En nivå djupare än 6 ritas som `h6` med `aria-level`. Prov i `installningar.test.jsx`: var och en av de fyra delrubrikerna mäts för sig i sex lägen (utan panel, och nivå 2, 3 och 5 med samma eller annan rubrik än panelen), med en arkiverad kategori, en ifylld logg och formuläret öppet. 13 röda mot 0.71.0. Med de tre delrubrikerna utom "Arkiverade" hårdkodade som `<h3>` (granskningens försök, som inget prov fällde förut) blir 12 röda. Med `underniva` 2 utan panel blir 4 röda.
+- **`rubrikniva` kontrolleras.** Ett värde som inte är ett heltal från 1 till 5 vägras med ett läsbart fel (`kontrolleraRubrikniva`). Förut gav `NaN` taggen `<hNaN>` och `9` blev tyst `h6`. Prov för `NaN`, 0, 6, 9, 2,5, `"3"` och `null`, plus 1 och 5 som gröna, och för att `rubrikniva={undefined}` ger förvalet 2.
+
+#### ⛔ Kan bryta en app som pinnar om
+
+Från 0.71.1 **vägras** `rubrikniva` med ett fel vid ritningen när värdet inte är ett heltal från 1 till 5. Förut ritades det ändå, med fel tagg. Följande vägras nu:
+
+- **6 och uppåt.** `rubrikniva={6}` gav förut `h6` för både sidan och panelen, och delarna hamnade lika högt. Skriv högst `rubrikniva={5}`. Ligger sidan så djupt att 5 inte räcker är det appskalets rubriker som behöver ses över, inte den här.
+- **Strängar, också siffror som sträng.** `rubrikniva="3"` vägras. Skriv `rubrikniva={3}`, med klamrar, så att värdet blir ett tal. Kommer nivån ur adressen eller en konfiguration: gör om den till ett tal med `Number(...)` innan den skickas in.
+- **0, negativa tal, decimaltal, `NaN` och `null`.** Utelämna propen, eller skicka `undefined`, för att få förvalet 2.
+
+#### Kvar
+
+- **`OpsModulKataloger` har samma fel**, med modulnamnet som en hårdkodad `<h3>`: https://github.com/cllp/ops-framework/issues/287. Rättas inte här.
+
+#### Ändrat
+
+- **`check-utvecklarord` säger i filhuvudet vad den INTE läser:** ternär i flera led, ternär där en gren inte är en sträng, `&&`, strängar inuti `${}`, och `text=`/`children=` som props. Varje fall är mätt mot vakten och ger noll träffar. Inga mönster tillagda: `&&` som barn förekommer inte i ramverkets src, så ett mönster hade inte kunnat få ett golv här.
+- **`test-guards` skriver kopian av vakten med ett avstängt mönster i en temporär katalog**, inte i `scripts/`, med importen och roten omskrivna till absoluta sökvägar. Ett nytt grönt fall visar att kopian utan avstängt mönster är grön, så att de fem röda inte kan bero på flytten.
+
+#### Ompinning till 0.71.1
+
+Gäller `cllp/lifehub.app`. Ompinningen mergas efter ramverket, i samma pass (regel 11).
+
+1. `package.json`: `"ops-framework": "https://github.com/cllp/ops-framework/releases/download/v0.71.1/ops-framework-0.71.1.tgz"`.
+2. Sök i appen efter `rubrikniva`. Varje värde ska vara ett heltal från 1 till 5, skrivet med klamrar (se rutan ovan). Annars kastar `OpsInstallningar` nu i stället för att rita fel nivå.
+
 ## 0.71.0
 
 ⛔ **Mergas efter 0.70.0 (PR 275), som mergas efter 0.69.0 (PR 278).** Ordningen är satt av utvecklingschefen 2026-10-06.

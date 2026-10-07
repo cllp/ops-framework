@@ -27,6 +27,23 @@
  *
  * Kommentarer räknas bort (`utanKommentarer`), så ett filhuvud som berättar om seedningen får göra det.
  *
+ * ══ ⛔ VAD VAKTEN INTE LÄSER ════════════════════════════════════════════════
+ *
+ * Mönstren är reguljära uttryck, inte en parser. Följande ritas ändå för användaren men läses INTE, och ett utvecklarord där
+ * går igenom grönt (skrivet efter granskningen av PR 278, så att ingen tror att vakten täcker mer än den gör):
+ *
+ *   - en ternär i flera led (`x ? "a" : y ? "b" : "c"`): mönstret kräver en sträng direkt i båda grenarna, så hela uttrycket
+ *     missas, också dess första gren;
+ *   - en ternär där ena grenen inte är en sträng (`x ? "a" : null`, `x ? <b>a</b> : "c"`, `x ? t("a") : "b"`): ingen av grenarna läses;
+ *   - `&&` (`{tom && "Samlingen är tom"}`), varken som barn eller i ett attribut. Mätt 0.71.1: ingen förekomst som barn i
+ *     ramverkets src, så ett mönster hade inte kunnat få ett golv här;
+ *   - strängar inuti `${}` i en mall (`${tom ? "a" : "b"}`): allt mellan `${` och `}` räknas som kod och tas bort före läsningen;
+ *   - `text=` och `children=` som props (`<OpsBanner text="..." />`, `children="..."`). `text` är bortvalt med flit, se ovan;
+ *     `children` som prop förekommer inte i ramverket;
+ *   - text som byggs någon annanstans och skickas vidare i en variabel, och text som kommer ur en ordbok utan `sv:`/`en:`.
+ *
+ * Ett nytt mönster läggs till när ett av fallen har hänt i en app, med ett prov i test-guards som är rött utan mönstret.
+ *
  * ══ ⛔ ORDEN ═══════════════════════════════════════════════════════════════
  *
  * seedad, seedade, seedning (och böjningar), samlingen, samlingens, samlingar, samlingarna, samlingarnas, standardvärden, standardvärdena, driftsättning (och
