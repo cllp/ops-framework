@@ -6,6 +6,7 @@ import { defineModule } from "../lib/modul.js";
 import { OpsModulHandelser } from "../components/OpsModulHandelser.jsx";
 import { OpsModulHjalp } from "../components/OpsModulHjalp.jsx";
 import { OpsModulKataloger, anvandsIModuler } from "../components/OpsModulKataloger.jsx";
+import { OpsInstallningar } from "../components/OpsInstallningar.jsx";
 
 /**
  * Fas 3: källkontraktet och registret (#129).
@@ -305,4 +306,43 @@ describe("anvandsIModuler: en ren funktion, provad utan att montera något (#164
   it("en modul utan resolverbart namn faller tillbaka på sitt id, inte på tomhet", () => {
     expect(anvandsIModuler(rader, "sorter", () => null, "sv")).toEqual(["ekonomi"]);
   });
+});
+
+/*
+ * ⛔ MODULNAMNET FÖLJER RUBRIKNIVA (0.73.1, #287). Det var en fast `<h3>`: i en panel med `rubrikniva={3}` på samma nivå som panelens
+ * rubrik, och katalogen under modulnamnet hamnade på samma nivå som modulnamnet. Mätt utan panel och vid nivå 2, 3 och 5, och när
+ * modulen heter som panelen (då ritas namnet inte en gång till och katalogen ligger direkt under panelen).
+ */
+describe("OpsModulKataloger: modulnamnet och katalogen följer rubrikniva (#287)", () => {
+  const katalog = { id: "sorter", namn: { sv: "Modulens sorter" }, kategorier: [{ id: "uppgift", namn: { sv: "Uppgift" }, ikon: "gem", farg: 1, fas: "aktiv" }] };
+  const niva = (/** @type {HTMLElement} */ el) => Number(el.getAttribute("aria-level") || el.tagName.slice(1));
+  /** @param {number | null} panelniva @param {string} panelrubrik */
+  const rita = (panelniva, panelrubrik = "Kataloger") => {
+    const vy = <OpsModulKataloger register={skapaKallregister([modul({ kataloger: async () => [katalog] })])} fraga={GRUPP} ikoner={["gem"]} onSpara={() => {}} onArkivera={() => {}} />;
+    render(panelniva === null ? vy : <OpsInstallningar rubrikniva={panelniva} sektioner={[{ id: "k", rubrik: panelrubrik, innehall: vy }]} vald="k" onValj={() => {}} />);
+  };
+  // [läge, rubrikniva (null utan panel), panelens rubrik, modulnamnets nivå (null: ritas inte), katalogens nivå]
+  const LAGEN = /** @type {const} */ ([
+    ["utan panel", null, "Kataloger", 2, 3],
+    ["nivå 2", 2, "Kataloger", 3, 4],
+    ["nivå 3", 3, "Kataloger", 4, 5],
+    ["nivå 5 (aria-level 7 på en h6)", 5, "Kataloger", 6, 7],
+    ["nivå 3, modulen heter som panelen", 3, "Liv", null, 4],
+  ]);
+  for (const [lage, panelniva, panelrubrik, modulniva, katalogniva] of LAGEN) {
+    it(`${lage}: modulnamnet ${modulniva === null ? "ritas inte" : `är nivå ${modulniva}`}, katalogen nivå ${katalogniva}`, async () => {
+      rita(panelniva, panelrubrik);
+      const katalogens = await screen.findByRole("heading", { name: "Modulens sorter" });
+      expect(niva(katalogens)).toBe(katalogniva);
+      expect(katalogens.tagName).toBe(`H${Math.min(katalogniva, 6)}`);
+      if (modulniva === null) {
+        expect(screen.getAllByRole("heading", { name: "Liv" })).toHaveLength(1);
+      } else {
+        const modulens = screen.getByRole("heading", { name: "Liv" });
+        expect(niva(modulens)).toBe(modulniva);
+        expect(modulens.tagName).toBe(`H${Math.min(modulniva, 6)}`);
+        expect(modulens.closest("section")?.getAttribute("aria-labelledby")).toBe(modulens.id);
+      }
+    });
+  }
 });
