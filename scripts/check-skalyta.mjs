@@ -141,6 +141,13 @@ async function oppna(scen, viewport, tema = standardtema, skala = 1, aktiv = nul
   const fel = /** @type {string[]} */ ([]);
   page.on("pageerror", (e) => fel.push(e.message));
   await page.emulateMedia({ colorScheme: tema === "dark" ? "dark" : "light" });
+  // ⛔ Chattens scen har en fast klocka, samma dag som scenens meddelanden (2026-10-06 från 09:00). Utan den stod det "I går"
+  // eller ett annat datum i bilderna beroende på när de togs, och de gick inte att återskapa (granskningen av PR 286).
+  // Rörelse av, också: en puls eller en övergång mitt i en bild gör att samma scen ger en annan bild.
+  if (scen === "chattnatt") {
+    await page.clock.setFixedTime(new Date(2026, 9, 6, 22, 0));
+    await page.emulateMedia({ reducedMotion: "reduce" });
+  }
   await page.setContent(sida(scen, aktiv, manga));
   await page.waitForFunction("window.__redo === true", null, { timeout: 5000 }).catch(() => {});
   if (fel.length) throw new Error(`sidan "${scen}" kastade: ${fel[0]}`);
