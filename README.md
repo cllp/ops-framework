@@ -2580,6 +2580,24 @@ det. Det gäller även ytor som inte ser ut som knappar: en kryssrutas träffyta
 
 ---
 
+## Biblioteket (0.79.0, #192 skiva 1)
+
+Gruppens anteckningar och länkar. Analysen står i `docs/beslut/0004-bibliotek-ss-analys.md`. Samlingsnamnet skickar appen in. En post hör till en grupp, och en medlem i en annan grupp varken läser eller skriver den.
+
+| | |
+|---|---|
+| `BIBLIOTEKTYPER` | `anteckning` och `lank`. Fler typer är ett senare beslut |
+| `BIBLIOTEKFALT` | fälten regeln låser med `hasOnly` |
+| `MAX_BIBLIOTEKRUBRIK`, `MAX_BIBLIOTEKTEXT`, `MAX_BIBLIOTEKURL` | taken, samma tal i regeln |
+| `inmatningsfel` | det formuläret kan ha fel på, utan grupp och utan författare |
+| `postFel`, `byggPost` | hela dokumentet. `byggPost` kastar med samma text som `postFel` |
+| `filtreraBibliotek` | flik och sök i den lista som redan lästs |
+| `createBibliotekskalla` | `source`, `collection`, `groupId`, `skapare`. `skapare` är en funktion: appen vet vem som är inloggad. `las` svarar `{ poster, kalla, fel }` och kastar inte. En tom lista med `kalla: "databas"` är ett tomt bibliotek. `kalla: "fel"` är en läsning som inte gick |
+| `OpsBibliotek` | listan och detaljen. `poster`, `fel`, `laddar`, `vald`, `skapar`, `onOppna`, `onStang`, `onSkapa`, `onSpara` |
+| `bibliotekregelfragment` | samlingsnamnet. Limmas in efter `regelfragment()`. Medlem läser och skapar som sig själv. Författaren eller admin ändrar. Ingen raderar. Läsregeln är medlemskap i radens grupp, aldrig `isAuth()` |
+
+---
+
 ## Utgivning: taggar, inte SHA:er
 
 Varje tagg `vX.Y.Z` ger en **GitHub-release med en packad tarboll**

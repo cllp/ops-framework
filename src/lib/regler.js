@@ -37,6 +37,8 @@ import {
 } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
+import { BIBLIOTEKFALT, BIBLIOTEKTYPER, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL } from "./bibliotek.js";
+import { SKAPARFALT } from "./skapare.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
@@ -1313,6 +1315,82 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
         && request.resource.data.keys().hasOnly([${lista(LASMARKESFALT)}])
         && request.resource.data.lastTill is string
         && request.resource.data.lastTill.matches('${isotid}');
+      allow delete: if false;
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för gruppens bibliotek (analys 0004, #192, skiva 1).
+ *
+ * ══ ⛔ VAD SOM GÄLLER ═════════════════════════════════════════════════
+ *
+ *   - LÄSA: aktiv medlem i radens grupp. En fråga utan `groupId` går inte att
+ *     bevisa och nekas. ADR-020 (`allow read: if isAuth()`) skrivs inte: den
+ *     regeln gör varje inloggad till läsare av varje dokument.
+ *   - SKAPA: aktiv medlem, som sig själv (`skapadAv.uid`), med en giltig post.
+ *   - ÄNDRA: författaren, eller admin i gruppen. Gruppen, typen, skaparen och
+ *     `skapad` står stilla. En medlem skriver inte om någon annans rad.
+ *   - RADERA: aldrig.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`
+ * och `opsArAdmin` ur `regelfragment()`, och ska limmas in efter det.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @returns {string}
+ */
+export function bibliotekregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "bibliotek");
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const typer = BIBLIOTEKTYPER.map((t) => `"${t}"`).join(", ");
+
+  return `    function opsBibliotekspostGiltig(d) {
+      return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
+        && d.groupId is string
+        && d.typ in [${typer}]
+        && d.rubrik is string
+        && d.rubrik.size() > 0
+        && d.rubrik.size() <= ${MAX_BIBLIOTEKRUBRIK}
+        && d.skapadAv is map
+        && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && d.skapadAv.keys().hasAll([${lista(SKAPARFALT)}])
+        && d.skapadAv.uid is string
+        && d.skapadAv.uid.size() > 0
+        && d.skapadAv.namn is string
+        && d.skapadAv.typ == "manniska"
+        && d.skapadAv.kalla is string
+        && d.skapad is number
+        && d.andrad is number
+        && d.andrad >= d.skapad
+        && (
+          (d.typ == "anteckning"
+            && d.text is string
+            && d.text.size() > 0
+            && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
+            && !d.keys().hasAny(["url"]))
+          || (d.typ == "lank"
+            && d.url is string
+            && d.url.size() > 0
+            && d.url.size() <= ${MAX_BIBLIOTEKURL}
+            && d.url.matches('https?://.+')
+            && !d.keys().hasAny(["text"]))
+        );
+    }
+
+    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArMedlem(request.resource.data.groupId)
+        && request.resource.data.skapadAv.uid == request.auth.uid
+        && opsBibliotekspostGiltig(request.resource.data);
+      allow update: if request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.typ == resource.data.typ
+        && request.resource.data.skapad == resource.data.skapad
+        && request.resource.data.skapadAv == resource.data.skapadAv
+        && opsBibliotekspostGiltig(request.resource.data)
+        && (
+          (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+          || opsArAdmin(resource.data.groupId)
+        );
       allow delete: if false;
     }
 `;

@@ -18,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { mejlregelfragment } from "../src/lib/mejl.js";
-import { gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { bibliotekregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -63,6 +63,7 @@ ${samtalsregelfragment({ tradar: "tradar", status: "status", reaktioner: "reakti
 ${kalenderregelfragment()}
 ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
+${bibliotekregelfragment("bibliotek")}
     // Påhittad app-samling (se filhuvudet): appens eget block, med ramverkets fält prövade av opsHandelsefaltGiltiga.
     match /kalhandelser/{id} {
       allow read: if opsArMedlem(resource.data.groupId);

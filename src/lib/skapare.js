@@ -52,6 +52,12 @@
 /** De tre tillåtna sorterna. */
 export const SKAPARTYPER = /** @type {const} */ (["manniska", "agent", "okand"]);
 
+/**
+ * Nycklarna `byggSkapare` skriver. Regeln och modellen läser den här listan,
+ * så ett nytt fält på skaparen inte kan glömmas i `hasOnly`.
+ */
+export const SKAPARFALT = /** @type {const} */ (["uid", "namn", "typ", "kalla"]);
+
 /** @type {Skapare} */
 const OKAND = Object.freeze({ uid: null, namn: "", typ: "okand", kalla: "" });
 

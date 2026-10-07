@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.79.0
+
+Bibliotek, skiva 1 (#192). Analysen ligger i `docs/beslut/0004-bibliotek-ss-analys.md` och i utkastet för den. 0.78.1 är reserverad av #302 och är inte mergad. Den här är nästa lediga minor efter main, som står på 0.78.0.
+
+### Tillagt
+
+- `byggPost`, `postFel` och `inmatningsfel`. En post är en `anteckning` med text eller en `lank` med adress på http eller https. Gruppen, författaren och klockslagen hör till dokumentet. Adressen på en anteckning och texten på en länk avvisas.
+- `createBibliotekskalla({ source, collection, groupId, skapare })`. Samlingsnamnet och gruppen kommer utifrån. `las` svarar med `kalla` och `fel`, så en tom lista går att skilja från en läsning som föll.
+- `OpsBibliotek`: lista, sök, tre lägen med antal (också noll), detalj och formulär.
+- `bibliotekregelfragment(namn)`. Medlem i radens grupp läser och skapar som sig själv. Författaren eller admin ändrar. Ingen raderar.
+
+### Prov
+
+- `src/__tests__/bibliotek.test.js` och `src/__tests__/bibliotek-vy.test.jsx`, 6 prov. Utan spärren mot `javascript:`: 2 röda, 4 gröna. Med spärren: 6 av 6 gröna. `src/__tests__/bibliotekkalla.test.js`, 3 prov, gröna i samma körning.
+- `rules/__tests__/bibliotek.test.mjs` mot emulatorn, inräknat i `npm run test:rules`: 368 gröna, 0 fel. Med läsningen bytt till `opsInloggad()`: 1 rött, 2 gröna, exit 1. Med medlemskap i radens grupp: det röda blev grönt.
+- Playwright, `node scripts/bibliotek-montage.mjs`: lista i 390 och 1024, detalj i 390, ny länk i 1024, och montaget `bibliotek-lista-390-ramverk-ss.png`. Webbläsaren var `/opt/google/chrome/chrome`. `/opt/pw-browsers` fanns inte, och ingen webbläsare installerades.
+
 ## 0.78.0
 
 Uppgift som inkorgstyp (lifehub.app#103, lane 19), ramverkets del. 0.77.0 är utkastet för chattbilagor (#297) och 0.76.3 är utkastet för mejlköns `updateIf` (#298). Ingen av dem är mergad. Den här är nästa lediga minor efter main, som står på 0.76.2.
