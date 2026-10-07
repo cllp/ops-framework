@@ -100,6 +100,17 @@ export function createRoutingSource(config) {
     typeof config.fallback.subscribe === "function" ||
     Object.values(routes).some((k) => typeof k.subscribe === "function");
 
+  /*
+   * ⛔ updateIf ÄR FRIVILLIG, SAMMA MÖNSTER SOM subscribe (0.76.3, granskningen av mejlkön).
+   * Mejlutskicket kräver den och nekar en källa utan vid uppstart. En routande källa som
+   * svalde metoden hade nekat en uppsättning där köns källa faktiskt kan göra anspråket.
+   * Att exponera den alltid, också när ingen källa har den, hade ljugit på samma sätt som
+   * en subscribe som aldrig levererar.
+   */
+  const anyCanUpdateIf =
+    typeof config.fallback.updateIf === "function" ||
+    Object.values(routes).some((k) => typeof k.updateIf === "function");
+
   /** @type {Record<string, any>} */
   const source = {
     name: "routing",
@@ -145,6 +156,28 @@ export function createRoutingSource(config) {
         );
       }
       return target.subscribe(collectionName, query, listener);
+    };
+  }
+
+  if (anyCanUpdateIf) {
+    /**
+     * @param {string} collectionName
+     * @param {string} id
+     * @param {Record<string, unknown>} villkor
+     * @param {any} data
+     */
+    source.updateIf = async (collectionName, id, villkor, data) => {
+      const target = pick(collectionName);
+      if (typeof target.updateIf !== "function") {
+        // ⛔ KASTAR MED SAMLINGENS NAMN. En läsning följd av en skrivning är den kontroll
+        // regel 2 förbjuder, och den hade sett ut som ett anspråk. Frågan går att ställa
+        // genom att titta på källan för samlingen (`sourceFor`).
+        throw new Error(
+          `createRoutingSource: källan för "${collectionName}" har inte updateIf. ` +
+            "En läsning följd av en skrivning är inte ett anspråk.",
+        );
+      }
+      return target.updateIf(collectionName, id, villkor, data);
     };
   }
 
