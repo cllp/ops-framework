@@ -1871,6 +1871,18 @@ alltså ska appens läsregel för ärenden INTE bero på `mottagare`.
 `undersamlingskrock(namn, vem)` är det ENA stället som prövar att två undersamlingar inte har samma namn; källan och
 regelfragmentet anropar båda den. Regelprov med mutationstabell i `rules/__tests__/chattnatt.test.mjs`.
 
+**Bilaga på ett meddelande (0.77.0, #292), med nyckeln `bilagor: true`.** Samma form som kommentarernas bilaga
+(`dataUrl`, `namn`, `typ`, `tecken`, och `bredd` och `hojd` för en bild), prövad med `kommentarbilagaFel` och i regeln av
+`opsMeddelandebilagaGiltig` (samma uttryck som `opsKommentarbilagaGiltig`, annat namn eftersom båda fragmenten limmas in i
+samma fil). Typerna och taket är `KOMMENTARBILAGA_TYPER` och `MAX_KOMMENTARBILAGA`. Med en bilaga får texten vara tom.
+`createSamtalskalla({ bilagor: true })` skriver och läser fältet på `skicka` och `skickaITrad`. `harBilagor(kalla)` svarar.
+Utan nyckeln är regeltexten byte för byte densamma som förut, och `skicka` kastar om en bilaga skickas med. Regeln ska vara
+utrullad innan klienten slår på nyckeln. `OpsSamtal` och `OpsTrad` tar `onBifoga`. Med den, eller med `bilagor` på källan,
+ritas pluset (Bifoga bild, Välj fil, och Ta foto bara när en kamera räknats upp). Med `bilagor` läser ramverket filen och
+lägger den på meddelandet. Utan `bilagor` lämnas filerna till `onBifoga`, och utan båda ritas inget plus. En bild visas som
+miniatyr, en fil som nedladdningslänk med namn och storlek, samma vy som kommentarerna (`BilagaVisning`). Bilagan ligger i
+meddelandets dokument. Ramverket känner ingen sökväg.
+
 **Markdown i bubblan (#273).** Varje meddelande ritas med `OpsMarkdown text chatt`: chattens delmängd av `splitMarkdown(text, { chatt: true })`,
 alltså fetstil (`**`), kursiv (`*` eller `_` vid ordgräns), punkt- och numrerade listor, radbrytningar som radbrytningar och klickbara
 länkar, bara http och https, i ny flik med `rel="noopener noreferrer"`. Ingen HTML, inga bilder; rubriker, tabeller, citat och kodblock

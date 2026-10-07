@@ -2,9 +2,12 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
+import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA } from "../lib/handelsemodell.js";
+import { readAttachment } from "../lib/file.js";
 import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, tradensNamn, utdrag } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
-import { harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
+import { harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar } from "../data/samtalskalla.js";
+import { BilagaVisning } from "./BilagaVisning.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { splitInline } from "../lib/markdown.js";
 import { OpsBanner } from "./OpsBanner.jsx";
@@ -152,6 +155,10 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagI
  * @property {string} [bifogaBild] Förval "Bifoga bild".
  * @property {string} [taFoto] Förval "Ta foto".
  * @property {string} [valjFil] Förval "Välj fil".
+ * @property {string} [bilagaText] (0.77.0, #292) Förled i bildens alt-text. Förval "Bilaga från".
+ * @property {string} [taBortBilaga] Förval "Ta bort bilagan".
+ * @property {string} [enBilaga] När flera filer valdes. Förval "Ett meddelande bär en bilaga. Välj en fil.".
+ * @property {string} [bilagaTrasig] När en lagrad bilaga saknar innehåll. Förval "Bilagan går inte att visa.".
  * @property {string} [prataIn] Mikrofonen i vila. Förval "Prata in".
  * @property {string} [skrivUt] Mikrofonen under inspelning: avsluta och skriv ut. Förval "Skriv ut det inspelade".
  * @property {string} [stoppaInspelning] Förval "Avbryt inspelningen".
@@ -232,6 +239,10 @@ const TEXTER = {
   bifogaBild: "Bifoga bild",
   taFoto: "Ta foto",
   valjFil: "Välj fil",
+  bilagaText: "Bilaga från",
+  taBortBilaga: "Ta bort bilagan",
+  enBilaga: "Ett meddelande bär en bilaga. Välj en fil.",
+  bilagaTrasig: "Bilagan går inte att visa.",
   prataIn: "Prata in",
   skrivUt: "Skriv ut det inspelade",
   stoppaInspelning: "Avbryt inspelningen",
@@ -279,6 +290,19 @@ function radtid(tid, nu, locale) {
 
 /** "i dag" blir "I dag" i avdelaren, som SS (`ChatDateDivider.jsx`). @param {string} t */
 const forstaVersal = (t) => (t ? t.charAt(0).toLocaleUpperCase("sv") + t.slice(1) : t);
+
+/**
+ * Texten som visas för ett meddelande. En bilaga utan text syns som sitt filnamn, härlett, inte lagrat.
+ * @param {{ text?: string, bilaga?: { namn?: string } } | null | undefined} m
+ * @param {number} [max]
+ */
+function synligText(m, max) {
+  if (!m) return "";
+  const text = utdrag(typeof m.text === "string" ? m.text : "", max);
+  if (text) return text;
+  const namn = m.bilaga && typeof m.bilaga.namn === "string" ? m.bilaga.namn : "";
+  return namn ? utdrag(namn, max) : "";
+}
 
 /**
  * Ingången till meddelandena, med antalet olästa (0.34.0). En `OpsIconLink` med ramverkets ikon, för appens `actions`.
@@ -330,8 +354,10 @@ function texterPa(sprak, texter) {
  * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
  *   agenten arbetar. Utan den ingen sådan knapp.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
+ * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Skickas till `OpsSamtal` och `OpsTrad`.
+ *   Med `bilagor` på källan ritas pluset ändå, och filen läses av ramverket.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -594,7 +620,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
                         {s ? (
                           <span className={cx("mt-0.5 block truncate text-meta", r.olasta > 0 ? "text-ink-secondary" : "text-ink-muted")}>
                             <span className="text-ink-muted" data-namn-saknas={s.av !== uid && namnFor(s.av) === NAMN_SAKNAS ? "" : undefined}>{s.av === uid ? t.du : namnFor(s.av)}: </span>
-                            {utdrag(s.text)}
+                            {synligText(s)}
                           </span>
                         ) : null}
                       </span>
@@ -671,6 +697,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             onDopt={(/** @type {string | null} */ n) => andraTradrad(vald.samtal.id, tradId, { finns: true, namn: n ?? undefined })}
             sprak={sprak}
             texter={t}
+            onBifoga={onBifoga}
           />
         ) : vald?.ej && groupId ? (
           <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
@@ -699,6 +726,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             utkast={utkast.current?.id === vald.samtal.id ? utkast.current.text : undefined}
             sprak={sprak}
             texter={t}
+            onBifoga={onBifoga}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
@@ -878,9 +906,9 @@ const MAX_FORSLAG = 6;
  * Skicka där ljudvågen stod.
  *
  * ⛔ EN KNAPP FINNS BARA NÄR DEN GÖR NÅGOT (samma regel som TALK:s kugghjul):
- *   - plus och dess meny bara med `onBifoga`. Menyns rader ("Bifoga bild", "Ta foto", "Välj fil") lämnar filerna till appen;
- *     ⛔ bilagemodellen är INTE den här komponentens: den kommer ur bilagemodulen (ops-framework PR 277), och tills den finns
- *     skickar `OpsMeddelanden` ingen `onBifoga`, och plus ritas inte;
+ *   - plus och dess meny bara med `onBifoga`. "Ta foto" ritas bara när en kamera räknats upp. Med `bilagor: true` på källan
+ *     läser `OpsSamtal` och `OpsTrad` filen (`readAttachment`, kommentarernas typer och tak) och skickar den som `bilaga`.
+ *     Utan den nyckeln lämnas filerna till appens `onBifoga`, och plus ritas bara om den skickats;
  *   - ljudvågen bara med `onTranscribe(blob) => Promise<text>`. Transkriberingen är appens: ramverket känner ingen tjänst;
  *   - stopp under en inspelning (avbryter den), och när agenten arbetar bara med `onStoppaAgent`.
  *
@@ -888,9 +916,9 @@ const MAX_FORSLAG = 6;
  * inspelningsväg i ramverket, inte två. ⛔ LJUDET FÖRSVINNER ALDRIG TYST: faller transkriberingen står felet utskrivet, ljudet
  * sparas, och "Försök igen" skickar samma ljud på nytt; bara "Kasta ljudet" tar bort det.
  *
- * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, agentArbetar?: boolean, onStoppaAgent?: () => void }} props
+ * @param {{ text: string, setText: (t: string) => void, skickar: boolean, onSkicka: (extra?: { namner?: string[] }) => void, texter: Required<Meddelandetexter>, fokus?: boolean, omnamnande?: Omnamnande | null, fokusNyckel?: string, onEscape?: () => void, platstext?: string, onTranscribe?: (blob: Blob) => Promise<string>, inspelare?: import("../lib/talk.js").Inspelare, onBifoga?: (filer: File[], slag: "bild" | "foto" | "fil") => void, harBilaga?: boolean, kamera?: "okand" | "ja" | "nej", agentArbetar?: boolean, onStoppaAgent?: () => void }} props
  */
-function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, onBifoga, agentArbetar = false, onStoppaAgent }) {
+function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false, omnamnande = null, fokusNyckel, onEscape, platstext, onTranscribe, inspelare, onBifoga, harBilaga = false, kamera = "nej", agentArbetar = false, onStoppaAgent }) {
   const ruta = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
   const listId = useId();
   const valda = useRef(/** @type {Map<string, string>} */ (new Map()));
@@ -953,7 +981,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
         skicka();
       }}
     >
-      {onBifoga ? <Plusmeny onBifoga={onBifoga} texter={t} /> : null}
+      {onBifoga ? <Plusmeny onBifoga={onBifoga} texter={t} kamera={kamera === "ja"} kameraKand={kamera !== "okand"} /> : null}
       <div data-skrivruta="" className="flex min-h-11 min-w-0 flex-1 items-end rounded-3xl border border-line bg-canvas focus-within:border-accent">
       {oppen ? (
         <ul id={listId} role="listbox" aria-label={t.namnForslag} data-omnamnande="" className="absolute bottom-full left-3 z-10 mb-1 max-w-[calc(100%-1.5rem)] min-w-56 list-none overflow-hidden rounded-card border border-line bg-surface p-1 shadow-md">
@@ -1058,7 +1086,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
         <button
           type="submit"
           aria-label={t.skicka}
-          disabled={skickar || !text.trim()}
+          disabled={skickar || (!text.trim() && !harBilaga)}
           className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-40"
         >
           <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
@@ -1187,15 +1215,16 @@ function Rostrad({ rost, texter: t }) {
 }
 
 /**
- * Plusknappen och menyn med tre rader. ⛔ Raderna lämnar FILERNA till appen (`onBifoga`); ingen bilagemodell här. "Ta foto" har
- * `capture`, så att telefonen öppnar kameran. Menyn stängs med Escape, med fokus tillbaka på plus, och pilarna flyttar mellan raderna.
+ * Plusknappen och menyn. ⛔ Raderna lämnar FILERNA till `onBifoga`. Bilagan, i kommentarernas form, byggs av den som äger
+ * skrivfältet när källan har `bilagor`. "Ta foto" har `capture` och ritas bara när `kamera` är sann: en enhet utan kamera
+ * ska inte erbjuda ett val som inte finns. Menyn stängs med Escape, med fokus tillbaka på plus, och pilarna flyttar mellan raderna.
  *
- * ⛔ EXPORTERAD FRÅN FILEN FÖR PROVEN, INTE UR RAMVERKET (`src/index.js`). Ingen app ska koppla in den på egen hand: då hade
- * den byggt en egen bilagemodell. Den kopplas in i skrivfältet när bilagemodulen i PR 277 finns.
+ * ⛔ EXPORTERAD FRÅN FILEN FÖR PROVEN, INTE UR RAMVERKET (`src/index.js`). Appen kopplar inte in den själv.
  *
- * @param {{ onBifoga: (filer: File[], slag: "bild" | "foto" | "fil") => void, texter: Required<Meddelandetexter> }} props
+ * @param {{ onBifoga: (filer: File[], slag: "bild" | "foto" | "fil") => void, texter: Required<Meddelandetexter>, kamera?: boolean, kameraKand?: boolean }} props
+ *   `kameraKand` (förval sann, proven): när den är falsk står `data-kamera="okand"` tills uppräkningen är klar.
  */
-export function Plusmeny({ onBifoga, texter: t }) {
+export function Plusmeny({ onBifoga, texter: t, kamera = true, kameraKand = true }) {
   const [oppen, setOppen] = useState(false);
   const knapp = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const meny = useRef(/** @type {HTMLDivElement | null} */ (null));
@@ -1213,13 +1242,14 @@ export function Plusmeny({ onBifoga, texter: t }) {
     ["bild", t.bifogaBild, <BildIkon key="b" />],
     ["foto", t.taFoto, <KameraIkon key="k" />],
     ["fil", t.valjFil, <MappIkon key="m" />],
-  ]);
+  ]).filter(([slag]) => kamera || slag !== "foto");
   return (
     <div className="relative shrink-0">
       <button
         ref={knapp}
         type="button"
         data-plus=""
+        data-kamera={kameraKand ? (kamera ? "ja" : "nej") : "okand"}
         aria-label={t.bifoga}
         aria-haspopup="menu"
         aria-expanded={oppen}
@@ -1305,6 +1335,107 @@ function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor) {
 }
 
 /**
+ * "okand" tills enheterna räknats, sedan "ja" eller "nej". Utan API:t är svaret "nej": ingen kamera att erbjuda.
+ * @returns {"okand" | "ja" | "nej"}
+ */
+function useHarKamera() {
+  const [lage, setLage] = useState(/** @type {"okand" | "ja" | "nej"} */ ("okand"));
+  useEffect(() => {
+    let levande = true;
+    const md = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+    if (!md || typeof md.enumerateDevices !== "function") {
+      setLage("nej");
+      return undefined;
+    }
+    md.enumerateDevices().then(
+      (lista) => {
+        if (levande) setLage(lista.some((d) => d && d.kind === "videoinput") ? "ja" : "nej");
+      },
+      () => {
+        if (levande) setLage("nej");
+      },
+    );
+    return () => {
+      levande = false;
+    };
+  }, []);
+  return lage;
+}
+
+/**
+ * Bilagan som väntar i skrivfältet.
+ *
+ * ⛔ MED `bilagor` PÅ KÄLLAN LÄSER RAMVERKET FILEN. En sökväg appen skickar in hade varit ett andra ställe som bestämmer vad
+ * en bilaga är, och en fil som blir föräldralös när meddelandet inte går att skriva. Utan nyckeln är `onBifoga` appens: pluset
+ * ritas, och filerna lämnas dit. Skickas båda vinner källan, eftersom det är den regeln släpper in.
+ *
+ * @param {unknown} kalla
+ * @param {((filer: File[], slag: "bild" | "foto" | "fil") => void) | undefined} onBifogaProp
+ * @param {Required<Meddelandetexter>} texter
+ */
+function useBilageutkast(kalla, onBifogaProp, texter) {
+  const [bilaga, setBilaga] = useState(/** @type {import("../lib/file.js").Bilaga | null} */ (null));
+  const [fel, setFel] = useState(/** @type {string | null} */ (null));
+  const kamera = useHarKamera();
+  const med = harBilagor(kalla);
+  /** @param {File[]} filer @param {"bild" | "foto" | "fil"} _slag */
+  const las = async (filer, _slag) => {
+    setFel(null);
+    if (filer.length !== 1) {
+      setBilaga(null);
+      setFel(texter.enBilaga);
+      return;
+    }
+    try {
+      setBilaga(await readAttachment(filer[0], { maxChars: MAX_KOMMENTARBILAGA, typer: KOMMENTARBILAGA_TYPER }));
+    } catch (e) {
+      setBilaga(null);
+      setFel(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return {
+    bilaga,
+    fel,
+    tom: () => {
+      setBilaga(null);
+      setFel(null);
+    },
+    onBifoga: med ? las : onBifogaProp,
+    kamera,
+  };
+}
+
+/**
+ * Förhandsvisningen ovanför skrivfältet, och felet när filen inte gick att bifoga. Inget av det är tyst.
+ * @param {{ bilaga: import("../lib/file.js").Bilaga | null, fel: string | null, onTaBort: () => void, texter: Required<Meddelandetexter> }} props
+ */
+function Bilageutkast({ bilaga, fel, onTaBort, texter: t }) {
+  if (!bilaga && !fel) return null;
+  return (
+    <div data-bilageutkast="" className="flex shrink-0 flex-col gap-1 border-t border-line px-3 pt-2">
+      {fel ? (
+        <p role="alert" data-bilagefel="" className="m-0 text-meta text-danger">
+          {fel}
+        </p>
+      ) : null}
+      {bilaga ? (
+        <div className="flex items-start gap-2">
+          <BilagaVisning bilaga={bilaga} alt={`${t.bilagaText}: ${bilaga.namn}`} marke="data-meddelande-bilaga" />
+          <button
+            type="button"
+            aria-label={t.taBortBilaga}
+            onClick={onTaBort}
+            className="inline-flex min-h-11 shrink-0 cursor-pointer items-center rounded-base px-2 text-meta text-ink-secondary hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            {t.taBortBilaga}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Ett samtal: huvudet, meddelandena och skrivfältet. Samma vy för gruppchatten, ett privat samtal och ett agentsamtal.
  *
  * ⛔ LÄSMÄRKET FLYTTAS NÄR SAMTALET ÄR ÖPPET OCH NÅGOT NYTT FINNS, och bara framåt. Den som har samtalet öppet har sett
@@ -1339,12 +1470,15 @@ function omnamnandeFor(kalla, slag, medlemmar, uid, namnFor) {
  * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
  *   agenten arbetar. Utan den ingen sådan knapp.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
+ * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Ritar pluset. Med `bilagor` på
+ *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const t = texterPa(sprak, texter);
+  const bilage = useBilageutkast(kalla, onBifogaProp, t);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const [meddelanden, setMeddelanden] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
@@ -1415,11 +1549,12 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
 
   /** @param {{ namner?: string[] }} [extra] */
   const skicka = async (extra) => {
-    if (skickar || !text.trim()) return;
+    if (skickar || (!text.trim() && !bilage.bilaga)) return;
     setSkickar(true);
     try {
-      const ny = await kalla.skicka(samtal.id, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}) });
+      const ny = await kalla.skicka(samtal.id, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(svarPa ? { svarPa: svarPa.id } : {}), ...(bilage.bilaga ? { bilaga: bilage.bilaga } : {}) });
       setText("");
+      bilage.tom();
       setSvarPa(null);
       if (ny && typeof ny.tid === "number") onSkickat?.(/** @type {any} */ (ny));
       // Med en prenumeration kommer meddelandet av sig självt. Utan den läses samtalet om.
@@ -1504,7 +1639,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
                   return (
                     <>
                       <span id={beskrivning} className="sr-only">
-                        {`${t.svarPa} ${m.av === uid ? t.du : namnFor(m.av)}: ${utdrag(m.text, 60)}`}
+                        {`${t.svarPa} ${m.av === uid ? t.du : namnFor(m.av)}: ${synligText(m, 60)}`}
                       </span>
                       <button
                         type="button"
@@ -1548,7 +1683,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         <div data-svarar-pa={svarPa.id} className="flex shrink-0 items-center gap-2 border-t border-line px-3 pt-2 text-meta text-ink-secondary">
           <CiteraIkon size={14} />
           <span className="min-w-0 flex-1 truncate">
-            {t.svararPa} <span className="font-medium text-ink">{svarPa.av === uid ? t.du : namnFor(svarPa.av)}</span>: {utdrag(svarPa.text, 60)}
+            {t.svararPa} <span className="font-medium text-ink">{svarPa.av === uid ? t.du : namnFor(svarPa.av)}</span>: {synligText(svarPa, 60)}
           </span>
           <button
             type="button"
@@ -1560,6 +1695,7 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           </button>
         </div>
       ) : null}
+      <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
       <Skrivfalt
         text={text}
         setText={setText}
@@ -1573,6 +1709,9 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
         platstext={samtal.slag === "grupp" ? t.skrivGrupp : samtal.slag === "agent" ? t.skrivAgent : t.skriv}
         onTranscribe={onTranscribe}
         inspelare={inspelare}
+        onBifoga={bilage.onBifoga}
+        harBilaga={Boolean(bilage.bilaga)}
+        kamera={bilage.kamera}
         agentArbetar={agentArbetar(agentlage)}
         onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id) : undefined}
       />
@@ -1722,21 +1861,34 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
               <div className={cx("flex min-w-0 max-w-[70%] flex-col", egen ? "items-end" : "items-start")}>
                 {!egen && !fortsattning && visaNamn ? <span className="mb-0.5 ml-1 text-liten text-ink-muted" data-namn-saknas={namnFor(m.av) === NAMN_SAKNAS ? "" : undefined}>{namnFor(m.av)}</span> : null}
                 {m.svarPa && citat ? <Citat mid={m.svarPa} uppslag={citat.uppslag} egen={egen} uid={uid} namnFor={namnFor} texter={texter} /> : null}
-                <div
-                  data-bubbla=""
-                  data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
-                  className={cx(
-                    "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
-                    traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
-                    egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
-                    fortsattning && egen ? "rounded-tr-lg" : "",
-                    fortsattning && !egen ? "rounded-tl-lg" : "",
-                  )}
-                >
-                  {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
-                      bubblan: den egna är accentfärgad. */}
-                  <OpsMarkdown text={m.text} chatt />
-                </div>
+                {m.text ? (
+                  <div
+                    data-bubbla=""
+                    data-traff={traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "aktuell" : "traff") : undefined}
+                    className={cx(
+                      "min-w-0 rounded-2xl px-3.5 py-2 text-etikett leading-relaxed break-words",
+                      traffar?.ids.has(m.id) ? (traffar.aktuell === m.id ? "outline-2 outline-offset-2 outline-accent" : "outline-1 outline-offset-2 outline-line-strong") : "",
+                      egen ? "bg-accent text-accent-contrast" : "bg-hover text-ink",
+                      fortsattning && egen ? "rounded-tr-lg" : "",
+                      fortsattning && !egen ? "rounded-tl-lg" : "",
+                    )}
+                  >
+                    {/* ⛔ #273: chattens delmängd av markdown, med klickbara http- och https-länkar och ingen HTML. Färgen ärvs från
+                        bubblan: den egna är accentfärgad. */}
+                    <OpsMarkdown text={m.text} chatt />
+                  </div>
+                ) : null}
+                {m.bilaga ? (
+                  m.bilaga.dataUrl ? (
+                    <span className="mt-1 block max-w-full">
+                      <BilagaVisning bilaga={m.bilaga} alt={`${texter.bilagaText} ${egen ? texter.du : namnFor(m.av)}: ${m.bilaga.namn}`} marke="data-meddelande-bilaga" />
+                    </span>
+                  ) : (
+                    <p role="alert" data-meddelande-bilaga="trasig" className="m-0 mt-1 text-meta text-danger">
+                      {texter.bilagaTrasig}
+                    </p>
+                  )
+                ) : null}
                 {postkort ? <Postkortrad text={m.text} postkort={postkort} egen={egen} texter={texter} /> : null}
                 {reakt?.pa ? <Reaktionschips m={m} egen={egen} reakt={reakt} texter={texter} /> : null}
                 <span className={cx("relative mt-0.5 flex max-w-full items-center gap-1.5", egen ? "mr-1 flex-row-reverse" : "ml-1")}>
@@ -1805,15 +1957,17 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {(sid: string, tid?: string) => void} [props.onStoppaAgent] Appens sätt att stoppa agenten. Med den står stopp i fältet medan
  *   agenten arbetar. Utan den ingen sådan knapp.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov. Förval: webbläsarens inspelning, TALK:s.
+ * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Samma som på `OpsSamtal`.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const t = texterPa(sprak, texter);
+  const bilage = useBilageutkast(kalla, onBifogaProp, t);
   const locale = sprak === "en" ? "en-GB" : "sv-SE";
   const [rot, setRot] = useState(/** @type {(import("../lib/samtal.js").Meddelande & { id: string }) | null | undefined} */ (undefined));
   const [trad, setTrad] = useState(/** @type {import("../lib/samtal.js").Trad | null} */ (null));
@@ -1878,11 +2032,12 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
 
   /** @param {{ namner?: string[] }} [extra] */
   const skicka = async (extra) => {
-    if (skickar || !text.trim()) return;
+    if (skickar || (!text.trim() && !bilage.bilaga)) return;
     setSkickar(true);
     try {
-      await kalla.skickaITrad(samtal.id, tid, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}) });
+      await kalla.skickaITrad(samtal.id, tid, { text, av: uid, ...(extra?.namner ? { namner: extra.namner } : {}), ...(bilage.bilaga ? { bilaga: bilage.bilaga } : {}) });
       setText("");
+      bilage.tom();
       onSvarat?.();
       if (!trad) await lasTraden();
       if (!lyssnar.current) await lasSvar();
@@ -2009,6 +2164,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         <div ref={slut} />
       </div>
 
+      <Bilageutkast bilaga={bilage.bilaga} fel={bilage.fel} onTaBort={bilage.tom} texter={t} />
       <Skrivfalt
         text={text}
         setText={setText}
@@ -2020,6 +2176,9 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         platstext={t.skrivTrad}
         onTranscribe={onTranscribe}
         inspelare={inspelare}
+        onBifoga={bilage.onBifoga}
+        harBilaga={Boolean(bilage.bilaga)}
+        kamera={bilage.kamera}
         agentArbetar={agentArbetar(agentlage)}
         onStoppaAgent={onStoppaAgent ? () => onStoppaAgent(samtal.id, tid) : undefined}
       />

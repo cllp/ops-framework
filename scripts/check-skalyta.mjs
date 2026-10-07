@@ -558,6 +558,43 @@ async function chattensNattskiva() {
       }
       await context.close();
     }
+    // ── (9) bilaga i plusmenyn (#292) ─────────────────────────────────────────────────────────────────────────────────
+    {
+      const { page, context } = await oppna("chattbilaga", vp, standardtema, 1);
+      const namn = `chatt (9) bilaga ${vp.width}`;
+      try {
+        await page.waitForSelector('[data-meddelande-bilaga="bild"]', { timeout: 6000 });
+        await page.waitForSelector('[data-plus][data-kamera="ja"], [data-plus][data-kamera="nej"]', { timeout: 4000 });
+        await page.locator("[data-plus]").click();
+        await page.waitForSelector("[data-plusmeny]", { timeout: 3000 });
+        const m = await page.evaluate(() => {
+          const b = (/** @type {Element} */ e) => e.getBoundingClientRect();
+          const meny = /** @type {HTMLElement} */ (document.querySelector("[data-plusmeny]"));
+          const rader = [...meny.querySelectorAll("[role=menuitem]")].map((r) => ({ slag: r.getAttribute("data-plusrad"), h: b(r).height, text: (r.textContent || "").trim() }));
+          const bild = /** @type {HTMLImageElement | null} */ (document.querySelector('[data-meddelande-bilaga="bild"] img'));
+          return {
+            rader,
+            kamera: document.querySelector("[data-plus]")?.getAttribute("data-kamera") ?? null,
+            bild: Boolean(bild && bild.getAttribute("src")?.startsWith("data:image/jpeg")),
+            alt: bild?.alt ?? "",
+            menyInom: b(meny).left >= -0.5 && b(meny).right <= window.innerWidth + 0.5 && b(meny).top >= -0.5,
+          };
+        });
+        matt.push(`${namn}: ${JSON.stringify(m)}`);
+        krav(m.bild, `${namn}: meddelandet ska visa bilagan som bild.`);
+        krav(m.alt.includes("kvitto.jpg"), `${namn}: bildens alt-text ska bära filnamnet (${m.alt}).`);
+        krav(m.rader.length >= 2, `${namn}: ${m.rader.length} rader i plusmenyn, väntat minst 2. Golv.`);
+        krav(m.rader.some((r) => r.slag === "bild" && r.text === "Bifoga bild" && r.h >= 43.5) && m.rader.some((r) => r.slag === "fil" && r.text === "Välj fil" && r.h >= 43.5), `${namn}: Bifoga bild och Välj fil ska finnas, 44 px (${JSON.stringify(m.rader)}).`);
+        const foto = m.rader.some((r) => r.slag === "foto");
+        krav(foto === (m.kamera === "ja"), `${namn}: Ta foto ska finnas precis när en kamera räknats upp (kamera ${m.kamera}, foto ${foto}).`);
+        krav(m.menyInom, `${namn}: menyn ska ligga inom fönstret.`);
+        if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-9-bilaga-${vp.width}.png`) });
+        krav((await over(page)) <= 0, `${namn}: sidan flödar över ${await over(page)} px horisontellt.`);
+      } catch (e) {
+        krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+      }
+      await context.close();
+    }
   }
 }
 

@@ -723,6 +723,35 @@ export function konfigloggregelfragment(namn) {
  */
 
 /**
+ * Regelns prövning av en bilaga, ur samma konstanter som `kommentarbilagaFel`.
+ *
+ * ⛔ TVÅ NAMN, ETT UTTRYCK. `handelseregelfragment` och `samtalsregelfragment` limmas in i samma fil. En funktion får inte
+ * heta samma sak två gånger, så kommentarerna anropar `opsKommentarbilagaGiltig` och meddelandena `opsMeddelandebilagaGiltig`.
+ * Kroppen skrivs här, en gång.
+ *
+ * @param {string} funktionsnamn
+ * @returns {string}
+ */
+function bilagaRegelfunktion(funktionsnamn) {
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  return `    function ${funktionsnamn}(b) {
+      return b is map
+        && b.keys().hasOnly([${lista(KOMMENTARBILAGAFALT)}])
+        && b.keys().hasAll([${lista(KOMMENTARBILAGAFALT.slice(0, 4))}])
+        && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
+        && b.dataUrl is string
+        && b.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}
+        && b.dataUrl.matches('data:' + b.typ + ';base64,.*')
+        && b.tecken == b.dataUrl.size()
+        && b.namn is string
+        && b.namn.size() > 0
+        && b.namn.size() <= ${MAX_BILAGENAMN}
+        && (!('bredd' in b) || b.bredd is number)
+        && (!('hojd' in b) || b.hojd is number);
+    }`;
+}
+
+/**
  * Regelfragmentet för samtalen: gruppchatten, privata samtal och agentsamtal, med meddelanden och läst-status
  * som undersamlingar.
  *
@@ -768,11 +797,15 @@ export function konfigloggregelfragment(namn) {
  *   - FÄSTA (chattens nattskiva, med `fasta`): `<fasta>/{mid}` med `FASTFALT`. Läsa som samtalet. Fästa: en aktiv person i
  *     samtalet, som sig själv, ett meddelande som finns i samma samtal (nyckeln ÄR dess id). Lossa: vem som helst av samtalets
  *     aktiva personer. Uppdatera: aldrig.
+ *   - BILAGA (0.77.0, #292, med `bilagor: true`): ett meddelande, i samtalet och i en tråd, får bära `bilaga` i kommentarernas
+ *     form. Prövningen är `opsMeddelandebilagaGiltig`, byggd av samma funktion som `opsKommentarbilagaGiltig` (ett uttryck, två
+ *     namn, eftersom båda fragmenten limmas in i samma regelfil och ett delat namn inte går att deklarera två gånger). Med
+ *     bilaga får texten vara tom. Utan nyckeln är meddelandets fält och textkrav desamma som förut.
  *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -796,6 +829,8 @@ export function samtalsregelfragment(namn = {}) {
   // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
   if (namn.citat !== undefined && typeof namn.citat !== "boolean") throw new Error("samtalsregelfragment: citat är true eller utelämnat.");
   const citat = namn.citat === true;
+  if (namn.bilagor !== undefined && namn.bilagor !== true) throw new Error("samtalsregelfragment: bilagor är true eller utelämnat.");
+  const bilagor = namn.bilagor === true;
   // Trådens meddelanden: utan `svarPa` (citat finns bara utanför gruppchatten, och trådar bara i den).
   const meddelandefalt = omnamnanden ? [...MEDDELANDEFALT, NAMNERFALT] : [...MEDDELANDEFALT];
   const samtalsfaltlista = citat ? [...meddelandefalt, SVARPAFALT] : meddelandefalt;
@@ -807,7 +842,14 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : [])].join(", ");
+  // ⛔ Utan `bilagor` är de två raderna ordagrant de som stod här förut, så fixturen för 0.67.0 består.
+  const texttak = (/** @type {string} */ indrag) => (bilagor
+    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagaGiltig(request.resource.data.bilaga))`
+    : `${indrag}&& request.resource.data.text.size() > 0\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}`);
+  const meddelandefaltRegel = bilagor ? [...meddelandefalt, "bilaga"] : meddelandefalt;
+  const samtalsfaltRegel = bilagor ? [...samtalsfaltlista, "bilaga"] : samtalsfaltlista;
+  const bilagefunktion = bilagor ? `${bilagaRegelfunktion("opsMeddelandebilagaGiltig")}\n\n` : "";
   const R = SAMTALSAVGRANSARE;
   const citatfunktion = citat
     ? `    // Citat (chattens nattskiva): saknas, eller ett meddelande i samma samtal, och aldrig i gruppchatten.
@@ -947,11 +989,10 @@ export function samtalsregelfragment(namn = {}) {
           allow read: if opsIGruppchatten(sid);
           allow create: if opsPersonIGruppchatten(sid)
             && exists(/databases/$(database)/documents/${samtal}/$(sid)/${tradar}/$(tid))
-            && request.resource.data.keys().hasOnly([${lista(meddelandefalt)}])${tradnamnervillkor}
+            && request.resource.data.keys().hasOnly([${lista(meddelandefaltRegel)}])${tradnamnervillkor}
             && request.resource.data.av == request.auth.uid
             && request.resource.data.text is string
-            && request.resource.data.text.size() > 0
-            && request.resource.data.text.size() <= ${MAX_MEDDELANDE}
+${texttak("            ")}
             && opsNu(request.resource.data.tid);
           allow update, delete: if false;
         }${tradstatus}${tradreaktioner}
@@ -991,7 +1032,7 @@ export function samtalsregelfragment(namn = {}) {
       return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
     }
 
-${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
+${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
       return opsInloggad()
         && d.skapadAv == request.auth.uid
@@ -1024,12 +1065,11 @@ ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}    // Ett
       match /${meddelanden}/{mid} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
-          && request.resource.data.keys().hasOnly([${lista(samtalsfaltlista)}])${namnervillkor}
+          && request.resource.data.keys().hasOnly([${lista(samtalsfaltRegel)}])${namnervillkor}
           && request.resource.data.av == request.auth.uid
           && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= ${MAX_MEDDELANDE}
+${texttak("          ")}
           && opsNu(request.resource.data.tid);
         allow update, delete: if false;
       }
@@ -1244,21 +1284,7 @@ export function handelseregelfragment(namn = {}) {
 
     // En bilaga på en kommentar (0.73.0, bolag-ops#570): inkorgens form, typlistan och taket ur modellen. Appen får anropa
     // funktionen i sina egna kommentarsregler, så att prövningen står en gång.
-    function opsKommentarbilagaGiltig(b) {
-      return b is map
-        && b.keys().hasOnly([${lista(KOMMENTARBILAGAFALT)}])
-        && b.keys().hasAll([${lista(KOMMENTARBILAGAFALT.slice(0, 4))}])
-        && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
-        && b.dataUrl is string
-        && b.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}
-        && b.dataUrl.matches('data:' + b.typ + ';base64,.*')
-        && b.tecken == b.dataUrl.size()
-        && b.namn is string
-        && b.namn.size() > 0
-        && b.namn.size() <= ${MAX_BILAGENAMN}
-        && (!('bredd' in b) || b.bredd is number)
-        && (!('hojd' in b) || b.hojd is number);
-    }
+${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
 
     match /${handelser}/{hid}/${kommentarer}/{kid} {
       allow read: if opsInloggad() && exists(opsHandelsen(hid))

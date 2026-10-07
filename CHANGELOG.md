@@ -9,6 +9,25 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.77.0
+
+Bilaga i chattens plusmeny (#292, lifehub.app#103 lane 1). Samma form som kommentarernas bilaga, inte en egen.
+
+Regeln med `bilagor: true` ska vara utrullad innan klienten slår på nyckeln. Utan nyckeln är `samtalsregelfragment()` byte för byte samma text som förut.
+
+### Tillagt
+
+- Fältet `bilaga` på ett meddelande, i kommentarernas form `{ dataUrl, namn, typ, tecken, bredd?, hojd? }`. `byggMeddelande` prövar den med `kommentarbilagaFel`. Med en bilaga får texten vara tom.
+- `samtalsregelfragment({ bilagor: true })` och `createSamtalskalla({ bilagor: true })`. `skicka` och `skickaITrad` skriver bilagan, och läsningen ger den tillbaka. `harBilagor(kalla)` svarar. Utan nyckeln kastar ett försök att skicka en bilaga.
+- Regeln `opsMeddelandebilagaGiltig`, byggd av samma uttryck som `opsKommentarbilagaGiltig`. Två namn, eftersom båda fragmenten limmas in i samma regelfil.
+- `onBifoga` på `OpsSamtal`, `OpsTrad` och `OpsMeddelanden`. Plus ritas när den finns, eller när källan har `bilagor`. Ta foto ritas bara när en kamera räknats upp. Med `bilagor` läser ramverket filen och skickar den med meddelandet. En bild visas som miniatyr, en fil som nedladdningslänk.
+
+### Prov
+
+- `src/__tests__/chatt-bilagor.test.jsx`, 7 prov. Utan storlekstaket i `kommentarbilagaFel` och i `opsMeddelandebilagaGiltig`: 2 röda, 5 gröna. Med taket: 7 gröna. Fixturen `samtalsregelfragment-0.67.0.rules` är oförändrad i samma körning.
+- `rules/__tests__/chattbilagor.test.mjs` mot emulatorn: med taket 5 av 5 gröna. Med taket sänkt till 1 tecken i den genererade regeln: 2 röda, 3 gröna (den giltiga bilden och exakt taket nekades).
+- Playwright, `check-skalyta --bara-chatt --chattbredder 390,1024`: 120 kontroller, inga brott. Avsnitt 29g (9) i båda bredderna visar bilden, Bifoga bild och Välj fil på 44 px, och ingen Ta foto eftersom kameran räknades som nej. Menyn ligger inom fönstret. Avsnitt (8) mäter fortfarande att pluset saknas i agentscenen. Bilderna ligger i `docs/jamforelser/chatt/chatt-9-bilaga-390.png` och `chatt-9-bilaga-1024.png`. Webbläsaren var `/opt/google/chrome/chrome`. `/opt/pw-browsers` fanns inte här, och ingen webbläsare installerades.
+
 ## 0.76.3
 
 Småsaker från granskningen av mejlkön (PR 296). 0.77.0 är upptagen av utkastet för chattbilagor (#297) och är inte mergad. Den här är nästa lediga patch efter main, som står på 0.76.2.

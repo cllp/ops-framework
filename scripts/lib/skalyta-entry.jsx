@@ -1091,6 +1091,46 @@ function ChattNattScen() {
 }
 
 /*
+ * 0.77.0, #292: ett privat samtal med en bilaga, och pluset påslaget av källans `bilagor`. Egen scen, så att 29g (8) fortfarande
+ * mäter att pluset är borta när källan inte har bilagor.
+ */
+function provbild() {
+  const c = document.createElement("canvas");
+  c.width = 320;
+  c.height = 180;
+  const g = c.getContext("2d");
+  g.fillStyle = "#1d4e89";
+  g.fillRect(0, 0, 320, 180);
+  g.fillStyle = "#ffffff";
+  g.font = "28px sans-serif";
+  g.fillText("Kvitto", 24, 100);
+  const dataUrl = c.toDataURL("image/jpeg", 0.8);
+  return { dataUrl, namn: "kvitto.jpg", typ: "image/jpeg", tecken: dataUrl.length, bredd: 320, hojd: 180 };
+}
+let bilagekallan = null;
+function ChattBilagaScen() {
+  const [k, setK] = useState(bilagekallan);
+  if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = Ops.createMemorySource({});
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), bilagor: true });
+      const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+      await s.skicka(p.id, { text: "Kvittot från bokhandeln.", av: "bo", bilaga: provbild() });
+      const x = { s, id: p.id };
+      bilagekallan = x;
+      setK(x);
+    })();
+  }
+  return (
+    <Full>
+      {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={k.id} onValj={() => {}} /> : <p>Laddar</p>}
+    </Full>
+  );
+}
+
+/*
  * 0.68.0: en grupp UTAN sådd gruppchatt. CP 2026-10-06, i sin grupp med en medlem och agenten: "Hur skriver jag ett
  * meddelande till hela gruppen?" Bara agentsamtalet finns, som i hans grupp. Avsnitt 29f. Gruppen är g3 ur `grupperLista`,
  * vald i sidopanelen, så att panelen och chatten heter samma sak (omgranskningen av PR 268, A6).
@@ -1646,6 +1686,7 @@ function Scen() {
   if (s === "meddelanden") return <MeddelandeScen />;
   if (s === "meddelanden-ny-grupp") return <MeddelandeNyGruppScen />;
   if (s === "chattnatt") return <ChattNattScen />;
+  if (s === "chattbilaga") return <ChattBilagaScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>
