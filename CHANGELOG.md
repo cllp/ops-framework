@@ -9,6 +9,41 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.76.0
+
+Mejlkö, utskick och regelfragment på nodsidan (ops-framework#101, lifehub.app#103 lane 18A). Inbjudningsflödet är inte med. Det är steg B, i appen, efter att den här versionen är publicerad.
+
+PR 289 mergades som 0.74.0 och PR 290 som 0.75.0 innan den här grenen pushades. PR 291 ligger kvar öppen och kräver 0.75.1, så nästa lediga minor är 0.76.0.
+
+### Kön och utskicket
+
+LifeHub ska kunna bjuda in medlemmar via mejl. Mejlvägen är mätt (Gmail i Workspace, avsändare `LifeHub <hello@life-hub.app>`, SMTP `smtp.gmail.com:465`). Ramverket känner inga adresser, inga värden och inget samlingsnamn. Appen skickar in dem.
+
+SessionStudio köar ett dokument och låter en funktion skicka det. Samma beslut här, i ramverkets form. Copy-mallarna, avanmälan mot `users` och inkommande mejl är SessionStudios egen modell och finns inte med: de hade tvingat ramverket att känna en användarsamling.
+
+#### Ändrat
+
+- `createMailQueue({ kalla, samling })` skriver ett köat dokument: `till`, `amne`, `text`, `html`, `sprak` (`sv` eller `en`), `kategori`, valfritt `groupId`, `status: "koad"`. `byggMejl` är formen. `losMejlsprak` väljer språk i ordningen händelse, grupp, avsändare, sedan `sv`. `normaliseraMejlsprak` godtar bara exakt `sv` eller `en`.
+- `createMailSender` skickar dokumentet och skriver kvittot på samma rad: `status`, `accepterade`, `avvisade`, `svar` (högst 200 tecken), `messageId`, `tid`, `skal` och `fel`. Tomma fält är `null` eller `[]`. `skickad` betyder att servern accepterade minst en mottagare och avvisade ingen. En avvisad mottagare är `fel`. Ett kast från transporten är `fel` med texten på raden. Går kvittot inte att skriva kastas felet, med både utskickets fel och skrivfelet.
+- En spärrad domän skickas inte. Status blir `hoppad` och `skal` namnger domänen. `SPARRADA_MEJLDOMANER` är `test.se`, `example.com`, `test.com` och `example.se`. En extra lista lägger till och tar inte bort de fyra.
+- `createNodemailerTransport` tar `host`, `port`, `secure`, `auth` och `from` från appen och ansluter inte förrän `send`. Modulen läser inga hemligheter, varken vid laddning eller senare. Appen binder dem med `secrets: ["MAIL_USER", "MAIL_PASS"]` och läser dem i funktionen.
+- `createMockMailTransport` är provets transport. Ingen riktig SMTP i prov eller CI.
+- `byggMejlhandelse` är loggraden: mottagaren som SHA-256 (12 tecken), antal, serverns svar och Message-ID. Adressen står på dokumentet, inte i loggen.
+- `mejlregelfragment(samling)` nekar klienten både läsning och skrivning. Bara servern, med Admin SDK. Appen limmar in fragmentet och deployar reglerna tillsammans med kön.
+
+Gmail i Workspace tar emot cirka 2000 mejl per dygn för kontot som skickar. Över taket avvisar servern, och det blir `fel` på dokumentet.
+
+#### Prov
+
+Rött utan beteendet, grönt med det. `src/__tests__/mejl.test.js`, 18 prov.
+
+- Köat mejl med kvitto: utan att kvittot skrevs var status `koad` (förväntat `skickad`). Med skrivningen: grönt.
+- Avvisad mottagare: när grenen skrev `skickad` föll provet på `expected 'skickad' to be 'fel'`. Med `fel`: grönt.
+- Spärrad domän: när spärren var avstängd blev status `skickad` (förväntat `hoppad`) och transporten anropades. Med spärren: inget utskick, `skal` innehåller domänen.
+- Regelfragmentet: `allow read, write: if true` föll på att blocket ska innehålla `allow read, write: if false`. Med nekandet: grönt. Emulatorn (`rules/__tests__/mejl.test.mjs`) nekar läsning, listning, skapande och ändring, inloggad och utan inloggning. Filen måste innehålla `mejlregelfragment("mejlko")`, eftersom catch-all också nekar.
+- `check-node-side`: en planterad `import "react"` i `src/node/mejl.js` föll med "nodsidan drar in webben". Utan den: grönt, 187 webbfiler och 80 nodexporter i README.
+- `check-gammalt-namn`: golvet höjt från 540 till 618. Med 540 var vakten röd, den läste 651 filer och 540 låg mer än 20 procent under (taket är 648). Med 618, efter merge av 0.74.0 och 0.75.0: grön, 652 filer lästa.
+
 ## 0.75.1
 
 Grenen bygger på main vid 0.73.0. PR 288 (0.73.1), PR 289 (0.74.0) och PR 290 (0.75.0) ligger före i kön; den som mergas sist tar in main och höjer versionen.
