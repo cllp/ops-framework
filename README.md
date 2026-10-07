@@ -414,7 +414,7 @@ Firestore i morgon, SQL bakom ett API sedan.
 | `createFirestoreSource({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
 | `createPostgresSource({ query })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
 | `createHttpSource({ basUrl, getToken?, load?, headers? })` | **ett eget API över HTTP, alltså REST.** Kontraktets fem operationer ÄR CRUD, så översättningen är en rad var, och vilken databas som står bakom API:et syns inte här. ⛔ `fetch` **kastar inte på 404 eller 500**, bara när anropet aldrig kom fram: den som skriver `await (await fetch(u)).json()` får serverns felsida parsad som data. Därför kontrolleras `res.ok` på varje operation, så kontraktets regel 2 håller. ⛔ **404 betyder olika saker för olika operationer**: på `read` är det `null` ("finns inte", regel 3), på `update` och `remove` är det ett fel, eftersom någon bad om en ändring av något som inte finns. ⛔ Felet bär `status`, så appen kan skilja 401 (logga in igen) från 500 (försök senare) utan att matcha på text. ⛔ Ett 200-svar som inte är JSON är ett fel, för en proxy eller ett inloggningsskal svarar 200 med HTML och en tyst `{}` hade blivit "inga poster". ⛔ Styrparametrarna heter `_sort`, `_order` och `_limit`: en samling med ett fält som heter `sortBy` hade annars krockat, och symptomet är inte ett fel utan en lista som ibland inte lyder. ⛔ Token hämtas **per anrop**, aldrig en gång vid uppstart, för en token som gick ut medan appen stod öppen ser ut som att allt slutade fungera av sig självt. ⛔ **Ingen `subscribe`**, med flit (CP 2026-09-22): ett REST-API kan inte pusha, och `useLiveCollection` rapporterar då `realtime: false` i stället för att en pollingloop låtsas. ⛔ GraphQL är en **annan adapter**, inte ett läge här: den har en endpoint och ett frågedokument, och vilka fält som hämtas är appens beslut |
-| `createRoutingSource({ standard, routes })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `canSubscribe(collectionName)` svarar, `subscribe` **kastar med samlingens namn** för en som inte kan, och `useLiveCollection` frågar först och rapporterar `realtime: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid |
+| `createRoutingSource({ standard, routes })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `canSubscribe(collectionName)` svarar, `subscribe` **kastar med samlingens namn** för en som inte kan, och `useLiveCollection` frågar först och rapporterar `realtime: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid. ⛔ `updateIf` (0.76.3) skickas vidare på samma sätt: metoden finns när minst en källa har den, och anropet kastar med samlingens namn när just den källan saknar den. Utan vidarekopplingen hade `createMailSender` nekat den routande källan även när köns källa kan göra anspråket |
 | `OpsDataProvider` | ger appen sin källa |
 | `useDataSource`, `useCollection`, `useDocument` | React-sidan, med `loading`, `error` och `data` åtskilda |
 | `useLiveCollection` | samma som `useCollection`, men strömmande när källan kan. Se realtidsstycket nedan |
@@ -2172,7 +2172,22 @@ dokumentet ur källan och gör ett atomärt anspråk innan transporten anropas: 
 anspråket skickar. Står dokumentet på något annat än `koad` (`skickas`, `skickad`,
 `fel`, `hoppad`) skickas inget och dokumentet returneras som det står. Ett id som
 inte finns kastar. Källan måste ha `updateIf` (kontraktets regel 7); en källa utan
-nekas av `createMailSender` vid uppstart.
+nekas av `createMailSender` vid uppstart. Appens Admin-adapter behöver samma
+operation. Med Admin SDK är den en transaktion:
+
+```js
+async updateIf(samling, id, villkor, data) {
+  const ref = db.collection(samling).doc(id);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { updated: false, row: null };
+    const rad = { ...snap.data(), id: snap.id };
+    if (!Object.entries(villkor).every(([k, v]) => rad[k] === v)) return { updated: false, row: rad };
+    tx.update(ref, data);
+    return { updated: true, row: { ...rad, ...data } };
+  });
+}
+```
 
 ⛔ **Dör funktionen mellan anspråket och kvittot står dokumentet kvar på
 `skickas` och skickas inte om automatiskt.** Servern kan ha tagit emot mejlet,
@@ -2196,12 +2211,6 @@ dokumentet, inte i loggen. Skickas `logg` till `createMailSender` anropas den
 med den raden efter att kvittot skrivits. Kastar loggen ligger kvittot kvar
 och felet når anroparen.
 
-`mejlregelfragment(samling)` nekar klienten både läsning och skrivning. Bara
-servern, med Admin SDK, som går förbi regeln. Fragmentet importeras från
-`ops-framework` (det är text, ingen transport) och från `ops-framework/node`.
-Statusen `skickas` ändrar inget i fragmentet: klienten får varken läsa eller
-skriva någon rad.
-
 ⛔ **nodemailer är ett valfritt peer-beroende (0.76.2).** Appen som skickar mejl
 installerar det själv (`npm install nodemailer` i funktionerna).
 `createNodemailerTransport` laddar det med `await import("nodemailer")` vid första
@@ -2209,21 +2218,11 @@ utskicket, inte när `ops-framework/node` importeras, så en app utan mejl ladda
 aldrig SMTP-klienten. Saknas paketet blir första utskicket `fel` på köns dokument
 med texten "Installera nodemailer i appen för att skicka mejl".
 
-Appens Admin-adapter behöver `updateIf`. Med Admin SDK är den en transaktion:
-
-```js
-async updateIf(samling, id, villkor, data) {
-  const ref = db.collection(samling).doc(id);
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists) return { updated: false, row: null };
-    const rad = { ...snap.data(), id: snap.id };
-    if (!Object.entries(villkor).every(([k, v]) => rad[k] === v)) return { updated: false, row: rad };
-    tx.update(ref, data);
-    return { updated: true, row: { ...rad, ...data } };
-  });
-},
-```
+`mejlregelfragment(samling)` nekar klienten både läsning och skrivning. Bara
+servern, med Admin SDK, som går förbi regeln. Fragmentet importeras från
+`ops-framework` (det är text, ingen transport) och från `ops-framework/node`.
+Statusen `skickas` ändrar inget i fragmentet: klienten får varken läsa eller
+skriva någon rad.
 
 ```js
 import { mejlregelfragment, regelfragment } from "ops-framework";

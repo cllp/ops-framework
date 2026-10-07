@@ -208,3 +208,43 @@ describe("useLiveCollection mot en routande källa", () => {
     await waitFor(() => expect(screen.getByTestId("tillstand").textContent).toBe("klar realtid=false antal=2"));
   });
 });
+
+/**
+ * `updateIf` är frivillig, samma mönster som `subscribe` (0.76.3, granskningen av mejlkön).
+ * Mejlutskicket kräver den. En routande källa som svalde den hade låtit `createMailSender` neka
+ * en uppsättning där köns källa faktiskt kan göra anspråket.
+ */
+describe("updateIf per samling", () => {
+  /** @param {Record<string, { id: string }[]>} [seed] */
+  const utan = (seed = {}) => {
+    const k = createMemorySource(seed);
+    const { updateIf: _bort, ...rest } = k;
+    return rest;
+  };
+
+  it("exponerar inte updateIf när ingen källa har den", () => {
+    const source = createRoutingSource({ fallback: utan(), routes: { saker: utan() } });
+    expect(source.updateIf).toBeUndefined();
+  });
+
+  it("skickar vidare anspråket till den källa samlingen hamnar hos", async () => {
+    const ko = createMemorySource({ mejl: [{ id: "a", status: "koad" }] });
+    const source = createRoutingSource({ fallback: utan(), routes: { mejl: ko } });
+    expect(typeof source.updateIf).toBe("function");
+    const svar = await /** @type {NonNullable<typeof source.updateIf>} */ (source.updateIf)("mejl", "a", { status: "koad" }, { status: "skickas" });
+    expect(svar).toEqual({ updated: true, row: { id: "a", status: "skickas" } });
+    expect(await ko.read("mejl", "a")).toEqual({ id: "a", status: "skickas" });
+    const nekad = await /** @type {NonNullable<typeof source.updateIf>} */ (source.updateIf)("mejl", "a", { status: "koad" }, { status: "igen" });
+    expect(nekad.updated).toBe(false);
+    expect(await ko.read("mejl", "a")).toEqual({ id: "a", status: "skickas" });
+  });
+
+  it("⛔ kastar med samlingens namn när just den källan saknar updateIf", async () => {
+    const source = createRoutingSource({
+      fallback: createMemorySource({ annat: [{ id: "b", status: "koad" }] }),
+      routes: { mejl: utan({ mejl: [{ id: "a", status: "koad" }] }) },
+    });
+    expect(typeof source.updateIf).toBe("function");
+    await expect(/** @type {NonNullable<typeof source.updateIf>} */ (source.updateIf)("mejl", "a", { status: "koad" }, { status: "skickas" })).rejects.toThrow(/"mejl"/);
+  });
+});

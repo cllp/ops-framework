@@ -9,6 +9,19 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.76.3
+
+Småsaker från granskningen av mejlkön (PR 296). 0.77.0 är upptagen av utkastet för chattbilagor (#297) och är inte mergad. Den här är nästa lediga patch efter main, som står på 0.76.2.
+
+### Rättat
+
+- `createRoutingSource` skickar vidare `updateIf` när minst en källa har den, och kastar med samlingens namn när just den källan saknar den. Utan vidarekopplingen hade `createMailSender` nekat den routande källan även när köns källa kan göra anspråket.
+- Admin-exemplet för `updateIf` i README står direkt efter meningen om att källan måste ha operationen. Inledningen till `mejlregelfragment` står omedelbart ovanför kodblocket.
+
+### Prov
+
+- `src/__tests__/routing.test.jsx`, 16 prov. Utan vidarekopplingen: 2 röda, 14 gröna. Med metoden alltid exponerad, också när ingen källa har den: 1 röd, 15 gröna. Med rättningen: 16 av 16 gröna.
+
 ## 0.76.2
 
 Följd-PR till PR 294 (0.76.0, mejlkön). PR 294 mergades innan granskningen var klar, och granskningen hittade två blockerande fel: https://github.com/cllp/ops-framework/pull/294#issuecomment-6040015858. 0.76.x ska inte publiceras utan de här rättningarna.
