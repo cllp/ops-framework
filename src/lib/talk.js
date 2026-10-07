@@ -244,14 +244,50 @@ export function webblasarensInspelare(miljo = {}) {
 }
 
 /**
+ * Om sidan själv får använda mikrofonen, enligt dess Permissions-Policy. `true` eller `false` när webbläsaren kan svara, `null`
+ * när den inte kan (Firefox och Safari har ingen av frågorna, och då vet vi inget). ⛔ Chromium har bara den äldre
+ * `document.featurePolicy` påslagen; `document.permissionsPolicy` är standardnamnet men står bakom en flagga, därför båda.
+ *
+ * ⛔ SPÄRRAD AV SIDAN ÄR INTE SAMMA SAK SOM NEKAD AV PERSONEN (lifehub.app#103, lane 13). my.life-hub.app får visas i en ram
+ * (`frame-ancestors` tillåter Identity och life-hub.app). En ram utan `allow="microphone"`, eller en `Permissions-Policy:
+ * microphone=()`, ger samma `NotAllowedError` som när personen sagt nej, men webbläsarens inställningar kan inte häva den.
+ * Att då be personen ändra inställningarna är en instruktion som inte går att följa.
+ *
+ * @param {unknown} [doc] Förval `globalThis.document`.
+ * @returns {boolean | null}
+ */
+export function mikrofonenTillatenAvSidan(doc = globalThis.document) {
+  const d = /** @type {any} */ (doc);
+  const policy = d?.permissionsPolicy ?? d?.featurePolicy;
+  if (!policy || typeof policy.allowsFeature !== "function") return null;
+  try {
+    return Boolean(policy.allowsFeature("microphone"));
+  } catch {
+    return null;
+  }
+}
+
+/** När sidans Permissions-Policy spärrar mikrofonen. Exporteras för appar som vill visa samma ord. */
+export const MIKROFON_SPARRAD_AV_SIDAN = "Mikrofonen är spärrad av sidan som visar appen. Öppna appen i ett eget fönster för att spela in.";
+
+/**
  * Felet som en människa läser, ur webbläsarens fel. ⛔ ORDET OCH INTE NAMNET: "NotAllowedError" säger ingenting i en
  * telefon, "Mikrofonen är inte tillåten" säger vad man ska göra.
+ *
+ * ⛔ SIDANS POLICY PRÖVAS FÖRE TEXTEN OM INSTÄLLNINGARNA. Se `mikrofonenTillatenAvSidan`. Svarar webbläsaren inte står texten om
+ * inställningarna kvar, eftersom den då är den enda som kan stämma.
+ *
  * @param {unknown} fel
+ * @param {{ sidanTillater?: boolean | null }} [val] Förval: `mikrofonenTillatenAvSidan()`.
  * @returns {string}
  */
-export function talkFeltext(fel) {
+export function talkFeltext(fel, val = {}) {
   const namn = fel && typeof fel === "object" && "name" in fel ? String(/** @type {any} */ (fel).name) : "";
-  if (namn === "NotAllowedError" || namn === "SecurityError") return "Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.";
+  if (namn === "NotAllowedError" || namn === "SecurityError") {
+    const sidanTillater = "sidanTillater" in val ? val.sidanTillater : mikrofonenTillatenAvSidan();
+    if (sidanTillater === false) return MIKROFON_SPARRAD_AV_SIDAN;
+    return "Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.";
+  }
   if (namn === "NotFoundError") return "Ingen mikrofon hittades.";
   const text = fel instanceof Error ? fel.message : String(fel || "");
   return text || "Inspelningen gick inte att starta.";

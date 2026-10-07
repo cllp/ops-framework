@@ -9,6 +9,28 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.75.1
+
+Grenen bygger på main vid 0.73.0. PR 288 (0.73.1), PR 289 (0.74.0) och PR 290 (0.75.0) ligger före i kön; den som mergas sist tar in main och höjer versionen.
+
+### En mikrofon som sidan spärrar skickar inte personen till webbläsarens inställningar (lifehub.app#103, lane 13 del 2)
+
+Händelsen: my.life-hub.app får visas i en ram (`frame-ancestors` tillåter `lifehub-identity.web.app` och `life-hub.app`, mätt med `curl -sI https://my.life-hub.app/` 2026-10-07). En ram utan `allow="microphone"`, eller en sida med `Permissions-Policy: microphone=()`, ger samma `NotAllowedError` som när personen sagt nej. `talkFeltext` sade då "Ge sidan tillgång till mikrofonen i webbläsarens inställningar", en instruktion som inte går att följa, eftersom inställningarna inte kan häva sidans policy.
+
+#### Tillagt
+
+- `mikrofonenTillatenAvSidan(doc?)`: `true` eller `false` ur `document.permissionsPolicy` eller, i Chromium, `document.featurePolicy`; `null` när webbläsaren inte kan svara (Firefox, Safari).
+- `MIKROFON_SPARRAD_AV_SIDAN`: "Mikrofonen är spärrad av sidan som visar appen. Öppna appen i ett eget fönster för att spela in."
+
+#### Ändrat
+
+- `talkFeltext(fel, { sidanTillater? })`: vid `NotAllowedError` och `SecurityError` prövas sidans policy först. Spärrad ger `MIKROFON_SPARRAD_AV_SIDAN`. Tillåten eller okänd ger texten om inställningarna som förut, eftersom den då är den enda som kan stämma.
+
+#### Prov
+
+- `src/__tests__/talk.test.jsx`: den rena funktionen med spärrad, tillåten och okänd policy, och TALK-fältet i en sida vars policy spärrar mikrofonen. Utan kontrollen: 2 röda. Med: 23 av 23 gröna.
+- Mätt i Chromium (Playwright, inte jsdom): `mikrofonenTillatenAvSidan` ger `true` utan rubrik, `false` med `Permissions-Policy: microphone=()`, `false` i en främmande ram utan `allow` och `true` i en med `allow="microphone"`. `document.permissionsPolicy` finns inte i Chromium utan flagga, så det är `featurePolicy` som svarar där.
+
 ## 0.75.0
 
 Grenen bygger på main vid 0.73.0. PR 288 (0.73.1) och PR 289 (0.74.0) ligger före i kön; den som mergas sist tar in main och höjer versionen.
