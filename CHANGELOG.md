@@ -39,7 +39,7 @@ heter samma sak.
 - **Reaktioner** (`reaktioner`): `<reaktioner>/{mid|uid|kod}` med sex fasta koder, emoji bara i vyn; skapa och radera bara sin egen,
   aldrig uppdatera; meddelandet i samma samtal. En lyssnare per samtal och tråd (`REAKTIONSTAK`). Chips med `aria-pressed` och en
   väljare med 44 px, pilar och Escape.
-- **Omnämnanden, @alla och @agent** (`omnamnanden: true`): `namner: [uid] | ["alla"]`, högst 20. Regeln prövar formen, läsaren
+- **Omnämnanden, @alla och @agent** (`omnamnanden: true`): `namner: [uid] | ["alla"]`, högst 20 uid om högst 128 tecken (`MAX_UIDLANGD`), utan komma. Regeln prövar formen, läsaren
   auktoriserar (`namnda`, `arNamnd`), "alla" expanderas vid läsning. `agentenNamnd` för appens agent, också i `node`.
   `samtalsnotiser({ medlemmar })` ger "nämnd i gruppchatten". @-lista i skrivfältet.
 - **Svar med citat i privata samtal** (`citat: true`): `svarPa: mid`, regeln kräver samma samtal och inte gruppchatten; citatet
@@ -58,6 +58,14 @@ heter samma sak.
   den först.", och den första spelar vidare. Inget ljud kastas av spärren. Prov: `chatt-talk-krock.test.jsx`, rött utan spärren.
 - Skrivfältets felrad säger "Det inspelade kunde inte skrivas ut" bara när det finns ett ljud som inte skrevs ut. En nekad
   mikrofon eller en upptagen inspelning säger sitt eget skäl.
+- ⛔ **TALK: ett svar från `getUserMedia` hör till sitt försök (#281).** Ett försök som avbröts, skickades eller avmonterades
+  medan mikrofonen öppnades spelade in ändå, och efter en avmontering nådde ljudet appen efter 120 s. Två starter med Avbryt
+  emellan lämnade en ström öppen. `useTalk` numrerar nu varje försök, och webbläsarens inspelare stänger en ström som öppnats för
+  ett äldre försök. Prov: `talk-forsok.test.jsx` räknar öppna strömmar med en fejkad `getUserMedia`, rött utan rättelsen.
+- ⛔ **Utdragen visar inte markdownens tecken.** Fästraden, citaten, citatraden ovanför fältet och listans rad visade agentens
+  `**` rått. `utdrag` läser nu samma tolkning som bubblan. Prov i jsdom och i Chromium (`check-skalyta` 29g).
+- ⛔ **`namner` i regeln: bara strängar, och med ett tak.** Emulatorn släppte in `[{a:1}, 7]` och 200 000 tecken. Regeln fogar
+  ihop listan och delar den igen, vilket bara ger samma lista för strängar utan komma, och längden är högst 20 gånger 128 tecken.
 
 ### Ompinning
 
