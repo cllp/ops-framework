@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
-import { LANGTRYCK_MS, TALK_ORD, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
+import { LANGTRYCK_MS, MIKROFON_SPARRAD_AV_SIDAN, TALK_ORD, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
 
 /*
  * 0.57.0, cllp/lifehub.app#2. CP 2026-10-04: långtryck på plusset visar bara TALK, ett fält kommer fram så att man
@@ -53,6 +53,21 @@ describe("flödet är en ren funktion", () => {
   it("felet säger vad man gör, inte webbläsarens namn", () => {
     expect(talkFeltext({ name: "NotAllowedError" })).toMatch(/Mikrofonen är inte tillåten/);
     expect(talkFeltext({ name: "NotFoundError" })).toBe("Ingen mikrofon hittades.");
+  });
+
+  it("⛔ en mikrofon som sidans Permissions-Policy spärrar skickar inte personen till webbläsarens inställningar (lane 13)", () => {
+    const nej = { name: "NotAllowedError" };
+    expect(talkFeltext(nej, { sidanTillater: false })).toBe(MIKROFON_SPARRAD_AV_SIDAN);
+    expect(talkFeltext(nej, { sidanTillater: false })).not.toMatch(/inställningar/);
+    expect(talkFeltext(nej, { sidanTillater: true })).toMatch(/webbläsarens inställningar/);
+    // Kan webbläsaren inte svara står texten om inställningarna kvar.
+    expect(talkFeltext(nej, { sidanTillater: null })).toMatch(/webbläsarens inställningar/);
+    const fraga = vi.fn((/** @type {string} */ f) => f !== "microphone");
+    expect(mikrofonenTillatenAvSidan({ permissionsPolicy: { allowsFeature: fraga } })).toBe(false);
+    expect(fraga).toHaveBeenCalledWith("microphone");
+    expect(mikrofonenTillatenAvSidan({ featurePolicy: { allowsFeature: () => true } })).toBe(true);
+    expect(mikrofonenTillatenAvSidan({})).toBeNull();
+    expect(mikrofonenTillatenAvSidan({ permissionsPolicy: { allowsFeature: () => { throw new Error("x"); } } })).toBeNull();
   });
 });
 
@@ -137,6 +152,20 @@ describe("plusset i bottenraden", () => {
     act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
     await flush();
     expect(document.querySelector("[data-talk-fel]")?.textContent).toMatch(/Mikrofonen är inte tillåten/);
+  });
+
+  it("⛔ i en ram som spärrar mikrofonen säger fältet det, och inte att personen ska ändra inställningarna (lane 13)", async () => {
+    const fel = Object.assign(new Error("x"), { name: "NotAllowedError" });
+    Object.defineProperty(document, "permissionsPolicy", { configurable: true, value: { allowsFeature: (/** @type {string} */ f) => f !== "microphone" } });
+    try {
+      render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare({ startFel: fel }) } }));
+      fireEvent.pointerDown(plus(), { button: 0 });
+      act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+      await flush();
+      expect(document.querySelector("[data-talk-fel]")?.textContent).toBe(MIKROFON_SPARRAD_AV_SIDAN);
+    } finally {
+      delete (/** @type {any} */ (document)).permissionsPolicy;
+    }
   });
 
   it("⛔ en mottagare som fallerar syns i fältet, ett tyst fel hade sett ut som skickat", async () => {
