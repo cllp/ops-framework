@@ -128,6 +128,46 @@ describe("skrivfältet", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Stoppa agenten" }));
     expect(onStoppaAgent).toHaveBeenCalledWith(a.id);
   });
+  /*
+   * ⛔ SKRIVFÄLTETS VÄG TILL MIKROFONEN (0.75.2, cllp/lifehub.identity#30). 0.75.1 mätte `talkFeltext` och `mikrofonenTillatenAvSidan`
+   * var för sig, men inte vägen från skrivfältets ljudvåg till texten personen läser. En mikrofon som sidans Permissions-Policy
+   * spärrar ger samma `NotAllowedError` som ett nej från personen; skrivfältet ska då säga att sidan spärrar, inte peka på
+   * webbläsarens inställningar. Utan API (äldre webbläsare) står den gamla texten kvar, eftersom den då är den enda som kan stämma.
+   */
+  for (const [namn, nyckel] of /** @type {const} */ ([["permissionsPolicy", "permissionsPolicy"], ["featurePolicy", "featurePolicy"]])) {
+    it(`⛔ en mikrofon som sidan spärrar (${namn}) säger det i skrivfältet`, async () => {
+      const { s, a } = await underlag();
+      const insp = provinspelare();
+      insp.starta = vi.fn(async () => Promise.reject(Object.assign(new Error("Permission denied"), { name: "NotAllowedError" })));
+      const doc = /** @type {any} */ (document);
+      const fore = Object.getOwnPropertyDescriptor(doc, nyckel);
+      Object.defineProperty(doc, nyckel, { configurable: true, value: { allowsFeature: (/** @type {string} */ f) => f !== "microphone" } });
+      try {
+        render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={vi.fn()} inspelare={insp} />);
+        await within(await screen.findByRole("log")).findByText("Hej");
+        fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
+        const fel = await screen.findByRole("alert");
+        expect(fel.textContent).toContain("Mikrofonen är spärrad av sidan som visar appen");
+        expect(fel.textContent).not.toContain("webbläsarens inställningar");
+      } finally {
+        if (fore) Object.defineProperty(doc, nyckel, fore);
+        else delete doc[nyckel];
+      }
+    });
+  }
+  it("⛔ utan policy-API står texten om webbläsarens inställningar kvar", async () => {
+    const { s, a } = await underlag();
+    const insp = provinspelare();
+    insp.starta = vi.fn(async () => Promise.reject(Object.assign(new Error("Permission denied"), { name: "NotAllowedError" })));
+    const doc = /** @type {any} */ (document);
+    expect(doc.permissionsPolicy ?? doc.featurePolicy).toBeUndefined(); // golv: jsdom har inget API, annars mäter provet fel sak
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} onTranscribe={vi.fn()} inspelare={insp} />);
+    await within(await screen.findByRole("log")).findByText("Hej");
+    fireEvent.click(screen.getByRole("button", { name: "Prata in" }));
+    const fel = await screen.findByRole("alert");
+    expect(fel.textContent).toContain("Mikrofonen är inte tillåten. Ge sidan tillgång till mikrofonen i webbläsarens inställningar.");
+    expect(fel.textContent).not.toContain("spärrad av sidan");
+  });
 });
 
 describe("plusmenyn (kopplas in när bilagemodulen i PR 277 finns)", () => {

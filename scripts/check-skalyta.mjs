@@ -69,6 +69,22 @@ const standardtema = temaI >= 0 && argv[temaI + 1] === "dark" ? "dark" : "light"
 const bildI = argv.indexOf("--bilder");
 const bildmapp = bildI >= 0 ? path.resolve(argv[bildI + 1]) : null;
 if (bildmapp) fs.mkdirSync(bildmapp, { recursive: true });
+// `--chattbredder 390,1024`: andra bredder för 29g (0.75.0, lane 7 bad om 390 och 1024 px). Förval 390 och 1280.
+// ⛔ Saknas värdet, eller är en bredd inget positivt heltal, stannar skriptet med ett fel som säger det (granskningen av PR 290):
+// förut kraschade det på `argv[i + 1].split`, och ett tal som inte gick att läsa hade gett en mätning i bredden NaN.
+const chattbredderI = argv.indexOf("--chattbredder");
+const chattbredder = chattbredderI >= 0 ? lasChattbredder(argv[chattbredderI + 1]) : [{ width: 390, height: 844 }, { width: 1280, height: 900 }];
+
+/** @param {string | undefined} varde */
+function lasChattbredder(varde) {
+  const delar = varde === undefined || varde.startsWith("--") ? [] : varde.split(",");
+  const bredder = delar.map((b) => Number(b));
+  if (bredder.length === 0 || bredder.some((b) => !Number.isInteger(b) || b <= 0)) {
+    console.error(`check-skalyta: --chattbredder kräver bredder i pixlar, kommaseparerade, t.ex. \`--chattbredder 390,1024\`. Fick: ${varde === undefined ? "inget värde" : `"${varde}"`}.`);
+    process.exit(1);
+  }
+  return bredder.map((b) => ({ width: b, height: b <= 480 ? 844 : 900 }));
+}
 
 if (!fs.existsSync(dist)) {
   console.error("check-skalyta: dist/index.js saknas. Kör `npm run build` först.");
@@ -218,9 +234,6 @@ function avsluta() {
 //       högra del ljudvågen med 44 px träffyta. Ett tryck spelar in: raden "Spelar in" syns, stopp och ljudvåg är 44 px och ligger
 //       i fältet; ett andra tryck skriver ut, och texten står i fältet, oskickad. Plus ritas inte förrän bilagemodulen finns.
 // Ingen horisontell överflödning någonstans. Golv per del står vid kraven.
-// `--chattbredder 390,1024`: andra bredder för 29g (0.75.0, lane 7 bad om 390 och 1024 px). Förval 390 och 1280.
-const chattbredderI = argv.indexOf("--chattbredder");
-const chattbredder = chattbredderI >= 0 ? argv[chattbredderI + 1].split(",").map((b) => ({ width: Number(b), height: Number(b) <= 480 ? 844 : 900 })) : [{ width: 390, height: 844 }, { width: 1280, height: 900 }];
 async function chattensNattskiva() {
   for (const vp of chattbredder) {
     const over = (/** @type {import("playwright").Page} */ page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

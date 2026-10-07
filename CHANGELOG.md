@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.75.2
+
+Uppföljning av granskningarna av PR 290 (0.75.0) och PR 289 (0.74.0), som båda mergades innan rättningarna var gjorda, och av PR 291 (0.75.1), där skrivfältets väg till mikrofonen saknade prov (cllp/lifehub.identity#30).
+
+### Rättat
+
+- `OpsSamtal` och `OpsTrad` byggde sina texter utan reaktionsnamnen, så med `sprak="en"` hette reaktionerna på svenska när komponenterna användes utan `OpsMeddelanden` runt sig. De är egna exporter (`src/index.js`). Alla tre bygger nu texterna med samma interna funktion (`texterPa`), en källa i stället för tre rader.
+- `check-skalyta.mjs --chattbredder` utan värde kraschade på `argv[i + 1].split` (TypeError). Nu stannar skriptet med ett fel som säger vad som saknas, och exit 1. Samma sak för en bredd som inte är ett positivt heltal (`390,abc`) och för en annan flagga i värdets ställe (`--chattbredder --tema`).
+- Texten om 0.74.0: raden om att versionen förutsatte att PR 288 mergades först är struken (288 är inne), och `SYNLIGA_MANADER_VILA_MS` och `synligaManader` står som interna, eftersom de inte exporteras ur `src/index.js`. README får en punkt efter "(#259 skiva 2, F4)" och en mening om att intervallet inte rapporteras om när ytan byter storlek och att dedupliceringen är per instans.
+
+### Prov
+
+- `src/__tests__/chatt-reaktioner.test.jsx`: `OpsSamtal` och `OpsTrad` ensamma med `sprak="en"` kräver "Thumbs up, 1" och "Applause, 1" med Lucide-ikonen. Före rättningen 2 röda av 19 (namnen var "Tummen upp, 1" och "Applåd, 1"), efter 19 av 19 gröna.
+- `src/__tests__/chatt-skrivfalt.test.jsx` (cllp/lifehub.identity#30): skrivfältets ljudvåg med en inspelare som kastar `NotAllowedError`. Med `document.permissionsPolicy` eller `document.featurePolicy` som spärrar mikrofonen säger raden "Mikrofonen är spärrad av sidan som visar appen" och inget om webbläsarens inställningar; utan API står den gamla texten kvar (golv: provet kräver att jsdom saknar API:t). Utan kontrollen `mikrofonenTillatenAvSidan` i `talkFeltext`: 2 röda av 10. Med den: 10 av 10 gröna.
+- `check-skalyta.mjs --chattbredder` utan värde: före TypeError, efter felmeddelandet och exit 1. `--bara-chatt --chattbredder 390,1024`: 106 kontroller, inga brott.
+
 ## 0.75.1
 
 Grenen bygger på main vid 0.73.0. PR 288 (0.73.1), PR 289 (0.74.0) och PR 290 (0.75.0) ligger före i kön; den som mergas sist tar in main och höjer versionen.
@@ -68,16 +84,14 @@ De sex koderna (`REAKTIONSKODER`) och reglerna är desamma. En reaktion sparad f
 
 ## 0.74.0
 
-Versionen förutsätter att 0.73.1 (PR 288, #287 och #283) mergas först. Mergas den här först blir den 0.73.1, och PR 288 får då numret efter.
-
 ### `OpsCalendar` säger vilka månader som syns (#284)
 
 Händelsen: lifehub.app PR 91 (gruppens frånvaro i kalendern) behövde veta vilket fönster den skulle hämta frånvaro för, och läste därför ramverkets egna attribut `data-kalender-rulle` och `data-cal-day` ur DOM när rullningen stannat. Det var en tillfällig lösning med ärende (regel 1): ändras attributen slutar hämtningen följa rullningen utan att något prov i appen märker det.
 
 #### Tillagt
 
-- `onSynligaManader({ forsta, sista })` på `OpsCalendar`, med månaderna som `YYYY-MM`. Anropas när rullningen stått still i `SYNLIGA_MANADER_VILA_MS` (150 ms, exporterad) och en gång vid start, efter hoppet till idag. Varje rullningshändelse startar om vilan, så en svepning ger ett anrop och inte ett per händelse. Samma intervall två gånger anropas en gång.
-- Varje månadsblock bär `data-kalender-manad="YYYY-MM"`, och `synligaManader(rulle, huvud)` (exporterad ur komponentfilen) räknar fram intervallet under den klistrade veckodagsraden. Utan callback startas ingen vila och ingenting mäts för den.
+- `onSynligaManader({ forsta, sista })` på `OpsCalendar`, med månaderna som `YYYY-MM`. Anropas när rullningen stått still i `SYNLIGA_MANADER_VILA_MS` (150 ms, intern) och en gång vid start, efter hoppet till idag. Varje rullningshändelse startar om vilan, så en svepning ger ett anrop och inte ett per händelse. Samma intervall två gånger anropas en gång.
+- Varje månadsblock bär `data-kalender-manad="YYYY-MM"`, och `synligaManader(rulle, huvud)` (intern, exporteras inte ur `src/index.js`) räknar fram intervallet under den klistrade veckodagsraden. Utan callback startas ingen vila och ingenting mäts för den.
 
 #### Appens steg
 
