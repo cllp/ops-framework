@@ -19,11 +19,29 @@
  *
  * ⛔ INGEN RIKTIG SMTP I PROV. `createMockMailTransport` tar emot utskicket.
  * `createNodemailerTransport` är adaptern appen använder i funktionen.
+ *
+ * ⛔ VARJE MEJL SKICKAS EN GÅNG (0.76.2, granskningen av PR 294). `onDocumentCreated`
+ * levereras minst en gång, och händelsens dokument står alltid på `koad`. Före 0.76.2
+ * läste utskicket aldrig dokumentets status, och ett prov gav tre utskick av samma
+ * dokument. Nu läser `skicka(id)` dokumentet ur källan och tar det med ett atomärt
+ * anspråk (`updateIf`, `koad` till `skickas`, med `paborjad`) INNAN transporten
+ * anropas. Står dokumentet inte på `koad` skickas inget, och dokumentet returneras.
+ *
+ * ⛔ DÖR PROCESSEN MELLAN ANSPRÅK OCH KVITTO står dokumentet kvar på `skickas`, och
+ * det skickas INTE om automatiskt. Det är medvetet: mellan anspråket och kvittot kan
+ * servern ha tagit emot mejlet, och en automatisk omkörning hade då skickat det två
+ * gånger, vilket är just felet den här ordningen finns för att stänga. Raden är inte
+ * tyst: `status: "skickas"` med en gammal `paborjad` är ett fastnat utskick som en
+ * app kan lista och visa. Att skicka om är ett beslut, inte en automat.
+ *
+ * ⛔ NODEMAILER LADDAS FÖRST VID UTSKICK. Det är ett valfritt peer-beroende och
+ * importeras dynamiskt i `createNodemailerTransport().send`. En statisk import här
+ * hade laddat SMTP-klienten i varje app som importerar `ops-framework/node`, också
+ * de utan mejl (granskningen av PR 294, B2).
  */
 
 // @ts-expect-error Noden har crypto. Ramverket har inga Node-typer: lib är DOM, för webben.
 import { createHash } from "node:crypto";
-import nodemailer from "nodemailer";
 import {
   byggMejl,
   kontrolleraMejlsamling,
@@ -102,6 +120,11 @@ export function byggMejlhandelse(b = {}) {
 }
 
 /**
+ * Statusen ett dokument står på medan det skickas. Anspråket sätter den, kvittot ersätter den.
+ */
+const SKICKAS = "skickas";
+
+/**
  * @param {"skickad" | "fel" | "hoppad"} status
  * @param {{ accepterade?: string[], avvisade?: string[], svar?: string | null, messageId?: string | null, skal?: string | null, fel?: string | null }} [falt]
  */
@@ -172,6 +195,10 @@ export function createMailQueue(konfig) {
 /**
  * Tar ett köat dokument, skickar det och skriver kvittot på samma dokument.
  *
+ * ⛔ KÄLLAN MÅSTE KUNNA `read` OCH `updateIf`. Anspråket är det enda som hindrar att
+ * samma dokument skickas två gånger, och en källa som bara kan läsa och sedan skriva
+ * kan inte ge det löftet (kontraktets regel 7).
+ *
  * @param {object} [konfig]
  * @param {import("../data/contract.js").DataSource<any>} konfig.kalla
  * @param {string} konfig.samling
@@ -181,9 +208,15 @@ export function createMailQueue(konfig) {
  */
 export function createMailSender(konfig) {
   const { kalla, samling, transport, logg, sparradeDomaner } = konfig ?? {};
-  if (!kalla || typeof kalla.update !== "function") {
-    throw new Error("createMailSender: en datakälla med update krävs. Ramverket känner ingen databas.");
+  if (!kalla || typeof kalla.update !== "function" || typeof kalla.read !== "function") {
+    throw new Error("createMailSender: en datakälla med read och update krävs. Ramverket känner ingen databas.");
   }
+  if (typeof kalla.updateIf !== "function") {
+    throw new Error(
+      "createMailSender: datakällan saknar updateIf. Utan ett atomärt anspråk (koad till skickas) kan samma mejl skickas två gånger när händelsen levereras igen. Med Admin SDK är updateIf en db.runTransaction, se README om mejl.",
+    );
+  }
+  const villkorad = kalla.updateIf;
   const kallan = kalla;
   const SAMLING = kontrolleraMejlsamling(samling, "createMailSender");
   if (!transport || typeof transport.send !== "function") {
@@ -199,14 +232,28 @@ export function createMailSender(konfig) {
 
   return {
     /**
-     * @param {{ id?: string, till?: string, amne?: string, text?: string, html?: string, sprak?: string, kategori?: string, groupId?: string | null }} dokument
+     * Tar dokumentets id (eller ett dokument med `id`). Innehållet läses alltid ur källan,
+     * aldrig ur argumentet: händelsens kopia är en bild av när dokumentet skapades.
+     *
+     * @param {string | { id?: string }} idEllerDokument
      */
-    async skicka(dokument) {
-      const id = typeof dokument?.id === "string" ? dokument.id.trim() : "";
+    async skicka(idEllerDokument) {
+      const rawId = typeof idEllerDokument === "string" ? idEllerDokument : idEllerDokument?.id;
+      const id = typeof rawId === "string" ? rawId.trim() : "";
       if (!id) {
-        throw new Error("skicka: dokumentet saknar id. Kvittot skrivs på samma dokument, och utan id finns det ingenstans att skriva det.");
+        throw new Error("skicka: dokumentets id saknas. Kvittot skrivs på samma dokument, och utan id finns det ingenstans att skriva det.");
       }
       const start = Date.now();
+
+      // Anspråket. Bara den körning som flyttar dokumentet från koad till skickas
+      // anropar transporten. Alla andra får dokumentet tillbaka som det står.
+      const ansprak = await villkorad.call(kallan, SAMLING, id, { status: "koad" }, { status: SKICKAS, paborjad: new Date().toISOString() });
+      if (!ansprak || !ansprak.row) {
+        throw new Error(`skicka: "${SAMLING}/${id}" finns inte. Ett mejl som inte finns kan inte skickas, och det ska inte se ut som att det gick.`);
+      }
+      if (!ansprak.updated) return ansprak.row;
+      const dokument = /** @type {{ till?: unknown, amne?: unknown, text?: unknown, html?: unknown, sprak?: unknown, kategori?: unknown, groupId?: string | null }} */ (ansprak.row);
+
       const till = typeof dokument.till === "string" ? dokument.till.trim().toLowerCase() : "";
       const amne = typeof dokument.amne === "string" ? dokument.amne.trim() : "";
       const text = typeof dokument.text === "string" ? dokument.text : "";
@@ -282,7 +329,12 @@ export function createMailSender(konfig) {
 }
 
 /**
- * nodemailer mot den SMTP appen skickar in. Ansluter inte förrän `send`.
+ * nodemailer mot den SMTP appen skickar in. Laddar inte nodemailer och ansluter
+ * inte förrän första `send`.
+ *
+ * ⛔ NODEMAILER ÄR ETT VALFRITT PEER-BEROENDE. Appen som skickar mejl installerar
+ * det. Saknas det kastar första `send` med det beskedet, och felet blir `fel` på
+ * köns dokument, inte ett tyst bortfall.
  *
  * @param {object} [konfig]
  * @param {string} konfig.host
@@ -315,18 +367,42 @@ export function createNodemailerTransport(konfig) {
   if (skapa !== undefined && typeof skapa !== "function") {
     throw new Error("createNodemailerTransport: skapa är en funktion eller utelämnad.");
   }
-  /** @param {object} opts @returns {{ sendMail: (mail: object) => Promise<any> }} */
-  const standard = (opts) => /** @type {any} */ (nodemailer).createTransport(opts);
-  const transport = (skapa ?? standard)({ host: host.trim(), port, secure, auth: { user, pass } });
-  if (!transport || typeof transport.sendMail !== "function") {
-    throw new Error("createNodemailerTransport: transporten saknar sendMail.");
-  }
+  const opts = { host: host.trim(), port, secure, auth: { user, pass } };
+  /** @param {object} o @returns {Promise<{ sendMail: (mail: object) => Promise<any> }>} */
+  const standard = async (o) => {
+    let modul;
+    try {
+      // Variabeln håller buntare och typkontrollen borta från en modul ramverket inte kräver.
+      const namn = "nodemailer";
+      modul = await import(namn);
+    } catch (e) {
+      const orsak = e instanceof Error ? e.message : String(e);
+      throw new Error(`createNodemailerTransport: nodemailer saknas. Installera nodemailer i appen för att skicka mejl (npm install nodemailer). ${orsak}`);
+    }
+    const fabrik = modul?.default?.createTransport ?? modul?.createTransport;
+    if (typeof fabrik !== "function") {
+      throw new Error("createNodemailerTransport: nodemailer saknar createTransport. Installera nodemailer i appen för att skicka mejl.");
+    }
+    return fabrik.call(modul?.default ?? modul, o);
+  };
+  /** @type {Promise<{ sendMail: (mail: object) => Promise<any> }> | null} */
+  let laddad = null;
   const avsandare = from.trim();
   return {
     /**
      * @param {{ till: string, amne: string, text: string, html: string }} brev
      */
     async send(brev) {
+      // Ett misslyckat försök sparas inte: installerar appen paketet ska nästa utskick lyckas.
+      laddad ??= Promise.resolve((skapa ?? standard)(opts)).catch((e) => {
+        laddad = null;
+        throw e;
+      });
+      const transport = await laddad;
+      if (!transport || typeof transport.sendMail !== "function") {
+        laddad = null;
+        throw new Error("createNodemailerTransport: transporten saknar sendMail.");
+      }
       const info = await transport.sendMail({
         from: avsandare,
         to: brev.till,

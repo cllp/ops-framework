@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.76.2
+
+Följd-PR till PR 294 (0.76.0, mejlkön). PR 294 mergades innan granskningen var klar, och granskningen hittade två blockerande fel: https://github.com/cllp/ops-framework/pull/294#issuecomment-6040015858. 0.76.x ska inte publiceras utan de här rättningarna.
+
+### Rättat
+
+- **Varje mejl skickas en gång (B1).** `createMailSender().skicka` läste aldrig dokumentets status och gjorde inget anspråk före transporten. `onDocumentCreated` levereras minst en gång och händelsens dokument står alltid på `koad`, så en omleverans skickade samma mejl igen (granskarens prov: 3 utskick av ett dokument). Nu tar `skicka` ett id (eller ett dokument med `id`), läser dokumentet ur källan och gör ett atomärt anspråk från `koad` till `skickas`, med `paborjad`, innan transporten anropas. Står dokumentet inte på `koad` skickas inget och dokumentet returneras. Ett id som inte finns kastar.
+- Dör processen efter anspråket men före kvittot står dokumentet på `skickas` och skickas inte om automatiskt: servern kan ha tagit emot mejlet. Raden syns som `skickas` med `paborjad`, så en app kan visa fastnade utskick.
+- **nodemailer laddas först vid utskick (B2).** Det låg i `dependencies` och importerades statiskt, så varje `import ... from "ops-framework/node"` laddade det. Nu är det ett valfritt peer-beroende (`peerDependencies` och `peerDependenciesMeta.nodemailer.optional`, kvar i `devDependencies` för proven), och `createNodemailerTransport` gör `await import("nodemailer")` vid första `send`. Saknas paketet blir utskicket `fel` med texten "Installera nodemailer i appen för att skicka mejl".
+- README-exemplet anropade `skicka({ id, ...data })` med händelsens kopia. Nu `skicka(event.params.id)`, och README visar `updateIf` för en Admin-adapter som en `db.runTransaction`.
+
+### Tillagt
+
+- Datakontraktets regel 7: den frivilliga operationen `updateIf(samling, id, villkor, data)`, som skriver bara om likhetsvillkoren stämmer i samma atomära steg som läsningen och svarar `{ updated, row }`. Minneskällan har den. `createMailSender` kräver den och nekar en källa utan vid uppstart, eftersom en läsning följd av en skrivning inte hindrar två samtidiga utskick.
+
+### Prov
+
+`src/__tests__/mejl.test.js`, 27 prov.
+
+- Utan anspråket (dokumentet läses och skickas utan `updateIf`): 5 röda av 27. Samma id två gånger i följd gav 2 utskick, tre samtidiga anrop gav 3, dokument på `skickad`, `fel`, `hoppad` och `skickas` skickades, `skickas` och `paborjad` fanns inte under transporten, och raden stod inte kvar på `skickas` när kvittot inte gick att skriva.
+- Med en läs-sedan-skriv-kontroll i stället för `updateIf`: 2 röda av 27, bland dem de samtidiga anropen (fler än ett utskick).
+- Med en statisk `import "nodemailer"` tillbaka i `src/node/mejl.js`: 2 röda av 2 för nodemailerproven (en resolve-krok i en barnprocess såg 101 nodemailer-moduler redan vid `import("src/node/index.js")`). Kroken registreras med `module.register` via `node --import` och skriver varje url till en temporär fil, så proven går på Node 20.6 och nyare; de synkrona `registerHooks` finns först i Node 22.15, och CI kör Node 20. Rött och grönt är sett på både Node 20.20.2 och 22.22.2.
+- Med rättningen: 27 av 27 gröna. Barnprocessen ser 0 nodemailer-moduler efter importen och efter `createNodemailerTransport`, och minst 1 efter första `send` (golv: kroken måste se nodemailer, och minst 20 moduler). Utan nodemailer (kroken nekar paketet) blir dokumentet `fel` med installationsbeskedet.
+
 ## 0.76.1
 
 Grenen skrevs som 0.75.2. PR 294 (0.76.0) mergades före, så versionen är 0.76.1.
