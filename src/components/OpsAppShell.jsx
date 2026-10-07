@@ -1464,16 +1464,19 @@ function OpsAppShellRitad({
    * definition för header-popovern och bottenradens ark, se ovan.
    * @param {(form: any) => void} oppna Stänger den yta listan ritas i och öppnar modalen. ⛔ Yta och modal i SAMMA tick gick bra för en popover men inte för ett ark: därför äger anropsstället ordningen.
    * @param {() => void} stang Stänger den yta listan ritas i, utan att öppna något. Ett tillägg i `handelse.atgard` gör sitt eget i sin `onClick`.
+   * @param {{ talkRad: boolean }} yta `talkRad` är telefonens ark. Huvudets plus på bred skärm har ingen TALK-rad: mikrofonen bredvid plusset gör samma sak (0.78.0, lane 19).
    */
-  const renderSkapaLista = (oppna, stang) => (
+  const renderSkapaLista = (oppna, stang, { talkRad }) => (
     <>
       {/* ⛔ RAMVERKETS EGNA RADER FÖRST (#168, CP:s rättelse 23:35): Idag/kalendern
           och Inkorgen är ramverkets vyer, inte moduler, och deras "Ny …"-rader
           hör därför hit, inte till `OpsSkapa`s modul-lista. */}
       {harRamverksrader ? (
         <div className="flex flex-col gap-0.5 px-1">
-          {/* ⛔ TALK FÖRST (CP 2026-10-04): den snabbaste vägen in, och den enda som inte är en sort. */}
-          {talk ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
+          {/* ⛔ TALK I TELEFONENS PLUS (CP 2026-10-04). På bred skärm är raden borta (0.78.0, lane 19):
+              mikrofonen i huvudet gör samma sak, och två vägar till samma inspelning i samma plus är en för mycket.
+              Telefonens plus tas i lane 11. */}
+          {talk && talkRad ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
           {skapa?.handelse ? (
             <OpsPanelRow
               icon={<HandelsePlusIkon size={18} />}
@@ -1957,6 +1960,7 @@ function OpsAppShellRitad({
                         oppnaSkapa(form);
                       },
                       () => setSkapaOppen(false),
+                      { talkRad: false },
                     )}
                   </Popover.Content>
                 </Popover.Portal>
@@ -1965,7 +1969,7 @@ function OpsAppShellRitad({
             {/* ⛔ TALK FÅR EN EGEN KNAPP PÅ DATOR (#276). CP 2026-10-06 21:37, med en skärmbild av Skapa-menyn: "TALK
                 förtjänar en egen knapp i web. Och i mobil vet vi ju hur den skall sitta." På dator tog TALK två klick
                 (plusset, sedan raden). Knappen ligger direkt efter plusset, och den gör EXAKT det raden gör: samma form
-                till `oppnaSkapa`, alltså `talkStyr.direkt()`. Raden står kvar.
+                till `oppnaSkapa`, alltså `talkStyr.direkt()`. Raden i huvudets plus är borta sedan 0.78.0.
                 ⛔ BARA FRÅN `md` (`hidden md:inline-flex`, en klass, se `huvudknappKlass`). Mobilen har redan sin väg:
                 långtryck på bottenradens plus. En andra mikrofon i mobilens huvud hade gett två vägar på samma skärm.
                 ⛔ Inte `talkStyr.knapp`: de händelserna är plussets, där ett vanligt tryck är Skapa och bara ett
@@ -2225,6 +2229,7 @@ function OpsAppShellRitad({
                     setTimeout(() => oppnaSkapa(form), 0);
                   },
                   () => setSkapaBottenOppen(false),
+                  { talkRad: true },
                 )}
               </div>
             </Dialog.Content>

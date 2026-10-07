@@ -126,6 +126,7 @@ export { readCaseFlow } from "./lib/caseFlow.js";
 export { splitMarkdown, splitInline } from "./lib/markdown.js";
 export { createPromptSource } from "./lib/prompt.js";
 export { createCaseModel } from "./lib/caseModel.js";
+export { uppgiftFel, byggUppgift, visaUppgifter } from "./lib/uppgift.js";
 export { byggSkapare, laesSkapare, skaparensNamn, arGammalForm, SKAPARTYPER } from "./lib/skapare.js";
 
 /*
