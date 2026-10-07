@@ -1607,9 +1607,10 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const [filerFel, setFilerFel] = useState(/** @type {string | null} */ (null));
   const post = mejlHref(mejl);
   useEffect(() => {
-    if (!harTyst(kalla)) return undefined;
+    const hamtaTyst = kalla.tystFor;
+    if (!hamtaTyst) return undefined;
     let kvar = true;
-    kalla.tystFor(samtal.id, uid).then(
+    hamtaTyst(samtal.id, uid).then(
       (/** @type {boolean} */ v) => {
         if (kvar) setTyst(v);
       },
@@ -1620,11 +1621,12 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     };
   }, [kalla, samtal.id, uid]);
   useEffect(() => {
-    if (!info || !harBilagor(kalla)) return undefined;
+    const las = kalla.lasBilagor;
+    if (!info || !las) return undefined;
     let kvar = true;
     setFiler(null);
     setFilerFel(null);
-    kalla.lasBilagor(samtal.id).then(
+    las(samtal.id).then(
       (/** @type {{ rader: any[], fler: boolean }} */ svar) => {
         if (kvar) setFiler(svar);
       },
@@ -1637,9 +1639,10 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
     };
   }, [info, kalla, samtal.id, t.bilagorFel, meddelanden]);
   const vaxlaTyst = () => {
-    if (!harTyst(kalla)) return;
+    const skrivTyst = kalla.sattTyst;
+    if (!skrivTyst) return;
     const nasta = !tyst;
-    kalla.sattTyst(samtal.id, uid, nasta).then(
+    skrivTyst(samtal.id, uid, nasta).then(
       () => setTyst(nasta),
       (/** @type {any} */ e) => setFel(e instanceof Error ? e : new Error(String(e))),
     );
@@ -2131,6 +2134,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Samma som på `OpsSamtal`.
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
+ * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
  */
 export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
@@ -2159,9 +2163,10 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const [filerFel, setFilerFel] = useState(/** @type {string | null} */ (null));
   const post = mejlHref(mejl);
   useEffect(() => {
-    if (!harTyst(kalla)) return undefined;
+    const hamtaTyst = kalla.tystFor;
+    if (!hamtaTyst) return undefined;
     let kvar = true;
-    kalla.tystFor(samtal.id, uid).then(
+    hamtaTyst(samtal.id, uid).then(
       (/** @type {boolean} */ v) => {
         if (kvar) setTyst(v);
       },
@@ -2172,10 +2177,11 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
     };
   }, [kalla, samtal.id, uid]);
   useEffect(() => {
-    if (!info || !harBilagor(kalla)) return undefined;
+    const las = kalla.lasBilagor;
+    if (!info || !las) return undefined;
     let kvar = true;
     setFiler(null);
-    kalla.lasBilagor(samtal.id).then(
+    las(samtal.id).then(
       (/** @type {{ rader: any[], fler: boolean }} */ svaren) => {
         if (kvar) setFiler(svaren);
       },
@@ -2188,9 +2194,10 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
     };
   }, [info, kalla, samtal.id, t.bilagorFel, svar]);
   const vaxlaTyst = () => {
-    if (!harTyst(kalla)) return;
+    const skrivTyst = kalla.sattTyst;
+    if (!skrivTyst) return;
     const nasta = !tyst;
-    kalla.sattTyst(samtal.id, uid, nasta).then(
+    skrivTyst(samtal.id, uid, nasta).then(
       () => setTyst(nasta),
       (/** @type {any} */ e) => setFel(e instanceof Error ? e : new Error(String(e))),
     );

@@ -749,6 +749,7 @@ function bilagemarkeFunktion() {
     }`;
 }
 
+/** @param {string} funktionsnamn */
 function bilagaRegelfunktion(funktionsnamn) {
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   return `    function ${funktionsnamn}(b) {

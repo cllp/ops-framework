@@ -619,6 +619,11 @@ async function chattinfoYta() {
       const vantar = ["mejl", "tyst", "sok", "info"];
       krav(huvud.knappar.map((k) => k.id).join(",") === vantar.join(","), `${namn}: verktygsraden är ${huvud.knappar.map((k) => k.id).join(",")}, väntat ${vantar.join(",")}.`);
       krav(huvud.knappar.every((k) => k.w >= 44 && k.h >= 44 && k.namn), `${namn}: varje knapp ska ha namn och minst 44 px (${JSON.stringify(huvud.knappar)}).`);
+      await page.getByRole("button", { name: "Sök i samtalet" }).hover();
+      await page.waitForTimeout(400);
+      const tips = await page.evaluate(() => [...document.querySelectorAll("[data-radix-popper-content-wrapper]")].map((e) => (e.textContent || "").trim()));
+      matt.push(`${namn} tooltip: ${JSON.stringify(tips)}`);
+      krav(tips.some((t) => t.includes("Sök i samtalet")), `${namn}: tooltipen för Sök syntes inte (${JSON.stringify(tips)}).`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-huvud-${vp.width}.png`) });
       await page.getByRole("button", { name: "Chattinfo" }).click();
       await page.waitForSelector("[data-chattinfo]");
@@ -650,14 +655,6 @@ async function chattinfoYta() {
       await page.getByRole("tab", { name: /^Dokument / }).click();
       await page.waitForSelector("[data-chattinfo-dokument]");
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-dokument-${vp.width}.png`) });
-      await page.getByRole("button", { name: "Sök i samtalet" }).hover();
-      await page.waitForTimeout(400);
-      const tips = await page.evaluate(() => {
-        const bubbla = [...document.querySelectorAll("[role=tooltip], [data-radix-popper-content-wrapper]")].map((e) => (e.textContent || "").trim());
-        return bubbla;
-      });
-      matt.push(`${namn} tooltip: ${JSON.stringify(tips)}`);
-      krav(tips.some((t) => t.includes("Sök i samtalet")), `${namn}: tooltipen för Sök syntes inte (${JSON.stringify(tips)}).`);
       krav((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 0, `${namn}: sidan flödar över horisontellt.`);
     } catch (e) {
       krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);

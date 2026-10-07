@@ -99,7 +99,7 @@ export function createSamtalskalla(konfig) {
 
   /**
    * Filens fält, och inga andra. Regeln har `hasOnly` på samma lista.
-   * @param {import("../lib/file.js").Bilaga} bilaga
+   * @param {import("../lib/file.js").Bilaga | { namn: string, typ: string }} bilaga
    */
   const bilagaAttLagra = (bilaga) => {
     /** @type {Record<string, unknown>} */
@@ -318,7 +318,7 @@ export function createSamtalskalla(konfig) {
    * utan en läsning till.
    *
    * @param {{ groupId: string, uid: string }} fraga
-   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null }>>}
+   * @returns {Promise<Array<{ samtal: import("../lib/samtal.js").Samtal, senaste: (import("../lib/samtal.js").Meddelande & { id: string }) | null, olasta: number, olastaFler?: boolean, olastaRader?: Array<import("../lib/samtal.js").Meddelande & { id: string }>, lastTill: number, motpart: string | null, tyst?: boolean }>>}
    */
   async function oversikt({ groupId, uid }) {
     const alla = await lista({ groupId, uid });

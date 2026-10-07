@@ -27,7 +27,8 @@ Bilagor i egna dokument och panelen Chattinfo (#300, #301). 0.78.1, 0.78.2 och 0
 
 - `src/__tests__/chattinfo-rod.test.jsx` mot 0.78.0, innan rättningen: 3 röda av 3, exit 1. Översikten innehöll `dataUrl`. Notisen var `""` i stället för `kvitto.png`. `BilagaVisning` satte `href="javascript:alert(1)"`.
 - Med rättningen: `src/__tests__/chattinfo.test.jsx` 5 gröna och `src/__tests__/chatt-bilagor.test.jsx` grön. Utan `isImage` på Bilder (båda filerna räknades dit) saknades fliken "Bilder 1": 1 rött, exit 1. Med filtret: 5 gröna, exit 0.
-- `rules/__tests__/chattbilagor.test.mjs`: uppdatering och radering av filen nekas. `dataUrl` på meddelandet nekas.
+- `rules/__tests__/chattbilagor.test.mjs`. Med `allow update, delete: if true` på bilagedokumentet: 7 gröna, 1 rött, exit 1. Felet var `Expected request to fail, but it succeeded.` Med `if false`, i `npm run test:rules`: 368 gröna, 54 sviter, 0 fel, exit 0.
+- Playwright, `OPS_CHROMIUM=/opt/google/chrome/chrome node scripts/check-skalyta.mjs --bara-chattinfo`: 12 kontroller, inga brott, exit 0. Knapparna är 44 px, tooltipen säger "Sök i samtalet", panelen ligger över chatten vid 390 px och bredvid vid 1024 px, och Bilder visar inte avtal.pdf. Bilderna ligger i `docs/jamforelser/0.80.0/`. Webbläsaren var `/opt/google/chrome/chrome`. `/opt/pw-browsers` fanns inte, och ingen webbläsare installerades.
 
 ## 0.78.0
 
