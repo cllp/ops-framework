@@ -275,3 +275,29 @@ export function splitMarkdown(text, val = {}) {
   closeParagraph();
   return block;
 }
+
+/**
+ * Chattens markdown som ren text på en rad, utan formateringstecken: det ett utdrag ska visa.
+ *
+ * ⛔ GRANSKNINGEN AV PR 286, MÅSTE 5. Bubblan ritade markdown, men fästraden, citaten och listans rad tog texten rakt av, så
+ * agentens `**fet**` stod kvar med stjärnorna just där #273 sade att de inte skulle synas. Utdraget läser samma tolkning som
+ * bubblan (`splitMarkdown(text, { chatt: true })`), så att det som är fetstil i bubblan är vanlig text här och inte två tecken
+ * till. En länk blir sin text, en radbrytning ett mellanslag, och en listpunkt sin text. Inget tappas utom tecknen.
+ *
+ * @param {string | null | undefined} text
+ * @returns {string}
+ */
+export function markdownSomText(text) {
+  /** @param {Bit[]} bitar */
+  const rad = (bitar) => bitar.map((b) => (b.kind === "break" ? " " : b.value)).join("");
+  return splitMarkdown(text, { chatt: true })
+    .map((b) => {
+      if (b.kind === "list") return b.entries.map((e) => rad(e.inline)).join(" ");
+      if (b.kind === "code") return b.text;
+      if (b.kind === "table") return [b.header, ...b.rows].map((r) => r.map(rad).join(" ")).join(" ");
+      if (b.kind === "rule") return "";
+      return rad(b.inline);
+    })
+    .filter(Boolean)
+    .join(" ");
+}

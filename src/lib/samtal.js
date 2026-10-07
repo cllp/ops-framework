@@ -43,6 +43,8 @@
  * Växer volymen så att det blir dyrt är rätt plats en server som skriver fältet (Admin SDK), inte klienten.
  */
 
+import { markdownSomText } from "./markdown.js";
+
 /** Samtalens slag. */
 export const SAMTALSSLAG = /** @type {const} */ (["grupp", "personer", "agent"]);
 
@@ -269,7 +271,9 @@ export function delaSamtalsnyckel(id, groupId) {
  * @returns {string}
  */
 export function utdrag(text, max = 80) {
-  const t = rensa(text).replace(/\s+/g, " ");
+  // ⛔ Utan markdownens tecken (`markdownSomText`): det som är fetstil i bubblan är inte två stjärnor i listan, i citatet eller i
+  // fästraden (granskningen av PR 286).
+  const t = rensa(markdownSomText(rensa(text))).replace(/\s+/g, " ");
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
