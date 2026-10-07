@@ -1045,7 +1045,7 @@ async function byggChattkalla() {
   await s.skicka(g.id, { text: "Momsen ligger här: https://app.exempel.se/arenden/464", av: "cecilia" });
   const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
   ids.privat = p.id;
-  await s.skicka(p.id, { text: "Hej Anna! Kan du titta på fakturan från Bokio innan fredag?", av: "bo" });
+  await s.skicka(p.id, { text: "Hej Anna! Kan du titta på **fakturan** från Bokio innan fredag?", av: "bo" });
   await s.skicka(p.id, { text: "Absolut, jag gör det i eftermiddag.", av: "anna" });
   // (2) Ett långt samtal: 120 olästa från Cecilia, så att "Visa äldre" och "50+" har något att visa.
   const lang = await s.oppnaPrivat({ groupId: "g1", uid: "cecilia", annan: "anna" });

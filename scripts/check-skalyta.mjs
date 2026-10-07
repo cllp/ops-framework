@@ -342,6 +342,8 @@ async function chattensNattskiva() {
           return { text: (el.textContent || "").trim(), ovanfor: el.getBoundingClientRect().bottom <= form.getBoundingClientRect().top + 0.5, kryss: kryss.getBoundingClientRect().height, fokus: document.activeElement?.tagName };
         });
         matt.push(`${namn}: raden ${JSON.stringify(strip)}`);
+        // ⛔ Granskningen av PR 286, MÅSTE 5: utdraget visar inte markdownens tecken. Meddelandet har **fakturan**.
+        krav(!/[*`]/.test(strip.text) && strip.text.includes("titta på fakturan"), `${namn}: raden ovanför fältet visar markdownens tecken (${strip.text}).`);
         krav(strip.text.startsWith("Svarar på Bo Lind") && strip.ovanfor && strip.kryss >= 43.5 && strip.fokus === "TEXTAREA", `${namn}: raden ovanför fältet är fel (${JSON.stringify(strip)}).`);
         await page.keyboard.type("Ja, i eftermiddag.");
         await page.keyboard.press("Enter");
@@ -353,6 +355,7 @@ async function chattensNattskiva() {
           return { text: (c.textContent || "").trim(), ovanforBubbla: c.getBoundingClientRect().bottom <= bubbla.getBoundingClientRect().top + 0.5, inom: c.getBoundingClientRect().right <= l.getBoundingClientRect().right + 0.5 && c.getBoundingClientRect().left >= l.getBoundingClientRect().left - 0.5 };
         });
         matt.push(`${namn}: citatet ${JSON.stringify(citat)}`);
+        krav(!/[*`]/.test(citat.text) && citat.text.includes("titta på fakturan"), `${namn}: citatet visar markdownens tecken (${citat.text}).`);
         krav(citat.text.startsWith("Bo Lind: Hej Anna!") && citat.ovanforBubbla && citat.inom, `${namn}: citatet ska stå ovanför svaret och inom loggen (${JSON.stringify(citat)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-5-citat-${vp.width}.png`) });
         const sk = await page.locator("[data-sok-samtal]").boundingBox();
@@ -393,6 +396,8 @@ async function chattensNattskiva() {
         });
         matt.push(`${namn}: knappen ${JSON.stringify(fk)}, ${JSON.stringify(m)}`);
         krav(!!fk && fk.height >= 43.5, `${namn}: "1 fästa" har ${fk?.height} px höjd, väntat 44.`);
+        // ⛔ Meddelandet har **fredag**: fästraden visar texten, inte stjärnorna (granskningen av PR 286, MÅSTE 5).
+        krav(m.poster.length === 1 && !/[*`]/.test(m.poster[0].text) && m.poster[0].text.includes("till fredag"), `${namn}: fästraden visar markdownens tecken (${m.poster[0]?.text}).`);
         krav(m.poster.length === 1 && m.poster[0].text.startsWith("Cecilia Berg: Hej alla") && m.poster[0].lossa >= 43.5, `${namn}: det fästa meddelandet ska stå med namn, utdrag och Lossa på 44 px (${JSON.stringify(m.poster)}). Golv: 1.`);
         krav(m.tryckt.length === 1 && m.tryckt[0].w >= 43.5 && m.tryckt[0].h >= 43.5, `${namn}: knappen vid det fästa meddelandet ska vara tryckt med 44 px (${JSON.stringify(m.tryckt)}).`);
         if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chatt-6-fasta-${vp.width}.png`) });
