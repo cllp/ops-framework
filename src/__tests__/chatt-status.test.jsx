@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import fs from "node:fs";
 import path from "node:path";
@@ -184,6 +184,43 @@ describe("vyn: markdown i bubblan och agentens rad", () => {
     await waitFor(() => expect(document.querySelector('[data-agentstatus="tanker"]')).not.toBeNull());
     await waitFor(() => expect(document.querySelector('[data-agentstatus="fel"]')).not.toBeNull(), { timeout: 3000 });
     expect(document.querySelector('[data-agentstatus="tanker"]')).toBeNull();
+  });
+  it("⛔ en timer som vaknar före väggklockan sätts om, så att statusen inte står kvar för alltid (0.73.1)", async () => {
+    /*
+     * ⛔ Provet ovan var instabilt: 6 av 30 körningar på main 2026-10-07 föll på rad 185, eftersom timern ibland vaknade en
+     * millisekund innan `Date.now()` hunnit passera gränsen, och ingen ny timer sattes. Här görs det deterministiskt: när raden
+     * "tänker" syns och timern är satt släpar väggklockan 200 ms efter timerns klocka.
+     */
+    const { kalla, s, a } = await underlag({ status: "status", utanLyssnare: true });
+    await kalla.create(`samtal/${a.id}/status`, { id: "agent", lage: "tanker", sedan: Date.now() - AGENTSTATUS_MAX_ALDER + 300 });
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} />);
+    await waitFor(() => expect(document.querySelector('[data-agentstatus="tanker"]')).not.toBeNull());
+    const riktig = Date.now.bind(Date);
+    const slapar = vi.spyOn(Date, "now").mockImplementation(() => riktig() - 200);
+    try {
+      await waitFor(() => expect(document.querySelector('[data-agentstatus="fel"]')).not.toBeNull(), { timeout: 3000 });
+    } finally {
+      slapar.mockRestore();
+    }
+  });
+  it("⛔ en väggklocka som står still på gränsen i 400 ms låser inte raden (granskningen av PR 288)", async () => {
+    /*
+     * ⛔ Granskaren mätte det: med `nu` i beroendelistan och `setNu(Date.now())` gav en klocka som stod på `sedan + MAX` samma tal
+     * två gånger. React ritade inte om, effekten kördes inte, ingen ny timer sattes, och raden stod kvar som "tänker" också efter att
+     * klockan släppts. Här står klockan exakt på gränsen (gränsen är strikt, så statusen räknas som färsk) i 400 ms och släpps sedan.
+     */
+    const { kalla, s, a } = await underlag({ status: "status", utanLyssnare: true });
+    const sedan = Date.now() - AGENTSTATUS_MAX_ALDER + 300;
+    await kalla.create(`samtal/${a.id}/status`, { id: "agent", lage: "tanker", sedan });
+    render(<OpsMeddelanden kalla={s} uid="anna" groupId="g" gruppNamn="G" medlemmar={MEDLEMMAR} valt={a.id} />);
+    await waitFor(() => expect(document.querySelector('[data-agentstatus="tanker"]')).not.toBeNull());
+    const still = vi.spyOn(Date, "now").mockImplementation(() => sedan + AGENTSTATUS_MAX_ALDER);
+    try {
+      await new Promise((klar) => setTimeout(klar, 400));
+    } finally {
+      still.mockRestore();
+    }
+    await waitFor(() => expect(document.querySelector('[data-agentstatus="fel"]')).not.toBeNull(), { timeout: 3000 });
   });
   it("⛔ en status som inte går att läsa är en felrad, aldrig tystnad", async () => {
     const { s, a } = await underlag({ status: "status" });

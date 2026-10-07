@@ -2034,12 +2034,17 @@ function Agentrad({ lage, texter: t }) {
   const [nu, setNu] = useState(() => Date.now());
   const visning = agentstatus(dok, nu);
   // Räkna om när statusen passerar sitt tak, också om inget nytt kommer.
+  // ⛔ `nu` ÄR ETT BEROENDE, OCH VARJE VÄCKNING GER ETT NYTT `nu` (0.73.1). En timer kan vakna innan väggklockan passerat gränsen:
+  // timern mäts mot en monoton klocka, `Date.now()` är väggklockan, och gränsen är strikt. Gav väckningen samma tal som förra gången
+  // (klockan stod still på gränsen) ritade React inte om, effekten kördes inte, och ingen ny timer sattes: "Agenten tänker" stod kvar
+  // för alltid. Med `Math.max(Date.now(), f + 1)` blir `nu` alltid större än förut, så varje väckning ritar om och sätter en ny timer,
+  // och senast en millisekund efter gränsen enligt vyns egen räkning byts raden mot felraden, vad väggklockan än säger.
   useEffect(() => {
     if (!visning || "fel" in visning) return undefined;
     const kvar = visning.sedan + AGENTSTATUS_MAX_ALDER - Date.now() + 1;
-    const h = setTimeout(() => setNu(Date.now()), Math.max(0, kvar));
+    const h = setTimeout(() => setNu((f) => Math.max(Date.now(), f + 1)), Math.max(0, kvar));
     return () => clearTimeout(h);
-  }, [visning && "sedan" in visning ? visning.sedan : null, visning && "lage" in visning ? visning.lage : null]);
+  }, [visning && "sedan" in visning ? visning.sedan : null, visning && "lage" in visning ? visning.lage : null, nu]);
   useEffect(() => {
     setNu(Date.now());
   }, [dok]);

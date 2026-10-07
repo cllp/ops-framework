@@ -390,7 +390,7 @@ function byggTexter(varde, { id, katalog, textnycklar }) {
    * att en kategori som lagts till i inställningsvyn föds utan hjälptexter och
    * ger ett formulär med tomma fält och inga exempel.
    */
-  const saknade = (textnycklar || []).filter((n) => !(n in ut));
+  const saknade = (textnycklar || []).filter((n) => !Object.hasOwn(ut, n));
   if (saknade.length > 0) {
     throw new Error(
       `${katalog}: texterna ${saknade.join(", ")} saknas för "${id}". Katalogen kräver dem, och utan dem ritas formuläret med tomma hjälpfält i stället för med de exempel som gör det begripligt.`,
