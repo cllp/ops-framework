@@ -2146,12 +2146,93 @@ En andra ingång, för det som behöver en token. Buntas **inte** för webbläsa
 | `bakfyllKatalogGrupp({ kalla, samlingar, groupId, torr?, grupper? })` | 0.33.0, #162. Ger katalograder utan grupp appens `groupId` och nyckeln `groupId|id`, tar bort den gamla raden, och seedar grupper som saknar kataloger, ALLT i en batch. Torrkörning förval. Se bakfyllnaden under katalogtabellen ovan och ordningen i CHANGELOG 0.33.0 |
 | `createAgentService({ kalla, samlingar? })` | 0.60.0, cllp/lifehub.app#47. Gruppens agent: `satStatus({ uid, groupId, status })` (bara ägaren, `aktiv` eller `avstangd`, aldrig ta bort) och `sakerstall({ groupId, skarpt })` för engångssteget (idempotent, torrt skriver inget). Se [Gruppens agent är medlem](#gruppens-agent-är-medlem-0600-clllplifehubapp47) |
 | `seedaKataloger({ kalla, groupId, standardvarden })` | #161, #162. Seedar en befintlig grupps kataloger, en `createCatalogSource(...).seeda()` per katalog. ⛔ `skapaGrupp` anropar den inte längre (0.33.0): den skriver katalogerna i sin egen batch. `standardvarden` är ett objekt, en nyckel per katalog (samlingens namn): värdet är antingen en lista rader (genväg för `{ standard: rader }`) eller katalogens fulla `createCatalogSource`-konfiguration (`standard`, `ikoner`, `textnycklar`, `faser`, `farger`). Bygger EN `createCatalogSource` per katalog, med `groupId` inbakat, och kör dess `.seeda()`. Svarar `{ [namn]: { seedade, antal, orsak? } }`, en rad per katalog, aldrig en sammanslagen bool. Katalogerna seedas i turordning, inte parallellt |
+| `createMailQueue`, `createMailSender`, `createNodemailerTransport`, `createMockMailTransport`, `byggMejl`, `byggMejlhandelse`, `losMejlsprak`, `normaliseraMejlsprak`, `SPARRADA_MEJLDOMANER`, `mejlregelfragment` | 0.76.0, #101. Mejlkö, utskick och regler. Se [Mejl](#mejl-0760-101) |
 
 ⛔ **Varför en egen ingång och inte bara en modul till.** Allt som når
 `src/index.js` buntas för webbläsaren, alltså hamnar i varje besökares JS-fil.
 Speglingen kräver en token. Gränsen upprätthålls av `check-node-side` och inte av en
 kommentar, eftersom ett löfte om att en hemlighet inte läcker är värt exakt vad den
 som råkar bryta det råkar minnas.
+
+### Mejl (0.76.0, #101)
+
+Kö, utskick och regelfragment. Inbjudningsflödet är appens, inte ramverkets.
+Ramverket känner inga adresser, inga SMTP-värden, inget projekt-id och inget
+samlingsnamn. Appen skickar in dem.
+
+Ett köat dokument har `till`, `amne`, `text`, `html`, `sprak` (`sv` eller `en`),
+`kategori`, valfritt `groupId` och `status: "koad"`. `losMejlsprak({ handelse, grupp, avsandare })`
+väljer språket i den ordningen och faller tillbaka på `sv`. `normaliseraMejlsprak`
+godtar bara exakt `sv` eller `en`. `byggMejl` är formen kön skriver.
+
+Utskicket tar dokumentet, skickar det och skriver kvittot på samma rad:
+`status` (`skickad`, `fel` eller `hoppad`), `accepterade`, `avvisade`, `svar`
+(serverns rad, högst 200 tecken), `messageId`, `tid`, `skal` och `fel`. Tomma
+kvittofält är `null` eller `[]`, inte utelämnade. `skickad` betyder att servern
+accepterade minst en mottagare och avvisade ingen. En avvisad mottagare är `fel`.
+Ett kast från transporten är `fel` med feltexten på raden. En spärrad domän
+skickas inte: status `hoppad` och `skal` namnger domänen. `SPARRADA_MEJLDOMANER`
+är `test.se`, `example.com`, `test.com` och `example.se`. En extra lista lägger
+till domäner och tar inte bort de fyra.
+
+`byggMejlhandelse` är loggraden: mottagaren som SHA-256 (12 tecken), antal
+accepterade och avvisade, serverns svar och Message-ID. Adressen står på
+dokumentet, inte i loggen. Skickas `logg` till `createMailSender` anropas den
+med den raden efter att kvittot skrivits. Kastar loggen ligger kvittot kvar
+och felet når anroparen.
+
+`mejlregelfragment(samling)` nekar klienten både läsning och skrivning. Bara
+servern, med Admin SDK, som går förbi regeln. Fragmentet importeras från
+`ops-framework` (det är text, ingen transport) och från `ops-framework/node`.
+
+```js
+import { mejlregelfragment, regelfragment } from "ops-framework";
+import { createMailQueue, createMailSender, createNodemailerTransport } from "ops-framework/node";
+
+// I appens firestore.rules, inuti match /databases/{database}/documents:
+// ${mejlregelfragment("mejl")}
+
+const ko = createMailQueue({ kalla, samling: "mejl" });
+await ko.koa({
+  till: "vanja@example.org",
+  amne: "Inbjudan",
+  text: "Hej",
+  html: "<p>Hej</p>",
+  sprak: "sv",
+  kategori: "inbjudan",
+  groupId: "dev",
+});
+
+// Funktionen som skickar. Hemligheterna binds här och läses i anropet.
+// Modulen läser dem aldrig, och inte när den laddas.
+export const skickaKoatMejl = onDocumentCreated(
+  {
+    document: "mejl/{id}",
+    secrets: ["MAIL_USER", "MAIL_PASS"],
+  },
+  async (event) => {
+    const transport = createNodemailerTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
+      from: "LifeHub <hello@life-hub.app>",
+    });
+    const utskick = createMailSender({ kalla, samling: "mejl", transport });
+    const data = event.data?.data();
+    if (!data) throw new Error("skickaKoatMejl: dokumentet saknar data.");
+    await utskick.skicka({ id: event.params.id, ...data });
+  },
+);
+```
+
+Värdarna, avsändaren och samlingsnamnet i exemplet är appens. LifeHub använder
+dem. En annan app skickar in sina.
+
+⛔ **Gmail i Workspace tar emot cirka 2000 mejl per dygn** för kontot som
+skickar. Över taket avvisar servern, och det blir `fel` på köns dokument med
+serverns svar. Det försvinner inte tyst. Proven och CI använder
+`createMockMailTransport`, aldrig en riktig SMTP.
 
 ### Sidchrome och sidnavigering (0.31.0)
 
@@ -2347,7 +2428,7 @@ kan köras av en app mot sin egen källkatalog. Inställningsvyn (`OpsKatalogIns
 | `check-fonts` | typsnittet hämtas med `<link>` i mallen, aldrig med en `@import` som ignoreras |
 | `check-chart-colors` | diagrampaletten **mäts**, i båda lägen och mot ramverkets egna ytor. Den enda regeln i repot som inte går att bedöma med ögat: identitetstonerna såg rimliga ut och föll på tre av fem kontroller |
 | `check-token-overrides` | en konsumentapps stilrot följer kontraktet. ⛔ `@source` ska peka på `node_modules/ops-framework/` (0.68.0): en sökväg via det gamla scopade namnets katalog ger en ostylad app utan fel |
-| `check-gammalt-namn` | (0.68.0, #270) det gamla scopade paketnamnet och tarbollens gamla filnamn kommer inte tillbaka. Läser varje fil i repot, golv 540 som följer med (röd mer än 20 procent över); undantag `CHANGELOG.md`, `create-ops-app/` och README:s stycke om namnet före 0.67.0 (tak 2, exakt: färre träffar är också rött, så att taket sänks). Planterat i `test-guards` |
+| `check-gammalt-namn` | (0.68.0, #270) det gamla scopade paketnamnet och tarbollens gamla filnamn kommer inte tillbaka. Läser varje fil i repot, golv 618 som följer med (röd mer än 20 procent över; 652 filer mättes 2026-10-07 efter mejlmodulen och merge av 0.74.0 och 0.75.0, och 540 låg mer än 20 procent under); undantag `CHANGELOG.md`, `create-ops-app/` och README:s stycke om namnet före 0.67.0 (tak 2, exakt: färre träffar är också rött, så att taket sänks). Planterat i `test-guards` |
 | `check-scaffold` | en app skapas, installeras, kör sin egen grind och **mäts i en riktig webbläsare vid 390, 768 och 1280 px**, plus ett temapass som bevisar att mörkt läge når den renderade sidan och att reglagets tumme är målad ur tokens. ⛔ Noll reglage på de mätta rutterna är ett **brott** och inte en tystnad: mallens primitivsida har ett, så noll betyder att mätningen inte ser appen |
 | `test-viewport-guard` | **bryter mot alla sex påståenden i layoutmätningen och kräver rött.** ⛔ Skrevs efter att `check-scaffold` visat sig vara den enda vakten i huset som ingen sett faila: ordet "scaffold" förekom noll gånger i `test-guards.mjs`, samtidigt som den bär hela mobilgolvet. Provar mot en HTML-fixtur med samma form som en ops-app, eftersom en defekt per scaffold hade kostat tio minuter för att bevisa en if-sats. Kräver en webbläsare och ligger därför i CI:s scaffoldjobb, inte i `npm run check` |
 | `check-data-layer` | en databas-SDK importeras bara i en adapter, aldrig i en vy |
