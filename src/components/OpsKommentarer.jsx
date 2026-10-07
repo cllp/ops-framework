@@ -49,7 +49,7 @@ import { usePersonnamn } from "./usePersonnamn.js";
  * @param {ReadonlyArray<{ id: string, text: string, skapad: string, skapadAv?: { uid?: string | null, namn?: string } }>} props.kommentarer
  * @param {string} props.uid Den som tittar.
  * @param {(text: string, extra: { bilaga: import("../lib/file.js").Bilaga | null }) => Promise<unknown> | void} props.onSkriv
- * @param {boolean} [props.bilagor] (0.71.0) Visa filväljaren. Av som förval, se ovan.
+ * @param {boolean} [props.bilagor] (0.73.0) Visa filväljaren. Av som förval, se ovan.
  * @param {(id: string) => Promise<unknown> | void} [props.onTaBort]
  * @param {boolean} [props.laddar]
  * @param {Error | string | null} [props.fel] Läsningen föll. Skrivs ut med texten.

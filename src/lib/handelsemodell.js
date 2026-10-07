@@ -318,7 +318,7 @@ const ISOFORM = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
  * ⛔ UTAN `uid` PÅ SKAPAREN KASTAR DEN. Regeln kräver `skapadAv.uid == request.auth.uid`, och en kommentar utan uid hade nekats
  * utan att säga varför.
  *
- * ⛔ MED EN BILAGA FÅR TEXTEN VARA TOM (0.71.0, #570): en skärmbild är ett fullgott inlägg i en tråd. Utan bilaga kastar en tom text
+ * ⛔ MED EN BILAGA FÅR TEXTEN VARA TOM (0.73.0, #570): en skärmbild är ett fullgott inlägg i en tråd. Utan bilaga kastar en tom text
  * som förut. Fältet `text` står alltid med, också tomt, så att regelns fältlista är densamma med och utan bilaga.
  *
  * @param {unknown} text
