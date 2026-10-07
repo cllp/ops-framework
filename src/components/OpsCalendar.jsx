@@ -580,12 +580,23 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
  * ⛔ DEN VISAR DAGENS ALLA POSTER, OCKSÅ DE FILTRET DÖLJER, MÄRKTA "DOLD" (SS #94). Filtret avgör vad rutnätet ritar,
  * inte vad som finns. Den som filtrerat bort en kalender och undrar om dagen är ledig ska kunna se att den inte är det.
  *
- * ⛔ TRE VÄGAR UT: krysset, Escape och ett tryck utanför. Placeringen hålls inom fönstret (SS
- * `clampCalendarDayPeekPosition`), annars hamnar en titt på en söndag halvvägs utanför skärmen.
+ * ⛔ TRE VÄGAR UT: krysset, Escape och ett tryck utanför.
  *
- * @param {{ ankare: { dayKey: string, x: number, y: number }, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null }} props
+ * ══ ⛔ ÖVERST I PANELEN, CENTRERAD, OCH INTE EN BUBBLA VID RUTAN (0.73.0, cllp/bolag-ops#568) ══════════
+ *
+ * CP 2026-10-06, inkorgspost `tAv8ejFHHWVkAzKx6eHv`: "Kände nu när jag testade snabbvyn för kalender att den bubblan med
+ * långpress i cellen (ej den vanliga). Att snabb vyn kan ligga längst upp i panelen centrerat." Till 0.70.0 var titten en
+ * `fixed` ruta under den tryckta dagen (SS `CalendarDayPeekPopover.jsx`), som täckte rutnätet runt tummen och fick
+ * hållas inom fönstret med en egen uträkning. Nu ritas den först i dagpanelens plats, centrerad: under rutnätet på
+ * telefon och i kolumnen bredvid från 1024 px. Platsen öppnas för titten också när ingen dag är vald.
+ *
+ * Förebilden är ett golv och inte ett tak (regel 13): SS-bubblans läge vid rutan tas inte med. Det som tas som det är:
+ * innehållet, "Dold" och vägarna ut. Det som stryks: positionsuträkningen (`ankare.x`, `ankare.y`, kläm mot fönstret),
+ * som bara fanns för att bubblan flöt. Dagpanelen vid ett vanligt tryck är orörd.
+ *
+ * @param {{ dayKey: string, alla: import("../lib/calendar.js").CalendarEntry[], synliga: Set<string>, onClose: () => void, locale: string, oppna: ((id: string) => void) | null }} props
  */
-function Snabbtitt({ ankare, alla, synliga, onClose, locale, oppna }) {
+function Snabbtitt({ dayKey, alla, synliga, onClose, locale, oppna }) {
   const ref = useRef(/** @type {HTMLDivElement | null} */ (null));
   const rubrikId = useId();
   useEffect(() => {
@@ -605,27 +616,20 @@ function Snabbtitt({ ankare, alla, synliga, onClose, locale, oppna }) {
     };
   }, [onClose]);
 
-  const bredd = 280;
-  const hojd = 300;
-  const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
-  const vh = typeof window !== "undefined" ? window.innerHeight : 768;
-  const left = Math.max(8, Math.min(ankare.x - bredd / 2, vw - bredd - 8));
-  const top = ankare.y + 6 + hojd > vh - 8 ? Math.max(8, ankare.y - hojd - 6) : ankare.y + 6;
-
   return (
+    <div data-snabbtitt-plats="" className="flex justify-center p-3 lg:p-0 lg:pb-2">
     <div
       ref={ref}
       role="dialog"
       aria-labelledby={rubrikId}
       data-snabbtitt=""
-      style={{ left, top }}
-      className="ops-contrast-panel fixed z-(--z-dropdown) max-h-75 w-70 overflow-y-auto rounded-xl bg-contrast-panel p-2.5 text-ink shadow-xl"
+      className="ops-contrast-panel max-h-75 w-full max-w-70 overflow-y-auto rounded-xl bg-contrast-panel p-2.5 text-ink shadow-xl"
     >
       <div className="mb-1.5 flex items-start justify-between gap-2">
         <p id={rubrikId} className="m-0 flex-1 px-0.5 text-liten font-semibold uppercase tracking-wide text-ink-secondary">
-          {dateText(ankare.dayKey, locale)}
+          {dateText(dayKey, locale)}
         </p>
-        <button type="button" onClick={onClose} aria-label={`Stäng snabbtitten för ${dateText(ankare.dayKey, locale)}`} className="shrink-0 cursor-pointer rounded-md p-0.5 text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-accent">
+        <button type="button" onClick={onClose} aria-label={`Stäng snabbtitten för ${dateText(dayKey, locale)}`} className="shrink-0 cursor-pointer rounded-md p-0.5 text-ink-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-accent">
           <KryssIkon size={14} />
         </button>
       </div>
@@ -664,6 +668,7 @@ function Snabbtitt({ ankare, alla, synliga, onClose, locale, oppna }) {
           );
         })}
       </ul>
+    </div>
     </div>
   );
 }
@@ -1192,7 +1197,7 @@ export function OpsCalendar({
   const [status, setStatus] = useState("alla");
   const [sokOppen, setSokOppen] = useState(false);
   const [fraga, setFraga] = useState("");
-  const [titt, setTitt] = useState(/** @type {{ dayKey: string, x: number, y: number } | null} */ (null));
+  const [titt, setTitt] = useState(/** @type {string | null} */ (null));
 
   const lager = lagring || (typeof window !== "undefined" ? window.localStorage : undefined);
   const minnesnyckel = filterMinne ? appfilterNyckel(filterMinne) : "";
@@ -1363,6 +1368,8 @@ export function OpsCalendar({
    */
   const days = useMemo(() => [...chosen].sort().map((dayKey) => ({ dayKey, entries: byKey.get(dayKey) || [] })), [chosen, byKey]);
   const panelOppen = days.length > 0;
+  // ⛔ PLATSEN ÖPPNAS AV DAGPANELEN ELLER SNABBTITTEN (0.73.0, bolag-ops#568). Luften under rutnätet och Idag-knappens läge läser samma höjd.
+  const platsOppen = panelOppen || titt !== null;
 
   useEffect(() => {
     const el = panelRef.current;
@@ -1370,12 +1377,12 @@ export function OpsCalendar({
       setPanelHojd(0);
       return undefined;
     }
-    const mat = () => setPanelHojd(panelOppen && el.offsetHeight ? el.offsetHeight : 0);
+    const mat = () => setPanelHojd(platsOppen && el.offsetHeight ? el.offsetHeight : 0);
     mat();
     const obs = new ResizeObserver(mat);
     obs.observe(el);
     return () => obs.disconnect();
-  }, [panelOppen]);
+  }, [platsOppen]);
 
   /*
    * ⛔ VALD DAG RULLAS UPP OVANFÖR PANELEN PÅ TELEFON (0.37.0), som SS-appen. CP 2026-09-30, med en skärmbild ur SS-appen
@@ -1479,10 +1486,6 @@ export function OpsCalendar({
     };
   }, [svepar, rensaLang]);
 
-  const oppnaTitt = useCallback((/** @type {string} */ dayKey, /** @type {HTMLElement} */ el) => {
-    const r = el.getBoundingClientRect();
-    setTitt({ dayKey, x: r.left + r.width / 2, y: r.bottom });
-  }, []);
 
   /** @param {string} dayKey */
   const pekareFor = (dayKey) => ({
@@ -1504,13 +1507,12 @@ export function OpsCalendar({
        */
       svaljKlick.current = false;
       rensaLang();
-      const el = e.currentTarget;
       langRef.current = setTimeout(() => {
         svaljKlick.current = true;
         svepRef.current = null;
         setSvepar(false);
         setSvep(null);
-        oppnaTitt(dayKey, el);
+        setTitt(dayKey);
       }, LANGTRYCK_MS);
       svepRef.current = { pekare: e.pointerId, ankare: dayKey, x: e.clientX, y: e.clientY, aktiv: false, nu: dayKey };
       setSvepar(true);
@@ -1522,7 +1524,7 @@ export function OpsCalendar({
     onContextMenu: (e) => {
       e.preventDefault();
       rensaLang();
-      oppnaTitt(dayKey, e.currentTarget);
+      setTitt(dayKey);
     },
   });
 
@@ -1696,7 +1698,7 @@ export function OpsCalendar({
           </div>
           {/* ⛔ LUFT UNDER SISTA MÅNADEN SÅ HÖG SOM DAGPANELEN, BARA UNDER 1024 PX: panelen flyter över rutnätet, och utan
               luften går de sista raderna inte att rulla fram ovanför den (SS-appen `paddingBottom: DAY_PANEL_HEIGHT`). */}
-          {panelOppen ? <div aria-hidden="true" data-panelluft="" style={{ height: panelHojd }} className="lg:hidden" /> : null}
+          {platsOppen ? <div aria-hidden="true" data-panelluft="" style={{ height: panelHojd }} className="lg:hidden" /> : null}
         </div>
 
         {/* ⛔ `absolute` I KOLUMNENS HÖRN, inte `sticky` i flödet: knappen hör till rutnätet och ska stå still medan det
@@ -1708,7 +1710,7 @@ export function OpsCalendar({
             type="button"
             data-idagknapp=""
             onClick={() => toToday("smooth")}
-            style={{ bottom: panelOppen && panelHojd > 0 ? panelHojd - 16 : 16 }}
+            style={{ bottom: platsOppen && panelHojd > 0 ? panelHojd - 16 : 16 }}
             className={cx(
               "ops-contrast-panel absolute left-1/2 z-(--z-sticky) flex min-h-11 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full bg-contrast-panel px-4 text-etikett font-semibold text-ink shadow-md lg:bottom-4!",
               "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -1731,9 +1733,19 @@ export function OpsCalendar({
         style={/** @type {import("react").CSSProperties} */ ({ "--ops-dagpanel-max": `${Math.round(ytan * DAGPANEL_TAK)}px` })}
         className={cx(
           "shrink-0 lg:w-75 lg:overflow-visible xl:w-90",
-          panelOppen && "max-lg:absolute max-lg:inset-x-0 max-lg:-bottom-6 max-lg:z-(--z-sticky) max-lg:max-h-(--ops-dagpanel-max) max-lg:overflow-y-auto max-lg:overscroll-contain",
+          platsOppen && "max-lg:absolute max-lg:inset-x-0 max-lg:-bottom-6 max-lg:z-(--z-sticky) max-lg:max-h-(--ops-dagpanel-max) max-lg:overflow-y-auto max-lg:overscroll-contain",
         )}
       >
+        {titt ? (
+          <Snabbtitt
+            dayKey={titt}
+            alla={allaPerDag.get(titt) || []}
+            synliga={synligaId}
+            onClose={() => setTitt(null)}
+            locale={locale}
+            oppna={oppnaHandelse ? (id) => { setTitt(null); oppnaHandelse(id); } : null}
+          />
+        ) : null}
         {panelOppen ? (
           <DayPanel
             days={days}
@@ -1746,7 +1758,7 @@ export function OpsCalendar({
             oppna={oppnaHandelse}
             lager={daglager ? daglager(days.map((d) => d.dayKey)) : null}
           />
-        ) : (
+        ) : titt ? null : (
           /* ⛔ BARA PÅ BREDA SKÄRMAR. Kolumnen finns redan där och är tom, så en rad om vad den är till för kostar
               ingenting. På telefon finns ingen kolumn att förklara. */
           <p className="m-0 hidden rounded-md border border-dashed border-line p-3 text-etikett text-ink-muted lg:block">
@@ -1754,17 +1766,6 @@ export function OpsCalendar({
           </p>
         )}
       </div>
-
-      {titt ? (
-        <Snabbtitt
-          ankare={titt}
-          alla={allaPerDag.get(titt.dayKey) || []}
-          synliga={synligaId}
-          onClose={() => setTitt(null)}
-          locale={locale}
-          oppna={oppnaHandelse ? (id) => { setTitt(null); oppnaHandelse(id); } : null}
-        />
-      ) : null}
     </section>
   );
 }

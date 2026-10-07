@@ -171,19 +171,27 @@ function nameFor(file) {
  * försöker med ett val mellan att ge upp och att försöka igen i blindo, och det
  * är så folk slutar rapportera saker.
  *
+ * ⛔ `typer` (0.73.0, bolag-ops#570) ÄR TYPERNA SOM FÅR KOMMA UT, inte de som får väljas. En bild krymps till `image/jpeg` och
+ * prövas efteråt, så en PNG eller en HEIC som webbläsaren kan läsa går igenom fast bara JPEG står i listan. Allt annat prövas
+ * INNAN filen läses, av samma skäl som storleken: att läsa in en fil för att sedan säga nej är väntan i onödan.
+ *
  * @param {File | Blob} file
- * @param {{ maxChars: number }} granser
+ * @param {{ maxChars: number, typer?: readonly string[] }} granser
  * @returns {Promise<Bilaga>}
  */
-export async function readAttachment(file, { maxChars }) {
+export async function readAttachment(file, { maxChars, typer }) {
   if (!file) throw new Error("Ingen fil vald.");
+  const tillaten = (/** @type {string} */ typ) => !typer || typer.includes(typ);
+  const felTyp = (/** @type {string} */ typ) =>
+    new Error(`Filtypen ${typ ? `"${typ}"` : "är okänd och"} går inte att bifoga här. Tillåtna: ${typer ? typer.join(", ") : ""}.`);
 
   if (isImage(file.type)) {
     const shrunk = await shrinkImage(file, maxChars);
-    if (shrunk) return shrunk;
+    if (shrunk && tillaten(shrunk.typ)) return shrunk;
     // Gick inte att avkoda eller inte att krympa nog. Faller igenom till
     // råvägen nedan, som bifogar filen som den är om den ryms.
   }
+  if (!tillaten(file.type || "")) throw felTyp(file.type || "");
 
   const size = typeof (/** @type {any} */ (file).size) === "number" ? /** @type {any} */ (file).size : 0;
   if (size * CHARS_PER_BYTE > maxChars) {

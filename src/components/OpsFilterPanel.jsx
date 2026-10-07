@@ -83,8 +83,32 @@ import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
  * @property {string} [allLabel] Texten för "inget valt" i gruppen. Standard "Alla".
  * @property {import("react").ReactNode} [icon] Gruppens egen ikon i `layout="ikoner"`.
  *   ⛔ Saknas den faller gruppen tillbaka på reglageikonen.
- * @property {{ value: string, label: string, icon?: import("react").ReactNode }[]} options
+ * @property {{ value: string, label: string, icon?: import("react").ReactNode, badge?: number }[]} options
+ * @property {number} [allBadge] Antalet på "Alla"-raden. ⛔ Räknas gruppen, räknas varje rad, se `kravAntal`.
  */
+
+/**
+ * ⛔ EN GRUPP RÄKNAS HELT ELLER INTE ALLS (0.73.0, cllp/bolag-ops#569). CP 2026-10-06: "Finns många initialt, sedan agent 0st
+ * och jag 2st. Går inte jämnt ut." En grupp där bara några rader bär ett tal låter den som läser lägga ihop talen och få en
+ * summa som inte är listans, och en saknad siffra går inte att skilja från 0 (regel 5). Därför kastar panelen: antingen bär
+ * "Alla" och varje alternativ ett tal, eller ingen av dem.
+ *
+ * ⛔ SUMMAN PRÖVAS INTE HÄR. Alla grupper delar inte listan i delar som inte överlappar, och om en grupp gör det är appens
+ * sak att bevisa i sitt eget prov, mot sina egna rader. Ett ramverk som räknade ihop talen och skrev summan på "Alla" hade
+ * gjort summan rätt per definition och dolt precis den rad som inte hörde till något alternativ.
+ *
+ * @param {FilterGroup} g
+ */
+function kravAntal(g) {
+  const medTal = g.options.filter((o) => typeof o.badge === "number").length;
+  const allaHar = typeof g.allBadge === "number";
+  if (medTal === 0 && !allaHar) return;
+  if (medTal !== g.options.length || !allaHar) {
+    throw new Error(
+      `OpsFilterPanel: gruppen "${g.id}" räknar bara en del av sina rader (${medTal} av ${g.options.length} alternativ, "Alla" ${allaHar ? "med" : "utan"} tal). Ge varje alternativ och allBadge ett tal, eller inget av dem.`,
+    );
+  }
+}
 
 /**
  * @param {object} props
@@ -123,6 +147,8 @@ export function OpsFilterPanel({
   if (!ariaLabel) {
     throw new Error("OpsFilterPanel: ariaLabel krävs. En knapp med bara en ikon har inget namn för den som inte ser den.");
   }
+
+  for (const g of groups) kravAntal(g);
 
   /** @type {Record<string, string | null>} */
   const choice = value || {};
@@ -165,9 +191,9 @@ export function OpsFilterPanel({
    */
   const groupRows = (g) => (
     <>
-      <Row chosen={!choice[g.id]} onClick={() => vlj(g.id, null)} text={g.allLabel || "Alla"} />
+      <Row chosen={!choice[g.id]} onClick={() => vlj(g.id, null)} text={g.allLabel || "Alla"} antal={g.allBadge} />
       {g.options.map((o) => (
-        <Row key={o.value} chosen={choice[g.id] === o.value} onClick={() => vlj(g.id, o.value)} text={o.label} ikon={o.icon} />
+        <Row key={o.value} chosen={choice[g.id] === o.value} onClick={() => vlj(g.id, o.value)} text={o.label} ikon={o.icon} antal={o.badge} />
       ))}
     </>
   );
@@ -421,11 +447,11 @@ export function OpsFilterPanel({
  * En rad i panelen: `ValRad`, samma rad som alla andra valmenyer (0.31.2). Grupperna, sorteringen och "alla"-raden
  * ritas likadant, och en rad skrivs på ETT ställe.
  *
- * @param {{ chosen: boolean, onClick: () => void, text: string, ikon?: import("react").ReactNode }} props
+ * @param {{ chosen: boolean, onClick: () => void, text: string, ikon?: import("react").ReactNode, antal?: number }} props
  */
-function Row({ chosen, onClick, text, ikon }) {
+function Row({ chosen, onClick, text, ikon, antal }) {
   return (
-    <ValRad chosen={chosen} onClick={onClick} ikon={ikon}>
+    <ValRad chosen={chosen} onClick={onClick} ikon={ikon} antal={antal}>
       {text}
     </ValRad>
   );

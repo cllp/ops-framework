@@ -44,6 +44,8 @@ import { FilIkon, GemIkon } from "./icons.jsx";
  * @param {(attachment: import("../lib/file.js").Bilaga | null) => void} props.onChange
  * @param {number} props.maxChars Tak för data-URL:en i tecken. Plattformen äger talet: ramverket vet inte vad den lagrar i.
  * @param {string} [props.accept] Vad filväljaren erbjuder. ⛔ Ett filter, aldrig ett skydd: en fil kan alltid dras in eller klistras in ändå.
+ * @param {readonly string[]} [props.typer] (0.73.0) Typerna en bilaga får ha. Det här ÄR ett skydd: en fil av annan typ avvisas med besked,
+ *   hur den än kom in (vald, indragen eller inklistrad). Saknas listan tas alla typer, som förut.
  * @param {boolean} [props.paste] Ta emot inklistrade filer. Av när två väljare delar yta.
  * @param {string} [props.ariaLabel] Vad som ska bifogas, för den som inte ser knappen.
  * @param {{ select?: string, byt?: string, remove?: string, klistra?: string }} [props.labels]
@@ -53,6 +55,7 @@ export function OpsFilePicker({
   onChange,
   maxChars,
   accept,
+  typer,
   paste = true,
   ariaLabel = "Bifoga fil",
   labels = {},
@@ -73,7 +76,7 @@ export function OpsFilePicker({
     setError("");
     setLaser(true);
     try {
-      onChange(await readAttachment(file, { maxChars: maxChars }));
+      onChange(await readAttachment(file, { maxChars, typer }));
     } catch (err) {
       onChange(null);
       setError(err instanceof Error ? err.message : "Filen kunde inte läsas.");
@@ -96,7 +99,7 @@ export function OpsFilePicker({
     document.addEventListener("paste", vid);
     return () => document.removeEventListener("paste", vid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paste, maxChars]);
+  }, [paste, maxChars, typer]);
 
   const isImage = Boolean(value && arBildtyp(value.typ));
 

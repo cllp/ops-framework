@@ -39,7 +39,7 @@ import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
-import { KOMMENTARFALT, LASMARKESFALT, MAX_HANDELSEKOMMENTAR, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
+import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
 import { FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
@@ -1179,6 +1179,11 @@ ${gruppadSamlingBlock(gruppkalendrar, { skrivvillkor: "opsArAdmin", falt: [...KA
  *   - KOMMENTARER (0.48.0, #232, beslut 0002), LÄSA: aktiv medlem i händelsens grupp, som svaren.
  *   - KOMMENTARER, SKRIVA: aktiv medlem, bara i eget namn (`skapadAv.uid == request.auth.uid`), exakt fältlista
  *     (`KOMMENTARFALT`), texten 1 till `MAX_HANDELSEKOMMENTAR` tecken och `skapad` en ISO-tid.
+ *   - KOMMENTARER, BILAGA (0.73.0, bolag-ops#570): frivilligt fält `bilaga` med inkorgens form (`KOMMENTARBILAGAFALT`), typen i
+ *     `KOMMENTARBILAGA_TYPER`, data-URL:en med samma typ och högst `MAX_KOMMENTARBILAGA` tecken, `tecken` lika med dess längd och
+ *     namnet 1 till `MAX_BILAGENAMN` tecken. Med bilaga får texten vara tom. Läsningen är kommentarens: bilagan ligger i samma
+ *     dokument, så bara gruppens aktiva medlemmar läser den. Prövningen är regelfunktionen `opsKommentarbilagaGiltig(b)`, som
+ *     appen får anropa i sina egna kommentarsregler (lifehub.app:s inkorg), så att den står en gång.
  *   - KOMMENTARER, ÄNDRA: aldrig. Ett svar på en kommentar hade annars kunnat stå under en mening som inte längre finns.
  *   - KOMMENTARER, RADERA: bara den som skrev den (CP 2026-10-02: "Ja"). Också efter att hen lämnat gruppen: det är hens text.
  *   - LÄSMÄRKEN (`<händelser>/{hid}/<läsmärken>/{uid}`): bara personen själv läser och skriver sitt, bara som aktiv medlem,
@@ -1237,16 +1242,35 @@ export function handelseregelfragment(namn = {}) {
       allow delete: if false;
     }
 
+    // En bilaga på en kommentar (0.73.0, bolag-ops#570): inkorgens form, typlistan och taket ur modellen. Appen får anropa
+    // funktionen i sina egna kommentarsregler, så att prövningen står en gång.
+    function opsKommentarbilagaGiltig(b) {
+      return b is map
+        && b.keys().hasOnly([${lista(KOMMENTARBILAGAFALT)}])
+        && b.keys().hasAll([${lista(KOMMENTARBILAGAFALT.slice(0, 4))}])
+        && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
+        && b.dataUrl is string
+        && b.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}
+        && b.dataUrl.matches('data:' + b.typ + ';base64,.*')
+        && b.tecken == b.dataUrl.size()
+        && b.namn is string
+        && b.namn.size() > 0
+        && b.namn.size() <= ${MAX_BILAGENAMN}
+        && (!('bredd' in b) || b.bredd is number)
+        && (!('hojd' in b) || b.hojd is number);
+    }
+
     match /${handelser}/{hid}/${kommentarer}/{kid} {
       allow read: if opsInloggad() && exists(opsHandelsen(hid))
         && opsArMedlem(get(opsHandelsen(hid)).data.groupId);
       allow create: if opsInloggad() && exists(opsHandelsen(hid))
         && opsArMedlem(get(opsHandelsen(hid)).data.groupId)
-        && request.resource.data.keys().hasOnly([${lista(KOMMENTARFALT)}])
+        && request.resource.data.keys().hasOnly([${lista([...KOMMENTARFALT, "bilaga"])}])
         && request.resource.data.keys().hasAll([${lista(KOMMENTARFALT)}])
         && request.resource.data.text is string
-        && request.resource.data.text.size() > 0
+        && (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)
         && request.resource.data.text.size() <= ${MAX_HANDELSEKOMMENTAR}
+        && (!('bilaga' in request.resource.data) || opsKommentarbilagaGiltig(request.resource.data.bilaga))
         && request.resource.data.skapad is string
         && request.resource.data.skapad.matches('${isotid}')
         && request.resource.data.skapadAv is map
