@@ -40,6 +40,8 @@
  *   hubben: medlem/admin läser modulerna     ja       (0.38.0, #184)
  *   hubben: avslutad, utomstående, utan      nej
  *   hubben: fråga alla grupper med en modul  nej
+ *   huvudmenyn: ägaren ändrar                ja       (0.83.0)
+ *   huvudmenyn: admin ändrar                 nej      (0.83.0)
  *
  * Kör: npm run test:rules
  */
@@ -348,6 +350,22 @@ describe("⛔ gruppen: admin ändrar utseende och uppgifter men inte mer (0.32.0
 
   it("⛔ en admin ändrar inte modulerna, det är ägarens", async () => {
     await assertFails(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { moduler: ["allt"] }));
+  });
+
+  /*
+   * ⛔ 0.83.0: `huvudmeny` (vilka moduler som har sin ikon i huvudet) är ägarens, som `moduler`. Röda mot 0.82.0 i den
+   * riktning som släpper in: utan fältet i AGARGRUPPFALT nekas också ägaren (affectedKeys().hasOnly). Står det i
+   * ADMINGRUPPFALT i stället blir admin-provet rött.
+   */
+  it("⛔ ägaren väljer vilka moduler som står i huvudmenyn", async () => {
+    await assertSucceeds(updateDoc(doc(som(AGARE), `groups/${VAR}`), { huvudmeny: ["ekonomi"] }));
+  });
+
+  it("⛔ en admin ändrar inte huvudmenyn, det är ägarens", async () => {
+    // ⛔ ETT VÄRDE SOM INTE REDAN STÅR DÄR. Raden delas mellan proven, och ägarens prov ovan har skrivit ["ekonomi"]: samma
+    // värde en gång till är ingen ändring (`affectedKeys()` tom), och då släpps vem som helst med skrivrätt igenom. Provet
+    // var grönt av fel skäl i första körningen, och det är därför raden står här.
+    await assertFails(updateDoc(doc(som(ADMIN), `groups/${VAR}`), { huvudmeny: ["ekonomi", "admins-forsok"] }));
   });
 
   it("⛔ en admin arkiverar inte gruppen, det är ägarens", async () => {

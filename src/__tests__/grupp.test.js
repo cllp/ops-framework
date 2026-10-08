@@ -305,6 +305,41 @@ describe("gruppens utseende och uppgifter (0.32.0, #180)", () => {
   });
 });
 
+/*
+ * ⛔ 0.83.0: CP 2026-10-08 17:54, "det skall finnas en inställning om att ikon skall placeras i huvudmenyn". Röda mot
+ * 0.82.0: där avvisades fältet som okänt.
+ */
+describe("⛔ huvudmeny på en grupp (0.83.0)", () => {
+  it("frånvarande, null och [] ger en tom lista: inget i huvudet förrän ägaren väljer", () => {
+    expect(byggGrupp(GRUPP()).huvudmeny).toEqual([]);
+    expect(byggGrupp({ ...GRUPP(), huvudmeny: null }).huvudmeny).toEqual([]);
+    expect(byggGrupp({ ...GRUPP(), huvudmeny: [] }).huvudmeny).toEqual([]);
+  });
+
+  it("en lista modul-id läses, i sin ordning, och fryses", () => {
+    const g = byggGrupp({ ...GRUPP(), moduler: ["ekonomi", "bibliotek"], huvudmeny: ["bibliotek"] }, ["ekonomi", "bibliotek"]);
+    expect(g.huvudmeny).toEqual(["bibliotek"]);
+    expect(Object.isFrozen(g.huvudmeny)).toBe(true);
+  });
+
+  it("⛔ formen prövas: en lista, modul-id, inga dubbletter", () => {
+    expect(() => byggGrupp({ ...GRUPP(), huvudmeny: "ekonomi" })).toThrow(/groups: huvudmeny för "bolaget" måste vara en lista/);
+    expect(() => byggGrupp({ ...GRUPP(), huvudmeny: ["Ekonomi!"] })).toThrow(/huvudmeny\[0\] för "bolaget" måste vara ett modul-id/);
+    expect(() => byggGrupp({ ...GRUPP(), moduler: ["ekonomi"], huvudmeny: ["ekonomi", "ekonomi"] })).toThrow(/huvudmeny\[1\] "ekonomi" för "bolaget" står två gånger/);
+  });
+
+  it("⛔ på skrivvägen är huvudmenyn en delmängd av modulerna, på läsvägen kastar den inte", () => {
+    expect(() => byggGrupp({ ...GRUPP(), moduler: ["ekonomi"], huvudmeny: ["bibliotek"] }, ["ekonomi", "bibliotek"])).toThrow(/huvudmeny\[0\] "bibliotek" för "bolaget" är ingen av gruppens moduler/);
+    expect(byggGrupp({ ...GRUPP(), moduler: ["ekonomi"], huvudmeny: ["bibliotek"] }).huvudmeny).toEqual(["bibliotek"]);
+  });
+
+  it("⛔ fältet är ägarens: det står i AGARGRUPPFALT och inte i ADMINGRUPPFALT", () => {
+    expect(AGARGRUPPFALT).toContain("huvudmeny");
+    expect(ADMINGRUPPFALT).not.toContain("huvudmeny");
+    expect(GRUPPFALT).toContain("huvudmeny");
+  });
+});
+
 describe("⛔ externaDatakallor på en grupp (0.41.0, #216)", () => {
   const post = () => ({ type: "github", repo: "cllp/bolag-ops", enabled: true });
 

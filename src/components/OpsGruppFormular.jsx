@@ -15,6 +15,7 @@ import { synsPa, synsPaText } from "../lib/tillagg.js";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
+import { OpsSwitch } from "./OpsToggle.jsx";
 
 /**
  * Formuläret "Ny grupp": SessionStudios `ManageGroupModal` i sin `inline`-form, som en PANEL (0.32.0, #180).
@@ -140,6 +141,8 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * @property {string} [synsPa] (0.60.0, #251) Orden före listan på varje app: "Syns på".
  * @property {string} [synsPaEgenYta] (0.60.0) Appen har en egen sida (nav eller kort i hubben): "Egen yta".
  * @property {string} [synsPaIngenting] (0.60.0) Appen har varken egen yta eller tillägg. Skrivs ut, aldrig en tom rad (regel 5).
+ * @property {string} [huvudmeny] (0.83.0) Reglaget under en installerad app med kort: "Visa i huvudmenyn".
+ * @property {string} [huvudmenyHint] (0.83.0) Vad reglaget gör.
  */
 
 /** @type {Record<"sv"|"en", Required<GruppFormularEtiketter>>} */
@@ -209,6 +212,8 @@ const STANDARD = {
     modulOkand: "{id} är installerad i gruppen men finns inte här. Den visas inte under Appar.",
     synsPa: "Syns på",
     synsPaEgenYta: "Egen yta",
+    huvudmeny: "Visa i huvudmenyn",
+    huvudmenyHint: "Appens ikon står i huvudet överst, på varje sida.",
     synsPaIngenting: "ingen egen yta och inga tillägg",
   },
   en: {
@@ -276,6 +281,8 @@ const STANDARD = {
     modulOkand: "{id} is installed in the group but does not exist here. It is not shown under Apps.",
     synsPa: "Visible in",
     synsPaEgenYta: "Own page",
+    huvudmeny: "Show in the main menu",
+    huvudmenyHint: "The app's icon sits in the header, on every page.",
     synsPaIngenting: "no own page and no add-ons",
   },
 };
@@ -300,9 +307,9 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param {() => void} [props.onKlar] Stänger panelen (skalet skickar den).
  * @param {"sv"|"en"} [props.sprak] Språket på etiketterna och förvalet för gruppens e-postspråk.
  * @param {GruppFormularEtiketter} [props.etiketter] Enskilda texter att byta ut.
- * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en", moduler?: ReadonlyArray<string> }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
- * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en", moduler?: string[] } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
- *   ⛔ `moduler` finns med BARA när modulvalet visades (ägaren, se `moduler`). En admin skickar aldrig fältet, eftersom reglerna avvisar hela uppdateringen om det ändras.
+ * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en", moduler?: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
+ * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en", moduler?: string[], huvudmeny?: string[] } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
+ *   ⛔ `moduler` och `huvudmeny` (0.83.0) finns med BARA när modulvalet visades (ägaren, se `moduler`). En admin skickar aldrig fältet, eftersom reglerna avvisar hela uppdateringen om det ändras.
  * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, agare: boolean }} [props.moduler] (0.37.0, #184) Modulvalet i redigeringsläge: `valbara` ur
  *   `valbaraModuler(registrerade)`, `agare` sant bara när den inloggade är gruppens ägare. Utan det, eller för en admin, ritas inget modulval.
  * @param {string} [props.bildUrl] Gruppens nuvarande bild att visa (URL). Bara redigeringsläge.
@@ -350,6 +357,13 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
    */
   const visaModulval = redigerar && modulval?.agare === true && Array.isArray(modulval.valbara);
   const [valdaModuler, setValdaModuler] = useState(/** @type {string[]} */ ([...(befintlig?.moduler ?? [])]));
+  /*
+   * ⛔ HUVUDMENYN (0.83.0, CP 2026-10-08 17:54: "det skall finnas en inställning om att ikon skall placeras i huvudmenyn").
+   * Ett reglage under varje installerad app som har ett kort. Det som sparas är id:n, och alltid en delmängd av modulerna:
+   * en app som avinstalleras tas ur huvudmenyn i samma sparning, så att fältet inte pekar på något gruppen inte har.
+   * Ägarens fält (`AGARGRUPPFALT`), samma ägare och samma sparning som `moduler`.
+   */
+  const [valdHuvudmeny, setValdHuvudmeny] = useState(/** @type {string[]} */ ([...(befintlig?.huvudmeny ?? [])]));
 
   const identitetId = useId();
   const merId = useId();
@@ -408,7 +422,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         const orig = /** @type {Namn} */ (befintlig.namn && typeof befintlig.namn === "object" ? befintlig.namn : { sv: fore });
         /** @type {string | Namn} */
         const namnUt = nyttNamn === fore ? befintlig.namn : orig.en === undefined || orig.en === orig.sv ? { sv: nyttNamn, en: nyttNamn } : { ...orig, [sprak === "en" ? "en" : "sv"]: nyttNamn };
-        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak, ...(visaModulval ? { moduler: [...valdaModuler] } : {}) } });
+        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak, ...(visaModulval ? { moduler: [...valdaModuler], huvudmeny: valdHuvudmeny.filter((id) => valdaModuler.includes(id)) } : {}) } });
         klar({ groupId: befintlig.id });
       } catch (fel) {
         setFelmeddelande(fel instanceof Error ? fel.message : String(fel));
@@ -637,6 +651,17 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
                         <BockIkon size={16} />
                       </span>
                     </button>
+                    {vald && m.hubb ? (
+                      <div data-huvudmeny={m.id} className="pt-1 pl-11">
+                        <OpsSwitch
+                          label={t.huvudmeny}
+                          hint={t.huvudmenyHint}
+                          checked={valdHuvudmeny.includes(m.id)}
+                          disabled={upptagen}
+                          onChange={(pa) => setValdHuvudmeny((l) => (pa ? (l.includes(m.id) ? l : [...l, m.id]) : l.filter((x) => x !== m.id)))}
+                        />
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}

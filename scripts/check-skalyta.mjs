@@ -1340,7 +1340,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 // ══ 9c. HUBBEN PER GRUPP OCH MODULENS INSIDA (0.37.0, #184) ════════════════════
 // CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Hubben visar den aktiva gruppens moduler och inget
 // annat, och en modul har en egen insida med sin egen navigation. Mått vid 390 och 1280:
-//   (a) en grupp med Ekonomi: ETT kort, en länk till /ekonomi, inga delar i hubben, minst 44 px högt, klick navigerar;
+//   (a) en grupp med Ekonomi: ETT kort, en länk till /ekonomi, inga delar synliga i hubben förrän chevronen fälls ut (0.83.0),
+//       minst 44 px högt, klick navigerar;
 //       på dator listar toppradens rullgardin bara modulen (inga chevronrader, inga delar).
 //   (b) en grupp utan moduler: rubriken och en rad med gruppens namn, inga kort, ingen tom yta.
 //   (c) en grupp med en modul appen inte registrerat: kortet för Ekonomi OCH en synlig rad som säger vilken som inte visas.
@@ -1354,7 +1355,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g3");
     try {
       const lista = page.locator('main ul[aria-label="Appar i Claes Philip Staiger AB"]');
-      const kort = lista.locator(":scope > li > a");
+      // ⛔ 0.83.0: ett kort med delar är en länk med en chevron bredvid (`[data-kortlank]` i en `div`), inte en länk direkt i `li`.
+      const kort = lista.locator(":scope > li > a, :scope > li [data-kortlank]");
       const antal = await kort.count();
       krav(antal === 1, `Hubben per grupp ${namn} (a): ${antal} kort ritades i gruppen med Ekonomi, väntat 1.`);
       if (antal === 1) {
@@ -1408,7 +1410,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
   {
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g1");
     try {
-      const kort = await page.locator("main ul[aria-label] > li > a").count();
+      const kort = await page.locator("main ul[aria-label] > li > a, main ul[aria-label] > li [data-kortlank]").count();
       const rad = page.locator('[data-saknad="inte-registrerad"]');
       const syns = (await rad.count()) === 1 && (await rad.isVisible());
       const r = syns ? await rad.evaluate((el) => ({ text: (el.textContent || "").trim(), h: el.getBoundingClientRect().height, flodar: el.scrollWidth > el.clientWidth + 1 })) : null;
@@ -2546,7 +2548,9 @@ krav(ytorMatta >= 28, `valmenyerna: bara ${ytorMatta} ytor mätta, väntat minst
 // inte ut submenyer. Navigeringen tillbaka ser inget bra ut. Gör samma som SessionStudio och aktivitet. Se till att
 // aktivitetspanelen blir lika hög som menyn så den inte hoppar. Kanske att meny skall vara en standardhöjd."
 // 19a: avståndet under toppraden och sidomarginalen är Idags (OpsView), ingen horisontell överflödning.
-// 19b: ett kort med barn fälls ut på plats (aria-expanded, tangentbord), modulens egen sida nås via "Visa Ekonomi".
+// 19b: ett kort med barn fälls ut på plats (aria-expanded, tangentbord). Sedan 0.83.0 är chevronen knappen och kortet självt
+//      länken till modulens egen sida (CP 2026-10-08: "Varje app/modul borde kunna expanderas med chevron"); raden "Visa Ekonomi"
+//      är borta.
 // 19c: tillbaka-raden är SS textlänk (chevron 20 px, gap 8, text 14 px), inget band, rubriken under, första kortet fritt.
 // 19d: menyns rullgardin (1280) och ark (390) har SAMMA höjd i roten och i Aktivitet.
 for (const bredd of [390, 768, 1280]) {
@@ -2589,17 +2593,18 @@ for (const bredd of [390, 1280]) {
     await page.waitForTimeout(300);
     const efter = await synliga();
     const rot = await page.evaluate(() => {
-      const b = document.querySelector("main ul[aria-label] button[aria-expanded] > span > span:last-child");
+      const b = document.querySelector("main ul[aria-label] button[aria-expanded] > span");
       return b ? `${getComputedStyle(b).rotate} ${getComputedStyle(b).transform}`.trim() : "saknas";
     });
     matt.push(`hub ${bredd} px: Ekonomi utfälld med Enter: ${efter.filter((t) => !fore.includes(t)).join(" | ")}; chevron ${rot}`);
     krav((await knapp.getAttribute("aria-expanded")) === "true", `hub ${bredd} px: aria-expanded är inte true efter Enter på Ekonomi.`);
-    krav(efter.some((t) => t.startsWith("Visa Ekonomi")) && efter.some((t) => t.startsWith("Inkomster")) && efter.some((t) => t.startsWith("Bokslut")), `hub ${bredd} px: efter utfällning saknas "Visa Ekonomi", Inkomster eller Bokslut (${efter.join(" | ")}).`);
+    krav(efter.some((t) => t.startsWith("Inkomster")) && efter.some((t) => t.startsWith("Bokslut")) && !efter.some((t) => t.startsWith("Visa Ekonomi")), `hub ${bredd} px: efter utfällning saknas Inkomster eller Bokslut, eller så står raden "Visa Ekonomi" kvar (${efter.join(" | ")}).`);
+    krav((await knapp.evaluate((b) => Boolean(b.closest("a")))) === false, `hub ${bredd} px: chevronen ligger inuti kortets länk.`);
     krav(/180deg|matrix\(-1/.test(rot), `hub ${bredd} px: chevronen vrids inte när kortet är utfällt (transform ${rot}).`);
     krav(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `hub ${bredd} px: utfällt kort flödar i sidled.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `hub-utfalld-${bredd}.png`), fullPage: true });
-    await page.getByRole("link", { name: "Visa Ekonomi" }).click();
-    krav(JSON.stringify(await page.evaluate(() => window.__gick)) === '["/ekonomi"]', `hub ${bredd} px: "Visa Ekonomi" navigerade inte till /ekonomi.`);
+    await page.locator("main ul[aria-label] a[data-kortlank]").first().click();
+    krav(JSON.stringify(await page.evaluate(() => window.__gick)) === '["/ekonomi"]', `hub ${bredd} px: kortet Ekonomi navigerade inte till /ekonomi.`);
     await knapp.focus();
     await page.keyboard.press("Space");
     krav((await knapp.getAttribute("aria-expanded")) === "false" && !(await synliga()).some((t) => t.startsWith("Inkomster")), `hub ${bredd} px: Space på Ekonomi fäller inte ihop kortet.`);

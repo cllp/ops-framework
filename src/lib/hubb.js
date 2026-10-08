@@ -104,25 +104,71 @@ export function valbaraModuler(moduler) {
  * Hubbens rader i toppradens rullgardin och bottenradens ark: EN rad per modul, inga delar.
  *
  * ⛔ HUBBENS MENY LISTAR BARA MODULER (#184 punkt 2). Delarna är modulens egen
- * navigation, på modulens sida. Därför inga `children` här, och skalets
+ * navigation, på modulens sida. Därför inga `children` här som förval, och skalets
  * rullgardin får samma lista som kortrutnätet (appen skickar resultatet till
  * båda, som `moduler` till `OpsAppShell`).
+ *
+ * ⛔ `delar: true` GER KORTEN SINA DELAR (0.83.0). CP 2026-10-08 17:54, med en bild av Hubben: "Varje app/modul borde kunna
+ * expanderas med chevron." Kortet i Hubben fälls ut och visar modulens delar som länkar. Rullgardinen i toppraden ber inte om
+ * dem och listar fortfarande bara moduler. En modul med EN del får inga `children`: delen är modulens startsida, och en
+ * utfälld lista med en rad som leder dit kortet redan leder är ett tryck som inte visar något nytt (mätt på Bibliotek, vars
+ * enda del `lista` leder till `/bibliotek`).
  *
  * @param {ReadonlyArray<Hubbmodul>} kort Ur `hubbForGrupp`.
  * @param {object} [val]
  * @param {string} [val.sprak] Förval `sv`.
  * @param {Readonly<Record<string, string | { sv: string, en?: string } | null>>} [val.info] Kortets infolinje per modul-id. En nyckel som saknas ritar ingen rad, `null` ritar "Inget nytt".
  * @param {Readonly<Record<string, number>>} [val.badge] Räknaren per modul-id.
+ * @param {boolean} [val.delar] (0.83.0) Ge varje modul med fler än en del sina delar som `children`. Förval falskt.
  * @returns {import("./nav.js").NavPost[]}
  */
-export function hubbPoster(kort, { sprak = "sv", info = {}, badge = {} } = {}) {
+export function hubbPoster(kort, { sprak = "sv", info = {}, badge = {}, delar = false } = {}) {
   return kort.map((m) => ({
     href: m.hubb.rutt,
     label: text(m.namn, sprak),
     icon: /** @type {import("react").ReactNode} */ (m.hubb.ikon),
     ...(Object.hasOwn(info, m.id) ? { info: info[m.id] } : {}),
     ...(typeof badge[m.id] === "number" ? { badge: badge[m.id] } : {}),
+    ...(delar && m.hubb.delar.length > 1
+      ? { children: m.hubb.delar.map((d) => ({ href: d.rutt, label: text(d.namn, sprak), icon: /** @type {import("react").ReactNode} */ (d.ikon) })) }
+      : {}),
   }));
+}
+
+/**
+ * Modulerna vars ikon står i appens huvud, som rader att rita (0.83.0).
+ *
+ * ══ ⛔ GRUPPENS VAL, I GRUPPENS ORDNING ══════════════════════════════════
+ *
+ * CP 2026-10-08 17:54: "det skall finnas en inställning om att ikon skall placeras i huvudmenyn." Valet är gruppens fält
+ * `huvudmeny` (ägarens, som `moduler`), och raderna härleds här: modulerna i `grupp.moduler`, i den ordningen, som både
+ * står i `huvudmeny` och har ett kort. Ikonen är manifestets `hubb.ikon` och målet `hubb.rutt`, samma som kortet i Hubben,
+ * så ikonen och kortet kan inte leda olika vägar (regel 2).
+ *
+ * ⛔ SAKNAS FÄLTET ÄR SVARET TOMT, så en grupp som inte valt något har samma huvud som före 0.83.0.
+ *
+ * ⛔ ETT ID SOM INTE ÄR EN AV GRUPPENS MODULER RITAS INTE. Läsvägen kastar inte på det (se `byggHuvudmeny` i `grupp.js`),
+ * men en ikon till en modul gruppen inte har hade lett till en sida utan kort.
+ *
+ * @param {object} arg
+ * @param {{ moduler: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> | null } | null} arg.grupp Den aktiva gruppen, eller `null` medan den läses.
+ * @param {ReadonlyArray<import("./modul.js").Modul>} arg.moduler Appens registrerade moduler.
+ * @param {string} [arg.sprak] Förval `sv`.
+ * @returns {{ id: string, href: string, label: string, icon: import("react").ReactNode }[]}
+ */
+export function huvudmenyPoster({ grupp, moduler, sprak = "sv" }) {
+  if (!grupp) return [];
+  const valda = Array.isArray(grupp.huvudmeny) ? grupp.huvudmeny : [];
+  if (valda.length === 0) return [];
+  const registrerade = new Map((moduler ?? []).map((m) => [m.id, m]));
+  return (grupp.moduler ?? [])
+    .filter((id) => valda.includes(id))
+    .map((id) => registrerade.get(id))
+    .filter((m) => Boolean(m?.hubb))
+    .map((m) => {
+      const h = /** @type {Hubbmodul} */ (m);
+      return { id: h.id, href: h.hubb.rutt, label: text(h.namn, sprak), icon: /** @type {import("react").ReactNode} */ (h.hubb.ikon) };
+    });
 }
 
 /**

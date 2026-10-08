@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
-import { cx } from "../lib/cx.js";
 import { modulLage } from "../lib/hubb.js";
+import { FLIKIKON, FLIKRAD, flikKlass, modulTillbaka } from "../lib/modulram.js";
 import { text } from "../lib/sprak.js";
 import { OpsView } from "./OpsView.jsx";
 
@@ -66,26 +66,16 @@ export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sp
     }
   }, [aktiv]);
   return (
-    <OpsView tillbaka={{ hubHref, hubEtikett, etikett: namn, onNavigate, rubrik: true, tillbakaEtikett: sprak === "en" ? "Back" : "Tillbaka", tillbakaTillEtikett: sprak === "en" ? "Back to" : "Tillbaka till" }}>
+    <OpsView tillbaka={modulTillbaka({ namn, hubHref, hubEtikett, onNavigate, sprak })}>
+      {/* ⛔ RADENS KLASSER BOR I `modulram.js` (0.83.0), så att Bibliotekets flikrad (`OpsTabs` med `medOrd`) ser ut som den här. */}
       <nav aria-label={navEtikett ?? (sprak === "en" ? `${namn}: parts` : `${namn}: delar`)} data-modulnav={modul.id}>
-        <ul ref={rad} className="m-0 flex list-none gap-1 overflow-x-auto border-b border-line p-0">
+        <ul ref={rad} className={FLIKRAD}>
           {modul.hubb.delar.map((d) => {
             const oppen = d.id === aktiv;
             return (
               <li key={d.id} className="shrink-0">
-                <a
-                  href={d.rutt}
-                  onClick={(e) => onNavigate?.(d.rutt, e)}
-                  aria-current={oppen ? "page" : undefined}
-                  data-del={d.id}
-                  className={cx(
-                    "flex min-h-11 items-center gap-2 whitespace-nowrap rounded-t-md border-b-2 px-4 py-2 text-etikett font-semibold",
-                    "transition-colors duration-(--duration-fast) ease-standard",
-                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-                    oppen ? "border-accent text-ink" : "border-transparent text-ink-secondary hover:bg-accent-faint hover:text-ink",
-                  )}
-                >
-                  <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+                <a href={d.rutt} onClick={(e) => onNavigate?.(d.rutt, e)} aria-current={oppen ? "page" : undefined} data-del={d.id} className={flikKlass({ oppen })}>
+                  <span aria-hidden="true" className={FLIKIKON}>
                     {/** @type {import("react").ReactNode} */ (d.ikon)}
                   </span>
                   <span>{text(d.namn, sprak)}</span>

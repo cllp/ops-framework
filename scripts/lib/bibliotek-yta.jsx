@@ -31,6 +31,8 @@ function Yta() {
       onStang={() => { setVald(null); setSkapar(null); }}
       onSkapa={(typ) => { setVald(null); setSkapar(typ); }}
       onSpara={() => {}}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
     />
   );
 }

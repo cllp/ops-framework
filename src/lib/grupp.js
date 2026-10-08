@@ -136,6 +136,7 @@ export const MAX_PRESENTATION = 500;
  * @property {string} id
  * @property {import("./sprak.js").Namn} namn
  * @property {ReadonlyArray<string>} moduler Modul-id, samma form som `defineModule`.
+ * @property {ReadonlyArray<string>} huvudmeny Modulerna vars ikon står i appens huvud, en delmängd av `moduler`. Tom lista när inga. 0.83.0.
  * @property {boolean} arkiverad
  * @property {import("./skapare.js").Skapare} skapadAv
  * @property {string} farg `kulor:<0-359>` (0.65.0, #265), en äldre ton ur `PROFILFARGER` (0.32.0, ritas med sin kulör, se `gruppfarg.js`), eller tom sträng (kulören ur `id`).
@@ -263,12 +264,13 @@ export const ANVANDARFALT = ["id", "namn", "epost", "bild", "sprak", "tema", "te
  * beslut som `ANVANDARFALT` (#156). `ADMINGRUPPFALT` är det en admin får ändra: utseende och
  * uppgifter. `AGARGRUPPFALT` är det ägaren får ändra: det ovan plus `moduler`, `arkiverad` och
  * `externaDatakallor` (0.41.0, #216) och `typavvikelser` (0.42.0, #217: vilka modulbidrag gruppen dolt eller döpt om;
- * vilka moduler som är påslagna är ägarens beslut, så vad de bidrar med är det också).
+ * vilka moduler som är påslagna är ägarens beslut, så vad de bidrar med är det också) och `huvudmeny` (0.83.0: vilka av
+ * modulerna som har sin ikon i huvudet. Samma beslut som `moduler`, och därför samma ägare).
  * `id` och `skapadAv` står i ingen av dem: vem som skapade gruppen och vad den heter i databasen
  * ändras aldrig.
  */
 export const ADMINGRUPPFALT = ["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"];
-export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "arkiverad", "externaDatakallor", "typavvikelser"];
+export const AGARGRUPPFALT = [...ADMINGRUPPFALT, "moduler", "huvudmeny", "arkiverad", "externaDatakallor", "typavvikelser"];
 export const GRUPPFALT = ["id", ...AGARGRUPPFALT, "skapadAv"];
 /*
  * ⛔ `namn` OCH `bild` LIGGER HÄR DENORMALISERAT, OCH DET ÄR ETT BESLUT MED ETT
@@ -519,6 +521,49 @@ export function byggExternaDatakallor(varde, id) {
 }
 
 /**
+ * Modulerna vars ikon står i huvudet (0.83.0), eller kastar med skälet.
+ *
+ * ══ ⛔ ETT EGET FÄLT, OCH EN DELMÄNGD AV `moduler`, INTE EN ANDRA MODULLISTA ══════
+ *
+ * CP 2026-10-08 17:54, med en bild av Hubben: "det skall finnas en inställning om att ikon skall placeras i huvudmenyn."
+ * Valet gäller en modul gruppen redan har, så det sparas som en lista id bredvid `moduler` och aldrig som en kopia av den:
+ * ordningen och vilka moduler som finns står kvar i `moduler` (regel 2), och huvudet ritar `moduler` i den ordningen,
+ * filtrerat på det här fältet (`huvudmenyPoster` i `hubb.js`).
+ *
+ * ⛔ SAKNAS FÄLTET ÄR SVARET EN TOM LISTA, så en grupp från före 0.83.0 ser ut som förut: inget i huvudet förrän ägaren
+ * väljer. Ingen migrering.
+ *
+ * ⛔ DELMÄNGDEN PRÖVAS PÅ SKRIVVÄGEN, inte på läsvägen (samma skäl som `kandaModuler`). Den som sparar ska inte kunna lägga
+ * en modul i huvudet som gruppen inte har. Den som läser en rad där en modul tagits bort ska inte få en grupp som kastar:
+ * huvudet ritar bara de id som också står i `moduler`.
+ *
+ * @param {unknown} varde
+ * @param {string} id Gruppens id, för felet.
+ * @param {ReadonlyArray<string> | null} moduler Gruppens moduler på skrivvägen, `null` på läsvägen.
+ * @returns {ReadonlyArray<string>}
+ */
+function byggHuvudmeny(varde, id, moduler) {
+  if (varde === undefined || varde === null) return Object.freeze([]);
+  if (!Array.isArray(varde)) {
+    throw new Error(`groups: huvudmeny för "${id}" måste vara en lista modul-id, inte ${typeof varde}. Utelämna fältet eller skriv [] när ingen modul ska stå i huvudet.`);
+  }
+  /** @type {string[]} */
+  const ut = [];
+  varde.forEach((/** @type {any} */ m, /** @type {number} */ i) => {
+    const modulId = rensa(m);
+    if (!modulId || !ID_FORM.test(modulId)) {
+      throw new Error(`groups: huvudmeny[${i}] för "${id}" måste vara ett modul-id, inte ${JSON.stringify(m)}.`);
+    }
+    if (ut.includes(modulId)) throw new Error(`groups: huvudmeny[${i}] "${modulId}" för "${id}" står två gånger.`);
+    if (moduler && !moduler.includes(modulId)) {
+      throw new Error(`groups: huvudmeny[${i}] "${modulId}" för "${id}" är ingen av gruppens moduler (${moduler.join(", ") || "inga"}). En ikon i huvudet för en modul gruppen inte har leder till en sida utan kort.`);
+    }
+    ut.push(modulId);
+  });
+  return Object.freeze(ut);
+}
+
+/**
  * Bygger en grupp, eller kastar med skälet.
  *
  * ⛔ `moduler` ÄR MODUL-ID OCH INTE NAMN, samma form som `defineModule`. Det är
@@ -595,6 +640,8 @@ export function byggGrupp(d, kandaModuler) {
     }
   }
 
+  const huvudmeny = byggHuvudmeny(rad.huvudmeny, id, kandaModuler === undefined ? null : moduler);
+
   const farg = rensa(rad.farg);
   if (!arGiltigGruppfarg(farg)) {
     throw new Error(`groups: färgen "${farg}" för "${id}" finns inte. Giltiga: kulor:<0-359>, en äldre ton ${PROFILFARGER.join(", ")}, eller tom sträng.`);
@@ -633,6 +680,7 @@ export function byggGrupp(d, kandaModuler) {
     id,
     namn,
     moduler: Object.freeze(moduler),
+    huvudmeny,
     arkiverad: rad.arkiverad === true,
     skapadAv: byggSkapare(somObjekt(rad.skapadAv)),
     farg,

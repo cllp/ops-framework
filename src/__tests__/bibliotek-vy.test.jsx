@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
@@ -19,7 +19,7 @@ const poster = [
 
 const FORFATTARE = { uid: "uid-1", roll: "medlem" };
 
-function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [] }) {
+function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
   const [sparat, setSparat] = useState(/** @type {unknown} */ (null));
@@ -36,6 +36,8 @@ function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = []
         onStang={() => { setVald(null); setSkapar(null); }}
         onSkapa={(typ) => { setVald(null); setSkapar(typ); }}
         onSpara={(inmatning) => setSparat(inmatning)}
+        hubHref="/hub"
+        onNavigate={onNavigate}
       />
       <output data-sparat="">{sparat ? JSON.stringify(sparat) : ""}</output>
     </>
@@ -57,7 +59,9 @@ describe("OpsBibliotek", () => {
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByDisplayValue("Vi beslutade om bokslutet.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ny länk" }));
+    // 0.83.0: "+ Ny" bredvid sökfältet, med ett val under Alla (förut två knappar, "Ny anteckning" och "Ny länk").
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Länk" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Rubrik" }), { target: { value: "Skatteverket" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Adress" }), { target: { value: "javascript:alert(1)" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara" }));
@@ -97,14 +101,14 @@ describe("OpsBibliotek", () => {
     admin.unmount();
 
     render(<Harness jag={null} />);
-    expect(screen.queryByRole("button", { name: "Ny länk" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
   });
 
   it("jag krävs: utan propen kastar vyn, och null är en icke-medlem (granskningen av #304)", () => {
     const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
-    const utan = { poster, onOppna() {}, onStang() {}, onSkapa() {}, onSpara() {} };
+    const utan = { poster, onOppna() {}, onStang() {}, onSkapa() {}, onSpara() {}, hubHref: "/hub" };
     try {
       expect(() => render(<OpsBibliotek {...utan} />)).toThrow(/OpsBibliotek: jag krävs/);
     } finally {
@@ -112,7 +116,7 @@ describe("OpsBibliotek", () => {
     }
     render(<OpsBibliotek {...utan} jag={null} />);
     expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ny anteckning" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
   });
 
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {
@@ -122,5 +126,82 @@ describe("OpsBibliotek", () => {
     expect(ruta).toHaveTextContent("1 post kunde inte läsas och visas inte.");
     expect(ruta).toHaveTextContent("x: Anteckningen saknar text.");
     expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
+  });
+
+  /*
+   * ⛔ 0.83.0: CP 2026-10-08 17:52, "Bibliotek behöver en tillbaka knapp också precis som ekonomi. Sedan navigeringen på
+   * liknande sätt." Proven nedan är röda mot 0.82.0: där fanns ingen länk till hubben, typerna var en segmentväljare
+   * (`radiogroup`/knappar, ingen `tablist`) och skapandet två knappar under den.
+   */
+  it("Tillbaka leder till hubben som i Ekonomi, och rubriken är modulens namn", () => {
+    const onNavigate = vi.fn((_href, e) => e.preventDefault());
+    render(<Harness onNavigate={onNavigate} />);
+    const tillbaka = screen.getByRole("link", { name: "Tillbaka till Appar" });
+    expect(tillbaka).toHaveAttribute("href", "/hub");
+    expect(tillbaka).toHaveTextContent("Tillbaka");
+    fireEvent.click(tillbaka);
+    expect(onNavigate).toHaveBeenCalledWith("/hub", expect.anything());
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bibliotek");
+  });
+
+  it("i detaljen finns bara detaljens Tillbaka, inte en andra till hubben", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    expect(screen.queryByRole("link", { name: "Tillbaka till Appar" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Tillbaka" })).toBeInTheDocument();
+  });
+
+  it("hubHref krävs, som i OpsModulSida", () => {
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => render(<OpsBibliotek poster={poster} jag={null} onOppna={() => {}} onStang={() => {}} onSkapa={() => {}} onSpara={() => {}} />)).toThrow(/OpsBibliotek: hubHref krävs/);
+    } finally {
+      tyst.mockRestore();
+    }
+  });
+
+  it("typerna är en flikrad med ikon, namn och antal, också 0, och en flik byter urvalet", () => {
+    render(<Harness start={[poster[0]]} />);
+    const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
+    const flikar = within(rad).getAllByRole("tab");
+    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0"]);
+    expect(flikar.every((f) => f.querySelector("svg"))).toBe(true);
+    expect(flikar[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.mouseDown(flikar[2], { button: 0, ctrlKey: false });
+    expect(within(rad).getByRole("tab", { name: "Länkar 0" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("button", { name: "Protokoll" })).toBeNull();
+    expect(screen.getByText("Inga länkar ännu.")).toBeInTheDocument();
+  });
+
+  it("sökordet står kvar när fliken byts", () => {
+    render(<Harness />);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Sök i biblioteket" }), { target: { value: "bokslut" } });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Anteckningar/ }), { button: 0, ctrlKey: false });
+    expect(screen.getByRole("searchbox", { name: "Sök i biblioteket" })).toHaveValue("bokslut");
+    expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
+  });
+
+  it("+ Ny under Alla ger ett val, och under en typ skapar den typen direkt", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    const meny = screen.getByRole("menu", { name: "Ny post" });
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk"]);
+    fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
+    fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Länkar/ }), { button: 0, ctrlKey: false });
+    expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ny länk" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny länk");
+  });
+
+  it("sök och + Ny står på samma rad, och sidan har vyns rytm (luften mäts i Playwright, här bara klassen)", () => {
+    render(<Harness />);
+    const sok = screen.getByRole("searchbox", { name: "Sök i biblioteket" });
+    const ny = screen.getByRole("button", { name: "Ny post" });
+    const rad = sok.closest(".flex.items-center");
+    expect(rad).not.toBeNull();
+    expect(rad?.contains(ny)).toBe(true);
+    expect(document.querySelector("[data-bibliotek]")?.className).toContain("gap-4");
   });
 });

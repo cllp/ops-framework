@@ -88,6 +88,38 @@ const BAS =
   "disabled:opacity-55 disabled:cursor-not-allowed aria-disabled:opacity-55 aria-disabled:cursor-not-allowed";
 
 /**
+ * Knappens klasser, för en yta som inte kan vara en `OpsButton` (0.83.0).
+ *
+ * ⛔ FÖR ATT EN AVTRYCKARE SKA SE UT SOM KNAPPEN UTAN ATT VARA EN KOPIA AV DEN. Radix `Popover.Trigger` ritar sitt eget
+ * `<button>`, och `OpsButton` har ingen `forwardRef` (stängt API, se `OpsAppShell` om plusset), så "+ Ny" i biblioteket kan
+ * inte vara en `OpsButton`. Klasserna bor därför här, och `OpsButton` läser samma funktion: en andra klasssträng hade
+ * glidit isär första gången någon rörde knappen (regel 2). Varianten och storleken prövas i `OpsButton`, inte här.
+ *
+ * @param {{ variant?: keyof typeof VARIANTER, size?: keyof typeof STORLEKAR, iconOnly?: boolean, round?: boolean, fullWidth?: boolean }} [val]
+ * @returns {string}
+ */
+export function knappKlass({ variant = "secondary", size = "md", iconOnly = false, round = false, fullWidth = false } = {}) {
+  const variantKlass = VARIANTER[variant];
+  const storlekKlass = iconOnly ? (round ? RUND_IKONSTORLEKAR[size] : IKONSTORLEKAR[size]) : STORLEKAR[size];
+  return cx(
+    BAS,
+    // ⛔ #164, CP-BESLUT 2026-09-28 18:20: "KNAPPARNA BLIR PILLER SOM
+    // SESSIONSTUDIO." Mätt mot `v7PrimaryButtonClass` i SessionStudios
+    // `apps/web/src/components/LoginScreen.jsx`: `rounded-full`, inte
+    // `rounded-md`. En TEXTKNAPP (`!iconOnly`) är sedan detta beslut ALLTID
+    // en piller, oavsett variant, förvalet är inte längre valfritt. En
+    // IKONKNAPP ändras INTE: den var redan `rounded-md` (kvadratisk träffyta,
+    // t.ex. Ta bort-krysset i `OpsProfil`), och `round` ger fortfarande
+    // cirkeln (Huvudatgard-knappen). Provet i `piller.test.jsx` är rött om
+    // `rounded-md` kommer tillbaka på en textknapp.
+    round || !iconOnly ? "rounded-full" : "rounded-md",
+    variantKlass,
+    storlekKlass,
+    fullWidth && "w-full",
+  );
+}
+
+/**
  * @param {object} props
  * @param {"primary"|"secondary"|"ghost"|"danger"} [props.variant]
  * @param {"sm"|"md"} [props.size]
@@ -154,22 +186,7 @@ export function OpsButton({
     );
   }
 
-  const klass = cx(
-    BAS,
-    // ⛔ #164, CP-BESLUT 2026-09-28 18:20: "KNAPPARNA BLIR PILLER SOM
-    // SESSIONSTUDIO." Mätt mot `v7PrimaryButtonClass` i SessionStudios
-    // `apps/web/src/components/LoginScreen.jsx`: `rounded-full`, inte
-    // `rounded-md`. En TEXTKNAPP (`!iconOnly`) är sedan detta beslut ALLTID
-    // en piller, oavsett variant, förvalet är inte längre valfritt. En
-    // IKONKNAPP ändras INTE: den var redan `rounded-md` (kvadratisk träffyta,
-    // t.ex. Ta bort-krysset i `OpsProfil`), och `round` ger fortfarande
-    // cirkeln (Huvudatgard-knappen). Provet i `piller.test.jsx` är rött om
-    // `rounded-md` kommer tillbaka på en textknapp.
-    round || !iconOnly ? "rounded-full" : "rounded-md",
-    variantKlass,
-    storlekKlass,
-    fullWidth && "w-full",
-  );
+  const klass = knappKlass({ variant, size, iconOnly, round, fullWidth });
   const blocked = disabled || busy;
 
   /**
