@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.80.0
 
-Bilagor i egna dokument och panelen Chattinfo (#300, #301), rättad efter granskningen av PR 307. 0.78.1 är mergad och har sitt avsnitt nedan. 0.78.2 och 0.79.0 är utkast på andra grenar och är inte mergade, mätt på main `e79f48f` 2026-10-08. Den här är nästa lediga minor efter dem.
+Bilagor i egna dokument och panelen Chattinfo (#300, #301), rättad efter granskningen av PR 307. 0.78.1 och 0.78.2 är mergade och har sina avsnitt nedan. 0.79.0 (#304) är inte mergad och väntar på #303, mätt på main `f525384` 2026-10-08. Den kommer därför efter 0.80.0, med ett nytt nummer.
 
 ### ⛔ Bakåtbrytande
 
@@ -59,6 +59,18 @@ Alla går att köra om med kommandona som står vid dem.
 - `rules/__tests__/chattbilagor.test.mjs` i `npm run test:rules`: 25 gröna. Varje nekande prov har ett giltigt meddelande i samma batch, så att det nekas av det villkor det mäter och inte av bindningen. Mutationskörningen, där ett villkor i taget togs bort ur den genererade regeln, står i PR 307: 23 av 24 mutationer gav minst ett rött prov. Den som överlevde är `existsAfter` före `getAfter`, som är ekvivalent eftersom ett `getAfter` på ett saknat dokument också nekar. Den står kvar av samma skäl som vid `opsHarMedlemskap`: ett fel och ett nej ska gå att skilja i en logg.
 - Märket utan fil och `~` i id:t, i `rules/__tests__/chattbilagor.test.mjs`. Med varje villkor bortplockat ur regeln, ett i taget, och bara den filen körd: utan `existsAfter` 1 rött av 25 (märke utan fil släpptes in), med bara trådens `existsAfter` bortplockat 1 rött (samtalets två rader i provet tillfälligt bortkommenterade, så att trådens rad mättes ensam), med trådens nyckel `mid` i stället för `tid + '~' + mid` 3 röda (trådsvaret med sin fil nekades), utan `~`-villkoret 1 rött, med bara trådens `~`-villkor bortplockat 1 rött (samtalets rad tillfälligt bortkommenterad). Varje gång exit 1. Med villkoren och provet återställt: 25 gröna, exit 0. Provet "pngmarke", som stod grönt på ett märke utan fil, är borttaget.
 - Playwright, `OPS_CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node scripts/check-skalyta.mjs --bara-chattinfo`: 16 kontroller, inga brott, exit 0. Mot 5c1b427: 4 brott av 16, exit 1 (Medlemmar 4 i stället för 2, och 1 bild i Bilder i stället för 2). Montaget mot förebilden ligger i `docs/jamforelser/0.80.0/`, förebilderna i `docs/jamforelser/0.80.0/forebild/`.
+
+## 0.78.2
+
+Gruppen är kalendern (lane 6 steg F).
+
+### Ändrat
+
+- Kalendermenyn i `OpsCalendar` och gruppsektionen i `OpsKalendrar` skriver inte längre "Gruppen har inga kalendrar ännu." En tom lista namngivna gruppkalendrar är inte att gruppen saknar kalender. "Du har inga egna kalendrar ännu." står kvar, för egna kalendrar finns inte av sig själva.
+
+### Prov
+
+- `src/__tests__/kalendrar.test.jsx` ("gruppen är kalendern") och `src/__tests__/kalenderhantering.test.jsx` ("tomt är ett svar för egna kalendrar"). Utan ändringen: 2 röda, exit 1. Med ändringen: 2 gröna, exit 0.
 
 ## 0.78.1
 

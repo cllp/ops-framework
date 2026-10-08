@@ -72,7 +72,6 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
         slag="grupp"
         rubrik={gruppNamn ? `${gruppNamn}: kalendrar` : "Gruppens kalendrar"}
         hjalp="Gruppens kalendrar syns för alla i gruppen. En händelse hamnar i den förvalda om inget annat väljs."
-        tomText="Gruppen har inga kalendrar ännu."
         lista={gruppens}
         kanAndra={kanAndraGruppens}
         lasText="Bara gruppens ägare och admin ändrar gruppens kalendrar."
@@ -102,7 +101,7 @@ export function OpsKalendrar({ gruppens, mina, groupId, kanAndraGruppens, onSpar
 
 /**
  * En sektion: listan, arkiverade och redigeraren.
- * @param {{ slag: "grupp" | "mina", rubrik: string, hjalp: string, tomText: string, lista: ReadonlyArray<any>, kanAndra: boolean, lasText: string, sprak: string, bygg: (r: Record<string, any>) => any, onSpara: (rader: any[]) => Promise<unknown> | void }} props
+ * @param {{ slag: "grupp" | "mina", rubrik: string, hjalp: string, tomText?: string, lista: ReadonlyArray<any>, kanAndra: boolean, lasText: string, sprak: string, bygg: (r: Record<string, any>) => any, onSpara: (rader: any[]) => Promise<unknown> | void }} props
  */
 function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak, bygg, onSpara }) {
   const rubrikId = useId();
@@ -173,7 +172,10 @@ function Sektion({ slag, rubrik, hjalp, tomText, lista, kanAndra, lasText, sprak
       <p className="m-0 mb-4 text-etikett text-ink-secondary">{hjalp}</p>
       {!kanAndra ? <p className="m-0 mb-3 text-meta text-ink-muted" data-las-text="">{lasText}</p> : null}
 
-      {valbara.length === 0 ? <p className="m-0 mb-3 py-2 text-center text-etikett text-ink-muted">{tomText}</p> : null}
+      {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F). Gruppsektionen har ingen tomrad:
+          en tom lista namngivna kalendrar är inte "gruppen har inga". Egna
+          kalendrar skickar fortfarande tomText, och den ritas. */}
+      {valbara.length === 0 && tomText ? <p className="m-0 mb-3 py-2 text-center text-etikett text-ink-muted">{tomText}</p> : null}
 
       <ul className="m-0 mb-3 flex list-none flex-col gap-2 p-0">
         {valbara.map((k, i) => {
