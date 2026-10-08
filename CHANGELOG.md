@@ -11,15 +11,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.80.1
 
-Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4. Numret följer de andra PR:arna som tog 0.78.1, 0.78.2, 0.79.0 och 0.80.0. 0.78.1 är mergad och main står där, de andra tre är öppna.
+Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4, arkitektens beslut i PR 308 om en adress som bjuds in igen, och granskningen av PR 308. Numret följer de andra PR:arna som tog 0.78.1, 0.78.2, 0.79.0 och 0.80.0. 0.78.1 är mergad och main står där, de andra tre är öppna.
 
-### Rättat
+### Inbjudningar: återkallelsen håller, id:t kan inte krocka, och en ny inbjudan skriver aldrig över
+
+#### ⛔ Brytande
+
+- **Appens Admin-källa måste ha `createNew` och `updateIf`.** `createInvitationService` och `createGroupService` nekar en källa utan någon av dem när tjänsten byggs, alltså när functions startar. Felet namnger den tjänst appen byggde. Se "Vad appen måste göra".
+- **Ett andra klick på samma adress kastar.** Före 0.80.1 svarade `bjudIn` `fanns` när en väntande inbjudan redan fanns. Nu kastar den med texten att adressen redan har en väntande inbjudan och att man skickar om den i stället.
+- **`accepteraInbjudningar` svarar `{ accepterade, utgangna }`.** `utgangna` är grupperna vars väntande inbjudan hade gått ut och därför inte accepterades. Tom lista, aldrig utelämnad. En app som jämför hela svaret med `{ accepterade }` måste ta med fältet.
+- **En utgången inbjudan accepteras inte längre.** Förut blev en väntande rad ett medlemskap hur gammal den än var, med den roll den bar när den skrevs.
+- **Klienten får bara ändra en inbjudans `status` från `vantar` till `aterkallad`.** En app vars klient skriver något annat på en inbjudan nekas av reglerna.
+
+#### Rättat
 
 - **Regelfragmentet för inbjudningar.** En admin fick sätta `status` till vilket värde som helst, och i lifehub sattes en återkallad ägarinbjudan tillbaka till `vantar`. Klienten får nu bara ändra `status`, och bara från `vantar` till `aterkallad`. Alla andra övergångar och alla andra fält nekas. Accepten och ett nytt utskick sker på serversidan med Admin SDK, förbi reglerna.
 - **Inbjudans id.** Det var `${groupId}_${epost}`, och `_` är lagligt i ett grupp-id (`ID_FORM`), så `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` fick samma dokument och den andra inbjudan skrev över den första. Id:t är nu `inbjudningsId(groupId, epost)`: grupp-id:t, `|` och SHA-256 (hex) av adressen i gemener. `|` går inte att skriva i ett grupp-id och finns aldrig i en hash, alltså kan två par inte dela id. Adressen står inte längre i klartext i id:t.
 - **En inbjudan skrivs aldrig över.** `bjudIn` skapar en ny rad med `createNew` i stället för `create`. Förut skrev en ny inbjudan över en befintlig rad med samma id, och historiken över en återkallelse försvann.
+- **Accepten tar raden innan den skriver medlemskapet** (granskningen av PR 308, K1). Förut lästes raden, medlemskapet skrevs, och raden fick en vanlig `update` till `accepterad`. En återkallelse mellan läsningen och skrivningen gav ändå ett medlemskap, och `update` skrev över `aterkallad`. Nu gör accepten `updateIf({ status: "vantar", roll, giltigTill })` till `accepterad` först, och bara den som vinner skriver medlemskapet. Ordningen har ett halvt läge, och det är valt: faller skrivningen av medlemskapet lämnas raden tillbaka till `vantar` med en villkorad skrivning, och felet går vidare. Den omvända ordningen hade gett ett medlemskap utan inbjudan, alltså åtkomst, vilket är värre än en inbjudan utan medlemskap.
+- **Raden för (grupp, adress) väljs deterministiskt** (K2). Finns flera rader, en gammal och en ny, går en accepterad eller giltig väntande rad före en utgången, och en utgången före en återkallad. Inom samma sort går det nya id:t först, sedan id:t i bokstavsordning. Förut valdes det nya id:t och annars listningens första rad, och en gammal accepterad rad bredvid en ny återkallad gav en återöppning till någon som redan var med.
 
-### Ändrat
+#### Ändrat
 
 - **En inbjudan till en adress som redan har en rad i gruppen**, arkitektens beslut i PR 308. Raden för (grupp, adress) avgör, och den hittas på fältet `epost`:
 
@@ -30,28 +42,28 @@ Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4. Numret föl
   | `vantar` och fortfarande giltig | kastar: adressen har redan en väntande inbjudan, skicka om den i stället |
   | `accepterad` | kastar: personen är redan medlem |
 
-  Villkoret i `updateIf` är statusen som lästes, och för en utgången rad också den lästa `giltigTill` (statusen är `vantar` både före och efter, och utan den hade villkoret inte skilt två återöppningar åt). Två samtidiga återöppningar ger alltså en vinnare. Den andra får felet att inbjudan redan väntar.
-- **Ett andra klick på samma adress kastar nu**, med texten att man skickar om i stället. Före 0.80.1 svarade det `fanns`.
+  Villkoret i `updateIf` är statusen som lästes, och för en rad med `giltigTill` också den lästa `giltigTill`. För en utgången rad är statusen `vantar` både före och efter, så där är det `giltigTill` som skiljer två återöppningar åt. För en återkallad rad utan `giltigTill` är det statusen. Två samtidiga återöppningar ger alltså en vinnare, och den andra får felet att inbjudan redan väntar.
 - `bjudIn` tar emot `tokenHash`, SHA-256 i hex av den kod appen mejlar. Ramverket skapar ingen kod. Utan `tokenHash` blir fältet tomt, och en tom hash matchar aldrig något, så den gamla kodens hash överlever aldrig en återöppning.
-- `createInvitationService` kräver `updateIf` utöver `createNew`, och nekar källan när tjänsten byggs.
+- Utgång räknas på ett ställe, för både `bjudIn` och accepten: en väntande rad vars `giltigTill` har passerats. En rad utan `giltigTill` räknas som giltig.
 
-### Tillagt
+#### Tillagt
 
 - Datakontraktets regel 8, `createNew(samling, data)`: frivillig, skriver bara om id:t är ledigt, i samma atomära steg, och svarar `{ created, row }`. `createMemorySource` har den, och `createRoutingSource` skickar den vidare och kastar med samlingens namn när just den källan saknar den.
 - `inbjudningsId` exporteras ur `ops-framework/node`.
 
-### Gamla id:n
+#### Gamla id:n
 
-En inbjudan skriven före 0.80.1 har kvar id:t `${groupId}_${epost}`, och ingenting skrivs om. Den fungerar som förut, eftersom ramverket aldrig slår upp en inbjudan på id:t: `bjudIn` och `accepteraInbjudningar` listar på fältet `epost`. En gammal rad räknas som raden för (grupp, adress): är den väntande kastar `bjudIn` med det gamla id:t, är den återkallad eller utgången öppnas den igen under sitt gamla id, och den accepteras under sitt gamla id. Det skapas alltså ingen andra rad bredvid den. En app som själv bygger id:t med den gamla formeln för att läsa en rad ska sluta med det och använda id:t ur listningen, eller `inbjudningsId` för rader skrivna från 0.80.1.
+En inbjudan skriven före 0.80.1 har kvar id:t `${groupId}_${epost}`, och ingenting skrivs om. Den fungerar som förut, eftersom ramverket aldrig slår upp en inbjudan på id:t: `bjudIn` och `accepteraInbjudningar` listar på fältet `epost`. En gammal rad räknas som en rad för (grupp, adress): är den väntande kastar `bjudIn` med det gamla id:t, är den återkallad eller utgången öppnas den igen under sitt gamla id, och den accepteras under sitt gamla id. Det skapas alltså ingen andra rad bredvid den. En app som själv bygger id:t med den gamla formeln för att läsa en rad ska sluta med det och använda id:t ur listningen, eller `inbjudningsId` för rader skrivna från 0.80.1.
 
-### Vad appen måste göra
+#### Vad appen måste göra
 
-1. **Lägg till `createNew` i appens Admin-adapter**, med `ref.create`, som Firestore avvisar med `ALREADY_EXISTS` (kod 6) när dokumentet finns, **och `updateIf`** om adaptern inte redan har den (en `db.runTransaction`, samma som mejlkön kräver). Exemplen står i README. Utan dem nekar `createInvitationService`, och därmed `createGroupService`, källan när tjänsten byggs, alltså när functions startar. Det här är en brytande ändring för adaptern, fast numret är en patch.
+1. **Appens Admin-källa i `functions/grupp.js` behöver både `createNew` och `updateIf`, annars startar inte functions.** `createNew` skrivs med `ref.create`, och felkoden 6 (`ALREADY_EXISTS`) betyder "finns redan": fånga just den, läs raden och svara `{ created: false, row }`, och låt alla andra fel gå vidare. `updateIf` skrivs med `db.runTransaction`: läs med `tx.get`, jämför villkoret och skriv med `tx.update`. Båda exemplen står i README. Det här är en brytande ändring för adaptern, fast numret är en patch.
 2. **Skicka in `tokenHash` till `bjudIn`** om appen mejlar en kod, och visa felen för en väntande inbjudan och en redan accepterad. Ett andra klick på samma adress är nu ett fel och inte `fanns`.
-3. **Generera om reglerna** ur `regelfragment()` och **deploya dem före klienten**. En klient som redan bara återkallar påverkas inte, men regeln i produktion är den som skyddar, och en regel i main är inte en regel i produktion.
-4. Sluta bygga en inbjudans id för hand, om appen gör det (se Gamla id:n).
+3. **Läs `utgangna` i svaret från `accepteraInbjudningar`**, och säg till personen att inbjudan gått ut och att hen behöver en ny.
+4. **Generera om reglerna** ur `regelfragment()` och **deploya dem före klienten**. En klient som redan bara återkallar påverkas inte, men regeln i produktion är den som skyddar, och en regel i main är inte en regel i produktion.
+5. Sluta bygga en inbjudans id för hand, om appen gör det (se Gamla id:n).
 
-### Prov
+#### Prov
 
 - `rules/__tests__/grupper.test.mjs`, inbjudan: 163 av 163 gröna med villkoret. Varje övergång och varje fältprov har en egen rad, så att ett nekande prov som av misstag släpps in inte ändrar utgångsläget för nästa. Svepet, ett villkor i taget utslaget i den genererade regeltexten:
   - utan övergångsvillkoret (som på main): 5 röda, `aterkallad` till `vantar` (ägare och admin), `accepterad` till `vantar`, `accepterad` till `aterkallad`, `vantar` till `accepterad` från klienten, och golvprovet som läser tillbaka raderna.
@@ -60,19 +72,25 @@ En inbjudan skriven före 0.80.1 har kvar id:t `${groupId}_${epost}`, och ingent
   - utan listan över ändrade fält: 7 röda, en återkallelse som också ändrar `tokenHash`, `giltigTill`, `groupId`, `roll`, `epost` eller `antalSkickade`, och golvprovet.
   - utan `opsArAdmin`: 2 röda, en vanlig medlem som återkallar, och golvprovet.
   - `vantar` till `aterkallad` av en admin och av ägaren är gröna i alla fem.
-- `src/__tests__/inbjudan.test.js`, 45 prov, 45 av 45 gröna med rättningen. En gren i taget tagen tillbaka:
-  - utan återöppningen av en återkallad rad: 4 röda, återöppningen, att den gamla hashen inte överlever, de två samtidiga återöppningarna och den återkallade gamla raden.
+- `src/__tests__/inbjudan.test.js`, 54 prov, 54 av 54 gröna med rättningen. En gren i taget tagen tillbaka:
+  - utan återöppningen av en återkallad rad: 4 röda, återöppningen, att den gamla hashen inte överlever, två samtidiga återöppningar och den återkallade gamla raden.
   - utan grenen för en utgången rad: 1 rött, återöppningen av den utgångna.
   - med `fanns` i stället för felet för en väntande rad: 3 röda, det andra klicket, den väntande raden och den väntande gamla raden.
   - med `fanns` i stället för felet för en accepterad rad: 2 röda, den accepterade raden och att felet inte bär adressen.
-  - med en vanlig `update` i stället för `updateIf`: 1 rött, de två samtidiga återöppningarna gav två vinnare.
+  - med en vanlig `update` i stället för `updateIf` vid återöppningen: 1 rött, två samtidiga återöppningar gav två vinnare.
+  - utan `giltigTill` i återöppningens villkor: 1 rött, två samtidiga återöppningar av en utgången rad (B1).
+  - utan `status` i återöppningens villkor: 2 röda, två samtidiga återöppningar av en återkallad rad utan `giltigTill` (B1) och den återkallade gamla raden. Med `status` utbytt mot ett annat villkor (`epost`): 1 rött, samma samtidighetsprov, som då fick två vinnare.
+  - utan att accepten räknar utgång: 1 rött, den utgångna inbjudan blev ett medlemskap (K1a).
+  - med accepten som förut, vanlig `update` efter läsningen: 1 rött, återkallelsen mellan läsning och skrivning försvann och gav ett medlemskap (K1b).
+  - utan återlämningen när medlemskapet inte gick att skriva: 1 rött, raden stod kvar som `accepterad`.
+  - med raden vald som förut, det nya id:t annars listningens första: 4 röda, en gammal accepterad eller väntande rad bredvid en ny återkallad, i båda listordningarna (K2).
   - utan `createNew` för en ny rad: 14 röda, i `inbjudan.test.js` och `grupp-skapa.test.js`.
   - med `create` i stället för `createNew`: 2 röda, en rad som dök upp mellan listningen och skapandet skrevs över, och felprovet i `grupp-skapa.test.js`.
   - med den gamla formeln för id:t: 5 röda, bland dem att `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` ger olika id och får var sin rad.
   - utan kravet på `createNew` i fabriken: 1 rött. Utan kravet på `updateIf`: 1 rött.
+- `src/__tests__/grupp-skapa.test.js`: två nya prov, en källa utan `createNew` respektive `updateIf` nekas med `createGroupService` i felet. Med det gamla namnet i felet: 2 röda (K4). Provet där en inbjudan faller vid skapandet lägger felet i `createNew`, där skrivningen nu sker. Med felet kvar i `create` blev det rött, eftersom ingen inbjudan längre går den vägen.
 - `src/__tests__/routing.test.jsx`, `createNew` per samling, 4 prov. Med en minneskälla vars `createNew` inte frågar om id:t finns: 2 röda, ett här och raden som dök upp i `inbjudan.test.js`. Med rättningen: 20 av 20 gröna i filen.
-- `src/__tests__/grupp-skapa.test.js`: provet där en inbjudan faller vid skapandet lägger felet i `createNew`, där skrivningen nu sker. Med felet kvar i `create` blev det rött, eftersom ingen inbjudan längre går den vägen.
-- `npm run check`: 2611 av 2611 gröna. `npm run test:rules`: 377 av 377 gröna.
+- `npm ci`, `npm run check` och `npm run test:rules` gick med exitkod 0. `npm run check`: 2622 av 2622 gröna. `npm run test:rules`: 377 av 377 gröna.
 
 ## 0.78.1
 

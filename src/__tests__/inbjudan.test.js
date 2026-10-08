@@ -135,7 +135,7 @@ describe("accepteraInbjudningar", () => {
     const { tjanst, kalla } = bygg();
     await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
     const svar = await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "Ny@X.se" });
-    expect(svar).toEqual({ accepterade: [GRUPP] });
+    expect(svar).toEqual({ accepterade: [GRUPP], utgangna: [] });
     expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toMatchObject({ roll: "medlem", status: "aktiv" });
   });
 
@@ -151,13 +151,13 @@ describe("accepteraInbjudningar", () => {
     await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
     await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" });
     const andra = await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" });
-    expect(andra).toEqual({ accepterade: [] });
+    expect(andra).toEqual({ accepterade: [], utgangna: [] });
     expect(await kalla.list("memberships", {})).toHaveLength(2);
   });
 
   it("⛔ tomhet är ett svar: ingen inbjudan ger en tom lista, inte ett fel", async () => {
     const { tjanst } = bygg();
-    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ingen@x.se" })).toEqual({ accepterade: [] });
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ingen@x.se" })).toEqual({ accepterade: [], utgangna: [] });
   });
 
   it("flera inbjudningar blir flera medlemskap", async () => {
@@ -189,7 +189,7 @@ describe("accepteraInbjudningar", () => {
     const { tjanst, kalla } = bygg();
     const { id } = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" });
     await kalla.update("invitations", id, { status: "aterkallad" });
-    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [] });
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [], utgangna: [] });
     expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toBeNull();
   });
 
@@ -211,7 +211,7 @@ describe("accepteraInbjudningar", () => {
       status: "aktiv",
     });
 
-    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [] });
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [], utgangna: [] });
     // ⛔ Och rollen är kvar. Hade raden skrivits om hade ägaren blivit medlem.
     expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toMatchObject({ roll: "agare" });
   });
@@ -402,6 +402,67 @@ describe("⛔ en inbjudan till en adress som redan har en rad i gruppen", () => 
     expect(efter.tokenHash).toBe(utfall[0].status === "fulfilled" ? "d".repeat(64) : "e".repeat(64));
   });
 
+  /**
+   * Två återöppningar samtidigt, och utfallet. Båda läser innan någon av dem skriver: minneskällans
+   * anrop väntar på varandra i tur och ordning, så listningen hinner göras två gånger före första skrivningen.
+   * @param {any} tjanst
+   */
+  const tvaSamtidigt = async (tjanst) => {
+    const utfall = await Promise.allSettled([
+      tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", tokenHash: "d".repeat(64) }),
+      tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", tokenHash: "e".repeat(64) }),
+    ]);
+    return { vann: utfall.filter((u) => u.status === "fulfilled").length, fall: utfall.filter((u) => u.status === "rejected") };
+  };
+
+  /*
+   * ⛔ VILLKORETS TVÅ DELAR PROVAS VAR FÖR SIG (granskningen av PR 308, B1). Provet ovan använder en återkallad rad
+   * med `giltigTill`, och där täcker `status` och `giltigTill` för varandra: granskaren tog bort den ena, sedan den
+   * andra, och sviten var grön båda gångerna. En utgången rad har `vantar` både före och efter, så bara `giltigTill`
+   * skiljer den första återöppningen från den andra. En återkallad rad utan `giltigTill` har bara `status`.
+   */
+  it("⛔ två samtidiga återöppningar av en UTGÅNGEN rad ger exakt en vinnare, giltigTill i villkoret avgör", async () => {
+    const { tjanst, kalla } = bygg({ invitations: [rad({ status: "vantar" })] });
+    const { vann, fall } = await tvaSamtidigt(tjanst);
+    expect(vann).toBe(1);
+    expect(fall).toHaveLength(1);
+    expect(String(/** @type {PromiseRejectedResult} */ (fall[0]).reason)).toMatch(/redan en väntande inbjudan/);
+    expect((await kalla.read("invitations", ID)).status).toBe("vantar");
+  });
+
+  it("⛔ två samtidiga återöppningar av en återkallad rad UTAN giltigTill ger exakt en vinnare, status i villkoret avgör", async () => {
+    const { giltigTill: _bort, ...utan } = rad({ status: "aterkallad" });
+    const { tjanst, kalla } = bygg({ invitations: [utan] });
+    const { vann, fall } = await tvaSamtidigt(tjanst);
+    expect(vann).toBe(1);
+    expect(fall).toHaveLength(1);
+    expect(String(/** @type {PromiseRejectedResult} */ (fall[0]).reason)).toMatch(/redan en väntande inbjudan/);
+    expect((await kalla.read("invitations", ID)).status).toBe("vantar");
+  });
+
+  /*
+   * ⛔ RADEN VÄLJS DETERMINISTISKT (granskningen av PR 308, K2). En accepterad eller giltig väntande rad går före en
+   * återkallad, oavsett id och oavsett i vilken ordning källan listar dem.
+   */
+  for (const ordning of ["gammal först", "ny först"]) {
+    it(`⛔ en gammal ACCEPTERAD rad och en ny ÅTERKALLAD: personen är redan medlem, ingen återöppning (${ordning})`, async () => {
+      const gammal = { ...rad({ status: "accepterad" }), id: `${GRUPP}_ny@x.se` };
+      const ny = rad({ status: "aterkallad" });
+      const { tjanst, kalla } = bygg({ invitations: ordning === "gammal först" ? [gammal, ny] : [ny, gammal] });
+      await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", tokenHash: NY_HASH })).rejects.toThrow(/redan medlem/);
+      expect(await kalla.read("invitations", ID)).toMatchObject({ status: "aterkallad", tokenHash: GAMMAL_HASH });
+      expect(await kalla.read("invitations", gammal.id)).toMatchObject({ status: "accepterad" });
+    });
+
+    it(`⛔ en gammal giltig VÄNTANDE rad och en ny ÅTERKALLAD: skicka om i stället (${ordning})`, async () => {
+      const gammal = { ...rad({ status: "vantar", giltigTill: new Date(Date.now() + 86_400_000).toISOString() }), id: `${GRUPP}_ny@x.se` };
+      const ny = rad({ status: "aterkallad" });
+      const { tjanst, kalla } = bygg({ invitations: ordning === "gammal först" ? [gammal, ny] : [ny, gammal] });
+      await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" })).rejects.toThrow(new RegExp(`redan en väntande inbjudan.*${GRUPP}_ny@x.se`));
+      expect(await kalla.read("invitations", ID)).toMatchObject({ status: "aterkallad" });
+    });
+  }
+
   it("felet bär inte adressen, bara gruppen och id:t", async () => {
     const { tjanst } = bygg({ invitations: [rad({ status: "accepterad" })] });
     const fel = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" }).catch((/** @type {Error} */ e) => e);
@@ -427,6 +488,48 @@ describe("⛔ en inbjudan till en adress som redan har en rad i gruppen", () => 
  * ⛔ GAMLA ID:N LÄSES SOM FÖRUT. En rad skriven före 0.80.1 har id:t `${groupId}_${epost}`. Varje uppslag går på
  * fältet `epost`, aldrig på id:t, så raden återanvänds och accepteras med det id den har.
  */
+/*
+ * ⛔ ACCEPTEN HÅLLER SAMMA LÖFTE SOM ÅTERKALLELSEN (granskningen av PR 308, K1). En utgången inbjudan accepteras
+ * inte, och en återkallelse mellan acceptens läsning och skrivning vinner: inget medlemskap, och raden står kvar
+ * som återkallad.
+ */
+describe("⛔ accepten och en återkallad eller utgången inbjudan", () => {
+  const ID = inbjudningsId(GRUPP, "ny@x.se");
+  /** @param {Record<string, any>} falt */
+  const rad = (falt) => ({ id: ID, epost: "ny@x.se", groupId: GRUPP, roll: "admin", status: "vantar", giltigTill: new Date(Date.now() + 86_400_000).toISOString(), ...falt });
+
+  it("⛔ en utgången väntande inbjudan accepteras inte, och svaret säger vilken grupp", async () => {
+    const { tjanst, kalla } = bygg({ invitations: [rad({ giltigTill: "2026-01-01T00:00:00.000Z" })] });
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [], utgangna: [GRUPP] });
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toBeNull();
+    expect((await kalla.read("invitations", ID)).status).toBe("vantar");
+  });
+
+  it("⛔ en återkallelse mellan acceptens läsning och skrivning vinner: inget medlemskap, raden står kvar återkallad", async () => {
+    const { tjanst, kalla } = bygg({ invitations: [rad({})] });
+    const lista = kalla.list.bind(kalla);
+    /** @type {any} */ (kalla).list = async (/** @type {string} */ c, /** @type {any} */ q) => {
+      const svar = await lista(c, q);
+      if (c === "invitations") await kalla.update("invitations", ID, { status: "aterkallad" });
+      return svar;
+    };
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [], utgangna: [] });
+    expect(await kalla.read("memberships", medlemskapsId("uid-ny", GRUPP))).toBeNull();
+    expect((await kalla.read("invitations", ID)).status).toBe("aterkallad");
+  });
+
+  it("⛔ faller skrivningen av medlemskapet lämnas inbjudan tillbaka som väntande, och felet går vidare", async () => {
+    const { tjanst, kalla } = bygg({ invitations: [rad({})] });
+    const skapa = kalla.create.bind(kalla);
+    /** @type {any} */ (kalla).create = async (/** @type {string} */ c, /** @type {any} */ d) => {
+      if (c === "memberships") throw new Error("nätet föll");
+      return skapa(c, d);
+    };
+    await expect(tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).rejects.toThrow(/nätet föll/);
+    expect((await kalla.read("invitations", ID)).status).toBe("vantar");
+  });
+});
+
 describe("⛔ en inbjudan med det gamla id:t (före 0.80.1)", () => {
   const GAMMALT = `${GRUPP}_ny@x.se`;
   const gammal = () => ({ id: GAMMALT, epost: "ny@x.se", groupId: GRUPP, roll: "medlem", status: "vantar" });
@@ -445,7 +548,7 @@ describe("⛔ en inbjudan med det gamla id:t (före 0.80.1)", () => {
 
   it("accepteras och markeras accepterad under sitt gamla id", async () => {
     const { tjanst, kalla } = bygg({ invitations: [gammal()] });
-    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [GRUPP] });
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [GRUPP], utgangna: [] });
     expect(await kalla.read("invitations", GAMMALT)).toMatchObject({ status: "accepterad" });
   });
 });

@@ -79,7 +79,7 @@
 
 import { agentMedlemskap, byggGrupp, byggMedlemskap, byggVitlisterad, medlemskapsId } from "../lib/grupp.js";
 import { byggSkapare } from "../lib/skapare.js";
-import { createInvitationService } from "./inbjudan.js";
+import { inbjudningstjanst } from "./inbjudan.js";
 import { seedoperationer } from "../data/katalogkalla.js";
 import { somKatalogStandard } from "./katalog.js";
 
@@ -231,7 +231,8 @@ export function createGroupService(konfig) {
    * `bjudIn` kontrollerar också att den som bjuder är ägare eller admin, och skaparen är ägare först
    * när batchen har gått igenom, alltså är det rätt ordning att bjuda in efter commit.
    */
-  const inbjudan = createInvitationService({ kalla, samlingar: { anvandare: ANVANDARE, medlemskap: MEDLEMSKAP, inbjudningar: INBJUDNINGAR } });
+  // ⛔ Felen namnger createGroupService, det är den appen anropade (0.80.1, granskningen av PR 308, K4).
+  const inbjudan = inbjudningstjanst({ kalla, samlingar: { anvandare: ANVANDARE, medlemskap: MEDLEMSKAP, inbjudningar: INBJUDNINGAR } }, "createGroupService");
 
   return {
     /**

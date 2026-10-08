@@ -87,6 +87,37 @@ const fortfarandeMedlem = (groupId, id) =>
   `bjudIn: personen har redan accepterat inbjudan till gruppen "${groupId}" (${id}) och är redan medlem.`;
 
 /**
+ * Är en väntande inbjudan utgången? En rad utan `giltigTill` (skriven före 0.32.0) räknas som giltig.
+ *
+ * ⛔ EN DEFINITION FÖR BÅDE `bjudIn` OCH ACCEPTEN (0.80.1, granskningen av PR 308, K1). Räknade de olika
+ * kunde en inbjudan vara för gammal för att bjudas in igen och ändå ny nog att accepteras.
+ *
+ * @param {Record<string, any>} rad
+ * @param {number} [nu]
+ */
+const arUtgangen = (rad, nu = Date.now()) =>
+  rad.status === "vantar" && typeof rad.giltigTill === "string" && Date.parse(rad.giltigTill) <= nu;
+
+/**
+ * Vilken rad som är raden för (grupp, adress) när det finns flera, och det kan det göra: en gammal med id:t
+ * `${groupId}_${epost}` och en ny med `inbjudningsId`.
+ *
+ * ⛔ DETERMINISTISKT, INTE LISTNINGENS ORDNING (0.80.1, granskningen av PR 308, K2). En accepterad eller
+ * giltig väntande rad går före en som kan öppnas igen: annars hade en gammal accepterad rad och en ny
+ * återkallad gett en återöppning till någon som redan är med, och svaret hade berott på vilken rad
+ * databasen råkade lista först. Inom samma sort går det nya id:t först, sedan id:t i bokstavsordning.
+ *
+ * @param {Array<Record<string, any>>} rader
+ * @param {string} nyttId
+ * @param {number} [nu]
+ */
+const raden = (rader, nyttId, nu = Date.now()) => {
+  /** @param {Record<string, any>} r */
+  const sort = (r) => (r.status === "accepterad" ? 0 : r.status === "vantar" && !arUtgangen(r, nu) ? 1 : arUtgangen(r, nu) ? 2 : r.status === "aterkallad" ? 3 : 4);
+  return [...rader].sort((a, b) => sort(a) - sort(b) || Number(b.id === nyttId) - Number(a.id === nyttId) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0];
+};
+
+/**
  * Felet när någon annan hann skriva raden mellan läsningen och skrivningen.
  * @param {string} groupId @param {string} id @param {Record<string, any> | null | undefined} row
  */
@@ -116,6 +147,21 @@ const efterKapplopp = (groupId, id, row) => {
  * @returns {{ bjudIn: (b: any) => Promise<any>, accepteraInbjudningar: (b: any) => Promise<any> }}
  */
 export function createInvitationService(konfig) {
+  return inbjudningstjanst(konfig, "createInvitationService");
+}
+
+/**
+ * Själva fabriken, med namnet på den tjänst som byggs.
+ *
+ * ⛔ NAMNET STÅR I VARJE FEL (0.80.1, granskningen av PR 308, K4). `createGroupService` bygger den här
+ * tjänsten inuti sig, och ett fel som sade `createInvitationService` pekade då på en fabrik appen aldrig
+ * anropat. Felet ska namnge det appen faktiskt skrev.
+ *
+ * @param {any} konfig
+ * @param {string} namn
+ * @returns {{ bjudIn: (b: any) => Promise<any>, accepteraInbjudningar: (b: any) => Promise<any> }}
+ */
+export function inbjudningstjanst(konfig, namn) {
   /*
    * ⛔ DESTRUKTURERINGEN LIGGER I KROPPEN OCH INTE I PARAMETERLISTAN, och det
    * är ett vaktfynd. `check-config-requirements` fällde den första versionen:
@@ -125,7 +171,7 @@ export function createInvitationService(konfig) {
    */
   const { kalla, samlingar = {} } = konfig ?? {};
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
-    throw new Error("createInvitationService: en datakälla med read, list och create krävs. Ramverket känner ingen databas.");
+    throw new Error(`${namn}: en datakälla med read, list och create krävs. Ramverket känner ingen databas.`);
   }
   /*
    * ⛔ `createNew` KRÄVS (0.80.1), OCH DET PRÖVAS NÄR TJÄNSTEN BYGGS. En inbjudan skrivs aldrig över:
@@ -135,7 +181,7 @@ export function createInvitationService(konfig) {
    */
   if (typeof kalla.createNew !== "function") {
     throw new Error(
-      "createInvitationService: datakällan saknar createNew. En inbjudan får aldrig skriva över en befintlig rad, och en källa som bara kan ersätta gör det. Med Admin SDK är createNew ref.create(), som avvisar ett dokument som redan finns. Se datakontraktets regel 8.",
+      `${namn}: datakällan saknar createNew. En inbjudan får aldrig skriva över en befintlig rad, och en källa som bara kan ersätta gör det. Med Admin SDK är createNew ref.create(), som avvisar ett dokument som redan finns. Se datakontraktets regel 8.`,
     );
   }
   const skapaNy = kalla.createNew;
@@ -146,7 +192,7 @@ export function createInvitationService(konfig) {
    */
   if (typeof kalla.updateIf !== "function") {
     throw new Error(
-      "createInvitationService: datakällan saknar updateIf. En återkallad inbjudan öppnas igen bara om den fortfarande står som den lästes, och utan ett atomärt villkor kan två återöppningar båda lyckas. Med Admin SDK är updateIf en db.runTransaction, se datakontraktets regel 7.",
+      `${namn}: datakällan saknar updateIf. En återkallad inbjudan öppnas igen bara om den fortfarande står som den lästes, och utan ett atomärt villkor kan två återöppningar båda lyckas. Med Admin SDK är updateIf en db.runTransaction, se datakontraktets regel 7.`,
     );
   }
   const uppdateraOm = kalla.updateIf;
@@ -245,8 +291,8 @@ export function createInvitationService(konfig) {
        * är ett eget steg med en ny kod, och det är det felet säger.
        */
       const nyttId = inbjudningsId(groupId, epost);
-      const rader = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((i) => i.groupId === groupId);
-      const rad = rader.find((i) => i.id === nyttId) ?? rader[0];
+      const rader = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.groupId === groupId);
+      const rad = raden(rader, nyttId);
 
       /*
        * ⛔ KODEN BYTS VID VARJE NY RUNDA. Ramverket skapar ingen kod: appen skickar in hashen av den kod den
@@ -258,7 +304,7 @@ export function createInvitationService(konfig) {
 
       if (rad) {
         const status = rad.status;
-        const utgangen = status === "vantar" && typeof rad.giltigTill === "string" && Date.parse(rad.giltigTill) <= Date.now();
+        const utgangen = arUtgangen(rad);
         if (status === "accepterad") throw new Error(fortfarandeMedlem(groupId, rad.id));
         if (status === "vantar" && !utgangen) throw new Error(redanVantande(groupId, rad.id));
         if (status !== "aterkallad" && !utgangen) {
@@ -309,7 +355,8 @@ export function createInvitationService(konfig) {
      *
      * @param {{ uid: string, epost: string, namn?: string }} b
      *   `namn`: den inloggades namn ur inloggningen. Används BARA när profilraden saknar namn (0.40.1, #218).
-     * @returns {Promise<{ accepterade: string[] }>}
+     * @returns {Promise<{ accepterade: string[], utgangna: string[] }>}
+     *   `utgangna` (0.80.1): grupperna vars väntande inbjudan hade gått ut och därför inte accepterades. Tom lista, aldrig utelämnad.
      */
     async accepteraInbjudningar(b) {
       const uid = typeof b?.uid === "string" ? b.uid.trim() : "";
@@ -317,7 +364,16 @@ export function createInvitationService(konfig) {
       if (!uid) throw new Error("accepteraInbjudningar: uid krävs.");
       if (!epost) throw new Error("accepteraInbjudningar: epost krävs, den inloggades. Det är den inbjudningarna matchas mot.");
 
-      const vantande = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((i) => i.status === "vantar");
+      /*
+       * ⛔ EN UTGÅNGEN INBJUDAN ACCEPTERAS INTE (0.80.1, granskningen av PR 308, K1a). Före 0.80.1 blev en
+       * väntande rad ett medlemskap hur gammal den än var, med den roll den bar när den skrevs. Samma
+       * `arUtgangen` som `bjudIn`, och de utgångna står i svaret (`utgangna`) i stället för att tyst falla bort.
+       */
+      const nu = Date.now();
+      /** @type {Array<Record<string, any>>} */
+      const listade = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((/** @type {Record<string, any>} */ i) => i.status === "vantar");
+      const vantande = listade.filter((i) => !arUtgangen(i, nu));
+      const utgangna = listade.filter((i) => arUtgangen(i, nu)).map((i) => i.groupId);
 
       /** @type {string[]} */
       const accepterade = [];
@@ -325,36 +381,61 @@ export function createInvitationService(konfig) {
       let anvandaren;
       for (const inbjudan of vantande) {
         const id = medlemskapsId(uid, inbjudan.groupId);
+
         /*
-         * ⛔ IDEMPOTENT: ett medlemskap som redan finns rörs inte, men
-         * inbjudan markeras ändå accepterad. Annars ligger raden kvar som
-         * "vantar" för alltid och räknas varje inloggning.
+         * ⛔ ANSPRÅKET FÖRST, MEDLEMSKAPET SEDAN (0.80.1, granskningen av PR 308, K1b). Före 0.80.1 lästes
+         * raden, medlemskapet skrevs och raden fick sedan en vanlig `update` till `accepterad`. Återkallades
+         * inbjudan mellan läsningen och skrivningen blev personen ändå medlem, och `update` skrev över
+         * `aterkallad`: mätt av granskaren, återkallelsen försvann. Nu tar accepten raden med `updateIf` på
+         * det som lästes (status, roll och giltigTill), och bara den som vinner skriver medlemskapet.
+         *
+         * ⛔ ORDNINGEN ÄR VALD, OCH DEN HAR ETT HALVT LÄGE. Den omvända ordningen (medlemskapet först) är
+         * felet ovan. Med anspråket först är det halva läget en inbjudan som står `accepterad` utan att
+         * medlemskapet skrevs, om skrivningen av medlemskapet faller. Då lämnas raden tillbaka till `vantar`,
+         * med samma villkorade skrivning, så att nästa inloggning försöker igen, och felet går vidare till
+         * anroparen. Faller också återlämningen går felet vidare ändå: det halva läget syns, det tystas inte.
+         * Ett medlemskap utan inbjudan hade varit värre än en inbjudan utan medlemskap, för det ger åtkomst.
+         */
+        /** @type {Record<string, unknown>} */
+        const villkor = { status: "vantar" };
+        if (inbjudan.roll !== undefined) villkor.roll = inbjudan.roll;
+        if (typeof inbjudan.giltigTill === "string") villkor.giltigTill = inbjudan.giltigTill;
+        const { updated } = await uppdateraOm.call(kalla, INBJUDNINGAR, inbjudan.id, villkor, { status: "accepterad" });
+        if (!updated) continue;
+
+        /*
+         * ⛔ IDEMPOTENT: ett medlemskap som redan finns rörs inte, men inbjudan är ändå markerad accepterad
+         * ovan. Annars ligger raden kvar som "vantar" för alltid och räknas varje inloggning.
          */
         if (!(await kalla.read(MEDLEMSKAP, id))) {
-          /*
-           * ⛔ PROFILEN LÄSES EN GÅNG, INTE EN GÅNG PER INBJUDAN. Den som
-           * bjudits in till tre grupper ska inte kosta tre läsningar av samma
-           * rad, och alla tre medlemskapen ska dessutom bära samma namn.
-           */
-          if (anvandaren === undefined) anvandaren = (await kalla.read(ANVANDARE, uid)) ?? null;
-          await kalla.create(
-            MEDLEMSKAP,
-            byggMedlemskap({
-              userId: uid,
-              groupId: inbjudan.groupId,
-              roll: inbjudan.roll,
-              typ: "person",
-              status: "aktiv",
-              // ⛔ Profilens namn, annars inloggningens, aldrig tomt när ett fanns (0.40.1, #218).
-              namn: anvandaren?.namn || (typeof b?.namn === "string" ? b.namn.trim() : ""),
-              bild: anvandaren?.bild ?? "",
-            }),
-          );
+          try {
+            /*
+             * ⛔ PROFILEN LÄSES EN GÅNG, INTE EN GÅNG PER INBJUDAN. Den som
+             * bjudits in till tre grupper ska inte kosta tre läsningar av samma
+             * rad, och alla tre medlemskapen ska dessutom bära samma namn.
+             */
+            if (anvandaren === undefined) anvandaren = (await kalla.read(ANVANDARE, uid)) ?? null;
+            await kalla.create(
+              MEDLEMSKAP,
+              byggMedlemskap({
+                userId: uid,
+                groupId: inbjudan.groupId,
+                roll: inbjudan.roll,
+                typ: "person",
+                status: "aktiv",
+                // ⛔ Profilens namn, annars inloggningens, aldrig tomt när ett fanns (0.40.1, #218).
+                namn: anvandaren?.namn || (typeof b?.namn === "string" ? b.namn.trim() : ""),
+                bild: anvandaren?.bild ?? "",
+              }),
+            );
+          } catch (fel) {
+            await uppdateraOm.call(kalla, INBJUDNINGAR, inbjudan.id, { status: "accepterad" }, { status: "vantar" });
+            throw fel;
+          }
           accepterade.push(inbjudan.groupId);
         }
-        await kalla.update(INBJUDNINGAR, inbjudan.id, { status: "accepterad" });
       }
-      return { accepterade };
+      return { accepterade, utgangna };
     },
   };
 }

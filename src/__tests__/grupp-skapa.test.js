@@ -511,3 +511,18 @@ describe("⛔ moduler: apparna en ny grupp börjar med (0.51.0)", () => {
     expect(() => createGroupService({ kalla: medBatch, moduler: /** @type {any} */ ("ekonomi") })).toThrow(/moduler måste vara en lista/);
   });
 });
+
+/*
+ * ⛔ FELET NAMNGER createGroupService NÄR DET ÄR DEN SOM BYGGS (0.80.1, granskningen av PR 308, K4). Tjänsten
+ * bygger inbjudningarna inuti sig, och ett fel som sade `createInvitationService` pekade på en fabrik appen aldrig
+ * anropat.
+ */
+describe("⛔ createGroupService och inbjudningarnas krav på källan", () => {
+  for (const op of ["createNew", "updateIf"]) {
+    it(`en källa utan ${op} nekas med createGroupService i felet`, () => {
+      const { [op]: _bort, ...utan } = /** @type {any} */ (createMemorySource());
+      expect(() => createGroupService({ kalla: utan })).toThrow(new RegExp(`^createGroupService: datakällan saknar ${op}`));
+    });
+  }
+});
+

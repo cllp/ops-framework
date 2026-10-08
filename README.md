@@ -784,7 +784,9 @@ async createNew(samling, data) {
 | `vantar` och giltig | kastar: skicka om i stället |
 | `accepterad` | kastar: personen är redan medlem |
 
-Villkoret i `updateIf` är statusen som lästes, för en utgången rad också den lästa `giltigTill`, så två samtidiga återöppningar ger en vinnare. `bjudIn` tar emot `tokenHash`, hashen av koden appen mejlar. Utan den blir fältet tomt, så den gamla kodens hash överlever aldrig en återöppning.
+Villkoret i `updateIf` är statusen som lästes och, när raden har en, den lästa `giltigTill`, så två samtidiga återöppningar ger en vinnare. Finns flera rader för samma grupp och adress (en gammal och en ny) väljs raden deterministiskt: accepterad eller giltig väntande före utgången, utgången före återkallad, sedan det nya id:t. `bjudIn` tar emot `tokenHash`, hashen av koden appen mejlar. Utan den blir fältet tomt, så den gamla kodens hash överlever aldrig en återöppning.
+
+⛔ **ACCEPTEN TAR RADEN FÖRST OCH SKRIVER MEDLEMSKAPET SEDAN (0.80.1).** `accepteraInbjudningar` gör `updateIf({ status: "vantar", roll, giltigTill })` till `accepterad`, och bara den som vinner skriver medlemskapet. En återkallelse mellan läsningen och skrivningen vinner alltså, och ger inget medlemskap. Faller skrivningen av medlemskapet lämnas raden tillbaka till `vantar` och felet går vidare. En utgången inbjudan accepteras inte: svaret är `{ accepterade, utgangna }`, där `utgangna` är grupperna vars inbjudan gått ut, en tom lista när inga gjort det. Appens Admin-källa behöver därför `updateIf` (en `db.runTransaction`, exemplet står under mejlkön) utöver `createNew`. Saknas någon av dem nekas källan när tjänsten byggs, med namnet på den tjänst appen byggde.
 
 **Vyerna:**
 
