@@ -78,6 +78,24 @@ export function inbjudningsId(groupId, epost) {
   return `${g}${MEDLEMSKAPSAVGRANSARE}${createHash("sha256").update(e).digest("hex")}`;
 }
 
+/** @param {string} groupId @param {string} id */
+const redanVantande = (groupId, id) =>
+  `bjudIn: adressen har redan en väntande inbjudan i gruppen "${groupId}" (${id}). Skicka om den i stället för att bjuda in igen.`;
+
+/** @param {string} groupId @param {string} id */
+const fortfarandeMedlem = (groupId, id) =>
+  `bjudIn: personen har redan accepterat inbjudan till gruppen "${groupId}" (${id}) och är redan medlem.`;
+
+/**
+ * Felet när någon annan hann skriva raden mellan läsningen och skrivningen.
+ * @param {string} groupId @param {string} id @param {Record<string, any> | null | undefined} row
+ */
+const efterKapplopp = (groupId, id, row) => {
+  if (row?.status === "vantar") return redanVantande(groupId, id);
+  if (row?.status === "accepterad") return fortfarandeMedlem(groupId, id);
+  return `bjudIn: inbjudan ${id} i gruppen "${groupId}" ändrades medan den skrevs (status "${row?.status ?? "saknas"}"). Inget har skrivits över. Försök igen.`;
+};
+
 /**
  * @typedef {object} Samlingar
  * @property {string} [anvandare] Förval `users`.
@@ -121,6 +139,17 @@ export function createInvitationService(konfig) {
     );
   }
   const skapaNy = kalla.createNew;
+  /*
+   * ⛔ OCH `updateIf` KRÄVS (0.80.1), AV SAMMA SKÄL. En återkallad eller utgången inbjudan öppnas igen,
+   * och två som gör det samtidigt får inte båda lyckas med var sin kod. En läsning följd av en update
+   * hade släppt igenom båda.
+   */
+  if (typeof kalla.updateIf !== "function") {
+    throw new Error(
+      "createInvitationService: datakällan saknar updateIf. En återkallad inbjudan öppnas igen bara om den fortfarande står som den lästes, och utan ett atomärt villkor kan två återöppningar båda lyckas. Med Admin SDK är updateIf en db.runTransaction, se datakontraktets regel 7.",
+    );
+  }
+  const uppdateraOm = kalla.updateIf;
   const ANVANDARE = samlingar.anvandare ?? "users";
   const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
   const INBJUDNINGAR = samlingar.inbjudningar ?? "invitations";
@@ -154,8 +183,10 @@ export function createInvitationService(konfig) {
     /**
      * Ägaren eller en admin bjuder in en e-postadress till en grupp.
      *
-     * @param {{ avUid: string, groupId: string, epost: string, roll?: string, typ?: string, skapadAv?: any }} b
-     * @returns {Promise<{ resultat: "medlemskap" | "inbjudan" | "fanns", id: string }>}
+     * @param {{ avUid: string, groupId: string, epost: string, roll?: string, typ?: string, skapadAv?: any, tokenHash?: string }} b
+     *   `tokenHash` (0.80.1): SHA-256 i hex av koden appen mejlar, eller utelämnad. Koden själv kommer aldrig hit.
+     * @returns {Promise<{ resultat: "medlemskap" | "inbjudan" | "fanns", id: string, ateroppnad?: boolean }>}
+     *   `ateroppnad` (0.80.1): `true` när en återkallad eller utgången rad öppnades igen, `false` för en ny rad.
      */
     async bjudIn(b) {
       const avUid = typeof b?.avUid === "string" ? b.avUid.trim() : "";
@@ -199,40 +230,74 @@ export function createInvitationService(konfig) {
       }
 
       /*
-       * ⛔ EN VÄNTANDE INBJUDAN TILL SAMMA ADRESS OCH GRUPP ÅTERANVÄNDS. Två
-       * rader för samma sak gör "acceptera" till en fråga om vilken som hittas
-       * först, och ägaren som klickar två gånger ska inte skapa ett problem.
+       * ══ ⛔ EN INBJUDAN TILL EN ADRESS SOM REDAN HAR EN RAD I GRUPPEN (0.80.1, arkitektens beslut i PR 308) ══
+       *
+       * Raden för (grupp, adress) avgör, och den hittas på fältet `epost`, aldrig på id:t, så att en rad med
+       * det gamla id:t (`${groupId}_${epost}`, före 0.80.1) räknas lika mycket som en med det nya:
+       *
+       *   ingen rad              createNew, en ny rad med `inbjudningsId`
+       *   aterkallad, utgången   raden öppnas igen med updateIf, den skapas inte på nytt
+       *   vantar                 kastar: skicka om i stället
+       *   accepterad             kastar: personen är redan medlem
+       *
+       * ⛔ VÄNTANDE KASTAR NU, DET ÅTERANVÄNDS INTE TYST. Före 0.80.1 svarade ett andra klick `fanns`, och
+       * den som bjöd in kunde inte se skillnad på "inbjudan finns" och "inbjudan skickades". Ett omutskick
+       * är ett eget steg med en ny kod, och det är det felet säger.
        */
-      const vantande = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter(
-        (i) => i.groupId === groupId && i.status === "vantar",
-      );
-      if (vantande.length > 0) return { resultat: "fanns", id: vantande[0].id };
+      const nyttId = inbjudningsId(groupId, epost);
+      const rader = (await kalla.list(INBJUDNINGAR, { where: { epost } })).filter((i) => i.groupId === groupId);
+      const rad = rader.find((i) => i.id === nyttId) ?? rader[0];
 
       /*
-       * ⛔ SKAPAS MED `createNew` OCH ALDRIG MED `create` (0.80.1). Finns en rad med samma id redan är den
-       * inte väntande (den hade hittats ovan), alltså accepterad eller återkallad, och då kastas det med
-       * skälet. Före 0.80.1 skrev en ny inbjudan över den raden, och historiken över att den återkallats
-       * försvann med den.
-       *
-       * ⛔ GAMLA RADER LÄSES SOM FÖRUT. En inbjudan skriven före 0.80.1 har id:t `${groupId}_${epost}` och
-       * hittas ändå, eftersom varje uppslag går på fältet `epost` och aldrig på id:t: listningen ovan
-       * återanvänder en väntande gammal rad, och accepten uppdaterar raden med det id den listade.
+       * ⛔ KODEN BYTS VID VARJE NY RUNDA. Ramverket skapar ingen kod: appen skickar in hashen av den kod den
+       * mejlar (`tokenHash`), eller ingen, och då står raden utan kod tills appen skickar. Utan hash blir
+       * fältet tomt, och en tom hash matchar aldrig något. Den gamla kodens hash överlever alltså aldrig en
+       * återöppning: den som fick den förra koden kommer inte in på den.
+       */
+      const tokenHash = typeof b?.tokenHash === "string" ? b.tokenHash : "";
+
+      if (rad) {
+        const status = rad.status;
+        const utgangen = status === "vantar" && typeof rad.giltigTill === "string" && Date.parse(rad.giltigTill) <= Date.now();
+        if (status === "accepterad") throw new Error(fortfarandeMedlem(groupId, rad.id));
+        if (status === "vantar" && !utgangen) throw new Error(redanVantande(groupId, rad.id));
+        if (status !== "aterkallad" && !utgangen) {
+          throw new Error(`bjudIn: inbjudan ${INBJUDNINGAR}/${rad.id} har statusen "${status}", som ingen gren känner. Inget har skrivits.`);
+        }
+
+        /*
+         * ⛔ ÖPPNAS MED updateIf, OCH VILLKORET ÄR DET SOM LÄSTES. Två som bjuder in samtidigt läser båda
+         * `aterkallad`, och utan villkoret hade båda skrivit, med var sin kod: den ena kodens mejl hade gått
+         * ut med en kod som redan inte gällde. Med villkoret vinner en, och den andra får felet att
+         * inbjudan redan väntar. För en utgången rad är statusen `vantar` både före och efter, och då
+         * ingår den lästa `giltigTill` i villkoret, annars hade villkoret inte skilt de två åt.
+         */
+        /** @type {Record<string, unknown>} */
+        const villkor = { status };
+        if (typeof rad.giltigTill === "string") villkor.giltigTill = rad.giltigTill;
+        const ny = byggInbjudan({ id: rad.id, epost, groupId, roll, status: "vantar", skapadAv: b.skapadAv ?? {}, tokenHash });
+        const data = { status: ny.status, roll: ny.roll, tokenHash: ny.tokenHash, giltigTill: ny.giltigTill, skapadAv: ny.skapadAv };
+        const { updated, row } = await uppdateraOm.call(kalla, INBJUDNINGAR, rad.id, villkor, data);
+        if (!updated) throw new Error(efterKapplopp(groupId, rad.id, row));
+        return { resultat: "inbjudan", id: rad.id, ateroppnad: true };
+      }
+
+      /*
+       * ⛔ SKAPAS MED `createNew` OCH ALDRIG MED `create` (0.80.1). En rad som dykt upp sedan listningen
+       * skrivs inte över: den som hann först vinner, och felet säger vad som står där nu.
        */
       const inbjudan = byggInbjudan({
-        id: inbjudningsId(groupId, epost),
+        id: nyttId,
         epost,
         groupId,
         roll,
         status: "vantar",
         skapadAv: b.skapadAv ?? {},
+        tokenHash,
       });
       const { created, row } = await skapaNy.call(kalla, INBJUDNINGAR, inbjudan);
-      if (!created) {
-        throw new Error(
-          `bjudIn: det finns redan en inbjudan för adressen i gruppen "${groupId}" (${INBJUDNINGAR}/${inbjudan.id}, status "${row?.status ?? "okänd"}"). En inbjudan skrivs aldrig över, så den återkallade eller accepterade raden står kvar som den är.`,
-        );
-      }
-      return { resultat: "inbjudan", id: inbjudan.id };
+      if (!created) throw new Error(efterKapplopp(groupId, inbjudan.id, row));
+      return { resultat: "inbjudan", id: inbjudan.id, ateroppnad: false };
     },
 
     /**

@@ -755,9 +755,9 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 
 ⛔ **FRÅN KLIENTEN GÅR STATUSEN BARA FRÅN `vantar` TILL `aterkallad` (0.80.1).** Före 0.80.1 fick en admin sätta `status` till vad som helst, och i lifehub sattes en återkallad ägarinbjudan tillbaka till `vantar` (granskningen av lifehub.app PR 117, punkt 3). Accepten och ett nytt utskick sker på serversidan med Admin SDK, förbi reglerna. En accepterad inbjudan går inte heller att "återkalla" i efterhand.
 
-⛔ **ID:T ÄR `inbjudningsId(groupId, epost)`, ALLTSÅ GRUPP-ID:T, `|` OCH SHA-256 AV ADRESSEN (0.80.1).** Före 0.80.1 var det `${groupId}_${epost}`, och `_` är lagligt i ett grupp-id: `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` gav samma dokument, och den andra inbjudan skrev över den första (punkt 4 i samma granskning). `|` går inte att skriva i ett grupp-id (`ID_FORM`) och finns aldrig i en hash, så två par kan inte dela id. Adressen står inte i klartext i id:t, bara i fältet `epost`, och det är på fältet varje uppslag görs. En rad med det gamla id:t hittas därför som förut, både av `bjudIn` (som återanvänder en väntande rad) och av `accepteraInbjudningar`.
+⛔ **ID:T ÄR `inbjudningsId(groupId, epost)`, ALLTSÅ GRUPP-ID:T, `|` OCH SHA-256 AV ADRESSEN (0.80.1).** Före 0.80.1 var det `${groupId}_${epost}`, och `_` är lagligt i ett grupp-id: `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` gav samma dokument, och den andra inbjudan skrev över den första (punkt 4 i samma granskning). `|` går inte att skriva i ett grupp-id (`ID_FORM`) och finns aldrig i en hash, så två par kan inte dela id. Adressen står inte i klartext i id:t, bara i fältet `epost`, och det är på fältet varje uppslag görs. En rad med det gamla id:t hittas därför som förut, både av `bjudIn`, som räknar den som raden för (grupp, adress), och av `accepteraInbjudningar`.
 
-⛔ **EN INBJUDAN SKRIVS ALDRIG ÖVER, OCH `kalla.createNew` KRÄVS (0.80.1).** `create` med ett eget id ersätter (datakontraktet), och det var så den ena gruppens inbjudan försvann. `bjudIn` skapar raden med `createNew` (kontraktets regel 8), som bara skriver om id:t är ledigt, och kastar med skälet när en accepterad eller återkallad rad redan har id:t. `createInvitationService`, och därmed `createGroupService`, nekar en källa utan `createNew` när tjänsten byggs. `createMemorySource` har den, och `createRoutingSource` skickar den vidare. Appens Admin-adapter skriver den med `ref.create`, som Firestore avvisar med `ALREADY_EXISTS` (kod 6) när dokumentet finns:
+⛔ **EN INBJUDAN SKRIVS ALDRIG ÖVER, OCH `kalla.createNew` KRÄVS (0.80.1).** `create` med ett eget id ersätter (datakontraktet), och det var så den ena gruppens inbjudan försvann. `bjudIn` skapar en ny rad med `createNew` (kontraktets regel 8), som bara skriver om id:t är ledigt. `createInvitationService`, och därmed `createGroupService`, nekar en källa utan `createNew` eller `updateIf` när tjänsten byggs. `createMemorySource` har den, och `createRoutingSource` skickar den vidare. Appens Admin-adapter skriver den med `ref.create`, som Firestore avvisar med `ALREADY_EXISTS` (kod 6) när dokumentet finns:
 
 ```js
 async createNew(samling, data) {
@@ -774,6 +774,17 @@ async createNew(samling, data) {
   }
 }
 ```
+
+⛔ **EN ADRESS SOM REDAN HAR EN RAD I GRUPPEN (0.80.1, arkitektens beslut i PR 308).** Raden för (grupp, adress), hittad på fältet `epost`, avgör:
+
+| Raden | `bjudIn` |
+|---|---|
+| finns inte | skapar den med `createNew` |
+| `aterkallad`, eller `vantar` med passerad `giltigTill` | öppnar den igen med `updateIf`: `vantar`, ny `tokenHash`, ny `giltigTill`, den nya `roll` och `skapadAv`. Svaret bär `ateroppnad: true` |
+| `vantar` och giltig | kastar: skicka om i stället |
+| `accepterad` | kastar: personen är redan medlem |
+
+Villkoret i `updateIf` är statusen som lästes, för en utgången rad också den lästa `giltigTill`, så två samtidiga återöppningar ger en vinnare. `bjudIn` tar emot `tokenHash`, hashen av koden appen mejlar. Utan den blir fältet tomt, så den gamla kodens hash överlever aldrig en återöppning.
 
 **Vyerna:**
 
