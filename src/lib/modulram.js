@@ -15,8 +15,14 @@ import { cx } from "./cx.js";
  * bor klasserna och tillbaka-radens ord här, och båda komponenterna läser dem.
  */
 
-/** Radens behållare: en lista som rullar i sidled när den inte får plats, med en linje under. */
-export const FLIKRAD = "m-0 flex list-none gap-1 overflow-x-auto border-b border-line p-0";
+/**
+ * Radens behållare, med en linje under.
+ *
+ * ⛔ 0.87.0, lane 11. Raden rullade i sidled (`overflow-x-auto`). Mätt i Biblioteket vid 390 px: tre flikar
+ * var 395 px i en ruta på 343, och "Länkar" slutade på x 411, utanför bodyn. Orden ska inte kapas, så raden
+ * bryts i stället för att rulla. Samma klass i `OpsModulSida` och i `OpsTabs` med `medOrd`.
+ */
+export const FLIKRAD = "m-0 flex list-none flex-wrap gap-1 border-b border-line p-0";
 
 /**
  * En post i raden: ikon och namn bredvid varandra, accentlinjen under den öppna.

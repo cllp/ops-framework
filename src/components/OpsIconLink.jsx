@@ -77,10 +77,10 @@ export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = 
       className={
         avatar
           ? cx(
-              // ⛔ 32 px knapp, 28 px avatar, ring vid hover. 44 px träffyta som en osynlig `after:`, som övriga knappar i klustret.
-              // ⛔ 0.62.0 (bolag-ops#565): under `md` är KNAPPEN 44 px och ringen sitter på den inre 32 px cirkeln (`avatarRing`),
-              // så avataren ser likadan ut men ett tryck intill den inte längre landar hos grannen. Se `huvudknappKlass`.
-              "group relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full md:size-8",
+              // ⛔ 32 px knapp från `xl` (1280 px), 28 px avatar, ring vid hover.
+              // ⛔ 0.62.0 (bolag-ops#565): under `md` är knappen 44 px. 0.87.0 (#262): den är 44 px ända till `xl`,
+              // eftersom en osynlig `after:` på 44 px förlorar trycket till grannen 2 px bort. Se `huvudknappKlass`.
+              "group relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full xl:size-8",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
               "after:absolute after:top-1/2 after:left-1/2 after:size-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-['']",
             )

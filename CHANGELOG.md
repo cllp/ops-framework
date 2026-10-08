@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.87.0
+
+CP 2026-10-07, lifehub.app#119: "När man expanderar en post i aktivitet så står rubrik och text dubbelt." Och #262, mätt på nytt 2026-10-08: vid 768 px ligger gruppväxlaren över fliken Idag, och flikarna över plusset. Knapparna i högerklustret är 36 px.
+
+### Aktivitetens utfällning
+
+- **Rubrik och detalj ritas en gång.** De står på raden. `OpsActivityDetail` visar det raden inte har: exakt tid, källa, utfall, felrutan och länken.
+- Prov i jsdom (`#321` i `aktivitet.test.jsx`) och i Chromium (`check-skalyta` 6c, 390 px). Rött mot 0.83.0 (rubriken två gånger), grönt med fixen.
+
+### Huvudet på surfplatta
+
+- **Ordmärket väntar till `lg`.** Mätt i 768 px: märket 180 px plus växlare med namn 160 px lämnar inte plats åt tre flikar och 44 px knappar. Panelen, som märket ska stå över, finns från `lg`. Växlaren med namn står kvar mellan `md` och `lg`.
+- **Åtgärder som inte ryms flyttar till menyn** mellan `md` och `lg` (`ATGARDER_SURF`). På telefon gäller `ATGARDER_SMAL` som förut. Utan `meny` ritas hamburgaren på surfplattan, så inget försvinner.
+- **Knapparna är 44 px till `xl`.** Från 1280 px står 36 px (plusset 40) kvar. Avsnitt 6b kräver träffyta och inget överlapp vid 768, 834, 900, 1023 och 1024 px, i scenerna `full`, `talk` och `utanmeny`. `documentElement.scrollWidth` är 15 px under `clientWidth` på varje bredd, också före ändringen: `scrollbar-gutter: stable` (bolag-ops#143). Likhet där vore röd utan att sidan rullar i sidled. Kravet är därför `scrollWidth <= clientWidth` på dokumentet och `scrollWidth === clientWidth` på bodyn.
+- **Bibliotekets flikrad bryts i stället för att rulla.** Mätt vid 390 px: Alla, Anteckningar och Länkar var 395 px i en ruta på 343, och Länkar slutade på x 411. `FLIKRAD` (`flex-wrap`) är samma klass i modulens delar och i `OpsTabs` med `medOrd`. Avsnitt 9c (d) kräver samma brytning för Ekonomis fjorton delar: raden högre än en länk, ingen sidrullning, varje länk inne i raden. Mot 0.83.0 är den kontrollen röd (en rad, 1731 px i 343).
+- **Dagpanelens långa ord stannar i kolumnen.** Mätt vid 390 px, samma på 0.83.0: "Löneutbetalning" är 133 px i en kolumn på 123, och texten slutar på 225 medan utfällningen börjar på 223. Titeln har `break-words`. Efter: ordet är två rader och slutar på 205, utfällningen börjar på 223.
+
+### Hubben utan appar
+
+- **Listan över appar som kan läggas till, i stället för meningen om kalender, chatt och inkorg.** CP i lifehub.app#129: meddelandet när gruppen saknar appar är märkligt. `OpsGruppHubb` visar nu "Gruppen har inga appar ännu", namnen på modulerna som har ett kort, och "Välj appar" när appen skickar `installera` (bara för ägaren). En modul med `hubb: null` står inte i listan.
+
 ## 0.83.0
 
 CP 2026-10-08 17:52 och 17:54, med bilder från telefonen av Bibliotek, Ekonomi och Hubben: "Bibliotek behöver en tillbaka knapp också precis som ekonomi. Sedan navigeringen på liknande sätt. Sök och komponenter är ihoptryckta." Och: "Varje app/modul borde kunna expanderas med chevron och det skall finnas en inställning om att ikon skall placeras i huvudmenyn."

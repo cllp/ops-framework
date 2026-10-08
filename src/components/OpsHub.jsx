@@ -3,6 +3,7 @@ import { useOpsSprak } from "./OpsSprak.jsx";
 import { cx } from "../lib/cx.js";
 import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
+import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsView } from "./OpsView.jsx";
@@ -103,11 +104,16 @@ export function OpsHub({
   return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
 
-/** @type {Record<"sv"|"en", { tomRubrik: string, tomText: (namn: string) => string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
+/** @type {Record<"sv"|"en", { tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, valj: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
 const GRUPPHUBB_TEXT = {
   sv: {
-    tomRubrik: "Inga appar i gruppen",
-    tomText: (namn) => `${namn} har inga appar installerade. Kalendern, chatten och inkorgen har gruppen ändå. Ägaren installerar appar i gruppens inställningar.`,
+    tomRubrik: "Gruppen har inga appar ännu",
+    tomText: (namn, medVag) => medVag
+      ? `${namn} har inga appar ännu. Välj vilka som ska finnas här.`
+      : `${namn} har inga appar ännu. Ägaren väljer vilka som ska finnas här.`,
+    valbara: "Appar som kan läggas till",
+    ingaValbara: "Det finns inga appar att lägga till.",
+    valj: "Välj appar",
     ingaRitbara: "Ingen av gruppens appar kan visas",
     ingaRitbaraText: "Gruppen har appar installerade som inte kan visas. Skälet står under.",
     saknadRubrik: "Visas inte",
@@ -116,8 +122,13 @@ const GRUPPHUBB_TEXT = {
     moduler: (namn) => `Appar i ${namn}`,
   },
   en: {
-    tomRubrik: "No apps in the group",
-    tomText: (namn) => `${namn} has no apps installed. The group still has its calendar, chat and inbox. The owner installs apps in the group's settings.`,
+    tomRubrik: "The group has no apps yet",
+    tomText: (namn, medVag) => medVag
+      ? `${namn} has no apps yet. Choose which ones belong here.`
+      : `${namn} has no apps yet. The owner chooses which ones belong here.`,
+    valbara: "Apps that can be added",
+    ingaValbara: "There are no apps to add.",
+    valj: "Choose apps",
     ingaRitbara: "None of the group's apps can be shown",
     ingaRitbaraText: "The group has apps installed that cannot be shown. The reason is below.",
     saknadRubrik: "Not shown",
@@ -137,7 +148,7 @@ const GRUPPHUBB_TEXT = {
  * till modulens egen insida (`OpsModulSida`). Beslutet om vad som ritas bor i `hubbForGrupp`, så det går att pröva utan att rita.
  *
  * ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5), på tre sätt:
- *   - en grupp utan moduler säger det, med gruppens namn och vad man gör åt det;
+ *   - en grupp utan moduler visar apparna som kan läggas till, och en väg till valet när appen skickar `installera`;
  *   - en modul appen inte registrerat, eller en utan kort, ritas inte, och en rad under korten säger vilken och varför;
  *   - pekar gruppen BARA på sådana står det också, i stället för rubriken "inga moduler", som vore osann.
  *
@@ -156,8 +167,9 @@ const GRUPPHUBB_TEXT = {
  * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id.
  * @param {string} [props.badgeText]
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
+ * @param {{ href?: string, onClick?: () => void, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för ägaren (0.87.0, lifehub.app#129).
  */
-export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true }) {
+export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -166,6 +178,10 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   const gruppnamn = text(grupp.namn, sprak);
   // ⛔ 0.83.0: korten får modulens delar, så att de fälls ut med en chevron. Toppradens rullgardin ber inte om dem.
   const poster = hubbPoster(kort, { sprak, info, badge, delar: true });
+  // Appar med ett kort som gruppen inte har. En modul utan kort (hubb: null) blir ingen rad här: den syns inte i hubben.
+  const tillaggningsbara = moduler.filter((m) => m.hubb && !grupp.moduler.includes(m.id));
+  const medVag = Boolean(installera && (installera.href || installera.onClick));
+  const installHref = installera?.href;
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
       {poster.length > 0 ? (
@@ -173,7 +189,28 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
       ) : saknade.length > 0 ? (
         <OpsEmpty title={t.ingaRitbara} description={t.ingaRitbaraText} />
       ) : (
-        <OpsEmpty title={t.tomRubrik} description={t.tomText(gruppnamn)} />
+        <OpsEmpty
+          title={t.tomRubrik}
+          description={t.tomText(gruppnamn, medVag)}
+          action={
+            <div className="flex flex-col items-center gap-3">
+              {tillaggningsbara.length > 0 ? (
+                <ul aria-label={t.valbara} data-hubb-valbara="" className="m-0 flex list-none flex-col gap-1 p-0 text-brod text-ink">
+                  {tillaggningsbara.map((m) => (
+                    <li key={m.id}>{text(m.namn, sprak)}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="m-0 text-brod text-ink-secondary">{t.ingaValbara}</p>
+              )}
+              {installHref ? (
+                <OpsButton href={installHref} onClick={(e) => onNavigate?.(installHref, e)}>{installera?.etikett ?? t.valj}</OpsButton>
+              ) : installera?.onClick ? (
+                <OpsButton onClick={installera.onClick}>{installera.etikett ?? t.valj}</OpsButton>
+              ) : null}
+            </div>
+          }
+        />
       )}
       {saknade.length > 0 ? (
         <section aria-label={t.saknadRubrik} data-hubb-saknade="" className="flex flex-col gap-1">

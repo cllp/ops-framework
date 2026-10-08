@@ -252,7 +252,8 @@ describe("C: hover och rundning (#173)", () => {
     const l = screen.getByRole("link", { name: "Inkorg" });
     // ⛔ 0.59.1 (bolag-ops#563): `p-1.5` runt en 24 px ikon i samma 36 px cirkel, inte SS `p-2` runt 20; bara under md, CP: "563 är bara i mobil". Pixlarna mäts i `check-skalyta`.
     // ⛔ 0.62.0 (bolag-ops#565): under md är knappen själv 44 px (`size-11 p-2.5`), från md SS 36 (`md:size-9 md:p-2`). Den faktiska träffytan mäts med elementFromPoint i `check-skalyta` 6b.
-    for (const k of ["rounded-full", "size-11", "md:size-9", "p-2.5", "[&_svg]:size-6", "md:p-2", "md:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) expect(l.className).toContain(k);
+    // ⛔ 0.87.0 (#262): 44 px gäller också surfplatta och 1024 px. SS 36 px börjar vid xl (1280), där avsnitt 2 mäter cirkeln.
+    for (const k of ["rounded-full", "size-11", "xl:size-9", "p-2.5", "[&_svg]:size-6", "xl:p-2", "xl:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) expect(l.className).toContain(k);
     expect(l.className).not.toContain("min-h-11");
   });
 
@@ -260,7 +261,7 @@ describe("C: hover och rundning (#173)", () => {
     const { container, rerender } = render(<OpsIconLink avatar href="/profil" label="Min profil" icon={<OpsIdentity name="Claes Philip" seed="u1" />} />);
     const l = screen.getByRole("link", { name: "Min profil" });
     // ⛔ 0.62.0 (bolag-ops#565): knappen är 44 px under md och 32 från md; ringen och 32 px-cirkeln bor på den inre ytan.
-    for (const k of ["size-11", "md:size-8", "rounded-full", "after:size-11"]) expect(l.className).toContain(k);
+    for (const k of ["size-11", "xl:size-8", "rounded-full", "after:size-11"]) expect(l.className).toContain(k);
     const ring = /** @type {HTMLElement} */ (l.firstElementChild);
     for (const k of ["size-8", "rounded-full", "p-0.5", "group-hover:ring-2", "group-hover:ring-line-strong"]) expect(ring.className).toContain(k);
     const id = container.querySelector('[role="img"]');

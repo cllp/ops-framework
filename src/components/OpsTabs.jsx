@@ -1,6 +1,6 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import { cx } from "../lib/cx.js";
-import { FLIKIKON, flikKlass } from "../lib/modulram.js";
+import { FLIKIKON, FLIKRAD, flikKlass } from "../lib/modulram.js";
 
 /**
  * Flikar inom en sida.
@@ -56,9 +56,10 @@ export function OpsTabs({ tabs, value, onChange, ariaLabel, medOrd = false, chil
 
   return (
     <Tabs.Root value={value} onValueChange={onChange}>
-      {/* Flikraden scrollar i sidled när den inte får plats. Utan det trängs
-          flikarna ihop till oläsliga stumpar på telefon. */}
-      <Tabs.List aria-label={ariaLabel} className="flex gap-1 overflow-x-auto border-b border-line">
+      {/* ⛔ `medOrd` använder `FLIKRAD` (samma som modulens delar): raden bryts, den rullar inte.
+          De andra formerna behåller sidorullningen, för ikonformen delar bredden (`flex-1`) och ordformen
+          utan ikon är korta etiketter som inte ska tryckas ihop. */}
+      <Tabs.List aria-label={ariaLabel} className={medOrd ? FLIKRAD : "flex gap-1 overflow-x-auto border-b border-line"}>
         {tabs.map((f) => (
           <Tabs.Trigger
             key={f.id}

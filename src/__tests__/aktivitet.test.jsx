@@ -667,6 +667,30 @@ describe("OpsActivityButton, lista till detalj", () => {
     expect(lasta).toEqual(["a"]);
   });
 
+  it("⛔ #321: utfälld rad visar inte rubrik och text som redan syns", () => {
+    // CP 2026-10-07, lifehub.app#119: "När man expanderar en post i aktivitet så står rubrik och text dubbelt."
+    // Raden ritar redan rubrik och detalj. Utfällningen ska lägga till det raden inte har: källa, exakt tid, länk.
+    const medText = [
+      {
+        id: "a",
+        nar: "2026-09-24T12:00:00.000Z",
+        slag: "bank",
+        rubrik: "Hämtade transaktioner",
+        detalj: "42 poster",
+        resultat: "ok",
+        kalla: "sync_lf.py",
+        lank: { href: "https://example.se/arende/42", etikett: "Öppna ärendet" },
+      },
+    ];
+    render(<OpsActivityList entries={medText} kindLabel={() => "Banksynk"} onOpen={() => {}} now={NU} />);
+    fireEvent.click(screen.getByRole("button", { name: /Hämtade transaktioner/ }));
+    expect(screen.getAllByText("Hämtade transaktioner", { exact: true })).toHaveLength(1);
+    expect(screen.getAllByText("42 poster", { exact: true })).toHaveLength(1);
+    expect(screen.getByText("sync_lf.py")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Öppna ärendet" })).toBeInTheDocument();
+    expect(screen.getByText("När")).toBeInTheDocument();
+  });
+
   it("⛔ #158: länk-knappen i detaljen ritas bara när händelsen bär en länk", () => {
     // CP: "eftersom notisen inte leder någonstans om det inte är en länk till
     // händelse, inkorg eller GitHub-ärende."

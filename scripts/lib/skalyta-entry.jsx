@@ -1729,6 +1729,58 @@ function Scen() {
       </Skal>
     );
   }
+  // 0.87.0, lane 11: bibliotekets flikrad vid 390 px. Saknas komponenten (äldre dist) ritas en markör.
+  if (s === "bibliotek") {
+    const Bib = Ops.OpsBibliotek;
+    const bygg = Ops.byggPost;
+    if (!Bib || !bygg) return <Full><p data-saknas="OpsBibliotek">OpsBibliotek saknas</p></Full>;
+    const tid = 1700000000000;
+    const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+    const poster = [
+      { ...bygg({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll", text: "Vi beslutade om bokslutet.", skapadAv: skapare, skapad: tid, andrad: tid }), id: "a" },
+      { ...bygg({ groupId: "cps-ab", typ: "lank", rubrik: "Bolagsverket", url: "https://bolagsverket.se", skapadAv: skapare, skapad: tid, andrad: tid }), id: "b" },
+    ];
+    return (
+      <Full>
+        <Bib
+          poster={poster}
+          jag={{ uid: "uid-1", roll: "medlem" }}
+          vald={null}
+          skapar={null}
+          onOppna={() => {}}
+          onStang={() => {}}
+          onSkapa={() => {}}
+          onSpara={() => {}}
+          hubHref="/hub"
+          onNavigate={(_href, e) => e.preventDefault()}
+        />
+      </Full>
+    );
+  }
+  // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
+  if (s === "aktivitet") {
+    const rader = [
+      {
+        id: "a",
+        nar: "2026-10-08T08:15:00.000Z",
+        slag: "bank",
+        rubrik: "Hämtade transaktioner",
+        detalj: "42 poster",
+        resultat: "ok",
+        kalla: "sync_lf.py",
+        lank: { href: "https://example.se/arende/42", etikett: "Öppna ärendet" },
+      },
+    ];
+    const Lista = Ops.OpsActivityList;
+    if (!Lista) return <Full><p data-saknas="OpsActivityList">OpsActivityList saknas</p></Full>;
+    return (
+      <Full>
+        <div className="px-4 py-4">
+          <Lista entries={rader} kindLabel={() => "Banksynk"} onOpen={() => {}} now={new Date("2026-10-08T12:00:00.000Z")} />
+        </div>
+      </Full>
+    );
+  }
   return (
     <Skal>
       <p className="px-4 text-brod">innehåll</p>

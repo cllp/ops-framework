@@ -696,6 +696,22 @@ if (argv.includes("--bara-chatt")) {
   process.exit(0);
 }
 
+// `--bara-surfplatta`: bara huvudets surfplatta (6b) och aktivitetens utfällning (6c). Hela körningen kör dem också.
+if (argv.includes("--bara-surfplatta")) {
+  await surfplattaOchAktivitet();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
+// `--bara-9c`: bara hubben per grupp och modulens insida. Hela körningen kör den också.
+if (argv.includes("--bara-9c")) {
+  await hubbPerGrupp();
+  await browser.close();
+  avsluta();
+  process.exit(0);
+}
+
 // ══ 1. MENYN: EN AVGRÄNSARE MELLAN SEKTIONER, ALDRIG TVÅ ═════════════════════
 for (const [namn, vp, oppnaMeny] of /** @type {const} */ ([
   ["arket (390 px)", { width: 390, height: 844 }, async (/** @type {any} */ p) => p.getByRole("button", { name: "Meny" }).last().click()],
@@ -1070,20 +1086,102 @@ if (!utanFasta) {
   }
 }
 
-// 6b, surfplattan (granskningen av #261): 768-1023 px är `md` men fortfarande en tumme. ⛔ MÄTS OCH SKRIVS UT, KRÄVS INTE.
-// Knapparna är 36 px från `md` (se `huvudknappKlass`). 44 px provades: vid 768 px ligger huvudets flikar (Appar och dess
-// chevron) redan i 0.60.0 ovanpå högerklustret, så plusset och temaväxlaren träffas inte alls i sin mitt. Det är ett eget fel i
-// surfplattans huvud. Raden nedan gör det synligt i varje körning; den blir ett krav när huvudet är lagat.
-for (const bredd of [768, 900, 1023]) {
-  for (const scen of ["full", "utanmeny"]) {
+// 6b, surfplattan (0.87.0, #262). 768-1023 px är `md` men fortfarande en tumme, och 1024 px är första `lg`.
+// Krav, inte en utskrift: inga kontroller i huvudet överlappar, varje namngiven knapp träffas på minst 44x44,
+// och sidan rullar inte i sidled. Rött mot 0.83.0 (flikarna låg ovanpå växlare och plus, knapparna var 36 px).
+// En funktion, så att `--bara-surfplatta` kan köra den ensam. Hela körningen anropar den här.
+async function surfplattaOchAktivitet() {
+for (const bredd of [768, 834, 900, 1023, 1024]) {
+  for (const scen of ["full", "talk", "utanmeny"]) {
     const { page, context } = await oppna(scen, { width: bredd, height: 900 });
     const kluster = await matTraffyta(page, "header a[aria-label], header button[aria-label]");
     krav(kluster.length >= 4, `träffytan ${scen} ${bredd} px: bara ${kluster.length} knappar med namn i huvudet, väntat minst 4.`);
     const under = kluster.filter((k) => !(k.mittTraff && k.w >= 43.5 && k.h >= 43.5));
-    matt.push(`träffytan ${scen} ${bredd} px (surfplatta, inget krav): ${kluster.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}; under 44x44: ${under.length ? under.map((k) => k.namn).join(", ") : "inga"}`);
+    matt.push(`träffytan ${scen} ${bredd} px: ${kluster.map((k) => `${k.namn} ${k.w}x${k.h}`).join(", ")}; under 44x44: ${under.length ? under.map((k) => k.namn).join(", ") : "inga"}`);
+    for (const k of kluster) {
+      krav(k.mittTraff && k.w >= 43.5 && k.h >= 43.5, `träffytan ${scen} ${bredd} px: "${k.namn}" träffas på ${k.w}x${k.h} px (ritad ${k.synligW.toFixed(1)}x${k.synligH.toFixed(1)}), väntat minst 44x44.`);
+    }
+    const yta = await page.evaluate(() => {
+      const dok = document.documentElement;
+      const els = [...document.querySelectorAll("header a, header button")].filter((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none";
+      });
+      const poster = els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { namn: (el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 28), x: r.x, y: r.y, r: r.right, b: r.bottom };
+      });
+      const par = [];
+      for (let i = 0; i < poster.length; i++) {
+        for (let j = i + 1; j < poster.length; j++) {
+          const dx = Math.min(poster[i].r, poster[j].r) - Math.max(poster[i].x, poster[j].x);
+          const dy = Math.min(poster[i].b, poster[j].b) - Math.max(poster[i].y, poster[j].y);
+          if (dx > 0.5 && dy > 0.5) par.push(`${poster[i].namn} x ${poster[j].namn} (${dx.toFixed(1)}x${dy.toFixed(1)})`);
+        }
+      }
+      return { scroll: dok.scrollWidth, klient: dok.clientWidth, bodyScroll: document.body.scrollWidth, bodyKlient: document.body.clientWidth, par, antal: poster.length };
+    });
+    krav(yta.antal >= 4, `huvudet ${scen} ${bredd} px: bara ${yta.antal} synliga kontroller, väntat minst 4.`);
+    krav(yta.par.length === 0, `huvudet ${scen} ${bredd} px: kontroller överlappar: ${yta.par.join("; ")}.`);
+    // ⛔ INTE `scrollWidth === clientWidth` PÅ `documentElement`. `html` har `scrollbar-gutter: stable`
+    // (tokens.css, bolag-ops#143): Chrome rapporterar clientWidth som fönstret och scrollWidth som innehållsytan,
+    // 15 px smalare, på varje bredd, också före den här ändringen. Likhet skulle vara röd utan horisontell
+    // överflödning. Kravet är därför ingen överflödning, och att bodyns egen ruta inte rullar i sidled.
+    krav(yta.scroll <= yta.klient, `huvudet ${scen} ${bredd} px: horisontell överflödning, scrollWidth ${yta.scroll} > clientWidth ${yta.klient}.`);
+    krav(yta.bodyScroll === yta.bodyKlient, `huvudet ${scen} ${bredd} px: bodyn rullar i sidled, scrollWidth ${yta.bodyScroll} mot clientWidth ${yta.bodyKlient}.`);
+    if (bildmapp && ((bredd === 768 && scen === "full") || (bredd === 1024 && scen === "talk"))) {
+      await page.screenshot({ path: path.join(bildmapp, `huvud-${bredd}-${scen}.png`), clip: { x: 0, y: 0, width: bredd, height: 80 } });
+    }
     await context.close();
   }
 }
+
+// ══ 6c. AKTIVITETENS UTFÄLLNING DUBBLERAR INTE RADEN (0.87.0, #321) ══════════
+// CP 2026-10-07, lifehub.app#119: rubrik och text står två gånger när raden fälls ut.
+{
+  const { page, context } = await oppna("aktivitet", { width: 390, height: 844 });
+  const rad = page.getByRole("button", { name: /Hämtade transaktioner/ });
+  await rad.click();
+  const rubrik = await page.getByText("Hämtade transaktioner", { exact: true }).count();
+  const detalj = await page.getByText("42 poster", { exact: true }).count();
+  krav(rubrik === 1, `aktivitet 390 px: rubriken syns ${rubrik} gånger efter utfällning, väntat 1.`);
+  krav(detalj === 1, `aktivitet 390 px: texten syns ${detalj} gånger efter utfällning, väntat 1.`);
+  krav((await page.getByText("sync_lf.py").count()) === 1, "aktivitet 390 px: källan saknas i utfällningen.");
+  krav((await page.getByRole("link", { name: "Öppna ärendet" }).count()) === 1, "aktivitet 390 px: länken saknas i utfällningen.");
+  const flode = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, klient: document.documentElement.clientWidth, bodyScroll: document.body.scrollWidth, bodyKlient: document.body.clientWidth }));
+  // Samma gutter som i 6b: documentElement är 15 px isär av `scrollbar-gutter: stable`, utan att sidan rullar i sidled.
+  krav(flode.scroll <= flode.klient, `aktivitet 390 px: horisontell överflödning, scrollWidth ${flode.scroll} > clientWidth ${flode.klient}.`);
+  krav(flode.bodyScroll === flode.bodyKlient, `aktivitet 390 px: bodyn rullar i sidled, scrollWidth ${flode.bodyScroll} mot clientWidth ${flode.bodyKlient}.`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "aktivitet-utfald-390.png"), clip: { x: 0, y: 0, width: 390, height: 520 } });
+  await context.close();
+}
+
+// Bibliotekets flikrad (0.87.0, lane 11). Vid 390 px var tre flikar 395 px i en ruta på 343, och "Länkar" slutade på x 411.
+{
+  const { page, context } = await oppna("bibliotek", { width: 390, height: 844 });
+  const m = await page.evaluate(() => {
+    const list = document.querySelector('[role="tablist"]');
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const sista = tabs.length ? tabs[tabs.length - 1].getBoundingClientRect() : null;
+    return {
+      finns: !!list && tabs.length >= 3,
+      sw: list ? list.scrollWidth : 0,
+      cw: list ? list.clientWidth : 0,
+      right: sista ? sista.right : 0,
+      body: document.body.clientWidth,
+      namn: tabs.map((t) => (t.textContent || "").trim()),
+    };
+  });
+  matt.push(`bibliotek 390 px: flikar ${m.namn.join(", ") || "(inga)"}, rad ${m.sw}/${m.cw}, sista flik slutar ${m.right.toFixed(1)}, body ${m.body}`);
+  krav(m.finns, `bibliotek 390 px: ${m.namn.length} flikar, väntat minst 3 (Alla, Anteckningar, Länkar).`);
+  krav(m.sw <= m.cw + 1, `bibliotek 390 px: flikraden rullar i sidled, scrollWidth ${m.sw} mot clientWidth ${m.cw}.`);
+  krav(m.right <= m.body + 1, `bibliotek 390 px: sista fliken slutar på x ${m.right.toFixed(1)}, bodyn är ${m.body} px bred.`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-flikar-390.png"), clip: { x: 0, y: 0, width: 390, height: 420 } });
+  await context.close();
+}
+}
+await surfplattaOchAktivitet();
 
 // ══ 7. MOBILHUVUDET FÅR ALDRIG FLÖDA ÖVER (0.30.1) ═══════════════════════════
 // CP 2026-09-29 13:44, med bild från telefonen: märket, temaväljaren, gruppväxlarens namn, inkorg, sök, fråga och
@@ -1345,9 +1443,13 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 //       på dator listar toppradens rullgardin bara modulen (inga chevronrader, inga delar).
 //   (b) en grupp utan moduler: rubriken och en rad med gruppens namn, inga kort, ingen tom yta.
 //   (c) en grupp med en modul appen inte registrerat: kortet för Ekonomi OCH en synlig rad som säger vilken som inte visas.
-//   (d) modulens insida: tillbaka till /hub, rubriken, fjorton länkar i en rad, EN öppen del med en synlig accentlinje under,
-//       varje länk minst 44 px hög, raden rullar i sidled i stället för sidan, och den öppna delen syns också när den är den sista.
+//   (d) modulens insida: tillbaka till /hub, rubriken, fjorton länkar, EN öppen del med en synlig accentlinje under,
+//       varje länk minst 44 px hög, och den öppna delen syns också när den är den sista.
+//       ⛔ 0.87.0: på 390 px BRYTS raden (samma `FLIKRAD` som Biblioteket). Golvet är att den är högre än en länk, att den
+//       inte rullar i sidled, och att varje länk ligger inne i raden. En rad som rullar är felet lane 11 mätte (395 px i 343).
 // Ingen horisontell överflödning någonstans. ⛔ GOLV: varje delmätning kräver att det den mäter fanns.
+// En funktion, så att `--bara-9c` kan köra den ensam. Hela körningen anropar den här.
+async function hubbPerGrupp() {
 for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, height: 900 }], ["390 px", { width: 390, height: 844 }]])) {
   const over = async (/** @type {import("playwright").Page} */ p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   // (a)
@@ -1393,12 +1495,15 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     const { page, context } = await oppna("grupphubb", vp, standardtema, 1, "g2");
     try {
       const main = page.locator("main");
-      const rubrik = main.getByText("Inga appar i gruppen", { exact: true });
-      const rad = main.getByText(/Testgruppen har inga appar installerade/);
-      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Inga appar i gruppen" syns inte i gruppen utan moduler.`);
+      const rubrik = main.getByText("Gruppen har inga appar ännu", { exact: true });
+      const rad = main.getByText(/Testgruppen har inga appar ännu/);
+      const valbara = main.getByRole("list", { name: "Appar som kan läggas till" });
+      krav((await rubrik.count()) === 1 && (await rubrik.isVisible()), `Hubben per grupp ${namn} (b): rubriken "Gruppen har inga appar ännu" syns inte i gruppen utan moduler.`);
       krav((await rad.count()) === 1 && (await rad.isVisible()), `Hubben per grupp ${namn} (b): raden med gruppens namn syns inte.`);
+      const namnIListan = await valbara.locator("li").allTextContents();
+      krav(namnIListan.includes("Ekonomi"), `Hubben per grupp ${namn} (b): listan är ${JSON.stringify(namnIListan)}, väntat Ekonomi bland apparna som kan läggas till.`);
       const lankar = await main.locator("a").count();
-      krav(lankar === 0, `Hubben per grupp ${namn} (b): ${lankar} länkar i hubben för en grupp utan moduler.`);
+      krav(lankar === 0, `Hubben per grupp ${namn} (b): ${lankar} länkar i hubben för en grupp utan moduler (scenen skickar ingen väg till valet).`);
       krav((await over(page)) <= 0, `Hubben per grupp ${namn} (b): sidan flödar i sidled.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `grupphubb-tom-${vp.width}.png`) });
     } catch (e) {
@@ -1443,7 +1548,14 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
             minH: Math.min(...lankar.map((a) => a.getBoundingClientRect().height)),
             linje: cs ? { bredd: parseFloat(cs.borderBottomWidth), farg: cs.borderBottomColor } : null,
             ovriga: lankar.filter((a) => a !== o).map((a) => getComputedStyle(a).borderBottomColor),
-            rullar: ul.scrollWidth > ul.clientWidth,
+            rullar: ul.scrollWidth > ul.clientWidth + 1,
+            radHojd: ul.getBoundingClientRect().height,
+            enHojd: lankar.reduce((m, a) => Math.max(m, a.getBoundingClientRect().height), 0),
+            inne: lankar.every((a) => {
+              const b = a.getBoundingClientRect();
+              const u = ul.getBoundingClientRect();
+              return b.left >= u.left - 0.5 && b.right <= u.right + 0.5;
+            }),
             synlig: ro ? ro.left >= 0 && ro.right <= window.innerWidth : false,
           };
         });
@@ -1454,7 +1566,7 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         krav(m.minH >= 44, `Modulens insida ${namn} ${href}: en länk är ${m.minH} px hög, under tumkravet 44.`);
         krav(!!m.linje && m.linje.bredd >= 2 && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(m.linje.farg) && !m.ovriga.includes(m.linje.farg), `Modulens insida ${namn} ${href}: den öppna delen har ingen egen synlig linje under sig (${JSON.stringify(m.linje)}).`);
         krav(m.synlig, `Modulens insida ${namn} ${href}: den öppna delen ligger utanför skärmen.`);
-        if (vp.width < 800) krav(m.rullar, `Modulens insida ${namn} ${href}: fjorton delar ryms på 390 px utan att raden rullar, alltså mäter provet inte rullningen.`);
+        if (vp.width < 800) krav(!m.rullar && m.inne && m.radHojd > m.enHojd + 8, `Modulens insida ${namn} ${href}: fjorton delar ska brytas på 390 px (rad ${m.radHojd.toFixed(0)} px, en länk ${m.enHojd.toFixed(0)} px, rullar ${m.rullar}, alla inne ${m.inne}). En rad som rullar är felet lane 11 mätte.`);
         const tillbaka = page.getByRole("link", { name: "Tillbaka till Appar" });
         krav((await tillbaka.count()) === 1 && (await tillbaka.getAttribute("href")) === "/hub", `Modulens insida ${namn} ${href}: tillbaka-länken till /hub saknas.`);
         krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulens insida ${namn} ${href}: rubriken "Ekonomi" saknas.`);
@@ -1473,6 +1585,8 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
     await context.close();
   }
 }
+}
+await hubbPerGrupp();
 
 // ══ 10. MÄRKET ÄR TEXT, I RÄTT TYPSNITT OCH RÄTT FÄRG, CENTRERAT ÖVER PANELEN (0.31.0) ═
 // CP 2026-09-29: "Vi tar bort bilder, kör med text. Font: Glacial Indifference Regular. Colors: Light Gray och Gray
