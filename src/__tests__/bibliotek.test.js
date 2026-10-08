@@ -31,8 +31,21 @@ describe("bibliotekets post", () => {
     const l = byggPost({ ...anteckning, typ: "lank", text: undefined, url: "https://bolagsverket.se" });
     expect(l.url).toBe("https://bolagsverket.se/");
     expect(Object.hasOwn(l, "text")).toBe(false);
-    expect(BIBLIOTEKTYPER).toEqual(["anteckning", "lank"]);
+    expect(BIBLIOTEKTYPER).toEqual(["anteckning", "lank", "fil"]);
     expect(BIBLIOTEKFALT).toContain("groupId");
+  });
+
+  it("en fil med bild, dokument eller ljud går att bygga, och fel format eller för stor fil gör det inte", () => {
+    const bas = { ...anteckning, typ: "fil", text: undefined, rubrik: "Kvitto" };
+    const fil = { sokvag: "grupper/cps-ab/bibliotek/p1/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 };
+    expect(inmatningsfel({ typ: "fil", rubrik: "Kvitto", fil })).toBeNull();
+    const byggd = byggPost({ ...bas, fil });
+    expect(byggd.fil.mime).toBe("image/jpeg");
+    expect(Object.hasOwn(byggd, "text")).toBe(false);
+    expect(byggPost({ ...bas, fil: { ...fil, mime: "audio/webm;codecs=opus", namn: "ide.webm", sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm" } }).fil.mime).toBe("audio/webm");
+    expect(postFel({ ...bas, fil: { ...fil, mime: "application/zip" } })).toMatch(/application\/zip/);
+    expect(postFel({ ...bas, fil: { ...fil, byte: 25 * 1024 * 1024 + 1 } })).toMatch(/Taket/);
+    expect(postFel({ ...anteckning, fil })).toMatch(/ingen fil/);
   });
 
   it("avvisar javascript-adress, låt och ett fält som inte hör hit", () => {

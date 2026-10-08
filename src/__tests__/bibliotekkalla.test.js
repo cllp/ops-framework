@@ -142,6 +142,48 @@ describe("createBibliotekskalla", () => {
     expect((await source.read("bibliotek", "b"))?.rubrik).toBe("Hel");
   });
 
+  it("laddar upp en bild på appens sökväg, och en nekad uppladdning lämnar ingen post", async () => {
+    const source = createMemorySource();
+    /** @type {{ sokvag: string, contentType?: string }[]} */
+    const uppladdat = [];
+    const lagring = {
+      laddaUpp: async (/** @type {{ sokvag: string, contentType?: string }} */ inmatning) => {
+        uppladdat.push(inmatning);
+        return { url: "minne://x", sokvag: inmatning.sokvag };
+      },
+      taBort: async () => {},
+    };
+    const kalla = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      lagring,
+      sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
+    });
+    await expect(kalla.laddaUppFil({ rubrik: "Zip", fil: { name: "a.zip", type: "application/zip", size: 10 } })).rejects.toThrow(/application\/zip/);
+    const sparad = await kalla.laddaUppFil({
+      rubrik: "Idé",
+      fil: { name: "ide.webm", type: "audio/webm;codecs=opus", size: 100 },
+    });
+    expect(sparad.fil.mime).toBe("audio/webm");
+    expect(sparad.fil.sokvag).toBe(`grupper/cps-ab/bibliotek/${sparad.id}/ide.webm`);
+    expect(uppladdat[0].contentType).toBe("audio/webm");
+    await expect(kalla.laddaUppFil({ rubrik: "Stor", fil: { name: "stor.jpg", type: "image/jpeg", size: 25 * 1024 * 1024 + 1 } })).rejects.toThrow(/Taket/);
+
+    const nekad = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      lagring: { laddaUpp: async () => { throw new Error("nekad"); }, taBort: async () => {} },
+      sokvag: ({ groupId, postId, namn }) => `grupper/${groupId}/bibliotek/${postId}/${namn}`,
+    });
+    await expect(nekad.laddaUppFil({ rubrik: "Nekad", fil: { name: "a.jpg", type: "image/jpeg", size: 10 } })).rejects.toThrow(/nekad/);
+    const efter = await nekad.las();
+    expect(efter.poster.map((p) => p.rubrik)).not.toContain("Nekad");
+  });
+
   it("en läsning som föll är kalla fel, inte ett tomt bibliotek", async () => {
     const source = { list: async () => { throw new Error("nere"); }, read: async () => null, create: async () => ({ id: "n" }), update: async () => {} };
     const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });

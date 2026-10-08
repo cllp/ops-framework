@@ -19,7 +19,7 @@ const poster = [
 
 const FORFATTARE = { uid: "uid-1", roll: "medlem" };
 
-function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined }) {
+function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, filUrl = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
   const [sparat, setSparat] = useState(/** @type {unknown} */ (null));
@@ -37,6 +37,8 @@ function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = []
         onSkapa={(typ) => { setVald(null); setSkapar(typ); }}
         onSpara={(inmatning) => setSparat(inmatning)}
         onRadera={onRadera}
+        onLaddaUpp={onLaddaUpp}
+        filUrl={filUrl}
         hubHref="/hub"
         onNavigate={onNavigate}
       />
@@ -162,6 +164,57 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Radera x" })).toBeNull();
   });
 
+  it("fel format och för stor fil visas, och en bild öppnas i förhandsvisning", () => {
+    const onLaddaUpp = vi.fn();
+    const { unmount } = render(<Harness onLaddaUpp={onLaddaUpp} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fil" }));
+    const stor = new File(["x"], "stor.jpg", { type: "image/jpeg" });
+    Object.defineProperty(stor, "size", { value: 26 * 1024 * 1024 });
+    fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [stor] } });
+    expect(screen.getAllByRole("alert").some((n) => /Taket/.test(n.textContent ?? ""))).toBe(true);
+    expect(onLaddaUpp).not.toHaveBeenCalled();
+    const zip = new File(["x"], "a.zip", { type: "application/zip" });
+    fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [zip] } });
+    expect(screen.getAllByRole("alert").some((n) => /application\/zip/.test(n.textContent ?? ""))).toBe(true);
+    unmount();
+
+    const bild = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Kvitto",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 2048 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "bild",
+    };
+    const pdf = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Avtal",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p/avtal.pdf", namn: "avtal.pdf", mime: "application/pdf", byte: 4096 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid + 2,
+      }),
+      id: "pdf",
+    };
+    render(<Harness start={[bild, pdf]} jag={{ uid: "uid-annan", roll: "medlem" }} filUrl={(p) => `https://exempel.se/${p.fil.sokvag}`} />);
+    fireEvent.click(screen.getByRole("button", { name: "Kvitto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Förhandsvisa Kvitto" }));
+    expect(screen.getByRole("dialog", { name: "Förhandsvisning" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stäng" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
+    fireEvent.click(screen.getByRole("button", { name: "Avtal" }));
+    const lank = screen.getByRole("link", { name: /avtal\.pdf/ });
+    expect(lank).toHaveAttribute("target", "_blank");
+    expect(lank).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {
     render(<Harness trasiga={[{ id: "x", fel: "Anteckningen saknar text." }]} />);
     const ruta = document.querySelector("[data-bibliotek-trasiga]");
@@ -207,7 +260,7 @@ describe("OpsBibliotek", () => {
     render(<Harness start={[poster[0]]} />);
     const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
     const flikar = within(rad).getAllByRole("tab");
-    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0"]);
+    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0", "Filer 0"]);
     expect(flikar.every((f) => f.querySelector("svg"))).toBe(true);
     expect(flikar[0]).toHaveAttribute("aria-selected", "true");
     fireEvent.mouseDown(flikar[2], { button: 0, ctrlKey: false });
@@ -228,7 +281,7 @@ describe("OpsBibliotek", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
     const meny = screen.getByRole("menu", { name: "Ny post" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil"]);
     fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));

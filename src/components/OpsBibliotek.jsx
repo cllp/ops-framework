@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { Library, Link, Plus, StickyNote } from "lucide-react";
-import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { FileText, Image as BildIkon, Library, Link, Music, Plus, StickyNote } from "lucide-react";
+import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { cx } from "../lib/cx.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
@@ -75,17 +75,19 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
  * @param {boolean} [props.laddar]
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.vald]
- * @param {"anteckning" | "lank" | null} [props.skapar]
+ * @param {"anteckning" | "lank" | "fil" | null} [props.skapar]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppna
  * @param {() => void} props.onStang
  * @param {(typ: "anteckning" | "lank") => void} props.onSkapa
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
+ * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
+ * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas.
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, hubHref, hubEtikett, onNavigate }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, filUrl, hubHref, hubEtikett, onNavigate }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -93,7 +95,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     throw new Error("OpsBibliotek: hubHref krävs (0.83.0), hubbens adress. Sidan har Ekonomis tillbaka-rad, och en rad som inte vet vart den leder är en knapp som inte gör något.");
   }
   const sprak = useOpsSprak();
-  const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank"} */ ("alla"));
+  const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "fil"} */ ("alla"));
+  const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
@@ -102,6 +105,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     alla: poster.length,
     anteckning: poster.filter((p) => p.typ === "anteckning").length,
     lank: poster.filter((p) => p.typ === "lank").length,
+    fil: poster.filter((p) => p.typ === "fil").length,
   };
   const synliga = filtreraBibliotek(poster, { flik, sok });
 
@@ -111,7 +115,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
       <div data-bibliotek="" className="flex flex-col gap-4">
         {detalj ? (
-          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} />
+          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -122,6 +126,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
               { id: "alla", label: "Alla", icon: <Library size={16} />, badge: antal.alla },
               { id: "anteckning", label: "Anteckningar", icon: <StickyNote size={16} />, badge: antal.anteckning },
               { id: "lank", label: "Länkar", icon: <Link size={16} />, badge: antal.lank },
+              { id: "fil", label: "Filer", icon: <FileText size={16} />, badge: antal.fil },
             ]}
           >
             <OpsTabPanel id={flik}>
@@ -153,7 +158,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   <OpsEmpty busy title="Hämtar biblioteket" />
                 ) : synliga.length === 0 ? (
                   <OpsEmpty
-                    title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : "Inga länkar ännu."}
+                    title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : flik === "lank" ? "Inga länkar ännu." : "Inga filer ännu."}
                     description={sok ? `Inget matchar "${sok}".` : "Lägg till en anteckning eller en länk."}
                   />
                 ) : (
@@ -161,11 +166,11 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                     {synliga.map((post) => (
                       <OpsListRow key={post.id} interactive onClick={() => onOppna(post)} ariaLabel={post.rubrik}>
                         <span className="text-ink-secondary" aria-hidden="true">
-                          {post.typ === "anteckning" ? <StickyNote size={20} /> : <Link size={20} />}
+                          <PostIkon post={post} filUrl={filUrl} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
-                          <span className="block truncate text-meta text-ink-muted">{post.typ === "anteckning" ? post.text : post.url}</span>
+                          <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
                         </span>
                       </OpsListRow>
                     ))}
@@ -175,13 +180,68 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
             </OpsTabPanel>
           </OpsTabs>
         )}
+        {ljus ? (
+          <div role="dialog" aria-label="Förhandsvisning" data-bibliotek-ljus="" className="flex flex-col gap-2">
+            <img src={ljus} alt="" />
+            <OpsButton variant="secondary" onClick={() => setLjus("")}>Stäng</OpsButton>
+          </div>
+        ) : null}
       </div>
     </OpsView>
   );
 }
 
-const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk" });
-const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk" });
+const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil" });
+const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil" });
+
+/**
+ * @param {number | undefined} byte
+ * @returns {string}
+ */
+function filStorlek(byte) {
+  if (!Number.isInteger(byte) || /** @type {number} */ (byte) < 0) return "";
+  if (/** @type {number} */ (byte) < 1024) return `${byte} B`;
+  if (/** @type {number} */ (byte) < 1024 * 1024) return `${Math.round(/** @type {number} */ (byte) / 1024)} kB`;
+  return `${(/** @type {number} */ (byte) / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * @param {{ typ: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }} post
+ * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
+ * @returns {string}
+ */
+function postAdress(post, filUrl) {
+  if (post.typ !== "fil" || typeof filUrl !== "function") return "";
+  const adress = filUrl(post);
+  return typeof adress === "string" ? adress : "";
+}
+
+/**
+ * @param {{ post: { typ: string, fil?: { mime?: string, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string }} props
+ */
+function PostIkon({ post, filUrl }) {
+  if (post.typ === "fil") {
+    const adress = postAdress(post, filUrl);
+    const sort = filSort(post.fil?.mime);
+    if (sort === "bild" && adress) return <img src={adress} alt="" className="size-10 rounded-sm object-cover" />;
+    if (sort === "bild") return <BildIkon size={20} />;
+    if (sort === "ljud") return <Music size={20} />;
+    return <FileText size={20} />;
+  }
+  if (post.typ === "lank") return <Link size={20} />;
+  return <StickyNote size={20} />;
+}
+
+/**
+ * @param {{ typ: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number } }} post
+ */
+function postRad(post) {
+  if (post.typ === "anteckning") return post.text ?? "";
+  if (post.typ === "lank") return post.url ?? "";
+  const namn = post.fil?.namn ?? "";
+  const storlek = filStorlek(post.fil?.byte);
+  return storlek ? `${namn} · ${storlek}` : namn;
+}
 
 /**
  * "+ Ny" bredvid sökfältet. Under Alla ett val mellan typerna, under en typ den typen direkt.
@@ -189,7 +249,7 @@ const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny
  * ⛔ AVTRYCKAREN ÄR INTE EN `OpsButton` MEN SER UT SOM EN (`knappKlass`): Radix `Popover.Trigger` ritar sitt eget
  * `<button>`, och `OpsButton` har ingen `forwardRef`. Samma skäl som plusset i `OpsAppShell`.
  *
- * @param {{ flik: "alla" | "anteckning" | "lank", onSkapa: (typ: "anteckning" | "lank") => void }} props
+ * @param {{ flik: "alla" | "anteckning" | "lank" | "fil", onSkapa: (typ: "anteckning" | "lank" | "fil") => void }} props
  */
 function NyKnapp({ flik, onSkapa }) {
   const [oppen, setOppen] = useState(false);
@@ -226,7 +286,7 @@ function NyKnapp({ flik, onSkapa }) {
                 className={radKlass({ stor: true })}
               >
                 <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
-                  {typ === "anteckning" ? <StickyNote size={16} /> : <Link size={16} />}
+                  {typ === "anteckning" ? <StickyNote size={16} /> : typ === "lank" ? <Link size={16} /> : <FileText size={16} />}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{TYPNAMN[typ]}</span>
               </button>
@@ -243,6 +303,37 @@ function NyKnapp({ flik, onSkapa }) {
  *
  * @param {{ url: string }} props
  */
+/**
+ * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
+ *
+ * @param {{ post: { rubrik?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string, onLjus?: (adress: string) => void }} props
+ */
+function FilVisning({ post, filUrl, onLjus }) {
+  const adress = postAdress(post, filUrl);
+  const sort = filSort(post.fil?.mime);
+  const namn = post.fil?.namn ?? "Fil";
+  const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
+  if (!adress) {
+    return (
+      <p role="status" data-bibliotek-fil="">
+        {typeof filUrl === "function" ? `Filen har ingen adress. ${rad}` : rad}
+      </p>
+    );
+  }
+  if (sort === "bild") {
+    return (
+      <button type="button" aria-label={`Förhandsvisa ${post.rubrik ?? namn}`} data-bibliotek-forhands="" onClick={() => onLjus?.(adress)} className="w-fit">
+        <img src={adress} alt={post.rubrik ?? namn} className="max-h-48 rounded-sm object-contain" />
+      </button>
+    );
+  }
+  return (
+    <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-brod text-accent underline underline-offset-2">
+      {rad}
+    </a>
+  );
+}
+
 function Adress({ url }) {
   if (!ADRESSFORM.test(url)) return <p className="text-brod text-ink break-all">{url}</p>;
   return (
@@ -261,18 +352,22 @@ function Adress({ url }) {
 /**
  * @param {object} props
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} props.post
- * @param {"anteckning" | "lank" | null} props.skapar
+ * @param {"anteckning" | "lank" | "fil" | null} props.skapar
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
  * @param {() => void} props.onStang
- * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
+ * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void} props.onSpara
  * @param {(id: string) => void | Promise<void>} [props.onRadera]
+ * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
+ * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
+ * @param {(adress: string) => void} [props.onLjus]
  */
-function Detalj({ post, skapar, jag, onStang, onSpara, onRadera }) {
+function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, onLjus }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
   const [url, setUrl] = useState(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
   const [formfel, setFormfel] = useState("");
+  const [valdFil, setValdFil] = useState(/** @type {File | null} */ (null));
   const nyckel = `${skapar ?? ""}:${post?.id ?? ""}`;
 
   useEffect(() => {
@@ -280,12 +375,13 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera }) {
     setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
     setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
     setFormfel("");
+    setValdFil(null);
     // Nyckeln är beroendet: en ny lista med samma post ska inte tömma ett halvskrivet formulär.
   }, [nyckel]);
 
   const lasning = !skapar && post && !farAndra(post, jag);
-  const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : "Ny länk") : post?.rubrik ?? "Post";
-  const beskrivning = typ === "anteckning" ? "En text gruppen delar." : "En adress gruppen delar.";
+  const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : post?.rubrik ?? "Post";
+  const beskrivning = typ === "anteckning" ? "En text gruppen delar." : typ === "lank" ? "En adress gruppen delar." : "En fil gruppen delar.";
 
   if (lasning && post) {
     return (
@@ -294,6 +390,8 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera }) {
         <OpsViewHeader title={post.rubrik} description={beskrivning} />
         {post.typ === "anteckning" ? (
           <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
+        ) : post.typ === "fil" ? (
+          <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} />
         ) : (
           <Adress url={post.url ?? ""} />
         )}
@@ -307,12 +405,37 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera }) {
       <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
       <OpsViewHeader title={rubrikVy} description={beskrivning} />
       {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
+      {post && !skapar && post.typ === "fil" ? <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} /> : null}
       <OpsField label="Rubrik" error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
         <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
       </OpsField>
       {typ === "anteckning" ? (
         <OpsField label="Text">
           <OpsTextarea value={text} onChange={setText} ariaLabel="Text" rows={8} />
+        </OpsField>
+      ) : typ === "fil" ? (
+        <OpsField label="Fil">
+          <input
+            type="file"
+            aria-label="Fil"
+            className="text-brod text-ink"
+            onChange={(e) => {
+              const vald = e.target.files?.[0] ?? null;
+              if (!vald) {
+                setValdFil(null);
+                return;
+              }
+              const fel = filInmatningsfel({ namn: vald.name, mime: vald.type, byte: vald.size });
+              if (fel) {
+                setValdFil(null);
+                setFormfel(fel);
+                return;
+              }
+              setFormfel("");
+              setValdFil(vald);
+              if (!trimSomRegeln(rubrik)) setRubrik(vald.name.replace(/\.[^.]+$/, "") || vald.name);
+            }}
+          />
         </OpsField>
       ) : (
         <OpsField label="Adress">
@@ -323,9 +446,30 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera }) {
       <OpsButton
         variant="primary"
         onClick={() => {
+          if (typ === "fil" && (valdFil || skapar)) {
+            if (!valdFil) {
+              setFormfel("Välj en fil.");
+              return;
+            }
+            if (!trimSomRegeln(rubrik)) {
+              setFormfel("Rubriken saknas.");
+              return;
+            }
+            if (typeof onLaddaUpp !== "function") {
+              setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+              return;
+            }
+            const svar = onLaddaUpp({ rubrik, fil: valdFil, ...(post && !skapar ? { id: post.id } : {}) });
+            if (svar && typeof svar.then === "function") {
+              svar.catch((e) => setFormfel(e instanceof Error ? e.message : String(e)));
+            }
+            return;
+          }
           const inmatning = typ === "anteckning"
             ? { typ, rubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
-            : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
+            : typ === "fil"
+              ? { typ, rubrik, fil: post?.fil, ...(post && !skapar ? { id: post.id } : {}) }
+              : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
           const fel = inmatningsfel(inmatning);
           if (fel) {
             setFormfel(fel);

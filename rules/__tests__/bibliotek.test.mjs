@@ -132,6 +132,22 @@ describe("bibliotekets regler: skapa", () => {
     await assertSucceeds(skapa(MEDLEM, nyLank()));
   });
 
+  it("en fil med giltig MIME går in, fel format och för stor fil gör det inte", async () => {
+    const { text: _t, ...utanText } = ny();
+    const fil = {
+      ...utanText,
+      typ: "fil",
+      rubrik: "Kvitto",
+      fil: { sokvag: "grupper/cps-ab/bibliotek/p1/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 },
+    };
+    await assertSucceeds(skapa(MEDLEM, fil));
+    await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "application/zip" } }));
+    await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, mime: "audio/webm;codecs=opus" } }));
+    await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, byte: 25 * 1024 * 1024 + 1 } }));
+    await assertFails(skapa(MEDLEM, { ...fil, text: "Inte en fil." }));
+    await assertFails(skapa(MEDLEM, { ...ny(), fil: fil.fil }));
+  });
+
   it("inte i en annan grupp, och inte i någon annans namn", async () => {
     await assertFails(skapa(MEDLEM, ny({ groupId: MIRANDA })));
     await assertFails(skapa(MEDLEM, ny({ skapadAv: skapare(ANNAN) })));

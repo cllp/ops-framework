@@ -271,7 +271,7 @@ export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
-export { BIBLIOTEKTYPER, BIBLIOTEKFALT, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, ADRESSFORM, inmatningsfel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra } from "./lib/bibliotek.js";
+export { BIBLIOTEKTYPER, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, filMimeMonster, normaliseraMime, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra } from "./lib/bibliotek.js";
 export { createBibliotekskalla } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";

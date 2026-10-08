@@ -21,7 +21,7 @@
  * gruppen, också en trasig rad, när `radera` får `jag` och `anteckna`.
  */
 
-import { byggPost, farAndra, postFel, trimSomRegeln } from "../lib/bibliotek.js";
+import { byggPost, farAndra, filInmatningsfel, normaliseraMime, postFel, trimSomRegeln } from "../lib/bibliotek.js";
 import { byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -40,9 +40,11 @@ import { byggSkapare } from "../lib/skapare.js";
  * @param {() => { uid?: string | null, namn?: string, typ?: string, kalla?: string }} config.skapare
  * @param {() => { uid?: string | null, roll?: string, groupId?: string } | null} [config.jag] Den inloggades medlemskap. Krävs när `radera` anropas.
  * @param {(rad: { id: string, post: Record<string, unknown>, av: { uid?: string | null, roll?: string, groupId?: string } | null }) => Promise<void> | void} [config.anteckna] Skriver vem som raderar, innan raden tas bort. Krävs när `radera` anropas. Kastar den lämnas posten kvar.
+ * @param {{ laddaUpp: (inmatning: { sokvag: string, fil: unknown, contentType?: string }) => Promise<unknown> }} [config.lagring] Krävs när `laddaUppFil` anropas.
+ * @param {(delar: { groupId: string, postId: string, namn: string }) => string} [config.sokvag] Appen bygger sökvägen. Krävs när `laddaUppFil` anropas.
  */
 export function createBibliotekskalla(config) {
-  const { source, collection, groupId: groupIdIn, skapare, jag, anteckna } = config ?? /** @type {any} */ ({});
+  const { source, collection, groupId: groupIdIn, skapare, jag, anteckna, lagring, sokvag } = config ?? /** @type {any} */ ({});
 
   if (!source || typeof source.list !== "function" || typeof source.create !== "function" || typeof source.update !== "function" || typeof source.read !== "function") {
     throw new Error("createBibliotekskalla: source krävs och måste kunna list, read, create och update.");
@@ -125,7 +127,9 @@ export function createBibliotekskalla(config) {
           throw new Error(`Biblioteket: posten hör till "${tidigare.groupId}" och sparas inte i "${groupId}".`);
         }
       }
-      const post = byggPost({
+      const fil = inmatning && "fil" in inmatning ? inmatning.fil : (id ? tidigare?.fil : undefined);
+      /** @type {Record<string, unknown>} */
+      const underlag = {
         groupId,
         typ: id ? tidigare?.typ : inmatning?.typ,
         rubrik: inmatning?.rubrik,
@@ -134,7 +138,9 @@ export function createBibliotekskalla(config) {
         skapadAv: id ? tidigare?.skapadAv : byggSkapare(skapare()),
         skapad: id ? tidigare?.skapad : nu,
         andrad: nu,
-      });
+      };
+      if (fil !== undefined) underlag.fil = fil;
+      const post = byggPost(underlag);
       if (id) {
         await source.update(collection, id, post);
         return { ...post, id };
@@ -181,5 +187,74 @@ export function createBibliotekskalla(config) {
       await anteckna({ id: nyckel, post: tidigare, av });
       await source.remove(collection, nyckel);
     },
+
+    /**
+     * Sparar en filpost och laddar upp byte. Posten skrivs först, så storage-regeln
+     * kan kräva att den finns. Föll uppladdningen tas en ny post tillbaka. Går inte
+     * det heller kastas båda felen, inget sväljs.
+     *
+     * @param {{ rubrik?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number }, blob?: unknown, id?: string }} inmatning
+     */
+    async laddaUppFil(inmatning) {
+      if (typeof sokvag !== "function") {
+        throw new Error("createBibliotekskalla.laddaUppFil: sokvag krävs. Appen namnger sökvägen, ramverket känner den inte.");
+      }
+      if (!lagring || typeof lagring.laddaUpp !== "function") {
+        throw new Error("createBibliotekskalla.laddaUppFil: lagring krävs.");
+      }
+      const fil = inmatning?.fil;
+      const namn = typeof fil?.name === "string" ? fil.name : fil?.namn;
+      const mime = normaliseraMime(fil?.type || fil?.mime || "");
+      const byte = Number.isInteger(fil?.size) ? fil.size : fil?.byte;
+      const yta = filInmatningsfel({ namn, mime, byte });
+      if (yta) throw new Error(yta);
+      const rubrik = trimSomRegeln(inmatning?.rubrik) || trimSomRegeln(namn);
+      const nyckel = typeof inmatning?.id === "string" && inmatning.id.trim() ? inmatning.id.trim() : nyttPostId();
+      const vag = sokvag({ groupId, postId: nyckel, namn: trimSomRegeln(namn) });
+      if (typeof vag !== "string" || !trimSomRegeln(vag)) throw new Error("Sökvägen saknas.");
+      /** @type {Record<string, unknown> | null} */
+      let tidigare = null;
+      if (inmatning?.id) {
+        tidigare = await source.read(collection, nyckel);
+        if (!tidigare) throw new Error(`Biblioteket: ${collection}/${nyckel} finns inte.`);
+        if (tidigare.groupId !== groupId) {
+          throw new Error(`Biblioteket: posten hör till "${tidigare.groupId}" och sparas inte i "${groupId}".`);
+        }
+      }
+      const nu = Date.now();
+      const post = byggPost({
+        groupId,
+        typ: "fil",
+        rubrik,
+        fil: { sokvag: vag, namn, mime, byte },
+        skapadAv: tidigare ? tidigare.skapadAv : byggSkapare(skapare()),
+        skapad: tidigare ? tidigare.skapad : nu,
+        andrad: nu,
+      });
+      if (tidigare) await source.update(collection, nyckel, post);
+      else await source.create(collection, { ...post, id: nyckel });
+      try {
+        await lagring.laddaUpp({ sokvag: vag, fil: inmatning.blob ?? fil, contentType: mime });
+      } catch (e) {
+        if (!tidigare) {
+          try {
+            await source.remove(collection, nyckel);
+          } catch (e2) {
+            const a = e instanceof Error ? e.message : String(e);
+            const b = e2 instanceof Error ? e2.message : String(e2);
+            throw new Error(`Filen laddades inte upp (${a}). Posten kunde inte tas tillbaka (${b}).`);
+          }
+        }
+        throw e;
+      }
+      return { ...post, id: nyckel };
+    },
   };
+}
+
+/** Ett id appen kan använda i sökvägen innan Firestore hunnit dela ut ett. */
+function nyttPostId() {
+  const cryptoId = /** @type {{ randomUUID?: () => string }} */ (globalThis.crypto);
+  if (typeof cryptoId?.randomUUID === "function") return cryptoId.randomUUID();
+  return `b_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
