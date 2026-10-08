@@ -284,9 +284,13 @@ describe("OpsKalendrar (F2)", () => {
     expect(await within(sektion).findByRole("alert")).toHaveTextContent("Missing or insufficient permissions.");
   });
 
-  it("tomt är ett svar i båda sektionerna", () => {
+  it("tomt är ett svar för egna kalendrar, och gruppen sägs inte sakna en kalender", () => {
+    // Gruppen är kalendern (lane 6 steg F). En tom lista namngivna gruppkalendrar
+    // är inte "gruppen har inga". Den meningen får inte stå. Egna kalendrar
+    // finns inte av sig själva, så deras tomrad står kvar.
     visa({ gruppens: [], mina: [] });
-    expect(screen.getByText("Gruppen har inga kalendrar ännu.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Gruppens kalendrar" })).toBeInTheDocument();
+    expect(screen.queryByText("Gruppen har inga kalendrar ännu.")).toBeNull();
     expect(screen.getByText("Du har inga egna kalendrar ännu.")).toBeInTheDocument();
   });
 });

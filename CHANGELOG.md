@@ -9,6 +9,18 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.78.2
+
+Gruppen är kalendern (lane 6 steg F).
+
+### Ändrat
+
+- Kalendermenyn i `OpsCalendar` och gruppsektionen i `OpsKalendrar` skriver inte längre "Gruppen har inga kalendrar ännu." En tom lista namngivna gruppkalendrar är inte att gruppen saknar kalender. "Du har inga egna kalendrar ännu." står kvar, för egna kalendrar finns inte av sig själva.
+
+### Prov
+
+- `src/__tests__/kalendrar.test.jsx` ("gruppen är kalendern") och `src/__tests__/kalenderhantering.test.jsx` ("tomt är ett svar för egna kalendrar"). Utan ändringen: 2 röda, exit 1. Med ändringen: 2 gröna, exit 0.
+
 ## 0.78.1
 
 Uppgift innan appen använder den (#302). Ompinningen åker med lane 19 i appen och görs inte här.

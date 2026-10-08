@@ -946,7 +946,11 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
               </ValRad>
               <div className="mt-2 flex flex-col">
                 <p className={radRubrikKlass}>Gruppens kalendrar</p>
-                {gruppens.length > 0 ? gruppens.map(rad) : <p className="m-0 px-3 py-1.5 text-meta text-ink-muted">Gruppen har inga kalendrar ännu.</p>}
+                {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F). En tom lista namngivna gruppkalendrar
+                    är inte "gruppen har inga kalendrar". Den meningen ritades här och var falsk:
+                    händelser utan kalenderId hör till gruppen. Egna kalendrar finns inte av sig
+                    själva, så deras tomrad står kvar. */}
+                {gruppens.map(rad)}
               </div>
               <div className="mt-2 flex flex-col">
                 <p className={radRubrikKlass}>Mina kalendrar</p>
