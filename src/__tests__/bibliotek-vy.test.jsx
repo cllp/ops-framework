@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
@@ -19,7 +19,7 @@ const poster = [
 
 const FORFATTARE = { uid: "uid-1", roll: "medlem" };
 
-function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, filUrl = undefined }) {
+function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, onSpelaIn = undefined, inspelare = undefined, filUrl = undefined, grupper = [], onDela = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
   const [sparat, setSparat] = useState(/** @type {unknown} */ (null));
@@ -38,7 +38,11 @@ function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = []
         onSpara={(inmatning) => setSparat(inmatning)}
         onRadera={onRadera}
         onLaddaUpp={onLaddaUpp}
+        onSpelaIn={onSpelaIn}
+        inspelare={inspelare}
         filUrl={filUrl}
+        grupper={grupper}
+        onDela={onDela}
         hubHref="/hub"
         onNavigate={onNavigate}
       />
@@ -213,6 +217,50 @@ describe("OpsBibliotek", () => {
     const lank = screen.getByRole("link", { name: /avtal\.pdf/ });
     expect(lank).toHaveAttribute("target", "_blank");
     expect(lank).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("spela in idé lämnar ljudet med rubrik, och delning frågar innan den flyttar", async () => {
+    const onSpelaIn = vi.fn();
+    const inspelare = {
+      starta: vi.fn(async () => {}),
+      stoppa: vi.fn(async () => ({ blob: new Blob(["a"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 })),
+      kasta: vi.fn(),
+      niva: () => 0,
+    };
+    const { unmount } = render(<Harness onSpelaIn={onSpelaIn} inspelare={inspelare} />);
+    fireEvent.click(screen.getByRole("button", { name: "Spela in idé" }));
+    expect(inspelare.starta).toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Spara idé" }));
+    await waitFor(() => expect(onSpelaIn).toHaveBeenCalled());
+    expect(onSpelaIn.mock.calls[0][0].rubrik).toMatch(/^Idé /);
+    expect(onSpelaIn.mock.calls[0][0].mimeType).toBe("audio/webm");
+    unmount();
+
+    const onDela = vi.fn();
+    render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kopiera" }));
+    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "kopiera" });
+    fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
+    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "flytta" });
+  });
+
+  it("ett ljud har spela och tid i listan", () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Idé 2026-10-08 21:05",
+        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "ljud",
+    };
+    render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
+    expect(screen.getByRole("button", { name: "Spela" })).toBeInTheDocument();
+    expect(screen.getByText("0:00 / 0:00")).toBeInTheDocument();
   });
 
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {

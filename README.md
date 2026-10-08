@@ -2640,6 +2640,7 @@ Gruppens anteckningar och länkar. Analysen står i `docs/beslut/0004-bibliotek-
 | `BIBLIOTEKFALT` | fälten regeln låser med `hasOnly` |
 | `MAX_BIBLIOTEKRUBRIK`, `MAX_BIBLIOTEKTEXT`, `MAX_BIBLIOTEKURL`, `MAX_BIBLIOTEKFIL`, `MAX_BIBLIOTEKFILNAMN`, `MAX_BIBLIOTEKSOKVAG` | taken, samma tal i regeln. `MAX_BIBLIOTEKFIL` är 25 MB och skrivs också in i storage-regeln |
 | `FILMIME`, `FILFALT`, `filMimeMonster`, `normaliseraMime`, `filSort`, `filInmatningsfel`, `filFel` | formaten en fil får ha, fälten i `fil`, och felen när formatet eller storleken är fel. `normaliseraMime` tar bort `;codecs=` innan jämförelsen. `filSort` är bild, ljud eller dokument och lagras inte |
+| `IDE_MAX_SEKUNDER`, `ideRubrik` | inspelning av en idé, 10 minuter. TALK behåller 120 sekunder. Rubriken är "Idé" plus datum och tid, och går att döpa om |
 | `ADRESSFORM` | länkens adress, http eller https och bara synliga ASCII-tecken. Samma `RegExp` blir regelns `matches()` via `regelRegex`, så regeln och `postFel` kan inte säga olika |
 | `normaliseraAdress` | adressen som den sparas: trimmad, med procentkod när den går att läsa. Vyn och `byggPost` kör den före prövningen |
 | `farAndra(post, jag)` | regelns `update` och `delete` i klienten: författaren, eller ägare eller admin. Vyn visar formuläret och raderingsknappen bara då |

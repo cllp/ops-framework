@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { FileText, Image as BildIkon, Library, Link, Music, Plus, StickyNote } from "lucide-react";
-import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, IDE_MAX_SEKUNDER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { useTalk } from "./OpsTalk.jsx";
 import { cx } from "../lib/cx.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
@@ -83,11 +84,15 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas.
+ * @param {(inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [props.onSpelaIn] Sparar en idé. Saknas den visas felet, ljudet sparas inte.
+ * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov.
+ * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
+ * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, filUrl, hubHref, hubEtikett, onNavigate }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, grupper = [], onDela, hubHref, hubEtikett, onNavigate }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -115,7 +120,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
       <div data-bibliotek="" className="flex flex-col gap-4">
         {detalj ? (
-          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} />
+          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -136,6 +141,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                     <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök i rubrik, text eller adress" />
                   </div>
                   {jag ? <NyKnapp flik={flik} onSkapa={onSkapa} /> : null}
+                  {jag ? <SpelaIn onSpelaIn={onSpelaIn} inspelare={inspelare} /> : null}
                 </div>
                 {trasiga.length > 0 ? (
                   <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -163,7 +169,21 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   />
                 ) : (
                   <OpsList ariaLabel="Biblioteket" divided>
-                    {synliga.map((post) => (
+                    {synliga.map((post) => {
+                      const ljud = post.typ === "fil" && filSort(post.fil?.mime) === "ljud";
+                      const adress = postAdress(post, filUrl);
+                      if (ljud) {
+                        return (
+                          <OpsListRow key={post.id}>
+                            <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOppna(post)} aria-label={post.rubrik}>
+                              <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
+                              <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
+                            </button>
+                            {adress ? <Ljudspelare src={adress} /> : <p role="status">Filen har ingen adress.</p>}
+                          </OpsListRow>
+                        );
+                      }
+                      return (
                       <OpsListRow key={post.id} interactive onClick={() => onOppna(post)} ariaLabel={post.rubrik}>
                         <span className="text-ink-secondary" aria-hidden="true">
                           <PostIkon post={post} filUrl={filUrl} />
@@ -173,7 +193,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                           <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
                         </span>
                       </OpsListRow>
-                    ))}
+                      );
+                    })}
                   </OpsList>
                 )}
               </div>
@@ -327,6 +348,7 @@ function FilVisning({ post, filUrl, onLjus }) {
       </button>
     );
   }
+  if (sort === "ljud") return <Ljudspelare src={adress} />;
   return (
     <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-brod text-accent underline underline-offset-2">
       {rad}
@@ -360,8 +382,10 @@ function Adress({ url }) {
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
  * @param {(adress: string) => void} [props.onLjus]
+ * @param {readonly { id: string, namn: string }[]} [props.grupper]
+ * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela]
  */
-function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, onLjus }) {
+function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, onLjus, grupper = [], onDela }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -481,6 +505,7 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
       >
         Spara
       </OpsButton>
+      {post && !skapar ? <DelaKontroll id={post.id} grupper={grupper} onDela={onDela} /> : null}
       {post && !skapar ? <RaderaKontroll id={post.id} onRadera={onRadera} /> : null}
     </div>
   );
@@ -491,6 +516,140 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
  *
  * @param {{ id: string, namn?: string, onRadera?: (id: string) => void | Promise<void> }} props
  */
+/**
+ * @param {number} sekunder
+ */
+function visaTid(sekunder) {
+  const s = Number.isFinite(sekunder) && sekunder > 0 ? Math.floor(sekunder) : 0;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * @param {{ src: string }} props
+ */
+function Ljudspelare({ src }) {
+  const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
+  const [spelar, setSpelar] = useState(false);
+  const [tid, setTid] = useState(0);
+  const [langd, setLangd] = useState(0);
+  const [fel, setFel] = useState("");
+  return (
+    <div data-bibliotek-spelare="" className="flex items-center gap-2">
+      <audio
+        ref={ljud}
+        src={src}
+        preload="metadata"
+        onPlay={() => setSpelar(true)}
+        onPause={() => setSpelar(false)}
+        onTimeUpdate={() => setTid(ljud.current?.currentTime ?? 0)}
+        onLoadedMetadata={() => setLangd(ljud.current?.duration ?? 0)}
+      />
+      <OpsButton
+        variant="secondary"
+        onClick={() => {
+          const el = ljud.current;
+          if (!el) return;
+          if (!el.paused) {
+            el.pause();
+            return;
+          }
+          const svar = el.play();
+          if (svar && typeof svar.catch === "function") {
+            svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+          }
+        }}
+      >
+        {spelar ? "Pausa" : "Spela"}
+      </OpsButton>
+      <span>{visaTid(tid)} / {visaTid(langd)}</span>
+      {fel ? <p role="alert">{fel}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * @param {{ onSpelaIn?: (inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>, inspelare?: import("../lib/talk.js").Inspelare }} props
+ */
+function SpelaIn({ onSpelaIn, inspelare }) {
+  const [sekunder, setSekunder] = useState(0);
+  const startad = useRef(0);
+  const styr = useTalk({
+    maxSekunder: IDE_MAX_SEKUNDER,
+    inspelare,
+    onKlick: () => {},
+    onTalk: (blob, meta) => {
+      if (typeof onSpelaIn !== "function") {
+        throw new Error("Inspelningen är inte kopplad. Ljudet sparades inte.");
+      }
+      return onSpelaIn({ blob, mimeType: meta.mimeType, sekunder: meta.sekunder, rubrik: ideRubrik() });
+    },
+  });
+  const pagar = styr.lage === "lyssnar" || styr.lage === "haller" || styr.lage === "skickar";
+  useEffect(() => {
+    if (!pagar) return undefined;
+    startad.current = Date.now();
+    const id = setInterval(() => setSekunder(Math.floor((Date.now() - startad.current) / 1000)), 250);
+    return () => clearInterval(id);
+  }, [pagar]);
+  if (pagar) {
+    return (
+      <div data-bibliotek-inspelning="" className="flex items-center gap-2">
+        <span>{visaTid(sekunder)} / {visaTid(IDE_MAX_SEKUNDER)}</span>
+        <OpsButton variant="primary" onClick={() => styr.skickaIn()}>Spara idé</OpsButton>
+        <OpsButton variant="secondary" onClick={() => styr.avbryt()}>Avbryt</OpsButton>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      {styr.fel ? <p role="alert">{styr.fel}</p> : null}
+      <OpsButton variant="secondary" onClick={() => styr.direkt()}>Spela in idé</OpsButton>
+    </div>
+  );
+}
+
+/**
+ * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void> }} props
+ */
+function DelaKontroll({ id, grupper, onDela }) {
+  const [mal, setMal] = useState(grupper[0]?.id ?? "");
+  const [fel, setFel] = useState("");
+  if (grupper.length === 0) return null;
+  const kor = (/** @type {"flytta" | "kopiera"} */ satt) => {
+    if (!mal) {
+      setFel("Välj en grupp.");
+      return;
+    }
+    if (typeof onDela !== "function") {
+      setFel("Delning är inte kopplad. Posten är kvar.");
+      return;
+    }
+    try {
+      const svar = onDela({ id, groupId: mal, satt });
+      if (svar && typeof svar.then === "function") {
+        svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+      }
+    } catch (e) {
+      setFel(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div data-bibliotek-dela="" className="flex flex-col gap-2">
+      <label className="text-meta text-ink-muted">
+        Dela till
+        <select aria-label="Grupp att dela till" value={mal} onChange={(e) => setMal(e.target.value)} className="ml-2">
+          {grupper.map((g) => <option key={g.id} value={g.id}>{g.namn}</option>)}
+        </select>
+      </label>
+      {fel ? <p role="alert">{fel}</p> : null}
+      <div className="flex gap-2">
+        <OpsButton variant="secondary" onClick={() => kor("flytta")}>Flytta</OpsButton>
+        <OpsButton variant="secondary" onClick={() => kor("kopiera")}>Kopiera</OpsButton>
+      </div>
+    </div>
+  );
+}
+
 function RaderaKontroll({ id, namn = "Radera", onRadera }) {
   const [fraga, setFraga] = useState(false);
   const [fel, setFel] = useState("");

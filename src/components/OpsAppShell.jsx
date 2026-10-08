@@ -13,6 +13,7 @@ import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, Meddelande
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { TALK_PRATA_IN, talkKnappNamn } from "../lib/talk.js";
+import { IDE_MAX_SEKUNDER, ideRubrik } from "../lib/bibliotek.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -505,6 +506,8 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen till samma panel (växlarens ark på telefon har ingen sedan 0.37.0): `grupper.onSkapa` behövs då inte,
  *   och om båda finns vinner `skapa.grupp` (en väg att skapa en grupp är en sanning, två är två). `onKlar` stänger panelen UTAN att gå bakåt i
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
+ * @property {(blob: Blob, meta: { mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [spelaIn] Raden "Spela in idé". Ljudet lämnas hit, och appen sparar det i personens egen grupp. Utan funktionen ritas ingen rad.
+ * @property {import("../lib/talk.js").Inspelare} [ideInspelare] Bara för prov.
  * @property {() => void} [nyttMeddelande] (0.63.0, #263) Ramverkets rad "Nytt meddelande" i plusset. Raden öppnar INGEN panel: den anropar
  *   funktionen, och appen leder till Meddelanden i läget "nytt" (normalt `() => navigera("/meddelanden?nytt=1")`, och vyn ger
  *   `OpsMeddelanden` `nytt`). `useOppnaSkapa()("meddelande")` och adressens `?skapa=meddelande` gör samma sak.
@@ -1250,7 +1253,7 @@ function OpsAppShellRitad({
   }
   // ⛔ PLATSEN `handelse.atgard` (0.60.0, #251, beslut 0003): bara moduler som är påslagna i gruppen, och en avslagen moduls komponent anropas inte.
   const handelseAtgarder = skapa?.moduler ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "handelse.atgard" }) : [];
-  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function";
+  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function" || typeof skapa?.spelaIn === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
@@ -1458,6 +1461,17 @@ function OpsAppShellRitad({
     onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
     inspelare: talk?.inspelare,
   });
+  const ideStyr = useTalk({
+    maxSekunder: IDE_MAX_SEKUNDER,
+    onTalk: (blob, meta) => {
+      if (typeof skapa?.spelaIn !== "function") {
+        throw new Error("Inspelningen är inte kopplad. Ljudet sparades inte.");
+      }
+      return skapa.spelaIn(blob, { mimeType: meta.mimeType, sekunder: meta.sekunder, rubrik: ideRubrik() });
+    },
+    onKlick: () => {},
+    inspelare: skapa?.ideInspelare,
+  });
 
   /**
    * Plussets lista: ramverkets rader, en avdelare, modulernas rader. EN
@@ -1477,6 +1491,9 @@ function OpsAppShellRitad({
               mikrofonen i huvudet gör samma sak, och två vägar till samma inspelning i samma plus är en för mycket.
               Telefonens plus tas i lane 11. */}
           {talk && talkRad ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
+          {typeof skapa?.spelaIn === "function" ? (
+            <OpsPanelRow icon={<MikrofonIkon size={18} />} label="Spela in idé" onClick={() => { stang(); ideStyr.direkt(); }} />
+          ) : null}
           {skapa?.handelse ? (
             <OpsPanelRow
               icon={<HandelsePlusIkon size={18} />}
@@ -2188,6 +2205,18 @@ function OpsAppShellRitad({
         menuExtras={menuExtras}
         meny={meny ? { sprak, ...meny, app: [...flyttadeRader, ...(meny.app ?? [])] } : meny}
       />
+
+      {ideStyr.lage === "lyssnar" || ideStyr.lage === "haller" || ideStyr.lage === "skickar" || ideStyr.lage === "fel" ? (
+        <div data-bibliotek-inspelning="plus" className="flex items-center gap-2 px-4 py-2">
+          <p>{ideStyr.lage === "fel" ? ideStyr.fel : `Spelar in idé. Taket är ${IDE_MAX_SEKUNDER / 60} minuter.`}</p>
+          {ideStyr.lage === "lyssnar" || ideStyr.lage === "haller" ? (
+            <>
+              <OpsButton variant="primary" onClick={() => ideStyr.skickaIn()}>Spara idé</OpsButton>
+              <OpsButton variant="secondary" onClick={() => ideStyr.avbryt()}>Avbryt</OpsButton>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {talk ? (
         <OpsTalk

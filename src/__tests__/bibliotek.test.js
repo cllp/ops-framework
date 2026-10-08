@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, byggPost, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -33,6 +33,10 @@ describe("bibliotekets post", () => {
     expect(Object.hasOwn(l, "text")).toBe(false);
     expect(BIBLIOTEKTYPER).toEqual(["anteckning", "lank", "fil"]);
     expect(BIBLIOTEKFALT).toContain("groupId");
+  });
+
+  it("en idé heter Idé plus datum och tid", () => {
+    expect(ideRubrik(new Date(2026, 9, 8, 21, 5))).toBe("Idé 2026-10-08 21:05");
   });
 
   it("en fil med bild, dokument eller ljud går att bygga, och fel format eller för stor fil gör det inte", () => {

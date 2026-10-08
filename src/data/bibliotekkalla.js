@@ -203,7 +203,7 @@ export function createBibliotekskalla(config) {
         throw new Error("createBibliotekskalla.laddaUppFil: lagring krävs.");
       }
       const fil = inmatning?.fil;
-      const namn = typeof fil?.name === "string" ? fil.name : fil?.namn;
+      const namn = trimSomRegeln(inmatning?.namn) || (typeof fil?.name === "string" ? fil.name : fil?.namn);
       const mime = normaliseraMime(fil?.type || fil?.mime || "");
       const byte = Number.isInteger(fil?.size) ? fil.size : fil?.byte;
       const yta = filInmatningsfel({ namn, mime, byte });

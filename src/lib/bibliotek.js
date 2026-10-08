@@ -32,6 +32,8 @@ export const MAX_BIBLIOTEKTEXT = 8000;
 export const MAX_BIBLIOTEKURL = 2000;
 /** Upp till 25 MB, inklusive gränsen. Samma tal i storage-regeln. */
 export const MAX_BIBLIOTEKFIL = 25 * 1024 * 1024;
+/** Inspelning av en idé, i sekunder. TALK behåller sitt eget tak på 120. */
+export const IDE_MAX_SEKUNDER = 10 * 60;
 export const MAX_BIBLIOTEKFILNAMN = 200;
 export const MAX_BIBLIOTEKSOKVAG = 1024;
 
@@ -63,6 +65,18 @@ export const FILFALT = /** @type {const} */ (["sokvag", "namn", "mime", "byte"])
  */
 export function filMimeMonster() {
   return `^(${FILMIME.join("|")})$`;
+}
+
+/**
+ * Rubriken på en ny idé: ordet Idé, datum och tid. Personen kan döpa om den.
+ *
+ * @param {Date} [nu]
+ * @returns {string}
+ */
+export function ideRubrik(nu = new Date()) {
+  const d = nu instanceof Date && !Number.isNaN(nu.getTime()) ? nu : new Date();
+  const pad = (/** @type {number} */ n) => String(n).padStart(2, "0");
+  return `Idé ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /**
