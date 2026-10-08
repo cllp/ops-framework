@@ -25,9 +25,11 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 - **`accepteraInbjudningar` kräver `epostVerifierad: true`.** Skicka `request.auth.token.email_verified` rakt ur inloggningen. Saknas fältet, eller är det något annat än `true`, kastar accepten med texten att adressen inte är verifierad, och ingen inbjudan accepteras. Fältet förvals inte: `true` hade öppnat hålet igen för en app som aldrig läste token, och `false` hade gjort varje accept tom utan att något sade det.
 - **`bjudIn` skriver aldrig ett medlemskap.** Svaret är alltid `resultat: "inbjudan"`. `medlemskap` och `fanns` finns inte längre, eftersom de kom ur uppslaget i `users`. En person som redan har ett konto blir medlem vid nästa accept, inte i samma sekund.
-- **`bjudIn` tar inte emot `typ`.** Den bestämde typen på medlemskapet grenen skrev. Accepten skriver `typ: "person"`, som förut.
+- **`bjudIn` kastar när `typ` skickas.** Den bestämde typen på medlemskapet grenen skrev. Felet säger att `typ` togs bort i 0.82.0, och inget skrivs. Ett tyst bortfall hade sett ut som att värdet hamnade någonstans (regel 5). Accepten skriver `typ: "person"`, som förut.
+- **En app med ett eget flöde för inbjudningar får nya beteenden.** lifehub.app#117 har grenar för svaren `fanns` och `medlemskap`, och de blir döda: svaret är alltid `inbjudan`. En adress som redan är medlem får nu en väntande rad, och därmed ett inbjudningsmejl om appen mejlar vid `inbjudan`, där den förut fick `fanns` och inget mejl. Appen måste ta hand om båda: ta bort de döda grenarna, och avgöra om ett mejl till en befintlig medlem ska skickas eller hållas tillbaka.
 - **`skapaGrupp` svarar alltid `tillagda: []`.** Varje inbjuden adress, också en med konto, står i `inbjudna`. Fältet står kvar så att svaret har samma form.
 - **Regeln för `users` (förvalet, utan `kontoAgerPersonen`) prövar adressen.** Skriver eller ändrar klienten `epost` måste det vara `request.auth.token.email` i gemener, och `email_verified` måste vara `true`. En rad utan `epost` påverkas inte, och en uppdatering som inte rör fältet prövas inte mot det. Med `kontoAgerPersonen: true` är regeln oförändrad: klienten skriver aldrig `epost` där.
+- **Gamla `users`-rader som redan bär en annan persons adress står kvar**, och klienten får fortsätta uppdatera dem så länge `epost` inte rörs. Ramverket litar inte längre på fältet, så raderna ger ingen åtkomst, men de är fortfarande felaktiga uppgifter om personen. En app bör städa dem, till exempel genom att jämföra `epost` med kontots verifierade adress i Admin SDK och tömma fältet där de inte stämmer.
 
 #### Vad appen måste göra
 
@@ -61,7 +63,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 | Enhet: en overifierad adress accepterar ingenting | rött | grönt |
 | Enhet: en accept utan `epostVerifierad` kastar | rött | grönt |
 | Enhet: `skapaGrupp` med en adress med konto ger en väntande inbjudan | rött | grönt |
+| Emulator: en tom `epost` med en token utan `email` nekas (PR 314, KAN 1) | rött utan villkoret `email != ''` | grönt |
+| Enhet: `bjudIn` med `typ` kastar (PR 314, KAN 4) | rött | grönt |
+| Vakt: `check-changelog-taggar`, en publicerad tagg utan rubrik (PR 314, B1) | rött mot CHANGELOG i `67cbd7e` och i `test-guards` | grönt |
 
+#### Granskningen av PR 314
+
+- **B1. Rubriken `## 0.80.1` var borttagen** i första versionen av den här skivan, och texten för 0.80.1 stod utan rubrik under 0.82.0. Rubriken är tillbaka. `check-paket` fångade inte felet eftersom den bara läser versionen i `package.json`. Den nya vakten `check-changelog-taggar` (i `npm run check`) kräver en rubrik för varje publicerad tagg (`git tag -l 'v*'`), med ett golv på 10 lästa taggar så att en utcheckning utan taggar blir röd i stället för grön på tomt. Taket är 0: mätt 2026-10-08 har alla 82 taggar en rubrik. CI hämtar nu taggarna (`fetch-tags: true` i `check.yml` och `publish.yml`).
+- **`resource != null` i `opsProfilensEpost()` är borttaget.** I en create blir mellantermen ett utvärderingsfel, men ett fel i en `||` vinner aldrig över en sann term, och ensamt ger det samma nej som en falsk term. Mätt i emulatorn med och utan villkoret: samma utfall i alla 409 prov och samma svar till klienten, `7 PERMISSION_DENIED` utan text.
+- **`probe-tmp.mjs` är borttagen ur repots rot.** Ingenting refererade till den (`git grep -n probe-tmp` gav noll träffar), och den var en rest från 0.31.0.
+
+## 0.80.1
 
 Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4, arkitektens beslut i PR 308 om en adress som bjuds in igen, och granskningen av PR 308. Om numret: 0.80.0 (#307) är mergad och publicerad, och 0.80.1 kommer efter den. 0.79.0 (#304) får ett nytt nummer efter 0.80.1.
 

@@ -174,11 +174,15 @@ service cloud.firestore {
     //
     // ⛔ EN FUNKTION OCH INTE create OCH update VAR FÖR SIG. Två block hade burit hasOnly-listan två gånger, och
     // check-gruppnyckel läser att listan är härledd: med två kunde den ena bli en kopia medan den andra höll vakten
-    // grön (mätt i test-guards, fallet "users-regelns hasOnly hårdkodad"). `resource != null` först, eftersom en
-    // create inte har någon befintlig rad att läsa.
+    // grön (mätt i test-guards, fallet "users-regelns hasOnly hårdkodad").
+    //
+    // ⛔ INGET `resource != null` (granskningen av PR 314, KAN 2). I en create är `resource` null, och mellantermen
+    // blir ett utvärderingsfel. Ett fel i en `||` vinner aldrig över en sann term, och står det ensamt är utfallet nej,
+    // samma nej som en falsk term ger. Mätt i emulatorn med och utan villkoret: samma utfall i varje prov, och samma
+    // svar till klienten, `7 PERMISSION_DENIED` utan text. Villkoret skyddade alltså ingenting som gick att mäta.
     function opsProfilensEpost() {
       return !('epost' in request.resource.data)
-        || (resource != null && 'epost' in resource.data && resource.data.epost == request.resource.data.epost)
+        || ('epost' in resource.data && resource.data.epost == request.resource.data.epost)
         || opsEgenVerifieradEpost();
     }
 

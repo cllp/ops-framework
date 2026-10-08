@@ -147,6 +147,17 @@ describe("bjudIn", () => {
     expect((await kalla.list("invitations", {}))[0].roll).toBe("agare");
   });
 
+  /*
+   * ⛔ granskningen av PR 314, KAN 4: `typ` ignorerades tyst efter att grenen som använde den togs bort. Rött utan
+   * rättelsen: anropet lyckades och skrev en inbjudan.
+   */
+  it("⛔ typ kastar och säger att den togs bort i 0.82.0, och inget skrivs", async () => {
+    const { tjanst, kalla } = bygg();
+    await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", typ: "agent" })).rejects.toThrow(/bjudIn: typ togs bort i 0\.82\.0/);
+    await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", typ: "person" })).rejects.toThrow(/typ togs bort/);
+    expect(await kalla.list("invitations", {})).toHaveLength(0);
+  });
+
   it("avUid, groupId och epost krävs", async () => {
     const { tjanst } = bygg();
     await expect(tjanst.bjudIn({ groupId: GRUPP, epost: "a@b.se" })).rejects.toThrow(/bjudIn: avUid krävs/);

@@ -64,6 +64,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        # ⛔ TAGGARNA BEHÖVS (0.82.0, granskningen av PR 314). `check-changelog-taggar` kräver en rubrik i CHANGELOG
+        # för varje publicerad tagg, och utan taggar läser den noll och blir röd på sitt golv i stället för grön på tomt.
+        with:
+          fetch-tags: true
       - uses: actions/setup-node@v7
         with:
           node-version: "20"

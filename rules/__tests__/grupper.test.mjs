@@ -255,6 +255,10 @@ describe("⛔ profilens adress: den egna, verifierad (0.82.0, #313)", () => {
     await assertFails(setDoc(doc(med("uid-p-utan-flagga", { email: "jag@example.com" }), "users/uid-p-utan-flagga"), { namn: "Jag", epost: "jag@example.com" }));
   });
 
+  it("⛔ en tom epost med en token utan email nekas, också när token säger verifierad", async () => {
+    await assertFails(setDoc(doc(med("uid-p-tom", { email_verified: true }), "users/uid-p-tom"), { namn: "Jag", epost: "" }));
+  });
+
   it("den egna verifierade adressen släpps in, i gemener också när inloggningen har versaler", async () => {
     await assertSucceeds(setDoc(doc(med("uid-p-verifierad", { email: "Jag@Example.com", email_verified: true }), "users/uid-p-verifierad"), { namn: "Jag", epost: "jag@example.com" }));
   });

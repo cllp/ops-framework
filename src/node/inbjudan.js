@@ -240,8 +240,8 @@ export function inbjudningstjanst(konfig, namn) {
      * Ägaren eller en admin bjuder in en e-postadress till en grupp.
      *
      * @param {{ avUid: string, groupId: string, epost: string, roll?: string, skapadAv?: any, tokenHash?: string }} b
-     *   ⛔ `typ` FINNS INTE LÄNGRE (0.82.0, #313). Den bestämde typen på medlemskapet grenen för en befintlig person skrev,
-     *   och den grenen är borttagen. Accepten skriver alltid `typ: "person"`, som den gjorde förut.
+     *   ⛔ `typ` FINNS INTE LÄNGRE (0.82.0, #313), och ett anrop som ändå skickar den kastar. Den bestämde typen på
+     *   medlemskapet grenen för en befintlig person skrev, och den grenen är borttagen. Accepten skriver `typ: "person"`.
      *   `tokenHash` (0.80.1): SHA-256 i hex av koden appen mejlar, eller utelämnad. Koden själv kommer aldrig hit.
      * @returns {Promise<{ resultat: "inbjudan", id: string, ateroppnad: boolean, fran?: string }>}
      *   ⛔ ALLTID `inbjudan` SEDAN 0.82.0 (#313). `medlemskap` och `fanns` kom ur grenen som litade på `users.epost`, och
@@ -256,6 +256,17 @@ export function inbjudningstjanst(konfig, namn) {
       if (!avUid) throw new Error("bjudIn: avUid krävs, alltså vem som bjuder in. Utan den går ägarskapet inte att kontrollera.");
       if (!groupId) throw new Error("bjudIn: groupId krävs.");
       if (!epost) throw new Error("bjudIn: epost krävs. Det är det enda en inbjudan har att matcha på innan personen finns.");
+
+      /*
+       * ⛔ `typ` KASTAR, DEN IGNORERAS INTE (0.82.0, granskningen av PR 314, KAN 4). Den bestämde typen på medlemskapet
+       * grenen för en befintlig användare skrev, och grenen är borttagen (#313). En app som ändå skickar den tror att
+       * värdet hamnar någonstans, och ett tyst bortfall ser ut som att allt gick bra (regel 5).
+       */
+      if ((/** @type {any} */ (b))?.typ !== undefined) {
+        throw new Error(
+          `bjudIn: typ togs bort i 0.82.0 (#313). Den styrde bara medlemskapet som bjudIn skrev direkt, och bjudIn skriver inget medlemskap längre: accepten skriver typ "person". Ta bort typ ur anropet.`,
+        );
+      }
 
       const roll = b.roll ?? "medlem";
       await kravBehorighet(avUid, groupId, roll);
