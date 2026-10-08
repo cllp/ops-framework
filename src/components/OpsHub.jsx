@@ -4,7 +4,7 @@ import { cx } from "../lib/cx.js";
 import { validateNav } from "../lib/nav.js";
 import { OpsCountBadge } from "./counter.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
-import { ChevronHogerIkon, ChevronNedIkon } from "./icons.jsx";
+import { ChevronNedIkon } from "./icons.jsx";
 import { OpsView } from "./OpsView.jsx";
 import { radKlass } from "../lib/radKlass.js";
 import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
@@ -76,7 +76,6 @@ import { hubbForGrupp, hubbPoster } from "../lib/hubb.js";
  * @param {string} [props.badgeText] Skärmläsarord efter en räknare, t.ex. "nya".
  * @param {string} [props.sprak] Språket `info` och ramverkets egna ord skrivs på. Förval `sv`.
  * @param {string} [props.ingetNyttEtikett] Texten när en modul har `info: null`. Förval "Inget nytt" (sv), "Nothing new" (en).
- * @param {string} [props.visaEtikett] Ordet före modulens namn på raden som öppnar modulens egen sida ("Visa Ekonomi"). Förval "Visa" (sv), "Show" (en).
  * @param {boolean} [props.ram] (0.31.2) Sidan ritas i `OpsView` (sidomarginal, avstånd under toppraden, bredd). Förval sant. Sätt falskt bara om appen redan lindat Hub i en `OpsView`.
  */
 export function OpsHub({
@@ -89,7 +88,6 @@ export function OpsHub({
   badgeText = "nya",
   sprak: sprakProp,
   ingetNyttEtikett,
-  visaEtikett,
   ram = true,
 }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
@@ -100,7 +98,7 @@ export function OpsHub({
     moduler.length === 0 ? (
       <OpsEmpty title={tomRubrik} description={tomText} />
     ) : (
-      <KortRutnat poster={moduler} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={ariaLabel} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} visaEtikett={visaEtikett} />
+      <KortRutnat poster={moduler} activeHref={activeHref} onNavigate={onNavigate} ariaLabel={ariaLabel} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
     );
   return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
@@ -143,8 +141,10 @@ const GRUPPHUBB_TEXT = {
  *   - en modul appen inte registrerat, eller en utan kort, ritas inte, och en rad under korten säger vilken och varför;
  *   - pekar gruppen BARA på sådana står det också, i stället för rubriken "inga moduler", som vore osann.
  *
- * ⛔ INGA BARN PÅ KORTEN. Delarna är modulens egen navigation, inte kortets (`hubbPoster` ger inga `children`).
- * Samma poster ges till skalet som `moduler`, så toppradens rullgardin listar samma moduler och bara dem.
+ * ⛔ KORTEN FÄLLS UT MED EN CHEVRON OCH VISAR MODULENS DELAR (0.83.0, CP 2026-10-08 17:54: "Varje app/modul borde kunna
+ * expanderas med chevron"). Här stod "inga barn på korten", med skälet att delarna är modulens egen navigation. Skälet
+ * står kvar för toppradens rullgardin, som fortfarande bara listar moduler (`hubbPoster` utan `delar`). På kortet är
+ * delarna en genväg in i modulen, och kortet självt leder som förut till startsidan. En modul med en del får ingen chevron.
  *
  * @param {object} props
  * @param {{ id: string, namn: import("../lib/sprak.js").Namn, moduler: ReadonlyArray<string> }} props.grupp Den aktiva gruppen.
@@ -164,7 +164,8 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   const { kort, saknade } = hubbForGrupp({ grupp, moduler });
   const t = GRUPPHUBB_TEXT[sprak === "en" ? "en" : "sv"];
   const gruppnamn = text(grupp.namn, sprak);
-  const poster = hubbPoster(kort, { sprak, info, badge });
+  // ⛔ 0.83.0: korten får modulens delar, så att de fälls ut med en chevron. Toppradens rullgardin ber inte om dem.
+  const poster = hubbPoster(kort, { sprak, info, badge, delar: true });
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
       {poster.length > 0 ? (
@@ -264,15 +265,28 @@ export function OpsHubModul({
  * @param {string} props.badgeText
  * @param {string} props.sprak
  * @param {string} [props.ingetNyttEtikett]
- * @param {string} [props.visaEtikett]
  */
-function KortRutnat({ poster, activeHref, onNavigate, ariaLabel, badgeText, sprak, ingetNyttEtikett, visaEtikett }) {
+function KortRutnat({ poster, activeHref, onNavigate, ariaLabel, badgeText, sprak, ingetNyttEtikett }) {
+  /*
+   * ⛔ VILKA KORT SOM ÄR UTFÄLLDA BOR HÄR OCH INTE I KORTET (0.83.0). Rutnätet sträcker korten till radens höjd, så att ett
+   * kort utan `info` står lika högt som ett med. Mätt med Playwright i lifehub, 1280 px: fälldes Ekonomi ut (fjorton delar)
+   * sträcktes Bibliotek bredvid till samma 1 000 px, ett tomt kort över halva skärmen. Medan ett kort är utfällt lägger sig
+   * korten därför i sin egen höjd (`items-start`), och när alla är stängda står de lika höga igen.
+   */
+  const [utfallda, setUtfallda] = useState(() => new Set(poster.filter((m) => (m.children ?? []).some((/** @type {any} */ c) => c.href === activeHref)).map((m) => m.href)));
+  const vaxla = (/** @type {string} */ href) =>
+    setUtfallda((fore) => {
+      const nya = new Set(fore);
+      if (nya.has(href)) nya.delete(href);
+      else nya.add(href);
+      return nya;
+    });
   return (
-    <ul aria-label={ariaLabel} className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
+    <ul aria-label={ariaLabel} className={cx("m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3", utfallda.size > 0 && "items-start")}>
       {poster.map((m) => (
         <li key={m.href} className="min-w-0">
           {(m.children ?? []).length > 0 ? (
-            <UtfallbartKort post={m} activeHref={activeHref} onNavigate={onNavigate} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} visaEtikett={visaEtikett} />
+            <UtfallbartKort post={m} ut={utfallda.has(m.href)} onVaxla={() => vaxla(m.href)} activeHref={activeHref} onNavigate={onNavigate} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
           ) : (
             <ModulKort post={m} activeHref={activeHref} onNavigate={onNavigate} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
           )}
@@ -354,64 +368,76 @@ function ModulKort({ post, activeHref, onNavigate, badgeText, sprak, ingetNyttEt
 }
 
 /**
- * Ett kort med barn (0.31.2): FÄLLS UT PÅ PLATS på Hub-sidan i stället för att bara navigera (CP 2026-09-29 20:57: "Ekonomi
- * fäller inte ut submenyer"). Rubriken är en knapp (`aria-expanded`, `aria-controls`, chevron som vrids), och under den ligger
- * modulens undersidor som rader, med en första rad "Visa Ekonomi" som leder till modulens egen sida.
+ * Ett kort med barn: hela kortet är en länk till modulens startsida, och en chevron fäller ut barnen under (0.83.0).
  *
- * ⛔ SAMMA MÖNSTER SOM RAMVERKETS EGEN RULLGARDIN (`HubModulRad` i `OpsAppShell`): en knapp som fäller ut och in, undersidorna
- * som länkar under, en chevron som vrids. SessionStudio har ingen utfällbar korthög, men dess utfällning är alltid en
- * `<button aria-expanded aria-controls>` med en chevron som vrids 180 grader (`MoreSettingsDisclosure.jsx:66-80`), och det är formen här.
- * ⛔ MODULENS EGEN SIDA ÄR KVAR (0.30.1: varje steg har en `href`): raden "Visa Ekonomi" öppnar den, och `OpsHubModul` ritar den.
- * Kortet börjar utfällt när en av dess sidor är den aktiva.
+ * ══ ⛔ KORTET ÄR LÄNKEN, CHEVRONEN ÄR KNAPPEN (0.83.0) ═══════════════════════
+ *
+ * CP 2026-10-08 17:54, med en bild av Hubben där Ekonomi och Bibliotek var två kort utan väg till delarna: "Varje app/modul
+ * borde kunna expanderas med chevron." Kortet leder som förut till modulens startsida, och bara chevronen fäller ut. Före
+ * 0.83.0 var hela rubriken en knapp (0.31.2) och vägen till modulen en egen rad "Visa Ekonomi" i den utfällda listan, så
+ * ett tryck på kortet gjorde något annat än i Hubben för grupper (där kortet var en länk). Nu är det samma gest överallt:
+ * trycket på kortet öppnar modulen, och chevronen visar vad som finns i den. Raden "Visa Ekonomi" är borta, eftersom kortet
+ * självt är den länken.
+ *
+ * ⛔ KNAPPEN LIGGER BREDVID LÄNKEN, INTE I DEN. En knapp inuti en länk är två interaktiva element i varandra: skärmläsaren
+ * läser upp dem som ett, och ett tryck på chevronen hade också följt länken. Kortets yta är en `div`, med länken och knappen
+ * som syskon.
+ *
+ * ⛔ CHEVRONEN ÄR EN `<button aria-expanded aria-controls>` MED EGET NAMN ("Visa delarna i Ekonomi"), som SessionStudios
+ * utfällning (`MoreSettingsDisclosure.jsx:66-80`), 44 px träffyta, och den vrids 180 grader när listan är öppen. Enter och
+ * mellanslag fäller ut, eftersom det är en knapp.
+ *
+ * ⛔ LÄGET SPARAS INTE MELLAN BESÖK. Kortet börjar utfällt när en av dess sidor är den aktiva, annars stängt. Att minnas
+ * läget hade krävt en lagring per person och modul för en sak som tar ett tryck att göra om.
  *
  * @param {object} props
  * @param {any} props.post
+ * @param {boolean} props.ut Utfällt. Läget bor i rutnätet (`KortRutnat`), se där.
+ * @param {() => void} props.onVaxla
  * @param {string} props.activeHref
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {string} props.badgeText
  * @param {string} props.sprak
  * @param {string} [props.ingetNyttEtikett]
- * @param {string} [props.visaEtikett]
  */
-function UtfallbartKort({ post, activeHref, onNavigate, badgeText, sprak, ingetNyttEtikett, visaEtikett }) {
+function UtfallbartKort({ post, ut, onVaxla, activeHref, onNavigate, badgeText, sprak, ingetNyttEtikett }) {
   const barn = /** @type {any[]} */ (post.children ?? []);
-  const [ut, setUt] = useState(barn.some((c) => c.href === activeHref));
   const listId = useId();
-  const visa = visaEtikett ?? (sprak === "en" ? "Show" : "Visa");
   const ingetNytt = ingetNyttEtikett ?? (sprak === "en" ? "Nothing new" : "Inget nytt");
+  const chevronNamn = sprak === "en" ? `Show the parts of ${post.label}` : `Visa delarna i ${post.label}`;
   return (
-    <div className={cx("h-full", KORT, (post.href === activeHref || barn.some((c) => c.href === activeHref)) && "ring-2 ring-accent")}>
-      <button
-        type="button"
-        onClick={() => setUt((v) => !v)}
-        aria-expanded={ut}
-        aria-controls={listId}
-        className={cx("flex w-full cursor-pointer flex-col gap-1 rounded-card p-4 text-left hover:bg-raised", KORT_FOKUS)}
-      >
-        <KortInnehall
-          post={post}
-          badgeText={badgeText}
-          sprak={sprak}
-          ingetNyttEtikett={ingetNyttEtikett}
-          slut={
-            <span aria-hidden="true" className={cx("flex shrink-0 items-center text-ink-muted transition-transform duration-(--duration-fast) ease-standard", ut && "rotate-180")}>
-              <ChevronNedIkon size={16} />
-            </span>
-          }
-        />
-      </button>
-      <div id={listId} hidden={!ut} className="flex flex-col gap-0.5 px-2 pb-2">
+    <div
+      data-utfallbart={post.href}
+      className={cx("flex h-full flex-col", KORT, "has-[[data-kortlank]:hover]:bg-raised", (post.href === activeHref || barn.some((c) => c.href === activeHref)) && "ring-2 ring-accent")}
+    >
+      <div className="flex items-start">
         <a
           href={post.href}
+          data-kortlank=""
           onClick={(e) => onNavigate?.(post.href, e)}
           aria-current={post.href === activeHref ? "page" : undefined}
-          className={cx(radKlass({ stor: true, active: post.href === activeHref }), "font-medium")}
+          className={cx("flex min-w-0 flex-1 flex-col gap-1 rounded-card py-4 pl-4", KORT_FOKUS)}
         >
-          <span className="min-w-0 flex-1 truncate">{`${visa} ${post.label}`}</span>
-          <span aria-hidden="true" className="flex shrink-0 items-center text-ink-muted">
-            <ChevronHogerIkon size={16} />
-          </span>
+          <KortInnehall post={post} badgeText={badgeText} sprak={sprak} ingetNyttEtikett={ingetNyttEtikett} />
         </a>
+        <button
+          type="button"
+          onClick={onVaxla}
+          aria-expanded={ut}
+          aria-controls={listId}
+          aria-label={chevronNamn}
+          className={cx(
+            "mt-4 mr-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted",
+            "transition-colors duration-(--duration-fast) ease-standard hover:bg-raised hover:text-ink",
+            KORT_FOKUS,
+          )}
+        >
+          <span aria-hidden="true" className={cx("flex items-center transition-transform duration-(--duration-fast) ease-standard", ut && "rotate-180")}>
+            <ChevronNedIkon size={16} />
+          </span>
+        </button>
+      </div>
+      <div id={listId} hidden={!ut} className="flex flex-col gap-0.5 px-2 pb-2">
         {barn.map((c) => (
           <a
             key={c.href}

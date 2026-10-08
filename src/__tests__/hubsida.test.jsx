@@ -67,17 +67,23 @@ describe("Hub: ett kort med barn fälls ut på plats", () => {
     { href: "/a", label: "Utan barn" },
     { href: "/ekonomi", label: "Ekonomi", children: [{ href: "/inkomster", label: "Inkomster", info: "Ny faktura" }, { href: "/kostnader", label: "Kostnader" }] },
   ];
-  it("knappen bär aria-expanded, barnen syns efter klick, och 'Visa Ekonomi' leder till modulens sida", () => {
+  /*
+   * ⛔ ÄNDRAT I 0.83.0 (CP 2026-10-08 17:54: "Varje app/modul borde kunna expanderas med chevron"). Provet hette "knappen bär
+   * aria-expanded, barnen syns efter klick, och 'Visa Ekonomi' leder till modulens sida": hela rubriken var en knapp och
+   * vägen till modulen en egen rad. Nu är kortet länken och chevronen knappen, och raden "Visa Ekonomi" finns inte.
+   */
+  it("chevronen bär aria-expanded, barnen syns efter klick, och kortet självt leder till modulens sida", () => {
     const onNavigate = vi.fn();
     render(<OpsHub moduler={moduler} onNavigate={onNavigate} />);
-    const knapp = screen.getByRole("button", { name: /Ekonomi/ });
+    const knapp = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
     expect(knapp.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("link", { name: /Inkomster/ })).toBeNull();
     fireEvent.click(knapp);
     expect(knapp.getAttribute("aria-expanded")).toBe("true");
     expect(document.getElementById(knapp.getAttribute("aria-controls") ?? "")).not.toBeNull();
     expect(screen.getByRole("link", { name: /Inkomster/ }).getAttribute("href")).toBe("/inkomster");
-    fireEvent.click(screen.getByRole("link", { name: "Visa Ekonomi" }));
+    expect(screen.queryByRole("link", { name: "Visa Ekonomi" })).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: /^Ekonomi/ }));
     expect(onNavigate).toHaveBeenCalledWith("/ekonomi", expect.anything());
     fireEvent.click(knapp);
     expect(knapp.getAttribute("aria-expanded")).toBe("false");

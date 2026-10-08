@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { defineModule, validateModuler } from "../lib/modul.js";
-import { byggOmdirigeringar, hubbForGrupp, hubbPoster, kontrolleraOmdirigeringar, modulLage, omdirigera, valbaraModuler } from "../lib/hubb.js";
+import { byggOmdirigeringar, hubbForGrupp, hubbPoster, huvudmenyPoster, kontrolleraOmdirigeringar, modulLage, omdirigera, valbaraModuler } from "../lib/hubb.js";
 import { OpsGruppHubb } from "../components/OpsHub.jsx";
 import { OpsModulSida } from "../components/OpsModulSida.jsx";
 import { OpsGruppFormular } from "../components/OpsGruppFormular.jsx";
+import { OpsTabPanel, OpsTabs } from "../components/OpsTabs.jsx";
 
 /**
  * Hubben per grupp och modulens insida (0.37.0, #184).
@@ -336,8 +337,8 @@ describe("OpsGruppHubb: ritad", () => {
     expect(kort).toHaveLength(1);
     expect(kort[0].getAttribute("href")).toBe("/ekonomi");
     expect(kort[0].textContent).toContain("Skatten förfaller 12 oktober");
-    // ⛔ Delarna står INTE i hubben.
-    expect(screen.queryByText("Inkomster")).toBeNull();
+    // ⛔ 0.83.0: delarna finns bakom chevronen och syns inte förrän den fälls ut (förut stod de inte i hubben alls).
+    expect(screen.queryByRole("link", { name: "Inkomster" })).toBeNull();
     fireEvent.click(kort[0]);
     expect(nav).toHaveBeenCalledWith("/ekonomi", expect.anything());
   });
@@ -360,6 +361,119 @@ describe("OpsGruppHubb: ritad", () => {
     render(<OpsGruppHubb grupp={G(["bokning"])} moduler={moduler()} />);
     expect(screen.queryByText("Inga appar i gruppen")).toBeNull();
     expect(screen.getByText("Ingen av gruppens appar kan visas")).toBeTruthy();
+  });
+});
+
+/*
+ * ⛔ 0.83.0: CP 2026-10-08 17:54, "Varje app/modul borde kunna expanderas med chevron". Röda mot 0.82.0: där hade
+ * OpsGruppHubbs kort inga barn och ingen knapp.
+ */
+describe("OpsGruppHubb: kortet fälls ut med en chevron (0.83.0)", () => {
+  const G = (/** @type {string[]} */ ids) => ({ id: "bolaget", namn: { sv: "Claes Philip Staiger AB" }, moduler: ids });
+
+  it("chevronen är en egen knapp med aria-expanded, och utfälld visar den delarna som länkar med ikon", () => {
+    const nav = vi.fn((_h, e) => e.preventDefault());
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} onNavigate={nav} />);
+    const chevron = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
+    expect(chevron).toHaveAttribute("aria-expanded", "false");
+    const lista = document.getElementById(chevron.getAttribute("aria-controls") ?? "");
+    expect(lista).not.toBeNull();
+    expect(lista).toHaveAttribute("hidden");
+    fireEvent.click(chevron);
+    expect(chevron).toHaveAttribute("aria-expanded", "true");
+    expect(lista).not.toHaveAttribute("hidden");
+    const delar = within(/** @type {HTMLElement} */ (lista)).getAllByRole("link");
+    expect(delar).toHaveLength(14);
+    expect(delar[1]).toHaveAttribute("href", "/ekonomi/inkomster");
+    expect(delar[1]).toHaveTextContent("Inkomster");
+    expect(delar[1].querySelector("span[aria-hidden]")).not.toBeNull();
+    fireEvent.click(delar[1]);
+    expect(nav).toHaveBeenCalledWith("/ekonomi/inkomster", expect.anything());
+    fireEvent.click(chevron);
+    expect(chevron).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("chevronen ligger inte i länken, och kortet leder fortfarande till modulens startsida", () => {
+    const nav = vi.fn((_h, e) => e.preventDefault());
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} onNavigate={nav} />);
+    const chevron = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
+    expect(chevron.closest("a")).toBeNull();
+    fireEvent.click(chevron);
+    expect(nav).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("link", { name: /^Ekonomi/ }));
+    expect(nav).toHaveBeenCalledWith("/ekonomi", expect.anything());
+  });
+
+  it("⛔ medan ett kort är utfällt sträcks inte grannkorten till dess höjd (rutnätet blir items-start), och stängt igen står de lika höga", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={moduler()} />);
+    const lista = screen.getByRole("list", { name: "Appar i Claes Philip Staiger AB" });
+    expect(lista.className).not.toContain("items-start");
+    const chevron = screen.getByRole("button", { name: "Visa delarna i Ekonomi" });
+    fireEvent.click(chevron);
+    expect(lista.className).toContain("items-start");
+    fireEvent.click(chevron);
+    expect(lista.className).not.toContain("items-start");
+  });
+
+  it("en modul med en enda del har ingen chevron: delen är startsidan", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi", "resor"])} moduler={moduler()} />);
+    expect(screen.queryByRole("button", { name: "Visa delarna i Resor" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Resor" })).toHaveAttribute("href", "/resor");
+  });
+
+  it("på engelska heter chevronen efter modulens engelska namn", () => {
+    render(<OpsGruppHubb grupp={G(["ekonomi"])} moduler={moduler()} sprak="en" />);
+    expect(screen.getByRole("button", { name: "Show the parts of Finance" })).toBeInTheDocument();
+  });
+});
+
+describe("hubbPoster med delar, och huvudmenyPoster (0.83.0)", () => {
+  it("delar ger children till en modul med fler än en del, och inga till en med en", () => {
+    const kort = hubbForGrupp({ grupp: { id: "g", moduler: ["ekonomi", "resor"] }, moduler: moduler() }).kort;
+    const [ekonomi, resor] = hubbPoster(kort, { delar: true });
+    expect(ekonomi.children?.map((c) => c.href).slice(0, 2)).toEqual(["/ekonomi/oversikt", "/ekonomi/inkomster"]);
+    expect(resor).not.toHaveProperty("children");
+    expect(hubbPoster(kort)[0]).not.toHaveProperty("children");
+  });
+
+  it("huvudmenyn är gruppens moduler i gruppens ordning, filtrerade på valet, och tom utan fältet", () => {
+    const m = moduler();
+    expect(huvudmenyPoster({ grupp: { moduler: ["resor", "ekonomi"], huvudmeny: ["ekonomi", "resor"] }, moduler: m }).map((p) => p.href)).toEqual(["/resor", "/ekonomi"]);
+    expect(huvudmenyPoster({ grupp: { moduler: ["resor", "ekonomi"], huvudmeny: ["ekonomi"] }, moduler: m })).toEqual([
+      { id: "ekonomi", href: "/ekonomi", label: "Ekonomi", icon: expect.anything() },
+    ]);
+    expect(huvudmenyPoster({ grupp: { moduler: ["ekonomi"] }, moduler: m })).toEqual([]);
+    expect(huvudmenyPoster({ grupp: null, moduler: m })).toEqual([]);
+    expect(huvudmenyPoster({ grupp: { moduler: ["ekonomi"], huvudmeny: ["ekonomi"] }, moduler: m, sprak: "en" })[0].label).toBe("Finance");
+  });
+
+  it("⛔ en modul i huvudmenyn som inte är en av gruppens, eller saknar kort, ritas inte", () => {
+    const m = moduler();
+    expect(huvudmenyPoster({ grupp: { moduler: ["ekonomi"], huvudmeny: ["resor"] }, moduler: m })).toEqual([]);
+    expect(huvudmenyPoster({ grupp: { moduler: ["inkorg", "ekonomi"], huvudmeny: ["inkorg", "ekonomi"] }, moduler: m }).map((p) => p.id)).toEqual(["ekonomi"]);
+  });
+});
+
+describe("⛔ samma rad i modulen och i biblioteket (0.83.0)", () => {
+  it("den öppna delen i OpsModulSida och den valda fliken i OpsTabs medOrd bär samma klasser, och de övriga likaså", () => {
+    const { container } = render(
+      <>
+        <OpsModulSida modul={moduler()[0]} activeHref="/ekonomi" hubHref="/hub">
+          <p>översikten</p>
+        </OpsModulSida>
+        <OpsTabs medOrd ariaLabel="Typ" value="a" onChange={() => {}} tabs={[{ id: "a", label: "A", icon: I("a") }, { id: "b", label: "B", icon: I("b") }]}>
+          <OpsTabPanel id="a">x</OpsTabPanel>
+        </OpsTabs>
+      </>,
+    );
+    const oppenDel = /** @type {HTMLElement} */ (container.querySelector('[data-modulnav] a[aria-current="page"]'));
+    const stangdDel = /** @type {HTMLElement} */ (container.querySelector('[data-modulnav] a:not([aria-current])'));
+    const vald = screen.getByRole("tab", { name: "A" });
+    const ovald = screen.getByRole("tab", { name: "B" });
+    expect(oppenDel.className.length).toBeGreaterThan(40);
+    expect(vald.className.startsWith(oppenDel.className)).toBe(true);
+    expect(ovald.className.startsWith(stangdDel.className)).toBe(true);
+    expect(/** @type {HTMLElement} */ (oppenDel.querySelector("span[aria-hidden]")).className).toBe(/** @type {HTMLElement} */ (vald.querySelector("span[aria-hidden]")).className);
   });
 });
 
@@ -439,6 +553,46 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   it("⛔ när en ny grupp skapas finns inget modulval", () => {
     render(<OpsGruppFormular onSkapa={async () => ({ groupId: "x" })} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
     expect(screen.queryByRole("region", { name: "Appar" })).toBeNull();
+  });
+
+  /*
+   * ⛔ 0.83.0: CP 2026-10-08 17:54, "det skall finnas en inställning om att ikon skall placeras i huvudmenyn". Röda mot
+   * 0.82.0: där fanns inget reglage och inget fält `huvudmeny` i sparningen.
+   */
+  it("under en vald app med kort står reglaget Visa i huvudmenyn, och valet sparas som en delmängd av modulerna", async () => {
+    const onSpara = vi.fn(async () => {});
+    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: [] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
+    expect(screen.queryByRole("switch", { name: "Visa i huvudmenyn" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ekonomi" }));
+    fireEvent.click(screen.getByRole("button", { name: "Inkorg" }));
+    // Inkorg har inget kort (hubb: null) och alltså ingen ikon att visa: ett reglage, för Ekonomi.
+    const reglage = screen.getAllByRole("switch", { name: "Visa i huvudmenyn" });
+    expect(reglage).toHaveLength(1);
+    expect(container.querySelector('[data-huvudmeny="ekonomi"]')).not.toBeNull();
+    fireEvent.click(reglage[0]);
+    expect(reglage[0]).toBeChecked();
+    fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
+    await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
+    expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp).toMatchObject({ moduler: ["ekonomi", "inkorg"], huvudmeny: ["ekonomi"] });
+  });
+
+  it("⛔ en app som väljs bort tas ur huvudmenyn i samma sparning", async () => {
+    const onSpara = vi.fn(async () => {});
+    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: ["ekonomi", "resor"], huvudmeny: ["ekonomi", "resor"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
+    expect(screen.getAllByRole("switch", { name: "Visa i huvudmenyn" }).every((r) => /** @type {HTMLInputElement} */ (r).checked)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Ekonomi" }));
+    fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
+    await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
+    expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp).toMatchObject({ moduler: ["resor"], huvudmeny: ["resor"] });
+  });
+
+  it("⛔ en admin skickar aldrig huvudmenyn", async () => {
+    const onSpara = vi.fn(async () => {});
+    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, huvudmeny: ["ekonomi"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: false }} />);
+    expect(screen.queryByRole("switch", { name: "Visa i huvudmenyn" })).toBeNull();
+    fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
+    await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
+    expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp).not.toHaveProperty("huvudmeny");
   });
 
   it("⛔ utan registrerade moduler säger valet det", () => {

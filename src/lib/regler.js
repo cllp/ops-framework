@@ -345,7 +345,7 @@ ${
         && request.resource.data.epost == request.auth.token.get('email', '').lower();
     }
 
-    // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler och arkivering.
+    // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler, huvudmenyn och arkivering.
     // Aldrig radering: arkivering finns för att svaret på "varför försvann den" alltid efterfrågas i
     // efterhand.
     //
