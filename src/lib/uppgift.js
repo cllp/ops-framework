@@ -15,21 +15,22 @@
 
 import React from "react";
 import { BockIkon } from "../components/icons.jsx";
-import { daysUntil } from "./events.js";
 import { giltigtDatum } from "./kalendrar.js";
 
-/** `YYYY-MM-DDTHH:MM`, lokal tid. Ingen zon: en `Z` hade flyttat dagen. */
+/**
+ * `YYYY-MM-DDTHH:MM`, väggklocka i gruppens zon. Ingen zon i strängen: en `Z`
+ * hade flyttat dagen. Appen räknar om från gruppens zon innan den sparar.
+ */
 const UTFORSFORM = /^(\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))T([01]\d|2[0-3]):[0-5]\d$/;
-
-const STATUS = /** @type {const} */ (["ny", "hanterad", "avskriven"]);
 
 /**
  * @typedef {object} Uppgift
  * @property {string} [id]
  * @property {string} rubrik
- * @property {"ny" | "hanterad" | "avskriven"} [status]
+ * @property {string} [status] Appens ord. Vilka som är öppna och vilka som är klara skickar appen till `visaUppgifter`.
+ * @property {string} [typ] Inkorgens typ. `visaUppgifter` läser bara poster med den typ appen skickat.
  * @property {string} [deadline] Senast den dagen, `YYYY-MM-DD`. Aldrig tillsammans med `utfors`.
- * @property {string} [utfors] Dag och tid, `YYYY-MM-DDTHH:MM`. Aldrig tillsammans med `deadline`.
+ * @property {string} [utfors] Dag och tid, `YYYY-MM-DDTHH:MM`, väggklocka i gruppens zon. Aldrig tillsammans med `deadline`.
  * @property {string} [vem] Medlemmens uid.
  * @property {string} [prio] Prioritetens värde, ur samma lista som ärenden.
  */
@@ -55,8 +56,11 @@ export function uppgiftFel(post) {
   }
   if (r.vem !== undefined && r.vem !== null && r.vem !== "" && (typeof r.vem !== "string" || !r.vem.trim())) fel.push("Vem ska vara en medlem.");
   if (r.prio !== undefined && r.prio !== null && r.prio !== "" && (typeof r.prio !== "string" || !r.prio.trim())) fel.push("Prioriteten ska vara ett värde ur listan.");
-  if (r.status !== undefined && r.status !== null && r.status !== "" && !STATUS.includes(/** @type {any} */ (r.status))) {
-    fel.push(`Status är ${STATUS.join(", ")}.`);
+  if (r.status !== undefined && r.status !== null && r.status !== "" && (typeof r.status !== "string" || !r.status.trim())) {
+    fel.push("Status ska vara ett ord.");
+  }
+  if (r.typ !== undefined && r.typ !== null && r.typ !== "" && (typeof r.typ !== "string" || !r.typ.trim())) {
+    fel.push("Typen ska vara ett ord.");
   }
   return fel;
 }
@@ -78,7 +82,30 @@ export function byggUppgift(post) {
   if (post.utfors) ut.utfors = post.utfors;
   if (post.vem) ut.vem = post.vem.trim();
   if (post.prio) ut.prio = post.prio.trim();
+  if (post.typ) ut.typ = post.typ.trim();
   return Object.freeze(ut);
+}
+
+/**
+ * Kalenderdagar från `idag` till `iso`, båda `YYYY-MM-DD`. Ingen enhetsklocka.
+ * @param {string} iso @param {string} idag @returns {number | null}
+ */
+function dagarKvar(iso, idag) {
+  if (!giltigtDatum(iso) || !giltigtDatum(idag)) return null;
+  const ms = 24 * 60 * 60 * 1000;
+  const [a1, m1, d1] = idag.split("-").map(Number);
+  const [a2, m2, d2] = iso.split("-").map(Number);
+  return Math.round((Date.UTC(a2, m2 - 1, d2) - Date.UTC(a1, m1 - 1, d1)) / ms);
+}
+
+/**
+ * @param {string} namn @param {unknown} v @returns {string[]}
+ */
+function statuslista(namn, v) {
+  if (!Array.isArray(v) || v.length === 0 || v.some((s) => typeof s !== "string" || !s.trim())) {
+    throw new Error(`visaUppgifter: ${namn} krävs, en lista med statusar. Utan den gissar funktionen, och en status appen använder hamnar i avvisade.`);
+  }
+  return v.map((s) => s.trim());
 }
 
 /**
@@ -108,7 +135,7 @@ function bockKnapp(id, onKlar, text) {
  * Var uppgifterna syns, härlett ur inkorgens poster. Ingenting skrivs.
  *
  * @param {ReadonlyArray<Uppgift & { id?: string }>} poster
- * @param {{ idag: Date, snarast: string, onKlar?: (id: string) => void, bock?: string, namnFor?: (uid: string) => string }} config
+ * @param {{ idag: string, snarast: string, oppna: readonly string[], klara: readonly string[], typ: string, onKlar?: (id: string) => void, bock?: string, namnFor?: (uid: string) => string }} config
  * @returns {{
  *   idag: import("./events.js").OpsEvent[],
  *   kommande: import("./events.js").OpsEvent[],
@@ -116,14 +143,24 @@ function bockKnapp(id, onKlar, text) {
  *   inkorg: Uppgift[],
  *   hanterade: Uppgift[],
  *   avvisade: { id: string, fel: string[] }[],
+ *   ovriga: number,
  * }}
  */
 export function visaUppgifter(poster, config) {
-  if (!config || !(config.idag instanceof Date) || Number.isNaN(config.idag.getTime())) {
-    throw new Error("visaUppgifter: idag krävs, ett datum. Utan det blir \"i dag\" ett klockslag som ingen kan återskapa.");
+  if (!config || typeof config.idag !== "string" || !giltigtDatum(config.idag)) {
+    throw new Error("visaUppgifter: idag krävs, ÅÅÅÅ-MM-DD i gruppens zon. Ett Date är enhetens klocka och byter dag vid midnatt mot kalendern.");
   }
   if (!config.snarast || typeof config.snarast !== "string") {
     throw new Error("visaUppgifter: snarast krävs, prioritetens värde för så snart som möjligt. Utan det blir en odaterad uppgift tyst bara en inkorgsrad.");
+  }
+  const oppna = statuslista("oppna", config.oppna);
+  const klara = statuslista("klara", config.klara);
+  const bada = oppna.filter((s) => klara.includes(s));
+  if (bada.length) {
+    throw new Error(`visaUppgifter: ${bada.join(", ")} står som både öppen och klar.`);
+  }
+  if (typeof config.typ !== "string" || !config.typ.trim()) {
+    throw new Error("visaUppgifter: typ krävs, inkorgens typ för en uppgift. Utan den hamnar ett ärende med samma prioritet på Idag.");
   }
   const bock = config.bock || "Markera klar";
   /** @type {import("./events.js").OpsEvent[]} */
@@ -138,22 +175,32 @@ export function visaUppgifter(poster, config) {
   const hanterade = [];
   /** @type {{ id: string, fel: string[] }[]} */
   const avvisade = [];
+  let ovriga = 0;
 
   for (const post of poster || []) {
-    const id = post && post.id ? String(post.id) : "";
+    if (!post || post.typ !== config.typ) {
+      ovriga += 1;
+      continue;
+    }
+    const id = post.id ? String(post.id) : "";
     const fel = uppgiftFel(post);
     if (!id) fel.push("Uppgiften saknar id.");
     if (fel.length) {
       avvisade.push({ id, fel });
       continue;
     }
-    if (post.status === "hanterad" || post.status === "avskriven") {
+    const status = typeof post.status === "string" ? post.status : "";
+    if (status && klara.includes(status)) {
       hanterade.push(post);
+      continue;
+    }
+    if (status && !oppna.includes(status)) {
+      avvisade.push({ id, fel: [`Status "${status}" är varken öppen eller klar.`] });
       continue;
     }
     const dag = post.deadline || (post.utfors ? post.utfors.slice(0, 10) : "");
     const tid = post.utfors ? post.utfors.slice(11, 16) : "";
-    const dagar = dag ? daysUntil(dag, config.idag) : null;
+    const dagar = dag ? dagarKvar(dag, config.idag) : null;
     const snarast = !dag && post.prio === config.snarast;
     const atgard = config.onKlar ? bockKnapp(id, config.onKlar, bock) : undefined;
     const vem = post.vem ? (config.namnFor ? config.namnFor(post.vem) : post.vem) : undefined;
@@ -162,6 +209,7 @@ export function visaUppgifter(poster, config) {
       id,
       title: post.rubrik.trim(),
       daysLeft: snarast ? 0 : dagar,
+      ...(snarast ? { snarast: true } : {}),
       ...(vem ? { role: vem } : {}),
       ...(atgard ? { atgard } : {}),
       ...(post.deadline ? { deadline: post.deadline } : {}),
@@ -193,5 +241,5 @@ export function visaUppgifter(poster, config) {
   const ordning = (/** @type {import("./events.js").OpsEvent} */ r) => (r.daysLeft === 0 && !r.deadline && !r.when ? 0.5 : /** @type {number} */ (r.daysLeft));
   idag.sort((a, b) => ordning(a) - ordning(b));
   kommande.sort((a, b) => /** @type {number} */ (a.daysLeft) - /** @type {number} */ (b.daysLeft));
-  return { idag, kommande, kalender, inkorg, hanterade, avvisade };
+  return { idag, kommande, kalender, inkorg, hanterade, avvisade, ovriga };
 }
