@@ -38,7 +38,7 @@ export const STORAGE_OPERATIONS = ["laddaUpp", "taBort"];
 
 /**
  * @typedef {object} StorageSource
- * @property {(input: { sokvag: string, fil: unknown }) => Promise<UppladdadFil>} laddaUpp
+ * @property {(input: { sokvag: string, fil: unknown, contentType?: string }) => Promise<UppladdadFil>} laddaUpp
  * @property {(sokvag: string) => Promise<void>} taBort
  */
 

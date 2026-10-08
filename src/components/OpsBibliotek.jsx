@@ -79,7 +79,7 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {"anteckning" | "lank" | "fil" | null} [props.skapar]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppna
  * @param {() => void} props.onStang
- * @param {(typ: "anteckning" | "lank") => void} props.onSkapa
+ * @param {(typ: "anteckning" | "lank" | "fil") => void} props.onSkapa
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
@@ -138,11 +138,13 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
           >
             <OpsTabPanel id={flik}>
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök i rubrik, text eller adress" />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök i rubrik, text eller adress" />
+                    </div>
+                    {jag ? <NyKnapp flik={flik} onSkapa={onSkapa} /> : null}
                   </div>
-                  {jag ? <NyKnapp flik={flik} onSkapa={onSkapa} /> : null}
                   {jag ? <SpelaIn onSpelaIn={onSpelaIn} inspelare={inspelare} /> : null}
                 </div>
                 {trasiga.length > 0 ? (
@@ -229,12 +231,12 @@ function filStorlek(byte) {
 }
 
 /**
- * @param {{ typ: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }} post
+ * @param {{ typ?: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }} post
  * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
  * @returns {string}
  */
 function postAdress(post, filUrl) {
-  if (post.typ !== "fil" || typeof filUrl !== "function") return "";
+  if ((post.typ != null && post.typ !== "fil") || typeof filUrl !== "function") return "";
   const adress = filUrl(post);
   return typeof adress === "string" ? adress : "";
 }
@@ -322,14 +324,9 @@ function NyKnapp({ flik, onSkapa }) {
 }
 
 /**
- * En adress som går att öppna, eller texten när den inte klarar `ADRESSFORM`.
- *
- * @param {{ url: string }} props
- */
-/**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { rubrik?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string, onLjus?: (adress: string) => void }} props
+ * @param {{ post: { typ?: string, rubrik?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string, onLjus?: (adress: string) => void }} props
  */
 function FilVisning({ post, filUrl, onLjus }) {
   const adress = postAdress(post, filUrl);
@@ -358,6 +355,11 @@ function FilVisning({ post, filUrl, onLjus }) {
   );
 }
 
+/**
+ * En adress som går att öppna, eller texten när den inte klarar `ADRESSFORM`.
+ *
+ * @param {{ url: string }} props
+ */
 function Adress({ url }) {
   if (!ADRESSFORM.test(url)) return <p className="text-brod text-ink break-all">{url}</p>;
   return (
@@ -522,11 +524,6 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
 }
 
 /**
- * Första trycket frågar. Andra tar bort. Avbryt lämnar posten.
- *
- * @param {{ id: string, namn?: string, onRadera?: (id: string) => void | Promise<void> }} props
- */
-/**
  * @param {number} sekunder
  */
 function visaTid(sekunder) {
@@ -619,9 +616,6 @@ function SpelaIn({ onSpelaIn, inspelare }) {
 }
 
 /**
- * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void> }} props
- */
-/**
  * @param {{ post: { id: string, utskrift?: string }, onSkrivUt?: (post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>, onGorForslag?: (inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void> }} props
  */
 function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
@@ -683,6 +677,9 @@ function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
   );
 }
 
+/**
+ * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void> }} props
+ */
 function DelaKontroll({ id, grupper, onDela }) {
   const [mal, setMal] = useState(grupper[0]?.id ?? "");
   const [fel, setFel] = useState("");
@@ -722,6 +719,11 @@ function DelaKontroll({ id, grupper, onDela }) {
   );
 }
 
+/**
+ * Första trycket frågar. Andra tar bort. Avbryt lämnar posten.
+ *
+ * @param {{ id: string, namn?: string, onRadera?: (id: string) => void | Promise<void> }} props
+ */
 function RaderaKontroll({ id, namn = "Radera", onRadera }) {
   const [fraga, setFraga] = useState(false);
   const [fel, setFel] = useState("");

@@ -195,7 +195,7 @@ export function createBibliotekskalla(config) {
      * kan kräva att den finns. Föll uppladdningen tas en ny post tillbaka. Går inte
      * det heller kastas båda felen, inget sväljs.
      *
-     * @param {{ rubrik?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number }, blob?: unknown, id?: string }} inmatning
+     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number }, blob?: unknown, id?: string }} inmatning
      */
     async laddaUppFil(inmatning) {
       if (typeof sokvag !== "function") {
