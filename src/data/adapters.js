@@ -130,6 +130,23 @@ export function createMemorySource(seed = {}) {
     },
 
     /**
+     * Skapa bara om id:t är ledigt (kontraktets regel 8, 0.80.1). Som `updateIf` väntar kroppen inte på något
+     * mellan frågan och skrivningen, så två samtidiga anrop med samma id kan inte båda skapa: det ena hinner först.
+     *
+     * ⛔ ETT ID KRÄVS. Utan id finns inget att krocka med, och ett genererat id hade gjort anropet till en vanlig
+     * `create` med ett annat namn.
+     */
+    async createNew(collectionName, data) {
+      const id = /** @type {any} */ (data)?.id;
+      if (typeof id !== "string" || !id) {
+        throw new Error("minne.createNew: ett id krävs. Utan id finns inget att krocka med, och då är det en vanlig create.");
+      }
+      const fanns = load(collectionName).find((r) => r.id === id);
+      if (fanns) return { created: false, row: { ...fanns } };
+      return { created: true, row: skapa(collectionName, data) };
+    },
+
+    /**
      * Allt eller inget (kontraktets regel 6). Skrivningarna görs mot minnet i tur och ordning, och kastar
      * en av dem sätts HELA lagret tillbaka till hur det var före anropet innan felet går vidare.
      *

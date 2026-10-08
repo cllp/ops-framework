@@ -198,6 +198,14 @@ function kal(extra = {}) {
 }
 
 describe("OpsCalendar som SS (F1)", () => {
+  it("gruppen är kalendern: menyn säger inte att gruppen saknar kalendrar", async () => {
+    kal({ kalendrar: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
+    expect(await screen.findByText("Gruppens kalendrar")).toBeInTheDocument();
+    expect(screen.queryByText("Gruppen har inga kalendrar ännu.")).toBeNull();
+    expect(screen.getByText("Du har inga egna kalendrar ännu.")).toBeInTheDocument();
+  });
+
   it("filtrerar på kalender: en bortvald kalender syns inte, och syns igen när den väljs", async () => {
     kal();
     expect(screen.getByRole("button", { name: "12, 2 poster" })).toBeInTheDocument();

@@ -30,6 +30,8 @@
  *   gruppen, ägare raderar                   nej
  *   inbjudan, ägare                          ja
  *   inbjudan, medlem                         nej
+ *   inbjudan, vantar till aterkallad, admin  ja       (0.80.1)
+ *   inbjudan, alla andra övergångar          nej      (0.80.1)
  *   samling utan block                       nej
  *   hubben: medlem/admin läser modulerna     ja       (0.38.0, #184)
  *   hubben: avslutad, utomstående, utan      nej
@@ -60,6 +62,23 @@ const VAR = "grupp-var";
 const ANNAN = "grupp-annan";
 /** Create-proven skriver en NY rad varje gång: en setDoc på en rad som finns är en update, och då provas fel regel. */
 const NYA = ["ny-1", "ny-2", "ny-3", "ny-4", "ny-5"];
+
+/*
+ * ⛔ INBJUDNINGARNAS RADER, EN PER PROV (0.80.1). Ett nekande prov som av misstag släpps in ändrar sin rad, och
+ * delade de raden provade nästa prov en annan utgångsstatus än det säger: mätt i svepet, när listan över ändrade
+ * fält slogs ut blev bara det första fältprovet rött och de andra gröna av att raden redan var återkallad.
+ */
+/** @type {ReadonlyArray<[string, string]>} */
+const INB_OVERGANGAR = [
+  ["inb-aterkalla-admin", "vantar"],
+  ["inb-aterkalla-agare", "vantar"],
+  ["inb-medlem", "vantar"],
+  ["inb-till-accepterad", "vantar"],
+  ["inb-aterkallad", "aterkallad"],
+  ["inb-accepterad", "accepterad"],
+];
+/** @type {ReadonlyArray<[string, unknown]>} */
+const INB_FALT = [["tokenHash", "a".repeat(64)], ["giltigTill", "2099-01-01T00:00:00.000Z"], ["groupId", ANNAN], ["roll", "agare"], ["epost", "annan@example.com"], ["antalSkickade", 5]];
 
 /** @type {import("@firebase/rules-unit-testing").RulesTestEnvironment} */
 let miljo;
@@ -103,6 +122,11 @@ before(async () => {
     await setDoc(doc(db, "konfig/var-konfig"), { groupId: VAR, varde: 1 });
     await setDoc(doc(db, "invitations/inb-1"), { epost: "ny@example.com", groupId: VAR, roll: "medlem", status: "vantar", tokenHash: "", giltigTill: "2026-10-30T00:00:00.000Z", skickad: "", antalSkickade: 0 });
     await setDoc(doc(db, "invitations/inb-annan"), { epost: "ny@example.com", groupId: ANNAN, roll: "medlem", status: "vantar", tokenHash: "", giltigTill: "2026-10-30T00:00:00.000Z", skickad: "", antalSkickade: 0 });
+    // ⛔ EN RAD PER ÖVERGÅNG (0.80.1). En återkallelse som lyckas ändrar raden, och ett prov efter den på samma rad
+    // provar då en annan utgångsstatus än det säger. `inb-1` står kvar som `vantar` genom hela sviten.
+    for (const [iid, status] of [...INB_OVERGANGAR, ...INB_FALT.map(([falt]) => /** @type {[string, string]} */ ([`inb-falt-${falt}`, "vantar"]))]) {
+      await setDoc(doc(db, `invitations/${iid}`), { epost: `${iid}@example.com`, groupId: VAR, roll: "medlem", status, tokenHash: "", giltigTill: "2026-10-30T00:00:00.000Z", skickad: "", antalSkickade: 0 });
+    }
     await setDoc(doc(db, `users/${MEDLEM}`), { namn: "Medlem", epost: "medlem@example.com" });
     await setDoc(doc(db, "hemligt/rad"), { x: 1 });
     await setDoc(doc(db, "vitlista/vitlistad@example.com"), { epost: "vitlistad@example.com", tillagdAv: {}, tid: "2026-09-28T00:00:00.000Z" });
@@ -511,9 +535,51 @@ describe("⛔ inbjudan: bara gruppens ägare, den bär en adress", () => {
     await assertFails(getDoc(doc(som(ADMIN), "invitations/inb-annan")));
   });
 
-  it("en admin får återkalla en inbjudan", async () => {
-    await assertSucceeds(updateDoc(doc(som(ADMIN), "invitations/inb-1"), { status: "aterkallad" }));
+  it("en admin får återkalla en väntande inbjudan", async () => {
+    await assertSucceeds(updateDoc(doc(som(ADMIN), "invitations/inb-aterkalla-admin"), { status: "aterkallad" }));
   });
+
+  it("ägaren får återkalla en väntande inbjudan", async () => {
+    await assertSucceeds(updateDoc(doc(som(AGARE), "invitations/inb-aterkalla-agare"), { status: "aterkallad" }));
+  });
+
+  it("⛔ en vanlig medlem återkallar inte en väntande inbjudan", async () => {
+    await assertFails(updateDoc(doc(som(MEDLEM), "invitations/inb-medlem"), { status: "aterkallad" }));
+  });
+
+  /*
+   * ⛔ STATUSEN GÅR BARA FRÅN `vantar` TILL `aterkallad` (0.80.1, granskningen av lifehub.app PR 117, punkt 3).
+   * Mätt där: en återkallad ägarinbjudan sattes tillbaka till `vantar` av en admin. Accepten och ett nytt utskick
+   * sker på serversidan med Admin SDK, aldrig härifrån.
+   */
+  it("⛔ en återkallad inbjudan kan inte sättas tillbaka till vantar, inte ens av ägaren", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-aterkallad"), { status: "vantar" }));
+    await assertFails(updateDoc(doc(som(ADMIN), "invitations/inb-aterkallad"), { status: "vantar" }));
+  });
+
+  it("⛔ en accepterad inbjudan kan inte sättas tillbaka till vantar", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-accepterad"), { status: "vantar" }));
+  });
+
+  it("⛔ en accepterad inbjudan kan inte återkallas i efterhand", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-accepterad"), { status: "aterkallad" }));
+  });
+
+  it("⛔ en väntande inbjudan kan inte markeras accepterad från klienten, det gör accepten på serversidan", async () => {
+    await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-till-accepterad"), { status: "accepterad" }));
+    await assertFails(updateDoc(doc(som(ADMIN), "invitations/inb-till-accepterad"), { status: "accepterad" }));
+  });
+
+  /*
+   * ⛔ ÅTERKALLELSEN BÄR INGET ANNAT FÄLT MED SIG. Proven nedanför ändrar ett fält utan att ändra statusen, och de
+   * nekas redan av övergångsvillkoret. De här ändrar statusen RÄTT och ett fält till, så att det är listan över
+   * ändrade fält som nekar och ingenting annat.
+   */
+  for (const [falt, varde] of INB_FALT) {
+    it(`⛔ en återkallelse som också ändrar ${falt} nekas`, async () => {
+      await assertFails(updateDoc(doc(som(AGARE), `invitations/inb-falt-${falt}`), { status: "aterkallad", [falt]: varde }));
+    });
+  }
 
   it("⛔ tokenHash går inte att skriva från en klient, inte ens av ägaren", async () => {
     await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-1"), { tokenHash: "a".repeat(64) }));
@@ -536,8 +602,26 @@ describe("⛔ inbjudan: bara gruppens ägare, den bär en adress", () => {
     await assertFails(updateDoc(doc(som(AGARE), "invitations/inb-1"), { roll: "agare" }));
   });
 
-  it("ägaren får ändra statusen, alltså återkalla", async () => {
-    await assertSucceeds(updateDoc(doc(som(AGARE), "invitations/inb-1"), { status: "aterkallad" }));
+  it("raderna som nekades står kvar med sin status, och de två som återkallades är återkallade", async () => {
+    /** @type {Record<string, string>} */
+    const status = {};
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      for (const iid of ["inb-1", ...INB_OVERGANGAR.map(([i]) => i), ...INB_FALT.map(([f]) => `inb-falt-${f}`)]) {
+        status[iid] = (await getDoc(doc(ctx.firestore(), `invitations/${iid}`))).data()?.status;
+      }
+    });
+    // ⛔ Golvet: alla rader lästes, en tom läsning hade gjort jämförelsen nedan grön av ingenting.
+    assert.equal(Object.keys(status).length, 1 + INB_OVERGANGAR.length + INB_FALT.length);
+    assert.deepEqual(status, {
+      "inb-1": "vantar",
+      "inb-aterkalla-admin": "aterkallad",
+      "inb-aterkalla-agare": "aterkallad",
+      "inb-medlem": "vantar",
+      "inb-till-accepterad": "vantar",
+      "inb-aterkallad": "aterkallad",
+      "inb-accepterad": "accepterad",
+      ...Object.fromEntries(INB_FALT.map(([f]) => [`inb-falt-${f}`, "vantar"])),
+    });
   });
 });
 

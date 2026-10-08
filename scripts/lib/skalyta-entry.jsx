@@ -1108,6 +1108,7 @@ function provbild() {
   return { dataUrl, namn: "kvitto.jpg", typ: "image/jpeg", tecken: dataUrl.length, bredd: 320, hojd: 180 };
 }
 let bilagekallan = null;
+let chattinfokallan = null;
 function ChattBilagaScen() {
   const [k, setK] = useState(bilagekallan);
   if (!Ops.OpsMeddelanden) return <Full><p data-saknas="OpsMeddelanden">OpsMeddelanden saknas</p></Full>;
@@ -1115,7 +1116,7 @@ function ChattBilagaScen() {
     (async () => {
       let t = new Date(2026, 9, 6, 9, 0).getTime();
       const kalla = Ops.createMemorySource({});
-      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), bilagor: true });
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), bilagor: true, bilagaSamling: "bilagor" });
       const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
       await s.skicka(p.id, { text: "Kvittot från bokhandeln.", av: "bo", bilaga: provbild() });
       const x = { s, id: p.id };
@@ -1126,6 +1127,39 @@ function ChattBilagaScen() {
   return (
     <Full>
       {k ? <Ops.OpsMeddelanden kalla={k.s} uid="anna" groupId="g1" gruppNamn="Claes Philip Staiger AB" medlemmar={MEDLEMMAR_C} valt={k.id} onValj={() => {}} /> : <p>Laddar</p>}
+    </Full>
+  );
+}
+
+/*
+ * 0.80.0, #301: huvudet med Mejl, Tysta, Sök och Chattinfo, och panelen med bild och dokument.
+ * Egen scen, så att 29g (9) fortfarande mäter bilagan utan panelen.
+ */
+function ChattinfoScen() {
+  const [k, setK] = useState(chattinfokallan);
+  if (!Ops.OpsSamtal) return <Full><p data-saknas="OpsSamtal">OpsSamtal saknas</p></Full>;
+  if (!k) {
+    (async () => {
+      let t = new Date(2026, 9, 6, 9, 0).getTime();
+      const kalla = Ops.createMemorySource({});
+      const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), bilagor: true, bilagaSamling: "bilagor", tyst: "tyst" });
+      const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+      // Granskningen av PR 307: en bilaga i 0.77.0-form, hela filen på meddelandet och inget eget dokument. Den ska synas i
+      // bubblan och i Bilder.
+      await kalla.create(`samtal/${p.id}/meddelanden`, { text: "Från i somras.", av: "anna", tid: (t += 60000), bilaga: { ...provbild(), namn: "kvitto-juni.jpg" } });
+      const bild = provbild();
+      const pdf = "data:application/pdf;base64,JVBERi0xLjQK";
+      await s.skicka(p.id, { text: "Kartan: https://example.com/karta", av: "bo", bilaga: bild });
+      await s.skicka(p.id, { text: "", av: "bo", bilaga: { dataUrl: pdf, namn: "avtal.pdf", typ: "application/pdf", tecken: pdf.length } });
+      const x = { s, samtal: p };
+      chattinfokallan = x;
+      setK(x);
+    })();
+  }
+  const namnFor = (uid) => MEDLEMMAR_C.find((m) => m.userId === uid)?.namn ?? uid;
+  return (
+    <Full>
+      {k ? <Ops.OpsSamtal kalla={k.s} uid="anna" samtal={k.samtal} rubrik="Bo Lind" namnFor={namnFor} medlemmar={MEDLEMMAR_C} mejl="bo@example.com" /> : <p>Laddar</p>}
     </Full>
   );
 }
@@ -1687,6 +1721,7 @@ function Scen() {
   if (s === "meddelanden-ny-grupp") return <MeddelandeNyGruppScen />;
   if (s === "chattnatt") return <ChattNattScen />;
   if (s === "chattbilaga") return <ChattBilagaScen />;
+  if (s === "chattinfo") return <ChattinfoScen />;
   if (s === "installning-grupper") {
     return (
       <Skal>

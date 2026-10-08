@@ -233,9 +233,10 @@ describe("⛔ inbjudningarna vid skapandet: efter commit, best effort, ett svar 
         minne: m,
         kalla: /** @type {any} */ ({
           ...m,
-          create: async (/** @type {string} */ c, /** @type {any} */ d) => {
+          // ⛔ En inbjudan skapas med createNew sedan 0.80.1, aldrig med create. Felet läggs där skrivningen sker.
+          createNew: async (/** @type {string} */ c, /** @type {any} */ d) => {
             if (c === "invitations" && d.epost === "trasig@example.com") throw new Error("nätverket föll");
-            return m.create(c, d);
+            return /** @type {any} */ (m).createNew(c, d);
           },
         }),
       };
@@ -510,3 +511,18 @@ describe("⛔ moduler: apparna en ny grupp börjar med (0.51.0)", () => {
     expect(() => createGroupService({ kalla: medBatch, moduler: /** @type {any} */ ("ekonomi") })).toThrow(/moduler måste vara en lista/);
   });
 });
+
+/*
+ * ⛔ FELET NAMNGER createGroupService NÄR DET ÄR DEN SOM BYGGS (0.80.1, granskningen av PR 308, K4). Tjänsten
+ * bygger inbjudningarna inuti sig, och ett fel som sade `createInvitationService` pekade på en fabrik appen aldrig
+ * anropat.
+ */
+describe("⛔ createGroupService och inbjudningarnas krav på källan", () => {
+  for (const op of ["createNew", "updateIf"]) {
+    it(`en källa utan ${op} nekas med createGroupService i felet`, () => {
+      const { [op]: _bort, ...utan } = /** @type {any} */ (createMemorySource());
+      expect(() => createGroupService({ kalla: utan })).toThrow(new RegExp(`^createGroupService: datakällan saknar ${op}`));
+    });
+  }
+});
+

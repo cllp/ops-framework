@@ -33,7 +33,7 @@ export { createActivityWriter } from "./aktivitet.js";
  * dem. Låg funktionen i huvudingången vore den en yta en vy kunde anropa, och
  * då vore regeln `allow write: if false` en dörr med ett fönster bredvid.
  */
-export { createInvitationService } from "./inbjudan.js";
+export { createInvitationService, inbjudningsId } from "./inbjudan.js";
 
 /* Samma skäl som inbjudan: agentens medlemskap skrivs bara av servern (lifehub.app#47). */
 export { createAgentService } from "./agent.js";
