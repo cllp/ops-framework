@@ -57,6 +57,47 @@ export const SAMTALSFALT = /** @type {const} */ (["groupId", "slag", "deltagare"
 /** Fälten ett meddelande får bära. */
 export const MEDDELANDEFALT = /** @type {const} */ (["text", "av", "tid"]);
 
+/**
+ * Det ett meddelande får bära om en bilaga (0.80.0, #300): namn och typ, aldrig innehållet.
+ * Filen ligger i sitt eget dokument. `namn` och `typ` skrivs i samma skrivning som meddelandet och kan inte
+ * ändras efteråt (meddelandet uppdateras aldrig), så de kan inte glida isär från filen.
+ */
+export const BILAGEMARKEFALT = /** @type {const} */ (["namn", "typ"]);
+
+/**
+ * Avgränsaren i en trådbilagas nyckel, `<trådens id>~<meddelandets id>` (0.80.0, granskningen av PR 307).
+ *
+ * ⛔ TRÅDEN STÅR I SÖKVÄGEN. Regeln binder filen till sitt meddelande med `getAfter`, och för ett svar i en tråd ligger
+ * meddelandet under `<tradar>/{tråd}/<meddelanden>/{id}`. Utan trådens id i nyckeln hade regeln inte kunnat hitta det.
+ * Ett eget fält hade varit en uppgift till om samma sak (regel 2), och den hade gått att sätta fel.
+ */
+export const BILAGA_TRADSKILJE = "~";
+
+/**
+ * Nyckeln för ett meddelandes fil: meddelandets id, och för ett svar i en tråd `<tråd>~<id>`.
+ * @param {string} mid @param {string} [trad]
+ * @returns {string}
+ */
+export function bilagenyckel(mid, trad) {
+  return trad ? `${trad}${BILAGA_TRADSKILJE}${mid}` : mid;
+}
+
+/**
+ * Vilka som är med i samtalet: gruppens medlemmar i gruppchatten, och bara de två deltagarna i ett privat samtal
+ * (0.80.0, granskningen av PR 307). En deltagare som saknas bland medlemmarna står kvar med sitt uid, så att panelen
+ * inte visar färre än samtalet har.
+ *
+ * @template {{ userId: string }} M
+ * @param {Pick<Samtal, "slag" | "deltagare"> | null | undefined} samtal
+ * @param {ReadonlyArray<M> | null | undefined} medlemmar
+ * @returns {Array<M | { userId: string }>}
+ */
+export function samtalsdeltagare(samtal, medlemmar) {
+  const alla = [...(medlemmar ?? [])];
+  if (!samtal || samtal.slag === "grupp") return alla;
+  return (samtal.deltagare ?? []).map((uid) => alla.find((m) => m.userId === uid) ?? { userId: uid });
+}
+
 /** Fältet på läst-raden. */
 export const LASTFALT = /** @type {const} */ (["lastTill"]);
 
@@ -184,8 +225,8 @@ export function byggSamtal(d) {
  * @property {number} tid Millisekunder sedan 1970.
  * @property {ReadonlyArray<string>} [namner] (chattens nattskiva) Vilka som nämns: uid:n, eller `["alla"]`.
  * @property {string} [svarPa] (chattens nattskiva) Meddelandet som besvaras med citat, i samma samtal.
- * @property {import("./file.js").Bilaga} [bilaga] (0.77.0, #292) En bild eller en fil, i kommentarernas form. Bara när
- *   källan och regeln har `bilagor: true`.
+ * @property {import("./file.js").Bilaga | { namn: string, typ: string }} [bilaga] `byggMeddelande` bär hela filen, så att källan kan dela den.
+ *   Det som lagras på meddelandet (0.80.0, #300) är bara `{ namn, typ }`. Filen läses med `lasBilaga`.
  */
 
 /**
@@ -289,6 +330,26 @@ export function utdrag(text, max = 80) {
   // fästraden (granskningen av PR 286).
   const t = rensa(markdownSomText(rensa(text))).replace(/\s+/g, " ");
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+/**
+ * Texten som visas för ett meddelande: utdraget av texten, annars bilagans namn.
+ *
+ * ⛔ ETT STÄLLE (0.80.0, #300). Bubblan, citatet, fästraden och `samtalsnotiser` läser samma funktion. Notisen tog
+ * förut bara `utdrag(text)`, så ett meddelande som bara var en fil blev en tom notis. En bilaga utan namn (en rad
+ * som inte gått genom `byggMeddelande`) syns som "Bilaga", inte som en tom sträng: tomt och ostält ska gå att skilja.
+ *
+ * @param {{ text?: string, bilaga?: { namn?: string } | null } | null | undefined} m
+ * @param {number} [max]
+ * @returns {string}
+ */
+export function synligText(m, max = 80) {
+  if (!m) return "";
+  const text = utdrag(typeof m.text === "string" ? m.text : "", max);
+  if (text) return text;
+  const namn = m.bilaga && typeof m.bilaga.namn === "string" ? utdrag(m.bilaga.namn, max) : "";
+  if (namn) return namn;
+  return m.bilaga ? "Bilaga" : "";
 }
 
 /**

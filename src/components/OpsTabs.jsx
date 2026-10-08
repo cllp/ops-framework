@@ -17,8 +17,14 @@ import { cx } from "../lib/cx.js";
  */
 
 /**
+ * ⛔ IKONFLIKAR (0.80.0, granskningen av PR 307). Med `icon` på en flik ritas ikonen med `badge` under, i lika breda
+ * kolumner, och ordet står kvar som `sr-only`. Chattinfo i en panel på 320 px fick inte plats med fyra ord och antal:
+ * Dokument och Länkar hamnade utanför och syntes inte utan att raden rullades, och montaget mot förebilden visade det
+ * direkt. Samma regel som `OpsSegmented`: antingen alla flikar eller ingen, annars kastar den, för en ikon bredvid ett
+ * ord ser ut som ett fel. `badge` ritas när den är ett tal, också 0 (regel 5: tomhet är ett svar).
+ *
  * @param {object} props
- * @param {{ id: string, label: string, disabled?: boolean }[]} props.tabs
+ * @param {{ id: string, label: string, disabled?: boolean, icon?: import("react").ReactNode, badge?: number }[]} props.tabs
  * @param {string} props.value
  * @param {(id: string) => void} props.onChange
  * @param {string} props.ariaLabel Vad flikraden styr. Krävs, annars är den namnlös för skärmläsare.
@@ -31,6 +37,11 @@ export function OpsTabs({ tabs, value, onChange, ariaLabel, children }) {
   if (!ariaLabel) {
     throw new Error("OpsTabs: ariaLabel krävs. En namnlös flikrad annonseras bara som 'flikar', vilket inte hjälper någon.");
   }
+  const medIkon = tabs.filter((f) => Boolean(f.icon)).length;
+  if (medIkon !== 0 && medIkon !== tabs.length) {
+    throw new Error(`OpsTabs: ${medIkon} av ${tabs.length} flikar har icon. Antingen alla eller ingen: en ikon bredvid ett ord ser ut som ett fel.`);
+  }
+  const ikoner = medIkon > 0;
 
   return (
     <Tabs.Root value={value} onValueChange={onChange}>
@@ -43,7 +54,9 @@ export function OpsTabs({ tabs, value, onChange, ariaLabel, children }) {
             value={f.id}
             disabled={f.disabled}
             className={cx(
-              "shrink-0 whitespace-nowrap rounded-t-md px-4 py-2 text-brod font-semibold",
+              ikoner
+                ? "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-t-md px-2 py-2 text-meta font-semibold"
+                : "shrink-0 whitespace-nowrap rounded-t-md px-4 py-2 text-brod font-semibold",
               "border-b-2 border-transparent text-ink-secondary",
               "transition-colors duration-(--duration-fast) ease-standard",
               "hover:bg-accent-faint hover:text-ink",
@@ -52,7 +65,19 @@ export function OpsTabs({ tabs, value, onChange, ariaLabel, children }) {
               "disabled:opacity-55 disabled:cursor-not-allowed",
             )}
           >
-            {f.label}
+            {ikoner ? (
+              <>
+                <span aria-hidden="true" className="inline-flex">
+                  {f.icon}
+                </span>
+                <span className="sr-only">{`${f.label} `}</span>
+                <span className="tabular-nums">{typeof f.badge === "number" ? f.badge : ""}</span>
+              </>
+            ) : typeof f.badge === "number" ? (
+              `${f.label} ${f.badge}`
+            ) : (
+              f.label
+            )}
           </Tabs.Trigger>
         ))}
       </Tabs.List>

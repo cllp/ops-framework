@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -723,20 +723,45 @@ export function konfigloggregelfragment(namn) {
  */
 
 /**
+ * Märket på meddelandet: namn och typ, och inget annat. `dataUrl` får inte ligga här (0.80.0, #300).
+ * @returns {string}
+ */
+function bilagemarkeFunktion() {
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  return `    function opsMeddelandebilagemarke(b) {
+      return b is map
+        && b.keys().hasOnly([${lista(BILAGEMARKEFALT)}])
+        && b.keys().hasAll([${lista(BILAGEMARKEFALT)}])
+        && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
+        && b.namn is string
+        && b.namn.size() > 0
+        && b.namn.size() <= ${MAX_BILAGENAMN};
+    }`;
+}
+
+/**
  * Regelns prövning av en bilaga, ur samma konstanter som `kommentarbilagaFel`.
  *
  * ⛔ TVÅ NAMN, ETT UTTRYCK. `handelseregelfragment` och `samtalsregelfragment` limmas in i samma fil. En funktion får inte
  * heta samma sak två gånger, så kommentarerna anropar `opsKommentarbilagaGiltig` och meddelandena `opsMeddelandebilagaGiltig`.
  * Kroppen skrivs här, en gång.
  *
+ * ⛔ `tid` BARA PÅ MEDDELANDETS FIL (granskningen av PR 307). Filen i sitt eget dokument bär meddelandets tid, så att
+ * Chattinfo kan läsa de nyaste först. Kommentarens bilaga ligger i kommentaren och har ingen egen tid. Utan flaggan är
+ * texten ordagrant den som stod här förut, och kommentarernas fixtur består. Tidens typ prövas inte här: bindningen
+ * (`opsBundenBilaga`) kräver att den finns och är meddelandets tid, ett heltal nära serverns klocka (`opsNu`). Ett eget
+ * `is int` och `tid` i `hasAll` överlevde mutationskörningen, alltså mätte de ingenting.
+ *
  * @param {string} funktionsnamn
+ * @param {{ tid?: boolean }} [val]
  * @returns {string}
  */
-function bilagaRegelfunktion(funktionsnamn) {
+function bilagaRegelfunktion(funktionsnamn, val = {}) {
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const extra = val.tid ? ["tid"] : [];
   return `    function ${funktionsnamn}(b) {
       return b is map
-        && b.keys().hasOnly([${lista(KOMMENTARBILAGAFALT)}])
+        && b.keys().hasOnly([${lista([...KOMMENTARBILAGAFALT, ...extra])}])
         && b.keys().hasAll([${lista(KOMMENTARBILAGAFALT.slice(0, 4))}])
         && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
         && b.dataUrl is string
@@ -749,6 +774,25 @@ function bilagaRegelfunktion(funktionsnamn) {
         && (!('bredd' in b) || b.bredd is number)
         && (!('hojd' in b) || b.hojd is number);
     }`;
+}
+
+/**
+ * Avgränsaren i en trådbilagas nyckel som regeltext: en teckenklass för `matches`, och samma tecken som mönster i `split`.
+ *
+ * ⛔ TECKNET HAMNAR OESCAPAT I TRE SAMMANHANG (granskningen av PR 307). I teckenklassen `[x]` ändrar `]`, `^`, `\` och
+ * `-` betydelse. I `split`, som i reglerna tar ett reguljärt uttryck, gör varje metatecken det. I regeltexten står det
+ * inom `'...'`. Ett tecken som bryter något av dem hade gett en regel som tyst nekar allt, eller släpper in det den
+ * skulle neka. Därför kastar generatorn i stället, och avgränsaren ändras i `BILAGA_TRADSKILJE`, aldrig här.
+ *
+ * @param {string} t
+ * @returns {string} teckenklassen, till exempel `[~]`
+ */
+export function tradskiljeTeckenklass(t) {
+  if (typeof t !== "string" || [...t].length !== 1) throw new Error(`samtalsregelfragment: BILAGA_TRADSKILJE ska vara ett enda tecken, inte ${JSON.stringify(t)}.`);
+  if ("]^\\-[.*+?(){}|$/'\"".includes(t) || /\s/.test(t) || /[A-Za-z0-9_]/.test(t)) {
+    throw new Error(`samtalsregelfragment: BILAGA_TRADSKILJE ${JSON.stringify(t)} är inte säkert i en teckenklass, i split eller inom '...'. Välj ett tecken som inte är ], ^, \\, -, ett annat metatecken, ett citattecken, blanktecken eller en del av ett id.`);
+  }
+  return `[${t}]`;
 }
 
 /**
@@ -797,15 +841,24 @@ function bilagaRegelfunktion(funktionsnamn) {
  *   - FÄSTA (chattens nattskiva, med `fasta`): `<fasta>/{mid}` med `FASTFALT`. Läsa som samtalet. Fästa: en aktiv person i
  *     samtalet, som sig själv, ett meddelande som finns i samma samtal (nyckeln ÄR dess id). Lossa: vem som helst av samtalets
  *     aktiva personer. Uppdatera: aldrig.
- *   - BILAGA (0.77.0, #292, med `bilagor: true`): ett meddelande, i samtalet och i en tråd, får bära `bilaga` i kommentarernas
- *     form. Prövningen är `opsMeddelandebilagaGiltig`, byggd av samma funktion som `opsKommentarbilagaGiltig` (ett uttryck, två
- *     namn, eftersom båda fragmenten limmas in i samma regelfil och ett delat namn inte går att deklarera två gånger). Med
- *     bilaga får texten vara tom. Utan nyckeln är meddelandets fält och textkrav desamma som förut.
+ *   - BILAGA (0.80.0, #300, med `bilagor: true` och `bilagaSamling`): meddelandet bär märket `{ namn, typ }`
+ *     (`opsMeddelandebilagemarke`). Filen, i kommentarernas form, ligger i `<samtal>/{sid}/<bilagaSamling>/{meddelandets id}`
+ *     och prövas med `opsMeddelandebilagaGiltig`, med meddelandets `tid`. Filen är bunden till sitt meddelande
+ *     (`opsBundenBilaga`, granskningen av PR 307): med `existsAfter` och `getAfter`, som ser läget efter hela batchen, ska
+ *     meddelandet finnas, vara skrivet av den inloggade och bära samma namn, typ och tid. Ett svar i en tråd har nyckeln
+ *     `<tråd>~<id>` (`bilagenyckel`). Uppdatera och radera: aldrig. Med bilaga får texten vara tom.
+ *     Åt andra hållet (granskningen av PR 307): ett meddelande som bär märket ska ha sin fil efter batchen (`existsAfter` på
+ *     `opsBilagansFil`) med samma namn och typ som märket (`opsMarketHarFil`), och meddelandets id får inte innehålla `~`,
+ *     för då hade filens nyckel aldrig gått att skriva. En fil som läggs till senare på ett eget meddelande som redan bär
+ *     märket prövas bara av filens regel, och den släpps in.
+ *     Utan nycklarna är meddelandets fält och textkrav desamma som förut. Firebase Storage används inte.
+ *   - TYSTA NOTISER (0.80.0, #301, med `tyst`): `<tyst>/{uid}` med `{ tyst: bool }`. Bara personen själv läser och skriver.
+ *     Radera: aldrig. Utan nyckeln finns inget sådant block.
  *
  * ⛔ VARJE NY UNDERSAMLING ÄR EN NY NYCKEL, UTAN FÖRVAL (`tradar` 0.68.0, `status` #273). En app som inte skickar nyckeln får
  * byte för byte samma regeltext som innan nyckeln fanns, och det mäts mot fixturerna i `rules/__fixturer__/`.
  *
- * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, medlemskap?: string }} [namn]
+ * @param {{ samtal?: string, meddelanden?: string, last?: string, tradar?: string, status?: string, reaktioner?: string, omnamnanden?: boolean, citat?: boolean, fasta?: string, bilagor?: boolean, bilagaSamling?: string, tyst?: string, medlemskap?: string }} [namn]
  * @returns {string}
  */
 export function samtalsregelfragment(namn = {}) {
@@ -822,8 +875,10 @@ export function samtalsregelfragment(namn = {}) {
   const status = namn.status === undefined ? null : kontrolleraNamn(namn.status, "status");
   const reaktioner = namn.reaktioner === undefined ? null : kontrolleraNamn(namn.reaktioner, "reaktioner");
   const fasta = namn.fasta === undefined ? null : kontrolleraNamn(namn.fasta, "fasta");
+  const bilagaSamling = namn.bilagaSamling === undefined ? null : kontrolleraNamn(namn.bilagaSamling, "bilagaSamling");
+  const tyst = namn.tyst === undefined ? null : kontrolleraNamn(namn.tyst, "tyst");
   // ⛔ KAN 7: ett namn som är samma som en annan undersamling hade lagt två regler på samma väg. Samma prövning som källan gör.
-  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta }, "samtalsregelfragment");
+  undersamlingskrock({ meddelanden, last, tradar, status, reaktioner, fasta, bilagaSamling, tyst }, "samtalsregelfragment");
   if (namn.omnamnanden !== undefined && typeof namn.omnamnanden !== "boolean") throw new Error("samtalsregelfragment: omnamnanden är true eller utelämnat.");
   const omnamnanden = namn.omnamnanden === true;
   // ⛔ Meddelandets fält: modellens tre, och `namner` bara när appen slagit på omnämnandena. Utan dem är raden densamma som förut.
@@ -831,6 +886,9 @@ export function samtalsregelfragment(namn = {}) {
   const citat = namn.citat === true;
   if (namn.bilagor !== undefined && namn.bilagor !== true) throw new Error("samtalsregelfragment: bilagor är true eller utelämnat.");
   const bilagor = namn.bilagor === true;
+  // ⛔ Namnet kommer utifrån. Ett förval hade gett varje app en ny undersamling vid en ompinning som ingen bad om.
+  if (bilagor && !bilagaSamling) throw new Error("samtalsregelfragment: bilagor: true kräver bilagaSamling, samlingsnamnet för filerna. Ramverket väljer det inte.");
+  if (!bilagor && bilagaSamling) throw new Error("samtalsregelfragment: bilagaSamling kräver bilagor: true.");
   // Trådens meddelanden: utan `svarPa` (citat finns bara utanför gruppchatten, och trådar bara i den).
   const meddelandefalt = omnamnanden ? [...MEDDELANDEFALT, NAMNERFALT] : [...MEDDELANDEFALT];
   const samtalsfaltlista = citat ? [...meddelandefalt, SVARPAFALT] : meddelandefalt;
@@ -842,14 +900,56 @@ export function samtalsregelfragment(namn = {}) {
   const utanDeltagare = SAMTALSFALT.filter((f) => f !== "deltagare");
 
   // ⛔ Versionsraden nämner bara det appen slagit på, så att en app utan de nya nycklarna får samma text som förut.
-  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : [])].join(", ");
+  const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : [])].join(", ");
   // ⛔ Utan `bilagor` är de två raderna ordagrant de som stod här förut, så fixturen för 0.67.0 består.
-  const texttak = (/** @type {string} */ indrag) => (bilagor
-    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagaGiltig(request.resource.data.bilaga))`
+  // Med `bilagor` prövas MÄRKET på meddelandet. Filens `dataUrl` prövas på bilagedokumentet, inte här.
+  // ⛔ MÄRKET HAR SIN FIL, OCH ID:T KAN BÄRA EN (granskningen av PR 307). Ett märke utan fil hade gett en bubbla som säger
+  // "Bilagan går inte att visa" för alltid, och ett id med `~` hade gett en fil vars nyckel regeln läser som ett trådsvar.
+  // `nyckel` är regeluttrycket för filens nyckel: `mid` i samtalet, `tid + '~' + mid` i en tråd.
+  const texttak = (/** @type {string} */ indrag, /** @type {string} */ nyckel) => (bilagor
+    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagemarke(request.resource.data.bilaga))\n${indrag}&& (!('bilaga' in request.resource.data) || opsMarketHarFil(sid, ${nyckel}, request.resource.data.bilaga))\n${indrag}&& !mid.matches('.*${skiljeklass}.*')`
     : `${indrag}&& request.resource.data.text.size() > 0\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}`);
   const meddelandefaltRegel = bilagor ? [...meddelandefalt, "bilaga"] : meddelandefalt;
   const samtalsfaltRegel = bilagor ? [...samtalsfaltlista, "bilaga"] : samtalsfaltlista;
-  const bilagefunktion = bilagor ? `${bilagaRegelfunktion("opsMeddelandebilagaGiltig")}\n\n` : "";
+  // ⛔ FILEN ÄR BUNDEN TILL SITT MEDDELANDE (granskningen av PR 307). Utan bindningen kunde vem som helst i samtalet lägga
+  // en fil på vilket id som helst, också på någon annans meddelande, och märkets typ behövde inte vara filens. `getAfter`
+  // ser läget efter hela batchen, alltså meddelandet som skrivs i samma anrop. Ett svar i en tråd har trådens id först i
+  // nyckeln (`bilagenyckel`), annars hade regeln inte hittat meddelandet. Utan `tradar` finns bara den enkla nyckeln.
+  const S = BILAGA_TRADSKILJE;
+  const skiljeklass = bilagor ? tradskiljeTeckenklass(S) : "";
+  const bilagansVag = tradar
+    ? `nyckel.split('${S}').size() == 1
+        ? /databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(nyckel)
+        : /databases/$(database)/documents/${samtal}/$(sid)/${tradar}/$(nyckel.split('${S}')[0])/${meddelanden}/$(nyckel.split('${S}')[1])`
+    : `/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(nyckel)`;
+  const bindningsfunktion = `    // Bilagans meddelande (granskningen av PR 307): nyckeln är meddelandets id, eller trådens id och meddelandets id.
+    function opsBilagansMeddelande(sid, nyckel) {
+      return ${bilagansVag};
+    }
+
+    // Meddelandets fil (granskningen av PR 307): samma nyckel åt andra hållet.
+    function opsBilagansFil(sid, nyckel) {
+      return /databases/$(database)/documents/${samtal}/$(sid)/${bilagaSamling}/$(nyckel);
+    }
+
+    // Märket har sin fil efter batchen, med samma namn och typ: samma jämförelse som opsBundenBilaga, åt andra hållet.
+    // Utan den kunde ett nytt meddelande ta över en fil som saknar meddelande, under ett annat namn eller en annan typ.
+    function opsMarketHarFil(sid, nyckel, b) {
+      return existsAfter(opsBilagansFil(sid, nyckel))
+        && getAfter(opsBilagansFil(sid, nyckel)).data.namn == b.namn
+        && getAfter(opsBilagansFil(sid, nyckel)).data.typ == b.typ;
+    }
+
+    // Filen hör till ett meddelande som finns efter batchen, som den inloggade skrev, med samma namn, typ och tid.
+    function opsBundenBilaga(sid, nyckel, d) {
+      return ${tradar ? `nyckel.split('${S}').size() <= 2` : `nyckel.split('${S}').size() == 1`}
+        && existsAfter(opsBilagansMeddelande(sid, nyckel))
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.av == request.auth.uid
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.bilaga.namn == d.namn
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.bilaga.typ == d.typ
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.tid == d.tid;
+    }`;
+  const bilagefunktion = bilagor ? `${bilagemarkeFunktion()}\n\n${bilagaRegelfunktion("opsMeddelandebilagaGiltig", { tid: true })}\n\n${bindningsfunktion}\n\n` : "";
   const R = SAMTALSAVGRANSARE;
   const citatfunktion = citat
     ? `    // Citat (chattens nattskiva): saknas, eller ett meddelande i samma samtal, och aldrig i gruppchatten.
@@ -992,10 +1092,35 @@ export function samtalsregelfragment(namn = {}) {
             && request.resource.data.keys().hasOnly([${lista(meddelandefaltRegel)}])${tradnamnervillkor}
             && request.resource.data.av == request.auth.uid
             && request.resource.data.text is string
-${texttak("            ")}
+${texttak("            ", `tid + '${S}' + mid`)}
             && opsNu(request.resource.data.tid);
           allow update, delete: if false;
         }${tradstatus}${tradreaktioner}
+      }`
+    : "";
+  const bilageblock = bilagaSamling
+    ? `
+
+      // Bilagor (0.80.0, #300): filen i sitt eget dokument, bunden till sitt meddelande. Aldrig uppdatering eller radering.
+      match /${bilagaSamling}/{nyckel} {
+        allow read: if opsISamtal(sid);
+        allow create: if opsISamtal(sid)
+          && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
+          && opsMeddelandebilagaGiltig(request.resource.data)
+          && opsBundenBilaga(sid, nyckel, request.resource.data);
+        allow update, delete: if false;
+      }`
+    : "";
+  const tystblock = tyst
+    ? `
+
+      // Tysta notiser (0.80.0, #301): en rad per person. Bara den egna läses och skrivs. Aldrig radering.
+      match /${tyst}/{uid} {
+        allow read: if request.auth != null && request.auth.uid == uid && opsISamtal(sid);
+        allow create, update: if request.auth != null && request.auth.uid == uid && opsISamtal(sid)
+          && request.resource.data.keys().hasOnly(["tyst"])
+          && request.resource.data.tyst is bool;
+        allow delete: if false;
       }`
     : "";
 
@@ -1069,7 +1194,7 @@ ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefu
           && request.resource.data.av == request.auth.uid
           && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
           && request.resource.data.text is string
-${texttak("          ")}
+${texttak("          ", "mid")}
           && opsNu(request.resource.data.tid);
         allow update, delete: if false;
       }
@@ -1080,7 +1205,7 @@ ${texttak("          ")}
           && request.resource.data.keys().hasOnly([${lista(LASTFALT)}])
           && request.resource.data.lastTill is int;
         allow delete: if false;
-      }${tradblock}${statusblock}${reaktionsblock}${fastblock}
+      }${tradblock}${statusblock}${reaktionsblock}${fastblock}${bilageblock}${tystblock}
     }
 `;
 }

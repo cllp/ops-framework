@@ -1,4 +1,5 @@
 import { attachmentSize, isImage } from "../lib/file.js";
+import { kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { FilIkon } from "./icons.jsx";
 
 /**
@@ -7,14 +8,26 @@ import { FilIkon } from "./icons.jsx";
  * ⛔ EN VY FÖR KOMMENTARER OCH MEDDELANDEN (0.77.0, #292). Två kopior av "så här ser en bilaga ut" hade glidit isär första gången
  * den ena fick en ram. `marke` är attributets namn, eftersom kommentarernas prov redan läser `data-kommentar-bilaga-visad`.
  *
+ * ⛔ RITAS BARA NÄR `kommentarbilagaFel` är `null` (0.80.0, #300). En dataUrl som inte är filens typ, till exempel
+ * `javascript:`, blir ingen `href` och ingen `src`. Namnet sägs ändå, så en ogiltig rad inte ser ut som att den inte fanns.
+ *
  * ⛔ INGEN `<iframe>` FÖR EN PDF. Den ritas olika i varje webbläsare, och en tom ruta ser ut som att filen inte kom fram.
  *
  * @param {{ bilaga: import("../lib/file.js").Bilaga, alt: string, marke?: string }} props
  */
 export function BilagaVisning({ bilaga, alt, marke = "data-kommentar-bilaga-visad" }) {
+  const fel = kommentarbilagaFel(bilaga);
+  const attr = { [marke]: fel ? "ogiltig" : isImage(bilaga && bilaga.typ) ? "bild" : "fil" };
+  if (fel) {
+    const namn = bilaga && typeof bilaga === "object" && typeof /** @type {any} */ (bilaga).namn === "string" ? /** @type {any} */ (bilaga).namn : "";
+    return (
+      <p role="alert" {...attr} className="m-0 text-meta text-danger">
+        {namn || alt}
+      </p>
+    );
+  }
   const storlek = bilaga.tecken ? attachmentSize(bilaga.tecken) : "";
   const slag = isImage(bilaga.typ) ? "bild" : "fil";
-  const attr = { [marke]: slag };
   if (slag === "bild") {
     return (
       <a href={bilaga.dataUrl} download={bilaga.namn || "bild"} {...attr} className="block w-fit">

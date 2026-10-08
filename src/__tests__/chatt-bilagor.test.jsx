@@ -32,7 +32,7 @@ async function samtal(/** @type {{ bilagor?: boolean, tradar?: boolean }} */ val
   const s = createSamtalskalla({
     kalla: createMemorySource({}),
     klocka: () => (t += 1000),
-    ...(val.bilagor ? { bilagor: true } : {}),
+    ...(val.bilagor ? { bilagor: true, bilagaSamling: "bilagor" } : {}),
     ...(val.tradar ? { tradar: "tradar" } : {}),
   });
   const p = await s.oppnaPrivat({ groupId: "g", uid: "anna", annan: "bo" });
@@ -47,12 +47,23 @@ describe("meddelandets bilaga", () => {
     await s.skicka(p.id, { text: "", av: "anna", bilaga: bild({ namn: "tom.png" }) });
     const rader = await s.meddelanden(p.id);
     expect(rader.map((m) => m.bilaga?.namn)).toEqual(["kvitto.png", "tom.png"]);
+    expect(rader[0].bilaga).toEqual({ namn: "kvitto.png", typ: "image/png" });
+    expect(JSON.stringify(rader)).not.toContain("dataUrl");
+    const fil = await s.lasBilaga(p.id, rader[0].id);
+    expect(fil.dataUrl).toBe(PNG);
     expect(rader[1].text).toBe("");
     const rot = rader[0];
     await s.skickaITrad(p.id, rot.id, { text: "", av: "bo", bilaga: bild({ namn: "svar.pdf", typ: "application/pdf", dataUrl: "data:application/pdf;base64,JVBERi0=", tecken: "data:application/pdf;base64,JVBERi0=".length }) });
     const svar = await s.tradmeddelanden(p.id, rot.id);
     expect(svar).toHaveLength(1);
     expect(svar[0].bilaga?.namn).toBe("svar.pdf");
+    // ⛔ Trådens id står i filens nyckel, så att regeln hittar svaret (granskningen av PR 307). Utan tråden finns ingen fil.
+    expect(await s.lasBilaga(p.id, svar[0].id)).toBeNull();
+    const tradfil = await s.lasBilaga(p.id, svar[0].id, { trad: rot.id });
+    expect(tradfil.id).toBe(`${rot.id}~${svar[0].id}`);
+    expect(tradfil.tid).toBe(svar[0].tid);
+    // Id:t har en slumpdel efter tid och följd.
+    expect(rot.id).toMatch(/^m_[0-9a-z]+_\d+_[0-9a-z]+$/);
   });
 
   it("⛔ utan bilagor på källan kastar en bilaga, och en ogiltig bilaga kastar med skälet", async () => {
@@ -70,18 +81,23 @@ describe("meddelandets bilaga", () => {
     expect(samtalsregelfragment()).toBe(gammal);
     expect(samtalsregelfragment()).not.toContain("opsMeddelandebilagaGiltig");
     expect(() => samtalsregelfragment({ bilagor: /** @type {any} */ ("ja") })).toThrow(/true eller utelämnat/);
-    const bara = samtalsregelfragment({ bilagor: true });
+    expect(() => samtalsregelfragment({ bilagor: true })).toThrow(/bilagaSamling/);
+    const bara = samtalsregelfragment({ bilagor: true, bilagaSamling: "bilagor" });
+    expect(bara).toContain("function opsMeddelandebilagemarke(b)");
     expect(bara).toContain("function opsMeddelandebilagaGiltig(b)");
     expect(bara).toContain(`b.dataUrl.size() <= ${MAX_KOMMENTARBILAGA}`);
     expect(bara).toContain('"image/jpeg"');
     expect(bara).toContain('"text/csv"');
     expect(bara).not.toContain("svg");
     expect(bara).toContain("|| 'bilaga' in request.resource.data");
-    // Utan trådar finns bara samtalets meddelanden.
-    expect(bara.split("opsMeddelandebilagaGiltig(request.resource.data.bilaga)").length - 1).toBe(1);
-    // Trådens meddelanden och samtalets meddelanden prövas båda. Golv: två anrop.
-    const r = samtalsregelfragment({ bilagor: true, tradar: "tradar" });
-    expect(r.split("opsMeddelandebilagaGiltig(request.resource.data.bilaga)").length - 1).toBe(2);
+    expect(bara).not.toContain("opsMeddelandebilagaGiltig(request.resource.data.bilaga)");
+    expect(bara.split("opsMeddelandebilagemarke(request.resource.data.bilaga)").length - 1).toBe(1);
+    expect(bara.split("opsMeddelandebilagaGiltig(request.resource.data)").length - 1).toBe(1);
+    expect(bara).toContain("match /bilagor/{nyckel}");
+    expect(bara).toContain("opsBundenBilaga(sid, nyckel, request.resource.data)");
+    expect(bara).toContain("allow update, delete: if false;");
+    const r = samtalsregelfragment({ bilagor: true, bilagaSamling: "bilagor", tradar: "tradar" });
+    expect(r.split("opsMeddelandebilagemarke(request.resource.data.bilaga)").length - 1).toBe(2);
   });
 });
 
