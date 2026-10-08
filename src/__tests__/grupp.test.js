@@ -677,7 +677,8 @@ describe("regelfragmentet: formen, inte beteendet", () => {
   it("users-blocket kräver hasOnly bara på create/update, aldrig på read/delete", () => {
     const text = regelfragment();
     expect(text).toContain("allow read, delete: if opsInloggad() && request.auth.uid == uid;");
-    expect(text).toContain('allow create, update: if opsInloggad() && request.auth.uid == uid\n        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"]);');
+    // ⛔ Sedan 0.82.0 (#313) följs listan av adressvillkoret, i samma block för create och update.
+    expect(text).toContain('allow create, update: if opsInloggad() && request.auth.uid == uid\n        && request.resource.data.keys().hasOnly(["id", "namn", "epost", "bild", "sprak", "tema", "telefon", "stad", "presentation", "lankar", "bildSokvag", "ikon", "farg"])\n        && opsProfilensEpost();');
   });
 });
 

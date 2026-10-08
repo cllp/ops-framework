@@ -21,9 +21,20 @@ describe("regelfragment, kontot äger personen", () => {
     expect(regel).not.toContain('"telefon"');
   });
 
-  it("utan valet är regeln som förut, med hela fältlistan", () => {
+  /*
+   * ⛔ #313: kontoläget skriver aldrig `epost` från klienten, alltså är det oförändrat. Provet läser att regeln inte
+   * fått adressvillkoret, för det hade varit ett tecken på att läget plötsligt släpper in fältet.
+   */
+  it("⛔ kontoläget är oförändrat av #313: klienten skriver aldrig epost där, och regeln prövar den inte", () => {
+    const regel = anvandarregeln(regelfragment({}, { kontoAgerPersonen: true }));
+    expect(regel).not.toContain("opsProfilensEpost");
+    expect(regel).not.toContain('"epost"');
+  });
+
+  it("utan valet är regeln hela fältlistan, och adressen prövas mot inloggningen (#313)", () => {
     const regel = anvandarregeln(regelfragment());
     expect(regel).toContain("allow create, update:");
+    expect(regel).toContain("opsProfilensEpost()");
     expect(regel).toContain('"telefon"');
     expect(regel).not.toContain("allow create: if false;");
   });

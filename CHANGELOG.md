@@ -9,7 +9,59 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.80.1
+## 0.82.0
+
+#313: en adress i `users` gav bort medlemskap. Upptäckt i den tredje granskningen av PR 308, och mätt en gång till i granskningen av lifehub.app#117.
+
+**Om numret:** 0.79.0-skivan (#304, biblioteket) numreras om till 0.81.0. Den här skivan ändrar API:t och skulle ha blivit 0.81.0, men det numret är taget av #304, så den tar nästa lediga, 0.82.0. Mergas den här före #304 står 0.82.0 publicerad före 0.81.0, och då är ordningen i loggen den här, inte utgivningens.
+
+### Inbjudningar: bara den som äger adressen blir medlem
+
+**Felet.** Förvalets regel för `users` prövade bara vilka fält raden hade (`keys().hasOnly`), aldrig vad `epost` innehöll. Mätt i emulatorn: en inloggad användare skrev in någon annans adress i sin egen rad, också med `email_verified: false`. Kommentaren ovanför regeln sade "e-posten kommer ur inloggningen", och det var inte sant. `bjudIn` slog sedan upp adressen med `where epost ==` och skrev medlemskapet direkt, i den roll inbjudan angav. Den som skrivit offrets adress blev medlem, eller ägare, när någon bjöd in offret. Samma sak hände i lifehub utan klienten: appens serverspegel skrev `epost` ur växlingen utan att pröva `email_verified`, och en overifierad växling följd av `bjudIn` som `agare` gav `memberships/angripare|dev` med `roll: "agare"`.
+
+**Valet.** Båda halvorna rättas, eftersom regel 1 gäller och det inte räcker att lita på att den ena håller. Grenen i `bjudIn` tas bort, form (b) i ärendet, i stället för att skyddas med ett fält `epostVerifierad` i `users` (form (a)). Ett sådant fält hade varit en ny uppgift i datamodellen, skriven av en spegel som appen äger och ramverket inte, och en app som glömde det hade varit lika öppen som förut. Det gör modellen tyngre utan att stänga hålet (regel 13). I stället bevisas adressen av den som äger brevlådan: varje inbjudan blir en väntande rad, och accepten kräver en verifierad inloggning.
+
+#### ⛔ Brytande
+
+- **`accepteraInbjudningar` kräver `epostVerifierad: true`.** Skicka `request.auth.token.email_verified` rakt ur inloggningen. Saknas fältet, eller är det något annat än `true`, kastar accepten med texten att adressen inte är verifierad, och ingen inbjudan accepteras. Fältet förvals inte: `true` hade öppnat hålet igen för en app som aldrig läste token, och `false` hade gjort varje accept tom utan att något sade det.
+- **`bjudIn` skriver aldrig ett medlemskap.** Svaret är alltid `resultat: "inbjudan"`. `medlemskap` och `fanns` finns inte längre, eftersom de kom ur uppslaget i `users`. En person som redan har ett konto blir medlem vid nästa accept, inte i samma sekund.
+- **`bjudIn` tar inte emot `typ`.** Den bestämde typen på medlemskapet grenen skrev. Accepten skriver `typ: "person"`, som förut.
+- **`skapaGrupp` svarar alltid `tillagda: []`.** Varje inbjuden adress, också en med konto, står i `inbjudna`. Fältet står kvar så att svaret har samma form.
+- **Regeln för `users` (förvalet, utan `kontoAgerPersonen`) prövar adressen.** Skriver eller ändrar klienten `epost` måste det vara `request.auth.token.email` i gemener, och `email_verified` måste vara `true`. En rad utan `epost` påverkas inte, och en uppdatering som inte rör fältet prövas inte mot det. Med `kontoAgerPersonen: true` är regeln oförändrad: klienten skriver aldrig `epost` där.
+
+#### Vad appen måste göra
+
+1. **Anropa `accepteraInbjudningar` vid varje inloggning**, med `uid`, `epost` och `epostVerifierad` ur `request.auth`. En app som inte anropar den alls får nu inga nya medlemmar, eftersom `bjudIn` inte längre skriver medlemskapet direkt. lifehub anropar den inte i dag (mätt 2026-10-08 med `git grep` på `origin/main` `8035d9c` och på grenen till lifehub.app#117, ingen träff på `accepteraInbjudningar`) och måste koppla in den för att en inbjuden ska komma in.
+2. **Läs `tillagda` inte som "kom in direkt".** En vy som säger "N lades till" ska säga "N bjöds in".
+3. **En klient som skriver `epost` i `users`** ska skriva inloggningens adress i gemener, och bara när adressen är verifierad. Annars nekas skrivningen av reglerna. Ramverkets egna vyer skriver inte fältet.
+4. **En serverspegel som skriver `epost`** (lifehub, `personspegel`) ska skriva den bara när `email_verified` är `true`. Ramverket litar inte längre på fältet, men en adress som ingen bevisat är fortfarande en felaktig uppgift om personen.
+5. **Generera om reglerna och deploya dem** innan klienthalvan som skriver `epost` pinnas om.
+
+#### Rättat
+
+- **`bjudIn`:s gren för en befintlig användare är borttagen** (`src/node/inbjudan.js`). Den slog upp `users` på `epost` och skrev medlemskapet direkt. Varje inbjudan blir nu en rad i `invitations`.
+- **Accepten kräver en verifierad adress.** Före 0.82.0 matchade den den adress den fick, och ett konto med e-post och lösenord kan skapas på vilken adress som helst utan att brevlådan öppnats.
+- **Regeln för `users`** prövar `epost` mot inloggningen, se ovan. Två nya hjälpfunktioner i fragmentet, `opsProfilensEpost()` och `opsEgenVerifieradEpost()`, och create och update står kvar i ett block så att `hasOnly`-listan finns en gång (vakten i `check-gruppnyckel` läser att den är härledd). Kommentaren som sade "e-posten kommer ur inloggningen" är rättad.
+
+#### Prov, sedda röda utan sin rättelse
+
+| Prov | Utan rättelsen | Med |
+|---|---|---|
+| Emulator: en annans adress nekas, också med verifierad egen inloggning | rött | grönt |
+| Emulator: egen overifierad adress nekas | rött | grönt |
+| Emulator: egen adress utan `email_verified` i token nekas | rött | grönt |
+| Emulator: en uppdatering som byter till en annans adress nekas | rött | grönt |
+| Emulator: egen verifierad adress släpps in, i gemener mot en inloggning med versaler | rött utan `.lower()` | grönt |
+| Emulator: en rad utan `epost` släpps in | rött utan undantaget för en rad utan fältet | grönt |
+| Emulator: en uppdatering som inte rör adressen prövas inte | rött när update prövar adressen alltid | grönt |
+| Emulator: overifierad och flaggfri inloggning nekas | rött utan villkoret på `email_verified` | grönt |
+| Enhet: en klientskriven users-rad med offrets adress ger inget medlemskap efter `bjudIn` | rött | grönt |
+| Enhet: en befintlig användare får en väntande inbjudan, inget medlemskap | rött | grönt |
+| Enhet: `bjudIn` skriver aldrig ett medlemskap | rött | grönt |
+| Enhet: en overifierad adress accepterar ingenting | rött | grönt |
+| Enhet: en accept utan `epostVerifierad` kastar | rött | grönt |
+| Enhet: `skapaGrupp` med en adress med konto ger en väntande inbjudan | rött | grönt |
+
 
 Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4, arkitektens beslut i PR 308 om en adress som bjuds in igen, och granskningen av PR 308. Om numret: 0.80.0 (#307) är mergad och publicerad, och 0.80.1 kommer efter den. 0.79.0 (#304) får ett nytt nummer efter 0.80.1.
 

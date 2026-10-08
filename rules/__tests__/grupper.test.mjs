@@ -25,6 +25,10 @@
  *   ägaren raderar sitt eget medlemskap      nej
  *   profilen, sin egen                       ja
  *   profilen, någon annans                   nej
+ *   profilen, en annans adress               nej      (0.82.0, #313)
+ *   profilen, egen overifierad adress        nej      (0.82.0, #313)
+ *   profilen, egen verifierad adress         ja       (0.82.0, #313)
+ *   profilen utan epost                      ja       (0.82.0, #313)
  *   gruppen, medlem läser, ägare skriver     ja
  *   gruppen, medlem skriver                  nej
  *   gruppen, ägare raderar                   nej
@@ -226,6 +230,47 @@ describe("⛔ profilen: bara sin egen", () => {
 
   it("jag skriver inte någon annans profil", async () => {
     await assertFails(setDoc(doc(som(UTANFOR), `users/${MEDLEM}`), { namn: "Kapad" }));
+  });
+});
+
+/*
+ * ⛔ ADRESSEN I PROFILEN ÄR INLOGGNINGENS, VERIFIERAD (0.82.0, #313). Före rättelsen prövade regeln bara vilka fält
+ * raden hade, och en inloggad användare skrev in någon annans adress i sin egen rad, också overifierad. `bjudIn`
+ * litade på fältet och gav bort medlemskap. Varje prov skapar en EGEN rad: en setDoc på en rad som finns är en
+ * update, och då provas fel regel.
+ */
+describe("⛔ profilens adress: den egna, verifierad (0.82.0, #313)", () => {
+  /** @param {string} uid @param {Record<string, unknown>} token */
+  const med = (uid, token) => miljo.authenticatedContext(uid, token).firestore();
+
+  it("⛔ en annans adress nekas, också med en verifierad egen inloggning", async () => {
+    await assertFails(setDoc(doc(med("uid-p-annan", { email: "jag@example.com", email_verified: true }), "users/uid-p-annan"), { namn: "Jag", epost: "offret@example.com" }));
+  });
+
+  it("⛔ den egna adressen nekas när den inte är verifierad", async () => {
+    await assertFails(setDoc(doc(med("uid-p-overifierad", { email: "jag@example.com", email_verified: false }), "users/uid-p-overifierad"), { namn: "Jag", epost: "jag@example.com" }));
+  });
+
+  it("⛔ den egna adressen nekas när token inte säger något om verifieringen", async () => {
+    await assertFails(setDoc(doc(med("uid-p-utan-flagga", { email: "jag@example.com" }), "users/uid-p-utan-flagga"), { namn: "Jag", epost: "jag@example.com" }));
+  });
+
+  it("den egna verifierade adressen släpps in, i gemener också när inloggningen har versaler", async () => {
+    await assertSucceeds(setDoc(doc(med("uid-p-verifierad", { email: "Jag@Example.com", email_verified: true }), "users/uid-p-verifierad"), { namn: "Jag", epost: "jag@example.com" }));
+  });
+
+  it("en rad utan epost släpps in, också utan adress i inloggningen", async () => {
+    await assertSucceeds(setDoc(doc(med("uid-p-utan-epost", {}), "users/uid-p-utan-epost"), { namn: "Jag", tema: "morkt" }));
+  });
+
+  it("⛔ en uppdatering som byter till en annans adress nekas", async () => {
+    const db = med("uid-p-byter", { email: "jag@example.com", email_verified: true });
+    await assertSucceeds(setDoc(doc(db, "users/uid-p-byter"), { namn: "Jag", epost: "jag@example.com" }));
+    await assertFails(updateDoc(doc(db, "users/uid-p-byter"), { epost: "offret@example.com" }));
+  });
+
+  it("en uppdatering som inte rör adressen prövas inte mot den", async () => {
+    await assertSucceeds(updateDoc(doc(med(MEDLEM, { email: "nyadress@example.com", email_verified: false }), `users/${MEDLEM}`), { tema: "ljust" }));
   });
 });
 

@@ -255,7 +255,13 @@ export function regelfragment(namn = {}, val = {}) {
 
 ${externaDatakallorRegler()}
 ${typavvikelserRegler()}
-    // Profilen. Bara sin egen rad, och e-posten kommer ur inloggningen.
+    // Profilen. Bara sin egen rad. Skriver eller ändrar klienten \`epost\` måste den vara inloggningens verifierade
+    // adress, i gemener, se opsEgenVerifieradEpost nedan.
+    //
+    // ⛔ FÖRE 0.82.0 STOD HÄR "E-POSTEN KOMMER UR INLOGGNINGEN", OCH DET VAR INTE SANT (#313). Regeln prövade bara
+    // keys().hasOnly, alltså vilka fält som fanns, aldrig vad \`epost\` innehöll. Mätt i emulatorn: en inloggad
+    // användare skrev in någon annans adress i sin egen rad, också med email_verified: false. bjudIn litade på
+    // fältet och skrev medlemskapet direkt, i den roll inbjudan angav, och den som skrev adressen blev ägare.
     //
     // ⛔ #156, RÄTTAT EFTER GRANSKNING: hasOnly-LISTAN ÄR HÄRLEDD UR
     // ANVANDARFALT (src/lib/grupp.js), INTE EN HANDSKRIVEN KOPIA AV DEN.
@@ -280,13 +286,41 @@ ${typavvikelserRegler()}
 ${
   val.kontoAgerPersonen
     ? `      // ⛔ KONTOT ÄGER PERSONEN (0.53.0, lifehub.app#32). Raden skrivs av appens server ur kontot vid inloggningen.
-      // Klienten ändrar bara temat, som är appens eget val, och skapar aldrig raden.
+      // Klienten ändrar bara temat, som är appens eget val, och skapar aldrig raden. Den skriver alltså aldrig \`epost\`,
+      // och läget är oförändrat av #313: det som skriver adressen här är appens spegel, och den prövas inte av reglerna.
       allow create: if false;
       allow update: if opsInloggad() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tema"]);`
     : `      allow create, update: if opsInloggad() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}]);`
+        && request.resource.data.keys().hasOnly([${ANVANDARFALT.map((f) => `"${f}"`).join(", ")}])
+        && opsProfilensEpost();`
 }
+    }
+
+    // ⛔ ADRESSEN I EN PROFIL ÄR INLOGGNINGENS, OCH DEN ÄR VERIFIERAD (0.82.0, #313). Båda villkoren behövs: utan
+    // likheten skriver vem som helst in en annans adress, och utan email_verified skapar vem som helst ett konto
+    // med en annans adress (e-post och lösenord ger ett overifierat konto på vilken adress som helst) och skriver
+    // sedan in den. En rad utan \`epost\` påverkas inte, och en uppdatering som lämnar fältet som det var prövas
+    // inte mot det: en person vars adress bytts i inloggningen ska fortfarande kunna byta tema.
+    //
+    // ⛔ EN FUNKTION OCH INTE create OCH update VAR FÖR SIG. Två block hade burit hasOnly-listan två gånger, och
+    // check-gruppnyckel läser att listan är härledd: med två kunde den ena bli en kopia medan den andra höll vakten
+    // grön (mätt i test-guards, fallet "users-regelns hasOnly hårdkodad"). \`resource != null\` först, eftersom en
+    // create inte har någon befintlig rad att läsa.
+    function opsProfilensEpost() {
+      return !('epost' in request.resource.data)
+        || (resource != null && 'epost' in resource.data && resource.data.epost == request.resource.data.epost)
+        || opsEgenVerifieradEpost();
+    }
+
+    //
+    // ⛔ .get() MED FÖRVAL OCH INTE token.email DIREKT. En inloggning utan adress (telefon, anonym) har inget
+    // email i token, och ett uppslag på en nyckel som saknas är ett regelfel, inte ett nej. Utfallet blir nej
+    // ändå, men ett fel och ett nej ser likadana ut i en logg.
+    function opsEgenVerifieradEpost() {
+      return request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', '') != ''
+        && request.resource.data.epost == request.auth.token.get('email', '').lower();
     }
 
     // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler och arkivering.
