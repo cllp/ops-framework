@@ -1464,7 +1464,7 @@ function OpsAppShellRitad({
    * definition för header-popovern och bottenradens ark, se ovan.
    * @param {(form: any) => void} oppna Stänger den yta listan ritas i och öppnar modalen. ⛔ Yta och modal i SAMMA tick gick bra för en popover men inte för ett ark: därför äger anropsstället ordningen.
    * @param {() => void} stang Stänger den yta listan ritas i, utan att öppna något. Ett tillägg i `handelse.atgard` gör sitt eget i sin `onClick`.
-   * @param {{ talkRad: boolean }} yta `talkRad` är telefonens ark. Huvudets plus på bred skärm har ingen TALK-rad: mikrofonen bredvid plusset gör samma sak (0.78.0, lane 19).
+   * @param {{ talkRad: boolean }} yta Raden finns när den här ytan är vägen till TALK. Med bottenplus är huvudets meny utan rad (0.78.0). Utan bottenplus måste raden vara kvar, annars når en smal skärm den inte (0.78.1, #302).
    */
   const renderSkapaLista = (oppna, stang, { talkRad }) => (
     <>
@@ -1960,7 +1960,10 @@ function OpsAppShellRitad({
                         oppnaSkapa(form);
                       },
                       () => setSkapaOppen(false),
-                      { talkRad: false },
+                      // ⛔ UTAN BOTTENPLUS ÄR RADEN DEN ENDA VÄGEN UNDER md (0.78.1, #302).
+                      // Mikrofonknappen i huvudet är gömd under md. Med fasta har bottenraden
+                      // pluset, och då är raden borta här: mikrofonen på bred skärm gör samma sak.
+                      { talkRad: !bottenPlus },
                     )}
                   </Popover.Content>
                 </Popover.Portal>

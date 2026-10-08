@@ -196,6 +196,18 @@ describe("raden i Skapa", () => {
     expect(screen.getByRole("dialog", { name: "TALK" })).toBeTruthy();
   });
 
+  it("utan fasta har huvudets plus TALK-raden, annars når en smal skärm den inte", () => {
+    render(
+      <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/" talk={{ onTalk: vi.fn(), inspelare: falskInspelare() }} skapa={{ arende: true }}>
+        <p>innehåll</p>
+      </OpsAppShell>,
+    );
+    fireEvent.click(/** @type {HTMLElement} */ (document.querySelector("header button[aria-label='Skapa']")));
+    const meny = /** @type {HTMLElement | null} */ (document.querySelector("[data-radix-popper-content-wrapper]"));
+    expect(meny).toBeTruthy();
+    expect(meny?.textContent).toContain("TALK, prata in");
+  });
+
   it("⛔ huvudets plus på bred skärm har ingen TALK-rad, mikrofonen gör samma sak", () => {
     render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare() }, skapa: { arende: true } }));
     fireEvent.click(/** @type {HTMLElement} */ (document.querySelector("header button[aria-label='Skapa']")));
