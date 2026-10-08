@@ -38,6 +38,7 @@ import {
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, filMimeMonster } from "./bibliotek.js";
+import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { SKAPARFALT } from "./skapare.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
@@ -1658,6 +1659,86 @@ ${nuRegelfunktion("opsBiblioteketNu")}
         );
       allow delete: if (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
         || opsArAdmin(resource.data.groupId);
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för gruppens minne (lifehub.app#66).
+ *
+ * ══ ⛔ VAD SOM GÄLLER ═════════════════════════════════════════════════
+ *
+ *   - LÄSA: aktiv medlem i radens grupp. En fråga utan \`groupId\` går inte att bevisa.
+ *   - SKAPA (lyfta): aktiv medlem som är en person, som sig själv (\`lyftAv.uid\`), med
+ *     \`lyftAv.typ == "manniska"\` och klockslagen nära serverns.
+ *   - ÄNDRA OCH RADERA: den som lyfte raden, eller gruppens ägare. Inte admin.
+ *     Gruppen, källan, vem och \`lyft\` står stilla vid en ändring.
+ *
+ * ⛔ AGENTEN SKRIVER ALDRIG. En klient med medlemskapstypen agent nekas, och en person
+ * som sätter typen agent på \`lyftAv\` nekas också. Det finns ingen skrivväg i agentens namn.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder \`opsArMedlem\` och \`opsArAgare\`
+ * ur \`regelfragment()\`, och ska limmas in efter det.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @returns {string}
+ */
+export function minnesregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "minne");
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  if (MINNESKALLOR.join(",") !== "samtal,trad,meddelande") {
+    throw new Error(`minnesregelfragment: källorna är ${MINNESKALLOR.join(", ")}. Fragmentet har grenar för samtal, trad och meddelande, och en ny källa behöver sin egen.`);
+  }
+
+  return `    // ══ Ramverkets minne. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, minnesregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+${nuRegelfunktion("opsMinnetNu")}
+
+    function opsMinnesradGiltig(d) {
+      return d.keys().hasOnly([${lista(MINNESFALT)}])
+        && d.text.trim().size() > 0
+        && d.text.size() <= ${MAX_MINNESTEXT}
+        && d.kalla.keys().hasOnly([${lista(MINNESKALLAFALT)}])
+        && (d.kalla.slag == "samtal" || d.kalla.slag == "trad" || d.kalla.slag == "meddelande")
+        && d.kalla.samtal.size() > 0
+        && d.kalla.samtal.size() <= ${MAX_MINNESID}
+        && d.kalla.meddelande.size() > 0
+        && d.kalla.meddelande.size() <= ${MAX_MINNESID}
+        && d.kalla.trad.size() <= ${MAX_MINNESID}
+        && (
+          (d.kalla.slag == "trad" && d.kalla.trad.size() > 0)
+          || (d.kalla.slag != "trad" && d.kalla.trad.size() == 0)
+        )
+        && d.lyftAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && d.lyftAv.namn is string
+        && d.lyftAv.typ == "manniska"
+        && d.lyftAv.kalla is string
+        && d.andrad >= d.lyft;
+    }
+
+    function opsFarAndraMinnet() {
+      return (opsArMedlem(resource.data.groupId) && resource.data.lyftAv.uid == request.auth.uid)
+        || opsArAgare(resource.data.groupId);
+    }
+
+    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArMedlem(request.resource.data.groupId)
+        && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
+        && request.resource.data.lyftAv.uid == request.auth.uid
+        && opsMinnetNu(request.resource.data.lyft)
+        && opsMinnetNu(request.resource.data.andrad)
+        && opsMinnesradGiltig(request.resource.data);
+      allow update: if opsFarAndraMinnet()
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.kalla == resource.data.kalla
+        && request.resource.data.lyftAv == resource.data.lyftAv
+        && request.resource.data.lyft == resource.data.lyft
+        && opsMinnetNu(request.resource.data.andrad)
+        && opsMinnesradGiltig(request.resource.data);
+      allow delete: if opsFarAndraMinnet();
     }
 `;
 }

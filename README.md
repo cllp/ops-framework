@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**116 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**117 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -2653,6 +2653,26 @@ Gruppens anteckningar, länkar och filer. Analysen står i `docs/beslut/0004-bib
 | `createBibliotekskalla` | `source`, `collection`, `groupId`, `skapare`, och för radering `jag` och `anteckna`. `skapare` är en funktion: appen vet vem som är inloggad. `las` svarar `{ poster, kalla, fel, trasiga }` och kastar inte. En tom lista med `kalla: "databas"` är ett tomt bibliotek. `kalla: "fel"` är en läsning som inte gick. En rad som inte klarar `postFel` eller bär en annan grupp står i `trasiga` med id, skäl och, när raden har dem, `groupId` och `skapadAv`, och släcker inte de andra. `radera(id)` tar bort raden när `farAndra` säger ja. `spara` skriver `utskrift` när inmatningen har fältet, och behåller en utskrift som redan ligger på raden när en senare ändring inte skickar med den |
 | `OpsBibliotek` | listan och detaljen. `poster`, `fel`, `trasiga`, `laddar`, `vald`, `skapar`, `jag`, `onOppna`, `onStang`, `onSkapa`, `onSpara`, `onRadera`, `hubHref`, `hubEtikett`, `onNavigate`. 0.83.0: sidan har Ekonomis ram, "‹ Tillbaka" till `hubHref` (krävs) och "Bibliotek" som rubrik, typerna är en flikrad (`OpsTabs` med `medOrd`) med ikon, namn och antal, och sök och "+ Ny" står på en rad. Under Alla öppnar "+ Ny" ett val (anteckning, länk eller fil), under en typ skapar den typen. `jag` krävs: `{ uid, roll }` ur den inloggades aktiva medlemskap, eller `null` när personen inte är medlem, och då är allt läsläge. Utan propen kastar komponenten, så en app som glömt den inte ser ut som en icke-medlem. En länk öppnas i ny flik med `rel="noopener noreferrer"`. En fil visas som förhandsbild (bild), spelare med spela, pausa och tid (ljud) eller ikon och storlek som öppnas i ny flik (övrigt) när `filUrl` ger en adress. Fel format och för stor fil visas. `onLaddaUpp` tar emot filen. `onSpelaIn` tar emot en idé, och `onDela` flyttar eller kopierar när personen valt grupp. På ett ljud som personen får ändra finns Skriv ut. `onSkrivUt` ber servern och texten visas under spelaren. `onGorForslag` anropas först när personen väljer anteckning eller ärende, och ingenting skapas av själva utskriften. Saknas kopplingen, saknar svaret text, eller kastar servern (också ett dygnstak) syns felet. En läsare ser en sparad utskrift och ingen knapp. Radera visas för den som `farAndra` släpper igenom, i detaljen och på en trasig rad, och frågar innan `onRadera` anropas |
 | `bibliotekregelfragment` | samlingsnamnet. Limmas in efter `regelfragment()`. Medlem läser. En person (inte en agent) skapar som sig själv, med serverns klocka. Författaren eller admin ändrar, och `andrad` är serverns klocka. Författaren med aktivt medlemskap, eller admin i gruppen, raderar. Läsregeln är medlemskap i radens grupp, aldrig `isAuth()` |
+
+---
+
+## Minnet (0.86.0, lifehub.app#66)
+
+Gruppens slutsatser. En person lyfter en rad ur ett meddelande i en tråd. Agenten skriver aldrig. Samlingsnamnet skickar appen in.
+
+| | |
+|---|---|
+| `MINNESKALLOR` | `samtal`, `trad`, `meddelande` |
+| `MINNESFALT` | fälten regeln låser med `hasOnly`: `groupId`, `text`, `kalla`, `lyftAv`, `lyft`, `andrad` |
+| `MINNESKALLAFALT` | `slag`, `samtal`, `trad`, `meddelande`. `trad` är tom utom när slaget är `trad` |
+| `MAX_MINNESTEXT`, `MAX_MINNESID` | taken, samma tal i regeln |
+| `farAndraMinne(rad, jag)` | regelns `update` och `delete` i klienten: den som lyfte, eller ägare. Admin räcker inte |
+| `minnesradFel`, `byggMinnesrad` | hela dokumentet. `byggMinnesrad` kastar med samma text som `minnesradFel`. Typen agent på `lyftAv` är ett fel |
+| `createMinneskalla` | `source`, `collection`, `groupId`, `skapare`. `las` svarar `{ rader, kalla, fel, trasiga }` och kastar inte. `lyft` sätter vem och när. `andra` byter bara texten. `taBort` vägrar en rad i en annan grupp |
+| `OpsMinne` | listan. `rader`, `fel`, `trasiga`, `laddar`, `uid`, `arAgare`, `onAndra`, `onTaBort`, `hubHref`. `arAgare` är `true` eller `false`, aldrig utelämnad. Tom lista utan fel säger att minnet är tomt |
+| `minnesregelfragment` | samlingsnamnet. Limmas in efter `regelfragment()`. Medlem läser. Person lyfter som sig själv. Den som lyfte eller ägaren ändrar och tar bort. Ingen klient skriver i agentens namn |
+| `onLyftTillMinnet` | prop på `OpsMeddelanden` och `OpsTrad`. Utan den finns ingen knapp "Lyft till minnet". Anropas med `{ samtal, trad, meddelande, text, av }` |
+| `minneHref` | prop på samma komponenter. Utan den finns ingen länk "Minnet" |
 
 ---
 
