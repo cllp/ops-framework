@@ -107,13 +107,12 @@ export function radBehallare({ ark = false } = {}) {
  * var ett tryck faktiskt landar (avsnitt 6b). Den synliga cirkeln (hover, öppen)
  * blir 44 på mobil; på dator står 36 och `after:`-ytan kvar, där en mus träffar.
  *
- * ⛔ SURFPLATTAN (768-1023 px) HAR KVAR 36 PX, OCH DET ÄR ETT MÄTT BESLUT, INTE ETT
- * FÖRBISEENDE (granskningen av #261). 44 px där provades och mättes i
- * `check-skalyta` 6b: vid 768 px ligger huvudets flikar (Appar och dess chevron)
- * redan i 0.60.0 OVANPÅ högerklustret, och 44 px knappar gjorde överlappet större.
- * Det är ett eget fel i huvudets layout på surfplatta, inte i knapparna, och det
- * ska lagas där innan knapparna kan växa. Vakten skriver ut träffytorna vid 768,
- * 900 och 1023 utan att kräva 44.
+ * ⛔ SURFPLATTAN OCH 1024 px ÄR 44 PX (0.87.0, #262). 36 px från `md` var ett mätt
+ * beslut i granskningen av #261, eftersom flikarna redan låg ovanpå högerklustret
+ * och större knappar gjorde överlappet värre. Layouten är lagad (ordmärket väntar
+ * till `lg`, och åtgärder som inte ryms bor i menyn tills `lg`), så knappen själv
+ * är 44 px ända till `xl`. Från 1280 px står SS 36 kvar: där är det en mus, och
+ * avsnitt 2 i `check-skalyta` mäter den cirkeln.
  *
  * ⛔ 44 PX TRÄFFYTA BEHÅLLS, MEN SOM EN OSYNLIG YTA. Storleken man SER är 36;
  * storleken man TRÄFFAR är 44 (`after:size-11`), utan att röra radens höjd.
@@ -131,7 +130,7 @@ export function radBehallare({ ark = false } = {}) {
  */
 export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {}) {
   return cx(
-    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 md:size-9 md:p-2 md:[&_svg]:size-5",
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 xl:size-9 xl:p-2 xl:[&_svg]:size-5",
     visning,
     "transition-colors duration-(--duration-fast) ease-standard",
     aktiv === true && "bg-raised text-accent",
@@ -167,7 +166,7 @@ export function huvudknappKlass({ visning = "inline-flex", aktiv = false } = {})
  */
 export function huvudPlusKlass({ synligMobil = true, aktiv = false } = {}) {
   return cx(
-    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 md:size-10 md:p-2",
+    "relative size-11 shrink-0 cursor-pointer items-center justify-center rounded-full p-2.5 [&_svg]:size-6 xl:size-10 xl:p-2",
     synligMobil ? "inline-flex" : "hidden md:inline-flex",
     "transition-colors duration-(--duration-fast) ease-standard",
     // Under md: som toppradens övriga ikoner.

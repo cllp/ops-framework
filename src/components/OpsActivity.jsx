@@ -274,11 +274,10 @@ export function OpsActivityDetail({ handelse, slagord, marke, nu }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        {trasig ? <span className="text-etikett font-semibold text-danger">Gick fel</span> : null}
-        <span className="text-titel font-semibold text-ink">{h.rubrik}</span>
-        {h.detalj ? <span className="text-ink-secondary">{h.detalj}</span> : null}
-      </div>
+      {/* ⛔ RUBRIK OCH DETALJ RITAS INTE HÄR (0.87.0, #321). CP 2026-10-07, lifehub.app#119: "När man expanderar en post
+          i aktivitet så står rubrik och text dubbelt." Raden ovanför visar redan båda. Utfällningen är det raden inte
+          har: exakt tid, källa, utfall, felrutan och länken. */}
+      {trasig ? <span className="text-etikett font-semibold text-danger">Gick fel</span> : null}
 
       {trasig && h.fel ? (
         /* ⛔ FELTEXTEN I SIN HELHET OCH I EN KODRUTA. Den kommer ordagrant från

@@ -139,6 +139,18 @@ function HubModulRad({ b, activeHref, onActivate, stang, submenuLabel }) {
 const ATGARDER_SMAL = 3;
 
 /**
+ * Hur många ikonåtgärder som ryms i huvudet mellan `md` och `lg` (0.87.0, #262).
+ *
+ * Mätt 2026-10-08 mot byggd dist, scenen `full`, 768 px: ordmärket är 180 px, gruppväxlaren
+ * med namn 160 px, och flikarna (Idag börjar vid x 301) ligger ovanpå växlare och plus.
+ * Med 44 px knappar ryms inte ordmärke, namn, tre flikar och hela högerklustret i 768 px.
+ * Ordmärket hör ihop med panelen och väntar därför till `lg`. De första två ikonlänkarna
+ * (inkorg, och det appen lagt före sök) stannar. Resten flyttar till huvudets meny tills `lg`,
+ * där det finns plats igen. Under `md` gäller `ATGARDER_SMAL` som förut.
+ */
+const ATGARDER_SURF = 2;
+
+/**
  * `actions` som en platt lista, fragment uppvikta. En app skickar ofta
  * `<>...</>`, och skalet måste se varje ikon för sig för att kunna flytta den.
  * @param {import("react").ReactNode} nod
@@ -291,7 +303,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
 
   if (!childEntries.length) {
     return (
-      <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={cx(classes, FLIK_LUFT)}>
+      <a href={entry.href} onClick={(e) => onActivate(entry.href, e)} aria-current={active ? "page" : undefined} className={cx(classes, FLIK_LUFT, "relative after:pointer-events-auto after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 after:content-['']")}>
         {entry.label}
         {counter}
       </a>
@@ -345,7 +357,7 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
         href={entry.href}
         onClick={(e) => onActivate(entry.href, e)}
         aria-current={active ? "page" : undefined}
-        className="inline-flex items-center self-stretch rounded-l-md pl-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
+        className="relative inline-flex items-center self-stretch rounded-l-md pl-3 after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 after:content-[''] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent lg:pl-4"
       >
         {entry.label}
         {counter}
@@ -357,7 +369,10 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
             "relative inline-flex cursor-pointer items-center self-stretch rounded-r-md pr-3 pl-0.5 lg:pr-4",
             // ⛔ Träffytan, 44 px, utanför flödet. `inset-x-0` täcker chevronens
             // bredd och `-translate-y-1/2` centrerar den kring raden.
-            "after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 after:content-['']",
+            // ⛔ Träffytan är 44 px hög och 44 px bred, utan att flytta ordet (0.87.0, #262).
+            // Bredden växer åt höger (`left-0`, `w-11`), inte åt vänster in i ordet: avsnitt 11
+            // kräver att chevronen står högst 6 px efter ordet.
+            "after:absolute after:left-0 after:top-1/2 after:h-11 after:w-11 after:-translate-y-1/2 after:content-['']",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
           )}
         >
@@ -1446,16 +1461,38 @@ function OpsAppShellRitad({
     const p = /** @type {any} */ (a.props);
     return { href: p.href, label: p.label, icon: p.icon, ...(typeof p.badge === "number" ? { badge: p.badge } : {}) };
   });
-  const atgarderIHuvud = atgardsLista.map((a, i) =>
-    i >= ATGARDER_SMAL && flyttbara.includes(a) ? (
-      // ⛔ `contents`, inte `inline-flex`: omslaget får inte bli en egen ruta i klungan.
-      <span key={a.key ?? i} className="hidden md:contents">
-        {a}
-      </span>
-    ) : (
-      a
-    ),
-  );
+  // ⛔ ÅTGÄRDER SOM BARA SAKNAR ETT HEM PÅ SURFPLATTAN (0.87.0, #262). Index från `ATGARDER_SURF` till
+  // `ATGARDER_SMAL` syns i huvudet på telefon och från `lg`, och måste därför ha en rad i menyn däremellan.
+  // De som redan flyttats ur telefonhuvudet (`flyttadeRader`) bor i `meny.app` när `meny` finns, och i
+  // bottenradens ark annars. Arkets är `md:hidden`, så utan `meny` följer de med hit, bara på surfplatta.
+  /** @type {import("../lib/nav.js").NavPost[]} */
+  const surfMellan = atgardsLista.slice(ATGARDER_SURF, ATGARDER_SMAL).filter((a) => a.type === OpsIconLink).map((a) => {
+    const p = /** @type {any} */ (a.props);
+    return { href: p.href, label: p.label, icon: p.icon, ...(typeof p.badge === "number" ? { badge: p.badge } : {}) };
+  });
+  const surfRader = [...surfMellan, ...(meny ? [] : flyttadeRader)];
+  const atgarderIHuvud = atgardsLista.map((a, i) => {
+    // Bara `OpsIconLink` kan flyttas. `flyttbara` är en delmängd (index >= ATGARDER_SMAL) och
+    // får inte avgöra surfplattsomsaget: index ATGARDER_SURF ligger inte i den listan.
+    if (a.type !== OpsIconLink) return a;
+    // ⛔ `contents`, inte `inline-flex`: omslaget får inte bli en egen ruta i klungan.
+    if (i >= ATGARDER_SMAL) {
+      return (
+        <span key={a.key ?? i} className="hidden lg:contents">
+          {a}
+        </span>
+      );
+    }
+    if (i >= ATGARDER_SURF) {
+      // Syns på telefon (under md) och från lg. Mellan dem ligger den i menyn.
+      return (
+        <span key={a.key ?? i} className="max-md:contents md:hidden lg:contents">
+          {a}
+        </span>
+      );
+    }
+    return a;
+  });
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
   const talkStyr = useTalk({
@@ -1707,7 +1744,7 @@ function OpsAppShellRitad({
   // bara vid överflöd: menyn (notiser, aktivitet, Logga ut, versionen) finns
   // oavsett om navigeringen råkar rymmas. Utan `meny` är villkoret oförändrat:
   // bara nav-överflöd eller menuExtras tvingar fram knappen.
-  const visaHamburgare = Boolean(meny) || inMenu.length > 0 || Boolean(menuExtras);
+  const visaHamburgare = Boolean(meny) || inMenu.length > 0 || Boolean(menuExtras) || surfRader.length > 0;
 
   // ⛔ MENYNS ORDNING, en lista och inte en JSX-trädgren per yta: ramverkets
   // sektioner (Aktivitet, Inställningar, Hjälp, Notiser), appens egna länkar
@@ -1811,11 +1848,12 @@ function OpsAppShellRitad({
                 stället (CP 2026-09-29 18:40: "Header i mobil skall vi ta bort texten helt"). Startsidan nås ur bottenraden.
                 Utan `grupper` finns ingen växlare att ersätta märket med, och monogrammet står kvar som förut.
                 ⛔ 0.62.0 (bolag-ops#565): då är länken minst 44x44 under `md` (monogrammet är 40), mätt med elementFromPoint i
-                `check-skalyta` 6b. Från `md` som förut. */}
+                `check-skalyta` 6b. ⛔ 0.87.0 (#262): med `grupper` väntar ordmärket till `lg`, där panelen finns och
+                180 px ryms. Mellan `md` och `lg` tog märket plus växlare med namn den plats flikarna behöver. */}
             <a
               href="/"
               onClick={(e) => onActivate("/", e)}
-              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden md:flex md:items-center md:gap-2" : "flex min-h-11 min-w-11 items-center md:block md:min-h-0 md:min-w-0")}
+              className={cx("shrink-0 rounded-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", grupper ? "hidden lg:flex lg:items-center lg:gap-2" : "flex min-h-11 min-w-11 items-center md:block md:min-h-0 md:min-w-0")}
             >
               {varumarke}
             </a>
@@ -2102,6 +2140,30 @@ function OpsAppShellRitad({
                         första. Se dess filhuvud för felet (två linjer på varandra). */}
                     {!aktivUndervy ? (
                       <div className={cx(meny && "min-h-0 flex-1 overflow-y-auto overscroll-contain")}>
+                        {/* ⛔ Bara mellan md och lg (0.87.0, #262). `hidden md:flex lg:hidden`, en display-klass per
+                            läge: en ovillkorlig `flex` bredvid `hidden` vinner i Tailwind och raden syns överallt. */}
+                        {surfRader.length > 0 ? (
+                          <nav aria-label={moreLabel} className="hidden flex-col gap-0.5 p-1 md:flex lg:hidden">
+                            {surfRader.map((s) => (
+                              <a
+                                key={s.href}
+                                href={s.href}
+                                onClick={(e) => {
+                                  stangMenyn(false);
+                                  onActivate(s.href, e);
+                                }}
+                                className={radKlass()}
+                              >
+                                {s.icon ? (
+                                  <span aria-hidden="true" className="flex shrink-0 items-center [&_svg]:size-4">
+                                    {s.icon}
+                                  </span>
+                                ) : null}
+                                <span className="min-w-0 flex-1 truncate">{s.label}</span>
+                              </a>
+                            ))}
+                          </nav>
+                        ) : null}
                         <MenyAvdelningar avdelningar={rotAvdelningar} />
                       </div>
                     ) : null}

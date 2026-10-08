@@ -339,7 +339,10 @@ function Postkort({ dayKey, entry, statusWords, order, locale, oppna }) {
                 {entry.kindIcon}
               </span>
             ) : null}
-            <span className="min-w-0 font-semibold text-ink">
+            {/* ⛔ ETT LÅNGT ORD STANNAR I KOLUMNEN (0.87.0). Mätt i dagpanelen vid 390 px, samma på 0.83.0 och här:
+                "Löneutbetalning" är 133 px, kolumnen 123 px, och orden målade 2 px in i utfällningen (texten slutar 225, knappen börjar 223).
+                `break-words` bryter ordet inne i kolumnen i stället för att låta det ligga över knappen. */}
+            <span className="min-w-0 break-words font-semibold text-ink">
               {oppnaId && oppna ? (
                 <HandelseLank id={oppnaId} oppna={oppna} tacker="after:inset-0">
                   {entry.title}

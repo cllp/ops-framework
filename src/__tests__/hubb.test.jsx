@@ -6,6 +6,7 @@ import { OpsGruppHubb } from "../components/OpsHub.jsx";
 import { OpsModulSida } from "../components/OpsModulSida.jsx";
 import { OpsGruppFormular } from "../components/OpsGruppFormular.jsx";
 import { OpsTabPanel, OpsTabs } from "../components/OpsTabs.jsx";
+import { FLIKRAD } from "../lib/modulram.js";
 
 /**
  * Hubben per grupp och modulens insida (0.37.0, #184).
@@ -343,11 +344,32 @@ describe("OpsGruppHubb: ritad", () => {
     expect(nav).toHaveBeenCalledWith("/ekonomi", expect.anything());
   });
 
-  it("⛔ en grupp utan moduler säger det, med sitt namn", () => {
+  it("⛔ en grupp utan moduler visar appar som kan läggas till, och vägen till valet bara när ägaren får den (0.87.0, lifehub.app#129)", () => {
     render(<OpsGruppHubb grupp={G([])} moduler={moduler()} />);
-    expect(screen.getByText("Inga appar i gruppen")).toBeTruthy();
-    expect(screen.getByText(/Claes Philip Staiger AB har inga appar installerade/)).toBeTruthy();
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText("Gruppen har inga appar ännu")).toBeTruthy();
+    expect(screen.getByText(/Claes Philip Staiger AB har inga appar ännu. Ägaren väljer/)).toBeTruthy();
+    const lista = screen.getByRole("list", { name: "Appar som kan läggas till" });
+    expect(within(lista).getByText("Ekonomi")).toBeTruthy();
+    expect(within(lista).getByText("Resor")).toBeTruthy();
+    // Inkorg har hubb: null och blir inget kort. Den står inte i listan.
+    expect(within(lista).queryByText("Inkorg")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Välj appar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Välj appar" })).toBeNull();
+  });
+
+  it("⛔ ägarens väg är en länk eller en knapp, och den byter meningen", () => {
+    const gick = vi.fn();
+    const { unmount } = render(<OpsGruppHubb grupp={G([])} moduler={moduler()} installera={{ href: "/installningar" }} onNavigate={gick} />);
+    expect(screen.getByText(/Välj vilka som ska finnas här/)).toBeTruthy();
+    const lank = screen.getByRole("link", { name: "Välj appar" });
+    expect(lank.getAttribute("href")).toBe("/installningar");
+    fireEvent.click(lank);
+    expect(gick).toHaveBeenCalledWith("/installningar", expect.anything());
+    unmount();
+    const klick = vi.fn();
+    render(<OpsGruppHubb grupp={G([])} moduler={moduler()} installera={{ onClick: klick }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Välj appar" }));
+    expect(klick).toHaveBeenCalledOnce();
   });
 
   it("⛔ en modul som inte ritas får en rad som säger varför", () => {
@@ -474,6 +496,12 @@ describe("⛔ samma rad i modulen och i biblioteket (0.83.0)", () => {
     expect(vald.className.startsWith(oppenDel.className)).toBe(true);
     expect(ovald.className.startsWith(stangdDel.className)).toBe(true);
     expect(/** @type {HTMLElement} */ (oppenDel.querySelector("span[aria-hidden]")).className).toBe(/** @type {HTMLElement} */ (vald.querySelector("span[aria-hidden]")).className);
+    // ⛔ 0.87.0: behållaren är samma sträng. Bibliotekets flikrad rullade i sidled vid 390 px medan modulens
+    // rad hade en egen klass. En skillnad här är två sanningar om samma rad.
+    expect(screen.getByRole("tablist").className).toBe(FLIKRAD);
+    expect(container.querySelector("[data-modulnav] ul")?.className).toBe(FLIKRAD);
+    expect(FLIKRAD).toContain("flex-wrap");
+    expect(FLIKRAD).not.toContain("overflow-x-auto");
   });
 });
 

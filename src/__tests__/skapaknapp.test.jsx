@@ -206,11 +206,11 @@ describe("OpsAppShell skapa (#168)", () => {
     // Hamburgaren är oförändrad: dämpad 36 px cirkel, 24 px ikon under md.
     // ⛔ 0.59.1 (bolag-ops#563): `p-1.5` runt en 24 px ikon i samma 36 px cirkel, inte SS `p-2` runt 20; bara under md, CP: "563 är bara i mobil".
     // ⛔ 0.62.0 (bolag-ops#565): 44 px knapp under md, SS 36 från md.
-    for (const klass of ["rounded-full", "size-11", "md:size-9", "p-2.5", "[&_svg]:size-6", "md:p-2", "md:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) {
+    for (const klass of ["rounded-full", "size-11", "xl:size-9", "p-2.5", "[&_svg]:size-6", "xl:p-2", "xl:[&_svg]:size-5", "hover:bg-raised", "after:size-11"]) {
       expect(hamburgare.className, `hamburgaren saknar ${klass}`).toContain(klass);
     }
-    // Plusset: 36 px dämpad under md (ingen bottenrad här), 40 px fylld accent från md, 24 px plus, 44 px träffyta.
-    for (const klass of ["rounded-full", "size-11", "md:size-10", "p-2.5", "md:p-2", "[&_svg]:size-6", "text-ink-muted", "md:bg-accent", "md:text-accent-contrast", "md:hover:bg-accent-hover", "focus-visible:outline-accent", "after:size-11"]) {
+    // Plusset: 44 px till xl, 40 px fylld accent från xl, accentfärg från md, 24 px plus.
+    for (const klass of ["rounded-full", "size-11", "xl:size-10", "p-2.5", "xl:p-2", "[&_svg]:size-6", "text-ink-muted", "md:bg-accent", "md:text-accent-contrast", "md:hover:bg-accent-hover", "focus-visible:outline-accent", "after:size-11"]) {
       expect(plus.className, `plusset saknar ${klass}`).toContain(klass);
     }
     expect(plus.className).not.toContain("md:[&_svg]:size-5");

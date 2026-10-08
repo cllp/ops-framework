@@ -109,13 +109,21 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
 });
 
 describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
-  it("de tre första åtgärderna stannar i huvudet, resten göms under md och ligger i bottenradens meny", () => {
+  it("de tre första åtgärderna stannar i huvudet på telefon, resten göms till lg och ligger i bottenradens meny", () => {
     render(Skal());
     const huvud = screen.getByRole("banner");
     const fraga = within(huvud).getByRole("link", { name: "Fråga", hidden: true });
+    // ⛔ 0.87.0 (#262): index >= ATGARDER_SMAL var `hidden md:contents`. Surfplattan rymmer dem inte ens utan
+    // ordmärket, så de stannar gömda till `lg`. Telefonens ark (bottenradens Meny) är oförändrat.
     expect(fraga.parentElement?.className).toContain("hidden");
-    expect(fraga.parentElement?.className).toContain("md:contents");
-    for (const n of ["Tema", "Inkorg", "Sök"]) expect(within(huvud).getByRole("link", { name: n }).parentElement?.className ?? "").not.toContain("hidden");
+    expect(fraga.parentElement?.className).toContain("lg:contents");
+    expect(fraga.parentElement?.className).not.toContain("md:contents");
+    // Index 0 och 1 syns i alla bredder. Index ATGARDER_SURF (Sök) syns på telefon och från lg, och är gömd däremellan.
+    for (const n of ["Tema", "Inkorg"]) expect(within(huvud).getByRole("link", { name: n }).parentElement?.className ?? "").not.toContain("hidden");
+    const sok = within(huvud).getByRole("link", { name: "Sök" });
+    expect(sok.parentElement?.className).toContain("max-md:contents");
+    expect(sok.parentElement?.className).toContain("md:hidden");
+    expect(sok.parentElement?.className).toContain("lg:contents");
     fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
     const ark = screen.getByRole("dialog");
     const rad = within(ark).getByRole("link", { name: "Fråga" });
@@ -130,7 +138,8 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
     render(Skal({ meny: undefined }));
     const fraga = within(screen.getByRole("banner")).getByRole("link", { name: "Fråga", hidden: true });
     expect(fraga.parentElement?.className).toContain("hidden");
-    expect(fraga.parentElement?.className).toContain("md:contents");
+    expect(fraga.parentElement?.className).toContain("lg:contents");
+    expect(fraga.parentElement?.className).not.toContain("md:contents");
     fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
     const rad = within(screen.getByRole("dialog")).getByRole("link", { name: "Fråga" });
     expect(rad.getAttribute("href")).toBe("/fraga");
@@ -161,11 +170,12 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
         <p>x</p>
       </OpsAppShell>,
     );
-    // ⛔ 0.38.0 (#203): ändrat prov (regel 9). Länken var `hidden md:block`; den är `hidden md:flex` sedan gruppens namn står bredvid OH
-    // i infälld panel (rutan och namnet är syskon i samma rad). Det provet skyddar, att den är dold under md, gäller oförändrat.
+    // ⛔ 0.38.0 (#203): ändrat prov (regel 9). Länken var `hidden md:block`; den blev `hidden md:flex` när gruppens namn står bredvid OH.
+    // ⛔ 0.87.0 (#262): dold ända till `lg`. Mätt: 180 px ordmärke plus växlare med namn lämnar inte plats åt flikar och 44 px knappar i 768 px.
     const klass = med.container.querySelector('header a[href="/"]')?.className ?? "";
     expect(klass).toMatch(/(^| )hidden( |$)/);
-    expect(klass).toContain("md:flex");
+    expect(klass).toContain("lg:flex");
+    expect(klass).not.toContain("md:flex");
     med.unmount();
     const utan = render(
       <OpsAppShell brand="Ops" nav={[{ href: "/", label: "Start" }]} activeHref="/">
