@@ -9,6 +9,34 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.81.0
+
+Bibliotek, skiva 1 (#192). Analysen ligger i `docs/beslut/0004-bibliotek-ss-analys.md` (#303, mergad). Skivan bar numret 0.79.0 medan den granskades, och montaget ligger kvar under det numret i `docs/jamforelser/0.79.0/`. 0.78.1, 0.78.2, 0.80.0 och 0.80.1 är mergade, och main står på 0.80.1, mätt på origin/main `e98350f` 2026-10-08. 0.79.0 gavs aldrig ut, och den här är nästa minor efter main.
+
+⛔ **Radering kommer i nästa skiva.** CP valde 2026-10-08 att författaren och admin ska kunna radera en post (#311). Den här skivan går ut utan radering eftersom den redan var granskad, så här raderar ingen. Skiva 1b lägger till `allow delete`, `radera` i källan och en knapp i detaljvyn.
+
+### Tillagt
+
+- `byggPost`, `postFel` och `inmatningsfel`. En post är en `anteckning` med text eller en `lank` med adress på http eller https. Gruppen, författaren och klockslagen hör till dokumentet. Adressen på en anteckning och texten på en länk avvisas. En rubrik eller text är tom när den bara består av tecknen U+0000 till U+0020, som i regeln (se Rättat).
+- `ADRESSFORM`, ett `RegExp` för länkens adress. Regeln får det som `matches()` genom `regelRegex`, så regeln och `postFel` kan inte säga olika om en adress. `normaliseraAdress` sätter procentkod på det som går att läsa, före prövningen.
+- `farAndra(post, jag)`: regelns `update` i klienten, författaren eller ägare och admin.
+- `createBibliotekskalla({ source, collection, groupId, skapare })`. Samlingsnamnet och gruppen kommer utifrån. `las` svarar med `kalla`, `fel` och `trasiga`, så en tom lista går att skilja från en läsning som föll. En rad som inte klarar `postFel`, eller bär en annan grupp, står i `trasiga` med id och skäl och släcker inte de andra.
+- `OpsBibliotek`: lista, sök, tre lägen med antal (också noll), detalj och formulär. Formuläret bara för den som får ändra (`jag`), annars läsläge. `jag` krävs, och `null` betyder att personen inte är medlem. En länk öppnas i ny flik med `rel="noopener noreferrer"`, och bara på http eller https. Trasiga rader visas som ett antal med skäl.
+- `bibliotekregelfragment(namn)`. Medlem i radens grupp läser. En person, inte en agent, skapar som sig själv. Författaren eller admin ändrar. Ingen raderar. `skapad` och `andrad` är serverns klocka (`opsBiblioteketNu`, samma uttryck som samtalens `opsNu`, nu ur en delad generator i `regler.js`). Samtalens regeltext är byte för byte densamma.
+
+### Rättat före merge (granskningen av PR 304)
+
+- **Regeln och modellen räknade tomhet olika.** Regeln prövar `trim().size() > 0`, och Firestores `trim()` tar bara bort U+0000 till U+0020. Modellen använde JavaScripts `trim()`, som tar bort alla Unicode-blanktecken men inte U+001F. Mätt mot emulatorn räknades 46 tecken olika: en rubrik av bara U+00A0, U+3000, U+2028 eller U+FEFF släpptes in av regeln och fick "Rubriken saknas." av modellen, och en rad som regeln släppt in hamnade i `trasiga` för alltid eftersom ingen får radera. Åt andra hållet nekade regeln U+001F som modellen godtog. Nu trimmar `inmatningsfel`, `postFel`, `byggPost` och vyns rubrikfält genom en funktion, `trimSomRegeln` i `bibliotek.js`, som gör som Firestore.
+- **Källan trimmar gruppen som modellen.** `createBibliotekskalla` trimmade `groupId` med JavaScripts `trim()`, och `byggPost` med `trimSomRegeln`. Nu samma funktion på båda ställena, så gruppen i frågan är den raden bär.
+- **`jag` krävs i `OpsBibliotek`.** Förvalet var `null`, så en app som glömde propen såg ut som en icke-medlem: inga knappar och inget fel. Nu kastar vyn när `jag` saknas, och `null` betyder att personen inte är medlem.
+
+### Prov
+
+- `rules/__tests__/bibliotek.test.mjs`, 20 prov mot emulatorn. Två nya för tomheten: de fyra rubrikerna och två texterna ovan släpps in av regeln och godtas av modellen, och U+001F nekas av båda. Det andra jämför regeln och modellen tecken för tecken på 84 tecken (kontrolltecknen och ASCII upp till `@`, plus varje tecken JavaScripts `\s` känner), med golv för antalet och för att båda svaren förekommer. Med JavaScripts trim i modellen: 2 röda av 20, 92 avvikelser (46 tecken, rubrik och text). Med `trimSomRegeln`: 20 av 20 gröna. Jämförelsen kör också `postFel(byggPost(rad))` för varje tecken. Med JavaScripts trim bara i `byggPost` (rubrik och text): 1 rött av 20, 38 avvikelser (19 Unicode-blanktecken, rubrik och text, där regeln säger ja och den byggda raden inte klarar `postFel`). Med `trimSomRegeln`: 20 av 20 gröna.
+- `src/__tests__/bibliotek.test.js`, tomheten som Firestore: röd med JavaScripts trim ("Rubriken saknas." där regeln säger ja), grön med `trimSomRegeln`. `src/__tests__/bibliotek-vy.test.jsx`, `jag` krävs: röd med förvalet `null` (inget kastades), grön nu.
+- Proven i första versionen av grenen, för historiken: 18 prov mot emulatorn. Mutationskörning: varje villkor i fragmentet togs bort ett i taget, och 40 av 40 mutationer gav minst ett rött prov. Tabellen står i PR:en. Typkontroller som inte kunde ändra utfallet togs bort ur regeln. Samma prov mot fragmentet i första versionen: 12 gröna, 6 röda.
+- `src/__tests__/bibliotek.test.js`, `src/__tests__/bibliotekkalla.test.js` och `src/__tests__/bibliotek-vy.test.jsx`, 17 prov, nu 19 med de två ovan. De fem nya proven för källan och vyn är röda mot första versionens kod och gröna nu.
+
 ## 0.80.1
 
 Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4, arkitektens beslut i PR 308 om en adress som bjuds in igen, och granskningen av PR 308. Om numret: 0.80.0 (#307) är mergad och publicerad, och 0.80.1 kommer efter den. 0.79.0 (#304) får ett nytt nummer efter 0.80.1.
