@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BIBLIOTEKFALT, BIBLIOTEKTYPER, byggPost, filtreraBibliotek, inmatningsfel, postFel } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, byggPost, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, postFel } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -54,5 +54,33 @@ describe("bibliotekets post", () => {
     expect(filtreraBibliotek(poster, { flik: "lank" }).map((p) => p.id)).toEqual(["b"]);
     expect(filtreraBibliotek(poster, { sok: "beslutade" }).map((p) => p.id)).toEqual(["a"]);
     expect(filtreraBibliotek(poster, { sok: "finns inte" })).toEqual([]);
+  });
+
+  it("mellanslag är tomt, och adressen prövas mot ADRESSFORM som regeln", () => {
+    expect(postFel({ ...anteckning, rubrik: "   " })).toMatch(/Rubriken saknas/);
+    expect(postFel({ ...anteckning, text: " \n\t " })).toMatch(/saknar text/);
+    const lank = { ...anteckning, typ: "lank", text: undefined };
+    expect(postFel({ ...lank, url: "http://exa mple" })).toMatch(/går inte att läsa/);
+    expect(postFel({ ...lank, url: "https://" })).toMatch(/går inte att läsa/);
+    expect(postFel({ ...lank, url: "https://bolagsverket.se/" })).toBeNull();
+    expect(ADRESSFORM.test("http://exa mple")).toBe(false);
+    expect(ADRESSFORM.test("javascript:alert(1)")).toBe(false);
+    expect(normaliseraAdress(" https://sv.wikipedia.org/wiki/Åre ")).toBe("https://sv.wikipedia.org/wiki/%C3%85re");
+    expect(ADRESSFORM.test(normaliseraAdress("https://sv.wikipedia.org/wiki/Åre"))).toBe(true);
+  });
+
+  it("klockslagen är heltal, och andrad ligger inte före skapad", () => {
+    expect(postFel({ ...anteckning, skapad: 1.5 })).toMatch(/heltal/);
+    expect(postFel({ ...anteckning, andrad: tid - 1 })).toMatch(/före skapad/);
+  });
+
+  it("farAndra är regelns update: författaren eller ägare och admin", () => {
+    const post = { ...byggPost(anteckning), id: "a" };
+    expect(farAndra(post, { uid: "uid-1", roll: "medlem" })).toBe(true);
+    expect(farAndra(post, { uid: "uid-2", roll: "medlem" })).toBe(false);
+    expect(farAndra(post, { uid: "uid-2", roll: "admin" })).toBe(true);
+    expect(farAndra(post, { uid: "uid-2", roll: "agare" })).toBe(true);
+    expect(farAndra(post, { uid: "uid-2", roll: "admin", groupId: "miranda-ab" })).toBe(false);
+    expect(farAndra(post, null)).toBe(false);
   });
 });

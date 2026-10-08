@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, StickyNote } from "lucide-react";
-import { BIBLIOTEKTYPER, filtreraBibliotek, inmatningsfel } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress } from "../lib/bibliotek.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
@@ -17,12 +17,24 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  *
  * Komponenten skriver ingenting själv. `onSpara` får typ, rubrik och text eller
  * adress. Källan sätter grupp, författare och klockslag.
+ *
+ * ⛔ FORMULÄRET VISAS BARA FÖR DEN SOM FÅR ÄNDRA (granskningen av #304). Det är
+ * `farAndra`, samma villkor som regelns `update`: författaren eller admin. Andra
+ * ser posten i läsläge. Ett formulär som regeln sedan nekar är ett löfte vyn inte
+ * kan hålla, och nejet hade kommit som "Missing or insufficient permissions".
+ * Utan `jag` visas allt i läsläge och inga knappar för att lägga till.
+ *
+ * ⛔ EN LÄNK GÅR ATT ÖPPNA. Den visas som en `<a>` i ny flik med
+ * `rel="noopener noreferrer"`, och bara när adressen klarar `ADRESSFORM`, alltså
+ * http eller https.
  */
 
 /**
  * @param {object} props
  * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} props.poster
  * @param {string | null} [props.fel] Läsningen misslyckades. Tom lista med fel är inte "biblioteket är tomt".
+ * @param {readonly { id: string, fel: string }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst.
+ * @param {{ uid: string, roll: string, groupId?: string } | null} [props.jag] Den inloggades aktiva medlemskap i gruppen.
  * @param {boolean} [props.laddar]
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.vald]
  * @param {"anteckning" | "lank" | null} [props.skapar]
@@ -31,10 +43,11 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {(typ: "anteckning" | "lank") => void} props.onSkapa
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
  */
-export function OpsBibliotek({ poster, fel = null, laddar = false, vald = null, skapar = null, onOppna, onStang, onSkapa, onSpara }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag = null, onOppna, onStang, onSkapa, onSpara }) {
   const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank"} */ ("alla"));
   const [sok, setSok] = useState("");
-  const detalj = Boolean(skapar || vald);
+  const skaparTyp = jag ? skapar : null;
+  const detalj = Boolean(skaparTyp || vald);
 
   const antal = {
     alla: poster.length,
@@ -47,7 +60,7 @@ export function OpsBibliotek({ poster, fel = null, laddar = false, vald = null, 
     <OpsView width="narrow">
       <div data-bibliotek="">
         {detalj ? (
-          <Detalj post={vald} skapar={skapar} onStang={onStang} onSpara={onSpara} />
+          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} />
         ) : (
           <>
             <OpsViewHeader title="Bibliotek" description="Anteckningar och länkar i gruppen." />
@@ -64,13 +77,25 @@ export function OpsBibliotek({ poster, fel = null, laddar = false, vald = null, 
                 { value: "lank", label: "Länkar", badge: antal.lank },
               ]}
             />
-            <div className="flex flex-wrap gap-2">
-              {(flik === "alla" ? BIBLIOTEKTYPER : [flik]).map((typ) => (
-                <OpsButton key={typ} variant="secondary" onClick={() => onSkapa(typ)}>
-                  {typ === "anteckning" ? "Ny anteckning" : "Ny länk"}
-                </OpsButton>
-              ))}
-            </div>
+            {jag ? (
+              <div className="flex flex-wrap gap-2">
+                {(flik === "alla" ? BIBLIOTEKTYPER : [flik]).map((typ) => (
+                  <OpsButton key={typ} variant="secondary" onClick={() => onSkapa(typ)}>
+                    {typ === "anteckning" ? "Ny anteckning" : "Ny länk"}
+                  </OpsButton>
+                ))}
+              </div>
+            ) : null}
+            {trasiga.length > 0 ? (
+              <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
+                <p>{trasiga.length === 1 ? "1 post kunde inte läsas och visas inte." : `${trasiga.length} poster kunde inte läsas och visas inte.`}</p>
+                <ul>
+                  {trasiga.map((t) => (
+                    <li key={t.id}>{t.id}: {t.fel}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {fel ? (
               <p role="alert" data-bibliotek-fel="">{fel}</p>
             ) : laddar ? (
@@ -103,13 +128,34 @@ export function OpsBibliotek({ poster, fel = null, laddar = false, vald = null, 
 }
 
 /**
+ * En adress som går att öppna, eller texten när den inte klarar `ADRESSFORM`.
+ *
+ * @param {{ url: string }} props
+ */
+function Adress({ url }) {
+  if (!ADRESSFORM.test(url)) return <p className="text-brod text-ink break-all">{url}</p>;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-bibliotek-lank=""
+      className="block break-all rounded-sm text-brod text-accent underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
+      {url}
+    </a>
+  );
+}
+
+/**
  * @param {object} props
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} props.post
  * @param {"anteckning" | "lank" | null} props.skapar
+ * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
  * @param {() => void} props.onStang
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
  */
-function Detalj({ post, skapar, onStang, onSpara }) {
+function Detalj({ post, skapar, jag, onStang, onSpara }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -122,14 +168,33 @@ function Detalj({ post, skapar, onStang, onSpara }) {
     setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
     setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
     setFormfel("");
-  }, [nyckel, post, skapar]);
+    // Nyckeln är beroendet: en ny lista med samma post ska inte tömma ett halvskrivet formulär.
+  }, [nyckel]);
 
+  const lasning = !skapar && post && !farAndra(post, jag);
   const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : "Ny länk") : post?.rubrik ?? "Post";
+  const beskrivning = typ === "anteckning" ? "En text gruppen delar." : "En adress gruppen delar.";
+
+  if (lasning && post) {
+    return (
+      <div data-bibliotek-detalj={typ} data-bibliotek-lasning="">
+        <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
+        <OpsViewHeader title={post.rubrik} description={beskrivning} />
+        {post.typ === "anteckning" ? (
+          <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
+        ) : (
+          <Adress url={post.url ?? ""} />
+        )}
+        <p className="text-meta text-ink-muted">{post.skapadAv.namn ? `Skriven av ${post.skapadAv.namn}.` : "Författaren saknar namn."}</p>
+      </div>
+    );
+  }
 
   return (
     <div data-bibliotek-detalj={typ}>
       <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
-      <OpsViewHeader title={rubrikVy} description={typ === "anteckning" ? "En text gruppen delar." : "En adress gruppen delar."} />
+      <OpsViewHeader title={rubrikVy} description={beskrivning} />
+      {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
       <OpsField label="Rubrik" error={formfel && !rubrik.trim() ? formfel : undefined}>
         <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
       </OpsField>
@@ -148,7 +213,7 @@ function Detalj({ post, skapar, onStang, onSpara }) {
         onClick={() => {
           const inmatning = typ === "anteckning"
             ? { typ, rubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
-            : { typ, rubrik, url, ...(post && !skapar ? { id: post.id } : {}) };
+            : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
           const fel = inmatningsfel(inmatning);
           if (fel) {
             setFormfel(fel);

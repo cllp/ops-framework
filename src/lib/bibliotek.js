@@ -42,6 +42,27 @@ export const MAX_BIBLIOTEKURL = 2000;
 export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "skapadAv", "skapad", "andrad"]);
 
 /**
+ * En länks adress: http eller https, och sedan bara synliga ASCII-tecken.
+ *
+ * ⛔ EN SANNING FÖR ADRESSEN (regel 2, granskningen av #304). Regeln får samma
+ * uttryck som `matches()` genom `regelRegex` i `regler.js`, och `postFel` prövar
+ * mot det här. Förut prövade regeln `https?://.+` och klienten `new URL()`. Då
+ * släppte regeln igenom `http://exa mple`, klienten avvisade raden, och hela
+ * gruppens bibliotek blev ett läsfel som ingen kunde radera bort.
+ *
+ * `[!-~]` är tecknen från `!` till `~`: inget mellanslag, ingen tabb, ingen
+ * radbrytning. Ett å i en adress skrivs med procentkod, och `normaliseraAdress`
+ * gör det åt den som skriver.
+ */
+export const ADRESSFORM = /^https?:\/\/[!-~]+$/;
+
+/**
+ * Roller som får ändra någon annans post. Samma två som `opsArAdmin` i
+ * `regelfragment()`, ägare eller admin.
+ */
+const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
+
+/**
  * @typedef {object} Bibliotekspost
  * @property {string} groupId
  * @property {"anteckning"|"lank"} typ
@@ -55,6 +76,43 @@ export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", 
 
 /** @param {unknown} v @returns {string} */
 const str = (v) => (typeof v === "string" ? v.trim() : "");
+
+/**
+ * Adressen som den sparas: trimmad, och med procentkod och gemener i schema och värdnamn när
+ * den går att läsa som http eller https. Annars oförändrad, så att `ADRESSFORM`
+ * får säga nej med sitt eget skäl.
+ *
+ * @param {unknown} v
+ * @returns {string}
+ */
+export function normaliseraAdress(v) {
+  const url = str(v);
+  try {
+    const u = new URL(url);
+    if (u.protocol === "http:" || u.protocol === "https:") return u.href;
+  } catch {
+    // Går inte att läsa. ADRESSFORM avgör.
+  }
+  return url;
+}
+
+/**
+ * Får den här personen ändra posten? Samma villkor som regelns `update`:
+ * författaren, eller ägare eller admin i gruppen.
+ *
+ * `jag` är den inloggades aktiva medlemskap i postens grupp, eller `null` när
+ * det saknas. Utan medlemskap blir svaret nej, och vyn visar posten i läsläge.
+ *
+ * @param {{ groupId?: string, skapadAv?: { uid?: string | null } } | null | undefined} post
+ * @param {{ uid?: string | null, roll?: string, groupId?: string } | null | undefined} jag
+ * @returns {boolean}
+ */
+export function farAndra(post, jag) {
+  if (!post || !jag || typeof jag.uid !== "string" || !jag.uid) return false;
+  if (jag.groupId !== undefined && jag.groupId !== post.groupId) return false;
+  if (post.skapadAv?.uid === jag.uid) return true;
+  return /** @type {readonly string[]} */ (FORVALTARROLLER).includes(String(jag.roll ?? ""));
+}
 
 /**
  * Det formuläret kan ha fel på, utan grupp och utan författare.
@@ -75,7 +133,7 @@ export function inmatningsfel(d) {
 
   if (typ === "anteckning") {
     if ("url" in d && d.url != null && str(d.url) !== "") return "En anteckning har text, och ingen adress.";
-    const text = typeof d.text === "string" ? d.text.trim() : "";
+    const text = str(d.text);
     if (!text) return "Anteckningen saknar text.";
     if (text.length > MAX_BIBLIOTEKTEXT) return `Texten är ${text.length} tecken. Taket är ${MAX_BIBLIOTEKTEXT}.`;
     return null;
@@ -84,16 +142,9 @@ export function inmatningsfel(d) {
   if ("text" in d && d.text != null && str(d.text) !== "") return "En länk har en adress, och ingen brödtext.";
   const url = str(d.url);
   if (!url) return "Länken saknar adress.";
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return "Adressen går inte att läsa.";
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return "Adressen ska börja med http eller https.";
-  }
-  if (parsed.href.length > MAX_BIBLIOTEKURL) return `Adressen är ${parsed.href.length} tecken. Taket är ${MAX_BIBLIOTEKURL}.`;
+  if (!/^https?:/.test(url)) return "Adressen ska börja med http eller https.";
+  if (!ADRESSFORM.test(url)) return "Adressen går inte att läsa. Den ska börja med http:// eller https:// och sakna mellanslag.";
+  if (url.length > MAX_BIBLIOTEKURL) return `Adressen är ${url.length} tecken. Taket är ${MAX_BIBLIOTEKURL}.`;
   return null;
 }
 
@@ -121,9 +172,9 @@ export function postFel(d) {
   const extraSkapare = skaparnycklar.filter((k) => !(/** @type {readonly string[]} */ (SKAPARFALT).includes(k)));
   if (extraSkapare.length > 0) return `Skaparen har fälten ${extraSkapare.join(", ")}, och de hör inte dit.`;
 
-  if (typeof d.skapad !== "number" || !Number.isFinite(d.skapad)) return "skapad ska vara ett tal, millisekunder.";
-  if (typeof d.andrad !== "number" || !Number.isFinite(d.andrad)) return "andrad ska vara ett tal, millisekunder.";
-  if (d.andrad < d.skapad) return "andrad ligger före skapad.";
+  if (!Number.isInteger(d.skapad)) return "skapad ska vara ett heltal, millisekunder.";
+  if (!Number.isInteger(d.andrad)) return "andrad ska vara ett heltal, millisekunder.";
+  if (/** @type {number} */ (d.andrad) < /** @type {number} */ (d.skapad)) return "andrad ligger före skapad.";
   return null;
 }
 
@@ -134,6 +185,7 @@ export function postFel(d) {
  * @returns {Bibliotekspost}
  */
 export function byggPost(d) {
+  if (d && typeof d === "object" && str(d.typ) === "lank" && "url" in d) d = { ...d, url: normaliseraAdress(d.url) };
   const fel = postFel(d);
   if (fel) throw new Error(fel);
   const typ = /** @type {Bibliotekspost["typ"]} */ (str(d.typ));
@@ -148,7 +200,7 @@ export function byggPost(d) {
     andrad: /** @type {number} */ (d.andrad),
   };
   if (typ === "anteckning") post.text = str(d.text);
-  else post.url = new URL(str(d.url)).href;
+  else post.url = str(d.url);
   return post;
 }
 

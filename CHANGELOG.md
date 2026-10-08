@@ -15,16 +15,17 @@ Bibliotek, skiva 1 (#192). Analysen ligger i `docs/beslut/0004-bibliotek-ss-anal
 
 ### Tillagt
 
-- `byggPost`, `postFel` och `inmatningsfel`. En post är en `anteckning` med text eller en `lank` med adress på http eller https. Gruppen, författaren och klockslagen hör till dokumentet. Adressen på en anteckning och texten på en länk avvisas.
-- `createBibliotekskalla({ source, collection, groupId, skapare })`. Samlingsnamnet och gruppen kommer utifrån. `las` svarar med `kalla` och `fel`, så en tom lista går att skilja från en läsning som föll.
-- `OpsBibliotek`: lista, sök, tre lägen med antal (också noll), detalj och formulär.
-- `bibliotekregelfragment(namn)`. Medlem i radens grupp läser och skapar som sig själv. Författaren eller admin ändrar. Ingen raderar.
+- `byggPost`, `postFel` och `inmatningsfel`. En post är en `anteckning` med text eller en `lank` med adress på http eller https. Gruppen, författaren och klockslagen hör till dokumentet. Adressen på en anteckning och texten på en länk avvisas. En rubrik eller text av bara mellanslag är tom.
+- `ADRESSFORM`, ett `RegExp` för länkens adress. Regeln får det som `matches()` genom `regelRegex`, så regeln och `postFel` kan inte säga olika om en adress. `normaliseraAdress` sätter procentkod på det som går att läsa, före prövningen.
+- `farAndra(post, jag)`: regelns `update` i klienten, författaren eller ägare och admin.
+- `createBibliotekskalla({ source, collection, groupId, skapare })`. Samlingsnamnet och gruppen kommer utifrån. `las` svarar med `kalla`, `fel` och `trasiga`, så en tom lista går att skilja från en läsning som föll. En rad som inte klarar `postFel`, eller bär en annan grupp, står i `trasiga` med id och skäl och släcker inte de andra.
+- `OpsBibliotek`: lista, sök, tre lägen med antal (också noll), detalj och formulär. Formuläret bara för den som får ändra (`jag`), annars läsläge. En länk öppnas i ny flik med `rel="noopener noreferrer"`, och bara på http eller https. Trasiga rader visas som ett antal med skäl.
+- `bibliotekregelfragment(namn)`. Medlem i radens grupp läser. En person, inte en agent, skapar som sig själv. Författaren eller admin ändrar. Ingen raderar. `skapad` och `andrad` är serverns klocka (`opsBiblioteketNu`, samma uttryck som samtalens `opsNu`, nu ur en delad generator i `regler.js`). Samtalens regeltext är byte för byte densamma.
 
 ### Prov
 
-- `src/__tests__/bibliotek.test.js` och `src/__tests__/bibliotek-vy.test.jsx`, 6 prov. Utan spärren mot `javascript:`: 2 röda, 4 gröna. Med spärren: 6 av 6 gröna. `src/__tests__/bibliotekkalla.test.js`, 3 prov, gröna i samma körning.
-- `rules/__tests__/bibliotek.test.mjs` mot emulatorn, inräknat i `npm run test:rules`: 368 gröna, 0 fel. Med läsningen bytt till `opsInloggad()`: 1 rött, 2 gröna, exit 1. Med medlemskap i radens grupp: det röda blev grönt.
-- Playwright, `node scripts/bibliotek-montage.mjs`: lista i 390 och 1024, detalj i 390, ny länk i 1024, och montaget `bibliotek-lista-390-ramverk-ss.png`. Webbläsaren var `/opt/google/chrome/chrome`. `/opt/pw-browsers` fanns inte, och ingen webbläsare installerades.
+- `rules/__tests__/bibliotek.test.mjs`, 18 prov mot emulatorn. Mutationskörning: varje villkor i fragmentet togs bort ett i taget, och 40 av 40 mutationer gav minst ett rött prov. Tabellen står i PR:en. Typkontroller som inte kunde ändra utfallet togs bort ur regeln. Samma prov mot fragmentet i första versionen: 12 gröna, 6 röda.
+- `src/__tests__/bibliotek.test.js`, `src/__tests__/bibliotekkalla.test.js` och `src/__tests__/bibliotek-vy.test.jsx`, 17 prov. De fem nya proven för källan och vyn är röda mot första versionens kod och gröna nu.
 
 ## 0.78.0
 

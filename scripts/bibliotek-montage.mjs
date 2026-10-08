@@ -60,6 +60,7 @@ for (const [namn, lage, viewport] of [
   ["bibliotek-lista-390", "lista", { width: 390, height: 844 }],
   ["bibliotek-lista-1024", "lista", { width: 1024, height: 900 }],
   ["bibliotek-detalj-390", "detalj", { width: 390, height: 844 }],
+  ["bibliotek-lank-las-390", "lank", { width: 390, height: 844 }],
   ["bibliotek-ny-1024", "ny", { width: 1024, height: 900 }],
 ]) {
   const context = await browser.newContext({ viewport, deviceScaleFactor: 2 });

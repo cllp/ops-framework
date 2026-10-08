@@ -11,6 +11,13 @@
  * ⛔ LÄSNINGEN KASTAR INTE. Svaret bär `kalla` och `fel`, så en vy kan skilja
  * "biblioteket är tomt" från "databasen svarade inte". En tom lista ensam är
  * båda, och det är regel 5.
+ *
+ * ⛔ EN TRASIG RAD SLÄCKER INTE DE ANDRA (granskningen av #304). En rad som
+ * `postFel` avvisar, eller som bär en annan grupp, hoppas över och står i
+ * `trasiga` med sitt id och sitt skäl. Förut gav en enda sådan rad `kalla: "fel"`
+ * och en tom lista för hela gruppen, och eftersom ingen får radera kunde den
+ * inte heller tas bort. Att den hoppas över tyst hade varit regel 5 igen, så
+ * vyn visar antalet och skälet.
  */
 
 import { byggPost, postFel } from "../lib/bibliotek.js";
@@ -21,6 +28,7 @@ import { byggSkapare } from "../lib/skapare.js";
  * @property {(import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} poster
  * @property {"databas" | "fel"} kalla
  * @property {Error | null} fel
+ * @property {{ id: string, fel: string }[]} trasiga Rader som inte gick att läsa och därför inte står i `poster`.
  */
 
 /**
@@ -60,20 +68,26 @@ export function createBibliotekskalla(config) {
       try {
         const rader = await source.list(collection, fraga);
         const poster = [];
+        /** @type {{ id: string, fel: string }[]} */
+        const trasiga = [];
         for (const rad of rader) {
-          const fel = postFel(rad);
+          const id = String(rad?.id ?? "?");
+          const fel = rad?.groupId !== groupId
+            ? `Raden hör till gruppen "${rad?.groupId ?? ""}" och inte till "${groupId}".`
+            : postFel(rad);
           if (fel) {
-            return {
-              poster: [],
-              kalla: "fel",
-              fel: new Error(`${collection}/${rad?.id ?? "?"}: ${fel}`),
-            };
+            trasiga.push({ id, fel });
+            continue;
           }
-          poster.push({ ...byggPost(rad), id: String(rad.id) });
+          try {
+            poster.push({ ...byggPost(rad), id });
+          } catch (e) {
+            trasiga.push({ id, fel: e instanceof Error ? e.message : String(e) });
+          }
         }
-        return { poster, kalla: "databas", fel: null };
+        return { poster, kalla: "databas", fel: null, trasiga };
       } catch (fel) {
-        return { poster: [], kalla: "fel", fel: fel instanceof Error ? fel : new Error(String(fel)) };
+        return { poster: [], kalla: "fel", fel: fel instanceof Error ? fel : new Error(String(fel)), trasiga: [] };
       }
     },
 

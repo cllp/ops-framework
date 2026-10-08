@@ -37,7 +37,7 @@ import {
 } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { BIBLIOTEKFALT, BIBLIOTEKTYPER, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL } from "./bibliotek.js";
 import { SKAPARFALT } from "./skapare.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
@@ -82,6 +82,22 @@ function regelRegex(re) {
   const k = re.source.replace(/^\^/, "").replace(/\$$/, "").replace(/\\\//g, "/");
   if (k.includes("\\") || k.includes("'")) throw new Error(`regelRegex: ${re} går inte att skriva som ett Firestore-matches() utan översättning.`);
   return k;
+}
+
+/**
+ * En regelfunktion som säger att en tid i millisekunder ligger nära serverns klocka, plus minus fem minuter.
+ *
+ * ⛔ ETT UTTRYCK, FLERA NAMN (granskningen av #304, samma skäl som `bilagaRegelfunktion`). Samtalen har `opsNu` och
+ * biblioteket `opsBiblioteketNu`. Båda fragmenten kan limmas in i samma regelfil, och ett namn går inte att deklarera
+ * två gånger. Samtalens text är byte för byte densamma som innan funktionen lyftes hit.
+ *
+ * @param {string} funktionsnamn
+ * @returns {string}
+ */
+function nuRegelfunktion(funktionsnamn) {
+  return `    function ${funktionsnamn}(t) {
+      return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
+    }`;
 }
 
 /**
@@ -1030,9 +1046,7 @@ ${texttak("            ")}
     }
 
     // En tid i millisekunder nära serverns klocka.
-    function opsNu(t) {
-      return t is int && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
-    }
+${nuRegelfunktion("opsNu")}
 
 ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefunktion}    // Ett nytt samtal: nyckeln härledd, skaparen en person i gruppen, i ett privat samtal båda aktiva medlemmar.
     function opsNyttSamtal(sid, d) {
@@ -1328,13 +1342,31 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *   - LÄSA: aktiv medlem i radens grupp. En fråga utan `groupId` går inte att
  *     bevisa och nekas. ADR-020 (`allow read: if isAuth()`) skrivs inte: den
  *     regeln gör varje inloggad till läsare av varje dokument.
- *   - SKAPA: aktiv medlem, som sig själv (`skapadAv.uid`), med en giltig post.
+ *   - SKAPA: aktiv medlem som är en person (inte en agent), som sig själv
+ *     (`skapadAv.uid`), med `skapad` och `andrad` satta till serverns klocka och
+ *     en giltig post.
  *   - ÄNDRA: författaren, eller admin i gruppen. Gruppen, typen, skaparen och
- *     `skapad` står stilla. En medlem skriver inte om någon annans rad.
+ *     `skapad` står stilla, och `andrad` är serverns klocka. En medlem skriver
+ *     inte om någon annans rad.
  *   - RADERA: aldrig.
  *
- * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`
- * och `opsArAdmin` ur `regelfragment()`, och ska limmas in efter det.
+ * ⛔ REGELN OCH MODELLEN ÄR EN SANNING (granskningen av #304). Fälten, taken och
+ * typerna kommer ur `bibliotek.js`, adressen ur `ADRESSFORM` via `regelRegex`, och
+ * en rubrik eller text som bara är mellanslag är tom på båda sidor (`trim()`).
+ *
+ * ⛔ KLOCKAN ÄR SERVERNS. En post som fick datera sig själv till år 30 000 hade
+ * legat överst i listan för alltid, eftersom listan sorteras på `andrad`.
+ *
+ * ⛔ VARJE VILLKOR HÄR HAR SETTS FALLA (regel 4). En mutationskörning tog bort
+ * villkoren ett i taget mot `rules/__tests__/bibliotek.test.mjs`. Typkontroller
+ * som `d.rubrik is string` överlevde den, och de står inte här: operationen efter
+ * dem (`trim()`, `size()`, en jämförelse med `request.auth.uid`) ger ett fel på
+ * fel typ, och ett fel är ett nej. Ett villkor som inte kan ändra utfallet är
+ * ingen spärr, bara en rad som ser ut som en. Proven med fel typ står kvar.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`,
+ * `opsMedlemskapet` och `opsArAdmin` ur `regelfragment()`, och ska limmas in
+ * efter det.
  *
  * @param {string} namn Samlingsnamnet appen valt.
  * @returns {string}
@@ -1342,37 +1374,35 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
 export function bibliotekregelfragment(namn) {
   const samling = kontrolleraNamn(namn, "bibliotek");
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
-  const typer = BIBLIOTEKTYPER.map((t) => `"${t}"`).join(", ");
+  // Varje typ har en egen gren nedan. En ny typ i modellen utan sin gren hade nekats tyst i produktion.
+  if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank") {
+    throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning och lank, och en ny typ behöver sin egen.`);
+  }
 
-  return `    function opsBibliotekspostGiltig(d) {
+  return `    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, bibliotekregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+
+    // En tid i millisekunder nära serverns klocka (samma uttryck som samtalens opsNu).
+${nuRegelfunktion("opsBiblioteketNu")}
+
+    function opsBibliotekspostGiltig(d) {
       return d.keys().hasOnly([${lista(BIBLIOTEKFALT)}])
-        && d.groupId is string
-        && d.typ in [${typer}]
-        && d.rubrik is string
-        && d.rubrik.size() > 0
+        && d.rubrik.trim().size() > 0
         && d.rubrik.size() <= ${MAX_BIBLIOTEKRUBRIK}
-        && d.skapadAv is map
         && d.skapadAv.keys().hasOnly([${lista(SKAPARFALT)}])
-        && d.skapadAv.keys().hasAll([${lista(SKAPARFALT)}])
-        && d.skapadAv.uid is string
-        && d.skapadAv.uid.size() > 0
         && d.skapadAv.namn is string
         && d.skapadAv.typ == "manniska"
         && d.skapadAv.kalla is string
-        && d.skapad is number
-        && d.andrad is number
         && d.andrad >= d.skapad
         && (
           (d.typ == "anteckning"
-            && d.text is string
-            && d.text.size() > 0
+            && d.text.trim().size() > 0
             && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
             && !d.keys().hasAny(["url"]))
           || (d.typ == "lank"
-            && d.url is string
-            && d.url.size() > 0
             && d.url.size() <= ${MAX_BIBLIOTEKURL}
-            && d.url.matches('https?://.+')
+            && d.url.matches('${regelRegex(ADRESSFORM)}')
             && !d.keys().hasAny(["text"]))
         );
     }
@@ -1380,12 +1410,16 @@ export function bibliotekregelfragment(namn) {
     match /${samling}/{id} {
       allow read: if opsArMedlem(resource.data.groupId);
       allow create: if opsArMedlem(request.resource.data.groupId)
+        && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
         && request.resource.data.skapadAv.uid == request.auth.uid
+        && opsBiblioteketNu(request.resource.data.skapad)
+        && opsBiblioteketNu(request.resource.data.andrad)
         && opsBibliotekspostGiltig(request.resource.data);
       allow update: if request.resource.data.groupId == resource.data.groupId
         && request.resource.data.typ == resource.data.typ
         && request.resource.data.skapad == resource.data.skapad
         && request.resource.data.skapadAv == resource.data.skapadAv
+        && opsBiblioteketNu(request.resource.data.andrad)
         && opsBibliotekspostGiltig(request.resource.data)
         && (
           (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)

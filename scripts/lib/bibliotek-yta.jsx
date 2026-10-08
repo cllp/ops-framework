@@ -11,15 +11,20 @@ const poster = [
   { ...Ops.byggPost({ groupId: "cps-ab", typ: "anteckning", rubrik: "Mötesanteckning", text: "Nästa möte är på torsdag.", skapadAv: skapare, skapad: tid, andrad: tid }), id: "c" },
 ];
 
+// Författaren till alla tre posterna, och en annan medlem som ser länken i läsläge.
+const FORFATTARE = { uid: "uid-1", roll: "medlem" };
+const ANNAN = { uid: "uid-2", roll: "medlem" };
+
 function Yta() {
   const [vald, setVald] = useState(null);
   const [skapar, setSkapar] = useState(null);
   const start = window.__bibliotek || "lista";
-  const valdPost = start === "detalj" ? poster[0] : vald;
+  const valdPost = start === "detalj" ? poster[0] : start === "lank" ? poster[1] : vald;
   const skaparTyp = start === "ny" ? "lank" : skapar;
   return (
     <Ops.OpsBibliotek
       poster={poster}
+      jag={start === "lank" ? ANNAN : FORFATTARE}
       vald={valdPost}
       skapar={skaparTyp}
       onOppna={(p) => { setSkapar(null); setVald(p); }}
