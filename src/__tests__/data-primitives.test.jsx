@@ -154,6 +154,46 @@ describe("OpsTabs", () => {
     );
   });
 
+  /*
+   * ⛔ 0.83.0 (`medOrd`): Bibliotekets typer ska se ut som Ekonomis länkrad. Rött mot 0.82.0: där fanns ingen form där
+   * ordet syns bredvid ikonen (ikonflikarna gör ordet till sr-only), och raden hade inte modulradens klasser.
+   */
+  it("medOrd: ikon, ord och antal syns på en rad med modulradens klasser, och utan ikon kastar formen", async () => {
+    const onChange = vi.fn();
+    render(
+      <OpsTabs
+        medOrd
+        tabs={[
+          { id: "alla", label: "Alla", icon: <svg data-i="alla" />, badge: 2 },
+          { id: "lank", label: "Länkar", icon: <svg data-i="lank" />, badge: 0 },
+        ]}
+        value="alla"
+        onChange={onChange}
+        ariaLabel="Typ"
+      >
+        <OpsTabPanel id="alla">x</OpsTabPanel>
+      </OpsTabs>,
+    );
+    const alla = screen.getByRole("tab", { name: "Alla 2", selected: true });
+    const lankar = screen.getByRole("tab", { name: "Länkar 0" });
+    expect(alla.querySelector("svg")).not.toBeNull();
+    expect(alla.querySelector(".sr-only")).toBeNull();
+    // Samma klasser som `OpsModulSida`s länkar: ikon bredvid ordet, 14 px halvfet text och accentlinjen under den valda.
+    for (const k of ["flex", "items-center", "gap-2", "text-etikett", "font-semibold", "border-b-2", "border-accent"]) expect(alla.className).toContain(k);
+    expect(lankar.className).toContain("border-transparent");
+    await userEvent.click(lankar);
+    expect(onChange).toHaveBeenCalledWith("lank");
+    forvantaKrasch(
+      () =>
+        render(
+          <OpsTabs medOrd tabs={[{ id: "a", label: "A" }]} value="a" onChange={() => {}} ariaLabel="Utan ikon">
+            <OpsTabPanel id="a">x</OpsTabPanel>
+          </OpsTabs>,
+        ),
+      /medOrd kräver icon/,
+    );
+  });
+
   it("ikonflikar: ordet blir namnet, antalet syns också vid 0, och en ikon på bara några flikar kastar", () => {
     render(
       <OpsTabs

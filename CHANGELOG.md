@@ -9,6 +9,72 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.83.0
+
+CP 2026-10-08 17:52 och 17:54, med bilder från telefonen av Bibliotek, Ekonomi och Hubben: "Bibliotek behöver en tillbaka knapp också precis som ekonomi. Sedan navigeringen på liknande sätt. Sök och komponenter är ihoptryckta." Och: "Varje app/modul borde kunna expanderas med chevron och det skall finnas en inställning om att ikon skall placeras i huvudmenyn."
+
+### Biblioteket har Ekonomis ram
+
+- **"‹ Tillbaka" och rubriken.** `OpsBibliotek` ritar samma tillbaka-rad som `OpsModulSida` (en ny intern `modulTillbaka` i `src/lib/modulram.js`, som båda läser): länken till hubben och "Bibliotek" som rubrik. I detaljen står bara detaljens egen Tillbaka, till listan.
+- **Typerna är Ekonomis flikrad.** Alla, Anteckningar och Länkar är en `OpsTabs` med den nya formen `medOrd`: ikon, ord och antal på en rad med accentlinjen under den valda. Klasserna är `OpsModulSida`s, flyttade till `modulram.js` (`flikKlass`, `FLIKRAD`, `FLIKIKON`), så att raderna inte kan glida isär. Före var typerna en segmentväljare i pillerform. De är fortfarande ett urval i samma lista och inte länkar till egna adresser: sökordet står kvar när man byter flik.
+- **Luften.** Mätt med Playwright mot lifehub-appens mätbygge, 390 och 1280 px: mellan sökfältet, segmentväljaren, knapparna och listan stod 0 px, eftersom allt låg i ett omslag (`data-bibliotek`) utan vyns rytm. Ekonomi har 16 px (`gap-4`) mellan rubriken, raden och innehållet. Omslaget, flikpanelen och detaljen har nu samma rytm.
+- **Sök och "+ Ny" på en rad**, som SessionStudios bibliotek. Under Alla öppnar "+ Ny" ett val mellan anteckning och länk. Under en typ skapar den typen direkt ("Ny anteckning", "Ny länk"). Sökfältet har ingen synlig etikett: platshållaren och skärmläsarnamnet säger samma sak.
+- **Bredden** är vyns förval (`normal`, som Ekonomi) i stället för `narrow`, så att tillbaka-raden och rubriken står på samma plats när man går mellan modulerna på en dator.
+- **`knappKlass`** (intern, i `OpsButton.jsx`) är knappens klasser för en avtryckare som inte kan vara en `OpsButton`: "+ Ny" är en Radix `Popover.Trigger`, som ritar sitt eget `<button>`. `OpsButton` läser samma funktion.
+
+### Hubbens kort fälls ut med en chevron
+
+- **Kortet är länken, chevronen är knappen.** I `OpsGruppHubb` får ett kort för en modul med fler än en del en chevron (`<button aria-expanded aria-controls>`, "Visa delarna i Ekonomi", 44 px) bredvid länken, aldrig i den. Utfälld visar den modulens delar (`hubb.delar`) som länkar med ikon. Kortet leder som förut till modulens startsida.
+- **En modul med en enda del får ingen chevron.** Mätt på Bibliotek: dess enda del `lista` leder till `/bibliotek`, samma adress som kortet, och en utfälld lista med en rad dit visar inget nytt.
+- **Läget sparas inte mellan besök.** Kortet börjar utfällt när en av dess sidor är aktiv, annars stängt.
+- **`hubbPoster` tar `delar: true`** och ger då `children` till moduler med fler än en del. Toppradens rullgardin ber inte om dem och listar fortfarande bara moduler.
+
+### Modulens ikon i huvudet: `groups.huvudmeny`
+
+- **Ett nytt fält på gruppen, ägarens.** `huvudmeny` är en lista modul-id, en delmängd av `moduler`, och står i `AGARGRUPPFALT`. Regelfragmentets `hasOnly` för ägaren bär det, admin-listan inte. Saknas fältet är svaret `[]`, och en grupp ser ut som förut.
+- **`byggGrupp`** läser fältet (förval `[]`), prövar formen (en lista, modul-id, inga dubbletter) och, på skrivvägen, att varje id är en av gruppens moduler. Läsvägen kastar inte på ett id som tagits bort ur `moduler`.
+- **`huvudmenyPoster({ grupp, moduler, sprak })`** (ny export) ger raderna att rita: gruppens moduler i gruppens ordning, filtrerade på `huvudmeny`, med manifestets `hubb.ikon` och `hubb.rutt`. Appen ritar dem som `OpsIconLink` i `actions`, där den vill ha dem.
+- **`OpsGruppFormular`** har reglaget "Visa i huvudmenyn" under varje vald app med kort, bara för ägaren och bara i redigeringsläge, som modulvalet. `onSpara` får `huvudmeny` bredvid `moduler`, alltid som en delmängd: en app som väljs bort tas ur huvudmenyn i samma sparning. En admin skickar aldrig fältet.
+
+#### ⛔ Brytande
+
+- **`OpsBibliotek` kräver `hubHref`** och kastar utan den, som `OpsModulSida`. `onNavigate` och `hubEtikett` är valfria.
+- **`OpsBibliotek` har inga knappar "Ny anteckning" och "Ny länk" under Alla.** Där står "+ Ny" ("Ny post") med ett val. Under en typ heter knappen "Ny anteckning" eller "Ny länk".
+- **`OpsHub`:s kort med barn är en länk**, inte en knapp, och raden "Visa Ekonomi" är borta. `visaEtikett` läses inte längre.
+- **Regelfragmentet för `groups` ändras** (`huvudmeny` i ägarens `hasOnly`). En app ska generera om sina regler och **deploya dem före** den klienthalva som skriver fältet. Utan det nekas ägarens sparning i gruppens inställningar, hela sparningen och inte bara fältet.
+
+#### Prov, sedda röda utan sin ändring
+
+| Prov | Utan ändringen | Med |
+|---|---|---|
+| `bibliotek-vy`: Tillbaka leder till hubben, rubriken är modulens namn | rött | grönt |
+| `bibliotek-vy`: `hubHref` krävs | rött | grönt |
+| `bibliotek-vy`: flikrad med ikon, namn och antal, också 0 | rött | grönt |
+| `bibliotek-vy`: sökordet står kvar när fliken byts | rött | grönt |
+| `bibliotek-vy`: "+ Ny" med val under Alla, direkt under en typ | rött | grönt |
+| `bibliotek-vy`: sök och "+ Ny" på en rad, omslaget har vyns rytm | rött | grönt |
+| `data-primitives`: `OpsTabs medOrd` | rött | grönt |
+| `hubb`: samma klasser i modulens rad och bibliotekets flikar | rött | grönt |
+| `hubb`: chevronen fäller ut delarna, ligger utanför länken, heter efter modulen på engelska | rött | grönt |
+| `hubb`: grannkorten sträcks inte medan ett kort är utfällt | rött | grönt |
+| `hubb`: `hubbPoster` med `delar`, `huvudmenyPoster` | rött | grönt |
+| `hubb`: reglaget i gruppformuläret, delmängden vid bortval | rött | grönt |
+| `grupp`: `huvudmeny` läses, prövas och är ägarens | rött | grönt |
+| Emulator: ägaren ändrar `huvudmeny` | rött (`hasOnly` utan fältet) | grönt |
+| Emulator: admin ändrar inte `huvudmeny` | rött med fältet i `ADMINGRUPPFALT` | grönt |
+
+Tre nya prov är gröna också mot 0.82.0, och det är rätt: de vaktar ett beslut i den nya formen, inte ett fel som fanns. "I detaljen bara detaljens Tillbaka" (0.82.0 hade ingen länk till hubben alls), "en modul med en enda del har ingen chevron" (0.82.0 hade ingen chevron alls) och "en admin skickar aldrig huvudmenyn" (0.82.0 hade inget fält). De blir röda om någon lägger till en andra Tillbaka, en chevron på Bibliotek eller fältet för en admin.
+
+#### Ändrade prov (granskas av någon annan än den som skrev dem, regel 9)
+
+- `hubsida`: "knappen bär aria-expanded ... och 'Visa Ekonomi' leder till modulens sida" heter nu "chevronen bär aria-expanded ... och kortet självt leder till modulens sida". Beteendet är ändrat på CP:s begäran.
+- `hubb`: "en grupp med Ekonomi har ETT kort" sade att delarna inte står i hubben. Nu: de syns inte förrän chevronen fälls ut.
+- `bibliotek-vy`: de två proven som tryckte på "Ny länk" och letade efter "Ny anteckning" under Alla trycker nu på "Ny post" och väljer.
+- `skal030`: "OpsHub: ... ett med barn en utfällbar knapp" läser nu kortet som länk med en chevron bredvid.
+- `skal031`: tre prov som tryckte på kortet som knapp, eller på raden "Visa Ekonomi" / "Show Ekonomi", trycker nu på chevronen och på kortets länk.
+
+---
+
 ## 0.82.0
 
 #313: en adress i `users` gav bort medlemskap. Upptäckt i den tredje granskningen av PR 308, och mätt en gång till i granskningen av lifehub.app#117.

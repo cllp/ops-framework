@@ -38,7 +38,8 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
   it("räknaren ritas bara när den är större än noll, och info bara när appen har något att säga", () => {
     render(<OpsHub moduler={moduler} />);
     const lista = screen.getByRole("list", { name: "Appar" });
-    const ekonomi = within(lista).getByRole("button", { name: /Ekonomi/ });
+    // 0.83.0: kortet med barn är en länk (chevronen är en egen knapp bredvid).
+    const ekonomi = within(lista).getByRole("link", { name: /^Ekonomi/ });
     expect(ekonomi.textContent).toContain("2");
     expect(ekonomi.textContent).toContain("Skatten förfaller");
     // badge 0: ingen räknare. Det finns inget "0" i kortet.
@@ -56,8 +57,9 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
   it("språket styr både info och ramverkets egen text", () => {
     render(<OpsHub moduler={moduler} sprak="en" />);
     expect(screen.getByText("Tax is due")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Ekonomi/ }));
-    expect(screen.getByRole("link", { name: "Show Ekonomi" })).toBeTruthy();
+    // 0.83.0: chevronens namn i stället för raden "Show Ekonomi", som är borta.
+    fireEvent.click(screen.getByRole("button", { name: "Show the parts of Ekonomi" }));
+    expect(screen.queryByRole("link", { name: "Show Ekonomi" })).toBeNull();
     expect(screen.getAllByText("Nothing new").length).toBeGreaterThan(0);
   });
 
@@ -69,14 +71,16 @@ describe("A: Hub, modulkort och modulsida (0.30.1)", () => {
     expect(() => validateNav([{ href: "/a", label: "A", info: null }, { href: "/b", label: "B" }, { href: "/c", label: "C", info: { sv: "x" } }], "T")).not.toThrow();
   });
 
-  it("ett klick på ett kort utan barn går till modulens href, ett på Ekonomi fäller ut och 'Visa Ekonomi' går dit (0.31.2)", () => {
+  // ⛔ ÄNDRAT I 0.83.0: hette "... ett på Ekonomi fäller ut och 'Visa Ekonomi' går dit (0.31.2)". Nu fäller chevronen ut och
+  // kortet självt går till modulen.
+  it("ett klick på ett kort utan barn går till modulens href, chevronen på Ekonomi fäller ut utan att navigera, och kortet går dit (0.83.0)", () => {
     const gick = [];
     render(<OpsHub moduler={moduler} onNavigate={(href, e) => { e.preventDefault(); gick.push(href); }} />);
     fireEvent.click(screen.getByRole("link", { name: /Schema/ }));
     expect(gick).toEqual(["/schema"]);
-    fireEvent.click(screen.getByRole("button", { name: /Ekonomi/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Visa delarna i Ekonomi" }));
     expect(gick).toEqual(["/schema"]);
-    fireEvent.click(screen.getByRole("link", { name: "Visa Ekonomi" }));
+    fireEvent.click(screen.getByRole("link", { name: /^Ekonomi/ }));
     expect(gick).toEqual(["/schema", "/ekonomi"]);
   });
 

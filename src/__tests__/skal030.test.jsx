@@ -139,14 +139,16 @@ describe("A: fasta poster och moduler i Hub (#173)", () => {
     expect(within(botten).queryByRole("button", { name: "Skapa" })).toBeNull();
   });
 
-  it("OpsHub: ett kort per modul, ett kort utan barn en länk och ett med barn en utfällbar knapp, och det aktiva markerat (0.30.1, 0.31.2)", () => {
+  // ⛔ ÄNDRAT I 0.83.0 (CP 2026-10-08 17:54: "Varje app/modul borde kunna expanderas med chevron"). Kortet med barn är en länk,
+  // och chevronen bredvid den är knappen. Provet hette "... ett med barn en utfällbar knapp" och läste kortet som knappens förälder.
+  it("OpsHub: ett kort per modul, ett kort utan barn en länk och ett med barn en länk med en chevron bredvid, och det aktiva markerat (0.30.1, 0.83.0)", () => {
     render(<OpsHub moduler={moduler} activeHref="/inkomster" />);
     const lista = screen.getByRole("list", { name: "Appar" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
-    // 0.31.2: kortet med barn fälls ut på plats (knapp), och den aktiva sidan är ett av barnen så kortet börjar utfällt.
-    const knapp = within(lista).getByRole("button", { name: /Ekonomi/ });
+    // Den aktiva sidan är ett av barnen, så kortet börjar utfällt.
+    const knapp = within(lista).getByRole("button", { name: "Visa delarna i Ekonomi" });
     expect(knapp.getAttribute("aria-expanded")).toBe("true");
-    const kort = /** @type {HTMLElement} */ (knapp.parentElement);
+    const kort = /** @type {HTMLElement} */ (knapp.closest("[data-utfallbart]"));
     expect(kort.className).toContain("rounded-card");
     expect(kort.className).toContain("ring-accent");
     expect(within(lista).getByRole("link", { name: /Översikt/ }).className).not.toContain("ring-accent");

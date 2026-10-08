@@ -196,7 +196,7 @@ service cloud.firestore {
         && request.resource.data.epost == request.auth.token.get('email', '').lower();
     }
 
-    // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler och arkivering.
+    // Gruppen. Medlem läser. Admin ändrar utseende och uppgifter, ägare även moduler, huvudmenyn och arkivering.
     // Aldrig radering: arkivering finns för att svaret på "varför försvann den" alltid efterfrågas i
     // efterhand.
     //
@@ -215,7 +215,7 @@ service cloud.firestore {
           && !(opsAndrad(request.resource.data, resource.data, 'externaDatakallor') && opsAndrad(request.resource.data, resource.data, 'typavvikelser'))
           && (!opsAndrad(request.resource.data, resource.data, 'externaDatakallor') || opsExternaGiltiga(request.resource.data))
           && (!opsAndrad(request.resource.data, resource.data, 'typavvikelser') || opsTypavvikelserGiltiga(request.resource.data))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "arkiverad", "externaDatakallor", "typavvikelser"]))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak", "moduler", "huvudmeny", "arkiverad", "externaDatakallor", "typavvikelser"]))
         || (opsArAdmin(gid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["namn", "farg", "ikon", "bild", "beskrivning", "ort", "epostsprak"]));
       allow delete: if false;
