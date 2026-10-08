@@ -1521,7 +1521,10 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *   - ÄNDRA: författaren, eller admin i gruppen. Gruppen, typen, skaparen och
  *     `skapad` står stilla, och `andrad` är serverns klocka. En medlem skriver
  *     inte om någon annans rad.
- *   - RADERA: aldrig.
+ *   - RADERA: författaren, om medlemskapet fortfarande är aktivt, eller admin
+ *     i gruppen (`opsArAdmin`, ägare eller admin). Skiva 1 nekade alla. #311
+ *     öppnade den här vägen, och ingen annan: en annan medlem, en admin i en
+ *     annan grupp, ett avslutat medlemskap, en agent och en utloggad får nej.
  *
  * ⛔ REGELN OCH MODELLEN ÄR EN SANNING (granskningen av #304). Fälten, taken och
  * typerna kommer ur `bibliotek.js`, adressen ur `ADRESSFORM` via `regelRegex`, och
@@ -1600,7 +1603,8 @@ ${nuRegelfunktion("opsBiblioteketNu")}
           (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
           || opsArAdmin(resource.data.groupId)
         );
-      allow delete: if false;
+      allow delete: if (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+        || opsArAdmin(resource.data.groupId);
     }
 `;
 }

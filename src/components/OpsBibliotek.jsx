@@ -30,6 +30,11 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * `jag: null` betyder att den inloggade inte är medlem: allt visas i läsläge och
  * inga knappar för att lägga till.
  *
+ * ⛔ RADERA SYNS BARA FÖR DEN SOM FÅR (#311). Samma `farAndra` som formuläret.
+ * Första trycket frågar, andra tar bort. Utan frågan hade ett tryck i listan
+ * raderat posten. En trasig rad har samma knapp när raden bär grupp och
+ * skapare nog för `farAndra`.
+ *
  * ⛔ `jag` KRÄVS, OCH `null` ÄR ETT SVAR (regel 5, granskningen av #304). Med
  * `null` som förval såg en app som glömt propen ut som en icke-medlem: inga
  * knappar och inget fel, och den som faktiskt får skriva fick bara läsa. Nu
@@ -66,7 +71,7 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {object} props
  * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} props.poster
  * @param {string | null} [props.fel] Läsningen misslyckades. Tom lista med fel är inte "biblioteket är tomt".
- * @param {readonly { id: string, fel: string }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst.
+ * @param {readonly { id: string, fel: string, groupId?: string, skapadAv?: { uid?: string | null } }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst. Den som får raderar raden.
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
  * @param {boolean} [props.laddar]
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.vald]
@@ -75,11 +80,12 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {() => void} props.onStang
  * @param {(typ: "anteckning" | "lank") => void} props.onSkapa
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
+ * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, hubHref, hubEtikett, onNavigate }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, hubHref, hubEtikett, onNavigate }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -105,7 +111,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
       <div data-bibliotek="" className="flex flex-col gap-4">
         {detalj ? (
-          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} />
+          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -131,7 +137,12 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                     <p>{trasiga.length === 1 ? "1 post kunde inte läsas och visas inte." : `${trasiga.length} poster kunde inte läsas och visas inte.`}</p>
                     <ul>
                       {trasiga.map((t) => (
-                        <li key={t.id}>{t.id}: {t.fel}</li>
+                        <li key={t.id} className="flex flex-col gap-2">
+                          <span>{t.id}: {t.fel}</span>
+                          {farAndra({ groupId: t.groupId, skapadAv: t.skapadAv }, jag) ? (
+                            <RaderaKontroll id={t.id} namn={`Radera ${t.id}`} onRadera={onRadera} />
+                          ) : null}
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -254,8 +265,9 @@ function Adress({ url }) {
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
  * @param {() => void} props.onStang
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
+ * @param {(id: string) => void | Promise<void>} [props.onRadera]
  */
-function Detalj({ post, skapar, jag, onStang, onSpara }) {
+function Detalj({ post, skapar, jag, onStang, onSpara, onRadera }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -325,6 +337,50 @@ function Detalj({ post, skapar, jag, onStang, onSpara }) {
       >
         Spara
       </OpsButton>
+      {post && !skapar ? <RaderaKontroll id={post.id} onRadera={onRadera} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Första trycket frågar. Andra tar bort. Avbryt lämnar posten.
+ *
+ * @param {{ id: string, namn?: string, onRadera?: (id: string) => void | Promise<void> }} props
+ */
+function RaderaKontroll({ id, namn = "Radera", onRadera }) {
+  const [fraga, setFraga] = useState(false);
+  const [fel, setFel] = useState("");
+  if (!fraga) {
+    return (
+      <OpsButton variant="danger" onClick={() => setFraga(true)}>{namn}</OpsButton>
+    );
+  }
+  return (
+    <div data-bibliotek-bekrafta="" className="flex flex-col gap-2">
+      <p>Radera posten? Den går inte att ångra.</p>
+      {fel ? <p role="alert">{fel}</p> : null}
+      <div className="flex gap-2">
+        <OpsButton variant="secondary" onClick={() => { setFraga(false); setFel(""); }}>Avbryt</OpsButton>
+        <OpsButton
+          variant="danger"
+          onClick={() => {
+            if (typeof onRadera !== "function") {
+              setFel("Raderingen är inte kopplad. Posten är kvar.");
+              return;
+            }
+            try {
+              const svar = onRadera(id);
+              if (svar && typeof svar.then === "function") {
+                svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+              }
+            } catch (e) {
+              setFel(e instanceof Error ? e.message : String(e));
+            }
+          }}
+        >
+          Radera posten
+        </OpsButton>
+      </div>
     </div>
   );
 }

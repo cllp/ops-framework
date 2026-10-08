@@ -53,7 +53,93 @@ describe("createBibliotekskalla", () => {
     const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });
     const svar = await kalla.las();
     expect(svar.poster).toEqual([]);
-    expect(svar.trasiga).toEqual([{ id: "fel-grupp", fel: expect.stringMatching(/miranda-ab/) }]);
+    expect(svar.trasiga).toEqual([{
+      id: "fel-grupp",
+      fel: expect.stringMatching(/miranda-ab/),
+      groupId: "miranda-ab",
+      skapadAv: rad.skapadAv,
+    }]);
+  });
+
+  it("radera kräver jag och anteckna, och tar bara bort när båda släpper igenom", async () => {
+    const hel = { groupId: "cps-ab", typ: "anteckning", rubrik: "Hel", text: "Läsbar.", skapadAv: skapare(), skapad: 1, andrad: 1 };
+    const source = createMemorySource({
+      bibliotek: [
+        { id: "min", ...hel },
+        { id: "annans", ...hel, skapadAv: { uid: "uid-2", namn: "Alex", typ: "manniska", kalla: "bibliotek" } },
+        { id: "trasig", groupId: "cps-ab", typ: "anteckning", rubrik: "Halv", skapadAv: skapare() },
+      ],
+    });
+    const utan = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });
+    await expect(utan.radera("min")).rejects.toThrow(/jag krävs/);
+
+    const anteckningar = [];
+    const kalla = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      jag: () => ({ uid: "uid-1", roll: "medlem", groupId: "cps-ab" }),
+      anteckna: async (rad) => { anteckningar.push(rad); },
+    });
+    await expect(kalla.radera("annans")).rejects.toThrow(/författaren eller en admin/);
+    expect(anteckningar).toEqual([]);
+    expect((await source.read("bibliotek", "annans"))?.rubrik).toBe("Hel");
+
+    await kalla.radera("min");
+    expect(anteckningar).toHaveLength(1);
+    expect(anteckningar[0].av.uid).toBe("uid-1");
+    expect(anteckningar[0].id).toBe("min");
+    expect(await source.read("bibliotek", "min")).toBeNull();
+
+    await kalla.radera("trasig");
+    expect(await source.read("bibliotek", "trasig")).toBeNull();
+  });
+
+  it("en anteckning som faller lämnar posten kvar", async () => {
+    const hel = { id: "min", groupId: "cps-ab", typ: "anteckning", rubrik: "Hel", text: "Läsbar.", skapadAv: skapare(), skapad: 1, andrad: 1 };
+    const source = createMemorySource({ bibliotek: [hel] });
+    const kalla = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      jag: () => ({ uid: "uid-1", roll: "medlem" }),
+      anteckna: async () => { throw new Error("loggen svarade inte"); },
+    });
+    await expect(kalla.radera("min")).rejects.toThrow(/loggen svarade inte/);
+    expect((await source.read("bibliotek", "min"))?.rubrik).toBe("Hel");
+  });
+
+  it("admin i gruppen raderar någon annans rad, och en admin med annan grupp gör det inte", async () => {
+    const hel = { groupId: "cps-ab", typ: "anteckning", rubrik: "Hel", text: "Läsbar.", skapadAv: { uid: "uid-2", namn: "Alex", typ: "manniska", kalla: "bibliotek" }, skapad: 1, andrad: 1 };
+    const source = createMemorySource({
+      bibliotek: [
+        { id: "a", ...hel },
+        { id: "b", ...hel },
+      ],
+    });
+    const admin = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      jag: () => ({ uid: "uid-9", roll: "admin", groupId: "cps-ab" }),
+      anteckna: async () => {},
+    });
+    await admin.radera("a");
+    expect(await source.read("bibliotek", "a")).toBeNull();
+
+    const felGrupp = createBibliotekskalla({
+      source,
+      collection: "bibliotek",
+      groupId: "cps-ab",
+      skapare,
+      jag: () => ({ uid: "uid-9", roll: "admin", groupId: "miranda-ab" }),
+      anteckna: async () => {},
+    });
+    await expect(felGrupp.radera("b")).rejects.toThrow(/författaren eller en admin/);
+    expect((await source.read("bibliotek", "b"))?.rubrik).toBe("Hel");
   });
 
   it("en läsning som föll är kalla fel, inte ett tomt bibliotek", async () => {

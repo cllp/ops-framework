@@ -19,7 +19,7 @@ const poster = [
 
 const FORFATTARE = { uid: "uid-1", roll: "medlem" };
 
-function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined }) {
+function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
   const [sparat, setSparat] = useState(/** @type {unknown} */ (null));
@@ -36,6 +36,7 @@ function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = []
         onStang={() => { setVald(null); setSkapar(null); }}
         onSkapa={(typ) => { setVald(null); setSkapar(typ); }}
         onSpara={(inmatning) => setSparat(inmatning)}
+        onRadera={onRadera}
         hubHref="/hub"
         onNavigate={onNavigate}
       />
@@ -117,6 +118,48 @@ describe("OpsBibliotek", () => {
     render(<OpsBibliotek {...utan} jag={null} />);
     expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
+  });
+
+  it("radera syns för författaren och admin, kräver bekräftelse, och syns inte för andra", () => {
+    const onRadera = vi.fn();
+    const { unmount } = render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Radera" }));
+    expect(screen.getByText("Radera posten? Den går inte att ångra.")).toBeInTheDocument();
+    expect(onRadera).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    expect(screen.queryByText("Radera posten? Den går inte att ångra.")).toBeNull();
+    unmount();
+
+    const med = render(<Harness onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Radera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Radera posten" }));
+    expect(onRadera).toHaveBeenCalledWith("a");
+    med.unmount();
+
+    const annan = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
+    annan.unmount();
+
+    render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    expect(screen.getByRole("button", { name: "Radera" })).toBeInTheDocument();
+  });
+
+  it("en trasig rad raderas av den som får, med bekräftelse, och inte av en annan medlem", () => {
+    const onRadera = vi.fn();
+    const trasiga = [{ id: "x", fel: "Anteckningen saknar text.", groupId: "cps-ab", skapadAv: { uid: "uid-1" } }];
+    const { unmount } = render(<Harness trasiga={trasiga} onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Radera x" }));
+    expect(onRadera).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Radera posten" }));
+    expect(onRadera).toHaveBeenCalledWith("x");
+    unmount();
+
+    render(<Harness trasiga={trasiga} jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
+    expect(screen.queryByRole("button", { name: "Radera x" })).toBeNull();
   });
 
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {

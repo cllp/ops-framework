@@ -12,7 +12,8 @@
  *            medlemskap, med extra fält, utan klocka, med taken: nej
  *   ÄNDRA    författaren ja, admin ja, annan medlem nej, admin i en annan grupp nej,
  *            flytta gruppen nej, byta typ nej, skriva om skapad eller skapadAv nej
- *   RADERA   aldrig
+ *   RADERA   författaren ja, admin och ägare i gruppen ja. Annan medlem, admin i
+ *            en annan grupp, avslutat medlemskap, agent och utloggad: nej (#311)
  *
  * Reglerna skrivs av `scripts/skriv-provregler.mjs` ur `bibliotekregelfragment("bibliotek")`.
  */
@@ -289,8 +290,31 @@ describe("bibliotekets regler: ändra och radera", () => {
     await assertFails(updateDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll"), { text: "Bakåt.", andrad: T0 - 1000 }));
   });
 
-  it("ingen raderar, inte författaren och inte admin", async () => {
-    await assertFails(deleteDoc(doc(db(MEDLEM), "bibliotek/cps-protokoll")));
-    await assertFails(deleteDoc(doc(db(ADMIN), "bibliotek/cps-protokoll")));
+  it("författaren, admin och ägare raderar, och ingen annan", async () => {
+    const AGARE = "uid-cps-agare";
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      const adminDb = ctx.firestore();
+      await setDoc(doc(adminDb, `memberships/${medlemskapsId(AGARE, CPS)}`), {
+        userId: AGARE, groupId: CPS, roll: "agare", typ: "person", status: "aktiv",
+      });
+      await setDoc(doc(adminDb, "bibliotek/radera-forfattare"), anteckning({ rubrik: "Raderas av författaren" }));
+      await setDoc(doc(adminDb, "bibliotek/radera-admin"), anteckning({ skapadAv: skapare(ANNAN), rubrik: "Raderas av admin" }));
+      await setDoc(doc(adminDb, "bibliotek/radera-agare"), anteckning({ skapadAv: skapare(ANNAN), rubrik: "Raderas av ägare" }));
+      await setDoc(doc(adminDb, "bibliotek/radera-nej"), anteckning({ rubrik: "Står kvar" }));
+    });
+    await assertSucceeds(deleteDoc(doc(db(MEDLEM), "bibliotek/radera-forfattare")));
+    await assertSucceeds(deleteDoc(doc(db(ADMIN), "bibliotek/radera-admin")));
+    await assertSucceeds(deleteDoc(doc(db(AGARE), "bibliotek/radera-agare")));
+    await assertFails(deleteDoc(doc(db(ANNAN), "bibliotek/radera-nej")));
+    await assertFails(deleteDoc(doc(db(MIRANDA_ADMIN), "bibliotek/radera-nej")));
+    await assertFails(deleteDoc(doc(db(AVSLUTAD), "bibliotek/cps-avslutad")));
+    await assertFails(deleteDoc(doc(db(AGENT), "bibliotek/radera-nej")));
+    await assertFails(deleteDoc(doc(miljo.unauthenticatedContext().firestore(), "bibliotek/radera-nej")));
+    /** @type {import("firebase/firestore").DocumentSnapshot | undefined} */
+    let kvar;
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      kvar = await getDoc(doc(ctx.firestore(), "bibliotek/radera-nej"));
+    });
+    assert.equal(kvar?.exists(), true);
   });
 });

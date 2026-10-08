@@ -83,8 +83,10 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * U+0000 till U+0020 i ändarna. JavaScripts `trim()` tar bort alla Unicode-
  * blanktecken (U+00A0, U+3000, U+2028, U+FEFF och fler) men inte U+001F. Med
  * JavaScripts trim släppte regeln in en rubrik av bara U+00A0, och modellen
- * sade "Rubriken saknas." om samma rad. Raden hamnade i `trasiga`, och eftersom
- * ingen får radera stod den där för alltid. Mätt mot emulatorn räknades 46
+ * sade "Rubriken saknas." om samma rad. Raden hamnade i `trasiga`, och i skiva 1
+ * fick ingen radera, så den stod där för alltid. #311 låter författaren eller
+ * admin ta bort en sådan rad. Trimmet står kvar: de två funktionerna räknar
+ * fortfarande olika. Mätt mot emulatorn räknades 46
  * tecken olika: 27 kontrolltecken som regeln trimmar och JavaScript inte, och
  * 19 Unicode-blanktecken som JavaScript trimmar och regeln inte. Varje trim i modellen går därför
  * genom den här funktionen, också den som vyn använder.
@@ -123,8 +125,9 @@ export function normaliseraAdress(v) {
 }
 
 /**
- * Får den här personen ändra posten? Samma villkor som regelns `update`:
- * författaren, eller ägare eller admin i gruppen.
+ * Får den här personen ändra eller radera posten? Samma villkor som regelns
+ * `update` och, sedan #311, som regelns `delete`: författaren, eller ägare
+ * eller admin i gruppen.
  *
  * `jag` är den inloggades aktiva medlemskap i postens grupp, eller `null` när
  * det saknas. Utan medlemskap blir svaret nej, och vyn visar posten i läsläge.
