@@ -228,6 +228,34 @@ describe("märket har sin fil, och id:t kan bära en (granskningen av PR 307)", 
   });
 });
 
+describe("en fil utan meddelande tas inte över under ett annat namn eller en annan typ (granskningen av PR 307)", () => {
+  // ⛔ Filen sås förbi reglerna, som en server eller en äldre regelversion hade kunnat lämna den. Utan jämförelsen i
+  // meddelandets regel räckte det att filen FANNS: ett nytt meddelande med samma id kunde då visa den under vilket namn
+  // och vilken tillåten typ som helst.
+  before(async () => {
+    await miljo.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `samtal/${sid}/bilagor/foraldralos`), { ...bild(), tid: SADD_TID });
+    });
+  });
+
+  it("⛔ ett nytt meddelande med samma id men ett annat namn i märket nekas", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/foraldralos`), meddelande(ANNA, { text: "", bilaga: marke("annat.png", "image/png") })));
+  });
+
+  it("⛔ ett nytt meddelande med samma id men en annan typ i märket nekas", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/foraldralos`), meddelande(ANNA, { text: "", bilaga: marke("kvitto.png", "application/pdf") })));
+  });
+
+  it("med samma namn och typ släpps det in (README säger varför det är godtagbart)", async () => {
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/foraldralos`), meddelande(ANNA, { text: "", bilaga: marke("kvitto.png", "image/png") })));
+  });
+
+  it("fil och märke i samma batch släpps in som förut, i samtalet och i en tråd", async () => {
+    await assertSucceeds(batchMedFil(ANNA, `samtal/${sid}/meddelanden`, "jamfor", `samtal/${sid}/bilagor`, "jamfor", { bilaga: bild() }));
+    await assertSucceeds(batchMedFil(BO, `samtal/${grupp}/tradar/rot/meddelanden`, "jamfor", `samtal/${grupp}/bilagor`, "rot~jamfor", { bilaga: bild({ namn: "svar.png" }) }));
+  });
+});
+
 describe("tysta notiser", () => {
   it("personen skriver och läser sin egen rad", async () => {
     await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/tyst/${ANNA}`), { tyst: true }));

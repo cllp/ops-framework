@@ -777,6 +777,25 @@ function bilagaRegelfunktion(funktionsnamn, val = {}) {
 }
 
 /**
+ * Avgränsaren i en trådbilagas nyckel som regeltext: en teckenklass för `matches`, och samma tecken som mönster i `split`.
+ *
+ * ⛔ TECKNET HAMNAR OESCAPAT I TRE SAMMANHANG (granskningen av PR 307). I teckenklassen `[x]` ändrar `]`, `^`, `\` och
+ * `-` betydelse. I `split`, som i reglerna tar ett reguljärt uttryck, gör varje metatecken det. I regeltexten står det
+ * inom `'...'`. Ett tecken som bryter något av dem hade gett en regel som tyst nekar allt, eller släpper in det den
+ * skulle neka. Därför kastar generatorn i stället, och avgränsaren ändras i `BILAGA_TRADSKILJE`, aldrig här.
+ *
+ * @param {string} t
+ * @returns {string} teckenklassen, till exempel `[~]`
+ */
+export function tradskiljeTeckenklass(t) {
+  if (typeof t !== "string" || [...t].length !== 1) throw new Error(`samtalsregelfragment: BILAGA_TRADSKILJE ska vara ett enda tecken, inte ${JSON.stringify(t)}.`);
+  if ("]^\\-[.*+?(){}|$/'\"".includes(t) || /\s/.test(t) || /[A-Za-z0-9_]/.test(t)) {
+    throw new Error(`samtalsregelfragment: BILAGA_TRADSKILJE ${JSON.stringify(t)} är inte säkert i en teckenklass, i split eller inom '...'. Välj ett tecken som inte är ], ^, \\, -, ett annat metatecken, ett citattecken, blanktecken eller en del av ett id.`);
+  }
+  return `[${t}]`;
+}
+
+/**
  * Regelfragmentet för samtalen: gruppchatten, privata samtal och agentsamtal, med meddelanden och läst-status
  * som undersamlingar.
  *
@@ -829,8 +848,9 @@ function bilagaRegelfunktion(funktionsnamn, val = {}) {
  *     meddelandet finnas, vara skrivet av den inloggade och bära samma namn, typ och tid. Ett svar i en tråd har nyckeln
  *     `<tråd>~<id>` (`bilagenyckel`). Uppdatera och radera: aldrig. Med bilaga får texten vara tom.
  *     Åt andra hållet (granskningen av PR 307): ett meddelande som bär märket ska ha sin fil efter batchen (`existsAfter` på
- *     `opsBilagansFil`), och meddelandets id får inte innehålla `~`, för då hade filens nyckel aldrig gått att skriva. En fil
- *     som läggs till senare på ett eget meddelande som redan bär märket prövas bara av filens regel, och den släpps in.
+ *     `opsBilagansFil`) med samma namn och typ som märket (`opsMarketHarFil`), och meddelandets id får inte innehålla `~`,
+ *     för då hade filens nyckel aldrig gått att skriva. En fil som läggs till senare på ett eget meddelande som redan bär
+ *     märket prövas bara av filens regel, och den släpps in.
  *     Utan nycklarna är meddelandets fält och textkrav desamma som förut. Firebase Storage används inte.
  *   - TYSTA NOTISER (0.80.0, #301, med `tyst`): `<tyst>/{uid}` med `{ tyst: bool }`. Bara personen själv läser och skriver.
  *     Radera: aldrig. Utan nyckeln finns inget sådant block.
@@ -887,7 +907,7 @@ export function samtalsregelfragment(namn = {}) {
   // "Bilagan går inte att visa" för alltid, och ett id med `~` hade gett en fil vars nyckel regeln läser som ett trådsvar.
   // `nyckel` är regeluttrycket för filens nyckel: `mid` i samtalet, `tid + '~' + mid` i en tråd.
   const texttak = (/** @type {string} */ indrag, /** @type {string} */ nyckel) => (bilagor
-    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagemarke(request.resource.data.bilaga))\n${indrag}&& (!('bilaga' in request.resource.data) || existsAfter(opsBilagansFil(sid, ${nyckel})))\n${indrag}&& !mid.matches('.*[${BILAGA_TRADSKILJE}].*')`
+    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagemarke(request.resource.data.bilaga))\n${indrag}&& (!('bilaga' in request.resource.data) || opsMarketHarFil(sid, ${nyckel}, request.resource.data.bilaga))\n${indrag}&& !mid.matches('.*${skiljeklass}.*')`
     : `${indrag}&& request.resource.data.text.size() > 0\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}`);
   const meddelandefaltRegel = bilagor ? [...meddelandefalt, "bilaga"] : meddelandefalt;
   const samtalsfaltRegel = bilagor ? [...samtalsfaltlista, "bilaga"] : samtalsfaltlista;
@@ -896,6 +916,7 @@ export function samtalsregelfragment(namn = {}) {
   // ser läget efter hela batchen, alltså meddelandet som skrivs i samma anrop. Ett svar i en tråd har trådens id först i
   // nyckeln (`bilagenyckel`), annars hade regeln inte hittat meddelandet. Utan `tradar` finns bara den enkla nyckeln.
   const S = BILAGA_TRADSKILJE;
+  const skiljeklass = bilagor ? tradskiljeTeckenklass(S) : "";
   const bilagansVag = tradar
     ? `nyckel.split('${S}').size() == 1
         ? /databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(nyckel)
@@ -909,6 +930,14 @@ export function samtalsregelfragment(namn = {}) {
     // Meddelandets fil (granskningen av PR 307): samma nyckel åt andra hållet.
     function opsBilagansFil(sid, nyckel) {
       return /databases/$(database)/documents/${samtal}/$(sid)/${bilagaSamling}/$(nyckel);
+    }
+
+    // Märket har sin fil efter batchen, med samma namn och typ: samma jämförelse som opsBundenBilaga, åt andra hållet.
+    // Utan den kunde ett nytt meddelande ta över en fil som saknar meddelande, under ett annat namn eller en annan typ.
+    function opsMarketHarFil(sid, nyckel, b) {
+      return existsAfter(opsBilagansFil(sid, nyckel))
+        && getAfter(opsBilagansFil(sid, nyckel)).data.namn == b.namn
+        && getAfter(opsBilagansFil(sid, nyckel)).data.typ == b.typ;
     }
 
     // Filen hör till ett meddelande som finns efter batchen, som den inloggade skrev, med samma namn, typ och tid.
