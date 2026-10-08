@@ -9,6 +9,15 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.86.0
+
+Gruppens minne (lifehub.app#66). En person lyfter en slutsats ur ett meddelande i en tråd. Hela gruppen ser raderna. Agenten läser, och skriver aldrig.
+
+- **`minnesregelfragment(namn)`.** Samlingsnamnet skickar appen in. Aktiv medlem läser. Aktiv person lyfter som sig själv, med `lyftAv.typ == "manniska"` och serverns klocka. Den som lyfte raden, eller gruppens ägare, skriver om texten och tar bort raden. Admin gör inget av det. Gruppen, källan, vem och `lyft` står stilla vid en ändring.
+- **`OpsMinne`.** Listan med text, källa, vem och när. Ändra och Ta bort bara för den som får. Tomt minne säger "Minnet är tomt." Ett läsfel är en varning, inte en tom lista. `arAgare`, `uid`, `onAndra`, `onTaBort` och `hubHref` krävs.
+- **`createMinneskalla`.** `source`, `collection`, `groupId`, `skapare`. `las` kastar inte. `lyft`, `andra` och `taBort` sätter klockan och vägrar en rad som hör till en annan grupp.
+- **Knappen "Lyft till minnet"** på rotmeddelandet och svaren i `OpsTrad`, bara när appen skickar `onLyftTillMinnet`. Utan den syns ingen knapp och inget lyfts av sig självt. Nekas lyftet står felet i tråden. `minneHref` ritar länken "Minnet" i trådens huvud. Skrivfältet är orört.
+
 ## 0.83.0
 
 CP 2026-10-08 17:52 och 17:54, med bilder från telefonen av Bibliotek, Ekonomi och Hubben: "Bibliotek behöver en tillbaka knapp också precis som ekonomi. Sedan navigeringen på liknande sätt. Sök och komponenter är ihoptryckta." Och: "Varje app/modul borde kunna expanderas med chevron och det skall finnas en inställning om att ikon skall placeras i huvudmenyn."

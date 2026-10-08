@@ -213,7 +213,7 @@ export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/g
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment } from "./lib/regler.js";
 /*
  * ⛔ MEJLKÖNS REGLER (0.76.0, #101). Text in och text ut, ingen React, och inget
  * beroende till transporten. Fragmentet står för sig: klienten läser inte kön
@@ -274,6 +274,9 @@ export { createCatalogSource } from "./data/katalogkalla.js";
 export { BIBLIOTEKTYPER, BIBLIOTEKFALT, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, ADRESSFORM, inmatningsfel, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra } from "./lib/bibliotek.js";
 export { createBibliotekskalla } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
+export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";
+export { createMinneskalla } from "./data/minneskalla.js";
+export { OpsMinne } from "./components/OpsMinne.jsx";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
 export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./components/OpsInstallningar.jsx";
