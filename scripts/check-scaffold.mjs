@@ -41,6 +41,33 @@ const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arbetsmapp = fs.mkdtempSync(path.join(os.tmpdir(), "ops-scaffold-"));
 const appmapp = path.join(arbetsmapp, "provapp");
 
+// ⛔ APPENS PLAYWRIGHT ÄR INTE RAMVERKETS PLAYWRIGHT.
+//
+// Hänt 2026-10-08: scaffold blev röd på main och på varje PR, med koden orörd.
+// Playwright 1.64.0 publicerades 2026-10-07 20:42 UTC. Mallen kräver `^1.49.0`,
+// så provappen fick 1.64.0, och den letar efter Chromium-revision 1248. CI
+// installerar webbläsaren med ramverkets låsta 1.63.0, alltså revision 1243.
+// Appens `chromium.launch()` hittade ingen fil, och på GitHubs runner finns
+// ingen reservväg. Här i containern räddades det av `/opt/pw-browsers`, så
+// felet syntes bara i CI och lästes först som "Chromium saknas på runnern".
+//
+// Rättelsen är att säga vilken webbläsare som finns i stället för att hoppas
+// att två oberoende versionsupplösningar råkar landa på samma revision: den
+// Chromium ramverkets egen Playwright pekar på skickas till appen som
+// OPS_CHROMIUM, samma väg en utvecklare redan har. Finns den inte gör vi
+// ingenting, och mätningen får försöka och bli röd själv. Ett satt OPS_CHROMIUM
+// vinner alltid.
+const chromiumForAppen = await (async () => {
+  if (process.env.OPS_CHROMIUM) return process.env.OPS_CHROMIUM;
+  try {
+    const { chromium } = await import("playwright");
+    const sokvag = chromium.executablePath();
+    return sokvag && fs.existsSync(sokvag) ? sokvag : null;
+  } catch {
+    return null;
+  }
+})();
+
 /** @param {string} vad @param {string[]} argv @param {string} cwd */
 function kor(vad, argv, cwd) {
   process.stdout.write(`  ${vad} ... `);
@@ -51,7 +78,7 @@ function kor(vad, argv, cwd) {
   const r = spawnSync(argv[0], argv.slice(1), {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, CI: "1", PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" },
+    env: { ...process.env, CI: "1", PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1", ...(chromiumForAppen ? { OPS_CHROMIUM: chromiumForAppen } : {}) },
   });
   if (r.status !== 0) {
     console.log("MISSLYCKADES");
@@ -66,6 +93,7 @@ function kor(vad, argv, cwd) {
 }
 
 console.log(`check-scaffold: ${appmapp}`);
+console.log(`  webbläsare till appen: ${chromiumForAppen ?? "ingen angiven, appens egen Playwright får leta"}`);
 
 kor("bygger ramverket", [process.execPath, path.join(rot, "scripts", "build.mjs")], rot);
 
