@@ -345,8 +345,18 @@ ${
       // blir en accepterad inbjudan till medlem plötsligt ett ägarskap, utan att den som accepterade såg
       // det. tokenHash och giltigTill av skälet ovan: en klient som kan förlänga eller byta koden kan
       // hålla en inbjudan vid liv i evighet. Ska något annat ändras återkallas inbjudan och en ny skrivs.
+      //
+      // ⛔ OCH STATUSEN GÅR BARA ÅT ETT HÅLL: FRÅN \`vantar\` TILL \`aterkallad\` (0.80.1, granskningen av
+      // lifehub.app PR 117, punkt 3). Före 0.80.1 fick en admin sätta statusen till vad som helst, och
+      // mätt i lifehub sattes en återkallad ägarinbjudan tillbaka till \`vantar\`: en återkallelse som
+      // går att ångra från klienten är ingen återkallelse. \`accepterad\` sätts av accepten och ett nytt
+      // utskick av appens server, båda med Admin SDK, alltså förbi den här regeln.
+      // Båda villkoren behövs: utan det första kan en accepterad inbjudan "återkallas" i efterhand och
+      // se ut som att personen aldrig kom in, utan det andra kan klienten själv markera den accepterad.
       allow update: if opsArAdmin(resource.data.groupId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"]);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
+        && resource.data.status == 'vantar'
+        && request.resource.data.status == 'aterkallad';
       allow delete: if false;
     }
 

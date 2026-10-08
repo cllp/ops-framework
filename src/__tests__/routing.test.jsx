@@ -248,3 +248,41 @@ describe("updateIf per samling", () => {
     await expect(/** @type {NonNullable<typeof source.updateIf>} */ (source.updateIf)("mejl", "a", { status: "koad" }, { status: "skickas" })).rejects.toThrow(/"mejl"/);
   });
 });
+
+/**
+ * `createNew` är frivillig på samma sätt (0.80.1, granskningen av lifehub.app PR 117, punkt 4).
+ * `createInvitationService` kräver den, så en routande källa som svalde den hade nekat en
+ * uppsättning där inbjudningarnas källa kan skapa utan att skriva över.
+ */
+describe("createNew per samling", () => {
+  /** @param {Record<string, { id: string }[]>} [seed] */
+  const utan = (seed = {}) => {
+    const k = createMemorySource(seed);
+    const { createNew: _bort, ...rest } = k;
+    return rest;
+  };
+
+  it("exponerar inte createNew när ingen källa har den", () => {
+    const source = createRoutingSource({ fallback: utan(), routes: { saker: utan() } });
+    expect(source.createNew).toBeUndefined();
+  });
+
+  it("skickar vidare till den källa samlingen hamnar hos, och skriver aldrig över", async () => {
+    const inb = createMemorySource({ invitations: [{ id: "a", status: "aterkallad" }] });
+    const source = createRoutingSource({ fallback: utan(), routes: { invitations: inb } });
+    const skapa = /** @type {NonNullable<typeof source.createNew>} */ (source.createNew);
+    expect(await skapa("invitations", { id: "b", status: "vantar" })).toEqual({ created: true, row: { id: "b", status: "vantar" } });
+    expect(await skapa("invitations", { id: "a", status: "vantar" })).toEqual({ created: false, row: { id: "a", status: "aterkallad" } });
+    expect(await inb.read("invitations", "a")).toEqual({ id: "a", status: "aterkallad" });
+  });
+
+  it("⛔ kastar med samlingens namn när just den källan saknar createNew", async () => {
+    const source = createRoutingSource({ fallback: createMemorySource(), routes: { invitations: utan() } });
+    expect(typeof source.createNew).toBe("function");
+    await expect(/** @type {NonNullable<typeof source.createNew>} */ (source.createNew)("invitations", { id: "a" })).rejects.toThrow(/"invitations"/);
+  });
+
+  it("⛔ minneskällan kräver ett id, utan id finns inget att krocka med", async () => {
+    await expect(/** @type {any} */ (createMemorySource()).createNew("invitations", { status: "vantar" })).rejects.toThrow(/ett id krävs/);
+  });
+});
