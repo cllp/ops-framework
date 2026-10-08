@@ -105,7 +105,7 @@ export function byggMejlhandelse(b = {}) {
     typ: "mejl",
     handling: typeof b.handling === "string" && b.handling ? b.handling : "fel",
     kategori: typeof b.kategori === "string" && b.kategori ? b.kategori : "okand",
-    mottagarhash: till ? createHash("sha256").update(till).digest("hex").slice(0, 12) : null,
+    mottagarhash: till ? mottagarhash(till) : null,
     groupId: typeof b.groupId === "string" && b.groupId ? b.groupId : null,
     mejlId: typeof b.mejlId === "string" && b.mejlId ? b.mejlId : null,
     millisekunder: typeof b.millisekunder === "number" && Number.isFinite(b.millisekunder) ? b.millisekunder : null,
@@ -117,6 +117,36 @@ export function byggMejlhandelse(b = {}) {
     messageId: typeof b.messageId === "string" && b.messageId.trim() ? b.messageId.trim() : null,
     tid: new Date().toISOString(),
   };
+}
+
+/**
+ * Hashen en adress står under i loggen: sha256 av adressen i gemener, de tolv första hextecknen. EN funktion, så att
+ * `mottagarhash` i en händelse och hashen i ett maskat fel är samma tal och går att para ihop (regel 2).
+ * @param {string} adress
+ * @returns {string}
+ */
+function mottagarhash(adress) {
+  return createHash("sha256").update(adress.trim().toLowerCase()).digest("hex").slice(0, 12);
+}
+
+/**
+ * En e-postadress var som helst i en text: delen före och efter `@` utan blanksteg, vinkelparenteser, citattecken eller
+ * skiljetecken som brukar omge en adress i ett SMTP-svar.
+ */
+const ADRESS_I_TEXT = /[^\s<>()"'[\],;:@]+@[^\s<>()"'[\],;:@]+/g;
+
+/**
+ * Byter varje e-postadress i en text mot `<adress hash>` (0.84.0, #317).
+ *
+ * ⛔ FÖR TEXT SOM LÄMNAR RAMVERKET SOM ETT KASTAT FEL. Ett fel loggas av appen som ett ohanterat fel, förbi den maskning
+ * appen gör i sin egen logg, och ett SMTP-svar bär ofta mottagarens adress ("550 5.1.1 <namn@doman>: ..."). Mätt i
+ * granskningen av cllp/lifehub.app#117. Kvittot i källan maskas INTE: det är ägarens underlag, och läses bakom regler.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function maskaAdresser(text) {
+  return text.replace(ADRESS_I_TEXT, (a) => `<adress ${mottagarhash(a)}>`);
 }
 
 /**
@@ -269,7 +299,8 @@ export function createMailSender(konfig) {
         } catch (e) {
           const orsak = e instanceof Error ? e.message : String(e);
           const vad = rad.fel || rad.skal || rad.status;
-          throw new Error(`skicka: kvittot för "${SAMLING}/${id}" (${rad.status}: ${vad}) kunde inte skrivas. ${orsak}`);
+          // ⛔ MASKAT (0.84.0, #317): både kvittots fel och källans svar kan bära mottagarens adress, se `maskaAdresser`.
+          throw new Error(maskaAdresser(`skicka: kvittot för "${SAMLING}/${id}" (${rad.status}: ${vad}) kunde inte skrivas. ${orsak}`));
         }
       }
 

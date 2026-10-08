@@ -68,8 +68,11 @@ describe("användaren", () => {
     expect(() => byggAnvandare(utan)).toThrow(/users: id krävs/);
   });
 
-  it("epost krävs", () => {
-    expect(() => byggAnvandare({ ...ANV(), epost: "" })).toThrow(/users: epost krävs för "uid-1"/);
+  // ⛔ 0.84.0 (#316): tom epost är "ingen bevisad adress" sedan 0.82.0, inte ett fel. Saknat fält blir också tom sträng.
+  it("tom epost är tillåten och blir tom sträng", () => {
+    expect(byggAnvandare({ ...ANV(), epost: "" }).epost).toBe("");
+    const { epost: _e, ...utan } = ANV();
+    expect(byggAnvandare(utan).epost).toBe("");
   });
 
   it("okända fält avvisas", () => {
@@ -741,6 +744,23 @@ describe("lagringsregelfragment: Storage, bara sin egen bild (#156)", () => {
 
   it("en storleksgräns på 2 MB", () => {
     expect(lagringsregelfragment()).toContain("request.resource.size < 2 * 1024 * 1024");
+  });
+
+  it("biblioteksfiler kräver medlemskap, 25 MB och MIME-listan, och förvalet gör det inte", () => {
+    const utan = lagringsregelfragment();
+    expect(utan).not.toContain("firestore.exists");
+    expect(utan).not.toContain("opsFilArMedlem");
+    const med = lagringsregelfragment({
+      bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" },
+    });
+    expect(med).toContain("match /grupper/{groupId}/bibliotek/{postId}/{filnamn}");
+    expect(med).toContain("firestore.exists(/databases/(default)/documents/memberships/$(request.auth.uid + '|' + gid))");
+    expect(med).toContain(`request.resource.size <= ${25 * 1024 * 1024}`);
+    expect(med).toContain("image/jpeg");
+    expect(med).toContain("application/pdf");
+    expect(med).toContain("audio/webm");
+    expect(med).toContain("allow delete: if false;");
+    expect(() => lagringsregelfragment({ bibliotek: { gruppPrefix: "a/b", postPrefix: "bibliotek", samling: "bibliotek" } })).toThrow(/inte ett samlingsnamn/);
   });
 
   it("⛔ granskningsrättelse: create/update skilt från delete, eftersom en radering inte har request.resource", () => {

@@ -37,7 +37,7 @@ import {
 } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
 import { SKAPARFALT } from "./skapare.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
@@ -447,13 +447,14 @@ ${
  * limmas den in av appen, den här gången i `storage.rules`, inuti
  * `match /b/{bucket}/o`. Ramverket genererar, appen committar och deployar.
  *
- * @param {{ prefix?: string }} [konfig] `prefix` förval `"profilbilder"`.
+ * @param {{ prefix?: string, bibliotek?: { gruppPrefix: string, postPrefix: string, samling: string, medlemskap?: string } }} [konfig]
+ *   `prefix` förval `"profilbilder"`. `bibliotek` lägger till filerna, med sökväg
+ *   `/{gruppPrefix}/{groupId}/{postPrefix}/{postId}/{filnamn}` som appen namnger.
  * @returns {string}
  */
 export function lagringsregelfragment(konfig = {}) {
   const prefix = kontrolleraNamn(konfig.prefix ?? "profilbilder", "prefix");
-
-  return `    // ══ Ramverkets profilbilder. GENERERAD, ändra inte för hand ══
+  const profil = `    // ══ Ramverkets profilbilder. GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, lagringsregelfragment() i src/lib/regler.js.
     // En ändring hör hemma där och kommer hit när fragmentet genereras om.
@@ -476,6 +477,42 @@ export function lagringsregelfragment(konfig = {}) {
         && request.resource.size < 2 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
       allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+`;
+  if (!konfig.bibliotek) return profil;
+  const grupp = kontrolleraNamn(konfig.bibliotek.gruppPrefix, "gruppPrefix");
+  const postPrefix = kontrolleraNamn(konfig.bibliotek.postPrefix, "postPrefix");
+  const samling = kontrolleraNamn(konfig.bibliotek.samling, "samling");
+  const medlemskap = kontrolleraNamn(konfig.bibliotek.medlemskap ?? "memberships", "medlemskap");
+  return profil + `    // ══ Ramverkets biblioteksfiler. GENERERAD, ändra inte för hand ══
+    //
+    // Medlemskapet är samma uppslag som Firestore: uid, avgränsare, grupp, status aktiv.
+    // Posten måste finnas och höra till samma grupp. Objektet raderas av servern när
+    // posten försvinner, så en klient inte kan ta bort filen och lämna posten kvar.
+    function opsFilHarMedlemskap(gid) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid));
+    }
+    function opsFilArMedlem(gid) {
+      return opsFilHarMedlemskap(gid)
+        && firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.status == 'aktiv';
+    }
+    function opsFilFarSkriva(gid, postId) {
+      return opsFilArMedlem(gid)
+        && firestore.exists(/databases/(default)/documents/${samling}/$(postId))
+        && firestore.get(/databases/(default)/documents/${samling}/$(postId)).data.groupId == gid
+        && (
+          firestore.get(/databases/(default)/documents/${samling}/$(postId)).data.skapadAv.uid == request.auth.uid
+          || firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'agare'
+          || firestore.get(/databases/(default)/documents/${medlemskap}/$(request.auth.uid + '${MEDLEMSKAPSAVGRANSARE}' + gid)).data.roll == 'admin'
+        );
+    }
+    match /${grupp}/{groupId}/${postPrefix}/{postId}/{filnamn} {
+      allow read: if opsFilArMedlem(groupId);
+      allow create, update: if opsFilFarSkriva(groupId, postId)
+        && request.resource.size <= ${MAX_BIBLIOTEKFIL}
+        && request.resource.contentType.matches('${filMimeMonster()}');
+      allow delete: if false;
     }
 `;
 }
@@ -1522,7 +1559,10 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *   - ÄNDRA: författaren, eller admin i gruppen. Gruppen, typen, skaparen och
  *     `skapad` står stilla, och `andrad` är serverns klocka. En medlem skriver
  *     inte om någon annans rad.
- *   - RADERA: aldrig.
+ *   - RADERA: författaren, om medlemskapet fortfarande är aktivt, eller admin
+ *     i gruppen (`opsArAdmin`, ägare eller admin). Skiva 1 nekade alla. #311
+ *     öppnade den här vägen, och ingen annan: en annan medlem, en admin i en
+ *     annan grupp, ett avslutat medlemskap, en agent och en utloggad får nej.
  *
  * ⛔ REGELN OCH MODELLEN ÄR EN SANNING (granskningen av #304). Fälten, taken och
  * typerna kommer ur `bibliotek.js`, adressen ur `ADRESSFORM` via `regelRegex`, och
@@ -1551,8 +1591,8 @@ export function bibliotekregelfragment(namn) {
   const samling = kontrolleraNamn(namn, "bibliotek");
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
   // Varje typ har en egen gren nedan. En ny typ i modellen utan sin gren hade nekats tyst i produktion.
-  if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank") {
-    throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning och lank, och en ny typ behöver sin egen.`);
+  if (BIBLIOTEKTYPER.join(",") !== "anteckning,lank,fil") {
+    throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning, lank och fil, och en ny typ behöver sin egen.`);
   }
 
   return `    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
@@ -1575,11 +1615,27 @@ ${nuRegelfunktion("opsBiblioteketNu")}
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
-            && !d.keys().hasAny(["url"]))
+            && !d.keys().hasAny(["url", "fil", "utskrift"]))
           || (d.typ == "lank"
             && d.url.size() <= ${MAX_BIBLIOTEKURL}
             && d.url.matches('${regelRegex(ADRESSFORM)}')
-            && !d.keys().hasAny(["text"]))
+            && !d.keys().hasAny(["text", "fil", "utskrift"]))
+          || (d.typ == "fil"
+            && d.fil.keys().hasOnly([${lista(FILFALT)}])
+            && d.fil.sokvag.size() > 0
+            && d.fil.sokvag.size() <= ${MAX_BIBLIOTEKSOKVAG}
+            && !d.fil.sokvag.matches('.*\\\\.\\\\..*')
+            && d.fil.namn.size() > 0
+            && d.fil.namn.size() <= ${MAX_BIBLIOTEKFILNAMN}
+            && d.fil.mime.matches('${filMimeMonster()}')
+            && d.fil.byte is int
+            && d.fil.byte > 0
+            && d.fil.byte <= ${MAX_BIBLIOTEKFIL}
+            && !d.keys().hasAny(["text", "url"])
+            && (
+              !d.keys().hasAny(["utskrift"])
+              || (d.utskrift.size() <= ${MAX_BIBLIOTEKUTSKRIFT} && d.fil.mime.matches('^audio/.*'))
+            ))
         );
     }
 
@@ -1601,7 +1657,8 @@ ${nuRegelfunktion("opsBiblioteketNu")}
           (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
           || opsArAdmin(resource.data.groupId)
         );
-      allow delete: if false;
+      allow delete: if (opsArMedlem(resource.data.groupId) && resource.data.skapadAv.uid == request.auth.uid)
+        || opsArAdmin(resource.data.groupId);
     }
 `;
 }

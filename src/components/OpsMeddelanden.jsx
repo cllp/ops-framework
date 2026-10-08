@@ -1201,7 +1201,14 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
   };
   const spelar = rost.lage === "haller" || rost.lage === "lyssnar";
   const visaStopp = spelar || (agentArbetar && Boolean(onStoppaAgent));
-  const visaMik = Boolean(onTranscribe) && (!text.trim() || spelar || rost.lage === "skickar");
+  /*
+   * ⛔ EN VALD BILAGA ÄR INNEHÅLL (0.84.0, #315). Ljudvågen står bara där Skicka annars står när fältet verkligen är tomt:
+   * ingen text OCH ingen bilaga. Mätt med Playwright vid ompinningen till 0.80.1 (cllp/lifehub.app#134): med en bild vald och
+   * tomt fält stod "Prata in" där Skicka skulle stå, så på en pekskärm fanns ingen synlig väg att skicka bilden. Samma villkor
+   * som Skicka-knappens `disabled`, så de två kan inte säga olika saker om vad som är tomt (regel 2).
+   */
+  const tomt = !text.trim() && !harBilaga;
+  const visaMik = Boolean(onTranscribe) && (tomt || spelar || rost.lage === "skickar");
   return (
     <>
     <Rostrad rost={rost} texter={t} />
@@ -1318,7 +1325,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
         <button
           type="submit"
           aria-label={t.skicka}
-          disabled={skickar || (!text.trim() && !harBilaga)}
+          disabled={skickar || tomt}
           className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-40"
         >
           <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">

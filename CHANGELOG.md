@@ -18,6 +18,122 @@ Gruppens minne (lifehub.app#66). En person lyfter en slutsats ur ett meddelande 
 - **`createMinneskalla`.** `source`, `collection`, `groupId`, `skapare`. `las` kastar inte. `lyft`, `andra` och `taBort` sätter klockan och vägrar en rad som hör till en annan grupp.
 - **Knappen "Lyft till minnet"** på rotmeddelandet och svaren i `OpsTrad`, bara när appen skickar `onLyftTillMinnet`. Utan den syns ingen knapp och inget lyfts av sig självt. Nekas lyftet står felet i tråden. `minneHref` ritar länken "Minnet" i trådens huvud. Skrivfältet är orört.
 
+## 0.85.0
+
+CP 2026-10-08, i cllp/ops-framework#192: privat är personens egen grupp, filer upp till 25 MB, inspelning upp till 10 minuter, en posttyp `fil` där MIME styr vyn, utskriften sparas på ljudposten och personen väljer om den blir anteckning eller ärende, och radering är författarens eller admin i gruppen (#311).
+
+### Radering
+
+- **Regeln `delete`.** Författaren med aktivt medlemskap i postens grupp, eller `opsArAdmin` (ägare eller admin) i samma grupp. En annan medlem, en admin i en annan grupp, ett avslutat medlemskap, en agent och en utloggad får nej.
+- **Knappen** syns bara när `farAndra` säger ja, i detaljen och på en trasig rad. Första trycket frågar. Andra anropar `onRadera`.
+- **`radera` i källan** kräver `jag` och `anteckna`. Anteckningen skrivs först. Kastar den lämnas posten kvar. Föll själva borttagningen kastas felet. Filen i lagringen tar appens function bort när dokumentet försvinner. Källan raderar dokumentet, inte objektet.
+
+### Filer
+
+- **En typ, `fil`.** `fil` bär `sokvag`, `namn`, `mime` och `byte`. `filSort` (bild, ljud, dokument) härleds och lagras inte. MIME-listan är stängd, och `normaliseraMime` tar bort `;codecs=` innan jämförelsen.
+- **25 MB** i modellen, i Firestore-regeln och i storage-regeln (`<=`). Profilbilder behåller sitt tak under 2 MB.
+- **Storage-fragmentet** är samma `lagringsregelfragment`. Med `bibliotek` kräver det medlemskap via `firestore.exists` på memberships, samma id som Firestore-reglerna. Klienten får inte radera objektet (`allow delete: if false`). Sökvägen skickar appen in.
+- **Vyn.** Bild ger förhandsbild och en förhandsvisning. PDF och övrigt öppnas i ny flik. För stor fil, fel format och en nekad uppladdning visas. En uppladdning som faller tar bort posten som hunnit skapas.
+
+### Ljud
+
+- **Spela in idé** i biblioteket och som rad i plusmenyn. Inspelaren är TALK:s, med taket som parameter. TALK behåller 120 sekunder. Biblioteket använder `IDE_MAX_SEKUNDER` (600). Rubriken är `ideRubrik`, "Idé" plus datum och tid, och går att döpa om.
+- **Spelaren** i listan har spela, pausa och tid. Ett fel från uppspelningen visas.
+- **Att dela** är `onDela` med flytta eller kopiera. Ramverket kopierar inte byte och byter inte `groupId`. Appen gör det, i personens grupp `my` när inspelningen ska börja privat.
+
+### Utskrift
+
+- **Fältet `utskrift`** bara på ett ljud, högst 20 000 tecken. Tom sträng är en utskrift utan ord. Saknas fältet har ingen bett om en. En bild, en anteckning och en länk får det inte.
+- **Skriv ut** syns för den som får ändra posten, eftersom texten sparas som en ändring. `onSkrivUt` ber servern. Texten visas under spelaren. Sedan visas "Spara som anteckning" och "Skapa ärende", och agentens förslag är märkt. `onGorForslag` anropas först vid det trycket. En saknad koppling, ett svar utan text och ett kastat fel (också ett dygnstak) syns. En läsare ser en sparad utskrift och ingen knapp.
+
+#### Prov, sedda röda utan sin ändring
+
+| Prov | Utan ändringen | Med |
+|---|---|---|
+| Klient, radering (`bibliotekkalla`, `bibliotek-vy`) | exit 1, 5 fail, 18 pass. `kalla.radera is not a function` | exit 0, 23 pass |
+| Emulator, `allow delete: if false` | exit 1, 19 pass, 1 fail. Författaren fick `PERMISSION_DENIED` | exit 0, 20 pass |
+| Emulator, författarens medlemskap borta | 19 pass, 1 fail. Avslutat medlemskap raderade | grönt med villkoret |
+| Emulator, författarens uid borta | 19 pass, 1 fail. En annan medlem raderade | grönt med villkoret |
+| Emulator, `opsArAdmin` borta | 19 pass, 1 fail. Admin fick `PERMISSION_DENIED` | grönt med villkoret |
+| Modell, typen `fil` okänd | exit 1. `Biblioteket känner typen "fil"` | 9 pass, sedan 10 med `ideRubrik` |
+| Emulator, MIME-villkoret ersatt med `true` | 20 pass, 1 fail. `Expected request to fail, but it succeeded` | exit 0, 21 pass |
+| Vy, utan Skriv ut | 1 fail. Knappen "Skriv ut" saknades | 20 pass i `bibliotek-vy` |
+| Modell, fil utan ljudundantag för utskrift | 1 fail. `En fil har en fil, och ingen utskrift.` | `postFel` är null på ett ljud |
+| Källa, utan att skriva `utskrift` | 1 fail. Fältet var `undefined` | tom sträng och "Hej" sparas, och en omdöpning behåller texten |
+| Emulator, utan `^audio/.*` | 1 fail, rad 165. Bild med utskrift gick in | exit 0, 22 pass |
+| Emulator, utan taket 20 000 | 1 fail, rad 166. För lång text gick in | exit 0, 22 pass |
+| Emulator, anteckning får `utskrift` | 1 fail. Anteckningen gick in | exit 0, 22 pass |
+
+#### Ändrade prov (granskas av någon annan än den som skrev dem, regel 9)
+
+- `bibliotek-vy`: fliklistan förväntar "Filer 0" och menyn "Fil", utöver anteckning och länk.
+- `grupp`: storage-fragmentets förval (bara profilbilder) är oförändrat. Nya prov läser bibliotekets gren: medlemskap, 25 MB, MIME och `delete: if false`.
+
+### Efter merge av 0.84.0
+
+- `check-gammalt-namn`: golvet höjt från 618 till 713. Med 618 var vakten röd, den läste 751 filer och 618 låg mer än 20 procent under (618 gånger 1,2 är 741,6). Med 713: grön, 751 filer lästa. 0.84.0 lade till 20 filer ovanpå grenens 731.
+
+---
+
+## 0.84.0
+
+Nattsprint 2026-10-08: #315, #309, #316 och halva #317. Ingen ändring av datamodellen och inga nya regler.
+
+**Om numret:** 0.83.0 (PR 318) är mergad och utgiven, origin/main `a0d6c8e` och taggen `v0.83.0`, mätt 2026-10-08. Den här skivan är nästa minor efter den, eftersom `byggAnvandare` tar emot något den förut avvisade (#316). Skärmbildernas "före" är tagna mot 0.82.0 (`aada6ab`): 318 rör inte skrivfältet, Ny händelse eller kalendermenyn.
+
+### Rättat
+
+- ⛔ **Skrivfältet: en vald bilaga är innehåll (#315).** Med en bild vald och tomt fält stod "Prata in" där Skicka skulle stå, så på en pekskärm fanns ingen synlig väg att skicka bilden. Mätt med Playwright vid ompinningen till 0.80.1 (cllp/lifehub.app#134). Ljudvågen står nu bara när fältet verkligen är tomt: ingen text och ingen bilaga. Villkoret är ett och samma för ljudvågen och Skicka-knappens `disabled`, så de två kan inte säga olika saker om vad som är tomt (regel 2).
+- ⛔ **Ny händelse säger gruppens namn, inte "Ingen kalender ännu" (#309).** Utan namngivna gruppkalendrar hamnar händelsen i gruppen (inget `kalender` skickas), och raden säger nu det. Texten `ingenKalender` är borttagen: ett fall utan grupp finns inte, eftersom en moduls formulär bara öppnas när `skapalaget` är `redo`, och det kräver en grupp. `git grep -n ingenKalender` ger noll träffar.
+- ⛔ **Kalendermenyn ritar ingen tom rubrik (#309, CP:s kommentar 2026-10-08).** 0.78.2 tog bort den falska raden men lät "Gruppens kalendrar" stå ensam. Rubriken ritas nu bara när gruppen har namngivna kalendrar.
+- ⛔ **`byggAnvandare` tar emot tom `epost` (#316).** Tom sträng betyder "ingen bevisad adress". Sedan 0.82.0 skriver en serverspegel adressen bara när `email_verified` är sant, och annars `epost: ""`, men `byggAnvandare` kastade "epost krävs", och den körs också på läsvägen (`sakerstallAnvandare`, `uppdateraProfil`). En sådan rad gick alltså varken att skriva eller läsa. Ingenting i ramverket ger åtkomst på `users.epost` sedan 0.82.0. En icke-tom adress normaliseras till gemener som förut.
+- ⛔ **Mejl: felet för ett kvitto som inte går att skriva bär ingen adress (#317, andra halvan).** `src/node/mejl.js` kastade `rad.fel || rad.skal` omaskat, och SMTP-svaret kan bära mottagarens adress. I appen loggas felet som ohanterat, förbi appens maskning. Nu byts varje adress i det kastade felet mot `<adress hash>`, samma hash som `mottagarhash` i mejlhändelsen, så att de två går att para ihop. Kvittot i källan maskas inte, det är ägarens underlag.
+
+### Inte gjort här
+
+- **#317, första halvan** (en återinbjudan av en avslutad medlem förbrukar inbjudan): väntar på CP:s beslut mellan ärendets två förslag. Orörd.
+- **#287 och #283 är redan gjorda, i 0.73.1** (`7bae970`, PR 288). Mätt i natt: `OpsModulKataloger` ritar modulnamnet med `Delrubrik`, och `kopplaBeteenden` och `hubbPoster` använder `Object.hasOwn`. Proven står kvar och är sedda röda igen i natt: med den fasta `<h3>` tillbaka faller 4 prov i `kallor.test.jsx`, och med `in` tillbaka faller 6 i `beteenden.test.js` och `hubb.test.jsx`. Övriga `in` i `src/lib` prövar fasta nycklar (`"url"`, `"del"`, `"katalog"`, `"hubb"`) eller fasta listor (`gruppikonarv.js`, `kalenderikoner.js`). Ärendena kan stängas.
+
+### Vad appen måste göra vid ompinningen
+
+1. **lifehub: ta bort mellanläget för `epost` i spegeln** (`functions/vaxling.js`, lifehub.app#124). Skriv `epost: ""` för en overifierad inloggning. Provet `functions/__tests__/vaxling.test.js` som väntar sig att `byggAnvandare` kastar på tom `epost` blir rött mot 0.84.0, enligt #316, och ska skrivas om.
+2. **Inget annat.** Inga nya props, inga nya regler att deploya. Skrivfältet, Ny händelse och kalendermenyn ändras utan att appen gör något.
+
+⛔ **Kvar efter #316, inte gjort här:** förvalets regel för `users` släpper inte in en klient som skapar sin rad med `epost: ""` från en overifierad inloggning (`opsProfilensEpost()` kräver då en verifierad adress). Det berör bara appar utan `kontoAgerPersonen` och utan serverspegel. Att släppa in tom sträng är en regeländring och ett eget beslut.
+
+### Prov, sedda röda utan sin rättelse
+
+| Prov | Utan rättelsen | Med |
+|---|---|---|
+| `chatt-bilagor.test.jsx`: samtalet med vald bild visar Skicka, inte Prata in | rött | grönt |
+| `chatt-bilagor.test.jsx`: Skicka skickar bilagan utan text | rött | grönt |
+| `chatt-bilagor.test.jsx`: tråden, samma regel | rött | grönt |
+| `kalenderhantering.test.jsx`: Ny händelse utan namngivna kalendrar säger "Kalender: CPS AB" | rött (`Kalender:Ingen kalender ännu`) | grönt |
+| `kalendrar.test.jsx`: ingen tom rubrik "Gruppens kalendrar" | rött | grönt |
+| `profil.test.js`: en rad med tom `epost` läses och sparas | rött (`users: epost krävs`) | grönt |
+| `nodProfil.test.js`: `uppdateraProfil` på en rad med tom `epost` | rött (`users: epost krävs`) | grönt |
+| `grupp.test.js`: tom `epost` är tillåten (ersätter provet "epost krävs") | rött | grönt |
+| `mejl.test.js`: kastat kvittofel utan adress, med hashen | rött | grönt |
+| Playwright mot byggd dist, före och efter (`docs/jamforelser/0.84.0/`) | se nedan | se nedan |
+
+### Skärmbilder (Playwright mot byggd dist, 390 och 1280 px)
+
+`docs/jamforelser/0.84.0/montage.mjs` bygger samma yta mot main (`aada6ab`) och mot grenen. Mätt i webbläsaren, båda bredderna:
+
+- Skrivfältet med en vald bild: före `["Prata in"]`, efter `["Skicka"]`. I vila `["Prata in"]` i båda.
+- Ny händelse utan namngivna kalendrar: före `Kalender:Ingen kalender ännu`, efter `Kalender:CPS AB`.
+- Kalendermenyn med bara egna kalendrar: före rubrikerna `["Gruppens kalendrar","Mina kalendrar"]`, efter `["Mina kalendrar"]`.
+
+### Förebilden (regel 12 och 13)
+
+**Skrivfältet.** SS `ComposerBar.jsx:395` räknar en vald artefakt som innehåll: Skicka är aktiv med `selectedArtifact` och utan text. Tas som det är. SS har ingen röstinmatning i skrivfältet, så frågan om vilken knapp som står där finns inte hos SS. ⛔ Ingen skärmbild av SS skrivfält finns här, och SS-appen går inte att starta i den här miljön (kräver Firebase). Montaget är därför före och efter, inte sida vid sida med SS, och det är en lucka mot regel 12.
+
+**Kalendermenyn.** SS `CalendarSourceFilter.jsx` har inga namngivna gruppkalendrar: gruppen själv är en rad med `GroupMark` och namn. Tre listor:
+
+- Som det är: ingen tom rubrik, och "Mina kalendrar" med sin tomrad.
+- Bättre: inget.
+- Struket, med kostnaden: gruppen själv som en valbar rad. Det hade krävt ett filter-id för "poster utan kalender", som modellen inte har (`filtreraPoster` lägger dem på `forvaldId`), och gruppens namn och färg som nya props till `OpsCalendar`. En rad som går att trycka på men inte filtrerar hade varit en död kontroll. Det är ett eget beslut. ⛔ Mätt i natt: utan namngivna gruppkalendrar men med en förvald egen kalender blir `forvaldKalenderId` den egna, så gruppens poster utan kalender räknas till den när den väljs. Det är ett eget fel och rörs inte här.
+
 ## 0.83.0
 
 CP 2026-10-08 17:52 och 17:54, med bilder från telefonen av Bibliotek, Ekonomi och Hubben: "Bibliotek behöver en tillbaka knapp också precis som ekonomi. Sedan navigeringen på liknande sätt. Sök och komponenter är ihoptryckta." Och: "Varje app/modul borde kunna expanderas med chevron och det skall finnas en inställning om att ikon skall placeras i huvudmenyn."

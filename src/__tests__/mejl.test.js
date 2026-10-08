@@ -219,6 +219,41 @@ describe("mejlkö och utskick", () => {
     expect(Number.isNaN(Date.parse(kvar?.paborjad))).toBe(false);
   });
 
+  /*
+   * ⛔ 0.84.0 (#317, kommentaren 2026-10-08): felet som kastas när kvittot inte går att skriva bar `rad.fel` omaskat, och
+   * SMTP-svaret i det kan bära mottagarens adress. I appen loggas det som ett ohanterat fel, förbi appens egen maskning.
+   * Mätt i granskningen av cllp/lifehub.app#117. Röd mot 0.82.0.
+   */
+  it("⛔ ett kvitto som inte går att skriva kastar utan mottagarens adress, med hashen i stället", async () => {
+    const transport = createMockMailTransport({
+      utfall() {
+        throw new Error("550 5.1.1 <Vanja@Staiger.se>: Recipient address rejected");
+      },
+    });
+    const { utskick, ko, kalla } = koOchUtskicket(transport);
+    const koad = await ko.koa(brev());
+    const update = kalla.update;
+    kalla.update = async () => {
+      throw new Error("skrivningen nekades för vanja@staiger.se och kopia@annan.test");
+    };
+    /** @type {unknown} */
+    let fangat = null;
+    await utskick.skicka(koad.id).catch((e) => {
+      fangat = e;
+    });
+    kalla.update = update;
+    const text = /** @type {Error} */ (fangat).message;
+    expect(text).not.toMatch(/vanja@staiger\.se/i);
+    expect(text).not.toContain("kopia@annan.test");
+    expect(text).not.toContain("@");
+    expect(text).toMatch(/550 5\.1\.1/);
+    expect(text).toMatch(/skrivningen nekades/);
+    const hash = byggMejlhandelse({ till: "vanja@staiger.se" }).mottagarhash;
+    expect(text).toContain(`<adress ${hash}>`);
+    // Kvittot i källan är oförändrat i sak: det är bara felet som lämnar ramverket som maskas.
+    expect((await kalla.read(SAMLING, koad.id))?.status).toBe("skickas");
+  });
+
   it("serverns svar kortas och loggen bär hash, inte adressen", async () => {
     const lang = `250 ${"x".repeat(400)}`;
     const transport = createMockMailTransport({

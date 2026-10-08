@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
@@ -19,7 +19,7 @@ const poster = [
 
 const FORFATTARE = { uid: "uid-1", roll: "medlem" };
 
-function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined }) {
+function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, onSpelaIn = undefined, inspelare = undefined, filUrl = undefined, grupper = [], onDela = undefined, onSkrivUt = undefined, onGorForslag = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
   const [sparat, setSparat] = useState(/** @type {unknown} */ (null));
@@ -36,6 +36,15 @@ function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = []
         onStang={() => { setVald(null); setSkapar(null); }}
         onSkapa={(typ) => { setVald(null); setSkapar(typ); }}
         onSpara={(inmatning) => setSparat(inmatning)}
+        onRadera={onRadera}
+        onLaddaUpp={onLaddaUpp}
+        onSpelaIn={onSpelaIn}
+        inspelare={inspelare}
+        filUrl={filUrl}
+        grupper={grupper}
+        onDela={onDela}
+        onSkrivUt={onSkrivUt}
+        onGorForslag={onGorForslag}
         hubHref="/hub"
         onNavigate={onNavigate}
       />
@@ -119,6 +128,208 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
   });
 
+  it("radera syns för författaren och admin, kräver bekräftelse, och syns inte för andra", () => {
+    const onRadera = vi.fn();
+    const { unmount } = render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Radera" }));
+    expect(screen.getByText("Radera posten? Den går inte att ångra.")).toBeInTheDocument();
+    expect(onRadera).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    expect(screen.queryByText("Radera posten? Den går inte att ångra.")).toBeNull();
+    unmount();
+
+    const med = render(<Harness onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Radera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Radera posten" }));
+    expect(onRadera).toHaveBeenCalledWith("a");
+    med.unmount();
+
+    const annan = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
+    annan.unmount();
+
+    render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    expect(screen.getByRole("button", { name: "Radera" })).toBeInTheDocument();
+  });
+
+  it("en trasig rad raderas av den som får, med bekräftelse, och inte av en annan medlem", () => {
+    const onRadera = vi.fn();
+    const trasiga = [{ id: "x", fel: "Anteckningen saknar text.", groupId: "cps-ab", skapadAv: { uid: "uid-1" } }];
+    const { unmount } = render(<Harness trasiga={trasiga} onRadera={onRadera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Radera x" }));
+    expect(onRadera).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Radera posten" }));
+    expect(onRadera).toHaveBeenCalledWith("x");
+    unmount();
+
+    render(<Harness trasiga={trasiga} jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
+    expect(screen.queryByRole("button", { name: "Radera x" })).toBeNull();
+  });
+
+  it("fel format och för stor fil visas, och en bild öppnas i förhandsvisning", () => {
+    const onLaddaUpp = vi.fn();
+    const { unmount } = render(<Harness onLaddaUpp={onLaddaUpp} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fil" }));
+    const stor = new File(["x"], "stor.jpg", { type: "image/jpeg" });
+    Object.defineProperty(stor, "size", { value: 26 * 1024 * 1024 });
+    fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [stor] } });
+    expect(screen.getAllByRole("alert").some((n) => /Taket/.test(n.textContent ?? ""))).toBe(true);
+    expect(onLaddaUpp).not.toHaveBeenCalled();
+    const zip = new File(["x"], "a.zip", { type: "application/zip" });
+    fireEvent.change(screen.getByLabelText("Fil"), { target: { files: [zip] } });
+    expect(screen.getAllByRole("alert").some((n) => /application\/zip/.test(n.textContent ?? ""))).toBe(true);
+    unmount();
+
+    const bild = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Kvitto",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 2048 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "bild",
+    };
+    const pdf = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Avtal",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p/avtal.pdf", namn: "avtal.pdf", mime: "application/pdf", byte: 4096 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid + 2,
+      }),
+      id: "pdf",
+    };
+    render(<Harness start={[bild, pdf]} jag={{ uid: "uid-annan", roll: "medlem" }} filUrl={(p) => `https://exempel.se/${p.fil.sokvag}`} />);
+    fireEvent.click(screen.getByRole("button", { name: "Kvitto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Förhandsvisa Kvitto" }));
+    expect(screen.getByRole("dialog", { name: "Förhandsvisning" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stäng" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
+    fireEvent.click(screen.getByRole("button", { name: "Avtal" }));
+    const lank = screen.getByRole("link", { name: /avtal\.pdf/ });
+    expect(lank).toHaveAttribute("target", "_blank");
+    expect(lank).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("spela in idé lämnar ljudet med rubrik, och delning frågar innan den flyttar", async () => {
+    const onSpelaIn = vi.fn();
+    const inspelare = {
+      starta: vi.fn(async () => {}),
+      stoppa: vi.fn(async () => ({ blob: new Blob(["a"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 })),
+      kasta: vi.fn(),
+      niva: () => 0,
+    };
+    const { unmount } = render(<Harness onSpelaIn={onSpelaIn} inspelare={inspelare} />);
+    fireEvent.click(screen.getByRole("button", { name: "Spela in idé" }));
+    expect(inspelare.starta).toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: "Spara idé" }));
+    await waitFor(() => expect(onSpelaIn).toHaveBeenCalled());
+    expect(onSpelaIn.mock.calls[0][0].rubrik).toMatch(/^Idé /);
+    expect(onSpelaIn.mock.calls[0][0].mimeType).toBe("audio/webm");
+    unmount();
+
+    const onDela = vi.fn();
+    render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
+    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kopiera" }));
+    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "kopiera" });
+    fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
+    expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "flytta" });
+  });
+
+  it("skriv ut visar texten, och ingenting skapas förrän personen väljer", async () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Idé 2026-10-08 21:05",
+        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "ljud",
+    };
+    const onSkrivUt = vi.fn(async () => ({ text: "Hej", forslag: "arende" }));
+    const onGorForslag = vi.fn();
+    const { unmount } = render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />);
+    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
+    expect(screen.queryByRole("button", { name: /Skapa ärende/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Skriv ut" }));
+    expect(await screen.findByText("Hej")).toBeInTheDocument();
+    expect(onSkrivUt).toHaveBeenCalledTimes(1);
+    expect(onGorForslag).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Spara som anteckning" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skapa ärende, förslag" }));
+    expect(onGorForslag).toHaveBeenCalledTimes(1);
+    expect(onGorForslag).toHaveBeenCalledWith({ id: "ljud", satt: "arende" });
+    unmount();
+
+    const tak = vi.fn(async () => { throw new Error("Dygnstaket är nått."); });
+    render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} onSkrivUt={tak} />);
+    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skriv ut" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Dygnstaket är nått.");
+    expect(screen.queryByRole("button", { name: /Skapa ärende/ })).toBeNull();
+  });
+
+  it("en läsare ser utskriften och ingen knapp, och en saknad koppling syns", () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Idé 2026-10-08 21:05",
+        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        utskrift: "Redan skriven",
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "ljud",
+    };
+    const { unmount } = render(<Harness start={[ljud]} jag={{ uid: "uid-annan", roll: "medlem" }} filUrl={() => "https://exempel.se/ide.webm"} />);
+    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
+    expect(screen.getByText("Redan skriven")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skriv ut" })).toBeNull();
+    unmount();
+
+    const tom = { ...ljud, utskrift: "" };
+    const andra = render(<Harness start={[tom]} filUrl={() => "https://exempel.se/ide.webm"} />);
+    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
+    expect(screen.getByText("Utskriften är tom.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skriv ut" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Utskriften är inte kopplad. Inget skickades.");
+    andra.unmount();
+  });
+
+  it("ett ljud har spela och tid i listan", () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Idé 2026-10-08 21:05",
+        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "ljud",
+    };
+    render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
+    expect(screen.getByRole("button", { name: "Spela" })).toBeInTheDocument();
+    expect(screen.getByText("0:00 / 0:00")).toBeInTheDocument();
+  });
+
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {
     render(<Harness trasiga={[{ id: "x", fel: "Anteckningen saknar text." }]} />);
     const ruta = document.querySelector("[data-bibliotek-trasiga]");
@@ -164,7 +375,7 @@ describe("OpsBibliotek", () => {
     render(<Harness start={[poster[0]]} />);
     const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
     const flikar = within(rad).getAllByRole("tab");
-    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0"]);
+    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0", "Filer 0"]);
     expect(flikar.every((f) => f.querySelector("svg"))).toBe(true);
     expect(flikar[0]).toHaveAttribute("aria-selected", "true");
     fireEvent.mouseDown(flikar[2], { button: 0, ctrlKey: false });
@@ -185,7 +396,7 @@ describe("OpsBibliotek", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
     const meny = screen.getByRole("menu", { name: "Ny post" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil"]);
     fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));

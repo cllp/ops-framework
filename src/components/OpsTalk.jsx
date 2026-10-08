@@ -16,6 +16,7 @@ import { KryssIkon, KugghjulIkon, MikrofonIkon } from "./icons.jsx";
  * @property {() => void} [onInstallningar] Kugghjulet i fältet. Utan den ritas inget kugghjul.
  * @property {import("react").ReactNode} [marke] Märket längst till vänster i fältet, vanligen hubbens.
  * @property {import("../lib/talk.js").Inspelare} [inspelare] Bara för prov. Förval: webbläsarens `MediaRecorder`.
+ * @property {number} [maxSekunder] Tak i sekunder. Förval `MAX_SEKUNDER` (120), så TALK inte ändras. Bibliotekets idé använder 600.
  */
 
 /**
@@ -33,7 +34,10 @@ export const TALK_UPPTAGEN = "En annan inspelning pågår redan. Avsluta den fö
 /**
  * @param {TalkVal & { onKlick: () => void }} val `onKlick` är det ett vanligt tryck gör, Skapa.
  */
-export function useTalk({ onTalk, onKlick, inspelare }) {
+export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER }) {
+  if (!Number.isInteger(maxSekunder) || maxSekunder < 1) {
+    throw new Error(`useTalk: maxSekunder ska vara ett positivt heltal, fick ${String(maxSekunder)}. Ett tyst tak hade antingen klippt direkt eller spelat in utan slut.`);
+  }
   const [tillstand, setTillstand] = useState(/** @type {{ lage: import("../lib/talk.js").Talklage, fel?: string }} */ ({ lage: "vila" }));
   const lageRef = useRef(tillstand);
   lageRef.current = tillstand;
@@ -94,7 +98,7 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
           .starta()
           .then(() => {
             if (mitt === forsok.current && monterad.current) {
-              tak.current = setTimeout(() => skicka({ typ: "tak" }), MAX_SEKUNDER * 1000);
+              tak.current = setTimeout(() => skicka({ typ: "tak" }), maxSekunder * 1000);
               return;
             }
             // ⛔ Ett avbrutet eller avmonterat försök vars mikrofon öppnades efteråt. Står ett nyare försök och spelar in rör vi
@@ -130,7 +134,7 @@ export function useTalk({ onTalk, onKlick, inspelare }) {
           });
       }
     },
-    [onKlick, onTalk],
+    [onKlick, onTalk, maxSekunder],
   );
 
   useEffect(() => {
