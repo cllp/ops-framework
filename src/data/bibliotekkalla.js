@@ -20,7 +20,7 @@
  * vyn visar antalet och skälet.
  */
 
-import { byggPost, postFel } from "../lib/bibliotek.js";
+import { byggPost, postFel, trimSomRegeln } from "../lib/bibliotek.js";
 import { byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -45,7 +45,8 @@ export function createBibliotekskalla(config) {
       "createBibliotekskalla: collection krävs. Ramverket känner aldrig samlingsnamnet självt, eftersom det är raden som gör en framtida kund till ett eget projekt utan att datamodellen ändras.",
     );
   }
-  const groupId = typeof groupIdIn === "string" ? groupIdIn.trim() : "";
+  // Samma trim som postFel och regeln (`trimSomRegeln`), så gruppen i frågan är den som raden bär efter byggPost.
+  const groupId = trimSomRegeln(groupIdIn);
   if (!groupId) {
     throw new Error(
       "createBibliotekskalla: groupId krävs. Utan grupp hade källan läst hela samlingen, alltså varje grupps bibliotek på en gång.",

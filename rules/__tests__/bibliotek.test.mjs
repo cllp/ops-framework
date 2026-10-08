@@ -18,7 +18,7 @@
  */
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
-import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, inmatningsfel } from "../../src/lib/bibliotek.js";
+import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, byggPost, inmatningsfel, postFel } from "../../src/lib/bibliotek.js";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
@@ -211,8 +211,18 @@ describe("bibliotekets regler: skapa", () => {
           regel = false;
         }
         const modell = inmatningsfel(rad) === null;
-        if (regel !== modell) avvikelser.push(`${falt} U+${c.toString(16).padStart(4, "0")}: regeln ${regel ? "ja" : "nej"}, modellen ${modell ? "ja" : "nej"}`);
-        else bada[regel ? "ja" : "nej"] += 1;
+        // Och raden som byggPost skriver ska klara postFel. Annars kan byggPost trimma med en annan
+        // regel än postFel och skriva en rad som läsningen sedan lägger i trasiga.
+        let byggd = true;
+        try {
+          byggd = postFel(byggPost(rad)) === null;
+        } catch {
+          byggd = false;
+        }
+        const tecken = `${falt} U+${c.toString(16).padStart(4, "0")}`;
+        if (regel !== modell) avvikelser.push(`${tecken}: regeln ${regel ? "ja" : "nej"}, modellen ${modell ? "ja" : "nej"}`);
+        if (regel !== byggd) avvikelser.push(`${tecken}: regeln ${regel ? "ja" : "nej"}, postFel(byggPost) ${byggd ? "ja" : "nej"}`);
+        if (regel === modell && regel === byggd) bada[regel ? "ja" : "nej"] += 1;
       }
     }
     // Golv: listan har minst 80 tecken, och båda svaren förekommer, annars mäter jämförelsen ingenting.
