@@ -177,10 +177,10 @@ describe("⛔ skrivvägarna ger medlemskapet ett namn när ett fanns (#218)", ()
         invitations: [{ id: "i1", epost: "cp@staiger.se", groupId: "g", roll: "medlem", status: "vantar", skapadAv: { uid: null, namn: "", typ: "okand", kalla: "" } }],
       });
     const tom = mk("");
-    await createInvitationService({ kalla: tom }).accepteraInbjudningar({ uid: CP, epost: "cp@staiger.se", namn: "Claes Philip" });
+    await createInvitationService({ kalla: tom }).accepteraInbjudningar({ uid: CP, epost: "cp@staiger.se", epostVerifierad: true, namn: "Claes Philip" });
     expect((await tom.read("memberships", medlemskapsId(CP, "g")))?.namn).toBe("Claes Philip");
     const full = mk("Profilnamn");
-    await createInvitationService({ kalla: full }).accepteraInbjudningar({ uid: CP, epost: "cp@staiger.se", namn: "Claes Philip" });
+    await createInvitationService({ kalla: full }).accepteraInbjudningar({ uid: CP, epost: "cp@staiger.se", epostVerifierad: true, namn: "Claes Philip" });
     expect((await full.read("memberships", medlemskapsId(CP, "g")))?.namn).toBe("Profilnamn");
   });
 

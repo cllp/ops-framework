@@ -9,6 +9,70 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.82.0
+
+#313: en adress i `users` gav bort medlemskap. Upptäckt i den tredje granskningen av PR 308, och mätt en gång till i granskningen av lifehub.app#117.
+
+**Om numret:** 0.79.0-skivan (#304, biblioteket) numrerades om till 0.81.0 och är mergad (`e7fdd75`). Den här skivan ändrar API:t och är nästa minor efter den, 0.82.0.
+
+### Inbjudningar: bara den som äger adressen blir medlem
+
+**Felet.** Förvalets regel för `users` prövade bara vilka fält raden hade (`keys().hasOnly`), aldrig vad `epost` innehöll. Mätt i emulatorn: en inloggad användare skrev in någon annans adress i sin egen rad, också med `email_verified: false`. Kommentaren ovanför regeln sade "e-posten kommer ur inloggningen", och det var inte sant. `bjudIn` slog sedan upp adressen med `where epost ==` och skrev medlemskapet direkt, i den roll inbjudan angav. Den som skrivit offrets adress blev medlem, eller ägare, när någon bjöd in offret. Samma sak hände i lifehub utan klienten: appens serverspegel skrev `epost` ur växlingen utan att pröva `email_verified`, och en overifierad växling följd av `bjudIn` som `agare` gav `memberships/angripare|dev` med `roll: "agare"`.
+
+**Valet.** Båda halvorna rättas, eftersom regel 1 gäller och det inte räcker att lita på att den ena håller. Grenen i `bjudIn` tas bort, form (b) i ärendet, i stället för att skyddas med ett fält `epostVerifierad` i `users` (form (a)). Ett sådant fält hade varit en ny uppgift i datamodellen, skriven av en spegel som appen äger och ramverket inte, och en app som glömde det hade varit lika öppen som förut. Det gör modellen tyngre utan att stänga hålet (regel 13). I stället bevisas adressen av den som äger brevlådan: varje inbjudan blir en väntande rad, och accepten kräver en verifierad inloggning.
+
+#### ⛔ Brytande
+
+- **`accepteraInbjudningar` kräver `epostVerifierad: true`.** Skicka `request.auth.token.email_verified` rakt ur inloggningen. Saknas fältet, eller är det något annat än `true`, kastar accepten med texten att adressen inte är verifierad, och ingen inbjudan accepteras. Fältet förvals inte: `true` hade öppnat hålet igen för en app som aldrig läste token, och `false` hade gjort varje accept tom utan att något sade det.
+- **`bjudIn` skriver aldrig ett medlemskap.** Svaret är alltid `resultat: "inbjudan"`. `medlemskap` och `fanns` finns inte längre, eftersom de kom ur uppslaget i `users`. En person som redan har ett konto blir medlem vid nästa accept, inte i samma sekund.
+- **`bjudIn` kastar när `typ` skickas.** Den bestämde typen på medlemskapet grenen skrev. Felet säger att `typ` togs bort i 0.82.0, och inget skrivs. Ett tyst bortfall hade sett ut som att värdet hamnade någonstans (regel 5). Accepten skriver `typ: "person"`, som förut.
+- **En app med ett eget flöde för inbjudningar får nya beteenden.** lifehub.app#117 har grenar för svaren `fanns` och `medlemskap`, och de blir döda: svaret är alltid `inbjudan`. En adress som redan är medlem får nu en väntande rad, och därmed ett inbjudningsmejl om appen mejlar vid `inbjudan`, där den förut fick `fanns` och inget mejl. Appen måste ta hand om båda: ta bort de döda grenarna, och avgöra om ett mejl till en befintlig medlem ska skickas eller hållas tillbaka.
+- **`skapaGrupp` svarar alltid `tillagda: []`.** Varje inbjuden adress, också en med konto, står i `inbjudna`. Fältet står kvar så att svaret har samma form.
+- **Regeln för `users` (förvalet, utan `kontoAgerPersonen`) prövar adressen.** Skriver eller ändrar klienten `epost` måste det vara `request.auth.token.email` i gemener, och `email_verified` måste vara `true`. En rad utan `epost` påverkas inte, och en uppdatering som inte rör fältet prövas inte mot det. Med `kontoAgerPersonen: true` är regeln oförändrad: klienten skriver aldrig `epost` där.
+- **Gamla `users`-rader som redan bär en annan persons adress står kvar**, och klienten får fortsätta uppdatera dem så länge `epost` inte rörs. Ramverket litar inte längre på fältet, så raderna ger ingen åtkomst, men de är fortfarande felaktiga uppgifter om personen. En app bör städa dem, till exempel genom att jämföra `epost` med kontots verifierade adress i Admin SDK och tömma fältet där de inte stämmer.
+
+#### Vad appen måste göra
+
+1. **Anropa `accepteraInbjudningar` vid varje inloggning**, med `uid`, `epost` och `epostVerifierad` ur `request.auth`. En app som inte anropar den alls får nu inga nya medlemmar, eftersom `bjudIn` inte längre skriver medlemskapet direkt. lifehub anropar den inte i dag (mätt 2026-10-08 med `git grep` på `origin/main` `8035d9c` och på grenen till lifehub.app#117, ingen träff på `accepteraInbjudningar`) och måste koppla in den för att en inbjuden ska komma in.
+2. **Läs `tillagda` inte som "kom in direkt".** En vy som säger "N lades till" ska säga "N bjöds in".
+3. **En klient som skriver `epost` i `users`** ska skriva inloggningens adress i gemener, och bara när adressen är verifierad. Annars nekas skrivningen av reglerna. Ramverkets egna vyer skriver inte fältet.
+4. **En serverspegel som skriver `epost`** (lifehub, `personspegel`) ska skriva den bara när `email_verified` är `true`. Ramverket litar inte längre på fältet, men en adress som ingen bevisat är fortfarande en felaktig uppgift om personen.
+5. **Generera om reglerna och deploya dem** innan klienthalvan som skriver `epost` pinnas om.
+
+#### Rättat
+
+- **`bjudIn`:s gren för en befintlig användare är borttagen** (`src/node/inbjudan.js`). Den slog upp `users` på `epost` och skrev medlemskapet direkt. Varje inbjudan blir nu en rad i `invitations`.
+- **Accepten kräver en verifierad adress.** Före 0.82.0 matchade den den adress den fick, och ett konto med e-post och lösenord kan skapas på vilken adress som helst utan att brevlådan öppnats.
+- **Regeln för `users`** prövar `epost` mot inloggningen, se ovan. Två nya hjälpfunktioner i fragmentet, `opsProfilensEpost()` och `opsEgenVerifieradEpost()`, och create och update står kvar i ett block så att `hasOnly`-listan finns en gång (vakten i `check-gruppnyckel` läser att den är härledd). Kommentaren som sade "e-posten kommer ur inloggningen" är rättad.
+
+#### Prov, sedda röda utan sin rättelse
+
+| Prov | Utan rättelsen | Med |
+|---|---|---|
+| Emulator: en annans adress nekas, också med verifierad egen inloggning | rött | grönt |
+| Emulator: egen overifierad adress nekas | rött | grönt |
+| Emulator: egen adress utan `email_verified` i token nekas | rött | grönt |
+| Emulator: en uppdatering som byter till en annans adress nekas | rött | grönt |
+| Emulator: egen verifierad adress släpps in, i gemener mot en inloggning med versaler | rött utan `.lower()` | grönt |
+| Emulator: en rad utan `epost` släpps in | rött utan undantaget för en rad utan fältet | grönt |
+| Emulator: en uppdatering som inte rör adressen prövas inte | rött när update prövar adressen alltid | grönt |
+| Emulator: overifierad och flaggfri inloggning nekas | rött utan villkoret på `email_verified` | grönt |
+| Enhet: en klientskriven users-rad med offrets adress ger inget medlemskap efter `bjudIn` | rött | grönt |
+| Enhet: en befintlig användare får en väntande inbjudan, inget medlemskap | rött | grönt |
+| Enhet: `bjudIn` skriver aldrig ett medlemskap | rött | grönt |
+| Enhet: en overifierad adress accepterar ingenting | rött | grönt |
+| Enhet: en accept utan `epostVerifierad` kastar | rött | grönt |
+| Enhet: `skapaGrupp` med en adress med konto ger en väntande inbjudan | rött | grönt |
+| Emulator: en tom `epost` med en token utan `email` nekas (PR 314, KAN 1) | rött utan villkoret `email != ''` | grönt |
+| Enhet: `bjudIn` med `typ` kastar (PR 314, KAN 4) | rött | grönt |
+| Vakt: `check-changelog-taggar`, en publicerad tagg utan rubrik (PR 314, B1) | rött mot CHANGELOG i `67cbd7e` och i `test-guards` | grönt |
+
+#### Granskningen av PR 314
+
+- **B1. Rubriken `## 0.80.1` var borttagen** i första versionen av den här skivan, och texten för 0.80.1 stod utan rubrik under 0.82.0. Rubriken är tillbaka. `check-paket` fångade inte felet eftersom den bara läser versionen i `package.json`. Den nya vakten `check-changelog-taggar` (i `npm run check`) kräver en rubrik för varje publicerad tagg (`git tag -l 'v*'`), med ett golv på 10 lästa taggar så att en utcheckning utan taggar blir röd i stället för grön på tomt. Taket är 0: mätt 2026-10-08 har alla 82 taggar en rubrik. CI hämtar nu taggarna (`fetch-tags: true` i `check.yml` och `publish.yml`).
+- **`resource != null` i `opsProfilensEpost()` är borttaget.** I en create blir mellantermen ett utvärderingsfel, men ett fel i en `||` vinner aldrig över en sann term, och ensamt ger det samma nej som en falsk term. Mätt i emulatorn med och utan villkoret: samma utfall i alla 409 prov och samma svar till klienten, `7 PERMISSION_DENIED` utan text.
+- **`probe-tmp.mjs` är borttagen ur repots rot.** Ingenting refererade till den (`git grep -n probe-tmp` gav noll träffar), och den var en rest från 0.31.0.
+
 ## 0.81.0
 
 Bibliotek, skiva 1 (#192). Analysen ligger i `docs/beslut/0004-bibliotek-ss-analys.md` (#303, mergad). Skivan bar numret 0.79.0 medan den granskades, och montaget ligger kvar under det numret i `docs/jamforelser/0.79.0/`. 0.78.1, 0.78.2, 0.80.0 och 0.80.1 är mergade, och main står på 0.80.1, mätt på origin/main `e98350f` 2026-10-08. 0.79.0 gavs aldrig ut, och den här är nästa minor efter main.

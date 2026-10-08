@@ -1157,6 +1157,42 @@ kravRott(
   kravRott("datumnamn golv: fel sökväg", [datumvakt, path.join(arbetsmapp, "finns-inte")], "finns inte");
 }
 
+// ── Vakten över publicerade taggar i ändringsloggen (0.82.0, granskningen av PR 314, B1) ──
+//
+// ⛔ PR 314 TOG BORT RUBRIKEN `## 0.80.1`, och `check-paket` var grön eftersom den bara läser den version som
+// ska taggas härnäst. Proven använder en egen taggfil, så att utfallet inte beror på vilka taggar utcheckningen råkar ha.
+{
+  const taggvakt = "scripts/check-changelog-taggar.mjs";
+  const taggmapp = path.join(arbetsmapp, "changelog-taggar");
+  fs.mkdirSync(taggmapp, { recursive: true });
+  const versioner = Array.from({ length: 12 }, (_, i) => `0.${i + 1}.0`);
+  const taggfil = path.join(taggmapp, "taggar.txt");
+  fs.writeFileSync(taggfil, versioner.map((v) => `v${v}`).join("\n") + "\nv-inte-semver\n");
+  const hel = versioner.map((v) => `## ${v}\n\nNågot.\n`).join("\n");
+  /** @param {string} namn @param {string} text */
+  const logg = (namn, text) => {
+    const fil = path.join(taggmapp, `${namn}.md`);
+    fs.writeFileSync(fil, text);
+    return fil;
+  };
+
+  kravGront("changelog-taggar 0: varje tagg har en rubrik", [taggvakt, logg("hel", hel), "--taggar", taggfil]);
+  kravGront("changelog-taggar 0b: ramverkets egen logg mot sina egna taggar", [taggvakt]);
+  kravRott(
+    "changelog-taggar 1: en publicerad tagg vars rubrik tagits bort (PR 314, B1)",
+    [taggvakt, logg("utan-rubrik", hel.replace("## 0.5.0\n", "")), "--taggar", taggfil],
+    'saknar rubrik "## 0.5.0"',
+  );
+  kravRott(
+    "changelog-taggar 2: rubriken som löptext räknas inte",
+    [taggvakt, logg("lopande", hel.replace("## 0.5.0\n", "Om 0.5.0: se nedan.\n")), "--taggar", taggfil],
+    'saknar rubrik "## 0.5.0"',
+  );
+  fs.writeFileSync(path.join(taggmapp, "fa.txt"), "v0.1.0\nv0.2.0\n");
+  kravRott("changelog-taggar golv: för få taggar lästa", [taggvakt, logg("golv", hel), "--taggar", path.join(taggmapp, "fa.txt")], "golvet är 10");
+  kravRott("changelog-taggar golv: fel sökväg", [taggvakt, path.join(taggmapp, "finns-inte.md")], "finns inte");
+}
+
 // ── Vakten över paketets form ──────────────────────────────────────────────
 //
 // ⛔ BARA STRUKTURDELEN PROVAS HÄR. Den tunga delen packar och installerar på

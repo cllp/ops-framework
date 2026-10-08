@@ -199,17 +199,23 @@ describe("⛔ ATOMISKT: faller det andra skrivandet finns inget av det första (
 });
 
 describe("⛔ inbjudningarna vid skapandet: efter commit, best effort, ett svar med allt", () => {
-  it("en adress med konto blir medlemskap direkt, en utan blir en väntande inbjudan, med rollerna", async () => {
+  /*
+   * ⛔ FÖRE 0.82.0 BLEV EN ADRESS MED KONTO ETT MEDLEMSKAP DIREKT (`tillagda`). Det kom ur `bjudIn`:s uppslag i
+   * `users`, som litade på en adress ingen bevisat (#313). Nu blir båda en väntande inbjudan, med sina roller, och
+   * `tillagda` är tom.
+   */
+  it("⛔ en adress med konto och en utan blir båda en väntande inbjudan, med rollerna (0.82.0, #313)", async () => {
     const { tjanst, kalla } = bygg({ users: [{ id: "uid-kollega", epost: "kollega@example.com", namn: "Kollega" }] });
     const svar = await skapa(tjanst, { inbjudningar: [{ epost: "Kollega@Example.com", roll: "admin" }, { epost: "ny@example.com" }] });
 
-    expect(svar.tillagda).toEqual(["kollega@example.com"]);
-    expect(svar.inbjudna).toEqual(["ny@example.com"]);
+    expect(svar.tillagda).toEqual([]);
+    expect(svar.inbjudna).toEqual(["kollega@example.com", "ny@example.com"]);
     expect(svar.fel).toEqual([]);
-    expect(await kalla.read("memberships", medlemskapsId("uid-kollega", svar.groupId))).toMatchObject({ roll: "admin", status: "aktiv", namn: "Kollega" });
-    const inb = await kalla.list("invitations");
-    expect(inb).toHaveLength(1);
-    expect(inb[0]).toMatchObject({ epost: "ny@example.com", groupId: svar.groupId, roll: "medlem", status: "vantar" });
+    expect(await kalla.read("memberships", medlemskapsId("uid-kollega", svar.groupId))).toBeFalsy();
+    const inb = [...(await kalla.list("invitations"))].sort((x, y) => (x.epost < y.epost ? -1 : 1));
+    expect(inb).toHaveLength(2);
+    expect(inb[0]).toMatchObject({ epost: "kollega@example.com", groupId: svar.groupId, roll: "admin", status: "vantar" });
+    expect(inb[1]).toMatchObject({ epost: "ny@example.com", groupId: svar.groupId, roll: "medlem", status: "vantar" });
   });
 
   it("⛔ tomhet är ett svar: utan inbjudningar är alla tre listorna tomma, inte utelämnade", async () => {

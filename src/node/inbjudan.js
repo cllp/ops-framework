@@ -10,11 +10,11 @@
  *
  * ══ ⛔ TVÅ STEG, OCH DET ANDRA ÄR DET SOM GÖR DET TILL ETT FLÖDE ══════
  *
- * 1. Ägaren (eller en admin, 0.32.0) bjuder in med e-post. Finns personen redan skrivs medlemskapet
- *    direkt. Annars skrivs en rad i `invitations`.
+ * 1. Ägaren (eller en admin, 0.32.0) bjuder in med e-post. Det skrivs alltid en rad i `invitations`,
+ *    också när personen redan har ett konto (0.82.0, #313, se `bjudIn`).
  * 2. Vid inloggning anropar klienten en gång "acceptera mina inbjudningar".
- *    Serversidan matchar den inloggades e-post mot väntande inbjudningar och
- *    skriver medlemskapen.
+ *    Serversidan matchar den inloggades verifierade e-post mot väntande
+ *    inbjudningar och skriver medlemskapen.
  *
  * Efter steg 2 är det uid som gäller, aldrig e-posten. Inbjudningsraden är
  * historik.
@@ -239,9 +239,13 @@ export function inbjudningstjanst(konfig, namn) {
     /**
      * Ägaren eller en admin bjuder in en e-postadress till en grupp.
      *
-     * @param {{ avUid: string, groupId: string, epost: string, roll?: string, typ?: string, skapadAv?: any, tokenHash?: string }} b
+     * @param {{ avUid: string, groupId: string, epost: string, roll?: string, skapadAv?: any, tokenHash?: string }} b
+     *   ⛔ `typ` FINNS INTE LÄNGRE (0.82.0, #313), och ett anrop som ändå skickar den kastar. Den bestämde typen på
+     *   medlemskapet grenen för en befintlig person skrev, och den grenen är borttagen. Accepten skriver `typ: "person"`.
      *   `tokenHash` (0.80.1): SHA-256 i hex av koden appen mejlar, eller utelämnad. Koden själv kommer aldrig hit.
-     * @returns {Promise<{ resultat: "medlemskap" | "inbjudan" | "fanns", id: string, ateroppnad?: boolean, fran?: string }>}
+     * @returns {Promise<{ resultat: "inbjudan", id: string, ateroppnad: boolean, fran?: string }>}
+     *   ⛔ ALLTID `inbjudan` SEDAN 0.82.0 (#313). `medlemskap` och `fanns` kom ur grenen som litade på `users.epost`, och
+     *   den finns inte längre.
      *   `ateroppnad` (0.80.1): `true` när en befintlig rad öppnades igen, `false` för en ny rad. `fran` säger vad raden
      *   var: `aterkallad`, `utgangen` eller `accepterad`. Den sista betyder att personen kanske redan är med.
      */
@@ -253,39 +257,41 @@ export function inbjudningstjanst(konfig, namn) {
       if (!groupId) throw new Error("bjudIn: groupId krävs.");
       if (!epost) throw new Error("bjudIn: epost krävs. Det är det enda en inbjudan har att matcha på innan personen finns.");
 
+      /*
+       * ⛔ `typ` KASTAR, DEN IGNORERAS INTE (0.82.0, granskningen av PR 314, KAN 4). Den bestämde typen på medlemskapet
+       * grenen för en befintlig användare skrev, och grenen är borttagen (#313). En app som ändå skickar den tror att
+       * värdet hamnar någonstans, och ett tyst bortfall ser ut som att allt gick bra (regel 5).
+       */
+      if ((/** @type {any} */ (b))?.typ !== undefined) {
+        throw new Error(
+          `bjudIn: typ togs bort i 0.82.0 (#313). Den styrde bara medlemskapet som bjudIn skrev direkt, och bjudIn skriver inget medlemskap längre: accepten skriver typ "person". Ta bort typ ur anropet.`,
+        );
+      }
+
       const roll = b.roll ?? "medlem";
       await kravBehorighet(avUid, groupId, roll);
 
-      const typ = b.typ ?? "person";
-
       /*
-       * ⛔ FINNS PERSONEN REDAN SKRIVS MEDLEMSKAPET DIREKT. En inbjudan som
-       * väntar på en inloggning som redan skett är en rad ingen kommer att
-       * acceptera, och den som bjöd in ser en person som aldrig dyker upp.
+       * ══ ⛔ INGEN GREN FÖR "PERSONEN FINNS REDAN" (0.82.0, #313) ══
+       *
+       * Före 0.82.0 slog `bjudIn` upp adressen i `users` med `where epost ==`, och fanns en rad skrevs
+       * medlemskapet direkt, med inbjudans roll. Fältet bevisade ingenting: förvalets regel lät klienten
+       * skriva vilken adress som helst i sin egen rad, och en app vars serverspegel sparade en overifierad
+       * adress (lifehub, mätt i granskningen av lifehub.app#117) gjorde samma sak från serversidan. Mätt i
+       * emulatorn: en overifierad växling med offrets adress, följd av `bjudIn` som `agare`, gav angriparen
+       * medlemskapet `roll: "agare"`.
+       *
+       * ⛔ GRENEN ÄR BORTTAGEN, INTE SKYDDAD AV ETT FÄLT TILL. Ett fält som `epostVerifierad: true` i
+       * `users` hade varit en ny uppgift om personen, skriven av en spegel ramverket inte äger, och en app
+       * som glömde den hade varit lika öppen som förut (regel 13: det som gör modellen tyngre stryks). Nu går
+       * varje inbjudan samma väg: en rad i `invitations`, som blir ett medlemskap först när personen själv
+       * loggar in och `accepteraInbjudningar` får adressen ur inloggningen, med `epostVerifierad: true`.
+       * Adressen bevisas av den som äger brevlådan, aldrig av en rad i databasen.
+       *
+       * ⛔ DET HÄR KOSTAR NÅGOT, OCH DET ÄR RÄTT PRIS. En person som redan har ett konto blir medlem vid
+       * nästa accept och inte i samma sekund, och en adress som redan är medlem får en väntande rad i stället
+       * för svaret `fanns`. Accepten rör inte ett medlemskap som finns, så ingen roll höjs den vägen.
        */
-      const anvandare = (await kalla.list(ANVANDARE, { where: { epost } })).find(Boolean);
-      if (anvandare) {
-        const id = medlemskapsId(anvandare.id, groupId);
-        if (await kalla.read(MEDLEMSKAP, id)) return { resultat: "fanns", id };
-        /*
-         * ⛔ NAMN OCH BILD FÖLJER MED IN I MEDLEMSKAPET (#138, beslut A).
-         * E-posten lämnar aldrig `users`, alltså är det här den enda källan
-         * medlemslistan har att rita en rad ur. Skrivs de inte här blir listan
-         * en rad uid:n, vilket är samma sak som ingen lista.
-         */
-        const medlemskap = byggMedlemskap({
-          userId: anvandare.id,
-          groupId,
-          roll,
-          typ,
-          status: "aktiv",
-          namn: anvandare.namn ?? "",
-          bild: anvandare.bild ?? "",
-        });
-        // ⛔ createNew, inte create (granskningen av PR 308, K3): två inbjudningar samtidigt får inte skriva över varandras roll.
-        const { created } = await skapaNy(MEDLEMSKAP, medlemskap);
-        return { resultat: created ? "medlemskap" : "fanns", id };
-      }
 
       /*
        * ══ ⛔ EN INBJUDAN TILL EN ADRESS SOM REDAN HAR EN RAD I GRUPPEN (0.80.1, arkitektens beslut i PR 308) ══
@@ -320,10 +326,8 @@ export function inbjudningstjanst(konfig, namn) {
         if (status === "vantar" && !utgangen) throw new Error(redanVantande(groupId, rad.id));
         /*
          * ⛔ EN ACCEPTERAD RAD ÖPPNAS IGEN, DEN SÄGER INTE "REDAN MEDLEM" (0.80.1, granskningen av PR 308, B2).
-         * Hit kommer en adress som grenen ovan inte hittade i `users`: en som hittades fick sitt medlemskap,
-         * eller `fanns`, där. Uppslaget är en exakt likhet mot den normaliserade adressen, så en användarrad
-         * vars `epost` har en annan form missas och hamnar också här. Det är ofarligt, se nedan. Utan
-         * användarrad finns inget uid, och utan uid går medlemskapet inte att slå upp. "Redan medlem" vore därför ett påstående ingen kontrollerat, och det är osant just i det
+         * `bjudIn` vet inte vem adressen tillhör (0.82.0, #313: den slår inte upp `users`), alltså inget uid,
+         * och utan uid går medlemskapet inte att slå upp. "Redan medlem" vore därför ett påstående ingen kontrollerat, och det är osant just i det
          * halva läget: inbjudan står `accepterad` men medlemskapet skrevs aldrig, för att processen dog
          * mellan anspråket och skrivningen. Då hade personen aldrig kommit in, och den som bjöd in hade fått
          * höra att hen redan var med.
@@ -380,8 +384,9 @@ export function inbjudningstjanst(konfig, namn) {
      * inloggning, och skillnaden mellan "inget väntade" och "två blev till
      * medlemskap" är det enda som avgör om vyn ska säga något.
      *
-     * @param {{ uid: string, epost: string, namn?: string }} b
+     * @param {{ uid: string, epost: string, epostVerifierad: boolean, namn?: string }} b
      *   `namn`: den inloggades namn ur inloggningen. Används BARA när profilraden saknar namn (0.40.1, #218).
+     *   `epostVerifierad` (0.82.0, #313): `request.auth.token.email_verified`, rakt ur inloggningen. Krävs och måste vara `true`.
      * @returns {Promise<{ accepterade: string[], utgangna: string[] }>}
      *   `utgangna` (0.80.1): grupperna vars väntande inbjudan hade gått ut och därför inte accepterades. Tom lista, aldrig utelämnad.
      */
@@ -390,6 +395,21 @@ export function inbjudningstjanst(konfig, namn) {
       const epost = epostform(b?.epost);
       if (!uid) throw new Error("accepteraInbjudningar: uid krävs.");
       if (!epost) throw new Error("accepteraInbjudningar: epost krävs, den inloggades. Det är den inbjudningarna matchas mot.");
+      /*
+       * ⛔ ADRESSEN MÅSTE VARA VERIFIERAD, OCH RAMVERKET FRÅGAR (0.82.0, #313). Sedan `bjudIn` inte längre skriver
+       * medlemskapet direkt är accepten den enda vägen in, och adressen är det enda den matchar på. Ett konto med
+       * e-post och lösenord kan skapas på vilken adress som helst utan att brevlådan öppnats, och en accept på en
+       * sådan adress ger offrets inbjudan, med dess roll, åt den som skapade kontot.
+       *
+       * ⛔ FLAGGAN KRÄVS, DEN FÖRVALS INTE. Ett förval på `true` hade låtit en app som aldrig läste token vara lika
+       * öppen som förut utan att något sade det, och ett förval på `false` hade gjort varje accept tom i tysthet
+       * (regel 5). Saknas den, eller är den något annat än `true`, kastar accepten och säger varför.
+       */
+      if (b?.epostVerifierad !== true) {
+        throw new Error(
+          `accepteraInbjudningar: adressen "${epost}" är inte verifierad (epostVerifierad är ${b?.epostVerifierad === false ? "false" : "inte satt"}). Ingen inbjudan accepteras på en adress som inte bevisats. Skicka request.auth.token.email_verified, och be personen verifiera adressen.`,
+        );
+      }
 
       /*
        * ⛔ EN UTGÅNGEN INBJUDAN ACCEPTERAS INTE (0.80.1, granskningen av PR 308, K1a). Före 0.80.1 blev en
@@ -441,8 +461,7 @@ export function inbjudningstjanst(konfig, namn) {
          *
          * ⛔ DET SOM ÅTERSTÅR: dör processen mellan anspråket och medlemskapet hinner ingen återlämning köras,
          * och raden står `accepterad` utan medlemskap. Det läget repareras av `bjudIn`, som öppnar en
-         * accepterad rad igen när adressen saknar en användarrad, och av att personen loggar in igen efter det.
-         * Har personen en användarrad skriver `bjudIn` medlemskapet direkt. Se README.
+         * accepterad rad igen, och av att personen loggar in igen efter det. Se README.
          */
         let ny = false;
         try {

@@ -147,7 +147,9 @@ function grupp_id(namn) {
 /**
  * @typedef {object} SkapaGruppSvar
  * @property {string} groupId
- * @property {string[]} tillagda E-postadresser som redan hade ett konto och fick sitt medlemskap direkt.
+ * @property {string[]} tillagda Alltid tom sedan 0.82.0 (#313). Före 0.82.0 adresser som redan hade ett konto och fick sitt
+ *   medlemskap direkt, men den vägen litade på `users.epost` och är borttagen: varje inbjuden blir nu en väntande inbjudan
+ *   (`inbjudna`). Fältet står kvar så att appens svar har samma form som före 0.82.0.
  * @property {string[]} inbjudna E-postadresser som fick en väntande inbjudan.
  * @property {ReadonlyArray<{ epost: string, fel: string }>} fel Inbjudningar som inte blev av, med skälet. Tom lista är svaret "alla gick", aldrig en utelämnad rad.
  */
@@ -323,7 +325,7 @@ export function createGroupService(konfig) {
       /*
        * ⛔ MEDLEMSKAPETS `namn` OCH `bild` ÄR PERSONENS, INTE GRUPPENS (#138, beslut A). Före 0.32.0 fick
        * ägarens medlemskap gruppens namn här, alltså "Mitt bolag" som medlemslistans rad för ägaren.
-       * Personens egen rad i `users` är källan, samma som `bjudIn` och `accepteraInbjudningar` läser.
+       * Personens egen rad i `users` är källan, samma som `accepteraInbjudningar` läser.
        */
       const medlemskap = byggMedlemskap({
         userId: uid,
@@ -379,9 +381,9 @@ export function createGroupService(konfig) {
       for (const rad of att) {
         try {
           const svar = await inbjudan.bjudIn({ avUid: uid, groupId: id, epost: rad.epost, roll: rad.roll, skapadAv: skapare });
-          if (svar.resultat === "medlemskap") tillagda.push(rad.epost);
-          else if (svar.resultat === "inbjudan") inbjudna.push(rad.epost);
-          else fel.push({ epost: rad.epost, fel: "finns redan i gruppen" });
+          // ⛔ `bjudIn` svarar bara `inbjudan` sedan 0.82.0 (#313). Ett annat svar är ett fel i ramverket, och det syns som ett.
+          if (svar.resultat === "inbjudan") inbjudna.push(rad.epost);
+          else fel.push({ epost: rad.epost, fel: `oväntat svar från bjudIn: ${String(svar.resultat)}` });
         } catch (e) {
           fel.push({ epost: rad.epost, fel: e instanceof Error ? e.message : String(e) });
         }
