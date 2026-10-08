@@ -627,6 +627,13 @@ async function chattinfoYta() {
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-huvud-${vp.width}.png`) });
       await page.getByRole("button", { name: "Chattinfo" }).click();
       await page.waitForSelector("[data-chattinfo]");
+      // Medlemmar först, samma flik som förebilden (67.webp) visar. Ett privat samtal: de två deltagarna, inte gruppens alla.
+      const medlemmar = await page.evaluate(() => [...document.querySelectorAll("[data-chattinfo-medlem]")].map((e) => e.getAttribute("data-chattinfo-medlem")));
+      matt.push(`${namn} medlemmar: ${JSON.stringify(medlemmar)}`);
+      krav(medlemmar.length === 2, `${namn}: Medlemmar i ett privat samtal ska vara de två deltagarna (${JSON.stringify(medlemmar)}).`);
+      await page.mouse.move(0, 0);
+      await page.waitForTimeout(300);
+      if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-medlemmar-${vp.width}.png`) });
       await page.getByRole("tab", { name: /^Bilder / }).click();
       await page.waitForSelector("[data-chattinfo-bild]");
       const lage = await page.evaluate(() => {
@@ -636,24 +643,35 @@ async function chattinfoYta() {
         const pr = panel.getBoundingClientRect();
         const lr = logg.getBoundingClientRect();
         const bilder = document.querySelector("[data-chattinfo-bild]");
+        const antalBilder = document.querySelectorAll("[data-chattinfo-bild]").length;
+        const iBubblan = document.querySelectorAll('[role=log] [data-meddelande-bilaga="bild"]').length;
         const stil = getComputedStyle(panel);
         return {
           panel: { x: Math.round(pr.x), y: Math.round(pr.y), w: Math.round(pr.width), h: Math.round(pr.height), position: stil.position },
           logg: { x: Math.round(lr.x), w: Math.round(lr.width) },
           bild: Boolean(bilder),
+          antalBilder,
+          iBubblan,
           pdfIBilder: Boolean(bilder && bilder.textContent && bilder.textContent.includes("avtal.pdf")),
         };
       });
       matt.push(`${namn} bilder: ${JSON.stringify(lage)}`);
       krav(lage.bild && !lage.pdfIBilder, `${namn}: Bilder ska visa bilden och inte avtal.pdf (${JSON.stringify(lage)}).`);
+      // Den nya bilden och den i 0.77.0-form, i panelen och i bubblorna (granskningen av PR 307).
+      krav(lage.antalBilder === 2 && lage.iBubblan === 2, `${namn}: två bilder i Bilder och två i bubblorna, en av dem i 0.77.0-form (${JSON.stringify(lage)}).`);
       if (vp.width < 768) {
         krav(lage.panel.position === "absolute" && lage.panel.x <= lage.logg.x + 2 && lage.panel.w >= lage.logg.w - 2, `${namn}: på smal skärm ska panelen ligga över chatten (${JSON.stringify(lage)}).`);
       } else {
         krav(lage.panel.position === "static" && lage.panel.x >= lage.logg.x + lage.logg.w - 2, `${namn}: på bred skärm ska panelen ligga bredvid chatten (${JSON.stringify(lage)}).`);
       }
+      // Pekaren bort och flikens färgövergång klar, annars fotograferas förra fliken mitt i sin övergång.
+      await page.mouse.move(0, 0);
+      await page.waitForTimeout(300);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-bilder-${vp.width}.png`) });
       await page.getByRole("tab", { name: /^Dokument / }).click();
       await page.waitForSelector("[data-chattinfo-dokument]");
+      await page.mouse.move(0, 0);
+      await page.waitForTimeout(300);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `chattinfo-dokument-${vp.width}.png`) });
       krav((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 0, `${namn}: sidan flödar över horisontellt.`);
     } catch (e) {

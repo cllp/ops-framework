@@ -1,7 +1,7 @@
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { FALT_BORT } from "./contract.js";
 import { KOMMENTARBILAGAFALT } from "../lib/handelsemodell.js";
-import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
+import { AGENTSTATUS_ID, FASTA_TAK, REAKTIONSTAK, arNamnd, bilagenyckel, byggFastning, byggMeddelande, byggReaktion, byggSamtal, byggTrad, kravTradnamn, motpart, olastaI, samtalsnyckel, synligText, undersamlingskrock } from "../lib/samtal.js";
 
 /**
  * Samtalskällan: läser och skriver ramverkets samtal genom en datakälla (0.34.0, #182, #185).
@@ -109,10 +109,18 @@ export function createSamtalskalla(konfig) {
   };
 
   let foljd = 0;
-  /** Id som meddelandet och filen delar. Klockan anropas inte här: `nyttMeddelande` har redan tagit tiden. */
+  /**
+   * Id som meddelandet och filen delar. Klockan anropas inte här: `nyttMeddelande` har redan tagit tiden.
+   *
+   * ⛔ SLUMPDELEN (granskningen av PR 307). Tid och följd är unika i EN flik. Två flikar, eller två personer, som skickar
+   * samma millisekund får samma följdnummer, och då hade den andra skrivningen träffat den förstas dokument. Regeln nekar
+   * den (ingen uppdatering), så det hade blivit ett fel i stället för en överskriven fil, men felet hade varit ett
+   * "Missing or insufficient permissions" som ingen kan förstå.
+   */
   const nyttDokumentId = (/** @type {number} */ tid) => {
     foljd += 1;
-    return `m_${tid.toString(36)}_${foljd}`;
+    const slump = globalThis.crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
+    return `m_${tid.toString(36)}_${foljd}_${slump}`;
   };
 
   /** @param {string} sid */
@@ -120,9 +128,14 @@ export function createSamtalskalla(konfig) {
 
   /**
    * Skriver meddelandet. Med en bilaga skrivs märket och filen i samma batch, eller inte alls.
-   * @param {string} vag @param {string} sid @param {import("../lib/samtal.js").Meddelande} m
+   *
+   * ⛔ FILEN BÄR MEDDELANDETS `tid` (granskningen av PR 307). Chattinfo läser de nyaste filerna först, och utan tiden på
+   * filen fanns ingen ordning att fråga efter. Regeln kräver att tiden är meddelandets (`getAfter`), så den kan inte
+   * glida isär från meddelandet.
+   *
+   * @param {string} vag @param {string} sid @param {import("../lib/samtal.js").Meddelande} m @param {string} [trad]
    */
-  async function skrivMeddelande(vag, sid, m) {
+  async function skrivMeddelande(vag, sid, m, trad) {
     const lagrad = meddelandeAttLagra(m);
     if (!m.bilaga) return kalla.create(vag, lagrad);
     if (typeof kalla.batch !== "function") {
@@ -131,7 +144,7 @@ export function createSamtalskalla(konfig) {
     const id = nyttDokumentId(m.tid);
     const svar = await kalla.batch([
       { op: "create", collection: vag, data: { id, ...lagrad } },
-      { op: "create", collection: bilagavag(sid), data: { id, ...bilagaAttLagra(m.bilaga) } },
+      { op: "create", collection: bilagavag(sid), data: { id: bilagenyckel(id, trad), ...bilagaAttLagra(m.bilaga), tid: m.tid } },
     ]);
     return svar[0];
   }
@@ -461,8 +474,9 @@ export function createSamtalskalla(konfig) {
     // Meddelandet byggs först: ett tomt svar ska inte lämna en tom tråd efter sig. En bilaga utan text är ett svar.
     const m = nyttMeddelande({ text, av, namner, bilaga }, "samtalskalla.skickaITrad");
     await oppnaTrad({ sid, rot: tid, uid: av });
-    // Filen ligger under samtalet, inte under tråden: panelen läser en samling, och meddelandets id är unikt i källan.
-    return skrivMeddelande(tradmeddelandevag(sid, tid), sid, m);
+    // Filen ligger under samtalet, inte under tråden: panelen läser en samling. Trådens id står i nyckeln, så att regeln
+    // hittar meddelandet (`bilagenyckel`).
+    return skrivMeddelande(tradmeddelandevag(sid, tid), sid, m, tid);
   }
 
   /**
@@ -628,20 +642,51 @@ export function createSamtalskalla(konfig) {
    * Översikten läser meddelandena, och ett meddelande med filen i sig var uppåt 700 000 tecken. Märket räcker för listan
    * och notisen. Filen läses när någon visar meddelandet eller öppnar Chattinfo.
    */
-  /**
-   * Filen bakom ett meddelande, eller `null`.
-   * @param {string} sid @param {string} mid
+  /*
+   * ⛔ FILERNA CACHAS PER NYCKEL (granskningen av PR 307). En fil ändras aldrig och tas aldrig bort (regeln), så en läst
+   * fil är sann så länge sidan lever. Utan cachen läste bubblan och panelen samma fil var för sig, och varje ny ögonblicksbild
+   * av meddelandena gav en läsning till. Mätt före: tre nya meddelanden gav sex omläsningar av alla filer. Taket håller
+   * minnet nere, eftersom en fil kan vara 700 000 tecken. Ett misslyckat eller tomt svar sparas inte: nästa visning försöker igen.
    */
-  async function lasBilaga(sid, mid) {
-    return kalla.read(bilagavag(sid), mid);
+  const CACHETAK = sida * 2;
+  /** @type {Map<string, Promise<any>>} */
+  const bilagecache = new Map();
+  /** @param {string} nyckel @param {Promise<any>} p */
+  const cacha = (nyckel, p) => {
+    bilagecache.delete(nyckel);
+    bilagecache.set(nyckel, p);
+    while (bilagecache.size > CACHETAK) bilagecache.delete(/** @type {string} */ (bilagecache.keys().next().value));
+  };
+  /**
+   * Filen bakom ett meddelande, eller `null`. Ett svar i en tråd anger tråden, eftersom den står i filens nyckel.
+   * @param {string} sid @param {string} mid @param {{ trad?: string }} [val]
+   */
+  async function lasBilaga(sid, mid, val = {}) {
+    const nyckel = `${sid}/${bilagenyckel(mid, val.trad)}`;
+    const kand = bilagecache.get(nyckel);
+    if (kand) return kand;
+    const p = kalla.read(bilagavag(sid), bilagenyckel(mid, val.trad)).then(
+      (rad) => {
+        if (!rad) bilagecache.delete(nyckel);
+        return rad;
+      },
+      (e) => {
+        bilagecache.delete(nyckel);
+        throw e;
+      },
+    );
+    cacha(nyckel, p);
+    return p;
   }
   /**
-   * Filerna i ett samtal, de senaste `sida`. `fler` när taket nåddes.
+   * Filerna i ett samtal, de NYASTE `sida` först (fallande `tid`). `fler` när taket nåddes, alltså när äldre filer kan finnas.
+   * Varje fil läggs i cachen, så att bubblan inte läser den en gång till.
    * @param {string} sid
    * @returns {Promise<{ rader: any[], fler: boolean }>}
    */
   async function lasBilagor(sid) {
-    const rader = await kalla.list(bilagavag(sid), { limit: sida });
+    const rader = await kalla.list(bilagavag(sid), { sortBy: "tid", direction: "desc", limit: sida });
+    for (const r of rader) if (r && typeof r.id === "string") cacha(`${sid}/${r.id}`, Promise.resolve(r));
     return { rader, fler: rader.length >= sida };
   }
   const bilagefunktioner = bilagor === true ? { bilagaSamling, lasBilaga, lasBilagor } : {};

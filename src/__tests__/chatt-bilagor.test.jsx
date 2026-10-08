@@ -57,6 +57,13 @@ describe("meddelandets bilaga", () => {
     const svar = await s.tradmeddelanden(p.id, rot.id);
     expect(svar).toHaveLength(1);
     expect(svar[0].bilaga?.namn).toBe("svar.pdf");
+    // ⛔ Trådens id står i filens nyckel, så att regeln hittar svaret (granskningen av PR 307). Utan tråden finns ingen fil.
+    expect(await s.lasBilaga(p.id, svar[0].id)).toBeNull();
+    const tradfil = await s.lasBilaga(p.id, svar[0].id, { trad: rot.id });
+    expect(tradfil.id).toBe(`${rot.id}~${svar[0].id}`);
+    expect(tradfil.tid).toBe(svar[0].tid);
+    // Id:t har en slumpdel efter tid och följd.
+    expect(rot.id).toMatch(/^m_[0-9a-z]+_\d+_[0-9a-z]+$/);
   });
 
   it("⛔ utan bilagor på källan kastar en bilaga, och en ogiltig bilaga kastar med skälet", async () => {
@@ -86,7 +93,8 @@ describe("meddelandets bilaga", () => {
     expect(bara).not.toContain("opsMeddelandebilagaGiltig(request.resource.data.bilaga)");
     expect(bara.split("opsMeddelandebilagemarke(request.resource.data.bilaga)").length - 1).toBe(1);
     expect(bara.split("opsMeddelandebilagaGiltig(request.resource.data)").length - 1).toBe(1);
-    expect(bara).toContain("match /bilagor/{mid}");
+    expect(bara).toContain("match /bilagor/{nyckel}");
+    expect(bara).toContain("opsBundenBilaga(sid, nyckel, request.resource.data)");
     expect(bara).toContain("allow update, delete: if false;");
     const r = samtalsregelfragment({ bilagor: true, bilagaSamling: "bilagor", tradar: "tradar" });
     expect(r.split("opsMeddelandebilagemarke(request.resource.data.bilaga)").length - 1).toBe(2);

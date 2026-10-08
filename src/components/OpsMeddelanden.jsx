@@ -4,7 +4,7 @@ import { cx } from "../lib/cx.js";
 import { formatDate, formatTime, formatRelativeDate } from "../lib/format.js";
 import { KOMMENTARBILAGA_TYPER, MAX_KOMMENTARBILAGA, bilagaUrDokument, kommentarbilagaFel } from "../lib/handelsemodell.js";
 import { readAttachment } from "../lib/file.js";
-import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, delaSamtalsnyckel, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
+import { AGENTSTATUS_MAX_ALDER, MAX_MEDDELANDE, MAX_TRADNAMN, REAKTIONSKODER, agentstatus, bilagenyckel, delaSamtalsnyckel, samtalsdeltagare, samtalsnyckel, summeraReaktioner, synligText, tradensNamn } from "../lib/samtal.js";
 import { useSamtal } from "../data/useSamtal.jsx";
 import { harBilagor, harCitat, harFasta, harOmnamnanden, harReaktioner, harStatus, harTradar, harTyst } from "../data/samtalskalla.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
@@ -21,7 +21,7 @@ import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { useTalk } from "./OpsTalk.jsx";
 import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
-import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, InfoIkon, KameraIkon, LjudvagIkon, MappIkon, MejlIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
+import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagIkon, MappIkon, MejlIkon, NotisIkon, PanelIkon, StoppIkon, TystIkon, ChevronHogerIkon, ChevronNedIkon, CiteraIkon, ChevronVansterIkon, GruppIkon, KryssIkon, LasIkon, LeendeIkon, MeddelandeIkon, PlusIkon, SkickaIkon, SokIkon, TradIkon } from "./icons.jsx";
 
 /**
  * Meddelanden: inkorgen med gruppchatten och de privata samtalen, och samtalet bredvid (0.34.0, #182, #185).
@@ -316,20 +316,26 @@ const forstaVersal = (t) => (t ? t.charAt(0).toLocaleUpperCase("sv") + t.slice(1
 /**
  * En meddelandebilaga. Märket utan `dataUrl` är det vanliga efter #300: filen hämtas då, och "trasig" sägs bara när
  * hämtningen föll eller innehållet inte klarar `kommentarbilagaFel`.
- * @param {{ m: { id: string, bilaga?: { namn?: string, typ?: string, dataUrl?: string } | null }, kalla: any, sid: string, alt: string, texter: { hamtarBilaga: string, bilagaTrasig: string } }} props
+ * @param {{ m: { id: string, bilaga?: { namn?: string, typ?: string, dataUrl?: string } | null }, kalla: any, sid: string, trad?: string, alt: string, texter: { hamtarBilaga: string, bilagaTrasig: string } }} props
  */
-function VisadBilaga({ m, kalla, sid, alt, texter }) {
-  const klar = Boolean(m.bilaga && m.bilaga.dataUrl);
-  const [tillstand, setTillstand] = useState(/** @type {"hamtar" | "visad" | "trasig"} */ (klar ? "visad" : "hamtar"));
-  const [bilaga, setBilaga] = useState(klar ? m.bilaga : null);
+function VisadBilaga({ m, kalla, sid, trad, alt, texter }) {
+  // ⛔ INLINE-VÄGEN (0.77.0). Ett meddelande skrivet före 0.80.0 bär hela filen. Den ritas som den är, utan en läsning, och
+  // Chattinfo härleder den ur samma meddelande. Utan vägen blev varje gammal bild "Bilagan går inte att visa".
+  const inline = m.bilaga && m.bilaga.dataUrl ? m.bilaga : null;
+  const harMarke = Boolean(m.bilaga);
+  const harInline = Boolean(inline);
+  const [tillstand, setTillstand] = useState(/** @type {"hamtar" | "visad" | "trasig"} */ ("hamtar"));
+  const [bilaga, setBilaga] = useState(/** @type {any} */ (null));
+  // ⛔ Beroendena är id:t och om det finns ett märke, inte märkets objekt: varje ögonblicksbild av meddelandena ger ett nytt
+  // objekt, och då hade bubblan läst filen igen för varje nytt meddelande i samtalet.
   useEffect(() => {
-    if (!m.bilaga || m.bilaga.dataUrl) return undefined;
+    if (!harMarke || harInline) return undefined;
     if (!kalla || typeof kalla.lasBilaga !== "function") {
       setTillstand("trasig");
       return undefined;
     }
     let kvar = true;
-    kalla.lasBilaga(sid, m.id).then(
+    kalla.lasBilaga(sid, m.id, trad ? { trad } : undefined).then(
       (/** @type {any} */ rad) => {
         if (!kvar) return;
         const b = bilagaUrDokument(rad);
@@ -347,8 +353,15 @@ function VisadBilaga({ m, kalla, sid, alt, texter }) {
     return () => {
       kvar = false;
     };
-  }, [m.id, m.bilaga, kalla, sid]);
+  }, [m.id, harMarke, harInline, kalla, sid, trad]);
   if (!m.bilaga) return null;
+  if (inline) {
+    return (
+      <span className="mt-1 block max-w-full">
+        <BilagaVisning bilaga={/** @type {any} */ (inline)} alt={alt} marke="data-meddelande-bilaga" />
+      </span>
+    );
+  }
   if (tillstand === "hamtar") {
     return <p data-meddelande-bilaga="hamtar" className="m-0 mt-1 text-meta text-ink-muted">{texter.hamtarBilaga}</p>;
   }
@@ -364,6 +377,114 @@ function VisadBilaga({ m, kalla, sid, alt, texter }) {
       <BilagaVisning bilaga={/** @type {any} */ (bilaga)} alt={alt} marke="data-meddelande-bilaga" />
     </span>
   );
+}
+
+/**
+ * Filerna i Chattinfo (0.80.0, granskningen av PR 307).
+ *
+ * ⛔ EN LÄSNING NÄR PANELEN ÖPPNAS, SEDAN BARA DET NYA. Förut lästes alla filer om för varje nytt meddelande, också för ett
+ * textmeddelande. Mätt: tre meddelanden gav sex omläsningar på upp till 35 MB var. Nu läses listan när panelen öppnas, och
+ * därefter bara filen bakom ett nytt meddelande som bär ett märke och inte redan finns i listan. Källan cachar filerna per
+ * nyckel, så bubblan och panelen läser samma fil en gång.
+ *
+ * ⛔ DE GAMLA BILAGORNA RÄKNAS OCKSÅ. Ett meddelande ur 0.77.0 bär filen själv (`bilaga.dataUrl`) och har inget eget
+ * dokument. Panelen härleder dem ur de meddelanden som redan är laddade, så att Bilder inte säger 0 när bubblan visar en
+ * bild. Samma nyckel en gång: en fil som finns på båda ställena räknas inte två gånger.
+ *
+ * @param {{ kalla: any, sid: string, oppen: boolean, poster: ReadonlyArray<{ m: any, trad?: string }>, felText: string }} props
+ * @returns {{ bilagor: any[] | null, fler: boolean, fel: string | null }}
+ */
+function useChattinfoFiler({ kalla, sid, oppen, poster, felText }) {
+  const kan = harBilagor(kalla) && typeof kalla.lasBilagor === "function";
+  const [lista, setLista] = useState(/** @type {{ rader: any[], fler: boolean } | null} */ (null));
+  const [fel, setFelText] = useState(/** @type {string | null} */ (null));
+  const [enstaka, setEnstaka] = useState(/** @type {Map<string, any>} */ (new Map()));
+  const begarda = useRef(/** @type {Set<string>} */ (new Set()));
+  const varv = useRef(0);
+  useEffect(() => {
+    if (!oppen || !kan) return undefined;
+    varv.current += 1;
+    const detta = varv.current;
+    setLista(null);
+    setFelText(null);
+    setEnstaka(new Map());
+    begarda.current = new Set();
+    kalla.lasBilagor(sid).then(
+      (/** @type {{ rader: any[], fler: boolean }} */ svar) => {
+        if (varv.current === detta) setLista(svar);
+      },
+      (/** @type {any} */ e) => {
+        if (varv.current === detta) setFelText(e instanceof Error ? e.message : felText);
+      },
+    );
+    return () => {
+      varv.current += 1;
+    };
+  }, [oppen, kan, kalla, sid, felText]);
+  useEffect(() => {
+    if (!oppen || !kan || !lista) return;
+    const detta = varv.current;
+    const kanda = new Set(lista.rader.map((r) => r && r.id));
+    for (const { m, trad } of poster) {
+      if (!m || !m.bilaga || m.bilaga.dataUrl) continue;
+      const nyckel = bilagenyckel(m.id, trad);
+      if (kanda.has(nyckel) || begarda.current.has(nyckel)) continue;
+      begarda.current.add(nyckel);
+      kalla.lasBilaga(sid, m.id, trad ? { trad } : undefined).then(
+        (/** @type {any} */ rad) => {
+          if (varv.current === detta && rad) setEnstaka((f) => new Map(f).set(nyckel, rad));
+        },
+        () => {
+          // Bubblan säger redan att just den filen inte gick att visa. Nästa öppning försöker igen.
+        },
+      );
+    }
+  }, [oppen, kan, lista, poster, kalla, sid]);
+  const bilagor = useMemo(() => {
+    /** @type {Map<string, any>} */
+    const per = new Map();
+    for (const { m, trad } of poster) {
+      if (m && m.bilaga && m.bilaga.dataUrl) per.set(bilagenyckel(m.id, trad), { ...m.bilaga, id: bilagenyckel(m.id, trad), tid: m.tid });
+    }
+    if (kan && !lista) return null;
+    for (const r of lista ? lista.rader : []) if (r && typeof r.id === "string") per.set(r.id, r);
+    for (const [k, r] of enstaka) per.set(k, r);
+    return [...per.values()].sort((a, b) => (typeof b.tid === "number" ? b.tid : 0) - (typeof a.tid === "number" ? a.tid : 0));
+  }, [poster, kan, lista, enstaka]);
+  return { bilagor: fel ? null : bilagor, fler: Boolean(lista && lista.fler), fel };
+}
+
+/**
+ * Tystnaden för den inloggade i ett samtal (0.80.0, #301). Ett hem för `OpsSamtal` och `OpsTrad`.
+ * @param {any} kalla @param {string} sid @param {string} uid @param {(e: Error) => void} onFel
+ */
+function useTystnad(kalla, sid, uid, onFel) {
+  const [tyst, setTyst] = useState(false);
+  useEffect(() => {
+    if (!harTyst(kalla)) return undefined;
+    let kvar = true;
+    kalla.tystFor(sid, uid).then(
+      (/** @type {boolean} */ v) => {
+        if (kvar) setTyst(v);
+      },
+      (/** @type {any} */ e) => {
+        if (kvar) onFel(e instanceof Error ? e : new Error(String(e)));
+      },
+    );
+    return () => {
+      kvar = false;
+    };
+    // `onFel` är en setState och byts inte, så den står inte bland beroendena.
+  }, [kalla, sid, uid]);
+  const vaxla = () => {
+    if (!harTyst(kalla)) return;
+    const nasta = !tyst;
+    kalla.sattTyst(sid, uid, nasta).then(
+      () => setTyst(nasta),
+      (/** @type {any} */ e) => onFel(e instanceof Error ? e : new Error(String(e))),
+    );
+  };
+  return { tyst, vaxla };
 }
 
 /**
@@ -1602,51 +1723,10 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
   const { rader: tradar, fel: tradfel } = useTradmarken({ kalla: medTradar ? kalla : null, sid: samtal.id, meddelanden: meddelanden ? alla : null, minne: tradminne });
   const slut = useRef(/** @type {HTMLDivElement | null} */ (null));
   const [info, setInfo] = useState(false);
-  const [tyst, setTyst] = useState(false);
-  const [filer, setFiler] = useState(/** @type {{ rader: any[], fler: boolean } | null} */ (null));
-  const [filerFel, setFilerFel] = useState(/** @type {string | null} */ (null));
+  const { tyst, vaxla: vaxlaTyst } = useTystnad(kalla, samtal.id, uid, setFel);
+  const infoposter = useMemo(() => alla.map((m) => ({ m })), [alla]);
+  const filer = useChattinfoFiler({ kalla, sid: samtal.id, oppen: info, poster: infoposter, felText: t.bilagorFel });
   const post = mejlHref(mejl);
-  useEffect(() => {
-    const hamtaTyst = kalla.tystFor;
-    if (!hamtaTyst) return undefined;
-    let kvar = true;
-    hamtaTyst(samtal.id, uid).then(
-      (/** @type {boolean} */ v) => {
-        if (kvar) setTyst(v);
-      },
-      () => {},
-    );
-    return () => {
-      kvar = false;
-    };
-  }, [kalla, samtal.id, uid]);
-  useEffect(() => {
-    const las = kalla.lasBilagor;
-    if (!info || !las) return undefined;
-    let kvar = true;
-    setFiler(null);
-    setFilerFel(null);
-    las(samtal.id).then(
-      (/** @type {{ rader: any[], fler: boolean }} */ svar) => {
-        if (kvar) setFiler(svar);
-      },
-      (/** @type {any} */ e) => {
-        if (kvar) setFilerFel(e instanceof Error ? e.message : t.bilagorFel);
-      },
-    );
-    return () => {
-      kvar = false;
-    };
-  }, [info, kalla, samtal.id, t.bilagorFel, meddelanden]);
-  const vaxlaTyst = () => {
-    const skrivTyst = kalla.sattTyst;
-    if (!skrivTyst) return;
-    const nasta = !tyst;
-    skrivTyst(samtal.id, uid, nasta).then(
-      () => setTyst(nasta),
-      (/** @type {any} */ e) => setFel(e instanceof Error ? e : new Error(String(e))),
-    );
-  };
 
   const lasIn = async () => {
     try {
@@ -1736,14 +1816,14 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
           ) : null}
           {harTyst(kalla) ? (
             <Verktygsknapp etikett={tyst ? t.notiserTysta : t.tystaNotiser} dataAttr="tyst" pressed={tyst} onClick={vaxlaTyst}>
-              <TystIkon size={16} />
+              {tyst ? <TystIkon size={16} /> : <NotisIkon size={16} />}
             </Verktygsknapp>
           ) : null}
           <Verktygsknapp etikett={t.sokISamtalet} dataAttr="sok" expanded={sok.oppen} onClick={() => (sok.oppen ? sok.stang() : sok.oppna())}>
             <SokIkon size={16} />
           </Verktygsknapp>
           <Verktygsknapp etikett={t.chattinfo} dataAttr="info" expanded={info} onClick={() => setInfo((v) => !v)}>
-            <InfoIkon size={16} />
+            <PanelIkon size={16} />
           </Verktygsknapp>
         </div>
       </header>
@@ -1877,10 +1957,10 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
       {info ? (
         <div className="absolute inset-0 z-(--z-modal) flex min-h-0 flex-col bg-canvas md:static md:z-auto md:w-80 md:shrink-0 md:border-l md:border-line">
           <OpsChattinfo
-            medlemmar={medlemmar}
-            bilagor={harBilagor(kalla) ? (filer ? filer.rader : null) : []}
-            bilagorFler={Boolean(filer?.fler)}
-            bilagorFel={filerFel}
+            medlemmar={samtalsdeltagare(samtal, medlemmar)}
+            bilagor={filer.bilagor}
+            bilagorFler={filer.fler}
+            bilagorFel={filer.fel}
             meddelanden={alla}
             aldreFinns={historik.kanFinnasAldre}
             namnFor={namnFor}
@@ -2000,8 +2080,9 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {Postkort} [props.postkort]
  * @param {any} [props.kalla] Så att en bilaga utan innehåll kan hämtas när meddelandet visas.
  * @param {string} [props.sid]
+ * @param {string} [props.trad] Trådens id, när raderna är svar i en tråd. Det står i filens nyckel (`bilagenyckel`).
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2059,6 +2140,7 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                     m={m}
                     kalla={kalla}
                     sid={sid ?? ""}
+                    trad={trad}
                     alt={`${texter.bilagaText} ${egen ? texter.du : namnFor(m.av)}: ${m.bilaga.namn}`}
                     texter={texter}
                   />
@@ -2158,50 +2240,8 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const historik = useHistorik({ kalla, sid: samtal.id, trad: tid, live: svar, logg: tradlogg });
   const sok = useSokISamtal(historik.alla, tradlogg);
   const [info, setInfo] = useState(false);
-  const [tyst, setTyst] = useState(false);
-  const [filer, setFiler] = useState(/** @type {{ rader: any[], fler: boolean } | null} */ (null));
-  const [filerFel, setFilerFel] = useState(/** @type {string | null} */ (null));
+  const { tyst, vaxla: vaxlaTyst } = useTystnad(kalla, samtal.id, uid, setFel);
   const post = mejlHref(mejl);
-  useEffect(() => {
-    const hamtaTyst = kalla.tystFor;
-    if (!hamtaTyst) return undefined;
-    let kvar = true;
-    hamtaTyst(samtal.id, uid).then(
-      (/** @type {boolean} */ v) => {
-        if (kvar) setTyst(v);
-      },
-      () => {},
-    );
-    return () => {
-      kvar = false;
-    };
-  }, [kalla, samtal.id, uid]);
-  useEffect(() => {
-    const las = kalla.lasBilagor;
-    if (!info || !las) return undefined;
-    let kvar = true;
-    setFiler(null);
-    las(samtal.id).then(
-      (/** @type {{ rader: any[], fler: boolean }} */ svaren) => {
-        if (kvar) setFiler(svaren);
-      },
-      (/** @type {any} */ e) => {
-        if (kvar) setFilerFel(e instanceof Error ? e.message : t.bilagorFel);
-      },
-    );
-    return () => {
-      kvar = false;
-    };
-  }, [info, kalla, samtal.id, t.bilagorFel, svar]);
-  const vaxlaTyst = () => {
-    const skrivTyst = kalla.sattTyst;
-    if (!skrivTyst) return;
-    const nasta = !tyst;
-    skrivTyst(samtal.id, uid, nasta).then(
-      () => setTyst(nasta),
-      (/** @type {any} */ e) => setFel(e instanceof Error ? e : new Error(String(e))),
-    );
-  };
   // ⛔ Trådens reaktioner bor under tråden (regeln följer tråden). Rotmeddelandets reaktioner står i gruppchatten.
   const reakt = useReaktioner(harReaktioner(kalla) ? kalla : null, samtal.id, tid, uid);
   const agentlage = useAgentstatusdok(harStatus(kalla) ? kalla : null, samtal.id, tid);
@@ -2250,6 +2290,9 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   }, [svar]);
 
   const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
+  // Roten står i gruppchatten, svaren i tråden: trådens id hör till svarens filnycklar, inte rotens.
+  const infoposter = useMemo(() => [...(rot ? [{ m: rot }] : []), ...historik.alla.map((m) => ({ m, trad: tid }))], [rot, historik.alla, tid]);
+  const filer = useChattinfoFiler({ kalla, sid: samtal.id, oppen: info, poster: infoposter, felText: t.bilagorFel });
 
   /** @param {{ namner?: string[] }} [extra] */
   const skicka = async (extra) => {
@@ -2368,14 +2411,14 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
               ) : null}
               {harTyst(kalla) ? (
                 <Verktygsknapp etikett={tyst ? t.notiserTysta : t.tystaNotiser} dataAttr="tyst" pressed={tyst} onClick={vaxlaTyst}>
-                  <TystIkon size={16} />
+                  {tyst ? <TystIkon size={16} /> : <NotisIkon size={16} />}
                 </Verktygsknapp>
               ) : null}
               <Verktygsknapp etikett={t.sokISamtalet} dataAttr="sok" expanded={sok.oppen} onClick={() => (sok.oppen ? sok.stang() : sok.oppna())}>
                 <SokIkon size={16} />
               </Verktygsknapp>
               <Verktygsknapp etikett={t.chattinfo} dataAttr="info" expanded={info} onClick={() => setInfo((v) => !v)}>
-                <InfoIkon size={16} />
+                <PanelIkon size={16} />
               </Verktygsknapp>
             </div>
           </>
@@ -2401,7 +2444,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
         <Agentrad lage={agentlage} texter={t} />
         <div ref={slut} />
       </div>
@@ -2428,10 +2471,10 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
       {info ? (
         <div className="absolute inset-0 z-(--z-modal) flex min-h-0 flex-col bg-canvas md:static md:z-auto md:w-80 md:shrink-0 md:border-l md:border-line">
           <OpsChattinfo
-            medlemmar={medlemmar}
-            bilagor={harBilagor(kalla) ? (filer ? filer.rader : null) : []}
-            bilagorFler={Boolean(filer?.fler)}
-            bilagorFel={filerFel}
+            medlemmar={samtalsdeltagare(samtal, medlemmar)}
+            bilagor={filer.bilagor}
+            bilagorFler={filer.fler}
+            bilagorFel={filer.fel}
             meddelanden={[...(rot ? [rot] : []), ...historik.alla]}
             aldreFinns={historik.kanFinnasAldre}
             namnFor={namnFor}

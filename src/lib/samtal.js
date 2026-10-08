@@ -64,6 +64,40 @@ export const MEDDELANDEFALT = /** @type {const} */ (["text", "av", "tid"]);
  */
 export const BILAGEMARKEFALT = /** @type {const} */ (["namn", "typ"]);
 
+/**
+ * Avgränsaren i en trådbilagas nyckel, `<trådens id>~<meddelandets id>` (0.80.0, granskningen av PR 307).
+ *
+ * ⛔ TRÅDEN STÅR I SÖKVÄGEN. Regeln binder filen till sitt meddelande med `getAfter`, och för ett svar i en tråd ligger
+ * meddelandet under `<tradar>/{tråd}/<meddelanden>/{id}`. Utan trådens id i nyckeln hade regeln inte kunnat hitta det.
+ * Ett eget fält hade varit en uppgift till om samma sak (regel 2), och den hade gått att sätta fel.
+ */
+export const BILAGA_TRADSKILJE = "~";
+
+/**
+ * Nyckeln för ett meddelandes fil: meddelandets id, och för ett svar i en tråd `<tråd>~<id>`.
+ * @param {string} mid @param {string} [trad]
+ * @returns {string}
+ */
+export function bilagenyckel(mid, trad) {
+  return trad ? `${trad}${BILAGA_TRADSKILJE}${mid}` : mid;
+}
+
+/**
+ * Vilka som är med i samtalet: gruppens medlemmar i gruppchatten, och bara de två deltagarna i ett privat samtal
+ * (0.80.0, granskningen av PR 307). En deltagare som saknas bland medlemmarna står kvar med sitt uid, så att panelen
+ * inte visar färre än samtalet har.
+ *
+ * @template {{ userId: string }} M
+ * @param {Pick<Samtal, "slag" | "deltagare"> | null | undefined} samtal
+ * @param {ReadonlyArray<M> | null | undefined} medlemmar
+ * @returns {Array<M | { userId: string }>}
+ */
+export function samtalsdeltagare(samtal, medlemmar) {
+  const alla = [...(medlemmar ?? [])];
+  if (!samtal || samtal.slag === "grupp") return alla;
+  return (samtal.deltagare ?? []).map((uid) => alla.find((m) => m.userId === uid) ?? { userId: uid });
+}
+
 /** Fältet på läst-raden. */
 export const LASTFALT = /** @type {const} */ (["lastTill"]);
 

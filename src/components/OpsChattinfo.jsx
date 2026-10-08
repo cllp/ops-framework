@@ -3,7 +3,7 @@ import { isImage } from "../lib/file.js";
 import { bilagaUrDokument } from "../lib/handelsemodell.js";
 import { lankarI } from "../lib/markdown.js";
 import { BilagaVisning } from "./BilagaVisning.jsx";
-import { LankIkon, KryssIkon } from "./icons.jsx";
+import { BildIkon, FilIkon, GruppIkon, LankIkon, KryssIkon } from "./icons.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsTabs, OpsTabPanel } from "./OpsTabs.jsx";
 
@@ -67,12 +67,13 @@ export function OpsChattinfo({ medlemmar = [], bilagor = null, bilagorFler = fal
       lankar.push(l);
     }
   }
-  const bilagetal = bilagor === null ? "…" : null;
+  // ⛔ Ikon och antal, som förebilden. Antalet saknas medan filerna hämtas: "inte hämtat" och "noll" ska inte se likadana ut.
+  const hamtat = bilagor !== null;
   const flikar = [
-    { id: "medlemmar", label: `${t.medlemmar} ${personer.length}` },
-    { id: "bilder", label: `${t.bilder} ${bilagetal ?? bilder.length}` },
-    { id: "dokument", label: `${t.dokument} ${bilagetal ?? dokument.length}` },
-    { id: "lankar", label: `${t.lankar} ${lankar.length}` },
+    { id: "medlemmar", label: t.medlemmar, icon: <GruppIkon size={18} />, badge: personer.length },
+    { id: "bilder", label: t.bilder, icon: <BildIkon size={18} />, ...(hamtat ? { badge: bilder.length } : {}) },
+    { id: "dokument", label: t.dokument, icon: <FilIkon size={18} />, ...(hamtat ? { badge: dokument.length } : {}) },
+    { id: "lankar", label: t.lankar, icon: <LankIkon size={18} />, badge: lankar.length },
   ];
 
   return (

@@ -1144,6 +1144,9 @@ function ChattinfoScen() {
       const kalla = Ops.createMemorySource({});
       const s = Ops.createSamtalskalla({ kalla, klocka: () => (t += 60000), bilagor: true, bilagaSamling: "bilagor", tyst: "tyst" });
       const p = await s.oppnaPrivat({ groupId: "g1", uid: "bo", annan: "anna" });
+      // Granskningen av PR 307: en bilaga i 0.77.0-form, hela filen på meddelandet och inget eget dokument. Den ska synas i
+      // bubblan och i Bilder.
+      await kalla.create(`samtal/${p.id}/meddelanden`, { text: "Från i somras.", av: "anna", tid: (t += 60000), bilaga: { ...provbild(), namn: "kvitto-juni.jpg" } });
       const bild = provbild();
       const pdf = "data:application/pdf;base64,JVBERi0xLjQK";
       await s.skicka(p.id, { text: "Kartan: https://example.com/karta", av: "bo", bilaga: bild });

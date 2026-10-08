@@ -40,7 +40,7 @@ import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELS
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
 import { KOMMENTARBILAGAFALT, KOMMENTARBILAGA_TYPER, KOMMENTARFALT, LASMARKESFALT, MAX_BILAGENAMN, MAX_HANDELSEKOMMENTAR, MAX_KOMMENTARBILAGA, SVARSFALT, SVARSVAL } from "./handelsemodell.js";
-import { BILAGEMARKEFALT, FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
+import { BILAGA_TRADSKILJE, BILAGEMARKEFALT, FASTFALT, GRUPPSAMTAL, LASTFALT, MAX_MEDDELANDE, MAX_NAMNER, MAX_TRADNAMN, MAX_UIDLANGD, MEDDELANDEFALT, NAMNERFALT, NAMNER_ALLA, REAKTIONSFALT, SVARPAFALT, REAKTIONSKODER, SAMTALSAVGRANSARE, SAMTALSFALT, TRADFALT, undersamlingskrock } from "./samtal.js";
 
 /**
  * @typedef {object} Samlingsnamn
@@ -723,16 +723,6 @@ export function konfigloggregelfragment(namn) {
  */
 
 /**
- * Regelns prövning av en bilaga, ur samma konstanter som `kommentarbilagaFel`.
- *
- * ⛔ TVÅ NAMN, ETT UTTRYCK. `handelseregelfragment` och `samtalsregelfragment` limmas in i samma fil. En funktion får inte
- * heta samma sak två gånger, så kommentarerna anropar `opsKommentarbilagaGiltig` och meddelandena `opsMeddelandebilagaGiltig`.
- * Kroppen skrivs här, en gång.
- *
- * @param {string} funktionsnamn
- * @returns {string}
- */
-/**
  * Märket på meddelandet: namn och typ, och inget annat. `dataUrl` får inte ligga här (0.80.0, #300).
  * @returns {string}
  */
@@ -749,12 +739,29 @@ function bilagemarkeFunktion() {
     }`;
 }
 
-/** @param {string} funktionsnamn */
-function bilagaRegelfunktion(funktionsnamn) {
+/**
+ * Regelns prövning av en bilaga, ur samma konstanter som `kommentarbilagaFel`.
+ *
+ * ⛔ TVÅ NAMN, ETT UTTRYCK. `handelseregelfragment` och `samtalsregelfragment` limmas in i samma fil. En funktion får inte
+ * heta samma sak två gånger, så kommentarerna anropar `opsKommentarbilagaGiltig` och meddelandena `opsMeddelandebilagaGiltig`.
+ * Kroppen skrivs här, en gång.
+ *
+ * ⛔ `tid` BARA PÅ MEDDELANDETS FIL (granskningen av PR 307). Filen i sitt eget dokument bär meddelandets tid, så att
+ * Chattinfo kan läsa de nyaste först. Kommentarens bilaga ligger i kommentaren och har ingen egen tid. Utan flaggan är
+ * texten ordagrant den som stod här förut, och kommentarernas fixtur består. Tidens typ prövas inte här: bindningen
+ * (`opsBundenBilaga`) kräver att den finns och är meddelandets tid, ett heltal nära serverns klocka (`opsNu`). Ett eget
+ * `is int` och `tid` i `hasAll` överlevde mutationskörningen, alltså mätte de ingenting.
+ *
+ * @param {string} funktionsnamn
+ * @param {{ tid?: boolean }} [val]
+ * @returns {string}
+ */
+function bilagaRegelfunktion(funktionsnamn, val = {}) {
   const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const extra = val.tid ? ["tid"] : [];
   return `    function ${funktionsnamn}(b) {
       return b is map
-        && b.keys().hasOnly([${lista(KOMMENTARBILAGAFALT)}])
+        && b.keys().hasOnly([${lista([...KOMMENTARBILAGAFALT, ...extra])}])
         && b.keys().hasAll([${lista(KOMMENTARBILAGAFALT.slice(0, 4))}])
         && b.typ in [${lista(KOMMENTARBILAGA_TYPER)}]
         && b.dataUrl is string
@@ -817,8 +824,10 @@ function bilagaRegelfunktion(funktionsnamn) {
  *     aktiva personer. Uppdatera: aldrig.
  *   - BILAGA (0.80.0, #300, med `bilagor: true` och `bilagaSamling`): meddelandet bär märket `{ namn, typ }`
  *     (`opsMeddelandebilagemarke`). Filen, i kommentarernas form, ligger i `<samtal>/{sid}/<bilagaSamling>/{meddelandets id}`
- *     och prövas med `opsMeddelandebilagaGiltig`. Uppdatera och radera: aldrig. Regeln kräver inte att meddelandet finns,
- *     eftersom `exists` ser läget före anropet och inte den andra skrivningen i samma batch. Med bilaga får texten vara tom.
+ *     och prövas med `opsMeddelandebilagaGiltig`, med meddelandets `tid`. Filen är bunden till sitt meddelande
+ *     (`opsBundenBilaga`, granskningen av PR 307): med `existsAfter` och `getAfter`, som ser läget efter hela batchen, ska
+ *     meddelandet finnas, vara skrivet av den inloggade och bära samma namn, typ och tid. Ett svar i en tråd har nyckeln
+ *     `<tråd>~<id>` (`bilagenyckel`). Uppdatera och radera: aldrig. Med bilaga får texten vara tom.
  *     Utan nycklarna är meddelandets fält och textkrav desamma som förut. Firebase Storage används inte.
  *   - TYSTA NOTISER (0.80.0, #301, med `tyst`): `<tyst>/{uid}` med `{ tyst: bool }`. Bara personen själv läser och skriver.
  *     Radera: aldrig. Utan nyckeln finns inget sådant block.
@@ -876,7 +885,31 @@ export function samtalsregelfragment(namn = {}) {
     : `${indrag}&& request.resource.data.text.size() > 0\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}`);
   const meddelandefaltRegel = bilagor ? [...meddelandefalt, "bilaga"] : meddelandefalt;
   const samtalsfaltRegel = bilagor ? [...samtalsfaltlista, "bilaga"] : samtalsfaltlista;
-  const bilagefunktion = bilagor ? `${bilagemarkeFunktion()}\n\n${bilagaRegelfunktion("opsMeddelandebilagaGiltig")}\n\n` : "";
+  // ⛔ FILEN ÄR BUNDEN TILL SITT MEDDELANDE (granskningen av PR 307). Utan bindningen kunde vem som helst i samtalet lägga
+  // en fil på vilket id som helst, också på någon annans meddelande, och märkets typ behövde inte vara filens. `getAfter`
+  // ser läget efter hela batchen, alltså meddelandet som skrivs i samma anrop. Ett svar i en tråd har trådens id först i
+  // nyckeln (`bilagenyckel`), annars hade regeln inte hittat meddelandet. Utan `tradar` finns bara den enkla nyckeln.
+  const S = BILAGA_TRADSKILJE;
+  const bilagansVag = tradar
+    ? `nyckel.split('${S}').size() == 1
+        ? /databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(nyckel)
+        : /databases/$(database)/documents/${samtal}/$(sid)/${tradar}/$(nyckel.split('${S}')[0])/${meddelanden}/$(nyckel.split('${S}')[1])`
+    : `/databases/$(database)/documents/${samtal}/$(sid)/${meddelanden}/$(nyckel)`;
+  const bindningsfunktion = `    // Bilagans meddelande (granskningen av PR 307): nyckeln är meddelandets id, eller trådens id och meddelandets id.
+    function opsBilagansMeddelande(sid, nyckel) {
+      return ${bilagansVag};
+    }
+
+    // Filen hör till ett meddelande som finns efter batchen, som den inloggade skrev, med samma namn, typ och tid.
+    function opsBundenBilaga(sid, nyckel, d) {
+      return ${tradar ? `nyckel.split('${S}').size() <= 2` : `nyckel.split('${S}').size() == 1`}
+        && existsAfter(opsBilagansMeddelande(sid, nyckel))
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.av == request.auth.uid
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.bilaga.namn == d.namn
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.bilaga.typ == d.typ
+        && getAfter(opsBilagansMeddelande(sid, nyckel)).data.tid == d.tid;
+    }`;
+  const bilagefunktion = bilagor ? `${bilagemarkeFunktion()}\n\n${bilagaRegelfunktion("opsMeddelandebilagaGiltig", { tid: true })}\n\n${bindningsfunktion}\n\n` : "";
   const R = SAMTALSAVGRANSARE;
   const citatfunktion = citat
     ? `    // Citat (chattens nattskiva): saknas, eller ett meddelande i samma samtal, och aldrig i gruppchatten.
@@ -1028,12 +1061,13 @@ ${texttak("            ")}
   const bilageblock = bilagaSamling
     ? `
 
-      // Bilagor (0.80.0, #300): filen i sitt eget dokument, nyckeln är meddelandets id. Aldrig uppdatering eller radering.
-      match /${bilagaSamling}/{mid} {
+      // Bilagor (0.80.0, #300): filen i sitt eget dokument, bunden till sitt meddelande. Aldrig uppdatering eller radering.
+      match /${bilagaSamling}/{nyckel} {
         allow read: if opsISamtal(sid);
         allow create: if opsISamtal(sid)
           && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
-          && opsMeddelandebilagaGiltig(request.resource.data);
+          && opsMeddelandebilagaGiltig(request.resource.data)
+          && opsBundenBilaga(sid, nyckel, request.resource.data);
         allow update, delete: if false;
       }`
     : "";

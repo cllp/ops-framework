@@ -7,6 +7,7 @@ import { CHATTINFO_TEXTER } from "../components/OpsChattinfo.jsx";
 import { OpsSamtal } from "../components/OpsMeddelanden.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla, samtalsnotiser } from "../data/samtalskalla.js";
+import { levandeKalla } from "./levandeKalla.js";
 
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const PDF = "data:application/pdf;base64,JVBERi0=";
@@ -74,7 +75,11 @@ describe("Chattinfo", () => {
     await s.skicka(p.id, { text: "", av: "anna", bilaga: pdf() });
     render(<OpsSamtal kalla={s} uid="bo" samtal={p} rubrik="Anna" namnFor={namnFor} medlemmar={MEDLEMMAR} mejl="anna@example.com" />);
     expect(screen.getByRole("link", { name: "Mejl" })).toHaveAttribute("href", "mailto:anna@example.com");
-    expect(screen.getByRole("button", { name: "Tysta notiser" })).toBeInTheDocument();
+    const klocka = screen.getByRole("button", { name: "Tysta notiser" });
+    expect(klocka).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(klocka);
+    expect(await screen.findByRole("button", { name: "Notiser är tysta" })).toHaveAttribute("aria-pressed", "true");
+    expect(await s.tystFor(p.id, "bo")).toBe(true);
     expect(screen.getByRole("button", { name: "Sök i samtalet" })).toHaveAttribute("data-sok-samtal", "");
     expect(screen.queryByRole("heading", { name: "Chattinfo" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Chattinfo" }));
@@ -118,5 +123,91 @@ describe("Chattinfo", () => {
     expect(screen.getByText("Inga dokument.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Länkar 0" }));
     expect(screen.getByText("Inga länkar.")).toBeInTheDocument();
+  });
+});
+
+/*
+ * ══ Granskningen av PR 307 ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Fyra fynd med var sitt prov: gamla bilagor i panelen, ingen omläsning för varje meddelande, de nyaste filerna först, och
+ * samtalets deltagare i stället för gruppens medlemmar.
+ */
+describe("Chattinfo efter granskningen av PR 307", () => {
+  it("⛔ en bilaga i 0.77.0-form syns i Bilder och ritas i bubblan", async () => {
+    const minne = createMemorySource({});
+    let tid = 1_700_000_000_000;
+    const s = createSamtalskalla({ kalla: minne, klocka: () => (tid += 1000), bilagor: true, bilagaSamling: "bilagor" });
+    const p = await s.oppnaPrivat({ groupId: "g", uid: "anna", annan: "bo" });
+    // Skrivet som 0.77.0 skrev det: hela filen på meddelandet, och inget eget dokument.
+    await minne.create(`samtal/${p.id}/meddelanden`, { text: "", av: "anna", tid: (tid += 1000), bilaga: bild({ namn: "gammal.png" }) });
+    await s.skicka(p.id, { text: "", av: "anna", bilaga: bild({ namn: "ny.png" }) });
+    const { container } = render(<OpsSamtal kalla={s} uid="bo" samtal={p} rubrik="Anna" namnFor={namnFor} medlemmar={MEDLEMMAR} />);
+    const logg = await screen.findByRole("log");
+    await waitFor(() => expect(logg.querySelectorAll('[data-meddelande-bilaga="bild"]')).toHaveLength(2));
+    expect(within(logg).getByRole("img", { name: /gammal\.png$/ })).toBeInTheDocument();
+    expect(container.querySelector('[data-meddelande-bilaga="trasig"]')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Chattinfo" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "Bilder 2" }));
+    const bilder = await screen.findByRole("tabpanel", { name: "Bilder 2" });
+    // De nyaste först, och ingen dubblett.
+    expect(within(bilder).getAllByRole("img").map((i) => i.getAttribute("alt"))).toEqual(["ny.png", "gammal.png"]);
+  });
+
+  it("⛔ tre textmeddelanden ger inga nya läsningar av filerna, och en ny bild högst en", async () => {
+    const live = levandeKalla();
+    let anrop = 0;
+    const raknad = {
+      ...live,
+      read: (/** @type {string} */ c, /** @type {string} */ id) => {
+        if (c.endsWith("/bilagor")) anrop += 1;
+        return live.read(c, id);
+      },
+      list: (/** @type {string} */ c, /** @type {any} */ q) => {
+        if (c.endsWith("/bilagor")) anrop += 1;
+        return live.list(c, q);
+      },
+    };
+    let tid = 1_700_000_000_000;
+    const s = createSamtalskalla({ kalla: raknad, klocka: () => (tid += 1000), bilagor: true, bilagaSamling: "bilagor" });
+    const p = await s.oppnaPrivat({ groupId: "g", uid: "anna", annan: "bo" });
+    await s.skicka(p.id, { text: "", av: "anna", bilaga: bild({ namn: "forsta.png" }) });
+    render(<OpsSamtal kalla={s} uid="bo" samtal={p} rubrik="Anna" namnFor={namnFor} medlemmar={MEDLEMMAR} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Chattinfo" }));
+    await screen.findByRole("tab", { name: "Bilder 1" });
+    await waitFor(() => expect(screen.getByRole("log").querySelectorAll('[data-meddelande-bilaga="bild"]')).toHaveLength(1));
+    const fore = anrop;
+    // Golv: panelen läste listan minst en gång, annars mäter provet ingenting.
+    expect(fore).toBeGreaterThanOrEqual(1);
+    for (const text of ["ett", "två", "tre"]) await s.skicka(p.id, { text, av: "anna" });
+    await screen.findByText("tre");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(anrop - fore).toBe(0);
+    await s.skicka(p.id, { text: "", av: "anna", bilaga: bild({ namn: "andra.png" }) });
+    expect(await screen.findByRole("tab", { name: "Bilder 2" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("log").querySelectorAll('[data-meddelande-bilaga="bild"]')).toHaveLength(2));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(anrop - fore).toBeLessThanOrEqual(1);
+  });
+
+  it("⛔ lasBilagor ger de nyaste filerna, och fler när taket nås", async () => {
+    let tid = 1_700_000_000_000;
+    const s = createSamtalskalla({ kalla: createMemorySource({}), klocka: () => (tid += 1000), bilagor: true, bilagaSamling: "bilagor", sida: 3 });
+    const p = await s.oppnaPrivat({ groupId: "g", uid: "anna", annan: "bo" });
+    for (const n of [1, 2, 3, 4, 5]) await s.skicka(p.id, { text: "", av: "anna", bilaga: bild({ namn: `b${n}.png` }) });
+    const svar = await s.lasBilagor(p.id);
+    expect(svar.rader.map((r) => r.namn)).toEqual(["b5.png", "b4.png", "b3.png"]);
+    expect(svar.fler).toBe(true);
+  });
+
+  it("⛔ Medlemmar i ett privat samtal är de två deltagarna, inte gruppens alla", async () => {
+    const fyra = [
+      ...MEDLEMMAR,
+      { userId: "cia", namn: "Cia Berg", typ: "person", status: "aktiv" },
+      { userId: "dan", namn: "Dan Ek", typ: "person", status: "aktiv" },
+    ];
+    const { s, p } = await kalla();
+    render(<OpsSamtal kalla={s} uid="bo" samtal={p} rubrik="Anna" namnFor={(u) => fyra.find((m) => m.userId === u)?.namn ?? u} medlemmar={fyra} />);
+    fireEvent.click(screen.getByRole("button", { name: "Chattinfo" }));
+    const panel = await screen.findByRole("tabpanel", { name: "Medlemmar 2" });
+    expect([...panel.querySelectorAll("[data-chattinfo-medlem]")].map((e) => e.getAttribute("data-chattinfo-medlem")).sort()).toEqual(["anna", "bo"]);
   });
 });
