@@ -92,7 +92,7 @@ Ramverket har redan en katalog (`src/lib/katalog.js`, `createCatalogSource`). De
 ### Byggs om, eftersom SessionStudios form inte får plats här
 
 - **Gruppens omfång.** Varje rad bär `groupId`. Källan är `createBibliotekskalla({ source, collection, groupId })`, samma form som `createCatalogSource`: samlingsnamnet kommer utifrån, frågan är alltid `where: { groupId }`, och en källa utan grupp kastas. Ramverket skriver aldrig samlingsnamnet.
-- **Reglerna.** `bibliotekregelfragment(namn)` limmas in efter `regelfragment()`, och använder `opsArMedlem` mot radens `groupId`. En fråga utan grupp nekas, en medlem i en annan grupp nekas, radering nekas. Det är katalogens lås, med en annan skrivroll: en medlem får skapa, eftersom en anteckning är medlemmens bidrag och inte gruppens konfiguration. `skapadAv.uid` ska vara den inloggade, samma skäl som ändringsloggen. ADR-020 kopieras inte. Ingen klientfiltrering av synlighet, ingen `linkedGroupIds`, inget träd.
+- **Reglerna.** `bibliotekregelfragment(namn)` limmas in efter `regelfragment()`, och använder `opsArMedlem` mot radens `groupId`. En fråga utan grupp nekas, en medlem i en annan grupp nekas, och i skiva 1 nekas radering. Raderingen för författaren och admin kommer i skivan direkt efter (CP:s beslut, se Regelfragmentet). Det är katalogens lås, med en annan skrivroll: en medlem får skapa, eftersom en anteckning är medlemmens bidrag och inte gruppens konfiguration. `skapadAv.uid` ska vara den inloggade, samma skäl som ändringsloggen. ADR-020 kopieras inte. Ingen klientfiltrering av synlighet, ingen `linkedGroupIds`, inget träd.
 - **Typernas namn** blir ramverkets svenska nycklar: `anteckning` och `lank`. SessionStudios engelska id följer med i analysen som källa, och skrivs inte in i databasen.
 - **Identiteten** är `byggSkapare`, inte ett fritt `ownerId` plus ett denormaliserat `createdBy`.
 
@@ -115,8 +115,15 @@ Ett fragment, `bibliotekregelfragment(samlingsnamn)`:
 - Läsa: aktiv medlem i radens grupp.
 - Skapa: aktiv medlem i radens grupp, `skapadAv.uid` är den inloggade, `typ` är `anteckning` eller `lank`, fälten är exakt listan modellen äger.
 - Ändra: författaren, eller admin i gruppen. `groupId` och `typ` står stilla. En medlem ändrar inte någon annans rad.
-- Radera: aldrig. Arkivering kan komma senare, som i katalogen. Skiva 1 har ingen radering och inget arkivfält, så att fragmentet inte lovar ett fält vyn inte har.
-  **Det här är ett öppet val för CP, inte ett beslut.** Det skiljer sig från SessionStudio, där ägaren kan radera sin post. Följden av "aldrig" är att en felaktig post, en länk till fel ställe eller en anteckning i fel grupp, ligger kvar för alltid tills ett arkivfält finns. Den kan rättas av författaren eller en admin, men inte tas bort. Alternativen är radering för författaren och admin, eller ett arkivfält redan i skiva 1.
+- Radera: författaren, eller admin i gruppen. Inget arkivfält.
+  ⛔ **Beslut av CP 2026-10-08:** "Radera, författare och admin". Valet stod öppet i analysen, mellan tre vägar:
+  - radering för författaren och admin
+  - ett arkivfält
+  - aldrig radering
+
+  Med "aldrig" hade en felaktig post, en länk till fel ställe eller en anteckning i fel grupp legat kvar för alltid. Samma sak hade gällt en rad som skrevs före en skärpning av regeln och sedan inte går att läsa. Radering är samma yta som SessionStudio, där ägaren raderar sin post. Den kräver ingen ny datamodell, bara en regel för vem som får ta bort (regel 13: ingen extra tyngd). Ett arkivfält hade krävt ett fält, ett filter i vyn och prov för båda. Det kan komma senare, om någon behöver ta fram en post igen.
+
+  **Ordningen:** skiva 1 (#304) går ut utan radering, eftersom den redan är granskad. Raderingen kommer som en egen liten skiva direkt efter, med regeln `allow delete` för författaren och admin, ett prov för var och en som inte får radera, och en knapp i detaljvyn.
 
 Fält: `groupId`, `typ`, `rubrik`, `text`, `url`, `skapadAv`, `skapad`, `andrad`. En anteckning har `text` och saknar `url`. En länk har `url` på `http` eller `https` och saknar `text`. Båda har rubrik.
 
@@ -125,7 +132,7 @@ Fält: `groupId`, `typ`, `rubrik`, `text`, `url`, `skapadAv`, `skapad`, `andrad`
 - **Trim.** En rubrik eller text som bara är mellanslag är tom. Regeln prövar `trim().size() > 0`, samma som modellen gör med `trim()`.
 - **Adressformen.** En länks adress prövas mot ett och samma `RegExp`, exporterat ur modellen. Regeln får det som `matches()` genom `regelRegex`, samma mönster som externa datakällor (#216). Ett handskrivet uttryck i regeln och ett `new URL()` i klienten är två sanningar: regeln släpper då igenom `http://exa mple`, som klienten sedan inte kan läsa.
 
-Läsningen ska dessutom tåla en rad som ändå är trasig, till exempel en som skrevs före en skärpning. En sådan rad märks och hoppas över, med ett synligt fel. Den släcker inte resten av gruppens bibliotek, eftersom den inte går att radera.
+Läsningen ska dessutom tåla en rad som ändå är trasig, till exempel en som skrevs före en skärpning. En sådan rad märks och hoppas över, med ett synligt fel. Den släcker inte resten av gruppens bibliotek, eftersom den i skiva 1 inte går att radera. När raderingen finns kan författaren eller en admin ta bort den.
 
 ## Vilka av de åtta som tas först
 
@@ -139,6 +146,6 @@ Sedan `file` och `image`, som `fil` och `bild`, när appen skickar in en lagring
 
 1. **Skiva 1.** Datakälla, regelfragment, listvy och detaljvy för `anteckning` och `lank`. Prov röda utan spärren och gröna med. Montage mot förebilden, och de tre listorna. Ingen annan typ.
 2. **Skiva 2.** `fil` och `bild`, med appens lagringssökväg och det befintliga lagringsfragmentet. Listläsningen bär metadata, inte filens byte.
-3. **Senare, var för sig, om en app ber om det.** Sökindex om klientfiltret tar slut. Arkiv i stället för att låta en rad ligga kvar. En plats på händelsen där en modul kan peka på en bibliotekspost (beslut 0003, nivå 2). Musiktyperna som en egen app.
+3. **Senare, var för sig, om en app ber om det.** Sökindex om klientfiltret tar slut. Arkiv, om någon behöver ta fram en raderad post igen. En plats på händelsen där en modul kan peka på en bibliotekspost (beslut 0003, nivå 2). Musiktyperna som en egen app.
 
 Skiva 1 skrivs först när den här texten ligger i en PR. Ärende #192 får kommentaren när någon med skrivrätt lägger in den, eller en länk till den här filen.
