@@ -5,7 +5,7 @@ CP:s två kommentarer samma dag, 2026-09-30: riktningen (GUI och de flesta artef
 
 Den här texten är analysen. Den ligger i `docs/` eftersom passet inte kan skriva en kommentar på ärendet: GitHub-MCP-anslutningen svarar med fel, och den här miljöns `gh` får bara läsa. Ingen bibliotekskod följer med i den här leveransen.
 
-Mätt mot `cllp/sessions-platform` på `main` 2026-10-07, och mot ramverkets `main` `1d1bf66` (0.78.0). Siffrorna är rader där filen lästs, och byte ur git-trädet där bara storleken mätts.
+Mätt mot `cllp/sessions-platform` på `main` `f305de6` (2026-09-28), och mot ramverkets `main` `1d1bf66` (0.78.0). Siffrorna är rader där filen lästs, och byte ur git-trädet där bara storleken mätts.
 
 ## Vad som fungerar, och var tiden sitter
 
@@ -20,7 +20,7 @@ De åtta typerna är en lista, `ALL_ARTIFACT_TYPES` i `packages/shared/constants
 
 Ytan som är värd att behålla är liten jämfört med resten:
 
-- Flikar per typ, och en flik för allt. `useMyLibraryTabs.js` är 231 rader. En flik syns när gruppen har poster av den typen.
+- Flikar per typ, och en flik för allt. `useMyLibraryTabs.js` är 231 rader och hör till det personliga biblioteket ("Mitt bibliotek"), inte till gruppens. Där syns en flik när det finns poster av den typen. Gruppens bibliotek har sina egna flikar inne i `GroupResourcesPanel.jsx`.
 - Listraden. `LibraryArtifactListRow.jsx` är 152 rader: ikon, huvud, högerkant, och en osynlig knapp över raden så att radens egna knappar inte hamnar inuti en annan knapp. Den kommentaren pekar på ett axe-fel (`nested-interactive`, GitHub #1701 i sessions-platform).
 - Tomt läge, sökfält och ett formulär per enkel typ. Fälten för de enkla typerna plus `recording` och `rider` står i `builtinTypeElements.js` (248 rader): titel, text, url, fil.
 - En detaljvy. För en låt är den `SongDetailView.jsx`, 1024 rader, med sex flikar: info, noter, ackord, dokument, ljud, länkar.
@@ -52,6 +52,23 @@ Tre sätt att säga "den här posten hör ihop med något", och de får inte bla
 3. Synlighet. `linkedTo`, `linkedGroupIds` (tak 50, och reglernas reserv läser bara index 0 till 19), `sharedWithGroupIds`. Effektiv åtkomst är postens egen lista plus alla förfäders listor, räknad i klienten.
 
 Läsregeln för `artifacts` är ADR-020: `allow read: if isAuth()`. Vilken inloggad användare som helst kan hämta vilket dokument som helst. `visibility: "private"` hålls i klienten (`packages/shared/artifactVisibility.js`, 329 rader). Beslutstexten säger att den medlemsmedvetna regeln var grön i proven och röd live, eftersom Firestore inte kan bevisa en fråga med `array-contains-any` och en kedja av `exists()`. Det är permissions-träsket. Samma klass som `blockedDates` i ramverkets regel 13.
+
+SessionStudios egen väg bort från ADR-020 är hybriddoktrinen (ADR-021): relationsdata, och biblioteket först, flyttar till Postgres där radernas behörighet är en join med RLS, medan realtid som chatt stannar i Firestore. Ramverket behöver inte den vägen för skiva 1, av skälet i nästa avsnitt.
+
+## Varför ramverkets regel inte hamnar i permissions-träsket
+
+SessionStudio föll på frågans form, inte på att det fanns en regel. Två mätta fall:
+
+- **`artifacts` (ADR-020).** Prenumerationen hämtade flera gruppers poster i en fråga med `array-contains-any` över `linkedGroupIds`. Läsregeln måste då bevisa, för hela frågan på en gång, att varje möjlig träff ligger i någon av den läsandes grupper. Regeln var en OR-kedja över JWT-anspråk och medlemskapsdokument, och Firestores frågebevis klarar inte den kedjan. Grön i enhetsproven, `permission-denied` i den riktiga SDK:n.
+- **`blockedDates` (0.9.328 till 0.9.329).** I 0.9.328 fick läsningen en regel som provade medlemskap per grupp i `visibleToGroupIds`, alltså ett `exists(memberships/...)` per index. I 0.9.329 föll den på Firestores tak för antal `exists()` i en utvärdering (`subscribe_blocked_shared_error`), och backades till JWT-anspråken.
+
+Ramverkets regel har ingen av de två formerna:
+
+1. **En likhet, inte en mängd.** Raden bär ett `groupId`, en sträng, och frågan är alltid `where groupId == <gruppen>`. Firestore bevisar en sådan fråga genom att sätta in värdet ur frågan i regeln. Det finns inget `array-contains-any`, ingen lista av grupper att pröva och ingen OR mellan källor.
+2. **Ett bestämt dokument, inte en kedja.** `opsArMedlem(groupId)` slår upp exakt ett dokument, `memberships/<uid>|<groupId>`, vars nyckel är härledd ur den inloggade och radens grupp. Det är ett `exists()` och ett `get()` på samma väg, oavsett hur många grupper personen har. Taket för antal uppslag nås inte, eftersom antalet inte växer med datan.
+3. **Ingen JWT-fördröjning.** Medlemskapet läses ur dokumentet, inte ur anspråk i token. En nyss tillagd medlem behöver ingen ny token för att få läsa.
+
+Det är samma form som katalogen och samtalen redan har, och den är provad mot emulatorn med riktiga frågor. Kostnaden är att en fråga över flera grupper inte går att ställa. Det är avsett: ramverket har ett omfång, den aktiva gruppen.
 
 Ovanpå det: egna mallar (`artifactTemplates`, `ElementRenderer` med många fältslag), ett personligt bibliotek, en flik "delat", publika gruppresurser, sessionsbibliotek på en händelse, idéinspelare, kopiera mellan mål, personliga taggar vid sidan av gruppens taggar, och MIME-routing som byter `type` när en fil råkar vara en bild. Äldre fältnamn (`artifactType`, `url`, `audioUrl`) finns kvar i kommentarerna fast skrivningen ska använda `type` och `fileUrl`.
 
@@ -99,8 +116,16 @@ Ett fragment, `bibliotekregelfragment(samlingsnamn)`:
 - Skapa: aktiv medlem i radens grupp, `skapadAv.uid` är den inloggade, `typ` är `anteckning` eller `lank`, fälten är exakt listan modellen äger.
 - Ändra: författaren, eller admin i gruppen. `groupId` och `typ` står stilla. En medlem ändrar inte någon annans rad.
 - Radera: aldrig. Arkivering kan komma senare, som i katalogen. Skiva 1 har ingen radering och inget arkivfält, så att fragmentet inte lovar ett fält vyn inte har.
+  **Det här är ett öppet val för CP, inte ett beslut.** Det skiljer sig från SessionStudio, där ägaren kan radera sin post. Följden av "aldrig" är att en felaktig post, en länk till fel ställe eller en anteckning i fel grupp, ligger kvar för alltid tills ett arkivfält finns. Den kan rättas av författaren eller en admin, men inte tas bort. Alternativen är radering för författaren och admin, eller ett arkivfält redan i skiva 1.
 
 Fält: `groupId`, `typ`, `rubrik`, `text`, `url`, `skapadAv`, `skapad`, `andrad`. En anteckning har `text` och saknar `url`. En länk har `url` på `http` eller `https` och saknar `text`. Båda har rubrik.
+
+**Regeln och klientens kontroll kommer ur samma källa.** Det som regeln prövar och det som modellen (`postFel`) prövar ska vara samma sak, annars kan en rad gå igenom regeln och sedan avvisas av klienten, eller tvärtom. Två krav följer:
+
+- **Trim.** En rubrik eller text som bara är mellanslag är tom. Regeln prövar `trim().size() > 0`, samma som modellen gör med `trim()`.
+- **Adressformen.** En länks adress prövas mot ett och samma `RegExp`, exporterat ur modellen. Regeln får det som `matches()` genom `regelRegex`, samma mönster som externa datakällor (#216). Ett handskrivet uttryck i regeln och ett `new URL()` i klienten är två sanningar: regeln släpper då igenom `http://exa mple`, som klienten sedan inte kan läsa.
+
+Läsningen ska dessutom tåla en rad som ändå är trasig, till exempel en som skrevs före en skärpning. En sådan rad märks och hoppas över, med ett synligt fel. Den släcker inte resten av gruppens bibliotek, eftersom den inte går att radera.
 
 ## Vilka av de åtta som tas först
 
