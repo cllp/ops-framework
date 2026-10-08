@@ -85,6 +85,20 @@
  * dokumentet med `tx.get`, jämför och skriver med `tx.update`. Se README, avsnittet om mejl. Den står
  * inte i `OPERATIONS` av samma skäl som `batch`: en källa som inte kan göra steget atomärt ska säga
  * nej, inte låtsas med en läsning följd av en skrivning.
+ *
+ * ⛔ 8. `createNew` ÄR FRIVILLIG, OCH DEN SKRIVER ALDRIG ÖVER (0.80.1, granskningen av lifehub.app PR 117, punkt 4).
+ *
+ * `create` med ett eget id ersätter posten som redan har det id:t (se `create` nedan), precis som `setDoc`. För en
+ * rad vars id är härlett ur innehållet, som en inbjudan, är det fel riktning: mätt i lifehub skrev en inbjudan från
+ * en grupp över en inbjudan från en annan, eftersom de två fick samma id. `createNew(samling, data)` skriver posten
+ * bara om id:t är ledigt, i samma atomära steg som frågan, och svarar `{ created, row }`: `created` säger om posten
+ * skrevs, `row` är den skrivna posten, eller den som redan fanns (`null` om den hann försvinna). Ett id krävs: utan
+ * id finns inget att krocka med, och då är det en vanlig `create`.
+ *
+ * ⛔ EN APPS ADMIN-ADAPTER HAR SAMMA SKYLDIGHET, och där är den `ref.create(falt)`, som Firestore avvisar med
+ * `ALREADY_EXISTS` (kod 6) när dokumentet finns. Adaptern fångar just den koden, läser raden och svarar
+ * `{ created: false, row }`; alla andra fel går vidare. Se README om inbjudningar. Den står inte i `OPERATIONS`
+ * av samma skäl som `updateIf`: en källa som bara kan läsa och sedan skriva ska säga nej, inte låtsas.
   */
 
 /**
@@ -105,6 +119,8 @@
  *   ⛔ FRIVILLIG, OCH ALLT ELLER INGET. Se regel 6 nedan.
  * @property {(collectionName: string, id: string, villkor: Record<string, unknown>, data: Partial<T>) => Promise<{ updated: boolean, row: T | null }>} [updateIf]
  *   (0.76.2) FRIVILLIG: skriver `data` bara om likhetsvillkoren stämmer, i samma atomära steg som läsningen. Se regel 7 nedan.
+ * @property {(collectionName: string, data: Partial<T> & { id: string }) => Promise<{ created: boolean, row: T | null }>} [createNew]
+ *   (0.80.1) FRIVILLIG: skriver posten bara om id:t är ledigt, och skriver aldrig över. Se regel 8 ovan.
  */
 
 /**

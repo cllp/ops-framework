@@ -233,9 +233,10 @@ describe("⛔ inbjudningarna vid skapandet: efter commit, best effort, ett svar 
         minne: m,
         kalla: /** @type {any} */ ({
           ...m,
-          create: async (/** @type {string} */ c, /** @type {any} */ d) => {
+          // ⛔ En inbjudan skapas med createNew sedan 0.80.1, aldrig med create. Felet läggs där skrivningen sker.
+          createNew: async (/** @type {string} */ c, /** @type {any} */ d) => {
             if (c === "invitations" && d.epost === "trasig@example.com") throw new Error("nätverket föll");
-            return m.create(c, d);
+            return /** @type {any} */ (m).createNew(c, d);
           },
         }),
       };

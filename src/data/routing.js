@@ -111,6 +111,14 @@ export function createRoutingSource(config) {
     typeof config.fallback.updateIf === "function" ||
     Object.values(routes).some((k) => typeof k.updateIf === "function");
 
+  /*
+   * ⛔ createNew SKICKAS VIDARE PÅ SAMMA SÄTT (0.80.1). `createInvitationService` kräver den, och en
+   * routande källa som svalde den hade nekat en uppsättning där inbjudningarnas källa kan göra det.
+   */
+  const anyCanCreateNew =
+    typeof config.fallback.createNew === "function" ||
+    Object.values(routes).some((k) => typeof k.createNew === "function");
+
   /** @type {Record<string, any>} */
   const source = {
     name: "routing",
@@ -178,6 +186,22 @@ export function createRoutingSource(config) {
         );
       }
       return target.updateIf(collectionName, id, villkor, data);
+    };
+  }
+
+  if (anyCanCreateNew) {
+    /** @param {string} collectionName @param {any} data */
+    source.createNew = async (collectionName, data) => {
+      const target = pick(collectionName);
+      if (typeof target.createNew !== "function") {
+        // ⛔ KASTAR MED SAMLINGENS NAMN. En läsning följd av en create är den kontroll regel 2
+        // förbjuder, och den hade sett ut som ett skydd mot att skriva över.
+        throw new Error(
+          `createRoutingSource: källan för "${collectionName}" har inte createNew. ` +
+            "En läsning följd av en create skyddar inte mot att skriva över.",
+        );
+      }
+      return target.createNew(collectionName, data);
     };
   }
 

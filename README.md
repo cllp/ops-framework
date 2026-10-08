@@ -416,7 +416,7 @@ Firestore i morgon, SQL bakom ett API sedan.
 | `createFirestoreSource({ db, sdk })` | Firestore. SDK:n skickas in, ramverket importerar den aldrig |
 | `createPostgresSource({ query })` | Postgres, till exempel Cloud SQL. Appen skickar in en funktion som kör frågan |
 | `createHttpSource({ basUrl, getToken?, load?, headers? })` | **ett eget API över HTTP, alltså REST.** Kontraktets fem operationer ÄR CRUD, så översättningen är en rad var, och vilken databas som står bakom API:et syns inte här. ⛔ `fetch` **kastar inte på 404 eller 500**, bara när anropet aldrig kom fram: den som skriver `await (await fetch(u)).json()` får serverns felsida parsad som data. Därför kontrolleras `res.ok` på varje operation, så kontraktets regel 2 håller. ⛔ **404 betyder olika saker för olika operationer**: på `read` är det `null` ("finns inte", regel 3), på `update` och `remove` är det ett fel, eftersom någon bad om en ändring av något som inte finns. ⛔ Felet bär `status`, så appen kan skilja 401 (logga in igen) från 500 (försök senare) utan att matcha på text. ⛔ Ett 200-svar som inte är JSON är ett fel, för en proxy eller ett inloggningsskal svarar 200 med HTML och en tyst `{}` hade blivit "inga poster". ⛔ Styrparametrarna heter `_sort`, `_order` och `_limit`: en samling med ett fält som heter `sortBy` hade annars krockat, och symptomet är inte ett fel utan en lista som ibland inte lyder. ⛔ Token hämtas **per anrop**, aldrig en gång vid uppstart, för en token som gick ut medan appen stod öppen ser ut som att allt slutade fungera av sig självt. ⛔ **Ingen `subscribe`**, med flit (CP 2026-09-22): ett REST-API kan inte pusha, och `useLiveCollection` rapporterar då `realtime: false` i stället för att en pollingloop låtsas. ⛔ GraphQL är en **annan adapter**, inte ett läge här: den har en endpoint och ett frågedokument, och vilka fält som hämtas är appens beslut |
-| `createRoutingSource({ standard, routes })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `canSubscribe(collectionName)` svarar, `subscribe` **kastar med samlingens namn** för en som inte kan, och `useLiveCollection` frågar först och rapporterar `realtime: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid. ⛔ `updateIf` (0.76.3) skickas vidare på samma sätt: metoden finns när minst en källa har den, och anropet kastar med samlingens namn när just den källan saknar den. Utan vidarekopplingen hade `createMailSender` nekat den routande källan även när köns källa kan göra anspråket |
+| `createRoutingSource({ standard, routes })` | **väljer källa per samling.** Doktrinen är två databaser parallellt för olika ändamål, och den fördelningen går per samling, inte per app. Kräver en `standard`, så en glömd rutt blir "allt annat bor här" i stället för ett fel som dyker upp först den dag någon öppnar just den vyn. Kontrollerar varje rutt vid uppstart. ⛔ Realtid blir en fråga per samling: `canSubscribe(collectionName)` svarar, `subscribe` **kastar med samlingens namn** för en som inte kan, och `useLiveCollection` frågar först och rapporterar `realtime: false`. Att exponera realtid bara när alla källor kan hade släckt den överallt för en enda långsam källa; att exponera den alltid hade gett en lyssnare som aldrig levererar, alltså en vy som väntar för alltid. ⛔ `updateIf` (0.76.3) skickas vidare på samma sätt: metoden finns när minst en källa har den, och anropet kastar med samlingens namn när just den källan saknar den. Utan vidarekopplingen hade `createMailSender` nekat den routande källan även när köns källa kan göra anspråket. `createNew` (0.80.1) skickas vidare likadant, för `createInvitationService` |
 | `OpsDataProvider` | ger appen sin källa |
 | `useDataSource`, `useCollection`, `useDocument` | React-sidan, med `loading`, `error` och `data` åtskilda |
 | `useLiveCollection` | samma som `useCollection`, men strömmande när källan kan. Se realtidsstycket nedan |
@@ -752,6 +752,28 @@ await tjanst.accepteraInbjudningar({ uid, epost });            // vid inloggning
 ⛔ **E-POSTEN JÄMFÖRS I GEMENER, ALLTID.** `CP@Staiger.se` och `cp@staiger.se` är samma brevlåda och två strängar. Matchas de inte loggar personen in och möter en tom app utan förklaring.
 
 ⛔ **EN INBJUDANS ROLL GÅR INTE ATT ÄNDRA I EFTERHAND**, och inte dess grupp. En inbjudan är ett löfte som någon redan fått: höjs rollen blir en accepterad inbjudan till medlem plötsligt ett ägarskap, utan att den som accepterade såg det. Ska den ändras återkallas inbjudan och en ny skrivs.
+
+⛔ **FRÅN KLIENTEN GÅR STATUSEN BARA FRÅN `vantar` TILL `aterkallad` (0.80.1).** Före 0.80.1 fick en admin sätta `status` till vad som helst, och i lifehub sattes en återkallad ägarinbjudan tillbaka till `vantar` (granskningen av lifehub.app PR 117, punkt 3). Accepten och ett nytt utskick sker på serversidan med Admin SDK, förbi reglerna. En accepterad inbjudan går inte heller att "återkalla" i efterhand.
+
+⛔ **ID:T ÄR `inbjudningsId(groupId, epost)`, ALLTSÅ GRUPP-ID:T, `|` OCH SHA-256 AV ADRESSEN (0.80.1).** Före 0.80.1 var det `${groupId}_${epost}`, och `_` är lagligt i ett grupp-id: `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` gav samma dokument, och den andra inbjudan skrev över den första (punkt 4 i samma granskning). `|` går inte att skriva i ett grupp-id (`ID_FORM`) och finns aldrig i en hash, så två par kan inte dela id. Adressen står inte i klartext i id:t, bara i fältet `epost`, och det är på fältet varje uppslag görs. En rad med det gamla id:t hittas därför som förut, både av `bjudIn` (som återanvänder en väntande rad) och av `accepteraInbjudningar`.
+
+⛔ **EN INBJUDAN SKRIVS ALDRIG ÖVER, OCH `kalla.createNew` KRÄVS (0.80.1).** `create` med ett eget id ersätter (datakontraktet), och det var så den ena gruppens inbjudan försvann. `bjudIn` skapar raden med `createNew` (kontraktets regel 8), som bara skriver om id:t är ledigt, och kastar med skälet när en accepterad eller återkallad rad redan har id:t. `createInvitationService`, och därmed `createGroupService`, nekar en källa utan `createNew` när tjänsten byggs. `createMemorySource` har den, och `createRoutingSource` skickar den vidare. Appens Admin-adapter skriver den med `ref.create`, som Firestore avvisar med `ALREADY_EXISTS` (kod 6) när dokumentet finns:
+
+```js
+async createNew(samling, data) {
+  const { id, ...falt } = data;
+  if (!id) throw new Error("createNew: ett id krävs.");
+  const ref = db.collection(samling).doc(id);
+  try {
+    await ref.create(falt);
+    return { created: true, row: { id, ...falt } };
+  } catch (fel) {
+    if (fel?.code !== 6) throw fel;
+    const snap = await ref.get();
+    return { created: false, row: snap.exists ? { ...snap.data(), id: snap.id } : null };
+  }
+}
+```
 
 **Vyerna:**
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { medlemskapsId } from "../lib/grupp.js";
 import { createMemorySource } from "../data/adapters.js";
-import { createInvitationService } from "../node/inbjudan.js";
+import { createInvitationService, inbjudningsId } from "../node/inbjudan.js";
 
 /**
  * Fas 2.5: inbjudan och acceptans (#137).
@@ -277,5 +277,91 @@ describe("fabriken", () => {
     expect(() => createInvitationService({ kalla: /** @type {any} */ ({}) })).toThrow(
       /createInvitationService: en datakälla med read, list och create krävs/,
     );
+  });
+
+  it("⛔ kräver createNew, och säger det när tjänsten byggs (0.80.1)", () => {
+    const { createNew: _bort, ...utan } = createMemorySource();
+    expect(() => createInvitationService({ kalla: /** @type {any} */ (utan) })).toThrow(/createInvitationService: datakällan saknar createNew/);
+  });
+});
+
+/*
+ * ⛔ ID:T KAN INTE KROCKA MELLAN GRUPPER (0.80.1, granskningen av lifehub.app PR 117, punkt 4). Före 0.80.1 var
+ * id:t `${groupId}_${epost}`, och `_` är lagligt i ett grupp-id. Mätt i lifehub: `acme` + `team_bob@x.se` skrev
+ * över `acme_team` + `bob@x.se`.
+ */
+describe("⛔ inbjudans id", () => {
+  it("acme + team_bob@x.se och acme_team + bob@x.se ger olika id", () => {
+    expect(inbjudningsId("acme", "team_bob@x.se")).not.toBe(inbjudningsId("acme_team", "bob@x.se"));
+  });
+
+  it("samma grupp och samma adress ger samma id, oavsett versaler", () => {
+    expect(inbjudningsId("acme", "Bob@X.se")).toBe(inbjudningsId("acme", "bob@x.se"));
+    expect(inbjudningsId("acme", "bob@x.se")).toMatch(/^acme\|[0-9a-f]{64}$/);
+  });
+
+  it("adressen står inte i klartext i id:t", () => {
+    expect(inbjudningsId("acme", "bob@x.se")).not.toContain("bob");
+  });
+
+  it("⛔ ett grupp-id med avgränsaren kastar", () => {
+    expect(() => inbjudningsId("acme|x", "bob@x.se")).toThrow(/innehåller avgränsaren/);
+    expect(() => inbjudningsId("", "bob@x.se")).toThrow(/både groupId och epost krävs/);
+  });
+
+  it("⛔ två grupper vars namn bara skiljer i understrecket får var sin rad", async () => {
+    const { tjanst, kalla } = bygg({
+      memberships: [
+        { id: medlemskapsId(AGARE, "acme"), userId: AGARE, groupId: "acme", roll: "agare", typ: "person", status: "aktiv" },
+        { id: medlemskapsId(AGARE, "acme_team"), userId: AGARE, groupId: "acme_team", roll: "agare", typ: "person", status: "aktiv" },
+      ],
+    });
+    const ett = await tjanst.bjudIn({ avUid: AGARE, groupId: "acme", epost: "team_bob@x.se" });
+    const tva = await tjanst.bjudIn({ avUid: AGARE, groupId: "acme_team", epost: "bob@x.se" });
+    expect(ett.id).not.toBe(tva.id);
+    const rader = await kalla.list("invitations", {});
+    expect(rader.map((r) => [r.groupId, r.epost]).sort()).toEqual([["acme", "team_bob@x.se"], ["acme_team", "bob@x.se"]]);
+  });
+});
+
+describe("⛔ en befintlig inbjudan skrivs aldrig över (0.80.1)", () => {
+  it("en återkallad rad med samma id står kvar, och bjudIn kastar med skälet", async () => {
+    const id = inbjudningsId(GRUPP, "ny@x.se");
+    const { tjanst, kalla } = bygg({
+      invitations: [{ id, epost: "ny@x.se", groupId: GRUPP, roll: "admin", status: "aterkallad", skapadAv: { uid: AGARE } }],
+    });
+    await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" })).rejects.toThrow(/finns redan en inbjudan.*status "aterkallad"/);
+    expect(await kalla.read("invitations", id)).toMatchObject({ status: "aterkallad", roll: "admin" });
+    expect(await kalla.list("invitations", {})).toHaveLength(1);
+  });
+
+  it("felet bär inte adressen, bara gruppen och id:t", async () => {
+    const id = inbjudningsId(GRUPP, "ny@x.se");
+    const { tjanst } = bygg({ invitations: [{ id, epost: "ny@x.se", groupId: GRUPP, roll: "medlem", status: "accepterad" }] });
+    const fel = await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" }).catch((/** @type {Error} */ e) => e);
+    expect(fel).toBeInstanceOf(Error);
+    expect(String(fel)).toContain(GRUPP);
+    expect(String(fel)).not.toContain("ny@x.se");
+  });
+});
+
+/*
+ * ⛔ GAMLA ID:N LÄSES SOM FÖRUT. En rad skriven före 0.80.1 har id:t `${groupId}_${epost}`. Varje uppslag går på
+ * fältet `epost`, aldrig på id:t, så raden återanvänds och accepteras med det id den har.
+ */
+describe("⛔ en inbjudan med det gamla id:t (före 0.80.1)", () => {
+  const GAMMALT = `${GRUPP}_ny@x.se`;
+  const gammal = () => ({ id: GAMMALT, epost: "ny@x.se", groupId: GRUPP, roll: "medlem", status: "vantar" });
+
+  it("återanvänds av bjudIn i stället för att få en andra rad", async () => {
+    const { tjanst, kalla } = bygg({ invitations: [gammal()] });
+    expect(await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se" })).toEqual({ resultat: "fanns", id: GAMMALT });
+    expect(await kalla.list("invitations", {})).toHaveLength(1);
+  });
+
+  it("accepteras och markeras accepterad under sitt gamla id", async () => {
+    const { tjanst, kalla } = bygg({ invitations: [gammal()] });
+    expect(await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).toEqual({ accepterade: [GRUPP] });
+    expect(await kalla.read("invitations", GAMMALT)).toMatchObject({ status: "accepterad" });
   });
 });

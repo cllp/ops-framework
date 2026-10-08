@@ -9,6 +9,45 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.80.1
+
+Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4. Numret följer de andra PR:arna som tog 0.78.1, 0.78.2, 0.79.0 och 0.80.0. 0.78.1 är mergad och main står där, de andra tre är öppna.
+
+### Rättat
+
+- **Regelfragmentet för inbjudningar.** En admin fick sätta `status` till vilket värde som helst, och i lifehub sattes en återkallad ägarinbjudan tillbaka till `vantar`. Klienten får nu bara ändra `status`, och bara från `vantar` till `aterkallad`. Alla andra övergångar och alla andra fält nekas. Accepten och ett nytt utskick sker på serversidan med Admin SDK, förbi reglerna.
+- **Inbjudans id.** Det var `${groupId}_${epost}`, och `_` är lagligt i ett grupp-id (`ID_FORM`), så `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` fick samma dokument och den andra inbjudan skrev över den första. Id:t är nu `inbjudningsId(groupId, epost)`: grupp-id:t, `|` och SHA-256 (hex) av adressen i gemener. `|` går inte att skriva i ett grupp-id och finns aldrig i en hash, alltså kan två par inte dela id. Adressen står inte längre i klartext i id:t.
+- **En inbjudan skrivs aldrig över.** `bjudIn` skapar raden med `createNew` i stället för `create`. Finns en accepterad eller återkallad rad med samma id kastar `bjudIn` med gruppen, id:t och statusen, och raden står kvar som den är. Förut skrev en ny inbjudan över den, och historiken över återkallelsen försvann.
+
+### Tillagt
+
+- Datakontraktets regel 8, `createNew(samling, data)`: frivillig, skriver bara om id:t är ledigt, i samma atomära steg, och svarar `{ created, row }`. `createMemorySource` har den, och `createRoutingSource` skickar den vidare och kastar med samlingens namn när just den källan saknar den.
+- `inbjudningsId` exporteras ur `ops-framework/node`.
+
+### Gamla id:n
+
+En inbjudan skriven före 0.80.1 har kvar id:t `${groupId}_${epost}`, och ingenting skrivs om. Den fungerar som förut, eftersom ramverket aldrig slår upp en inbjudan på id:t: `bjudIn` och `accepteraInbjudningar` listar på fältet `epost`. En väntande gammal rad återanvänds av `bjudIn` (svaret är `fanns` med det gamla id:t) och accepteras under sitt gamla id. En ny inbjudan till samma grupp och adress, när den gamla raden är accepterad eller återkallad, får det nya id:t, så de två krockar inte. En app som själv bygger id:t med den gamla formeln för att läsa en rad ska sluta med det och använda id:t ur listningen, eller `inbjudningsId` för rader skrivna från 0.80.1.
+
+### Vad appen måste göra
+
+1. **Lägg till `createNew` i appens Admin-adapter**, med `ref.create`, som Firestore avvisar med `ALREADY_EXISTS` (kod 6) när dokumentet finns. Exemplet står i README under "Vägen in för en ny person". Utan den nekar `createInvitationService`, och därmed `createGroupService`, källan när tjänsten byggs, alltså när functions startar. Det här är en brytande ändring för adaptern, fast numret är en patch.
+2. **Generera om reglerna** ur `regelfragment()` och **deploya dem före klienten**. En klient som redan bara återkallar påverkas inte, men regeln i produktion är den som skyddar, och en regel i main är inte en regel i produktion.
+3. Sluta bygga en inbjudans id för hand, om appen gör det (se Gamla id:n).
+
+### Prov
+
+- `rules/__tests__/grupper.test.mjs`, inbjudan: 163 av 163 gröna med villkoret. Varje övergång och varje fältprov har en egen rad, så att ett nekande prov som av misstag släpps in inte ändrar utgångsläget för nästa. Svepet, ett villkor i taget utslaget i den genererade regeltexten:
+  - utan övergångsvillkoret (som på main): 5 röda, `aterkallad` till `vantar` (ägare och admin), `accepterad` till `vantar`, `accepterad` till `aterkallad`, `vantar` till `accepterad` från klienten, och golvprovet som läser tillbaka raderna.
+  - utan `resource.data.status == 'vantar'`: 2 röda, `accepterad` till `aterkallad` och golvprovet.
+  - utan `request.resource.data.status == 'aterkallad'`: 2 röda, `vantar` till `accepterad` och golvprovet.
+  - utan listan över ändrade fält: 7 röda, en återkallelse som också ändrar `tokenHash`, `giltigTill`, `groupId`, `roll`, `epost` eller `antalSkickade`, och golvprovet.
+  - utan `opsArAdmin`: 2 röda, en vanlig medlem som återkallar, och golvprovet.
+  - `vantar` till `aterkallad` av en admin och av ägaren är gröna i alla fem.
+- `src/__tests__/inbjudan.test.js`, 37 prov. Med den gamla formeln för id:t: 5 röda, bland dem att `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` ger olika id och får var sin rad. Med `create` i stället för `createNew`: 2 röda, den återkallade raden skrevs över. Utan kravet på `createNew` i fabriken: 1 rött. Med rättningen: 37 av 37 gröna.
+- `src/__tests__/routing.test.jsx`, `createNew` per samling, 4 prov. Med en minneskälla vars `createNew` inte frågar om id:t finns: 1 rött (och de 2 ovan i `inbjudan.test.js`). Med rättningen: 20 av 20 gröna i filen.
+- `src/__tests__/grupp-skapa.test.js`: provet där en inbjudan faller vid skapandet lägger felet i `createNew`, där skrivningen nu sker. Med felet kvar i `create` blev det rött, eftersom ingen inbjudan längre går den vägen.
+- `npm run check`: 2603 av 2603 gröna. `npm run test:rules`: 377 av 377 gröna.
+
 ## 0.78.1
 
 Uppgift innan appen använder den (#302). Ompinningen åker med lane 19 i appen och görs inte här.

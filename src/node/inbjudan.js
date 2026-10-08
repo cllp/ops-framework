@@ -35,10 +35,48 @@
  * här går att prova utan nätverk: minneskällan räcker.
  */
 
-import { byggInbjudan, byggMedlemskap, medlemskapsId } from "../lib/grupp.js";
+// @ts-expect-error Noden har crypto. Ramverket har inga Node-typer: lib är DOM, för webben. Samma rad som i mejl.js.
+import { createHash } from "node:crypto";
+import { byggInbjudan, byggMedlemskap, MEDLEMSKAPSAVGRANSARE, medlemskapsId } from "../lib/grupp.js";
 
 /** @param {unknown} v @returns {string} */
 const epostform = (v) => (typeof v === "string" ? v.trim().toLowerCase() : "");
+
+/**
+ * En inbjudans id: grupp-id:t, avgränsaren och SHA-256 (hex) av adressen i gemener.
+ *
+ * ══ ⛔ VARFÖR INTE `${groupId}_${epost}` LÄNGRE (0.80.1, granskningen av lifehub.app PR 117, punkt 4) ══
+ *
+ * Före 0.80.1 var id:t `${groupId}_${epost}`, och `_` är ett lagligt tecken i ett grupp-id (`ID_FORM`
+ * i `src/lib/katalog.js`) och i en adress. Nyckeln var alltså tvetydig på samma sätt som medlemskapets
+ * var före #152: mätt i lifehub gav `acme` + `team_bob@x.se` och `acme_team` + `bob@x.se` samma
+ * dokument, och den andra inbjudan skrev över den första. Två grupper delade en rad, och vilken grupp
+ * den gällde avgjordes av vem som bjöd in sist.
+ *
+ * ⛔ AVGRÄNSAREN ÄR `MEDLEMSKAPSAVGRANSARE`, ALLTSÅ `|`, OCH DEN GÅR INTE ATT SKRIVA I NÅGON AV HALVORNA.
+ * `ID_FORM` släpper inte igenom den i ett grupp-id, och kontrollen nedan kastar ändå, samma skäl som i
+ * `medlemskapsId`. Den andra halvan är hex, alltså finns tecknet aldrig där. Ett id har därmed precis
+ * ett `|`, och två olika par kan bara ge samma id om SHA-256 krockar.
+ *
+ * ⛔ ADRESSEN HASHAS, DEN STÅR INTE I KLARTEXT. Ett dokument-id syns i loggar, i konsolens adressrad
+ * och i felmeddelanden, och adressen tillhör någon som ännu inte är med. Raden bär fortfarande `epost`
+ * som fält, och det är på fältet inbjudningarna slås upp, aldrig på id:t.
+ *
+ * @param {string} groupId
+ * @param {string} epost
+ * @returns {string}
+ */
+export function inbjudningsId(groupId, epost) {
+  const g = typeof groupId === "string" ? groupId.trim() : "";
+  const e = epostform(epost);
+  if (!g || !e) throw new Error("inbjudningsId: både groupId och epost krävs.");
+  if (g.includes(MEDLEMSKAPSAVGRANSARE)) {
+    throw new Error(
+      `inbjudningsId: groupId "${g}" innehåller avgränsaren "${MEDLEMSKAPSAVGRANSARE}". Nyckeln är groupId, avgränsaren, adressens hash, så tecknet i grupp-id:t gör nyckeln tvetydig.`,
+    );
+  }
+  return `${g}${MEDLEMSKAPSAVGRANSARE}${createHash("sha256").update(e).digest("hex")}`;
+}
 
 /**
  * @typedef {object} Samlingar
@@ -71,6 +109,18 @@ export function createInvitationService(konfig) {
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error("createInvitationService: en datakälla med read, list och create krävs. Ramverket känner ingen databas.");
   }
+  /*
+   * ⛔ `createNew` KRÄVS (0.80.1), OCH DET PRÖVAS NÄR TJÄNSTEN BYGGS. En inbjudan skrivs aldrig över:
+   * `create` med ett eget id ersätter posten (datakontraktet), och det var så en grupps inbjudan skrev
+   * över en annans. Ett tyst fall tillbaka på `create` hade varit den luckan kvar under ett nytt namn,
+   * och en läsning före `create` är den läs-sedan-skriv-kontroll regel 2 förbjuder.
+   */
+  if (typeof kalla.createNew !== "function") {
+    throw new Error(
+      "createInvitationService: datakällan saknar createNew. En inbjudan får aldrig skriva över en befintlig rad, och en källa som bara kan ersätta gör det. Med Admin SDK är createNew ref.create(), som avvisar ett dokument som redan finns. Se datakontraktets regel 8.",
+    );
+  }
+  const skapaNy = kalla.createNew;
   const ANVANDARE = samlingar.anvandare ?? "users";
   const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
   const INBJUDNINGAR = samlingar.inbjudningar ?? "invitations";
@@ -158,15 +208,30 @@ export function createInvitationService(konfig) {
       );
       if (vantande.length > 0) return { resultat: "fanns", id: vantande[0].id };
 
+      /*
+       * ⛔ SKAPAS MED `createNew` OCH ALDRIG MED `create` (0.80.1). Finns en rad med samma id redan är den
+       * inte väntande (den hade hittats ovan), alltså accepterad eller återkallad, och då kastas det med
+       * skälet. Före 0.80.1 skrev en ny inbjudan över den raden, och historiken över att den återkallats
+       * försvann med den.
+       *
+       * ⛔ GAMLA RADER LÄSES SOM FÖRUT. En inbjudan skriven före 0.80.1 har id:t `${groupId}_${epost}` och
+       * hittas ändå, eftersom varje uppslag går på fältet `epost` och aldrig på id:t: listningen ovan
+       * återanvänder en väntande gammal rad, och accepten uppdaterar raden med det id den listade.
+       */
       const inbjudan = byggInbjudan({
-        id: `${groupId}_${epost}`.replace(/[^a-zA-Z0-9_@.-]/g, "-"),
+        id: inbjudningsId(groupId, epost),
         epost,
         groupId,
         roll,
         status: "vantar",
         skapadAv: b.skapadAv ?? {},
       });
-      await kalla.create(INBJUDNINGAR, inbjudan);
+      const { created, row } = await skapaNy.call(kalla, INBJUDNINGAR, inbjudan);
+      if (!created) {
+        throw new Error(
+          `bjudIn: det finns redan en inbjudan för adressen i gruppen "${groupId}" (${INBJUDNINGAR}/${inbjudan.id}, status "${row?.status ?? "okänd"}"). En inbjudan skrivs aldrig över, så den återkallade eller accepterade raden står kvar som den är.`,
+        );
+      }
       return { resultat: "inbjudan", id: inbjudan.id };
     },
 
