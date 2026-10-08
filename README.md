@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**115 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**116 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -2619,6 +2619,27 @@ gör layouten onödigt luftig, eftersom en muspekare är exakt och en tumme inte
 det. Det gäller även ytor som inte ser ut som knappar: en kryssrutas träffyta är
 **hela raden**, inte rutan, och en utfällbar rubrik är 44 px hög även när texten
 är mindre.
+
+---
+
+## Biblioteket (0.81.0, #192 skiva 1)
+
+Gruppens anteckningar och länkar. Analysen står i `docs/beslut/0004-bibliotek-ss-analys.md`. ⛔ **Ingen raderar i den här skivan.** CP valde 2026-10-08 att författaren och admin ska kunna radera en post, och det kommer i nästa skiva (#311): `allow delete` i regeln, `radera` i källan och en knapp i detaljvyn med samma villkor som `farAndra`. Samlingsnamnet skickar appen in. En post hör till en grupp, och en medlem i en annan grupp varken läser eller skriver den.
+
+| | |
+|---|---|
+| `BIBLIOTEKTYPER` | `anteckning` och `lank`. Fler typer är ett senare beslut |
+| `BIBLIOTEKFALT` | fälten regeln låser med `hasOnly` |
+| `MAX_BIBLIOTEKRUBRIK`, `MAX_BIBLIOTEKTEXT`, `MAX_BIBLIOTEKURL` | taken, samma tal i regeln |
+| `ADRESSFORM` | länkens adress, http eller https och bara synliga ASCII-tecken. Samma `RegExp` blir regelns `matches()` via `regelRegex`, så regeln och `postFel` kan inte säga olika |
+| `normaliseraAdress` | adressen som den sparas: trimmad, med procentkod när den går att läsa. Vyn och `byggPost` kör den före prövningen |
+| `farAndra(post, jag)` | regelns `update` i klienten: författaren, eller ägare eller admin. Vyn visar formuläret bara då |
+| `inmatningsfel` | det formuläret kan ha fel på, utan grupp och utan författare. En rubrik eller text är tom som i regeln: bara tecknen U+0000 till U+0020 trimmas, som Firestores `trim()`. En rubrik av bara U+00A0 är alltså inte tom, och en av bara U+001F är det |
+| `postFel`, `byggPost` | hela dokumentet. `byggPost` kastar med samma text som `postFel` |
+| `filtreraBibliotek` | flik och sök i den lista som redan lästs |
+| `createBibliotekskalla` | `source`, `collection`, `groupId`, `skapare`. `skapare` är en funktion: appen vet vem som är inloggad. `las` svarar `{ poster, kalla, fel, trasiga }` och kastar inte. En tom lista med `kalla: "databas"` är ett tomt bibliotek. `kalla: "fel"` är en läsning som inte gick. En rad som inte klarar `postFel` eller bär en annan grupp står i `trasiga` med id och skäl, och släcker inte de andra |
+| `OpsBibliotek` | listan och detaljen. `poster`, `fel`, `trasiga`, `laddar`, `vald`, `skapar`, `jag`, `onOppna`, `onStang`, `onSkapa`, `onSpara`. `jag` krävs: `{ uid, roll }` ur den inloggades aktiva medlemskap, eller `null` när personen inte är medlem, och då är allt läsläge. Utan propen kastar komponenten, så en app som glömt den inte ser ut som en icke-medlem. En länk öppnas i ny flik med `rel="noopener noreferrer"` |
+| `bibliotekregelfragment` | samlingsnamnet. Limmas in efter `regelfragment()`. Medlem läser. En person (inte en agent) skapar som sig själv, med serverns klocka. Författaren eller admin ändrar, och `andrad` är serverns klocka. Ingen raderar. Läsregeln är medlemskap i radens grupp, aldrig `isAuth()` |
 
 ---
 
