@@ -62,6 +62,65 @@ CP 2026-10-08, i cllp/ops-framework#192: privat är personens egen grupp, filer 
 
 ---
 
+## 0.84.0
+
+Nattsprint 2026-10-08: #315, #309, #316 och halva #317. Ingen ändring av datamodellen och inga nya regler.
+
+**Om numret:** 0.83.0 (PR 318) är mergad och utgiven, origin/main `a0d6c8e` och taggen `v0.83.0`, mätt 2026-10-08. Den här skivan är nästa minor efter den, eftersom `byggAnvandare` tar emot något den förut avvisade (#316). Skärmbildernas "före" är tagna mot 0.82.0 (`aada6ab`): 318 rör inte skrivfältet, Ny händelse eller kalendermenyn.
+
+### Rättat
+
+- ⛔ **Skrivfältet: en vald bilaga är innehåll (#315).** Med en bild vald och tomt fält stod "Prata in" där Skicka skulle stå, så på en pekskärm fanns ingen synlig väg att skicka bilden. Mätt med Playwright vid ompinningen till 0.80.1 (cllp/lifehub.app#134). Ljudvågen står nu bara när fältet verkligen är tomt: ingen text och ingen bilaga. Villkoret är ett och samma för ljudvågen och Skicka-knappens `disabled`, så de två kan inte säga olika saker om vad som är tomt (regel 2).
+- ⛔ **Ny händelse säger gruppens namn, inte "Ingen kalender ännu" (#309).** Utan namngivna gruppkalendrar hamnar händelsen i gruppen (inget `kalender` skickas), och raden säger nu det. Texten `ingenKalender` är borttagen: ett fall utan grupp finns inte, eftersom en moduls formulär bara öppnas när `skapalaget` är `redo`, och det kräver en grupp. `git grep -n ingenKalender` ger noll träffar.
+- ⛔ **Kalendermenyn ritar ingen tom rubrik (#309, CP:s kommentar 2026-10-08).** 0.78.2 tog bort den falska raden men lät "Gruppens kalendrar" stå ensam. Rubriken ritas nu bara när gruppen har namngivna kalendrar.
+- ⛔ **`byggAnvandare` tar emot tom `epost` (#316).** Tom sträng betyder "ingen bevisad adress". Sedan 0.82.0 skriver en serverspegel adressen bara när `email_verified` är sant, och annars `epost: ""`, men `byggAnvandare` kastade "epost krävs", och den körs också på läsvägen (`sakerstallAnvandare`, `uppdateraProfil`). En sådan rad gick alltså varken att skriva eller läsa. Ingenting i ramverket ger åtkomst på `users.epost` sedan 0.82.0. En icke-tom adress normaliseras till gemener som förut.
+- ⛔ **Mejl: felet för ett kvitto som inte går att skriva bär ingen adress (#317, andra halvan).** `src/node/mejl.js` kastade `rad.fel || rad.skal` omaskat, och SMTP-svaret kan bära mottagarens adress. I appen loggas felet som ohanterat, förbi appens maskning. Nu byts varje adress i det kastade felet mot `<adress hash>`, samma hash som `mottagarhash` i mejlhändelsen, så att de två går att para ihop. Kvittot i källan maskas inte, det är ägarens underlag.
+
+### Inte gjort här
+
+- **#317, första halvan** (en återinbjudan av en avslutad medlem förbrukar inbjudan): väntar på CP:s beslut mellan ärendets två förslag. Orörd.
+- **#287 och #283 är redan gjorda, i 0.73.1** (`7bae970`, PR 288). Mätt i natt: `OpsModulKataloger` ritar modulnamnet med `Delrubrik`, och `kopplaBeteenden` och `hubbPoster` använder `Object.hasOwn`. Proven står kvar och är sedda röda igen i natt: med den fasta `<h3>` tillbaka faller 4 prov i `kallor.test.jsx`, och med `in` tillbaka faller 6 i `beteenden.test.js` och `hubb.test.jsx`. Övriga `in` i `src/lib` prövar fasta nycklar (`"url"`, `"del"`, `"katalog"`, `"hubb"`) eller fasta listor (`gruppikonarv.js`, `kalenderikoner.js`). Ärendena kan stängas.
+
+### Vad appen måste göra vid ompinningen
+
+1. **lifehub: ta bort mellanläget för `epost` i spegeln** (`functions/vaxling.js`, lifehub.app#124). Skriv `epost: ""` för en overifierad inloggning. Provet `functions/__tests__/vaxling.test.js` som väntar sig att `byggAnvandare` kastar på tom `epost` blir rött mot 0.84.0, enligt #316, och ska skrivas om.
+2. **Inget annat.** Inga nya props, inga nya regler att deploya. Skrivfältet, Ny händelse och kalendermenyn ändras utan att appen gör något.
+
+⛔ **Kvar efter #316, inte gjort här:** förvalets regel för `users` släpper inte in en klient som skapar sin rad med `epost: ""` från en overifierad inloggning (`opsProfilensEpost()` kräver då en verifierad adress). Det berör bara appar utan `kontoAgerPersonen` och utan serverspegel. Att släppa in tom sträng är en regeländring och ett eget beslut.
+
+### Prov, sedda röda utan sin rättelse
+
+| Prov | Utan rättelsen | Med |
+|---|---|---|
+| `chatt-bilagor.test.jsx`: samtalet med vald bild visar Skicka, inte Prata in | rött | grönt |
+| `chatt-bilagor.test.jsx`: Skicka skickar bilagan utan text | rött | grönt |
+| `chatt-bilagor.test.jsx`: tråden, samma regel | rött | grönt |
+| `kalenderhantering.test.jsx`: Ny händelse utan namngivna kalendrar säger "Kalender: CPS AB" | rött (`Kalender:Ingen kalender ännu`) | grönt |
+| `kalendrar.test.jsx`: ingen tom rubrik "Gruppens kalendrar" | rött | grönt |
+| `profil.test.js`: en rad med tom `epost` läses och sparas | rött (`users: epost krävs`) | grönt |
+| `nodProfil.test.js`: `uppdateraProfil` på en rad med tom `epost` | rött (`users: epost krävs`) | grönt |
+| `grupp.test.js`: tom `epost` är tillåten (ersätter provet "epost krävs") | rött | grönt |
+| `mejl.test.js`: kastat kvittofel utan adress, med hashen | rött | grönt |
+| Playwright mot byggd dist, före och efter (`docs/jamforelser/0.84.0/`) | se nedan | se nedan |
+
+### Skärmbilder (Playwright mot byggd dist, 390 och 1280 px)
+
+`docs/jamforelser/0.84.0/montage.mjs` bygger samma yta mot main (`aada6ab`) och mot grenen. Mätt i webbläsaren, båda bredderna:
+
+- Skrivfältet med en vald bild: före `["Prata in"]`, efter `["Skicka"]`. I vila `["Prata in"]` i båda.
+- Ny händelse utan namngivna kalendrar: före `Kalender:Ingen kalender ännu`, efter `Kalender:CPS AB`.
+- Kalendermenyn med bara egna kalendrar: före rubrikerna `["Gruppens kalendrar","Mina kalendrar"]`, efter `["Mina kalendrar"]`.
+
+### Förebilden (regel 12 och 13)
+
+**Skrivfältet.** SS `ComposerBar.jsx:395` räknar en vald artefakt som innehåll: Skicka är aktiv med `selectedArtifact` och utan text. Tas som det är. SS har ingen röstinmatning i skrivfältet, så frågan om vilken knapp som står där finns inte hos SS. ⛔ Ingen skärmbild av SS skrivfält finns här, och SS-appen går inte att starta i den här miljön (kräver Firebase). Montaget är därför före och efter, inte sida vid sida med SS, och det är en lucka mot regel 12.
+
+**Kalendermenyn.** SS `CalendarSourceFilter.jsx` har inga namngivna gruppkalendrar: gruppen själv är en rad med `GroupMark` och namn. Tre listor:
+
+- Som det är: ingen tom rubrik, och "Mina kalendrar" med sin tomrad.
+- Bättre: inget.
+- Struket, med kostnaden: gruppen själv som en valbar rad. Det hade krävt ett filter-id för "poster utan kalender", som modellen inte har (`filtreraPoster` lägger dem på `forvaldId`), och gruppens namn och färg som nya props till `OpsCalendar`. En rad som går att trycka på men inte filtrerar hade varit en död kontroll. Det är ett eget beslut. ⛔ Mätt i natt: utan namngivna gruppkalendrar men med en förvald egen kalender blir `forvaldKalenderId` den egna, så gruppens poster utan kalender räknas till den när den väljs. Det är ett eget fel och rörs inte här.
+
 ## 0.83.0
 
 CP 2026-10-08 17:52 och 17:54, med bilder från telefonen av Bibliotek, Ekonomi och Hubben: "Bibliotek behöver en tillbaka knapp också precis som ekonomi. Sedan navigeringen på liknande sätt. Sök och komponenter är ihoptryckta." Och: "Varje app/modul borde kunna expanderas med chevron och det skall finnas en inställning om att ikon skall placeras i huvudmenyn."

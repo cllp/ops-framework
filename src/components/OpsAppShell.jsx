@@ -1301,7 +1301,7 @@ function OpsAppShellRitad({
         ]).filter((x) => !(skapaForm?.redigera && x.id === "minaKalendrar"));
       })()
     : (skapa?.skapaISektioner ?? []);
-  // Målet från början: gruppens förvalda, annars min förvalda. Inget mål alls när det inte finns någon kalender (då säger raden det).
+  // Målet från början: gruppens förvalda, annars min förvalda. Inget mål alls när det inte finns någon kalender: då hamnar händelsen i gruppen, och raden säger gruppens namn (#309).
   const skapaStandardMal = (() => {
     if (!handelseMedKalendrar) return null;
     const k = skapaKalenderval.find((x) => x.grupp && x.forvald) || skapaKalenderval.find((x) => !x.grupp && x.forvald) || null;
@@ -1319,8 +1319,10 @@ function OpsAppShellRitad({
     if (skapaEffektivtMal) {
       return skapaSektioner.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.sektion)?.poster.find((/** @type {any} */ x) => x.id === skapaEffektivtMal.id)?.namn ?? null;
     }
-    // ⛔ Tomhet är ett svar (punkt 5): utan en enda kalender säger raden det, i stället för att visa gruppens namn som om det vore en kalender.
-    if (handelseMedKalendrar) return ordet(TEXT_SKAL, "ingenKalender", sprak);
+    // ⛔ GRUPPEN ÄR KALENDERN (0.84.0, #309). Utan kalendermål skickas inget `kalender`, och händelsen hamnar i gruppen, så
+    // raden säger gruppens namn. Här stod "Ingen kalender ännu", samma falska sak som 0.78.2 tog bort ur `OpsCalendar` och
+    // `OpsKalendrar`. Ett fall utan grupp finns inte: en moduls formulär öppnas bara när `skapalaget` är "redo", och det
+    // kräver en grupp. Tomhet är fortfarande ett svar (punkt 5), den beskrivs bara sant.
     const g = skapaGrupperLista.find((x) => x.id === skapaEffektivGrupp);
     return g ? text(g.namn, sprakSkapa) : null;
   })();
@@ -2308,7 +2310,6 @@ export const TEXT_SKAL = {
   handelseLaddar: { sv: "Hämtar händelsen", en: "Loading the event" },
   handelseSaknas: { sv: "Händelsen finns inte", en: "The event does not exist" },
   handelseSaknasText: { sv: "Den kan ha tagits bort, eller så får du inte ändra den.", en: "It may have been removed, or you may not be allowed to change it." },
-  ingenKalender: { sv: "Ingen kalender ännu", en: "No calendar yet" },
   kravSvar: { sv: "Kräv svar", en: "Ask for replies" },
   kravSvarHint: { sv: "Varje medlem svarar Kommer eller Kommer inte, och frågan står i var och ens inkorg tills de svarat.", en: "Every member answers Coming or Not coming, and the question stays in each inbox until they have answered." },
   blockerar: { sv: "Blockerar tillgänglighet", en: "Blocks availability" },
