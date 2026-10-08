@@ -100,7 +100,7 @@ export const MAX_GRUPPORT = 80;
  * @typedef {object} Anvandare
  * @property {string} id Firebase Auth-uid.
  * @property {string} namn Ur inloggningen, sedan #156 redigerbar av personen själv.
- * @property {string} epost Identiteten. Ändras aldrig här.
+ * @property {string} epost Inloggningens verifierade adress, i gemener, eller tom sträng när ingen adress är bevisad (0.84.0, #316). Ändras aldrig här.
  * @property {string} bild URL, eller tom sträng. Sedan #156 personens egen uppladdning.
  * @property {string} sprak Ur `SPRAK`.
  * @property {"system"|"ljust"|"morkt"} tema
@@ -342,8 +342,15 @@ export function byggAnvandare(d, tillatnaPlattformar) {
   if (!id) throw new Error("users: id krävs. Det är Firebase Auth-uid och nyckeln varje medlemskap pekar på.");
   avvisaOkanda("users", rad, ANVANDARFALT, id);
 
+  /*
+   * ⛔ TOM EPOST ÄR "INGEN BEVISAD ADRESS" (0.84.0, #316), INTE ETT FEL. Här kastade förut "epost krävs ... det är den en
+   * inbjudan matchar mot". Det slutade vara sant i 0.82.0 (#313): `bjudIn` slår inte upp `users` på `epost`, och
+   * `accepteraInbjudningar` matchar mot inloggningens adress tillsammans med `epostVerifierad`. Samtidigt sade 0.82.0 att en
+   * serverspegel skriver adressen bara när den är verifierad, och annars `epost: ""`. Kravet gjorde då en sådan rad omöjlig
+   * att skriva, och eftersom den här funktionen också körs på läsvägen (`sakerstallAnvandare`, `uppdateraProfil`) omöjlig att
+   * läsa. Mätt i granskningen av cllp/lifehub.app#124. En icke-tom adress normaliseras som förut.
+   */
   const epost = rensa(rad.epost).toLowerCase();
-  if (!epost) throw new Error(`users: epost krävs för "${id}". Den är identiteten, och det är den en inbjudan matchar mot.`);
 
   const sprak = rensa(rad.sprak) || "sv";
   if (!(/** @type {readonly string[]} */ (SPRAK).includes(sprak))) {
