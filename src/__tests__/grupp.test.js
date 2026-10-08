@@ -746,6 +746,23 @@ describe("lagringsregelfragment: Storage, bara sin egen bild (#156)", () => {
     expect(lagringsregelfragment()).toContain("request.resource.size < 2 * 1024 * 1024");
   });
 
+  it("biblioteksfiler kräver medlemskap, 25 MB och MIME-listan, och förvalet gör det inte", () => {
+    const utan = lagringsregelfragment();
+    expect(utan).not.toContain("firestore.exists");
+    expect(utan).not.toContain("opsFilArMedlem");
+    const med = lagringsregelfragment({
+      bibliotek: { gruppPrefix: "grupper", postPrefix: "bibliotek", samling: "bibliotek" },
+    });
+    expect(med).toContain("match /grupper/{groupId}/bibliotek/{postId}/{filnamn}");
+    expect(med).toContain("firestore.exists(/databases/(default)/documents/memberships/$(request.auth.uid + '|' + gid))");
+    expect(med).toContain(`request.resource.size <= ${25 * 1024 * 1024}`);
+    expect(med).toContain("image/jpeg");
+    expect(med).toContain("application/pdf");
+    expect(med).toContain("audio/webm");
+    expect(med).toContain("allow delete: if false;");
+    expect(() => lagringsregelfragment({ bibliotek: { gruppPrefix: "a/b", postPrefix: "bibliotek", samling: "bibliotek" } })).toThrow(/inte ett samlingsnamn/);
+  });
+
   it("⛔ granskningsrättelse: create/update skilt från delete, eftersom en radering inte har request.resource", () => {
     const text = lagringsregelfragment();
     expect(text).toContain("allow create, update: if request.auth != null && request.auth.uid == uid\n        && request.resource.size < 2 * 1024 * 1024\n        && request.resource.contentType.matches('image/.*');");

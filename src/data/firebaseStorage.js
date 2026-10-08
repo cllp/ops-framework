@@ -53,12 +53,14 @@ export function createFirebaseStorageSource(config) {
   return createStorageSource({
     name: "firebase-storage",
 
-    async laddaUpp({ sokvag, fil }) {
+    async laddaUpp({ sokvag, fil, contentType }) {
       const s = typeof sokvag === "string" ? sokvag.trim() : "";
       if (!s) throw new Error("createFirebaseStorageSource.laddaUpp: sokvag krävs.");
       if (fil === undefined || fil === null) throw new Error("createFirebaseStorageSource.laddaUpp: fil krävs.");
       const referens = ref(storage, s);
-      await uploadBytes(referens, /** @type {any} */ (fil));
+      const mime = typeof contentType === "string" ? contentType.trim() : "";
+      if (mime) await uploadBytes(referens, /** @type {any} */ (fil), { contentType: mime });
+      else await uploadBytes(referens, /** @type {any} */ (fil));
       const url = await getDownloadURL(referens);
       return { url, sokvag: s };
     },

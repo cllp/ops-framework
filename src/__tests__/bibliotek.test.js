@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, byggPost, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, MAX_BIBLIOTEKUTSKRIFT, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -31,8 +31,37 @@ describe("bibliotekets post", () => {
     const l = byggPost({ ...anteckning, typ: "lank", text: undefined, url: "https://bolagsverket.se" });
     expect(l.url).toBe("https://bolagsverket.se/");
     expect(Object.hasOwn(l, "text")).toBe(false);
-    expect(BIBLIOTEKTYPER).toEqual(["anteckning", "lank"]);
+    expect(BIBLIOTEKTYPER).toEqual(["anteckning", "lank", "fil"]);
     expect(BIBLIOTEKFALT).toContain("groupId");
+  });
+
+  it("en idé heter Idé plus datum och tid", () => {
+    expect(ideRubrik(new Date(2026, 9, 8, 21, 5))).toBe("Idé 2026-10-08 21:05");
+  });
+
+  it("en fil med bild, dokument eller ljud går att bygga, och fel format eller för stor fil gör det inte", () => {
+    const bas = { ...anteckning, typ: "fil", text: undefined, rubrik: "Kvitto" };
+    const fil = { sokvag: "grupper/cps-ab/bibliotek/p1/kvitto.jpg", namn: "kvitto.jpg", mime: "image/jpeg", byte: 1200 };
+    expect(inmatningsfel({ typ: "fil", rubrik: "Kvitto", fil })).toBeNull();
+    const byggd = byggPost({ ...bas, fil });
+    expect(byggd.fil.mime).toBe("image/jpeg");
+    expect(Object.hasOwn(byggd, "text")).toBe(false);
+    expect(byggPost({ ...bas, fil: { ...fil, mime: "audio/webm;codecs=opus", namn: "ide.webm", sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm" } }).fil.mime).toBe("audio/webm");
+    expect(postFel({ ...bas, fil: { ...fil, mime: "application/zip" } })).toMatch(/application\/zip/);
+    expect(postFel({ ...bas, fil: { ...fil, byte: 25 * 1024 * 1024 + 1 } })).toMatch(/Taket/);
+    expect(postFel({ ...anteckning, fil })).toMatch(/ingen fil/);
+  });
+
+  it("en utskrift hör bara till ett ljud, och en tom utskrift är ett svar", () => {
+    const bas = { ...anteckning, typ: "fil", text: undefined, rubrik: "Idé" };
+    const ljud = { sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 100 };
+    const bild = { sokvag: "grupper/cps-ab/bibliotek/p1/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 100 };
+    expect(postFel({ ...bas, fil: ljud, utskrift: "Hej" })).toBeNull();
+    expect(byggPost({ ...bas, fil: ljud, utskrift: "" }).utskrift).toBe("");
+    expect(Object.hasOwn(byggPost({ ...bas, fil: ljud }), "utskrift")).toBe(false);
+    expect(postFel({ ...bas, fil: ljud, utskrift: "x".repeat(MAX_BIBLIOTEKUTSKRIFT + 1) })).toMatch(/Taket/);
+    expect(postFel({ ...bas, fil: bild, utskrift: "Hej" })).toMatch(/Bara ett ljud/);
+    expect(postFel({ ...anteckning, utskrift: "Hej" })).toMatch(/ingen utskrift/);
   });
 
   it("avvisar javascript-adress, låt och ett fält som inte hör hit", () => {

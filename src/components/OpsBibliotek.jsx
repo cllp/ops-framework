@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { Library, Link, Plus, StickyNote } from "lucide-react";
-import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { FileText, Image as BildIkon, Library, Link, Music, Plus, StickyNote } from "lucide-react";
+import { ADRESSFORM, BIBLIOTEKTYPER, IDE_MAX_SEKUNDER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { useTalk } from "./OpsTalk.jsx";
 import { cx } from "../lib/cx.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
@@ -29,6 +30,11 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * kan hålla, och nejet hade kommit som "Missing or insufficient permissions".
  * `jag: null` betyder att den inloggade inte är medlem: allt visas i läsläge och
  * inga knappar för att lägga till.
+ *
+ * ⛔ RADERA SYNS BARA FÖR DEN SOM FÅR (#311). Samma `farAndra` som formuläret.
+ * Första trycket frågar, andra tar bort. Utan frågan hade ett tryck i listan
+ * raderat posten. En trasig rad har samma knapp när raden bär grupp och
+ * skapare nog för `farAndra`.
  *
  * ⛔ `jag` KRÄVS, OCH `null` ÄR ETT SVAR (regel 5, granskningen av #304). Med
  * `null` som förval såg en app som glömt propen ut som en icke-medlem: inga
@@ -66,20 +72,29 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {object} props
  * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} props.poster
  * @param {string | null} [props.fel] Läsningen misslyckades. Tom lista med fel är inte "biblioteket är tomt".
- * @param {readonly { id: string, fel: string }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst.
+ * @param {readonly { id: string, fel: string, groupId?: string, skapadAv?: { uid?: string | null } }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst. Den som får raderar raden.
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
  * @param {boolean} [props.laddar]
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.vald]
- * @param {"anteckning" | "lank" | null} [props.skapar]
+ * @param {"anteckning" | "lank" | "fil" | null} [props.skapar]
  * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }) => void} props.onOppna
  * @param {() => void} props.onStang
- * @param {(typ: "anteckning" | "lank") => void} props.onSkapa
+ * @param {(typ: "anteckning" | "lank" | "fil") => void} props.onSkapa
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
+ * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
+ * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
+ * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas.
+ * @param {(inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [props.onSpelaIn] Sparar en idé. Saknas den visas felet, ljudet sparas inte.
+ * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov.
+ * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
+ * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
+ * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt] Ber servern om en utskrift. Felet visas, också ett dygnstak.
+ * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag] Personen väljer. Inget skapas utan trycket.
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, hubHref, hubEtikett, onNavigate }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -87,7 +102,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     throw new Error("OpsBibliotek: hubHref krävs (0.83.0), hubbens adress. Sidan har Ekonomis tillbaka-rad, och en rad som inte vet vart den leder är en knapp som inte gör något.");
   }
   const sprak = useOpsSprak();
-  const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank"} */ ("alla"));
+  const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "fil"} */ ("alla"));
+  const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
@@ -96,6 +112,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     alla: poster.length,
     anteckning: poster.filter((p) => p.typ === "anteckning").length,
     lank: poster.filter((p) => p.typ === "lank").length,
+    fil: poster.filter((p) => p.typ === "fil").length,
   };
   const synliga = filtreraBibliotek(poster, { flik, sok });
 
@@ -105,7 +122,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
       <div data-bibliotek="" className="flex flex-col gap-4">
         {detalj ? (
-          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} />
+          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -116,22 +133,31 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
               { id: "alla", label: "Alla", icon: <Library size={16} />, badge: antal.alla },
               { id: "anteckning", label: "Anteckningar", icon: <StickyNote size={16} />, badge: antal.anteckning },
               { id: "lank", label: "Länkar", icon: <Link size={16} />, badge: antal.lank },
+              { id: "fil", label: "Filer", icon: <FileText size={16} />, badge: antal.fil },
             ]}
           >
             <OpsTabPanel id={flik}>
               <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök i rubrik, text eller adress" />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök i rubrik, text eller adress" />
+                    </div>
+                    {jag ? <NyKnapp flik={flik} onSkapa={onSkapa} /> : null}
                   </div>
-                  {jag ? <NyKnapp flik={flik} onSkapa={onSkapa} /> : null}
+                  {jag ? <SpelaIn onSpelaIn={onSpelaIn} inspelare={inspelare} /> : null}
                 </div>
                 {trasiga.length > 0 ? (
                   <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
                     <p>{trasiga.length === 1 ? "1 post kunde inte läsas och visas inte." : `${trasiga.length} poster kunde inte läsas och visas inte.`}</p>
                     <ul>
                       {trasiga.map((t) => (
-                        <li key={t.id}>{t.id}: {t.fel}</li>
+                        <li key={t.id} className="flex flex-col gap-2">
+                          <span>{t.id}: {t.fel}</span>
+                          {farAndra({ groupId: t.groupId, skapadAv: t.skapadAv }, jag) ? (
+                            <RaderaKontroll id={t.id} namn={`Radera ${t.id}`} onRadera={onRadera} />
+                          ) : null}
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -142,35 +168,105 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   <OpsEmpty busy title="Hämtar biblioteket" />
                 ) : synliga.length === 0 ? (
                   <OpsEmpty
-                    title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : "Inga länkar ännu."}
+                    title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : flik === "lank" ? "Inga länkar ännu." : "Inga filer ännu."}
                     description={sok ? `Inget matchar "${sok}".` : "Lägg till en anteckning eller en länk."}
                   />
                 ) : (
                   <OpsList ariaLabel="Biblioteket" divided>
-                    {synliga.map((post) => (
+                    {synliga.map((post) => {
+                      const ljud = post.typ === "fil" && filSort(post.fil?.mime) === "ljud";
+                      const adress = postAdress(post, filUrl);
+                      if (ljud) {
+                        return (
+                          <OpsListRow key={post.id}>
+                            <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOppna(post)} aria-label={post.rubrik}>
+                              <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
+                              <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
+                            </button>
+                            {adress ? <Ljudspelare src={adress} /> : <p role="status">Filen har ingen adress.</p>}
+                          </OpsListRow>
+                        );
+                      }
+                      return (
                       <OpsListRow key={post.id} interactive onClick={() => onOppna(post)} ariaLabel={post.rubrik}>
                         <span className="text-ink-secondary" aria-hidden="true">
-                          {post.typ === "anteckning" ? <StickyNote size={20} /> : <Link size={20} />}
+                          <PostIkon post={post} filUrl={filUrl} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
-                          <span className="block truncate text-meta text-ink-muted">{post.typ === "anteckning" ? post.text : post.url}</span>
+                          <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
                         </span>
                       </OpsListRow>
-                    ))}
+                      );
+                    })}
                   </OpsList>
                 )}
               </div>
             </OpsTabPanel>
           </OpsTabs>
         )}
+        {ljus ? (
+          <div role="dialog" aria-label="Förhandsvisning" data-bibliotek-ljus="" className="flex flex-col gap-2">
+            <img src={ljus} alt="" />
+            <OpsButton variant="secondary" onClick={() => setLjus("")}>Stäng</OpsButton>
+          </div>
+        ) : null}
       </div>
     </OpsView>
   );
 }
 
-const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk" });
-const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk" });
+const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil" });
+const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil" });
+
+/**
+ * @param {number | undefined} byte
+ * @returns {string}
+ */
+function filStorlek(byte) {
+  if (!Number.isInteger(byte) || /** @type {number} */ (byte) < 0) return "";
+  if (/** @type {number} */ (byte) < 1024) return `${byte} B`;
+  if (/** @type {number} */ (byte) < 1024 * 1024) return `${Math.round(/** @type {number} */ (byte) / 1024)} kB`;
+  return `${(/** @type {number} */ (byte) / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * @param {{ typ?: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }} post
+ * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
+ * @returns {string}
+ */
+function postAdress(post, filUrl) {
+  if ((post.typ != null && post.typ !== "fil") || typeof filUrl !== "function") return "";
+  const adress = filUrl(post);
+  return typeof adress === "string" ? adress : "";
+}
+
+/**
+ * @param {{ post: { typ: string, fil?: { mime?: string, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string }} props
+ */
+function PostIkon({ post, filUrl }) {
+  if (post.typ === "fil") {
+    const adress = postAdress(post, filUrl);
+    const sort = filSort(post.fil?.mime);
+    if (sort === "bild" && adress) return <img src={adress} alt="" className="size-10 rounded-sm object-cover" />;
+    if (sort === "bild") return <BildIkon size={20} />;
+    if (sort === "ljud") return <Music size={20} />;
+    return <FileText size={20} />;
+  }
+  if (post.typ === "lank") return <Link size={20} />;
+  return <StickyNote size={20} />;
+}
+
+/**
+ * @param {{ typ: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number } }} post
+ */
+function postRad(post) {
+  if (post.typ === "anteckning") return post.text ?? "";
+  if (post.typ === "lank") return post.url ?? "";
+  const namn = post.fil?.namn ?? "";
+  const storlek = filStorlek(post.fil?.byte);
+  return storlek ? `${namn} · ${storlek}` : namn;
+}
 
 /**
  * "+ Ny" bredvid sökfältet. Under Alla ett val mellan typerna, under en typ den typen direkt.
@@ -178,7 +274,7 @@ const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny
  * ⛔ AVTRYCKAREN ÄR INTE EN `OpsButton` MEN SER UT SOM EN (`knappKlass`): Radix `Popover.Trigger` ritar sitt eget
  * `<button>`, och `OpsButton` har ingen `forwardRef`. Samma skäl som plusset i `OpsAppShell`.
  *
- * @param {{ flik: "alla" | "anteckning" | "lank", onSkapa: (typ: "anteckning" | "lank") => void }} props
+ * @param {{ flik: "alla" | "anteckning" | "lank" | "fil", onSkapa: (typ: "anteckning" | "lank" | "fil") => void }} props
  */
 function NyKnapp({ flik, onSkapa }) {
   const [oppen, setOppen] = useState(false);
@@ -215,7 +311,7 @@ function NyKnapp({ flik, onSkapa }) {
                 className={radKlass({ stor: true })}
               >
                 <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
-                  {typ === "anteckning" ? <StickyNote size={16} /> : <Link size={16} />}
+                  {typ === "anteckning" ? <StickyNote size={16} /> : typ === "lank" ? <Link size={16} /> : <FileText size={16} />}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{TYPNAMN[typ]}</span>
               </button>
@@ -224,6 +320,38 @@ function NyKnapp({ flik, onSkapa }) {
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  );
+}
+
+/**
+ * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
+ *
+ * @param {{ post: { typ?: string, rubrik?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string, onLjus?: (adress: string) => void }} props
+ */
+function FilVisning({ post, filUrl, onLjus }) {
+  const adress = postAdress(post, filUrl);
+  const sort = filSort(post.fil?.mime);
+  const namn = post.fil?.namn ?? "Fil";
+  const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
+  if (!adress) {
+    return (
+      <p role="status" data-bibliotek-fil="">
+        {typeof filUrl === "function" ? `Filen har ingen adress. ${rad}` : rad}
+      </p>
+    );
+  }
+  if (sort === "bild") {
+    return (
+      <button type="button" aria-label={`Förhandsvisa ${post.rubrik ?? namn}`} data-bibliotek-forhands="" onClick={() => onLjus?.(adress)} className="w-fit">
+        <img src={adress} alt={post.rubrik ?? namn} className="max-h-48 rounded-sm object-contain" />
+      </button>
+    );
+  }
+  if (sort === "ljud") return <Ljudspelare src={adress} />;
+  return (
+    <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-brod text-accent underline underline-offset-2">
+      {rad}
+    </a>
   );
 }
 
@@ -250,17 +378,26 @@ function Adress({ url }) {
 /**
  * @param {object} props
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} props.post
- * @param {"anteckning" | "lank" | null} props.skapar
+ * @param {"anteckning" | "lank" | "fil" | null} props.skapar
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
  * @param {() => void} props.onStang
- * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
+ * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void} props.onSpara
+ * @param {(id: string) => void | Promise<void>} [props.onRadera]
+ * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
+ * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
+ * @param {(adress: string) => void} [props.onLjus]
+ * @param {readonly { id: string, namn: string }[]} [props.grupper]
+ * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela]
+ * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt]
+ * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag]
  */
-function Detalj({ post, skapar, jag, onStang, onSpara }) {
+function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, onLjus, grupper = [], onDela, onSkrivUt, onGorForslag }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
   const [url, setUrl] = useState(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
   const [formfel, setFormfel] = useState("");
+  const [valdFil, setValdFil] = useState(/** @type {File | null} */ (null));
   const nyckel = `${skapar ?? ""}:${post?.id ?? ""}`;
 
   useEffect(() => {
@@ -268,12 +405,13 @@ function Detalj({ post, skapar, jag, onStang, onSpara }) {
     setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
     setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
     setFormfel("");
+    setValdFil(null);
     // Nyckeln är beroendet: en ny lista med samma post ska inte tömma ett halvskrivet formulär.
   }, [nyckel]);
 
   const lasning = !skapar && post && !farAndra(post, jag);
-  const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : "Ny länk") : post?.rubrik ?? "Post";
-  const beskrivning = typ === "anteckning" ? "En text gruppen delar." : "En adress gruppen delar.";
+  const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : post?.rubrik ?? "Post";
+  const beskrivning = typ === "anteckning" ? "En text gruppen delar." : typ === "lank" ? "En adress gruppen delar." : "En fil gruppen delar.";
 
   if (lasning && post) {
     return (
@@ -282,6 +420,11 @@ function Detalj({ post, skapar, jag, onStang, onSpara }) {
         <OpsViewHeader title={post.rubrik} description={beskrivning} />
         {post.typ === "anteckning" ? (
           <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
+        ) : post.typ === "fil" ? (
+          <>
+            <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} />
+            {post.utskrift != null ? <p data-bibliotek-utskrift="">{post.utskrift === "" ? "Utskriften är tom." : post.utskrift}</p> : null}
+          </>
         ) : (
           <Adress url={post.url ?? ""} />
         )}
@@ -295,12 +438,37 @@ function Detalj({ post, skapar, jag, onStang, onSpara }) {
       <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
       <OpsViewHeader title={rubrikVy} description={beskrivning} />
       {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
+      {post && !skapar && post.typ === "fil" ? <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} /> : null}
       <OpsField label="Rubrik" error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
         <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
       </OpsField>
       {typ === "anteckning" ? (
         <OpsField label="Text">
           <OpsTextarea value={text} onChange={setText} ariaLabel="Text" rows={8} />
+        </OpsField>
+      ) : typ === "fil" ? (
+        <OpsField label="Fil">
+          <input
+            type="file"
+            aria-label="Fil"
+            className="text-brod text-ink"
+            onChange={(e) => {
+              const vald = e.target.files?.[0] ?? null;
+              if (!vald) {
+                setValdFil(null);
+                return;
+              }
+              const fel = filInmatningsfel({ namn: vald.name, mime: vald.type, byte: vald.size });
+              if (fel) {
+                setValdFil(null);
+                setFormfel(fel);
+                return;
+              }
+              setFormfel("");
+              setValdFil(vald);
+              if (!trimSomRegeln(rubrik)) setRubrik(vald.name.replace(/\.[^.]+$/, "") || vald.name);
+            }}
+          />
         </OpsField>
       ) : (
         <OpsField label="Adress">
@@ -311,9 +479,30 @@ function Detalj({ post, skapar, jag, onStang, onSpara }) {
       <OpsButton
         variant="primary"
         onClick={() => {
+          if (typ === "fil" && (valdFil || skapar)) {
+            if (!valdFil) {
+              setFormfel("Välj en fil.");
+              return;
+            }
+            if (!trimSomRegeln(rubrik)) {
+              setFormfel("Rubriken saknas.");
+              return;
+            }
+            if (typeof onLaddaUpp !== "function") {
+              setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+              return;
+            }
+            const svar = onLaddaUpp({ rubrik, fil: valdFil, ...(post && !skapar ? { id: post.id } : {}) });
+            if (svar && typeof svar.then === "function") {
+              svar.catch((e) => setFormfel(e instanceof Error ? e.message : String(e)));
+            }
+            return;
+          }
           const inmatning = typ === "anteckning"
             ? { typ, rubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
-            : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
+            : typ === "fil"
+              ? { typ, rubrik, fil: post?.fil, ...(post && !skapar ? { id: post.id } : {}) }
+              : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
           const fel = inmatningsfel(inmatning);
           if (fel) {
             setFormfel(fel);
@@ -325,6 +514,250 @@ function Detalj({ post, skapar, jag, onStang, onSpara }) {
       >
         Spara
       </OpsButton>
+      {post && !skapar && post.typ === "fil" && filSort(post.fil?.mime) === "ljud" ? (
+        <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
+      ) : null}
+      {post && !skapar ? <DelaKontroll id={post.id} grupper={grupper} onDela={onDela} /> : null}
+      {post && !skapar ? <RaderaKontroll id={post.id} onRadera={onRadera} /> : null}
+    </div>
+  );
+}
+
+/**
+ * @param {number} sekunder
+ */
+function visaTid(sekunder) {
+  const s = Number.isFinite(sekunder) && sekunder > 0 ? Math.floor(sekunder) : 0;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/**
+ * @param {{ src: string }} props
+ */
+function Ljudspelare({ src }) {
+  const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
+  const [spelar, setSpelar] = useState(false);
+  const [tid, setTid] = useState(0);
+  const [langd, setLangd] = useState(0);
+  const [fel, setFel] = useState("");
+  return (
+    <div data-bibliotek-spelare="" className="flex items-center gap-2">
+      <audio
+        ref={ljud}
+        src={src}
+        preload="metadata"
+        onPlay={() => setSpelar(true)}
+        onPause={() => setSpelar(false)}
+        onTimeUpdate={() => setTid(ljud.current?.currentTime ?? 0)}
+        onLoadedMetadata={() => setLangd(ljud.current?.duration ?? 0)}
+      />
+      <OpsButton
+        variant="secondary"
+        onClick={() => {
+          const el = ljud.current;
+          if (!el) return;
+          if (!el.paused) {
+            el.pause();
+            return;
+          }
+          const svar = el.play();
+          if (svar && typeof svar.catch === "function") {
+            svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+          }
+        }}
+      >
+        {spelar ? "Pausa" : "Spela"}
+      </OpsButton>
+      <span>{visaTid(tid)} / {visaTid(langd)}</span>
+      {fel ? <p role="alert">{fel}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * @param {{ onSpelaIn?: (inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>, inspelare?: import("../lib/talk.js").Inspelare }} props
+ */
+function SpelaIn({ onSpelaIn, inspelare }) {
+  const [sekunder, setSekunder] = useState(0);
+  const startad = useRef(0);
+  const styr = useTalk({
+    maxSekunder: IDE_MAX_SEKUNDER,
+    inspelare,
+    onKlick: () => {},
+    onTalk: (blob, meta) => {
+      if (typeof onSpelaIn !== "function") {
+        throw new Error("Inspelningen är inte kopplad. Ljudet sparades inte.");
+      }
+      return onSpelaIn({ blob, mimeType: meta.mimeType, sekunder: meta.sekunder, rubrik: ideRubrik() });
+    },
+  });
+  const pagar = styr.lage === "lyssnar" || styr.lage === "haller" || styr.lage === "skickar";
+  useEffect(() => {
+    if (!pagar) return undefined;
+    startad.current = Date.now();
+    const id = setInterval(() => setSekunder(Math.floor((Date.now() - startad.current) / 1000)), 250);
+    return () => clearInterval(id);
+  }, [pagar]);
+  if (pagar) {
+    return (
+      <div data-bibliotek-inspelning="" className="flex items-center gap-2">
+        <span>{visaTid(sekunder)} / {visaTid(IDE_MAX_SEKUNDER)}</span>
+        <OpsButton variant="primary" onClick={() => styr.skickaIn()}>Spara idé</OpsButton>
+        <OpsButton variant="secondary" onClick={() => styr.avbryt()}>Avbryt</OpsButton>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      {styr.fel ? <p role="alert">{styr.fel}</p> : null}
+      <OpsButton variant="secondary" onClick={() => styr.direkt()}>Spela in idé</OpsButton>
+    </div>
+  );
+}
+
+/**
+ * @param {{ post: { id: string, utskrift?: string }, onSkrivUt?: (post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>, onGorForslag?: (inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void> }} props
+ */
+function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
+  const [text, setText] = useState(/** @type {string | null} */ (post.utskrift ?? null));
+  const [forslag, setForslag] = useState(/** @type {null | "anteckning" | "arende"} */ (null));
+  const [fel, setFel] = useState("");
+  const [visarVal, setVisarVal] = useState(false);
+  return (
+    <div data-bibliotek-utskrift-kontroll="" className="flex flex-col gap-2">
+      {text != null ? <p data-bibliotek-utskrift="">{text === "" ? "Utskriften är tom." : text}</p> : null}
+      {fel ? <p role="alert">{fel}</p> : null}
+      <OpsButton
+        variant="secondary"
+        onClick={() => {
+          if (typeof onSkrivUt !== "function") {
+            setFel("Utskriften är inte kopplad. Inget skickades.");
+            return;
+          }
+          setFel("");
+          Promise.resolve()
+            .then(() => onSkrivUt(post))
+            .then((svar) => {
+              if (!svar || typeof svar.text !== "string") {
+                setFel("Servern svarade utan text. Ingenting sparades.");
+                return;
+              }
+              setText(svar.text);
+              setForslag(svar.forslag === "anteckning" || svar.forslag === "arende" ? svar.forslag : null);
+              setVisarVal(true);
+            })
+            .catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+        }}
+      >
+        Skriv ut
+      </OpsButton>
+      {visarVal ? (
+        <div className="flex gap-2">
+          <OpsButton variant="secondary" onClick={() => {
+            if (typeof onGorForslag !== "function") {
+              setFel("Förslaget är inte kopplat. Ingenting skapades.");
+              return;
+            }
+            onGorForslag({ id: post.id, satt: "anteckning" });
+          }}>
+            {forslag === "anteckning" ? "Spara som anteckning, förslag" : "Spara som anteckning"}
+          </OpsButton>
+          <OpsButton variant="secondary" onClick={() => {
+            if (typeof onGorForslag !== "function") {
+              setFel("Förslaget är inte kopplat. Ingenting skapades.");
+              return;
+            }
+            onGorForslag({ id: post.id, satt: "arende" });
+          }}>
+            {forslag === "arende" ? "Skapa ärende, förslag" : "Skapa ärende"}
+          </OpsButton>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void> }} props
+ */
+function DelaKontroll({ id, grupper, onDela }) {
+  const [mal, setMal] = useState(grupper[0]?.id ?? "");
+  const [fel, setFel] = useState("");
+  if (grupper.length === 0) return null;
+  const kor = (/** @type {"flytta" | "kopiera"} */ satt) => {
+    if (!mal) {
+      setFel("Välj en grupp.");
+      return;
+    }
+    if (typeof onDela !== "function") {
+      setFel("Delning är inte kopplad. Posten är kvar.");
+      return;
+    }
+    try {
+      const svar = onDela({ id, groupId: mal, satt });
+      if (svar && typeof svar.then === "function") {
+        svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+      }
+    } catch (e) {
+      setFel(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div data-bibliotek-dela="" className="flex flex-col gap-2">
+      <label className="text-meta text-ink-muted">
+        Dela till
+        <select aria-label="Grupp att dela till" value={mal} onChange={(e) => setMal(e.target.value)} className="ml-2">
+          {grupper.map((g) => <option key={g.id} value={g.id}>{g.namn}</option>)}
+        </select>
+      </label>
+      {fel ? <p role="alert">{fel}</p> : null}
+      <div className="flex gap-2">
+        <OpsButton variant="secondary" onClick={() => kor("flytta")}>Flytta</OpsButton>
+        <OpsButton variant="secondary" onClick={() => kor("kopiera")}>Kopiera</OpsButton>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Första trycket frågar. Andra tar bort. Avbryt lämnar posten.
+ *
+ * @param {{ id: string, namn?: string, onRadera?: (id: string) => void | Promise<void> }} props
+ */
+function RaderaKontroll({ id, namn = "Radera", onRadera }) {
+  const [fraga, setFraga] = useState(false);
+  const [fel, setFel] = useState("");
+  if (!fraga) {
+    return (
+      <OpsButton variant="danger" onClick={() => setFraga(true)}>{namn}</OpsButton>
+    );
+  }
+  return (
+    <div data-bibliotek-bekrafta="" className="flex flex-col gap-2">
+      <p>Radera posten? Den går inte att ångra.</p>
+      {fel ? <p role="alert">{fel}</p> : null}
+      <div className="flex gap-2">
+        <OpsButton variant="secondary" onClick={() => { setFraga(false); setFel(""); }}>Avbryt</OpsButton>
+        <OpsButton
+          variant="danger"
+          onClick={() => {
+            if (typeof onRadera !== "function") {
+              setFel("Raderingen är inte kopplad. Posten är kvar.");
+              return;
+            }
+            try {
+              const svar = onRadera(id);
+              if (svar && typeof svar.then === "function") {
+                svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+              }
+            } catch (e) {
+              setFel(e instanceof Error ? e.message : String(e));
+            }
+          }}
+        >
+          Radera posten
+        </OpsButton>
+      </div>
     </div>
   );
 }
