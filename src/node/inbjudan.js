@@ -320,17 +320,19 @@ export function inbjudningstjanst(konfig, namn) {
         if (status === "vantar" && !utgangen) throw new Error(redanVantande(groupId, rad.id));
         /*
          * ⛔ EN ACCEPTERAD RAD ÖPPNAS IGEN, DEN SÄGER INTE "REDAN MEDLEM" (0.80.1, granskningen av PR 308, B2).
-         * Hit kommer bara en adress som INTE har en rad i `users`: en som har det fick sitt medlemskap, eller
-         * `fanns`, i grenen ovan. Utan användarrad finns inget uid, och utan uid går medlemskapet inte att
-         * slå upp. "Redan medlem" vore därför ett påstående ingen kontrollerat, och det är osant just i det
+         * Hit kommer en adress som grenen ovan inte hittade i `users`: en som hittades fick sitt medlemskap,
+         * eller `fanns`, där. Uppslaget är en exakt likhet mot den normaliserade adressen, så en användarrad
+         * vars `epost` har en annan form missas och hamnar också här. Det är ofarligt, se nedan. Utan
+         * användarrad finns inget uid, och utan uid går medlemskapet inte att slå upp. "Redan medlem" vore därför ett påstående ingen kontrollerat, och det är osant just i det
          * halva läget: inbjudan står `accepterad` men medlemskapet skrevs aldrig, för att processen dog
          * mellan anspråket och skrivningen. Då hade personen aldrig kommit in, och den som bjöd in hade fått
          * höra att hen redan var med.
          *
          * Att öppna raden igen är det säkra valet, för det ger aldrig mer än den som bjuder in får ge nu
          * (`kravBehorighet` ovan): saknas medlemskapet skrivs det vid nästa accept med den nya rollen, och
-         * finns det rör accepten det inte, så ingen roll höjs. Svaret säger `fran: "accepterad"`, så att
-         * appen kan säga att personen kanske redan är med.
+         * finns det rör accepten det inte, så ingen roll höjs. Det gäller också ett avslutat medlemskap: en
+         * borttagen person kommer inte in igen den här vägen. Svaret säger `fran: "accepterad"`, vilket kan
+         * betyda att personen redan är med, att hen har tagits bort, eller att medlemskapet aldrig skrevs.
          */
         if (status !== "aterkallad" && status !== "accepterad" && !utgangen) {
           throw new Error(`bjudIn: inbjudan ${INBJUDNINGAR}/${rad.id} har statusen "${status}", som ingen gren känner. Inget har skrivits.`);
@@ -476,7 +478,21 @@ export function inbjudningstjanst(konfig, namn) {
             ny = created;
           }
         } catch (fel) {
-          await uppdateraOm(INBJUDNINGAR, inbjudan.id, { status: "accepterad" }, { status: "vantar" });
+          /*
+           * ⛔ DET URSPRUNGLIGA FELET FÖRSVINNER INTE (omgranskningen av 42d8f1e, K5). Kastar också återlämningen
+           * hade dess fel annars ersatt orsaken. Då bär det nya felet båda meddelandena, säger att raden står
+           * `accepterad` utan medlemskap och hur det repareras, och har det ursprungliga felet som `cause`.
+           */
+          try {
+            await uppdateraOm(INBJUDNINGAR, inbjudan.id, { status: "accepterad" }, { status: "vantar" });
+          } catch (aterFel) {
+            const orsak = fel instanceof Error ? fel.message : String(fel);
+            const aterOrsak = aterFel instanceof Error ? aterFel.message : String(aterFel);
+            throw new Error(
+              `accepteraInbjudningar: medlemskapet i gruppen "${inbjudan.groupId}" kunde inte skrivas (${orsak}), och inbjudan ${inbjudan.id} kunde inte lämnas tillbaka (${aterOrsak}). Den står accepterad utan medlemskap. Bjud in adressen igen för att reparera.`,
+              { cause: fel },
+            );
+          }
           throw fel;
         }
         if (ny) accepterade.push(inbjudan.groupId);

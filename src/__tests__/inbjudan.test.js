@@ -471,6 +471,23 @@ describe("⛔ en inbjudan till en adress som redan har en rad i gruppen", () => 
    * ⛔ RADEN VÄLJS DETERMINISTISKT (granskningen av PR 308, K2). En accepterad eller giltig väntande rad går före en
    * återkallad, oavsett id och oavsett i vilken ordning källan listar dem.
    */
+  /*
+   * ⛔ EN GILTIG VÄNTANDE RAD GÅR FÖRE EN ACCEPTERAD (omgranskningen av 42d8f1e, KAN 1). Med den gamla ordningen,
+   * accepterad först, hade den accepterade raden öppnats igen bredvid en inbjudan som redan väntar, och adressen hade
+   * haft två väntande rader i samma grupp.
+   */
+  for (const ordning of ["väntande först", "accepterad först"]) {
+    it(`⛔ en giltig väntande rad och en accepterad rad: kastar, och ingenting skrivs (${ordning})`, async () => {
+      const giltigTill = new Date(Date.now() + 5 * 86_400_000).toISOString();
+      const vantande = { ...rad({ status: "vantar", giltigTill }), id: `${GRUPP}_ny@x.se` };
+      const accepterad = rad({ status: "accepterad" });
+      const { tjanst, kalla } = bygg({ invitations: ordning === "väntande först" ? [vantande, accepterad] : [accepterad, vantande] });
+      const fore = JSON.stringify((await kalla.list("invitations", {})).sort((x, y) => (x.id < y.id ? -1 : 1)));
+      await expect(tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "ny@x.se", tokenHash: NY_HASH })).rejects.toThrow(/redan en väntande inbjudan/);
+      expect(JSON.stringify((await kalla.list("invitations", {})).sort((x, y) => (x.id < y.id ? -1 : 1)))).toBe(fore);
+    });
+  }
+
   for (const ordning of ["gammal först", "ny först"]) {
     it(`⛔ en gammal ACCEPTERAD rad och en ny ÅTERKALLAD: den accepterade väljs, den återkallade står kvar (${ordning})`, async () => {
       const gammal = { ...rad({ status: "accepterad" }), id: `${GRUPP}_ny@x.se` };
@@ -608,6 +625,26 @@ describe("⛔ accepten efter anspråket", () => {
     };
     await expect(tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" })).rejects.toThrow(/läsningen föll/);
     expect((await kalla.read("invitations", ID)).status).toBe("vantar");
+  });
+
+  it("⛔ kastar återlämningen följer det ursprungliga felet med, som cause och i meddelandet", async () => {
+    const { tjanst, kalla } = bygg({ invitations: [rad()] });
+    const skapa = /** @type {any} */ (kalla).createNew.bind(kalla);
+    /** @type {any} */ (kalla).createNew = async (/** @type {string} */ c, /** @type {any} */ d) => {
+      if (c === "memberships") throw new Error("nätet föll");
+      return skapa(c, d);
+    };
+    const villkorad = /** @type {any} */ (kalla).updateIf.bind(kalla);
+    /** @type {any} */ (kalla).updateIf = async (/** @type {string} */ c, /** @type {string} */ id, /** @type {any} */ v, /** @type {any} */ d) => {
+      if (c === "invitations" && d.status === "vantar") throw new Error("återlämningen föll");
+      return villkorad(c, id, v, d);
+    };
+    const fel = await tjanst.accepteraInbjudningar({ uid: "uid-ny", epost: "ny@x.se" }).catch((/** @type {any} */ e) => e);
+    expect(fel).toBeInstanceOf(Error);
+    expect(fel.message).toMatch(/nätet föll/);
+    expect(fel.message).toMatch(/återlämningen föll/);
+    expect(fel.message).toMatch(/accepterad utan medlemskap/);
+    expect(fel.cause?.message).toBe("nätet föll");
   });
 
   it("⛔ återlämningen är villkorad: en återkallelse medan medlemskapet föll står kvar", async () => {

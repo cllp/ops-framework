@@ -280,6 +280,25 @@ export const KOMMENTARBILAGAFALT = /** @type {const} */ (["dataUrl", "namn", "ty
 const KOMMENTARBILAGA_KRAV = KOMMENTARBILAGAFALT.slice(0, 4);
 
 /**
+ * Bilagans egna fält ur ett läst dokument.
+ *
+ * ⛔ RADENS `id` HÖR TILL DOKUMENTET, INTE TILL BILAGAN. Adaptern lägger alltid på `id` när den läser
+ * (minne och Firestore gör samma sak). `kommentarbilagaFel` nekar okända fält, så en vy som skickar
+ * hela raden ritar en giltig fil som trasig. Regeln ser inte `id`: det är sökvägen, inte ett fält.
+ *
+ * @param {unknown} post
+ * @returns {import("./file.js").Bilaga | null}
+ */
+export function bilagaUrDokument(post) {
+  if (!post || typeof post !== "object" || Array.isArray(post)) return null;
+  const b = /** @type {Record<string, unknown>} */ (post);
+  /** @type {Record<string, unknown>} */
+  const ut = {};
+  for (const k of KOMMENTARBILAGAFALT) if (k in b && b[k] !== undefined) ut[k] = b[k];
+  return /** @type {import("./file.js").Bilaga} */ (ut);
+}
+
+/**
  * Varför en bilaga inte får följa med en kommentar, eller `null` när den får. Samma prövning som regeln, med ett besked som
  * säger vad man ska göra i stället för "Missing or insufficient permissions".
  *

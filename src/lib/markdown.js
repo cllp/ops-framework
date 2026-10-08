@@ -118,6 +118,28 @@ export function splitInline(row) {
   return out;
 }
 
+/**
+ * Länkarna i en text, http och https, i den ordning de står. Samma tolkning som bubblan (`splitInline`), så en
+ * `javascript:`-adress inte blir en länk här heller.
+ *
+ * ⛔ HÄRLETT, ALDRIG LAGRA (0.80.0, #301, arbetsreglernas punkt 2). Chattinfo läser meddelandenas text. En sparad
+ * länklista hade varit en andra sanning om samma text.
+ *
+ * @param {string | null | undefined} text
+ * @returns {Array<{ url: string, text: string }>}
+ */
+export function lankarI(text) {
+  /** @type {Array<{ url: string, text: string }>} */
+  const ut = [];
+  const sedda = new Set();
+  for (const bit of splitInline(typeof text === "string" ? text : "")) {
+    if (bit.kind !== "link" || !bit.url || sedda.has(bit.url)) continue;
+    sedda.add(bit.url);
+    ut.push({ url: bit.url, text: bit.value });
+  }
+  return ut;
+}
+
 /** @param {string} row @returns {string[]} */
 function tableCells(row) {
   const inner = row.trim().replace(/^\|/, "").replace(/\|$/, "");

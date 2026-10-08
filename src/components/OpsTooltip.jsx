@@ -21,10 +21,12 @@ import { cx } from "../lib/cx.js";
  * @param {object} props
  * @param {string} props.content Förklaringen. Kort, en mening.
  * @param {"top"|"right"|"bottom"|"left"} [props.side]
+ * @param {"yta"|"mork"} [props.tone] `mork` är den mörka bubblan i chattens verktygsrad (0.80.0, #301). Förvalet är ytan.
  * @param {import("react").ReactNode} props.children Det som förklaras. Måste gå att fokusera.
  */
-export function OpsTooltip({ content, side = "top", children }) {
+export function OpsTooltip({ content, side = "top", tone = "yta", children }) {
   if (!content) throw new Error("OpsTooltip: content krävs. En tom tooltip är en hoverfälla utan innehåll.");
+  const mork = tone === "mork";
 
   return (
     // `delayDuration` 200 ms: kortare gör att tooltips blinkar fram när pekaren
@@ -37,12 +39,12 @@ export function OpsTooltip({ content, side = "top", children }) {
             side={side}
             sideOffset={6}
             className={cx(
-              "z-(--z-dropdown) max-w-xs rounded-md border border-line bg-raised px-3 py-2",
-              "text-etikett text-ink shadow-md",
+              "z-(--z-dropdown) max-w-xs rounded-md px-3 py-2 text-etikett shadow-md",
+              mork ? "bg-ink text-canvas" : "border border-line bg-raised text-ink",
             )}
           >
             {content}
-            <Tooltip.Arrow className="fill-raised" />
+            <Tooltip.Arrow className={mork ? "fill-ink" : "fill-raised"} />
           </Tooltip.Content>
         </Tooltip.Portal>
       </Tooltip.Root>

@@ -153,6 +153,33 @@ describe("OpsTabs", () => {
       /ariaLabel krävs/,
     );
   });
+
+  it("ikonflikar: ordet blir namnet, antalet syns också vid 0, och en ikon på bara några flikar kastar", () => {
+    render(
+      <OpsTabs
+        tabs={[
+          { id: "a", label: "Bilder", icon: <span>B</span>, badge: 0 },
+          { id: "b", label: "Länkar", icon: <span>L</span>, badge: 3 },
+        ]}
+        value="a"
+        onChange={() => {}}
+        ariaLabel="Vy"
+      >
+        <OpsTabPanel id="a">x</OpsTabPanel>
+      </OpsTabs>,
+    );
+    expect(screen.getByRole("tab", { name: "Bilder 0" })).toHaveTextContent("0");
+    expect(screen.getByRole("tab", { name: "Länkar 3" })).toBeInTheDocument();
+    forvantaKrasch(
+      () =>
+        render(
+          <OpsTabs tabs={[{ id: "a", label: "Bilder", icon: <span>B</span> }, { id: "b", label: "Länkar" }]} value="a" onChange={() => {}} ariaLabel="Vy">
+            <OpsTabPanel id="a">x</OpsTabPanel>
+          </OpsTabs>,
+        ),
+      /Antingen alla eller ingen/,
+    );
+  });
 });
 
 describe("kryssruta och reglage", () => {

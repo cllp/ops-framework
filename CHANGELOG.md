@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.80.1
 
-Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4, arkitektens beslut i PR 308 om en adress som bjuds in igen, och granskningen av PR 308. Om numret: 0.78.1 och 0.78.2 är mergade. 0.80.0 (#307) är inte mergad ännu, och 0.80.1 kommer efter den. 0.79.0 (#304) väntar på #303 och får ett nytt nummer.
+Ramverkets del av granskningen av lifehub.app PR 117, punkt 3 och 4, arkitektens beslut i PR 308 om en adress som bjuds in igen, och granskningen av PR 308. Om numret: 0.80.0 (#307) är mergad och publicerad, och 0.80.1 kommer efter den. 0.79.0 (#304) får ett nytt nummer efter 0.80.1.
 
 ### Inbjudningar: återkallelsen håller, id:t kan inte krocka, och en ny inbjudan skriver aldrig över
 
@@ -60,6 +60,12 @@ Det läget repareras genom att bjuda in adressen igen:
 
 "Redan medlem", som `bjudIn` svarade förut, var ett påstående ingen kontrollerat och var osant just i det här läget. Valet att öppna raden igen är det säkra, eftersom det aldrig ger mer än den som bjuder in får ge nu.
 
+Uppslaget i `users` är en exakt likhet mot den normaliserade adressen, så en användarrad vars `epost` har en annan form missas, och raden öppnas igen i stället för att medlemskapet skrivs direkt. Det är ofarligt, eftersom ett befintligt medlemskap aldrig ändras. `fran: "accepterad"` kan alltså betyda att personen redan är med, att hen har tagits bort, eller att medlemskapet aldrig skrevs. En borttagen person, med medlemskapet `avslutad`, kommer inte in igen den här vägen.
+
+En återöppning skriver över `skapadAv` och `tokenHash` med den nya inbjudans värden.
+
+Kastar återlämningen själv går det ursprungliga felet inte förlorat: felet som går vidare bär båda meddelandena, säger att raden står `accepterad` utan medlemskap och att den repareras genom att bjuda in igen, och har det ursprungliga felet som `cause`.
+
 #### Tillagt
 
 - Datakontraktets regel 8, `createNew(samling, data)`: frivillig, skriver bara om id:t är ledigt, i samma atomära steg, och svarar `{ created, row }`. `createMemorySource` har den, och `createRoutingSource` skickar den vidare och kastar med samlingens namn när just den källan saknar den.
@@ -86,7 +92,7 @@ En inbjudan skriven före 0.80.1 har kvar id:t `${groupId}_${epost}`, och ingent
   - utan listan över ändrade fält: 7 röda, en återkallelse som också ändrar `tokenHash`, `giltigTill`, `groupId`, `roll`, `epost` eller `antalSkickade`, och golvprovet.
   - utan `opsArAdmin`: 2 röda, en vanlig medlem som återkallar, och golvprovet.
   - `vantar` till `aterkallad` av en admin och av ägaren är gröna i alla fem.
-- `src/__tests__/inbjudan.test.js`, 62 prov, 62 av 62 gröna med rättningen. Prov som lagts till efter omgranskningen av 5c0d885, ett i taget utan sin rättelse:
+- `src/__tests__/inbjudan.test.js`, 65 prov, 65 av 65 gröna med rättningen. Prov som lagts till efter omgranskningen av 5c0d885, ett i taget utan sin rättelse:
   - utan `roll` i anspråkets villkor: 1 rött, en ny roll mellan listning och anspråk gav ett medlemskap med den gamla rollen `agare` (B1).
   - utan `giltigTill` i anspråkets villkor: 1 rött, en ny `giltigTill` mellan listning och anspråk gav ändå ett medlemskap (B1).
   - med läsningen av medlemskapet utanför `try`, som förut: 1 rött, raden stod kvar som `accepterad` när läsningen föll (B2).
@@ -94,6 +100,10 @@ En inbjudan skriven före 0.80.1 har kvar id:t `${groupId}_${epost}`, och ingent
   - utan grenen för en användarrad: provet med en halv rad och en användarrad blev rött (det skyddar den befintliga grenen, som nu är reparationsvägen).
   - med en vanlig `update` i återlämningen: 1 rött, en återkallelse medan medlemskapet föll skrevs över med `vantar` (K1).
   - med `create` i stället för `createNew` för medlemskapet i accepten: 3 röda, bland dem att ett medlemskap som skrevs mellan läsningen och skrivningen fick sin roll överskriven (K3). I `bjudIn`: 1 rött, samma sak där.
+
+  Prov som lagts till efter omgranskningen av 42d8f1e:
+  - en giltig väntande rad och en accepterad rad för samma adress, i båda listordningarna: kast, och ingenting skrivs. Med den gamla ordningen, accepterad före giltig väntande: 2 röda, den accepterade raden öppnades igen bredvid den väntande.
+  - återlämningen kastar: det ursprungliga felet finns i meddelandet och som `cause`. Med återlämningen som förut, utan eget `try`: 1 rött, återlämningens fel ersatte det ursprungliga.
 
   De tidigare proven, en gren i taget tagen tillbaka:
   - utan återöppningen av en återkallad rad: 4 röda, återöppningen, att den gamla hashen inte överlever, två samtidiga återöppningar och den återkallade gamla raden.
@@ -112,7 +122,63 @@ En inbjudan skriven före 0.80.1 har kvar id:t `${groupId}_${epost}`, och ingent
   - utan kravet på `createNew` i fabriken: 1 rött. Utan kravet på `updateIf`: 1 rött.
 - `src/__tests__/grupp-skapa.test.js`: två nya prov, en källa utan `createNew` respektive `updateIf` nekas med `createGroupService` i felet. Med det gamla namnet i felet: 2 röda (K4). Provet där en inbjudan faller vid skapandet lägger felet i `createNew`, där skrivningen nu sker. Med felet kvar i `create` blev det rött, eftersom ingen inbjudan längre går den vägen.
 - `src/__tests__/routing.test.jsx`, `createNew` per samling, 4 prov. Med en minneskälla vars `createNew` inte frågar om id:t finns: 2 röda, ett här och raden som dök upp i `inbjudan.test.js`. Med rättningen: 20 av 20 gröna i filen.
-- Efter att main (f525384, med 0.78.2 och #310) tagits in: `npm ci`, `npm run check`, `npm run test:rules` och `npm run check:scaffold` (utan `OPS_CHROMIUM`) gick med exitkod 0. `npm run check`: 2631 av 2631 gröna. `npm run test:rules`: 377 av 377 gröna.
+- Efter att main (e2b6601, med 0.80.0 och #303) tagits in: `npm ci`, `npm run check`, `npm run test:rules` och `npm run check:scaffold` (utan `OPS_CHROMIUM`) gick med exitkod 0. `npm run check`: 2659 av 2659 gröna. `npm run test:rules`: 401 av 401 gröna.
+
+## 0.80.0
+
+Bilagor i egna dokument och panelen Chattinfo (#300, #301), rättad efter granskningen av PR 307. 0.78.1 och 0.78.2 är mergade och har sina avsnitt nedan. 0.79.0 (#304) är inte mergad och väntar på #303, mätt på main `f525384` 2026-10-08. Den kommer därför efter 0.80.0, med ett nytt nummer.
+
+### ⛔ Bakåtbrytande
+
+En app som har `bilagor: true` från 0.77.0 slutar fungera vid ompinningen om den inte gör följande. Inline-`dataUrl` på meddelandet nekas nu av regeln, och källan kastar utan samlingsnamnet.
+
+### Det appen måste göra vid ompinningen
+
+1. **`bilagaSamling` krävs när `bilagor: true`**, både i `createSamtalskalla` och i `samtalsregelfragment`, med samma namn. Utan den kastar appen vid uppstart: `createSamtalskalla: bilagor: true kräver bilagaSamling`. Ramverket väljer inte namnet.
+2. **Generera reglerna på nytt och deploya dem FÖRE klienten.** Den nya klienten skriver meddelandet med märket `{ namn, typ }` och filen i ett eget dokument, i en batch. Gamla regler känner inte samlingen och nekar filen. Nya regler nekar i sin tur `dataUrl` på meddelandet, så en gammal klient mot nya regler kan inte skicka bilagor. Ordningen är alltså regler, sedan klient, med kort tid emellan.
+3. **Källan behöver `batch`.** Meddelandet och filen skrivs tillsammans eller inte alls. `createFirestoreSource` och `createMemorySource` har den. En egen källa utan `batch` kastar på en bilaga, med skälet.
+4. **`tyst` är valfri.** Med den, i källan och i regelfragmentet, ritas Tysta notiser och `samtalsnotiser` hoppar över ett tystat samtal. Utan den finns ingen tystning, och notiserna beter sig som förut.
+5. **`mejl` är valfri** på `OpsMeddelanden`, `OpsSamtal` och `OpsTrad`. Utan en adress ritas ingen mejlknapp. Ramverket känner inga adresser.
+
+Bilagor som redan ligger inline på meddelanden från 0.77.0 behöver ingen migrering. De ritas i bubblan som förut och räknas i Chattinfo.
+
+### Ändrat
+
+- Ett meddelande med bilaga bär `{ namn, typ }`. Filen ligger i `<samtal>/{sid}/<bilagaSamling>/{nyckel}` med meddelandets `tid`. Nyckeln är meddelandets id, och för ett svar i en tråd `<tråd>~<id>` (`bilagenyckel`, `BILAGA_TRADSKILJE`). Översikten och notiserna läser inte `dataUrl`.
+- Regeln binder filen till sitt meddelande (`opsBundenBilaga`): med `existsAfter` och `getAfter` ska meddelandet finnas efter batchen, vara skrivet av den inloggade och bära samma namn, typ och tid. En fil utan meddelande, en fil på någon annans meddelande och ett märke med en annan typ än filen nekas.
+- Meddelandets id är `m_<tid>_<följd>_<slump>`. Utan slumpdelen kunde två flikar som skickar samma millisekund få samma id.
+- `lasBilagor(sid)` ger de nyaste filerna först (fallande `tid`) och `fler` när taket nås. `lasBilaga(sid, mid, { trad })` läser en fil. Båda cachar per nyckel, eftersom en fil aldrig ändras eller tas bort, med ett tak på två sidor.
+- Chattinfo läser listan när panelen öppnas, och sedan bara filen bakom ett nytt meddelande med märke. Ett textmeddelande ger ingen läsning. Förut lästes alla filer om för varje nytt meddelande.
+- Chattinfo härleder också bilagorna i 0.77.0-form ur de laddade meddelandena, utan dubbletter. Förut stod det "Bilder 0" medan bubblan visade bilden.
+- Fliken Medlemmar visar samtalets deltagare i ett privat samtal, inte gruppens alla medlemmar (`samtalsdeltagare`).
+- Flikarna i Chattinfo är ikon och antal, som förebilden. `OpsTabs` tar `icon` och `badge` på en flik, antingen på alla flikar eller ingen. Med ord fick Dokument och Länkar inte plats på 320 px.
+- Klockan i huvudet är en klocka när samtalet inte är tystat och en överstruken klocka när det är det. Panelknappen är `PanelRightOpen`, samma ikon som förebilden.
+- `samtalsnotiser` använder `synligText`. En bilaga utan text ger filnamnet, inte en tom notis.
+- `BilagaVisning` sätter varken `href` eller `src` när `kommentarbilagaFel` inte är `null`.
+- `OpsChattinfo` med flikarna Medlemmar, Bilder, Dokument och Länkar. Verktygsraden i huvudet: Mejl när appen skickar en adress, Tysta notiser när källan har `tyst`, Sök i samtalet, Chattinfo. Varje knapp har namn, tooltip och 44 px.
+- Länkarna i panelen härleds ur meddelandenas text. De lagras inte.
+- Firebase Storage används inte för chattens bilagor, och appen behöver inga Storage-regler. Med `bilagor` på källan anropas inte `onBifoga`.
+- `createRoutingSource` tar `fallback`, samma namn som i koden. README sade `standard` på två ställen.
+- Ett meddelande som bär märket ska ha sin fil efter batchen (`existsAfter` på `opsBilagansFil`), i samtalet och i en tråd. Förut släpptes ett märke utan fil in, och bubblan sade "Bilagan går inte att visa" för alltid. Ett meddelande utan bilaga påverkas inte, och en fil som läggs till senare på ett eget meddelande som redan bär märket prövas bara av filens regel och släpps in som förut.
+- Meddelandets id får inte innehålla `~` när `bilagor` är på, i samtalet eller i en tråd. Förut släpptes `rot~m1` in som toppmeddelande, men dess fil kunde aldrig skrivas, eftersom regeln läser `~` som trådens avgränsare. Källans id har inget `~`.
+- Meddelandets regel jämför också namn och typ med filen (`opsMarketHarFil`), samma jämförelse som filens regel gör åt andra hållet. Förut räckte det att filen fanns, så ett nytt meddelande kunde ta över en fil utan meddelande under ett annat namn eller en annan typ. Med samma namn och typ släpps det in, och README säger varför det är godtagbart.
+- Generatorn kastar om `BILAGA_TRADSKILJE` inte är ett enda tecken som är säkert i en teckenklass, i `split` och inom `'...'` (`tradskiljeTeckenklass`). Förut byggdes `[~]` ur konstanten utan prövning.
+- README: ett trådrot-id med `~` från tiden innan `bilagor` slogs på gör att svaren i den tråden aldrig kan få en fil.
+- README: källan med bilagecachen ska skapas om per inloggad användare och grupp, som bolag-ops gör, annars kan cachen följa med mellan användare i samma flik. Taket är `sida * 2` filer. README säger också att Bilder och Dokument i en tråds Chattinfo läses ur hela samtalets filer, medan Länkar kommer ur trådens laddade meddelanden. Omfånget är inte rättat i koden, skälet står i README.
+
+### Prov
+
+Alla går att köra om med kommandona som står vid dem.
+
+- `npx vitest run src/__tests__/chattinfo.test.jsx`: 9 gröna. Mot grenens förra läge (5c1b427, `OpsMeddelanden.jsx`, `samtalskalla.js`, `samtal.js` och `regler.js` återställda): 4 röda av 9, exit 1. Bilden i 0.77.0-form saknades i Bilder ("Bilder 2" fanns inte). Tre textmeddelanden gav 6 nya läsningar av filerna i stället för 0. `lasBilagor` gav `b1, b2, b3` i stället för `b5, b4, b3`. Medlemmar var 4 i ett samtal mellan två.
+- Var för sig, med en ändring i taget bortplockad: utan härledningen i panelen 1 rött, utan inline-vägen i `VisadBilaga` 1 rött (bubblan ritade "Bilagan går inte att visa"), med omläsning för varje meddelande 1 rött, utan sorteringen 1 rött, med gruppens medlemmar 1 rött. Varje gång exit 1.
+- `npx vitest run src/__tests__/chatt-bilagor.test.jsx`: trådens id i filens nyckel, filens `tid`, och id:t med slumpdel.
+- `npx vitest run src/__tests__/data-primitives.test.jsx`: ikonflikarna i `OpsTabs`, antal också vid 0, och kastar med ikon på bara några flikar.
+- `rules/__tests__/chattbilagor.test.mjs` i `npm run test:rules`: 29 gröna. Varje nekande prov har ett giltigt meddelande i samma batch, så att det nekas av det villkor det mäter och inte av bindningen. Mutationskörningen, där ett villkor i taget togs bort ur den genererade regeln, står i PR 307: 23 av 24 mutationer gav minst ett rött prov. Den som överlevde är `existsAfter` före `getAfter`, som är ekvivalent eftersom ett `getAfter` på ett saknat dokument också nekar. Den står kvar av samma skäl som vid `opsHarMedlemskap`: ett fel och ett nej ska gå att skilja i en logg.
+- Märket utan fil och `~` i id:t, i `rules/__tests__/chattbilagor.test.mjs`. Med varje villkor bortplockat ur regeln, ett i taget, och bara den filen körd: utan `existsAfter` 1 rött av 25 (märke utan fil släpptes in), med bara trådens `existsAfter` bortplockat 1 rött (samtalets två rader i provet tillfälligt bortkommenterade, så att trådens rad mättes ensam), med trådens nyckel `mid` i stället för `tid + '~' + mid` 3 röda (trådsvaret med sin fil nekades), utan `~`-villkoret 1 rött, med bara trådens `~`-villkor bortplockat 1 rött (samtalets rad tillfälligt bortkommenterad). Varje gång exit 1. Med villkoren och provet återställt: 25 gröna, exit 0. Provet "pngmarke", som stod grönt på ett märke utan fil, är borttaget.
+- Föräldralös fil, i `rules/__tests__/chattbilagor.test.mjs`: filen sås förbi reglerna, sedan ett nytt meddelande med samma id. Utan jämförelsen av namn och typ: 2 röda av 29, exit 1 (annat namn släpptes in, och provet med samma namn och typ föll som följd eftersom dokumentet redan fanns). Utan bara namnet: 2 röda, exit 1. Utan bara typen: 2 röda, exit 1 (annan typ släpptes in, och följdfelet). Med jämförelsen: 29 gröna, exit 0.
+- `npx vitest run src/__tests__/tradskilje.test.js`: 15 gröna, exit 0. Utan prövningen i `tradskiljeTeckenklass`: 13 röda av 15, exit 1. Med prövningen men utan att generatorn anropar den: 4 röda av 15, exit 1 (generatorn byggde `[]]`, `[^]`, `[\]` och `[-]`).
+- Playwright, `OPS_CHROMIUM=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node scripts/check-skalyta.mjs --bara-chattinfo`: 16 kontroller, inga brott, exit 0. Mot 5c1b427: 4 brott av 16, exit 1 (Medlemmar 4 i stället för 2, och 1 bild i Bilder i stället för 2). Montaget mot förebilden ligger i `docs/jamforelser/0.80.0/`, förebilderna i `docs/jamforelser/0.80.0/forebild/`.
 
 ## 0.78.2
 
@@ -180,7 +246,7 @@ Regeln med `bilagor: true` ska vara utrullad innan klienten slår på nyckeln. U
 - Fältet `bilaga` på ett meddelande, i kommentarernas form `{ dataUrl, namn, typ, tecken, bredd?, hojd? }`. `byggMeddelande` prövar den med `kommentarbilagaFel`. Med en bilaga får texten vara tom.
 - `samtalsregelfragment({ bilagor: true })` och `createSamtalskalla({ bilagor: true })`. `skicka` och `skickaITrad` skriver bilagan, och läsningen ger den tillbaka. `harBilagor(kalla)` svarar. Utan nyckeln kastar ett försök att skicka en bilaga.
 - Regeln `opsMeddelandebilagaGiltig`, byggd av samma uttryck som `opsKommentarbilagaGiltig`. Två namn, eftersom båda fragmenten limmas in i samma regelfil.
-- `onBifoga` på `OpsSamtal`, `OpsTrad` och `OpsMeddelanden`. Plus ritas när den finns, eller när källan har `bilagor`. Ta foto ritas bara när en kamera räknats upp. Med `bilagor` läser ramverket filen och skickar den med meddelandet. En bild visas som miniatyr, en fil som nedladdningslänk.
+- `onBifoga` på `OpsSamtal`, `OpsTrad` och `OpsMeddelanden`. Plus ritas när den finns, eller när källan har `bilagor`. Ta foto ritas bara när en kamera räknats upp. Med `bilagor` läser ramverket filen och skickar den med meddelandet, och `onBifoga` anropas inte. En bild visas som miniatyr, en fil som nedladdningslänk. Firebase Storage används inte, och appen behöver inga Storage-regler. Filen låg i 0.77.0 i meddelandets dokument. Från 0.80.0 ligger den i ett eget dokument, se det avsnittet.
 
 ### Prov
 
