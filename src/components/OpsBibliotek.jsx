@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, StickyNote } from "lucide-react";
-import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
@@ -22,7 +22,14 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * `farAndra`, samma villkor som regelns `update`: författaren eller admin. Andra
  * ser posten i läsläge. Ett formulär som regeln sedan nekar är ett löfte vyn inte
  * kan hålla, och nejet hade kommit som "Missing or insufficient permissions".
- * Utan `jag` visas allt i läsläge och inga knappar för att lägga till.
+ * `jag: null` betyder att den inloggade inte är medlem: allt visas i läsläge och
+ * inga knappar för att lägga till.
+ *
+ * ⛔ `jag` KRÄVS, OCH `null` ÄR ETT SVAR (regel 5, granskningen av #304). Med
+ * `null` som förval såg en app som glömt propen ut som en icke-medlem: inga
+ * knappar och inget fel, och den som faktiskt får skriva fick bara läsa. Nu
+ * kastar komponenten när `jag` saknas, och appen säger `null` när personen inte
+ * är medlem.
  *
  * ⛔ EN LÄNK GÅR ATT ÖPPNA. Den visas som en `<a>` i ny flik med
  * `rel="noopener noreferrer"`, och bara när adressen klarar `ADRESSFORM`, alltså
@@ -34,7 +41,7 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {readonly (import("../lib/bibliotek.js").Bibliotekspost & { id: string })[]} props.poster
  * @param {string | null} [props.fel] Läsningen misslyckades. Tom lista med fel är inte "biblioteket är tomt".
  * @param {readonly { id: string, fel: string }[]} [props.trasiga] Rader källan inte kunde läsa (`las().trasiga`). De visas som ett antal med skäl, aldrig tyst.
- * @param {{ uid: string, roll: string, groupId?: string } | null} [props.jag] Den inloggades aktiva medlemskap i gruppen.
+ * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag Den inloggades aktiva medlemskap i gruppen, eller `null` när personen inte är medlem. Krävs.
  * @param {boolean} [props.laddar]
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} [props.vald]
  * @param {"anteckning" | "lank" | null} [props.skapar]
@@ -43,7 +50,10 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {(typ: "anteckning" | "lank") => void} props.onSkapa
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag = null, onOppna, onStang, onSkapa, onSpara }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara }) {
+  if (jag === undefined) {
+    throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
+  }
   const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank"} */ ("alla"));
   const [sok, setSok] = useState("");
   const skaparTyp = jag ? skapar : null;
@@ -195,7 +205,7 @@ function Detalj({ post, skapar, jag, onStang, onSpara }) {
       <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
       <OpsViewHeader title={rubrikVy} description={beskrivning} />
       {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
-      <OpsField label="Rubrik" error={formfel && !rubrik.trim() ? formfel : undefined}>
+      <OpsField label="Rubrik" error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
         <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
       </OpsField>
       {typ === "anteckning" ? (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, byggPost, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, postFel } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, byggPost, farAndra, filtreraBibliotek, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -67,6 +67,25 @@ describe("bibliotekets post", () => {
     expect(ADRESSFORM.test("javascript:alert(1)")).toBe(false);
     expect(normaliseraAdress(" https://sv.wikipedia.org/wiki/Åre ")).toBe("https://sv.wikipedia.org/wiki/%C3%85re");
     expect(ADRESSFORM.test(normaliseraAdress("https://sv.wikipedia.org/wiki/Åre"))).toBe(true);
+  });
+
+  it("tomhet räknas som Firestores trim: bara U+0000 till U+0020 (granskningen av #304)", () => {
+    // Regeln släpper in de här, och emulatorn bekräftar det i rules/__tests__/bibliotek.test.mjs.
+    // Med JavaScripts trim sade modellen "Rubriken saknas." och raden hamnade i trasiga för alltid.
+    for (const rubrik of ["\u00A0", "\u3000", "\u2028", "\uFEFF"]) {
+      expect(postFel({ ...anteckning, rubrik })).toBeNull();
+      expect(inmatningsfel({ typ: "anteckning", rubrik, text: "T" })).toBeNull();
+      expect(byggPost({ ...anteckning, rubrik }).rubrik).toBe(rubrik);
+    }
+    for (const text of ["\u00A0", "\u3000"]) {
+      expect(postFel({ ...anteckning, text })).toBeNull();
+      expect(byggPost({ ...anteckning, text }).text).toBe(text);
+    }
+    // Och tvärtom: U+001F trimmas av regeln men inte av JavaScript.
+    expect(postFel({ ...anteckning, rubrik: "\u001F" })).toMatch(/Rubriken saknas/);
+    expect(postFel({ ...anteckning, text: "\u0000\u001F " })).toMatch(/saknar text/);
+    expect(byggPost({ ...anteckning, rubrik: "\u001F \u00A0Protokoll\u00A0\t" }).rubrik).toBe("\u00A0Protokoll\u00A0");
+    expect(trimSomRegeln(42)).toBe("");
   });
 
   it("klockslagen är heltal, och andrad ligger inte före skapad", () => {

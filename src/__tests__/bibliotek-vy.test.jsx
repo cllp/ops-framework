@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
 import { byggPost } from "../lib/bibliotek.js";
 
@@ -100,6 +100,19 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Ny länk" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+  });
+
+  it("jag krävs: utan propen kastar vyn, och null är en icke-medlem (granskningen av #304)", () => {
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    const utan = { poster, onOppna() {}, onStang() {}, onSkapa() {}, onSpara() {} };
+    try {
+      expect(() => render(<OpsBibliotek {...utan} />)).toThrow(/OpsBibliotek: jag krävs/);
+    } finally {
+      tyst.mockRestore();
+    }
+    render(<OpsBibliotek {...utan} jag={null} />);
+    expect(screen.getByRole("button", { name: "Protokoll" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ny anteckning" })).toBeNull();
   });
 
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {

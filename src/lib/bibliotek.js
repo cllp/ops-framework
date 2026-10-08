@@ -74,8 +74,34 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {number} andrad Millisekunder.
  */
 
-/** @param {unknown} v @returns {string} */
-const str = (v) => (typeof v === "string" ? v.trim() : "");
+/**
+ * En sträng trimmad som Firestores `trim()` gör det, eller `""` för allt som
+ * inte är en sträng.
+ *
+ * ⛔ TOMHET RÄKNAS SOM I REGELN (regel 2, granskningen av #304). Regeln prövar
+ * `d.rubrik.trim().size() > 0`, och Firestores `trim()` tar bara bort tecknen
+ * U+0000 till U+0020 i ändarna. JavaScripts `trim()` tar bort alla Unicode-
+ * blanktecken (U+00A0, U+3000, U+2028, U+FEFF och fler) men inte U+001F. Med
+ * JavaScripts trim släppte regeln in en rubrik av bara U+00A0, och modellen
+ * sade "Rubriken saknas." om samma rad. Raden hamnade i `trasiga`, och eftersom
+ * ingen får radera stod den där för alltid. Mätt mot emulatorn räknades 46
+ * tecken olika: 27 kontrolltecken som regeln trimmar och JavaScript inte, och
+ * 19 Unicode-blanktecken som JavaScript trimmar och regeln inte. Varje trim i modellen går därför
+ * genom den här funktionen, också den som vyn använder.
+ *
+ * @param {unknown} v
+ * @returns {string}
+ */
+export function trimSomRegeln(v) {
+  if (typeof v !== "string") return "";
+  let start = 0;
+  let slut = v.length;
+  while (start < slut && v.charCodeAt(start) <= 0x20) start += 1;
+  while (slut > start && v.charCodeAt(slut - 1) <= 0x20) slut -= 1;
+  return v.slice(start, slut);
+}
+
+const str = trimSomRegeln;
 
 /**
  * Adressen som den sparas: trimmad, och med procentkod och gemener i schema och värdnamn när

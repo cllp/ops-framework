@@ -1352,7 +1352,9 @@ ${bilagaRegelfunktion("opsKommentarbilagaGiltig")}
  *
  * ⛔ REGELN OCH MODELLEN ÄR EN SANNING (granskningen av #304). Fälten, taken och
  * typerna kommer ur `bibliotek.js`, adressen ur `ADRESSFORM` via `regelRegex`, och
- * en rubrik eller text som bara är mellanslag är tom på båda sidor (`trim()`).
+ * en rubrik eller text är tom på samma sätt på båda sidor: Firestores `trim()` tar
+ * bara bort U+0000 till U+0020, och modellen trimmar med `trimSomRegeln`, som gör
+ * exakt det. JavaScripts `trim()` gör det inte, se `bibliotek.js`.
  *
  * ⛔ KLOCKAN ÄR SERVERNS. En post som fick datera sig själv till år 30 000 hade
  * legat överst i listan för alltid, eftersom listan sorteras på `andrad`.

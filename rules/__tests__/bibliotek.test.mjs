@@ -18,7 +18,8 @@
  */
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
-import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL } from "../../src/lib/bibliotek.js";
+import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, inmatningsfel } from "../../src/lib/bibliotek.js";
+import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
@@ -173,6 +174,51 @@ describe("bibliotekets regler: skapa", () => {
     await assertSucceeds(skapa(MEDLEM, ny({ rubrik: "r".repeat(MAX_BIBLIOTEKRUBRIK), text: "t".repeat(MAX_BIBLIOTEKTEXT) })));
     await assertFails(skapa(MEDLEM, ny({ rubrik: "r".repeat(MAX_BIBLIOTEKRUBRIK + 1) })));
     await assertFails(skapa(MEDLEM, ny({ text: "t".repeat(MAX_BIBLIOTEKTEXT + 1) })));
+  });
+
+  it("tomhet är Firestores trim: U+00A0, U+3000, U+2028 och U+FEFF är inte tomt, U+001F är det", async () => {
+    // Granskningen av #304: regeln släppte in de här och modellen sade "Rubriken saknas.",
+    // så raden hamnade i trasiga för alltid. Modellen ska säga samma sak som regeln.
+    for (const rubrik of ["\u00A0", "\u3000", "\u2028", "\uFEFF"]) {
+      await assertSucceeds(skapa(MEDLEM, ny({ rubrik })));
+      assert.equal(inmatningsfel({ typ: "anteckning", rubrik, text: "T" }), null, `rubrik U+${rubrik.codePointAt(0).toString(16)}`);
+    }
+    for (const text of ["\u00A0", "\u3000"]) {
+      await assertSucceeds(skapa(MEDLEM, ny({ text })));
+      assert.equal(inmatningsfel({ typ: "anteckning", rubrik: "R", text }), null, `text U+${text.codePointAt(0).toString(16)}`);
+    }
+    await assertFails(skapa(MEDLEM, ny({ rubrik: "\u001F" })));
+    assert.match(String(inmatningsfel({ typ: "anteckning", rubrik: "\u001F", text: "T" })), /Rubriken saknas/);
+  });
+
+  it("regeln och modellen räknar tomhet lika, tecken för tecken", async () => {
+    // ⛔ Listan är inte en kopia av någon av de två (regel 4). Den är kontrolltecknen och
+    // ASCII upp till "@", plus varje tecken som JavaScripts \s känner som blanksteg. Svaret
+    // kommer från emulatorn och jämförs med modellens, så ingen sida facit för sig själv.
+    const kandidater = [];
+    for (let c = 0; c <= 0x40; c++) kandidater.push(c);
+    for (let c = 0x41; c <= 0xffff; c++) if (/\s/.test(String.fromCharCode(c))) kandidater.push(c);
+    const avvikelser = [];
+    const bada = { ja: 0, nej: 0 };
+    for (const c of kandidater) {
+      const v = String.fromCharCode(c);
+      for (const falt of ["rubrik", "text"]) {
+        const rad = ny({ [falt]: v });
+        let regel = true;
+        try {
+          await skapa(MEDLEM, rad);
+        } catch {
+          regel = false;
+        }
+        const modell = inmatningsfel(rad) === null;
+        if (regel !== modell) avvikelser.push(`${falt} U+${c.toString(16).padStart(4, "0")}: regeln ${regel ? "ja" : "nej"}, modellen ${modell ? "ja" : "nej"}`);
+        else bada[regel ? "ja" : "nej"] += 1;
+      }
+    }
+    // Golv: listan har minst 80 tecken, och båda svaren förekommer, annars mäter jämförelsen ingenting.
+    assert.ok(kandidater.length >= 80, `bara ${kandidater.length} tecken prövades`);
+    assert.ok(bada.ja > 0 && bada.nej > 0, `regeln och modellen var eniga bara åt ett håll: ${JSON.stringify(bada)}`);
+    assert.deepEqual(avvikelser, []);
   });
 
   it("adressen: http eller https, inget mellanslag, och taket håller", async () => {
