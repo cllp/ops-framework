@@ -9,6 +9,59 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.85.0
+
+CP 2026-10-08, i cllp/ops-framework#192: privat är personens egen grupp, filer upp till 25 MB, inspelning upp till 10 minuter, en posttyp `fil` där MIME styr vyn, utskriften sparas på ljudposten och personen väljer om den blir anteckning eller ärende, och radering är författarens eller admin i gruppen (#311).
+
+### Radering
+
+- **Regeln `delete`.** Författaren med aktivt medlemskap i postens grupp, eller `opsArAdmin` (ägare eller admin) i samma grupp. En annan medlem, en admin i en annan grupp, ett avslutat medlemskap, en agent och en utloggad får nej.
+- **Knappen** syns bara när `farAndra` säger ja, i detaljen och på en trasig rad. Första trycket frågar. Andra anropar `onRadera`.
+- **`radera` i källan** kräver `jag` och `anteckna`. Anteckningen skrivs först. Kastar den lämnas posten kvar. Föll själva borttagningen kastas felet. Filen i lagringen tar appens function bort när dokumentet försvinner. Källan raderar dokumentet, inte objektet.
+
+### Filer
+
+- **En typ, `fil`.** `fil` bär `sokvag`, `namn`, `mime` och `byte`. `filSort` (bild, ljud, dokument) härleds och lagras inte. MIME-listan är stängd, och `normaliseraMime` tar bort `;codecs=` innan jämförelsen.
+- **25 MB** i modellen, i Firestore-regeln och i storage-regeln (`<=`). Profilbilder behåller sitt tak under 2 MB.
+- **Storage-fragmentet** är samma `lagringsregelfragment`. Med `bibliotek` kräver det medlemskap via `firestore.exists` på memberships, samma id som Firestore-reglerna. Klienten får inte radera objektet (`allow delete: if false`). Sökvägen skickar appen in.
+- **Vyn.** Bild ger förhandsbild och en förhandsvisning. PDF och övrigt öppnas i ny flik. För stor fil, fel format och en nekad uppladdning visas. En uppladdning som faller tar bort posten som hunnit skapas.
+
+### Ljud
+
+- **Spela in idé** i biblioteket och som rad i plusmenyn. Inspelaren är TALK:s, med taket som parameter. TALK behåller 120 sekunder. Biblioteket använder `IDE_MAX_SEKUNDER` (600). Rubriken är `ideRubrik`, "Idé" plus datum och tid, och går att döpa om.
+- **Spelaren** i listan har spela, pausa och tid. Ett fel från uppspelningen visas.
+- **Att dela** är `onDela` med flytta eller kopiera. Ramverket kopierar inte byte och byter inte `groupId`. Appen gör det, i personens grupp `my` när inspelningen ska börja privat.
+
+### Utskrift
+
+- **Fältet `utskrift`** bara på ett ljud, högst 20 000 tecken. Tom sträng är en utskrift utan ord. Saknas fältet har ingen bett om en. En bild, en anteckning och en länk får det inte.
+- **Skriv ut** syns för den som får ändra posten, eftersom texten sparas som en ändring. `onSkrivUt` ber servern. Texten visas under spelaren. Sedan visas "Spara som anteckning" och "Skapa ärende", och agentens förslag är märkt. `onGorForslag` anropas först vid det trycket. En saknad koppling, ett svar utan text och ett kastat fel (också ett dygnstak) syns. En läsare ser en sparad utskrift och ingen knapp.
+
+#### Prov, sedda röda utan sin ändring
+
+| Prov | Utan ändringen | Med |
+|---|---|---|
+| Klient, radering (`bibliotekkalla`, `bibliotek-vy`) | exit 1, 5 fail, 18 pass. `kalla.radera is not a function` | exit 0, 23 pass |
+| Emulator, `allow delete: if false` | exit 1, 19 pass, 1 fail. Författaren fick `PERMISSION_DENIED` | exit 0, 20 pass |
+| Emulator, författarens medlemskap borta | 19 pass, 1 fail. Avslutat medlemskap raderade | grönt med villkoret |
+| Emulator, författarens uid borta | 19 pass, 1 fail. En annan medlem raderade | grönt med villkoret |
+| Emulator, `opsArAdmin` borta | 19 pass, 1 fail. Admin fick `PERMISSION_DENIED` | grönt med villkoret |
+| Modell, typen `fil` okänd | exit 1. `Biblioteket känner typen "fil"` | 9 pass, sedan 10 med `ideRubrik` |
+| Emulator, MIME-villkoret ersatt med `true` | 20 pass, 1 fail. `Expected request to fail, but it succeeded` | exit 0, 21 pass |
+| Vy, utan Skriv ut | 1 fail. Knappen "Skriv ut" saknades | 20 pass i `bibliotek-vy` |
+| Modell, fil utan ljudundantag för utskrift | 1 fail. `En fil har en fil, och ingen utskrift.` | `postFel` är null på ett ljud |
+| Källa, utan att skriva `utskrift` | 1 fail. Fältet var `undefined` | tom sträng och "Hej" sparas, och en omdöpning behåller texten |
+| Emulator, utan `^audio/.*` | 1 fail, rad 165. Bild med utskrift gick in | exit 0, 22 pass |
+| Emulator, utan taket 20 000 | 1 fail, rad 166. För lång text gick in | exit 0, 22 pass |
+| Emulator, anteckning får `utskrift` | 1 fail. Anteckningen gick in | exit 0, 22 pass |
+
+#### Ändrade prov (granskas av någon annan än den som skrev dem, regel 9)
+
+- `bibliotek-vy`: fliklistan förväntar "Filer 0" och menyn "Fil", utöver anteckning och länk.
+- `grupp`: storage-fragmentets förval (bara profilbilder) är oförändrat. Nya prov läser bibliotekets gren: medlemskap, 25 MB, MIME och `delete: if false`.
+
+---
+
 ## 0.83.0
 
 CP 2026-10-08 17:52 och 17:54, med bilder från telefonen av Bibliotek, Ekonomi och Hubben: "Bibliotek behöver en tillbaka knapp också precis som ekonomi. Sedan navigeringen på liknande sätt. Sök och komponenter är ihoptryckta." Och: "Varje app/modul borde kunna expanderas med chevron och det skall finnas en inställning om att ikon skall placeras i huvudmenyn."

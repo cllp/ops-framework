@@ -16,7 +16,10 @@ import { startaWebblasare } from "./lib/matVyport.mjs";
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(rot, "dist", "index.js");
 const tokensFil = path.join(rot, "tokens", "tokens.css");
-const ut = path.join(rot, "docs", "jamforelser", "0.79.0");
+const skivor = process.argv[2] === "skivor";
+const ut = skivor
+  ? path.join(rot, "docs", "jamforelser", "bibliotek-filer-ljud")
+  : path.join(rot, "docs", "jamforelser", "0.79.0");
 fs.mkdirSync(ut, { recursive: true });
 
 if (!fs.existsSync(dist)) {
@@ -55,6 +58,98 @@ const sida = (lage) =>
 
 const { browser, varifran } = await startaWebblasare();
 console.log(`webbläsare: ${varifran}`);
+
+if (skivor) {
+  const forebild = path.join(rot, "docs", "jamforelser", "forebild-ss-bibliotek");
+  const vyer = [
+    ["alla", "alla", "ss-alla.png", "Alla: anteckning, länk, ljud, bild och PDF"],
+    ["inspelningar", "inspelningar", "ss-inspelningar.png", "Spela in idé och spelare i listan"],
+    ["bilder", "bilder", "ss-bilder.png", "Bilder med förhandsbild"],
+    ["dokument", "dokument", "ss-dokument.png", "Dokument med ikon och storlek"],
+    ["radera", "detalj", "lifehub-fore.png", "Radering med bekräftelse"],
+    ["utskrift", "utskrift", "ss-inspelningar.png", "Utskrift och förslag på ljudposten"],
+    ["plus", "plus", "ss-inspelningar.png", "Spela in idé i plusmenyn"],
+  ];
+  async function oppna(lage, viewport, efter) {
+    const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+    const page = await context.newPage();
+    const fel = [];
+    page.on("pageerror", (e) => fel.push(e.message));
+    await page.setContent(sida(lage), { waitUntil: "load" });
+    if (lage === "plus") await page.getByRole("button", { name: "Skapa" }).waitFor();
+    else await page.waitForSelector("[data-bibliotek]");
+    if (efter) await efter(page);
+    if (fel.length) throw new Error(`${lage}: ${fel.join("\n")}`);
+    return { context, page };
+  }
+  function efter(namn) {
+    if (namn === "radera") {
+      return async (page) => {
+        await page.getByRole("button", { name: "Radera" }).click();
+        await page.getByRole("button", { name: "Radera posten" }).waitFor();
+      };
+    }
+    if (namn === "utskrift") {
+      return async (page) => {
+        await page.getByRole("button", { name: "Skriv ut" }).click();
+        await page.getByRole("button", { name: "Spara som anteckning, förslag" }).waitFor();
+      };
+    }
+    if (namn === "plus") {
+      return async (page) => {
+        await page.getByRole("button", { name: "Skapa" }).click();
+        await page.getByRole("button", { name: "Spela in idé" }).waitFor();
+      };
+    }
+    if (namn === "bild") {
+      return async (page) => {
+        await page.getByRole("button", { name: "Förhandsvisa Kvitto" }).click();
+        await page.getByRole("dialog", { name: "Förhandsvisning" }).waitFor();
+      };
+    }
+    return null;
+  }
+  const tagna = [];
+  for (const [namn, lage, fore, text] of vyer) {
+    for (const viewport of [{ width: 390, height: 844, mark: "390" }, { width: 1280, height: 900, mark: "1280" }]) {
+      const { context, page } = await oppna(lage, viewport, efter(namn));
+      const fil = path.join(ut, `ramverk-${namn}-${viewport.mark}.png`);
+      await page.screenshot({ path: fil, fullPage: true });
+      console.log(fil);
+      tagna.push({ namn, mark: viewport.mark, fil, fore, text });
+      await context.close();
+    }
+  }
+  const { context, page } = await oppna("bild", { width: 390, height: 844 }, efter("bild"));
+  const ljus = path.join(ut, "ramverk-ljus-390.png");
+  await page.screenshot({ path: ljus, fullPage: true });
+  console.log(ljus);
+  await context.close();
+
+  for (const rad of tagna) {
+    const context = await browser.newContext({ viewport: { width: 1100, height: 1400 }, deviceScaleFactor: 1 });
+    const page = await context.newPage();
+    const vanster = fs.readFileSync(rad.fil).toString("base64");
+    const hoger = fs.readFileSync(path.join(forebild, rad.fore)).toString("base64");
+    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>
+      body { margin: 0; background: #f4f1ea; font-family: sans-serif; color: #1c1915; }
+      .rad { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
+      figure { margin: 0; max-width: 520px; }
+      figcaption { font-size: 14px; margin-bottom: 8px; }
+      img { max-height: 900px; max-width: 500px; width: auto; border: 1px solid #d9d3c7; background: white; }
+    </style></head><body><div class="rad">
+      <figure><figcaption>Ramverket, ${rad.mark} px. ${rad.text}</figcaption><img src="data:image/png;base64,${vanster}" alt="Ramverket"></figure>
+      <figure><figcaption>Förebild: ${rad.fore}</figcaption><img src="data:image/png;base64,${hoger}" alt="Förebild"></figure>
+    </div></body></html>`);
+    const montage = path.join(ut, `montage-${rad.namn}-${rad.mark}.png`);
+    await page.locator(".rad").screenshot({ path: montage });
+    console.log(montage);
+    await context.close();
+  }
+  await browser.close();
+  fs.rmSync(arbetsmapp, { recursive: true, force: true });
+  process.exit(0);
+}
 
 for (const [namn, lage, viewport] of [
   ["bibliotek-lista-390", "lista", { width: 390, height: 844 }],
