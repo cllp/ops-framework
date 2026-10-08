@@ -184,6 +184,23 @@ describe("createBibliotekskalla", () => {
     expect(efter.poster.map((p) => p.rubrik)).not.toContain("Nekad");
   });
 
+  it("sparar utskriften på ljudet och behåller den när rubriken ändras", async () => {
+    const source = createMemorySource();
+    const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });
+    const fil = { sokvag: "grupper/cps-ab/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 100 };
+    const skapad = await kalla.spara({ typ: "fil", rubrik: "Idé", fil });
+    expect(Object.hasOwn(skapad, "utskrift")).toBe(false);
+    const tom = await kalla.spara({ id: skapad.id, rubrik: "Idé", fil, utskrift: "" });
+    expect(tom.utskrift).toBe("");
+    const med = await kalla.spara({ id: skapad.id, rubrik: "Idé", fil, utskrift: "Hej" });
+    expect(med.utskrift).toBe("Hej");
+    const omdopt = await kalla.spara({ id: skapad.id, rubrik: "Omdöpt", fil });
+    expect(omdopt.rubrik).toBe("Omdöpt");
+    expect(omdopt.utskrift).toBe("Hej");
+    const bild = { ...fil, mime: "image/jpeg", namn: "k.jpg", sokvag: "grupper/cps-ab/bibliotek/p/k.jpg" };
+    await expect(kalla.spara({ id: skapad.id, rubrik: "Bild", fil: bild, utskrift: "Hej" })).rejects.toThrow(/Bara ett ljud/);
+  });
+
   it("en läsning som föll är kalla fel, inte ett tomt bibliotek", async () => {
     const source = { list: async () => { throw new Error("nere"); }, read: async () => null, create: async () => ({ id: "n" }), update: async () => {} };
     const kalla = createBibliotekskalla({ source, collection: "bibliotek", groupId: "cps-ab", skapare });

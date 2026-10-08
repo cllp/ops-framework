@@ -140,6 +140,8 @@ export function createBibliotekskalla(config) {
         andrad: nu,
       };
       if (fil !== undefined) underlag.fil = fil;
+      if (inmatning && "utskrift" in inmatning) underlag.utskrift = inmatning.utskrift;
+      else if (id && tidigare && "utskrift" in tidigare) underlag.utskrift = tidigare.utskrift;
       const post = byggPost(underlag);
       if (id) {
         await source.update(collection, id, post);

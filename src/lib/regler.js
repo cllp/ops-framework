@@ -37,7 +37,7 @@ import {
 } from "./grupp.js";
 import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, filMimeMonster } from "./bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, filMimeMonster } from "./bibliotek.js";
 import { SKAPARFALT } from "./skapare.js";
 import { KONFIGHANDELSER, KONFIGLOGGFALT } from "./konfiglogg.js";
 import { DATUMFORM, KALENDERFALT, KALENDERFARGER, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTBESKRIVNING, MAX_POSTPLATS, MAX_POSTTITEL, MINKALENDERFALT, TIDPUNKTSFORM } from "./kalendrar.js";
@@ -1614,11 +1614,11 @@ ${nuRegelfunktion("opsBiblioteketNu")}
           (d.typ == "anteckning"
             && d.text.trim().size() > 0
             && d.text.size() <= ${MAX_BIBLIOTEKTEXT}
-            && !d.keys().hasAny(["url", "fil"]))
+            && !d.keys().hasAny(["url", "fil", "utskrift"]))
           || (d.typ == "lank"
             && d.url.size() <= ${MAX_BIBLIOTEKURL}
             && d.url.matches('${regelRegex(ADRESSFORM)}')
-            && !d.keys().hasAny(["text", "fil"]))
+            && !d.keys().hasAny(["text", "fil", "utskrift"]))
           || (d.typ == "fil"
             && d.fil.keys().hasOnly([${lista(FILFALT)}])
             && d.fil.sokvag.size() > 0
@@ -1630,7 +1630,11 @@ ${nuRegelfunktion("opsBiblioteketNu")}
             && d.fil.byte is int
             && d.fil.byte > 0
             && d.fil.byte <= ${MAX_BIBLIOTEKFIL}
-            && !d.keys().hasAny(["text", "url"]))
+            && !d.keys().hasAny(["text", "url"])
+            && (
+              !d.keys().hasAny(["utskrift"])
+              || (d.utskrift.size() <= ${MAX_BIBLIOTEKUTSKRIFT} && d.fil.mime.matches('^audio/.*'))
+            ))
         );
     }
 

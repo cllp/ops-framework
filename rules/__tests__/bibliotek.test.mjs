@@ -19,7 +19,7 @@
  */
 
 import { medlemskapsId } from "../../src/lib/grupp.js";
-import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, byggPost, inmatningsfel, postFel } from "../../src/lib/bibliotek.js";
+import { MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, byggPost, inmatningsfel, postFel } from "../../src/lib/bibliotek.js";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { assertFails, assertSucceeds, initializeTestEnvironment } from "@firebase/rules-unit-testing";
@@ -146,6 +146,26 @@ describe("bibliotekets regler: skapa", () => {
     await assertFails(skapa(MEDLEM, { ...fil, fil: { ...fil.fil, byte: 25 * 1024 * 1024 + 1 } }));
     await assertFails(skapa(MEDLEM, { ...fil, text: "Inte en fil." }));
     await assertFails(skapa(MEDLEM, { ...ny(), fil: fil.fil }));
+  });
+
+  it("en utskrift hör till ett ljud, och en bild eller en för lång text får den inte", async () => {
+    const { text: _t, ...utanText } = ny();
+    const ljud = {
+      ...utanText,
+      typ: "fil",
+      rubrik: "Idé",
+      fil: { sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 1200 },
+    };
+    const bild = {
+      ...ljud,
+      fil: { sokvag: "grupper/cps-ab/bibliotek/p1/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 1200 },
+    };
+    await assertSucceeds(skapa(MEDLEM, { ...ljud, utskrift: "Hej" }));
+    await assertSucceeds(skapa(MEDLEM, { ...ljud, utskrift: "" }));
+    await assertFails(skapa(MEDLEM, { ...bild, utskrift: "Hej" }));
+    await assertFails(skapa(MEDLEM, { ...ljud, utskrift: "x".repeat(MAX_BIBLIOTEKUTSKRIFT + 1) }));
+    await assertFails(skapa(MEDLEM, ny({ utskrift: "Hej" })));
+    await assertFails(skapa(MEDLEM, { ...ljud, utskrift: 42 }));
   });
 
   it("inte i en annan grupp, och inte i någon annans namn", async () => {

@@ -88,11 +88,13 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
+ * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt] Ber servern om en utskrift. Felet visas, också ett dygnstak.
+ * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag] Personen väljer. Inget skapas utan trycket.
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, grupper = [], onDela, hubHref, hubEtikett, onNavigate }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -120,7 +122,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
       <div data-bibliotek="" className="flex flex-col gap-4">
         {detalj ? (
-          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} />
+          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -384,8 +386,10 @@ function Adress({ url }) {
  * @param {(adress: string) => void} [props.onLjus]
  * @param {readonly { id: string, namn: string }[]} [props.grupper]
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela]
+ * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt]
+ * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag]
  */
-function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, onLjus, grupper = [], onDela }) {
+function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, onLjus, grupper = [], onDela, onSkrivUt, onGorForslag }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -415,7 +419,10 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
         {post.typ === "anteckning" ? (
           <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
         ) : post.typ === "fil" ? (
-          <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} />
+          <>
+            <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} />
+            {post.utskrift != null ? <p data-bibliotek-utskrift="">{post.utskrift === "" ? "Utskriften är tom." : post.utskrift}</p> : null}
+          </>
         ) : (
           <Adress url={post.url ?? ""} />
         )}
@@ -505,6 +512,9 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
       >
         Spara
       </OpsButton>
+      {post && !skapar && post.typ === "fil" && filSort(post.fil?.mime) === "ljud" ? (
+        <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
+      ) : null}
       {post && !skapar ? <DelaKontroll id={post.id} grupper={grupper} onDela={onDela} /> : null}
       {post && !skapar ? <RaderaKontroll id={post.id} onRadera={onRadera} /> : null}
     </div>
@@ -611,6 +621,68 @@ function SpelaIn({ onSpelaIn, inspelare }) {
 /**
  * @param {{ id: string, grupper: readonly { id: string, namn: string }[], onDela?: (inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void> }} props
  */
+/**
+ * @param {{ post: { id: string, utskrift?: string }, onSkrivUt?: (post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>, onGorForslag?: (inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void> }} props
+ */
+function UtskriftKontroll({ post, onSkrivUt, onGorForslag }) {
+  const [text, setText] = useState(/** @type {string | null} */ (post.utskrift ?? null));
+  const [forslag, setForslag] = useState(/** @type {null | "anteckning" | "arende"} */ (null));
+  const [fel, setFel] = useState("");
+  const [visarVal, setVisarVal] = useState(false);
+  return (
+    <div data-bibliotek-utskrift-kontroll="" className="flex flex-col gap-2">
+      {text != null ? <p data-bibliotek-utskrift="">{text === "" ? "Utskriften är tom." : text}</p> : null}
+      {fel ? <p role="alert">{fel}</p> : null}
+      <OpsButton
+        variant="secondary"
+        onClick={() => {
+          if (typeof onSkrivUt !== "function") {
+            setFel("Utskriften är inte kopplad. Inget skickades.");
+            return;
+          }
+          setFel("");
+          Promise.resolve()
+            .then(() => onSkrivUt(post))
+            .then((svar) => {
+              if (!svar || typeof svar.text !== "string") {
+                setFel("Servern svarade utan text. Ingenting sparades.");
+                return;
+              }
+              setText(svar.text);
+              setForslag(svar.forslag === "anteckning" || svar.forslag === "arende" ? svar.forslag : null);
+              setVisarVal(true);
+            })
+            .catch((e) => setFel(e instanceof Error ? e.message : String(e)));
+        }}
+      >
+        Skriv ut
+      </OpsButton>
+      {visarVal ? (
+        <div className="flex gap-2">
+          <OpsButton variant="secondary" onClick={() => {
+            if (typeof onGorForslag !== "function") {
+              setFel("Förslaget är inte kopplat. Ingenting skapades.");
+              return;
+            }
+            onGorForslag({ id: post.id, satt: "anteckning" });
+          }}>
+            {forslag === "anteckning" ? "Spara som anteckning, förslag" : "Spara som anteckning"}
+          </OpsButton>
+          <OpsButton variant="secondary" onClick={() => {
+            if (typeof onGorForslag !== "function") {
+              setFel("Förslaget är inte kopplat. Ingenting skapades.");
+              return;
+            }
+            onGorForslag({ id: post.id, satt: "arende" });
+          }}>
+            {forslag === "arende" ? "Skapa ärende, förslag" : "Skapa ärende"}
+          </OpsButton>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DelaKontroll({ id, grupper, onDela }) {
   const [mal, setMal] = useState(grupper[0]?.id ?? "");
   const [fel, setFel] = useState("");

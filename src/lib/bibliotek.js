@@ -34,6 +34,8 @@ export const MAX_BIBLIOTEKURL = 2000;
 export const MAX_BIBLIOTEKFIL = 25 * 1024 * 1024;
 /** Inspelning av en idé, i sekunder. TALK behåller sitt eget tak på 120. */
 export const IDE_MAX_SEKUNDER = 10 * 60;
+/** Utskrift på en ljudpost. Samma tal i regeln. */
+export const MAX_BIBLIOTEKUTSKRIFT = 20000;
 export const MAX_BIBLIOTEKFILNAMN = 200;
 export const MAX_BIBLIOTEKSOKVAG = 1024;
 
@@ -86,7 +88,7 @@ export function ideRubrik(nu = new Date()) {
  * `text` hör till en anteckning och `url` till en länk. Regeln kräver att den
  * andra saknas, så en anteckning inte kan bära en adress vid sidan av texten.
  */
-export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "fil", "skapadAv", "skapad", "andrad"]);
+export const BIBLIOTEKFALT = /** @type {const} */ (["groupId", "typ", "rubrik", "text", "url", "fil", "utskrift", "skapadAv", "skapad", "andrad"]);
 
 /**
  * En länks adress: http eller https, och sedan bara synliga ASCII-tecken.
@@ -117,6 +119,7 @@ const FORVALTARROLLER = /** @type {const} */ (["agare", "admin"]);
  * @property {string} [text] Bara på en anteckning.
  * @property {string} [url] Bara på en länk.
  * @property {{ sokvag: string, namn: string, mime: string, byte: number }} [fil] Bara på en fil.
+ * @property {string} [utskrift] Bara på ett ljud. Saknas fältet har ingen bett om en utskrift. Tom sträng är en utskrift utan ord.
  * @property {import("./skapare.js").Skapare} skapadAv
  * @property {number} skapad Millisekunder.
  * @property {number} andrad Millisekunder.
@@ -239,6 +242,20 @@ export function filFel(fil) {
 }
 
 /**
+ * Utskriften på ett ljud, eller skälet till att den inte får sparas.
+ *
+ * @param {unknown} text
+ * @param {{ mime?: unknown } | null | undefined} fil
+ * @returns {string | null}
+ */
+export function utskriftFel(text, fil) {
+  if (typeof text !== "string") return "Utskriften ska vara text.";
+  if (text.length > MAX_BIBLIOTEKUTSKRIFT) return `Utskriften är ${text.length} tecken. Taket är ${MAX_BIBLIOTEKUTSKRIFT}.`;
+  if (filSort(fil?.mime) !== "ljud") return "Bara ett ljud har en utskrift.";
+  return null;
+}
+
+/**
  * Får den här personen ändra eller radera posten? Samma villkor som regelns
  * `update` och, sedan #311, som regelns `delete`: författaren, eller ägare
  * eller admin i gruppen.
@@ -277,6 +294,7 @@ export function inmatningsfel(d) {
   if (typ === "anteckning") {
     if ("url" in d && d.url != null && str(d.url) !== "") return "En anteckning har text, och ingen adress.";
     if ("fil" in d && d.fil != null) return "En anteckning har text, och ingen fil.";
+    if ("utskrift" in d && d.utskrift != null) return "En anteckning har text, och ingen utskrift.";
     const text = str(d.text);
     if (!text) return "Anteckningen saknar text.";
     if (text.length > MAX_BIBLIOTEKTEXT) return `Texten är ${text.length} tecken. Taket är ${MAX_BIBLIOTEKTEXT}.`;
@@ -286,11 +304,15 @@ export function inmatningsfel(d) {
   if (typ === "fil") {
     if ("text" in d && d.text != null && str(d.text) !== "") return "En fil har en fil, och ingen brödtext.";
     if ("url" in d && d.url != null && str(d.url) !== "") return "En fil har en fil, och ingen adress.";
-    return filFel(d.fil);
+    const filfel = filFel(d.fil);
+    if (filfel) return filfel;
+    if (!("utskrift" in d) || d.utskrift == null) return null;
+    return utskriftFel(d.utskrift, /** @type {any} */ (d.fil));
   }
 
   if ("text" in d && d.text != null && str(d.text) !== "") return "En länk har en adress, och ingen brödtext.";
   if ("fil" in d && d.fil != null) return "En länk har en adress, och ingen fil.";
+  if ("utskrift" in d && d.utskrift != null) return "En länk har en adress, och ingen utskrift.";
   const url = str(d.url);
   if (!url) return "Länken saknar adress.";
   if (!/^https?:/.test(url)) return "Adressen ska börja med http eller https.";
@@ -358,6 +380,7 @@ export function byggPost(d) {
   else {
     const fil = /** @type {{ sokvag: unknown, namn: unknown, mime: unknown, byte: unknown }} */ (d.fil);
     post.fil = { sokvag: str(fil.sokvag), namn: str(fil.namn), mime: normaliseraMime(fil.mime), byte: /** @type {number} */ (fil.byte) };
+    if ("utskrift" in d && d.utskrift != null) post.utskrift = /** @type {string} */ (d.utskrift);
   }
   return post;
 }
