@@ -68,8 +68,11 @@ describe("användaren", () => {
     expect(() => byggAnvandare(utan)).toThrow(/users: id krävs/);
   });
 
-  it("epost krävs", () => {
-    expect(() => byggAnvandare({ ...ANV(), epost: "" })).toThrow(/users: epost krävs för "uid-1"/);
+  // ⛔ 0.84.0 (#316): tom epost är "ingen bevisad adress" sedan 0.82.0, inte ett fel. Saknat fält blir också tom sträng.
+  it("tom epost är tillåten och blir tom sträng", () => {
+    expect(byggAnvandare({ ...ANV(), epost: "" }).epost).toBe("");
+    const { epost: _e, ...utan } = ANV();
+    expect(byggAnvandare(utan).epost).toBe("");
   });
 
   it("okända fält avvisas", () => {

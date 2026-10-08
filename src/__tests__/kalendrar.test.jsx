@@ -201,9 +201,28 @@ describe("OpsCalendar som SS (F1)", () => {
   it("gruppen är kalendern: menyn säger inte att gruppen saknar kalendrar", async () => {
     kal({ kalendrar: [] });
     fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
-    expect(await screen.findByText("Gruppens kalendrar")).toBeInTheDocument();
+    expect(await screen.findByText("Du har inga egna kalendrar ännu.")).toBeInTheDocument();
     expect(screen.queryByText("Gruppen har inga kalendrar ännu.")).toBeNull();
-    expect(screen.getByText("Du har inga egna kalendrar ännu.")).toBeInTheDocument();
+  });
+
+  /*
+   * ⛔ 0.84.0 (#309, CP:s kommentar 2026-10-08): 0.78.2 tog bort den falska raden men lät rubriken "Gruppens kalendrar" stå
+   * ensam, utan något under. Mätt med Playwright i cllp/lifehub.app#134. En rubrik utan innehåll ser trasig ut. Rubriken ritas
+   * nu bara när gruppen har namngivna kalendrar. Röda mot 0.82.0.
+   */
+  it("⛔ utan namngivna gruppkalendrar ritas ingen tom rubrik, och med dem står rubriken över dem", async () => {
+    const { unmount } = kal({ kalendrar: [{ id: "privat", namn: "Privat", farg: 3, forvald: true }] });
+    fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
+    const meny = await screen.findByRole("dialog", { name: "Kalendrar" });
+    expect(within(meny).getByText("Mina kalendrar")).toBeInTheDocument();
+    expect(within(meny).getByRole("button", { name: "Privat" })).toBeInTheDocument();
+    expect(within(meny).queryByText("Gruppens kalendrar")).toBeNull();
+    unmount();
+    kal();
+    fireEvent.click(screen.getByRole("button", { name: "Kalendrar: Alla kalendrar" }));
+    const meny2 = await screen.findByRole("dialog", { name: "Kalendrar" });
+    expect(within(meny2).getByText("Gruppens kalendrar")).toBeInTheDocument();
+    expect(within(meny2).getByRole("button", { name: "Styrelsen" })).toBeInTheDocument();
   });
 
   it("filtrerar på kalender: en bortvald kalender syns inte, och syns igen när den väljs", async () => {

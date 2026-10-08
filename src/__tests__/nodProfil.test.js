@@ -85,3 +85,19 @@ describe("uppdateraProfil", () => {
     await expect(uppdateraProfil({ kalla, uid: "uid-1", andring: { namn: "X" } })).rejects.toThrow(/users: språket "no"/);
   });
 });
+
+/*
+ * ⛔ 0.84.0 (#316): `uppdateraProfil` läser raden genom `byggAnvandare`. En rad med `epost: ""` (en overifierad inloggning
+ * sedan 0.82.0) kastade "epost krävs" före skrivningen. Röd mot 0.82.0.
+ */
+describe("⛔ uppdateraProfil på en rad med tom epost (#316)", () => {
+  it("byter namn i users och i medlemskapen, och epost förblir tom", async () => {
+    const m = byggMedlemskap({ userId: "uid-1", groupId: "bolaget", roll: "medlem", typ: "person", status: "aktiv", namn: "", bild: "" });
+    const kalla = kallaMed({ users: [{ id: "uid-1", namn: "", epost: "", bild: "", sprak: "sv", tema: "system" }], memberships: [m] });
+    const svar = await uppdateraProfil({ kalla, uid: "uid-1", andring: { namn: "Ny Person" } });
+    expect(svar.anvandare).toMatchObject({ namn: "Ny Person", epost: "" });
+    expect(svar.medlemskapUppdaterade).toBe(1);
+    expect(await kalla.read("users", "uid-1")).toMatchObject({ namn: "Ny Person", epost: "" });
+    expect(await kalla.read("memberships", m.id)).toMatchObject({ namn: "Ny Person" });
+  });
+});

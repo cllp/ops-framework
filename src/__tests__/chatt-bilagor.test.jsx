@@ -162,3 +162,58 @@ describe("pluset", () => {
     expect(rot.bilaga?.namn).toBe("kvitto.png");
   });
 });
+
+/*
+ * ⛔ 0.84.0 (#315): en vald bilaga är innehåll. Mätt med Playwright vid ompinningen till 0.80.1 (cllp/lifehub.app#134): med en
+ * bild vald och tomt fält stod "Prata in" där Skicka skulle stå, så på en pekskärm fanns ingen synlig väg att skicka bilden.
+ * Röda mot 0.82.0: där räknade ljudvågen bara texten.
+ */
+describe("⛔ skrivfältet med en vald bilaga och tomt fält (#315)", () => {
+  const onTranscribe = vi.fn(async () => "text");
+  const valjBild = () => {
+    fireEvent.click(screen.getByRole("button", { name: "Bifoga" }));
+    fireEvent.change(/** @type {HTMLInputElement} */ (document.querySelector('[data-plusval="fil"]')), {
+      target: { files: [new File(["png"], "kvitto.png", { type: "image/png" })] },
+    });
+  };
+
+  it("i samtalet: Skicka syns och Prata in gör det inte, och bort med bilagan ger Prata in tillbaka", async () => {
+    const { s, p } = await samtal({ bilagor: true });
+    render(<OpsSamtal kalla={s} uid="anna" samtal={p} rubrik="Bo" namnFor={namnFor} medlemmar={MEDLEMMAR} onTranscribe={onTranscribe} />);
+    expect(screen.getByRole("button", { name: "Prata in" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skicka" })).toBeNull();
+    valjBild();
+    expect(await screen.findByRole("button", { name: "Ta bort bilagan" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Prata in" })).toBeNull();
+    const skicka = screen.getByRole("button", { name: "Skicka" });
+    expect(skicka).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Ta bort bilagan" }));
+    expect(await screen.findByRole("button", { name: "Prata in" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skicka" })).toBeNull();
+  });
+
+  it("i samtalet: Skicka skickar bilagan utan text", async () => {
+    const { s, p } = await samtal({ bilagor: true });
+    render(<OpsSamtal kalla={s} uid="anna" samtal={p} rubrik="Bo" namnFor={namnFor} medlemmar={MEDLEMMAR} onTranscribe={onTranscribe} />);
+    valjBild();
+    await screen.findByRole("button", { name: "Ta bort bilagan" });
+    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    await waitFor(async () => expect((await s.meddelanden(p.id)).at(-1)?.bilaga?.namn).toBe("kvitto.png"));
+    expect((await s.meddelanden(p.id)).at(-1)?.text).toBe("");
+    expect(await screen.findByRole("button", { name: "Prata in" })).toBeInTheDocument();
+  });
+
+  it("i tråden: samma regel", async () => {
+    const { s } = await samtal({ bilagor: true, tradar: true });
+    const g = await s.oppnaGrupp({ groupId: "g", uid: "anna" });
+    const grot = await s.skicka(g.id, { text: "I gruppen", av: "anna" });
+    render(
+      <OpsTrad kalla={s} uid="anna" samtal={g} tid={grot.id} gruppNamn="Gruppen" namnFor={namnFor} medlemmar={MEDLEMMAR} onStang={() => {}} onTranscribe={onTranscribe} />,
+    );
+    expect(screen.getByRole("button", { name: "Prata in" })).toBeInTheDocument();
+    valjBild();
+    await screen.findByRole("button", { name: "Ta bort bilagan" });
+    expect(screen.queryByRole("button", { name: "Prata in" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Skicka" })).not.toBeDisabled();
+  });
+});

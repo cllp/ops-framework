@@ -211,3 +211,27 @@ describe("⛔ andringen: beslutet vyn inte får äga", () => {
     expect(andringen({ ...ANV, tema: "morkt" }, { sprak: "en" }).andring).toEqual({ ...OFORANDRAT, sprak: "en", tema: "morkt" });
   });
 });
+
+/*
+ * ⛔ 0.84.0 (#316): EN RAD UTAN BEVISAD ADRESS ÄR EN RAD. Sedan 0.82.0 (#313) skriver en serverspegel `epost` bara när
+ * `email_verified` är sant, och annars `epost: ""`. `byggAnvandare` kastade "epost krävs" på det, och den körs på läsvägen:
+ * en sådan rad gick varken att skriva eller läsa. Mätt i granskningen av cllp/lifehub.app#124. Röda mot 0.82.0.
+ */
+describe("⛔ en rad med tom epost (#316)", () => {
+  const RAD = { id: "uid-1", namn: "Ny Person", epost: "", bild: "", sprak: "sv", tema: "system" };
+
+  it("läses av sakerstallAnvandare, och epost förblir tom sträng", async () => {
+    const kalla = kallaMed([RAD]);
+    const { anvandare, skapad } = await sakerstallAnvandare({ kalla, inloggad: { uid: "uid-1", namn: "Ny Person" } });
+    expect(skapad).toBe(false);
+    expect(anvandare.epost).toBe("");
+    expect(anvandare.namn).toBe("Ny Person");
+  });
+
+  it("sparar personens egna fält", async () => {
+    const kalla = kallaMed([RAD]);
+    const { anvandare } = await sakerstallAnvandare({ kalla, inloggad: { uid: "uid-1" } });
+    const sparad = await sparaInstallningar({ kalla, anvandare, andring: { tema: "morkt" } });
+    expect(sparad).toMatchObject({ tema: "morkt", epost: "" });
+  });
+});

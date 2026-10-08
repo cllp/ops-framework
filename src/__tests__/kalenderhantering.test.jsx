@@ -400,6 +400,24 @@ describe("skalets Ny händelse: kalender, Kräv svar och dagen (F2, F3, #206)", 
     await waitFor(() => expect(senast().kravSvar).toBe(true));
   });
 
+  /*
+   * ⛔ 0.84.0 (#309): GRUPPEN ÄR KALENDERN, OCKSÅ I NY HÄNDELSE. Med en tom lista namngivna gruppkalendrar sade raden "Kalender:
+   * Ingen kalender ännu", samma falska sak som 0.78.2 tog bort ur `OpsCalendar` och `OpsKalendrar`: en händelse utan `kalenderId`
+   * hör till gruppen. Röda mot 0.82.0.
+   */
+  it("⛔ utan namngivna kalendrar står gruppens namn på raden, och ingen säger att kalendern saknas", async () => {
+    mottaget = [];
+    render(<Skal extra={{ kalendrar: { gruppens: [], mina: [] } }} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Skapa på dagen" }));
+    const panel = await screen.findByRole("region", { name: "Ny händelse" });
+    // Inget att välja mellan, så raden är text och ingen knapp (en växlare utan val är en död knapp).
+    const rad = within(panel).getByText("Kalender:").parentElement;
+    expect(rad?.textContent).toBe("Kalender:CPS AB");
+    expect(within(panel).queryByText(/Ingen kalender/)).toBeNull();
+    // Händelsen hamnar i gruppen: inget kalendermål skickas till formuläret.
+    await waitFor(() => expect(senast()).toMatchObject({ kalender: null }));
+  });
+
   it("⛔ i en av mina kalendrar: inga svar, ingen typ, och Blockerar tillgänglighet i stället", async () => {
     mottaget = [];
     render(<Skal extra={{ kalendrar }} />);
