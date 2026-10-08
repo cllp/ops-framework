@@ -947,14 +947,21 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
               <ValRad chosen={!valdaKalendrar} onClick={() => onValdaKalendrar(null)} ikon={<KalenderIkon size={16} />}>
                 Alla kalendrar
               </ValRad>
-              <div className="mt-2 flex flex-col">
-                <p className={radRubrikKlass}>Gruppens kalendrar</p>
-                {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F). En tom lista namngivna gruppkalendrar
-                    är inte "gruppen har inga kalendrar". Den meningen ritades här och var falsk:
-                    händelser utan kalenderId hör till gruppen. Egna kalendrar finns inte av sig
-                    själva, så deras tomrad står kvar. */}
-                {gruppens.map(rad)}
-              </div>
+              {/* ⛔ GRUPPEN ÄR KALENDERN (lane 6 steg F). En tom lista namngivna gruppkalendrar
+                  är inte "gruppen har inga kalendrar". Den meningen ritades här och var falsk:
+                  händelser utan kalenderId hör till gruppen. Egna kalendrar finns inte av sig
+                  själva, så deras tomrad står kvar.
+                  ⛔ OCH RUBRIKEN RITAS BARA MED NÅGOT UNDER (0.84.0, #309). 0.78.2 lät den stå ensam,
+                  och en rubrik utan innehåll ser trasig ut (mätt i cllp/lifehub.app#134). Gruppen själv
+                  som rad, som SS `CalendarSourceFilter.jsx` gör, hade krävt ett filter-id för "poster
+                  utan kalender" som modellen inte har: `filtreraPoster` lägger dem på `forvaldId`. Det
+                  är ett eget beslut, inte en rättelse av en rubrik. */}
+              {gruppens.length > 0 ? (
+                <div className="mt-2 flex flex-col">
+                  <p className={radRubrikKlass}>Gruppens kalendrar</p>
+                  {gruppens.map(rad)}
+                </div>
+              ) : null}
               <div className="mt-2 flex flex-col">
                 <p className={radRubrikKlass}>Mina kalendrar</p>
                 {mina.length > 0 ? mina.map(rad) : <p className="m-0 px-3 py-1.5 text-meta text-ink-muted">Du har inga egna kalendrar ännu.</p>}

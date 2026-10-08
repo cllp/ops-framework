@@ -83,6 +83,26 @@ function enkelInspelare() {
 
 afterEach(() => vi.useRealTimers());
 
+describe("taket är en parameter", () => {
+  it("ett kort tak skickar, och förvalet väntar längre", async () => {
+    vi.useFakeTimers();
+    const inspelare = enkelInspelare();
+    const onTalk = vi.fn();
+    const kort = renderHook(() => useTalk({ onTalk, onKlick: () => {}, inspelare, maxSekunder: 2 }));
+    act(() => kort.result.current.direkt());
+    await inspelare.svara();
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(onTalk).toHaveBeenCalled();
+    kort.unmount();
+
+    const lang = renderHook(() => useTalk({ onTalk: vi.fn(), onKlick: () => {}, inspelare: enkelInspelare() }));
+    expect(lang.result.current.lage).toBe("vila");
+    lang.unmount();
+  });
+});
+
 describe("ett svar från starta hör till sitt försök (#281)", () => {
   it("⛔ S4: avmonterad medan mikrofonen öppnas: strömmen stängs, och appen får inget ljud efter 120 s", async () => {
     vi.useFakeTimers();

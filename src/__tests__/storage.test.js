@@ -95,6 +95,8 @@ describe("createFirebaseStorageSource: kontrollen av konfigurationen", () => {
     const svar = await lagring.laddaUpp({ sokvag: "profilbilder/uid-1/1.jpg", fil: "fil" });
     expect(svar).toEqual({ url: "https://firebasestorage.example/1.jpg", sokvag: "profilbilder/uid-1/1.jpg" });
     expect(sdk.uploadBytes).toHaveBeenCalledWith(referens, "fil");
+    await lagring.laddaUpp({ sokvag: "grupper/cps-ab/bibliotek/p/a.webm", fil: "ljud", contentType: "audio/webm" });
+    expect(sdk.uploadBytes).toHaveBeenLastCalledWith(referens, "ljud", { contentType: "audio/webm" });
   });
 
   it("⛔ TA BORT SVÄLJER \"objektet finns inte\", inte andra fel", async () => {

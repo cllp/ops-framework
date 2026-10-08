@@ -109,6 +109,9 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagI
  * @property {string} [gruppTom] (0.68.0) Gruppchattens tomma läge. Förval "Alla i gruppen ser det som skrivs här.".
  * @property {string} [oppnarGrupp] (0.68.0) Medan gruppchatten öppnas första gången. Förval "Öppnar gruppchatten…".
  * @property {string} [svaraITrad] (0.68.0) Förval "Svara i tråd".
+ * @property {string} [lyftTillMinnet] (0.86.0) Förval "Lyft till minnet". Knappen ritas bara när `onLyftTillMinnet` skickas in.
+ * @property {string} [minnet] (0.86.0) Länken till minnesvyn. Förval "Minnet". Ritas bara när `minneHref` skickas in.
+ * @property {string} [lyftMisslyckades] (0.86.0) Rubriken när lyftet nekas. Förval "Raden lyftes inte".
  * @property {string} [svar] (0.68.0) Substantivet efter antalet i trådens märke. Förval "svar".
  * @property {string} [tradRad] (0.68.0) Förval "Alla i gruppen ser tråden".
  * @property {string} [tradFel] (0.68.0) Förval "Tråden kunde inte hämtas".
@@ -231,6 +234,9 @@ const TEXTER = {
   gruppTom: "Alla i gruppen ser det som skrivs här.",
   oppnarGrupp: "Öppnar gruppchatten…",
   svaraITrad: "Svara i tråd",
+  lyftTillMinnet: "Lyft till minnet",
+  minnet: "Minnet",
+  lyftMisslyckades: "Raden lyftes inte",
   svar: "svar",
   tradRad: "Alla i gruppen ser tråden",
   tradFel: "Tråden kunde inte hämtas",
@@ -575,8 +581,11 @@ function texterPa(sprak, texter) {
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Skickas till `OpsSamtal` och `OpsTrad`.
  *   Med `bilagor` på källan ritas pluset ändå, och filen läses av ramverket. `onBifoga` anropas då inte.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp. Ramverket känner inga adresser.
+ * @param {(rad: { samtal: string, trad: string, meddelande: string, text: string, av: string }) => void | Promise<void>} [props.onLyftTillMinnet]
+ *   (0.86.0, lifehub.app#66) Uttryckligt lyft av ett meddelande i en tråd. Utan den ritas ingen knapp, och inget lyfts av sig självt.
+ * @param {string} [props.minneHref] (0.86.0) Adressen till gruppens minnesvy. Utan den ritas ingen länk. Ramverket känner inte appens rutter.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -918,6 +927,8 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             texter={t}
             onBifoga={onBifoga}
             mejl={mejl}
+            onLyftTillMinnet={onLyftTillMinnet}
+            minneHref={minneHref}
           />
         ) : vald?.ej && groupId ? (
           <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
@@ -1190,7 +1201,14 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
   };
   const spelar = rost.lage === "haller" || rost.lage === "lyssnar";
   const visaStopp = spelar || (agentArbetar && Boolean(onStoppaAgent));
-  const visaMik = Boolean(onTranscribe) && (!text.trim() || spelar || rost.lage === "skickar");
+  /*
+   * ⛔ EN VALD BILAGA ÄR INNEHÅLL (0.84.0, #315). Ljudvågen står bara där Skicka annars står när fältet verkligen är tomt:
+   * ingen text OCH ingen bilaga. Mätt med Playwright vid ompinningen till 0.80.1 (cllp/lifehub.app#134): med en bild vald och
+   * tomt fält stod "Prata in" där Skicka skulle stå, så på en pekskärm fanns ingen synlig väg att skicka bilden. Samma villkor
+   * som Skicka-knappens `disabled`, så de två kan inte säga olika saker om vad som är tomt (regel 2).
+   */
+  const tomt = !text.trim() && !harBilaga;
+  const visaMik = Boolean(onTranscribe) && (tomt || spelar || rost.lage === "skickar");
   return (
     <>
     <Rostrad rost={rost} texter={t} />
@@ -1307,7 +1325,7 @@ function Skrivfalt({ text, setText, skickar, onSkicka, texter: t, fokus = false,
         <button
           type="submit"
           aria-label={t.skicka}
-          disabled={skickar || (!text.trim() && !harBilaga)}
+          disabled={skickar || tomt}
           className="group/knapp inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none disabled:cursor-default disabled:opacity-40"
         >
           <span className="inline-flex size-9 items-center justify-center rounded-full bg-accent text-accent-contrast transition-colors duration-(--duration-fast) ease-standard group-hover/knapp:bg-accent-hover group-focus-visible/knapp:outline-2 group-focus-visible/knapp:outline-offset-1 group-focus-visible/knapp:outline-accent">
@@ -2217,8 +2235,11 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {string} [props.sprak]
  * @param {Meddelandetexter} [props.texter]
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
+ * @param {(rad: { samtal: string, trad: string, meddelande: string, text: string, av: string }) => void | Promise<void>} [props.onLyftTillMinnet]
+ *   (0.86.0) Knappen "Lyft till minnet" på rotmeddelandet och på svaren. Utan den ingen knapp.
+ * @param {string} [props.minneHref] (0.86.0) Länk till minnesvyn i trådens huvud. Utan den ingen länk.
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl, onLyftTillMinnet, minneHref }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -2230,6 +2251,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   const [trad, setTrad] = useState(/** @type {import("../lib/samtal.js").Trad | null} */ (null));
   const [svar, setSvar] = useState(/** @type {Array<import("../lib/samtal.js").Meddelande & { id: string }> | null} */ (null));
   const [fel, setFel] = useState(/** @type {Error | null} */ (null));
+  const [lyftFel, setLyftFel] = useState(/** @type {Error | null} */ (null));
   const [text, setText] = useState("");
   const [skickar, setSkickar] = useState(false);
   const [redigerar, setRedigerar] = useState(false);
@@ -2290,6 +2312,38 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
   }, [svar]);
 
   const namn = tradensNamn(trad, [...(rot ? [rot] : []), ...historik.alla]);
+  /** @param {import("../lib/samtal.js").Meddelande & { id: string }} m */
+  const lyft = async (m) => {
+    if (!onLyftTillMinnet) return;
+    setLyftFel(null);
+    try {
+      await onLyftTillMinnet({
+        samtal: samtal.id,
+        trad: tid,
+        meddelande: m.id,
+        text: typeof m.text === "string" ? m.text : "",
+        av: m.av,
+      });
+    } catch (e) {
+      setLyftFel(somFel(e));
+    }
+  };
+  const lyftEfter = onLyftTillMinnet
+    ? (/** @type {import("../lib/samtal.js").Meddelande & { id: string }} */ m) => {
+        const synlig = typeof m.text === "string" ? m.text.trim() : "";
+        if (!synlig) return null;
+        return (
+          <button
+            type="button"
+            data-lyft-minne={m.id}
+            onClick={() => lyft(m)}
+            className="-my-2 inline-flex min-h-11 max-w-full cursor-pointer items-center rounded-full px-2 text-liten font-medium text-accent transition-colors duration-(--duration-fast) ease-standard hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          >
+            {t.lyftTillMinnet}
+          </button>
+        );
+      }
+    : undefined;
   // Roten står i gruppchatten, svaren i tråden: trådens id hör till svarens filnycklar, inte rotens.
   const infoposter = useMemo(() => [...(rot ? [{ m: rot }] : []), ...historik.alla.map((m) => ({ m, trad: tid }))], [rot, historik.alla, tid]);
   const filer = useChattinfoFiler({ kalla, sid: samtal.id, oppen: info, poster: infoposter, felText: t.bilagorFel });
@@ -2404,6 +2458,15 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
               </button>
             ) : null}
             <div className="flex shrink-0 items-center">
+              {minneHref ? (
+                <a
+                  href={minneHref}
+                  data-minne-lank=""
+                  className="inline-flex min-h-11 items-center rounded-full px-2 text-liten font-medium text-accent hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  {t.minnet}
+                </a>
+              ) : null}
               {post ? (
                 <Verktygsknapp etikett={t.mejl} dataAttr="mejl" href={post}>
                   <MejlIkon size={16} />
@@ -2432,9 +2495,14 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
             {fel.message}
           </OpsBanner>
         ) : null}
+        {lyftFel ? (
+          <p role="alert" data-lyft-fel="" className="m-0 py-1 text-meta text-danger">
+            {t.lyftMisslyckades}: {lyftFel.message}
+          </p>
+        ) : null}
         <div data-rotmeddelande="" className="border-b border-line pb-2">
           {rot ? (
-            <Meddelanderader meddelanden={[rot]} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} />
+            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} />
           ) : rot === null ? (
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
@@ -2444,7 +2512,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
         <Agentrad lage={agentlage} texter={t} />
         <div ref={slut} />
       </div>
