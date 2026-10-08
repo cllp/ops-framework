@@ -60,6 +60,10 @@ CP 2026-10-08, i cllp/ops-framework#192: privat är personens egen grupp, filer 
 - `bibliotek-vy`: fliklistan förväntar "Filer 0" och menyn "Fil", utöver anteckning och länk.
 - `grupp`: storage-fragmentets förval (bara profilbilder) är oförändrat. Nya prov läser bibliotekets gren: medlemskap, 25 MB, MIME och `delete: if false`.
 
+### Efter merge av 0.84.0
+
+- `check-gammalt-namn`: golvet höjt från 618 till 713. Med 618 var vakten röd, den läste 751 filer och 618 låg mer än 20 procent under (618 gånger 1,2 är 741,6). Med 713: grön, 751 filer lästa. 0.84.0 lade till 20 filer ovanpå grenens 731.
+
 ---
 
 ## 0.84.0
