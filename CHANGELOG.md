@@ -11,7 +11,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ## 0.79.0
 
-Bibliotek, skiva 1 (#192). Analysen ligger i `docs/beslut/0004-bibliotek-ss-analys.md` och i utkastet för den. 0.78.1 är reserverad av #302 och är inte mergad. Den här är nästa lediga minor efter main, som står på 0.78.0.
+Bibliotek, skiva 1 (#192). Analysen ligger i `docs/beslut/0004-bibliotek-ss-analys.md` och i utkastet för den. 0.78.1 (#302) är mergad, och main står på 0.78.1, mätt på origin/main `e79f48f` 2026-10-08. Den här är nästa minor efter den.
 
 ### Tillagt
 
@@ -27,9 +27,33 @@ Bibliotek, skiva 1 (#192). Analysen ligger i `docs/beslut/0004-bibliotek-ss-anal
 - `rules/__tests__/bibliotek.test.mjs`, 18 prov mot emulatorn. Mutationskörning: varje villkor i fragmentet togs bort ett i taget, och 40 av 40 mutationer gav minst ett rött prov. Tabellen står i PR:en. Typkontroller som inte kunde ändra utfallet togs bort ur regeln. Samma prov mot fragmentet i första versionen: 12 gröna, 6 röda.
 - `src/__tests__/bibliotek.test.js`, `src/__tests__/bibliotekkalla.test.js` och `src/__tests__/bibliotek-vy.test.jsx`, 17 prov. De fem nya proven för källan och vyn är röda mot första versionens kod och gröna nu.
 
+## 0.78.1
+
+Uppgift innan appen använder den (#302). Ompinningen åker med lane 19 i appen och görs inte här.
+
+### Rättat
+
+- Statuslistan är appens. `visaUppgifter` tar `oppna` och `klara`, på samma sätt som `snarast`. En status i `klara` lämnar Idag. En som inte står i någon av listorna hamnar i `avvisade`, med skälet. `i-github` syns när appen säger att den är öppen.
+- `idag` är `ÅÅÅÅ-MM-DD` i gruppens zon. Ett `Date` avvisas, för det är enhetens klocka. `utfors` är väggklocka i samma zon, utan `Z`.
+- `typ` krävs. Poster med en annan typ räknas i `ovriga` och hamnar inte på Idag. Ett ärende med prioriteten `snarast` följer alltså inte med.
+- Huvudets plus har TALK-raden när appen saknar `fasta`. Utan bottenplus är den raden vägen under `md`.
+- En rad med `snarast: true` sorteras efter andra rader med samma `daysLeft` i `collectEvents`, så försenat, i dag och snarast står kvar när uppgifterna slås ihop med händelser.
+- 0.78.0-texten nedan sade att 0.77.0 och 0.76.3 inte var mergade. Det stämde inte. Båda har avsnitt i den här loggen. Mätt på main `1d1bf66` 2026-10-07. README:s uppgiftsstycke sade det inte.
+
+### Prov
+
+- `src/__tests__/uppgift.test.jsx`. Utan rättningarna: de nya proven röda (datumet avvisade strängen, loggen matchade "Ingen av dem är mergad", och TALK-raden saknades i en app utan `fasta`). Med rättningarna: gröna.
+- Bocken i snabbtitten: utan `atgard` i `data-snabbtitt` röd, med den grön.
+- `src/__tests__/talk.test.jsx`, raden utan `fasta`. Utan `talkRad: !bottenPlus`: röd. Med den: grön. Proven med `fasta` är oförändrat gröna, raden är fortfarande borta där.
+
+### Kvar i appen
+
+- Provets "listan muteras inte" ser bara att argumentet är orört. En kopia i händelsesamlingen kan inte göra det rött. Den vakten hör till lane 19.
+- Appen har redan aktivitetstypen `uppgift` bland händelserna (`lifehub.app/web/src/data/events.js`). Ramverket lägger ingen aktivitetstyp med det namnet. Lane 19 väljer vilken sanning som står kvar.
+
 ## 0.78.0
 
-Uppgift som inkorgstyp (lifehub.app#103, lane 19), ramverkets del. 0.77.0 är utkastet för chattbilagor (#297) och 0.76.3 är utkastet för mejlköns `updateIf` (#298). Ingen av dem är mergad. Den här är nästa lediga minor efter main, som står på 0.76.2.
+Uppgift som inkorgstyp (lifehub.app#103, lane 19), ramverkets del. 0.77.0 och 0.76.3 är mergade: båda har avsnitt i den här loggen. Meningen som stod här sade att ingen av dem var det, och att main stod på 0.76.2. Det stämde inte. Rättat i 0.78.1, mätt på main `1d1bf66`.
 
 ### Tillagt
 
@@ -67,7 +91,7 @@ Regeln med `bilagor: true` ska vara utrullad innan klienten slår på nyckeln. U
 
 ## 0.76.3
 
-Småsaker från granskningen av mejlkön (PR 296). 0.77.0 är upptagen av utkastet för chattbilagor (#297) och är inte mergad. Den här är nästa lediga patch efter main, som står på 0.76.2.
+Småsaker från granskningen av mejlkön (PR 296). När den här skrevs var 0.77.0 ett utkast. Den är mergad, se avsnittet ovan.
 
 ### Rättat
 
