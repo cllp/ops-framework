@@ -828,6 +828,9 @@ function bilagaRegelfunktion(funktionsnamn, val = {}) {
  *     (`opsBundenBilaga`, granskningen av PR 307): med `existsAfter` och `getAfter`, som ser läget efter hela batchen, ska
  *     meddelandet finnas, vara skrivet av den inloggade och bära samma namn, typ och tid. Ett svar i en tråd har nyckeln
  *     `<tråd>~<id>` (`bilagenyckel`). Uppdatera och radera: aldrig. Med bilaga får texten vara tom.
+ *     Åt andra hållet (granskningen av PR 307): ett meddelande som bär märket ska ha sin fil efter batchen (`existsAfter` på
+ *     `opsBilagansFil`), och meddelandets id får inte innehålla `~`, för då hade filens nyckel aldrig gått att skriva. En fil
+ *     som läggs till senare på ett eget meddelande som redan bär märket prövas bara av filens regel, och den släpps in.
  *     Utan nycklarna är meddelandets fält och textkrav desamma som förut. Firebase Storage används inte.
  *   - TYSTA NOTISER (0.80.0, #301, med `tyst`): `<tyst>/{uid}` med `{ tyst: bool }`. Bara personen själv läser och skriver.
  *     Radera: aldrig. Utan nyckeln finns inget sådant block.
@@ -880,8 +883,11 @@ export function samtalsregelfragment(namn = {}) {
   const version = ["0.34.0", ...(tradar ? ["trådar 0.68.0"] : []), ...(status ? ["agentens status"] : []), ...(reaktioner ? ["reaktioner"] : []), ...(omnamnanden ? ["omnämnanden"] : []), ...(citat ? ["citat"] : []), ...(fasta ? ["fästa"] : []), ...(bilagor ? ["bilagor"] : []), ...(tyst ? ["tysta notiser"] : [])].join(", ");
   // ⛔ Utan `bilagor` är de två raderna ordagrant de som stod här förut, så fixturen för 0.67.0 består.
   // Med `bilagor` prövas MÄRKET på meddelandet. Filens `dataUrl` prövas på bilagedokumentet, inte här.
-  const texttak = (/** @type {string} */ indrag) => (bilagor
-    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagemarke(request.resource.data.bilaga))`
+  // ⛔ MÄRKET HAR SIN FIL, OCH ID:T KAN BÄRA EN (granskningen av PR 307). Ett märke utan fil hade gett en bubbla som säger
+  // "Bilagan går inte att visa" för alltid, och ett id med `~` hade gett en fil vars nyckel regeln läser som ett trådsvar.
+  // `nyckel` är regeluttrycket för filens nyckel: `mid` i samtalet, `tid + '~' + mid` i en tråd.
+  const texttak = (/** @type {string} */ indrag, /** @type {string} */ nyckel) => (bilagor
+    ? `${indrag}&& (request.resource.data.text.size() > 0 || 'bilaga' in request.resource.data)\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}\n${indrag}&& (!('bilaga' in request.resource.data) || opsMeddelandebilagemarke(request.resource.data.bilaga))\n${indrag}&& (!('bilaga' in request.resource.data) || existsAfter(opsBilagansFil(sid, ${nyckel})))\n${indrag}&& !mid.matches('.*[${BILAGA_TRADSKILJE}].*')`
     : `${indrag}&& request.resource.data.text.size() > 0\n${indrag}&& request.resource.data.text.size() <= ${MAX_MEDDELANDE}`);
   const meddelandefaltRegel = bilagor ? [...meddelandefalt, "bilaga"] : meddelandefalt;
   const samtalsfaltRegel = bilagor ? [...samtalsfaltlista, "bilaga"] : samtalsfaltlista;
@@ -898,6 +904,11 @@ export function samtalsregelfragment(namn = {}) {
   const bindningsfunktion = `    // Bilagans meddelande (granskningen av PR 307): nyckeln är meddelandets id, eller trådens id och meddelandets id.
     function opsBilagansMeddelande(sid, nyckel) {
       return ${bilagansVag};
+    }
+
+    // Meddelandets fil (granskningen av PR 307): samma nyckel åt andra hållet.
+    function opsBilagansFil(sid, nyckel) {
+      return /databases/$(database)/documents/${samtal}/$(sid)/${bilagaSamling}/$(nyckel);
     }
 
     // Filen hör till ett meddelande som finns efter batchen, som den inloggade skrev, med samma namn, typ och tid.
@@ -1052,7 +1063,7 @@ export function samtalsregelfragment(namn = {}) {
             && request.resource.data.keys().hasOnly([${lista(meddelandefaltRegel)}])${tradnamnervillkor}
             && request.resource.data.av == request.auth.uid
             && request.resource.data.text is string
-${texttak("            ")}
+${texttak("            ", `tid + '${S}' + mid`)}
             && opsNu(request.resource.data.tid);
           allow update, delete: if false;
         }${tradstatus}${tradreaktioner}
@@ -1154,7 +1165,7 @@ ${tradfunktioner}${reaktionsfunktion}${namnerfunktion}${citatfunktion}${bilagefu
           && request.resource.data.av == request.auth.uid
           && opsArAktivTyp(request.auth.uid, get(opsSamtalet(sid)).data.groupId, 'person')
           && request.resource.data.text is string
-${texttak("          ")}
+${texttak("          ", "mid")}
           && opsNu(request.resource.data.tid);
         allow update, delete: if false;
       }

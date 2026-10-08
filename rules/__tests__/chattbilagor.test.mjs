@@ -155,9 +155,8 @@ describe("bilaga på ett meddelande", () => {
     await assertFails(batchMedFil(ANNA, `samtal/${sid}/meddelanden`, "exe", `samtal/${sid}/bilagor`, "exe", { bilaga: { dataUrl: exe, namn: "a.exe", typ: "application/x-msdownload", tecken: exe.length } }));
   });
 
-  it("⛔ ett märke med en typ som inte får bifogas nekas, också utan fil", async () => {
+  it("⛔ ett märke med en typ som inte får bifogas nekas", async () => {
     await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/svgmarke`), meddelande(ANNA, { text: "", bilaga: marke("a.svg", "image/svg+xml") })));
-    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/pngmarke`), meddelande(ANNA, { text: "", bilaga: marke("a.png", "image/png") })));
   });
 
   it("⛔ tom text utan bilaga nekas som förut", async () => {
@@ -194,6 +193,38 @@ describe("filen är bunden till sitt meddelande (granskningen av PR 307)", () =>
   it("⛔ en agent och en inaktiv medlem lägger ingen fil, inte ens på ett eget meddelande", async () => {
     await assertFails(setDoc(doc(som(AGENT), `samtal/${grupp}/bilagor/agentens`), { ...bild({ namn: "a.png" }), tid: SADD_TID }));
     await assertFails(setDoc(doc(som(INAKTIV), `samtal/${grupp}/bilagor/inaktivs`), { ...bild({ namn: "i.png" }), tid: SADD_TID }));
+  });
+});
+
+describe("märket har sin fil, och id:t kan bära en (granskningen av PR 307)", () => {
+  // ⛔ Förut släpptes ett märke utan fil in, och bubblan sade "Bilagan går inte att visa" för alltid. Ett prov i blocket
+  // ovan ("pngmarke") stod då grönt på just det, alltså var hålet mätt som avsett. Det provet är borttaget.
+  // ⛔ Proven för `~` skriver UTAN bilaga. Med en fil hade bindningen nekat redan, och provet hade inte mätt villkoret.
+  it("⛔ ett märke utan fil nekas, i samtalet och i en tråd", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/utanfil`), meddelande(ANNA, { text: "", bilaga: marke("a.png", "image/png") })));
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/utanfil2`), meddelande(ANNA, { text: "Se bilden", bilaga: marke("a.png", "image/png") })));
+    await assertFails(setDoc(doc(som(BO), `samtal/${grupp}/tradar/rot/meddelanden/utanfil`), meddelande(BO, { text: "", bilaga: marke("a.png", "image/png") })));
+  });
+
+  it("märket med filen i samma batch släpps in, i samtalet och i en tråd", async () => {
+    await assertSucceeds(batchMedFil(ANNA, `samtal/${sid}/meddelanden`, "medfil", `samtal/${sid}/bilagor`, "medfil", { bilaga: bild() }));
+    await assertSucceeds(batchMedFil(BO, `samtal/${grupp}/tradar/rot/meddelanden`, "medfil", `samtal/${grupp}/bilagor`, "rot~medfil", { bilaga: bild() }));
+  });
+
+  it("ett meddelande utan bilaga släpps in som förut, i samtalet och i en tråd", async () => {
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/meddelanden/bara-text`), meddelande(ANNA)));
+    await assertSucceeds(setDoc(doc(som(BO), `samtal/${grupp}/tradar/rot/meddelanden/bara-text`), meddelande(BO)));
+  });
+
+  it("en fil som läggs till senare på ett eget meddelande som redan bär märket släpps in", async () => {
+    // `annas` sås förbi reglerna: ett meddelande med märke men utan fil, som 0.80.0 före härdningen kunde lämna efter sig.
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${sid}/bilagor/annas`), { ...bild(), tid: SADD_TID }));
+  });
+
+  it("⛔ ett id med ~ nekas, i samtalet och i en tråd, också utan bilaga", async () => {
+    await assertFails(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/rot~m1`), meddelande(ANNA)));
+    await assertFails(setDoc(doc(som(BO), `samtal/${grupp}/tradar/rot/meddelanden/a~b`), meddelande(BO)));
+    await assertSucceeds(setDoc(doc(som(ANNA), `samtal/${grupp}/meddelanden/m1`), meddelande(ANNA)));
   });
 });
 
