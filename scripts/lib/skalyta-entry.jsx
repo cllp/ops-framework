@@ -1360,6 +1360,34 @@ function Menyer() {
   );
 }
 
+/** Lista, eller anteckningens formulär när `oppnaDetalj` är satt. `onOppna` öppnar raden, så Tillbaka kan mätas. */
+function BibliotekYta({ oppnaDetalj = false }) {
+  const Bib = Ops.OpsBibliotek;
+  const bygg = Ops.byggPost;
+  if (!Bib || !bygg) return <p data-saknas="OpsBibliotek">OpsBibliotek saknas</p>;
+  const tid = 1700000000000;
+  const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
+  const poster = [
+    { ...bygg({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll", text: "Vi beslutade om bokslutet.", skapadAv: skapare, skapad: tid, andrad: tid }), id: "a" },
+    { ...bygg({ groupId: "cps-ab", typ: "lank", rubrik: "Bolagsverket", url: "https://bolagsverket.se", skapadAv: skapare, skapad: tid, andrad: tid }), id: "b" },
+  ];
+  const [vald, setVald] = useState(oppnaDetalj ? poster[0] : null);
+  return (
+    <Bib
+      poster={poster}
+      jag={{ uid: "uid-1", roll: "medlem" }}
+      vald={vald}
+      skapar={null}
+      onOppna={(p) => setVald(p)}
+      onStang={() => setVald(null)}
+      onSkapa={() => {}}
+      onSpara={() => {}}
+      hubHref="/hub"
+      onNavigate={(_href, e) => e.preventDefault()}
+    />
+  );
+}
+
 function Scen() {
   const s = window.__skal;
   if (s === "menyer") return <Menyer />;
@@ -1729,33 +1757,9 @@ function Scen() {
       </Skal>
     );
   }
-  // 0.87.0, lane 11: bibliotekets flikrad vid 390 px. Saknas komponenten (äldre dist) ritas en markör.
-  if (s === "bibliotek") {
-    const Bib = Ops.OpsBibliotek;
-    const bygg = Ops.byggPost;
-    if (!Bib || !bygg) return <Full><p data-saknas="OpsBibliotek">OpsBibliotek saknas</p></Full>;
-    const tid = 1700000000000;
-    const skapare = { uid: "uid-1", namn: "Kim", typ: "manniska", kalla: "bibliotek" };
-    const poster = [
-      { ...bygg({ groupId: "cps-ab", typ: "anteckning", rubrik: "Protokoll", text: "Vi beslutade om bokslutet.", skapadAv: skapare, skapad: tid, andrad: tid }), id: "a" },
-      { ...bygg({ groupId: "cps-ab", typ: "lank", rubrik: "Bolagsverket", url: "https://bolagsverket.se", skapadAv: skapare, skapad: tid, andrad: tid }), id: "b" },
-    ];
-    return (
-      <Full>
-        <Bib
-          poster={poster}
-          jag={{ uid: "uid-1", roll: "medlem" }}
-          vald={null}
-          skapar={null}
-          onOppna={() => {}}
-          onStang={() => {}}
-          onSkapa={() => {}}
-          onSpara={() => {}}
-          hubHref="/hub"
-          onNavigate={(_href, e) => e.preventDefault()}
-        />
-      </Full>
-    );
+  // Bibliotekets flikrad och detaljens Tillbaka. Saknas komponenten (äldre dist) ritas en markör.
+  if (s === "bibliotek" || s === "bibliotekdetalj") {
+    return <Full><BibliotekYta oppnaDetalj={s === "bibliotekdetalj"} /></Full>;
   }
   // 0.87.0 (#321): utfälld aktivitet. Raden visar rubrik och detalj. Utfällningen ska inte rita dem igen.
   if (s === "aktivitet") {

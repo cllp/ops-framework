@@ -154,9 +154,11 @@ export function hubbPoster(kort, { sprak = "sv", info = {}, badge = {}, delar = 
  * @param {{ moduler: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> | null } | null} arg.grupp Den aktiva gruppen, eller `null` medan den läses.
  * @param {ReadonlyArray<import("./modul.js").Modul>} arg.moduler Appens registrerade moduler.
  * @param {string} [arg.sprak] Förval `sv`.
- * @returns {{ id: string, href: string, label: string, icon: import("react").ReactNode }[]}
+ * @param {Readonly<Record<string, number>>} [arg.badge] Räknare per modul-id, samma karta som `hubbPoster`. En ikon i huvudet och kortet i hubben ska kunna visa samma tal.
+ * @param {Readonly<Record<string, boolean>>} [arg.badgeFler] Sant när räknaren är ett golv (märket visar talet med ett plus).
+ * @returns {{ id: string, href: string, label: string, icon: import("react").ReactNode, badge?: number, badgeFler?: true }[]}
  */
-export function huvudmenyPoster({ grupp, moduler, sprak = "sv" }) {
+export function huvudmenyPoster({ grupp, moduler, sprak = "sv", badge = {}, badgeFler = {} }) {
   if (!grupp) return [];
   const valda = Array.isArray(grupp.huvudmeny) ? grupp.huvudmeny : [];
   if (valda.length === 0) return [];
@@ -167,7 +169,14 @@ export function huvudmenyPoster({ grupp, moduler, sprak = "sv" }) {
     .filter((m) => Boolean(m?.hubb))
     .map((m) => {
       const h = /** @type {Hubbmodul} */ (m);
-      return { id: h.id, href: h.hubb.rutt, label: text(h.namn, sprak), icon: /** @type {import("react").ReactNode} */ (h.hubb.ikon) };
+      return {
+        id: h.id,
+        href: h.hubb.rutt,
+        label: text(h.namn, sprak),
+        icon: /** @type {import("react").ReactNode} */ (h.hubb.ikon),
+        ...(typeof badge[h.id] === "number" ? { badge: badge[h.id] } : {}),
+        ...(badgeFler[h.id] ? { badgeFler: /** @type {const} */ (true) } : {}),
+      };
     });
 }
 

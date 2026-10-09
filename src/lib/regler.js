@@ -35,7 +35,8 @@ import {
   ADMINGRUPPFALT, AGARGRUPPFALT, ANVANDARFALT, EXTERNHEMLIGHET_FORM, EXTERNPOSTFALT, EXTERNREPO_FORM, EXTERNREPO_PUNKTNAMN,
   EXTERNTOKEN_FORM, EXTERNTYPER, MAX_EXTERNA, MAX_EXTERNHEMLIGHET, MAX_EXTERNLABEL, MAX_EXTERNREPO, MEDLEMSKAPSAVGRANSARE,
 } from "./grupp.js";
-import { KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
+import { ID_FORM, KATALOGAVGRANSARE, KATEGORIFALT } from "./katalog.js";
+import { INSTALLNINGSVARDEFALT, MAX_INSTALLNINGSGRUPP, MAX_INSTALLNINGSID, MAX_INSTALLNINGSTEXT, MAX_MODULINSTALLNINGAR, MODULINSTALLNINGFALT, VISA_I_HUVUDMENYN } from "./modulinstallningar.js";
 import { MAX_TYPAVVIKELSER, MAX_TYPID, MAX_TYPNAMN, MODULTYPID_FORM, TYPAVVIKELSEFALT, TYPYTOR } from "./modultyper.js";
 import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, FILFALT, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKUTSKRIFT, filMimeMonster } from "./bibliotek.js";
 import { MAX_MINNESID, MAX_MINNESTEXT, MINNESFALT, MINNESKALLAFALT, MINNESKALLOR } from "./minne.js";
@@ -1739,6 +1740,99 @@ ${nuRegelfunktion("opsMinnetNu")}
         && opsMinnetNu(request.resource.data.andrad)
         && opsMinnesradGiltig(request.resource.data);
       allow delete: if opsFarAndraMinnet();
+    }
+`;
+}
+
+/**
+ * Regelfragmentet för en moduls egna inställningar, en rad per grupp och modul (0.88.0).
+ *
+ * ══ ⛔ PINNEN SKRIVS INTE HÄR ══════════════════════════════════════════
+ *
+ * "Visa i huvudmenyn" bor på gruppen (`groups.huvudmeny`, ägarfält sedan 0.83.0).
+ * Den här samlingen är bara de fält modulen själv deklarerat. En post med id
+ * `visaIHuvudmenyn` nekas, så de två inte kan säga olika saker om samma ikon.
+ *
+ * ══ ⛔ VAD SOM GÄLLER ═════════════════════════════════════════════════
+ *
+ *   - LÄSA: aktiv medlem i radens grupp.
+ *   - SKAPA OCH ÄNDRA: gruppens ägare, och bara en person (`typ == 'person'`),
+ *     som sig själv (`uppdateradAv.uid` och `uppdateradAv.typ == "manniska"`).
+ *     En admin skriver inte. En agent skriver inte, varken som medlem eller
+ *     genom att en person sätter typen agent på `uppdateradAv`.
+ *   - RADERA: nej. En modul utan sparade värden läses som sina förval.
+ *   - `groupId` och `modulId` står stilla vid en ändring. Klockan är serverns.
+ *
+ * ⛔ DUBBLA ID I LISTAN FÅNGAS I KLIENTEN (`lasInstallningsvarden`), inte här.
+ * Reglerna har ingen loop som jämför par. Formen på varje post rullas ut till
+ * `MAX_MODULINSTALLNINGAR`, samma tal som byggaren.
+ *
+ * ⛔ DOKUMENTETS ID SÄTTS AV KLIENTEN (`modulinstallningsId`: längd, tilde,
+ * grupp, tilde, modul). Reglerna läser kroppen. Firestore har inget tal i bas 36,
+ * så sökvägen jämförs inte mot den formeln.
+ *
+ * ⛔ INGEN ÄNDRING AV GRUPPDOKUMENTETS REGLER. `typavvikelser` och
+ * `externaDatakallor` ligger redan på uttryckstaket (#223). En egen samling
+ * håller den här valideringen borta från gruppen.
+ *
+ * ⛔ RAMVERKET KÄNNER INTE SAMLINGSNAMNET. Fragmentet använder `opsArMedlem`,
+ * `opsArAgare` och `opsMedlemskapet` ur `regelfragment()`, och ska limmas in efter det.
+ *
+ * @param {string} namn Samlingsnamnet appen valt.
+ * @returns {string}
+ */
+export function modulinstallningsregelfragment(namn) {
+  const samling = kontrolleraNamn(namn, "modulinstallningar");
+  const lista = (/** @type {readonly string[]} */ f) => f.map((x) => `"${x}"`).join(", ");
+  const idMonster = regelRegex(ID_FORM);
+  const poster = Array.from({ length: MAX_MODULINSTALLNINGAR }, (_, i) => `(d.varden.size() <= ${i} || opsModulinstallningPost(d.varden[${i}]))`).join("\n        && ");
+
+  return `    // ══ Ramverkets modulinställningar. GENERERAD, ändra inte för hand ══
+    //
+    // Källa: ops-framework, modulinstallningsregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
+    // Pinnen visaIHuvudmenyn skrivs på gruppen, inte här. Dubbla id i listan fångas i klienten.
+
+${nuRegelfunktion("opsModulinstallningNu")}
+
+    function opsModulinstallningPost(p) {
+      return p.keys().hasOnly([${lista(INSTALLNINGSVARDEFALT)}])
+        && p.id.matches('${idMonster}')
+        && p.id.size() <= ${MAX_INSTALLNINGSID}
+        && p.id != "${VISA_I_HUVUDMENYN}"
+        && (
+          (p.typ == "boolean" && p.bool is bool && p.text == "")
+          || (p.typ == "text" && p.text.size() <= ${MAX_INSTALLNINGSTEXT} && p.bool == false)
+        );
+    }
+
+    function opsModulinstallningRadGiltig(d) {
+      return d.keys().hasOnly([${lista(MODULINSTALLNINGFALT)}])
+        && d.groupId.matches('${idMonster}')
+        && d.groupId.size() <= ${MAX_INSTALLNINGSGRUPP}
+        && d.modulId.matches('${idMonster}')
+        && d.modulId.size() <= ${MAX_INSTALLNINGSGRUPP}
+        && d.varden.size() <= ${MAX_MODULINSTALLNINGAR}
+        && ${poster}
+        && d.uppdateradAv.keys().hasOnly([${lista(SKAPARFALT)}])
+        && d.uppdateradAv.namn is string
+        && d.uppdateradAv.typ == "manniska"
+        && d.uppdateradAv.kalla is string
+        && d.uppdateradAv.uid == request.auth.uid;
+    }
+
+    match /${samling}/{id} {
+      allow read: if opsArMedlem(resource.data.groupId);
+      allow create: if opsArAgare(request.resource.data.groupId)
+        && opsMedlemskapet(request.resource.data.groupId).data.typ == 'person'
+        && opsModulinstallningNu(request.resource.data.uppdaterad)
+        && opsModulinstallningRadGiltig(request.resource.data);
+      allow update: if opsArAgare(resource.data.groupId)
+        && opsMedlemskapet(resource.data.groupId).data.typ == 'person'
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.modulId == resource.data.modulId
+        && opsModulinstallningNu(request.resource.data.uppdaterad)
+        && opsModulinstallningRadGiltig(request.resource.data);
+      allow delete: if false;
     }
 `;
 }

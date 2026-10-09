@@ -1,17 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { FileText, Image as BildIkon, Library, Link, Music, Plus, StickyNote } from "lucide-react";
+import { FileText, Image as BildIkon, Library, Link, Music, Pause, Play, Plus, StickyNote } from "lucide-react";
 import { ADRESSFORM, BIBLIOTEKTYPER, IDE_MAX_SEKUNDER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { useTalk } from "./OpsTalk.jsx";
 import { cx } from "../lib/cx.js";
 import { modulTillbaka } from "../lib/modulram.js";
-import { radBehallare, radKlass } from "../lib/radKlass.js";
+import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { OpsButton, knappKlass } from "./OpsButton.jsx";
+import { MikrofonIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
+import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 
 /**
@@ -50,6 +52,9 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * - **Tillbaka och rubriken är modulens ram**, samma `OpsView`-rad som `OpsModulSida` ritar (`modulTillbaka` i
  *   `modulram.js`): "‹ Tillbaka" upp till hubben och "Bibliotek" som rubrik. Därför krävs `hubHref`, som för
  *   `OpsModulSida`: en tillbaka-rad som inte vet vart den leder är en knapp som inte gör något.
+ *   Detaljen (läsning och formulär) går ett steg tillbaka till listan, inte till hubben, och ritar därför
+ *   `TillbakaKnapp`: samma chevron och vänsterställda text som skapa- och händelsepanelen. En `OpsButton` i
+ *   vyns kolumn sträcks till hela bredden och centrerar ordet, och den har ingen chevron.
  * - **Typerna är Ekonomis flikrad** (`OpsTabs` med `medOrd`): ikon, namn, antal och accentlinjen, med samma klasser.
  *   Före var de en segmentväljare i pillerform. Att de inte är länkar som Ekonomis delar är ett beslut: typen är ett
  *   urval i samma lista, inte en egen sida, och sökordet ska stå kvar när man byter flik.
@@ -84,8 +89,8 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas.
- * @param {(inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [props.onSpelaIn] Sparar en idé. Saknas den visas felet, ljudet sparas inte.
- * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Bara för prov.
+ * @param {(inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [props.onSpelaIn] Sparar en idé. Saknas funktionen ritas ingen mikrofon: en rad som kastar "inte kopplad" efter inspelningen ser ut som att ljudet sparades.
+ * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Samma valfria inspelare som TALK. Utelämnad används webbläsarens. Appen skickar den när den redan har en.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt] Ber servern om en utskrift. Felet visas, också ett dygnstak.
@@ -117,10 +122,10 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const synliga = filtreraBibliotek(poster, { flik, sok });
 
   // ⛔ DETALJEN HAR SIN EGEN TILLBAKA, TILL LISTAN. Två "Tillbaka" på samma sida, en till hubben och en till listan, hade
-  // lämnat läsaren att gissa vilken som är vilken.
+  // lämnat läsaren att gissa vilken som är vilken. Knappen är `TillbakaKnapp`, inte en egen spökknapp.
   return (
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
-      <div data-bibliotek="" className="flex flex-col gap-4">
+      <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
           <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
         ) : (
@@ -145,7 +150,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                     </div>
                     {jag ? <NyKnapp flik={flik} onSkapa={onSkapa} /> : null}
                   </div>
-                  {jag ? <SpelaIn onSpelaIn={onSpelaIn} inspelare={inspelare} /> : null}
+                  {jag && typeof onSpelaIn === "function" ? <SpelaIn onSpelaIn={onSpelaIn} inspelare={inspelare} /> : null}
                 </div>
                 {trasiga.length > 0 ? (
                   <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -168,8 +173,9 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   <OpsEmpty busy title="Hämtar biblioteket" />
                 ) : synliga.length === 0 ? (
                   <OpsEmpty
+                    icon={sok ? null : <Library size={28} />}
                     title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : flik === "lank" ? "Inga länkar ännu." : "Inga filer ännu."}
-                    description={sok ? `Inget matchar "${sok}".` : "Lägg till en anteckning eller en länk."}
+                    description={sok ? `Inget matchar "${sok}".` : "Lägg till en anteckning, en länk eller en fil."}
                   />
                 ) : (
                   <OpsList ariaLabel="Biblioteket" divided>
@@ -179,6 +185,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                       if (ljud) {
                         return (
                           <OpsListRow key={post.id}>
+                            <PostMark post={post} />
                             <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOppna(post)} aria-label={post.rubrik}>
                               <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
                               <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
@@ -189,9 +196,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                       }
                       return (
                       <OpsListRow key={post.id} interactive onClick={() => onOppna(post)} ariaLabel={post.rubrik}>
-                        <span className="text-ink-secondary" aria-hidden="true">
-                          <PostIkon post={post} filUrl={filUrl} />
-                        </span>
+                        <PostMark post={post} filUrl={filUrl} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
                           <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
@@ -244,11 +249,9 @@ function postAdress(post, filUrl) {
 /**
  * @param {{ post: { typ: string, fil?: { mime?: string, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string }} props
  */
-function PostIkon({ post, filUrl }) {
+function PostIkon({ post }) {
   if (post.typ === "fil") {
-    const adress = postAdress(post, filUrl);
     const sort = filSort(post.fil?.mime);
-    if (sort === "bild" && adress) return <img src={adress} alt="" className="size-10 rounded-sm object-cover" />;
     if (sort === "bild") return <BildIkon size={20} />;
     if (sort === "ljud") return <Music size={20} />;
     return <FileText size={20} />;
@@ -261,11 +264,33 @@ function PostIkon({ post, filUrl }) {
  * @param {{ typ: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number } }} post
  */
 function postRad(post) {
-  if (post.typ === "anteckning") return post.text ?? "";
-  if (post.typ === "lank") return post.url ?? "";
-  const namn = post.fil?.namn ?? "";
-  const storlek = filStorlek(post.fil?.byte);
-  return storlek ? `${namn} · ${storlek}` : namn;
+  const typ = post.typ === "anteckning" || post.typ === "lank" || post.typ === "fil" ? TYPNAMN[post.typ] : "";
+  let rest = "";
+  if (post.typ === "anteckning") rest = (post.text ?? "").replace(/\s+/g, " ").trim();
+  else if (post.typ === "lank") rest = post.url ?? "";
+  else {
+    const namn = post.fil?.namn ?? "";
+    const storlek = filStorlek(post.fil?.byte);
+    rest = storlek ? `${namn} · ${storlek}` : namn;
+  }
+  if (rest.length > 80) rest = `${rest.slice(0, 77)}...`;
+  return rest ? `${typ} · ${rest}` : typ;
+}
+
+/**
+ * Ikonen i en ruta, samma på listan och i detaljen. En bild fyller rutan.
+ * SessionStudios rad är ikon, rubrik och en metarad. Synlighet per post ritas inte.
+ *
+ * @param {{ post: { typ: string, fil?: { mime?: string, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string }} props
+ */
+function PostMark({ post, filUrl }) {
+  const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
+  const adress = bild ? postAdress(post, filUrl) : "";
+  return (
+    <span data-bibliotek-ikon={post.typ} className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-raised text-ink-secondary" aria-hidden="true">
+      {adress ? <img src={adress} alt="" className="size-10 object-cover" /> : <PostIkon post={post} />}
+    </span>
+  );
 }
 
 /**
@@ -413,11 +438,18 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
   const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : post?.rubrik ?? "Post";
   const beskrivning = typ === "anteckning" ? "En text gruppen delar." : typ === "lank" ? "En adress gruppen delar." : "En fil gruppen delar.";
 
+  const mark = <PostMark post={{ typ, fil: post?.fil }} filUrl={filUrl} />;
+
   if (lasning && post) {
     return (
       <div data-bibliotek-detalj={typ} data-bibliotek-lasning="" className="flex flex-col gap-4">
-        <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
-        <OpsViewHeader title={post.rubrik} description={beskrivning} />
+        <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
+        <div className="flex items-start gap-3">
+          {mark}
+          <div className="min-w-0 flex-1">
+            <OpsViewHeader title={post.rubrik} description={beskrivning} />
+          </div>
+        </div>
         {post.typ === "anteckning" ? (
           <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
         ) : post.typ === "fil" ? (
@@ -435,8 +467,13 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
 
   return (
     <div data-bibliotek-detalj={typ} className="flex flex-col gap-4">
-      <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
-      <OpsViewHeader title={rubrikVy} description={beskrivning} />
+      <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
+      <div className="flex items-start gap-3">
+        {mark}
+        <div className="min-w-0 flex-1">
+          <OpsViewHeader title={rubrikVy} description={beskrivning} />
+        </div>
+      </div>
       {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
       {post && !skapar && post.typ === "fil" ? <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} /> : null}
       <OpsField label="Rubrik" error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
@@ -551,8 +588,10 @@ function Ljudspelare({ src }) {
         onTimeUpdate={() => setTid(ljud.current?.currentTime ?? 0)}
         onLoadedMetadata={() => setLangd(ljud.current?.duration ?? 0)}
       />
-      <OpsButton
-        variant="secondary"
+      <button
+        type="button"
+        aria-label={spelar ? "Pausa" : "Spela"}
+        className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-raised text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         onClick={() => {
           const el = ljud.current;
           if (!el) return;
@@ -566,30 +605,26 @@ function Ljudspelare({ src }) {
           }
         }}
       >
-        {spelar ? "Pausa" : "Spela"}
-      </OpsButton>
-      <span>{visaTid(tid)} / {visaTid(langd)}</span>
+        {spelar ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
+      </button>
+      <span className="text-meta text-ink-muted">{visaTid(tid)} / {visaTid(langd)}</span>
       {fel ? <p role="alert">{fel}</p> : null}
     </div>
   );
 }
 
 /**
- * @param {{ onSpelaIn?: (inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>, inspelare?: import("../lib/talk.js").Inspelare }} props
+ * @param {{ onSpelaIn: (inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>, inspelare?: import("../lib/talk.js").Inspelare }} props
  */
 function SpelaIn({ onSpelaIn, inspelare }) {
+  const etikettId = useId();
   const [sekunder, setSekunder] = useState(0);
   const startad = useRef(0);
   const styr = useTalk({
     maxSekunder: IDE_MAX_SEKUNDER,
     inspelare,
     onKlick: () => {},
-    onTalk: (blob, meta) => {
-      if (typeof onSpelaIn !== "function") {
-        throw new Error("Inspelningen är inte kopplad. Ljudet sparades inte.");
-      }
-      return onSpelaIn({ blob, mimeType: meta.mimeType, sekunder: meta.sekunder, rubrik: ideRubrik() });
-    },
+    onTalk: (blob, meta) => onSpelaIn({ blob, mimeType: meta.mimeType, sekunder: meta.sekunder, rubrik: ideRubrik() }),
   });
   const pagar = styr.lage === "lyssnar" || styr.lage === "haller" || styr.lage === "skickar";
   useEffect(() => {
@@ -598,10 +633,16 @@ function SpelaIn({ onSpelaIn, inspelare }) {
     const id = setInterval(() => setSekunder(Math.floor((Date.now() - startad.current) / 1000)), 250);
     return () => clearInterval(id);
   }, [pagar]);
+  const mikrofon = (
+    <span className={huvudknappKlass({ aktiv: pagar })} aria-hidden="true">
+      <MikrofonIkon size={24} />
+    </span>
+  );
   if (pagar) {
     return (
       <div data-bibliotek-inspelning="" className="flex items-center gap-2">
-        <span>{visaTid(sekunder)} / {visaTid(IDE_MAX_SEKUNDER)}</span>
+        {mikrofon}
+        <span role="status">{visaTid(sekunder)} / {visaTid(IDE_MAX_SEKUNDER)}</span>
         <OpsButton variant="primary" onClick={() => styr.skickaIn()}>Spara idé</OpsButton>
         <OpsButton variant="secondary" onClick={() => styr.avbryt()}>Avbryt</OpsButton>
       </div>
@@ -610,7 +651,10 @@ function SpelaIn({ onSpelaIn, inspelare }) {
   return (
     <div className="flex items-center gap-2">
       {styr.fel ? <p role="alert">{styr.fel}</p> : null}
-      <OpsButton variant="secondary" onClick={() => styr.direkt()}>Spela in idé</OpsButton>
+      <button type="button" id={etikettId} aria-label="Spela in idé" data-bibliotek-inspelning="start" onClick={() => styr.direkt()} className={huvudknappKlass()}>
+        <MikrofonIkon size={24} />
+      </button>
+      <label htmlFor={etikettId} className="cursor-pointer text-etikett text-ink">Spela in idé</label>
     </div>
   );
 }

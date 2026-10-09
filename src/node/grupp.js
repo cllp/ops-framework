@@ -171,13 +171,15 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  *   medlemskap (0.33.0). Utelämnade: ingen seedning, och ingen tyst tom sådan heller.
  *   Ramverket ändrar dem aldrig i efterhand: de är startpunkten, gruppen äger sin kopia.
  * @param {ReadonlyArray<string>} [konfig.moduler] Apparna (modul-id) en ny grupp börjar med (0.51.0). Utelämnade: `[]`, som förut.
+ * @param {ReadonlyArray<string>} [konfig.huvudmeny] Vilka av de apparna som har sin ikon i huvudet från start (0.88.0).
+ *   En delmängd av `moduler`. Utelämnad: `[]`, som förut, alltså ingen ikon förrän ägaren väljer.
  * @param {boolean} [konfig.forstaGruppenFri] Den som aldrig ägt en grupp får skapa en utan vitlista och utan e-post (0.51.0). Förval av. Gäller bara när vitlistan krävs.
  * @param {boolean} [konfig.vitlistaKravs] Ska `skapaGrupp` läsa vitlistan (0.59.0). Förval `true`. `false`: ingen vitlista och ingen e-post, för första gruppen och för de följande, tills appen slår på kravet igen.
  * @param {boolean} [konfig.agent] Får en ny grupp sin agent (`agentMedlemskap`) i samma batch som gruppen och ägaren (lifehub.app#47). Förval `false`.
  * @returns {{ skapaGrupp: (b: { uid: string, epost: string, grupp: GruppUppgifter, inbjudningar?: ReadonlyArray<Inbjudningsrad>, skapadAv?: any, namn?: string }) => Promise<SkapaGruppSvar> }}
  */
 export function createGroupService(konfig) {
-  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, forstaGruppenFri = false, vitlistaKravs = true, agent = false } = konfig ?? {};
+  const { kalla, samlingar = {}, kataloger, moduler: forvaldaModuler, huvudmeny: forvaldHuvudmeny, forstaGruppenFri = false, vitlistaKravs = true, agent = false } = konfig ?? {};
   if (!kalla || typeof kalla.read !== "function" || typeof kalla.list !== "function" || typeof kalla.create !== "function") {
     throw new Error("createGroupService: en datakälla med read, list och create krävs. Ramverket känner ingen databas.");
   }
@@ -218,7 +220,16 @@ export function createGroupService(konfig) {
   if (startmoduler === null) {
     throw new Error("createGroupService: moduler måste vara en lista modul-id. Utelämna den om en ny grupp ska börja utan appar.");
   }
-  byggGrupp({ id: "provgrupp", namn: { sv: "Prov", en: "Prov" }, moduler: startmoduler, arkiverad: false, skapadAv: byggSkapare({ typ: "okand", kalla: "createGroupService" }) });
+  /** @type {string[]} */
+  const startmeny = forvaldHuvudmeny === undefined ? [] : Array.isArray(forvaldHuvudmeny) ? [...forvaldHuvudmeny] : /** @type {any} */ (null);
+  if (startmeny === null) {
+    throw new Error("createGroupService: huvudmeny måste vara en lista modul-id, en delmängd av moduler. Utelämna den om ingen ikon ska stå i huvudet från start.");
+  }
+  // ⛔ SAMMA `byggGrupp` SOM SKRIVVÄGEN, MED DE KÄNDA APPARNA, SÅ ATT EN IKON TILL EN APP GRUPPEN INTE FÅR AVVISAS NÄR TJÄNSTEN BYGGS.
+  byggGrupp(
+    { id: "provgrupp", namn: { sv: "Prov", en: "Prov" }, moduler: startmoduler, huvudmeny: startmeny, arkiverad: false, skapadAv: byggSkapare({ typ: "okand", kalla: "createGroupService" }) },
+    startmoduler,
+  );
 
   const GRUPPER = samlingar.grupper ?? "groups";
   const MEDLEMSKAP = samlingar.medlemskap ?? "memberships";
@@ -313,6 +324,7 @@ export function createGroupService(konfig) {
         id,
         namn: typeof uppgifter.namn === "string" ? { sv: namnSv, en: namnSv } : uppgifter.namn,
         moduler: startmoduler,
+        huvudmeny: startmeny,
         arkiverad: false,
         skapadAv: skapare,
         farg: uppgifter.farg,

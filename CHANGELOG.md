@@ -9,6 +9,39 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.88.0
+
+CP 2026-10-09, telefonbredd: Ekonomis flikar ligger på många rader. Samma dag: grunden för appens inställningar ska vara gemensam, och Bibliotekets anteckning har en centrerad Tillbaka utan chevron.
+
+### Flikraden rullar igen
+
+- **En rad, på smal skärm och på bred.** `FLIKRAD` är `flex-nowrap` och `overflow-x-auto`, samma klass i `OpsModulSida` och i `OpsTabs` med `medOrd` (Ekonomi, Bibliotek, varje modul). Omslaget `min-w-0` sitter på flexbarnet. Utan det växer raden med innehållet och sidan rullar, vilket är det lane 11 mätte i 0.87.0 (Länkar slutade på x 411). Brytningen löste överflödet och gav Ekonomi fjorton rader. Den öppna posten rullas in med `scrollLeft` på raden.
+- **Surfplattehuvudet från 0.87.0 är orört.** Ordmärket väntar till `lg`, åtgärder som inte ryms flyttar till menyn, knapparna är 44 px till `xl`.
+- Avsnitt 9c (d) kräver en rad, radens ruta i bodyn, den öppna delen synlig, och att fjorton delar rullar vid 390 px. Bibliotekets flikar vid 390 px har samma golv. Mot 0.87.0 är kontrollen röd (raden högre än en länk, och den rullar inte).
+
+### Modulens inställningar
+
+- **En mekanism.** `installningar` i manifestet, valfritt som `typer`. `OpsModulInstallningar` ritar varje installerad modul. Ägaren skriver. En medlem läser. Admin skriver inte.
+- **Pinnen stannar på gruppen.** `visaIHuvudmenyn` härleds ur `groups.huvudmeny` och skrivs dit. Huvudet läser samma fält som förut. En modul får inte deklarera id:t. `OpsGruppFormular` använder samma hjälpfunktioner.
+- **Egna fält** sparas i en samling appen namnger (`createModulinstallningskalla`, `modulinstallningsregelfragment`). Ramverket känner inte namnet. Ingen ändring av gruppens regler: de ligger på uttryckstaket. Fragmentet deployas bara om appen börjar skriva samlingen. Flikraden och pinnen kräver ingen regeldeploy och inga functions.
+
+### Tillbaka i Bibliotekets detalj
+
+- **Läsning och formulär använder `TillbakaKnapp`.** Samma chevron och vänsterställda text som skapa- och händelsepanelen. Listan använder fortfarande `OpsHubTillbaka` upp till hubben. Spökknappen sträcktes i vyns kolumn och centrerade ordet, utan chevron.
+- **`OpsGruppSida` använder samma `TillbakaKnapp`.** Den egna kopian hade chevron och ord, men egna klasser (`gap-2`). Chatten har kvar sin kompakta rad med gruppnamnet (`ChevronVanster` 14 px, linje under). Menyn och panelhuvudet har en ikonknapp utan ord. De är andra gester.
+
+### Bibliotekets yta och inspelning
+
+- **Listan.** Varje rad har ikonen i en ruta, rubrik och en metarad (typ och en kort förhandsrad). En bild fyller rutan. Ett ljud har en rund spela-knapp, inte en textknapp som tar raden. Tomt läge har biblioteksikonen i en cirkel (`OpsEmpty` tar emot `icon`).
+- **Inspelningen är TALK:s mikrofon.** Knappen är `MikrofonIkon` med `huvudknappKlass`, och flödet är `useTalk` (`direkt`, `skickaIn`, `avbryt`), samma som huvudets mikrofon. Saknas `onSpelaIn` ritas ingen rad. `inspelare` är valfri, samma som TALK: utelämnad används webbläsarens.
+- **Detaljen** visar samma ikonruta som listan, bredvid rubriken.
+
+### Meddelanden som modul
+
+- **Ikonen i huvudet kan bära en räknare.** `huvudmenyPoster` tar `badge` och `badgeFler`, samma kartor som `hubbPoster`. Appen ritar den fästa modulens ikon, inklusive chattens olästa, i stället för en egen länk bredvid.
+- **Appar-raden säger inte att chatten alltid finns utanför modulerna.** Hintet nämner kalender och inkorg. Chatten är en app med kort, och då står det "Egen yta" och reglaget "Visa i huvudmenyn". En modul som varken har kort eller tillägg säger fortfarande "ingen egen yta och inga tillägg", för det är sant om den.
+- **En ny grupp kan börja med ikoner.** `createGroupService({ huvudmeny })` skriver listan i samma batch som gruppen. Den är en delmängd av `moduler`. Utelämnad är den tom, som förut. Inget nytt fält och ingen ny regel.
+
 ## 0.87.0
 
 CP 2026-10-07, lifehub.app#119: "När man expanderar en post i aktivitet så står rubrik och text dubbelt." Och #262, mätt på nytt 2026-10-08: vid 768 px ligger gruppväxlaren över fliken Idag, och flikarna över plusset. Knapparna i högerklustret är 36 px.

@@ -516,6 +516,23 @@ describe("⛔ moduler: apparna en ny grupp börjar med (0.51.0)", () => {
     expect(() => createGroupService({ kalla: medBatch, moduler: ["Ekonomi!"] })).toThrow(/moduler\[0\]/);
     expect(() => createGroupService({ kalla: medBatch, moduler: /** @type {any} */ ("ekonomi") })).toThrow(/moduler måste vara en lista/);
   });
+
+  it("huvudmeny skrivs på den nya gruppen, och utan den är listan tom", async () => {
+    const { kalla } = bygg();
+    const med = createGroupService({ kalla, moduler: ["ekonomi", "meddelanden"], huvudmeny: ["meddelanden"] });
+    const svar = await med.skapaGrupp({ uid: UID, epost: EPOST, grupp: { namn: "Mitt projekt" } });
+    expect((await kalla.read("groups", svar.groupId)).huvudmeny).toEqual(["meddelanden"]);
+    const utan = createGroupService({ kalla, moduler: ["ekonomi"] });
+    const tom = await utan.skapaGrupp({ uid: "u2", epost: EPOST, grupp: { namn: "Utan ikon" } });
+    expect((await kalla.read("groups", tom.groupId)).huvudmeny).toEqual([]);
+  });
+
+  it("⛔ en ikon till en app gruppen inte får avvisas när tjänsten byggs", () => {
+    const kalla = createMemorySource({});
+    const medBatch = { ...kalla, batch: async () => [] };
+    expect(() => createGroupService({ kalla: medBatch, moduler: ["ekonomi"], huvudmeny: ["meddelanden"] })).toThrow(/ingen av gruppens moduler/);
+    expect(() => createGroupService({ kalla: medBatch, moduler: ["ekonomi"], huvudmeny: /** @type {any} */ ("meddelanden") })).toThrow(/huvudmeny måste vara en lista/);
+  });
 });
 
 /*

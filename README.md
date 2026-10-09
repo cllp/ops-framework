@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**117 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**118 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -888,6 +888,7 @@ appens Admin SDK, inte ramverkets, precis som inbjudan.
 Agenten är ett vanligt medlemskap: `typ: "agent"`, roll `medlem`, status `aktiv`, namnet `AGENT_NAMN` ("Agent"). Id:t är härlett per grupp, `agentId(groupId)` = `agent_<groupId>`, så skapandet, engångssteget, strömbrytaren och servern som svarar som agenten träffar samma rad. `agentMedlemskap(groupId)` bygger raden. En BYO-agent ([#234](https://github.com/cllp/ops-framework/issues/234)) får ett eget suffix och krockar aldrig med den.
 
 - **`createGroupService({ agent: true })`** skriver agentens medlemskap i samma batch som gruppen och ägaren. Förval `false`, så en app som inte säger något beter sig som förut.
+- **`createGroupService({ moduler, huvudmeny })`** (huvudmeny 0.88.0). `moduler` är apparna en ny grupp börjar med. `huvudmeny` är vilka av dem som har ikonen i huvudet från start, en delmängd. Utelämnad är den tom. En ikon till en app som inte står i `moduler` avvisas när tjänsten byggs.
 - **`createAgentService({ kalla, samlingar? })`** på nodsidan: `satStatus({ uid, groupId, status })` slår av (`avstangd`) eller på (`aktiv`) agenten, bara för gruppens aktiva ägare, och `sakerstall({ groupId, skarpt })` ger en befintlig grupp sin agent. `sakerstall` är idempotent: en grupp som har agenten, aktiv eller avstängd, rörs inte, och torrt (`skarpt: false`) skrivs ingenting (svaret `saknas`). ⛔ **Ingen ta bort.** En borttagen agent kom tillbaka med nästa engångssteg, en avstängd står kvar som ägarens val.
 - ⛔ **`avstangd` finns bara för en agent** (`MEDLEMSSTATUS`). `byggMedlemskap` avvisar en person med den statusen: en person avslutas.
 - **`medlemsinfo(...).agenter`** är gruppens agenter, aktiva och avstängda, `{ id, namn, status }`. ⛔ Agenten är inte en av `medlemmar`, `avatarer` eller `medlemsantal`: kortets antal räknar människor.
@@ -1408,6 +1409,7 @@ export const liv = defineModule({
 | `hubb` | modulens kort i hubben och dess insida (0.37.0) | `{ ikon, rutt, startsida, delar }` eller `null`. `ikon` är ett React-element, `rutt` modulens adress (kortet leder dit och den visar startsidan), `delar` en lista `{ id, namn, ikon, rutt }` i navigationens ordning, minst en, och `startsida` är id:t på en av dem. ⛔ Varje dels `rutt` ligger **under** modulens (`/ekonomi/inkomster`, aldrig `/inkomster`): en del som inte bär sin moduls adress går inte att härleda tillbaka till modulen. ⛔ Krävs **även när den är `null`**, av samma skäl som `katalog`. ⛔ `validateModuler` kastar på två moduler med samma adress och på en modul inuti en annan. Se [Hubben per grupp](#hubben-per-grupp-0380-184) |
 | `typer` | modulens bidrag till inkorgens, kalenderns och händelsernas typer (0.42.0, #217) och aktivitetsloggens slag (0.55.0, #244) | `{ inkorg: [...], kalender: [...], handelser: [...], aktivitet: [...] }`, varje post `{ id, namn: { sv, en }, ikon?, farg? }`. ⛔ **Valfritt, till skillnad från alla andra fält**, och det är ett val med pris: ett krav hade fällt varje redan skriven modul på en minorversion. Den byggda modulen bär ändå alltid en lista per yta (`[]` när inget bidrag), så ingen konsument frågar om en nyckel finns. Nycklarna är ASCII (`handelser`, inte `händelser`). Se [Modulernas typbidrag](#modulernas-typbidrag-0420-217) |
 | `tillagg` | det modulen pluggar in på ramverkets ytor (0.60.0, #251) | En lista `{ plats, id, etikett, komponent }`. `plats` är en av ramverkets platser (`HANDELSE_PLATSER`: `handelse.sektion`, `handelse.atgard`), `id` är unikt inom modulen, `etikett` är `{ sv, en }` med **båda** språken, och `komponent` pekas ut som en route-vy. ⛔ **En plats som inte finns avvisas vid uppstart**, med modulens namn och fältet i felet: platserna är ramverkets, och en app ändrar aldrig en ramverksyta (beslut 0003). Valfritt som `typer`, och den byggda modulen bär alltid en lista. Se [Tillägg på ramverkets ytor](#tillägg-på-ramverkets-ytor-0600-251) |
+| `installningar` | modulens egna inställningar per grupp (0.88.0) | En lista `{ id, namn, hint?, typ, forval }`. `typ` är `boolean` eller `text`, `namn` är `{ sv, en }` med båda språken, `forval` är `true`/`false` eller en text. Valfritt som `typer`: utelämnat blir `[]` på den byggda modulen. ⛔ Id `visaIHuvudmenyn` är reserverat och kastas. Pinnen till huvudmenyn är ramverkets och skrivs på gruppen, inte som ett fält modulen deklarerar. Se [Modulens inställningar](#modulens-inställningar-0880) |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`,
 en modul som inte fyller någon yta skriver `kallor: {}`, en modul som inte
@@ -2434,7 +2436,7 @@ Menyns rullgardin och ark har **en standardhöjd** (`min(32rem, fönstret minus 
 CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Tre nivåer: **instansen** (appen), **gruppen**
 (vilka som är med) och **modulen** (ett kort i hubben, inne i en grupp). Hubben visar den **aktiva gruppens** moduler, ett kort
 per id i `groups.moduler`, i den ordning ägaren satt, och **inget annat**. Det finns alltid exakt en aktiv grupp (0.35.0, #190).
-Kalendern, chatten och inkorgen är ramverkets grund och har alla grupper, utan att en modul väljs.
+Kalendern och inkorgen är ramverkets grund och har alla grupper, utan att en modul väljs. Chatten är en modul när appen ger den ett kort (`hubb`). Då får den samma rad under Appar, samma reglage "Visa i huvudmenyn" och samma ikon i huvudet som Ekonomi. Lifehub gör det för `meddelanden` från 0.88.0. Den är på från början: en ny grupp får den i `moduler` och i `huvudmeny`, och en grupp som aldrig sparat valet får samma sak i klienten tills ägaren stänger av.
 
 - **Registret är manifestet.** En modul med ett kort har `hubb: { ikon, rutt, startsida, delar }` i `defineModule` (se
   [Modulkontraktet](#modulkontraktet)). Ramverket vet aldrig vad Ekonomi är, bara att en modul med id `ekonomi` finns.
@@ -2447,15 +2449,38 @@ Kalendern, chatten och inkorgen är ramverkets grund och har alla grupper, utan 
 - **`hubbPoster(kort, { sprak, info, badge, delar })`** ger samma kort som nav-poster, EN per modul och inga barn: det är vad appen
   skickar som `moduler` till `OpsAppShell`, så att toppradens rullgardin listar modulerna och bara dem. `delar: true`
   (0.83.0) ger korten i `OpsGruppHubb` sina delar som `children`.
-- **`huvudmenyPoster({ grupp, moduler, sprak })`** (0.83.0) ger modulerna vars ikon ska stå i appens huvud: gruppens
+- **`huvudmenyPoster({ grupp, moduler, sprak, badge, badgeFler })`** (0.83.0, räknare 0.88.0) ger modulerna vars ikon ska stå i appens huvud: gruppens
   `moduler` i den ordningen, filtrerade på gruppens `huvudmeny`, med manifestets `hubb.ikon` och `hubb.rutt`. Tom när
-  fältet saknas. Appen ritar raderna som `OpsIconLink` i `actions`, där den vill ha dem. `huvudmeny` är ägarens fält
-  (`AGARGRUPPFALT`), en delmängd av `moduler`, och ägaren ändrar det med reglaget "Visa i huvudmenyn" under varje installerad
-  app med kort i `OpsGruppFormular`.
+  fältet saknas. `badge` och `badgeFler` är samma kartor som `hubbPoster`, nycklade på modul-id, så en fäst ikon kan visa olästa. Appen ritar raderna som `OpsIconLink` i `actions`, där den vill ha dem. `huvudmeny` är ägarens fält
+  (`AGARGRUPPFALT`), en delmängd av `moduler`. Ägaren ändrar det med reglaget "Visa i huvudmenyn" under varje installerad
+  app med kort i `OpsGruppFormular`, och med samma reglage i `OpsModulInstallningar`. Båda skriver samma lista.
 - **`OpsModulSida`** är modulens insida (`modul`, `activeHref`, `hubHref`, `onNavigate`, `sprak`, `children`): "‹ Tillbaka"
-  till hubben, modulens namn, och en rad **länkar**, en per del, med den öppna delen understruken. Raden rullar i sidled när
-  den inte får plats. `children` är delens vy; appens router väljer den. Vilken del som är öppen avgör **`modulLage`**:
+  till hubben, modulens namn, och en rad **länkar**, en per del, med den öppna delen understruken. Raden är en, och rullar
+  i sidled när den inte får plats (0.88.0: 0.87.0 bröt den på flera rader). Omslaget har `min-w-0`, annars växer flexbarnet
+  och sidan rullar i stället för raden. `children` är delens vy; appens router väljer den. Vilken del som är öppen avgör **`modulLage`**:
   modulens egen adress är startsidan, och en undersida till en del markerar delen.
+
+### Modulens inställningar (0.88.0)
+
+Samma mekanism för varje modul. Ekonomi, Bibliotek och nästa modul deklarerar inte en egen pinne och inte en egen panel.
+
+- **Pinnen** har id `VISA_I_HUVUDMENYN` (`visaIHuvudmenyn`). Den härleds ur `groups.huvudmeny` och skrivs tillbaka dit.
+  `sattHuvudmeny(lista, modulId, pa)` lägger till eller tar bort ett id utan att röra de andra.
+  `huvudmenyInom(lista, moduler)` behåller bara moduler gruppen har. En modul med `hubb` får pinnen av
+  `installningarFor(modul)`. En modul utan kort har ingen pinne: ikonen kommer ur kortet. Modulen får inte deklarera samma id.
+- **Egna fält** står i manifestets `installningar`. Värdena sparas per grupp och modul, i en samling appen namnger.
+  `createModulinstallningskalla({ source, collection, groupId, skapare })` läser och skriver. `las` kastar inte.
+  `installningsVarden({ modul, grupp, sparade })` ger kartan panelen visar: pinnen ur gruppen, övriga ur det sparade,
+  och ett fält som saknas får sitt förval.
+- **`OpsModulInstallningar`** ritar ett avsnitt per installerad modul. `agare` krävs som `true` eller `false`.
+  `onSparaHuvudmeny` får nästa lista. `onSpara` får `{ modulId, varden }` med bara modulens egna fält.
+  Saknas ett anrop visas felet, brytaren låtsas inte att valet sparades. Orden ligger i `ORD_OPSMODULINSTALLNINGAR`.
+- **`modulinstallningsregelfragment(namn)`** limmas in efter `regelfragment()`. Aktiv medlem läser. Ägaren som är en
+  person skriver, som sig själv, med serverns klocka. Admin skriver inte. Agenten skriver inte. Radering nekas.
+  Gruppen dokumenteras inte om: en egen samling, för gruppreglerna ligger redan på uttryckstaket. Appen behöver
+  inte deploya fragmentet förrän den skriver samlingen. Pinnen behöver ingen ny gruppregel.
+
+En modul utan egna fält utelämnar `installningar` eller skriver `[]`. Pinnen finns ändå när modulen har ett kort.
 - **`valbaraModuler(moduler)`** är det ägaren väljer bland i `OpsGruppFormular` (prop `moduler: { valbara, agare }`,
   bara redigeringsläge och bara ägaren; en admin ser inte fältet, och reglerna avvisar det ändå). ⛔ Sedan 0.60.0 (#251)
   är det **alla** registrerade moduler, också de utan kort, och varje rad bär "Syns på: ..." härlett ur manifestet
@@ -2651,7 +2676,7 @@ Gruppens anteckningar, länkar och filer. Analysen står i `docs/beslut/0004-bib
 | `postFel`, `byggPost` | hela dokumentet. `byggPost` kastar med samma text som `postFel` |
 | `filtreraBibliotek` | flik och sök i den lista som redan lästs |
 | `createBibliotekskalla` | `source`, `collection`, `groupId`, `skapare`, och för radering `jag` och `anteckna`. `skapare` är en funktion: appen vet vem som är inloggad. `las` svarar `{ poster, kalla, fel, trasiga }` och kastar inte. En tom lista med `kalla: "databas"` är ett tomt bibliotek. `kalla: "fel"` är en läsning som inte gick. En rad som inte klarar `postFel` eller bär en annan grupp står i `trasiga` med id, skäl och, när raden har dem, `groupId` och `skapadAv`, och släcker inte de andra. `radera(id)` tar bort raden när `farAndra` säger ja. `spara` skriver `utskrift` när inmatningen har fältet, och behåller en utskrift som redan ligger på raden när en senare ändring inte skickar med den |
-| `OpsBibliotek` | listan och detaljen. `poster`, `fel`, `trasiga`, `laddar`, `vald`, `skapar`, `jag`, `onOppna`, `onStang`, `onSkapa`, `onSpara`, `onRadera`, `hubHref`, `hubEtikett`, `onNavigate`. 0.83.0: sidan har Ekonomis ram, "‹ Tillbaka" till `hubHref` (krävs) och "Bibliotek" som rubrik, typerna är en flikrad (`OpsTabs` med `medOrd`) med ikon, namn och antal, och sök och "+ Ny" står på en rad. Under Alla öppnar "+ Ny" ett val (anteckning, länk eller fil), under en typ skapar den typen. `jag` krävs: `{ uid, roll }` ur den inloggades aktiva medlemskap, eller `null` när personen inte är medlem, och då är allt läsläge. Utan propen kastar komponenten, så en app som glömt den inte ser ut som en icke-medlem. En länk öppnas i ny flik med `rel="noopener noreferrer"`. En fil visas som förhandsbild (bild), spelare med spela, pausa och tid (ljud) eller ikon och storlek som öppnas i ny flik (övrigt) när `filUrl` ger en adress. Fel format och för stor fil visas. `onLaddaUpp` tar emot filen. `onSpelaIn` tar emot en idé, och `onDela` flyttar eller kopierar när personen valt grupp. På ett ljud som personen får ändra finns Skriv ut. `onSkrivUt` ber servern och texten visas under spelaren. `onGorForslag` anropas först när personen väljer anteckning eller ärende, och ingenting skapas av själva utskriften. Saknas kopplingen, saknar svaret text, eller kastar servern (också ett dygnstak) syns felet. En läsare ser en sparad utskrift och ingen knapp. Radera visas för den som `farAndra` släpper igenom, i detaljen och på en trasig rad, och frågar innan `onRadera` anropas |
+| `OpsBibliotek` | listan och detaljen. `poster`, `fel`, `trasiga`, `laddar`, `vald`, `skapar`, `jag`, `onOppna`, `onStang`, `onSkapa`, `onSpara`, `onRadera`, `hubHref`, `hubEtikett`, `onNavigate`. 0.83.0: sidan har Ekonomis ram, "‹ Tillbaka" till `hubHref` (krävs) och "Bibliotek" som rubrik, typerna är en flikrad (`OpsTabs` med `medOrd`) med ikon, namn och antal, och sök och "+ Ny" står på en rad. Under Alla öppnar "+ Ny" ett val (anteckning, länk eller fil), under en typ skapar den typen. `jag` krävs: `{ uid, roll }` ur den inloggades aktiva medlemskap, eller `null` när personen inte är medlem, och då är allt läsläge. Utan propen kastar komponenten, så en app som glömt den inte ser ut som en icke-medlem. En länk öppnas i ny flik med `rel="noopener noreferrer"`. En fil visas som förhandsbild (bild), spelare med spela, pausa och tid (ljud) eller ikon och storlek som öppnas i ny flik (övrigt) när `filUrl` ger en adress. Fel format och för stor fil visas. `onLaddaUpp` tar emot filen. `onSpelaIn` tar emot en idé (`{ blob, mimeType, sekunder, rubrik }`). Saknas funktionen ritas ingen mikrofon. `inspelare` är valfri och samma som TALK: utelämnad används webbläsarens. Knappen är huvudets mikrofon (`MikrofonIkon`, `useTalk`). `onDela` flyttar eller kopierar när personen valt grupp. På ett ljud som personen får ändra finns Skriv ut. `onSkrivUt` ber servern och texten visas under spelaren. `onGorForslag` anropas först när personen väljer anteckning eller ärende, och ingenting skapas av själva utskriften. Saknas kopplingen, saknar svaret text, eller kastar servern (också ett dygnstak) syns felet. En läsare ser en sparad utskrift och ingen knapp. Radera visas för den som `farAndra` släpper igenom, i detaljen och på en trasig rad, och frågar innan `onRadera` anropas |
 | `bibliotekregelfragment` | samlingsnamnet. Limmas in efter `regelfragment()`. Medlem läser. En person (inte en agent) skapar som sig själv, med serverns klocka. Författaren eller admin ändrar, och `andrad` är serverns klocka. Författaren med aktivt medlemskap, eller admin i gruppen, raderar. Läsregeln är medlemskap i radens grupp, aldrig `isAuth()` |
 
 ---

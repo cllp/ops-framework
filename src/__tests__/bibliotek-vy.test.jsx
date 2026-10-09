@@ -102,6 +102,7 @@ describe("OpsBibliotek", () => {
     expect(screen.getByText("Vi beslutade om bokslutet.")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Tillbaka" }).querySelector("svg")).not.toBeNull();
     unmount();
 
     const admin = render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} />);
@@ -229,8 +230,15 @@ describe("OpsBibliotek", () => {
       kasta: vi.fn(),
       niva: () => 0,
     };
+    const utan = render(<Harness />);
+    expect(utan.queryByRole("button", { name: "Spela in idé" })).toBeNull();
+    utan.unmount();
+
     const { unmount } = render(<Harness onSpelaIn={onSpelaIn} inspelare={inspelare} />);
-    fireEvent.click(screen.getByRole("button", { name: "Spela in idé" }));
+    const mikrofon = screen.getByRole("button", { name: "Spela in idé" });
+    expect(mikrofon.querySelector("svg")).not.toBeNull();
+    expect(document.querySelector("[data-bibliotek-ikon='anteckning']")).not.toBeNull();
+    fireEvent.click(mikrofon);
     expect(inspelare.starta).toHaveBeenCalled();
     fireEvent.click(await screen.findByRole("button", { name: "Spara idé" }));
     await waitFor(() => expect(onSpelaIn).toHaveBeenCalled());
@@ -355,11 +363,15 @@ describe("OpsBibliotek", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bibliotek");
   });
 
-  it("i detaljen finns bara detaljens Tillbaka, inte en andra till hubben", () => {
+  it("i detaljen finns bara detaljens Tillbaka, inte en andra till hubben, och den är panelens knapp med chevron", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.queryByRole("link", { name: "Tillbaka till Appar" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Tillbaka" })).toBeInTheDocument();
+    const tillbaka = screen.getByRole("button", { name: "Tillbaka" });
+    // Spökknappen (`OpsButton`) har ingen chevron och centreras i vyns kolumn. Panelen har chevron 20 px, vänsterställd.
+    expect(tillbaka.querySelector("svg")).not.toBeNull();
+    expect(tillbaka.className).toContain("self-start");
+    expect(tillbaka.className).not.toContain("justify-center");
   });
 
   it("hubHref krävs, som i OpsModulSida", () => {

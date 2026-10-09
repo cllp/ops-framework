@@ -474,6 +474,18 @@ describe("hubbPoster med delar, och huvudmenyPoster (0.83.0)", () => {
     expect(huvudmenyPoster({ grupp: { moduler: ["ekonomi"], huvudmeny: ["resor"] }, moduler: m })).toEqual([]);
     expect(huvudmenyPoster({ grupp: { moduler: ["inkorg", "ekonomi"], huvudmeny: ["inkorg", "ekonomi"] }, moduler: m }).map((p) => p.id)).toEqual(["ekonomi"]);
   });
+
+  it("räknaren följer med ikonen, och en modul utan tal får inget märke", () => {
+    const m = moduler();
+    const rader = huvudmenyPoster({
+      grupp: { moduler: ["resor", "ekonomi"], huvudmeny: ["resor", "ekonomi"] },
+      moduler: m,
+      badge: { ekonomi: 4 },
+      badgeFler: { ekonomi: true },
+    });
+    expect(rader.find((r) => r.id === "ekonomi")).toMatchObject({ badge: 4, badgeFler: true });
+    expect(rader.find((r) => r.id === "resor")).not.toHaveProperty("badge");
+  });
 });
 
 describe("⛔ samma rad i modulen och i biblioteket (0.83.0)", () => {
@@ -496,12 +508,18 @@ describe("⛔ samma rad i modulen och i biblioteket (0.83.0)", () => {
     expect(vald.className.startsWith(oppenDel.className)).toBe(true);
     expect(ovald.className.startsWith(stangdDel.className)).toBe(true);
     expect(/** @type {HTMLElement} */ (oppenDel.querySelector("span[aria-hidden]")).className).toBe(/** @type {HTMLElement} */ (vald.querySelector("span[aria-hidden]")).className);
-    // ⛔ 0.87.0: behållaren är samma sträng. Bibliotekets flikrad rullade i sidled vid 390 px medan modulens
-    // rad hade en egen klass. En skillnad här är två sanningar om samma rad.
+    // ⛔ Behållaren är samma sträng. En skillnad här är två sanningar om samma rad.
+    // 0.88.0: `flex-nowrap` och `overflow-x-auto`, plus `min-w-0` på omslaget. Utan omslaget växer flexbarnet
+    // och sidan rullar i stället för raden (det 0.87.0 mätte och sedan bröt raden för).
     expect(screen.getByRole("tablist").className).toBe(FLIKRAD);
     expect(container.querySelector("[data-modulnav] ul")?.className).toBe(FLIKRAD);
-    expect(FLIKRAD).toContain("flex-wrap");
-    expect(FLIKRAD).not.toContain("overflow-x-auto");
+    // ⛔ 0.88.0: en rad som rullar. `flex-nowrap` innehåller teckenföljden `flex-wrap`, så jämförelsen är på klasslistan.
+    const klasser = FLIKRAD.split(/\s+/);
+    expect(klasser).toContain("flex-nowrap");
+    expect(klasser).toContain("overflow-x-auto");
+    expect(klasser).not.toContain("flex-wrap");
+    expect(screen.getByRole("tablist").parentElement?.className ?? "").toContain("min-w-0");
+    expect(container.querySelector("[data-modulnav]")?.className ?? "").toContain("min-w-0");
   });
 });
 

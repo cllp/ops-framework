@@ -4,7 +4,8 @@ import { text } from "../lib/sprak.js";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 import { usePersonnamn } from "./usePersonnamn.js";
-import { AgentIkon, AndraIkon, ChevronVansterIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./icons.jsx";
+import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
+import { AgentIkon, AndraIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./icons.jsx";
 
 /**
  * Gruppens detaljsida: SessionStudios `GroupDetailView` (0.32.0, #180 G2).
@@ -12,7 +13,7 @@ import { AgentIkon, AndraIkon, ChevronVansterIkon, MeddelandeIkon, PersonIkon, P
  * ══ ⛔ MÄTT UR KÄLLAN, INTE GISSAD ═════════════════════════════════════════════════════════════════════════════
  *
  * SS `views/GroupDetailView.jsx` (webbens motsvarighet till mobilens `(tabs)/group.js`), öppnad av (i) på gruppkortet:
- * kolumnen `max-w-3xl` (768 px) med `px-4 sm:px-5`; "‹ Tillbaka" (`:83`, `text-sm`, chevron 20); rubrikraden (`:96`) med märket 56 px, namnet
+ * kolumnen `max-w-3xl` (768 px) med `px-4 sm:px-5`; "‹ Tillbaka" är `TillbakaKnapp` (samma chevron och klasser som panelerna, 0.88.0); rubrikraden (`:96`) med märket 56 px, namnet
  * (`text-xl font-semibold`), beskrivningen (`text-sm`), orten med kartnål (`text-xs`) och en Redigera-knapp till höger; tre snabbval i
  * `grid grid-cols-3 gap-2` (`:141`, `p-3`, ikon 20 i accent, `text-xs font-medium`); Medlemmar (`text-xs font-semibold uppercase`,
  * avatar 32, namn `text-sm`, en Ägare- eller Admin-etikett `text-[10px] uppercase`).
@@ -61,14 +62,7 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col px-4 pt-6 pb-6 sm:px-5" data-gruppsida="">
       {onTillbaka ? (
-        <button
-          type="button"
-          onClick={onTillbaka}
-          className="mb-3 inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 self-start rounded-base text-etikett text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        >
-          <ChevronVansterIkon size={20} />
-          <span>{t.tillbaka}</span>
-        </button>
+        <TillbakaKnapp onClick={onTillbaka} etikett={t.tillbaka} className="mb-3 shrink-0 self-start" />
       ) : null}
 
       <div className="mb-6 flex items-start gap-4" data-gruppsida-rubrik="">

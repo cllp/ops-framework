@@ -1157,27 +1157,70 @@ for (const bredd of [768, 834, 900, 1023, 1024]) {
   await context.close();
 }
 
-// Bibliotekets flikrad (0.87.0, lane 11). Vid 390 px var tre flikar 395 px i en ruta på 343, och "Länkar" slutade på x 411.
+// Bibliotekets flikrad. 0.87.0 (lane 11) bröt raden för att "Länkar" slutade på x 411. Orsaken var flexbarnets
+// min-width: auto, så sidan rullade. 0.88.0: en rad som själv rullar, och radens ruta ligger i bodyn.
 {
   const { page, context } = await oppna("bibliotek", { width: 390, height: 844 });
   const m = await page.evaluate(() => {
     const list = document.querySelector('[role="tablist"]');
     const tabs = [...document.querySelectorAll('[role="tab"]')];
-    const sista = tabs.length ? tabs[tabs.length - 1].getBoundingClientRect() : null;
+    const ul = list ? list.getBoundingClientRect() : null;
+    const en = tabs.reduce((h, t) => Math.max(h, t.getBoundingClientRect().height), 0);
+    const aktiv = tabs.find((t) => t.getAttribute("aria-selected") === "true");
+    const ar = aktiv ? aktiv.getBoundingClientRect() : null;
     return {
       finns: !!list && tabs.length >= 3,
       sw: list ? list.scrollWidth : 0,
       cw: list ? list.clientWidth : 0,
-      right: sista ? sista.right : 0,
+      radHojd: ul ? ul.height : 0,
+      enHojd: en,
+      vanster: ul ? ul.left : 0,
+      hoger: ul ? ul.right : 0,
       body: document.body.clientWidth,
+      synlig: ar ? ar.left >= -1 && ar.right <= window.innerWidth + 1 : false,
       namn: tabs.map((t) => (t.textContent || "").trim()),
+      dok: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   });
-  matt.push(`bibliotek 390 px: flikar ${m.namn.join(", ") || "(inga)"}, rad ${m.sw}/${m.cw}, sista flik slutar ${m.right.toFixed(1)}, body ${m.body}`);
+  matt.push(`bibliotek 390 px: flikar ${m.namn.join(", ") || "(inga)"}, rad ${m.sw}/${m.cw}, höjd ${m.radHojd.toFixed(0)}/${m.enHojd.toFixed(0)}, ruta ${m.vanster.toFixed(0)}-${m.hoger.toFixed(0)}, body ${m.body}`);
   krav(m.finns, `bibliotek 390 px: ${m.namn.length} flikar, väntat minst 3 (Alla, Anteckningar, Länkar).`);
-  krav(m.sw <= m.cw + 1, `bibliotek 390 px: flikraden rullar i sidled, scrollWidth ${m.sw} mot clientWidth ${m.cw}.`);
-  krav(m.right <= m.body + 1, `bibliotek 390 px: sista fliken slutar på x ${m.right.toFixed(1)}, bodyn är ${m.body} px bred.`);
+  krav(m.radHojd < m.enHojd + 28, `bibliotek 390 px: flikraden är ${m.radHojd.toFixed(0)} px, en flik ${m.enHojd.toFixed(0)} px. Väntat en rad (en andra rad av flikar är högre än så).`);
+  krav(m.hoger <= m.body + 1 && m.vanster >= -1, `bibliotek 390 px: flikradens ruta är ${m.vanster.toFixed(1)}-${m.hoger.toFixed(1)}, bodyn är ${m.body} px bred.`);
+  krav(m.synlig, "bibliotek 390 px: den valda fliken ligger utanför skärmen.");
+  krav(m.dok <= 0, `bibliotek 390 px: sidan flödar ${m.dok} px i sidled.`);
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-flikar-390.png"), clip: { x: 0, y: 0, width: 390, height: 420 } });
+  await context.close();
+}
+
+// Anteckningens Tillbaka (CP 2026-10-09). Spökknappen har ingen chevron och ordet sitter i mitten av en utsträckt knapp.
+{
+  const { page, context } = await oppna("bibliotekdetalj", { width: 390, height: 844 });
+  const m = await page.evaluate(() => {
+    const knapp = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Tillbaka");
+    if (!knapp) return { finns: false };
+    const r = knapp.getBoundingClientRect();
+    const svg = knapp.querySelector("svg");
+    const sr = svg ? svg.getBoundingClientRect() : null;
+    const ord = knapp.querySelector("span");
+    const o = ord ? ord.getBoundingClientRect() : null;
+    return {
+      finns: true,
+      svg: !!svg,
+      svgW: sr ? sr.width : 0,
+      vanster: r.left,
+      bredd: r.width,
+      ordVanster: o ? o.left : -1,
+      mitt: o ? o.left + o.width / 2 : -1,
+      fonster: window.innerWidth,
+    };
+  });
+  matt.push(`bibliotek detalj 390 px: ${JSON.stringify(m)}`);
+  krav(m.finns && m.svg && m.svgW >= 18, `bibliotek detalj 390 px: Tillbaka saknar chevron (${JSON.stringify(m)}).`);
+  krav(m.vanster < 40 && m.bredd < 200, `bibliotek detalj 390 px: knappen är ${m.bredd.toFixed(0)} px bred och börjar på x ${m.vanster.toFixed(0)}. Väntat vänsterställd, inte utsträckt över sidan.`);
+  krav(m.mitt < m.fonster / 2, `bibliotek detalj 390 px: ordets mitt är x ${m.mitt.toFixed(0)} i ett fönster på ${m.fonster}.`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-detalj-390.png"), clip: { x: 0, y: 0, width: 390, height: 520 } });
+  await page.getByRole("button", { name: "Tillbaka" }).click();
+  krav((await page.getByRole("button", { name: "Protokoll" }).count()) === 1, "bibliotek detalj 390 px: Tillbaka kom inte tillbaka till listan.");
   await context.close();
 }
 }
@@ -1445,8 +1488,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
 //   (c) en grupp med en modul appen inte registrerat: kortet för Ekonomi OCH en synlig rad som säger vilken som inte visas.
 //   (d) modulens insida: tillbaka till /hub, rubriken, fjorton länkar, EN öppen del med en synlig accentlinje under,
 //       varje länk minst 44 px hög, och den öppna delen syns också när den är den sista.
-//       ⛔ 0.87.0: på 390 px BRYTS raden (samma `FLIKRAD` som Biblioteket). Golvet är att den är högre än en länk, att den
-//       inte rullar i sidled, och att varje länk ligger inne i raden. En rad som rullar är felet lane 11 mätte (395 px i 343).
+//       ⛔ 0.88.0: EN rad, som rullar i sidled när fjorton delar inte får plats. 0.87.0 bröt raden. Det löste att sidan
+//       flödade (orsaken var flexbarnets min-width: auto, inte att raden saknade brytning) och gav Ekonomi många rader
+//       på telefonen. Golvet är att raden är högst en länk plus en rullningslist, att radens ruta ligger i bodyn, och
+//       att den öppna delen syns. På 390 px ska raden rulla: fjorton delar ryms inte.
 // Ingen horisontell överflödning någonstans. ⛔ GOLV: varje delmätning kräver att det den mäter fanns.
 // En funktion, så att `--bara-9c` kan köra den ensam. Hela körningen anropar den här.
 async function hubbPerGrupp() {
@@ -1551,12 +1596,10 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
             rullar: ul.scrollWidth > ul.clientWidth + 1,
             radHojd: ul.getBoundingClientRect().height,
             enHojd: lankar.reduce((m, a) => Math.max(m, a.getBoundingClientRect().height), 0),
-            inne: lankar.every((a) => {
-              const b = a.getBoundingClientRect();
-              const u = ul.getBoundingClientRect();
-              return b.left >= u.left - 0.5 && b.right <= u.right + 0.5;
-            }),
-            synlig: ro ? ro.left >= 0 && ro.right <= window.innerWidth : false,
+            vanster: ul.getBoundingClientRect().left,
+            hoger: ul.getBoundingClientRect().right,
+            body: document.body.clientWidth,
+            synlig: ro ? ro.left >= -1 && ro.right <= window.innerWidth + 1 : false,
           };
         });
         matt.push(`Modulens insida ${namn} ${href}: ${JSON.stringify({ ...m, ovriga: [...new Set(m.ovriga)] })}`);
@@ -1566,7 +1609,9 @@ for (const [namn, vp] of /** @type {const} */ ([["1280 px", { width: 1280, heigh
         krav(m.minH >= 44, `Modulens insida ${namn} ${href}: en länk är ${m.minH} px hög, under tumkravet 44.`);
         krav(!!m.linje && m.linje.bredd >= 2 && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)|transparent/.test(m.linje.farg) && !m.ovriga.includes(m.linje.farg), `Modulens insida ${namn} ${href}: den öppna delen har ingen egen synlig linje under sig (${JSON.stringify(m.linje)}).`);
         krav(m.synlig, `Modulens insida ${namn} ${href}: den öppna delen ligger utanför skärmen.`);
-        if (vp.width < 800) krav(!m.rullar && m.inne && m.radHojd > m.enHojd + 8, `Modulens insida ${namn} ${href}: fjorton delar ska brytas på 390 px (rad ${m.radHojd.toFixed(0)} px, en länk ${m.enHojd.toFixed(0)} px, rullar ${m.rullar}, alla inne ${m.inne}). En rad som rullar är felet lane 11 mätte.`);
+        krav(m.radHojd < m.enHojd + 28, `Modulens insida ${namn} ${href}: raden är ${m.radHojd.toFixed(0)} px, en länk ${m.enHojd.toFixed(0)} px. Väntat en rad.`);
+        krav(m.hoger <= m.body + 1 && m.vanster >= -1, `Modulens insida ${namn} ${href}: radens ruta är ${m.vanster.toFixed(1)}-${m.hoger.toFixed(1)}, bodyn är ${m.body} px.`);
+        if (vp.width < 800) krav(m.rullar, `Modulens insida ${namn} ${href}: fjorton delar ska rulla på 390 px (scrollWidth mot clientWidth, rullar ${m.rullar}).`);
         const tillbaka = page.getByRole("link", { name: "Tillbaka till Appar" });
         krav((await tillbaka.count()) === 1 && (await tillbaka.getAttribute("href")) === "/hub", `Modulens insida ${namn} ${href}: tillbaka-länken till /hub saknas.`);
         krav((await page.locator("h1").count()) === 1 && (await page.locator("h1").textContent()) === "Ekonomi", `Modulens insida ${namn} ${href}: rubriken "Ekonomi" saknas.`);

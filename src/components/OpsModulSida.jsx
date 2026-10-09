@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { modulLage } from "../lib/hubb.js";
-import { FLIKIKON, FLIKRAD, flikKlass, modulTillbaka } from "../lib/modulram.js";
+import { FLIKIKON, FLIKOMSLAG, FLIKRAD, flikKlass, modulTillbaka, rullaInAktiv } from "../lib/modulram.js";
 import { text } from "../lib/sprak.js";
 import { OpsView } from "./OpsView.jsx";
 
@@ -18,12 +18,12 @@ import { OpsView } from "./OpsView.jsx";
  * fungerar (samma skäl som `OpsTabs` filhuvud: sidnavigering är länkar). Raden ser ut som ramverkets flikrad (`OpsTabs`), med
  * accentlinjen under den öppna delen, så att "du är här" läses på samma sätt som överallt annars.
  *
- * ⛔ RADEN RULLAR I SIDLED NÄR DEN INTE FÅR PLATS, som `OpsTabs`. Ekonomi har tretton delar, och tretton namn trängs annars ihop
- * till oläsliga stumpar på telefon. Sidan själv flödar aldrig i sidled (`check-skalyta`).
+ * ⛔ RADEN RULLAR I SIDLED NÄR DEN INTE FÅR PLATS, som `OpsTabs`. Ekonomi har fjorton delar, och de trängs annars ihop
+ * eller bryts till många rader på telefon. Sidan själv flödar aldrig i sidled (`check-skalyta`): raden är omslagen
+ * (`FLIKOMSLAG`) så att den blir smalare än sitt innehåll och rullar själv.
  *
  * ⛔ DEN ÖPPNA DELEN RULLAS IN I RADEN. Står man på Jämförelse, den fjortonde delen, låg fliken annars utanför skärmen på
- * en telefon, och raden sade inte var man var. Raden rullas och inte sidan (`scrollLeft`, aldrig `scrollIntoView`, som
- * hade kunnat flytta hela dokumentet i höjdled).
+ * en telefon, och raden sade inte var man var. Raden rullas och inte sidan (`rullaInAktiv`).
  *
  * ⛔ VILKEN DEL SOM ÄR ÖPPEN AVGÖRS AV `modulLage`, inte av komponenten. Modulens egen adress är startsidan, och en undersida
  * till en del markerar delen. Samma funktion som appen kan pröva sina adresser mot.
@@ -55,20 +55,12 @@ export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sp
   const aktiv = lage?.del?.id ?? null;
   const rad = useRef(/** @type {HTMLUListElement | null} */ (null));
   useLayoutEffect(() => {
-    const ul = rad.current;
-    const a = /** @type {HTMLElement | null | undefined} */ (ul?.querySelector('[aria-current="page"]'));
-    if (!ul || !a) return;
-    const ra = a.getBoundingClientRect();
-    const ru = ul.getBoundingClientRect();
-    const vanster = ra.left - ru.left + ul.scrollLeft;
-    if (vanster < ul.scrollLeft || vanster + ra.width > ul.scrollLeft + ul.clientWidth) {
-      ul.scrollLeft = Math.max(0, vanster - (ul.clientWidth - ra.width) / 2);
-    }
+    rullaInAktiv(rad.current);
   }, [aktiv]);
   return (
     <OpsView tillbaka={modulTillbaka({ namn, hubHref, hubEtikett, onNavigate, sprak })}>
       {/* ⛔ RADENS KLASSER BOR I `modulram.js` (0.83.0), så att Bibliotekets flikrad (`OpsTabs` med `medOrd`) ser ut som den här. */}
-      <nav aria-label={navEtikett ?? (sprak === "en" ? `${namn}: parts` : `${namn}: delar`)} data-modulnav={modul.id}>
+      <nav aria-label={navEtikett ?? (sprak === "en" ? `${namn}: parts` : `${namn}: delar`)} data-modulnav={modul.id} className={FLIKOMSLAG}>
         <ul ref={rad} className={FLIKRAD}>
           {modul.hubb.delar.map((d) => {
             const oppen = d.id === aktiv;
