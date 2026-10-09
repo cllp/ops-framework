@@ -107,7 +107,21 @@ export function byggModulinstallningar(varde, var_) {
     if (!f || typeof f !== "object" || Array.isArray(f)) {
       throw var_(`installningar[${i}]`, `måste vara ett objekt { ${INSTALLNINGSDEKLARATIONFALT.join(", ")} }.`);
     }
-    const okanda = Object.keys(f).filter((n) => !INSTALLNINGSDEKLARATIONFALT.includes(/** @type {any} */ (n)));
+    /*
+     * ⛔ `hem` ÄR HÄRLETT, OCH defineModule MÅSTE GÅ ATT KÖRA TVÅ GÅNGER.
+     * validateModuler tar emot en redan byggd modul (exempelmodulen är
+     * defineModule:s resultat). Bygget skriver hem: "samling" och hint: null.
+     * En andra genomgång som avvisar de fälten fäller exemplet, inte ett
+     * felaktigt manifest. Ett annat hem avvisas: pinnen bor på gruppen, och
+     * en modul ska inte kunna välja var värdet skrivs.
+     */
+    if (f.hem !== undefined && f.hem !== "samling") {
+      throw var_(
+        `installningar[${i}].hem ${JSON.stringify(f.hem)}`,
+        `hör inte till manifestet. Hemmet sätts av ramverket till "samling". Pinnen skrivs på gruppen (groups.huvudmeny), inte här.`,
+      );
+    }
+    const okanda = Object.keys(f).filter((n) => n !== "hem" && !INSTALLNINGSDEKLARATIONFALT.includes(/** @type {any} */ (n)));
     if (okanda.length > 0) {
       throw var_(`installningar[${i}]`, `bär fälten ${okanda.join(", ")} som inte känns igen. En inställning bär ${INSTALLNINGSDEKLARATIONFALT.join(", ")}.`);
     }
@@ -123,7 +137,7 @@ export function byggModulinstallningar(varde, var_) {
     }
     if (ut.some((x) => x.id === id)) throw var_(`installningar[${i}].id "${id}"`, "står två gånger i samma modul.");
     const namn = namnPar(f.namn, var_, `installningar[${i}].namn för "${id}"`);
-    const hint = f.hint === undefined ? null : namnPar(f.hint, var_, `installningar[${i}].hint för "${id}"`);
+    const hint = f.hint === undefined || f.hint === null ? null : namnPar(f.hint, var_, `installningar[${i}].hint för "${id}"`);
     if (!INSTALLNINGSTYPER.includes(f.typ)) {
       throw var_(`installningar[${i}].typ ${JSON.stringify(f.typ)} för "${id}"`, `måste vara ${INSTALLNINGSTYPER.join(" eller ")}.`);
     }

@@ -53,6 +53,15 @@ describe("manifestets installningar", () => {
     expect(() => defineModule({ ...BAS(), installningar: [{ ...FALT, typ: "tal" }] })).toThrow(/boolean eller text/);
     expect(() => defineModule({ ...BAS(), installningar: [{ ...FALT, farg: "rod" }] })).toThrow(/farg/);
   });
+
+  it("en byggd modul går att definiera igen, och hem går inte att välja", () => {
+    const byggd = defineModule({ ...BAS(), installningar: [{ ...FALT }] });
+    const igen = defineModule(byggd);
+    expect(igen.installningar).toHaveLength(1);
+    expect(igen.installningar[0].hem).toBe("samling");
+    expect(igen.installningar[0].hint).toBeNull();
+    expect(() => defineModule({ ...BAS(), installningar: [{ ...FALT, hem: "huvudmeny" }] })).toThrow(/hem/);
+  });
 });
 
 describe("pinnen och värdena", () => {
