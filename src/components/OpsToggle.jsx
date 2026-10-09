@@ -73,16 +73,43 @@ export function OpsCheckbox({ label, checked, onChange, disabled = false, hint }
   );
 }
 
-/** @param {{ label: string, checked: boolean, onChange: (v: boolean) => void, disabled?: boolean, hint?: string }} props */
-export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) {
+/**
+ * @param {object} props
+ * @param {string} props.label
+ * @param {boolean} props.checked
+ * @param {(v: boolean) => void} props.onChange
+ * @param {boolean} [props.disabled]
+ * @param {string} [props.hint]
+ * @param {"spar" | "rad"} [props.placering] `spar` är formulärets rad: spåret till vänster, höjdgolvet släpps från `md`
+ *   så att tio rader inte blir en halv skärm. `rad` är en inställningsrad: hela raden är träffytan, minst 44 px på varje
+ *   bredd, etikett och hjälptext till vänster, spåret till höger. CP 2026-10-09, surfplatta: golvet som släpps från `md`
+ *   lämnade reglaget på textens höjd, och ett tryck mitt på raden missade.
+ */
+export function OpsSwitch({ label, checked, onChange, disabled = false, hint, placering = "spar" }) {
+  if (placering !== "spar" && placering !== "rad") {
+    throw new Error(`OpsSwitch: okänd placering "${placering}". Giltiga: spar, rad.`);
+  }
   const id = useId();
+  const namnId = `${id}-namn`;
   const hintId = hint ? `${id}-hint` : undefined;
+  const rad = placering === "rad";
   return (
-    <div className="flex flex-col gap-1">
+    <div className={rad ? "contents" : "flex flex-col gap-1"}>
       <label
         htmlFor={id}
-        className={cx("flex min-h-11 cursor-pointer items-center gap-3 text-brod text-ink md:min-h-0", disabled && "cursor-not-allowed opacity-55")}
+        className={cx(
+          rad
+            ? "flex min-h-11 w-full cursor-pointer items-center gap-3 px-4 py-2 text-left"
+            : "flex min-h-11 cursor-pointer items-center gap-3 text-brod text-ink md:min-h-0",
+          disabled && "cursor-not-allowed opacity-55",
+        )}
       >
+        {rad ? (
+          <span className="min-w-0 flex-1">
+            <span id={namnId} className="block text-brod text-ink">{label}</span>
+            {hint ? <span id={hintId} className="mt-0.5 block text-etikett text-ink-muted">{hint}</span> : null}
+          </span>
+        ) : null}
         <input
           id={id}
           type="checkbox"
@@ -90,6 +117,7 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) 
           className="peer sr-only"
           checked={checked}
           disabled={disabled}
+          aria-labelledby={rad ? namnId : undefined}
           aria-describedby={hintId}
           onChange={(e) => onChange(e.target.checked)}
         />
@@ -145,9 +173,9 @@ export function OpsSwitch({ label, checked, onChange, disabled = false, hint }) 
             )}
           />
         </span>
-        {label}
+        {rad ? null : label}
       </label>
-      {hint ? (
+      {!rad && hint ? (
         <p id={hintId} className="pl-13 text-etikett text-ink-muted">
           {hint}
         </p>

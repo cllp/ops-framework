@@ -55,34 +55,45 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appa
   }
   const mal = steg.length > 0 ? steg[steg.length - 1] : { href: hubHref, label: hubEtikett };
   if (fast && !rubrik && !atgard) return null;
+  const lank = fast ? null : (
+    <nav aria-label={brodsmulaEtikett}>
+      <a
+        href={mal.href}
+        onClick={(e) => onNavigate?.(mal.href, e)}
+        aria-label={`${tillbakaTillEtikett} ${mal.label}`}
+        className={cx(
+          "inline-flex min-h-11 items-center gap-2 rounded-base text-etikett text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        )}
+      >
+        <ChevronVansterIkon size={20} />
+        <span>{tillbakaEtikett}</span>
+      </a>
+    </nav>
+  );
+  const rubrikrad = rubrik ? <h1 className={SIDRUBRIK_KLASS}>{etikett}</h1> : null;
+  /*
+   * Kugghjulet och Klar sitter i huvudets bakre kant. Finns Tillbaka står de
+   * på den raden, så en lång rubrik ("Meddelanden · Inställningar") inte
+   * tränger dem mot texten. Utan Tillbaka, en fäst modul, står de på rubrikraden.
+   */
+  const atgardsplats = atgard ? <div data-modul-huvud-atgard="" className="ml-auto shrink-0">{atgard}</div> : null;
   return (
-    <div className="flex flex-col gap-1" data-tillbaka-fast={fast ? "" : undefined}>
-      {fast ? null : (
-      <nav aria-label={brodsmulaEtikett}>
-        <a
-          href={mal.href}
-          onClick={(e) => onNavigate?.(mal.href, e)}
-          aria-label={`${tillbakaTillEtikett} ${mal.label}`}
-          className={cx(
-            "inline-flex min-h-11 items-center gap-2 rounded-base text-etikett text-ink-secondary transition-colors duration-(--duration-fast) ease-standard hover:text-ink",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-          )}
-        >
-          <ChevronVansterIkon size={20} />
-          <span>{tillbakaEtikett}</span>
-        </a>
-      </nav>
+    <div className="flex w-full flex-col gap-1" data-tillbaka-fast={fast ? "" : undefined} data-modul-huvud={atgard ? "" : undefined}>
+      {atgard ? (
+        <>
+          <div className="flex w-full items-center gap-3">
+            <div className="min-w-0 flex-1">{lank && atgard ? lank : rubrikrad}</div>
+            {atgardsplats}
+          </div>
+          {lank && atgard ? rubrikrad : null}
+        </>
+      ) : (
+        <>
+          {lank}
+          {rubrikrad}
+        </>
       )}
-      {rubrik && atgard ? (
-        <div className="flex items-start justify-between gap-3">
-          <h1 className={cx(SIDRUBRIK_KLASS, "min-w-0 flex-1")}>{etikett}</h1>
-          {atgard}
-        </div>
-      ) : rubrik ? (
-        <h1 className={SIDRUBRIK_KLASS}>{etikett}</h1>
-      ) : atgard ? (
-        <div className="flex justify-end">{atgard}</div>
-      ) : null}
     </div>
   );
 }

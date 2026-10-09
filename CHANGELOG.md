@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.3
+
+CP 2026-10-09, modulens inställningar på live 0.90.0 (till exempel "Meddelanden · Inställningar"): reglagen är svåra att träffa och svarar sent, kugghjulet trängs mot en lång rubrik, ordningen är textknappar, och tomma avsnitt tar plats. Utges som 0.90.3; appen pinnar om.
+
+### Träffyta och sparning
+
+- **Hela raden är reglaget.** `OpsSwitch` med `placering="rad"` har etikett och hjälptext till vänster, spåret till höger, och minst 44 px (`min-h-11`) på varje bredd. Formulärets `spar` släpper höjdgolvet från `md` och är oförändrat.
+- **Tummen slår om i samma varv som trycket.** Appen väntar på Firestore-skrivningen och läser sedan om alla grupper, och skalet ritas om först då. Ramverket väntar inte på det svaret. Utkastet ritas direkt. Sparningen går i bakgrunden. Ett avslag ställer tillbaka utkastet och skriver en liten rad (`data-installning-fel`). Kopplingens fel står kvar som `OpsBanner`.
+
+### Huvudet
+
+- **Kugghjulet och Klar sitter i huvudets bakre kant.** Finns Tillbaka står de på den raden, så en lång rubrik inte tränger dem. En fäst modul har dem på rubrikraden. I Meddelandens lista är kugghjulet sista kontrollen, efter Nytt.
+
+### Rader
+
+- **Ordning** är en rad: ordet, pil upp, `3/4`, pil ned. Skärmläsarnamnen är Flytta upp och Flytta ned. Avstängd visas platsen som `-`, med hjälptexten under ordet.
+- **Ikon** är en rad med chevron. Den öppnar manifestets ikon. Den sparar den inte en gång till.
+- **Tomma avsnitt ritas inte.** Saknas kopplingar, och saknas egna fält och slot, syns inte de rubrikerna. Meningarna om inga kopplingar och inga egna inställningar är borta. Synlighet som egen mening är borta: den sade samma sak som På och Visa i huvudmenyn.
+
+### Samordning
+
+Ändringarna ligger i `OpsModulRam`, `OpsSwitch`, `OpsHubTillbaka` och Meddelandens listhuvud. `OpsAgenter` är orörd, så ett senare pass om agentinställningar kan rebasa och ta samma rader.
+
+---
+
 ## 0.90.2
 
 CP, live på 0.90.0: agentens inställningar är "super messy, I understand nothing of the enormous list". Första skärmen är ett kort. Resten är fyra rader, ett avsnitt i taget.
@@ -34,7 +59,7 @@ Inga Firestore-regler och inga funktioner ändras. Skrivningarna ligger kvar på
 
 ## 0.90.1
 
-CP 2026-10-09: felmeddelandet i agenten ska ramas in enligt den grafiska profilen, och rubrikerna ska följa SessionStudio. Tre äldre ärenden står öppna fast beteendet redan håller. Ingen utgivning i det här passet. Appen pinnar inte om.
+CP 2026-10-09: felmeddelandet i agenten ska ramas in enligt den grafiska profilen, och rubrikerna ska följa SessionStudio. Tre äldre ärenden står öppna fast beteendet redan håller. Utges som 0.90.3; appen pinnar om.
 
 ### Rubriker
 

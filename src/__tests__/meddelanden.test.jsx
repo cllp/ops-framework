@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OpsMeddelanden } from "../components/OpsMeddelanden.jsx";
+import { defineModule } from "../lib/modul.js";
 import { OpsMottagare } from "../components/OpsMottagare.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
@@ -236,5 +237,46 @@ describe("⛔ gruppchatten finns innan någon har skrivit i den (CP 2026-10-06)"
     expect(document.querySelector("[data-privat]")?.textContent).toBe("Alla i gruppen ser det här");
     slapp(undefined);
     await waitFor(() => expect(document.querySelector('[data-ops-samtal="grupp"]')).not.toBeNull());
+  });
+});
+
+describe("OpsMeddelanden: modulramen", () => {
+  it("kugghjulet är sista kontrollen i listans huvud, efter Nytt", async () => {
+    const { samtal } = await underlag();
+    const I = () => <svg />;
+    const modul = defineModule({
+      id: "meddelanden",
+      namn: { sv: "Meddelanden", en: "Messages" },
+      nav: [],
+      routes: [],
+      samlingar: [],
+      kallor: {},
+      skapar: [],
+      hubb: {
+        ikon: <I />,
+        rutt: "/meddelanden",
+        startsida: "lista",
+        delar: [{ id: "lista", namn: { sv: "Inkorg", en: "Inbox" }, ikon: <I />, rutt: "/meddelanden/lista" }],
+      },
+    });
+    render(
+      <OpsMeddelanden
+        kalla={samtal}
+        uid="anna"
+        groupId="g"
+        gruppNamn="Alfa AB"
+        medlemmar={MEDLEMMAR}
+        ram={{ farAndra: true }}
+        activeHref="/meddelanden"
+        modul={modul}
+        tillbaka={{ hubHref: "/hub", etikett: "Meddelanden" }}
+      />,
+    );
+    await screen.findByRole("region", { name: "Meddelanden" });
+    const huvud = document.querySelector("[data-meddelanden-huvud]");
+    const knapp = huvud?.querySelector("[data-modul-lage-knapp='installningar']");
+    expect(knapp).toBeTruthy();
+    expect(huvud?.lastElementChild).toBe(knapp);
+    expect(within(/** @type {HTMLElement} */ (huvud)).getByRole("button", { name: "Nytt meddelande" })).toBeTruthy();
   });
 });
