@@ -77,6 +77,27 @@ export function radBehallare({ ark = false } = {}) {
 }
 
 /**
+ * Telefonens underkant för en hylla som sitter på bottenraden.
+ * Dimningen och arket delar talet. Två handskrivna calc glider isär, och då
+ * täcker den ena pluset medan den andra slutar vid raden.
+ */
+export const arkOvanforRad = "bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))]";
+
+/**
+ * Lagret för den hyllan: `--z-ark`, under `--z-chrome`.
+ *
+ * Händelsen: CP 2026-10-09. Appar-arket slutade vid radens överkant men ritades
+ * på `--z-modal`. Plusknappen sticker upp över den kanten och bor inuti raden.
+ * Ett z-index på knappen kan inte lämna radens lager, så hyllan måste ligga
+ * under kromet. Då målar pluset över kanten och förblir helt synligt.
+ *
+ * Ett ark som täcker skärmen från underkanten (Skapa ur pluset, Meny, en
+ * aktivitet, Skapa i) är en modal och stannar på `--z-modal`. Den här klassen
+ * är bara hyllan.
+ */
+export const arkHyllaZ = "z-(--z-ark)";
+
+/**
  * Ikonknappar i toppraden: plusset, hamburgaren, ikonlänkarna (inkorgen, klockan).
  * En CIRKEL, inte en rundad ruta.
  *

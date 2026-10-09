@@ -9,6 +9,25 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.5
+
+CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-huvudet och såg ut som en knapp till. Utges som 0.90.5, efter 0.90.4; appen pinnar om.
+
+### Skapa-vyn har en vanlig rubrik
+
+- **`OpsSkapaRubrik`.** En rubrik utan plus och utan knapp. `OpsSkapaPanel` (Ny händelse, Nytt ärende, Ny grupp) och läget nytt i Meddelanden använder den. Knappen "+ Nytt meddelande" står kvar i samtalslistan. Tillbaka står kvar.
+- **Bibliotekets Ny anteckning, Ny länk och Ny fil** hade redan en vanlig sidrubrik, och "+ Ny" ritas bara i listan. Kalenderns Ny kalender döljer plusknappen när formuläret är öppet.
+
+### Appar-hyllan ligger under plusknappen
+
+- **`--z-ark`.** App-arket slutar vid bottenradens överkant, men ritades på `--z-modal` och klippte den upphöjda plusknappen. En hylla som sitter på raden ligger under `--z-chrome`, så pluset målar över kanten. `arkHyllaZ` och `arkOvanforRad` i `radKlass` är den gemensamma klassen. Ark som täcker skärmen från underkanten (Skapa, Meny, aktivitet, Skapa i) stannar på `--z-modal`.
+
+### Appar går att ordna
+
+- **Byt ordning är ett läge.** Ikonerna vickar och visar ett grepp. De dras med pekaren, mus och finger. Pilknappar och piltangenter flyttar ett steg. Klar skriver `groups.moduler` och lämnar läget. Stängning utan Klar sparar inte. Samma lista styr inställningarnas Ordning och huvudmenyn.
+
+---
+
 ## 0.90.4
 
 CP: en anteckning i Biblioteket öppnades som fält (Rubrik, Text) med Spara och en stor röd Radera. Öppning är läsning. Redigera byter till fält med Spara och Avbryt. Radering ligger i menyn, med en fråga, och i ett svep åt vänster med ångra.

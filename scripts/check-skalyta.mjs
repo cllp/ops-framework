@@ -41,6 +41,7 @@
  *       node scripts/check-skalyta.mjs --utan-fasta     bara för att bevisa vakten mot en äldre dist (0.29)
  *       node scripts/check-skalyta.mjs --bilder <mapp>   skriver skärmbilderna dit (för montaget, regel 12)
  *       node scripts/check-skalyta.mjs --bara-chatt      bara avsnitt 29g, chattens nattskiva (#273), för en snabb körning
+ *       node scripts/check-skalyta.mjs --bara-appar      bara Appar-hyllan mot plusknappen (0.90.6)
  *       node scripts/check-skalyta.mjs --chattbredder 390,1024   29g i andra bredder än 390 och 1280
  *       node scripts/check-skalyta.mjs --tema dark        alla sidor i mörkt tema (förebilden CP jämför mot är mörk)
  */
@@ -679,6 +680,120 @@ async function chattinfoYta() {
     }
     await context.close();
   }
+}
+
+// ══ APPAR-HYLLAN OCH PLUSKNAPPEN (0.90.6) ════════════════════════════════════
+// CP 2026-10-09: app-arket slutade vid bottenradens överkant men ritades ovanpå
+// den upphöjda plusknappen och klippte den. Hyllan ska sitta på raden. Plusets
+// överkant sticker upp över den kanten och ska träffas där, eftersom knappen bor
+// i kromet. En hylla som flyttas upp så att den inte längre rör knappen är också
+// röd: kanten ska gå under knappen, och knappen ska ligga över.
+// Hela körningen kör funktionen också. `--bara-appar` kör bara den.
+async function apparArkHylla() {
+  const namn = "apparark (390 px)";
+  const { page, context } = await oppna("apparark", { width: 390, height: 844 });
+  try {
+    await page.locator("[data-ops-bottenrad]").waitFor({ timeout: 4000 });
+    const plusAntal = await page.locator("[data-ops-bottenrad] button[aria-label='Skapa']").count();
+    krav(plusAntal === 1, `${namn}: ${plusAntal} plusknappar i bottenraden, väntat 1. Scenen saknar fasta eller skapa, och då finns ingen upphöjd knapp att mäta.`);
+    await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Appar" }).click();
+    await page.waitForSelector("[data-appar-ark]");
+    const lage = await page.evaluate(() => {
+      const ark = document.querySelector("[data-appar-ark]");
+      const nav = document.querySelector("[data-ops-bottenrad]");
+      const rad = nav?.firstElementChild ?? null;
+      const plus = nav?.querySelector("button[aria-label='Skapa']") ?? null;
+      if (!(ark instanceof HTMLElement) || !(nav instanceof HTMLElement) || !(rad instanceof HTMLElement) || !(plus instanceof HTMLElement)) {
+        return { saknas: true, ark: Boolean(ark), nav: Boolean(nav), rad: Boolean(rad), plus: Boolean(plus) };
+      }
+      const ar = ark.getBoundingClientRect();
+      const rr = rad.getBoundingClientRect();
+      const pr = plus.getBoundingClientRect();
+      const zTal = (/** @type {Element} */ el) => {
+        const n = Number(getComputedStyle(el).zIndex);
+        return Number.isFinite(n) ? n : null;
+      };
+      const x = pr.left + pr.width / 2;
+      const y = pr.top + 4;
+      const el = document.elementFromPoint(x, y);
+      let traff = "ingen";
+      if (el instanceof Element) {
+        traff = el.getAttribute("aria-label") || (el.closest("[data-appar-ark]") ? "arket" : el.tagName.toLowerCase());
+      }
+      return {
+        saknas: false,
+        arkBotten: ar.bottom,
+        radTopp: rr.top,
+        plusTopp: pr.top,
+        navZ: zTal(nav),
+        arkZ: zTal(ark),
+        traffarPlus: Boolean(el && (el === plus || plus.contains(el))),
+        traff,
+        yIArket: y < ar.bottom && y > ar.top && x > ar.left && x < ar.right,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    krav(lage.saknas !== true, `${namn}: arket, raden eller pluset saknas efter att Appar öppnats (${JSON.stringify(lage)}).`);
+    if (lage.saknas !== true) {
+      matt.push(`${namn}: arkets underkant ${lage.arkBotten.toFixed(1)}, radens överkant ${lage.radTopp.toFixed(1)}, plusets överkant ${lage.plusTopp.toFixed(1)}, z rad ${lage.navZ} ark ${lage.arkZ}, träff ${lage.traff}`);
+      krav(lage.arkBotten <= lage.radTopp + 1, `${namn}: arket slutar vid ${lage.arkBotten.toFixed(1)} och raden börjar vid ${lage.radTopp.toFixed(1)}. Hyllan ska sitta på raden, inte täcka den.`);
+      krav(lage.plusTopp < lage.arkBotten - 4, `${namn}: plusets överkant ${lage.plusTopp.toFixed(1)} når inte in över arkets underkant ${lage.arkBotten.toFixed(1)}. Kanten ska gå under den upphöjda knappen.`);
+      krav(lage.yIArket, `${namn}: mätpunkten på plusets överkant ligger utanför arkets ruta, så träffen säger inget om vem som ligger överst.`);
+      krav(lage.navZ !== null && lage.arkZ !== null && lage.navZ > lage.arkZ, `${namn}: bottenradens z-index är ${lage.navZ} och arkets ${lage.arkZ}. Plusset bor i raden och kan bara ligga över hyllans kant när raden ligger över arket.`);
+      krav(lage.traffarPlus, `${namn}: ett tryck på plusets överkant, inne i arkets ruta, träffar ${JSON.stringify(lage.traff)} och inte knappen. Arket klipper den upphöjda kanten.`);
+      krav(lage.overflow <= 1, `${namn}: sidan flödar över i sidled, överskott ${lage.overflow}.`);
+    }
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "apparark-390.png") });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+// Samma scen som hyllan. Byt ordning ska gå att dra med en riktig pekare, och Klar
+// ska lämna läget med listan i `groups.moduler` (window.__ordning i scenen).
+async function apparArkOrdning() {
+  const namn = "apparark ordning (390 px)";
+  const { page, context } = await oppna("apparark", { width: 390, height: 844 });
+  try {
+    await page.locator("[data-ops-bottenrad]").waitFor({ timeout: 4000 });
+    await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Appar" }).click();
+    await page.waitForSelector("[data-appar-ark]");
+    await page.getByRole("button", { name: "Byt ordning" }).click();
+    const grepp = await page.locator("[data-ark-grepp]").count();
+    krav(grepp >= 4, `${namn}: ${grepp} grepp, väntat minst 4 ikoner att ordna.`);
+    const vicka = await page.locator("[data-ark-id='ekonomi'] .animate-vicka").count();
+    krav(vicka === 1, `${namn}: ekonomis ikon vickar inte.`);
+    const fore = await page.locator("[data-ark-id]").evaluateAll((els) => els.map((el) => el.getAttribute("data-ark-id")));
+    const a = await page.locator("[data-ark-id='ekonomi'] [data-ark-grepp]").boundingBox();
+    const b = await page.locator("[data-ark-id='bibliotek'] [data-ark-grepp]").boundingBox();
+    krav(Boolean(a && b), `${namn}: greppen saknar ruta, draget kan inte mätas.`);
+    if (a && b) {
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 12 });
+      await page.mouse.up();
+    }
+    const efter = await page.locator("[data-ark-id]").evaluateAll((els) => els.map((el) => el.getAttribute("data-ark-id")));
+    matt.push(`${namn}: före ${fore.join(",")} efter ${efter.join(",")}`);
+    krav(efter[0] === "bibliotek" && efter[1] === "ekonomi", `${namn}: draget lämnade ${efter.join(",")}, väntat bibliotek före ekonomi.`);
+    await page.getByRole("button", { name: "Klar" }).click();
+    await page.getByRole("button", { name: "Byt ordning" }).waitFor({ timeout: 4000 });
+    const sparad = await page.evaluate(() => /** @type {string[] | undefined} */ (window.__ordning));
+    krav(Array.isArray(sparad) && sparad[0] === "bibliotek" && sparad[1] === "ekonomi", `${namn}: Klar sparade ${JSON.stringify(sparad)}, väntat bibliotek före ekonomi.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "apparark-ordning-390.png") });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
+if (argv.includes("--bara-appar")) {
+  await apparArkHylla();
+  await apparArkOrdning();
+  await browser.close();
+  avsluta();
+  process.exit(0);
 }
 
 if (argv.includes("--bara-chattinfo")) {
@@ -6248,6 +6363,9 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
   }
   await context.close();
 }
+
+await apparArkHylla();
+await apparArkOrdning();
 
 await browser.close();
 avsluta();

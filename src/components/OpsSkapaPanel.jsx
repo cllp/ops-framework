@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { cx } from "../lib/cx.js";
 import { ChevronNedIkon } from "./icons.jsx";
 import { OpsButton } from "./OpsButton.jsx";
+import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
 /**
@@ -84,10 +85,9 @@ export function OpsSkapaPanel({ kolumn = "bred", titel, onTillbaka, tillbakaEtik
       <div className={cx("mx-auto flex w-full min-h-0 flex-1 flex-col px-4 max-md:pt-(--safe-top) md:pt-4", kolumn === "smal" ? "max-w-2xl" : "max-w-4xl")}>
         <div className="flex shrink-0 flex-col max-md:min-h-14 max-md:flex-row max-md:items-center max-md:gap-1 max-md:border-b max-md:border-line">
           <TillbakaKnapp onClick={onTillbaka} etikett={tillbakaEtikett} className="self-start" />
-          {/* ⛔ EN rubrik: i raden bredvid Tillbaka under md (helskärm), under Tillbaka från md (som SS `GroupEditRouteView`). */}
-          <h2 id={rubrikId} className="m-0 mt-1 mb-3 min-w-0 truncate text-sida font-bold leading-tight text-ink max-md:mt-0 max-md:mb-0 max-md:flex-1 max-md:pr-16 max-md:text-center max-md:text-brod">
-            {titel}
-          </h2>
+          {/* ⛔ EN rubrik: i raden bredvid Tillbaka under md (helskärm), under Tillbaka från md (som SS `GroupEditRouteView`).
+              `OpsSkapaRubrik`: ingen plusikon. Plusset hör till ingången, inte till vyn. */}
+          <OpsSkapaRubrik id={rubrikId}>{titel}</OpsSkapaRubrik>
         </div>
         {/* ⛔ `pt-4`: LUFT MELLAN HUVUDET OCH FÖRSTA RADEN (0.32.1). CP 2026-09-30 08:12, med en skärmbild av "Nytt ärende"
             vid 390 px: "Vidare är det skönt om det är lite luft mellan första raden och headern." Formulärets första rad låg

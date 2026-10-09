@@ -21,6 +21,7 @@ import { arInstallningslage } from "../lib/apparark.js";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
+import { OpsSkapaRubrik } from "./OpsSkapaRubrik.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { useTalk } from "./OpsTalk.jsx";
 import { REAKTIONSVY, reaktionsnamnPa } from "./reaktionsvy.js";
@@ -1096,11 +1097,8 @@ function NyttSamtal({ kalla, uid, groupId, medlemmar, texter: t, gruppMarke, onO
 
   return (
     <div data-ops-nytt="" aria-busy={oppnar || undefined} className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
-        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-faint text-accent">
-          <PlusIkon size={18} />
-        </span>
-        <h3 className="m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink">{t.nytt}</h3>
+      <header className="flex shrink-0 items-center border-b border-line px-3 py-2.5">
+        <OpsSkapaRubrik variant="chatt">{t.nytt}</OpsSkapaRubrik>
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-3">
         {fel && !fel.falt ? (
