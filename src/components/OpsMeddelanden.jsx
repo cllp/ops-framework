@@ -128,6 +128,7 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagI
  * @property {string} [automatisktNamn] (0.68.0) Förval "Använd det automatiska namnet".
  * @property {string} [rotSaknas] (0.68.0) När meddelandet tråden startades ur inte går att läsa. Förval "Meddelandet tråden startades ur går inte att läsa.".
  * @property {string} [tradarFel] (0.68.0) En diskret rad när trådarnas märken inte kunde läsas. Förval "Trådarna kunde inte hämtas.".
+ * @property {string} [tradHamtas] (0.91.0, #282) Okänt trådläge, innan svaret kommit. Förval "Tråden hämtas".
  * @property {string} [svarPa] (0.68.0) Förled för skärmläsaren: vems meddelande "Svara i tråd" gäller. Förval "Meddelande från".
  * @property {string} [visaAldre] (chattens nattskiva) Knappen överst i loggen. Förval "Visa äldre".
  * @property {string} [hamtarAldre] Förval "Hämtar äldre…".
@@ -254,6 +255,7 @@ const TEXTER = {
   automatisktNamn: "Använd det automatiska namnet",
   rotSaknas: "Meddelandet tråden startades ur går inte att läsa.",
   tradarFel: "Trådarna kunde inte hämtas.",
+  tradHamtas: "Tråden hämtas",
   svarPa: "Meddelande från",
   visaAldre: "Visa äldre",
   hamtarAldre: "Hämtar äldre…",
@@ -1957,6 +1959,21 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
             medTradar
               ? (m) => {
                   const tr = tradar.get(m.id);
+                  /*
+                   * ⛔ OKÄNT ÄR INTE "INGEN TRÅD" (#282, regel 5). Innan `tradarFor` svarat saknas nyckeln,
+                   * och `finns` blev då falskt: varje rot ritades som "Svara i tråd". Det är ett påstående
+                   * om att tråden inte finns, och det är osant tills svaret kommit. Under tiden står en
+                   * neutral rad, inte knappen. När läsningen faller (`tradfel`) står knappen kvar, eftersom
+                   * märkena kan saknas och tråden ändå ska gå att öppna (KAN 5).
+                   */
+                  if (tr === undefined && !tradfel) {
+                    return (
+                      <span data-tradmarke="okand" className="inline-flex min-h-11 items-center px-2 text-liten text-ink-muted">
+                        <span className="sr-only">{t.tradHamtas}</span>
+                        <span aria-hidden="true">…</span>
+                      </span>
+                    );
+                  }
                   const finns = Boolean(tr?.finns);
                   const beskrivning = `tradrot-${m.id}`;
                   return (

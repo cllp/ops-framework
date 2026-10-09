@@ -166,6 +166,88 @@ describe("bjudIn", () => {
   });
 });
 
+describe("⛔ en avslutad medlem som bjuds in igen (#317)", () => {
+  const medlemskap = (status, roll) => ({
+    id: medlemskapsId(MEDLEM, GRUPP),
+    userId: MEDLEM,
+    groupId: GRUPP,
+    roll,
+    typ: "person",
+    status,
+    namn: "Kim",
+    bild: "bilder/kim",
+  });
+
+  it("accepten återaktiverar med inbjudans roll, och gruppen står i accepterade", async () => {
+    const { tjanst, kalla } = bygg({ memberships: [
+      { id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
+      medlemskap("avslutad", "admin"),
+    ] });
+    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "finns@x.se", roll: "medlem" });
+    expect(await tjanst.accepteraInbjudningar({ uid: MEDLEM, epost: "finns@x.se", epostVerifierad: true })).toEqual({ accepterade: [GRUPP], utgangna: [] });
+    expect(await kalla.read("memberships", medlemskapsId(MEDLEM, GRUPP))).toMatchObject({
+      status: "aktiv", roll: "medlem", namn: "Kim", bild: "bilder/kim",
+    });
+    expect((await kalla.list("invitations", {}))[0]).toMatchObject({ status: "accepterad" });
+    // Redan aktiv: nästa inbjudan, också med en högre roll, rör inte medlemskapet.
+    await tjanst.bjudIn({ avUid: AGARE, groupId: GRUPP, epost: "finns@x.se", roll: "admin" });
+    expect(await tjanst.accepteraInbjudningar({ uid: MEDLEM, epost: "finns@x.se", epostVerifierad: true })).toEqual({ accepterade: [], utgangna: [] });
+    expect(await kalla.read("memberships", medlemskapsId(MEDLEM, GRUPP))).toMatchObject({ status: "aktiv", roll: "medlem" });
+  });
+
+  it("⛔ blir raden aktiv mellan läsning och updateIf står den rollen kvar", async () => {
+    const { tjanst, kalla } = bygg({
+      memberships: [
+        { id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
+        medlemskap("avslutad", "medlem"),
+      ],
+      invitations: [{
+        id: inbjudningsId(GRUPP, "finns@x.se"),
+        epost: "finns@x.se",
+        groupId: GRUPP,
+        roll: "admin",
+        status: "vantar",
+        giltigTill: new Date(Date.now() + 86_400_000).toISOString(),
+      }],
+    });
+    const villkorad = kalla.updateIf.bind(kalla);
+    /** @type {any} */ (kalla).updateIf = async (/** @type {string} */ c, /** @type {string} */ id, /** @type {any} */ v, /** @type {any} */ d) => {
+      if (c === "memberships" && v.status === "avslutad") {
+        await kalla.update("memberships", id, { status: "aktiv", roll: "agare" });
+      }
+      return villkorad(c, id, v, d);
+    };
+    expect(await tjanst.accepteraInbjudningar({ uid: MEDLEM, epost: "finns@x.se", epostVerifierad: true })).toEqual({ accepterade: [], utgangna: [] });
+    expect(await kalla.read("memberships", medlemskapsId(MEDLEM, GRUPP))).toMatchObject({ status: "aktiv", roll: "agare" });
+    expect((await kalla.read("invitations", inbjudningsId(GRUPP, "finns@x.se"))).status).toBe("accepterad");
+  });
+
+  it("⛔ faller återaktiveringen lämnas inbjudan tillbaka som väntande, och medlemskapet står kvar avslutat", async () => {
+    const { tjanst, kalla } = bygg({
+      memberships: [
+        { id: medlemskapsId(AGARE, GRUPP), userId: AGARE, groupId: GRUPP, roll: "agare", typ: "person", status: "aktiv" },
+        medlemskap("avslutad", "medlem"),
+      ],
+      invitations: [{
+        id: inbjudningsId(GRUPP, "finns@x.se"),
+        epost: "finns@x.se",
+        groupId: GRUPP,
+        roll: "medlem",
+        status: "vantar",
+        giltigTill: new Date(Date.now() + 86_400_000).toISOString(),
+      }],
+    });
+    const villkorad = kalla.updateIf.bind(kalla);
+    /** @type {any} */ (kalla).updateIf = async (/** @type {string} */ c, /** @type {string} */ id, /** @type {any} */ v, /** @type {any} */ d) => {
+      if (c === "memberships") throw new Error("nätet föll");
+      return villkorad(c, id, v, d);
+    };
+    await expect(tjanst.accepteraInbjudningar({ uid: MEDLEM, epost: "finns@x.se", epostVerifierad: true })).rejects.toThrow(/nätet föll/);
+    expect(await kalla.read("memberships", medlemskapsId(MEDLEM, GRUPP))).toMatchObject({ status: "avslutad", roll: "medlem" });
+    expect((await kalla.read("invitations", inbjudningsId(GRUPP, "finns@x.se"))).status).toBe("vantar");
+  });
+});
+
 describe("accepteraInbjudningar", () => {
   it("gör en väntande inbjudan till ett medlemskap", async () => {
     const { tjanst, kalla } = bygg();

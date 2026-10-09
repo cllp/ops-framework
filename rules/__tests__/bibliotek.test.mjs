@@ -13,7 +13,8 @@
  *   ÄNDRA    författaren ja, admin ja, annan medlem nej, admin i en annan grupp nej,
  *            flytta gruppen nej, byta typ nej, skriva om skapad eller skapadAv nej
  *   RADERA   författaren ja, admin och ägare i gruppen ja. Annan medlem, admin i
- *            en annan grupp, avslutat medlemskap, agent och utloggad: nej (#311)
+ *            en annan grupp, avslutat medlemskap, avslutad admin, agent och
+ *            utloggad: nej (#311)
  *
  * Reglerna skrivs av `scripts/skriv-provregler.mjs` ur `bibliotekregelfragment("bibliotek")`.
  */
@@ -34,6 +35,7 @@ const MEDLEM = "uid-cps-medlem";
 const ANNAN = "uid-cps-annan";
 const ADMIN = "uid-cps-admin";
 const AVSLUTAD = "uid-cps-avslutad";
+const AVSLUTAD_ADMIN = "uid-cps-avslutad-admin";
 const AGENT = "uid-cps-agent";
 const BADA = "uid-bada";
 const MIRANDA_ADMIN = "uid-miranda-admin";
@@ -85,6 +87,7 @@ before(async () => {
       medlemskap(ANNAN, CPS, "medlem"),
       medlemskap(ADMIN, CPS, "admin"),
       medlemskap(AVSLUTAD, CPS, "medlem", "person", "avslutad"),
+      medlemskap(AVSLUTAD_ADMIN, CPS, "admin", "person", "avslutad"),
       medlemskap(AGENT, CPS, "medlem", "agent"),
       medlemskap(BADA, CPS, "medlem"),
       medlemskap(BADA, MIRANDA, "medlem"),
@@ -344,6 +347,7 @@ describe("bibliotekets regler: ändra och radera", () => {
     await assertFails(deleteDoc(doc(db(ANNAN), "bibliotek/radera-nej")));
     await assertFails(deleteDoc(doc(db(MIRANDA_ADMIN), "bibliotek/radera-nej")));
     await assertFails(deleteDoc(doc(db(AVSLUTAD), "bibliotek/cps-avslutad")));
+    await assertFails(deleteDoc(doc(db(AVSLUTAD_ADMIN), "bibliotek/radera-nej")));
     await assertFails(deleteDoc(doc(db(AGENT), "bibliotek/radera-nej")));
     await assertFails(deleteDoc(doc(miljo.unauthenticatedContext().firestore(), "bibliotek/radera-nej")));
     /** @type {import("firebase/firestore").DocumentSnapshot | undefined} */

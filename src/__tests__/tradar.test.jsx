@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import fs from "node:fs";
 import path from "node:path";
 import userEvent from "@testing-library/user-event";
@@ -17,7 +17,15 @@ import * as nod from "../node/index.js";
  * ⛔ HÄR MÄTS BETEENDE: vilket namn en tråd får, att tråden skapas med det första svaret och inte när den öppnas, att märket
  * visar antal och namn, att omdöpning och återgång fungerar, och att trådar bara finns i gruppchatten. Hur det SER UT mäts i
  * Chromium av `check-skalyta` avsnitt 29 (e). Reglerna mäts i `rules/__tests__/tradar.test.mjs`.
+ *
+ * ⛔ FINDBY-GRÄNSEN (#282). Testing Librarys `asyncUtilTimeout` är 1000 ms, och det är den som löper ut, inte Vitests
+ * `testTimeout`. Mätt 2026-10-06: 7 av 8 körningar av den här filen föll på "Found multiple elements" eller tidsgränsen
+ * för `findByRole`, och `--testTimeout=30000` ändrade ingenting. Med 15 sekunder blev tre av tre gröna. Gränsen sätts
+ * här och inte i `setup.js`: en misslyckad `findBy` i en annan fil ska inte vänta en kvart. Vitests eget tak för de
+ * två suiterna som ritar vyn ligger över den, annars dödar det väntan innan den får löpa ut.
  */
+configure({ asyncUtilTimeout: 15000 });
+afterAll(() => configure({ asyncUtilTimeout: 1000 }));
 
 describe("namnregeln: ett begripligt namn ur frågan, ingen modell", () => {
   it("⛔ rotmeddelandet utan @-nämnanden, länkar och markdowntecken", () => {
@@ -210,7 +218,7 @@ const MEDLEMMAR = [
   { userId: "ops", namn: "Ops-agenten", typ: "agent", status: "aktiv" },
 ];
 
-describe("OpsMeddelanden: trådar i gruppchatten", () => {
+describe("OpsMeddelanden: trådar i gruppchatten", { timeout: 20000 }, () => {
   it("⛔ BÖR 2: utan tradar i källan finns varken Svara i tråd, märken eller trådvy", async () => {
     const { samtal, grupp, rot } = await underlag({ tradar: "" });
     render(<OpsMeddelanden kalla={samtal} uid="anna" groupId="g" gruppNamn="Alfa AB" medlemmar={MEDLEMMAR} valt={grupp.id} valtTrad={rot.id} />);
@@ -319,6 +327,30 @@ describe("OpsMeddelanden: trådar i gruppchatten", () => {
     await screen.findByRole("button", { name: "4 svar" });
   });
 
+  it("⛔ okänt trådläge ritas inte som Svara i tråd (#282)", async () => {
+    const { samtal, grupp } = await underlag();
+    let slapp = () => {};
+    const vanta = new Promise((r) => {
+      slapp = r;
+    });
+    const langsam = /** @type {any} */ ({
+      ...samtal,
+      tradarFor: async (/** @type {string} */ sid, /** @type {string[]} */ rotter) => {
+        await vanta;
+        return medT(samtal).tradarFor(sid, rotter);
+      },
+    });
+    render(<OpsMeddelanden kalla={langsam} uid="anna" groupId="g" gruppNamn="Alfa AB" medlemmar={MEDLEMMAR} valt={grupp.id} />);
+    const logg = await screen.findByRole("log", { name: "Alfa AB" });
+    await waitFor(() => expect(within(logg).getByText("Fika på fredag?")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /Svara i tråd/ })).toBeNull();
+    expect(logg.querySelectorAll("[data-tradmarke='okand']").length).toBeGreaterThan(0);
+    expect(within(logg).getAllByText("Tråden hämtas").length).toBeGreaterThan(0);
+    slapp();
+    await screen.findByRole("button", { name: "Svara i tråd" });
+    expect(logg.querySelector("[data-tradmarke='okand']")).toBeNull();
+  });
+
   it("⛔ KAN 5: föll läsningen av trådarna står det en rad, den sväljs inte", async () => {
     const { samtal, grupp } = await underlag();
     const trasig = /** @type {any} */ ({ ...samtal, tradarFor: async () => { throw new Error("nekad"); } });
@@ -331,7 +363,7 @@ describe("OpsMeddelanden: trådar i gruppchatten", () => {
  * ⛔ BÖR 4: läsningarna med 50 meddelanden och 20 trådar, mätta med en källa som räknar som Firestore fakturerar.
  * Siffrorna skrivs ut, och taken är de som ska hålla: att öppna chatten, ett nytt meddelande, och att gå tillbaka från en tråd.
  */
-describe("läsningar för märkena (BÖR 4)", () => {
+describe("läsningar för märkena (BÖR 4)", { timeout: 20000 }, () => {
   it("50 meddelanden och 20 trådar: öppna, nytt meddelande, tillbaka från en tråd", async () => {
     const { k, r } = raknandeKalla({ count: true });
     let t = Date.now() - 3_600_000;
