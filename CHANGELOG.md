@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.2
+
+CP, live på 0.90.0: agentens inställningar är "super messy, I understand nothing of the enormous list". Första skärmen är ett kort. Resten är fyra rader, ett avsnitt i taget.
+
+Ingen utgivning i det här passet. 0.90.1 är ett annat arbete (aktivitetsdetalj, skrivfält, kalendern när den är tom) och rörs inte här.
+
+### Agentens inställningar
+
+- **Kortet först.** Bild, namn, roll, på eller av, och modellens namn. På och av anropar samma `onVaxla` som förut, och bara när `kanVaxla` är sant. Märket är medlemskapets bild. Det sparas inte en gång till, och den meningen står inte i vyn.
+- **Fyra rader med pil.** Om agenten (namn, roll, beskrivning). Vad den kan (verktyg som strömbrytare, med en mening om vad de gör). Kunskap och minne (instruktioner, kunskap, minne). Modell och nycklar, märkt avancerat (modelltexten och appens valv). Adressen är `avsnitt=om|kan|kunskap|modell`. En tom eller okänd parameter är översikten.
+- **Inga råa id:n.** Verktygets etikett är beskrivningen. Saknas den står "Ett verktyg" och en mening, aldrig id:t. Id:t finns bara i kartan som `onSparaVerktyg` redan tar emot. Kunskapens källa och kontrollsumma ritas inte.
+- **Spara per avsnitt.** Knappen säger Spara, och "Sparat." skrivs ut när anropet går igenom. Saknas sparfunktionen står felet, och ingenting skrivs. Modellen har ingen sparknapp: appen väljer den.
+- **Samma anrop som 0.90.0.** `onSparaIdentitet`, `onSparaVerktyg`, `onSparaInstruktioner`, `onSparaSkill`, `onSparaMinne`, `onSparaMinnePa`, `onVaxla`. Ingen ny samling.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras. Skrivningarna ligger kvar på appens anrop (`sparaAgent`, `vaxlaAgent`).
+
 ## 0.90.0
 
 CP hittar agentens inställningar för långt från samtalet. Agenter följer samma ram som övriga appar: visning, kugghjul, Allmänt, Kopplingar och egna. Tryck på agenten i chatten öppnar samma ställe.

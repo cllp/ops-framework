@@ -2492,14 +2492,14 @@ CP 2026-10-09, med en bild av Outlook på telefonen. Ett tryck på Appar öppnar
   Gruppen dokumenteras inte om: en egen samling, för gruppreglerna ligger redan på uttryckstaket. Appen behöver
   inte deploya fragmentet förrän den skriver samlingen. Pinnen behöver ingen ny gruppregel.
 
-### Agenter (0.90.0)
+### Agenter (0.90.0, inställningsvyn 0.90.2)
 
 CP hittar agentens inställningar för långt från samtalet. Modulen använder samma ram som övriga appar. Visningen listar gruppens agenter. Kugghjulet, och ett tryck på agenten i chatten, öppnar inställningarna för just den agenten.
 
-- **`OpsAgenter`**, orden i **`ORD_OPSAGENTER`**, manifestet **`agenterManifest`**. Appen kör manifestet genom `validateModuler`. Kortet gör att modulen syns i Appar och att Redigera grupp kan länka till den. `ram.kropp` ersätter de tre standardavsnitten, och `rubrikNamn` sätter agentens namn i rubriken. Utan `kropp` ritar `OpsModulRam` Allmänt, Kopplingar och egna som i 0.89.0.
-- **Allmänt** är namn, roll och beskrivning, sparade med `onSparaIdentitet`. Märket visas. Det sparas inte en gång till: medlemskapets bild är den appen redan har. På och av ritas när `kanVaxla` är sant och anropar `onVaxla({ id, status })`, samma anrop som gruppsidans strömbrytare.
-- **Kopplingar** är modelltexten appen skickar in (`modell`), appens valv som barn (`byok`) och verktygen (`onSparaVerktyg`). Ramverket ritar ingen nyckel och lagrar ingen.
-- **Egna** är instruktioner, kunskap (skills), minne och texten om vad agenten får göra. Import av en fil går genom `onLasSkill`, som appen äger. Saknas en sparfunktion står det att sparandet inte är kopplat, och ingenting skrivs.
+- **`OpsAgenter`**, orden i **`ORD_OPSAGENTER`**, manifestet **`agenterManifest`**. Appen kör manifestet genom `validateModuler`. Kortet i manifestet gör att modulen syns i Appar och att Redigera grupp kan länka till den. `ram.kropp` ersätter de tre standardavsnitten, och `rubrikNamn` sätter agentens namn i rubriken. Utan `kropp` ritar `OpsModulRam` Allmänt, Kopplingar och egna som i 0.89.0.
+- **Översikten** är ett kort: bild, namn, roll, på eller av, och modellens namn. På och av ritas när `kanVaxla` är sant och anropar `onVaxla({ id, status })`, samma anrop som gruppsidans strömbrytare. Märket är medlemskapets bild och sparas inte här.
+- **Fyra rader** öppnar ett avsnitt i taget. Adressen får `avsnitt=om`, `kan`, `kunskap` eller `modell`. En tom eller okänd parameter är översikten. Om agenten är namn, roll och beskrivning, sparade med `onSparaIdentitet`. Vad den kan är verktygen: etiketten är beskrivningen, aldrig id:t, och `onSparaVerktyg` tar samma karta som förut. Kunskap och minne är instruktioner, kunskap och minne. Modell och nycklar är avancerat: modelltexten appen skickar in (`modell`) och appens valv som barn (`byok`). Ramverket ritar ingen nyckel och lagrar ingen. Modellen har ingen sparknapp.
+- **Sparat.** Varje avsnitt har sin sparknapp, utom modellen. När anropet går igenom står det "Sparat.". Saknas sparfunktionen står det att sparandet inte är kopplat, och ingenting skrivs. Import av en fil går genom `onLasSkill`, som appen äger.
 - **`AGENTER_ID`** är `agenter`. **`AGENT_PARAM`** är `agent`. **`agentIHref`** läser id:t, tom sträng när parametern saknas. **`medAgent`** sätter det och kastar på ett tomt id. **`agentInstallningsHref`** är samma adress med inställningsläget. Övriga parametrar och ankaret står kvar.
 - **`granser` krävs.** Talen bor i appens validering. En kopia i ramverket hade varit en andra sanning. `agenter` krävs som en lista, och en tom lista skrivs ut. `listfel` är texten när listan inte gick att läsa. Utan den är en tom lista noll agenter.
 - **`OpsGruppFormular` får inga agentfält.** En installerad modul med kort och `installningarHref` länkar till sina inställningar. Det är länken till Agenter.

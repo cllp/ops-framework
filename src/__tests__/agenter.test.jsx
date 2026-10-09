@@ -12,7 +12,7 @@ import { arkRader } from "../lib/apparark.js";
 import { validateModuler } from "../lib/modul.js";
 
 /**
- * Agenter (0.90.0). Listan, inställningarna per agent, chattens ingång och att
+ * Agenter (0.90.0, inställningsvyn 0.90.2). Listan, inställningarna per agent, chattens ingång och att
  * gruppvyn bara länkar. jsdom mäter inte pixlar.
  */
 
@@ -111,7 +111,7 @@ describe("OpsAgenter", () => {
     )).toThrow(/granser krävs/);
   });
 
-  it("inställningarna har tre avsnitt, sparar det appen redan äger, och ritar ingen nyckel", async () => {
+  it("översikten är ett kort och fyra rader, och varje avsnitt sparar det appen redan äger", async () => {
     const onSparaIdentitet = vi.fn();
     const onSparaVerktyg = vi.fn();
     const onSparaInstruktioner = vi.fn();
@@ -127,12 +127,16 @@ describe("OpsAgenter", () => {
       version: 1,
       nyckel: "super-secret",
     };
-    rita({
-      activeHref: "/agenter?agent=ops&lage=installningar",
+    const verktyg = [
+      { namn: "webb", beskrivning: "Sök på webben", not: "Hämtar sidor.", pa: true },
+      { namn: "raw_tool_id_xyz", beskrivning: "", pa: false },
+    ];
+    const falt = {
       installning,
       modell: { namn: "gemini-2.5-flash-lite", hint: "Appens modell." },
       byok: <p>Valvets nycklar</p>,
-      verktyg: [{ namn: "webb", beskrivning: "Sök på webben", pa: true }],
+      verktyg,
+      skills: [{ id: "s1", namn: "Kort", beskrivning: "Kort text", kalla: "kort.md", sha: "abc123" }],
       kanVaxla: true,
       onSparaIdentitet,
       onSparaVerktyg,
@@ -140,52 +144,100 @@ describe("OpsAgenter", () => {
       onSparaSkill,
       onSparaMinne,
       onVaxla,
+    };
+    const { onNavigate, unmount } = rita({
+      activeHref: "/agenter?agent=ops&lage=installningar",
+      ...falt,
     });
     expect(screen.getByRole("heading", { name: "Ops · Inställningar" })).toBeTruthy();
-    expect(screen.getByText("Allmänt")).toBeTruthy();
-    expect(screen.getByText("Kopplingar")).toBeTruthy();
-    expect(screen.getByText("Egna inställningar")).toBeTruthy();
+    expect(screen.getByText("Assistent")).toBeTruthy();
+    expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Om agenten/ }).getAttribute("href")).toBe("/agenter?agent=ops&lage=installningar&avsnitt=om");
+    expect(screen.getByRole("link", { name: /Vad den kan/ }).getAttribute("href")).toContain("avsnitt=kan");
+    expect(screen.getByRole("link", { name: /Kunskap och minne/ }).getAttribute("href")).toContain("avsnitt=kunskap");
+    expect(screen.getByRole("link", { name: /Modell och nycklar/ }).getAttribute("href")).toContain("avsnitt=modell");
+    expect(screen.queryByRole("heading", { name: "Om agenten" })).toBeNull();
+    expect(screen.queryByText("Allmänt")).toBeNull();
+    expect(screen.queryByText("Kopplingar")).toBeNull();
+    expect(screen.queryByText("Egna inställningar")).toBeNull();
+    expect(screen.queryByText("Valvets nycklar")).toBeNull();
     expect(screen.queryByText("Appen är installerad i gruppen.")).toBeNull();
     expect(screen.queryByRole("switch", { name: /Visa i huvudmenyn/ })).toBeNull();
-    expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
-    expect(screen.getByText("Valvets nycklar")).toBeTruthy();
-    expect(screen.getByText(/sparas inte en gång till/)).toBeTruthy();
+    expect(screen.queryByText(/sparas inte en gång till/)).toBeNull();
     expect(document.body.textContent).not.toContain("super-secret");
+    expect(document.body.textContent).not.toContain("raw_tool_id_xyz");
     expect(document.querySelector("input[type=password]")).toBeNull();
 
     fireEvent.click(screen.getByRole("switch", { name: /Agenten är på/ }));
     expect(onVaxla).toHaveBeenCalledWith({ id: "ops", status: "avstangd" });
+    expect(screen.getByRole("status").textContent).toBe("Sparat.");
 
-    fireEvent.change(screen.getAllByLabelText("Namn")[0], { target: { value: "Ops två" } });
-    fireEvent.click(screen.getByRole("button", { name: "Spara allmänt" }));
+    fireEvent.click(screen.getByRole("link", { name: /Om agenten/ }));
+    expect(onNavigate).toHaveBeenCalledWith("/agenter?agent=ops&lage=installningar&avsnitt=om", expect.anything());
+    unmount();
+
+    const om = rita({ activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=om", ...falt });
+    fireEvent.change(screen.getByLabelText("Namn"), { target: { value: "Ops två" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
     expect(onSparaIdentitet).toHaveBeenCalledWith({ namn: "Ops två", beskrivning: "Hjälper gruppen", roll: "Assistent" });
+    expect(screen.getByRole("status").textContent).toBe("Sparat.");
+    fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
+    expect(om.onNavigate).toHaveBeenCalledWith("/agenter?agent=ops&lage=installningar", expect.anything());
+    om.unmount();
 
+    const kan = rita({ activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=kan", ...falt });
+    expect(screen.getByRole("switch", { name: /Ett verktyg/ })).toBeTruthy();
+    expect(screen.getByText("Vad det gör är inte beskrivet.")).toBeTruthy();
+    expect(document.body.textContent).not.toContain("raw_tool_id_xyz");
     fireEvent.click(screen.getByRole("switch", { name: /Sök på webben/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Spara verktyg" }));
-    expect(onSparaVerktyg).toHaveBeenCalledWith({ webb: false });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSparaVerktyg).toHaveBeenCalledWith({ webb: false, raw_tool_id_xyz: false });
+    expect(screen.getByRole("status").textContent).toBe("Sparat.");
+    kan.unmount();
 
+    const kunskap = rita({ activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=kunskap", ...falt });
+    expect(screen.queryByText("kort.md")).toBeNull();
+    expect(screen.queryByText("abc123")).toBeNull();
+    expect(screen.getByRole("switch", { name: /Använd den här kunskapen/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Spara instruktioner" }));
     expect(onSparaInstruktioner).toHaveBeenCalledWith("Var kort.");
-
-    fireEvent.change(screen.getAllByLabelText("Namn")[1], { target: { value: "Karta" } });
+    expect(screen.getByRole("status").textContent).toBe("Sparat.");
+    fireEvent.change(screen.getByLabelText("Namn"), { target: { value: "Karta" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara kunskap" }));
     expect(onSparaSkill).toHaveBeenCalledWith(expect.objectContaining({ namn: "Karta", aktiv: true, alltidMed: false, publik: false }));
-
     fireEvent.change(screen.getByLabelText("Ny minnesrad"), { target: { value: "Gillar korta svar" } });
     fireEvent.click(screen.getByRole("button", { name: "Spara minne" }));
     await waitFor(() => expect(onSparaMinne).toHaveBeenCalledWith("Gillar korta svar"));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Sparat."));
+    kunskap.unmount();
+
+    rita({ activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=modell", ...falt });
+    expect(screen.getByText("Valvets nycklar")).toBeTruthy();
+    expect(screen.getByText("Modellen väljs av appen. Den ändras inte här.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(document.body.textContent).not.toContain("super-secret");
   });
 
-  it("utan sparfunktion står felet, och en medlem läser utan att kunna skriva", () => {
+  it("en okänd avsnittsparameter är översikten, och utan sparfunktion står felet", () => {
     const { unmount } = rita({
-      activeHref: "/agenter?agent=ops&lage=installningar",
-      installning: { namn: "Ops", roll: "", beskrivning: "", instruktioner: "", minnePa: false },
+      activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=hemligt",
+      installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Spara allmänt" }));
-    expect(screen.getByRole("alert").textContent).toMatch(/Sparandet är inte kopplat/);
+    expect(screen.getByRole("link", { name: /Om agenten/ })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Om agenten" })).toBeNull();
     unmount();
 
     rita({
+      activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=om",
+      installning: { namn: "Ops", roll: "", beskrivning: "", instruktioner: "", minnePa: false },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/Sparandet är inte kopplat/);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("en medlem läser kortet utan att kunna skriva", () => {
+    const { unmount } = rita({
       activeHref: "/agenter?agent=ops&lage=installningar",
       ram: { farAndra: false },
       installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper", instruktioner: "Var kort.", minnePa: true },
@@ -194,32 +246,50 @@ describe("OpsAgenter", () => {
     expect(screen.getByText("Skrivskyddad")).toBeTruthy();
     expect(screen.getByText("Assistent")).toBeTruthy();
     expect(screen.queryByText("Ingen roll.")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Spara allmänt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
     expect(screen.getByRole("link", { name: "Klar" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Inställningar" })).toBeNull();
+    unmount();
+
+    rita({
+      activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=kan",
+      ram: { farAndra: false },
+      installning: { namn: "Ops", roll: "Assistent" },
+      verktyg: [{ namn: "sok_webb_id", beskrivning: "Sök på webben", pa: false }],
+    });
+    expect(screen.getByText("Sök på webben: Avstängd")).toBeTruthy();
+    expect(document.body.textContent).not.toContain("sok_webb_id");
   });
 
-  it("tom roll skrivs ut, och utan vald agent visas ett val", () => {
+  it("tom roll skrivs ut på kortet, och beskrivningen först i sitt avsnitt", () => {
     const { unmount } = rita({
       activeHref: "/agenter?agent=ops&lage=installningar",
       ram: { farAndra: false },
       installning: { namn: "Ops", roll: "", beskrivning: "" },
     });
     expect(screen.getByText("Ingen roll.")).toBeTruthy();
-    expect(screen.getByText("Ingen beskrivning.")).toBeTruthy();
+    expect(screen.queryByText("Ingen beskrivning.")).toBeNull();
     unmount();
+
+    const om = rita({
+      activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=om",
+      ram: { farAndra: false },
+      installning: { namn: "Ops", roll: "", beskrivning: "" },
+    });
+    expect(screen.getByText("Ingen beskrivning.")).toBeTruthy();
+    om.unmount();
 
     rita({ activeHref: "/agenter?lage=installningar", modell: null, byok: null });
     expect(screen.getByText("Inställningarna gäller en agent i taget.")).toBeTruthy();
     expect(document.querySelector("[data-agent-val=karta]")).toBeTruthy();
-    expect(screen.queryByText("Allmänt")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Om agenten/ })).toBeNull();
   });
 
   it("en agent som inte hör hit, en saknad modell och ett saknat valv skrivs ut", () => {
     const { unmount } = rita({ activeHref: "/agenter?agent=annan&lage=installningar" });
     expect(screen.getByText("Agenten hör inte till gruppen.")).toBeTruthy();
     unmount();
-    rita({
+    const kort = rita({
       activeHref: "/agenter?agent=ops&lage=installningar",
       ram: { farAndra: false },
       installning: { namn: "Ops" },
@@ -227,6 +297,15 @@ describe("OpsAgenter", () => {
       byok: null,
     });
     expect(screen.getByText("Ingen modell angiven.")).toBeTruthy();
+    expect(screen.queryByText("Nycklarna är inte kopplade i appen.")).toBeNull();
+    kort.unmount();
+    rita({
+      activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=modell",
+      ram: { farAndra: false },
+      installning: { namn: "Ops" },
+      modell: null,
+      byok: null,
+    });
     expect(screen.getByText("Nycklarna är inte kopplade i appen.")).toBeTruthy();
   });
 
