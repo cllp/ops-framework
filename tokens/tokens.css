@@ -900,7 +900,12 @@
    *                       ska glida under (OpsTables rubrikrad)
    *   --z-chrome          appskalet: headern och bottenraden. Ligger över allt
    *                       innehåll, eftersom kroms hela uppgift är att finnas
-   *                       kvar när innehållet rör sig.
+   *                       kvar när innehållet rör sig. Plusknappen i bottenraden
+   *                       sticker upp över radens överkant och målar med raden.
+   *   --z-ark             en hylla som slutar där bottenraden börjar (Appar).
+   *                       Under kromet, så pluset ligger över hyllans kant.
+   *                       En modal som täcker skärmen från underkanten är
+   *                       --z-modal, inte det här lagret.
    *   --z-dropdown        allt som öppnas UR en kontroll (lista, kalender, meny, tooltip). ⛔ ÖVER modalen sedan
    *                       0.31.0: en `OpsSelect` inuti en `OpsModal` öppnade sin lista på 200, bakom modalen på 400,
    *                       och ingen kunde välja typ eller datum i "Ny händelse" (CP 2026-09-29). En lista som öppnas
@@ -912,6 +917,12 @@
   /* Dämpningen bakom en öppen panel på telefon (bolag-ops #363): över allt
      innehåll, under kromet, så headern och bottenraden inte dämpas. */
   --z-scrim: 140;
+  /* Hyllan på bottenraden. CP 2026-10-09: Appar-arket slutade vid radens
+     överkant men ritades på --z-modal och klippte den upphöjda plusknappen.
+     Knappen bor i raden, och ett z-index på den kan inte lämna radens lager.
+     Hyllan ligger därför under kromet. 145 är mellan dimningen (140) och
+     kromet (150): arket syns över innehållet, pluset syns över arket. */
+  --z-ark: 145;
   --z-chrome: 150;
   --z-overlay: 300;
   --z-modal: 400;

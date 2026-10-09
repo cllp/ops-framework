@@ -3,7 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { arkRader, flyttaId, LANGTRYCK_MS, medInstallningslage, ordningMedSynliga } from "../lib/apparark.js";
 import { cx } from "../lib/cx.js";
 import { ordet } from "../lib/ord.js";
-import { radBehallare } from "../lib/radKlass.js";
+import { arkHyllaZ, arkOvanforRad, radBehallare } from "../lib/radKlass.js";
 import { text } from "../lib/sprak.js";
 import { HubIkon } from "./icons.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
@@ -32,6 +32,12 @@ import { useOpsSprak } from "./OpsSprak.jsx";
  * `elementFromPoint` på fliken missade den. Huvudet och bottenraden får
  * pekarhändelser tillbaka, och ett tryck där stänger inte arket som ett
  * tryck utanför: flikens egen klick växlar eller navigerar.
+ *
+ * ⛔ HYLLAN LIGGER UNDER KROMET. Samma dag: arket ritades på `--z-modal` och
+ * klippte den upphöjda plusknappen, fast underkanten redan satt vid raden.
+ * Knappen bor i raden (`--z-chrome`). `arkHyllaZ` är `--z-ark`, under kromet,
+ * så pluset målar över kanten. En modal som täcker skärmen från underkanten
+ * stannar på `--z-modal`.
  *
  * ⛔ FOKUSFÄLLA, ESCAPE OCH ROLL ÄR RADIX. Samma skäl som Mer-arket: det är
  * lätt att glömma en av dem när man skriver dem själv.
@@ -138,7 +144,8 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
         <Dialog.Overlay
           className={cx(
             "fixed inset-x-0 top-0 z-(--z-scrim) bg-scrim",
-            "bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] md:bottom-0 md:top-[calc(var(--safe-top)+var(--topbar-height))]",
+            arkOvanforRad,
+            "md:bottom-0 md:top-[calc(var(--safe-top)+var(--topbar-height))]",
           )}
         />
         <Dialog.Content
@@ -172,9 +179,11 @@ export function OpsApparArk({ oppen, onOppen, moduler, grupp, farAndra, onOrdnin
           }}
           style={dragY > 0 ? { transform: `translateY(${dragY}px)` } : undefined}
           className={cx(
-            "fixed z-(--z-modal) flex flex-col outline-none",
+            "fixed flex flex-col outline-none",
+            arkHyllaZ,
             radBehallare({ ark: true }),
-            "inset-x-0 bottom-[calc(var(--bottom-nav-h)+var(--safe-bottom))] max-h-[min(24rem,70dvh)]",
+            "inset-x-0 max-h-[min(24rem,70dvh)]",
+            arkOvanforRad,
             "md:inset-x-auto md:bottom-auto md:left-1/2 md:top-[calc(var(--safe-top)+var(--topbar-height)+0.5rem)] md:w-[28rem] md:max-w-[calc(100vw-2rem)] md:-translate-x-1/2 md:rounded-b-card md:border",
             !reducerad && "motion-safe:transition-transform motion-safe:duration-200",
           )}

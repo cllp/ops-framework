@@ -18,6 +18,12 @@ CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-
 - **`OpsSkapaRubrik`.** En rubrik utan plus och utan knapp. `OpsSkapaPanel` (Ny händelse, Nytt ärende, Ny grupp) och läget nytt i Meddelanden använder den. Knappen "+ Nytt meddelande" står kvar i samtalslistan. Tillbaka står kvar.
 - **Bibliotekets Ny anteckning, Ny länk och Ny fil** hade redan en vanlig sidrubrik, och "+ Ny" ritas bara i listan. Kalenderns Ny kalender döljer plusknappen när formuläret är öppet.
 
+### Appar-hyllan ligger under plusknappen
+
+- **`--z-ark`.** App-arket slutar vid bottenradens överkant, men ritades på `--z-modal` och klippte den upphöjda plusknappen. En hylla som sitter på raden ligger under `--z-chrome`, så pluset målar över kanten. `arkHyllaZ` och `arkOvanforRad` i `radKlass` är den gemensamma klassen. Ark som täcker skärmen från underkanten (Skapa, Meny, aktivitet, Skapa i) stannar på `--z-modal`.
+
+---
+
 ---
 
 ## 0.90.4

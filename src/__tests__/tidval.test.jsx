@@ -70,4 +70,9 @@ describe("lagren", () => {
     expect(z("dropdown")).toBeLessThan(z("toast"));
     expect(z("overlay")).toBeLessThan(z("modal"));
   });
+  it("en hylla som sitter på bottenraden ligger under kromet och över dimningen", () => {
+    expect(z("ark")).toBeGreaterThan(z("scrim"));
+    expect(z("ark")).toBeLessThan(z("chrome"));
+    expect(z("chrome")).toBeLessThan(z("modal"));
+  });
 });

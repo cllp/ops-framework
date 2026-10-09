@@ -2325,6 +2325,9 @@ function OpsAppShellRitad({
         meny={meny ? { sprak, ...meny, app: [...flyttadeRader, ...(meny.app ?? [])] } : meny}
         ark={apparArk && apparHref ? { href: apparHref, oppen: arkOppen, onOppen: setArkOppen } : undefined}
       />
+      {/* Hyllan, inte en modal som täcker raden. Lagret är `--z-ark` inuti
+          OpsApparArk (`arkHyllaZ`), under kromet, så pluset i bottenraden
+          målar över hyllans kant. */}
       {apparArk && apparHref ? (
         <OpsApparArk
           oppen={arkOppen}
@@ -2373,6 +2376,8 @@ function OpsAppShellRitad({
         <Dialog.Root open={skapaBottenOppen} onOpenChange={setSkapaBottenOppen}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-(--z-overlay) bg-scrim md:hidden" />
+            {/* Modal från skärmens underkant, `--z-modal`. Den täcker raden med
+                flit. En hylla som ska lämna pluset synligt är `--z-ark`, se OpsApparArk. */}
             <Dialog.Content
               aria-describedby={undefined}
               className={cx("fixed inset-x-0 bottom-0 z-(--z-modal) flex max-h-[85dvh] flex-col pb-(--safe-bottom) md:hidden", radBehallare({ ark: true }))}
