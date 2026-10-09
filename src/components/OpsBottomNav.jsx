@@ -71,6 +71,7 @@ const MAX_IN_ROW_WITH_ACTION = 3;
  *   `meny.loggaUtEtikett`). Sheeten visar samma innehåll och i samma ordning som header-
  *   hamburgaren: appens sektioner, navigeringens överflödsrader, `menuExtras`, Logga ut, versionerna.
  *   `meny.rubrik` styr då även sheetens rubrikrad (annars `sheetLabel`).
+ * @param {{ href: string, oppen: boolean, onOppen: (oppen: boolean) => void }} [props.ark] (0.89.0) Fliken med det här href öppnar app-arket i stället för att navigera. Medan arket är öppet är den fliken den aktiva.
  */
 function OpsBottomNavRitad({
   nav,
@@ -85,6 +86,7 @@ function OpsBottomNavRitad({
   badgeText = ORD_OPSBOTTOMNAV.badgeText.sv,
   menuExtras,
   meny,
+  ark,
 }) {
   validateNav(nav, "OpsBottomNav");
   if (meny) validateMeny(meny, "OpsBottomNav");
@@ -162,10 +164,11 @@ function OpsBottomNavRitad({
     >
       <div className="mx-auto flex h-(--bottom-nav-h) max-w-md items-stretch">
         {inRow.slice(0, brytpunkt).map((entry) => (
-          <BottomLank
+          <BottomPost
             key={entry.href}
             entry={entry}
-            active={entryActive(entry, activeHref)}
+            activeHref={activeHref}
+            ark={ark}
             onClick={(/** @type {any} */ e) => klick(entry.href, e)}
             badgeText={badgeText}
           />
@@ -174,10 +177,11 @@ function OpsBottomNavRitad({
         {primaryAction ? <Huvudatgard atgard={primaryAction} /> : null}
 
         {inRow.slice(brytpunkt).map((entry) => (
-          <BottomLank
+          <BottomPost
             key={entry.href}
             entry={entry}
-            active={entryActive(entry, activeHref)}
+            activeHref={activeHref}
+            ark={ark}
             onClick={(/** @type {any} */ e) => klick(entry.href, e)}
             badgeText={badgeText}
           />
@@ -326,6 +330,37 @@ function platsKlass(active) {
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
     active ? "text-accent" : "text-ink-muted hover:text-ink-secondary",
   );
+}
+
+/**
+ * En flik, eller knappen som öppnar app-arket när href är arkets.
+ * Medan arket är öppet är den knappen den enda aktiva fliken. Adressen rörs inte,
+ * så när arket stängs är den tidigare fliken vald igen.
+ *
+ * @param {{ entry: import("../lib/nav.js").NavPost, activeHref: string, ark?: { href: string, oppen: boolean, onOppen: (oppen: boolean) => void }, onClick: (e: any) => void, badgeText: string }} props
+ */
+function BottomPost({ entry, activeHref, ark, onClick, badgeText }) {
+  const arArk = Boolean(ark && entry.href === ark.href);
+  const active = ark?.oppen ? arArk : entryActive(entry, activeHref);
+  if (arArk && ark) {
+    return (
+      <button
+        type="button"
+        aria-expanded={ark.oppen}
+        aria-controls="ops-appar-ark"
+        aria-current={active ? "page" : undefined}
+        onClick={() => ark.onOppen(!ark.oppen)}
+        className={platsKlass(active)}
+      >
+        <span className="relative inline-flex [&_svg]:size-6">
+          {entry.icon ?? <span className="inline-block size-6 rounded-full border-2 border-current" aria-hidden="true" />}
+          {typeof entry.badge === "number" ? <OpsCountBadge count={entry.badge} text={badgeText} placement="inline" /> : null}
+        </span>
+        <span className="max-w-full truncate text-liten">{entry.label}</span>
+      </button>
+    );
+  }
+  return <BottomLank entry={entry} active={active} onClick={onClick} badgeText={badgeText} />;
 }
 
 /**

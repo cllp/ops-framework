@@ -602,30 +602,43 @@ describe("OpsGruppFormular: ägaren väljer moduler", () => {
   });
 
   /*
-   * ⛔ 0.83.0: CP 2026-10-08 17:54, "det skall finnas en inställning om att ikon skall placeras i huvudmenyn". Röda mot
-   * 0.82.0: där fanns inget reglage och inget fält `huvudmeny` i sparningen.
+   * ⛔ 0.89.0: CP 2026-10-09. Pinnen ritas inte i gruppvyn. En installerad app med kort får en länk
+   * när appen ger en adress. Att välja en app sätter inte huvudmenyn.
    */
-  it("under en vald app med kort står reglaget Visa i huvudmenyn, och valet sparas som en delmängd av modulerna", async () => {
+  it("gruppvyn har ingen pinne, och en installerad app med kort kan länka till inställningarna", async () => {
     const onSpara = vi.fn(async () => {});
-    const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: [] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
+    const onNavigate = vi.fn((_h, e) => e.preventDefault());
+    const { container } = render(
+      <OpsGruppFormular
+        grupp={{ ...GRUPP, moduler: [] }}
+        onSpara={onSpara}
+        moduler={{
+          valbara: valbaraModuler(moduler()),
+          agare: true,
+          installningarHref: (m) => (m.hubb ? `${m.hubb.rutt}?lage=installningar` : ""),
+          onNavigate,
+        }}
+      />,
+    );
     expect(screen.queryByRole("switch", { name: "Visa i huvudmenyn" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Inställningar" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ekonomi" }));
     fireEvent.click(screen.getByRole("button", { name: "Inkorg" }));
-    // Inkorg har inget kort (hubb: null) och alltså ingen ikon att visa: ett reglage, för Ekonomi.
-    const reglage = screen.getAllByRole("switch", { name: "Visa i huvudmenyn" });
-    expect(reglage).toHaveLength(1);
-    expect(container.querySelector('[data-huvudmeny="ekonomi"]')).not.toBeNull();
-    fireEvent.click(reglage[0]);
-    expect(reglage[0]).toBeChecked();
+    const lank = screen.getByRole("link", { name: "Inställningar" });
+    expect(lank.getAttribute("href")).toBe("/ekonomi?lage=installningar");
+    expect(container.querySelector('[data-modul-installningar="ekonomi"]')).not.toBeNull();
+    expect(container.querySelector('[data-modul-installningar="inkorg"]')).toBeNull();
+    fireEvent.click(lank);
+    expect(onNavigate).toHaveBeenCalledWith("/ekonomi?lage=installningar", expect.anything());
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
     await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());
-    expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp).toMatchObject({ moduler: ["ekonomi", "inkorg"], huvudmeny: ["ekonomi"] });
+    expect(/** @type {any} */ (onSpara.mock.calls[0])[0].grupp).toMatchObject({ moduler: ["ekonomi", "inkorg"], huvudmeny: [] });
   });
 
   it("⛔ en app som väljs bort tas ur huvudmenyn i samma sparning", async () => {
     const onSpara = vi.fn(async () => {});
     const { container } = render(<OpsGruppFormular grupp={{ ...GRUPP, moduler: ["ekonomi", "resor"], huvudmeny: ["ekonomi", "resor"] }} onSpara={onSpara} moduler={{ valbara: valbaraModuler(moduler()), agare: true }} />);
-    expect(screen.getAllByRole("switch", { name: "Visa i huvudmenyn" }).every((r) => /** @type {HTMLInputElement} */ (r).checked)).toBe(true);
+    expect(screen.queryByRole("switch", { name: "Visa i huvudmenyn" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Ekonomi" }));
     fireEvent.submit(/** @type {HTMLFormElement} */ (container.querySelector("form")));
     await vi.waitFor(() => expect(onSpara).toHaveBeenCalled());

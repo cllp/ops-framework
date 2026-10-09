@@ -9,6 +9,31 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.89.0
+
+CP 2026-10-09, med en bild av Outlook på telefonen: ett tryck på Appar ska öppna ett ark ovanför flikraden, inte en ny sida. Samma dag: varje modul ska ha en ram med visning och inställningar, och inställningarna ska bo på ett ställe. Pinnen, ikonen, synligheten, kopplingarna och de egna fälten ritas i modulens ram. Redigera grupp, Appar, installerar och avinstallerar.
+
+Ingen utgivning i det här passet. Appen pinnar kvar på 0.88.2 tills den tar in 0.89.0.
+
+### App-arket
+
+- **`OpsApparArk` och `apparArk` på `OpsAppShell`.** Utan propen navigerar Appar som förut. Med den är fliken en knapp. Arket dimmar innehållet, har ett handtag, och stängs med dimningen, ett drag nedåt, Escape eller ett nytt tryck på Appar. Appar lyser medan det är öppet. När det stängs är fliken man stod på vald igen, eftersom adressen inte byttes. Huvudet och bottenraden får pekarhändelser tillbaka: en modal sätter annars `pointer-events: none` på `body`, och då är fliken död fast den syns.
+- **Innehållet är gruppens `moduler`**, fyra i bredd, också de som är fästa. Sista rutan är Alla appar och öppnar hubbsidan. Byt ordning, för ägare och admin, sparar hela `groups.moduler`. Ett långt tryck, ett kontexttryck eller skift-enter öppnar modulen med `?lage=installningar`.
+- **På `md` och uppåt är samma innehåll en panel under huvudet.** Bottenraden finns inte där.
+
+### Modulramen
+
+- **`OpsModulRam`.** `OpsModulSida`, `OpsBibliotek` och `OpsMeddelanden` tar `ram`. Kugghjulet sitter till höger i rubrikraden när `farAndra` är sant. Rubriken blir "Ekonomi · Inställningar", och kugghjulet blir Klar. En medlem som öppnat läget via adressen ser Klar och avstängda reglage.
+- **Allmänt** skriver på och av (`groups.moduler`), Visa i huvudmenyn (`groups.huvudmeny`) och ordningen. Ikonen visas, den sparas inte en gång till. Synligheten är texten som följer av de två fälten.
+- **Kopplingar** deklareras i manifestet (`kopplingar`: id, namn, hint, behörigheter). Läget skickar appen in: ansluten, ej ansluten eller fel, senaste synk och feltext. En nyckel, en token eller ett lösenord kastas i manifestet och kopieras inte ur läget. Lagringen är appens, i identitetens valv. Ramverket har ingen egen samling för hemligheter.
+- **Egna inställningar** är manifestets `installningar` och därefter `ram.egna`. Saknas båda står det att det inte finns några.
+- **`LAGE_PARAM`, `INSTALLNINGSLAGE`, `arInstallningslage`, `medInstallningslage`, `utanInstallningslage`.** Läget ligger i adressen så arket och kugghjulet delar en väg, och webbläsarens tillbaka lämnar det.
+- **`OpsModulInstallningar` ritar inte längre reglagen.** `onSpara`, `onSparaHuvudmeny` och `sparade` kastas. `hrefFor` ger länken Inställningar. Utan adress står det att inställningarna öppnas i appen.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras. Ordning och pinne ligger kvar på `groups.moduler` och `groups.huvudmeny`, ägarfält som i 0.83.0. En admin som appen släpper in i ytan (`farAndra`) får ändå avslag av reglerna tills de vidgas. Förslaget, inte gjort här: en admin får uppdatera `moduler` när mängden id är densamma. De egna fälten ligger kvar i samlingen appen namnger, ägaren skriver. Hemligheter ligger kvar i identitetens valv.
+
 ## 0.88.2
 
 CP 2026-10-09, telefon, grupp "my": inspelningen syntes som en liten rad, ett sparat ljud sade "Filen har ingen adress.", och Meddelanden saknades i huvudet (tema, inkorg, Bibliotek, avatar).

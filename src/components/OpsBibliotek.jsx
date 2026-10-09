@@ -4,6 +4,7 @@ import { FileText, Image as BildIkon, Library, Link, Music, Pause, Play, Plus, S
 import { ADRESSFORM, BIBLIOTEKTYPER, IDE_MAX_SEKUNDER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { TalkPrickar, useTalk } from "./OpsTalk.jsx";
 import { cx } from "../lib/cx.js";
+import { arInstallningslage } from "../lib/apparark.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { OpsButton, knappKlass } from "./OpsButton.jsx";
@@ -14,6 +15,7 @@ import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
+import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 
 /**
@@ -100,13 +102,20 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
+ * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: listan som förut, utan kugghjul.
+ * @param {string} [props.activeHref] (0.89.0) Krävs tillsammans med `ram` och `modul`. `?lage=installningar` visar inställningarna.
+ * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek" }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek", ram = null, activeHref, modul = null }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
   if (typeof hubHref !== "string" || hubHref === "") {
     throw new Error("OpsBibliotek: hubHref krävs (0.83.0), hubbens adress. Sidan har Ekonomis tillbaka-rad, och en rad som inte vet vart den leder är en knapp som inte gör något.");
+  }
+  kravRam(ram, "OpsBibliotek");
+  if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul)) {
+    throw new Error("OpsBibliotek: ram kräver activeHref och modul. Inställningsläget behöver adressen och appens manifest.");
   }
   const sprak = useOpsSprak();
   const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "fil"} */ ("alla"));
@@ -124,11 +133,25 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     fil: poster.filter((p) => p.typ === "fil").length,
   };
   const synliga = filtreraBibliotek(poster, { flik, sok });
+  const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
+  if (installningar && modul) {
+    return (
+      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={hubHref} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram}>
+        {null}
+      </OpsModulRam>
+    );
+  }
+  const visaKnapp = Boolean(ram && ram.farAndra);
+  const listTillbaka = {
+    ...modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId }),
+    ...(visaKnapp ? { atgard: <ModulLageKnapp ram={ram} activeHref={/** @type {string} */ (activeHref)} onNavigate={onNavigate} sprak={sprak} installningar={false} /> } : {}),
+  };
 
   // ⛔ DETALJEN HAR SIN EGEN TILLBAKA, TILL LISTAN. Två "Tillbaka" på samma sida, en till hubben och en till listan, hade
   // lämnat läsaren att gissa vilken som är vilken. Knappen är `TillbakaKnapp`, inte en egen spökknapp.
+  // Inställningsläget vinner över detaljen: länken från arket öppnar inställningarna, inte posten.
   return (
-    <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId })}>
+    <OpsView tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
           <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
