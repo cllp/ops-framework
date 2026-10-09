@@ -7,7 +7,7 @@ import { OpsGruppSida } from "../components/OpsGruppSida.jsx";
 import { OpsMeddelanden } from "../components/OpsMeddelanden.jsx";
 import { createMemorySource } from "../data/adapters.js";
 import { createSamtalskalla } from "../data/samtalskalla.js";
-import { AGENTER_ID, agentIHref, agentInstallningsHref, medAgent } from "../lib/agenter.js";
+import { AGENTER_ID, agentIHref, agentInstallningsHref, medAgent, modulerIAppar, utanAgenterSomApp } from "../lib/agenter.js";
 import { arkRader } from "../lib/apparark.js";
 import { validateModuler } from "../lib/modul.js";
 
@@ -68,11 +68,18 @@ describe("adressen till en agents inställningar", () => {
     const m = modul();
     expect(m.id).toBe("agenter");
     expect(m.samlingar).toEqual([]);
-    expect(m.hubb?.rutt).toBe("/agenter");
+    expect(m.hubb).toBeNull();
     expect(m.installningar).toEqual([]);
     expect(m.kopplingar).toEqual([]);
-    const rader = arkRader({ moduler: ["agenter"], huvudmeny: [] }, [m]);
-    expect(rader.map((r) => r.id)).toEqual(["agenter"]);
+    const rader = arkRader({ moduler: ["agenter", "ekonomi"], huvudmeny: ["agenter"] }, [m, { id: "ekonomi", namn: { sv: "Ekonomi" }, hubb: { rutt: "/ekonomi", ikon: null } }]);
+    expect(rader.map((r) => r.id)).toEqual(["ekonomi"]);
+    expect(utanAgenterSomApp({ moduler: ["meddelanden", "agenter"], huvudmeny: ["agenter", "meddelanden"] })).toEqual({
+      moduler: ["meddelanden"],
+      huvudmeny: ["meddelanden"],
+    });
+    expect(utanAgenterSomApp({ moduler: ["ekonomi"], huvudmeny: null })).toEqual({ moduler: ["ekonomi"], huvudmeny: null });
+    expect(utanAgenterSomApp(null)).toEqual({ moduler: [], huvudmeny: null });
+    expect(modulerIAppar([m, { id: "ekonomi" }]).map((x) => x.id)).toEqual(["ekonomi"]);
   });
 });
 
@@ -227,7 +234,8 @@ describe("OpsAgenter", () => {
     kunskap.unmount();
 
     rita({ activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=modell", ...falt });
-    expect(screen.getByText("Valvets nycklar")).toBeTruthy();
+    expect(screen.queryByText("Valvets nycklar")).toBeNull();
+    expect(screen.getByRole("link", { name: "Hantera nycklar i Mitt konto" }).getAttribute("href")).toBe("/konto/nycklar");
     expect(screen.getByText("Välj den modell agenten ska svara med.")).toBeTruthy();
     expect(screen.getByText("Appens modell.")).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: /GPT-4.1 mini/ }));
@@ -326,21 +334,33 @@ describe("OpsAgenter", () => {
       modell: null,
       byok: null,
     });
-    expect(screen.getByText("Nycklarna är inte kopplade i appen.")).toBeTruthy();
+    expect(screen.getByText("Adressen till Mitt konto är inte kopplad.")).toBeTruthy();
   });
 
-  it("Appar visar modulen när gruppen har den", () => {
+  it("Appar ritar inte Agenter, också när gruppen fortfarande har id:t", () => {
     render(
       <OpsApparArk
         oppen
         onOppen={() => {}}
-        moduler={[modul()]}
+        moduler={modulerIAppar([modul()])}
         grupp={{ moduler: ["agenter"] }}
         farAndra={false}
         allaHref="/hub"
       />,
     );
-    expect(within(screen.getByRole("dialog")).getByRole("link", { name: "Agenter" }).getAttribute("href")).toBe("/agenter");
+    expect(within(screen.getByRole("dialog")).queryByRole("link", { name: "Agenter" })).toBeNull();
+  });
+
+  it("i gruppens inställningar ritas listan utan modulramen", () => {
+    rita({
+      inomInstallningar: true,
+      activeHref: "/installningar/agenter?agent=ops&lage=installningar",
+      installning: { namn: "Ops", roll: "Assistent" },
+      kanVaxla: true,
+    });
+    expect(screen.getByText("Assistent")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Ops · Inställningar" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Klar" })).toBeNull();
   });
 });
 
@@ -367,22 +387,21 @@ describe("gruppvyn länkar, och formuläret har inga agentfält", () => {
     expect(() => render(<OpsGruppSida grupp={G} agenterHref="" />)).toThrow(/agenterHref/);
   });
 
-  it("redigera grupp länkar till Agenter och har varken roll eller modell", () => {
+  it("redigera grupp har varken Agenter, roll eller modell", () => {
     render(
       <OpsGruppFormular
         formId="f"
         grupp={{ id: "g1", namn: { sv: "Gruppen", en: "Gruppen" }, moduler: ["agenter"] }}
         onSpara={vi.fn(async () => {})}
         moduler={{
-          valbara: [modul()],
+          valbara: modulerIAppar([modul()]),
           agare: true,
           installningarHref: (m) => `/${m.id}?lage=installningar`,
         }}
       />,
     );
-    const lank = screen.getByRole("link", { name: "Inställningar" });
-    expect(lank.getAttribute("data-modul-installningar")).toBe("agenter");
-    expect(lank.getAttribute("href")).toBe("/agenter?lage=installningar");
+    expect(screen.queryByRole("link", { name: "Inställningar" })).toBeNull();
+    expect(document.body.textContent).not.toContain("Agenter");
     expect(screen.queryByLabelText("Roll")).toBeNull();
     expect(screen.queryByText("Modell")).toBeNull();
   });
