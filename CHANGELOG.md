@@ -9,6 +9,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.6
+
+CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-huvudet och såg ut som en knapp till. Ingen utgivning i det här passet. Appen pinnar inte om.
+
+### Skapa-vyn har en vanlig rubrik
+
+- **`OpsSkapaRubrik`.** En rubrik utan plus och utan knapp. `OpsSkapaPanel` (Ny händelse, Nytt ärende, Ny grupp) och läget nytt i Meddelanden använder den. Knappen "+ Nytt meddelande" står kvar i samtalslistan. Tillbaka står kvar.
+- **Bibliotekets Ny anteckning, Ny länk och Ny fil** hade redan en vanlig sidrubrik, och "+ Ny" ritas bara i listan. Kalenderns Ny kalender döljer plusknappen när formuläret är öppet.
+
+---
+
 ## 0.90.4
 
 CP: en anteckning i Biblioteket öppnades som fält (Rubrik, Text) med Spara och en stor röd Radera. Öppning är läsning. Redigera byter till fält med Spara och Avbryt. Radering ligger i menyn, med en fråga, och i ett svep åt vänster med ångra.
