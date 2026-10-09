@@ -47,8 +47,26 @@ function Yta() {
   const [skapar, setSkapar] = useState(null);
   const start = window.__bibliotek || "lista";
   if (start === "plus") {
+    const bibliotek = Ops.validateModuler([{
+      id: "bibliotek",
+      namn: { sv: "Bibliotek", en: "Library" },
+      nav: [],
+      routes: [],
+      samlingar: [],
+      kallor: {},
+      skapar: [],
+      hubb: null,
+      tillagg: [{ plats: "inspelning.mal", id: "spara", etikett: { sv: "Spara i Biblioteket", en: "Save in the library" }, spara: () => {} }],
+    }]);
+    const inspelare = { starta: async () => {}, stoppa: async () => ({ blob: new Blob(["a"]), mimeType: "audio/webm", sekunder: 1 }), kasta: () => {}, niva: () => 0.4 };
     return (
-      <Ops.OpsAppShell brand="LifeHub" nav={[{ href: "/", label: "Start" }]} activeHref="/" skapa={{ spelaIn: () => {} }}>
+      <Ops.OpsAppShell
+        brand="LifeHub"
+        nav={[{ href: "/", label: "Start" }]}
+        activeHref="/"
+        talk={{ onTalk: () => {}, inspelare, mal: [{ id: "handelse", etikett: "Händelse" }, { id: "meddelande", etikett: "Meddelande" }] }}
+        skapa={{ lage: "cps-ab", moduler: bibliotek, aktivGrupp: { id: "cps-ab", moduler: ["bibliotek"] } }}
+      >
         <p>Bibliotek</p>
       </Ops.OpsAppShell>
     );

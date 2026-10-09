@@ -9,6 +9,36 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.8
+
+CP vill ha en ljudspelare, samma för allt ljud: Bibliotekets inspelningar, chattens röstfiler och bilagor, och vilken ljudfil som helst. Förebilden är SessionStudios spelare (`InlineAudioPlayer`, `WebFullscreenAudioPlayer`, den delade räknaren). Utges som 0.90.8, efter 0.90.7.
+
+### En spelare
+
+- **`OpsLjudspelare`.** Våg med spolning, spela och pausa, förfluten tid och total tid, hopp tio sekunder, hastighet 1×, 1,25×, 1,5× och 2×, väntan och fel i ord. Reglaget under vågen är ett riktigt `input type=range`, så piltangenter, pekare och skärmläsare delar en kontroll. Knapparna är 44 px. En spelare i taget: den som startar pausar de andra.
+- **Storage.** `src` är en färdig adress. `sokvag` och `hamtaAdress` hämtar den, samma kontrakt som `createFirebaseStorageSource.adress` (`getDownloadURL`). `src` vinner när båda finns, så Bibliotekets cache inte hämtar två gånger. Medan adressen hämtas står "Hämtar ljudet." Ett fel från anropet skrivs ut.
+- **`isAudio`.** Samma fråga som `isImage`, för en fil man just valde och för en bilaga ur databasen.
+
+### Där ljudet redan fanns
+
+- **Biblioteket** ritar `OpsLjudspelare` i listan och i detaljen. Den lokala spelaren med enbart knapp och tid är borta. `hamtaAdress` och "Hämtar ljudet." står kvar.
+- **Chattens och kommentarernas bilagor** spelar ett ljud i stället för att bara vara en nedladdningslänk. PDF och övriga filer är länkar som förut. Tillåtna ljudtyper: WebM (också `codecs=opus`, det inspelaren rapporterar), MP4, MPEG, Ogg och WAV. Regeln är byggd av samma lista.
+
+### Regler och funktioner
+
+`KOMMENTARBILAGA_TYPER` innehåller ljudtyperna, så `handelseregelfragment` och `samtalsregelfragment` släpper in dem. Inga funktioner ändras. Appen som redan rullat ut reglerna behöver skriva om dem innan ett ljud går att spara. Att läsa ett gammalt dokument ändras inte.
+
+### Inspelningen
+
+CP 2026-10-09, med en skärmbild av röstfältet (prickar, mikrofon, rött kryss): efter stopp syntes ingen sparning, och det var oklart hur man slutar.
+
+- **`OpsInspelning` är den enda inspelaren.** Den ritas i plussets fält. Bibliotekets lista har ingen inspelningsrad. Ny-menyn under Alla har Röstinspelning, som öppnar samma fält (`useOppnaInspelning`) med modulens mål på `inspelning.mal` förvalt. `onSpelaIn` kastas. Ett ljud som redan finns spelas med `OpsLjudspelare`. Klar, med stopp-ruta och ordet, sparar. Tiden löper. Vågen rör sig. Avbryt är ett sekundärt kryss. Från tre sekunder frågar Avbryt innan ljudet kastas. Fältet fälls inte ned. Plusset har taket 2:00.
+- **Mål i plussets inspelare.** `talk.mal` är appens egna, till exempel Händelse och Meddelande. En påslagen moduls tillägg på platsen `inspelning.mal` läggs till (`malForInspelning`, `INSPELNING_PLATSER`). Etiketten är modulens, till exempel "Spara i Biblioteket", och `spara` tar emot ljudet. En avstängd modul bidrar inte. Ramverket känner inte namnet Bibliotek. `skapa.spelaIn` kastas: den raden hårdkodade målet.
+- **Sparar…** med procent när appen anropar `rapportera` (0 till 1, samma kvot som `bytesTransferred / totalBytes` i `uploadBytesResumable`). Utan anrop en snurra. Sedan **Sparat**, kort, sedan stängs fältet. Ett fel får Försök igen på samma ljud. Ett andra tryck under sparningen gör inget.
+- Huvudets mikrofon heter "TALK, sparar" och "TALK, sparat" i de lägena.
+
+---
+
 ## 0.90.7
 
 Kalenderlager i `OpsCalendar`: en plockare där personen visar och döljer lager ett och ett. SessionStudio har mönsterlager (återkommande, datumintervall, enstaka dagar) under användaren, med färg och ikon, och en meny under lagerikonen. Egna lager sparas påslaget på dokumentet. Andras delade lager är av tills personen slår på dem på enheten. Prenumererade kalendrar syns tills de döljs, också på enheten. Helgdagar är inte ett lager där. Gruppens och mina kalendrar väljs i kalenderväljaren, inte i lagermenyn.

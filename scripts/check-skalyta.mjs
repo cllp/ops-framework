@@ -5670,16 +5670,18 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK 390 px", { width: 390, he
     krav(m.l >= 0 && m.r <= vp.width && m.b <= vp.height, `${namn}: fältet går utanför skärmen (${m.l.toFixed(0)}..${m.r.toFixed(0)}, botten ${m.b.toFixed(0)}).`);
     if (m.navTopp !== null) krav(m.b <= m.navTopp, `${namn}: fältet slutar på ${m.b.toFixed(0)} och bottenraden börjar på ${m.navTopp.toFixed(0)}. Fältet ska stå ovanför.`);
     if (vp.width < 768) krav(m.navTopp !== null, `${namn}: ingen bottenrad hittades på telefon.`);
-    krav(["Inställningar för TALK", "Skicka", "Avbryt"].every((n) => m.knappar.some((k) => k.namn === n)), `${namn}: knapparna är ${JSON.stringify(m.knappar.map((k) => k.namn))}, väntat kugghjul, Skicka och Avbryt.`);
+    krav(["Inställningar för TALK", "Klar, spara inspelningen", "Avbryt"].every((n) => m.knappar.some((k) => k.namn === n)), `${namn}: knapparna är ${JSON.stringify(m.knappar.map((k) => k.namn))}, väntat kugghjul, Klar och Avbryt.`);
     krav(m.knappar.every((k) => k.w >= 43.5 && k.h >= 43.5), `${namn}: en knapp i fältet är mindre än 44 px (${JSON.stringify(m.knappar)}).`);
     krav(m.prickar >= 10, `${namn}: ${m.prickar} prickar, väntat minst 10.`);
     krav(m.scroll <= m.klient, `${namn}: sidan flödar i sidled, scrollWidth ${m.scroll} > clientWidth ${m.klient}.`);
     if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-falt-${vp.width}.png`) });
-    await page.getByRole("button", { name: "Skicka" }).click();
-    await page.waitForTimeout(250);
-    const skickat = await page.evaluate(() => ({ talk: window.__talk, kvar: !!document.querySelector("[data-ops-talk]") }));
+    await page.getByRole("button", { name: "Klar, spara inspelningen" }).click();
+    await page.waitForFunction(() => Array.isArray(window.__talk) && window.__talk.length === 1);
+    const underSpar = await page.locator("[data-ops-talk]").innerText();
+    krav(/Sparat|Sparar/.test(underSpar), `${namn}: efter Klar stod det ${JSON.stringify(underSpar)}, väntat Sparar eller Sparat.`);
+    await page.waitForSelector("[data-ops-talk]", { state: "detached", timeout: 4000 });
+    const skickat = await page.evaluate(() => ({ talk: window.__talk }));
     krav(skickat.talk.length === 1 && skickat.talk[0].mimeType === "audio/webm", `${namn}: appen fick ${JSON.stringify(skickat.talk)}, väntat ett ljud.`);
-    krav(!skickat.kvar, `${namn}: fältet står kvar efter Skicka.`);
   } catch (e) {
     krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
   }
@@ -6339,7 +6341,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
       krav(under.lage === "lyssnar" && under.namn === "TALK, lyssnar", `${namn}: knappen säger ${under.lage} och ${JSON.stringify(under.namn)} medan den lyssnar, väntat lyssnar och "TALK, lyssnar".`);
       krav(!!under.knapp && under.knapp.bakgrund === under.raised, `${namn}: knappens bakgrund är ${under.knapp?.bakgrund} medan den lyssnar, väntat --color-raised (${under.raised}): läget ska synas.`);
       if (bildmapp) await page.screenshot({ path: path.join(bildmapp, `talk-knapp-lyssnar-${vp.width}.png`) });
-      await page.getByRole("button", { name: "Skicka" }).click();
+      await page.getByRole("button", { name: "Klar, spara inspelningen" }).click();
       await page.waitForTimeout(250);
       const skickat = await page.evaluate(() => /** @type {any} */ (window).__talk);
       krav(skickat.length === 1 && skickat[0].mimeType === "audio/webm", `${namn}: appen fick ${JSON.stringify(skickat)}, väntat ett ljud.`);

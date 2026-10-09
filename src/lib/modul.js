@@ -64,7 +64,7 @@ const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar
  * ⛔ INGA PROPS. Komponenten får `{ handelse, grupp }` av ytan och inget annat, och ett fält som lät manifestet skicka egna värden
  * hade gjort tillägget till något ytan inte längre kan uttala sig om.
  */
-const TILLAGGSFALT = ["plats", "id", "etikett", "komponent"];
+const TILLAGGSFALT = ["plats", "id", "etikett", "komponent", "spara"];
 
 /**
  * Fälten modulens kort i hubben får bära (0.37.0, #184).
@@ -141,7 +141,8 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {string} plats En av ramverkets platser (`HANDELSE_PLATSER`).
  * @property {string} id Maskinnyckeln. Unik inom modulen.
  * @property {{ sv: string, en: string }} etikett Det användaren ser: sektionens rubrik, åtgärdens namn. Båda språken krävs.
- * @property {unknown} komponent Komponenten ytan ritar med `{ handelse, grupp }`. En referens, se filhuvudet om väg A.
+ * @property {unknown} [komponent] Komponenten ytan ritar med `{ handelse, grupp }`. Krävs på händelsens platser. Hör inte hemma på `inspelning.mal`.
+ * @property {Function} [spara] Funktionen som tar emot ljudet på `inspelning.mal`: `({ blob, mimeType, sekunder, rapportera, grupp })`. Krävs där, och ingen annanstans.
  */
 
 /**
@@ -532,6 +533,23 @@ function byggTillagg(varde, var_) {
         `måste vara { sv, en } med båda språken, och ${!sv && !en ? "båda saknas" : !sv ? "sv saknas" : "en saknas"}. Ett tillägg är nytt och har ingen gammal form att tåla.`,
       );
     }
+    const etikett = Object.freeze({ sv, en });
+    if (plats === "inspelning.mal") {
+      if (t.komponent !== undefined) {
+        throw var_(`tillagg[${i}].komponent för "${tid}"`, "hör inte hemma på inspelning.mal. Platsen tar emot spara, och ramverket ritar valet. En komponent här hade varit en andra yta för samma mål.");
+      }
+      if (typeof t.spara !== "function") {
+        throw var_(
+          `tillagg[${i}].spara för "${tid}"`,
+          `krävs och måste vara en funktion${typeof t.spara === "undefined" ? "" : `, inte ${typeof t.spara}`}. Den anropas med { blob, mimeType, sekunder, rapportera, grupp } när personen väljer målet.`,
+        );
+      }
+      ut.push(Object.freeze({ plats, id: tid, etikett, spara: t.spara }));
+      return;
+    }
+    if (t.spara !== undefined) {
+      throw var_(`tillagg[${i}].spara för "${tid}"`, "hör bara hemma på platsen inspelning.mal. En händelseplats ritar en komponent.");
+    }
     if (t.komponent === undefined || t.komponent === null) {
       throw var_(`tillagg[${i}].komponent för "${tid}"`, "krävs. Ramverket äger platsen, modulen äger det som ritas i den, och ett tillägg utan komponent är en tom sektion.");
     }
@@ -542,7 +560,7 @@ function byggTillagg(varde, var_) {
     if (typeof t.komponent !== "function" && (typeof t.komponent !== "object" || Array.isArray(t.komponent))) {
       throw var_(`tillagg[${i}].komponent för "${tid}"`, `måste vara en React-komponent, alltså en funktion eller ett objekt från memo eller forwardRef, och ${typeof t.komponent === "object" ? "en lista" : `en ${typeof t.komponent === "string" ? "sträng" : typeof t.komponent}`} går inte att rita.`);
     }
-    ut.push(Object.freeze({ plats, id: tid, etikett: Object.freeze({ sv, en }), komponent: t.komponent }));
+    ut.push(Object.freeze({ plats, id: tid, etikett, komponent: t.komponent }));
   });
   return Object.freeze(ut);
 }

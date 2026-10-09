@@ -263,8 +263,29 @@ export const MAX_HANDELSEKOMMENTAR = 5000;
  * Bilder krymps till `image/jpeg` av `readAttachment`, så en PNG eller en HEIC som webbläsaren kan läsa landar som JPEG. Listan och
  * taket står både här och i den genererade regeln (`handelseregelfragment`), ur samma konstanter.
  */
-/** MIME-typerna en kommentarsbilaga får ha. Utan regextecken, eftersom regeln bygger sitt mönster ur typen. */
-export const KOMMENTARBILAGA_TYPER = /** @type {const} */ (["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf", "text/plain", "text/csv"]);
+/**
+ * MIME-typerna en kommentarsbilaga får ha. Utan regextecken, eftersom regeln bygger sitt mönster ur typen.
+ *
+ * ⛔ LJUD (0.90.8). Samma fråga som Bibliotekets filer: ett ljud ska gå att spela, inte bara laddas ned.
+ * Codec-varianterna är de `MediaRecorder` faktiskt rapporterar (`audio/webm;codecs=opus`). Data-URL:ens prefix
+ * måste vara exakt typen, så en bas-typ ensam hade nekat rösten från samma inspelare ramverket redan använder.
+ */
+export const KOMMENTARBILAGA_TYPER = /** @type {const} */ ([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "text/csv",
+  "audio/webm",
+  "audio/webm;codecs=opus",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/ogg",
+  "audio/ogg;codecs=opus",
+  "audio/wav",
+]);
 
 /**
  * Tak för bilagans data-URL i tecken. Ett Firestore-dokument tar 1 MiB, och 700 000 tecken plus en text på 5 000 ryms med marginal.
@@ -313,7 +334,7 @@ export function kommentarbilagaFel(bilaga) {
   const saknas = KOMMENTARBILAGA_KRAV.filter((k) => !(k in b));
   if (saknas.length) return `bilagan saknar ${saknas.join(", ")}.`;
   if (typeof b.typ !== "string" || !(/** @type {readonly string[]} */ (KOMMENTARBILAGA_TYPER)).includes(b.typ)) {
-    return `filtypen ${b.typ ? `"${b.typ}"` : "saknas och"} går inte att bifoga. Tillåtna: bilder (JPEG, PNG, WebP, GIF), PDF, text och CSV.`;
+    return `filtypen ${b.typ ? `"${b.typ}"` : "saknas och"} går inte att bifoga. Tillåtna: bilder (JPEG, PNG, WebP, GIF), ljud (WebM, MP4, MPEG, Ogg, WAV), PDF, text och CSV.`;
   }
   if (typeof b.dataUrl !== "string" || !b.dataUrl.startsWith(`data:${b.typ};base64,`)) return "bilagans innehåll stämmer inte med dess typ.";
   if (b.dataUrl.length > MAX_KOMMENTARBILAGA) return `filen är för stor (${b.dataUrl.length} tecken, taket är ${MAX_KOMMENTARBILAGA}).`;

@@ -64,6 +64,19 @@ export function isImage(kind) {
 }
 
 /**
+ * Är det här ett ljud?
+ *
+ * ⛔ Samma skäl som `isImage`: frågan ställs både om en fil man just valde och om
+ * en bilaga ur databasen. En andra funktion i Bibliotek och en tredje i chatten
+ * hade svarat olika den dag en typ lades till.
+ *
+ * @param {string} kind
+ */
+export function isAudio(kind) {
+  return typeof kind === "string" && kind.startsWith("audio/");
+}
+
+/**
  * Ungefär hur stor en LAGRAD bilaga är, utifrån vad den kostar i dokumentet.
  *
  * ⛔ FINNS FÖR ATT `CHARS_PER_BYTE` INTE SKA STÅ I EN APP. En bilaga lagrar

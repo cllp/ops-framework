@@ -235,6 +235,11 @@ describe("kommentarens bilaga: modellen", () => {
     expect(kommentarbilagaFel(bild({ url: "https://x" }))).toMatch(/url/);
     expect(kommentarbilagaFel(bild({ tecken: 1 }))).toMatch(/storlek/);
     expect(kommentarbilagaFel(bild())).toBeNull();
+    const ljud = "data:audio/webm;base64,AAA";
+    expect(kommentarbilagaFel({ dataUrl: ljud, namn: "ide.webm", typ: "audio/webm", tecken: ljud.length })).toBeNull();
+    const rost = "data:audio/webm;codecs=opus;base64,AAA";
+    expect(kommentarbilagaFel({ dataUrl: rost, namn: "rost.webm", typ: "audio/webm;codecs=opus", tecken: rost.length })).toBeNull();
+    expect(kommentarbilagaFel({ dataUrl: "data:audio/flac;base64,AAA", namn: "a.flac", typ: "audio/flac", tecken: "data:audio/flac;base64,AAA".length })).toMatch(/går inte att bifoga/);
   });
   it("regeln bär samma typer och samma tak som modellen", () => {
     const r = handelseregelfragment();

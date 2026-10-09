@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { FileText, Image as BildIkon, Library, Link, Music, Pause, Play, Plus, StickyNote } from "lucide-react";
+import { FileText, Image as BildIkon, Library, Link, Music, Plus, StickyNote } from "lucide-react";
 import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
 import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, IDE_MAX_SEKUNDER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
-import { TalkPrickar, useTalk } from "./OpsTalk.jsx";
+import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
 import { arInstallningslage } from "../lib/apparark.js";
 import { modulTillbaka } from "../lib/modulram.js";
 import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { OpsButton, knappKlass } from "./OpsButton.jsx";
-import { MikrofonIkon } from "./icons.jsx";
+import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsList } from "./OpsList.jsx";
@@ -99,8 +99,8 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
- * @param {(inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [props.onSpelaIn] Sparar en idé. Saknas funktionen ritas ingen mikrofon: en rad som kastar "inte kopplad" efter inspelningen ser ut som att ljudet sparades.
- * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Samma valfria inspelare som TALK. Utelämnad används webbläsarens. Appen skickar den när den redan har en.
+ * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
+ * @param {unknown} [props.inspelare] Borttagen tillsammans med listans inspelare. Skickas den kastas ett fel.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt] Ber servern om en utskrift. Felet visas, också ett dygnstak.
@@ -124,8 +124,13 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul)) {
     throw new Error("OpsBibliotek: ram kräver activeHref och modul. Inställningsläget behöver adressen och appens manifest.");
   }
+  if (onSpelaIn !== undefined || inspelare !== undefined) {
+    throw new Error("OpsBibliotek: inspelningen i listan är borta. Röstinspelning i Ny-menyn öppnar skalets inspelare, med målet förvalt till modulens inspelning.mal.");
+  }
   const sprak = useOpsSprak();
+  const oppnaInspelning = useInspelningOppnare();
   const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "fil"} */ ("alla"));
+  const [rostFel, setRostFel] = useState("");
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
   const [startLage, setStartLage] = useState(/** @type {"las" | "redigera"} */ ("las"));
@@ -324,9 +329,22 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                     <div className="min-w-0 flex-1">
                       <OpsInput value={sok} onChange={setSok} type="search" ariaLabel="Sök i biblioteket" placeholder="Sök i rubrik, text eller adress" />
                     </div>
-                    {jag ? <NyKnapp flik={flik} onSkapa={onSkapa} /> : null}
+                    {jag ? (
+                      <NyKnapp
+                        flik={flik}
+                        onSkapa={onSkapa}
+                        onRost={() => {
+                          try {
+                            setRostFel("");
+                            oppnaRost(oppnaInspelning, modulId);
+                          } catch (e) {
+                            setRostFel(e instanceof Error ? e.message : String(e));
+                          }
+                        }}
+                      />
+                    ) : null}
                   </div>
-                  {jag && typeof onSpelaIn === "function" ? <SpelaIn onSpelaIn={onSpelaIn} inspelare={inspelare} /> : null}
+                  {rostFel ? <p role="alert">{rostFel}</p> : null}
                 </div>
                 {trasiga.length > 0 ? (
                   <div role="status" data-bibliotek-trasiga={trasiga.length} className="text-meta text-ink-muted">
@@ -374,7 +392,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                                 <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
                               </span>
                             </button>
-                            {ljud ? (lage.lage === "klar" ? <Ljudspelare src={lage.adress} /> : lage.lage === "hamtar" ? <p role="status">Hämtar ljudet.</p> : <p role={lage.lage === "fel" ? "alert" : "status"}>{lage.fel || "Filen har ingen adress."}</p>) : null}
+                            {ljud ? (lage.lage === "klar" ? <OpsLjudspelare src={lage.adress} namn={post.rubrik} visaNamn={false} /> : lage.lage === "hamtar" ? <p role="status">Hämtar ljudet.</p> : <p role={lage.lage === "fel" ? "alert" : "status"}>{lage.fel || "Filen har ingen adress."}</p>) : null}
                           </OpsAtgardsblad>
                         </OpsSvepRad>
                       );
@@ -608,9 +626,11 @@ function PostMark({ post, bildAdress = "" }) {
  * ⛔ AVTRYCKAREN ÄR INTE EN `OpsButton` MEN SER UT SOM EN (`knappKlass`): Radix `Popover.Trigger` ritar sitt eget
  * `<button>`, och `OpsButton` har ingen `forwardRef`. Samma skäl som plusset i `OpsAppShell`.
  *
- * @param {{ flik: "alla" | "anteckning" | "lank" | "fil", onSkapa: (typ: "anteckning" | "lank" | "fil") => void }} props
+ * Röstinspelning ligger i menyn under Alla (0.90.8). Den öppnar skalets inspelare, inte en rad i listan.
+ *
+ * @param {{ flik: "alla" | "anteckning" | "lank" | "fil", onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void }} props
  */
-function NyKnapp({ flik, onSkapa }) {
+function NyKnapp({ flik, onSkapa, onRost }) {
   const [oppen, setOppen] = useState(false);
   const innehall = (
     <>
@@ -650,6 +670,20 @@ function NyKnapp({ flik, onSkapa }) {
                 <span className="min-w-0 flex-1 truncate">{TYPNAMN[typ]}</span>
               </button>
             ))}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOppen(false);
+                onRost();
+              }}
+              className={radKlass({ stor: true })}
+            >
+              <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-4">
+                <Music size={16} />
+              </span>
+              <span className="min-w-0 flex-1 truncate">Röstinspelning</span>
+            </button>
           </div>
         </Popover.Content>
       </Popover.Portal>
@@ -685,7 +719,7 @@ function FilVisning({ post, lage, kopplad, onLjus }) {
       </button>
     );
   }
-  if (sort === "ljud") return <Ljudspelare src={adress} />;
+  if (sort === "ljud") return <OpsLjudspelare src={adress} namn={post.rubrik ?? namn} visaNamn={false} />;
   return (
     <a href={adress} target="_blank" rel="noopener noreferrer" data-bibliotek-fil="" className="text-brod text-accent underline underline-offset-2">
       {rad}
@@ -890,107 +924,16 @@ function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, fi
 }
 
 /**
- * @param {number} sekunder
+ * Röstinspelning öppnar skalets enda inspelare och förväljer modulens mål.
+ * Utan skal kastas: en menyrad som inte öppnar något ser ut som att inspelningen börjat.
+ * @param {((modulId: string) => void) | null} oppna
+ * @param {string} modulId
  */
-function visaTid(sekunder) {
-  const s = Number.isFinite(sekunder) && sekunder > 0 ? Math.floor(sekunder) : 0;
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
-/**
- * @param {{ src: string }} props
- */
-function Ljudspelare({ src }) {
-  const ljud = useRef(/** @type {HTMLAudioElement | null} */ (null));
-  const [spelar, setSpelar] = useState(false);
-  const [tid, setTid] = useState(0);
-  const [langd, setLangd] = useState(0);
-  const [fel, setFel] = useState("");
-  return (
-    <div data-bibliotek-spelare="" className="flex items-center gap-2">
-      <audio
-        ref={ljud}
-        src={src}
-        preload="metadata"
-        onPlay={() => setSpelar(true)}
-        onPause={() => setSpelar(false)}
-        onTimeUpdate={() => setTid(ljud.current?.currentTime ?? 0)}
-        onLoadedMetadata={() => setLangd(ljud.current?.duration ?? 0)}
-      />
-      <button
-        type="button"
-        aria-label={spelar ? "Pausa" : "Spela"}
-        className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-raised text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        onClick={() => {
-          const el = ljud.current;
-          if (!el) return;
-          if (!el.paused) {
-            el.pause();
-            return;
-          }
-          const svar = el.play();
-          if (svar && typeof svar.catch === "function") {
-            svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
-          }
-        }}
-      >
-        {spelar ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
-      </button>
-      <span className="text-meta text-ink-muted">{visaTid(tid)} / {visaTid(langd)}</span>
-      {fel ? <p role="alert">{fel}</p> : null}
-    </div>
-  );
-}
-
-/**
- * @param {{ onSpelaIn: (inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>, inspelare?: import("../lib/talk.js").Inspelare }} props
- */
-function SpelaIn({ onSpelaIn, inspelare }) {
-  const [sekunder, setSekunder] = useState(0);
-  const startad = useRef(0);
-  const styr = useTalk({
-    maxSekunder: IDE_MAX_SEKUNDER,
-    inspelare,
-    onKlick: () => {},
-    onTalk: (blob, meta) => onSpelaIn({ blob, mimeType: meta.mimeType, sekunder: meta.sekunder, rubrik: ideRubrik() }),
-  });
-  const pagar = styr.lage === "lyssnar" || styr.lage === "haller" || styr.lage === "skickar";
-  useEffect(() => {
-    if (!pagar) return undefined;
-    startad.current = Date.now();
-    const id = setInterval(() => setSekunder(Math.floor((Date.now() - startad.current) / 1000)), 250);
-    return () => clearInterval(id);
-  }, [pagar]);
-  // ⛔ STOR OCH CENTRERAD (CP 2026-10-09, telefon). Den lilla raden "Spela in idé" syntes inte som en inspelning.
-  // Mikrofonen är 96 px. Medan den lyssnar ritas TALK:s nivåprickar, samma som fältet, så det syns att ljudet tas emot.
-  const mikrofon = (
-    <span aria-hidden="true" className={cx("inline-flex size-24 items-center justify-center rounded-full", pagar ? "bg-accent text-accent-contrast" : "bg-raised text-ink")}>
-      <MikrofonIkon size={40} />
-    </span>
-  );
-  if (pagar) {
-    return (
-      <div data-bibliotek-inspelning="" className="flex flex-col items-center gap-4 py-4">
-        {mikrofon}
-        <div className="w-56">
-          <TalkPrickar niva={styr.niva} lyssnar={styr.lage !== "skickar"} skickar={styr.lage === "skickar"} />
-        </div>
-        <span role="status" className="text-brod text-ink">Spelar in. {visaTid(sekunder)} / {visaTid(IDE_MAX_SEKUNDER)}</span>
-        <div className="flex items-center gap-2">
-          <OpsButton variant="primary" onClick={() => styr.skickaIn()}>Spara idé</OpsButton>
-          <OpsButton variant="secondary" onClick={() => styr.avbryt()}>Avbryt</OpsButton>
-        </div>
-      </div>
-    );
+function oppnaRost(oppna, modulId) {
+  if (!oppna) {
+    throw new Error("OpsBibliotek: Röstinspelning öppnar skalets inspelare. Komponenten står utanför OpsAppShell.");
   }
-  return (
-    <div data-bibliotek-inspelning="vila" className="flex flex-col items-center gap-3 py-6">
-      {styr.fel ? <p role="alert" className="text-center">{styr.fel}</p> : null}
-      <button type="button" aria-label="Spela in idé" data-bibliotek-inspelning="start" onClick={() => styr.direkt()} className="inline-flex size-24 cursor-pointer items-center justify-center rounded-full bg-raised text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-        <MikrofonIkon size={40} />
-      </button>
-    </div>
-  );
+  oppna(modulId);
 }
 
 /**

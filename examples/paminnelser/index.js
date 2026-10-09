@@ -47,6 +47,9 @@ const PaminnelserForm = lazy(() => import("./PaminnelserForm.jsx"));
 /** Samma skäl som vyn ovan. */
 const PaminnelserTillagg = lazy(() => import("./PaminnelserTillagg.jsx"));
 
+/** Inspelarens mål. Exemplet tar emot ljudet och sparar inget: formen är det som ska synas. */
+function sparaPaminnelse() {}
+
 /**
  * Modulens egen katalog: vad en påminnelse handlar om.
  *
@@ -218,6 +221,16 @@ export const paminnelser = defineModule({
       id: "kopplade",
       etikett: { sv: "Påminnelser", en: "Reminders" },
       komponent: PaminnelserTillagg,
+    },
+    /*
+     * ⛔ `inspelning.mal`: ett mål i den delade inspelaren. `spara` tar emot ljudet.
+     * Etiketten är valet personen ser. Ramverket känner inte modulens namn.
+     */
+    {
+      plats: "inspelning.mal",
+      id: "paminnelse",
+      etikett: { sv: "Spara som påminnelse", en: "Save as a reminder" },
+      spara: sparaPaminnelse,
     },
   ],
 
