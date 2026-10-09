@@ -1191,6 +1191,38 @@ for (const bredd of [768, 834, 900, 1023, 1024]) {
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-flikar-390.png"), clip: { x: 0, y: 0, width: 390, height: 420 } });
   await context.close();
 }
+
+// Anteckningens Tillbaka (CP 2026-10-09). Spökknappen har ingen chevron och ordet sitter i mitten av en utsträckt knapp.
+{
+  const { page, context } = await oppna("bibliotekdetalj", { width: 390, height: 844 });
+  const m = await page.evaluate(() => {
+    const knapp = [...document.querySelectorAll("button")].find((b) => (b.textContent || "").trim() === "Tillbaka");
+    if (!knapp) return { finns: false };
+    const r = knapp.getBoundingClientRect();
+    const svg = knapp.querySelector("svg");
+    const sr = svg ? svg.getBoundingClientRect() : null;
+    const ord = knapp.querySelector("span");
+    const o = ord ? ord.getBoundingClientRect() : null;
+    return {
+      finns: true,
+      svg: !!svg,
+      svgW: sr ? sr.width : 0,
+      vanster: r.left,
+      bredd: r.width,
+      ordVanster: o ? o.left : -1,
+      mitt: o ? o.left + o.width / 2 : -1,
+      fonster: window.innerWidth,
+    };
+  });
+  matt.push(`bibliotek detalj 390 px: ${JSON.stringify(m)}`);
+  krav(m.finns && m.svg && m.svgW >= 18, `bibliotek detalj 390 px: Tillbaka saknar chevron (${JSON.stringify(m)}).`);
+  krav(m.vanster < 40 && m.bredd < 200, `bibliotek detalj 390 px: knappen är ${m.bredd.toFixed(0)} px bred och börjar på x ${m.vanster.toFixed(0)}. Väntat vänsterställd, inte utsträckt över sidan.`);
+  krav(m.mitt < m.fonster / 2, `bibliotek detalj 390 px: ordets mitt är x ${m.mitt.toFixed(0)} i ett fönster på ${m.fonster}.`);
+  if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-detalj-390.png"), clip: { x: 0, y: 0, width: 390, height: 520 } });
+  await page.getByRole("button", { name: "Tillbaka" }).click();
+  krav((await page.getByRole("button", { name: "Protokoll" }).count()) === 1, "bibliotek detalj 390 px: Tillbaka kom inte tillbaka till listan.");
+  await context.close();
+}
 }
 await surfplattaOchAktivitet();
 
