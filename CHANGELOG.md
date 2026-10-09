@@ -13,7 +13,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 CP: en anteckning i Biblioteket öppnades som fält (Rubrik, Text) med Spara och en stor röd Radera. Öppning är läsning. Redigera byter till fält med Spara och Avbryt. Radering ligger i menyn, med en fråga, och i ett svep åt vänster med ångra.
 
-Ingen utgivning i det här passet. 0.90.1, 0.90.2 och 0.90.3 hör till andra pass. Appen pinnar inte om här.
+Utges som 0.90.4, efter 0.90.3; appen pinnar om.
 
 ### Läsvy, svep och radmeny
 
