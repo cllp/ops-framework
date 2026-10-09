@@ -86,9 +86,11 @@ export const FLIKIKON = "flex shrink-0 items-center [&_svg]:size-4";
  * @param {string} [arg.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [arg.onNavigate]
  * @param {string} [arg.sprak] "en" ger engelska ord, allt annat svenska.
+ * @param {string} [arg.modulId] (0.88.1) Modulens id. Står den i huvudmenyn ritas ingen länk tillbaka (`OpsHuvudmenyProvider`).
  */
-export function modulTillbaka({ namn, hubHref, hubEtikett = "Appar", onNavigate, sprak = "sv" }) {
+export function modulTillbaka({ namn, hubHref, hubEtikett = "Appar", onNavigate, sprak = "sv", modulId }) {
   return {
+    ...(modulId ? { modul: modulId } : {}),
     hubHref,
     hubEtikett,
     etikett: namn,

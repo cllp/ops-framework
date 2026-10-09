@@ -17,6 +17,7 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
+import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
 import { useTalk } from "./OpsTalk.jsx";
@@ -583,9 +584,11 @@ function texterPa(sprak, texter) {
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp. Ramverket känner inga adresser.
  * @param {(rad: { samtal: string, trad: string, meddelande: string, text: string, av: string }) => void | Promise<void>} [props.onLyftTillMinnet]
  *   (0.86.0, lifehub.app#66) Uttryckligt lyft av ett meddelande i en tråd. Utan den ritas ingen knapp, och inget lyfts av sig självt.
+ * @param {import("react").ComponentProps<typeof OpsHubTillbaka>} [props.tillbaka] (0.88.1) Tillbaka-raden överst i listan, samma som modulernas (`modulTillbaka` med `modulId`).
+ *   Står modulen i huvudmenyn ritas ingen rad: en fäst modul är inbyggd. Samtalets egen rad tillbaka till listan på telefon berörs inte.
  * @param {string} [props.minneHref] (0.86.0) Adressen till gruppens minnesvy. Utan den ritas ingen länk. Ramverket känner inte appens rutter.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -741,6 +744,11 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
           hoger ? "hidden" : "flex",
         )}
       >
+        {tillbaka ? (
+          <div data-meddelanden-tillbaka="" className="shrink-0 px-3 empty:hidden">
+            <OpsHubTillbaka {...tillbaka} rubrik={false} />
+          </div>
+        ) : null}
         <div className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
           <span className="text-accent">
             <MeddelandeIkon size={18} />

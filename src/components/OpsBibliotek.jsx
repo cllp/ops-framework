@@ -95,11 +95,12 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt] Ber servern om en utskrift. Felet visas, också ett dygnstak.
  * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag] Personen väljer. Inget skapas utan trycket.
+ * @param {string} [props.modulId] (0.88.1) Modulens id i appen, förval "bibliotek". Står den i huvudmenyn har listan ingen tillbaka-rad.
  * @param {string} props.hubHref (0.83.0) Hubbens adress: tillbaka-radens mål, som `OpsModulSida`. Krävs.
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek" }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -124,7 +125,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   // ⛔ DETALJEN HAR SIN EGEN TILLBAKA, TILL LISTAN. Två "Tillbaka" på samma sida, en till hubben och en till listan, hade
   // lämnat läsaren att gissa vilken som är vilken. Knappen är `TillbakaKnapp`, inte en egen spökknapp.
   return (
-    <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
+    <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId })}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
           <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />

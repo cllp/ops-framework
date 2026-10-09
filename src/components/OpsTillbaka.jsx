@@ -1,5 +1,6 @@
 import { cx } from "../lib/cx.js";
 import { ChevronVansterIkon } from "./icons.jsx";
+import { useIHuvudmenyn } from "./OpsHuvudmeny.jsx";
 
 /**
  * Tillbaka-raden: EN komponent för VARJE sida under Hub (0.31.2, CP 2026-09-29 20:57).
@@ -28,8 +29,10 @@ import { ChevronVansterIkon } from "./icons.jsx";
  * @param {string} [props.tillbakaEtikett] Ordet på länken. Förval "Tillbaka".
  * @param {string} [props.tillbakaTillEtikett] Skärmläsarens "Tillbaka till". Förval "Tillbaka till".
  * @param {boolean} [props.rubrik] Rita sidans rubrik under länken. Förval falskt.
+ * @param {string} [props.modul] (0.88.1) Modulens id. Står modulen i huvudmenyn (`OpsHuvudmenyProvider`) ritas ingen länk, bara rubriken: en fäst modul är inbyggd.
  */
-export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appar", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false }) {
+export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appar", onNavigate, brodsmulaEtikett = "Var du är", tillbakaEtikett = "Tillbaka", tillbakaTillEtikett = "Tillbaka till", rubrik = false, modul }) {
+  const fast = useIHuvudmenyn(modul);
   if (typeof hubHref !== "string" || hubHref === "") {
     throw new Error("OpsHubTillbaka: hubHref krävs. Tillbaka-raden är ett steg upp till Hub, och en rad som inte vet vart den leder är en knapp som inte gör något.");
   }
@@ -37,8 +40,10 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appa
     throw new Error("OpsHubTillbaka: etikett krävs, den nuvarande sidans namn. Raden utan det säger inte var man är.");
   }
   const mal = steg.length > 0 ? steg[steg.length - 1] : { href: hubHref, label: hubEtikett };
+  if (fast && !rubrik) return null;
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" data-tillbaka-fast={fast ? "" : undefined}>
+      {fast ? null : (
       <nav aria-label={brodsmulaEtikett}>
         <a
           href={mal.href}
@@ -53,6 +58,7 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appa
           <span>{tillbakaEtikett}</span>
         </a>
       </nav>
+      )}
       {rubrik ? <h1 className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">{etikett}</h1> : null}
     </div>
   );

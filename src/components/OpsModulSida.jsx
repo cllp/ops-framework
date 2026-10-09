@@ -58,7 +58,7 @@ export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sp
     rullaInAktiv(rad.current);
   }, [aktiv]);
   return (
-    <OpsView tillbaka={modulTillbaka({ namn, hubHref, hubEtikett, onNavigate, sprak })}>
+    <OpsView tillbaka={modulTillbaka({ namn, hubHref, hubEtikett, onNavigate, sprak, modulId: modul.id })}>
       {/* ⛔ RADENS KLASSER BOR I `modulram.js` (0.83.0), så att Bibliotekets flikrad (`OpsTabs` med `medOrd`) ser ut som den här. */}
       <nav aria-label={navEtikett ?? (sprak === "en" ? `${namn}: parts` : `${namn}: delar`)} data-modulnav={modul.id} className={FLIKOMSLAG}>
         <ul ref={rad} className={FLIKRAD}>
