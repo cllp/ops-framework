@@ -13,7 +13,7 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 CP hittar agentens inställningar för långt från samtalet. Agenter följer samma ram som övriga appar: visning, kugghjul, Allmänt, Kopplingar och egna. Tryck på agenten i chatten öppnar samma ställe.
 
-Ingen utgivning i det här passet. Appen pinnar kvar på 0.89.0 tills den tar in 0.90.0.
+LifeHub pinnar om till 0.90.0 i samma pass. Där öppnar ett tryck på agenten i chatten inställningarna, och Agenter syns i Appar.
 
 ### Modulen Agenter
 
