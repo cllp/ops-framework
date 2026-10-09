@@ -234,4 +234,17 @@ export const paminnelser = defineModule({
       forval: false,
     },
   ],
+
+  /*
+   * ⛔ `kopplingar` (0.89.0): det modulen kan kopplas till, visat i modulens inställningar. Bara id, namn, hjälptext och
+   * behörigheternas ord. Läget (ansluten, synk, fel) skickar appen in, och hemligheten ligger i identitetens valv.
+   */
+  kopplingar: [
+    {
+      id: "kalender",
+      namn: { sv: "Kalender", en: "Calendar" },
+      hint: { sv: "Påminnelser med datum syns i din kalender.", en: "Reminders with a date show up in your calendar." },
+      behorigheter: [{ sv: "Läsa och skriva händelser", en: "Read and write events" }],
+    },
+  ],
 });

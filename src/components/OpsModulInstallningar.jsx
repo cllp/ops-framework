@@ -48,7 +48,7 @@ export function OpsModulInstallningar({ moduler, grupp, agare, hrefFor, onNaviga
     throw new Error("OpsModulInstallningar: agare krävs och ska vara true eller false. Utan propen ser en ägare ut som någon som bara får läsa.");
   }
   if (sparade !== undefined || onSparaHuvudmeny !== undefined || onSpara !== undefined) {
-    throw new Error("OpsModulInstallningar: pinnen, ikonen, synligheten, kopplingarna och de egna fälten ritas inte här (0.89.0). De ligger i modulens inställningar. Skicka hrefFor så raden öppnar det läget. onSpara, onSparaHuvudmeny och sparade tas inte emot.");
+    throw new Error("OpsModulInstallningar: pinnen, ikonen, synligheten, kopplingarna och de egna fälten ritas inte här (0.89.0). De ligger i modulens inställningar. Skicka hrefFor så raden öppnar inställningarna. onSpara, onSparaHuvudmeny och sparade tas inte emot.");
   }
   if (hrefFor !== undefined && typeof hrefFor !== "function") {
     throw new Error("OpsModulInstallningar: hrefFor måste vara en funktion som ger appens adress, eller utelämnas. Utan adress står det att inställningarna öppnas i appen.");
