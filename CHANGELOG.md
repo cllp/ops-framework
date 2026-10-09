@@ -9,11 +9,11 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.90.8
+## 0.90.6
 
 CP: nycklar hör till dig, agenter hör till gruppen. Agenter är inte en app.
 
-Ingen utgivning i det här passet.
+Utges som 0.90.6, efter 0.90.5.
 
 ### Agenter hör till gruppen
 

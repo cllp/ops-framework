@@ -169,7 +169,7 @@ const GRANSER = ["namn", "beskrivning", "roll", "instruktioner", "minne", "skill
 /**
  * Manifestet, så att id och namn har ett hem.
  *
- * ⛔ INGEN SAMLING OCH INGET KORT (0.90.8). Agenter är inte en app. Den bor under
+ * ⛔ INGEN SAMLING OCH INGET KORT (0.90.6). Agenter är inte en app. Den bor under
  * gruppens inställningar. `hubb: null` gör att Appar och hubben inte ritar den.
  * Ett gammalt id i gruppens appar tas bort med `utanAgenterSomApp`.
  *
@@ -227,7 +227,7 @@ function kravGranser(granser) {
  * @param {readonly string[]} [props.kopplade] Leverantörer med en nyckel som kan användas. Utan lista är bara modellen utan nyckel valbar.
  * @param {string} [props.valvHref] Samma adress som `nycklarHref`, om den inte är satt. Ett gammalt namn från 0.90.2.
  * @param {string} [props.nycklarHref] Adressen till AI-nycklar i Mitt konto. "Koppla nyckel" och "Hantera nycklar i Mitt konto" pekar dit.
- * @param {boolean} [props.inomInstallningar] (0.90.8) Rita listan och agentens inställningar utan modulramen. Gruppens inställningar har redan sin panel.
+ * @param {boolean} [props.inomInstallningar] (0.90.6) Rita listan och agentens inställningar utan modulramen. Gruppens inställningar har redan sin panel.
  * @param {(v: { id: string, leverantor: string }) => void | Promise<void>} [props.onSparaModell]
  * @param {import("react").ReactNode} [props.byok] Appens valv. Ramverket ritar inte nyckeln.
  * @param {Record<string, number>} props.granser

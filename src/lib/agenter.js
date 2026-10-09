@@ -15,7 +15,7 @@ import { medInstallningslage } from "./apparark.js";
 /**
  * Modulens id. Samma sträng i manifestet.
  *
- * ⛔ INTE EN APP (0.90.8). Id:t får ligga kvar i en gammal `groups.moduler`, och
+ * ⛔ INTE EN APP (0.90.6). Id:t får ligga kvar i en gammal `groups.moduler`, och
  * `utanAgenterSomApp` tar bort det ur apparna. Medlemskapet och agentens dokument
  * rörs inte: agenten hör till gruppen, appen gör det inte.
  */
