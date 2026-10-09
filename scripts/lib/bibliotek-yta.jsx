@@ -54,7 +54,8 @@ function Yta() {
     );
   }
   const skiva = Object.hasOwn(SKIVPOSTER, start);
-  const valdPost = start === "detalj" ? poster[0] : start === "lank" ? poster[1] : start === "bild" ? bildPost : start === "utskrift" ? ljudPost : vald;
+  const lasPost = { ...poster[0], text: "Vi **beslutade** om bokslutet.\n\nNästa steg står i [protokollet](https://bolagsverket.se)." };
+  const valdPost = start === "las" ? lasPost : start === "detalj" ? poster[0] : start === "lank" ? poster[1] : start === "bild" ? bildPost : start === "utskrift" ? ljudPost : vald;
   const skaparTyp = start === "ny" ? "lank" : skapar;
   return (
     <Ops.OpsBibliotek

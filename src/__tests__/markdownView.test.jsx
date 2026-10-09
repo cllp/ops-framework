@@ -62,6 +62,16 @@ describe("OpsMarkdown", () => {
     expect(container.querySelectorAll("td").length).toBe(2);
   });
 
+  it("dokumentläsning använder brödtext och gör fortfarande ingen h1", () => {
+    const { container } = render(<OpsMarkdown text={"# Ettan\n\nEn **mening**."} dokument />);
+    expect(container.querySelector("[data-ops-markdown='dokument']")?.className).toContain("text-brod");
+    expect(container.querySelector("h1")).toBeNull();
+    expect(container.querySelector("h4")?.textContent).toBe("Ettan");
+    expect(container.querySelector("h4")?.className).toContain("text-titel");
+    const kort = render(<OpsMarkdown text={"Hej"} />);
+    expect(kort.container.querySelector("[data-ops-markdown='text']")?.className).toContain("text-etikett");
+  });
+
   it("tom text ritar ingenting alls", () => {
     // ⛔ En tom panel ser ut som ett laddningsfel. Tomhet är ett svar.
     const { container } = render(<OpsMarkdown text="" />);
