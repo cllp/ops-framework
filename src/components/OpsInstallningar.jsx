@@ -3,6 +3,7 @@ import { cx } from "../lib/cx.js";
 import { definierade, forvalda } from "../lib/ord.js";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { ChevronHogerIkon, KugghjulIkon } from "./icons.jsx";
+import { SIDRUBRIK_KLASS } from "./OpsTillbaka.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 
 /**
@@ -267,7 +268,7 @@ function OpsInstallningarRitad({
       {/* ── Listan ─────────────────────────────────────────────────────────────────────────────────────── */}
       <div data-installningslista="" className={cx("min-w-0 flex-col gap-4", aktiv ? "hidden lg:flex" : "flex")}>
         <header className="flex flex-col gap-1.5 px-1">
-          <Sidtagg id={sidrubrikId} className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">
+          <Sidtagg id={sidrubrikId} className={SIDRUBRIK_KLASS}>
             {rubrik}
           </Sidtagg>
           {beskrivning ? <p className="m-0 text-etikett text-ink-muted">{beskrivning}</p> : null}

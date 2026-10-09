@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.1
+
+CP 2026-10-09: felmeddelandet i agenten ska ramas in enligt den grafiska profilen, och rubrikerna ska följa SessionStudio. Tre äldre ärenden står öppna fast beteendet redan håller. Ingen utgivning i det här passet. Appen pinnar inte om.
+
+### Rubriker
+
+- **Sidans rubrik väger 600.** `OpsHubTillbaka`, `OpsViewHeader` och `OpsInstallningar` delar `SIDRUBRIK_KLASS`: `font-display text-sida font-semibold`. SessionStudio ritar sidrubriken `text-xl font-semibold` (20 px, vikt 600), och `OpsGruppSida` gör redan så. `text-sida` är 1.25rem. `--font-display` är `--font-sans`, Plus Jakarta Sans, samma familj som SessionStudio. Det som såg ut som fel typsnitt var vikten 700.
+- **Agentens avsnitt är rubriker på inställningarnas vikt.** Allmänt, Kopplingar och Egna inställningar är `h2` med `text-sektion font-semibold` (12 px, vikt 600, versaler, accent). `OpsSectionLabel` står kvar på profilen, där SessionStudio mäter `font-bold` (700).
+
+### Fel ramas in
+
+- **`OpsBanner` med tonen danger** ritar läsfelet i agentlistan, en sparning som inte är kopplad, och en fil som inte lästes. Samma ram i modulens inställningar: det egna felet och en koppling som svarade fel. Ramen, ytan `bg-danger-bg` och `role="alert"` är banderollens, inte en naken rad.
+
+### Beteenden som redan höll
+
+- **Utfälld aktivitet visar inte rubrik och text en gång till** (#321, lifehub.app#119). Vakten står i `aktivitet.test.jsx`.
+- **En vald bild räknas som innehåll, så knappen säger Skicka** (#315). Vakten står i `chatt-bilagor.test.jsx`.
+- **Ny händelse namnger gruppen.** Rubriken Gruppens kalendrar ritas bara när det finns namngivna kalendrar (#309). Strängen Ingen kalender ännu finns inte i källan.
+- **En grupp utan appar listar appar som kan läggas till** (lifehub.app#129).
+
 ## 0.90.0
 
 CP hittar agentens inställningar för långt från samtalet. Agenter följer samma ram som övriga appar: visning, kugghjul, Allmänt, Kopplingar och egna. Tryck på agenten i chatten öppnar samma ställe.
