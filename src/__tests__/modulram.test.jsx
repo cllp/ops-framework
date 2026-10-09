@@ -83,7 +83,9 @@ describe("modulramen", () => {
         </OpsModulSida>
       </OpsHuvudmenyProvider>,
     );
-    expect(screen.getByRole("heading", { name: "Ekonomi · Inställningar" })).toBeTruthy();
+    const sidrubrik = screen.getByRole("heading", { name: "Ekonomi · Inställningar" });
+    expect(sidrubrik.className).toContain("font-semibold");
+    expect(sidrubrik.className).not.toContain("font-bold");
     expect(screen.queryByRole("link", { name: /Tillbaka/ })).toBeNull();
     expect(screen.getByRole("link", { name: "Klar" }).getAttribute("href")).toBe("/ekonomi");
     expect(screen.queryByText("översikten")).toBeNull();
@@ -106,7 +108,10 @@ describe("modulramen", () => {
     render(<OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={r}><p /></OpsModulSida>);
     expect(screen.queryByText("super-hemlig-nyckel")).toBeNull();
     expect(screen.queryByText("annan-nyckel")).toBeNull();
-    expect(screen.getByText("Banken svarade inte")).toBeTruthy();
+    const bankfel = screen.getByRole("alert");
+    expect(bankfel.textContent).toBe("Banken svarade inte");
+    expect(bankfel.className).toContain("bg-danger-bg");
+    expect(bankfel.className).toContain("border");
     expect(screen.getByText("Fel")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Koppla från" }));
     expect(r.kopplingar.onKopplaFran).toHaveBeenCalledWith("enable-banking");

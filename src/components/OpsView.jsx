@@ -1,6 +1,6 @@
 import { cx } from "../lib/cx.js";
 import { OpsHelp } from "./OpsHelp.jsx";
-import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
+import { OpsHubTillbaka, SIDRUBRIK_KLASS } from "./OpsTillbaka.jsx";
 
 /**
  * Vyskalet. Varje sida i en ops-app ligger i en av dessa.
@@ -86,7 +86,7 @@ export function OpsViewHeader({ title, description, actions }) {
         rör typografin.
       */}
       <OpsHelp
-        title={<h1 className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">{title}</h1>}
+        title={<h1 className={SIDRUBRIK_KLASS}>{title}</h1>}
       >
         {description}
       </OpsHelp>

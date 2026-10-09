@@ -18,7 +18,20 @@ import { useIHuvudmenyn } from "./OpsHuvudmeny.jsx";
  * bredare sak än en tillbakaknapp, och SS har aldrig haft det. Länken leder ETT steg upp: senaste `steg`, annars Hub.
  * Rubriken ritas av raden (`rubrik`) på modulens sida (`OpsHubModul`); på en sida som redan har `OpsViewHeader` ritas den inte
  * (en sida har en `<h1>`).
+ */
+
+/**
+ * Sidans rubrik (0.90.1, lifehub.app#146).
  *
+ * SessionStudio ritar den som `text-xl font-semibold`: 20 px, vikt 600
+ * (`GroupDetailView`). `text-sida` är 1.25rem. `--font-display` är
+ * `--font-sans`, Plus Jakarta Sans, samma familj. Vikten 700 (`font-bold`)
+ * på den storleken var det som såg ut som fel typsnitt. Samma klass i
+ * `OpsViewHeader` och `OpsInstallningar`.
+ */
+export const SIDRUBRIK_KLASS = "m-0 font-display text-sida font-semibold leading-tight tracking-tight text-ink";
+
+/**
  * @param {object} props
  * @param {string} props.hubHref Hubbens `href`: länkens mål när `steg` är tom.
  * @param {string} props.etikett Den nuvarande sidans namn. Rubriken när `rubrik` är sant.
@@ -62,11 +75,11 @@ export function OpsHubTillbaka({ hubHref, etikett, steg = [], hubEtikett = "Appa
       )}
       {rubrik && atgard ? (
         <div className="flex items-start justify-between gap-3">
-          <h1 className="m-0 min-w-0 flex-1 font-display text-sida font-bold leading-tight tracking-tight text-ink">{etikett}</h1>
+          <h1 className={cx(SIDRUBRIK_KLASS, "min-w-0 flex-1")}>{etikett}</h1>
           {atgard}
         </div>
       ) : rubrik ? (
-        <h1 className="m-0 font-display text-sida font-bold leading-tight tracking-tight text-ink">{etikett}</h1>
+        <h1 className={SIDRUBRIK_KLASS}>{etikett}</h1>
       ) : atgard ? (
         <div className="flex justify-end">{atgard}</div>
       ) : null}

@@ -7,6 +7,7 @@ import { huvudmenyInom, installningsVarden, ORD_VISA_I_HUVUDMENYN, sattHuvudmeny
 import { ordet } from "../lib/ord.js";
 import { text } from "../lib/sprak.js";
 import { KugghjulIkon } from "./icons.jsx";
+import { OpsBanner } from "./OpsBanner.jsx";
 import { OpsButton } from "./OpsButton.jsx";
 import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
@@ -223,7 +224,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
 
   return (
     <div data-modul-lage="installningar" className="flex flex-col gap-6">
-      {fel ? <p role="alert">{fel}</p> : null}
+      {fel ? <OpsBanner tone="danger" title={fel} /> : null}
       {!grupp ? <p role="status">{t("hamtar")}</p> : null}
       <section aria-labelledby={allmantId} className="flex flex-col gap-3">
         <div id={allmantId}><OpsSectionLabel>{t("allmant")}</OpsSectionLabel></div>
@@ -306,7 +307,7 @@ export function InstallningsInnehall({ modul, ram, sprak }) {
                 <p className="m-0 text-brod text-ink">
                   {t("senasteSynk")}: {lage.senasteSynk == null ? t("ingenSynk") : formatDateTime(lage.senasteSynk, { locale: sprak === "en" ? "en" : "sv" })}
                 </p>
-                {lage.fel ? <p role="alert" className="m-0 text-brod text-ink">{lage.fel}</p> : null}
+                {lage.fel ? <OpsBanner tone="danger" title={lage.fel} /> : null}
                 {ram.farAndra ? (
                   <div>
                     {lage.status === "ansluten" || lage.status === "fel" ? (

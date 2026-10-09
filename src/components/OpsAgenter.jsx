@@ -117,6 +117,7 @@ export const ORD_OPSAGENTER = {
   nyMinnesrad: { sv: "Ny minnesrad", en: "New memory line" },
   sparaMinne: { sv: "Spara minne", en: "Save memory" },
   sparandeSaknas: { sv: "Sparandet är inte kopplat. Ingenting sparades.", en: "Saving is not connected. Nothing was saved." },
+  filLasFel: { sv: "Filen lästes inte", en: "The file was not read" },
   importSaknas: { sv: "Importen är inte kopplad. Filen lästes inte.", en: "Import is not connected. The file was not read." },
 };
 
@@ -628,8 +629,8 @@ function AgentFalt(props) {
   const aktiv = vald.status !== "avstangd";
   const besked = (
     <>
-      {lokaltFel ? <p role="alert" className="m-0 text-brod text-ink">{lokaltFel}</p> : null}
-      {skillFel ? <p role="alert" className="m-0 text-brod text-ink">{skillFel}</p> : null}
+      {lokaltFel ? <OpsBanner tone="danger" title={t("sparfelRubrik")}>{lokaltFel}</OpsBanner> : null}
+      {skillFel ? <OpsBanner tone="danger" title={t("filLasFel")}>{skillFel}</OpsBanner> : null}
       {sparat ? <p role="status" className="m-0 text-etikett text-ink">{sparat}</p> : null}
     </>
   );
