@@ -21,13 +21,14 @@ describe("createStorageSource: kontrollen, inte ceremonin", () => {
     expect(() => createStorageSource({ taBort: async () => {} })).toThrow(/saknar laddaUpp/);
   });
 
-  it("STORAGE_OPERATIONS är de två", () => {
-    expect(STORAGE_OPERATIONS).toEqual(["laddaUpp", "taBort"]);
+  it("STORAGE_OPERATIONS är de tre", () => {
+    expect(STORAGE_OPERATIONS).toEqual(["laddaUpp", "taBort", "adress"]);
   });
 
-  it("släpper igenom en hel adapter", () => {
-    const adapter = { laddaUpp: async () => ({ url: "x", sokvag: "y" }), taBort: async () => {} };
+  it("släpper igenom en hel adapter, och en utan adress namnger den", () => {
+    const adapter = { laddaUpp: async () => ({ url: "x", sokvag: "y" }), taBort: async () => {}, adress: async () => "https://exempel.se/a" };
     expect(createStorageSource(adapter)).toBe(adapter);
+    expect(() => createStorageSource({ laddaUpp: async () => ({ url: "x", sokvag: "y" }), taBort: async () => {} })).toThrow(/saknar adress/);
   });
 });
 
@@ -67,6 +68,14 @@ describe("createMemoryStorage", () => {
 
   it("kräver sokvag på taBort", async () => {
     await expect(createMemoryStorage().taBort("")).rejects.toThrow(/sokvag krävs/);
+  });
+
+  it("adress ger den lagrade url:en och kastar när sökvägen saknas", async () => {
+    const lagring = createMemoryStorage();
+    const sparad = await lagring.laddaUpp({ sokvag: "a/b", fil: "x" });
+    await expect(lagring.adress("a/b")).resolves.toBe(sparad.url);
+    await expect(lagring.adress("saknas")).rejects.toThrow(/ingen fil/);
+    await expect(lagring.adress("")).rejects.toThrow(/sokvag krävs/);
   });
 });
 
@@ -110,6 +119,21 @@ describe("createFirebaseStorageSource: kontrollen av konfigurationen", () => {
     };
     const lagring = createFirebaseStorageSource({ storage: /** @type {any} */ ({}), sdk });
     await expect(lagring.taBort("a")).resolves.toBeUndefined();
+  });
+
+  it("adress hämtar nedladdningsadressen för sökvägen", async () => {
+    const referens = { path: "grupper/my/bibliotek/p/ide.webm" };
+    const sdk = {
+      ref: vi.fn(() => referens),
+      uploadBytes: vi.fn(async () => {}),
+      getDownloadURL: vi.fn(async () => "https://exempel.se/ide.webm"),
+      deleteObject: vi.fn(async () => {}),
+    };
+    const lagring = createFirebaseStorageSource({ storage: /** @type {any} */ ({}), sdk });
+    await expect(lagring.adress("grupper/my/bibliotek/p/ide.webm")).resolves.toBe("https://exempel.se/ide.webm");
+    expect(sdk.ref).toHaveBeenCalledWith({}, "grupper/my/bibliotek/p/ide.webm");
+    expect(sdk.getDownloadURL).toHaveBeenCalledWith(referens);
+    await expect(lagring.adress("")).rejects.toThrow(/sokvag krävs/);
   });
 
   it("men ett ANNAT fel kastas vidare", async () => {

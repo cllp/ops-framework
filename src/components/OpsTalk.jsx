@@ -206,18 +206,12 @@ export function useTalk({ onTalk, onKlick, inspelare, maxSekunder = MAX_SEKUNDER
 export const TALK_PRICKAR = 10;
 
 /**
- * Fältet som ligger över appen medan man pratar (förebild: CP:s skärmbild 2026-10-04).
+ * TALK:s nivåprickar. Samma tio prickar i fältet och i bibliotekets inspelning, så de två inte kan glida isär.
  *
- * ⛔ EN KONTROLL FINNS BARA NÄR DEN GÖR NÅGOT. Kugghjulet ritas bara med `onInstallningar`.
- *
- * ⛔ FELET STÅR I FÄLTET, med orden. Ett fält som bara försvann efter ett fel hade sett ut som ett skickat ljud.
- *
- * @param {{ lage: import("../lib/talk.js").Talklage, fel?: string, niva: () => number, onSkicka: () => void, onAvbryt: () => void, onInstallningar?: () => void, marke?: import("react").ReactNode }} props
+ * @param {{ niva: () => number, lyssnar: boolean, skickar?: boolean }} props
  */
-export function OpsTalk({ lage, fel, niva, onSkicka, onAvbryt, onInstallningar, marke }) {
-  const [nedfalld, setNedfalld] = useState(false);
+export function TalkPrickar({ niva, lyssnar, skickar = false }) {
   const [nivaer, setNivaer] = useState(() => Array.from({ length: TALK_PRICKAR }, () => 0));
-  const lyssnar = lage === "haller" || lage === "lyssnar";
 
   useEffect(() => {
     if (!lyssnar || typeof requestAnimationFrame !== "function") return undefined;
@@ -234,6 +228,32 @@ export function OpsTalk({ lage, fel, niva, onSkicka, onAvbryt, onInstallningar, 
     id = requestAnimationFrame(steg);
     return () => cancelAnimationFrame(id);
   }, [lyssnar, niva]);
+
+  return (
+    <span aria-hidden="true" data-talk-prickar="" className="flex min-w-0 w-full flex-1 items-center justify-between gap-1 overflow-hidden px-1">
+      {nivaer.map((n, i) => (
+        <span
+          key={i}
+          className="block w-1.5 shrink-0 rounded-full bg-accent transition-[height,opacity] duration-75"
+          style={{ height: `${6 + Math.round(14 * n)}px`, opacity: skickar ? 0.35 : 0.35 + 0.65 * n }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Fältet som ligger över appen medan man pratar (förebild: CP:s skärmbild 2026-10-04).
+ *
+ * ⛔ EN KONTROLL FINNS BARA NÄR DEN GÖR NÅGOT. Kugghjulet ritas bara med `onInstallningar`.
+ *
+ * ⛔ FELET STÅR I FÄLTET, med orden. Ett fält som bara försvann efter ett fel hade sett ut som ett skickat ljud.
+ *
+ * @param {{ lage: import("../lib/talk.js").Talklage, fel?: string, niva: () => number, onSkicka: () => void, onAvbryt: () => void, onInstallningar?: () => void, marke?: import("react").ReactNode }} props
+ */
+export function OpsTalk({ lage, fel, niva, onSkicka, onAvbryt, onInstallningar, marke }) {
+  const [nedfalld, setNedfalld] = useState(false);
+  const lyssnar = lage === "haller" || lage === "lyssnar";
 
   if (lage === "vila" || lage === "trycker") return null;
 
@@ -271,22 +291,14 @@ export function OpsTalk({ lage, fel, niva, onSkicka, onAvbryt, onInstallningar, 
         <span className="sr-only" role="status" aria-live="polite">
           {statustext}
         </span>
+        {/* ⛔ Prickarna växer på höjden, aldrig på bredden: en prick som växer i sidled går in i grannen och raden ser ut
+            som streck (mätt i skärmbilden 390 px). Samma komponent som bibliotekets inspelning. */}
         {lage === "fel" ? (
           <p data-talk-fel="" className="m-0 min-w-0 flex-1 text-etikett text-danger">
             {statustext}
           </p>
         ) : (
-          <span aria-hidden="true" data-talk-prickar="" className="flex min-w-0 flex-1 items-center justify-between gap-1 overflow-hidden px-1">
-            {nivaer.map((n, i) => (
-              <span
-                key={i}
-                className="block w-1.5 shrink-0 rounded-full bg-accent transition-[height,opacity] duration-75"
-                // ⛔ Prickarna växer på höjden, aldrig på bredden: en prick som växer i sidled går in i grannen och raden ser ut
-                // som streck (mätt i skärmbilden 390 px).
-                style={{ height: `${6 + Math.round(14 * n)}px`, opacity: lage === "skickar" ? 0.35 : 0.35 + 0.65 * n }}
-              />
-            ))}
-          </span>
+          <TalkPrickar niva={niva} lyssnar={lyssnar} skickar={lage === "skickar"} />
         )}
         {onInstallningar && lage !== "fel" ? (
           <button type="button" aria-label="Inställningar för TALK" onClick={onInstallningar} className={runda()}>

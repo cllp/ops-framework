@@ -134,6 +134,29 @@ describe("B: mobilhuvudet flödar aldrig över (0.30.1)", () => {
   // höll inte: bottenradens Meny ritas alltid under md, och huvudet med fem åtgärder svämmade över vid 320 px (scrollWidth 346,
   // mätt i check-skalyta 6b). Hemmet är arkets navigeringsrader. Provet kräver nu BÅDA halvorna: gömd i huvudet under md, och
   // en rad i arket, så att ingen åtgärd försvinner tyst.
+  it("kvarIHuvudet stannar i huvudet och dubbleras inte i menyn (0.88.2)", () => {
+    const actions = (
+      <>
+        <OpsIconLink href="/tema" label="Tema" icon={<i />} />
+        <OpsIconLink href="/inkorg" label="Inkorg" icon={<i />} />
+        <OpsIconLink href="/chatt" label="Meddelanden" icon={<i />} kvarIHuvudet />
+        <OpsIconLink href="/bibliotek" label="Bibliotek" icon={<i />} />
+        <OpsIconLink href="/fraga" label="Fråga" icon={<i />} />
+      </>
+    );
+    render(<OpsAppShell brand="Ops" fasta={fasta} moduler={moduler} activeHref="/" actions={actions} meny={meny}><p>innehåll</p></OpsAppShell>);
+    const huvud = screen.getByRole("banner");
+    const chatt = within(huvud).getByRole("link", { name: "Meddelanden" });
+    expect(chatt.parentElement?.className ?? "").not.toContain("hidden");
+    const bibliotek = within(huvud).getByRole("link", { name: "Bibliotek", hidden: true });
+    expect(bibliotek.parentElement?.className).toContain("hidden");
+    expect(bibliotek.parentElement?.className).toContain("lg:contents");
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Meny" }));
+    const ark = screen.getByRole("dialog");
+    expect(within(ark).queryByRole("link", { name: "Meddelanden" })).toBeNull();
+    expect(within(ark).getByRole("link", { name: "Bibliotek" }).getAttribute("href")).toBe("/bibliotek");
+  });
+
   it("⛔ utan meny flyttar åtgärd fyra och uppåt ändå, till bottenradens ark, och försvinner aldrig tyst (0.62.0)", () => {
     render(Skal({ meny: undefined }));
     const fraga = within(screen.getByRole("banner")).getByRole("link", { name: "Fråga", hidden: true });

@@ -1,11 +1,11 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { FileText, Image as BildIkon, Library, Link, Music, Pause, Play, Plus, StickyNote } from "lucide-react";
 import { ADRESSFORM, BIBLIOTEKTYPER, IDE_MAX_SEKUNDER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
-import { useTalk } from "./OpsTalk.jsx";
+import { TalkPrickar, useTalk } from "./OpsTalk.jsx";
 import { cx } from "../lib/cx.js";
 import { modulTillbaka } from "../lib/modulram.js";
-import { huvudknappKlass, radBehallare, radKlass } from "../lib/radKlass.js";
+import { radBehallare, radKlass } from "../lib/radKlass.js";
 import { OpsButton, knappKlass } from "./OpsButton.jsx";
 import { MikrofonIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
@@ -88,7 +88,8 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string }) => void} props.onSpara
  * @param {(id: string) => void | Promise<void>} [props.onRadera] Tar bort posten efter bekräftelse. Saknas den och någon bekräftar visas felet, posten rörs inte.
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
- * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas.
+ * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
+ * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
  * @param {(inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [props.onSpelaIn] Sparar en idé. Saknas funktionen ritas ingen mikrofon: en rad som kastar "inte kopplad" efter inspelningen ser ut som att ljudet sparades.
  * @param {import("../lib/talk.js").Inspelare} [props.inspelare] Samma valfria inspelare som TALK. Utelämnad används webbläsarens. Appen skickar den när den redan har en.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
@@ -100,7 +101,7 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * @param {string} [props.hubEtikett] Förval "Appar".
  * @param {(href: string, event: any) => void} [props.onNavigate] Tillbaka-länkens klick, som `OpsModulSida`.
  */
-export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek" }) {
+export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false, vald = null, skapar = null, jag, onOppna, onStang, onSkapa, onSpara, onRadera, onLaddaUpp, onSpelaIn, inspelare, filUrl, hamtaAdress, grupper = [], onDela, onSkrivUt, onGorForslag, hubHref, hubEtikett, onNavigate, modulId = "bibliotek" }) {
   if (jag === undefined) {
     throw new Error("OpsBibliotek: jag krävs, den inloggades aktiva medlemskap i gruppen ({ uid, roll }), eller null när personen inte är medlem. Utan propen ser en medlem ut som en som bara får läsa.");
   }
@@ -111,6 +112,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "fil"} */ ("alla"));
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
+  const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress);
+  const adressFor = (/** @type {{ typ?: string, fil?: { sokvag?: string, mime?: string } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
 
@@ -128,7 +131,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak, modulId })}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
+          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -182,7 +185,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   <OpsList ariaLabel="Biblioteket" divided>
                     {synliga.map((post) => {
                       const ljud = post.typ === "fil" && filSort(post.fil?.mime) === "ljud";
-                      const adress = postAdress(post, filUrl);
+                      const lage = adressFor(post);
                       if (ljud) {
                         return (
                           <OpsListRow key={post.id}>
@@ -191,13 +194,13 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                               <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
                               <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
                             </button>
-                            {adress ? <Ljudspelare src={adress} /> : <p role="status">Filen har ingen adress.</p>}
+                            {lage.lage === "klar" ? <Ljudspelare src={lage.adress} /> : lage.lage === "hamtar" ? <p role="status">Hämtar ljudet.</p> : <p role={lage.lage === "fel" ? "alert" : "status"}>{lage.fel || "Filen har ingen adress."}</p>}
                           </OpsListRow>
                         );
                       }
                       return (
                       <OpsListRow key={post.id} interactive onClick={() => onOppna(post)} ariaLabel={post.rubrik}>
-                        <PostMark post={post} filUrl={filUrl} />
+                        <PostMark post={post} bildAdress={lage.lage === "klar" ? lage.adress : ""} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
                           <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
@@ -248,6 +251,95 @@ function postAdress(post, filUrl) {
 }
 
 /**
+ * @typedef {{ lage: "klar" | "hamtar" | "fel" | "saknas", adress: string, fel: string }} Adresslage
+ */
+
+/**
+ * Synkron `filUrl` vinner. Annars sökvägens cachade svar, ett pågående anrop, eller att adressen saknas.
+ *
+ * @param {{ typ?: string, fil?: { sokvag?: string } }} post
+ * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
+ * @param {((sokvag: string) => Promise<string>) | undefined} hamtaAdress
+ * @param {{ klar: Record<string, string>, fel: Record<string, string> }} cache
+ * @returns {Adresslage}
+ */
+function losAdress(post, filUrl, hamtaAdress, cache) {
+  const synk = postAdress(post, filUrl);
+  if (synk) return { lage: "klar", adress: synk, fel: "" };
+  const sokvag = typeof post?.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
+  if (!sokvag || typeof hamtaAdress !== "function") return { lage: "saknas", adress: "", fel: "" };
+  if (cache.klar[sokvag]) return { lage: "klar", adress: cache.klar[sokvag], fel: "" };
+  if (cache.fel[sokvag]) return { lage: "fel", adress: "", fel: cache.fel[sokvag] };
+  return { lage: "hamtar", adress: "", fel: "" };
+}
+
+/**
+ * Hämtar nedladdningsadresser en gång per sökväg. `filUrl` som redan svarar med en adress hoppas över.
+ *
+ * @param {readonly { id?: string, typ?: string, fil?: { sokvag?: string } }[]} poster
+ * @param {{ id?: string, typ?: string, fil?: { sokvag?: string } } | null} vald
+ * @param {((post: { fil?: { sokvag?: string } }) => string) | undefined} filUrl
+ * @param {((sokvag: string) => Promise<string>) | undefined} hamtaAdress
+ */
+function useFilAdresser(poster, vald, filUrl, hamtaAdress) {
+  const [klar, setKlar] = useState(/** @type {Record<string, string>} */ ({}));
+  const [fel, setFel] = useState(/** @type {Record<string, string>} */ ({}));
+  const klarRef = useRef(klar);
+  const felRef = useRef(fel);
+  const pagaende = useRef(/** @type {Set<string>} */ (new Set()));
+  const hamtaRef = useRef(hamtaAdress);
+  klarRef.current = klar;
+  felRef.current = fel;
+  hamtaRef.current = hamtaAdress;
+  const harHamta = typeof hamtaAdress === "function";
+  const underlag = vald && !poster.some((p) => p === vald || (p.id && p.id === vald.id)) ? [...poster, vald] : poster;
+  const nyckel = underlag
+    .map((post) => {
+      if (postAdress(post, filUrl)) return "";
+      const s = post?.typ === "fil" && typeof post.fil?.sokvag === "string" ? post.fil.sokvag.trim() : "";
+      return s;
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  useEffect(() => {
+    if (!harHamta || !nyckel) return undefined;
+    const hamta = hamtaRef.current;
+    if (typeof hamta !== "function") return undefined;
+    let kvar = true;
+    const lista = nyckel.split("\n").filter((s) => !klarRef.current[s] && !felRef.current[s] && !pagaende.current.has(s));
+    if (lista.length === 0) return undefined;
+    for (const s of lista) pagaende.current.add(s);
+    for (const s of lista) {
+      Promise.resolve()
+        .then(() => hamta(s))
+        .then((url) => {
+          if (!kvar) return;
+          if (typeof url !== "string" || url === "") {
+            setFel((f) => ({ ...f, [s]: "Filen har ingen adress." }));
+            return;
+          }
+          setKlar((c) => ({ ...c, [s]: url }));
+        })
+        .catch((e) => {
+          if (!kvar) return;
+          const text = e instanceof Error && e.message ? e.message : "Filen har ingen adress.";
+          setFel((f) => ({ ...f, [s]: text }));
+        })
+        .finally(() => {
+          pagaende.current.delete(s);
+        });
+    }
+    return () => {
+      kvar = false;
+      for (const s of lista) pagaende.current.delete(s);
+    };
+  }, [nyckel, harHamta]);
+
+  return { klar, fel };
+}
+
+/**
  * @param {{ post: { typ: string, fil?: { mime?: string, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string }} props
  */
 function PostIkon({ post }) {
@@ -282,11 +374,11 @@ function postRad(post) {
  * Ikonen i en ruta, samma på listan och i detaljen. En bild fyller rutan.
  * SessionStudios rad är ikon, rubrik och en metarad. Synlighet per post ritas inte.
  *
- * @param {{ post: { typ: string, fil?: { mime?: string, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string }} props
+ * @param {{ post: { typ: string, fil?: { mime?: string, sokvag?: string } }, bildAdress?: string }} props
  */
-function PostMark({ post, filUrl }) {
+function PostMark({ post, bildAdress = "" }) {
   const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
-  const adress = bild ? postAdress(post, filUrl) : "";
+  const adress = bild ? bildAdress : "";
   return (
     <span data-bibliotek-ikon={post.typ} className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-raised text-ink-secondary" aria-hidden="true">
       {adress ? <img src={adress} alt="" className="size-10 object-cover" /> : <PostIkon post={post} />}
@@ -352,20 +444,24 @@ function NyKnapp({ flik, onSkapa }) {
 /**
  * Bild öppnas i förhandsvisning. PDF och övrigt i ny flik. Utan adress sägs det.
  *
- * @param {{ post: { typ?: string, rubrik?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, filUrl?: (post: { fil?: { sokvag?: string } }) => string, onLjus?: (adress: string) => void }} props
+ * @param {{ post: { typ?: string, rubrik?: string, fil?: { namn?: string, mime?: string, byte?: number, sokvag?: string } }, lage: Adresslage, kopplad: boolean, onLjus?: (adress: string) => void }} props
  */
-function FilVisning({ post, filUrl, onLjus }) {
-  const adress = postAdress(post, filUrl);
+function FilVisning({ post, lage, kopplad, onLjus }) {
   const sort = filSort(post.fil?.mime);
   const namn = post.fil?.namn ?? "Fil";
   const rad = `${namn}${filStorlek(post.fil?.byte) ? ` · ${filStorlek(post.fil?.byte)}` : ""}`;
-  if (!adress) {
+  if (lage.lage === "hamtar") {
+    return <p role="status" data-bibliotek-fil="">Hämtar filen.</p>;
+  }
+  if (lage.lage !== "klar") {
+    const text = lage.fel || (kopplad ? `Filen har ingen adress. ${rad}` : rad);
     return (
-      <p role="status" data-bibliotek-fil="">
-        {typeof filUrl === "function" ? `Filen har ingen adress. ${rad}` : rad}
+      <p role={lage.fel ? "alert" : "status"} data-bibliotek-fil="">
+        {text}
       </p>
     );
   }
+  const adress = lage.adress;
   if (sort === "bild") {
     return (
       <button type="button" aria-label={`Förhandsvisa ${post.rubrik ?? namn}`} data-bibliotek-forhands="" onClick={() => onLjus?.(adress)} className="w-fit">
@@ -411,13 +507,14 @@ function Adress({ url }) {
  * @param {(id: string) => void | Promise<void>} [props.onRadera]
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
+ * @param {(post: { typ?: string, fil?: { sokvag?: string, mime?: string } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
  * @param {readonly { id: string, namn: string }[]} [props.grupper]
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela]
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt]
  * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag]
  */
-function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, onLjus, grupper = [], onDela, onSkrivUt, onGorForslag }) {
+function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, adressFor, onLjus, grupper = [], onDela, onSkrivUt, onGorForslag }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
@@ -438,8 +535,11 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
   const lasning = !skapar && post && !farAndra(post, jag);
   const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : post?.rubrik ?? "Post";
   const beskrivning = typ === "anteckning" ? "En text gruppen delar." : typ === "lank" ? "En adress gruppen delar." : "En fil gruppen delar.";
+  const tomLage = /** @type {Adresslage} */ ({ lage: "saknas", adress: "", fel: "" });
+  const filLage = post && typeof adressFor === "function" ? adressFor({ typ: post.typ, fil: post.fil }) : tomLage;
+  const kopplad = typeof filUrl === "function" || filLage.lage !== "saknas";
 
-  const mark = <PostMark post={{ typ, fil: post?.fil }} filUrl={filUrl} />;
+  const mark = <PostMark post={{ typ, fil: post?.fil }} bildAdress={filLage.lage === "klar" ? filLage.adress : ""} />;
 
   if (lasning && post) {
     return (
@@ -455,7 +555,7 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
           <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
         ) : post.typ === "fil" ? (
           <>
-            <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} />
+            <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} />
             {post.utskrift != null ? <p data-bibliotek-utskrift="">{post.utskrift === "" ? "Utskriften är tom." : post.utskrift}</p> : null}
           </>
         ) : (
@@ -476,7 +576,7 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
         </div>
       </div>
       {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
-      {post && !skapar && post.typ === "fil" ? <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} /> : null}
+      {post && !skapar && post.typ === "fil" ? <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} /> : null}
       <OpsField label="Rubrik" error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
         <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
       </OpsField>
@@ -618,7 +718,6 @@ function Ljudspelare({ src }) {
  * @param {{ onSpelaIn: (inmatning: { blob: Blob, mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>, inspelare?: import("../lib/talk.js").Inspelare }} props
  */
 function SpelaIn({ onSpelaIn, inspelare }) {
-  const etikettId = useId();
   const [sekunder, setSekunder] = useState(0);
   const startad = useRef(0);
   const styr = useTalk({
@@ -634,28 +733,34 @@ function SpelaIn({ onSpelaIn, inspelare }) {
     const id = setInterval(() => setSekunder(Math.floor((Date.now() - startad.current) / 1000)), 250);
     return () => clearInterval(id);
   }, [pagar]);
+  // ⛔ STOR OCH CENTRERAD (CP 2026-10-09, telefon). Den lilla raden "Spela in idé" syntes inte som en inspelning.
+  // Mikrofonen är 96 px. Medan den lyssnar ritas TALK:s nivåprickar, samma som fältet, så det syns att ljudet tas emot.
   const mikrofon = (
-    <span className={huvudknappKlass({ aktiv: pagar })} aria-hidden="true">
-      <MikrofonIkon size={24} />
+    <span aria-hidden="true" className={cx("inline-flex size-24 items-center justify-center rounded-full", pagar ? "bg-accent text-accent-contrast" : "bg-raised text-ink")}>
+      <MikrofonIkon size={40} />
     </span>
   );
   if (pagar) {
     return (
-      <div data-bibliotek-inspelning="" className="flex items-center gap-2">
+      <div data-bibliotek-inspelning="" className="flex flex-col items-center gap-4 py-4">
         {mikrofon}
-        <span role="status">{visaTid(sekunder)} / {visaTid(IDE_MAX_SEKUNDER)}</span>
-        <OpsButton variant="primary" onClick={() => styr.skickaIn()}>Spara idé</OpsButton>
-        <OpsButton variant="secondary" onClick={() => styr.avbryt()}>Avbryt</OpsButton>
+        <div className="w-56">
+          <TalkPrickar niva={styr.niva} lyssnar={styr.lage !== "skickar"} skickar={styr.lage === "skickar"} />
+        </div>
+        <span role="status" className="text-brod text-ink">Spelar in. {visaTid(sekunder)} / {visaTid(IDE_MAX_SEKUNDER)}</span>
+        <div className="flex items-center gap-2">
+          <OpsButton variant="primary" onClick={() => styr.skickaIn()}>Spara idé</OpsButton>
+          <OpsButton variant="secondary" onClick={() => styr.avbryt()}>Avbryt</OpsButton>
+        </div>
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-2">
-      {styr.fel ? <p role="alert">{styr.fel}</p> : null}
-      <button type="button" id={etikettId} aria-label="Spela in idé" data-bibliotek-inspelning="start" onClick={() => styr.direkt()} className={huvudknappKlass()}>
-        <MikrofonIkon size={24} />
+    <div data-bibliotek-inspelning="vila" className="flex flex-col items-center gap-3 py-6">
+      {styr.fel ? <p role="alert" className="text-center">{styr.fel}</p> : null}
+      <button type="button" aria-label="Spela in idé" data-bibliotek-inspelning="start" onClick={() => styr.direkt()} className="inline-flex size-24 cursor-pointer items-center justify-center rounded-full bg-raised text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+        <MikrofonIkon size={40} />
       </button>
-      <label htmlFor={etikettId} className="cursor-pointer text-etikett text-ink">Spela in idé</label>
     </div>
   );
 }

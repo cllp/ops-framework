@@ -17,7 +17,8 @@
  *   3. `laddaUpp` svarar `{ url, sokvag }`. `sokvag` är inte kosmetik: det är
  *      det enda som gör `taBort` möjlig utan att fråga lagringen "vilken fil
  *      var det här" (en Storage-URL är inte alltid reversibel till sin
- *      sökväg utan ett eget anrop).
+ *      sökväg utan ett eget anrop). `adress(sokvag)` hämtar samma URL senare:
+ *      dokumentet sparar sökvägen, och nedladdningsadressen är asynkron.
  *   4. Ramverket importerar ingen lagrings-SDK. Adaptern skickas in, precis
  *      som för `kalla`.
  *
@@ -28,7 +29,7 @@
  */
 
 /** De operationer varje lagringsadapter måste ha. */
-export const STORAGE_OPERATIONS = ["laddaUpp", "taBort"];
+export const STORAGE_OPERATIONS = ["laddaUpp", "taBort", "adress"];
 
 /**
  * @typedef {object} UppladdadFil
@@ -40,6 +41,7 @@ export const STORAGE_OPERATIONS = ["laddaUpp", "taBort"];
  * @typedef {object} StorageSource
  * @property {(input: { sokvag: string, fil: unknown, contentType?: string }) => Promise<UppladdadFil>} laddaUpp
  * @property {(sokvag: string) => Promise<void>} taBort
+ * @property {(sokvag: string) => Promise<string>} adress Nedladdningsadressen för en sökväg som redan ligger i lagringen. Kastar när sökvägen saknas eller är tom.
  */
 
 /**
