@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.88.2
+
+CP 2026-10-09, telefon, grupp "my": inspelningen syntes som en liten rad, ett sparat ljud sade "Filen har ingen adress.", och Meddelanden saknades i huvudet (tema, inkorg, Bibliotek, avatar).
+
+### Inspelningen syns
+
+- **Mikrofonen är centrerad och 96 px.** Den lilla raden med texten "Spela in idé" är borta. Saknas `onSpelaIn` ritas ingen mikrofon, som förut.
+- **Medan den lyssnar ritas TALK:s nivåprickar** (`TalkPrickar`, samma tio som fältet). Tid, Spara idé och Avbryt står kvar.
+
+### Ett ljud går att spela
+
+- **`adress(sokvag)` på lagringen.** `createMemoryStorage` ger den lagrade `minne://`-adressen och kastar när sökvägen saknas. `createFirebaseStorageSource` anropar `getDownloadURL`. `STORAGE_OPERATIONS` är `laddaUpp`, `taBort` och `adress`.
+- **`OpsBibliotek` tar `hamtaAdress`.** Svaret cachas per sökväg, så listan och detaljen delar det. `filUrl` vinner när den är ifylld. Medan adressen hämtas står "Hämtar ljudet." eller "Hämtar filen.", inte "Filen har ingen adress." Ett fel visas när anropet faller.
+
+### En fäst ikon stannar i huvudet
+
+- **`OpsIconLink` tar `kvarIHuvudet`.** Skalet flyttar annars åtgärd fyra och uppåt till menyn på telefon (`ATGARDER_SMAL`). Meddelanden föll ur för att `huvudmenyPoster` följer `moduler`, inte `huvudmeny`: Bibliotek kom före och tog den sista synliga platsen. Ikonen hade kort (`/meddelanden`) och märket `meddelanden-av` var inte satt. Med propen stannar ikonen på telefon och surfplatta, och den dubbleras inte i menyn. Utan propen gäller taket som förut.
+
 ## 0.88.1
 
 CP 2026-10-09: "Om en modul/app ligger i huvudmenyn ska dess sida inte ha någon Tillbaka, den beter sig som inbyggd." Samma dag: Meddelanden saknade Tillbaka när den inte är fäst.

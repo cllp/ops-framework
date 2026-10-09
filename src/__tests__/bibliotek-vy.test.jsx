@@ -19,7 +19,7 @@ const poster = [
 
 const FORFATTARE = { uid: "uid-1", roll: "medlem" };
 
-function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, onSpelaIn = undefined, inspelare = undefined, filUrl = undefined, grupper = [], onDela = undefined, onSkrivUt = undefined, onGorForslag = undefined }) {
+function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = [], onNavigate = undefined, onRadera = undefined, onLaddaUpp = undefined, onSpelaIn = undefined, inspelare = undefined, filUrl = undefined, hamtaAdress = undefined, grupper = [], onDela = undefined, onSkrivUt = undefined, onGorForslag = undefined }) {
   const [vald, setVald] = useState(/** @type {(typeof poster)[number] | null} */ (null));
   const [skapar, setSkapar] = useState(/** @type {"anteckning" | "lank" | null} */ (null));
   const [sparat, setSparat] = useState(/** @type {unknown} */ (null));
@@ -41,6 +41,7 @@ function Harness({ start = poster, lasfel = null, jag = FORFATTARE, trasiga = []
         onSpelaIn={onSpelaIn}
         inspelare={inspelare}
         filUrl={filUrl}
+        hamtaAdress={hamtaAdress}
         grupper={grupper}
         onDela={onDela}
         onSkrivUt={onSkrivUt}
@@ -236,10 +237,16 @@ describe("OpsBibliotek", () => {
 
     const { unmount } = render(<Harness onSpelaIn={onSpelaIn} inspelare={inspelare} />);
     const mikrofon = screen.getByRole("button", { name: "Spela in idé" });
+    expect(mikrofon.className).toContain("size-24");
+    expect(mikrofon.parentElement?.className).toContain("flex-col");
+    expect(mikrofon.parentElement?.className).toContain("items-center");
+    expect(document.querySelector("[data-talk-prickar]")).toBeNull();
     expect(mikrofon.querySelector("svg")).not.toBeNull();
     expect(document.querySelector("[data-bibliotek-ikon='anteckning']")).not.toBeNull();
     fireEvent.click(mikrofon);
     expect(inspelare.starta).toHaveBeenCalled();
+    expect(await screen.findByText(/Spelar in/)).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-talk-prickar] > span")).toHaveLength(10);
     fireEvent.click(await screen.findByRole("button", { name: "Spara idé" }));
     await waitFor(() => expect(onSpelaIn).toHaveBeenCalled());
     expect(onSpelaIn.mock.calls[0][0].rubrik).toMatch(/^Idé /);
@@ -318,6 +325,42 @@ describe("OpsBibliotek", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skriv ut" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Utskriften är inte kopplad. Inget skickades.");
     andra.unmount();
+  });
+
+  it("hamtaAdress spelar ljudet i listan och i detaljen, och säger inte att adressen saknas medan den hämtas", async () => {
+    const ljud = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "fil",
+        rubrik: "Idé 2026-10-08 21:05",
+        fil: { sokvag: "grupper/my/bibliotek/p/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 4000 },
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "ljud",
+    };
+    let los;
+    const hamtaAdress = vi.fn((sokvag) => new Promise((resolve) => {
+      los = () => resolve(`https://exempel.se/${sokvag}`);
+    }));
+    const { unmount } = render(<Harness start={[ljud]} hamtaAdress={hamtaAdress} />);
+    expect(screen.queryByText("Filen har ingen adress.")).toBeNull();
+    expect(screen.getByText("Hämtar ljudet.")).toBeInTheDocument();
+    await waitFor(() => expect(hamtaAdress).toHaveBeenCalledWith("grupper/my/bibliotek/p/ide.webm"));
+    const anrop = hamtaAdress.mock.calls.length;
+    los();
+    expect(await screen.findByRole("button", { name: "Spela" })).toBeInTheDocument();
+    expect(document.querySelector("audio")).toHaveAttribute("src", "https://exempel.se/grupper/my/bibliotek/p/ide.webm");
+    fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
+    expect(hamtaAdress).toHaveBeenCalledTimes(anrop);
+    expect(document.querySelector("audio")).toHaveAttribute("src", "https://exempel.se/grupper/my/bibliotek/p/ide.webm");
+    unmount();
+
+    const nekad = vi.fn(async () => { throw new Error("Behörighet saknas."); });
+    render(<Harness start={[ljud]} hamtaAdress={nekad} />);
+    expect(screen.queryByText("Filen har ingen adress.")).toBeNull();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Behörighet saknas.");
   });
 
   it("ett ljud har spela och tid i listan", () => {

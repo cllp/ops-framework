@@ -284,6 +284,14 @@ export function createMemoryStorage(seed = {}) {
       return { url, sokvag: s };
     },
 
+    async adress(sokvag) {
+      const s = typeof sokvag === "string" ? sokvag.trim() : "";
+      if (!s) throw new Error("createMemoryStorage.adress: sokvag krävs.");
+      const post = store[s];
+      if (!post) throw new Error("createMemoryStorage.adress: ingen fil på den sökvägen.");
+      return post.url;
+    },
+
     async taBort(sokvag) {
       const s = typeof sokvag === "string" ? sokvag.trim() : "";
       if (!s) throw new Error("createMemoryStorage.taBort: sokvag krävs.");

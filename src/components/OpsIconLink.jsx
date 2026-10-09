@@ -46,12 +46,14 @@ import { OpsTooltip } from "./OpsTooltip.jsx";
  *   "kunde inte läsas". Ritar `OpsFelBadge` i stället för räknaren och lägger orden i tooltipen. ⛔ Går FÖRE `badge`: ett antal
  *   från innan läsningen föll är ett gammalt antal, och en siffra som ser aktuell ut är precis den lögn märket finns för att undvika.
  * @param {boolean} [props.active] Står man på sidan just nu.
+ * @param {boolean} [props.kvarIHuvudet] (0.88.2) Ikonen stannar i huvudet på telefon och surfplatta, även när den ligger efter de tre åtgärder som annars ryms. Den dubbleras inte i menyn. Appen sätter den på de fästa modulerna. Utan den flyttar skalet ikonen till menyn, så att huvudet inte svämmar över.
  * @param {boolean} [props.avatar] (0.30.0, #173) Identiteten i toppraden: en 32 px rund knapp med en 28 px rund avatar
  *   i, ingen platta utan en RING vid hover (`ring-line-strong`) och i accent när man står på sidan. Mätt ur SessionStudio
  *   (`AppHeader.jsx:463`: `p-0.5 rounded-full`, `hover:ring-2 hover:ring-border-hover`, aktiv `ring-2 ring-accent`).
  *   Är `icon` en `OpsIdentity` görs den till `size="avatar"` åt dig, så appen inte behöver känna till måttet.
  */
-export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", badgeFler = false, badgeFel, active = false, avatar = false }) {
+export function OpsIconLink({ href, icon, label, onNavigate, badge, badgeText = "nya", badgeFler = false, badgeFel, active = false, kvarIHuvudet = false, avatar = false }) {
+  void kvarIHuvudet;
   if (!label) {
     throw new Error(
       "OpsIconLink: label krävs. En ikonlänk utan namn läses upp som sin adress, alltså \"/inkorg\", och det är inte ett namn på något.",

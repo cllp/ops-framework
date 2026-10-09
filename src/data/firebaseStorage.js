@@ -65,6 +65,12 @@ export function createFirebaseStorageSource(config) {
       return { url, sokvag: s };
     },
 
+    async adress(sokvag) {
+      const s = typeof sokvag === "string" ? sokvag.trim() : "";
+      if (!s) throw new Error("createFirebaseStorageSource.adress: sokvag krävs.");
+      return getDownloadURL(ref(storage, s));
+    },
+
     async taBort(sokvag) {
       const s = typeof sokvag === "string" ? sokvag.trim() : "";
       if (!s) throw new Error("createFirebaseStorageSource.taBort: sokvag krävs.");

@@ -1455,7 +1455,14 @@ function OpsAppShellRitad({
   // ark visar `moreNav` som rader. Med `meny` går raderna in i appens avdelning som
   // förut, utan `meny` i arkets navigeringsrader. Ingen åtgärd försvinner tyst.
   const atgardsLista = plattaAtgarder(actions);
-  const flyttbara = atgardsLista.slice(ATGARDER_SMAL).filter((a) => a.type === OpsIconLink);
+  // ⛔ EN FÄST MODUL STANNAR (0.88.2). CP 2026-10-09, telefon, grupp "my": huvudet visade tema, inkorg, Bibliotek
+  // och avatar. Meddelanden saknades. `huvudmenyPoster` hade inte tappat den (den har kort och stod i `huvudmeny`,
+  // utan märket `meddelanden-av`). Ordningen är `moduler`, så Bibliotek kom före Meddelanden och tog den enda
+  // extra platsen under `md` (index 2, efter tema och inkorg). Meddelanden blev index 3 och `hidden lg:contents`.
+  // `kvarIHuvudet` på ikonen säger att den hör hemma i huvudet ändå, och då ritas den inte också i menyn.
+  const stannarIHuvudet = (/** @type {import("react").ReactElement} */ a) =>
+    a.type === OpsIconLink && /** @type {any} */ (a.props).kvarIHuvudet === true;
+  const flyttbara = atgardsLista.filter((a, i) => i >= ATGARDER_SMAL && a.type === OpsIconLink && !stannarIHuvudet(a));
   /** @type {import("../lib/nav.js").NavPost[]} */
   const flyttadeRader = flyttbara.map((a) => {
     const p = /** @type {any} */ (a.props);
@@ -1466,7 +1473,7 @@ function OpsAppShellRitad({
   // De som redan flyttats ur telefonhuvudet (`flyttadeRader`) bor i `meny.app` när `meny` finns, och i
   // bottenradens ark annars. Arkets är `md:hidden`, så utan `meny` följer de med hit, bara på surfplatta.
   /** @type {import("../lib/nav.js").NavPost[]} */
-  const surfMellan = atgardsLista.slice(ATGARDER_SURF, ATGARDER_SMAL).filter((a) => a.type === OpsIconLink).map((a) => {
+  const surfMellan = atgardsLista.filter((a, i) => i >= ATGARDER_SURF && i < ATGARDER_SMAL && a.type === OpsIconLink && !stannarIHuvudet(a)).map((a) => {
     const p = /** @type {any} */ (a.props);
     return { href: p.href, label: p.label, icon: p.icon, ...(typeof p.badge === "number" ? { badge: p.badge } : {}) };
   });
@@ -1474,7 +1481,7 @@ function OpsAppShellRitad({
   const atgarderIHuvud = atgardsLista.map((a, i) => {
     // Bara `OpsIconLink` kan flyttas. `flyttbara` är en delmängd (index >= ATGARDER_SMAL) och
     // får inte avgöra surfplattsomsaget: index ATGARDER_SURF ligger inte i den listan.
-    if (a.type !== OpsIconLink) return a;
+    if (a.type !== OpsIconLink || stannarIHuvudet(a)) return a;
     // ⛔ `contents`, inte `inline-flex`: omslaget får inte bli en egen ruta i klungan.
     if (i >= ATGARDER_SMAL) {
       return (
