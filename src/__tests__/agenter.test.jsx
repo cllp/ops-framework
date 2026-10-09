@@ -109,6 +109,9 @@ describe("OpsAgenter", () => {
     expect(() => render(
       <OpsAgenter modul={modul()} activeHref="/agenter" hubHref="/hub" ram={{ farAndra: true }} agenter={[]} granser={/** @type {any} */ (undefined)} />,
     )).toThrow(/granser krävs/);
+    expect(() => render(
+      <OpsAgenter modul={modul()} activeHref="/agenter" hubHref="/hub" ram={{ farAndra: true }} agenter={[]} granser={GRANSER} kopplade={/** @type {any} */ ("google")} />,
+    )).toThrow(/kopplade/);
   });
 
   it("översikten är ett kort och fyra rader, och varje avsnitt sparar det appen redan äger", async () => {
@@ -117,6 +120,7 @@ describe("OpsAgenter", () => {
     const onSparaInstruktioner = vi.fn();
     const onSparaSkill = vi.fn();
     const onSparaMinne = vi.fn();
+    const onSparaModell = vi.fn();
     const onVaxla = vi.fn();
     const installning = {
       namn: "Ops",
@@ -134,6 +138,8 @@ describe("OpsAgenter", () => {
     const falt = {
       installning,
       modell: { namn: "gemini-2.5-flash-lite", hint: "Appens modell." },
+      kopplade: ["openai"],
+      valvHref: "/konto/nycklar",
       byok: <p>Valvets nycklar</p>,
       verktyg,
       skills: [{ id: "s1", namn: "Kort", beskrivning: "Kort text", kalla: "kort.md", sha: "abc123" }],
@@ -143,6 +149,7 @@ describe("OpsAgenter", () => {
       onSparaInstruktioner,
       onSparaSkill,
       onSparaMinne,
+      onSparaModell,
       onVaxla,
     };
     const { onNavigate, unmount } = rita({
@@ -151,7 +158,11 @@ describe("OpsAgenter", () => {
     });
     expect(screen.getByRole("heading", { name: "Ops · Inställningar" })).toBeTruthy();
     expect(screen.getByText("Assistent")).toBeTruthy();
-    expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /Gemini Flash Lite/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /GPT-4.1 mini/ })).not.toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Mer utrymme/ })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "Koppla nyckel, Gemini Flash" }).getAttribute("href")).toBe("/konto/nycklar");
+    expect(document.body.textContent).not.toContain("gemini-2.5-flash-lite");
     expect(screen.getByRole("link", { name: /Om agenten/ }).getAttribute("href")).toBe("/agenter?agent=ops&lage=installningar&avsnitt=om");
     expect(screen.getByRole("link", { name: /Vad den kan/ }).getAttribute("href")).toContain("avsnitt=kan");
     expect(screen.getByRole("link", { name: /Kunskap och minne/ }).getAttribute("href")).toContain("avsnitt=kunskap");
@@ -167,6 +178,10 @@ describe("OpsAgenter", () => {
     expect(document.body.textContent).not.toContain("super-secret");
     expect(document.body.textContent).not.toContain("raw_tool_id_xyz");
     expect(document.querySelector("input[type=password]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: /GPT-4.1 mini/ }));
+    expect(onSparaModell).toHaveBeenCalledWith({ id: "gpt-4.1-mini", leverantor: "openai" });
+    expect(screen.getByRole("status").textContent).toBe("Sparat.");
 
     fireEvent.click(screen.getByRole("switch", { name: /Agenten är på/ }));
     expect(onVaxla).toHaveBeenCalledWith({ id: "ops", status: "avstangd" });
@@ -213,9 +228,13 @@ describe("OpsAgenter", () => {
 
     rita({ activeHref: "/agenter?agent=ops&lage=installningar&avsnitt=modell", ...falt });
     expect(screen.getByText("Valvets nycklar")).toBeTruthy();
-    expect(screen.getByText("Modellen väljs av appen. Den ändras inte här.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(screen.getByText("Välj den modell agenten ska svara med.")).toBeTruthy();
+    expect(screen.getByText("Appens modell.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: /GPT-4.1 mini/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    expect(onSparaModell).toHaveBeenLastCalledWith({ id: "gpt-4.1-mini", leverantor: "openai" });
     expect(document.body.textContent).not.toContain("super-secret");
+    expect(document.body.textContent).not.toContain("gemini-2.5-flash");
   });
 
   it("en okänd avsnittsparameter är översikten, och utan sparfunktion står felet", () => {
@@ -297,6 +316,7 @@ describe("OpsAgenter", () => {
       byok: null,
     });
     expect(screen.getByText("Ingen modell angiven.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Koppla nyckel, Gemini Flash" }).getAttribute("href")).toBe("/agenter?agent=ops&lage=installningar&avsnitt=modell#agent-nycklar");
     expect(screen.queryByText("Nycklarna är inte kopplade i appen.")).toBeNull();
     kort.unmount();
     rita({

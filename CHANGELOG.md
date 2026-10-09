@@ -17,11 +17,16 @@ Ingen utgivning i det här passet. 0.90.1 är ett annat arbete (aktivitetsdetalj
 
 ### Agentens inställningar
 
-- **Kortet först.** Bild, namn, roll, på eller av, och modellens namn. På och av anropar samma `onVaxla` som förut, och bara när `kanVaxla` är sant. Märket är medlemskapets bild. Det sparas inte en gång till, och den meningen står inte i vyn.
+- **Kortet först.** Bild, namn, roll, på eller av, och en modellväljare. På och av anropar samma `onVaxla` som förut, och bara när `kanVaxla` är sant. Märket är medlemskapets bild. Det sparas inte en gång till, och den meningen står inte i vyn.
 - **Fyra rader med pil.** Om agenten (namn, roll, beskrivning). Vad den kan (verktyg som strömbrytare, med en mening om vad de gör). Kunskap och minne (instruktioner, kunskap, minne). Modell och nycklar, märkt avancerat (modelltexten och appens valv). Adressen är `avsnitt=om|kan|kunskap|modell`. En tom eller okänd parameter är översikten.
 - **Inga råa id:n.** Verktygets etikett är beskrivningen. Saknas den står "Ett verktyg" och en mening, aldrig id:t. Id:t finns bara i kartan som `onSparaVerktyg` redan tar emot. Kunskapens källa och kontrollsumma ritas inte.
-- **Spara per avsnitt.** Knappen säger Spara, och "Sparat." skrivs ut när anropet går igenom. Saknas sparfunktionen står felet, och ingenting skrivs. Modellen har ingen sparknapp: appen väljer den.
+- **Spara per avsnitt.** Knappen säger Spara, och "Sparat." skrivs ut när anropet går igenom. Saknas sparfunktionen står felet, och ingenting skrivs.
+- **Modellväljare.** Kortet och Modell och nycklar visar samma lista: vänligt namn och en mening, inte id:t. `AGENTMODELLER` är listan, en modell per leverantör som kan chatta. Gemini Flash Lite kräver ingen nyckel. De andra är valbara när leverantören står i `kopplade`, annars avstängda med länken Koppla nyckel (`valvHref`, eller `#agent-nycklar` i avsnittet). Ett val på kortet anropar `onSparaModell({ id, leverantor })` direkt. I avsnittet gör sparknappen samma anrop. Ett okänt id ritas inte.
 - **Samma anrop som 0.90.0.** `onSparaIdentitet`, `onSparaVerktyg`, `onSparaInstruktioner`, `onSparaSkill`, `onSparaMinne`, `onSparaMinnePa`, `onVaxla`. Ingen ny samling.
+
+### Funktioner
+
+Lifehubs `functions/agentmodell.js` `modellFor` anropar alltid `MODELL` (`gemini-2.5-flash-lite`) och tar inte emot gruppen. `sparaAgent` godtar inte åtgärden `modell`: okända fält avvisas. Ett sparat val ändrar därför inte vad agenten svarar med förrän funktionerna läser `agenter/{agentId}.modell` som `{ id, leverantor }` och deployas. Ingen sådan ändring i det här passet, och ingen utgivning, så funktionerna kan inte pinna 0.90.2 än.
 
 ### Regler och funktioner
 
