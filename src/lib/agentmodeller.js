@@ -5,7 +5,8 @@
  * ramverket eller i funktionerna. Lifehub har en enda konstant,
  * `gemini-2.5-flash-lite`, och Identity tar en leverantör (`vertex`, `google`,
  * `openai`, `anthropic`) utan modellnamn. Den här listan är den lilla
- * förteckningen, en modell per leverantör som kan chatta.
+ * förteckningen, en modell per leverantör som kan chatta: `vertex`, `google`,
+ * `openai`, `anthropic` och `xai`. Grok kräver att `xai` står i `kopplade`.
  *
  * ⛔ CURSOR FINNS INTE HÄR. Identity har en cursor-nyckel, men den chattar inte.
  * En rad som inte går att svara med hade varit en död kontroll.
@@ -47,6 +48,13 @@ export const AGENTMODELLER = Object.freeze([
     nyckel: true,
     namn: { sv: "Claude Sonnet", en: "Claude Sonnet" },
     beskrivning: { sv: "Anthropic. Kräver en Anthropic-nyckel.", en: "Anthropic. Needs an Anthropic key." },
+  }),
+  Object.freeze({
+    id: "grok-4.7",
+    leverantor: "xai",
+    nyckel: true,
+    namn: { sv: "Grok", en: "Grok" },
+    beskrivning: { sv: "xAI. Kräver en xAI-nyckel.", en: "xAI. Needs an xAI key." },
   }),
 ]);
 

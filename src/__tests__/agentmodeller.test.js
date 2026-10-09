@@ -3,7 +3,7 @@ import { AGENTMODELLER, FORVALD_AGENTMODELL, modellKanValjas, modellUrId } from 
 
 describe("agentens modellista", () => {
   it("har en modell per leverantör som kan chatta, och exakt en utan nyckel", () => {
-    expect(AGENTMODELLER.map((m) => m.leverantor)).toEqual(["vertex", "google", "openai", "anthropic"]);
+    expect(AGENTMODELLER.map((m) => m.leverantor)).toEqual(["vertex", "google", "openai", "anthropic", "xai"]);
     expect(new Set(AGENTMODELLER.map((m) => m.id)).size).toBe(AGENTMODELLER.length);
     expect(FORVALD_AGENTMODELL.id).toBe("gemini-2.5-flash-lite");
     expect(FORVALD_AGENTMODELL.nyckel).toBe(false);
@@ -32,5 +32,19 @@ describe("agentens modellista", () => {
     expect(modellKanValjas(google, ["openai"])).toBe(false);
     expect(modellKanValjas(google, ["google"])).toBe(true);
     expect(modellKanValjas(null, ["google"])).toBe(false);
+  });
+
+  it("Grok kräver att xai står i kopplade", () => {
+    const grok = modellUrId("grok-4.7");
+    expect(grok?.namn.sv).toBe("Grok");
+    expect(grok?.namn.en).toBe("Grok");
+    expect(grok?.leverantor).toBe("xai");
+    expect(grok?.nyckel).toBe(true);
+    expect(grok?.beskrivning.sv).toBe("xAI. Kräver en xAI-nyckel.");
+    expect(modellUrId("Grok")?.id).toBe("grok-4.7");
+    expect(modellKanValjas(grok, [])).toBe(false);
+    expect(modellKanValjas(grok, undefined)).toBe(false);
+    expect(modellKanValjas(grok, ["openai", "anthropic", "google"])).toBe(false);
+    expect(modellKanValjas(grok, ["xai"])).toBe(true);
   });
 });
