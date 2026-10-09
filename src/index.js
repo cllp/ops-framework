@@ -213,7 +213,7 @@ export { sokGruppikoner, forslagUrGruppnamn, VANLIGA_GRUPPIKONER } from "./lib/g
 export { medlemsinfo } from "./lib/gruppmedlemmar.js";
 export { personnamn, NAMN_SAKNAS } from "./lib/personnamn.js";
 export { OpsGruppSida } from "./components/OpsGruppSida.jsx";
-export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment } from "./lib/regler.js";
+export { regelfragment, gruppadSamling, generateRules, lagringsregelfragment, katalogregelfragment, konfigloggregelfragment, samtalsregelfragment, kalenderregelfragment, handelseregelfragment, bibliotekregelfragment, minnesregelfragment, modulinstallningsregelfragment } from "./lib/regler.js";
 /*
  * ⛔ MEJLKÖNS REGLER (0.76.0, #101). Text in och text ut, ingen React, och inget
  * beroende till transporten. Fragmentet står för sig: klienten läser inte kön
@@ -280,6 +280,13 @@ export { OpsMinne } from "./components/OpsMinne.jsx";
 export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
 export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./components/OpsInstallningar.jsx";
+/*
+ * ⛔ MODULENS INSTÄLLNINGAR (0.88.0). Pinnen "Visa i huvudmenyn" skrivs på gruppen.
+ * Modulens egna fält skrivs i en samling appen namnger. Samma panel för varje modul.
+ */
+export { VISA_I_HUVUDMENYN, sattHuvudmeny, huvudmenyInom, installningarFor, installningsVarden } from "./lib/modulinstallningar.js";
+export { createModulinstallningskalla } from "./data/modulinstallningskalla.js";
+export { OpsModulInstallningar, ORD_OPSMODULINSTALLNINGAR } from "./components/OpsModulInstallningar.jsx";
 /*
  * ⛔ SAMTALEN (0.34.0, #182, #185): gruppchatt, privata meddelanden och Assistent-tråden som EN modell. Formerna och
  * nyckeln är rena funktioner, källan går genom en datakälla, och Firebase importeras aldrig här.

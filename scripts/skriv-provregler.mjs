@@ -18,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { mejlregelfragment } from "../src/lib/mejl.js";
-import { bibliotekregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
+import { bibliotekregelfragment, gruppadSamling, handelseregelfragment, kalenderregelfragment, katalogregelfragment, konfigloggregelfragment, minnesregelfragment, modulinstallningsregelfragment, regelfragment, samtalsregelfragment } from "../src/lib/regler.js";
 
 const rot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ut = path.join(rot, "rules", "provregler.rules");
@@ -48,6 +48,9 @@ const ut = path.join(rot, "rules", "provregler.rules");
  *
  * ⛔ MEJLKÖN (0.76.0, #101): `mejlregelfragment("mejlko")`. Namnet är påhittat här, precis som hos en app.
  *   Catch-all nekar också, så provet läser att just det här blocket finns i den genererade texten.
+ *
+ * ⛔ MODULINSTÄLLNINGAR (0.88.0): `modulinstallningsregelfragment("modulinstallningar")`. Namnet är påhittat,
+ *   samma sak som hos en app. Pinnen till huvudmenyn provas inte här: den ligger kvar på gruppen.
  */
 const text = `rules_version = '2';
 
@@ -65,6 +68,7 @@ ${handelseregelfragment()}
 ${mejlregelfragment("mejlko")}
 ${bibliotekregelfragment("bibliotek")}
 ${minnesregelfragment("gruppmine")}
+${modulinstallningsregelfragment("modulinstallningar")}
     // Påhittad app-samling (se filhuvudet): appens eget block, med ramverkets fält prövade av opsHandelsefaltGiltiga.
     match /kalhandelser/{id} {
       allow read: if opsArMedlem(resource.data.groupId);

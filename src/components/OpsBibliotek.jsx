@@ -12,6 +12,7 @@ import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsList, OpsListRow } from "./OpsList.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
+import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 
 /**
@@ -50,6 +51,9 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * - **Tillbaka och rubriken är modulens ram**, samma `OpsView`-rad som `OpsModulSida` ritar (`modulTillbaka` i
  *   `modulram.js`): "‹ Tillbaka" upp till hubben och "Bibliotek" som rubrik. Därför krävs `hubHref`, som för
  *   `OpsModulSida`: en tillbaka-rad som inte vet vart den leder är en knapp som inte gör något.
+ *   Detaljen (läsning och formulär) går ett steg tillbaka till listan, inte till hubben, och ritar därför
+ *   `TillbakaKnapp`: samma chevron och vänsterställda text som skapa- och händelsepanelen. En `OpsButton` i
+ *   vyns kolumn sträcks till hela bredden och centrerar ordet, och den har ingen chevron.
  * - **Typerna är Ekonomis flikrad** (`OpsTabs` med `medOrd`): ikon, namn, antal och accentlinjen, med samma klasser.
  *   Före var de en segmentväljare i pillerform. Att de inte är länkar som Ekonomis delar är ett beslut: typen är ett
  *   urval i samma lista, inte en egen sida, och sökordet ska stå kvar när man byter flik.
@@ -117,10 +121,10 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const synliga = filtreraBibliotek(poster, { flik, sok });
 
   // ⛔ DETALJEN HAR SIN EGEN TILLBAKA, TILL LISTAN. Två "Tillbaka" på samma sida, en till hubben och en till listan, hade
-  // lämnat läsaren att gissa vilken som är vilken.
+  // lämnat läsaren att gissa vilken som är vilken. Knappen är `TillbakaKnapp`, inte en egen spökknapp.
   return (
     <OpsView tillbaka={detalj ? undefined : modulTillbaka({ namn: "Bibliotek", hubHref, hubEtikett, onNavigate, sprak })}>
-      <div data-bibliotek="" className="flex flex-col gap-4">
+      <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
           <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
         ) : (
@@ -416,7 +420,7 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
   if (lasning && post) {
     return (
       <div data-bibliotek-detalj={typ} data-bibliotek-lasning="" className="flex flex-col gap-4">
-        <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
+        <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
         <OpsViewHeader title={post.rubrik} description={beskrivning} />
         {post.typ === "anteckning" ? (
           <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
@@ -435,7 +439,7 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
 
   return (
     <div data-bibliotek-detalj={typ} className="flex flex-col gap-4">
-      <OpsButton variant="ghost" onClick={onStang}>Tillbaka</OpsButton>
+      <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
       <OpsViewHeader title={rubrikVy} description={beskrivning} />
       {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
       {post && !skapar && post.typ === "fil" ? <FilVisning post={post} filUrl={filUrl} onLjus={onLjus} /> : null}

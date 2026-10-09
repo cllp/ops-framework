@@ -42,6 +42,7 @@
  */
 
 import { ID_FORM } from "./katalog.js";
+import { byggModulinstallningar } from "./modulinstallningar.js";
 import { byggModulTyper } from "./modultyper.js";
 import { validateNav } from "./nav.js";
 import { byggNamn } from "./sprak.js";
@@ -54,7 +55,7 @@ import { PLATSER } from "./tillagg.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg"];
+const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg", "installningar"];
 
 /**
  * Fälten ett tillägg får bära (0.60.0, #251). Allt annat avvisas, av samma skäl som `MODULFALT`.
@@ -130,6 +131,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {Hubbkort | null} hubb (0.37.0) Modulens kort i hubben och dess insida, eller `null` när modulen inte är ett kort.
  * @property {Readonly<Record<import("./modultyper.js").Typyta, ReadonlyArray<import("./modultyper.js").Modultyp>>>} typer (0.42.0, #217) Typerna modulen bidrar med till inkorgen, kalendern och händelserna. ⛔ Alltid alla tre listorna i utskriven form, även när manifestet utelämnade fältet. Se `modultyper.js`.
  * @property {ReadonlyArray<Tillagg>} tillagg (0.60.0, #251) Det modulen pluggar in på ramverkets ytor. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Se `tillagg.js`.
+ * @property {ReadonlyArray<import("./modulinstallningar.js").Installningsdeklaration>} installningar (0.88.0) Modulens egna inställningar per grupp. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Pinnen till huvudmenyn ingår inte: den är ramverkets och skrivs på gruppen. Se `modulinstallningar.js`.
  */
 
 /**
@@ -440,6 +442,13 @@ export function defineModule(manifest) {
   const tillagg = byggTillagg(d.tillagg, var_);
 
   /*
+   * ⛔ INSTÄLLNINGARNA ÄR VALFRIA I MANIFESTET, ALLTID EN LISTA I MODULEN (0.88.0).
+   * Samma avvägning som `typer` och `tillagg`: ett krav hade fällt varje redan skriven modul.
+   * Pinnen "Visa i huvudmenyn" deklareras inte här. Den finns för varje modul med kort, och skrivs på gruppen.
+   */
+  const installningar = byggModulinstallningar(d.installningar, var_);
+
+  /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
    */
@@ -459,6 +468,7 @@ export function defineModule(manifest) {
     hubb,
     typer,
     tillagg,
+    installningar,
   });
 }
 

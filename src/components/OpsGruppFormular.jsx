@@ -11,6 +11,7 @@ import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { text as namnText } from "../lib/sprak.js";
+import { huvudmenyInom, ORD_VISA_I_HUVUDMENYN, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { synsPa, synsPaText } from "../lib/tillagg.js";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
@@ -212,8 +213,8 @@ const STANDARD = {
     modulOkand: "{id} är installerad i gruppen men finns inte här. Den visas inte under Appar.",
     synsPa: "Syns på",
     synsPaEgenYta: "Egen yta",
-    huvudmeny: "Visa i huvudmenyn",
-    huvudmenyHint: "Appens ikon står i huvudet överst, på varje sida.",
+    huvudmeny: ORD_VISA_I_HUVUDMENYN.label.sv,
+    huvudmenyHint: ORD_VISA_I_HUVUDMENYN.hint.sv,
     synsPaIngenting: "ingen egen yta och inga tillägg",
   },
   en: {
@@ -281,8 +282,8 @@ const STANDARD = {
     modulOkand: "{id} is installed in the group but does not exist here. It is not shown under Apps.",
     synsPa: "Visible in",
     synsPaEgenYta: "Own page",
-    huvudmeny: "Show in the main menu",
-    huvudmenyHint: "The app's icon sits in the header, on every page.",
+    huvudmeny: ORD_VISA_I_HUVUDMENYN.label.en,
+    huvudmenyHint: ORD_VISA_I_HUVUDMENYN.hint.en,
     synsPaIngenting: "no own page and no add-ons",
   },
 };
@@ -422,7 +423,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         const orig = /** @type {Namn} */ (befintlig.namn && typeof befintlig.namn === "object" ? befintlig.namn : { sv: fore });
         /** @type {string | Namn} */
         const namnUt = nyttNamn === fore ? befintlig.namn : orig.en === undefined || orig.en === orig.sv ? { sv: nyttNamn, en: nyttNamn } : { ...orig, [sprak === "en" ? "en" : "sv"]: nyttNamn };
-        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak, ...(visaModulval ? { moduler: [...valdaModuler], huvudmeny: valdHuvudmeny.filter((id) => valdaModuler.includes(id)) } : {}) } });
+        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak, ...(visaModulval ? { moduler: [...valdaModuler], huvudmeny: huvudmenyInom(valdHuvudmeny, valdaModuler) } : {}) } });
         klar({ groupId: befintlig.id });
       } catch (fel) {
         setFelmeddelande(fel instanceof Error ? fel.message : String(fel));
@@ -658,7 +659,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
                           hint={t.huvudmenyHint}
                           checked={valdHuvudmeny.includes(m.id)}
                           disabled={upptagen}
-                          onChange={(pa) => setValdHuvudmeny((l) => (pa ? (l.includes(m.id) ? l : [...l, m.id]) : l.filter((x) => x !== m.id)))}
+                          onChange={(pa) => setValdHuvudmeny((l) => sattHuvudmeny(l, m.id, pa))}
                         />
                       </div>
                     ) : null}

@@ -220,4 +220,18 @@ export const paminnelser = defineModule({
       komponent: PaminnelserTillagg,
     },
   ],
+
+  /*
+   * ⛔ `installningar` (0.88.0): fält per grupp, i en samling appen namnger. Valfritt som `typer`.
+   * Id `visaIHuvudmenyn` är reserverat: pinnen skrivs på gruppen, inte här. En modul utan egna fält
+   * utelämnar listan eller skriver [].
+   */
+  installningar: [
+    {
+      id: "visaklara",
+      namn: { sv: "Visa klara påminnelser", en: "Show done reminders" },
+      typ: "boolean",
+      forval: false,
+    },
+  ],
 });

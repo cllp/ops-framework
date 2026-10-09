@@ -1,6 +1,7 @@
+import { useLayoutEffect, useRef } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { cx } from "../lib/cx.js";
-import { FLIKIKON, FLIKRAD, flikKlass } from "../lib/modulram.js";
+import { FLIKIKON, FLIKOMSLAG, FLIKRAD, flikKlass, rullaInAktiv } from "../lib/modulram.js";
 
 /**
  * Flikar inom en sida.
@@ -53,13 +54,17 @@ export function OpsTabs({ tabs, value, onChange, ariaLabel, medOrd = false, chil
   if (medOrd && !ikoner) {
     throw new Error("OpsTabs: medOrd kräver icon på varje flik. Formen är ikon bredvid ordet, och utan ikon står ordet redan på raden.");
   }
+  const lista = useRef(/** @type {HTMLDivElement | null} */ (null));
+  useLayoutEffect(() => {
+    rullaInAktiv(lista.current);
+  }, [value]);
 
   return (
-    <Tabs.Root value={value} onValueChange={onChange}>
-      {/* ⛔ `medOrd` använder `FLIKRAD` (samma som modulens delar): raden bryts, den rullar inte.
-          De andra formerna behåller sidorullningen, för ikonformen delar bredden (`flex-1`) och ordformen
-          utan ikon är korta etiketter som inte ska tryckas ihop. */}
-      <Tabs.List aria-label={ariaLabel} className={medOrd ? FLIKRAD : "flex gap-1 overflow-x-auto border-b border-line"}>
+    <Tabs.Root value={value} onValueChange={onChange} className={medOrd ? FLIKOMSLAG : undefined}>
+      {/* ⛔ `medOrd` använder `FLIKRAD` (samma som modulens delar): en rad som rullar i sidled.
+          Omslaget (`FLIKOMSLAG`) gör att raden kan bli smalare än orden, annars rullar sidan.
+          De andra formerna behåller sin egen sidorullning: ikonformen delar bredden (`flex-1`). */}
+      <Tabs.List ref={lista} aria-label={ariaLabel} className={medOrd ? FLIKRAD : "flex gap-1 overflow-x-auto border-b border-line"}>
         {tabs.map((f) => (
           <Tabs.Trigger
             key={f.id}

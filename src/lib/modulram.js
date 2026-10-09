@@ -16,13 +16,42 @@ import { cx } from "./cx.js";
  */
 
 /**
- * Radens behållare, med en linje under.
+ * Radens behållare, med en linje under. En rad, som rullar i sidled när den inte får plats.
  *
- * ⛔ 0.87.0, lane 11. Raden rullade i sidled (`overflow-x-auto`). Mätt i Biblioteket vid 390 px: tre flikar
- * var 395 px i en ruta på 343, och "Länkar" slutade på x 411, utanför bodyn. Orden ska inte kapas, så raden
- * bryts i stället för att rulla. Samma klass i `OpsModulSida` och i `OpsTabs` med `medOrd`.
+ * ⛔ 0.87.0, lane 11, bröt raden (`flex-wrap`). Mätningen då var att "Länkar" slutade på x 411, utanför bodyn,
+ * trots `overflow-x-auto`. Orsaken var att raden var ett flexbarn med `min-width: auto`: den växte med innehållet,
+ * och då rullade sidan, inte raden. Brytningen löste överflödet och gav Ekonomi fjorton rader på en telefon.
+ * CP 2026-10-09, med en skärmbild: flikarna ska ligga på en rad och rulla, som de gjorde före 0.87.0.
+ *
+ * ⛔ `min-w-0` OCH `w-full` SITTER HÄR OCH PÅ OMSLAGET (`FLIKOMSLAG`). Utan omslaget på flexbarnet växer raden
+ * igen, och `overflow-x-auto` rullar ingenting. Samma klass i `OpsModulSida` och i `OpsTabs` med `medOrd`.
+ * Surfplattehuvudet (0.87.0, #262) rörs inte: det är märket, knapparnas storlek och vilka åtgärder som flyttar till menyn.
  */
-export const FLIKRAD = "m-0 flex list-none flex-wrap gap-1 border-b border-line p-0";
+export const FLIKRAD = "m-0 flex w-full min-w-0 list-none flex-nowrap gap-1 overflow-x-auto overscroll-x-contain border-b border-line p-0";
+
+/**
+ * Omslaget runt raden, på det flexbarn som ligger i vyns kolumn.
+ * Utan `min-w-0` vägrar barnet bli smalare än sitt innehåll, och sidan rullar i sidled.
+ */
+export const FLIKOMSLAG = "min-w-0 w-full";
+
+/**
+ * Rullar den öppna posten in i raden. `scrollLeft` på raden, aldrig `scrollIntoView`,
+ * som hade kunnat flytta hela dokumentet i höjdled.
+ *
+ * @param {HTMLElement | null} rad
+ */
+export function rullaInAktiv(rad) {
+  if (!rad) return;
+  const a = /** @type {HTMLElement | null} */ (rad.querySelector('[aria-current="page"], [role="tab"][aria-selected="true"]'));
+  if (!a) return;
+  const ra = a.getBoundingClientRect();
+  const ru = rad.getBoundingClientRect();
+  const vanster = ra.left - ru.left + rad.scrollLeft;
+  if (vanster < rad.scrollLeft || vanster + ra.width > rad.scrollLeft + rad.clientWidth) {
+    rad.scrollLeft = Math.max(0, vanster - (rad.clientWidth - ra.width) / 2);
+  }
+}
 
 /**
  * En post i raden: ikon och namn bredvid varandra, accentlinjen under den öppna.

@@ -496,12 +496,18 @@ describe("⛔ samma rad i modulen och i biblioteket (0.83.0)", () => {
     expect(vald.className.startsWith(oppenDel.className)).toBe(true);
     expect(ovald.className.startsWith(stangdDel.className)).toBe(true);
     expect(/** @type {HTMLElement} */ (oppenDel.querySelector("span[aria-hidden]")).className).toBe(/** @type {HTMLElement} */ (vald.querySelector("span[aria-hidden]")).className);
-    // ⛔ 0.87.0: behållaren är samma sträng. Bibliotekets flikrad rullade i sidled vid 390 px medan modulens
-    // rad hade en egen klass. En skillnad här är två sanningar om samma rad.
+    // ⛔ Behållaren är samma sträng. En skillnad här är två sanningar om samma rad.
+    // 0.88.0: `flex-nowrap` och `overflow-x-auto`, plus `min-w-0` på omslaget. Utan omslaget växer flexbarnet
+    // och sidan rullar i stället för raden (det 0.87.0 mätte och sedan bröt raden för).
     expect(screen.getByRole("tablist").className).toBe(FLIKRAD);
     expect(container.querySelector("[data-modulnav] ul")?.className).toBe(FLIKRAD);
-    expect(FLIKRAD).toContain("flex-wrap");
-    expect(FLIKRAD).not.toContain("overflow-x-auto");
+    // ⛔ 0.88.0: en rad som rullar. `flex-nowrap` innehåller teckenföljden `flex-wrap`, så jämförelsen är på klasslistan.
+    const klasser = FLIKRAD.split(/\s+/);
+    expect(klasser).toContain("flex-nowrap");
+    expect(klasser).toContain("overflow-x-auto");
+    expect(klasser).not.toContain("flex-wrap");
+    expect(screen.getByRole("tablist").parentElement?.className ?? "").toContain("min-w-0");
+    expect(container.querySelector("[data-modulnav]")?.className ?? "").toContain("min-w-0");
   });
 });
 
