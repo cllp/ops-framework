@@ -15,7 +15,7 @@ Kalenderlager i `OpsCalendar`: en plockare där personen visar och döljer lager
 
 Ramverket tar inte in mönstersamlingen. Appen skickar in de lager den redan har. Valet vilka som syns sparas per person i webbläsaren. Färgen är identitetspalettens sex toner. Gruppens kulör rörs inte.
 
-Ingen utgivning i det här passet.
+Utges som 0.90.7, efter 0.90.6.
 
 ### Kalenderlager
 
