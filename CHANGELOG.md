@@ -9,6 +9,17 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.88.1
+
+CP 2026-10-09: "Om en modul/app ligger i huvudmenyn ska dess sida inte ha någon Tillbaka, den beter sig som inbyggd." Samma dag: Meddelanden saknade Tillbaka när den inte är fäst.
+
+### En fäst modul är inbyggd
+
+- **`OpsHuvudmenyProvider` och `useIHuvudmenyn`.** Appen ger gruppens `huvudmeny`. `OpsHubTillbaka` tar `modul`, och står modulen i listan ritas ingen länk, bara rubriken (eller ingenting utan `rubrik`). Gäller alla moduler, på ett ställe.
+- **`OpsModulSida` skickar modulens id, `OpsBibliotek` har `modulId` (förval `bibliotek`).** Insidor (bibliotekets detalj, ett samtal på telefon) har kvar sin egen väg tillbaka till listan.
+- **`OpsMeddelanden` tar `tillbaka`.** Samma rad som modulerna, överst i listan. Fäst: ingen rad. Inte fäst: "‹ Tillbaka" till hubben.
+- Utan provider är listan tom och varje sida har sin rad som förut.
+
 ## 0.88.0
 
 CP 2026-10-09, telefonbredd: Ekonomis flikar ligger på många rader. Samma dag: grunden för appens inställningar ska vara gemensam, och Bibliotekets anteckning har en centrerad Tillbaka utan chevron.
