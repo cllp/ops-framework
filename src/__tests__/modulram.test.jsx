@@ -152,6 +152,28 @@ describe("modulramen", () => {
     expect(screen.getByText("Bara ägare och admin ändrar de här inställningarna.")).toBeTruthy();
   });
 
+  it("ram.kropp ersätter de tre avsnitten, och utan kropp står På kvar", () => {
+    const { unmount } = render(
+      <OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={ram({ kropp: <p>Agentens egna</p> })}>
+        <p>översikten</p>
+      </OpsModulSida>,
+    );
+    expect(screen.getByText("Agentens egna")).toBeTruthy();
+    expect(screen.queryByText("översikten")).toBeNull();
+    expect(screen.queryByRole("switch", { name: /På/ })).toBeNull();
+    expect(screen.queryByText("Kopplingar")).toBeNull();
+    unmount();
+
+    render(
+      <OpsModulSida modul={EKONOMI} activeHref="/ekonomi?lage=installningar" hubHref="/hub" ram={ram()}>
+        <p>översikten</p>
+      </OpsModulSida>,
+    );
+    expect(screen.queryByText("Agentens egna")).toBeNull();
+    expect(screen.getByRole("switch", { name: /På/ })).toBeTruthy();
+    expect(screen.getByText("Kopplingar")).toBeTruthy();
+  });
+
   it("en nyckel i manifestet avvisas", () => {
     expect(() => defineModule({
       ...BAS(),

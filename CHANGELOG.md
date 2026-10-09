@@ -9,6 +9,25 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.0
+
+CP hittar agentens inställningar för långt från samtalet. Agenter följer samma ram som övriga appar: visning, kugghjul, Allmänt, Kopplingar och egna. Tryck på agenten i chatten öppnar samma ställe.
+
+LifeHub pinnar om till 0.90.0 i samma pass. Där öppnar ett tryck på agenten i chatten inställningarna, och Agenter syns i Appar.
+
+### Modulen Agenter
+
+- **`OpsAgenter`, `ORD_OPSAGENTER`, `agenterManifest`.** Visningen listar gruppens agenter. Kugghjulet öppnar inställningar för en agent i taget, adressen `?agent=<id>&lage=installningar`. Allmänt är namn, roll och beskrivning, och märket visas utan att sparas en gång till. Kopplingar är modelltexten appen skickar in, appens eget valv (`byok`) och verktygen. Egna är instruktioner, kunskap, minne och vad agenten får göra. Ägare och admin ändrar när `ram.farAndra` är sant. Strömbrytaren på och av ritas bara när `kanVaxla` är sant, och den anropar samma `onVaxla` som gruppsidan redan har. `listfel` skrivs ut när listan inte gick att läsa. Utan den är en tom lista noll agenter.
+- **Ingen egen lagring.** Namn, roll, verktyg, minne och kunskap är fält appen redan sparar. Modellen är den appen redan anropar. Nyckeln ritas av appens valv och skrivs aldrig här. Gränserna (`granser`) kommer från appens validering. Manifestet har ingen samling.
+- **`AGENTER_ID`, `AGENT_PARAM`, `agentIHref`, `medAgent`, `agentInstallningsHref`.** Agenten är en egen parameter så att ett tryck i chatten kan öppna just den, och modulens övriga parametrar står kvar.
+- **`OpsModulRam` tar `rubrikNamn` och `ram.kropp`.** Med kropp ritas inte de tre standardavsnitten. Agenter använder den, eftersom inställningarna gäller en agent och inte appens på och av. Utan kropp är avsnitten som i 0.89.0.
+- **`OpsMeddelanden`, `OpsSamtal` och `OpsTrad` tar `onVisaAgent`.** I ett agentsamtal är namn och ikon i huvudet en knapp. I en tråd är agentens avatar en knapp. Utan propen är huvudet text och avataren ett märke, som förut.
+- **`OpsGruppSida` tar `agenterHref`.** Med den ritas en länk till modulen och ingen strömbrytare. "Skriv till" står kvar. Utan den är strömbrytaren kvar för ägaren. `OpsGruppFormular` får inga agentfält: en installerad modul med kort länkar till sina inställningar, och Agenter syns i Appar för att manifestet har ett kort.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras. Skrivningarna ligger kvar på appens anrop (`sparaAgent`, `vaxlaAgent`) och på samlingen appen redan äger. Identitetens valv är orört.
+
 ## 0.89.0
 
 CP 2026-10-09, med en bild av Outlook på telefonen: ett tryck på Appar ska öppna ett ark ovanför flikraden, inte en ny sida. Samma dag: varje modul ska ha en ram med visning och inställningar, och inställningarna ska bo på ett ställe. Pinnen, ikonen, synligheten, kopplingarna och de egna fälten ritas i modulens ram. Redigera grupp, Appar, installerar och avinstallerar.

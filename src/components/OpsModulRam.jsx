@@ -137,14 +137,15 @@ export function ModulLageKnapp({ ram, activeHref, onNavigate, sprak, installning
  * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {string} [props.sprak]
  * @param {ModulRam | null} [props.ram]
+ * @param {string} [props.rubrikNamn] Ersätter modulens namn i rubriken. Agenter sätter agentens namn.
  * @param {import("react").ReactNode} props.children Visningen. Dold i inställningsläget.
  */
-export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate, sprak: sprakProp, ram = null, children }) {
+export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate, sprak: sprakProp, ram = null, rubrikNamn, children }) {
   kravRam(ram, "OpsModulRam");
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
   const installningar = Boolean(ram) && arInstallningslage(activeHref);
-  const namn = text(modul.namn, sprak);
+  const namn = typeof rubrikNamn === "string" && rubrikNamn.trim() ? rubrikNamn.trim() : text(modul.namn, sprak);
   const rubrik = installningar ? `${namn} · ${ordet(ORD_OPSMODULRAM, "installningar", sprak)}` : namn;
   const visaKnapp = ram != null && (installningar || ram.farAndra);
   return (
@@ -156,7 +157,7 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
         ) } : {}),
       }}
     >
-      {installningar && ram ? <InstallningsInnehall modul={modul} ram={ram} sprak={sprak} /> : children}
+      {installningar && ram ? (ram.kropp != null ? ram.kropp : <InstallningsInnehall modul={modul} ram={ram} sprak={sprak} />) : children}
     </OpsView>
   );
 }
@@ -172,6 +173,7 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
  * @property {{ lage?: Readonly<Record<string, unknown>>, onAnslut?: (id: string) => void | Promise<void>, onKopplaFran?: (id: string) => void | Promise<void> }} [kopplingar]
  * @property {ReadonlyArray<import("../lib/kopplingar.js").Kopplingsdeklaration>} [deklarationer] När manifestet inte bär kopplingarna än (appen pinnad på en äldre ramverksversion).
  * @property {import("react").ReactNode} [egna] Modulens egen slot. Tomt läge när den saknas och manifestet inte har fält.
+ * @property {import("react").ReactNode} [kropp] (0.90.0) Ersätter de tre standardavsnitten. Agenter använder den: inställningarna gäller en agent, inte appens på och av. Utan den ritas standardavsnitten.
  */
 
 /**

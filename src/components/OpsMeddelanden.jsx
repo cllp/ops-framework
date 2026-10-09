@@ -98,6 +98,7 @@ import { AgentIkon, AndraIkon, BildIkon, FastIkon, FilIkon, KameraIkon, LjudvagI
  * @property {string} [privatRad] Förval "Bara ni två ser det här".
  * @property {string} [gruppRad] Förval "Alla i gruppen ser det här".
  * @property {string} [agentRad] Förval "Bara du och agenten ser det här".
+ * @property {string} [oppnaInstallningar] (0.90.0) Efterled i knappens namn. Förval "öppna inställningar".
  * @property {string} [inga] Förval "Inga meddelanden än".
  * @property {string} [skriv] Förval "Skriv ett meddelande".
  * @property {string} [skicka] Förval "Skicka".
@@ -220,6 +221,7 @@ const TEXTER = {
   grupp: "Grupp",
   privat: "Privat",
   agent: "Agent",
+  oppnaInstallningar: "öppna inställningar",
   privatRad: "Bara ni två ser det här",
   gruppRad: "Alla i gruppen ser det här",
   agentRad: "Bara du och agenten ser det här",
@@ -592,8 +594,9 @@ function texterPa(sprak, texter) {
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: chatten som förut, utan kugghjul.
  * @param {string} [props.activeHref] (0.89.0) Krävs med `ram`. `?lage=installningar` ersätter chatten med inställningarna.
  * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`, tillsammans med `tillbaka.hubHref`.
+ * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Tryck på agentens namn och ikon i samtalets huvud, och på agentens avatar i en tråd, öppnar den agentens inställningar. Utan den är huvudet text.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null, onVisaAgent }) {
   kravRam(ram, "OpsMeddelanden");
   if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul || typeof tillbaka?.hubHref !== "string")) {
     throw new Error("OpsMeddelanden: ram kräver activeHref, modul och tillbaka.hubHref. Inställningsläget använder samma tillbaka-rad som listan.");
@@ -955,6 +958,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             mejl={mejl}
             onLyftTillMinnet={onLyftTillMinnet}
             minneHref={minneHref}
+            onVisaAgent={onVisaAgent}
           />
         ) : vald?.ej && groupId ? (
           <OppnaGruppchatt key={vald.samtal.id} kalla={kalla} uid={uid} groupId={groupId} texter={t} onOppnad={(s) => laggIn(s)} />
@@ -985,6 +989,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             texter={t}
             onBifoga={onBifoga}
             mejl={mejl}
+            onVisaAgent={onVisaAgent}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
@@ -1701,6 +1706,21 @@ function Bilageutkast({ bilaga, fel, onTaBort, texter: t }) {
 }
 
 /**
+ * Deltagaren som är agent i ett agentsamtal. Tom sträng när det inte går att veta vem.
+ *
+ * @param {{ slag?: string, deltagare?: ReadonlyArray<string> }} samtal
+ * @param {string} uid
+ * @param {ReadonlyArray<{ userId?: string, typ?: string }> | null | undefined} medlemmar
+ */
+function agentDeltagare(samtal, uid, medlemmar) {
+  const deltagare = Array.isArray(samtal.deltagare) ? samtal.deltagare : [];
+  const annan = deltagare.find((id) => typeof id === "string" && id && id !== uid);
+  if (annan) return annan;
+  const m = (medlemmar ?? []).find((x) => x?.typ === "agent" && typeof x.userId === "string" && x.userId);
+  return m?.userId ?? "";
+}
+
+/**
  * Ett samtal: huvudet, meddelandena och skrivfältet. Samma vy för gruppchatten, ett privat samtal och ett agentsamtal.
  *
  * ⛔ LÄSMÄRKET FLYTTAS NÄR SAMTALET ÄR ÖPPET OCH NÅGOT NYTT FINNS, och bara framåt. Den som har samtalet öppet har sett
@@ -1738,8 +1758,9 @@ function Bilageutkast({ bilaga, fel, onTaBort, texter: t }) {
  * @param {(filer: File[], slag: "bild" | "foto" | "fil") => void} [props.onBifoga] (0.77.0, #292) Ritar pluset. Med `bilagor` på
  *   källan läser ramverket filen själv och den här anropas inte. Utan `bilagor` lämnas filerna hit, och utan den ritas inget plus.
  * @param {string} [props.mejl] (0.80.0, #301) Adressen appen skickar in. Utan den ritas ingen mejlknapp.
+ * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Gör namn och ikon i ett agentsamtal till en knapp.
  */
-export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl }) {
+export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, namnFor, medlemmar, onLast, onSkickat, utkast, onOppnaTrad, tradminne, fokusRot, onFokuserad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl, onVisaAgent }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -1839,19 +1860,41 @@ export function OpsSamtal({ kalla, uid, samtal, rubrik, marke, lastTill = 0, nam
 
   const agent = samtal.slag === "agent";
   const privatRad = samtal.slag === "grupp" ? t.gruppRad : agent ? t.agentRad : t.privatRad;
+  const agentId = agent && onVisaAgent ? agentDeltagare(samtal, uid, medlemmar) : "";
 
   return (
     <div data-ops-samtal={samtal.slag} className={cx("relative flex min-h-0 flex-1", info ? "flex-col md:flex-row" : "flex-col")}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
-        {marke}
-        <div className="min-w-0 flex-1">
-          <h3 className="m-0 truncate text-etikett font-semibold text-ink">{rubrik}</h3>
-          <p data-privat-rad="" className="m-0 flex items-center gap-1 text-liten text-ink-muted">
-            {samtal.slag !== "grupp" ? <LasIkon size={10} /> : null}
-            <span>{privatRad}</span>
-          </p>
-        </div>
+        {agentId ? (
+          <button
+            type="button"
+            data-visa-agent={agentId}
+            aria-label={`${rubrik}, ${t.oppnaInstallningar}`}
+            onClick={() => onVisaAgent?.({ id: agentId, namn: rubrik })}
+            className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-base text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            {marke}
+            <span className="min-w-0 flex-1">
+              <h3 className="m-0 truncate text-etikett font-semibold text-ink">{rubrik}</h3>
+              <p data-privat-rad="" className="m-0 flex items-center gap-1 text-liten text-ink-muted">
+                <LasIkon size={10} />
+                <span>{privatRad}</span>
+              </p>
+            </span>
+          </button>
+        ) : (
+          <>
+            {marke}
+            <div className="min-w-0 flex-1">
+              <h3 className="m-0 truncate text-etikett font-semibold text-ink">{rubrik}</h3>
+              <p data-privat-rad="" className="m-0 flex items-center gap-1 text-liten text-ink-muted">
+                {samtal.slag !== "grupp" ? <LasIkon size={10} /> : null}
+                <span>{privatRad}</span>
+              </p>
+            </div>
+          </>
+        )}
         <div className="flex shrink-0 items-center">
           {post ? (
             <Verktygsknapp etikett={t.mejl} dataAttr="mejl" href={post}>
@@ -2125,8 +2168,9 @@ function useTradmarken({ kalla, sid, meddelanden, minne }) {
  * @param {any} [props.kalla] Så att en bilaga utan innehåll kan hämtas när meddelandet visas.
  * @param {string} [props.sid]
  * @param {string} [props.trad] Trådens id, när raderna är svar i en tråd. Det står i filens nyckel (`bilagenyckel`).
+ * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i en tråd öppnar inställningarna.
  */
-function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad }) {
+function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNamn, efter, forraTid, reakt, texter = TEXTER, citat, traffar, fasta, postkort, kalla, sid, trad, onVisaAgent }) {
   const medlemsbild = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.bild || undefined;
   const medlemstyp = (/** @type {string} */ id) => (medlemmar ?? []).find((m) => m.userId === id)?.typ;
   return (
@@ -2152,7 +2196,19 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
                     /* ⛔ KAN 9: agentens svar bär agentens ikon, som agentsamtalets rad i listan, så att ett svar från agenten
                        aldrig ser ut som en persons. */
                     medlemstyp(m.av) === "agent" ? (
-                      <OpsIdentity name={namnFor(m.av)} seed={m.av} size="sm" icon={AgentIkon} rund />
+                      onVisaAgent ? (
+                        <button
+                          type="button"
+                          data-visa-agent={m.av}
+                          aria-label={`${namnFor(m.av)}, ${texter.oppnaInstallningar}`}
+                          onClick={() => onVisaAgent({ id: m.av, namn: namnFor(m.av) })}
+                          className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          <OpsIdentity name={namnFor(m.av)} seed={m.av} size="sm" icon={AgentIkon} rund />
+                        </button>
+                      ) : (
+                        <OpsIdentity name={namnFor(m.av)} seed={m.av} size="sm" icon={AgentIkon} rund />
+                      )
                     ) : (
                       <OpsIdentity name={namnFor(m.av)} seed={m.av} imageUrl={medlemsbild(m.av)} size="sm" rund />
                     )
@@ -2264,8 +2320,9 @@ function Meddelanderader({ meddelanden, uid, namnFor, medlemmar, locale, visaNam
  * @param {(rad: { samtal: string, trad: string, meddelande: string, text: string, av: string }) => void | Promise<void>} [props.onLyftTillMinnet]
  *   (0.86.0) Knappen "Lyft till minnet" på rotmeddelandet och på svaren. Utan den ingen knapp.
  * @param {string} [props.minneHref] (0.86.0) Länk till minnesvyn i trådens huvud. Utan den ingen länk.
+ * @param {(agent: { id: string, namn: string }) => void} [props.onVisaAgent] (0.90.0) Agentens avatar i tråden öppnar inställningarna.
  */
-export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl, onLyftTillMinnet, minneHref }) {
+export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, medlemmar, onStang, onSvarat, onDopt, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga: onBifogaProp, mejl, onLyftTillMinnet, minneHref, onVisaAgent }) {
   if (!harTradar(kallan)) throw new Error("OpsTrad: källan har inga trådar. Skicka `tradar` till createSamtalskalla, med samma namn som till samtalsregelfragment.");
   const kalla = kallan;
   const sprakKontext = useOpsSprak();
@@ -2528,7 +2585,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         ) : null}
         <div data-rotmeddelande="" className="border-b border-line pb-2">
           {rot ? (
-            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} />
+            <Meddelanderader meddelanden={[rot]} efter={lyftEfter} kalla={kalla} sid={samtal.id} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn texter={t} onVisaAgent={onVisaAgent} />
           ) : rot === null ? (
             <p className="m-0 py-3 text-meta text-ink-muted">{t.rotSaknas}</p>
           ) : null}
@@ -2538,7 +2595,7 @@ export function OpsTrad({ kalla: kallan, uid, samtal, tid, gruppNamn, namnFor, m
         </p>
         <VisaAldre historik={historik} texter={t} />
         <Reaktionslage reakt={reakt} texter={t} />
-        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} />
+        <Meddelanderader meddelanden={historik.alla} efter={lyftEfter} reakt={reakt} texter={t} postkort={postkort} kalla={kalla} sid={samtal.id} trad={tid} traffar={sok.oppen ? { ids: sok.traffar, aktuell: sok.aktuell } : null} uid={uid} namnFor={namnFor} medlemmar={medlemmar} locale={locale} visaNamn forraTid={rot?.tid} onVisaAgent={onVisaAgent} />
         <Agentrad lage={agentlage} texter={t} />
         <div ref={slut} />
       </div>
