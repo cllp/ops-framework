@@ -20,6 +20,12 @@ export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsApparArk, ORD_OPSAPPARARK } from "./components/OpsApparArk.jsx";
 export { OpsModulRam, ORD_OPSMODULRAM } from "./components/OpsModulRam.jsx";
 export { LAGE_PARAM, INSTALLNINGSLAGE, arInstallningslage, medInstallningslage, utanInstallningslage } from "./lib/apparark.js";
+/*
+ * ⛔ AGENTER (0.90.0). Ytan är ramverkets. Dokumentet, modellen och nyckeln är appens.
+ * Ingen samling här: en andra kopia hade glidit isär från den appen redan skriver.
+ */
+export { OpsAgenter, ORD_OPSAGENTER, agenterManifest } from "./components/OpsAgenter.jsx";
+export { AGENTER_ID, AGENT_PARAM, agentIHref, medAgent, agentInstallningsHref } from "./lib/agenter.js";
 export { OpsBrand } from "./components/OpsBrand.jsx";
 
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────

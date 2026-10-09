@@ -45,19 +45,24 @@ import { AgentIkon, AndraIkon, MeddelandeIkon, PersonIkon, PlatsIkon } from "./i
  * @param {() => void} [props.onTillbaka] Utelämnad: ingen tillbaka-rad.
  * @param {() => void} [props.onRedigera] Ritar Redigera-knappen, men bara för `roll` agare eller admin.
  * @param {(id: string) => void} [props.onVisaMedlem] Gör medlemsraden till en knapp. Utelämnad: raden är text.
+ * @param {string} [props.agenterHref] (0.90.0) Länk till modulen Agenter. Med den ritas ingen strömbrytare: inställningarna bor i modulen.
+ * @param {(href: string, event: any) => void} [props.onNavigate] Tar klicket på länken. Utan den följer webbläsaren adressen.
  * @param {string} [props.sprak]
  * @param {{ tillbaka?: string, redigera?: string, redigeraGrupp?: string, medlemmar?: string, inga?: string, agare?: string, admin?: string, ort?: string, ai?: string, avstangd?: string, agentPa?: string, agentPaHjalp?: string, skrivTill?: string }} [props.etiketter]
  * @param {import("react").ReactNode} [props.children] Appens egna sektioner under medlemmarna.
  */
-export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, sprak, etiketter, children }) {
+export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [], onTillbaka, onRedigera, onVisaMedlem, onVaxlaAgent, onSkrivTillAgent, agenterHref, onNavigate, sprak, etiketter, children }) {
   const personnamn = usePersonnamn();
   if (!grupp || typeof grupp.id !== "string" || !grupp.id) {
     throw new Error("OpsGruppSida: grupp krävs, med id och namn. En detaljsida utan grupp är en tom sida.");
   }
-  const t = { tillbaka: "Tillbaka", redigera: "Redigera", redigeraGrupp: "Redigera grupp", medlemmar: "Medlemmar", inga: "Inga medlemmar", agare: "Ägare", admin: "Admin", ort: "Ort", ai: "AI", avstangd: "Avstängd", agentPa: "Agenten är på", agentPaHjalp: "Avstängd svarar den inte, varken i gruppchatten eller privat.", skrivTill: "Skriv till", ...(etiketter ?? {}) };
+  if (agenterHref !== undefined && (typeof agenterHref !== "string" || !agenterHref)) {
+    throw new Error("OpsGruppSida: agenterHref ska vara modulens adress. En tom länk ser ut som att inställningarna finns kvar på sidan.");
+  }
+  const t = { tillbaka: "Tillbaka", redigera: "Redigera", redigeraGrupp: "Redigera grupp", medlemmar: "Medlemmar", inga: "Inga medlemmar", agare: "Ägare", admin: "Admin", ort: "Ort", ai: "AI", avstangd: "Avstängd", agentPa: "Agenten är på", agentPaHjalp: "Avstängd svarar den inte, varken i gruppchatten eller privat.", skrivTill: "Skriv till", agenter: "Agenter", ...(etiketter ?? {}) };
   const namn = text(grupp.namn, sprak);
   const kanRedigera = typeof onRedigera === "function" && (grupp.roll === "agare" || grupp.roll === "admin");
-  const kanVaxlaAgent = typeof onVaxlaAgent === "function" && grupp.roll === "agare";
+  const kanVaxlaAgent = !agenterHref && typeof onVaxlaAgent === "function" && grupp.roll === "agare";
 
   return (
     <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col px-4 pt-6 pb-6 sm:px-5" data-gruppsida="">
@@ -183,6 +188,16 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
           </ul>
         )}
       </section>
+      {agenterHref ? (
+        <a
+          href={agenterHref}
+          data-agenter-lank=""
+          onClick={(e) => onNavigate?.(agenterHref, e)}
+          className="mb-6 inline-flex min-h-11 items-center self-start rounded-base text-etikett font-semibold text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {t.agenter}
+        </a>
+      ) : null}
       {children}
     </div>
   );
