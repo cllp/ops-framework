@@ -9,9 +9,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.90.6
+## 0.90.5
 
-CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-huvudet och såg ut som en knapp till. Ingen utgivning i det här passet. Appen pinnar inte om.
+CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-huvudet och såg ut som en knapp till. Utges som 0.90.5, efter 0.90.4; appen pinnar om.
 
 ### Skapa-vyn har en vanlig rubrik
 
@@ -25,10 +25,6 @@ CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-
 ### Appar går att ordna
 
 - **Byt ordning är ett läge.** Ikonerna vickar och visar ett grepp. De dras med pekaren, mus och finger. Pilknappar och piltangenter flyttar ett steg. Klar skriver `groups.moduler` och lämnar läget. Stängning utan Klar sparar inte. Samma lista styr inställningarnas Ordning och huvudmenyn.
-
----
-
----
 
 ---
 
