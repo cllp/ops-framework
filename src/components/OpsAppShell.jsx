@@ -739,7 +739,7 @@ export function useOppnaSkapa() {
 }
 
 /**
- * Öppnar skalets inspelare med modulens mål förvalt (0.90.3). Samma fält som plusset, inte en andra inspelare.
+ * Öppnar skalets inspelare med modulens mål förvalt (0.90.8). Samma fält som plusset, inte en andra inspelare.
  * `null` utanför skalet: `OpsBibliotek` ritas i prov utan skal, och ett kast vid ritning hade gömt listan.
  * @returns {((modulId: string) => void) | null}
  */
@@ -1590,7 +1590,7 @@ function OpsAppShellRitad({
     inspelare: talk?.inspelare,
   });
   /**
-   * Röstinspelning ur en moduls Ny-meny (0.90.3). Samma `useTalk` som plusset. Målet är modulens första
+   * Röstinspelning ur en moduls Ny-meny (0.90.8). Samma `useTalk` som plusset. Målet är modulens första
    * `inspelning.mal` i gruppen, förvalt innan fältet öppnas. Utan det målet kastas: en inspelning utan mottagare
    * hade försvunnit när personen tryckte Klar.
    * @param {string} modulId

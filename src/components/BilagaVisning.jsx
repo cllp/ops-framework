@@ -14,7 +14,7 @@ import { OpsLjudspelare } from "./OpsLjudspelare.jsx";
  *
  * ⛔ INGEN `<iframe>` FÖR EN PDF. Den ritas olika i varje webbläsare, och en tom ruta ser ut som att filen inte kom fram.
  *
- * ⛔ ETT LJUD ÄR `OpsLjudspelare`, INTE EN NEDLADDNINGSLÄNK (0.90.3). Samma spelare som Biblioteket.
+ * ⛔ ETT LJUD ÄR `OpsLjudspelare`, INTE EN NEDLADDNINGSLÄNK (0.90.8). Samma spelare som Biblioteket.
  * Märket blir `ljud` så en provning kan skilja det från en fil som fortfarande laddas ned.
  *
  * @param {{ bilaga: import("../lib/file.js").Bilaga, alt: string, marke?: string }} props

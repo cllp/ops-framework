@@ -99,7 +99,7 @@ import { OpsView } from "./OpsView.jsx";
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp] Sparar en fil. Saknas den och någon försöker visas felet, filen laddas inte upp.
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl] Appen ger adressen till en fil. Tom sträng visas som att adressen saknas. Synkron, och vinner när den är ifylld.
  * @param {(sokvag: string) => Promise<string>} [props.hamtaAdress] (0.88.2) Nedladdningsadressen för `fil.sokvag`, när `filUrl` är tom. Svaret cachas per sökväg, så listan och detaljen delar den. Medan den hämtas visas inte "Filen har ingen adress."
- * @param {unknown} [props.onSpelaIn] Borttagen (0.90.3). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
+ * @param {unknown} [props.onSpelaIn] Borttagen (0.90.8). Skickas den kastas ett fel: listan hade en egen inspelare, och att tysta propen hade sett ut som att ljudet fortfarande sparades där.
  * @param {unknown} [props.inspelare] Borttagen tillsammans med listans inspelare. Skickas den kastas ett fel.
  * @param {readonly { id: string, namn: string }[]} [props.grupper] Grupper posten kan flyttas eller kopieras till.
  * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela] Flytta eller kopiera. Saknas den visas felet, posten är kvar.
@@ -626,7 +626,7 @@ function PostMark({ post, bildAdress = "" }) {
  * ⛔ AVTRYCKAREN ÄR INTE EN `OpsButton` MEN SER UT SOM EN (`knappKlass`): Radix `Popover.Trigger` ritar sitt eget
  * `<button>`, och `OpsButton` har ingen `forwardRef`. Samma skäl som plusset i `OpsAppShell`.
  *
- * Röstinspelning ligger i menyn under Alla (0.90.3). Den öppnar skalets inspelare, inte en rad i listan.
+ * Röstinspelning ligger i menyn under Alla (0.90.8). Den öppnar skalets inspelare, inte en rad i listan.
  *
  * @param {{ flik: "alla" | "anteckning" | "lank" | "fil", onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void }} props
  */

@@ -266,7 +266,7 @@ export const MAX_HANDELSEKOMMENTAR = 5000;
 /**
  * MIME-typerna en kommentarsbilaga får ha. Utan regextecken, eftersom regeln bygger sitt mönster ur typen.
  *
- * ⛔ LJUD (0.90.3). Samma fråga som Bibliotekets filer: ett ljud ska gå att spela, inte bara laddas ned.
+ * ⛔ LJUD (0.90.8). Samma fråga som Bibliotekets filer: ett ljud ska gå att spela, inte bara laddas ned.
  * Codec-varianterna är de `MediaRecorder` faktiskt rapporterar (`audio/webm;codecs=opus`). Data-URL:ens prefix
  * måste vara exakt typen, så en bas-typ ensam hade nekat rösten från samma inspelare ramverket redan använder.
  */

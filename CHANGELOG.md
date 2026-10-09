@@ -9,9 +9,9 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
-## 0.90.3
+## 0.90.8
 
-CP vill ha en ljudspelare, samma för allt ljud: Bibliotekets inspelningar, chattens röstfiler och bilagor, och vilken ljudfil som helst. Förebilden är SessionStudios spelare (`InlineAudioPlayer`, `WebFullscreenAudioPlayer`, den delade räknaren). Ingen utgivning i det här passet.
+CP vill ha en ljudspelare, samma för allt ljud: Bibliotekets inspelningar, chattens röstfiler och bilagor, och vilken ljudfil som helst. Förebilden är SessionStudios spelare (`InlineAudioPlayer`, `WebFullscreenAudioPlayer`, den delade räknaren). Utges som 0.90.8, efter 0.90.7.
 
 ### En spelare
 
