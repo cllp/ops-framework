@@ -72,7 +72,7 @@ if (skivor) {
     ["dokument", "dokument", "ss-dokument.png", "Dokument med ikon och storlek"],
     ["radera", "detalj", "lifehub-fore.png", "Radering med bekräftelse"],
     ["utskrift", "utskrift", "ss-inspelningar.png", "Utskrift och förslag på ljudposten"],
-    ["plus", "plus", "ss-inspelningar.png", "Spela in idé i plusmenyn"],
+    ["plus", "plus", "ss-inspelningar.png", "TALK i plusmenyn, målet Spara i Biblioteket när inspelningen är öppen"],
   ];
   async function oppna(lage, viewport, efter) {
     const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
@@ -103,7 +103,8 @@ if (skivor) {
     if (namn === "plus") {
       return async (page) => {
         await page.getByRole("button", { name: "Skapa" }).click();
-        await page.getByRole("button", { name: "Spela in idé" }).waitFor();
+        await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "TALK, prata in" }).click();
+        await page.getByRole("radio", { name: "Spara i Biblioteket" }).waitFor();
       };
     }
     if (namn === "bild") {

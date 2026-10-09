@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
-import { LANGTRYCK_MS, MIKROFON_SPARRAD_AV_SIDAN, TALK_ORD, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MIKROFON_SPARRAD_AV_SIDAN, SPARAT_MS, TALK_ORD, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
 
 /*
  * 0.57.0, cllp/lifehub.app#2. CP 2026-10-04: långtryck på plusset visar bara TALK, ett fält kommer fram så att man
@@ -22,10 +22,13 @@ describe("flödet är en ren funktion", () => {
     expect(talkNasta({ lage: "haller" }, { typ: "upp" })).toEqual({ lage: "lyssnar", gor: null });
   });
 
-  it("bara mikrofonen skickar och bara krysset kastar", () => {
+  it("Klar sparar och krysset kastar, och ett andra tryck under sparningen gör inget", () => {
     expect(steg({ typ: "ner" }, { typ: "langtryck" }, { typ: "upp" }, { typ: "skicka" })).toEqual({ lage: "skickar", gor: "skicka" });
     expect(steg({ typ: "ner" }, { typ: "langtryck" }, { typ: "upp" }, { typ: "avbryt" })).toEqual({ lage: "vila", gor: "kasta" });
-    expect(talkNasta({ lage: "skickar" }, { typ: "klar" }).lage).toBe("vila");
+    expect(talkNasta({ lage: "skickar" }, { typ: "klar" }).lage).toBe("sparat");
+    expect(talkNasta({ lage: "skickar" }, { typ: "skicka" })).toEqual({ lage: "skickar", gor: null });
+    expect(talkNasta({ lage: "sparat" }, { typ: "dolj" }).lage).toBe("vila");
+    expect(talkNasta({ lage: "fel", fel: "nej" }, { typ: "igen" })).toEqual({ lage: "skickar", gor: "igen" });
   });
 
   it("raden i Skapa går rakt till fältet, och taket skickar det som spelats in", () => {
@@ -112,10 +115,20 @@ describe("plusset i bottenraden", () => {
     // ⛔ Klicket efter långtrycket öppnade inte Skapa.
     expect(screen.queryByRole("dialog", { name: "Skapa" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    const klar = screen.getByRole("button", { name: "Klar, spara inspelningen" });
+    expect(klar.className).toContain("bg-accent");
+    expect(klar.textContent).toContain("Klar");
+    const avbryt = screen.getByRole("button", { name: "Avbryt" });
+    expect(avbryt.className).not.toContain("bg-danger");
+    fireEvent.click(klar);
+    fireEvent.click(klar);
     await flush();
     expect(onTalk).toHaveBeenCalledTimes(1);
-    expect(onTalk.mock.calls[0][1]).toEqual({ mimeType: "audio/webm", sekunder: 2.5 });
+    expect(insp.stoppa).toHaveBeenCalledTimes(1);
+    expect(onTalk.mock.calls[0][1]).toMatchObject({ mimeType: "audio/webm", sekunder: 2.5 });
+    expect(typeof onTalk.mock.calls[0][1].rapportera).toBe("function");
+    expect(screen.getByRole("status").textContent).toMatch(/Sparat/);
+    act(() => vi.advanceTimersByTime(SPARAT_MS));
     expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull();
   });
 
@@ -174,9 +187,92 @@ describe("plusset i bottenraden", () => {
     fireEvent.pointerDown(plus(), { button: 0 });
     act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
     await flush();
-    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     expect(document.querySelector("[data-talk-fel]")?.textContent).toBe("Servern svarade inte.");
+    expect(screen.getByRole("button", { name: "Försök igen" })).toBeTruthy();
+  });
+
+  it("Försök igen sparar samma ljud, och en andel ritas som procent", async () => {
+    let fail = true;
+    /** @type {Blob | null} */
+    let sedd = null;
+    const onTalk = vi.fn((blob, meta) => {
+      sedd = blob;
+      meta.rapportera(0.4);
+      if (fail) return Promise.reject(new Error("Uppladdningen föll."));
+      return Promise.resolve();
+    });
+    render(Skal({ talk: { onTalk, inspelare: falskInspelare() } }));
+    fireEvent.pointerDown(plus(), { button: 0 });
+    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+    await flush();
+    expect(screen.getByRole("alert").textContent).toBe("Uppladdningen föll.");
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Försök igen" }));
+    await flush();
+    expect(onTalk).toHaveBeenCalledTimes(2);
+    expect(onTalk.mock.calls[1][0]).toBe(sedd);
+    expect(screen.getByRole("status").textContent).toMatch(/Sparat/);
+  });
+
+  it("en rapporterad andel blir procent, och tal utanför 0 till 1 kläms", async () => {
+    /** @type {((andel: number) => void) | null} */
+    let rapport = null;
+    const onTalk = vi.fn((_blob, meta) => {
+      rapport = meta.rapportera;
+      return new Promise(() => {});
+    });
+    render(Skal({ talk: { onTalk, inspelare: falskInspelare() } }));
+    fireEvent.pointerDown(plus(), { button: 0 });
+    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+    await flush();
+    act(() => rapport?.(0.4));
+    expect(screen.getByRole("status").textContent).toBe("Sparar… 40 %");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "40");
+    act(() => rapport?.(2));
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+    act(() => rapport?.(-1));
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+  });
+
+  it("utan andel står det Sparar med en snurra, inte en procentsiffra", async () => {
+    const onTalk = vi.fn(() => new Promise(() => {}));
+    render(Skal({ talk: { onTalk, inspelare: falskInspelare() } }));
+    fireEvent.pointerDown(plus(), { button: 0 });
+    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
+    await flush();
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Sparar…");
+    expect(status.querySelector("svg")).not.toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Klar, spara inspelningen" })).toBeNull();
+  });
+
+  it("en lång inspelning frågar innan den kastas, en kort gör det inte", async () => {
+    const insp = falskInspelare();
+    const { unmount } = render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp } }));
+    fireEvent.pointerDown(plus(), { button: 0 });
+    act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
+    await flush();
+    fireEvent.pointerUp(plus());
+    act(() => vi.advanceTimersByTime(AVBRYT_FRAGA_SEKUNDER * 1000));
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    expect(insp.kasta).not.toHaveBeenCalled();
+    expect(screen.getByText("Kasta den här inspelningen?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fortsätt" }));
+    expect(screen.queryByText("Kasta den här inspelningen?")).toBeNull();
+    expect(insp.kasta).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kasta" }));
+    expect(insp.kasta).toHaveBeenCalledTimes(1);
+    unmount();
   });
 });
 
@@ -272,11 +368,15 @@ describe("mikrofonknappen i huvudet", () => {
     expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, lyssnar");
     expect(huvudknapp()?.className.split(/\s+/)).toContain("text-accent");
 
-    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await act(async () => {
       await new Promise((r) => setTimeout(r, 5));
     });
     expect(onTalk).toHaveBeenCalledTimes(1);
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, sparat");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, SPARAT_MS + 30));
+    });
     expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, prata in");
   });
 
@@ -287,13 +387,17 @@ describe("mikrofonknappen i huvudet", () => {
     render(Skal({ talk: { onTalk, inspelare: falskInspelare() }, skapa: { arende: true } }));
     fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));
     await flush();
-    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     expect(onTalk).toHaveBeenCalledTimes(1);
     expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("skickar");
-    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, skickar");
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, sparar");
     expect(huvudknapp()?.className.split(/\s+/)).toContain("text-accent");
     await act(async () => klar());
+    expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, sparat");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, SPARAT_MS + 30));
+    });
     expect(huvudknapp()?.getAttribute("aria-label")).toBe("TALK, prata in");
   });
 
@@ -328,7 +432,7 @@ describe("mikrofonknappen i huvudet", () => {
     await flush();
     expect(insp.starta).toHaveBeenCalledTimes(1);
     expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("lyssnar");
-    fireEvent.click(screen.getByRole("button", { name: "Skicka" }));
+    fireEvent.click(screen.getByRole("button", { name: "Klar, spara inspelningen" }));
     await flush();
     expect(huvudknapp()?.getAttribute("data-talk-huvud")).toBe("skickar");
     fireEvent.click(/** @type {HTMLElement} */ (huvudknapp()));

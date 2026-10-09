@@ -14,7 +14,6 @@ import { ArendePlusIkon, ChevronNedIkon, HandelsePlusIkon, KryssIkon, Meddelande
 import { OpsTalk, useTalk } from "./OpsTalk.jsx";
 import { OpsTooltip } from "./OpsTooltip.jsx";
 import { TALK_PRATA_IN, talkKnappNamn } from "../lib/talk.js";
-import { IDE_MAX_SEKUNDER, ideRubrik } from "../lib/bibliotek.js";
 import { byggFasta, djupAktiv, validateFasta } from "./fasta.jsx";
 import { huvudknappKlass, huvudPlusKlass, radBehallare, radKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
@@ -35,7 +34,7 @@ import { HANDELSEPARAM, handelseIdUrAdress, medHandelse } from "../lib/handelsep
 import { KALENDERIKON_KOMPONENT } from "../lib/kalenderikoner.js";
 import { text } from "../lib/sprak.js";
 import { skapalaget, typerAttValja } from "../lib/skapa.js";
-import { tillaggFor } from "../lib/tillagg.js";
+import { malForInspelning, tillaggFor } from "../lib/tillagg.js";
 import { kordarePafunktion, MenyAvdelningar, menyAppAvdelning, menyFot, MenyRubrikRad, menySektioner, validateMeny } from "./OpsMeny.jsx";
 
 /**
@@ -544,8 +543,6 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
  *   Med den ritar skalet raden i plusset OCH gör "Skapa grupp" i gruppanelen till samma panel (växlarens ark på telefon har ingen sedan 0.37.0): `grupper.onSkapa` behövs då inte,
  *   och om båda finns vinner `skapa.grupp` (en väg att skapa en grupp är en sanning, två är två). `onKlar` stänger panelen UTAN att gå bakåt i
  *   historiken, så att appens egen navigering efter `onSkapad` (till gruppens sida) inte ångras av ett sent `history.back()`.
- * @property {(blob: Blob, meta: { mimeType: string, sekunder: number, rubrik: string }) => void | Promise<void>} [spelaIn] Raden "Spela in idé". Ljudet lämnas hit, och appen sparar det i personens egen grupp. Utan funktionen ritas ingen rad.
- * @property {import("../lib/talk.js").Inspelare} [ideInspelare] Bara för prov.
  * @property {() => void} [nyttMeddelande] (0.63.0, #263) Ramverkets rad "Nytt meddelande" i plusset. Raden öppnar INGEN panel: den anropar
  *   funktionen, och appen leder till Meddelanden i läget "nytt" (normalt `() => navigera("/meddelanden?nytt=1")`, och vyn ger
  *   `OpsMeddelanden` `nytt`). `useOppnaSkapa()("meddelande")` och adressens `?skapa=meddelande` gör samma sak.
@@ -713,6 +710,12 @@ function handelseSkapareFinns(skapa) {
 const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { groupId?: string, datum?: string, id?: string }) => void) | null} */ (null));
 
 /**
+ * Skalets inspelare, samma fält som plusset. `null` utanför skalet.
+ * @type {import("react").Context<((modulId: string) => void) | null>}
+ */
+const OppnaInspelningKontext = createContext(/** @type {((modulId: string) => void) | null} */ (null));
+
+/**
  * ⛔ Öppnar skalets skapa-panel från appen (0.34.1). Ersätter `window.location.assign(pathname + "?skapa=meddelande")`,
  * som laddade om hela sidan och bara fungerade om posten fanns vid monteringen.
  *
@@ -732,6 +735,25 @@ const OppnaSkapaKontext = createContext(/** @type {((nyckel: string, extra?: { g
 export function useOppnaSkapa() {
   const oppna = useContext(OppnaSkapaKontext);
   if (!oppna) throw new Error("useOppnaSkapa() används utanför OpsAppShell: hooken behöver skalet som förälder.");
+  return oppna;
+}
+
+/**
+ * Öppnar skalets inspelare med modulens mål förvalt (0.90.3). Samma fält som plusset, inte en andra inspelare.
+ * `null` utanför skalet: `OpsBibliotek` ritas i prov utan skal, och ett kast vid ritning hade gömt listan.
+ * @returns {((modulId: string) => void) | null}
+ */
+export function useInspelningOppnare() {
+  return useContext(OppnaInspelningKontext);
+}
+
+/**
+ * Samma öppnare, och ett kast utanför skalet. En app som anropar den där har ingen inspelare, och tystnad hade sett ut som att ljudet sparades.
+ * @returns {(modulId: string) => void}
+ */
+export function useOppnaInspelning() {
+  const oppna = useInspelningOppnare();
+  if (!oppna) throw new Error("useOppnaInspelning() används utanför OpsAppShell: hooken behöver skalet som förälder.");
   return oppna;
 }
 
@@ -824,9 +846,11 @@ export function useOppnaHandelse() {
  *   Utan `skapa`, eller utan NÅGOT den kan visa (inga `handelse`/`arende` OCH modulerna i `ingenGrupp`/`tomt`-
  *   läge), ritas inget plus alls (tomhet är ett svar, arbetsreglernas punkt 5).
  * @param {string} [props.skapaLabel] Skärmläsarnamn på plusknappen.
- * @param {import("./OpsTalk.jsx").TalkVal} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
- *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. ⛔ Utan `talk` finns varken
- *   långtrycket eller raden: en knapp som spelar in men inte har någon mottagare hade tappat det man sade. (#276) På dator
+ * @param {Omit<import("./OpsTalk.jsx").TalkVal, "onTalk"> & { mal?: ReadonlyArray<{ id: string, etikett: string }>, onTalk: (blob: Blob, meta: { mimeType: string, sekunder: number, rapportera: (andel: number) => void, mal?: { id: string } }) => Promise<void> | void }} [props.talk] TALK (0.57.0, cllp/lifehub.app#2): långtryck på bottenradens plus
+ *   spelar in, och Skapa får raden "TALK, prata in" först. Ljudet lämnas till `talk.onTalk`. När ett mål är valt
+ *   bär `meta.mal` dess id. `mal` är appens egna mål (händelse, meddelande). Modulernas mål på platsen
+ *   `inspelning.mal` läggs till, och de sparas av modulens `spara`, inte av `onTalk`. ⛔ Utan `talk` finns varken
+ *   långtrycket eller raden, om ingen modul erbjuder ett mål: en knapp som spelar in men inte har någon mottagare hade tappat det man sade. (#276) På dator
  *   får huvudet också en mikrofonknapp bredvid plusset, som gör det raden gör.
  * @param {string} [props.closeLabel] Skärmläsarnamn på stängknappen i bottenradens skapa-ark (bara med `fasta`).
  * @param {string} [props.nyHandelseEtikett] Ramverkets rad för `skapa.handelse`.
@@ -900,6 +924,12 @@ function OpsAppShellRitad({
   const harFasta = fasta !== undefined;
   if (talk !== undefined && (!talk || typeof talk.onTalk !== "function")) {
     throw new Error("OpsAppShell: \"talk\" måste ha onTalk (funktion). Utan mottagare hade det man sade försvunnit tyst.");
+  }
+  if (skapa) {
+    const gammalInspelning = /** @type {{ spelaIn?: unknown, ideInspelare?: unknown }} */ (skapa);
+    if (typeof gammalInspelning.spelaIn === "function" || gammalInspelning.ideInspelare !== undefined) {
+      throw new Error("OpsAppShell: skapa.spelaIn är borta. Ett inspelningsmål registreras på modulen, platsen inspelning.mal. Ramverket hårdkodar inte Biblioteket.");
+    }
   }
   if (harFasta) {
     validateFasta(fasta, "OpsAppShell");
@@ -1309,7 +1339,8 @@ function OpsAppShellRitad({
   }
   // ⛔ PLATSEN `handelse.atgard` (0.60.0, #251, beslut 0003): bara moduler som är påslagna i gruppen, och en avslagen moduls komponent anropas inte.
   const handelseAtgarder = skapa?.moduler ? tillaggFor({ moduler: skapa.moduler, grupp: skapa.aktivGrupp, plats: "handelse.atgard" }) : [];
-  const harRamverksrader = Boolean(talk) || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function" || typeof skapa?.spelaIn === "function";
+  const inspelningsMal = malForInspelning({ appMal: talk?.mal, moduler: skapa?.moduler, grupp: skapa?.aktivGrupp, sprak: skapa?.sprak ?? sprak });
+  const harRamverksrader = Boolean(talk) || inspelningsMal.length > 0 || Boolean(skapa?.handelse) || handelseAtgarder.length > 0 || Boolean(skapa?.arende) || typeof skapa?.grupp === "function" || typeof skapa?.nyttMeddelande === "function";
   // ⛔ TOMHET ÄR ETT SVAR: INGET PLUS ALLS NÄR DET INTE FINNS NÅGOT ATT VISA.
   // En knapp som öppnar en tom popover är sämre än ingen knapp, den lär den
   // som trycker att plusset i den här appen inte gör något.
@@ -1543,22 +1574,37 @@ function OpsAppShellRitad({
   });
   const [skapaBottenOppen, setSkapaBottenOppen] = useState(false);
   // ⛔ Kroken körs alltid (krokarnas regel), men utan `talk` når ingen den: plusset får ingen `talk` och raden ritas inte.
+  const [valtInspelning, setValtInspelning] = useState(/** @type {string | null} */ (null));
+  const valtMal = inspelningsMal.find((m) => m.id === valtInspelning) ?? inspelningsMal[0] ?? null;
   const talkStyr = useTalk({
-    onTalk: (blob, meta) => talk?.onTalk(blob, meta),
+    onTalk: (blob, meta) => {
+      if (valtMal?.spara) {
+        return valtMal.spara({ blob, mimeType: meta.mimeType, sekunder: meta.sekunder, rapportera: meta.rapportera, grupp: skapa?.aktivGrupp ?? null });
+      }
+      if (typeof talk?.onTalk !== "function") {
+        throw new Error("Inspelningen är inte kopplad. Ljudet sparades inte.");
+      }
+      return talk.onTalk(blob, valtMal ? { ...meta, mal: { id: valtMal.id } } : meta);
+    },
     onKlick: () => (harFasta ? setSkapaBottenOppen(true) : primaryAction?.onClick()),
     inspelare: talk?.inspelare,
   });
-  const ideStyr = useTalk({
-    maxSekunder: IDE_MAX_SEKUNDER,
-    onTalk: (blob, meta) => {
-      if (typeof skapa?.spelaIn !== "function") {
-        throw new Error("Inspelningen är inte kopplad. Ljudet sparades inte.");
-      }
-      return skapa.spelaIn(blob, { mimeType: meta.mimeType, sekunder: meta.sekunder, rubrik: ideRubrik() });
-    },
-    onKlick: () => {},
-    inspelare: skapa?.ideInspelare,
-  });
+  /**
+   * Röstinspelning ur en moduls Ny-meny (0.90.3). Samma `useTalk` som plusset. Målet är modulens första
+   * `inspelning.mal` i gruppen, förvalt innan fältet öppnas. Utan det målet kastas: en inspelning utan mottagare
+   * hade försvunnit när personen tryckte Klar.
+   * @param {string} modulId
+   */
+  const oppnaInspelning = (modulId) => {
+    const id = typeof modulId === "string" ? modulId.trim() : "";
+    if (!id) throw new Error("useOppnaInspelning: modulId krävs. Målet väljs ur modulens inspelning.mal, och utan id går det inte att veta vilken modul.");
+    const traffar = inspelningsMal.filter((m) => m.id.startsWith(`${id}:`) && typeof m.spara === "function");
+    if (traffar.length === 0) {
+      throw new Error(`OpsAppShell: modulen "${id}" har inget mål på platsen inspelning.mal i den här gruppen. Röstinspelningen sparas dit. Registrera tillägget och slå på modulen.`);
+    }
+    setValtInspelning(traffar[0].id);
+    talkStyr.direkt();
+  };
 
   /**
    * Plussets lista: ramverkets rader, en avdelare, modulernas rader. EN
@@ -1578,8 +1624,8 @@ function OpsAppShellRitad({
               mikrofonen i huvudet gör samma sak, och två vägar till samma inspelning i samma plus är en för mycket.
               Telefonens plus tas i lane 11. */}
           {talk && talkRad ? <OpsPanelRow icon={<MikrofonIkon size={18} />} label={TALK_PRATA_IN} accent onClick={() => oppna(TALK_FORM)} /> : null}
-          {typeof skapa?.spelaIn === "function" ? (
-            <OpsPanelRow icon={<MikrofonIkon size={18} />} label="Spela in idé" onClick={() => { stang(); ideStyr.direkt(); }} />
+          {!talk && inspelningsMal.length > 0 ? (
+            <OpsPanelRow icon={<MikrofonIkon size={18} />} label="Spela in" onClick={() => { stang(); talkStyr.direkt(); }} />
           ) : null}
           {skapa?.handelse ? (
             <OpsPanelRow
@@ -1858,6 +1904,7 @@ function OpsAppShellRitad({
   return (
     <OppnaSkapaKontext.Provider value={oppnaFranApp}>
     <OppnaHandelseKontext.Provider value={handelsepanel ? oppnaHandelse : null}>
+    <OppnaInspelningKontext.Provider value={oppnaInspelning}>
     <div className="min-h-dvh bg-canvas">
       {/* ⛔ 0.31.2 (CP 2026-09-29 22:33, appen på hemskärmen, iOS standalone med `viewport-fit=cover` och `black-translucent`): HEADERN
           BÖRJAR VID SKÄRMENS ÖVERKANT OCH BÄR SJÄLV DEN SÄKRA ZONEN SOM PADDING (`top-0`, `pt-(--safe-top)`). Före 0.31.2 var den
@@ -2100,7 +2147,7 @@ function OpsAppShellRitad({
                   onClick={() => oppnaSkapa(TALK_FORM)}
                   className={huvudknappKlass({
                     visning: "hidden md:inline-flex",
-                    aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar",
+                    aktiv: talkStyr.lage === "haller" || talkStyr.lage === "lyssnar" || talkStyr.lage === "skickar" || talkStyr.lage === "sparat",
                   })}
                 >
                   <MikrofonIkon size={24} />
@@ -2341,27 +2388,23 @@ function OpsAppShellRitad({
         />
       ) : null}
 
-      {ideStyr.lage === "lyssnar" || ideStyr.lage === "haller" || ideStyr.lage === "skickar" || ideStyr.lage === "fel" ? (
-        <div data-bibliotek-inspelning="plus" className="flex items-center gap-2 px-4 py-2">
-          <p>{ideStyr.lage === "fel" ? ideStyr.fel : `Spelar in idé. Taket är ${IDE_MAX_SEKUNDER / 60} minuter.`}</p>
-          {ideStyr.lage === "lyssnar" || ideStyr.lage === "haller" ? (
-            <>
-              <OpsButton variant="primary" onClick={() => ideStyr.skickaIn()}>Spara idé</OpsButton>
-              <OpsButton variant="secondary" onClick={() => ideStyr.avbryt()}>Avbryt</OpsButton>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-
-      {talk ? (
+      {talk || inspelningsMal.length > 0 ? (
         <OpsTalk
           lage={talkStyr.lage}
           fel={talkStyr.fel}
           niva={talkStyr.niva}
+          sekunder={talkStyr.sekunder}
+          tak={talkStyr.tak}
+          framsteg={talkStyr.framsteg}
+          kanIgen={talkStyr.kanIgen}
           onSkicka={talkStyr.skickaIn}
           onAvbryt={talkStyr.avbryt}
-          onInstallningar={talk.onInstallningar}
-          marke={talk.marke}
+          onIgen={talkStyr.igen}
+          onInstallningar={talk?.onInstallningar}
+          marke={talk?.marke}
+          mal={inspelningsMal.map((m) => ({ id: m.id, etikett: m.etikett }))}
+          valt={valtMal?.id ?? null}
+          onValj={setValtInspelning}
         />
       ) : null}
 
@@ -2427,6 +2470,7 @@ function OpsAppShellRitad({
         />
       ) : null}
     </div>
+    </OppnaInspelningKontext.Provider>
     </OppnaHandelseKontext.Provider>
     </OppnaSkapaKontext.Provider>
   );

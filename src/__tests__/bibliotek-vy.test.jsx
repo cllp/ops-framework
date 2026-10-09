@@ -243,36 +243,18 @@ describe("OpsBibliotek", () => {
     expect(lank).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("spela in idé lämnar ljudet med rubrik, och delning frågar innan den flyttar", async () => {
-    const onSpelaIn = vi.fn();
-    const inspelare = {
-      starta: vi.fn(async () => {}),
-      stoppa: vi.fn(async () => ({ blob: new Blob(["a"], { type: "audio/webm" }), mimeType: "audio/webm", sekunder: 3 })),
-      kasta: vi.fn(),
-      niva: () => 0,
-    };
-    const utan = render(<Harness />);
-    expect(utan.queryByRole("button", { name: "Spela in idé" })).toBeNull();
-    utan.unmount();
-
-    const { unmount } = render(<Harness onSpelaIn={onSpelaIn} inspelare={inspelare} />);
-    const mikrofon = screen.getByRole("button", { name: "Spela in idé" });
-    expect(mikrofon.className).toContain("size-24");
-    expect(mikrofon.parentElement?.className).toContain("flex-col");
-    expect(mikrofon.parentElement?.className).toContain("items-center");
-    expect(document.querySelector("[data-talk-prickar]")).toBeNull();
-    expect(mikrofon.querySelector("svg")).not.toBeNull();
-    expect(document.querySelector("[data-bibliotek-ikon='anteckning']")).not.toBeNull();
-    fireEvent.click(mikrofon);
-    expect(inspelare.starta).toHaveBeenCalled();
-    expect(await screen.findByText(/Spelar in/)).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-talk-prickar] > span")).toHaveLength(10);
-    fireEvent.click(await screen.findByRole("button", { name: "Spara idé" }));
-    await waitFor(() => expect(onSpelaIn).toHaveBeenCalled());
-    expect(onSpelaIn.mock.calls[0][0].rubrik).toMatch(/^Idé /);
-    expect(onSpelaIn.mock.calls[0][0].mimeType).toBe("audio/webm");
+  it("listan har ingen inspelare, Ny-menyn har Röstinspelning, och onSpelaIn kastas", () => {
+    const { unmount } = render(<Harness />);
+    expect(screen.queryByRole("button", { name: "Spela in" })).toBeNull();
+    expect(document.querySelector("[data-bibliotek-inspelning]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Röstinspelning" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/OpsAppShell/);
     unmount();
+    expect(() => render(<Harness onSpelaIn={() => {}} />)).toThrow(/inspelning\.mal/);
+  });
 
+  it("delning frågar innan den flyttar", () => {
     const onDela = vi.fn();
     render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
     fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
@@ -371,7 +353,7 @@ describe("OpsBibliotek", () => {
     await waitFor(() => expect(hamtaAdress).toHaveBeenCalledWith("grupper/my/bibliotek/p/ide.webm"));
     const anrop = hamtaAdress.mock.calls.length;
     los();
-    expect(await screen.findByRole("button", { name: "Spela" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /^Spela / })).toBeInTheDocument();
     expect(document.querySelector("audio")).toHaveAttribute("src", "https://exempel.se/grupper/my/bibliotek/p/ide.webm");
     fireEvent.click(screen.getByRole("button", { name: "Idé 2026-10-08 21:05" }));
     expect(hamtaAdress).toHaveBeenCalledTimes(anrop);
@@ -398,7 +380,7 @@ describe("OpsBibliotek", () => {
       id: "ljud",
     };
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
-    expect(screen.getByRole("button", { name: "Spela" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Spela / })).toBeInTheDocument();
     expect(screen.getByText("0:00 / 0:00")).toBeInTheDocument();
   });
 
@@ -472,7 +454,7 @@ describe("OpsBibliotek", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
     const meny = screen.getByRole("menu", { name: "Ny post" });
-    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil"]);
+    expect(within(meny).getAllByRole("menuitem").map((r) => r.textContent)).toEqual(["Anteckning", "Länk", "Fil", "Röstinspelning"]);
     fireEvent.click(within(meny).getByRole("menuitem", { name: "Anteckning" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ny anteckning");
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));

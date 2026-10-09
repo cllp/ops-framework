@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createElement, memo, forwardRef } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import * as tillaggApi from "../lib/tillagg.js";
+import { malForInspelning } from "../lib/tillagg.js";
 import { validateModuler } from "../lib/modul.js";
 import { hubbForGrupp, valbaraModuler } from "../lib/hubb.js";
 import { OpsHandelsePanel } from "../components/OpsHandelsePanel.jsx";
@@ -85,6 +86,33 @@ describe("manifestets tillagg valideras vid uppstart", () => {
 
   it("⛔ okända fält i ett tillägg avvisas", () => {
     expect(() => validateModuler([MODUL("omrostning", [TILLAGG({ props: {} })])])).toThrow(/modul "omrostning": tillagg\[0\].*props/);
+  });
+
+  it("inspelning.mal kräver spara och tar inte en komponent", () => {
+    const falt = { plats: "inspelning.mal", id: "spara", etikett: { sv: "Spara i Biblioteket", en: "Save in the library" } };
+    expect(() => validateModuler([MODUL("bibliotek", [{ ...falt, komponent: () => null }])])).toThrow(/komponent för "spara"/);
+    expect(() => validateModuler([MODUL("bibliotek", [falt])])).toThrow(/spara för "spara"/);
+    expect(() => validateModuler([MODUL("omrostning", [TILLAGG({ spara: () => {} })])])).toThrow(/hör bara hemma på platsen inspelning\.mal/);
+    const spara = () => {};
+    const [m] = validateModuler([MODUL("bibliotek", [{ ...falt, spara }])]);
+    expect(/** @type {any} */ (m).tillagg[0].spara).toBe(spara);
+    expect(/** @type {any} */ (m).tillagg[0].komponent).toBeUndefined();
+  });
+});
+
+describe("malForInspelning", () => {
+  const spara = () => {};
+  const falt = { plats: "inspelning.mal", id: "spara", etikett: { sv: "Spara i Biblioteket", en: "Save in the library" }, spara };
+
+  it("en påslagen modul läggs efter appens mål, en avslagen gör det inte", () => {
+    const moduler = validateModuler([MODUL("bibliotek", [falt])]);
+    const av = malForInspelning({ appMal: [{ id: "handelse", etikett: "Händelse" }], moduler, grupp: { moduler: [] } });
+    expect(av.map((m) => m.etikett)).toEqual(["Händelse"]);
+    expect(av[0].spara).toBeNull();
+    const pa = malForInspelning({ appMal: [{ id: "handelse", etikett: "Händelse" }, { id: "meddelande", etikett: "Meddelande" }], moduler, grupp: { moduler: ["bibliotek"] } });
+    expect(pa.map((m) => m.id)).toEqual(["handelse", "meddelande", "bibliotek:spara"]);
+    expect(pa[2].spara).toBe(spara);
+    expect(pa[2].etikett).toBe("Spara i Biblioteket");
   });
 });
 

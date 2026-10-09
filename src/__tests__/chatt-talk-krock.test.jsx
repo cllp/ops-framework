@@ -69,7 +69,7 @@ describe("TALK i huvudet och rösten i skrivfältet på samma sida", () => {
     expect(fel?.textContent).not.toContain("kunde inte skrivas ut");
     expect(document.querySelector("[data-ops-talk]")?.getAttribute("data-lage")).toBe("lyssnar");
 
-    fireEvent.click(within(screen.getByRole("dialog", { name: "TALK" })).getByRole("button", { name: "Skicka" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "TALK" })).getByRole("button", { name: "Klar, spara inspelningen" }));
     await vanta();
     expect(onTalk).toHaveBeenCalledWith(huvud.blob, expect.anything());
     expect(onTranscribe).not.toHaveBeenCalled();

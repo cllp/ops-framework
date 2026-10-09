@@ -25,14 +25,23 @@ import { text } from "./sprak.js";
  */
 export const HANDELSE_PLATSER = /** @type {const} */ (["handelse.sektion", "handelse.atgard"]);
 
-/** @typedef {typeof HANDELSE_PLATSER[number]} Plats */
+/**
+ * Platsen på inspelningen.
+ *
+ * - `inspelning.mal`: ett mål i den delade inspelaren, bredvid appens egna mål (händelse, meddelande).
+ *   Etiketten är valet personen ser. `spara` tar emot ljudet. Ramverket ritar valet och känner inte
+ *   modulens namn: Biblioteket är ett mål för att modulen registrerat det, inte för att skalet vet vad det är.
+ */
+export const INSPELNING_PLATSER = /** @type {const} */ (["inspelning.mal"]);
+
+/** @typedef {typeof HANDELSE_PLATSER[number] | typeof INSPELNING_PLATSER[number]} Plats */
 
 /**
  * Alla platser, för valideringen. ⛔ Härledd ur ytornas listor och aldrig skriven för sig: en andra lista hade kunnat sakna en plats
  * som en yta ritar.
  * @type {ReadonlyArray<string>}
  */
-export const PLATSER = Object.freeze([...HANDELSE_PLATSER]);
+export const PLATSER = Object.freeze([...HANDELSE_PLATSER, ...INSPELNING_PLATSER]);
 
 /**
  * Ytornas namn som användaren ser dem, nyckel är platsens första led (`handelse` i `handelse.sektion`).
@@ -43,10 +52,49 @@ export const PLATSER = Object.freeze([...HANDELSE_PLATSER]);
  */
 export const PLATSYTOR = Object.freeze({
   handelse: Object.freeze({ sv: "Händelser", en: "Events" }),
+  inspelning: Object.freeze({ sv: "Inspelning", en: "Recording" }),
 });
 
 /** @param {string} plats @returns {string} */
 const ytaFor = (plats) => plats.split(".")[0];
+
+/**
+ * Målen i den delade inspelaren: appens egna först, sedan påslagna modulers `inspelning.mal`.
+ *
+ * ⛔ RAMVERKET NAMNGER INGET MÅL. Appen skickar etiketten på sina (händelse, meddelande). Modulen skickar
+ * etiketten på sina. En avstängd modul bidrar inte, och dess `spara` anropas inte.
+ *
+ * @param {object} arg
+ * @param {ReadonlyArray<{ id: string, etikett: string }> | null | undefined} arg.appMal
+ * @param {ReadonlyArray<import("./modul.js").Modul> | null | undefined} arg.moduler
+ * @param {{ moduler?: ReadonlyArray<string> } | null | undefined} arg.grupp
+ * @param {string} [arg.sprak]
+ * @returns {Array<{ id: string, etikett: string, spara: ((inmatning: { blob: Blob, mimeType: string, sekunder: number, rapportera: (andel: number) => void, grupp: unknown }) => void | Promise<void>) | null }>}
+ */
+export function malForInspelning({ appMal, moduler, grupp, sprak = "sv" }) {
+  if (appMal != null && !Array.isArray(appMal)) {
+    throw new Error("malForInspelning: appens mål ska vara en lista { id, etikett }, eller utelämnas. Ett ensamt objekt hade sett ut som ett mål och tappat resten.");
+  }
+  /** @type {Array<{ id: string, etikett: string, spara: any }>} */
+  const ut = [];
+  (appMal ?? []).forEach((m, i) => {
+    const id = m && typeof m === "object" ? String(m.id ?? "").trim() : "";
+    const etikett = m && typeof m === "object" && typeof m.etikett === "string" ? m.etikett.trim() : "";
+    if (!id || !etikett) {
+      throw new Error(`malForInspelning: mål ${i} ska vara { id, etikett }. Ett mål utan ord går inte att välja.`);
+    }
+    if (ut.some((x) => x.id === id)) throw new Error(`malForInspelning: id "${id}" står två gånger bland appens mål.`);
+    ut.push({ id, etikett, spara: null });
+  });
+  if (moduler) {
+    for (const t of tillaggFor({ moduler, grupp, plats: "inspelning.mal" })) {
+      const id = `${t.modulId}:${t.id}`;
+      if (ut.some((x) => x.id === id)) throw new Error(`malForInspelning: id "${id}" finns redan bland appens mål. Modulens id stämplas som modulId:id, och appens mål får inte ta samma nyckel.`);
+      ut.push({ id, etikett: text(t.etikett, sprak), spara: /** @type {any} */ (t).spara });
+    }
+  }
+  return ut;
+}
 
 /**
  * Tilläggen på en plats från modulerna som är påslagna i gruppen, i modulernas registreringsordning.

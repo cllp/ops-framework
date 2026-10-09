@@ -10,10 +10,10 @@
  */
 
 // ── Skal ───────────────────────────────────────────────────────────────────
-export { OpsAppShell, useOppnaSkapa, useOppnaHandelse } from "./components/OpsAppShell.jsx";
+export { OpsAppShell, useOppnaSkapa, useOppnaHandelse, useOppnaInspelning } from "./components/OpsAppShell.jsx";
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
 // 0.57.0, cllp/lifehub.app#2: långtryck på plusset spelar in. Skalet kopplar in dem med `talk`, de är publika för den som bygger egen rad.
-export { OpsTalk, useTalk, TALK_PRICKAR } from "./components/OpsTalk.jsx";
+export { OpsTalk, OpsInspelning, useTalk, TALK_PRICKAR } from "./components/OpsTalk.jsx";
 export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, MIKROFON_SPARRAD_AV_SIDAN, mikrofonenTillatenAvSidan, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
@@ -54,11 +54,12 @@ export { OpsSimulatePopover } from "./components/OpsSimulatePopover.jsx";
 export { OpsFloatingSummary } from "./components/OpsFloatingSummary.jsx";
 export { OpsScrollArea } from "./components/OpsScrollArea.jsx";
 export { OpsFilePicker } from "./components/OpsFilePicker.jsx";
+export { OpsLjudspelare } from "./components/OpsLjudspelare.jsx";
 // ⛔ `readAttachment` och `MAX_SIDE` exporteras MED FLIT inte. En app som läser filer
 // själv har gått runt komponenten, och då finns två ställen som bestämmer vad som
 // ryms. `isImage` och `sizeText` behövs för att VISA en sparad bilaga, alltså
 // på andra sidan lagringen, där komponenten inte finns.
-export { isImage, sizeText, attachmentSize } from "./lib/file.js";
+export { isImage, isAudio, sizeText, attachmentSize } from "./lib/file.js";
 
 // ── Data ───────────────────────────────────────────────────────────────────
 export { OpsList, OpsListRow } from "./components/OpsList.jsx";
@@ -172,7 +173,7 @@ export { hubbForGrupp, valbaraModuler, hubbPoster, huvudmenyPoster, modulLage, b
  * Tilläggen (0.60.0, #251, beslut 0003): en app pluggar in i en plats ramverkets yta erbjuder, och ändrar aldrig ytan.
  * `tillagg` i `defineModule`, platserna, filtret på påslagna moduler och raden "Syns på".
  */
-export { HANDELSE_PLATSER, PLATSER, PLATSYTOR, tillaggFor, synsPa, synsPaText } from "./lib/tillagg.js";
+export { HANDELSE_PLATSER, INSPELNING_PLATSER, PLATSER, PLATSYTOR, tillaggFor, malForInspelning, synsPa, synsPaText } from "./lib/tillagg.js";
 
 /*
  * ⛔ KÄLLKONTRAKTET (#129). Registret och granskarna är data in och data ut,

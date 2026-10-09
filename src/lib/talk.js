@@ -4,13 +4,17 @@
  * ══ ⛔ VARFÖR DEN HÄR FILEN FINNS ═════════════════════════════════════════════════════════════════════════════════════
  *
  * CP 2026-10-02: "Långpress på + [...] spelar in tills man släpper." CP 2026-10-04: medan man håller inne står det bara
- * en sak, TALK, och ett fält kommer fram så att man kan prata vidare utan att hålla inne. Mikrofonen skickar, krysset
- * avbryter, och bara texten sparas (appens sak). Besluten står i cllp/lifehub.app#2.
+ * en sak, TALK, och ett fält kommer fram så att man kan prata vidare utan att hålla inne. Besluten står i
+ * cllp/lifehub.app#2.
+ *
+ * CP 2026-10-09, med en skärmbild av fältet (prickar, mikrofon, rött kryss): efter stopp syntes ingen sparning, och
+ * det röda krysset var den enda tydliga knappen. Klar sparar. Avbryt kastar. Sparar och Sparat sägs.
  *
  * ══ ⛔ RAMVERKET SPELAR IN, APPEN BESTÄMMER VAD DET BLIR ═══════════════════════════════════════════════════════════════
  *
  * Ramverket äger hållet, fältet och inspelningen, så att varje hubb beter sig likadant. Ljudet lämnas till appen i
- * `onTalk(blob, { mimeType, sekunder })`. Vad ljudet blir (text, ett ärende, ett förslag i Inkorgen) vet bara appen,
+ * `onTalk(blob, { mimeType, sekunder, rapportera })`. `rapportera` tar 0 till 1 medan appen sparar.
+ * Vad ljudet blir (text, ett ärende, ett förslag i Inkorgen) vet bara appen,
  * och ramverket ska inte veta det.
  *
  * ══ ⛔ TILLSTÅNDEN ÄR EN REN FUNKTION ═════════════════════════════════════════════════════════════════════════════════
@@ -40,42 +44,53 @@ export const TALK_PRATA_IN = "TALK, prata in";
  */
 export function talkKnappNamn(lage) {
   if (lage === "haller" || lage === "lyssnar") return `${TALK_ORD}, lyssnar`;
-  if (lage === "skickar") return `${TALK_ORD}, skickar`;
+  if (lage === "skickar") return `${TALK_ORD}, sparar`;
+  if (lage === "sparat") return `${TALK_ORD}, sparat`;
   return TALK_PRATA_IN;
 }
+
+/**
+ * Under den här längden kastar Avbryt direkt. Från och med den frågar fältet, för ett långt ljud som
+ * försvinner på ett misstagtryck går inte att få tillbaka.
+ */
+export const AVBRYT_FRAGA_SEKUNDER = 3;
+
+/** Hur länge "Sparat" står kvar innan fältet stängs. */
+export const SPARAT_MS = 1400;
 
 /** Längsta inspelningen. Ett fält som glömts öppet ska inte spela in i en timme. */
 export const MAX_SEKUNDER = 120;
 
 /**
- * @typedef {"vila" | "trycker" | "haller" | "lyssnar" | "skickar" | "fel"} Talklage
+ * @typedef {"vila" | "trycker" | "haller" | "lyssnar" | "skickar" | "sparat" | "fel"} Talklage
  * - `vila`: inget pågår.
  * - `trycker`: fingret är nere men långtrycket har inte inträffat. Ett släpp här är ett vanligt klick.
  * - `haller`: långtrycket har inträffat och inspelningen pågår medan fingret ligger kvar. Knappen visar TALK.
  * - `lyssnar`: fingret är släppt och inspelningen fortsätter i fältet.
- * - `skickar`: mikrofonen är tryckt, ljudet lämnas till appen.
+ * - `skickar`: inspelningen är stoppad och ljudet lämnas till appen. Fältet säger Sparar.
+ * - `sparat`: appen tog emot ljudet. Fältet säger Sparat en kort stund, sedan vila.
  * - `fel`: mikrofonen gick inte att öppna, eller appen svarade med ett fel. Fältet säger varför.
  */
 
 /**
- * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "fel", text: string } | { typ: "tak" }} Talkhandelse
+ * @typedef {{ typ: "ner" } | { typ: "direkt" } | { typ: "langtryck" } | { typ: "upp" } | { typ: "skicka" } | { typ: "igen" } | { typ: "avbryt" } | { typ: "klar" } | { typ: "dolj" } | { typ: "fel", text: string } | { typ: "tak" }} Talkhandelse
  */
 
 /**
  * Nästa läge, och vad komponenten ska göra (`gor`). En händelse som inte passar läget ändrar ingenting.
  *
- * ⛔ "UPP" EFTER ETT LÅNGTRYCK AVSLUTAR INTE. Det är hela poängen med fältet: man släpper och pratar vidare. Bara
- * mikrofonen skickar och bara krysset avbryter.
+ * ⛔ "UPP" EFTER ETT LÅNGTRYCK AVSLUTAR INTE. Det är hela poängen med fältet: man släpper och pratar vidare. Klar
+ * sparar och Avbryt kastar. Ett tryck på Klar under sparningen gör ingenting.
  *
  * ⛔ "UPP" FÖRE LÅNGTRYCKET ÄR ETT KLICK, och klicket är Skapa som förut. Ett tryck som råkade bli 300 ms ska aldrig
  * starta en inspelning.
  *
  * @param {{ lage: Talklage, fel?: string }} nu
  * @param {Talkhandelse} h
- * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "kasta" }}
+ * @returns {{ lage: Talklage, fel?: string, gor: null | "klick" | "starta" | "skicka" | "igen" | "kasta" }}
  */
 export function talkNasta(nu, h) {
-  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "kasta"} [gor] @param {string} [fel] */
+  /** @param {Talklage} lage @param {null | "klick" | "starta" | "skicka" | "igen" | "kasta"} [gor] @param {string} [fel] */
   const bli = (lage, gor = null, fel = undefined) => ({ lage, gor, ...(fel ? { fel } : {}) });
   switch (nu.lage) {
     case "vila":
@@ -100,11 +115,19 @@ export function talkNasta(nu, h) {
       if (h.typ === "fel") return bli("fel", "kasta", h.text);
       return bli("lyssnar");
     case "skickar":
-      if (h.typ === "klar") return bli("vila");
+      // ⛔ Ett andra tryck på Klar medan sparningen pågår gör ingenting. Ljudet är redan stoppat och lämnat.
+      if (h.typ === "klar") return bli("sparat");
       if (h.typ === "fel") return bli("fel", null, h.text);
       return bli("skickar");
+    case "sparat":
+      if (h.typ === "dolj" || h.typ === "avbryt") return bli("vila");
+      // Bekräftelsen låser inte nästa inspelning. Ett nytt tryck på mikrofonen får börja direkt.
+      if (h.typ === "direkt") return bli("lyssnar", "starta");
+      if (h.typ === "ner") return bli("trycker");
+      return bli("sparat");
     case "fel":
       if (h.typ === "avbryt" || h.typ === "klar") return bli("vila");
+      if (h.typ === "igen") return bli("skickar", "igen");
       if (h.typ === "ner") return bli("trycker");
       if (h.typ === "direkt") return bli("lyssnar", "starta");
       return bli("fel", null, nu.fel);
