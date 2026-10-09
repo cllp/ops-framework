@@ -94,7 +94,11 @@ describe("OpsAgenter", () => {
 
   it("ett läsfel skrivs ut, och utan det är en tom lista noll", () => {
     const { unmount } = rita({ agenter: [], listfel: "Agenterna gick inte att läsa." });
-    expect(screen.getByRole("alert").textContent).toBe("Agenterna gick inte att läsa.");
+    const lasfel = screen.getByRole("alert");
+    expect(lasfel.textContent).toBe("Agenterna gick inte att läsa.");
+    // ⛔ #145: felet ska ha banderollens ram, inte en naken rad.
+    expect(lasfel.className).toContain("bg-danger-bg");
+    expect(lasfel.className).toContain("border");
     expect(screen.queryByText("Gruppen har ingen agent.")).toBeNull();
     unmount();
     rita({ agenter: [], listfel: "" });
@@ -141,10 +145,18 @@ describe("OpsAgenter", () => {
       onSparaMinne,
       onVaxla,
     });
-    expect(screen.getByRole("heading", { name: "Ops · Inställningar" })).toBeTruthy();
-    expect(screen.getByText("Allmänt")).toBeTruthy();
-    expect(screen.getByText("Kopplingar")).toBeTruthy();
-    expect(screen.getByText("Egna inställningar")).toBeTruthy();
+    const sidrubrik = screen.getByRole("heading", { name: "Ops · Inställningar" });
+    // ⛔ #146: SessionStudio ritar sidrubriken text-xl font-semibold (20 px, vikt 600).
+    // font-bold (700) på samma storlek var det som såg ut som fel typsnitt.
+    expect(sidrubrik.className).toContain("font-semibold");
+    expect(sidrubrik.className).not.toContain("font-bold");
+    for (const namn of ["Allmänt", "Kopplingar", "Egna inställningar"]) {
+      const avsnitt = screen.getByRole("heading", { name: namn });
+      expect(avsnitt.tagName).toBe("H2");
+      expect(avsnitt.className).toContain("text-sektion");
+      expect(avsnitt.className).toContain("font-semibold");
+      expect(avsnitt.className).not.toContain("font-bold");
+    }
     expect(screen.queryByText("Appen är installerad i gruppen.")).toBeNull();
     expect(screen.queryByRole("switch", { name: /Visa i huvudmenyn/ })).toBeNull();
     expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
@@ -182,7 +194,10 @@ describe("OpsAgenter", () => {
       installning: { namn: "Ops", roll: "", beskrivning: "", instruktioner: "", minnePa: false },
     });
     fireEvent.click(screen.getByRole("button", { name: "Spara allmänt" }));
-    expect(screen.getByRole("alert").textContent).toMatch(/Sparandet är inte kopplat/);
+    const sparfel = screen.getByRole("alert");
+    expect(sparfel.textContent).toMatch(/Sparandet är inte kopplat/);
+    expect(sparfel.className).toContain("bg-danger-bg");
+    expect(sparfel.className).toContain("border");
     unmount();
 
     rita({

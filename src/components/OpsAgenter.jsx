@@ -10,7 +10,6 @@ import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsModulRam } from "./OpsModulRam.jsx";
-import { OpsSectionLabel } from "./OpsSectionLabel.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsSwitch } from "./OpsToggle.jsx";
 
@@ -86,7 +85,7 @@ export const ORD_OPSAGENTER = {
   redigera: { sv: "Redigera", en: "Edit" },
   taBort: { sv: "Ta bort", en: "Remove" },
   importera: { sv: "Importera en fil", en: "Import a file" },
-  importeraHint: { sv: "Filen ska börja med name och description.", en: "The file should start with name and description." },
+  importeraHint: { sv: "Första raden ska vara ---, och fälten name och description ska stå där.", en: "The first line should be ---, and the fields name and description should be there." },
   minne: { sv: "Minne", en: "Memory" },
   anvandMinne: { sv: "Använd minnet i svaren", en: "Use memory in replies" },
   minnetPa: { sv: "Minnet är på.", en: "Memory is on." },
@@ -96,6 +95,7 @@ export const ORD_OPSAGENTER = {
   sparaMinne: { sv: "Spara minne", en: "Save memory" },
   sparandeSaknas: { sv: "Sparandet är inte kopplat. Ingenting sparades.", en: "Saving is not connected. Nothing was saved." },
   importSaknas: { sv: "Importen är inte kopplad. Filen lästes inte.", en: "Import is not connected. The file was not read." },
+  filLasFel: { sv: "Filen lästes inte", en: "The file was not read" },
 };
 
 const GRANSER = ["namn", "beskrivning", "roll", "instruktioner", "minne", "skillNamn", "skillBeskrivning", "skillText"];
@@ -283,7 +283,11 @@ export function OpsAgenter({
  */
 function AgentLista({ t, agenter, activeHref, onNavigate, onSkrivTill, listfel = "" }) {
   if (listfel) {
-    return <p data-agenter-lasfel="" role="alert" className="m-0 text-etikett text-ink">{listfel}</p>;
+    return (
+      <div data-agenter-lasfel="">
+        <OpsBanner tone="danger" title={listfel} />
+      </div>
+    );
   }
   if (agenter.length === 0) {
     return <p data-agenter-tom="" className="m-0 text-etikett text-ink">{t("tom")}</p>;
@@ -424,6 +428,21 @@ function AgentKropp({
 }
 
 /**
+ * Avsnittsrubrik i agentens inställningar (0.90.1, lifehub.app#146).
+ *
+ * `OpsSectionLabel` är profilens rubrik och väger 700, för där mäter
+ * SessionStudio `font-bold`. Inställningar mäter `text-xs font-semibold`:
+ * 12 px, vikt 600, versaler, accent. Samma roll som `text-sektion`.
+ *
+ * @param {object} props
+ * @param {string} props.id
+ * @param {import("react").ReactNode} props.children
+ */
+function Avsnittsrubrik({ id, children }) {
+  return <h2 id={id} className="m-0 text-sektion font-semibold uppercase text-accent">{children}</h2>;
+}
+
+/**
  * @param {object} props
  * @param {(nyckel: keyof typeof ORD_OPSAGENTER) => string} props.t
  * @param {{ id: string, namn: string, status?: string, bild?: string }} props.vald
@@ -501,10 +520,10 @@ function AgentFalt(props) {
 
   return (
     <>
-      {lokaltFel ? <p role="alert" className="m-0 text-brod text-ink">{lokaltFel}</p> : null}
-      {skillFel ? <p role="alert" className="m-0 text-brod text-ink">{skillFel}</p> : null}
+      {lokaltFel ? <OpsBanner tone="danger" title={t("sparfelRubrik")}>{lokaltFel}</OpsBanner> : null}
+      {skillFel ? <OpsBanner tone="danger" title={t("filLasFel")}>{skillFel}</OpsBanner> : null}
       <section aria-labelledby={allmantId} className="flex flex-col gap-3">
-        <div id={allmantId}><OpsSectionLabel>{t("allmant")}</OpsSectionLabel></div>
+        <Avsnittsrubrik id={allmantId}>{t("allmant")}</Avsnittsrubrik>
         <div data-allmant="ikon" className="flex items-center gap-3">
           <OpsIdentity name={namn || vald.namn || "Agent"} seed={vald.id} imageUrl={vald.bild || undefined} icon={AgentIkon} size="md" rund />
           <div>
@@ -544,7 +563,7 @@ function AgentFalt(props) {
       </section>
 
       <section aria-labelledby={kopplingarId} className="flex flex-col gap-3">
-        <div id={kopplingarId}><OpsSectionLabel>{t("kopplingar")}</OpsSectionLabel></div>
+        <Avsnittsrubrik id={kopplingarId}>{t("kopplingar")}</Avsnittsrubrik>
         <div data-koppling="modell">
           <p className="m-0 text-brod font-semibold text-ink">{t("modell")}</p>
           {props.modell?.namn ? <p className="m-0 text-brod text-ink">{props.modell.namn}</p> : <p className="m-0 text-etikett text-ink">{t("ingenModell")}</p>}
@@ -579,7 +598,7 @@ function AgentFalt(props) {
       </section>
 
       <section aria-labelledby={egnaId} className="flex flex-col gap-3">
-        <div id={egnaId}><OpsSectionLabel>{t("egna")}</OpsSectionLabel></div>
+        <Avsnittsrubrik id={egnaId}>{t("egna")}</Avsnittsrubrik>
         <p className="m-0 text-brod font-semibold text-ink">{t("behorigheter")}</p>
         <p className="m-0 text-meta text-ink-muted">{t("behorigheterText")}</p>
         {farAndra ? (
