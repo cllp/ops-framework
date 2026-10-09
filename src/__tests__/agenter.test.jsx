@@ -337,6 +337,39 @@ describe("OpsAgenter", () => {
     expect(screen.getByText("Adressen till Mitt konto är inte kopplad.")).toBeTruthy();
   });
 
+  it("Grok är avstängd tills xai står i kopplade, och id:t ritas inte", () => {
+    const onSparaModell = vi.fn();
+    const { unmount } = rita({
+      activeHref: "/agenter?agent=ops&lage=installningar",
+      installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper" },
+      modell: { id: "gemini-2.5-flash-lite" },
+      kopplade: ["openai", "anthropic", "google"],
+      onSparaModell,
+    });
+    const av = screen.getByRole("radio", { name: /Grok/ });
+    expect(av).toBeDisabled();
+    expect(screen.getByText("xAI. Kräver en xAI-nyckel.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Koppla nyckel, Grok" })).toBeTruthy();
+    expect(document.body.textContent).not.toContain("grok-4.7");
+    fireEvent.click(av);
+    expect(onSparaModell).not.toHaveBeenCalled();
+    unmount();
+
+    rita({
+      activeHref: "/agenter?agent=ops&lage=installningar",
+      installning: { namn: "Ops", roll: "Assistent", beskrivning: "Hjälper" },
+      modell: { id: "gemini-2.5-flash-lite" },
+      kopplade: ["xai"],
+      onSparaModell,
+    });
+    const pa = screen.getByRole("radio", { name: /Grok/ });
+    expect(pa).not.toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Koppla nyckel, Grok" })).toBeNull();
+    fireEvent.click(pa);
+    expect(onSparaModell).toHaveBeenCalledWith({ id: "grok-4.7", leverantor: "xai" });
+    expect(document.body.textContent).not.toContain("grok-4.7");
+  });
+
   it("Appar ritar inte Agenter, också när gruppen fortfarande har id:t", () => {
     render(
       <OpsApparArk

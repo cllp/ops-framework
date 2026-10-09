@@ -9,6 +9,20 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.9
+
+Grok i agentens modellväljare. Utges som 0.90.9, efter 0.90.8.
+
+### Modellväljare
+
+- **Grok.** `AGENTMODELLER` får `grok-4.7`, visningsnamn Grok, leverantör `xai`. Raden kräver att `xai` står i `kopplade`. Utan den nyckeln är den avstängd, med länken Koppla nyckel, som de andra nyckelmodellerna. Id:t ritas inte. Meningen under namnet säger att den kräver en xAI-nyckel.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras. Lifehubs `modellFor` och `sparaAgent` rörs inte: ett sparat val ändrar inte svaret förrän funktionerna läser fältet.
+
+---
+
 ## 0.90.8
 
 CP vill ha en ljudspelare, samma för allt ljud: Bibliotekets inspelningar, chattens röstfiler och bilagor, och vilken ljudfil som helst. Förebilden är SessionStudios spelare (`InlineAudioPlayer`, `WebFullscreenAudioPlayer`, den delade räknaren). Utges som 0.90.8, efter 0.90.7.
