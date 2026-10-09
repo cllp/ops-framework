@@ -769,12 +769,11 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             <OpsHubTillbaka {...tillbaka} rubrik={false} />
           </div>
         ) : null}
-        <div className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
+        <div data-meddelanden-huvud="" className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
           <span className="text-accent">
             <MeddelandeIkon size={18} />
           </span>
           <h2 className="m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink">{t.rubrik}</h2>
-          <ModulLageKnapp ram={ram} activeHref={activeHref ?? ""} onNavigate={tillbaka?.onNavigate} sprak={sprak} installningar={false} />
           {groupId ? (
             <button
               type="button"
@@ -786,6 +785,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
               <span>{t.nytt}</span>
             </button>
           ) : null}
+          <ModulLageKnapp ram={ram} activeHref={activeHref ?? ""} onNavigate={tillbaka?.onNavigate} sprak={sprak} installningar={false} />
         </div>
         <div className="flex shrink-0 items-center gap-1.5 px-3 py-1">
           <div role="group" aria-label={t.rubrik} className="flex items-center rounded-base border border-line bg-canvas p-0.5">
