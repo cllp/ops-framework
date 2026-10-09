@@ -8,6 +8,7 @@ import { radBehallare, radKlass, radRubrikKlass } from "../lib/radKlass.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { STANDARD_TIDSZON, idagI, kontrolleraTidszon } from "../lib/kalendrar.js";
 import { KALENDERPRICK, postklasser } from "../lib/kalenderfarg.js";
+import { arLagerplockare, lagerNyckel, lasDoldaLager, synligaLager, vaxlaDoltLager } from "../lib/kalenderlager.js";
 import { useHandelseOppnare } from "../lib/handelsekontext.js";
 import { LANGTRYCK_MS } from "../lib/talk.js";
 import { BRICKA_GRANS, BRICKA_MINSTA_OVERHANG, Dagruta } from "./OpsCalendarDagruta.jsx";
@@ -40,6 +41,7 @@ import {
 } from "../lib/calendar.js";
 import { ChevronNedIkon, KalenderIkon, KryssIkon, LagerIkon, PlusIkon, ReglageIkon, SokIkon, TillganglighetIkon, VeckonummerIkon } from "./icons.jsx";
 import { OpsStatusDot } from "./OpsStatusDot.jsx";
+import { OpsKalenderlager } from "./OpsKalenderlager.jsx";
 import { ValRad } from "./ValRad.jsx";
 
 /**
@@ -68,8 +70,10 @@ import { ValRad } from "./ValRad.jsx";
  *   - band per vecka för flerdagsposter och heldag
  *   - verktygsraden: Kalendrar, veckonummer, typ och status, sök som tonar ned dagar utan träff, och "+"
  *
- * ⛔ FORTFARANDE INTE: lager, tillgänglighet, avatarer och export. De är egna faser i #179 (F4 och F6), och en knapp
- * för något som inte finns är ett löfte som inte infrias (arbetsreglernas punkt 5).
+ * ⛔ LAGERPLOCKAREN FINNS (0.90.7). `lager.lista` öppnar ett ark på telefon och en panel från md, och personen döljer lager
+ * ett och ett. Valet sparas per `lager.minne` i `lagring`. Brytaren `{ pa, onByt }` från 0.61.0 finns kvar. Mönsterlager
+ * som i SessionStudio (återkommande, datumintervall, en egen samling) byggs inte: appen skickar in de kalendrar den redan
+ * har. Tillgänglighetens knapp finns. Avatarer i rutan och export är kvar som egna faser.
  *
  * ⛔ DEN RITAR FORTFARANDE DATERADE POSTER OCH ÄGER INTE DATAN. Appen skickar in posterna, kalendrarna och typerna.
  * Filtret är vyns eget tillstånd, eftersom det bara avgör vad som RITAS: en post som filtret döljer finns kvar i
@@ -897,9 +901,14 @@ function Apprad({ appar, dolda, onVaxla, onVisaAlla }) {
  * @param {() => void} props.onSok
  * @param {(() => void) | undefined} props.onSkapa
  * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.tillganglighet
- * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.lager
+ * @param {import("../lib/kalenderlager.js").Kalenderlager[] | undefined} [props.lagerLista] Finns den ritas plockaren i stället för brytaren.
+ * @param {readonly string[]} [props.doldaLager]
+ * @param {(id: string) => void} [props.onVaxlaLager]
+ * @param {(() => void) | undefined} [props.onHanteraLager]
+ * @param {string | undefined} [props.lagerTomText]
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void } | undefined} props.lager Brytaren från 0.61.0, när ingen lista skickats.
  */
-function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet, lager }) {
+function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKalendrar, veckonummer, onVeckonummer, typer, statusWords, typ, onTyp, status, onStatus, sokOppen, onSok, onSkapa, tillganglighet, lager, lagerLista, doldaLager = [], onVaxlaLager, onHanteraLager, lagerTomText }) {
   const statusar = Object.entries(statusWords);
   const harFilter = typer.length > 0 || statusar.length > 0;
   const gruppens = (kalendrar || []).filter((k) => k.grupp);
@@ -1004,8 +1013,18 @@ function Verktygsrad({ kalendrar, valdaKalendrar, onValdaKalendrar, onHanteraKal
       </button>
 
       {/* ⛔ LAGER (0.61.0, #259), direkt efter veckonumret som i SS-appen (`calendar.js:1048`: tillgänglighet, sök, #, lager).
-          Aktiv: en grå yta med mörk ikon, som förebild 1 och 3 (SS `colors.accent`, som i SS är mörk, med 20 procent). */}
-      {lager ? (
+          Aktiv: en grå yta med mörk ikon, som förebild 1 och 3 (SS `colors.accent`, som i SS är mörk, med 20 procent).
+          ⛔ MED LISTA (0.90.7) ÖPPNAR KNAPPEN PLOCKAREN. Brytaren finns kvar när appen bara skickar `{ pa, onByt }`. */}
+      {lagerLista && onVaxlaLager ? (
+        <OpsKalenderlager
+          lista={lagerLista}
+          dolda={doldaLager}
+          onVaxla={onVaxlaLager}
+          onHantera={onHanteraLager}
+          tomText={lagerTomText}
+          knappKlass={cx(VERKTYG, synligaLager(lagerLista, doldaLager).length > 0 ? "bg-contrast-panel/15 text-ink md:border-contrast-panel/30" : "text-ink-muted hover:text-ink-secondary md:border-line md:bg-surface")}
+        />
+      ) : lager ? (
         <button
           type="button"
           data-verktyg-lager=""
@@ -1171,8 +1190,12 @@ export const VECKONUMMER_NYCKEL = "ops-kalender-veckonummer";
  *   brickorna själv; appen avgör vad som returneras när `tillganglighet` och `lager` är på.
  * @param {{ pa: boolean, onByt: (pa: boolean) => void }} [props.tillganglighet] (0.61.0, #259) Knappen för tillgänglighetsläget i
  *   verktygsraden (SS `UsersRound`). Ritas bara när propen finns.
- * @param {{ pa: boolean, onByt: (pa: boolean) => void }} [props.lager] (0.61.0, #259) Knappen för kalenderlagren (SS `Layers`).
- *   Ritas bara när propen finns.
+ * @param {{ pa: boolean, onByt: (pa: boolean) => void } | { lista: import("../lib/kalenderlager.js").Kalenderlager[], minne?: string, onSynliga?: (ids: string[]) => void, onHantera?: () => void, tomText?: string }} [props.lager]
+ *   (0.61.0, #259) Knappen för kalenderlagren (SS `Layers`). Ritas bara när propen finns. `{ pa, onByt }` är brytaren.
+ *   `lista` (0.90.7) är plockaren: ett ark under 768 px och en panel från 768. Dolda id sparas under `lagerNyckel(minne)` i
+ *   `lagring`. Saknas `minne` gäller valet bara den här visningen. `onSynliga` får id:n som syns, i listans ordning, när
+ *   valet ändras och en gång vid start. Poster och kalendrar vars id är ett dolt lager ritas inte. `tomText` är meningen
+ *   när listan är tom. En tom sträng ritar ingen mening. Färgen är identitetstonen (`lagerFarg`), aldrig gruppens kulör.
  * @param {(dayKeys: string[]) => import("react").ReactNode} [props.daglager] (0.37.0) Innehållet i dagpanelens egen lagerbubbla
  *   under posterna (SS-appen). `null` ritar ingen bubbla. Platsen för F6.
  * @param {(id: string) => void} [props.onOppnaHandelse] (0.40.0, #214) Vad ett tryck på en post med `handelseId` gör, i dagpanelen och snabbtitten. Utelämnad:
@@ -1243,6 +1266,73 @@ export function OpsCalendar({
   const [titt, setTitt] = useState(/** @type {string | null} */ (null));
 
   const lager = lagring || (typeof window !== "undefined" ? window.localStorage : undefined);
+  const lagerLista = arLagerplockare(lagerlage) ? lagerlage.lista : null;
+  const lagerMinne = arLagerplockare(lagerlage) && typeof lagerlage.minne === "string" ? lagerlage.minne : "";
+  const lagerNyckelVarde = lagerMinne ? lagerNyckel(lagerMinne) : "";
+  const [doldaLager, setDoldaLager] = useState(() => {
+    if (!lagerNyckelVarde || !lager) return /** @type {string[]} */ ([]);
+    try {
+      return lasDoldaLager(lager.getItem(lagerNyckelVarde));
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "OpsCalendar", steg: "läsa dolda lager" });
+      return [];
+    }
+  });
+  const lastLagerNyckel = useRef(lagerNyckelVarde);
+  useEffect(() => {
+    if (lastLagerNyckel.current === lagerNyckelVarde) return;
+    lastLagerNyckel.current = lagerNyckelVarde;
+    try {
+      setDoldaLager(lagerNyckelVarde && lager ? lasDoldaLager(lager.getItem(lagerNyckelVarde)) : []);
+    } catch (fel) {
+      rapporteraFel(fel, { yta: "OpsCalendar", steg: "läsa dolda lager" });
+      setDoldaLager([]);
+    }
+  }, [lagerNyckelVarde, lager]);
+  const vaxlaLager = useCallback(
+    (/** @type {string} */ id) => {
+      const doljer = !doldaLager.includes(id);
+      const nasta = vaxlaDoltLager(doldaLager, id);
+      setDoldaLager(nasta);
+      if (lagerNyckelVarde) {
+        try {
+          lager?.setItem(lagerNyckelVarde, JSON.stringify(nasta));
+        } catch (fel) {
+          rapporteraFel(fel, { yta: "OpsCalendar", steg: "spara dolda lager" });
+        }
+      }
+      // Bara när lagret döljs. Ett dolt lager som är enda valet hade ritat en tom månad.
+      if (doljer) {
+        setValdaKalendrar((valda) => {
+          if (!valda || !valda.includes(id)) return valda;
+          const kvar = valda.filter((x) => x !== id);
+          return kvar.length === 0 ? null : kvar;
+        });
+      }
+    },
+    [doldaLager, lager, lagerNyckelVarde],
+  );
+  const onSynligaRef = useRef(/** @type {((ids: string[]) => void) | undefined} */ (undefined));
+  onSynligaRef.current = arLagerplockare(lagerlage) ? lagerlage.onSynliga : undefined;
+  const senastSynliga = useRef(/** @type {string | null} */ (null));
+  const synligaLagerId = useMemo(() => (lagerLista ? synligaLager(lagerLista, doldaLager).map((l) => l.id) : /** @type {string[]} */ ([])), [lagerLista, doldaLager]);
+  useLayoutEffect(() => {
+    if (!lagerLista) {
+      senastSynliga.current = null;
+      return;
+    }
+    const nyckel = synligaLagerId.join("\0");
+    if (senastSynliga.current === nyckel) return;
+    senastSynliga.current = nyckel;
+    onSynligaRef.current?.(synligaLagerId);
+  }, [lagerLista, synligaLagerId]);
+  const doldaLagerSet = useMemo(() => {
+    if (!lagerLista) return new Set();
+    const dold = new Set(doldaLager);
+    return new Set(lagerLista.filter((l) => l && dold.has(l.id)).map((l) => l.id));
+  }, [lagerLista, doldaLager]);
+  const ritadePoster = useMemo(() => (doldaLagerSet.size === 0 ? entries : entries.filter((e) => !e?.kalender || !doldaLagerSet.has(e.kalender.id))), [entries, doldaLagerSet]);
+  const kalendrarIValjaren = useMemo(() => (kalendrar && doldaLagerSet.size > 0 ? kalendrar.filter((k) => !doldaLagerSet.has(k.id)) : kalendrar), [kalendrar, doldaLagerSet]);
   const minnesnyckel = filterMinne ? appfilterNyckel(filterMinne) : "";
   const [doldaAppar, setDoldaAppar] = useState(() => {
     if (!minnesnyckel || !lager) return /** @type {string[]} */ ([]);
@@ -1280,7 +1370,7 @@ export function OpsCalendar({
     },
     [lager, minnesnyckel],
   );
-  const appar = useMemo(() => apparFor(typer, entries), [typer, entries]);
+  const appar = useMemo(() => apparFor(typer, ritadePoster), [typer, ritadePoster]);
   const doldaSet = useMemo(() => new Set(doldaAppar), [doldaAppar]);
   /*
    * ⛔ TYPLISTAN VISAR BARA DE SYNLIGA APPARNAS TYPER (beslut B: App är nivån ovanför typ). Och en vald typ vars app döljs
@@ -1326,10 +1416,10 @@ export function OpsCalendar({
   const forvaldId = useMemo(() => forvaldKalenderId(kalendrar), [kalendrar]);
   const minaId = useMemo(() => new Set((kalendrar || []).filter((k) => !k.grupp).map((k) => k.id)), [kalendrar]);
   const arMin = useCallback((/** @type {import("../lib/calendar.js").CalendarEntry} */ e) => !!e.kalender && minaId.has(e.kalender.id), [minaId]);
-  const synligaPoster = useMemo(() => filtreraPoster(entries, { valdaKalendrar, forvaldId, typ, status, doldaAppar }), [entries, valdaKalendrar, forvaldId, typ, status, doldaAppar]);
+  const synligaPoster = useMemo(() => filtreraPoster(ritadePoster, { valdaKalendrar, forvaldId, typ, status, doldaAppar }), [ritadePoster, valdaKalendrar, forvaldId, typ, status, doldaAppar]);
   const synligaId = useMemo(() => new Set(synligaPoster.map((e) => e.id)), [synligaPoster]);
   const byKey = useMemo(() => perDay(synligaPoster), [synligaPoster]);
-  const allaPerDag = useMemo(() => perDay(entries), [entries]);
+  const allaPerDag = useMemo(() => perDay(ritadePoster), [ritadePoster]);
   const list = useMemo(() => months(franNyckel(todayDayKey), monthsBack, monthsForward), [todayDayKey, monthsBack, monthsForward]);
   const sokning = fraga.trim();
   const traffDagar = useMemo(() => {
@@ -1620,7 +1710,7 @@ export function OpsCalendar({
     <section aria-label={ariaLabel} data-ops-kalender="" className="relative flex flex-col lg:flex-row lg:items-start lg:gap-4">
       <div className="relative flex min-w-0 flex-1 flex-col">
         <Verktygsrad
-          kalendrar={kalendrar}
+          kalendrar={kalendrarIValjaren}
           valdaKalendrar={valdaKalendrar}
           onValdaKalendrar={setValdaKalendrar}
           onHanteraKalendrar={onHanteraKalendrar}
@@ -1639,7 +1729,12 @@ export function OpsCalendar({
           }}
           onSkapa={skapa}
           tillganglighet={tillganglighet}
-          lager={lagerlage}
+          lager={arLagerplockare(lagerlage) ? undefined : lagerlage}
+          lagerLista={lagerLista || undefined}
+          doldaLager={doldaLager}
+          onVaxlaLager={lagerLista ? vaxlaLager : undefined}
+          onHanteraLager={arLagerplockare(lagerlage) ? lagerlage.onHantera : undefined}
+          lagerTomText={arLagerplockare(lagerlage) ? lagerlage.tomText : undefined}
         />
         {appar.length >= 2 ? <Apprad appar={appar} dolda={doldaSet} onVaxla={vaxlaApp} onVisaAlla={() => sparaDolda([])} /> : null}
         {sokOppen ? (

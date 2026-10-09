@@ -9,6 +9,27 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.7
+
+Kalenderlager i `OpsCalendar`: en plockare där personen visar och döljer lager ett och ett. SessionStudio har mönsterlager (återkommande, datumintervall, enstaka dagar) under användaren, med färg och ikon, och en meny under lagerikonen. Egna lager sparas påslaget på dokumentet. Andras delade lager är av tills personen slår på dem på enheten. Prenumererade kalendrar syns tills de döljs, också på enheten. Helgdagar är inte ett lager där. Gruppens och mina kalendrar väljs i kalenderväljaren, inte i lagermenyn.
+
+Ramverket tar inte in mönstersamlingen. Appen skickar in de lager den redan har. Valet vilka som syns sparas per person i webbläsaren. Färgen är identitetspalettens sex toner. Gruppens kulör rörs inte.
+
+Utges som 0.90.7, efter 0.90.6.
+
+### Kalenderlager
+
+- **`lager.lista` på `OpsCalendar`.** Knappen öppnar ett ark under 768 px och en panel från 768. En rad per lager, med bock, ton och namn, grupperad på `sektion`. `undertext` är en andra rad. "Hantera kalendrar" anropar `onHantera` och stänger. Tom lista skriver `tomText`, eller "Inga kalenderlager ännu." En tom sträng skriver ingenting, så ett fel inte ser ut som att lager saknas.
+- **Synligheten sparas per `minne`.** Nyckeln är `lagerNyckel`, värdet de dolda id:n. Saknas posten syns lagret. Saknas `minne` gäller valet bara den här visningen. `onSynliga` får de synliga id:n vid start och när valet ändras. Ett dolt lager ritas inte, varken i rutnätet, i snabbtitten eller i kalenderväljaren.
+- **`lagerFarg`.** En giltig ton 1 till 6 vinner. Annars räknas tonen ur id (`identityTone`), aldrig ur namnet och aldrig ur gruppens kulör.
+- **`{ pa, onByt }` finns kvar.** En app som bara skickar brytaren får samma knapp som i 0.61.0.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras. Vilka lager som finns är appens data. Vilka som syns ligger i webbläsarens minne, samma väg som veckonummer och dolda appar.
+
+---
+
 ## 0.90.6
 
 CP: nycklar hör till dig, agenter hör till gruppen. Agenter är inte en app.

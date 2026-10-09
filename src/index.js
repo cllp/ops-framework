@@ -240,6 +240,11 @@ export { mejlregelfragment } from "./lib/mejl.js";
  */
 export { KALENDERFARGER, KALENDERIKONER, KALENDERFALT, MINKALENDERFALT, KALENDERPOSTFALT, MAX_KALENDERNAMN, MAX_POSTTITEL, MAX_POSTBESKRIVNING, MAX_POSTPLATS, STANDARD_TIDSZON, byggGruppkalender, validateGruppkalendrar, forvaldKalender, gruppkalendernyckel, byggMinKalender, validateMinaKalendrar, byggKalenderpost, postTillRad, kontrolleraTidszon, idagI, ORDNINGSSTEG, kalenderIdUrNamn, nastaOrdning, flyttaKalender, valjForvald, arkiveraKalender, kalenderval } from "./lib/kalendrar.js";
 /*
+ * ⛔ KALENDERLAGER (0.90.7). Synligheten är personens, i webbläsarens minne. Färgen är identitetspaletten.
+ * Ingen samling och ingen gruppton.
+ */
+export { lagerNyckel, lasDoldaLager, synligaLager, lagerFarg } from "./lib/kalenderlager.js";
+/*
  * ⛔ TILLGÄNGLIGHETEN (0.61.0, #259 skiva 1): vem i gruppen som är borta eller upptagen en dag, härledd ur posterna och aldrig
  * lagrad. En post med läget `dold` räknas inte alls. Hörnbrickan i `OpsCalendar` får `bortaAntal` via `dagdekor`.
  */
