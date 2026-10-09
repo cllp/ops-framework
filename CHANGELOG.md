@@ -9,6 +9,26 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.4
+
+CP: en anteckning i Biblioteket öppnades som fält (Rubrik, Text) med Spara och en stor röd Radera. Öppning är läsning. Redigera byter till fält med Spara och Avbryt. Radering ligger i menyn, med en fråga, och i ett svep åt vänster med ångra.
+
+Utges som 0.90.4, efter 0.90.3; appen pinnar om.
+
+### Läsvy, svep och radmeny
+
+- **`OpsDokument`.** Läsläge med rubrik och inskickad läsning, inga fält. Pennan (Redigera) visas när `kanRedigera` är sant. Redigering har Spara och Avbryt. `ny` börjar i redigering. `onSpara` som ger `false` lämnar läget. Radering ritas inte.
+- **`OpsSvepRad`, `ANGRA_MS`.** Svep åt vänster avslöjar åtgärder. Själva svepet anropar ingenting. Med `angraMeddelande` visas meddelandet och Ångra i åtta sekunder innan `onValj`. Avmontering under fönstret anropar inte. Utan åtgärder är raden en vanlig `li`.
+- **`OpsAtgardsblad`.** Långtryck (`LANGTRYCK_MS`, samma som app-arket), högerklick och ⋮ öppnar samma poster. Under 768 px ett ark från botten, på md och uppåt en meny. `baraKnapp` ritar bara ⋮. Tom `poster` ritar barnen utan knapp. `namn` krävs.
+- **`OpsMarkdown` tar `dokument`.** Läsning av ett dokument använder `text-brod`. Kortets etikettstorlek är oförändrad. Rubriker blir fortfarande aldrig `h1`.
+- **`OpsBibliotek` komponerar dem.** Anteckning, länk och fil öppnas i läsläge. Ett nytt dokument börjar i redigering. Formuläret har Spara och Avbryt. Listan sveper fram Radera med ångra. Menyn har Öppna, Redigera, Byt namn, Dela och Kopiera länk när det finns en adress eller en grupp att dela till, och Radera med fråga. Redigera, Byt namn, Dela, svepets Radera och menyns Radera kräver `farAndra`, som förut.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras.
+
+---
+
 ## 0.90.3
 
 CP 2026-10-09, modulens inställningar på live 0.90.0 (till exempel "Meddelanden · Inställningar"): reglagen är svåra att träffa och svarar sent, kugghjulet trängs mot en lång rubrik, ordningen är textknappar, och tomma avsnitt tar plats. Utges som 0.90.3; appen pinnar om.

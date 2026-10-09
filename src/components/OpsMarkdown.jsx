@@ -103,8 +103,10 @@ const TITLE_SIZE = {
  * @param {string | null | undefined} props.text Markdown. Tom text ger ingenting alls.
  * @param {boolean} [props.chatt] (#273) Chattens delmängd (`splitMarkdown(text, { chatt: true })`): radbrytningar står kvar,
  *   rubriker, tabeller, citat och kodblock tolkas inte, och färgen ärvs från bubblan.
+ * @param {boolean} [props.dokument] Läsning av ett dokument: brödtext (`text-brod`) i stället för kortets etikettstorlek.
+ *   Issue-kortet behåller den täta storleken. En anteckning som läses är en text, inte ett kort.
  */
-export function OpsMarkdown({ text, chatt = false }) {
+export function OpsMarkdown({ text, chatt = false, dokument = false }) {
   const block = splitMarkdown(text, { chatt });
   if (block.length === 0) return null;
   if (chatt) {
@@ -139,15 +141,19 @@ export function OpsMarkdown({ text, chatt = false }) {
   return (
     /* ⛔ `break-words`: issue-texter bär URL:er och tabellrader utan
        mellanslag, och utan den skjuter de ut behållarens högerkant och tar med
-       sig hela sidan på en telefon. Mätt i bolag-ops Idag. */
-    <div className="flex flex-col gap-2 break-words text-etikett text-ink-secondary">
+       sig hela sidan på en telefon. Mätt i bolag-ops Idag.
+       `dokument` är läsning: brödtext och mer luft. Kortet behåller etikettstorleken. */
+    <div data-ops-markdown={dokument ? "dokument" : "text"} className={dokument ? "flex flex-col gap-4 break-words text-brod text-ink" : "flex flex-col gap-2 break-words text-etikett text-ink-secondary"}>
       {block.map((b, i) => {
         const k = `b${i}`;
         if (b.kind === "heading") {
           // Nivå 1 och 2 i texten blir h4, resten h5 och h6: se filens huvud.
           const Title = b.level <= 2 ? "h4" : b.level === 3 ? "h5" : "h6";
+          const rubrikKlass = dokument
+            ? (b.level <= 2 ? "m-0 text-titel text-ink" : "m-0 text-rubrik text-ink")
+            : cx("m-0 text-ink", TITLE_SIZE[b.level]);
           return (
-            <Title key={k} className={cx("m-0 text-ink", TITLE_SIZE[b.level])}>
+            <Title key={k} className={rubrikKlass}>
               {inline(b.inline, k)}
             </Title>
           );

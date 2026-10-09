@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsBibliotek } from "../components/OpsBibliotek.jsx";
+import { ANGRA_MS } from "../components/OpsSvepRad.jsx";
+import { LANGTRYCK_MS } from "../lib/apparark.js";
 import { byggPost } from "../lib/bibliotek.js";
 
 /**
@@ -67,7 +69,15 @@ describe("OpsBibliotek", () => {
   it("öppnar anteckningen och sparar en ny länk bara med adress", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
+    expect(screen.getByText("Vi beslutade om bokslutet.")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
     expect(screen.getByDisplayValue("Vi beslutade om bokslutet.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
+    expect(screen.queryByRole("textbox")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Tillbaka" }));
     // 0.83.0: "+ Ny" bredvid sökfältet, med ett val under Alla (förut två knappar, "Ny anteckning" och "Ny länk").
     fireEvent.click(screen.getByRole("button", { name: "Ny post" }));
@@ -97,17 +107,20 @@ describe("OpsBibliotek", () => {
     expect(screen.getByText("javascript:alert(1)")).toBeInTheDocument();
   });
 
-  it("formuläret visas för författaren och admin, och andra ser läsläge", () => {
+  it("öppning är läsning, och Redigera visas för författaren och admin", () => {
     const { unmount } = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.getByText("Vi beslutade om bokslutet.")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
     expect(screen.getByRole("button", { name: "Tillbaka" }).querySelector("svg")).not.toBeNull();
     unmount();
 
     const admin = render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    expect(screen.queryByRole("textbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Redigera" }));
     expect(screen.getByRole("textbox", { name: "Text" })).toHaveValue("Vi beslutade om bokslutet.");
     admin.unmount();
 
@@ -115,6 +128,7 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
     expect(screen.queryByRole("button", { name: "Spara" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Redigera" })).toBeNull();
   });
 
   it("jag krävs: utan propen kastar vyn, och null är en icke-medlem (granskningen av #304)", () => {
@@ -130,11 +144,13 @@ describe("OpsBibliotek", () => {
     expect(screen.queryByRole("button", { name: "Ny post" })).toBeNull();
   });
 
-  it("radera syns för författaren och admin, kräver bekräftelse, och syns inte för andra", () => {
+  it("radera ligger i menyn för författaren och admin, kräver bekräftelse, och syns inte för andra", () => {
     const onRadera = vi.fn();
     const { unmount } = render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
-    fireEvent.click(screen.getByRole("button", { name: "Radera" }));
+    expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Radera" }));
     expect(screen.getByText("Radera posten? Den går inte att ångra.")).toBeInTheDocument();
     expect(onRadera).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Avbryt" }));
@@ -143,19 +159,23 @@ describe("OpsBibliotek", () => {
 
     const med = render(<Harness onRadera={onRadera} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
-    fireEvent.click(screen.getByRole("button", { name: "Radera" }));
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Radera" }));
     fireEvent.click(screen.getByRole("button", { name: "Radera posten" }));
     expect(onRadera).toHaveBeenCalledWith("a");
     med.unmount();
 
     const annan = render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
-    expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Åtgärder för Protokoll" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Radera" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Redigera" })).toBeNull();
     annan.unmount();
 
     render(<Harness jag={{ uid: "uid-annan", roll: "admin" }} onRadera={onRadera} />);
     fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
-    expect(screen.getByRole("button", { name: "Radera" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    expect(screen.getByRole("menuitem", { name: "Radera" })).toBeInTheDocument();
   });
 
   it("en trasig rad raderas av den som får, med bekräftelse, och inte av en annan medlem", () => {
@@ -255,7 +275,8 @@ describe("OpsBibliotek", () => {
 
     const onDela = vi.fn();
     render(<Harness grupper={[{ id: "miranda-ab", namn: "Miranda" }]} onDela={onDela} />);
-    fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Dela" }));
     fireEvent.click(screen.getByRole("button", { name: "Kopiera" }));
     expect(onDela).toHaveBeenCalledWith({ id: "a", groupId: "miranda-ab", satt: "kopiera" });
     fireEvent.click(screen.getByRole("button", { name: "Flytta" }));
@@ -470,4 +491,146 @@ describe("OpsBibliotek", () => {
     expect(rad?.contains(ny)).toBe(true);
     expect(document.querySelector("[data-bibliotek]")?.className).toContain("gap-4");
   });
+
+  it("en anteckning läses som markdown, och fälten kommer först vid Redigera", () => {
+    const md = {
+      ...byggPost({
+        groupId: "cps-ab",
+        typ: "anteckning",
+        rubrik: "Beslut",
+        text: "Vi **beslutade** om [boken](https://example.com/bok).",
+        skapadAv: skapare,
+        skapad: tid,
+        andrad: tid,
+      }),
+      id: "md",
+    };
+    render(<Harness start={[md]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Beslut" }));
+    expect(screen.getByText("beslutade").tagName).toBe("STRONG");
+    expect(screen.getByRole("link", { name: "boken" })).toHaveAttribute("href", "https://example.com/bok");
+    expect(document.querySelector("[data-ops-markdown='dokument']")?.className).toContain("text-brod");
+    expect(document.body.textContent).not.toContain("**");
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("svep avslöjar Radera för den som får, och Ångra hindrar anropet", () => {
+    vi.useFakeTimers();
+    try {
+      const onRadera = vi.fn();
+      const { unmount } = render(<Harness onRadera={onRadera} />);
+      const rad = screen.getByRole("button", { name: "Protokoll" }).closest("li");
+      expect(rad).not.toBeNull();
+      svep(/** @type {HTMLElement} */ (rad));
+      const radera = screen.getByRole("button", { name: "Radera" });
+      peka(radera, "pointerdown", 10, 10);
+      fireEvent.click(radera);
+      expect(screen.getByText("Protokoll tas bort.")).toBeInTheDocument();
+      expect(onRadera).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Ångra" }));
+      act(() => { vi.advanceTimersByTime(ANGRA_MS); });
+      expect(onRadera).not.toHaveBeenCalled();
+      unmount();
+
+      const igen = render(<Harness onRadera={onRadera} />);
+      const rad2 = screen.getByRole("button", { name: "Protokoll" }).closest("li");
+      svep(/** @type {HTMLElement} */ (rad2));
+      const knapp = screen.getByRole("button", { name: "Radera" });
+      peka(knapp, "pointerdown", 10, 10);
+      fireEvent.click(knapp);
+      act(() => { vi.advanceTimersByTime(ANGRA_MS); });
+      expect(onRadera).toHaveBeenCalledWith("a");
+      igen.unmount();
+
+      render(<Harness jag={{ uid: "uid-annan", roll: "medlem" }} onRadera={onRadera} />);
+      expect(document.querySelector("[data-ops-svep]")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Radera" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("långtryck och högerklick öppnar samma meny som ⋮, och ett kort tryck öppnar posten", () => {
+    vi.useFakeTimers();
+    try {
+      const { unmount } = render(<Harness />);
+      const rad = screen.getByRole("button", { name: "Protokoll" }).closest("[data-ops-atgard]");
+      expect(rad).not.toBeNull();
+      peka(/** @type {HTMLElement} */ (rad), "pointerdown", 20, 20);
+      act(() => { vi.advanceTimersByTime(LANGTRYCK_MS - 1); });
+      expect(screen.queryByRole("menu")).toBeNull();
+      peka(/** @type {HTMLElement} */ (rad), "pointerup", 20, 20);
+      fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
+      vi.clearAllTimers();
+      unmount();
+
+      const langt = render(<Harness />);
+      const rad2 = screen.getByRole("button", { name: "Protokoll" }).closest("[data-ops-atgard]");
+      peka(/** @type {HTMLElement} */ (rad2), "pointerdown", 20, 20);
+      act(() => { vi.advanceTimersByTime(LANGTRYCK_MS); });
+      expect(screen.getByRole("menuitem", { name: "Öppna" })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Byt namn" })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Radera" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Protokoll" }));
+      expect(screen.queryByRole("heading", { name: "Protokoll" })).toBeNull();
+      langt.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const { unmount } = render(<Harness />);
+    const yta = screen.getByRole("button", { name: "Protokoll" }).closest("[data-ops-atgard]");
+    fireEvent.contextMenu(/** @type {HTMLElement} */ (yta));
+    expect(screen.getByRole("menuitem", { name: "Redigera" })).toBeInTheDocument();
+    unmount();
+
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Öppna" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Protokoll");
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("byt namn sparar rubriken och lämnar texten, och kopiera länk skriver adressen", async () => {
+    const { unmount } = render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Protokoll" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Byt namn" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Nytt namn" }), { target: { value: "Årsprotokoll" } });
+    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
+    const sparat = document.querySelector("[data-sparat]")?.textContent ?? "";
+    expect(sparat).toContain("Årsprotokoll");
+    expect(sparat).toContain("Vi beslutade om bokslutet.");
+    unmount();
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const tidigare = navigator.clipboard;
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    try {
+      render(<Harness />);
+      fireEvent.click(screen.getByRole("button", { name: "Åtgärder för Bolagsverket" }));
+      expect(screen.queryByRole("menuitem", { name: "Kopiera länk" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("menuitem", { name: "Kopiera länk" }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://bolagsverket.se/"));
+      expect(await screen.findByText("Länken är kopierad.")).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: tidigare });
+    }
+  });
 });
+
+/**
+ * @param {HTMLElement} element
+ * @param {number} [tillX]
+ */
+function peka(element, typ, clientX, clientY) {
+  act(() => {
+    element.dispatchEvent(new MouseEvent(typ, { bubbles: true, cancelable: true, clientX, clientY, button: 0 }));
+  });
+}
+
+function svep(element, tillX = 80) {
+  peka(element, "pointerdown", 240, 24);
+  peka(element, "pointermove", tillX, 24);
+  peka(element, "pointerup", tillX, 24);
+}

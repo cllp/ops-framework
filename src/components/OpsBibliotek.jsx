@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { FileText, Image as BildIkon, Library, Link, Music, Pause, Play, Plus, StickyNote } from "lucide-react";
+import { OpsAtgardsblad } from "./OpsAtgardsblad.jsx";
+import { OpsDokument } from "./OpsDokument.jsx";
+import { OpsMarkdown } from "./OpsMarkdown.jsx";
+import { OpsModal } from "./OpsModal.jsx";
+import { OpsSvepRad } from "./OpsSvepRad.jsx";
 import { ADRESSFORM, BIBLIOTEKTYPER, IDE_MAX_SEKUNDER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { TalkPrickar, useTalk } from "./OpsTalk.jsx";
 import { cx } from "../lib/cx.js";
@@ -11,12 +16,12 @@ import { OpsButton, knappKlass } from "./OpsButton.jsx";
 import { MikrofonIkon } from "./icons.jsx";
 import { OpsEmpty } from "./OpsEmpty.jsx";
 import { OpsField, OpsInput, OpsTextarea } from "./OpsField.jsx";
-import { OpsList, OpsListRow } from "./OpsList.jsx";
+import { OpsList } from "./OpsList.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { OpsTabPanel, OpsTabs } from "./OpsTabs.jsx";
 import { TillbakaKnapp } from "./TillbakaKnapp.jsx";
 import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
-import { OpsView, OpsViewHeader } from "./OpsView.jsx";
+import { OpsView } from "./OpsView.jsx";
 
 /**
  * Gruppens bibliotek: lista och detalj för anteckning och länk.
@@ -28,17 +33,19 @@ import { OpsView, OpsViewHeader } from "./OpsView.jsx";
  * Komponenten skriver ingenting själv. `onSpara` får typ, rubrik och text eller
  * adress. Källan sätter grupp, författare och klockslag.
  *
- * ⛔ FORMULÄRET VISAS BARA FÖR DEN SOM FÅR ÄNDRA (granskningen av #304). Det är
- * `farAndra`, samma villkor som regelns `update`: författaren eller admin. Andra
- * ser posten i läsläge. Ett formulär som regeln sedan nekar är ett löfte vyn inte
- * kan hålla, och nejet hade kommit som "Missing or insufficient permissions".
- * `jag: null` betyder att den inloggade inte är medlem: allt visas i läsläge och
+ * ⛔ FORMULÄRET ÄR ETT LÄGE, INTE ÖPPNINGEN (CP, Bibliotekets anteckningar).
+ * Öppning visar texten, markdown via `OpsMarkdown`. Redigera (pennan) byter till
+ * fält, med Spara och Avbryt. Ett nytt dokument börjar i redigering, för det
+ * finns inget att läsa. Vem som får redigera är `farAndra`, samma villkor som
+ * regelns `update`: författaren eller admin. Andra ser läsläge utan penna. Ett
+ * formulär som regeln sedan nekar är ett löfte vyn inte kan hålla.
+ * `jag: null` betyder att den inloggade inte är medlem: allt är läsläge och
  * inga knappar för att lägga till.
  *
- * ⛔ RADERA SYNS BARA FÖR DEN SOM FÅR (#311). Samma `farAndra` som formuläret.
- * Första trycket frågar, andra tar bort. Utan frågan hade ett tryck i listan
- * raderat posten. En trasig rad har samma knapp när raden bär grupp och
- * skapare nog för `farAndra`.
+ * ⛔ RADERA SITTER INTE I FORMULÄRET (#311, och CP: den stora röda knappen).
+ * Samma `farAndra`. I listan avslöjar ett svep åt vänster Radera, och trycket
+ * ger ångra innan `onRadera`. Menyn (långtryck, högerklick, ⋮) frågar först.
+ * En trasig rad har samma fråga när raden bär grupp och skapare nog för `farAndra`.
  *
  * ⛔ `jag` KRÄVS, OCH `null` ÄR ETT SVAR (regel 5, granskningen av #304). Med
  * `null` som förval såg en app som glömt propen ut som en icke-medlem: inga
@@ -121,10 +128,152 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "fil"} */ ("alla"));
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
+  const [startLage, setStartLage] = useState(/** @type {"las" | "redigera"} */ ("las"));
+  const [byter, setByter] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
+  const [namnUtkast, setNamnUtkast] = useState("");
+  const [namnFel, setNamnFel] = useState("");
+  const [raderar, setRaderar] = useState(/** @type {string | null} */ (null));
+  const [raderaFel, setRaderaFel] = useState("");
+  const [delar, setDelar] = useState(/** @type {null | (import("../lib/bibliotek.js").Bibliotekspost & { id: string })} */ (null));
+  const [status, setStatus] = useState("");
   const adresser = useFilAdresser(poster, vald, filUrl, hamtaAdress);
   const adressFor = (/** @type {{ typ?: string, fil?: { sokvag?: string, mime?: string } }} */ post) => losAdress(post, filUrl, hamtaAdress, adresser);
   const skaparTyp = jag ? skapar : null;
   const detalj = Boolean(skaparTyp || vald);
+
+  /**
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   * @param {"las" | "redigera"} lage
+   */
+  function oppnaMed(post, lage) {
+    setStartLage(lage);
+    onOppna(post);
+  }
+
+  /**
+   * @param {{ typ?: string, url?: string, fil?: { sokvag?: string, mime?: string } }} post
+   */
+  function lankAttKopiera(post) {
+    if (post.typ === "lank" && typeof post.url === "string" && ADRESSFORM.test(post.url)) return post.url;
+    if (post.typ === "fil") {
+      const lage = adressFor(post);
+      if (lage.lage === "klar" && ADRESSFORM.test(lage.adress)) return lage.adress;
+    }
+    return "";
+  }
+
+  /**
+   * @param {string} url
+   */
+  function kopieraLank(url) {
+    const miss = () => setStatus(`Länken kunde inte kopieras. Adressen är ${url}`);
+    try {
+      const skriv = navigator.clipboard?.writeText;
+      if (typeof skriv !== "function") {
+        miss();
+        return;
+      }
+      Promise.resolve(skriv.call(navigator.clipboard, url)).then(() => setStatus("Länken är kopierad.")).catch(() => miss());
+    } catch {
+      miss();
+    }
+  }
+
+  /**
+   * @param {string} id
+   */
+  function fragaRadera(id) {
+    setRaderaFel("");
+    setRaderar(id);
+  }
+
+  function korRadera() {
+    if (!raderar) return;
+    if (typeof onRadera !== "function") {
+      setRaderaFel("Raderingen är inte kopplad. Posten är kvar.");
+      return;
+    }
+    try {
+      const svar = onRadera(raderar);
+      if (svar && typeof svar.then === "function") {
+        svar.then(() => setRaderar(null)).catch((e) => setRaderaFel(e instanceof Error ? e.message : String(e)));
+        return;
+      }
+      setRaderar(null);
+    } catch (e) {
+      setRaderaFel(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /**
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   */
+  function borjaNamn(post) {
+    setNamnFel("");
+    setNamnUtkast(post.rubrik);
+    setByter(post);
+  }
+
+  function sparaNamn() {
+    if (!byter) return;
+    const inmatning = byter.typ === "anteckning"
+      ? { id: byter.id, typ: byter.typ, rubrik: namnUtkast, text: byter.text ?? "" }
+      : byter.typ === "fil"
+        ? { id: byter.id, typ: byter.typ, rubrik: namnUtkast, fil: byter.fil }
+        : { id: byter.id, typ: byter.typ, rubrik: namnUtkast, url: byter.url ?? "" };
+    const felNamn = inmatningsfel(inmatning);
+    if (felNamn) {
+      setNamnFel(felNamn);
+      return;
+    }
+    setNamnFel("");
+    onSpara(inmatning);
+    setByter(null);
+  }
+
+  /**
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   * @param {boolean} iDetalj
+   * @param {(lage: "redigera") => void} [sattRedigera]
+   */
+  function menyFor(post, iDetalj, sattRedigera) {
+    const far = farAndra(post, jag);
+    /** @type {import("./OpsAtgardsblad.jsx").Atgard[]} */
+    const ut = [];
+    if (!iDetalj) ut.push({ id: "oppna", etikett: "Öppna", onValj: () => oppnaMed(post, "las") });
+    if (far) {
+      ut.push({
+        id: "redigera",
+        etikett: "Redigera",
+        onValj: () => (iDetalj && sattRedigera ? sattRedigera("redigera") : oppnaMed(post, "redigera")),
+      });
+      ut.push({ id: "namn", etikett: "Byt namn", onValj: () => borjaNamn(post) });
+    }
+    const lank = lankAttKopiera(post);
+    if (lank) ut.push({ id: "kopiera", etikett: "Kopiera länk", onValj: () => kopieraLank(lank) });
+    if (far && grupper.length > 0 && typeof onDela === "function") {
+      ut.push({ id: "dela", etikett: "Dela", onValj: () => setDelar(post) });
+    }
+    if (far) ut.push({ id: "radera", etikett: "Radera", fara: true, onValj: () => fragaRadera(post.id) });
+    return ut;
+  }
+
+  /**
+   * @param {import("../lib/bibliotek.js").Bibliotekspost & { id: string }} post
+   */
+  function svepFor(post) {
+    if (!farAndra(post, jag)) return [];
+    return [{
+      id: "radera",
+      etikett: "Radera",
+      fara: true,
+      angraMeddelande: `${post.rubrik} tas bort.`,
+      onValj: () => {
+        if (typeof onRadera !== "function") throw new Error("Raderingen är inte kopplad. Posten är kvar.");
+        return onRadera(post.id);
+      },
+    }];
+  }
 
   const antal = {
     alla: poster.length,
@@ -154,7 +303,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     <OpsView tillbaka={detalj ? undefined : listTillbaka}>
       <div data-bibliotek="" className="flex min-w-0 w-full flex-col gap-4">
         {detalj ? (
-          <Detalj post={vald} skapar={skaparTyp} jag={jag} onStang={onStang} onSpara={onSpara} onRadera={onRadera} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} grupper={grupper} onDela={onDela} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
+          <Detalj key={`${skaparTyp ?? ""}:${vald?.id ?? ""}:${startLage}`} post={vald} skapar={skaparTyp} jag={jag} startLage={startLage} onStang={onStang} onSpara={onSpara} onLaddaUpp={onLaddaUpp} filUrl={filUrl} adressFor={adressFor} onLjus={setLjus} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} menyFor={menyFor} />
         ) : (
           <OpsTabs
             ariaLabel="Typ i biblioteket"
@@ -187,7 +336,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                         <li key={t.id} className="flex flex-col gap-2">
                           <span>{t.id}: {t.fel}</span>
                           {farAndra({ groupId: t.groupId, skapadAv: t.skapadAv }, jag) ? (
-                            <RaderaKontroll id={t.id} namn={`Radera ${t.id}`} onRadera={onRadera} />
+                            <OpsButton variant="secondary" size="sm" ariaLabel={`Radera ${t.id}`} onClick={() => fragaRadera(t.id)}>Radera</OpsButton>
                           ) : null}
                         </li>
                       ))}
@@ -208,31 +357,31 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                   <OpsList ariaLabel="Biblioteket" divided>
                     {synliga.map((post) => {
                       const ljud = post.typ === "fil" && filSort(post.fil?.mime) === "ljud";
+                      const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
                       const lage = adressFor(post);
-                      if (ljud) {
-                        return (
-                          <OpsListRow key={post.id}>
-                            <PostMark post={post} />
-                            <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOppna(post)} aria-label={post.rubrik}>
-                              <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
-                              <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
-                            </button>
-                            {lage.lage === "klar" ? <Ljudspelare src={lage.adress} /> : lage.lage === "hamtar" ? <p role="status">Hämtar ljudet.</p> : <p role={lage.lage === "fel" ? "alert" : "status"}>{lage.fel || "Filen har ingen adress."}</p>}
-                          </OpsListRow>
-                        );
-                      }
                       return (
-                      <OpsListRow key={post.id} interactive onClick={() => onOppna(post)} ariaLabel={post.rubrik}>
-                        <PostMark post={post} bildAdress={lage.lage === "klar" ? lage.adress : ""} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
-                          <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
-                        </span>
-                      </OpsListRow>
+                        <OpsSvepRad key={post.id} atgarder={svepFor(post)}>
+                          <OpsAtgardsblad namn={post.rubrik} poster={menyFor(post, false)}>
+                            <button
+                              type="button"
+                              className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                              onClick={() => oppnaMed(post, "las")}
+                              aria-label={post.rubrik}
+                            >
+                              <PostMark post={post} bildAdress={bild && lage.lage === "klar" ? lage.adress : ""} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-brod font-medium text-ink">{post.rubrik}</span>
+                                <span className="block truncate text-meta text-ink-muted">{postRad(post)}</span>
+                              </span>
+                            </button>
+                            {ljud ? (lage.lage === "klar" ? <Ljudspelare src={lage.adress} /> : lage.lage === "hamtar" ? <p role="status">Hämtar ljudet.</p> : <p role={lage.lage === "fel" ? "alert" : "status"}>{lage.fel || "Filen har ingen adress."}</p>) : null}
+                          </OpsAtgardsblad>
+                        </OpsSvepRad>
                       );
                     })}
                   </OpsList>
                 )}
+                {status ? <p role="status">{status}</p> : null}
               </div>
             </OpsTabPanel>
           </OpsTabs>
@@ -244,6 +393,50 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
           </div>
         ) : null}
       </div>
+      <OpsModal
+        open={raderar !== null}
+        onOpenChange={(oppen) => {
+          if (!oppen) {
+            setRaderar(null);
+            setRaderaFel("");
+          }
+        }}
+        title="Radera"
+        size="sm"
+        footer={(
+          <>
+            <OpsButton variant="secondary" onClick={() => { setRaderar(null); setRaderaFel(""); }}>Avbryt</OpsButton>
+            <OpsButton variant="danger" onClick={korRadera}>Radera posten</OpsButton>
+          </>
+        )}
+      >
+        <p>Radera posten? Den går inte att ångra.</p>
+        {raderaFel ? <p role="alert">{raderaFel}</p> : null}
+      </OpsModal>
+      <OpsModal
+        open={byter !== null}
+        onOpenChange={(oppen) => { if (!oppen) setByter(null); }}
+        title="Byt namn"
+        size="sm"
+        footer={(
+          <>
+            <OpsButton variant="secondary" onClick={() => setByter(null)}>Avbryt</OpsButton>
+            <OpsButton variant="primary" onClick={sparaNamn}>Spara</OpsButton>
+          </>
+        )}
+      >
+        <OpsField label="Rubrik" error={namnFel || undefined}>
+          <OpsInput value={namnUtkast} onChange={setNamnUtkast} ariaLabel="Nytt namn" />
+        </OpsField>
+      </OpsModal>
+      <OpsModal
+        open={delar !== null}
+        onOpenChange={(oppen) => { if (!oppen) setDelar(null); }}
+        title="Dela"
+        size="sm"
+      >
+        {delar ? <DelaKontroll id={delar.id} grupper={grupper} onDela={onDela} /> : <p>Ingen post vald.</p>}
+      </OpsModal>
     </OpsView>
   );
 }
@@ -525,25 +718,25 @@ function Adress({ url }) {
  * @param {(import("../lib/bibliotek.js").Bibliotekspost & { id: string }) | null} props.post
  * @param {"anteckning" | "lank" | "fil" | null} props.skapar
  * @param {{ uid: string, roll: string, groupId?: string } | null} props.jag
+ * @param {"las" | "redigera"} props.startLage
  * @param {() => void} props.onStang
  * @param {(inmatning: { id?: string, typ: string, rubrik: string, text?: string, url?: string, fil?: { sokvag: string, namn: string, mime: string, byte: number } }) => void} props.onSpara
- * @param {(id: string) => void | Promise<void>} [props.onRadera]
  * @param {(inmatning: { id?: string, rubrik: string, fil: File }) => void | Promise<void>} [props.onLaddaUpp]
  * @param {(post: { fil?: { sokvag?: string } }) => string} [props.filUrl]
  * @param {(post: { typ?: string, fil?: { sokvag?: string, mime?: string } }) => Adresslage} [props.adressFor]
  * @param {(adress: string) => void} [props.onLjus]
- * @param {readonly { id: string, namn: string }[]} [props.grupper]
- * @param {(inmatning: { id: string, groupId: string, satt: "flytta" | "kopiera" }) => void | Promise<void>} [props.onDela]
  * @param {(post: { id: string }) => { text: string, forslag?: "anteckning" | "arende" } | Promise<{ text: string, forslag?: "anteckning" | "arende" }>} [props.onSkrivUt]
  * @param {(inmatning: { id: string, satt: "anteckning" | "arende" }) => void | Promise<void>} [props.onGorForslag]
+ * @param {(post: import("../lib/bibliotek.js").Bibliotekspost & { id: string }, iDetalj: boolean, sattRedigera?: (lage: "redigera") => void) => import("./OpsAtgardsblad.jsx").Atgard[]} props.menyFor
  */
-function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, filUrl, adressFor, onLjus, grupper = [], onDela, onSkrivUt, onGorForslag }) {
+function Detalj({ post, skapar, jag, startLage, onStang, onSpara, onLaddaUpp, filUrl, adressFor, onLjus, onSkrivUt, onGorForslag, menyFor }) {
   const typ = skapar ?? post?.typ ?? "anteckning";
   const [rubrik, setRubrik] = useState(post && !skapar ? post.rubrik : "");
   const [text, setText] = useState(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
   const [url, setUrl] = useState(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
   const [formfel, setFormfel] = useState("");
   const [valdFil, setValdFil] = useState(/** @type {File | null} */ (null));
+  const [lage, setLage] = useState(/** @type {"las" | "redigera"} */ (skapar ? "redigera" : startLage));
   const nyckel = `${skapar ?? ""}:${post?.id ?? ""}`;
 
   useEffect(() => {
@@ -555,51 +748,70 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
     // Nyckeln är beroendet: en ny lista med samma post ska inte tömma ett halvskrivet formulär.
   }, [nyckel]);
 
-  const lasning = !skapar && post && !farAndra(post, jag);
+  const kan = Boolean(!skapar && post && farAndra(post, jag));
   const rubrikVy = skapar ? (typ === "anteckning" ? "Ny anteckning" : typ === "lank" ? "Ny länk" : "Ny fil") : post?.rubrik ?? "Post";
-  const beskrivning = typ === "anteckning" ? "En text gruppen delar." : typ === "lank" ? "En adress gruppen delar." : "En fil gruppen delar.";
   const tomLage = /** @type {Adresslage} */ ({ lage: "saknas", adress: "", fel: "" });
   const filLage = post && typeof adressFor === "function" ? adressFor({ typ: post.typ, fil: post.fil }) : tomLage;
   const kopplad = typeof filUrl === "function" || filLage.lage !== "saknas";
-
   const mark = <PostMark post={{ typ, fil: post?.fil }} bildAdress={filLage.lage === "klar" ? filLage.adress : ""} />;
+  const ljud = Boolean(post && post.typ === "fil" && filSort(post.fil?.mime) === "ljud");
 
-  if (lasning && post) {
-    return (
-      <div data-bibliotek-detalj={typ} data-bibliotek-lasning="" className="flex flex-col gap-4">
-        <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
-        <div className="flex items-start gap-3">
-          {mark}
-          <div className="min-w-0 flex-1">
-            <OpsViewHeader title={post.rubrik} description={beskrivning} />
-          </div>
-        </div>
-        {post.typ === "anteckning" ? (
-          <p className="whitespace-pre-wrap text-brod text-ink">{post.text}</p>
-        ) : post.typ === "fil" ? (
-          <>
-            <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} />
-            {post.utskrift != null ? <p data-bibliotek-utskrift="">{post.utskrift === "" ? "Utskriften är tom." : post.utskrift}</p> : null}
-          </>
-        ) : (
-          <Adress url={post.url ?? ""} />
-        )}
-        <p className="text-meta text-ink-muted">{post.skapadAv.namn ? `Skriven av ${post.skapadAv.namn}.` : "Författaren saknar namn."}</p>
-      </div>
-    );
+  function aterstall() {
+    setRubrik(post && !skapar ? post.rubrik : "");
+    setText(post && !skapar && post.typ === "anteckning" ? post.text ?? "" : "");
+    setUrl(post && !skapar && post.typ === "lank" ? post.url ?? "" : "");
+    setFormfel("");
+    setValdFil(null);
   }
 
-  return (
-    <div data-bibliotek-detalj={typ} className="flex flex-col gap-4">
-      <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
-      <div className="flex items-start gap-3">
-        {mark}
-        <div className="min-w-0 flex-1">
-          <OpsViewHeader title={rubrikVy} description={beskrivning} />
-        </div>
-      </div>
-      {post && !skapar && post.typ === "lank" && post.url ? <Adress url={post.url} /> : null}
-      {post && !skapar && post.typ === "fil" ? <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} /> : null}
+  /** @returns {false | void | Promise<void | false>} */
+  function forsokSpara() {
+    if (typ === "fil" && (valdFil || skapar)) {
+      if (!valdFil) {
+        setFormfel("Välj en fil.");
+        return false;
+      }
+      if (!trimSomRegeln(rubrik)) {
+        setFormfel("Rubriken saknas.");
+        return false;
+      }
+      if (typeof onLaddaUpp !== "function") {
+        setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
+        return false;
+      }
+      const svar = onLaddaUpp({ rubrik, fil: valdFil, ...(post && !skapar ? { id: post.id } : {}) });
+      if (svar && typeof svar.then === "function") {
+        return svar.catch((e) => {
+          setFormfel(e instanceof Error ? e.message : String(e));
+          return false;
+        });
+      }
+      return;
+    }
+    const inmatning = typ === "anteckning"
+      ? { typ, rubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
+      : typ === "fil"
+        ? { typ, rubrik, fil: post?.fil, ...(post && !skapar ? { id: post.id } : {}) }
+        : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
+    const fel = inmatningsfel(inmatning);
+    if (fel) {
+      setFormfel(fel);
+      return false;
+    }
+    setFormfel("");
+    onSpara(inmatning);
+  }
+
+  const lasning = typ === "anteckning" ? (
+    post?.text ? <OpsMarkdown text={post.text} dokument /> : <p className="text-brod text-ink">Anteckningen har ingen text.</p>
+  ) : typ === "fil" && post ? (
+    <FilVisning post={post} lage={filLage} kopplad={kopplad} onLjus={onLjus} />
+  ) : (
+    <Adress url={post?.url ?? url} />
+  );
+
+  const redigering = (
+    <>
       <OpsField label="Rubrik" error={formfel && !trimSomRegeln(rubrik) ? formfel : undefined}>
         <OpsInput value={rubrik} onChange={setRubrik} ariaLabel="Rubrik" />
       </OpsField>
@@ -636,50 +848,43 @@ function Detalj({ post, skapar, jag, onStang, onSpara, onRadera, onLaddaUpp, fil
           <OpsInput value={url} onChange={setUrl} ariaLabel="Adress" placeholder="https://" />
         </OpsField>
       )}
-      {formfel ? <p role="alert">{formfel}</p> : null}
-      <OpsButton
-        variant="primary"
-        onClick={() => {
-          if (typ === "fil" && (valdFil || skapar)) {
-            if (!valdFil) {
-              setFormfel("Välj en fil.");
-              return;
-            }
-            if (!trimSomRegeln(rubrik)) {
-              setFormfel("Rubriken saknas.");
-              return;
-            }
-            if (typeof onLaddaUpp !== "function") {
-              setFormfel("Uppladdningen är inte kopplad. Filen är kvar på enheten.");
-              return;
-            }
-            const svar = onLaddaUpp({ rubrik, fil: valdFil, ...(post && !skapar ? { id: post.id } : {}) });
-            if (svar && typeof svar.then === "function") {
-              svar.catch((e) => setFormfel(e instanceof Error ? e.message : String(e)));
-            }
-            return;
-          }
-          const inmatning = typ === "anteckning"
-            ? { typ, rubrik, text, ...(post && !skapar ? { id: post.id } : {}) }
-            : typ === "fil"
-              ? { typ, rubrik, fil: post?.fil, ...(post && !skapar ? { id: post.id } : {}) }
-              : { typ, rubrik, url: normaliseraAdress(url), ...(post && !skapar ? { id: post.id } : {}) };
-          const fel = inmatningsfel(inmatning);
-          if (fel) {
-            setFormfel(fel);
-            return;
-          }
-          setFormfel("");
-          onSpara(inmatning);
-        }}
-      >
-        Spara
-      </OpsButton>
-      {post && !skapar && post.typ === "fil" && filSort(post.fil?.mime) === "ljud" ? (
-        <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
+    </>
+  );
+
+  return (
+    <div data-bibliotek-detalj={typ} data-bibliotek-lasning={lage === "las" ? "" : undefined} className="flex flex-col gap-4">
+      <TillbakaKnapp onClick={onStang} etikett="Tillbaka" className="self-start" />
+      <div className="flex items-start gap-3">
+        {mark}
+        <div className="min-w-0 flex-1">
+          <OpsDokument
+            ny={Boolean(skapar)}
+            kanRedigera={kan}
+            lage={lage}
+            onLage={setLage}
+            rubrik={rubrikVy}
+            lasning={lasning}
+            redigering={redigering}
+            fel={formfel && trimSomRegeln(rubrik) ? formfel : ""}
+            onSpara={forsokSpara}
+            onAvbryt={() => {
+              if (skapar) onStang();
+              else aterstall();
+            }}
+            extra={post && !skapar ? <OpsAtgardsblad baraKnapp namn={post.rubrik} poster={menyFor(post, true, setLage)} /> : null}
+          />
+        </div>
+      </div>
+      {lage === "las" && post ? (
+        <p className="text-meta text-ink-muted">{post.skapadAv?.namn ? `Skriven av ${post.skapadAv.namn}.` : "Författaren saknar namn."}</p>
       ) : null}
-      {post && !skapar ? <DelaKontroll id={post.id} grupper={grupper} onDela={onDela} /> : null}
-      {post && !skapar ? <RaderaKontroll id={post.id} onRadera={onRadera} /> : null}
+      {lage === "las" && post && ljud ? (
+        kan ? (
+          <UtskriftKontroll post={post} onSkrivUt={onSkrivUt} onGorForslag={onGorForslag} />
+        ) : (
+          post.utskrift != null ? <p data-bibliotek-utskrift="">{post.utskrift === "" ? "Utskriften är tom." : post.utskrift}</p> : null
+        )
+      ) : null}
     </div>
   );
 }
@@ -892,45 +1097,3 @@ function DelaKontroll({ id, grupper, onDela }) {
   );
 }
 
-/**
- * Första trycket frågar. Andra tar bort. Avbryt lämnar posten.
- *
- * @param {{ id: string, namn?: string, onRadera?: (id: string) => void | Promise<void> }} props
- */
-function RaderaKontroll({ id, namn = "Radera", onRadera }) {
-  const [fraga, setFraga] = useState(false);
-  const [fel, setFel] = useState("");
-  if (!fraga) {
-    return (
-      <OpsButton variant="danger" onClick={() => setFraga(true)}>{namn}</OpsButton>
-    );
-  }
-  return (
-    <div data-bibliotek-bekrafta="" className="flex flex-col gap-2">
-      <p>Radera posten? Den går inte att ångra.</p>
-      {fel ? <p role="alert">{fel}</p> : null}
-      <div className="flex gap-2">
-        <OpsButton variant="secondary" onClick={() => { setFraga(false); setFel(""); }}>Avbryt</OpsButton>
-        <OpsButton
-          variant="danger"
-          onClick={() => {
-            if (typeof onRadera !== "function") {
-              setFel("Raderingen är inte kopplad. Posten är kvar.");
-              return;
-            }
-            try {
-              const svar = onRadera(id);
-              if (svar && typeof svar.then === "function") {
-                svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
-              }
-            } catch (e) {
-              setFel(e instanceof Error ? e.message : String(e));
-            }
-          }}
-        >
-          Radera posten
-        </OpsButton>
-      </div>
-    </div>
-  );
-}
