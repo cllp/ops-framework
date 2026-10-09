@@ -474,6 +474,18 @@ describe("hubbPoster med delar, och huvudmenyPoster (0.83.0)", () => {
     expect(huvudmenyPoster({ grupp: { moduler: ["ekonomi"], huvudmeny: ["resor"] }, moduler: m })).toEqual([]);
     expect(huvudmenyPoster({ grupp: { moduler: ["inkorg", "ekonomi"], huvudmeny: ["inkorg", "ekonomi"] }, moduler: m }).map((p) => p.id)).toEqual(["ekonomi"]);
   });
+
+  it("räknaren följer med ikonen, och en modul utan tal får inget märke", () => {
+    const m = moduler();
+    const rader = huvudmenyPoster({
+      grupp: { moduler: ["resor", "ekonomi"], huvudmeny: ["resor", "ekonomi"] },
+      moduler: m,
+      badge: { ekonomi: 4 },
+      badgeFler: { ekonomi: true },
+    });
+    expect(rader.find((r) => r.id === "ekonomi")).toMatchObject({ badge: 4, badgeFler: true });
+    expect(rader.find((r) => r.id === "resor")).not.toHaveProperty("badge");
+  });
 });
 
 describe("⛔ samma rad i modulen och i biblioteket (0.83.0)", () => {

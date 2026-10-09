@@ -230,8 +230,15 @@ describe("OpsBibliotek", () => {
       kasta: vi.fn(),
       niva: () => 0,
     };
+    const utan = render(<Harness />);
+    expect(utan.queryByRole("button", { name: "Spela in idé" })).toBeNull();
+    utan.unmount();
+
     const { unmount } = render(<Harness onSpelaIn={onSpelaIn} inspelare={inspelare} />);
-    fireEvent.click(screen.getByRole("button", { name: "Spela in idé" }));
+    const mikrofon = screen.getByRole("button", { name: "Spela in idé" });
+    expect(mikrofon.querySelector("svg")).not.toBeNull();
+    expect(document.querySelector("[data-bibliotek-ikon='anteckning']")).not.toBeNull();
+    fireEvent.click(mikrofon);
     expect(inspelare.starta).toHaveBeenCalled();
     fireEvent.click(await screen.findByRole("button", { name: "Spara idé" }));
     await waitFor(() => expect(onSpelaIn).toHaveBeenCalled());

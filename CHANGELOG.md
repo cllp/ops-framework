@@ -28,7 +28,19 @@ CP 2026-10-09, telefonbredd: Ekonomis flikar ligger på många rader. Samma dag:
 ### Tillbaka i Bibliotekets detalj
 
 - **Läsning och formulär använder `TillbakaKnapp`.** Samma chevron och vänsterställda text som skapa- och händelsepanelen. Listan använder fortfarande `OpsHubTillbaka` upp till hubben. Spökknappen sträcktes i vyns kolumn och centrerade ordet, utan chevron.
-- Övriga ytor som inte använder de två knapparna, och som inte ändrats här: `OpsGruppSida` har en egen kopia med chevron (vänster, `gap-2`, mot GroupDetailView). Chatten har en kompakt rad med gruppnamnet (`ChevronVanster` 14 px, linje under). Menyn och panelhuvudet har en ikonknapp utan ord. De är andra gester, inte Bibliotekets spökknapp.
+- **`OpsGruppSida` använder samma `TillbakaKnapp`.** Den egna kopian hade chevron och ord, men egna klasser (`gap-2`). Chatten har kvar sin kompakta rad med gruppnamnet (`ChevronVanster` 14 px, linje under). Menyn och panelhuvudet har en ikonknapp utan ord. De är andra gester.
+
+### Bibliotekets yta och inspelning
+
+- **Listan.** Varje rad har ikonen i en ruta, rubrik och en metarad (typ och en kort förhandsrad). En bild fyller rutan. Ett ljud har en rund spela-knapp, inte en textknapp som tar raden. Tomt läge har biblioteksikonen i en cirkel (`OpsEmpty` tar emot `icon`).
+- **Inspelningen är TALK:s mikrofon.** Knappen är `MikrofonIkon` med `huvudknappKlass`, och flödet är `useTalk` (`direkt`, `skickaIn`, `avbryt`), samma som huvudets mikrofon. Saknas `onSpelaIn` ritas ingen rad. `inspelare` är valfri, samma som TALK: utelämnad används webbläsarens.
+- **Detaljen** visar samma ikonruta som listan, bredvid rubriken.
+
+### Meddelanden som modul
+
+- **Ikonen i huvudet kan bära en räknare.** `huvudmenyPoster` tar `badge` och `badgeFler`, samma kartor som `hubbPoster`. Appen ritar den fästa modulens ikon, inklusive chattens olästa, i stället för en egen länk bredvid.
+- **Appar-raden säger inte att chatten alltid finns utanför modulerna.** Hintet nämner kalender och inkorg. Chatten är en app med kort, och då står det "Egen yta" och reglaget "Visa i huvudmenyn". En modul som varken har kort eller tillägg säger fortfarande "ingen egen yta och inga tillägg", för det är sant om den.
+- **En ny grupp kan börja med ikoner.** `createGroupService({ huvudmeny })` skriver listan i samma batch som gruppen. Den är en delmängd av `moduler`. Utelämnad är den tom, som förut. Inget nytt fält och ingen ny regel.
 
 ## 0.87.0
 
