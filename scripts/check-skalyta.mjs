@@ -750,8 +750,47 @@ async function apparArkHylla() {
   await context.close();
 }
 
+// Samma scen som hyllan. Byt ordning ska gå att dra med en riktig pekare, och Klar
+// ska lämna läget med listan i `groups.moduler` (window.__ordning i scenen).
+async function apparArkOrdning() {
+  const namn = "apparark ordning (390 px)";
+  const { page, context } = await oppna("apparark", { width: 390, height: 844 });
+  try {
+    await page.locator("[data-ops-bottenrad]").waitFor({ timeout: 4000 });
+    await page.locator("[data-ops-bottenrad]").getByRole("button", { name: "Appar" }).click();
+    await page.waitForSelector("[data-appar-ark]");
+    await page.getByRole("button", { name: "Byt ordning" }).click();
+    const grepp = await page.locator("[data-ark-grepp]").count();
+    krav(grepp >= 4, `${namn}: ${grepp} grepp, väntat minst 4 ikoner att ordna.`);
+    const vicka = await page.locator("[data-ark-id='ekonomi'] .animate-vicka").count();
+    krav(vicka === 1, `${namn}: ekonomis ikon vickar inte.`);
+    const fore = await page.locator("[data-ark-id]").evaluateAll((els) => els.map((el) => el.getAttribute("data-ark-id")));
+    const a = await page.locator("[data-ark-id='ekonomi'] [data-ark-grepp]").boundingBox();
+    const b = await page.locator("[data-ark-id='bibliotek'] [data-ark-grepp]").boundingBox();
+    krav(Boolean(a && b), `${namn}: greppen saknar ruta, draget kan inte mätas.`);
+    if (a && b) {
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 12 });
+      await page.mouse.up();
+    }
+    const efter = await page.locator("[data-ark-id]").evaluateAll((els) => els.map((el) => el.getAttribute("data-ark-id")));
+    matt.push(`${namn}: före ${fore.join(",")} efter ${efter.join(",")}`);
+    krav(efter[0] === "bibliotek" && efter[1] === "ekonomi", `${namn}: draget lämnade ${efter.join(",")}, väntat bibliotek före ekonomi.`);
+    await page.getByRole("button", { name: "Klar" }).click();
+    await page.getByRole("button", { name: "Byt ordning" }).waitFor({ timeout: 4000 });
+    const sparad = await page.evaluate(() => /** @type {string[] | undefined} */ (window.__ordning));
+    krav(Array.isArray(sparad) && sparad[0] === "bibliotek" && sparad[1] === "ekonomi", `${namn}: Klar sparade ${JSON.stringify(sparad)}, väntat bibliotek före ekonomi.`);
+    if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "apparark-ordning-390.png") });
+  } catch (e) {
+    krav(false, `${namn}: provet avbröts (${String(/** @type {Error} */ (e).message).split("\n")[0]}).`);
+  }
+  await context.close();
+}
+
 if (argv.includes("--bara-appar")) {
   await apparArkHylla();
+  await apparArkOrdning();
   await browser.close();
   avsluta();
   process.exit(0);
@@ -6326,6 +6365,7 @@ for (const [namn, vp] of /** @type {const} */ ([["TALK-knappen 1280 px", { width
 }
 
 await apparArkHylla();
+await apparArkOrdning();
 
 await browser.close();
 avsluta();

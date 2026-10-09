@@ -1422,7 +1422,10 @@ function ApparArkScen() {
       apparArk={{
         moduler,
         grupp: { moduler: moduler.map((m) => m.id), huvudmeny: [] },
-        farAndra: false,
+        farAndra: true,
+        onOrdning: (lista) => {
+          window.__ordning = lista;
+        },
       }}
     >
       <p className="px-4">Sidans innehåll under arket.</p>

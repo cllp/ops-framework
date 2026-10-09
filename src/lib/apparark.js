@@ -122,6 +122,30 @@ export function flyttaId(lista, id, steg) {
 }
 
 /**
+ * Sätter `id` på den plats där `mal` står. De andra behåller sin inbördes ordning.
+ * Samma ruta, eller ett id som inte finns, ger en kopia: ett släpp på sig själv
+ * ska inte fälla sidan.
+ *
+ * Pilarna räknar ett steg och använder `flyttaId`. Ett drag släpper på en annan
+ * ikon och använder den här. Båda skriver sedan in resultatet i `groups.moduler`
+ * via `ordningMedSynliga`, samma lista som inställningarnas Ordning och huvudmenyn.
+ *
+ * @param {ReadonlyArray<string>} lista
+ * @param {string} id
+ * @param {string} mal
+ * @returns {string[]}
+ */
+export function flyttaFore(lista, id, mal) {
+  const fran = lista.indexOf(id);
+  const till = lista.indexOf(mal);
+  if (fran < 0 || till < 0 || fran === till) return lista.slice();
+  const ut = lista.slice();
+  ut.splice(fran, 1);
+  ut.splice(till, 0, id);
+  return ut;
+}
+
+/**
  * Skriver en ny ordning för de synliga apparna in i hela `groups.moduler`.
  *
  * En modul utan kort syns inte i arket, men den står kvar i listan på sin

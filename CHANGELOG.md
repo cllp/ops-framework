@@ -22,6 +22,12 @@ CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-
 
 - **`--z-ark`.** App-arket slutar vid bottenradens överkant, men ritades på `--z-modal` och klippte den upphöjda plusknappen. En hylla som sitter på raden ligger under `--z-chrome`, så pluset målar över kanten. `arkHyllaZ` och `arkOvanforRad` i `radKlass` är den gemensamma klassen. Ark som täcker skärmen från underkanten (Skapa, Meny, aktivitet, Skapa i) stannar på `--z-modal`.
 
+### Appar går att ordna
+
+- **Byt ordning är ett läge.** Ikonerna vickar och visar ett grepp. De dras med pekaren, mus och finger. Pilknappar och piltangenter flyttar ett steg. Klar skriver `groups.moduler` och lämnar läget. Stängning utan Klar sparar inte. Samma lista styr inställningarnas Ordning och huvudmenyn.
+
+---
+
 ---
 
 ---

@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
 import { defineModule } from "../lib/modul.js";
-import { arkRader, flyttaId, medInstallningslage, ordningMedSynliga, utanInstallningslage } from "../lib/apparark.js";
+import { arkRader, flyttaFore, flyttaId, medInstallningslage, ordningMedSynliga, utanInstallningslage } from "../lib/apparark.js";
+import { huvudmenyPoster } from "../lib/hubb.js";
 
 /**
  * App-arket (0.89.0).
@@ -46,6 +47,15 @@ describe("adressen till inställningsläget", () => {
     expect(ordningMedSynliga(["inkorg", "ekonomi", "resor"], ["ekonomi", "resor"], ["resor", "ekonomi"])).toEqual(["inkorg", "resor", "ekonomi"]);
     expect(flyttaId(["ekonomi"], "ekonomi", 1)).toEqual(["ekonomi"]);
     expect(() => ordningMedSynliga(["ekonomi"], ["ekonomi"], ["resor"])).toThrow(/samma moduler/);
+  });
+
+  it("ett drag hamnar på målets plats, och listan är densamma som huvudmenyn läser", () => {
+    expect(flyttaFore(["ekonomi", "resor"], "ekonomi", "resor")).toEqual(["resor", "ekonomi"]);
+    expect(flyttaFore(["ekonomi"], "ekonomi", "ekonomi")).toEqual(["ekonomi"]);
+    const sparad = ordningMedSynliga(["inkorg", "ekonomi", "resor"], ["ekonomi", "resor"], flyttaFore(["ekonomi", "resor"], "ekonomi", "resor"));
+    expect(sparad).toEqual(["inkorg", "resor", "ekonomi"]);
+    expect(flyttaId(sparad, "resor", -1)).toEqual(["resor", "inkorg", "ekonomi"]);
+    expect(huvudmenyPoster({ grupp: { moduler: sparad, huvudmeny: ["ekonomi", "resor"] }, moduler: [EKONOMI, RESOR] }).map((p) => p.id)).toEqual(["resor", "ekonomi"]);
   });
 
   it("arket tar med en fäst modul och hoppar över en utan kort", () => {
@@ -99,18 +109,70 @@ describe("OpsAppShell apparArk", () => {
     expect(within(rad).getByRole("button", { name: "Appar" }).getAttribute("aria-current")).toBeNull();
   });
 
-  it("Alla appar öppnar hubbsidan, och en pil sparar hela modulistan", () => {
+  it("Alla appar öppnar hubbsidan", () => {
     const { onNavigate, onOrdning } = skal();
     fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.click(within(dialog).getByRole("link", { name: "Alla appar" }));
     expect(onNavigate).toHaveBeenCalledWith("/hub", expect.anything());
+  });
 
+  function oppnaOrdning() {
     fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
     fireEvent.click(screen.getByRole("button", { name: "Byt ordning" }));
-    const ekonomi = screen.getByRole("option", { name: "Ekonomi" });
-    fireEvent.keyDown(ekonomi, { key: "ArrowRight" });
+    return screen.getByRole("dialog");
+  }
+
+  function idOrdning(dialog) {
+    return [...dialog.querySelectorAll("[data-ark-id]")].map((el) => el.getAttribute("data-ark-id"));
+  }
+
+  it("Byt ordning visar grepp och vickning, och ikonerna står stilla tills någon flyttar dem", () => {
+    skal();
+    const dialog = oppnaOrdning();
+    expect(dialog.querySelectorAll("[data-ark-grepp]").length).toBe(2);
+    expect(dialog.querySelector("[data-ark-id='ekonomi'] .animate-vicka")).toBeTruthy();
+    expect(idOrdning(dialog)).toEqual(["ekonomi", "resor"]);
+  });
+
+  it("en pil byter plats direkt, och Klar sparar hela modulistan och lämnar läget", () => {
+    const { onOrdning } = skal();
+    const dialog = oppnaOrdning();
+    fireEvent.keyDown(within(dialog).getByRole("option", { name: "Ekonomi" }), { key: "ArrowRight" });
+    expect(onOrdning).not.toHaveBeenCalled();
+    expect(idOrdning(dialog)).toEqual(["resor", "ekonomi"]);
+    fireEvent.click(screen.getByRole("button", { name: "Klar" }));
+    expect(onOrdning).toHaveBeenCalledTimes(1);
     expect(onOrdning).toHaveBeenCalledWith(["inkorg", "resor", "ekonomi"]);
+    expect(screen.getByRole("button", { name: "Byt ordning" })).toBeTruthy();
+    expect(within(screen.getByRole("dialog")).queryByRole("option", { name: "Ekonomi" })).toBeNull();
+    expect(idOrdning(screen.getByRole("dialog"))).toEqual(["resor", "ekonomi"]);
+  });
+
+  it("pilknapparna flyttar, och knappen vid kanten är avstängd", () => {
+    const { onOrdning } = skal();
+    const dialog = oppnaOrdning();
+    expect(within(dialog).getByRole("button", { name: "Flytta vänster, Ekonomi" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Flytta höger, Resor" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Flytta höger, Ekonomi" }));
+    expect(onOrdning).not.toHaveBeenCalled();
+    expect(idOrdning(dialog)).toEqual(["resor", "ekonomi"]);
+  });
+
+  it("ett pekardrag byter plats, och stängning utan Klar sparar inte", () => {
+    const { onOrdning } = skal();
+    const dialog = oppnaOrdning();
+    const ekonomi = within(dialog).getByRole("option", { name: "Ekonomi" });
+    const resor = within(dialog).getByRole("option", { name: "Resor" });
+    fireEvent.pointerDown(ekonomi, { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(resor, { pointerId: 1, clientX: 80, clientY: 10 });
+    fireEvent.pointerUp(resor, { pointerId: 1, clientX: 80, clientY: 10 });
+    expect(idOrdning(dialog)).toEqual(["resor", "ekonomi"]);
+    expect(onOrdning).not.toHaveBeenCalled();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onOrdning).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Snabbnavigering" })).getByRole("button", { name: "Appar" }));
+    expect(idOrdning(screen.getByRole("dialog"))).toEqual(["ekonomi", "resor"]);
   });
 
   it("ett långt tryck öppnar inställningsläget", () => {

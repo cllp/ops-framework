@@ -660,6 +660,10 @@
    * ingenting, det är trevligt. Det som är trevligt tas bort först.
    * ──────────────────────────────────────────────────────────────────────── */
   --animate-svep: ops-svep var(--duration-base) ease-out both;
+  /* Appar-arkets ordningsläge. Ikonen vickar så att läget syns. Rörelsen bär
+     ingen information: greppet och Klar gör det. Den som bett om mindre rörelse
+     får därför stilla ikoner, samma beslut som svepet. */
+  --animate-vicka: ops-vicka 280ms ease-in-out infinite;
 
   @keyframes ops-svep {
     from {
@@ -669,6 +673,16 @@
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+
+  @keyframes ops-vicka {
+    0%,
+    100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
     }
   }
 
@@ -1305,6 +1319,7 @@
    */
   :root {
     --animate-svep: none;
+    --animate-vicka: none;
   }
 }
 
