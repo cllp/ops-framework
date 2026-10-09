@@ -89,8 +89,9 @@ export const ORD_OPSAGENTER = {
   okandModell: { sv: "Den valda modellen finns inte i listan.", en: "The chosen model is not in the list." },
   ingenModell: { sv: "Ingen modell angiven.", en: "No model given." },
   nycklar: { sv: "Nycklar", en: "Keys" },
-  nycklarText: { sv: "Nycklarna ligger i kontot. De sparas inte bland agentens inställningar.", en: "The keys stay in the account. They are not stored with the agent's settings." },
-  nycklarSaknas: { sv: "Nycklarna är inte kopplade i appen.", en: "The keys are not wired in the app." },
+  nycklarText: { sv: "Nycklarna hör till dig. De sparas i Mitt konto, inte i gruppen.", en: "The keys belong to you. They are stored in My account, not in the group." },
+  hanteraNycklar: { sv: "Hantera nycklar i Mitt konto", en: "Manage keys in My account" },
+  nycklarSaknas: { sv: "Adressen till Mitt konto är inte kopplad.", en: "The address to My account is not connected." },
   instruktioner: { sv: "Instruktioner", en: "Instructions" },
   instruktionerHint: { sv: "Vad agenten ska göra i den här gruppen.", en: "What the agent should do in this group." },
   ingaInstruktioner: { sv: "Inga instruktioner.", en: "No instructions." },
@@ -166,14 +167,15 @@ function medAvsnitt(href, avsnitt) {
 const GRANSER = ["namn", "beskrivning", "roll", "instruktioner", "minne", "skillNamn", "skillBeskrivning", "skillText"];
 
 /**
- * Manifestet, så att id, namn och kort har ett hem.
+ * Manifestet, så att id och namn har ett hem.
  *
- * ⛔ INGEN SAMLING. Appen äger dokumentet. Kortet gör att modulen syns i Appar.
+ * ⛔ INGEN SAMLING OCH INGET KORT (0.90.8). Agenter är inte en app. Den bor under
+ * gruppens inställningar. `hubb: null` gör att Appar och hubben inte ritar den.
+ * Ett gammalt id i gruppens appar tas bort med `utanAgenterSomApp`.
  *
  * @returns {Record<string, any>} Råmanifestet. Appen kör det genom `validateModuler`.
  */
 export function agenterManifest() {
-  const ikon = <AgentIkon size={20} />;
   return {
     id: AGENTER_ID,
     namn: { sv: "Agenter", en: "Agents" },
@@ -182,12 +184,7 @@ export function agenterManifest() {
     samlingar: [],
     kallor: {},
     skapar: [],
-    hubb: {
-      ikon,
-      rutt: "/agenter",
-      startsida: "lista",
-      delar: [{ id: "lista", namn: { sv: "Agenter", en: "Agents" }, ikon, rutt: "/agenter/lista" }],
-    },
+    hubb: null,
   };
 }
 
@@ -228,7 +225,9 @@ function kravGranser(granser) {
  * @param {ReadonlyArray<{ id: string, text: string }>} [props.minne]
  * @param {{ id?: string, namn?: string, hint?: string } | null} [props.modell] Vald modell. `id` är listans id. Ett `namn` som är samma id träffar också.
  * @param {readonly string[]} [props.kopplade] Leverantörer med en nyckel som kan användas. Utan lista är bara modellen utan nyckel valbar.
- * @param {string} [props.valvHref] Adressen till valvet. Utan den pekar "Koppla nyckel" på nyckelrutan i det här avsnittet.
+ * @param {string} [props.valvHref] Samma adress som `nycklarHref`, om den inte är satt. Ett gammalt namn från 0.90.2.
+ * @param {string} [props.nycklarHref] Adressen till AI-nycklar i Mitt konto. "Koppla nyckel" och "Hantera nycklar i Mitt konto" pekar dit.
+ * @param {boolean} [props.inomInstallningar] (0.90.8) Rita listan och agentens inställningar utan modulramen. Gruppens inställningar har redan sin panel.
  * @param {(v: { id: string, leverantor: string }) => void | Promise<void>} [props.onSparaModell]
  * @param {import("react").ReactNode} [props.byok] Appens valv. Ramverket ritar inte nyckeln.
  * @param {Record<string, number>} props.granser
@@ -266,6 +265,8 @@ export function OpsAgenter({
   modell = null,
   kopplade = [],
   valvHref = "",
+  nycklarHref = "",
+  inomInstallningar = false,
   onSparaModell,
   byok = null,
   granser,
@@ -294,11 +295,18 @@ export function OpsAgenter({
   if (typeof valvHref !== "string") {
     throw new Error("OpsAgenter: valvHref ska vara en adress, eller utelämnas. En tom adress pekar på nyckelrutan i avsnittet.");
   }
+  if (typeof nycklarHref !== "string") {
+    throw new Error("OpsAgenter: nycklarHref ska vara adressen till Mitt konto, eller utelämnas. En tom adress betyder att länken inte är kopplad.");
+  }
+  if (typeof inomInstallningar !== "boolean") {
+    throw new Error("OpsAgenter: inomInstallningar ska vara sant eller falskt. Utan den ritas modulramen.");
+  }
   const sprak = sprakProp ?? sprakKontext;
   const t = (/** @type {keyof typeof ORD_OPSAGENTER} */ nyckel) => ordet(ORD_OPSAGENTER, nyckel, sprak);
   const agentId = agentIHref(activeHref);
   const vald = agenter.find((a) => a.id === agentId) ?? null;
   const installningar = Boolean(ram) && arInstallningslage(activeHref);
+  const nyckelAdress = nycklarHref.trim() || valvHref.trim();
   const kropp = installningar ? (
     <AgentKropp
       key={`${agentId}:${installning?.version ?? 0}:${skills.length}:${minne.length}`}
@@ -317,7 +325,7 @@ export function OpsAgenter({
       minne={minne}
       modell={modell}
       kopplade={kopplade}
-      valvHref={valvHref}
+      valvHref={nyckelAdress}
       onSparaModell={onSparaModell}
       sprak={sprak}
       byok={byok}
@@ -337,6 +345,9 @@ export function OpsAgenter({
     />
   ) : undefined;
 
+  const lista = <AgentLista t={t} agenter={agenter} activeHref={activeHref} onNavigate={onNavigate} onSkrivTill={onSkrivTill} listfel={listfel} />;
+  if (inomInstallningar) return installningar && kropp ? kropp : lista;
+
   return (
     <OpsModulRam
       modul={modul}
@@ -348,7 +359,7 @@ export function OpsAgenter({
       rubrikNamn={installningar && vald?.namn ? vald.namn : undefined}
       ram={ram ? { ...ram, kropp } : null}
     >
-      <AgentLista t={t} agenter={agenter} activeHref={activeHref} onNavigate={onNavigate} onSkrivTill={onSkrivTill} listfel={listfel} />
+      {lista}
     </OpsModulRam>
   );
 }
@@ -900,7 +911,16 @@ function AgentFalt(props) {
           <div id="agent-nycklar">
             <p className="m-0 text-brod font-semibold text-ink">{t("nycklar")}</p>
             <p className="m-0 text-hjalp text-ink-muted">{t("nycklarText")}</p>
-            {props.byok ?? <p className="m-0 text-etikett text-ink">{t("nycklarSaknas")}</p>}
+            {valvHref.trim() ? (
+              <a
+                href={valvHref.trim()}
+                className="inline-flex min-h-11 items-center text-etikett font-semibold text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                {t("hanteraNycklar")}
+              </a>
+            ) : (
+              <p className="m-0 text-etikett text-ink">{t("nycklarSaknas")}</p>
+            )}
           </div>
         </AvsnittsYta>
       ) : null}

@@ -9,6 +9,24 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.90.8
+
+CP: nycklar hör till dig, agenter hör till gruppen. Agenter är inte en app.
+
+Ingen utgivning i det här passet.
+
+### Agenter hör till gruppen
+
+- **Inget kort.** `agenterManifest` har `hubb: null`. Appar och hubben ritar den inte. `modulerIAppar` tar bort den ur appkatalogen. `utanAgenterSomApp` tar bort id:t `agenter` ur `moduler` och `huvudmeny`. Medlemskapet och agentens dokument står kvar. En saknad `huvudmeny` skrivs tillbaka som `null`.
+- **Under inställningarna.** `inomInstallningar` ritar listan och agentens inställningar utan modulramen. Chattens tryck öppnar samma inställningar, adressen är appens.
+- **Modell och nycklar.** Väljaren står kvar. Under den en länk, "Hantera nycklar i Mitt konto", till `nycklarHref` (eller `valvHref` om den första saknas). Valvets innehåll ritas inte här. Utan adress står det att adressen till Mitt konto inte är kopplad.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner. Lifehubs `modellFor` och `sparaAgent` rörs inte: ett annat pass kopplar modellvalet.
+
+---
+
 ## 0.90.5
 
 CP 2026-10-09: i Meddelanden, efter Nytt meddelande, stod pluset kvar i compose-huvudet och såg ut som en knapp till. Utges som 0.90.5, efter 0.90.4; appen pinnar om.

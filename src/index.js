@@ -25,7 +25,7 @@ export { LAGE_PARAM, INSTALLNINGSLAGE, arInstallningslage, medInstallningslage, 
  * Ingen samling här: en andra kopia hade glidit isär från den appen redan skriver.
  */
 export { OpsAgenter, ORD_OPSAGENTER, agenterManifest } from "./components/OpsAgenter.jsx";
-export { AGENTER_ID, AGENT_PARAM, agentIHref, medAgent, agentInstallningsHref } from "./lib/agenter.js";
+export { AGENTER_ID, AGENT_PARAM, agentIHref, medAgent, agentInstallningsHref, utanAgenterSomApp, modulerIAppar } from "./lib/agenter.js";
 export { AGENTMODELLER, FORVALD_AGENTMODELL, modellUrId, modellKanValjas } from "./lib/agentmodeller.js";
 export { OpsBrand } from "./components/OpsBrand.jsx";
 
