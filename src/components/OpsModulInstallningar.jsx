@@ -1,55 +1,57 @@
-import { useEffect, useId, useState } from "react";
-import { installningarFor, installningsVarden, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { text } from "../lib/sprak.js";
 import { Delrubrik, delrubrik, useInstallningspanel } from "./OpsInstallningar.jsx";
-import { OpsButton } from "./OpsButton.jsx";
-import { OpsField, OpsInput } from "./OpsField.jsx";
 import { useOpsSprak } from "./OpsSprak.jsx";
-import { OpsSwitch } from "./OpsToggle.jsx";
+import { useId } from "react";
 
 /**
- * Inställningarna för gruppens appar, en panel för alla moduler (0.88.0).
+ * Listan över gruppens appar, med en väg in i varje apps egna inställningar (0.88.0, omgjord 0.89.0).
  *
- * ══ ⛔ SAMMA PANEL FÖR VARJE MODUL ════════════════════════════════════════
+ * ══ ⛔ EN PLATS PER MODUL ════════════════════════════════════════════════
  *
- * CP 2026-10-09: grunden ska vara gemensam, inte en ruta som bara Bibliotek har.
- * Varje installerad modul får ett avsnitt. Har den ett kort står "Visa i huvudmenyn"
- * först, och den skrivs till `groups.huvudmeny` via `onSparaHuvudmeny`. Modulens
- * egna fält, om den deklarerat några, skrivs via `onSpara` till samlingen appen namnger.
+ * CP 2026-10-09: pinnen, ikonen, synligheten, kopplingarna och de egna fälten
+ * ritas i modulens ram, kugghjulet, inte i gruppvyn och inte i den här listan.
+ * Två brytare för samma fält glider isär. Listan säger vilka appar som är
+ * installerade och öppnar läget när appen ger en adress.
  *
- * ⛔ PANELEN SKRIVER INGENTING SJÄLV. Appen äger gruppen och källan. Ett saknat
- * anrop visas, det tystas inte: en brytare som inte gör något ser ut som att valet sparades.
+ * ⛔ `onSpara` OCH `onSparaHuvudmeny` KASTAR. De skrev fälten här i 0.88.0.
+ * Att ta emot dem och inte rita dem hade sett ut som att sparningen fanns kvar.
  *
- * ⛔ `agare` KRÄVS SOM true ELLER false. Utan propen hade en ägare sett avstängda
- * brytare och trott att inställningen saknas.
+ * ⛔ `agare` KRÄVS SOM true ELLER false, samma kontrakt som 0.88.0. Listan
+ * redigerar inget, så värdet ändrar inte vad som ritas. Kravet står kvar så
+ * att ett anrop som glömt det fortfarande säger ifrån.
  */
 
 /** @type {import("../lib/ord.js").Ordbok} */
 export const ORD_OPSMODULINSTALLNINGAR = {
   hamtar: { sv: "Hämtar appens inställningar.", en: "Loading the app settings." },
   inga: { sv: "Gruppen har inga appar installerade.", en: "The group has no apps installed." },
-  tom: { sv: "Inga inställningar för den här appen.", en: "No settings for this app." },
-  baraAgare: { sv: "Bara gruppens ägare ändrar de här inställningarna.", en: "Only the group's owner changes these settings." },
-  huvudmenySaknas: { sv: "Huvudmenyn är inte kopplad. Ikonen ändrades inte.", en: "The main menu is not connected. The icon did not change." },
-  sparandeSaknas: { sv: "Inställningarna är inte kopplade. Ingenting sparades.", en: "The settings are not connected. Nothing was saved." },
-  spara: { sv: "Spara", en: "Save" },
-  lista: { sv: "Appens inställningar", en: "App settings" },
+  oppna: { sv: "Inställningar", en: "Settings" },
+  iAppen: { sv: "Inställningarna öppnas i appen.", en: "The settings open in the app." },
+  lista: { sv: "Installerade appar", en: "Installed apps" },
 };
 
 /**
  * @param {object} props
  * @param {ReadonlyArray<import("../lib/modul.js").Modul>} props.moduler Appens registrerade moduler.
  * @param {{ moduler: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> | null } | null} props.grupp Den aktiva gruppen, eller null medan den läses.
- * @param {boolean} props.agare Sant bara när den inloggade är gruppens ägare.
- * @param {Readonly<Record<string, Readonly<Record<string, boolean | string>>>>} [props.sparade] Modulens egna värden, nycklat på modul-id. Pinnen läses inte härifrån.
+ * @param {boolean} props.agare Sant bara när den inloggade är gruppens ägare. Listan redigerar inget. Kravet står kvar från 0.88.0.
+ * @param {(modul: import("../lib/modul.js").Modul) => string} [props.hrefFor] Adressen till appens inställningsläge. Utan den står det att inställningarna öppnas i appen.
+ * @param {(href: string, event: any) => void} [props.onNavigate]
  * @param {boolean} [props.laddar]
- * @param {string | null} [props.fel] Läsningen av de egna värdena misslyckades. Pinnen visas ändå, den kommer ur gruppen.
- * @param {(huvudmeny: string[]) => void | Promise<void>} [props.onSparaHuvudmeny]
- * @param {(inmatning: { modulId: string, varden: Record<string, boolean | string> }) => void | Promise<void>} [props.onSpara]
+ * @param {string | null} [props.fel]
+ * @param {unknown} [props.sparade] 0.88.0. Kastas: värdena ritas i modulramen.
+ * @param {unknown} [props.onSparaHuvudmeny] 0.88.0. Kastas.
+ * @param {unknown} [props.onSpara] 0.88.0. Kastas.
  */
-export function OpsModulInstallningar({ moduler, grupp, agare, sparade = {}, laddar = false, fel = null, onSparaHuvudmeny, onSpara }) {
+export function OpsModulInstallningar({ moduler, grupp, agare, hrefFor, onNavigate, laddar = false, fel = null, sparade, onSparaHuvudmeny, onSpara }) {
   if (typeof agare !== "boolean") {
     throw new Error("OpsModulInstallningar: agare krävs och ska vara true eller false. Utan propen ser en ägare ut som någon som bara får läsa.");
+  }
+  if (sparade !== undefined || onSparaHuvudmeny !== undefined || onSpara !== undefined) {
+    throw new Error("OpsModulInstallningar: pinnen, ikonen, synligheten, kopplingarna och de egna fälten ritas inte här (0.89.0). De ligger i modulens inställningar. Skicka hrefFor så raden öppnar det läget. onSpara, onSparaHuvudmeny och sparade tas inte emot.");
+  }
+  if (hrefFor !== undefined && typeof hrefFor !== "function") {
+    throw new Error("OpsModulInstallningar: hrefFor måste vara en funktion som ger appens adress, eller utelämnas. Utan adress står det att inställningarna öppnas i appen.");
   }
   if (!Array.isArray(moduler)) {
     throw new Error("OpsModulInstallningar: moduler krävs, appens registrerade moduler. Utan listan finns inget att ställa in.");
@@ -70,21 +72,17 @@ export function OpsModulInstallningar({ moduler, grupp, agare, sparade = {}, lad
         <ul aria-label={t("lista")} className="m-0 flex list-none flex-col gap-4 p-0">
           {installerade.map((modul) => (
             <li key={/** @type {import("../lib/modul.js").Modul} */ (modul).id}>
-              <ModulAvsnitt
+              <ModulRad
                 modul={/** @type {import("../lib/modul.js").Modul} */ (modul)}
-                grupp={grupp}
-                agare={agare}
-                sparade={sparade[/** @type {import("../lib/modul.js").Modul} */ (modul).id] ?? null}
                 sprak={sprak}
                 ord={t}
-                onSparaHuvudmeny={onSparaHuvudmeny}
-                onSpara={onSpara}
+                href={hrefFor ? hrefFor(/** @type {import("../lib/modul.js").Modul} */ (modul)) : ""}
+                onNavigate={onNavigate}
               />
             </li>
           ))}
         </ul>
       )}
-      {grupp && !agare ? <p className="m-0 text-meta text-ink-muted">{t("baraAgare")}</p> : null}
     </div>
   );
 }
@@ -92,41 +90,19 @@ export function OpsModulInstallningar({ moduler, grupp, agare, sparade = {}, lad
 /**
  * @param {object} props
  * @param {import("../lib/modul.js").Modul} props.modul
- * @param {{ huvudmeny?: ReadonlyArray<string> | null }} props.grupp
- * @param {boolean} props.agare
- * @param {Readonly<Record<string, boolean | string>> | null} props.sparade
  * @param {string} props.sprak
  * @param {(nyckel: keyof typeof ORD_OPSMODULINSTALLNINGAR) => string} props.ord
- * @param {(huvudmeny: string[]) => void | Promise<void>} [props.onSparaHuvudmeny]
- * @param {(inmatning: { modulId: string, varden: Record<string, boolean | string> }) => void | Promise<void>} [props.onSpara]
+ * @param {string} props.href
+ * @param {(href: string, event: any) => void} [props.onNavigate]
  */
-function ModulAvsnitt({ modul, grupp, agare, sparade, sprak, ord, onSparaHuvudmeny, onSpara }) {
+function ModulRad({ modul, sprak, ord, href, onNavigate }) {
   const panel = useInstallningspanel();
   const rubrikId = useId();
   const namn = text(modul.namn, sprak);
   const rubriken = delrubrik(namn, rubrikId, panel);
-  const falt = installningarFor(modul);
-  const varden = installningsVarden({ modul, grupp, sparade });
-  const egna = falt.filter((f) => f.hem === "samling");
-  const [fel, setFel] = useState("");
-  const [texter, setTexter] = useState(() => textUtkast(egna, varden));
-  useEffect(() => {
-    setTexter(textUtkast(egna, varden));
-  }, [sparade]);
-
-  const kor = (/** @type {() => void | Promise<void>} */ arbete, /** @type {string} */ saknas) => {
-    setFel("");
-    try {
-      const svar = arbete();
-      if (svar && typeof svar.then === "function") svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
-    } catch (e) {
-      setFel(e instanceof Error ? e.message : String(e));
-    }
-    if (saknas) setFel(saknas);
-  };
-
+  const mal = typeof href === "string" ? href : "";
   return (
-    <section data-modulinstallning={modul.id} aria-labelledby={rubriken.etikettId} className="flex flex-col gap-3">
+    <section data-modulinstallning={modul.id} aria-labelledby={rubriken.etikettId} className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         {modul.hubb ? (
           <span aria-hidden="true" className="flex shrink-0 items-center text-ink-secondary [&_svg]:size-5">
@@ -135,107 +111,18 @@ function ModulAvsnitt({ modul, grupp, agare, sparade, sprak, ord, onSparaHuvudme
         ) : null}
         <Delrubrik niva={rubriken.niva} id={rubriken.etikettId === rubrikId ? rubrikId : undefined}>{namn}</Delrubrik>
       </div>
-      {falt.length === 0 ? <p className="m-0 text-etikett text-ink-muted">{ord("tom")}</p> : null}
-      {falt.map((f) => {
-        const etikett = text(f.namn, sprak);
-        const hint = f.hint ? text(f.hint, sprak) : undefined;
-        if (f.typ === "boolean" && f.hem === "huvudmeny") {
-          return (
-            <OpsSwitch
-              key={f.id}
-              label={etikett}
-              hint={hint}
-              checked={varden[f.id] === true}
-              disabled={!agare}
-              onChange={(pa) => {
-                if (typeof onSparaHuvudmeny !== "function") {
-                  setFel(ord("huvudmenySaknas"));
-                  return;
-                }
-                setFel("");
-                const nasta = sattHuvudmeny(grupp.huvudmeny, modul.id, pa);
-                try {
-                  const svar = onSparaHuvudmeny(nasta);
-                  if (svar && typeof svar.then === "function") svar.catch((e) => setFel(e instanceof Error ? e.message : String(e)));
-                } catch (e) {
-                  setFel(e instanceof Error ? e.message : String(e));
-                }
-              }}
-            />
-          );
-        }
-        if (f.typ === "boolean") {
-          return (
-            <OpsSwitch
-              key={f.id}
-              label={etikett}
-              hint={hint}
-              checked={varden[f.id] === true}
-              disabled={!agare}
-              onChange={(pa) => {
-                if (typeof onSpara !== "function") {
-                  setFel(ord("sparandeSaknas"));
-                  return;
-                }
-                kor(() => onSpara({ modulId: modul.id, varden: { ...karta(egna, varden, texter), [f.id]: pa } }), "");
-              }}
-            />
-          );
-        }
-        return (
-          <OpsField key={f.id} label={etikett} hint={hint}>
-            <OpsInput
-              value={texter[f.id] ?? ""}
-              onChange={(v) => setTexter((nu) => ({ ...nu, [f.id]: v }))}
-              disabled={!agare}
-            />
-          </OpsField>
-        );
-      })}
-      {fel ? <p role="alert">{fel}</p> : null}
-      {agare && egna.some((f) => f.typ === "text") ? (
-        <div>
-          <OpsButton
-            variant="secondary"
-            onClick={() => {
-              if (typeof onSpara !== "function") {
-                setFel(ord("sparandeSaknas"));
-                return;
-              }
-              kor(() => onSpara({ modulId: modul.id, varden: karta(egna, varden, texter) }), "");
-            }}
-          >
-            {ord("spara")}
-          </OpsButton>
-        </div>
-      ) : null}
+      {mal ? (
+        <a
+          href={mal}
+          data-modul-installningar={modul.id}
+          onClick={(e) => onNavigate?.(mal, e)}
+          className="inline-flex min-h-11 items-center self-start rounded-base text-etikett font-semibold text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          {ord("oppna")}
+        </a>
+      ) : (
+        <p data-modul-installningar-saknas={modul.id} className="m-0 text-etikett text-ink-muted">{ord("iAppen")}</p>
+      )}
     </section>
   );
-}
-
-/**
- * @param {ReadonlyArray<{ id: string, typ: string }>} egna
- * @param {Record<string, boolean | string>} varden
- */
-function textUtkast(egna, varden) {
-  /** @type {Record<string, string>} */
-  const ut = {};
-  for (const f of egna) {
-    if (f.typ === "text") ut[f.id] = typeof varden[f.id] === "string" ? /** @type {string} */ (varden[f.id]) : "";
-  }
-  return ut;
-}
-
-/**
- * @param {ReadonlyArray<{ id: string, typ: string, hem: string }>} egna
- * @param {Record<string, boolean | string>} varden
- * @param {Record<string, string>} texter
- */
-function karta(egna, varden, texter) {
-  /** @type {Record<string, boolean | string>} */
-  const ut = {};
-  for (const f of egna) {
-    ut[f.id] = f.typ === "text" ? (texter[f.id] ?? "") : varden[f.id];
-  }
-  return ut;
 }

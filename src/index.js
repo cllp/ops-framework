@@ -17,6 +17,9 @@ export { OpsTalk, useTalk, TALK_PRICKAR } from "./components/OpsTalk.jsx";
 export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, MIKROFON_SPARRAD_AV_SIDAN, mikrofonenTillatenAvSidan, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
+export { OpsApparArk, ORD_OPSAPPARARK } from "./components/OpsApparArk.jsx";
+export { OpsModulRam, ORD_OPSMODULRAM } from "./components/OpsModulRam.jsx";
+export { LAGE_PARAM, INSTALLNINGSLAGE, arInstallningslage, medInstallningslage, utanInstallningslage } from "./lib/apparark.js";
 export { OpsBrand } from "./components/OpsBrand.jsx";
 
 // ── Åtgärder och ytor ──────────────────────────────────────────────────────
@@ -282,8 +285,8 @@ export { OpsKatalogInstallning } from "./components/OpsKatalogInstallning.jsx";
 export { OpsModulTyper } from "./components/OpsModulTyper.jsx";
 export { OpsInstallningar, ORD_OPSINSTALLNINGAR, useInstallningspanel } from "./components/OpsInstallningar.jsx";
 /*
- * ⛔ MODULENS INSTÄLLNINGAR (0.88.0). Pinnen "Visa i huvudmenyn" skrivs på gruppen.
- * Modulens egna fält skrivs i en samling appen namnger. Samma panel för varje modul.
+ * ⛔ MODULENS INSTÄLLNINGAR (0.88.0, en plats 0.89.0). Pinnen "Visa i huvudmenyn" skrivs på gruppen.
+ * Modulens egna fält skrivs i en samling appen namnger. Reglagen ritas i modulramen, inte i gruppvyn.
  */
 export { VISA_I_HUVUDMENYN, sattHuvudmeny, huvudmenyInom, installningarFor, installningsVarden } from "./lib/modulinstallningar.js";
 export { createModulinstallningskalla } from "./data/modulinstallningskalla.js";

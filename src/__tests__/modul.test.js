@@ -214,3 +214,24 @@ describe("⛔ krockar mellan moduler, som inte syns i ett manifest", () => {
     expect(() => validateModuler(/** @type {any} */ ({}))).toThrow(/moduler måste vara en lista/);
   });
 });
+
+describe("kopplingar (0.89.0)", () => {
+  it("utelämnade kopplingar blir en tom lista, och den byggda formen går att läsa igen", () => {
+    const modul = defineModule(LIV());
+    expect(modul.kopplingar).toEqual([]);
+    const med = defineModule({
+      ...LIV(),
+      kopplingar: [{ id: "bank", namn: { sv: "Bank", en: "Bank" }, behorigheter: [] }],
+    });
+    const igen = defineModule({ ...LIV(), kopplingar: med.kopplingar });
+    expect(igen.kopplingar.map((k) => k.id)).toEqual(["bank"]);
+    expect(igen.kopplingar[0].hint).toBeNull();
+  });
+
+  it("en nyckel i manifestet avvisas, med fältet i felet", () => {
+    expect(() => defineModule({
+      ...LIV(),
+      kopplingar: [{ id: "bank", namn: { sv: "Bank", en: "Bank" }, behorigheter: [], token: "super-hemlig-nyckel" }],
+    })).toThrow(/kopplingar\[0\].*token/);
+  });
+});

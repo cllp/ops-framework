@@ -11,13 +11,11 @@ import { OpsField, OpsInput } from "./OpsField.jsx";
 import { OpsIdentity } from "./OpsIdentity.jsx";
 import { OpsPill } from "./OpsPill.jsx";
 import { text as namnText } from "../lib/sprak.js";
-import { huvudmenyInom, ORD_VISA_I_HUVUDMENYN, sattHuvudmeny } from "../lib/modulinstallningar.js";
+import { huvudmenyInom } from "../lib/modulinstallningar.js";
 import { synsPa, synsPaText } from "../lib/tillagg.js";
 import { OpsSelect } from "./OpsSelect.jsx";
 import { BockIkon, ChevronNedIkon, KryssIkon, PlusIkon } from "./icons.jsx";
 import { OpsSpinner } from "./OpsSpinner.jsx";
-import { OpsSwitch } from "./OpsToggle.jsx";
-
 /**
  * Formuläret "Ny grupp": SessionStudios `ManageGroupModal` i sin `inline`-form, som en PANEL (0.32.0, #180).
  *
@@ -142,8 +140,7 @@ import { OpsSwitch } from "./OpsToggle.jsx";
  * @property {string} [synsPa] (0.60.0, #251) Orden före listan på varje app: "Syns på".
  * @property {string} [synsPaEgenYta] (0.60.0) Appen har en egen sida (nav eller kort i hubben): "Egen yta".
  * @property {string} [synsPaIngenting] (0.60.0) Appen har varken egen yta eller tillägg. Skrivs ut, aldrig en tom rad (regel 5).
- * @property {string} [huvudmeny] (0.83.0) Reglaget under en installerad app med kort: "Visa i huvudmenyn".
- * @property {string} [huvudmenyHint] (0.83.0) Vad reglaget gör.
+ * @property {string} [modulInstallningar] (0.89.0) Länken under en installerad app med kort. Öppnar appens eget inställningsläge.
  */
 
 /** @type {Record<"sv"|"en", Required<GruppFormularEtiketter>>} */
@@ -208,13 +205,12 @@ const STANDARD = {
     bildHintRedigera: "PNG, WebP eller JPEG, högst 2 MB. Bilden ersätter ikonen och initialerna.",
     sparaFelTitel: "Ändringarna kunde inte sparas",
     modulerRubrik: "Appar",
-    modulerHint: "En app med egen yta blir ett kort under Appar, i den ordning du installerar dem. En app utan egen yta syns där den gör tillägg. Kalendern och inkorgen har gruppen alltid. Chatten är en app, med kort och reglaget Visa i huvudmenyn.",
+    modulerHint: "En app med egen yta blir ett kort under Appar, i den ordning du installerar dem. En app utan egen yta syns där den gör tillägg. Kalendern och inkorgen har gruppen alltid. Chatten är en app, med kort. Ikonen i huvudet, kopplingarna och appens egna inställningar öppnas i appen.",
     modulerTomt: "Det finns inga appar att installera.",
     modulOkand: "{id} är installerad i gruppen men finns inte här. Den visas inte under Appar.",
     synsPa: "Syns på",
     synsPaEgenYta: "Egen yta",
-    huvudmeny: ORD_VISA_I_HUVUDMENYN.label.sv,
-    huvudmenyHint: ORD_VISA_I_HUVUDMENYN.hint.sv,
+    modulInstallningar: "Inställningar",
     synsPaIngenting: "ingen egen yta och inga tillägg",
   },
   en: {
@@ -277,13 +273,12 @@ const STANDARD = {
     bildHintRedigera: "PNG, WebP or JPEG, 2 MB at most. The image replaces the icon and initials.",
     sparaFelTitel: "The changes could not be saved",
     modulerRubrik: "Apps",
-    modulerHint: "An app with its own page becomes a card under Apps, in the order you install them. An app without one shows up where it adds to other pages. The group always has its calendar and inbox. Chat is an app, with a card and the Show in the main menu switch.",
+    modulerHint: "An app with its own page becomes a card under Apps, in the order you install them. An app without one shows up where it adds to other pages. The group always has its calendar and inbox. Chat is an app, with a card. The header icon, the connections and the app's own settings open in the app.",
     modulerTomt: "There are no apps to install.",
     modulOkand: "{id} is installed in the group but does not exist here. It is not shown under Apps.",
     synsPa: "Visible in",
     synsPaEgenYta: "Own page",
-    huvudmeny: ORD_VISA_I_HUVUDMENYN.label.en,
-    huvudmenyHint: ORD_VISA_I_HUVUDMENYN.hint.en,
+    modulInstallningar: "Settings",
     synsPaIngenting: "no own page and no add-ons",
   },
 };
@@ -311,8 +306,9 @@ const EPOSTFORM = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * @param {{ id: string, namn: Namn, farg?: string, ikon?: string, bild?: string, beskrivning?: string, ort?: string, epostsprak?: "sv"|"en", moduler?: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> }} [props.grupp] REDIGERINGSLÄGE (0.32.0, G2): den befintliga gruppen. Utan den skapas en ny.
  * @param {(b: { grupp: { namn: string | Namn, farg: string, ikon: string, bild: string, beskrivning: string, ort: string, epostsprak: "sv"|"en", moduler?: string[], huvudmeny?: string[] } }) => Promise<void>} [props.onSpara] Appens sparande i redigeringsläge. Ett kast visas i formuläret.
  *   ⛔ `moduler` och `huvudmeny` (0.83.0) finns med BARA när modulvalet visades (ägaren, se `moduler`). En admin skickar aldrig fältet, eftersom reglerna avvisar hela uppdateringen om det ändras.
- * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, agare: boolean }} [props.moduler] (0.37.0, #184) Modulvalet i redigeringsläge: `valbara` ur
+ * @param {{ valbara: ReadonlyArray<import("../lib/modul.js").Modul>, agare: boolean, installningarHref?: (modul: import("../lib/modul.js").Modul) => string, onNavigate?: (href: string, event: any) => void }} [props.moduler] (0.37.0, #184) Modulvalet i redigeringsläge: `valbara` ur
  *   `valbaraModuler(registrerade)`, `agare` sant bara när den inloggade är gruppens ägare. Utan det, eller för en admin, ritas inget modulval.
+ *   0.89.0: `installningarHref` ger länken Inställningar under en installerad app med kort. Den öppnar appens eget läge. Saknas den ritas ingen länk: inställningarna finns ändå i appen, och en länk utan adress är en knapp som inte leder någonstans.
  * @param {string} [props.bildUrl] Gruppens nuvarande bild att visa (URL). Bara redigeringsläge.
  * @param {(fil: File) => Promise<{ sokvag: string, url: string }>} [props.onLaddaUppBild] Appens uppladdning. Utan den finns ingen bildväljare.
  * @param {() => Promise<void>} [props.onTaBortBild] Appens borttagning av bilden. Utan den finns ingen Ta bort-knapp.
@@ -359,12 +355,12 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
   const visaModulval = redigerar && modulval?.agare === true && Array.isArray(modulval.valbara);
   const [valdaModuler, setValdaModuler] = useState(/** @type {string[]} */ ([...(befintlig?.moduler ?? [])]));
   /*
-   * ⛔ HUVUDMENYN (0.83.0, CP 2026-10-08 17:54: "det skall finnas en inställning om att ikon skall placeras i huvudmenyn").
-   * Ett reglage under varje installerad app som har ett kort. Det som sparas är id:n, och alltid en delmängd av modulerna:
-   * en app som avinstalleras tas ur huvudmenyn i samma sparning, så att fältet inte pekar på något gruppen inte har.
-   * Ägarens fält (`AGARGRUPPFALT`), samma ägare och samma sparning som `moduler`.
+   * ⛔ HUVUDMENYN SPARAS BARA SOM DELMÄNGD (0.89.0, CP 2026-10-09).
+   * Reglaget "Visa i huvudmenyn" ritas inte här. Det, ikonen, synligheten, kopplingarna och appens egna fält
+   * bor i appens inställningar. En app som avinstalleras tas ändå ur huvudmenyn i samma sparning, så att
+   * fältet inte pekar på något gruppen inte har. Ägarens fält, samma sparning som `moduler`.
    */
-  const [valdHuvudmeny, setValdHuvudmeny] = useState(/** @type {string[]} */ ([...(befintlig?.huvudmeny ?? [])]));
+  const huvudmenyKvar = huvudmenyInom(befintlig?.huvudmeny, valdaModuler);
 
   const identitetId = useId();
   const merId = useId();
@@ -423,7 +419,7 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
         const orig = /** @type {Namn} */ (befintlig.namn && typeof befintlig.namn === "object" ? befintlig.namn : { sv: fore });
         /** @type {string | Namn} */
         const namnUt = nyttNamn === fore ? befintlig.namn : orig.en === undefined || orig.en === orig.sv ? { sv: nyttNamn, en: nyttNamn } : { ...orig, [sprak === "en" ? "en" : "sv"]: nyttNamn };
-        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak, ...(visaModulval ? { moduler: [...valdaModuler], huvudmeny: huvudmenyInom(valdHuvudmeny, valdaModuler) } : {}) } });
+        await onSpara({ grupp: { namn: namnUt, farg, ikon, bild: bild.sokvag, beskrivning: beskrivning.trim(), ort: ort.trim(), epostsprak, ...(visaModulval ? { moduler: [...valdaModuler], huvudmeny: huvudmenyKvar } : {}) } });
         klar({ groupId: befintlig.id });
       } catch (fel) {
         setFelmeddelande(fel instanceof Error ? fel.message : String(fel));
@@ -652,17 +648,23 @@ export function OpsGruppFormular({ formId, onSkapa, onSkapad, onKlar, sprak: spr
                         <BockIkon size={16} />
                       </span>
                     </button>
-                    {vald && m.hubb ? (
-                      <div data-huvudmeny={m.id} className="pt-1 pl-11">
-                        <OpsSwitch
-                          label={t.huvudmeny}
-                          hint={t.huvudmenyHint}
-                          checked={valdHuvudmeny.includes(m.id)}
-                          disabled={upptagen}
-                          onChange={(pa) => setValdHuvudmeny((l) => sattHuvudmeny(l, m.id, pa))}
-                        />
+                    {(() => {
+                      const hrefFor = modulval.installningarHref;
+                      const mal = vald && m.hubb && typeof hrefFor === "function" ? hrefFor(m) : "";
+                      if (!mal) return null;
+                      return (
+                      <div className="pt-1 pl-11">
+                        <a
+                          href={mal}
+                          data-modul-installningar={m.id}
+                          onClick={(e) => modulval.onNavigate?.(mal, e)}
+                          className="inline-flex min-h-11 items-center rounded-base text-etikett font-semibold text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                        >
+                          {t.modulInstallningar}
+                        </a>
                       </div>
-                    ) : null}
+                      );
+                    })()}
                   </li>
                 );
               })}

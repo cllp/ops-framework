@@ -17,6 +17,8 @@ import { OpsIdentity } from "./OpsIdentity.jsx";
 import { NAMN_SAKNAS } from "../lib/personnamn.js";
 import { usePersonnamn } from "./usePersonnamn.js";
 import { OpsIconLink } from "./OpsIconLink.jsx";
+import { arInstallningslage } from "../lib/apparark.js";
+import { ModulLageKnapp, OpsModulRam, kravRam } from "./OpsModulRam.jsx";
 import { OpsHubTillbaka } from "./OpsTillbaka.jsx";
 import { OpsMottagare } from "./OpsMottagare.jsx";
 import { OpsCountBadge } from "./counter.jsx";
@@ -587,8 +589,15 @@ function texterPa(sprak, texter) {
  * @param {import("react").ComponentProps<typeof OpsHubTillbaka>} [props.tillbaka] (0.88.1) Tillbaka-raden överst i listan, samma som modulernas (`modulTillbaka` med `modulId`).
  *   Står modulen i huvudmenyn ritas ingen rad: en fäst modul är inbyggd. Samtalets egen rad tillbaka till listan på telefon berörs inte.
  * @param {string} [props.minneHref] (0.86.0) Adressen till gruppens minnesvy. Utan den ritas ingen länk. Ramverket känner inte appens rutter.
+ * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: chatten som förut, utan kugghjul.
+ * @param {string} [props.activeHref] (0.89.0) Krävs med `ram`. `?lage=installningar` ersätter chatten med inställningarna.
+ * @param {import("../lib/modul.js").Modul | null} [props.modul] (0.89.0) Manifestet inställningarna läser. Krävs med `ram`, tillsammans med `tillbaka.hubHref`.
  */
-export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka }) {
+export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt, nytt, onValj, onOlasta, valtTrad, onValjTrad, sprak: sprakProp, texter = {}, postkort, onTranscribe, onStoppaAgent, inspelare, onBifoga, mejl, onLyftTillMinnet, minneHref, tillbaka, ram = null, activeHref, modul = null }) {
+  kravRam(ram, "OpsMeddelanden");
+  if (ram && (typeof activeHref !== "string" || activeHref === "" || !modul || typeof tillbaka?.hubHref !== "string")) {
+    throw new Error("OpsMeddelanden: ram kräver activeHref, modul och tillbaka.hubHref. Inställningsläget använder samma tillbaka-rad som listan.");
+  }
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -726,6 +735,14 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
   };
   /** @param {typeof rader[number]} r */
   const slagetFor = (r) => (r.samtal.slag === "grupp" ? t.grupp : r.samtal.slag === "agent" ? t.agent : t.privat);
+  const installningar = Boolean(ram && modul && tillbaka && arInstallningslage(/** @type {string} */ (activeHref)));
+  if (installningar && modul && tillbaka) {
+    return (
+      <OpsModulRam modul={modul} activeHref={/** @type {string} */ (activeHref)} hubHref={tillbaka.hubHref} hubEtikett={tillbaka.hubEtikett} onNavigate={tillbaka.onNavigate} sprak={sprak} ram={ram}>
+        {null}
+      </OpsModulRam>
+    );
+  }
 
   return (
     /* ⛔ HÖJDEN ÄR FÖNSTRET MINUS SKALETS RAMAR (huvudet med sin kant på 1 px, och bottenraden under md), så att listan och
@@ -754,6 +771,7 @@ export function OpsMeddelanden({ kalla, uid, groupId, gruppNamn, medlemmar, valt
             <MeddelandeIkon size={18} />
           </span>
           <h2 className="m-0 min-w-0 flex-1 truncate text-etikett font-semibold text-ink">{t.rubrik}</h2>
+          <ModulLageKnapp ram={ram} activeHref={activeHref ?? ""} onNavigate={tillbaka?.onNavigate} sprak={sprak} installningar={false} />
           {groupId ? (
             <button
               type="button"

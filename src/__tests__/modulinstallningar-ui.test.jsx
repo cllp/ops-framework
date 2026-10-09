@@ -4,8 +4,8 @@ import { OpsModulInstallningar } from "../components/OpsModulInstallningar.jsx";
 import { defineModule } from "../lib/modul.js";
 
 /**
- * Panelen är gemensam. Pinnen anropar huvudmenyn, inte samlingen.
- * En saknad återkoppling visas. jsdom mäter anropet, inte hur brytaren ser ut.
+ * Listan pekar in i modulramen (0.89.0). Den ritar inte pinnen och inte de egna fälten.
+ * Ett anrop som fortfarande skickar sparningen kastas, så den inte ser ut att finnas kvar.
  */
 
 const I = () => <svg />;
@@ -26,7 +26,6 @@ const EKONOMI = defineModule({
   },
   installningar: [
     { id: "visadolda", namn: { sv: "Visa dolda", en: "Show hidden" }, typ: "boolean", forval: false },
-    { id: "anteckning", namn: { sv: "Anteckning", en: "Note" }, typ: "text", forval: "" },
   ],
 });
 
@@ -42,38 +41,41 @@ describe("OpsModulInstallningar", () => {
     }
   });
 
-  it("pinnen skriver nästa huvudmeny, och ett saknat anrop säger att ikonen inte ändrades", () => {
-    const onSparaHuvudmeny = vi.fn();
-    const { unmount } = render(
-      <OpsModulInstallningar moduler={[EKONOMI]} grupp={GRUPP} agare onSparaHuvudmeny={onSparaHuvudmeny} />,
-    );
-    fireEvent.click(screen.getByRole("switch", { name: /Visa i huvudmenyn/ }));
-    expect(onSparaHuvudmeny).toHaveBeenCalledWith(["ekonomi"]);
-    unmount();
-
-    render(<OpsModulInstallningar moduler={[EKONOMI]} grupp={GRUPP} agare />);
-    fireEvent.click(screen.getByRole("switch", { name: /Visa i huvudmenyn/ }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Huvudmenyn är inte kopplad. Ikonen ändrades inte.");
+  it("de gamla sparpropparna kastas, de ritas inte", () => {
+    const tyst = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => render(
+        <OpsModulInstallningar moduler={[EKONOMI]} grupp={GRUPP} agare onSparaHuvudmeny={() => {}} />,
+      )).toThrow(/ritas inte här/);
+      expect(() => render(
+        <OpsModulInstallningar moduler={[EKONOMI]} grupp={GRUPP} agare onSpara={() => {}} />,
+      )).toThrow(/ritas inte här/);
+    } finally {
+      tyst.mockRestore();
+    }
   });
 
-  it("en som inte är ägare ser avstängda brytare", () => {
-    render(<OpsModulInstallningar moduler={[EKONOMI]} grupp={{ ...GRUPP, huvudmeny: ["ekonomi"] }} agare={false} />);
-    expect(screen.getByRole("switch", { name: /Visa i huvudmenyn/ })).toBeDisabled();
-    expect(screen.getByText("Bara gruppens ägare ändrar de här inställningarna.")).toBeInTheDocument();
-  });
-
-  it("ett eget fält sparas utan pinnen, och en tom grupp säger det", () => {
-    const onSpara = vi.fn();
+  it("ingen pinne, en länk när adressen finns, och en tom grupp säger det", () => {
+    const onNavigate = vi.fn((_h, e) => e.preventDefault());
     const { unmount } = render(
-      <OpsModulInstallningar moduler={[EKONOMI]} grupp={GRUPP} agare onSpara={onSpara} onSparaHuvudmeny={() => {}} />,
+      <OpsModulInstallningar
+        moduler={[EKONOMI]}
+        grupp={GRUPP}
+        agare
+        hrefFor={() => "/ekonomi?lage=installningar"}
+        onNavigate={onNavigate}
+      />,
     );
-    fireEvent.click(screen.getByRole("switch", { name: /Visa dolda/ }));
-    expect(onSpara).toHaveBeenCalledWith({ modulId: "ekonomi", varden: { visadolda: true, anteckning: "" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Anteckning" }), { target: { value: "Hej" } });
-    fireEvent.click(screen.getByRole("button", { name: "Spara" }));
-    // Brytaren är styrd av det sparade. Föräldern uppdaterade inte `sparade`, så boolen är förvalet igen. Texten är utkastet.
-    expect(onSpara).toHaveBeenLastCalledWith({ modulId: "ekonomi", varden: { visadolda: false, anteckning: "Hej" } });
+    expect(screen.queryByRole("switch")).toBeNull();
+    const lank = screen.getByRole("link", { name: "Inställningar" });
+    expect(lank.getAttribute("href")).toBe("/ekonomi?lage=installningar");
+    fireEvent.click(lank);
+    expect(onNavigate).toHaveBeenCalledWith("/ekonomi?lage=installningar", expect.anything());
     unmount();
+
+    render(<OpsModulInstallningar moduler={[EKONOMI]} grupp={GRUPP} agare={false} />);
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.getByText("Inställningarna öppnas i appen.")).toBeTruthy();
 
     render(<OpsModulInstallningar moduler={[EKONOMI]} grupp={{ moduler: [], huvudmeny: [] }} agare />);
     expect(screen.getByText("Gruppen har inga appar installerade.")).toBeInTheDocument();

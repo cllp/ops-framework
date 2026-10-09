@@ -1,9 +1,9 @@
 import { useLayoutEffect, useRef } from "react";
 import { useOpsSprak } from "./OpsSprak.jsx";
 import { modulLage } from "../lib/hubb.js";
-import { FLIKIKON, FLIKOMSLAG, FLIKRAD, flikKlass, modulTillbaka, rullaInAktiv } from "../lib/modulram.js";
+import { FLIKIKON, FLIKOMSLAG, FLIKRAD, flikKlass, rullaInAktiv } from "../lib/modulram.js";
 import { text } from "../lib/sprak.js";
-import { OpsView } from "./OpsView.jsx";
+import { OpsModulRam } from "./OpsModulRam.jsx";
 
 /**
  * En moduls insida: tillbaka till hubben, modulens namn, modulens EGEN navigation, och delen som är öppen (0.37.0, #184).
@@ -39,9 +39,10 @@ import { OpsView } from "./OpsView.jsx";
  * @param {"sv"|"en"} [props.sprak]
  * @param {string} [props.navEtikett] Skärmläsarnamnet på delarnas rad. Förval "{Modul}: delar".
  * @param {string} [props.hubEtikett] Förval "Appar" (0.50.0; tidigare "Hub").
+ * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: ramen som förut, utan kugghjul.
  * @param {import("react").ReactNode} props.children Den öppna delens vy.
  */
-export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Appar", children }) {
+export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Appar", ram = null, children }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -58,7 +59,7 @@ export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sp
     rullaInAktiv(rad.current);
   }, [aktiv]);
   return (
-    <OpsView tillbaka={modulTillbaka({ namn, hubHref, hubEtikett, onNavigate, sprak, modulId: modul.id })}>
+    <OpsModulRam modul={modul} activeHref={activeHref} hubHref={hubHref} hubEtikett={hubEtikett} onNavigate={onNavigate} sprak={sprak} ram={ram}>
       {/* ⛔ RADENS KLASSER BOR I `modulram.js` (0.83.0), så att Bibliotekets flikrad (`OpsTabs` med `medOrd`) ser ut som den här. */}
       <nav aria-label={navEtikett ?? (sprak === "en" ? `${namn}: parts` : `${namn}: delar`)} data-modulnav={modul.id} className={FLIKOMSLAG}>
         <ul ref={rad} className={FLIKRAD}>
@@ -78,6 +79,6 @@ export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sp
         </ul>
       </nav>
       <div data-moduldel={aktiv ?? ""}>{children}</div>
-    </OpsView>
+    </OpsModulRam>
   );
 }

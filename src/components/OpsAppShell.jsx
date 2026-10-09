@@ -6,6 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { cx } from "../lib/cx.js";
 import { OpsBrand } from "./OpsBrand.jsx";
 import { OpsBottomNav } from "./OpsBottomNav.jsx";
+import { OpsApparArk } from "./OpsApparArk.jsx";
 import { OpsGruppanel, OpsGruppvaxlare } from "./OpsGruppanel.jsx";
 import { entryActive, validateNav } from "../lib/nav.js";
 import { Counter } from "./counter.jsx";
@@ -269,8 +270,9 @@ const FLIK_LUFT = "px-3 lg:px-4";
  * @param {string} props.badgeText
  * @param {string} props.classes
  * @param {string} props.submenuLabel Verb för chevronens namn, följt av postens etikett.
+ * @param {{ oppen: boolean, onOppen: (oppen: boolean) => void } | null} [props.arkKnapp] (0.89.0) Fliken öppnar app-arket i stället för att navigera.
  */
-function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel }) {
+function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, submenuLabel, arkKnapp = null }) {
   const [oppen, setOppen] = useState(false);
   const childEntries = /** @type {any[]} */ (Array.isArray(entry.children) ? entry.children : []);
 
@@ -300,6 +302,27 @@ function RowEntry({ entry, active, activeHref, onActivate, badgeText, classes, s
         `icon` är kvar i kontraktet. Bottenraden och menyn ritar den.
         Den här raden gör det inte.
       */}
+
+  /*
+   * ⛔ 0.89.0: APPAR ÖPPNAR ARKET, OCKSÅ I TOPPRADEN. På telefon är bottenraden
+   * vägen. Från `md` finns ingen bottenrad, och samma tryck öppnar panelen
+   * under huvudet. Chevronen med modulerna ritas inte då: panelen är den listan.
+   */
+  if (arkKnapp) {
+    return (
+      <button
+        type="button"
+        aria-expanded={arkKnapp.oppen}
+        aria-controls="ops-appar-ark"
+        aria-current={active ? "page" : undefined}
+        onClick={() => arkKnapp.onOppen(!arkKnapp.oppen)}
+        className={cx(classes, FLIK_LUFT, "relative cursor-pointer after:pointer-events-auto after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 after:content-['']")}
+      >
+        {entry.label}
+        {counter}
+      </button>
+    );
+  }
 
   if (!childEntries.length) {
     return (
@@ -815,6 +838,7 @@ export function useOppnaHandelse() {
  *   Given: märket heter den aktiva hubbens namn (om `brand` inte är satt), en chevron bredvid märket öppnar hubblistan (från `lg`,
  *   och på alla bredder när `grupper` saknas), och gruppväxlarens ark börjar med hubbarna (under `lg`). Utelämnad: skalet som förut. Se `OpsHubbar.jsx`.
  * @param {string} [props.hubbEtikett] (0.52.0) Skärmläsarnamnet på chevronen vid märket. Förval "Byt hubb".
+ * @param {{ moduler: ReadonlyArray<import("../lib/modul.js").Modul>, grupp: { moduler: ReadonlyArray<string>, huvudmeny?: ReadonlyArray<string> | null } | null, farAndra: boolean, onOrdning?: (moduler: string[]) => void | Promise<void>, href?: string }} [props.apparArk] (0.89.0) Gör fliken Appar till ett ark i stället för en navigering. `href` är flikens adress, förval `fasta.hub.href`. Utelämnad: Appar navigerar som förut.
  * @param {string} [props.nyttMeddelandeEtikett] (0.34.0) Ramverkets rad för `skapa.nyttMeddelande`. Förval "Nytt meddelande".
  * @param {string} [props.skapaTypEtikett] Etikett på typväljaren i en modul-registrerings modal.
  * @param {import("react").ReactNode} props.children
@@ -847,6 +871,7 @@ function OpsAppShellRitad({
   grupper,
   hubbar,
   hubbEtikett = ORD_OPSAPPSHELL.hubbEtikett.sv,
+  apparArk,
   meny,
   skapa,
   handelsepanel,
@@ -914,7 +939,23 @@ function OpsAppShellRitad({
   // ett andra tal för att slippa ett undantag.
   // ⛔ MED `fasta` FINNS INGET TAK: tre poster får alltid plats (Hub bär resten).
   const smaltTak = harFasta ? 3 : (maxTopNavSmal ?? Math.min(3, maxTopNav));
+  const apparHref = apparArk ? (apparArk.href ?? (harFasta ? fasta.hub.href : "")) : "";
+  if (apparArk !== undefined) {
+    if (!apparArk || typeof apparArk !== "object" || Array.isArray(apparArk)) {
+      throw new Error("OpsAppShell: apparArk måste vara ett objekt { moduler, grupp, farAndra }, eller utelämnas. Utan farAndra syns Byt ordning för den som inte får ordna.");
+    }
+    if (typeof apparArk.farAndra !== "boolean") {
+      throw new Error("OpsAppShell: apparArk.farAndra krävs som true eller false. Utan propen syns Byt ordning för den som inte får ordna, eller tvärtom.");
+    }
+    if (!Array.isArray(apparArk.moduler)) {
+      throw new Error("OpsAppShell: apparArk.moduler krävs, appens registrerade moduler. Utan listan kan arket inte visa gruppens appar.");
+    }
+    if (typeof apparHref !== "string" || apparHref === "") {
+      throw new Error("OpsAppShell: apparArk behöver en adress. Sätt href, eller skicka fasta så att hubbens adress används. Sista rutan öppnar Appar-sidan.");
+    }
+  }
   const [merOppen, setMerOppen] = useState(false);
+  const [arkOppen, setArkOppen] = useState(false);
   // ⛔ #166: VILKEN RADS `undervy` SOM VISAS I STÄLLET FÖR ROTEN, ELLER `null`
   // (roten). En chevron-rad med `undervy` (t.ex. Aktivitet) byter INTE till en
   // egen Popover: den byter INNEHÅLLET i den här, redan öppna, popovern. Se
@@ -1642,7 +1683,13 @@ function OpsAppShellRitad({
     // ⛔ 0.38.0 (#194): en öppen skapa-panel hör till sidan den öppnades på, se `foregaendeAktivHref` ovan.
     if (skapaForm) stangSkapa(true, false);
     if (handelseId !== null) stangHandelse(true, false);
+    // ⛔ 0.89.0: arket stängs när man går någonstans. Fliken man stod på blir vald igen, för adressen byttes inte av att arket öppnades.
+    if (arkOppen) setArkOppen(false);
     if (onNavigate) onNavigate(href, e);
+  };
+  const flikPa = (/** @type {any} */ s) => {
+    if (arkOppen && apparHref) return s.href === apparHref;
+    return harFasta ? djupAktiv(s, activeHref) : entryActive(s, activeHref);
   };
 
   /**
@@ -1927,13 +1974,14 @@ function OpsAppShellRitad({
               <RowEntry
                 key={s.href}
                 entry={s}
-                active={harFasta ? djupAktiv(s, activeHref) : entryActive(s, activeHref)}
+                active={flikPa(s)}
                 activeHref={activeHref}
                 onActivate={onActivate}
                 badgeText={badgeText}
                 submenuLabel={submenuLabel}
+                arkKnapp={apparArk && s.href === apparHref ? { oppen: arkOppen, onOppen: setArkOppen } : null}
                 classes={cx(
-                  lankKlass((harFasta ? djupAktiv(s, activeHref) : entryActive(s, activeHref)) ? "pa" : "av"),
+                  lankKlass(flikPa(s) ? "pa" : "av"),
                   // Utanför det som får plats vid 768: finns i menyn i stället,
                   // och `display:none` tar bort den ur uppläsningen också, så
                   // ingen möter samma destination två gånger.
@@ -2275,7 +2323,20 @@ function OpsAppShellRitad({
         badgeText={badgeText}
         menuExtras={menuExtras}
         meny={meny ? { sprak, ...meny, app: [...flyttadeRader, ...(meny.app ?? [])] } : meny}
+        ark={apparArk && apparHref ? { href: apparHref, oppen: arkOppen, onOppen: setArkOppen } : undefined}
       />
+      {apparArk && apparHref ? (
+        <OpsApparArk
+          oppen={arkOppen}
+          onOppen={setArkOppen}
+          moduler={apparArk.moduler}
+          grupp={apparArk.grupp ?? null}
+          farAndra={apparArk.farAndra}
+          onOrdning={apparArk.onOrdning}
+          allaHref={apparHref}
+          onNavigate={onActivate}
+        />
+      ) : null}
 
       {ideStyr.lage === "lyssnar" || ideStyr.lage === "haller" || ideStyr.lage === "skickar" || ideStyr.lage === "fel" ? (
         <div data-bibliotek-inspelning="plus" className="flex items-center gap-2 px-4 py-2">

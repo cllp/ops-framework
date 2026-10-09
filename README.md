@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**119 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**121 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -1411,6 +1411,7 @@ export const liv = defineModule({
 | `typer` | modulens bidrag till inkorgens, kalenderns och händelsernas typer (0.42.0, #217) och aktivitetsloggens slag (0.55.0, #244) | `{ inkorg: [...], kalender: [...], handelser: [...], aktivitet: [...] }`, varje post `{ id, namn: { sv, en }, ikon?, farg? }`. ⛔ **Valfritt, till skillnad från alla andra fält**, och det är ett val med pris: ett krav hade fällt varje redan skriven modul på en minorversion. Den byggda modulen bär ändå alltid en lista per yta (`[]` när inget bidrag), så ingen konsument frågar om en nyckel finns. Nycklarna är ASCII (`handelser`, inte `händelser`). Se [Modulernas typbidrag](#modulernas-typbidrag-0420-217) |
 | `tillagg` | det modulen pluggar in på ramverkets ytor (0.60.0, #251) | En lista `{ plats, id, etikett, komponent }`. `plats` är en av ramverkets platser (`HANDELSE_PLATSER`: `handelse.sektion`, `handelse.atgard`), `id` är unikt inom modulen, `etikett` är `{ sv, en }` med **båda** språken, och `komponent` pekas ut som en route-vy. ⛔ **En plats som inte finns avvisas vid uppstart**, med modulens namn och fältet i felet: platserna är ramverkets, och en app ändrar aldrig en ramverksyta (beslut 0003). Valfritt som `typer`, och den byggda modulen bär alltid en lista. Se [Tillägg på ramverkets ytor](#tillägg-på-ramverkets-ytor-0600-251) |
 | `installningar` | modulens egna inställningar per grupp (0.88.0) | En lista `{ id, namn, hint?, typ, forval }`. `typ` är `boolean` eller `text`, `namn` är `{ sv, en }` med båda språken, `forval` är `true`/`false` eller en text. Valfritt som `typer`: utelämnat blir `[]` på den byggda modulen. ⛔ Id `visaIHuvudmenyn` är reserverat och kastas. Pinnen till huvudmenyn är ramverkets och skrivs på gruppen, inte som ett fält modulen deklarerar. Se [Modulens inställningar](#modulens-inställningar-0880) |
+| `kopplingar` | kopplingar modulen visar i sina inställningar (0.89.0) | En lista `{ id, namn, hint?, behorigheter }`. `behorigheter` är `{ sv, en }`, eller `[]` när inga är angivna. Valfritt: utelämnat blir `[]`. ⛔ Ett fält som heter nyckel, token, secret, key, password eller liknande kastas. Hemligheten lagras inte här och ritas inte. Se [App-arket och modulramen](#app-arket-och-modulramen-0890) |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`,
 en modul som inte fyller någon yta skriver `kallor: {}`, en modul som inte
@@ -2437,7 +2438,7 @@ Menyns rullgardin och ark har **en standardhöjd** (`min(32rem, fönstret minus 
 CP 2026-09-30: "Ekonomi är EN modul. Inte massa moduler med komponenter." Tre nivåer: **instansen** (appen), **gruppen**
 (vilka som är med) och **modulen** (ett kort i hubben, inne i en grupp). Hubben visar den **aktiva gruppens** moduler, ett kort
 per id i `groups.moduler`, i den ordning ägaren satt, och **inget annat**. Det finns alltid exakt en aktiv grupp (0.35.0, #190).
-Kalendern och inkorgen är ramverkets grund och har alla grupper, utan att en modul väljs. Chatten är en modul när appen ger den ett kort (`hubb`). Då får den samma rad under Appar, samma reglage "Visa i huvudmenyn" och samma ikon i huvudet som Ekonomi. Lifehub gör det för `meddelanden` från 0.88.0. Den är på från början: en ny grupp får den i `moduler` och i `huvudmeny`, och en grupp som aldrig sparat valet får samma sak i klienten tills ägaren stänger av.
+Kalendern och inkorgen är ramverkets grund och har alla grupper, utan att en modul väljs. Chatten är en modul när appen ger den ett kort (`hubb`). Då får den samma rad under Appar och samma ikon i huvudet som Ekonomi. Pinnen "Visa i huvudmenyn" sätts i modulens inställningar från 0.89.0. Lifehub gör det för `meddelanden` från 0.88.0. Den är på från början: en ny grupp får den i `moduler` och i `huvudmeny`, och en grupp som aldrig sparat valet får samma sak i klienten tills ägaren stänger av.
 
 - **Registret är manifestet.** En modul med ett kort har `hubb: { ikon, rutt, startsida, delar }` i `defineModule` (se
   [Modulkontraktet](#modulkontraktet)). Ramverket vet aldrig vad Ekonomi är, bara att en modul med id `ekonomi` finns.
@@ -2454,7 +2455,7 @@ Kalendern och inkorgen är ramverkets grund och har alla grupper, utan att en mo
   `moduler` i den ordningen, filtrerade på gruppens `huvudmeny`, med manifestets `hubb.ikon` och `hubb.rutt`. Tom när
   fältet saknas. `badge` och `badgeFler` är samma kartor som `hubbPoster`, nycklade på modul-id, så en fäst ikon kan visa olästa. Appen ritar raderna som `OpsIconLink` i `actions`, där den vill ha dem. `huvudmeny` är ägarens fält
   (`AGARGRUPPFALT`), en delmängd av `moduler`. Ägaren ändrar det med reglaget "Visa i huvudmenyn" under varje installerad
-  app med kort i `OpsGruppFormular`, och med samma reglage i `OpsModulInstallningar`. Båda skriver samma lista.
+  app. Från 0.89.0 ritas reglaget bara i modulens inställningar (`OpsModulRam`), inte i `OpsGruppFormular` och inte i `OpsModulInstallningar`. Gruppvyn installerar och avinstallerar. En avinstallerad app tas ur `huvudmeny` i samma sparning. `OpsModulInstallningar` länkar till läget när appen ger `hrefFor`.
 - **`OpsModulSida`** är modulens insida (`modul`, `activeHref`, `hubHref`, `onNavigate`, `sprak`, `children`): "‹ Tillbaka"
   till hubben, modulens namn, och en rad **länkar**, en per del, med den öppna delen understruken. Raden är en, och rullar
   i sidled när den inte får plats (0.88.0: 0.87.0 bröt den på flera rader). Omslaget har `min-w-0`, annars växer flexbarnet
@@ -2473,9 +2474,19 @@ Samma mekanism för varje modul. Ekonomi, Bibliotek och nästa modul deklarerar 
   `createModulinstallningskalla({ source, collection, groupId, skapare })` läser och skriver. `las` kastar inte.
   `installningsVarden({ modul, grupp, sparade })` ger kartan panelen visar: pinnen ur gruppen, övriga ur det sparade,
   och ett fält som saknas får sitt förval.
-- **`OpsModulInstallningar`** ritar ett avsnitt per installerad modul. `agare` krävs som `true` eller `false`.
-  `onSparaHuvudmeny` får nästa lista. `onSpara` får `{ modulId, varden }` med bara modulens egna fält.
-  Saknas ett anrop visas felet, brytaren låtsas inte att valet sparades. Orden ligger i `ORD_OPSMODULINSTALLNINGAR`.
+- **`OpsModulInstallningar`** listar installerade moduler (0.88.0, omgjord 0.89.0). `agare` krävs som `true` eller `false`.
+  Reglagen ritas inte här. `onSpara`, `onSparaHuvudmeny` och `sparade` kastas. `hrefFor` ger länken Inställningar,
+  `onNavigate` tar klicket. Utan adress står det att inställningarna öppnas i appen. Orden ligger i `ORD_OPSMODULINSTALLNINGAR`.
+
+### App-arket och modulramen (0.89.0)
+
+CP 2026-10-09, med en bild av Outlook på telefonen. Ett tryck på Appar öppnar ett ark ovanför flikraden. Samma dag: pinnen, ikonen, synligheten, kopplingarna och modulens egna fält har en plats, modulens ram.
+
+- **`OpsApparArk`**, orden i **`ORD_OPSAPPARARK`**. `OpsAppShell` tar `apparArk`: `{ moduler, grupp, farAndra, onOrdning?, href? }`. Utan propen navigerar Appar. Med den är fliken en knapp i bottenraden och i huvudet från `md`. Arket har rollen dialog, fokusfälla, dimning, handtag, och stängs med dimningen, drag nedåt eller Escape. `farAndra` krävs som `true` eller `false`. Byt ordning syns bara när det är sant, och sparar hela `groups.moduler` via `onOrdning`. Sista rutan är Alla appar (`href`, förval hubbens adress). Ett långt tryck öppnar `?lage=installningar`. På `md` och uppåt är innehållet en panel under huvudet.
+- **`OpsModulRam`**, orden i **`ORD_OPSMODULRAM`**. `OpsModulSida`, `OpsBibliotek` och `OpsMeddelanden` tar `ram`. Bibliotek och Meddelanden kräver också `activeHref` och `modul` när `ram` är satt. Meddelanden kräver `tillbaka.hubHref`. Kugghjulet sitter till höger i rubrikraden när `farAndra` är sant. En fäst modul har ingen Tillbaka, varken i visning eller i inställningar.
+- **`LAGE_PARAM`** är `lage`. **`INSTALLNINGSLAGE`** är `installningar`. **`arInstallningslage`**, **`medInstallningslage`** och **`utanInstallningslage`** läser och skriver adressen. Övriga parametrar och ankaret står kvar.
+- **Kopplingar.** Manifestets `kopplingar` är id, namn, hint och behörigheter. Läget (ansluten, ej ansluten, fel, senaste synk, feltext) skickar appen in på `ram.kopplingar`. En hemlighet kastas i manifestet och kopieras inte ur läget. Ramverket lagrar den inte. Appen använder identitetens valv.
+- **Det som inte finns.** Ingen egen ikon per grupp, ingen behörighetslista per modul, ingen ny samling och inget nytt gruppfält. Ikonen är manifestets. Synligheten är meningen som följer av på, av och pinne. Admin ser ytan när appen sätter `farAndra`, och reglerna släpper fortfarande bara in ägaren på `moduler` och `huvudmeny`.
 - **`modulinstallningsregelfragment(namn)`** limmas in efter `regelfragment()`. Aktiv medlem läser. Ägaren som är en
   person skriver, som sig själv, med serverns klocka. Admin skriver inte. Agenten skriver inte. Radering nekas.
   Gruppen dokumenteras inte om: en egen samling, för gruppreglerna ligger redan på uttryckstaket. Appen behöver
