@@ -184,7 +184,7 @@ export function OpsFloatingSummary({ label, value, tone = "neutral", hint, onDis
               `tabular-nums`: talet är hela poängen med bubblan och får varken
               kortas eller brytas, och siffror som byter bredd får rutan att
               svaja under blicken. */}
-          <span className={cx("whitespace-nowrap tabular-nums text-titel font-bold leading-tight", tonklass)}>{value}</span>
+ <span className={cx("whitespace-nowrap tabular-nums text-titel leading-tight", tonklass)}>{value}</span>
         </div>
 
         {/* ⛔ KRYSSET BÄR NAMNET, eftersom det är den enda knappen kvar i

@@ -87,7 +87,7 @@ export function OpsBreakdown({ groups, onToggle, total, empty, offLabel = "räkn
           tvingar en att läsa hela listan för att få veta vad den blev. */}
       <div className="flex items-baseline justify-between gap-3 border-b border-line-strong pb-3">
         <span className="text-etikett font-semibold text-ink-secondary">{total.label}</span>
-        <span className="text-titel font-bold tabular-nums text-ink">{total.value}</span>
+ <span className="text-titel tabular-nums text-ink">{total.value}</span>
       </div>
       {total.hint ? <p className="mt-1 mb-0 text-etikett text-ink-muted">{total.hint}</p> : null}
 

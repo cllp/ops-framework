@@ -180,7 +180,7 @@ function OpsHandelsePanelRitad({
       {/* ⛔ TITELN OCH STATUSEN PÅ SAMMA RAD, STATUSEN TILL HÖGER (SS `EventDetailInlinePanel.jsx:56-60`). Titeln får hela resten av
           raden och bryter hellre än trunkeras: en händelse som heter något långt ska gå att läsa. */}
       <div className="mt-1 flex items-start justify-between gap-3">
-        <h1 id={rubrikId} className="m-0 min-w-0 flex-1 text-titel font-bold leading-tight text-ink wrap-anywhere md:text-sida">
+ <h1 id={rubrikId} className="m-0 min-w-0 flex-1 text-titel leading-tight text-ink wrap-anywhere md:text-sida">
           {handelse.titel}
         </h1>
         {handelse.status ? (
@@ -259,7 +259,7 @@ function OpsHandelsePanelRitad({
           <span className="mt-0.5 flex shrink-0 items-center">
             <DatumIkon size={20} />
           </span>
-          <span data-handelsedatum="" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sida font-bold leading-tight">
+ <span data-handelsedatum="" className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sida leading-tight">
             <span>{tid.start}</span>
             {tid.slut ? (
               <>
@@ -277,7 +277,7 @@ function OpsHandelsePanelRitad({
             <span className="flex shrink-0 items-center">
               <KlockaIkon size={20} />
             </span>
-            <span data-handelsetid="" className="text-titel font-semibold">
+ <span data-handelsetid="" className="text-titel">
               {tid.tid}
             </span>
           </div>

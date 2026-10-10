@@ -22,6 +22,10 @@
  *   - `font-size:` och `font-family:` i en komponent- eller stilfil: en storlek
  *     eller ett typsnitt förbi tokens. Typsnitt kommer ur `--font-sans` och
  *     `--font-display`, storlek ur rollerna.
+ *   - Dubbel vikt (lifehub.app#165, CP 2026-10-10 beslut 3a): en roll vars
+ *     token redan bär vikt >= 600 (`text-rubrik`, `text-sektion`, `text-titel`,
+ *     `text-sida`, `text-mikro`, `text-raknare`) plus `font-bold` eller
+ *     `font-semibold` på samma rad. Rollens vikt ÄR sanningen.
  *
  * `text-[var(--x)]` och `text-[color:...]` är INTE storlekar och fälls inte.
  * Kommentarer räknas bort (radnumren bevaras): ett filhuvud som citerar det
@@ -81,6 +85,8 @@ const REGLER = [
   { namn: "literal storlek", re: /\btext-\[\s*-?\d*\.?\d+\s*(?:px|rem|em)\s*\]/g, skal: "Använd en roll: text-rubrik, text-sektion, text-etikett, text-hjalp, text-liten, text-raknare eller text-mikro. Saknas den storlek du behöver är det en ny roll i tokens/sessionstudio-profil.json, inte en literal här." },
   { namn: "font-size", re: /\bfont-size\s*:/g, skal: "Storlek kommer ur en typografiroll (text-*), inte ur en egen deklaration." },
   { namn: "font-family", re: /\bfont-family\s*:/g, skal: "Typsnitt kommer ur --font-sans och --font-display (font-sans, font-display), inte ur en egen deklaration." },
+  // lifehub.app#165: roll + extra bold = blaffigt. Gäller både ramverk och konsumentkatalog.
+  { namn: "dubbel vikt", re: /(?=.*\btext-(?:rubrik|sektion|titel|sida|mikro|raknare)\b)(?=.*\bfont-(?:bold|semibold)\b).*/, skal: "Rollen bär redan sin vikt (>= 600). Ta bort font-bold/font-semibold. Emfas på etikett/bröd/meta: font-medium. (#165 beslut 3a)" },
 ];
 
 // ⛔ 0.31.2 (CP 2026-09-29 21:00, "Fortfarande jävla diffar i textstorlek på olika håll"): RAMVERKETS EGNA KOMPONENTER skriver ingen
@@ -88,7 +94,7 @@ const REGLER = [
 // och det som inte hade någon ärvde 16 px från body. Bara i ramverksläget: en app har egna skäl och egen vakt, och dess `text-sm`
 // fungerar fortfarande (storlekarna finns kvar i tokens för appar som ännu inte flyttat).
 if (ramverksRegler) {
-  REGLER.push({ namn: "Tailwind-storlek", re: /(?<![\w-])(?:[a-z0-9\[\]-]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?![\w-])/g, skal: "Använd en roll: text-meta (12), text-etikett (14), text-brod (16), text-rubrik (16 fet), text-titel (18), text-sida (24), text-hjalp (11), text-liten (10), text-raknare (9), text-mikro (8). Skalan bor i tokens/sessionstudio-profil.json och ingen komponent har en egen." });
+  REGLER.push({ namn: "Tailwind-storlek", re: /(?<![\w-])(?:[a-z0-9\[\]-]+:)*text-(?:xs|sm|base|md|lg|xl|2xl|3xl)(?![\w-])/g, skal: "Använd en roll: text-meta (12), text-etikett (14), text-brod (16), text-rubrik (16/600), text-titel (18/700), text-sida (20/700), text-hjalp (11), text-liten (10), text-raknare (9), text-mikro (8). Skalan bor i tokens/sessionstudio-profil.json och ingen komponent har en egen." });
 }
 
 /** @type {{ fil: string, rad: number, regel: string, skal: string, text: string }[]} */

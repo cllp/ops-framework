@@ -338,7 +338,7 @@ function OpsInstallningarRitad({
               id={panelrubrikId}
               ref={panelrubrik}
               tabIndex={-1}
-              className="m-0 font-display text-titel font-bold leading-tight tracking-tight text-ink outline-none"
+ className="m-0 font-display text-titel leading-tight tracking-tight text-ink outline-none"
             >
               {aktiv.rubrik}
             </Sidtagg>

@@ -73,7 +73,7 @@ export function OpsGruppSida({ grupp, medlemmar = [], agenter = [], snabbval = [
       <div className="mb-6 flex items-start gap-4" data-gruppsida-rubrik="">
         <OpsIdentity name={namn} seed={grupp.id} imageUrl={grupp.bild || undefined} {...gruppmarkeProps(grupp)} size="xl" />
         <div className="min-w-0 flex-1">
-          <h1 className="m-0 text-sida font-semibold text-ink">{namn}</h1>
+ <h1 className="m-0 text-sida text-ink">{namn}</h1>
           {grupp.beskrivning ? <p className="mt-1 mb-0 text-etikett text-ink-secondary">{grupp.beskrivning}</p> : null}
           {grupp.ort ? (
             <p className="mt-2 mb-0 inline-flex items-center gap-1 text-meta text-ink-muted">

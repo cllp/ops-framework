@@ -88,7 +88,7 @@ export function OpsStat({
         <p className="m-0 text-etikett font-medium text-ink-secondary">{label}</p>
         {badge ? <div className="shrink-0">{badge}</div> : null}
       </div>
-      <p className={cx("m-0 mt-1 text-sida font-bold leading-tight tabular-nums", tonKlass)}>{value}</p>
+ <p className={cx("m-0 mt-1 text-sida leading-tight tabular-nums", tonKlass)}>{value}</p>
       {hint ? <p className="m-0 mt-1 text-etikett text-ink-muted">{hint}</p> : null}
 
       {fact ? (

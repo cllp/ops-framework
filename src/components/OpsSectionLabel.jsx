@@ -26,5 +26,5 @@ export function OpsSectionLabel({ children }) {
   // ⛔ 0.32.1: `font-bold`. Filhuvudet har alltid sagt 700 (SS `font-bold`), men rollen `sektion` bär 600, som de andra
   // sektionsraderna i ramverket (`OpsGruppFormular`, `OpsGruppSida`) mäter mot SS `font-semibold`. Den här primitiven är
   // profilens rubrik och bär därför profilens vikt. CP 2026-09-30: "Typsnitten på profil är också fel."
-  return <p className="m-0 text-sektion font-bold uppercase text-accent">{children}</p>;
+ return <p className="m-0 text-sektion uppercase text-accent">{children}</p>;
 }

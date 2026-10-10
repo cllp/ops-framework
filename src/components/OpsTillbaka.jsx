@@ -24,12 +24,12 @@ import { useIHuvudmenyn } from "./OpsHuvudmeny.jsx";
  * Sidans rubrik (0.90.1, lifehub.app#146).
  *
  * SessionStudio ritar den som `text-xl font-semibold`: 20 px, vikt 600
- * (`GroupDetailView`). `text-sida` är 1.25rem. `--font-display` är
- * `--font-sans`, Plus Jakarta Sans, samma familj. Vikten 700 (`font-bold`)
- * på den storleken var det som såg ut som fel typsnitt. Samma klass i
+ * (`GroupDetailView`). `text-sida` är 1.25rem / 700 (lifehub.app#165 beslut 3a:
+ * 700 bara på verkliga sidrubriker och räknemärken). `--font-display` är
+ * `--font-sans`. Ingen extra `font-semibold` ovanpå rollen. Samma klass i
  * `OpsViewHeader` och `OpsInstallningar`.
  */
-export const SIDRUBRIK_KLASS = "m-0 font-display text-sida font-semibold leading-tight tracking-tight text-ink";
+export const SIDRUBRIK_KLASS = "m-0 font-display text-sida leading-tight tracking-tight text-ink";
 
 /**
  * @param {object} props
