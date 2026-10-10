@@ -126,7 +126,7 @@ export function ModulLageKnapp({ ram, activeHref, onNavigate, sprak, installning
 }
 
 /**
- * Frågetecknet som öppnar hjälpsidan på modulens avsnitt (0.92.0).
+ * Frågetecknet som öppnar hjälpsidan på modulens avsnitt (0.92.1).
  *
  * ⛔ SAMMA UTSEENDE SOM `OpsHelp`: ring och tecken i `ink-secondary`. Det är
  * förklaringsgesten i hela appen. Här är det en länk, inte en hopfällning.
@@ -172,7 +172,7 @@ export function ModulHjalpKnapp({ href, onNavigate, sprak }) {
  * @param {string} [props.sprak]
  * @param {ModulRam | null} [props.ram]
  * @param {string} [props.rubrikNamn] Ersätter modulens namn i rubriken. Agenter sätter agentens namn.
- * @param {string} [props.hjalpBas="/hjalp"] (0.92.0) Hjälpsidans adress. Frågetecknet leder hit med `#hjalp/<modulId>`.
+ * @param {string} [props.hjalpBas="/hjalp"] (0.92.1) Hjälpsidans adress. Frågetecknet leder hit med `#hjalp/<modulId>`.
  * @param {import("react").ReactNode} props.children Visningen. Dold i inställningsläget.
  */
 export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate, sprak: sprakProp, ram = null, rubrikNamn, hjalpBas = "/hjalp", children }) {

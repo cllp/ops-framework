@@ -262,7 +262,7 @@ export const paminnelser = defineModule({
   ],
 
   /*
-   * ⛔ `hjalp` (0.92.0): FAQ på hjälpsidan. Texten följer med modulen. Utelämna fältet om
+   * ⛔ `hjalp` (0.92.1): FAQ på hjälpsidan. Texten följer med modulen. Utelämna fältet om
    * modulen inte har något att säga. Det här är inte `kallor.hjalp`.
    */
   hjalp: {

@@ -135,7 +135,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {ReadonlyArray<Tillagg>} tillagg (0.60.0, #251) Det modulen pluggar in på ramverkets ytor. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Se `tillagg.js`.
  * @property {ReadonlyArray<import("./modulinstallningar.js").Installningsdeklaration>} installningar (0.88.0) Modulens egna inställningar per grupp. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Pinnen till huvudmenyn ingår inte: den är ramverkets och skrivs på gruppen. Se `modulinstallningar.js`.
  * @property {ReadonlyArray<import("./kopplingar.js").Kopplingsdeklaration>} kopplingar (0.89.0) Kopplingar modulen visar i inställningarna. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Hemligheter hör inte hemma här. Se `kopplingar.js`.
- * @property {import("./modilhjalp.js").ModulHjalp | null} hjalp (0.92.0) FAQ på hjälpsidan. ⛔ `null` när fältet utelämnades. Det här är inte `kallor.hjalp`. Se `modilhjalp.js`.
+ * @property {import("./modilhjalp.js").ModulHjalp | null} hjalp (0.92.1) FAQ på hjälpsidan. ⛔ `null` när fältet utelämnades. Det här är inte `kallor.hjalp`. Se `modilhjalp.js`.
  */
 
 /**
@@ -460,7 +460,7 @@ export function defineModule(manifest) {
   const kopplingar = byggKopplingar(d.kopplingar, var_);
 
   /*
-   * ⛔ HJÄLPEN ÄR VALFRI I MANIFESTET, `null` NÄR DEN SAKNAS (0.92.0).
+   * ⛔ HJÄLPEN ÄR VALFRI I MANIFESTET, `null` NÄR DEN SAKNAS (0.92.1).
    * En tom sektion på hjälpsidan är värre än ingen. Se `modilhjalp.js`.
    */
   const hjalp = byggModulHjalp(d.hjalp, var_);

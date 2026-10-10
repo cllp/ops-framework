@@ -186,7 +186,7 @@ export function agenterManifest() {
     skapar: [],
     hubb: null,
     /*
-     * ⛔ HJÄLPEN HÖR TILL MODULEN (0.92.0). Agenter är ramverkets modul, så
+     * ⛔ HJÄLPEN HÖR TILL MODULEN (0.92.1). Agenter är ramverkets modul, så
      * texten bor här och följer med varje app som registrerar manifestet.
      */
     hjalp: {

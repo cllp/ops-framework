@@ -47,7 +47,7 @@ import { cx } from "../lib/cx.js";
  * @param {import("react").ReactNode} props.title Rubriken. Ett rubrikelement, inte en sträng.
  * @param {import("react").ReactNode} [props.children] Förklaringen. Saknas den (och `href`) ritas ingen knapp.
  * @param {string} [props.label] Skärmläsarens ord för tecknet.
- * @param {string} [props.href] (0.92.0) När satt är frågetecknet en länk till hjälpsidan (djuplänk), inte en hopfällning.
+ * @param {string} [props.href] (0.92.1) När satt är frågetecknet en länk till hjälpsidan (djuplänk), inte en hopfällning.
  * @param {(href: string, event: any) => void} [props.onNavigate]
  */
 export function OpsHelp({ title, children, label = "Visa förklaring", href, onNavigate }) {
@@ -66,7 +66,7 @@ export function OpsHelp({ title, children, label = "Visa förklaring", href, onN
   );
 
   /*
-   * ⛔ LÄNK NÄR `href` FINNS (0.92.0). Modulramen och vyer som pekar på
+   * ⛔ LÄNK NÄR `href` FINNS (0.92.1). Modulramen och vyer som pekar på
    * `#hjalp/<modulId>` ska öppna hjälpsidan, inte fälla ut en mening som redan
    * står där. Finns både href och children vinner länken: barnen är då bara
    * skärmläsarens ledtråd via `title` på länken om de är en sträng.

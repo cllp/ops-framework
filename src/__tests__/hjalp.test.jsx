@@ -9,7 +9,7 @@ import { defineModule } from "../lib/modul.js";
 import { hjalpAdress, hjalpAnkare, lasHjalpAnkare } from "../lib/modilhjalp.js";
 
 /**
- * Hjälp i två lager (0.92.0).
+ * Hjälp i två lager (0.92.1).
  *
  * ⛔ AVINSTALLERAD APP SYNNS INTE. Sökningen träffar apptext. Djuplänken pekar rätt.
  */

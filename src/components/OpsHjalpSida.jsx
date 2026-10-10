@@ -11,7 +11,7 @@ import { OpsPill } from "./OpsPill.jsx";
 import { OpsView, OpsViewHeader } from "./OpsView.jsx";
 
 /**
- * Hjälpsidan: grundfunktioner plus ett avsnitt per installerad app (0.92.0).
+ * Hjälpsidan: grundfunktioner plus ett avsnitt per installerad app (0.92.1).
  *
  * CP 2026-10-10: två lager. Ramverket äger grunderna. Varje modul äger sin
  * text i `hjalp`. Sökningen går över båda. Djuplänk `#hjalp/<modulId>` (eller

@@ -1,5 +1,5 @@
 /**
- * Generell hjälp: grundfunktionerna som alltid finns (0.92.0).
+ * Generell hjälp: grundfunktionerna som alltid finns (0.92.1).
  *
  * ⛔ TEXTEN ÄR RAMVERKETS. Appens egna appar bär sin hjälp i modulens `hjalp`.
  * Här står bara det som finns utan någon installerad modul: Idag, kalender,

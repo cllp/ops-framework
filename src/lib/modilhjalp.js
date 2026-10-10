@@ -1,5 +1,5 @@
 /**
- * Modulens hjälpavsnitt (0.92.0).
+ * Modulens hjälpavsnitt (0.92.1).
  *
  * ══ ⛔ HJÄLPEN HAR TVÅ LAGER ═══════════════════════════════════════════════
  *

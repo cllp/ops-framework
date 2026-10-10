@@ -64,7 +64,7 @@ export function OpsView({ width = "normal", tillbaka, children }) {
  * @param {string} props.title
  * @param {string} [props.description]
  * @param {import("react").ReactNode} [props.actions] Knappar till höger om rubriken.
- * @param {string} [props.hjalpHref] (0.92.0) När satt öppnar frågetecknet hjälpsidan (djuplänk) i stället för hopfällningen.
+ * @param {string} [props.hjalpHref] (0.92.1) När satt öppnar frågetecknet hjälpsidan (djuplänk) i stället för hopfällningen.
  * @param {(href: string, event: any) => void} [props.onNavigate]
  */
 export function OpsViewHeader({ title, description, actions, hjalpHref, onNavigate }) {
@@ -87,7 +87,7 @@ export function OpsViewHeader({ title, description, actions, hjalpHref, onNaviga
         rubriken kvar här för det ena fallet driver de isär första gången någon
         rör typografin.
 
-        ⛔ 0.92.0: `hjalpHref` gör tecknet till en länk till hjälpsidan. Samma
+        ⛔ 0.92.1: `hjalpHref` gör tecknet till en länk till hjälpsidan. Samma
         gest som i modulramen, när vyn hör till en app med `hjalp`.
       */}
       <OpsHelp

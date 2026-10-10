@@ -1,5 +1,5 @@
 /**
- * Sökning och sammanslagning av hjälp (0.92.0).
+ * Sökning och sammanslagning av hjälp (0.92.1).
  *
  * ⛔ EN STRÄNG PER AVSNITT. Samma `svar` (eller `md`) ritas och söks. En andra
  * kopia för sökningen hade glidit isär första gången någon rättade en mening.

@@ -40,7 +40,7 @@ import { OpsModulRam } from "./OpsModulRam.jsx";
  * @param {string} [props.navEtikett] Skärmläsarnamnet på delarnas rad. Förval "{Modul}: delar".
  * @param {string} [props.hubEtikett] Förval "Appar" (0.50.0; tidigare "Hub").
  * @param {import("./OpsModulRam.jsx").ModulRam | null} [props.ram] (0.89.0) Inställningsläget. Utelämnad: ramen som förut, utan kugghjul.
- * @param {string} [props.hjalpBas="/hjalp"] (0.92.0) Vidare till `OpsModulRam`.
+ * @param {string} [props.hjalpBas="/hjalp"] (0.92.1) Vidare till `OpsModulRam`.
  * @param {import("react").ReactNode} props.children Den öppna delens vy.
  */
 export function OpsModulSida({ modul, activeHref, hubHref, onNavigate, sprak: sprakProp, navEtikett, hubEtikett = "Appar", ram = null, hjalpBas = "/hjalp", children }) {
