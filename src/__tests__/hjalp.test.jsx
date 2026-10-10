@@ -132,6 +132,37 @@ describe("hjalpSektioner och sök", () => {
     expect(baraEkonomi.length).toBeGreaterThanOrEqual(2);
   });
 
+  it("⛔ hubb:null med hjalp syns även när id:t inte står i groups.moduler (Agenter)", () => {
+    const agenter = defineModule({
+      id: "agenter",
+      namn: { sv: "Agenter", en: "Agents" },
+      nav: [],
+      routes: [],
+      samlingar: [],
+      kallor: {},
+      skapar: [],
+      hubb: null,
+      hjalp: {
+        rubrik: "Agenter",
+        avsnitt: [
+          {
+            id: "vad",
+            fraga: "Vad är en agent?",
+            svar: "Agenten hör till gruppen. Nycklarna hör till dig.",
+            sokord: ["ai"],
+          },
+        ],
+      },
+    });
+    const sektioner = hjalpSektioner({
+      moduler: [ekonomi(), agenter],
+      grupp: { moduler: ["ekonomi"] },
+    });
+    expect(sektioner.map((s) => s.id)).toEqual([GRUND_ID, "ekonomi", "agenter"]);
+    // Avinstallerad app med hubb syns fortfarande inte.
+    expect(sektioner.some((s) => s.id === "bibliotek")).toBe(false);
+  });
+
   it("söker i apptext och sökord, och rubrik går före", () => {
     const sektioner = hjalpSektioner({
       moduler: [ekonomi(), bibliotek()],

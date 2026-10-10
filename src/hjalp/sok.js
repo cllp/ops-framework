@@ -91,10 +91,39 @@ export function sokAvsnitt(avsnitt, fraga, sektionId = "", omradeId = "") {
 }
 
 /**
- * Sektionerna som ska visas: grund först, sedan installerade appar i gruppens ordning.
+ * En sektion ur en modul som redan har `hjalp` (anroparen har kollat).
  *
- * ⛔ EN AVINSTALLERAD APP BIDRAR INTE. Gruppens `moduler` är listan. En modul
- * utan `hjalp` hoppas över tyst: ingen tom rubrik.
+ * @param {import("../lib/modul.js").Modul} modul
+ * @returns {HjalpSektion}
+ */
+function sektionFranModul(modul) {
+  const hjalp = /** @type {NonNullable<import("../lib/modul.js").Modul["hjalp"]>} */ (modul.hjalp);
+  return {
+    id: modul.id,
+    rubrik: hjalp.rubrik,
+    ikon: modul.hubb ? modul.hubb.ikon : undefined,
+    slag: "modul",
+    omraden: Object.freeze([
+      Object.freeze({
+        id: modul.id,
+        rubrik: hjalp.rubrik,
+        avsnitt: hjalp.avsnitt,
+      }),
+    ]),
+  };
+}
+
+/**
+ * Sektionerna som ska visas: grund först, sedan installerade appar i gruppens
+ * ordning, sist moduler utan hubb-kort (Agenter) som alltid hör till gruppen.
+ *
+ * ⛔ EN AVINSTALLERAD APP BIDRAR INTE. Gruppens `moduler` är listan för appar.
+ * En modul utan `hjalp` hoppas över tyst: ingen tom rubrik.
+ *
+ * ⛔ `hubb: null` ÄR INTE EN APP (0.90.6). Agenter rensas ur `groups.moduler`
+ * med `utanAgenterSomApp`, men hjälpen ska ändå synas: agenten hör till
+ * gruppen, den installeras inte. Utan det här steget skulle texten i
+ * `agenterManifest` aldrig nå hjälpsidan.
  *
  * @param {object} arg
  * @param {ReadonlyArray<import("../lib/modul.js").Modul> | null | undefined} arg.moduler
@@ -114,23 +143,21 @@ export function hjalpSektioner({ moduler, grupp }) {
 
   const pa = Array.isArray(grupp?.moduler) ? grupp.moduler : [];
   const kanda = new Map((moduler || []).map((m) => [m.id, m]));
+  /** @type {Set<string>} */
+  const lagda = new Set();
   for (const id of pa) {
     const modul = kanda.get(id);
     if (!modul?.hjalp) continue;
-    ut.push({
-      id: modul.id,
-      rubrik: modul.hjalp.rubrik,
-      ikon: modul.hubb ? modul.hubb.ikon : undefined,
-      slag: "modul",
-      omraden: Object.freeze([
-        Object.freeze({
-          id: modul.id,
-          rubrik: modul.hjalp.rubrik,
-          avsnitt: modul.hjalp.avsnitt,
-        }),
-      ]),
-    });
+    ut.push(sektionFranModul(modul));
+    lagda.add(modul.id);
   }
+
+  for (const modul of moduler || []) {
+    if (!modul?.hjalp || modul.hubb !== null || lagda.has(modul.id)) continue;
+    ut.push(sektionFranModul(modul));
+    lagda.add(modul.id);
+  }
+
   return Object.freeze(ut);
 }
 

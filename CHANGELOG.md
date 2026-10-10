@@ -24,6 +24,7 @@ Hjälp i två lager: grundfunktioner i ramverket, och ett avsnitt per installera
 - `GENERELL_HJALP` / `GENERELL_OMRADEN`: Kom igång, Kalender, Ärenden och inkorg, Grupper och medlemmar, Inställningar och konto.
 - `OpsHjalpSida`: sök över båda lagren. Först Grundfunktioner, sedan installerade appar i `groups.moduler`-ordning.
 - En avinstallerad app (eller en utan `hjalp`) syns inte.
+- Moduler med `hubb: null` och `hjalp` (Agenter) syns sist även när id:t rensats ur `groups.moduler` (`utanAgenterSomApp`). Annars nådde agenttexten aldrig hjälpsidan.
 
 ### Frågetecknet
 
