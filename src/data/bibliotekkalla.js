@@ -129,13 +129,15 @@ export function createBibliotekskalla(config) {
         }
       }
       const fil = inmatning && "fil" in inmatning ? inmatning.fil : (id ? tidigare?.fil : undefined);
+      // onFyllLjud skickar bara id + durationMs/peaks. Då ska rubrik, text och url
+      // stå kvar från den lästa raden — samma mönster som fil/utskrift ovan.
       /** @type {Record<string, unknown>} */
       const underlag = {
         groupId,
         typ: id ? tidigare?.typ : inmatning?.typ,
-        rubrik: inmatning?.rubrik,
-        text: inmatning?.text,
-        url: inmatning?.url,
+        rubrik: inmatning && "rubrik" in inmatning ? inmatning.rubrik : (id ? tidigare?.rubrik : inmatning?.rubrik),
+        text: inmatning && "text" in inmatning ? inmatning.text : (id ? tidigare?.text : inmatning?.text),
+        url: inmatning && "url" in inmatning ? inmatning.url : (id ? tidigare?.url : inmatning?.url),
         skapadAv: id ? tidigare?.skapadAv : byggSkapare(skapare()),
         skapad: id ? tidigare?.skapad : nu,
         andrad: nu,

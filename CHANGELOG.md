@@ -28,7 +28,7 @@ CP 2026-10-10, iPhone, Bibliotek i 0.92.3: den runda spelknappen låg på musiki
 - `durationMs` och `peaks` på posten. Bara ljud, och valfria, så en gammal post utan fälten fortfarande är giltig. `LJUD_STOLPAR` är 48. `MAX_LJUD_MS` är tolv timmar.
 - När HTML-längden är Infinity söker spelaren till ett stort värde och läser igen. Avkodning med AudioContext är reserven och ger också topparna.
 - Uppladdning och inspelning sparar längd och toppar ur filen, eller ur inspelarens sekunder när avkodningen inte går.
-- En gammal post fylls i bakgrunden när spelaren räknat fram dem. Appen tar emot `onFyllLjud` och skriver. Listan visar värdet redan i sessionen.
+- En gammal post fylls i bakgrunden när spelaren räknat fram dem. Appen tar emot `onFyllLjud` och skriver. Listan visar värdet redan i sessionen. `spara({ id, durationMs, peaks })` behåller rubrik, text, url och fil från den lästa raden, så fyllnaden inte kräver hela formuläret.
 
 ### Regler
 

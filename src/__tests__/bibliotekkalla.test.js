@@ -222,6 +222,12 @@ describe("createBibliotekskalla", () => {
     const kvar = await kalla.spara({ id: skapad.id, rubrik: "Kvar", fil });
     expect(kvar.durationMs).toBe(4000);
     expect(kvar.peaks[1]).toBe(1);
+    // onFyllLjud skickar bara id + meta — rubrik och fil ska stå kvar.
+    const fylld = await kalla.spara({ id: skapad.id, durationMs: 5500, peaks: toppar.map((t, i) => (i === 2 ? 1 : t)) });
+    expect(fylld.rubrik).toBe("Kvar");
+    expect(fylld.fil).toEqual(fil);
+    expect(fylld.durationMs).toBe(5500);
+    expect(fylld.peaks[2]).toBe(1);
     const bild = { ...fil, mime: "image/jpeg", namn: "k.jpg", sokvag: "grupper/cps-ab/bibliotek/p/k.jpg" };
     await expect(kalla.spara({ id: skapad.id, rubrik: "Bild", fil: bild, utskrift: "Hej" })).rejects.toThrow(/Bara ett ljud/);
   });
