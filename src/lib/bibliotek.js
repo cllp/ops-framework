@@ -258,17 +258,22 @@ export function utskriftFel(text, fil) {
 /**
  * Får den här personen ändra eller radera posten? Samma villkor som regelns
  * `update` och, sedan #311, som regelns `delete`: författaren, eller ägare
- * eller admin i gruppen.
+ * eller admin i gruppen. Båda kräver ett aktivt medlemskap (`opsArMedlem`).
  *
- * `jag` är den inloggades aktiva medlemskap i postens grupp, eller `null` när
- * det saknas. Utan medlemskap blir svaret nej, och vyn visar posten i läsläge.
+ * `jag` är den inloggades medlemskap i postens grupp, eller `null` när det
+ * saknas. Utan medlemskap blir svaret nej, och vyn visar posten i läsläge.
+ * Saknas `status` räknas medlemskapet som aktivt: anroparen skickar redan bara
+ * aktiva rader, och de proven som byggdes före statusfältet här står kvar.
+ * En status som inte är `aktiv`, till exempel en avslutad admin, är ett nej,
+ * samma som regeln.
  *
  * @param {{ groupId?: string, skapadAv?: { uid?: string | null } } | null | undefined} post
- * @param {{ uid?: string | null, roll?: string, groupId?: string } | null | undefined} jag
+ * @param {{ uid?: string | null, roll?: string, groupId?: string, status?: string } | null | undefined} jag
  * @returns {boolean}
  */
 export function farAndra(post, jag) {
   if (!post || !jag || typeof jag.uid !== "string" || !jag.uid) return false;
+  if (jag.status !== undefined && jag.status !== "aktiv") return false;
   if (jag.groupId !== undefined && jag.groupId !== post.groupId) return false;
   if (post.skapadAv?.uid === jag.uid) return true;
   return /** @type {readonly string[]} */ (FORVALTARROLLER).includes(String(jag.roll ?? ""));

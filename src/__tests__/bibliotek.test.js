@@ -130,5 +130,9 @@ describe("bibliotekets post", () => {
     expect(farAndra(post, { uid: "uid-2", roll: "agare" })).toBe(true);
     expect(farAndra(post, { uid: "uid-2", roll: "admin", groupId: "miranda-ab" })).toBe(false);
     expect(farAndra(post, null)).toBe(false);
+    // ⛔ #311: en avslutad admin och en avslutad författare är nej, samma som regeln. Utan status är svaret som förut.
+    expect(farAndra(post, { uid: "uid-2", roll: "admin", status: "avslutad" })).toBe(false);
+    expect(farAndra(post, { uid: "uid-1", roll: "medlem", status: "avslutad" })).toBe(false);
+    expect(farAndra(post, { uid: "uid-2", roll: "admin", status: "aktiv" })).toBe(true);
   });
 });

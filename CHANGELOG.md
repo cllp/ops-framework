@@ -9,6 +9,30 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.91.0
+
+Ingen utgivning i det här passet. Appen pinnar kvar på 0.90.0.
+
+### En avslutad medlem kommer in igen (#317)
+
+CP 2026-10-08: en ny inbjudan från ägare eller admin är ett uttryckligt val, och accepten ska återaktivera ett avslutat medlemskap.
+
+- **`accepteraInbjudningar`.** Saknas medlemskapet skrivs det som förut. Ett aktivt rörs inte, så ingen roll höjs för den som redan är med. Ett med status `avslutad` sätts till `aktiv` med inbjudans roll, via `updateIf` på `status: "avslutad"`. Namn och bild står kvar. Gruppen hamnar i `accepterade`. Stämmer villkoret inte, och raden inte är aktiv, lämnas inbjudan tillbaka till `vantar` och felet går vidare. Inget nytt fält i svaret: personen är inte längre avslutad, och `avslutade` hade varit en andra sanning.
+- **Inga Firestore-regler ändras.** `memberships` skrivs av Admin SDK, `allow write: if false` står kvar.
+
+Kvittofelets maskning av adresser kom i 0.84.0 och är orörd.
+
+### Trådmärket väntar på svaret (#282)
+
+- **Okänt trådläge är inte "Svara i tråd".** Innan `tradarFor` svarat ritas en neutral rad, "Tråden hämtas", med `data-tradmarke="okand"`. Knappen kommer när svaret säger att tråden saknas. Föll läsningen står knappen kvar, och raden om att trådarna inte kunde hämtas står kvar.
+- **`asyncUtilTimeout` i `tradar.test.jsx` är 15 sekunder**, och suiterna som ritar vyn har 20 sekunder. Gränsen på 1 sekund var den som föll, inte Vitests `testTimeout`. Den sätts i filen, inte i `setup.js`.
+
+### Bibliotekets radering, en avslutad admin (#311)
+
+Raderingen för författare, admin och ägare kom i 0.85.0. Regeln är orörd.
+
+- **`farAndra` nekar ett medlemskap vars `status` är satt och inte `aktiv`.** En avslutad admin och en avslutad författare är nej, samma som `opsArMedlem` i regeln. Saknas `status` är svaret som förut: anroparen skickar redan bara aktiva rader.
+- **Emulatorprovet** nekar en avslutad admin, utöver den avslutade medlemmen.
 ## 0.90.9
 
 Grok i agentens modellväljare. Utges som 0.90.9, efter 0.90.8.

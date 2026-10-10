@@ -290,7 +290,8 @@ export function inbjudningstjanst(konfig, namn) {
        *
        * ⛔ DET HÄR KOSTAR NÅGOT, OCH DET ÄR RÄTT PRIS. En person som redan har ett konto blir medlem vid
        * nästa accept och inte i samma sekund, och en adress som redan är medlem får en väntande rad i stället
-       * för svaret `fanns`. Accepten rör inte ett medlemskap som finns, så ingen roll höjs den vägen.
+       * för svaret `fanns`. Accepten rör inte ett aktivt medlemskap, så ingen roll höjs för den som redan
+       * är med. Ett avslutat medlemskap återaktiveras vid accepten (0.91.0, #317).
        */
 
       /*
@@ -333,10 +334,13 @@ export function inbjudningstjanst(konfig, namn) {
          * höra att hen redan var med.
          *
          * Att öppna raden igen är det säkra valet, för det ger aldrig mer än den som bjuder in får ge nu
-         * (`kravBehorighet` ovan): saknas medlemskapet skrivs det vid nästa accept med den nya rollen, och
-         * finns det rör accepten det inte, så ingen roll höjs. Det gäller också ett avslutat medlemskap: en
-         * borttagen person kommer inte in igen den här vägen. Svaret säger `fran: "accepterad"`, vilket kan
-         * betyda att personen redan är med, att hen har tagits bort, eller att medlemskapet aldrig skrevs.
+         * (`kravBehorighet` ovan). Saknas medlemskapet skrivs det vid nästa accept med den nya rollen.
+         * Ett aktivt medlemskap rör accepten inte, så ingen roll höjs för den som redan är med.
+         * Ett avslutat medlemskap återaktiveras (0.91.0, #317, CP 2026-10-08): en ny inbjudan från ägare
+         * eller admin är ett uttryckligt val, och accepten sätter status till aktiv och rollen till
+         * inbjudans, med `updateIf` på status `avslutad`. Svaret säger `fran: "accepterad"`, vilket kan
+         * betyda att personen redan är med, att hen har tagits bort och kommer in igen vid accepten,
+         * eller att medlemskapet aldrig skrevs.
          */
         if (status !== "aterkallad" && status !== "accepterad" && !utgangen) {
           throw new Error(`bjudIn: inbjudan ${INBJUDNINGAR}/${rad.id} har statusen "${status}", som ingen gren känner. Inget har skrivits.`);
@@ -388,6 +392,8 @@ export function inbjudningstjanst(konfig, namn) {
      *   `namn`: den inloggades namn ur inloggningen. Används BARA när profilraden saknar namn (0.40.1, #218).
      *   `epostVerifierad` (0.82.0, #313): `request.auth.token.email_verified`, rakt ur inloggningen. Krävs och måste vara `true`.
      * @returns {Promise<{ accepterade: string[], utgangna: string[] }>}
+     *   `accepterade`: grupper där den här körningen skrev ett nytt medlemskap eller återaktiverade ett avslutat.
+     *   Ett medlemskap som redan var aktivt står inte här. Tom lista, aldrig utelämnad.
      *   `utgangna` (0.80.1): grupperna vars väntande inbjudan hade gått ut och därför inte accepterades. Tom lista, aldrig utelämnad.
      */
     async accepteraInbjudningar(b) {
@@ -466,10 +472,19 @@ export function inbjudningstjanst(konfig, namn) {
         let ny = false;
         try {
           /*
-           * ⛔ IDEMPOTENT: ett medlemskap som redan finns rörs inte, men inbjudan är ändå markerad accepterad
-           * ovan. Annars ligger raden kvar som "vantar" för alltid och räknas varje inloggning.
+           * ⛔ TRE UTFALL, OCH INBJUDAN ÄR REDAN ACCEPTERAD (0.91.0, #317).
+           *   ingen rad        createNew, som förut
+           *   status aktiv     rörs inte: ingen roll höjs för den som redan är med
+           *   status avslutad  updateIf till aktiv, med inbjudans roll. Villkoret är status avslutad,
+           *                    så en rad som hunnit bli aktiv mellan läsningen och skrivningen står kvar
+           *                    med den roll den fick då
+           *
+           * Inbjudan markeras accepterad ovan i alla tre, annars ligger raden kvar som "vantar" och räknas
+           * varje inloggning. Bara en ny rad och en återaktivering hamnar i `accepterade`, så att en
+           * inloggning som släppte in personen syns i svaret.
            */
-          if (!(await kalla.read(MEDLEMSKAP, id))) {
+          const tidigare = await kalla.read(MEDLEMSKAP, id);
+          if (!tidigare) {
             /*
              * ⛔ PROFILEN LÄSES EN GÅNG, INTE EN GÅNG PER INBJUDAN. Den som
              * bjudits in till tre grupper ska inte kosta tre läsningar av samma
@@ -495,6 +510,27 @@ export function inbjudningstjanst(konfig, namn) {
               }),
             );
             ny = created;
+          } else if (tidigare.status === "avslutad") {
+            /*
+             * ⛔ updateIf PÅ STATUS, INTE EN VANLIG update (CP 2026-10-08, #317). Mellan läsningen och
+             * skrivningen kan raden ha blivit aktiv, till exempel av en samtidig accept. Utan villkoret
+             * hade den skrivningen skrivits över med inbjudans roll. Stämmer villkoret inte, och raden
+             * inte är aktiv, lämnas inbjudan tillbaka: annars är den förbrukad och personen är fortfarande
+             * ute, samma tysta läge som före rättelsen.
+             */
+            const roll = typeof inbjudan.roll === "string" && inbjudan.roll ? inbjudan.roll : tidigare.roll;
+            const { updated } = await uppdateraOm(MEDLEMSKAP, id, { status: "avslutad" }, { status: "aktiv", roll });
+            if (updated) {
+              ny = true;
+            } else {
+              const nuvarande = await kalla.read(MEDLEMSKAP, id);
+              if (nuvarande?.status !== "aktiv") {
+                const lage = nuvarande?.status ?? "borta";
+                throw new Error(
+                  `accepteraInbjudningar: medlemskapet i gruppen "${inbjudan.groupId}" står "${lage}" och kunde inte återaktiveras från avslutad. Inbjudan lämnas tillbaka.`,
+                );
+              }
+            }
           }
         } catch (fel) {
           /*
