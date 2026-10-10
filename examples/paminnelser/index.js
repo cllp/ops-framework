@@ -260,4 +260,20 @@ export const paminnelser = defineModule({
       behorigheter: [{ sv: "Läsa och skriva händelser", en: "Read and write events" }],
     },
   ],
+
+  /*
+   * ⛔ `hjalp` (0.92.0): FAQ på hjälpsidan. Texten följer med modulen. Utelämna fältet om
+   * modulen inte har något att säga. Det här är inte `kallor.hjalp`.
+   */
+  hjalp: {
+    rubrik: "Påminnelser",
+    avsnitt: [
+      {
+        id: "vad",
+        fraga: "Vad är en påminnelse?",
+        svar: "En påminnelse är något som ska komma tillbaka på ett datum. Den syns i Idag och i kalendern när dagen närmar sig.",
+        sokord: ["datum", "återkommande"],
+      },
+    ],
+  },
 });

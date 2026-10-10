@@ -171,7 +171,7 @@ mörkt deklareras **en gång**; blocken som aktiverar den får bara peka.
 
 ### Komponenter
 
-**127 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
+**128 komponenter.** Alla har ett stängt API: ingen tar emot `className`, `style`
 eller `...rest`. Ett okänt värde kastar med läsbar text i stället för att rendera
 något godtyckligt.
 
@@ -1417,6 +1417,7 @@ export const liv = defineModule({
 | `tillagg` | det modulen pluggar in på ramverkets ytor (0.60.0, #251) | En lista `{ plats, id, etikett, komponent }` eller, på `inspelning.mal`, `{ plats, id, etikett, spara }`. `plats` är en av ramverkets platser (`HANDELSE_PLATSER`: `handelse.sektion`, `handelse.atgard`, och `INSPELNING_PLATSER`: `inspelning.mal`), `id` är unikt inom modulen, `etikett` är `{ sv, en }` med **båda** språken. På en händelseplats pekas `komponent` ut som en route-vy. På `inspelning.mal` är `spara` en funktion och `komponent` avvisas. ⛔ **En plats som inte finns avvisas vid uppstart**, med modulens namn och fältet i felet: platserna är ramverkets, och en app ändrar aldrig en ramverksyta (beslut 0003). Valfritt som `typer`, och den byggda modulen bär alltid en lista. Se [Tillägg på ramverkets ytor](#tillägg-på-ramverkets-ytor-0600-251) |
 | `installningar` | modulens egna inställningar per grupp (0.88.0) | En lista `{ id, namn, hint?, typ, forval }`. `typ` är `boolean` eller `text`, `namn` är `{ sv, en }` med båda språken, `forval` är `true`/`false` eller en text. Valfritt som `typer`: utelämnat blir `[]` på den byggda modulen. ⛔ Id `visaIHuvudmenyn` är reserverat och kastas. Pinnen till huvudmenyn är ramverkets och skrivs på gruppen, inte som ett fält modulen deklarerar. Se [Modulens inställningar](#modulens-inställningar-0880) |
 | `kopplingar` | kopplingar modulen visar i sina inställningar (0.89.0) | En lista `{ id, namn, hint?, behorigheter }`. `behorigheter` är `{ sv, en }`, eller `[]` när inga är angivna. Valfritt: utelämnat blir `[]`. ⛔ Ett fält som heter nyckel, token, secret, key, password eller liknande kastas. Hemligheten lagras inte här och ritas inte. Se [App-arket och modulramen](#app-arket-och-modulramen-0890) |
+| `hjalp` | FAQ på hjälpsidan (0.92.0) | `{ rubrik, avsnitt: [{ id, fraga, svar, sokord }] }`. Valfritt: utelämnat blir `null`. Minst ett avsnitt när fältet finns. `svar` är markdown och samma sträng som sökningen läser. ⛔ Det här är inte `kallor.hjalp`. Se [Hjälp i två lager](#hjälp-i-två-lager-0920) |
 
 ⛔ **VARJE FÄLT KRÄVS, ÄVEN DE TOMMA.** En modul utan vyer skriver `routes: []`,
 en modul som inte fyller någon yta skriver `kallor: {}`, en modul som inte
@@ -2503,6 +2504,18 @@ CP 2026-10-09, med en bild av Outlook på telefonen. Ett tryck på Appar öppnar
   person skriver, som sig själv, med serverns klocka. Admin skriver inte. Agenten skriver inte. Radering nekas.
   Gruppen dokumenteras inte om: en egen samling, för gruppreglerna ligger redan på uttryckstaket. Appen behöver
   inte deploya fragmentet förrän den skriver samlingen. Pinnen behöver ingen ny gruppregel.
+
+### Hjälp i två lager (0.92.0)
+
+CP 2026-10-10: hjälpen ska ha grundfunktioner som alltid finns, och ett avsnitt per installerad app.
+
+- **`GENERELL_HJALP`** / **`GENERELL_OMRADEN`** / **`GRUND_ID`**: Kom igång, Kalender, Ärenden och inkorg, Grupper och medlemmar, Inställningar och konto. Texten är svensk och bor i ramverket. `GRUND_ID` är `grund` i djuplänken.
+- **`hjalp` på modulen**: `{ rubrik, avsnitt: [{ id, fraga, svar, sokord }] }`. Utelämnat blir `null`. En avinstallerad app (inte i `groups.moduler`) syns inte. ⛔ Inte samma sak som `kallor.hjalp`. **`byggModulHjalp`** bygger fältet; **`MAX_HJALP_AVSNITT`** är taket.
+- **`OpsHjalpSida`**: tar `moduler` och `grupp`, söker över båda lagren, ritar Grundfunktioner först och sedan apparna i gruppens ordning. `hash` aktiverar djuplänk.
+- **`hjalpSektioner`**, **`sokHjalp`**, **`sokAvsnitt`**, **`hjalpUtdrag`**, **`aktivHjalpSektion`**: sektionerna ur grupp + moduler, sökning och aktiv djuplänk.
+- **`hjalpAnkare` / `hjalpAdress` / `lasHjalpAnkare`**: `#hjalp/<modulId>` (grund är `GRUND_ID`).
+- **Modulramen** visar frågetecknet när `modul.hjalp` finns, och leder till hjälpsidan. **`OpsViewHeader`** tar `hjalpHref` för samma gest i vanliga vyer.
+- **Agenter** bär hjälp i `agenterManifest`. Övriga appar deklarerar `hjalp` i sitt eget manifest.
 
 ### Agenter (0.90.0, inställningsvyn 0.90.2)
 

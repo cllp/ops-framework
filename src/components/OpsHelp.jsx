@@ -45,10 +45,54 @@ import { cx } from "../lib/cx.js";
  *
  * @param {object} props
  * @param {import("react").ReactNode} props.title Rubriken. Ett rubrikelement, inte en sträng.
- * @param {import("react").ReactNode} [props.children] Förklaringen. Saknas den ritas ingen knapp.
+ * @param {import("react").ReactNode} [props.children] Förklaringen. Saknas den (och `href`) ritas ingen knapp.
  * @param {string} [props.label] Skärmläsarens ord för tecknet.
+ * @param {string} [props.href] (0.92.0) När satt är frågetecknet en länk till hjälpsidan (djuplänk), inte en hopfällning.
+ * @param {(href: string, event: any) => void} [props.onNavigate]
  */
-export function OpsHelp({ title, children, label = "Visa förklaring" }) {
+export function OpsHelp({ title, children, label = "Visa förklaring", href, onNavigate }) {
+  const ring = (/** @type {boolean} */ oppen) => (
+    <span
+      aria-hidden="true"
+      className={cx(
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-full",
+        "border border-ink-secondary text-etikett font-bold text-ink-secondary",
+        "transition-colors duration-(--duration-fast) ease-standard",
+        oppen ? "group-open:border-accent group-open:text-accent" : null,
+      )}
+    >
+      ?
+    </span>
+  );
+
+  /*
+   * ⛔ LÄNK NÄR `href` FINNS (0.92.0). Modulramen och vyer som pekar på
+   * `#hjalp/<modulId>` ska öppna hjälpsidan, inte fälla ut en mening som redan
+   * står där. Finns både href och children vinner länken: barnen är då bara
+   * skärmläsarens ledtråd via `title` på länken om de är en sträng.
+   */
+  if (href) {
+    const tip = typeof children === "string" ? children : undefined;
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        {title}
+        <a
+          href={href}
+          title={tip}
+          onClick={(e) => onNavigate?.(href, e)}
+          aria-label={label}
+          data-hjalp-lank=""
+          className={cx(
+            "inline-flex size-11 shrink-0 items-center justify-center rounded-lg",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          )}
+        >
+          {ring(false)}
+        </a>
+      </div>
+    );
+  }
+
   if (!children) return title;
 
   return (
@@ -98,17 +142,7 @@ export function OpsHelp({ title, children, label = "Visa förklaring" }) {
           ⛔ ÖPPET LÄGE ÄR OFÖRÄNDRAT. Skillnaden ska vara att texten fälls ut
           och att ringen blir ljusare, inte att ringen dyker upp ur ingenting.
         */}
-        <span
-          aria-hidden="true"
-          className={cx(
-            "inline-flex size-6 shrink-0 items-center justify-center rounded-full",
-            "border border-ink-secondary text-etikett font-bold text-ink-secondary",
-            "transition-colors duration-(--duration-fast) ease-standard",
-            "group-open:border-accent group-open:text-accent",
-          )}
-        >
-          ?
-        </span>
+        {ring(true)}
         <span className="sr-only">{label}</span>
       </summary>
       <div className="mt-1 text-brod text-ink-secondary">{children}</div>

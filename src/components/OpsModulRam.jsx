@@ -3,6 +3,7 @@ import { arInstallningslage, flyttaId, medInstallningslage, sattModul, utanInsta
 import { cx } from "../lib/cx.js";
 import { formatDateTime } from "../lib/format.js";
 import { lasKopplingslage } from "../lib/kopplingar.js";
+import { hjalpAdress } from "../lib/modilhjalp.js";
 import { huvudmenyInom, installningsVarden, ORD_VISA_I_HUVUDMENYN, sattHuvudmeny } from "../lib/modulinstallningar.js";
 import { ordet } from "../lib/ord.js";
 import { text } from "../lib/sprak.js";
@@ -47,6 +48,7 @@ export const ORD_OPSMODULRAM = {
   installningar: { sv: "Inställningar", en: "Settings" },
   oppna: { sv: "Inställningar", en: "Settings" },
   klar: { sv: "Klar", en: "Done" },
+  hjalp: { sv: "Hjälp för appen", en: "Help for the app" },
   allmant: { sv: "Allmänt", en: "General" },
   pa: { sv: "På", en: "On" },
   paHint: { sv: "Appen är installerad i gruppen.", en: "The app is installed in the group." },
@@ -124,6 +126,43 @@ export function ModulLageKnapp({ ram, activeHref, onNavigate, sprak, installning
 }
 
 /**
+ * Frågetecknet som öppnar hjälpsidan på modulens avsnitt (0.92.0).
+ *
+ * ⛔ SAMMA UTSEENDE SOM `OpsHelp`: ring och tecken i `ink-secondary`. Det är
+ * förklaringsgesten i hela appen. Här är det en länk, inte en hopfällning.
+ *
+ * @param {object} props
+ * @param {string} props.href
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {string} props.sprak
+ */
+export function ModulHjalpKnapp({ href, onNavigate, sprak }) {
+  const label = ordet(ORD_OPSMODULRAM, "hjalp", sprak);
+  return (
+    <a
+      href={href}
+      onClick={(e) => onNavigate?.(href, e)}
+      aria-label={label}
+      data-modul-hjalp-knapp=""
+      className={cx(
+        "inline-flex size-11 shrink-0 items-center justify-center rounded-base",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cx(
+          "inline-flex size-6 items-center justify-center rounded-full",
+          "border border-ink-secondary text-etikett font-bold text-ink-secondary",
+        )}
+      >
+        ?
+      </span>
+    </a>
+  );
+}
+
+/**
  * @param {object} props
  * @param {import("../lib/modul.js").Modul} props.modul
  * @param {string} props.activeHref
@@ -133,9 +172,10 @@ export function ModulLageKnapp({ ram, activeHref, onNavigate, sprak, installning
  * @param {string} [props.sprak]
  * @param {ModulRam | null} [props.ram]
  * @param {string} [props.rubrikNamn] Ersätter modulens namn i rubriken. Agenter sätter agentens namn.
+ * @param {string} [props.hjalpBas="/hjalp"] (0.92.0) Hjälpsidans adress. Frågetecknet leder hit med `#hjalp/<modulId>`.
  * @param {import("react").ReactNode} props.children Visningen. Dold i inställningsläget.
  */
-export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate, sprak: sprakProp, ram = null, rubrikNamn, children }) {
+export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate, sprak: sprakProp, ram = null, rubrikNamn, hjalpBas = "/hjalp", children }) {
   kravRam(ram, "OpsModulRam");
   const sprakKontext = useOpsSprak();
   const sprak = sprakProp ?? sprakKontext;
@@ -143,13 +183,20 @@ export function OpsModulRam({ modul, activeHref, hubHref, hubEtikett, onNavigate
   const namn = typeof rubrikNamn === "string" && rubrikNamn.trim() ? rubrikNamn.trim() : text(modul.namn, sprak);
   const rubrik = installningar ? `${namn} · ${ordet(ORD_OPSMODULRAM, "installningar", sprak)}` : namn;
   const visaKnapp = ram != null && (installningar || ram.farAndra);
+  const visaHjalp = Boolean(modul.hjalp) && !installningar;
+  const hjalpHref = visaHjalp ? hjalpAdress(hjalpBas, modul.id) : null;
+  const atgard =
+    visaHjalp || visaKnapp ? (
+      <span className="inline-flex items-center gap-1">
+        {visaHjalp && hjalpHref ? <ModulHjalpKnapp href={hjalpHref} onNavigate={onNavigate} sprak={sprak} /> : null}
+        {visaKnapp ? <ModulLageKnapp ram={ram} activeHref={activeHref} onNavigate={onNavigate} sprak={sprak} installningar={installningar} /> : null}
+      </span>
+    ) : null;
   return (
     <OpsView
       tillbaka={{
         ...modulTillbaka({ namn: rubrik, hubHref, hubEtikett, onNavigate, sprak, modulId: modul.id }),
-        ...(visaKnapp ? { atgard: (
-          <ModulLageKnapp ram={ram} activeHref={activeHref} onNavigate={onNavigate} sprak={sprak} installningar={installningar} />
-        ) } : {}),
+        ...(atgard ? { atgard } : {}),
       }}
     >
       {installningar && ram ? (ram.kropp != null ? ram.kropp : <InstallningsInnehall modul={modul} ram={ram} sprak={sprak} />) : children}

@@ -43,6 +43,7 @@
 
 import { ID_FORM } from "./katalog.js";
 import { byggKopplingar } from "./kopplingar.js";
+import { byggModulHjalp } from "./modilhjalp.js";
 import { byggModulinstallningar } from "./modulinstallningar.js";
 import { byggModulTyper } from "./modultyper.js";
 import { validateNav } from "./nav.js";
@@ -56,7 +57,7 @@ import { PLATSER } from "./tillagg.js";
  * saknas. Ett `ikoner`-fält som byggaren skrev högst upp och som ramverket
  * slängde utan ett ljud blir en modul som ser hel ut och saknar sin halva.
  */
-const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg", "installningar", "kopplingar"];
+const MODULFALT = ["id", "namn", "nav", "routes", "samlingar", "kallor", "skapar", "hubb", "typer", "tillagg", "installningar", "kopplingar", "hjalp"];
 
 /**
  * Fälten ett tillägg får bära (0.60.0, #251). Allt annat avvisas, av samma skäl som `MODULFALT`.
@@ -134,6 +135,7 @@ export const KALLTYPER = /** @type {const} */ (["handelser", "sok", "hjalp", "no
  * @property {ReadonlyArray<Tillagg>} tillagg (0.60.0, #251) Det modulen pluggar in på ramverkets ytor. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Se `tillagg.js`.
  * @property {ReadonlyArray<import("./modulinstallningar.js").Installningsdeklaration>} installningar (0.88.0) Modulens egna inställningar per grupp. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Pinnen till huvudmenyn ingår inte: den är ramverkets och skrivs på gruppen. Se `modulinstallningar.js`.
  * @property {ReadonlyArray<import("./kopplingar.js").Kopplingsdeklaration>} kopplingar (0.89.0) Kopplingar modulen visar i inställningarna. ⛔ Alltid en lista, tom när manifestet utelämnade fältet. Hemligheter hör inte hemma här. Se `kopplingar.js`.
+ * @property {import("./modilhjalp.js").ModulHjalp | null} hjalp (0.92.0) FAQ på hjälpsidan. ⛔ `null` när fältet utelämnades. Det här är inte `kallor.hjalp`. Se `modilhjalp.js`.
  */
 
 /**
@@ -458,6 +460,12 @@ export function defineModule(manifest) {
   const kopplingar = byggKopplingar(d.kopplingar, var_);
 
   /*
+   * ⛔ HJÄLPEN ÄR VALFRI I MANIFESTET, `null` NÄR DEN SAKNAS (0.92.0).
+   * En tom sektion på hjälpsidan är värre än ingen. Se `modilhjalp.js`.
+   */
+  const hjalp = byggModulHjalp(d.hjalp, var_);
+
+  /*
    * ⛔ FRYST, av samma skäl som katalogen: ett manifest som går att ändra efter
    * uppstart är ett manifest valideringen inte längre uttalar sig om.
    */
@@ -479,6 +487,7 @@ export function defineModule(manifest) {
     tillagg,
     installningar,
     kopplingar,
+    hjalp,
   });
 }
 
