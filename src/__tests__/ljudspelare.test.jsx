@@ -266,6 +266,28 @@ describe("OpsLjudspelare", () => {
     expect(reglage).not.toBeDisabled();
   });
 
+  it("⛔ gammal post utan durationMs får längden uträknad och visad, inte bara dold", async () => {
+    const onMeta = vi.fn();
+    render(
+      <OpsLjudspelare
+        kompakt
+        src="blob:ljud"
+        namn="Hyllan"
+        meta="8 okt. 2026"
+        onMeta={onMeta}
+      />,
+    );
+    expect(document.querySelector("[data-ljud-langd]")?.textContent).toBe("8 okt. 2026");
+    const el = document.querySelector("audio");
+    expect(el).toBeTruthy();
+    Object.defineProperty(el, "duration", { configurable: true, get: () => 4 });
+    el.dispatchEvent(new Event("loadedmetadata"));
+    await waitFor(() => {
+      expect(document.querySelector("[data-ljud-langd]")?.textContent).toBe("8 okt. 2026 · 0:04");
+    });
+    expect(onMeta).toHaveBeenCalledWith(expect.objectContaining({ durationMs: 4000 }));
+  });
+
   it("väntan syns tills ljudet börjar", async () => {
     /** @type {() => void} */
     let slapp = () => {};

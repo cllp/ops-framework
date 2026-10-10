@@ -19,7 +19,7 @@ CP 2026-10-10, iPhone, Bibliotek i 0.92.3: den runda spelknappen låg på musiki
 
 - En ljudrad har ett element till vänster: spelknappen. Musikikonen ritas inte på den raden.
 - Rubriken visas alltid. Saknas namnet blir det "Röstinspelning" plus datumet posten skapades (`ljudRubrik`, `ljudDatum`). Samma namn i detaljens rubrik.
-- Under rubriken: datum och längd. Längden utelämnas när den inte är räknad, så `0:00` inte påstår att ljudet är tomt.
+- Under rubriken: datum och längd. Längden utelämnas bara tills den är räknad, så `0:00` inte påstår att ljudet är tomt. En gammal post utan `durationMs` får längden ur metadata, sök-fallback eller avkodning, och raden visar den så fort den finns (inte bara döljer den).
 - Vågen ritas ur sparade toppar, med förlopp i accent, och går att skrubba.
 - Hopp, hastighet och Ladda ned ligger i detaljen och i ⋯-menyn. Träffytor minst 44 px.
 

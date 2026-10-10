@@ -232,6 +232,16 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
     bytHastighet: () => {},
     laddaNed: () => {},
   });
+  // ⛔ GAMLA POSTER UTAN durationMs. meta-propen kan bara ha datumet tills
+  // spelaren räknat längden. Visa den uträknade längden då, så listan inte
+  // bara döljer den (CP 2026-10-10, granskning av 0.92.4).
+  const metaMedLangd = (() => {
+    if (!langdArKand(langd)) return meta || "";
+    const tidText = formateraTid(langd);
+    if (meta && /\d+:\d{2}\b/.test(meta)) return meta;
+    if (meta) return `${meta} · ${tidText}`;
+    return tidText;
+  })();
 
   const rapportera = (/** @type {number} */ sek, /** @type {number[] | null} */ toppar) => {
     /** @type {{ durationMs?: number, peaks?: number[] }} */
@@ -588,12 +598,12 @@ function Spelare({ adress, namn, visaNamn, kompakt, meta, durationMs, peaks, onO
                 className="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center bg-transparent text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
               >
                 <span className="block truncate text-brod font-medium text-ink">{etikett}</span>
-                {meta ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{meta}</span> : null}
+                {metaMedLangd ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{metaMedLangd}</span> : null}
               </button>
             ) : (
               <span className="min-w-0 flex-1">
                 {etikett ? <span className="block truncate text-brod font-medium text-ink">{etikett}</span> : null}
-                {meta ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{meta}</span> : null}
+                {metaMedLangd ? <span data-ljud-langd="" className="block truncate text-meta text-ink-muted">{metaMedLangd}</span> : null}
               </span>
             )}
           </div>
