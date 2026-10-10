@@ -9,6 +9,23 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.92.2
+
+lifehub.app#150: innehållsbredd-token, `OpsSidoyta` och `OpsVyValjare` landar på main.
+
+Utges som 0.92.2, efter 0.92.1 (hjälp). Samma innehåll som antecknades under 0.91.2, men den utgivningen byggdes från grenen `cursor/sidoyta-vyvaljare-150` och kom aldrig in i main — taggen `v0.91.2` pekade på 0.91.1. Därför saknade 0.92.0 och 0.92.1 både sidytan och vyväljaren. Den här versionen rättar det.
+
+### Innehållsbredd
+
+- **Token `--ops-innehall-max` (64 rem)** och Tailwind `max-w-innehall`. `OpsView` `width="normal"` använder den (förr `max-w-5xl`, samma tal).
+- **`OpsSidoyta`** och klassen `.ops-sidoyta`: samma bredd för shell i HTML och React, så Hubbar / Profil / Inställningar inte hoppar i storlek.
+
+### Vyväljare
+
+- **`OpsVyValjare`**: vyns namn i mitten med chevron och meny (samma gest som i kalendern). Appen ger posterna (t.ex. Hubbar, Profil, Anslutningar, Betalningar och konto, AI-nycklar, Logga ut).
+
+---
+
 ## 0.92.1
 
 Hjälp i två lager: grundfunktioner i ramverket, och ett avsnitt per installerad app ur modulens `hjalp`. Utges som 0.92.1, efter 0.92.0 (ljudspelaren).
