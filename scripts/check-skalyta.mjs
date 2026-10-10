@@ -1334,8 +1334,14 @@ for (const bredd of [768, 834, 900, 1023, 1024]) {
   krav(m.vanster < 40 && m.bredd < 200, `bibliotek detalj 390 px: knappen är ${m.bredd.toFixed(0)} px bred och börjar på x ${m.vanster.toFixed(0)}. Väntat vänsterställd, inte utsträckt över sidan.`);
   krav(m.mitt < m.fonster / 2, `bibliotek detalj 390 px: ordets mitt är x ${m.mitt.toFixed(0)} i ett fönster på ${m.fonster}.`);
   if (bildmapp) await page.screenshot({ path: path.join(bildmapp, "bibliotek-detalj-390.png"), clip: { x: 0, y: 0, width: 390, height: 520 } });
-  await page.getByRole("button", { name: "Tillbaka" }).click();
-  krav((await page.getByRole("button", { name: "Protokoll" }).count()) === 1, "bibliotek detalj 390 px: Tillbaka kom inte tillbaka till listan.");
+  // ⛔ 0.90.4 gav raden ⋮ med namnet "Åtgärder för Protokoll". `name: "Protokoll"` är en delsträng,
+  // så den träffar både listans rad och åtgärdsknappen. Mätt 2026-10-10 mot 0.91.0: efter Tillbaka är
+  // detaljen borta och den exakta raden 1, men delsträngen är 2, och vakten var röd fast listan var tillbaka.
+  // Check på main har varit röd på den raden sedan 0.90.4. Exakt namn mäter raden. Detaljen ska vara borta.
+  await page.getByRole("button", { name: "Tillbaka", exact: true }).click();
+  const lista = await page.getByRole("button", { name: "Protokoll", exact: true }).count();
+  const detaljKvar = await page.locator("[data-bibliotek-detalj]").count();
+  krav(detaljKvar === 0 && lista === 1, `bibliotek detalj 390 px: Tillbaka kom inte tillbaka till listan (detalj ${detaljKvar}, raden Protokoll ${lista}).`);
   await context.close();
 }
 }

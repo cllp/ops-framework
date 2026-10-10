@@ -9,6 +9,22 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.91.1
+
+Ingen utgivning i det här passet. Appen pinnar kvar.
+
+### Skalytan: Tillbaka i biblioteket
+
+Check på main har varit röd i scaffold-jobbets `check:skalyta` sedan 0.90.4. Ett brott: "bibliotek detalj 390 px: Tillbaka kom inte tillbaka till listan."
+
+Mätt mot 0.91.0 i Chromium vid 390 px. Tillbaka stänger detaljen. Listans rad "Protokoll" finns en gång. Åtgärdsknappen från 0.90.4 heter "Åtgärder för Protokoll". Vaktens `getByRole` med `name: "Protokoll"` är en delsträng och räknar båda, så den blev 2 och röd fast listan var tillbaka.
+
+- Kravet är det exakta namnet "Protokoll", och att `[data-bibliotek-detalj]` är borta.
+- Rött när Tillbaka inte gör något: detalj 1, raden Protokoll 0.
+- Grönt när listan är tillbaka: `--bara-surfplatta`, 203 kontroller, inga brott.
+
+---
+
 ## 0.91.0
 
 Ingen utgivning i det här passet. Appen pinnar kvar på 0.90.0.
