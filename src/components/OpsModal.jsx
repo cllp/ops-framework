@@ -67,7 +67,7 @@ export function OpsModal({ open, onOpenChange, title, description, size = "md", 
         >
           <div className="flex items-start justify-between gap-4 p-6 pb-4">
             <div className="min-w-0">
-              <Dialog.Title className="m-0 text-titel font-bold leading-tight text-ink">{title}</Dialog.Title>
+ <Dialog.Title className="m-0 text-titel leading-tight text-ink">{title}</Dialog.Title>
               {description ? (
                 <Dialog.Description className="mt-1 text-brod text-ink-secondary">{description}</Dialog.Description>
               ) : null}

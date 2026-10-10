@@ -1,58 +1,144 @@
 {
   "_lasMig": "cllp/ops-framework#167. Detta ÄR SessionStudios utseende, mätt ur källan (/home/user/sessions-platform), inte gissat. Varje grupp har en '_kalla' med fil och rad. Fixturen äger de delar av tokens/tokens.css som ligger mellan markörerna 'GENERERAT UR sessionstudio-profil.json'; scripts/generate-tokens.mjs läser den här filen och skriver blocket. Rör aldrig blocket för hand, ändra här och kör 'npm run generate:tokens'.",
-
   "_huvudfynd": "SessionStudios FÖRVAL för varje ny besökare är profilen GREEN, inte grundprofilen. apps/web/src/main.jsx:65 'localStorage.getItem(\"sp_profile\") || PROFILE_IDS.GREEN'. Tonvalet i main.jsx:74 (\"standard\") är en no-op: det finns inget CSS-block för den, så green-blockets råvärden ÄR förvalet. Alla värden i den här filen är alltså avlästa ur green-profilens block i apps/web/src/index.css: ljust '[data-profile=\"green\"][data-theme=\"light\"]' rad 473-557, mörkt '[data-profile=\"green\"]:not([data-theme=\"light\"])' rad 564-621.",
-
   "farger": {
     "_kalla": "apps/web/src/index.css, green-profilens ljusa block (rad 473-557) och mörka block (rad 564-621).",
     "ljus": {
-      "canvas": { "varde": "#fdf8ef", "_kalla": "index.css:477 --color-bg-primary" },
-      "surface": { "varde": "#fefcf6", "_kalla": "index.css:478 --color-bg-surface" },
-      "raised": { "varde": "#fefcf6", "_kalla": "index.css:479 --color-bg-card (samma tal som surface i ljust läge)" },
-      "elevated": { "varde": "#ffffff", "_kalla": "index.css:480 --color-bg-elevated. Eget ytsteg ÖVER raised: SessionStudio skiljer kortets yta (bg-card) från det som ligger ovanpå kortet (popover, meny). Ramverket saknade steget." },
-      "hover": { "varde": "#f0ede6", "_kalla": "index.css:481 --color-bg-hover. Eget hover-tillstånd för rader/knappar, skilt från accent-hover som är knappens EGEN hover." },
-      "sunken": { "varde": "#FBF9F4", "_kalla": "index.css:483 --color-bg-input. Närmaste SS-motsvarighet till ramverkets 'sunken' (fält, tomt tillstånd)." },
-      "ink": { "varde": "#3C2F2F", "_kalla": "index.css:487 --color-text-primary" },
-      "ink_secondary": { "varde": "#5a5048", "_kalla": "index.css:488 --color-text-secondary" },
-      "ink_muted": { "varde": "#8a8078", "_kalla": "index.css:489 --color-text-muted" },
-      "line": { "varde": "#E8E2DA", "_kalla": "index.css:522 --color-border-default" },
-      "accent": { "varde": "#8E7A4E", "_kalla": "index.css:691 --color-accent, green-profilen med tonen Brun (`[data-profile=\"green\"][data-theme=\"light\"][data-hsl-preset=\"brown\"]`, index.css:690-704). 0.31.0, CP 2026-09-29: 'OPS HUB är grön i mörkt läge. Sessionstudio är brun.' Tonen väljs med attributet data-hsl-preset (constants/themes.js:105-109 applyHslPreset, main.jsx:73-75, localStorage sp_hsl_preset) och swatchen heter Brun (packages/shared/designTokens.js:249). Före 0.31.0 var accenten grön-profilens egen (#6B8E4E, index.css:497)." },
-      "accent_hover": { "varde": "#9e8a5e", "_kalla": "index.css:692 --color-accent-light, Brun, ljust läge." }
+      "canvas": {
+        "varde": "#fdf8ef",
+        "_kalla": "index.css:477 --color-bg-primary"
+      },
+      "surface": {
+        "varde": "#fefcf6",
+        "_kalla": "index.css:478 --color-bg-surface"
+      },
+      "raised": {
+        "varde": "#fefcf6",
+        "_kalla": "index.css:479 --color-bg-card (samma tal som surface i ljust läge)"
+      },
+      "elevated": {
+        "varde": "#ffffff",
+        "_kalla": "index.css:480 --color-bg-elevated. Eget ytsteg ÖVER raised: SessionStudio skiljer kortets yta (bg-card) från det som ligger ovanpå kortet (popover, meny). Ramverket saknade steget."
+      },
+      "hover": {
+        "varde": "#f0ede6",
+        "_kalla": "index.css:481 --color-bg-hover. Eget hover-tillstånd för rader/knappar, skilt från accent-hover som är knappens EGEN hover."
+      },
+      "sunken": {
+        "varde": "#FBF9F4",
+        "_kalla": "index.css:483 --color-bg-input. Närmaste SS-motsvarighet till ramverkets 'sunken' (fält, tomt tillstånd)."
+      },
+      "ink": {
+        "varde": "#3C2F2F",
+        "_kalla": "index.css:487 --color-text-primary"
+      },
+      "ink_secondary": {
+        "varde": "#5a5048",
+        "_kalla": "index.css:488 --color-text-secondary"
+      },
+      "ink_muted": {
+        "varde": "#8a8078",
+        "_kalla": "index.css:489 --color-text-muted"
+      },
+      "line": {
+        "varde": "#E8E2DA",
+        "_kalla": "index.css:522 --color-border-default"
+      },
+      "accent": {
+        "varde": "#8E7A4E",
+        "_kalla": "index.css:691 --color-accent, green-profilen med tonen Brun (`[data-profile=\"green\"][data-theme=\"light\"][data-hsl-preset=\"brown\"]`, index.css:690-704). 0.31.0, CP 2026-09-29: 'OPS HUB är grön i mörkt läge. Sessionstudio är brun.' Tonen väljs med attributet data-hsl-preset (constants/themes.js:105-109 applyHslPreset, main.jsx:73-75, localStorage sp_hsl_preset) och swatchen heter Brun (packages/shared/designTokens.js:249). Före 0.31.0 var accenten grön-profilens egen (#6B8E4E, index.css:497)."
+      },
+      "accent_hover": {
+        "varde": "#9e8a5e",
+        "_kalla": "index.css:692 --color-accent-light, Brun, ljust läge."
+      }
     },
     "mork": {
-      "canvas": { "varde": "#181c18", "_kalla": "index.css:567 --color-bg-primary" },
-      "surface": { "varde": "#202420", "_kalla": "index.css:568 --color-bg-surface" },
-      "raised": { "varde": "#262d26", "_kalla": "index.css:569 --color-bg-card" },
-      "elevated": { "varde": "#2a322a", "_kalla": "index.css:570 --color-bg-elevated. Tillägg 2026-09-28 (samordnare, samma pass): saknades i första utkastet av fixturen." },
-      "hover": { "varde": "#323a32", "_kalla": "index.css:571 --color-bg-hover. Tillägg 2026-09-28, samma skäl som elevated." },
-      "sunken": { "varde": "#1c221c", "_kalla": "index.css:572 --color-bg-input" },
-      "ink": { "varde": "#e8ece6", "_kalla": "index.css:576 --color-text-primary" },
-      "ink_secondary": { "varde": "#b0b8ac", "_kalla": "index.css:577 --color-text-secondary. Tillägg 2026-09-28: klart ljusare än ramverkets tidigare #948f89, mätt och inte gissat, se 'avvikelser'." },
-      "ink_muted": { "varde": "#8a9482", "_kalla": "index.css:578 --color-text-muted" },
-      "line": { "varde": "rgba(255,255,255,0.06)", "_kalla": "index.css:592 --color-border-default" },
-      "accent": { "varde": "#9e8a6e", "_kalla": "index.css:768 --color-accent, green-profilen med tonen Brun i mörkt läge (`[data-profile=\"green\"]:not([data-theme=\"light\"])[data-hsl-preset=\"brown\"]`, index.css:767-781). SS ritar plussets rader med `text-[var(--color-accent)]` (AppHeader.jsx:396-399), och det är den tan-färg CP ser (ungefär #a8987a i hans skärmbild, efter komprimering och kantutjämning). Före 0.31.0 var den grön-profilens egen (#7a9e5e, index.css:586)." },
-      "accent_hover": { "varde": "#ae9a7e", "_kalla": "index.css:769 --color-accent-light, Brun, mörkt läge." }
+      "canvas": {
+        "varde": "#181c18",
+        "_kalla": "index.css:567 --color-bg-primary"
+      },
+      "surface": {
+        "varde": "#202420",
+        "_kalla": "index.css:568 --color-bg-surface"
+      },
+      "raised": {
+        "varde": "#262d26",
+        "_kalla": "index.css:569 --color-bg-card"
+      },
+      "elevated": {
+        "varde": "#2a322a",
+        "_kalla": "index.css:570 --color-bg-elevated. Tillägg 2026-09-28 (samordnare, samma pass): saknades i första utkastet av fixturen."
+      },
+      "hover": {
+        "varde": "#323a32",
+        "_kalla": "index.css:571 --color-bg-hover. Tillägg 2026-09-28, samma skäl som elevated."
+      },
+      "sunken": {
+        "varde": "#1c221c",
+        "_kalla": "index.css:572 --color-bg-input"
+      },
+      "ink": {
+        "varde": "#e8ece6",
+        "_kalla": "index.css:576 --color-text-primary"
+      },
+      "ink_secondary": {
+        "varde": "#b0b8ac",
+        "_kalla": "index.css:577 --color-text-secondary. Tillägg 2026-09-28: klart ljusare än ramverkets tidigare #948f89, mätt och inte gissat, se 'avvikelser'."
+      },
+      "ink_muted": {
+        "varde": "#8a9482",
+        "_kalla": "index.css:578 --color-text-muted"
+      },
+      "line": {
+        "varde": "rgba(255,255,255,0.06)",
+        "_kalla": "index.css:592 --color-border-default"
+      },
+      "accent": {
+        "varde": "#9e8a6e",
+        "_kalla": "index.css:768 --color-accent, green-profilen med tonen Brun i mörkt läge (`[data-profile=\"green\"]:not([data-theme=\"light\"])[data-hsl-preset=\"brown\"]`, index.css:767-781). SS ritar plussets rader med `text-[var(--color-accent)]` (AppHeader.jsx:396-399), och det är den tan-färg CP ser (ungefär #a8987a i hans skärmbild, efter komprimering och kantutjämning). Före 0.31.0 var den grön-profilens egen (#7a9e5e, index.css:586)."
+      },
+      "accent_hover": {
+        "varde": "#ae9a7e",
+        "_kalla": "index.css:769 --color-accent-light, Brun, mörkt läge."
+      }
     },
     "avvikelser": [
       "Ramverkets ink-inverse, danger/danger-hover/warning/success/info/badge/laborera/identity/slag/fact/human/agent/auto ligger UTANFÖR fixturen. De är ramverkets egna, mätta mot ramverkets ytor i tokens/check-kontrast.mjs och SS har ingen direkt motsvarighet för flera av dem (t.ex. 'blocked', 'fact-*'). Att tvinga in dem hade varit att gissa en SS-mening som inte finns.",
       "SS:s 'action-remove' (#c88a82 ljust / #b89990 mörkt) motsvarar ramverkets 'danger', men ramverkets danger är redan uppmätt mot ramverkets ytor (check-kontrast.mjs) och byts inte ut här: en färg som inte hör till fixturens uttryckliga grupper rörs inte."
     ]
   },
-
   "skuggor": {
     "_kalla": "apps/web/src/index.css, green-profilens ljusa block (rad 543-547) och mörka block (rad 615-619). Tillägg 2026-09-28 (samordnare): ramverkets --dark-shadow-* var kopierade ur STANDARDPROFILENS mörka block (index.css rad 130-141, alfa 0.3/0.4/0.5), inte green-profilens (alfa 0.2/0.25/0.3). Eftersom green ÄR förvalet (main.jsx:65) är standardprofilens tal fel källa. Se tokens/tokens.css rad 672-677 för den gamla, felaktiga hänvisningen.",
     "ljus": {
-      "sm": { "varde": "0 1px 2px rgba(60, 47, 47, 0.06)", "_kalla": "index.css:543" },
-      "md": { "varde": "0 2px 8px rgba(60, 47, 47, 0.08)", "_kalla": "index.css:544" },
-      "lg": { "varde": "0 4px 16px rgba(60, 47, 47, 0.10)", "_kalla": "index.css:545" }
+      "sm": {
+        "varde": "0 1px 2px rgba(60, 47, 47, 0.06)",
+        "_kalla": "index.css:543"
+      },
+      "md": {
+        "varde": "0 2px 8px rgba(60, 47, 47, 0.08)",
+        "_kalla": "index.css:544"
+      },
+      "lg": {
+        "varde": "0 4px 16px rgba(60, 47, 47, 0.10)",
+        "_kalla": "index.css:545"
+      }
     },
     "mork": {
-      "sm": { "varde": "0 1px 2px rgba(0, 0, 0, 0.2)", "_kalla": "index.css:615" },
-      "md": { "varde": "0 2px 8px rgba(0, 0, 0, 0.25)", "_kalla": "index.css:616" },
-      "lg": { "varde": "0 4px 16px rgba(0, 0, 0, 0.3)", "_kalla": "index.css:617" }
+      "sm": {
+        "varde": "0 1px 2px rgba(0, 0, 0, 0.2)",
+        "_kalla": "index.css:615"
+      },
+      "md": {
+        "varde": "0 2px 8px rgba(0, 0, 0, 0.25)",
+        "_kalla": "index.css:616"
+      },
+      "lg": {
+        "varde": "0 4px 16px rgba(0, 0, 0, 0.3)",
+        "_kalla": "index.css:617"
+      }
     }
   },
-
   "radier": {
     "_kalla": "Redan mätta i ops-framework#164 (samma dag som index.css '.rounded-app'-skalan lästes), återanvända här utan ändring. sm 8px, md 10px, lg 16px, xl 20px, card 24px. Tillägg 2026-09-29 (#161): 'bas' 12px är SessionStudios `--radius` (index.css:215, '0.75rem, base for cards, inputs'), det steg nästan allt i AppSidebar.jsx och GroupCard.jsx ritas med (`rounded-[var(--radius)]`). Det saknades i första fixturen, så gruppanelen fick en literal 12px; nu är det ett token.",
     "bas": "12px",
@@ -62,7 +148,6 @@
     "xl": "20px",
     "card": "24px"
   },
-
   "typografi": {
     "_kalla": "apps/web/src/index.css: skalan är Tailwinds inbyggda rem-steg (text-sm/text-base används rakt av utan en egen '--text-*'-skala i SS, se Tailwinds standardtabell: text-sm 0.875rem/14px, text-base 1rem/16px). word-spacing index.css:418. line-height index.css:423-425. font-smoothing index.css:1015-1016.",
     "skala": {
@@ -76,50 +161,137 @@
     },
     "roller": {
       "_kalla": "0.30.0 (#173): typografin på ETT ställe. Varje roll är avläst ur SessionStudios SettingsView, som är den enda vy där alla fem förekommer sida vid sida. Komponenterna skriver `text-rubrik`, `text-sektion` och så vidare, aldrig `text-[10px]`; scripts/check-typografi.mjs fäller det senare. Färg och versaler ligger UTANFÖR rollen (en roll är storlek, radhöjd, vikt och spärrning), så `sektion` används som `text-sektion uppercase text-accent`.",
-      "rubrik": { "storlek": "1rem", "vikt": "700", "radhojd": "tight", "_kalla": "apps/web/src/views/SettingsView.jsx:161 '<h3 className=\"font-bold ...\">': ingen egen storlek, alltså Tailwinds bas 1rem, fet." },
-      "sektion": { "storlek": "0.75rem", "vikt": "600", "sparrning": "0.05em", "radhojd": "normal", "_kalla": "apps/web/src/views/SettingsView.jsx:174 'text-xs font-semibold ... uppercase tracking-wider' (tracking-wider är 0.05em). Versalerna och accentfärgen sätts där rollen används." },
-      "etikett": { "storlek": "0.875rem", "vikt": "400", "radhojd": "1.25rem", "_kalla": "apps/web/src/views/SettingsView.jsx:228 '<span className=\"text-sm ...\">', radens etikett. 0.31.2: radhöjden är Tailwinds text-sm (1,25rem), inte 1,5 (`normal`): rollen ska ge samma höjd som SS `text-sm`, annars flyttar varje byte från `text-sm` en pixel per rad. Också SS brödtext och kortets meta (`TodayView.jsx:91/544/555`, `text-sm`), hjälptext på Idag (`TodayView.jsx:438`), segmentpillret (`TodayView.jsx:258`), faktarader." },
-      "meta": { "storlek": "0.75rem", "vikt": "400", "radhojd": "1rem", "_kalla": "0.31.2: SS `text-xs` (Tailwinds 0,75rem/1rem): chips, badges och märken (`TodayView.jsx:650/655`), tidsstämplar. Samma storlek som `sektion`, men utan versaler, spärrning och vikt 600. Kortets metarad är SS `text-xs sm:text-sm` (`TodayView.jsx:83/86/527`) och skrivs `text-meta sm:text-etikett` (12 px under 640 px, 14 px från)." },
-      "brod": { "storlek": "1rem", "vikt": "400", "radhojd": "1.5rem", "_kalla": "apps/web/src/views/SearchView.jsx:157 'text-base' (Tailwinds 1rem/1,5rem): brödtext och beskrivningar som ska vara större än `etikett`. 0.31.2: tidigare skrev ramverket `text-base` rakt av på 21 ställen." },
-      "titel": { "storlek": "1.125rem", "vikt": "700", "radhojd": "1.75rem", "_kalla": "apps/web/src/views/TodayView.jsx:89 'text-lg sm:text-xl font-bold' (Tailwinds text-lg 1,125rem/1,75rem): titeln på ett händelsekort. SS växer till `text-xl` (20 px) från sm, och ramverket skriver `text-titel sm:text-sida` (18 px under 640 px, 20 px från)." },
-      "sida": { "storlek": "1.25rem", "vikt": "700", "radhojd": "1.75rem", "_kalla": "apps/web/src/views/GroupDetailView.jsx:95 '<h1 className=\"text-xl font-semibold\">' (Tailwinds text-xl 1,25rem/1,75rem): sidans rubrik. 0.31.2: före det var ramverkets `text-xl` ett eget mellansteg på 1,5rem (24 px) mot SS 20 px, och rubrikerna var 4 px större än förlagan." },
-      "hjalp": { "storlek": "0.6875rem", "vikt": "400", "radhojd": "normal", "_kalla": "apps/web/src/views/SettingsView.jsx:276 '<p className=\"text-[11px] ...\">', hjälptexten under en rad." },
-      "liten": { "storlek": "0.625rem", "vikt": "500", "radhojd": "tight", "_kalla": "apps/web/src/components/MobileTabBar.jsx:87 'text-[10px] leading-tight', bottenradens etikett. Samma tal är SS:s badge-, flik- och avataretikett (LoginScreen.jsx:240, Avatar.jsx:25)." },
-      "mikro": { "storlek": "0.5rem", "vikt": "700", "radhojd": "tight", "_kalla": "apps/web/src/components/AppHeader.jsx:222 'text-[8px] font-bold', räknemärkets siffra. Redan ramverkets värde i counter.jsx sedan 0.26.0 (CP: ändra inte mot typskalan utan en bild), nu bara ett namn." },
-      "raknare": { "storlek": "0.5625rem", "vikt": "700", "radhojd": "1", "_kalla": "0.61.0 (#259): apps/web/src/components/calView/MonthGrid.jsx:477 och :503 'text-[8px] sm:text-[9px] font-bold leading-none tabular-nums', räknaren efter UserX och Layers i dagsrutans rad från 640 px, och :531 'text-[9px] font-semibold' för N/N. 8 px är `mikro`; 9 px fanns inte." }
+      "rubrik": {
+        "storlek": "1rem",
+        "vikt": "600",
+        "radhojd": "tight",
+        "_kalla": "apps/web/src/views/SettingsView.jsx:161 '<h3 className=\"font-bold ...\">': ingen egen storlek, alltså Tailwinds bas 1rem. lifehub.app#165 (CP 2026-10-10, beslut 3a): vanlig UI har tre vikter 400/500/600; 700 är reserverat för räknemärke (mikro/raknare) och verkliga sidrubriker (titel/sida). Rubrikrollen (dialog- och kortrubrik) är därför 600, inte 700."
+      },
+      "sektion": {
+        "storlek": "0.75rem",
+        "vikt": "600",
+        "sparrning": "0.05em",
+        "radhojd": "normal",
+        "_kalla": "apps/web/src/views/SettingsView.jsx:174 'text-xs font-semibold ... uppercase tracking-wider' (tracking-wider är 0.05em). Versalerna och accentfärgen sätts där rollen används."
+      },
+      "etikett": {
+        "storlek": "0.875rem",
+        "vikt": "400",
+        "radhojd": "1.25rem",
+        "_kalla": "apps/web/src/views/SettingsView.jsx:228 '<span className=\"text-sm ...\">', radens etikett. 0.31.2: radhöjden är Tailwinds text-sm (1,25rem), inte 1,5 (`normal`): rollen ska ge samma höjd som SS `text-sm`, annars flyttar varje byte från `text-sm` en pixel per rad. Också SS brödtext och kortets meta (`TodayView.jsx:91/544/555`, `text-sm`), hjälptext på Idag (`TodayView.jsx:438`), segmentpillret (`TodayView.jsx:258`), faktarader."
+      },
+      "meta": {
+        "storlek": "0.75rem",
+        "vikt": "400",
+        "radhojd": "1rem",
+        "_kalla": "0.31.2: SS `text-xs` (Tailwinds 0,75rem/1rem): chips, badges och märken (`TodayView.jsx:650/655`), tidsstämplar. Samma storlek som `sektion`, men utan versaler, spärrning och vikt 600. Kortets metarad är SS `text-xs sm:text-sm` (`TodayView.jsx:83/86/527`) och skrivs `text-meta sm:text-etikett` (12 px under 640 px, 14 px från)."
+      },
+      "brod": {
+        "storlek": "1rem",
+        "vikt": "400",
+        "radhojd": "1.5rem",
+        "_kalla": "apps/web/src/views/SearchView.jsx:157 'text-base' (Tailwinds 1rem/1,5rem): brödtext och beskrivningar som ska vara större än `etikett`. 0.31.2: tidigare skrev ramverket `text-base` rakt av på 21 ställen."
+      },
+      "titel": {
+        "storlek": "1.125rem",
+        "vikt": "700",
+        "radhojd": "1.75rem",
+        "_kalla": "apps/web/src/views/TodayView.jsx:89 'text-lg sm:text-xl font-bold' (Tailwinds text-lg 1,125rem/1,75rem): titeln på ett händelsekort. SS växer till `text-xl` (20 px) från sm, och ramverket skriver `text-titel sm:text-sida` (18 px under 640 px, 20 px från)."
+      },
+      "sida": {
+        "storlek": "1.25rem",
+        "vikt": "700",
+        "radhojd": "1.75rem",
+        "_kalla": "apps/web/src/views/GroupDetailView.jsx:95 '<h1 className=\"text-xl font-semibold\">' (Tailwinds text-xl 1,25rem/1,75rem): sidans rubrik. 0.31.2: före det var ramverkets `text-xl` ett eget mellansteg på 1,5rem (24 px) mot SS 20 px, och rubrikerna var 4 px större än förlagan."
+      },
+      "hjalp": {
+        "storlek": "0.6875rem",
+        "vikt": "400",
+        "radhojd": "normal",
+        "_kalla": "apps/web/src/views/SettingsView.jsx:276 '<p className=\"text-[11px] ...\">', hjälptexten under en rad."
+      },
+      "liten": {
+        "storlek": "0.625rem",
+        "vikt": "500",
+        "radhojd": "tight",
+        "_kalla": "apps/web/src/components/MobileTabBar.jsx:87 'text-[10px] leading-tight', bottenradens etikett. Samma tal är SS:s badge-, flik- och avataretikett (LoginScreen.jsx:240, Avatar.jsx:25)."
+      },
+      "mikro": {
+        "storlek": "0.5rem",
+        "vikt": "700",
+        "radhojd": "tight",
+        "_kalla": "apps/web/src/components/AppHeader.jsx:222 'text-[8px] font-bold', räknemärkets siffra. Redan ramverkets värde i counter.jsx sedan 0.26.0 (CP: ändra inte mot typskalan utan en bild), nu bara ett namn."
+      },
+      "raknare": {
+        "storlek": "0.5625rem",
+        "vikt": "700",
+        "radhojd": "1",
+        "_kalla": "0.61.0 (#259): apps/web/src/components/calView/MonthGrid.jsx:477 och :503 'text-[8px] sm:text-[9px] font-bold leading-none tabular-nums', räknaren efter UserX och Layers i dagsrutans rad från 640 px, och :531 'text-[9px] font-semibold' för N/N. 8 px är `mikro`; 9 px fanns inte."
+      }
     },
-    "word_spacing_normal": { "varde": "0.06em", "_kalla": "index.css:418 --word-spacing-normal, kompenserar Plus Jakarta Sans smala mellanslag (#2501)" },
-    "line_height_normal": { "varde": "1.5", "_kalla": "index.css:424 --line-height-normal" },
-    "antialiasing": { "webkit": "antialiased", "moz": "grayscale", "_kalla": "index.css:1015-1016, satt på body" },
+    "word_spacing_normal": {
+      "varde": "0.06em",
+      "_kalla": "index.css:418 --word-spacing-normal, kompenserar Plus Jakarta Sans smala mellanslag (#2501)"
+    },
+    "line_height_normal": {
+      "varde": "1.5",
+      "_kalla": "index.css:424 --line-height-normal"
+    },
+    "antialiasing": {
+      "webkit": "antialiased",
+      "moz": "grayscale",
+      "_kalla": "index.css:1015-1016, satt på body"
+    },
     "vikter": {
       "_matt": "apps/web/src/components/*.jsx, sökning på 'text-sm font-*' 2026-09-28: SS reserverar font-semibold för RUBRIKER (text-primary-färgad, t.ex. ActivityFeedPanel.jsx:225, AdminAnnouncementsPanel.jsx:227/294), medan text-secondary-färgad etikett/underrubrik-text konsekvent är font-medium (t.ex. AdminAnnouncementsPanel.jsx:261, AdminDevDashboardPanel.jsx:507, AppHeader.jsx:400/413/428). Ramverkets OpsStat-etikett, OpsTable-huvud och OpsField-etikett var font-semibold PÅ ink-secondary, en kombination SS inte använder.",
-      "rubrik_pa_ink": "font-semibold eller font-bold (oförändrat, matchar SS:s rubrikmönster)",
-      "etikett_pa_ink_secondary": "font-medium (rättat från font-semibold i OpsStat, OpsTable, OpsField)"
+      "rubrik_pa_ink": "rollens inbyggda vikt (rubrik 600; titel/sida 700). Ingen extra font-bold/font-semibold.",
+      "etikett_pa_ink_secondary": "font-medium (rättat från font-semibold i OpsStat, OpsTable, OpsField)",
+      "_policy_165": "lifehub.app#165 (CP 2026-10-10, beslut 3a): högst tre synliga vikter i vanlig UI (400 / 500 / 600). 700 bara på text-mikro, text-raknare och verkliga sid-/kortrubriker (text-sida, text-titel). Rollens inbyggda vikt är sanningen: lägg aldrig font-bold eller font-semibold ovanpå en roll vars token redan är >= 600. Emfas på text-etikett/text-brod/text-meta: font-medium (500), inte font-semibold.",
+      "emfas_i_lista": "text-etikett + font-medium (500), aldrig bare font-semibold utan storleksroll"
     }
   },
-
   "ikoner": {
     "strokeWidth": 1.5,
     "_kalla": "index.css:437-445, '[data-profile=\"green\"] .lucide path/line/circle { stroke-width: 1.5; }'. Ramverket ritade 2 (Lucides eget default)."
   },
-
   "kort": {
     "kant": false,
     "padding": "20px",
     "_kalla": "SessionStudios kort (t.ex. ProfileView.jsx, se ops-framework tokens.css:--card-padding-kommentaren) skiljer ytan från sidan med en TONSKILLNAD (bg-card mot bg-primary), aldrig med en synlig kant. Ramverkets OpsCard satte 'border' ovillkorligt på alla varianter. Paddingen (20px) var redan rätt sedan #157 och ändras inte här."
   },
-
   "diagram": {
     "_kalla": "packages/shared/constants.js rad 337-346, DEFAULT_PROFILE_COLOR_PRESETS (8 värden: DEFAULT_GROUP_COLOR + 7). DEFAULT_GROUP_COLOR = packages/shared/defaultGroupColor.js:11 (#8a95a5).",
-    "presets": ["#8a95a5", "#8a9b8a", "#7a9a9a", "#a88a8a", "#9a8f9a", "#a08a7a", "#6b8a6b", "#a0896b"],
+    "presets": [
+      "#8a95a5",
+      "#8a9b8a",
+      "#7a9a9a",
+      "#a88a8a",
+      "#9a8f9a",
+      "#a08a7a",
+      "#6b8a6b",
+      "#a0896b"
+    ],
     "_matt_2026_09_28": "Körda genom scripts/vendor/validate_palette.js (samma verktyg som check-chart-colors.mjs redan kör) som en 8-slots kategorisk palett mot vit yta: FAIL på tre av fyra kontroller, inte bara kontrast mot ytan som ärendet antog. Kromgolv: alla åtta under floor (läses som grått, t.ex. #8a95a5 på 0,027). CVD-separation: sämsta grannpar #a0896b/#6b8a6b ΔE 1,9 (protan). Normalseende-golv: sämsta grannpar #9a8f9a/#a88a8a ΔE 2,9, långt under golvet 15. Ljushetsjustering ensam kan INTE laga en ΔE-brist eller en krombrist, de kräver en annan hue/mättnad. Regel #3 i CLAUDE.md ('mät, lita aldrig på en rapport') gäller alltså ärendets egen formulering: presets ovan är sanna som SessionStudios gruppfärgval, men de är INTE en validerad diagrampalett och ersätter DÄRFÖR INTE de sex redan uppmätta serie-tonerna rakt av.",
     "beslut": "chart-1..chart-6 nedan är ramverkets tidigare --color-series-1..6 / --dark-series-1..6, bara omdöpta (samma hexvärden, redan validerade i check-chart-colors.mjs). 'presets' ovan sparas som SessionStudios egna referensvärden (fixturens uttryckliga krav), men matas INTE in som chart-tokens. En sjunde och åttonde chart-slot läggs INTE till: se samma 'tre platser'-resonemang som redan står i tokens.css för --color-slag-*, fast för en 8-slots kategorisk palett i stället för 3.",
     "chart": {
-      "ljus": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"],
-      "mork": ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300"]
+      "ljus": [
+        "#2a78d6",
+        "#eb6834",
+        "#1baf7a",
+        "#eda100",
+        "#e87ba4",
+        "#008300"
+      ],
+      "mork": [
+        "#3987e5",
+        "#d95926",
+        "#199e70",
+        "#c98500",
+        "#d55181",
+        "#008300"
+      ]
     }
   },
-
   "rorelse": {
     "_kalla": "index.css:147-149, --transition-fast/normal/slow.",
     "fast": "150ms",
@@ -127,15 +299,19 @@
     "slow": "300ms",
     "ease": "ease"
   },
-
   "marke": {
     "_kalla": "0.31.0, CP:s bilder scratchpad/logo/cp-utfalld.webp och cp-infalld.webp (2026-09-29), mätta pixel för pixel mot bakgrunden #202521. Märket är text: 'OPS' och undertexten i ljusgrått, 'HUB' i gråorange. Ljusgrått är INTE ett eget token, det är ramverkets ink: bokstävernas toppvärde är (230, 235, 231) och mörk ink är (232, 236, 230), alltså skillnad 2, 1, 1, under gränsen 4 i varje kanal. Ett eget token för en färg som redan finns vore två sanningar.",
     "accent": {
-      "mork": { "varde": "#a9925e", "_kalla": "cp-utfalld.webp, bokstaven H i 'HUB': toppvärde (169, 146, 94) = #a9925e, upprepat i cp-infalld.webp (H i monogrammet). CP kallar den Gray Orange." },
-      "ljus": { "varde": "#a38c57", "_kalla": "Härledd, inte mätt i en bild (CP:s bilder är mörka). #a9925e ger 2,94:1 mot ljus yta (#fefcf6) och 2,85:1 mot canvas (#fdf8ef), under 3:1 för storstil. Samma kulör (H 41,6, S 30 procent) med ljusheten sänkt från 51,6 till 49,2 procent: 3,18:1 mot yta och 3,08:1 mot canvas. Raden i tokens/check-kontrast.mjs bevisar det." }
+      "mork": {
+        "varde": "#a9925e",
+        "_kalla": "cp-utfalld.webp, bokstaven H i 'HUB': toppvärde (169, 146, 94) = #a9925e, upprepat i cp-infalld.webp (H i monogrammet). CP kallar den Gray Orange."
+      },
+      "ljus": {
+        "varde": "#a38c57",
+        "_kalla": "Härledd, inte mätt i en bild (CP:s bilder är mörka). #a9925e ger 2,94:1 mot ljus yta (#fefcf6) och 2,85:1 mot canvas (#fdf8ef), under 3:1 för storstil. Samma kulör (H 41,6, S 30 procent) med ljusheten sänkt från 51,6 till 49,2 procent: 3,18:1 mot yta och 3,08:1 mot canvas. Raden i tokens/check-kontrast.mjs bevisar det."
+      }
     }
   },
-
   "topprad": {
     "hojd": "56px",
     "_kalla": "apps/web/src/components/AppHeader.jsx:169, 'h-14 sm:h-14' (14 × 4px = 56px). Ramverkets header-rad var innehållsstyrd (py-2, ingen fast höjd)."

@@ -224,7 +224,7 @@ function OpsBottomNavRitad({
                   <MenyTillbakaKnapp onBack={aktivUndervy ? () => setAktivUndervy(null) : undefined} />
                   {/* ⛔ EN `Dialog.Title`, ALLTID (Radix kräver exakt en per
                       dialog): INNEHÅLLET byts, elementet gör det inte. */}
-                  <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-rubrik font-bold text-ink">
+ <Dialog.Title className="m-0 min-w-0 flex-1 truncate text-rubrik text-ink">
                     {aktivUndervy ? aktivUndervy.etikett : (meny?.rubrik ?? sheetLabel)}
                   </Dialog.Title>
                 </div>

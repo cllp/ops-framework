@@ -1712,6 +1712,18 @@ const gruppmapp = fs.mkdtempSync(path.join(rot, ".ops-vaktprov-"));
   );
   kravGront("typografi: en roll är ingen Tailwind-storlek, också i ramverksläge", [typvakt, path.join(typmapp, "smutsig"), "--golv=60", "--ramverksregler"]);
 
+  // lifehub.app#165: dubbel vikt (roll >= 600 + font-bold/semibold) ska falla rött.
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <span className="text-rubrik font-bold text-ink">x</span>;\n}\n',
+  );
+  kravRott("typografi: dubbel vikt roll + font-bold", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"], "dubbel vikt");
+  fs.writeFileSync(
+    path.join(typmapp, "smutsig", "OpsProvstorlek.jsx"),
+    'export function OpsProvstorlek() {\n  return <span className="text-etikett font-medium text-ink">x</span>;\n}\n',
+  );
+  kravGront("typografi: etikett + font-medium är tillåten emfas", [typvakt, path.join(typmapp, "smutsig"), "--golv=60"]);
+
   const tunn = path.join(typmapp, "tunn");
   fs.mkdirSync(tunn, { recursive: true });
   fs.writeFileSync(path.join(tunn, "Ensam.jsx"), "export function Ensam() { return null; }\n");

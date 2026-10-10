@@ -47,7 +47,7 @@ export default function PaminnelserForm({ groupId, typ, onKlar }) {
         <input
           value={titel}
           onChange={(e) => setTitel(e.target.value)}
-          className="w-full rounded-md border border-line bg-canvas px-3 py-2 min-h-11 text-ink"
+          className="w-full rounded-md border border-line bg-canvas px-3 py-2 min-h-11 text-brod md:text-etikett text-ink"
         />
       </OpsField>
       {/* ⛔ Knappen är avstängd utan titel OCH utan typ. En påminnelse utan

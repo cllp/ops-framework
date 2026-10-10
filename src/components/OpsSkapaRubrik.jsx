@@ -22,7 +22,7 @@
 const VARIANTER = {
   panel: {
     tagg: "h2",
-    klass: "m-0 mt-1 mb-3 min-w-0 truncate text-sida font-bold leading-tight text-ink max-md:mt-0 max-md:mb-0 max-md:flex-1 max-md:pr-16 max-md:text-center max-md:text-brod",
+ klass: "m-0 mt-1 mb-3 min-w-0 truncate text-sida leading-tight text-ink max-md:mt-0 max-md:mb-0 max-md:flex-1 max-md:pr-16 max-md:text-center max-md:text-brod",
   },
   chatt: {
     tagg: "h3",

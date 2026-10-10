@@ -113,7 +113,7 @@ export function OpsFelBadge({ text, placement = "corner" }) {
       data-ops-fel-badge=""
       className={cx(
         "flex size-4 shrink-0 items-center justify-center rounded-full",
-        "bg-surface text-mikro font-bold text-danger ring-1 ring-danger",
+ "bg-surface text-mikro text-danger ring-1 ring-danger",
         plats,
       )}
     >

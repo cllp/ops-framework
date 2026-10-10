@@ -556,7 +556,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
             <div data-postrulle="" className="max-h-35 overflow-y-auto overscroll-contain">
               {avsnitt.map((a, ai) => (
                 <div key={a.rubrik || "alla"}>
-                  {a.rubrik ? <p data-postrubrik={a.rubrik} className="m-0 pt-1 pb-1 text-mikro font-semibold uppercase tracking-wider text-ink-muted">{a.rubrik}</p> : null}
+ {a.rubrik ? <p data-postrubrik={a.rubrik} className="m-0 pt-1 pb-1 text-mikro uppercase tracking-wider text-ink-muted">{a.rubrik}</p> : null}
                   <div className="flex flex-col divide-y divide-line">
                     {/* ⛔ TRAPPAN RÄKNAS ÖVER HELA PANELEN och inte per dag, så att det som ska läsas som en rörelse inte blir tre. */}
                     {a.rader.map((r, i) => (
@@ -578,7 +578,7 @@ function DayPanel({ days, statusWords, onClose, onTaBort, onSkapa, locale, arMin
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div data-dagantal="" className="ops-contrast-panel flex min-h-24 flex-1 flex-col items-center justify-center rounded-xl bg-contrast-panel text-ink shadow-md">
-            <span className="text-titel font-bold leading-none tabular-nums">{antal}</span>
+ <span className="text-titel leading-none tabular-nums">{antal}</span>
             <span className="mt-1 text-mikro uppercase tracking-wide text-ink-secondary">{antal === 1 ? "post" : "poster"}</span>
           </div>
           {onSkapa ? (
@@ -1804,7 +1804,7 @@ export function OpsCalendar({
 
               return (
                 <div key={`${ar}-${month}`} ref={isCurrentMonth ? todayRef : null} data-kalender-manad={`${ar}-${String(month + 1).padStart(2, "0")}`}>
-                  <h3 className="m-0 mt-2 mb-3 text-titel font-bold capitalize text-ink font-display sm:text-sida">
+ <h3 className="m-0 mt-2 mb-3 text-titel capitalize text-ink font-display sm:text-sida">
                     {monthNames(locale)[month]} {ar}
                   </h3>
 

@@ -234,8 +234,12 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
  * `hover:border-hover`. Före 0.31.0 var fälten `rounded-md` (10 px), kant 1 px, `bg-canvas` och konturen UTANFÖR kanten
  * (`outline-offset-1`), alltså tre skillnader mot SS i samma kontroll, skrivna på fem ställen.
  *
- * ⛔ 0.32.0: FÄLTETS TEXT ÄR `text-brod` (16 px, 400) PÅ ALLA BREDDER. 0.31.2 skrev `text-rubrik md:text-brod`, och rollen `rubrik` bär
- * vikt 700, så varje fält under 768 px skrev fet text (mätt 16 px/700 i `ny grupp 390`, CP 19:50 "Stor text"). 16 px hindrar iOS zoom.
+ * ⛔ 0.32.0: FÄLTETS TEXT ÄR `text-brod` (16 px, 400) UNDER `md`. 0.31.2 skrev `text-rubrik md:text-brod`, och rollen `rubrik`
+ * bar då vikt 700, så varje fält under 768 px skrev fet text (mätt 16 px/700 i `ny grupp 390`, CP 19:50 "Stor text").
+ * 16 px under `md` hindrar iOS zoom.
+ *
+ * ⛔ lifehub.app#165 (CP 2026-10-10, beslut 2a+c): från `md` är fältet `text-etikett` (14 px), så skrivytan matchar
+ * listorna på stor skärm. Under `md` stannar 16 px.
  *
  * ⛔ TEXTFÄLT HAR 1,5 PX KANT (`kant: "falt"`), VÄLJARE 1 PX (`kant: "val"`), SOM SS. Talet är SS egna och inte en gissning.
  *
@@ -244,7 +248,7 @@ export function gruppRutaKlass({ vald = false, interaktiv = true } = {}) {
  */
 export function faltKlass({ invalid = false, filled = true, trigger = false, kant = "falt" } = {}) {
   return cx(
-    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-brod transition-colors duration-(--duration-fast) ease-standard",
+    "w-full rounded-base bg-surface px-3 py-2 min-h-11 text-brod md:text-etikett transition-colors duration-(--duration-fast) ease-standard",
     trigger && "inline-flex items-center justify-between gap-2",
     kant === "falt" ? "border-[1.5px]" : "border",
     filled ? "text-ink" : "text-ink-muted",

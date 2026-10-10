@@ -258,7 +258,7 @@ function Indikatorrad({ borta, lager, narvaro, vald }) {
         </span>
       ) : null}
       {narvaro ? (
-        <span data-narvaro="" className={cx("ml-0.5 shrink-0 text-raknare font-semibold tabular-nums", vald ? "text-ink/60" : "text-success")}>
+ <span data-narvaro="" className={cx("ml-0.5 shrink-0 text-raknare tabular-nums", vald ? "text-ink/60" : "text-success")}>
           {narvaro.tillgangliga}/{narvaro.totalt}
         </span>
       ) : null}
@@ -287,7 +287,7 @@ function Markorrad({ spann, enkla, vald }) {
       {nedre.length > 0 || plus > 0 ? (
         <span className="flex min-h-1.75 items-center justify-center gap-0.75">
           {nedre.map(prick)}
-          {plus > 0 ? <span data-plus="" className={cx("text-mikro leading-none font-semibold tabular-nums", vald ? "text-ink" : "text-ink-muted")}>+{plus}</span> : null}
+ {plus > 0 ? <span data-plus="" className={cx("text-mikro leading-none tabular-nums", vald ? "text-ink" : "text-ink-muted")}>+{plus}</span> : null}
         </span>
       ) : null}
     </span>
@@ -408,7 +408,7 @@ function Bricka({ id, antal, farg, children }) {
       className={cx("flex size-5 shrink-0 items-center justify-center gap-px rounded-full border bg-surface px-px [&>svg]:shrink-0", farg)}
     >
       {children}
-      {text ? <span data-raknare="" className="text-mikro leading-[9px] font-bold tracking-[-0.3px] tabular-nums">{text}</span> : null}
+ {text ? <span data-raknare="" className="text-mikro leading-[9px] tracking-[-0.3px] tabular-nums">{text}</span> : null}
     </span>
   );
 }

@@ -88,7 +88,7 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
     return (
       <article data-ops-dokument="redigera" className="flex min-w-0 flex-col gap-4">
         <header className="flex items-start justify-between gap-3">
-          <h1 className="m-0 min-w-0 flex-1 font-display text-sida font-bold leading-tight tracking-tight text-ink">{rubrik}</h1>
+ <h1 className="m-0 min-w-0 flex-1 font-display text-sida leading-tight tracking-tight text-ink">{rubrik}</h1>
           {extra}
         </header>
         {redigering}
@@ -104,7 +104,7 @@ export function OpsDokument({ ny = false, kanRedigera = false, lage, onLage, sta
   return (
     <article data-ops-dokument="las" className="flex min-w-0 flex-col gap-4">
       <header className="flex items-start justify-between gap-3">
-        <h1 className="m-0 min-w-0 flex-1 font-display text-sida font-bold leading-tight tracking-tight text-ink">{rubrik}</h1>
+ <h1 className="m-0 min-w-0 flex-1 font-display text-sida leading-tight tracking-tight text-ink">{rubrik}</h1>
         <div className="flex shrink-0 items-center gap-1">
           {kanRedigera ? (
             <OpsButton variant="secondary" size="sm" onClick={() => byt("redigera")}>

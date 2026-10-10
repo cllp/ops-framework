@@ -139,7 +139,7 @@
 
   --text-rubrik: 1rem;
   --text-rubrik--line-height: var(--leading-tight);
-  --text-rubrik--font-weight: 700;
+  --text-rubrik--font-weight: 600;
 
   --text-sektion: 0.75rem;
   --text-sektion--line-height: var(--leading-normal);
