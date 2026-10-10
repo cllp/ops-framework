@@ -185,6 +185,39 @@ export function agenterManifest() {
     kallor: {},
     skapar: [],
     hubb: null,
+    /*
+     * ⛔ HJÄLPEN HÖR TILL MODULEN (0.92.1). Agenter är ramverkets modul, så
+     * texten bor här och följer med varje app som registrerar manifestet.
+     */
+    hjalp: {
+      rubrik: "Agenter",
+      avsnitt: [
+        {
+          id: "vad-ar-agent",
+          fraga: "Vad är en agent?",
+          svar: `En **agent** är en medlem i gruppen som svarar med hjälp av en språkmodell. Den har namn, roll och regler för vad den får göra.
+
+Agenten hör till **gruppen**. Byter du grupp ser du den gruppens agenter, inte dina privata.`,
+          sokord: ["assistent", "bot", "ai"],
+        },
+        {
+          id: "nycklar-vs-agent",
+          fraga: "Hör nycklarna till mig eller till gruppen?",
+          svar: `**Agenter** hör till gruppen: namn, roll, verktyg och minne.
+
+**AI-nycklar** hör till **dig**. De ligger i identitetens valv och syns aldrig i klartext i en appvy. Agenten anropar med den nyckel du (eller gruppen via valvet) har kopplat, men nyckeln sparas inte i chatten.`,
+          sokord: ["byok", "valv", "openai", "grok", "api"],
+        },
+        {
+          id: "hitta-installningar",
+          fraga: "Var ändrar jag en agent?",
+          svar: `Öppna **Inställningar** och välj **Agenter**, eller gå via agenten i ett samtal. Där sätter du namn, roll, modell och vad den får använda.
+
+Bara ägare och admin ändrar. Medlemmar kan läsa.`,
+          sokord: ["inställningar", "modell", "kugghjul"],
+        },
+      ],
+    },
   };
 }
 

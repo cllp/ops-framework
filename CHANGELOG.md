@@ -9,6 +9,29 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.92.1
+
+Hjälp i två lager: grundfunktioner i ramverket, och ett avsnitt per installerad app ur modulens `hjalp`. Utges som 0.92.1, efter 0.92.0 (ljudspelaren).
+
+### Kontrakt: `hjalp` på modulen
+
+- Valfritt fält `{ rubrik, avsnitt: [{ id, fraga, svar, sokord }] }`. Utelämnat blir `null`. Tom lista kastas.
+- Inte samma sak som `kallor.hjalp` (sidans korta frågetecken-text).
+- `hjalpAnkare`, `hjalpAdress`, `lasHjalpAnkare` för djuplänk `#hjalp/<modulId>`.
+
+### Generell hjälp och sidan
+
+- `GENERELL_HJALP` / `GENERELL_OMRADEN`: Kom igång, Kalender, Ärenden och inkorg, Grupper och medlemmar, Inställningar och konto.
+- `OpsHjalpSida`: sök över båda lagren. Först Grundfunktioner, sedan installerade appar i `groups.moduler`-ordning.
+- En avinstallerad app (eller en utan `hjalp`) syns inte.
+- Moduler med `hubb: null` och `hjalp` (Agenter) syns sist även när id:t rensats ur `groups.moduler` (`utanAgenterSomApp`). Annars nådde agenttexten aldrig hjälpsidan.
+
+### Frågetecknet
+
+- Modulramen visar `?` när modulen har `hjalp`, och leder till `/hjalp#hjalp/<id>`.
+- `OpsViewHeader` tar `hjalpHref`: samma gest som länk till hjälpsidan.
+- Agenter bär hjälp i `agenterManifest`.
+
 ## 0.92.0
 
 Ljudspelaren och inspelaren (cllp/lifehub.app#163). Utges som 0.92.0, efter 0.91.1.
