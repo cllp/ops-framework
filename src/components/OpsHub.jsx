@@ -104,7 +104,7 @@ export function OpsHub({
   return ram ? <OpsView>{innehall}</OpsView> : innehall;
 }
 
-/** @type {Record<"sv"|"en", { tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, valj: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
+/** @type {Record<"sv"|"en", { tomRubrik: string, tomText: (namn: string, medVag: boolean) => string, valbara: string, ingaValbara: string, installera: string, agarenInstallerar: string, ingaRitbara: string, ingaRitbaraText: string, saknadRubrik: string, interegistrerad: (id: string) => string, ingetKort: (id: string) => string, moduler: (namn: string) => string }>} */
 const GRUPPHUBB_TEXT = {
   sv: {
     tomRubrik: "Gruppen har inga appar ännu",
@@ -113,7 +113,8 @@ const GRUPPHUBB_TEXT = {
       : `${namn} har inga appar ännu. Ägaren väljer vilka som ska finnas här.`,
     valbara: "Appar som kan läggas till",
     ingaValbara: "Det finns inga appar att lägga till.",
-    valj: "Välj appar",
+    installera: "Installera",
+    agarenInstallerar: "Ägaren installerar dem i gruppens inställningar.",
     ingaRitbara: "Ingen av gruppens appar kan visas",
     ingaRitbaraText: "Gruppen har appar installerade som inte kan visas. Skälet står under.",
     saknadRubrik: "Visas inte",
@@ -128,7 +129,8 @@ const GRUPPHUBB_TEXT = {
       : `${namn} has no apps yet. The owner chooses which ones belong here.`,
     valbara: "Apps that can be added",
     ingaValbara: "There are no apps to add.",
-    valj: "Choose apps",
+    installera: "Install",
+    agarenInstallerar: "The owner installs them in the group's settings.",
     ingaRitbara: "None of the group's apps can be shown",
     ingaRitbaraText: "The group has apps installed that cannot be shown. The reason is below.",
     saknadRubrik: "Not shown",
@@ -139,6 +141,71 @@ const GRUPPHUBB_TEXT = {
 };
 
 /**
+ * Appar med ett kort som gruppen inte har, med en knapp per app när ägaren får installera.
+ *
+ * Tom grupp och en grupp som redan har appar använder samma rader, så erbjudandet
+ * inte försvinner så fort Meddelanden är på och Bibliotek saknas (CP 2026-10-10).
+ * En modul utan kort (`hubb: null`) kommer inte med: den syns inte under Appar.
+ *
+ * @param {object} props
+ * @param {ReadonlyArray<{ id: string, namn: { sv: string, en?: string }, hubb: { ikon?: unknown } | null }>} props.moduler
+ * @param {string} props.sprak
+ * @param {(typeof GRUPPHUBB_TEXT)["sv"]} props.t
+ * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string } | undefined} props.installera
+ * @param {(href: string, event: any) => void} [props.onNavigate]
+ * @param {boolean} [props.visaAgarRad] Sant när listan står bredvid redan installerade kort och den som tittar inte får installera.
+ */
+function ValbaraAppar({ moduler, sprak, t, installera, onNavigate, visaAgarRad = false }) {
+  const medKnapp = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
+  const knappText = installera?.etikett || t.installera;
+  const direkt = typeof installera?.onInstallera === "function";
+  const viaKlick = !direkt && typeof installera?.onClick === "function";
+  return (
+    <section className="flex w-full flex-col gap-2 text-left">
+      <h2 className="m-0 text-etikett font-medium text-ink">{t.valbara}</h2>
+      <ul aria-label={t.valbara} data-hubb-valbara="" className="m-0 flex list-none flex-col gap-2 p-0">
+        {moduler.map((m) => {
+          const namn = text(m.namn, sprak);
+          const etikett = `${knappText} ${namn}`;
+          const href = installera?.href ?? "";
+          const lankar = href !== "" && !direkt && !viaKlick;
+          return (
+            <li key={m.id} data-hubb-valbar={m.id} className="flex min-h-11 items-center gap-3 rounded-base border border-line bg-surface px-3 py-2">
+              {m.hubb?.ikon ? (
+                <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-raised text-ink [&_svg]:size-6">
+                  {/** @type {import("react").ReactNode} */ (m.hubb.ikon)}
+                </span>
+              ) : null}
+              <span className="min-w-0 flex-1 truncate text-etikett text-ink">{namn}</span>
+              {medKnapp && installera ? (
+                lankar ? (
+                  <OpsButton href={href} variant="secondary" size="md" ariaLabel={etikett} onClick={(e) => onNavigate?.(href, e)}>
+                    {knappText}
+                  </OpsButton>
+                ) : (
+                  <OpsButton
+                    variant="secondary"
+                    size="md"
+                    ariaLabel={etikett}
+                    onClick={() => {
+                      if (direkt) installera.onInstallera?.(m.id);
+                      else installera.onClick?.(m.id);
+                    }}
+                  >
+                    {knappText}
+                  </OpsButton>
+                )
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      {!medKnapp && visaAgarRad ? <p className="m-0 text-hjalp text-ink-secondary">{t.agarenInstallerar}</p> : null}
+    </section>
+  );
+}
+
+/**
  * Hubben för den aktiva gruppen: ett kort per modul i `grupp.moduler`, i gruppens ordning (0.37.0, #184).
  *
  * ══ ⛔ GRUPPENS MODULER OCH INGET ANNAT ═══════════════════════════════════
@@ -147,8 +214,9 @@ const GRUPPHUBB_TEXT = {
  * och varje del av Ekonomi var ett eget kort. Nu ritar hubben det gruppens ägare valt (`groups.moduler`), och varje kort leder
  * till modulens egen insida (`OpsModulSida`). Beslutet om vad som ritas bor i `hubbForGrupp`, så det går att pröva utan att rita.
  *
- * ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5), på tre sätt:
+ * ⛔ TOMHET ÄR ETT SVAR (arbetsreglernas punkt 5), på fyra sätt:
  *   - en grupp utan moduler visar apparna som kan läggas till, och en väg till valet när appen skickar `installera`;
+ *   - en grupp som redan har appar visar samma erbjudande under korten, så Bibliotek syns i Travel fast Meddelanden är installerat (CP 2026-10-10);
  *   - en modul appen inte registrerat, eller en utan kort, ritas inte, och en rad under korten säger vilken och varför;
  *   - pekar gruppen BARA på sådana står det också, i stället för rubriken "inga moduler", som vore osann.
  *
@@ -167,7 +235,7 @@ const GRUPPHUBB_TEXT = {
  * @param {Readonly<Record<string, number>>} [props.badge] Räknaren per modul-id.
  * @param {string} [props.badgeText]
  * @param {boolean} [props.ram] Ritas i `OpsView`. Förval sant.
- * @param {{ href?: string, onClick?: () => void, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för ägaren (0.87.0, lifehub.app#129).
+ * @param {{ href?: string, onClick?: (id?: string) => void, onInstallera?: (id: string) => void, etikett?: string }} [props.installera] Vägen till modulvalet. Appen skickar den bara för ägaren (0.87.0, lifehub.app#129). `onInstallera` installerar just den appen. Utan den anropas `onClick` med appens id, eller så öppnas `href`.
  */
 export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, sprak: sprakProp, info, badge, badgeText, ram = true, installera }) {
   // ⛔ Språket ur appens `OpsSprakProvider` när appen inte gav ett (0.46.0, cllp/bolag-ops#528).
@@ -180,8 +248,11 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
   const poster = hubbPoster(kort, { sprak, info, badge, delar: true });
   // Appar med ett kort som gruppen inte har. En modul utan kort (hubb: null) blir ingen rad här: den syns inte i hubben.
   const tillaggningsbara = moduler.filter((m) => m.hubb && !grupp.moduler.includes(m.id));
-  const medVag = Boolean(installera && (installera.href || installera.onClick));
-  const installHref = installera?.href;
+  const medVag = Boolean(installera && (installera.href || installera.onClick || installera.onInstallera));
+  // Appar gruppen inte har ska synas också när andra redan är installerade. Tom grupp listar dem i tomläget nedan, så de inte står två gånger.
+  const valbarSektion = tillaggningsbara.length > 0 && (poster.length > 0 || saknade.length > 0) ? (
+    <ValbaraAppar moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} visaAgarRad />
+  ) : null;
   const innehall = (
     <div className="flex flex-col gap-4" data-grupphubb={grupp.id}>
       {poster.length > 0 ? (
@@ -193,25 +264,15 @@ export function OpsGruppHubb({ grupp, moduler, activeHref = "", onNavigate, spra
           title={t.tomRubrik}
           description={t.tomText(gruppnamn, medVag)}
           action={
-            <div className="flex flex-col items-center gap-3">
-              {tillaggningsbara.length > 0 ? (
-                <ul aria-label={t.valbara} data-hubb-valbara="" className="m-0 flex list-none flex-col gap-1 p-0 text-brod text-ink">
-                  {tillaggningsbara.map((m) => (
-                    <li key={m.id}>{text(m.namn, sprak)}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="m-0 text-brod text-ink-secondary">{t.ingaValbara}</p>
-              )}
-              {installHref ? (
-                <OpsButton href={installHref} onClick={(e) => onNavigate?.(installHref, e)}>{installera?.etikett ?? t.valj}</OpsButton>
-              ) : installera?.onClick ? (
-                <OpsButton onClick={installera.onClick}>{installera.etikett ?? t.valj}</OpsButton>
-              ) : null}
-            </div>
+            tillaggningsbara.length > 0 ? (
+              <ValbaraAppar moduler={tillaggningsbara} sprak={sprak} t={t} installera={installera} onNavigate={onNavigate} />
+            ) : (
+              <p className="m-0 text-brod text-ink-secondary">{t.ingaValbara}</p>
+            )
           }
         />
       )}
+      {valbarSektion}
       {saknade.length > 0 ? (
         <section aria-label={t.saknadRubrik} data-hubb-saknade="" className="flex flex-col gap-1">
           <ul className="m-0 flex list-none flex-col gap-1 p-0">
