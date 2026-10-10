@@ -44,6 +44,21 @@ Inga Firestore-regler och inga funktioner ändras.
 
 ---
 
+## 0.91.2
+
+lifehub.app#150: samma innehållsbredd och vyväljare i headern.
+
+### Innehållsbredd
+
+- **Token `--ops-innehall-max` (64 rem)** och Tailwind `max-w-innehall`. `OpsView` `width="normal"` använder den (förr `max-w-5xl`, samma tal).
+- **`OpsSidoyta`** och klassen `.ops-sidoyta`: samma bredd för shell i HTML och React, så Hubbar / Profil / Inställningar inte hoppar i storlek.
+
+### Vyväljare
+
+- **`OpsVyValjare`**: vyns namn i mitten med chevron och meny (samma gest som i kalendern). Appen ger posterna (t.ex. Hubbar, Profil, Anslutningar, Betalningar och konto, AI-nycklar, Logga ut).
+
+---
+
 ## 0.91.1
 
 Ingen utgivning i det här passet. Appen pinnar kvar.
