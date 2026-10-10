@@ -9,6 +9,37 @@ anteckningar är en version ingen kan välja att hoppa över.
 
 ---
 
+## 0.92.0
+
+Ljudspelaren och inspelaren (cllp/lifehub.app#163). Utges som 0.92.0, efter 0.91.1.
+
+### Spelaren
+
+CP: progress syns inte, ikoner ligger på varandra under 430 px, uppspelning är svår.
+
+- **`OpsLjudspelare`.** Spela och pausa är kvar som 44 px. Tid står bredvid vågen. Förloppet är en synlig skena under stolparna (`data-ljud-skena`), inte bara en osynlig range. Hopp, hastighet och Ladda ned ligger på en egen rad och får inte överlappa. `playsInline` på `<audio>` för iOS Safari. En spelare i taget som förut. Laddning och fel i ord, med åtgärd när webbläsaren nekar play.
+- **Storage-URL:er.** `sokvag` + `hamtaAdress` (`getDownloadURL`) oförändrat. Hämtningen visar snurra och "Hämtar ljudet."
+
+### Inspelningen
+
+- **Safari-format.** `LJUDFORMAT` prövar `audio/mp4` först, sedan webm. Reserv utan mimeType är mp4, inte webm.
+- **Tillåt mikrofon.** När mikrofonen nekats (och sidan inte spärrar den) ritas knappen "Tillåt mikrofon", som ber igen med en gest. När Permissions-Policy spärrar står skälet kvar, utan knappen.
+- **Uppladdningsprogress.** `laddaUpp` tar `rapportera` (0 till 1). `createFirebaseStorageSource` använder `uploadBytesResumable` när den finns och någon rapporterar. `createBibliotekskalla.laddaUppFil` skickar den vidare. Inspelaren visar redan Sparar… N %.
+
+### Biblioteket
+
+- **Fliken Ljud.** Härledd ur fil+MIME (`arLjudpost`, `BIBLIOTEKFLIKAR`). Filer-fliken är bild och dokument. Under Ljud öppnar Ny röstinspelningen.
+
+### Var ljudet hamnar utan Biblioteket
+
+Se PR-beskrivningen. Kort: TALK går till Inkorgen som förslag (ljudet sparas inte som fil). Meddelanden kan bära ljudbilagor och röst till text. Utan Bibliotek-modulen saknas målet "Bibliotek" i inspelaren.
+
+### Regler och funktioner
+
+Inga Firestore-regler och inga funktioner ändras.
+
+---
+
 ## 0.91.1
 
 Ingen utgivning i det här passet. Appen pinnar kvar.

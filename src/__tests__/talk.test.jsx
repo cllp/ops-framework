@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { OpsAppShell } from "../components/OpsAppShell.jsx";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MIKROFON_SPARRAD_AV_SIDAN, SPARAT_MS, TALK_ORD, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MIKROFON_SPARRAD_AV_SIDAN, SPARAT_MS, TALK_ORD, kanBeOmMikrofon, mikrofonenTillatenAvSidan, talkFeltext, talkNasta, valjFormat } from "../lib/talk.js";
 
 /*
  * 0.57.0, cllp/lifehub.app#2. CP 2026-10-04: långtryck på plusset visar bara TALK, ett fält kommer fram så att man
@@ -47,15 +47,19 @@ describe("flödet är en ren funktion", () => {
     expect(talkNasta({ lage: "fel", fel: "nej" }, { typ: "avbryt" }).lage).toBe("vila");
   });
 
-  it("formatet är det första webbläsaren kan, och iOS får mp4", () => {
+  it("formatet är det första webbläsaren kan, och Safari får mp4 före webm", () => {
     expect(valjFormat((f) => f === "audio/mp4")).toBe("audio/mp4");
-    expect(valjFormat(() => true)).toBe("audio/webm;codecs=opus");
+    expect(valjFormat(() => true)).toBe("audio/mp4");
+    expect(valjFormat((f) => f.startsWith("audio/webm"))).toBe("audio/webm;codecs=opus");
     expect(valjFormat(undefined)).toBe("");
   });
 
   it("felet säger vad man gör, inte webbläsarens namn", () => {
     expect(talkFeltext({ name: "NotAllowedError" })).toMatch(/Mikrofonen är inte tillåten/);
     expect(talkFeltext({ name: "NotFoundError" })).toBe("Ingen mikrofon hittades.");
+    expect(kanBeOmMikrofon(talkFeltext({ name: "NotAllowedError" }, { sidanTillater: true }))).toBe(true);
+    expect(kanBeOmMikrofon(MIKROFON_SPARRAD_AV_SIDAN)).toBe(false);
+    expect(kanBeOmMikrofon("Ingen mikrofon hittades.")).toBe(false);
   });
 
   it("⛔ en mikrofon som sidans Permissions-Policy spärrar skickar inte personen till webbläsarens inställningar (lane 13)", () => {
@@ -158,13 +162,19 @@ describe("plusset i bottenraden", () => {
     expect(screen.queryByRole("dialog", { name: "TALK" })).toBeNull();
   });
 
-  it("⛔ en mikrofon som inte får öppnas säger det i fältet, med orden", async () => {
+  it("⛔ en mikrofon som inte får öppnas säger det i fältet, med knappen Tillåt mikrofon", async () => {
     const fel = Object.assign(new Error("x"), { name: "NotAllowedError" });
-    render(Skal({ talk: { onTalk: vi.fn(), inspelare: falskInspelare({ startFel: fel }) } }));
+    const insp = falskInspelare({ startFel: fel });
+    render(Skal({ talk: { onTalk: vi.fn(), inspelare: insp } }));
     fireEvent.pointerDown(plus(), { button: 0 });
     act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
     await flush();
     expect(document.querySelector("[data-talk-fel]")?.textContent).toMatch(/Mikrofonen är inte tillåten/);
+    expect(screen.getByRole("button", { name: "Tillåt mikrofon" })).toBeInTheDocument();
+    insp.starta = vi.fn(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "Tillåt mikrofon" }));
+    await flush();
+    expect(insp.starta).toHaveBeenCalled();
   });
 
   it("⛔ i en ram som spärrar mikrofonen säger fältet det, och inte att personen ska ändra inställningarna (lane 13)", async () => {
@@ -176,6 +186,7 @@ describe("plusset i bottenraden", () => {
       act(() => vi.advanceTimersByTime(LANGTRYCK_MS));
       await flush();
       expect(document.querySelector("[data-talk-fel]")?.textContent).toBe(MIKROFON_SPARRAD_AV_SIDAN);
+      expect(screen.queryByRole("button", { name: "Tillåt mikrofon" })).toBeNull();
     } finally {
       delete (/** @type {any} */ (document)).permissionsPolicy;
     }

@@ -381,7 +381,8 @@ describe("OpsBibliotek", () => {
     };
     render(<Harness start={[ljud]} filUrl={() => "https://exempel.se/ide.webm"} />);
     expect(screen.getByRole("button", { name: /^Spela / })).toBeInTheDocument();
-    expect(screen.getByText("0:00 / 0:00")).toBeInTheDocument();
+    expect(document.querySelector("[data-ljudspelare] [data-ljud-tid]")?.textContent).toMatch(/0:00/);
+    expect(document.querySelector("[data-ljudspelare] [data-ljud-skena]")).toBeTruthy();
   });
 
   it("trasiga rader visas som ett antal med skäl, inte tyst", () => {
@@ -433,7 +434,7 @@ describe("OpsBibliotek", () => {
     render(<Harness start={[poster[0]]} />);
     const rad = screen.getByRole("tablist", { name: "Typ i biblioteket" });
     const flikar = within(rad).getAllByRole("tab");
-    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0", "Filer 0"]);
+    expect(flikar.map((f) => f.textContent)).toEqual(["Alla 1", "Anteckningar 1", "Länkar 0", "Ljud 0", "Filer 0"]);
     expect(flikar.every((f) => f.querySelector("svg"))).toBe(true);
     expect(flikar[0]).toHaveAttribute("aria-selected", "true");
     fireEvent.mouseDown(flikar[2], { button: 0, ctrlKey: false });

@@ -108,6 +108,40 @@ describe("createFirebaseStorageSource: kontrollen av konfigurationen", () => {
     expect(sdk.uploadBytes).toHaveBeenLastCalledWith(referens, "ljud", { contentType: "audio/webm" });
   });
 
+  it("⛔ rapportera får procent via uploadBytesResumable (lifehub.app#163)", async () => {
+    const referens = { path: "grupper/my/bibliotek/p/ide.m4a" };
+    /** @type {Array<(snap: { bytesTransferred: number, totalBytes: number }) => void>} */
+    const lyssnare = [];
+    const sdk = {
+      ref: vi.fn(() => referens),
+      uploadBytes: vi.fn(async () => {}),
+      uploadBytesResumable: vi.fn(() => ({
+        on: (_h, next, _err, klar) => {
+          lyssnare.push(next);
+          queueMicrotask(() => {
+            next({ bytesTransferred: 40, totalBytes: 100 });
+            next({ bytesTransferred: 100, totalBytes: 100 });
+            klar();
+          });
+        },
+      })),
+      getDownloadURL: vi.fn(async () => "https://exempel.se/ide.m4a"),
+      deleteObject: vi.fn(async () => {}),
+    };
+    const lagring = createFirebaseStorageSource({ storage: /** @type {any} */ ({}), sdk });
+    /** @type {number[]} */
+    const andel = [];
+    await lagring.laddaUpp({
+      sokvag: "grupper/my/bibliotek/p/ide.m4a",
+      fil: "ljud",
+      contentType: "audio/mp4",
+      rapportera: (n) => andel.push(n),
+    });
+    expect(sdk.uploadBytesResumable).toHaveBeenCalled();
+    expect(sdk.uploadBytes).not.toHaveBeenCalled();
+    expect(andel).toEqual([0.4, 1, 1]);
+  });
+
   it("⛔ TA BORT SVÄLJER \"objektet finns inte\", inte andra fel", async () => {
     const sdk = {
       ref: vi.fn(() => ({})),

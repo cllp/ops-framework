@@ -2400,6 +2400,7 @@ function OpsAppShellRitad({
           onSkicka={talkStyr.skickaIn}
           onAvbryt={talkStyr.avbryt}
           onIgen={talkStyr.igen}
+          onTillatMikrofon={talkStyr.direkt}
           onInstallningar={talk?.onInstallningar}
           marke={talk?.marke}
           mal={inspelningsMal.map((m) => ({ id: m.id, etikett: m.etikett }))}

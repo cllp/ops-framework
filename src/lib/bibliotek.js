@@ -26,6 +26,12 @@ import { SKAPARFALT, byggSkapare } from "./skapare.js";
 /** Anteckning, länk och fil. En fil är en post, och MIME avgör hur den visas. */
 export const BIBLIOTEKTYPER = /** @type {const} */ (["anteckning", "lank", "fil"]);
 
+/**
+ * Flikar i vyn. `ljud` är härlett ur fil+MIME (0.92.0, lifehub.app#163), inte en
+ * egen typ i dokumentet. Filer-fliken är då bild och dokument, utan ljud.
+ */
+export const BIBLIOTEKFLIKAR = /** @type {const} */ (["alla", "anteckning", "lank", "ljud", "fil"]);
+
 /** Tak. Samma tal skrivs in i regelfragmentet, ur de här konstanterna. */
 export const MAX_BIBLIOTEKRUBRIK = 200;
 export const MAX_BIBLIOTEKTEXT = 8000;
@@ -199,6 +205,16 @@ export function filSort(mime) {
   if (m.startsWith("image/")) return "bild";
   if (m.startsWith("audio/")) return "ljud";
   return "dokument";
+}
+
+/**
+ * Är posten ett ljud? Härlett ur typ och MIME, lagras inte.
+ *
+ * @param {{ typ?: unknown, fil?: { mime?: unknown } } | null | undefined} post
+ * @returns {boolean}
+ */
+export function arLjudpost(post) {
+  return post?.typ === "fil" && filSort(post.fil?.mime) === "ljud";
 }
 
 /**
@@ -394,6 +410,10 @@ export function byggPost(d) {
  * Listan efter flik och sök. Sökningen läser det som redan hämtats: en andra
  * samling för sökord hade varit en kopia av rubriken.
  *
+ * ⛔ LJUD ÄR INTE EN TYP (0.92.0). Fliken `ljud` filtrerar `typ === "fil"` med
+ * ljud-MIME. Fliken `fil` tar resten av filerna (bild och dokument), så samma
+ * post inte syns under båda.
+ *
  * @template {Bibliotekspost & { id?: string }} T
  * @param {readonly T[]} poster
  * @param {{ flik?: string, sok?: string }} [val]
@@ -401,12 +421,17 @@ export function byggPost(d) {
  */
 export function filtreraBibliotek(poster, val = {}) {
   const flik = val.flik ?? "alla";
-  if (flik !== "alla" && !(/** @type {readonly string[]} */ (BIBLIOTEKTYPER).includes(flik))) {
-    throw new Error(`filtreraBibliotek: okänd flik "${flik}". Giltiga: alla, ${BIBLIOTEKTYPER.join(", ")}.`);
+  if (!(/** @type {readonly string[]} */ (BIBLIOTEKFLIKAR).includes(flik))) {
+    throw new Error(`filtreraBibliotek: okänd flik "${flik}". Giltiga: ${BIBLIOTEKFLIKAR.join(", ")}.`);
   }
   const sok = str(val.sok).toLowerCase();
   return [...poster]
-    .filter((p) => (flik === "alla" ? true : p.typ === flik))
+    .filter((p) => {
+      if (flik === "alla") return true;
+      if (flik === "ljud") return arLjudpost(p);
+      if (flik === "fil") return p.typ === "fil" && !arLjudpost(p);
+      return p.typ === flik;
+    })
     .filter((p) => {
       if (!sok) return true;
       const hay = `${p.rubrik}\n${p.text ?? ""}\n${p.url ?? ""}\n${p.fil?.namn ?? ""}`.toLowerCase();

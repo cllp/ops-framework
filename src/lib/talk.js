@@ -136,8 +136,15 @@ export function talkNasta(nu, h) {
   }
 }
 
-/** Formaten i den ordning de prövas. iOS spelar bara in `audio/mp4`, Chromium och Firefox `audio/webm`. */
-export const LJUDFORMAT = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+/**
+ * Formaten i den ordning de prövas.
+ *
+ * ⛔ SAFARI FÖRST (lifehub.app#163). iOS och Safari spelar bara in `audio/mp4`
+ * (AAC). Chromium och Firefox kan båda, och tar webm om mp4 saknas. Att pröva
+ * webm först gav Safari ett tomt svar när den felaktigt nekade hela listan, och
+ * inspelningen startade utan mimeType som sedan föll på webm-reserven i stoppa.
+ */
+export const LJUDFORMAT = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
 
 /**
  * Det första format webbläsaren kan spela in, eller `""` när den inte säger något (då väljer webbläsaren själv).
@@ -147,6 +154,20 @@ export const LJUDFORMAT = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", 
 export function valjFormat(kan) {
   if (typeof kan !== "function") return "";
   return LJUDFORMAT.find((f) => kan(f)) || "";
+}
+
+/**
+ * Om felet är att mikrofonen inte är tillåten, och personen kan pröva igen med
+ * ett tryck (getUserMedia kräver en gest). Sidans Permissions-Policy är nej:
+ * då hjälper inte knappen, och den ska inte ritas.
+ *
+ * @param {string | undefined} feltext
+ * @returns {boolean}
+ */
+export function kanBeOmMikrofon(feltext) {
+  if (typeof feltext !== "string" || !feltext) return false;
+  if (feltext === MIKROFON_SPARRAD_AV_SIDAN) return false;
+  return feltext.includes("Mikrofonen är inte tillåten");
 }
 
 /**
@@ -179,6 +200,8 @@ export function webblasarensInspelare(miljo = {}) {
   /** @type {Blob[]} */
   let bitar = [];
   let start = 0;
+  /** Det format `starta` valde. `stoppa` faller tillbaka på det om bitarna saknar typ. */
+  let valtFormat = "";
   /** @type {AnalyserNode | null} */
   let analys = null;
   /** @type {AudioContext | null} */
@@ -207,8 +230,8 @@ export function webblasarensInspelare(miljo = {}) {
         throw new Error("Inspelningen avbröts innan mikrofonen öppnades.");
       }
       strom = ny;
-      const format = valjFormat(MR.isTypeSupported?.bind(MR));
-      rec = new MR(strom, format ? { mimeType: format } : undefined);
+      valtFormat = valjFormat(MR.isTypeSupported?.bind(MR));
+      rec = new MR(strom, valtFormat ? { mimeType: valtFormat } : undefined);
       bitar = [];
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) bitar.push(e.data);
@@ -236,10 +259,14 @@ export function webblasarensInspelare(miljo = {}) {
         }
         const r = rec;
         r.onstop = () => {
-          const mimeType = r.mimeType || (bitar[0] && bitar[0].type) || "audio/webm";
+          // ⛔ Reserv är mp4: Safari sparar utan mimeType på bitarna. webm som
+          // reserv hade gett en fil Chromium inte kunde spela när den egentligen
+          // var AAC i en mp4-container.
+          const mimeType = r.mimeType || (bitar[0] && bitar[0].type) || valtFormat || "audio/mp4";
           const blob = new Blob(bitar, { type: mimeType });
           const sekunder = Math.round((nu() - start) / 100) / 10;
           rec = null;
+          valtFormat = "";
           slapp();
           klar({ blob, mimeType, sekunder });
         };
@@ -253,6 +280,7 @@ export function webblasarensInspelare(miljo = {}) {
       }
       rec = null;
       bitar = [];
+      valtFormat = "";
       slapp();
     },
     niva() {

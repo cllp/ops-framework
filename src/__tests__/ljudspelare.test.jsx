@@ -90,7 +90,7 @@ describe("OpsLjudspelare", () => {
     };
   });
 
-  it("visar våg, tid och spela, och en andra spelare tystar den första", async () => {
+  it("visar våg, skena, tid och spela, och en andra spelare tystar den första", async () => {
     render(
       <>
         <OpsLjudspelare src="https://exempel.se/a.webm" namn="Första" />
@@ -98,7 +98,9 @@ describe("OpsLjudspelare", () => {
       </>,
     );
     expect(document.querySelectorAll("[data-ljud-stolpe]").length).toBeGreaterThanOrEqual(STOLPAR);
-    expect(screen.getAllByText("0:00 / 0:00")).toHaveLength(2);
+    expect(document.querySelectorAll("[data-ljud-skena]").length).toBe(2);
+    expect(document.querySelectorAll("[data-ljud-tid]").length).toBe(2);
+    expect(document.querySelectorAll("[data-ljud-tid]")[0].textContent).toMatch(/0:00/);
     fireEvent.click(screen.getByRole("button", { name: "Spela Första" }));
     expect(await screen.findByRole("button", { name: "Pausa Första" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Spela Andra" }));
@@ -109,12 +111,13 @@ describe("OpsLjudspelare", () => {
   it("spolar med reglaget, byter hastighet och säger ifrån när uppspelningen nekas", async () => {
     const { unmount } = render(<OpsLjudspelare src="https://exempel.se/a.webm" namn="Idé" />);
     const el = /** @type {HTMLAudioElement} */ (document.querySelector("audio"));
+    expect(el.getAttribute("playsinline")).not.toBeNull();
     act(() => sattLangd(el, 100));
-    expect(await screen.findByText("0:00 / 1:40")).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector("[data-ljud-tid]")?.textContent).toMatch(/1:40/));
     const reglage = screen.getByRole("slider", { name: "Spola i Idé" });
     fireEvent.change(reglage, { target: { value: "500" } });
     expect(el.currentTime).toBe(50);
-    expect(screen.getByText("0:50 / 1:40")).toBeInTheDocument();
+    expect(document.querySelector("[data-ljud-framsteg]")).toHaveStyle({ width: "50%" });
     const spelade = document.querySelectorAll('[data-ljud-stolpe="spelad"]').length;
     const kvar = document.querySelectorAll('[data-ljud-stolpe="kvar"]').length;
     expect(spelade).toBeGreaterThan(0);
@@ -131,7 +134,7 @@ describe("OpsLjudspelare", () => {
     };
     render(<OpsLjudspelare src="https://exempel.se/a.webm" />);
     fireEvent.click(screen.getByRole("button", { name: "Spela" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Webbläsaren tillät inte uppspelningen.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Webbläsaren tillät inte uppspelningen/);
   });
 
   it("hämtar adressen innan spelaren ritas, och en färdig src anropar inte hamtaAdress", async () => {

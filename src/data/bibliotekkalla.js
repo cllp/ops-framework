@@ -195,7 +195,7 @@ export function createBibliotekskalla(config) {
      * kan kräva att den finns. Föll uppladdningen tas en ny post tillbaka. Går inte
      * det heller kastas båda felen, inget sväljs.
      *
-     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number }, blob?: unknown, id?: string }} inmatning
+     * @param {{ rubrik?: string, namn?: string, fil: { name?: string, namn?: string, type?: string, mime?: string, size?: number, byte?: number }, blob?: unknown, id?: string, rapportera?: (andel: number) => void }} inmatning
      */
     async laddaUppFil(inmatning) {
       if (typeof sokvag !== "function") {
@@ -236,7 +236,12 @@ export function createBibliotekskalla(config) {
       if (tidigare) await source.update(collection, nyckel, post);
       else await source.create(collection, { ...post, id: nyckel });
       try {
-        await lagring.laddaUpp({ sokvag: vag, fil: inmatning.blob ?? fil, contentType: mime });
+        await lagring.laddaUpp({
+          sokvag: vag,
+          fil: inmatning.blob ?? fil,
+          contentType: mime,
+          ...(typeof inmatning.rapportera === "function" ? { rapportera: inmatning.rapportera } : {}),
+        });
       } catch (e) {
         if (!tidigare) {
           try {
