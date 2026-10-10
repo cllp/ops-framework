@@ -14,7 +14,7 @@ export { OpsAppShell, useOppnaSkapa, useOppnaHandelse, useOppnaInspelning } from
 export { OpsBottomNav } from "./components/OpsBottomNav.jsx";
 // 0.57.0, cllp/lifehub.app#2: långtryck på plusset spelar in. Skalet kopplar in dem med `talk`, de är publika för den som bygger egen rad.
 export { OpsTalk, OpsInspelning, useTalk, TALK_PRICKAR } from "./components/OpsTalk.jsx";
-export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, MIKROFON_SPARRAD_AV_SIDAN, mikrofonenTillatenAvSidan, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
+export { LANGTRYCK_MS, TALK_ORD, MAX_SEKUNDER, LJUDFORMAT, MIKROFON_SPARRAD_AV_SIDAN, mikrofonenTillatenAvSidan, kanBeOmMikrofon, talkNasta, valjFormat, talkFeltext, webblasarensInspelare } from "./lib/talk.js";
 export { OpsHub, OpsHubModul, OpsHubTillbaka, OpsGruppHubb } from "./components/OpsHub.jsx";
 export { OpsModulSida } from "./components/OpsModulSida.jsx";
 export { OpsApparArk, ORD_OPSAPPARARK } from "./components/OpsApparArk.jsx";
@@ -291,7 +291,7 @@ export { OpsHubblista } from "./components/OpsHubbar.jsx";
 export { OpsGruppFormular } from "./components/OpsGruppFormular.jsx";
 export { sakerstallAnvandare, sparaInstallningar, andringen } from "./lib/profil.js";
 export { createCatalogSource } from "./data/katalogkalla.js";
-export { BIBLIOTEKTYPER, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra } from "./lib/bibliotek.js";
+export { BIBLIOTEKTYPER, BIBLIOTEKFLIKAR, BIBLIOTEKFALT, FILFALT, FILMIME, MAX_BIBLIOTEKRUBRIK, MAX_BIBLIOTEKTEXT, MAX_BIBLIOTEKURL, MAX_BIBLIOTEKFIL, MAX_BIBLIOTEKFILNAMN, MAX_BIBLIOTEKSOKVAG, MAX_BIBLIOTEKUTSKRIFT, IDE_MAX_SEKUNDER, ADRESSFORM, inmatningsfel, filInmatningsfel, filFel, filSort, arLjudpost, filMimeMonster, normaliseraMime, utskriftFel, ideRubrik, postFel, byggPost, filtreraBibliotek, normaliseraAdress, farAndra } from "./lib/bibliotek.js";
 export { createBibliotekskalla } from "./data/bibliotekkalla.js";
 export { OpsBibliotek } from "./components/OpsBibliotek.jsx";
 export { MINNESKALLOR, MINNESFALT, MINNESKALLAFALT, MAX_MINNESTEXT, MAX_MINNESID, farAndraMinne, minnesradFel, byggMinnesrad } from "./lib/minne.js";

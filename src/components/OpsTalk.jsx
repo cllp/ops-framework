@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, talkFeltext, talkNasta, webblasarensInspelare } from "../lib/talk.js";
+import { AVBRYT_FRAGA_SEKUNDER, LANGTRYCK_MS, MAX_SEKUNDER, SPARAT_MS, kanBeOmMikrofon, talkFeltext, talkNasta, webblasarensInspelare } from "../lib/talk.js";
 import { formateraTid } from "../lib/ljudspelare.js";
 import { rapporteraFel } from "../lib/felrapport.js";
 import { KryssIkon, KugghjulIkon, MikrofonIkon, StoppIkon } from "./icons.jsx";
@@ -325,7 +325,7 @@ const SEKUNDAR = "inline-flex size-11 shrink-0 cursor-pointer items-center justi
 const TEXTKNAPP = "inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-full px-4 text-meta font-medium text-danger hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 const KUGG = "inline-flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-full bg-sunken text-ink hover:bg-accent-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "onKlar", "onAvbryt", "onIgen", "onStart", "onInstallningar", "marke", "mal", "valt", "onValj"];
+const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", "kanIgen", "onKlar", "onAvbryt", "onIgen", "onStart", "onTillatMikrofon", "onInstallningar", "marke", "mal", "valt", "onValj"];
 
 /**
  * Den enda inspelaren. TALK-fältet och Biblioteket bäddar in den, och plusset använder samma.
@@ -352,6 +352,7 @@ const INSPELNING_PROPS = ["lage", "fel", "niva", "sekunder", "tak", "framsteg", 
  * @param {() => void} props.onAvbryt
  * @param {() => void} props.onIgen
  * @param {() => void} [props.onStart] Ritad när läget är vila. Biblioteket startar så. Plusset startar utifrån.
+ * @param {() => void} [props.onTillatMikrofon] (0.92.0) När mikrofonen nekats: knappen "Tillåt mikrofon" ber igen med en gest. Utan den används `onStart` om den finns.
  * @param {() => void} [props.onInstallningar]
  * @param {import("react").ReactNode} [props.marke]
  * @param {ReadonlyArray<{ id: string, etikett: string }>} [props.mal]
@@ -363,7 +364,7 @@ export function OpsInspelning(props) {
   if (okanda.length > 0) {
     throw new Error(`OpsInspelning: okända props ${okanda.join(", ")}. Tillåtna: ${INSPELNING_PROPS.join(", ")}.`);
   }
-  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, onKlar, onAvbryt, onIgen, onStart, onInstallningar, marke, mal = [], valt = null, onValj } = props;
+  const { lage, fel, niva, sekunder, tak, framsteg, kanIgen, onKlar, onAvbryt, onIgen, onStart, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj } = props;
   const [fragar, setFragar] = useState(false);
   const fortsatt = useRef(/** @type {HTMLButtonElement | null} */ (null));
   const lyssnar = lage === "haller" || lage === "lyssnar";
@@ -444,13 +445,20 @@ export function OpsInspelning(props) {
       {lage === "fel" ? (
         <div className="flex min-w-0 flex-col gap-2">
           <p role="alert" data-talk-fel="" className="m-0 text-meta text-danger">{fel || "Något gick fel."}</p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {kanIgen ? (
               <button type="button" onClick={onIgen} className={PRIMAR}>Försök igen</button>
-            ) : (
+            ) : null}
+            {!kanIgen && kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function" ? (
+              <button type="button" data-talk-mikrofon="" onClick={onTillatMikrofon || onStart} className={PRIMAR}>
+                <MikrofonIkon size={18} />
+                Tillåt mikrofon
+              </button>
+            ) : null}
+            {!kanIgen && !(kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function") ? (
               <button type="button" onClick={onAvbryt} className={PRIMAR}>Stäng</button>
-            )}
-            {kanIgen ? (
+            ) : null}
+            {kanIgen || (kanBeOmMikrofon(fel) && typeof (onTillatMikrofon || onStart) === "function") ? (
               <button type="button" aria-label="Avbryt" data-talk-avbryt="" onClick={onAvbryt} className={SEKUNDAR}>
                 <KryssIkon size={18} />
               </button>
@@ -502,6 +510,7 @@ export function OpsInspelning(props) {
  *   onSkicka: () => void,
  *   onAvbryt: () => void,
  *   onIgen?: () => void,
+ *   onTillatMikrofon?: () => void,
  *   onInstallningar?: () => void,
  *   marke?: import("react").ReactNode,
  *   mal?: ReadonlyArray<{ id: string, etikett: string }>,
@@ -509,7 +518,7 @@ export function OpsInspelning(props) {
  *   onValj?: (id: string) => void,
  * }} props
  */
-export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, onSkicka, onAvbryt, onIgen = () => {}, onInstallningar, marke, mal = [], valt = null, onValj }) {
+export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, framsteg = null, kanIgen = false, onSkicka, onAvbryt, onIgen = () => {}, onTillatMikrofon, onInstallningar, marke, mal = [], valt = null, onValj }) {
   if (lage === "vila" || lage === "trycker") return null;
   return (
     <div
@@ -531,6 +540,7 @@ export function OpsTalk({ lage, fel, niva, sekunder = 0, tak = MAX_SEKUNDER, fra
           onKlar={onSkicka}
           onAvbryt={onAvbryt}
           onIgen={onIgen}
+          onTillatMikrofon={onTillatMikrofon}
           onInstallningar={onInstallningar}
           marke={marke}
           mal={mal}

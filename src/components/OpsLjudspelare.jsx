@@ -45,6 +45,10 @@ import { OpsSpinner } from "./OpsSpinner.jsx";
  * importerar inte Firebase. `src` vinner när båda finns: Biblioteket cachar
  * adressen själv och ska inte hämta den en gång till här.
  *
+ * ⛔ SMAL YTA (lifehub.app#163). Under 430 px får hopp, hastighet och nedladdning
+ * inte dela rad med spela och vågen. Förloppet är en synlig skena under stolparna,
+ * inte bara en osynlig range ovanpå. Ikonerna får inte överlappa.
+ *
  * @param {object} props
  * @param {string} [props.src] Färdig adress. Vinner över `sokvag`.
  * @param {string} [props.sokvag] Sökväg i Storage, när adressen inte är känd än.
@@ -128,9 +132,10 @@ export function OpsLjudspelare(props) {
 
   if (hamtar) {
     return (
-      <p role="status" data-ljudspelare="hamtar" className="m-0 text-meta text-ink-secondary">
-        Hämtar ljudet.
-      </p>
+      <div data-ljudspelare="hamtar" className="flex min-h-11 w-full min-w-0 items-center gap-2 text-meta text-ink-secondary">
+        <OpsSpinner size="sm" decorative />
+        <p role="status" className="m-0">Hämtar ljudet.</p>
+      </div>
     );
   }
   if (!adress) {
@@ -160,7 +165,7 @@ function mediaFel(el) {
 function startFel(e) {
   const namn = e && typeof e === "object" && "name" in e ? String(/** @type {any} */ (e).name) : "";
   if (namn === "AbortError") return "";
-  if (namn === "NotAllowedError") return "Webbläsaren tillät inte uppspelningen.";
+  if (namn === "NotAllowedError") return "Webbläsaren tillät inte uppspelningen. Tryck på Spela igen.";
   return "Ljudet gick inte att spela.";
 }
 
@@ -203,7 +208,6 @@ function Spelare({ adress, namn, visaNamn }) {
     el.playbackRate = hastighet;
     if (Number.isFinite(el.duration)) setLangd(el.duration);
 
-    // Hastigheten läses när adressen byts. Knappen sätter den sedan själv, så den inte startar om ljudet.
     const vidTid = () => {
       if (!drar.current) setTid(el.currentTime || 0);
     };
@@ -314,6 +318,7 @@ function Spelare({ adress, namn, visaNamn }) {
   const knappNamn = etikett ? `${spelNamn} ${etikett}` : spelNamn;
   const kvot = andel(tid, langd);
   const visade = stolpar.length > 0 ? stolpar : plattaStolpar(STOLPAR);
+  const procent = Math.round(kvot * 100);
 
   const spelaEllerPausa = () => {
     const el = ljud.current;
@@ -364,11 +369,18 @@ function Spelare({ adress, namn, visaNamn }) {
 
   const spolNamn = etikett ? `Spola i ${etikett}` : "Spola i ljudet";
   const nedNamn = etikett ? `Ladda ned ${etikett}` : "Ladda ned ljudet";
+  const biKlass =
+    "inline-flex h-9 min-w-9 shrink-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1.5 text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <div data-ljudspelare="" className="flex w-full min-w-0 flex-col gap-1">
-      <audio ref={ljud} src={adress} preload="metadata" className="sr-only" />
+    <div data-ljudspelare="" className="flex w-full min-w-0 flex-col gap-1.5">
+      {/*
+       * ⛔ playsInline: iOS Safari startar annars i fullskärm eller nekar play.
+       * preload=metadata räcker för längd; hela filen hämtas vid play.
+       */}
+      <audio ref={ljud} src={adress} preload="metadata" playsInline className="sr-only" />
       {visaNamn && etikett ? <p className="m-0 truncate text-meta font-medium text-ink">{etikett}</p> : null}
+
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
@@ -380,8 +392,9 @@ function Spelare({ adress, namn, visaNamn }) {
         >
           {laddar ? <OpsSpinner size="sm" decorative /> : spelar ? <PausaIkon size={18} /> : <SpelaIkon size={18} />}
         </button>
-        <div className="relative h-11 min-w-0 flex-1 rounded-sm focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-1.5 flex h-8 items-end gap-px">
+
+        <div className="relative min-h-11 min-w-0 flex-1 rounded-sm focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1 flex h-7 items-end gap-px px-0.5">
             {visade.map((hojd, i) => {
               const spelad = (i + 0.5) / visade.length <= kvot;
               return (
@@ -393,6 +406,13 @@ function Spelare({ adress, namn, visaNamn }) {
                 />
               );
             })}
+          </div>
+          <div
+            aria-hidden="true"
+            data-ljud-skena=""
+            className="pointer-events-none absolute inset-x-0 bottom-1.5 h-1.5 overflow-hidden rounded-full bg-line"
+          >
+            <div data-ljud-framsteg="" className="h-full bg-accent transition-[width] duration-75" style={{ width: `${procent}%` }} />
           </div>
           <input
             type="range"
@@ -416,34 +436,31 @@ function Spelare({ adress, namn, visaNamn }) {
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           />
         </div>
+
+        <span data-ljud-tid="" className="shrink-0 text-meta text-ink-secondary tabular-nums">
+          {formateraTid(tid)}
+          <span className="text-ink-muted"> / {formateraTid(langd)}</span>
+        </span>
       </div>
-      <div className="flex flex-wrap items-center gap-1">
-        <button
-          type="button"
-          aria-label="10 sekunder bakåt"
-          disabled={!langd}
-          onClick={() => hoppaOm(-HOPP_SEKUNDER)}
-          className="inline-flex h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1 text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40"
-        >
+
+      <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+        <button type="button" aria-label="10 sekunder bakåt" disabled={!langd} onClick={() => hoppaOm(-HOPP_SEKUNDER)} className={biKlass}>
           <HoppaBakatIkon size={16} />
-          <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">-10</span>
+          <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">
+            -10
+          </span>
         </button>
-        <span className="shrink-0 px-1 text-meta text-ink-secondary tabular-nums">{formateraTid(tid)} / {formateraTid(langd)}</span>
-        <button
-          type="button"
-          aria-label="10 sekunder framåt"
-          disabled={!langd}
-          onClick={() => hoppaOm(HOPP_SEKUNDER)}
-          className="inline-flex h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-0.5 rounded-md px-1 text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40"
-        >
+        <button type="button" aria-label="10 sekunder framåt" disabled={!langd} onClick={() => hoppaOm(HOPP_SEKUNDER)} className={biKlass}>
           <HoppaFramatIkon size={16} />
-          <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">+10</span>
+          <span aria-hidden="true" className="text-liten font-medium text-ink-secondary">
+            +10
+          </span>
         </button>
         <button
           type="button"
           aria-label={`Uppspelningshastighet ${hastighetText(hastighet)}`}
           onClick={bytHastighet}
-          className="inline-flex h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md px-2 text-meta font-medium text-ink hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className={cx(biKlass, "min-w-11 px-2 text-meta font-medium")}
         >
           {hastighetText(hastighet)}
         </button>
@@ -451,11 +468,12 @@ function Spelare({ adress, namn, visaNamn }) {
           href={adress}
           download={etikett || "ljud"}
           aria-label={nedNamn}
-          className="inline-flex h-11 shrink-0 items-center rounded-md px-2 text-meta text-ink-secondary underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="inline-flex h-9 shrink-0 items-center rounded-md px-2 text-meta text-ink-secondary underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           Ladda ned
         </a>
       </div>
+
       {fel ? (
         <p role="alert" className="m-0 text-meta text-danger">
           {fel}

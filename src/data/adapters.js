@@ -271,7 +271,7 @@ export function createMemoryStorage(seed = {}) {
 
     // ⛔ `async` trots att inget väntar, samma skäl som createMemorySource:
     // kontraktet får inte avslöja att just den här källan är snabb.
-    async laddaUpp({ sokvag, fil }) {
+    async laddaUpp({ sokvag, fil, rapportera }) {
       const s = typeof sokvag === "string" ? sokvag.trim() : "";
       if (!s) throw new Error("createMemoryStorage.laddaUpp: sokvag krävs. Utan den vet ingen adapter var filen ska ligga eller hur den tas bort igen.");
       if (fil === undefined || fil === null) throw new Error("createMemoryStorage.laddaUpp: fil krävs.");
@@ -281,6 +281,7 @@ export function createMemoryStorage(seed = {}) {
       // sökväg vore ett prov som inte mäter vad taBort faktiskt tar bort.
       const url = `minne://${s}?v=${counter}`;
       store[s] = { url, fil };
+      if (typeof rapportera === "function") rapportera(1);
       return { url, sokvag: s };
     },
 

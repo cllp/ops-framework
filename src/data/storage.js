@@ -21,6 +21,9 @@
  *      dokumentet sparar sökvägen, och nedladdningsadressen är asynkron.
  *   4. Ramverket importerar ingen lagrings-SDK. Adaptern skickas in, precis
  *      som för `kalla`.
+ *   5. `rapportera` (0.92.0) tar 0 till 1 medan byten går upp. Samma kvot som
+ *      `bytesTransferred / totalBytes` i `uploadBytesResumable`. Utan den är
+ *      uppladdningen tyst, och inspelaren visar en snurra i stället för procent.
  *
  * ⛔ RAMVERKET KÄNNER INTE BUCKETEN ELLER PREFIXET. `sokvag` byggs av appen
  * (eller av den komponent som anropar `laddaUpp`) utifrån vad DEN vet: vems
@@ -39,7 +42,7 @@ export const STORAGE_OPERATIONS = ["laddaUpp", "taBort", "adress"];
 
 /**
  * @typedef {object} StorageSource
- * @property {(input: { sokvag: string, fil: unknown, contentType?: string }) => Promise<UppladdadFil>} laddaUpp
+ * @property {(input: { sokvag: string, fil: unknown, contentType?: string, rapportera?: (andel: number) => void }) => Promise<UppladdadFil>} laddaUpp
  * @property {(sokvag: string) => Promise<void>} taBort
  * @property {(sokvag: string) => Promise<string>} adress Nedladdningsadressen för en sökväg som redan ligger i lagringen. Kastar när sökvägen saknas eller är tom.
  */

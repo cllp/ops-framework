@@ -6,7 +6,7 @@ import { OpsDokument } from "./OpsDokument.jsx";
 import { OpsMarkdown } from "./OpsMarkdown.jsx";
 import { OpsModal } from "./OpsModal.jsx";
 import { OpsSvepRad } from "./OpsSvepRad.jsx";
-import { ADRESSFORM, BIBLIOTEKTYPER, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKTYPER, arLjudpost, farAndra, filInmatningsfel, filSort, filtreraBibliotek, inmatningsfel, normaliseraAdress, trimSomRegeln } from "../lib/bibliotek.js";
 import { useInspelningOppnare } from "./OpsAppShell.jsx";
 import { cx } from "../lib/cx.js";
 import { arInstallningslage } from "../lib/apparark.js";
@@ -129,7 +129,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
   }
   const sprak = useOpsSprak();
   const oppnaInspelning = useInspelningOppnare();
-  const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "fil"} */ ("alla"));
+  const [flik, setFlik] = useState(/** @type {"alla" | "anteckning" | "lank" | "ljud" | "fil"} */ ("alla"));
   const [rostFel, setRostFel] = useState("");
   const [ljus, setLjus] = useState("");
   const [sok, setSok] = useState("");
@@ -284,7 +284,8 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
     alla: poster.length,
     anteckning: poster.filter((p) => p.typ === "anteckning").length,
     lank: poster.filter((p) => p.typ === "lank").length,
-    fil: poster.filter((p) => p.typ === "fil").length,
+    ljud: poster.filter((p) => arLjudpost(p)).length,
+    fil: poster.filter((p) => p.typ === "fil" && !arLjudpost(p)).length,
   };
   const synliga = filtreraBibliotek(poster, { flik, sok });
   const installningar = Boolean(ram && modul && arInstallningslage(/** @type {string} */ (activeHref)));
@@ -319,6 +320,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
               { id: "alla", label: "Alla", icon: <Library size={16} />, badge: antal.alla },
               { id: "anteckning", label: "Anteckningar", icon: <StickyNote size={16} />, badge: antal.anteckning },
               { id: "lank", label: "Länkar", icon: <Link size={16} />, badge: antal.lank },
+              { id: "ljud", label: "Ljud", icon: <Music size={16} />, badge: antal.ljud },
               { id: "fil", label: "Filer", icon: <FileText size={16} />, badge: antal.fil },
             ]}
           >
@@ -368,13 +370,13 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
                 ) : synliga.length === 0 ? (
                   <OpsEmpty
                     icon={sok ? null : <Library size={28} />}
-                    title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : flik === "lank" ? "Inga länkar ännu." : "Inga filer ännu."}
-                    description={sok ? `Inget matchar "${sok}".` : "Lägg till en anteckning, en länk eller en fil."}
+                    title={sok ? "Inga träffar." : poster.length === 0 ? "Biblioteket är tomt." : flik === "anteckning" ? "Inga anteckningar ännu." : flik === "lank" ? "Inga länkar ännu." : flik === "ljud" ? "Inga ljud ännu." : "Inga filer ännu."}
+                    description={sok ? `Inget matchar "${sok}".` : "Lägg till en anteckning, en länk, ett ljud eller en fil."}
                   />
                 ) : (
                   <OpsList ariaLabel="Biblioteket" divided>
                     {synliga.map((post) => {
-                      const ljud = post.typ === "fil" && filSort(post.fil?.mime) === "ljud";
+                      const ljud = arLjudpost(post);
                       const bild = post.typ === "fil" && filSort(post.fil?.mime) === "bild";
                       const lage = adressFor(post);
                       return (
@@ -460,7 +462,7 @@ export function OpsBibliotek({ poster, fel = null, trasiga = [], laddar = false,
 }
 
 const TYPNAMN = /** @type {const} */ ({ anteckning: "Anteckning", lank: "Länk", fil: "Fil" });
-const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil" });
+const NYTT_NAMN = /** @type {const} */ ({ anteckning: "Ny anteckning", lank: "Ny länk", fil: "Ny fil", ljud: "Ny röstinspelning" });
 
 /**
  * @param {number | undefined} byte
@@ -591,7 +593,7 @@ function PostIkon({ post }) {
  * @param {{ typ: string, text?: string, url?: string, fil?: { namn?: string, mime?: string, byte?: number } }} post
  */
 function postRad(post) {
-  const typ = post.typ === "anteckning" || post.typ === "lank" || post.typ === "fil" ? TYPNAMN[post.typ] : "";
+  const typ = arLjudpost(post) ? "Ljud" : post.typ === "anteckning" || post.typ === "lank" || post.typ === "fil" ? TYPNAMN[post.typ] : "";
   let rest = "";
   if (post.typ === "anteckning") rest = (post.text ?? "").replace(/\s+/g, " ").trim();
   else if (post.typ === "lank") rest = post.url ?? "";
@@ -628,7 +630,7 @@ function PostMark({ post, bildAdress = "" }) {
  *
  * Röstinspelning ligger i menyn under Alla (0.90.8). Den öppnar skalets inspelare, inte en rad i listan.
  *
- * @param {{ flik: "alla" | "anteckning" | "lank" | "fil", onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void }} props
+ * @param {{ flik: "alla" | "anteckning" | "lank" | "ljud" | "fil", onSkapa: (typ: "anteckning" | "lank" | "fil") => void, onRost: () => void }} props
  */
 function NyKnapp({ flik, onSkapa, onRost }) {
   const [oppen, setOppen] = useState(false);
@@ -638,6 +640,13 @@ function NyKnapp({ flik, onSkapa, onRost }) {
       <span>Ny</span>
     </>
   );
+  if (flik === "ljud") {
+    return (
+      <button type="button" aria-label={NYTT_NAMN.ljud} onClick={onRost} className={cx(knappKlass(), "shrink-0 cursor-pointer")}>
+        {innehall}
+      </button>
+    );
+  }
   if (flik !== "alla") {
     return (
       <button type="button" aria-label={NYTT_NAMN[flik]} onClick={() => onSkapa(flik)} className={cx(knappKlass(), "shrink-0 cursor-pointer")}>

@@ -237,4 +237,18 @@ function main() {
   console.log(`check-utvecklarord: ${filer.length} källfiler, ${texter} användartexter lästa (${fordelning}), inga utvecklarord.`);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) main();
+/*
+ * ⛔ MAIN VIA REALPATH (0.92.0). test-guards kopierar vakten till os.tmpdir().
+ * På macOS är det /var/folders → /private/var/folders. Då skiljer sig
+ * import.meta.url och process.argv[1] utan realpath, main() körs aldrig,
+ * exit blir 0, och golvet per mönster ser grönt ut trots att det inte mättes.
+ */
+function arHuvudmodul() {
+  if (!process.argv[1]) return false;
+  try {
+    return fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(path.resolve(process.argv[1]));
+  } catch {
+    return fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  }
+}
+if (arHuvudmodul()) main();

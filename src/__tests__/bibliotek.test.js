@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKTYPER, MAX_BIBLIOTEKUTSKRIFT, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
+import { ADRESSFORM, BIBLIOTEKFALT, BIBLIOTEKFLIKAR, BIBLIOTEKTYPER, MAX_BIBLIOTEKUTSKRIFT, arLjudpost, byggPost, farAndra, filtreraBibliotek, ideRubrik, inmatningsfel, normaliseraAdress, postFel, trimSomRegeln } from "../lib/bibliotek.js";
 import { SKAPARFALT, byggSkapare } from "../lib/skapare.js";
 
 /**
@@ -83,6 +83,32 @@ describe("bibliotekets post", () => {
     expect(filtreraBibliotek(poster, { flik: "lank" }).map((p) => p.id)).toEqual(["b"]);
     expect(filtreraBibliotek(poster, { sok: "beslutade" }).map((p) => p.id)).toEqual(["a"]);
     expect(filtreraBibliotek(poster, { sok: "finns inte" })).toEqual([]);
+  });
+
+  it("⛔ Ljud-fliken är härledd ur MIME, och Filer räknar inte ljud (lifehub.app#163)", () => {
+    expect(BIBLIOTEKFLIKAR).toEqual(["alla", "anteckning", "lank", "ljud", "fil"]);
+    const bas = { ...anteckning, typ: "fil", text: undefined };
+    const ljud = {
+      ...byggPost({
+        ...bas,
+        rubrik: "Idé",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p1/ide.webm", namn: "ide.webm", mime: "audio/webm", byte: 100 },
+      }),
+      id: "l",
+    };
+    const bild = {
+      ...byggPost({
+        ...bas,
+        rubrik: "Kvitto",
+        fil: { sokvag: "grupper/cps-ab/bibliotek/p1/k.jpg", namn: "k.jpg", mime: "image/jpeg", byte: 100 },
+        andrad: tid + 1,
+      }),
+      id: "i",
+    };
+    expect(arLjudpost(ljud)).toBe(true);
+    expect(arLjudpost(bild)).toBe(false);
+    expect(filtreraBibliotek([ljud, bild], { flik: "ljud" }).map((p) => p.id)).toEqual(["l"]);
+    expect(filtreraBibliotek([ljud, bild], { flik: "fil" }).map((p) => p.id)).toEqual(["i"]);
   });
 
   it("mellanslag är tomt, och adressen prövas mot ADRESSFORM som regeln", () => {
