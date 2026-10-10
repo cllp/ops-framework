@@ -34,6 +34,10 @@ CP: progress syns inte, ikoner ligger på varandra under 430 px, uppspelning är
 
 Se PR-beskrivningen. Kort: TALK går till Inkorgen som förslag (ljudet sparas inte som fil). Meddelanden kan bära ljudbilagor och röst till text. Utan Bibliotek-modulen saknas målet "Bibliotek" i inspelaren.
 
+### Vakter
+
+- **`realpath` i `check-utvecklarord` och `check-sprak`.** På macOS är `os.tmpdir` `/var` → `/private/var`. Utan `realpath` kördes inte `main()` i test-guards temp-kopior, och mönstergolven såg gröna ut utan mätning.
+
 ### Regler och funktioner
 
 Inga Firestore-regler och inga funktioner ändras.

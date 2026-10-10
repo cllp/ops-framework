@@ -60,4 +60,13 @@ function main() {
   if (marginal > 0) process.exit(1);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) main();
+/** Samma realpath-skäl som check-utvecklarord.mjs: temp-kopior på macOS. */
+function arHuvudmodul() {
+  if (!process.argv[1]) return false;
+  try {
+    return fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(path.resolve(process.argv[1]));
+  } catch {
+    return fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  }
+}
+if (arHuvudmodul()) main();
