@@ -1596,7 +1596,23 @@ export function bibliotekregelfragment(namn) {
     throw new Error(`bibliotekregelfragment: typerna är ${BIBLIOTEKTYPER.join(", ")}. Fragmentet har grenar för anteckning, lank och fil, och en ny typ behöver sin egen.`);
   }
 
-  const toppVillkor = Array.from({ length: LJUD_STOLPAR }, (_, i) => `p[${i}] is number && p[${i}] >= 0 && p[${i}] <= 1`).join("\n        && ");
+  // Firestore vägrar en enda för lång &&-kedja ("Expression is too complex").
+  // Dela därför stolparna i bitar om åtta; varje hjälpfunktion håller sig under taket.
+  const toppChunk = 8;
+  const toppDelar = [];
+  for (let start = 0; start < LJUD_STOLPAR; start += toppChunk) {
+    const slut = Math.min(start + toppChunk, LJUD_STOLPAR);
+    const villkor = Array.from({ length: slut - start }, (_, j) => {
+      const i = start + j;
+      return `p[${i}] is number && p[${i}] >= 0 && p[${i}] <= 1`;
+    }).join("\n        && ");
+    const n = start / toppChunk;
+    toppDelar.push({ n, villkor });
+  }
+  const toppHjalp = toppDelar.map(({ n, villkor }) => `    function opsBibliotekToppar${n}(p) {
+      return ${villkor};
+    }`).join("\n\n");
+  const toppAnrop = toppDelar.map(({ n }) => `opsBibliotekToppar${n}(p)`).join("\n        && ");
   return `    // ══ Ramverkets bibliotek. GENERERAD, ändra inte för hand ══
     //
     // Källa: ops-framework, bibliotekregelfragment() i src/lib/regler.js. Kräver regelfragment() ovanför.
@@ -1604,9 +1620,11 @@ export function bibliotekregelfragment(namn) {
     // En tid i millisekunder nära serverns klocka (samma uttryck som samtalens opsNu).
 ${nuRegelfunktion("opsBiblioteketNu")}
 
+${toppHjalp}
+
     function opsBibliotekToppar(p) {
       return p is list && p.size() == ${LJUD_STOLPAR}
-        && ${toppVillkor};
+        && ${toppAnrop};
     }
 
     function opsBibliotekspostGiltig(d) {

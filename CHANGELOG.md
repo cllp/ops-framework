@@ -32,7 +32,7 @@ CP 2026-10-10, iPhone, Bibliotek i 0.92.3: den runda spelknappen låg på musiki
 
 ### Regler
 
-`durationMs` och `peaks` får bara stå på ett ljud, och bara när de är giltiga. Anteckning och länk får dem inte. Inga funktioner ändras.
+`durationMs` och `peaks` får bara stå på ett ljud, och bara när de är giltiga. Anteckning och länk får dem inte. Topparna valideras i bitar om åtta (`opsBibliotekToppar0`…), så Firestore inte vägrar en enda lång &&-kedja. Inga funktioner ändras.
 
 ## 0.92.3
 
